@@ -1,6 +1,7 @@
 // Settings, storage and feature flags. The download-folder setter is the one that carries a rule:
 // the global root is the effective root of every space that never overrode it.
 
+import { createVerbosePolicy } from '../../shared/core/verbose-policy.js'
 import {
   setVerbose,
   setDownloadFolder,
@@ -12,6 +13,9 @@ import { getStorageInfo } from '../../shared/storage/storage.js'
 import { validateDownloadFolderAgainstMounts } from '../../shared/folders/mount-validate.js'
 
 export function registerSettings(ipc, { mounts, publishDownloadRoots }) {
+  const verbose = createVerbosePolicy({ apply: setVerbose })
+  ipc.onClientDisconnect((client) => verbose.release(client.id))
+
   // Re-probing, rather than returning the cached set, is what makes a second call worth making:
   // every unavailable root is re-checked so the banner can appear at once rather than next tick.
   ipc.handle('downloads:roots-status', async () => {
@@ -41,8 +45,6 @@ export function registerSettings(ipc, { mounts, publishDownloadRoots }) {
 
   // Live verbose-logging toggle, driven from the renderer dev console (window.mirall.verbose).
   // The logger reads the config on every call, so flipping it here takes effect with no relaunch.
-  ipc.handle('setVerbose', async (msg) => {
-    setVerbose(!!msg.verbose)
-    return { verbose: !!msg.verbose }
-  })
+  // The reply is the EFFECTIVE state, not the requested one: another client may still want it on.
+  ipc.handle('setVerbose', async (msg, ctx) => ({ verbose: verbose.set(ctx.client.id, !!msg.verbose) }))
 }

@@ -73,15 +73,22 @@ export default function NetworkDiagnosticsScreen({ onBack }: Props) {
 
   // Detailed logging has to be on while the user reproduces the problem, otherwise the
   // lines we need are the ones that were never recorded.
+  //
+  // The toggle shows what the worker IS doing, not what this screen asked for: verbose is shared —
+  // one client releasing it does not switch it off while another still wants it — so the reply is
+  // the answer and the optimistic value is only the starting point.
   async function handleIncludeLogs(next: boolean) {
     setIncludeLogs(next)
     try {
       await window.bridge.setVerbose(next)
     } catch {}
+    let effective = next
     try {
-      await request('setVerbose', { verbose: next })
+      const reply = await request('setVerbose', { verbose: next }) as { verbose?: boolean } | null
+      if (typeof reply?.verbose === 'boolean') effective = reply.verbose
     } catch {}
-    setStatus(next ? t('diagnostics.verboseOn') : null)
+    setIncludeLogs(effective)
+    setStatus(effective ? t('diagnostics.verboseOn') : null)
   }
 
   return (

@@ -4,7 +4,7 @@ import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-s
 import {
   ServeLedger, _sweepServeLedgerNow,
   onServeStart, onServePaused, onServeControl,
-  subscribeServeDetail, _getServeDetailForTests, unsubscribeServeDetail, listServeSummaries,
+  subscribeServeDetail, _getServeDetailForTests, unsubscribeServeDetail, dropServeDetailClient, listServeSummaries,
   hasRecentServe,
 } from '../../src/shared/transfer/serve-ledger.js'
 
@@ -16,6 +16,9 @@ const PATH = '/big.bin'
 // The serve ledger rides the unified awareness channel, discriminated by `channel`.
 const summaries = (fake) => fake.emitted('event:awareness').filter((e) => e.payload.channel === 'serving')
 const details = (fake) => fake.emitted('event:awareness').filter((e) => e.payload.channel === 'serving-detail')
+// Detail is addressed; the summary channel is not. A frame with no `to` is the anonymous caller
+// that every test above uses, which broadcasts exactly as it always did.
+const detailsFor = (fake, clientId) => details(fake).filter((e) => e.to === clientId)
 
 // The sender-side "who is downloading" ledger is in-memory and event-fed; these tests
 // drive it directly (no store, no network).
@@ -228,4 +231,66 @@ test('hasRecentServe answers only for a serve that is both live and unpaused', a
 
   onServePaused({ from: PEER, contentHash: HASH })
   t.absent(hasRecentServe({ quietMs: 8000 }), 'a paused serve is parked, however recent')
+})
+
+test('two CLIENTS on one row: one unsubscribing does not starve the other', async (t) => {
+  const fake = await setup(t)
+  subscribeServeDetail(SID, PATH, 1)
+  subscribeServeDetail(SID, PATH, 2)
+  unsubscribeServeDetail(SID, PATH, 2)
+  t.teardown(() => unsubscribeServeDetail(SID, PATH, 1))
+
+  onServeStart({ from: PEER, contentHash: HASH, total: 1000 })
+  t.is(detailsFor(fake, 1).length, 1, 'client 1 still streams')
+  t.is(detailsFor(fake, 2).length, 0, 'client 2 got nothing after unsubscribing')
+})
+
+// REGRESSION (FIX-403-3: unsubscribe was unattributed — it decremented a bare count, so ANY caller
+// could drive ANY key to zero. With two clients, one closing its dropdown silently killed the
+// other's still-open stream.)
+test('REGRESSION (FIX-403-3): a client cannot unsubscribe a key it never held', async (t) => {
+  const fake = await setup(t)
+  subscribeServeDetail(SID, PATH, 1)
+  t.teardown(() => unsubscribeServeDetail(SID, PATH, 1))
+
+  unsubscribeServeDetail(SID, PATH, 2)
+  onServeStart({ from: PEER, contentHash: HASH, total: 1000 })
+  t.is(detailsFor(fake, 1).length, 1, 'the holder is untouched by a stranger’s unsubscribe')
+})
+
+test('within one client the refcount still holds', async (t) => {
+  const fake = await setup(t)
+  subscribeServeDetail(SID, PATH, 7)
+  subscribeServeDetail(SID, PATH, 7)
+
+  unsubscribeServeDetail(SID, PATH, 7)
+  onServeStart({ from: PEER, contentHash: HASH, total: 1000 })
+  t.is(detailsFor(fake, 7).length, 1, 'two open surfaces, one closed — the other keeps its stream')
+
+  unsubscribeServeDetail(SID, PATH, 7)
+  onServeStart({ from: 'q'.repeat(64), contentHash: HASH, total: 1000 })
+  t.is(detailsFor(fake, 7).length, 1, 'and the last one closing stops it')
+})
+
+test('a departing client’s whole column goes, whatever its counts', async (t) => {
+  const fake = await setup(t)
+  subscribeServeDetail(SID, PATH, 3)
+  subscribeServeDetail(SID, PATH, 3)
+  subscribeServeDetail(SID, PATH, 4)
+
+  dropServeDetailClient(3)
+  onServeStart({ from: PEER, contentHash: HASH, total: 1000 })
+  t.is(detailsFor(fake, 3).length, 0, 'gone in one pass, both of its holds')
+  t.is(detailsFor(fake, 4).length, 1, 'the other client keeps streaming')
+  t.teardown(() => unsubscribeServeDetail(SID, PATH, 4))
+})
+
+test('summaries stay broadcast while detail is addressed', async (t) => {
+  const fake = await setup(t)
+  subscribeServeDetail(SID, PATH, 5)
+  t.teardown(() => unsubscribeServeDetail(SID, PATH, 5))
+
+  onServeStart({ from: PEER, contentHash: HASH, total: 1000 })
+  t.ok(summaries(fake).every((e) => e.to === null), 'the collapsed avatar stack is everyone’s')
+  t.ok(details(fake).every((e) => e.to === 5), 'the expanded row is the asker’s')
 })

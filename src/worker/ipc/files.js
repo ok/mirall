@@ -16,7 +16,7 @@ import {
 import { looseCancelPublish, handleLooseFsEvent } from '../../shared/transfer/backends/overlay/loose-publish.js'
 import { folderPause, folderCancel } from '../../shared/transfer/backends/overlay/folder-downloads.js'
 import { isLooseTransferId } from '../../shared/transfer/transfer-id.js'
-import { subscribeServeDetail, unsubscribeServeDetail, listServeSummaries } from '../../shared/transfer/serve-ledger.js'
+import { subscribeServeDetail, unsubscribeServeDetail, dropServeDetailClient, listServeSummaries } from '../../shared/transfer/serve-ledger.js'
 import { rescueStalledTransfers } from '../../shared/network/convergence-tick.js'
 import { record } from '../../shared/audit/audit-log.js'
 import { selfActor, targetRef } from '../../shared/audit/audit-record.js'
@@ -37,8 +37,11 @@ export function registerFiles(ipc, { log }) {
   // returns the current snapshot so the dropdown renders immediately; the ledger sweep
   // pushes the authoritative snapshot while subscribed (no renderer poll).
   ipc.handle('serving:summary-list', async (msg) => listServeSummaries(msg.spaceId))
-  ipc.handle('serving:detail-subscribe', async (msg) => subscribeServeDetail(msg.spaceId, msg.path))
-  ipc.handle('serving:detail-unsubscribe', async (msg) => unsubscribeServeDetail(msg.spaceId, msg.path))
+  ipc.handle('serving:detail-subscribe', async (msg, ctx) => subscribeServeDetail(msg.spaceId, msg.path, ctx.client.id))
+  ipc.handle('serving:detail-unsubscribe', async (msg, ctx) => unsubscribeServeDetail(msg.spaceId, msg.path, ctx.client.id))
+  // Registered here rather than in the ledger's own open(): the ledger takes a bare { emit } in two
+  // integration files, and the handler layer is where the real router always is.
+  ipc.onClientDisconnect((client) => dropServeDetailClient(client.id))
 
   ipc.handle('files:list', async (msg) => {
     if (isSpaceLeaving(msg.spaceId)) return [] // teardown is closing the drive — don't race it
