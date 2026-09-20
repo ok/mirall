@@ -26,13 +26,13 @@ test('REGRESSION (FIX-4): an un-cached current member’s peer drive is never re
   const peer = new Hyperdrive(getStore().namespace('peer-sim'))
   await peer.ready()
   await peer.put('/photo.bin', Buffer.from('replicated peer content that must survive'))
-  const peerKey = b4a.toString(peer.core.key, 'hex')
+  const peerDriveKey = b4a.toString(peer.core.key, 'hex')
   const metaDk = b4a.toString(peer.core.discoveryKey, 'hex')
   const blobs = await peer.getBlobs()
   const blobsDk = b4a.toString(blobs.core.discoveryKey, 'hex')
   await peer.close() // a replicated peer drive is not necessarily warmed in memory
 
-  await mutateMembers(space.spaceId, () => [{ publicKey: 'peerPubKey', driveKey: peerKey, displayName: 'Peer' }])
+  await mutateMembers(space.spaceId, () => [{ publicKey: 'peerPubKey', driveKey: peerDriveKey, displayName: 'Peer' }])
 
   t.ok(await coreInStore(metaDk), 'precondition: peer meta present')
   t.ok(await coreInStore(blobsDk), 'precondition: peer blobs present')

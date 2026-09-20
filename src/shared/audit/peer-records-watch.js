@@ -59,8 +59,8 @@ export class PeerWatch extends Subsystem {
 // record() reports the row was admitted: record() no-ops when the log is disabled or the
 // kind is rate-limited, and mirroring "recorded" for a row that never existed would
 // permanently suppress that subject's next standing-state row.
-async function transitioned(kind, peerKey, spaceId, id, removed) {
-  const key = subjectKey(kind, peerKey, spaceId, id)
+async function transitioned(kind, personKey, spaceId, id, removed) {
+  const key = subjectKey(kind, personKey, spaceId, id)
   const next = stateOf(removed)
   const previous = await getPeerSubjectState(key)
   if (!isTransition(previous, next)) return null
@@ -75,19 +75,19 @@ async function ownsShare(spaceId, shareId) {
   }
 }
 
-function peerName(space, peerKey) {
-  return (space?.members || []).find((m) => m.publicKey === peerKey)?.displayName || null
+function peerName(space, personKey) {
+  return (space?.members || []).find((m) => m.publicKey === personKey)?.displayName || null
 }
 
-async function applyProfileChange(peerKey, change) {
+async function applyProfileChange(personKey, change) {
   const space = await getSpace(change.spaceId)
   // Not a space we are in — their records for it are none of our business.
   if (!space || space.leaving) return
-  const actor = peerActor(peerKey, peerName(space, peerKey))
+  const actor = peerActor(personKey, peerName(space, personKey))
   const ref = spaceRef(space.spaceId, space.name)
 
   if (change.kind === 'share') {
-    const commit = await transitioned('share', peerKey, change.spaceId, change.shareId, change.removed)
+    const commit = await transitioned('share', personKey, change.spaceId, change.shareId, change.removed)
     if (!commit) return
     const written = record(change.removed ? 'peer.share_deleted' : 'peer.share_created', {
       actor,
@@ -100,7 +100,7 @@ async function applyProfileChange(peerKey, change) {
 
   // A mirror of someone else's share tells us nothing about our own data.
   if (!(await ownsShare(change.spaceId, change.shareId))) return
-  const commit = await transitioned('mirror', peerKey, change.spaceId, change.shareId, change.removed)
+  const commit = await transitioned('mirror', personKey, change.spaceId, change.shareId, change.removed)
   if (!commit) return
   const own = (await readOwnShares(change.spaceId)).find((s) => s.id === change.shareId)
   const written = record(change.removed ? 'mirror.peer_unmirrored' : 'mirror.peer_mirrored', {
@@ -111,15 +111,15 @@ async function applyProfileChange(peerKey, change) {
   if (written) await commit()
 }
 
-async function applyCatalogChange(peerKey, spaceId, change) {
+async function applyCatalogChange(personKey, spaceId, change) {
   const space = await getSpace(spaceId)
   if (!space || space.leaving) return
   // Keyed on the path, not the content hash, so a peer re-publishing an edited file does not
   // record a second "shared" row — matching how our own side records files:add once.
-  const commit = await transitioned('file', peerKey, spaceId, change.relPath, change.removed)
+  const commit = await transitioned('file', personKey, spaceId, change.relPath, change.removed)
   if (!commit) return
   const written = record(change.removed ? 'peer.file_unshared' : 'peer.file_shared', {
-    actor: peerActor(peerKey, peerName(space, peerKey)),
+    actor: peerActor(personKey, peerName(space, personKey)),
     space: spaceRef(space.spaceId, space.name),
     target: targetRef(TARGET_KIND.FILE, change.relPath, change.relPath),
   })
@@ -175,18 +175,18 @@ function serialize(beeId, fn) {
   return next
 }
 
-export function observePeerProfile(peerKey, bee, opts) {
-  const beeId = 'profile:' + peerKey
+export function observePeerProfile(personKey, bee, opts) {
+  const beeId = 'profile:' + personKey
   return serialize(beeId, () => sweep(beeId, bee, async (node) => {
     const change = classifyProfileChange(node)
-    if (change) await applyProfileChange(peerKey, change)
+    if (change) await applyProfileChange(personKey, change)
   }, opts))
 }
 
-export function observePeerCatalog(peerKey, spaceId, catalogKey, bee, looseShareId, opts) {
+export function observePeerCatalog(personKey, spaceId, catalogKey, bee, looseShareId, opts) {
   const beeId = 'catalog:' + catalogKey
   return serialize(beeId, () => sweep(beeId, bee, async (node) => {
     const change = classifyCatalogChange(node, looseShareId)
-    if (change) await applyCatalogChange(peerKey, spaceId, change)
+    if (change) await applyCatalogChange(personKey, spaceId, change)
   }, opts))
 }

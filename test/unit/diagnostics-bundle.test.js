@@ -29,7 +29,7 @@ function makeCtx(over = {}) {
       canary: { state: 'unreachable', at: 20 },
       liveness: { failures: 0, checkedAt: 18, interfaceKind: 'tunnel-only' },
       relay: {
-        connections: [{ peerKey: PEER_KEY, plane: 'content', displayName: PEER_NAME, via: 'adopted', relayKey: RELAY_KEY, since: 30 }],
+        connections: [{ noiseKey: PEER_KEY, plane: 'content', displayName: PEER_NAME, via: 'adopted', relayKey: RELAY_KEY, since: 30 }],
         direct: { control: 1, content: 0 },
         seen: 4,
         digest: `${PEER_KEY}:${RELAY_KEY}:adopted:${PEER_NAME}`,
@@ -102,7 +102,7 @@ test('unredacted bundle carries the real values', (t) => {
   t.is(bundle.network.publicKey, PUBLIC_KEY)
   t.is(bundle.network.nodeId, NODE_ID)
   t.alike(bundle.network.bootstrap, BOOTSTRAP)
-  t.is(bundle.peers.samples[0].peer, PEER_KEY)
+  t.is(bundle.peers.samples[0].noiseKey, PEER_KEY)
   t.is(bundle.redacted, false)
 })
 
@@ -246,7 +246,7 @@ test('PRIVACY: subsystem health rows carry no space or share identifiers', (t) =
 test('the relay section redacts peer and relay keys and drops names', (t) => {
   const bundle = buildDiagnostics(makeCtx(), true)
   const serialised = JSON.stringify(bundle)
-  t.is(bundle.schema, 2)
+  t.is(bundle.schema, 3)
   t.is(bundle.relay.mode, 'auto')
   t.is(bundle.relay.own.kind, 'open')
   t.is(bundle.relay.own.label, null)
@@ -266,7 +266,7 @@ test('the relay section carries full keys and names when unredacted', (t) => {
   const bundle = buildDiagnostics(makeCtx(), false)
   t.is(bundle.relay.own.key, OWN_RELAY_KEY)
   t.is(bundle.relay.own.label, OWN_RELAY_LABEL)
-  t.is(bundle.relay.connections[0].peer, PEER_KEY)
+  t.is(bundle.relay.connections[0].noiseKey, PEER_KEY)
   t.is(bundle.relay.connections[0].relay, RELAY_KEY)
   t.is(bundle.relay.connections[0].displayName, PEER_NAME)
 })

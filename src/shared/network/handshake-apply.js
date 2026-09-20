@@ -59,8 +59,8 @@ export const membersPoke = makeKeyedCoalescer(
 // On silent-death lease expiry, re-emit so the roster + file availability re-derive (a peer that
 // goes quiet without a clean disconnect would otherwise stay "online" until an unrelated refresh).
 // files-updated is already coalesced downstream into event:reconcile by the hint bus.
-setPresenceExpireHandler((peerKey, spaceId) => {
-  auditPeerLost(peerKey, spaceId)
+setPresenceExpireHandler((personKey, spaceId) => {
+  auditPeerLost(personKey, spaceId)
   membersPoke.poke(spaceId)
   getIpc()?.emit('event:files-updated', { spaceId })
 })
@@ -69,26 +69,26 @@ setPresenceExpireHandler((peerKey, spaceId) => {
 // space name first would let a reconnect or a leave overtake the loss and open an episode for a peer
 // that is already back. The name is snapshotted rather than joined at render time (a row outlives
 // the space record), so it lands as a patch once the store read returns — well inside the floor.
-function auditPeerLost(peerKey, spaceId, displayName = null) {
-  const memberName = displayName || connectedPeers.get(peerKey)?.displayName || null
-  peerLost(peerKey, spaceId, { memberName, spaceName: null })
+function auditPeerLost(personKey, spaceId, displayName = null) {
+  const memberName = displayName || connectedPeers.get(personKey)?.displayName || null
+  peerLost(personKey, spaceId, { memberName, spaceName: null })
   getSpace(spaceId).then((space) => {
-    peerLostMeta(peerKey, spaceId, {
-      memberName: memberName || peerName(space, peerKey),
+    peerLostMeta(personKey, spaceId, {
+      memberName: memberName || peerName(space, personKey),
       spaceName: space?.name ?? null,
     })
   }).catch((err) => log.debug('peer presence name lookup skipped:', err.message))
 }
 
-function peerName(space, peerKey) {
-  return (space?.members || []).find((m) => m.publicKey === peerKey)?.displayName || null
+function peerName(space, personKey) {
+  return (space?.members || []).find((m) => m.publicKey === personKey)?.displayName || null
 }
 
 // One subscriber's fault is not the swarm's: a throw here would abandon the reciprocal handshake
 // that keeps two peers converged.
-function notifyPeerOnline(peerKey, spaceId) {
+function notifyPeerOnline(personKey, spaceId) {
   for (const fn of peerOnlineHooks) {
-    try { fn(peerKey, spaceId) } catch (err) { log.debug('peer-online subscriber failed:', err.message) }
+    try { fn(personKey, spaceId) } catch (err) { log.debug('peer-online subscriber failed:', err.message) }
   }
 }
 
@@ -103,12 +103,12 @@ export function onPeerOnline(fn) {
 // lease) before any blocking I/O. Returns whether the peer is new to this space — which gates the
 // reciprocal handshake so two peers don't ping-pong forever.
 function trackPeerConnection(socket, spaceId, msg) {
-  const peerKey = msg.profileKey
-  let peerEntry = connectedPeers.get(peerKey)
+  const personKey = msg.profileKey
+  let peerEntry = connectedPeers.get(personKey)
   const isNewToSpace = !peerEntry || !peerEntry.spaces.has(spaceId)
   if (!peerEntry) {
-    peerEntry = { socket, profileKey: peerKey, displayName: msg.displayName, avatar: null, spaces: new Map(), looseCatalogKeys: new Map() }
-    connectedPeers.set(peerKey, peerEntry)
+    peerEntry = { socket, profileKey: personKey, displayName: msg.displayName, avatar: null, spaces: new Map(), looseCatalogKeys: new Map() }
+    connectedPeers.set(personKey, peerEntry)
   } else {
     peerEntry.socket = socket
     peerEntry.displayName = msg.displayName
@@ -123,12 +123,12 @@ function trackPeerConnection(socket, spaceId, msg) {
     keyEnc: normalizeLooseCatalogKey(msg.looseCatalogKeyEnc),
   })
   if (!socketToPeers.has(socket)) socketToPeers.set(socket, new Set())
-  socketToPeers.get(socket).add(peerKey)
+  socketToPeers.get(socket).add(personKey)
   // A live handshake is proof of presence — lease them online now, before their first
   // heartbeat. Refreshed by presence frames; cleared on disconnect. The flip return value is
   // ignored here: the handshake path emits members-updated unconditionally after the persist.
-  presence.mark(peerKey, spaceId)
-  peerSeen(peerKey, spaceId)
+  presence.mark(personKey, spaceId)
+  peerSeen(personKey, spaceId)
   return isNewToSpace
 }
 
@@ -211,29 +211,29 @@ export async function handleHandshake(socket, peerInfo, msg) {
   // converging join request and the handshake stops here.
   if (!(await gates.admitMember(spaceId, space, msg))) return
 
-  const peerKey = msg.profileKey
+  const personKey = msg.profileKey
   const isNewToSpace = trackPeerConnection(socket, spaceId, msg)
 
   // Carry the persisted member's avatar (if any) so the join event shows it immediately.
-  const existingMember = space?.members?.find((m) => m.publicKey === peerKey)
+  const existingMember = space?.members?.find((m) => m.publicKey === personKey)
   const cachedAvatar = existingMember?.avatar || null
 
   log.info('peer joined space:', msg.displayName, '→', spaceId)
   const ipc = getIpc()
   ipc.emit('event:member-joined', {
     spaceId,
-    member: { publicKey: peerKey, driveKey: msg.driveKey, displayName: msg.displayName, avatar: cachedAvatar, online: true },
+    member: { publicKey: personKey, driveKey: msg.driveKey, displayName: msg.displayName, avatar: cachedAvatar, online: true },
   })
   ipc.emit('event:files-updated', { spaceId })
 
   // This peer is now admitted — clear any stale "wants to join" recorded before their approval
   // propagated, wherever it shows.
-  if (clearJoinRequest(spaceId, peerKey)) {
+  if (clearJoinRequest(spaceId, personKey)) {
     ipc.emit('event:join-requests-updated', { spaceId })
   }
 
-  onOwnerReconnect(peerKey, spaceId)   // resume overlay downloads (loose + folder) owned by this peer (fn swallows its own errors)
-  notifyPeerOnline(peerKey, spaceId)
+  onOwnerReconnect(personKey, spaceId)   // resume overlay downloads (loose + folder) owned by this peer (fn swallows its own errors)
+  notifyPeerOnline(personKey, spaceId)
 
   replyReciprocalHandshake(socket, spaceId, msg, isNewToSpace)
 
@@ -255,7 +255,7 @@ export async function handleHandshake(socket, peerInfo, msg) {
   ipc.emit('event:files-updated', { spaceId })
 
   // Fetch avatar asynchronously — won't block peer state.
-  fetchPeerAvatar(peerKey, msg, spaceId, space).catch((err) => {
+  fetchPeerAvatar(personKey, msg, spaceId, space).catch((err) => {
     log.warn('avatar fetch failed:', msg.displayName, err.message)
   })
 }
@@ -263,10 +263,10 @@ export async function handleHandshake(socket, peerInfo, msg) {
 // Drop a peer's live state entirely. Leaving the bound signer key behind is the one that bites: a
 // grant sealed after a later reconnect, before the fresh identity frame rewrites it, would be
 // sealed to a key the peer no longer holds.
-export function forgetPeer(peerKey) {
-  presence.clear(peerKey)
-  connectedPeers.delete(peerKey)
-  forgetBoundSignerKey(peerKey)
+export function forgetPeer(personKey) {
+  presence.clear(personKey)
+  connectedPeers.delete(personKey)
+  forgetBoundSignerKey(personKey)
 }
 
 export function handleDisconnect(socket) {
@@ -277,13 +277,13 @@ export function handleDisconnect(socket) {
       forgetBoundSignerKey(profileKey)
     }
   }
-  const peerKeys = socketToPeers.get(socket)
-  if (!peerKeys) return
+  const personKeys = socketToPeers.get(socket)
+  if (!personKeys) return
   socketToPeers.delete(socket)
 
   const ipc = getIpc()
-  for (const peerKey of peerKeys) {
-    const peer = connectedPeers.get(peerKey)
+  for (const personKey of personKeys) {
+    const peer = connectedPeers.get(personKey)
     if (!peer) continue
 
     // Peer already reconnected on a different socket — don't remove
@@ -291,12 +291,12 @@ export function handleDisconnect(socket) {
 
     for (const [spaceId] of peer.spaces) {
       log.info('peer left:', peer.displayName, 'from space', spaceId)
-      auditPeerLost(peerKey, spaceId, peer.displayName)
-      ipc.emit('event:member-left', { spaceId, publicKey: peerKey })
+      auditPeerLost(personKey, spaceId, peer.displayName)
+      ipc.emit('event:member-left', { spaceId, publicKey: personKey })
       ipc.emit('event:files-updated', { spaceId })
     }
 
-    forgetPeer(peerKey)
+    forgetPeer(personKey)
   }
   scheduleStatusEmit()
 }

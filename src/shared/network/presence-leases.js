@@ -17,7 +17,7 @@ let expireHandler = () => {}
 
 export const presence = createPresence({
   ttl: PRESENCE_TTL_MS,
-  onExpire: (peerKey, spaceId) => expireHandler(peerKey, spaceId),
+  onExpire: (personKey, spaceId) => expireHandler(personKey, spaceId),
 })
 
 export function setPresenceExpireHandler(fn) {

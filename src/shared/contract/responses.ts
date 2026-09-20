@@ -349,13 +349,13 @@ export interface ResumeIndexResult { resumed: true, deep: boolean }
 export interface ServeSummary {
   spaceId: string
   path: string
-  peers: string[]
+  peers: PersonKey[]
   bytes: number
   total: number
-  pausedKeys: string[]
+  pausedKeys: PersonKey[]
 }
 
-export interface ServeDetailPeer { peerKey: string, bytes: number, total: number, paused: boolean }
+export interface ServeDetailPeer { personKey: PersonKey, bytes: number, total: number, paused: boolean }
 export interface ServeDetailSnapshot { peers: ServeDetailPeer[] }
 
 export interface AuditExport { version: number, exportedAt: number, entries: AuditEntry[] }

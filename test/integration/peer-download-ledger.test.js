@@ -55,7 +55,7 @@ test('subscribe returns a snapshot and turns detail on; unsubscribe turns it off
   onChunkServed({ from: 'peerA', contentHash: HASH, bytes: 500 })
 
   const snap = subscribeServeDetail(SPACE, LOOSE_PATH)
-  t.alike(snap, { peers: [{ peerKey: 'peerA', bytes: 500, total: 1000, paused: false }] }, 'subscribe returns the current per-peer snapshot')
+  t.alike(snap, { peers: [{ personKey: 'peerA', bytes: 500, total: 1000, paused: false }] }, 'subscribe returns the current per-peer snapshot')
 
   // A second peer joining is a forced emit on both tiers now that we are subscribed.
   events.length = 0
@@ -207,7 +207,7 @@ test('REGRESSION (FIX-1): a pause marks the peer paused on summary + detail with
   onServePaused({ from: 'peerA', contentHash: HASH })
   t.alike(summaries().at(-1).peers, ['peerA'], 'paused peer stays in the row (not dropped)')
   t.alike(summaries().at(-1).pausedKeys, ['peerA'], 'summary marks the peer paused')
-  t.alike(details().at(-1).peers, [{ peerKey: 'peerA', bytes: 200, total: 1000, paused: true }], 'detail carries the paused flag')
+  t.alike(details().at(-1).peers, [{ personKey: 'peerA', bytes: 200, total: 1000, paused: true }], 'detail carries the paused flag')
 })
 
 test('a resume (re-start) clears the paused flag and preserves bytes', async (t) => {

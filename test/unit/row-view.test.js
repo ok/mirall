@@ -6,7 +6,7 @@ const file = (o) => ({
   driveKey: 'd', localBytes: 0, isAvailable: true, status: 'remote', ...o,
 })
 const dec = (o) => ({ bytes: 0, total: 100, speed: 0, avgSpeed: 0, eta: null, ...o })
-const summary = { spaceId: 's', path: '/s/f', peerKeys: ['p1'], pausedKeys: [], bytes: 0, total: 0, avgSpeed: 0 }
+const summary = { spaceId: 's', path: '/s/f', personKeys: ['p1'], pausedKeys: [], bytes: 0, total: 0, avgSpeed: 0 }
 
 test('publishing wins the lane', (t) => {
   t.is(deriveRowView(file({ status: 'publishing' }), dec({ phase: 'publishing', bytes: 50 }), null).lane, 'publish')

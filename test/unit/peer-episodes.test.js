@@ -1,6 +1,6 @@
 import test from 'brittle'
 import {
-  createPeerPresenceTracker, peerKeyOf, PEER_DWELL_MS, KIND_PEER_LOST, KIND_PEER_BACK,
+  createPeerPresenceTracker, episodeKey, PEER_DWELL_MS, KIND_PEER_LOST, KIND_PEER_BACK,
 } from '../../src/shared/audit/presence-episodes.js'
 
 const T0 = 1700000000000
@@ -57,7 +57,7 @@ test('presence is per space: gone in one, present in another', (t) => {
   const { rows } = p.step(T0 + D)
   t.is(rows.length, 2)
   t.alike(rows.map((r) => r.spaceId).sort(), ['sp1', 'sp2'])
-  t.is(peerKeyOf('anna', 'sp1'), 'anna|sp1')
+  t.is(episodeKey('anna', 'sp1'), 'anna|sp1')
 })
 
 test('abandon drops an absence without a row — a leave, or our own outage', (t) => {

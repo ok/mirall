@@ -1,13 +1,14 @@
 // Groups the frame's relayed connections for the Network Status section. The configured relay is
 // one group carrying everyone it relays; an adopted relay is one group per peer, because the peer
-// on that connection is the one who offered it. A person is their member identity: the control and
-// content sockets carry different Noise keys, so folding by socket key would show one person twice.
+// on that connection is the one who offered it. Folding is by person: the control and content
+// sockets carry different Noise keys, so folding by those would show one person twice.
 /** @import { RelayedConnection, RelayStatus, RelayPlane } from '../types/types.js' */
 /** @import { TFunction } from 'i18next' */
 import { shortKey } from './audit-row.js'
 
 /** @typedef {'own' | 'adopted'} RelayVia */
-/** @typedef {{ personKey: string, peerKey: string, displayName: string | null, since: number, planes: RelayPlane[] }} RelayPerson */
+/** @import { PersonKey, NoiseKey } from '../../shared/contract/principals.js' */
+/** @typedef {{ foldKey: PersonKey | NoiseKey, noiseKey: NoiseKey, displayName: string | null, since: number, planes: RelayPlane[] }} RelayPerson */
 /** @typedef {{ key: string, relayKey: string, via: RelayVia, providerName: string | null, people: RelayPerson[] }} RelayGroup */
 /** @typedef {'off' | 'none' | 'used'} RelayState */
 
@@ -18,19 +19,19 @@ export function relayGroups(connections) {
   /** @type {Map<string, RelayGroup>} */
   const byKey = new Map()
   for (const c of connections) {
-    const personKey = personKeyOf(c)
-    const key = c.via === 'own' ? c.relayKey : `${c.relayKey}|${personKey}`
+    const foldKey = foldKeyOf(c)
+    const key = c.via === 'own' ? c.relayKey : `${c.relayKey}|${foldKey}`
     let group = byKey.get(key)
     if (!group) {
       group = { key, relayKey: c.relayKey, via: c.via, providerName: c.via === 'adopted' ? c.displayName : null, people: [] }
       byKey.set(key, group)
     }
-    const person = group.people.find((p) => p.personKey === personKey)
+    const person = group.people.find((p) => p.foldKey === foldKey)
     if (person) {
       person.planes.push(c.plane)
       person.since = Math.min(person.since, c.since)
     } else {
-      group.people.push({ personKey, peerKey: c.peerKey, displayName: c.displayName, since: c.since, planes: [c.plane] })
+      group.people.push({ foldKey, noiseKey: c.noiseKey, displayName: c.displayName, since: c.since, planes: [c.plane] })
     }
   }
   return [...byKey.values()].sort((a, b) => (a.via === b.via ? 0 : a.via === 'own' ? -1 : 1))
@@ -42,14 +43,17 @@ export function relayState(relayMode, relay) {
   return relayMode === 'off' ? 'off' : 'none'
 }
 
-/** @param {RelayedConnection} c */
-function personKeyOf(c) {
-  return c.profileKey ?? c.peerKey
+// What one row folds by: the person, once the handshake has bound one to the socket. A socket seen
+// before that has no person yet, so it folds under its own Noise key — one row per socket until the
+// identity arrives, rather than a row that claims to be nobody. Hence not a PersonKey.
+/** @param {RelayedConnection} c @returns {PersonKey | NoiseKey} */
+function foldKeyOf(c) {
+  return c.personKey ?? c.noiseKey
 }
 
 /** @param {RelayStatus} relay */
 export function relayedPeopleCount(relay) {
-  return new Set(relay.connections.map(personKeyOf)).size
+  return new Set(relay.connections.map(foldKeyOf)).size
 }
 
 const PLANE_LABEL = {
@@ -60,7 +64,7 @@ const PLANE_LABEL = {
 
 /** @param {RelayPerson} person @param {TFunction} t */
 function personLabel(person, t) {
-  const name = person.displayName ?? shortKey(person.peerKey) ?? ''
+  const name = person.displayName ?? shortKey(person.noiseKey) ?? ''
   const planes = person.planes.includes('control') && person.planes.includes('content') ? 'both' : person.planes[0]
   return `${name} (${t(PLANE_LABEL[planes])})`
 }

@@ -27,14 +27,14 @@ test('listMirrorsForSpace merges own + members, tagged by mirrorer', async (t) =
   const me = getLocalPublicKeyHex()
   await publishMirror(spaceId, 'shareX', { state: 'synced' })
 
-  const peerKey = await memberMirrorBee(spaceId, 'shareX', 'paused')
-  await mutateMembers(spaceId, () => [{ publicKey: peerKey, driveKey: null, displayName: 'Peer' }])
+  const personKey = await memberMirrorBee(spaceId, 'shareX', 'paused')
+  await mutateMembers(spaceId, () => [{ publicKey: personKey, driveKey: null, displayName: 'Peer' }])
 
   const all = await listMirrorsForSpace(spaceId)
   const byMirrorer = new Map(all.map((m) => [m.mirrorer, m]))
   t.is(all.length, 2, 'own + one member')
   t.is(byMirrorer.get(me).state, 'synced', 'own record tagged mirrorer=me')
-  t.is(byMirrorer.get(peerKey).state, 'paused', 'member record tagged with their key')
+  t.is(byMirrorer.get(personKey).state, 'paused', 'member record tagged with their key')
 
   const forShare = await listMirrorsForShare(spaceId, 'shareX')
   t.is(forShare.length, 2, 'both mirror the same share')

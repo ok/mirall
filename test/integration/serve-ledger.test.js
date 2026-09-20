@@ -122,7 +122,7 @@ test('REGRESSION (FIX-EDA-19): the sweep pushes authoritative detail for a subsc
   const last = after[after.length - 1].payload
   t.is(last.spaceId, SID)
   t.is(last.path, PATH)
-  t.alike(last.peers.map((p) => p.peerKey), [PEER])
+  t.alike(last.peers.map((p) => p.personKey), [PEER])
 })
 
 test('the sweep pushes an EMPTY authoritative snapshot for a subscribed file with no live peers', async (t) => {
@@ -198,7 +198,7 @@ test('REGRESSION (FIX-G2: a new serve wakes a dormant subscription instead of st
 
   const onStart = details(fake)
   t.ok(onStart.length > dormant, 'the serve start pushes a detail frame to the still-registered sub')
-  t.alike(onStart[onStart.length - 1].payload.peers.map((p) => p.peerKey), [PEER],
+  t.alike(onStart[onStart.length - 1].payload.peers.map((p) => p.personKey), [PEER],
     'the frame carries the new downloader')
 
   _sweepServeLedgerNow(t0 + 302_000)

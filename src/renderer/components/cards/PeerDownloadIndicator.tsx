@@ -46,7 +46,7 @@ function metaTokens(countLabel: string, speed: string | null, eta: string): Meta
 export default function PeerDownloadIndicator({ summary, members, open, onToggle, controlsId }: PeerDownloadIndicatorProps) {
   const { t } = useTranslation()
   const pausedSet = summary.pausedKeys.length ? new Set(summary.pausedKeys) : null
-  const downloaders: Downloader[] = summary.peerKeys
+  const downloaders: Downloader[] = summary.personKeys
     .map((key) => ({ key, member: members.find((m) => m.publicKey === key) ?? null, paused: pausedSet?.has(key) ?? false }))
   const count = downloaders.length
   const pausedCount = downloaders.filter((d) => d.paused).length

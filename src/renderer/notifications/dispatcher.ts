@@ -74,20 +74,20 @@ export function startNotifications(deps: DispatcherDeps): () => void {
 
   unsubs.push(subscribe<MemberJoinedMessage>('event:member-joined', (msg) => {
     if (!getPrefs().events.memberJoined) return
-    const peerKey = msg.member.publicKey
+    const personKey = msg.member.publicKey
 
     // Suppress repeats within JOIN_FORGET_MS — keeps swarm flap (sleep/wake,
     // timeout/reconnect) from re-firing the toast on the same peer.
-    if (joinedShown.has(peerKey)) return
+    if (joinedShown.has(personKey)) return
 
-    joinedShown.add(peerKey)
-    setTimeout(() => joinedShown.delete(peerKey), JOIN_FORGET_MS)
+    joinedShown.add(personKey)
+    setTimeout(() => joinedShown.delete(personKey), JOIN_FORGET_MS)
 
     const displayName = msg.member.displayName?.trim() || t('notifications.fallbackPeerName')
     const avatar = msg.member.avatar ?? null
 
     const spec: NotificationSpec = {
-      id: `member-joined:${peerKey}`,
+      id: `member-joined:${personKey}`,
       title: displayName,
       body: t('notifications.memberJoinedBodyNoSpace'),
       payload: { kind: 'member-joined' },

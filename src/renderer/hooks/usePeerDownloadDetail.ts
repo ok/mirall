@@ -3,6 +3,7 @@ import { request, subscribe } from '../ipc/ipc.js'
 import { useSpeedTracker } from './useSpeedTracker.js'
 import { SERVE_TTL_MS } from './usePeerDownloads.js'
 import type { PeerDownloadPeer } from '../types/types.js'
+import type { ServeDetailPeer } from '../../shared/contract/responses.js'
 
 // A paused peer is kept far longer than an active one — the worker holds paused rows for
 // PAUSED_DROP_MS (300s) and re-announces every ~10s — but not forever: if those re-announces
@@ -10,22 +11,11 @@ import type { PeerDownloadPeer } from '../types/types.js'
 // still age out. Above the worker's PAUSED_DROP_MS so the authoritative clear wins in the normal path.
 const PAUSED_SERVE_TTL_MS = 330000
 
-interface DetailPeer {
-  peerKey: string
-  bytes: number
-  total: number
-  paused?: boolean
-}
-
 interface DetailEvent {
   channel?: string
   spaceId: string
   path: string
-  peers: DetailPeer[]
-}
-
-interface DetailSnapshot {
-  peers: DetailPeer[]
+  peers: ServeDetailPeer[]
 }
 
 // Tier 2: per-peer progress for ONE file, gated by mount — the worker streams detail for a
@@ -40,22 +30,21 @@ export function usePeerDownloadDetail(spaceId: string, path: string): PeerDownlo
   useEffect(() => {
     let active = true
 
-    const apply = (list: DetailPeer[]) => {
+    const apply = (list: ServeDetailPeer[]) => {
       const now = Date.now()
-      speed.retain(new Set(list.map((p) => p.peerKey)))
+      speed.retain(new Set(list.map((p) => p.personKey)))
       setPeers(list.map((p) => ({
-        peerKey: p.peerKey,
+        personKey: p.personKey,
         bytes: p.bytes,
         total: p.total,
-        avgSpeed: speed.observe(p.peerKey, now, p.bytes),
+        avgSpeed: speed.observe(p.personKey, now, p.bytes),
         paused: !!p.paused,
       })))
     }
 
     request('serving:detail-subscribe', { spaceId, path }).then((snap) => {
       if (!active) return
-      const data = snap as DetailSnapshot
-      if (data && Array.isArray(data.peers)) apply(data.peers)
+      if (Array.isArray(snap?.peers)) apply(snap.peers)
     }).catch(() => {})
 
     const unsub = subscribe<DetailEvent>('event:awareness', (msg) => {
@@ -69,11 +58,11 @@ export function usePeerDownloadDetail(spaceId: string, path: string): PeerDownlo
         // Soft-state expiry: a peer whose authoritative snapshot went silent past the TTL is dropped.
         // A paused peer gets the longer PAUSED_SERVE_TTL_MS (the worker holds paused rows far longer)
         // but still ages out, so a missed clearing frame can't strand it forever.
-        const live = prev.filter((p) => !speed.expired(p.peerKey, now, p.paused ? PAUSED_SERVE_TTL_MS : SERVE_TTL_MS))
-        speed.retain(new Set(live.map((p) => p.peerKey)))
+        const live = prev.filter((p) => !speed.expired(p.personKey, now, p.paused ? PAUSED_SERVE_TTL_MS : SERVE_TTL_MS))
+        speed.retain(new Set(live.map((p) => p.personKey)))
         let changed = live.length !== prev.length
         const next = live.map((p) => {
-          const avgSpeed = speed.decay(p.peerKey, now, p.avgSpeed)
+          const avgSpeed = speed.decay(p.personKey, now, p.avgSpeed)
           if (avgSpeed !== null && avgSpeed !== p.avgSpeed) { changed = true; return { ...p, avgSpeed } }
           return p
         })

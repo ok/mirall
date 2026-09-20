@@ -96,10 +96,10 @@ test('REGRESSION (FIX-1): a member\'s tombstoned share is omitted from the listi
   await peer.put('caps/folder-shares', true)
   await peer.put('share/' + spaceId + '/s1',
     { id: 's1', name: 'Docs', owner: 'peer', createdAt: Date.now(), deletedAt: Date.now() })
-  const peerKey = b4a.toString(peer.core.key, 'hex')
+  const personKey = b4a.toString(peer.core.key, 'hex')
   await peer.close()
 
-  await mutateMembers(spaceId, () => [{ publicKey: peerKey, driveKey: null, displayName: 'Peer' }])
+  await mutateMembers(spaceId, () => [{ publicKey: personKey, driveKey: null, displayName: 'Peer' }])
 
   const listed = await listSharesForSpace(spaceId)
   t.absent(listed.some((s) => s.name === 'Docs'), 'tombstoned peer share omitted even though the peer is a member')

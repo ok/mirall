@@ -23,7 +23,7 @@ export default function PeerDownloadDropdown({ id, spaceId, path, members }: Pee
   const { t } = useTranslation()
   const peers = usePeerDownloadDetail(spaceId, path)
   const rows = peers
-    .map((p) => ({ ...p, member: members.find((m) => m.publicKey === p.peerKey) ?? null }))
+    .map((p) => ({ ...p, member: members.find((m) => m.publicKey === p.personKey) ?? null }))
     .sort((a, b) => fraction(b) - fraction(a))
 
   if (rows.length === 0) return null
@@ -38,7 +38,7 @@ export default function PeerDownloadDropdown({ id, spaceId, path, members }: Pee
     >
       <ul className="flex flex-col divide-y divide-progress-track">
         {rows.map((r) => (
-          <PeerDownloadRow key={r.peerKey} member={r.member} bytes={r.bytes} total={r.total} avgSpeed={r.avgSpeed} paused={r.paused} />
+          <PeerDownloadRow key={r.personKey} member={r.member} bytes={r.bytes} total={r.total} avgSpeed={r.avgSpeed} paused={r.paused} />
         ))}
       </ul>
     </div>

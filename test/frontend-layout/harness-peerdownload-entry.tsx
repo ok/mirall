@@ -60,7 +60,7 @@ const MB = 1000 * 1000
 const alice: SpaceMember = { publicKey: 'k1', driveKey: 'd1', displayName: 'Alexandra Featherstonehaugh', online: true }
 const bob: SpaceMember = { publicKey: 'k2', driveKey: 'd2', displayName: 'Bob', online: false }
 // 50/100 MB at 5 MB/s → speed "5 MB/s", remaining 50 MB ÷ 5 MB/s = 10 → ETA "10s left", pct 50%.
-const summary: PeerDownloadSummary = { spaceId: 's1', path: '/file.bin', peerKeys: ['k1'], pausedKeys: [], bytes: 50 * MB, total: 100 * MB, avgSpeed: 5 * MB }
+const summary: PeerDownloadSummary = { spaceId: 's1', path: '/file.bin', personKeys: ['k1'], pausedKeys: [], bytes: 50 * MB, total: 100 * MB, avgSpeed: 5 * MB }
 
 // Representative lane widths: FolderScreen basis-72 (count word shown), FileCard basis-56 (count
 // relies on avatars), the bumped 180px floor, and an ultra-narrow lane (speed only).

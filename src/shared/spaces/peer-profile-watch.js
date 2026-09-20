@@ -44,8 +44,8 @@ function isBlockUnavailable(err) {
 // The long-lived holder: ONE bee per peer for the process lifetime, carrying the append listener
 // that drives admission re-evaluation, the share-list refresh and the audit observer. Every other
 // touch of a peer's bee is a bounded read that opens and closes its own session (withPeerBee).
-function ensurePeerProfileWatch(peerKey, profileKeyHex) {
-  const held = profileBeeAppendListeners.get(peerKey)
+function ensurePeerProfileWatch(personKey, profileKeyHex) {
+  const held = profileBeeAppendListeners.get(personKey)
   if (held) return held
   const peerProfileBee = openProfileBee(b4a.from(profileKeyHex, 'hex'))
   {
@@ -53,41 +53,41 @@ function ensurePeerProfileWatch(peerKey, profileKeyHex) {
       // The append may be a new approved/<space>/<joiner> record — re-evaluate any
       // join request we hold for a peer this member may have just approved. (The fold's
       // own watchers handle member-set re-derivation; this only drives admission.)
-      reconcilePendingRequestersForApprover(peerKey).catch(err => {
+      reconcilePendingRequestersForApprover(personKey).catch(err => {
         log.warn('approval-driven admit failed:', err.message)
       })
       // …or a new/removed `share/<space>/*` record (shares live in the peer's profile bee).
       // This is the only peer-side trigger that refreshes the share LIST — the drive-append
       // listener only covers files.
-      emitPeerSharesUpdated(peerKey).catch(err => {
+      emitPeerSharesUpdated(personKey).catch(err => {
         log.warn('peer shares-updated emit failed:', err.message)
       })
       // The same append is the only signal that a peer created/deleted a folder share or started
       // mirroring one of ours. This hook is coarse — it fires for ANY bee change — so the
       // observer diffs the bee's own history rather than trusting the poke.
-      observePeerProfile(peerKey, peerProfileBee)
+      observePeerProfile(personKey, peerProfileBee)
     }
     peerProfileBee.core.on('append', listener)
-    profileBeeAppendListeners.set(peerKey, { bee: peerProfileBee, listener })
+    profileBeeAppendListeners.set(personKey, { bee: peerProfileBee, listener })
     // Baseline now, not on the first append — otherwise the first share a peer creates after we
     // meet them is swallowed as "history".
     // Drop the entry if the bee never opens: a cached broken holder would make every later avatar
     // fetch for this peer fail for the process lifetime.
     peerProfileBee.ready().then(
-      () => observePeerProfile(peerKey, peerProfileBee, { baselineOnly: true }),
+      () => observePeerProfile(personKey, peerProfileBee, { baselineOnly: true }),
       (err) => {
         log.warn('peer profile bee failed to open — dropping the watch so the next handshake retries:', err.message)
-        if (profileBeeAppendListeners.get(peerKey)?.bee === peerProfileBee) profileBeeAppendListeners.delete(peerKey)
+        if (profileBeeAppendListeners.get(personKey)?.bee === peerProfileBee) profileBeeAppendListeners.delete(personKey)
         try { peerProfileBee.core.off('append', listener) } catch {}
         peerProfileBee.close().catch(() => {})
       },
     )
   }
-  return profileBeeAppendListeners.get(peerKey)
+  return profileBeeAppendListeners.get(personKey)
 }
 
-export async function fetchPeerAvatar(peerKey, msg, spaceId, space) {
-  const { bee: peerProfileBee } = ensurePeerProfileWatch(peerKey, msg.profileKey)
+export async function fetchPeerAvatar(personKey, msg, spaceId, space) {
+  const { bee: peerProfileBee } = ensurePeerProfileWatch(personKey, msg.profileKey)
   await peerProfileBee.ready()
 
   for (let attempt = 0; attempt < AVATAR_FETCH_ATTEMPTS; attempt++) {
@@ -100,16 +100,16 @@ export async function fetchPeerAvatar(peerKey, msg, spaceId, space) {
       const peerAvatar = sanitizeAvatar(avatarEntry?.value || null, getMembershipCaps().maxAvatarBytes)
       if (!peerAvatar) return
 
-      const peerEntry = connectedPeers.get(peerKey)
+      const peerEntry = connectedPeers.get(personKey)
       if (peerEntry) peerEntry.avatar = peerAvatar
 
       // Persist avatar to space members (atomic merge — won't clobber a concurrent
       // membership write, and no-ops if the avatar is unchanged or the member is gone).
       if (space) {
-        await upsertMember(spaceId, { publicKey: peerKey, avatar: peerAvatar }, { create: false })
+        await upsertMember(spaceId, { publicKey: personKey, avatar: peerAvatar }, { create: false })
       }
 
-      getIpc().emit('event:member-avatar-updated', { spaceId, publicKey: peerKey, avatar: peerAvatar })
+      getIpc().emit('event:member-avatar-updated', { spaceId, publicKey: personKey, avatar: peerAvatar })
       return
     } catch (err) {
       if (!isBlockUnavailable(err) || attempt === AVATAR_FETCH_ATTEMPTS - 1) {

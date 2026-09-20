@@ -77,7 +77,7 @@ function contentHashOf(synthPath) {
 }
 
 // Short remote Noise key for log lines; attachOverlay records the socket before onopen fires.
-function peerKeyLabel(peer) {
+function noiseKeyLabel(peer) {
   const key = peerSocket.get(peer)?.remotePublicKey
   return key ? b4a.toString(key, 'hex').slice(0, 16) + '...' : 'unknown'
 }
@@ -153,9 +153,9 @@ export async function initOverlay() {
     // in every shipping configuration — deliberately: the first release that drops a message slot
     // or changes a codec only has to raise the constant. Not dead code.
     onPeerOpen: ({ peer, version, capabilities }) =>
-      log.debug(`peer ${peerKeyLabel(peer)} overlay v${version} caps=0x${capabilities.toString(16)}`),
+      log.debug(`peer ${noiseKeyLabel(peer)} overlay v${version} caps=0x${capabilities.toString(16)}`),
     onPeerRejected: ({ peer, version, minVersion }) =>
-      log.warn(`peer ${peerKeyLabel(peer)} overlay v${version} is below the minimum v${minVersion} — content channel closed`),
+      log.warn(`peer ${noiseKeyLabel(peer)} overlay v${version} is below the minimum v${minVersion} — content channel closed`),
   })
   await overlay.ready() // builds protocol/index/sync cores; REQUIRED before attach
   log.info('instance ready')
