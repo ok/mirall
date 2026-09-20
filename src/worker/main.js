@@ -32,6 +32,7 @@ import {
   setRuntimeConfig,
 } from '../shared/core/runtime-config.js'
 import { forgetSpaceDownloadRoot, listDownloadRoots } from '../shared/core/paths.js'
+import { daemonPaths } from '../shared/contract/paths.js'
 import { createLogger } from '../shared/core/logger.js'
 import { installCrashBackstop } from '../shared/core/crash-backstop.js'
 import { WORKER_EXIT_UNSTABLE, WORKER_EXIT_PROTOCOL_MISMATCH, WORKER_EXIT_ORPHANED } from '../shared/contract/exit-codes.js'
@@ -57,7 +58,7 @@ const health = createHealthMonitor({ onTick: () => ipc.sweepDeadlines() })
 // Main authorizes "reveal in folder" against these, and cannot read the space records
 // that hold the per-space overrides, so the set is pushed to it on every change.
 function publishDownloadRoots() {
-  ipc.emit(MAIN_REQUEST_FRAME, { command: MAIN_REQUEST.DOWNLOADS_ROOTS, args: { roots: listDownloadRoots() } })
+  ipc.emit(MAIN_REQUEST_FRAME, { command: MAIN_REQUEST.DOWNLOADS_ROOTS, args: daemonPaths({ roots: listDownloadRoots() }) })
 }
 
 // Dropping a root is a NARROWING of that allowlist, so it has to be published like any other

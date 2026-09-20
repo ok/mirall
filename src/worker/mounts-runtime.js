@@ -3,6 +3,7 @@
 // timers, the resume passes for both mount kinds, and the probe that notices a mount point or a
 // download root appearing or disappearing. A Subsystem: the maps are instance state, the probe
 // rides `this.timers`, and _close is the bulk stop.
+import { daemonPaths } from '../shared/contract/paths.js'
 import { MOUNT_STATUS, MIRROR_STATE } from '../shared/contract/statuses.js'
 import fs from 'bare-fs'
 import { Subsystem } from '../shared/core/subsystem.js'
@@ -406,6 +407,6 @@ export class MountsRuntime extends Subsystem {
     this.unavailableRoots = next
     if (next.length > 0) this.log.warn('download folder unavailable:', next.join(', '))
     else this.log.info('all download folders are available again')
-    this.deps.ipc.emit('event:download-roots-status', { unavailable: next })
+    this.deps.ipc.emit('event:download-roots-status', daemonPaths({ unavailable: next }))
   }
 }

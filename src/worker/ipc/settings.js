@@ -9,6 +9,7 @@ import {
   isOverlayEnabled,
   isInPlaceFilesEnabled,
 } from '../../shared/core/runtime-config.js'
+import { daemonPaths } from '../../shared/contract/paths.js'
 import { getStorageInfo } from '../../shared/storage/storage.js'
 import { validateDownloadFolderAgainstMounts } from '../../shared/folders/mount-validate.js'
 
@@ -20,10 +21,10 @@ export function registerSettings(ipc, { mounts, publishDownloadRoots }) {
   // every unavailable root is re-checked so the banner can appear at once rather than next tick.
   ipc.handle('downloads:roots-status', async () => {
     mounts.probeDownloadRoots()
-    return { unavailable: mounts.unavailableRoots }
+    return daemonPaths({ unavailable: mounts.unavailableRoots })
   })
 
-  ipc.handle('storage:info', async () => await getStorageInfo())
+  ipc.handle('storage:info', async () => daemonPaths(await getStorageInfo()))
 
   ipc.handle('settings:set-download-folder', async (msg) => {
     // Same mount-overlap rejection as a per-space folder: pointing the global root into a folder
