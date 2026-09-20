@@ -84,7 +84,7 @@ test('REGRESSION (FIX-367): both list hooks survive a remount without refetching
   // is unchanged — a revisit renders from cache, and only a genuinely cold entry reports loading —
   // but it lives in query-store.js, where query-store.test.js pins it directly.
   const shares = read('hooks', 'useShares.ts')
-  t.ok(/useQuery<Share\[\]>\('share:list'/.test(shares), 'useShares reads through the store')
+  t.ok(/useQuery\('share:list'/.test(shares), 'useShares reads through the store')
   t.absent(/const shareCache = new Map/.test(shares), 'and keeps no second cache to disagree with it')
   t.ok(/const cold = shares\.data === undefined/.test(shares),
     'a cached space does not report loading, so the empty hero never flashes over it')
@@ -94,7 +94,7 @@ test('REGRESSION (FIX-367): both list hooks survive a remount without refetching
   // depends on. The property is unchanged — a revisit renders from cache and an unfetched entry
   // reports loading — but it lives in query-store.js now, where query-store.test.js pins it.
   const spaces = read('hooks', 'useSpaces.ts')
-  t.ok(/useQuery<Space\[\]>\('spaces:list'/.test(spaces), 'useSpaces reads through the store')
+  t.ok(/useQuery\('spaces:list'/.test(spaces), 'useSpaces reads through the store')
   t.ok(/data === undefined && fetching/.test(spaces), 'and a refetch does not re-open the loading window')
   t.absent(/let spacesCache/.test(spaces), 'and keeps no second cache of its own to disagree with it')
   t.ok(/pruneShareCache\(ids\)/.test(spaces), 'the roster still drives the share-cache pruning')

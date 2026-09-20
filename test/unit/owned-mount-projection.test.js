@@ -55,7 +55,8 @@ test('REGRESSION (REVIEW-1): a failed read is not settled, so the fault strip su
 // because the bug was one word in the caller.
 test('REGRESSION (REVIEW-1): the hook does not take the store loading flag', (t) => {
   const src = readFileSync(path.join(root, 'src', 'renderer', 'hooks', 'useFolderMount.ts'), 'utf8')
-  const destructure = /const\s*\{([^}]*)\}\s*=\s*useQuery</.exec(src)
+  // `useQuery(` — the call takes no type argument any more; it is keyed by the request name.
+  const destructure = /const\s*\{([^}]*)\}\s*=\s*useQuery\(/.exec(src)
   t.ok(destructure, 'useOwnedMount still reads the listing through the query store')
   t.absent(/\bloading\b/.test(destructure[1]),
     'and does not take `loading` off it — an error settles the entry with no data')

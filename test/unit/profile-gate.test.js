@@ -91,7 +91,8 @@ test('REGRESSION (ADOPT-A5): a read in flight over a settled profile does not re
 
 test('REGRESSION (ADOPT-A5): the hook does not read the store loading flag', (t) => {
   const src = readFileSync(path.join(root, 'src', 'renderer', 'hooks', 'useProfile.ts'), 'utf8')
-  const destructure = /const\s*\{([^}]*)\}\s*=\s*useQuery</.exec(src)
+  // `useQuery(` — the call takes no type argument any more; it is keyed by the request name.
+  const destructure = /const\s*\{([^}]*)\}\s*=\s*useQuery\(/.exec(src)
   t.ok(destructure, 'useProfile still reads the profile through the query store')
   t.absent(/\bloading\b/.test(destructure[1]),
     'and does not take `loading` off it — the shell gates its whole tree on that value')

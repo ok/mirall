@@ -43,7 +43,9 @@ test('reconcile-driven hooks subscribe the reconcile channel, not the named poke
     const src = hookSrc(file)
     const usesStore = /useQuery[<(]/.test(src)
     if (usesStore) {
-      const scoped = /useQuery<[^>]*>\(\s*'[^']+',[^,]*,\s*[A-Za-z_[]/.test(src) || /kind: '/.test(src)
+      // The type argument is gone — useQuery is keyed by the request name now — so the shape to
+      // match is the third positional argument, which is where the scopes go.
+      const scoped = /useQuery\(\s*'[^']+',[^,]*,\s*[A-Za-z_[]/.test(src) || /kind: '/.test(src)
       t.ok(scoped, `${file} passes scopes to useQuery, so an invalidate can reach it`)
     } else {
       t.ok(subscribes(src, 'event:reconcile'), `${file} consumes event:reconcile`)

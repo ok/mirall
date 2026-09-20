@@ -1234,6 +1234,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/contract/scope.js` | `Scope` constructors + `scopeMatches` — the identity of a re-derivable view (§4.7) |
 | `src/shared/contract/main-requests.js` | Every worker→main control frame name (`MAIN_REQUEST`, `MAIN_REQUEST_FRAME`) |
 | `src/shared/contract/ipc-frames.js` | The non-request frames on the IPC pipe: `bootstrap`, `response`, `cancel`, plus `IPC_PROTOCOL_VERSION` — the wire's own version, independent of package.json |
+| `src/shared/contract/responses.ts` | What each request resolves with, and the wire shapes those responses carry. The map is total over `RequestName` by construction, so a request with no response cannot compile. The renderer's types.ts re-exports every name it used to own |
 | `src/shared/contract/request-deadlines.js` | How long a request may run before the router reports it: per row, with a per-kind default, and 0 for deliberately unbounded |
 | `src/shared/contract/protocol-compat.js` | Whether the bootstrap frame's wire version falls inside this build's window, and the sentence a refusal prints. The worker refuses an incompatible host outright rather than defaulting its fields |
 | `src/shared/contract/peer-frames.js` | The mirall/handshake frame vocabulary two peers exchange, which frames assert the sender's identity, and which the worker's membership handler owns |

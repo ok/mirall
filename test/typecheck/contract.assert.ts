@@ -7,6 +7,7 @@ import type { DecodedInvite } from '../../src/shared/contract/invite-envelope.js
 import type { DocsTarget } from '../../src/renderer/shell/docs-links.js'
 import type { MainQueryName } from '../../src/renderer/store/main-queries.js'
 import type { PublishOrder } from '../../src/shared/contract/paths.js'
+import type { RequestResponse } from '../../src/shared/contract/responses.js'
 
 const request: RequestName = 'spaces:list'
 // @ts-expect-error a mistyped request name
@@ -39,5 +40,18 @@ const publishOrderTypo: PublishOrder = 'random'
 const mainQuery: MainQueryName = 'main:prefs'
 // @ts-expect-error not a main fact
 const mainQueryTypo: MainQueryName = 'main:nope'
+
+const spacesList: RequestResponse['spaces:list'] = []
+// @ts-expect-error a response is keyed by a declared request, not by any string
+type NoSuchResponse = RequestResponse['spces:list']
+// @ts-expect-error spaces:list resolves with a list, not one space
+const spacesListWrong: RequestResponse['spaces:list'] = { spaceId: '' }
+// @ts-expect-error an acknowledgement carries nothing but ok
+const ackExtra: RequestResponse['files:remove'] = { ok: true, removed: 1 }
+declare const maybeProfile: RequestResponse['profile:get']
+// @ts-expect-error profile:get may be null, and the caller has to say what it does then
+const name: string = maybeProfile.displayName
+
+void [spacesList, spacesListWrong, ackExtra, name] as unknown as NoSuchResponse
 
 void [request, requestTypo, event, eventTypo, fileStatus, fileStatusTypo, ownedStatus, ownedStatusIdle, invite, inviteV0, docs, docsTypo, publishOrder, publishOrderTypo, mainQuery, mainQueryTypo]
