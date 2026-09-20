@@ -60,6 +60,9 @@ contextBridge.exposeInMainWorld('bridge', {
   startWorker: (specifier) => WORKER_SPECS.has(specifier)
     ? ipcRenderer.invoke('pear:startWorker', specifier)
     : Promise.reject(new Error('unknown worker specifier: ' + specifier)),
+  restartWorker: (specifier) => WORKER_SPECS.has(specifier)
+    ? ipcRenderer.invoke('pear:restartWorker', specifier)
+    : Promise.reject(new Error('unknown worker specifier: ' + specifier)),
 
   onWorkerIPC: (specifier, listener) => {
     const wrap = (_evt, data) => listener(Buffer.from(data))

@@ -79,5 +79,39 @@ function createQuitSequence({ markQuitting, stopOwnedWatchers, stopLooseWatchers
   }
 }
 
-// test seam: QUIT_STEPS is exported for tests only.
-module.exports = { QUIT_STEPS, createQuitSequence }
+// Replacing a running worker, in the only order that works:
+// - `stop-worker` first and AWAITED. Two workers on one Corestore is a lock error at best, and the
+//   new one reads its whole starting state at spawn, so it must not start before the old one ends.
+// - `spawn-worker` builds a fresh bootstrap frame, which is the point of a restart: the relay
+//   identity and every other spawn-time value are read there and nowhere else.
+const RESTART_STEPS = Object.freeze(['stop-worker', 'spawn-worker'])
+
+/**
+ * @param {object} steps
+ * @param {(specifier: string) => Promise<unknown>} steps.stopWorker
+ * @param {(specifier: string) => void} steps.spawnWorker
+ * @param {() => boolean} steps.isQuitting
+ */
+function createWorkerRestart({ stopWorker, spawnWorker, isQuitting }) {
+  // A second request joins the first rather than racing it: two restarts in flight would stop the
+  // worker the other just spawned.
+  const inFlight = new Map()
+  return function restartWorker(specifier) {
+    if (isQuitting()) return Promise.resolve(false)
+    const running = inFlight.get(specifier)
+    if (running) return running
+    const run = (async () => {
+      await stopWorker(specifier)
+      // Re-checked: the quit sequence may have begun while the old worker was shutting down, and
+      // spawning into a quit leaves exactly the orphan stop-workers exists to prevent.
+      if (isQuitting()) return false
+      spawnWorker(specifier)
+      return true
+    })().finally(() => inFlight.delete(specifier))
+    inFlight.set(specifier, run)
+    return run
+  }
+}
+
+// test seam: QUIT_STEPS and RESTART_STEPS are exported for tests only.
+module.exports = { QUIT_STEPS, createQuitSequence, RESTART_STEPS, createWorkerRestart }

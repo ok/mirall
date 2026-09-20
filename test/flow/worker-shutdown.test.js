@@ -16,9 +16,9 @@ test('a worker exits cleanly on graceful shutdown — no orphaned subprocess', {
   const pid = peer.sidecar._process.pid
   t.ok(pid > 0, 'worker has an OS pid')
 
-  // The shutdown handler calls Bare.exit before replying, so the request settles
-  // by pipe-close rather than a response — swallow that rejection.
-  await peer.request('shutdown').catch(() => {})
+  // The stop is acknowledged before the teardown begins, so the caller can tell it landed rather
+  // than inferring it from the pipe going quiet.
+  t.alike(await peer.request('shutdown'), { ok: true }, 'the stop is acknowledged')
 
   t.ok(await waitForWorkerExit(pid, 8000),
     'worker process exited within 8s of graceful shutdown (no orphan)')

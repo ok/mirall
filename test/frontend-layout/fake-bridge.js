@@ -106,6 +106,7 @@
     onPearEvent: noop,
 
     startWorker: asyncNoop,
+    restartWorker: asyncNoop,
     onWorkerIPC: (_spec, listener) => { ipcCb = listener },
     onWorkerStdout: noop,
     onWorkerStderr: noop,

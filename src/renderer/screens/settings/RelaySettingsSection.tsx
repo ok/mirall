@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ConfirmDestructiveModal from '../../components/modals/ConfirmDestructiveModal.js'
-import { request } from '../../ipc/ipc.js'
+import { request, restartWorker } from '../../ipc/ipc.js'
 import { getRelay, getRelayMode, setRelay, type RelayMode, type RelayParseErrorCode, type RelaySlot } from '../../platform/config-client.js'
 import { truncateRelayKey } from '../../platform/relay-key.js'
 import { isReconnectPending, setReconnectPending } from '../../platform/relay-session.js'
@@ -99,16 +99,17 @@ export default function RelaySettingsSection() {
     return result
   }, [adopt, arm])
 
-  // The worker exits, the respawn policy brings it back with the new boot frame, and the window
-  // reloads once it reports ready. Fire and forget: the reply races the exit.
-  // Not cleared here: the flag is the only affordance for applying the new identity, and a
-  // shutdown that never lands (respawn budget spent, IPC timeout) would otherwise take the
-  // banner with it. A restart that does land reloads the window, which resets it anyway.
+  // A new relay identity needs a new process: defaultKeyPair is fixed when the DHT node is built,
+  // and the seed is read at spawn. Main stops the worker and starts the next one; the window
+  // reloads when it reports ready.
+  // Not cleared here: the flag is the only affordance for applying the new identity, and a restart
+  // that never lands would otherwise take the banner with it. One that does land reloads the
+  // window, which resets it anyway.
   const handleReconnect = useCallback(() => {
-    // Park this screen first: the reload that follows the restart would otherwise land on the space
-    // list, which shows nothing about the relay that was just applied.
+    // Park this screen first: the reload that follows would otherwise land on the space list, which
+    // shows nothing about the relay that was just applied.
     rememberScreen('network-settings')
-    request('shutdown').catch((err) => console.error('relay reconnect failed:', err))
+    restartWorker().catch((err) => console.error('relay reconnect failed:', err))
   }, [])
 
   const handleTest = useCallback(async () => {

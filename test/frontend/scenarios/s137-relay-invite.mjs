@@ -77,8 +77,9 @@ export default async function s137({ runDir, bootstrap }) {
       if (await Relays.hasText('Unreachable')) throw new Error('probed with the pre-restart identity')
     })
 
-    // The whole deferred-restart path, end to end: the worker exits, the respawn policy brings it
-    // back on the new boot frame, the window reloads, and only then is the verdict worth having.
+    // The whole deferred-restart path, end to end: main stops the worker and starts the next one on
+    // the new boot frame, the window reloads, and only then is the verdict worth having. It is a
+    // restart, not a crash — the respawn policy is not consulted and no budget is spent.
     // The reload resumes on this screen (resume-screen.ts), so the pending control going away is
     // the reload's tell — landing on the space list would now be a regression.
     await r.ok('reconnecting applies the identity and the probe then runs', async () => {

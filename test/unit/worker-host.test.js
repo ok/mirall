@@ -119,3 +119,25 @@ test('the bootstrap frame carries the protocol version and the window main accep
   t.is(boot.protocolMin, IPC_PROTOCOL_MIN_SUPPORTED)
   t.is(boot.protocolMax, IPC_PROTOCOL_VERSION, 'main accepts exactly the version it speaks')
 })
+
+test('stopWorker resolves once the worker has actually exited', async (t) => {
+  const { host, worker } = load()
+  host.getWorker('/src/worker/main.js')
+  let settled = false
+  const stopped = host.stopWorker(worker).then(() => { settled = true })
+
+  const [shutdown] = frames(worker).filter((f) => f.type === 'shutdown')
+  t.ok(shutdown, 'it asks first, and lets the worker close the swarm itself')
+  t.absent(settled, 'and does not resolve until the process is gone')
+
+  worker.emit('exit', 0)
+  await stopped
+  t.ok(settled, 'the promise is what makes a restart able to wait for the stop')
+})
+
+test('stopWorkers still reaches every worker', (t) => {
+  const { host, worker } = load()
+  host.getWorker('/src/worker/main.js')
+  host.stopWorkers()
+  t.is(frames(worker).filter((f) => f.type === 'shutdown').length, 1)
+})

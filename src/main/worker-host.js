@@ -11,6 +11,7 @@ const { isDebug } = require('./debug-gate.js')
 const { isQuitting } = require('./quit-state.js')
 const { sendToAll } = require('./logging.js')
 const { createMainRequestRouter } = require('./main-requests.js')
+const { createWorkerRestart } = require('./lifecycle.js')
 const { entrypointFor } = require('./worker-entrypoints.js')
 const { createWorkerFrameReader } = require('./ipc-frame.js')
 const { envJson } = require('./env-json.js')
@@ -99,13 +100,21 @@ const mainRequests = createMainRequestRouter({
 //    frame OR a SIGTERM bare dispatches on that loop, so follow up with SIGKILL on the child.
 //    Timers are unref'd so they never delay a clean exit; process.on('exit') is the backstop
 //    when main exits before these fire.
-function stopWorkers() {
-  for (const worker of workers.values()) {
+// One worker, and resolves once it has actually gone. The escalation is unchanged and is what makes
+// the promise certain to settle: the shutdown frame lets the worker close the swarm and exit
+// itself, SIGTERM at 3s and SIGKILL at 5s cover one that cannot.
+function stopWorker(worker) {
+  return new Promise((resolve) => {
+    worker.once('exit', resolve)
     sendToWorker(worker, { type: 'shutdown' })
     const child = worker._process
     setTimeout(() => { try { worker.destroy() } catch {} ; try { child?.kill('SIGTERM') } catch {} }, 3000).unref?.()
     setTimeout(() => { try { child?.kill('SIGKILL') } catch {} }, 5000).unref?.()
-  }
+  })
+}
+
+function stopWorkers() {
+  for (const worker of workers.values()) void stopWorker(worker)
 }
 
 function getWorker(specifier) {
@@ -293,18 +302,29 @@ process.on('exit', () => {
   }
 })
 
+// Replacing a running worker without quitting. Its own sequence rather than a call pair at the IPC
+// boundary, because the order is load-bearing and there was nowhere that said so.
+const restartWorker = createWorkerRestart({
+  stopWorker: (spec) => (workers.has(spec) ? stopWorker(workers.get(spec)) : Promise.resolve()),
+  spawnWorker: (spec) => { getWorker(spec) },
+  isQuitting,
+})
+
 function registerWorkerHost() {
   ipcMain.handle('pear:startWorker', (_evt, specifier) => {
     getWorker(specifier)
     return true
   })
+  ipcMain.handle('pear:restartWorker', (_evt, specifier) => restartWorker(specifier))
 }
 
 module.exports = {
   initWorkerHost,
   registerWorkerHost,
   getWorker,
+  stopWorker,
   stopWorkers,
+  restartWorker,
   sendToWorker,
   downloadRoots,
   stopOwnedWatchers,
