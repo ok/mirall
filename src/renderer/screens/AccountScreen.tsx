@@ -5,7 +5,7 @@ import { useState, useRef, useEffect, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { resizeAvatar, NAME_MAX, AVATAR_INPUT_MAX_BYTES } from '../format/utils.js'
 import { connectionDesc, activityDesc } from '../model/profile-rows.js'
-import type { AuditConfig, AuditStats, Profile } from '../types/types.js'
+import type { Profile } from '../types/types.js'
 import type { IdentityProtection } from '../platform/global.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import { useQuery } from '../store/useQuery.js'
@@ -151,8 +151,8 @@ function DeviceGroup({ onOpenNetworkStatus, onOpenActivityLog }: Pick<AccountPro
   // Through the query store for the dedup and cache, with NO scopes: this is a summary line, not a
   // live counter, and the audit scope would repaint it on every recorded event. Scope-less still
   // re-reads on each mount. ActivityLogSettings reads the same two entries.
-  const { data: auditConfig } = useQuery<AuditConfig>('audit:get-config', {}, null)
-  const { data: auditStats } = useQuery<AuditStats>('audit:stats', {}, null)
+  const { data: auditConfig } = useQuery('audit:get-config', {}, null)
+  const { data: auditStats } = useQuery('audit:stats', {}, null)
 
   useEffect(() => {
     window.bridge.getIdentityProtection().then(setIdentity).catch(() => {})

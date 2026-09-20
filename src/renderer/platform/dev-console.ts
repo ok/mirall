@@ -55,7 +55,7 @@ async function verbose(on = true): Promise<boolean> {
   // or the host booted the worker verbose — so it is what gets printed.
   let workerVerbose = on
   try {
-    const reply = await request('setVerbose', { verbose: on }) as { verbose?: boolean } | null
+    const reply = await request('setVerbose', { verbose: on })
     if (typeof reply?.verbose === 'boolean') workerVerbose = reply.verbose
   } catch (err) {
     console.warn('[mirall] worker verbose toggle failed:', err)
@@ -83,9 +83,7 @@ const mirall: MirallDevConsole = {
   // Per-request call counts, failures, in-flight and timing — how many round-trips a UI action
   // really costs, measured on the running app rather than estimated.
   metrics: async () => {
-    const diagnostics = await request('diagnostics:export', { redact: true }) as {
-      requests?: { metrics?: Record<string, unknown>; failures?: Record<string, unknown> }
-    }
+    const diagnostics = await request('diagnostics:export', { redact: true })
     const metrics = diagnostics.requests?.metrics ?? {}
     console.table(metrics)
     if (diagnostics.requests?.failures) console.table(diagnostics.requests.failures)

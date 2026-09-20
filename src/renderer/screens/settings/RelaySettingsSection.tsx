@@ -24,11 +24,6 @@ import RelayApplyNotice from '../../components/network/RelayApplyNotice.js'
 import { useRelayApply, type RelayApplyResult } from '../../hooks/useRelayApply.js'
 import { relayKindClasses } from '../../model/relay-groups.js'
 
-interface RelayTestResult {
-  ok: boolean
-  reason?: string
-}
-
 // A private relay whose seed the running worker has not booted with must not be installed: the
 // node still presents its old key, so every dial through it is refused instead of falling back
 // to a direct connection. The rest of the config always goes through — a removal or a mode
@@ -123,7 +118,7 @@ export default function RelaySettingsSection() {
     setTesting(true)
     let ok = false
     try {
-      const result = await request('network:test-relay', { publicKey: target.publicKey }) as RelayTestResult
+      const result = await request('network:test-relay', { publicKey: target.publicKey })
       ok = result?.ok === true
     } catch (err) {
       console.error('relay test failed:', err)

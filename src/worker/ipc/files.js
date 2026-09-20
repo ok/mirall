@@ -30,6 +30,7 @@ export function registerFiles(ipc, { log }) {
     } catch (err) {
       log.warn('loose-file fs event failed:', err.message)
     }
+    return { ok: true }
   })
 
   // Sender-side download indicator: open/close a per-file detail subscription so the
@@ -38,7 +39,10 @@ export function registerFiles(ipc, { log }) {
   // pushes the authoritative snapshot while subscribed (no renderer poll).
   ipc.handle('serving:summary-list', async (msg) => listServeSummaries(msg.spaceId))
   ipc.handle('serving:detail-subscribe', async (msg, ctx) => subscribeServeDetail(msg.spaceId, msg.path, ctx.client.id))
-  ipc.handle('serving:detail-unsubscribe', async (msg, ctx) => unsubscribeServeDetail(msg.spaceId, msg.path, ctx.client.id))
+  ipc.handle('serving:detail-unsubscribe', async (msg, ctx) => {
+    unsubscribeServeDetail(msg.spaceId, msg.path, ctx.client.id)
+    return { ok: true }
+  })
   // Registered here rather than in the ledger's own open(): the ledger takes a bare { emit } in two
   // integration files, and the handler layer is where the real router always is.
   ipc.onClientDisconnect((client) => dropServeDetailClient(client.id))

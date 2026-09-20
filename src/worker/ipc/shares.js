@@ -219,7 +219,8 @@ export function registerShares(ipc, { log, intents, mountOwnedShare }) {
       if (!foreignMount) throw new AppError(CODES.MOUNT_NOT_ON_DEVICE, 'Mirror not mounted')
       target = foreignMount.mountPath
     }
-    return revealLocalPath(target, CODES.MOUNT_NOT_ON_DEVICE)
+    revealLocalPath(target, CODES.MOUNT_NOT_ON_DEVICE)
+    return { ok: true }
   })
 
   ipc.handle('share:reveal-file', async (msg) => {
@@ -239,7 +240,8 @@ export function registerShares(ipc, { log, intents, mountOwnedShare }) {
         target = (await getDownloadedPath(msg.spaceId, drivePath)) || claimedPathFor(drivePath, null)
       }
     }
-    return revealLocalPath(target)
+    revealLocalPath(target)
+    return { ok: true }
   })
 
   ipc.handle('share:folder-info', async (msg) => {

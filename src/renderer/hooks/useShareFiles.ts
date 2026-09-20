@@ -8,43 +8,10 @@ import { useQuery } from '../store/useQuery.js'
 import { foldListing, emptyFold, resolveListing, type Fold } from '../model/share-files-fold.js'
 import { shareDecoKey } from '../../shared/contract/decoration-key.js'
 import { useDecorations } from './useDecorations.js'
-import type { ShareFileEntry, ShareFileStatus } from '../types/types.js'
+import type { ShareFileEntry } from '../types/types.js'
+import type { ShareFileRow } from '../../shared/contract/responses.js'
 
-interface ServerEntry {
-  relPath: string
-  size: number
-  hash: string
-  mtime: number
-  status: ShareFileStatus
-  localPath: string | null
-  verified?: boolean
-  pendingBytes?: number
-  errorCode?: string
-  transferId?: string
-}
-
-interface DownloadFileResult {
-  transferId?: string
-  queued?: boolean
-  alreadyOwned?: boolean
-  mirrored?: boolean
-}
-
-interface ListResult {
-  entries: ServerEntry[]
-  complete: boolean
-  // True folder totals — `entries` is capped at listFilesCap to bound the worker heap,
-  // so these (streamed separately) report the real count past the cap. Absent for backends
-  // that don't cap → fall back to the row count.
-  total?: number
-  totalBytes?: number
-  // Whether the worker capped the rows. Reported, never inferred: see deriveFolderInfo.
-  truncated?: boolean
-  // The limit the rows were capped at — non-null exactly when `truncated`.
-  fileLimit?: number | null
-}
-
-function toEntry(e: ServerEntry): ShareFileEntry {
+function toEntry(e: ShareFileRow): ShareFileEntry {
   return {
     relPath: e.relPath,
     size: e.size,
@@ -71,7 +38,7 @@ export function useShareFiles(spaceId: string, ownerKey: string, shareId: string
   const ready = Boolean(spaceId && shareId && ownerKey)
   // The store holds the RAW response. It never learns what `complete` or `truncated` mean — those
   // are share:list-files concepts, and the fold below is where they are read.
-  const { data, error: queryError, loading: fetching } = useQuery<ListResult>(
+  const { data, error: queryError, loading: fetching } = useQuery(
     'share:list-files',
     { spaceId, ownerKey, shareId },
     scopes,
@@ -81,7 +48,7 @@ export function useShareFiles(spaceId: string, ownerKey: string, shareId: string
   // The fold across responses, advanced DURING RENDER: reconcileFiles needs the previous reconciled
   // list, which the store does not hold. State updated conditionally in render is React's documented
   // carry; an effect would be derived-state-in-effect, and a memo has no memory of its own output.
-  const [fold, setFold] = useState<Fold<ServerEntry>>(emptyFold)
+  const [fold, setFold] = useState<Fold<ShareFileRow>>(emptyFold)
   // Paths whose download was just requested. An override rather than a write into the list: seeded
   // into the rows it would be dropped by the next refetch, and the seed exists only to cover the
   // gap before the first decoration frame arrives.
@@ -105,9 +72,10 @@ export function useShareFiles(spaceId: string, ownerKey: string, shareId: string
 
   const downloadFile = useCallback(
     async (relPath: string) => {
-      const res = await request('share:read-file', { spaceId, ownerKey, shareId, relPath }) as DownloadFileResult
-      const transferId = res?.transferId
-      if (!transferId) return
+      const res = await request('share:read-file', { spaceId, ownerKey, shareId, relPath })
+      // The union is the point: a read that was already ours, mirrored by the folder engine, or
+      // queued behind it starts no transfer and seeds no bar.
+      if (!('transferId' in res)) return
       // Seed the progress bar; the row's status flips to 'downloading' from the worker's re-derive
       // (the engine emits share-files-updated on start), not a client override.
       setSeeded((prev) => { const next = new Set(prev); next.add(relPath); return next })

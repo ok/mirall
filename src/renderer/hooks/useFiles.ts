@@ -11,11 +11,6 @@ import type { FileEntry } from '../types/types.js'
 
 const EMPTY: FileEntry[] = []
 
-interface DownloadFileResult {
-  transferId?: string
-  queued?: boolean
-}
-
 // Files AND members: a members change can newly reveal a peer's loose files (README.md).
 function filesScopes(spaceId: string) {
   return [{ kind: 'files', spaceId }, { kind: 'members', spaceId }]
@@ -36,7 +31,7 @@ export function useFiles(spaceId: string) {
   // One leading + one trailing files:list per 750 ms window: a publish emits one files hint per
   // catalog append and a handshake emits a members poke AND a files hint, neither of which should
   // become concurrent full fan-outs.
-  const { data, error: queryError, loading: fetching } = useQuery<FileEntry[]>(
+  const { data, error: queryError, loading: fetching } = useQuery(
     'files:list',
     { spaceId },
     filesScopes(spaceId),
@@ -97,10 +92,10 @@ export function useFiles(spaceId: string) {
       path: file.path,
       inPlace: file.inPlace ?? false,
       ownerKey: file.owner.publicKey,
-    }) as DownloadFileResult
+    })
     // A queued click started nothing — the owner is unreachable and the intent is recorded for the
     // reconnect machinery — so there is no transfer to report movement for.
-    if (res?.transferId) setSeeded((prev) => { const next = new Set(prev); next.add(file.path); return next })
+    if ('transferId' in res) setSeeded((prev) => { const next = new Set(prev); next.add(file.path); return next })
     return res
   }, [spaceId])
 

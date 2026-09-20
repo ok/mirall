@@ -5,7 +5,7 @@ import { request } from '../../ipc/ipc.js'
 import { useQuery } from '../../store/useQuery.js'
 import { refetchQuery, setQueryData } from '../../store/query-store.js'
 import { useHasVerticalOverflow } from '../../hooks/useHasVerticalOverflow.js'
-import type { AuditConfig, AuditEntry, AuditStats } from '../../types/types.js'
+import type { AuditConfig, AuditStats } from '../../types/types.js'
 import PageHeader from '../../components/layout/PageHeader.js'
 import ActionRow, { ROW_GROUP } from '../../components/layout/ActionRow.js'
 import AuditRecordingCard from './AuditRecordingCard.js'
@@ -18,19 +18,13 @@ interface ActivityLogSettingsProps {
   onOpenLog: () => void
 }
 
-interface AuditExport {
-  version: number
-  exportedAt: number
-  entries: AuditEntry[]
-}
-
 export default function ActivityLogSettings({ onBack, onOpenLog }: ActivityLogSettingsProps) {
   const { t } = useTranslation()
   const errorText = useErrorText()
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
   // The same two entries Account reads, scope-less for the reason stated there.
-  const { data: config } = useQuery<AuditConfig>('audit:get-config', {}, null)
-  const { data: stats } = useQuery<AuditStats>('audit:stats', {}, null)
+  const { data: config } = useQuery('audit:get-config', {}, null)
+  const { data: stats } = useQuery('audit:stats', {}, null)
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState<string | null>(null)
   const [confirmPurge, setConfirmPurge] = useState(false)
@@ -45,14 +39,14 @@ export default function ActivityLogSettings({ onBack, onOpenLog }: ActivityLogSe
   const patch = useCallback(async (next: Partial<AuditConfig>) => {
     // The worker answers with the record it applied, so push it rather than re-reading: a refetch
     // here would race the write it is meant to reflect.
-    setQueryData<AuditConfig>('audit:get-config', {}, await request('audit:configure', next) as AuditConfig)
+    setQueryData<AuditConfig>('audit:get-config', {}, await request('audit:configure', next))
   }, [])
 
   const handleExport = useCallback(async () => {
     setBusy(true)
     setStatus(null)
     try {
-      const payload = await request('audit:export', {}, 0) as AuditExport
+      const payload = await request('audit:export', {}, 0)
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
@@ -71,7 +65,7 @@ export default function ActivityLogSettings({ onBack, onOpenLog }: ActivityLogSe
   const handlePurge = useCallback(async () => {
     setBusy(true)
     try {
-      const result = await request('audit:purge') as { purged: number }
+      const result = await request('audit:purge')
       setStatus(t('activityLogSettings.deleteDone', { count: result.purged }))
       await refresh()
     } finally {

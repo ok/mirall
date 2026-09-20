@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { request, subscribe } from '../ipc/ipc.js'
 import { Scope, scopeMatches } from '../../shared/contract/scope.js'
 import { useQuery } from '../store/useQuery.js'
-import type { AuditEntry, AuditFilters, AuditPage, AuditSpaceRef, AuditActorRef, AuditCategory } from '../types/types.js'
+import type { AuditEntry, AuditFilters, AuditSpaceRef, AuditActorRef, AuditCategory } from '../types/types.js'
 import { useErrorText } from './useErrorText.js'
 
 // Sized against the list's visible window (~8-10 rows) rather than the query budget: a page much
@@ -59,7 +59,7 @@ export function useAuditLog(filters: AuditFilters, kinds: string[] | null) {
     const run = ++runRef.current
     setLoading(true)
     try {
-      const page = await request('audit:list', { ...query, cursor: null, limit: PAGE_SIZE }) as AuditPage
+      const page = await request('audit:list', { ...query, cursor: null, limit: PAGE_SIZE })
       if (run !== runRef.current) return
       setEntries(page.entries)
       setCursor(page.nextCursor)
@@ -79,7 +79,7 @@ export function useAuditLog(filters: AuditFilters, kinds: string[] | null) {
     const run = runRef.current
     setLoadingMore(true)
     try {
-      const page = await request('audit:list', { ...query, cursor, limit: PAGE_SIZE }) as AuditPage
+      const page = await request('audit:list', { ...query, cursor, limit: PAGE_SIZE })
       if (run !== runRef.current) return
       setEntries((prev) => [...prev, ...page.entries])
       setCursor(page.nextCursor)
@@ -107,8 +107,8 @@ const NO_SPACES: AuditSpaceRef[] = []
 const NO_ACTORS: AuditActorRef[] = []
 
 export function useAuditFacets() {
-  const { data: spaces } = useQuery<AuditSpaceRef[]>('audit:spaces', {}, AUDIT_SCOPES)
-  const { data: actors } = useQuery<AuditActorRef[]>('audit:actors', {}, AUDIT_SCOPES)
+  const { data: spaces } = useQuery('audit:spaces', {}, AUDIT_SCOPES)
+  const { data: actors } = useQuery('audit:actors', {}, AUDIT_SCOPES)
   return { spaces: spaces ?? NO_SPACES, actors: actors ?? NO_ACTORS }
 }
 

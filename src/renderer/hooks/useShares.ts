@@ -40,9 +40,9 @@ export function useShares(spaceId: string, myPublicKey: string | null) {
   // registered with, so pinning it to a spaceId would mean only the first space visited in the
   // session could ever invalidate it, and a mirror toggle in any later space would leave the role
   // badge wrong until the user left and re-entered.
-  const shares = useQuery<Share[]>('share:list', params, shareScopes, { enabled: Boolean(spaceId) })
-  const foreign = useQuery<ForeignFolderMount[]>('foreign-folder:list-all', {}, ANY_SHARES)
-  const owned = useQuery<OwnedFolderMount[]>('owned-folder:list-all', {}, ANY_SHARES)
+  const shares = useQuery('share:list', params, shareScopes, { enabled: Boolean(spaceId) })
+  const foreign = useQuery('foreign-folder:list-all', {}, ANY_SHARES)
+  const owned = useQuery('owned-folder:list-all', {}, ANY_SHARES)
 
   const { mirrored, mirrorStatus, ownedStatus } = useMemo(() => {
     const mmap = new Map<string, boolean>()
@@ -84,7 +84,7 @@ export function useShares(spaceId: string, myPublicKey: string | null) {
   const loading = cold && (shares.loading || foreign.loading || owned.loading)
 
   const createShare = useCallback(
-    async (name: string) => (await request('share:create', { spaceId, name })) as Share,
+    async (name: string) => await request('share:create', { spaceId, name }),
     [spaceId],
   )
 

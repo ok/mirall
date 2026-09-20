@@ -84,7 +84,7 @@ export default function NetworkDiagnosticsScreen({ onBack }: Props) {
     } catch {}
     let effective = next
     try {
-      const reply = await request('setVerbose', { verbose: next }) as { verbose?: boolean } | null
+      const reply = await request('setVerbose', { verbose: next })
       if (typeof reply?.verbose === 'boolean') effective = reply.verbose
     } catch {}
     setIncludeLogs(effective)
