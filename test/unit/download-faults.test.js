@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { preflightFault, terminalFault, faultCleared, awaitsOwner } from '../../src/shared/transfer/backends/overlay/download-faults.js'
+import { preflightFault, terminalFault, faultCleared, faultAwaitsOwner } from '../../src/shared/transfer/backends/overlay/download-faults.js'
 import { CODES } from '../../src/shared/contract/errors.js'
 import { FREE_SPACE_HEADROOM } from '../../src/shared/transfer/free-space.js'
 
@@ -69,11 +69,12 @@ test('a permission fault clears once its folder takes a write', (t) => {
 })
 
 test('a row awaits its owner unless only the user can unblock it', (t) => {
-  const row = (errorCode) => ({ finalPath: '/dl/a.bin', errorCode })
   const readOnly = () => false
-  t.is(awaitsOwner(row(undefined), readOnly), true)
-  t.is(awaitsOwner(row(CODES.DOWNLOAD_FAILED), readOnly), true, 'a generic failure is re-driven on reconnect')
-  t.is(awaitsOwner(row(CODES.TRANSFER_CHECKSUM), readOnly), false)
-  t.is(awaitsOwner(row(CODES.TRANSFER_PERMISSION), readOnly), false)
-  t.is(awaitsOwner(row(CODES.TRANSFER_PERMISSION), () => true), true)
+  t.is(faultAwaitsOwner(undefined, '/dl/a.bin', readOnly), true)
+  t.is(faultAwaitsOwner(CODES.DOWNLOAD_FAILED, '/dl/a.bin', readOnly), true, 'a generic failure is re-driven on reconnect')
+  t.is(faultAwaitsOwner(CODES.TRANSFER_CHECKSUM, '/dl/a.bin', readOnly), true, 'the owner clears a checksum fault by republishing')
+  t.is(faultAwaitsOwner(CODES.TRANSFER_DISK_FULL, '/dl/a.bin', readOnly), false)
+  t.is(faultAwaitsOwner(CODES.TRANSFER_DEST_UNAVAILABLE, '/dl/a.bin', readOnly), false)
+  t.is(faultAwaitsOwner(CODES.TRANSFER_PERMISSION, '/dl/a.bin', readOnly), false)
+  t.is(faultAwaitsOwner(CODES.TRANSFER_PERMISSION, '/dl/a.bin', () => true), true)
 })

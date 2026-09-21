@@ -4,7 +4,7 @@
 import { CODES } from '../../../contract/errors.js'
 import { classifyTransferError, isLocalDestFault } from '../../../core/errors.js'
 import { shortfall } from '../../free-space.js'
-import { isTerminalFault } from './fetch-policy.js'
+import { isUserBlockedFault } from './fetch-policy.js'
 
 // Refuse before any scheduler/holder work. The folder is checked first and on its own: the
 // receive path mkdir -p's the destination, so a folder the user deleted would be silently
@@ -43,8 +43,8 @@ export function faultCleared(code, finalPath, folderWritable) {
   return code === CODES.TRANSFER_PERMISSION && !!finalPath && folderWritable(finalPath)
 }
 
-// Whether a pending row still waits on its owner's bytes. A terminal verdict waits on the user,
-// not the owner, until the fault has cleared.
-export function awaitsOwner(row, folderWritable) {
-  return !isTerminalFault(row.errorCode) || faultCleared(row.errorCode, row.finalPath, folderWritable)
+// Whether a pending row still waits on its owner's bytes: a fault only the user can clear waits on
+// the user instead, until it has cleared.
+export function faultAwaitsOwner(code, finalPath, folderWritable) {
+  return !isUserBlockedFault(code) || faultCleared(code, finalPath, folderWritable)
 }
