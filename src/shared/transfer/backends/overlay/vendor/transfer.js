@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Derived from hyper-overlay lib/transfer.js @ 6cac8ee (v0.2.9), Copyright (C) 2026 the
+// hyper-overlay authors, licensed AGPL-3.0. Modified for Mirall in 2026: each change
+// is marked [mirall] and listed in PROVENANCE.md, which carries the full license notice.
+
 /**
  * TransferManager — On-demand chunking and streaming file transfer
  *
