@@ -66,9 +66,10 @@ async function hangingMirror(t) {
 }
 
 // REGRESSION (FIX-R09-2): the tick's cleanup deleted the in-flight entry unconditionally, unlike
-// initialMaterializeScan's, which is identity-guarded. When a scan had replaced the entry, the
-// older tick settling evicted the LIVE one — and the next tick then started a second pass over the
-// same mount, which is the overlapping-snapshot corruption the map exists to prevent.
+// initialMaterializeScan's, which is identity-guarded. Once a scan owned the entry, the older tick
+// settling evicted the LIVE one — and the next tick then started a second pass over the same mount,
+// which is the overlapping-snapshot corruption the map exists to prevent. A scan asked for while a
+// tick runs now waits for it, so the tick settles while the scan owns the entry.
 test('REGRESSION (FIX-R09-2: a settling pass must not evict an in-flight entry it no longer owns)', async (t) => {
   const { spaceId, shareId, spy } = await hangingMirror(t)
 
@@ -77,12 +78,13 @@ test('REGRESSION (FIX-R09-2: a settling pass must not evict an in-flight entry i
 
   const mount = await getForeignMount(spaceId, shareId)
   initialMaterializeScan(mount)
-  await waitUntil(() => spy.fetches === 2, 8000)
+  await delay(80)
+  t.is(spy.fetches, 1, 'the scan waits for the tick instead of walking beside it')
 
-  // Settle only the FIRST pass. Its cleanup now sees the scan's entry, not its own.
+  // Settle the tick. Its cleanup now sees the scan's entry, not its own, and the scan starts.
   const cancelled = new Error('cancelled'); cancelled.code = 'ECANCELLED'
   spy.rejecters.shift()(cancelled)
-  await delay(80)
+  await waitUntil(() => spy.fetches === 2, 8000)
 
   runMaterializeTick(spaceId, shareId)
   await delay(80)

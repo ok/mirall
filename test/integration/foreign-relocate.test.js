@@ -5,14 +5,15 @@ import { freshPeer } from '../helpers/store.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { publishShare, generateShareId } from '../../src/shared/shares/shares.js'
 import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
-import { createForeignMount, getForeignMount } from '../../src/shared/folders/mount-store.js'
+import { createForeignMount, getForeignMount, patchForeignMount } from '../../src/shared/folders/mount-store.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { isAutoPaused } from '../../src/shared/folders/foreign-pause.js'
 import { relocateForeignFolder, stopForeignLoop } from '../../src/shared/folders/foreign-verbs.js'
 import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
 import { setupSelfMirror } from '../helpers/owned.js'
-import { initialMaterializeScan, runMaterializeTick } from '../../src/shared/folders/mirror-pass.js'
+import { until } from '../helpers/bare-poll.js'
+import { initialMaterializeScan, mirrorIdleForTests } from '../../src/shared/folders/mirror-pass.js'
 
 async function setupMirror(t, { enabled = true, status = null } = {}) {
   const ctx = await freshPeer(t)
@@ -119,15 +120,14 @@ async function movedMirror(t) {
 }
 
 // Relocate re-enters at scanning, and the pass that walks the new folder is the one that leaves it.
-// A tick requested right after the relocate coalesces onto the pass the relocate started, so the
-// record read below is the one that pass left.
+// The record is read once the relocate's passes have all settled.
 test('REGRESSION (FIX-380: a relocated mirror settles to active after its first pass, not scanning)', async (t) => {
   const { ctx, spaceId, shareId, moved } = await movedMirror(t)
   t.is((await getForeignMount(spaceId, shareId)).status, 'active', 'precondition: the mirror settled at its first path')
   const seen = statuses(ctx, shareId).length
 
   await relocateForeignFolder(spaceId, shareId, moved)
-  await runMaterializeTick(spaceId, shareId)
+  await mirrorIdleForTests(spaceId, shareId)
 
   const stored = await getForeignMount(spaceId, shareId)
   t.is(stored.mountPath, moved, 'the mount points at the new folder')
@@ -149,11 +149,47 @@ test('relocating onto the moved folder adopts its files without fetching or rewr
   const before = fs.statSync(path.join(moved, 'a.txt')).mtimeMs
 
   await relocateForeignFolder(spaceId, shareId, moved)
-  await runMaterializeTick(spaceId, shareId)
+  await mirrorIdleForTests(spaceId, shareId)
 
   t.is(fetches, 0, 'nothing is downloaded again')
   t.is(fs.readFileSync(path.join(moved, 'a.txt')).toString(), 'alpha', 'the bytes are untouched')
   t.is(fs.statSync(path.join(moved, 'a.txt')).mtimeMs, before, 'and the file was not rewritten')
   t.alike((await getForeignMount(spaceId, shareId)).syncedPaths.slice().sort(), ['a.txt', 'sub/b.txt'],
     'the mount owns them at the new path')
+})
+
+test('a relocate drops the old path\'s fault reason with its status', async (t) => {
+  const { spaceId, shareId, moved } = await movedMirror(t)
+  await patchForeignMount(spaceId, shareId, { lastError: 'TRANSFER_PERMISSION' })
+  await relocateForeignFolder(spaceId, shareId, moved)
+  t.is((await getForeignMount(spaceId, shareId)).lastError, null, 'the reason named a folder the mount no longer uses')
+  await mirrorIdleForTests(spaceId, shareId)
+})
+
+test('a relocate scan that fails records a typed fault instead of leaving scanning', async (t) => {
+  const { spaceId, shareId, moved } = await movedMirror(t)
+  const list = overlayBackend.listPeerWithMeta
+  overlayBackend.listPeerWithMeta = async () => { throw Object.assign(new Error('permission denied'), { code: 'EACCES' }) }
+  t.teardown(() => { overlayBackend.listPeerWithMeta = list })
+
+  await relocateForeignFolder(spaceId, shareId, moved)
+  await mirrorIdleForTests(spaceId, shareId)
+  await until(async () => (await getForeignMount(spaceId, shareId)).lastError === 'TRANSFER_PERMISSION', 2000)
+
+  const stored = await getForeignMount(spaceId, shareId)
+  t.not(stored.status, 'scanning', 'the mount does not read scanning for the rest of the session')
+  t.is(stored.lastError, 'TRANSFER_PERMISSION', 'and it says why')
+})
+
+// The generation is taken when the scan is asked for, so a stop that lands while the share is
+// still being read cancels it.
+test('an initial scan stopped before it has read the share writes nothing', async (t) => {
+  const ctx = await setupSelfMirror(t, { files: { 'a.txt': 'alpha' } })
+  const spaceId = ctx.spaceId
+  const shareId = ctx.share.id
+  const scan = initialMaterializeScan(ctx.mount)
+  stopForeignLoop(spaceId, shareId)
+  t.alike(await scan, { stopped: true }, 'the scan saw itself stopped')
+  t.is((await getForeignMount(spaceId, shareId)).status, 'scanning', 'and wrote no status over the stop')
+  t.absent(fs.existsSync(path.join(ctx.mirrorPath, 'a.txt')), 'nor fetched anything')
 })
