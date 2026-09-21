@@ -15,6 +15,7 @@ import {
 } from 'react'
 import type { ToastApi, ToastItem, ToastOptions, ToastVariant } from './types.js'
 import { toastKey } from './toastKey.js'
+import { pushToast } from './toastStack.js'
 import ToastContainer from './ToastContainer.js'
 
 declare global {
@@ -25,7 +26,6 @@ declare global {
 
 const ToastContext = createContext<ToastApi | null>(null)
 
-const MAX_VISIBLE = 4
 const DEFAULT_DURATION = 5000
 const MIN_RESUME_DURATION = 1000
 
@@ -77,11 +77,7 @@ export function ToastProvider({ children }: Props) {
         clearTimeout(previous)
         timersRef.current.delete(id)
       }
-      setItems((prev) => {
-        const without = prev.filter((i) => i.id !== id)
-        const next = [...without, item]
-        return next.length > MAX_VISIBLE ? next.slice(next.length - MAX_VISIBLE) : next
-      })
+      setItems((prev) => pushToast(prev, item))
       scheduleDismiss(id, duration)
       return id
     },

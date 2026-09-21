@@ -29,6 +29,7 @@ components run unmodified. `harness-bootstrap.ts` gives every harness the query 
 | `test:layout:case -- segments` | `run-segments.mjs` | `<SegmentedControl>` in its three shapes | the track and every segment keep their size across selections |
 | `test:layout:case -- errorassoc` | `run-errorassoc.mjs` | `<EditSpaceModal>`, `<EditFolderModal>`, `<MountPathField>`, `<CreateSpaceModal>` in failure | each field marks itself invalid and describes itself with its OWN error; no submit rejection escapes |
 | `test:layout:case -- toastdedupe` | `run-toastdedupe.mjs` | the real `<ToastProvider>` under a retried failure | one sentence said three times is one toast, remounted each time; a different sentence still stacks |
+| `test:layout:case -- toaststack` | `run-toaststack.mjs` | the real `<ToastProvider>` under a burst behind a sticky toast | a sticky toast is never evicted; the oldest auto-dismissing one makes room; stickies alone let the stack grow |
 
 Append `--no-build` to any runner to reuse the existing bundle. Exit `0` = the invariant held; on
 failure each runner prints the measured metrics. **Local/dev-machine only** — they spawn a real
