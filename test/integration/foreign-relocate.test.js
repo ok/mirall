@@ -11,6 +11,8 @@ import { isAutoPaused } from '../../src/shared/folders/foreign-pause.js'
 import { relocateForeignFolder, stopForeignLoop } from '../../src/shared/folders/foreign-verbs.js'
 import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
+import { setupSelfMirror } from '../helpers/owned.js'
+import { initialMaterializeScan, runMaterializeTick } from '../../src/shared/folders/mirror-pass.js'
 
 async function setupMirror(t, { enabled = true, status = null } = {}) {
   const ctx = await freshPeer(t)
@@ -97,4 +99,61 @@ test('relocate leaves the old directory untouched', async (t) => {
   fs.writeFileSync(path.join(from, 'already.bin'), 'x')
   await relocateForeignFolder(spaceId, shareId, to)
   t.ok(fs.existsSync(path.join(from, 'already.bin')), 'nothing was deleted behind the user')
+})
+
+const statuses = (ctx, shareId) => ctx.fake.events
+  .filter((e) => e.type === 'event:foreign-folder-mount-status' && e.payload?.shareId === shareId)
+  .map((e) => e.payload.status)
+
+// A mirror mounted and fully synced, then its folder moved on disk the way a user moves it — so the
+// relocate points at a destination that already holds the mirrored bytes.
+async function movedMirror(t) {
+  const ctx = await setupSelfMirror(t, { files: { 'a.txt': 'alpha', 'sub/b.txt': 'bravo' } })
+  const spaceId = ctx.spaceId
+  const shareId = ctx.share.id
+  t.teardown(() => stopForeignLoop(spaceId, shareId))
+  await initialMaterializeScan(ctx.mount)
+  const moved = path.join(ctx.tmpDir('mirror-dest'), 'Media')
+  fs.renameSync(ctx.mirrorPath, moved)
+  return { ctx, spaceId, shareId, moved }
+}
+
+// Relocate re-enters at scanning, and the pass that walks the new folder is the one that leaves it.
+// A tick requested right after the relocate coalesces onto the pass the relocate started, so the
+// record read below is the one that pass left.
+test('REGRESSION (FIX-380: a relocated mirror settles to active after its first pass, not scanning)', async (t) => {
+  const { ctx, spaceId, shareId, moved } = await movedMirror(t)
+  t.is((await getForeignMount(spaceId, shareId)).status, 'active', 'precondition: the mirror settled at its first path')
+  const seen = statuses(ctx, shareId).length
+
+  await relocateForeignFolder(spaceId, shareId, moved)
+  await runMaterializeTick(spaceId, shareId)
+
+  const stored = await getForeignMount(spaceId, shareId)
+  t.is(stored.mountPath, moved, 'the mount points at the new folder')
+  t.is(stored.status, 'active', 'the first pass over the new folder closes scanning')
+  t.is(stored.lastError ?? null, null, 'and carries no stale fault reason')
+  const edges = statuses(ctx, shareId).slice(seen)
+  t.is(edges[0], 'scanning', 'the relocate announces scanning')
+  t.is(edges[edges.length - 1], 'active', 'and the renderer hears it leave')
+})
+
+// Relocating is "move the mount, not the bytes": a folder the user moved already holds the owner's
+// versions, so the pass adopts them — no fetch, no rewrite — and records them as owned at the new path.
+test('relocating onto the moved folder adopts its files without fetching or rewriting them', async (t) => {
+  const { spaceId, shareId, moved } = await movedMirror(t)
+  const overlay = getOverlay()
+  const inner = overlay.fetchFile
+  let fetches = 0
+  overlay.fetchFile = async (...args) => { fetches += 1; return await inner(...args) }
+  const before = fs.statSync(path.join(moved, 'a.txt')).mtimeMs
+
+  await relocateForeignFolder(spaceId, shareId, moved)
+  await runMaterializeTick(spaceId, shareId)
+
+  t.is(fetches, 0, 'nothing is downloaded again')
+  t.is(fs.readFileSync(path.join(moved, 'a.txt')).toString(), 'alpha', 'the bytes are untouched')
+  t.is(fs.statSync(path.join(moved, 'a.txt')).mtimeMs, before, 'and the file was not rewritten')
+  t.alike((await getForeignMount(spaceId, shareId)).syncedPaths.slice().sort(), ['a.txt', 'sub/b.txt'],
+    'the mount owns them at the new path')
 })

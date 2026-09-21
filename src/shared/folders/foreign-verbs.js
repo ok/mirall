@@ -9,7 +9,7 @@ import { getForeignMount, mutateForeignMount, deleteForeignMount, patchForeignMo
 import { setMirrorState, tombstoneMirror } from './mirror-records.js'
 import { emitMirrorEvent, emitStatus, syncMirrorRecord } from './mirror-signals.js'
 import { forgetMirrorFetch } from './mirror-fetch.js'
-import { runMaterializeTick } from './mirror-pass.js'
+import { initialMaterializeScan, runMaterializeTick } from './mirror-pass.js'
 import { mirrorKey } from './mirror-policy.js'
 
 const log = createLogger('foreign-verbs')
@@ -95,7 +95,9 @@ export async function relocateForeignFolder(spaceId, shareId, mountPath) {
   if (enabled && next) {
     await syncMirrorRecord(spaceId, shareId, () => setMirrorState(spaceId, shareId, 'syncing'))
     await startForeignLoop(next)
-    runMaterializeTick(spaceId, shareId).catch((err) => log.debug('relocate tick failed:', shareId, '-', err.message))
+    // The initial scan, not a tick: it is the pass that closes 'scanning', and it adopts whatever
+    // already sits at the new path.
+    initialMaterializeScan(next).catch((err) => log.debug('relocate scan failed:', shareId, '-', err.message))
   }
   emitMirrorEvent('event:share-files-updated', { spaceId, shareId })
   return next
