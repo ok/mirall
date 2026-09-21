@@ -20,12 +20,12 @@ const files = tsxFiles(RENDERER).map((f) => ({
   src: readFileSync(f, 'utf8'),
 }))
 
-// The bodies of every `catch`/`finally` clause in a source, by brace matching. A regex cannot see
-// where a clause ends, and "the setter is somewhere in the file" is exactly the assertion that
-// passed while the setter sat on the resolve-only path.
-function guardBlocks(src) {
+// The bodies of every `catch`/`finally` clause in a source (or only the kinds asked for), by brace
+// matching. A regex cannot see where a clause ends, and "the setter is somewhere in the file" is
+// exactly the assertion that passed while the setter sat on the resolve-only path.
+function guardBlocks(src, kinds = ['catch', 'finally']) {
   const blocks = []
-  for (const m of src.matchAll(/\b(catch|finally)\b/g)) {
+  for (const m of src.matchAll(new RegExp(`\\b(${kinds.join('|')})\\b`, 'g'))) {
     const open = src.indexOf('{', m.index)
     if (open === -1) continue
     let depth = 0
@@ -123,4 +123,20 @@ test('REGRESSION (FIX-D9: no dialog reports completion from a finally block)', (
     }
   }
   t.pass('no completion callback runs from a catch/finally')
+})
+
+// A confirm dialog whose open flag is cleared from a `catch` or a `finally` closes on a failed action
+// exactly as on a completed one — and a closed confirm reads as "done". Only dialogs whose open flag
+// is this file's own state are checked; one that takes `isOpen` as a prop is closed by its caller.
+test('REGRESSION (FIX-375: a confirm dialog closes on success, never from a catch or finally)', (t) => {
+  const confirms = files.flatMap((f) => jsxElements(f.src, 'ConfirmDestructiveModal')
+    .map((el) => el.match(/\bisOpen=\{(\w+)\}/)?.[1])
+    .filter(Boolean)
+    .map((flag) => ({ f, close: `set${flag[0].toUpperCase()}${flag.slice(1)}(false)` }))
+    .filter(({ f, close }) => f.src.includes(close)))
+  t.ok(confirms.length >= 1, `found ${confirms.length} confirm dialog(s) whose open flag is local state`)
+  for (const { f, close } of confirms) {
+    t.absent(guardBlocks(f.src).some((b) => b.includes(close)),
+      `${f.rel}: ${close} does not run from a catch or finally`)
+  }
 })

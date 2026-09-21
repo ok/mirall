@@ -81,6 +81,13 @@ export default [
     },
   },
 
+  // A screen or a control never swallows a failure: an empty catch there is a click that did
+  // nothing and said nothing. Rationale: .claude/testing.md, "Lint invariants".
+  {
+    files: ['src/renderer/screens/**/*.tsx', 'src/renderer/components/**/*.tsx'],
+    rules: { 'no-empty': ['error', { allowEmptyCatch: false }] },
+  },
+
   // Data layer — Bare worker + shared modules (ESM).
   {
     files: ['src/shared/**/*.js', 'src/worker/**/*.js'],

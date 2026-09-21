@@ -1,6 +1,6 @@
 // Diagnostics: builds the support bundle and previews what goes in it. Its own screen below
 // Network status, because detailed logging stays on only while this screen is mounted.
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { buildBundle, serialiseBundle, bundleFilename, previewText } from '../platform/diagnostics-bundle.js'
 import { request } from '../ipc/ipc.js'
@@ -8,6 +8,7 @@ import DiagnosticsPreviewModal from '../components/modals/DiagnosticsPreviewModa
 import Toggle from '../components/primitives/Toggle.js'
 import Button from '../components/primitives/Button.js'
 import { useErrorText } from '../hooks/useErrorText.js'
+import { useRunAction } from '../hooks/useRunAction.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import PageHeader from '../components/layout/PageHeader.js'
 
@@ -18,6 +19,9 @@ interface Props {
 export default function NetworkDiagnosticsScreen({ onBack }: Props) {
   const { t } = useTranslation()
   const errorText = useErrorText()
+  const runAction = useRunAction()
+  const verboseSeqRef = useRef(0)
+  const includeLogsRef = useRef(false)
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
   const [redact, setRedact] = useState(true)
   const [includeLogs, setIncludeLogs] = useState(false)
@@ -25,14 +29,22 @@ export default function NetworkDiagnosticsScreen({ onBack }: Props) {
   const [status, setStatus] = useState<string | null>(null)
   const [preview, setPreview] = useState<{ text: string; bytes: number; redacted: boolean; serialised: string; filename: string } | null>(null)
 
+  // Detailed logging stays on only while this screen is mounted. Leaving also makes every write
+  // still in flight stale, so a late reply cannot switch main back on.
   useEffect(() => {
     return () => {
-      if (includeLogs) {
+      verboseSeqRef.current += 1
+      if (includeLogsRef.current) {
         window.bridge.setVerbose(false).catch(() => {})
         request('setVerbose', { verbose: false }).catch(() => {})
       }
     }
-  }, [includeLogs])
+  }, [])
+
+  function showLogs(on: boolean) {
+    includeLogsRef.current = on
+    setIncludeLogs(on)
+  }
 
   function saveSerialised(serialised: string, filename: string) {
     const blob = new Blob([serialised], { type: 'application/json' })
@@ -76,19 +88,26 @@ export default function NetworkDiagnosticsScreen({ onBack }: Props) {
   //
   // The toggle shows what the worker IS doing, not what this screen asked for: verbose is shared —
   // one client releasing it does not switch it off while another still wants it — so the reply is
-  // the answer and the optimistic value is only the starting point.
-  async function handleIncludeLogs(next: boolean) {
-    setIncludeLogs(next)
-    try {
-      await window.bridge.setVerbose(next)
-    } catch {}
-    let effective = next
-    try {
-      const reply = await request('setVerbose', { verbose: next })
-      if (typeof reply?.verbose === 'boolean') effective = reply.verbose
-    } catch {}
-    setIncludeLogs(effective)
-    setStatus(effective ? t('diagnostics.verboseOn') : null)
+  // the answer and the optimistic value is only the starting point. The worker is written before
+  // main because its reply is that answer: a rejection returns the switch to where it was with
+  // nothing written anywhere, and main is then given the same answer. The status sentence is said
+  // only once both have taken it. Only the latest click's reply is applied.
+  function handleIncludeLogs(next: boolean) {
+    const seq = ++verboseSeqRef.current
+    const previous = includeLogsRef.current
+    showLogs(next)
+    runAction(async () => {
+      const reply = await request('setVerbose', { verbose: next }).catch((err: Error) => {
+        if (seq !== verboseSeqRef.current) return null
+        showLogs(previous)
+        throw err
+      })
+      if (seq !== verboseSeqRef.current) return
+      const effective = typeof reply?.verbose === 'boolean' ? reply.verbose : next
+      showLogs(effective)
+      await window.bridge.setVerbose(effective)
+      if (seq === verboseSeqRef.current) setStatus(effective ? t('diagnostics.verboseOn') : null)
+    })
   }
 
   return (

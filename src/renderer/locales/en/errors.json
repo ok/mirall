@@ -9,6 +9,7 @@
   "transferDestUnavailable": "Download folder unavailable",
   "transferFailed": "Transfer failed",
   "feedbackFailed": "Failed to send feedback",
+  "copyFailed": "Couldn't copy to the clipboard. Try again.",
   "feedbackRateLimited": "You're sending feedback too quickly. Please wait a moment and try again.",
   "sourceNotOnDisk": "This item isn't saved to disk yet — save it first, then share it.",
   "mountNoPath": "Choose a folder to share.",

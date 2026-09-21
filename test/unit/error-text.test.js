@@ -31,6 +31,12 @@ test('an uncoded failure falls back too', (t) => {
   t.is(errorTextFor(withCode('x', 42), tr), 'T:' + FALLBACK_KEY, 'a non-string code is no code')
 })
 
+// A DOMException carries a NUMERIC legacy code, so a clipboard rejection reads as uncoded and takes
+// the surface's own fallback rather than the generic sentence.
+test('a rejected clipboard write takes the copy fallback', (t) => {
+  t.is(errorTextFor(new DOMException('Document is not focused.', 'NotAllowedError'), tr, 'copyFailed'), 'T:copyFailed')
+})
+
 // A file row is about a transfer, so "Transfer failed" is more specific there than the generic
 // sentence, not less.
 test('a surface can choose its own fallback', (t) => {

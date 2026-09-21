@@ -9,6 +9,7 @@
   "transferDestUnavailable": "Cartella di download non disponibile",
   "transferFailed": "Trasferimento non riuscito",
   "feedbackFailed": "Impossibile inviare il feedback",
+  "copyFailed": "Impossibile copiare negli appunti. Riprova.",
   "feedbackRateLimited": "Stai inviando feedback troppo velocemente. Attendi un momento e riprova.",
   "sourceNotOnDisk": "Questo elemento non è ancora salvato sul disco — salvalo prima di condividerlo.",
   "mountNoPath": "Scegli una cartella da condividere.",
