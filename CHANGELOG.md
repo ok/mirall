@@ -9,6 +9,23 @@ build-pipeline tweaks, and dependency bumps that don't change how the app
 behaves are intentionally omitted. Releases that contained only such
 changes do not appear here.
 
+## v1.11.1
+
+### Unreleased
+
+Finishes the relay work from 1.11.
+
+#### Fixed
+
+- **Turning off "Prefer the relay for every connection" now takes effect
+straight away.** Connections already going through the relay stayed on it
+until you restarted Mirall. They now switch to a direct connection where one
+works, after any transfer in progress finishes.
+- **Replacing your relay moves existing connections to the new one.**
+Connections made through the old relay kept using it, with no notice.
+- **Changing your relay several times in a row no longer stops Mirall from
+working.** It could stop responding until you quit and reopened it.
+
 ## v1.11.0
 
 ### 2026-09-18
