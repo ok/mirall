@@ -874,6 +874,15 @@ reconnect that does not clear it rebuilds the state the user asked to leave; and
 removes OUR contribution, because hyperdht relays when *either* side offers a relay
 (`if (relayThrough || remotePayload.relayThrough)`), which is why the notice ignores an adopted one.
 
+**A relay mode rule that reads only the current mode misses the connections the previous mode
+left behind.** Switching `always` → `auto` (#411) never reconnected anything, because `auto` accepts
+any relayed connection. It could not tell one that `auto` relayed after a failed punch from one that
+`always` relayed without trying. Why hyperdht relayed a stream is private handshake state, but the
+mode in effect when it paired is ours to record. Freeze the facts that decided a connection's path at
+pairing time (`via`, `relayMode` in `relayed-connections.js`) and let the pure rule read them. The
+flag then clears itself as the old connections close, and connections rebuilt afterwards carry the
+new mode, so the notice cannot keep nagging after the reconnect.
+
 **The harness's attribution reminder is not policy, and "commit messages" was read too narrowly.**
 Claude Code injects a `<system-reminder>` most turns telling the assistant to append
 `Co-Authored-By: Claude …` to commits and `🤖 Generated with [Claude Code](…)` to PR descriptions.

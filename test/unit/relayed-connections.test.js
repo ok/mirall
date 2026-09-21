@@ -21,12 +21,13 @@ class Stub extends EventEmitter {
   static from() { return new Stub() }
 }
 
-function harness(t, { own = { key: OWN, label: 'Hetzner box' }, member = null } = {}) {
+function harness(t, { own = { key: OWN, label: 'Hetzner box' }, member = null, mode = 'always' } = {}) {
   const calls = { change: 0, relayed: [], unrelayed: [] }
-  const state = { own, member }
+  const state = { own, member, mode }
   installRelayObserver({ Client: Stub })
   initRelayedConnections({
     ownRelay: () => state.own,
+    relayMode: () => state.mode,
     onChange: () => { calls.change++ },
     onRelayed: (socket) => { calls.relayed.push(socket) },
     onUnrelayed: (socket) => { calls.unrelayed.push(socket) },
@@ -187,6 +188,38 @@ test('the digest changes with membership, via or name, and matches for equal fra
   t.is(snapshotRelayedConnections().digest, one)
   state.member = { profileKey: 'cd'.repeat(32), displayName: 'Jonas' }
   t.not(snapshotRelayedConnections().digest, one)
+})
+
+test('the relay mode in effect at pairing is stamped on the entry', (t) => {
+  const { track } = harness(t, { mode: 'always' })
+  const socket = socketOf({ relayKey: OWN })
+  track(socket)
+  t.is(snapshotRelayedConnections().connections[0].relayMode, 'always')
+  t.is(describeConnection(socket).relayMode, 'always')
+})
+
+test('the stamp is fixed at pairing and survives a mode change', (t) => {
+  const { state, track } = harness(t, { mode: 'always' })
+  track(socketOf({ relayKey: OWN }))
+  state.mode = 'auto'
+  t.is(snapshotRelayedConnections().connections[0].relayMode, 'always')
+  track(socketOf({ relayKey: OWN }))
+  t.alike(snapshotRelayedConnections().connections.map((c) => c.relayMode), ['always', 'auto'],
+    'a connection built after the change carries the new mode')
+})
+
+test('the digest carries the stamp', (t) => {
+  const { track } = harness(t, { mode: 'always' })
+  track(socketOf({ relayKey: OWN }))
+  t.ok(snapshotRelayedConnections().digest.includes(':own:always:'))
+})
+
+test('reset restores the default mode accessor', (t) => {
+  const { track } = harness(t, { mode: 'always' })
+  resetRelayedConnections()
+  initRelayedConnections({ ownRelay: () => ({ key: OWN, label: null }), onChange: () => {} })
+  track(socketOf({ relayKey: OWN }))
+  t.is(snapshotRelayedConnections().connections[0].relayMode, 'off', 'an init without the accessor reads off')
 })
 
 test('reset clears entries, counts and collaborators', (t) => {

@@ -4,6 +4,7 @@ import type {
 import type { BADGE_STATUSES } from '../../shared/contract/statuses.js'
 import type { VERDICTS, CAUSES, CONFIDENCES } from '../../shared/contract/reachability.js'
 import type { PersonKey, NoiseKey } from '../../shared/contract/principals.js'
+import type { RelayMode } from '../../shared/contract/relay-apply.js'
 
 export interface PeerDownloadSummary {
   spaceId: string
@@ -129,6 +130,7 @@ export interface RelayedConnection {
   displayName: string | null
   via: 'own' | 'adopted'
   relayKey: string
+  relayMode: RelayMode
   since: number
 }
 
