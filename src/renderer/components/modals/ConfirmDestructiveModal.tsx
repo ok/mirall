@@ -1,4 +1,4 @@
-import { useId, type ReactNode } from 'react'
+import { useEffect, useId, useRef, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import Modal from '../primitives/Modal.js'
 import ModalHeader from '../primitives/ModalHeader.js'
@@ -32,6 +32,16 @@ export default function ConfirmDestructiveModal({
 }: ConfirmDestructiveModalProps) {
   const { t } = useTranslation()
   const bodyId = useId()
+  const confirmRef = useRef<HTMLButtonElement>(null)
+  const wasBusyRef = useRef(false)
+
+  // `busy` disables the button that was just pressed, which drops focus out of the dialog. When the
+  // action fails and the dialog stays open, focus goes back to the confirm so a retry is one key.
+  useEffect(() => {
+    if (wasBusyRef.current && !busy && isOpen) confirmRef.current?.focus()
+    wasBusyRef.current = !!busy
+  }, [busy, isOpen])
+
   return (
     <Modal
       isOpen={isOpen}
@@ -53,7 +63,7 @@ export default function ConfirmDestructiveModal({
             <Button type="button" variant="secondary" autoFocus onClick={onClose} disabled={busy} className="h-14">
               {t('actions.cancel')}
             </Button>
-            <Button type="button" variant="danger" onClick={onConfirm} disabled={busy} className="h-14">
+            <Button ref={confirmRef} type="button" variant="danger" onClick={onConfirm} disabled={busy} className="h-14">
               {confirmLabel}
             </Button>
           </ModalFooter>

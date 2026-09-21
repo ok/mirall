@@ -20,7 +20,8 @@ export default function NetworkDiagnosticsScreen({ onBack }: Props) {
   const { t } = useTranslation()
   const errorText = useErrorText()
   const runAction = useRunAction()
-  const verbosePendingRef = useRef(false)
+  const verboseSeqRef = useRef(0)
+  const includeLogsRef = useRef(false)
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
   const [redact, setRedact] = useState(true)
   const [includeLogs, setIncludeLogs] = useState(false)
@@ -28,14 +29,22 @@ export default function NetworkDiagnosticsScreen({ onBack }: Props) {
   const [status, setStatus] = useState<string | null>(null)
   const [preview, setPreview] = useState<{ text: string; bytes: number; redacted: boolean; serialised: string; filename: string } | null>(null)
 
+  // Detailed logging stays on only while this screen is mounted. Leaving also makes every write
+  // still in flight stale, so a late reply cannot switch main back on.
   useEffect(() => {
     return () => {
-      if (includeLogs) {
+      verboseSeqRef.current += 1
+      if (includeLogsRef.current) {
         window.bridge.setVerbose(false).catch(() => {})
         request('setVerbose', { verbose: false }).catch(() => {})
       }
     }
-  }, [includeLogs])
+  }, [])
+
+  function showLogs(on: boolean) {
+    includeLogsRef.current = on
+    setIncludeLogs(on)
+  }
 
   function saveSerialised(serialised: string, filename: string) {
     const blob = new Blob([serialised], { type: 'application/json' })
@@ -81,26 +90,23 @@ export default function NetworkDiagnosticsScreen({ onBack }: Props) {
   // one client releasing it does not switch it off while another still wants it — so the reply is
   // the answer and the optimistic value is only the starting point. The worker is written before
   // main because its reply is that answer: a rejection returns the switch to where it was with
-  // nothing written anywhere, and a main write failing after it leaves the switch on the worker's
-  // real state and reports.
+  // nothing written anywhere, and main is then given the same answer. The status sentence is said
+  // only once both have taken it. Only the latest click's reply is applied.
   function handleIncludeLogs(next: boolean) {
-    if (verbosePendingRef.current) return
-    verbosePendingRef.current = true
-    const previous = includeLogs
-    setIncludeLogs(next)
+    const seq = ++verboseSeqRef.current
+    const previous = includeLogsRef.current
+    showLogs(next)
     runAction(async () => {
-      try {
-        const reply = await request('setVerbose', { verbose: next }).catch((err: Error) => {
-          setIncludeLogs(previous)
-          throw err
-        })
-        const effective = typeof reply?.verbose === 'boolean' ? reply.verbose : next
-        setIncludeLogs(effective)
-        setStatus(effective ? t('diagnostics.verboseOn') : null)
-        await window.bridge.setVerbose(next)
-      } finally {
-        verbosePendingRef.current = false
-      }
+      const reply = await request('setVerbose', { verbose: next }).catch((err: Error) => {
+        if (seq !== verboseSeqRef.current) return null
+        showLogs(previous)
+        throw err
+      })
+      if (seq !== verboseSeqRef.current) return
+      const effective = typeof reply?.verbose === 'boolean' ? reply.verbose : next
+      showLogs(effective)
+      await window.bridge.setVerbose(effective)
+      if (seq === verboseSeqRef.current) setStatus(effective ? t('diagnostics.verboseOn') : null)
     })
   }
 

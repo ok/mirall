@@ -65,9 +65,12 @@ export default function ActivityLogSettings({ onBack, onOpenLog }: ActivityLogSe
   }, [t, errorText])
 
   // The confirm closes only once the purge has succeeded; a rejection keeps it on its confirm step.
-  // `busy` clears either way — it is what makes the dialog undismissable.
+  // `busy` clears either way — it is what makes the dialog undismissable. The re-read of the counts
+  // is not part of the purge: a failed read is held by the query store, and reporting it here would
+  // call a purge that happened a failure.
   const handlePurge = useCallback(() => {
     setBusy(true)
+    setStatus(null)
     runAction(async () => {
       try {
         const result = await request('audit:purge')
@@ -76,7 +79,7 @@ export default function ActivityLogSettings({ onBack, onOpenLog }: ActivityLogSe
       } finally {
         setBusy(false)
       }
-      await refresh()
+      refresh().catch(() => {})
     })
   }, [refresh, runAction, t])
 

@@ -9,7 +9,7 @@ import ModalHeader from '../primitives/ModalHeader.js'
 import Button from '../primitives/Button.js'
 import Toggle from '../primitives/Toggle.js'
 import { useErrorText } from '../../hooks/useErrorText.js'
-import { useClipboardCopy } from '../../hooks/useClipboardCopy.js'
+import CopyButton from '../primitives/CopyButton.js'
 
 const EXPIRY = [
   { id: '2h', labelKey: 'invite.expiry.2h', ms: 2 * 60 * 60 * 1000 },
@@ -35,7 +35,6 @@ export default function InviteModal({ isOpen, onClose, onCreate }: InviteModalPr
   const [code, setCode] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const creatingRef = useRef(false)
-  const { copied, copy } = useClipboardCopy()
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -60,10 +59,6 @@ export default function InviteModal({ isOpen, onClose, onCreate }: InviteModalPr
       creatingRef.current = false
       setCreating(false)
     }
-  }
-
-  function handleCopy() {
-    if (code) copy(`mirall://join/${code}`)
   }
 
   return (
@@ -140,15 +135,11 @@ export default function InviteModal({ isOpen, onClose, onCreate }: InviteModalPr
             <Fragment key="ready">
               <div className="flex items-center gap-2 bg-surface-container-low rounded-xl p-2 pl-5">
                 <span className="text-on-surface-variant font-medium text-sm truncate flex-grow font-mono">{`mirall://join/${code}`}</span>
-                <button
-                  type="button"
-                  onClick={handleCopy}
+                <CopyButton
+                  value={`mirall://join/${code}`}
+                  showLabel
                   className="ml-auto flex items-center gap-2 bg-surface-container-lowest text-accent text-xs font-bold px-4 py-2.5 rounded-lg active:scale-95 transition-all shadow-sm shrink-0 focus-ring"
-                >
-                  <Icon name={copied ? 'check' : 'content_copy'} size={14} />
-                  {copied ? t('actions.copied') : t('actions.copy')}
-                </button>
-                <span role="status" aria-live="polite" className="sr-only">{copied ? t('actions.copied') : ''}</span>
+                />
               </div>
 
               <div className="flex flex-wrap items-center gap-2 px-1">

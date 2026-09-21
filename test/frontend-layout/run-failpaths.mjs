@@ -15,6 +15,7 @@ console.log(`log purge    : ${j(out.purge)}`)
 console.log(`verbose      : ${j(out.verbose)}`)
 console.log(`copy button  : ${j(out.copy)}`)
 console.log(`invite copy  : ${j(out.invite)}`)
+console.log(`copy overlap : ${j(out.overlap)}`)
 console.log(`unhandled    : ${out.unhandled} escaped promise rejection(s)`)
 if (out.error) console.log(`error: ${out.error}`)
 

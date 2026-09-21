@@ -125,11 +125,10 @@ test('REGRESSION (FIX-D9: no dialog reports completion from a finally block)', (
   t.pass('no completion callback runs from a catch/finally')
 })
 
-// A `finally` also runs on rejection, so a confirm dialog whose open flag is cleared there closes
-// on a failed action exactly as on a completed one — and a closed confirm reads as "done". Only
-// dialogs whose open flag is this file's own state are checked; one that takes `isOpen` as a prop
-// is closed by its caller.
-test('REGRESSION (FIX-375: a confirm dialog closes on success, never from a finally)', (t) => {
+// A confirm dialog whose open flag is cleared from a `catch` or a `finally` closes on a failed action
+// exactly as on a completed one — and a closed confirm reads as "done". Only dialogs whose open flag
+// is this file's own state are checked; one that takes `isOpen` as a prop is closed by its caller.
+test('REGRESSION (FIX-375: a confirm dialog closes on success, never from a catch or finally)', (t) => {
   const confirms = files.flatMap((f) => jsxElements(f.src, 'ConfirmDestructiveModal')
     .map((el) => el.match(/\bisOpen=\{(\w+)\}/)?.[1])
     .filter(Boolean)
@@ -137,7 +136,7 @@ test('REGRESSION (FIX-375: a confirm dialog closes on success, never from a fina
     .filter(({ f, close }) => f.src.includes(close)))
   t.ok(confirms.length >= 1, `found ${confirms.length} confirm dialog(s) whose open flag is local state`)
   for (const { f, close } of confirms) {
-    t.absent(guardBlocks(f.src, ['finally']).some((b) => b.includes(close)),
-      `${f.rel}: ${close} does not run from a finally`)
+    t.absent(guardBlocks(f.src).some((b) => b.includes(close)),
+      `${f.rel}: ${close} does not run from a catch or finally`)
   }
 })
