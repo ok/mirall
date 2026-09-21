@@ -1,4 +1,5 @@
-// Subscribes to worker member/transfer events and shows OS notifications per user prefs, with join-flap dedupe.
+// Subscribes to worker member/transfer events and shows OS notifications per user prefs, with join-flap
+// dedupe and transfer-error bursts coalesced per (space, reason).
 import type { PathHost } from '../../shared/contract/paths.js'
 import i18n from '../platform/i18n.js'
 import { subscribe } from '../ipc/ipc.js'
@@ -6,6 +7,7 @@ import type { NotificationSpec } from '../platform/global.d.js'
 import { errorCodeToI18nKey } from '../errors/error-messages.js'
 import { getPrefs } from './prefs.js'
 import { pausedBodyKey } from './pausedToast.js'
+import { createCoalescer } from './coalesce.js'
 
 interface MemberJoinedMessage {
   type: 'event:member-joined'
@@ -51,6 +53,9 @@ export interface DispatcherDeps {
 
 const joinedShown = new Set<string>()
 const JOIN_FORGET_MS = 5 * 60_000
+// A folder download that hits a read-only or full destination fails every file within seconds.
+const TRANSFER_ERROR_WINDOW_MS = 3000
+const TRANSFER_ERROR_CAP_MS = 10_000
 
 function basename(p: string): string {
   const i = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'))
@@ -126,18 +131,40 @@ export function startNotifications(deps: DispatcherDeps): () => void {
     })
   }))
 
-  unsubs.push(subscribe<TransferErrorMessage>('event:transfer-error', (msg) => {
-    if (!getPrefs().events.transferError) return
-    const fileName = basename(msg.path)
-    const reason = tErr(errorCodeToI18nKey(msg.errorCode))
+  const transferErrors = createCoalescer({ windowMs: TRANSFER_ERROR_WINDOW_MS, capMs: TRANSFER_ERROR_CAP_MS })
+  const summaryTimers = new Map<string, ReturnType<typeof setTimeout>>()
+
+  // One id per (space, reason): main replaces a notification shown under the same id, so the
+  // summary takes the place of the first failure's notification.
+  function showTransferError(msg: TransferErrorMessage, body: string): void {
     void show({
-      id: `transfer-error:${msg.transferId}`,
+      id: `transfer-error:${msg.spaceId}:${msg.errorCode ?? ''}`,
       title: t('notifications.transferErrorTitle'),
-      body: t('notifications.transferErrorBody', { file: fileName, reason }),
+      body,
       urgency: 'critical',
       groupId: `space:${msg.spaceId}`,
       payload: { kind: 'transfer-error', spaceId: msg.spaceId, path: msg.path },
     })
+  }
+
+  function armSummary(key: string, msg: TransferErrorMessage, reason: string): void {
+    clearTimeout(summaryTimers.get(key))
+    const closesAt = transferErrors.closesAt(key)
+    if (closesAt === null) return
+    summaryTimers.set(key, setTimeout(() => {
+      summaryTimers.delete(key)
+      const count = transferErrors.settle(key)
+      if (count === null) armSummary(key, msg, reason)
+      else if (count > 1) showTransferError(msg, t('notifications.transferErrorManyBody', { count, reason }))
+    }, Math.max(0, closesAt - Date.now())))
+  }
+
+  unsubs.push(subscribe<TransferErrorMessage>('event:transfer-error', (msg) => {
+    if (!getPrefs().events.transferError) return
+    const key = `${msg.spaceId}:${msg.errorCode ?? ''}`
+    const reason = tErr(errorCodeToI18nKey(msg.errorCode))
+    if (transferErrors.hit(key)) showTransferError(msg, t('notifications.transferErrorBody', { file: basename(msg.path), reason }))
+    armSummary(key, msg, reason)
   }))
 
   unsubs.push(subscribe<TransferPausedMessage>('event:transfer-paused', (msg) => {
@@ -153,5 +180,9 @@ export function startNotifications(deps: DispatcherDeps): () => void {
     })
   }))
 
-  return () => unsubs.forEach((u) => u())
+  return () => {
+    unsubs.forEach((u) => u())
+    summaryTimers.forEach((timer) => clearTimeout(timer))
+    summaryTimers.clear()
+  }
 }
