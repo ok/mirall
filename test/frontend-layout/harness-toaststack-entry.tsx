@@ -1,7 +1,8 @@
 // REGRESSION harness for sticky-toast eviction (issue #373). Mounts the REAL <ToastProvider>, raises
 // one sticky toast with an action, then a burst of four auto-dismissing ones. Asserts the sticky toast
 // and its action survive as an alert, the oldest auto-dismissing toast made room, and a stack of
-// stickies grows past the cap instead of dropping one, keeping the newest notice too.
+// stickies grows past the cap instead of dropping one, keeping the newest notice too, and that a
+// stack taller than the window scrolls inside it with the newest toast in view.
 import './harness-bootstrap.js'
 import '../../src/renderer/platform/i18n.js'
 import { useEffect } from 'react'
@@ -25,6 +26,8 @@ interface HarnessResults {
   oldestTimedEvicted: boolean
   afterStickies: number
   newestKept: boolean
+  overflowContained: boolean
+  newestInView: boolean
 }
 
 declare global {
@@ -61,6 +64,8 @@ function publishError(error: string): void {
     oldestTimedEvicted: false,
     afterStickies: -1,
     newestKept: false,
+    overflowContained: false,
+    newestInView: false,
   }
 }
 
@@ -94,6 +99,16 @@ async function run(): Promise<void> {
   const afterStickies = toasts().length
   const newestKept = toastWith('Newest notice') !== undefined
 
+  for (let i = 6; i <= 25; i++) toast.warning(`Sticky notice ${i}`, { id: `sticky-${i}`, duration: 0 })
+  toast.info('Last notice', { duration: 8000 })
+  await sleep(300)
+  const region = document.querySelector<HTMLElement>('[role="region"]')
+  const regionRect = region?.getBoundingClientRect()
+  const overflowContained =
+    !!region && !!regionRect && regionRect.top >= 0 && region.scrollHeight > region.clientHeight
+  const lastRect = toastWith('Last notice')?.getBoundingClientRect()
+  const newestInView = !!lastRect && !!regionRect && lastRect.bottom <= regionRect.bottom + 1 && lastRect.top >= regionRect.top
+
   window.__results = {
     pass:
       afterBurst === 4 &&
@@ -102,7 +117,9 @@ async function run(): Promise<void> {
       stickyRole === 'alert' &&
       oldestTimedEvicted &&
       afterStickies === 7 &&
-      newestKept,
+      newestKept &&
+      overflowContained &&
+      newestInView,
     error: null,
     afterBurst,
     stickyKept,
@@ -111,6 +128,8 @@ async function run(): Promise<void> {
     oldestTimedEvicted,
     afterStickies,
     newestKept,
+    overflowContained,
+    newestInView,
   }
 }
 

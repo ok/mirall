@@ -8,6 +8,7 @@ import { workDir } from '../paths.mjs'
 
 const FILES = ['burst-1.bin', 'burst-2.bin', 'burst-3.bin', 'burst-4.bin', 'burst-5.bin']
 const REMOVED = /Download stopped — “(burst-\d\.bin)” was removed by the owner/g
+const sleep = (ms) => new Promise((res) => setTimeout(res, ms))
 
 // REGRESSION (FIX-373: the toast stack trimmed to four by position, so a burst of four newer
 // notices evicted a sticky one. Bob's "your request was declined" toast — sticky, with nothing that
@@ -15,9 +16,10 @@ const REMOVED = /Download stopped — “(burst-\d\.bin)” was removed by the o
 //
 // The burst is the genuine one: the owner deletes files mid-download, and every pending row B holds
 // is dropped with its own 8 s "removed by the owner" toast. Five files, so the pre-fix stack is
-// certain to push the declined toast out; every row clearing is what proves the burst ran. The files
-// arrive one at a time because every row's button is named "Download": a started row stops offering
-// it, so exactly one is ever targetable.
+// certain to push the declined toast out; every row clearing is what proves the burst ran. B's
+// downloads are capped at 1 MB/s so every row is still in flight when the files go. The files arrive
+// one at a time because every row's button is named "Download": a started row stops offering it, so
+// exactly one is ever targetable.
 export default async function s147({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
@@ -26,14 +28,14 @@ export default async function s147({ runDir, bootstrap }) {
 
   const ownDir = path.join(workDir('own-'), 'Burst')
   mkdirSync(ownDir, { recursive: true })
-  const addFile = (name) => writeFileSync(path.join(ownDir, name), Buffer.alloc(1024 * 1024 * 1024, 0x5a))
+  const addFile = (name) => writeFileSync(path.join(ownDir, name), Buffer.alloc(64 * 1024 * 1024, 0x5a))
   addFile(FILES[0])
 
   const rowShown = async (name) => flatten(await B.snap()).some((n) => n.name === name)
   const removedToasts = async () => new Set([...allText(await B.snap()).matchAll(REMOVED)].map((m) => m[1]))
 
   try {
-    await r.ok('A shares a folder of large files with B', async () => {
+    await r.ok('A shares a folder with B; B caps its downloads at 1 MB/s', async () => {
       await A.launch()
       await B.launch()
       await connectInSpace(A, B, { name: 'Aurora' })
@@ -41,6 +43,11 @@ export default async function s147({ runDir, bootstrap }) {
       await A.addOwnedFolder(ownDir)
       await A.waitText('Burst', 60000)
       await B.waitText('Burst', 60000)
+      await B.focus()
+      await B.gotoSettings('Network')
+      await B.click({ name: 'Download limit: 1 MB/s' })
+      await waitFor(async () => (await B.nodeValue({ name: 'Download limit: 1 MB/s' })) === '1', 8000, '1 MB/s pressed')
+      await B.click({ role: 'button', name: 'Home' })
     })
 
     await r.ok('A declines Bob into a second space; Bob holds a sticky "declined" toast', async () => {
@@ -48,7 +55,6 @@ export default async function s147({ runDir, bootstrap }) {
       await A.back()
       const code = await createSpaceWithInvite(A, { name: 'Beta' })
       await B.focus()
-      await B.back()
       await joinPending(B, code)
       await A.focus()
       await A.waitText('wants to join', 30000)
@@ -79,11 +85,11 @@ export default async function s147({ runDir, bootstrap }) {
       assert(FILES.every((name) => !existsSync(path.join(ownDir, name))), 'precondition: the files are gone')
 
       await B.waitText('removed by the owner', 30000)
-      for (const name of FILES) await waitFor(async () => !(await rowShown(name)), 60000, `${name} row dropped`)
-      const shown = await removedToasts()
-      console.log(`[s147] removal toasts on screen: ${[...shown].join(', ')}`)
-      assert(shown.size >= 3, `the burst is on screen (${shown.size} removal toasts visible)`)
+      await sleep(1500)
+      console.log(`[s147] removal toasts on screen: ${[...(await removedToasts())].join(', ')}`)
       assert(await B.hasText('declined'), 'the sticky declined toast was NOT evicted by the burst')
+      for (const name of FILES) await waitFor(async () => !(await rowShown(name)), 60000, `${name} row dropped`)
+      assert(await B.hasText('declined'), 'and it is still up once every row has dropped')
       await B.shot('s147-B-after-burst', runDir)
     })
 

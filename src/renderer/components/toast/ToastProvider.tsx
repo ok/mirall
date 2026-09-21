@@ -1,4 +1,4 @@
-// Toast state and context: id-keyed replace/dedupe, a capped visible stack, and
+// Toast state and context: id-keyed replace/dedupe, the visible stack (toastStack.js), and
 // auto-dismiss timers with pause/resume; exposes window.__toast in dev builds.
 //
 // A caller that names no id gets one derived from the text (toastKey), so saying the same thing
@@ -15,7 +15,7 @@ import {
 } from 'react'
 import type { ToastApi, ToastItem, ToastOptions, ToastVariant } from './types.js'
 import { toastKey } from './toastKey.js'
-import { pushToast } from './toastStack.js'
+import { isSticky, pushToast } from './toastStack.js'
 import ToastContainer from './ToastContainer.js'
 
 declare global {
@@ -40,6 +40,7 @@ interface Props {
 export function ToastProvider({ children }: Props) {
   const [items, setItems] = useState<ToastItem[]>([])
   const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
+  const pausedRef = useRef<Set<string>>(new Set())
   const seqRef = useRef(0)
 
   const dismiss = useCallback((id: string) => {
@@ -48,12 +49,13 @@ export function ToastProvider({ children }: Props) {
       clearTimeout(timer)
       timersRef.current.delete(id)
     }
-    setItems((prev) => prev.filter((i) => i.id !== id))
+    pausedRef.current.delete(id)
+    setItems((prev) => (prev.some((i) => i.id === id) ? prev.filter((i) => i.id !== id) : prev))
   }, [])
 
   const scheduleDismiss = useCallback(
     (id: string, duration: number) => {
-      if (duration <= 0) return
+      if (isSticky(duration)) return
       const timer = setTimeout(() => dismiss(id), duration)
       timersRef.current.set(id, timer)
     },
@@ -77,7 +79,8 @@ export function ToastProvider({ children }: Props) {
         clearTimeout(previous)
         timersRef.current.delete(id)
       }
-      setItems((prev) => pushToast(prev, item))
+      pausedRef.current.delete(id)
+      setItems((prev) => pushToast(prev, item, pausedRef.current))
       scheduleDismiss(id, duration)
       return id
     },
@@ -85,6 +88,7 @@ export function ToastProvider({ children }: Props) {
   )
 
   const pause = useCallback((id: string) => {
+    pausedRef.current.add(id)
     const timer = timersRef.current.get(id)
     if (timer !== undefined) {
       clearTimeout(timer)
@@ -94,6 +98,7 @@ export function ToastProvider({ children }: Props) {
 
   const resume = useCallback(
     (id: string, remaining: number) => {
+      pausedRef.current.delete(id)
       scheduleDismiss(id, Math.max(remaining, MIN_RESUME_DURATION))
     },
     [scheduleDismiss],

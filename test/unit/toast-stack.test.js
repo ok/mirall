@@ -2,7 +2,7 @@ import test from 'brittle'
 import { readFileSync } from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { pushToast, MAX_VISIBLE } from '../../src/renderer/components/toast/toastStack.js'
+import { pushToast, isSticky, MAX_VISIBLE } from '../../src/renderer/components/toast/toastStack.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const TOAST = path.resolve(here, '../../src/renderer/components/toast')
@@ -59,6 +59,17 @@ test('a replacement under the same id moves it to the top and evicts nothing', (
   t.alike(ids(stack), ['a', 'c', 'd', 'b'])
 })
 
+test('a replacement over the cap evicts nothing, since the stack does not grow', (t) => {
+  const over = showAll([], sticky('s1'), sticky('s2'), sticky('s3'), sticky('s4'), timed('error'))
+  const stack = pushToast(over, sticky('s2'))
+  t.alike(ids(stack), ['s1', 's3', 's4', 'error', 's2'], 'the timed toast stays')
+})
+
+test('a toast the user is hovering or focused on is not evicted', (t) => {
+  const stack = pushToast(showAll([], timed('a'), timed('b'), timed('c'), timed('d')), timed('e'), new Set(['a']))
+  t.alike(ids(stack), ['a', 'c', 'd', 'e'], 'the next oldest made room instead')
+})
+
 test('a sticky replaced by a timed toast under its id is auto-dismissing from then on', (t) => {
   let stack = showAll([], sticky('connectivity'), timed('a'), timed('b'), timed('c'))
   stack = pushToast(stack, timed('connectivity', 4000))
@@ -72,6 +83,18 @@ test('a negative duration is sticky, as it is for the countdown and the hover pa
   t.ok(ids(stack).includes('x'))
 })
 
+test('isSticky is the one rule: no positive duration means no countdown', (t) => {
+  t.ok(isSticky(0))
+  t.ok(isSticky(-1))
+  t.ok(isSticky(Number.NaN))
+  t.absent(isSticky(4000))
+})
+
+test('the provider and the toast read stickiness from the stack module', (t) => {
+  t.ok(/isSticky\(duration\)/.test(read('ToastProvider.tsx')), 'the provider arms no timer for a sticky toast')
+  t.absent(/\.duration <= 0/.test(read('Toast.tsx')), 'the toast has no second spelling of the rule')
+})
+
 test('pushToast does not mutate the stack it is given', (t) => {
   const before = showAll([], timed('a'), timed('b'), timed('c'), timed('d'))
   const snapshot = ids(before)
@@ -81,6 +104,6 @@ test('pushToast does not mutate the stack it is given', (t) => {
 
 test('the provider shows through pushToast and holds no cap of its own', (t) => {
   const src = read('ToastProvider.tsx')
-  t.ok(/setItems\(\(prev\) => pushToast\(prev, item\)\)/.test(src))
+  t.ok(/setItems\(\(prev\) => pushToast\(prev, item, pausedRef\.current\)\)/.test(src))
   t.absent(/MAX_VISIBLE/.test(src))
 })

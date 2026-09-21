@@ -65,7 +65,6 @@ One row per file in `scenarios/`; the id is the `run.mjs` argument (`node test/f
 | s54 | `s54-membership-approve-single.mjs` | Encrypted space: B joins and waits; A sees the request banner, Approve is targetable; approval clears B's waiting state. |
 | s55 | `s55-membership-approve-batch.mjs` | Four accounts: three joiners wait; the list shows a "waiting" badge; the batch modal's Approve selected lets one in, Approve all the rest. |
 | s56 | `s56-membership-deny-and-invite-toggle.mjs` | Deny → the joiner is told; the decline toast is sticky (hover does not auto-dismiss); the invite modal's Auto-approve toggle is off by default and togglable. |
-| s147 | `s147-sticky-notice-survives-burst.mjs` | A declined joiner's sticky toast survives a burst of five "removed by the owner" notices; the oldest timed toasts make room and the sticky one leaves only on Dismiss. |
 | s57 | `s57-membership-deny-in-modal.mjs` | Denying in the batch modal removes that row immediately and leaves the others. |
 | s58 | `s58-membership-convergence.mjs` | When the owner approves, a co-member's banner and its request toast clear too. |
 | s59 | `s59-membership-cancel.mjs` | A joiner withdrawing a pending request clears "wants to join" on the member who saw it. |
@@ -75,6 +74,7 @@ One row per file in `scenarios/`; the id is the `run.mjs` argument (`node test/f
 | s65 | `s65-owner-convergence.mjs` | When a co-member approves, the owner stops showing the request and lists the new member. |
 | s114 | `s114-waiting-docs-card.mjs` | A pending joiner sees the "Why am I waiting?" docs card; withdraw still works beside it. |
 | s126 | `s126-activity-log-granted-actor.mjs` | The joiner's `membership.granted` row names the granter as actor, as one accessible node, in the Members category. |
+| s147 | `s147-sticky-notice-survives-burst.mjs` | **REGRESSION (FIX-373):** a declined joiner's sticky toast survives a burst of five "removed by the owner" notices; the oldest timed toasts make room and the sticky one leaves only on Dismiss. |
 
 ### E. Settings, appearance & storage
 | ID | File | Covers |

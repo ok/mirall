@@ -17,6 +17,8 @@ console.log(`sticky toast role      : ${out.stickyRole} (must be alert)`)
 console.log(`oldest timed evicted   : ${out.oldestTimedEvicted} (must be true — and only it)`)
 console.log(`toasts over 5 stickies : ${out.afterStickies} (must be 7 — stickies never evicted)`)
 console.log(`newest notice kept     : ${out.newestKept} (must be true)`)
+console.log(`overflow contained     : ${out.overflowContained} (must be true — scrolls inside the window)`)
+console.log(`newest toast in view   : ${out.newestInView} (must be true)`)
 
 const pass = out.pass === true
 console.log(`\n${pass ? 'ok  ' : 'FAIL'} a sticky toast outlives a burst of newer notices`)
