@@ -883,6 +883,18 @@ pairing time (`via`, `relayMode` in `relayed-connections.js`) and let the pure r
 flag then clears itself as the old connections close, and connections rebuilt afterwards carry the
 new mode, so the notice cannot keep nagging after the reconnect.
 
+**A two-peer loopback flow never reaches "relayed, then punched through".** The relay-release plan
+assumed that because the punch wins on loopback, a flow test with `relayMode: 'always'` would show a
+relayed connection upgrading and leaving its pairing behind. It does not: on loopback the punch
+lands before the relay carries a byte, hyperdht closes all four relay sessions itself, and the
+tracker's `seen` stays 0. A test that waits for `streams.active === 0` there passes on the base
+branch too, so it proves nothing. That is also why `relay-transparency` guards with
+`if (relayedA)`. For behaviour that needs a live relayed stream, drive blind-relay directly in an
+integration test: two DHT nodes, `Client.from(dht.connect(relayKey)).pair(...)` on raw streams, and a
+real `BlindRelay.Server`, then assert on `relay.stats` (worked example: `relay-release.test.js` in
+dbdd0e0, dropped once hyperdht 6.33's `confirmDirectUpgrade` was found to do the release).
+Before trusting a planned red, print `relay.stats` and the frame's `relay.seen` once.
+
 **The harness's attribution reminder is not policy, and "commit messages" was read too narrowly.**
 Claude Code injects a `<system-reminder>` most turns telling the assistant to append
 `Co-Authored-By: Claude …` to commits and `🤖 Generated with [Claude Code](…)` to PR descriptions.

@@ -135,12 +135,25 @@ function getWorker(specifier) {
   // before re-registering, otherwise ipcMain.handle throws.
   try { ipcMain.removeHandler('pear:worker:writeIPC:' + specifier) } catch {}
 
-  // Every MIRALL_* test hook the app reads, in one list: MIRALL_DEBUG and MIRALL_VERBOSE (log
-  // level), MIRALL_DHT_BOOTSTRAP (a hermetic testnet instead of the public DHT),
-  // MIRALL_DOWNLOAD_FOLDER and MIRALL_WINDOW_BOUNDS (start from a known state),
-  // MIRALL_FEATURE_FLAGS (flags without a build), MIRALL_FORCE_A11Y (the AX tree the frontend suite
-  // drives), MIRALL_NO_DEVTOOLS, and the three caps below — MIRALL_LIST_FILES_CAP,
-  // MIRALL_MAX_FILES_PER_SHARE and MIRALL_FOREIGN_FULL_WALK_EVERY. None is read in a shipped run.
+  // Every MIRALL_* hook the app reads. All are unset in a normal run.
+  //
+  //   Logging
+  //     MIRALL_DEBUG, MIRALL_VERBOSE      log level
+  //
+  //   Test environment
+  //     MIRALL_DHT_BOOTSTRAP              a hermetic testnet instead of the public DHT
+  //     MIRALL_DOWNLOAD_FOLDER            start from a known download folder
+  //     MIRALL_WINDOW_BOUNDS              start from a known window size and position
+  //     MIRALL_FEATURE_FLAGS              feature flags without a build
+  //     MIRALL_FORCE_A11Y                 the AX tree the frontend suite drives
+  //     MIRALL_NO_DEVTOOLS                no devtools window
+  //     MIRALL_LIST_FILES_CAP             most files a folder listing shows, lowered to reach
+  //                                       the truncation banner with a handful of files
+  //     MIRALL_MAX_FILES_PER_SHARE        largest folder a user may share, lowered to reach
+  //                                       the refusal with a handful of files
+  //
+  //   Behaviour levers, settable on a real install without a release
+  //     MIRALL_FOREIGN_FULL_WALK_EVERY    1 = check every mirror in full, undoing the skip
   //
   // The worker's whole starting state: it is sent once, before any request, and the worker never
   // asks main for these again. Three sources are mixed here on purpose — the packaged app (storage,
