@@ -133,16 +133,6 @@ Non-trivial code changes happen on a **feature branch checked out in a git workt
 
 State explicitly which mode was picked and why at the start of the task.
 
-## Architecture Snapshot
-
-Mirall is a peer-to-peer file-sharing desktop app. Three-process architecture, all source under `src/`:
-
-- **Electron main** (`src/main/main.js`) — host process. Embeds `pear-runtime` as a library, owns the BrowserWindow, the OTA updater (provided by the embedded `pear-runtime`, which carries `pear-runtime-updater` transitively), the owned-folder filesystem watcher (`chokidar`, since Bare has no recursive watch), and the IPC bridge that relays frames between renderer and worker in both directions. Spawns the worker via `pear.run('/src/worker/main.js')`.
-- **Electron renderer** (`src/renderer/` → `assets/dist/`) — sandboxed React 19 + Tailwind v4 UI, bundled by esbuild. Reaches main via `window.bridge` (contextBridge in `src/preload/preload.js`).
-- **Bare worker** (`src/worker/main.js`; data layer in `src/shared/*`) — spawned by `pear.run()`. Hosts all P2P data-layer logic: Corestore, Hyperbee, Hyperdrive, Hyperswarm, Protomux handshake (`mirall/handshake`), transfers, owned/foreign folder sync. Talks to the renderer through main over a Bare IPC pipe (NDJSON request/response + events). `src/shared/*` is the worker's data layer — the renderer imports nothing from it.
-
-Distribution: `.dmg` (macOS, signed + notarized) and `.msix` (Windows, signed locally via Certum) built by `electron-forge` makers; `.AppImage` (Linux, unsigned by convention) assembled by `scripts/build/build-app-image.sh` from forge's packaged output. CI builds every platform target in `.github/workflows/build-electron.yml`. OTA updates flow through a per-channel Pear Hyperdrive (channels `dev` / `staging` / `prod`) seeded by an Arch Linux VM running `mirall-seed.service` (`pear seed production`); 
-
 ## Obligatory Reading
 
 - **`.claude/coding.md` — READ FIRST.** The binding coding standard for this repository: naming, module boundaries, function/complexity guardrails, the commenting rule, the named anti-patterns, the patterns to reuse, and the definition of done. Every code change, review, and agent run follows it; if a change conflicts with a rule there, either follow the rule or change the rule deliberately in the same change.

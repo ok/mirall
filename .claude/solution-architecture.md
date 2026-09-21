@@ -449,9 +449,11 @@ A write that encodes **status or intent** — a transfer's `errorCode`, a claim,
 
 The local-only bees (§3.2–3.4, §3.6) are encrypted at rest with an M-derived key. The **profile bee stays plaintext** because peers must read it. §16.
 
-### Why per-user drives (no Autobase)
+### Why single-writer per member today — and Autobee next
 
-Each user writes only to their own drive: no conflicts, inherent ownership, trivial aggregation at list time. Peer drives are read-only by design.
+**Shipped.** Each member writes only its own logs — its catalog bee, and a per-space Hyperdrive that now holds no data and survives for its `driveKey` (§3.5; retirement tracked as #436): no conflicts, inherent ownership, trivial aggregation at list time. Peers' logs are read-only by design, so a folder share is single-owner. Loose files are already a multi-writer *union* — every member's catalog folded at list time — but with no convergence on a contested path and no cross-peer delete.
+
+**Direction.** Collaborative read-write folders and third-party authority — roles, removal, cross-peer delete — need an ordered multi-writer log; `membership/fold.js` records that third-party removal is not modelled for exactly that reason. The chosen primitive is **Autobee** (`holepunchto/autobee`), not Autobase: a standalone multi-writer Hyperbee with no `autobase` dependency, keeping the same shape — per-peer cores merged by a deterministic `apply`, writers added and removed in-band. Planned, not shipped, and experimental upstream. Two constraints are known up front: its view is `hyperbee2`, not the `hyperbee` the catalogs are written against; and it pins one static `encryptionKey` at open, so rotating the space content key inside a view needs the per-version encryption provider exposed.
 
 ---
 
