@@ -2,9 +2,9 @@
 // socket. An entry exists from the moment the observer saw the stream paired through a relay until
 // the stream closes or hyperdht moves it to a direct path. The relay's provenance and the relay mode
 // in effect are decided once, at pairing time, so a later change to the configured relay or mode
-// cannot relabel a connection that is still running through the old one. Names are resolved at
-// snapshot time through the registry so a pre-handshake socket or a renamed peer never leaves a
-// stale string here.
+// cannot relabel a connection that is still running through the old one. Whether the slot still
+// names that relay is the opposite kind of fact and is read at snapshot time, as are names, resolved
+// through the registry so a pre-handshake socket or a renamed peer never leaves a stale string here.
 import b4a from 'b4a'
 import idEncoding from 'hypercore-id-encoding'
 import { relayPairingFor, isStillRelayed } from './relay-observe.js'
@@ -90,6 +90,7 @@ export function describeConnection(socket) {
     relayKey: idEncoding.encode(entry.relayKey),
     relayLabel: entry.relayLabel,
     relayMode: entry.relayMode,
+    replaced: entry.via === 'own' && relayVia(entry.relayKey, ownRelay().key) !== 'own',
     since: entry.since,
   }
 }
@@ -97,10 +98,10 @@ export function describeConnection(socket) {
 export function snapshotRelayedConnections() {
   const connections = []
   for (const socket of entries.keys()) {
-    const { noiseKey, personKey, plane, displayName, via, relayKey, relayMode, since } = describeConnection(socket)
-    connections.push({ noiseKey, personKey, plane, displayName, via, relayKey, relayMode, since })
+    const { noiseKey, personKey, plane, displayName, via, relayKey, relayMode, replaced, since } = describeConnection(socket)
+    connections.push({ noiseKey, personKey, plane, displayName, via, relayKey, relayMode, replaced, since })
   }
-  const digest = connections.map((c) => `${c.noiseKey}:${c.personKey ?? ''}:${c.plane}:${c.relayKey}:${c.via}:${c.relayMode}:${c.displayName ?? ''}`).join('|')
+  const digest = connections.map((c) => `${c.noiseKey}:${c.personKey ?? ''}:${c.plane}:${c.relayKey}:${c.via}:${c.relayMode}:${c.replaced ? 1 : 0}:${c.displayName ?? ''}`).join('|')
   return { connections, direct: directCounts(), seen: relayedSeen, digest }
 }
 

@@ -794,7 +794,8 @@
       "notice": {
         "restart": "Votre invitation est enregistrée. Elle prendra effet à la reconnexion de Mirall — d'ici là, ce relais ne vous acceptera pas.",
         "stale-relayed": "Les connexions ouvertes avant ce changement passent toujours par votre relais. Reconnectez-vous pour les en sortir.",
-        "stale-direct": "Les connexions ouvertes avant l'activation sont toujours directes. Reconnectez-vous pour les faire passer par le relais."
+        "stale-direct": "Les connexions ouvertes avant l'activation sont toujours directes. Reconnectez-vous pour les faire passer par le relais.",
+        "replaced-relay": "Les connexions ouvertes avant le remplacement du relais passent toujours par l'ancien. Reconnectez-vous pour les en sortir."
       },
       "removeConfirmTitle": "Retirer {{name}} ?",
       "removeConfirmBody": "Votre invitation n'est stockée que sur cet appareil. Pour réutiliser ce relais, il vous faudra une nouvelle invitation de la personne qui l'héberge.",

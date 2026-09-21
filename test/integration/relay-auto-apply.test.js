@@ -11,9 +11,11 @@ import { socketMsgHandlers } from '../../src/shared/network/swarm-registries.js'
 import { reconnectAll } from '../../src/shared/network/space-topics.js'
 import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
 import { ServeLedger, onServeStart } from '../../src/shared/transfer/serve-ledger.js'
+import { waitFor } from '../helpers/bare-poll.js'
 
 const KEY_A = idEncoding.encode(b4a.alloc(32, 11))
 const SLOT = { publicKey: KEY_A, kind: 'open', enabled: true }
+const SLOT_B = { publicKey: idEncoding.encode(b4a.alloc(32, 12)), kind: 'open', enabled: true }
 const HASH = 'h'.repeat(64)
 const PEER = 'p'.repeat(64)
 const RELAY_ENDPOINT = { host: '203.0.113.9', port: 49737 }
@@ -36,7 +38,7 @@ function relayedSocket(relayKey) {
 }
 
 async function setup(t, { relayMode = 'always', socket: kind = 'direct' } = {}) {
-  await bootSwarms(t, { relayMode, relay: SLOT })
+  const { ipcEvents } = await bootSwarms(t, { relayMode, relay: SLOT })
   const fake = createFakeIpc()
   registerNetwork(fake.ipc, { applyRelayConfig: () => ({ applied: 1 }) })
   if (kind === 'relayed') {
@@ -51,7 +53,7 @@ async function setup(t, { relayMode = 'always', socket: kind = 'direct' } = {}) 
   // same or the registry would look untouched after a reconnect that did destroy it.
   socket.once('close', () => socketMsgHandlers.delete(socket))
   t.teardown(() => { socketMsgHandlers.clear(); resetRelayedConnections() })
-  return { fake, socket }
+  return { fake, socket, ipcEvents }
 }
 
 test('a mode change with nothing moving is applied to the live connections', async (t) => {
@@ -152,4 +154,41 @@ test('auto with a connection auto relayed itself is not reconnected', async (t) 
   t.is(reply.mismatch, null)
   t.is(reply.reconnected, false)
   t.is(socketMsgHandlers.size, 1)
+})
+
+// REGRESSION (FIX-RELAY-SWAP: replacing an open relay kept the mode, so neither `always` nor `auto`
+// saw a mismatch and every connection built through the old key stayed on it.)
+test('REGRESSION (FIX-RELAY-SWAP: replacing the relay reconnects what ran through the old one)', async (t) => {
+  const { fake } = await setup(t, { relayMode: 'always', socket: 'relayed' })
+
+  const reply = await fake.call('network:set-relay', { mode: 'always', relay: SLOT_B })
+
+  t.is(reply.mismatch, 'replaced-relay')
+  t.is(reply.reconnected, true)
+  t.is(socketMsgHandlers.size, 0)
+})
+
+// The flag follows the slot and no connection event reports a slot change, so without its own frame
+// the renderer would keep one where nothing is replaced, and the armed notice would never show.
+test('a replace while a transfer moves is left for the user, and the frame says why', async (t) => {
+  const { fake, ipcEvents } = await setup(t, { relayMode: 'auto', socket: 'relayed' })
+  await moveATransfer(t, fake)
+
+  const reply = await fake.call('network:set-relay', { mode: 'auto', relay: SLOT_B })
+
+  t.is(reply.mismatch, 'replaced-relay')
+  t.is(reply.reconnected, false)
+  const flipped = () => ipcEvents.some((e) => e.type === 'event:network-status' &&
+    e.payload.relay.connections[0]?.replaced === true)
+  await waitFor(flipped, 2000, { label: 'a frame carrying the flip' })
+  t.pass('the renderer is told without waiting for a connection event')
+})
+
+test('re-saving the same relay is not a swap', async (t) => {
+  const { fake } = await setup(t, { relayMode: 'always', socket: 'relayed' })
+
+  const reply = await fake.call('network:set-relay', { mode: 'always', relay: SLOT })
+
+  t.is(reply.mismatch, null)
+  t.is(reply.reconnected, false)
 })

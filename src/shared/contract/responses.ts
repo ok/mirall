@@ -365,7 +365,7 @@ export interface RelayApplyResult {
   ok: true
   applied: number
   reason?: string
-  mismatch: 'stale-relayed' | 'stale-direct' | null
+  mismatch: 'stale-relayed' | 'stale-direct' | 'replaced-relay' | null
   reconnected: boolean
 }
 

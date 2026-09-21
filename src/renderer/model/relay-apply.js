@@ -5,7 +5,7 @@
 /** @import { RelayMode } from '../platform/config-client.js' */
 import { relayMismatch } from '../../shared/contract/relay-apply.js'
 
-/** @typedef {'restart' | 'stale-relayed' | 'stale-direct'} RelayApplyNotice */
+/** @typedef {'restart' | 'stale-relayed' | 'stale-direct' | 'replaced-relay'} RelayApplyNotice */
 
 /**
  * @param {{ mode: RelayMode, relay: RelayStatus | null, armed: boolean, pendingIdentity: boolean }} state
