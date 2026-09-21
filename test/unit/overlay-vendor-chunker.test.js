@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Derived from hyper-overlay test/chunker.test.js @ 6cac8ee (v0.2.9), Copyright (C) 2026 the
+// hyper-overlay authors, licensed AGPL-3.0. Modified for Mirall in 2026; the vendored
+// overlay's PROVENANCE.md carries the full license notice.
+
 // Ported from hyper-overlay upstream test/chunker.test.js (6cac8ee). Body
 // verbatim; only import paths retargeted to the vendored subset. See
 // src/shared/transfer/backends/overlay/vendor/PROVENANCE.md.

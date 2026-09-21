@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Derived from hyper-overlay lib/messages-v2.js @ 6cac8ee (v0.2.9), Copyright (C) 2026 the
-// hyper-overlay authors, licensed AGPL-3.0. Modified for Mirall in 2026: each change
-// is marked [mirall] and listed in PROVENANCE.md, which carries the full license notice.
+// hyper-overlay authors, licensed AGPL-3.0. Modified for Mirall in 2026; PROVENANCE.md
+// lists the changes and carries the full license notice.
 
 /**
  * Wire Protocol Messages for hyper-overlay/v2
