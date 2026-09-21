@@ -102,6 +102,11 @@ test('a member can move its mirror and it keeps syncing', { timeout: scaled(2400
     () => fs.existsSync(path.join(second, 'note.txt')), { ms: 120000 })
   t.is(fs.readFileSync(path.join(second, 'note.txt'), 'utf8'), 'hello', 'byte-exact at the new path')
 
+  // Relocate re-enters at scanning; the first pass over the new folder has to close it.
+  const settled = await B.until('foreign-folder:get', { spaceId, shareId: share.id },
+    (m) => m?.status === 'active', { ms: 30000 })
+  t.is(settled.status, 'active', 'the moved mirror leaves scanning without a restart')
+
   await B.until('audit:list', { limit: 100 },
     (page) => page.entries.some((e) => e.kind === 'mirror.relocated'), { ms: 20000 })
   t.pass('the move is on the record')

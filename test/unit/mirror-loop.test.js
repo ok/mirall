@@ -35,7 +35,7 @@ test('REGRESSION (FIX-MIRROR-ADOPT): a tick arriving during an adopted pass stil
   const gate = deferred()
   const loops = createMirrorLoops({ ...NEVER(), runPass: async () => { started++ } })
 
-  const adopted = loops.adopt('k', gate.promise, { spaceId: 'sp', shareId: 'sh' })
+  const adopted = loops.adopt('k', () => gate.promise, { spaceId: 'sp', shareId: 'sh' })
   loops.tick('k', { spaceId: 'sp', shareId: 'sh' })
   t.is(started, 0, 'the request joined the adopted pass rather than starting a second one')
 
@@ -195,4 +195,21 @@ test('the generation advances once per stop', (t) => {
   t.is(loops.generationOf('k'), 1)
   t.is(loops.stopped('k', 0), true, 'a pass that captured 0 now knows to bail')
   t.is(loops.stopped('k', 1), false, 'while a pass started after the stop keeps running')
+})
+
+test('an adopted pass waits for the pass already in flight instead of running beside it', async (t) => {
+  let release
+  const gate = new Promise((resolve) => { release = resolve })
+  let running = 0
+  let overlapped = false
+  const loops = createMirrorLoops({
+    intervalMs: () => 60000,
+    runPass: async () => { running++; await gate; running-- },
+  })
+  const ticked = loops.tick('k', { spaceId: 'sp', shareId: 'sh' })
+  const adopted = loops.adopt('k', async () => { overlapped = running > 0 }, { spaceId: 'sp', shareId: 'sh' })
+  release()
+  await ticked
+  await adopted
+  t.absent(overlapped, 'the adopted pass started only after the tick settled')
 })

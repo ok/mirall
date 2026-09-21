@@ -47,14 +47,22 @@ export function createMirrorLoops({ intervalMs, runPass, onStop = () => {}, onEr
     return track(key, p, ctx)
   }
 
-  // Register a pass started outside `tick` (the unawaited boot scan) so the bulk stop has
-  // something to await. It honours the generation itself; the stop can only wait for what it sees.
+  // Register a pass run outside `tick` (the initial scan) so the bulk stop has something to await.
+  // It honours the generation itself; the stop can only wait for what it sees. A pass already in
+  // flight is never displaced: the adopted one starts when it settles, so two passes never walk one
+  // mount at once.
   //
   // It takes the ctx for the same reason `tick` does: a request arriving while the boot scan runs
   // sets the dirty flag, and without a ctx to run it with, that follow-up was consumed and dropped
   // — so a resume landing during the initial materialize scan did nothing at all.
-  function adopt(key, promise, ctx) {
-    return track(key, promise, ctx)
+  function adopt(key, run, ctx) {
+    const running = inFlight.get(key)
+    let p
+    if (running) p = running.catch(() => {}).then(run)
+    else {
+      try { p = Promise.resolve(run()) } catch (err) { p = Promise.reject(err) }
+    }
+    return track(key, p, ctx)
   }
 
   function start(key, ctx) {
@@ -134,5 +142,11 @@ export function createMirrorLoops({ intervalMs, runPass, onStop = () => {}, onEr
     forgetLiveness: (key) => liveness.forget(key),
     noteProgress: (key) => liveness.progress(key),
     dropInFlight: (key) => inFlight.delete(key),
+    // Resolves once no pass is in flight for the key, follow-ups included: a pass settling with the
+    // dirty flag set has already tracked its follow-up by the time its own promise resolves.
+    idle: async (key) => {
+      let running
+      while ((running = inFlight.get(key))) await running.catch(() => {})
+    },
   }
 }

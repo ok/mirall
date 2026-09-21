@@ -134,19 +134,36 @@ async function materializeEntries(mount, share, entries, { key, gen, synced, fre
 // catalog — so it is exactly the kind of in-flight pass stopAllForeignLoops has to wait for. It
 // honours the generation internally (bails between files, re-checks before the trailing persist),
 // but the bulk stop can only WAIT for what it sees, hence the same in-flight map the poll tick uses.
-export async function initialMaterializeScan(mount) {
-  const key = mirrorKey(mount.spaceId, mount.shareId)
-  state.forgetConverged(key)
-  return await loops.adopt(key, runInitialMaterializeScan(mount), { spaceId: mount.spaceId, shareId: mount.shareId })
+//
+// The generation is taken when the scan is asked for, before any await, so a pause, unmount or
+// relocate that lands while the share is still being read stops it.
+/** @internal */
+export function mirrorIdleForTests(spaceId, shareId) {
+  return loops.idle(mirrorKey(spaceId, shareId))
 }
 
-async function runInitialMaterializeScan(mount) {
+export async function initialMaterializeScan(mount) {
+  const key = mirrorKey(mount.spaceId, mount.shareId)
+  const gen = mirrorGen(key)
+  state.forgetConverged(key)
+  return await loops.adopt(key, () => runInitialMaterializeScan(mount, gen), { spaceId: mount.spaceId, shareId: mount.shareId })
+}
+
+async function runInitialMaterializeScan(mount, gen) {
+  const key = mirrorKey(mount.spaceId, mount.shareId)
   const share = await loadShareForForeignMount(mount)
-  if (share && hasContentBackend(share)) return await initialMaterializeScanCatalog(mount, share)
-  // No usable content backend (unsupported / unreadable share) — skip the mirror
-  // rather than materialize from a path this build can't serve. Still settle the record
-  // so it doesn't advertise 'syncing' forever for a mount that can never fetch.
-  log.warn('skipping mirror — no usable content backend:', share?.contentMode, mount.shareId)
+  if (mirrorStopped(key, gen)) return { stopped: true }
+  if (share && hasContentBackend(share)) return await initialMaterializeScanCatalog(mount, share, gen)
+  // A share that could not be read says nothing about the folder: the poll tick settles it once it
+  // reads, or unmounts it if the owner is gone.
+  if (!share) {
+    log.warn('skipping mirror scan — share not readable yet:', mount.shareId)
+    return { skipped: 'share-unreadable' }
+  }
+  // No usable content backend — skip the mirror rather than materialize from a path this build
+  // can't serve. Still settle the record so it doesn't advertise 'syncing' forever for a mount that
+  // can never fetch.
+  log.warn('skipping mirror — no usable content backend:', share.contentMode, mount.shareId)
   await settleMirrorSyncState(mount, true)
   return { skipped: 'no-content-backend' }
 }
@@ -166,9 +183,8 @@ export async function applyChange(mount, change) {
   }
 }
 
-async function initialMaterializeScanCatalog(mount, share) {
+async function initialMaterializeScanCatalog(mount, share, gen) {
   const key = mirrorKey(mount.spaceId, mount.shareId)
-  const gen = mirrorGen(key)
   // Resolved before the first await: a pass cancelled by an unmount must never recreate a
   // re-mounted key's Set from its stale mount object.
   const synced = state.syncedSetFor(mount)

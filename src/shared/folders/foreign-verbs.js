@@ -5,11 +5,12 @@ import { MOUNT_STATUS, MIRROR_STATE } from '../contract/statuses.js'
 import { AppError } from '../core/errors.js'
 import { CODES } from '../contract/errors.js'
 import { createLogger } from '../core/logger.js'
-import { getForeignMount, mutateForeignMount, deleteForeignMount, patchForeignMount } from './mount-store.js'
+import { getForeignMount, mutateForeignMount, deleteForeignMount } from './mount-store.js'
 import { setMirrorState, tombstoneMirror } from './mirror-records.js'
 import { emitMirrorEvent, emitStatus, syncMirrorRecord } from './mirror-signals.js'
 import { forgetMirrorFetch } from './mirror-fetch.js'
-import { runMaterializeTick } from './mirror-pass.js'
+import { initialMaterializeScan, runMaterializeTick } from './mirror-pass.js'
+import { recordMirrorScanFault } from './foreign-pause.js'
 import { mirrorKey } from './mirror-policy.js'
 
 const log = createLogger('foreign-verbs')
@@ -72,16 +73,26 @@ export async function relocateForeignFolder(spaceId, shareId, mountPath) {
   const mount = await getForeignMount(spaceId, shareId)
   if (!mount) throw new AppError(CODES.MOUNT_NOT_ON_DEVICE, 'Mount not found')
 
-  const enabled = mount.enabled !== false
-  // A disabled mount keeps the status it was disabled WITH. Collapsing an auto-pause
-  // ('mount-point-gone', 'paused-enospc') into a plain user 'paused' would take it out of the
-  // auto-pause set and permanently disable the auto-resume that exists to rescue exactly the
-  // mirrors this verb is used on.
-  const status = enabled ? MOUNT_STATUS.SCANNING : (mount.status ?? MOUNT_STATUS.PAUSED)
-  // A read-merge, never a whole-object write-back: the snapshot above predates this await, so
-  // putting it back would resurrect an `enabled`/`status` a concurrent pause had already written.
-  const patched = await patchForeignMount(spaceId, shareId, { mountPath, status, syncedPaths: [], renamedPaths: {} })
+  // Decided inside the write, against the record as it is then, so a pause that lands after the
+  // read above keeps its enabled/status. A disabled mount keeps the status and reason it was
+  // disabled WITH: collapsing an auto-pause ('mount-point-gone', 'paused-enospc') into a plain user
+  // 'paused' would take it out of the auto-pause set and permanently disable the auto-resume that
+  // exists to rescue exactly the mirrors this verb is used on. An enabled one re-enters at
+  // scanning, and its old path's fault reason goes with it.
+  const patched = await mutateForeignMount(spaceId, shareId, (m) => {
+    const enabled = m.enabled !== false
+    return {
+      ...m,
+      mountPath,
+      syncedPaths: [],
+      renamedPaths: {},
+      status: enabled ? MOUNT_STATUS.SCANNING : (m.status ?? MOUNT_STATUS.PAUSED),
+      lastError: enabled ? null : (m.lastError ?? null),
+    }
+  })
   if (!patched) throw new AppError(CODES.MOUNT_NOT_ON_DEVICE, 'Mount not found')
+  const written = await getForeignMount(spaceId, shareId)
+  const status = written?.status ?? MOUNT_STATUS.PAUSED
 
   stopForeignLoop(spaceId, shareId)
   resetForeignSyncState(spaceId, shareId)
@@ -92,10 +103,16 @@ export async function relocateForeignFolder(spaceId, shareId, mountPath) {
   emitStatus(spaceId, shareId, status)
 
   const next = await getForeignMount(spaceId, shareId)
-  if (enabled && next) {
+  if (next && next.enabled !== false) {
     await syncMirrorRecord(spaceId, shareId, () => setMirrorState(spaceId, shareId, 'syncing'))
     await startForeignLoop(next)
-    runMaterializeTick(spaceId, shareId).catch((err) => log.debug('relocate tick failed:', shareId, '-', err.message))
+    // The initial scan, not a tick: it is the pass that closes 'scanning', and it runs adopt-only
+    // while the owner is offline. It gets its own copy of the record, which it fills in as it goes;
+    // the tick after it settles a share whose listing the scan would not call complete.
+    initialMaterializeScan({ ...next, renamedPaths: { ...next.renamedPaths } })
+      .then(() => runMaterializeTick(spaceId, shareId))
+      .catch((err) => recordMirrorScanFault(spaceId, shareId, err))
+      .catch((err) => log.warn('relocate scan failed:', shareId, '-', err.message))
   }
   emitMirrorEvent('event:share-files-updated', { spaceId, shareId })
   return next
