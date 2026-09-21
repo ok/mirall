@@ -45,3 +45,9 @@ test('a full disk classifies specifically and a network fault stays the generic 
   t.is(terminalFault({ code: 'fetch-failed', cause: new Error('socket closed') }, dest()), CODES.DOWNLOAD_FAILED)
   t.is(terminalFault({ code: 'x', cause: new Error('block not available') }, dest()), CODES.TRANSFER_REMOVED)
 })
+
+test('REGRESSION (FIX-379: a read-only volume with the folder present is a permission fault)', (t) => {
+  const erofs = { code: 'EROFS', cause: errno('EROFS') }
+  t.is(terminalFault(erofs, dest()), CODES.TRANSFER_PERMISSION, 'not the generic DOWNLOAD_FAILED')
+  t.is(terminalFault(erofs, dest({ dirExists: () => false })), CODES.TRANSFER_DEST_UNAVAILABLE, 'a gone folder still wins')
+})

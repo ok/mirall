@@ -67,11 +67,12 @@ test('the error wire filter is the only behavioural difference between the kinds
     build(kind, r.emit).emitError(JOB, code)
     return r.names().includes('event:transfer-error')
   }
-  for (const code of [CODES.TRANSFER_DISK_FULL, CODES.TRANSFER_CHECKSUM, CODES.TRANSFER_DEST_UNAVAILABLE]) {
+  for (const code of [CODES.TRANSFER_DISK_FULL, CODES.TRANSFER_CHECKSUM, CODES.TRANSFER_DEST_UNAVAILABLE, CODES.TRANSFER_PERMISSION]) {
     t.ok(surfaced('folder', code), `folder surfaces ${code}`)
     t.ok(surfaced('loose', code), `loose surfaces ${code}`)
   }
   t.absent(surfaced('folder', CODES.DOWNLOAD_FAILED), 'a folder row keeps a generic failure inline')
+  t.absent(surfaced('folder', CODES.TRANSFER_REMOVED), 'and a removed source, which a reconnect may still fix')
   t.ok(surfaced('loose', CODES.DOWNLOAD_FAILED), 'a loose row has no list to keep it in')
 
   const events = (kind, drive) => {

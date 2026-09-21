@@ -87,11 +87,11 @@ export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentT
   // The marker is the user's intent — it outranks every automatic resume — and its hash lets a
   // later discard still tell the holder we stopped.
   const pausedHashes = createPausedHolders({ notifyStopped: (hash) => getOverlay()?.notifyTransferStopped(hash) })
-  // transferId -> ErrorCode for a terminal failure whose durable write FAILED. The row is the only
-  // thing that keeps a checksum / disk-full / dest-unavailable row out of the next re-drive; when
-  // it cannot be written, this keeps the verdict for the life of the process. Cleared by the same
-  // three things that clear a durable errorCode: the user's Resume click, a discard, and a restart
-  // on republished content.
+  // transferId -> ErrorCode for a terminal failure (isTerminalFault) whose durable write FAILED.
+  // The row is the only thing that keeps a terminal row out of the next re-drive; when it cannot
+  // be written, this keeps the verdict for the life of the process. Cleared by the same three
+  // things that clear a durable errorCode: the user's Resume click, a discard, and a restart on
+  // republished content.
   const terminalCodes = new Map()
 
   const ownerOnline = (pk) => (channel.isOwnerOnline ?? isOwnerOnline)(pk)

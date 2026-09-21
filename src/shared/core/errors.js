@@ -16,11 +16,12 @@ export class AppError extends Error {
   }
 }
 
+// A local I/O errno decides first, through the same table the mount paths read, so the engine and
+// the mounts cannot disagree about which errno is a full disk or a folder we may not write.
 export function classifyTransferError(err) {
+  const local = classifyLocalIoFault(err)
+  if (local) return local
   const msg = (err?.message || '').toLowerCase()
-  const code = err?.code
-  if (code === 'ENOSPC') return CODES.TRANSFER_DISK_FULL
-  if (code === 'EACCES' || code === 'EPERM') return CODES.TRANSFER_PERMISSION
   if (msg.includes('checksum') || msg.includes('invalid signature')) return CODES.TRANSFER_CHECKSUM
   if (msg.includes('block not available') || msg.includes('entry not found') || msg.includes('file not found')) {
     return CODES.TRANSFER_REMOVED

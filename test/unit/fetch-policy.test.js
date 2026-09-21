@@ -3,12 +3,19 @@ import { isTerminalFault, classifyMiss, nextRetryDelay } from '../../src/shared/
 import { CODES } from '../../src/shared/contract/errors.js'
 
 test('the terminal set is exactly the faults no retry can fix', (t) => {
-  for (const c of [CODES.TRANSFER_CHECKSUM, CODES.TRANSFER_DISK_FULL, CODES.TRANSFER_DEST_UNAVAILABLE]) {
+  for (const c of [CODES.TRANSFER_CHECKSUM, CODES.TRANSFER_DISK_FULL, CODES.TRANSFER_DEST_UNAVAILABLE, CODES.TRANSFER_PERMISSION]) {
     t.ok(isTerminalFault(c), `${c} is terminal`)
   }
-  for (const c of [CODES.TRANSFER_NETWORK, CODES.DOWNLOAD_FAILED, undefined, null, 'ECONNRESET']) {
+  for (const c of [CODES.TRANSFER_NETWORK, CODES.TRANSFER_REMOVED, CODES.DOWNLOAD_FAILED, undefined, null, 'ECONNRESET']) {
     t.absent(isTerminalFault(c), `${String(c)} stays retryable`)
   }
+})
+
+// REGRESSION (FIX-379: a folder the app may not write was treated as a fault a reconnect could fix,
+// so every reconnect re-ran a fetch that failed on the same folder.)
+test('REGRESSION (FIX-379: a permission fault is terminal, a removed source is not)', (t) => {
+  t.ok(isTerminalFault(CODES.TRANSFER_PERMISSION), 'the folder is still read-only on the next attempt')
+  t.absent(isTerminalFault(CODES.TRANSFER_REMOVED), 'the owner may have the content back')
 })
 
 test('a miss is classified by whether a scheduler ran', (t) => {
