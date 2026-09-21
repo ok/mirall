@@ -690,13 +690,19 @@
     "memberJoinedBodyNoSpace": "Online",
     "memberLeftBodyNoSpace": "È ora offline",
     "transferCompleteTitle": "Download completato",
+    "transferCompleteManyBody_one": "{{count}} file",
+    "transferCompleteManyBody_other": "{{count}} file",
     "transferErrorTitle": "Download non riuscito",
     "transferErrorBody": "{{file}} — {{reason}}",
     "transferErrorManyBody_one": "{{count}} file — {{reason}}",
     "transferErrorManyBody_other": "{{count}} file — {{reason}}",
     "transferPausedTitle": "Download in pausa",
     "transferPausedBody": "{{file}} — mittente offline",
-    "transferPausedInterruptedBody": "{{file}} — trasferimento interrotto"
+    "transferPausedManyBody_one": "{{count}} file — mittente offline",
+    "transferPausedManyBody_other": "{{count}} file — mittente offline",
+    "transferPausedInterruptedBody": "{{file}} — trasferimento interrotto",
+    "transferPausedInterruptedManyBody_one": "{{count}} file — trasferimento interrotto",
+    "transferPausedInterruptedManyBody_other": "{{count}} file — trasferimento interrotto"
   },
   "format": {
     "etaSecondsLeft": "{{value}} s rimanenti",

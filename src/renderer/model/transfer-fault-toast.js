@@ -1,6 +1,6 @@
 // The in-app toast a terminal transfer fault raises, if any. Keyed per (space, fault): a folder
-// download fails every file at once, and each failure replaces the toast instead of stacking one
-// per file, so the copy names no file.
+// download fails every file at once, and one toast stands for all of them, so the copy names no
+// file.
 import { CODES } from '../../shared/contract/errors.js'
 
 /** @type {ReadonlyMap<string, { key: string, idPrefix: string }>} */

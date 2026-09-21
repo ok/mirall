@@ -690,13 +690,19 @@
     "memberJoinedBodyNoSpace": "En línea",
     "memberLeftBodyNoSpace": "Se desconectó",
     "transferCompleteTitle": "Descarga completada",
+    "transferCompleteManyBody_one": "{{count}} archivo",
+    "transferCompleteManyBody_other": "{{count}} archivos",
     "transferErrorTitle": "Descarga fallida",
     "transferErrorBody": "{{file}} — {{reason}}",
     "transferErrorManyBody_one": "{{count}} archivo — {{reason}}",
     "transferErrorManyBody_other": "{{count}} archivos — {{reason}}",
     "transferPausedTitle": "Descarga pausada",
     "transferPausedBody": "{{file}} — remitente desconectado",
-    "transferPausedInterruptedBody": "{{file}} — transferencia interrumpida"
+    "transferPausedManyBody_one": "{{count}} archivo — remitente desconectado",
+    "transferPausedManyBody_other": "{{count}} archivos — remitente desconectado",
+    "transferPausedInterruptedBody": "{{file}} — transferencia interrumpida",
+    "transferPausedInterruptedManyBody_one": "{{count}} archivo — transferencia interrumpida",
+    "transferPausedInterruptedManyBody_other": "{{count}} archivos — transferencia interrumpida"
   },
   "format": {
     "etaSecondsLeft": "{{value}} s restantes",

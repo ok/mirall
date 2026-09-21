@@ -33,3 +33,12 @@ export function pushToast(items, item, paused = new Set()) {
   }
   return kept
 }
+
+/**
+ * @param {readonly ToastItem[]} items
+ * @param {string} id
+ * @param {string} message
+ */
+export function isShown(items, id, message) {
+  return items.some((t) => t.id === id && t.message === message)
+}

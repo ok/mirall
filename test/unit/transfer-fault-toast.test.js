@@ -32,12 +32,20 @@ test('the replacing toast copy names no file in any locale', (t) => {
   }
 })
 
-test('the coalesced notification body counts files in every locale', (t) => {
+test('every coalesced notification body counts files in every locale', (t) => {
+  const bodies = {
+    transferErrorManyBody: ['{{count}}', '{{reason}}'],
+    transferCompleteManyBody: ['{{count}}'],
+    transferPausedManyBody: ['{{count}}'],
+    transferPausedInterruptedManyBody: ['{{count}}'],
+  }
   for (const locale of locales) {
     const notifications = common(locale).notifications
-    for (const key of ['transferErrorManyBody_one', 'transferErrorManyBody_other']) {
-      const str = notifications?.[key]
-      t.ok(typeof str === 'string' && str.includes('{{count}}') && str.includes('{{reason}}'), `${locale}: ${key}`)
+    for (const [base, slots] of Object.entries(bodies)) {
+      for (const key of [base + '_one', base + '_other']) {
+        const str = notifications?.[key]
+        t.ok(typeof str === 'string' && slots.every((slot) => str.includes(slot)), `${locale}: ${key}`)
+      }
     }
   }
 })

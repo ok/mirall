@@ -7,3 +7,10 @@ export function pausedBodyKey(reason) {
     ? 'notifications.transferPausedInterruptedBody'
     : 'notifications.transferPausedBody'
 }
+
+/** @param {string | undefined} reason */
+export function pausedManyBodyKey(reason) {
+  return reason === 'interrupted'
+    ? 'notifications.transferPausedInterruptedManyBody'
+    : 'notifications.transferPausedManyBody'
+}

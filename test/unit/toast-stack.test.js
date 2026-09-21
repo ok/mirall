@@ -2,7 +2,7 @@ import test from 'brittle'
 import { readFileSync } from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { pushToast, isSticky, MAX_VISIBLE } from '../../src/renderer/components/toast/toastStack.js'
+import { pushToast, isSticky, isShown, MAX_VISIBLE } from '../../src/renderer/components/toast/toastStack.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const TOAST = path.resolve(here, '../../src/renderer/components/toast')
@@ -104,6 +104,18 @@ test('pushToast does not mutate the stack it is given', (t) => {
 
 test('the provider shows through pushToast and holds no cap of its own', (t) => {
   const src = read('ToastProvider.tsx')
-  t.ok(/setItems\(\(prev\) => pushToast\(prev, item, pausedRef\.current\)\)/.test(src))
+  t.ok(/itemsRef\.current = pushToast\(itemsRef\.current, item, pausedRef\.current\)/.test(src))
   t.absent(/MAX_VISIBLE/.test(src))
+})
+
+// REGRESSION (FIX-447: a per-file fault toast remounted on every file). Each remount re-announced the
+// role="alert" node and restarted its entry animation once per failing file of a folder download.
+test('REGRESSION (FIX-447): a keep-while-shown repeat of the toast on screen changes nothing', (t) => {
+  const stack = showAll([], timed('disk-full:s1'))
+  t.ok(isShown(stack, 'disk-full:s1', 'disk-full:s1'), 'same id and text: already shown')
+  t.absent(isShown(stack, 'disk-full:s1', 'other text'), 'new text under the id still replaces')
+  t.absent(isShown(stack, 'disk-full:s2', 'disk-full:s1'))
+  const provider = read('ToastProvider.tsx')
+  t.ok(/opts\.whileShown === 'keep' && isShown\(itemsRef\.current, id, message\)\) return id/.test(provider), 'the provider returns before bumping the seq')
+  t.ok(/whileShown: 'keep'/.test(readFileSync(path.join(TOAST, 'bridges/WorkerToastBridge.tsx'), 'utf8')), 'the transfer-fault bridge asks for it')
 })

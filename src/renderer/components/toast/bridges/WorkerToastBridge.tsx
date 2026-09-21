@@ -53,7 +53,7 @@ export default function WorkerToastBridge() {
       }),
       subscribe<TransferErrorMessage>('event:transfer-error', (msg) => {
         const fault = transferFaultToast(msg.spaceId, msg.errorCode)
-        if (fault) toast.error(t(fault.key), { id: fault.id, duration: 8000 })
+        if (fault) toast.error(t(fault.key), { id: fault.id, duration: 8000, whileShown: 'keep' })
       }),
       // `error` is a CODE; translate it. The folder screen's fault strip is the durable surface —
       // this is the notice you get while looking at something else.

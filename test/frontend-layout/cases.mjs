@@ -33,6 +33,7 @@ export const CASES = [
   { name: "spaceoverflow", title: "Mirall space document-overflow harness" },
   { name: "toastdedupe", title: "Mirall retry-toast dedupe harness" },
   { name: "toaststack", title: "Mirall sticky-toast eviction harness" },
+  { name: "transferfaults", title: "Mirall transfer-fault burst harness" },
   { name: "stickyheader", title: "Mirall space sticky-header harness" },
   { name: "truncation", title: "Mirall text-truncation harness" },
   { name: "waiting", title: "Mirall owner-row waiting-cluster harness" },

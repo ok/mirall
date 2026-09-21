@@ -9,6 +9,9 @@ export interface ToastOptions {
   id?: string
   duration?: number
   action?: ToastAction
+  // 'keep' leaves a toast already on screen with the same id and text untouched: no remount, no
+  // second announcement, its countdown running on. For a fault that repeats once per file.
+  whileShown?: 'replace' | 'keep'
 }
 
 export interface ToastItem {

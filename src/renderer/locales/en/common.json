@@ -716,13 +716,19 @@
     "memberJoinedBodyNoSpace": "Online",
     "memberLeftBodyNoSpace": "Went offline",
     "transferCompleteTitle": "Download complete",
+    "transferCompleteManyBody_one": "{{count}} file",
+    "transferCompleteManyBody_other": "{{count}} files",
     "transferErrorTitle": "Download failed",
     "transferErrorBody": "{{file}} — {{reason}}",
     "transferErrorManyBody_one": "{{count}} file — {{reason}}",
     "transferErrorManyBody_other": "{{count}} files — {{reason}}",
     "transferPausedTitle": "Download paused",
     "transferPausedBody": "{{file}} — sender offline",
-    "transferPausedInterruptedBody": "{{file}} — transfer interrupted"
+    "transferPausedManyBody_one": "{{count}} file — sender offline",
+    "transferPausedManyBody_other": "{{count}} files — sender offline",
+    "transferPausedInterruptedBody": "{{file}} — transfer interrupted",
+    "transferPausedInterruptedManyBody_one": "{{count}} file — transfer interrupted",
+    "transferPausedInterruptedManyBody_other": "{{count}} files — transfer interrupted"
   },
   "format": {
     "etaSecondsLeft": "{{value}}s left",
