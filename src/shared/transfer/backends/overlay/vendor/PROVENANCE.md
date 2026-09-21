@@ -13,6 +13,32 @@ path that Mirall's `overlay` content-backend builds on.
   `815492f` `lib/` for every file vendored here. Re-diff against either with
   `git show <commit>:lib/<file>.js`.
 
+## License
+
+- **Upstream license:** `hyper-overlay` declares `AGPL-3.0` (its `package.json` `license`
+  field and README). Upstream ships no `LICENSE` file and no copyright line; its code is
+  attributed here as *Copyright (C) 2026 the hyper-overlay authors*.
+- **These files are modified.** Every vendored `.js` file differs from upstream. The changes
+  are itemised under "Mirall vendor-time modifications" below, most of them also marked
+  inline with a `[mirall]` comment; a removal leaves nothing to mark, so the re-diff is the
+  complete record. Modification began in 2026, when the snapshot was taken; git history
+  records every later change.
+- **Notice on each file.** Each vendored `.js` file opens with a short header, a block of
+  `//` lines ending at the first blank line, that names its upstream file and snapshot,
+  the upstream license, and this modification. It is the only change above upstream's own
+  first line, and the re-diff recipe below strips it. The upstream tests ported under
+  `test/` (`overlay-vendor-chunker`, `-messages-v2`, `-helpers`, `-restart-durability`,
+  `-transfer`) carry the same notice.
+- **Distribution.** The modified files are conveyed under the GNU Affero General Public
+  License version 3 as part of Mirall; the full license text is the repository's
+  [`LICENSE`](../../../../../../LICENSE). Because upstream grants version 3 without "or any
+  later version", these files are `AGPL-3.0-only` even though Mirall's own code is
+  published `AGPL-3.0-or-later`. Their copyright is not Mirall's and no contributor
+  agreement covers it, so they can only ever be conveyed under that license, in any
+  edition.
+- **No warranty.** As stated in sections 15 and 16 of the license, the code is provided
+  without warranty of any kind.
+
 ## What was vendored (8 files — the import-closed v2 subset)
 
 `overlay-v2.js` (facade entry) and its transitive imports:
@@ -612,7 +638,11 @@ re-diffable against upstream. Categories:
 
 ## Re-diffing against upstream
 
+From this folder, with an upstream clone at `$UPSTREAM`:
+
 ```
-git show 815492f:lib/overlay-v2.js | diff - overlay-v2.js   # (or 6cac8ee — identical)
+sed '/^\/\/ SPDX-License-Identifier/,/^$/d' overlay-v2.js | diff <(git -C "$UPSTREAM" show 815492f:lib/overlay-v2.js) -   # (or 6cac8ee — identical)
 ```
-The only expected hunks are the categories above.
+The only expected hunks are the categories above. The `sed` removes the license header (see
+"License") and nothing else: it deletes from the SPDX line to the blank line that ends the
+header, so on a file without one it deletes nothing.

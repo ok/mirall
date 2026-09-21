@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Derived from hyper-overlay lib/chunker.js @ 6cac8ee (v0.2.9), Copyright (C) 2026 the
+// hyper-overlay authors, licensed AGPL-3.0. Modified for Mirall in 2026; PROVENANCE.md
+// lists the changes and carries the full license notice.
+
 /**
  * FastCDC Content-Defined Chunker
  *

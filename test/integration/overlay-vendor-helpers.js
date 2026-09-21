@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Derived from hyper-overlay test/helpers.js @ 6cac8ee (v0.2.9), Copyright (C) 2026 the
+// hyper-overlay authors, licensed AGPL-3.0. Modified for Mirall in 2026; the vendored
+// overlay's PROVENANCE.md carries the full license notice.
+
 // Ported verbatim from hyper-overlay upstream `test/helpers.js` (6cac8ee), the
 // minimal store/dir helpers the vendored chunker/transfer/restart tests use.
 // Kept separate from Mirall's `test/helpers/` so the vendored suite stays a
