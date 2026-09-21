@@ -13,7 +13,7 @@ changes do not appear here.
 
 ### Unreleased
 
-Finishes the relay work from 1.11.
+Finishes the relay work from 1.11 and fixes a few smaller problems.
 
 #### Fixed
 
@@ -25,6 +25,20 @@ works, after any transfer in progress finishes.
 Connections made through the old relay kept using it, with no notice.
 - **Changing your relay several times in a row no longer stops Mirall from
 working.** It could stop responding until you quit and reopened it.
+- **Notices that wait for you no longer disappear when others arrive.** A
+notice that stays until you act on it — someone asking to join your space,
+a declined request, being offline, or a missing download folder — could be
+pushed off the screen by a few newer notices in a row. It now stays until
+you close it or it no longer applies.
+- **Failed actions now say so.** If saving your profile, deleting the
+Activity Log or turning on detailed logging didn't work, Mirall could stay
+stuck on "Saving…", close the dialog as if it had worked, or say logging was
+on when it wasn't. Copy buttons could also say "Copied!" when nothing was
+copied. Mirall now tells you what went wrong and lets you try again.
+- **Downloads into a folder Mirall can't write to no longer retry
+endlessly.** A download into a read-only folder or drive used to fail again
+every time the sharer reconnected. It now shows "Permission denied" until
+you fix the folder; then it resumes on its own, or you can press Retry.
 
 ## v1.11.0
 
