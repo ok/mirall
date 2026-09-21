@@ -74,6 +74,7 @@ One row per file in `scenarios/`; the id is the `run.mjs` argument (`node test/f
 | s65 | `s65-owner-convergence.mjs` | When a co-member approves, the owner stops showing the request and lists the new member. |
 | s114 | `s114-waiting-docs-card.mjs` | A pending joiner sees the "Why am I waiting?" docs card; withdraw still works beside it. |
 | s126 | `s126-activity-log-granted-actor.mjs` | The joiner's `membership.granted` row names the granter as actor, as one accessible node, in the Members category. |
+| s147 | `s147-sticky-notice-survives-burst.mjs` | **REGRESSION (FIX-373):** a declined joiner's sticky toast survives a burst of five "removed by the owner" notices; the oldest timed toasts make room and the sticky one leaves only on Dismiss. |
 
 ### E. Settings, appearance & storage
 | ID | File | Covers |

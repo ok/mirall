@@ -1,8 +1,9 @@
 // A single toast: enter/leave transitions and a countdown ring that pauses on
-// hover/focus; sticky toasts (duration <= 0) stay until dismissed.
+// hover/focus; sticky toasts (isSticky) stay until dismissed.
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { ToastItem, ToastVariant } from './types.js'
+import { isSticky } from './toastStack.js'
 import Icon from '../primitives/Icon.js'
 import type { IconName } from '../../types/ui.js'
 
@@ -67,7 +68,7 @@ export default function Toast({ item, onDismiss, onPause, onResume }: Props) {
   }, [])
 
   useEffect(() => {
-    if (paused || leaving || item.duration <= 0) return
+    if (paused || leaving || isSticky(item.duration)) return
     tickStartRef.current = Date.now()
     let raf = 0
     const tick = (): void => {
@@ -91,9 +92,9 @@ export default function Toast({ item, onDismiss, onPause, onResume }: Props) {
   }
 
   function handleMouseEnter(): void {
-    // Sticky toasts (duration <= 0) have no countdown to pause, and resuming would
+    // Sticky toasts have no countdown to pause, and resuming would
     // re-arm a dismiss timer via onResume's MIN_RESUME_DURATION clamp — keep them sticky.
-    if (paused || item.duration <= 0) return
+    if (paused || isSticky(item.duration)) return
     setPaused(true)
     const elapsed = Date.now() - lastResumeRef.current
     remainingRef.current = Math.max(remainingRef.current - elapsed, 0)

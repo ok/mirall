@@ -31,6 +31,7 @@ export const CASES = [
   { name: "sharecard", title: "Mirall ShareCard hit-area layout harness" },
   { name: "spaceoverflow", title: "Mirall space document-overflow harness" },
   { name: "toastdedupe", title: "Mirall retry-toast dedupe harness" },
+  { name: "toaststack", title: "Mirall sticky-toast eviction harness" },
   { name: "stickyheader", title: "Mirall space sticky-header harness" },
   { name: "truncation", title: "Mirall text-truncation harness" },
   { name: "harness", title: "Mirall layout harness" },

@@ -21,8 +21,8 @@ export default function DownloadFolderToastBridge({ onChangeFolder }: Props) {
   const { t } = useTranslation()
   const toast = useToast()
   // Only transitions produce a toast, so a re-probe that finds the same folder missing does not
-  // re-raise one the user dismissed. A fresh FAILED DOWNLOAD counts as a transition (faultSeq): the
-  // stack keeps 4 and evicts the oldest, which a sticky toast always is.
+  // re-raise one the user dismissed. A fresh FAILED DOWNLOAD counts as a transition (faultSeq): it
+  // names the folder again, on top of the stack, for a user who dismissed it.
   const previousRef = useRef<string | null>(null)
   const onChangeFolderRef = useRef(onChangeFolder)
 

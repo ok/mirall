@@ -618,7 +618,10 @@ pure function, `primitives/modalKeys.ts`, unit-tested in `test/invariants/modal-
 
 ### Toasts — `components/toast/`
 Bottom-center stack: `fixed inset-x-0 bottom-6 z-[60] flex flex-col items-center gap-2`,
-`role="region"`. Max 4 visible, default 5s, **pause on hover/focus** with a
+`role="region"`, scrolling inside the window (`max-h-[calc(100vh-3rem)] overflow-y-auto`) with the
+newest toast kept in view. Four visible: past that the oldest auto-dismissing toast makes room,
+never a sticky one and never one under the pointer or focus, so the stack grows only when nothing
+else can go (`toastStack.js`). Default 5s, **pause on hover/focus** with a
 circular SVG progress ring on the close button. Each toast:
 `rounded-lg px-4 py-3 shadow-lg`, icon + message + optional action, slide+fade
 (`translate-y-2`). Variant **backgrounds** map to tokens — `error`→`error-container`,
