@@ -95,6 +95,11 @@ const startHiddenFlag = !!boot.flags.hidden
 // share (and clobber) one userData.
 if (customStorage) app.setPath('userData', customStorage)
 
+// DIAGNOSTIC — armed as soon as the profile path is settled (--storage moves it), and before the
+// updater, the worker host or any watcher can touch the disk. getDataDir is a thunk because
+// app.getPath is only meaningful after the line above. See src/main/dir-tripwire.js.
+require('./dir-tripwire.js').installDataDirTripwire({ getDataDir: () => app.getPath('userData') })
+
 // Test hook: force Chromium to always build the renderer accessibility tree.
 // Without this, a backgrounded/secondary instance's web-content AX tree may
 // never activate (lazy per-process), leaving automation snapshots empty.
