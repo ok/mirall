@@ -11,27 +11,27 @@
 // `now` is injectable for tests.
 
 export function createPresence({ ttl = 15000, now = () => Date.now(), onExpire = () => {} } = {}) {
-  const leases = new Map()   // peerKey -> Map<spaceId, expiry>
+  const leases = new Map()   // personKey -> Map<spaceId, expiry>
 
   // Returns true when this mark flipped the peer online (fresh lease or an expired
   // lease being restored) — the caller mirrors the onExpire emit for that transition.
-  function mark(peerKey, spaceId) {
-    let spaces = leases.get(peerKey)
-    if (!spaces) { spaces = new Map(); leases.set(peerKey, spaces) }
+  function mark(personKey, spaceId) {
+    let spaces = leases.get(personKey)
+    if (!spaces) { spaces = new Map(); leases.set(personKey, spaces) }
     const exp = spaces.get(spaceId)
     const wasLive = exp != null && now() < exp
     spaces.set(spaceId, now() + ttl)
     return !wasLive
   }
 
-  function isOnline(peerKey, spaceId) {
-    const exp = leases.get(peerKey)?.get(spaceId)
+  function isOnline(personKey, spaceId) {
+    const exp = leases.get(personKey)?.get(spaceId)
     return exp != null && now() < exp
   }
 
   // Online anywhere (any space) — for "is this peer reachable at all" checks.
-  function isOnlineAnywhere(peerKey) {
-    const spaces = leases.get(peerKey)
+  function isOnlineAnywhere(personKey) {
+    const spaces = leases.get(personKey)
     if (!spaces) return false
     const t = now()
     for (const exp of spaces.values()) if (t < exp) return true
@@ -41,9 +41,9 @@ export function createPresence({ ttl = 15000, now = () => Date.now(), onExpire =
   function onlineIn(spaceId) {
     const out = new Set()
     const t = now()
-    for (const [peerKey, spaces] of leases) {
+    for (const [personKey, spaces] of leases) {
       const exp = spaces.get(spaceId)
-      if (exp != null && t < exp) out.add(peerKey)
+      if (exp != null && t < exp) out.add(personKey)
     }
     return out
   }
@@ -51,14 +51,14 @@ export function createPresence({ ttl = 15000, now = () => Date.now(), onExpire =
   // Drop a peer's lease(s). spaceId omitted ⇒ everywhere (used on disconnect). Returns true when
   // this dropped a live (unexpired) lease — a real online→offline flip the caller can gate on
   // (mirror of mark's flip return), so repeated/late clears don't re-emit.
-  function clear(peerKey, spaceId) {
-    const spaces = leases.get(peerKey)
+  function clear(personKey, spaceId) {
+    const spaces = leases.get(personKey)
     if (!spaces) return false
-    if (spaceId == null) { leases.delete(peerKey); return true }
+    if (spaceId == null) { leases.delete(personKey); return true }
     const exp = spaces.get(spaceId)
     const wasLive = exp != null && now() < exp
     spaces.delete(spaceId)
-    if (spaces.size === 0) leases.delete(peerKey)
+    if (spaces.size === 0) leases.delete(personKey)
     return wasLive
   }
 
@@ -68,9 +68,9 @@ export function createPresence({ ttl = 15000, now = () => Date.now(), onExpire =
   // unrelated refresh (the "expiry never re-emits" seam).
   function prune() {
     const t = now()
-    for (const [peerKey, spaces] of leases) {
-      for (const [spaceId, exp] of spaces) if (t >= exp) { spaces.delete(spaceId); onExpire(peerKey, spaceId) }
-      if (spaces.size === 0) leases.delete(peerKey)
+    for (const [personKey, spaces] of leases) {
+      for (const [spaceId, exp] of spaces) if (t >= exp) { spaces.delete(spaceId); onExpire(personKey, spaceId) }
+      if (spaces.size === 0) leases.delete(personKey)
     }
   }
 

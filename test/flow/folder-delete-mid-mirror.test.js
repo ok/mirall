@@ -37,7 +37,7 @@ test('owner deletes the share mid-mirror: the share tombstones on the mirroring 
     const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })
     const spaceId = await connectInSpace(t, A, B)
-    const aKey = (await A.request('profile:get')).publicKey
+    const aKey = (await A.request('profile:get')).personKey
 
     const folder = mkTmpDir(t)
     const big = patternedBytes(64 * 1024 * 1024, 7)
@@ -65,7 +65,7 @@ test('owner deletes a file mid-mirror: it is removed from the mirror, the siblin
     const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })
     const spaceId = await connectInSpace(t, A, B)
-    const aKey = (await A.request('profile:get')).publicKey
+    const aKey = (await A.request('profile:get')).personKey
 
     const folder = mkTmpDir(t)
     fs.writeFileSync(path.join(folder, 'big.bin'), patternedBytes(64 * 1024 * 1024, 9))

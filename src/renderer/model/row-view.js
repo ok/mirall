@@ -109,7 +109,7 @@ function deriveProgress(row, downloadDecor) {
  * @param {PeerDownloadSummary | null | undefined} downloadSummary
  */
 function deriveLane(row, progress, preparingDecor, downloadSummary) {
-  const hasDownloaders = (downloadSummary?.peerKeys.length ?? 0) > 0
+  const hasDownloaders = (downloadSummary?.personKeys.length ?? 0) > 0
   const peerPreparingActive = row.status === 'preparing' && preparingDecor != null && preparingDecor.total > 0
   const downloadProgressActive =
     progress.showDownloadProgress && progress.progressBytes != null && progress.progressTotal != null

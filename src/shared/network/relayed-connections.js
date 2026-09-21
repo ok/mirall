@@ -69,9 +69,9 @@ export function describeConnection(socket) {
   if (!entry) return null
   const member = entry.memberOf(socket)
   return {
-    peerKey: b4a.toString(socket.remotePublicKey, 'hex'),
+    noiseKey: b4a.toString(socket.remotePublicKey, 'hex'),
     plane: entry.plane,
-    profileKey: member?.profileKey ?? null,
+    personKey: member?.profileKey ?? null,
     displayName: member?.displayName ?? null,
     via: entry.via,
     relayKey: idEncoding.encode(entry.relayKey),
@@ -83,10 +83,10 @@ export function describeConnection(socket) {
 export function snapshotRelayedConnections() {
   const connections = []
   for (const socket of entries.keys()) {
-    const { peerKey, profileKey, plane, displayName, via, relayKey, since } = describeConnection(socket)
-    connections.push({ peerKey, profileKey, plane, displayName, via, relayKey, since })
+    const { noiseKey, personKey, plane, displayName, via, relayKey, since } = describeConnection(socket)
+    connections.push({ noiseKey, personKey, plane, displayName, via, relayKey, since })
   }
-  const digest = connections.map((c) => `${c.peerKey}:${c.profileKey ?? ''}:${c.plane}:${c.relayKey}:${c.via}:${c.displayName ?? ''}`).join('|')
+  const digest = connections.map((c) => `${c.noiseKey}:${c.personKey ?? ''}:${c.plane}:${c.relayKey}:${c.via}:${c.displayName ?? ''}`).join('|')
   return { connections, direct: directCounts(), seen: relayedSeen, digest }
 }
 

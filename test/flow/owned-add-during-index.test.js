@@ -14,7 +14,7 @@ test('a file added mid-index reaches a peer and never disappears from its listin
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })
   const spaceId = await connectInSpace(t, A, B)
-  const aKey = (await A.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
 
   const share = await A.request('share:create', { spaceId, name: 'Media' })
   const folder = mkTmpDir(t)
@@ -60,7 +60,7 @@ test('a big index in one space does not stall a second space', { timeout: scaled
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })
   const s1 = await connectInSpace(t, A, B, 'Space One')
   const s2 = await connectInSpace(t, A, B, 'Space Two')
-  const aKey = (await A.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
 
   const heavy = await A.request('share:create', { spaceId: s1, name: 'Heavy' })
   const heavyDir = mkTmpDir(t)

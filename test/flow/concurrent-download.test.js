@@ -20,7 +20,7 @@ test('REGRESSION (GAP #10): concurrent downloaders of one file each land byte-ex
     const C = await launchPeer(t, { bootstrap, displayName: 'Carol', downloads: mkTmpDir(t), flags: FLAGS })
     const spaceId = await connectInSpace(t, A, B)
     await addPeerToSpace(A, C, spaceId)
-    const aKey = (await A.request('profile:get')).publicKey
+    const aKey = (await A.request('profile:get')).personKey
 
     const share = await A.request('share:create', { spaceId, name: 'Vault' })
     const folder = mkTmpDir(t)

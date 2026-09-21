@@ -26,7 +26,7 @@ test('owner remove + re-add mid-download does NOT auto-resume; requires a manual
     const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
     const spaceId = await connectInSpaceWithApproval(t, A, B)
-    const aKey = (await A.request('profile:get')).publicKey
+    const aKey = (await A.request('profile:get')).personKey
 
     // Big enough that B is comfortably mid-transfer when A removes the file.
     const bytes = patternedBytes(24 * 1024 * 1024, 47)

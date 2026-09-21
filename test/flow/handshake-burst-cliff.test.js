@@ -26,8 +26,8 @@ test('REGRESSION (FIX-HANDSHAKE-BURST): peers sharing 24 spaces reconnect in one
   const aDownloads = mkTmpDir(t)
   let A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: aStore, downloads: aDownloads })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })
-  const aKey = (await A.request('profile:get')).publicKey
-  const bKey = (await B.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
+  const bKey = (await B.request('profile:get')).personKey
 
   // Joining N spaces back-to-back costs the creator's lane 2 frames per space; the fixed
   // burst dropped the fifth join's frame and it waited 10-25 s for the ledger. Bound each

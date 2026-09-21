@@ -115,7 +115,7 @@ test('prune drops expired leases (housekeeping)', (t) => {
 test('REGRESSION (FIX-EDA-3: prune fires onExpire for each silent-death lease so expiry re-emits)', (t) => {
   const clk = fakeClock()
   const expired = []
-  const p = createPresence({ ttl: 15000, now: clk.now, onExpire: (peerKey, spaceId) => expired.push([peerKey, spaceId]) })
+  const p = createPresence({ ttl: 15000, now: clk.now, onExpire: (personKey, spaceId) => expired.push([personKey, spaceId]) })
   p.mark('alice', 'S1')
   p.mark('alice', 'S2')
   p.mark('bob', 'S1')

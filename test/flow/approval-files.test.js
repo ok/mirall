@@ -22,8 +22,8 @@ test('a transitively-approved member sees the owner\'s files', { timeout: scaled
 
   const space = await A.request('space:create', { name: 'Secret' })
   const S = space.spaceId
-  const bKey = (await B.request('profile:get')).publicKey
-  const cKey = (await C.request('profile:get')).publicKey
+  const bKey = (await B.request('profile:get')).personKey
+  const cKey = (await C.request('profile:get')).personKey
   const invite = await A.request('space:invite', { spaceId: S })
 
   const bytes = patternedBytes(64 * 1024, 9)

@@ -41,7 +41,7 @@ test('loose unshare mid-download: the peer never falsely completes the removed c
     const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), flags: v2flags() })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
     const spaceId = await connectInSpaceWithApproval(t, A, B)
-    const aKey = (await A.request('profile:get')).publicKey
+    const aKey = (await A.request('profile:get')).personKey
 
     const bytes = patternedBytes(32 * 1024 * 1024, 41)
     fs.writeFileSync(path.join(aSrc, 'big.bin'), bytes)
@@ -74,7 +74,7 @@ test('loose unshare after a completed download: the peer keeps its downloaded co
     const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), flags: v2flags() })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
     const spaceId = await connectInSpaceWithApproval(t, A, B)
-    const aKey = (await A.request('profile:get')).publicKey
+    const aKey = (await A.request('profile:get')).personKey
 
     const bytes = patternedBytes(4 * 1024 * 1024, 55)
     fs.writeFileSync(path.join(aSrc, 'keep.bin'), bytes)
@@ -104,7 +104,7 @@ test('loose unshare mid-download with two peers: neither peer falsely completes'
     const C = await launchPeer(t, { bootstrap, displayName: 'Carol', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
     const spaceId = await connectInSpaceWithApproval(t, A, B)
     await addApprovedPeer(A, C, spaceId)
-    const aKey = (await A.request('profile:get')).publicKey
+    const aKey = (await A.request('profile:get')).personKey
 
     const bytes = patternedBytes(32 * 1024 * 1024, 41)
     fs.writeFileSync(path.join(aSrc, 'group.bin'), bytes)

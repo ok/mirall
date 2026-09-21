@@ -35,7 +35,7 @@ export default function FolderSidebar({ spaceId, share, members, owner, isYou, p
         owner={owner}
         isYou={isYou}
         selfProfile={profile}
-        selfPublicKey={profile?.publicKey ?? ''}
+        selfPublicKey={profile?.personKey ?? ''}
       />
       {info && (
         <FolderStatsCard

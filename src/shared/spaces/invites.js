@@ -12,12 +12,12 @@ export function classifyInvite(rec, now = Date.now()) {
 // against a CONNECTED peer says nothing about the record, and answering from a stale prefix
 // there would auto-admit a link that peer has since revoked. A resolved live read — value or
 // authoritative absence — is never second-guessed.
-export function snapshotCandidates(peerKeys, liveResults, isConnected) {
+export function snapshotCandidates(personKeys, liveResults, isConnected) {
   const out = []
-  for (let i = 0; i < peerKeys.length; i++) {
+  for (let i = 0; i < personKeys.length; i++) {
     if (liveResults[i]?.resolved) continue
-    if (isConnected(peerKeys[i])) continue
-    out.push(peerKeys[i])
+    if (isConnected(personKeys[i])) continue
+    out.push(personKeys[i])
   }
   return out
 }

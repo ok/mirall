@@ -4,7 +4,7 @@ import path from 'bare-path'
 import crypto from 'hypercore-crypto'
 import { openStore, setMasterSecret, LOCAL_BEE_NAMES } from '../../src/shared/core/store.js'
 import {
-  initAuditLog, record, flushAudit, getAuditConfig, setAuditConfig, setAuditIdentity,
+  initAuditLog, record, flushAudit, getAuditConfig, setAuditConfig, setAuditIdentity, auditBee,
 } from '../../src/shared/audit/audit-log.js'
 import { queryAudit, auditSpaces, auditActors, auditStats, exportAudit } from '../../src/shared/audit/audit-query.js'
 import { pruneAudit, purgeAudit } from '../../src/shared/audit/audit-reclaim.js'
@@ -12,6 +12,8 @@ import {
   getPeerSubjectState, setPeerSubjectState, getSeenVersion, setSeenVersion,
   getNetworkState, setNetworkState,
 } from '../../src/shared/audit/audit-watch-state.js'
+import { evtKey } from '../../src/shared/audit/audit-keys.js'
+import { SCHEMA_VERSION } from '../../src/shared/audit/audit-record.js'
 import { tmpDir } from '../helpers/bare-tmp.js'
 
 async function boot(t, { identity = true } = {}) {
@@ -49,7 +51,7 @@ test('records land newest-first with monotonic seqs', async (t) => {
   t.is(entries[0].actor.name, 'Clara', 'newest first')
   t.is(entries[2].actor.name, 'Anna')
   t.alike(entries.map((e) => e.seq), [2, 1, 0], 'seqs are dense and descending')
-  t.is(entries[0].device, 'install-under-test')
+  t.is(entries[0].installId, 'install-under-test')
 })
 
 test('a disabled log records nothing but still reads', async (t) => {
@@ -347,6 +349,23 @@ test('export returns chronological rows and honours a space filter', async (t) =
   t.is(all.length, 3)
   t.alike(all.map((e) => e.seq), [0, 1, 2], 'export reads oldest-first so the file reads chronologically')
   t.is((await exportAudit({ spaceId: 'sp1' })).length, 2)
+})
+
+// A row written before the install id got its own name spells it `device`, and the export declares
+// one schema version for the whole file — so it has to hand back one spelling.
+test('a pre-rename row is exported at the current schema version, under the current name', async (t) => {
+  await boot(t)
+  member('member.joined', 'sp1', 'Design Team', 'Anna')
+  await flushAudit()
+  const bee = auditBee()
+  const legacy = { ...(await bee.get(evtKey(0))).value, v: 1, installId: undefined, device: 'legacy-install' }
+  delete legacy.installId
+  await bee.put(evtKey(0), legacy)
+
+  const [row] = await exportAudit({})
+  t.is(row.v, SCHEMA_VERSION, 'the row is reported at the version the file declares')
+  t.is(row.installId, 'legacy-install', 'and the old spelling is carried across')
+  t.absent('device' in row, 'the superseded name is gone')
 })
 
 test('config and the seq allocator are recovered from disk, not from memory', async (t) => {

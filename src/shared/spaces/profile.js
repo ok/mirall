@@ -8,6 +8,7 @@ import { withReadTimeout, peerReadTimeoutMs, interactiveReadTimeoutMs } from '..
 
 import { getMembershipCaps, getCaptureMemberRecordMs } from '../core/runtime-config.js'
 import { clampDisplayName, sanitizeAvatar } from '../contract/identity-limits.js'
+import { principalRef } from '../contract/principals.js'
 import { voucheesToAdopt } from './membership/fold.js'
 import b4a from 'b4a'
 import { createLogger } from '../core/logger.js'
@@ -39,11 +40,10 @@ export async function getProfile() {
   const displayName = await profileBee.get('displayName')
   if (!displayName) return null
   const avatar = await profileBee.get('avatar')
-  const publicKey = b4a.toString(profileBee.core.key, 'hex')
   return {
     displayName: displayName.value,
     avatar: avatar?.value || null,
-    publicKey,
+    ...principalRef(b4a.toString(profileBee.core.key, 'hex')),
   }
 }
 

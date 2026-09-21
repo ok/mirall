@@ -17,7 +17,7 @@ const sorted = (it) => [...it].sort()
 const waitFor = (pred, ms = 5000) => until(pred, ms, { interval: 20 })
 
 // A standalone "peer": its own Corestore + a plain (unencrypted, like real profile bees)
-// membership bee, replicated into the local store so openProfileBee(peerKey) can read it —
+// membership bee, replicated into the local store so openProfileBee(personKey) can read it —
 // the in-process stand-in for a remote member whose bee has replicated to us.
 async function makePeer(t) {
   const dir = tmpDir('mv-peer')

@@ -21,7 +21,7 @@ const RATE_MAX_PER_WINDOW = 120
 
 let bee = null
 let nextSeq = 0
-let device = null
+let installId = null
 let selfIdentity = { key: null, name: null }
 let config = {
   enabled: true,
@@ -39,10 +39,10 @@ const rateGuard = createRateGuard({
   onSuppressed: (kind, count) => record(SUPPRESSED_KIND, { subject: { kind, count, windowMs: RATE_WINDOW_MS } }),
 })
 
-export async function initAuditLog({ installId = null } = {}) {
+export async function initAuditLog({ installId: id = null } = {}) {
   bee = createLocalBee(AUDIT_BEE_NAME)
   await bee.ready()
-  device = installId
+  installId = id
   const stored = await bee.get(CONFIG_KEY)
   if (stored?.value) config = normalizeConfig(stored.value, config)
   nextSeq = (await newestSeq()) + 1
@@ -125,7 +125,7 @@ async function append(kind, fields, target) {
     seq,
     ts: now,
     tzOffset: -new Date(now).getTimezoneOffset(),
-    device,
+    installId,
   })
   const batch = target.batch()
   await batch.put(evtKey(seq), rec)

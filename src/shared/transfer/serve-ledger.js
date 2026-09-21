@@ -355,7 +355,7 @@ function serveSnapshot(key) {
   const d = downloads.get(key)
   if (!d) return { peers: [] }
   const peers = []
-  for (const [profileKey, e] of d.peers) peers.push({ peerKey: profileKey, bytes: e.bytes, total: e.total, paused: !!e.paused })
+  for (const [profileKey, e] of d.peers) peers.push({ personKey: profileKey, bytes: e.bytes, total: e.total, paused: !!e.paused })
   return { peers }
 }
 

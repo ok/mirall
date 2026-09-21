@@ -25,7 +25,7 @@ test('the supervisor rides the boot order without changing the departure conveya
     const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), flags: v2flags() })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
     const spaceId = await connectInSpaceWithApproval(t, A, B)
-    const aKey = (await A.request('profile:get')).publicKey
+    const aKey = (await A.request('profile:get')).personKey
 
     // The supervisor reached the real worker, not just the unit harness: its counters are in the
     // diagnostics bundle, which is also the only place a user-reported stall would ever show.

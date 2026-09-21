@@ -11,7 +11,7 @@ test('A publishes an owned folder; the share + its files replicate to B', { time
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })
   const spaceId = await connectInSpace(t, A, B)
-  const aKey = (await A.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
 
   // A creates a share and mounts a folder that already contains files.
   const share = await A.request('share:create', { spaceId, name: 'Notes' })

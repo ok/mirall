@@ -27,7 +27,7 @@ test('REGRESSION (G4): a leave interrupted by a hard quit completes at the next 
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: flags() })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: bStorage, downloads: bDownloads, flags: bBoot })
 
-  const bKey = (await B.request('profile:get')).publicKey
+  const bKey = (await B.request('profile:get')).personKey
   const space = await A.request('space:create', { name: 'Vault' })
   const spaceId = space.spaceId
   const invite = await A.request('space:invite', { spaceId })

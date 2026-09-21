@@ -19,7 +19,7 @@ test('graceful quit announces offline: peer drops the owner from presence prompt
     const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), flags: v2flags() })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), flags: v2flags() })
     const spaceId = await connectInSpaceWithApproval(t, A, B)
-    const aKey = (await A.request('profile:get')).publicKey
+    const aKey = (await A.request('profile:get')).personKey
     t.ok((await B.request('members:online', { spaceId })).includes(aKey), 'owner online before quit')
 
     await A.request('shutdown').catch(() => {})   // safeShutdown → broadcastDeparture → teardown

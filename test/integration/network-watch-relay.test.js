@@ -41,7 +41,7 @@ async function rows() {
   return entries.filter((e) => e.kind === 'network.peer_relayed')
 }
 
-const adopted = () => ({ peerKey: 'cd'.repeat(32), plane: 'control', profileKey: PROFILE_KEY, displayName: 'Lena', via: 'adopted', relayKey: RELAY_KEY, since: 1, relayLabel: null })
+const adopted = () => ({ noiseKey: 'cd'.repeat(32), plane: 'control', personKey: PROFILE_KEY, displayName: 'Lena', via: 'adopted', relayKey: RELAY_KEY, since: 1, relayLabel: null })
 const own = () => ({ ...adopted(), via: 'own', relayLabel: 'Hetzner box' })
 const ownUnlabelled = () => ({ ...adopted(), via: 'own', relayLabel: '' })
 
@@ -74,7 +74,7 @@ test('a connection that goes direct within the dwell writes nothing', async (t) 
 test('a socket with no handshake by the dwell re-arms and writes once the member is bound', async (t) => {
   await boot(t)
   let bound = false
-  peerRelayed({}, () => (bound ? adopted() : { ...adopted(), profileKey: null, displayName: null }))
+  peerRelayed({}, () => (bound ? adopted() : { ...adopted(), personKey: null, displayName: null }))
   await settle()
   t.is((await rows()).length, 0, 'nothing while unbound')
   bound = true

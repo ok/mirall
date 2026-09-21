@@ -21,8 +21,8 @@ test('REGRESSION (FIX-326): v2 loose file — pending joiner cannot list; approv
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
 
   const space = await A.request('space:create', { name: 'Secret' })
-  const aKey = (await A.request('profile:get')).publicKey
-  const bKey = (await B.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
+  const bKey = (await B.request('profile:get')).personKey
   const invite = await A.request('space:invite', { spaceId: space.spaceId })
 
   const bytes = patternedBytes(64 * 1024, 7)

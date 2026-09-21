@@ -7,6 +7,7 @@ import { launchPeer } from '../helpers/peer.js'
 import { mkTmpDir, writeTmpFile, patternedBytes } from '../helpers/fixtures.js'
 import { scaled } from '../helpers/timing.js'
 import { KINDS, OUTCOMES } from '../../src/shared/contract/audit-kinds.js'
+import { SCHEMA_VERSION } from '../../src/shared/audit/audit-record.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
@@ -107,8 +108,8 @@ test('one realistic session produces every expected kind, and nothing else', { t
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: flags() })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: flags() })
-  const aKey = (await A.request('profile:get')).publicKey
-  const bKey = (await B.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
+  const bKey = (await B.request('profile:get')).personKey
 
   // --- space lifecycle + membership -------------------------------------------------------
   const space = await A.request('space:create', { name: 'Coverage' })
@@ -207,14 +208,14 @@ test('every recorded row is well formed and renderable without a join', { timeou
   await scanned
 
   for (const row of await rows(A)) {
-    t.is(row.v, 1, row.kind + ' carries the schema version the backend ingests on')
+    t.is(row.v, SCHEMA_VERSION, row.kind + ' carries the schema version the backend ingests on')
     t.ok(Number.isInteger(row.seq) && row.seq >= 0, row.kind + ' has a usable cursor seq')
     t.ok(Number.isFinite(row.ts), row.kind + ' is timestamped')
     t.ok(Object.hasOwn(KINDS, row.kind), row.kind + ' is a declared kind')
     t.is(row.category, KINDS[row.kind].category, row.kind + ' stamps its category at write time')
     t.is(row.tier, KINDS[row.kind].tier, row.kind + ' stamps its tier at write time')
     t.ok(OUTCOMES.includes(row.outcome), row.kind + ' has a known outcome')
-    t.ok(row.device, row.kind + ' names the device, for the future multi-device grouping')
+    t.ok(row.installId, row.kind + ' names the install, for the future multi-device grouping')
     // The zero-joins rule: anything the row references must be named IN the row, because the
     // space record is deleted on leave and a peer may be unreachable.
     if (row.space) t.ok(row.space.name, row.kind + ' snapshots the space name')

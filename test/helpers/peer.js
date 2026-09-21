@@ -261,8 +261,8 @@ export async function launchPeer(t, { bootstrap, displayName = 'Peer', debug = f
 // against the grant itself. The persisted roster is the state every caller actually needs, and it
 // is what the approval flow has always waited on.
 async function awaitMutualMembership(A, B, spaceId) {
-  const aKey = (await A.request('profile:get')).publicKey
-  const bKey = (await B.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
+  const bKey = (await B.request('profile:get')).personKey
   const persisted = (key) => (list) => {
     const s = list.find((x) => x.spaceId === spaceId)
     return !!(s && s.members.some((m) => m.publicKey === key && m.status !== 'pending'))
@@ -324,8 +324,8 @@ export async function waitForCatalogEntry(peer, spaceId, filePath, { ms = 60000,
 // we explicitly wait until the joiner has *persisted the owner* as a member, which
 // is what it actually needs before it can replicate the owner's drive.
 export async function addPeerToSpace(owner, joiner, spaceId) {
-  const ownerKey = (await owner.request('profile:get')).publicKey
-  const joinerKey = (await joiner.request('profile:get')).publicKey
+  const ownerKey = (await owner.request('profile:get')).personKey
+  const joinerKey = (await joiner.request('profile:get')).personKey
   // Auto-approve, like connectInSpace: a plain link leaves the joiner pending until a member acts.
   const inviteCode = await owner.request('space:invite', {
     spaceId, autoAdmit: true, expiresInMs: 2 * 60 * 60 * 1000,
@@ -346,8 +346,8 @@ export async function addPeerToSpace(owner, joiner, spaceId) {
 // members. Needed for multi-peer loose tests (loose discovery rides the approval SCK
 // handout, so a pending joiner can't list the encrypted catalog). Returns the joiner's key.
 export async function addApprovedPeer(owner, joiner, spaceId) {
-  const ownerKey = (await owner.request('profile:get')).publicKey
-  const joinerKey = (await joiner.request('profile:get')).publicKey
+  const ownerKey = (await owner.request('profile:get')).personKey
+  const joinerKey = (await joiner.request('profile:get')).personKey
   const inviteCode = await owner.request('space:invite', { spaceId })
   const ownerGotRequest = owner.waitFor('event:member-join-request', (m) => m.spaceId === spaceId, 120000)
   const granted = joiner.waitFor('event:membership-granted', (m) => m.spaceId === spaceId, 120000)

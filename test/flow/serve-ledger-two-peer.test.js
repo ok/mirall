@@ -42,8 +42,8 @@ test('owner serve ledger: reflects a downloading peer, its pause, and clears on 
     const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), flags: v2flags() })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
     const spaceId = await connectInSpaceWithApproval(t, A, B)
-    const aKey = (await A.request('profile:get')).publicKey
-    const bKey = (await B.request('profile:get')).publicKey
+    const aKey = (await A.request('profile:get')).personKey
+    const bKey = (await B.request('profile:get')).personKey
 
     await shareAndSee(A, [B], spaceId, aSrc, 'feed.bin', 31, 16)
     await startAndFlow(B, spaceId, 'feed.bin', aKey)
@@ -75,9 +75,9 @@ test('owner serve ledger: two peers download, one cancels → the canceller is d
     const C = await launchPeer(t, { bootstrap, displayName: 'Carol', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
     const spaceId = await connectInSpaceWithApproval(t, A, B)
     await addApprovedPeer(A, C, spaceId)
-    const aKey = (await A.request('profile:get')).publicKey
-    const bKey = (await B.request('profile:get')).publicKey
-    const cKey = (await C.request('profile:get')).publicKey
+    const aKey = (await A.request('profile:get')).personKey
+    const bKey = (await B.request('profile:get')).personKey
+    const cKey = (await C.request('profile:get')).personKey
 
     await shareAndSee(A, [B, C], spaceId, aSrc, 'shared.bin', 37, 64)
     await startAndFlow(B, spaceId, 'shared.bin', aKey)

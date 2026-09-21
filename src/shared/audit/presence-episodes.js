@@ -24,8 +24,10 @@ export const KIND_PEER_LOST = 'network.peer_lost'
 /** @internal */
 export const KIND_PEER_BACK = 'network.peer_back'
 
+// One open episode per (person, space): the same peer can be present in two spaces and go quiet in
+// only one, so the map key pairs them. It is a map key, not a key.
 /** @internal */
-export function peerKeyOf(publicKey, spaceId) {
+export function episodeKey(publicKey, spaceId) {
   return publicKey + '|' + spaceId
 }
 
@@ -41,7 +43,7 @@ export function createPeerPresenceTracker({
   // `meta` is a snapshot taken now, because the row has to render once the roster is gone — the
   // same zero-joins rule the record itself follows.
   function lost(publicKey, spaceId, { now, meta = null }) {
-    const key = peerKeyOf(publicKey, spaceId)
+    const key = episodeKey(publicKey, spaceId)
     // A second loss without an intervening `seen` is the same absence (a departure frame followed
     // by the socket close). Keep the first timestamp.
     if (open.has(key)) return
@@ -49,7 +51,7 @@ export function createPeerPresenceTracker({
   }
 
   function seen(publicKey, spaceId, { now }) {
-    const key = peerKeyOf(publicKey, spaceId)
+    const key = episodeKey(publicKey, spaceId)
     const episode = open.get(key)
     if (!episode) return null
     open.delete(key)
@@ -66,7 +68,7 @@ export function createPeerPresenceTracker({
   // The space name is resolved asynchronously by the caller, but the episode must be captured
   // synchronously or a reconnect can overtake the loss — so the name lands afterwards.
   function annotate(publicKey, spaceId, patch) {
-    const episode = open.get(peerKeyOf(publicKey, spaceId))
+    const episode = open.get(episodeKey(publicKey, spaceId))
     if (episode && !episode.recorded) episode.meta = { ...episode.meta, ...patch }
   }
 
@@ -75,7 +77,7 @@ export function createPeerPresenceTracker({
   // down. Omit both ids to abandon everything.
   function abandon(publicKey = null, spaceId = null) {
     if (publicKey === null) { open.clear(); return }
-    if (spaceId !== null) { open.delete(peerKeyOf(publicKey, spaceId)); return }
+    if (spaceId !== null) { open.delete(episodeKey(publicKey, spaceId)); return }
     for (const [key, episode] of open) if (episode.publicKey === publicKey) open.delete(key)
   }
 

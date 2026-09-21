@@ -27,7 +27,7 @@ test('a peer join and approval are recorded with the authenticated peer key', { 
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: flags() })
 
   const spaceId = await connectInSpaceWithApproval(t, A, B)
-  const bKey = (await B.request('profile:get')).publicKey
+  const bKey = (await B.request('profile:get')).personKey
 
   await A.until('audit:list', { limit: 200 }, (page) => kindsOf(page.entries).includes('membership.approved'))
   const aRows = await rows(A)
@@ -54,7 +54,7 @@ test('a peer join and approval are recorded with the authenticated peer key', { 
   // msg.profileKey — a field it has never had. So the actor key was null, the name lookup had
   // nothing to key on, and the row rendered a '?' avatar over "was granted access" with the
   // actor missing from its own sentence.)
-  const aKey = (await A.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
   const granted = find(bRows, 'membership.granted')
   t.ok(granted, 'the joiner recorded the moment access actually arrived')
   t.is(granted.actor.key, aKey, 'tier B: the granter is the real remote profile key, authenticated on the socket')
@@ -177,7 +177,7 @@ test('a co-member records an arrival it did not approve, with the authenticated 
   await A.request('space:approve-member', { spaceId, publicKey: req.publicKey })
   await cGranted
 
-  const cKey = (await C.request('profile:get')).publicKey
+  const cKey = (await C.request('profile:get')).personKey
   await B.until('audit:list', { limit: 200 }, (page) => kindsOf(page.entries).includes('member.joined'))
 
   const joins = (await rows(B)).filter((e) => e.kind === 'member.joined')
@@ -201,8 +201,8 @@ test('REGRESSION (FIX-3): the owner records a peer downloading their file', { ti
   await A.request('files:add', { spaceId, filePath: writeTmpFile(bytes, t), fileName: 'movie.bin', fileSize: bytes.length })
   await B.until('files:list', { spaceId }, (l) => l.some((f) => f.path === '/movie.bin'), { ms: 60000, every: 500 })
 
-  const aKey = (await A.request('profile:get')).publicKey
-  const bKey = (await B.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
+  const bKey = (await B.request('profile:get')).personKey
   const done = B.waitFor('event:transfer-complete', () => true, 90000)
   await B.request('files:download', { spaceId, ownerKey: aKey, path: '/movie.bin' })
   await done
@@ -234,7 +234,7 @@ test('a peer publishing a file into a shared space is recorded', { timeout: scal
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: flags() })
 
   const spaceId = await connectInSpaceWithApproval(t, A, B)
-  const bKey = (await B.request('profile:get')).publicKey
+  const bKey = (await B.request('profile:get')).personKey
 
   // The UI lists a space when you open it, which registers the catalog watch and baselines it.
   // Do the same before Bob acts, so this exercises steady state rather than first contact.
@@ -264,7 +264,7 @@ test('a peer creating a folder share, and mirroring ours, are both recorded', { 
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: flags() })
 
   const spaceId = await connectInSpaceWithApproval(t, A, B)
-  const bKey = (await B.request('profile:get')).publicKey
+  const bKey = (await B.request('profile:get')).personKey
 
   // Bob creates a folder share in the shared space — Alice should see it as a peer action.
   const bobShare = await B.request('share:create', { spaceId, name: 'BobFolder' })
@@ -281,7 +281,7 @@ test('a peer creating a folder share, and mirroring ours, are both recorded', { 
   await A.request('owned-folder:mount', { spaceId, shareId: aliceShare.id, mountPath: dir })
   await B.until('share:list', { spaceId }, (l) => l.some((s) => s.id === aliceShare.id), { ms: 60000, every: 500 })
 
-  const aKey = (await A.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
   await B.request('foreign-folder:mount', { spaceId, shareId: aliceShare.id, ownerKey: aKey, mountPath: mkTmpDir(t) })
 
   await A.until('audit:list', { limit: 200 }, (page) => kindsOf(page.entries).includes('mirror.peer_mirrored'))

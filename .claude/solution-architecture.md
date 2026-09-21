@@ -1237,6 +1237,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/contract/responses.ts` | What each request resolves with, and the wire shapes those responses carry. The map is total over `RequestName` by construction, so a request with no response cannot compile. The renderer's types.ts re-exports every name it used to own |
 | `src/shared/contract/request-deadlines.js` | How long a request may run before the router reports it: per row, with a per-kind default, and 0 for deliberately unbounded |
 | `src/shared/contract/protocol-compat.js` | Whether the bootstrap frame's wire version falls inside this build's window, and the sentence a refusal prints. The worker refuses an incompatible host outright rather than defaulting its fields |
+| `src/shared/contract/principals.js` | The org / person / device vocabulary: which question each key answers, and `principalRef()` — the one site that says a profile key is simultaneously the person and the device (§16) |
 | `src/shared/contract/peer-frames.js` | The mirall/handshake frame vocabulary two peers exchange, which frames assert the sender's identity, and which the worker's membership handler owns |
 | `src/shared/contract/limits.js` | `AVATAR_MAX_BYTES`, `NAME_MAX`, `JOIN_REQUEST_FRAME_OVERHEAD`, `IPC_MAX_FRAME_BYTES`, `RETENTION_CHOICES` |
 | `src/shared/contract/reachability.js` | The reachability vocabulary — verdict, cause, confidence and canary state — which core/reachability.js re-exports and types.ts derives its unions from |
@@ -1646,6 +1647,14 @@ Local-only metadata bees (`LOCAL_BEE_NAMES`: spaces-meta, downloads-meta, pendin
 
 A per-space symmetric key encrypting the space's catalogs — **possession is read access**, which makes membership approval a cryptographic gate rather than a UI state. The creator derives a space's SCK deterministically from M (nothing to store); joiners receive it at approval, sealed to their bound signer key (`spaces/sck-seal.js`), and keep it in the space-keys vault (`space-keys.enc`, wrapped by an M-derived key).
 
+### Principals: org, person, device
+
+Three tiers can hold keys, and the contract names them apart even though **all three resolve to one value today**: an install's person key, its device key and the `profileKey` it puts on the wire are all the hex manifest hash of its profile core. `contract/principals.js` declares the tiers (`PersonKey`, `DeviceKey`, `OrgKey`) and `principalRef()` is the single site that writes that equality down, so a device roster later changes one function rather than every payload carrying a key. `orgKey` is representable everywhere a principal is and is null on every install.
+
+A **Noise key is none of these**. It identifies one socket, lives only as long as that socket, and differs between a peer's control and content connections — folding by it shows one person twice — so it is `noiseKey` wherever it appears and never an identity.
+
+The **wire spelling does not change with the vocabulary**: peer frames keep `profileKey`, `granterKey` and `joinerKey`, and the bee keys keep `publicKey`, because there is no frame-level version negotiation (a renamed field fails `validSenderFrame` and is dropped with only a log line, so two versions would connect and never become members of each other). The tiers are how the contract *describes* those fields, not a rename of them.
+
 ### Handshake identity binding
 
 Every identity-asserting frame on `mirall/handshake` (handshake, membership request/grant, leave) carries a signature binding the sender's profile key to the socket's Noise key — and, on handshakes, to its per-space drive key — verified in `network/handshake-guard.js`. Frames are therefore attributable: a connected peer cannot impersonate another member, kick a third party out of member lists, or claim a foreign drive as its own.
@@ -1702,6 +1711,10 @@ Locally the reasons are kept apart: only `UNAUTHENTICATED` and `NOT_A_MEMBER` ar
 - **M (master secret)** — the 32-byte root secret all writable-core keys and local encryption keys derive from; stored wrapped in `identity.enc`.
 - **KEK** — key-encryption key wrapping M; from a pluggable unlock provider (OS keychain by default).
 - **SCK (space content key)** — per-space key encrypting catalogs; possession = read access; handed to joiners at approval.
+- **Person key** — the identity of the human holding a seat; what peers pin, vouch for and attribute to (§16).
+- **Device key** — the identity of one install. Equal to the person key until a device roster exists.
+- **Org key** — the identity of the contract holder; representable in every principal shape and null on every install today.
+- **Profile key** — the wire and bee spelling of that one value: the hex manifest hash of an install's profile core, carried as `profileKey` on peer frames and `publicKey` in rosters.
 - **Identity binding** — the signature tying a peer's profile key to its socket's Noise key (and per-space drive key); what makes frames attributable.
 - **Membership grant** — the approval message carrying the sealed SCK and the authenticated member-set root.
 - **OR-Set** — conflict-free add/remove set used to fold member records from multiple writers.

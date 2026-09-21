@@ -17,7 +17,7 @@ test('an owner edit and delete reach two independent mirrors of the same folder'
   const C = await launchPeer(t, { bootstrap, displayName: 'Carol' })
   const spaceId = await connectInSpace(t, A, B)
   await addPeerToSpace(A, C, spaceId)
-  const aKey = (await A.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
 
   const share = await A.request('share:create', { spaceId, name: 'Shared' })
   const folder = mkTmpDir(t)

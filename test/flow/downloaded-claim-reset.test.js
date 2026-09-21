@@ -26,7 +26,7 @@ test('REGRESSION (FIX-21): a kept copy stays on-device when the owner removes th
   const aDownloads = mkTmpDir(t)
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: aDownloads })
   const spaceId = await connectInSpace(t, A, B)
-  const aKey = (await A.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
 
   const share = await A.request('share:create', { spaceId, name: 'Notes' })
   const folder = mkTmpDir(t)

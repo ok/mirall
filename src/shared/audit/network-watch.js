@@ -190,17 +190,17 @@ const armRelayDwell = guarded((socket, describe) => {
     relayTimers.delete(socket)
     const info = describe()
     if (!info) return
-    if (!info.profileKey) { armRelayDwell(socket, describe); return }
+    if (!info.personKey) { armRelayDwell(socket, describe); return }
     writeRelayedRow(info)
   }), relayDwellMs))
 })
 
 function writeRelayedRow(info) {
-  const key = `${info.profileKey}:${info.relayKey}:${info.plane}`
+  const key = `${info.personKey}:${info.relayKey}:${info.plane}`
   if (relayedRows.has(key)) return
   const written = record('network.peer_relayed', {
-    actor: peerActor(info.profileKey, info.displayName),
-    target: targetRef(TARGET_KIND.MEMBER, info.profileKey, info.displayName),
+    actor: peerActor(info.personKey, info.displayName),
+    target: targetRef(TARGET_KIND.MEMBER, info.personKey, info.displayName),
     subject: {
       plane: info.plane,
       via: info.via,

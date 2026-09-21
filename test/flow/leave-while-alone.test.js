@@ -24,7 +24,7 @@ async function membersWithOfflineB(t) {
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: aStorage, downloads: aDownloads, flags: v2flags(aKek) })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: bStorage, downloads: bDownloads, flags: v2flags(bKek) })
   const sid = await connectInSpaceWithApproval(t, A, B, 'Alone')
-  const aKey = (await A.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
 
   const bPid = B.sidecar?._process?.pid
   B.kill()

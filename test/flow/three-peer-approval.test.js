@@ -26,9 +26,9 @@ async function runScenario(t, flags) {
   const mk = (name) => launchPeer(t, { bootstrap, displayName: name, storage: idStore(t), downloads: mkTmpDir(t), flags: flags() })
   const A = await mk('Alice'); const B = await mk('Bob'); const C = await mk('Carol')
 
-  const aKey = (await A.request('profile:get')).publicKey
-  const bKey = (await B.request('profile:get')).publicKey
-  const cKey = (await C.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
+  const bKey = (await B.request('profile:get')).personKey
+  const cKey = (await C.request('profile:get')).personKey
 
   const space = await A.request('space:create', { name: 'Trio' })
   const spaceId = space.spaceId
@@ -70,9 +70,9 @@ test('3-peer: a co-member can approve a joiner learned via replication', { timeo
   const bootstrap = await localTestnet(t)
   const mk = (name) => launchPeer(t, { bootstrap, displayName: name, storage: idStore(t), downloads: mkTmpDir(t), flags: flags() })
   const A = await mk('Alice'); const B = await mk('Bob'); const C = await mk('Carol')
-  const aKey = (await A.request('profile:get')).publicKey
-  const bKey = (await B.request('profile:get')).publicKey
-  const cKey = (await C.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
+  const bKey = (await B.request('profile:get')).personKey
+  const cKey = (await C.request('profile:get')).personKey
 
   const space = await A.request('space:create', { name: 'Trio' })
   const spaceId = space.spaceId

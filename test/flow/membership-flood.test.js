@@ -32,8 +32,8 @@ test('REGRESSION (MIR-04): honest membership flow converges with DoS bound-caps 
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: tightFlags() })
 
   const space = await A.request('space:create', { name: 'Secret' })
-  const aKey = (await A.request('profile:get')).publicKey
-  const bKey = (await B.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
+  const bKey = (await B.request('profile:get')).personKey
   const invite = await A.request('space:invite', { spaceId: space.spaceId })
 
   const share = await A.request('share:create', { spaceId: space.spaceId, name: 'Docs' })

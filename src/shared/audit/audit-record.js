@@ -6,16 +6,19 @@
 // record, and a peer's name needs that peer online or replicated — so a row holding only ids
 // would render raw hex forever. Hence a name snapshot on every participant, taken at write time.
 //
-// buildRecord below IS the v1 row schema — every `audit-log` bee row is one of its results, and
-// nothing else writes one. The renderer derives the vocabularies (category, outcome, actor type,
-// target kind) from the contract, but still hand-writes the FIELD LIST in its types, so a field
+// buildRecord below IS the row schema — every `audit-log` bee row is one of its results, and
+// nothing else writes one. The contract derives the vocabularies (category, outcome, actor type,
+// target kind) from audit-kinds.js, but still hand-writes the FIELD LIST in AuditEntry, so a field
 // added here has to be added there too; bumping SCHEMA_VERSION without doing so leaves the two
 // disagreeing with no gate between them.
+//
+// `installId` is the anonymous per-install UUID, not a key: it groups a machine's own rows and
+// never leaves it except through an export the user asks for. The word `device` is reserved for a
+// real device key, and the bee's `by-device/` index is the no-space index, unrelated to either.
 import { isKnownKind, categoryOf, tierOf, ACTOR_TYPE, OUTCOME, OUTCOMES, TARGET_KINDS } from '../contract/audit-kinds.js'
 import { NAME_MAX } from '../contract/limits.js'
 
-/** @internal */
-export const SCHEMA_VERSION = 1
+export const SCHEMA_VERSION = 2
 
 // The participant shapes every row is assembled from. A row's shape is not a per-site decision:
 // normalizeActor, normalizeSpace and normalizeTarget below are their only readers, and they read
@@ -92,7 +95,7 @@ export function buildRecord({
   subject = null,
   outcome = OUTCOME.OK,
   code = null,
-  device = null,
+  installId = null,
 }) {
   if (!isKnownKind(kind)) throw new Error('audit: unknown kind ' + kind)
   if (!OUTCOMES.includes(outcome)) throw new Error('audit: unknown outcome ' + outcome)
@@ -110,7 +113,7 @@ export function buildRecord({
     tier: tierOf(kind),
     outcome,
     code: typeof code === 'string' && code ? code.slice(0, CODE_MAX) : null,
-    device: device || null,
+    installId: installId || null,
     actor: a,
     space: s,
     target: t,

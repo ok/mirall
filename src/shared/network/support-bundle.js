@@ -2,7 +2,7 @@ import { shortId, makeAliaser } from '../core/diagnostics-redact.js'
 import { emptyRelaySnapshot } from './swarm-diagnostics.js'
 
 /** @internal */
-export const DIAGNOSTICS_SCHEMA = 2
+export const DIAGNOSTICS_SCHEMA = 3
 
 const VERDICT_OF = {
   'network.offline': 'blocked',
@@ -43,7 +43,7 @@ function relaySection(relay, relayConfig, redact) {
     direct: relay.direct,
     seen: relay.seen,
     connections: relay.connections.map((c) => ({
-      peer: redact ? shortId(c.peerKey) : c.peerKey,
+      noiseKey: redact ? shortId(c.noiseKey) : c.noiseKey,
       plane: c.plane,
       via: c.via,
       relay: redact ? shortId(c.relayKey) : c.relayKey,
@@ -60,7 +60,7 @@ export function buildDiagnostics(ctx, redact = true) {
   const { status, history, env, counters, peerSamples, relayConfig = { mode: 'off', relay: null }, requestFailures = {}, requestMetrics = {}, health = {}, sweeps = [] } = ctx
   const topicAlias = makeAliaser('t')
   const samples = peerSamples.map((peer) => ({
-    peer: redact ? shortId(peer.publicKey) : peer.publicKey,
+    noiseKey: redact ? shortId(peer.publicKey) : peer.publicKey,
     topic: redact ? topicAlias(peer.topic) : peer.topic,
     attempts: peer.attempts,
     proven: peer.proven,

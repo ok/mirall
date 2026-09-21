@@ -34,8 +34,8 @@ test('binding ON: honest peers approve and converge', { timeout: scaled(220000) 
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: bindFlags() })
 
   const spaceId = await connectInSpaceWithApproval(t, A, B)
-  const aKey = (await A.request('profile:get')).publicKey
-  const bKey = (await B.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
+  const bKey = (await B.request('profile:get')).personKey
 
   t.ok((await memberKeys(A, spaceId)).has(bKey), 'A sees B as a member')
   t.ok((await memberKeys(B, spaceId)).has(aKey), 'B sees A as a member')
@@ -50,7 +50,7 @@ test('REGRESSION (MIR-03): spoofed handshake cannot impersonate or evict a membe
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: bindFlags() })
 
   const spaceId = await connectInSpaceWithApproval(t, A, B)
-  const bKey = (await B.request('profile:get')).publicKey
+  const bKey = (await B.request('profile:get')).personKey
   const topic = await topicFor(A, spaceId)
   B.kill()
 
@@ -75,7 +75,7 @@ test('REGRESSION (MIR-03-A): spoofed join request gets no SCK grant', { timeout:
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: bindFlags() })
 
   const spaceId = await connectInSpaceWithApproval(t, A, B)
-  const bKey = (await B.request('profile:get')).publicKey
+  const bKey = (await B.request('profile:get')).personKey
   const topic = await topicFor(A, spaceId)
   B.kill()
 

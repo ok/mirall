@@ -24,7 +24,7 @@ test('loose download: pause mid-flight surfaces paused-interrupted; resume compl
     const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
     const spaceId = await connectInSpaceWithApproval(t, A, B)
-    const aKey = (await A.request('profile:get')).publicKey
+    const aKey = (await A.request('profile:get')).personKey
 
     // Large enough to pause comfortably before the transfer finishes.
     const bytes = patternedBytes(8 * 1024 * 1024, 47)
@@ -93,7 +93,7 @@ test('loose download auto-resumes when the owner returns (reconnect hook)',
     let A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: aStore, flags: aFlags })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
     const spaceId = await connectInSpaceWithApproval(t, A, B)
-    const aKey = (await A.request('profile:get')).publicKey
+    const aKey = (await A.request('profile:get')).personKey
 
     const bytes = patternedBytes(64 * 1024, 9)
     const srcPath = path.join(aSrc, 'resume.bin')
@@ -128,7 +128,7 @@ test('REGRESSION (FIX-EDA-2: a manual pause survives an owner catalog re-append 
     const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
     const spaceId = await connectInSpaceWithApproval(t, A, B)
-    const aKey = (await A.request('profile:get')).publicKey
+    const aKey = (await A.request('profile:get')).personKey
 
     const bytes = patternedBytes(8 * 1024 * 1024, 51)
     const srcPath = path.join(mkTmpDir(t), 'big.bin')

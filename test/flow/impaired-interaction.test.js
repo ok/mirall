@@ -34,7 +34,7 @@ test('a transfer completes over a brutal link (high latency + periodic drops on 
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), flags: v2flags(LINKS.brutal) })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags(LINKS.brutal) })
   const spaceId = await connectInSpaceWithApproval(t, A, B)
-  const aKey = (await A.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
 
   const bytes = patternedBytes(16 * 1024 * 1024, 91)
   fs.writeFileSync(path.join(aSrc, 'brutal.bin'), bytes)
@@ -58,7 +58,7 @@ test('a manual pause and resume survive a flaky link (connection churn while pau
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), flags: v2flags(LINKS.transcontinental) })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags(LINKS.flaky) })
   const spaceId = await connectInSpaceWithApproval(t, A, B)
-  const aKey = (await A.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
 
   const bytes = patternedBytes(8 * 1024 * 1024, 93)
   fs.writeFileSync(path.join(aSrc, 'churn.bin'), bytes)

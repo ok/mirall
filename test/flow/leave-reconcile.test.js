@@ -8,8 +8,8 @@ test('when A leaves a shared space, B prunes A from membership', { timeout: scal
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })
   const spaceId = await connectInSpace(t, A, B)
-  const aKey = (await A.request('profile:get')).publicKey
-  const bKey = (await B.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
+  const bKey = (await B.request('profile:get')).personKey
 
   const before = (await B.request('spaces:list')).find((s) => s.spaceId === spaceId)
   t.ok(before.members.some((m) => m.publicKey === aKey), 'B sees A as a member before leave')

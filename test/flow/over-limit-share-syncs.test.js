@@ -18,7 +18,7 @@ test('a folder that grows past the file limit still syncs every file to a mirror
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', flags: { maxFilesPerShare: 4 } })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })
   const spaceId = await connectInSpace(t, A, B)
-  const aKey = (await A.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
 
   const share = await A.request('share:create', { spaceId, name: 'Grow' })
   const folder = mkTmpDir(t)

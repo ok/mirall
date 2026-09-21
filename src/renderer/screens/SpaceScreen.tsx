@@ -59,7 +59,7 @@ export default function SpaceScreen({ spaceId, pendingAction, onActionConsumed, 
   // Created before v1.7.0, when every space became encrypted. No upgrade path exists, and the
   // data layer now assumes v2 throughout — so say so rather than let it half-work.
   const isLegacy = !!space && space.schemaVersion !== 2
-  const { shares, loading: sharesLoading } = useShares(spaceId, profile?.publicKey ?? null)
+  const { shares, loading: sharesLoading } = useShares(spaceId, profile?.personKey ?? null)
   const toast = useToast()
   const { locate } = useLocateShare(spaceId)
   const [dialog, setDialog] = useState<SpaceDialog | null>(null)
@@ -152,7 +152,7 @@ export default function SpaceScreen({ spaceId, pendingAction, onActionConsumed, 
       {space?.status === 'pending' ? (
         <PendingSpaceHero
           spaceName={space?.name || t('space.fallbackName')}
-          inviters={members.filter((m) => m.publicKey !== profile?.publicKey)}
+          inviters={members.filter((m) => m.publicKey !== profile?.personKey)}
         />
       ) : (
         <SpaceContentPane

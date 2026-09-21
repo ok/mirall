@@ -11,7 +11,7 @@ const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
 const v2flags = () => ({ identityKEK: kekHex() })
 const launch = (t, name, bootstrap) =>
   launchPeer(t, { bootstrap, displayName: name, storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
-const keyOf = async (peer) => (await peer.request('profile:get')).publicKey
+const keyOf = async (peer) => (await peer.request('profile:get')).personKey
 const hasMember = (sid, key) => (list) => {
   const s = list.find((x) => x.spaceId === sid)
   return !!(s && (s.members || []).some((m) => m.publicKey === key))

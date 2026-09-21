@@ -30,7 +30,7 @@ const holds = (spaceId, key) => (list) => memberKeys(list, spaceId).has(key)
 const lacks = (spaceId, key) => (list) => !memberKeys(list, spaceId).has(key)
 
 async function joinApproved(approver, joiner, spaceId, inviteCode) {
-  const joinerKey = (await joiner.request('profile:get')).publicKey
+  const joinerKey = (await joiner.request('profile:get')).personKey
   const seen = approver.waitFor('event:member-join-request', (m) => m.spaceId === spaceId && m.publicKey === joinerKey)
   await joiner.request('space:join', { inviteCode })
   await seen
@@ -54,7 +54,7 @@ test('FIX-361: a space keeps converging after its creator leaves', { timeout: sc
   const { spaceId } = await A.request('space:create', { name: 'Quartet' })
   const inviteA = await A.request('space:invite', { spaceId })
 
-  const aKey = (await A.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
   const bKey = await joinApproved(A, B, spaceId, inviteA)
   const cKey = await joinApproved(A, C, spaceId, inviteA)
 

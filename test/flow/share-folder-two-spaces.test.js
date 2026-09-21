@@ -15,7 +15,7 @@ test('one folder shared into two spaces reaches a mirror in each, independently'
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })
   const C = await launchPeer(t, { bootstrap, displayName: 'Carol' })
-  const aKey = (await A.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
 
   const space1 = await connectInSpace(t, A, B, 'Space One')
   const space2 = await connectInSpace(t, A, C, 'Space Two')

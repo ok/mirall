@@ -28,7 +28,7 @@ test('REGRESSION (FIX-AVFRAME-4): a joiner with an over-frame avatar still reach
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
 
     const space = await A.request('space:create', { name: 'Secret' })
-    const bKey = (await B.request('profile:get')).publicKey
+    const bKey = (await B.request('profile:get')).personKey
     const invite = await A.request('space:invite', { spaceId: space.spaceId })
 
     const big = avatarOf(200 * 1024)

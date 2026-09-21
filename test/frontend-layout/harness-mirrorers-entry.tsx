@@ -52,7 +52,7 @@ const members: SpaceMember[] = KEYS.map((k, i) => ({ publicKey: k, driveKey: 'd'
 // A self key that mirrors nothing, so every row is a named peer rather than "You" — the stack cap
 // and the ring colours are what this harness measures.
 const SELF_PK = 'self-key'
-const selfProfile: Profile = { displayName: 'Me', avatar: null, publicKey: SELF_PK }
+const selfProfile: Profile = { displayName: 'Me', avatar: null, personKey: SELF_PK, deviceKey: SELF_PK, orgKey: null }
 
 createRoot(document.getElementById('root') as HTMLElement).render(
   <div className="bg-surface p-8" style={{ width: 320 }}>

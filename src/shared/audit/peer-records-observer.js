@@ -66,8 +66,8 @@ export function classifyCatalogChange(node, looseShareId) {
 // has to survive a restart: a peer's mirror record is re-put on every sync-state change
 // (syncing/synced/paused) and again by ensureMirror at their boot, so an in-memory guard lets a
 // restart on either side emit a duplicate "mirrored" row.
-export function subjectKey(kind, peerKey, spaceId, id) {
-  return [kind, peerKey, spaceId, id].join('|')
+export function subjectKey(kind, personKey, spaceId, id) {
+  return [kind, personKey, spaceId, id].join('|')
 }
 
 /** @internal */

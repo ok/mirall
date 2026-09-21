@@ -3,14 +3,14 @@ import { relayGroups, relayState, peopleLabel, relayKindClasses, relayedPeopleCo
 
 const R1 = 'r1'.repeat(26)
 const R2 = 'r2'.repeat(26)
-const conn = (over = {}) => ({ peerKey: 'aa'.repeat(32), profileKey: 'a1'.repeat(32), plane: 'control', displayName: 'Anna', via: 'own', relayKey: R1, since: 10, ...over })
+const conn = (over = {}) => ({ noiseKey: 'aa'.repeat(32), personKey: 'a1'.repeat(32), plane: 'control', displayName: 'Anna', via: 'own', relayKey: R1, since: 10, ...over })
 const t = (key, values = {}) => `${key}:${JSON.stringify(values)}`
 
 test('the configured relay is one group carrying everyone it relays, sorted first', (t2) => {
   const groups = relayGroups([
-    conn({ peerKey: 'bb'.repeat(32), profileKey: 'b1'.repeat(32), displayName: 'Bob', via: 'adopted', relayKey: R2 }),
-    conn({ peerKey: 'aa'.repeat(32), displayName: 'Anna' }),
-    conn({ peerKey: 'cc'.repeat(32), profileKey: 'c1'.repeat(32), displayName: 'Carla' }),
+    conn({ noiseKey: 'bb'.repeat(32), personKey: 'b1'.repeat(32), displayName: 'Bob', via: 'adopted', relayKey: R2 }),
+    conn({ noiseKey: 'aa'.repeat(32), displayName: 'Anna' }),
+    conn({ noiseKey: 'cc'.repeat(32), personKey: 'c1'.repeat(32), displayName: 'Carla' }),
   ])
   t2.is(groups.length, 2)
   t2.is(groups[0].via, 'own')
@@ -21,9 +21,9 @@ test('the configured relay is one group carrying everyone it relays, sorted firs
 
 test('an adopted relay is one group per peer, credited to that peer', (t2) => {
   const groups = relayGroups([
-    conn({ peerKey: 'aa'.repeat(32), displayName: 'Anna', via: 'adopted', relayKey: R2 }),
-    conn({ peerKey: 'bb'.repeat(32), profileKey: 'b1'.repeat(32), displayName: 'Bob', via: 'adopted', relayKey: R2 }),
-    conn({ peerKey: 'cc'.repeat(32), profileKey: null, displayName: null, via: 'adopted', relayKey: R2 }),
+    conn({ noiseKey: 'aa'.repeat(32), displayName: 'Anna', via: 'adopted', relayKey: R2 }),
+    conn({ noiseKey: 'bb'.repeat(32), personKey: 'b1'.repeat(32), displayName: 'Bob', via: 'adopted', relayKey: R2 }),
+    conn({ noiseKey: 'cc'.repeat(32), personKey: null, displayName: null, via: 'adopted', relayKey: R2 }),
   ])
   t2.is(groups.length, 3)
   t2.alike(groups.map((g) => g.providerName), ['Anna', 'Bob', null])
@@ -42,13 +42,13 @@ test('relayState reads off only when nothing is relayed and the mode is off', (t
 })
 
 test('peopleLabel joins names, caps at five, and falls back to a short key', (t2) => {
-  const people = (n) => Array.from({ length: n }, (_, i) => ({ peerKey: `${i}`.repeat(64), displayName: `P${i}`, since: 0, planes: ['control'] }))
+  const people = (n) => Array.from({ length: n }, (_, i) => ({ noiseKey: `${i}`.repeat(64), displayName: `P${i}`, since: 0, planes: ['control'] }))
   const c = 'networkStatus.relayed.plane.control:{}'
   t2.is(peopleLabel(people(2), t), `P0 (${c}) · P1 (${c})`)
   t2.is(peopleLabel(people(MAX_NAMES_SHOWN), t).split(' · ').length, 5)
   t2.ok(peopleLabel(people(7), t).startsWith('networkStatus.relayed.moreNames:'))
-  t2.is(peopleLabel([{ peerKey: 'ab'.repeat(32), displayName: null, since: 0, planes: ['content'] }], t), `abababababab (networkStatus.relayed.plane.content:{})`)
-  t2.is(peopleLabel([{ peerKey: 'ab'.repeat(32), displayName: 'Lena', since: 0, planes: ['control', 'content'] }], t), 'Lena (networkStatus.relayed.plane.both:{})')
+  t2.is(peopleLabel([{ noiseKey: 'ab'.repeat(32), displayName: null, since: 0, planes: ['content'] }], t), `abababababab (networkStatus.relayed.plane.content:{})`)
+  t2.is(peopleLabel([{ noiseKey: 'ab'.repeat(32), displayName: 'Lena', since: 0, planes: ['control', 'content'] }], t), 'Lena (networkStatus.relayed.plane.both:{})')
 })
 
 test('relayKindClasses is the one source for the two kind tones', (t2) => {
@@ -58,9 +58,9 @@ test('relayKindClasses is the one source for the two kind tones', (t2) => {
 
 test('both planes of one person fold into one entry with the earliest since, across different socket keys', (t2) => {
   const groups = relayGroups([
-    conn({ peerKey: 'a2'.repeat(32), plane: 'content', since: 20 }),
-    conn({ peerKey: 'a3'.repeat(32), plane: 'control', since: 10 }),
-    conn({ peerKey: 'bb'.repeat(32), profileKey: 'b1'.repeat(32), displayName: 'Bob', plane: 'content', via: 'adopted', relayKey: R2, since: 5 }),
+    conn({ noiseKey: 'a2'.repeat(32), plane: 'content', since: 20 }),
+    conn({ noiseKey: 'a3'.repeat(32), plane: 'control', since: 10 }),
+    conn({ noiseKey: 'bb'.repeat(32), personKey: 'b1'.repeat(32), displayName: 'Bob', plane: 'content', via: 'adopted', relayKey: R2, since: 5 }),
   ])
   t2.is(groups[0].people.length, 1)
   t2.alike(groups[0].people[0].planes, ['content', 'control'])
@@ -69,14 +69,14 @@ test('both planes of one person fold into one entry with the earliest since, acr
 })
 
 test('relayedPeopleCount counts people, not sockets', (t2) => {
-  const relay = { connections: [conn({ peerKey: 'a2'.repeat(32), plane: 'control' }), conn({ peerKey: 'a3'.repeat(32), plane: 'content' }), conn({ peerKey: 'bb'.repeat(32), profileKey: 'b1'.repeat(32) })], direct: { control: 0, content: 0 }, digest: '' }
+  const relay = { connections: [conn({ noiseKey: 'a2'.repeat(32), plane: 'control' }), conn({ noiseKey: 'a3'.repeat(32), plane: 'content' }), conn({ noiseKey: 'bb'.repeat(32), personKey: 'b1'.repeat(32) })], direct: { control: 0, content: 0 }, digest: '' }
   t2.is(relayedPeopleCount(relay), 2)
 })
 
 test('an adopted relay from one person on two sockets is one group', (t2) => {
   const groups = relayGroups([
-    conn({ peerKey: 'a2'.repeat(32), plane: 'content', via: 'adopted', relayKey: R2, displayName: 'Oliver' }),
-    conn({ peerKey: 'a3'.repeat(32), plane: 'control', via: 'adopted', relayKey: R2, displayName: 'Oliver' }),
+    conn({ noiseKey: 'a2'.repeat(32), plane: 'content', via: 'adopted', relayKey: R2, displayName: 'Oliver' }),
+    conn({ noiseKey: 'a3'.repeat(32), plane: 'control', via: 'adopted', relayKey: R2, displayName: 'Oliver' }),
   ])
   t2.is(groups.length, 1)
   t2.is(groups[0].providerName, 'Oliver')
@@ -85,8 +85,17 @@ test('an adopted relay from one person on two sockets is one group', (t2) => {
 
 test('a socket with no bound member yet stays its own person', (t2) => {
   const groups = relayGroups([
-    conn({ peerKey: 'a2'.repeat(32), profileKey: null, displayName: null, via: 'adopted', relayKey: R2 }),
-    conn({ peerKey: 'a3'.repeat(32), profileKey: null, displayName: null, via: 'adopted', relayKey: R2 }),
+    conn({ noiseKey: 'a2'.repeat(32), personKey: null, displayName: null, via: 'adopted', relayKey: R2 }),
+    conn({ noiseKey: 'a3'.repeat(32), personKey: null, displayName: null, via: 'adopted', relayKey: R2 }),
   ])
   t2.is(groups.length, 2)
+  t2.is(groups[0].people[0].foldKey, 'a2'.repeat(32), 'it folds under its own socket key, not a person it has not got')
+})
+
+// The fold key is the person once one is bound and the socket until then, so the two are separate
+// fields: the row's socket key never stands in for the identity anywhere but the fold.
+test('a bound socket folds by its person while still naming its socket', (t2) => {
+  const [group] = relayGroups([conn({ noiseKey: 'a2'.repeat(32), personKey: 'b1'.repeat(32) })])
+  t2.is(group.people[0].foldKey, 'b1'.repeat(32))
+  t2.is(group.people[0].noiseKey, 'a2'.repeat(32))
 })

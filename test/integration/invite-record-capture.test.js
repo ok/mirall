@@ -34,8 +34,8 @@ async function syncKnownLength(key) {
   await core.update({ wait: true })
 }
 
-function spaceWith(peerKey) {
-  return { spaceId: SPACE, members: [{ publicKey: peerKey }] }
+function spaceWith(personKey) {
+  return { spaceId: SPACE, members: [{ publicKey: personKey }] }
 }
 
 // REGRESSION (FIX-3: co-member invite enforcement dies with the minter): the minter's

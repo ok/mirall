@@ -52,7 +52,7 @@ test('loose reshare after unshare: the file can be added again and downloads cle
     const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), flags: v2flags() })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
     const spaceId = await connectInSpaceWithApproval(t, A, B)
-    const aKey = (await A.request('profile:get')).publicKey
+    const aKey = (await A.request('profile:get')).personKey
 
     const bytes = patternedBytes(2 * 1024 * 1024, 61)
     const src = path.join(aSrc, 'cycle.bin')

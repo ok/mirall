@@ -9,7 +9,7 @@ import { until } from './bare-poll.js'
 export const waitFor = (pred, ms = 5000) => until(pred, ms, { interval: 20, scale: false })
 
 // A standalone "peer": its own Corestore + a plain (unencrypted, like real profile bees)
-// membership bee, replicated into the local store so openProfileBee(peerKey) can read it.
+// membership bee, replicated into the local store so openProfileBee(personKey) can read it.
 export async function makePeer(t) {
   const dir = tmpDir('pb-peer')
   const store = new Corestore(dir)

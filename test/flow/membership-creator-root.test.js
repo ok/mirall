@@ -27,8 +27,8 @@ test('REGRESSION (MIR-26: a forged-creator invite does NOT make the forger the r
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: bindFlags() })
 
   const space = await A.request('space:create', { name: 'Secret' })
-  const aKey = (await A.request('profile:get')).publicKey
-  const bKey = (await B.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
+  const bKey = (await B.request('profile:get')).personKey
   const topic = decodeInvite(await A.request('space:invite', { spaceId: space.spaceId })).topic
 
   // The attacker relays A's real topic but swaps the creator field to its own fabricated key.
@@ -68,8 +68,8 @@ test('REGRESSION (MIR-26: two honest peers never fork their root)', { timeout: s
   const C = await launchPeer(t, { bootstrap, displayName: 'Carol', storage: idStore(t), downloads: mkTmpDir(t), flags: bindFlags() })
 
   const spaceId = await connectInSpaceWithApproval(t, A, B)
-  const aKey = (await A.request('profile:get')).publicKey
-  const cKey = (await C.request('profile:get')).publicKey
+  const aKey = (await A.request('profile:get')).personKey
+  const cKey = (await C.request('profile:get')).personKey
 
   const inviteC = await A.request('space:invite', { spaceId })
   const aGotC = A.waitFor('event:member-join-request', (m) => m.spaceId === spaceId && m.publicKey === cKey)

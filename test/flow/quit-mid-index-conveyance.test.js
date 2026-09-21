@@ -20,7 +20,7 @@ test('quit mid-index: owner goes offline and the mid-index file degrades to unav
     const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), flags: v2flags() })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
     const spaceId = await connectInSpaceWithApproval(t, A, B)
-    const aKey = (await A.request('profile:get')).publicKey
+    const aKey = (await A.request('profile:get')).personKey
 
     const src = path.join(mkTmpDir(t), 'reel.bin')
     const bytes = patternedBytes(128 * 1024 * 1024, 15)

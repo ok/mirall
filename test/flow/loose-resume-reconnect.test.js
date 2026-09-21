@@ -28,7 +28,7 @@ test('manual pause survives an owner offline→online reconnect (no auto-resume)
     let A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: aStore, flags: aFlags })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
     const spaceId = await connectInSpaceWithApproval(t, A, B)
-    const aKey = (await A.request('profile:get')).publicKey
+    const aKey = (await A.request('profile:get')).personKey
 
     const bytes = patternedBytes(8 * 1024 * 1024, 47)
     fs.writeFileSync(path.join(aSrc, 'held.bin'), bytes)

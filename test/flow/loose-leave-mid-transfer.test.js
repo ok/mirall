@@ -42,7 +42,7 @@ test('owner leaves the space mid-serve: the peer does not complete, no orphan la
     const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), flags: v2flags() })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
     const spaceId = await connectInSpaceWithApproval(t, A, B)
-    const aKey = (await A.request('profile:get')).publicKey
+    const aKey = (await A.request('profile:get')).personKey
 
     await share(A, spaceId, aSrc, 'exit.bin', 43)
     await seeRemote(B, spaceId, 'exit.bin')
@@ -69,7 +69,7 @@ test('downloader leaves the space mid-download: the transfer is purged, no orpha
     const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), flags: v2flags() })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
     const spaceId = await connectInSpaceWithApproval(t, A, B)
-    const aKey = (await A.request('profile:get')).publicKey
+    const aKey = (await A.request('profile:get')).personKey
 
     await share(A, spaceId, aSrc, 'depart.bin', 47)
     await seeRemote(B, spaceId, 'depart.bin')

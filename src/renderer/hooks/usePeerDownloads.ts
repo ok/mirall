@@ -51,7 +51,7 @@ export function usePeerDownloads(spaceId: string) {
       const avgSpeed = speed.observe(path, now, msg.bytes)
       setByPath((prev) => {
         const next = new Map(prev)
-        next.set(path, { spaceId: msg.spaceId, path, peerKeys: msg.peers, pausedKeys: msg.pausedKeys ?? [], bytes: msg.bytes, total: msg.total, avgSpeed })
+        next.set(path, { spaceId: msg.spaceId, path, personKeys: msg.peers, pausedKeys: msg.pausedKeys ?? [], bytes: msg.bytes, total: msg.total, avgSpeed })
         return next
       })
     }

@@ -3,12 +3,13 @@ import type {
 } from '../../shared/contract/responses.js'
 import type { BADGE_STATUSES } from '../../shared/contract/statuses.js'
 import type { VERDICTS, CAUSES, CONFIDENCES } from '../../shared/contract/reachability.js'
+import type { PersonKey, NoiseKey } from '../../shared/contract/principals.js'
 
 export interface PeerDownloadSummary {
   spaceId: string
   path: string
-  peerKeys: string[]
-  pausedKeys: string[]
+  personKeys: PersonKey[]
+  pausedKeys: PersonKey[]
   // bytes/total are aggregate SUMS across the downloaders (bytes/total = average
   // progress for the collapsed bar) — NOT a single file's size: with N downloaders
   // of an F-byte file, total ≈ N·F.
@@ -18,7 +19,7 @@ export interface PeerDownloadSummary {
 }
 
 export interface PeerDownloadPeer {
-  peerKey: string
+  personKey: PersonKey
   bytes: number
   total: number
   avgSpeed: number
@@ -122,8 +123,8 @@ interface PeerReach {
 }
 
 export interface RelayedConnection {
-  peerKey: string
-  profileKey: string | null
+  noiseKey: NoiseKey
+  personKey: PersonKey | null
   plane: RelayPlane
   displayName: string | null
   via: 'own' | 'adopted'

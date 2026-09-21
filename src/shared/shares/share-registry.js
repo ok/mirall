@@ -13,7 +13,7 @@ export async function listSharesForSpace(spaceId) {
   const own = await readOwnShares(spaceId)
   const ownTagged = own.map((s) => ({ ...s, owner: me, source: 'own' }))
 
-  const peerKeys = (space.members || [])
+  const personKeys = (space.members || [])
     .map((m) => m.publicKey)
     .filter((k) => k && k !== me)
 
@@ -22,10 +22,10 @@ export async function listSharesForSpace(spaceId) {
   // when the peer's profile bee appends.
   const budget = interactiveReadTimeoutMs()
   const peerLists = await Promise.all(
-    peerKeys.map(async (peerKey) => {
-      const shares = await readPeerShares(peerKey, spaceId, budget)
+    personKeys.map(async (personKey) => {
+      const shares = await readPeerShares(personKey, spaceId, budget)
       if (!shares) return []
-      return shares.map((s) => ({ ...s, owner: peerKey, source: 'peer' }))
+      return shares.map((s) => ({ ...s, owner: personKey, source: 'peer' }))
     })
   )
 

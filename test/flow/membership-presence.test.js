@@ -18,7 +18,7 @@ const v2flags = () => ({ identityKEK: kekHex() })
 
 const launch = (t, name, bootstrap) =>
   launchPeer(t, { bootstrap, displayName: name, storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
-const keyOf = async (peer) => (await peer.request('profile:get')).publicKey
+const keyOf = async (peer) => (await peer.request('profile:get')).personKey
 const memberSetOf = async (peer, spaceId) =>
   new Set(((await peer.request('spaces:list')).find((x) => x.spaceId === spaceId)?.members || []).map((m) => m.publicKey))
 const seesMembers = (spaceId, keys) => (list) => {

@@ -39,7 +39,7 @@ function FolderViewRoute({ nav, profile, spaceId, shareId }: {
   spaceId: string
   shareId: string
 }) {
-  const { shares, loading } = useShares(spaceId, profile?.publicKey ?? null)
+  const { shares, loading } = useShares(spaceId, profile?.personKey ?? null)
   const share = shares.find((s) => s.id === shareId) ?? null
   const state = folderRouteState({ found: share !== null, loading })
   const missing = state === 'missing'

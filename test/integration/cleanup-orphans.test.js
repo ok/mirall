@@ -34,14 +34,14 @@ test('REGRESSION (FIX-2): cleanup does not purge a member’s peer drive', async
   const peerDrive = new Hyperdrive(getStore().namespace('peer-sim'))
   await peerDrive.ready()
   await peerDrive.put('/photo.bin', Buffer.from('replicated peer content'))
-  const peerKey = b4a.toString(peerDrive.core.key, 'hex')
+  const peerDriveKey = b4a.toString(peerDrive.core.key, 'hex')
   const metaDk = peerDrive.core.discoveryKey
   const blobs = await peerDrive.getBlobs()
   const blobsDk = blobs.core.discoveryKey
   await peerDrive.close() // cores stay on disk (a replicated peer drive isn't necessarily open)
 
   // Register it as a member's drive in the space.
-  await mutateMembers(space.spaceId, () => [{ publicKey: 'peerPubKey', driveKey: peerKey, displayName: 'Peer' }])
+  await mutateMembers(space.spaceId, () => [{ publicKey: 'peerPubKey', driveKey: peerDriveKey, displayName: 'Peer' }])
 
   t.ok(await coreInStore(metaDk), 'precondition: peer meta core present')
   t.ok(await coreInStore(blobsDk), 'precondition: peer blobs core present')

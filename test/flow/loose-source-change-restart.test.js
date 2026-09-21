@@ -25,7 +25,7 @@ test('loose download auto-restarts when the source changes mid-transfer',
     const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
     const spaceId = await connectInSpaceWithApproval(t, A, B)
-    const aKey = (await A.request('profile:get')).publicKey
+    const aKey = (await A.request('profile:get')).personKey
 
     // Large enough that B is comfortably mid-transfer when the source changes.
     // Large enough that B is still mid-transfer when A finishes re-hashing + advertising

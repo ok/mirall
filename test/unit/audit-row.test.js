@@ -9,7 +9,7 @@ import { formatSize } from '../../src/renderer/format/bytes.js'
 const row = (over = {}) => ({
   v: 1, seq: 1, ts: Date.now(), tzOffset: 0,
   kind: 'member.joined', category: 'members', tier: 'B',
-  outcome: 'ok', code: null, device: 'd',
+  outcome: 'ok', code: null, installId: 'd',
   actor: { type: 'peer', key: 'aa', name: 'Anna Weber' },
   space: { id: 'sp1', name: 'Design Team' },
   target: { kind: 'member', id: 'aa', name: 'Anna Weber' },

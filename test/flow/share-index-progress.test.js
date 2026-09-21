@@ -36,7 +36,7 @@ test('owner broadcasts its scan queue; a member sees how much is still to be add
     }
     await A.request('owned-folder:mount', { spaceId, shareId: share.id, mountPath: folder })
 
-    const aKey = (await A.request('profile:get')).publicKey
+    const aKey = (await A.request('profile:get')).personKey
     const ev = await gotQueue
     t.ok(ev.adding > 1, 'the member is told about work no catalog entry exists for yet')
     t.ok(typeof ev.bytesQueued === 'number' && ev.bytesQueued >= 0, 'with the bytes still to read')
@@ -57,7 +57,7 @@ test('owner with the flag off never broadcasts its scan queue',
     const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags: { overlayEnabled: true, sharePrepareProgressEnabled: false } })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags: FLAGS })
     const spaceId = await connectInSpace(t, A, B)
-    const aKey = (await A.request('profile:get')).publicKey
+    const aKey = (await A.request('profile:get')).personKey
 
     const share = await A.request('share:create', { spaceId, name: 'Vault', contentMode: 'overlay' })
 

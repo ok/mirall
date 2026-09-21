@@ -6,7 +6,7 @@ import { getSpace } from '../spaces/space.js'
 import { readOwnMirrors, readPeerMirrors, readOwnMirror, readPeerMirror } from './mirror-records.js'
 import { interactiveReadTimeoutMs } from '../core/with-timeout.js'
 
-function peerKeysOf(space, me) {
+function personKeysOf(space, me) {
   return (space.members || []).map((m) => m.publicKey).filter((k) => k && k !== me)
 }
 
@@ -19,10 +19,10 @@ export async function listMirrorsForSpace(spaceId) {
 
   const budget = interactiveReadTimeoutMs()
   const peerLists = await Promise.all(
-    peerKeysOf(space, me).map(async (peerKey) => {
-      const mirrors = await readPeerMirrors(peerKey, spaceId, budget)
+    personKeysOf(space, me).map(async (personKey) => {
+      const mirrors = await readPeerMirrors(personKey, spaceId, budget)
       if (!mirrors) return []
-      return mirrors.map((m) => ({ ...m, mirrorer: peerKey }))
+      return mirrors.map((m) => ({ ...m, mirrorer: personKey }))
     })
   )
 
@@ -41,9 +41,9 @@ export async function listMirrorsForShare(spaceId, shareId) {
 
   const budget = interactiveReadTimeoutMs()
   const peerRecs = await Promise.all(
-    peerKeysOf(space, me).map(async (peerKey) => {
-      const rec = await readPeerMirror(peerKey, spaceId, shareId, budget)
-      return rec ? { ...rec, mirrorer: peerKey } : null
+    personKeysOf(space, me).map(async (personKey) => {
+      const rec = await readPeerMirror(personKey, spaceId, shareId, budget)
+      return rec ? { ...rec, mirrorer: personKey } : null
     })
   )
 
