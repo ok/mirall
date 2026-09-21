@@ -12,6 +12,7 @@ import AuditRecordingCard from './AuditRecordingCard.js'
 import SectionHeading from '../../components/layout/SectionHeading.js'
 import Button from '../../components/primitives/Button.js'
 import { useErrorText } from '../../hooks/useErrorText.js'
+import { useRunAction } from '../../hooks/useRunAction.js'
 
 interface ActivityLogSettingsProps {
   onBack: () => void
@@ -21,6 +22,7 @@ interface ActivityLogSettingsProps {
 export default function ActivityLogSettings({ onBack, onOpenLog }: ActivityLogSettingsProps) {
   const { t } = useTranslation()
   const errorText = useErrorText()
+  const runAction = useRunAction()
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
   // The same two entries Account reads, scope-less for the reason stated there.
   const { data: config } = useQuery('audit:get-config', {}, null)
@@ -62,17 +64,21 @@ export default function ActivityLogSettings({ onBack, onOpenLog }: ActivityLogSe
     }
   }, [t, errorText])
 
-  const handlePurge = useCallback(async () => {
+  // The confirm closes only once the purge has succeeded; a rejection keeps it on its confirm step.
+  // `busy` clears either way — it is what makes the dialog undismissable.
+  const handlePurge = useCallback(() => {
     setBusy(true)
-    try {
-      const result = await request('audit:purge')
-      setStatus(t('activityLogSettings.deleteDone', { count: result.purged }))
+    runAction(async () => {
+      try {
+        const result = await request('audit:purge')
+        setConfirmPurge(false)
+        setStatus(t('activityLogSettings.deleteDone', { count: result.purged }))
+      } finally {
+        setBusy(false)
+      }
       await refresh()
-    } finally {
-      setBusy(false)
-      setConfirmPurge(false)
-    }
-  }, [refresh, t])
+    })
+  }, [refresh, runAction, t])
 
   return (
     <div
@@ -132,7 +138,7 @@ export default function ActivityLogSettings({ onBack, onOpenLog }: ActivityLogSe
         confirmLabel={t('activityLogSettings.deleteAction')}
         busy={busy}
         onClose={() => setConfirmPurge(false)}
-        onConfirm={() => void handlePurge()}
+        onConfirm={handlePurge}
       />
     </div>
   )

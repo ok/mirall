@@ -1,6 +1,6 @@
 // Diagnostics: builds the support bundle and previews what goes in it. Its own screen below
 // Network status, because detailed logging stays on only while this screen is mounted.
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { buildBundle, serialiseBundle, bundleFilename, previewText } from '../platform/diagnostics-bundle.js'
 import { request } from '../ipc/ipc.js'
@@ -8,6 +8,7 @@ import DiagnosticsPreviewModal from '../components/modals/DiagnosticsPreviewModa
 import Toggle from '../components/primitives/Toggle.js'
 import Button from '../components/primitives/Button.js'
 import { useErrorText } from '../hooks/useErrorText.js'
+import { useRunAction } from '../hooks/useRunAction.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import PageHeader from '../components/layout/PageHeader.js'
 
@@ -18,6 +19,8 @@ interface Props {
 export default function NetworkDiagnosticsScreen({ onBack }: Props) {
   const { t } = useTranslation()
   const errorText = useErrorText()
+  const runAction = useRunAction()
+  const verbosePendingRef = useRef(false)
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
   const [redact, setRedact] = useState(true)
   const [includeLogs, setIncludeLogs] = useState(false)
@@ -76,19 +79,29 @@ export default function NetworkDiagnosticsScreen({ onBack }: Props) {
   //
   // The toggle shows what the worker IS doing, not what this screen asked for: verbose is shared —
   // one client releasing it does not switch it off while another still wants it — so the reply is
-  // the answer and the optimistic value is only the starting point.
-  async function handleIncludeLogs(next: boolean) {
+  // the answer and the optimistic value is only the starting point. The worker is written before
+  // main because its reply is that answer: a rejection returns the switch to where it was with
+  // nothing written anywhere, and a main write failing after it leaves the switch on the worker's
+  // real state and reports.
+  function handleIncludeLogs(next: boolean) {
+    if (verbosePendingRef.current) return
+    verbosePendingRef.current = true
+    const previous = includeLogs
     setIncludeLogs(next)
-    try {
-      await window.bridge.setVerbose(next)
-    } catch {}
-    let effective = next
-    try {
-      const reply = await request('setVerbose', { verbose: next })
-      if (typeof reply?.verbose === 'boolean') effective = reply.verbose
-    } catch {}
-    setIncludeLogs(effective)
-    setStatus(effective ? t('diagnostics.verboseOn') : null)
+    runAction(async () => {
+      try {
+        const reply = await request('setVerbose', { verbose: next }).catch((err: Error) => {
+          setIncludeLogs(previous)
+          throw err
+        })
+        const effective = typeof reply?.verbose === 'boolean' ? reply.verbose : next
+        setIncludeLogs(effective)
+        setStatus(effective ? t('diagnostics.verboseOn') : null)
+        await window.bridge.setVerbose(next)
+      } finally {
+        verbosePendingRef.current = false
+      }
+    })
   }
 
   return (

@@ -14,6 +14,7 @@ export const CASES = [
   { name: "avatars", title: "Mirall avatar recess harness" },
   { name: "dropoverlay", title: "Mirall drop-overlay layout harness" },
   { name: "errorassoc", title: "Mirall dialog error-association harness" },
+  { name: "failpaths", title: "Mirall action failure-path harness" },
   { name: "filecard", title: "Mirall FileCard error-state / toast-width layout harness" },
   // This one measures painted colour in both themes, and scans the stylesheet for the hover fill.
   { name: "facepile", title: "Mirall facepile ring harness" },

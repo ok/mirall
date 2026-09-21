@@ -1,5 +1,5 @@
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useClipboardCopy } from '../../hooks/useClipboardCopy.js'
 import Icon from './Icon.js'
 
 interface CopyButtonProps {
@@ -9,13 +9,11 @@ interface CopyButtonProps {
 
 export default function CopyButton({ value, className = '' }: CopyButtonProps) {
   const { t } = useTranslation()
-  const [copied, setCopied] = useState(false)
+  const { copied, copy } = useClipboardCopy()
 
   function handleClick(e: React.MouseEvent<HTMLButtonElement>) {
     e.stopPropagation()
-    navigator.clipboard.writeText(value)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    copy(value)
   }
 
   const label = copied ? t('actions.copied') : t('actions.copy')

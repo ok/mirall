@@ -9,6 +9,7 @@
   "transferDestUnavailable": "Carpeta de descargas no disponible",
   "transferFailed": "Error de transferencia",
   "feedbackFailed": "Error al enviar los comentarios",
+  "copyFailed": "No se ha podido copiar al portapapeles. Inténtalo de nuevo.",
   "feedbackRateLimited": "Estás enviando comentarios demasiado rápido. Espera un momento e inténtalo de nuevo.",
   "sourceNotOnDisk": "Este elemento aún no está guardado en el disco — guárdalo primero y luego compártelo.",
   "mountNoPath": "Elige una carpeta para compartir.",

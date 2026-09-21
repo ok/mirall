@@ -9,6 +9,7 @@
   "transferDestUnavailable": "Dossier de téléchargement indisponible",
   "transferFailed": "Échec du transfert",
   "feedbackFailed": "Échec de l'envoi du commentaire",
+  "copyFailed": "Impossible de copier dans le presse-papiers. Réessayez.",
   "feedbackRateLimited": "Vous envoyez des commentaires trop rapidement. Veuillez patienter un instant et réessayer.",
   "sourceNotOnDisk": "Cet élément n'est pas encore enregistré sur le disque — enregistrez-le d'abord, puis partagez-le.",
   "mountNoPath": "Choisissez un dossier à partager.",

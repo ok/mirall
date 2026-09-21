@@ -12,6 +12,7 @@ import { useQuery } from '../store/useQuery.js'
 import { useConnectionStatus } from '../hooks/useConnectionStatus.js'
 import { useUpdates } from '../hooks/useUpdates.js'
 import { useKeyboard } from '../keyboard/KeyboardProvider.js'
+import { useRunAction } from '../hooks/useRunAction.js'
 import { loadAllEntries } from '../platform/changelog.js'
 import * as whatsNew from '../platform/whats-new.js'
 import StatusDot from '../components/primitives/StatusDot.js'
@@ -65,6 +66,7 @@ function InfoRow({ label, desc, icon }: { label: string; desc: ReactNode; icon: 
 
 function ProfileCard({ profile, onSave }: Pick<AccountProps, 'profile' | 'onSave'>) {
   const { t } = useTranslation()
+  const runAction = useRunAction()
   const [displayName, setDisplayName] = useState(profile?.displayName || '')
   const [avatar, setAvatar] = useState<string | null>(profile?.avatar || null)
   const [saving, setSaving] = useState(false)
@@ -73,11 +75,17 @@ function ProfileCard({ profile, onSave }: Pick<AccountProps, 'profile' | 'onSave
 
   const hasChanges = displayName !== profile?.displayName || avatar !== profile?.avatar
 
-  async function handleSave() {
+  // The edits stay in the fields on a rejection, so the retry is one click.
+  function handleSave() {
     if (!displayName.trim() || saving) return
     setSaving(true)
-    await onSave({ displayName: displayName.trim(), avatar })
-    setSaving(false)
+    runAction(async () => {
+      try {
+        await onSave({ displayName: displayName.trim(), avatar })
+      } finally {
+        setSaving(false)
+      }
+    })
   }
 
   function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -134,8 +142,9 @@ function ProfileCard({ profile, onSave }: Pick<AccountProps, 'profile' | 'onSave
       {hasChanges && (
         <button
           onClick={handleSave}
-          disabled={!displayName.trim() || saving}
-          className="w-full bg-primary text-on-primary font-bold py-3 rounded-xl hover:bg-primary-hover active:scale-95 transition-all shadow-lg shadow-primary/10 disabled:opacity-50 focus-ring"
+          disabled={!displayName.trim()}
+          aria-disabled={saving || undefined}
+          className="w-full bg-primary text-on-primary font-bold py-3 rounded-xl hover:bg-primary-hover active:scale-95 transition-all shadow-lg shadow-primary/10 disabled:opacity-50 aria-disabled:opacity-50 focus-ring"
         >
           {saving ? t('actions.saving') : t('actions.save')}
         </button>
