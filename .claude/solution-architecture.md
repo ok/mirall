@@ -1118,6 +1118,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/main/config-store.js` | The single owner of `config.json` — atomic writes, merge-over-defaults, the legacy-file fold, validated setters, migration seam (§2 step 5) |
 | `src/main/debug-gate.js` | The live logging gate (`baseDebug` / `debug` / `verbose`) — one reader/writer seam for the five sections that consult it |
 | `src/main/deeplink.js` | `parseDeepLink(url)` — validates `mirall://join/<code>`, decodes the envelope (dynamic import, since main is CJS) |
+| `src/main/dir-tripwire.js` | DIAGNOSTIC — wraps the destructive `fs` calls (and `fs-native-extensions.swap`) so anything that would remove the profile directory, an ancestor or `app-storage` logs a stack to `~/mirall-tripwire.log` and is refused; armed once `userData` is settled (#431) |
 | `src/main/env-json.js` | `envJson(name)` — the JSON-valued env knobs (test/debug overrides): parses one, ignores a malformed or scalar value with a warning that never repeats it |
 | `src/main/feature-flags.js` | Boot-cached `feature-flags.json` from the package root + env override |
 | `src/main/identity-kek.js` | The os-keychain unlock provider's host side: the identity KEK at rest under `safeStorage` (§16) |
@@ -1152,6 +1153,7 @@ Behaviour worth knowing (styling → `design.md`):
 | File | Purpose |
 |---|---|
 | `src/worker/main.js` | Bare worker entry — the crash backstop, the IPC pipe and its close hooks, the bootstrap frame, the membership-control block, every `domain:verb` handler registration, the shutdown deadline and `Bare.exit` |
+| `src/worker/dir-tripwire.js` | DIAGNOSTIC — the same guard over `bare-fs`, armed from the bootstrap frame's storage path before the composition root opens the Corestore (#431) |
 | `src/worker/connection-lifecycle.js` | What a closed pipe means: detach the client, then decide separately whether to stay up. Stops today because nothing can connect a new client; a worker that can accept one lingers instead |
 | `src/worker/boot.js` | The composition root — `bootDurable()` (the tier that outlives the network teardown) plus the runtime tier; starts them in order, closes them in reverse (§2) |
 | `src/worker/mounts-runtime.js` | `MountsRuntime` — owned/foreign mount resume, the durable status writer and the scan-outcome → status mapping, deep-scan debt, the per-share reconcile timers, pause/resume, the 60 s mount + download-root probe (§7.6) |
@@ -1183,6 +1185,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/core/runtime-config-schema.js` | Every runtime-config key with its default and, where it carries one, its validation rule (one row per knob); the four coercion groups and `buildConfig`, which is a no-op on its own output (§16) |
 | `src/shared/core/runtime-config-rules.js` | The six pure validation rules a getter applies on read (§16) |
 | `src/shared/core/ipc.js` | NDJSON router + pre-start message queue, cancel, request metrics and failure counters, the `POKE_SCOPE` fan-out (§4.7), and `emit(type, payload, { to })` — broadcast, or one client. Wraps `Bare.IPC` as the first client |
+| `src/shared/core/dir-tripwire.js` | The tripwire's rule — what a filesystem call would destroy (the profile dir, an ancestor, the store) given already-resolved paths. Pure and path-module-free, so one copy serves Node and Bare (#431) |
 | `src/shared/core/client-trust.js` | `requireHost(client)` — stopping or restarting the worker ends every client's session, so it is the host's call and not a connected peer's |
 | `src/shared/core/ipc-events.js` | The event plane: the poke→reconcile fan-out table, one sequence number per pushed frame, broadcast vs per-client routing, and the resume a client uses to catch up from a cursor |
 | `src/shared/core/replay-ring.js` | The recent durable frames a resuming client can be replayed, bounded by count and by bytes, with a floor that says when only a resync is honest |

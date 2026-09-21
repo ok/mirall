@@ -42,8 +42,13 @@ import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../shared/contract/main-reques
 import {
   getProfile,
 } from '../shared/spaces/profile.js'
+import { installDataDirTripwire, armDataDirTripwire } from './dir-tripwire.js'
 import { boot } from './boot.js'
 import { refreshAuditSelfName } from './audit-refs.js'
+
+// DIAGNOSTIC — wrap bare-fs before the composition root can capture a reference to it. The rule
+// stays inert until armDataDirTripwire runs with the bootstrap's storage path, below.
+installDataDirTripwire()
 
 const ipc = createIPC(Bare.IPC)
 const log = createLogger('worklet')
@@ -149,6 +154,11 @@ try {
   await new Promise(() => {})
 }
 setRuntimeConfig(bootstrap)
+
+// DIAGNOSTIC — the bootstrap frame carries the storage path, which is the first moment the worker
+// knows which directory to protect. Armed here, before boot() opens the Corestore, so every
+// migration and purge the data layer runs is already covered. See src/worker/dir-tripwire.js.
+armDataDirTripwire(bootstrap.storage)
 
 // === Boot: the composition root constructs and starts the data layer ===
 //
