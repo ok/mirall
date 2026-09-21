@@ -96,13 +96,13 @@ export async function listPendingForSpace(spaceId) {
   return out
 }
 
-// Owners we are still waiting on bytes from, deduped. Read on every convergence tick, so it stays
-// a bee scan with no per-row resolution.
-export async function listPendingOwnerKeys() {
+// Owners of the rows `keep` accepts, deduped. Read on every convergence tick, so it stays one bee
+// scan; `keep` judges each stored row.
+export async function listPendingOwnerKeys({ keep = () => true } = {}) {
   const owners = new Set()
   for await (const entry of bee.createReadStream()) {
     const ownerKey = entry.value?.ownerKey
-    if (typeof ownerKey === 'string' && ownerKey) owners.add(ownerKey)
+    if (typeof ownerKey === 'string' && ownerKey && keep(entry.value)) owners.add(ownerKey)
   }
   return owners
 }

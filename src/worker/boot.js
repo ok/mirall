@@ -28,7 +28,8 @@ import {
 } from '../shared/spaces/leave-records.js'
 import { MemberViews } from '../shared/spaces/member-registry.js'
 import { DownloadsBee, cleanupDownloadHistory } from '../shared/transfer/files.js'
-import { PendingTransfersBee, clearPendingForSpace, listPendingOwnerKeys } from '../shared/transfer/pending-transfers.js'
+import { PendingTransfersBee, clearPendingForSpace } from '../shared/transfer/pending-transfers.js'
+import { listAwaitedOwnerKeys } from '../shared/transfer/backends/overlay/overlay-download.js'
 import { abortInFlightPublishes } from '../shared/transfer/backends/overlay/overlay-publish.js'
 import { ServeLedger } from '../shared/transfer/serve-ledger.js'
 import { getJournalDir } from '../shared/transfer/backends/overlay/overlay-instance.js'
@@ -270,7 +271,7 @@ export async function boot(bootstrap, {
         ipc,
         membershipControl,
         overlayBackend,
-        stalledOwners: listPendingOwnerKeys,
+        stalledOwners: listAwaitedOwnerKeys,
         // Read straight off the bootstrap frame and stored nowhere else, exactly as
         // bootstrap.identityKEK is: a private relay's member seed is a bearer credential.
         relaySeedHex: bootstrap.relaySeed || null,

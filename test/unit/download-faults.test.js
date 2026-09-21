@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { preflightFault, terminalFault } from '../../src/shared/transfer/backends/overlay/download-faults.js'
+import { preflightFault, terminalFault, faultCleared, awaitsOwner } from '../../src/shared/transfer/backends/overlay/download-faults.js'
 import { CODES } from '../../src/shared/contract/errors.js'
 import { FREE_SPACE_HEADROOM } from '../../src/shared/transfer/free-space.js'
 
@@ -57,4 +57,23 @@ test('a permission errno from a folder that still takes a write is the retryable
   t.is(terminalFault(eperm, dest({ dirWritable: () => true })), CODES.DOWNLOAD_FAILED,
     'a file another program held for a moment, not a read-only folder')
   t.is(terminalFault(eperm, dest()), CODES.TRANSFER_PERMISSION, 'a folder that refuses the probe is the permission fault')
+})
+
+test('a permission fault clears once its folder takes a write', (t) => {
+  const writable = () => true
+  const readOnly = () => false
+  t.is(faultCleared(CODES.TRANSFER_PERMISSION, '/dl/a.bin', writable), true)
+  t.is(faultCleared(CODES.TRANSFER_PERMISSION, '/dl/a.bin', readOnly), false)
+  t.is(faultCleared(CODES.TRANSFER_PERMISSION, undefined, writable), false, 'a row without a destination has no folder to probe')
+  t.is(faultCleared(CODES.TRANSFER_DISK_FULL, '/dl/a.bin', writable), false, 'a writable folder says nothing about a full disk')
+})
+
+test('a row awaits its owner unless only the user can unblock it', (t) => {
+  const row = (errorCode) => ({ finalPath: '/dl/a.bin', errorCode })
+  const readOnly = () => false
+  t.is(awaitsOwner(row(undefined), readOnly), true)
+  t.is(awaitsOwner(row(CODES.DOWNLOAD_FAILED), readOnly), true, 'a generic failure is re-driven on reconnect')
+  t.is(awaitsOwner(row(CODES.TRANSFER_CHECKSUM), readOnly), false)
+  t.is(awaitsOwner(row(CODES.TRANSFER_PERMISSION), readOnly), false)
+  t.is(awaitsOwner(row(CODES.TRANSFER_PERMISSION), () => true), true)
 })

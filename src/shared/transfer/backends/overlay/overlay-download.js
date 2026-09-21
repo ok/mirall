@@ -15,19 +15,19 @@ import { getOverlay, getJournalDir } from './overlay-instance.js'
 import { journalNameFor } from './vendor/transfer.js'
 import { PARTIAL_SUFFIX, partialPathFor } from '../../partial-suffix.js'
 import { isOwnerOnline } from '../../../network/presence-leases.js'
-import { clearPending, recordPendingError, getPendingFor, listPendingForSpace } from '../../pending-transfers.js'
+import { clearPending, recordPendingError, getPendingFor, listPendingForSpace, listPendingOwnerKeys } from '../../pending-transfers.js'
 import { createPausedHolders } from './paused-holders.js'
 import { recordTransferOutcome } from '../../../audit/transfer-audit.js'
 import { pauseReasonFor as ownerPauseReason } from '../../transfer-status.js'
 import { createStallRetry } from './stall-retry.js'
 import { createLogger } from '../../../core/logger.js'
 import { isTerminalFault } from './fetch-policy.js'
-import { CODES } from '../../../contract/errors.js'
 import { freeBytesFor } from '../../free-space-probe.js'
 import { createStart } from './download-start.js'
 import { createFetchSettle } from './fetch-settle.js'
 import { createReconcile } from './reconcile-scan.js'
 import { memberWaits } from '../../../network/share-wait.js'
+import { awaitsOwner, faultCleared } from './download-faults.js'
 
 const log = createLogger('overlay-download')
 
@@ -71,6 +71,18 @@ function defaultDirWritable(dir) {
   } catch (err) {
     return !['EACCES', 'EPERM', 'EROFS'].includes(err?.code)
   }
+}
+
+// The owners the stalled-owner rescue refreshes (awaitsOwner). Read on every convergence tick, so
+// each folder is probed once per scan.
+export function listAwaitedOwnerKeys() {
+  const probed = new Map()
+  const folderWritable = (finalPath) => {
+    const dir = path.dirname(finalPath)
+    if (!probed.has(dir)) probed.set(dir, defaultDirWritable(dir))
+    return probed.get(dir)
+  }
+  return listPendingOwnerKeys({ keep: (row) => awaitsOwner(row, folderWritable) })
 }
 
 function partialAllocatedBytes(finalPath) {
@@ -175,12 +187,10 @@ export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentT
     registry, pausedHashes, channel, log, hasOverlay, ownerOnline, destProbeFor,
     pauseReasonFor, recordTerminal, failTerminal, runFetch: settle.run,
   })
-  // A terminal verdict the user has since acted on: a folder that refused writes and takes one
-  // now. Fixing the folder is the action a permission fault waits for, so the next reconnect
-  // re-drives the row instead of leaving it for a Retry.
-  const faultCleared = (code, row) => code === CODES.TRANSFER_PERMISSION && !!row.finalPath && dirWritable(path.dirname(row.finalPath))
+  const folderWritable = (finalPath) => dirWritable(path.dirname(finalPath))
   const reconcile = createReconcile({
-    registry, pausedHashes, terminalCodes, retries, channel, log, hasOverlay, start: starter.start, cancelByKey, discardPartial, faultCleared,
+    registry, pausedHashes, terminalCodes, retries, channel, log, hasOverlay, start: starter.start, cancelByKey, discardPartial,
+    faultCleared: (code, row) => faultCleared(code, row.finalPath, folderWritable),
   })
 
   // The owner re-published this source (advertise with a null hash → hash → setMaterializedHash)
