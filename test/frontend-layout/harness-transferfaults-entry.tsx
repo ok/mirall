@@ -20,6 +20,7 @@ interface HarnessResults {
   error: string | null
   toastsAfterBurst: number
   toastMounts: number
+  otherMounts: number
   notifications: Array<{ id: string; body: string }>
   toastsAfterOthers: number
 }
@@ -49,7 +50,7 @@ const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 const toasts = (): HTMLElement[] => Array.from(document.querySelectorAll<HTMLElement>('[role="region"] > div'))
 
 function fail(error: string): void {
-  window.__results = { pass: false, error, toastsAfterBurst: -1, toastMounts: -1, notifications: [], toastsAfterOthers: -1 }
+  window.__results = { pass: false, error, toastsAfterBurst: -1, toastMounts: -1, otherMounts: -1, notifications: [], toastsAfterOthers: -1 }
 }
 
 const transferError = (spaceId: string, errorCode: string, i: number) => ({
@@ -66,9 +67,9 @@ async function run(): Promise<void> {
   const region = document.querySelector('[role="region"]')
   if (!region) return fail('the toast region never rendered')
 
-  let toastMounts = 0
+  let mounts = 0
   new MutationObserver((records) => {
-    for (const r of records) toastMounts += r.addedNodes.length
+    for (const r of records) mounts += r.addedNodes.length
   }).observe(region, { childList: true })
 
   for (let i = 0; i < FILES; i++) {
@@ -77,12 +78,14 @@ async function run(): Promise<void> {
   }
   await sleep(QUIET_MS + 500)
   const toastsAfterBurst = toasts().length
+  const toastMounts = mounts
   const notifications = shown.map((s) => ({ id: s.id, body: s.body ?? '' }))
 
   window.__fakeEmit(transferError('space1', 'TRANSFER_CHECKSUM', 0))
   window.__fakeEmit(transferError('space2', 'TRANSFER_DISK_FULL', 0))
   await sleep(300)
   const toastsAfterOthers = toasts().length
+  const otherMounts = mounts - toastMounts
 
   const [leading, summary] = notifications
   window.__results = {
@@ -92,10 +95,12 @@ async function run(): Promise<void> {
       notifications.length === 2 &&
       leading.id === summary.id &&
       summary.body.startsWith(`${FILES} files`) &&
-      toastsAfterOthers === 3,
+      toastsAfterOthers === 3 &&
+      otherMounts === 2,
     error: null,
     toastsAfterBurst,
     toastMounts,
+    otherMounts,
     notifications,
     toastsAfterOthers,
   }
