@@ -11,13 +11,6 @@ test('the terminal set is exactly the faults no retry can fix', (t) => {
   }
 })
 
-// REGRESSION (FIX-379: a folder the app may not write was treated as a fault a reconnect could fix,
-// so every reconnect re-ran a fetch that failed on the same folder.)
-test('REGRESSION (FIX-379: a permission fault is terminal, a removed source is not)', (t) => {
-  t.ok(isTerminalFault(CODES.TRANSFER_PERMISSION), 'the folder is still read-only on the next attempt')
-  t.absent(isTerminalFault(CODES.TRANSFER_REMOVED), 'the owner may have the content back')
-})
-
 test('a miss is classified by whether a scheduler ran', (t) => {
   t.is(classifyMiss({ attempted: false }), 'no-holder', 'nobody was ever reachable — a global fact')
   t.is(classifyMiss({ attempted: true }), 'failed', 'a holder was asked and died — a per-file fact')

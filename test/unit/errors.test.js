@@ -97,3 +97,10 @@ test('REGRESSION (FIX-379: classifyTransferError reads the same errno table as t
     t.is(classifyTransferError({ code }), classifyLocalIoFault({ code }), `${code}: one answer for both classifiers`)
   }
 })
+
+test('an errno named after an Object.prototype key is no local fault', (t) => {
+  for (const code of ['constructor', 'toString', 'valueOf', '__proto__']) {
+    t.is(classifyLocalIoFault({ code }), null, code)
+    t.is(classifyTransferError({ code }), CODES.TRANSFER_NETWORK, `${code} falls through to the generic code`)
+  }
+})

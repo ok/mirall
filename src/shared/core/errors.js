@@ -44,7 +44,8 @@ const LOCAL_IO_FAULT_BY_ERRNO = Object.freeze({
 // null means "not a fault this classifies" — the caller then falls through to its generic handling
 // rather than pausing a mount on something transient.
 export function classifyLocalIoFault(err) {
-  return LOCAL_IO_FAULT_BY_ERRNO[err?.code] ?? null
+  const code = err?.code
+  return typeof code === 'string' && Object.hasOwn(LOCAL_IO_FAULT_BY_ERRNO, code) ? LOCAL_IO_FAULT_BY_ERRNO[code] : null
 }
 
 // Local-filesystem failures that a download folder which has been deleted, ejected, replaced by

@@ -153,8 +153,8 @@ async function handleOverlayMirrorFetchError(mount, share, entry, err, diag) {
   log.warn('overlay mirror integrity failure — holder served bytes not matching the content hash:', entry.relPath)
   recordMirrorIntegrityFailure(mount, share, entry)
   // Checksum is the only terminal fault reachable here — every local I/O fault was classified and
-  // paused above, and the engine's other two terminal codes describe a destination mountCanTake
-  // preflights instead. Charged to a budget rather than blocked outright, so another holder can
+  // paused above, and the engine's other terminal codes describe a destination this pass either
+  // preflights (mountCanTake) or pauses the mount for. Charged to a budget rather than blocked outright, so another holder can
   // still serve the same content.
   if (!isTerminalFault(code)) return
   const key = mirrorKey(mount.spaceId, mount.shareId)

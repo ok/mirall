@@ -6,8 +6,8 @@ import { FETCH_OUTCOME } from './fetch-outcome.js'
 
 // A fault the user must clear before ANY retry can succeed: the same holder serves the same bad
 // bytes, a full disk is still full, an ejected volume is still gone, a folder we may not write is
-// still read-only. One set because it is one judgement — runReconcile's auto-resume suppression,
-// recordTerminal's in-memory fallback and the channel's user-facing error filter all read it.
+// still read-only. One set because it is one judgement, and every producer and channel that judges
+// a fault reads it.
 const TERMINAL = new Set([
   CODES.TRANSFER_CHECKSUM,
   CODES.TRANSFER_DISK_FULL,

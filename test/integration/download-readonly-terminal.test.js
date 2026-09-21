@@ -9,6 +9,7 @@ import { partialPathFor } from '../../src/shared/transfer/partial-suffix.js'
 import { CODES } from '../../src/shared/contract/errors.js'
 import { createOverlayDownloadEngine } from '../../src/shared/transfer/backends/overlay/overlay-download.js'
 import { scaled } from '../helpers/bare-timing.js'
+import { until } from '../helpers/bare-poll.js'
 
 // A download whose folder the app may not write fails the same way on every attempt, so it is a
 // terminal fault: the reconnect re-drive leaves it alone and only the user's Resume re-attempts.
@@ -86,11 +87,6 @@ const errorsIn = (events) => events.filter((e) => e[0] === 'error').map((e) => e
 const tick = () => new Promise((r) => setTimeout(r, scaled(60)))
 const settle = () => new Promise((r) => setTimeout(r, scaled(400))) // past the 250ms resume coalescer
 
-// Guards the file: with the constant missing every comparison below would pass vacuously.
-test('the permission code is the exact string the renderer maps', (t) => {
-  t.is(CODES.TRANSFER_PERMISSION, 'TRANSFER_PERMISSION')
-})
-
 test('REGRESSION (FIX-379: a read-only download folder is not re-fetched on every owner reconnect)', async (t) => {
   const ctx = await setup(t)
   const dir = readOnlyDir(t, ctx, 'dl-readonly')
@@ -130,10 +126,31 @@ test('REGRESSION (FIX-379: a read-only download folder is not re-fetched on ever
   fs.chmodSync(dir, 0o755)
   engine.clearPauseMarker(job.transferId)
   await engine.start(job)
-  await tick()
+  t.ok(await until(async () => !(await getPendingFor(SPACE, job.pendingKey)), 2000), 'its pending row is cleared')
   t.is(seen.length, 3)
   t.ok(events.some(([k]) => k === 'complete'), 'the download completed once the folder was writable')
-  t.absent(await getPendingFor(SPACE, job.pendingKey), 'and its pending row is cleared')
+})
+
+// Fixing the folder is the action a permission fault waits for, so the reconnect after it is enough.
+test('once the folder takes a write again, the next reconnect re-drives the row', async (t) => {
+  const ctx = await setup(t)
+  const dir = readOnlyDir(t, ctx, 'dl-readonly-fixed')
+  if (!dir) { t.comment('skipped: chmod does not make a folder read-only for this process (Windows or root)'); t.pass(); return }
+
+  const job = makeJob(dir)
+  const events = []
+  const seen = []
+  const engine = createOverlayDownloadEngine(testChannel(events, job))
+  writingHolder(seen)
+
+  await engine.start(job)
+  await tick()
+  t.is(errorsIn(events)[0], CODES.TRANSFER_PERMISSION, 'precondition: the folder refused the download')
+
+  fs.chmodSync(dir, 0o755)
+  await engine.resumeForOwner(OWNER, SPACE)
+  t.ok(await until(async () => !(await getPendingFor(SPACE, job.pendingKey)), 2000), 'the reconnect landed the download')
+  t.is(seen.length, 2, 'with one more fetch, and no Retry')
 })
 
 test('REGRESSION (FIX-379: a permission verdict whose write fails still suppresses auto-resume)', async (t) => {

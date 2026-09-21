@@ -172,11 +172,11 @@ test('a local-fs failure with the folder still present keeps its own classificat
   const events = []
   const dir = ctx.tmpDir('dl-present')
   const job = makeJob(dir)
-  const engine = createOverlayDownloadEngine(testChannel(events))
+  const engine = createOverlayDownloadEngine(testChannel(events), { dirWritable: () => false })
 
-  // Same errno, folder intact: this is a genuine permission problem on a folder that IS there,
-  // and must keep saying so. The probe is what separates the two — without it, either this case
-  // or the ejected-volume case above is guaranteed to be wrong.
+  // Same errno, folder intact and refusing writes: this is a genuine permission problem on a folder
+  // that IS there, and must keep saying so. The probe is what separates the two — without it,
+  // either this case or the ejected-volume case above is guaranteed to be wrong.
   getOverlay().fetchFile = async () => {
     const err = new Error("EACCES: permission denied, open '" + job.finalPath + "'")
     err.code = 'EACCES'
@@ -191,7 +191,7 @@ test('a local-fs failure with the folder still present keeps its own classificat
 
 // === The folder-share channel must let this code cross the wire ===
 
-// Folder rows normally surface an error only through the list refresh; just three terminal codes
+// Folder rows normally surface an error only through the list refresh; only the terminal codes
 // are also emitted as event:transfer-error, which is what drives the toast, the OS notification,
 // and the banner's immediate re-probe. A dest-unavailable failure that stayed off the wire would
 // show the right words on the row and nothing anywhere else — the exact half-fix this pins
@@ -212,6 +212,7 @@ test('REGRESSION (FIX-DLDIR-2: the folder-share channel emits transfer-error for
   t.ok(wired(CODES.TRANSFER_DEST_UNAVAILABLE), 'the code is in the cross-the-wire set')
   t.ok(wired(CODES.TRANSFER_DISK_FULL), 'alongside disk-full')
   t.ok(wired(CODES.TRANSFER_CHECKSUM), 'and the integrity failure')
+  t.ok(wired(CODES.TRANSFER_PERMISSION), 'and a folder that refuses writes')
   t.absent(wired(CODES.DOWNLOAD_FAILED), 'and nothing else — a generic failure stays on the row')
 })
 
