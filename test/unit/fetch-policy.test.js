@@ -3,10 +3,10 @@ import { isTerminalFault, classifyMiss, nextRetryDelay } from '../../src/shared/
 import { CODES } from '../../src/shared/contract/errors.js'
 
 test('the terminal set is exactly the faults no retry can fix', (t) => {
-  for (const c of [CODES.TRANSFER_CHECKSUM, CODES.TRANSFER_DISK_FULL, CODES.TRANSFER_DEST_UNAVAILABLE]) {
+  for (const c of [CODES.TRANSFER_CHECKSUM, CODES.TRANSFER_DISK_FULL, CODES.TRANSFER_DEST_UNAVAILABLE, CODES.TRANSFER_PERMISSION]) {
     t.ok(isTerminalFault(c), `${c} is terminal`)
   }
-  for (const c of [CODES.TRANSFER_NETWORK, CODES.DOWNLOAD_FAILED, undefined, null, 'ECONNRESET']) {
+  for (const c of [CODES.TRANSFER_NETWORK, CODES.TRANSFER_REMOVED, CODES.DOWNLOAD_FAILED, undefined, null, 'ECONNRESET']) {
     t.absent(isTerminalFault(c), `${String(c)} stays retryable`)
   }
 })

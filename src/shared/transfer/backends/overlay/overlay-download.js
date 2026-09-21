@@ -13,7 +13,7 @@ import fs from 'bare-fs'
 import path from 'bare-path'
 import { getOverlay, getJournalDir } from './overlay-instance.js'
 import { journalNameFor } from './vendor/transfer.js'
-import { partialPathFor } from '../../partial-suffix.js'
+import { PARTIAL_SUFFIX, partialPathFor } from '../../partial-suffix.js'
 import { isOwnerOnline } from '../../../network/presence-leases.js'
 import { clearPending, recordPendingError, getPendingFor, listPendingForSpace } from '../../pending-transfers.js'
 import { createPausedHolders } from './paused-holders.js'
@@ -22,6 +22,7 @@ import { pauseReasonFor as ownerPauseReason } from '../../transfer-status.js'
 import { createStallRetry } from './stall-retry.js'
 import { createLogger } from '../../../core/logger.js'
 import { isTerminalFault } from './fetch-policy.js'
+import { CODES } from '../../../contract/errors.js'
 import { freeBytesFor } from '../../free-space-probe.js'
 import { createStart } from './download-start.js'
 import { createFetchSettle } from './fetch-settle.js'
@@ -57,6 +58,20 @@ function defaultDirExists(dir) {
   try { return fs.statSync(dir).isDirectory() } catch { return false }
 }
 
+// Whether a file can be created in the folder. Only a refusal counts: any other failure is not
+// evidence the folder is read-only. The probe carries the partial suffix, so the boot sweep reclaims
+// one a crash left behind.
+function defaultDirWritable(dir) {
+  const probe = path.join(dir, '.mirall-write-probe' + PARTIAL_SUFFIX)
+  try {
+    fs.closeSync(fs.openSync(probe, 'wx'))
+    fs.unlinkSync(probe)
+    return true
+  } catch (err) {
+    return !['EACCES', 'EPERM', 'EROFS'].includes(err?.code)
+  }
+}
+
 function partialAllocatedBytes(finalPath) {
   try { return fs.statSync(partialPathFor(finalPath)).blocks * 512 || 0 } catch { return 0 }
 }
@@ -82,16 +97,16 @@ function abortFetch(slot, opts) {
 // (a terminal verdict whose durable write failed) and the stall retries (a retry in flight); the
 // fourth is the durable pending row. The durable-write policy is not uniform — the table is in
 // solution-architecture.md under pause / resume transfers.
-export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentToFile, hasOverlay = () => !!getOverlay(), freeBytes = freeBytesFor, stallRetry = {}, dirExists = defaultDirExists } = {}) {
+export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentToFile, hasOverlay = () => !!getOverlay(), freeBytes = freeBytesFor, stallRetry = {}, dirExists = defaultDirExists, dirWritable = defaultDirWritable } = {}) {
   const registry = new Map() // transferId -> slot (download-start.js makeSlot)
   // The marker is the user's intent — it outranks every automatic resume — and its hash lets a
   // later discard still tell the holder we stopped.
   const pausedHashes = createPausedHolders({ notifyStopped: (hash) => getOverlay()?.notifyTransferStopped(hash) })
-  // transferId -> ErrorCode for a terminal failure whose durable write FAILED. The row is the only
-  // thing that keeps a checksum / disk-full / dest-unavailable row out of the next re-drive; when
-  // it cannot be written, this keeps the verdict for the life of the process. Cleared by the same
-  // three things that clear a durable errorCode: the user's Resume click, a discard, and a restart
-  // on republished content.
+  // transferId -> ErrorCode for a terminal failure (isTerminalFault) whose durable write FAILED.
+  // The row is the only thing that keeps a terminal row out of the next re-drive; when it cannot
+  // be written, this keeps the verdict for the life of the process. Cleared by the same three
+  // things that clear a durable errorCode: the user's Resume click, a discard, and a restart on
+  // republished content.
   const terminalCodes = new Map()
 
   const ownerOnline = (pk) => (channel.isOwnerOnline ?? isOwnerOnline)(pk)
@@ -100,6 +115,7 @@ export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentT
     const dir = path.dirname(job.finalPath)
     return {
       dirExists: () => dirExists(dir),
+      dirWritable: () => dirWritable(dir),
       freeBytes: () => freeBytes(dir),
       allocatedBytes: () => partialAllocatedBytes(job.finalPath),
     }
@@ -158,8 +174,12 @@ export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentT
     registry, pausedHashes, channel, log, hasOverlay, ownerOnline, destProbeFor,
     pauseReasonFor, recordTerminal, failTerminal, runFetch: settle.run,
   })
+  // A terminal verdict the user has since acted on: a folder that refused writes and takes one
+  // now. Fixing the folder is the action a permission fault waits for, so the next reconnect
+  // re-drives the row instead of leaving it for a Retry.
+  const faultCleared = (code, row) => code === CODES.TRANSFER_PERMISSION && !!row.finalPath && dirWritable(path.dirname(row.finalPath))
   const reconcile = createReconcile({
-    registry, pausedHashes, terminalCodes, retries, channel, log, hasOverlay, start: starter.start, cancelByKey, discardPartial,
+    registry, pausedHashes, terminalCodes, retries, channel, log, hasOverlay, start: starter.start, cancelByKey, discardPartial, faultCleared,
   })
 
   // The owner re-published this source (advertise with a null hash → hash → setMaterializedHash)

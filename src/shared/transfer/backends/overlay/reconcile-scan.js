@@ -15,7 +15,7 @@ import { republishDecision } from '../../supersede-decision.js'
 import { isTerminalFault } from './fetch-policy.js'
 import { makeSingleFlightScan } from './single-flight-scan.js'
 
-export function createReconcile({ registry, pausedHashes, terminalCodes, retries, channel, log, hasOverlay, start, cancelByKey, discardPartial }) {
+export function createReconcile({ registry, pausedHashes, terminalCodes, retries, channel, log, hasOverlay, start, cancelByKey, discardPartial, faultCleared }) {
   async function runReconcile(ownerKey, spaceId, deep) {
     if (!hasOverlay()) return
     for (const row of await listPendingForSpace(spaceId)) {
@@ -23,7 +23,7 @@ export function createReconcile({ registry, pausedHashes, terminalCodes, retries
       const transferId = channel.transferIdForRow(spaceId, row)
       if (registry.has(transferId)) continue // active → active-transfers.js owns supersede + removal
       const errorCode = row.errorCode ?? terminalCodes.get(transferId)
-      const suppressed = pausedHashes.has(transferId) || isTerminalFault(errorCode)
+      const suppressed = pausedHashes.has(transferId) || (isTerminalFault(errorCode) && !faultCleared(errorCode, row))
       if (suppressed && !deep) continue
       if (await clearIfLanded(spaceId, row)) continue
       await reconcileRow(spaceId, row, transferId, suppressed)

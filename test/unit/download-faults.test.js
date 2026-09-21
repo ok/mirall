@@ -4,7 +4,7 @@ import { CODES } from '../../src/shared/contract/errors.js'
 import { FREE_SPACE_HEADROOM } from '../../src/shared/transfer/free-space.js'
 
 const GB = 1024 ** 3
-const dest = (over = {}) => ({ dirExists: () => true, freeBytes: () => 10 * GB, allocatedBytes: () => 0, ...over })
+const dest = (over = {}) => ({ dirExists: () => true, dirWritable: () => false, freeBytes: () => 10 * GB, allocatedBytes: () => 0, ...over })
 const errno = (code) => Object.assign(new Error(code), { code })
 
 test('preflight refuses a gone folder before it asks about space', (t) => {
@@ -44,4 +44,17 @@ test('a full disk classifies specifically and a network fault stays the generic 
   t.is(terminalFault({ code: 'ENOSPC', cause: errno('ENOSPC') }, dest()), CODES.TRANSFER_DISK_FULL)
   t.is(terminalFault({ code: 'fetch-failed', cause: new Error('socket closed') }, dest()), CODES.DOWNLOAD_FAILED)
   t.is(terminalFault({ code: 'x', cause: new Error('block not available') }, dest()), CODES.TRANSFER_REMOVED)
+})
+
+test('REGRESSION (FIX-379: a read-only volume with the folder present is a permission fault)', (t) => {
+  const erofs = { code: 'EROFS', cause: errno('EROFS') }
+  t.is(terminalFault(erofs, dest()), CODES.TRANSFER_PERMISSION, 'not the generic DOWNLOAD_FAILED')
+  t.is(terminalFault(erofs, dest({ dirExists: () => false })), CODES.TRANSFER_DEST_UNAVAILABLE, 'a gone folder still wins')
+})
+
+test('a permission errno from a folder that still takes a write is the retryable failure', (t) => {
+  const eperm = { code: 'EPERM', cause: errno('EPERM') }
+  t.is(terminalFault(eperm, dest({ dirWritable: () => true })), CODES.DOWNLOAD_FAILED,
+    'a file another program held for a moment, not a read-only folder')
+  t.is(terminalFault(eperm, dest()), CODES.TRANSFER_PERMISSION, 'a folder that refuses the probe is the permission fault')
 })

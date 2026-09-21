@@ -88,3 +88,19 @@ test('classifyLocalIoFault returns null for anything it cannot name', (t) => {
   t.is(classifyLocalIoFault(null), null)
   t.is(classifyLocalIoFault(undefined), null)
 })
+
+// REGRESSION (FIX-379: a read-only volume on the download path classified as a network fault, so it
+// was reported as "Transfer failed" and retried on every reconnect.)
+test('REGRESSION (FIX-379: classifyTransferError reads the same errno table as the mounts)', (t) => {
+  t.is(classifyTransferError({ code: 'EROFS' }), CODES.TRANSFER_PERMISSION, 'a read-only volume is a permission fault here too')
+  for (const code of ['ENOSPC', 'EACCES', 'EPERM', 'EROFS']) {
+    t.is(classifyTransferError({ code }), classifyLocalIoFault({ code }), `${code}: one answer for both classifiers`)
+  }
+})
+
+test('an errno named after an Object.prototype key is no local fault', (t) => {
+  for (const code of ['constructor', 'toString', 'valueOf', '__proto__']) {
+    t.is(classifyLocalIoFault({ code }), null, code)
+    t.is(classifyTransferError({ code }), CODES.TRANSFER_NETWORK, `${code} falls through to the generic code`)
+  }
+})

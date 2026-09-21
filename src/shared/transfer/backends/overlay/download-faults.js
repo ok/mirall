@@ -1,6 +1,6 @@
 // Which ErrorCode a refused or failed download gets. Pure: the destination is read through a
-// probe the engine builds per job ({ dirExists(), freeBytes(), allocatedBytes() }), so both rules
-// unit-test under Node with a hand-made probe. No bare-* imports.
+// probe the engine builds per job ({ dirExists(), dirWritable(), freeBytes(), allocatedBytes() }),
+// so both rules unit-test under Node with a hand-made probe. No bare-* imports.
 import { CODES } from '../../../contract/errors.js'
 import { classifyTransferError, isLocalDestFault } from '../../../core/errors.js'
 import { shortfall } from '../../free-space.js'
@@ -23,9 +23,14 @@ export function preflightFault(size, dest) {
 // ENOTDIR / EACCES arise from a transient fault and from a folder the user deleted, ejected or
 // replaced with a file — on macOS /Volumes is root-owned, so a fetch into an ejected volume fails
 // EACCES and would otherwise send the user to check permissions that are fine.
+//
+// A permission errno is believed only when the folder itself refuses a write: the same errno comes
+// from a file another program holds for a moment (an antivirus scan during the final rename), which
+// a later attempt clears, so that stays the generic, retryable failure.
 export function terminalFault(result, dest) {
   if (result.code === 'EHASHMISMATCH') return CODES.TRANSFER_CHECKSUM
   if (isLocalDestFault(result.cause?.code) && !dest.dirExists()) return CODES.TRANSFER_DEST_UNAVAILABLE
   const classified = classifyTransferError(result.cause)
+  if (classified === CODES.TRANSFER_PERMISSION && dest.dirWritable()) return CODES.DOWNLOAD_FAILED
   return classified === CODES.TRANSFER_NETWORK ? CODES.DOWNLOAD_FAILED : classified
 }

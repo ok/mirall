@@ -145,6 +145,7 @@ export function createFetchSettle({
     if (code === CODES.TRANSFER_CHECKSUM) log.warn('overlay integrity failure — holder served bytes that do not match the content hash:', job.relPath)
     else if (code === CODES.TRANSFER_DISK_FULL) log.warn('overlay fetch failed — disk full:', job.relPath)
     else if (code === CODES.TRANSFER_DEST_UNAVAILABLE) log.warn('overlay fetch failed — download folder unavailable:', path.dirname(job.finalPath))
+    else if (code === CODES.TRANSFER_PERMISSION) log.warn('overlay fetch failed — download folder not writable:', path.dirname(job.finalPath))
     else log.debug('overlay fetch failed:', job.relPath, '-', result.code)
     await recordTerminal(job, code)
     failTerminal(job, code)
