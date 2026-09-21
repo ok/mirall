@@ -7,13 +7,10 @@
 // An integrity failure is promoted out of the generic failure kind because it is a security
 // signal, not a network one: the bytes a holder served did not match the hash they advertised.
 import path from 'bare-path'
-import { record } from './audit-log.js'
+import { recordResolved } from './audit-log.js'
 import { getSpace } from '../spaces/space.js'
-import { createLogger } from '../core/logger.js'
 import { OUTCOME, TARGET_KIND } from '../contract/audit-kinds.js'
 import { selfActor, spaceRef, targetRef } from './audit-record.js'
-
-const log = createLogger('transfer-audit')
 
 // Every recordTransferOutcome() still in flight, awaited at shutdown so a download that lands
 // during teardown still records: the write is a spaces-bee read then an audit-bee write in a
@@ -32,8 +29,9 @@ function kindFor(outcome, errorCode) {
 
 export function recordTransferOutcome(job, outcome, errorCode) {
   const fileName = path.basename(job.relPath || job.path || '')
-  const write = getSpace(job.spaceId).then((space) => {
-    record(kindFor(outcome, errorCode), {
+  const write = recordResolved(kindFor(outcome, errorCode), async () => {
+    const space = await getSpace(job.spaceId)
+    return {
       actor: selfActor(),
       space: spaceRef(job.spaceId, space?.name ?? null),
       target: targetRef(TARGET_KIND.FILE, job.path ?? null, fileName || null),
@@ -47,8 +45,8 @@ export function recordTransferOutcome(job, outcome, errorCode) {
       },
       outcome: outcome === OUTCOME.OK ? OUTCOME.OK : OUTCOME.ERROR,
       code: errorCode || null,
-    })
-  }).catch((err) => log.debug('transfer audit failed:', err.message))
+    }
+  })
   pending.add(write)
   write.finally(() => pending.delete(write))
 }

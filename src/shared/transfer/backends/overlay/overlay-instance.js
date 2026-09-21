@@ -7,7 +7,7 @@
 import { HyperOverlayV2 } from './vendor/overlay-v2.js'
 import { serveIndex } from './overlay-serve-index.js'
 import { makeServeAuthorizer, SECURITY_DENIALS } from './overlay-authorize.js'
-import { record } from '../../../audit/audit-log.js'
+import { recordResolved } from '../../../audit/audit-log.js'
 import { getSpace } from '../../../spaces/space.js'
 import { onServeStart as ledgerServeStart, onChunkServed as ledgerChunkServed, onServeEnd as ledgerServeEnd, onServeControl as ledgerServeControl, onServeBaseline as ledgerServeBaseline } from '../../serve-ledger.js'
 import { getStore, getStoragePath, hasMasterSecret, overlayIndexEncryptionKey } from '../../../core/store.js'
@@ -192,18 +192,20 @@ function recordServeDenial(reason, { from, contentHash }) {
     for (const [k, ts] of deniedRecently) if (now - ts >= DENIAL_WINDOW_MS) deniedRecently.delete(k)
   }
 
-  const spaceId = [...serveIndex.spacesFor(contentHash)][0] || null
-  const refs = serveIndex.refsFor ? serveIndex.refsFor(contentHash) : []
-  const relPath = refs[0]?.relPath || null
-  Promise.resolve(spaceId ? getSpace(spaceId) : null).then((space) => {
-    record('security.serve_denied', {
+  const requester = from ? from.slice(0, 12) : null
+  recordResolved('security.serve_denied', async () => {
+    const spaceId = [...serveIndex.spacesFor(contentHash)][0] || null
+    const refs = serveIndex.refsFor ? serveIndex.refsFor(contentHash) : []
+    const relPath = refs[0]?.relPath || null
+    const space = spaceId ? await getSpace(spaceId) : null
+    return {
       actor: peerActor(from || null, (space?.members || []).find((m) => m.publicKey === from)?.displayName || null),
       space: space ? { id: space.spaceId, name: space.name ?? null } : null,
       target: targetRef(TARGET_KIND.FILE, contentHash || null, relPath ? relPath.split('/').pop() : null),
-      subject: { reason, requester: from ? from.slice(0, 12) : null },
+      subject: { reason, requester },
       outcome: OUTCOME.DENIED,
-    })
-  }).catch(() => {})
+    }
+  }, { context: { reason, requester } })
 }
 
 export function attachOverlay(mux, socket) {

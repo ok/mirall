@@ -434,7 +434,7 @@ export async function forgetUnreferencedPeerCores(removedMembers) {
         await purgeCoreDk(store, dk)
         purged++
       } catch (err) {
-        log.debug('peer core purge skip:', err.message)
+        log.warn('peer core purge failed:', dk.slice(0, 12), err.message)
       }
     }
   }

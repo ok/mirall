@@ -11,6 +11,7 @@ const { MAIN_REQUEST } = require('../shared/contract/main-requests.js')
 // retrying an unrecognised command would otherwise write one warning per frame into the fixed-size
 // log ring and evict the diagnostics around it; the cap covers a stream of DISTINCT unknowns.
 const UNKNOWN_WARN_CAP = 16
+const FAILURE_WARN_CAP = 16
 
 function createMainRequestRouter({ ownedFolderWatchers, looseFileWatchers, setDownloadRoots, sendToWorker }) {
   // Null-prototype, because `command` comes off the worker pipe: with a plain object literal
@@ -73,9 +74,28 @@ function createMainRequestRouter({ ownedFolderWatchers, looseFileWatchers, setDo
     console.warn('[main-request] unknown command:', command, '- nothing was done')
   }
 
+  const failed = new Set()
+  let failureCapReported = false
+
+  // A recognised command that threw is as silent as an unknown one unless it is said here. Once per
+  // (command, code): a worker re-arming a watcher for every loose file fails each one the same way.
+  function reportFailure(command, err) {
+    const key = command + ':' + (err?.code || err?.name || 'Error')
+    if (failed.has(key)) return
+    if (failed.size >= FAILURE_WARN_CAP) {
+      if (failureCapReported) return
+      failureCapReported = true
+      console.warn('[main-request] too many distinct failures - no longer logging them')
+      return
+    }
+    failed.add(key)
+    console.warn('[main-request] failed:', command, '-', err?.message, '- repeats with this code are not logged')
+  }
+
   return {
     // The set main actually serves — read by the parity test, not by production code.
     commands: Object.freeze(Object.keys(handlers)),
+    reportFailure,
 
     async handle(command, args, worker) {
       const fn = handlers[command]

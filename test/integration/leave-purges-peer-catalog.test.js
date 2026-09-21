@@ -6,6 +6,7 @@ import { getSpace, upsertMember } from '../../src/shared/spaces/space.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { purgeSpace } from '../../src/shared/spaces/leave-records.js'
 import { forgetUnreferencedPeerCores } from '../../src/shared/storage/leftover.js'
+import { tagged } from '../helpers/capture-console.js'
 
 async function coreInStore(dkHex) {
   for await (const dk of getStore().list()) {
@@ -71,4 +72,30 @@ test('a member we still share another space with keeps their cores', async (t) =
   t.absent(await coreInStore(catalogLeft.dkHex), 'the left space’s catalog is purged')
   t.ok(await coreInStore(profile.dkHex), 'the profile survives — they are still a member elsewhere')
   t.ok(await coreInStore(catalogKept.dkHex), 'and so does the catalog they still advertise')
+})
+
+// REGRESSION (FIX-OBS-2: a peer core the leave chose to purge and could not was logged at debug, so
+// a half-finished leave left nothing in the diagnostics bundle.)
+test('REGRESSION (FIX-OBS-2): a peer core purge that fails is warned, and the leave carries on', async (t) => {
+  await freshPeer(t)
+  const space = await createSpace('Aurora')
+  const profile = await plantCore('peer-profile-sim', 'displayName', 'Ghost')
+  await upsertMember(space.spaceId, { publicKey: profile.keyHex })
+  const member = await memberOf(space.spaceId, profile.keyHex)
+  await purgeSpace(space.spaceId)
+
+  const lines = tagged(t, '[leftover]', { levels: ['warn'], join: true })
+  const storage = getStore().storage
+  const resumeCore = storage.resumeCore
+  storage.resumeCore = async () => { throw new Error('db write refused') }
+  t.teardown(() => { storage.resumeCore = resumeCore })
+
+  const { purged } = await forgetUnreferencedPeerCores([member])
+
+  t.is(purged, 0, 'nothing was purged')
+  const line = lines.find((l) => l.includes('peer core purge failed'))
+  t.ok(line, 'the failure reached warn')
+  t.ok(line?.includes(profile.dkHex.slice(0, 12)), 'names the core by its short discovery key')
+  t.ok(line?.includes('db write refused'), 'carries the cause')
+  t.absent(line?.includes(profile.keyHex), 'never the full key')
 })

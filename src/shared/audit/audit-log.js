@@ -5,7 +5,7 @@
 // Imports core/ and its audit/ siblings only: the instrumentation call sites live across spaces/,
 // transfer/ and folders/, so an import back into those closes a cycle.
 import { createLocalBee } from '../core/store.js'
-import { createLogger } from '../core/logger.js'
+import { createLogger, fields } from '../core/logger.js'
 import { buildRecord, selfActor } from './audit-record.js'
 import { DEFAULT_MAX_ENTRIES, DEFAULT_RETENTION_DAYS, normalizeConfig } from './audit-retention.js'
 import { createRateGuard } from './audit-rate-guard.js'
@@ -18,6 +18,7 @@ const AUDIT_BEE_NAME = 'audit-log'
 const SUPPRESSED_KIND = 'audit.suppressed'
 const RATE_WINDOW_MS = 60000
 const RATE_MAX_PER_WINDOW = 120
+const FAILURE_WARN_WINDOW_MS = 600000
 
 let bee = null
 let nextSeq = 0
@@ -39,7 +40,23 @@ const rateGuard = createRateGuard({
   onSuppressed: (kind, count) => record(SUPPRESSED_KIND, { subject: { kind, count, windowMs: RATE_WINDOW_MS } }),
 })
 
+// A failing store fails every row the same way, so a lost row is reported once per (stage, kind,
+// code) per window, and the repeats as one count when the next window opens.
+const failureWarnings = createRateGuard({
+  windowMs: FAILURE_WARN_WINDOW_MS,
+  max: 1,
+  onSuppressed: (key, count) => log.warn('audit rows lost', fields({ key, repeats: count, windowMs: FAILURE_WARN_WINDOW_MS })),
+})
+
+// Context carries only short, non-secret identifiers: this line reaches the diagnostics bundle.
+function warnLostRow(stage, kind, err, context = null) {
+  const code = err?.code || err?.name || 'Error'
+  if (!failureWarnings.admit(stage + ':' + kind + ':' + code)) return
+  log.warn('audit row lost', fields({ ...(context || {}), stage, kind, code, msg: err?.message }))
+}
+
 export async function initAuditLog({ installId: id = null } = {}) {
+  failureWarnings.reset()
   bee = createLocalBee(AUDIT_BEE_NAME)
   await bee.ready()
   installId = id
@@ -94,7 +111,7 @@ export function oldestSeq() {
 // Returns whether the row was ADMITTED (log open, enabled, within the rate budget). The
 // write itself stays fire-and-forget, but callers that mirror "we recorded this" into
 // durable state need to know when nothing was recorded at all.
-export function record(kind, fields = {}) {
+export function record(kind, row = {}) {
   if (!bee || !config.enabled) return false
   if (kind !== SUPPRESSED_KIND && !rateGuard.admit(kind)) return false
   // The handle is captured HERE, not read again inside append: record() returning true is a
@@ -104,9 +121,24 @@ export function record(kind, fields = {}) {
   // closes, so every row already admitted lands.
   const target = bee
   writeChain = writeChain
-    .then(() => append(kind, fields, target))
-    .catch((err) => log.warn('write failed:', kind, err.message))
+    .then(() => append(kind, row, target))
+    .catch((err) => warnLostRow('write', kind, err))
   return true
+}
+
+// For a row whose fields need a read first, such as a space name snapshotted into it. The read is
+// part of the audit write, so its failure is a lost row, reported like a write failure and never
+// passed to the caller: the returned promise always resolves, so a shutdown drain can hold it. A
+// resolver returning null records nothing.
+export function recordResolved(kind, resolve, { context = null } = {}) {
+  return Promise.resolve()
+    .then(resolve)
+    .then((row) => { if (row) record(kind, row) })
+    .catch((err) => {
+      // A closed or disabled log would have written nothing, so there is no row to lose.
+      if (!bee || !config.enabled) return
+      warnLostRow('resolve', kind, err, context)
+    })
 }
 
 function withSelfIdentity(actor) {
