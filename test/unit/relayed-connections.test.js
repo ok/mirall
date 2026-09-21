@@ -211,7 +211,35 @@ test('the stamp is fixed at pairing and survives a mode change', (t) => {
 test('the digest carries the stamp', (t) => {
   const { track } = harness(t, { mode: 'always' })
   track(socketOf({ relayKey: OWN }))
-  t.ok(snapshotRelayedConnections().digest.includes(':own:always:'))
+  t.ok(snapshotRelayedConnections().digest.includes(':own:always:0:'))
+})
+
+test('replaced is read against the configured key at snapshot time', (t) => {
+  const { state, track } = harness(t)
+  track(socketOf({ relayKey: OWN }))
+  t.is(snapshotRelayedConnections().connections[0].replaced, false)
+  state.own = { key: OTHER, label: 'New relay' }
+  t.is(snapshotRelayedConnections().connections[0].replaced, true)
+  t.is(snapshotRelayedConnections().connections[0].via, 'own', 'the provenance does not move')
+  state.own = { key: null, label: null }
+  t.is(snapshotRelayedConnections().connections[0].replaced, true, 'no slot at all is replaced too')
+  state.own = { key: OWN, label: 'Hetzner box' }
+  t.is(snapshotRelayedConnections().connections[0].replaced, false, 'swapping back clears it')
+})
+
+test('an adopted connection is never replaced', (t) => {
+  const { state, track } = harness(t)
+  track(socketOf({ relayKey: OTHER }))
+  state.own = { key: b4a.alloc(32, 3), label: null }
+  t.is(snapshotRelayedConnections().connections[0].replaced, false)
+})
+
+test('the digest changes when a slot swap flips replaced', (t) => {
+  const { state, track } = harness(t)
+  track(socketOf({ relayKey: OWN }))
+  const before = snapshotRelayedConnections().digest
+  state.own = { key: OTHER, label: null }
+  t.not(snapshotRelayedConnections().digest, before)
 })
 
 test('reset restores the default mode accessor', (t) => {

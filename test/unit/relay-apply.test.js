@@ -3,8 +3,8 @@ import { relayMismatch } from '../../src/shared/contract/relay-apply.js'
 import { relayApplyNotice } from '../../src/renderer/model/relay-apply.js'
 
 const facts = (over = {}) => ({ connections: [], direct: { control: 0, content: 0 }, ...over })
-const own = (relayMode = 'always') => ({ via: 'own', relayMode })
-const adopted = (relayMode = 'always') => ({ via: 'adopted', relayMode })
+const own = (relayMode = 'always', replaced = false) => ({ via: 'own', relayMode, replaced })
+const adopted = (relayMode = 'always') => ({ via: 'adopted', relayMode, replaced: false })
 
 test('off with a connection still on OUR relay is a mismatch', (t) => {
   t.is(relayMismatch('off', facts({ connections: [own()] })), 'stale-relayed')
@@ -54,6 +54,29 @@ test('auto does not flag a connection stamped off', (t) => {
   t.is(relayMismatch('auto', facts({ connections: [own('off')] })), null)
 })
 
+// REGRESSION (FIX-RELAY-SWAP: replacing an open relay kept the mode, so neither `always` nor `auto`
+// saw a mismatch and every connection built through the old key stayed on it.)
+test('REGRESSION (FIX-RELAY-SWAP: a connection through a replaced relay is a mismatch under always and auto)', (t) => {
+  t.is(relayMismatch('always', facts({ connections: [own('always', true)] })), 'replaced-relay')
+  t.is(relayMismatch('auto', facts({ connections: [own('auto', true)] })), 'replaced-relay')
+})
+
+test('a connection through the current relay is not replaced', (t) => {
+  t.is(relayMismatch('always', facts({ connections: [own('always', false)] })), null)
+  t.is(relayMismatch('auto', facts({ connections: [own('auto', false)] })), null)
+})
+
+// When two verdicts apply the order only picks the copy: one reconnect fixes both.
+test('off, stale-direct and stale-relayed outrank replaced', (t) => {
+  t.is(relayMismatch('off', facts({ connections: [own('always', true)] })), 'stale-relayed')
+  t.is(relayMismatch('always', facts({ connections: [own('always', true)], direct: { control: 1, content: 0 } })), 'stale-direct')
+  t.is(relayMismatch('auto', facts({ connections: [own('always', true)] })), 'stale-relayed')
+})
+
+test('an adopted relay is never replaced', (t) => {
+  t.is(relayMismatch('always', facts({ connections: [adopted('always')] })), null)
+})
+
 test('no facts yet is not a mismatch', (t) => {
   t.is(relayMismatch('always', null), null)
   t.is(relayMismatch('off', undefined), null)
@@ -83,4 +106,10 @@ test('REGRESSION (FIX-411: an armed always→auto change raises the notice until
   t.is(relayApplyNotice({ ...stale, armed: false }), null, 'nothing until the worker says it could not apply it')
   const cycled = { ...stale, relay: facts({ connections: [own('auto')] }) }
   t.is(relayApplyNotice({ ...cycled, armed: true }), null, 'reconnected connections carry auto and clear it')
+})
+
+test('the notice follows an armed swap', (t) => {
+  const state = { mode: 'always', relay: facts({ connections: [own('always', true)] }), pendingIdentity: false }
+  t.is(relayApplyNotice({ ...state, armed: true }), 'replaced-relay')
+  t.is(relayApplyNotice({ ...state, armed: true, pendingIdentity: true }), 'restart', 'a pending identity still outranks it')
 })

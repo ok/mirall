@@ -820,7 +820,8 @@
       "notice": {
         "restart": "Your invite is saved. It takes effect when Mirall reconnects — until then this relay will not accept you.",
         "stale-relayed": "Connections opened before you changed this are still going through your relay. Reconnect to move them off it.",
-        "stale-direct": "Connections opened before you turned this on are still direct. Reconnect to move them onto the relay."
+        "stale-direct": "Connections opened before you turned this on are still direct. Reconnect to move them onto the relay.",
+        "replaced-relay": "Connections opened before you replaced this relay still go through the old one. Reconnect to move them off it."
       },
       "removeConfirmTitle": "Remove {{name}}?",
       "removeConfirmBody": "Your invite is stored only on this device. To use this relay again you will need a new invite from whoever runs it.",

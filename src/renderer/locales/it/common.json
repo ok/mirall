@@ -794,7 +794,8 @@
       "notice": {
         "restart": "Il tuo invito è salvato. Avrà effetto quando Mirall si riconnette: fino ad allora questo relay non ti accetterà.",
         "stale-relayed": "Le connessioni aperte prima di questa modifica passano ancora dal tuo relay. Riconnetti per spostarle.",
-        "stale-direct": "Le connessioni aperte prima dell'attivazione sono ancora dirette. Riconnetti per portarle sul relay."
+        "stale-direct": "Le connessioni aperte prima dell'attivazione sono ancora dirette. Riconnetti per portarle sul relay.",
+        "replaced-relay": "Le connessioni aperte prima della sostituzione del relay passano ancora dal precedente. Riconnetti per spostarle."
       },
       "removeConfirmTitle": "Rimuovere {{name}}?",
       "removeConfirmBody": "Il tuo invito è salvato solo su questo dispositivo. Per usare di nuovo questo relay ti servirà un nuovo invito da chi lo gestisce.",

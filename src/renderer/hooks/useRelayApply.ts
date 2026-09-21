@@ -3,16 +3,14 @@
 // its reply rather than from the change — and gated on live status, so it clears when the peers
 // cycle by themselves.
 import { useCallback, useState } from 'react'
+import type { RelayApplyResult as WorkerRelayApplyResult } from '../../shared/contract/responses.js'
 import { request } from '../ipc/ipc.js'
 import { relayApplyNotice, type RelayApplyNotice } from '../model/relay-apply.js'
 import type { RelayMode } from '../platform/config-client.js'
 import { isApplyArmed, setApplyArmed } from '../platform/relay-session.js'
 import { useConnectionStatus } from './useConnectionStatus.js'
 
-export interface RelayApplyResult {
-  mismatch: 'stale-relayed' | 'stale-direct' | null
-  reconnected: boolean
-}
+export type RelayApplyResult = Pick<WorkerRelayApplyResult, 'mismatch' | 'reconnected'>
 
 interface UseRelayApply {
   notice: RelayApplyNotice | null

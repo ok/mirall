@@ -131,6 +131,7 @@ export interface RelayedConnection {
   via: 'own' | 'adopted'
   relayKey: string
   relayMode: RelayMode
+  replaced: boolean
   since: number
 }
 

@@ -10,7 +10,8 @@ import { ContentSwarm } from '../../src/shared/network/content-swarm.js'
 export async function bootSwarms(t, { relayMode = 'off', relay = null, relaySeedHex = null } = {}) {
   const bootstrap = await localTestnet(t)
   setRuntimeConfig({ storage: null, dhtBootstrap: bootstrap, relayMode, relay })
-  const ipc = createFakeIpc().ipc
+  const fake = createFakeIpc()
+  const ipc = fake.ipc
   const swarm = new Swarm('swarm', { ipc, membershipControl: async () => {}, overlayBackend: stubOverlayBackend, stalledOwners: () => [], relaySeedHex })
   const content = new ContentSwarm('content-swarm', { swarm, overlayBackend: stubOverlayBackend })
   t.teardown(async () => {
@@ -19,5 +20,5 @@ export async function bootSwarms(t, { relayMode = 'off', relay = null, relaySeed
   })
   await swarm.ready()
   await content.ready()
-  return { swarm, content, bootstrap, ipc }
+  return { swarm, content, bootstrap, ipc, ipcEvents: fake.events }
 }

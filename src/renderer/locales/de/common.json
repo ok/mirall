@@ -794,7 +794,8 @@
       "notice": {
         "restart": "Deine Einladung ist gespeichert. Sie wird wirksam, sobald Mirall sich neu verbindet — bis dahin nimmt dich dieses Relay nicht an.",
         "stale-relayed": "Verbindungen, die vor dieser Änderung entstanden sind, laufen weiterhin über dein Relay. Verbinde neu, um sie davon zu lösen.",
-        "stale-direct": "Verbindungen, die vor dem Einschalten entstanden sind, sind weiterhin direkt. Verbinde neu, um sie über das Relay zu leiten."
+        "stale-direct": "Verbindungen, die vor dem Einschalten entstanden sind, sind weiterhin direkt. Verbinde neu, um sie über das Relay zu leiten.",
+        "replaced-relay": "Verbindungen, die vor dem Austausch des Relays entstanden sind, laufen weiterhin über das alte. Verbinde neu, um sie davon zu lösen."
       },
       "removeConfirmTitle": "{{name}} entfernen?",
       "removeConfirmBody": "Deine Einladung liegt nur auf diesem Gerät. Um dieses Relay wieder zu nutzen, brauchst du eine neue Einladung von dem, der es betreibt.",

@@ -794,7 +794,8 @@
       "notice": {
         "restart": "Su invitación está guardada. Surtirá efecto cuando Mirall vuelva a conectarse; hasta entonces este relay no le aceptará.",
         "stale-relayed": "Las conexiones abiertas antes de este cambio siguen pasando por su relay. Reconecte para sacarlas de él.",
-        "stale-direct": "Las conexiones abiertas antes de activarlo siguen siendo directas. Reconecte para llevarlas al relay."
+        "stale-direct": "Las conexiones abiertas antes de activarlo siguen siendo directas. Reconecte para llevarlas al relay.",
+        "replaced-relay": "Las conexiones abiertas antes de sustituir el relay siguen pasando por el anterior. Reconecte para sacarlas de él."
       },
       "removeConfirmTitle": "¿Quitar {{name}}?",
       "removeConfirmBody": "Su invitación solo está en este dispositivo. Para volver a usar este relay necesitará una invitación nueva de quien lo gestiona.",

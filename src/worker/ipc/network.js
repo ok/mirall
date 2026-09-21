@@ -3,7 +3,7 @@
 
 import { setRelayConfig, getUpgradeKey } from '../../shared/core/runtime-config.js'
 import { relayMismatch } from '../../shared/contract/relay-apply.js'
-import { getSwarmStatus } from '../../shared/network/network-status.js'
+import { getSwarmStatus, scheduleStatusEmit } from '../../shared/network/network-status.js'
 import { reconnectAll } from '../../shared/network/space-topics.js'
 import { probeCanary } from '../../shared/network/canary-probe.js'
 import { setBrowserOnlineHint } from '../../shared/network/connectivity.js'
@@ -24,6 +24,8 @@ export function registerNetwork(ipc, { applyRelayConfig }) {
   ipc.handle('network:set-relay', async (msg) => {
     setRelayConfig(msg?.mode, msg?.relay)
     const applied = applyRelayConfig()
+    // A connection's `replaced` flag follows the slot, and no connection event reports a slot change.
+    scheduleStatusEmit()
     const mismatch = relayMismatch(msg?.mode, snapshotRelayedConnections())
     if (!mismatch || msg?.deferApply) return { ok: true, ...applied, mismatch, reconnected: false }
     if (await transfersMoving()) return { ok: true, ...applied, mismatch, reconnected: false }
