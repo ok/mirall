@@ -252,7 +252,12 @@ function getWorker(specifier) {
       let msg
       try { msg = JSON.parse(line) } catch { continue }
       if (msg && msg.type === MAIN_REQUEST_FRAME) {
-        mainRequests.handle(msg.command, msg.args || {}, worker).catch((err) => mainRequests.reportFailure(msg.command, err))
+        // Every failure in debug; otherwise rate-limited, and silent during a quit, where a request
+        // racing the watcher teardown is expected.
+        mainRequests.handle(msg.command, msg.args || {}, worker).catch((err) => {
+          if (isDebug()) console.error('main-request failed:', msg.command, err.message)
+          else if (!isQuitting()) mainRequests.reportFailure(msg.command, err)
+        })
       }
     }
   })

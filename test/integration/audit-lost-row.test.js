@@ -101,3 +101,49 @@ test('a write-stage failure goes through the same limiter', async (t) => {
   await flushAudit()
   t.is(lines.filter((l) => l.includes('stage=write')).length, 1, 'twenty failed writes, one line')
 })
+
+test('recordResolved answers whether the row was admitted', async (t) => {
+  await boot(t)
+  t.is(await recordResolved('space.created', async () => row('yes')), true, 'a landed row')
+  t.is(await recordResolved('space.created', async () => null), false, 'a skipped row')
+  t.is(await recordResolved('space.created', failing('EIO')), false, 'a lost row')
+  await setAuditConfig({ enabled: false })
+  let read = false
+  t.is(await recordResolved('space.created', async () => { read = true; return row('no') }), false, 'a disabled log')
+  t.absent(read, 'and a disabled log does not read at all')
+})
+
+test('closing the log waits for a read already in flight, so its row lands', async (t) => {
+  await boot(t)
+  let release
+  const gate = new Promise((resolve) => { release = resolve })
+  const pending = recordResolved('space.created', async () => { await gate; return row('late') })
+  const closing = closeAuditLog()
+  release()
+  await closing
+  t.is(await pending, true, 'the row was admitted before the log closed')
+  await initAuditLog({ installId: 'install-under-test' })
+  t.teardown(() => closeAuditLog())
+  const { entries } = await queryAudit({})
+  t.ok(entries.some((e) => e.target?.id === 'late'), 'and it is in the log')
+})
+
+test('closing the log reports the repeats still counted', async (t) => {
+  await boot(t)
+  const lines = tagged(t, '[audit]', { levels: ['warn'], join: true })
+  for (let i = 0; i < 5; i++) await recordResolved('transfer.completed', failing('SESSION_CLOSED'))
+  await closeAuditLog()
+  t.ok(lines.some((l) => l.includes('audit rows lost') && l.includes('repeats=4')), 'the four suppressed repeats are said at close')
+})
+
+test('a write-stage failure carries the context of the row it lost', async (t) => {
+  await boot(t)
+  const lines = tagged(t, '[audit]', { levels: ['warn'], join: true })
+  const bee = auditBee()
+  const batch = bee.batch
+  bee.batch = () => { throw Object.assign(new Error('disk full'), { code: 'EIO' }) }
+  t.teardown(() => { bee.batch = batch })
+  await recordResolved('security.serve_denied', async () => row('x'), { context: { reason: 'not-a-member' } })
+  await flushAudit()
+  t.ok(lines.some((l) => l.includes('stage=write') && l.includes('reason=not-a-member')))
+})

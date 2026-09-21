@@ -46,7 +46,7 @@ export function recordTransferOutcome(job, outcome, errorCode) {
       outcome: outcome === OUTCOME.OK ? OUTCOME.OK : OUTCOME.ERROR,
       code: errorCode || null,
     }
-  })
+  }, { context: { space: job.spaceId?.slice(0, 12) } })
   pending.add(write)
   write.finally(() => pending.delete(write))
 }

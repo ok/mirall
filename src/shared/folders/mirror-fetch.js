@@ -82,7 +82,8 @@ const attempts = createAttemptBudget()
 // The ONE thing a mirror audits. contract/audit-kinds.js deliberately records no per-file folder
 // sync, and this is not sync bookkeeping: it is a claim about what a member of this space served.
 export function recordMirrorIntegrityFailure(mount, share, entry) {
-  if (!integritySeen.admit(mirrorKey(mount.spaceId, mount.shareId), entry.relPath, entry.contentHash)) return
+  const mountKey = mirrorKey(mount.spaceId, mount.shareId)
+  if (!integritySeen.admit(mountKey, entry.relPath, entry.contentHash)) return
   recordResolved('security.integrity_failure', async () => {
     const space = await getSpace(mount.spaceId)
     return {
@@ -98,6 +99,8 @@ export function recordMirrorIntegrityFailure(mount, share, entry) {
       outcome: OUTCOME.ERROR,
       code: 'TRANSFER_CHECKSUM',
     }
+  }, { context: { share: mount.shareId?.slice(0, 12) } }).then((written) => {
+    if (!written) integritySeen.release(mountKey, entry.relPath, entry.contentHash)
   })
 }
 

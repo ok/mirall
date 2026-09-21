@@ -20,5 +20,12 @@ export function createRateGuard({ windowMs, max, now = Date.now, onSuppressed })
     return true
   }
 
-  return { admit, reset: () => buckets.clear() }
+  // Reports every count still pending and forgets them: a burst that stops, or a log that closes,
+  // would otherwise take its count with it.
+  function flush() {
+    for (const [kind, bucket] of buckets) if (bucket.suppressed > 0) onSuppressed(kind, bucket.suppressed)
+    buckets.clear()
+  }
+
+  return { admit, reset: () => buckets.clear(), flush }
 }

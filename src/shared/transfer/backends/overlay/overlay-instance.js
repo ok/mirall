@@ -181,7 +181,8 @@ export async function initOverlay() {
 const DENIAL_WINDOW_MS = 3600000
 const deniedRecently = new Map()
 
-function recordServeDenial(reason, { from, contentHash }) {
+/** @internal */
+export function recordServeDenial(reason, { from, contentHash }) {
   const key = (from || '') + '\0' + (contentHash || '')
   const now = Date.now()
   const last = deniedRecently.get(key)
@@ -193,7 +194,7 @@ function recordServeDenial(reason, { from, contentHash }) {
   }
 
   const requester = from ? from.slice(0, 12) : null
-  recordResolved('security.serve_denied', async () => {
+  return recordResolved('security.serve_denied', async () => {
     const spaceId = [...serveIndex.spacesFor(contentHash)][0] || null
     const refs = serveIndex.refsFor ? serveIndex.refsFor(contentHash) : []
     const relPath = refs[0]?.relPath || null
@@ -205,7 +206,10 @@ function recordServeDenial(reason, { from, contentHash }) {
       subject: { reason, requester },
       outcome: OUTCOME.DENIED,
     }
-  }, { context: { reason, requester } })
+  }, { context: { reason, requester } }).then((written) => {
+    // A row that did not land leaves no dedupe mark, so the next attempt can still record it.
+    if (!written) deniedRecently.delete(key)
+  })
 }
 
 export function attachOverlay(mux, socket) {

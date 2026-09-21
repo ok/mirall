@@ -7,13 +7,40 @@ const { MAIN_REQUEST } = require('../shared/contract/main-requests.js')
 // rename that touches only one process cannot pass main-request-parity.test.js.
 //
 // The `else` matters as much as the table: an unrecognised command must warn, because a silent
-// no-op here is an owned folder that stops re-publishing. Once per command, capped — a worker
-// retrying an unrecognised command would otherwise write one warning per frame into the fixed-size
-// log ring and evict the diagnostics around it; the cap covers a stream of DISTINCT unknowns.
-const UNKNOWN_WARN_CAP = 16
-const FAILURE_WARN_CAP = 16
+// no-op here is an owned folder that stops re-publishing. A recognised command that threw is as
+// silent unless it is said too. Both warn through keyedWarner.
+const WARN_CAP = 16
+const WARN_WINDOW_MS = 600000
 
-function createMainRequestRouter({ ownedFolderWatchers, looseFileWatchers, setDownloadRoots, sendToWorker }) {
+// Once per key per window, over at most WARN_CAP live keys: a worker retrying the same frame would
+// otherwise write one warning per frame into the fixed-size log ring and evict the diagnostics
+// around it, and the cap covers a stream of DISTINCT keys. The window re-arms a key, so a failure
+// that returns hours later is said again after the ring has long evicted the first line.
+function keyedWarner({ overflow, now }) {
+  const lastAt = new Map()
+  let overflowAt = -Infinity
+  return (key, ...line) => {
+    const at = now()
+    const last = lastAt.get(key)
+    if (last !== undefined && at - last < WARN_WINDOW_MS) return
+    if (last === undefined && lastAt.size >= WARN_CAP) {
+      for (const [k, ts] of lastAt) if (at - ts >= WARN_WINDOW_MS) lastAt.delete(k)
+      if (lastAt.size >= WARN_CAP) {
+        if (at - overflowAt >= WARN_WINDOW_MS) {
+          overflowAt = at
+          console.warn(overflow)
+        }
+        return
+      }
+    }
+    lastAt.set(key, at)
+    console.warn(...line)
+  }
+}
+
+const keyPart = (value) => (typeof value === 'string' ? value : typeof value)
+
+function createMainRequestRouter({ ownedFolderWatchers, looseFileWatchers, setDownloadRoots, sendToWorker, now = Date.now }) {
   // Null-prototype, because `command` comes off the worker pipe: with a plain object literal
   // `handlers['toString']` finds Object.prototype's method and the frame resolves as though it had
   // been routed — the silent success this bus exists to remove.
@@ -57,39 +84,20 @@ function createMainRequestRouter({ ownedFolderWatchers, looseFileWatchers, setDo
     },
   })
 
-  const warned = new Set()
-  let capReported = false
+  const warnUnknown = keyedWarner({ overflow: '[main-request] too many distinct unknown commands - no longer logging them', now })
+  const warnFailure = keyedWarner({ overflow: '[main-request] too many distinct failures - no longer logging them', now })
 
-  function warnUnknown(command) {
-    if (warned.has(command)) return
-    if (warned.size >= UNKNOWN_WARN_CAP) {
-      if (capReported) return
-      capReported = true
-      console.warn('[main-request] too many distinct unknown commands - no longer logging them')
-      return
-    }
-    warned.add(command)
-    // Not behind `debug`, for the same reason as the watcher storm warnings: this line is the
-    // only signal that a watcher was never armed.
-    console.warn('[main-request] unknown command:', command, '- nothing was done')
+  // Not behind `debug`, for the same reason as the watcher storm warnings: these lines are the only
+  // signal that a watcher was never armed.
+  function reportUnknown(command) {
+    const name = keyPart(command)
+    warnUnknown(name, '[main-request] unknown command:', name, '- nothing was done')
   }
 
-  const failed = new Set()
-  let failureCapReported = false
-
-  // A recognised command that threw is as silent as an unknown one unless it is said here. Once per
-  // (command, code): a worker re-arming a watcher for every loose file fails each one the same way.
   function reportFailure(command, err) {
-    const key = command + ':' + (err?.code || err?.name || 'Error')
-    if (failed.has(key)) return
-    if (failed.size >= FAILURE_WARN_CAP) {
-      if (failureCapReported) return
-      failureCapReported = true
-      console.warn('[main-request] too many distinct failures - no longer logging them')
-      return
-    }
-    failed.add(key)
-    console.warn('[main-request] failed:', command, '-', err?.message, '- repeats with this code are not logged')
+    const name = keyPart(command)
+    const code = keyPart(err?.code || err?.name || 'Error')
+    warnFailure(name + ':' + code, '[main-request] failed:', name, '-', err?.message, '- repeats with this code are not logged for a while')
   }
 
   return {
@@ -99,7 +107,7 @@ function createMainRequestRouter({ ownedFolderWatchers, looseFileWatchers, setDo
 
     async handle(command, args, worker) {
       const fn = handlers[command]
-      if (!fn) { warnUnknown(command); return }
+      if (!fn) { reportUnknown(command); return }
       await fn(args, worker)
     },
   }
