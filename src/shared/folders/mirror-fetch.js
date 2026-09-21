@@ -12,7 +12,7 @@ import { getOverlay } from '../transfer/backends/overlay/overlay-instance.js'
 import { createIntegritySeen } from './mirror-budgets.js'
 import { createAttemptBudget } from './mirror-budgets.js'
 import { getSpace } from '../spaces/space.js'
-import { record } from '../audit/audit-log.js'
+import { recordResolved } from '../audit/audit-log.js'
 import { selfActor, spaceRef, targetRef } from '../audit/audit-record.js'
 import { OUTCOME, TARGET_KIND } from '../contract/audit-kinds.js'
 import { createLogger } from '../core/logger.js'
@@ -82,9 +82,11 @@ const attempts = createAttemptBudget()
 // The ONE thing a mirror audits. contract/audit-kinds.js deliberately records no per-file folder
 // sync, and this is not sync bookkeeping: it is a claim about what a member of this space served.
 export function recordMirrorIntegrityFailure(mount, share, entry) {
-  if (!integritySeen.admit(mirrorKey(mount.spaceId, mount.shareId), entry.relPath, entry.contentHash)) return
-  getSpace(mount.spaceId).then((space) => {
-    record('security.integrity_failure', {
+  const mountKey = mirrorKey(mount.spaceId, mount.shareId)
+  if (!integritySeen.admit(mountKey, entry.relPath, entry.contentHash)) return
+  recordResolved('security.integrity_failure', async () => {
+    const space = await getSpace(mount.spaceId)
+    return {
       actor: selfActor(),
       space: spaceRef(mount.spaceId, space?.name ?? null),
       target: targetRef(TARGET_KIND.FILE, entry.relPath ?? null, path.basename(entry.relPath || '') || null),
@@ -96,8 +98,10 @@ export function recordMirrorIntegrityFailure(mount, share, entry) {
       },
       outcome: OUTCOME.ERROR,
       code: 'TRANSFER_CHECKSUM',
-    })
-  }).catch((err) => log.debug('mirror integrity audit failed:', err.message))
+    }
+  }, { context: { share: mount.shareId?.slice(0, 12) } }).then((written) => {
+    if (!written) integritySeen.release(mountKey, entry.relPath, entry.contentHash)
+  })
 }
 
 // A mirror is owner-authoritative: the owner's bytes belong at the natural name (pinned by

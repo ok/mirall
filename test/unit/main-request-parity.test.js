@@ -203,3 +203,66 @@ test('the router is built before the worker handler that closes over it', (t) =>
   t.ok(router !== -1 && reader !== -1, 'found both')
   t.ok(router < reader, 'the router is initialised above getWorker')
 })
+
+// REGRESSION (FIX-OBS-2: a main request that threw was logged only behind `debug`, so a watcher
+// that failed to arm left no line in the log ring and an owned folder stopped re-publishing with
+// nothing in the diagnostics bundle to say why.)
+test('REGRESSION (FIX-OBS-2): a failed main request is warned unconditionally', async (t) => {
+  const warnings = muteWarn(t)
+  const { deps } = stubDeps()
+  deps.ownedFolderWatchers.startWatcher = async () => {
+    throw Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' })
+  }
+  const router = createMainRequestRouter(deps)
+  const command = MAIN_REQUEST.OWNED_FOLDER_START_WATCHER
+
+  await router.handle(command, { shareId: 's1', mountPath: '/tmp/x' }).catch((err) => router.reportFailure(command, err))
+
+  const line = warnings.find((l) => l.includes('[main-request] failed'))
+  t.ok(line, 'the failure reached console.warn, which feeds the log ring')
+  t.ok(line?.includes(command), 'names the command')
+  t.ok(line?.includes('permission denied'), 'carries the message')
+})
+
+const failedLines = (warnings) => warnings.filter((l) => l.includes('[main-request] failed'))
+const failure = (code) => Object.assign(new Error('nope'), { code })
+
+test('a repeated failure with the same code is warned once a window; a new code warns again', (t) => {
+  const warnings = muteWarn(t)
+  let clock = 0
+  const router = createMainRequestRouter({ ...stubDeps().deps, now: () => clock })
+
+  for (let i = 0; i < 50; i++) router.reportFailure(MAIN_REQUEST.LOOSE_FILE_WATCH, failure('EACCES'))
+  t.is(failedLines(warnings).length, 1, 'fifty identical failures, one line')
+
+  router.reportFailure(MAIN_REQUEST.LOOSE_FILE_WATCH, failure('EMFILE'))
+  t.is(failedLines(warnings).length, 2, 'a different code is a different failure')
+
+  clock += 600000
+  router.reportFailure(MAIN_REQUEST.LOOSE_FILE_WATCH, failure('EACCES'))
+  t.is(failedLines(warnings).length, 3, 'the same failure is said again once the window has passed')
+})
+
+test('distinct failure codes are capped, and the cap is reported once a window', (t) => {
+  const warnings = muteWarn(t)
+  const router = createMainRequestRouter({ ...stubDeps().deps, now: () => 0 })
+  for (let i = 0; i < 40; i++) router.reportFailure(MAIN_REQUEST.DOWNLOADS_ROOTS, failure('E' + i))
+  t.is(failedLines(warnings).length, 16, 'bounded')
+  t.is(warnings.filter((l) => l.includes('too many distinct failures')).length, 1, 'the cap says so once')
+})
+
+test('a command that is not a string cannot throw out of the failure report', (t) => {
+  const warnings = muteWarn(t)
+  const router = createMainRequestRouter(stubDeps().deps)
+  router.reportFailure({ toString: 1 }, failure('EBAD'))
+  t.is(failedLines(warnings).length, 1)
+})
+
+test('the worker frame handler reports a failed request outside debug and outside a quit', (t) => {
+  const src = readFileSync(path.join(SRC, 'main', 'worker-host.js'), 'utf8')
+  const at = src.indexOf('mainRequests.handle(')
+  const end = src.indexOf('})', at)
+  t.ok(at !== -1 && end !== -1, 'found the frame dispatch and its catch')
+  const handler = src.slice(at, end)
+  t.ok(/else if \(!isQuitting\(\)\) mainRequests\.reportFailure\(/.test(handler), 'the rejection reaches the router unless the app is quitting')
+})

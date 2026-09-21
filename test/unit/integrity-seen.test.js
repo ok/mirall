@@ -74,3 +74,10 @@ test('one mount hitting its cap does not silence another', (t) => {
 test('the shipped default cap is a positive integer', (t) => {
   t.ok(Number.isInteger(DEFAULT_INTEGRITY_ROW_CAP) && DEFAULT_INTEGRITY_ROW_CAP > 0)
 })
+
+test('a released claim can be admitted again', (t) => {
+  const seen = createIntegritySeen()
+  t.ok(seen.admit('m', 'a.txt', 'h1'))
+  seen.release('m', 'a.txt', 'h1')
+  t.ok(seen.admit('m', 'a.txt', 'h1'), 'the row did not land, so the next failure records it')
+})

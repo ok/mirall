@@ -86,6 +86,10 @@ export function createIntegritySeen({ limit = DEFAULT_INTEGRITY_ROW_CAP, onCap =
       if (seen.size === limit) onCap(mountKey, limit)
       return true
     },
+    // A claim whose row did not land is given back, so the next failure can still record it.
+    release(mountKey, relPath, contentHash) {
+      byMount.get(mountKey)?.delete(relPath + '\0' + (contentHash || ''))
+    },
     // An unmount/remount is a fresh session: the user re-pointing the mount is a new decision and
     // deserves to be told the folder is still corrupt.
     forget(mountKey) { byMount.delete(mountKey) },

@@ -33,3 +33,15 @@ test('reset forgets every bucket', (t) => {
   t.ok(g.admit('a'))
   t.alike(suppressed, [], 'a reset drops the pending count with the bucket')
 })
+
+test('flush reports every pending count and forgets it', (t) => {
+  const reported = []
+  const guard = createRateGuard({ windowMs: 1000, max: 1, now: () => 0, onSuppressed: (kind, count) => reported.push([kind, count]) })
+  guard.admit('a')
+  guard.admit('a')
+  guard.admit('a')
+  guard.admit('b')
+  guard.flush()
+  t.alike(reported, [['a', 2]], 'a burst that stops still reports its count; a key with none says nothing')
+  t.ok(guard.admit('a'), 'and the bucket starts fresh')
+})
