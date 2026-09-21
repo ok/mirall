@@ -11,6 +11,7 @@ import { publishMirror } from '../../shared/folders/mirror-records.js'
 import { recordMirrorScanFault } from '../../shared/folders/foreign-pause.js'
 import { startForeignLoop, setForeignEnabled, relocateForeignFolder, unmountForeignFolder } from '../../shared/folders/foreign-verbs.js'
 import { initialMaterializeScan } from '../../shared/folders/mirror-pass.js'
+import { scanOwnsRecord } from '../../shared/folders/mirror-policy.js'
 import { createForeignMount as persistForeignMount, getForeignMount, listForeignMounts } from '../../shared/folders/mount-store.js'
 import { record } from '../../shared/audit/audit-log.js'
 import { selfActor, targetRef } from '../../shared/audit/audit-record.js'
@@ -45,15 +46,19 @@ export function registerForeignFolders(ipc, { log, intents }) {
     ipc.emit('event:mirrors-updated', { spaceId: msg.spaceId, shareId: msg.shareId })
 
     // Start the poll loop regardless of the initial scan's outcome: a scan that rejects must still
-    // leave a running loop so the record re-derives from 'syncing' instead of stranding there.
+    // leave a running loop so the record re-derives from 'syncing' instead of stranding there. A
+    // mount paused or relocated during the scan is left to the verb that did it.
     initialMaterializeScan(mount)
       .catch(async (err) => {
         log.warn('mirror initial scan failed:', err.message)
         // Through the shared recorder, so the fault is durable and typed (a code, not a message).
-        await recordMirrorScanFault(msg.spaceId, msg.shareId, err)
+        await recordMirrorScanFault(msg.spaceId, msg.shareId, err, { mountPath: mount.mountPath })
           .catch((e) => log.debug('mirror scan fault record failed:', msg.shareId, '-', e.message))
       })
-      .finally(() => { startForeignLoop(mount) })
+      .finally(async () => {
+        if (scanOwnsRecord(await getForeignMount(msg.spaceId, msg.shareId), mount.mountPath)) startForeignLoop(mount)
+      })
+      .catch((err) => log.debug('mirror loop start failed:', msg.shareId, '-', err.message))
 
     record('mirror.created', {
       actor: selfActor(),

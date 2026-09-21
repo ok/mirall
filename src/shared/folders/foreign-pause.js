@@ -10,7 +10,8 @@ import fs from 'bare-fs'
 import { MIRROR_STATE } from '../contract/statuses.js'
 import { classifyLocalIoFault } from '../core/errors.js'
 import { faultFromError, STATUS_MOUNT_GONE, statusForFaultCode, isAutoPauseStatus } from './mount-fault.js'
-import { getForeignMount, patchForeignMount, mutateForeignMount } from './mount-store.js'
+import { getForeignMount, mutateForeignMount } from './mount-store.js'
+import { scanOwnsRecord } from './mirror-policy.js'
 import { setMirrorState } from './mirror-records.js'
 import { emitStatus, syncMirrorRecord } from './mirror-signals.js'
 import { mountRootAvailable } from './publish-service.js'
@@ -71,11 +72,17 @@ export async function pauseMountForIoError(mount, err) {
 
 // A mirror's INITIAL scan failing is not a pause: the poll loop still starts, and the next
 // successful tick clears this. So it records the fault without touching `enabled` — which is what
-// keeps it out of the auto-pause resume gate.
-export async function recordMirrorScanFault(spaceId, shareId, err) {
+// keeps it out of the auto-pause resume gate. A scan whose record was paused or relocated under it
+// records nothing (null): over a user pause, a fault status would make the mount read auto-paused.
+export async function recordMirrorScanFault(spaceId, shareId, err, { mountPath }) {
   const code = classifyLocalIoFault(err)
   const status = statusForFaultCode(code)
-  await patchForeignMount(spaceId, shareId, { status, lastError: code })
+  let landed = false
+  await mutateForeignMount(spaceId, shareId, (m) => {
+    landed = scanOwnsRecord(m, mountPath)
+    return landed ? { ...m, status, lastError: code } : null
+  })
+  if (!landed) return null
   emitStatus(spaceId, shareId, status, { error: code })
   return status
 }

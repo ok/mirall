@@ -7,13 +7,15 @@ import { publishShare, generateShareId } from '../../src/shared/shares/shares.js
 import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
 import { createForeignMount, getForeignMount, patchForeignMount } from '../../src/shared/folders/mount-store.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
-import { isAutoPaused } from '../../src/shared/folders/foreign-pause.js'
-import { relocateForeignFolder, stopForeignLoop } from '../../src/shared/folders/foreign-verbs.js'
+import { isAutoPaused, recordMirrorScanFault } from '../../src/shared/folders/foreign-pause.js'
+import { relocateForeignFolder, setForeignEnabled, stopForeignLoop } from '../../src/shared/folders/foreign-verbs.js'
 import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
 import { setupSelfMirror } from '../helpers/owned.js'
 import { until } from '../helpers/bare-poll.js'
 import { initialMaterializeScan, mirrorIdleForTests } from '../../src/shared/folders/mirror-pass.js'
+import { mirrorHealth } from '../../src/shared/folders/foreign-folders.js'
+import { registerForeignFolders } from '../../src/worker/ipc/foreign-folders.js'
 
 async function setupMirror(t, { enabled = true, status = null } = {}) {
   const ctx = await freshPeer(t)
@@ -192,4 +194,104 @@ test('an initial scan stopped before it has read the share writes nothing', asyn
   t.alike(await scan, { stopped: true }, 'the scan saw itself stopped')
   t.is((await getForeignMount(spaceId, shareId)).status, 'scanning', 'and wrote no status over the stop')
   t.absent(fs.existsSync(path.join(ctx.mirrorPath, 'a.txt')), 'nor fetched anything')
+})
+
+// The initial scan holds its listing until the test releases it, so a pause or relocate can land
+// inside the window between the scan's generation check and its final write — the record changes
+// under the scan, but the loop is not yet stopped.
+function gatedListing(t, { fault = null } = {}) {
+  const inner = overlayBackend.listPeerWithMeta
+  let release
+  const gate = new Promise((resolve) => { release = resolve })
+  overlayBackend.listPeerWithMeta = async (...args) => {
+    await gate
+    if (fault) throw fault
+    return await inner(...args)
+  }
+  t.teardown(() => { overlayBackend.listPeerWithMeta = inner })
+  return release
+}
+
+async function gatedScan(t, { fault = null } = {}) {
+  const ctx = await setupSelfMirror(t, { files: { 'a.txt': 'alpha' } })
+  const spaceId = ctx.spaceId
+  const shareId = ctx.share.id
+  t.teardown(() => stopForeignLoop(spaceId, shareId))
+  const release = gatedListing(t, { fault })
+  const scan = initialMaterializeScan(ctx.mount)
+  return { ctx, spaceId, shareId, release, scan }
+}
+
+test('REGRESSION (FIX-448: a scan finishing after a user pause leaves the pause in place)', async (t) => {
+  const { ctx, spaceId, shareId, release, scan } = await gatedScan(t)
+  await patchForeignMount(spaceId, shareId, { enabled: false, status: 'paused' })
+  const seen = statuses(ctx, shareId).length
+  release()
+  await scan
+
+  const stored = await getForeignMount(spaceId, shareId)
+  t.is(stored.status, 'paused', 'the pause is still what the record says')
+  t.is(stored.enabled, false)
+  t.absent(statuses(ctx, shareId).slice(seen).includes('active'), 'and the renderer never hears active')
+})
+
+test('REGRESSION (FIX-448: a scan finishing after an auto pause keeps it auto-resumable)', async (t) => {
+  const { spaceId, shareId, release, scan } = await gatedScan(t)
+  await patchForeignMount(spaceId, shareId, { enabled: false, status: 'paused-enospc', lastError: 'TRANSFER_DISK_FULL' })
+  release()
+  await scan
+
+  const stored = await getForeignMount(spaceId, shareId)
+  t.is(stored.status, 'paused-enospc', 'the fault status survives the scan')
+  t.is(stored.lastError, 'TRANSFER_DISK_FULL', 'and so does its reason')
+  t.ok(isAutoPaused(stored), 'so the boot resume still picks it up')
+})
+
+test('REGRESSION (FIX-448: a scan of the old path writes nothing over a relocate)', async (t) => {
+  const { ctx, spaceId, shareId, release, scan } = await gatedScan(t)
+  const moved = ctx.tmpDir('mirror-moved')
+  await patchForeignMount(spaceId, shareId, { mountPath: moved, syncedPaths: [], renamedPaths: {}, status: 'scanning' })
+  release()
+  await scan
+
+  const stored = await getForeignMount(spaceId, shareId)
+  t.is(stored.mountPath, moved, 'the mount still points at the new folder')
+  t.alike(stored.syncedPaths, [], 'and claims nothing the old path owned')
+  t.is(stored.status, 'scanning', 'the new folder has not been scanned yet')
+  t.absent(stored.initialScanCompletedAt, 'nor stamped done by the old path')
+})
+
+// The mount handler and the relocate verb both hand a rejected scan to recordMirrorScanFault.
+test('REGRESSION (FIX-448: a scan fault after a user pause does not turn it into an auto pause)', async (t) => {
+  const fault = Object.assign(new Error('permission denied'), { code: 'EACCES' })
+  const { ctx, spaceId, shareId, release, scan } = await gatedScan(t, { fault })
+  const recorded = scan.catch((err) => recordMirrorScanFault(spaceId, shareId, err, { mountPath: ctx.mount.mountPath }))
+  await patchForeignMount(spaceId, shareId, { enabled: false, status: 'paused' })
+  const seen = statuses(ctx, shareId).length
+  release()
+  await recorded
+
+  const stored = await getForeignMount(spaceId, shareId)
+  t.is(stored.status, 'paused', 'the user pause stands')
+  t.absent(isAutoPaused(stored), 'so nothing auto-resumes a mirror the user paused')
+  t.absent(statuses(ctx, shareId).slice(seen).includes('paused-error'), 'and no fault reaches the renderer')
+})
+
+test('REGRESSION (FIX-448: a mount paused during its first scan gets no poll loop)', async (t) => {
+  const ctx = await setupSelfMirror(t, { files: { 'a.txt': 'alpha' } })
+  const spaceId = ctx.spaceId
+  const shareId = ctx.share.id
+  t.teardown(() => stopForeignLoop(spaceId, shareId))
+  const log = { warn: () => {}, debug: () => {} }
+  registerForeignFolders(ctx.fake.ipc, { log, intents: null })
+  const release = gatedListing(t)
+  await ctx.fake.call('foreign-folder:mount', {
+    spaceId, shareId, ownerKey: ctx.share.owner, mountPath: ctx.tmpDir('mirror-fresh'),
+  })
+  await setForeignEnabled(spaceId, shareId, false)
+  release()
+  await mirrorIdleForTests(spaceId, shareId)
+
+  const live = () => mirrorHealth().some((m) => m.shareId === shareId)
+  t.absent(await until(live, 1000), 'the paused mount has no live interval')
 })

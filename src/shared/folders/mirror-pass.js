@@ -14,10 +14,10 @@ import { getLocalPublicKeyHex } from '../spaces/profile.js'
 import { getContentBackend, hasContentBackend } from '../transfer/content-backends.js'
 import { isOwnerOnline } from '../network/presence-leases.js'
 import { createMountProbe, materializeOverlayFile } from './mirror-fetch.js'
-import { mirrorMayFetch, mirrorKey } from './mirror-policy.js'
+import { mirrorMayFetch, mirrorKey, scanOwnsRecord } from './mirror-policy.js'
 import { localRelOf } from './mirror-state.js'
 import { shouldWalk } from './mirror-policy.js'
-import { getForeignMount, patchForeignMount } from './mount-store.js'
+import { getForeignMount, mutateForeignMount } from './mount-store.js'
 import { dropUnsafeEntries, relKeyEscapes, shouldHonorDeletions } from './path-keys.js'
 import { emitMirrorEvent, emitStatus, settleMirrorSyncState } from './mirror-signals.js'
 import { pathFromMount } from './path-guard.js'
@@ -209,14 +209,23 @@ async function initialMaterializeScanCatalog(mount, share, gen) {
     mount.initialScanCompletedAt = Date.now()
   }
   mount.status = MOUNT_STATUS.ACTIVE
-  await patchForeignMount(mount.spaceId, mount.shareId, {
-    ...state.syncFields(mount),
-    status: MOUNT_STATUS.ACTIVE,
-    // A pass that got through clears the reason with the status: a stale one would name the next
-    // fault that records none.
-    lastError: null,
-    ...(listingComplete ? { initialScanCompletedAt: mount.initialScanCompletedAt } : {}),
+  // Declined whole when a pause or relocate landed after the generation check above; the sync
+  // fields then stay dirty for the resume tick to persist.
+  let landed = false
+  await mutateForeignMount(mount.spaceId, mount.shareId, (m) => {
+    landed = scanOwnsRecord(m, mount.mountPath)
+    if (!landed) return null
+    return {
+      ...m,
+      ...state.syncFields(mount),
+      status: MOUNT_STATUS.ACTIVE,
+      // A pass that got through clears the reason with the status: a stale one would name the next
+      // fault that records none.
+      lastError: null,
+      ...(listingComplete ? { initialScanCompletedAt: mount.initialScanCompletedAt } : {}),
+    }
   })
+  if (!landed) return { stopped: true }
   state.markClean(key)
   emitStatus(mount.spaceId, mount.shareId, MOUNT_STATUS.ACTIVE)
   // Skip the terminal state on an empty or partial listing: at mount the owner's catalog may not

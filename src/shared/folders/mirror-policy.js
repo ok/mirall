@@ -73,6 +73,13 @@ export function mirrorMayFetch({ ownerKey = null, localKey = null, ownerOnline =
   return !!ownerOnline
 }
 
+// Whether the mount record still belongs to a scan started at `mountPath`. A pause and a relocate
+// write the record before they stop the loop, so a scan can finish after either; once the record is
+// disabled or points elsewhere, the scan's status, sync fields and loop are no longer its to write.
+export function scanOwnsRecord(record, mountPath) {
+  return !!record && record.enabled !== false && record.mountPath === mountPath
+}
+
 // The stalled/healthy rule for a mirror loop. runMaterializeTick serialises passes per mount by
 // handing every later tick the in-flight promise, so a pass that never settles wedges the mount
 // permanently while the interval keeps firing.

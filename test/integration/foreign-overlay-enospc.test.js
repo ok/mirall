@@ -111,10 +111,10 @@ test('a pause records the error code, never the errno message', async (t) => {
 // record the fault WITHOUT disabling the mount, and it must not put a raw message on a wire field
 // the renderer reads as a code.
 test('a failed initial scan records the fault without pausing the mount', async (t) => {
-  const { ctx, spaceId, shareId } = await setupOverlayMirror(t, 'EACCES')
+  const { ctx, spaceId, shareId, mountPath } = await setupOverlayMirror(t, 'EACCES')
   const err = Object.assign(new Error("EACCES: permission denied, open '/Volumes/ext/x'"), { code: 'EACCES' })
 
-  const status = await recordMirrorScanFault(spaceId, shareId, err)
+  const status = await recordMirrorScanFault(spaceId, shareId, err, { mountPath })
 
   t.is(status, 'paused-error')
   const mount = await getForeignMount(spaceId, shareId)

@@ -125,7 +125,7 @@ export async function relocateForeignFolder(spaceId, shareId, mountPath) {
     // the tick after it settles a share whose listing the scan would not call complete.
     initialMaterializeScan({ ...next, renamedPaths: { ...next.renamedPaths } })
       .then(() => runMaterializeTick(spaceId, shareId))
-      .catch((err) => recordMirrorScanFault(spaceId, shareId, err))
+      .catch((err) => recordMirrorScanFault(spaceId, shareId, err, { mountPath: next.mountPath }))
       .catch((err) => log.warn('relocate scan failed:', shareId, '-', err.message))
   }
   emitMirrorEvent('event:share-files-updated', { spaceId, shareId })
