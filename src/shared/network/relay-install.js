@@ -22,6 +22,7 @@ export function initRelayInstall(deps) {
   installRelayObserver()
   initRelayedConnections({
     ownRelay,
+    relayMode: () => getRelayConfig().mode,
     onChange: deps.onStatusChange,
     onRelayed: (socket) => peerRelayed(socket, () => describeConnection(socket)),
     onUnrelayed: peerUnrelayed,

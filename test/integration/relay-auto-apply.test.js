@@ -5,7 +5,8 @@ import EventEmitter from 'bare-events'
 import { bootSwarms } from '../helpers/swarms.js'
 import { createFakeIpc } from '../helpers/fake-ipc.js'
 import { registerNetwork } from '../../src/worker/ipc/network.js'
-import { trackConnection, resetRelayedConnections } from '../../src/shared/network/relayed-connections.js'
+import { trackConnection, resetRelayedConnections, snapshotRelayedConnections } from '../../src/shared/network/relayed-connections.js'
+import { installRelayObserver, resetRelayObserver } from '../../src/shared/network/relay-observe.js'
 import { socketMsgHandlers } from '../../src/shared/network/swarm-registries.js'
 import { reconnectAll } from '../../src/shared/network/space-topics.js'
 import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
@@ -15,6 +16,9 @@ const KEY_A = idEncoding.encode(b4a.alloc(32, 11))
 const SLOT = { publicKey: KEY_A, kind: 'open', enabled: true }
 const HASH = 'h'.repeat(64)
 const PEER = 'p'.repeat(64)
+const RELAY_ENDPOINT = { host: '203.0.113.9', port: 49737 }
+
+class Stub extends EventEmitter { static from() { return new Stub() } }
 
 // A socket with no relay pairing behind it: the direct count is what `always` contradicts.
 function directSocket() {
@@ -22,11 +26,25 @@ function directSocket() {
   return Object.assign(new EventEmitter(), { remotePublicKey: b4a.alloc(32, 9), rawStream, destroy() { this.emit('close') } })
 }
 
-async function setup(t, { relayMode = 'always' } = {}) {
+// A socket paired through `relayKey`, the way hyperdht reports it: blind-relay's client emits 'pair'
+// with the peer raw stream, and the observer records the relay behind it.
+function relayedSocket(relayKey) {
+  const rawStream = Object.assign(new EventEmitter(), { remoteHost: RELAY_ENDPOINT.host, remotePort: RELAY_ENDPOINT.port })
+  const client = Stub.from({ remotePublicKey: relayKey, rawStream: { remoteHost: RELAY_ENDPOINT.host, remotePort: RELAY_ENDPOINT.port } }, {})
+  client.emit('pair', true, b4a.alloc(32), rawStream, 1)
+  return Object.assign(new EventEmitter(), { remotePublicKey: b4a.alloc(32, 8), rawStream, destroy() { this.emit('close') } })
+}
+
+async function setup(t, { relayMode = 'always', socket: kind = 'direct' } = {}) {
   await bootSwarms(t, { relayMode, relay: SLOT })
   const fake = createFakeIpc()
   registerNetwork(fake.ipc, { applyRelayConfig: () => ({ applied: 1 }) })
-  const socket = directSocket()
+  if (kind === 'relayed') {
+    resetRelayObserver()
+    installRelayObserver({ Client: Stub })
+    t.teardown(resetRelayObserver)
+  }
+  const socket = kind === 'relayed' ? relayedSocket(idEncoding.decode(KEY_A)) : directSocket()
   trackConnection(socket, { plane: 'control', memberOf: () => null })
   socketMsgHandlers.set(socket, {})
   // The real control socket unregisters itself on close (peer-connection.js); the fake has to do the
@@ -46,14 +64,18 @@ test('a mode change with nothing moving is applied to the live connections', asy
   t.is(socketMsgHandlers.size, 0, 'the connections the user was watching are gone')
 })
 
-test('a mode change while a transfer moves is left for the user', async (t) => {
-  const { fake } = await setup(t)
+async function moveATransfer(t, fake) {
   serveIndex.reset()
   const ledger = new ServeLedger('serve-ledger', { ipc: fake.ipc })
   t.teardown(async () => { await ledger.close(); serveIndex.reset() })
   await ledger.ready()
   serveIndex.add(HASH, 'space1', '__loose__', 'big.bin')
   onServeStart({ from: PEER, contentHash: HASH, total: 1000 })
+}
+
+test('a mode change while a transfer moves is left for the user', async (t) => {
+  const { fake } = await setup(t)
+  await moveATransfer(t, fake)
 
   const reply = await fake.call('network:set-relay', { mode: 'always', relay: SLOT })
 
@@ -96,4 +118,38 @@ test('a throttled reconnect reports reconnected:false', async (t) => {
 
   t.is(reply.mismatch, 'stale-direct')
   t.is(reply.reconnected, false, 'a reconnect it did not get is not one it can claim')
+})
+
+// REGRESSION (FIX-411: `always` → `auto` found no mismatch, so the worker never reconnected and the
+// connections `always` had relayed stayed on our relay until a restart.)
+test('REGRESSION (FIX-411: always → auto reconnects what always relayed)', async (t) => {
+  const { fake } = await setup(t, { relayMode: 'always', socket: 'relayed' })
+  t.is(snapshotRelayedConnections().connections[0].relayMode, 'always', 'precondition: stamped under always')
+
+  const reply = await fake.call('network:set-relay', { mode: 'auto', relay: SLOT })
+
+  t.is(reply.mismatch, 'stale-relayed')
+  t.is(reply.reconnected, true, 'nothing was moving, so the worker applied it itself')
+  t.is(socketMsgHandlers.size, 0)
+})
+
+test('always → auto with a transfer moving is left for the user', async (t) => {
+  const { fake } = await setup(t, { relayMode: 'always', socket: 'relayed' })
+  await moveATransfer(t, fake)
+
+  const reply = await fake.call('network:set-relay', { mode: 'auto', relay: SLOT })
+
+  t.is(reply.mismatch, 'stale-relayed')
+  t.is(reply.reconnected, false)
+  t.is(socketMsgHandlers.size, 1)
+})
+
+test('auto with a connection auto relayed itself is not reconnected', async (t) => {
+  const { fake } = await setup(t, { relayMode: 'auto', socket: 'relayed' })
+
+  const reply = await fake.call('network:set-relay', { mode: 'auto', relay: SLOT })
+
+  t.is(reply.mismatch, null)
+  t.is(reply.reconnected, false)
+  t.is(socketMsgHandlers.size, 1)
 })
