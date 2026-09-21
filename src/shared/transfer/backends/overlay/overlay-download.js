@@ -90,6 +90,31 @@ function defaultDirAcceptsWrite(dir) {
 // create/delete in the user's folder, so it reads a verdict at most this old.
 const FOLDER_VERDICT_TTL_MS = 60_000
 
+// Whether the stalled-owner rescue should keep reaching for a row's owner. A manual pause and a
+// fault only the user can clear wait on the user, not the owner. The reconcile's faultCleared probes
+// the folder afresh — a reconnect is its one chance to re-drive the row — and leaves the verdict
+// for the rescue.
+function createOwnerWait({ channel, pausedHashes, terminalCodes, dirAcceptsWrite, now }) {
+  const folderVerdicts = new Map() // dir -> { writable, at }
+  function probeFolder(finalPath) {
+    const dir = path.dirname(finalPath)
+    const writable = dirAcceptsWrite(dir)
+    folderVerdicts.set(dir, { writable, at: now() })
+    return writable
+  }
+  function keptFolderVerdict(finalPath) {
+    const kept = folderVerdicts.get(path.dirname(finalPath))
+    return kept && now() - kept.at < FOLDER_VERDICT_TTL_MS ? kept.writable : probeFolder(finalPath)
+  }
+  function awaitsOwner(row) {
+    if (!channel.ownsPendingRow(row)) return false
+    const transferId = channel.transferIdForRow(row.spaceId, row)
+    if (pausedHashes.has(transferId)) return false
+    return faultAwaitsOwner(row.errorCode ?? terminalCodes.get(transferId), row.finalPath, keptFolderVerdict)
+  }
+  return { awaitsOwner, faultCleared: (code, row) => faultCleared(code, row.finalPath, probeFolder) }
+}
+
 function partialAllocatedBytes(finalPath) {
   try { return fs.statSync(partialPathFor(finalPath)).blocks * 512 || 0 } catch { return 0 }
 }
@@ -192,32 +217,10 @@ export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentT
     registry, pausedHashes, channel, log, hasOverlay, ownerOnline, destProbeFor,
     pauseReasonFor, recordTerminal, failTerminal, runFetch: settle.run,
   })
-  // The reconcile probes afresh — it is the one chance a reconnect has to re-drive the row — and
-  // leaves the verdict for the rescue.
-  const folderVerdicts = new Map() // dir -> { writable, at }
-  function probeFolder(finalPath) {
-    const dir = path.dirname(finalPath)
-    const writable = dirAcceptsWrite(dir)
-    folderVerdicts.set(dir, { writable, at: now() })
-    return writable
-  }
-  function keptFolderVerdict(finalPath) {
-    const kept = folderVerdicts.get(path.dirname(finalPath))
-    return kept && now() - kept.at < FOLDER_VERDICT_TTL_MS ? kept.writable : probeFolder(finalPath)
-  }
+  const ownerWait = createOwnerWait({ channel, pausedHashes, terminalCodes, dirAcceptsWrite, now })
   const reconcile = createReconcile({
-    registry, pausedHashes, terminalCodes, retries, channel, log, hasOverlay, start: starter.start, cancelByKey, discardPartial,
-    faultCleared: (code, row) => faultCleared(code, row.finalPath, probeFolder),
+    registry, pausedHashes, terminalCodes, retries, channel, log, hasOverlay, start: starter.start, cancelByKey, discardPartial, faultCleared: ownerWait.faultCleared,
   })
-
-  // Whether the stalled-owner rescue should keep reaching for this row's owner. A manual pause and a
-  // fault only the user can clear wait on the user, not the owner.
-  function awaitsOwner(row) {
-    if (!channel.ownsPendingRow(row)) return false
-    const transferId = channel.transferIdForRow(row.spaceId, row)
-    if (pausedHashes.has(transferId)) return false
-    return faultAwaitsOwner(row.errorCode ?? terminalCodes.get(transferId), row.finalPath, keptFolderVerdict)
-  }
 
   // The owner re-published this source (advertise with a null hash → hash → setMaterializedHash)
   // and cannot serve the OLD content in between, so the in-flight fetch is doomed: abort it
@@ -348,7 +351,7 @@ export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentT
     supersede,
     releaseForRepublish,
     has: (transferId) => registry.has(transferId),
-    awaitsOwner,
+    awaitsOwner: ownerWait.awaitsOwner,
     activeSlots: () => registry.entries(),
     // test seam
     _registry: registry,
