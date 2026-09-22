@@ -2,13 +2,13 @@
 
 const path = require('node:path')
 const { MAIN_REQUEST } = require('../shared/contract/main-requests.js')
+const { createFailureGate } = require('./worker-bus-failure.js')
 
 // The worker→main control bus. Keyed off the contract constants rather than string literals, so a
 // rename that touches only one process cannot pass main-request-parity.test.js.
 //
-// The `else` matters as much as the table: an unrecognised command must warn, because a silent
-// no-op here is an owned folder that stops re-publishing. A recognised command that threw is as
-// silent unless it is said too. Both warn through keyedWarner.
+// An unrecognised command and a recognised one that threw are both failures, reported under the
+// policy at `dispatch`: a silent no-op here is an owned folder that stops re-publishing.
 const WARN_CAP = 16
 const WARN_WINDOW_MS = 600000
 
@@ -40,7 +40,8 @@ function keyedWarner({ overflow, now }) {
 
 const keyPart = (value) => (typeof value === 'string' ? value : typeof value)
 
-function createMainRequestRouter({ ownedFolderWatchers, looseFileWatchers, setDownloadRoots, sendToWorker, now = Date.now }) {
+function createMainRequestRouter({ ownedFolderWatchers, looseFileWatchers, setDownloadRoots, sendToWorker, isDebug, isQuitting, now = Date.now }) {
+  const reportBusFailure = createFailureGate({ isDebug, isQuitting })
   // Null-prototype, because `command` comes off the worker pipe: with a plain object literal
   // `handlers['toString']` finds Object.prototype's method and the frame resolves as though it had
   // been routed — the silent success this bus exists to remove.
@@ -87,28 +88,38 @@ function createMainRequestRouter({ ownedFolderWatchers, looseFileWatchers, setDo
   const warnUnknown = keyedWarner({ overflow: '[main-request] too many distinct unknown commands - no longer logging them', now })
   const warnFailure = keyedWarner({ overflow: '[main-request] too many distinct failures - no longer logging them', now })
 
-  // Not behind `debug`, for the same reason as the watcher storm warnings: these lines are the only
-  // signal that a watcher was never armed.
+  // The non-debug reports are warnings, for the same reason as the watcher storm warnings: these
+  // lines are the only signal that a watcher was never armed.
   function reportUnknown(command) {
     const name = keyPart(command)
-    warnUnknown(name, '[main-request] unknown command:', name, '- nothing was done')
+    reportBusFailure(null,
+      () => ['[main-request] unknown command:', name, '- nothing was done'],
+      () => warnUnknown(name, '[main-request] unknown command:', name, '- nothing was done'))
   }
 
   function reportFailure(command, err) {
-    const name = keyPart(command)
     const code = keyPart(err?.code || err?.name || 'Error')
-    warnFailure(name + ':' + code, '[main-request] failed:', name, '-', err?.message, '- repeats with this code are not logged for a while')
+    reportBusFailure(err,
+      (text) => ['[main-request] failed:', command, '-', text],
+      (text) => warnFailure(command + ':' + code, '[main-request] failed:', command, '-', text, '- repeats with this code are not logged for a while'))
   }
 
   return {
     // The set main actually serves — read by the parity test, not by production code.
     commands: Object.freeze(Object.keys(handlers)),
-    reportFailure,
 
-    async handle(command, args, worker) {
-      const fn = handlers[command]
+    // Requests are one-way: the worker gets no reply, so a failure ends here and this never
+    // rejects. Unknown and failed commands take the worker-bus failure policy
+    // (worker-bus-failure.js), with a capped, rate-limited warning as the report outside debug.
+    // Only a string is looked up: an object command whose toString is not callable throws there.
+    async dispatch(command, args, worker) {
+      const fn = typeof command === 'string' ? handlers[command] : undefined
       if (!fn) { reportUnknown(command); return }
-      await fn(args, worker)
+      try {
+        await fn(args, worker)
+      } catch (err) {
+        reportFailure(command, err)
+      }
     },
   }
 }

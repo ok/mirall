@@ -1135,7 +1135,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/main/log-ring.js` | Bounded in-memory ring of recent log lines from all three processes, for the diagnostics bundle; never written to disk |
 | `src/main/logging.js` | `sendToAll` (broadcast to every live webContents, swallowing a disposed frame per target) plus the main-console → log-ring → renderer forwarding with its re-entrancy guard, and the lazy redaction loader. Installed by the entry before anything else logs (§10) |
 | `src/main/loose-file-watchers.js` | Individual watched paths for in-place loose-file shares, over the watch host; path → `Set<spaceId>` fan-out (§2 step 12) |
-| `src/main/main-requests.js` | The worker→main command router — a null-prototype table keyed off `contract/main-requests.js`, capped unknown-command warnings |
+| `src/main/main-requests.js` | The worker→main command router — a null-prototype table keyed off `contract/main-requests.js`; `dispatch` never rejects (requests are one-way); unknown and failed commands take the worker-bus failure policy (`worker-bus-failure.js`) with capped, rate-limited warnings as the report |
 | `src/main/menu.js` | The application-menu template — a pure function of platform + UI context |
 | `src/main/net-online.js` | `registerNetOnline` / `startNetOnlineWatch` — Chromium's `net.online`, polled and pushed to the renderer on change. Asymmetric by design: false declares offline, true is inconclusive and never declares healthy (§5) |
 | `src/main/menus.js` | `registerMenus()` plus the tray and app-menu builders — both are rebuilt rather than mutated, because Electron's Menu is immutable once set, so a label change, a locale change or a space appearing means a new menu. Takes `revealWindow`/`targetWindow`/`zoomByDirection` as deps: a menu item acts on the window, and the window knows nothing about menus (§5) |
@@ -1153,6 +1153,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/main/window-bounds.js` | Off-screen-bounds guard for a restored window whose display is gone, pure |
 | `src/main/window-shortcuts.js` | Classifies a `before-input-event` into DevTools toggle / zoom command / nothing, pure (§2 step 6) |
 | `src/main/worker-entrypoints.js` | The worker spawn allowlist (`contract/workers.js`), resolved before the `noAsar` window opens |
+| `src/main/worker-bus-failure.js` | `createFailureGate` — the one policy for a failure on the worker bus (a frame write, a main request): debug logs every one, a quit is silent outside debug, otherwise the caller's reporter; reporting never throws |
 | `src/main/worker-host.js` | `registerWorkerHost()`, `getWorker`, `sendToWorker`, `stopWorkers` — spawning a Bare worker, the one guarded path that frames anything onto its pipe, the bootstrap frame (the worker's whole starting state, sent once), the stdout/stderr mirror and the exit reaper. A bootstrap that fails to write fails the spawn rather than caching a worker nothing can talk to (§3) |
 | `src/main/xdg-integration.js` | Linux AppImage `.desktop` + icon integration (`integrateXdgLinux`, §2 step 11) |
 

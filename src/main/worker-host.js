@@ -11,6 +11,7 @@ const { isDebug } = require('./debug-gate.js')
 const { isQuitting } = require('./quit-state.js')
 const { sendToAll } = require('./logging.js')
 const { createMainRequestRouter } = require('./main-requests.js')
+const { createFailureGate } = require('./worker-bus-failure.js')
 const { createWorkerRestart } = require('./lifecycle.js')
 const { entrypointFor } = require('./worker-entrypoints.js')
 const { createWorkerFrameReader } = require('./ipc-frame.js')
@@ -63,9 +64,10 @@ const looseFileWatchers = require('./loose-file-watchers.js')
 // alike. Returns whether it went out: a lost watcher event is survivable, a lost bootstrap is not
 // (see getWorker). Sync failures only — an unserialisable frame, a stream that rejects the write;
 // the async EPIPE of a write racing the worker's death arrives on worker.on('error') in getWorker.
-// Reported once per worker: every frame after a pipe goes bad fails the same way, and the repeats
-// would evict the crash that explains them from the log ring; a respawned worker reports again.
-// Silent during a quit, where a half-written pipe is expected.
+// Failures take the worker-bus policy (worker-bus-failure.js); outside debug they are reported once
+// per worker: every frame after a pipe goes bad fails the same way, and the repeats would evict
+// the crash that explains them from the log ring; a respawned worker reports again.
+const reportBusFailure = createFailureGate({ isDebug, isQuitting })
 const writeFailureReported = new WeakSet()
 
 function sendToWorker(worker, frame) {
@@ -73,12 +75,13 @@ function sendToWorker(worker, frame) {
     worker.write(Buffer.from(JSON.stringify(frame) + '\n'))
     return true
   } catch (err) {
-    if (isQuitting()) {
-      if (isDebug()) console.error('worker frame write failed during quit:', frame.type, '-', err.message)
-    } else if (!writeFailureReported.has(worker)) {
-      writeFailureReported.add(worker)
-      console.warn('worker frame write failed:', frame.type, '-', err.message, '- further failures for this worker are not logged')
-    }
+    reportBusFailure(err,
+      (text) => ['worker frame write failed:', frame.type, '-', text],
+      (text) => {
+        if (writeFailureReported.has(worker)) return
+        writeFailureReported.add(worker)
+        console.warn('worker frame write failed:', frame.type, '-', text, '- further failures for this worker are not logged')
+      })
     return false
   }
 }
@@ -90,6 +93,8 @@ const mainRequests = createMainRequestRouter({
   looseFileWatchers,
   setDownloadRoots: (roots) => { workerDownloadRoots = roots },
   sendToWorker,
+  isDebug,
+  isQuitting,
 })
 
 // Asks every live worker to exit. Called once, from the quit sequence.
@@ -229,16 +234,16 @@ function getWorker(specifier) {
     try {
       worker.write(Buffer.from(data))
     } catch (err) {
-      // Worker may have closed its socket before the renderer's last message arrived. During a quit
-      // that is the expected FIN race and the message is moot; outside one it is a request the
-      // renderer is still waiting on, and nothing else reports that it never left. Once per worker,
-      // for the same reason as sendToWorker.
-      if (isQuitting()) {
-        if (isDebug()) console.error('worker write failed during quit:', err.message)
-      } else if (!relayFailureReported) {
-        relayFailureReported = true
-        console.warn('worker write failed:', err.message, '- further failures for this worker are not logged')
-      }
+      // Worker may have closed its socket before the renderer's last message arrived. Outside a quit
+      // that is a request the renderer is still waiting on, and nothing else reports that it never
+      // left. Once per worker, for the same reason as sendToWorker.
+      reportBusFailure(err,
+        (text) => ['worker write failed:', text],
+        (text) => {
+          if (relayFailureReported) return
+          relayFailureReported = true
+          console.warn('worker write failed:', text, '- further failures for this worker are not logged')
+        })
     }
   }
   ipcMain.handle('pear:worker:writeIPC:' + specifier, writeHandler)
@@ -252,12 +257,7 @@ function getWorker(specifier) {
       let msg
       try { msg = JSON.parse(line) } catch { continue }
       if (msg && msg.type === MAIN_REQUEST_FRAME) {
-        // Every failure in debug; otherwise rate-limited, and silent during a quit, where a request
-        // racing the watcher teardown is expected.
-        mainRequests.handle(msg.command, msg.args || {}, worker).catch((err) => {
-          if (isDebug()) console.error('main-request failed:', msg.command, err.message)
-          else if (!isQuitting()) mainRequests.reportFailure(msg.command, err)
-        })
+        mainRequests.dispatch(msg.command, msg.args || {}, worker)
       }
     }
   })
