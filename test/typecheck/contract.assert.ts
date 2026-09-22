@@ -57,12 +57,15 @@ declare const maybeProfile: RequestResponse['profile:get']
 // @ts-expect-error profile:get may be null, and the caller has to say what it does then
 const name: string = maybeProfile.displayName
 
+const approvedAlready: RequestResponse['space:approve-member'] = { granted: false, outcome: 'already-approved' }
+// @ts-expect-error an approve that grants nothing says why, and only already-approved is a reason
+const approvedDenied: RequestResponse['space:approve-member'] = { granted: false, outcome: 'denied' }
 const denied: RequestResponse['space:deny-member'] = { outcome: 'already-approved' }
 // @ts-expect-error a deny reports what it did, so a bare boolean cannot hide the no-op
 const deniedBool: RequestResponse['space:deny-member'] = false
 // @ts-expect-error not a deny outcome
 const deniedTypo: RequestResponse['space:deny-member'] = { outcome: 'removed' }
 
-void [pathHost, pathHostTypo, spacesList, spacesListWrong, ackExtra, name, denied, deniedBool, deniedTypo] as unknown as NoSuchResponse
+void [pathHost, pathHostTypo, spacesList, spacesListWrong, ackExtra, name, approvedAlready, approvedDenied, denied, deniedBool, deniedTypo] as unknown as NoSuchResponse
 
 void [request, requestTypo, event, eventTypo, fileStatus, fileStatusTypo, ownedStatus, ownedStatusIdle, invite, inviteV0, docs, docsTypo, publishOrder, publishOrderTypo, mainQuery, mainQueryTypo]

@@ -16,6 +16,7 @@ console.log(`polite status toast    : ${out.politeStatus}`)
 console.log(`not an alert           : ${out.notAlert}`)
 console.log(`sticky past 5 s        : ${out.sticky}`)
 console.log(`not-open polite toast  : ${out.notOpenPolite}`)
+console.log(`approve already-in     : ${out.approvedPolite}`)
 if (out.error) console.log(`error                  : ${out.error}`)
 
 const pass = out.pass === true

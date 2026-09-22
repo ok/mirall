@@ -19,9 +19,9 @@ import { getMembershipCaps, isHandshakeIdentityBindingEnabled } from '../../shar
 import { sanitizeAvatar } from '../../shared/contract/identity-limits.js'
 import { reconcileAssertedRoot } from '../../shared/spaces/creator-root.js'
 import { classifyInvite } from '../../shared/spaces/invites.js'
-import { applyLocalApproval, applyLocalDenial, closeMemberView, dropTombstone, isApprovedJoiner, isDeniedJoiner, isLeft, openMemberView } from '../../shared/spaces/member-registry.js'
+import { applyLocalApproval, applyLocalDenial, closeMemberView, dropTombstone, isApprovedJoiner, isDeniedJoiner, isLeft, openMemberView, settleRequest, unsettleRequest } from '../../shared/spaces/member-registry.js'
 import { knockSettledByRecords, knockInviteVerdict } from '../../shared/spaces/knock-policy.js'
-import { captureJoinerMembership, getIdentitySigner, hasOwnApproval, markRequest, markRequestDenied, ownDenialStands, readProfileRecord } from '../../shared/spaces/profile.js'
+import { captureJoinerMembership, getIdentitySigner, markRequest, markRequestDenied, ownDenialStands, readProfileRecord } from '../../shared/spaces/profile.js'
 import { getSpace, getSpaceContentKey } from '../../shared/spaces/space.js'
 import { claimJoinRequestAudit, clearJoinRequest, forgetJoinRequestAudit, listJoinRequests, listPendingRequests, recordJoinRequest, releaseJoinRequestAudit } from '../../shared/spaces/join-requests.js'
 import { clearCreatorDivergence, markCreatorDivergence, pinCreatorKey } from '../../shared/spaces/creator-pin.js'
@@ -150,7 +150,8 @@ async function onJoinRequest(msg) {
     return
   }
   if (verdict === 'auto-approve') {
-    await resolveJoinRequest(space, msg.profileKey, 'approve')
+    const { outcome } = await resolveJoinRequest(space, msg.profileKey, 'approve')
+    if (outcome === DENY_OUTCOME.ALREADY_APPROVED) grant()
     return
   }
 
@@ -162,6 +163,7 @@ async function onJoinRequest(msg) {
   // by definition already under the frame cap.
   const avatar = sanitizeAvatar(msg.avatar, getMembershipCaps().maxAvatarBytes)
   const changed = recordJoinRequest(spaceId, msg.profileKey, displayName, avatar)
+  unsettleRequest(spaceId, msg.profileKey)
   // The durable receipt runs on EVERY knock — markRequest short-circuits on an existing one,
   // so a re-announced (heartbeat) request is nearly free while a first write that failed
   // self-heals. A departed peer (hadLeft) that re-requests must write a FRESH receipt ts, so
@@ -311,49 +313,71 @@ async function onDeny(msg) {
 // grant directly; co-members converge on the new member by replicating that record (the
 // fold re-derives) — no approval gossip. On deny it signals the joiner and tells
 // co-members to drop the banner. Routing all decision sites (manual approve, auto-admit,
-// deny) through here means none can omit a step. outcome: 'approve' | 'deny'.
-async function resolveJoinRequest(space, joinerKey, outcome) {
+// deny) through here means none can omit a step. decision: 'approve' | 'deny'.
+//
+// A joiner already approved is settled instead (see contract/deny-outcome.js). Local facts are
+// asked first; a deny reads the co-members' bees only once it knows a request is open, so a
+// click on a stale row never waits on an offline peer.
+const APPROVED = 'approved'
+const NO_KEY = 'no-key'
+
+async function resolveJoinRequest(space, joinerKey, decision) {
+  const spaceId = space.spaceId
   // The knock is settled; forget it so a genuine later re-knock (e.g. after a denial) records
   // again rather than being swallowed by the first one's dedupe.
-  forgetJoinRequestAudit(space.spaceId, joinerKey)
-  const spaceId = space.spaceId
-  if (outcome === 'approve') {
-    // A confirmed creator-root conflict disputes the roster's trust anchor — handing out the
-    // SCK now would admit members under an unresolved identity split. This check is what makes
-    // the divergence banner's "approvals are paused" claim true.
-    if (space.creatorDivergence) {
-      log.warn('approval blocked — creator root divergence unresolved:', spaceId)
-      throw new AppError(CODES.CREATOR_DIVERGENCE_UNRESOLVED, 'approvals are paused while the creator root conflict is unresolved')
-    }
-    const sck = getSpaceContentKey(spaceId, space)
-    if (!sck) return false
-    await recordApproval(spaceId, joinerKey)
-    applyLocalApproval(spaceId, joinerKey)
-    // The read-model is already correct here (member approved, request cleared), so clear the
-    // approver's banner now instead of gating it on the grant/capture below — matches the deny path.
+  forgetJoinRequestAudit(spaceId, joinerKey)
+  if (await isApprovedMember(spaceId, joinerKey, { localOnly: true })) return settleApprovedJoiner(spaceId, joinerKey)
+  if (decision === 'approve') return approveJoiner(space, joinerKey)
+  if (!listJoinRequests(spaceId).some((r) => r.publicKey === joinerKey)) {
     ipc.emit('event:join-requests-updated', { spaceId })
-    // Grant FIRST so the joiner flips to approved promptly — delaying it widens a race where a
-    // co-member's (no-op) deny reaches a still-pending joiner and makes it discard the space.
-    let delivered = false
-    if (space.topic) {
-      // The grant is sealed to the joiner's bound signer key, read from its live connection
-      // (the joiner must be connected to be granted). Surface a failure loudly rather than leaving
-      // the joiner silently stuck on "waiting for approval".
-      const signerPk = boundSignerPk(joinerKey)
-      delivered = sendMembershipGrant(joinerKey, space.topic, b4a.toString(sck, 'hex'), space.creatorKey, signerPk)
-      if (!delivered) log.warn('approval grant not delivered —', joinerKey.slice(0, 8), '— signer key', signerPk ? 'present' : 'missing')
-    }
-    // THEN durably capture the joiner's OWN profile core while it is still connected (it stays
-    // connected through this awaited handler). Without this, a joiner that disconnects right after
-    // approval leaves NO peer holding its record, so the OR-Set fold can never converge it on
-    // anyone — the owner included. We serve it onward via our member-view follow. The capture is
-    // best-effort and time-bounded so slow replication can't stall the approval; the joiner
-    // usually hasn't authored/replicated its member record yet at this instant, so a miss here is
-    // normal and the fold converges it later anyway — keep it at debug.
-    const captured = await captureJoinerMembership(joinerKey, spaceId)
-    if (!captured) log.debug('approval: joiner membership record not captured —', joinerKey.slice(0, 8))
-    return { granted: true, delivered }
+    return { outcome: DENY_OUTCOME.NOT_APPLICABLE }
   }
+  if (await isApprovedMember(spaceId, joinerKey)) return settleApprovedJoiner(spaceId, joinerKey)
+  await denyJoiner(space, joinerKey)
+  return { outcome: DENY_OUTCOME.DENIED }
+}
+
+async function approveJoiner(space, joinerKey) {
+  const spaceId = space.spaceId
+  // A confirmed creator-root conflict disputes the roster's trust anchor — handing out the
+  // SCK now would admit members under an unresolved identity split. This check is what makes
+  // the divergence banner's "approvals are paused" claim true.
+  if (space.creatorDivergence) {
+    log.warn('approval blocked — creator root divergence unresolved:', spaceId)
+    throw new AppError(CODES.CREATOR_DIVERGENCE_UNRESOLVED, 'approvals are paused while the creator root conflict is unresolved')
+  }
+  const sck = getSpaceContentKey(spaceId, space)
+  if (!sck) return { outcome: NO_KEY }
+  await recordApproval(spaceId, joinerKey)
+  applyLocalApproval(spaceId, joinerKey)
+  // The read-model is already correct here (member approved, request cleared), so clear the
+  // approver's banner now instead of gating it on the grant/capture below — matches the deny path.
+  ipc.emit('event:join-requests-updated', { spaceId })
+  // Grant FIRST so the joiner flips to approved promptly — delaying it widens a race where a
+  // co-member's (no-op) deny reaches a still-pending joiner and makes it discard the space.
+  let delivered = false
+  if (space.topic) {
+    // The grant is sealed to the joiner's bound signer key, read from its live connection
+    // (the joiner must be connected to be granted). Surface a failure loudly rather than leaving
+    // the joiner silently stuck on "waiting for approval".
+    const signerPk = boundSignerPk(joinerKey)
+    delivered = sendMembershipGrant(joinerKey, space.topic, b4a.toString(sck, 'hex'), space.creatorKey, signerPk)
+    if (!delivered) log.warn('approval grant not delivered —', joinerKey.slice(0, 8), '— signer key', signerPk ? 'present' : 'missing')
+  }
+  // THEN durably capture the joiner's OWN profile core while it is still connected (it stays
+  // connected through this awaited handler). Without this, a joiner that disconnects right after
+  // approval leaves NO peer holding its record, so the OR-Set fold can never converge it on
+  // anyone — the owner included. We serve it onward via our member-view follow. The capture is
+  // best-effort and time-bounded so slow replication can't stall the approval; the joiner
+  // usually hasn't authored/replicated its member record yet at this instant, so a miss here is
+  // normal and the fold converges it later anyway — keep it at debug.
+  const captured = await captureJoinerMembership(joinerKey, spaceId)
+  if (!captured) log.debug('approval: joiner membership record not captured —', joinerKey.slice(0, 8))
+  return { outcome: APPROVED, delivered }
+}
+
+async function denyJoiner(space, joinerKey) {
+  const spaceId = space.spaceId
   clearJoinRequest(spaceId, joinerKey)
   const deniedTs = await markRequestDenied(spaceId, joinerKey)   // durable, replicated dismissal (+ drops our receipt)
   applyLocalDenial(spaceId, joinerKey, deniedTs)
@@ -364,19 +388,13 @@ async function resolveJoinRequest(space, joinerKey, outcome) {
   ipc.emit('event:join-requests-updated', { spaceId })
 }
 
-// A joiner someone already let in: seed the approval so the fold cannot re-derive the request,
-// and drop it here and now.
+// Hides the request from the banner only; the gates keep answering from the fold. The emit is
+// unconditional because the renderer that asked is showing a row that may already be stale.
 function settleApprovedJoiner(spaceId, joinerKey) {
-  forgetJoinRequestRecord(spaceId, joinerKey)
-  const cleared = clearJoinRequest(spaceId, joinerKey)
-  const forgotten = applyLocalApproval(spaceId, joinerKey)
-  if (cleared || forgotten) ipc.emit('event:join-requests-updated', { spaceId })
-}
-
-// Local facts only: a remote read would stall every genuine approval behind an offline co-member.
-async function isKnownApproved(space, joinerKey) {
-  if ((space.members || []).some((m) => m.publicKey === joinerKey)) return true
-  return isApprovedJoiner(space.spaceId, joinerKey) || await hasOwnApproval(space.spaceId, joinerKey)
+  clearJoinRequest(spaceId, joinerKey)
+  settleRequest(spaceId, joinerKey)
+  ipc.emit('event:join-requests-updated', { spaceId })
+  return { outcome: DENY_OUTCOME.ALREADY_APPROVED }
 }
 
 // Tear down a space we only ever sat pending in: no own drive, owned/foreign
@@ -427,32 +445,22 @@ export function createMembership(ipcRef, deps) {
     // (pending, or otherwise unauthorized) physically cannot approve anyone — enforced by
     // the sck check inside resolveJoinRequest.
     if (!space || space.status === 'pending') return false
-    if (await isKnownApproved(space, msg.publicKey)) {
-      settleApprovedJoiner(msg.spaceId, msg.publicKey)
-      return false
-    }
-    const approved = await resolveJoinRequest(space, msg.publicKey, 'approve')
-    if (approved) {
-      record('membership.approved', {
-        actor: selfActor(),
-        space: spaceRefOf(space),
-        target: targetRef(TARGET_KIND.MEMBER, msg.publicKey, peerActorIn(space, msg.publicKey).name),
-      })
-    }
-    return approved
+    const result = await resolveJoinRequest(space, msg.publicKey, 'approve')
+    if (result.outcome === DENY_OUTCOME.ALREADY_APPROVED) return { granted: false, outcome: result.outcome }
+    if (result.outcome !== APPROVED) return false
+    record('membership.approved', {
+      actor: selfActor(),
+      space: spaceRefOf(space),
+      target: targetRef(TARGET_KIND.MEMBER, msg.publicKey, peerActorIn(space, msg.publicKey).name),
+    })
+    return { granted: true, delivered: result.delivered }
   })
   ipc.handle('space:deny-member', async (msg) => {
     const space = await getSpace(msg.spaceId)
-    if (!space || space.status === 'pending') return { outcome: DENY_OUTCOME.NOT_APPLICABLE }
-    // Approval cannot be revoked (there is no key rotation): a peer another member already let in
-    // keeps the SCK, so clear our stale banner and report the no-op.
-    if (await isApprovedMember(msg.spaceId, msg.publicKey)) {
-      settleApprovedJoiner(msg.spaceId, msg.publicKey)
-      return { outcome: DENY_OUTCOME.ALREADY_APPROVED }
-    }
-    // Nothing open to deny: the joiner withdrew, or a co-member's denial already landed.
-    if (!listJoinRequests(msg.spaceId).some((r) => r.publicKey === msg.publicKey)) return { outcome: DENY_OUTCOME.NOT_APPLICABLE }
-    await resolveJoinRequest(space, msg.publicKey, 'deny')
+    if (!space) throw new AppError(CODES.SPACE_NOT_FOUND, 'Space not found')
+    if (space.status === 'pending') throw new AppError(CODES.NOT_A_MEMBER, 'Cannot decide requests for a space you have not joined')
+    const result = await resolveJoinRequest(space, msg.publicKey, 'deny')
+    if (result.outcome !== DENY_OUTCOME.DENIED) return { outcome: result.outcome }
     record('membership.denied', {
       actor: selfActor(),
       space: spaceRefOf(space),

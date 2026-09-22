@@ -63,13 +63,16 @@ export function useSpaces() {
   }
 
   async function approveMember(spaceId: string, publicKey: string) {
-    await request('space:approve-member', { spaceId, publicKey })
+    const result = await request('space:approve-member', { spaceId, publicKey })
     await refresh()
+    return result
   }
 
   async function denyMember(spaceId: string, publicKey: string) {
     const result = await request('space:deny-member', { spaceId, publicKey })
-    // The outcome is reported without waiting on the list: the warning shows as the banner clears.
+    // The control stays busy until the banner's own read has landed, so a second click cannot hit a
+    // row the worker already settled; the spaces list is not what the banner renders.
+    await refetchQuery('space:pending-requests', { spaceId }).catch(() => {})
     void refresh()
     return result
   }

@@ -44,7 +44,7 @@ export function initHandshakeApply(deps) {
 
 const gates = createAdmissionGates({ connectedPeers, log, getIpc: () => getIpc() })
 
-export const isApprovedMember = (spaceId, joinerKey) => gates.isApprovedMember(spaceId, joinerKey)
+export const isApprovedMember = (spaceId, joinerKey, opts) => gates.isApprovedMember(spaceId, joinerKey, opts)
 export const resolveInvite = (space, inviteId) => gates.resolveInvite(space, inviteId)
 export function getAdmissionGates() {
   return gates

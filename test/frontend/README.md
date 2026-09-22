@@ -67,7 +67,7 @@ One row per file in `scenarios/`; the id is the `run.mjs` argument (`node test/f
 | s56 | `s56-membership-deny-and-invite-toggle.mjs` | Deny → the joiner is told; the decline toast is sticky (hover does not auto-dismiss); the invite modal's Auto-approve toggle is off by default and togglable. |
 | s57 | `s57-membership-deny-in-modal.mjs` | Denying in the batch modal removes that row immediately and leaves the others. |
 | s58 | `s58-membership-convergence.mjs` | When the owner approves, a co-member's banner and its request toast clear too. |
-| s150 | `s150-membership-deny-already-approved.mjs` | A co-member's Deny on a joiner another member already approved: a polite (`status`), sticky "already a member" warning, and the stale banner clears. |
+| s150 | `s150-membership-deny-already-approved.mjs` | A co-member's Deny on a joiner another member already approved: a polite (`status`), sticky "already approved" warning, and the stale banner clears. |
 | s59 | `s59-membership-cancel.mjs` | A joiner withdrawing a pending request clears "wants to join" on the member who saw it. |
 | s60 | `s60-membership-waiting-pill.mjs` | The joiner's spaces-list card wears a "Waiting for approval" pill until approved. |
 | s61 | `s61-member-identity-sync.mjs` | A late joiner renders a pre-existing co-member by real name from replicated records, never "Unknown". |

@@ -35,6 +35,10 @@ export function _rulesForTests() {
   return { ruled, defaultedKeys: tabledKeys().length }
 }
 
+export function getMemberFoldHold() {
+  return config.memberFoldHold
+}
+
 export function getRuntimeConfig() {
   return config
 }

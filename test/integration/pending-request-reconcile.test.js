@@ -9,7 +9,8 @@ import { initProfile, setProfile, markOwnMembership, markApproval, readProfileRe
 import { initSpaces, getSpace, upsertMember } from '../../src/shared/spaces/space.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { listJoinRequests, listPendingRequests, recordJoinRequest, setDerivedRequests } from '../../src/shared/spaces/join-requests.js'
-import { configureMemberRegistry, openMemberView, closeAllMemberViews, applyLocalApproval, isApprovedJoiner } from '../../src/shared/spaces/member-registry.js'
+import { configureMemberRegistry, openMemberView, closeAllMemberViews, settleRequest, unsettleRequest, isApprovedJoiner } from '../../src/shared/spaces/member-registry.js'
+import { knockSettledByRecords } from '../../src/shared/spaces/knock-policy.js'
 import { makePeer, replicate, waitFor } from '../helpers/peer-bee.js'
 import { tmpDir } from '../helpers/bare-tmp.js'
 
@@ -66,11 +67,11 @@ test('REGRESSION (co-member request): derive a pending request from a member rec
   t.ok(reqEvents.some((r) => r.publicKey === C), 'emitted member-join-request for the newly-derived request')
 })
 
-// The worker can learn a joiner is approved from a co-member's bee (the admission read) before
-// its own fold has folded that record. Seeding the approval must survive the next fold, or the
-// request re-derives as pending and the banner comes back.
-test('REGRESSION (FIX-395B: an approval learned ahead of the fold resurfaces the request)', async (t) => {
-  await boot(t, 'seeded')
+// A deny can learn from a co-member's bee that the joiner was already let in, before the fold has
+// that record. Hiding the request must stay a UI matter: the knock gate, admission and the serve
+// gate answer from the fold alone, or a Deny click would hand the joiner the key on its next knock.
+test('REGRESSION (FIX-395E: settling a request lets the joiner\'s next knock take the key)', async (t) => {
+  await boot(t, 'settled')
   const space = await createSpace('Approval Test')
   const S = space.spaceId
   await markOwnMembership(S)
@@ -87,8 +88,11 @@ test('REGRESSION (FIX-395B: an approval learned ahead of the fold resurfaces the
   t.ok(await waitFor(() => listJoinRequests(S).some((r) => r.publicKey === C)), 'C derived as pending')
   const raised = reqEvents.length
 
-  applyLocalApproval(S, C)
-  t.absent(listJoinRequests(S).some((r) => r.publicKey === C), 'the request clears at once')
+  settleRequest(S, C)
+  t.absent(listJoinRequests(S).some((r) => r.publicKey === C), 'the request leaves the banner at once')
+  t.absent(isApprovedJoiner(S, C), 'no approval without a folded record')
+  const verdict = knockSettledByRecords({ selfPending: false, isMember: false, hadLeft: false, isApproved: isApprovedJoiner(S, C) })
+  t.is(verdict, null, 'C\'s next knock goes to review, never to a re-grant')
 
   // An unrelated request changes the folded view, so the next fold is published.
   const D = 'd'.repeat(64)
@@ -96,7 +100,10 @@ test('REGRESSION (FIX-395B: an approval learned ahead of the fold resurfaces the
   t.ok(await waitFor(() => listJoinRequests(S).some((r) => r.publicKey === D)), 'the next fold has run')
   t.absent(listJoinRequests(S).some((r) => r.publicKey === C), 'a fold without the record does not bring it back')
   t.absent(reqEvents.slice(raised).some((r) => r.publicKey === C), 'no second join-request is raised for C')
-  t.ok(isApprovedJoiner(S, C), 'the knock gate still counts C as approved')
+  t.absent(isApprovedJoiner(S, C), 'the fold still grants nothing')
+
+  unsettleRequest(S, C)
+  t.ok(listJoinRequests(S).some((r) => r.publicKey === C), 'a fresh knock surfaces the request for review')
 })
 
 test('a member dismissal tombstone (ts >= receipt) withdraws the request; a fresh re-knock resurfaces', async (t) => {

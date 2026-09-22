@@ -1,5 +1,7 @@
-// What a deny did. Approval hands out the content key, and approval cannot be revoked: there is no
-// key rotation, so a deny aimed at a peer who is already a member changes nothing, and says so.
+// What a deny did. Approval hands out the content key and cannot be revoked — there is no key
+// rotation — so a decision on a peer another member already approved changes nothing, and says so:
+// the peer keeps access, including to anything shared later. This is the one statement of that
+// rule; the sites that act on ALREADY_APPROVED point here.
 
 export const DENY_OUTCOME = Object.freeze({
   DENIED: 'denied',

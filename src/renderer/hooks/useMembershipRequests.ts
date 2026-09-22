@@ -3,13 +3,13 @@ import { useTranslation } from 'react-i18next'
 import { useToast } from '../components/toast/ToastProvider.js'
 import { useErrorText } from './useErrorText.js'
 import { DENY_OUTCOME } from '../../shared/contract/deny-outcome.js'
-import type { DenyMemberResult } from '../../shared/contract/responses.js'
+import type { ApproveMemberResult, DenyMemberResult } from '../../shared/contract/responses.js'
 import type { JoinRequest } from '../types/types.js'
 
 type MembershipRequestsInput = {
   spaceId: string
   requests: JoinRequest[]
-  approveMember: (spaceId: string, publicKey: string) => Promise<void>
+  approveMember: (spaceId: string, publicKey: string) => Promise<ApproveMemberResult>
   denyMember: (spaceId: string, publicKey: string) => Promise<DenyMemberResult>
 }
 
@@ -46,16 +46,22 @@ export function useMembershipRequests({ spaceId, requests, approveMember, denyMe
     }
   }
 
-  // A co-member can admit or deny the peer while our Deny is on screen. Approval cannot be revoked,
-  // so that consequence stays up until the user dismisses it.
+  const nameOf = (pk: string) => requests.find((r) => r.publicKey === pk)?.displayName || t('member.unknown')
+
+  // A co-member can settle the request while our row is on screen. The already-approved warning
+  // stays until dismissed (the rule it states: contract/deny-outcome.js).
   async function denyAndReport(sid: string, pk: string) {
     const { outcome } = await denyMember(sid, pk)
     if (outcome === DENY_OUTCOME.NOT_APPLICABLE) {
       toast.info(t('member.denyNotOpen'))
     } else if (outcome === DENY_OUTCOME.ALREADY_APPROVED) {
-      const name = requests.find((r) => r.publicKey === pk)?.displayName || t('member.unknown')
-      toast.warning(t('member.denyAlreadyApproved', { name }), { duration: 0 })
+      toast.warning(t('member.denyAlreadyApproved', { name: nameOf(pk) }), { duration: 0 })
     }
+  }
+
+  async function approveAndReport(sid: string, pk: string) {
+    const result = await approveMember(sid, pk)
+    if (result && result.granted === false) toast.info(t('member.alreadyApproved', { name: nameOf(pk) }))
   }
 
   // Approving a batch runs one at a time on purpose: each approval writes membership and re-reads
@@ -84,7 +90,7 @@ export function useMembershipRequests({ spaceId, requests, approveMember, denyMe
 
   return {
     busy,
-    approve: (pk: string) => decide(pk, approveMember),
+    approve: (pk: string) => decide(pk, approveAndReport),
     deny: (pk: string) => decide(pk, denyAndReport),
     approveMany,
   }

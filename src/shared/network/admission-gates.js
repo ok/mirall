@@ -25,12 +25,13 @@ export function createAdmissionGates({
   // authored `approved/<S>/<joiner>` record for them (an approval by one member propagates
   // via replication — no gossip). Our own record and the fold's approved set answer locally; only
   // records the fold has not seen yet are read from the other members' bees, all under one
-  // admission budget, the first approval winning.
-  async function isApprovedByPeers(space, joinerKey) {
+  // admission budget, the first approval winning. `localOnly` stops before those reads.
+  async function isApprovedByPeers(space, joinerKey, { localOnly = false } = {}) {
     // Our OWN approval counts: the fold may not yet hold the joiner's (not-yet-replicated) record,
     // and without this the owner could not admit a peer it approved itself.
     if (await hasOwnApproval(space.spaceId, joinerKey)) return true
     if (isFoldApproved(space.spaceId, joinerKey)) return true
+    if (localOnly) return false
     return await someWithin(approversToAsk(space, joinerKey), {
       limit: MAX_APPROVAL_READS_IN_FLIGHT,
       deadlineAt: Date.now() + getAdmissionReadTimeoutMs(),
@@ -47,11 +48,11 @@ export function createAdmissionGates({
     return [...others.filter(live), ...others.filter((key) => !live(key))]
   }
 
-  async function isApprovedMember(spaceId, joinerKey) {
+  async function isApprovedMember(spaceId, joinerKey, opts) {
     const space = await getSpace(spaceId)
     if (!space) return false
     if ((space.members || []).some((m) => m.publicKey === joinerKey)) return true
-    return await isApprovedByPeers(space, joinerKey)
+    return await isApprovedByPeers(space, joinerKey, opts)
   }
 
   // Resolve a link's per-link record from anywhere in the member set: our own bee first (the minter

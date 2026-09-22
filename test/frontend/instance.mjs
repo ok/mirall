@@ -9,13 +9,15 @@ import { withAx } from './ax.mjs'
 import { withFlows } from './flows.mjs'
 
 class InstanceBase {
-  constructor({ name, bootstrap = null, slot = 0, total = 2, flags = null }) {
+  constructor({ name, bootstrap = null, slot = 0, total = 2, flags = null, env = null }) {
     this.name = name
     this.bootstrap = bootstrap
     this.slot = slot
     this.total = total
     // Merged over feature-flags.json via MIRALL_FEATURE_FLAGS.
     this.flags = { ...(flags || {}) }
+    // Extra MIRALL_* hooks for this instance's process only, so one peer can differ from the rest.
+    this.env = { ...(env || {}) }
     this.store = workDir(`store-${name}-`)
     this.downloadFolder = workDir(`dl-${name}-`)
     this.proc = null
@@ -40,6 +42,7 @@ class InstanceBase {
       MIRALL_VERBOSE: '1',
       MIRALL_DOWNLOAD_FOLDER: this.downloadFolder,
       MIRALL_WINDOW_BOUNDS: JSON.stringify(tile(this.slot, this.total)),
+      ...this.env,
     }
     if (this.bootstrap) env.MIRALL_DHT_BOOTSTRAP = JSON.stringify(this.bootstrap)
     if (this.flags) env.MIRALL_FEATURE_FLAGS = JSON.stringify(this.flags)

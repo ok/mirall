@@ -1,8 +1,8 @@
 // Real-Chromium harness for a deny that lands on a peer a co-member already approved. Mounts the
 // REAL <SpaceScreen> with one pending request, clicks Deny, and asserts the control disables while
 // the delayed deny is in flight, then that the worker's already-approved outcome is spoken as a
-// polite status toast that stays until dismissed. A second Deny finds nothing open and says so,
-// politely too. window.bridge is installed by fake-bridge.js.
+// polite status toast that stays until dismissed. A second Deny finds nothing open and an Approve
+// finds Bob already in; both say so politely. window.bridge is installed by fake-bridge.js.
 import './harness-bootstrap.js'
 import { createRoot } from 'react-dom/client'
 import i18n from '../../src/renderer/platform/i18n.js'
@@ -21,6 +21,7 @@ interface HarnessResults {
   notAlert: boolean
   sticky: boolean
   notOpenPolite: boolean
+  approvedPolite: boolean
   pass: boolean
   error: string | null
 }
@@ -50,6 +51,12 @@ createRoot(container).render(
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 const message = i18n.t('member.denyAlreadyApproved', { name: 'Bob' })
 const notOpen = i18n.t('member.denyNotOpen')
+const alreadyIn = i18n.t('member.alreadyApproved', { name: 'Bob' })
+
+function approveButton(): HTMLButtonElement | null {
+  const label = i18n.t('member.approveNamed', { name: 'Bob' })
+  return document.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)
+}
 
 function denyButton(): HTMLButtonElement | null {
   const label = i18n.t('member.denyNamed', { name: 'Bob' })
@@ -71,7 +78,7 @@ async function waitForToast(text: string): Promise<HTMLElement | null> {
 }
 
 function publishError(error: string): void {
-  window.__results = { initiallyEnabled: false, disabledWhileBusy: false, politeStatus: false, notAlert: false, sticky: false, notOpenPolite: false, pass: false, error }
+  window.__results = { initiallyEnabled: false, disabledWhileBusy: false, politeStatus: false, notAlert: false, sticky: false, notOpenPolite: false, approvedPolite: false, pass: false, error }
 }
 
 async function run() {
@@ -104,6 +111,10 @@ async function run() {
   denyButton()?.click()
   const notOpenPolite = (await waitForToast(notOpen))?.getAttribute('aria-live') === 'polite' && toastWith('alert', notOpen) === null
 
+  await sleep(100)
+  approveButton()?.click()
+  const approvedPolite = (await waitForToast(alreadyIn))?.getAttribute('aria-live') === 'polite' && toastWith('alert', alreadyIn) === null
+
   window.__results = {
     initiallyEnabled,
     disabledWhileBusy,
@@ -111,7 +122,8 @@ async function run() {
     notAlert,
     sticky,
     notOpenPolite,
-    pass: initiallyEnabled && disabledWhileBusy && politeStatus && notAlert && sticky && notOpenPolite,
+    approvedPolite,
+    pass: initiallyEnabled && disabledWhileBusy && politeStatus && notAlert && sticky && notOpenPolite && approvedPolite,
     error: null,
   }
 }
