@@ -5,9 +5,9 @@ import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { subscribe } from '../../../ipc/ipc.js'
 import { useToast } from '../ToastProvider.js'
-import { basename } from '../../../model/share-paths.js'
 import { isMountFault } from '../../../../shared/contract/mount-fault.js'
 import { mountFaultReasonKey } from '../../../errors/error-messages.js'
+import { transferFaultToast } from '../../../model/transfer-fault-toast.js'
 
 interface TransferSupersededMessage {
   transferId: string
@@ -21,8 +21,7 @@ interface TransferRemovedMessage {
 }
 
 interface TransferErrorMessage {
-  transferId: string
-  path: string
+  spaceId: string
   errorCode?: string
 }
 
@@ -53,17 +52,8 @@ export default function WorkerToastBridge() {
         })
       }),
       subscribe<TransferErrorMessage>('event:transfer-error', (msg) => {
-        if (msg.errorCode === 'TRANSFER_DISK_FULL') {
-          toast.error(t('file.transferDiskFullToast', { name: basename(msg.path) }), {
-            id: 'disk-full:' + msg.transferId,
-            duration: 8000,
-          })
-        } else if (msg.errorCode === 'TRANSFER_CHECKSUM') {
-          toast.error(t('file.transferChecksumToast', { name: basename(msg.path) }), {
-            id: 'checksum:' + msg.transferId,
-            duration: 8000,
-          })
-        }
+        const fault = transferFaultToast(msg.spaceId, msg.errorCode)
+        if (fault) toast.error(t(fault.key), { id: fault.id, duration: 8000, whileShown: 'keep' })
       }),
       // `error` is a CODE; translate it. The folder screen's fault strip is the durable surface —
       // this is the notice you get while looking at something else.

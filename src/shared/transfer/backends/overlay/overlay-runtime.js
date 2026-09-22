@@ -23,6 +23,7 @@ import {
 } from './loose-downloads.js'
 import { rehydrateLooseFiles, resetLooseMaintenance } from './loose-maintenance.js'
 import { listSpaces } from '../../../spaces/space.js'
+import { listPendingOwnerKeys } from '../../pending-transfers.js'
 
 const CONTENT_RESUME_COALESCE_MS = 250
 
@@ -124,6 +125,13 @@ export class OverlayBackend extends Subsystem {
       resumeLooseForOwner(ownerKey, spaceId).catch((err) => this.log.debug('loose auto-resume failed:', err.message))
     }
     resumeFolderForOwner(ownerKey, spaceId).catch((err) => this.log.debug('overlay folder auto-resume failed:', err.message))
+  }
+
+  // The owners the convergence tick's stalled-owner rescue reaches for: one scan of the pending
+  // rows, each judged by the engine that owns it.
+  awaitedOwnerKeys() {
+    const engines = [this.folderEngine, this.looseEngine].filter(Boolean)
+    return listPendingOwnerKeys({ keep: (row) => engines.some((engine) => engine.awaitsOwner(row)) })
   }
 
   // The content plane authenticates per owner with no space, so the resume fans out across our

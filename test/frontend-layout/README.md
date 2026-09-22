@@ -32,6 +32,7 @@ components run unmodified. `harness-bootstrap.ts` gives every harness the query 
 | `test:layout:case -- failpaths` | `run-failpaths.mjs` | `<Account>`, `<ActivityLogSettings>`, `<NetworkDiagnosticsScreen>`, `<CopyButton>`, `<InviteModal>` under the real `<ToastProvider>`, with the worker and the clipboard rejecting | the control is usable again, nothing reports success, the reason is an alert toast, no rejection escapes |
 | `test:layout:case -- toastdedupe` | `run-toastdedupe.mjs` | the real `<ToastProvider>` under a retried failure | one sentence said three times is one toast, remounted each time; a different sentence still stacks |
 | `test:layout:case -- toaststack` | `run-toaststack.mjs` | the real `<ToastProvider>` under a burst behind a sticky toast | a sticky toast is never evicted; the oldest auto-dismissing one makes room; stickies alone let the stack grow |
+| `test:layout:case -- transferfaults` | `run-transferfaults.mjs` | the real `<ToastProvider>` + `<WorkerToastBridge>` and the notification dispatcher under a burst of per-file transfer errors | one toast, mounted once; one OS notification re-shown once under the same id with the file count; another fault or space is its own toast |
 
 Append `--no-build` to any runner to reuse the existing bundle. Exit `0` = the invariant held; on
 failure each runner prints the measured metrics. **Local/dev-machine only** — they spawn a real

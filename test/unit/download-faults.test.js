@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { preflightFault, terminalFault } from '../../src/shared/transfer/backends/overlay/download-faults.js'
+import { preflightFault, terminalFault, faultCleared, faultAwaitsOwner } from '../../src/shared/transfer/backends/overlay/download-faults.js'
 import { CODES } from '../../src/shared/contract/errors.js'
 import { FREE_SPACE_HEADROOM } from '../../src/shared/transfer/free-space.js'
 
@@ -57,4 +57,24 @@ test('a permission errno from a folder that still takes a write is the retryable
   t.is(terminalFault(eperm, dest({ dirWritable: () => true })), CODES.DOWNLOAD_FAILED,
     'a file another program held for a moment, not a read-only folder')
   t.is(terminalFault(eperm, dest()), CODES.TRANSFER_PERMISSION, 'a folder that refuses the probe is the permission fault')
+})
+
+test('a permission fault clears once its folder takes a write', (t) => {
+  const writable = () => true
+  const readOnly = () => false
+  t.is(faultCleared(CODES.TRANSFER_PERMISSION, '/dl/a.bin', writable), true)
+  t.is(faultCleared(CODES.TRANSFER_PERMISSION, '/dl/a.bin', readOnly), false)
+  t.is(faultCleared(CODES.TRANSFER_PERMISSION, undefined, writable), false, 'a row without a destination has no folder to probe')
+  t.is(faultCleared(CODES.TRANSFER_DISK_FULL, '/dl/a.bin', writable), false, 'a writable folder says nothing about a full disk')
+})
+
+test('a row awaits its owner unless only the user can unblock it', (t) => {
+  const readOnly = () => false
+  t.is(faultAwaitsOwner(undefined, '/dl/a.bin', readOnly), true)
+  t.is(faultAwaitsOwner(CODES.DOWNLOAD_FAILED, '/dl/a.bin', readOnly), true, 'a generic failure is re-driven on reconnect')
+  t.is(faultAwaitsOwner(CODES.TRANSFER_CHECKSUM, '/dl/a.bin', readOnly), true, 'the owner clears a checksum fault by republishing')
+  t.is(faultAwaitsOwner(CODES.TRANSFER_DISK_FULL, '/dl/a.bin', readOnly), false)
+  t.is(faultAwaitsOwner(CODES.TRANSFER_DEST_UNAVAILABLE, '/dl/a.bin', readOnly), false)
+  t.is(faultAwaitsOwner(CODES.TRANSFER_PERMISSION, '/dl/a.bin', readOnly), false)
+  t.is(faultAwaitsOwner(CODES.TRANSFER_PERMISSION, '/dl/a.bin', () => true), true)
 })

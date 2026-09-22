@@ -15,7 +15,7 @@ import {
 } from 'react'
 import type { ToastApi, ToastItem, ToastOptions, ToastVariant } from './types.js'
 import { toastKey } from './toastKey.js'
-import { isSticky, pushToast } from './toastStack.js'
+import { isShown, isSticky, pushToast } from './toastStack.js'
 import ToastContainer from './ToastContainer.js'
 
 declare global {
@@ -39,6 +39,9 @@ interface Props {
 
 export function ToastProvider({ children }: Props) {
   const [items, setItems] = useState<ToastItem[]>([])
+  // What is on screen as of the last show/dismiss, read synchronously so a burst of shows in one
+  // tick sees its own earlier toasts.
+  const itemsRef = useRef<ToastItem[]>([])
   const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
   const pausedRef = useRef<Set<string>>(new Set())
   const seqRef = useRef(0)
@@ -50,7 +53,9 @@ export function ToastProvider({ children }: Props) {
       timersRef.current.delete(id)
     }
     pausedRef.current.delete(id)
-    setItems((prev) => (prev.some((i) => i.id === id) ? prev.filter((i) => i.id !== id) : prev))
+    if (!itemsRef.current.some((i) => i.id === id)) return
+    itemsRef.current = itemsRef.current.filter((i) => i.id !== id)
+    setItems(itemsRef.current)
   }, [])
 
   const scheduleDismiss = useCallback(
@@ -65,6 +70,7 @@ export function ToastProvider({ children }: Props) {
   const show = useCallback(
     (variant: ToastVariant, message: string, opts: ToastOptions = {}): string => {
       const id = opts.id ?? toastKey(variant, message)
+      if (opts.whileShown === 'keep' && isShown(itemsRef.current, id, message)) return id
       const duration = opts.duration ?? DEFAULT_DURATION
       const item: ToastItem = {
         id,
@@ -80,7 +86,8 @@ export function ToastProvider({ children }: Props) {
         timersRef.current.delete(id)
       }
       pausedRef.current.delete(id)
-      setItems((prev) => pushToast(prev, item, pausedRef.current))
+      itemsRef.current = pushToast(itemsRef.current, item, pausedRef.current)
+      setItems(itemsRef.current)
       scheduleDismiss(id, duration)
       return id
     },

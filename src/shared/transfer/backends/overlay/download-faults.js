@@ -4,6 +4,7 @@
 import { CODES } from '../../../contract/errors.js'
 import { classifyTransferError, isLocalDestFault } from '../../../core/errors.js'
 import { shortfall } from '../../free-space.js'
+import { isUserBlockedFault } from './fetch-policy.js'
 
 // Refuse before any scheduler/holder work. The folder is checked first and on its own: the
 // receive path mkdir -p's the destination, so a folder the user deleted would be silently
@@ -33,4 +34,17 @@ export function terminalFault(result, dest) {
   const classified = classifyTransferError(result.cause)
   if (classified === CODES.TRANSFER_PERMISSION && dest.dirWritable()) return CODES.DOWNLOAD_FAILED
   return classified === CODES.TRANSFER_NETWORK ? CODES.DOWNLOAD_FAILED : classified
+}
+
+// A terminal verdict the user has since acted on: a folder that refused writes and takes one now.
+// Fixing the folder is the action a permission fault waits for, so the row is re-driven instead of
+// left for a Retry. `folderWritable(finalPath)` probes the folder that holds finalPath.
+export function faultCleared(code, finalPath, folderWritable) {
+  return code === CODES.TRANSFER_PERMISSION && !!finalPath && folderWritable(finalPath)
+}
+
+// Whether a pending row still waits on its owner's bytes: a fault only the user can clear waits on
+// the user instead, until it has cleared.
+export function faultAwaitsOwner(code, finalPath, folderWritable) {
+  return !isUserBlockedFault(code) || faultCleared(code, finalPath, folderWritable)
 }

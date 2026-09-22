@@ -1,11 +1,13 @@
-// Subscribes to worker member/transfer events and shows OS notifications per user prefs, with join-flap dedupe.
+// Subscribes to worker member/transfer events and shows OS notifications per user prefs, with join-flap
+// dedupe and per-file transfer bursts coalesced (coalesce.js).
 import type { PathHost } from '../../shared/contract/paths.js'
 import i18n from '../platform/i18n.js'
 import { subscribe } from '../ipc/ipc.js'
 import type { NotificationSpec } from '../platform/global.d.js'
 import { errorCodeToI18nKey } from '../errors/error-messages.js'
-import { getPrefs } from './prefs.js'
-import { pausedBodyKey } from './pausedToast.js'
+import { getPrefs, type NotificationEventPrefs } from './prefs.js'
+import { pausedBodyKey, pausedManyBodyKey } from './pausedToast.js'
+import { createCoalescer } from './coalesce.js'
 
 interface MemberJoinedMessage {
   type: 'event:member-joined'
@@ -51,6 +53,9 @@ export interface DispatcherDeps {
 
 const joinedShown = new Set<string>()
 const JOIN_FORGET_MS = 5 * 60_000
+// A folder download completes, fails or pauses every file within seconds of each other.
+const BURST_WINDOW_MS = 3000
+const BURST_CAP_MS = 10_000
 
 function basename(p: string): string {
   const i = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'))
@@ -64,6 +69,20 @@ async function show(spec: NotificationSpec): Promise<void> {
   await window.bridge.notify({
     ...spec,
     silent: spec.silent ?? !prefs.sound,
+  })
+}
+
+// One notification per burst: `spec` builds it for an episode, with `count` 1 for the first file.
+// The summary reuses its episode's id, so main replaces that episode's notification and no other.
+function coalesced<T extends { transferId: string }>(
+  pref: keyof NotificationEventPrefs,
+  spec: (msg: T, count: number, episode: number) => NotificationSpec,
+) {
+  return createCoalescer<T>({
+    windowMs: BURST_WINDOW_MS,
+    capMs: BURST_CAP_MS,
+    onLeading: (ep) => { void show(spec(ep.data, 1, ep.seq)) },
+    onSummary: (ep) => { if (getPrefs().events[pref]) void show(spec(ep.data, ep.count, ep.seq)) },
   })
 }
 
@@ -108,50 +127,51 @@ export function startNotifications(deps: DispatcherDeps): () => void {
     })
   }))
 
+  const completed = coalesced<TransferCompleteMessage>('transferComplete', (msg, count, episode) => ({
+    id: `transfer-complete:${msg.spaceId}:${episode}`,
+    title: t('notifications.transferCompleteTitle'),
+    body: count > 1 ? t('notifications.transferCompleteManyBody', { count }) : basename(msg.path),
+    groupId: `space:${msg.spaceId}`,
+    payload: { kind: 'transfer-complete', spaceId: msg.spaceId, localPath: msg.localPath, path: msg.path },
+  }))
   unsubs.push(subscribe<TransferCompleteMessage>('event:transfer-complete', (msg) => {
     if (!getPrefs().events.transferComplete) return
     if (!msg.localPath) return
-    const fileName = basename(msg.path)
-    void show({
-      id: `transfer-complete:${msg.transferId}`,
-      title: t('notifications.transferCompleteTitle'),
-      body: fileName,
-      groupId: `space:${msg.spaceId}`,
-      payload: {
-        kind: 'transfer-complete',
-        spaceId: msg.spaceId,
-        localPath: msg.localPath,
-        path: msg.path,
-      },
-    })
+    completed.hit(msg.spaceId, msg.transferId, msg)
   }))
 
-  unsubs.push(subscribe<TransferErrorMessage>('event:transfer-error', (msg) => {
-    if (!getPrefs().events.transferError) return
-    const fileName = basename(msg.path)
+  const failed = coalesced<TransferErrorMessage>('transferError', (msg, count, episode) => {
     const reason = tErr(errorCodeToI18nKey(msg.errorCode))
-    void show({
-      id: `transfer-error:${msg.transferId}`,
+    return {
+      id: `transfer-error:${msg.spaceId}:${msg.errorCode ?? ''}:${episode}`,
       title: t('notifications.transferErrorTitle'),
-      body: t('notifications.transferErrorBody', { file: fileName, reason }),
+      body: count > 1
+        ? t('notifications.transferErrorManyBody', { count, reason })
+        : t('notifications.transferErrorBody', { file: basename(msg.path), reason }),
       urgency: 'critical',
       groupId: `space:${msg.spaceId}`,
       payload: { kind: 'transfer-error', spaceId: msg.spaceId, path: msg.path },
-    })
+    }
+  })
+  unsubs.push(subscribe<TransferErrorMessage>('event:transfer-error', (msg) => {
+    if (!getPrefs().events.transferError) return
+    failed.hit(`${msg.spaceId}:${msg.errorCode ?? ''}`, msg.transferId, msg)
   }))
 
+  const paused = coalesced<TransferPausedMessage>('transferPaused', (msg, count, episode) => ({
+    id: `transfer-paused:${msg.spaceId}:${pausedBodyKey(msg.reason)}:${episode}`,
+    title: t('notifications.transferPausedTitle'),
+    body: count > 1 ? t(pausedManyBodyKey(msg.reason), { count }) : t(pausedBodyKey(msg.reason), { file: basename(msg.path) }),
+    groupId: `space:${msg.spaceId}`,
+    payload: { kind: 'transfer-paused', spaceId: msg.spaceId, path: msg.path },
+  }))
   unsubs.push(subscribe<TransferPausedMessage>('event:transfer-paused', (msg) => {
     if (!getPrefs().events.transferPaused) return
-    const fileName = basename(msg.path)
-    const bodyKey = pausedBodyKey(msg.reason)
-    void show({
-      id: `transfer-paused:${msg.transferId}`,
-      title: t('notifications.transferPausedTitle'),
-      body: t(bodyKey, { file: fileName }),
-      groupId: `space:${msg.spaceId}`,
-      payload: { kind: 'transfer-paused', spaceId: msg.spaceId, path: msg.path },
-    })
+    paused.hit(`${msg.spaceId}:${pausedBodyKey(msg.reason)}`, msg.transferId, msg)
   }))
 
-  return () => unsubs.forEach((u) => u())
+  return () => {
+    unsubs.forEach((u) => u())
+    for (const bursts of [completed, failed, paused]) bursts.close()
+  }
 }

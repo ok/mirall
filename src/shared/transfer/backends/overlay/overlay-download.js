@@ -22,12 +22,12 @@ import { pauseReasonFor as ownerPauseReason } from '../../transfer-status.js'
 import { createStallRetry } from './stall-retry.js'
 import { createLogger } from '../../../core/logger.js'
 import { isTerminalFault } from './fetch-policy.js'
-import { CODES } from '../../../contract/errors.js'
 import { freeBytesFor } from '../../free-space-probe.js'
 import { createStart } from './download-start.js'
 import { createFetchSettle } from './fetch-settle.js'
 import { createReconcile } from './reconcile-scan.js'
 import { memberWaits } from '../../../network/share-wait.js'
+import { faultAwaitsOwner, faultCleared } from './download-faults.js'
 
 const log = createLogger('overlay-download')
 
@@ -73,6 +73,48 @@ function defaultDirWritable(dir) {
   }
 }
 
+// Whether a file can be created in the folder, believed only when one actually is: a folder that is
+// gone or unreadable has not been fixed.
+function defaultDirAcceptsWrite(dir) {
+  const probe = path.join(dir, '.mirall-write-probe' + PARTIAL_SUFFIX)
+  try {
+    fs.closeSync(fs.openSync(probe, 'w'))
+    fs.unlinkSync(probe)
+    return true
+  } catch {
+    return false
+  }
+}
+
+// The stalled-owner rescue asks on every convergence tick, and each probe is a synchronous
+// create/delete in the user's folder, so it reads a verdict at most this old.
+const FOLDER_VERDICT_TTL_MS = 60_000
+
+// Whether the stalled-owner rescue should keep reaching for a row's owner. A manual pause and a
+// fault only the user can clear wait on the user, not the owner. The reconcile's faultCleared probes
+// the folder afresh — a reconnect is its one chance to re-drive the row — and leaves the verdict
+// for the rescue.
+function createOwnerWait({ channel, pausedHashes, terminalCodes, dirAcceptsWrite, now }) {
+  const folderVerdicts = new Map() // dir -> { writable, at }
+  function probeFolder(finalPath) {
+    const dir = path.dirname(finalPath)
+    const writable = dirAcceptsWrite(dir)
+    folderVerdicts.set(dir, { writable, at: now() })
+    return writable
+  }
+  function keptFolderVerdict(finalPath) {
+    const kept = folderVerdicts.get(path.dirname(finalPath))
+    return kept && now() - kept.at < FOLDER_VERDICT_TTL_MS ? kept.writable : probeFolder(finalPath)
+  }
+  function awaitsOwner(row) {
+    if (!channel.ownsPendingRow(row)) return false
+    const transferId = channel.transferIdForRow(row.spaceId, row)
+    if (pausedHashes.has(transferId)) return false
+    return faultAwaitsOwner(row.errorCode ?? terminalCodes.get(transferId), row.finalPath, keptFolderVerdict)
+  }
+  return { awaitsOwner, faultCleared: (code, row) => faultCleared(code, row.finalPath, probeFolder) }
+}
+
 function partialAllocatedBytes(finalPath) {
   try { return fs.statSync(partialPathFor(finalPath)).blocks * 512 || 0 } catch { return 0 }
 }
@@ -98,7 +140,7 @@ function abortFetch(slot, opts) {
 // (a terminal verdict whose durable write failed) and the stall retries (a retry in flight); the
 // fourth is the durable pending row. The durable-write policy is not uniform — the table is in
 // solution-architecture.md under pause / resume transfers.
-export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentToFile, hasOverlay = () => !!getOverlay(), freeBytes = freeBytesFor, stallRetry = {}, dirExists = defaultDirExists, dirWritable = defaultDirWritable } = {}) {
+export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentToFile, hasOverlay = () => !!getOverlay(), freeBytes = freeBytesFor, stallRetry = {}, dirExists = defaultDirExists, dirWritable = defaultDirWritable, dirAcceptsWrite = defaultDirAcceptsWrite, now = Date.now } = {}) {
   const registry = new Map() // transferId -> slot (download-start.js makeSlot)
   // The marker is the user's intent — it outranks every automatic resume — and its hash lets a
   // later discard still tell the holder we stopped.
@@ -175,12 +217,9 @@ export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentT
     registry, pausedHashes, channel, log, hasOverlay, ownerOnline, destProbeFor,
     pauseReasonFor, recordTerminal, failTerminal, runFetch: settle.run,
   })
-  // A terminal verdict the user has since acted on: a folder that refused writes and takes one
-  // now. Fixing the folder is the action a permission fault waits for, so the next reconnect
-  // re-drives the row instead of leaving it for a Retry.
-  const faultCleared = (code, row) => code === CODES.TRANSFER_PERMISSION && !!row.finalPath && dirWritable(path.dirname(row.finalPath))
+  const ownerWait = createOwnerWait({ channel, pausedHashes, terminalCodes, dirAcceptsWrite, now })
   const reconcile = createReconcile({
-    registry, pausedHashes, terminalCodes, retries, channel, log, hasOverlay, start: starter.start, cancelByKey, discardPartial, faultCleared,
+    registry, pausedHashes, terminalCodes, retries, channel, log, hasOverlay, start: starter.start, cancelByKey, discardPartial, faultCleared: ownerWait.faultCleared,
   })
 
   // The owner re-published this source (advertise with a null hash → hash → setMaterializedHash)
@@ -312,6 +351,7 @@ export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentT
     supersede,
     releaseForRepublish,
     has: (transferId) => registry.has(transferId),
+    awaitsOwner: ownerWait.awaitsOwner,
     activeSlots: () => registry.entries(),
     // test seam
     _registry: registry,

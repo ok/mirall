@@ -19,6 +19,18 @@ export function isTerminalFault(code) {
   return TERMINAL.has(code)
 }
 
+// The terminal faults only the user can clear. A checksum fault is not one of them: the owner
+// clears it by republishing, which reaches us only over a connection to that owner.
+const USER_BLOCKED = new Set([
+  CODES.TRANSFER_DISK_FULL,
+  CODES.TRANSFER_DEST_UNAVAILABLE,
+  CODES.TRANSFER_PERMISSION,
+])
+
+export function isUserBlockedFault(code) {
+  return USER_BLOCKED.has(code)
+}
+
 // A fetch that produced no file, classified by whether a chunk scheduler ever ran. `attempted`
 // false means no holder was ever reachable — a process-global fact, so a caller walking a list may
 // stop. True means a holder WAS asked and the transfer died, which is a fact about this file alone.
