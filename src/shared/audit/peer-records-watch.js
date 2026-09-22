@@ -10,8 +10,9 @@
 //     third party's activity.
 import { getSpace } from '../spaces/space.js'
 import { readOwnShares } from '../shares/shares.js'
-import { createLogger } from '../core/logger.js'
+import { createLogger, fields } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
+import { ownedScheduler } from '../core/timers.js'
 import { record } from './audit-log.js'
 import { getSeenVersion, setSeenVersion, getPeerSubjectState, setPeerSubjectState } from './audit-watch-state.js'
 import { classifyProfileChange, classifyCatalogChange, isTransition, readChangesSince, stateOf, subjectKey } from './peer-records-observer.js'
@@ -25,9 +26,33 @@ const log = createLogger('peer-watch')
 const sweeps = new Map()
 let closed = false
 
+// A failed row holds its bee's watermark AT that row and stops the sweep there, so no row is applied
+// twice or ahead of an earlier one. The held row is retried by the next append and by its own
+// backoff timer, and given up with a warn only once it has failed `attempts` times AND is at least
+// `giveUpAgeMs` old, so neither a burst of appends nor a quiet peer decides it.
+// beeId → { seq, attempts, firstAt, causes, handle }.
+const RETRY_DELAYS_MS = Object.freeze([5000, 30000, 120000])
+const DEFAULT_RETRY = Object.freeze({
+  delaysMs: RETRY_DELAYS_MS,
+  attempts: RETRY_DELAYS_MS.length,
+  giveUpAgeMs: RETRY_DELAYS_MS.reduce((sum, ms) => sum + ms, 0),
+})
+const CAUSES_NAMED = 5
+const holds = new Map()
+let retry = DEFAULT_RETRY
+let timers = null
+const scheduler = ownedScheduler(() => timers)
+
 function resetPeerWatch() {
   sweeps.clear()
+  holds.clear()
+  retry = DEFAULT_RETRY
   closed = false
+}
+
+/** @internal */
+export function _sweepRetryForTests(policy) {
+  retry = { ...DEFAULT_RETRY, ...policy }
 }
 
 // Stop accepting sweeps and let the ones in flight finish (bounded). A chain still READING a
@@ -37,6 +62,8 @@ async function closePeerWatch({ settleMs = 3000 } = {}) {
   closed = true
   const inFlight = [...sweeps.values()]
   sweeps.clear()
+  for (const hold of holds.values()) scheduler.clear(hold.handle)
+  holds.clear()
   if (inFlight.length === 0) return
   await Promise.race([
     Promise.allSettled(inFlight),
@@ -48,7 +75,10 @@ async function closePeerWatch({ settleMs = 3000 } = {}) {
 // owns only the accept/drain gate, so shutdown has one thing to await.
 export class PeerWatch extends Subsystem {
   // Clears the refuse-new-sweeps latch a previous close set.
-  async _open() { resetPeerWatch() }
+  async _open() {
+    resetPeerWatch()
+    timers = this.timers
+  }
   async _close() { await closePeerWatch() }
 }
 
@@ -67,11 +97,13 @@ async function transitioned(kind, personKey, spaceId, id, removed) {
   return () => setPeerSubjectState(key, next)
 }
 
-async function ownsShare(spaceId, shareId) {
+// The row is already admitted, so a failed state write must not fail the node: a retry would record
+// the row twice. The cost is that the subject's next repeat may record once more.
+async function commitRecorded(commit) {
   try {
-    return (await readOwnShares(spaceId)).some((s) => s.id === shareId)
-  } catch {
-    return false
+    await commit()
+  } catch (err) {
+    log.warn('peer subject state not saved after its row was recorded:', err.message)
   }
 }
 
@@ -94,21 +126,21 @@ async function applyProfileChange(personKey, change) {
       space: ref,
       target: targetRef(TARGET_KIND.SHARE, change.shareId, change.name),
     })
-    if (written) await commit()
+    if (written) await commitRecorded(commit)
     return
   }
 
   // A mirror of someone else's share tells us nothing about our own data.
-  if (!(await ownsShare(change.spaceId, change.shareId))) return
+  const own = (await readOwnShares(change.spaceId)).find((s) => s.id === change.shareId)
+  if (!own) return
   const commit = await transitioned('mirror', personKey, change.spaceId, change.shareId, change.removed)
   if (!commit) return
-  const own = (await readOwnShares(change.spaceId)).find((s) => s.id === change.shareId)
   const written = record(change.removed ? 'mirror.peer_unmirrored' : 'mirror.peer_mirrored', {
     actor,
     space: ref,
-    target: targetRef(TARGET_KIND.SHARE, change.shareId, own?.name ?? null),
+    target: targetRef(TARGET_KIND.SHARE, change.shareId, own.name ?? null),
   })
-  if (written) await commit()
+  if (written) await commitRecorded(commit)
 }
 
 async function applyCatalogChange(personKey, spaceId, change) {
@@ -123,7 +155,7 @@ async function applyCatalogChange(personKey, spaceId, change) {
     space: spaceRef(space.spaceId, space.name),
     target: targetRef(TARGET_KIND.FILE, change.relPath, change.relPath),
   })
-  if (written) await commit()
+  if (written) await commitRecorded(commit)
 }
 
 // One sweep of a peer bee: read what changed since our watermark, turn it into rows, advance the
@@ -132,22 +164,74 @@ async function applyCatalogChange(personKey, spaceId, change) {
 // The baseline is taken at REGISTRATION, not lazily on the first append. Two failures otherwise:
 // adopting on the first append silently swallows it (the very act we wanted to record), and
 // adopting before the head has replicated makes a peer's entire existing catalog arrive later as
-// a flood of "just shared" rows. So registration syncs the head first, then baselines.
-async function sweep(beeId, bee, apply, { baselineOnly = false } = {}) {
+// a flood of "just shared" rows. So registration syncs the head first, then baselines; a bee
+// already seen is swept, which also retries a row held before a restart.
+/** @internal */
+export async function sweep(beeId, bee, apply, rerun = null) {
   const seen = await getSeenVersion(beeId)
   if (seen === null) {
     await syncHead(bee)
     await setSeenVersion(beeId, bee.version)
-    return { adopted: true, recorded: 0 }
+    return
   }
-  if (baselineOnly) return { adopted: false, recorded: 0 }
   const { version, nodes, skipped } = await readChangesSince(bee, seen)
-  if (skipped) log.warn('peer bee gained more ops than one sweep records — skipping to head:', beeId.slice(0, 12))
-  for (const node of nodes) {
-    try { await apply(node) } catch (err) { log.debug('peer change skipped:', err.message) }
+  const heldAt = await applyUntilHeld(beeId, nodes, apply)
+  if (heldAt !== null) {
+    scheduleRetry(beeId, rerun)
+    if (heldAt !== seen) await setSeenVersion(beeId, heldAt)
+    return
   }
+  if (skipped) log.warn('peer bee gained more ops than one sweep records — skipping to head:', beeId.slice(0, 12))
   await setSeenVersion(beeId, version)
-  return { adopted: false, recorded: nodes.length }
+  clearHold(beeId)
+}
+
+// Applies in order and returns the seq of the row the sweep holds at, or null when it got through.
+async function applyUntilHeld(beeId, nodes, apply) {
+  for (const node of nodes) {
+    try {
+      await apply(node)
+    } catch (err) {
+      if (!givesUp(beeId, node.seq, err)) return node.seq
+    }
+  }
+  return null
+}
+
+function causeOf(err) {
+  return (err?.code || err?.name || 'Error') + ': ' + err?.message
+}
+
+// Counts a failure of one row and answers whether to advance past it. Warns when the row is first
+// held and when it is given up, so a stuck row logs twice rather than once per attempt.
+function givesUp(beeId, seq, err) {
+  const prior = holds.get(beeId)
+  const hold = prior?.seq === seq
+    ? prior
+    : { seq, attempts: 0, firstAt: Date.now(), causes: new Set(), handle: prior?.handle ?? null }
+  hold.attempts += 1
+  if (hold.causes.size < CAUSES_NAMED) hold.causes.add(causeOf(err))
+  holds.set(beeId, hold)
+  const bee = beeId.slice(0, 20)
+  if (hold.attempts >= retry.attempts && Date.now() - hold.firstAt >= retry.giveUpAgeMs) {
+    log.warn('peer row lost — advancing past it', fields({ bee, row: seq, attempts: hold.attempts, causes: [...hold.causes].join('; ') }))
+    return true
+  }
+  if (hold.attempts === 1) log.warn('peer row failed — holding the watermark to retry it', fields({ bee, row: seq, cause: causeOf(err) }))
+  return false
+}
+
+function scheduleRetry(beeId, rerun) {
+  const hold = holds.get(beeId)
+  if (!hold || !rerun) return
+  scheduler.clear(hold.handle)
+  const delay = retry.delaysMs[Math.min(hold.attempts, retry.delaysMs.length) - 1]
+  hold.handle = scheduler.schedule(rerun, delay)
+}
+
+function clearHold(beeId) {
+  scheduler.clear(holds.get(beeId)?.handle)
+  holds.delete(beeId)
 }
 
 // Pull the peer's current head before baselining, so their existing records are adopted rather
@@ -175,18 +259,21 @@ function serialize(beeId, fn) {
   return next
 }
 
-export function observePeerProfile(personKey, bee, opts) {
-  const beeId = 'profile:' + personKey
-  return serialize(beeId, () => sweep(beeId, bee, async (node) => {
-    const change = classifyProfileChange(node)
-    if (change) await applyProfileChange(personKey, change)
-  }, opts))
+function watch(beeId, bee, apply) {
+  const run = () => serialize(beeId, () => sweep(beeId, bee, apply, run))
+  return run()
 }
 
-export function observePeerCatalog(personKey, spaceId, catalogKey, bee, looseShareId, opts) {
-  const beeId = 'catalog:' + catalogKey
-  return serialize(beeId, () => sweep(beeId, bee, async (node) => {
+export function observePeerProfile(personKey, bee) {
+  return watch('profile:' + personKey, bee, async (node) => {
+    const change = classifyProfileChange(node)
+    if (change) await applyProfileChange(personKey, change)
+  })
+}
+
+export function observePeerCatalog(personKey, spaceId, catalogKey, bee, looseShareId) {
+  return watch('catalog:' + catalogKey, bee, async (node) => {
     const change = classifyCatalogChange(node, looseShareId)
     if (change) await applyCatalogChange(personKey, spaceId, change)
-  }, opts))
+  })
 }

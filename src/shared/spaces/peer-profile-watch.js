@@ -74,7 +74,7 @@ function ensurePeerProfileWatch(personKey, profileKeyHex) {
     // Drop the entry if the bee never opens: a cached broken holder would make every later avatar
     // fetch for this peer fail for the process lifetime.
     peerProfileBee.ready().then(
-      () => observePeerProfile(personKey, peerProfileBee, { baselineOnly: true }),
+      () => observePeerProfile(personKey, peerProfileBee),
       (err) => {
         log.warn('peer profile bee failed to open — dropping the watch so the next handshake retries:', err.message)
         if (profileBeeAppendListeners.get(personKey)?.bee === peerProfileBee) profileBeeAppendListeners.delete(personKey)

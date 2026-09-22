@@ -97,7 +97,7 @@ export async function readChangesSince(bee, sinceVersion, { maxOps = MAX_OPS_PER
   let skipped = false
   for await (const node of bee.createHistoryStream({ gte: sinceVersion })) {
     if (nodes.length >= maxOps) { skipped = true; break }
-    nodes.push({ type: node.type, key: node.key, value: node.value })
+    nodes.push({ seq: node.seq, type: node.type, key: node.key, value: node.value })
   }
   return { version, nodes, skipped }
 }
