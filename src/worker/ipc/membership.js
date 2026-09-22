@@ -395,7 +395,10 @@ async function decideDeny(space, joinerKey) {
     await resolveJoinRequest(current, joinerKey, 'deny')
     return verdict
   }
-  // Both no-op outcomes emit: the renderer that asked is showing a row that may already be stale.
+  // A deny settles the knock whichever way it decided, so the audit claim goes back with it — a
+  // later genuine re-knock has its own row to record. Both no-op outcomes emit: the renderer that
+  // asked is showing a row that may already be stale.
+  forgetJoinRequestAudit(spaceId, joinerKey)
   if (verdict === DENY_OUTCOME.ALREADY_APPROVED) clearJoinRequest(spaceId, joinerKey)
   ipc.emit('event:join-requests-updated', { spaceId })
   return verdict
