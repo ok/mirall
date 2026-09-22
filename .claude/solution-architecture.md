@@ -1482,7 +1482,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/audit/audit-retention.js` | Prune-boundary math incl. the clock-jump hysteresis. Pure |
 | `src/shared/transfer/transfer-activity.js` | `transfersMoving()` — is anything actually receiving or sending bytes right now, folding the pending rows' `updatedAt` with the serve ledger's per-peer `lastTs`. Read before the peer connections are dropped to apply a transport setting |
 | `src/shared/transfer/serve-sessions.js` | Folds start / end activity into one row per transfer. Pure (consumed by `transfer/serve-ledger.js`) |
-| `src/shared/audit/audit-log.js` | The `audit-log` bee's handle and write path: `record`, the serialized append chain, config, `truncateLog`. Imports `core/` and its audit siblings only, so the instrumentation call sites can't form a cycle |
+| `src/shared/audit/audit-log.js` | The `audit-log` bee's handle and write path: `record`, `recordResolved` (a row whose fields need a read first; the read's failure is warned as a lost row, the promise resolves to whether the row was admitted, and `closeAuditLog` drains the reads in flight), the serialized append chain, config, `truncateLog`. Imports `core/` and its audit siblings only, so the instrumentation call sites can't form a cycle |
 | `src/shared/audit/audit-keys.js` | The bee's key layout: prefixes, seq padding, the index key of a record, range builders. Pure |
 | `src/shared/audit/audit-rate-guard.js` | The per-kind token bucket that collapses a burst into one suppressed count. Pure, clock-injected |
 | `src/shared/audit/audit-query.js` | The reads: `queryAudit` (index-merged, cursor-paginated), the filter vocabularies, stats, export |
