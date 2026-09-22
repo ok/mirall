@@ -304,12 +304,12 @@ async function materializeOnceCatalog(mount, share, { gen, writer }) {
   // may re-establish one, so a pass that throws midway — an unlink the OS refuses, a bee put that
   // fails — cannot leave a stale watermark standing over a zeroed skip counter, which would retry
   // the failed work at the backstop's cadence instead of the poll's.
+  //
+  // Bound only by a live pass, with no await before the binding: a pass cancelled by an unmount or a
+  // relocate must never recreate the key's state from its stale record, nor consume a walk request.
+  if (mirrorStopped(key, gen)) return
   state.forgetConverged(key)
   state.beginWalk(key)
-
-  // Bound only by a live pass, with no await before the binding: a pass cancelled by an unmount or a
-  // relocate must never recreate the key's state from its stale record.
-  if (mirrorStopped(key, gen)) return
   const synced = state.syncedSetFor(mount)
   state.renamedFor(mount)
   const fresh = new Set()
