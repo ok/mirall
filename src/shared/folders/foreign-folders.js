@@ -78,8 +78,12 @@ export function onPeerDriveChanged(spaceId) {
 }
 
 // A member handshaked into this space. Any mirror of theirs has been skipping its passes on the
-// reachability gate, so re-drive now rather than at the next tick.
-function onOwnerOnline(_ownerKey, spaceId) {
+// reachability gate, so re-drive now rather than at the next tick — and walk, not trust the
+// watermark: nothing repaired the folder while the owner was away, so a file deleted from it then is
+// missing against a catalog that has not moved.
+/** @internal */
+export function onOwnerOnline(_ownerKey, spaceId) {
+  for (const loop of loops.entries()) if (loop.spaceId === spaceId) state.forgetConverged(loop.key)
   pokeSpaceMirrors(spaceId)
 }
 

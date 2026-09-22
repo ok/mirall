@@ -274,8 +274,8 @@ async function materializeOnceCatalog(mount, share, { gen, writer }) {
   // Nothing this pass is allowed to do: an offline owner cannot append, so the catalog cannot have
   // moved, and shouldHonorDeletions already refuses to act on deletions while they are away — every
   // fetch would just burn the overlay's peer wait to learn there is no holder. Returning HERE,
-  // above the version read and above forgetConverged, is what lets a converged mirror keep its
-  // watermark across an outage. onOwnerOnline re-drives on their handshake, so being wrong costs
+  // above the version read and above forgetConverged, is what lets a converged mirror skip every
+  // tick of an outage. onOwnerOnline re-drives a walk on their handshake, so being wrong costs
   // latency, never a stuck mirror.
   if (!mayFetch(mount)) {
     log.debug('mirror tick skipped — owner offline:', mount.shareId)

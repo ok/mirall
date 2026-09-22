@@ -2,7 +2,12 @@ import test from 'brittle'
 import { setupSelfMirror } from '../helpers/owned.js'
 import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { getForeignMount } from '../../src/shared/folders/mount-store.js'
-import { initialMaterializeScan, runMaterializeTick, setMirrorReachability } from '../../src/shared/folders/mirror-pass.js'
+import fs from 'bare-fs'
+import path from 'bare-path'
+import { initialMaterializeScan, mirrorIdleForTests, resetMirrorPass, runMaterializeTick, setMirrorReachability } from '../../src/shared/folders/mirror-pass.js'
+import { onOwnerOnline } from '../../src/shared/folders/foreign-folders.js'
+import { startForeignLoop, stopForeignLoop } from '../../src/shared/folders/foreign-verbs.js'
+import { until } from '../helpers/bare-poll.js'
 
 // The offline half needs the reachability seam: presence is a module-private lease map, so a test
 // cannot make a peer online. A FABRICATED remote ownerKey does not work either — readPeerShares
@@ -132,4 +137,29 @@ test('the initial mount scan is gated too — it has no tick gate above it', asy
   t.is(fetches.calls, 0, 'the boot scan issued no fetch')
   const mount = await getForeignMount(ctx.spaceId, ctx.share.id)
   t.is(mount.status, 'active', 'and still settled the mount rather than sticking on scanning')
+})
+
+// Nothing repairs the folder while the owner is away: a file the user deletes then is missing
+// against a catalog that has not moved, so the converged watermark would skip every later tick.
+// The owner's return walks instead of trusting it.
+test('REGRESSION (FIX-448: a converged mirror restores a file deleted while the owner was away, on their return)', async (t) => {
+  const ctx = await setupSelfMirror(t, { files: { 'a.txt': 'alpha', 'b.txt': 'bravo' } })
+  const { spaceId } = ctx
+  const shareId = ctx.share.id
+  t.teardown(() => stopForeignLoop(spaceId, shareId))
+  t.teardown(resetMirrorPass)
+  await initialMaterializeScan(ctx.mount)
+  await runMaterializeTick(spaceId, shareId)
+  await startForeignLoop(ctx.mount)
+
+  setMirrorReachability(() => false)
+  const deleted = path.join(ctx.mirrorPath, 'b.txt')
+  fs.unlinkSync(deleted)
+  await runMaterializeTick(spaceId, shareId)
+  t.absent(fs.existsSync(deleted), 'nothing comes back while the owner is away')
+
+  resetMirrorPass()
+  onOwnerOnline(ctx.share.owner, spaceId)
+  t.ok(await until(() => fs.existsSync(deleted), 3000), 'the owner\'s return re-fetches it')
+  await mirrorIdleForTests(spaceId, shareId)
 })
