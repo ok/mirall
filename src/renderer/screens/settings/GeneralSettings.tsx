@@ -2,6 +2,7 @@
 import { useTranslation } from 'react-i18next'
 import { useHasVerticalOverflow } from '../../hooks/useHasVerticalOverflow.js'
 import { useMainQuery } from '../../store/useMainQuery.js'
+import { useRunAction } from '../../hooks/useRunAction.js'
 import PageHeader from '../../components/layout/PageHeader.js'
 import Toggle from '../../components/primitives/Toggle.js'
 
@@ -12,6 +13,7 @@ interface GeneralSettingsProps {
 export default function GeneralSettings({ onBack }: GeneralSettingsProps) {
   const { t } = useTranslation()
   const { data: prefs, patch: update } = useMainQuery('main:prefs')
+  const runAction = useRunAction()
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
   const isMac = window.bridge.getPlatform() === 'darwin'
   const introKey = isMac ? 'generalSettings.introMac' : 'generalSettings.intro'
@@ -38,14 +40,14 @@ export default function GeneralSettings({ onBack }: GeneralSettingsProps) {
                 description={t(minimizeDescKey)}
                 checked={prefs?.minimizeToTray ?? true}
                 disabled={!prefs}
-                onChange={(v) => update({ minimizeToTray: v })}
+                onChange={(v) => runAction(() => update({ minimizeToTray: v }))}
               />
               <Toggle
                 label={t('generalSettings.openAtLogin')}
                 description={t('generalSettings.openAtLoginDesc')}
                 checked={prefs?.openAtLogin ?? false}
                 disabled={!prefs}
-                onChange={(v) => update({ openAtLogin: v })}
+                onChange={(v) => runAction(() => update({ openAtLogin: v }))}
               />
             </div>
           </section>

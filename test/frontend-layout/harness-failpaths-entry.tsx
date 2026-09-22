@@ -16,7 +16,8 @@ import NetworkDiagnosticsScreen from '../../src/renderer/screens/NetworkDiagnost
 import CopyButton from './../../src/renderer/components/primitives/CopyButton.js'
 import InviteModal from './../../src/renderer/components/modals/InviteModal.js'
 import type { Profile } from '../../src/renderer/types/types.js'
-import { runDroppedProbes, droppedOk, type DroppedResults, type Json, type WorkerAnswer } from './failpaths-dropped.js'
+import { runDroppedProbes, droppedOk, type DroppedResults, type FailpathsKit, type Json, type WorkerAnswer } from './failpaths-dropped.js'
+import { runGuardProbes, guardOk, type GuardResults } from './failpaths-guard.js'
 
 interface ErrorFrame {
   id: number
@@ -46,6 +47,7 @@ interface HarnessResults {
   invite: CopyProbe | null
   overlap: OverlapProbe | null
   dropped: DroppedResults | null
+  guard: GuardResults | null
   unhandled: number
 }
 
@@ -325,7 +327,7 @@ async function run(root: Root): Promise<HarnessResults> {
     (b) => b.textContent ?? '',
   )
 
-  const dropped = await runDroppedProbes(root, {
+  const kit: FailpathsKit = {
     Shell,
     answer: (type, how) => { if (how) answers.set(type, how); else answers.delete(type) },
     releaseHeld: () => { for (const id of held.splice(0)) failFrame(id) },
@@ -339,7 +341,9 @@ async function run(root: Root): Promise<HarnessResults> {
     unavailableText: UNAVAILABLE_TEXT,
     unhandled: () => unhandledRejections,
     logged: () => errorsLogged,
-  })
+  }
+  const dropped = await runDroppedProbes(root, kit)
+  const guard = await runGuardProbes(root, kit)
 
   const { rejectOn, rejectOff, unmountInFlight } = verbose
   const pass =
@@ -350,9 +354,9 @@ async function run(root: Root): Promise<HarnessResults> {
     !unmountInFlight.mainWrites.includes(true) &&
     copyOk(copy) && copyOk(invite) &&
     overlap.alert && !overlap.copiedAfterStaleResolve &&
-    droppedOk(dropped) &&
+    droppedOk(dropped) && guardOk(guard) &&
     unhandledRejections === 0
-  return { pass, error: null, save, purge, verbose, copy, invite, overlap, dropped, unhandled: unhandledRejections }
+  return { pass, error: null, save, purge, verbose, copy, invite, overlap, dropped, guard, unhandled: unhandledRejections }
 }
 
 const root = createRoot(document.getElementById('root') as HTMLElement)
@@ -361,6 +365,6 @@ run(root).then(
     window.__results = results
   },
   (e: Error) => {
-    window.__results = { pass: false, error: String(e), save: null, purge: null, verbose: null, copy: null, invite: null, overlap: null, dropped: null, unhandled: unhandledRejections }
+    window.__results = { pass: false, error: String(e), save: null, purge: null, verbose: null, copy: null, invite: null, overlap: null, dropped: null, guard: null, unhandled: unhandledRejections }
   },
 )

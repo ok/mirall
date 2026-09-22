@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ConfirmDestructiveModal from './ConfirmDestructiveModal.js'
 import FilenameTitle from '../primitives/FilenameTitle.js'
+import { useRunAction } from '../../hooks/useRunAction.js'
 
 interface DeleteFolderShareModalProps {
   isOpen: boolean
@@ -20,12 +21,15 @@ export default function DeleteFolderShareModal({
 }: DeleteFolderShareModalProps) {
   const { t } = useTranslation()
   const [busy, setBusy] = useState(false)
+  const runAction = useRunAction()
 
-  async function handleDelete() {
+  function handleDelete() {
     if (busy) return
     setBusy(true)
-    try { await onDelete() }
-    finally { setBusy(false) }
+    runAction(async () => {
+      try { await onDelete() }
+      finally { setBusy(false) }
+    })
   }
 
   return (
@@ -37,7 +41,7 @@ export default function DeleteFolderShareModal({
       confirmLabel={busy ? t('deleteFolder.deleting') : t('deleteFolder.action')}
       busy={busy}
       onClose={onClose}
-      onConfirm={() => void handleDelete()}
+      onConfirm={handleDelete}
     />
   )
 }

@@ -109,7 +109,7 @@ export default function RelaySettingsSection() {
     runAction(restartWorker)
   }, [runAction])
 
-  const handleTest = useCallback(async () => {
+  const handleTest = useCallback(() => runAction(async () => {
     const target = latest.current.relay
     // Off, or waiting on a restart: the dial would use an identity nothing is applying, so its
     // verdict would be about nothing. statusOf reads Disabled in both cases.
@@ -130,7 +130,7 @@ export default function RelaySettingsSection() {
     // Replaced or removed mid-probe? Then there is nothing to record.
     if (latest.current.relay?.publicKey !== target.publicKey) return
     await commit({ mode: latest.current.mode, lastTest: { at: Date.now(), ok } })
-  }, [commit])
+  }), [commit, runAction])
 
   // Adding a relay while the mode is still 'off' would configure something inert, so the add
   // opts into the library default. The probe then runs on its own, so a key nobody serves is
