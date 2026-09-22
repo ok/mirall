@@ -35,6 +35,17 @@ export async function restartForeignLoop(spaceId, shareId) {
     .catch((err) => log.debug('materialize tick after restart failed:', err.message))
 }
 
+const WALK_REQUEST_DEBOUNCE_MS = 250
+
+// A reader that saw a mirrored file diverge from what the mirror verified asks for a walk rather
+// than acting on it, and the walk settles the file. No write, so a listing may call it. A converged
+// mirror is skipping ticks, so it is poked now; one still walking every tick is left to it, which
+// keeps a file the pass cannot settle from turning every re-list into another pass.
+export function requestMirrorWalk(spaceId, shareId) {
+  const key = mirrorKey(spaceId, shareId)
+  if (state?.requestWalk(key) && loops.live(key)) loops.debounce(key, { spaceId, shareId }, WALK_REQUEST_DEBOUNCE_MS)
+}
+
 export function stopForeignLoop(spaceId, shareId, { discardPartial = false } = {}) {
   loops.stop(mirrorKey(spaceId, shareId), { discardPartial })
 }

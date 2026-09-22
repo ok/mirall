@@ -164,6 +164,8 @@ export interface ShareFileRow {
   status: ShareFileStatus
   localPath: string | null
   verified?: boolean
+  // Derived from an enabled mirror on this device, whose next pass restores the owner's version.
+  mirrored?: boolean
   pendingBytes?: number
   errorCode?: string
   transferId?: string

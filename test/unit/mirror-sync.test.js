@@ -96,3 +96,12 @@ test('a size that is not a number never poisons the totals', (t) => {
   t.is(summary.bytesRemaining, 0)
   t.is(summary.pct, 100)
 })
+
+// An edited copy is on the disk. The next pass restores the owner's version, but nothing is missing
+// that a fetch count should promise.
+test('an edited copy counts as on the device, not as still to fetch', (t) => {
+  const summary = deriveMirrorSync([file('modified', 100), file('synced', 50)])
+  t.is(summary.active, false)
+  t.is(summary.files, 0)
+  t.is(summary.onDevice, 2)
+})

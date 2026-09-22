@@ -39,6 +39,7 @@ export interface ShareFileEntry {
   status: ShareFileStatus
   localPath?: string
   verified?: boolean
+  mirrored?: boolean
   pendingBytes?: number
   errorCode?: string
   transferId?: string

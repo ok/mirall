@@ -741,7 +741,7 @@ file/share state onto a **fixed 5-token palette**, each token one fixed meaning:
 🔵 `bg-info` (busy — `downloading` / `verifying` (`animate-pulse`) moving bytes, `preparing` (`animate-pulse`) /
 `publishing` indexing them; `publishing` is the OWNER hashing its own file ("Adding"), `preparing` a member
 waiting on that hash, and neither is a transfer — the folder roll-up counts them apart from downloads),
-🟡 `bg-warning` (needs attention — `paused-interrupted`, folder `missing`/`mount-point-gone`),
+🟡 `bg-warning` (needs attention — `paused-interrupted`, `modified` "Edited locally" (a copy changed on this disk since it was verified; the row prints what happens next as secondary text under the file name, `rowView.statusHintKey`), folder `missing`/`mount-point-gone`),
 🔴 `bg-error-container` (`error` only),
 ⚪ `bg-surface-container-highest` (passive / not-here / **all folder roles** — `mine`/`browse`/`mirrored` —
 and `available`/`owner-offline`/`unavailable`). Roles carry meaning by label, not color.

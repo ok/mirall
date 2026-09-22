@@ -63,6 +63,7 @@ function deriveActions(
         secondary: { icon: 'delete', title: t('file.unshare'), onClick: () => handlers.onUnshare(file), variant: 'danger' },
       }
     case 'downloaded':
+    case 'modified':
       return {
         primary: { icon: 'folder_open', title: t('file.revealInFolder'), onClick: () => handlers.onReveal(file) },
         secondary: null,
@@ -212,6 +213,7 @@ function FileCard({
                 </>
               )}
             </p>
+            {view.statusHintKey && <p className="text-xs text-on-surface-variant mt-1">{t(view.statusHintKey)}</p>}
           </div>
         </div>
 

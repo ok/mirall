@@ -20,6 +20,7 @@ function toEntry(e: ShareFileRow): ShareFileEntry {
     status: e.status,
     localPath: e.localPath ?? undefined,
     verified: e.verified,
+    mirrored: e.mirrored,
     pendingBytes: e.pendingBytes,
     errorCode: e.errorCode,
     transferId: e.transferId,

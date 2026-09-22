@@ -14,7 +14,7 @@ const SHARE = { id: 'sh1', name: 'Docs', owner: 'peer' }
 // The listing takes its data-layer calls injected, so read COUNTS are assertable without
 // instrumenting a bee: production passes nothing, a test passes these.
 function countingDeps({ claims = new Map(), verified = new Map(), downloaded = () => false } = {}) {
-  const calls = { claimScans: 0, verifiedScans: 0, verdicts: 0, prunes: [] }
+  const calls = { claimScans: 0, verifiedScans: 0, verdicts: 0, prunes: [], walkRequests: 0 }
   return {
     calls,
     getLocalPublicKeyHex: () => 'me',
@@ -23,10 +23,11 @@ function countingDeps({ claims = new Map(), verified = new Map(), downloaded = (
     getForeignMount: async () => null,
     listPendingForSpace: async () => [],
     foreignFetchActive: () => false,
+    requestMirrorWalk: () => { calls.walkRequests++ },
     overlayHasTransfer: () => false,
     claimedPathFor: (drivePath, rec) => rec?.localPath || '/downloads/' + drivePath.split('/').pop(),
     listDownloadClaimsForShare: async () => { calls.claimScans++; return claims },
-    listVerifiedForShare: async () => { calls.verifiedScans++; return verified },
+    listVerifiedRecordsForShare: async () => { calls.verifiedScans++; return verified },
     verdictForClaim: (spaceId, drivePath, rec) => {
       calls.verdicts++
       return { downloaded: downloaded(drivePath, rec), prune: false, reason: null }
@@ -72,7 +73,7 @@ test('an owner listing reads neither namespace', async (t) => {
 test('the scans are asked to retain only the rows this listing renders', async (t) => {
   const deps = countingDeps()
   const seen = {}
-  deps.listVerifiedForShare = async (spaceId, shareId, opts) => { seen.verified = opts.keep; return new Map() }
+  deps.listVerifiedRecordsForShare = async (spaceId, shareId, opts) => { seen.verified = opts.keep; return new Map() }
   deps.listDownloadClaimsForShare = async (spaceId, shareName, opts) => { seen.claims = opts.keep; return new Map() }
   await listOverlayShareFiles(SPACE, SHARE, backendFor(rows(3)), deps)
   t.alike([...seen.verified].sort(), ['f0.txt', 'f1.txt', 'f2.txt'], 'verified records are kept by relPath')
@@ -166,23 +167,30 @@ test('each listing gets a fresh probe, so a remounted volume is seen on the next
 // ---------------------------------------------------------------------------
 // Row parity across the whole decision space.
 //
-// `baselineRow` below is the pre-batching row rule transcribed verbatim from the point-read
-// implementation: an await per claim read, a second read for the verified marker, a third for the
-// landed path, and the claim pruned inline. It is an INDEPENDENT implementation of the same rule,
-// so agreement across the matrix is what makes "no behaviour change" a property the suite holds
-// rather than a claim the change asserts.
+// `baselineRow` below is the row rule written out a second time, independently of the listing: the
+// claim ladder, the verified-copy fingerprint and the mirror's size fallback, each in its own words.
+// Agreement across the matrix is what makes the rule a property the suite holds rather than a claim
+// the change asserts.
 // ---------------------------------------------------------------------------
 
+// Claim paths under LANDED resolve to a real file in the test's own folder, so a downloaded row has
+// something for its verified record to fingerprint; the others are never on disk by design.
+const LANDED = '<landed>'
 const CLAIMS = {
   none: null,
-  current: { rec: { localPath: '/dl/f.txt', hash: 'h1' }, exists: true, dirExists: true, pinned: null, insidePinned: true },
-  hashless: { rec: { localPath: '/dl/f.txt' }, exists: true, dirExists: true, pinned: null, insidePinned: true },
+  current: { rec: { localPath: LANDED, hash: 'h1' }, exists: true, dirExists: true, pinned: null, insidePinned: true },
+  hashless: { rec: { localPath: LANDED }, exists: true, dirExists: true, pinned: null, insidePinned: true },
   'stale-hash': { rec: { localPath: '/dl/f.txt', hash: 'hOLD' }, exists: true, dirExists: true, pinned: null, insidePinned: true },
   gone: { rec: { localPath: '/dl/f.txt', hash: 'h1' }, exists: false, dirExists: true, pinned: null, insidePinned: true },
   detached: { rec: { localPath: '/vol/f.txt', hash: 'h1' }, exists: false, dirExists: false, pinned: null, insidePinned: true },
   outside: { rec: { localPath: '/other/f.txt', hash: 'h1' }, exists: true, dirExists: true, pinned: '/dl', insidePinned: false },
 }
-const VERIFIED = { match: 'h1', mismatch: 'hZ', absent: null }
+// The verified record for the row, described against the file the row points at: `match` is the
+// record that file's landing wrote, `edited` the same record after a local write moved its mtime,
+// `moved` one whose inode alone differs (a copy or restore of the same bytes), `unlocal` one written
+// before records named their path, `elsewhere` one written for another path (the other writer),
+// `stale` one for an older content.
+const VERIFIED = ['match', 'edited', 'moved', 'unlocal', 'elsewhere', 'stale', 'absent']
 const PENDING = { none: undefined, partial: { bytesTransferred: 5 }, error: { errorCode: 'EBAD', bytesTransferred: 0 } }
 
 const entryOf = (w) => ({ relPath: 'f.txt', size: 10, contentHash: w.hashed ? 'h1' : null, mtime: 7 })
@@ -191,23 +199,70 @@ const claimedPathFor = (drivePath, rec) => rec?.localPath || '/downloads/' + pat
 // mount.renamedPaths. The dimension the matrix was missing, and the one the bug lived in.
 const RENAMED_LEAF = 'f (1).txt'
 
-function baselineRow(w, mountPath) {
+function claimWorld(w, landed) {
+  const world = CLAIMS[w.claim]
+  if (!world) return null
+  return { ...world, rec: { ...world.rec, localPath: world.rec.localPath === LANDED ? landed : world.rec.localPath } }
+}
+
+// The row's own local path, in the form its writer records it: mount-relative for a mirror, the
+// claim's absolute path for a download.
+function rowLocal(w, landed) {
+  if (w.mirrored) return w.renamed ? RENAMED_LEAF : 'f.txt'
+  return claimWorld(w, landed)?.rec.localPath ?? null
+}
+
+function recordFor(w, fingerprintOf, landed) {
+  if (w.verified === 'absent') return null
+  const local = rowLocal(w, landed)
+  const fp = fingerprintOf(local)
+  const rec = { hash: 'h1', at: Date.now(), local, mtime: fp.mtime, ino: fp.ino }
+  if (w.verified === 'edited') return { ...rec, mtime: fp.mtime - 1000 }
+  if (w.verified === 'moved') return { ...rec, ino: fp.ino + 1 }
+  if (w.verified === 'unlocal') return { ...rec, local: null }
+  if (w.verified === 'elsewhere') return { ...rec, local: '/somewhere/else/f.txt' }
+  if (w.verified === 'stale') return { ...rec, hash: 'hZ' }
+  return rec
+}
+
+// The verified-copy rule, transcribed independently of verified-copy.js: a record for this file at
+// the current content still fingerprints it (verified), or its size moved (modified), or — on a
+// mirror, whose next pass re-hashes — its mtime moved (modified); any other move is drift. Anything
+// else proves nothing and leaves the row to what the disk says.
+function copyReading(rec, stat, contentHash, size, local, rehashed) {
+  if (!rec || !stat || !contentHash || rec.hash !== contentHash) return 'unproven'
+  if (rec.local !== null && rec.local !== local) return 'unproven'
+  const sameMtime = Math.floor(stat.mtimeMs) === rec.mtime
+  const sameIno = !rec.ino || !stat.ino || Number(stat.ino) === rec.ino
+  if (stat.size === size && sameMtime && sameIno) return 'verified'
+  if (stat.size !== size || (rehashed && !sameMtime)) return 'modified'
+  return 'drifted'
+}
+
+function onDevice(status, localPath, reading) {
+  if (reading === 'modified') return { status: 'modified', localPath, verified: false }
+  return { status, localPath, verified: reading === 'verified' }
+}
+
+function baselineRow(w, mountPath, rec, landed) {
   const entry = entryOf(w)
   const out = { pruned: false }
   if (w.mirrored) {
-    const abs = pathFromMount(mountPath, w.renamed ? RENAMED_LEAF : entry.relPath)
-    if (statSizeOrNull(abs) === entry.size) {
-      const verified = !!entry.contentHash && VERIFIED[w.verified] === entry.contentHash
-      return { ...out, row: { status: 'synced', localPath: abs, verified } }
+    const local = rowLocal(w, landed)
+    const abs = pathFromMount(mountPath, local)
+    const stat = statOrNull(abs)
+    const reading = copyReading(rec, stat, entry.contentHash, entry.size, local, true)
+    if (reading !== 'unproven' || stat?.size === entry.size) {
+      return { ...out, walk: reading === 'modified' || reading === 'drifted', row: { ...onDevice('synced', abs, reading), mirrored: true } }
     }
     // An in-flight mirror fetch only counts while the owner is reachable: with them away the fetch
     // is parked on the overlay's peer wait, not pulling anything.
-    if (w.fetchActive && w.ownerOnline) return { ...out, row: { status: 'downloading', localPath: null, pendingBytes: 0 } }
-    if (!entry.contentHash) return { ...out, row: { status: unhashedStatusFor(w.ownerOnline), localPath: null } }
-    return { ...out, row: { status: w.ownerOnline ? 'remote' : 'unavailable', localPath: null } }
+    if (w.fetchActive && w.ownerOnline) return { ...out, row: { status: 'downloading', localPath: null, pendingBytes: 0, mirrored: true } }
+    if (!entry.contentHash) return { ...out, row: { status: unhashedStatusFor(w.ownerOnline), localPath: null, mirrored: true } }
+    return { ...out, row: { status: w.ownerOnline ? 'remote' : 'unavailable', localPath: null, mirrored: true } }
   }
   const drivePath = '/' + SHARE.name + '/' + entry.relPath
-  const world = CLAIMS[w.claim]
+  const world = claimWorld(w, landed)
   let downloaded = false
   if (world) {
     if (!world.exists) out.pruned = world.dirExists
@@ -216,8 +271,9 @@ function baselineRow(w, mountPath) {
     else downloaded = true
   }
   if (downloaded) {
-    const verified = entry.contentHash ? VERIFIED[w.verified] === entry.contentHash : false
-    return { ...out, row: { status: 'downloaded', localPath: claimedPathFor(drivePath, world.rec), verified } }
+    const localPath = claimedPathFor(drivePath, world.rec)
+    const reading = copyReading(rec, statOrNull(localPath), entry.contentHash, entry.size, localPath, false)
+    return { ...out, row: onDevice('downloaded', localPath, reading) }
   }
   const row = consumerRowStatusFor({
     hashed: Boolean(entry.contentHash),
@@ -228,8 +284,8 @@ function baselineRow(w, mountPath) {
   return { ...out, row: { ...row, localPath: null } }
 }
 
-function statSizeOrNull(absPath) {
-  try { return fs.statSync(absPath).size } catch { return null }
+function statOrNull(absPath) {
+  try { return fs.statSync(absPath) } catch { return null }
 }
 
 // The shape listOverlayShareFiles pushes, with absent optional fields normalised so the two sides
@@ -244,18 +300,21 @@ function shaped(w, row) {
     status: row.status,
     localPath: row.localPath ?? null,
     verified: row.verified || false,
+    mirrored: row.mirrored || false,
     pendingBytes: row.pendingBytes ?? null,
     errorCode: row.errorCode ?? null,
     transferId: transferIdFor(SPACE, SHARE.id, entry.relPath),
   }
 }
 
-function worldDeps(w, mountPath) {
-  const world = CLAIMS[w.claim]
+function worldDeps(w, mountPath, rec, landed) {
+  const world = claimWorld(w, landed)
   const drivePath = '/' + SHARE.name + '/f.txt'
   const pruned = []
+  const reads = { verified: 0, claims: 0, walkRequests: 0 }
   return {
     pruned,
+    reads,
     getLocalPublicKeyHex: () => 'me',
     isOwnerOnline: () => w.ownerOnline,
     getOwnedMount: async () => null,
@@ -264,12 +323,13 @@ function worldDeps(w, mountPath) {
       : null),
     listPendingForSpace: async () => (PENDING[w.pending] ? [{ ...PENDING[w.pending], filePath: drivePath }] : []),
     foreignFetchActive: () => w.fetchActive,
+    requestMirrorWalk: () => { reads.walkRequests++ },
     overlayHasTransfer: () => w.active,
     claimedPathFor,
-    listDownloadClaimsForShare: async () => (world ? new Map([[drivePath, world.rec]]) : new Map()),
-    listVerifiedForShare: async () => (VERIFIED[w.verified] ? new Map([['f.txt', VERIFIED[w.verified]]]) : new Map()),
-    verdictForClaim: (spaceId, filePath, rec, currentHash) => (rec
-      ? claimVerdict({ rec, currentHash, exists: world.exists, dirExists: world.dirExists, pinned: world.pinned, insidePinned: world.insidePinned })
+    listDownloadClaimsForShare: async () => { reads.claims++; return world ? new Map([[drivePath, world.rec]]) : new Map() },
+    listVerifiedRecordsForShare: async () => { reads.verified++; return rec ? new Map([['f.txt', rec]]) : new Map() },
+    verdictForClaim: (spaceId, filePath, claim, currentHash) => (claim
+      ? { ...claimVerdict({ rec: claim, currentHash, exists: world.exists, dirExists: world.dirExists, pinned: world.pinned, insidePinned: world.insidePinned }), stat: statOrNull(claimedPathFor(filePath, claim)) }
       : claimVerdict({ rec: null })),
     pruneDownloadClaims: async (spaceId, drivePaths) => { pruned.push(...drivePaths); return drivePaths.length },
   }
@@ -282,7 +342,7 @@ function matrix() {
       for (const renamed of mirrored ? [true, false] : [false]) {
         for (const fetchActive of mirrored ? [true, false] : [false]) {
           for (const claim of mirrored ? ['none'] : Object.keys(CLAIMS)) {
-            for (const verified of Object.keys(VERIFIED)) {
+            for (const verified of VERIFIED) {
               for (const hashed of [true, false]) {
                 for (const ownerOnline of [true, false]) {
                   for (const pending of mirrored ? ['none'] : Object.keys(PENDING)) {
@@ -303,7 +363,7 @@ function matrix() {
 
 const describe = (w) => Object.entries(w).map(([k, v]) => k + '=' + v).join(' ')
 
-test('every row of the decision space matches the pre-batching rule', async (t) => {
+test('every row of the decision space matches the rule, at two scans and no reads per row', async (t) => {
   const root = tmpDir('mirall-listing-parity')
   const present = path.join(root, 'present')
   const empty = path.join(root, 'empty')
@@ -313,19 +373,34 @@ test('every row of the decision space matches the pre-batching rule', async (t) 
   // Same size as the natural name, or a renamed cell could never be a size match and the new
   // dimension would prove nothing.
   fs.writeFileSync(path.join(present, RENAMED_LEAF), '0123456789')
+  const landed = path.join(root, 'landed.txt')
+  fs.writeFileSync(landed, '0123456789')
   t.teardown(() => { try { fs.rmSync(root, { recursive: true, force: true }) } catch {} })
+
+  // A record's fingerprint is taken from the file it describes; a local path that is not on disk
+  // fingerprints as nothing, which no stat can ever match.
+  const fingerprintOf = (local) => {
+    const abs = local === null ? null : path.isAbsolute(local) ? local : path.join(present, local)
+    const stat = abs && statOrNull(abs)
+    return stat ? { mtime: Math.floor(stat.mtimeMs), ino: Number(stat.ino) || 0 } : { mtime: -1, ino: 0 }
+  }
 
   const cells = matrix()
   t.ok(cells.length > 500, `${cells.length} combinations covered`)
   let mismatches = 0
   let prunesChecked = 0
+  const seen = new Set()
   for (const w of cells) {
     const mountPath = w.sizeMatch ? present : empty
-    const expected = baselineRow(w, mountPath)
-    const deps = worldDeps(w, mountPath)
+    const rec = recordFor(w, fingerprintOf, landed)
+    const expected = baselineRow(w, mountPath, rec, landed)
+    const deps = worldDeps(w, mountPath, rec, landed)
     const res = await listOverlayShareFiles(SPACE, SHARE, backendFor([entryOf(w)]), deps)
     const gotRow = res.entries[0]
     const wantRow = shaped(w, expected.row)
+    seen.add(wantRow.status + (wantRow.verified ? '+verified' : ''))
+    if (expected.walk) seen.add('walk:' + wantRow.status)
+    if (!w.mirrored && w.verified === 'edited') seen.add('download-edited:' + wantRow.status)
     const got = { ...gotRow, localPath: gotRow.localPath ?? null, pendingBytes: gotRow.pendingBytes ?? null, errorCode: gotRow.errorCode ?? null }
     if (JSON.stringify(got) !== JSON.stringify(wantRow)) {
       mismatches++
@@ -337,9 +412,24 @@ test('every row of the decision space matches the pre-batching rule', async (t) 
       t.alike(deps.pruned, wantPruned, 'prune: ' + describe(w))
     }
     if (expected.pruned) prunesChecked++
+    // The fingerprint is judged from the prefetched record and the row's own stat: still one scan
+    // per namespace, and a mirror listing asks for a walk exactly when it shows an edited copy.
+    if (deps.reads.verified !== 1 || deps.reads.claims !== (w.mirrored ? 0 : 1)) {
+      mismatches++
+      t.fail('scan count: ' + describe(w) + ' ' + JSON.stringify(deps.reads))
+    }
+    if (deps.reads.walkRequests !== (expected.walk ? 1 : 0)) {
+      mismatches++
+      t.fail('walk request: ' + describe(w) + ' ' + JSON.stringify(deps.reads))
+    }
   }
-  t.is(mismatches, 0, 'every combination renders the same row and prunes the same claims')
+  t.is(mismatches, 0, 'every combination renders the same row, prunes the same claims and reads the same scans')
   t.ok(prunesChecked > 0, 'the matrix actually exercises the pruning branches')
+  // A moved inode on a mirror stays synced and asks for the walk; a download edited in place, which
+  // nothing re-hashes, drifts to downloaded rather than reading as an edit.
+  for (const outcome of ['synced+verified', 'synced', 'downloaded+verified', 'downloaded', 'modified', 'walk:modified', 'walk:synced', 'download-edited:downloaded']) {
+    t.ok(seen.has(outcome), `the matrix reaches ${outcome}`)
+  }
 })
 
 function mirrorDir(t, label, files) {

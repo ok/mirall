@@ -4,7 +4,9 @@
 // says whether we have it, the pending row says whether it is moving, and the disk decides whether
 // "on your device" is still true. The listing is where those are folded into one row per file.
 
-import { isDownloadedFile, isVerifiedDownload, forgetFileRecords } from './files.js'
+import { downloadedCopyVerdict, forgetFileRecords } from './files.js'
+import { COPY_VERDICT } from './verified-copy.js'
+import { FILE_STATUS } from '../contract/statuses.js'
 import { createLogger } from '../core/logger.js'
 
 import { entryRef } from '../contract/entry-ref.js'
@@ -60,10 +62,12 @@ export async function addFile(spaceId, filePath, fileName) {
   await looseShareFile(spaceId, filePath, fileName || path.basename(filePath))
 }
 
-// The display status of a peer-held file, most-progressed first. Exported for unit coverage.
+// The display status of a peer-held file, most-progressed first. `copyVerdict` is the on-device
+// copy's verified-copy reading, null when there is none. Exported for unit coverage.
 /** @internal */
-export function peerFileStatus(downloaded, pendingRow, ownerOnline, isActive) {
-  if (downloaded) return 'downloaded'
+export function peerFileStatus(copyVerdict, pendingRow, ownerOnline, isActive) {
+  if (copyVerdict === COPY_VERDICT.MODIFIED) return FILE_STATUS.MODIFIED
+  if (copyVerdict) return 'downloaded'
   if (isActive) return 'downloading'
   if (pendingRow?.errorCode) return 'error'
   if (pendingRow) return ownerOnline ? 'paused-interrupted' : 'paused-offline'
@@ -133,8 +137,7 @@ async function collectLooseInPlace(spaceId, members, localPublicKey, localDriveK
         })
         continue
       }
-      const downloaded = await isDownloadedFile(spaceId, drivePath, e.contentHash)
-      const verified = downloaded && await isVerifiedDownload(spaceId, entryRef(LOOSE_SHARE_ID, e.relPath), e.contentHash)
+      const copyVerdict = await downloadedCopyVerdict(spaceId, drivePath, entryRef(LOOSE_SHARE_ID, e.relPath), e.contentHash, e.size)
       // Status is derived here (single source of truth): an in-flight fetch is 'downloading',
       // otherwise the durable pending row decides paused-*/error. The renderer never overrides it.
       const isActive = looseTransferActive(spaceId, e.relPath)
@@ -142,8 +145,8 @@ async function collectLooseInPlace(spaceId, members, localPublicKey, localDriveK
       out.push({
         path: drivePath, size: e.size, hash: e.contentHash, inPlace: true,
         owner: { displayName: member.displayName, publicKey: member.publicKey },
-        driveKey: member.driveKey, localBytes: downloaded ? e.size : 0,
-        isAvailable: ownerOnline, status: peerFileStatus(downloaded, pendingRow, ownerOnline, isActive), verified,
+        driveKey: member.driveKey, localBytes: copyVerdict ? e.size : 0,
+        isAvailable: ownerOnline, status: peerFileStatus(copyVerdict, pendingRow, ownerOnline, isActive), verified: copyVerdict === COPY_VERDICT.VERIFIED,
         pendingBytes: pendingRow?.bytesTransferred, errorCode: isActive ? undefined : pendingRow?.errorCode,
         transferId: looseTransferIdFor(spaceId, e.relPath),
       })

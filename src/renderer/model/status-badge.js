@@ -9,6 +9,7 @@
 const STYLES = {
   mine: { classes: 'bg-success text-accent', labelKey: 'status.mine' },
   'on-device': { classes: 'bg-success text-accent', labelKey: 'status.downloaded' },
+  modified: { classes: 'bg-warning text-on-warning', labelKey: 'status.modified' },
   available: { classes: 'bg-surface-container-highest text-accent', labelKey: 'status.remote' },
   downloading: { classes: 'bg-info text-accent', labelKey: 'status.downloading' },
   verifying: { classes: 'bg-info text-accent animate-pulse', labelKey: 'status.verifying' },
@@ -24,6 +25,7 @@ const STYLES = {
 const FILE_STATUS_TO_BADGE = {
   mine: 'mine',
   downloaded: 'on-device',
+  modified: 'modified',
   remote: 'available',
   preparing: 'preparing',
   downloading: 'downloading',
@@ -44,6 +46,7 @@ const SHARE_FILE_STATUS_TO_BADGE = {
   publishing: 'publishing',
   downloaded: 'on-device',
   synced: 'on-device',
+  modified: 'modified',
   unavailable: 'unavailable',
   'paused-interrupted': 'paused',
   'paused-offline': 'owner-offline',

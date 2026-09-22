@@ -20,7 +20,8 @@ function countingDeps() {
     overlayHasTransfer: () => false,
     claimedPathFor: (drivePath, rec) => rec?.localPath || '/downloads/' + drivePath.split('/').pop(),
     listDownloadClaimsForShare: async () => { calls.claimScans++; return new Map() },
-    listVerifiedForShare: async () => { calls.verifiedScans++; return new Map() },
+    listVerifiedRecordsForShare: async () => { calls.verifiedScans++; return new Map() },
+    requestMirrorWalk: () => {},
     verdictForClaim: () => ({ downloaded: false, prune: false, reason: null }),
     pruneDownloadClaims: async (spaceId, drivePaths) => { calls.prunes.push(...drivePaths); return drivePaths.length },
   }

@@ -371,8 +371,10 @@ async function fetchOverlayEntry(mount, share, entry, { abs, verifyKey, localRel
     releaseClaim()
     // Every settle (done/miss/error/pause) re-derives the row off the now-cleared fetch slot and
     // terminally clears the row's decoration. No probe: the claim above means no other producer
-    // could have taken the key while we held it, so the decoration is ours to clear.
-    emitMirrorEvent('event:share-files-updated', { spaceId: mount.spaceId, shareId: mount.shareId })
+    // could have taken the key while we held it, so the decoration is ours to clear. A landing
+    // re-derives only once its record is written, below: listed before, the landed file would be
+    // judged against the replaced file's fingerprint.
+    if (!res) emitMirrorEvent('event:share-files-updated', { spaceId: mount.spaceId, shareId: mount.shareId })
     emitMirrorEvent('event:decoration', { channel: 'transfer', spaceId: mount.spaceId, key: decoKey, done: true })
   }
   // null = nothing fetched: a stall after a holder was asked is a give-up (WARN);
@@ -386,7 +388,11 @@ async function fetchOverlayEntry(mount, share, entry, { abs, verifyKey, localRel
     return miss === 'no-holder' ? 'no-peers' : 'missing'
   }
   diag.finish('done')
-  return finishLandedFetch(mount, entry, res, { abs, verifyKey, localRelPath })
+  try {
+    return await finishLandedFetch(mount, entry, res, { abs, verifyKey, localRelPath })
+  } finally {
+    emitMirrorEvent('event:share-files-updated', { spaceId: mount.spaceId, shareId: mount.shareId })
+  }
 }
 
 // The transfer verified the content hash on landing — record it so the row can surface a

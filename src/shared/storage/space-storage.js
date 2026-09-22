@@ -13,6 +13,7 @@ import { getContentBackend, UNSUPPORTED } from '../transfer/content-backends.js'
 import { getForeignMount } from '../folders/mount-store.js'
 import { listVerifiedForShare } from '../transfer/files.js'
 import { listFiles } from '../transfer/file-listing.js'
+import { FILE_STATUS } from '../contract/statuses.js'
 
 const log = createLogger('space-storage')
 
@@ -33,9 +34,9 @@ async function shareContribution(spaceId, share, me) {
     return { totalBytes, onDeviceBytes: 0 }
   }
   // Mirrored: a file counts on-device iff its verified-download record still matches
-  // the owner's advertised hash — the same predicate the per-row listing uses
-  // (overlayConsumerRow), joined in bulk during the one count-only drain. A copy the
-  // user deleted from the mirror keeps counting only until the sync loop re-lands it.
+  // the owner's advertised hash, joined in bulk during the one count-only drain with no
+  // per-file stat. A copy edited in place still counts, as its 'modified' row does; a copy
+  // the user deleted from the mirror keeps counting only until the sync loop re-lands it.
   const verified = await listVerifiedForShare(spaceId, share.id)
   let onDeviceBytes = 0
   const { totalBytes } = await backend.listPeerWithMeta(spaceId, share, 0, (entry) => {
@@ -72,7 +73,7 @@ export async function spaceStorageSummary(spaceId) {
   // loose semantics (dedupe by hash, disk-reverified "downloaded") can't drift.
   for (const f of await listFiles(spaceId, space.members || [])) {
     totalBytes += f.size || 0
-    if (f.status === 'mine' || f.status === 'downloaded') onDeviceBytes += f.size || 0
+    if (f.status === FILE_STATUS.MINE || f.status === FILE_STATUS.DOWNLOADED || f.status === FILE_STATUS.MODIFIED) onDeviceBytes += f.size || 0
   }
   return { totalBytes, onDeviceBytes }
 }

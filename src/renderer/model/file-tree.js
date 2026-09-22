@@ -14,6 +14,7 @@ export function statusCategory(status) {
   switch (status) {
     case 'downloaded':
     case 'synced':
+    case 'modified':
       return 'on-device'
     case 'downloading':
     case 'verifying':

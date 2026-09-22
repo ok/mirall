@@ -1,7 +1,6 @@
 // The display listing for one folder share: catalog entries in, renderable rows out. The property
 // this module holds is "reads do not scale with rows"; data-layer calls arrive as an injected
 // bundle with production defaults so a test can count them with doubles.
-import fs from 'bare-fs'
 import { createLogger } from '../core/logger.js'
 import { getListFilesCap } from '../core/runtime-config.js'
 import { throwIfAborted } from '../core/cancellation.js'
@@ -14,16 +13,21 @@ import { listPendingForSpace } from '../transfer/pending-transfers.js'
 import { isOwnerOnline } from '../network/presence-leases.js'
 import { getLocalPublicKeyHex } from '../spaces/profile.js'
 import { foreignFetchActive } from '../folders/mirror-fetch.js'
+import { requestMirrorWalk } from '../folders/foreign-verbs.js'
 import { localRelOf } from '../folders/mirror-state.js'
 import { folderHasTransfer } from '../transfer/backends/overlay/folder-downloads.js'
 import {
   claimedPathFor,
+  getDownloadedPath,
   verdictForClaim,
   createDirProbe,
-  listVerifiedForShare,
+  statOrNull,
+  listVerifiedRecordsForShare,
   listDownloadClaimsForShare,
   pruneDownloadClaims,
 } from '../transfer/files.js'
+import { COPY_VERDICT, verifiedCopyVerdict } from '../transfer/verified-copy.js'
+import { SHARE_FILE_STATUS } from '../contract/statuses.js'
 
 const log = createLogger('share-listing')
 
@@ -35,16 +39,20 @@ const productionDeps = {
   isOwnerOnline,
   getLocalPublicKeyHex,
   foreignFetchActive,
+  requestMirrorWalk,
   overlayHasTransfer: folderHasTransfer,
   claimedPathFor,
   verdictForClaim,
-  listVerifiedForShare,
+  listVerifiedRecordsForShare,
   listDownloadClaimsForShare,
   pruneDownloadClaims,
 }
 
-function statSizeOrNull(absPath) {
-  try { return fs.statSync(absPath).size } catch { return null }
+// A row that holds local bytes: a verified copy is vouched for, an edited one is 'modified', and a
+// copy nothing proves either way keeps `status` unverified.
+function onDeviceRow(status, localPath, verdict) {
+  if (verdict === COPY_VERDICT.MODIFIED) return { status: SHARE_FILE_STATUS.MODIFIED, localPath, verified: false }
+  return { status, localPath, verified: verdict === COPY_VERDICT.VERIFIED }
 }
 
 // Consumer-side status for a catalog-backed overlay share row. A null contentHash means the owner
@@ -55,34 +63,50 @@ function statSizeOrNull(absPath) {
 //
 // Synchronous by design: every fact it needs is in a prefetched map, an in-memory engine map, or a
 // stat. The row loop therefore never yields, which is what removes the worker-side stall.
+//
+// `verified` holds whole records, and a row is judged by the rule the mirror's fast path uses
+// (verified-copy.js), so the row never vouches for a file the next pass would re-hash. Each writer
+// records `local` in its own form — mount-relative for the mirror, absolute for a download — and a
+// row asks for its own, so one writer's record never vouches for the other's file.
 function overlayConsumerRow(spaceId, share, entry, { ownerOnline, foreignMount, pending, verified, claims, prune, dirProbe, deps }) {
-  const isVerified = Boolean(entry.contentHash) && verified.get(entry.relPath) === entry.contentHash
+  const rec = verified.get(entry.relPath)
+  const copyVerdict = (stat, expectLocal, rehashed) => verifiedCopyVerdict(rec, stat, { contentHash: entry.contentHash, expectedSize: entry.size, expectLocal, rehashed })
 
   if (foreignMount && foreignMount.enabled) {
     // Not entry.relPath: a pre-existing user file at the natural name forces the mirror to
     // materialize at a collision-free sibling, and stat'ing the natural name then reports a
     // fully-mirrored file as 'remote'.
-    const abs = pathFromMount(foreignMount.mountPath, localRelOf(foreignMount, entry.relPath))
-    if (statSizeOrNull(abs) === entry.size) return { status: 'synced', localPath: abs, verified: isVerified }
+    const localRel = localRelOf(foreignMount, entry.relPath)
+    const abs = pathFromMount(foreignMount.mountPath, localRel)
+    const stat = statOrNull(abs)
+    const verdict = copyVerdict(stat, localRel, true)
+    // The record decides when it describes this file; without one, a file of the advertised size is
+    // taken as the mirror's, unverified. A copy that drifted from its record asks for the walk that
+    // re-hashes it.
+    if (verdict !== COPY_VERDICT.UNPROVEN || stat?.size === entry.size) {
+      const wantsWalk = verdict === COPY_VERDICT.MODIFIED || verdict === COPY_VERDICT.DRIFTED
+      return { ...onDeviceRow(SHARE_FILE_STATUS.SYNCED, abs, verdict), mirrored: true, wantsWalk }
+    }
     // The mirror loop is pulling this row right now — 'downloading', so FolderView's bar/speed/
     // verify lane render. Gated on reachability, like the strip and the folder tile: a fetch parked
     // on the overlay's peer wait pulls nothing, and a downloading row with no bytes paints as
     // "Preparing…" beside a banner saying the owner is offline.
     if (ownerOnline && deps.foreignFetchActive(spaceId, share.id, entry.relPath)) {
-      return { status: 'downloading', localPath: null, pendingBytes: 0 }
+      return { status: 'downloading', localPath: null, pendingBytes: 0, mirrored: true }
     }
-    if (!entry.contentHash) return { status: unhashedStatusFor(ownerOnline), localPath: null }
-    return { status: ownerOnline ? 'remote' : 'unavailable', localPath: null }
+    if (!entry.contentHash) return { status: unhashedStatusFor(ownerOnline), localPath: null, mirrored: true }
+    return { status: ownerOnline ? 'remote' : 'unavailable', localPath: null, mirrored: true }
   }
 
   const drivePath = '/' + share.name + '/' + entry.relPath
-  const rec = claims.get(drivePath) || null
-  const verdict = deps.verdictForClaim(spaceId, drivePath, rec, entry.contentHash, dirProbe)
+  const claim = claims.get(drivePath) || null
+  const verdict = deps.verdictForClaim(spaceId, drivePath, claim, entry.contentHash, dirProbe)
   // Collected, never acted on here: a del is a write, and taking a write turn per stale row is the
   // cost this batching exists to remove. The listing flushes them once, after the rows.
   if (verdict.prune) prune.push(drivePath)
   if (verdict.downloaded) {
-    return { status: 'downloaded', localPath: deps.claimedPathFor(drivePath, rec), verified: isVerified }
+    const localPath = deps.claimedPathFor(drivePath, claim)
+    return onDeviceRow(SHARE_FILE_STATUS.DOWNLOADED, localPath, copyVerdict(verdict.stat ?? null, localPath, false))
   }
 
   // Status is one ordered rule set, mirroring the loose path's order (which hand-rolls the same
@@ -107,7 +131,7 @@ function overlayConsumerRow(spaceId, share, entry, { ownerOnline, foreignMount, 
 async function prefetchRowState(spaceId, share, entries, { isOwn, foreignMount, deps }) {
   if (isOwn) return { verified: new Map(), claims: new Map() }
   const relPaths = new Set(entries.map((entry) => entry.relPath))
-  const verified = await deps.listVerifiedForShare(spaceId, share.id, { keep: relPaths })
+  const verified = await deps.listVerifiedRecordsForShare(spaceId, share.id, { keep: relPaths })
   if (foreignMount && foreignMount.enabled) return { verified, claims: new Map() }
   const keep = new Set([...relPaths].map((relPath) => '/' + share.name + '/' + relPath))
   return { verified, claims: await deps.listDownloadClaimsForShare(spaceId, share.name, { keep }) }
@@ -157,6 +181,7 @@ export async function listOverlayShareFiles(spaceId, share, backend, deps = prod
   // memo this pass makes for itself, so it stays out of `deps` and every test double.
   const dirProbe = createDirProbe()
   const out = []
+  let wantsWalk = false
   for (const entry of entries) {
     let row
     try {
@@ -170,12 +195,17 @@ export async function listOverlayShareFiles(spaceId, share, backend, deps = prod
       log.warn('skipping overlay file row with an unsafe path:', entry.relPath, '-', err.message)
       continue
     }
-    out.push({ relPath: entry.relPath, size: entry.size, hash: entry.contentHash || '', mtime: entry.mtime, status: row.status, localPath: row.localPath, verified: row.verified || false, pendingBytes: row.pendingBytes, errorCode: row.errorCode, transferId: isOwn ? undefined : transferIdFor(spaceId, share.id, entry.relPath) })
+    if (row.wantsWalk) wantsWalk = true
+    out.push({ relPath: entry.relPath, size: entry.size, hash: entry.contentHash || '', mtime: entry.mtime, status: row.status, localPath: row.localPath, verified: row.verified || false, mirrored: row.mirrored || false, pendingBytes: row.pendingBytes, errorCode: row.errorCode, transferId: isOwn ? undefined : transferIdFor(spaceId, share.id, entry.relPath) })
   }
 
   // Awaited so a caller can observe the flush, caught so a failed cache cleanup can never fail the
   // listing the rows are already built for.
   if (prune.length) await deps.pruneDownloadClaims(spaceId, prune).catch((err) => log.debug('claim prune failed:', err.message))
+  // The next mirror pass is what settles a mirrored file that drifted from its record — an edit
+  // kept as a conflicted copy and the owner's version restored, or unchanged bytes re-fingerprinted
+  // — so the listing asks for that pass now rather than leaving it to the full-walk backstop.
+  if (wantsWalk) deps.requestMirrorWalk(spaceId, share.id)
 
   // Truncation is a FACT the worker reports, never something the renderer infers from
   // (total > rows): on an incomplete read `total` is itself partial, so that inference collapses
@@ -183,4 +213,13 @@ export async function listOverlayShareFiles(spaceId, share, backend, deps = prod
   const truncated = listingTruncated({ rowCount: entries.length, total, cap, complete })
   if (truncated) log.debug(`share:list-files showing ${out.length} of ${total} rows for share ${share.id} (capped at ${cap})`)
   return { entries: out, complete, total, totalBytes, truncated, fileLimit: truncated ? cap : null }
+}
+
+// Where a consumer's copy of a share file sits, by the rule its row's localPath follows: an enabled
+// mirror's path for it — the collision sibling when the mirror renamed it — else the download claim.
+export async function consumerFilePath(spaceId, share, relPath) {
+  const foreignMount = await getForeignMount(spaceId, share.id)
+  if (foreignMount && foreignMount.enabled) return pathFromMount(foreignMount.mountPath, localRelOf(foreignMount, relPath))
+  const drivePath = '/' + share.name + '/' + relPath
+  return (await getDownloadedPath(spaceId, drivePath)) || claimedPathFor(drivePath, null)
 }

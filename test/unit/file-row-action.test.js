@@ -46,3 +46,8 @@ test('browse folders keep the full manual control set (unchanged behavior)', (t)
   t.is(manual('downloaded'), 'reveal')
   t.is(manual('preparing'), 'busy')
 })
+
+test('an edited copy offers Reveal on every kind of row, so the edit can be rescued', (t) => {
+  t.is(mirror('modified'), 'reveal')
+  t.is(manual('modified'), 'reveal')
+})

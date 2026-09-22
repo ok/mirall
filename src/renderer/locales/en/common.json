@@ -305,6 +305,9 @@
   "status": {
     "mine": "Shared by you",
     "downloaded": "On your device",
+    "modified": "Edited locally",
+    "modifiedMirrorHint": "Changed on this device. The shared version will be restored and your edit kept as a conflicted copy.",
+    "modifiedHint": "Changed on this device since it was downloaded and verified.",
     "remote": "Available",
     "unavailable": "Not available",
     "downloading": "Downloading",

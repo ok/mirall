@@ -35,6 +35,9 @@ export function createMirrorState({ isStopped }) {
   const dirty = new Set()
   const convergedHeads = new Map()
   const skippedTicks = new Map()
+  // mirrorKeys a reader asked to have walked. Cleared when a walk starts, so a request that lands
+  // while a walk is already past the file keeps that walk from converging and the next one runs.
+  const walkRequests = new Set()
 
   function syncedSetFor(mount) {
     const key = mirrorKey(mount.spaceId, mount.shareId)
@@ -140,6 +143,17 @@ export function createMirrorState({ isStopped }) {
       convergedHeads.delete(key)
       skippedTicks.delete(key)
     },
+    // Returns whether the mirror had converged: only then is it skipping ticks, and only then is a
+    // walk worth asking for before the next poll.
+    requestWalk(key) {
+      const converged = convergedHeads.has(key)
+      walkRequests.add(key)
+      convergedHeads.delete(key)
+      skippedTicks.delete(key)
+      return converged
+    },
+    beginWalk: (key) => walkRequests.delete(key),
+    walkRequested: (key) => walkRequests.has(key),
 
     // Every cache here is keyed by mount PATH in effect, not by path itself: the synced set
     // records which entries this mount already owns on disk. Both unmount and relocate must drop
@@ -149,6 +163,7 @@ export function createMirrorState({ isStopped }) {
       dirty.delete(key)
       convergedHeads.delete(key)
       skippedTicks.delete(key)
+      walkRequests.delete(key)
     },
   }
 }
