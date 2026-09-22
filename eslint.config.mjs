@@ -41,12 +41,27 @@ import {
   byteFormatterSingleOwnerRestrictions,
   unmountOnlyAsyncEffects,
   outOfOrderAsyncEffects,
+  swallowedRejectionRestrictions,
+  swallowedRejectionExemptions,
+  promiseLintAllowlist,
   pureTransferModules,
   pureNetworkModules,
   pureFolderPolicyModules,
   pureSpacesModules,
   pureSharesModules,
 } from './eslint-rules/invariants.mjs'
+
+// Every renderer no-restricted-syntax table, by name. A later block's no-restricted-syntax REPLACES
+// an earlier one, so every renderer block builds its list from here, naming only what it drops.
+const rendererSyntax = {
+  status: rendererStatusRestrictions,
+  byteLadder: byteFormatterSingleOwnerRestrictions,
+  swallowed: swallowedRejectionRestrictions,
+}
+const rendererRestrictedSyntax = (...drop) => [
+  'error',
+  ...Object.entries(rendererSyntax).filter(([name]) => !drop.includes(name)).flatMap(([, table]) => table),
+]
 
 export default [
   // Vendored hyper-overlay v2 subset — third-party code kept re-diffable
@@ -62,20 +77,23 @@ export default [
     files: ['src/renderer/**/*.{ts,tsx,js}'],
     languageOptions: {
       parser: tseslint.parser,
-      parserOptions: { ecmaFeatures: { jsx: true } },
+      parserOptions: { ecmaFeatures: { jsx: true }, projectService: true, tsconfigRootDir: import.meta.dirname },
       globals: { ...globals.browser, __DEV__: 'readonly' },
     },
-    plugins: { 'jsx-a11y': jsxA11y, local: { rules: { 'no-unguarded-async-effect': noUnguardedAsyncEffect } } },
+    plugins: { 'jsx-a11y': jsxA11y, '@typescript-eslint': tseslint.plugin, local: { rules: { 'no-unguarded-async-effect': noUnguardedAsyncEffect } } },
     rules: {
       ...jsxA11y.flatConfigs.recommended.rules,
       'jsx-a11y/no-autofocus': 'off',
       'jsx-a11y/label-has-associated-control': ['error', { depth: 3 }],
       'jsx-a11y/no-noninteractive-tabindex': ['error', { roles: ['tabpanel', 'region'] }],
-      'no-restricted-syntax': ['error', ...rendererStatusRestrictions, ...byteFormatterSingleOwnerRestrictions],
+      'no-restricted-syntax': rendererRestrictedSyntax(),
       'no-restricted-imports': ['error', { patterns: rendererContractOnlyImports }],
       'local/no-unguarded-async-effect': ['error', {
         allow: [...Object.keys(unmountOnlyAsyncEffects), ...Object.keys(outOfOrderAsyncEffects)],
       }],
+      // A promise nobody handles is a failure nobody hears; `void` is a way of saying so, not a handler.
+      '@typescript-eslint/no-floating-promises': ['error', { ignoreVoid: false }],
+      '@typescript-eslint/no-misused-promises': 'error',
       ...complexityBudget,
       ...whitespace,
     },
@@ -86,6 +104,21 @@ export default [
   {
     files: ['src/renderer/screens/**/*.tsx', 'src/renderer/components/**/*.tsx'],
     rules: { 'no-empty': ['error', { allowEmptyCatch: false }] },
+  },
+
+  // Exact per-site lists live in swallowedRejectionExemptions and promiseLintAllowlist, held by
+  // test/invariants/renderer-promise-lint.test.js. A listed file keeps no-misused-promises for
+  // conditionals and spreads; only the void-return and floating checks are the test's to hold.
+  {
+    files: Object.keys(swallowedRejectionExemptions),
+    rules: { 'no-restricted-syntax': rendererRestrictedSyntax('swallowed') },
+  },
+  {
+    files: Object.keys(promiseLintAllowlist),
+    rules: {
+      '@typescript-eslint/no-floating-promises': 'off',
+      '@typescript-eslint/no-misused-promises': ['error', { checksVoidReturn: false }],
+    },
   },
 
   // Data layer — Bare worker + shared modules (ESM).
@@ -204,11 +237,11 @@ export default [
     rules: { 'no-restricted-syntax': 'off' },
   },
 
-  // The one module the byte-ladder rule exists to protect. The renderer's status invariant still
-  // applies to it, so only the ladder restriction is dropped.
+  // The one module the byte-ladder rule exists to protect. The renderer's other tables still apply
+  // to it, so only the ladder restriction is dropped.
   {
     files: ['src/renderer/format/bytes.js'],
-    rules: { 'no-restricted-syntax': ['error', ...rendererStatusRestrictions] },
+    rules: { 'no-restricted-syntax': rendererRestrictedSyntax('byteLadder') },
   },
 
   // Harness and tooling. Neither tree is typechecked, so an identifier left behind by a refactor

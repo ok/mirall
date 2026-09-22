@@ -44,8 +44,8 @@ export function useMembershipRequests({ spaceId, approveMember, denyMember }: Me
 
   // Approving a batch runs one at a time on purpose: each approval writes membership and re-reads
   // the roster, and firing them together lets the last write land on a roster the earlier ones had
-  // already grown. Every failure is counted rather than raised, so a batch reports once instead of
-  // stacking a toast per request behind a closed dialog.
+  // already grown. Every failure is logged and counted rather than raised, so a batch reports once
+  // instead of stacking a toast per request behind a closed dialog.
   async function approveMany(keys: string[]) {
     const pending = keys.filter((pk) => !busy.has(pk))
     if (pending.length === 0) return
@@ -55,8 +55,8 @@ export function useMembershipRequests({ spaceId, approveMember, denyMember }: Me
       try {
         await approveMember(spaceId, pk)
         done++
-      } catch {
-        // Counted in the summary below.
+      } catch (err) {
+        console.error(err)
       } finally {
         clearBusy(pk)
       }

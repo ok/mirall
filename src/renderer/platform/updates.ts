@@ -39,15 +39,19 @@ async function fetchVersion(): Promise<{ fork: number; length: number; semver: s
   }
 }
 
+async function onUpdated(): Promise<void> {
+  if (window.bridge.isDev()) {
+    location.reload()
+    return
+  }
+  const version = await fetchVersion()
+  state = reduceDetectedUpdate(state, version)
+  emit()
+}
+
 if (typeof window !== 'undefined' && typeof window.bridge !== 'undefined') {
-  window.bridge.onPearEvent('updated', async () => {
-    if (window.bridge.isDev()) {
-      try { location.reload() } catch {}
-      return
-    }
-    const version = await fetchVersion()
-    state = reduceDetectedUpdate(state, version)
-    emit()
+  window.bridge.onPearEvent('updated', () => {
+    onUpdated().catch((err) => console.error('update check failed:', err))
   })
 }
 

@@ -153,7 +153,7 @@ test('REGRESSION (FIX-446: an older write settling last overwrote a newer one): 
   bridge.settle(2, { downloadKBps: 1024, uploadKBps: 0 })
   await newer
   bridge.fail(1, new Error('main refused'))
-  await t.exception(older, 'the older rejection still reaches its caller')
+  t.alike(await older, { downloadKBps: 1024, uploadKBps: 0 }, 'a superseded failure resolves with the newer value: the newer write owns the outcome')
   t.alike(peekMain(CAPS).data, { downloadKBps: 1024, uploadKBps: 0 }, 'a late failure does not roll back over the newer value')
 
   const again = writeMain(CAPS, { downloadKBps: 2048, uploadKBps: 0 })
@@ -169,6 +169,21 @@ test('REGRESSION (FIX-446: an older write settling last overwrote a newer one): 
 // fetchMain answers a cached entry without clearing it — so nothing ever did. One refused
 // setBandwidth made NetworkSettings show "couldn't save" on every later visit, and a refused
 // setDownloadFolder made EditSpaceModal render an alert for a read of its own that had succeeded.)
+// REGRESSION (FIX-446: a toggle flipped twice reported the first write's failure as a toast although
+// the second write had already replaced it and succeeded.)
+test('REGRESSION (FIX-446: a superseded write reported its failure): a write superseded by a push does not reject', async (t) => {
+  const bridge = setup(t)
+  const load = fetchMain(CAPS)
+  bridge.settle(0, UNLIMITED)
+  await load
+
+  const write = writeMain(CAPS, { downloadKBps: 512, uploadKBps: 0 })
+  setMainData(CAPS, { downloadKBps: 256, uploadKBps: 0 })
+  bridge.fail(1, new Error('main refused'))
+  t.alike(await write, { downloadKBps: 256, uploadKBps: 0 }, 'resolves with the value that superseded it')
+  t.alike(peekMain(CAPS).data, { downloadKBps: 256, uploadKBps: 0 }, 'and the pushed value stays')
+})
+
 test('REGRESSION (FIX-WRITE-ERROR-STICKY): a failed write leaves no error for the next reader', async (t) => {
   const bridge = setup(t)
 

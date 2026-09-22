@@ -3,6 +3,7 @@ import { isInSpace, type CommandContext } from '../keyboard/registry.js'
 import type { SpaceAction } from '../shell/space-actions.js'
 import type { AppNavigation } from './useAppNavigation.js'
 import type { Space } from '../types/types.js'
+import { useRunAction } from './useRunAction.js'
 
 interface SpaceCommandsArgs {
   nav: AppNavigation
@@ -14,6 +15,7 @@ interface SpaceCommandsArgs {
 // actions stay hidden until it lands; leaving is the one action a pending space keeps.
 export function useSpaceCommands({ nav, spaces, toggleFavorite }: SpaceCommandsArgs): void {
   const { ctx } = useKeyboard()
+  const runAction = useRunAction()
   const currentSpace = spaces.find((s) => s.spaceId === ctx.selectedSpaceId)
   const isPendingSpace = currentSpace?.status === 'pending'
   const isFavorite = currentSpace?.favorite === true
@@ -31,7 +33,7 @@ export function useSpaceCommands({ nav, spaces, toggleFavorite }: SpaceCommandsA
       labelKey: isFavorite ? 'shortcuts.removeFavorite' : 'shortcuts.addFavorite',
       group: 'space',
       when: inJoinedSpace,
-      run: (c) => { if (c.selectedSpaceId) void toggleFavorite(c.selectedSpaceId) },
+      run: (c) => { const id = c.selectedSpaceId; if (id) runAction(() => toggleFavorite(id)) },
     },
     { id: 'space.manageStorage', labelKey: 'shortcuts.manageStorage', group: 'space', when: inJoinedSpace, run: () => nav.openStorageSettings('space-view') },
   ], [isFavorite, isPendingSpace])

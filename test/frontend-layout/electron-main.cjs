@@ -8,6 +8,7 @@ const path = require('node:path')
 const CONTENT_WIDTH = Number(process.env.HARNESS_W || 1280)
 const CONTENT_HEIGHT = Number(process.env.HARNESS_H || 800)
 const HARNESS_HTML = process.env.HARNESS_HTML || 'harness.html'
+const DEADLINE_MS = Number(process.env.HARNESS_DEADLINE_MS || 30000)
 
 app.disableHardwareAcceleration()
 if (app.dock) app.dock.hide()
@@ -43,7 +44,7 @@ app.whenReady().then(async () => {
 
   await win.loadFile(path.join(__dirname, HARNESS_HTML))
 
-  const deadline = Date.now() + 30000
+  const deadline = Date.now() + DEADLINE_MS
    
   while (Date.now() < deadline && !done) {
     let res = null

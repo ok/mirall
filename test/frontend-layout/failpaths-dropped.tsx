@@ -85,7 +85,7 @@ const statusSays = (text: string) =>
 
 // Enough of a network status frame for the screens to render a verdict that offers Reconnect, and a
 // relayed connection the relay notice counts as stale.
-const OFFLINE_STATUS: Json = {
+export const OFFLINE_STATUS: { [key: string]: Json } = {
   state: 'offline', dhtReady: true, announced: false, peerCount: 0, connecting: 0, suspended: false,
   lastConnectionAt: null, bootedAt: 0,
   identity: { publicKey: 'p'.repeat(64), nodeId: null },

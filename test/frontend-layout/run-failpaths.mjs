@@ -6,7 +6,7 @@
 //   node test/frontend-layout/run-failpaths.mjs --no-build (reuse existing bundle)
 import { runHarness } from './run-harness.mjs'
 
-const out = await runHarness({ html: 'harness-failpaths.html', width: 900, height: 900 })
+const out = await runHarness({ html: 'harness-failpaths.html', width: 900, height: 900, deadlineMs: 60000 })
 
 const j = (v) => JSON.stringify(v)
 console.log('\n──────── Action failure-path harness ────────')
@@ -16,7 +16,7 @@ console.log(`verbose      : ${j(out.verbose)}`)
 console.log(`copy button  : ${j(out.copy)}`)
 console.log(`invite copy  : ${j(out.invite)}`)
 console.log(`copy overlap : ${j(out.overlap)}`)
-for (const [name, probe] of Object.entries(out.dropped ?? {})) console.log(`${name.padEnd(13)}: ${j(probe)}`)
+for (const [name, probe] of Object.entries({ ...out.dropped, ...out.guard })) console.log(`${name.padEnd(13)}: ${j(probe)}`)
 console.log(`unhandled    : ${out.unhandled} escaped promise rejection(s)`)
 if (out.error) console.log(`error: ${out.error}`)
 

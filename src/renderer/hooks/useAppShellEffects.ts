@@ -13,7 +13,7 @@ export function useAppShellEffects(spaces: Space[]) {
   spacesRef.current = spaces
 
   useEffect(() => {
-    applyTheme(getStoredTheme())
+    applyTheme(getStoredTheme()).catch((err) => console.error('theme sync failed:', err))
     trackWindowBounds()
   }, [])
 
@@ -42,7 +42,7 @@ export function useAppShellEffects(spaces: Space[]) {
         title: i18n.t('tray.firstHide.title'),
         body,
         silent: true,
-      })
+      }).catch((err) => console.error('first-hide notice failed:', err))
     })
   }, [])
 

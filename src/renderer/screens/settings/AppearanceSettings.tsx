@@ -6,6 +6,7 @@ import { applyTheme, getStoredTheme, type ThemeMode } from '../../platform/theme
 import { useHasVerticalOverflow } from '../../hooks/useHasVerticalOverflow.js'
 import { useMainQuery } from '../../store/useMainQuery.js'
 import { useZoom, ZOOM_LEVELS, nearestZoomLevel } from '../../hooks/useZoom.js'
+import { useRunAction } from '../../hooks/useRunAction.js'
 import Icon from '../../components/primitives/Icon.js'
 import type { IconName } from '../../types/ui.js'
 import PageHeader from '../../components/layout/PageHeader.js'
@@ -28,6 +29,7 @@ export default function AppearanceSettings({ onBack }: AppearanceSettingsProps) 
   const { t } = useTranslation()
   const [theme, setTheme] = useState<ThemeMode>(() => getStoredTheme())
   const { zoom, setZoom } = useZoom()
+  const runAction = useRunAction()
   const selectedZoomKey = nearestZoomLevel(zoom).key
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
   const currentLang = i18n.language
@@ -38,7 +40,13 @@ export default function AppearanceSettings({ onBack }: AppearanceSettingsProps) 
 
   function handleTheme(mode: ThemeMode) {
     setTheme(mode)
-    applyTheme(mode)
+    runAction(async () => {
+      try {
+        await applyTheme(mode)
+      } finally {
+        setTheme(getStoredTheme())
+      }
+    })
   }
 
   return (
@@ -79,7 +87,7 @@ export default function AppearanceSettings({ onBack }: AppearanceSettingsProps) 
                       key={level.key}
                       label={t(level.labelKey)}
                       selected={level.key === selectedZoomKey}
-                      onSelect={() => setZoom(level.factor)}
+                      onSelect={() => runAction(() => setZoom(level.factor))}
                     />
                   ))}
                 </SegmentedControl>
@@ -96,7 +104,7 @@ export default function AppearanceSettings({ onBack }: AppearanceSettingsProps) 
                   description={t('appearanceSettings.menuBarAutoHideDesc')}
                   checked={prefs?.appMenuAutoHide ?? false}
                   disabled={!prefs}
-                  onChange={(v) => updatePrefs({ appMenuAutoHide: v })}
+                  onChange={(v) => runAction(() => updatePrefs({ appMenuAutoHide: v }))}
                 />
               </div>
             </section>
@@ -111,7 +119,7 @@ export default function AppearanceSettings({ onBack }: AppearanceSettingsProps) 
                   <button
                     key={lang.code}
                     type="button"
-                    onClick={() => setLocale(lang.code as SupportedLanguage)}
+                    onClick={() => runAction(() => setLocale(lang.code as SupportedLanguage))}
                     aria-pressed={selected}
                     className={`w-full p-6 flex items-center justify-between transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-secondary/30 ${
                       selected ? 'bg-surface-container-high/60' : 'hover:bg-surface-container-high/50'

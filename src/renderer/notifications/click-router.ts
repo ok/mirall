@@ -24,6 +24,10 @@ async function revealCompleted(payload: Extract<NotificationClickPayload, { spac
   }
 }
 
+function focusWindow(): void {
+  window.bridge.focusWindow().catch((err) => console.error('focusWindow failed:', err))
+}
+
 export function useNotificationClickRouter(navigateToSpace: (spaceId: string) => void): void {
   useEffect(() => {
     const unsub = window.bridge.onNotificationClick(({ payload }) => {
@@ -31,17 +35,20 @@ export function useNotificationClickRouter(navigateToSpace: (spaceId: string) =>
       switch (payload.kind) {
         case 'transfer-complete':
           // A reveal that does not happen would otherwise make the click do nothing at all.
-          void revealCompleted(payload).then((revealed) => {
-            if (!revealed) void window.bridge.focusWindow()
+          revealCompleted(payload).then((revealed) => {
+            if (!revealed) focusWindow()
+          }, (err) => {
+            console.error('reveal failed:', err)
+            focusWindow()
           })
           return
         case 'member-joined':
         case 'member-left':
-          void window.bridge.focusWindow()
+          focusWindow()
           return
         case 'transfer-error':
         case 'transfer-paused':
-          void window.bridge.focusWindow()
+          focusWindow()
           navigateToSpace(payload.spaceId)
           return
       }
