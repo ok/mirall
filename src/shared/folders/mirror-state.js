@@ -7,14 +7,14 @@
 //    authoritative copy; mount.syncedPaths is its boot-time seed and durable snapshot.
 //  - `renamedPaths`: the collision mapping. A pre-existing user file at the natural name forces a
 //    sibling, and the mapping has to be idempotent across ticks or a re-mount breeds
-//    report (1).pdf, report (2).pdf …
+//    report (1).pdf, report (2).pdf … In memory it is authoritative for the same reason as the set.
 //  - the convergence watermark: the owner-catalog version the last converged pass walked, so a
 //    settled mirror re-walks only when that version moves.
 import fs from 'bare-fs'
 import { pathFromMount } from './path-guard.js'
 import { PARTIAL_SUFFIX } from '../transfer/partial-suffix.js'
 import { driveKeyToSegments, nextFreeName } from './path-keys.js'
-import { patchForeignMount } from './mount-store.js'
+import { mutateForeignMount } from './mount-store.js'
 import { mirrorKey } from './mirror-policy.js'
 
 // The on-disk relPath an owner key was materialized as (its natural name unless a conflict forced
@@ -31,6 +31,10 @@ export function createMirrorState({ isStopped }) {
   // pause/resume (a stopped pass has already written files it must keep owning) and is dropped
   // only on unmount, with the record.
   const syncedSets = new Map()
+  // mirrorKey -> the collision map, shared by reference with the mount object a pass holds. Held
+  // here like the synced set, so a mapping whose sibling is already on disk outlives a pass whose
+  // write was declined: the pause and the next persist both read it from here.
+  const renamedMaps = new Map()
   // mirrorKeys whose set / renamedPaths differ from the persisted record.
   const dirty = new Set()
   const convergedHeads = new Map()
@@ -49,8 +53,20 @@ export function createMirrorState({ isStopped }) {
     return set
   }
 
+  // Binds the map to `mount` as well, so every reader of mount.renamedPaths in the pass sees it.
+  function renamedFor(mount) {
+    const key = mirrorKey(mount.spaceId, mount.shareId)
+    let map = renamedMaps.get(key)
+    if (!map) {
+      map = { ...mount.renamedPaths }
+      renamedMaps.set(key, map)
+    }
+    mount.renamedPaths = map
+    return map
+  }
+
   function syncFields(mount) {
-    return { syncedPaths: [...syncedSetFor(mount)], renamedPaths: mount.renamedPaths || {} }
+    return { syncedPaths: [...syncedSetFor(mount)], renamedPaths: { ...renamedFor(mount) } }
   }
 
   // Decide the on-disk relPath for a materialized owner entry, never clobbering a file Mirall did
@@ -89,7 +105,7 @@ export function createMirrorState({ isStopped }) {
       return fs.existsSync(abs) || fs.existsSync(abs + PARTIAL_SUFFIX)
     }
     const localRel = (dir ? dir + '/' : '') + nextFreeName(leaf, isTaken)
-    ;(mount.renamedPaths ||= {})[ownerKey] = localRel
+    renamedFor(mount)[ownerKey] = localRel
     dirty.add(mirrorKey(mount.spaceId, mount.shareId))
     return localRel
   }
@@ -107,6 +123,7 @@ export function createMirrorState({ isStopped }) {
 
   return {
     syncedSetFor,
+    renamedFor,
     syncFields,
     resolveLocalRelPath,
     pruneRenamedPaths,
@@ -128,11 +145,14 @@ export function createMirrorState({ isStopped }) {
     markClean: (key) => dirty.delete(key),
 
     // Persist once per pass, only when something changed, and never from a pass that was
-    // cancelled: a pause persists the set itself, and unmount deleted the record. An unconditional
+    // cancelled: a pause persists the set itself, and unmount deleted the record. The generation is
+    // checked inside the write, so a cancellation queued ahead of it is seen. An unconditional
     // write costs ~36 B per path per tick in the mounts bee.
     async persist(mount, key, gen) {
-      if (!dirty.has(key) || isStopped(key, gen)) return
-      if (await patchForeignMount(mount.spaceId, mount.shareId, syncFields(mount))) dirty.delete(key)
+      if (!dirty.has(key)) return
+      const written = await mutateForeignMount(mount.spaceId, mount.shareId, (m) =>
+        (isStopped(key, gen) ? null : { ...m, ...syncFields(mount) }))
+      if (written) dirty.delete(key)
     },
 
     watermark: (key) => convergedHeads.get(key) ?? null,
@@ -160,6 +180,7 @@ export function createMirrorState({ isStopped }) {
     // them — an inherited set would claim files exist at a path the mount no longer uses.
     reset(key) {
       syncedSets.delete(key)
+      renamedMaps.delete(key)
       dirty.delete(key)
       convergedHeads.delete(key)
       skippedTicks.delete(key)

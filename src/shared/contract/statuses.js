@@ -80,11 +80,13 @@ export const MIRROR_STATES = Object.freeze(Object.values(MIRROR_STATE))
 // The transitions the tuples alone do not give:
 //
 //   mirror  idle → scanning → active. A fresh mount and a relocate of an enabled mount enter
-//           scanning; only the initial scan closes it to active (a poll tick never writes status).
-//           A resume writes active directly. active → paused is the user's decision and only an
-//           explicit resume lifts it; active → paused-enospc / paused-error / mount-point-gone is a
-//           local I/O fault — a loop fault stops the poll loop, an initial-scan fault records the
-//           status and leaves the loop to retry.
+//           scanning; the initial scan closes it to active. A resume writes active directly.
+//           active → paused is the user's decision and only an explicit resume lifts it;
+//           active → paused-enospc / paused-error / mount-point-gone is a local I/O fault — a loop
+//           fault pauses the mount and stops the poll loop, an initial-scan fault records the status
+//           and leaves the mount enabled. A poll tick writes status only to close what the initial
+//           scan left open: the first tick that walks the catalog turns scanning or an initial-scan
+//           fault into active.
 //   owner   scanning → active on a clean pass, scanning → paused-* when the pass hit a fault. The
 //           cadence keeps retrying either way.
 //

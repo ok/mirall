@@ -146,10 +146,10 @@ async function preserveLocalEdit(mount, entry, verifyKey, diskHash, abs, localRe
 // A local I/O failure pauses the mount via the shared pauseMountForIoError
 // classification (full disk / permission / vanished mount); anything else is a
 // logged fetch miss.
-async function handleOverlayMirrorFetchError(mount, share, entry, err, diag) {
+async function handleOverlayMirrorFetchError(mount, share, entry, err, { diag, gen }) {
   // Order matters: a local I/O fault pauses the mount and is NOT a peer act. Auditing it would
   // blame a holder for our own full disk.
-  if (await pauseMountForIoError(mount, err)) return
+  if (await pauseMountForIoError(mount, err, { gen })) return
   diag?.finish('failed')
   const code = err?.code === 'EHASHMISMATCH' ? CODES.TRANSFER_CHECKSUM : null
   if (!code) {
@@ -201,15 +201,15 @@ export function createMountProbe(mount) {
 // They settle differently on purpose. A missing root and an exhausted volume are mount-wide, so
 // they pause. A single file that will not fit is about THAT file: pausing the mount for it would
 // strand every other file in the folder, and the engine keeps the same decision per row.
-async function mountCanTake(mount, entry, abs, probe) {
+async function mountCanTake(mount, entry, abs, { probe, gen }) {
   if (!probe.rootAvailable()) {
-    await pauseMount(mount, STATUS_MOUNT_GONE)
+    await pauseMount(mount, STATUS_MOUNT_GONE, null, { gen })
     return false
   }
   const freeBytes = probe.freeBytes()
   // Short of the headroom with nothing requested at all: the volume is out, not this file.
   if (shortfall({ freeBytes, needBytes: 0 }) > 0) {
-    await pauseMount(mount, statusForFaultCode(CODES.TRANSFER_DISK_FULL), CODES.TRANSFER_DISK_FULL)
+    await pauseMount(mount, statusForFaultCode(CODES.TRANSFER_DISK_FULL), CODES.TRANSFER_DISK_FULL, { gen })
     return false
   }
   // A resumed partial has already taken its bytes from the volume; charging for them twice would
@@ -285,14 +285,15 @@ export async function materializeOverlayFile(mount, share, entry, opts = {}) {
   if (claimedBy && claimedBy !== FETCH_OWNER_MIRROR) return 'missing'
   // Below the claim check on purpose: charging a file the download engine already owns against our
   // own free space would refuse it over bytes that engine has already reserved.
-  if (!(await mountCanTake(mount, entry, abs, opts.probe || createMountProbe(mount)))) return 'blocked'
   const streamKey = mirrorKey(mount.spaceId, mount.shareId)
+  // Fall back to the LIVE generation rather than undefined: loops.stopped compares against it, so
+  // an absent gen would read as 'stopped' and refuse every fetch. A caller without one still gets
+  // the check it needs — a stop landing during the waits below.
+  const gen = opts.gen ?? mirrorGen(streamKey)
+  if (!(await mountCanTake(mount, entry, abs, { probe: opts.probe || createMountProbe(mount), gen }))) return 'blocked'
   const releaseSlot = await acquireMirrorSlot(streamKey)
   try {
-    // Fall back to the LIVE generation rather than undefined: loops.stopped compares against it,
-    // so an absent gen would read as 'stopped' and refuse every fetch. A caller without one still
-    // gets the check it needs — a stop landing during the wait above.
-    return await fetchOverlayEntry(mount, share, entry, { abs, verifyKey, localRelPath, streamKey, gen: opts.gen ?? mirrorGen(streamKey), diskHash, localExists: !!onDisk || unreadable })
+    return await fetchOverlayEntry(mount, share, entry, { abs, verifyKey, localRelPath, streamKey, gen, diskHash, localExists: !!onDisk || unreadable })
   } finally {
     releaseSlot()
   }
@@ -376,7 +377,7 @@ async function fetchOverlayEntry(mount, share, entry, { abs, verifyKey, localRel
     // ECANCELLED is a deliberate pause/unmount abort (stopForeignLoop), not a
     // give-up: log it as a stop and keep whatever partial cancelFetch chose to keep.
     if (err?.code === 'ECANCELLED') { failed?.finish('paused'); return 'missing' }
-    await handleOverlayMirrorFetchError(mount, share, entry, err, failed)
+    await handleOverlayMirrorFetchError(mount, share, entry, err, { diag: failed, gen })
     return 'missing'
   } finally {
     activeOverlayFetches.delete(streamKey)

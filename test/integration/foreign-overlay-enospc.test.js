@@ -5,8 +5,7 @@ import { publishShare, generateShareId } from '../../src/shared/shares/shares.js
 import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
 import { createForeignMount, getForeignMount } from '../../src/shared/folders/mount-store.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
-import { recordMirrorScanFault } from '../../src/shared/folders/foreign-pause.js'
-import { setForeignEnabled } from '../../src/shared/folders/foreign-verbs.js'
+import { scanForeignMount, setForeignEnabled } from '../../src/shared/folders/foreign-verbs.js'
 import { runMaterializeTick } from '../../src/shared/folders/mirror-pass.js'
 import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
@@ -111,12 +110,14 @@ test('a pause records the error code, never the errno message', async (t) => {
 // record the fault WITHOUT disabling the mount, and it must not put a raw message on a wire field
 // the renderer reads as a code.
 test('a failed initial scan records the fault without pausing the mount', async (t) => {
-  const { ctx, spaceId, shareId, mountPath } = await setupOverlayMirror(t, 'EACCES')
+  const { ctx, spaceId, shareId } = await setupOverlayMirror(t, 'EACCES')
   const err = Object.assign(new Error("EACCES: permission denied, open '/Volumes/ext/x'"), { code: 'EACCES' })
+  const list = overlayBackend.listPeerWithMeta
+  overlayBackend.listPeerWithMeta = async () => { throw err }
+  t.teardown(() => { overlayBackend.listPeerWithMeta = list }, { order: -1 })
 
-  const status = await recordMirrorScanFault(spaceId, shareId, err, { mountPath })
+  t.absent(await scanForeignMount(await getForeignMount(spaceId, shareId)), 'the scan faulted')
 
-  t.is(status, 'paused-error')
   const mount = await getForeignMount(spaceId, shareId)
   t.is(mount.status, 'paused-error', 'durable — a reload used to show a mirror still "scanning"')
   t.is(mount.lastError, CODES.TRANSFER_PERMISSION)

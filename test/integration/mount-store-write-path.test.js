@@ -60,9 +60,9 @@ test('an unmount racing a patch does not resurrect the record', async (t) => {
 
 test('the read-merge helpers still report a missing record rather than creating one', async (t) => {
   await freshPeer(t)
-  t.is(await patchOwnedMount('sp-x', 'sh-x', { mountPath: '/x' }), false, 'patch declines')
-  t.is(await setOwnedActivity('sp-x', 'sh-x', 'active'), false, 'status declines')
-  t.is(await setOwnedIndexPaused('sp-x', 'sh-x', true), false, 'pause declines')
+  t.is(await patchOwnedMount('sp-x', 'sh-x', { mountPath: '/x' }), null, 'patch declines')
+  t.is(await setOwnedActivity('sp-x', 'sh-x', 'active'), null, 'status declines')
+  t.is(await setOwnedIndexPaused('sp-x', 'sh-x', true), null, 'pause declines')
   t.absent(await getOwnedMount('sp-x', 'sh-x'), 'and none of them created one')
 })
 

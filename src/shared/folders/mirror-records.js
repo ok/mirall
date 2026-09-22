@@ -61,12 +61,13 @@ export function ensureMirror(spaceId, shareId, { state = MIRROR_STATE.SYNCING, m
 
 // state is one of 'syncing' | 'synced' | 'paused'. Returns whether the record changed, so a caller
 // driving this from the poll loop only re-broadcasts on a genuine transition (not every tick).
-export function setMirrorState(spaceId, shareId, state) {
+// `stopped` declines the write when true at the moment it is made.
+export function setMirrorState(spaceId, shareId, state, { stopped = () => false } = {}) {
   const key = keyFor(spaceId, shareId)
   return serialize(key, async () => {
     const bee = getProfileBee()
     const entry = await bee.get(key)
-    if (!entry?.value || entry.value.unmirroredAt || entry.value.state === state) return false
+    if (!entry?.value || entry.value.unmirroredAt || entry.value.state === state || stopped()) return false
     await bee.put(key, { ...entry.value, state, ts: Date.now() })
     return true
   })

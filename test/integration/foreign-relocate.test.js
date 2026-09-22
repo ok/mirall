@@ -7,13 +7,13 @@ import { publishShare, generateShareId } from '../../src/shared/shares/shares.js
 import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
 import { createForeignMount, getForeignMount, patchForeignMount } from '../../src/shared/folders/mount-store.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
-import { isAutoPaused, recordMirrorScanFault } from '../../src/shared/folders/foreign-pause.js'
-import { relocateForeignFolder, setForeignEnabled, stopForeignLoop } from '../../src/shared/folders/foreign-verbs.js'
+import { isAutoPaused, pauseMount } from '../../src/shared/folders/foreign-pause.js'
+import { relocateForeignFolder, scanForeignMount, setForeignEnabled, stopForeignLoop, unmountForeignFolder } from '../../src/shared/folders/foreign-verbs.js'
 import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
 import { setupSelfMirror } from '../helpers/owned.js'
 import { until } from '../helpers/bare-poll.js'
-import { initialMaterializeScan, mirrorIdleForTests } from '../../src/shared/folders/mirror-pass.js'
+import { initialMaterializeScan, mirrorIdleForTests, runMaterializeTick } from '../../src/shared/folders/mirror-pass.js'
 import { mirrorHealth } from '../../src/shared/folders/foreign-folders.js'
 import { registerForeignFolders } from '../../src/worker/ipc/foreign-folders.js'
 
@@ -196,9 +196,9 @@ test('an initial scan stopped before it has read the share writes nothing', asyn
   t.absent(fs.existsSync(path.join(ctx.mirrorPath, 'a.txt')), 'nor fetched anything')
 })
 
-// The initial scan holds its listing until the test releases it, so a pause or relocate can land
-// inside the window between the scan's generation check and its final write — the record changes
-// under the scan, but the loop is not yet stopped.
+// The initial scan holds its listing until the test releases it, so a pause, relocate or unmount can
+// land while the scan is in flight. Its restore runs ahead of the fixture's own, which puts the
+// original back last.
 function gatedListing(t, { fault = null } = {}) {
   const inner = overlayBackend.listPeerWithMeta
   let release
@@ -208,23 +208,23 @@ function gatedListing(t, { fault = null } = {}) {
     if (fault) throw fault
     return await inner(...args)
   }
-  t.teardown(() => { overlayBackend.listPeerWithMeta = inner })
+  t.teardown(() => { overlayBackend.listPeerWithMeta = inner }, { order: -1 })
   return release
 }
 
-async function gatedScan(t, { fault = null } = {}) {
-  const ctx = await setupSelfMirror(t, { files: { 'a.txt': 'alpha' } })
-  const spaceId = ctx.spaceId
-  const shareId = ctx.share.id
-  t.teardown(() => stopForeignLoop(spaceId, shareId))
-  const release = gatedListing(t, { fault })
-  const scan = initialMaterializeScan(ctx.mount)
-  return { ctx, spaceId, shareId, release, scan }
+async function selfMirror(t, files = { 'a.txt': 'alpha' }) {
+  const ctx = await setupSelfMirror(t, { files })
+  t.teardown(() => stopForeignLoop(ctx.spaceId, ctx.share.id))
+  return { ctx, spaceId: ctx.spaceId, shareId: ctx.share.id }
 }
 
+const liveLoop = (shareId) => () => mirrorHealth().some((m) => m.shareId === shareId)
+
 test('REGRESSION (FIX-448: a scan finishing after a user pause leaves the pause in place)', async (t) => {
-  const { ctx, spaceId, shareId, release, scan } = await gatedScan(t)
-  await patchForeignMount(spaceId, shareId, { enabled: false, status: 'paused' })
+  const { ctx, spaceId, shareId } = await selfMirror(t)
+  const release = gatedListing(t)
+  const scan = initialMaterializeScan(ctx.mount)
+  await setForeignEnabled(spaceId, shareId, false)
   const seen = statuses(ctx, shareId).length
   release()
   await scan
@@ -236,8 +236,10 @@ test('REGRESSION (FIX-448: a scan finishing after a user pause leaves the pause 
 })
 
 test('REGRESSION (FIX-448: a scan finishing after an auto pause keeps it auto-resumable)', async (t) => {
-  const { spaceId, shareId, release, scan } = await gatedScan(t)
-  await patchForeignMount(spaceId, shareId, { enabled: false, status: 'paused-enospc', lastError: 'TRANSFER_DISK_FULL' })
+  const { ctx, spaceId, shareId } = await selfMirror(t)
+  const release = gatedListing(t)
+  const scan = initialMaterializeScan(ctx.mount)
+  await pauseMount(await getForeignMount(spaceId, shareId), 'paused-enospc', 'TRANSFER_DISK_FULL')
   release()
   await scan
 
@@ -247,29 +249,30 @@ test('REGRESSION (FIX-448: a scan finishing after an auto pause keeps it auto-re
   t.ok(isAutoPaused(stored), 'so the boot resume still picks it up')
 })
 
-test('REGRESSION (FIX-448: a scan of the old path writes nothing over a relocate)', async (t) => {
-  const { ctx, spaceId, shareId, release, scan } = await gatedScan(t)
+test('REGRESSION (FIX-448: a scan of the old path writes nothing after a relocate)', async (t) => {
+  const { ctx, spaceId, shareId } = await selfMirror(t)
   const moved = ctx.tmpDir('mirror-moved')
-  await patchForeignMount(spaceId, shareId, { mountPath: moved, syncedPaths: [], renamedPaths: {}, status: 'scanning' })
+  const release = gatedListing(t)
+  const scan = initialMaterializeScan(ctx.mount)
+  await relocateForeignFolder(spaceId, shareId, moved)
   release()
-  await scan
 
+  t.alike(await scan, { stopped: true }, 'the old path\'s scan saw itself cancelled')
+  await mirrorIdleForTests(spaceId, shareId)
+  t.absent(fs.existsSync(path.join(ctx.mirrorPath, 'a.txt')), 'and fetched nothing into the old folder')
   const stored = await getForeignMount(spaceId, shareId)
-  t.is(stored.mountPath, moved, 'the mount still points at the new folder')
-  t.alike(stored.syncedPaths, [], 'and claims nothing the old path owned')
-  t.is(stored.status, 'scanning', 'the new folder has not been scanned yet')
-  t.absent(stored.initialScanCompletedAt, 'nor stamped done by the old path')
+  t.is(stored.mountPath, moved, 'the mount points at the new folder')
+  t.is(stored.status, 'active', 'which its own scan closed')
 })
 
-// The mount handler and the relocate verb both hand a rejected scan to recordMirrorScanFault.
 test('REGRESSION (FIX-448: a scan fault after a user pause does not turn it into an auto pause)', async (t) => {
-  const fault = Object.assign(new Error('permission denied'), { code: 'EACCES' })
-  const { ctx, spaceId, shareId, release, scan } = await gatedScan(t, { fault })
-  const recorded = scan.catch((err) => recordMirrorScanFault(spaceId, shareId, err, { mountPath: ctx.mount.mountPath }))
-  await patchForeignMount(spaceId, shareId, { enabled: false, status: 'paused' })
+  const { ctx, spaceId, shareId } = await selfMirror(t)
+  const release = gatedListing(t, { fault: Object.assign(new Error('permission denied'), { code: 'EACCES' }) })
+  const scanned = scanForeignMount(ctx.mount)
+  await setForeignEnabled(spaceId, shareId, false)
   const seen = statuses(ctx, shareId).length
   release()
-  await recorded
+  await scanned
 
   const stored = await getForeignMount(spaceId, shareId)
   t.is(stored.status, 'paused', 'the user pause stands')
@@ -277,21 +280,127 @@ test('REGRESSION (FIX-448: a scan fault after a user pause does not turn it into
   t.absent(statuses(ctx, shareId).slice(seen).includes('paused-error'), 'and no fault reaches the renderer')
 })
 
-test('REGRESSION (FIX-448: a mount paused during its first scan gets no poll loop)', async (t) => {
-  const ctx = await setupSelfMirror(t, { files: { 'a.txt': 'alpha' } })
-  const spaceId = ctx.spaceId
-  const shareId = ctx.share.id
-  t.teardown(() => stopForeignLoop(spaceId, shareId))
-  const log = { warn: () => {}, debug: () => {} }
-  registerForeignFolders(ctx.fake.ipc, { log, intents: null })
+async function mountThroughIpc(t) {
+  const { ctx, spaceId, shareId } = await selfMirror(t)
+  registerForeignFolders(ctx.fake.ipc, { log: { warn: () => {}, debug: () => {} }, intents: null })
   const release = gatedListing(t)
   await ctx.fake.call('foreign-folder:mount', {
     spaceId, shareId, ownerKey: ctx.share.owner, mountPath: ctx.tmpDir('mirror-fresh'),
   })
+  return { ctx, spaceId, shareId, release }
+}
+
+test('REGRESSION (FIX-448: a mount paused during its first scan gets no poll loop)', async (t) => {
+  const { spaceId, shareId, release } = await mountThroughIpc(t)
   await setForeignEnabled(spaceId, shareId, false)
   release()
   await mirrorIdleForTests(spaceId, shareId)
+  t.absent(await until(liveLoop(shareId), 1000), 'the paused mount has no live interval')
+})
 
-  const live = () => mirrorHealth().some((m) => m.shareId === shareId)
-  t.absent(await until(live, 1000), 'the paused mount has no live interval')
+test('REGRESSION (FIX-448: a mount unmounted during its first scan gets no poll loop)', async (t) => {
+  const { spaceId, shareId, release } = await mountThroughIpc(t)
+  await unmountForeignFolder(spaceId, shareId)
+  release()
+  await mirrorIdleForTests(spaceId, shareId)
+  t.absent(await until(liveLoop(shareId), 1000), 'the unmounted mount has no live interval')
+  t.is(await getForeignMount(spaceId, shareId), null, 'and no record came back')
+})
+
+// A pause that lands mid-relocate, after the relocate has read the record as enabled.
+test('REGRESSION (FIX-448: a relocate does not re-arm a mirror paused while it was running)', async (t) => {
+  const { ctx, spaceId, shareId } = await selfMirror(t)
+  await initialMaterializeScan(ctx.mount)
+  const moved = ctx.tmpDir('mirror-moved')
+  let paused = null
+  const off = ctx.fake.onEmit((frame) => {
+    if (paused || frame.type !== 'event:foreign-folder-mount-status' || frame.payload?.status !== 'scanning') return
+    paused = setForeignEnabled(spaceId, shareId, false)
+  })
+  t.teardown(off)
+  await relocateForeignFolder(spaceId, shareId, moved)
+  await paused
+  await mirrorIdleForTests(spaceId, shareId)
+
+  t.is((await getForeignMount(spaceId, shareId)).status, 'paused', 'the pause stands')
+  t.absent(await until(liveLoop(shareId), 1000), 'and the paused mirror has no live interval')
+})
+
+// The user's own file sits at the owner's path, so the scan fetches the owner's copy to a sibling and
+// maps it. A pause landing right after that fetch cancels the scan's final write; the mapping must
+// survive it, or the resume re-derives the path, takes the user's file for a mirror edit and fetches
+// a second copy.
+test('REGRESSION (FIX-448: a collision sibling fetched by a cancelled scan stays mapped)', async (t) => {
+  const { ctx, spaceId, shareId } = await selfMirror(t)
+  fs.writeFileSync(path.join(ctx.mirrorPath, 'a.txt'), 'mine')
+  const overlay = getOverlay()
+  const inner = overlay.fetchFile
+  let pausing = null
+  overlay.fetchFile = async (...args) => {
+    const got = await inner(...args)
+    pausing ??= setForeignEnabled(spaceId, shareId, false)
+    await pausing
+    return got
+  }
+  t.teardown(() => { overlay.fetchFile = inner }, { order: -1 })
+  await initialMaterializeScan(ctx.mount)
+  overlay.fetchFile = inner
+
+  await setForeignEnabled(spaceId, shareId, true)
+  await mirrorIdleForTests(spaceId, shareId)
+
+  t.alike(fs.readdirSync(ctx.mirrorPath).sort(), ['a (1).txt', 'a.txt'], 'no second copy and no conflict copy')
+  t.is(fs.readFileSync(path.join(ctx.mirrorPath, 'a.txt')).toString(), 'mine', 'the user\'s file is untouched')
+  t.is(fs.readFileSync(path.join(ctx.mirrorPath, 'a (1).txt')).toString(), 'alpha', 'the owner\'s copy is the sibling')
+  t.alike((await getForeignMount(spaceId, shareId)).renamedPaths, { 'a.txt': 'a (1).txt' }, 'and the record maps it')
+})
+
+// Only the initial scan writes `active`; a scan that faulted or could not read the share leaves the
+// status open, and the first tick that walks the catalog closes it.
+test('REGRESSION (FIX-448: the first good tick after a scan fault closes the fault)', async (t) => {
+  const { ctx, spaceId, shareId } = await selfMirror(t)
+  await patchForeignMount(spaceId, shareId, { status: 'paused-error', lastError: 'TRANSFER_PERMISSION' })
+  const seen = statuses(ctx, shareId).length
+
+  await runMaterializeTick(spaceId, shareId)
+
+  const stored = await getForeignMount(spaceId, shareId)
+  t.is(stored.status, 'active', 'the mirror is syncing again, and says so')
+  t.is(stored.lastError, null, 'with no stale reason')
+  t.alike(statuses(ctx, shareId).slice(seen), ['active'], 'and the renderer hears it')
+})
+
+test('REGRESSION (FIX-448: the first good tick closes a scan that never read the share)', async (t) => {
+  const { spaceId, shareId } = await selfMirror(t)
+  t.is((await getForeignMount(spaceId, shareId)).status, 'scanning', 'precondition: no scan closed it')
+  await runMaterializeTick(spaceId, shareId)
+  t.is((await getForeignMount(spaceId, shareId)).status, 'active')
+})
+
+test('a good tick leaves a closed status alone', async (t) => {
+  const { ctx, spaceId, shareId } = await selfMirror(t)
+  await initialMaterializeScan(ctx.mount)
+  const seen = statuses(ctx, shareId).length
+  await runMaterializeTick(spaceId, shareId)
+  t.alike(statuses(ctx, shareId).slice(seen), [], 'no status edge from a tick')
+})
+
+// The relocate's follow-up tick is an ordinary tick: its failure is not the scan's.
+test('REGRESSION (FIX-448: a failing tick after a relocate scan is not recorded as a scan fault)', async (t) => {
+  const { spaceId, shareId, moved } = await movedMirror(t)
+  const inner = overlayBackend.listPeerWithMeta
+  let calls = 0
+  overlayBackend.listPeerWithMeta = async (...args) => {
+    if (++calls > 1) throw Object.assign(new Error('permission denied'), { code: 'EACCES' })
+    return await inner(...args)
+  }
+  t.teardown(() => { overlayBackend.listPeerWithMeta = inner }, { order: -1 })
+
+  await relocateForeignFolder(spaceId, shareId, moved)
+  await until(() => calls > 1, 2000)
+  await mirrorIdleForTests(spaceId, shareId)
+
+  t.absent(await until(async () => (await getForeignMount(spaceId, shareId)).status === 'paused-error', 500),
+    'the scan got through, so no scan fault is recorded')
+  t.is((await getForeignMount(spaceId, shareId)).status, 'active')
 })

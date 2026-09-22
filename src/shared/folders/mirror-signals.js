@@ -34,8 +34,9 @@ export async function syncMirrorRecord(spaceId, shareId, op) {
 }
 
 // The one place a materialize pass reports its terminal sync state: 'synced' once every catalog
-// entry is present locally, else 'syncing'. Callers gen-guard this so a stopped/paused mount's
-// trailing tick can't overwrite the pause.
-export function settleMirrorSyncState(mount, allPresent) {
-  return syncMirrorRecord(mount.spaceId, mount.shareId, () => setMirrorState(mount.spaceId, mount.shareId, allPresent ? 'synced' : 'syncing'))
+// entry is present locally, else 'syncing'. `stopped` is the pass's generation check, asked inside
+// the record's serialized write so a stopped/paused mount's trailing pass can't overwrite the pause.
+export function settleMirrorSyncState(mount, allPresent, stopped = () => false) {
+  return syncMirrorRecord(mount.spaceId, mount.shareId,
+    () => setMirrorState(mount.spaceId, mount.shareId, allPresent ? 'synced' : 'syncing', { stopped }))
 }

@@ -42,7 +42,7 @@ let unsubscribePeerOnline = null
 export function initForeignFolders(_ipc) {
   initMirrorSignals(_ipc)
   initForeignVerbs({ loops, state })
-  initForeignPause({ state, stopForeignLoop, setForeignEnabled })
+  initForeignPause({ state, loops, stopForeignLoop, setForeignEnabled })
   initMirrorFetch({ state, loops })
   initMirrorPass({ state, loops, maybeUnmountIfOwnerGone })
   // Materialize promptly when an owner's catalog appends, instead of waiting for

@@ -76,14 +76,32 @@ export async function unmountForeignFolder(spaceId, shareId) {
   emitMirrorEvent('event:share-files-updated', { spaceId, shareId })
 }
 
+// The initial scan, with its fault recorded under the scan's own generation. Resolves true when the
+// scan got through, false when it faulted.
+export async function scanForeignMount(mount) {
+  const gen = loops.generationOf(mirrorKey(mount.spaceId, mount.shareId))
+  try {
+    await initialMaterializeScan(mount)
+    return true
+  } catch (err) {
+    log.warn('mirror initial scan failed:', mount.shareId, '-', err.message)
+    await recordMirrorScanFault(mount.spaceId, mount.shareId, err, { gen })
+      .catch((e) => log.debug('mirror scan fault record failed:', mount.shareId, '-', e.message))
+    return false
+  }
+}
+
 // Move the mount, not the bytes. `discardPartial` is deliberately NOT passed to the stop: a
 // half-written file at the old path is the user's to keep or delete, and deleting it here would
 // destroy data the relocate never promised to touch.
 //
 // Everything that can fail happens BEFORE anything is torn down — same rule as pauseMount and
 // resumeIndex — so a failed write leaves a mount that is still running against its old path rather
-// than one with no loop, no caches and a record that disagrees with both.
+// than one with no loop, no caches and a record that disagrees with both. The invalidation is not a
+// teardown: it cancels the passes over the old path, and the cadence stays armed.
 export async function relocateForeignFolder(spaceId, shareId, mountPath) {
+  const key = mirrorKey(spaceId, shareId)
+  loops.invalidate(key)
   const mount = await getForeignMount(spaceId, shareId)
   if (!mount) throw new AppError(CODES.MOUNT_NOT_ON_DEVICE, 'Mount not found')
 
@@ -113,26 +131,36 @@ export async function relocateForeignFolder(spaceId, shareId, mountPath) {
   // stopForeignLoop deliberately leaves the in-flight pass alone; without this a pass still
   // running against the OLD path makes every later tick coalesce onto that dead promise, and
   // because a coalesced call never marks a pass started, the liveness probe reports it healthy.
-  loops.dropInFlight(mirrorKey(spaceId, shareId))
+  loops.dropInFlight(key)
   emitStatus(spaceId, shareId, status)
 
+  // Every await below is a window for a pause or another relocate, which invalidates `at`.
+  const at = loops.generationOf(key)
   const next = await getForeignMount(spaceId, shareId)
-  if (next && next.enabled !== false) {
-    await syncMirrorRecord(spaceId, shareId, () => setMirrorState(spaceId, shareId, 'syncing'))
-    await startForeignLoop(next)
-    // The initial scan, not a tick: it is the pass that closes 'scanning', and it runs adopt-only
-    // while the owner is offline. It gets its own copy of the record, which it fills in as it goes;
-    // the tick after it settles a share whose listing the scan would not call complete.
-    initialMaterializeScan({ ...next, renamedPaths: { ...next.renamedPaths } })
-      .then(() => runMaterializeTick(spaceId, shareId))
-      .catch((err) => recordMirrorScanFault(spaceId, shareId, err, { mountPath: next.mountPath }))
-      .catch((err) => log.warn('relocate scan failed:', shareId, '-', err.message))
+  if (next && next.enabled !== false && !loops.stopped(key, at)) {
+    await syncMirrorRecord(spaceId, shareId,
+      () => setMirrorState(spaceId, shareId, 'syncing', { stopped: () => loops.stopped(key, at) }))
+    if (!loops.stopped(key, at)) rearmRelocated(next)
   }
   emitMirrorEvent('event:share-files-updated', { spaceId, shareId })
   return next
 }
 
+// The initial scan, not a tick: it is the pass that closes 'scanning', and it runs adopt-only while
+// the owner is offline. It gets its own copy of the record, which it fills in as it goes; the tick
+// after it settles a share whose listing the scan would not call complete.
+function rearmRelocated(next) {
+  const { spaceId, shareId } = next
+  startForeignLoop(next)
+  scanForeignMount({ ...next, renamedPaths: { ...next.renamedPaths } })
+    .then((scanned) => scanned && runMaterializeTick(spaceId, shareId))
+    .catch((err) => log.debug('relocate tick failed:', shareId, '-', err.message))
+}
+
 export async function setForeignEnabled(spaceId, shareId, enabled) {
+  // A pause cancels every pass before its write, so none can write over it; the loop is stopped
+  // only once the write has landed.
+  if (!enabled) loops.invalidate(mirrorKey(spaceId, shareId))
   const mount = await getForeignMount(spaceId, shareId)
   if (!mount) throw new AppError(CODES.MOUNT_NOT_ON_DEVICE, 'Mount not found')
   const wasEnabled = mount.enabled !== false
