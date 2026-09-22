@@ -349,7 +349,7 @@
     "deny": "Ablehnen",
     "approveNamed": "{{name}} annehmen",
     "denyNamed": "{{name}} ablehnen",
-    "denyAlreadyApproved": "{{name}} wurde bereits zugelassen. Mirall kann Mitglieder noch nicht entfernen – {{name}} behält den Zugriff auf diesen Raum, auch auf alles, was ab jetzt geteilt wird.",
+    "denyAlreadyApproved": "{{name}} wurde bereits zugelassen.",
     "denyNotOpen": "Diese Anfrage ist nicht mehr offen.",
     "review": "Ansehen",
     "open": "Öffnen",

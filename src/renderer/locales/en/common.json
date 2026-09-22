@@ -375,7 +375,7 @@
     "deny": "Deny",
     "approveNamed": "Approve {{name}}",
     "denyNamed": "Deny {{name}}",
-    "denyAlreadyApproved": "{{name}} has already been approved. Mirall can't remove members yet — they keep access to this space, including anything shared from now on.",
+    "denyAlreadyApproved": "{{name}} has already been approved.",
     "denyNotOpen": "This request is no longer open.",
     "review": "Review",
     "open": "Open",

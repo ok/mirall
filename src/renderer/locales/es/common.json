@@ -349,7 +349,7 @@
     "deny": "Rechazar",
     "approveNamed": "Aprobar a {{name}}",
     "denyNamed": "Rechazar a {{name}}",
-    "denyAlreadyApproved": "{{name}} ya ha sido aprobado. Mirall aún no puede eliminar miembros: conserva el acceso a este espacio, incluido todo lo que se comparta a partir de ahora.",
+    "denyAlreadyApproved": "{{name}} ya ha sido aprobado.",
     "denyNotOpen": "Esta solicitud ya no está pendiente.",
     "review": "Revisar",
     "open": "Abrir",
