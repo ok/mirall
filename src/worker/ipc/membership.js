@@ -9,7 +9,7 @@
 // own size is visible.
 
 import { record, recordResolved } from '../../shared/audit/audit-log.js'
-import { peerActor, selfActor, systemActor, targetRef } from '../../shared/audit/audit-record.js'
+import { peerActor, selfActor, spaceRef, systemActor, targetRef } from '../../shared/audit/audit-record.js'
 import { OUTCOME, TARGET_KIND } from '../../shared/contract/audit-kinds.js'
 import { CODES } from '../../shared/contract/errors.js'
 import { PEER_FRAME } from '../../shared/contract/peer-frames.js'
@@ -169,10 +169,10 @@ async function onJoinRequest(msg) {
   // keeps the banner quiet, and this sits strictly AFTER the replay branches above, so a
   // re-knock still replays a lost grant/deny.
   await markRequest(spaceId, msg.profileKey, { displayName, avatar, refresh: hadLeft })
-  if (changed || hadLeft) {
-    ipc.emit('event:member-join-request', { spaceId, publicKey: msg.profileKey, displayName, avatar })
-    auditJoinRequest(spaceId, msg.profileKey, displayName)
-  }
+  if (changed || hadLeft) ipc.emit('event:member-join-request', { spaceId, publicKey: msg.profileKey, displayName, avatar })
+  // Every knock, not only a changed one: the audit dedupes itself, and a row the log did not take is
+  // retried by the next heartbeat knock.
+  auditJoinRequest(spaceId, msg.profileKey, displayName)
 }
 
 // A knock reaches us two ways — the live membership:request frame, and the replicated fold when a
@@ -187,11 +187,14 @@ function auditJoinRequest(spaceId, publicKey, displayName) {
   const key = joinRequestKey(spaceId, publicKey)
   if (recordedJoinRequests.has(key)) return
   recordedJoinRequests.add(key)
-  recordResolved('membership.requested', async () => ({
-    actor: peerActor(publicKey, displayName || null),
-    space: spaceRefOf(await getSpace(spaceId)),
-    target: targetRef(TARGET_KIND.MEMBER, publicKey, displayName || null),
-  }), { context: { space: spaceId.slice(0, 12) } }).then((recorded) => {
+  recordResolved('membership.requested', async () => {
+    const space = await getSpace(spaceId)
+    return {
+      actor: peerActor(publicKey, displayName || null),
+      space: spaceRef(spaceId, space?.name ?? null),
+      target: targetRef(TARGET_KIND.MEMBER, publicKey, displayName || null),
+    }
+  }, { context: { space: spaceId.slice(0, 12) } }).then((recorded) => {
     if (!recorded) recordedJoinRequests.delete(key)
   })
 }
