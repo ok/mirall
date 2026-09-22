@@ -23,7 +23,7 @@ import {
 } from './loose-downloads.js'
 import { rehydrateLooseFiles, resetLooseMaintenance } from './loose-maintenance.js'
 import { listSpaces } from '../../../spaces/space.js'
-import { listPendingOwnerKeys } from '../../pending-transfers.js'
+import { listPendingOwnerKeys, listPendingOwnerSpaces } from '../../pending-transfers.js'
 
 const CONTENT_RESUME_COALESCE_MS = 250
 
@@ -132,6 +132,19 @@ export class OverlayBackend extends Subsystem {
   awaitedOwnerKeys() {
     const engines = [this.folderEngine, this.looseEngine].filter(Boolean)
     return listPendingOwnerKeys({ keep: (row) => engines.some((engine) => engine.awaitsOwner(row)) })
+  }
+
+  // The rows the user unblocked since the last tick — a download folder that takes writes again —
+  // re-driven through the reconcile a reconnect runs, once per (owner, space). Each engine hands a
+  // row out once per clear and only while its owner is present. `beat` is the tick's liveness.
+  async redriveUnblocked({ beat = () => {} } = {}) {
+    if (this.stopping) return
+    const engines = [this.folderEngine, this.looseEngine].filter(Boolean)
+    const keep = (row) => { beat(); return engines.some((engine) => engine.takeUnblocked(row)) }
+    for (const { ownerKey, spaceId } of await listPendingOwnerSpaces({ keep })) {
+      this.log.info('download folder writable again — re-driving downloads in', spaceId, 'from', ownerKey.slice(0, 8))
+      this.resumeForOwner(ownerKey, spaceId)
+    }
   }
 
   // The content plane authenticates per owner with no space, so the resume fans out across our

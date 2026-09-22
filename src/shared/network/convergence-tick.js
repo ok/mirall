@@ -1,7 +1,8 @@
 // The slow level-triggered re-drive: one global pass that re-sends identity frames whose implicit
 // ack never arrived, re-folds rosters whose considered records haven't replicated, re-pokes listings
-// that gave up on a peer catalog, and rescues transfers whose owner the swarm has quietly stopped
-// dialing — the standing answer to "restart the app and it fixes itself".
+// that gave up on a peer catalog, re-drives downloads whose user-blocked fault has cleared while the
+// owner stayed connected, and rescues transfers whose owner the swarm has quietly stopped dialing —
+// the standing answer to "restart the app and it fixes itself".
 //
 // A converged, quiet swarm does no work in this module at all: each arm is gated on an observable
 // deficit, and the escalation to a discovery refresh is throttled and budgeted per space on top.
@@ -22,6 +23,8 @@ let log = createLogger('convergence-tick')
 // The stalled-owner probe is filled from the Swarm subsystem's constructor deps, read at call
 // time — a nullable slot with a setter would be a silent no-op when nobody sets it.
 let getStalledOwners = () => null
+// The unblocked-transfer re-drive, read the same way; the backend judges its own rows.
+let getRedriveUnblocked = () => null
 // Read at call time, not captured: the Swarm subsystem reassigns both handles.
 let getSwarm = () => null
 let getIpc = () => null
@@ -29,6 +32,7 @@ let getIpc = () => null
 export function initConvergenceTick(deps) {
   if (deps.log) log = deps.log
   getStalledOwners = deps.getStalledOwners
+  getRedriveUnblocked = deps.getRedriveUnblocked
   getSwarm = deps.getSwarm
   getIpc = deps.getIpc
 }
@@ -150,6 +154,8 @@ async function runConvergenceTick(pass) {
   // scheduler; retired keys (complete or past the sweep cap) never come back.
   for (const key of await captureDeficits()) scheduleCapture(key)
   beat()
+  try { await redriveUnblockedTransfers({ beat }) } catch (err) { log.debug('unblocked-transfer re-drive failed:', err.message) }
+  beat()
   try { await rescueStalledTransfers({ beat }) } catch (err) { log.debug('stalled-transfer rescue failed:', err.message) }
 }
 
@@ -159,6 +165,16 @@ export function forgetSpaceConvergence(spaceId) {
   deficitTicks.delete(spaceId)
   lastRefreshAt.delete(spaceId)
   escalationsSpent.delete(spaceId)
+}
+
+// A fault only the user could clear — a download folder that refused writes — is re-driven by the
+// reconcile, and the reconcile runs on an owner reconnect or a catalog append. An owner that stayed
+// connected produces neither, so this arm is the cadence that re-drives those rows; which rows, and
+// whether their owner is present, is the backend's judgement.
+export async function redriveUnblockedTransfers({ beat = () => {} } = {}) {
+  const redrive = getRedriveUnblocked()
+  if (!getSwarm() || !redrive) return
+  await redrive({ beat })
 }
 
 // Hyperswarm stops re-dialing a peer whose connections keep dying young (a close inside the
@@ -243,8 +259,8 @@ export function startConvergenceTick(owner = null) {
 
 // The unit the supervisor watches: one pass, process-wide. A tick that never settles permanently
 // kills re-announcing unacked identity frames, roster-deficit escalation, listing re-pokes,
-// peer-bee capture retries and the stalled-transfer rescue — every arm of the re-drive that exists
-// so state converges without a restart.
+// peer-bee capture retries, the unblocked-transfer re-drive and the stalled-transfer rescue — every
+// arm of the re-drive that exists so state converges without a restart.
 export function convergenceHealth({ now = Date.now() } = {}) {
   const { convergenceTickMs } = getConvergenceConfig()
   if (!convergenceTimer || !convergenceTickMs) return { ok: true, detail: null }

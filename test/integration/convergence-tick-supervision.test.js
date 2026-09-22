@@ -33,6 +33,7 @@ function parkedTick(t, { tickMs = 40 } = {}) {
       probes.started += 1
       return new Promise((resolve) => parked.push(resolve))
     },
+    getRedriveUnblocked: () => null,
     getSwarm: () => ({}),
     getIpc: () => null,
   })

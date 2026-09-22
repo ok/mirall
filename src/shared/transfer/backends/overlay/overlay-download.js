@@ -90,11 +90,15 @@ function defaultDirAcceptsWrite(dir) {
 // create/delete in the user's folder, so it reads a verdict at most this old.
 const FOLDER_VERDICT_TTL_MS = 60_000
 
-// Whether the stalled-owner rescue should keep reaching for a row's owner. A manual pause and a
-// fault only the user can clear wait on the user, not the owner. The reconcile's faultCleared probes
-// the folder afresh — a reconnect is its one chance to re-drive the row — and leaves the verdict
-// for the rescue.
-function createOwnerWait({ channel, pausedHashes, terminalCodes, dirAcceptsWrite, now }) {
+// The two questions the convergence tick asks about a row, both answered from the kept folder
+// verdict: whether the stalled-owner rescue should keep reaching for its owner (a manual pause and
+// a fault only the user can clear wait on the user, not the owner), and whether the user has since
+// cleared that fault, which is the tick's cue to re-drive the row through the reconcile. A cleared
+// row is handed out once: a re-drive the reconcile could not start (a member gone from the roster,
+// a catalog it cannot read) is not repeated every tick, and the reconnect and catalog-append paths
+// still reach the row. The owner gate is the one start() reads, so a re-drive cannot rewrite the
+// row only to park it as owner-offline. The reconcile's own faultCleared probes the folder afresh.
+function createOwnerWait({ channel, registry, pausedHashes, terminalCodes, ownerOnline, dirAcceptsWrite, now }) {
   const folderVerdicts = new Map() // dir -> { writable, at }
   function probeFolder(finalPath) {
     const dir = path.dirname(finalPath)
@@ -106,13 +110,30 @@ function createOwnerWait({ channel, pausedHashes, terminalCodes, dirAcceptsWrite
     const kept = folderVerdicts.get(path.dirname(finalPath))
     return kept && now() - kept.at < FOLDER_VERDICT_TTL_MS ? kept.writable : probeFolder(finalPath)
   }
-  function awaitsOwner(row) {
-    if (!channel.ownsPendingRow(row)) return false
+  function faultOf(row) {
+    if (!channel.ownsPendingRow(row)) return null
     const transferId = channel.transferIdForRow(row.spaceId, row)
-    if (pausedHashes.has(transferId)) return false
-    return faultAwaitsOwner(row.errorCode ?? terminalCodes.get(transferId), row.finalPath, keptFolderVerdict)
+    if (pausedHashes.has(transferId)) return null
+    return { transferId, code: row.errorCode ?? terminalCodes.get(transferId) }
   }
-  return { awaitsOwner, faultCleared: (code, row) => faultCleared(code, row.finalPath, probeFolder) }
+  function awaitsOwner(row) {
+    const fault = faultOf(row)
+    return !!fault && faultAwaitsOwner(fault.code, row.finalPath, keptFolderVerdict)
+  }
+  const redriven = new Set() // transferIds handed to the tick, until their fault is no longer cleared
+  // An active row waits on nothing: the fetch the last re-drive started owns it.
+  function takeUnblocked(row) {
+    const fault = faultOf(row)
+    if (!fault) return false
+    if (registry.has(fault.transferId) || !faultCleared(fault.code, row.finalPath, keptFolderVerdict)) {
+      redriven.delete(fault.transferId)
+      return false
+    }
+    if (!ownerOnline(row.ownerKey) || redriven.has(fault.transferId)) return false
+    redriven.add(fault.transferId)
+    return true
+  }
+  return { awaitsOwner, takeUnblocked, faultCleared: (code, row) => faultCleared(code, row.finalPath, probeFolder) }
 }
 
 function partialAllocatedBytes(finalPath) {
@@ -217,7 +238,7 @@ export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentT
     registry, pausedHashes, channel, log, hasOverlay, ownerOnline, destProbeFor,
     pauseReasonFor, recordTerminal, failTerminal, runFetch: settle.run,
   })
-  const ownerWait = createOwnerWait({ channel, pausedHashes, terminalCodes, dirAcceptsWrite, now })
+  const ownerWait = createOwnerWait({ channel, registry, pausedHashes, terminalCodes, ownerOnline, dirAcceptsWrite, now })
   const reconcile = createReconcile({
     registry, pausedHashes, terminalCodes, retries, channel, log, hasOverlay, start: starter.start, cancelByKey, discardPartial, faultCleared: ownerWait.faultCleared,
   })
@@ -352,6 +373,7 @@ export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentT
     releaseForRepublish,
     has: (transferId) => registry.has(transferId),
     awaitsOwner: ownerWait.awaitsOwner,
+    takeUnblocked: ownerWait.takeUnblocked,
     activeSlots: () => registry.entries(),
     // test seam
     _registry: registry,

@@ -44,6 +44,7 @@ let ipcRef = null
 let membershipControlHandler = null
 let connectionAttachHook = null
 let overlayReconnectHook = null
+let overlayRedriveHook = null
 let stalledOwnersHook = null
 let revokeServesForSpaceHook = null
 
@@ -73,10 +74,7 @@ function wireCollaborators() {
     getIpc: () => ipcRef,
   })
   initConvergenceTick({
-    log,
-    getStalledOwners: () => stalledOwnersHook,
-    getSwarm: () => swarm,
-    getIpc: () => ipcRef,
+    log, getSwarm: () => swarm, getIpc: () => ipcRef, getStalledOwners: () => stalledOwnersHook, getRedriveUnblocked: () => overlayRedriveHook,
   })
   initConnectivity({ getDroppedFrameCounters, getSwarm: () => swarm, getIpc: () => ipcRef })
 }
@@ -131,6 +129,7 @@ async function destroySwarm() {
   membershipControlHandler = null
   connectionAttachHook = null
   overlayReconnectHook = null
+  overlayRedriveHook = null
   revokeServesForSpaceHook = null
   stalledOwnersHook = null
   try {
@@ -165,6 +164,7 @@ export class Swarm extends Subsystem {
       connectionAttachHook = (mux, socket) => this.deps.overlayBackend.attach(mux, socket)
     }
     overlayReconnectHook = (ownerKey, spaceId) => this.deps.overlayBackend.resumeForOwner(ownerKey, spaceId)
+    overlayRedriveHook = (opts) => this.deps.overlayBackend.redriveUnblocked(opts)
     revokeServesForSpaceHook = (spaceId, profileKey) => this.deps.overlayBackend.revokeServesForSpace(spaceId, profileKey)
 
     wireCollaborators()

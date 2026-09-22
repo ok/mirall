@@ -38,7 +38,7 @@ test('no timer armed by a module-scoped handle survives the swarm teardown', asy
   t.teardown(() => timers.restore())
   const ctx = await freshPeer(t)
 
-  initConvergenceTick({ log: silent, sendSingleHandshake() {}, getStalledOwners: noSwarm, getSwarm: noSwarm, getIpc: noSwarm })
+  initConvergenceTick({ log: silent, sendSingleHandshake() {}, getStalledOwners: noSwarm, getRedriveUnblocked: noSwarm, getSwarm: noSwarm, getIpc: noSwarm })
   initPresenceBroadcast({ presence: { prune() {}, clearAll() {} }, membersPoke() {}, log: silent, getSwarm: noSwarm, getIpc: noSwarm })
   const swarm = readySwarm()
   initConnectivity({ log: silent, diag: silent, dhtVersion: '0', getDroppedFrameCounters: () => ({}), getSwarm: () => swarm, getIpc: noSwarm })
