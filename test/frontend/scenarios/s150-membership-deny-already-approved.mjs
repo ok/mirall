@@ -1,5 +1,4 @@
-import { mkdirSync, writeFileSync, rmSync } from 'node:fs'
-import path from 'node:path'
+import { mkdirSync } from 'node:fs'
 import { Instance } from '../instance.mjs'
 import { createSpaceWithInvite, joinPending } from '../helpers.mjs'
 import { makeReport, assert, waitFor } from '../assert.mjs'
@@ -22,21 +21,24 @@ function rolesAbove(node, text, path = []) {
 
 // A co-member's Deny can land on a joiner another member already let in: approval cannot be
 // revoked, so Bob must be told Carol keeps access, in a polite status toast that stays up. Bob's
-// membership fold is held (MIRALL_HOLD_MEMBER_FOLD) from the moment he sees Carol's request, so it
-// stays on his screen after Alice approves her — the stale banner a real user clicks — and Carol is
-// offline, so she cannot join Bob's roster through a handshake first. Local-only.
+// membership fold waits HOLD_MS before its first run (MIRALL_DERIVE_DEBOUNCE_MS), so Carol's request
+// reaches him only live and stays on his screen after Alice approves her — the stale banner a real
+// user clicks — and Carol is offline, so she cannot join Bob's roster through a handshake first. The
+// steps assert they finished inside that window rather than trusting it. Local-only.
+const HOLD_MS = 300000
 export default async function s150({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 3 })
-  const hold = path.join(runDir, 'bob-fold-hold')
-  const B = new Instance({ name: 'Bob', bootstrap, slot: 1, total: 3, env: { MIRALL_HOLD_MEMBER_FOLD: hold } })
+  const B = new Instance({ name: 'Bob', bootstrap, slot: 1, total: 3, env: { MIRALL_DERIVE_DEBOUNCE_MS: String(HOLD_MS) } })
+  let bobUp = 0
   const C = new Instance({ name: 'Carol', bootstrap, slot: 2, total: 3 })
 
   try {
     let code
     await r.ok('Alice creates a space; Bob joins and is approved', async () => {
       await A.launch()
+      bobUp = Date.now()
       await B.launch()
       await C.launch()
       code = await createSpaceWithInvite(A, { name: 'Approval' })
@@ -51,7 +53,6 @@ export default async function s150({ runDir, bootstrap }) {
       await joinPending(C, code)
       await B.focus()
       await waitFor(async () => B.has({ role: 'button', name: 'Deny Carol' }), 60000, 'Bob sees Carol pending')
-      writeFileSync(hold, '')
       await A.focus()
       await waitFor(async () => A.has({ role: 'button', name: 'Approve Carol' }), 30000, 'Alice sees Carol pending')
       await C.quit()
@@ -61,6 +62,7 @@ export default async function s150({ runDir, bootstrap }) {
       await A.click({ role: 'button', name: 'Approve Carol' })
       await waitFor(async () => !(await A.has({ role: 'button', name: 'Approve Carol' })), 20000, 'Alice\'s banner clears')
       await B.focus()
+      assert(Date.now() - bobUp < HOLD_MS, 'precondition: Bob\'s membership fold has not run yet')
       assert(await B.has({ role: 'button', name: 'Deny Carol' }), 'precondition: Bob\'s banner still offers Deny Carol')
     })
 
@@ -75,9 +77,7 @@ export default async function s150({ runDir, bootstrap }) {
       await sleep(6000)
       assert(await B.hasText(WARNING), 'the warning outlives the 5 s auto-dismiss')
     })
-  } catch {} finally {
-    rmSync(hold, { force: true })
-  }
+  } catch {}
 
   return { pass: r.summary(), instances: [A, B, C] }
 }

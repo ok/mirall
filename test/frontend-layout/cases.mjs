@@ -14,10 +14,9 @@ export const CASES = [
     name: "denyapproved",
     title: "Mirall deny-on-approved-member harness",
     // A co-member approved Bob first, so the delayed deny resolves already-approved; a second deny
-    // finds nothing open, and an approve reports he is already in.
+    // finds nothing open.
     cfg: `      pendingRequests: [{ publicKey: 'joiner00000000000000000000000000000000000000000000000000000000ab', displayName: 'Bob', avatar: null }],
       denyReplies: [{ outcome: 'already-approved' }, { outcome: 'not-applicable' }],
-      approveReply: { granted: false, outcome: 'already-approved' },
       rpcDelayMs: 400,
       delayTypes: ['space:deny-member'],`,
   },

@@ -97,7 +97,7 @@ const FOLD_STALL_FACTOR = 20
 // fold discovers the rest transitively and the view watches every bee it reads, so a newly
 // approved member's record re-derives the set on its own once it replicates — no gossip.
 // Call trackKey(key) to fold in a roster key learned out-of-band.
-export function createMemberView({ spaceId, creatorKey, selfKey, onMembers, onError, onBeeAppend, onFollow, beforeFold }) {
+export function createMemberView({ spaceId, creatorKey, selfKey, onMembers, onError, onBeeAppend, onFollow }) {
   const self = selfKey ?? getLocalPublicKeyHex()
   // One bee per roster key, kept so close() can release them. A derived view stores the WATCHER,
   // not the bee, and corestore tracks a session per open until it is closed — an unclosed one is
@@ -178,7 +178,6 @@ export function createMemberView({ spaceId, creatorKey, selfKey, onMembers, onEr
 
   const view = createDerivedView({
     fold: async () => {
-      if (beforeFold) await beforeFold(() => closed)
       const result = await deriveMemberSet({ creatorKey, selfKey: self, readRecord })
       // Watch + actively follow every bee we touched so a later change to it (an approval, a leave, a
       // request receipt) re-folds — pulled to us even with no direct connection to its author.

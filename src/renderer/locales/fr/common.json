@@ -348,7 +348,6 @@
     "approve": "Approuver",
     "deny": "Refuser",
     "approveNamed": "Approuver {{name}}",
-    "alreadyApproved": "{{name}} a déjà été accepté.",
     "denyNamed": "Refuser {{name}}",
     "denyAlreadyApproved": "{{name}} a déjà été accepté. Mirall ne peut pas encore retirer de membres — cette personne garde l'accès à cet espace, y compris à tout ce qui sera partagé à partir de maintenant.",
     "denyNotOpen": "Cette demande n'est plus en attente.",

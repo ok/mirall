@@ -46,6 +46,13 @@ export function useSpaces() {
 
   // `refresh` is for the mutations below only; reads are the store's (README.md).
 
+  // A decision keeps its control busy until the banner's own read has landed, so a second click
+  // cannot hit a row the worker already settled; the spaces list is not what the banner renders.
+  async function refreshRequests(spaceId: string) {
+    await refetchQuery('space:pending-requests', { spaceId }).catch(() => {})
+    void refresh()
+  }
+
   async function createSpace(name: string, icon: string) {
     const space = await request('space:create', { name, icon })
     await refresh()
@@ -63,17 +70,13 @@ export function useSpaces() {
   }
 
   async function approveMember(spaceId: string, publicKey: string) {
-    const result = await request('space:approve-member', { spaceId, publicKey })
-    await refresh()
-    return result
+    await request('space:approve-member', { spaceId, publicKey })
+    await refreshRequests(spaceId)
   }
 
   async function denyMember(spaceId: string, publicKey: string) {
     const result = await request('space:deny-member', { spaceId, publicKey })
-    // The control stays busy until the banner's own read has landed, so a second click cannot hit a
-    // row the worker already settled; the spaces list is not what the banner renders.
-    await refetchQuery('space:pending-requests', { spaceId }).catch(() => {})
-    void refresh()
+    await refreshRequests(spaceId)
     return result
   }
 

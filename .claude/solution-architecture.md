@@ -1253,7 +1253,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/contract/peer-frames.js` | The mirall/handshake frame vocabulary two peers exchange, which frames assert the sender's identity, and which the worker's membership handler owns |
 | `src/shared/contract/limits.js` | `AVATAR_MAX_BYTES`, `NAME_MAX`, `JOIN_REQUEST_FRAME_OVERHEAD`, `IPC_MAX_FRAME_BYTES`, `RETENTION_CHOICES` |
 | `src/shared/contract/reachability.js` | The reachability vocabulary — verdict, cause, confidence and canary state — which core/reachability.js re-exports and types.ts derives its unions from |
-| `src/shared/contract/deny-outcome.js` | `DENY_OUTCOME` — what a join decision did: `denied`, `already-approved` (states the no-revocation rule), or `not-applicable` (no open request); `space:approve-member` reuses `already-approved` |
+| `src/shared/contract/deny-outcome.js` | `DENY_OUTCOME` — what `space:deny-member` did: `denied`, `already-approved` (states the no-revocation rule), or `not-applicable` (no open request) |
 | `src/shared/contract/relay-apply.js` | `relayMismatch(mode, relay)` — whether a relay setting has reached the connections that already exist. Both runtimes decide on it: the worker to apply the change itself when nothing is moving, the renderer to explain it when it cannot (§4.8) |
 | `src/shared/contract/paths.js` | The path rules every runtime shares: the partial-file suffix, the publish orders, pathContains — the two cross-folder edges core/ and folders/ were reading across — and `PATH_HOST`, which says whose filesystem a path on the wire belongs to |
 | `src/shared/contract/workers.js` | The worker entrypoint allowlist |

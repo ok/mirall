@@ -348,7 +348,6 @@
     "approve": "Approva",
     "deny": "Rifiuta",
     "approveNamed": "Approva {{name}}",
-    "alreadyApproved": "{{name}} è già stato approvato.",
     "denyNamed": "Rifiuta {{name}}",
     "denyAlreadyApproved": "{{name}} è già stato approvato. Mirall non può ancora rimuovere i membri: mantiene l'accesso a questo spazio, compreso tutto ciò che verrà condiviso d'ora in poi.",
     "denyNotOpen": "Questa richiesta non è più in sospeso.",

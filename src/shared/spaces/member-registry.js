@@ -8,7 +8,6 @@ import { mergeMemberIdentity } from './membership/fold.js'
 import { foldPendingSet } from './membership/fold.js'
 import { tombstoneActive, observedLeavers } from './membership/fold.js'
 import { createLogger } from '../core/logger.js'
-import { getMemberFoldHold } from '../core/runtime-config.js'
 import { Subsystem } from '../core/subsystem.js'
 import { recordResolved } from '../audit/audit-log.js'
 import { TARGET_KIND } from '../contract/audit-kinds.js'
@@ -106,7 +105,7 @@ export async function openMemberView(spaceId) {
   // Claim the slot SYNCHRONOUSLY before any await so two concurrent opens can't both build a view
   // (the second would orphan the first's live bee-follow downloads). On any failure below we delete
   // the slot again, so a read throw never strands a poisoned `{view:null}` entry.
-  const entry = { view: null, members: new Set(), pending: new Map(), prior: new Map(), unread: new Set(), settled: new Set() }
+  const entry = { view: null, members: new Set(), pending: new Map(), prior: new Map(), unread: new Set() }
   views.set(spaceId, entry)
   try {
     const space = await getSpace(spaceId)
@@ -169,22 +168,12 @@ export async function openMemberView(spaceId) {
       onError: (err) => log.warn('member view error:', spaceId, err.message),
       onBeeAppend: () => deps.emitSharesUpdated(spaceId),
       onFollow: (key) => trackCapture(spaceId, key),
-      beforeFold: awaitFoldRelease,
     })
   } catch (err) {
     views.delete(spaceId)
     throw err
   }
   log.info('opened member view for space', spaceId)
-}
-
-// Test seam: while the file named by memberFoldHold exists no fold starts, so a test can keep a
-// request on screen after a co-member settles it without racing the fold. Unset in production.
-async function awaitFoldRelease(isClosed) {
-  const hold = getMemberFoldHold()
-  if (!hold) return
-  const fs = (await import('bare-fs')).default
-  while (!isClosed() && fs.existsSync(hold)) await new Promise((resolve) => setTimeout(resolve, 100))
 }
 
 export function closeMemberView(spaceId) {
@@ -357,28 +346,7 @@ export function applyLocalRevocation(spaceId, key) {
 
 function forgetPending(spaceId, entry, key) {
   if (!entry.pending?.delete(key)) return
-  publishPending(spaceId, entry)
-}
-
-// A request another member already let in, hidden from the UI projection only. It never reaches
-// a gate — isApprovedJoiner, admission and re-grant still answer from the fold — and lapses when
-// the fold carries the approval, the key becomes a member, or the joiner knocks again.
-export function settleRequest(spaceId, key) {
-  const entry = views.get(spaceId)
-  if (!entry) return
-  entry.settled.add(key)
-  publishPending(spaceId, entry)
-}
-
-export function unsettleRequest(spaceId, key) {
-  const entry = views.get(spaceId)
-  if (!entry?.settled.delete(key)) return
-  publishPending(spaceId, entry)
-}
-
-function publishPending(spaceId, entry) {
-  const visible = entry.settled.size ? new Map([...entry.pending].filter(([k]) => !entry.settled.has(k))) : entry.pending
-  setDerivedRequests(spaceId, visible)
+  setDerivedRequests(spaceId, entry.pending)
 }
 
 // Reconcile the derived set into space.members. ADD what the fold holds and we do not; REMOVE a held
@@ -473,25 +441,17 @@ function reconcilePending(spaceId, entry, { requests, denied, members, approved,
   if (lefts && lefts.size) for (const k of pending.keys()) if (lefts.has(k)) dropTombstone(spaceId, k)
 
   // The records show these joiners resolved (joined / approved / left / dismissed); drop any stale live
-  // cache entry so listJoinRequests (which merges live) can't resurface them, and let a settled
-  // request lapse: the records answer for it now. No-op if already absent.
+  // cache entry so listJoinRequests (which merges live) can't resurface them. No-op if already absent.
   const resolved = new Set([...(members || EMPTY), ...(approved || EMPTY), ...(lefts ? lefts.keys() : []), ...(denied ? denied.keys() : [])])
-  for (const k of resolved) {
-    clearJoinRequest(spaceId, k)
-    entry.settled.delete(k)
-  }
+  for (const k of resolved) clearJoinRequest(spaceId, k)
 
   const prev = entry.pending || new Map()
   entry.pending = pending
-  publishPending(spaceId, entry)
-  emitPendingChanges(spaceId, entry, prev)
-}
+  setDerivedRequests(spaceId, pending)
 
-function emitPendingChanges(spaceId, entry, prev) {
-  const { pending } = entry
   let changed = pending.size !== prev.size
   for (const [k, meta] of pending) {
-    if (prev.has(k) || entry.settled.has(k)) continue
+    if (prev.has(k)) continue
     changed = true
     deps.emitJoinRequest(spaceId, { publicKey: k, displayName: meta.displayName, avatar: meta.avatar })
   }

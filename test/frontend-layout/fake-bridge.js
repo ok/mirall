@@ -76,7 +76,6 @@
       case 'share:list': return (window.__HARNESS_CFG && window.__HARNESS_CFG.shares) || []
       case 'space:storage-summary': return { totalBytes: folderInfo().totalBytes, onDeviceBytes: 0 }
       case 'space:pending-requests': return (window.__HARNESS_CFG && window.__HARNESS_CFG.pendingRequests) || []
-      case 'space:approve-member': return (window.__HARNESS_CFG && window.__HARNESS_CFG.approveReply) || { granted: true, delivered: true }
       case 'space:deny-member': return (window.__HARNESS_CFG && window.__HARNESS_CFG.denyReplies && window.__HARNESS_CFG.denyReplies.shift()) || { outcome: 'denied' }
       case 'foreign-folder:list-all': return []
       case 'owned-folder:list-all': return []

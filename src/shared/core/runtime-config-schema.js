@@ -30,10 +30,9 @@ function isRuled(row) {
   return typeof row === 'object' && row !== null && typeof row.rule === 'function'
 }
 
-// Paths / opaque strings; a falsy override means "unset". dhtBootstrap (a local testnet instead of
-// the public DHT) and memberFoldHold (a file whose presence holds the membership fold) are test
-// levers; production never sets them.
-const NULLABLE = ['storage', 'appVersion', 'downloadFolder', 'dhtBootstrap', 'upgradeKey', 'memberFoldHold']
+// Paths / opaque strings; a falsy override means "unset". dhtBootstrap is a test lever (a local
+// testnet instead of the public DHT); production never sets it.
+const NULLABLE = ['storage', 'appVersion', 'downloadFolder', 'dhtBootstrap', 'upgradeKey']
 
 // Dev toggles + feature flags, all default-off.
 const BOOLEAN = [

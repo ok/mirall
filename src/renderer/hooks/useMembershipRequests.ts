@@ -3,13 +3,13 @@ import { useTranslation } from 'react-i18next'
 import { useToast } from '../components/toast/ToastProvider.js'
 import { useErrorText } from './useErrorText.js'
 import { DENY_OUTCOME } from '../../shared/contract/deny-outcome.js'
-import type { ApproveMemberResult, DenyMemberResult } from '../../shared/contract/responses.js'
+import type { DenyMemberResult } from '../../shared/contract/responses.js'
 import type { JoinRequest } from '../types/types.js'
 
 type MembershipRequestsInput = {
   spaceId: string
   requests: JoinRequest[]
-  approveMember: (spaceId: string, publicKey: string) => Promise<ApproveMemberResult>
+  approveMember: (spaceId: string, publicKey: string) => Promise<void>
   denyMember: (spaceId: string, publicKey: string) => Promise<DenyMemberResult>
 }
 
@@ -34,7 +34,7 @@ export function useMembershipRequests({ spaceId, requests, approveMember, denyMe
     return next
   })
 
-  async function decide(pk: string, write: (spaceId: string, publicKey: string) => Promise<void>) {
+  async function decide<R>(pk: string, write: (spaceId: string, publicKey: string) => Promise<R>) {
     if (busy.has(pk)) return
     markBusy(pk)
     try {
@@ -57,11 +57,6 @@ export function useMembershipRequests({ spaceId, requests, approveMember, denyMe
     } else if (outcome === DENY_OUTCOME.ALREADY_APPROVED) {
       toast.warning(t('member.denyAlreadyApproved', { name: nameOf(pk) }), { duration: 0 })
     }
-  }
-
-  async function approveAndReport(sid: string, pk: string) {
-    const result = await approveMember(sid, pk)
-    if (result && result.granted === false) toast.info(t('member.alreadyApproved', { name: nameOf(pk) }))
   }
 
   // Approving a batch runs one at a time on purpose: each approval writes membership and re-reads
@@ -90,7 +85,7 @@ export function useMembershipRequests({ spaceId, requests, approveMember, denyMe
 
   return {
     busy,
-    approve: (pk: string) => decide(pk, approveAndReport),
+    approve: (pk: string) => decide(pk, approveMember),
     deny: (pk: string) => decide(pk, denyAndReport),
     approveMany,
   }

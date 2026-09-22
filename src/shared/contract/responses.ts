@@ -15,7 +15,7 @@
 import type { FILE_STATUSES, SHARE_FILE_STATUSES, OWNED_MOUNT_STATUSES, FOREIGN_MOUNT_STATUSES, MIRROR_STATES } from './statuses.js'
 import type { CATEGORIES, OUTCOMES, ACTOR_TYPES, TARGET_KINDS } from './audit-kinds.js'
 import type { CANARY_STATES } from './reachability.js'
-import type { DENY_OUTCOME, DENY_OUTCOMES } from './deny-outcome.js'
+import type { DENY_OUTCOMES } from './deny-outcome.js'
 import type { RequestName } from './requests.js'
 import type { PathHost } from './paths.js'
 import type { PersonKey, PrincipalRef } from './principals.js'
@@ -299,8 +299,8 @@ export interface SpaceRecord {
   status?: 'pending' | 'approved'
 }
 
-/** `false` when there is no key to grant with; `granted: false` when another member already approved the peer; otherwise whether the grant reached the peer. */
-export type ApproveMemberResult = false | { granted: true, delivered: boolean } | { granted: false, outcome: typeof DENY_OUTCOME.ALREADY_APPROVED }
+/** `false` when there is no key to grant with; otherwise whether the grant reached the peer. */
+export type ApproveMemberResult = false | { granted: true, delivered: boolean }
 
 type DenyOutcome = (typeof DENY_OUTCOMES)[number]
 export type DenyMemberResult = { outcome: DenyOutcome }

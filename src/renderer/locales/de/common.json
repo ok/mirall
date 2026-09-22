@@ -348,7 +348,6 @@
     "approve": "Annehmen",
     "deny": "Ablehnen",
     "approveNamed": "{{name}} annehmen",
-    "alreadyApproved": "{{name}} wurde bereits zugelassen.",
     "denyNamed": "{{name}} ablehnen",
     "denyAlreadyApproved": "{{name}} wurde bereits zugelassen. Mirall kann Mitglieder noch nicht entfernen – {{name}} behält den Zugriff auf diesen Raum, auch auf alles, was ab jetzt geteilt wird.",
     "denyNotOpen": "Diese Anfrage ist nicht mehr offen.",
