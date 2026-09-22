@@ -231,10 +231,11 @@ export async function restartWorker(): Promise<void> {
     workerStarted = true
     probeWorkerReady()
   } catch (err) {
-    console.error('worker restart failed:', err)
     // Main could not finish it. Whatever state the worker is in, the crash path knows how to
     // recover from "no worker" — leaving the app wedged behind a failed restart is the worse end.
+    // The failure still reaches the caller: the restart the user asked for did not happen.
     if (!workerStarted) scheduleRespawn(0)
+    throw err
   } finally {
     restartInFlight = false
   }

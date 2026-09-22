@@ -1,4 +1,4 @@
-// REGRESSION harness for issue #375 (LOCAL/dev-machine only — spawns a real Electron GUI process).
+// REGRESSION harness for issues #375 and #446 (LOCAL/dev-machine only — spawns a real Electron GUI process).
 // A user-initiated action that rejects must end in a state that says so: the control is usable
 // again, nothing reports a success that did not happen, the reason is announced through the toast
 // region, and no rejection escapes. The agent-desktop suite cannot make the clipboard reject and
@@ -16,16 +16,17 @@ import NetworkDiagnosticsScreen from '../../src/renderer/screens/NetworkDiagnost
 import CopyButton from './../../src/renderer/components/primitives/CopyButton.js'
 import InviteModal from './../../src/renderer/components/modals/InviteModal.js'
 import type { Profile } from '../../src/renderer/types/types.js'
+import { runDroppedProbes, droppedOk, type DroppedResults, type Json, type WorkerAnswer } from './failpaths-dropped.js'
 
 interface ErrorFrame {
   id: number
   error: string
-  code: string
+  code?: string
 }
 
 interface ReplyFrame {
   id: number
-  data: { verbose: boolean }
+  data: Json
 }
 
 interface SaveProbe { label: string; disabled: boolean; keptFocus: boolean; alert: boolean }
@@ -44,6 +45,7 @@ interface HarnessResults {
   copy: CopyProbe | null
   invite: CopyProbe | null
   overlap: OverlapProbe | null
+  dropped: DroppedResults | null
   unhandled: number
 }
 
@@ -62,9 +64,15 @@ const COPY_FAILED_TEXT = "Couldn't copy to the clipboard"
 const VERBOSE_ON_TEXT = 'Detailed logging is on'
 
 // audit:purge always fails. setVerbose follows `verboseMode`: fail, answer at once, or hold the
-// reply until the harness releases it. Every other request passes through to the fake worker.
+// reply until the harness releases it. A type given an answer in `answers` gets that answer: fail,
+// a canned reply, or held until `releaseHeld` fails it. Every other request passes through to the
+// fake worker.
 let verboseMode: 'fail' | 'ok' | 'hold' = 'fail'
 const heldVerbose: ReplyFrame[] = []
+const answers = new Map<string, WorkerAnswer>()
+const held: number[] = []
+const asked = new Map<string, number>()
+const failFrame = (id: number) => Promise.resolve().then(() => window.__fakeEmit({ id, ...UNAVAILABLE }))
 const realWrite = window.bridge.writeWorkerIPC.bind(window.bridge)
 window.bridge.writeWorkerIPC = (spec: string, data: Uint8Array | string) => {
   const text = typeof data === 'string' ? data : new TextDecoder().decode(data)
@@ -72,7 +80,13 @@ window.bridge.writeWorkerIPC = (spec: string, data: Uint8Array | string) => {
   for (const line of text.split('\n')) {
     if (!line) continue
     const env = JSON.parse(line) as { id: number; type: string; verbose?: boolean }
-    if (env.type === 'audit:purge' || (env.type === 'setVerbose' && verboseMode === 'fail')) {
+    asked.set(env.type, (asked.get(env.type) ?? 0) + 1)
+    const answer = answers.get(env.type)
+    if (answer === 'fail') failFrame(env.id)
+    else if (answer === 'failUncoded') Promise.resolve().then(() => window.__fakeEmit({ id: env.id, error: 'disk said no' }))
+    else if (answer === 'hold') held.push(env.id)
+    else if (answer) Promise.resolve().then(() => window.__fakeEmit({ id: env.id, data: answer.data }))
+    else if (env.type === 'audit:purge' || (env.type === 'setVerbose' && verboseMode === 'fail')) {
       Promise.resolve().then(() => window.__fakeEmit({ id: env.id, ...UNAVAILABLE }))
     } else if (env.type === 'setVerbose') {
       const reply = { id: env.id, data: { verbose: !!env.verbose } }
@@ -113,6 +127,12 @@ const settleLatest = (how: 'resolve' | 'reject') => {
 const notFocused = () => new DOMException('Document is not focused.', 'NotAllowedError')
 
 let unhandledRejections = 0
+let errorsLogged = 0
+const realConsoleError = console.error.bind(console)
+console.error = (...args: Parameters<typeof console.error>) => {
+  errorsLogged += 1
+  realConsoleError(...args)
+}
 window.addEventListener('unhandledrejection', () => {
   unhandledRejections += 1
 })
@@ -305,6 +325,22 @@ async function run(root: Root): Promise<HarnessResults> {
     (b) => b.textContent ?? '',
   )
 
+  const dropped = await runDroppedProbes(root, {
+    Shell,
+    answer: (type, how) => { if (how) answers.set(type, how); else answers.delete(type) },
+    releaseHeld: () => { for (const id of held.splice(0)) failFrame(id) },
+    asked: (type) => asked.get(type) ?? 0,
+    sleep,
+    alertSays,
+    buttonWithText,
+    typeInto,
+    rejectsUnavailable,
+    profile: PROFILE,
+    unavailableText: UNAVAILABLE_TEXT,
+    unhandled: () => unhandledRejections,
+    logged: () => errorsLogged,
+  })
+
   const { rejectOn, rejectOff, unmountInFlight } = verbose
   const pass =
     save.label.includes('Save Changes') && !save.disabled && save.keptFocus && save.alert &&
@@ -314,8 +350,9 @@ async function run(root: Root): Promise<HarnessResults> {
     !unmountInFlight.mainWrites.includes(true) &&
     copyOk(copy) && copyOk(invite) &&
     overlap.alert && !overlap.copiedAfterStaleResolve &&
+    droppedOk(dropped) &&
     unhandledRejections === 0
-  return { pass, error: null, save, purge, verbose, copy, invite, overlap, unhandled: unhandledRejections }
+  return { pass, error: null, save, purge, verbose, copy, invite, overlap, dropped, unhandled: unhandledRejections }
 }
 
 const root = createRoot(document.getElementById('root') as HTMLElement)
@@ -324,6 +361,6 @@ run(root).then(
     window.__results = results
   },
   (e: Error) => {
-    window.__results = { pass: false, error: String(e), save: null, purge: null, verbose: null, copy: null, invite: null, overlap: null, unhandled: unhandledRejections }
+    window.__results = { pass: false, error: String(e), save: null, purge: null, verbose: null, copy: null, invite: null, overlap: null, dropped: null, unhandled: unhandledRejections }
   },
 )

@@ -1,6 +1,7 @@
 // Every error code that can cross the IPC boundary, and the only place they are declared. A code's
 // spelling is wire-visible — the renderer branches on it — so none is ever renamed.
 export const CODES = Object.freeze({
+  AVATAR_TOO_LARGE: 'AVATAR_TOO_LARGE',
   CREATOR_DIVERGENCE_UNRESOLVED: 'CREATOR_DIVERGENCE_UNRESOLVED',
   DOWNLOAD_FAILED: 'DOWNLOAD_FAILED',
   INVALID_ARGUMENT: 'INVALID_ARGUMENT',  // raised by the router when a payload fails its declared shape

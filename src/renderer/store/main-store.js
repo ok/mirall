@@ -140,25 +140,32 @@ export async function writeMain(name, value, { payload = value } = {}) {
   const previous = entry.data
 
   entry.seq += 1
+  const mine = entry.seq
   entry.promise = null
   entry.data = value
   entry.error = null
   publish(entry)
 
+  // Only a write nothing has superseded settles the entry: a newer write or a push already holds a
+  // fresher value, which neither a late answer nor a late rollback may paint over.
   try {
     const persisted = await spec.write(bridge, /** @type {MainQueryValue[K]} */ (payload))
-    entry.seq += 1
-    entry.data = persisted
-    publish(entry)
+    if (entry.seq === mine) {
+      entry.seq += 1
+      entry.data = persisted
+      publish(entry)
+    }
     return persisted
   } catch (err) {
     // Roll back to the last value the app actually read, and do NOT record the error on the entry:
     // `error` means "there is no value to show, and here is why" (readError, folderReadError,
     // defaultError). A write failure belongs to the caller — writeMain throws it — and a recorded
     // one would outlive the action, because fetchMain answers a cached entry without clearing it.
-    entry.seq += 1
-    entry.data = previous
-    publish(entry)
+    if (entry.seq === mine) {
+      entry.seq += 1
+      entry.data = previous
+      publish(entry)
+    }
     throw err
   }
 }

@@ -10,6 +10,7 @@
   "transferFailed": "Transfer failed",
   "feedbackFailed": "Failed to send feedback",
   "copyFailed": "Couldn't copy to the clipboard. Try again.",
+  "avatarTooLarge": "That image is too large to use as your profile picture. Choose a smaller one.",
   "feedbackRateLimited": "You're sending feedback too quickly. Please wait a moment and try again.",
   "sourceNotOnDisk": "This item isn't saved to disk yet — save it first, then share it.",
   "mountNoPath": "Choose a folder to share.",

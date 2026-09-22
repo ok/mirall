@@ -32,6 +32,7 @@ function LimitRow({
   direction,
   kbps,
   custom,
+  busy,
   onPreset,
   onCustom,
   onValue,
@@ -39,6 +40,7 @@ function LimitRow({
   direction: Direction
   kbps: number
   custom: boolean
+  busy: boolean
   onPreset: (next: number) => void
   onCustom: () => void
   onValue: (next: number) => void
@@ -92,6 +94,7 @@ function LimitRow({
                 label={label}
                 selected={!custom && kbps === preset}
                 onSelect={() => onPreset(preset)}
+                busy={busy}
                 ariaLabel={t(`networkSettings.a11y.${direction}Preset`, { rate: label })}
               />
             )
@@ -155,6 +158,9 @@ export default function NetworkSettings({ onBack, onOpenStatus }: NetworkSetting
   // the user: picking Custom must not discard the cap they already have — so it seeds once, off
   // the first settled value, rather than tracking it.
   const [custom, setCustom] = useState<Record<Direction, boolean>>({ download: false, upload: false })
+  const [applyOutcome, setApplyOutcome] = useState<'save-failed' | 'restart' | null>(null)
+  const [applying, setApplying] = useState(false)
+  const applySeq = useRef(0)
   const seeded = useRef(false)
 
   useEffect(() => {
@@ -166,15 +172,31 @@ export default function NetworkSettings({ onBack, onOpenStatus }: NetworkSetting
     })
   }, [limits])
 
+  // Persisted first, then applied: the worker boots from the persisted cap, so a refused apply means
+  // the cap is saved and takes effect after a restart, and a refused save means nothing changed. The
+  // store publishes `next` optimistically, replaces it with what main actually stored (main clamps a
+  // below-floor value), and restores the previous cap if the save fails — so the screen cannot end
+  // up showing a cap that was never persisted. Only the latest apply reports its outcome.
   const apply = useCallback(async (next: BandwidthLimits) => {
+    const seq = ++applySeq.current
+    const latest = () => seq === applySeq.current
+    setApplyOutcome(null)
+    setApplying(true)
     try {
-      // The store publishes `next` optimistically, replaces it with what main actually stored
-      // (main clamps a below-floor value), and restores the previous cap if the write fails — so
-      // the screen cannot end up showing a cap that was never persisted.
-      const persisted = await writeBandwidth(next)
-      await request('settings:set-bandwidth', { ...persisted })
-    } catch {
-      // The store has already rolled the displayed value back; the worker keeps its previous cap.
+      let persisted: BandwidthLimits
+      try {
+        persisted = await writeBandwidth(next)
+      } catch {
+        if (latest()) setApplyOutcome('save-failed')
+        return
+      }
+      try {
+        await request('settings:set-bandwidth', { ...persisted })
+      } catch {
+        if (latest()) setApplyOutcome('restart')
+      }
+    } finally {
+      if (latest()) setApplying(false)
     }
   }, [writeBandwidth])
 
@@ -184,12 +206,14 @@ export default function NetworkSettings({ onBack, onOpenStatus }: NetworkSetting
       direction,
       kbps: current[key],
       custom: custom[direction],
+      busy: applying,
       onPreset: (next: number) => {
+        if (applying) return
         setCustom((prev) => ({ ...prev, [direction]: false }))
-        apply({ ...current, [key]: next })
+        void apply({ ...current, [key]: next })
       },
       onCustom: () => setCustom((prev) => ({ ...prev, [direction]: true })),
-      onValue: (next: number) => apply({ ...current, [key]: next }),
+      onValue: (next: number) => { void apply({ ...current, [key]: next }) },
     }
   }
 
@@ -212,9 +236,18 @@ export default function NetworkSettings({ onBack, onOpenStatus }: NetworkSetting
                 <>
                   <LimitRow {...rowProps('download', limits)} />
                   <LimitRow {...rowProps('upload', limits)} />
-                  {readError && (
+                  {applyOutcome === 'save-failed' && (
                     <InlineError>{t('networkSettings.limitSaveFailed')}</InlineError>
                   )}
+                  {/* Always mounted, so the note is announced: a live region added together with its
+                      text is not read out. Out of the flow while it has nothing to say. */}
+                  <p
+                    id="bandwidth-apply-status"
+                    role="status"
+                    className={applyOutcome === 'restart' ? 'text-sm text-on-surface-variant' : 'sr-only'}
+                  >
+                    {applyOutcome === 'restart' ? t('networkSettings.limitAppliesAfterRestart') : ''}
+                  </p>
                 </>
               ) : readError ? (
                 <InlineError>{t('networkSettings.limitsUnavailable')}</InlineError>

@@ -10,6 +10,7 @@
   "transferFailed": "Trasferimento non riuscito",
   "feedbackFailed": "Impossibile inviare il feedback",
   "copyFailed": "Impossibile copiare negli appunti. Riprova.",
+  "avatarTooLarge": "Questa immagine è troppo grande per l'immagine del profilo. Scegline una più piccola.",
   "feedbackRateLimited": "Stai inviando feedback troppo velocemente. Attendi un momento e riprova.",
   "sourceNotOnDisk": "Questo elemento non è ancora salvato sul disco — salvalo prima di condividerlo.",
   "mountNoPath": "Scegli una cartella da condividere.",

@@ -8,6 +8,8 @@ import { withReadTimeout, peerReadTimeoutMs, interactiveReadTimeoutMs } from '..
 
 import { getMembershipCaps, getCaptureMemberRecordMs } from '../core/runtime-config.js'
 import { clampDisplayName, sanitizeAvatar } from '../contract/identity-limits.js'
+import { CODES } from '../contract/errors.js'
+import { AppError } from '../core/errors.js'
 import { principalRef } from '../contract/principals.js'
 import { voucheesToAdopt } from './membership/fold.js'
 import b4a from 'b4a'
@@ -47,11 +49,23 @@ export async function getProfile() {
   }
 }
 
+// A NEW avatar of our own is refused, not dropped: sanitizeAvatar's null means "no avatar", and
+// storing it would answer the save as if the chosen picture had been kept. The avatar already stored
+// comes back unchanged with every name edit, so it keeps the ingest rule (dropped to null once it no
+// longer passes) and never blocks the rename. Checked before anything is written.
+async function avatarToStore(avatar) {
+  const maxBytes = getMembershipCaps().maxAvatarBytes
+  if (!avatar) return null
+  if (avatar === (await profileBee.get('avatar'))?.value) return sanitizeAvatar(avatar, maxBytes)
+  if (sanitizeAvatar(avatar, 0) === null) throw new AppError(CODES.INVALID_ARGUMENT, 'avatar is not an image data URI')
+  if (maxBytes && avatar.length > maxBytes) throw new AppError(CODES.AVATAR_TOO_LARGE, 'avatar exceeds maxAvatarBytes')
+  return avatar
+}
+
 export async function setProfile({ displayName, avatar }) {
+  const stored = avatar === undefined ? undefined : await avatarToStore(avatar)
   await profileBee.put('displayName', clampDisplayName(displayName))
-  if (avatar !== undefined) {
-    await profileBee.put('avatar', sanitizeAvatar(avatar, getMembershipCaps().maxAvatarBytes))
-  }
+  if (stored !== undefined) await profileBee.put('avatar', stored)
   await profileBee.put('publicKey', b4a.toString(profileBee.core.key, 'hex'))
 }
 

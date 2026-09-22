@@ -1,4 +1,4 @@
-// REGRESSION (issue #375: user actions with no failure path) — LOCAL/dev only, spawns a real
+// REGRESSION (issues #375 and #446: user actions with no failure path) — LOCAL/dev only, spawns a real
 // Electron GUI process. Fails the worker and the clipboard under the real screens and asserts each
 // control ends usable, honest and announced, with nothing escaping.
 //
@@ -16,6 +16,7 @@ console.log(`verbose      : ${j(out.verbose)}`)
 console.log(`copy button  : ${j(out.copy)}`)
 console.log(`invite copy  : ${j(out.invite)}`)
 console.log(`copy overlap : ${j(out.overlap)}`)
+for (const [name, probe] of Object.entries(out.dropped ?? {})) console.log(`${name.padEnd(13)}: ${j(probe)}`)
 console.log(`unhandled    : ${out.unhandled} escaped promise rejection(s)`)
 if (out.error) console.log(`error: ${out.error}`)
 

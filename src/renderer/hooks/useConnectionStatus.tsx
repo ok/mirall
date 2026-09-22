@@ -11,13 +11,14 @@ import {
 } from 'react'
 import { request, subscribe } from '../ipc/ipc.js'
 import { DHT_FAILURE_MS } from '../../shared/contract/limits.js'
+import type { ReconnectResult } from '../../shared/contract/responses.js'
 import type { CanaryResult, ConnectivityState, NetworkStatusScreen, Reachability } from '../types/types.js'
 
 interface ConnectionStatusContextValue {
   state: ConnectivityState
   status: NetworkStatusScreen | null
   reachability: Reachability | null
-  reconnect: () => Promise<void>
+  reconnect: () => Promise<ReconnectResult>
   probeCanary: (opts?: { force?: boolean }) => Promise<CanaryResult | null>
 }
 
@@ -152,11 +153,7 @@ export function ConnectionStatusProvider({ children }: ProviderProps) {
     request('network:check-liveness').catch(() => {})
   }, [osOnline])
 
-  const reconnect = useCallback(async () => {
-    try {
-      await request('network:reconnect')
-    } catch {}
-  }, [])
+  const reconnect = useCallback(() => request('network:reconnect'), [])
 
   const probeCanary = useCallback(async (opts?: { force?: boolean }) => {
     try {

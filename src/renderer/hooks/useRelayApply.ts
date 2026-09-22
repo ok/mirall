@@ -4,11 +4,12 @@
 // cycle by themselves.
 import { useCallback, useState } from 'react'
 import type { RelayApplyResult as WorkerRelayApplyResult } from '../../shared/contract/responses.js'
-import { request } from '../ipc/ipc.js'
 import { relayApplyNotice, type RelayApplyNotice } from '../model/relay-apply.js'
 import type { RelayMode } from '../platform/config-client.js'
 import { isApplyArmed, setApplyArmed } from '../platform/relay-session.js'
 import { useConnectionStatus } from './useConnectionStatus.js'
+import { useRelayReconnect } from './useRelayReconnect.js'
+import { useRunAction } from './useRunAction.js'
 
 export type RelayApplyResult = Pick<WorkerRelayApplyResult, 'mismatch' | 'reconnected'>
 
@@ -16,11 +17,13 @@ interface UseRelayApply {
   notice: RelayApplyNotice | null
   reconnecting: boolean
   arm: (applied: RelayApplyResult | null) => void
-  apply: () => Promise<void>
+  apply: () => void
 }
 
 export function useRelayApply(mode: RelayMode, pendingIdentity: boolean): UseRelayApply {
   const { status } = useConnectionStatus()
+  const run = useRunAction()
+  const relayReconnect = useRelayReconnect()
   const [armed, setArmed] = useState(isApplyArmed)
   const [reconnecting, setReconnecting] = useState(false)
 
@@ -32,18 +35,16 @@ export function useRelayApply(mode: RelayMode, pendingIdentity: boolean): UseRel
 
   // Disarmed on the way out rather than on the way back: the notice is gated on live status too, so
   // a mismatch that genuinely survives the reconnect re-renders on the next frame.
-  const apply = useCallback(async () => {
+  const apply = useCallback(() => {
     setReconnecting(true)
-    try {
-      await request('network:reconnect')
-      setApplyArmed(false)
-      setArmed(false)
-    } catch (err) {
-      console.error('relay reconnect failed:', err)
-    } finally {
-      setReconnecting(false)
-    }
-  }, [])
+    run(async () => {
+      try {
+        if (await relayReconnect()) setArmed(false)
+      } finally {
+        setReconnecting(false)
+      }
+    })
+  }, [run, relayReconnect])
 
   return {
     notice: relayApplyNotice({ mode, relay: status?.relay ?? null, armed, pendingIdentity }),

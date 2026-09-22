@@ -35,8 +35,9 @@ function isDevMode() {
 // using it as the fallback is what let unmapped codes ship English into every locale silently: the
 // failure mode renders plausible text, so nothing catches it. Falling back to a localized generic
 // sentence makes the failure mode "vague but translated", and contract-errors.test.js then makes
-// vagueness impossible for any code a user can reach. The raw message is not lost — it reaches the
-// dev console below, and the diagnostics log a bug report carries.
+// vagueness impossible for any code a user can reach. The raw message is not lost: the surface that
+// reports a failure logs it (useRunAction does for every action it reports), the renderer console
+// feeds the diagnostics log a bug report carries, and an unmapped code is flagged below in dev.
 /** @param {unknown} err @param {(key: string) => string} t @param {string} [fallbackKey] */
 export function errorTextFor(err, t, fallbackKey = FALLBACK_KEY) {
   const code = errorCodeOf(err)

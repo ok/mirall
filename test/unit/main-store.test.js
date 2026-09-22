@@ -140,6 +140,31 @@ test('REGRESSION (FIX-R04-2-D3): a failed write restores the previous value', as
   t.is(peekMain(CAPS).error, null, 'the rejection went to the caller, not onto the entry')
 })
 
+// REGRESSION (FIX-446: two writes in flight — the older one settling last rolled the entry back to
+// the value before BOTH, or published its own stale answer over the newer one.)
+test('REGRESSION (FIX-446: an older write settling last overwrote a newer one): only the latest write settles the entry', async (t) => {
+  const bridge = setup(t)
+  const load = fetchMain(CAPS)
+  bridge.settle(0, UNLIMITED)
+  await load
+
+  const older = writeMain(CAPS, { downloadKBps: 512, uploadKBps: 0 })
+  const newer = writeMain(CAPS, { downloadKBps: 1024, uploadKBps: 0 })
+  bridge.settle(2, { downloadKBps: 1024, uploadKBps: 0 })
+  await newer
+  bridge.fail(1, new Error('main refused'))
+  await t.exception(older, 'the older rejection still reaches its caller')
+  t.alike(peekMain(CAPS).data, { downloadKBps: 1024, uploadKBps: 0 }, 'a late failure does not roll back over the newer value')
+
+  const again = writeMain(CAPS, { downloadKBps: 2048, uploadKBps: 0 })
+  const latest = writeMain(CAPS, { downloadKBps: 4096, uploadKBps: 0 })
+  bridge.settle(4, { downloadKBps: 4096, uploadKBps: 0 })
+  await latest
+  bridge.settle(3, { downloadKBps: 2048, uploadKBps: 0 })
+  await again
+  t.alike(peekMain(CAPS).data, { downloadKBps: 4096, uploadKBps: 0 }, 'a late success does not publish over the newer value')
+})
+
 // REGRESSION (FIX-WRITE-ERROR-STICKY: a failed write recorded its error on the shared entry, and
 // fetchMain answers a cached entry without clearing it — so nothing ever did. One refused
 // setBandwidth made NetworkSettings show "couldn't save" on every later visit, and a refused

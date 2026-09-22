@@ -64,14 +64,62 @@ test('REGRESSION (FIX-MIR-12): join-request stream clamps name + drops over-cap 
   t.is(r.avatar, null, 'over-cap request avatar dropped')
 })
 
-test('REGRESSION (FIX-MIR-12): setProfile clamps/sanitizes our own write', async (t) => {
+test('REGRESSION (FIX-MIR-12): setProfile clamps our own display name', async (t) => {
+  await freshPeer(t)
+  await setProfile({ displayName: 'z'.repeat(500), avatar: null })
+  t.is((await getProfile()).displayName.length, 80, 'own displayName clamped before store')
+})
+
+// REGRESSION (FIX-446: our own over-cap avatar was stored as null and profile:set answered with
+// the profile as if it had been saved, so the picture the user chose vanished with nothing said.
+// A PEER's over-cap avatar is still dropped to null on ingest — the fold test above.)
+test('REGRESSION (FIX-446: own over-cap avatar silently nulled): setProfile refuses it and writes nothing', async (t) => {
   await freshPeer(t)
   withConfig(t, { maxAvatarBytes: 1024 })
-  await setProfile({ displayName: 'z'.repeat(500), avatar: dataUri(4096, 'image/jpeg') })
+  const kept = dataUri(64, 'image/png')
+  await setProfile({ displayName: 'Before', avatar: kept })
 
+  let code = null
+  try {
+    await setProfile({ displayName: 'After', avatar: dataUri(4096, 'image/jpeg') })
+  } catch (err) {
+    code = err.code
+  }
+  t.is(code, 'AVATAR_TOO_LARGE', 'the write is refused with a code the renderer can word')
   const p = await getProfile()
-  t.is(p.displayName.length, 80, 'own displayName clamped before store')
-  t.is(p.avatar, null, 'own over-cap avatar stored as null')
+  t.is(p.displayName, 'Before', 'the name beside the refused avatar was not written either')
+  t.is(p.avatar, kept, 'the previous avatar is still there')
+
+  await getProfileBee().put('avatar', dataUri(4096, 'image/jpeg'))
+  t.is((await readProfileRecord(getLocalPublicKeyHex())).avatar, null, 'the ingest read still drops an over-cap avatar')
+})
+
+// REGRESSION (FIX-446: the refusal also fired on the avatar the profile screen sends back unchanged
+// with a name-only edit, so a stored avatar over a since-lowered cap blocked saving the name.)
+test('REGRESSION (FIX-446: unchanged stored avatar blocked a rename): only a new avatar is refused', async (t) => {
+  await freshPeer(t)
+  const stored = dataUri(4096, 'image/jpeg')
+  await setProfile({ displayName: 'Before', avatar: stored })
+  withConfig(t, { maxAvatarBytes: 1024 })
+
+  await setProfile({ displayName: 'After', avatar: stored })
+  const p = await getProfile()
+  t.is(p.displayName, 'After', 'the rename is saved')
+  t.is(p.avatar, null, 'the stored avatar no longer passes the cap, so it is dropped as before')
+})
+
+test('a new avatar that is not an image data URI is refused as an invalid argument', async (t) => {
+  await freshPeer(t)
+  await setProfile({ displayName: 'Before', avatar: null })
+
+  let code = null
+  try {
+    await setProfile({ displayName: 'After', avatar: 'data:text/html;base64,PHN2Zz4=' })
+  } catch (err) {
+    code = err.code
+  }
+  t.is(code, 'INVALID_ARGUMENT', 'refused')
+  t.is((await getProfile()).displayName, 'Before', 'and nothing was written')
 })
 
 // REGRESSION (FIX-AVFRAME-3: the live membership:request frame was the one avatar ingress that

@@ -8,6 +8,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useShareFiles } from '../hooks/useShareFiles.js'
+import { useTransferControls } from '../hooks/useTransferControls.js'
 import { usePeerDownloads } from '../hooks/usePeerDownloads.js'
 import { useMembers } from '../hooks/useMembers.js'
 import { useSpaces } from '../hooks/useSpaces.js'
@@ -101,9 +102,9 @@ export default function FolderScreen({ spaceId, share, onBack, onMirror }: Folde
   const {
     files, info, loading, error,
     getDecoration, isSeeded,
-    downloadFile, revealFile,
-    pauseDownload, cancelDownload, discardPartial,
+    downloadFile, revealFile, discardPartial,
   } = useShareFiles(spaceId, share.owner, share.id)
+  const { cancelDownload, pauseDownload } = useTransferControls()
   // The worker reports whether it capped the rows. Never inferred from (fileCount > files.length):
   // on an incomplete peer read the count is itself partial, so that inference silently goes false
   // exactly when the listing was truncated.

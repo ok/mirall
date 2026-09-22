@@ -399,7 +399,9 @@ surface on hover — `IconButton`, list rows — is the opposite pattern and sti
 Base: `rounded-xl font-headline font-bold transition-all active:scale-95 disabled:opacity-50`.
 Sizes: `sm` (`px-5 py-2.5 text-sm`, default), `lg` (`h-14 px-5 text-lg`).
 Optional leading icon at `size={20}`. `fullWidth` available; `ref` and
-`ariaDescribedBy` pass through for focus management and field wiring.
+`ariaDescribedBy` pass through for focus management and field wiring. `ariaDisabled` is the
+in-flight state: it looks like `disabled` but keeps the button focusable, so a failed save leaves
+focus where it was.
 
 **Never hand-roll these classes.** Settings/list action buttons ("Export", "Load
 more", "Clear filters", nav "Send feedback") are all `variant="secondary"` +

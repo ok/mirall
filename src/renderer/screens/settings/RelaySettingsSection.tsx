@@ -22,6 +22,7 @@ import DocsLink from '../../components/primitives/DocsLink.js'
 import AddRelayModal from '../../components/modals/AddRelayModal.js'
 import RelayApplyNotice from '../../components/network/RelayApplyNotice.js'
 import { useRelayApply, type RelayApplyResult } from '../../hooks/useRelayApply.js'
+import { useRunAction } from '../../hooks/useRunAction.js'
 import { relayKindClasses } from '../../model/relay-groups.js'
 
 // A private relay whose seed the running worker has not booted with must not be installed: the
@@ -42,6 +43,7 @@ function statusOf(relay: RelaySlot, testing: boolean, active: boolean) {
 
 export default function RelaySettingsSection() {
   const { t } = useTranslation()
+  const runAction = useRunAction()
   const [mode, setMode] = useState<RelayMode>(getRelayMode)
   const [relay, setSlot] = useState<RelaySlot | null>(getRelay)
   const [testing, setTesting] = useState(false)
@@ -104,8 +106,8 @@ export default function RelaySettingsSection() {
     // Park this screen first: the reload that follows would otherwise land on the space list, which
     // shows nothing about the relay that was just applied.
     rememberScreen('network-settings')
-    restartWorker().catch((err) => console.error('relay reconnect failed:', err))
-  }, [])
+    runAction(restartWorker)
+  }, [runAction])
 
   const handleTest = useCallback(async () => {
     const target = latest.current.relay
@@ -152,19 +154,18 @@ export default function RelaySettingsSection() {
   const handleRemove = useCallback(() => {
     setConfirm(null)
     lastActiveMode.current = 'auto'
-    commit({ mode: 'off', relay: null }).catch((err) => console.error('relay removal failed:', err))
-  }, [commit])
+    runAction(() => commit({ mode: 'off', relay: null }))
+  }, [commit, runAction])
 
   const handleModeToggle = useCallback((on: boolean) => {
     if (!on && latest.current.mode !== 'off') lastActiveMode.current = latest.current.mode
-    commit({ mode: on ? lastActiveMode.current : 'off' })
-      .catch((err) => console.error('relay mode change failed:', err))
-  }, [commit])
+    runAction(() => commit({ mode: on ? lastActiveMode.current : 'off' }))
+  }, [commit, runAction])
 
   const handleAlwaysToggle = useCallback((on: boolean) => {
     lastActiveMode.current = on ? 'always' : 'auto'
-    commit({ mode: lastActiveMode.current }).catch((err) => console.error('relay mode change failed:', err))
-  }, [commit])
+    runAction(() => commit({ mode: lastActiveMode.current }))
+  }, [commit, runAction])
 
   // A slot that has never been probed gets one on mount, so "Not tested" is a state the user
   // passes through rather than one they have to act on.

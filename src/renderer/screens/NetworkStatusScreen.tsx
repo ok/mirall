@@ -6,9 +6,11 @@ import { reachableState, formatDuration } from '../model/connectivity.js'
 import { relayApplyNotice } from '../model/relay-apply.js'
 import { relayState, relayedPeopleCount } from '../model/relay-groups.js'
 import { getRelayMode } from '../platform/config-client.js'
-import { isApplyArmed, isReconnectPending, setApplyArmed } from '../platform/relay-session.js'
+import { isApplyArmed, isReconnectPending } from '../platform/relay-session.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import { useConnectionStatus } from '../hooks/useConnectionStatus.js'
+import { useRunAction } from '../hooks/useRunAction.js'
+import { useRelayReconnect } from '../hooks/useRelayReconnect.js'
 import Button from '../components/primitives/Button.js'
 import Icon from '../components/primitives/Icon.js'
 import PageHeader from '../components/layout/PageHeader.js'
@@ -69,9 +71,9 @@ function VerdictBanner({ reachability, status, reconnecting, reconnectThrottled,
           <button
             type="button"
             onClick={onReconnect}
-            disabled={reconnecting || reconnectThrottled}
+            aria-disabled={reconnecting || reconnectThrottled || undefined}
             aria-label={t('networkStatus.reconnect')}
-            className="px-4 py-2 rounded-xl bg-primary text-on-primary font-semibold text-sm hover:bg-primary-hover active:scale-95 transition-all disabled:opacity-50 focus-ring"
+            className="px-4 py-2 rounded-xl bg-primary text-on-primary font-semibold text-sm hover:bg-primary-hover active:scale-95 transition-all aria-disabled:opacity-50 focus-ring"
           >
             {reconnecting ? t('networkStatus.reconnecting') : t('networkStatus.reconnect')}
           </button>
@@ -171,24 +173,27 @@ function SuggestionsList({ lines }: { lines: string[] }) {
 
 export default function NetworkStatusScreen({ onBack, onShowHistory, onOpenSettings, onOpenDiagnostics, onOpenAdvanced }: Props) {
   const { t } = useTranslation()
-  const { status, reachability, reconnect } = useConnectionStatus()
+  const { status, reachability } = useConnectionStatus()
+  const runAction = useRunAction()
+  const relayReconnect = useRelayReconnect()
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
   const [reconnecting, setReconnecting] = useState(false)
   const [reconnectThrottled, setReconnectThrottled] = useState(false)
   const browserOnline = typeof navigator !== 'undefined' ? navigator.onLine : true
   const now = Date.now()
 
-  async function handleReconnect() {
-    if (reconnecting) return
+  function handleReconnect() {
+    if (reconnecting || reconnectThrottled) return
     setReconnecting(true)
-    try {
-      await reconnect()
-      setApplyArmed(false)
-    } finally {
-      setReconnecting(false)
-      setReconnectThrottled(true)
-      setTimeout(() => setReconnectThrottled(false), 5000)
-    }
+    runAction(async () => {
+      try {
+        await relayReconnect()
+      } finally {
+        setReconnecting(false)
+        setReconnectThrottled(true)
+        setTimeout(() => setReconnectThrottled(false), 5000)
+      }
+    })
   }
 
   const suggestions = buildSuggestions(status, browserOnline, t)

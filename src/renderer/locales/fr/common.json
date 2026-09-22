@@ -515,6 +515,7 @@
     "displayName": "Nom affiché",
     "changeAvatar": "Changer la photo de profil",
     "avatarTooLarge": "Cette image est trop volumineuse — choisissez un fichier de moins de 16 Mo.",
+    "avatarUnreadable": "Impossible de lire cette image. Choisissez un autre fichier.",
     "displayNameCount": "{{count}}/{{max}} caractères",
     "appearance": "Apparence",
     "appearanceDesc": "Thème, taille d'affichage et langue.",
@@ -655,6 +656,7 @@
     "sendFeedbackDesc": "Signaler un problème ou faire une suggestion.",
     "whatsNew": "Nouveautés",
     "whatsNewDesc": "Modifications récentes dans Mirall.",
+    "whatsNewEmpty": "Aucune note de version n'est disponible.",
     "updateReady": "v{{version}} est disponible — elle sera installée au prochain redémarrage de Mirall."
   },
   "whatsNew": {
@@ -739,6 +741,7 @@
     "limitsLoading": "Chargement des limites de transfert…",
     "limitsUnavailable": "Impossible de lire vos limites de transfert.",
     "limitSaveFailed": "Impossible d'enregistrer cette limite. La précédente reste appliquée.",
+    "limitAppliesAfterRestart": "Enregistré. La nouvelle limite s'appliquera au redémarrage de Mirall.",
     "download": "Téléchargement",
     "upload": "Envoi",
     "unlimited": "Illimité",
@@ -819,6 +822,7 @@
     "openSettingsDesc": "Limites de transfert et relais.",
     "reconnect": "Reconnecter",
     "reconnecting": "Reconnexion…",
+    "reconnectThrottled": "Mirall vient de se reconnecter. Réessayez dans quelques secondes.",
     "verdict": {
       "healthyTitle": "Le réseau fonctionne bien",
       "healthyBodyPeers_one": "{{count}} pair connecté dans vos espaces.",

@@ -11,12 +11,18 @@ import { useErrorText } from './useErrorText.js'
 // dialog reports the failure — leaving a space, removing a file — keeps reporting it there and does
 // not go through here, or the user is told twice.
 //
+// Every failure it reports is also logged raw: the toast carries a translated sentence, and the
+// console is where the underlying message reaches the diagnostics log a bug report carries.
+//
 // `fallbackKey` names the sentence for a failure that carries no code of its own: a platform API
 // such as the clipboard rejects with a DOMException, which would otherwise read as the generic one.
 export function useRunAction(): (action: () => Promise<unknown>, fallbackKey?: string) => void {
   const toast = useToast()
   const errorText = useErrorText()
   return useCallback((action: () => Promise<unknown>, fallbackKey?: string) => {
-    action().catch((err) => toast.error(errorText(err, fallbackKey)))
+    action().catch((err) => {
+      console.error(err)
+      toast.error(errorText(err, fallbackKey))
+    })
   }, [toast, errorText])
 }

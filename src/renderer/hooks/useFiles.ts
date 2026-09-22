@@ -7,6 +7,7 @@ import { refetchQuery } from '../store/query-store.js'
 import { mergeOptimistic } from '../model/optimistic-rows.js'
 import { useToast } from '../components/toast/ToastProvider.js'
 import { useErrorText } from './useErrorText.js'
+import { useRunAction } from './useRunAction.js'
 import type { FileEntry } from '../types/types.js'
 
 const EMPTY: FileEntry[] = []
@@ -19,6 +20,7 @@ function filesScopes(spaceId: string) {
 export function useFiles(spaceId: string) {
   const toast = useToast()
   const errorText = useErrorText()
+  const run = useRunAction()
   const [uploadingFiles, setUploadingFiles] = useState<Map<string, FileEntry>>(new Map())
   // Paths whose download was just requested — the same override useShareFiles carries. It stands
   // in for the missing first decoration frame, which buys exactly two things: a RESUMED partial
@@ -84,8 +86,8 @@ export function useFiles(spaceId: string) {
     }
   }
 
-  // Stable identities: props of memoized rows (README.md). They close over nothing but spaceId.
-  const downloadFile = useCallback(async (file: FileEntry) => {
+  // Stable identities: props of memoized rows (README.md).
+  const downloadFile = useCallback((file: FileEntry) => run(async () => {
     const res = await request('files:download', {
       spaceId,
       driveKey: file.driveKey,
@@ -96,16 +98,16 @@ export function useFiles(spaceId: string) {
     // A queued click started nothing — the owner is unreachable and the intent is recorded for the
     // reconnect machinery — so there is no transfer to report movement for.
     if ('transferId' in res) setSeeded((prev) => { const next = new Set(prev); next.add(file.path); return next })
-    return res
-  }, [spaceId])
+  }, 'transferFailed'), [run, spaceId])
 
   const unshareFile = useCallback(async (path: string) => {
     await request('files:remove', { spaceId, path })
   }, [spaceId])
 
-  const discardPartial = useCallback(async (file: FileEntry) => {
-    await request('files:discard-partial', { spaceId, path: file.path, inPlace: file.inPlace ?? false })
-  }, [spaceId])
+  const discardPartial = useCallback(
+    (file: FileEntry) => run(() => request('files:discard-partial', { spaceId, path: file.path, inPlace: file.inPlace ?? false }), 'transferFailed'),
+    [run, spaceId],
+  )
 
   const cancelPublish = useCallback(async (path: string) => {
     await request('files:cancel-publish', { spaceId, path })
