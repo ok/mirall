@@ -19,10 +19,12 @@ const log = createLogger('foreign-verbs')
 
 let loops = null
 let state = null
+let passWriter = null
 
 export function initForeignVerbs(d) {
   loops = d.loops
   state = d.state
+  passWriter = d.passWriter
 }
 
 export async function startForeignLoop(mount) {
@@ -76,6 +78,23 @@ export async function unmountForeignFolder(spaceId, shareId) {
   emitMirrorEvent('event:share-files-updated', { spaceId, shareId })
 }
 
+// The initial scan, with its fault recorded through the scan's own writer. Resolves what it came to:
+// 'done', 'stopped' (cancelled), 'skipped' (nothing it could walk) or 'faulted'.
+export async function scanForeignMount(mount) {
+  const writer = passWriter(mount, loops.generationOf(mirrorKey(mount.spaceId, mount.shareId)))
+  try {
+    const result = await initialMaterializeScan(mount)
+    if (result.stopped) return 'stopped'
+    if (result.skipped) return 'skipped'
+    return 'done'
+  } catch (err) {
+    log.warn('mirror initial scan failed:', mount.shareId, '-', err.message)
+    await recordMirrorScanFault(writer, mount, err)
+      .catch((e) => log.debug('mirror scan fault record failed:', mount.shareId, '-', e.message))
+    return 'faulted'
+  }
+}
+
 // Move the mount, not the bytes. `discardPartial` is deliberately NOT passed to the stop: a
 // half-written file at the old path is the user's to keep or delete, and deleting it here would
 // destroy data the relocate never promised to touch.
@@ -84,16 +103,15 @@ export async function unmountForeignFolder(spaceId, shareId) {
 // resumeIndex — so a failed write leaves a mount that is still running against its old path rather
 // than one with no loop, no caches and a record that disagrees with both.
 export async function relocateForeignFolder(spaceId, shareId, mountPath) {
-  const mount = await getForeignMount(spaceId, shareId)
-  if (!mount) throw new AppError(CODES.MOUNT_NOT_ON_DEVICE, 'Mount not found')
-
-  // Decided inside the write, against the record as it is then, so a pause that lands after the
-  // read above keeps its enabled/status. A disabled mount keeps the status and reason it was
-  // disabled WITH: collapsing an auto-pause ('mount-point-gone', 'paused-enospc') into a plain user
-  // 'paused' would take it out of the auto-pause set and permanently disable the auto-resume that
-  // exists to rescue exactly the mirrors this verb is used on. An enabled one re-enters at
-  // scanning, and its old path's fault reason goes with it.
-  const patched = await mutateForeignMount(spaceId, shareId, (m) => {
+  const key = mirrorKey(spaceId, shareId)
+  loops.invalidate(key)
+  // Decided inside the write, against the record as it is then, so a pause that lands first keeps
+  // its enabled/status. A disabled mount keeps the status and reason it was disabled WITH:
+  // collapsing an auto-pause ('mount-point-gone', 'paused-enospc') into a plain user 'paused' would
+  // take it out of the auto-pause set and permanently disable the auto-resume that exists to rescue
+  // exactly the mirrors this verb is used on. An enabled one re-enters at scanning, and its old
+  // path's fault reason goes with it.
+  const next = await mutateForeignMount(spaceId, shareId, (m) => {
     const enabled = m.enabled !== false
     return {
       ...m,
@@ -104,35 +122,47 @@ export async function relocateForeignFolder(spaceId, shareId, mountPath) {
       lastError: enabled ? null : (m.lastError ?? null),
     }
   })
-  if (!patched) throw new AppError(CODES.MOUNT_NOT_ON_DEVICE, 'Mount not found')
-  const written = await getForeignMount(spaceId, shareId)
-  const status = written?.status ?? MOUNT_STATUS.PAUSED
+  if (!next) throw new AppError(CODES.MOUNT_NOT_ON_DEVICE, 'Mount not found')
 
   stopForeignLoop(spaceId, shareId)
   resetForeignSyncState(spaceId, shareId)
   // stopForeignLoop deliberately leaves the in-flight pass alone; without this a pass still
   // running against the OLD path makes every later tick coalesce onto that dead promise, and
   // because a coalesced call never marks a pass started, the liveness probe reports it healthy.
-  loops.dropInFlight(mirrorKey(spaceId, shareId))
-  emitStatus(spaceId, shareId, status)
+  loops.dropInFlight(key)
+  emitStatus(spaceId, shareId, next.status)
 
-  const next = await getForeignMount(spaceId, shareId)
-  if (next && next.enabled !== false) {
-    await syncMirrorRecord(spaceId, shareId, () => setMirrorState(spaceId, shareId, 'syncing'))
-    await startForeignLoop(next)
-    // The initial scan, not a tick: it is the pass that closes 'scanning', and it runs adopt-only
-    // while the owner is offline. It gets its own copy of the record, which it fills in as it goes;
-    // the tick after it settles a share whose listing the scan would not call complete.
-    initialMaterializeScan({ ...next, renamedPaths: { ...next.renamedPaths } })
-      .then(() => runMaterializeTick(spaceId, shareId))
-      .catch((err) => recordMirrorScanFault(spaceId, shareId, err))
-      .catch((err) => log.warn('relocate scan failed:', shareId, '-', err.message))
+  if (next.enabled !== false) {
+    // A pause or another relocate during the await below invalidates `at`, and then owns the loop.
+    const at = loops.generationOf(key)
+    await syncMirrorRecord(spaceId, shareId, () => passWriter(next, at).setMirrorState(MIRROR_STATE.SYNCING))
+    if (!loops.stopped(key, at)) rearmRelocated(next)
   }
   emitMirrorEvent('event:share-files-updated', { spaceId, shareId })
   return next
 }
 
-export async function setForeignEnabled(spaceId, shareId, enabled) {
+// The initial scan, not a tick: it is the pass that closes 'scanning', and it runs adopt-only while
+// the owner is offline. It gets its own copy of the record, which it fills in as it goes; the tick
+// after a scan that got through settles a share whose listing the scan would not call complete.
+function rearmRelocated(next) {
+  const { spaceId, shareId } = next
+  startForeignLoop(next)
+  scanForeignMount({ ...next })
+    .then((outcome) => outcome === 'done' && runMaterializeTick(spaceId, shareId))
+    .catch((err) => log.debug('relocate tick failed:', shareId, '-', err.message))
+}
+
+// A failed pause has only invalidated the generation, so the record is still enabled — and a
+// relocate that deferred its re-arm to this pause must not leave it without a loop.
+async function rearmAfterFailedPause(spaceId, shareId) {
+  const record = await getForeignMount(spaceId, shareId).catch(() => null)
+  if (record && record.enabled !== false) startForeignLoop(record)
+}
+
+// The record half of setForeignEnabled. Resolves the mount as written, and whether it was enabled
+// before.
+async function writeEnabled(spaceId, shareId, enabled) {
   const mount = await getForeignMount(spaceId, shareId)
   if (!mount) throw new AppError(CODES.MOUNT_NOT_ON_DEVICE, 'Mount not found')
   const wasEnabled = mount.enabled !== false
@@ -142,10 +172,23 @@ export async function setForeignEnabled(spaceId, shareId, enabled) {
   await mutateForeignMount(spaceId, shareId, (m) => ({
     ...m,
     enabled,
-    status: enabled ? MOUNT_STATUS.ACTIVE : MOUNT_STATUS.PAUSED,
+    status: mount.status,
     ...(enabled ? { lastError: null } : {}),
     ...state.syncFields(m),
   }))
+  return { mount, wasEnabled }
+}
+
+export async function setForeignEnabled(spaceId, shareId, enabled) {
+  if (!enabled) loops.invalidate(mirrorKey(spaceId, shareId))
+  let written
+  try {
+    written = await writeEnabled(spaceId, shareId, enabled)
+  } catch (err) {
+    if (!enabled) await rearmAfterFailedPause(spaceId, shareId)
+    throw err
+  }
+  const { mount, wasEnabled } = written
   if (enabled) {
     await startForeignLoop(mount)
     // Only a genuine resume (was paused) touches the record and re-evaluates now: set 'syncing',
@@ -153,7 +196,7 @@ export async function setForeignEnabled(spaceId, shareId, enabled) {
     // 'synced' instead of blinking for a whole poll interval. A redundant enable of an already-
     // active mount must not blink 'synced'->'syncing'.
     if (!wasEnabled) {
-      await syncMirrorRecord(spaceId, shareId, () => setMirrorState(spaceId, shareId, 'syncing'))
+      await syncMirrorRecord(spaceId, shareId, () => setMirrorState(spaceId, shareId, MIRROR_STATE.SYNCING))
       runMaterializeTick(spaceId, shareId).catch((err) => log.debug('foreign resume tick failed:', shareId, '-', err.message))
     }
   } else {

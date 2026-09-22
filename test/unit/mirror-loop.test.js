@@ -213,3 +213,16 @@ test('an adopted pass waits for the pass already in flight instead of running be
   await adopted
   t.absent(overlapped, 'the adopted pass started only after the tick settled')
 })
+
+test('invalidate cancels the passes started so far and leaves the cadence armed', async (t) => {
+  const loops = createMirrorLoops({ ...NEVER(), runPass: async () => {} })
+  loops.start('k', { spaceId: 'sp', shareId: 'sh' })
+  t.teardown(() => loops.stop('k'))
+  const before = loops.generationOf('k')
+
+  const now = loops.invalidate('k')
+
+  t.ok(loops.stopped('k', before), 'a pass holding the old generation reads itself stopped')
+  t.absent(loops.stopped('k', now), 'one taken after it does not')
+  t.alike(loops.entries().map((e) => e.key), ['k'], 'and the loop is still live')
+})

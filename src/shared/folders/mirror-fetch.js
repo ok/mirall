@@ -48,14 +48,15 @@ const log = createLogger('mirror-fetch')
 // module that owns the mount's life.
 let state = null
 let loops = null
+let passWriter = null
 
 export function initMirrorFetch(d) {
   state = d.state
   loops = d.loops
+  passWriter = d.passWriter
 }
 
 const mirrorGen = (key) => loops.generationOf(key)
-const mirrorStopped = (key, gen) => loops.stopped(key, gen)
 
 // The file the mirror is fetching right now (one per mirrorKey — the catalog materialize is
 // strictly sequential): contentHash so stopForeignLoop can abort the in-flight overlay
@@ -146,10 +147,10 @@ async function preserveLocalEdit(mount, entry, verifyKey, diskHash, abs, localRe
 // A local I/O failure pauses the mount via the shared pauseMountForIoError
 // classification (full disk / permission / vanished mount); anything else is a
 // logged fetch miss.
-async function handleOverlayMirrorFetchError(mount, share, entry, err, diag) {
+async function handleOverlayMirrorFetchError(mount, share, entry, err, { diag, writer }) {
   // Order matters: a local I/O fault pauses the mount and is NOT a peer act. Auditing it would
   // blame a holder for our own full disk.
-  if (await pauseMountForIoError(mount, err)) return
+  if (await pauseMountForIoError(mount, err, { writer })) return
   diag?.finish('failed')
   const code = err?.code === 'EHASHMISMATCH' ? CODES.TRANSFER_CHECKSUM : null
   if (!code) {
@@ -201,15 +202,15 @@ export function createMountProbe(mount) {
 // They settle differently on purpose. A missing root and an exhausted volume are mount-wide, so
 // they pause. A single file that will not fit is about THAT file: pausing the mount for it would
 // strand every other file in the folder, and the engine keeps the same decision per row.
-async function mountCanTake(mount, entry, abs, probe) {
+async function mountCanTake(mount, entry, abs, { probe, writer }) {
   if (!probe.rootAvailable()) {
-    await pauseMount(mount, STATUS_MOUNT_GONE)
+    await pauseMount(mount, STATUS_MOUNT_GONE, null, { writer })
     return false
   }
   const freeBytes = probe.freeBytes()
   // Short of the headroom with nothing requested at all: the volume is out, not this file.
   if (shortfall({ freeBytes, needBytes: 0 }) > 0) {
-    await pauseMount(mount, statusForFaultCode(CODES.TRANSFER_DISK_FULL), CODES.TRANSFER_DISK_FULL)
+    await pauseMount(mount, statusForFaultCode(CODES.TRANSFER_DISK_FULL), CODES.TRANSFER_DISK_FULL, { writer })
     return false
   }
   // A resumed partial has already taken its bytes from the volume; charging for them twice would
@@ -232,30 +233,39 @@ function trackShareWait(mount, entry, opts) {
   return transferId
 }
 
+// ENOENT is the only stat failure that means "nothing is there, the path is free to write". Every
+// other one means something IS there that we could not read — and the fetch renames over it
+// regardless of whether we could stat it, since rename needs permission on the DIRECTORY, not the
+// file. Swallowing them all made the preserve step fail open in exactly the case it exists for: an
+// unreadable local file looked absent and was overwritten without a copy.
+async function statLocal(abs, entry) {
+  try {
+    return { onDisk: await fs.promises.stat(abs), unreadable: false }
+  } catch (err) {
+    if (err?.code === 'ENOENT') return { onDisk: null, unreadable: false }
+    log.debug('could not stat a mirror path before materializing:', entry.relPath, '-', err.message)
+    return { onDisk: null, unreadable: true }
+  }
+}
+
 export async function materializeOverlayFile(mount, share, entry, opts = {}) {
   const hashOf = opts.hashOf || overlayHashFile
   const verifyKey = entryRef(mount.shareId, entry.relPath)
   const transferId = trackShareWait(mount, entry, opts)
+  const streamKey = mirrorKey(mount.spaceId, mount.shareId)
+  // Fall back to the LIVE generation rather than undefined: loops.stopped compares against it, so
+  // an absent gen would read as 'stopped' and refuse every fetch. A caller without one still gets
+  // the check it needs — a stop landing during the waits below.
+  const gen = opts.gen ?? mirrorGen(streamKey)
+  const writer = passWriter(mount, gen)
+  // A pass binds its synced set and collision map when it starts; a lone call binds them here.
+  if (!opts.synced) state.renamedFor(mount)
   // Overlay content hashes are leaf/size-prefixed, NOT plain blake2b — compare
   // the on-disk copy with the overlay hasher, or the skip/adopt checks never
   // match and the mirror re-fetches every file every tick.
   const localRelPath = await state.resolveLocalRelPath(mount, entry.relPath, entry.contentHash, hashOf, opts.synced || state.syncedSetFor(mount), opts.fresh)
   const abs = pathFromMount(mount.mountPath, localRelPath)
-  let onDisk = null
-  // ENOENT is the only stat failure that means "nothing is there, the path is free to write".
-  // Every other one means something IS there that we could not read — and the fetch below renames
-  // over it regardless of whether we could stat it, since rename needs permission on the DIRECTORY,
-  // not the file. Swallowing them all made the preserve step fail open in exactly the case it
-  // exists for: an unreadable local file looked absent and was overwritten without a copy.
-  let unreadable = false
-  try {
-    onDisk = await fs.promises.stat(abs)
-  } catch (err) {
-    if (err?.code !== 'ENOENT') {
-      unreadable = true
-      log.debug('could not stat a mirror path before materializing:', entry.relPath, '-', err.message)
-    }
-  }
+  const { onDisk, unreadable } = await statLocal(abs, entry)
   // Retained past the checks below: it is the evidence the ancestor comparison needs, and a pass
   // hashes a file at most once (foreign-mirror-rehash.test.js).
   let diskHash = null
@@ -266,7 +276,7 @@ export async function materializeOverlayFile(mount, share, entry, opts = {}) {
     // this mount wrote describes that same file.
     if (await isVerifiedUnchanged(mount.spaceId, verifyKey, entry.contentHash, entry.size, onDisk)) return 'present'
     try {
-      diskHash = await hashOf(abs)
+      diskHash = await beating(streamKey, () => hashOf(abs))
       if (diskHash === entry.contentHash) {
         // `onDisk` is the stat the hash above was taken against, so it fingerprints these bytes.
         await markVerified(mount.spaceId, verifyKey, entry.contentHash, { local: localRelPath, stat: onDisk })
@@ -285,42 +295,57 @@ export async function materializeOverlayFile(mount, share, entry, opts = {}) {
   if (claimedBy && claimedBy !== FETCH_OWNER_MIRROR) return 'missing'
   // Below the claim check on purpose: charging a file the download engine already owns against our
   // own free space would refuse it over bytes that engine has already reserved.
-  if (!(await mountCanTake(mount, entry, abs, opts.probe || createMountProbe(mount)))) return 'blocked'
-  const streamKey = mirrorKey(mount.spaceId, mount.shareId)
+  if (!(await mountCanTake(mount, entry, abs, { probe: opts.probe || createMountProbe(mount), writer }))) return 'blocked'
   const releaseSlot = await acquireMirrorSlot(streamKey)
   try {
-    // Fall back to the LIVE generation rather than undefined: loops.stopped compares against it,
-    // so an absent gen would read as 'stopped' and refuse every fetch. A caller without one still
-    // gets the check it needs — a stop landing during the wait above.
-    return await fetchOverlayEntry(mount, share, entry, { abs, verifyKey, localRelPath, streamKey, gen: opts.gen ?? mirrorGen(streamKey), diskHash, localExists: !!onDisk || unreadable })
+    return await fetchOverlayEntry(mount, share, entry, { abs, verifyKey, localRelPath, streamKey, writer, diskHash, localExists: !!onDisk || unreadable })
   } finally {
     releaseSlot()
   }
 }
 
-// Heartbeat while parked: a parked pass is in flight as far as pass-liveness is concerned, and a
-// queue wait longer than the stall window would read as a wedge and be restarted. The wait is
-// unbounded, so stamping progress either side of it is not enough. Never express: a background
-// materialize must not outrank a click. Taken BEFORE the in-flight record, because
-// cancelInflightFetch reads that record — a stop landing while parked would ask the vendor layer to
-// cancel a fetch that never started, and tell the holder we paused a transfer we never began.
-async function acquireMirrorSlot(streamKey) {
+// Heartbeat across a wait of unbounded length: a pass waiting on it is in flight as far as
+// pass-liveness is concerned, and a wait longer than the stall window would read as a wedge and be
+// restarted, so stamping progress either side of it is not enough. A slot wait and a hash of a
+// large local file are both such waits.
+async function beating(streamKey, work) {
   loops.noteProgress(streamKey)
   const beat = setInterval(() => loops.noteProgress(streamKey), getForeignPollIntervalMs())
   beat.unref?.()
   try {
-    return await acquireFetchSlot({ express: false, owner: FETCH_OWNER_MIRROR })
+    return await work()
   } finally {
     clearInterval(beat)
     loops.noteProgress(streamKey)
   }
 }
 
+// Never express: a background materialize must not outrank a click. Taken BEFORE the in-flight
+// record, because cancelInflightFetch reads that record — a stop landing while parked would ask the
+// vendor layer to cancel a fetch that never started, and tell the holder we paused a transfer we
+// never began.
+function acquireMirrorSlot(streamKey) {
+  return beating(streamKey, () => acquireFetchSlot({ express: false, owner: FETCH_OWNER_MIRROR }))
+}
+
+// One level at a time rather than bare-fs's recursive mkdir, which reports a refused create as the
+// ENOENT of its follow-up stat: that would hide a permission or full-disk fault from the
+// classification. The mount root itself is the caller's to have checked.
+async function mkdirUnderMount(mountPath, localRelPath) {
+  let dir = mountPath
+  for (const segment of localRelPath.split('/').slice(0, -1)) {
+    dir = pathFromMount(dir, segment)
+    try { await fs.promises.mkdir(dir) } catch (err) {
+      if (err?.code !== 'EEXIST') throw err
+    }
+  }
+}
+
 // The gated half of a materialize: everything past the slot owns a chunk scheduler, a watchdog,
 // an fd and a ticker.
-async function fetchOverlayEntry(mount, share, entry, { abs, verifyKey, localRelPath, streamKey, gen, diskHash = null, localExists = false }) {
+async function fetchOverlayEntry(mount, share, entry, { abs, verifyKey, localRelPath, streamKey, writer, diskHash = null, localExists = false }) {
   // The wait for a slot is unbounded, so re-check the stop the catalog walk tests at every entry.
-  if (mirrorStopped(streamKey, gen)) return 'missing'
+  if (writer.stopped()) return 'missing'
   // Deliberately NOT re-checking reachability here, unlike the download engine past its own slot
   // wait: this function is reached from materializeCatalogFile, which callers drive one entry at a
   // time against mounts whose owner is unreachable by construction. The window it would close — the
@@ -329,7 +354,12 @@ async function fetchOverlayEntry(mount, share, entry, { abs, verifyKey, localRel
   // Read AFTER the wait, not before it: the overlay can be torn down while a pass is parked.
   const overlay = getOverlay()
   if (!overlay) return 'missing'
-  await fs.promises.mkdir(path.dirname(abs), { recursive: true })
+  // The same local I/O classification the fetch below gets: a folder we cannot create is a full
+  // disk, a permission fault or a vanished mount, and pauses the mount like one.
+  try { await mkdirUnderMount(mount.mountPath, localRelPath) } catch (err) {
+    if (await pauseMountForIoError(mount, err, { writer })) return 'missing'
+    throw err
+  }
   // Mirror download bar with speed/ETA.
   const total = entry.size || 0
   const decoKey = shareDecoKey(mount.shareId, entry.relPath)
@@ -376,7 +406,7 @@ async function fetchOverlayEntry(mount, share, entry, { abs, verifyKey, localRel
     // ECANCELLED is a deliberate pause/unmount abort (stopForeignLoop), not a
     // give-up: log it as a stop and keep whatever partial cancelFetch chose to keep.
     if (err?.code === 'ECANCELLED') { failed?.finish('paused'); return 'missing' }
-    await handleOverlayMirrorFetchError(mount, share, entry, err, failed)
+    await handleOverlayMirrorFetchError(mount, share, entry, err, { diag: failed, writer })
     return 'missing'
   } finally {
     activeOverlayFetches.delete(streamKey)

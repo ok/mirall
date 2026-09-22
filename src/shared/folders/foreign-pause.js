@@ -10,72 +10,79 @@ import fs from 'bare-fs'
 import { MIRROR_STATE } from '../contract/statuses.js'
 import { classifyLocalIoFault } from '../core/errors.js'
 import { faultFromError, STATUS_MOUNT_GONE, statusForFaultCode, isAutoPauseStatus } from './mount-fault.js'
-import { getForeignMount, patchForeignMount, mutateForeignMount } from './mount-store.js'
+import { getForeignMount, mutateForeignMount } from './mount-store.js'
+import { mirrorKey } from './mirror-policy.js'
 import { setMirrorState } from './mirror-records.js'
 import { emitStatus, syncMirrorRecord } from './mirror-signals.js'
 import { mountRootAvailable } from './publish-service.js'
 
-// Injected by foreign-folders.js: the mirror's own state and the two loop verbs a pause and a
-// resume drive. Importing the verbs would close a cycle through mirror-fetch, which imports this
-// module for the I/O pause.
+// Injected by foreign-folders.js: the mirror's own state, its loops, and the two loop verbs a pause
+// and a resume drive. Importing the verbs would close a cycle through mirror-fetch, which imports
+// this module for the I/O pause.
 let state = null
+let loops = null
 let stopForeignLoop = () => {}
 let setForeignEnabled = async () => {}
 
 export function initForeignPause(d) {
   state = d.state
+  loops = d.loops
   stopForeignLoop = d.stopForeignLoop
   setForeignEnabled = d.setForeignEnabled
 }
 
-export async function pauseMount(mount, status, reason) {
-  mount.enabled = false
-  mount.status = status
-  // Durable, like the status itself: the reason is what the folder screen names the fault by, and
-  // an event-only reason left the strip generic after every reload.
-  mount.lastError = reason ?? null
-  // Carry the Set: a pause cancels the pass, so this write is what persists whatever it landed. It
-  // is derived from the record as it is NOW rather than from the `mount` object this pass has been
-  // holding, which was read before a pass that can run for hours.
-  await mutateForeignMount(mount.spaceId, mount.shareId, (m) => ({
-    ...m,
-    enabled: false,
-    status,
-    lastError: reason ?? null,
-    // The sync fields come off the PASS-held object, not the record just read: resolveLocalRelPath
-    // mints a collision sibling by mutating `mount.renamedPaths` in memory, and this write is the
-    // only chance to persist it — stopForeignLoop below bumps the generation, after which
-    // state.persist declines. Reading them off `m` would write the mapping the pass started with,
-    // stranding the sibling on disk with nothing pointing at it and minting a fresh one next pass.
-    ...state.syncFields(mount),
-  }))
+// A pass that hit the fault pauses through its own writer; a probe, which has no pass, writes
+// directly. The write declines when the record is no longer the one the fault was seen on: already
+// disabled (a user pause outranks an automatic one) or pointed at another folder by a relocate.
+// Otherwise it invalidates the generation under the lock, ahead of any pass write queued behind it.
+// Resolves whether it paused.
+export async function pauseMount(mount, status, reason, { writer = null } = {}) {
+  const { spaceId, shareId } = mount
+  const mutate = writer ? writer.mutate : (apply) => mutateForeignMount(spaceId, shareId, apply)
+  const written = await mutate((m) => {
+    if (m.enabled === false || m.mountPath !== mount.mountPath) return null
+    loops.invalidate(mirrorKey(spaceId, shareId))
+    return {
+      ...m,
+      enabled: false,
+      status,
+      // Durable, like the status itself: the reason is what the folder screen names the fault by,
+      // and an event-only reason left the strip generic after every reload.
+      lastError: reason ?? null,
+      // Carry the Set and the collision map: a pause cancels the pass, so this write is what
+      // persists whatever it landed. Both come from the mirror state, where a pass records them.
+      ...state.syncFields(mount),
+    }
+  })
+  if (!written) return false
+  Object.assign(mount, { enabled: false, status, lastError: reason ?? null })
   // Symmetry with the user-pause path (setForeignEnabled(false)): stop the poll loop so an
-  // auto-paused mount doesn't keep a live interval, its in-flight fetch is cancelled, and its
-  // generation is bumped — the last point lets an in-progress scan bail before it would
-  // otherwise overwrite this pause with a trailing status:'active'.
-  stopForeignLoop(mount.spaceId, mount.shareId)
-  await syncMirrorRecord(mount.spaceId, mount.shareId, () => setMirrorState(mount.spaceId, mount.shareId, MIRROR_STATE.PAUSED))
-  emitStatus(mount.spaceId, mount.shareId, status, reason ? { error: reason } : null)
+  // auto-paused mount doesn't keep a live interval and its in-flight fetch is cancelled.
+  stopForeignLoop(spaceId, shareId)
+  await syncMirrorRecord(spaceId, shareId, () => setMirrorState(spaceId, shareId, MIRROR_STATE.PAUSED))
+  emitStatus(spaceId, shareId, status, reason ? { error: reason } : null)
+  return true
 }
 
 // Pause the mount for a local I/O failure (overlay materializeOverlayFile write path). Returns
-// true if it paused — the caller then stops; false leaves the error for generic handling. The
-// fault→status decision is shared with the owner side; stopping the loop is ours, because a
-// mirror's pause really does stop it.
-export async function pauseMountForIoError(mount, err) {
+// true if it was a fault this classifies — the caller then stops; false leaves the error for
+// generic handling. The fault→status decision is shared with the owner side; stopping the loop is
+// ours, because a mirror's pause really does stop it.
+export async function pauseMountForIoError(mount, err, { writer }) {
   const fault = faultFromError(err)
-  if (fault) { await pauseMount(mount, fault.status, fault.code); return true }
-  if (err?.code === 'ENOENT' && !fs.existsSync(mount.mountPath)) { await pauseMount(mount, STATUS_MOUNT_GONE); return true }
+  if (fault) { await pauseMount(mount, fault.status, fault.code, { writer }); return true }
+  if (err?.code === 'ENOENT' && !fs.existsSync(mount.mountPath)) { await pauseMount(mount, STATUS_MOUNT_GONE, null, { writer }); return true }
   return false
 }
 
-// A mirror's INITIAL scan failing is not a pause: the poll loop still starts, and the next
-// successful tick clears this. So it records the fault without touching `enabled` — which is what
-// keeps it out of the auto-pause resume gate.
-export async function recordMirrorScanFault(spaceId, shareId, err) {
+// A mirror's INITIAL scan failing is not a pause: the poll loop still runs, and the first tick
+// that walks the catalog closes the status. So it records the fault without touching `enabled` —
+// which is what keeps it out of the auto-pause resume gate. Resolves null when the scan's writer
+// declined: a fault status over a user pause would make the mount read auto-paused.
+export async function recordMirrorScanFault(writer, { spaceId, shareId }, err) {
   const code = classifyLocalIoFault(err)
   const status = statusForFaultCode(code)
-  await patchForeignMount(spaceId, shareId, { status, lastError: code })
+  if (!(await writer.patch({ status, lastError: code }))) return null
   emitStatus(spaceId, shareId, status, { error: code })
   return status
 }
@@ -93,8 +100,7 @@ export async function autoPauseForeignMountGone(spaceId, shareId) {
   const mount = await getForeignMount(spaceId, shareId)
   if (!mount || mount.enabled === false) return false
   if (mountRootAvailable(mount.mountPath)) return false
-  await pauseMount(mount, STATUS_MOUNT_GONE)
-  return true
+  return await pauseMount(mount, STATUS_MOUNT_GONE)
 }
 
 // Level-triggered recovery for an auto-paused mirror: the local target returned, the disk

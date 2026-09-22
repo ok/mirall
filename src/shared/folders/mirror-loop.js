@@ -82,11 +82,19 @@ export function createMirrorLoops({ intervalMs, runPass, onStop = () => {}, onEr
     pending.set(key, timer)
   }
 
+  // Cancel every pass started so far without disarming the cadence: they bail at their next
+  // checkpoint, while a later pass runs at the new generation. Who calls it, and why before their
+  // own write: pass-writer.js.
+  function invalidate(key) {
+    gen.set(key, generationOf(key) + 1)
+    return generationOf(key)
+  }
+
   // Invalidate the pass in flight (it bails at its next checkpoint) and disarm the cadence.
   // Deliberately does NOT clear inFlight: a pause must still be able to await the tail, and a
   // restart is what clears it.
   function stop(key, opts = {}) {
-    gen.set(key, generationOf(key) + 1)
+    invalidate(key)
     onStop(key, opts)
     dirty.delete(key)
     const handle = loops.get(key)
@@ -127,6 +135,7 @@ export function createMirrorLoops({ intervalMs, runPass, onStop = () => {}, onEr
 
   return {
     start,
+    invalidate,
     stop,
     stopAll,
     restart,

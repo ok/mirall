@@ -14,6 +14,7 @@ import { drainFetchSlots, FETCH_OWNER_MIRROR } from '../transfer/backends/overla
 import { mirrorVerdict } from './mirror-policy.js'
 import { createMirrorLoops } from './mirror-loop.js'
 import { createMirrorState } from './mirror-state.js'
+import { createPassWriters } from './pass-writer.js'
 import { initMirrorSignals, resetMirrorSignals } from './mirror-signals.js'
 import { initMirrorFetch, cancelInflightFetch, resetMirrorFetch } from './mirror-fetch.js'
 import { initMirrorPass, materializeOnce, resetMirrorPass } from './mirror-pass.js'
@@ -34,17 +35,18 @@ const loops = createMirrorLoops({
   },
   onError: (err) => log.debug('materialize tick failed:', err.message),
 })
-const state = createMirrorState({ isStopped: (key, gen) => loops.stopped(key, gen) })
+const state = createMirrorState()
+const passWriter = createPassWriters(loops)
 
 let unsubscribePeerOnline = null
 
 /** @internal production starts the mirror through this file's own _open() */
 export function initForeignFolders(_ipc) {
   initMirrorSignals(_ipc)
-  initForeignVerbs({ loops, state })
-  initForeignPause({ state, stopForeignLoop, setForeignEnabled })
-  initMirrorFetch({ state, loops })
-  initMirrorPass({ state, loops, maybeUnmountIfOwnerGone })
+  initForeignVerbs({ loops, state, passWriter })
+  initForeignPause({ state, loops, stopForeignLoop, setForeignEnabled })
+  initMirrorFetch({ state, loops, passWriter })
+  initMirrorPass({ state, loops, passWriter, maybeUnmountIfOwnerGone })
   // Materialize promptly when an owner's catalog appends, instead of waiting for
   // the mirror's poll tick.
   setOverlayCatalogChangeHook(onPeerDriveChanged)
@@ -76,8 +78,12 @@ export function onPeerDriveChanged(spaceId) {
 }
 
 // A member handshaked into this space. Any mirror of theirs has been skipping its passes on the
-// reachability gate, so re-drive now rather than at the next tick.
-function onOwnerOnline(_ownerKey, spaceId) {
+// reachability gate, so re-drive now rather than at the next tick — and walk, not trust the
+// watermark: nothing repaired the folder while the owner was away, so a file deleted from it then is
+// missing against a catalog that has not moved.
+/** @internal */
+export function onOwnerOnline(_ownerKey, spaceId) {
+  for (const loop of loops.entries()) if (loop.spaceId === spaceId) state.forgetConverged(loop.key)
   pokeSpaceMirrors(spaceId)
 }
 

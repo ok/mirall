@@ -97,7 +97,7 @@ export function setOwnedIndexPaused(spaceId, shareId, paused) {
 
 const DERIVED_FIELDS = ['status', 'indexPaused']
 
-// Patch an owned mount's bookkeeping. No-op (false) when the record is gone.
+// Patch an owned mount's bookkeeping. No-op (null) when the record is gone.
 export function patchOwnedMount(spaceId, shareId, patch) {
   for (const field of DERIVED_FIELDS) {
     if (field in patch) {
@@ -128,10 +128,16 @@ export async function createForeignMount(mount) {
   await records.put(foreignKey(mount.spaceId, mount.shareId), mount)
 }
 
+// The first write of a mirror record for a fresh mount, which must never replace one that exists:
+// resolves the existing record, or null once `mount` is stored.
+export function insertForeignMount(mount) {
+  return records.insert(foreignKey(mount.spaceId, mount.shareId), mount)
+}
+
 // Derive a mirror record's next value from the record as it is NOW, never from a whole object a
 // caller has been holding: the object a materialize pass holds was loaded before a possibly
 // hours-long pass, so writing it back would clobber a pause / status / enabled flag persisted
-// meanwhile. No-op (false) when the record is gone.
+// meanwhile. Resolves to the record written, or null when the record is gone or `apply` declined.
 export function mutateForeignMount(spaceId, shareId, apply) {
   return records.mutate(foreignKey(spaceId, shareId), apply)
 }

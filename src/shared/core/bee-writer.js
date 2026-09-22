@@ -24,17 +24,26 @@ export function createRecordWriter({ bee, log, attempts = MAX_ATTEMPTS } = {}) {
 
     del: (key) => exclusive(key, () => bee().del(key)),
 
-    // Returns false when the record is gone — the documented no-op every caller relies on — and
-    // true otherwise. `apply` receives a copy of the stored value and returns the next value, or a
-    // falsy value to decline the write, which is what keeps an unchanged status from appending a
-    // block per probe tick.
+    // A create that never replaces: resolves the value already stored (and writes nothing), or null
+    // once it has written `value`.
+    insert: (key, value) => exclusive(key, async () => {
+      const entry = await bee().get(key)
+      if (entry?.value) return entry.value
+      await bee().put(key, value)
+      return null
+    }),
+
+    // Resolves to the value written, or null when nothing was: the record is gone (the documented
+    // no-op every caller relies on) or `apply` declined. `apply` receives a copy of the stored value
+    // and returns the next value, or a falsy value to decline the write, which is what keeps an
+    // unchanged status from appending a block per probe tick.
     mutate(key, apply) {
       return exclusive(key, async () => {
         for (let attempt = 0; attempt < attempts; attempt++) {
           const entry = await bee().get(key)
-          if (!entry?.value) return false
+          if (!entry?.value) return null
           const next = apply({ ...entry.value })
-          if (!next) return true
+          if (!next) return null
           let superseded = false
           await bee().put(key, next, {
             cas: (prev) => {
@@ -43,7 +52,7 @@ export function createRecordWriter({ bee, log, attempts = MAX_ATTEMPTS } = {}) {
               return false
             },
           })
-          if (!superseded) return true
+          if (!superseded) return next
           log?.warn('record changed under a serialized write — retrying:', key)
         }
         // Losing the race `attempts` times in a row means a writer outside the lock, not

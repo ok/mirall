@@ -49,15 +49,21 @@ test('REGRESSION (FIX-R05-2): two concurrent mutations both survive', async (t) 
 
 test('a mutation on a missing record is the documented no-op', async (t) => {
   const b = fakeBee()
-  t.is(await b.writer().mutate('gone', () => ({ x: 1 })), false, 'reports false')
+  t.is(await b.writer().mutate('gone', () => ({ x: 1 })), null, 'reports nothing written')
   t.is(b.get('gone'), null, 'and writes nothing — a create must not go through mutate')
+})
+
+test('a write resolves to the value it committed', async (t) => {
+  const b = fakeBee()
+  b.seed('k', { n: 0 })
+  t.alike(await b.writer().mutate('k', (m) => ({ ...m, n: 1 })), { n: 1 })
 })
 
 test('an apply that declines succeeds without writing', async (t) => {
   const b = fakeBee()
   b.seed('k', { status: 'active' })
   const before = b.seqOf('k')
-  t.is(await b.writer().mutate('k', () => null), true, 'reports success')
+  t.is(await b.writer().mutate('k', () => null), null, 'reports that nothing was written')
   t.is(b.seqOf('k'), before, 'and appended no block — this is what keeps a probe tick from writing every second')
 })
 
@@ -147,4 +153,12 @@ test('REGRESSION (FIX-R05-2): no mount record is written outside the serialized 
     if (/\b(saveOwnedMount|saveForeignMount)\b/.test(readFileSync(f, 'utf8'))) outside.push(path.relative(root, f))
   }
   t.alike(outside, [], 'the whole-record writers are gone — creates go through create*, updates through patch*/mutate*')
+})
+
+test('insert creates a missing record and never replaces one', async (t) => {
+  const b = fakeBee()
+  const w = b.writer()
+  t.is(await w.insert('k', { v: 1 }), null, 'a missing record is created')
+  t.alike(await w.insert('k', { v: 2 }), { v: 1 }, 'an existing one is handed back')
+  t.alike(b.get('k'), { v: 1 }, 'and left as it was')
 })

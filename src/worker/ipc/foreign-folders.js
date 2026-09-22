@@ -8,10 +8,8 @@ import { MOUNT_STATUS } from '../../shared/contract/statuses.js'
 import { getSpace } from '../../shared/spaces/space.js'
 import { validateMountPath } from '../../shared/folders/mount-validate.js'
 import { publishMirror } from '../../shared/folders/mirror-records.js'
-import { recordMirrorScanFault } from '../../shared/folders/foreign-pause.js'
-import { startForeignLoop, setForeignEnabled, relocateForeignFolder, unmountForeignFolder } from '../../shared/folders/foreign-verbs.js'
-import { initialMaterializeScan } from '../../shared/folders/mirror-pass.js'
-import { createForeignMount as persistForeignMount, getForeignMount, listForeignMounts } from '../../shared/folders/mount-store.js'
+import { startForeignLoop, scanForeignMount, setForeignEnabled, relocateForeignFolder, unmountForeignFolder } from '../../shared/folders/foreign-verbs.js'
+import { insertForeignMount, getForeignMount, listForeignMounts } from '../../shared/folders/mount-store.js'
 import { record } from '../../shared/audit/audit-log.js'
 import { selfActor, targetRef } from '../../shared/audit/audit-record.js'
 import { TARGET_KIND } from '../../shared/contract/audit-kinds.js'
@@ -38,22 +36,24 @@ export function registerForeignFolders(ipc, { log, intents }) {
       attachedAt: Date.now(),
       status: MOUNT_STATUS.SCANNING,
     }
-    await persistForeignMount(mount)
+    // A share has one mirror. The same request again — a double submit — answers with the mount it
+    // made; another folder for the same share is a relocate, not a second mount, and replacing the
+    // record here would leave the first mount's passes writing into it.
+    const existing = await insertForeignMount(mount)
+    if (existing) {
+      if (existing.mountPath === mountPath) return { mount: wire(existing), advisories }
+      throw new AppError(CODES.MOUNT_OVERLAPS, 'This share is already mirrored to another folder')
+    }
     ipc.emit('event:foreign-folder-mount-status', { spaceId: msg.spaceId, shareId: msg.shareId, status: MOUNT_STATUS.SCANNING })
     try { await publishMirror(msg.spaceId, msg.shareId, { state: 'syncing' }) }
     catch (err) { log.warn('mirror record publish failed:', msg.shareId, '-', err.message) }
     ipc.emit('event:mirrors-updated', { spaceId: msg.spaceId, shareId: msg.shareId })
 
-    // Start the poll loop regardless of the initial scan's outcome: a scan that rejects must still
-    // leave a running loop so the record re-derives from 'syncing' instead of stranding there.
-    initialMaterializeScan(mount)
-      .catch(async (err) => {
-        log.warn('mirror initial scan failed:', err.message)
-        // Through the shared recorder, so the fault is durable and typed (a code, not a message).
-        await recordMirrorScanFault(msg.spaceId, msg.shareId, err)
-          .catch((e) => log.debug('mirror scan fault record failed:', msg.shareId, '-', e.message))
-      })
-      .finally(() => { startForeignLoop(mount) })
+    // The loop is armed before the scan, as at boot: its first tick coalesces behind the scan, a
+    // scan that rejects still leaves a running loop to re-derive from, and a pause or unmount during
+    // the scan stops a loop that exists rather than racing one that does not yet.
+    startForeignLoop(mount)
+    scanForeignMount(mount)
 
     record('mirror.created', {
       actor: selfActor(),

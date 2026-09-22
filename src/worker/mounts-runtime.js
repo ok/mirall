@@ -19,8 +19,7 @@ import { ownedKey } from '../shared/folders/owned-policy.js'
 import { runPublishPass } from '../shared/folders/owned-pass.js'
 import { mountRootAvailable } from '../shared/folders/publish-service.js'
 import { resumeAutoPausedForeignMount, autoPauseForeignMountGone } from '../shared/folders/foreign-pause.js'
-import { startForeignLoop } from '../shared/folders/foreign-verbs.js'
-import { initialMaterializeScan } from '../shared/folders/mirror-pass.js'
+import { scanForeignMount, startForeignLoop } from '../shared/folders/foreign-verbs.js'
 import { ensureMirror } from '../shared/folders/mirror-records.js'
 
 const RECONCILE_INTERVAL_MS = 6 * 60 * 60 * 1000
@@ -126,14 +125,11 @@ export class MountsRuntime extends Subsystem {
             this.log.debug('foreign gone-at-boot pause failed for', mount.shareId, '-', err.message))
           continue
         }
-        // Owner drive may not be replicated at boot — the polling loop tolerates this
-        // and retries every 30 s. We start the loop unconditionally and best-effort the
-        // initial scan; if it fails because the peer isn't online yet, the next tick
-        // picks up once the owner connects.
+        // Owner drive may not be replicated at boot — the polling loop tolerates this and retries
+        // every 30 s. The loop starts unconditionally; a scan that faults records it on the mount,
+        // as a fresh mount's does, and the first tick that walks the catalog clears it.
         startForeignLoop(mount)
-        initialMaterializeScan(mount).catch((err) => {
-          this.log.debug('foreign mirror initial scan deferred for', mount.shareId, '-', err.message)
-        })
+        scanForeignMount(mount)
       }
     } catch (err) {
       this.log.warn('foreign-folder restart failed:', err.message)
