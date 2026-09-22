@@ -1,5 +1,5 @@
-// What a deny did. Approval hands out the content key and cannot be taken back until the key
-// rotates, so a deny aimed at a peer who is already a member changes nothing, and says so.
+// What a deny did. Approval hands out the content key, and approval cannot be revoked: there is no
+// key rotation, so a deny aimed at a peer who is already a member changes nothing, and says so.
 
 export const DENY_OUTCOME = Object.freeze({
   DENIED: 'denied',

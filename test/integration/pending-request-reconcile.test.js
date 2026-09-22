@@ -9,7 +9,7 @@ import { initProfile, setProfile, markOwnMembership, markApproval, readProfileRe
 import { initSpaces, getSpace, upsertMember } from '../../src/shared/spaces/space.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { listJoinRequests, listPendingRequests, recordJoinRequest, setDerivedRequests } from '../../src/shared/spaces/join-requests.js'
-import { configureMemberRegistry, openMemberView, closeAllMemberViews } from '../../src/shared/spaces/member-registry.js'
+import { configureMemberRegistry, openMemberView, closeAllMemberViews, applyLocalApproval, isApprovedJoiner } from '../../src/shared/spaces/member-registry.js'
 import { makePeer, replicate, waitFor } from '../helpers/peer-bee.js'
 import { tmpDir } from '../helpers/bare-tmp.js'
 
@@ -64,6 +64,39 @@ test('REGRESSION (co-member request): derive a pending request from a member rec
   t.is(c.displayName, 'Carol')
   t.is(c.avatar, 'data:image/png;base64,Q2Fyb2w=')
   t.ok(reqEvents.some((r) => r.publicKey === C), 'emitted member-join-request for the newly-derived request')
+})
+
+// The worker can learn a joiner is approved from a co-member's bee (the admission read) before
+// its own fold has folded that record. Seeding the approval must survive the next fold, or the
+// request re-derives as pending and the banner comes back.
+test('REGRESSION (FIX-395B: an approval learned ahead of the fold resurfaces the request)', async (t) => {
+  await boot(t, 'seeded')
+  const space = await createSpace('Approval Test')
+  const S = space.spaceId
+  await markOwnMembership(S)
+
+  const M = await makePeer(t)
+  await M.bee.put('member/' + S, { active: true, ts: 1 })
+  await M.bee.put('request/' + S + '/' + C, { displayName: 'Carol', ts: 10 })
+  await markApproval(S, M.key)
+  replicate(getStore(), M.store, t)
+
+  const reqEvents = []
+  configureMemberRegistry(passiveDeps({ emitJoinRequest: (_s, r) => reqEvents.push(r) }))
+  await openMemberView(S)
+  t.ok(await waitFor(() => listJoinRequests(S).some((r) => r.publicKey === C)), 'C derived as pending')
+  const raised = reqEvents.length
+
+  applyLocalApproval(S, C)
+  t.absent(listJoinRequests(S).some((r) => r.publicKey === C), 'the request clears at once')
+
+  // An unrelated request changes the folded view, so the next fold is published.
+  const D = 'd'.repeat(64)
+  await M.bee.put('request/' + S + '/' + D, { displayName: 'Dave', ts: 20 })
+  t.ok(await waitFor(() => listJoinRequests(S).some((r) => r.publicKey === D)), 'the next fold has run')
+  t.absent(listJoinRequests(S).some((r) => r.publicKey === C), 'a fold without the record does not bring it back')
+  t.absent(reqEvents.slice(raised).some((r) => r.publicKey === C), 'no second join-request is raised for C')
+  t.ok(isApprovedJoiner(S, C), 'the knock gate still counts C as approved')
 })
 
 test('a member dismissal tombstone (ts >= receipt) withdraws the request; a fresh re-knock resurfaces', async (t) => {

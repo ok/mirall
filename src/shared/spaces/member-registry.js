@@ -105,7 +105,7 @@ export async function openMemberView(spaceId) {
   // Claim the slot SYNCHRONOUSLY before any await so two concurrent opens can't both build a view
   // (the second would orphan the first's live bee-follow downloads). On any failure below we delete
   // the slot again, so a read throw never strands a poisoned `{view:null}` entry.
-  const entry = { view: null, members: new Set(), pending: new Map(), prior: new Map(), unread: new Set() }
+  const entry = { view: null, members: new Set(), pending: new Map(), prior: new Map(), unread: new Set(), seeded: new Set() }
   views.set(spaceId, entry)
   try {
     const space = await getSpace(spaceId)
@@ -328,18 +328,14 @@ export function applyLocalDenial(spaceId, key, ts) {
   forgetPending(spaceId, entry, key)
 }
 
+// Also taken for an approval learned from a co-member's bee: the key stays approved across folds
+// until one carries the record. Returns whether a pending request was dropped.
 export function applyLocalApproval(spaceId, key) {
   const entry = views.get(spaceId)
-  if (!entry) return
+  if (!entry) return false
+  entry.seeded.add(key)
   entry.approved = new Set([...(entry.approved || EMPTY), key])
-  forgetPending(spaceId, entry, key)
-}
-
-// A request a co-member settled first stays in the cached pending set until the next fold; a
-// no-op deny drops it now so the banner clears in the same step.
-export function forgetPendingJoiner(spaceId, key) {
-  const entry = views.get(spaceId)
-  if (entry) forgetPending(spaceId, entry, key)
+  return forgetPending(spaceId, entry, key)
 }
 
 // Our own revoke, applied after the durable del. Fails closed: the key leaves the cached approved
@@ -347,13 +343,15 @@ export function forgetPendingJoiner(spaceId, key) {
 export function applyLocalRevocation(spaceId, key) {
   const entry = views.get(spaceId)
   if (!entry?.approved?.has(key)) return
+  entry.seeded.delete(key)
   entry.approved = new Set([...entry.approved].filter((k) => k !== key))
   entry.view?.recompute()
 }
 
 function forgetPending(spaceId, entry, key) {
-  if (!entry.pending?.delete(key)) return
+  if (!entry.pending?.delete(key)) return false
   setDerivedRequests(spaceId, entry.pending)
+  return true
 }
 
 // Reconcile the derived set into space.members. ADD what the fold holds and we do not; REMOVE a held
@@ -433,13 +431,14 @@ const EMPTY = new Set()
 // per-joiner member-join-request for each NEWLY-appeared request (drives the sticky toast — the
 // renderer dedups by (spaceId, publicKey)), and one join-requests-updated whenever the set
 // changed (refreshes banner + list pill + modal). Idempotent: no churn when nothing changed.
-function reconcilePending(spaceId, entry, { requests, denied, members, approved, lefts }) {
+function reconcilePending(spaceId, entry, { requests, denied, members, approved: folded, lefts }) {
+  const approved = withSeededApprovals(entry, folded, members)
   const pending = foldPendingSet({ requests, denied, members, approved, lefts })
 
   // Retain the fold's approval receipts and denial tombstones on the live entry: the
   // join-request gate consults them (isApprovedJoiner / isDeniedJoiner) to converge a
   // joiner whose approve/deny happened while it was offline.
-  entry.approved = approved || EMPTY
+  entry.approved = approved
   entry.denied = denied || null
 
   // A tombstoned peer that surfaced as pending sent a fresh re-request (its receipt is newer than
@@ -464,6 +463,14 @@ function reconcilePending(spaceId, entry, { requests, denied, members, approved,
   }
   if (!changed) { for (const k of prev.keys()) if (!pending.has(k)) { changed = true; break } }
   if (changed) deps.emitJoinRequestsUpdated(spaceId)
+}
+
+// A seeded approval is dropped once a fold carries the record (or the member it became): from then
+// on the fold alone answers, including for a later revocation.
+function withSeededApprovals(entry, folded, members) {
+  for (const k of entry.seeded) if (folded?.has(k) || members?.has(k)) entry.seeded.delete(k)
+  if (!entry.seeded.size) return folded || EMPTY
+  return new Set([...(folded || EMPTY), ...entry.seeded])
 }
 
 export class MemberViews extends Subsystem {

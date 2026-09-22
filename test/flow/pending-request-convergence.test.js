@@ -71,6 +71,8 @@ test('a deny converges on a co-member and does not resurrect', { timeout: scaled
   await B.until('space:pending-requests', { spaceId: space.spaceId },
     (r) => Array.isArray(r) && r.some((x) => x.publicKey === cKey), { ms: 60000, every: 500 })
 
+  await A.until('space:pending-requests', { spaceId: space.spaceId },
+    (r) => Array.isArray(r) && r.some((x) => x.publicKey === cKey), { ms: 60000, every: 500 })
   const cDenied = C.waitFor('event:membership-denied', (m) => m.spaceId === space.spaceId)
   await A.request('space:deny-member', { spaceId: space.spaceId, publicKey: cKey })
   await cDenied

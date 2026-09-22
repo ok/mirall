@@ -19,9 +19,9 @@ import { getMembershipCaps, isHandshakeIdentityBindingEnabled } from '../../shar
 import { sanitizeAvatar } from '../../shared/contract/identity-limits.js'
 import { reconcileAssertedRoot } from '../../shared/spaces/creator-root.js'
 import { classifyInvite } from '../../shared/spaces/invites.js'
-import { applyLocalApproval, applyLocalDenial, closeMemberView, dropTombstone, forgetPendingJoiner, isApprovedJoiner, isDeniedJoiner, isLeft, openMemberView } from '../../shared/spaces/member-registry.js'
+import { applyLocalApproval, applyLocalDenial, closeMemberView, dropTombstone, isApprovedJoiner, isDeniedJoiner, isLeft, openMemberView } from '../../shared/spaces/member-registry.js'
 import { knockSettledByRecords, knockInviteVerdict } from '../../shared/spaces/knock-policy.js'
-import { captureJoinerMembership, getIdentitySigner, markRequest, markRequestDenied, ownDenialStands, readProfileRecord } from '../../shared/spaces/profile.js'
+import { captureJoinerMembership, getIdentitySigner, hasOwnApproval, markRequest, markRequestDenied, ownDenialStands, readProfileRecord } from '../../shared/spaces/profile.js'
 import { getSpace, getSpaceContentKey } from '../../shared/spaces/space.js'
 import { claimJoinRequestAudit, clearJoinRequest, forgetJoinRequestAudit, listJoinRequests, listPendingRequests, recordJoinRequest, releaseJoinRequestAudit } from '../../shared/spaces/join-requests.js'
 import { clearCreatorDivergence, markCreatorDivergence, pinCreatorKey } from '../../shared/spaces/creator-pin.js'
@@ -362,7 +362,21 @@ async function resolveJoinRequest(space, joinerKey, outcome) {
     broadcastMembershipCancel(spaceId, space.topic, joinerKey)   // co-members drop the banner
   }
   ipc.emit('event:join-requests-updated', { spaceId })
-  return true
+}
+
+// A joiner someone already let in: seed the approval so the fold cannot re-derive the request,
+// and drop it here and now.
+function settleApprovedJoiner(spaceId, joinerKey) {
+  forgetJoinRequestRecord(spaceId, joinerKey)
+  const cleared = clearJoinRequest(spaceId, joinerKey)
+  const forgotten = applyLocalApproval(spaceId, joinerKey)
+  if (cleared || forgotten) ipc.emit('event:join-requests-updated', { spaceId })
+}
+
+// Local facts only: a remote read would stall every genuine approval behind an offline co-member.
+async function isKnownApproved(space, joinerKey) {
+  if ((space.members || []).some((m) => m.publicKey === joinerKey)) return true
+  return isApprovedJoiner(space.spaceId, joinerKey) || await hasOwnApproval(space.spaceId, joinerKey)
 }
 
 // Tear down a space we only ever sat pending in: no own drive, owned/foreign
@@ -413,6 +427,10 @@ export function createMembership(ipcRef, deps) {
     // (pending, or otherwise unauthorized) physically cannot approve anyone — enforced by
     // the sck check inside resolveJoinRequest.
     if (!space || space.status === 'pending') return false
+    if (await isKnownApproved(space, msg.publicKey)) {
+      settleApprovedJoiner(msg.spaceId, msg.publicKey)
+      return false
+    }
     const approved = await resolveJoinRequest(space, msg.publicKey, 'approve')
     if (approved) {
       record('membership.approved', {
@@ -426,14 +444,14 @@ export function createMembership(ipcRef, deps) {
   ipc.handle('space:deny-member', async (msg) => {
     const space = await getSpace(msg.spaceId)
     if (!space || space.status === 'pending') return { outcome: DENY_OUTCOME.NOT_APPLICABLE }
-    // Approval is monotonic: if another member already let them in (they hold the SCK),
-    // a deny can't revoke without key rotation — clear our stale banner and report the no-op.
+    // Approval cannot be revoked (there is no key rotation): a peer another member already let in
+    // keeps the SCK, so clear our stale banner and report the no-op.
     if (await isApprovedMember(msg.spaceId, msg.publicKey)) {
-      clearJoinRequest(msg.spaceId, msg.publicKey)
-      forgetPendingJoiner(msg.spaceId, msg.publicKey)
-      ipc.emit('event:join-requests-updated', { spaceId: msg.spaceId })
+      settleApprovedJoiner(msg.spaceId, msg.publicKey)
       return { outcome: DENY_OUTCOME.ALREADY_APPROVED }
     }
+    // Nothing open to deny: the joiner withdrew, or a co-member's denial already landed.
+    if (!listJoinRequests(msg.spaceId).some((r) => r.publicKey === msg.publicKey)) return { outcome: DENY_OUTCOME.NOT_APPLICABLE }
     await resolveJoinRequest(space, msg.publicKey, 'deny')
     record('membership.denied', {
       actor: selfActor(),

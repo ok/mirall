@@ -299,11 +299,11 @@ export interface SpaceRecord {
   status?: 'pending' | 'approved'
 }
 
-/** `false` when there is no key to grant with; otherwise whether the grant reached the peer. */
+/** `false` when nothing was granted (no key to grant with, or the peer is already approved); otherwise whether the grant reached the peer. */
 export type ApproveMemberResult = false | { granted: true, delivered: boolean }
 
 type DenyOutcome = (typeof DENY_OUTCOMES)[number]
-export type DenyMemberResult = { [O in DenyOutcome]: { outcome: O } }[DenyOutcome]
+export type DenyMemberResult = { outcome: DenyOutcome }
 
 export interface ShareFileListing {
   entries: ShareFileRow[]
