@@ -157,15 +157,16 @@ export async function writeMain(name, value, { payload = value } = {}) {
     }
     return persisted
   } catch (err) {
+    // A superseded write is not the outcome: the newer write or push owns it, so this one resolves
+    // with the value that replaced it rather than reporting a failure nothing on screen reflects.
+    if (entry.seq !== mine) return /** @type {MainQueryValue[K]} */ (entry.data)
     // Roll back to the last value the app actually read, and do NOT record the error on the entry:
     // `error` means "there is no value to show, and here is why" (readError, folderReadError,
     // defaultError). A write failure belongs to the caller — writeMain throws it — and a recorded
     // one would outlive the action, because fetchMain answers a cached entry without clearing it.
-    if (entry.seq === mine) {
-      entry.seq += 1
-      entry.data = previous
-      publish(entry)
-    }
+    entry.seq += 1
+    entry.data = previous
+    publish(entry)
     throw err
   }
 }
