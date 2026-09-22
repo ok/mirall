@@ -19,6 +19,8 @@ import { presence, setPresenceExpireHandler } from './presence-leases.js'
 import { sendSingleHandshake } from './identity-frames.js'
 import { resolveSpaceIdForTopic } from './presence-broadcast.js'
 import { scheduleStatusEmit } from './network-status.js'
+import { memberWaits } from './share-wait.js'
+import { clearWaitingFor } from '../transfer/serve-ledger.js'
 import {
   connectedPeers, socketToPeers, socketMsgHandlers, pendingRequesters, announceLedger,
   forgetBoundSignerKey,
@@ -232,10 +234,14 @@ export async function handleHandshake(socket, peerInfo, msg) {
     ipc.emit('event:join-requests-updated', { spaceId })
   }
 
+  memberWaits.ownerReconnected(personKey)
   onOwnerReconnect(personKey, spaceId)   // resume overlay downloads (loose + folder) owned by this peer (fn swallows its own errors)
   notifyPeerOnline(personKey, spaceId)
 
   replyReciprocalHandshake(socket, spaceId, msg, isNewToSpace)
+  // After our handshake, so a peer that has already admitted us reads it; one that has not yet is
+  // covered by ownerReconnected above.
+  memberWaits.resend(personKey)
 
   try {
     await persistHandshakeMember(spaceId, space, msg, existingMember)
@@ -265,6 +271,7 @@ export async function handleHandshake(socket, peerInfo, msg) {
 // sealed to a key the peer no longer holds.
 export function forgetPeer(personKey) {
   presence.clear(personKey)
+  clearWaitingFor(personKey)
   connectedPeers.delete(personKey)
   forgetBoundSignerKey(personKey)
 }

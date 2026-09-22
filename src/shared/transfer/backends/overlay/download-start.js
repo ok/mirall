@@ -8,6 +8,7 @@ import { fetchClaimedBy } from './fetch-gate.js'
 import { abandonReason, ABANDON } from './settle-verdict.js'
 import { preflightFault } from './download-faults.js'
 import { CODES } from '../../../contract/errors.js'
+import { memberWaits } from '../../../network/share-wait.js'
 
 // A download's slot IS its registry entry: start() reserves it before any await, so a duplicate
 // trigger cannot open a second fetch on the same hash; the fetch task holds it; settling deletes
@@ -43,6 +44,7 @@ export function createStart({
   async function start(job) {
     if (!hasOverlay() || !job.contentHash) return { queued: true }
     const { transferId } = job
+    memberWaits.resolve(transferId)
     pausedHashes.supersede(transferId)
     const existing = registry.get(transferId)
     if (existing) return { transferId, finalPath: existing.finalPath }

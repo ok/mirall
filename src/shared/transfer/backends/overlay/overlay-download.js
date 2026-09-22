@@ -27,6 +27,7 @@ import { freeBytesFor } from '../../free-space-probe.js'
 import { createStart } from './download-start.js'
 import { createFetchSettle } from './fetch-settle.js'
 import { createReconcile } from './reconcile-scan.js'
+import { memberWaits } from '../../../network/share-wait.js'
 
 const log = createLogger('overlay-download')
 
@@ -205,10 +206,8 @@ export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentT
   function pause(transferId) {
     const slot = registry.get(transferId)
     retries.cancel(transferId)
-    if (!slot) {
-      pausedHashes.remember(transferId, null)
-      return true
-    }
+    memberWaits.cancel(transferId)
+    if (!slot) { pausedHashes.remember(transferId, null); return true }
     slot.paused = true
     pausedHashes.remember(transferId, slot.contentHash) // so a later discard can signal STOPPED
     abortFetch(slot, { discardPartial: false })
@@ -227,6 +226,7 @@ export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentT
   // fetch task to honor `cancelled`) and on a paused/restart-orphaned row (no slot; partial
   // resolved from the pending finalPath).
   async function cancelByKey(spaceId, pendingKey, transferId) {
+    memberWaits.cancel(transferId)
     const slot = registry.get(transferId)
     const pending = await getPendingFor(spaceId, pendingKey)
     if (slot) {
@@ -258,7 +258,7 @@ export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentT
   // Stop + discard a transfer addressed by its id alone. A live slot carries the spaceId +
   // pending key; with none the fetch already settled, so resolve them from the pending ROW — the
   // id names the row but cannot rebuild a folder pendingKey, which embeds the share NAME the id
-  // does not carry. false only when neither a slot nor a row exists.
+  // does not carry. A folder click on an unhashed file leaves only a wait; false when none exist.
   async function cancel(transferId) {
     const slot = registry.get(transferId)
     if (slot) {
@@ -273,7 +273,7 @@ export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentT
       await cancelByKey(spaceId, row.filePath, transferId)
       return true
     }
-    return false
+    return memberWaits.cancel(transferId)
   }
 
   // The source file changed under an in-flight transfer. Abort the stale fetch + discard the

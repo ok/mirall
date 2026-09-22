@@ -14,6 +14,8 @@ import { createLogger } from '../../../core/logger.js'
 import { getPendingFor } from '../../pending-transfers.js'
 import { reuseDest } from '../../download-dest.js'
 import { transferIdFor } from '../../transfer-id.js'
+import { memberWaits } from '../../../network/share-wait.js'
+import { SHARE_WAIT_SOURCE } from '../../share-wait-set.js'
 import { getOverlay } from './overlay-instance.js'
 import { createOverlayChannel } from './overlay-channel.js'
 import { folderJob } from './folder-job.js'
@@ -94,7 +96,7 @@ async function resolveFolderPendingRow(spaceId, row) {
   if (!readable) return { removed: false, seq: undefined, job: null }
   const state = await getPeerEntryState(keyHex, row.shareId, row.relPath, { sck })
   if (state?.removed) return { removed: true, seq: undefined, job: null }
-  if (!state?.contentHash) return { removed: false, seq: state?.seq, job: null }
+  if (!state?.contentHash) return { removed: false, seq: state?.seq, job: null, awaitingHash: !!state }
   // Re-anchor to the space's CURRENT download folder: a row pinned before the user re-pointed the
   // space would otherwise resume into the old one.
   const finalPath = reuseDest(row.finalPath, getDownloadDir(spaceId), path.basename(row.relPath))
@@ -141,7 +143,10 @@ export async function folderRequestDownload(spaceId, share, relPath) {
   const { keyHex, sck, encrypted, readable } = await resolvePeerCatalog(spaceId, share)
   if (!readable) return { queued: true }
   const entry = await getPeerEntry(keyHex, share.id, relPath, { sck })
-  if (!entry?.contentHash) return { queued: true }
+  if (!entry?.contentHash) {
+    if (entry) memberWaits.wait(share.owner, transferIdFor(spaceId, share.id, relPath), SHARE_WAIT_SOURCE.CLICK)
+    return { queued: true }
+  }
   const drivePath = '/' + share.name + '/' + relPath
   const prev = await getPendingFor(spaceId, drivePath)
   const finalPath = reuseDest(prev?.finalPath, getDownloadDir(spaceId), path.basename(relPath))

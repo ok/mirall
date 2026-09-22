@@ -11,6 +11,7 @@ import { forgetSpaceConvergence } from './convergence-tick.js'
 import { sendSingleHandshake } from './identity-frames.js'
 import { forgetPeer } from './handshake-apply.js'
 import { connectedPeers, spaceTopics, spaceDiscoveries, socketMsgHandlers, detachPeerFromSpace } from './swarm-registries.js'
+import { memberWaits } from './share-wait.js'
 
 const log = createLogger('space-topics')
 
@@ -114,6 +115,7 @@ function destroyControlPeerSockets() {
 
 // Detach every connected peer from this space; a peer left in no spaces has its socket dropped.
 function disconnectPeersFromSpace(spaceId) {
+  memberWaits.forget({ spaceId })
   for (const [key, peer] of connectedPeers) {
     if (!peer.spaces.has(spaceId)) continue
     if (!detachPeerFromSpace(peer, spaceId)) continue

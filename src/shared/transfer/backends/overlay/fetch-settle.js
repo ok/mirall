@@ -18,6 +18,8 @@ import { CODES } from '../../../contract/errors.js'
 import { markDownloaded, markVerified } from '../../files.js'
 import { clearPending, updatePendingProgress } from '../../pending-transfers.js'
 import { recordTransferOutcome } from '../../../audit/transfer-audit.js'
+import { memberWaits } from '../../../network/share-wait.js'
+import { SHARE_WAIT_SOURCE } from '../../share-wait-set.js'
 
 export function createFetchSettle({
   registry, terminalCodes, retries, channel, log,
@@ -107,9 +109,11 @@ export function createFetchSettle({
 
   // The republish park's release: drop every trace of the OLD content (partial, journal, a
   // finalPath the fetch may have completed before the abort) but keep the pending ROW, so status
-  // derives 'preparing' and the materialized-hash append restarts it.
+  // derives 'preparing' and the materialized-hash append restarts it. The owner is re-hashing, so
+  // from here we are waiting on it.
   function releasePark(transferId, slot) {
     registry.delete(transferId)
+    memberWaits.wait(slot.ownerKey, transferId, SHARE_WAIT_SOURCE.ROW)
     discardPartial(slot.finalPath)
     try { fs.unlinkSync(slot.finalPath) } catch {}
     updatePendingProgress(slot.spaceId, slot.pendingKey, 0).catch(() => {})

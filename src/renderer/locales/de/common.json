@@ -328,6 +328,12 @@
     "paused": "Pausiert",
     "downloadersPaused_one": "{{count}} pausiert",
     "downloadersPaused_other": "{{count}} pausiert",
+    "waitingCount_one": "{{count}} wartet",
+    "waitingCount_other": "{{count}} warten",
+    "waitingFor": "Warten auf diese Datei: {{names}}",
+    "waitersList": "Personen, die auf diese Datei warten",
+    "waitersAndDownloadersList": "Personen, die auf diese Datei warten oder sie herunterladen",
+    "waitingForIndexing": "Wartet auf Indexierung",
     "rowStatusLabel": "{{name}}: {{status}}"
   },
   "spaceCard": {

@@ -14,6 +14,8 @@ import { recordPending, clearPending, listPendingForSpace } from '../../pending-
 import { republishDecision } from '../../supersede-decision.js'
 import { isTerminalFault } from './fetch-policy.js'
 import { makeSingleFlightScan } from './single-flight-scan.js'
+import { memberWaits } from '../../../network/share-wait.js'
+import { SHARE_WAIT_SOURCE } from '../../share-wait-set.js'
 
 export function createReconcile({ registry, pausedHashes, terminalCodes, retries, channel, log, hasOverlay, start, cancelByKey, discardPartial, faultCleared }) {
   async function runReconcile(ownerKey, spaceId, deep) {
@@ -35,17 +37,20 @@ export function createReconcile({ registry, pausedHashes, terminalCodes, retries
   // fetching a file we already have — and before the catalog read, which is the expensive step.
   async function clearIfLanded(spaceId, row) {
     if (!await isDownloadedWithHash(spaceId, row.filePath, row.contentHash)) return false
+    memberWaits.resolve(channel.transferIdForRow(spaceId, row))
     await clearPending(spaceId, row.filePath).catch((err) => log.warn('could not clear a stale pending row:', row.filePath, '-', err.message))
     return true
   }
 
   async function reconcileRow(spaceId, row, transferId, suppressed) {
-    const { removed, seq, job } = await channel.resolvePendingRow(spaceId, row)
+    const { removed, seq, job, awaitingHash } = await channel.resolvePendingRow(spaceId, row)
     const decision = republishDecision(row.contentHash, { removed, seq, contentHash: job?.contentHash ?? null }, row.sourceSeq)
     if (decision === 'drop') {
       await dropRemoved(spaceId, row.filePath, transferId).catch((err) => log.warn('overlay drop-removed failed:', row.filePath, '-', err.message))
       return
     }
+    // The owner is still hashing. A paused or terminal row is not waiting for anything.
+    if (awaitingHash && !suppressed) memberWaits.wait(row.ownerKey, transferId, SHARE_WAIT_SOURCE.ROW)
     // Mid-rehash: setMaterializedHash is a second append that re-runs this scan with the real hash.
     if (decision === 'pending') return
     if (decision === 'restart') { await restartOnRepublished(spaceId, row, job, transferId); return }

@@ -110,14 +110,14 @@ function ShareFileRow({ file, decoration, seeded, isOwn, manualControls, spaceId
     ? t('status.publishing')
     : file.status === 'preparing' ? t('file.preparing') : t('file.syncing')
 
-  // The dropdown is gated on the same indicator condition as the lane, so it can't orphan when a
+  // The dropdown is gated on the lane's own peer-list condition, so it can't orphan when a
   // competing progress branch wins.
   const [showDownloaders, setShowDownloaders] = useState(false)
   const reactId = useId()
   const dropdownId = `peer-downloads-${reactId}`
   useEffect(() => {
-    if (!view.indicatorActive) setShowDownloaders(false)
-  }, [view.indicatorActive])
+    if (!view.peerListActive) setShowDownloaders(false)
+  }, [view.peerListActive])
 
   return (
     <div className="group @container/row bg-surface-container-lowest dark:bg-surface-container-low hover:bg-surface-container-highest dark:hover:bg-surface-container-highest rounded-xl transition-colors">
@@ -161,7 +161,7 @@ function ShareFileRow({ file, decoration, seeded, isOwn, manualControls, spaceId
           />
         </div>
       </div>
-      {view.indicatorActive && showDownloaders && downloadSummary && (
+      {view.peerListActive && showDownloaders && downloadSummary && (
         <div className="pb-2">
           <PeerDownloadDropdown
             id={dropdownId}

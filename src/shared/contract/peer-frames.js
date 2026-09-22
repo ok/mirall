@@ -12,6 +12,8 @@
 //   presence                liveness — both the heartbeat and the offline farewell.
 //   share-index-progress    an owner's index progress for one share.
 //   share-prepare-progress  an owner's prepare progress for one share.
+//   share-wait              a member→owner notice that it is waiting on a file the owner is still
+//                           hashing: { spaceId, shareId, relPath, cancel? }.
 //   leave                   a member announcing it has left the space.
 //   leave-ack               the receipt that lets the leaver stop announcing.
 //
@@ -30,6 +32,7 @@ export const PEER_FRAME = Object.freeze({
   MEMBERSHIP_CANCEL_ACK: 'membership:cancel-ack',
   SHARE_INDEX_PROGRESS: 'share-index-progress',
   SHARE_PREPARE_PROGRESS: 'share-prepare-progress',
+  SHARE_WAIT: 'share-wait',
 })
 
 /** @internal the no-raw-literal guard's list */

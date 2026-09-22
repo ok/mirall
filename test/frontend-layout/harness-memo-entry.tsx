@@ -118,7 +118,7 @@ function Harness() {
   window.__setSummary = useCallback((relPath: string) => {
     setSummaries((prev) => {
       const next = new Map(prev)
-      next.set(relPath, { spaceId: 's', path: relPath, personKeys: ['peer'], pausedKeys: [], bytes: 512, total: 1024, avgSpeed: 100 })
+      next.set(relPath, { spaceId: 's', path: relPath, personKeys: ['peer'], pausedKeys: [], waitingKeys: [], bytes: 512, total: 1024, avgSpeed: 100 })
       return next
     })
   }, [])

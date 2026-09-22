@@ -39,6 +39,7 @@ export function usePeerDownloadDetail(spaceId: string, path: string): PeerDownlo
         total: p.total,
         avgSpeed: speed.observe(p.personKey, now, p.bytes),
         paused: !!p.paused,
+        waiting: !!p.waiting,
       })))
     }
 

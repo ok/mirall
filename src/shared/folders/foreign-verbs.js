@@ -12,6 +12,8 @@ import { forgetMirrorFetch } from './mirror-fetch.js'
 import { initialMaterializeScan, runMaterializeTick } from './mirror-pass.js'
 import { recordMirrorScanFault } from './foreign-pause.js'
 import { mirrorKey } from './mirror-policy.js'
+import { memberWaits } from '../network/share-wait.js'
+import { SHARE_WAIT_SOURCE } from '../transfer/share-wait-set.js'
 
 const log = createLogger('foreign-verbs')
 
@@ -48,6 +50,7 @@ export function requestMirrorWalk(spaceId, shareId) {
 
 export function stopForeignLoop(spaceId, shareId, { discardPartial = false } = {}) {
   loops.stop(mirrorKey(spaceId, shareId), { discardPartial })
+  memberWaits.cancelShare(spaceId, shareId, SHARE_WAIT_SOURCE.MIRROR)
 }
 
 // Unmount and relocate both come through here: the caches are keyed by the mount path in effect

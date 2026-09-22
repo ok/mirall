@@ -10,6 +10,7 @@ import { record } from '../audit/audit-log.js'
 import { createSessionStore, sessionKey } from './serve-sessions.js'
 import { getConnectedMemberMeta } from '../network/swarm-registries.js'
 import { LOOSE_SHARE_ID } from './transfer-id.js'
+import { SHARE_WAIT_PER_OWNER } from './share-wait-set.js'
 import { getSpace } from '../spaces/space.js'
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
@@ -25,6 +26,7 @@ const LEDGER_SEP = String.fromCharCode(0)
 const SUMMARY_THROTTLE_MS = 750
 const DETAIL_THROTTLE_MS = 250
 const IDLE_SWEEP_MS = 10000
+// Also the waiter TTL: a member re-announces a wait well inside it (SHARE_WAIT_RESEND_MS).
 const IDLE_DROP_MS = 30000
 // Backstop for a paused row whose peer vanished without a clean onclose. Far longer
 // than IDLE_DROP_MS (a deliberate pause should stay visible) but bounded, so a dead
@@ -40,7 +42,14 @@ const DETAIL_SUB_QUIET_MS = 300000
 
 // `bytes` is DISPLAY-progress = max(bytes we served, the downloader's reported have) — a
 // hybrid of observed serves and a downloader-asserted floor, NOT pure upload accounting.
-const downloads = new Map()     // fileKey → { spaceId, path, peers: Map<profileKey, { bytes, total, lastTs, paused }> }
+// A `waiting` entry is a member waiting on a file we are still hashing (share-wait): it holds no
+// bytes, is left out of every sum and of hasRecentServe, and becomes a serving entry when its
+// serve starts.
+// Every entry records the share it was made for: a folder row is keyed by its bare relPath, so two
+// shares carrying the same path share one key, and a waiter must never displace the other share's
+// serve.
+const downloads = new Map()     // fileKey → { spaceId, path, peers: Map<profileKey, { bytes, total, lastTs, paused, shareId, waiting? }> }
+const waitingByPeer = new Map() // profileKey → how many waiting entries it holds
 // fileKey → { clients: Map<clientId, n>, spaceId, path } — identity kept so the sweep can push an
 // authoritative (possibly empty) snapshot. Two properties, both needed: refcounted WITHIN a client,
 // because two open surfaces on one row must not kill each other's stream; partitioned ACROSS
@@ -59,6 +68,27 @@ const pendingBaselines = new Map() // contentHash\0from → have (resume baselin
 let idleTimer = null
 
 function fileKey(spaceId, path) { return spaceId + LEDGER_SEP + path }
+
+function countWaiting(from, delta) {
+  const n = (waitingByPeer.get(from) || 0) + delta
+  if (n > 0) waitingByPeer.set(from, n)
+  else waitingByPeer.delete(from)
+}
+
+// The two ways an entry changes, so the per-peer waiting count cannot drift from the rows.
+function putPeer(d, from, entry) {
+  if (d.peers.get(from)?.waiting) countWaiting(from, -1)
+  if (entry.waiting) countWaiting(from, 1)
+  d.peers.set(from, entry)
+}
+
+function removePeer(d, from) {
+  const prev = d.peers.get(from)
+  if (!prev) return false
+  if (prev.waiting) countWaiting(from, -1)
+  d.peers.delete(from)
+  return true
+}
 function pcKey(contentHash, from) { return contentHash + LEDGER_SEP + from }
 function rendererPath(shareId, relPath) { return shareId === LOOSE_SHARE_ID ? '/' + relPath : relPath }
 function baseName(relPath) {
@@ -82,7 +112,7 @@ function forEachServeEntry(contentHash, from, fn) {
   for (const key of keys) {
     const d = downloads.get(key)
     const entry = d?.peers.get(from)
-    if (!entry) continue
+    if (!entry || entry.waiting) continue
     fn(entry, key, now)
   }
 }
@@ -148,7 +178,7 @@ export function onServeStart({ from, contentHash, total }) {
     // resume re-fetches only the missing chunks — keep bytes below total forever.
     const prev = d.peers.get(from)
     // paused:false — resume re-issues the content-request and lands here, clearing the flag.
-    d.peers.set(from, { bytes: prev?.bytes ?? 0, total: total || prev?.total || 0, lastTs: Date.now(), paused: false })
+    putPeer(d, from, { bytes: prev?.bytes ?? 0, total: total || prev?.total || 0, lastTs: Date.now(), paused: false, shareId })
     // A fresh serve wakes a dormant detail subscription (see runIdleSweep) so an open
     // dropdown that sat quiet past the window starts streaming again without a reopen.
     const sub = detailSubs.get(key)
@@ -270,17 +300,53 @@ export function onServeEnd({ from, contentHash }) {
   pendingBaselines.delete(pcKey(contentHash, from))
   const keys = hashKeys.get(contentHash)
   if (!keys) return
-  for (const key of keys) dropPeer(key, from)
+  // A waiter is not part of this serve: it waits on content newer than this hash.
+  for (const key of keys) if (!downloads.get(key)?.peers.get(from)?.waiting) dropPeer(key, from)
   // Forget the cache once no row for this hash has a downloader left (the
   // completion path leaves a benign stale entry that the next serve overwrites).
   if (keys.every((key) => !downloads.has(key))) hashKeys.delete(contentHash)
 }
 
+// A member is waiting on a file we are still hashing. Only the share-wait intake calls this, after
+// it has proven the file is ours and unhashed — so this peer's serving entry for the same share
+// belongs to content other than what the path advertises now, and the wait replaces it. A serving
+// entry of another share under the same key is left alone ('busy'); 'capped' at the peer's cap.
+export function markWaiting({ spaceId, shareId, relPath, from }) {
+  if (!from) return 'capped'
+  const path = rendererPath(shareId, relPath)
+  const key = fileKey(spaceId, path)
+  let d = downloads.get(key)
+  const prev = d?.peers.get(from)
+  if (prev && !prev.waiting && prev.shareId !== shareId) return 'busy'
+  if (!prev?.waiting && (waitingByPeer.get(from) || 0) >= SHARE_WAIT_PER_OWNER) return 'capped'
+  if (!d) downloads.set(key, (d = { spaceId, path, peers: new Map() }))
+  putPeer(d, from, { bytes: 0, total: 0, lastTs: Date.now(), paused: false, shareId, waiting: true })
+  const sub = detailSubs.get(key)
+  if (sub) sub.quietSince = 0
+  emitBoth(key, !prev?.waiting)
+  scheduleIdleSweep()
+  return 'marked'
+}
+
+export function clearWaiting({ spaceId, shareId, relPath, from }) {
+  const key = fileKey(spaceId, rendererPath(shareId, relPath))
+  const e = downloads.get(key)?.peers.get(from)
+  if (e?.waiting && e.shareId === shareId) dropPeer(key, from)
+}
+
+// The member left the space (spaceId) or disconnected (every space): it is waiting on nothing here.
+export function clearWaitingFor(from, spaceId = null) {
+  if (!waitingByPeer.has(from)) return
+  for (const [key, d] of [...downloads]) {
+    if ((spaceId == null || d.spaceId === spaceId) && d.peers.get(from)?.waiting) dropPeer(key, from)
+  }
+}
+
 function dropPeer(key, from) {
   const d = downloads.get(key)
-  if (!d || !d.peers.delete(from)) return
+  if (!d || !removePeer(d, from)) return
   if (d.peers.size === 0) {
-    ipcRef?.emit('event:awareness', { channel: 'serving', spaceId: d.spaceId, path: d.path, peers: [], bytes: 0, total: 0, pausedKeys: [] })
+    ipcRef?.emit('event:awareness', { channel: 'serving', spaceId: d.spaceId, path: d.path, peers: [], bytes: 0, total: 0, pausedKeys: [], waitingKeys: [] })
     emitDetailFrame(key, d.spaceId, d.path, [])
     downloads.delete(key)
     lastSummaryAt.delete(key)
@@ -301,13 +367,21 @@ function emitSummary(key, force, now = Date.now()) {
 // bytes/total are aggregate SUMS across the downloaders (so bytes/total is the
 // average progress for the collapsed bar) — NOT a single file's size. With N
 // downloaders of an F-byte file, total ≈ N·F; never read it as the file size.
+// `peers` names the downloaders only; a waiter is in `waitingKeys` and nowhere else.
 function summaryPayload(d) {
   let bytes = 0
   let total = 0
   const peers = []
   const pausedKeys = []
-  for (const [profileKey, e] of d.peers) { peers.push(profileKey); bytes += e.bytes; total += e.total; if (e.paused) pausedKeys.push(profileKey) }
-  return { spaceId: d.spaceId, path: d.path, peers, bytes, total, pausedKeys }
+  const waitingKeys = []
+  for (const [profileKey, e] of d.peers) {
+    if (e.waiting) { waitingKeys.push(profileKey); continue }
+    peers.push(profileKey)
+    bytes += e.bytes
+    total += e.total
+    if (e.paused) pausedKeys.push(profileKey)
+  }
+  return { spaceId: d.spaceId, path: d.path, peers, bytes, total, pausedKeys, waitingKeys }
 }
 
 // Is any peer receiving bytes from us right now? A paused entry is not: the question is asked
@@ -315,7 +389,7 @@ function summaryPayload(d) {
 export function hasRecentServe({ now = Date.now(), quietMs = 0 } = {}) {
   for (const d of downloads.values()) {
     for (const e of d.peers.values()) {
-      if (!e.paused && now - e.lastTs < quietMs) return true
+      if (!e.paused && !e.waiting && now - e.lastTs < quietMs) return true
     }
   }
   return false
@@ -355,7 +429,7 @@ function serveSnapshot(key) {
   const d = downloads.get(key)
   if (!d) return { peers: [] }
   const peers = []
-  for (const [profileKey, e] of d.peers) peers.push({ personKey: profileKey, bytes: e.bytes, total: e.total, paused: !!e.paused })
+  for (const [profileKey, e] of d.peers) peers.push({ personKey: profileKey, bytes: e.bytes, total: e.total, paused: !!e.paused, waiting: !!e.waiting })
   return { peers }
 }
 
@@ -472,6 +546,7 @@ function resetServeLedger() {
   serveSessions.clear()
   if (idleTimer) { current?.timers.clear(idleTimer); idleTimer = null }
   downloads.clear()
+  waitingByPeer.clear()
   detailSubs.clear()
   lastSummaryAt.clear()
   lastDetailAt.clear()

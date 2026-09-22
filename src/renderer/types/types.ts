@@ -11,6 +11,8 @@ export interface PeerDownloadSummary {
   path: string
   personKeys: PersonKey[]
   pausedKeys: PersonKey[]
+  // Members waiting on a file we are still hashing. Never in personKeys, never in the sums.
+  waitingKeys: PersonKey[]
   // bytes/total are aggregate SUMS across the downloaders (bytes/total = average
   // progress for the collapsed bar) — NOT a single file's size: with N downloaders
   // of an F-byte file, total ≈ N·F.
@@ -25,6 +27,7 @@ export interface PeerDownloadPeer {
   total: number
   avgSpeed: number
   paused: boolean
+  waiting: boolean
 }
 
 export type BadgeStatus = (typeof BADGE_STATUSES)[number]
