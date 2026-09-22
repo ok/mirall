@@ -22,7 +22,7 @@ import { applyLocalApproval, applyLocalDenial, closeMemberView, dropTombstone, i
 import { knockSettledByRecords, knockInviteVerdict } from '../../shared/spaces/knock-policy.js'
 import { captureJoinerMembership, getIdentitySigner, markRequest, markRequestDenied, ownDenialStands, readProfileRecord } from '../../shared/spaces/profile.js'
 import { getSpace, getSpaceContentKey } from '../../shared/spaces/space.js'
-import { clearJoinRequest, listJoinRequests, listPendingRequests, recordJoinRequest } from '../../shared/spaces/join-requests.js'
+import { claimJoinRequestAudit, clearJoinRequest, forgetJoinRequestAudit, listJoinRequests, listPendingRequests, recordJoinRequest, releaseJoinRequestAudit } from '../../shared/spaces/join-requests.js'
 import { clearCreatorDivergence, markCreatorDivergence, pinCreatorKey } from '../../shared/spaces/creator-pin.js'
 import { materializeOwnDrive, recordApproval } from '../../shared/spaces/space-lifecycle.js'
 import { purgeSpace } from '../../shared/spaces/leave-records.js'
@@ -177,16 +177,11 @@ async function onJoinRequest(msg) {
 
 // A knock reaches us two ways — the live membership:request frame, and the replicated fold when a
 // co-member heard it first — and either can arrive first. Both record through here so the row
-// appears regardless of path, and appears once. Cleared when the request resolves, so a later
-// re-knock after a denial is recorded again, and when the row was not admitted, so the next knock
-// retries it.
-const recordedJoinRequests = new Set()
-const joinRequestKey = (spaceId, publicKey) => spaceId + '|' + publicKey
-
+// appears regardless of path, and appears once. The claim is taken before the read so concurrent
+// knocks record once, and given back only for a lost row, which the next knock then retries.
 function auditJoinRequest(spaceId, publicKey, displayName) {
-  const key = joinRequestKey(spaceId, publicKey)
-  if (recordedJoinRequests.has(key)) return
-  recordedJoinRequests.add(key)
+  const claim = claimJoinRequestAudit(spaceId, publicKey)
+  if (!claim) return
   recordResolved('membership.requested', async () => {
     const space = await getSpace(spaceId)
     return {
@@ -195,12 +190,8 @@ function auditJoinRequest(spaceId, publicKey, displayName) {
       target: targetRef(TARGET_KIND.MEMBER, publicKey, displayName || null),
     }
   }, { context: { space: spaceId.slice(0, 12) } }).then((outcome) => {
-    if (outcome === RESOLVE_OUTCOME.LOST) recordedJoinRequests.delete(key)
+    if (outcome === RESOLVE_OUTCOME.LOST) releaseJoinRequestAudit(claim)
   })
-}
-
-function forgetJoinRequestRecord(spaceId, publicKey) {
-  recordedJoinRequests.delete(joinRequestKey(spaceId, publicKey))
 }
 
 // The bound ed25519 signer key of a currently-connected peer, as a buffer, to seal its SCK grant.
@@ -323,7 +314,7 @@ async function onDeny(msg) {
 async function resolveJoinRequest(space, joinerKey, outcome) {
   // The knock is settled; forget it so a genuine later re-knock (e.g. after a denial) records
   // again rather than being swallowed by the first one's dedupe.
-  forgetJoinRequestRecord(space.spaceId, joinerKey)
+  forgetJoinRequestAudit(space.spaceId, joinerKey)
   const spaceId = space.spaceId
   if (outcome === 'approve') {
     // A confirmed creator-root conflict disputes the roster's trust anchor — handing out the

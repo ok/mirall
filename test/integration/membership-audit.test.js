@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { freshPeer } from '../helpers/store.js'
+import { freshDurable, freshPeer } from '../helpers/store.js'
 import { until } from '../helpers/bare-poll.js'
 import { flushAudit, record, setAuditConfig } from '../../src/shared/audit/audit-log.js'
 import { purgeAudit } from '../../src/shared/audit/audit-reclaim.js'
@@ -30,13 +30,13 @@ test('a member we did not approve joining the roster is recorded once', async (t
 const quiet = { debug() {}, info() {}, warn() {}, error() {} }
 
 async function knockingPeer(t, name) {
-  const { fake } = await freshPeer(t)
+  const peer = await freshPeer(t)
   const space = await createSpace(name)
-  const membership = createMembership(fake.ipc, { log: quiet, dropSpaceDownloadRoot: () => {} })
+  const membership = createMembership(peer.fake.ipc, { log: quiet, dropSpaceDownloadRoot: () => {} })
   const knock = () => membership.handleMembershipControl({
     type: PEER_FRAME.MEMBERSHIP_REQUEST, spaceTopic: space.topic, profileKey: PEER, displayName: 'Ben',
   }, {})
-  return { spaceId: space.spaceId, knock, ...membership }
+  return { peer, spaceId: space.spaceId, knock, ...membership }
 }
 
 const requested = () => rowsOf('membership.requested')
@@ -88,4 +88,43 @@ test('a join-request row the rate guard refused is not retried', async (t) => {
   await purgeAudit()
   await knock()
   t.absent(await until(async () => (await requested()).length > 0, 1000), 'the refused row stays refused')
+})
+
+// A request resolved and re-made while the first row was still being read belongs to the new knock:
+// the first read failing late must not release it, or the knock after would record a second row.
+test('a lost row released late does not clear a newer knock\'s claim', async (t) => {
+  const { peer, spaceId, memberRegistry } = await knockingPeer(t, 'Overlap')
+  tagged(t, '[audit]', { levels: ['warn'] })
+  const bee = spacesMeta()
+  const get = bee.get
+  let failRead
+  bee.get = () => {
+    bee.get = get
+    return new Promise((resolve, reject) => { failRead = () => reject(new Error('spaces bee closed')) })
+  }
+  t.teardown(() => { bee.get = get })
+
+  memberRegistry.emitJoinRequest(spaceId, { publicKey: PEER, displayName: 'Ben' })
+  t.ok(await until(() => !!failRead, 1000), 'precondition: the first row is reading')
+  await peer.fake.call('space:deny-member', { spaceId, publicKey: PEER })
+  memberRegistry.emitJoinRequest(spaceId, { publicKey: PEER, displayName: 'Ben' })
+  t.ok(await until(async () => (await requested()).length === 1, 3000), 'the re-made request is recorded')
+
+  failRead()
+  await new Promise((resolve) => setImmediate(resolve))
+  memberRegistry.emitJoinRequest(spaceId, { publicKey: PEER, displayName: 'Ben' })
+  t.absent(await until(async () => (await requested()).length > 1, 1000), 'and recorded once')
+})
+
+// The seen-set is this session's: a stop that left it behind would swallow the row of a request
+// re-made after an in-process restart.
+test('a restart does not carry the recorded join requests over', async (t) => {
+  const { peer, spaceId, memberRegistry } = await knockingPeer(t, 'Restart')
+  memberRegistry.emitJoinRequest(spaceId, { publicKey: PEER, displayName: 'Ben' })
+  t.ok(await until(async () => (await requested()).length === 1, 3000), 'precondition: the first session recorded it')
+  await peer.root.close()
+
+  await freshDurable(t, { storage: peer.storage, displayName: null, masterSecret: peer.masterSecret })
+  memberRegistry.emitJoinRequest(spaceId, { publicKey: PEER, displayName: 'Ben' })
+  t.ok(await until(async () => (await requested()).length === 2, 3000), 'the next session records it again')
 })
