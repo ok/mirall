@@ -8,7 +8,6 @@ import { isOverlayEnabled, isInPlaceFilesEnabled } from '../../../core/runtime-c
 import { createOverlayDownloadEngine } from './overlay-download.js'
 import { resetFetchSlots, drainFetchSlots } from './fetch-gate.js'
 import { registerFetchOwner, resetFetchClaims } from './fetch-gate.js'
-import { drainTransferAudit } from '../../../audit/transfer-audit.js'
 import { initOverlay, teardownOverlay, attachOverlay, revokeServesForSpace, bumpServeEpoch } from './overlay-instance.js'
 import { serveIndex } from './overlay-serve-index.js'
 import { rehydrateOwnedFiles, resetOverlayMaintenance } from './overlay-maintenance.js'
@@ -91,10 +90,6 @@ export class OverlayBackend extends Subsystem {
     // by now, ForeignMirrors having already released its own waiters when it closed ahead of us.
     drainFetchSlots()
     await teardownOverlay()
-    // After the teardown, which settles the in-flight fetches that produce these rows, and before
-    // the durable tier closes the audit bee: boot.js starts the audit log in `durable` and this
-    // subsystem in `life`, so `life` is always torn down first.
-    await drainTransferAudit()
     this.overlay = null
     setFolderEngine(null)
     setLooseEngine(null)

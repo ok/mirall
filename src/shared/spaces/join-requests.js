@@ -72,8 +72,32 @@ export function clearJoinRequest(spaceId, profileKey) {
   return pendingRequests.get(spaceId)?.delete(profileKey) || false
 }
 
+// The requests whose `membership.requested` row is recorded or being read, each held by the claim
+// of the call that took it, so a late release from a superseded call cannot free a newer knock's.
+const auditClaims = new Map()
+const claimKey = (spaceId, profileKey) => spaceId + '|' + profileKey
+
+// A claim to record this request's row, or null when one is already recorded or in flight.
+export function claimJoinRequestAudit(spaceId, profileKey) {
+  const key = claimKey(spaceId, profileKey)
+  if (auditClaims.has(key)) return null
+  const claim = { key }
+  auditClaims.set(key, claim)
+  return claim
+}
+
+export function releaseJoinRequestAudit(claim) {
+  if (auditClaims.get(claim.key) === claim) auditClaims.delete(claim.key)
+}
+
+// The request is settled, so a later re-knock is a new request and records again.
+export function forgetJoinRequestAudit(spaceId, profileKey) {
+  auditClaims.delete(claimKey(spaceId, profileKey))
+}
+
 // Cleared with the bee that outlived them: a request is live state, not a record.
 export function resetJoinRequests() {
   pendingRequests.clear()
   derivedRequests.clear()
+  auditClaims.clear()
 }

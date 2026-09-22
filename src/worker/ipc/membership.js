@@ -8,8 +8,8 @@
 // Binding them here rather than closing over them keeps every handler at module scope, where its
 // own size is visible.
 
-import { record } from '../../shared/audit/audit-log.js'
-import { peerActor, selfActor, systemActor, targetRef } from '../../shared/audit/audit-record.js'
+import { RESOLVE_OUTCOME, record, recordResolved } from '../../shared/audit/audit-log.js'
+import { peerActor, selfActor, spaceRef, systemActor, targetRef } from '../../shared/audit/audit-record.js'
 import { OUTCOME, TARGET_KIND } from '../../shared/contract/audit-kinds.js'
 import { CODES } from '../../shared/contract/errors.js'
 import { PEER_FRAME } from '../../shared/contract/peer-frames.js'
@@ -22,7 +22,7 @@ import { applyLocalApproval, applyLocalDenial, closeMemberView, dropTombstone, i
 import { knockSettledByRecords, knockInviteVerdict } from '../../shared/spaces/knock-policy.js'
 import { captureJoinerMembership, getIdentitySigner, markRequest, markRequestDenied, ownDenialStands, readProfileRecord } from '../../shared/spaces/profile.js'
 import { getSpace, getSpaceContentKey } from '../../shared/spaces/space.js'
-import { clearJoinRequest, listJoinRequests, listPendingRequests, recordJoinRequest } from '../../shared/spaces/join-requests.js'
+import { claimJoinRequestAudit, clearJoinRequest, forgetJoinRequestAudit, listJoinRequests, listPendingRequests, recordJoinRequest, releaseJoinRequestAudit } from '../../shared/spaces/join-requests.js'
 import { clearCreatorDivergence, markCreatorDivergence, pinCreatorKey } from '../../shared/spaces/creator-pin.js'
 import { materializeOwnDrive, recordApproval } from '../../shared/spaces/space-lifecycle.js'
 import { purgeSpace } from '../../shared/spaces/leave-records.js'
@@ -169,34 +169,29 @@ async function onJoinRequest(msg) {
   // keeps the banner quiet, and this sits strictly AFTER the replay branches above, so a
   // re-knock still replays a lost grant/deny.
   await markRequest(spaceId, msg.profileKey, { displayName, avatar, refresh: hadLeft })
-  if (changed || hadLeft) {
-    ipc.emit('event:member-join-request', { spaceId, publicKey: msg.profileKey, displayName, avatar })
-    auditJoinRequest(spaceId, msg.profileKey, displayName)
-  }
+  if (changed || hadLeft) ipc.emit('event:member-join-request', { spaceId, publicKey: msg.profileKey, displayName, avatar })
+  // Every knock, not only a changed one: the audit dedupes itself, and a row the log did not take is
+  // retried by the next heartbeat knock.
+  auditJoinRequest(spaceId, msg.profileKey, displayName)
 }
 
 // A knock reaches us two ways — the live membership:request frame, and the replicated fold when a
 // co-member heard it first — and either can arrive first. Both record through here so the row
-// appears regardless of path, and appears once. Cleared when the request resolves, so a later
-// re-knock after a denial is recorded again.
-const recordedJoinRequests = new Set()
-const joinRequestKey = (spaceId, publicKey) => spaceId + '|' + publicKey
-
+// appears regardless of path, and appears once. The claim is taken before the read so concurrent
+// knocks record once, and given back only for a lost row, which the next knock then retries.
 function auditJoinRequest(spaceId, publicKey, displayName) {
-  const key = joinRequestKey(spaceId, publicKey)
-  if (recordedJoinRequests.has(key)) return
-  recordedJoinRequests.add(key)
-  getSpace(spaceId).then((space) => {
-    record('membership.requested', {
+  const claim = claimJoinRequestAudit(spaceId, publicKey)
+  if (!claim) return
+  recordResolved('membership.requested', async () => {
+    const space = await getSpace(spaceId)
+    return {
       actor: peerActor(publicKey, displayName || null),
-      space: spaceRefOf(space),
+      space: spaceRef(spaceId, space?.name ?? null),
       target: targetRef(TARGET_KIND.MEMBER, publicKey, displayName || null),
-    })
-  }).catch(() => {})
-}
-
-function forgetJoinRequestRecord(spaceId, publicKey) {
-  recordedJoinRequests.delete(joinRequestKey(spaceId, publicKey))
+    }
+  }, { context: { space: spaceId.slice(0, 12) } }).then((outcome) => {
+    if (outcome === RESOLVE_OUTCOME.LOST) releaseJoinRequestAudit(claim)
+  })
 }
 
 // The bound ed25519 signer key of a currently-connected peer, as a buffer, to seal its SCK grant.
@@ -319,7 +314,7 @@ async function onDeny(msg) {
 async function resolveJoinRequest(space, joinerKey, outcome) {
   // The knock is settled; forget it so a genuine later re-knock (e.g. after a denial) records
   // again rather than being swallowed by the first one's dedupe.
-  forgetJoinRequestRecord(space.spaceId, joinerKey)
+  forgetJoinRequestAudit(space.spaceId, joinerKey)
   const spaceId = space.spaceId
   if (outcome === 'approve') {
     // A confirmed creator-root conflict disputes the roster's trust anchor — handing out the

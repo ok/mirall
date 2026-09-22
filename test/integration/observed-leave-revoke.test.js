@@ -6,6 +6,7 @@ import { markOwnMembership, markApproval, hasOwnApproval } from '../../src/share
 import { upsertMember } from '../../src/shared/spaces/space.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { openMemberView, closeMemberView, isMember, isLeft } from '../../src/shared/spaces/member-registry.js'
+import { queryAudit } from '../../src/shared/audit/audit-query.js'
 
 // G6: an approver that never receives the leave FRAME must still revoke its grow-only vouch when
 // the leaver's durable `del member/<S>` replicates and the fold observes it — otherwise a later
@@ -34,6 +35,8 @@ test('REGRESSION (G6): a fold-observed leave revokes our vouch and blocks silent
   t.ok(await waitFor(() => !isMember(spaceId, B.key), 8000), 'B folded out')
   t.ok(await waitFor(() => isLeft(spaceId, B.key), 8000), 'observed leave tombstoned')
   t.ok(await waitFor(async () => !(await hasOwnApproval(spaceId, B.key)), 8000), 'our vouch revoked')
+  const revokedRow = async () => (await queryAudit({})).entries.some((e) => e.kind === 'membership.approval_revoked' && e.target?.id === B.key)
+  t.ok(await waitFor(revokedRow, 8000), 'the withdrawn vouch is audited')
 
   // A stale re-assert (same ts) must not re-admit: the tombstone suppresses it and the
   // vouch is gone.

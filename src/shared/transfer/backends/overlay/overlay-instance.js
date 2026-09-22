@@ -7,7 +7,7 @@
 import { HyperOverlayV2 } from './vendor/overlay-v2.js'
 import { serveIndex } from './overlay-serve-index.js'
 import { makeServeAuthorizer, SECURITY_DENIALS } from './overlay-authorize.js'
-import { recordResolved } from '../../../audit/audit-log.js'
+import { RESOLVE_OUTCOME, recordResolved } from '../../../audit/audit-log.js'
 import { getSpace } from '../../../spaces/space.js'
 import { onServeStart as ledgerServeStart, onChunkServed as ledgerChunkServed, onServeEnd as ledgerServeEnd, onServeControl as ledgerServeControl, onServeBaseline as ledgerServeBaseline } from '../../serve-ledger.js'
 import { getStore, getStoragePath, hasMasterSecret, overlayIndexEncryptionKey } from '../../../core/store.js'
@@ -206,9 +206,9 @@ export function recordServeDenial(reason, { from, contentHash }) {
       subject: { reason, requester },
       outcome: OUTCOME.DENIED,
     }
-  }, { context: { reason, requester } }).then((written) => {
-    // A row that did not land leaves no dedupe mark, so the next attempt can still record it.
-    if (!written) deniedRecently.delete(key)
+  }, { context: { reason, requester } }).then((outcome) => {
+    // A lost row leaves no dedupe mark, so the next attempt can still record it.
+    if (outcome === RESOLVE_OUTCOME.LOST) deniedRecently.delete(key)
   })
 }
 

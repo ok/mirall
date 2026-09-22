@@ -152,7 +152,7 @@ Bootstrap:
 4. `root = await boot(bootstrap, { ipc, log, membershipControl, publishDownloadRoots })`, which starts **two lifecycle tiers**. *(Cross-references to this inner list are written `§2 boot step N`, to keep them apart from the numbered main-process list above.)* The **durable** tier (`bootDurable()`, exported from the same file) holds everything that must outlive the network teardown — every handle on a Corestore session, plus the recorder the teardown writes through — and is closed **last**:
    1. `Store` → identity unlock → `migrateLocalBeesToEncrypted` → `SpaceKeysVault` → `ProfileBee` → `SpacesBee` → `DownloadsBee` → `PendingTransfersBee` → `MountsBee` → `IntentsBee`.
    2. `AuditLog` (bee + connectivity watch) — started before the drives, so the log is writable before anything worth recording happens. A failed start degrades to no rows; it never aborts boot.
-   3. `ServeLedger`, immediately after `AuditLog` so that on the way out it flushes **before** that bee closes and while the spaces bee it reads is still open.
+   3. `ServeLedger`, immediately after `AuditLog`, so on the way out it closes just before the log: the `serve.completed` rows its close reaps are still being read when `AuditLog`'s close drains every in-flight `recordResolved`, while the spaces bee those reads use is still open.
    4. `OwnCatalogs` → `PeerCatalogs` (the catalog bee caches) → `SpaceDrives` (`loadDrives`). That is the whole durable tier. The orphan sweep is **not** hung off a `loadDrives` failure — it runs unconditionally at the end of the runtime tier (step 10).
 
    The **runtime** tier is closed first, in reverse of this order:
@@ -1484,14 +1484,14 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/audit/audit-retention.js` | Prune-boundary math incl. the clock-jump hysteresis. Pure |
 | `src/shared/transfer/transfer-activity.js` | `transfersMoving()` — is anything actually receiving or sending bytes right now, folding the pending rows' `updatedAt` with the serve ledger's per-peer `lastTs`. Read before the peer connections are dropped to apply a transport setting |
 | `src/shared/transfer/serve-sessions.js` | Folds start / end activity into one row per transfer. Pure (consumed by `transfer/serve-ledger.js`) |
-| `src/shared/audit/audit-log.js` | The `audit-log` bee's handle and write path: `record`, the serialized append chain, config, `truncateLog`. Imports `core/` and its audit siblings only, so the instrumentation call sites can't form a cycle |
+| `src/shared/audit/audit-log.js` | The `audit-log` bee's handle and write path: `record`, `recordResolved` (a row whose fields need a read first; the read's failure is warned as a lost row, the promise resolves to a `RESOLVE_OUTCOME` — only `LOST` is worth a retry — and `flushAudit` / `closeAuditLog` drain the reads in flight), the serialized append chain, config, `truncateLog`. Imports `core/` and its audit siblings only, so the instrumentation call sites can't form a cycle |
 | `src/shared/audit/audit-keys.js` | The bee's key layout: prefixes, seq padding, the index key of a record, range builders. Pure |
 | `src/shared/audit/audit-rate-guard.js` | The per-kind token bucket that collapses a burst into one suppressed count. Pure, clock-injected |
 | `src/shared/audit/audit-query.js` | The reads: `queryAudit` (index-merged, cursor-paginated), the filter vocabularies, stats, export |
 | `src/shared/audit/audit-reclaim.js` | `pruneAudit` (rows, daily) and `purgeAudit` (bytes, on request) |
 | `src/shared/audit/audit-watch-state.js` | The watches' durable memory in the bee: peer-bee watermarks, recorded peer-subject and device-connectivity states |
 | `src/shared/audit/peer-records-observer.js` | Pure diff of a peer's bee: key classification, the fingerprint dedupe, the bounded history read. No I/O |
-| `src/shared/audit/transfer-audit.js` | One audit row per finished consumer download at its terminal outcome; the in-flight set is drained at close |
+| `src/shared/audit/transfer-audit.js` | One audit row per finished consumer download at its terminal outcome, through `recordResolved`; a row still being read at shutdown is drained by `AuditLog`'s close |
 | `src/shared/audit/peer-records-watch.js` | Wires that diff into the data layer — name resolution, the relevance gates, the registration-time baseline; `PeerWatch` |
 | `src/shared/audit/presence-episodes.js` | Folds per-peer presence flapping into at most one row per real absence. Pure, clock-injected |
 | `src/shared/audit/connectivity-episodes.js` | Folds the connectivity verdict into rows. Pure, clock-injected |

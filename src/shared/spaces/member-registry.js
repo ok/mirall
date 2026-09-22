@@ -9,7 +9,7 @@ import { foldPendingSet } from './membership/fold.js'
 import { tombstoneActive, observedLeavers } from './membership/fold.js'
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
-import { record } from '../audit/audit-log.js'
+import { recordResolved } from '../audit/audit-log.js'
 import { TARGET_KIND } from '../contract/audit-kinds.js'
 import { systemActor, spaceRef, targetRef } from '../audit/audit-record.js'
 
@@ -266,8 +266,9 @@ async function applyObservedLeave(spaceId, key, leaveTs) {
   membershipRevokedHook?.(spaceId, key)
   // Learned through replication rather than a live frame, hence tier C on this kind. It records
   // our own vouch being withdrawn as a consequence of their departure — not a removal.
-  getSpace(spaceId).then((space) => {
-    record('membership.approval_revoked', {
+  recordResolved('membership.approval_revoked', async () => {
+    const space = await getSpace(spaceId)
+    return {
       actor: systemActor(),
       space: spaceRef(spaceId, space?.name ?? null),
       target: targetRef(
@@ -275,8 +276,8 @@ async function applyObservedLeave(spaceId, key, leaveTs) {
         key,
         (space?.members || []).find((m) => m.publicKey === key)?.displayName ?? null,
       ),
-    })
-  }).catch(() => {})
+    }
+  }, { context: { space: spaceId.slice(0, 12) } })
   log.info('observed leave via replication — revoked + tombstoned:', key.slice(0, 12) + '...', '→', spaceId)
 }
 

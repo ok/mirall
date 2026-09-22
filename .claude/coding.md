@@ -328,6 +328,12 @@ member's profile key; `socketToPeers` is the only bridge between them. Do not ad
 - **Audit hooks on a hot path are `guarded`.** Auditing never throws, slows or fails into the operation
 it describes (`audit/network-watch.js`); every hook the handshake or disconnect path calls goes
 through the wrapper, and its dwell timers belong to the `AuditLog` subsystem's `timers`.
+- **An audit row that needs a read goes through `recordResolved`**, never
+`read().then(record).catch(noop)`: the resolver's failure is warned as a lost row, and the audit
+log drains it on close. State that means "we recorded this" (a dedupe mark) is set *before* the
+call, so concurrent attempts record once, and rolled back only on `RESOLVE_OUTCOME.LOST`; a resolver
+that returned null on purpose (`SKIPPED`) and a rate-limit refusal (`REFUSED`, already counted as
+`audit.suppressed`) are not retried. `audit-writes-not-silenced.test.js` flags a silenced `record`.
 - **Data that leaves the device is built by an allow-list.** `network/support-bundle.js` names every
 section it emits and shortens keys under `redact`; an unnamed key is dropped. A new section is spelled
 out there, never spread in.

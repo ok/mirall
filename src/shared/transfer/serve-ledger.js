@@ -6,18 +6,15 @@
 // (detailSubs), so no per-peer progress is pushed that nobody is looking at. It owns nothing the
 // backend needs, so it lives beside the backend rather than inside it.
 import { serveIndex } from './backends/overlay/overlay-serve-index.js'
-import { record } from '../audit/audit-log.js'
+import { recordResolved } from '../audit/audit-log.js'
 import { createSessionStore, sessionKey } from './serve-sessions.js'
 import { getConnectedMemberMeta } from '../network/swarm-registries.js'
 import { LOOSE_SHARE_ID } from './transfer-id.js'
 import { SHARE_WAIT_PER_OWNER } from './share-wait-set.js'
 import { getSpace } from '../spaces/space.js'
-import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
 import { TARGET_KIND } from '../contract/audit-kinds.js'
 import { peerActor, spaceRef, targetRef } from '../audit/audit-record.js'
-
-const log = createLogger('serve-ledger')
 
 let ipcRef = null
 let current = null
@@ -117,10 +114,6 @@ function forEachServeEntry(contentHash, from, fn) {
   }
 }
 
-// Every recordServeSession() still in flight, held so shutdown drains it: the write is a
-// spaces-bee read then an audit-bee write in a microtask nobody else holds.
-const recording = new Set()
-
 // One audit row per file served, not one per chunk or per reconnect. `from` is the requester's
 // profile key, already Noise-authenticated by the serve gate — that is what makes the row
 // attributable rather than a claim.
@@ -137,18 +130,17 @@ function auditServeKey(contentHash, from) {
 function recordServeSession(session) {
   if (!session || session.bytes <= 0) return
   const meta = session.meta || {}
-  const pending = getSpace(meta.spaceId).then((space) => {
+  recordResolved('serve.completed', async () => {
+    const space = await getSpace(meta.spaceId)
     const live = getConnectedMemberMeta(meta.spaceId, meta.from)
     const persisted = (space?.members || []).find((m) => m.publicKey === meta.from)
-    record('serve.completed', {
+    return {
       actor: peerActor(meta.from ?? null, live?.displayName || persisted?.displayName || null),
       space: spaceRef(meta.spaceId, space?.name ?? null),
       target: targetRef(TARGET_KIND.FILE, meta.contentHash ?? null, meta.fileName ?? null),
       subject: { bytes: session.bytes, total: session.total || null, durationMs: session.durationMs, path: meta.path ?? null },
-    })
-  }).catch((err) => log.debug('serve audit failed:', err.message))
-  recording.add(pending)
-  pending.finally(() => recording.delete(pending))
+    }
+  }, { context: { space: meta.spaceId?.slice(0, 12) } })
 }
 
 export function onServeStart({ from, contentHash, total }) {
@@ -564,19 +556,12 @@ export class ServeLedger extends Subsystem {
   }
 
   // Runs after the overlay teardown, which is what emits the serve-end events in the first place.
-  // End the sessions still open (a peer that never closed cleanly served real bytes too), then
-  // drain the writes those produce while the spaces and audit bees are both still open — the
-  // start order in the boot root is what guarantees they are.
-  async _close({ settleMs = 2000 } = {}) {
+  // End the sessions still open (a peer that never closed cleanly served real bytes too). The rows
+  // those produce are drained by the audit log's own close, which the boot root's start order runs
+  // next, while the spaces bee is still open.
+  async _close() {
     for (const session of serveSessions.reap(Date.now(), 0)) recordServeSession(session)
-    if (recording.size) {
-      await Promise.race([
-        Promise.allSettled([...recording]),
-        new Promise((resolve) => { const t = setTimeout(resolve, settleMs); t.unref?.() }),
-      ])
-    }
     resetServeLedger()
-    recording.clear()
     ipcRef = null
     current = null
   }

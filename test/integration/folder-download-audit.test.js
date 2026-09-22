@@ -9,7 +9,6 @@ import { folderChannel } from '../../src/shared/transfer/backends/overlay/folder
 import { looseChannel } from '../../src/shared/transfer/backends/overlay/loose-downloads.js'
 import { flushAudit } from '../../src/shared/audit/audit-log.js'
 import { queryAudit } from '../../src/shared/audit/audit-query.js'
-import { drainTransferAudit } from '../../src/shared/audit/transfer-audit.js'
 import { scaled } from '../helpers/bare-timing.js'
 
 // The audit row for a download is written by the ENGINE, so these drive the engine over the REAL
@@ -19,7 +18,6 @@ import { scaled } from '../helpers/bare-timing.js'
 const OWNER = 'p'.repeat(64)
 
 async function rows(kind) {
-  await drainTransferAudit()
   await flushAudit()
   const { entries } = await queryAudit({ limit: 100 })
   return kind ? entries.filter((e) => e.kind === kind) : entries
