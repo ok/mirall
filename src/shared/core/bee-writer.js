@@ -24,6 +24,15 @@ export function createRecordWriter({ bee, log, attempts = MAX_ATTEMPTS } = {}) {
 
     del: (key) => exclusive(key, () => bee().del(key)),
 
+    // A create that never replaces: resolves the value already stored (and writes nothing), or null
+    // once it has written `value`.
+    insert: (key, value) => exclusive(key, async () => {
+      const entry = await bee().get(key)
+      if (entry?.value) return entry.value
+      await bee().put(key, value)
+      return null
+    }),
+
     // Resolves to the value written, or null when nothing was: the record is gone (the documented
     // no-op every caller relies on) or `apply` declined. `apply` receives a copy of the stored value
     // and returns the next value, or a falsy value to decline the write, which is what keeps an

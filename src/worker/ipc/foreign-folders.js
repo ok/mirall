@@ -9,7 +9,7 @@ import { getSpace } from '../../shared/spaces/space.js'
 import { validateMountPath } from '../../shared/folders/mount-validate.js'
 import { publishMirror } from '../../shared/folders/mirror-records.js'
 import { startForeignLoop, scanForeignMount, setForeignEnabled, relocateForeignFolder, unmountForeignFolder } from '../../shared/folders/foreign-verbs.js'
-import { createForeignMount as persistForeignMount, getForeignMount, listForeignMounts } from '../../shared/folders/mount-store.js'
+import { insertForeignMount, getForeignMount, listForeignMounts } from '../../shared/folders/mount-store.js'
 import { record } from '../../shared/audit/audit-log.js'
 import { selfActor, targetRef } from '../../shared/audit/audit-record.js'
 import { TARGET_KIND } from '../../shared/contract/audit-kinds.js'
@@ -36,7 +36,14 @@ export function registerForeignFolders(ipc, { log, intents }) {
       attachedAt: Date.now(),
       status: MOUNT_STATUS.SCANNING,
     }
-    await persistForeignMount(mount)
+    // A share has one mirror. The same request again — a double submit — answers with the mount it
+    // made; another folder for the same share is a relocate, not a second mount, and replacing the
+    // record here would leave the first mount's passes writing into it.
+    const existing = await insertForeignMount(mount)
+    if (existing) {
+      if (existing.mountPath === mountPath) return { mount: wire(existing), advisories }
+      throw new AppError(CODES.MOUNT_OVERLAPS, 'This share is already mirrored to another folder')
+    }
     ipc.emit('event:foreign-folder-mount-status', { spaceId: msg.spaceId, shareId: msg.shareId, status: MOUNT_STATUS.SCANNING })
     try { await publishMirror(msg.spaceId, msg.shareId, { state: 'syncing' }) }
     catch (err) { log.warn('mirror record publish failed:', msg.shareId, '-', err.message) }

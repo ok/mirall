@@ -154,3 +154,11 @@ test('REGRESSION (FIX-R05-2): no mount record is written outside the serialized 
   }
   t.alike(outside, [], 'the whole-record writers are gone — creates go through create*, updates through patch*/mutate*')
 })
+
+test('insert creates a missing record and never replaces one', async (t) => {
+  const b = fakeBee()
+  const w = b.writer()
+  t.is(await w.insert('k', { v: 1 }), null, 'a missing record is created')
+  t.alike(await w.insert('k', { v: 2 }), { v: 1 }, 'an existing one is handed back')
+  t.alike(b.get('k'), { v: 1 }, 'and left as it was')
+})

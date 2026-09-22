@@ -83,9 +83,8 @@ export function createMirrorLoops({ intervalMs, runPass, onStop = () => {}, onEr
   }
 
   // Cancel every pass started so far without disarming the cadence: they bail at their next
-  // checkpoint and decline their writes, while a later pass runs at the new generation. A verb that
-  // takes the record away from its passes calls this before its own write, so a pass can never
-  // write after it, and a write that fails still leaves a running loop.
+  // checkpoint, while a later pass runs at the new generation. Who calls it, and why before their
+  // own write: pass-writer.js.
   function invalidate(key) {
     gen.set(key, generationOf(key) + 1)
     return generationOf(key)

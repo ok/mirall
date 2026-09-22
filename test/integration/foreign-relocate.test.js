@@ -5,7 +5,7 @@ import { freshPeer } from '../helpers/store.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { publishShare, generateShareId } from '../../src/shared/shares/shares.js'
 import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
-import { createForeignMount, getForeignMount, patchForeignMount } from '../../src/shared/folders/mount-store.js'
+import { createForeignMount, deleteForeignMount, getForeignMount, patchForeignMount } from '../../src/shared/folders/mount-store.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { isAutoPaused, pauseMount } from '../../src/shared/folders/foreign-pause.js'
 import { relocateForeignFolder, scanForeignMount, setForeignEnabled, stopForeignLoop, unmountForeignFolder } from '../../src/shared/folders/foreign-verbs.js'
@@ -283,6 +283,7 @@ test('REGRESSION (FIX-448: a scan fault after a user pause does not turn it into
 async function mountThroughIpc(t) {
   const { ctx, spaceId, shareId } = await selfMirror(t)
   registerForeignFolders(ctx.fake.ipc, { log: { warn: () => {}, debug: () => {} }, intents: null })
+  await deleteForeignMount(spaceId, shareId)
   const release = gatedListing(t)
   await ctx.fake.call('foreign-folder:mount', {
     spaceId, shareId, ownerKey: ctx.share.owner, mountPath: ctx.tmpDir('mirror-fresh'),

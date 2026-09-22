@@ -14,7 +14,6 @@ import fs from 'bare-fs'
 import { pathFromMount } from './path-guard.js'
 import { PARTIAL_SUFFIX } from '../transfer/partial-suffix.js'
 import { driveKeyToSegments, nextFreeName } from './path-keys.js'
-import { mutateForeignMount } from './mount-store.js'
 import { mirrorKey } from './mirror-policy.js'
 
 // The on-disk relPath an owner key was materialized as (its natural name unless a conflict forced
@@ -25,7 +24,7 @@ export function localRelOf(mount, ownerKey) {
   return mount.renamedPaths?.[ownerKey] || ownerKey
 }
 
-export function createMirrorState({ isStopped }) {
+export function createMirrorState() {
   // mirrorKey -> Set<ownerKey>. Membership is asked once per catalog entry per tick, so it must be
   // O(1): the array scan it replaces made a fully-synced tick quadratic. The set outlives
   // pause/resume (a stopped pass has already written files it must keep owning) and is dropped
@@ -37,6 +36,10 @@ export function createMirrorState({ isStopped }) {
   const renamedMaps = new Map()
   // mirrorKeys whose set / renamedPaths differ from the persisted record.
   const dirty = new Set()
+  // A pass holds the set and map it bound at its start. Once a relocate or unmount has reset the
+  // key, those are orphans: a cancelled pass still mutates them, but never marks the key's
+  // current state dirty and never recreates it.
+  const markDirty = (key, registry, held) => { if (registry.get(key) === held) dirty.add(key) }
   const convergedHeads = new Map()
   const skippedTicks = new Map()
   // mirrorKeys a reader asked to have walked. Cleared when a walk starts, so a request that lands
@@ -105,8 +108,9 @@ export function createMirrorState({ isStopped }) {
       return fs.existsSync(abs) || fs.existsSync(abs + PARTIAL_SUFFIX)
     }
     const localRel = (dir ? dir + '/' : '') + nextFreeName(leaf, isTaken)
-    renamedFor(mount)[ownerKey] = localRel
-    dirty.add(mirrorKey(mount.spaceId, mount.shareId))
+    const map = mount.renamedPaths ?? renamedFor(mount)
+    map[ownerKey] = localRel
+    markDirty(mirrorKey(mount.spaceId, mount.shareId), renamedMaps, map)
     return localRel
   }
 
@@ -117,7 +121,7 @@ export function createMirrorState({ isStopped }) {
     for (const ownerKey of Object.keys(mount.renamedPaths)) {
       if (onDrive.has(ownerKey)) continue
       delete mount.renamedPaths[ownerKey]
-      dirty.add(mirrorKey(mount.spaceId, mount.shareId))
+      markDirty(mirrorKey(mount.spaceId, mount.shareId), renamedMaps, mount.renamedPaths)
     }
   }
 
@@ -137,22 +141,18 @@ export function createMirrorState({ isStopped }) {
       if (set.has(ownerKey)) return
       set.add(ownerKey)
       fresh?.add(ownerKey)
-      dirty.add(key)
+      markDirty(key, syncedSets, set)
     },
     forgetSynced(key, set, ownerKey) {
-      if (set.delete(ownerKey)) dirty.add(key)
+      if (set.delete(ownerKey)) markDirty(key, syncedSets, set)
     },
     markClean: (key) => dirty.delete(key),
 
-    // Persist once per pass, only when something changed, and never from a pass that was
-    // cancelled: a pause persists the set itself, and unmount deleted the record. The generation is
-    // checked inside the write, so a cancellation queued ahead of it is seen. An unconditional
-    // write costs ~36 B per path per tick in the mounts bee.
-    async persist(mount, key, gen) {
+    // Persist once per pass, only when something changed: an unconditional write costs ~36 B per
+    // path per tick in the mounts bee.
+    async persist(writer, mount, key) {
       if (!dirty.has(key)) return
-      const written = await mutateForeignMount(mount.spaceId, mount.shareId, (m) =>
-        (isStopped(key, gen) ? null : { ...m, ...syncFields(mount) }))
-      if (written) dirty.delete(key)
+      if (await writer.mutate((m) => ({ ...m, ...syncFields(mount) }))) dirty.delete(key)
     },
 
     watermark: (key) => convergedHeads.get(key) ?? null,

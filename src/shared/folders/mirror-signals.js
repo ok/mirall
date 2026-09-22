@@ -2,7 +2,7 @@
 // mirror-participation record the space's other members read. The IPC handle for the whole mirror
 // side lives here — the root installs it at open and clears it at close — so every leaf reports
 // through the same slot instead of carrying its own.
-import { setMirrorState } from './mirror-records.js'
+import { MIRROR_STATE } from '../contract/statuses.js'
 import { createLogger } from '../core/logger.js'
 
 const log = createLogger('mirror-signals')
@@ -34,9 +34,8 @@ export async function syncMirrorRecord(spaceId, shareId, op) {
 }
 
 // The one place a materialize pass reports its terminal sync state: 'synced' once every catalog
-// entry is present locally, else 'syncing'. `stopped` is the pass's generation check, asked inside
-// the record's serialized write so a stopped/paused mount's trailing pass can't overwrite the pause.
-export function settleMirrorSyncState(mount, allPresent, stopped = () => false) {
+// entry is present locally, else 'syncing'. Written through the pass's writer.
+export function settleMirrorSyncState(writer, mount, allPresent) {
   return syncMirrorRecord(mount.spaceId, mount.shareId,
-    () => setMirrorState(mount.spaceId, mount.shareId, allPresent ? 'synced' : 'syncing', { stopped }))
+    () => writer.setMirrorState(allPresent ? MIRROR_STATE.SYNCED : MIRROR_STATE.SYNCING))
 }

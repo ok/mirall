@@ -61,7 +61,7 @@ export function ensureMirror(spaceId, shareId, { state = MIRROR_STATE.SYNCING, m
 
 // state is one of 'syncing' | 'synced' | 'paused'. Returns whether the record changed, so a caller
 // driving this from the poll loop only re-broadcasts on a genuine transition (not every tick).
-// `stopped` declines the write when true at the moment it is made.
+// `stopped` is a pass writer's generation check (pass-writer.js).
 export function setMirrorState(spaceId, shareId, state, { stopped = () => false } = {}) {
   const key = keyFor(spaceId, shareId)
   return serialize(key, async () => {

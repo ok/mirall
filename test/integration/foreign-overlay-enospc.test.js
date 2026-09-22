@@ -116,7 +116,7 @@ test('a failed initial scan records the fault without pausing the mount', async 
   overlayBackend.listPeerWithMeta = async () => { throw err }
   t.teardown(() => { overlayBackend.listPeerWithMeta = list }, { order: -1 })
 
-  t.absent(await scanForeignMount(await getForeignMount(spaceId, shareId)), 'the scan faulted')
+  t.is(await scanForeignMount(await getForeignMount(spaceId, shareId)), 'faulted')
 
   const mount = await getForeignMount(spaceId, shareId)
   t.is(mount.status, 'paused-error', 'durable — a reload used to show a mirror still "scanning"')

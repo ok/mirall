@@ -128,6 +128,12 @@ export async function createForeignMount(mount) {
   await records.put(foreignKey(mount.spaceId, mount.shareId), mount)
 }
 
+// The first write of a mirror record for a fresh mount, which must never replace one that exists:
+// resolves the existing record, or null once `mount` is stored.
+export function insertForeignMount(mount) {
+  return records.insert(foreignKey(mount.spaceId, mount.shareId), mount)
+}
+
 // Derive a mirror record's next value from the record as it is NOW, never from a whole object a
 // caller has been holding: the object a materialize pass holds was loaded before a possibly
 // hours-long pass, so writing it back would clobber a pause / status / enabled flag persisted
