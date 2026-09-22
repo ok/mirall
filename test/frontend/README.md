@@ -51,7 +51,7 @@ One row per file in `scenarios/`; the id is the `run.mjs` argument (`node test/f
 | s3 | `s3-join-errors.mjs` | Join disabled until a code is entered; malformed and expired codes → inline `role=alert` error; Enter in the code field submits. |
 | s13 | `s13-edit-space.mjs` | Rename space + change icon; favorite it from the More menu and find it under Favorites. |
 | s19 | `s19-invite-single-link.mjs` | The invite modal yields one `mirall://join/` link, revealed only after Create — no Code / App-link format selector. |
-| s51 | `s51-members-foldout.mjs` | Sidebar foldouts: Members shows an avatar stack, "Show all" expands to a list with a pinned "Show less", Storage folds to its headline. |
+| s51 | `s51-members-foldout.mjs` | The Members card shows an avatar stack; "Show all" expands to a list with a pinned "Show less". |
 | s62 | `s62-create-space-no-invite-code.mjs` | The "Space Created" confirmation shows no invite-code UI; Done lands in the new space. |
 | s64 | `s64-join-link-paste.mjs` | Pasting a `mirall://join` App link into Join strips it to the bare code, which is accepted. |
 | s76 | `s76-invite-create-flow.mjs` | Invite create-flow: configure (auto-approve off by default, three expiry presets, no link yet) → Create shows link + setting badges → Change returns with choices preserved. |
@@ -82,7 +82,6 @@ One row per file in `scenarios/`; the id is the `run.mjs` argument (`node test/f
 | s8 | `s8-settings.mjs` | Appearance Dark sets pressed state and persists across a remount; a notifications switch toggles. |
 | s15 | `s15-appearance.mjs` | Zoom-level pressed state persists across leaving and returning; language switch (Deutsch ↔ English) re-renders. |
 | s16 | `s16-general-notifications.mjs` | Launch-at-login switch and play-sound switch round-trip. |
-| s47 | `s47-cache-setting.mjs` | **Not in the runner** (`run.mjs` does not import it): drove the on-demand cache slider that left with the Free-up-space feature. |
 | s52 | `s52-storage-other.mjs` | Storage Settings' app-storage disclosure is AX-targetable (`role=button`, name, `aria-expanded`) and expands into the measured breakdown. |
 | s107 | `s107-space-download-folder.mjs` | Per-space download folder: switching moves nothing, a copy outside the new folder reads as not-downloaded, switching back restores it; changes apply on Save; Settings' folder is the modal's default. |
 | s109 | `s109-download-folder-gone.mjs` | A vanished download folder: the failure names the folder (never "Transfer failed"), a sticky toast offers a way out, Storage Settings marks it unavailable, choosing a working folder clears both and the download succeeds. |
@@ -176,7 +175,7 @@ These drive the real *filesystem → chokidar → publish → replicate → mate
 | s28 | `s28-subfolder.mjs` | Owner creates a nested subfolder with a file → it replicates and materializes at the right depth on the mirror. |
 | s29 | `s29-move-into-subfolder.mjs` | Owner moves a file into a subfolder → mirror reflects the move with **no stale duplicate and no lost file**. |
 | s30 | `s30-delete-file-in-subfolder.mjs` | Owner deletes a nested file → only it leaves the mirror; its sibling is untouched. |
-| s31 | `s31-edit-and-readonly-revert.mjs` | Owner edit updates content on the mirror; **a local edit of a read-only mirror file is reverted** to the owner's version on the next sync. |
+| s31 | `s31-edit-and-readonly-revert.mjs` | Owner edit updates content on the mirror; **a local edit of a read-only mirror file is reverted** to the owner's version once the folder listing asks for the walk. |
 | s32 | `s32-mirror-keeps-unrelated-file.mjs` | Mirroring into a folder that already holds the user's own file → it survives the initial scan **and** a later owner deletion (only synced files are removable). |
 | s33 | `s33-copy-file.mjs` | Owner duplicates a file (same content, new path) → both copies publish and materialize. |
 | s34 | `s34-nested-initial-share.mjs` | Initial share of a realistic nested tree → the whole tree replicates and materializes at the right depths. |

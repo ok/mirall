@@ -12,8 +12,10 @@ const read = (p) => { try { return readFileSync(p, 'utf8') } catch { return null
 //      re-download), not just its presence;
 //  (2) the read-only promise: if the user edits a mirrored file locally, the
 //      next sync reverts it to the owner's version. The mirror has no watcher in
-//      v1, so the revert is driven by the periodic reconcile (~30s) — hence the
-//      longer wait on that step.
+//      v1 and a local-only edit never moves the owner's catalog version, so the
+//      walk that restores the file is the one the folder listing asks for when it
+//      sees a drifted copy. Bob therefore opens the folder after tampering;
+//      without that the revert waits on the full-walk backstop (issue #462).
 export default async function s31({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
@@ -43,6 +45,8 @@ export default async function s31({ runDir, bootstrap }) {
     })
     await r.ok('a local edit on the read-only mirror is reverted on the next sync', async () => {
       writeFileSync(mirrorFile, 'bob-tampered')                 // user edits a read-only mirror file
+      await B.focus()
+      await B.openFolder('Notes')
       await waitFor(() => read(mirrorFile) === 'v2-edited-by-owner', 50000,
         "mirror reverted Bob's edit to the owner's version")
     })
