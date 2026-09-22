@@ -41,6 +41,9 @@ import {
   byteFormatterSingleOwnerRestrictions,
   unmountOnlyAsyncEffects,
   outOfOrderAsyncEffects,
+  swallowedRejectionRestrictions,
+  swallowedRejectionExemptions,
+  promiseLintAllowlist,
   pureTransferModules,
   pureNetworkModules,
   pureFolderPolicyModules,
@@ -62,10 +65,10 @@ export default [
     files: ['src/renderer/**/*.{ts,tsx,js}'],
     languageOptions: {
       parser: tseslint.parser,
-      parserOptions: { ecmaFeatures: { jsx: true } },
+      parserOptions: { ecmaFeatures: { jsx: true }, projectService: true, tsconfigRootDir: import.meta.dirname },
       globals: { ...globals.browser, __DEV__: 'readonly' },
     },
-    plugins: { 'jsx-a11y': jsxA11y, local: { rules: { 'no-unguarded-async-effect': noUnguardedAsyncEffect } } },
+    plugins: { 'jsx-a11y': jsxA11y, '@typescript-eslint': tseslint.plugin, local: { rules: { 'no-unguarded-async-effect': noUnguardedAsyncEffect } } },
     rules: {
       ...jsxA11y.flatConfigs.recommended.rules,
       'jsx-a11y/no-autofocus': 'off',
@@ -76,6 +79,9 @@ export default [
       'local/no-unguarded-async-effect': ['error', {
         allow: [...Object.keys(unmountOnlyAsyncEffects), ...Object.keys(outOfOrderAsyncEffects)],
       }],
+      // A promise nobody handles is a failure nobody hears; `void` is a way of saying so, not a handler.
+      '@typescript-eslint/no-floating-promises': ['error', { ignoreVoid: false }],
+      '@typescript-eslint/no-misused-promises': 'error',
       ...complexityBudget,
       ...whitespace,
     },
@@ -86,6 +92,24 @@ export default [
   {
     files: ['src/renderer/screens/**/*.tsx', 'src/renderer/components/**/*.tsx'],
     rules: { 'no-empty': ['error', { allowEmptyCatch: false }] },
+  },
+
+  // See swallowedRejectionRestrictions. The block repeats the renderer's other selectors because a
+  // later no-restricted-syntax replaces an earlier one rather than adding to it.
+  {
+    files: ['src/renderer/{screens,components,hooks}/**/*.{ts,tsx,js}'],
+    rules: { 'no-restricted-syntax': ['error', ...rendererStatusRestrictions, ...byteFormatterSingleOwnerRestrictions, ...swallowedRejectionRestrictions] },
+  },
+  {
+    files: Object.keys(swallowedRejectionExemptions),
+    rules: { 'no-restricted-syntax': ['error', ...rendererStatusRestrictions, ...byteFormatterSingleOwnerRestrictions] },
+  },
+
+  // Exact per-file counts live in promiseLintAllowlist and are held by
+  // test/invariants/renderer-promise-lint.test.js, which lints with no allowances.
+  {
+    files: Object.keys(promiseLintAllowlist),
+    rules: { '@typescript-eslint/no-floating-promises': 'off', '@typescript-eslint/no-misused-promises': 'off' },
   },
 
   // Data layer — Bare worker + shared modules (ESM).
