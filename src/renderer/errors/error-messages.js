@@ -13,6 +13,7 @@ export const ERROR_I18N_KEY_BY_CODE = {
   // unclassified local-filesystem failure reach the user as a bare "Transfer failed".
   DOWNLOAD_FAILED: 'transferFailed',
   SOURCE_NOT_ON_DISK: 'sourceNotOnDisk',
+  AVATAR_TOO_LARGE: 'avatarTooLarge',
   FILE_SOURCE_MISSING: 'fileSourceMissing',
   FILE_NOT_ON_DEVICE: 'fileNotOnDevice',
   LOOSE_FILE_LIMIT: 'looseFileLimit',
