@@ -49,19 +49,21 @@ export async function getProfile() {
   }
 }
 
-// Our own avatar is refused, not dropped: sanitizeAvatar's null means "no avatar", and storing it
-// would answer the save as if the chosen picture had been kept. A peer's avatar is still dropped to
-// null on ingest. Checked before anything is written, so a refused save changes nothing.
-function ownAvatar(avatar) {
+// A NEW avatar of our own is refused, not dropped: sanitizeAvatar's null means "no avatar", and
+// storing it would answer the save as if the chosen picture had been kept. The avatar already stored
+// comes back unchanged with every name edit, so it keeps the ingest rule (dropped to null once it no
+// longer passes) and never blocks the rename. Checked before anything is written.
+async function avatarToStore(avatar) {
+  const maxBytes = getMembershipCaps().maxAvatarBytes
   if (!avatar) return null
+  if (avatar === (await profileBee.get('avatar'))?.value) return sanitizeAvatar(avatar, maxBytes)
   if (sanitizeAvatar(avatar, 0) === null) throw new AppError(CODES.INVALID_ARGUMENT, 'avatar is not an image data URI')
-  const kept = sanitizeAvatar(avatar, getMembershipCaps().maxAvatarBytes)
-  if (kept === null) throw new AppError(CODES.AVATAR_TOO_LARGE, 'avatar exceeds maxAvatarBytes')
-  return kept
+  if (maxBytes && avatar.length > maxBytes) throw new AppError(CODES.AVATAR_TOO_LARGE, 'avatar exceeds maxAvatarBytes')
+  return avatar
 }
 
 export async function setProfile({ displayName, avatar }) {
-  const stored = avatar === undefined ? undefined : ownAvatar(avatar)
+  const stored = avatar === undefined ? undefined : await avatarToStore(avatar)
   await profileBee.put('displayName', clampDisplayName(displayName))
   if (stored !== undefined) await profileBee.put('avatar', stored)
   await profileBee.put('publicKey', b4a.toString(profileBee.core.key, 'hex'))
