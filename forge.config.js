@@ -5,6 +5,36 @@ const os = require('os')
 const pkg = require('./package.json')
 const appName = pkg.productName || pkg.name
 
+// Debian's Maintainer field is "Name <email>" and is printed by `apt show`. package.json#author is
+// a bare name (the About panel prints it that way), so the address is supplied here.
+const DEB_MAINTAINER = 'Oliver Kohl <hello@mirall.app>'
+
+// The hicolor icon map for the deb, read from the directory so it is the single list of sizes.
+function linuxIconMap() {
+  const dir = path.join(__dirname, 'resources', 'linux', 'icons')
+  const entries = fs.readdirSync(dir)
+    .map((file) => file.match(/^(\d+x\d+)\.png$/))
+    .filter(Boolean)
+    .map(([file, size]) => [size, path.join(dir, file)])
+  if (entries.length === 0) throw new Error(`no <size>x<size>.png icons in ${dir}`)
+  return Object.fromEntries(entries)
+}
+
+// The packaged tree's root LICENSE is Electron's, and the deb installer copies exactly that file to
+// /usr/share/doc/<name>/copyright. Keep Electron's text under its own name and put the app's
+// licence where the package reads it.
+function stampLinuxLicense(buildPath, _electronVersion, platform, _arch, callback) {
+  if (platform !== 'linux') return callback()
+  try {
+    const electronLicense = path.join(buildPath, 'LICENSE')
+    if (fs.existsSync(electronLicense)) fs.renameSync(electronLicense, path.join(buildPath, 'LICENSE.electron.txt'))
+    fs.copyFileSync(path.join(__dirname, 'LICENSE'), electronLicense)
+    callback()
+  } catch (err) {
+    callback(err)
+  }
+}
+
 // appdmg only hides .background/ and .VolumeIcon.icns by leading dot. Finder
 // renders both as soon as the user has "Show hidden files" on (Cmd+Shift+. or
 // AppleShowAllFiles=YES). create-dmg / electron-builder also chflags them so
@@ -135,6 +165,7 @@ let packagerConfig = {
       }
     },
   ],
+  afterComplete: [stampLinuxLicense],
   ignore: [
     /^\/\.claude($|\/)/,
     /\/\.github($|\/)/,
@@ -352,6 +383,38 @@ module.exports = {
         packageAssets: path.join(__dirname, 'resources', 'win32', 'msix-assets'),
         windowsKitVersion: getWindowsKitVersion(),
         sign: false,
+      },
+    },
+    {
+      name: '@electron-forge/maker-deb',
+      platforms: ['linux'],
+      config: {
+        options: {
+          // The package installs to /usr/lib/<name>/ with a /usr/bin/<name> symlink onto `bin`,
+          // so `name` is the dpkg-safe lower-case package name and `bin` the packager's
+          // capitalised executable. electron-installer-common marks chrome-sandbox 4755 in the
+          // staged tree, so the installed app runs with the Chromium sandbox on.
+          name: pkg.name,
+          bin: appName,
+          productName: appName,
+          genericName: 'File Sharing',
+          description: pkg.description,
+          productDescription:
+            'Mirall shares large files directly between the devices of the people you ' +
+            'invite. No cloud, no accounts. Files are advertised as metadata and ' +
+            'transferred peer-to-peer over encrypted connections.',
+          section: 'net',
+          maintainer: DEB_MAINTAINER,
+          homepage: 'https://mirall.app',
+          icon: linuxIconMap(),
+          categories: ['Network', 'FileTransfer'],
+          // xz: dpkg-deb on the Ubuntu runners defaults to zstd, which dpkg before Debian 12
+          // cannot unpack.
+          compression: 'xz',
+          // The deep-link scheme handler, declared statically in the packaged .desktop entry;
+          // an AppImage adds the same token at launch (integrateXdgLinux).
+          mimeType: packagerConfig.protocols.flatMap((p) => p.schemes).map((s) => `x-scheme-handler/${s}`),
+        },
       },
     },
   ],

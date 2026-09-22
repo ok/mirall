@@ -219,7 +219,7 @@ jobs:
         if: matrix.platform == 'linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends jq squashfs-tools
+          sudo apt-get install -y --no-install-recommends jq squashfs-tools fakeroot
           npm run make:linux
 
       - name: Make (Windows)
@@ -243,10 +243,18 @@ jobs:
         run: |
           F=$(find out/make -name '*.AppImage' | head -1)
           [ -f "$F" ] || { echo "no AppImage found"; ls -la out/make; exit 1; }
+          D=$(find out/make/deb -name '*.deb' | head -1)
+          [ -f "$D" ] || { echo "no deb found"; find out/make -type f; exit 1; }
           mkdir -p artifact
           cp "$F" artifact/Mirall.AppImage
           chmod +x artifact/Mirall.AppImage
+          cp "$D" artifact/Mirall.deb
           ls -la artifact/
+
+      - name: Verify deb (sandbox helper, layout, control)
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: bash scripts/ci/check-deb.sh artifact/Mirall.deb "${{ matrix.arch }}" "${{ needs.resolve.outputs.version }}"
 
       - name: Locate artifact (Windows)
         if: matrix.platform == 'win32'
@@ -268,7 +276,6 @@ jobs:
           CHANNEL: ${{ needs.resolve.outputs.channel }}
           VERSION: ${{ needs.resolve.outputs.version }}
           ARCH_PATH: ${{ matrix.archPath }}
-          EXT: ${{ matrix.ext }}
           PLATFORM: ${{ matrix.platform }}
         shell: bash
         run: |
@@ -300,45 +307,36 @@ jobs:
           else
             BASE="desktop/channels/$CHANNEL"
           fi
-          if [ "$PLATFORM" = "win32" ]; then
-            DEST="s3://$BUCKET/$BASE/$ARCH_PATH/unsigned/Mirall.$EXT"
-          else
-            DEST="s3://$BUCKET/$BASE/$ARCH_PATH/Mirall.$EXT"
-          fi
-          # R2 serves the stored contentType verbatim, and `aws s3 cp` derives nothing for
-          # these extensions (Python's mimetypes knows none of them), so a bare copy
-          # publishes an artifact with NO Content-Type header at all. Microsoft requires
-          # application/msix for HTTP-delivered MSIX. An unmapped extension is a hard
-          # failure rather than an octet-stream fallback: a new artifact type has to be a
-          # deliberate choice.
-          case "$EXT" in
-            msix)     CT="application/msix" ;;
-            dmg)      CT="application/x-apple-diskimage" ;;
-            AppImage) CT="application/vnd.appimage" ;;
-            *)        echo "::error::no Content-Type mapping for .$EXT"; exit 1 ;;
-          esac
-          echo "Uploading artifact/Mirall.$EXT -> $DEST  (Content-Type: $CT)"
-          aws s3 cp "artifact/Mirall.$EXT" "$DEST" --content-type "$CT"
-          echo "R2_KEY=${DEST#s3://$BUCKET/}" >> "$GITHUB_ENV"
-          echo "R2_CT=$CT" >> "$GITHUB_ENV"
-
-      - name: Verify uploaded Content-Type
-        if: env.R2_KEY != ''
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: auto
-          AWS_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT }}
-          BUCKET: ${{ secrets.R2_BUCKET }}
-        shell: bash
-        run: |
-          OBSERVED=$(aws s3api head-object --bucket "$BUCKET" --key "$R2_KEY" \
-                       --query 'ContentType' --output text)
-          echo "observed=$OBSERVED expected=$R2_CT"
-          if [ "$OBSERVED" != "$R2_CT" ]; then
-            echo "::error::Content-Type mismatch on $R2_KEY: '$OBSERVED' != '$R2_CT'"
-            exit 1
-          fi
+          # Every file the locate step put in artifact/ is uploaded (a Linux row carries the
+          # AppImage and the deb). R2 serves the stored contentType verbatim, and `aws s3 cp`
+          # derives nothing for these extensions (Python's mimetypes knows none of them), so a bare
+          # copy publishes an artifact with NO Content-Type header. Microsoft requires
+          # application/msix for HTTP-delivered MSIX. An unmapped extension is a hard failure rather
+          # than an octet-stream fallback: a new artifact type has to be a deliberate choice.
+          for FILE in artifact/Mirall.*; do
+            EXT="${FILE##*.}"
+            if [ "$PLATFORM" = "win32" ]; then
+              DEST="s3://$BUCKET/$BASE/$ARCH_PATH/unsigned/Mirall.$EXT"
+            else
+              DEST="s3://$BUCKET/$BASE/$ARCH_PATH/Mirall.$EXT"
+            fi
+            case "$EXT" in
+              msix)     CT="application/msix" ;;
+              dmg)      CT="application/x-apple-diskimage" ;;
+              AppImage) CT="application/vnd.appimage" ;;
+              deb)      CT="application/vnd.debian.binary-package" ;;
+              *)        echo "::error::no Content-Type mapping for .$EXT"; exit 1 ;;
+            esac
+            echo "Uploading $FILE -> $DEST  (Content-Type: $CT)"
+            aws s3 cp "$FILE" "$DEST" --content-type "$CT"
+            OBSERVED=$(aws s3api head-object --bucket "$BUCKET" --key "${DEST#s3://$BUCKET/}" \
+                         --query 'ContentType' --output text)
+            echo "observed=$OBSERVED expected=$CT"
+            if [ "$OBSERVED" != "$CT" ]; then
+              echo "::error::Content-Type mismatch on ${DEST#s3://$BUCKET/}: '$OBSERVED' != '$CT'"
+              exit 1
+            fi
+          done
 
       - name: Upload artifact (CI fallback)
         uses: actions/upload-artifact@v7
@@ -376,7 +374,9 @@ jobs:
             echo "$BASE/darwin-x64/Mirall.dmg"
             echo "$BASE/darwin-arm64/Mirall.dmg"
             echo "$BASE/linux-x64/Mirall.AppImage"
+            echo "$BASE/linux-x64/Mirall.deb"
             echo "$BASE/linux-arm64/Mirall.AppImage"
+            echo "$BASE/linux-arm64/Mirall.deb"
             echo "$BASE/win32-x64/unsigned/Mirall.msix    # sign locally, upload to win32-x64/signed/"
             echo '```'
             echo ""

@@ -28,7 +28,7 @@
     "package": "npm run build && electron-forge package",
     "make:darwin": "npm run build && electron-forge make --platform=darwin",
     "make:win32": "npm run build && electron-forge make --platform=win32",
-    "make:linux": "npm run build && electron-forge package --platform=linux && bash scripts/build/build-app-image.sh",
+    "make:linux": "npm run build && electron-forge make --platform=linux && bash scripts/build/build-app-image.sh",
     "typecheck": "tsc --noEmit",
     "test": "npm run test:node && npm run test:bare",
     "test:node": "npm run test:node:core && npm run test:flow",
@@ -43,6 +43,7 @@
   "devDependencies": {
     "@axe-core/react": "^4.13.0",
     "@electron-forge/cli": "^7.11.2",
+    "@electron-forge/maker-deb": "^7.11.2",
     "@electron-forge/maker-dmg": "^7.11.2",
     "@electron-forge/maker-msix": "^7.11.2",
     "@eslint/js": "^9.39.5",
