@@ -68,11 +68,13 @@ function emitSites() {
   return sites
 }
 
-function stubDeps() {
+function stubDeps({ debug = false, quitting = false } = {}) {
   const calls = []
   return {
     calls,
     deps: {
+      isDebug: () => debug,
+      isQuitting: () => quitting,
       ownedFolderWatchers: {
         startWatcher: (...a) => calls.push(['startWatcher', ...a]),
         stopWatcher: (...a) => calls.push(['stopWatcher', ...a]),
@@ -97,7 +99,7 @@ test('REGRESSION (FIX-H3-1): an unknown main-request command is refused loudly, 
   const { calls, deps } = stubDeps()
   const router = createMainRequestRouter(deps)
 
-  await router.handle('owned-folder:watch', { shareId: 's1', mountPath: '/tmp/x' })
+  await router.dispatch('owned-folder:watch', { shareId: 's1', mountPath: '/tmp/x' })
 
   t.alike(calls, [], 'nothing was done')
   t.ok(warnings.some((l) => l.includes('owned-folder:watch')), 'and it reaches the log ring unconditionally')
@@ -114,7 +116,7 @@ test('REGRESSION (FIX-R1): a command named after an Object.prototype key is unkn
   const router = createMainRequestRouter(deps)
 
   for (const command of ['toString', 'constructor', 'valueOf', '__proto__', 'hasOwnProperty']) {
-    await router.handle(command, { shareId: 's1', mountPath: '/tmp/x' })
+    await router.dispatch(command, { shareId: 's1', mountPath: '/tmp/x' })
     t.ok(warnings.some((l) => l.includes(command)), `'${command}' is refused out loud`)
   }
 
@@ -125,8 +127,8 @@ test('a known command still reaches its handler', async (t) => {
   const { calls, deps } = stubDeps()
   const router = createMainRequestRouter(deps)
 
-  await router.handle(MAIN_REQUEST.OWNED_FOLDER_START_WATCHER, { shareId: 's1', mountPath: '/tmp/x' })
-  await router.handle(MAIN_REQUEST.OWNED_FOLDER_STOP_WATCHER, { shareId: 's1' })
+  await router.dispatch(MAIN_REQUEST.OWNED_FOLDER_START_WATCHER, { shareId: 's1', mountPath: '/tmp/x' })
+  await router.dispatch(MAIN_REQUEST.OWNED_FOLDER_STOP_WATCHER, { shareId: 's1' })
 
   t.alike(calls.map((c) => c[0]), ['startWatcher', 'stopWatcher'])
 })
@@ -216,7 +218,7 @@ test('REGRESSION (FIX-OBS-2): a failed main request is warned unconditionally', 
   const router = createMainRequestRouter(deps)
   const command = MAIN_REQUEST.OWNED_FOLDER_START_WATCHER
 
-  await router.handle(command, { shareId: 's1', mountPath: '/tmp/x' }).catch((err) => router.reportFailure(command, err))
+  await router.dispatch(command, { shareId: 's1', mountPath: '/tmp/x' })
 
   const line = warnings.find((l) => l.includes('[main-request] failed'))
   t.ok(line, 'the failure reached console.warn, which feeds the log ring')
@@ -227,42 +229,150 @@ test('REGRESSION (FIX-OBS-2): a failed main request is warned unconditionally', 
 const failedLines = (warnings) => warnings.filter((l) => l.includes('[main-request] failed'))
 const failure = (code) => Object.assign(new Error('nope'), { code })
 
-test('a repeated failure with the same code is warned once a window; a new code warns again', (t) => {
+function failingRouter(flags, fail, now) {
+  const { deps } = stubDeps(flags)
+  deps.setDownloadRoots = () => { throw fail() }
+  return createMainRequestRouter({ ...deps, ...(now && { now }) })
+}
+
+test('a repeated failure with the same code is warned once a window; a new code warns again', async (t) => {
   const warnings = muteWarn(t)
   let clock = 0
-  const router = createMainRequestRouter({ ...stubDeps().deps, now: () => clock })
+  let code = 'EACCES'
+  const router = failingRouter({}, () => failure(code), () => clock)
 
-  for (let i = 0; i < 50; i++) router.reportFailure(MAIN_REQUEST.LOOSE_FILE_WATCH, failure('EACCES'))
+  for (let i = 0; i < 50; i++) await router.dispatch(MAIN_REQUEST.DOWNLOADS_ROOTS, {})
   t.is(failedLines(warnings).length, 1, 'fifty identical failures, one line')
 
-  router.reportFailure(MAIN_REQUEST.LOOSE_FILE_WATCH, failure('EMFILE'))
+  code = 'EMFILE'
+  await router.dispatch(MAIN_REQUEST.DOWNLOADS_ROOTS, {})
   t.is(failedLines(warnings).length, 2, 'a different code is a different failure')
 
+  code = 'EACCES'
   clock += 600000
-  router.reportFailure(MAIN_REQUEST.LOOSE_FILE_WATCH, failure('EACCES'))
+  await router.dispatch(MAIN_REQUEST.DOWNLOADS_ROOTS, {})
   t.is(failedLines(warnings).length, 3, 'the same failure is said again once the window has passed')
 })
 
-test('distinct failure codes are capped, and the cap is reported once a window', (t) => {
+test('distinct failure codes are capped, and the cap is reported once a window', async (t) => {
   const warnings = muteWarn(t)
-  const router = createMainRequestRouter({ ...stubDeps().deps, now: () => 0 })
-  for (let i = 0; i < 40; i++) router.reportFailure(MAIN_REQUEST.DOWNLOADS_ROOTS, failure('E' + i))
+  let i = 0
+  const router = failingRouter({}, () => failure('E' + i++), () => 0)
+  for (let n = 0; n < 40; n++) await router.dispatch(MAIN_REQUEST.DOWNLOADS_ROOTS, {})
   t.is(failedLines(warnings).length, 16, 'bounded')
   t.is(warnings.filter((l) => l.includes('too many distinct failures')).length, 1, 'the cap says so once')
 })
 
-test('a command that is not a string cannot throw out of the failure report', (t) => {
+test('dispatch never rejects: a handler that throws, rejects, or throws a non-Error', async (t) => {
   const warnings = muteWarn(t)
-  const router = createMainRequestRouter(stubDeps().deps)
-  router.reportFailure({ toString: 1 }, failure('EBAD'))
-  t.is(failedLines(warnings).length, 1)
+  const { deps } = stubDeps()
+  deps.setDownloadRoots = () => { throw failure('ESYNC') }
+  deps.ownedFolderWatchers.startWatcher = async () => { throw failure('EASYNC') }
+  deps.looseFileWatchers.removeLooseWatch = () => { throw undefined }
+  deps.looseFileWatchers.addLooseWatch = () => { throw 'boom' }
+  const router = createMainRequestRouter(deps)
+
+  await t.execution(router.dispatch(MAIN_REQUEST.DOWNLOADS_ROOTS, {}), 'sync throw')
+  await t.execution(router.dispatch(MAIN_REQUEST.OWNED_FOLDER_START_WATCHER, { shareId: 's1', mountPath: '/tmp/x' }), 'async rejection')
+  await t.execution(router.dispatch(MAIN_REQUEST.LOOSE_FILE_UNWATCH, {}), 'a throw with no error object')
+  await t.execution(router.dispatch(MAIN_REQUEST.LOOSE_FILE_WATCH, {}), 'a thrown string')
+  await t.execution(router.dispatch('no-such-command', {}), 'unknown command')
+
+  const lines = failedLines(warnings)
+  t.ok(lines.some((l) => l.includes(MAIN_REQUEST.LOOSE_FILE_UNWATCH + ' - undefined')), 'a thrown undefined is named as such')
+  t.ok(lines.some((l) => l.includes(MAIN_REQUEST.LOOSE_FILE_WATCH + ' - boom')), 'a thrown string is its own message')
 })
 
-test('the worker frame handler reports a failed request outside debug and outside a quit', (t) => {
-  const src = readFileSync(path.join(SRC, 'main', 'worker-host.js'), 'utf8')
-  const at = src.indexOf('mainRequests.handle(')
-  const end = src.indexOf('})', at)
-  t.ok(at !== -1 && end !== -1, 'found the frame dispatch and its catch')
-  const handler = src.slice(at, end)
-  t.ok(/else if \(!isQuitting\(\)\) mainRequests\.reportFailure\(/.test(handler), 'the rejection reaches the router unless the app is quitting')
+test('a router built without its debug and quit gates is a wiring error, thrown at build time', (t) => {
+  const { deps } = stubDeps()
+  t.exception.all(() => createMainRequestRouter({ ...deps, isDebug: undefined }), /isDebug and isQuitting/)
+  t.exception.all(() => createMainRequestRouter({ ...deps, isQuitting: undefined }), /isDebug and isQuitting/)
+})
+
+// A command comes off JSON.parse, so it can be an object; `{ toString: 1 }` throws on a property
+// lookup, which is where a table keyed by the raw value would reject.
+test('a command that is not a string is refused as unknown, not thrown', async (t) => {
+  const warnings = muteWarn(t)
+  const router = createMainRequestRouter(stubDeps().deps)
+  await t.execution(router.dispatch({ toString: 1 }, {}))
+  t.ok(warnings.some((l) => l.includes('unknown command') && l.includes('object')), 'named by its type')
+})
+
+test('in debug every failure is logged, repeats included, and none is rate-limited', async (t) => {
+  const lines = capture(t, ['warn', 'error'])
+  const router = failingRouter({ debug: true }, () => failure('EACCES'))
+  for (let i = 0; i < 3; i++) await router.dispatch(MAIN_REQUEST.DOWNLOADS_ROOTS, {})
+  for (let i = 0; i < 3; i++) await router.dispatch('no-such-command', {})
+  t.is(lines.error.filter((l) => l.includes('[main-request] failed') && l.includes('nope')).length, 3)
+  t.is(lines.error.filter((l) => l.includes('unknown command') && l.includes('no-such-command')).length, 3)
+  t.is(lines.warn.length, 0, 'the rate-limited warnings are not used')
+})
+
+test('during a quit a failure and an unknown command are silent', async (t) => {
+  const lines = capture(t, ['warn', 'error'])
+  const router = failingRouter({ quitting: true }, () => failure('EACCES'))
+  await router.dispatch(MAIN_REQUEST.DOWNLOADS_ROOTS, {})
+  await router.dispatch('no-such-command', {})
+  t.alike(lines, { warn: [], error: [] })
+})
+
+test('debug outranks a quit: a failure racing teardown is still logged in debug', async (t) => {
+  const lines = capture(t, ['warn', 'error'])
+  const router = failingRouter({ debug: true, quitting: true }, () => failure('EACCES'))
+  await router.dispatch(MAIN_REQUEST.DOWNLOADS_ROOTS, {})
+  t.is(lines.error.length, 1)
+  t.is(lines.warn.length, 0)
+})
+
+const WORKER_HOST = path.join(SRC, 'main', 'worker-host.js')
+
+const isDispatchCall = (node) => node.type === 'CallExpression'
+  && node.callee.type === 'MemberExpression'
+  && node.callee.object.type === 'Identifier' && node.callee.object.name === 'mainRequests'
+  && calleeName(node.callee) === 'dispatch'
+
+// Every mainRequests.dispatch call, and whether it stands alone as a statement: anything chained on
+// it (`.catch`, `.then`) makes the call a member's object instead.
+function dispatchCalls(source, file) {
+  const { ast, visitorKeys } = parseSource(source, file)
+  const calls = []
+  const bare = new Set()
+  forEachNode(ast, visitorKeys, (node) => {
+    if (node.type === 'ExpressionStatement' && isDispatchCall(node.expression)) bare.add(node.expression)
+    if (isDispatchCall(node)) calls.push(node)
+  })
+  return calls.map((call) => bare.has(call))
+}
+
+function routerOptionKeys(source, file) {
+  const { ast, visitorKeys } = parseSource(source, file)
+  const keys = []
+  forEachNode(ast, visitorKeys, (node) => {
+    if (node.type !== 'CallExpression' || calleeName(node.callee) !== 'createMainRequestRouter') return
+    const opts = node.arguments[0]
+    if (opts?.type !== 'ObjectExpression') return
+    for (const prop of opts.properties) {
+      if (prop.type === 'Property') keys.push(prop.computed ? staticString(prop.key) : (prop.key.name ?? staticString(prop.key)))
+    }
+  })
+  return keys
+}
+
+test('the worker frame handler hands every request to the router bare', (t) => {
+  const calls = dispatchCalls(readFileSync(WORKER_HOST, 'utf8'), WORKER_HOST)
+  t.ok(calls.length >= 1, 'found the frame dispatch')
+  t.ok(calls.every(Boolean), 'nothing is chained on it')
+})
+
+test('the bare-dispatch check refuses a call with a handler chained on the next line', (t) => {
+  const chained = 'mainRequests.dispatch(msg.command, msg.args || {}, worker)\r\n  .catch(() => {})\n'
+  t.alike(dispatchCalls(chained, 'fixture.js'), [false])
+  t.alike(dispatchCalls('mainRequests.dispatch(a, b, c)\n', 'fixture.js'), [true])
+})
+
+test('worker-host builds the router with its debug and quit gates', (t) => {
+  const keys = routerOptionKeys(readFileSync(WORKER_HOST, 'utf8'), WORKER_HOST)
+  t.ok(keys.includes('isDebug'), 'isDebug')
+  t.ok(keys.includes('isQuitting'), 'isQuitting')
+  t.alike(routerOptionKeys('createMainRequestRouter({ isDebug: () => d, isQuitting })', 'fixture.js'), ['isDebug', 'isQuitting'], 'any spelling of the property counts')
 })
