@@ -3,7 +3,7 @@ import b4a from 'b4a'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { openStore, getStore, setMasterSecret, createDrive } from '../../src/shared/core/store.js'
-import { initSpaceKeys, putContentKey, getContentKey } from '../../src/shared/spaces/space-keys.js'
+import { initSpaceKeys, putContentKey, getContentKeyForEpoch } from '../../src/shared/spaces/space-keys.js'
 import { tmpDir } from '../helpers/bare-tmp.js'
 
 test('v2 drive encrypts BOTH metadata and blobs under the SCK', async (t) => {
@@ -46,7 +46,7 @@ test('space-keys.enc round-trips a joined SCK across restart', async (t) => {
   await openStore(storagePath)
   setMasterSecret(M)
   await initSpaceKeys()
-  t.alike(getContentKey('space123'), sck, 'joined SCK survives restart, decrypts under the M-derived vault key')
-  t.is(getContentKey('unknown'), null)
+  t.alike(getContentKeyForEpoch('space123', 0), sck, 'joined SCK survives restart, decrypts under the M-derived vault key')
+  t.is(getContentKeyForEpoch('unknown', 0), null)
   await getStore().close()
 })

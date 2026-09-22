@@ -1,7 +1,7 @@
 import test from 'brittle'
 import b4a from 'b4a'
 import { freshPeer } from '../helpers/store.js'
-import { getSpace } from '../../src/shared/spaces/space.js'
+import { getSpace, getSpaceContentKey } from '../../src/shared/spaces/space.js'
 import { purgeSpace } from '../../src/shared/spaces/leave-records.js'
 import { createSpace, joinSpace, materializeOwnDrive } from '../../src/shared/spaces/space-lifecycle.js'
 import { getDrive, purgeSpaceDrive } from '../../src/shared/spaces/space-drives.js'
@@ -13,8 +13,6 @@ import { getDrive, purgeSpaceDrive } from '../../src/shared/spaces/space-drives.
 //
 // The own drive is built over the root corestore, so a purge that closes the drive wrong takes
 // the whole store down with it — hence the "store stays usable" assertions below.
-
-const GRANTED_SCK = b4a.from('ab'.repeat(32), 'hex')
 
 test('purgeSpaceDrive removes the drive and the store stays usable', async (t) => {
   await freshPeer(t)
@@ -38,6 +36,9 @@ test('re-joining after a purge gets a fresh, empty, writable drive (no zombie-al
   await drive1.put('/old.txt', b4a.from('stale content'))
   const key1 = b4a.toString(drive1.key, 'hex')
   const suffix1 = (await getSpace(space.spaceId)).driveSuffix
+  // The key a co-member grants on re-join is the space's own SCK — the vault keeps it across the
+  // leave, and a different key at the same epoch is refused.
+  const sck = getSpaceContentKey(space.spaceId, await getSpace(space.spaceId))
 
   // Simulate leave: purge the drive (frees the alias) + drop the space record.
   await purgeSpaceDrive(space.spaceId)
@@ -50,7 +51,7 @@ test('re-joining after a purge gets a fresh, empty, writable drive (no zombie-al
   t.absent(getDrive(space.spaceId), 'no drive is created while pending')
   t.not((await getSpace(space.spaceId)).driveSuffix, suffix1, 'a fresh driveSuffix, not the purged one')
 
-  const drive2 = await materializeOwnDrive(space.spaceId, GRANTED_SCK)
+  const drive2 = await materializeOwnDrive(space.spaceId, sck)
   t.ok(drive2, 'the grant materialises a drive')
   t.not(b4a.toString(drive2.key, 'hex'), key1, 'a fresh drive (new key), not the purged alias')
   t.absent(await drive2.entry('/old.txt'), 'fresh drive is empty — stale content does not leak back')

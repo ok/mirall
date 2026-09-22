@@ -7,7 +7,7 @@
 import Hyperbee from 'hyperbee'
 import b4a from 'b4a'
 import { getStore } from '../core/store.js'
-import { getSpace, getSpaceContentKey } from '../spaces/space.js'
+import { getSpace, getSpaceContentKeyForEpoch } from '../spaces/space.js'
 import { withReadTimeout, peerReadTimeoutMs, remainingMs } from '../core/with-timeout.js'
 import { getRuntimeConfig, getPeerCatalogCacheLimit } from '../core/runtime-config.js'
 import { createLogger } from '../core/logger.js'
@@ -46,13 +46,15 @@ function openPeerCatalog(catalogKeyHex, sck = null) {
   return bee
 }
 
-// Resolve which catalog to read for a record + with what key. `readable` folds the whole gate:
-// false when there's no key, or the catalog is encrypted but we hold no SCK (a pending joiner) —
-// callers return their empty value. `space` may be injected to skip a getSpace read in hot loops.
+// Resolve which catalog to read for a record + with what key: the SCK of the epoch the record
+// names, which is the one place a peer catalog's key is chosen. `readable` folds the whole gate:
+// false when there's no key, or the catalog is encrypted but we hold no SCK for its epoch (a
+// pending joiner) — callers return their empty value. `space` may be injected to skip a getSpace
+// read in hot loops.
 export async function resolvePeerCatalog(spaceId, rec, { space } = {}) {
-  const { keyHex, encrypted } = readCatalogKey(rec)
-  const sck = encrypted && keyHex ? getSpaceContentKey(spaceId, space || await getSpace(spaceId)) : null
-  return { keyHex, sck, encrypted, readable: !!keyHex && (!encrypted || !!sck) }
+  const { keyHex, encrypted, epoch } = readCatalogKey(rec)
+  const sck = encrypted && keyHex ? getSpaceContentKeyForEpoch(spaceId, space || await getSpace(spaceId), epoch) : null
+  return { keyHex, sck, encrypted, epoch, readable: !!keyHex && (!encrypted || !!sck) }
 }
 
 // Notify when a peer's catalog grows: the core's 'append' fires when new blocks replicate in,

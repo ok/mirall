@@ -3,7 +3,7 @@ import { listSpaces, getSpaceContentKey, isLegacySpace } from '../spaces/space.j
 import { createLocalBee } from '../core/store.js'
 import { readOwnShares, publishShare } from './shares.js'
 import { catalogKeyField } from './catalog-keys.js'
-import { ownCatalog, ownCatalogKeyHex, openLegacyPlaintextCatalog, purgeLegacyPlaintextCatalog } from './own-catalog.js'
+import { ownCatalog, ownCatalogPublish, openLegacyPlaintextCatalog, purgeLegacyPlaintextCatalog } from './own-catalog.js'
 import { markSpaceLooseCatalogKeyEnc } from '../spaces/profile.js'
 import { createLogger } from '../core/logger.js'
 
@@ -79,12 +79,12 @@ async function migrateOneCatalog(space, spaceId) {
     try { await legacy.close() } catch {}
   }
 
-  const encKey = await ownCatalogKeyHex(spaceId)
-  await markSpaceLooseCatalogKeyEnc(spaceId, encKey)
+  const { keyHex: encKey, epoch } = await ownCatalogPublish(spaceId, space)
+  await markSpaceLooseCatalogKeyEnc(spaceId, encKey, epoch)
   for (const share of await readOwnShares(spaceId)) {
     if (share.catalogKeyEnc === encKey && share.contentMode === 'overlay' && !share.catalogKey) continue
     const { catalogKey, ...rest } = share
-    await publishShare(spaceId, { ...rest, contentMode: 'overlay', ...catalogKeyField(encKey, true) })
+    await publishShare(spaceId, { ...rest, contentMode: 'overlay', ...catalogKeyField(encKey, true, 'catalogKey', epoch) })
   }
   await purgeLegacyPlaintextCatalog(spaceId, space)
 }

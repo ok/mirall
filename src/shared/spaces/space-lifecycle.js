@@ -46,6 +46,9 @@ export async function createSpace(name, icon = 'folder') {
     members: [],
     driveSuffix,
     schemaVersion: 2,
+    epoch: 0,
+    createdBySelf: true,
+    // The created-by-me marker an older release reads; nothing here reads it.
     sckDerivable: true,
     // creatorKey is the root of the membership OR-Set (conflict-free add/remove set)
     // fold. I created this space, so I am its root — stamp myself.
@@ -91,6 +94,7 @@ export async function joinSpace(topicHex, name = 'Unnamed Space', icon = 'folder
     members: [],
     driveSuffix: makeDriveSuffix(),
     schemaVersion: 2,
+    epoch: 0,
     status: 'pending',
     ...(inviteId ? { inviteId } : {}),
     // The invite's creator (envelope `c`) is an UNAUTHENTICATED bearer hint —
@@ -111,11 +115,12 @@ async function rejoinDrive(space) {
   return space
 }
 
-// Create our own writable space drive, encrypted from block 0 with the granted SCK,
-// and flip the space out of the pending state.
-export async function materializeOwnDrive(spaceId, sck) {
-  await putContentKey(spaceId, sck)
-  const space = await getSpace(spaceId)
+// Create our own writable space drive, encrypted from block 0 with the granted SCK, and flip
+// the space out of the pending state at the epoch the grant named.
+export async function materializeOwnDrive(spaceId, sck, { epoch = 0 } = {}) {
+  await putContentKey(spaceId, sck, { epoch })
+  // The epoch lands on the record before the announce, which publishes it from the record.
+  const space = await mutateSpace(spaceId, (s) => ({ ...s, epoch }))
   if (!space) return null
   const drive = getDrive(spaceId) || await openOwnDrive(spaceId, space.driveSuffix, sck)
   await announceOwnDrive(spaceId, space, drive)

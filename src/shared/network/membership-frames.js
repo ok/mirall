@@ -12,8 +12,9 @@ import { sendFrame, getLocalBinding } from './identity-frames.js'
 // Hand the joiner the SCK AND assert this space's OR-Set root, bound to our identity. The
 // joiner pins creatorKey only from this authenticated assertion — never from the bearer
 // invite. creatorKeyHex is our own pinned/derived root; granterKey + binding let the joiner
-// verify WE are an authorized member making the claim.
-export function sendMembershipGrant(profileKeyHex, topicHex, sckHex, creatorKeyHex, recipientSignerPkEd) {
+// verify WE are an authorized member making the claim. `epoch` names which SCK epoch the
+// sealed key belongs to.
+export function sendMembershipGrant(profileKeyHex, topicHex, sckHex, creatorKeyHex, recipientSignerPkEd, { epoch = 0 } = {}) {
   const handler = handlerForPeer(profileKeyHex)
   // Sealed-only: without the recipient's bound signer key we cannot seal, so we refuse to
   // grant rather than fall back to a plaintext SCK a transport observer could capture.
@@ -24,6 +25,7 @@ export function sendMembershipGrant(profileKeyHex, topicHex, sckHex, creatorKeyH
       type: PEER_FRAME.MEMBERSHIP_GRANT,
       spaceTopic: topicHex,
       sckSealed,
+      epoch,
       creator: creatorKeyHex || null,
       granterKey: b4a.toString(getProfileKey(), 'hex'),
       ...(getLocalBinding() || {}),

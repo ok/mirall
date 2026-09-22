@@ -3,13 +3,14 @@ import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
 import fs from 'bare-fs'
 import path from 'bare-path'
-import { openStore, getStore, setMasterSecret } from '../../src/shared/core/store.js'
+import { openStore, getStore, setMasterSecret, getStoragePath } from '../../src/shared/core/store.js'
+import { deriveContentKey } from '../../src/shared/core/identity-keys.js'
 import { setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { initSpaceKeys } from '../../src/shared/spaces/space-keys.js'
 import { initProfile, setProfile, getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
-import { initSpaces, getSpace, mutateSpace } from '../../src/shared/spaces/space.js'
+import { initSpaces, getSpace, mutateSpace, isCreatedBySelf, getSpaceContentKey, getSpaceContentKeyForEpoch } from '../../src/shared/spaces/space.js'
 import { createSpace, joinSpace } from '../../src/shared/spaces/space-lifecycle.js'
-import { backfillSelfCreatedCreatorKey, pinCreatorKey, flagUnverifiedJoinedCreators, markCreatorDivergence, clearCreatorDivergence } from '../../src/shared/spaces/creator-pin.js'
+import { backfillCreatedBySelf, backfillSelfCreatedCreatorKey, pinCreatorKey, flagUnverifiedJoinedCreators, markCreatorDivergence, clearCreatorDivergence } from '../../src/shared/spaces/creator-pin.js'
 import { tmpDir } from '../helpers/bare-tmp.js'
 
 // The membership fold (phase a) folds an OR-Set whose only base case is the space
@@ -193,4 +194,82 @@ test('the migration stamps already-provisional joined spaces without re-flagging
   await pinCreatorKey(joined.spaceId, creator)
   t.is(await flagUnverifiedJoinedCreators(), 0, 'a later boot leaves the now-authenticated pin alone')
   t.is((await getSpace(joined.spaceId)).creatorUnverified, false)
+})
+
+// The SCK epoch: every record is at epoch 0, the created-by-me marker is split from derivability,
+// and the epoch-0 key is byte-identical to the derivation every earlier release used.
+
+const M = b4a.from('44'.repeat(32), 'hex')
+
+// A record as an earlier release wrote it: no epoch, no createdBySelf, only sckDerivable.
+const asOlderRecord = (s) => { const { createdBySelf, epoch, ...older } = s; return older }
+
+test('createSpace stamps epoch 0, createdBySelf and the older created-by-me marker', async (t) => {
+  await boot(t, 'epoch0')
+  const space = await createSpace('Secret')
+  const rec = await getSpace(space.spaceId)
+  t.is(rec.epoch, 0)
+  t.is(rec.createdBySelf, true)
+  t.is(rec.sckDerivable, true, 'the marker a downgrade reads is still written')
+  t.ok(isCreatedBySelf(rec))
+})
+
+test('joinSpace stamps epoch 0 and no createdBySelf', async (t) => {
+  await boot(t, 'join-epoch0')
+  const topic = b4a.toString(crypto.randomBytes(32), 'hex')
+  const joined = await joinSpace(topic, 'Joined', 'folder')
+  const rec = await getSpace(joined.spaceId)
+  t.is(rec.epoch, 0)
+  t.absent(rec.createdBySelf)
+  t.absent(isCreatedBySelf(rec))
+})
+
+test('isCreatedBySelf reads the older marker on a record that predates the split field', (t) => {
+  t.ok(isCreatedBySelf({ sckDerivable: true }))
+  t.absent(isCreatedBySelf({}))
+  t.absent(isCreatedBySelf({ createdBySelf: false, sckDerivable: true }), 'the split field wins once present')
+})
+
+test('backfillCreatedBySelf stamps a record that carries only the older marker, once', async (t) => {
+  await boot(t, 'backfill-self')
+  const own = await createSpace('Old')
+  const topic = b4a.toString(crypto.randomBytes(32), 'hex')
+  const joined = await joinSpace(topic, 'Joined', 'folder')
+  await mutateSpace(own.spaceId, asOlderRecord)
+  await mutateSpace(joined.spaceId, asOlderRecord)
+  t.absent((await getSpace(own.spaceId)).createdBySelf, 'an older record')
+
+  t.is(await backfillCreatedBySelf(), 1, 'the created space is stamped')
+  t.is((await getSpace(own.spaceId)).createdBySelf, true)
+  t.absent((await getSpace(joined.spaceId)).createdBySelf, 'the joined space is left alone')
+  t.is(await backfillCreatedBySelf(), 0, 'idempotent')
+})
+
+test('the creator passes read the split field: an older created space still backfills its root', async (t) => {
+  await boot(t, 'passes-split')
+  const own = await createSpace('Old')
+  await mutateSpace(own.spaceId, (s) => { const older = asOlderRecord(s); delete older.creatorKey; return older })
+  await backfillCreatedBySelf()
+  t.is(await backfillSelfCreatedCreatorKey(), 1, 'rooted at self through createdBySelf')
+  t.is(await flagUnverifiedJoinedCreators(), 0, 'and never flagged as a joined space')
+})
+
+test('the epoch-0 key equals the legacy derivation, with and without a vault entry', async (t) => {
+  await boot(t, 'derive')
+  const space = await createSpace('Secret')
+  const legacy = deriveContentKey(M, 'space-content/' + space.spaceId)
+  const rec = await getSpace(space.spaceId)
+  t.alike(getSpaceContentKey(space.spaceId, rec), legacy, 'the vault copy')
+  t.alike(getSpaceContentKeyForEpoch(space.spaceId, rec, 0), legacy)
+  t.alike(getSpaceContentKey(space.spaceId, asOlderRecord(rec)), legacy, 'an older record reads the same key')
+
+  // Lose the vault (what the derive fallback exists for) and derive again.
+  fs.rmSync(path.join(path.dirname(getStoragePath()), 'space-keys.enc'))
+  await initSpaceKeys()
+  t.alike(getSpaceContentKey(space.spaceId, rec), legacy, 'derive fallback at epoch 0')
+  t.alike(getSpaceContentKey(space.spaceId, asOlderRecord(rec)), legacy, 'and for an older record')
+  t.is(getSpaceContentKeyForEpoch(space.spaceId, rec, 1), null, 'no derivation for a later epoch')
+  t.is(getSpaceContentKey(space.spaceId, { ...rec, epoch: 1 }), null, 'a rotated space holds its key nowhere but the vault')
+  t.is(getSpaceContentKey(space.spaceId, { ...rec, createdBySelf: false, sckDerivable: false }), null, 'a joined space never derives')
+  t.is(getSpaceContentKey(space.spaceId, null), null)
 })

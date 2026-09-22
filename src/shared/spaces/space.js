@@ -8,13 +8,14 @@
 // A space record is written whole by createSpace and joinSpace and patched through mutateSpace
 // thereafter. Seven fields are always present — name, icon, topic, created, members, driveSuffix,
 // schemaVersion. The rest are latches, each owned by one writer: `status: 'pending'` until the
-// grant arrives, `sckDerivable` and `creatorKey` stamped at creation (or pre-seeded from an invite
-// and marked `creatorUnverified` until onGrant pins it), `inviteId` from the invite we joined
-// through, `leaving` while a leave runs, `left`/`joined`/`updated` as timestamps, `favorite` and
-// `downloadFolder` as user choices, and `creatorDivergence`, `creatorMigrated`, `legacyWarning`
-// and `driveLoadError` as diagnoses a later pass records.
+// grant arrives, `epoch` (the SCK epoch this peer holds; absent reads as 0), `createdBySelf`,
+// `sckDerivable` and `creatorKey` stamped at creation (creatorKey may instead be pre-seeded from
+// an invite and marked `creatorUnverified` until onGrant pins it), `inviteId` from the invite we
+// joined through, `leaving` while a leave runs, `left`/`joined`/`updated` as timestamps,
+// `favorite` and `downloadFolder` as user choices, and `creatorDivergence`, `creatorMigrated`,
+// `legacyWarning` and `driveLoadError` as diagnoses a later pass records.
 import { createLocalBee, storeEpoch, deriveSpaceContentKey } from '../core/store.js'
-import { getContentKey } from './space-keys.js'
+import { getContentKeyForEpoch } from './space-keys.js'
 import { hasOwnApproval } from './profile.js'
 import { resetJoinRequests } from './join-requests.js'
 import { Subsystem } from '../core/subsystem.js'
@@ -42,11 +43,35 @@ export function spacesMeta() {
   return spacesBee
 }
 
-// Per-space content key (SCK). A space I created re-derives from M if the vault entry is ever
-// lost; a space I joined has it only from the grant stored in the vault.
-export function getSpaceContentKey(spaceId, space) {
+// The SCK epoch this peer holds for the space. A record written before the field existed is at
+// epoch 0, the only epoch there has ever been.
+export function spaceEpoch(space) {
+  return Number.isInteger(space?.epoch) ? space.epoch : 0
+}
+
+// Whether this peer created the space. `sckDerivable` carries the same meaning on a record that
+// predates `createdBySelf`; this is the one place that reads it.
+export function isCreatedBySelf(space) {
+  return space.createdBySelf ?? !!space.sckDerivable
+}
+
+// Only the epoch-0 key can be re-derived from M, and only by the creator: once a space rotates,
+// even the creator holds the current key nowhere but the vault.
+function epochZeroDerivable(space, epoch) {
+  return epoch === 0 && isCreatedBySelf(space)
+}
+
+// The key for one epoch: the vault, else the derivation for a creator's epoch 0. A peer catalog
+// published under an earlier epoch reads through this with the record's epoch.
+export function getSpaceContentKeyForEpoch(spaceId, space, epoch) {
   if (!space) return null
-  return getContentKey(spaceId) || (space.sckDerivable ? deriveSpaceContentKey(spaceId) : null)
+  return getContentKeyForEpoch(spaceId, epoch)
+    || (epochZeroDerivable(space, epoch) ? deriveSpaceContentKey(spaceId) : null)
+}
+
+// Per-space content key (SCK) at the space's CURRENT epoch — what every own-core open wants.
+export function getSpaceContentKey(spaceId, space) {
+  return getSpaceContentKeyForEpoch(spaceId, space, spaceEpoch(space))
 }
 
 // A space created before v1.7.0, when every space became SCK-encrypted. There is no upgrade

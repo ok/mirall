@@ -73,8 +73,8 @@ async function sendIdentityFrame(socket, msgHandler, spaceId, topicHex, profile)
     const driveKeyHex = b4a.toString(drive.key, 'hex')
     // A v2 catalog is SCK-encrypted, so send its key in the …Enc field — the receiver reads the
     // field to decide whether to apply the SCK. A v1/plaintext key travels in the plain field.
-    const loose = await ownLooseCatalogPublish(spaceId)
-    const looseField = loose ? catalogKeyField(loose.keyHex, loose.encrypted, 'looseCatalogKey') : {}
+    const loose = await ownLooseCatalogPublish(spaceId, space)
+    const looseField = loose ? catalogKeyField(loose.keyHex, loose.encrypted, 'looseCatalogKey', loose.epoch) : {}
     sendFrame(msgHandler, {
       type: PEER_FRAME.HANDSHAKE,
       profileKey: profileKeyHex,

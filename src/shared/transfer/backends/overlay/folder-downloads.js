@@ -5,7 +5,7 @@
 // can re-look-up the entry without a share descriptor.
 import path from 'bare-path'
 import { shareDecoKey } from '../../../contract/decoration-key.js'
-import { catalogKeyField } from '../../../shares/catalog-keys.js'
+import { catalogKeyField, readCatalogEpoch } from '../../../shares/catalog-keys.js'
 import { collectPeerShare, getPeerEntry, getPeerEntryState, watchPeerCatalog, resolvePeerCatalog } from '../../../shares/peer-catalog.js'
 import { readPeerShareEntry } from '../../../shares/shares.js'
 import { getDownloadDir } from '../../../core/paths.js'
@@ -69,7 +69,7 @@ export async function folderListPeerWithMeta(spaceId, share, limit = Infinity, o
 // owner/share. If the owner re-published a file under a new contentHash, supersede the
 // stale fetch and restart it against the new content (same as the loose path).
 async function reconcileActiveFolderTransfers(spaceId, share) {
-  const { keyHex, sck, encrypted, readable } = await resolvePeerCatalog(spaceId, share)
+  const { keyHex, sck, encrypted, epoch, readable } = await resolvePeerCatalog(spaceId, share)
   if (!readable) return
   const prefix = '/' + share.name + '/'
   const relOf = (slot) => slot.pendingKey.slice(prefix.length)
@@ -81,7 +81,7 @@ async function reconcileActiveFolderTransfers(spaceId, share) {
     entryStateFor: (slot) => getPeerEntryState(keyHex, share.id, relOf(slot), { sck }),
     buildJob: (slot, state) => folderJob({
       spaceId, share, shareId: share.id, ownerKey: share.owner, relPath: relOf(slot), pendingKey: slot.pendingKey,
-      keyHex, encrypted, entry: state, finalPath: slot.finalPath,
+      keyHex, encrypted, epoch, entry: state, finalPath: slot.finalPath,
     }),
   })
 }
@@ -92,7 +92,7 @@ async function resolveFolderPendingRow(spaceId, row) {
   // and the plaintext core is purged, so a row-only resolve would open the dead core.
   // Fall back to the row when the descriptor is unreadable (owner offline).
   const share = await readPeerShareEntry(row.ownerKey, spaceId, row.shareId)
-  const { keyHex, sck, encrypted, readable } = await resolvePeerCatalog(spaceId, share || row)
+  const { keyHex, sck, encrypted, epoch, readable } = await resolvePeerCatalog(spaceId, share || row)
   if (!readable) return { removed: false, seq: undefined, job: null }
   const state = await getPeerEntryState(keyHex, row.shareId, row.relPath, { sck })
   if (state?.removed) return { removed: true, seq: undefined, job: null }
@@ -105,7 +105,7 @@ async function resolveFolderPendingRow(spaceId, row) {
     seq: state.seq,
     job: folderJob({
       spaceId, share, shareId: row.shareId, ownerKey: row.ownerKey, relPath: row.relPath, pendingKey: row.filePath,
-      keyHex, encrypted, entry: state, finalPath, prevFinalPath: row.finalPath, prevBytes: row.bytesTransferred,
+      keyHex, encrypted, epoch, entry: state, finalPath, prevFinalPath: row.finalPath, prevBytes: row.bytesTransferred,
     }),
   }
 }
@@ -124,7 +124,7 @@ export const folderChannel = createOverlayChannel({
   decoKeyFor: (job) => shareDecoKey(job.shareId, job.relPath),
   decoKeyForRow: (row) => (row?.shareId && row?.relPath ? shareDecoKey(row.shareId, row.relPath) : null),
   ownsPendingRow: (row) => row.overlayShare === true,
-  pendingExtra: (job) => ({ overlayShare: true, shareId: job.shareId, relPath: job.relPath, ...catalogKeyField(job.catalogKeyEnc || job.catalogKey, !!job.catalogKeyEnc) }),
+  pendingExtra: (job) => ({ overlayShare: true, shareId: job.shareId, relPath: job.relPath, ...catalogKeyField(job.catalogKeyEnc || job.catalogKey, !!job.catalogKeyEnc, 'catalogKey', readCatalogEpoch(job)) }),
   transferIdForRow: (spaceId, row) => transferIdFor(spaceId, row.shareId, row.relPath),
   resolvePendingRow: resolveFolderPendingRow,
 })

@@ -1,10 +1,11 @@
 import test from 'brittle'
+import b4a from 'b4a'
+import crypto from 'hypercore-crypto'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { freshPeer } from '../helpers/store.js'
 import { getSpace, getSpaceContentKey } from '../../src/shared/spaces/space.js'
-import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
-import { putContentKey } from '../../src/shared/spaces/space-keys.js'
+import { createSpace, joinSpace, materializeOwnDrive } from '../../src/shared/spaces/space-lifecycle.js'
 import { advertise, getOwnEntry, ownCatalogKeyHex } from '../../src/shared/shares/own-catalog.js'
 import { getRuntimeConfig, setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { setSpaceDownloadRoot } from '../../src/shared/core/paths.js'
@@ -41,13 +42,13 @@ async function setup(t) {
   return { ...ctx, spaceId: space.spaceId }
 }
 
-// A second space that stands in for the consumer context, sharing the owner space's SCK the way
-// co-members of one space do — the peer catalog below is that space's own encrypted core, so the
-// reader must hold the key that opens it.
+// A second space that stands in for the consumer context, holding the owner space's SCK the way
+// a co-member does: joined, then granted that key — the peer catalog below is the owner space's
+// encrypted core, so the reader must hold the key that opens it.
 async function consumerSpace(ctx, name) {
-  const space = await createSpace(name)
-  await putContentKey(space.spaceId, getSpaceContentKey(ctx.spaceId, await getSpace(ctx.spaceId)))
-  return space
+  const joined = await joinSpace(b4a.toString(crypto.randomBytes(32), 'hex'), name)
+  await materializeOwnDrive(joined.spaceId, getSpaceContentKey(ctx.spaceId, await getSpace(ctx.spaceId)))
+  return getSpace(joined.spaceId)
 }
 
 function writeSource(ctx, name, contents) {

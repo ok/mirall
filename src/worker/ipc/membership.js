@@ -23,14 +23,14 @@ import { classifyInvite } from '../../shared/spaces/invites.js'
 import { applyLocalApproval, applyLocalDenial, closeMemberView, dropTombstone, isApprovedJoiner, isDeniedJoiner, isLeft, openMemberView } from '../../shared/spaces/member-registry.js'
 import { ASK_PEERS, denyVerdict, knockSettledByRecords, knockInviteVerdict } from '../../shared/spaces/knock-policy.js'
 import { captureJoinerMembership, getIdentitySigner, markRequest, markRequestDenied, ownDenialStands, readProfileRecord } from '../../shared/spaces/profile.js'
-import { getSpace, getSpaceContentKey } from '../../shared/spaces/space.js'
+import { getSpace, getSpaceContentKey, spaceEpoch } from '../../shared/spaces/space.js'
 import { claimJoinRequestAudit, clearJoinRequest, forgetJoinRequestAudit, hasApprovedVerdict, listJoinRequests, listPendingRequests, recordJoinRequest, releaseJoinRequestAudit, rememberApprovedVerdict } from '../../shared/spaces/join-requests.js'
 import { clearCreatorDivergence, markCreatorDivergence, pinCreatorKey } from '../../shared/spaces/creator-pin.js'
 import { materializeOwnDrive, recordApproval } from '../../shared/spaces/space-lifecycle.js'
 import { purgeSpace } from '../../shared/spaces/leave-records.js'
 import { makeKeyedCoalescer } from '../../shared/core/coalesce.js'
 import { forgetUnreferencedPeerCores } from '../../shared/storage/leftover.js'
-import { checkGrantAssertion, clampDisplayName } from '../../shared/network/handshake-guard.js'
+import { checkGrantAssertion, clampDisplayName, frameEpoch } from '../../shared/network/handshake-guard.js'
 import { openSealedSck } from '../../shared/spaces/sck-seal.js'
 import { broadcastProfileUpdate } from '../../shared/network/identity-frames.js'
 import { cleanupSpaceDrives, leaveSpaceTopic } from '../../shared/network/space-topics.js'
@@ -128,7 +128,7 @@ async function onJoinRequest(msg) {
     // joiner's FIRST SCK delivery under the disputed trust anchor.
     if (space.creatorDivergence) { log.warn('re-grant blocked — creator root divergence unresolved:', spaceId); return }
     const sck = getSpaceContentKey(spaceId, space)
-    if (sck) sendMembershipGrant(msg.profileKey, space.topic, b4a.toString(sck, 'hex'), space.creatorKey, boundSignerPk(msg.profileKey))
+    if (sck) sendMembershipGrant(msg.profileKey, space.topic, b4a.toString(sck, 'hex'), space.creatorKey, boundSignerPk(msg.profileKey), { epoch: spaceEpoch(space) })
   }
   if (settled === 'regrant') return grant()
 
@@ -246,6 +246,13 @@ async function onGrant(msg, ctx = {}) {
     log.warn('rejected membership:grant —', verdict.reason)
     return
   }
+  // The epoch the sealed key belongs to; a granter that predates the field sends none (epoch 0).
+  // Checked before the root reconcile, which records and persists what it decides.
+  const epoch = frameEpoch(msg.epoch)
+  if (epoch === null) {
+    log.warn('rejected membership:grant — malformed epoch')
+    return
+  }
   // While binding enforcement is off the assertion is unverified, so we leave the provisional
   // invite pin untouched; an assertion is adopted or refused only once it is authenticated
   // (enforcement on).
@@ -262,7 +269,7 @@ async function onGrant(msg, ctx = {}) {
   const sckBuf = openSealedSck(b4a.from(msg.sckSealed, 'hex'), signer)
   if (!sckBuf || sckBuf.length !== 32) return
 
-  await materializeOwnDrive(spaceId, sckBuf)
+  await materializeOwnDrive(spaceId, sckBuf, { epoch })
   if (asserted && (decision === 'adopt' || decision === 'confirm')) await pinCreatorKey(spaceId, asserted)
   await broadcastProfileUpdate()
   await openMemberView(spaceId)
@@ -341,7 +348,7 @@ async function resolveJoinRequest(space, joinerKey, outcome) {
       // (the joiner must be connected to be granted). Surface a failure loudly rather than leaving
       // the joiner silently stuck on "waiting for approval".
       const signerPk = boundSignerPk(joinerKey)
-      delivered = sendMembershipGrant(joinerKey, space.topic, b4a.toString(sck, 'hex'), space.creatorKey, signerPk)
+      delivered = sendMembershipGrant(joinerKey, space.topic, b4a.toString(sck, 'hex'), space.creatorKey, signerPk, { epoch: spaceEpoch(space) })
       if (!delivered) log.warn('approval grant not delivered —', joinerKey.slice(0, 8), '— signer key', signerPk ? 'present' : 'missing')
     }
     // THEN durably capture the joiner's OWN profile core while it is still connected (it stays

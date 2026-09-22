@@ -5,10 +5,10 @@ import fs from 'bare-fs'
 import path from 'bare-path'
 import { openStore, getStore, setMasterSecret } from '../../src/shared/core/store.js'
 import { setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
-import { initSpaceKeys } from '../../src/shared/spaces/space-keys.js'
+import { initSpaceKeys, getContentKeyForEpoch } from '../../src/shared/spaces/space-keys.js'
 import { initProfile, setProfile, getProfileBee } from '../../src/shared/spaces/profile.js'
-import { initSpaces, getSpace } from '../../src/shared/spaces/space.js'
-import { createSpace, joinSpace, recordApproval } from '../../src/shared/spaces/space-lifecycle.js'
+import { initSpaces, getSpace, getSpaceContentKeyForEpoch } from '../../src/shared/spaces/space.js'
+import { createSpace, joinSpace, recordApproval, materializeOwnDrive } from '../../src/shared/spaces/space-lifecycle.js'
 import { getDrive } from '../../src/shared/spaces/space-drives.js'
 import { recordJoinRequest, listJoinRequests, listPendingRequests } from '../../src/shared/spaces/join-requests.js'
 import { tmpDir } from '../helpers/bare-tmp.js'
@@ -76,4 +76,33 @@ test('FIX-APPROVE-LAG: the pending list excludes the joiner the moment recordApp
 
   const memberKeys = new Set((await getSpace(space.spaceId)).members.map((m) => m.publicKey))
   t.is(listPendingRequests(space.spaceId, memberKeys).length, 0, 'pending list clean immediately — safe to emit the hint pre-capture')
+})
+
+test('materializeOwnDrive stores the granted key at epoch 0 by default and stamps the record', async (t) => {
+  await boot(t, 'grant-epoch0')
+  const topic = b4a.toString(crypto.randomBytes(32), 'hex')
+  const joined = await joinSpace(topic, 'Joined', 'folder')
+  const sck = b4a.from('ab'.repeat(32), 'hex')
+  await materializeOwnDrive(joined.spaceId, sck)
+  const rec = await getSpace(joined.spaceId)
+  t.is(rec.status, 'approved')
+  t.is(rec.epoch, 0)
+  t.alike(getContentKeyForEpoch(joined.spaceId, 0), sck)
+  t.ok(getDrive(joined.spaceId), 'the drive is open')
+})
+
+test('a grant at a later epoch (a rotated space) is stored at that epoch', async (t) => {
+  await boot(t, 'grant-epoch2')
+  const topic = b4a.toString(crypto.randomBytes(32), 'hex')
+  const joined = await joinSpace(topic, 'Joined', 'folder')
+  const sck = b4a.from('cd'.repeat(32), 'hex')
+  await materializeOwnDrive(joined.spaceId, sck, { epoch: 2 })
+  const rec = await getSpace(joined.spaceId)
+  t.is(rec.status, 'approved')
+  t.is(rec.epoch, 2)
+  t.alike(getContentKeyForEpoch(joined.spaceId, 2), sck)
+  t.alike(getSpaceContentKeyForEpoch(joined.spaceId, rec, 2), sck)
+  t.is(getSpaceContentKeyForEpoch(joined.spaceId, rec, 0), null, 'no epoch-0 key and none derivable for a joined space')
+  const profile = await getProfileBee().get('loosecatEpoch/' + joined.spaceId)
+  t.is(profile?.value, 2, 'the loose-catalog epoch is published from the stamped record')
 })
