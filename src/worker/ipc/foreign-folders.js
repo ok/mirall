@@ -10,6 +10,7 @@ import { validateMountPath } from '../../shared/folders/mount-validate.js'
 import { publishMirror } from '../../shared/folders/mirror-records.js'
 import { startForeignLoop, scanForeignMount, setForeignEnabled, relocateForeignFolder, unmountForeignFolder } from '../../shared/folders/foreign-verbs.js'
 import { insertForeignMount, getForeignMount, listForeignMounts } from '../../shared/folders/mount-store.js'
+import { handleMirrorFsEvent } from '../../shared/folders/mirror-watcher.js'
 import { record } from '../../shared/audit/audit-log.js'
 import { selfActor, targetRef } from '../../shared/audit/audit-record.js'
 import { TARGET_KIND } from '../../shared/contract/audit-kinds.js'
@@ -111,5 +112,11 @@ export function registerForeignFolders(ipc, { log, intents }) {
 
   ipc.handle('foreign-folder:list-all', async () => {
     return (await listForeignMounts()).map(wire)
+  })
+
+  ipc.handle('event:foreign-folder-fs-event', async (msg) => {
+    try { await handleMirrorFsEvent({ spaceId: msg.spaceId, shareId: msg.shareId, action: msg.action, relPath: msg.relPath }) }
+    catch (err) { log.warn('foreign-folder fs event failed:', err.message) }
+    return { ok: true }
   })
 }

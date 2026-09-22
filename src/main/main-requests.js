@@ -40,7 +40,10 @@ function keyedWarner({ overflow, now }) {
 
 const keyPart = (value) => (typeof value === 'string' ? value : typeof value)
 
-function createMainRequestRouter({ ownedFolderWatchers, looseFileWatchers, setDownloadRoots, sendToWorker, isDebug, isQuitting, now = Date.now }) {
+// A mirror's watcher is keyed by its mount pair; an owned share's by its id alone.
+const mirrorWatchKey = (args) => args.spaceId + ':' + args.shareId
+
+function createMainRequestRouter({ folderWatchers, looseFileWatchers, setDownloadRoots, sendToWorker, isDebug, isQuitting, now = Date.now }) {
   const reportBusFailure = createFailureGate({ isDebug, isQuitting })
   // Null-prototype, because `command` comes off the worker pipe: with a plain object literal
   // `handlers['toString']` finds Object.prototype's method and the frame resolves as though it had
@@ -69,11 +72,11 @@ function createMainRequestRouter({ ownedFolderWatchers, looseFileWatchers, setDo
     },
 
     [MAIN_REQUEST.OWNED_FOLDER_START_WATCHER]: async (args, worker) => {
-      await ownedFolderWatchers.startWatcher(
+      await folderWatchers.startWatcher(
         args.shareId,
         args.mountPath,
         args.ignore || [],
-        (event) => sendToWorker(worker, { type: 'event:owned-folder-fs-event', ...event }),
+        (event) => sendToWorker(worker, { type: 'event:owned-folder-fs-event', shareId: args.shareId, ...event }),
         // See the loose-file callback above: the storm message must reach the log ring on a
         // release build, or the report it explains is unreproducible.
         (err) => { console.warn('watcher error', args.shareId, '-', err.message) },
@@ -81,7 +84,21 @@ function createMainRequestRouter({ ownedFolderWatchers, looseFileWatchers, setDo
     },
 
     [MAIN_REQUEST.OWNED_FOLDER_STOP_WATCHER]: async (args) => {
-      ownedFolderWatchers.stopWatcher(args.shareId)
+      folderWatchers.stopWatcher(args.shareId)
+    },
+
+    [MAIN_REQUEST.FOREIGN_FOLDER_START_WATCHER]: async (args, worker) => {
+      await folderWatchers.startWatcher(
+        mirrorWatchKey(args),
+        args.mountPath,
+        null,
+        (event) => sendToWorker(worker, { type: 'event:foreign-folder-fs-event', spaceId: args.spaceId, shareId: args.shareId, ...event }),
+        (err) => { console.warn('mirror watcher error', args.shareId, '-', err.message) },
+      )
+    },
+
+    [MAIN_REQUEST.FOREIGN_FOLDER_STOP_WATCHER]: async (args) => {
+      folderWatchers.stopWatcher(mirrorWatchKey(args))
     },
   })
 

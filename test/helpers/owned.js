@@ -97,6 +97,23 @@ export async function setupSelfMirror(t, { name = 'Media', files = { 'note.txt':
   return { ...ctx, mirrorPath, mount, listing }
 }
 
+// Counts the mirror's catalog reads and pins the catalog version, so a converged mirror can skip.
+// The listing COUNT is the walk assertion: a wall-time or CPU measure could not go red, and the
+// property under test is "no work was issued", not "the work was fast". `state.version` is the
+// version the next tick reads; move it to stage an owner append.
+export function instrumentWalks(t, { version = 1 } = {}) {
+  const state = { listings: 0, version }
+  const origList = overlayBackend.listPeerWithMeta
+  const origVersion = overlayBackend.catalogVersion
+  overlayBackend.listPeerWithMeta = async (...a) => { state.listings++; return await origList(...a) }
+  overlayBackend.catalogVersion = async () => state.version
+  t.teardown(() => {
+    overlayBackend.listPeerWithMeta = origList
+    overlayBackend.catalogVersion = origVersion
+  })
+  return state
+}
+
 export async function listRelPaths(share, spaceId) {
   const out = []
   for await (const e of listOwnShare(spaceId, share.id)) out.push(e.relPath)

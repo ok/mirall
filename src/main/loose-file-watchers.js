@@ -3,7 +3,7 @@
 // path maps to the set of spaces watching it and an event fans out to all of them. That
 // fan-out is the only loose-specific logic here; polling for network paths, the error-storm
 // cut-off and the chokidar option bag belong to watch-host.js and are shared with
-// owned-folder-watchers.js.
+// folder-watchers.js.
 const { createWatchHost } = require('./watch-host.js')
 
 let host = null
@@ -16,7 +16,7 @@ function ensure() {
   // atomic:true — a loose entry is a single tracked path with no diff pass behind it, so an
   // editor that saves by rename-over must arrive as one `change`; a transient unlink would
   // tombstone the entry and un-share the file. The owned side sets false for the opposite
-  // reason; see owned-folder-watchers.js.
+  // reason; see folder-watchers.js.
   host = createWatchHost({
     label: 'loose',
     atomic: true,

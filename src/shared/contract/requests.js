@@ -74,6 +74,13 @@ export const REQUESTS = Object.freeze({
   // the worker where the bundle is needed.
   'diagnostics:export': { kind: 'query', deadlineMs: 0, args: { redact: { type: ARG.boolean, optional: true } } },
   'downloads:roots-status': { kind: 'query', args: {} },
+  'event:foreign-folder-fs-event': { kind: 'command', args: {
+    absPath: { type: ARG.path, max: ARG_MAX.path },
+    action: { type: ARG.string, max: ARG_MAX.name },
+    relPath: { type: ARG.path, max: ARG_MAX.path },
+    shareId: { type: ARG.shareId },
+    spaceId: { type: ARG.spaceId },
+  } },
   'event:loose-file-fs-event': { kind: 'command', args: {
     absPath: { type: ARG.path, max: ARG_MAX.path },
     action: { type: ARG.string, max: ARG_MAX.name },

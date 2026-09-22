@@ -230,8 +230,9 @@ const DEFAULTED = {
   // silent for five minutes has stopped.
   convergenceStallWindowMs: ruled(5 * 60 * 1000, finiteAtLeast, 1),
   // How many mirror ticks may skip the walk before one runs in full regardless. The owner's catalog
-  // version cannot see a LOCAL change (a user deleting a mirrored file) and a foreign mount has no
-  // filesystem watcher, so this backstop is what repairs it — within 5 min at the 30s poll.
+  // version cannot see a LOCAL change (a user editing or deleting a mirrored file); the mirror's
+  // watcher asks for a walk when it sees one, and this backstop repairs what the watcher missed —
+  // a dropped event, a watcher stopped by an error storm — within 5 min at the 30s poll.
   // 1 disables the skip entirely: the rollback, settable in a shipped build via
   // MIRALL_FOREIGN_FULL_WALK_EVERY, which the host forwards on the bootstrap frame.
   foreignFullWalkEvery: 10,

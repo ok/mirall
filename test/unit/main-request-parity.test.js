@@ -75,7 +75,7 @@ function stubDeps({ debug = false, quitting = false } = {}) {
     deps: {
       isDebug: () => debug,
       isQuitting: () => quitting,
-      ownedFolderWatchers: {
+      folderWatchers: {
         startWatcher: (...a) => calls.push(['startWatcher', ...a]),
         stopWatcher: (...a) => calls.push(['stopWatcher', ...a]),
       },
@@ -131,6 +131,31 @@ test('a known command still reaches its handler', async (t) => {
   await router.dispatch(MAIN_REQUEST.OWNED_FOLDER_STOP_WATCHER, { shareId: 's1' })
 
   t.alike(calls.map((c) => c[0]), ['startWatcher', 'stopWatcher'])
+})
+
+// One registry serves both kinds, so the two keys must differ for the same share, and each kind's
+// events must carry its own frame — the frame builder is the router's, not the registry's.
+test('a mirror watcher is keyed by its mount pair and its events name both ids', async (t) => {
+  const { calls, deps } = stubDeps()
+  const router = createMainRequestRouter(deps)
+
+  await router.dispatch(MAIN_REQUEST.OWNED_FOLDER_START_WATCHER, { shareId: 's1', mountPath: '/tmp/x' }, 'w')
+  await router.dispatch(MAIN_REQUEST.FOREIGN_FOLDER_START_WATCHER, { spaceId: 'sp', shareId: 's1', mountPath: '/tmp/y' }, 'w')
+  const [owned, mirror] = calls.filter((c) => c[0] === 'startWatcher')
+  t.is(owned[1], 's1')
+  t.is(mirror[1], 'sp:s1', 'a second key for the same share')
+  t.is(mirror[3], null, 'a mirror takes the default ignore list')
+
+  owned[4]({ action: 'change', relPath: 'f.txt', absPath: '/tmp/x/f.txt' })
+  mirror[4]({ action: 'change', relPath: 'f.txt', absPath: '/tmp/y/f.txt' })
+  const frames = calls.filter((c) => c[0] === 'sendToWorker').map((c) => c[1])
+  t.alike(frames, [
+    { type: 'event:owned-folder-fs-event', shareId: 's1', action: 'change', relPath: 'f.txt', absPath: '/tmp/x/f.txt' },
+    { type: 'event:foreign-folder-fs-event', spaceId: 'sp', shareId: 's1', action: 'change', relPath: 'f.txt', absPath: '/tmp/y/f.txt' },
+  ])
+
+  await router.dispatch(MAIN_REQUEST.FOREIGN_FOLDER_STOP_WATCHER, { spaceId: 'sp', shareId: 's1' })
+  t.alike(calls.at(-1), ['stopWatcher', 'sp:s1'])
 })
 
 test('every main-request command the worker emits is one main handles', (t) => {
@@ -212,7 +237,7 @@ test('the router is built before the worker handler that closes over it', (t) =>
 test('REGRESSION (FIX-OBS-2): a failed main request is warned unconditionally', async (t) => {
   const warnings = muteWarn(t)
   const { deps } = stubDeps()
-  deps.ownedFolderWatchers.startWatcher = async () => {
+  deps.folderWatchers.startWatcher = async () => {
     throw Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' })
   }
   const router = createMainRequestRouter(deps)
@@ -267,7 +292,7 @@ test('dispatch never rejects: a handler that throws, rejects, or throws a non-Er
   const warnings = muteWarn(t)
   const { deps } = stubDeps()
   deps.setDownloadRoots = () => { throw failure('ESYNC') }
-  deps.ownedFolderWatchers.startWatcher = async () => { throw failure('EASYNC') }
+  deps.folderWatchers.startWatcher = async () => { throw failure('EASYNC') }
   deps.looseFileWatchers.removeLooseWatch = () => { throw undefined }
   deps.looseFileWatchers.addLooseWatch = () => { throw 'boom' }
   const router = createMainRequestRouter(deps)

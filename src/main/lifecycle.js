@@ -18,7 +18,7 @@
 // - `apply-update` last, and the only step that may defer the quit.
 const QUIT_STEPS = Object.freeze([
   'mark-quitting',
-  'stop-owned-watchers',
+  'stop-folder-watchers',
   'stop-loose-watchers',
   'flush-config',
   'stop-workers',
@@ -40,7 +40,7 @@ const QUIT_STEPS = Object.freeze([
  *
  * @param {object} steps
  * @param {() => void} steps.markQuitting
- * @param {() => void} steps.stopOwnedWatchers
+ * @param {() => void} steps.stopFolderWatchers
  * @param {() => void} steps.stopLooseWatchers
  * @param {() => void} steps.flushConfig
  * @param {() => void} steps.stopWorkers
@@ -48,10 +48,10 @@ const QUIT_STEPS = Object.freeze([
  * @param {() => void} steps.quit — re-issues the deferred quit.
  * @param {(step: string, err: Error) => void} [steps.onStepError]
  */
-function createQuitSequence({ markQuitting, stopOwnedWatchers, stopLooseWatchers, flushConfig, stopWorkers, applyUpdate, quit, onStepError }) {
+function createQuitSequence({ markQuitting, stopFolderWatchers, stopLooseWatchers, flushConfig, stopWorkers, applyUpdate, quit, onStepError }) {
   const runners = {
     'mark-quitting': markQuitting,
-    'stop-owned-watchers': stopOwnedWatchers,
+    'stop-folder-watchers': stopFolderWatchers,
     'stop-loose-watchers': stopLooseWatchers,
     'flush-config': flushConfig,
     'stop-workers': stopWorkers,

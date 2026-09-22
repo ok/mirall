@@ -1,7 +1,7 @@
 import test from 'brittle'
 import fs from 'bare-fs'
 import path from 'bare-path'
-import { setupSelfMirror } from '../helpers/owned.js'
+import { setupSelfMirror, instrumentWalks as instrument } from '../helpers/owned.js'
 import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { mirrorHealth } from '../../src/shared/folders/foreign-folders.js'
@@ -9,20 +9,6 @@ import { restartForeignLoop, startForeignLoop, stopForeignLoop } from '../../src
 import { initialMaterializeScan, runMaterializeTick } from '../../src/shared/folders/mirror-pass.js'
 
 // A converged mirror re-listed the owner's whole catalog and re-stat'd every file every 30s forever.
-// The listing COUNT is the assertion: a wall-time or CPU measure could not go red, and the property
-// under test is "no work was issued", not "the work was fast".
-function instrument(t, { version = 1 } = {}) {
-  const state = { listings: 0, version }
-  const origList = overlayBackend.listPeerWithMeta
-  const origVersion = overlayBackend.catalogVersion
-  overlayBackend.listPeerWithMeta = async (...a) => { state.listings++; return await origList(...a) }
-  overlayBackend.catalogVersion = async () => state.version
-  t.teardown(() => {
-    overlayBackend.listPeerWithMeta = origList
-    overlayBackend.catalogVersion = origVersion
-  })
-  return state
-}
 
 async function converge(ctx) {
   await initialMaterializeScan(ctx.mount)
@@ -68,8 +54,8 @@ test('the backstop walks on the Nth consecutive tick', async (t) => {
   t.is(state.listings, settled + 1, 'the third tick walks regardless')
 })
 
-// The backstop's whole purpose. The catalog version cannot see a LOCAL deletion, and a foreign mount
-// has no filesystem watcher, so without it nothing would ever notice the file was gone.
+// The backstop's whole purpose. The catalog version cannot see a LOCAL deletion, and the mirror's
+// watcher can miss one (a dropped event), so without it nothing would ever notice the file was gone.
 test('a locally deleted mirror file is repaired by the backstop', async (t) => {
   const ctx = await setupSelfMirror(t, { files: { 'a.txt': 'x' } })
   const cfg = getRuntimeConfig()

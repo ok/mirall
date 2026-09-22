@@ -12,6 +12,7 @@ import { forgetMirrorFetch } from './mirror-fetch.js'
 import { initialMaterializeScan, runMaterializeTick } from './mirror-pass.js'
 import { recordMirrorScanFault } from './foreign-pause.js'
 import { mirrorKey } from './mirror-policy.js'
+import { ownerKeyOf } from './mirror-state.js'
 import { memberWaits } from '../network/share-wait.js'
 import { SHARE_WAIT_SOURCE } from '../transfer/share-wait-set.js'
 
@@ -20,15 +21,20 @@ const log = createLogger('foreign-verbs')
 let loops = null
 let state = null
 let passWriter = null
+let watch = { start: () => {}, stop: () => {} }
 
 export function initForeignVerbs(d) {
   loops = d.loops
   state = d.state
   passWriter = d.passWriter
+  watch = d.watch ?? watch
 }
 
+// The loop and the disk watcher are armed and disarmed together, here and in stopForeignLoop only:
+// every path that makes a mirror live or not runs through these two verbs.
 export async function startForeignLoop(mount) {
   loops.start(mirrorKey(mount.spaceId, mount.shareId), { spaceId: mount.spaceId, shareId: mount.shareId })
+  watch.start(mount)
 }
 
 // Un-wedge one mirror: the stop generation-invalidates a hung pass so it bails at its next
@@ -45,13 +51,28 @@ const WALK_REQUEST_DEBOUNCE_MS = 250
 // than acting on it, and the walk settles the file. No write, so a listing may call it. A converged
 // mirror is skipping ticks, so it is poked now; one still walking every tick is left to it, which
 // keeps a file the pass cannot settle from turning every re-list into another pass.
-export function requestMirrorWalk(spaceId, shareId) {
+//
+// `now` pokes an unconverged mirror too. A disk event is a fact about the folder that a pass in
+// flight may already have walked past, and the loop coalesces the poke into exactly one follow-up;
+// an event source cannot storm the way a re-list can, because a file the pass cannot settle is a
+// file the pass never writes.
+export function requestMirrorWalk(spaceId, shareId, { now = false } = {}) {
   const key = mirrorKey(spaceId, shareId)
-  if (state?.requestWalk(key) && loops.live(key)) loops.debounce(key, { spaceId, shareId }, WALK_REQUEST_DEBOUNCE_MS)
+  const converged = state?.requestWalk(key)
+  if ((converged || now) && loops.live(key)) loops.debounce(key, { spaceId, shareId }, WALK_REQUEST_DEBOUNCE_MS)
+}
+
+// The owner key the mirror materialized at `localRel`, or null for a path it never wrote. Read from
+// the live state, not the record: a pass persists once, at its end, and the sibling it minted a
+// moment ago is in the map before its bytes land.
+export function mirrorOwnerKeyAt(mount, localRel) {
+  const ownerKey = ownerKeyOf({ renamedPaths: state.renamedFor(mount) }, localRel)
+  return state.syncedSetFor(mount).has(ownerKey) ? ownerKey : null
 }
 
 export function stopForeignLoop(spaceId, shareId, { discardPartial = false } = {}) {
   loops.stop(mirrorKey(spaceId, shareId), { discardPartial })
+  watch.stop(spaceId, shareId)
   memberWaits.cancelShare(spaceId, shareId, SHARE_WAIT_SOURCE.MIRROR)
 }
 

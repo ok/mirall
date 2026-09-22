@@ -6,6 +6,7 @@
 // hands them to the leaves below, subscribes the two level triggers and owns the subsystem's
 // lifetime. The leaves never import it back.
 import { onPeerOnline } from '../network/handshake-apply.js'
+import { MAIN_REQUEST, MAIN_REQUEST_FRAME } from '../contract/main-requests.js'
 import { getForeignPollIntervalMs } from '../core/runtime-config.js'
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
@@ -40,10 +41,25 @@ const passWriter = createPassWriters(loops)
 
 let unsubscribePeerOnline = null
 
+// A mirror is watched exactly while its loop is live. The watcher runs in Electron main, so
+// arming it is a bus command; a worker without a main (a flow test) emits into nothing.
+function mirrorWatch(ipc) {
+  return {
+    start: (mount) => ipc.emit(MAIN_REQUEST_FRAME, {
+      command: MAIN_REQUEST.FOREIGN_FOLDER_START_WATCHER,
+      args: { spaceId: mount.spaceId, shareId: mount.shareId, mountPath: mount.mountPath },
+    }),
+    stop: (spaceId, shareId) => ipc.emit(MAIN_REQUEST_FRAME, {
+      command: MAIN_REQUEST.FOREIGN_FOLDER_STOP_WATCHER,
+      args: { spaceId, shareId },
+    }),
+  }
+}
+
 /** @internal production starts the mirror through this file's own _open() */
 export function initForeignFolders(_ipc) {
   initMirrorSignals(_ipc)
-  initForeignVerbs({ loops, state, passWriter })
+  initForeignVerbs({ loops, state, passWriter, watch: mirrorWatch(_ipc) })
   initForeignPause({ state, loops, stopForeignLoop, setForeignEnabled })
   initMirrorFetch({ state, loops, passWriter })
   initMirrorPass({ state, loops, passWriter, maybeUnmountIfOwnerGone })
