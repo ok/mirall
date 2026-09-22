@@ -64,7 +64,7 @@ function ensureLooseCatalogWatch(spaceId, member, keyHex, sck) {
   }, sck)
   // Baseline at registration so the peer's existing catalog is adopted, not replayed, and the
   // next file they publish is the first thing recorded.
-  if (watched) observePeerCatalog(member.publicKey, spaceId, keyHex, watched, LOOSE_SHARE_ID, { baselineOnly: true })
+  if (watched) observePeerCatalog(member.publicKey, spaceId, keyHex, watched, LOOSE_SHARE_ID)
 }
 
 // On an owner-catalog append, re-resolve every active loose transfer from THIS owner.
