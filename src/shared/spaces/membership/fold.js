@@ -24,6 +24,9 @@
 // simply absent from `records` — it (and anyone only it approved) stays out until it arrives, then
 // the next fold self-heals.
 //
+
+import { UNKNOWN_DISPLAY_NAME } from '../../contract/limits.js'
+
 /**
  * Members plus the authorization tree behind them. Callers that only need the roster take
  * `.members`; discovery takes `.authorized`, since it must open the bees of a departed member's
@@ -165,27 +168,24 @@ export function foldPendingSet({ requests, denied, members, approved, lefts }) {
     if (leaveTs != null && meta.ts <= leaveTs) continue
     const deniedTs = tombstones.get(j)
     if (deniedTs != null && deniedTs >= meta.ts) continue
-    out.set(j, { displayName: meta.displayName || 'Unknown', avatar: meta.avatar ?? null, ts: meta.ts })
+    out.set(j, { displayName: meta.displayName || UNKNOWN_DISPLAY_NAME, avatar: meta.avatar ?? null, ts: meta.ts })
   }
   return out
 }
 
 // Best-known identity for a member, merged from (highest priority first): live swarm meta (the
 // handshake — freshest), the replicated profile bee, then whatever we already hold; the
-// 'Unknown'/null placeholders rank last so we never regress a name we once knew. driveKey now also
+// UNKNOWN_DISPLAY_NAME/null placeholders rank last so we never regress a name we once knew. driveKey now also
 // falls back to the replicated bee (profile.driveKey) so a member derived from records with no live
 // handshake can still have its drive opened — otherwise that peer's files would be invisible.
 // Returns { entry, changed }; changed is false when held already equals the merge (skip the write+emit).
-// The inverse of the 'Unknown' default below: a caller that must not persist a placeholder asks
+// The inverse of the UNKNOWN_DISPLAY_NAME default below: a caller that must not persist a placeholder asks
 // for the name it can actually stand behind. Audit rows snapshot names at write time and never
-// join at render, so an 'Unknown' written into one is a fake name pinned forever — null lets the
+// join at render, so a placeholder written into one is a fake name pinned forever — null lets the
 // viewer degrade to the short key, which is at least correlatable.
 export function displayNameOrNull(name) {
-  return name && name !== UNKNOWN_NAME ? name : null
+  return name && name !== UNKNOWN_DISPLAY_NAME ? name : null
 }
-
-/** @internal */
-export const UNKNOWN_NAME = 'Unknown'
 
 export function mergeMemberIdentity({ publicKey, meta, profile, held }) {
   const m = meta || {}
@@ -194,7 +194,7 @@ export function mergeMemberIdentity({ publicKey, meta, profile, held }) {
   const entry = {
     publicKey,
     driveKey: m.driveKey ?? p.driveKey ?? h.driveKey ?? null,
-    displayName: m.displayName || p.displayName || h.displayName || UNKNOWN_NAME,
+    displayName: m.displayName || p.displayName || h.displayName || UNKNOWN_DISPLAY_NAME,
     avatar: m.avatar ?? p.avatar ?? h.avatar ?? null,
     looseCatalogKey: m.looseCatalogKey ?? p.looseCatalogKey ?? h.looseCatalogKey ?? null,
     looseCatalogKeyEnc: m.looseCatalogKeyEnc ?? p.looseCatalogKeyEnc ?? h.looseCatalogKeyEnc ?? null,

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useToast } from '../components/toast/ToastProvider.js'
 import { useErrorText } from './useErrorText.js'
 import { DENY_OUTCOME } from '../../shared/contract/deny-outcome.js'
+import { UNKNOWN_DISPLAY_NAME } from '../../shared/contract/limits.js'
 import type { DenyMemberResult } from '../../shared/contract/responses.js'
 import type { JoinRequest } from '../types/types.js'
 
@@ -34,7 +35,7 @@ export function useMembershipRequests({ spaceId, requests, approveMember, denyMe
     return next
   })
 
-  async function decide<R>(pk: string, write: (spaceId: string, publicKey: string) => Promise<R>) {
+  async function decide(pk: string, write: (spaceId: string, publicKey: string) => Promise<void>) {
     if (busy.has(pk)) return
     markBusy(pk)
     try {
@@ -46,7 +47,10 @@ export function useMembershipRequests({ spaceId, requests, approveMember, denyMe
     }
   }
 
-  const nameOf = (pk: string) => requests.find((r) => r.publicKey === pk)?.displayName || t('member.unknown')
+  const nameOf = (pk: string) => {
+    const name = requests.find((r) => r.publicKey === pk)?.displayName
+    return name && name !== UNKNOWN_DISPLAY_NAME ? name : t('member.unknown')
+  }
 
   // A co-member can settle the request while our row is on screen. The already-approved warning
   // stays until dismissed (the rule it states: contract/deny-outcome.js).

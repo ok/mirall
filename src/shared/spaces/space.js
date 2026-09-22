@@ -21,6 +21,7 @@ import { Subsystem } from '../core/subsystem.js'
 import { recordResolved } from '../audit/audit-log.js'
 import { prefixRange } from '../core/bee-keys.js'
 import { TARGET_KIND } from '../contract/audit-kinds.js'
+import { UNKNOWN_DISPLAY_NAME } from '../contract/limits.js'
 import { peerActor, spaceRef, targetRef } from '../audit/audit-record.js'
 
 let spacesBee
@@ -171,7 +172,7 @@ export function upsertMember(spaceId, patch, { create = true } = {}) {
     const idx = members.findIndex((m) => m.publicKey === patch.publicKey)
     if (idx === -1) {
       if (!create) return null
-      const fresh = { publicKey: patch.publicKey, driveKey: null, displayName: 'Unknown', avatar: null }
+      const fresh = { publicKey: patch.publicKey, driveKey: null, displayName: UNKNOWN_DISPLAY_NAME, avatar: null }
       for (const [k, v] of Object.entries(patch)) if (v != null) fresh[k] = v
       members.push(fresh)
       return members

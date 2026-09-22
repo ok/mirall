@@ -15,15 +15,16 @@ import { DENY_OUTCOME } from '../../shared/contract/deny-outcome.js'
 import { CODES } from '../../shared/contract/errors.js'
 import { PEER_FRAME } from '../../shared/contract/peer-frames.js'
 import { AppError } from '../../shared/core/errors.js'
-import { getMembershipCaps, isHandshakeIdentityBindingEnabled } from '../../shared/core/runtime-config.js'
+import { getDeriveDebounceMs, getMembershipCaps, isHandshakeIdentityBindingEnabled } from '../../shared/core/runtime-config.js'
+import { peerReadTimeoutMs } from '../../shared/core/with-timeout.js'
 import { sanitizeAvatar } from '../../shared/contract/identity-limits.js'
 import { reconcileAssertedRoot } from '../../shared/spaces/creator-root.js'
 import { classifyInvite } from '../../shared/spaces/invites.js'
-import { applyLocalApproval, applyLocalDenial, closeMemberView, dropTombstone, isApprovedJoiner, isDeniedJoiner, isLeft, openMemberView, recomputeMemberView } from '../../shared/spaces/member-registry.js'
-import { knockSettledByRecords, knockInviteVerdict } from '../../shared/spaces/knock-policy.js'
-import { captureJoinerMembership, getIdentitySigner, hasOwnApproval, markRequest, markRequestDenied, ownDenialStands, readProfileRecord } from '../../shared/spaces/profile.js'
+import { applyLocalApproval, applyLocalDenial, closeMemberView, dropTombstone, isApprovedJoiner, isDeniedJoiner, isLeft, openMemberView } from '../../shared/spaces/member-registry.js'
+import { ASK_PEERS, denyVerdict, knockSettledByRecords, knockInviteVerdict } from '../../shared/spaces/knock-policy.js'
+import { captureJoinerMembership, getIdentitySigner, markRequest, markRequestDenied, ownDenialStands, readProfileRecord } from '../../shared/spaces/profile.js'
 import { getSpace, getSpaceContentKey } from '../../shared/spaces/space.js'
-import { claimJoinRequestAudit, clearJoinRequest, forgetJoinRequestAudit, listJoinRequests, listPendingRequests, recordJoinRequest, releaseJoinRequestAudit } from '../../shared/spaces/join-requests.js'
+import { claimJoinRequestAudit, clearJoinRequest, forgetJoinRequestAudit, hasApprovedVerdict, listJoinRequests, listPendingRequests, recordJoinRequest, releaseJoinRequestAudit, rememberApprovedVerdict } from '../../shared/spaces/join-requests.js'
 import { clearCreatorDivergence, markCreatorDivergence, pinCreatorKey } from '../../shared/spaces/creator-pin.js'
 import { materializeOwnDrive, recordApproval } from '../../shared/spaces/space-lifecycle.js'
 import { purgeSpace } from '../../shared/spaces/leave-records.js'
@@ -364,50 +365,40 @@ async function resolveJoinRequest(space, joinerKey, outcome) {
   ipc.emit('event:join-requests-updated', { spaceId })
 }
 
-// A deny on a joiner another member already approved changes nothing (contract/deny-outcome.js).
-// Local records are asked first and the co-members' bees only once a request is known to be
-// open, so a click on a stale row never waits on an offline peer; the records are asked again
-// after that read, which can take the whole admission budget.
+function denyFacts(space, joinerKey, vouched) {
+  const spaceId = space.spaceId
+  return {
+    isMember: (space.members || []).some((m) => m.publicKey === joinerKey),
+    hadLeft: isLeft(spaceId, joinerKey),
+    isApproved: isApprovedJoiner(spaceId, joinerKey),
+    recentlyApproved: hasApprovedVerdict(spaceId, joinerKey),
+    hasOpenRequest: listJoinRequests(spaceId).some((r) => r.publicKey === joinerKey),
+    vouched,
+  }
+}
+
+// Held until a fold that started after the approval landed has published: its debounce plus one
+// fold's worth of peer reads.
+const approvedVerdictTtlMs = () => getDeriveDebounceMs() + peerReadTimeoutMs()
+
 async function decideDeny(space, joinerKey) {
   const spaceId = space.spaceId
-  if (approvedOnRecord(space, joinerKey)) return settleApproved(spaceId, joinerKey)
-  if (!hasOpenRequest(spaceId, joinerKey)) return notApplicable(spaceId)
-  const vouched = await getAdmissionGates().isApprovedByPeers(space, joinerKey)
-  if (approvedOnRecord(space, joinerKey)) return settleApproved(spaceId, joinerKey)
-  if (vouched && !isLeft(spaceId, joinerKey)) {
-    // The fold has not folded that approval yet; ask it to, so it drops the request itself.
-    recomputeMemberView(spaceId)
-    return settleApproved(spaceId, joinerKey)
+  let current = space
+  let verdict = denyVerdict(denyFacts(current, joinerKey))
+  if (verdict === ASK_PEERS) {
+    const vouched = await getAdmissionGates().isApprovedByPeers(current, joinerKey)
+    current = await joinedSpace(spaceId)
+    verdict = denyVerdict(denyFacts(current, joinerKey, vouched))
+    if (verdict === DENY_OUTCOME.ALREADY_APPROVED) rememberApprovedVerdict(spaceId, joinerKey, approvedVerdictTtlMs())
   }
-  if (!hasOpenRequest(spaceId, joinerKey)) return notApplicable(spaceId)
-  await resolveJoinRequest(space, joinerKey, 'deny')
-  return DENY_OUTCOME.DENIED
-}
-
-// The knock gate's own verdict: a current member or a folded approval, unless we saw them leave.
-function approvedOnRecord(space, joinerKey) {
-  return knockSettledByRecords({
-    selfPending: false,
-    isMember: (space.members || []).some((m) => m.publicKey === joinerKey),
-    hadLeft: isLeft(space.spaceId, joinerKey),
-    isApproved: isApprovedJoiner(space.spaceId, joinerKey),
-  }) === 'regrant'
-}
-
-function hasOpenRequest(spaceId, joinerKey) {
-  return listJoinRequests(spaceId).some((r) => r.publicKey === joinerKey)
-}
-
-// Both no-op outcomes emit: the renderer that asked is showing a row that may already be stale.
-function settleApproved(spaceId, joinerKey) {
-  clearJoinRequest(spaceId, joinerKey)
+  if (verdict === DENY_OUTCOME.DENIED) {
+    await resolveJoinRequest(current, joinerKey, 'deny')
+    return verdict
+  }
+  // Both no-op outcomes emit: the renderer that asked is showing a row that may already be stale.
+  if (verdict === DENY_OUTCOME.ALREADY_APPROVED) clearJoinRequest(spaceId, joinerKey)
   ipc.emit('event:join-requests-updated', { spaceId })
-  return DENY_OUTCOME.ALREADY_APPROVED
-}
-
-function notApplicable(spaceId) {
-  ipc.emit('event:join-requests-updated', { spaceId })
-  return DENY_OUTCOME.NOT_APPLICABLE
+  return verdict
 }
 
 // Tear down a space we only ever sat pending in: no own drive, owned/foreign
@@ -446,6 +437,16 @@ async function recordGrantReceived(spaceId, granterKey) {
   })
 }
 
+// A member's decision on a request needs a space we have joined. While pending we hold no content
+// key, so we could neither grant nor meaningfully refuse — the sck check inside resolveJoinRequest
+// is the real gate; this makes the refusal an error the renderer can show.
+async function joinedSpace(spaceId) {
+  const space = await getSpace(spaceId)
+  if (!space) throw new AppError(CODES.SPACE_NOT_FOUND, 'Space not found')
+  if (space.status === 'pending') throw new AppError(CODES.NOT_A_MEMBER, 'Cannot decide requests for a space you have not joined')
+  return space
+}
+
 // Registers the renderer-facing half and returns the two collaborators boot() needs.
 export function createMembership(ipcRef, deps) {
   ipc = ipcRef
@@ -453,15 +454,9 @@ export function createMembership(ipcRef, deps) {
   dropSpaceDownloadRoot = deps.dropSpaceDownloadRoot
 
   ipc.handle('space:approve-member', async (msg) => {
-    const space = await getSpace(msg.spaceId)
-    // The real gate: approval IS handing out the content key, so a peer who holds no key
-    // (pending, or otherwise unauthorized) physically cannot approve anyone — enforced by
-    // the sck check inside resolveJoinRequest.
-    if (!space || space.status === 'pending') return false
-    // Approving again is harmless (the record put is idempotent) but is not a second approval.
-    const alreadyOurs = await hasOwnApproval(space.spaceId, msg.publicKey)
+    const space = await joinedSpace(msg.spaceId)
     const approved = await resolveJoinRequest(space, msg.publicKey, 'approve')
-    if (approved && !alreadyOurs) {
+    if (approved) {
       record('membership.approved', {
         actor: selfActor(),
         space: spaceRefOf(space),
@@ -471,9 +466,7 @@ export function createMembership(ipcRef, deps) {
     return approved
   })
   ipc.handle('space:deny-member', async (msg) => {
-    const space = await getSpace(msg.spaceId)
-    if (!space) throw new AppError(CODES.SPACE_NOT_FOUND, 'Space not found')
-    if (space.status === 'pending') throw new AppError(CODES.NOT_A_MEMBER, 'Cannot decide requests for a space you have not joined')
+    const space = await joinedSpace(msg.spaceId)
     const outcome = await decideDeny(space, msg.publicKey)
     if (outcome === DENY_OUTCOME.DENIED) {
       record('membership.denied', {

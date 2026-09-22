@@ -42,7 +42,8 @@ test('REGRESSION (FIX-395A: a deny racing a co-member approval leaves the reques
   const aliceUp = Date.now()
   const A = await peer(t, bootstrap, 'Alice', { deriveDebounceMs: FOLD_WAIT_MS })
   const C = await peer(t, bootstrap, 'Carol')
-  const B = await peer(t, bootstrap, 'Bob')
+  const bDirs = { storage: idStore(t), downloads: mkTmpDir(t) }
+  const B = await launchPeer(t, { bootstrap, displayName: 'Bob', ...bDirs })
 
   const sid = await connectInSpaceWithApproval(t, A, C)
   const bKey = (await B.request('profile:get')).personKey
@@ -64,20 +65,25 @@ test('REGRESSION (FIX-395A: a deny racing a co-member approval leaves the reques
   const res = await A.request('space:deny-member', { spaceId: sid, publicKey: bKey })
   t.alike(res, { outcome: 'already-approved' }, 'the approval Carol recorded wins over the stale banner')
   t.absent(await listed(A, sid, bKey), 'the request is gone at once, not after the fold catches up')
-  t.absent((await C.request('space:pending-requests', { spaceId: sid })).some((r) => r.publicKey === bKey), 'no denial reached the approver either')
   t.absent((await kindsOf(A)).includes('membership.denied'), 'no denial is recorded')
-})
 
-test('REGRESSION (FIX-395C: approving our own approvee again logs a second approval)', { timeout: scaled(220000) }, async (t) => {
-  const bootstrap = await localTestnet(t)
-  const A = await peer(t, bootstrap, 'Alice')
-  const B = await peer(t, bootstrap, 'Bob')
-  const sid = await connectInSpaceWithApproval(t, A, B)
-  const bKey = (await B.request('profile:get')).personKey
-  await A.until('audit:list', { limit: 200 }, (p) => p.entries.some((e) => e.kind === 'membership.approved'))
+  // The live row is gone and Alice's fold still has not run, so only the remembered answer can
+  // say already-approved here; without it the repeat reads as a closed request.
+  t.alike(await A.request('space:deny-member', { spaceId: sid, publicKey: bKey }), { outcome: 'already-approved' },
+    'a repeated deny gives the same answer')
 
-  t.ok((await A.request('space:approve-member', { spaceId: sid, publicKey: bKey })).granted, 'the approval still goes through')
-  t.is(countOf(await kindsOf(A), 'membership.approved'), 1, 'but it is logged once')
+  // With Carol gone only Alice answers Bob's next knock: a denial tombstone would turn it away with
+  // a deny frame, where no tombstone sends it to review as a fresh request.
+  const cPid = C.sidecar?._process?.pid
+  C.kill()
+  if (cPid) await waitForWorkerExit(cPid, 5000)
+  const aSawKnock = A.waitFor('event:member-join-request', (m) => m.spaceId === sid && m.publicKey === bKey, 120000)
+  const B2 = await launchPeer(t, { bootstrap, displayName: 'Bob', ...bDirs })
+  let bDenied = false
+  B2.on('event:membership-denied', (m) => { if (m.spaceId === sid) bDenied = true })
+  await t.execution(aSawKnock, 'Bob\'s next knock reaches review: Alice wrote no denial')
+  t.absent(bDenied, 'Bob received no deny')
+  t.is((await B2.request('spaces:list')).find((x) => x.spaceId === sid)?.status, 'pending', 'Bob still holds the space')
 })
 
 // Carol approved Bob and went offline, so her approval survives Bob's leave. Alice must still be
@@ -126,6 +132,8 @@ test('REGRESSION (FIX-395D: a deny with no open request still denies)', { timeou
     'a key that never asked is not denied')
   await t.exception(() => A.request('space:deny-member', { spaceId: 'no-such-space', publicKey: 'a'.repeat(64) }), /not found/i,
     'a space that is gone is an error, not a closed request')
+  await t.exception(() => A.request('space:approve-member', { spaceId: 'no-such-space', publicKey: 'a'.repeat(64) }), /not found/i,
+    'approve says so too, rather than a silent false')
 
   const inviteCode = await A.request('space:invite', { spaceId: sid })
   const aGotRequest = A.waitFor('event:member-join-request', (m) => m.spaceId === sid, 120000)

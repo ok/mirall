@@ -3,14 +3,14 @@
 
 // 256 KB data-URI string length. Tunable per-ingest via runtime-config getMembershipCaps().maxAvatarBytes;
 // this is the production default. The renderer reads the same constant from contract/limits.js.
-import { AVATAR_MAX_BYTES, NAME_MAX } from './limits.js'
+import { AVATAR_MAX_BYTES, NAME_MAX, UNKNOWN_DISPLAY_NAME } from './limits.js'
 export { AVATAR_MAX_BYTES }
 
 const DATA_IMAGE = /^data:image\/(png|jpe?g|webp|gif);base64,/i
 
 /** @param {string | null | undefined} name */
 export function clampDisplayName(name) {
-  if (typeof name !== 'string' || name.length === 0) return 'Unknown'
+  if (typeof name !== 'string' || name.length === 0) return UNKNOWN_DISPLAY_NAME
   return name.slice(0, NAME_MAX)
 }
 

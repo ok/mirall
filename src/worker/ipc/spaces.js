@@ -4,6 +4,7 @@
 import { AppError } from '../../shared/core/errors.js'
 import { CODES } from '../../shared/contract/errors.js'
 import { TARGET_KIND } from '../../shared/contract/audit-kinds.js'
+import { UNKNOWN_DISPLAY_NAME } from '../../shared/contract/limits.js'
 import { encodeInvite, decodeInvite } from '../../shared/contract/invite-envelope.js'
 import { getProfile, getLocalPublicKeyHex, markInvite, markOwnMembership } from '../../shared/spaces/profile.js'
 import {
@@ -119,7 +120,7 @@ export function registerSpaces(ipc, { log, publishDownloadRoots }) {
     if (decoded.owner && decoded.owner !== getLocalPublicKeyHex()) {
       await upsertMember(space.spaceId, {
         publicKey: decoded.owner,
-        displayName: decoded.ownerName || 'Unknown',
+        displayName: decoded.ownerName || UNKNOWN_DISPLAY_NAME,
       })
     }
     await joinSpaceTopic(space.spaceId)

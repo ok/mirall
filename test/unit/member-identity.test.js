@@ -1,5 +1,6 @@
 import test from 'brittle'
-import { mergeMemberIdentity, displayNameOrNull, UNKNOWN_NAME } from '../../src/shared/spaces/membership/fold.js'
+import { mergeMemberIdentity, displayNameOrNull } from '../../src/shared/spaces/membership/fold.js'
+import { UNKNOWN_DISPLAY_NAME } from '../../src/shared/contract/limits.js'
 
 const K = 'a'.repeat(64)
 const DK = 'd'.repeat(64)
@@ -63,7 +64,7 @@ test('no change → changed=false (skips the write+emit)', (t) => {
 // degrades to the correlatable short key instead.
 test('displayNameOrNull refuses the placeholder this module mints', (t) => {
   t.is(displayNameOrNull('Steve'), 'Steve')
-  t.is(displayNameOrNull(UNKNOWN_NAME), null, 'the placeholder is not a name')
+  t.is(displayNameOrNull(UNKNOWN_DISPLAY_NAME), null, 'the placeholder is not a name')
   t.is(displayNameOrNull(null), null)
   t.is(displayNameOrNull(undefined), null)
   t.is(displayNameOrNull(''), null)
@@ -71,6 +72,6 @@ test('displayNameOrNull refuses the placeholder this module mints', (t) => {
 
 test('the placeholder it refuses is the one mergeMemberIdentity writes', (t) => {
   const { entry } = mergeMemberIdentity({ publicKey: K, meta: null, profile: null, held: null })
-  t.is(entry.displayName, UNKNOWN_NAME, 'one constant, so the two cannot drift apart')
+  t.is(entry.displayName, UNKNOWN_DISPLAY_NAME, 'one constant, so the two cannot drift apart')
   t.is(displayNameOrNull(entry.displayName), null)
 })

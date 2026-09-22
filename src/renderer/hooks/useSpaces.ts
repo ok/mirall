@@ -2,7 +2,7 @@
 import { useEffect } from 'react'
 import { request } from '../ipc/ipc.js'
 import { useQuery } from '../store/useQuery.js'
-import { refetchQuery, pruneByParam } from '../store/query-store.js'
+import { fetchQuery, refetchQuery, pruneByParam } from '../store/query-store.js'
 import { SPACES_SCOPES } from '../store/scopes.js'
 import { pruneRosterCache } from './useSpaceMembers.js'
 import { pruneMirrorCache } from './useSpaceMirrors.js'
@@ -46,11 +46,11 @@ export function useSpaces() {
 
   // `refresh` is for the mutations below only; reads are the store's (README.md).
 
-  // A decision keeps its control busy until the banner's own read has landed, so a second click
-  // cannot hit a row the worker already settled; the spaces list is not what the banner renders.
-  async function refreshRequests(spaceId: string) {
-    await refetchQuery('space:pending-requests', { spaceId }).catch(() => {})
-    void refresh()
+  // A decision keeps its control busy until both the spaces list and the banner's own read have
+  // landed, so the row it acted on is gone or current before it can be clicked again. The banner
+  // read joins the one the worker's join-requests event already started — it began after the write.
+  async function refreshAfterDecision(spaceId: string) {
+    await Promise.all([refresh(), fetchQuery('space:pending-requests', { spaceId }).catch(() => {})])
   }
 
   async function createSpace(name: string, icon: string) {
@@ -71,12 +71,12 @@ export function useSpaces() {
 
   async function approveMember(spaceId: string, publicKey: string) {
     await request('space:approve-member', { spaceId, publicKey })
-    await refreshRequests(spaceId)
+    await refreshAfterDecision(spaceId)
   }
 
   async function denyMember(spaceId: string, publicKey: string) {
     const result = await request('space:deny-member', { spaceId, publicKey })
-    await refreshRequests(spaceId)
+    await refreshAfterDecision(spaceId)
     return result
   }
 
