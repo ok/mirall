@@ -17,7 +17,6 @@ const GUARDED = new Set([...AUDIT_WRITES, ...PURGE_PRIMITIVES])
 // Silenced sites still waiting for their move to recordResolved, by file and enclosing function.
 // The list only shrinks: an entry that stops appearing must be removed, and a site not on it fails.
 const PENDING = new Set([
-  'shared/spaces/space.js#auditArrivals',
   'shared/transfer/serve-ledger.js#recordServeSession',
   'shared/spaces/member-registry.js#applyObservedLeave',
   'worker/ipc/membership.js#auditJoinRequest',

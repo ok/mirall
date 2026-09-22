@@ -17,14 +17,11 @@ import { createLocalBee, storeEpoch, deriveSpaceContentKey } from '../core/store
 import { getContentKey } from './space-keys.js'
 import { hasOwnApproval } from './profile.js'
 import { resetJoinRequests } from './join-requests.js'
-import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
-import { record } from '../audit/audit-log.js'
+import { recordResolved } from '../audit/audit-log.js'
 import { prefixRange } from '../core/bee-keys.js'
 import { TARGET_KIND } from '../contract/audit-kinds.js'
 import { peerActor, spaceRef, targetRef } from '../audit/audit-record.js'
-
-const log = createLogger('space')
 
 let spacesBee
 let spacesStore = -1
@@ -150,16 +147,18 @@ function auditArrivals(spaceId, space, added) {
   // own join is the state we joined INTO — not a stream of arrivals. Our own `space.joined` row
   // already records that moment.
   if (space.status === 'pending') return
-  Promise.all(added.map(async (m) => {
-    // We approved them ourselves, so `membership.approved` already tells that story; a second
-    // arrival row seconds later is noise.
-    if (await hasOwnApproval(spaceId, m.publicKey)) return
-    record('member.joined', {
-      actor: peerActor(m.publicKey, m.displayName || null),
-      space: spaceRef(spaceId, space.name ?? null),
-      target: targetRef(TARGET_KIND.MEMBER, m.publicKey, m.displayName || null),
-    })
-  })).catch((err) => log.debug('arrival audit failed:', err.message))
+  for (const m of added) {
+    recordResolved('member.joined', async () => {
+      // We approved them ourselves, so `membership.approved` already tells that story; a second
+      // arrival row seconds later is noise.
+      if (await hasOwnApproval(spaceId, m.publicKey)) return null
+      return {
+        actor: peerActor(m.publicKey, m.displayName || null),
+        space: spaceRef(spaceId, space.name ?? null),
+        target: targetRef(TARGET_KIND.MEMBER, m.publicKey, m.displayName || null),
+      }
+    }, { context: { space: spaceId.slice(0, 12) } })
+  }
 }
 
 // Add a member, or merge fields into an existing one (matched by publicKey).
