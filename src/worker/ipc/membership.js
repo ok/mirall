@@ -8,7 +8,7 @@
 // Binding them here rather than closing over them keeps every handler at module scope, where its
 // own size is visible.
 
-import { record, recordResolved } from '../../shared/audit/audit-log.js'
+import { RESOLVE_OUTCOME, record, recordResolved } from '../../shared/audit/audit-log.js'
 import { peerActor, selfActor, spaceRef, systemActor, targetRef } from '../../shared/audit/audit-record.js'
 import { OUTCOME, TARGET_KIND } from '../../shared/contract/audit-kinds.js'
 import { CODES } from '../../shared/contract/errors.js'
@@ -194,8 +194,8 @@ function auditJoinRequest(spaceId, publicKey, displayName) {
       space: spaceRef(spaceId, space?.name ?? null),
       target: targetRef(TARGET_KIND.MEMBER, publicKey, displayName || null),
     }
-  }, { context: { space: spaceId.slice(0, 12) } }).then((recorded) => {
-    if (!recorded) recordedJoinRequests.delete(key)
+  }, { context: { space: spaceId.slice(0, 12) } }).then((outcome) => {
+    if (outcome === RESOLVE_OUTCOME.LOST) recordedJoinRequests.delete(key)
   })
 }
 

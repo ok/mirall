@@ -145,19 +145,32 @@ export function record(kind, row = {}, context = null) {
   return true
 }
 
+// What recordResolved did with a row. Only LOST is worth retrying: SKIPPED is the resolver's own
+// choice, and a REFUSED row is already counted by the rate guard's audit.suppressed row.
+export const RESOLVE_OUTCOME = Object.freeze({
+  ADMITTED: 'admitted',
+  SKIPPED: 'skipped',
+  REFUSED: 'refused',
+  LOST: 'lost',
+})
+
 // For a row whose fields need a read first, such as a space name snapshotted into it. The read is
 // part of the audit write, so its failure is a lost row, reported like a write failure and never
-// passed to the caller: the returned promise always resolves, to whether the row was admitted, as
-// record() answers. A resolver returning null records nothing. A closed or disabled log would
-// write nothing, so it does not read either, and a failure there is no lost row.
+// passed to the caller: the returned promise always resolves, to a RESOLVE_OUTCOME. A resolver
+// returning null records nothing. A closed or disabled log would write nothing, so it does not read
+// either, and a failure there is no lost row.
 export function recordResolved(kind, resolve, { context = null } = {}) {
-  if (!bee || !config.enabled) return Promise.resolve(false)
+  if (!bee || !config.enabled) return Promise.resolve(RESOLVE_OUTCOME.LOST)
   const pending = Promise.resolve()
     .then(resolve)
-    .then((row) => (row ? record(kind, row, context) : false))
+    .then((row) => {
+      if (!row) return RESOLVE_OUTCOME.SKIPPED
+      if (!bee || !config.enabled) return RESOLVE_OUTCOME.LOST
+      return record(kind, row, context) ? RESOLVE_OUTCOME.ADMITTED : RESOLVE_OUTCOME.REFUSED
+    })
     .catch((err) => {
       if (bee && config.enabled) warnLostRow('resolve', kind, err, context)
-      return false
+      return RESOLVE_OUTCOME.LOST
     })
   resolving.add(pending)
   pending.finally(() => resolving.delete(pending))

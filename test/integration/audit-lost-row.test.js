@@ -3,7 +3,7 @@ import fs from 'bare-fs'
 import crypto from 'hypercore-crypto'
 import { openStore, setMasterSecret } from '../../src/shared/core/store.js'
 import {
-  initAuditLog, closeAuditLog, record, recordResolved, flushAudit, setAuditConfig, auditBee,
+  initAuditLog, closeAuditLog, record, recordResolved, flushAudit, setAuditConfig, auditBee, RESOLVE_OUTCOME,
 } from '../../src/shared/audit/audit-log.js'
 import { queryAudit } from '../../src/shared/audit/audit-query.js'
 import { purgeAudit } from '../../src/shared/audit/audit-reclaim.js'
@@ -102,14 +102,19 @@ test('a write-stage failure goes through the same limiter', async (t) => {
   t.is(lines.filter((l) => l.includes('stage=write')).length, 1, 'twenty failed writes, one line')
 })
 
-test('recordResolved answers whether the row was admitted', async (t) => {
+test('recordResolved answers what became of the row', async (t) => {
   await boot(t)
-  t.is(await recordResolved('space.created', async () => row('yes')), true, 'a landed row')
-  t.is(await recordResolved('space.created', async () => null), false, 'a skipped row')
-  t.is(await recordResolved('space.created', failing('EIO')), false, 'a lost row')
-  await setAuditConfig({ enabled: false })
+  t.is(await recordResolved('space.created', async () => row('yes')), RESOLVE_OUTCOME.ADMITTED, 'a landed row')
+  t.is(await recordResolved('space.created', async () => null), RESOLVE_OUTCOME.SKIPPED, 'a skipped row')
+  t.is(await recordResolved('space.created', failing('EIO')), RESOLVE_OUTCOME.LOST, 'a lost row')
+  while (record('share.created', row('flood')));
+  t.is(await recordResolved('share.created', async () => row('over')), RESOLVE_OUTCOME.REFUSED, 'a row past the rate budget')
+  let disableDuringRead
+  const disabled = recordResolved('space.created', async () => { await disableDuringRead; return row('late') })
+  disableDuringRead = setAuditConfig({ enabled: false })
+  t.is(await disabled, RESOLVE_OUTCOME.LOST, 'a log disabled while the row was read')
   let read = false
-  t.is(await recordResolved('space.created', async () => { read = true; return row('no') }), false, 'a disabled log')
+  t.is(await recordResolved('space.created', async () => { read = true; return row('no') }), RESOLVE_OUTCOME.LOST, 'a disabled log')
   t.absent(read, 'and a disabled log does not read at all')
 })
 
@@ -121,7 +126,7 @@ test('closing the log waits for a read already in flight, so its row lands', asy
   const closing = closeAuditLog()
   release()
   await closing
-  t.is(await pending, true, 'the row was admitted before the log closed')
+  t.is(await pending, RESOLVE_OUTCOME.ADMITTED, 'the row was admitted before the log closed')
   await initAuditLog({ installId: 'install-under-test' })
   t.teardown(() => closeAuditLog())
   const { entries } = await queryAudit({})

@@ -12,7 +12,7 @@ import { getOverlay } from '../transfer/backends/overlay/overlay-instance.js'
 import { createIntegritySeen } from './mirror-budgets.js'
 import { createAttemptBudget } from './mirror-budgets.js'
 import { getSpace } from '../spaces/space.js'
-import { recordResolved } from '../audit/audit-log.js'
+import { RESOLVE_OUTCOME, recordResolved } from '../audit/audit-log.js'
 import { selfActor, spaceRef, targetRef } from '../audit/audit-record.js'
 import { OUTCOME, TARGET_KIND } from '../contract/audit-kinds.js'
 import { createLogger } from '../core/logger.js'
@@ -101,8 +101,8 @@ export function recordMirrorIntegrityFailure(mount, share, entry) {
       outcome: OUTCOME.ERROR,
       code: 'TRANSFER_CHECKSUM',
     }
-  }, { context: { share: mount.shareId?.slice(0, 12) } }).then((written) => {
-    if (!written) integritySeen.release(mountKey, entry.relPath, entry.contentHash)
+  }, { context: { share: mount.shareId?.slice(0, 12) } }).then((outcome) => {
+    if (outcome === RESOLVE_OUTCOME.LOST) integritySeen.release(mountKey, entry.relPath, entry.contentHash)
   })
 }
 
