@@ -62,7 +62,11 @@ function basename(p: string): string {
   return i >= 0 ? p.slice(i + 1) : p
 }
 
-async function show(spec: NotificationSpec): Promise<void> {
+function show(spec: NotificationSpec): void {
+  present(spec).catch((err) => console.error('notification failed:', err))
+}
+
+async function present(spec: NotificationSpec): Promise<void> {
   const prefs = getPrefs()
   if (!prefs.enabled) return
   if (prefs.suppressWhenFocused && (await window.bridge.isWindowFocused())) return
@@ -81,8 +85,8 @@ function coalesced<T extends { transferId: string }>(
   return createCoalescer<T>({
     windowMs: BURST_WINDOW_MS,
     capMs: BURST_CAP_MS,
-    onLeading: (ep) => { void show(spec(ep.data, 1, ep.seq)) },
-    onSummary: (ep) => { if (getPrefs().events[pref]) void show(spec(ep.data, ep.count, ep.seq)) },
+    onLeading: (ep) => { show(spec(ep.data, 1, ep.seq)) },
+    onSummary: (ep) => { if (getPrefs().events[pref]) show(spec(ep.data, ep.count, ep.seq)) },
   })
 }
 
@@ -113,13 +117,13 @@ export function startNotifications(deps: DispatcherDeps): () => void {
     }
     if (avatar) spec.icon = avatar
 
-    void show(spec)
+    show(spec)
   }))
 
   unsubs.push(subscribe<MemberLeftMessage>('event:member-left', (msg) => {
     if (!getPrefs().events.memberLeft) return
     const displayName = deps.getMemberName(msg.spaceId, msg.publicKey) ?? t('notifications.fallbackPeerName')
-    void show({
+    show({
       id: `member-left:${msg.publicKey}`,
       title: displayName,
       body: t('notifications.memberLeftBodyNoSpace'),

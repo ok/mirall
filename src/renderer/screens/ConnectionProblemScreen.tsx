@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useConnectionStatus } from '../hooks/useConnectionStatus.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
+import { useRunAction } from '../hooks/useRunAction.js'
 import { fixStepsFor } from '../model/connectivity.js'
 import Button from '../components/primitives/Button.js'
 import Icon from '../components/primitives/Icon.js'
@@ -27,20 +28,23 @@ export default function ConnectionProblemScreen({ onBack, onContinue, onShowDeta
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
   const headingRef = useRef<HTMLHeadingElement>(null)
   const [checking, setChecking] = useState(false)
+  const runAction = useRunAction()
 
   useEffect(() => {
     headingRef.current?.focus()
   }, [])
 
-  const handleCheckAgain = useCallback(async () => {
+  const handleCheckAgain = useCallback(() => {
     if (checking) return
     setChecking(true)
-    try {
-      await probeCanary({ force: true })
-    } finally {
-      setChecking(false)
-    }
-  }, [checking, probeCanary])
+    runAction(async () => {
+      try {
+        await probeCanary({ force: true })
+      } finally {
+        setChecking(false)
+      }
+    })
+  }, [checking, probeCanary, runAction])
 
   const verdict = reachability?.verdict
   const degraded = verdict === 'blocked' || verdict === 'at-risk'

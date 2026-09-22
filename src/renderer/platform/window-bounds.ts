@@ -22,11 +22,17 @@ export function trackWindowBounds(): void {
     if (document.visibilityState === 'hidden') fetchAndSave()
   })
   window.addEventListener('beforeunload', () => {
-    if (lastBounds) void window.bridge.setWindowBounds(lastBounds)
+    if (lastBounds) window.bridge.setWindowBounds(lastBounds).catch(logBoundsFailure)
   })
 }
 
-async function fetchAndSave(): Promise<void> {
+const logBoundsFailure = (err: Error) => console.error('window bounds failed:', err)
+
+function fetchAndSave(): void {
+  readBounds().catch(logBoundsFailure)
+}
+
+async function readBounds(): Promise<void> {
   const bounds = await window.bridge.getWindowBounds()
   if (!bounds) return
   if (bounds.width < MIN_WIDTH || bounds.height < MIN_HEIGHT) return

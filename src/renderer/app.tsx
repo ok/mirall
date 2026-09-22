@@ -47,7 +47,7 @@ export default function App() {
     if (loading) return
     checkChangelogOnBoot(!needsSetup).then((entries) => {
       if (entries) whatsNew.open(entries)
-    })
+    }, (err) => console.error('changelog check failed:', err))
   }, [loading, needsSetup])
 
   // Above the boot and onboarding gates on purpose: with no worker, profile:get fails, and a failed

@@ -19,7 +19,7 @@ export function getStoredTheme(): ThemeMode {
   return getThemePref()
 }
 
-export function applyTheme(mode: ThemeMode) {
+function paintTheme(mode: ThemeMode) {
   if (systemListener) {
     mql.removeEventListener('change', systemListener)
     systemListener = null
@@ -32,15 +32,25 @@ export function applyTheme(mode: ThemeMode) {
   } else {
     setDarkClass(mode === 'dark')
   }
-
-  // Keep the renderer's config cache in sync with the choice so the settings
-  // toggle re-reads the correct value on remount (persistence itself is done
-  // by the setTheme mirror below, via the main-process theme:set channel).
+  // Keeps the renderer's config cache in sync so the settings toggle re-reads the choice on remount.
   setThemePref(mode)
+}
 
-  // Mirror to main so the BrowserWindow's native background color matches
-  // the rendered body — prevents a flash of the wrong color along the
-  // resize edges when the OS resizes the window faster than Chromium can
-  // repaint.
-  window.bridge?.setTheme?.(mode)
+let confirmed: ThemeMode = getThemePref()
+let themeSeq = 0
+
+// Painted at once, then persisted through main's theme:set channel, which also matches the native
+// window background to the rendered body so a fast OS resize shows no edge of the wrong color. A
+// refusal paints back the last theme main accepted; only the latest choice owns that outcome.
+export async function applyTheme(mode: ThemeMode): Promise<void> {
+  const mine = ++themeSeq
+  paintTheme(mode)
+  try {
+    await window.bridge?.setTheme?.(mode)
+    if (mine === themeSeq) confirmed = mode
+  } catch (err) {
+    if (mine !== themeSeq) return
+    paintTheme(confirmed)
+    throw err
+  }
 }

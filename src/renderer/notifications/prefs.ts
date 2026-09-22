@@ -35,8 +35,10 @@ function migrateLegacy(): void {
   try {
     const raw = localStorage.getItem(LEGACY_STORAGE_KEY)
     if (raw === null) return
-    setNotificationPrefs(coercePrefs(JSON.parse(raw)))
-    localStorage.removeItem(LEGACY_STORAGE_KEY)
+    setNotificationPrefs(coercePrefs(JSON.parse(raw))).then(
+      () => localStorage.removeItem(LEGACY_STORAGE_KEY),
+      (err) => console.error('notification prefs migration failed:', err),
+    )
   } catch {}
 }
 
@@ -69,8 +71,8 @@ export function getPrefs(): NotificationPrefs {
   return coercePrefs(getNotificationPrefs())
 }
 
-export function setPrefs(next: NotificationPrefs): void {
-  setNotificationPrefs(next)
+export function setPrefs(next: NotificationPrefs): Promise<void> {
+  return setNotificationPrefs(next)
 }
 
 migrateLegacy()

@@ -155,13 +155,7 @@ export function ConnectionStatusProvider({ children }: ProviderProps) {
 
   const reconnect = useCallback(() => request('network:reconnect'), [])
 
-  const probeCanary = useCallback(async (opts?: { force?: boolean }) => {
-    try {
-      return await request('network:probe-canary', { force: !!opts?.force })
-    } catch {
-      return null
-    }
-  }, [])
+  const probeCanary = useCallback((opts?: { force?: boolean }) => request('network:probe-canary', { force: !!opts?.force }), [])
 
   const value = useMemo<ConnectionStatusContextValue>(
     () => ({ state: stableState, status, reachability: status?.reachability ?? null, reconnect, probeCanary }),

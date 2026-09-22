@@ -60,7 +60,7 @@ i18n.use(initReactI18next).init({
   },
   interpolation: { escapeValue: false },
   returnNull: false,
-})
+}).catch((err) => console.error('i18n init failed:', err))
 
 document.documentElement.lang = i18n.language
 
@@ -70,16 +70,31 @@ function pushTrayLabels(): void {
     settings: i18n.t('tray.settings'),
     quit: i18n.t('tray.quit'),
     tooltip: i18n.t('tray.tooltip'),
-  })
+  })?.catch((err) => console.error('tray labels failed:', err))
 }
 
 pushTrayLabels()
 i18n.on('languageChanged', pushTrayLabels)
 
-export function setLocale(code: SupportedLanguage): void {
-  setLocalePref(code)
-  i18n.changeLanguage(code)
+function showLanguage(code: string): void {
+  i18n.changeLanguage(code).catch((err) => console.error('language switch failed:', err))
   document.documentElement.lang = code
+}
+
+let localeSeq = 0
+
+// Shown at once; a refused save puts back the language config.json still holds. Only the latest
+// choice owns the outcome: a superseded save's refusal is not reported or rolled back.
+export async function setLocale(code: SupportedLanguage): Promise<void> {
+  const mine = ++localeSeq
+  showLanguage(code)
+  try {
+    await setLocalePref(code)
+  } catch (err) {
+    if (mine !== localeSeq) return
+    showLanguage(resolveInitialLocale())
+    throw err
+  }
 }
 
 export default i18n

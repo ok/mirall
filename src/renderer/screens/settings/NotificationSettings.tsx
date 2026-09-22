@@ -1,7 +1,8 @@
 // Notification settings: master/sound/focus-suppression toggles and per-event enablement.
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useHasVerticalOverflow } from '../../hooks/useHasVerticalOverflow.js'
+import { useRunAction } from '../../hooks/useRunAction.js'
 import PageHeader from '../../components/layout/PageHeader.js'
 import SectionHeading from '../../components/layout/SectionHeading.js'
 import Toggle from '../../components/primitives/Toggle.js'
@@ -20,10 +21,22 @@ export default function NotificationSettings({ onBack }: NotificationSettingsPro
   const { t } = useTranslation()
   const [prefs, setLocalPrefs] = useState<NotificationPrefs>(() => getPrefs())
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
+  const runAction = useRunAction()
+  const writeSeq = useRef(0)
 
+  // A refused write shows what main actually holds again. Only the latest write owns the outcome.
   function update(next: NotificationPrefs) {
+    const mine = ++writeSeq.current
     setLocalPrefs(next)
-    setPrefs(next)
+    runAction(async () => {
+      try {
+        await setPrefs(next)
+      } catch (err) {
+        if (mine !== writeSeq.current) return
+        setLocalPrefs(getPrefs())
+        throw err
+      }
+    })
   }
 
   function setMaster<K extends 'enabled' | 'sound' | 'suppressWhenFocused'>(key: K, value: boolean) {

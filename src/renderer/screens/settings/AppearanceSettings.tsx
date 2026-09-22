@@ -40,7 +40,13 @@ export default function AppearanceSettings({ onBack }: AppearanceSettingsProps) 
 
   function handleTheme(mode: ThemeMode) {
     setTheme(mode)
-    applyTheme(mode)
+    runAction(async () => {
+      try {
+        await applyTheme(mode)
+      } finally {
+        setTheme(getStoredTheme())
+      }
+    })
   }
 
   return (
@@ -113,7 +119,7 @@ export default function AppearanceSettings({ onBack }: AppearanceSettingsProps) 
                   <button
                     key={lang.code}
                     type="button"
-                    onClick={() => setLocale(lang.code as SupportedLanguage)}
+                    onClick={() => runAction(() => setLocale(lang.code as SupportedLanguage))}
                     aria-pressed={selected}
                     className={`w-full p-6 flex items-center justify-between transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-secondary/30 ${
                       selected ? 'bg-surface-container-high/60' : 'hover:bg-surface-container-high/50'

@@ -76,9 +76,21 @@ const FALLBACK: RendererConfig = {
 // below has a matching cache-updating setXPref; keep it that way.
 const cache: RendererConfig = window.bridge?.getConfig?.() ?? FALLBACK
 
-function persist(patch: RendererConfigPatch): void {
-  window.bridge?.setConfig?.(patch)
+// The cache follows what main answers: the snapshot a write returns, or main's copy re-read after a
+// refusal, so it never keeps a value config.json does not hold. The caller decides who hears about
+// the failure.
+async function persist(patch: RendererConfigPatch): Promise<void> {
+  try {
+    const snapshot = await window.bridge?.setConfig?.(patch)
+    if (snapshot) Object.assign(cache, snapshot)
+  } catch (err) {
+    const fresh = window.bridge?.getConfig?.()
+    if (fresh) Object.assign(cache, fresh)
+    throw err
+  }
 }
+
+const logPersistFailure = (err: Error) => console.error('config write failed:', err)
 
 // One-time fold of the pre-unification localStorage keys into config.json, then
 // clear them so subsequent boots read only from the unified store. Notification
@@ -113,12 +125,13 @@ function migrateLegacyLocalStorage(): void {
     if (Object.keys(appearance).length > 0) patch.appearance = appearance
     if (Object.keys(ui).length > 0) patch.ui = ui
     if (patch.appearance || patch.ui) {
-      persist(patch)
-      localStorage.removeItem('mirall:theme')
-      localStorage.removeItem('mirall.locale')
-      localStorage.removeItem('mirall:lastSeenVersion')
-      localStorage.removeItem('mirall.feedback.email')
-      localStorage.removeItem('mirall:invite:format')
+      persist(patch).then(() => {
+        localStorage.removeItem('mirall:theme')
+        localStorage.removeItem('mirall.locale')
+        localStorage.removeItem('mirall:lastSeenVersion')
+        localStorage.removeItem('mirall.feedback.email')
+        localStorage.removeItem('mirall:invite:format')
+      }, logPersistFailure)
     }
   } catch {}
 }
@@ -142,18 +155,18 @@ export function getLocalePref(): string | null {
   return cache.appearance.locale
 }
 
-export function setLocalePref(code: string): void {
+export function setLocalePref(code: string): Promise<void> {
   cache.appearance.locale = code
-  persist({ appearance: { locale: code } })
+  return persist({ appearance: { locale: code } })
 }
 
 export function getNotificationPrefs(): NotificationPrefs | null {
   return cache.notifications
 }
 
-export function setNotificationPrefs(prefs: NotificationPrefs): void {
+export function setNotificationPrefs(prefs: NotificationPrefs): Promise<void> {
   cache.notifications = prefs
-  persist({ notifications: prefs })
+  return persist({ notifications: prefs })
 }
 
 export function getLastSeenVersion(): string | null {
@@ -162,7 +175,7 @@ export function getLastSeenVersion(): string | null {
 
 export function setLastSeenVersion(version: string): void {
   cache.ui.lastSeenVersion = version
-  persist({ ui: { lastSeenVersion: version } })
+  persist({ ui: { lastSeenVersion: version } }).catch(logPersistFailure)
 }
 
 export function getFeedbackEmail(): string {
@@ -171,7 +184,7 @@ export function getFeedbackEmail(): string {
 
 export function setFeedbackEmail(email: string): void {
   cache.ui.feedbackEmail = email
-  persist({ ui: { feedbackEmail: email } })
+  persist({ ui: { feedbackEmail: email } }).catch(logPersistFailure)
 }
 
 export function getRelayMode(): RelayMode {
