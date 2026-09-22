@@ -6,6 +6,7 @@
 // up. Reading the invite first would revoke a link behind a peer we were about to re-grant.
 
 import { reconnectGrantAllowed } from './membership/fold.js'
+import { DENY_OUTCOME } from '../contract/deny-outcome.js'
 
 // Verdicts the records settle on their own, before any invite is read.
 // `null` means the invite has to be resolved to decide.
@@ -33,4 +34,20 @@ export function knockInviteVerdict({ inviteVerdict, hasInviteRecord, hadLeft, is
   // unless a still-valid reviewable invite backs this knock, which means the door was re-opened.
   if (isDenied && !hadLeft && !hasInviteRecord) return 'deny-replay'
   return 'review'
+}
+
+export const ASK_PEERS = 'ask-peers'
+
+// What a member's Deny does (the rule behind ALREADY_APPROVED: contract/deny-outcome.js). Local
+// facts first — the knock gate's own verdict, then a recent answer for the same joiner — and the
+// co-members' bees only once a request is known to be open, so a click on a stale row never waits
+// on an offline peer. `vouched` is undefined until the peers were asked; the caller asks, re-reads
+// the local facts (the read can take the whole admission budget) and decides again.
+export function denyVerdict({ isMember, hadLeft, isApproved, recentlyApproved, hasOpenRequest, vouched }) {
+  if (knockSettledByRecords({ selfPending: false, isMember, hadLeft, isApproved }) === 'regrant') return DENY_OUTCOME.ALREADY_APPROVED
+  if (recentlyApproved) return DENY_OUTCOME.ALREADY_APPROVED
+  if (!hasOpenRequest) return DENY_OUTCOME.NOT_APPLICABLE
+  if (vouched === undefined) return ASK_PEERS
+  if (vouched && !hadLeft) return DENY_OUTCOME.ALREADY_APPROVED
+  return DENY_OUTCOME.DENIED
 }

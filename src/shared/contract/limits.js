@@ -4,6 +4,10 @@ export const AVATAR_MAX_BYTES = 256 * 1024
 // The display-name cap applied to a profile name and to the name carried in an invite envelope.
 export const NAME_MAX = 80
 
+// What the worker stores and sends when a peer has told us no name. The renderer treats it as
+// missing and shows its own localized word instead.
+export const UNKNOWN_DISPLAY_NAME = 'Unknown'
+
 // Room reserved in a membership:request frame for everything that is not the avatar. The frame is
 // judged by peerFrameMaxBytes on the far side BEFORE it is parsed, so an avatar that overflows the
 // budget makes the whole join request vanish unparsed. Worst case measured at 672 chars / 752 bytes:

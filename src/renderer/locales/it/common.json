@@ -349,6 +349,8 @@
     "deny": "Rifiuta",
     "approveNamed": "Approva {{name}}",
     "denyNamed": "Rifiuta {{name}}",
+    "denyAlreadyApproved": "{{name}} è già stato approvato.",
+    "denyNotOpen": "Questa richiesta non è più in sospeso.",
     "review": "Esamina",
     "open": "Apri",
     "joinRequestToast": "{{name}} vuole unirsi a {{space}}",

@@ -349,6 +349,8 @@
     "deny": "Refuser",
     "approveNamed": "Approuver {{name}}",
     "denyNamed": "Refuser {{name}}",
+    "denyAlreadyApproved": "{{name}} a déjà été accepté.",
+    "denyNotOpen": "Cette demande n'est plus en attente.",
     "review": "Examiner",
     "open": "Ouvrir",
     "joinRequestToast": "{{name}} souhaite rejoindre {{space}}",

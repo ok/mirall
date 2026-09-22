@@ -375,6 +375,8 @@
     "deny": "Deny",
     "approveNamed": "Approve {{name}}",
     "denyNamed": "Deny {{name}}",
+    "denyAlreadyApproved": "{{name}} has already been approved.",
+    "denyNotOpen": "This request is no longer open.",
     "review": "Review",
     "open": "Open",
     "joinRequestToast": "{{name}} wants to join {{space}}",

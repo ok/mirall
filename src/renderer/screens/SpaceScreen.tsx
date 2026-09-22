@@ -82,7 +82,7 @@ export default function SpaceScreen({ spaceId, pendingAction, onActionConsumed, 
   // Both list sources feed one pane; see spaceContentState.js for why emptiness needs both.
   const pane = { filesLoading: loading, sharesLoading, filesError: error, fileCount: files.length, shareCount: shares.length }
 
-  const { busy, approve: handleApprove, deny: handleDeny, approveMany: handleApproveMany } = useMembershipRequests({ spaceId, approveMember, denyMember })
+  const { busy, approve: handleApprove, deny: handleDeny, approveMany: handleApproveMany } = useMembershipRequests({ spaceId, requests, approveMember, denyMember })
   const runAction = useRunAction()
   const closeDialog = useCallback(() => setDialog(null), [])
 

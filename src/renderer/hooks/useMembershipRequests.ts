@@ -2,11 +2,16 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useToast } from '../components/toast/ToastProvider.js'
 import { useErrorText } from './useErrorText.js'
+import { DENY_OUTCOME } from '../../shared/contract/deny-outcome.js'
+import { UNKNOWN_DISPLAY_NAME } from '../../shared/contract/limits.js'
+import type { DenyMemberResult } from '../../shared/contract/responses.js'
+import type { JoinRequest } from '../types/types.js'
 
 type MembershipRequestsInput = {
   spaceId: string
-  approveMember: (spaceId: string, publicKey: string) => Promise<unknown>
-  denyMember: (spaceId: string, publicKey: string) => Promise<unknown>
+  requests: JoinRequest[]
+  approveMember: (spaceId: string, publicKey: string) => Promise<void>
+  denyMember: (spaceId: string, publicKey: string) => Promise<DenyMemberResult>
 }
 
 /**
@@ -16,7 +21,7 @@ type MembershipRequestsInput = {
  * slow approval must not freeze the rest of the rows, and a second click on the same row must not
  * send a second write.
  */
-export function useMembershipRequests({ spaceId, approveMember, denyMember }: MembershipRequestsInput) {
+export function useMembershipRequests({ spaceId, requests, approveMember, denyMember }: MembershipRequestsInput) {
   const { t } = useTranslation()
   const toast = useToast()
   const errorText = useErrorText()
@@ -30,7 +35,7 @@ export function useMembershipRequests({ spaceId, approveMember, denyMember }: Me
     return next
   })
 
-  async function decide(pk: string, write: (spaceId: string, publicKey: string) => Promise<unknown>) {
+  async function decide(pk: string, write: (spaceId: string, publicKey: string) => Promise<void>) {
     if (busy.has(pk)) return
     markBusy(pk)
     try {
@@ -39,6 +44,22 @@ export function useMembershipRequests({ spaceId, approveMember, denyMember }: Me
       toast.error(errorText(err))
     } finally {
       clearBusy(pk)
+    }
+  }
+
+  const nameOf = (pk: string) => {
+    const name = requests.find((r) => r.publicKey === pk)?.displayName
+    return name && name !== UNKNOWN_DISPLAY_NAME ? name : t('member.unknown')
+  }
+
+  // A co-member can settle the request while our row is on screen. The already-approved warning
+  // stays until dismissed (the rule it states: contract/deny-outcome.js).
+  async function denyAndReport(sid: string, pk: string) {
+    const { outcome } = await denyMember(sid, pk)
+    if (outcome === DENY_OUTCOME.NOT_APPLICABLE) {
+      toast.info(t('member.denyNotOpen'))
+    } else if (outcome === DENY_OUTCOME.ALREADY_APPROVED) {
+      toast.warning(t('member.denyAlreadyApproved', { name: nameOf(pk) }), { duration: 0 })
     }
   }
 
@@ -69,7 +90,7 @@ export function useMembershipRequests({ spaceId, approveMember, denyMember }: Me
   return {
     busy,
     approve: (pk: string) => decide(pk, approveMember),
-    deny: (pk: string) => decide(pk, denyMember),
+    deny: (pk: string) => decide(pk, denyAndReport),
     approveMany,
   }
 }

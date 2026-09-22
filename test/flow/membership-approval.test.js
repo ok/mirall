@@ -158,8 +158,8 @@ test('a pending member cannot invite, approve, deny, or rename the space', { tim
   // REGRESSION (FIX-INVITE-NULL-1: an unknown space resolved null, which the modal read as success —
   // the button re-enabled with no code and no reason shown.)
   await t.exception(() => A.request('space:invite', { spaceId: 'no-such-space' }), /not found/i, 'unknown space rejects')
-  t.is(await B.request('space:approve-member', { spaceId: space.spaceId, publicKey: 'a'.repeat(64) }), false, 'approve refused (no content key)')
-  t.is(await B.request('space:deny-member', { spaceId: space.spaceId, publicKey: 'a'.repeat(64) }), false, 'deny refused while pending')
+  await t.exception(() => B.request('space:approve-member', { spaceId: space.spaceId, publicKey: 'a'.repeat(64) }), /joined|member/i, 'approve refused while pending')
+  await t.exception(() => B.request('space:deny-member', { spaceId: space.spaceId, publicKey: 'a'.repeat(64) }), /joined|member/i, 'deny refused while pending')
   t.is(await B.request('space:update', { spaceId: space.spaceId, name: 'Hijacked', icon: 'folder' }), null, 'rename refused while pending')
 })
 

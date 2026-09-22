@@ -11,6 +11,7 @@ import { catalogKeyField } from '../shares/catalog-keys.js'
 import { ownLooseCatalogPublish } from '../shares/own-catalog.js'
 import { sanitizeAvatar } from '../contract/identity-limits.js'
 import { PEER_FRAME } from '../contract/peer-frames.js'
+import { UNKNOWN_DISPLAY_NAME } from '../contract/limits.js'
 import { signNoiseBinding } from './handshake-guard.js'
 import { spaceTopics, socketMsgHandlers, announceLedger } from './swarm-registries.js'
 import { createLogger } from '../core/logger.js'
@@ -65,7 +66,7 @@ export function sendFrame(msgHandler, frame) {
 
 async function sendIdentityFrame(socket, msgHandler, spaceId, topicHex, profile) {
   const profileKeyHex = b4a.toString(getProfileKey(), 'hex')
-  const displayName = profile?.displayName || 'Unknown'
+  const displayName = profile?.displayName || UNKNOWN_DISPLAY_NAME
   const space = await getSpace(spaceId)
   const drive = getDrive(spaceId)
   if (drive) {

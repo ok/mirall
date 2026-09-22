@@ -5,6 +5,8 @@
 // the replicated records converged on, and is authoritative for the UI. Neither survives a restart,
 // because a request is a live claim: a requester that is gone should not leave a banner behind.
 
+import { UNKNOWN_DISPLAY_NAME } from '../contract/limits.js'
+
 // Pending join requests for v2 spaces, in-memory and per-space. A request is a peer
 // that connected/handshook but isn't yet an approved member; it surfaces to the UI
 // and clears on approve/deny.
@@ -15,6 +17,25 @@ const pendingRequests = new Map()
 // live, this-peer cache that fills the gap before the first fold and carries the joiner's
 // driveKey/socket for the grant path (getConvergingMember / sendMembershipGrant).
 const derivedRequests = new Map()
+
+// A deny's already-approved answer for a joiner, held until the fold has had time to carry the
+// approval it learned from a co-member, so a repeated click answers without another peer read.
+// Read only by the deny path; no gate consults it.
+const approvedVerdicts = new Map()
+const verdictKey = (spaceId, profileKey) => spaceId + '|' + profileKey
+
+export function rememberApprovedVerdict(spaceId, profileKey, ttlMs, now = Date.now()) {
+  approvedVerdicts.set(verdictKey(spaceId, profileKey), now + ttlMs)
+}
+
+export function hasApprovedVerdict(spaceId, profileKey, now = Date.now()) {
+  const key = verdictKey(spaceId, profileKey)
+  const until = approvedVerdicts.get(key)
+  if (until === undefined) return false
+  if (until > now) return true
+  approvedVerdicts.delete(key)
+  return false
+}
 
 export function setDerivedRequests(spaceId, map) {
   if (!map || map.size === 0) derivedRequests.delete(spaceId)
@@ -27,7 +48,7 @@ export function recordJoinRequest(spaceId, profileKey, displayName, avatar = nul
   if (!pendingRequests.has(spaceId)) pendingRequests.set(spaceId, new Map())
   const prev = pendingRequests.get(spaceId).get(profileKey)
   const next = {
-    displayName: displayName || 'Unknown',
+    displayName: displayName || UNKNOWN_DISPLAY_NAME,
     avatar: avatar || prev?.avatar || null,
     driveKey: driveKey || prev?.driveKey || null,
     ts: Date.now(),
@@ -100,4 +121,5 @@ export function resetJoinRequests() {
   pendingRequests.clear()
   derivedRequests.clear()
   auditClaims.clear()
+  approvedVerdicts.clear()
 }

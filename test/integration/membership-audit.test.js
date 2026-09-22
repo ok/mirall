@@ -117,6 +117,25 @@ test('a lost row released late does not clear a newer knock\'s claim', async (t)
   t.absent(await until(async () => (await requested()).length > 1, 1000), 'and recorded once')
 })
 
+// A deny settles the knock whether it denied, found nothing open, or found the joiner already in.
+// Holding the audit claim past any of those swallows the row of the next genuine knock.
+test('a deny that changed nothing still frees the next knock\'s row', async (t) => {
+  const { peer, spaceId, memberRegistry } = await knockingPeer(t, 'Settled')
+  const knockAgain = () => memberRegistry.emitJoinRequest(spaceId, { publicKey: PEER, displayName: 'Ben' })
+
+  knockAgain()
+  t.ok(await until(async () => (await requested()).length === 1, 3000), 'precondition: the first knock is recorded')
+
+  t.is((await peer.fake.call('space:deny-member', { spaceId, publicKey: PEER })).outcome, 'not-applicable', 'nothing was open to deny')
+  knockAgain()
+  t.ok(await until(async () => (await requested()).length === 2, 3000), 'the knock after it records its own row')
+
+  await upsertMember(spaceId, { publicKey: PEER, displayName: 'Ben' })
+  t.is((await peer.fake.call('space:deny-member', { spaceId, publicKey: PEER })).outcome, 'already-approved', 'the joiner is already in')
+  knockAgain()
+  t.ok(await until(async () => (await requested()).length === 3, 3000), 'and so does the knock after that')
+})
+
 // The seen-set is this session's: a stop that left it behind would swallow the row of a request
 // re-made after an in-process restart.
 test('a restart does not carry the recorded join requests over', async (t) => {

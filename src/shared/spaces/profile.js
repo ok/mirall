@@ -11,6 +11,7 @@ import { clampDisplayName, sanitizeAvatar } from '../contract/identity-limits.js
 import { CODES } from '../contract/errors.js'
 import { AppError } from '../core/errors.js'
 import { principalRef } from '../contract/principals.js'
+import { UNKNOWN_DISPLAY_NAME } from '../contract/limits.js'
 import { voucheesToAdopt } from './membership/fold.js'
 import b4a from 'b4a'
 import { createLogger } from '../core/logger.js'
@@ -298,7 +299,7 @@ export async function sweepExpiredInvites(spaceId, now = Date.now()) {
 // rides a member's receipt. Idempotent: re-author only when our own dismissal currently
 // supersedes the receipt (they were denied/withdrew and are knocking again), so a fresh ts
 // overrides the tombstone; otherwise no-op to avoid append churn on every reconnect.
-export async function markRequest(spaceId, joinerKeyHex, { displayName = 'Unknown', avatar = null, refresh = false } = {}) {
+export async function markRequest(spaceId, joinerKeyHex, { displayName = UNKNOWN_DISPLAY_NAME, avatar = null, refresh = false } = {}) {
   await ensureMembershipManifestCap()
   const reqKey = 'request/' + spaceId + '/' + joinerKeyHex
   const existing = await profileBee.get(reqKey)
@@ -364,7 +365,7 @@ function loadPeerEntries(profileKeyHex, prefix) {
       const v = entry.value || {}
       out.push({
         joiner,
-        displayName: clampDisplayName(v.displayName || 'Unknown'),
+        displayName: clampDisplayName(v.displayName || UNKNOWN_DISPLAY_NAME),
         avatar: sanitizeAvatar(v.avatar || null, getMembershipCaps().maxAvatarBytes),
         ts: v.ts || 0,
       })
