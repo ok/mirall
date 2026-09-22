@@ -682,7 +682,7 @@
     "sendFeedbackDesc": "Report a problem or share a suggestion.",
     "whatsNew": "What's new",
     "whatsNewDesc": "Recent changes in Mirall.",
-    "whatsNewEmpty": "No release notes are available for this version.",
+    "whatsNewEmpty": "No release notes are available.",
     "updateReady": "v{{version}} is available — it will be installed the next time you quit and reopen Mirall."
   },
   "whatsNew": {
@@ -848,6 +848,7 @@
     "openSettingsDesc": "Transfer limits and relay.",
     "reconnect": "Reconnect",
     "reconnecting": "Reconnecting…",
+    "reconnectThrottled": "Mirall reconnected moments ago. Try again in a few seconds.",
     "verdict": {
       "healthyTitle": "Network is healthy",
       "healthyBodyPeers_one": "{{count}} peer connected across your spaces.",

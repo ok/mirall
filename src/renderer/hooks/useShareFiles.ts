@@ -73,8 +73,7 @@ export function useShareFiles(spaceId: string, ownerKey: string, shareId: string
   )
   const isSeeded = useCallback((relPath: string) => seeded.has(relPath), [seeded])
 
-  // The rows take these as `(relPath) => void`, so a refusal is reported here. Pause and cancel are
-  // useTransferControls', shared with the space screen.
+  // Pause and cancel are useTransferControls', shared with the space screen.
   const downloadFile = useCallback(
     (relPath: string) => run(async () => {
       const res = await request('share:read-file', { spaceId, ownerKey, shareId, relPath })

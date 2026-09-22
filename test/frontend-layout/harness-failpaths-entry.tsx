@@ -21,7 +21,7 @@ import { runDroppedProbes, droppedOk, type DroppedResults, type Json, type Worke
 interface ErrorFrame {
   id: number
   error: string
-  code: string
+  code?: string
 }
 
 interface ReplyFrame {
@@ -83,6 +83,7 @@ window.bridge.writeWorkerIPC = (spec: string, data: Uint8Array | string) => {
     asked.set(env.type, (asked.get(env.type) ?? 0) + 1)
     const answer = answers.get(env.type)
     if (answer === 'fail') failFrame(env.id)
+    else if (answer === 'failUncoded') Promise.resolve().then(() => window.__fakeEmit({ id: env.id, error: 'disk said no' }))
     else if (answer === 'hold') held.push(env.id)
     else if (answer) Promise.resolve().then(() => window.__fakeEmit({ id: env.id, data: answer.data }))
     else if (env.type === 'audit:purge' || (env.type === 'setVerbose' && verboseMode === 'fail')) {
@@ -126,6 +127,12 @@ const settleLatest = (how: 'resolve' | 'reject') => {
 const notFocused = () => new DOMException('Document is not focused.', 'NotAllowedError')
 
 let unhandledRejections = 0
+let errorsLogged = 0
+const realConsoleError = console.error.bind(console)
+console.error = (...args: Parameters<typeof console.error>) => {
+  errorsLogged += 1
+  realConsoleError(...args)
+}
 window.addEventListener('unhandledrejection', () => {
   unhandledRejections += 1
 })
@@ -331,6 +338,7 @@ async function run(root: Root): Promise<HarnessResults> {
     profile: PROFILE,
     unavailableText: UNAVAILABLE_TEXT,
     unhandled: () => unhandledRejections,
+    logged: () => errorsLogged,
   })
 
   const { rejectOn, rejectOff, unmountInFlight } = verbose

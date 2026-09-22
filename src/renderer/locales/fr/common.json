@@ -656,7 +656,7 @@
     "sendFeedbackDesc": "Signaler un problème ou faire une suggestion.",
     "whatsNew": "Nouveautés",
     "whatsNewDesc": "Modifications récentes dans Mirall.",
-    "whatsNewEmpty": "Aucune note de version n'est disponible pour cette version.",
+    "whatsNewEmpty": "Aucune note de version n'est disponible.",
     "updateReady": "v{{version}} est disponible — elle sera installée au prochain redémarrage de Mirall."
   },
   "whatsNew": {
@@ -822,6 +822,7 @@
     "openSettingsDesc": "Limites de transfert et relais.",
     "reconnect": "Reconnecter",
     "reconnecting": "Reconnexion…",
+    "reconnectThrottled": "Mirall vient de se reconnecter. Réessayez dans quelques secondes.",
     "verdict": {
       "healthyTitle": "Le réseau fonctionne bien",
       "healthyBodyPeers_one": "{{count}} pair connecté dans vos espaces.",

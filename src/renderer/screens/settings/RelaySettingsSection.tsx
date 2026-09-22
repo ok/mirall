@@ -154,19 +154,18 @@ export default function RelaySettingsSection() {
   const handleRemove = useCallback(() => {
     setConfirm(null)
     lastActiveMode.current = 'auto'
-    commit({ mode: 'off', relay: null }).catch((err) => console.error('relay removal failed:', err))
-  }, [commit])
+    runAction(() => commit({ mode: 'off', relay: null }))
+  }, [commit, runAction])
 
   const handleModeToggle = useCallback((on: boolean) => {
     if (!on && latest.current.mode !== 'off') lastActiveMode.current = latest.current.mode
-    commit({ mode: on ? lastActiveMode.current : 'off' })
-      .catch((err) => console.error('relay mode change failed:', err))
-  }, [commit])
+    runAction(() => commit({ mode: on ? lastActiveMode.current : 'off' }))
+  }, [commit, runAction])
 
   const handleAlwaysToggle = useCallback((on: boolean) => {
     lastActiveMode.current = on ? 'always' : 'auto'
-    commit({ mode: lastActiveMode.current }).catch((err) => console.error('relay mode change failed:', err))
-  }, [commit])
+    runAction(() => commit({ mode: lastActiveMode.current }))
+  }, [commit, runAction])
 
   // A slot that has never been probed gets one on mount, so "Not tested" is a state the user
   // passes through rather than one they have to act on.

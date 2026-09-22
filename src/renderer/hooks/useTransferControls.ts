@@ -3,9 +3,8 @@ import { request } from '../ipc/ipc.js'
 import { useRunAction } from './useRunAction.js'
 
 // Transfer controls. No local status is kept: the worker re-derives the row and emits a reconcile
-// hint, so the view converges without a client-side optimistic latch. The rows take these as
-// `(transferId) => void`, so a refusal is reported here. Stable identities, because they go straight
-// into memoized rows as props (README.md).
+// hint, so the view converges without a client-side optimistic latch. Stable identities, because
+// they go straight into memoized rows as props (README.md).
 export function useTransferControls() {
   const run = useRunAction()
   const cancelDownload = useCallback(

@@ -17,7 +17,7 @@ export default function RelayApplyNotice({ notice, busy, onAct }: RelayApplyNoti
       <p className="min-w-0 flex-1 text-sm text-on-warning-container leading-relaxed">
         {t(`networkSettings.relays.notice.${notice}`)}
       </p>
-      <Button variant="secondary" disabled={busy} onClick={onAct}>
+      <Button variant="secondary" ariaDisabled={busy} onClick={() => { if (!busy) onAct() }}>
         {t(`networkSettings.relays.${busy ? 'applying' : action}`)}
       </Button>
     </div>

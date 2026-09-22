@@ -32,6 +32,7 @@ function LimitRow({
   direction,
   kbps,
   custom,
+  busy,
   onPreset,
   onCustom,
   onValue,
@@ -39,6 +40,7 @@ function LimitRow({
   direction: Direction
   kbps: number
   custom: boolean
+  busy: boolean
   onPreset: (next: number) => void
   onCustom: () => void
   onValue: (next: number) => void
@@ -92,6 +94,7 @@ function LimitRow({
                 label={label}
                 selected={!custom && kbps === preset}
                 onSelect={() => onPreset(preset)}
+                busy={busy}
                 ariaLabel={t(`networkSettings.a11y.${direction}Preset`, { rate: label })}
               />
             )
@@ -155,7 +158,9 @@ export default function NetworkSettings({ onBack, onOpenStatus }: NetworkSetting
   // the user: picking Custom must not discard the cap they already have — so it seeds once, off
   // the first settled value, rather than tracking it.
   const [custom, setCustom] = useState<Record<Direction, boolean>>({ download: false, upload: false })
-  const [applyError, setApplyError] = useState<'save' | 'restart' | null>(null)
+  const [applyOutcome, setApplyOutcome] = useState<'save-failed' | 'restart' | null>(null)
+  const [applying, setApplying] = useState(false)
+  const applySeq = useRef(0)
   const seeded = useRef(false)
 
   useEffect(() => {
@@ -171,20 +176,27 @@ export default function NetworkSettings({ onBack, onOpenStatus }: NetworkSetting
   // the cap is saved and takes effect after a restart, and a refused save means nothing changed. The
   // store publishes `next` optimistically, replaces it with what main actually stored (main clamps a
   // below-floor value), and restores the previous cap if the save fails — so the screen cannot end
-  // up showing a cap that was never persisted.
+  // up showing a cap that was never persisted. Only the latest apply reports its outcome.
   const apply = useCallback(async (next: BandwidthLimits) => {
-    setApplyError(null)
-    let persisted: BandwidthLimits
+    const seq = ++applySeq.current
+    const latest = () => seq === applySeq.current
+    setApplyOutcome(null)
+    setApplying(true)
     try {
-      persisted = await writeBandwidth(next)
-    } catch {
-      setApplyError('save')
-      return
-    }
-    try {
-      await request('settings:set-bandwidth', { ...persisted })
-    } catch {
-      setApplyError('restart')
+      let persisted: BandwidthLimits
+      try {
+        persisted = await writeBandwidth(next)
+      } catch {
+        if (latest()) setApplyOutcome('save-failed')
+        return
+      }
+      try {
+        await request('settings:set-bandwidth', { ...persisted })
+      } catch {
+        if (latest()) setApplyOutcome('restart')
+      }
+    } finally {
+      if (latest()) setApplying(false)
     }
   }, [writeBandwidth])
 
@@ -194,7 +206,9 @@ export default function NetworkSettings({ onBack, onOpenStatus }: NetworkSetting
       direction,
       kbps: current[key],
       custom: custom[direction],
+      busy: applying,
       onPreset: (next: number) => {
+        if (applying) return
         setCustom((prev) => ({ ...prev, [direction]: false }))
         void apply({ ...current, [key]: next })
       },
@@ -222,10 +236,11 @@ export default function NetworkSettings({ onBack, onOpenStatus }: NetworkSetting
                 <>
                   <LimitRow {...rowProps('download', limits)} />
                   <LimitRow {...rowProps('upload', limits)} />
-                  {applyError && (
-                    <InlineError>
-                      {applyError === 'save' ? t('networkSettings.limitSaveFailed') : t('networkSettings.limitAppliesAfterRestart')}
-                    </InlineError>
+                  {applyOutcome === 'save-failed' && (
+                    <InlineError>{t('networkSettings.limitSaveFailed')}</InlineError>
+                  )}
+                  {applyOutcome === 'restart' && (
+                    <p role="status" className="text-sm text-on-surface-variant">{t('networkSettings.limitAppliesAfterRestart')}</p>
                   )}
                 </>
               ) : readError ? (

@@ -86,8 +86,7 @@ export function useFiles(spaceId: string) {
     }
   }
 
-  // Stable identities: props of memoized rows (README.md). They close over nothing but spaceId. The
-  // rows take download and discard as `(file) => void`, so those two report a refusal here.
+  // Stable identities: props of memoized rows (README.md).
   const downloadFile = useCallback((file: FileEntry) => run(async () => {
     const res = await request('files:download', {
       spaceId,
@@ -99,14 +98,14 @@ export function useFiles(spaceId: string) {
     // A queued click started nothing — the owner is unreachable and the intent is recorded for the
     // reconnect machinery — so there is no transfer to report movement for.
     if ('transferId' in res) setSeeded((prev) => { const next = new Set(prev); next.add(file.path); return next })
-  }), [run, spaceId])
+  }, 'transferFailed'), [run, spaceId])
 
   const unshareFile = useCallback(async (path: string) => {
     await request('files:remove', { spaceId, path })
   }, [spaceId])
 
   const discardPartial = useCallback(
-    (file: FileEntry) => run(() => request('files:discard-partial', { spaceId, path: file.path, inPlace: file.inPlace ?? false })),
+    (file: FileEntry) => run(() => request('files:discard-partial', { spaceId, path: file.path, inPlace: file.inPlace ?? false }), 'transferFailed'),
     [run, spaceId],
   )
 
