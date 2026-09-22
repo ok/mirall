@@ -1,4 +1,5 @@
 /** @import { SpaceMember } from '../types/types.js' */
+/** @import { PersonKey } from '../../shared/contract/principals.js' */
 
 /** @typedef {{ total: number, stack: SpaceMember[], overflow: number }} MemberSummary */
 
@@ -32,4 +33,26 @@ export function summarizeMembers(members, opts = {}) {
   const list = Array.isArray(members) ? members : []
   const { stack, overflow } = facepileSlice(list, opts.stackMax ?? 8)
   return { total: list.length, stack, overflow }
+}
+
+// A facepile of the peers on one file row — the downloaders, or the members waiting on our hash.
+export const PEER_STACK_MAX = 3
+
+/** @typedef {{ key: PersonKey, member: SpaceMember | null }} PeerFace */
+/** @typedef {{ key: string, src?: string | null, displayName?: string | null, title?: string, className?: string }} PeerStackAvatar */
+
+/** @param {PersonKey[]} keys @param {SpaceMember[]} members @returns {PeerFace[]} */
+export function peerFaces(keys, members) {
+  return keys.map((key) => ({ key, member: members.find((m) => m.publicKey === key) ?? null }))
+}
+
+/** @param {PeerFace} face @param {string} [className] @returns {PeerStackAvatar} */
+export function peerStackAvatar(face, className) {
+  return {
+    key: face.key,
+    src: face.member?.avatar,
+    displayName: face.member?.displayName,
+    title: face.member?.displayName || undefined,
+    className,
+  }
 }

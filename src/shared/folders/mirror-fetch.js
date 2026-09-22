@@ -33,6 +33,8 @@ import { shortfall } from '../transfer/free-space.js'
 import { PARTIAL_SUFFIX } from '../transfer/partial-suffix.js'
 import { pathFromMount } from './path-guard.js'
 import { transferIdFor } from '../transfer/transfer-id.js'
+import { memberWaits } from '../network/share-wait.js'
+import { SHARE_WAIT_SOURCE } from '../transfer/share-wait-set.js'
 import { pauseMount, pauseMountForIoError } from './foreign-pause.js'
 import { emitMirrorEvent } from './mirror-signals.js'
 import { classifyLocalCopy, mayOverwriteInPlace, mirrorKey } from './mirror-policy.js'
@@ -221,9 +223,19 @@ async function mountCanTake(mount, entry, abs, probe) {
   return true
 }
 
+// An entry with no hash is one the owner is still hashing, and every tick walks it again while it
+// does — so the tick is what re-announces the wait.
+function trackShareWait(mount, entry, opts) {
+  const transferId = transferIdFor(mount.spaceId, mount.shareId, entry.relPath)
+  if (entry.contentHash) memberWaits.resolve(transferId)
+  else if (!opts.noFetch) memberWaits.wait(mount.ownerKey, transferId, SHARE_WAIT_SOURCE.MIRROR)
+  return transferId
+}
+
 export async function materializeOverlayFile(mount, share, entry, opts = {}) {
   const hashOf = opts.hashOf || overlayHashFile
   const verifyKey = entryRef(mount.shareId, entry.relPath)
+  const transferId = trackShareWait(mount, entry, opts)
   // Overlay content hashes are leaf/size-prefixed, NOT plain blake2b — compare
   // the on-disk copy with the overlay hasher, or the skip/adopt checks never
   // match and the mirror re-fetches every file every tick.
@@ -269,7 +281,7 @@ export async function materializeOverlayFile(mount, share, entry, opts = {}) {
   // early-out so we do not queue for a slot to do it; the claim taken past the gate decides. Another
   // OWNER only — our own overlapping pass (a tick racing an adopted initial scan) is serialised by
   // activeOverlayFetches and must not be refused here (foreign-mirror-inflight.test.js).
-  const claimedBy = fetchClaimedBy(transferIdFor(mount.spaceId, mount.shareId, entry.relPath))
+  const claimedBy = fetchClaimedBy(transferId)
   if (claimedBy && claimedBy !== FETCH_OWNER_MIRROR) return 'missing'
   // Below the claim check on purpose: charging a file the download engine already owns against our
   // own free space would refuse it over bytes that engine has already reserved.

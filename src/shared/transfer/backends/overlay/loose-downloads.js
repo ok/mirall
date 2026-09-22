@@ -12,6 +12,8 @@ import { markListIncomplete } from '../../list-deficits.js'
 import { getPendingFor, recordPending } from '../../pending-transfers.js'
 import { reuseDest } from '../../download-dest.js'
 import { LOOSE_SHARE_ID, looseTransferIdFor } from '../../transfer-id.js'
+import { memberWaits } from '../../../network/share-wait.js'
+import { SHARE_WAIT_SOURCE } from '../../share-wait-set.js'
 import { getOverlay } from './overlay-instance.js'
 import { createOverlayChannel } from './overlay-channel.js'
 import { cancelSpaceOn, reconcileActiveSlots } from './active-transfers.js'
@@ -113,7 +115,7 @@ async function resolveLoosePendingRow(spaceId, row) {
   const job = state?.contentHash
     ? await buildLooseJob({ spaceId, member, drivePath: looseDrivePath(row.relPath), keyHex, sck, entry: state, pending: row })
     : null
-  return { removed: false, seq: state?.seq, job }
+  return { removed: false, seq: state?.seq, job, awaitingHash: !!state && !state.contentHash }
 }
 
 export const looseChannel = createOverlayChannel({
@@ -140,8 +142,10 @@ export async function looseDownload(spaceId, member, drivePath) {
   if (!getOverlay() || !(member?.looseCatalogKey || member?.looseCatalogKeyEnc)) return { queued: true }
   const { keyHex, sck, readable } = await resolvePeerCatalog(spaceId, member)
   if (readable) ensureLooseCatalogWatch(spaceId, member, keyHex, sck)
-  const job = readable ? await buildLooseJob({ spaceId, member, drivePath, keyHex, sck }) : null
+  const entry = readable ? await getPeerEntry(keyHex, LOOSE_SHARE_ID, relPath, { sck }) : null
+  const job = entry ? await buildLooseJob({ spaceId, member, drivePath, keyHex, sck, entry }) : null
   if (!job) {
+    if (entry) memberWaits.wait(member.publicKey, looseTransferIdFor(spaceId, relPath), SHARE_WAIT_SOURCE.ROW)
     // The catalog entry is unreadable right now (owner offline, or the read budget expired under
     // reconnect churn). Record the intent so the reconnect machinery owns the retry: with no row,
     // nothing would ever retry and the click is silently lost.

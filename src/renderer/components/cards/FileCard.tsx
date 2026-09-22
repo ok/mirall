@@ -167,14 +167,14 @@ function FileCard({
   const rowName = fileName(file.path)
   const view = deriveRowView(file, decoration, downloadSummary, { kind: 'loose', seeded })
 
-  // The dropdown is gated on the same indicator condition so it can't orphan when a
+  // The dropdown is gated on the lane's own peer-list condition so it can't orphan when a
   // competing progress branch wins the lane.
   const [showDownloaders, setShowDownloaders] = useState(false)
   const reactId = useId()
   const dropdownId = `peer-downloads-${reactId}`
   useEffect(() => {
-    if (!view.indicatorActive) setShowDownloaders(false)
-  }, [view.indicatorActive])
+    if (!view.peerListActive) setShowDownloaders(false)
+  }, [view.peerListActive])
 
   const { primary, secondary } = deriveActions(file, t, {
     onDownload,
@@ -234,7 +234,7 @@ function FileCard({
           <ActionSlot action={primary} alwaysVisible={true} />
         </div>
       </div>
-      {view.indicatorActive && showDownloaders && downloadSummary && (
+      {view.peerListActive && showDownloaders && downloadSummary && (
         <div className="pb-2">
           <PeerDownloadDropdown
             id={dropdownId}

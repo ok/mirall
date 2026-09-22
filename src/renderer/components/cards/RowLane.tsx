@@ -10,6 +10,7 @@ import Badge from '../primitives/Badge.js'
 import VerifiedCheck from '../primitives/VerifiedCheck.js'
 import DownloadProgressLane from '../primitives/DownloadProgressLane.js'
 import PeerDownloadIndicator from './PeerDownloadIndicator.js'
+import PeerWaitingIndicator from './PeerWaitingIndicator.js'
 
 interface RowLaneProps {
   view: RowView
@@ -28,7 +29,21 @@ interface RowLaneProps {
 export default function RowLane({ view, rowName, kind, members, downloadSummary, showDownloaders, onToggleDownloaders, dropdownId }: RowLaneProps) {
   switch (view.lane) {
     case 'publish':
-      return <PublishLane view={view} rowName={rowName} />
+      return (
+        <PublishLane
+          view={view}
+          rowName={rowName}
+          aside={view.waiterKeys.length > 0 && (
+            <PeerWaitingIndicator
+              waiterKeys={view.waiterKeys}
+              members={members ?? []}
+              open={showDownloaders}
+              onToggle={onToggleDownloaders}
+              controlsId={dropdownId}
+            />
+          )}
+        />
+      )
     case 'verify':
       return <VerifyLane view={view} rowName={rowName} />
     case 'download':
@@ -69,10 +84,11 @@ function StatusPill({ view, rowName }: { view: RowView; rowName: string }) {
   return <RowBadge label={t(view.badge.labelKey)} classes={view.badge.classes} rowName={rowName} />
 }
 
-function ProgressLaneShell({ view, rowName, basis = 'basis-32', children }: { view: RowView; rowName: string; basis?: string; children: ReactNode }) {
+function ProgressLaneShell({ view, rowName, basis = 'basis-32', children, aside }: { view: RowView; rowName: string; basis?: string; children: ReactNode; aside?: ReactNode }) {
   return (
     <>
       <div className={`ml-6 ${basis} shrink-0 self-center`}>{children}</div>
+      {aside}
       <div className="ml-5 mr-3 shrink-0 self-center items-center hidden @min-[480px]/row:flex">
         <StatusPill view={view} rowName={rowName} />
       </div>
@@ -80,11 +96,11 @@ function ProgressLaneShell({ view, rowName, basis = 'basis-32', children }: { vi
   )
 }
 
-function PublishLane({ view, rowName }: { view: RowView; rowName: string }) {
+function PublishLane({ view, rowName, aside }: { view: RowView; rowName: string; aside?: ReactNode }) {
   const { t } = useTranslation()
   const eta = resolveEta(view.publishDecor?.eta)
   return (
-    <ProgressLaneShell view={view} rowName={rowName}>
+    <ProgressLaneShell view={view} rowName={rowName} aside={aside}>
       <DownloadProgressLane
         value={view.publishPct}
         label={t('file.indexingProgress')}

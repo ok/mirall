@@ -35,5 +35,6 @@ export const CASES = [
   { name: "toaststack", title: "Mirall sticky-toast eviction harness" },
   { name: "stickyheader", title: "Mirall space sticky-header harness" },
   { name: "truncation", title: "Mirall text-truncation harness" },
+  { name: "waiting", title: "Mirall owner-row waiting-cluster harness" },
   { name: "harness", title: "Mirall layout harness" },
 ]

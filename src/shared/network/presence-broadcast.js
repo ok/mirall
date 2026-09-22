@@ -8,12 +8,13 @@ import { PEER_FRAME } from '../contract/peer-frames.js'
 import b4a from 'b4a'
 import { getProfileKey } from '../spaces/profile.js'
 import { liveHandle } from '../core/timers.js'
-import { LOOSE_SHARE_ID } from '../transfer/transfer-id.js'
+import { LOOSE_SHARE_ID, transferIdFor } from '../transfer/transfer-id.js'
 import { shareDecoKey } from '../contract/decoration-key.js'
 import { peerSeen } from '../audit/network-watch.js'
 import { presenceFrameKind } from './presence.js'
 import { spaceTopics, socketMsgHandlers, authorizedOn, broadcastToSpace } from './swarm-registries.js'
 import { presence as defaultPresence } from './presence-leases.js'
+import { memberWaits } from './share-wait.js'
 import { createLogger } from '../core/logger.js'
 
 let presence = defaultPresence
@@ -172,12 +173,15 @@ export function handleSharePrepareProgressFrame(socket, msg) {
   // without it the bar sits at ~100% and repaints stale on the next re-hash of the same path. It
   // carries no numbers to validate, and clears at most a cosmetic bar a progress frame repaints.
   if (msg.done === true) {
+    memberWaits.resolve(transferIdFor(spaceId, shareId, relPath), profileKey)
     // Phase-scoped: this key is SHARED with our own download of the same file, and a re-publish
     // restarts that download the moment the materialized hash replicates — a `done` landing just
     // after it must not take down a live download bar.
     getIpc().emit('event:decoration', { channel: 'transfer', spaceId, key, phase: 'preparing', done: true })
     return
   }
+  // The owner is hashing, so this is when a member waiting on it re-announces (throttled there).
+  memberWaits.heardFrom(profileKey, transferIdFor(spaceId, shareId, relPath))
   // Wire numbers are peer-controlled: drop anything non-finite / out of range so a bad frame
   // can't reach the renderer as a NaN bar (width:'NaN%' / aria-valuenow=NaN).
   if (!Number.isFinite(bytes) || !Number.isFinite(total) || total <= 0 || bytes < 0 || bytes > total) return

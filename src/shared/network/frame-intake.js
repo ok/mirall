@@ -13,6 +13,7 @@ import { getPeerFrameMaxBytes, getPeerFrameLimits, getHandshakeRateLimit, getCon
 import { checkInboundSender, createDualRateLimiter, createRateLimiter, validFrameShape } from './handshake-guard.js'
 import { handlePresenceFrame, handleShareIndexProgressFrame, handleSharePrepareProgressFrame, resolveSpaceIdForTopic } from './presence-broadcast.js'
 import { handleLeaveFrame, handleLeaveAckFrame, handleMembershipCancelAck } from './leave-protocol.js'
+import { handleShareWaitFrame } from './share-wait.js'
 import { spaceTopics, pendingRequesters, boundSignerKeys } from './swarm-registries.js'
 import { handleHandshake } from './handshake-apply.js'
 
@@ -180,6 +181,7 @@ const PEER_FRAME_HANDLERS = Object.freeze({
   [PEER_FRAME.MEMBERSHIP_CANCEL_ACK]: ({ socket }, msg) => handleMembershipCancelAck(socket, msg),
   [PEER_FRAME.SHARE_INDEX_PROGRESS]: ({ socket }, msg) => handleShareIndexProgressFrame(socket, msg),
   [PEER_FRAME.SHARE_PREPARE_PROGRESS]: ({ socket }, msg) => handleSharePrepareProgressFrame(socket, msg),
+  [PEER_FRAME.SHARE_WAIT]: ({ socket }, msg) => handleShareWaitFrame(socket, msg),
   ...Object.fromEntries(MEMBERSHIP_CONTROL_FRAMES.map((type) => [type, toMembershipControl])),
 })
 

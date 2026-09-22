@@ -29,6 +29,8 @@ import { TARGET_KIND } from '../contract/audit-kinds.js'
 import { peerActor, spaceRef, targetRef } from '../audit/audit-record.js'
 import { getLocalBinding } from './identity-frames.js'
 import { presence } from './presence-leases.js'
+import { memberWaits } from './share-wait.js'
+import { clearWaitingFor } from '../transfer/serve-ledger.js'
 
 let log = null
 let getRevokeServesHook = () => null
@@ -169,6 +171,8 @@ export async function handleLeaveFrame(socket, peerInfo, msg) {
   log.info('peer left space (leave frame):', profileKey.slice(0, 12) + '...', '→', spaceId)
 
   presence.clear(profileKey, spaceId)   // the leaver is offline in this space immediately
+  memberWaits.forget({ spaceId, ownerKey: profileKey })
+  clearWaitingFor(profileKey, spaceId)
   peerLeft(profileKey, spaceId)         // ...but that is a LEAVE; member.left carries it
 
   disconnectLeaver(profileKey, spaceId)

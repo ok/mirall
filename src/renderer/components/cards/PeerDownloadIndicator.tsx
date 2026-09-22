@@ -1,14 +1,9 @@
 import { useTranslation } from 'react-i18next'
 import type { SpaceMember, PeerDownloadSummary } from '../../types/types.js'
 import { formatSpeed, etaFromRate, joinMeta, progressValueText } from '../../format/utils.js'
+import { PEER_STACK_MAX, peerFaces, peerStackAvatar } from '../../model/member-summary.js'
 import AvatarStack from '../primitives/AvatarStack.js'
 import Icon from '../primitives/Icon.js'
-
-interface Downloader {
-  key: string
-  member: SpaceMember | null
-  paused: boolean
-}
 
 interface PeerDownloadIndicatorProps {
   summary: PeerDownloadSummary
@@ -17,8 +12,6 @@ interface PeerDownloadIndicatorProps {
   onToggle: () => void
   controlsId: string
 }
-
-const STACK_MAX = 3
 
 interface MetaToken {
   key: string
@@ -46,8 +39,7 @@ function metaTokens(countLabel: string, speed: string | null, eta: string): Meta
 export default function PeerDownloadIndicator({ summary, members, open, onToggle, controlsId }: PeerDownloadIndicatorProps) {
   const { t } = useTranslation()
   const pausedSet = summary.pausedKeys.length ? new Set(summary.pausedKeys) : null
-  const downloaders: Downloader[] = summary.personKeys
-    .map((key) => ({ key, member: members.find((m) => m.publicKey === key) ?? null, paused: pausedSet?.has(key) ?? false }))
+  const downloaders = peerFaces(summary.personKeys, members).map((face) => ({ ...face, paused: pausedSet?.has(face.key) ?? false }))
   const count = downloaders.length
   const pausedCount = downloaders.filter((d) => d.paused).length
   const allPaused = count > 0 && pausedCount === count
@@ -89,15 +81,9 @@ export default function PeerDownloadIndicator({ summary, members, open, onToggle
             size="sm"
             surface="surface-container-lowest"
             announce="hidden"
-            max={STACK_MAX}
+            max={PEER_STACK_MAX}
             total={count}
-            avatars={downloaders.map((d) => ({
-              key: d.key,
-              src: d.member?.avatar,
-              displayName: d.member?.displayName,
-              title: d.member?.displayName || undefined,
-              className: d.paused ? 'opacity-50' : undefined,
-            }))}
+            avatars={downloaders.map((d) => peerStackAvatar(d, d.paused ? 'opacity-50' : undefined))}
           />
           <span
             role="progressbar"

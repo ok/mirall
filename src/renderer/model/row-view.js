@@ -15,6 +15,7 @@ import { badgeStyle, fileStatusToBadge, shareFileStatusToBadge } from './status-
 /** @import { Decoration } from '../types/ui.js' */
 /** @import { BadgeAppearance } from './status-badge.js' */
 /** @import { FileEntry, FileStatus, ShareFileEntry, ShareFileStatus, PeerDownloadSummary } from '../types/types.js' */
+/** @import { PersonKey } from '../../shared/contract/principals.js' */
 
 /** @typedef {'publish' | 'verify' | 'download' | 'preparing' | 'indicator' | 'rest'} LaneName */
 /** @typedef {'loose' | 'share'} RowKind */
@@ -25,6 +26,8 @@ import { badgeStyle, fileStatusToBadge, shareFileStatusToBadge } from './status-
  * @typedef {object} RowView
  * @property {LaneName} lane
  * @property {boolean} indicatorActive
+ * @property {PersonKey[]} waiterKeys members waiting on our hash; only ever set on the publish lane
+ * @property {boolean} peerListActive whether the row offers the per-peer dropdown
  * @property {BadgeAppearance} badge
  * @property {RowStatus} displayStatus
  * @property {boolean} isDownloading
@@ -164,6 +167,9 @@ export function deriveRowView(row, decoration, downloadSummary, opts = {}) {
   const { downloadDecor, publishDecor, preparingDecor } = pickDecorations(frame)
   const progress = deriveProgress(row, downloadDecor)
   const { lane, indicatorActive, peerPreparingActive } = deriveLane(row, progress, preparingDecor, downloadSummary)
+  // Waiters show beside our own hash bar, which is the only lane where "waiting on us" is true; a
+  // waiter never makes a row read as sending.
+  const waiterKeys = lane === 'publish' ? downloadSummary?.waitingKeys ?? [] : []
 
   // The two vocabularies are not interchangeable: FILE_STATUS has 'mine' and no 'synced';
   // SHARE_FILE_STATUS has 'synced', which collapses to the 'mine' pill only for our own share.
@@ -178,6 +184,8 @@ export function deriveRowView(row, decoration, downloadSummary, opts = {}) {
   return {
     lane,
     indicatorActive,
+    waiterKeys,
+    peerListActive: indicatorActive || waiterKeys.length > 0,
     badge,
     displayStatus: progress.displayStatus,
     isDownloading: progress.isDownloading,

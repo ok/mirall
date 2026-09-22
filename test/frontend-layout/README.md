@@ -26,6 +26,7 @@ components run unmodified. `harness-bootstrap.ts` gives every harness the query 
 | `test:layout:case -- stickyheader` | `run-stickyheader.mjs` | `<SpaceView>` with both sections overflowing | pinned headers sit flush on the scrollport; the top control keeps ring room |
 | `test:layout:case -- focusring` | `run-focusring.mjs` | `<FolderView>` | every focusable control's ring is unclipped |
 | `test:layout:case -- truncation` | `run-truncation.mjs` | `<PathRow>` + `<FileName>` in a narrow field | exactly one run truncates; nothing overflows |
+| `test:layout:case -- waiting` | `run-waiting.mjs` | `<FileCard>` mid-hash with members waiting, three row widths | the waiting cluster yields before the hash bar; nothing overflows; only a narrow row sheds the stack |
 | `test:layout:case -- segments` | `run-segments.mjs` | `<SegmentedControl>` in its three shapes | the track and every segment keep their size across selections |
 | `test:layout:case -- errorassoc` | `run-errorassoc.mjs` | `<EditSpaceModal>`, `<EditFolderModal>`, `<MountPathField>`, `<CreateSpaceModal>` in failure | each field marks itself invalid and describes itself with its OWN error; no submit rejection escapes |
 | `test:layout:case -- failpaths` | `run-failpaths.mjs` | `<Account>`, `<ActivityLogSettings>`, `<NetworkDiagnosticsScreen>`, `<CopyButton>`, `<InviteModal>` under the real `<ToastProvider>`, with the worker and the clipboard rejecting | the control is usable again, nothing reports success, the reason is an alert toast, no rejection escapes |

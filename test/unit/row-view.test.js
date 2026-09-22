@@ -156,3 +156,25 @@ test('an edited copy wears the amber pill with an explanation, and never the ver
 
   t.is(view(shareRow({ status: 'synced', verified: true, mirrored: true }), null, null, { kind: 'share' }).statusHintKey, null, 'other states carry no hint')
 })
+
+const waitingOnly = { spaceId: 's', path: '/s/f', personKeys: [], pausedKeys: [], waitingKeys: ['w1'], bytes: 0, total: 0, avgSpeed: 0 }
+
+test('waiters ride the publish lane beside our own hash bar and open the peer list', (t) => {
+  const v = deriveRowView(file({ status: 'publishing' }), dec({ phase: 'publishing', bytes: 50 }), waitingOnly)
+  t.is(v.lane, 'publish', 'our own hash still owns the lane')
+  t.alike(v.waiterKeys, ['w1'])
+  t.is(v.peerListActive, true)
+  t.is(v.indicatorActive, false, 'a waiter never makes the row read as sending')
+})
+
+test('a waiter alone never raises the sending indicator on a row at rest', (t) => {
+  const v = deriveRowView(file({ status: 'mine' }), null, waitingOnly)
+  t.is(v.lane, 'rest')
+  t.alike(v.waiterKeys, [], 'waiters show only while we are hashing')
+  t.is(v.peerListActive, false)
+})
+
+test('the peer list follows the sending indicator when there are no waiters', (t) => {
+  t.is(deriveRowView(file({ status: 'mine' }), null, summary).peerListActive, true)
+  t.is(deriveRowView(file({ status: 'publishing' }), dec({ phase: 'publishing' }), summary).peerListActive, false)
+})

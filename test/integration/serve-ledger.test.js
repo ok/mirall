@@ -5,8 +5,9 @@ import {
   ServeLedger, _sweepServeLedgerNow,
   onServeStart, onServePaused, onServeControl,
   subscribeServeDetail, _getServeDetailForTests, unsubscribeServeDetail, dropServeDetailClient, listServeSummaries,
-  hasRecentServe,
+  hasRecentServe, markWaiting, clearWaiting, clearWaitingFor, onChunkServed, onServeEnd,
 } from '../../src/shared/transfer/serve-ledger.js'
+import { SHARE_WAIT_PER_OWNER } from '../../src/shared/transfer/share-wait-set.js'
 
 const HASH = 'h'.repeat(64)
 const PEER = 'p'.repeat(64)
@@ -215,7 +216,7 @@ test('REGRESSION (FIX-G1: serving:summary-list returns the live serve rows for a
 
   const rows = listServeSummaries(SID)
   t.is(rows.length, 1, 'one live row for the space')
-  t.alike(rows[0], { spaceId: SID, path: PATH, peers: [PEER], bytes: 0, total: 1000, pausedKeys: [PEER] })
+  t.alike(rows[0], { spaceId: SID, path: PATH, peers: [PEER], bytes: 0, total: 1000, pausedKeys: [PEER], waitingKeys: [] })
   t.alike(listServeSummaries('elsewhere'), [], 'a space with no serves lists nothing')
 })
 
@@ -293,4 +294,117 @@ test('summaries stay broadcast while detail is addressed', async (t) => {
   onServeStart({ from: PEER, contentHash: HASH, total: 1000 })
   t.ok(summaries(fake).every((e) => e.to === null), 'the collapsed avatar stack is everyone’s')
   t.ok(details(fake).every((e) => e.to === 5), 'the expanded row is the asker’s')
+})
+
+// share-wait: a member waiting on a file we are still hashing.
+const WAITER = 'w'.repeat(64)
+const waitRef = (from = WAITER, relPath = 'big.bin') => ({ spaceId: SID, shareId: '__loose__', relPath, from })
+
+test('a waiter appears in waitingKeys and the detail, and nowhere a download is counted', async (t) => {
+  const fake = await setup(t)
+  t.is(markWaiting(waitRef()), 'marked')
+  const last = summaries(fake).at(-1).payload
+  t.alike(last.waitingKeys, [WAITER])
+  t.alike(last.peers, [], 'a waiter is not a downloader')
+  t.is(last.bytes, 0)
+  t.is(last.total, 0)
+  t.alike(_getServeDetailForTests(SID, PATH).peers, [{ personKey: WAITER, bytes: 0, total: 0, paused: false, waiting: true }])
+  t.absent(hasRecentServe({ quietMs: 60000 }), 'a waiter is not a serve in flight')
+})
+
+test('a waiter beside a real downloader is left out of the byte sums', async (t) => {
+  const fake = await setup(t)
+  onServeStart({ from: PEER, contentHash: HASH, total: 1000 })
+  onChunkServed({ from: PEER, contentHash: HASH, bytes: 400 })
+  markWaiting(waitRef())
+  const last = summaries(fake).at(-1).payload
+  t.alike(last.peers, [PEER])
+  t.alike(last.waitingKeys, [WAITER])
+  t.is(last.bytes, 400)
+  t.is(last.total, 1000)
+  t.ok(hasRecentServe({ quietMs: 60000 }), 'the downloader still counts')
+})
+
+test('a waiter the member stops re-announcing is dropped after the idle window', async (t) => {
+  const fake = await setup(t)
+  markWaiting(waitRef())
+  _sweepServeLedgerNow(Date.now() + 29000)
+  t.alike(listServeSummaries(SID).map((r) => r.waitingKeys), [[WAITER]], 'still there inside the window')
+  _sweepServeLedgerNow(Date.now() + 31000)
+  t.alike(listServeSummaries(SID), [], 'gone once the window passes')
+  t.alike(summaries(fake).at(-1).payload.waitingKeys, [], 'with an authoritative empty summary')
+})
+
+test('a cancel drops the waiter at once, and never a downloader', async (t) => {
+  const fake = await setup(t)
+  onServeStart({ from: PEER, contentHash: HASH, total: 1000 })
+  clearWaiting(waitRef(PEER))
+  t.alike(listServeSummaries(SID)[0].peers, [PEER], 'a cancel for a serving peer changes nothing')
+  markWaiting(waitRef())
+  clearWaiting(waitRef())
+  t.alike(summaries(fake).at(-1).payload.waitingKeys, [])
+  t.alike(listServeSummaries(SID)[0].waitingKeys, [])
+})
+
+test('the serve starting turns the waiter into a downloader', async (t) => {
+  const fake = await setup(t)
+  markWaiting(waitRef(PEER))
+  onServeStart({ from: PEER, contentHash: HASH, total: 1000 })
+  const last = summaries(fake).at(-1).payload
+  t.alike(last.peers, [PEER])
+  t.alike(last.waitingKeys, [])
+  t.is(last.total, 1000)
+  t.alike(_getServeDetailForTests(SID, PATH).peers[0].waiting, false)
+})
+
+test('waiting rows are capped per peer', async (t) => {
+  await setup(t)
+  for (let i = 0; i < SHARE_WAIT_PER_OWNER; i++) t.is(markWaiting(waitRef(WAITER, 'f' + i)), 'marked', 'row ' + i)
+  t.is(markWaiting(waitRef(WAITER, 'one-too-many')), 'capped', 'the next file is refused')
+  t.is(markWaiting(waitRef(WAITER, 'f0')), 'marked', 'a re-announce of a held row is not a new row')
+  t.is(markWaiting(waitRef(PEER, 'one-too-many')), 'marked', 'another peer has a cap of its own')
+  clearWaiting(waitRef(WAITER, 'f1'))
+  t.is(markWaiting(waitRef(WAITER, 'one-too-many')), 'marked', 'a cleared row frees its slot')
+})
+
+const FOLDER_HASH = 'f'.repeat(64)
+const folderRef = (shareId, from = PEER) => ({ spaceId: SID, shareId, relPath: 'doc.bin', from })
+
+test('REGRESSION (share-wait review: two shares with one path) a waiter never displaces another share\'s serve', async (t) => {
+  const fake = await setup(t)
+  serveIndex.add(FOLDER_HASH, SID, 'shareA', 'doc.bin')
+  onServeStart({ from: PEER, contentHash: FOLDER_HASH, total: 1000 })
+  t.is(markWaiting(folderRef('shareB')), 'busy', 'shareB\'s unhashed doc.bin does not overwrite shareA\'s serve')
+  const last = summaries(fake).at(-1).payload
+  t.alike(last.peers, [PEER], 'the serve is intact')
+  t.alike(last.waitingKeys, [])
+  t.is(markWaiting(folderRef('shareA')), 'marked', 'within the same share a wait replaces the stale serve')
+
+  markWaiting(folderRef('shareB', WAITER))
+  clearWaiting(folderRef('shareA', WAITER))
+  t.alike(listServeSummaries(SID).find((r) => r.path === 'doc.bin').waitingKeys.sort(), [PEER, WAITER].sort(),
+    'a cancel for one share does not clear the other share\'s waiter')
+})
+
+test('REGRESSION (share-wait review: a serve ending dropped waiters) the end of a serve leaves a waiter alone', async (t) => {
+  await setup(t)
+  onServeStart({ from: PEER, contentHash: HASH, total: 1000 })
+  markWaiting(waitRef(PEER))
+  onServeEnd({ from: PEER, contentHash: HASH })
+  t.alike(listServeSummaries(SID)[0].waitingKeys, [PEER], 'the waiter outlives the old content\'s serve')
+})
+
+test('a member that leaves or disconnects stops showing as waiting at once', async (t) => {
+  const fake = await setup(t)
+  markWaiting(waitRef(WAITER))
+  markWaiting({ spaceId: 'space2', shareId: '__loose__', relPath: 'other.bin', from: WAITER })
+  onServeStart({ from: WAITER, contentHash: HASH, total: 1000 })
+  markWaiting(waitRef(WAITER, 'second.bin'))
+  clearWaitingFor(WAITER, SID)
+  t.alike(listServeSummaries(SID).flatMap((r) => r.waitingKeys), [], 'its waits in the space it left are gone')
+  t.alike(listServeSummaries(SID).flatMap((r) => r.peers), [WAITER], 'its real download is not')
+  t.alike(listServeSummaries('space2')[0].waitingKeys, [WAITER], 'its waits elsewhere stay')
+  clearWaitingFor(WAITER)
+  t.alike(listServeSummaries('space2'), [], 'a disconnect clears them everywhere')
+  t.alike(summaries(fake).at(-1).payload.waitingKeys, [])
 })

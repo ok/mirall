@@ -38,7 +38,7 @@ test('summary fires on serve start; detail does NOT until subscribed', async (t)
 
   onServeStart({ from: 'peerA', contentHash: HASH, total: 1000 })
   t.is(summaries().length, 1, 'a summary is emitted on start')
-  t.alike(summaries()[0], { spaceId: SPACE, path: LOOSE_PATH, peers: ['peerA'], bytes: 0, total: 1000, pausedKeys: [] })
+  t.alike(summaries()[0], { spaceId: SPACE, path: LOOSE_PATH, peers: ['peerA'], bytes: 0, total: 1000, pausedKeys: [], waitingKeys: [] })
   t.is(details().length, 0, 'no detail emitted while unsubscribed')
 
   // A mid-transfer chunk is throttled (within 750ms of the forced start) AND, crucially,
@@ -55,7 +55,7 @@ test('subscribe returns a snapshot and turns detail on; unsubscribe turns it off
   onChunkServed({ from: 'peerA', contentHash: HASH, bytes: 500 })
 
   const snap = subscribeServeDetail(SPACE, LOOSE_PATH)
-  t.alike(snap, { peers: [{ personKey: 'peerA', bytes: 500, total: 1000, paused: false }] }, 'subscribe returns the current per-peer snapshot')
+  t.alike(snap, { peers: [{ personKey: 'peerA', bytes: 500, total: 1000, paused: false, waiting: false }] }, 'subscribe returns the current per-peer snapshot')
 
   // A second peer joining is a forced emit on both tiers now that we are subscribed.
   events.length = 0
@@ -179,7 +179,7 @@ test('serve end drops the peer; emptying the file clears the row', async (t) => 
 
   events.length = 0
   onServeEnd({ from: 'peerA', contentHash: HASH })
-  t.alike(summaries().at(-1), { spaceId: SPACE, path: LOOSE_PATH, peers: [], bytes: 0, total: 0, pausedKeys: [] }, 'last summary clears the row')
+  t.alike(summaries().at(-1), { spaceId: SPACE, path: LOOSE_PATH, peers: [], bytes: 0, total: 0, pausedKeys: [], waitingKeys: [] }, 'last summary clears the row')
 })
 
 test('folder-share files map to a relPath (no leading slash); loose files get one', async (t) => {
@@ -207,7 +207,7 @@ test('REGRESSION (FIX-1): a pause marks the peer paused on summary + detail with
   onServePaused({ from: 'peerA', contentHash: HASH })
   t.alike(summaries().at(-1).peers, ['peerA'], 'paused peer stays in the row (not dropped)')
   t.alike(summaries().at(-1).pausedKeys, ['peerA'], 'summary marks the peer paused')
-  t.alike(details().at(-1).peers, [{ personKey: 'peerA', bytes: 200, total: 1000, paused: true }], 'detail carries the paused flag')
+  t.alike(details().at(-1).peers, [{ personKey: 'peerA', bytes: 200, total: 1000, paused: true, waiting: false }], 'detail carries the paused flag')
 })
 
 test('a resume (re-start) clears the paused flag and preserves bytes', async (t) => {

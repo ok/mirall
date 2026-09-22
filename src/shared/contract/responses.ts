@@ -355,9 +355,11 @@ export interface ServeSummary {
   bytes: number
   total: number
   pausedKeys: PersonKey[]
+  // Members waiting on the file while we are still hashing it. Never in `peers`, never in the sums.
+  waitingKeys: PersonKey[]
 }
 
-export interface ServeDetailPeer { personKey: PersonKey, bytes: number, total: number, paused: boolean }
+export interface ServeDetailPeer { personKey: PersonKey, bytes: number, total: number, paused: boolean, waiting: boolean }
 export interface ServeDetailSnapshot { peers: ServeDetailPeer[] }
 
 export interface AuditExport { version: number, exportedAt: number, entries: AuditEntry[] }

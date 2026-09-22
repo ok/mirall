@@ -709,7 +709,7 @@ hosts and sweeps the tree for a round, avatar-sized disc that is not recessed.
 Overlapping faces (`-space-x-3`) with a `+N` disc for the rest. The ring around each face is a hole
 cut in the surface BEHIND the strip, so it carries that surface's **current** fill: the `surface`
 prop is the resting default and a host that repaints itself under the cursor hands the lifted fill
-over in `--avatar-ring` (`SpaceCard`, `PeerDownloadIndicator`), which is why the prop and the
+over in `--avatar-ring` (`SpaceCard`, `PeerDownloadIndicator`, `PeerWaitingIndicator`), which is why the prop and the
 variable are one contract rather than two spellings. The ring also carries `transition-shadow`,
 because it rides a host's `transition-colors` fill and `box-shadow` is not in that utility's
 property list — without it the hole snaps to the lifted colour while the surface it is cut from is
@@ -746,6 +746,20 @@ waiting on that hash, and neither is a transfer — the folder roll-up counts th
 ⚪ `bg-surface-container-highest` (passive / not-here / **all folder roles** — `mine`/`browse`/`mirrored` —
 and `available`/`owner-offline`/`unavailable`). Roles carry meaning by label, not color.
 The `*-fixed` ramps (`secondary-fixed`, `primary-fixed`) are no longer used by pills.
+
+### Waiting peers on the owner's row — `cards/PeerWaitingIndicator.tsx`
+While the owner hashes its own file the row is in the publish lane, and a member waiting on that
+hash rides BESIDE the owner's indexing bar rather than replacing it: an `sm` avatar stack
+(`announce="group"`, named "Waiting for this file: <names>", rings following the row's hover lift
+through `--avatar-ring`) and a small `text-[11px] text-on-surface-variant` toggle reading
+"N waiting" with the standard chevron. The toggle is named by its visible text and carries
+`aria-expanded`; it opens the same `PeerDownloadDropdown` the sending indicator does, whose waiting
+rows show the name, avatar and presence dot with "Waiting for indexing" in place of the meta line
+and bar (an offline downloader's plain "Waiting" is a different state). The dropdown region is
+named for what it lists — waiting, downloading, or both. The cluster yields width before the hash
+bar: `shrink` down to a 72px floor with the count truncating, and a row under 440px sheds the
+stack. A waiter never shows the `Sending` pill and never feeds the aggregate bar. Layout pinned by
+`npm run test:layout:case -- waiting`.
 
 ### Folder screen bands — `screens/FolderScreen.tsx`
 Three slots, one rule: **tiles state, the header acts, the strip acts for now.**

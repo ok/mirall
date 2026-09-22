@@ -9,9 +9,11 @@ interface PeerDownloadRowProps {
   total: number
   avgSpeed: number
   paused?: boolean
+  /** Waiting on a file we are still hashing: there is no progress yet, so the row shows none. */
+  waiting?: boolean
 }
 
-export default function PeerDownloadRow({ member, bytes, total, avgSpeed, paused }: PeerDownloadRowProps) {
+export default function PeerDownloadRow({ member, bytes, total, avgSpeed, paused, waiting }: PeerDownloadRowProps) {
   const { t } = useTranslation()
   const name = member?.displayName || t('member.unknown')
   const online = member != null && member.online !== false
@@ -38,23 +40,27 @@ export default function PeerDownloadRow({ member, bytes, total, avgSpeed, paused
           className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-surface-container-lowest ${online ? 'bg-online' : 'bg-offline'}`}
         />
       </span>
-      <span className="w-1/2 shrink-0 flex flex-col justify-center gap-1">
-        <span className="text-[11px] leading-none text-on-surface-variant tabular-nums text-right truncate">{meta}</span>
-        <span
-          role="progressbar"
-          aria-label={t('file.peerProgress', { name })}
-          aria-valuenow={pct}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuetext={valueText}
-          className="block h-1.5 bg-progress-track rounded-full overflow-hidden"
-        >
+      {waiting ? (
+        <span className="w-1/2 shrink-0 text-[11px] leading-none text-on-surface-variant text-right truncate">{t('file.waitingForIndexing')}</span>
+      ) : (
+        <span className="w-1/2 shrink-0 flex flex-col justify-center gap-1">
+          <span className="text-[11px] leading-none text-on-surface-variant tabular-nums text-right truncate">{meta}</span>
           <span
-            className={`block h-full rounded-full transition-all motion-reduce:transition-none ${active ? 'bg-on-info' : 'bg-on-info/40'}`}
-            style={{ width: `${pct}%` }}
-          />
+            role="progressbar"
+            aria-label={t('file.peerProgress', { name })}
+            aria-valuenow={pct}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuetext={valueText}
+            className="block h-1.5 bg-progress-track rounded-full overflow-hidden"
+          >
+            <span
+              className={`block h-full rounded-full transition-all motion-reduce:transition-none ${active ? 'bg-on-info' : 'bg-on-info/40'}`}
+              style={{ width: `${pct}%` }}
+            />
+          </span>
         </span>
-      </span>
+      )}
     </li>
   )
 }

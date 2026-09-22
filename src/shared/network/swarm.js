@@ -33,6 +33,7 @@ import { initLeaveProtocol, resetLeaveProtocol } from './leave-protocol.js'
 import { initConvergenceTick, resetConvergenceTick, startConvergenceTick, convergenceHealth, restartConvergenceTick } from './convergence-tick.js'
 import { initConnectivity, resetConnectivity, attachSwarmWatchers, noteBooted } from './connectivity.js'
 import { scheduleStatusEmit } from './network-status.js'
+import { resetShareWait } from './share-wait.js'
 
 const log = createLogger('swarm')
 
@@ -125,6 +126,7 @@ async function destroySwarm() {
   resetLeaveProtocol()
   resetDeferredAdmission()
   resetRelayInstall()
+  resetShareWait()
   ipcRef = null
   membershipControlHandler = null
   connectionAttachHook = null

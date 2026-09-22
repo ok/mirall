@@ -9,6 +9,7 @@ interface SummaryEvent {
   path: string
   peers: string[]
   pausedKeys?: string[]
+  waitingKeys?: string[]
   bytes: number
   total: number
 }
@@ -46,12 +47,13 @@ export function usePeerDownloads(spaceId: string) {
     const apply = (msg: SummaryEvent) => {
       if (!alive || msg.spaceId !== spaceId) return
       const path = msg.path
-      if (!msg.peers || msg.peers.length === 0) { drop(path); return }
+      const waitingKeys = msg.waitingKeys ?? []
+      if ((!msg.peers || msg.peers.length === 0) && waitingKeys.length === 0) { drop(path); return }
       const now = Date.now()
       const avgSpeed = speed.observe(path, now, msg.bytes)
       setByPath((prev) => {
         const next = new Map(prev)
-        next.set(path, { spaceId: msg.spaceId, path, personKeys: msg.peers, pausedKeys: msg.pausedKeys ?? [], bytes: msg.bytes, total: msg.total, avgSpeed })
+        next.set(path, { spaceId: msg.spaceId, path, personKeys: msg.peers ?? [], pausedKeys: msg.pausedKeys ?? [], waitingKeys, bytes: msg.bytes, total: msg.total, avgSpeed })
         return next
       })
     }

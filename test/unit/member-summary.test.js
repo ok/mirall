@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { facepileSlice, summarizeMembers } from '../../src/renderer/model/member-summary.js'
+import { facepileSlice, summarizeMembers, peerFaces, peerStackAvatar, PEER_STACK_MAX } from '../../src/renderer/model/member-summary.js'
 
 const m = (k) => ({ publicKey: k, displayName: k })
 
@@ -65,4 +65,13 @@ test('facepileSlice: total below what is on hand wins', (t) => {
 test('facepileSlice: guards non-array input and a negative total', (t) => {
   t.alike(facepileSlice(undefined, 3), { stack: [], overflow: 0 })
   t.alike(facepileSlice([m('a')], 3, -5), { stack: [], overflow: 0 })
+})
+
+test('peer faces resolve each key against the roster, unknown keys kept as a face with no member', (t) => {
+  const bob = { publicKey: 'k2', driveKey: 'd2', displayName: 'Bob', avatar: 'data:bob', online: true }
+  const faces = peerFaces(['k1', 'k2'], [bob])
+  t.alike(faces, [{ key: 'k1', member: null }, { key: 'k2', member: bob }])
+  t.alike(peerStackAvatar(faces[1], 'opacity-50'), { key: 'k2', src: 'data:bob', displayName: 'Bob', title: 'Bob', className: 'opacity-50' })
+  t.alike(peerStackAvatar(faces[0]), { key: 'k1', src: undefined, displayName: undefined, title: undefined, className: undefined })
+  t.is(PEER_STACK_MAX, 3)
 })
