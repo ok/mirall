@@ -147,6 +147,8 @@ function auditArrivals(spaceId, space, added) {
   // own join is the state we joined INTO — not a stream of arrivals. Our own `space.joined` row
   // already records that moment.
   if (space.status === 'pending') return
+  const ref = spaceRef(spaceId, space.name ?? null)
+  const context = { space: spaceId.slice(0, 12) }
   for (const m of added) {
     recordResolved('member.joined', async () => {
       // We approved them ourselves, so `membership.approved` already tells that story; a second
@@ -154,10 +156,10 @@ function auditArrivals(spaceId, space, added) {
       if (await hasOwnApproval(spaceId, m.publicKey)) return null
       return {
         actor: peerActor(m.publicKey, m.displayName || null),
-        space: spaceRef(spaceId, space.name ?? null),
+        space: ref,
         target: targetRef(TARGET_KIND.MEMBER, m.publicKey, m.displayName || null),
       }
-    }, { context: { space: spaceId.slice(0, 12) } })
+    }, { context })
   }
 }
 

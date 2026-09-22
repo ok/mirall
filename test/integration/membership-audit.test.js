@@ -18,10 +18,11 @@ test('a member we did not approve joining the roster is recorded once', async (t
   await freshPeer(t)
   const { spaceId } = await createSpace('Arrivals')
 
-  await upsertMember(spaceId, { publicKey: PEER, displayName: 'Ben' })
-  await upsertMember(spaceId, { publicKey: PEER, displayName: 'Ben' })
+  t.ok(await upsertMember(spaceId, { publicKey: PEER, displayName: 'Ben' }), 'precondition: the arrival wrote the roster')
+  t.ok(await upsertMember(spaceId, { publicKey: PEER, displayName: 'Benjamin' }), 'precondition: so did the rename')
 
   t.ok(await until(async () => (await rowsOf('member.joined')).length > 0, 5000), 'the arrival was recorded')
+  await flushAudit()
   const rows = await rowsOf('member.joined')
   t.is(rows.length, 1, 'once, not per roster write')
   t.is(rows[0].actor?.name, 'Ben')
