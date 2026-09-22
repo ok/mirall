@@ -14,12 +14,6 @@ const AUDIT_WRITES = new Set(['record'])
 const PURGE_PRIMITIVES = new Set(['purgeCoreDk', 'clearAndPurgeCore', 'purgeAlias'])
 const GUARDED = new Set([...AUDIT_WRITES, ...PURGE_PRIMITIVES])
 
-// Silenced sites still waiting for their move to recordResolved, by file and enclosing function.
-// The list only shrinks: an entry that stops appearing must be removed, and a site not on it fails.
-const PENDING = new Set([
-  'worker/ipc/membership.js#auditJoinRequest',
-])
-
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const p = path.join(dir, name)
@@ -78,36 +72,11 @@ function isSilencedCall(node, visitorKeys) {
 const isSilencedTry = (node, visitorKeys) => node.type === 'TryStatement' && !!node.handler &&
   isSilentBlock(node.handler.body) && callsAny(node.block, visitorKeys, GUARDED)
 
-function functionName(fn, parent) {
-  if (fn.id?.name) return fn.id.name
-  if (parent?.type === 'VariableDeclarator' && parent.id.type === 'Identifier') return parent.id.name
-  if ((parent?.type === 'Property' || parent?.type === 'MethodDefinition') && parent.key.type === 'Identifier') return parent.key.name
-  return null
-}
-
-const FUNCTIONS = new Set(['FunctionDeclaration', 'FunctionExpression', 'ArrowFunctionExpression'])
-
-// Walks with the enclosing named function in hand, so a pending site is pinned by where it lives
-// rather than by a line number or a count that a second site in the same file could hide behind.
-function visitWithScope(node, visitorKeys, visit, scope = null, parent = null) {
-  if (!node || typeof node.type !== 'string') return
-  const inner = FUNCTIONS.has(node.type) ? (functionName(node, parent) ?? scope) : scope
-  visit(node, inner)
-  for (const key of visitorKeys[node.type] || []) {
-    const child = node[key]
-    if (Array.isArray(child)) for (const c of child) visitWithScope(c, visitorKeys, visit, inner, node)
-    else visitWithScope(child, visitorKeys, visit, inner, node)
-  }
-}
-
 function silencedSites() {
   const sites = []
   for (const { rel, ast, visitorKeys } of files) {
-    visitWithScope(ast, visitorKeys, (node, scope) => {
-      const site = { id: `${rel}#${scope ?? '(module)'}`, at: `${rel}:${node.loc.start.line}` }
-      if (isSilencedCall(node, visitorKeys) || isSilencedTry(node, visitorKeys)) {
-        sites.push({ ...site, why: 'an audit write or purge whose failure is dropped' })
-      }
+    forEachNode(ast, visitorKeys, (node) => {
+      if (isSilencedCall(node, visitorKeys) || isSilencedTry(node, visitorKeys)) sites.push(`${rel}:${node.loc.start.line}`)
     })
   }
   return sites
@@ -117,11 +86,7 @@ function silencedSites() {
 // transfer rows were each dropped at debug or with an empty catch, so the default log level kept no
 // trace of a lost security row or a half-finished delete.)
 test('REGRESSION (FIX-OBS-2): no audit write or core purge failure is silenced', (t) => {
-  const sites = silencedSites()
-  t.alike(sites.filter((s) => !PENDING.has(s.id)).map((s) => `${s.at} (${s.id}) — ${s.why}`), [],
-    'every silenced site outside the pending list; route it through recordResolved or log it at warn')
-  const found = new Set(sites.map((s) => s.id))
-  t.alike([...PENDING].filter((id) => !found.has(id)), [], 'every pending entry still names a silenced site — drop it once fixed')
+  t.alike(silencedSites(), [], 'no audit write or purge whose failure is dropped; route it through recordResolved or log it at warn')
 })
 
 // The scan must be looking at the real shapes, or an empty result proves nothing.
@@ -135,7 +100,7 @@ test('the scan sees the audit writers and purge sites it guards', (t) => {
       if (PURGE_PRIMITIVES.has(node.callee.name)) purges++
     })
   }
-  t.ok(resolved >= 3, `recordResolved call sites found (${resolved})`)
+  t.ok(resolved >= 7, `recordResolved call sites found (${resolved})`)
   t.ok(purges >= 5, `purge call sites found (${purges})`)
 })
 

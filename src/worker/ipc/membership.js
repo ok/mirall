@@ -8,7 +8,7 @@
 // Binding them here rather than closing over them keeps every handler at module scope, where its
 // own size is visible.
 
-import { record } from '../../shared/audit/audit-log.js'
+import { record, recordResolved } from '../../shared/audit/audit-log.js'
 import { peerActor, selfActor, systemActor, targetRef } from '../../shared/audit/audit-record.js'
 import { OUTCOME, TARGET_KIND } from '../../shared/contract/audit-kinds.js'
 import { CODES } from '../../shared/contract/errors.js'
@@ -178,7 +178,8 @@ async function onJoinRequest(msg) {
 // A knock reaches us two ways — the live membership:request frame, and the replicated fold when a
 // co-member heard it first — and either can arrive first. Both record through here so the row
 // appears regardless of path, and appears once. Cleared when the request resolves, so a later
-// re-knock after a denial is recorded again.
+// re-knock after a denial is recorded again, and when the row was not admitted, so the next knock
+// retries it.
 const recordedJoinRequests = new Set()
 const joinRequestKey = (spaceId, publicKey) => spaceId + '|' + publicKey
 
@@ -186,13 +187,13 @@ function auditJoinRequest(spaceId, publicKey, displayName) {
   const key = joinRequestKey(spaceId, publicKey)
   if (recordedJoinRequests.has(key)) return
   recordedJoinRequests.add(key)
-  getSpace(spaceId).then((space) => {
-    record('membership.requested', {
-      actor: peerActor(publicKey, displayName || null),
-      space: spaceRefOf(space),
-      target: targetRef(TARGET_KIND.MEMBER, publicKey, displayName || null),
-    })
-  }).catch(() => {})
+  recordResolved('membership.requested', async () => ({
+    actor: peerActor(publicKey, displayName || null),
+    space: spaceRefOf(await getSpace(spaceId)),
+    target: targetRef(TARGET_KIND.MEMBER, publicKey, displayName || null),
+  }), { context: { space: spaceId.slice(0, 12) } }).then((recorded) => {
+    if (!recorded) recordedJoinRequests.delete(key)
+  })
 }
 
 function forgetJoinRequestRecord(spaceId, publicKey) {
