@@ -84,6 +84,11 @@ const DEFAULTED = {
   // the listing once that peer's bee appends. The full peerReadTimeoutMs stays reserved for
   // correctness-critical reads (mirror / foreign-folder). A 0 override is honored.
   interactiveReadTimeoutMs: 1500,
+  // One deadline for the whole approval gate, shared by every member read it runs in parallel.
+  // Shorter than peerReadTimeoutMs because a "no" is retried: the joiner's unsettled handshake is
+  // re-sent by the convergence tick, an approver's bee append re-runs the gate for pending
+  // requesters, and a fold that lists the joiner as a member readmits its live connection.
+  admissionReadTimeoutMs: ruled(4000, finiteAtLeast, 1),
   // Upper bound on how many file rows share:list-files materialises + ships in one IPC
   // frame. A folder with 150k files would otherwise build a ~150k-row array (+ a giant
   // JSON.stringify) per read and render every row un-virtualised → the worker hits V8's

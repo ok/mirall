@@ -5,7 +5,7 @@ import {
   getPublishConcurrency, getDownloadConcurrency, getPeerFrameMaxBytes, getPeerCatalogCacheLimit,
   getPeerFrameLimits, getHandshakeRateLimit, getBandwidthLimits,
   getSupervisionRecoverBudgetMs, getReconcileStallWindowMs, getPublishStallWindowMs,
-  getConvergenceStallWindowMs, _rulesForTests,
+  getConvergenceStallWindowMs, getAdmissionReadTimeoutMs, _rulesForTests,
 } from '../../src/shared/core/runtime-config.js'
 
 // Every value a malformed override can take that is not a number: each must resolve to the key's
@@ -30,6 +30,8 @@ const RULED_KEYS = [
     [[0, 600_000], [Infinity, 600_000], [1, 1], [1234, 1234]]],
   ['convergenceStallWindowMs', getConvergenceStallWindowMs, 300_000,
     [[0, 300_000], [Infinity, 300_000], [1, 1], [1234, 1234]]],
+  ['admissionReadTimeoutMs', getAdmissionReadTimeoutMs, 4000,
+    [[0, 4000], [Infinity, 4000], [1, 1], [1500, 1500]]],
 
   // Lane budgets whose 0 is a real override ("switch the lane off" / "no size bound").
   ['peerFrameMaxBytes', getPeerFrameMaxBytes, 65536,
@@ -164,6 +166,7 @@ test('both relay-mode paths coerce identically', (t) => {
 // proves the new rule, and update this expectation in the same change.
 const EXPECTED_RULES = {
   supervisionRecoverBudgetMs: { rule: 'finiteAtLeast', min: 1 },
+  admissionReadTimeoutMs: { rule: 'finiteAtLeast', min: 1 },
   reconcileStallWindowMs: { rule: 'finiteAtLeast', min: 1 },
   publishStallWindowMs: { rule: 'finiteAtLeast', min: 1 },
   convergenceStallWindowMs: { rule: 'finiteAtLeast', min: 1 },
@@ -192,8 +195,8 @@ test('the rules table is exactly the declared set', (t) => {
 // The module header states these two counts. Asserting them is what keeps them from rotting.
 test('the ruled and unruled key counts are the ones the header claims', (t) => {
   const { ruled, defaultedKeys } = _rulesForTests()
-  t.is(defaultedKeys, 64, 'DEFAULTED keys')
-  t.is(Object.keys(ruled).length, 20, 'of which carry a validation rule')
+  t.is(defaultedKeys, 65, 'DEFAULTED keys')
+  t.is(Object.keys(ruled).length, 21, 'of which carry a validation rule')
   t.is(defaultedKeys - Object.keys(ruled).length, 44, 'the rest are read raw')
 })
 

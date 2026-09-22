@@ -153,6 +153,10 @@ export function getDownloadConcurrency() {
   return read('downloadConcurrency')
 }
 
+export function getAdmissionReadTimeoutMs() {
+  return read('admissionReadTimeoutMs')
+}
+
 export function getPeerCatalogCacheLimit() {
   return read('peerCatalogCacheLimit')
 }

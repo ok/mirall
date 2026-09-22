@@ -253,6 +253,7 @@ async function applyObservedLeave(spaceId, key, leaveTs) {
       return
     }
     await revokeApproval(spaceId, key)
+    applyLocalRevocation(spaceId, key)
   } catch (err) {
     log.warn('observed-leave revoke failed (will retry on a later fold):', spaceId, key.slice(0, 12), err.message)
     return
@@ -331,6 +332,15 @@ export function applyLocalApproval(spaceId, key) {
   if (!entry) return
   entry.approved = new Set([...(entry.approved || EMPTY), key])
   forgetPending(spaceId, entry, key)
+}
+
+// Our own revoke, applied after the durable del. Fails closed: the key leaves the cached approved
+// set at once, and the re-fold puts it back only if another member's vouch still stands.
+export function applyLocalRevocation(spaceId, key) {
+  const entry = views.get(spaceId)
+  if (!entry?.approved?.has(key)) return
+  entry.approved = new Set([...entry.approved].filter((k) => k !== key))
+  entry.view?.recompute()
 }
 
 function forgetPending(spaceId, entry, key) {
