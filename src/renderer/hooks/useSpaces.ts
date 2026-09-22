@@ -69,7 +69,8 @@ export function useSpaces() {
 
   async function denyMember(spaceId: string, publicKey: string) {
     const result = await request('space:deny-member', { spaceId, publicKey })
-    await refresh()
+    // The outcome is reported without waiting on the list: the warning shows as the banner clears.
+    void refresh()
     return result
   }
 

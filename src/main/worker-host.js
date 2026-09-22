@@ -156,6 +156,8 @@ function getWorker(specifier) {
   //                                       the truncation banner with a handful of files
   //     MIRALL_MAX_FILES_PER_SHARE        largest folder a user may share, lowered to reach
   //                                       the refusal with a handful of files
+  //     MIRALL_DERIVE_DEBOUNCE_MS         how long the membership fold trails a write, raised to
+  //                                       hold a request on screen after a co-member settles it
   //
   //   Behaviour levers, settable on a real install without a release
   //     MIRALL_FOREIGN_FULL_WALK_EVERY    1 = check every mirror in full, undoing the skip
@@ -192,6 +194,7 @@ function getWorker(specifier) {
     // Same idea for the add-folder admission gate, so the frontend suite can trip it with a
     // handful of files; a bad value is caught by getMaxFilesPerShare's fail-safe.
     maxFilesPerShare: process.env.MIRALL_MAX_FILES_PER_SHARE ? Number(process.env.MIRALL_MAX_FILES_PER_SHARE) : undefined,
+    deriveDebounceMs: process.env.MIRALL_DERIVE_DEBOUNCE_MS ? Number(process.env.MIRALL_DERIVE_DEBOUNCE_MS) : undefined,
     handshakeIdentityBindingEnabled: readFeatureFlags().handshakeIdentityBinding === true,
     // in-place files are served through the overlay instance, so enabling them implies overlay.
     overlayEnabled: readFeatureFlags().overlay === true || readFeatureFlags().inPlaceFiles === true,

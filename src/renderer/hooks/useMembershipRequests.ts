@@ -46,13 +46,16 @@ export function useMembershipRequests({ spaceId, requests, approveMember, denyMe
     }
   }
 
-  // A co-member can admit the peer while our Deny is on screen. Approval cannot be taken back yet,
-  // so the consequence stays up until the user dismisses it.
+  // A co-member can admit or deny the peer while our Deny is on screen. Approval cannot be revoked,
+  // so that consequence stays up until the user dismisses it.
   async function denyAndReport(sid: string, pk: string) {
     const { outcome } = await denyMember(sid, pk)
-    if (outcome !== DENY_OUTCOME.ALREADY_APPROVED) return
-    const name = requests.find((r) => r.publicKey === pk)?.displayName ?? t('member.unknown')
-    toast.warning(t('member.denyAlreadyApproved', { name }), { duration: 0 })
+    if (outcome === DENY_OUTCOME.NOT_APPLICABLE) {
+      toast.info(t('member.denyNotOpen'))
+    } else if (outcome === DENY_OUTCOME.ALREADY_APPROVED) {
+      const name = requests.find((r) => r.publicKey === pk)?.displayName || t('member.unknown')
+      toast.warning(t('member.denyAlreadyApproved', { name }), { duration: 0 })
+    }
   }
 
   // Approving a batch runs one at a time on purpose: each approval writes membership and re-reads
