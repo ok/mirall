@@ -4,6 +4,7 @@ import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpaceWithApproval, waitForWorkerExit } from '../helpers/peer.js'
 import { mkTmpDir } from '../helpers/fixtures.js'
 import { scaled } from '../helpers/timing.js'
+import { until } from '../helpers/poll.js'
 
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
 const peer = (t, bootstrap, displayName, flags = {}) =>
@@ -112,10 +113,13 @@ test('REGRESSION (FIX-395F: approving a rejoining leaver sends no key)', { timeo
   await B.request('space:leave', { spaceId: sid })
   await A.until('spaces:list', {}, inRoster(bKey, false), { ms: 120000, every: 1000 })
 
-  const aGotRejoin = A.waitFor('event:member-join-request', (m) => m.spaceId === sid && m.publicKey === bKey, 120000)
+  // Carol's approval of Bob outlives his leave, so Alice's handshake gate may admit him to the
+  // roster instead of raising a request — whichever way she notices him, the approval is hers to
+  // write. Waiting on the join-request event alone raced that gate.
   const bRegranted = B.waitFor('event:membership-granted', (m) => m.spaceId === sid, 120000)
   await B.request('space:join', { inviteCode: invite })
-  await aGotRejoin
+  t.ok(await until(async () => (await listed(A, sid, bKey)) || inRoster(bKey, true)(await A.request('spaces:list')), 120000),
+    'Alice notices Bob knocking again')
   const res = await A.request('space:approve-member', { spaceId: sid, publicKey: bKey })
   t.ok(res && res.granted, 'Alice\'s approval is recorded')
   await t.execution(bRegranted, 'Bob receives the key again')
