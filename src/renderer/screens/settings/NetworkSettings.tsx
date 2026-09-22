@@ -239,9 +239,15 @@ export default function NetworkSettings({ onBack, onOpenStatus }: NetworkSetting
                   {applyOutcome === 'save-failed' && (
                     <InlineError>{t('networkSettings.limitSaveFailed')}</InlineError>
                   )}
-                  {applyOutcome === 'restart' && (
-                    <p role="status" className="text-sm text-on-surface-variant">{t('networkSettings.limitAppliesAfterRestart')}</p>
-                  )}
+                  {/* Always mounted, so the note is announced: a live region added together with its
+                      text is not read out. Out of the flow while it has nothing to say. */}
+                  <p
+                    id="bandwidth-apply-status"
+                    role="status"
+                    className={applyOutcome === 'restart' ? 'text-sm text-on-surface-variant' : 'sr-only'}
+                  >
+                    {applyOutcome === 'restart' ? t('networkSettings.limitAppliesAfterRestart') : ''}
+                  </p>
                 </>
               ) : readError ? (
                 <InlineError>{t('networkSettings.limitsUnavailable')}</InlineError>

@@ -50,6 +50,7 @@ interface RelayProbe {
 interface ReconnectProbe { alert: boolean; stillArmed: boolean; throttleAlert: boolean; throttleStillArmed: boolean; busy: BusyControl; escaped: number }
 interface WhatsNewProbe { failAlert: boolean; emptyStatus: boolean; escaped: number }
 interface BandwidthProbe {
+  statusRegionBeforeFailure: boolean; statusRegionHoldsNote: boolean
   workerRejectNoteIsStatus: boolean; workerRejectNoteIsAlert: boolean; workerRejectSaysSaveFailed: boolean
   persistRejectSaysSaveFailed: boolean; persistRejectAskedWorker: number
   presetsBusyWhileApplying: boolean; appliesWhileApplying: number; escaped: number
@@ -504,8 +505,11 @@ async function probeBandwidth(root: Root, kit: FailpathsKit): Promise<BandwidthP
   kit.answer('settings:set-bandwidth', 'fail')
   root.render(<Shell key="bandwidth-worker"><NetworkSettings onBack={noop} onOpenStatus={noop} /></Shell>)
   await kit.sleep(400)
+  const region = document.getElementById('bandwidth-apply-status')
+  const statusRegionBeforeFailure = region?.getAttribute('role') === 'status' && region.textContent === ''
   presetButton('1 MB/s')?.click()
   await kit.sleep(300)
+  const statusRegionHoldsNote = !!region?.isConnected && region.textContent?.includes(RESTART_TEXT) === true
   const workerRejectNoteIsStatus = noteIs('status', RESTART_TEXT)
   const workerRejectNoteIsAlert = noteIs('alert', RESTART_TEXT)
   const workerRejectSaysSaveFailed = kit.alertSays(SAVE_FAILED_TEXT)
@@ -540,6 +544,7 @@ async function probeBandwidth(root: Root, kit: FailpathsKit): Promise<BandwidthP
   window.bridge.setBandwidth = realSet
   resetMainStore()
   return {
+    statusRegionBeforeFailure, statusRegionHoldsNote,
     workerRejectNoteIsStatus, workerRejectNoteIsAlert, workerRejectSaysSaveFailed,
     persistRejectSaysSaveFailed, persistRejectAskedWorker,
     presetsBusyWhileApplying, appliesWhileApplying, escaped: kit.unhandled() - before,
@@ -575,7 +580,7 @@ export function droppedOk(r: DroppedResults): boolean {
     relay.restartAlert && relay.modeAlert && relay.alwaysAlert && relay.removeAlert &&
     reconnect.alert && reconnect.stillArmed && reconnect.throttleAlert && reconnect.throttleStillArmed && busyOk(reconnect.busy) &&
     whatsNew.failAlert && whatsNew.emptyStatus &&
-    bandwidth.workerRejectNoteIsStatus && !bandwidth.workerRejectNoteIsAlert && !bandwidth.workerRejectSaysSaveFailed &&
+    bandwidth.statusRegionBeforeFailure && bandwidth.statusRegionHoldsNote && bandwidth.workerRejectNoteIsStatus && !bandwidth.workerRejectNoteIsAlert && !bandwidth.workerRejectSaysSaveFailed &&
     bandwidth.persistRejectSaysSaveFailed && bandwidth.persistRejectAskedWorker === 0 &&
     bandwidth.presetsBusyWhileApplying && bandwidth.appliesWhileApplying === 1
   )
