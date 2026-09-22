@@ -158,3 +158,11 @@ test('exhaustiveness: every enum value maps to a defined badge appearance', (t) 
     t.ok(badgeStyle(bs), `badge status "${bs}" has an appearance`)
   }
 })
+
+test('YELLOW: a copy edited on this device is amber, labelled apart from the synced pill', (t) => {
+  for (const style of [badgeStyle(fileStatusToBadge('modified')), badgeStyle(shareFileStatusToBadge('modified', false))]) {
+    t.ok(style.classes.includes('bg-warning'), 'needs attention')
+    t.is(style.labelKey, 'status.modified')
+  }
+  t.not(badgeStyle(shareFileStatusToBadge('modified', false)).classes, badgeStyle(shareFileStatusToBadge('synced', false)).classes)
+})

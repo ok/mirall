@@ -135,6 +135,7 @@ export function createMirrorLoops({ intervalMs, runPass, onStop = () => {}, onEr
     debounce,
     generationOf,
     stopped,
+    live: (key) => loops.has(key),
     // Only mounts with a live loop. One without is paused, unmounted or gone, none of which a
     // health report or a recovery can or should address.
     entries: () => [...loops.entries()].map(([key, l]) => ({ key, spaceId: l.spaceId, shareId: l.shareId })),

@@ -10,11 +10,10 @@ import { getLocalPublicKeyHex } from '../../shared/spaces/profile.js'
 import { getSpace, getSpaceContentKey, isLegacySpace, LEGACY_SPACE_MESSAGE } from '../../shared/spaces/space.js'
 import { publishShare, tombstoneShare, readOwnShares, isValidShareName, generateShareId } from '../../shared/shares/shares.js'
 import { listSharesForSpace } from '../../shared/shares/share-registry.js'
-import { listOverlayShareFiles } from '../../shared/shares/share-listing.js'
+import { consumerFilePath, listOverlayShareFiles } from '../../shared/shares/share-listing.js'
 import { catalogKeyField } from '../../shared/shares/catalog-keys.js'
 import { ownCatalogPublish } from '../../shared/shares/own-catalog.js'
 import { getContentBackend, UNSUPPORTED } from '../../shared/transfer/content-backends.js'
-import { getDownloadedPath, claimedPathFor } from '../../shared/transfer/files.js'
 import { revealLocalPath } from '../../shared/transfer/reveal.js'
 import { folderCancelByKey } from '../../shared/transfer/backends/overlay/folder-downloads.js'
 import { transferIdFor } from '../../shared/transfer/transfer-id.js'
@@ -232,13 +231,7 @@ export function registerShares(ipc, { log, intents, mountOwnedShare }) {
       if (!ownedMount) throw new AppError(CODES.MOUNT_NOT_ON_DEVICE, 'Folder is not mounted on this device')
       target = pathFromMount(ownedMount.mountPath, msg.relPath)
     } else {
-      const foreignMount = await getForeignMount(msg.spaceId, msg.shareId)
-      if (foreignMount && foreignMount.enabled) {
-        target = pathFromMount(foreignMount.mountPath, msg.relPath)
-      } else {
-        const drivePath = '/' + share.name + '/' + msg.relPath
-        target = (await getDownloadedPath(msg.spaceId, drivePath)) || claimedPathFor(drivePath, null)
-      }
+      target = await consumerFilePath(msg.spaceId, share, msg.relPath)
     }
     revealLocalPath(target)
     return { ok: true }

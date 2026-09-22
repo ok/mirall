@@ -19,7 +19,7 @@
 function sameRow(a, b) {
   return a.size === b.size && a.hash === b.hash && a.mtime === b.mtime &&
     a.status === b.status && a.localPath === b.localPath &&
-    a.verified === b.verified && a.pendingBytes === b.pendingBytes &&
+    a.verified === b.verified && a.mirrored === b.mirrored && a.pendingBytes === b.pendingBytes &&
     a.errorCode === b.errorCode && a.transferId === b.transferId
 }
 

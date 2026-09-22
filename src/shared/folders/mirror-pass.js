@@ -276,6 +276,7 @@ async function materializeOnceCatalog(mount, share) {
   // fails — cannot leave a stale watermark standing over a zeroed skip counter, which would retry
   // the failed work at the backstop's cadence instead of the poll's.
   state.forgetConverged(key)
+  state.beginWalk(key)
 
   const synced = state.syncedSetFor(mount)
   const fresh = new Set()
@@ -332,7 +333,7 @@ async function materializeOnceCatalog(mount, share) {
   // mirror keeps walking. A cancelled pass proves nothing, and a version we could not read cannot
   // authorise a later skip.
   const converged = allPresent && listingComplete && synced.size === onDrive.size
-  if (converged && version !== null && !mirrorStopped(key, gen)) state.setWatermark(key, version)
+  if (converged && version !== null && !state.walkRequested(key) && !mirrorStopped(key, gen)) state.setWatermark(key, version)
   // Re-check the generation adjacent to the enqueue (no await between) so a pause/unmount that
   // landed during the deletion-reconcile await above can't be overwritten by this terminal write.
   if (!mirrorStopped(key, gen)) await settleMirrorSyncState(mount, allPresent)

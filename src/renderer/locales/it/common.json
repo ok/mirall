@@ -279,6 +279,9 @@
   "status": {
     "mine": "Condiviso da te",
     "downloaded": "Sul tuo dispositivo",
+    "modified": "Modificato in locale",
+    "modifiedMirrorHint": "Modificato su questo dispositivo. La versione della condivisione verrà ripristinata e la tua modifica conservata in una copia con «(conflicted copy)» nel nome.",
+    "modifiedHint": "Modificato su questo dispositivo dopo il download e la verifica.",
     "remote": "Disponibile",
     "unavailable": "Non disponibile",
     "downloading": "Download in corso",

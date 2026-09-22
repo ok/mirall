@@ -6,6 +6,7 @@
 export const FILE_STATUS = Object.freeze({
   MINE: 'mine',
   DOWNLOADED: 'downloaded',
+  MODIFIED: 'modified',
   REMOTE: 'remote',
   PREPARING: 'preparing',
   DOWNLOADING: 'downloading',
@@ -20,6 +21,7 @@ export const FILE_STATUS = Object.freeze({
 export const BADGE_STATUS = Object.freeze({
   MINE: 'mine',
   ON_DEVICE: 'on-device',
+  MODIFIED: 'modified',
   AVAILABLE: 'available',
   DOWNLOADING: 'downloading',
   VERIFYING: 'verifying',
@@ -39,6 +41,7 @@ export const SHARE_FILE_STATUS = Object.freeze({
   PUBLISHING: 'publishing',
   DOWNLOADED: 'downloaded',
   SYNCED: 'synced',
+  MODIFIED: 'modified',
   UNAVAILABLE: 'unavailable',
   PAUSED_INTERRUPTED: 'paused-interrupted',
   PAUSED_OFFLINE: 'paused-offline',
@@ -54,8 +57,9 @@ export const SHARE_FILE_STATUSES = Object.freeze(Object.values(SHARE_FILE_STATUS
 /** @typedef {(typeof SHARE_FILE_STATUSES)[number]} ShareFileStatus */
 
 // The file statuses that mean the bytes are on this disk. A caller asking "is it here?" asks this
-// rather than naming the two members, which is how the renderer came to hold two copies of the set.
-export const ON_DEVICE_STATUSES = Object.freeze([SHARE_FILE_STATUS.DOWNLOADED, SHARE_FILE_STATUS.SYNCED])
+// rather than naming the members, which is how the renderer came to hold two copies of the set.
+// MODIFIED is on the disk too: the bytes are local, they are just not the ones that were verified.
+export const ON_DEVICE_STATUSES = Object.freeze([SHARE_FILE_STATUS.DOWNLOADED, SHARE_FILE_STATUS.SYNCED, SHARE_FILE_STATUS.MODIFIED])
 
 // A mirror record's sync state, which is not a mount status: it is what the OWNER and every member
 // see about a mirror, replicated in the mirror record, while a mount status is local to the device

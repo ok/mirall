@@ -142,3 +142,17 @@ test('bytes-on-device counts a transfer frame, never a hash or a stale one', (t)
   t.is(rowBytesOnDevice(row({ status: 'paused-interrupted' }), null), 10, 'a paused row reports its durable partial')
   t.is(rowBytesOnDevice(shareRow({ status: 'remote', size: 100 }), null), 0, 'and an untouched row reports nothing')
 })
+
+test('an edited copy wears the amber pill with an explanation, and never the verified check', (t) => {
+  const mirrored = view(shareRow({ status: 'modified', verified: false, mirrored: true }), null, null, { kind: 'share' })
+  t.is(mirrored.badge.labelKey, 'status.modified')
+  t.is(mirrored.statusHintKey, 'status.modifiedMirrorHint', 'a row the worker derived from a live mirror says the next pass keeps the edit aside')
+  t.is(mirrored.showVerified, false)
+  t.is(mirrored.lane, 'rest')
+
+  const browsed = view(shareRow({ status: 'modified' }), null, null, { kind: 'share' })
+  t.is(browsed.statusHintKey, 'status.modifiedHint', 'a download is not moved aside, so it does not say so')
+  t.is(deriveRowView(file({ status: 'modified' }), null, null).statusHintKey, 'status.modifiedHint', 'nor does a loose download')
+
+  t.is(view(shareRow({ status: 'synced', verified: true, mirrored: true }), null, null, { kind: 'share' }).statusHintKey, null, 'other states carry no hint')
+})

@@ -38,6 +38,7 @@ import { badgeStyle, fileStatusToBadge, shareFileStatusToBadge } from './status-
  * @property {number} downloadPct
  * @property {number} preparingPct
  * @property {boolean} showVerified
+ * @property {string | null} statusHintKey
  */
 
 /** @typedef {{ kind?: RowKind, isOwn?: boolean, seeded?: boolean }} RowViewOptions */
@@ -69,6 +70,14 @@ function seedFrame(row, seeded) {
     // pickDecorations files it as a download frame and paints the wrong lane.
     phase: row.status === 'preparing' ? 'preparing' : undefined,
   }
+}
+
+// What the status pill cannot say in two words. An edited copy of a live mirror is about to be moved
+// aside by the next pass, which the user must hear before it happens; any other copy stays edited.
+/** @param {Row} row @param {RowStatus} status @returns {string | null} */
+function statusHint(row, status) {
+  if (status !== 'modified') return null
+  return 'mirrored' in row && row.mirrored ? 'status.modifiedMirrorHint' : 'status.modifiedHint'
 }
 
 /** @param {Decoration | null} decoration */
@@ -182,5 +191,6 @@ export function deriveRowView(row, decoration, downloadSummary, opts = {}) {
     downloadPct: progress.progressBytes != null && progress.progressTotal ? pct(progress.progressBytes, progress.progressTotal) : 0,
     preparingPct: peerPreparingActive && preparingDecor ? pct(preparingDecor.bytes, preparingDecor.total) : 0,
     showVerified: row.verified === true && ON_DEVICE.has(row.status),
+    statusHintKey: statusHint(row, progress.displayStatus),
   }
 }

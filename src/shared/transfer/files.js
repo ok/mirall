@@ -21,6 +21,7 @@ import path from 'bare-path'
 import { getGlobalDownloadDir, getSpaceDownloadOverride, isInsideDownloadDir } from '../core/paths.js'
 
 import { claimVerdict } from './download-claim.js'
+import { fingerprintMatches, verifiedCopyVerdict } from './verified-copy.js'
 import { prefixRange } from '../core/bee-keys.js'
 
 // Reveal keeps its address here: the IPC layer reaches a file's on-disk location through this
@@ -72,7 +73,7 @@ export async function getDownloadedPath(spaceId, filePath) {
 // resolution this record stores, plus the inode — so the fast path can demand the SAME file back
 // rather than merely one no newer than the record. It must be the stat the content was proven
 // against, never a fresher re-stat: a re-stat fingerprints bytes nobody checked. A caller that
-// cannot stat passes none, and the record falls back to the weaker rule below.
+// cannot stat passes none, and the record falls back to the weaker rule in verified-copy.js.
 export async function markVerified(spaceId, key, hash, { local = null, stat = null } = {}) {
   const fingerprint = stat ? { mtime: Math.floor(stat.mtimeMs), ino: Number(stat.ino) || 0 } : {}
   await downloadsBee.put('verified:' + spaceId + ':' + key, { hash, at: Date.now(), local, ...fingerprint })
@@ -98,12 +99,22 @@ export async function getVerifiedHash(spaceId, key, { expectLocal = null } = {})
 // and worker-only (never serialized over IPC); for a fully-mirrored huge share it
 // holds O(files) short strings — bounded, unlike retaining full row arrays.
 export async function listVerifiedForShare(spaceId, shareId, { keep = null } = {}) {
+  return await scanVerified(spaceId, shareId, keep, (rec) => rec.hash)
+}
+
+// The same scan keeping the whole record, for a listing that must judge whether each local copy is
+// still the file the record fingerprinted. `keep` bounds retention to the rows it renders.
+export async function listVerifiedRecordsForShare(spaceId, shareId, { keep = null } = {}) {
+  return await scanVerified(spaceId, shareId, keep, (rec) => rec)
+}
+
+async function scanVerified(spaceId, shareId, keep, project) {
   const prefix = verifiedPrefix(spaceId, shareId)
   const map = new Map()
   for await (const node of downloadsBee.createReadStream(prefixRange(prefix))) {
     const relPath = node.key.slice(prefix.length)
     if (keep && !keep.has(relPath)) continue
-    if (node.value?.hash) map.set(relPath, node.value.hash)
+    if (node.value?.hash) map.set(relPath, project(node.value))
   }
   return map
 }
@@ -187,24 +198,23 @@ export async function isVerifiedUnchanged(spaceId, key, contentHash, expectedSiz
   let rec = null
   try { rec = await getVerifiedRecord(spaceId, key) } catch { return false }
   if (!rec || rec.hash !== contentHash) return false
-  if (expectLocal !== null && rec.local !== expectLocal) return false
-  // A record written before the fingerprint existed carries none. It keeps the older, weaker rule
-  // rather than forcing a re-hash of every already-mirrored file the first time a build with this
-  // check runs; the next landing or confirmation replaces it with a fingerprinted one.
-  if (typeof rec.mtime !== 'number') return Math.floor(stat.mtimeMs) <= rec.at
-  if (Math.floor(stat.mtimeMs) !== rec.mtime) return false
-  // Compared only when both sides report one: a filesystem that does not expose a stable inode
-  // reports 0, and reading that as a mismatch would re-hash every file on every tick.
-  if (rec.ino && stat.ino && Number(stat.ino) !== rec.ino) return false
-  return true
+  return fingerprintMatches(rec, stat, expectedSize, { expectLocal })
 }
 
-// A downloaded overlay file is "verified" when the hash recorded on landing (the
-// overlay verifies it byte-for-byte during transfer) still equals the currently
-// advertised content hash. key = `<shareId>|<relPath>` (loose uses LOOSE_SHARE_ID).
-export async function isVerifiedDownload(spaceId, key, contentHash) {
-  if (!contentHash) return false
-  return (await getVerifiedHash(spaceId, key)) === contentHash
+export function statOrNull(absPath) {
+  try { return fs.statSync(absPath) } catch { return null }
+}
+
+// A downloaded copy's verdict for a listing row, or null when it is not on this device. `key` is
+// the verified-record key (`<shareId>|<relPath>`, loose uses LOOSE_SHARE_ID); the record must name
+// the path the claim says the bytes landed at, so a mirror's record of the same share path cannot
+// vouch for a download.
+export async function downloadedCopyVerdict(spaceId, filePath, key, contentHash, expectedSize) {
+  const { downloaded, localPath, stat } = await verifyOnDevice(spaceId, filePath, contentHash)
+  if (!downloaded) return null
+  let rec = null
+  try { rec = await getVerifiedRecord(spaceId, key) } catch {}
+  return verifiedCopyVerdict(rec, stat, { contentHash, expectedSize, expectLocal: localPath })
 }
 
 // Answers "does this folder exist?" once per folder instead of once per claim.
@@ -237,22 +247,24 @@ export function createDirProbe() {
 // The filesystem + config half of that decision; download-claim.js holds the rule and the order.
 // Synchronous: every fact it needs is a stat or an in-memory config read, so a batched listing can
 // call it per row without the loop yielding. `dirExists` is resolved ONLY when the file is missing,
-// so the common case still costs one existsSync. A caller looping over many claims passes a
-// `dirProbe` from createDirProbe so the folder question is asked once per folder, not once per row;
-// the default keeps the single-claim callers on a plain probe.
+// so the common case still costs one stat, which rides the verdict as `stat` for a caller that
+// fingerprints the same file. A caller looping over many claims passes a `dirProbe` from
+// createDirProbe so the folder question is asked once per folder, not once per row; the default
+// keeps the single-claim callers on a plain probe.
 export function verdictForClaim(spaceId, filePath, rec, currentHash = null, dirProbe = fs.existsSync) {
   if (!rec) return claimVerdict({ rec: null })
   const onDisk = claimedPathFor(filePath, rec)
-  const exists = fs.existsSync(onDisk)
+  const stat = statOrNull(onDisk)
   const pinned = getSpaceDownloadOverride(spaceId)
-  return claimVerdict({
+  const verdict = claimVerdict({
     rec,
-    exists,
-    dirExists: exists ? true : dirProbe(path.dirname(onDisk)),
+    exists: stat !== null,
+    dirExists: stat !== null || dirProbe(path.dirname(onDisk)),
     currentHash,
     pinned,
     insidePinned: pinned ? isInsideDownloadDir(onDisk, pinned) : true,
   })
+  return { ...verdict, stat }
 }
 
 // The point-read form: one claim, read and acted on. Built on the same verdict as the batched
@@ -260,8 +272,9 @@ export function verdictForClaim(spaceId, filePath, rec, currentHash = null, dirP
 async function verifyOnDevice(spaceId, filePath, currentHash = null) {
   const key = spaceId + ':' + filePath
   const node = await downloadsBee.get(key)
-  if (!node) return false
-  const verdict = verdictForClaim(spaceId, filePath, node.value || {}, currentHash)
+  if (!node) return { downloaded: false, localPath: null, stat: null }
+  const rec = node.value || {}
+  const verdict = verdictForClaim(spaceId, filePath, rec, currentHash)
   if (verdict.prune) {
     await downloadsBee.del(key)
     log.info('reset on-device claim (' + verdict.reason + '):', filePath)
@@ -270,11 +283,11 @@ async function verifyOnDevice(spaceId, filePath, currentHash = null) {
   } else if (verdict.reason === 'outside-space-folder') {
     log.debug('claim outside the space download folder:', filePath)
   }
-  return verdict.downloaded
+  return { downloaded: verdict.downloaded, localPath: claimedPathFor(filePath, rec), stat: verdict.stat }
 }
 
 export async function isDownloadedFile(spaceId, filePath, currentHash = null) {
-  return await verifyOnDevice(spaceId, filePath, currentHash)
+  return (await verifyOnDevice(spaceId, filePath, currentHash)).downloaded
 }
 
 // Strict form for callers that DROP work when the answer is yes (the resume scan's
@@ -286,7 +299,7 @@ export async function isDownloadedWithHash(spaceId, filePath, contentHash) {
   if (!contentHash) return false
   const node = await downloadsBee.get(spaceId + ':' + filePath)
   if (node?.value?.hash !== contentHash) return false
-  return await verifyOnDevice(spaceId, filePath, contentHash)
+  return (await verifyOnDevice(spaceId, filePath, contentHash)).downloaded
 }
 
 // For a file you OWN (added/shared by you, never downloaded), remember where its

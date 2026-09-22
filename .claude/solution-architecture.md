@@ -274,7 +274,9 @@ The user's own drive key is **not stored** — it derives from `store.namespace(
 
 `<spaceId>:<filePath>` → `{ downloadedAt, localPath, hash }` — `localPath` is the ACTUAL landed
 path (a collision-avoiding download may not sit at `<root>/<basename>`). The same bee also holds
-`verified:<spaceId>:<shareId>|<relPath>` → `{ hash, at }` and `src:<spaceId>:<filePath>` →
+`verified:<spaceId>:<shareId>|<relPath>` → `{ hash, at, local, mtime, ino }` (`local` = where the
+bytes landed — mount-relative for a mirror, absolute for a download; `mtime`/`ino` fingerprint the
+file the hash was proven against, judged by `transfer/verified-copy.js`) and `src:<spaceId>:<filePath>` →
 `{ sourcePath, addedAt }` (where a file you OWN lives, for reveal). Survives restarts; cleared
 per-space on leave (`cleanupDownloadHistory`).
 
@@ -313,6 +315,7 @@ Created via `store.namespace('space-drive-<spaceId>-<driveSuffix>')` → `new Hy
 | `publishing` | Own file still being hashed | Own catalog entry without a hash + active publish |
 | `preparing` | Peer's file still being hashed by its owner | Peer catalog entry without a content hash |
 | `downloaded` | Peer file, fully on disk | Downloads-bee claim, verified against disk |
+| `modified` | Peer file on disk, edited here since it was verified ("Edited locally") | Claim on disk + a verified record for that path whose size no longer matches (a mirrored row also on a moved mtime; `verifiedCopyVerdict`) |
 | `downloading` | Active fetch in progress | Live engine state |
 | `paused-interrupted` | Fetch interrupted, owner online | Pending row (no `errorCode`) + owner online |
 | `paused-offline` | Paused because the owner went away | Pending row + owner offline |
@@ -322,7 +325,7 @@ Created via `store.namespace('space-drive-<spaceId>-<driveSuffix>')` → `new Hy
 
 `verifying` also exists in the renderer's `FileStatus` union, surfaced from the `event:decoration` `phase` (§8) rather than derived by the resolver.
 
-Duplicates collapse per **content hash** (`file-dedupe.js#dedupeFileRows`): the most-progressed candidate wins by `STATUS_RANK` (`mine` > `downloaded` > `verifying` > `downloading`/`publishing` > `paused-*` > `remote` > `preparing` > `unavailable` > `error`) and the rest fold into a `sharedByCount`. A candidate whose owner has not finished hashing carries no content hash and keys on **owner + path** instead, so files prepared at the same moment stay separate rows and a shared name alone never merges two owners' copies. Every `FILE_STATUS` member has a rank, asserted by `test/unit/file-dedupe.test.js`.
+Duplicates collapse per **content hash** (`file-dedupe.js#dedupeFileRows`): the most-progressed candidate wins by `STATUS_RANK` (`mine` > `downloaded` = `modified` > `verifying` > `downloading`/`publishing` > `paused-*` > `remote` > `preparing` > `unavailable` > `error`) and the rest fold into a `sharedByCount`. A candidate whose owner has not finished hashing carries no content hash and keys on **owner + path** instead, so files prepared at the same moment stay separate rows and a shared name alone never merges two owners' copies. Every `FILE_STATUS` member has a rank, asserted by `test/unit/file-dedupe.test.js`.
 
 #### Sharing a file (in-place publish)
 
@@ -1397,6 +1400,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/folders/retire-confirm.js` | **Confirm-gone-twice**: a path must be missing on two consecutive sweeps before its catalog entry is retired, so an atomic-save window cannot cascade a transient tombstone to every mirror. Pure — the caller supplies the key, probes and retire |
 | `src/shared/transfer/download-dest.js` | `resolveDest` — collision-free Downloads naming — and `reuseDest`, the resume re-anchor rule (§3.5) |
 | `src/shared/transfer/download-claim.js` | `claimVerdict(...)` — the downloaded / prune ladder for one download-history claim, pure (§3.3) |
+| `src/shared/transfer/verified-copy.js` | `fingerprintMatches` — the one rule for "is this local file still the one a verified record fingerprinted?", shared by the mirror's fast path and every listing row — and `verifiedCopyVerdict`, a row's `verified` / `modified` / `unproven` reading of it. Pure |
 | `src/shared/transfer/progress-ticker.js` | `makeProgressTicker(total, emit)` — 250 ms-throttled `{bytes,total,speed,eta}` over `EtaEstimator`; shared by single-file transfers and folder mirroring |
 | `src/shared/transfer/file-dedupe.js` | The pure fold from per-owner loose-file candidates to listing rows: one row per distinct file, the most-progressed copy winning, the rest counted as `sharedByCount` (§3.5) |
 | `src/shared/transfer/transfer-status.js` | The pure consumer-row status ladder (`consumerRowStatusFor` & co.) for a share-file row (§7.3) |

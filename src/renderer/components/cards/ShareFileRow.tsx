@@ -130,6 +130,7 @@ function ShareFileRow({ file, decoration, seeded, isOwn, manualControls, spaceId
           <div className="min-w-0 flex-grow">
             <FileName name={file.relPath} displayName={displayName} className="font-bold text-accent" />
             <p className="text-xs text-on-surface-variant mt-0.5 truncate">{formatSize(file.size)}</p>
+            {view.statusHintKey && <p className="text-xs text-on-surface-variant mt-1">{t(view.statusHintKey)}</p>}
             {file.status === 'error' && (
               <InlineError size="xs" className="mt-1">{tErr(errorCodeToI18nKey(file.errorCode))}</InlineError>
             )}

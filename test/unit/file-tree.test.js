@@ -46,6 +46,7 @@ test('folder aggregates roll up the whole subtree', (t) => {
 test('statusCategory maps every ShareFileStatus member', (t) => {
   t.is(statusCategory('downloaded'), 'on-device')
   t.is(statusCategory('synced'), 'on-device')
+  t.is(statusCategory('modified'), 'on-device', 'an edited copy is still on the device')
   t.is(statusCategory('downloading'), 'downloading')
   t.is(statusCategory('verifying'), 'downloading')
   t.is(statusCategory('preparing'), 'preparing')

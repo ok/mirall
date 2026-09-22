@@ -279,6 +279,9 @@
   "status": {
     "mine": "Von dir",
     "downloaded": "Auf deinem Gerät",
+    "modified": "Lokal bearbeitet",
+    "modifiedMirrorHint": "Auf diesem Gerät geändert. Die Version aus der Freigabe wird wiederhergestellt, deine Änderung bleibt als Kopie mit „(conflicted copy)“ im Namen erhalten.",
+    "modifiedHint": "Auf diesem Gerät geändert, seit die Datei heruntergeladen und geprüft wurde.",
     "remote": "Verfügbar",
     "unavailable": "Nicht verfügbar",
     "downloading": "Lädt…",

@@ -4,7 +4,7 @@ import path from 'bare-path'
 import { freshPeer } from '../helpers/store.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { getDrive } from '../../src/shared/spaces/space-drives.js'
-import { initDownloads, markDownloaded, getDownloadedPath, getOwnedSourcePath, isDownloadedFile, markVerified, getVerifiedHash, isVerifiedUnchanged, cleanupDownloadHistory, listDownloadClaimsForShare, listVerifiedForShare, pruneDownloadClaims, verdictForClaim, createDirProbe } from '../../src/shared/transfer/files.js'
+import { initDownloads, markDownloaded, getDownloadedPath, getOwnedSourcePath, isDownloadedFile, markVerified, getVerifiedHash, isVerifiedUnchanged, cleanupDownloadHistory, listDownloadClaimsForShare, listVerifiedForShare, listVerifiedRecordsForShare, pruneDownloadClaims, verdictForClaim, createDirProbe } from '../../src/shared/transfer/files.js'
 import { addFile, removeFile } from '../../src/shared/transfer/file-listing.js'
 import { resolveRevealTarget } from '../../src/shared/transfer/reveal.js'
 import { initPendingTransfers } from '../../src/shared/transfer/pending-transfers.js'
@@ -296,6 +296,12 @@ test('the keep filter bounds retention without narrowing the scan', async (t) =>
   const verified = await listVerifiedForShare(spaceId, 'sh1', { keep: new Set(['keep.txt']) })
   t.alike([...verified.keys()], ['keep.txt'])
   t.is((await listVerifiedForShare(spaceId, 'sh1')).size, 2, 'no keep is the unfiltered scan the storage summary relies on')
+  t.is(verified.get('keep.txt'), 'h1', 'the storage scan keeps the hash alone')
+
+  const records = await listVerifiedRecordsForShare(spaceId, 'sh1', { keep: new Set(['keep.txt']) })
+  t.alike([...records.keys()], ['keep.txt'], 'the record scan honours the same keep')
+  t.is(records.get('keep.txt').hash, 'h1', 'and keeps the whole record the listing fingerprints against')
+  t.ok(typeof records.get('keep.txt').at === 'number')
 })
 
 test('pruneDownloadClaims removes exactly the listed keys in one batch', async (t) => {

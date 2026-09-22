@@ -114,6 +114,7 @@ export const pureTransferModules = [
   'supersede-decision',
   'transfer-id',
   'transfer-status',
+  'verified-copy',
 ]
 
 // The pure half of network/ — the same rule, split from pureTransferModules when the folder was

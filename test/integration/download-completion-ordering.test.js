@@ -4,7 +4,7 @@ import path from 'bare-path'
 import url from 'bare-url'
 import { freshPeer } from '../helpers/store.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
-import { initDownloads, markDownloaded, markVerified, isDownloadedFile } from '../../src/shared/transfer/files.js'
+import { initDownloads, markDownloaded, markVerified, downloadedCopyVerdict } from '../../src/shared/transfer/files.js'
 import { peerFileStatus } from '../../src/shared/transfer/file-listing.js'
 import { initPendingTransfers, recordPending, getPendingFor } from '../../src/shared/transfer/pending-transfers.js'
 import { setSpaceDownloadRoot } from '../../src/shared/core/paths.js'
@@ -49,10 +49,10 @@ test('a pending row lingering after markDownloaded is masked by the downloaded s
   await markDownloaded(spaceId, drivePath, landed, { hash: 'h'.repeat(64) })
   await markVerified(spaceId, 'loose|report.pdf', 'h'.repeat(64))
 
-  const downloaded = await isDownloadedFile(spaceId, drivePath, 'h'.repeat(64))
+  const copyVerdict = await downloadedCopyVerdict(spaceId, drivePath, 'loose|report.pdf', 'h'.repeat(64), 16)
   const pendingRow = await getPendingFor(spaceId, drivePath)
-  t.ok(downloaded, 'downloaded fact recorded and file on disk')
+  t.ok(copyVerdict, 'downloaded fact recorded and file on disk')
   t.ok(pendingRow, 'the resume row lingers (crash window)')
-  t.is(peerFileStatus(downloaded, pendingRow, true, false), 'downloaded',
+  t.is(peerFileStatus(copyVerdict, pendingRow, true, false), 'downloaded',
     'status derives downloaded, not paused/error, while the stale row lingers')
 })
