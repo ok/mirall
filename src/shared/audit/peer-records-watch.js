@@ -10,7 +10,7 @@
 //     third party's activity.
 import { getSpace } from '../spaces/space.js'
 import { readOwnShares } from '../shares/shares.js'
-import { createLogger } from '../core/logger.js'
+import { createLogger, fields } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
 import { record } from './audit-log.js'
 import { getSeenVersion, setSeenVersion, getPeerSubjectState, setPeerSubjectState } from './audit-watch-state.js'
@@ -25,8 +25,17 @@ const log = createLogger('peer-watch')
 const sweeps = new Map()
 let closed = false
 
+// A failed row holds its bee's watermark, and the batch replays on the next sweep: a subject's state
+// commits only once its row was admitted, so the rows that did land are not recorded twice. A row
+// still failing after SWEEP_HOLD_CAP consecutive sweeps at one watermark is given up, so one stuck
+// row cannot stop a peer's feed. beeId → { seen, failures }.
+const SWEEP_HOLD_CAP = 3
+const LOST_ROWS_NAMED = 10
+const holds = new Map()
+
 function resetPeerWatch() {
   sweeps.clear()
+  holds.clear()
   closed = false
 }
 
@@ -37,6 +46,7 @@ async function closePeerWatch({ settleMs = 3000 } = {}) {
   closed = true
   const inFlight = [...sweeps.values()]
   sweeps.clear()
+  holds.clear()
   if (inFlight.length === 0) return
   await Promise.race([
     Promise.allSettled(inFlight),
@@ -67,14 +77,6 @@ async function transitioned(kind, personKey, spaceId, id, removed) {
   return () => setPeerSubjectState(key, next)
 }
 
-async function ownsShare(spaceId, shareId) {
-  try {
-    return (await readOwnShares(spaceId)).some((s) => s.id === shareId)
-  } catch {
-    return false
-  }
-}
-
 function peerName(space, personKey) {
   return (space?.members || []).find((m) => m.publicKey === personKey)?.displayName || null
 }
@@ -99,14 +101,14 @@ async function applyProfileChange(personKey, change) {
   }
 
   // A mirror of someone else's share tells us nothing about our own data.
-  if (!(await ownsShare(change.spaceId, change.shareId))) return
+  const own = (await readOwnShares(change.spaceId)).find((s) => s.id === change.shareId)
+  if (!own) return
   const commit = await transitioned('mirror', personKey, change.spaceId, change.shareId, change.removed)
   if (!commit) return
-  const own = (await readOwnShares(change.spaceId)).find((s) => s.id === change.shareId)
   const written = record(change.removed ? 'mirror.peer_unmirrored' : 'mirror.peer_mirrored', {
     actor,
     space: ref,
-    target: targetRef(TARGET_KIND.SHARE, change.shareId, own?.name ?? null),
+    target: targetRef(TARGET_KIND.SHARE, change.shareId, own.name ?? null),
   })
   if (written) await commit()
 }
@@ -133,7 +135,8 @@ async function applyCatalogChange(personKey, spaceId, change) {
 // adopting on the first append silently swallows it (the very act we wanted to record), and
 // adopting before the head has replicated makes a peer's entire existing catalog arrive later as
 // a flood of "just shared" rows. So registration syncs the head first, then baselines.
-async function sweep(beeId, bee, apply, { baselineOnly = false } = {}) {
+/** @internal */
+export async function sweep(beeId, bee, apply, { baselineOnly = false } = {}) {
   const seen = await getSeenVersion(beeId)
   if (seen === null) {
     await syncHead(bee)
@@ -143,11 +146,42 @@ async function sweep(beeId, bee, apply, { baselineOnly = false } = {}) {
   if (baselineOnly) return { adopted: false, recorded: 0 }
   const { version, nodes, skipped } = await readChangesSince(bee, seen)
   if (skipped) log.warn('peer bee gained more ops than one sweep records — skipping to head:', beeId.slice(0, 12))
-  for (const node of nodes) {
-    try { await apply(node) } catch (err) { log.debug('peer change skipped:', err.message) }
-  }
+  const lost = await applyAll(nodes, apply)
+  const recorded = nodes.length - lost.length
+  if (lost.length > 0 && holdWatermark(beeId, seen, lost)) return { adopted: false, recorded, held: true }
+  holds.delete(beeId)
   await setSeenVersion(beeId, version)
-  return { adopted: false, recorded: nodes.length }
+  return { adopted: false, recorded, held: false }
+}
+
+async function applyAll(nodes, apply) {
+  const lost = []
+  for (const node of nodes) {
+    try { await apply(node) } catch (err) { lost.push({ seq: node.seq, err }) }
+  }
+  return lost
+}
+
+// Whether the watermark stays put for a replay. Warns on the first failure at a watermark and when
+// giving up, so a stuck batch logs twice rather than once per sweep.
+function holdWatermark(beeId, seen, lost) {
+  const prior = holds.get(beeId)
+  const failures = prior?.seen === seen ? prior.failures + 1 : 1
+  const { err } = lost[0]
+  const detail = fields({
+    bee: beeId.slice(0, 20),
+    rows: lost.slice(0, LOST_ROWS_NAMED).map((l) => l.seq).join(','),
+    count: lost.length,
+    code: err?.code || err?.name || 'Error',
+    msg: err?.message,
+  })
+  if (failures >= SWEEP_HOLD_CAP) {
+    log.warn('peer rows lost — advancing past them after repeated failed sweeps', detail)
+    return false
+  }
+  holds.set(beeId, { seen, failures })
+  if (failures === 1) log.warn('peer rows failed — holding the watermark for a replay', detail)
+  return true
 }
 
 // Pull the peer's current head before baselining, so their existing records are adopted rather
