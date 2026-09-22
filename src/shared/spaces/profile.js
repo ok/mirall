@@ -153,18 +153,18 @@ export async function adoptVouchees(spaceId, leaverKeyHex) {
 
 // True iff WE authored an approval for joinerKeyHex in this space (our own bee — a local read).
 // The admission gate consults this so a peer the owner itself approved is admitted even before
-// the fold re-derives them: isApprovedByPeers only checks OTHER members' bees, never our own.
+// the fold re-derives them: its peer reads cover the OTHER members' bees, never our own.
 export async function hasOwnApproval(spaceId, joinerKeyHex) {
   if (!profileBee) return false
   const entry = await profileBee.get('approved/' + spaceId + '/' + joinerKeyHex)
   return !!entry
 }
 
-export async function readPeerApproval(approverProfileKeyHex, spaceId, joinerKeyHex) {
+export async function readPeerApproval(approverProfileKeyHex, spaceId, joinerKeyHex, { timeoutMs = peerReadTimeoutMs() } = {}) {
   try {
     return await withReadTimeout(
-      loadPeerApproval(approverProfileKeyHex, spaceId, joinerKeyHex),
-      peerReadTimeoutMs(),
+      loadPeerApproval(approverProfileKeyHex, spaceId, joinerKeyHex, timeoutMs),
+      timeoutMs,
       null,
     )
   } catch {
@@ -172,14 +172,13 @@ export async function readPeerApproval(approverProfileKeyHex, spaceId, joinerKey
   }
 }
 
-function loadPeerApproval(approverProfileKeyHex, spaceId, joinerKeyHex) {
+function loadPeerApproval(approverProfileKeyHex, spaceId, joinerKeyHex, timeoutMs) {
   return withPeerBee(approverProfileKeyHex, async (bee) => {
-
     const cap = await bee.get(CAP_MEMBERSHIP_MANIFEST)
     if (!cap?.value) return null
     const entry = await bee.get('approved/' + spaceId + '/' + joinerKeyHex)
     return !!entry
-  })
+  }, { timeoutMs })
 }
 
 // Per-link invite record authored in our own (replicated) profile bee, so any member can resolve a

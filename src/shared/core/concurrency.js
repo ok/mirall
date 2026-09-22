@@ -12,6 +12,43 @@ export async function mapLimit(items, limit, fn) {
   return out
 }
 
+// Resolves true as soon as `check(item, budgetMs)` resolves true for any item, false once every
+// check settled otherwise or `deadlineAt` passed, whichever is first; a check that never settles
+// cannot hold it past the deadline. At most `limit` checks run at once. None starts after a match
+// or with under 1 ms left, and each is handed the budget that remains when it starts.
+export function someWithin(items, { limit, deadlineAt, check }) {
+  return new Promise((resolve) => {
+    let next = 0
+    let running = 0
+    let settled = false
+    const finish = (verdict) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      resolve(verdict)
+    }
+    const timer = setTimeout(() => finish(false), Math.max(0, deadlineAt - Date.now()))
+    const launch = () => {
+      while (!settled && running < limit && next < items.length) {
+        const budgetMs = deadlineAt - Date.now()
+        if (budgetMs < 1) break
+        const item = items[next++]
+        running++
+        Promise.resolve()
+          .then(() => check(item, budgetMs))
+          .catch(() => false)
+          .then((matched) => {
+            running--
+            if (matched) finish(true)
+            else launch()
+          })
+      }
+      if (running === 0) finish(false)
+    }
+    launch()
+  })
+}
+
 // Counting semaphore with FIFO waiters and an express lane on top of the limit. Work the user just
 // asked for takes the express lane, so a click never queues behind a backlog of automatic resumes.
 // `limit` is read per acquire, so a config change takes effect without a restart; a limit of 0 (or

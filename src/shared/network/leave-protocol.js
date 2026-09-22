@@ -23,7 +23,7 @@ import { leaveFrameBound } from './handshake-guard.js'
 import { destroyContentPeerSockets } from './content-swarm.js'
 import { record } from '../audit/audit-log.js'
 import { peerLeft } from '../audit/network-watch.js'
-import { markLeft } from '../spaces/member-registry.js'
+import { markLeft, applyLocalRevocation } from '../spaces/member-registry.js'
 import { connectedPeers, spaceTopics, spaceDiscoveries, socketMsgHandlers, authorizedOn, detachPeerFromSpace, forgetPeerOnSocket, forgetBoundSignerKey } from './swarm-registries.js'
 import { TARGET_KIND } from '../contract/audit-kinds.js'
 import { peerActor, spaceRef, targetRef } from '../audit/audit-record.js'
@@ -91,7 +91,10 @@ async function applyDurableLeave(spaceId, profileKey, leaveTs) {
     applied = false
     log.warn('persist leave tombstone failed:', err.message)
   }
-  try { await revokeApproval(spaceId, profileKey) } catch (err) {
+  try {
+    await revokeApproval(spaceId, profileKey)
+    applyLocalRevocation(spaceId, profileKey)
+  } catch (err) {
     applied = false
     log.warn('approval revoke on leave failed:', err.message)
   }

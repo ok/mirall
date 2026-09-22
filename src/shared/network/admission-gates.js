@@ -5,29 +5,46 @@
 // A factory over three collaborators: `connectedPeers` is the shared peer registry
 // (swarm-registries.js), `log` the swarm's named logger, and `getIpc` reaches the pipe lazily —
 // the IPC handle is null until the worker wires it, so it is read at emit time, not captured.
+// `readApproval` and `isFoldApproved` default to the production readers and are test seams.
 import { getLocalPublicKeyHex, readPeerApproval, hasOwnApproval, readOwnInvite, readPeerInvite, readPeerInviteSnapshot, revokeInvite } from '../spaces/profile.js'
 import { getSpace } from '../spaces/space.js'
 import { recordJoinRequest } from '../spaces/join-requests.js'
 import { pinCreatorKey, markCreatorDivergence, clearCreatorDivergence } from '../spaces/creator-pin.js'
-import { isHandshakeIdentityBindingEnabled } from '../core/runtime-config.js'
+import { isHandshakeIdentityBindingEnabled, getAdmissionReadTimeoutMs } from '../core/runtime-config.js'
 import { reconcileAssertedRoot } from '../spaces/creator-root.js'
 import { snapshotCandidates } from '../spaces/invites.js'
-import { isLeft, openMemberView, closeMemberView } from '../spaces/member-registry.js'
+import { isLeft, openMemberView, closeMemberView, isApprovedJoiner } from '../spaces/member-registry.js'
+import { someWithin } from '../core/concurrency.js'
 
-export function createAdmissionGates({ connectedPeers, log, getIpc }) {
+const MAX_APPROVAL_READS_IN_FLIGHT = 8
+
+export function createAdmissionGates({
+  connectedPeers, log, getIpc, readApproval = readPeerApproval, isFoldApproved = isApprovedJoiner,
+}) {
   // A v2 peer is admitted if we already hold them as a member, or any member we know has an
   // authored `approved/<S>/<joiner>` record for them (an approval by one member propagates
-  // via replication — no gossip). This is the read gate; the derived set governs the list.
+  // via replication — no gossip). Our own record and the fold's approved set answer locally; only
+  // records the fold has not seen yet are read from the other members' bees, all under one
+  // admission budget, the first approval winning.
   async function isApprovedByPeers(space, joinerKey) {
-    const me = getLocalPublicKeyHex()
     // Our OWN approval counts: the fold may not yet hold the joiner's (not-yet-replicated) record,
     // and without this the owner could not admit a peer it approved itself.
     if (await hasOwnApproval(space.spaceId, joinerKey)) return true
-    for (const m of space.members || []) {
-      if (m.publicKey === joinerKey || m.publicKey === me) continue
-      if (await readPeerApproval(m.publicKey, space.spaceId, joinerKey)) return true
-    }
-    return false
+    if (isFoldApproved(space.spaceId, joinerKey)) return true
+    return await someWithin(approversToAsk(space, joinerKey), {
+      limit: MAX_APPROVAL_READS_IN_FLIGHT,
+      deadlineAt: Date.now() + getAdmissionReadTimeoutMs(),
+      check: (key, timeoutMs) => readApproval(key, space.spaceId, joinerKey, { timeoutMs }),
+    })
+  }
+
+  // Every other member, those connected in this space first: a live member answers within the
+  // budget, so offline ones queued ahead of it cannot hold every read slot until the deadline.
+  function approversToAsk(space, joinerKey) {
+    const me = getLocalPublicKeyHex()
+    const others = (space.members || []).map((m) => m.publicKey).filter((key) => key !== joinerKey && key !== me)
+    const live = (key) => !!connectedPeers.get(key)?.spaces?.has(space.spaceId)
+    return [...others.filter(live), ...others.filter((key) => !live(key))]
   }
 
   async function isApprovedMember(spaceId, joinerKey) {

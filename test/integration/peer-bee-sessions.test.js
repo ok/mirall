@@ -1,7 +1,7 @@
 import test from 'brittle'
 import b4a from 'b4a'
 import { freshPeer } from '../helpers/store.js'
-import { makePeer, replicate } from '../helpers/peer-bee.js'
+import { makePeer, replicate, waitFor } from '../helpers/peer-bee.js'
 import { getStore } from '../../src/shared/core/store.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { openProfileBee, readMembershipRecord, readPeerApproval, readProfileRecord } from '../../src/shared/spaces/profile.js'
@@ -91,6 +91,30 @@ test('a read of an unreplicated peer is bounded and leaves nothing open', async 
   const dt = Date.now() - t0
   t.ok(dt < 1500, 'and it is bounded (' + dt + 'ms)')
   t.is(probe.core.sessions.length, before, 'with no session left behind')
+})
+
+// The admission gate hands each approval read what is left of its own budget, so a read of an
+// offline member releases its session on that budget rather than the full peer-read one.
+test('an approval read given an admission budget releases its session within it', async (t) => {
+  await freshPeer(t)
+  withConfig(t, { peerReadTimeoutMs: 5000 })
+  const ghostKey = 'd'.repeat(64)
+  const done = getStore().findingPeers()
+  t.teardown(done)
+
+  const probe = openProfileBee(b4a.from(ghostKey, 'hex'))
+  await probe.ready()
+  t.teardown(async () => { try { await probe.close() } catch {} })
+  const before = probe.core.sessions.length
+
+  const t0 = Date.now()
+  // absolute: the budget is passed INTO the read; the assertion is that the session honours it.
+  t.is(await readPeerApproval(ghostKey, SPACE, 'j'.repeat(64), { timeoutMs: 400 }), null, 'an unreachable approver reads as unknown')
+  const dt = Date.now() - t0
+  t.ok(dt >= 300, 'the read waited for a peer (' + dt + 'ms)')
+  t.ok(dt < 2500, 'bounded by the budget it was given, not peerReadTimeoutMs')
+  await waitFor(() => probe.core.sessions.length === before, 1000)
+  t.is(probe.core.sessions.length, before, 'and its session is released on that budget')
 })
 
 // The leftover reclaim decides what to PURGE from what this read returns, so a partial read must
