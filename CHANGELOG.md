@@ -15,6 +15,13 @@ changes do not appear here.
 
 Finishes the relay work from 1.11 and fixes a few smaller problems.
 
+#### Added
+
+- **Ubuntu and Debian users can install Mirall from a `.deb` package.** It
+installs like any other package and, unlike the AppImage, runs with the
+browser sandbox on. A `.deb` install is updated by installing the next
+`.deb` over it; automatic updates stay on for the AppImage.
+
 #### Fixed
 
 - **Turning off "Prefer the relay for every connection" now takes effect

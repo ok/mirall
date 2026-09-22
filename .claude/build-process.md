@@ -17,7 +17,7 @@ tag push (v*)          CI: build-electron.yml            distribution
                        ──────────────────────            ────────────
 git push --tags ─→ matrix build (5 archs)
                      ├─ macOS: signed + notarized .dmg
-                     ├─ Linux: .AppImage (unsigned)
+                     ├─ Linux: .deb + .AppImage (unsigned)
                      └─ Win:   .msix (unsigned → signed out-of-band)
                                       ↓
                      installers → object storage → download page (first install)
@@ -87,7 +87,7 @@ older line is ever actually needed after `staging` has moved on.
 | Runner | Arch | Output |
 |---|---|---|
 | `macos-latest` | `darwin-x64` / `darwin-arm64` | `Mirall.dmg` — signed + notarized |
-| `ubuntu-latest` / `ubuntu-24.04-arm` | `linux-x64` / `linux-arm64` | `Mirall.AppImage` — unsigned by convention |
+| `ubuntu-latest` / `ubuntu-24.04-arm` | `linux-x64` / `linux-arm64` | `Mirall.deb` + `Mirall.AppImage` — unsigned by convention |
 | `windows-latest` | `win32-x64` | `Mirall.msix` — unsigned |
 
 Each job: patch `package.json#version` → `npm install` → `npm run build` (esbuild
@@ -97,8 +97,12 @@ bundles the renderer, Tailwind compiles CSS, `tsc --noEmit` typechecks) →
 - **macOS** — `electron-forge make`; `osxSign` + `osxNotarize` run during packaging
   (wired via env in `forge.config.js`) using an Apple Developer ID cert stored in
   repo secrets.
-- **Linux** — `electron-forge package` + `scripts/build/build-app-image.sh` assembles the
-  AppImage (shipped unsigned by convention).
+- **Linux** — `electron-forge make` builds the `.deb` via `@electron-forge/maker-deb`
+  (`chrome-sandbox` is recorded setuid root in the package, so the installed app runs with the
+  Chromium sandbox on), then `scripts/build/build-app-image.sh` assembles the AppImage from the
+  same packaged tree. `scripts/ci/check-deb.sh` asserts the package layout before upload. Both
+  ship unsigned by convention. The deb's control `Version` is the CI version with a prerelease
+  label rewritten `-beta.N` → `~beta.N` (Debian ordering); the file name follows it.
 - **Windows** — `electron-forge make` with `@electron-forge/maker-msix`. The
   `preMake` hook in `forge.config.js` rewrites the 4-part `Version` in
   `resources/win32/AppxManifest.xml`. CI produces the MSIX **unsigned**; it is

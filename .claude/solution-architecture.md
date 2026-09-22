@@ -20,7 +20,7 @@ Loose files and folder shares are separate share ids in the same per-owner catal
 ### How it ships
 
 - **Local dev** — `npm start` (Electron + worker, OTA disabled). `npm start -- --updates` exercises the OTA flow. `npm run dev` = esbuild + Tailwind watch + a local HTTP server for `assets/`.
-- **Installers** — `.dmg` (macOS), `.msix` (Windows), `.AppImage` (Linux). → `build-process.md`.
+- **Installers** — `.dmg` (macOS), `.msix` (Windows), `.deb` + `.AppImage` (Linux). → `build-process.md`.
 - **OTA** — the installed app subscribes to a per-channel Pear Hyperdrive. When the drive head advances past the running version, the app mirrors the new bundle and atomically swaps it in. §9.
 - **Seed host** — Arch Linux VM running `mirall-seed.service`, a systemd unit that runs `pear seed production` continuously. Operators publish with `seed-host/scripts/release.sh`. → `build-process.md`.
 
@@ -1106,7 +1106,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/renderer/` | Renderer source (TS + React → `assets/dist/`) — tables below |
 | `assets/` | Shipped renderer assets: `index.html`, `fonts/`, `theme-bootstrap.js` (pre-paint dark-mode, no FOUC), esbuild/Tailwind output in `dist/` |
 | `resources/` | Platform build assets per target: `darwin/` (`icon.icns`, `entitlements.plist`, `dmg/`), `win32/` (`icon.ico`, `AppxManifest.xml`, `msix-assets/`), `linux/` (`AppRun`, `icon.png`, `icons/`), `tray/`, `brand/` (the source SVGs) |
-| `forge.config.js` | electron-forge config — packagerConfig, makers, the `afterCopy` hook that injects `UPGRADE_KEY` into `package.json#upgrade`, MSIX manifest version patching |
+| `forge.config.js` | electron-forge config — packagerConfig, makers, the `afterCopy` hook that injects `UPGRADE_KEY` into `package.json#upgrade`, the `afterComplete` hook that stamps the app licence onto the Linux tree, MSIX manifest version patching |
 | `scripts/` | Build: `build-app-image.sh`, `generate-app-icons.mjs`, `generate-tray-icons.mjs`, `rasterize-svg.cjs`. CI gates: `check-comment-hygiene.sh`, `check-test-timing.sh`, `check-release-mime.sh`, `flake-ledger.mjs`. Install/uninstall: `install-windows.ps1`, `uninstall-windows.ps1`, `uninstall.sh`. Store forensics (quit Mirall first): `inspect-store.mjs`. Perf: `bench-prepare.mjs` (under Bare). i18n: `export-translations.mjs`. MSIX signing is out-of-band and has no script here (→ `build-process.md`) |
 | `test/` | Test suite — a CI gate. §15 |
 | `eslint.config.mjs`, `eslint-rules/` | Flat config incl. `eslint-plugin-jsx-a11y` (a `npm run build` / CI gate) and the repo's own rule (`no-unguarded-async-effect`) |
@@ -1131,6 +1131,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/main/feature-flags.js` | Boot-cached `feature-flags.json` from the package root + env override |
 | `src/main/identity-kek.js` | The os-keychain unlock provider's host side: the identity KEK at rest under `safeStorage` (§16) |
 | `src/main/ipc-frame.js` | Byte-level NDJSON splitter for worker→main control frames, with a 64 KB per-frame gate |
+| `src/main/install-kind.js` | `linuxInstallKind` — how a packaged Linux build reached the disk (`appimage` / `deb` / `unpacked` / `none`), pure. A deb install turns OTA off (§13) |
 | `src/main/lifecycle.js` | The quit teardown: one ordered `before-quit` sequence (mark-quitting → owned watchers → loose watchers → config flush → workers → apply update), run at most once per process so the update-apply deferral cannot tear the app down twice |
 | `src/main/log-ring.js` | Bounded in-memory ring of recent log lines from all three processes, for the diagnostics bundle; never written to disk |
 | `src/main/logging.js` | `sendToAll` (broadcast to every live webContents, swallowing a disposed frame per target) plus the main-console → log-ring → renderer forwarding with its re-entrancy guard, and the lazy redaction loader. Installed by the entry before anything else logs (§10) |
@@ -1147,7 +1148,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/main/relay-slot.js` | `registerRelaySlot(deps)` — the one relay this node offers: `relay:parse` classifies a pasted key or ticket with no side effects and no secret in the reply; `relay:set` stores the seed and re-applies the slot (§5) |
 | `src/main/relay-secret.js` | The private-relay member seed at rest (`relay-ticket.enc`, `safeStorage`, `0600`) (§4.8) |
 | `src/main/settings-ipc.js` | `registerSettingsIpc(deps)` — the download folder (validated against the same rules a per-space folder gets), the bandwidth caps, the general preferences and the two directory pickers, plus the login-item/XDG autostart writer. `prefs:set` takes its tray and app-menu actions as injected deps rather than re-implementing them (§5) |
-| `src/main/updater.js` | `getPear()` and the OTA surface — the embedded pear-runtime, built lazily because constructing it opens drives and joins a swarm a run may never need. `applyPendingUpdate` reads the runtime binding directly rather than through `getPear`, so a quit never builds one just to find there is nothing to apply (§8) |
+| `src/main/updater.js` | `getPear()` and the OTA surface — the embedded pear-runtime, built lazily because constructing it opens drives and joins a swarm a run may never need. `applyPendingUpdate` reads the runtime binding directly rather than through `getPear`, so a quit never builds one just to find there is nothing to apply. `pear:checkForUpdate` answers with the reason updates are off (`deb-install`, `flag`) instead of triggering a lookup nothing will apply (§8) |
 | `src/main/watch-host.js` | The single owner of chokidar in main — native + lazy polling instance, network-path routing, the error-burst guard, the shared option bag (§2 step 12) |
 | `src/main/window.js` | `registerWindow()`, `createWindow()` and everything persisted about the window — zoom, bounds and theme. The window is hidden rather than closed, so its state has to survive a hide as well as a quit, which is why every read and write goes through config.json rather than the window object (§5) |
 | `src/main/window-bounds.js` | Off-screen-bounds guard for a restored window whose display is gone, pure |
@@ -1155,7 +1156,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/main/worker-entrypoints.js` | The worker spawn allowlist (`contract/workers.js`), resolved before the `noAsar` window opens |
 | `src/main/worker-bus-failure.js` | `createFailureGate` — the one policy for a failure on the worker bus (a frame write, a main request): debug logs every one, a quit is silent outside debug, otherwise the caller's reporter; reporting never throws |
 | `src/main/worker-host.js` | `registerWorkerHost()`, `getWorker`, `sendToWorker`, `stopWorkers` — spawning a Bare worker, the one guarded path that frames anything onto its pipe, the bootstrap frame (the worker's whole starting state, sent once), the stdout/stderr mirror and the exit reaper. A bootstrap that fails to write fails the spawn rather than caching a worker nothing can talk to (§3) |
-| `src/main/xdg-integration.js` | Linux AppImage `.desktop` + icon integration (`integrateXdgLinux`, §2 step 11) |
+| `src/main/xdg-integration.js` | Linux AppImage `.desktop` + icon integration (`integrateXdgLinux`, §2 step 11) and its reverse for a deb install (`retireXdgAppImageEntry`, §13) |
 
 ### `src/worker/`
 
@@ -1586,6 +1587,12 @@ src/renderer/styles/tailwind.css ─@tailwindcss/cli──►  assets/dist/app.c
 `electron-forge package --platform=linux` produces an unpacked tree; `scripts/build/build-app-image.sh` assembles the `.AppImage` via `app-builder-lib`. It bundles a custom `resources/linux/AppRun` that exports library paths and exec's the binary with `--no-sandbox`.
 
 After `app-builder` finishes, the script **swaps the stock libfuse2-based AppImage runtime for `VHSgunzo/uruntime` in extract-and-run mode (`URUNTIME_MOUNT=0`)**, so the AppImage runs on Ubuntu 24.04 / Fedora 40+ where `libfuse2` is no longer installed by default. Pinned by the `URUNTIME_VERSION` constant in `build-app-image.sh`; bump by editing that line and triggering a dev build.
+
+### Linux deb
+
+`electron-forge make --platform=linux` runs `@electron-forge/maker-deb` (`electron-installer-debian`) over the same packaged tree the AppImage is built from, and `make:linux` runs it **before** the AppImage script because the `preMake` hook wipes `out/make`. The package installs the tree to `/usr/lib/mirall/` with `/usr/bin/mirall → ../lib/mirall/Mirall`, a static `mirall.desktop` (`Exec=mirall %U`, `MimeType=x-scheme-handler/mirall;`) and the hicolor icons; the `.desktop` file id matches the lower-cased WM class Electron sets from the product name, so no `StartupWMClass` line is needed. `electron-installer-common` chmods `chrome-sandbox` to `4755` in the staged tree and dpkg preserves it, so **a deb install runs with the Chromium sandbox on** — the AppImage cannot (its payload is extracted as the user, so setuid never applies, hence `AppRun`'s `--no-sandbox`). No maintainer scripts, nothing under `/etc`; user data is `~/.config/mirall/` for both packagings, so an AppImage user who switches keeps identity and spaces, and on a deb install main retires the per-user `Mirall.desktop` + icons an earlier AppImage run wrote and re-points the scheme at `mirall.desktop` (`retireXdgAppImageEntry`), so one launcher entry remains and a `mirall://` link opens the installed build. `/usr/share/doc/mirall/copyright` is the packaged tree's root `LICENSE`, which the `afterComplete` packager hook (`stampLinuxLicense`) makes the app's own on Linux, keeping Electron's as `LICENSE.electron.txt`. The package is built with xz members (dpkg before Debian 12 cannot unpack zstd). The Linux autostart entry names the icon by install kind (`mirall` for the deb's hicolor files, `Mirall` for the AppImage's).
+
+`linuxInstallKind` (`src/main/install-kind.js`) recognises the install by `execPath` under `/usr/lib/mirall/` with no `APPIMAGE` in the environment, and main turns OTA off for it: the swap target belongs to root and the package manager owns updates. `pear:checkForUpdate` then answers `{ triggered: false, reason: 'deb-install' }`. `scripts/ci/check-deb.sh` asserts the sandbox-helper mode, the layout, the control fields (including the `~`-form prerelease `Version`), the xz members and the desktop entry on every Linux CI build before upload.
 
 ### Asar packaging
 
