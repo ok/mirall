@@ -375,6 +375,7 @@
     "deny": "Deny",
     "approveNamed": "Approve {{name}}",
     "denyNamed": "Deny {{name}}",
+    "denyAlreadyApproved": "{{name}} is already a member. Mirall can't remove members yet — they keep access to everything they've already seen.",
     "review": "Review",
     "open": "Open",
     "joinRequestToast": "{{name}} wants to join {{space}}",

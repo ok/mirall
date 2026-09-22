@@ -2,11 +2,15 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useToast } from '../components/toast/ToastProvider.js'
 import { useErrorText } from './useErrorText.js'
+import { DENY_OUTCOME } from '../../shared/contract/deny-outcome.js'
+import type { DenyMemberResult } from '../../shared/contract/responses.js'
+import type { JoinRequest } from '../types/types.js'
 
 type MembershipRequestsInput = {
   spaceId: string
-  approveMember: (spaceId: string, publicKey: string) => Promise<unknown>
-  denyMember: (spaceId: string, publicKey: string) => Promise<unknown>
+  requests: JoinRequest[]
+  approveMember: (spaceId: string, publicKey: string) => Promise<void>
+  denyMember: (spaceId: string, publicKey: string) => Promise<DenyMemberResult>
 }
 
 /**
@@ -16,7 +20,7 @@ type MembershipRequestsInput = {
  * slow approval must not freeze the rest of the rows, and a second click on the same row must not
  * send a second write.
  */
-export function useMembershipRequests({ spaceId, approveMember, denyMember }: MembershipRequestsInput) {
+export function useMembershipRequests({ spaceId, requests, approveMember, denyMember }: MembershipRequestsInput) {
   const { t } = useTranslation()
   const toast = useToast()
   const errorText = useErrorText()
@@ -30,7 +34,7 @@ export function useMembershipRequests({ spaceId, approveMember, denyMember }: Me
     return next
   })
 
-  async function decide(pk: string, write: (spaceId: string, publicKey: string) => Promise<unknown>) {
+  async function decide(pk: string, write: (spaceId: string, publicKey: string) => Promise<void>) {
     if (busy.has(pk)) return
     markBusy(pk)
     try {
@@ -40,6 +44,15 @@ export function useMembershipRequests({ spaceId, approveMember, denyMember }: Me
     } finally {
       clearBusy(pk)
     }
+  }
+
+  // A co-member can admit the peer while our Deny is on screen. Approval cannot be taken back yet,
+  // so the consequence stays up until the user dismisses it.
+  async function denyAndReport(sid: string, pk: string) {
+    const { outcome } = await denyMember(sid, pk)
+    if (outcome !== DENY_OUTCOME.ALREADY_APPROVED) return
+    const name = requests.find((r) => r.publicKey === pk)?.displayName ?? t('member.unknown')
+    toast.warning(t('member.denyAlreadyApproved', { name }), { duration: 0 })
   }
 
   // Approving a batch runs one at a time on purpose: each approval writes membership and re-reads
@@ -69,7 +82,7 @@ export function useMembershipRequests({ spaceId, approveMember, denyMember }: Me
   return {
     busy,
     approve: (pk: string) => decide(pk, approveMember),
-    deny: (pk: string) => decide(pk, denyMember),
+    deny: (pk: string) => decide(pk, denyAndReport),
     approveMany,
   }
 }

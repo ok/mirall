@@ -349,6 +349,7 @@
     "deny": "Refuser",
     "approveNamed": "Approuver {{name}}",
     "denyNamed": "Refuser {{name}}",
+    "denyAlreadyApproved": "{{name}} est déjà membre. Mirall ne peut pas encore retirer de membres — cette personne garde l'accès à tout ce qu'elle a déjà vu.",
     "review": "Examiner",
     "open": "Ouvrir",
     "joinRequestToast": "{{name}} souhaite rejoindre {{space}}",

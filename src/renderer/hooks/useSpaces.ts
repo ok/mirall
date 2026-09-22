@@ -68,8 +68,9 @@ export function useSpaces() {
   }
 
   async function denyMember(spaceId: string, publicKey: string) {
-    await request('space:deny-member', { spaceId, publicKey })
+    const result = await request('space:deny-member', { spaceId, publicKey })
     await refresh()
+    return result
   }
 
   async function leaveSpace(spaceId: string) {

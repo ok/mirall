@@ -187,7 +187,7 @@ test('deny is a no-op once a co-member has approved', { timeout: scaled(220000) 
 
   // B tries to deny C after A already approved.
   const denied = await B.request('space:deny-member', { spaceId: sid, publicKey: cKey })
-  t.absent(denied, 'deny of an already-approved member returns falsy (no-op)')
+  t.is(denied.outcome, 'already-approved', 'deny of an already-approved member reports the no-op')
   t.ok((await memberSetOf(B, sid)).has(cKey), 'C remains a member on B')
   t.is((await C.request('spaces:list')).find((s) => s.spaceId === sid)?.status, 'approved', 'C is still approved')
 })

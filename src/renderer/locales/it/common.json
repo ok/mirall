@@ -349,6 +349,7 @@
     "deny": "Rifiuta",
     "approveNamed": "Approva {{name}}",
     "denyNamed": "Rifiuta {{name}}",
+    "denyAlreadyApproved": "{{name}} è già membro. Mirall non può ancora rimuovere i membri: conserva l'accesso a tutto ciò che ha già visto.",
     "review": "Esamina",
     "open": "Apri",
     "joinRequestToast": "{{name}} vuole unirsi a {{space}}",

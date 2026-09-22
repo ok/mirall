@@ -11,6 +11,7 @@
 import { RESOLVE_OUTCOME, record, recordResolved } from '../../shared/audit/audit-log.js'
 import { peerActor, selfActor, spaceRef, systemActor, targetRef } from '../../shared/audit/audit-record.js'
 import { OUTCOME, TARGET_KIND } from '../../shared/contract/audit-kinds.js'
+import { DENY_OUTCOME } from '../../shared/contract/deny-outcome.js'
 import { CODES } from '../../shared/contract/errors.js'
 import { PEER_FRAME } from '../../shared/contract/peer-frames.js'
 import { AppError } from '../../shared/core/errors.js'
@@ -18,7 +19,7 @@ import { getMembershipCaps, isHandshakeIdentityBindingEnabled } from '../../shar
 import { sanitizeAvatar } from '../../shared/contract/identity-limits.js'
 import { reconcileAssertedRoot } from '../../shared/spaces/creator-root.js'
 import { classifyInvite } from '../../shared/spaces/invites.js'
-import { applyLocalApproval, applyLocalDenial, closeMemberView, dropTombstone, isApprovedJoiner, isDeniedJoiner, isLeft, openMemberView } from '../../shared/spaces/member-registry.js'
+import { applyLocalApproval, applyLocalDenial, closeMemberView, dropTombstone, forgetPendingJoiner, isApprovedJoiner, isDeniedJoiner, isLeft, openMemberView } from '../../shared/spaces/member-registry.js'
 import { knockSettledByRecords, knockInviteVerdict } from '../../shared/spaces/knock-policy.js'
 import { captureJoinerMembership, getIdentitySigner, markRequest, markRequestDenied, ownDenialStands, readProfileRecord } from '../../shared/spaces/profile.js'
 import { getSpace, getSpaceContentKey } from '../../shared/spaces/space.js'
@@ -424,23 +425,23 @@ export function createMembership(ipcRef, deps) {
   })
   ipc.handle('space:deny-member', async (msg) => {
     const space = await getSpace(msg.spaceId)
-    if (!space || space.status === 'pending') return false
+    if (!space || space.status === 'pending') return { outcome: DENY_OUTCOME.NOT_APPLICABLE }
     // Approval is monotonic: if another member already let them in (they hold the SCK),
-    // a deny can't revoke without key rotation — clear our stale banner and no-op.
+    // a deny can't revoke without key rotation — clear our stale banner and report the no-op.
     if (await isApprovedMember(msg.spaceId, msg.publicKey)) {
-      if (clearJoinRequest(msg.spaceId, msg.publicKey)) ipc.emit('event:join-requests-updated', { spaceId: msg.spaceId })
-      return false
+      clearJoinRequest(msg.spaceId, msg.publicKey)
+      forgetPendingJoiner(msg.spaceId, msg.publicKey)
+      ipc.emit('event:join-requests-updated', { spaceId: msg.spaceId })
+      return { outcome: DENY_OUTCOME.ALREADY_APPROVED }
     }
-    const denied = await resolveJoinRequest(space, msg.publicKey, 'deny')
-    if (denied) {
-      record('membership.denied', {
-        actor: selfActor(),
-        space: spaceRefOf(space),
-        target: targetRef(TARGET_KIND.MEMBER, msg.publicKey, peerActorIn(space, msg.publicKey).name),
-        outcome: OUTCOME.DENIED,
-      })
-    }
-    return denied
+    await resolveJoinRequest(space, msg.publicKey, 'deny')
+    record('membership.denied', {
+      actor: selfActor(),
+      space: spaceRefOf(space),
+      target: targetRef(TARGET_KIND.MEMBER, msg.publicKey, peerActorIn(space, msg.publicKey).name),
+      outcome: OUTCOME.DENIED,
+    })
+    return { outcome: DENY_OUTCOME.DENIED }
   })
   ipc.handle('space:pending-requests', async (msg) => {
     const space = await getSpace(msg.spaceId)

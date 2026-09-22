@@ -349,6 +349,7 @@
     "deny": "Ablehnen",
     "approveNamed": "{{name}} annehmen",
     "denyNamed": "{{name}} ablehnen",
+    "denyAlreadyApproved": "{{name}} ist bereits Mitglied. Mirall kann Mitglieder noch nicht entfernen – bereits Gesehenes bleibt für {{name}} zugänglich.",
     "review": "Ansehen",
     "open": "Öffnen",
     "joinRequestToast": "{{name}} möchte {{space}} beitreten",

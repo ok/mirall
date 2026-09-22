@@ -10,6 +10,15 @@ export const CASES = [
       rpcDelayMs: 400,
       delayTypes: ['space:approve-member'],`,
   },
+  {
+    name: "denyapproved",
+    title: "Mirall deny-on-approved-member harness",
+    // A co-member approved Bob first: the delayed deny resolves already-approved.
+    cfg: `      pendingRequests: [{ publicKey: 'joiner00000000000000000000000000000000000000000000000000000000ab', displayName: 'Bob', avatar: null }],
+      denyReply: { outcome: 'already-approved' },
+      rpcDelayMs: 400,
+      delayTypes: ['space:deny-member'],`,
+  },
   // Mounts every avatar the app draws and sweeps for one that is not recessed.
   { name: "avatars", title: "Mirall avatar recess harness" },
   { name: "dropoverlay", title: "Mirall drop-overlay layout harness" },

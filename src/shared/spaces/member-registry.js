@@ -335,6 +335,13 @@ export function applyLocalApproval(spaceId, key) {
   forgetPending(spaceId, entry, key)
 }
 
+// A request a co-member settled first stays in the cached pending set until the next fold; a
+// no-op deny drops it now so the banner clears in the same step.
+export function forgetPendingJoiner(spaceId, key) {
+  const entry = views.get(spaceId)
+  if (entry) forgetPending(spaceId, entry, key)
+}
+
 // Our own revoke, applied after the durable del. Fails closed: the key leaves the cached approved
 // set at once, and the re-fold puts it back only if another member's vouch still stands.
 export function applyLocalRevocation(spaceId, key) {

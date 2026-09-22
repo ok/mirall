@@ -10,6 +10,7 @@ components run unmodified. `harness-bootstrap.ts` gives every harness the query 
 | `test:layout` | `run.mjs` | `<FolderView>` under the mirror-download re-render storm | the document never scrolls |
 | `test:layout:case -- members` | `run-members.mjs` | `<SpaceView>` Members box, small + large roster | small hugs its content; large caps at the column and scrolls inside |
 | `test:layout:case -- approval` | `run-approval.mjs` | `<SpaceView>` with a pending join request | the in-flight affordance renders while approve/deny is pending |
+| `test:layout:case -- denyapproved` | `run-denyapproved.mjs` | `<SpaceView>` with a pending request a co-member already approved | Deny disables in flight; the already-approved outcome is a sticky polite status toast, never an alert |
 | `test:layout:case -- dropoverlay` | `run-dropoverlay.mjs` | the full-bleed Drop-to-Share overlay | covers the pane edge to edge at the shipped inset |
 | `test:layout:case -- sharecard` | `run-sharecard.mjs` | `<ShareCard>` | the whole card is the hit area; actions stay inside it |
 | `test:layout:case -- progress` | `run-progress.mjs` | progress lanes | ARIA valuenow/valuetext follow the lane's mode |

@@ -39,7 +39,7 @@ async function denyWhileOffline(t, aliceFlags = {}) {
   B.kill()
   if (bPid) await waitForWorkerExit(bPid, 5000)
 
-  t.ok(await A.request('space:deny-member', { spaceId: sid, publicKey: req.publicKey }),
+  t.is((await A.request('space:deny-member', { spaceId: sid, publicKey: req.publicKey })).outcome, 'denied',
     'denial recorded while the joiner is offline')
 
   let freshBanner = false
@@ -153,7 +153,7 @@ test('REGRESSION (#364: a deny delivered during the joiner\'s boot is still obse
     const bPid = B.sidecar?._process?.pid
     B.kill()
     if (bPid) await waitForWorkerExit(bPid, 5000)
-    t.ok(await A.request('space:deny-member', { spaceId: sid, publicKey: req.publicKey }), 'denied while offline')
+    t.is((await A.request('space:deny-member', { spaceId: sid, publicKey: req.publicKey })).outcome, 'denied', 'denied while offline')
 
     B = await launchPeer(t, {
       bootstrap, displayName: 'Bob', storage: bStorage, downloads: bDownloads, flags: { identityKEK: bKek }, bootSettleMs: 3000,
