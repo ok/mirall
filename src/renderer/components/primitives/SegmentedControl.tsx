@@ -29,16 +29,19 @@ interface SegmentProps {
   // Only where the visible label is not the whole name — "1 MB/s" on its own does not say
   // which direction it caps.
   ariaLabel?: string
+  // A change is in flight: reads as unavailable and keeps focus. The caller owns the re-entry guard.
+  busy?: boolean
 }
 
-export function Segment({ label, selected, onSelect, icon, ariaLabel }: SegmentProps) {
+export function Segment({ label, selected, onSelect, icon, ariaLabel, busy }: SegmentProps) {
   return (
     <button
       type="button"
       onClick={onSelect}
       aria-label={ariaLabel}
       aria-pressed={selected}
-      className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm transition-all active:scale-95 focus-ring ${
+      aria-disabled={busy || undefined}
+      className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm transition-all active:scale-95 focus-ring aria-disabled:opacity-50 ${
         selected
           ? 'bg-surface-container-lowest shadow-sm text-accent font-semibold'
           : 'text-on-surface-variant hover:text-accent font-medium'

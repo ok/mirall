@@ -515,6 +515,7 @@
     "displayName": "Nome visualizzato",
     "changeAvatar": "Cambia foto del profilo",
     "avatarTooLarge": "Quell'immagine è troppo grande — scegli un file di meno di 16 MB.",
+    "avatarUnreadable": "Impossibile leggere questa immagine. Scegli un altro file.",
     "displayNameCount": "{{count}}/{{max}} caratteri",
     "appearance": "Aspetto",
     "appearanceDesc": "Tema, dimensioni di visualizzazione e lingua.",
@@ -655,6 +656,7 @@
     "sendFeedbackDesc": "Segnala un problema o condividi una proposta.",
     "whatsNew": "Novità",
     "whatsNewDesc": "Modifiche recenti in Mirall.",
+    "whatsNewEmpty": "Non sono disponibili note di rilascio per questa versione.",
     "updateReady": "v{{version}} è disponibile e verrà installata la prossima volta che chiudi e riapri Mirall."
   },
   "whatsNew": {
@@ -739,6 +741,7 @@
     "limitsLoading": "Caricamento dei limiti di trasferimento…",
     "limitsUnavailable": "Impossibile leggere i tuoi limiti di trasferimento.",
     "limitSaveFailed": "Impossibile salvare questo limite. Resta attivo quello precedente.",
+    "limitAppliesAfterRestart": "Salvato. Il nuovo limite sarà attivo al riavvio di Mirall.",
     "download": "Download",
     "upload": "Caricamento",
     "unlimited": "Nessun limite",

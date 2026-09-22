@@ -155,6 +155,7 @@ export default function NetworkSettings({ onBack, onOpenStatus }: NetworkSetting
   // the user: picking Custom must not discard the cap they already have — so it seeds once, off
   // the first settled value, rather than tracking it.
   const [custom, setCustom] = useState<Record<Direction, boolean>>({ download: false, upload: false })
+  const [applyError, setApplyError] = useState<'save' | 'restart' | null>(null)
   const seeded = useRef(false)
 
   useEffect(() => {
@@ -166,15 +167,24 @@ export default function NetworkSettings({ onBack, onOpenStatus }: NetworkSetting
     })
   }, [limits])
 
+  // Persisted first, then applied: the worker boots from the persisted cap, so a refused apply means
+  // the cap is saved and takes effect after a restart, and a refused save means nothing changed. The
+  // store publishes `next` optimistically, replaces it with what main actually stored (main clamps a
+  // below-floor value), and restores the previous cap if the save fails — so the screen cannot end
+  // up showing a cap that was never persisted.
   const apply = useCallback(async (next: BandwidthLimits) => {
+    setApplyError(null)
+    let persisted: BandwidthLimits
     try {
-      // The store publishes `next` optimistically, replaces it with what main actually stored
-      // (main clamps a below-floor value), and restores the previous cap if the write fails — so
-      // the screen cannot end up showing a cap that was never persisted.
-      const persisted = await writeBandwidth(next)
+      persisted = await writeBandwidth(next)
+    } catch {
+      setApplyError('save')
+      return
+    }
+    try {
       await request('settings:set-bandwidth', { ...persisted })
     } catch {
-      // The store has already rolled the displayed value back; the worker keeps its previous cap.
+      setApplyError('restart')
     }
   }, [writeBandwidth])
 
@@ -186,10 +196,10 @@ export default function NetworkSettings({ onBack, onOpenStatus }: NetworkSetting
       custom: custom[direction],
       onPreset: (next: number) => {
         setCustom((prev) => ({ ...prev, [direction]: false }))
-        apply({ ...current, [key]: next })
+        void apply({ ...current, [key]: next })
       },
       onCustom: () => setCustom((prev) => ({ ...prev, [direction]: true })),
-      onValue: (next: number) => apply({ ...current, [key]: next }),
+      onValue: (next: number) => { void apply({ ...current, [key]: next }) },
     }
   }
 
@@ -212,8 +222,10 @@ export default function NetworkSettings({ onBack, onOpenStatus }: NetworkSetting
                 <>
                   <LimitRow {...rowProps('download', limits)} />
                   <LimitRow {...rowProps('upload', limits)} />
-                  {readError && (
-                    <InlineError>{t('networkSettings.limitSaveFailed')}</InlineError>
+                  {applyError && (
+                    <InlineError>
+                      {applyError === 'save' ? t('networkSettings.limitSaveFailed') : t('networkSettings.limitAppliesAfterRestart')}
+                    </InlineError>
                   )}
                 </>
               ) : readError ? (

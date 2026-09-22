@@ -3,7 +3,7 @@
 import InlineError from '../components/primitives/InlineError.js'
 import { useState, useRef, useEffect, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { resizeAvatar, NAME_MAX, AVATAR_INPUT_MAX_BYTES } from '../format/utils.js'
+import { NAME_MAX } from '../format/utils.js'
 import { connectionDesc, activityDesc } from '../model/profile-rows.js'
 import type { Profile } from '../types/types.js'
 import type { IdentityProtection } from '../platform/global.js'
@@ -13,8 +13,8 @@ import { useConnectionStatus } from '../hooks/useConnectionStatus.js'
 import { useUpdates } from '../hooks/useUpdates.js'
 import { useKeyboard } from '../keyboard/KeyboardProvider.js'
 import { useRunAction } from '../hooks/useRunAction.js'
-import { loadAllEntries } from '../platform/changelog.js'
-import * as whatsNew from '../platform/whats-new.js'
+import { useAvatarPicker } from '../hooks/useAvatarPicker.js'
+import { useOpenWhatsNew } from '../hooks/useOpenWhatsNew.js'
 import StatusDot from '../components/primitives/StatusDot.js'
 import Icon from '../components/primitives/Icon.js'
 import type { IconName } from '../types/ui.js'
@@ -68,9 +68,8 @@ function ProfileCard({ profile, onSave }: Pick<AccountProps, 'profile' | 'onSave
   const { t } = useTranslation()
   const runAction = useRunAction()
   const [displayName, setDisplayName] = useState(profile?.displayName || '')
-  const [avatar, setAvatar] = useState<string | null>(profile?.avatar || null)
+  const { avatar, error: avatarError, onChange: handleAvatarChange } = useAvatarPicker(profile?.avatar || null)
   const [saving, setSaving] = useState(false)
-  const [avatarError, setAvatarError] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const hasChanges = displayName !== profile?.displayName || avatar !== profile?.avatar
@@ -86,23 +85,6 @@ function ProfileCard({ profile, onSave }: Pick<AccountProps, 'profile' | 'onSave
         setSaving(false)
       }
     })
-  }
-
-  function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (file.size > AVATAR_INPUT_MAX_BYTES) {
-      setAvatarError(t('settings.avatarTooLarge'))
-      e.target.value = ''
-      return
-    }
-    setAvatarError(null)
-    const reader = new FileReader()
-    reader.onload = async () => {
-      const resized = await resizeAvatar(reader.result as string)
-      setAvatar(resized)
-    }
-    reader.readAsDataURL(file)
   }
 
   return (
@@ -204,6 +186,7 @@ function AppGroup({ onFeedback }: Pick<AccountProps, 'onFeedback'>) {
   const { t } = useTranslation()
   const { openCheatsheet } = useKeyboard()
   const { update } = useUpdates()
+  const openWhatsNew = useOpenWhatsNew()
   const [version, setVersion] = useState('')
 
   useEffect(() => {
@@ -219,11 +202,6 @@ function AppGroup({ onFeedback }: Pick<AccountProps, 'onFeedback'>) {
   const pendingVersion = update
     ? (update.version.semver ?? `${update.version.fork}.${update.version.length}`)
     : null
-
-  async function openWhatsNew() {
-    const all = await loadAllEntries()
-    if (all.length) whatsNew.open(all, 'all')
-  }
 
   return (
     <section>
@@ -255,7 +233,7 @@ function AppGroup({ onFeedback }: Pick<AccountProps, 'onFeedback'>) {
           icon="auto_awesome"
           label={t('aboutSettings.whatsNew')}
           desc={t('aboutSettings.whatsNewDesc')}
-          onClick={() => { void openWhatsNew() }}
+          onClick={openWhatsNew}
         />
         <ActionRow
           icon="keyboard"

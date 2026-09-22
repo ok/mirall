@@ -9,6 +9,7 @@ import { getRelayMode } from '../platform/config-client.js'
 import { isApplyArmed, isReconnectPending, setApplyArmed } from '../platform/relay-session.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import { useConnectionStatus } from '../hooks/useConnectionStatus.js'
+import { useRunAction } from '../hooks/useRunAction.js'
 import Button from '../components/primitives/Button.js'
 import Icon from '../components/primitives/Icon.js'
 import PageHeader from '../components/layout/PageHeader.js'
@@ -172,23 +173,27 @@ function SuggestionsList({ lines }: { lines: string[] }) {
 export default function NetworkStatusScreen({ onBack, onShowHistory, onOpenSettings, onOpenDiagnostics, onOpenAdvanced }: Props) {
   const { t } = useTranslation()
   const { status, reachability, reconnect } = useConnectionStatus()
+  const runAction = useRunAction()
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
   const [reconnecting, setReconnecting] = useState(false)
   const [reconnectThrottled, setReconnectThrottled] = useState(false)
   const browserOnline = typeof navigator !== 'undefined' ? navigator.onLine : true
   const now = Date.now()
 
-  async function handleReconnect() {
+  // The reconnect is what applies an armed relay change, so only a completed one disarms it.
+  function handleReconnect() {
     if (reconnecting) return
     setReconnecting(true)
-    try {
-      await reconnect()
-      setApplyArmed(false)
-    } finally {
-      setReconnecting(false)
-      setReconnectThrottled(true)
-      setTimeout(() => setReconnectThrottled(false), 5000)
-    }
+    runAction(async () => {
+      try {
+        await reconnect()
+        setApplyArmed(false)
+      } finally {
+        setReconnecting(false)
+        setReconnectThrottled(true)
+        setTimeout(() => setReconnectThrottled(false), 5000)
+      }
+    })
   }
 
   const suggestions = buildSuggestions(status, browserOnline, t)

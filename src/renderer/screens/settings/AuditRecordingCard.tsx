@@ -7,7 +7,9 @@ import type { AuditConfig } from '../../types/types.js'
 interface AuditRecordingCardProps {
   /** Null until audit:get-config answers — every read below falls back rather than guessing on. */
   config: AuditConfig | null | undefined
-  onPatch: (next: Partial<AuditConfig>) => Promise<void>
+  onPatch: (next: Partial<AuditConfig>) => void
+  /** A change is in flight: the controls read as unavailable and keep focus. */
+  patching: boolean
 }
 
 /**
@@ -17,7 +19,7 @@ interface AuditRecordingCardProps {
  * small control, not a full-width button: Toggle makes the whole row one click target, which would
  * put the retention segments inside it.
  */
-export default function AuditRecordingCard({ config, onPatch }: AuditRecordingCardProps) {
+export default function AuditRecordingCard({ config, onPatch, patching }: AuditRecordingCardProps) {
   const { t } = useTranslation()
   return (
     <section>
@@ -33,8 +35,9 @@ export default function AuditRecordingCard({ config, onPatch }: AuditRecordingCa
             role="switch"
             aria-checked={config?.enabled ?? false}
             aria-label={t('activityLogSettings.recordActivity')}
-            onClick={() => void onPatch({ enabled: !(config?.enabled ?? false) })}
-            className={`relative shrink-0 w-12 h-7 rounded-full transition-colors focus-ring ${
+            aria-disabled={patching || undefined}
+            onClick={() => onPatch({ enabled: !(config?.enabled ?? false) })}
+            className={`relative shrink-0 w-12 h-7 rounded-full transition-colors focus-ring aria-disabled:opacity-50 ${
               config?.enabled ? 'bg-primary' : 'bg-surface-container-high'
             }`}
           >
@@ -57,7 +60,8 @@ export default function AuditRecordingCard({ config, onPatch }: AuditRecordingCa
                 key={days}
                 label={t('activityLogSettings.retentionDays', { count: days })}
                 selected={config?.retentionDays === days}
-                onSelect={() => void onPatch({ retentionDays: days })}
+                onSelect={() => onPatch({ retentionDays: days })}
+                busy={patching}
               />
             ))}
           </SegmentedControl>

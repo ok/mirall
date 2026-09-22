@@ -16,6 +16,9 @@ interface ButtonProps {
   variant?: ButtonVariant
   fullWidth?: boolean
   disabled?: boolean
+  // Unavailable for a moment (a save in flight) without leaving the tab order: a native `disabled`
+  // on the focused button drops focus to the document. The click handler owns the re-entry guard.
+  ariaDisabled?: boolean
   // Claims initial focus inside a dialog. React focuses it at commit, before react-aria's own
   // fallback runs, so the dialog leaves it alone — that is how a destructive confirm rests on Cancel.
   autoFocus?: boolean
@@ -49,6 +52,7 @@ export default function Button({
   variant = 'primary',
   fullWidth,
   disabled,
+  ariaDisabled,
   autoFocus,
   type = 'button',
   onClick,
@@ -57,7 +61,7 @@ export default function Button({
   ariaDescribedBy,
   ref,
 }: ButtonProps) {
-  const base = 'flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold transition-all active:scale-95 focus:outline-none focus-visible:ring-2 disabled:opacity-50 disabled:cursor-not-allowed'
+  const base = 'flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold transition-all active:scale-95 focus:outline-none focus-visible:ring-2 disabled:opacity-50 disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:cursor-not-allowed'
   const sizeClasses = size === 'lg' ? 'h-14 px-5 text-lg' : 'px-5 py-2.5 text-sm'
   const widthClass = fullWidth ? ' w-full' : ''
   const extra = className ? ` ${className}` : ''
@@ -67,6 +71,7 @@ export default function Button({
       type={type}
       onClick={onClick}
       disabled={disabled}
+      aria-disabled={ariaDisabled || undefined}
       autoFocus={autoFocus}
       aria-label={ariaLabel}
       aria-describedby={ariaDescribedBy}

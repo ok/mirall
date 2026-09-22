@@ -8,6 +8,7 @@ import { useQuery } from '../store/useQuery.js'
 import { foldListing, emptyFold, resolveListing, type Fold } from '../model/share-files-fold.js'
 import { shareDecoKey } from '../../shared/contract/decoration-key.js'
 import { useDecorations } from './useDecorations.js'
+import { useRunAction } from './useRunAction.js'
 import type { ShareFileEntry } from '../types/types.js'
 import type { ShareFileRow } from '../../shared/contract/responses.js'
 
@@ -29,6 +30,7 @@ function toEntry(e: ShareFileRow): ShareFileEntry {
 
 export function useShareFiles(spaceId: string, ownerKey: string, shareId: string) {
   const { byKey: decorations } = useDecorations('transfer', spaceId, shareDecoKey(shareId, ''))
+  const run = useRunAction()
 
   // The share's own rows, plus the space's peer/presence transitions, which change row status
   // without touching the catalog (README.md).
@@ -71,8 +73,10 @@ export function useShareFiles(spaceId: string, ownerKey: string, shareId: string
   )
   const isSeeded = useCallback((relPath: string) => seeded.has(relPath), [seeded])
 
+  // The rows take these as `(relPath) => void`, so a refusal is reported here. Pause and cancel are
+  // useTransferControls', shared with the space screen.
   const downloadFile = useCallback(
-    async (relPath: string) => {
+    (relPath: string) => run(async () => {
       const res = await request('share:read-file', { spaceId, ownerKey, shareId, relPath })
       // The union is the point: a read that was already ours, mirrored by the folder engine, or
       // queued behind it starts no transfer and seeds no bar.
@@ -80,28 +84,19 @@ export function useShareFiles(spaceId: string, ownerKey: string, shareId: string
       // Seed the progress bar; the row's status flips to 'downloading' from the worker's re-derive
       // (the engine emits share-files-updated on start), not a client override.
       setSeeded((prev) => { const next = new Set(prev); next.add(relPath); return next })
-    },
-    [spaceId, ownerKey, shareId]
+    }),
+    [run, spaceId, ownerKey, shareId]
   )
 
   const revealFile = useCallback(
-    async (relPath: string) => {
-      await request('share:reveal-file', { spaceId, ownerKey, shareId, relPath })
-    },
-    [spaceId, ownerKey, shareId]
+    (relPath: string) => run(() => request('share:reveal-file', { spaceId, ownerKey, shareId, relPath })),
+    [run, spaceId, ownerKey, shareId]
   )
 
-  const pauseDownload = useCallback(async (transferId: string) => {
-    await request('files:pause-download', { transferId })
-  }, [])
+  const discardPartial = useCallback(
+    (relPath: string) => run(() => request('share:discard-partial', { spaceId, ownerKey, shareId, relPath })),
+    [run, spaceId, ownerKey, shareId]
+  )
 
-  const cancelDownload = useCallback(async (transferId: string) => {
-    await request('files:cancel-download', { transferId })
-  }, [])
-
-  const discardPartial = useCallback(async (relPath: string) => {
-    await request('share:discard-partial', { spaceId, ownerKey, shareId, relPath })
-  }, [spaceId, ownerKey, shareId])
-
-  return { files, info, loading, error, getDecoration, isSeeded, downloadFile, revealFile, pauseDownload, cancelDownload, discardPartial }
+  return { files, info, loading, error, getDecoration, isSeeded, downloadFile, revealFile, discardPartial }
 }

@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ConfirmDestructiveModal from '../../components/modals/ConfirmDestructiveModal.js'
 import { request } from '../../ipc/ipc.js'
@@ -28,6 +28,8 @@ export default function ActivityLogSettings({ onBack, onOpenLog }: ActivityLogSe
   const { data: config } = useQuery('audit:get-config', {}, null)
   const { data: stats } = useQuery('audit:stats', {}, null)
   const [busy, setBusy] = useState(false)
+  const [patching, setPatching] = useState(false)
+  const patchingRef = useRef(false)
   const [status, setStatus] = useState<string | null>(null)
   const [confirmPurge, setConfirmPurge] = useState(false)
 
@@ -38,11 +40,22 @@ export default function ActivityLogSettings({ onBack, onOpenLog }: ActivityLogSe
     ])
   }, [])
 
-  const patch = useCallback(async (next: Partial<AuditConfig>) => {
-    // The worker answers with the record it applied, so push it rather than re-reading: a refetch
-    // here would race the write it is meant to reflect.
-    setQueryData<AuditConfig>('audit:get-config', {}, await request('audit:configure', next))
-  }, [])
+  // The controls show the stored record, not the click: they move only when the worker answers with
+  // the record it applied, pushed rather than re-read because a refetch here would race the write it
+  // is meant to reflect. A refusal leaves them where they were and is reported.
+  const patch = useCallback((next: Partial<AuditConfig>) => {
+    if (patchingRef.current) return
+    patchingRef.current = true
+    setPatching(true)
+    runAction(async () => {
+      try {
+        setQueryData<AuditConfig>('audit:get-config', {}, await request('audit:configure', next))
+      } finally {
+        patchingRef.current = false
+        setPatching(false)
+      }
+    })
+  }, [runAction])
 
   const handleExport = useCallback(async () => {
     setBusy(true)
@@ -92,7 +105,7 @@ export default function ActivityLogSettings({ onBack, onOpenLog }: ActivityLogSe
         <PageHeader title={t('activityLogSettings.title')} subtitle={t('activityLogSettings.intro')} onBack={onBack} />
 
         <div className="space-y-10">
-          <AuditRecordingCard config={config} onPatch={patch} />
+          <AuditRecordingCard config={config} onPatch={patch} patching={patching} />
 
           <section>
             <SectionHeading>{t('activityLogSettings.export')}</SectionHeading>

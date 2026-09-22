@@ -3,8 +3,7 @@ import { useKeyboard, useRegisterCommands } from '../keyboard/KeyboardProvider.j
 import { spaceDigitAccelerator } from '../keyboard/known-commands.js'
 import type { Command, CommandContext, CommandGroup } from '../keyboard/registry.js'
 import { docsUrl } from '../shell/docs-links.js'
-import { loadAllEntries } from '../platform/changelog.js'
-import * as whatsNew from '../platform/whats-new.js'
+import { useOpenWhatsNew } from './useOpenWhatsNew.js'
 import type { AppNavigation } from './useAppNavigation.js'
 import type { AppDialog } from '../components/modals/AppDialogs.js'
 import type { Space } from '../types/types.js'
@@ -15,6 +14,7 @@ interface AppCommandTargets {
   openDialog: (dialog: AppDialog) => void
   openPalette: () => void
   openCheatsheet: () => void
+  openWhatsNew: () => void
 }
 
 interface AppCommandRow {
@@ -24,12 +24,6 @@ interface AppCommandRow {
   hiddenInPalette?: boolean
   when?: (ctx: CommandContext, targets: AppCommandTargets) => boolean
   run: (targets: AppCommandTargets) => void
-}
-
-function openWhatsNew(): void {
-  loadAllEntries()
-    .then((all) => { if (all.length) whatsNew.open(all, 'all') })
-    .catch((err) => console.error('loadAllEntries failed:', err))
 }
 
 const APP_COMMANDS: readonly AppCommandRow[] = [
@@ -49,7 +43,7 @@ const APP_COMMANDS: readonly AppCommandRow[] = [
   { id: 'network.status', labelKey: 'shortcuts.openNetworkStatus', group: 'navigation', run: (t) => t.nav.setCurrentScreen('network-status') },
   { id: 'space.new', labelKey: 'shortcuts.newSpace', group: 'actions', run: (t) => t.openDialog({ kind: 'create' }) },
   { id: 'space.join', labelKey: 'shortcuts.joinSpace', group: 'actions', run: (t) => t.openDialog({ kind: 'join' }) },
-  { id: 'help.whatsNew', labelKey: 'shortcuts.whatsNew', group: 'system', run: () => openWhatsNew() },
+  { id: 'help.whatsNew', labelKey: 'shortcuts.whatsNew', group: 'system', run: (t) => t.openWhatsNew() },
   { id: 'help.feedback', labelKey: 'shortcuts.sendFeedback', group: 'system', run: (t) => t.openDialog({ kind: 'feedback' }) },
   { id: 'help.docs', labelKey: 'shortcuts.openDocs', group: 'system', run: () => { window.open(docsUrl({ page: 'hub' }), '_blank', 'noopener') } },
 ]
@@ -103,7 +97,8 @@ interface AppCommandsArgs {
 
 export function useAppCommands({ nav, spaces, canGoBack, openDialog }: AppCommandsArgs): void {
   const { openPalette, openCheatsheet, runCommand } = useKeyboard()
-  const targets: AppCommandTargets = { nav, canGoBack, openDialog, openPalette, openCheatsheet }
+  const openWhatsNew = useOpenWhatsNew()
+  const targets: AppCommandTargets = { nav, canGoBack, openDialog, openPalette, openCheatsheet, openWhatsNew }
   useRegisterCommands(APP_COMMANDS.map((row) => toCommand(row, targets)), [])
   useRegisterCommands(spaces.map((space, i) => spaceOpenCommand(space, i, nav)), [spaces])
   useMouseBackButton(runCommand)

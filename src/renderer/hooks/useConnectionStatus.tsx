@@ -152,10 +152,9 @@ export function ConnectionStatusProvider({ children }: ProviderProps) {
     request('network:check-liveness').catch(() => {})
   }, [osOnline])
 
+  // Rejects: the screen that offered the reconnect reports a refusal.
   const reconnect = useCallback(async () => {
-    try {
-      await request('network:reconnect')
-    } catch {}
+    await request('network:reconnect')
   }, [])
 
   const probeCanary = useCallback(async (opts?: { force?: boolean }) => {

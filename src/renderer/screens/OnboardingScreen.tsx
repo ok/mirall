@@ -2,7 +2,9 @@
 import InlineError from '../components/primitives/InlineError.js'
 import { useState, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { resizeAvatar, NAME_MAX, AVATAR_INPUT_MAX_BYTES } from '../format/utils.js'
+import { NAME_MAX } from '../format/utils.js'
+import { useAvatarPicker } from '../hooks/useAvatarPicker.js'
+import { useErrorText } from '../hooks/useErrorText.js'
 import Icon from '../components/primitives/Icon.js'
 import Avatar from '../components/primitives/Avatar.js'
 import Button from '../components/primitives/Button.js'
@@ -14,35 +16,31 @@ interface OnboardingProps {
 
 export default function OnboardingScreen({ onComplete }: OnboardingProps) {
   const { t } = useTranslation()
+  const errorText = useErrorText()
   const [displayName, setDisplayName] = useState('')
-  const [avatar, setAvatar] = useState<string | null>(null)
-  const [avatarError, setAvatarError] = useState<string | null>(null)
+  const { avatar, error: avatarError, onChange: handleAvatarChange } = useAvatarPicker(null)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
+  // This screen renders before the toast region exists, so a refused save is said under the button
+  // it came from. The button stays focused and only reads as unavailable while the save is in
+  // flight, which is also what stops Enter and a click from submitting twice.
   async function handleContinue() {
-    if (!displayName.trim()) return
-    await onComplete({ displayName: displayName.trim(), avatar })
+    if (!displayName.trim() || saving) return
+    setSaving(true)
+    setSaveError(null)
+    try {
+      await onComplete({ displayName: displayName.trim(), avatar })
+    } catch (err) {
+      setSaveError(errorText(err))
+    } finally {
+      setSaving(false)
+    }
   }
 
   function handleAvatarClick() {
     fileRef.current?.click()
-  }
-
-  function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (file.size > AVATAR_INPUT_MAX_BYTES) {
-      setAvatarError(t('settings.avatarTooLarge'))
-      e.target.value = ''
-      return
-    }
-    setAvatarError(null)
-    const reader = new FileReader()
-    reader.onload = async () => {
-      const resized = await resizeAvatar(reader.result as string)
-      setAvatar(resized)
-    }
-    reader.readAsDataURL(file)
   }
 
   return (
@@ -106,7 +104,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingProps) {
                 placeholder={t('onboarding.displayNamePlaceholder')}
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleContinue()}
+                onKeyDown={(e) => { if (e.key === 'Enter') void handleContinue() }}
               />
               <p className="text-xs text-on-surface-variant px-1">
                 {t('onboarding.displayNameHelp')}
@@ -116,11 +114,21 @@ export default function OnboardingScreen({ onComplete }: OnboardingProps) {
               </p>
             </div>
 
-            <div className="pt-4">
-              <Button size="lg" fullWidth onClick={handleContinue} disabled={!displayName.trim()}>
-                {t('actions.continue')}
+            <div className="pt-4 space-y-3">
+              <Button
+                size="lg"
+                fullWidth
+                onClick={() => void handleContinue()}
+                disabled={!displayName.trim()}
+                ariaDisabled={saving}
+                ariaDescribedBy={saveError ? 'onboarding-save-error' : undefined}
+              >
+                {saving ? t('actions.saving') : t('actions.continue')}
                 <Icon name="arrow_forward" />
               </Button>
+              {saveError && (
+                <InlineError id="onboarding-save-error" className="px-1">{saveError}</InlineError>
+              )}
             </div>
           </div>
         </div>
