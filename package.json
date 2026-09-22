@@ -71,6 +71,7 @@
     "knip": "^6.37.0",
     "marked": "^18.0.13",
     "modern-screenshot": "^4.7.0",
+    "pear-runtime-updater": "^3.4.0",
     "react": "^19.3.0",
     "react-aria": "^3.52.1",
     "react-dom": "^19.3.0",
