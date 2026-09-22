@@ -51,6 +51,18 @@ import {
   pureSharesModules,
 } from './eslint-rules/invariants.mjs'
 
+// Every renderer no-restricted-syntax table, by name. A later block's no-restricted-syntax REPLACES
+// an earlier one, so every renderer block builds its list from here, naming only what it drops.
+const rendererSyntax = {
+  status: rendererStatusRestrictions,
+  byteLadder: byteFormatterSingleOwnerRestrictions,
+  swallowed: swallowedRejectionRestrictions,
+}
+const rendererRestrictedSyntax = (...drop) => [
+  'error',
+  ...Object.entries(rendererSyntax).filter(([name]) => !drop.includes(name)).flatMap(([, table]) => table),
+]
+
 export default [
   // Vendored hyper-overlay v2 subset — third-party code kept re-diffable
   // against upstream (PROVENANCE.md), so our complexity/style rules don't apply.
@@ -74,7 +86,7 @@ export default [
       'jsx-a11y/no-autofocus': 'off',
       'jsx-a11y/label-has-associated-control': ['error', { depth: 3 }],
       'jsx-a11y/no-noninteractive-tabindex': ['error', { roles: ['tabpanel', 'region'] }],
-      'no-restricted-syntax': ['error', ...rendererStatusRestrictions, ...byteFormatterSingleOwnerRestrictions],
+      'no-restricted-syntax': rendererRestrictedSyntax(),
       'no-restricted-imports': ['error', { patterns: rendererContractOnlyImports }],
       'local/no-unguarded-async-effect': ['error', {
         allow: [...Object.keys(unmountOnlyAsyncEffects), ...Object.keys(outOfOrderAsyncEffects)],
@@ -94,22 +106,19 @@ export default [
     rules: { 'no-empty': ['error', { allowEmptyCatch: false }] },
   },
 
-  // See swallowedRejectionRestrictions. The block repeats the renderer's other selectors because a
-  // later no-restricted-syntax replaces an earlier one rather than adding to it.
-  {
-    files: ['src/renderer/{screens,components,hooks}/**/*.{ts,tsx,js}'],
-    rules: { 'no-restricted-syntax': ['error', ...rendererStatusRestrictions, ...byteFormatterSingleOwnerRestrictions, ...swallowedRejectionRestrictions] },
-  },
+  // Exact per-site lists live in swallowedRejectionExemptions and promiseLintAllowlist, held by
+  // test/invariants/renderer-promise-lint.test.js. A listed file keeps no-misused-promises for
+  // conditionals and spreads; only the void-return and floating checks are the test's to hold.
   {
     files: Object.keys(swallowedRejectionExemptions),
-    rules: { 'no-restricted-syntax': ['error', ...rendererStatusRestrictions, ...byteFormatterSingleOwnerRestrictions] },
+    rules: { 'no-restricted-syntax': rendererRestrictedSyntax('swallowed') },
   },
-
-  // Exact per-file counts live in promiseLintAllowlist and are held by
-  // test/invariants/renderer-promise-lint.test.js, which lints with no allowances.
   {
     files: Object.keys(promiseLintAllowlist),
-    rules: { '@typescript-eslint/no-floating-promises': 'off', '@typescript-eslint/no-misused-promises': 'off' },
+    rules: {
+      '@typescript-eslint/no-floating-promises': 'off',
+      '@typescript-eslint/no-misused-promises': ['error', { checksVoidReturn: false }],
+    },
   },
 
   // Data layer — Bare worker + shared modules (ESM).
@@ -228,11 +237,11 @@ export default [
     rules: { 'no-restricted-syntax': 'off' },
   },
 
-  // The one module the byte-ladder rule exists to protect. The renderer's status invariant still
-  // applies to it, so only the ladder restriction is dropped.
+  // The one module the byte-ladder rule exists to protect. The renderer's other tables still apply
+  // to it, so only the ladder restriction is dropped.
   {
     files: ['src/renderer/format/bytes.js'],
-    rules: { 'no-restricted-syntax': ['error', ...rendererStatusRestrictions] },
+    rules: { 'no-restricted-syntax': rendererRestrictedSyntax('byteLadder') },
   },
 
   // Harness and tooling. Neither tree is typechecked, so an identifier left behind by a refactor

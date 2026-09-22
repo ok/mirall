@@ -91,76 +91,355 @@ export const unmountOnlyAsyncEffects = Object.freeze({
 // can win — wrong data on screen. Allowlisting one would be a green test over a live defect.
 export const outOfOrderAsyncEffects = Object.freeze({})
 
-// Failure-path invariant for screens, controls and hooks: a rejection there is the end of a user
-// action or the read behind one, and swallowing it whole says nothing. Two shapes core `no-empty`
-// cannot see: a catch whose block holds only a comment, and a `.catch` handed an empty function.
-// Exported so test/invariants/renderer-promise-lint.test.js parses the same grammar.
+// Failure-path invariant for the renderer: a rejection there is the end of a user action or the
+// read behind one, and swallowing it whole says nothing. The shapes core `no-empty` cannot see: a
+// catch holding only a comment or a bare `return`, and a no-op handed to `.catch` or as the second
+// argument of `.then` — an empty body, a bare `return`, `undefined`, `void 0`, or a function named as
+// a no-op. A fallback VALUE (`() => null`, `() => []`) is a decision and stays legal. Exported so
+// test/invariants/renderer-promise-lint.test.js parses the same grammar.
 const swallowedMessage = 'This swallows a rejection whole. Report a user action through useRunAction (InlineError outside ToastProvider); a deliberate best-effort site goes in swallowedRejectionExemptions with its reason.'
+const noopHandlers = [
+  ":matches(ArrowFunctionExpression, FunctionExpression)[body.type='BlockStatement'][body.body.length=0]",
+  ":matches(ArrowFunctionExpression, FunctionExpression)[body.type='BlockStatement'][body.body.length=1][body.body.0.type='ReturnStatement']:not([body.body.0.argument])",
+  "ArrowFunctionExpression[body.type='Identifier'][body.name='undefined']",
+  "ArrowFunctionExpression[body.type='UnaryExpression'][body.operator='void'][body.argument.type='Literal']",
+  'Identifier[name=/^_?(noop|ignore|swallow|nothing)$/i]',
+]
 export const swallowedRejectionRestrictions = [
   { selector: 'CatchClause > BlockStatement.body[body.length=0]', message: swallowedMessage },
-  {
-    selector: "CallExpression[callee.property.name='catch'] > :matches(ArrowFunctionExpression, FunctionExpression).arguments[body.type='BlockStatement'][body.body.length=0]",
-    message: swallowedMessage,
-  },
+  { selector: "CatchClause > BlockStatement.body[body.length=1][body.0.type='ReturnStatement']:not([body.0.argument])", message: swallowedMessage },
+  ...noopHandlers.map((handler) => ({ selector: `CallExpression[callee.property.name='catch'] > ${handler}.arguments:nth-child(1)`, message: swallowedMessage })),
+  ...noopHandlers.map((handler) => ({ selector: `CallExpression[callee.property.name='then'] > ${handler}.arguments:nth-child(2)`, message: swallowedMessage })),
 ]
 
 // The sites above that are deliberate: no user is waiting on them, or a store already renders the
-// failure. `sites` is exact, so a new swallow in a listed file is caught as surely as one elsewhere.
+// failure. Each site is keyed by its enclosing scopes and code (test/helpers/lint-site-key.js), and
+// the list is exact, so a new swallow in a listed file is caught as surely as one elsewhere.
 export const swallowedRejectionExemptions = Object.freeze({
-  'src/renderer/screens/AccountScreen.tsx': { sites: 1, why: 'A mount-time read of the identity-protection mode; on failure the row keeps its neutral state.' },
-  'src/renderer/screens/NetworkDiagnosticsScreen.tsx': { sites: 2, why: 'Unmount cleanup turning verbose logging back off; nobody is left on the screen to tell.' },
-  'src/renderer/screens/settings/ActivityLogSettings.tsx': { sites: 1, why: 'The re-read after a purge; the purge outcome is already reported and the store owns read errors.' },
-  'src/renderer/components/primitives/FilenameTitle.tsx': { sites: 1, why: 'Feature detection of canvas letterSpacing, which older engines reject; not a promise at all.' },
-  'src/renderer/components/toast/bridges/JoinRequestToastBridge.tsx': { sites: 1, why: 'A background re-read that only dismisses stale join-request toasts; failing leaves them up.' },
-  'src/renderer/hooks/useConnectionStatus.tsx': { sites: 5, why: 'Mount reads and liveness hints to the worker; status frames arrive by push and supersede them.' },
-  'src/renderer/hooks/useFiles.ts': { sites: 1, why: 'Retry of the file list through the query store, which renders the read error itself.' },
-  'src/renderer/hooks/useIndexProgress.ts': { sites: 1, why: 'A seed read for the indexing notice; progress frames arrive by push and replace it.' },
-  'src/renderer/hooks/useMembershipRequests.ts': { sites: 1, why: 'Batch approval counts each failure and reports the batch once in a summary toast.' },
-  'src/renderer/hooks/usePeerDownloadDetail.ts': { sites: 2, why: 'Subscribe seed read and unmount unsubscribe for serving detail; frames arrive by push.' },
-  'src/renderer/hooks/usePeerDownloads.ts': { sites: 1, why: 'A seed read for peer download rows; progress frames arrive by push and replace it.' },
-  'src/renderer/hooks/useSpaces.ts': { sites: 1, why: 'The re-read after a space mutation; the mutation itself rejects to its caller and the store owns read errors.' },
+  'src/renderer/components/primitives/FilenameTitle.tsx': {
+    why: 'Feature detection of canvas letterSpacing, which older engines reject; not a promise at all.',
+    sites: [
+      'FilenameTitle > useLayoutEffect > remeasure: try { (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacin',
+    ],
+  },
+  'src/renderer/components/toast/bridges/JoinRequestToastBridge.tsx': {
+    why: 'A background re-read that only dismisses stale join-request toasts; failing leaves them up.',
+    sites: [
+      'JoinRequestToastBridge > useEffect > unsubResolved > subscribe: request(\'space:pending-requests\', { spaceId: msg.spaceId }).then((result) => { c',
+    ],
+  },
+  'src/renderer/hooks/useConnectionStatus.tsx': {
+    why: 'Mount reads and liveness hints to the worker; status frames arrive by push and supersede them.',
+    sites: [
+      'ConnectionStatusProvider > useEffect > onChange: request(\'network:check-liveness\').catch(() => {})',
+      'ConnectionStatusProvider > useEffect: request(\'network:check-liveness\').catch(() => {})',
+      'ConnectionStatusProvider > useEffect: request(\'network:online-hint\', { online: osOnline }).catch(() => {})',
+      'ConnectionStatusProvider > useEffect: request(\'network:status:get\') .then((data) => { if (cancelled) return // The swa',
+      'ConnectionStatusProvider > useEffect: window.bridge.getNetOnline().then(setNetOnline).catch(() => {})',
+    ],
+  },
+  'src/renderer/hooks/useDownloadRootStatus.ts': {
+    why: 'A re-probe of download-root reachability through the query store, which renders the read error itself.',
+    sites: [
+      'useDownloadRootStatus > refresh > useCallback: refetchQuery<RootsStatus>(\'downloads:roots-status\', {}, null).catch(() => undefi',
+    ],
+  },
+  'src/renderer/hooks/useFiles.ts': {
+    why: 'Retry of the file list through the query store, which renders the read error itself.',
+    sites: [
+      'useFiles > refresh > useCallback: refetchQuery<FileEntry[]>(\'files:list\', { spaceId }, filesScopes(spaceId)).catch',
+    ],
+  },
+  'src/renderer/hooks/useFolderMount.ts': {
+    why: 'Cancelling a folder scan preview; the screen has already left the preview and ignores its result.',
+    sites: [
+      'cancelOwnedPreview: request(\'owned-folder:cancel-preview\', { previewId }).catch(() => undefined)',
+    ],
+  },
+  'src/renderer/hooks/useForeignMount.ts': {
+    why: 'Cancelling a mirror scan preview; the screen has already left the preview and ignores its result.',
+    sites: [
+      'cancelForeignPreview: request(\'foreign-folder:cancel-preview\', { previewId }).catch(() => undefined)',
+    ],
+  },
+  'src/renderer/hooks/useIndexProgress.ts': {
+    why: 'A seed read for the indexing notice; progress frames arrive by push and replace it.',
+    sites: [
+      'useIndexProgress > useEffect: request(\'owned-folder:index-status\', { spaceId, shareId }) // Narrowed to the tw',
+    ],
+  },
+  'src/renderer/hooks/usePeerDownloadDetail.ts': {
+    why: 'Subscribe seed read and unmount unsubscribe for serving detail; frames arrive by push.',
+    sites: [
+      'usePeerDownloadDetail > useEffect: request(\'serving:detail-subscribe\', { spaceId, path }).then((snap) => { if (!act',
+      'usePeerDownloadDetail > useEffect: request(\'serving:detail-unsubscribe\', { spaceId, path }).catch(() => {})',
+    ],
+  },
+  'src/renderer/hooks/usePeerDownloads.ts': {
+    why: 'A seed read for peer download rows; progress frames arrive by push and replace it.',
+    sites: [
+      'usePeerDownloads > useEffect: request(\'serving:summary-list\', { spaceId }) .then((rows) => { if (!alive) retur',
+    ],
+  },
+  'src/renderer/hooks/useSpaces.ts': {
+    why: 'The re-read after a space mutation; the mutation itself rejects to its caller and the store owns read errors.',
+    sites: [
+      'useSpaces > refresh: refetchQuery<Space[]>(\'spaces:list\', {}, SPACES_SCOPES).catch(() => {})',
+    ],
+  },
+  'src/renderer/ipc/ipc.ts': {
+    why: 'Tells the worker to stop a request nobody waits for any more; a late answer is dropped anyway.',
+    sites: [
+      'request > tellWorkerToStop: window.bridge.writeWorkerIPC(WORKER_SPEC, encoder.encode(frame)).catch(() => und',
+    ],
+  },
+  'src/renderer/notifications/prefs.ts': {
+    why: 'One-time migration of legacy localStorage prefs; unreadable legacy data is simply left behind.',
+    sites: [
+      'migrateLegacy: try { const raw = localStorage.getItem(LEGACY_STORAGE_KEY) if (raw === null) ret',
+    ],
+  },
+  'src/renderer/platform/config-client.ts': {
+    why: 'One-time migration of legacy localStorage keys; unreadable legacy data is simply left behind.',
+    sites: [
+      'migrateLegacyLocalStorage: try { const patch: RendererConfigPatch = {} const appearance: { theme?: ThemeMod',
+    ],
+  },
+  'src/renderer/screens/AccountScreen.tsx': {
+    why: 'A mount-time read of the identity-protection mode; on failure the row keeps its neutral state.',
+    sites: [
+      'DeviceGroup > useEffect: window.bridge.getIdentityProtection().then(setIdentity).catch(() => {})',
+    ],
+  },
+  'src/renderer/screens/NetworkDiagnosticsScreen.tsx': {
+    why: 'Unmount cleanup turning verbose logging back off; nobody is left on the screen to tell.',
+    sites: [
+      'NetworkDiagnosticsScreen > useEffect: request(\'setVerbose\', { verbose: false }).catch(() => {})',
+      'NetworkDiagnosticsScreen > useEffect: window.bridge.setVerbose(false).catch(() => {})',
+    ],
+  },
+  'src/renderer/screens/settings/ActivityLogSettings.tsx': {
+    why: 'The re-read after a purge; the purge outcome is already reported and the store owns read errors.',
+    sites: [
+      'ActivityLogSettings > handlePurge > useCallback > runAction: refresh().catch(() => {})',
+    ],
+  },
+  'src/renderer/shell/resume-screen.ts': {
+    why: 'Remembering the screen to resume in sessionStorage; without storage the app boots at the root.',
+    sites: [
+      'rememberScreen: try { sessionStorage.setItem(KEY, screen) } catch { /* no resume, no harm */ }',
+    ],
+  },
+  'src/renderer/store/query-store.js': {
+    why: 'A hint-driven background refetch; the entry keeps the error and every subscribed screen renders it.',
+    sites: [
+      'refetch: fetchQuery(entry.type, entry.params ?? {}, entry.scopes).catch(() => {})',
+    ],
+  },
+  'src/renderer/store/reconcile.ts': {
+    why: 'A reconcile-driven re-read; the query entry keeps the error and the screen renders it.',
+    sites: [
+      'reread: refetchQuery(type, {}, scopes).catch(() => undefined)',
+    ],
+  },
+  'src/renderer/store/useMainQuery.ts': {
+    why: 'The mount read; the store keeps the error on the entry and the screen renders it.',
+    sites: [
+      'useMainQuery > useEffect: fetchMain(name).catch(() => {})',
+    ],
+  },
+  'src/renderer/store/useQuery.ts': {
+    why: 'The mount read; the store keeps the error on the entry and the screen renders it.',
+    sites: [
+      'useQuery > useEffect: fetchQuery<RequestResponse[K]>(type, params, scopes, opts).catch(() => {})',
+    ],
+  },
 })
 
 // Typed promise lint (`no-floating-promises` with ignoreVoid off, `no-misused-promises`) cannot tell
-// a handler that reports its own failure from one that drops it. These files hold only the first
-// kind, or deliberate best-effort calls; each count is exact and may only go down.
+// a handler that reports its own failure from one that drops it. These sites are the first kind, or
+// deliberate best-effort calls; the list is exact, keyed like the table above, and may only shrink.
 export const promiseLintAllowlist = Object.freeze({
-  'src/renderer/app.tsx': { hits: 1, why: 'The boot What\'s New check; a changelog that cannot be read simply shows nothing.' },
-  'src/renderer/main.tsx': { hits: 2, why: 'Dev-only axe-core loader, which catches and warns inside its own IIFE.' },
-  'src/renderer/ipc/ipc.ts': { hits: 1, why: 'Scheduled worker respawn; spawnWorker catches a failed spawn and reschedules itself.' },
-  'src/renderer/platform/config-client.ts': { hits: 1, why: 'Fire-and-forget persistence of renderer config; the in-memory cache already holds the value.' },
-  'src/renderer/platform/i18n.ts': { hits: 3, why: 'i18next init, language switch and tray label push; all resolve locally or are cosmetic.' },
-  'src/renderer/platform/theme.ts': { hits: 1, why: 'Tells main the theme for native chrome; cosmetic, the renderer already applied it.' },
-  'src/renderer/platform/updates.ts': { hits: 1, why: 'Background update detection; a failed version read leaves the update state as it was.' },
-  'src/renderer/platform/window-bounds.ts': { hits: 4, why: 'Best-effort window-bounds persistence on resize, blur, hide and unload.' },
-  'src/renderer/notifications/click-router.ts': { hits: 4, why: 'Focus and reveal on an OS notification click; best-effort window management.' },
-  'src/renderer/notifications/dispatcher.ts': { hits: 5, why: 'OS notifications; showing one is best-effort and the in-app state is the record.' },
-  'src/renderer/hooks/useAppShellEffects.ts': { hits: 1, why: 'The one-time first-hide OS notification; best-effort.' },
-  'src/renderer/hooks/useAuditLog.ts': { hits: 2, why: 'reload catches into the hook\'s error state, which the log screen renders.' },
-  'src/renderer/hooks/usePendingSpaceAction.ts': { hits: 1, why: 'Native directory picker; main\'s handler rejects only if the OS dialog itself fails.' },
-  'src/renderer/hooks/useShareActions.ts': { hits: 1, why: 'locate catches relocate failures into a toast; the picker before it rejects only if the OS dialog fails.' },
-  'src/renderer/components/activity/ActivityFeed.tsx': { hits: 1, why: 'loadMore catches into the audit hook\'s error state, which the feed renders.' },
-  'src/renderer/components/primitives/FilenameTitle.tsx': { hits: 1, why: 'document.fonts.ready never rejects; it only triggers a remeasure.' },
-  'src/renderer/components/modals/AddFolderShareModal.tsx': { hits: 2, why: 'wizard.next toasts its own failure; browse is the native picker.' },
-  'src/renderer/components/modals/AddRelayModal.tsx': { hits: 3, why: 'onAdd and parseRelayInput resolve to an error code the modal renders inline.' },
-  'src/renderer/components/modals/CreateSpaceModal.tsx': { hits: 1, why: 'handleCreate catches into the modal\'s inline error.' },
-  'src/renderer/components/modals/EditFolderModal.tsx': { hits: 3, why: 'handleSave catches into the field errors; browse is the native picker.' },
-  'src/renderer/components/modals/EditSpaceModal.tsx': { hits: 3, why: 'handleSave catches into the field errors; browse is the native picker.' },
-  'src/renderer/components/modals/FeedbackModal.tsx': { hits: 1, why: 'handleSubmit catches into the modal\'s inline error.' },
-  'src/renderer/components/modals/InviteModal.tsx': { hits: 1, why: 'handleCreate catches into the modal\'s inline error.' },
-  'src/renderer/components/modals/JoinSpaceModal.tsx': { hits: 2, why: 'handleJoin catches into the modal\'s inline error.' },
-  'src/renderer/components/modals/LeaveSpaceModal.tsx': { hits: 1, why: 'handleLeave catches and toasts, then re-arms the dialog.' },
-  'src/renderer/components/modals/MirrorFolderModal.tsx': { hits: 2, why: 'wizard.next toasts its own failure; browse is the native picker.' },
-  'src/renderer/components/modals/RemoveFileModal.tsx': { hits: 1, why: 'handleRemove catches and toasts.' },
-  'src/renderer/components/modals/ScanPreviewModal.tsx': { hits: 2, why: 'onConfirm is the mount wizard\'s confirm, which toasts its own failure.' },
-  'src/renderer/screens/ConnectionProblemScreen.tsx': { hits: 1, why: 'probeCanary resolves null on failure and the verdict stays as it was.' },
-  'src/renderer/screens/FolderScreen.tsx': { hits: 2, why: 'locate catches relocate failures into a toast; the picker before it rejects only if the OS dialog fails.' },
-  'src/renderer/screens/NetworkDiagnosticsScreen.tsx': { hits: 2, why: 'run catches into the screen\'s status line.' },
-  'src/renderer/screens/OnboardingScreen.tsx': { hits: 2, why: 'handleContinue catches into the inline error; Onboarding renders outside ToastProvider.' },
-  'src/renderer/screens/SpaceScreen.tsx': { hits: 9, why: 'addFiles, approve, deny and approveMany toast their own failures; refresh goes through the store; locate as in FolderScreen.' },
-  'src/renderer/screens/settings/ActivityLogSettings.tsx': { hits: 1, why: 'handleExport catches into the screen\'s status line.' },
-  'src/renderer/screens/settings/NetworkSettings.tsx': { hits: 2, why: 'apply catches both writes into the save-failed alert or the applies-after-restart note.' },
-  'src/renderer/screens/settings/StorageSettings.tsx': { hits: 1, why: 'handleBrowseFolder catches into the folder field\'s inline error.' },
+  'src/renderer/components/activity/ActivityFeed.tsx': {
+    why: 'loadMore catches into the audit hook\'s error state, which the feed renders.',
+    sites: [
+      'no-floating-promises ActivityFeed > onClick: void loadMore()',
+    ],
+  },
+  'src/renderer/components/modals/AddFolderShareModal.tsx': {
+    why: 'wizard.next toasts its own failure; browse is the native picker.',
+    sites: [
+      'no-floating-promises AddFolderShareModal > onBrowse: void handleBrowse()',
+      'no-floating-promises AddFolderShareModal > onNext: void wizard.next()',
+    ],
+  },
+  'src/renderer/components/modals/AddRelayModal.tsx': {
+    why: 'onAdd and parseRelayInput resolve to an error code the modal renders inline.',
+    sites: [
+      'no-misused-promises AddRelayModal > onClick: {handleAdd}',
+      'no-misused-promises AddRelayModal > onClick: {handleContinue}',
+      'no-misused-promises AddRelayModal > onConfirm: {decoded ? handleAdd : handleContinue}',
+    ],
+  },
+  'src/renderer/components/modals/CreateSpaceModal.tsx': {
+    why: 'handleCreate catches into the modal\'s inline error.',
+    sites: [
+      'no-misused-promises CreateSpaceModal > onClick: {handleCreate}',
+    ],
+  },
+  'src/renderer/components/modals/EditFolderModal.tsx': {
+    why: 'handleSave catches into the field errors; browse is the native picker.',
+    sites: [
+      'no-misused-promises EditFolderModal > onAction: {canRelocate ? handleBrowse : undefined}',
+      'no-misused-promises EditFolderModal > onClick: {handleSave}',
+      'no-misused-promises EditFolderModal > onConfirm: {handleSave}',
+    ],
+  },
+  'src/renderer/components/modals/EditSpaceModal.tsx': {
+    why: 'handleSave catches into the field errors; browse is the native picker.',
+    sites: [
+      'no-misused-promises EditSpaceModal > onAction: {handleBrowse}',
+      'no-misused-promises EditSpaceModal > onClick: {handleSave}',
+      'no-misused-promises EditSpaceModal > onConfirm: {handleSave}',
+    ],
+  },
+  'src/renderer/components/modals/FeedbackModal.tsx': {
+    why: 'handleSubmit catches into the modal\'s inline error.',
+    sites: [
+      'no-misused-promises FeedbackModal > onClick: {handleSubmit}',
+    ],
+  },
+  'src/renderer/components/modals/InviteModal.tsx': {
+    why: 'handleCreate catches into the modal\'s inline error.',
+    sites: [
+      'no-misused-promises InviteModal > onClick: {handleCreate}',
+    ],
+  },
+  'src/renderer/components/modals/JoinSpaceModal.tsx': {
+    why: 'handleJoin catches into the modal\'s inline error.',
+    sites: [
+      'no-misused-promises JoinSpaceModal > onClick: {handleJoin}',
+      'no-misused-promises JoinSpaceModal > onConfirm: {handleJoin}',
+    ],
+  },
+  'src/renderer/components/modals/LeaveSpaceModal.tsx': {
+    why: 'handleLeave catches and toasts, then re-arms the dialog.',
+    sites: [
+      'no-misused-promises LeaveSpaceModal > onClick: {handleLeave}',
+    ],
+  },
+  'src/renderer/components/modals/MirrorFolderModal.tsx': {
+    why: 'wizard.next toasts its own failure; browse is the native picker.',
+    sites: [
+      'no-floating-promises MirrorFolderModal > onBrowse: void wizard.browse()',
+      'no-floating-promises MirrorFolderModal > onNext: void wizard.next()',
+    ],
+  },
+  'src/renderer/components/modals/RemoveFileModal.tsx': {
+    why: 'handleRemove catches and toasts.',
+    sites: [
+      'no-floating-promises RemoveFileModal > onConfirm: void handleRemove()',
+    ],
+  },
+  'src/renderer/components/modals/ScanPreviewModal.tsx': {
+    why: 'onConfirm is the mount wizard\'s confirm, which toasts its own failure.',
+    sites: [
+      'no-misused-promises ScanPreviewModal > onClick: {handleConfirm}',
+      'no-misused-promises ScanPreviewModal > onConfirm: {busy || overLimit ? undefined : handleConfirm}',
+    ],
+  },
+  'src/renderer/components/primitives/FilenameTitle.tsx': {
+    why: 'document.fonts.ready never rejects; it only triggers a remeasure.',
+    sites: [
+      'no-floating-promises FilenameTitle > useLayoutEffect: document.fonts?.ready.then(() => { if (!cancelled) remeasure() })',
+    ],
+  },
+  'src/renderer/hooks/useAuditLog.ts': {
+    why: 'reload catches into the hook\'s error state, which the log screen renders.',
+    sites: [
+      'no-floating-promises useAuditLog > useEffect > subscribe: void reload()',
+      'no-floating-promises useAuditLog > useEffect: void reload()',
+    ],
+  },
+  'src/renderer/hooks/usePendingSpaceAction.ts': {
+    why: 'Native directory picker; main\'s handler rejects only if the OS dialog itself fails.',
+    sites: [
+      'no-floating-promises usePendingSpaceAction > openFolderPicker > useCallback: void window.bridge.browseShareFolder().then((picked) => { if (!picked || mounted',
+    ],
+  },
+  'src/renderer/hooks/useShareActions.ts': {
+    why: 'locate catches relocate failures into a toast; the picker before it rejects only if the OS dialog fails.',
+    sites: [
+      'no-floating-promises useShareActions > onStripAction > useCallback: void locate(share)',
+    ],
+  },
+  'src/renderer/ipc/ipc.ts': {
+    why: 'Scheduled worker respawn; spawnWorker catches a failed spawn and reschedules itself.',
+    sites: [
+      'no-floating-promises scheduleRespawn > setTimeout: void spawnWorker()',
+    ],
+  },
+  'src/renderer/main.tsx': {
+    why: 'Dev-only axe-core loader, which catches and warns inside its own IIFE.',
+    sites: [
+      'no-floating-promises (module): axe(React, ReactDOM, 1000)',
+      'no-floating-promises (module): void (async () => { try { // axe-core/react instruments by overwriting React.cre',
+    ],
+  },
+  'src/renderer/screens/FolderScreen.tsx': {
+    why: 'locate catches relocate failures into a toast; the picker before it rejects only if the OS dialog fails.',
+    sites: [
+      'no-floating-promises FolderScreen > actions > onLocate: void locate(share)',
+      'no-floating-promises FolderScreen > onLocate: void locate(share)',
+    ],
+  },
+  'src/renderer/screens/NetworkDiagnosticsScreen.tsx': {
+    why: 'run catches into the screen\'s status line.',
+    sites: [
+      'no-misused-promises NetworkDiagnosticsScreen > onClick: {() => run(\'preview\')}',
+      'no-misused-promises NetworkDiagnosticsScreen > onClick: {() => run(\'save\')}',
+    ],
+  },
+  'src/renderer/screens/OnboardingScreen.tsx': {
+    why: 'handleContinue catches into the inline error; Onboarding renders outside ToastProvider.',
+    sites: [
+      'no-floating-promises OnboardingScreen > onClick: void handleContinue()',
+      'no-floating-promises OnboardingScreen > onKeyDown: void handleContinue()',
+    ],
+  },
+  'src/renderer/screens/SpaceScreen.tsx': {
+    why: 'addFiles, approve, deny and approveMany toast their own failures; refresh goes through the store; locate as in FolderScreen.',
+    sites: [
+      'no-floating-promises SpaceScreen > listing > onRetry: void refresh()',
+      'no-floating-promises SpaceScreen > onApproveMany: void handleApproveMany(keys)',
+      'no-misused-promises SpaceScreen > onApprove: {handleApprove}',
+      'no-misused-promises SpaceScreen > onDeny: {handleDeny}',
+      'no-misused-promises SpaceScreen > onDeny: {handleDeny}',
+      'no-misused-promises SpaceScreen > onFiles: addFiles',
+      'no-misused-promises SpaceScreen > onFiles: {addFiles}',
+      'no-misused-promises SpaceScreen > onFilesSelected: {addFiles}',
+      'no-misused-promises SpaceScreen > onLocate: {locate}',
+    ],
+  },
+  'src/renderer/screens/settings/ActivityLogSettings.tsx': {
+    why: 'handleExport catches into the screen\'s status line.',
+    sites: [
+      'no-floating-promises ActivityLogSettings > onClick: void handleExport()',
+    ],
+  },
+  'src/renderer/screens/settings/NetworkSettings.tsx': {
+    why: 'apply catches both writes into the save-failed alert or the applies-after-restart note.',
+    sites: [
+      'no-floating-promises NetworkSettings > rowProps > onPreset: void apply({ ...current, [key]: next })',
+      'no-floating-promises NetworkSettings > rowProps > onValue: void apply({ ...current, [key]: next })',
+    ],
+  },
+  'src/renderer/screens/settings/StorageSettings.tsx': {
+    why: 'handleBrowseFolder catches into the folder field\'s inline error.',
+    sites: [
+      'no-misused-promises StorageSettings > onAction: {handleBrowseFolder}',
+    ],
+  },
 })
 
 // Pure folder policy: these modules import no bare-* so they load under plain Node, where test/unit
