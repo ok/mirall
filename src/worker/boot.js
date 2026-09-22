@@ -112,8 +112,8 @@ export async function bootDurable(bootstrap, { ipc, log, masterSecret = undefine
   try { await durable.start(auditLog) } catch (err) {
     log.warn('audit log unavailable — events will not be recorded:', err.message)
   }
-  // After the audit log, so on the way out it flushes before that bee closes; before the drives,
-  // so the spaces bee its flush reads is still open too.
+  // After the audit log, so on the way out it closes first: the rows its close reaps are drained by
+  // the audit log's own close, while the spaces bee those rows read is still open.
   await durable.start(new ServeLedger('serve-ledger', { ipc }))
   await durable.start(new OwnCatalogs('own-catalogs'))
   await durable.start(new PeerCatalogs('peer-catalogs'))
@@ -164,7 +164,7 @@ export async function boot(bootstrap, {
   // an unbounded drain would leave the swarms and the store never closed, which is worse than
   // abandoning it. Each tier gets its own budget: one shared deadline let a busy runtime tier
   // spend all of it and skip the durable tier outright — including the store close that releases
-  // the RocksDB lock, and the ledger flush that records the shutdown's own audit rows.
+  // the RocksDB lock, and the audit log's drain that records the shutdown's own audit rows.
   async function close({ budgetMs = 1500, durableBudgetMs = 1500 } = {}) {
     // First, ahead of the flush window below: no subsystem's `stopping` is set until life.close()
     // runs, so a probe firing in between reads a healthy lifecycle and could re-arm work this

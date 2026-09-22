@@ -118,6 +118,18 @@ test('recordResolved answers what became of the row', async (t) => {
   t.absent(read, 'and a disabled log does not read at all')
 })
 
+test('flushing the log waits for a read already in flight', async (t) => {
+  await boot(t)
+  let release
+  const gate = new Promise((resolve) => { release = resolve })
+  recordResolved('space.created', async () => { await gate; return row('flushed') })
+  const flushing = flushAudit()
+  release()
+  await flushing
+  const { entries } = await queryAudit({})
+  t.ok(entries.some((e) => e.target?.id === 'flushed'), 'the row is in the log once the flush resolves')
+})
+
 test('closing the log waits for a read already in flight, so its row lands', async (t) => {
   await boot(t)
   let release

@@ -12,11 +12,6 @@ import { getSpace } from '../spaces/space.js'
 import { OUTCOME, TARGET_KIND } from '../contract/audit-kinds.js'
 import { selfActor, spaceRef, targetRef } from './audit-record.js'
 
-// Every recordTransferOutcome() still in flight, awaited at shutdown so a download that lands
-// during teardown still records: the write is a spaces-bee read then an audit-bee write in a
-// microtask nobody else holds.
-const pending = new Set()
-
 // 'EHASHMISMATCH' is the raw vendor code; the engine maps it to TRANSFER_CHECKSUM before this is
 // reached. Both are accepted so a caller that has not been through terminalCodeFor classifies the
 // same way.
@@ -29,7 +24,7 @@ function kindFor(outcome, errorCode) {
 
 export function recordTransferOutcome(job, outcome, errorCode) {
   const fileName = path.basename(job.relPath || job.path || '')
-  const write = recordResolved(kindFor(outcome, errorCode), async () => {
+  recordResolved(kindFor(outcome, errorCode), async () => {
     const space = await getSpace(job.spaceId)
     return {
       actor: selfActor(),
@@ -47,17 +42,4 @@ export function recordTransferOutcome(job, outcome, errorCode) {
       code: errorCode || null,
     }
   }, { context: { space: job.spaceId?.slice(0, 12) } })
-  pending.add(write)
-  write.finally(() => pending.delete(write))
-}
-
-// Awaits the writes already issued, bounded: a hung spaces-bee read must not hold the shutdown
-// past its budget.
-export async function drainTransferAudit({ settleMs = 2000 } = {}) {
-  if (!pending.size) return
-  await Promise.race([
-    Promise.allSettled([...pending]),
-    new Promise((resolve) => { const t = setTimeout(resolve, settleMs); t.unref?.() }),
-  ])
-  pending.clear()
 }

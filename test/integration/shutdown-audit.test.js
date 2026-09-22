@@ -41,14 +41,12 @@ test('REGRESSION (LIFECYCLE-2e): a serve still live at shutdown is recorded', as
   await after.tier.close()
 })
 
-// recordTransferOutcome issues an unawaited getSpace().then(record); OverlayBackend._close drains
-// those before the durable tier closes the audit bee. This asserts the OUTCOME — a burst settling at
-// shutdown loses no rows — and deliberately does NOT claim to be a regression test for the drain:
-// measured, it passes with the drain removed, because 100 queued spaces-bee reads still finish long
-// before the durable tier goes down. The window the drain closes is the one LIFECYCLE-2e proved real
-// for serve.completed, where the rows are created BY the teardown itself and the remaining time is a
-// fraction of this; reproducing that for a download needs a fetch settling mid-close, which is a race
-// no assertion can pin. The drain is defence in depth against a known-reachable window, not dead code.
+// recordTransferOutcome issues a recordResolved nobody awaits; AuditLog's close drains the reads in
+// flight before the bee closes. This asserts the OUTCOME — a burst settling at shutdown loses no
+// rows — and deliberately does NOT claim to be a regression test for the drain: 100 queued
+// spaces-bee reads finish long before the durable tier goes down. The window the drain closes is the
+// one LIFECYCLE-2e above proved real, where the rows are created BY the teardown itself; reproducing
+// that for a download needs a fetch settling mid-close, which is a race no assertion can pin.
 test('a burst of transfers settling during shutdown loses no audit rows', async (t) => {
   const ctx = await freshPeer(t)
   const space = await createSpace('Aurora')

@@ -201,9 +201,10 @@ async function append(kind, fields, target) {
   await batch.flush()
 }
 
-// Awaits everything queued so far. The read and reclaim siblings need the log settled;
-// instrumentation call sites never do.
+// Awaits everything issued so far, a row still being read included (bounded, like the close). The
+// read and reclaim siblings need the log settled; instrumentation call sites never do.
 export async function flushAudit() {
+  await settleWithin(resolving, RESOLVE_DRAIN_MS)
   await writeChain.catch(() => {})
 }
 
