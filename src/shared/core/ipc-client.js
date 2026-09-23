@@ -2,7 +2,9 @@
 // minted by the CALLER and every caller starts at 1, so the id alone is not a key — the owning
 // client is the other half. Holding the in-flight map on the client IS the namespacing: there is no
 // composite key to build, parse or get wrong.
-export function createClient(id, pipe, { trust = 'host', attachedAt = 0 } = {}) {
+import { TRUST } from '../contract/ipc-frames.js'
+
+export function createClient(id, pipe, { trust = TRUST.PEER, attachedAt = 0 } = {}) {
   let closed = false
   return {
     id,
@@ -10,10 +12,14 @@ export function createClient(id, pipe, { trust = 'host', attachedAt = 0 } = {}) 
     // delivered live, so a resume must not send it again — that is what keeps the client's view of
     // the sequence monotonic across a catch-up.
     attachedAt,
-    // Who is on the other end. 'host' is the process that spawned us (main, relaying its renderer):
-    // the only kind that exists until the daemon listens on a socket, and the only kind that may
-    // stop or restart the worker. Declared now so that rule has something to read.
+    // Who is on the other end, decided by the worker from the transport this client arrived on and
+    // never read off a frame — a claim is not a credential. 'host' is the process that spawned us
+    // (main, relaying its renderer): the only kind that may stop or restart the worker. The default
+    // is the lesser authority, so an attach that forgets to say what it is cannot grant itself more.
     trust,
+    // What the client said it is, once its hello was accepted. Null until then, and the router
+    // refuses every other frame while it is.
+    hello: null,
     inFlight: new Map(),
     get closed() { return closed },
     // Never throws: a handler whose client left mid-request still runs to completion and answers,

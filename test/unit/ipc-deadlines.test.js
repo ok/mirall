@@ -3,6 +3,7 @@ import { EventEmitter } from 'events'
 import { createIPC, getRequestFailureCounters, resetRequestFailureCounters } from '../../src/shared/core/ipc.js'
 import { deadlineFor, enforcementFor, DEFAULT_DEADLINE_MS } from '../../src/shared/contract/request-deadlines.js'
 import { REQUESTS } from '../../src/shared/contract/requests.js'
+import { sayHello } from '../helpers/ipc-hello.js'
 
 const TEST_REQUESTS = Object.freeze({
   'slowQuery': { kind: 'query', deadlineMs: 100, args: {} },
@@ -26,6 +27,7 @@ function router(handlers = {}) {
   const clock = { t: 0 }
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS, now: () => clock.t })
+  sayHello(pipe)
   for (const [name, fn] of Object.entries(handlers)) ipc.handle(name, fn)
   ipc.start()
   return { ipc, pipe, clock }
@@ -126,8 +128,10 @@ test('ages are sorted oldest first and span every client', async (t) => {
   const a = fakePipe()
   const b = fakePipe()
   const ipc = createIPC(a, { requests: TEST_REQUESTS, now: () => clock.t })
+  sayHello(a)
   ipc.handle('plainQuery', () => new Promise(() => {}))
   ipc.attach(b)
+  sayHello(b)
   ipc.start()
 
   a.feed({ id: 1, type: 'plainQuery' })
@@ -178,8 +182,10 @@ test('REGRESSION (FIX-397-1): a throwing log neither retires the request nor ski
   const b = fakePipe()
   const signals = []
   const ipc = createIPC(a, { requests: TEST_REQUESTS, now: () => clock.t })
+  sayHello(a)
   ipc.handle('slowQuery', (msg, ctx) => { signals.push(ctx.signal); return new Promise(() => {}) })
   ipc.attach(b)
+  sayHello(b)
   ipc.start()
   a.feed({ id: 1, type: 'slowQuery' })
   b.feed({ id: 1, type: 'slowQuery' })

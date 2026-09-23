@@ -31,9 +31,3 @@ export function checkProtocolCompatibility(frame, {
   if (version < theirMin) return { ok: false, reason: 'we-are-older', theirs: them, ours: version }
   return { ok: true, reason: null, theirs: them, ours: version }
 }
-
-/** @param {ProtocolVerdict} verdict */
-export function protocolMismatchMessage({ reason, theirs, ours }) {
-  if (reason === 'no-version') return `the host sent no protocol version; this worker speaks v${ours}`
-  return `protocol mismatch: the host speaks v${theirs}, this worker speaks v${ours}`
-}

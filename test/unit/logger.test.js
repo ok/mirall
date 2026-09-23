@@ -1,6 +1,6 @@
 import test from 'brittle'
 import { createLogger } from '../../src/shared/core/logger.js'
-import { setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
+import { setVerbose } from '../helpers/runtime-verbose.js'
 
 const TAG = '[test]'
 
@@ -17,7 +17,6 @@ function captureLogger(t) {
     console.log = real.log
     console.warn = real.warn
     console.error = real.error
-    setRuntimeConfig({})
   })
   return counts
 }
@@ -26,7 +25,7 @@ test('logger gates debug/info on the verbose flag, always emits warn/error', (t)
   const counts = captureLogger(t)
   const log = createLogger('test')
 
-  setRuntimeConfig({ verbose: false })
+  setVerbose(t, false)
   log.debug('hidden')
   log.info('hidden')
   t.is(counts.log, 0, 'debug + info are silent when verbose is off')
@@ -40,14 +39,14 @@ test('a live verbose flip changes an existing logger instance (per-call gate)', 
   const counts = captureLogger(t)
   const log = createLogger('test')
 
-  setRuntimeConfig({ verbose: false })
+  setVerbose(t, false)
   log.debug('hidden')
   log.info('hidden')
   t.is(counts.log, 0, 'silent before the flip')
 
   // Flip verbose on at runtime — the same logger instance must now emit, since
   // it reads the flag on every call (this is what window.mirall.verbose relies on).
-  setRuntimeConfig({ verbose: true })
+  setVerbose(t, true)
   log.debug('now shown')
   log.info('now shown')
   t.is(counts.log, 2, 'debug + info emit after the flip, no new logger needed')

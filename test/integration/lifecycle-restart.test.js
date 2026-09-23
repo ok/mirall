@@ -23,6 +23,7 @@ const { startForeignLoop } = await import('../../src/shared/folders/foreign-verb
 const { boot } = await import('../../src/worker/boot.js')
 const { createFakeIpc } = await import('../helpers/fake-ipc.js')
 const { createIPC } = await import('../../src/shared/core/ipc.js')
+const { sayHello } = await import('../helpers/ipc-hello.js')
 const { createHealthMonitor } = await import('../../src/shared/core/health.js')
 const { bindConnectionLifecycle } = await import('../../src/worker/connection-lifecycle.js')
 
@@ -107,8 +108,10 @@ test('REGRESSION (LIFECYCLE-1b): in-process restart against the same storage', a
 })
 
 // A boot the worker refuses never reaches boot(), so the teardown it runs is the same sequence with
-// every step a no-op — the case main.js takes when bootstrapPromise rejects. What must hold is that
-// the refusal settles, the monitor is stopped, and nothing stays armed.
+// every step a no-op — the case main.js takes when bootstrapPromise rejects. The refusal here is the
+// VERSION one, which is the refusal a released host can actually earn: it speaks a wire this build
+// no longer accepts. What must hold is that it settles, the monitor is stopped, and nothing stays
+// armed.
 test('a refused bootstrap tears down cleanly and leaves nothing armed', async (t) => {
   const before = timers.intervals().length
   const pipe = new EventEmitter()
@@ -117,14 +120,38 @@ test('a refused bootstrap tears down cleanly and leaves nothing armed', async (t
   const health = createHealthMonitor()
   health.start()
 
-  pipe.emit('data', Buffer.from(JSON.stringify({ type: 'bootstrap', storage: '/tmp/nope' }) + '\n'))
-  await t.exception(ipc.bootstrapPromise, /no protocol version/)
+  sayHello(pipe, { protocolVersion: 0, protocolMin: 0, protocolMax: 0 })
+  await t.exception(ipc.bootstrapPromise, /protocol mismatch/)
 
   // main.js's catch: health.stop(), abortAll, then close a root that is still null.
   health.stop()
   t.is(ipc.abortAll('protocol-mismatch'), 0, 'no request ever dispatched, so nothing to abort')
   t.is(ipc.inFlightCount(), 0)
   t.is(timers.intervals().length, before, 'the health monitor is the only timer, and it stopped')
+})
+
+// The epoch is minted per createIPC call, so a restarted worker is always a different stream. This
+// is the fact the renderer's resync branch rests on: replay cannot cover a reconnect across a
+// process, and a client carrying the dead generation's cursor has to be told so rather than
+// silently skipped forward.
+test('a restarted router is a new stream, and the old cursor is answered as a gap', async (t) => {
+  const first = new EventEmitter()
+  first.write = () => true
+  const ipc = createIPC(first)
+  ipc.start()
+  ipc.emit('event:network-status', { n: 1 })
+  const cursor = { epoch: ipc.epoch, since: ipc.head() }
+
+  const second = new EventEmitter()
+  second.write = () => true
+  const again = createIPC(second)
+  again.start()
+  t.not(again.epoch, ipc.epoch, 'a new process is a new stream')
+
+  const answer = again.resume(again.primary, cursor)
+  t.is(answer.gap, true, 'the cursor from the dead generation is refused rather than mis-applied')
+  t.is(answer.epoch, again.epoch, 'and the client is told which stream this actually is')
+  t.is(answer.replayed, 0)
 })
 
 // Teardown WITHOUT exit: a closed pipe disconnects a client, and whether the worker then stops is a

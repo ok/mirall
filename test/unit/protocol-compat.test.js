@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { checkProtocolCompatibility, protocolMismatchMessage } from '../../src/shared/contract/protocol-compat.js'
+import { checkProtocolCompatibility } from '../../src/shared/contract/protocol-compat.js'
 import { IPC_PROTOCOL_VERSION, IPC_PROTOCOL_MIN_SUPPORTED } from '../../src/shared/contract/ipc-frames.js'
 
 test('a matching version is compatible', (t) => {
@@ -16,6 +16,12 @@ test('the shipped constants agree with themselves', (t) => {
     protocolMax: IPC_PROTOCOL_VERSION,
   }
   t.is(checkProtocolCompatibility(frame).ok, true, 'the frame main sends is one this build accepts')
+})
+
+// The window narrowed to 2/2 when the hello became mandatory: a v1 host has no hello to send in
+// front of its bootstrap, so the wire it speaks is genuinely a different one.
+test('a host still on the pre-handshake wire is below the floor', (t) => {
+  t.is(checkProtocolCompatibility({ protocolVersion: 1 }).reason, 'too-old')
 })
 
 test('a frame with no protocolVersion is refused, not defaulted', (t) => {
@@ -56,12 +62,4 @@ test('a non-integer version is not a version', (t) => {
   t.is(checkProtocolCompatibility({ protocolVersion: '1' }).reason, 'no-version')
   t.is(checkProtocolCompatibility({ protocolVersion: 1.5 }).reason, 'no-version')
   t.is(checkProtocolCompatibility(null).reason, 'no-version')
-})
-
-test('the refusal message names both sides', (t) => {
-  const missing = protocolMismatchMessage({ reason: 'no-version', theirs: null, ours: 4 })
-  t.ok(missing.includes('no protocol version'), 'a versionless host is described as such')
-  t.ok(missing.includes('v4'))
-  const mismatch = protocolMismatchMessage({ reason: 'we-are-newer', theirs: 2, ours: 4 })
-  t.ok(mismatch.includes('v2') && mismatch.includes('v4'), 'both versions appear')
 })

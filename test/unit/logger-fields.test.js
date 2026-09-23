@@ -1,11 +1,10 @@
 import test from 'brittle'
 import { createLogger, fields } from '../../src/shared/core/logger.js'
-import { setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
+import { setVerbose } from '../helpers/runtime-verbose.js'
 import { tagged } from '../helpers/capture-console.js'
 
 function capture(t) {
-  setRuntimeConfig({ verbose: true })
-  t.teardown(() => setRuntimeConfig({}))
+  setVerbose(t, true)
   return tagged(t, '[probe]')
 }
 
@@ -57,7 +56,7 @@ test('false and zero are rendered, not treated as absent', (t) => {
 
 test('the level gate still applies to a line carrying fields', (t) => {
   const lines = capture(t)
-  setRuntimeConfig({ verbose: false })
+  setVerbose(t, false)
   const log = createLogger('probe')
   log.debug('hidden', fields({ a: 1 }))
   t.is(lines.length, 0, 'debug stays below the default level')

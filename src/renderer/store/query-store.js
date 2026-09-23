@@ -317,12 +317,42 @@ export function invalidateKey(shouldDrop) {
     if (!shouldDrop(key)) continue
     dropped.push(key)
     if (entry.timer) { clearTimeout(entry.timer); entry.timer = null }
-    if (entry.subscribers.size === 0) { entry.controller?.abort(); entries.delete(key); continue }
+    // abandon() and not a bare abort: the read in flight has to be DISOWNED as well as stopped, or
+    // its cancellation comes back on an entry nobody holds any more and is rethrown at the awaiter
+    // as a failure rather than resolving quietly.
     abandon(entry)
+    if (entry.subscribers.size === 0) { entries.delete(key); continue }
     entry.data = undefined
     entry.error = null
     publish(entry)
     if (entry.type) scheduleRefetch(entry)
   }
   return dropped
+}
+
+// A new worker generation: every cached answer came from a process that is gone, and the entries
+// nobody is watching cannot be re-read on demand. Unlike invalidateKey this KEEPS `data` and
+// `error` — a resync is a re-read, not a purge, and a screen that blanked here would announce a
+// restart the user did not ask about. Returns the keys it refetched.
+/** @returns {string[]} */
+export function resyncQueries() {
+  /** @type {string[]} */
+  const refetched = []
+  for (const [key, entry] of [...entries]) {
+    // A coalescing window opened against the dead worker means nothing, and its trailing refetch
+    // would fire against the new one at an arbitrary moment after this pass.
+    if (entry.timer) { clearTimeout(entry.timer); entry.timer = null }
+    entry.pendingHint = false
+    // An entry nobody is watching has no view to re-read it; dropping it is what bounds the map,
+    // and the next mount fetches afresh. Abandoned first either way: see invalidateKey.
+    abandon(entry)
+    if (entry.subscribers.size === 0) { entries.delete(key); continue }
+    publish(entry)
+    if (!entry.type) continue
+    refetched.push(key)
+    // Directly, not through scheduleRefetch: the window was just cleared, and a resync is one event
+    // per worker generation — there is nothing to coalesce it with.
+    refetch(entry)
+  }
+  return refetched
 }

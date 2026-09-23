@@ -1,7 +1,7 @@
 import test from 'brittle'
 import {
   configureQueryStore, fetchQuery, invalidate, keyOf, peek, subscribeKey, resetQueryStore,
-  setQueryData, refetchQuery, invalidateKey, pruneByParam,
+  setQueryData, refetchQuery, invalidateKey, pruneByParam, resyncQueries,
 } from '../../src/renderer/store/query-store.js'
 
 // A transport that records every call and lets a test settle each one by hand, so concurrency is
@@ -540,4 +540,68 @@ test('ADOPT-A2: the paramless listing keeps its wildcard scope whichever hook mo
 
   const touched = invalidate({ kind: 'shares', spaceId: 'a-space-never-visited-first' })
   t.ok(touched.includes('owned-folder:list-all'), 'a hint for any space reaches the shared listing')
+})
+
+// A new worker generation re-reads what the old one answered. The distinction that matters is
+// between a re-read and a purge: a purge blanks every screen the moment the engine restarts.
+test('a resync refetches every watched entry without blanking it', async (t) => {
+  const tr = setup(t)
+  subscribeKey(keyOf('spaces:list'), () => {})
+  fetchQuery('spaces:list', {}, null)
+  tr.settle(0, ['one'])
+  await tick()
+  const before = peek(keyOf('spaces:list')).data
+
+  const keys = resyncQueries()
+  t.alike(keys, [keyOf('spaces:list')], 'the watched entry was refetched')
+  t.is(peek(keyOf('spaces:list')).data, before, 'and its data is the SAME object throughout — no screen blanks')
+  t.is(tr.count(), 2, 'a second read went out')
+  tr.settle(1, ['two'])
+  await tick()
+  t.alike(peek(keyOf('spaces:list')).data, ['two'])
+})
+
+test('a resync drops what nobody is watching, so the map stays bounded', async (t) => {
+  const tr = setup(t)
+  fetchQuery('spaces:list', {}, null)
+  tr.settle(0, ['one'])
+  await tick()
+  resyncQueries()
+  t.is(tr.count(), 1, 'an unwatched entry is not refetched')
+  t.is(peek(keyOf('spaces:list')).data, undefined, 'it was dropped rather than kept stale')
+})
+
+test('a resync aborts the read the dead worker was never going to answer', async (t) => {
+  const tr = setup(t)
+  subscribeKey(keyOf('spaces:list'), () => {})
+  fetchQuery('spaces:list', {}, null).catch(() => {})
+  resyncQueries()
+  t.alike(tr.aborted, ['spaces:list'])
+})
+
+test('a resync keeps an error until the re-read answers', async (t) => {
+  const tr = setup(t)
+  subscribeKey(keyOf('spaces:list'), () => {})
+  fetchQuery('spaces:list', {}, null).catch(() => {})
+  tr.fail(0, Object.assign(new Error('gone'), { code: 'WORKER_UNAVAILABLE' }))
+  await tick()
+  resyncQueries()
+  t.is(peek(keyOf('spaces:list')).error.message, 'gone', 'the explained failure stays until it is replaced')
+})
+
+// REGRESSION (FIX-QS-DROP: dropping an entry nobody was watching aborted its read without bumping
+// `seq`, so the cancellation came back as a live failure: it wrote `error` onto an entry already
+// removed from the map and rethrew at whoever was awaiting the fetch. The watched branch abandoned
+// first; the two disagreed, and only every caller happening to hold a `.catch` hid it.)
+test('REGRESSION (FIX-QS-DROP: dropping an unwatched entry resolves its read quietly)', async (t) => {
+  const tr = setup(t)
+  const dropped = fetchQuery('spaces:list', {}, null)
+  invalidateKey(() => true)
+  await t.execution(dropped, 'our own abort is not a failure the caller has to handle')
+  t.alike(tr.aborted, ['spaces:list'], 'and the worker was still told to stop')
+  t.is(peek(keyOf('spaces:list')).error, null, 'nothing was written back onto the entry that was removed')
+
+  const resynced = fetchQuery('space:members', { spaceId: 's1' }, null)
+  resyncQueries()
+  await t.execution(resynced, 'the resync drops by the same rule')
 })

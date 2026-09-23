@@ -2,6 +2,7 @@ import test from 'brittle'
 import { EventEmitter } from 'events'
 import { createIPC } from '../../src/shared/core/ipc.js'
 import { requireHost } from '../../src/shared/core/client-trust.js'
+import { sayHello } from '../helpers/ipc-hello.js'
 
 // A stop ends every client's session, so it is the host's call. Every client is the host until the
 // worker listens on a socket, so this refuses nobody today — the point is that the rule exists
@@ -23,6 +24,7 @@ const tick = () => new Promise((resolve) => setTimeout(resolve, 0))
 function router() {
   const host = fakePipe()
   const ipc = createIPC(host, { requests: REQUESTS })
+  sayHello(host)
   const stops = []
   ipc.handle('shutdown', (msg, ctx) => {
     requireHost(ctx.client)
@@ -35,7 +37,7 @@ function router() {
 
 test('requireHost passes the host and refuses anyone else', (t) => {
   t.execution(() => requireHost({ trust: 'host' }))
-  t.exception(() => requireHost({ trust: 'client' }), /only the host/)
+  t.exception(() => requireHost({ trust: 'peer' }), /only the host/)
   t.exception(() => requireHost(null))
 })
 
@@ -53,7 +55,8 @@ test('the host is acknowledged BEFORE the teardown runs', async (t) => {
 test('a non-host client is refused and nothing stops', async (t) => {
   const { ipc, stops } = router()
   const other = fakePipe()
-  ipc.attach(other, { trust: 'client' })
+  ipc.attach(other, { trust: 'peer' })
+  sayHello(other)
   other.feed({ id: 1, type: 'shutdown' })
   await tick()
   await tick()

@@ -4,12 +4,12 @@
 import { createLogger, fields } from './logger.js'
 import { EXPECTED_CODES as CONTRACT_EXPECTED_CODES, INVALID_ARGUMENT } from '../contract/errors.js'
 import { IPC_MAX_FRAME_BYTES } from '../contract/limits.js'
-import { FRAME } from '../contract/ipc-frames.js'
+import { FRAME, TRUST } from '../contract/ipc-frames.js'
 import { createEventPlane, scopeForEvent } from './ipc-events.js'
 import { createClientRegistry } from './ipc-client.js'
 import { createDispatcher } from './ipc-dispatch.js'
 import { createDeadlineWatch } from './ipc-deadlines.js'
-import { checkProtocolCompatibility, protocolMismatchMessage } from '../contract/protocol-compat.js'
+import { createHandshake } from './ipc-handshake.js'
 import { AppError } from './errors.js'
 import { CODES } from '../contract/errors.js'
 import { createHandlerTable } from './handler-table.js'
@@ -100,28 +100,6 @@ export function createIPC(pipe, {
   // drop a different client's identically-numbered frame.
   const queued = []
   let ready = false
-  let bootstrapResolve
-  let bootstrapReject
-  const bootstrapPromise = new Promise((resolve, reject) => {
-    bootstrapResolve = resolve
-    bootstrapReject = reject
-  })
-  // A rejection nobody is awaiting yet is an unhandled rejection the crash backstop would count.
-  // The single production awaiter attaches before any frame can arrive, but a test router that
-  // never awaits must not take the process down with it.
-  bootstrapPromise.catch(() => {})
-
-  // The protocol check happens before any other field is read: a frame from a host on a different
-  // wire is refused whole, rather than defaulted field by field into a degraded worker. Resolver
-  // and rejecter are nulled together, so a second frame — a host retrying — cannot re-settle it.
-  function settleBootstrap(msg) {
-    if (!bootstrapResolve) return
-    const compat = checkProtocolCompatibility(msg)
-    if (compat.ok) bootstrapResolve(msg)
-    else bootstrapReject(new AppError(CODES.PROTOCOL_MISMATCH, protocolMismatchMessage(compat)))
-    bootstrapResolve = null
-    bootstrapReject = null
-  }
 
   // One reader per client: it holds partial-frame state, so a shared one would splice two clients'
   // bytes into a frame neither sent.
@@ -146,11 +124,25 @@ export function createIPC(pipe, {
   }
 
   function readFrame(client, msg) {
+    // First, and before the `ready` test: a client must be able to introduce itself during a slow
+    // boot, and nothing else it sends is honoured until it has.
+    if (msg && msg.type === FRAME.HELLO) {
+      handshake.greetClient(client, msg)
+      return
+    }
     if (msg && msg.type === FRAME.BOOTSTRAP) {
       // Only from the first client. The frame carries the identity KEK and the storage path, so a
       // peer that attached later must not be able to settle — or re-settle — the worker's boot.
-      if (client === primary) settleBootstrap(msg)
+      if (client === primary) handshake.readBootstrap(client, msg)
       else log.warn('bootstrap frame from a non-primary client, ignored')
+      return
+    }
+    // Refused rather than queued: a client that skipped the handshake is not one whose work should
+    // start the moment boot finishes.
+    if (!client.hello) {
+      log.warn('frame before hello, refused:', msg && msg.type)
+      countFailure((msg && msg.type) || 'unknown-command', CODES.NOT_AUTHORIZED)
+      respond(msg && msg.id, null, 'hello first', CODES.NOT_AUTHORIZED, null, client)
       return
     }
     // Before the `ready` test on purpose: a cancel dispatched through the queue would be
@@ -238,6 +230,7 @@ export function createIPC(pipe, {
 
   const events = createEventPlane({ clients, log, epoch, replay })
   const { emit, resume } = events
+  const handshake = createHandshake({ log, events, clients, isPrimary: (client) => client === primary })
 
   function handle(type, fn) {
     table.register(type, fn)
@@ -252,10 +245,9 @@ export function createIPC(pipe, {
     clients.goLive()
   }
 
-  // The pipe handed to createIPC is the first client's. Keeping the one-pipe signature is what
-  // makes this change reviewable: every existing caller — production and the whole test suite —
-  // gets the behaviour it had, and the multi-client paths are reached through attach() alone.
-  const primary = pipe ? clients.attach(pipe) : null
+  // The pipe handed to createIPC is the first client's, and the spawn pipe is the host by
+  // construction: it is the process that started us, and the only one that may stop us.
+  const primary = pipe ? clients.attach(pipe, { trust: TRUST.HOST }) : null
 
   return {
     handle, emit, respond, start, cancel, abortAll, sweepDeadlines, inFlightAges, resume,
@@ -266,7 +258,7 @@ export function createIPC(pipe, {
     onClientAttach: (fn) => clients.onAttach(fn),
     onClientDisconnect: (fn) => clients.onDisconnect(fn),
     primary,
-    bootstrapPromise,
+    bootstrapPromise: handshake.bootstrapPromise,
     // The pre-start queue is otherwise invisible: it is bounded, and a caller that keeps hitting that
     // bound during a slow boot is exactly the condition worth surfacing.
     queueDepth: () => queued.length,

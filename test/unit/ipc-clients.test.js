@@ -2,6 +2,8 @@ import test from 'brittle'
 import { EventEmitter } from 'events'
 import { createIPC } from '../../src/shared/core/ipc.js'
 import { IPC_PROTOCOL_VERSION } from '../../src/shared/contract/ipc-frames.js'
+import { sayHello } from '../helpers/ipc-hello.js'
+import { requireHost } from '../../src/shared/core/client-trust.js'
 
 // A router with N pipes behind it. The first is the one createIPC was built with — the single
 // client every other test in the suite models — and the rest are attached the way a daemon would
@@ -9,6 +11,7 @@ import { IPC_PROTOCOL_VERSION } from '../../src/shared/contract/ipc-frames.js'
 const TEST_REQUESTS = Object.freeze({
   'files:list': { kind: 'query', args: {} },
   'ping': { kind: 'query', args: {} },
+  'shutdown': { kind: 'command', args: {} },
   'slow': { kind: 'query', args: {} },
 })
 
@@ -28,6 +31,7 @@ function router({ handlers = {}, pipes = 2, start = true } = {}) {
   const ipc = createIPC(wires[0], { requests: TEST_REQUESTS })
   for (const [name, fn] of Object.entries(handlers)) ipc.handle(name, fn)
   const clients = [ipc.primary, ...wires.slice(1).map((p) => ipc.attach(p))]
+  wires.forEach((wire) => sayHello(wire))
   if (start) ipc.start()
   return { ipc, wires, clients }
 }
@@ -230,6 +234,18 @@ test('the handler context names the client that asked', async (t) => {
   wires[1].feed({ id: 4, type: 'ping' })
   await tick()
   t.is(ctxSeen.client.id, 2)
-  t.is(ctxSeen.client.trust, 'host')
+  t.is(ctxSeen.client.trust, 'peer', 'a client that is not the spawn pipe gets the lesser authority')
   t.is(ctxSeen.id, 4)
+})
+
+// Trust is assigned from the transport, so the default has to be the lesser authority: an attach
+// that says nothing about itself must not be able to stop the worker every other client is using.
+test('a client that is not the spawn pipe cannot stop the worker', async (t) => {
+  const { wires } = router({ handlers: { shutdown: (msg, ctx) => { requireHost(ctx.client); return { ok: true } } } })
+  wires[1].feed({ id: 9, type: 'shutdown' })
+  await tick()
+  t.is(wires[1].frames().at(-1).code, 'NOT_AUTHORIZED')
+  wires[0].feed({ id: 9, type: 'shutdown' })
+  await tick()
+  t.alike(wires[0].frames().at(-1).data, { ok: true }, 'while the spawn pipe still may')
 })

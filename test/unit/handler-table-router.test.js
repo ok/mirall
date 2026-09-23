@@ -1,8 +1,9 @@
 import test from 'brittle'
 import { createIPC, getRequestFailureCounters, resetRequestFailureCounters } from '../../src/shared/core/ipc.js'
-import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { ARG } from '../../src/shared/contract/requests.js'
 import { INVALID_ARGUMENT } from '../../src/shared/contract/errors.js'
+import { sayHello } from '../helpers/ipc-hello.js'
+import { setVerbose } from '../helpers/runtime-verbose.js'
 
 const TEST_REQUESTS = Object.freeze({
   'thing:do': { kind: 'command', args: { spaceId: { type: ARG.spaceId }, count: { type: ARG.number, optional: true } } },
@@ -22,15 +23,15 @@ function fakePipe() {
 }
 
 function setup(t) {
-  const prev = getRuntimeConfig()
-  setRuntimeConfig({ ...prev, verbose: false })
+  setVerbose(t, false)
   resetRequestFailureCounters()
   const warns = []
   const origWarn = console.warn
   console.warn = (...a) => warns.push(a.join(' '))
-  t.teardown(() => { console.warn = origWarn; setRuntimeConfig(prev); resetRequestFailureCounters() })
+  t.teardown(() => { console.warn = origWarn; resetRequestFailureCounters() })
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  sayHello(pipe)
   return { ipc, pipe, warns }
 }
 

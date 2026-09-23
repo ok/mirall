@@ -3,8 +3,9 @@
 // socket, so this refuses nobody today — the rule is in place before the first client it would.
 import { AppError } from './errors.js'
 import { CODES } from '../contract/errors.js'
+import { TRUST } from '../contract/ipc-frames.js'
 
 export function requireHost(client) {
-  if (client?.trust === 'host') return
+  if (client?.trust === TRUST.HOST) return
   throw new AppError(CODES.NOT_AUTHORIZED, 'only the host may stop the worker')
 }

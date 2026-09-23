@@ -2,7 +2,6 @@ import { useCallback, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import type { AuditFilters } from '../types/types.js'
 import { parentOf, type Screen } from '../shell/navigation.js'
-import { takeRememberedScreen } from '../shell/resume-screen.js'
 import type { SpaceAction, PendingSpaceAction } from '../shell/space-actions.js'
 
 export interface AppNavigation {
@@ -31,9 +30,7 @@ export interface AppNavigation {
 }
 
 export function useAppNavigation(): AppNavigation {
-  // A reload that a screen asked for resumes there; every other boot starts at the root. Read once,
-  // on the initialising render, because taking the parked screen clears it.
-  const [currentScreen, setCurrentScreen] = useState<Screen>(() => takeRememberedScreen() ?? 'spaces')
+  const [currentScreen, setCurrentScreen] = useState<Screen>('spaces')
   const [preSettingsScreen, setPreSettingsScreen] = useState<'spaces' | 'space-view'>('spaces')
   const [preAccountScreen, setPreAccountScreen] = useState<'spaces' | 'space-view'>('spaces')
   const [storageBackTarget, setStorageBackTarget] = useState<'settings' | 'space-view'>('settings')

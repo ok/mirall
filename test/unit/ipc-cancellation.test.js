@@ -5,6 +5,7 @@ import {
 } from '../../src/shared/core/ipc.js'
 import { throwIfAborted } from '../../src/shared/core/cancellation.js'
 import { FRAME } from '../../src/shared/contract/ipc-frames.js'
+import { sayHello } from '../helpers/ipc-hello.js'
 
 // The router refuses names the contract does not declare, which is the point in production. A test
 // declares the small vocabulary it exercises instead of registering into the real contract.
@@ -27,6 +28,7 @@ const tick = () => new Promise((r) => setImmediate(r))
 test('the handler context carries the caller id and a live signal', async (t) => {
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  sayHello(pipe)
   let seen = null
   ipc.handle('ctx', async (_msg, c) => { seen = c; return 1 })
   ipc.start()
@@ -40,6 +42,7 @@ test('the handler context carries the caller id and a live signal', async (t) =>
 test('a cancel frame aborts an in-flight request', async (t) => {
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  sayHello(pipe)
   let release
   ipc.handle('slow', async (_msg, { signal }) => {
     await new Promise((r) => { release = r })
@@ -64,6 +67,7 @@ test('a handler that ignores the signal still answers normally', async (t) => {
   // never learns about it is not broken by the router growing one.
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  sayHello(pipe)
   let release
   ipc.handle('deaf', async () => { await new Promise((r) => { release = r }); return 'done anyway' })
   ipc.start()
@@ -82,6 +86,7 @@ test('cancelling a queued frame drops it and start() never runs it', async (t) =
   // the very request it cancels.
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  sayHello(pipe)
   let ran = 0
   ipc.handle('slow', async () => { ran++; return 1 })
   pipe.feed({ id: 3, type: 'slow' })
@@ -97,6 +102,7 @@ test('cancelling a queued frame drops it and start() never runs it', async (t) =
 test('a cancel for an unknown, settled or twice-cancelled id is a silent no-op', async (t) => {
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  sayHello(pipe)
   ipc.handle('ctx', async () => 1)
   ipc.start()
   pipe.feed({ type: FRAME.CANCEL, id: 999 })
@@ -115,6 +121,7 @@ test('a cancel is not counted as a request', async (t) => {
   resetRequestFailureCounters()
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  sayHello(pipe)
   ipc.start()
   pipe.feed({ type: FRAME.CANCEL, id: 5 })
   await tick()
@@ -124,6 +131,7 @@ test('a cancel is not counted as a request', async (t) => {
 test('a frame with no id gets no token and cannot leak one', async (t) => {
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  sayHello(pipe)
   let seen = 'unset'
   ipc.handle('ctx', async (_msg, c) => { seen = c.signal; return 1 })
   ipc.start()
@@ -138,6 +146,7 @@ test('abortAll cancels every outstanding request', async (t) => {
   // ECANCELLED path instead of throwing a "session closed" error into the crash backstop.
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  sayHello(pipe)
   const seen = []
   ipc.handle('slow', async (_msg, { signal }) => {
     await new Promise((resolve) => { signal.onAbort(resolve) })
@@ -172,6 +181,7 @@ test('cancel works against the real contract, not just a test vocabulary', async
   // names production actually routes.
   const pipe = fakePipe()
   const ipc = createIPC(pipe)
+  sayHello(pipe)
   let release
   ipc.handle('share:list-files', async (_msg, { signal }) => {
     await new Promise((r) => { release = r })

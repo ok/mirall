@@ -21,7 +21,7 @@ const { isVerbose } = require('./debug-gate.js')
 const relaySecret = require('./relay-secret.js')
 const { readDownloadFolder, readBandwidth } = require('./settings-ipc.js')
 const { MAIN_REQUEST_FRAME } = require('../shared/contract/main-requests.js')
-const { IPC_PROTOCOL_VERSION, IPC_PROTOCOL_MIN_SUPPORTED } = require('../shared/contract/ipc-frames.js')
+const { FRAME, IPC_PROTOCOL_VERSION, IPC_PROTOCOL_MIN_SUPPORTED } = require('../shared/contract/ipc-frames.js')
 
 const pkg = require('../../package.json')
 const version = pkg.version
@@ -168,15 +168,24 @@ function getWorker(specifier) {
   // which is undefined unless its variable is set so JSON drops it and the worker's own default
   // stands. shared/core/runtime-config.js is what reads the result, and is the authority on what
   // each field means once it lands.
-  const bootstrap = {
-    type: 'bootstrap',
-    // The wire contract's version and the window this sender accepts, checked by the worker before
-    // it reads any other field. A frame with no protocolVersion is a host from before the field
-    // existed and is refused like any other incompatible peer. min/max are inert while both equal
-    // the version, and exist so a future client can advertise a range without another wire change.
+  // The introduction, sent before the bootstrap and on the same pipe: it carries the wire version
+  // the worker checks before it reads any other field, and it is what makes the handshake something
+  // a client that is not this process can also complete. min/max are inert while both equal the
+  // version, and exist so a future client can advertise a range without another wire change. The
+  // bootstrap that follows carries the secrets, and stays Electron's alone.
+  //
+  // No cursor: main parses no worker frames beyond its own control frames, so it has read nothing
+  // to resume from. The renderer resumes on its own greeting.
+  const hello = {
+    type: FRAME.HELLO,
     protocolVersion: IPC_PROTOCOL_VERSION,
     protocolMin: IPC_PROTOCOL_MIN_SUPPORTED,
     protocolMax: IPC_PROTOCOL_VERSION,
+    client: { kind: 'electron-main', name: 'mirall', version },
+  }
+
+  const bootstrap = {
+    type: FRAME.BOOTSTRAP,
     storage: p.storage,
     appVersion: version,
     upgradeKey: upgrade || null,
@@ -220,14 +229,14 @@ function getWorker(specifier) {
     downloadConcurrency: config().get('network.downloadConcurrency'),
     identityKEK: identityKEK(),
   }
-  // The bootstrap is the one frame whose loss cannot be absorbed: without it the worker has no
-  // storage path, no identity KEK and no feature flags, and it never asks again. Caching such a
-  // worker would leave `pear:startWorker` reporting success while every later renderer request
-  // hangs against a process that can never answer, so it is torn down and the failure is raised —
-  // the next startWorker then spawns a fresh one.
-  if (!sendToWorker(worker, bootstrap)) {
+  // Neither frame's loss can be absorbed: without the hello the worker refuses everything that
+  // follows, and without the bootstrap it has no storage path, no identity KEK and no feature
+  // flags, and it never asks again. Caching such a worker would leave `pear:startWorker` reporting
+  // success while every later renderer request hangs against a process that can never answer, so it
+  // is torn down and the failure is raised — the next startWorker then spawns a fresh one.
+  if (!sendToWorker(worker, hello) || !sendToWorker(worker, bootstrap)) {
     try { worker.destroy() } catch {}
-    throw new Error('worker bootstrap write failed')
+    throw new Error('worker handshake write failed')
   }
 
   // Raw bytes rather than a frame, so this is the one write that cannot go through sendToWorker:
