@@ -11,6 +11,7 @@
 // target by looksLikeNetworkPath. The polling instance is created lazily, so a user with no
 // network paths pays nothing.
 const chokidar = require('chokidar')
+const { looksLikeNetworkPath } = require('../shared/contract/network-paths.js')
 
 const ERROR_WINDOW_MS = 10_000
 const ERROR_STORM_LIMIT = 5
@@ -18,16 +19,6 @@ const POLL_INTERVAL_MS = 5000
 // Polling stats every watched path every interval. Not a cap — silently not watching is the
 // defect this module exists to fix — just a single warning when the cost becomes worth knowing.
 const POLL_TARGET_WARN = 200
-
-// A path on a network mount is watched by polling or not at all. This predicate is the whole
-// difference between a file that re-publishes on edit and one that quietly stops.
-function looksLikeNetworkPath(p) {
-  if (!p) return false
-  if (p.startsWith('\\\\')) return true
-  if (process.platform === 'darwin' && p.startsWith('/Volumes/')) return true
-  if (process.platform === 'linux' && (p.startsWith('/mnt/') || p.startsWith('/media/'))) return true
-  return false
-}
 
 /**
  * createWatchHost({
@@ -90,7 +81,7 @@ function createWatchHost({ label, atomic = false, ignored, onEvent, onError, onS
   }
 
   function modeFor(target) {
-    return looksLikeNetworkPath(target) ? 'polling' : 'native'
+    return looksLikeNetworkPath(target, process.platform) ? 'polling' : 'native'
   }
 
   function add(target) {
@@ -132,5 +123,4 @@ function createWatchHost({ label, atomic = false, ignored, onEvent, onError, onS
   return { add, remove, stop }
 }
 
-// test seam: looksLikeNetworkPath is exported for tests only.
-module.exports = { createWatchHost, looksLikeNetworkPath }
+module.exports = { createWatchHost }

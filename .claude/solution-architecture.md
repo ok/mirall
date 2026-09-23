@@ -1257,6 +1257,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/contract/deny-outcome.js` | `DENY_OUTCOME` — what `space:deny-member` did: `denied`, `already-approved` (states the no-revocation rule), or `not-applicable` (no open request) |
 | `src/shared/contract/relay-apply.js` | `relayMismatch(mode, relay)` — whether a relay setting has reached the connections that already exist. Both runtimes decide on it: the worker to apply the change itself when nothing is moving, the renderer to explain it when it cannot (§4.8) |
 | `src/shared/contract/paths.js` | The path rules every runtime shares: the partial-file suffix, the publish orders, pathContains — the two cross-folder edges core/ and folders/ were reading across — and `PATH_HOST`, which says whose filesystem a path on the wire belongs to |
+| `src/shared/contract/network-paths.js` | `looksLikeNetworkPath` — UNC, `/Volumes`, `/mnt`, `/media`; the one predicate that routes a path to a polled watch instead of a native one |
 | `src/shared/contract/workers.js` | The worker entrypoint allowlist |
 | `src/shared/contract/exit-codes.js` | `WORKER_EXIT_UNSTABLE = 70` (§2 boot step 11) |
 | `src/shared/contract/decoration-key.js` | `shareId + ':' + relPath` — the folder row's `event:decoration` key (§8) |
@@ -1339,6 +1340,9 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/folders/pass-writer.js` | The one write path of a mirror pass, scoped to the generation the pass started at: the mount record (`mutate` / `patch`) and the mirror-participation record (`setMirrorState`). A pause, relocate or unmount invalidates the generation before its own write, and the writer checks it inside the serialized write, so a cancelled pass never writes after the verb that cancelled it |
 | `src/shared/folders/foreign-preview.js` | `previewMaterializeScan` — the mirror's pre-mount preview; classifies the destination the way a fresh mount will (`mirror-state.js#resolveLocalRelPath`: adopt an identical file, otherwise a numbered sibling), so its conflict count is what the mount does (§14) |
 | `src/shared/folders/walk-disk.js` | Stat-only recursive walk of a mount root → `/`-separated relative keys (Windows long-path prefix stripped, ignores applied); `countDiskFiles`; `AbortError` |
+| `src/shared/folders/watch-derive.js` | Pure watcher decisions: `WATCH_MODE` + `watchModeFor` (poll / per-directory tree / recursive), `settledAction` (`rename`\|`change` + a stat → `add`\|`change`\|`unlink`), `underPrefix` |
+| `src/shared/folders/watch-budget.js` | The inotify ceiling read from `/proc/sys/fs/inotify/max_user_watches`, accounted for every tree in this process with a reserve for the rest of the system; `resetWatchBudget` is its one reset |
+| `src/shared/folders/watch-tree.js` | `createWatchTree` — one `bare-fs` watcher per root in the pipelines' `add`\|`change`\|`unlink` vocabulary: stat before arm, 1 s settle window, arm-time scan of a directory that appeared, subtree drop on a rename or delete, symlinked directories never descended |
 | `src/shared/folders/work-item.js` | The path-keyed work item: `OP` / `STATE` / `PRIORITY`, ordering comparators (`PUBLISH_ORDERS`), lazy deferreds. Pure (§7.2) |
 | `src/shared/folders/owned-preview.js` | `previewInitialPublishScan` — the owner's stat-only pre-mount preview (§8 `owned-folder:preview`) |
 | `src/shared/folders/mirror-budgets.js` | The mirror's bounded per-(path, hash) failure budget — eviction-bounded, so a corrupt holder cannot pin a file forever nor block a healthy one (§7.3) |
