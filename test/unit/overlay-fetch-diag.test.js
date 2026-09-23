@@ -1,20 +1,11 @@
 import test from 'brittle'
 import { makeFetchDiag } from '../../src/shared/transfer/backends/overlay/fetch-run.js'
 import { DELIBERATE_STOPS } from '../../src/shared/transfer/backends/overlay/fetch-outcome.js'
-import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
+import { setVerbose } from '../helpers/runtime-verbose.js'
 import { around as capture } from '../helpers/capture-console.js'
 
 // Capture console.{log,warn,error} around a body. The logger maps debug/info →
 // console.log, warn → console.warn, gated on the runtime `verbose` flag.
-
-// Set `verbose` without clobbering the rest of runtime config (buildConfig is a
-// full rebuild from `next` only — merge over the current config), and restore the
-// prior config on teardown so the global flag never leaks to sibling tests.
-function setVerbose(t, value) {
-  const prev = getRuntimeConfig()
-  setRuntimeConfig({ ...prev, verbose: value })
-  t.teardown(() => setRuntimeConfig(prev))
-}
 
 // Read from the shared vocabulary, so an outcome added there is covered here without an edit —
 // a hand-kept copy is how 'awaiting-republish' went a whole release warning at every user.

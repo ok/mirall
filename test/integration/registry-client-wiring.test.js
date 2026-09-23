@@ -2,7 +2,8 @@ import test from 'brittle'
 import { registerSettings } from '../../src/worker/ipc/settings.js'
 import { registerFiles } from '../../src/worker/ipc/files.js'
 import { subscribeServeDetail, unsubscribeServeDetail } from '../../src/shared/transfer/serve-ledger.js'
-import { getRuntimeConfig, setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
+import { getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
+import { setVerbose } from '../helpers/runtime-verbose.js'
 import { createFakeIpc } from '../helpers/fake-ipc.js'
 
 // The policies are unit-tested; this is the wiring between them and the router, which nothing else
@@ -15,9 +16,7 @@ const silentLog = { debug() {}, info() {}, warn() {}, error() {} }
 const mountsStub = { probeDownloadRoots() {}, unavailableRoots: [] }
 
 test('setVerbose is per client, and a disconnect releases that client’s claim', async (t) => {
-  const saved = getRuntimeConfig()
-  t.teardown(() => setRuntimeConfig(saved))
-  setRuntimeConfig({ ...saved, verbose: false })
+  setVerbose(t, false)
 
   const fake = createFakeIpc()
   registerSettings(fake.ipc, { mounts: mountsStub, publishDownloadRoots: () => {} })
@@ -34,9 +33,7 @@ test('setVerbose is per client, and a disconnect releases that client’s claim'
 })
 
 test('a worker booted verbose is left alone until a client says otherwise', async (t) => {
-  const saved = getRuntimeConfig()
-  t.teardown(() => setRuntimeConfig(saved))
-  setRuntimeConfig({ ...saved, verbose: true })
+  setVerbose(t, true)
 
   const fake = createFakeIpc()
   registerSettings(fake.ipc, { mounts: mountsStub, publishDownloadRoots: () => {} })
@@ -49,9 +46,7 @@ test('a worker booted verbose is left alone until a client says otherwise', asyn
 // plus any worker restart booted the next worker verbose, made that the floor, and left the toggle
 // reporting ON with no in-app way back for the rest of the session.)
 test('REGRESSION (FIX-403-1): a client can switch off a worker that booted verbose', async (t) => {
-  const saved = getRuntimeConfig()
-  t.teardown(() => setRuntimeConfig(saved))
-  setRuntimeConfig({ ...saved, verbose: true })
+  setVerbose(t, true)
 
   const fake = createFakeIpc()
   registerSettings(fake.ipc, { mounts: mountsStub, publishDownloadRoots: () => {} })

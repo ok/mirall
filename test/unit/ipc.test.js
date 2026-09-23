@@ -2,9 +2,9 @@ import test from 'brittle'
 import { EventEmitter } from 'events'
 import { IPC_PROTOCOL_VERSION } from '../../src/shared/contract/ipc-frames.js'
 import { createIPC, scopeForEvent, getRequestFailureCounters, resetRequestFailureCounters } from '../../src/shared/core/ipc.js'
-import { setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { tagged } from '../helpers/capture-console.js'
 import { helloFrame, sayHello } from '../helpers/ipc-hello.js'
+import { setVerbose } from '../helpers/runtime-verbose.js'
 
 // The router is strict about names it does not know, which is the point in production. A test
 // declares the small vocabulary it exercises instead of registering into the real contract.
@@ -249,19 +249,20 @@ test('malformed JSON is skipped, not fatal', async (t) => {
 // brittle's own TAP over console.log is untouched.
 // Both channels: the router logs its trace through console.log (debug) and its failures through
 // console.warn, which is what makes a failed request visible at the default level.
-function captureIpcLog(t) {
-  t.teardown(() => setRuntimeConfig({}))
+// The level is an argument rather than a later statement: the router logs the handshake, so a test
+// that opened the capture first and set the level afterwards would record that line too.
+function captureIpcLog(t, verbose) {
+  setVerbose(t, verbose)
   return tagged(t, '[ipc]', { join: true })
 }
 
 test('dispatcher emits no [ipc] debug lines when verbose is off, still dispatches', async (t) => {
-  const lines = captureIpcLog(t)
+  const lines = captureIpcLog(t, false)
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
   sayHello(pipe)
   ipc.handle('echo', async (m) => m.v)
   ipc.start()
-  setRuntimeConfig({ verbose: false })
   pipe.feed({ id: '1', type: 'echo', v: 'hi' })
   await tick()
   t.is(lines.length, 0, 'silent at debug level when verbose is off')
@@ -269,13 +270,12 @@ test('dispatcher emits no [ipc] debug lines when verbose is off, still dispatche
 })
 
 test('verbose traces req + res (with timing); response payload is unchanged', async (t) => {
-  const lines = captureIpcLog(t)
+  const lines = captureIpcLog(t, true)
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
   sayHello(pipe)
   ipc.handle('echo', async (m) => m.v)
   ipc.start()
-  setRuntimeConfig({ verbose: true })
   pipe.feed({ id: '7', type: 'echo', v: 'yo' })
   await tick()
   t.ok(lines.includes('req echo #7'), 'logs the request with type + id')
@@ -286,13 +286,12 @@ test('verbose traces req + res (with timing); response payload is unchanged', as
 // Failures and unknown commands moved from debug to warn (FIX-OBS-1) so they survive the default
 // level; this test keeps its original intent and follows them there.
 test('logs handler errors and unknown commands', async (t) => {
-  const lines = captureIpcLog(t)
+  const lines = captureIpcLog(t, true)
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
   sayHello(pipe)
   ipc.handle('boom', async () => { throw new Error('kaboom') })
   ipc.start()
-  setRuntimeConfig({ verbose: true })
   pipe.feed({ id: '2', type: 'boom' })
   pipe.feed({ id: '3', type: 'ghost' })
   await tick()
@@ -309,11 +308,10 @@ test('logs handler errors and unknown commands', async (t) => {
 })
 
 test('emit logs events but skips the noisy *-progress streams', (t) => {
-  const lines = captureIpcLog(t)
+  const lines = captureIpcLog(t, true)
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
   sayHello(pipe)
-  setRuntimeConfig({ verbose: true })
   ipc.emit('event:files-updated', { spaceId: 'x' })
   ipc.emit('event:transfer-progress', { transferId: 't', bytes: 1 })
   t.ok(lines.includes('emit event:files-updated'), 'normal event is logged')

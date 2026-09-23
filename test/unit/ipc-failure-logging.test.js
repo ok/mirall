@@ -1,9 +1,9 @@
 import test from 'brittle'
 import { createIPC, getRequestFailureCounters, resetRequestFailureCounters, getRequestMetrics, resetRequestMetrics } from '../../src/shared/core/ipc.js'
-import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { AppError } from '../../src/shared/core/errors.js'
 import { capture } from '../helpers/capture-console.js'
 import { sayHello } from '../helpers/ipc-hello.js'
+import { setVerbose } from '../helpers/runtime-verbose.js'
 
 // The router is strict about names it does not know, which is the point in production. A test
 // declares the small vocabulary it exercises instead of registering into the real contract.
@@ -38,10 +38,9 @@ function fakePipe() {
 }
 
 function setup(t, { verbose = false } = {}) {
-  const prev = getRuntimeConfig()
-  setRuntimeConfig({ ...prev, verbose })
+  setVerbose(t, verbose)
   resetRequestFailureCounters()
-  t.teardown(() => { setRuntimeConfig(prev); resetRequestFailureCounters() })
+  t.teardown(() => resetRequestFailureCounters())
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
   sayHello(pipe)
@@ -164,7 +163,7 @@ test('REGRESSION (FIX-R09-7): a synchronous handler throw is answered, counted, 
   resetRequestMetrics()
   t.teardown(() => { resetRequestFailureCounters(); resetRequestMetrics() })
   const { warns } = captureConsole(t)
-  setRuntimeConfig({ verbose: false })
+  setVerbose(t, false)
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
   sayHello(pipe)
@@ -186,7 +185,7 @@ test('REGRESSION (FIX-R09-7): a synchronous handler throw is answered, counted, 
 
 test('the failure line carries req, id, code and ms as separate fields', async (t) => {
   const { warns } = captureConsole(t)
-  setRuntimeConfig({ verbose: false })
+  setVerbose(t, false)
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
   sayHello(pipe)
@@ -207,7 +206,7 @@ test('the failure line carries req, id, code and ms as separate fields', async (
 // had failed could only say so in English that the renderer had to parse back.
 test("REGRESSION (FIX-R09-7): an AppError's fields reach both the log and the caller", async (t) => {
   const { warns } = captureConsole(t)
-  setRuntimeConfig({ verbose: false })
+  setVerbose(t, false)
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
   sayHello(pipe)
@@ -228,7 +227,7 @@ test("REGRESSION (FIX-R09-7): an AppError's fields reach both the log and the ca
 
 test('an error without fields produces a response with no fields key at all', async (t) => {
   captureConsole(t)
-  setRuntimeConfig({ verbose: false })
+  setVerbose(t, false)
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
   sayHello(pipe)
@@ -242,7 +241,7 @@ test('an error without fields produces a response with no fields key at all', as
 
 test("an error's own fields cannot overwrite the router's canonical ones", async (t) => {
   const { warns } = captureConsole(t)
-  setRuntimeConfig({ verbose: false })
+  setVerbose(t, false)
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
   sayHello(pipe)
@@ -260,7 +259,7 @@ test("an error's own fields cannot overwrite the router's canonical ones", async
 
 test('an expected code still logs at debug once it carries fields', async (t) => {
   const { warns, logs } = captureConsole(t)
-  setRuntimeConfig({ verbose: true })
+  setVerbose(t, true)
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
   sayHello(pipe)
