@@ -70,17 +70,17 @@ export function recordPendingError(spaceId, filePath, errorCode) {
   })
 }
 
-export async function listPending() {
-  const out = []
+async function* pendingRows() {
   for await (const entry of bee.createReadStream()) {
     const sep = entry.key.indexOf(':')
     if (sep < 0) continue
-    out.push({
-      spaceId: entry.key.slice(0, sep),
-      filePath: entry.key.slice(sep + 1),
-      ...entry.value,
-    })
+    yield { spaceId: entry.key.slice(0, sep), filePath: entry.key.slice(sep + 1), ...entry.value }
   }
+}
+
+export async function listPending() {
+  const out = []
+  for await (const row of pendingRows()) out.push(row)
   return out
 }
 
@@ -96,18 +96,28 @@ export async function listPendingForSpace(spaceId) {
   return out
 }
 
-// Owners of the rows `keep` accepts, deduped. Read on every convergence tick, so it stays one bee
-// scan; `keep` sees each row as listPending returns it.
-export async function listPendingOwnerKeys({ keep }) {
-  const owners = new Set()
-  for await (const entry of bee.createReadStream()) {
-    const ownerKey = entry.value?.ownerKey
-    if (typeof ownerKey !== 'string' || !ownerKey) continue
-    const sep = entry.key.indexOf(':')
-    if (sep < 0) continue
-    if (keep({ spaceId: entry.key.slice(0, sep), filePath: entry.key.slice(sep + 1), ...entry.value })) owners.add(ownerKey)
+// The owned rows `keep` accepts, in one bee scan; `keep` sees each row as listPending returns it.
+// Both convergence-tick reads go through here, so each is one scan.
+async function keptPendingRows(keep) {
+  const out = []
+  for await (const row of pendingRows()) {
+    if (typeof row.ownerKey === 'string' && row.ownerKey !== '' && keep(row)) out.push(row)
   }
-  return owners
+  return out
+}
+
+// Owners of the rows `keep` accepts, deduped.
+export async function listPendingOwnerKeys({ keep }) {
+  return new Set((await keptPendingRows(keep)).map((row) => row.ownerKey))
+}
+
+// The (owner, space) pairs of the rows `keep` accepts, deduped: the key a reconcile is driven by.
+export async function listPendingOwnerSpaces({ keep }) {
+  const pairs = new Map()
+  for (const row of await keptPendingRows(keep)) {
+    pairs.set(row.ownerKey + ':' + row.spaceId, { ownerKey: row.ownerKey, spaceId: row.spaceId })
+  }
+  return [...pairs.values()]
 }
 
 // Leave-time purge. The deletes run through the SAME per-key chain as every single-row write,

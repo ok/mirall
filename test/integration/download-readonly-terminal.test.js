@@ -1,43 +1,17 @@
 import test from 'brittle'
 import fs from 'bare-fs'
-import path from 'bare-path'
 import { freshPeer } from '../helpers/store.js'
-import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
+import { initOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { initPendingTransfers, getPendingFor, _pendingBeeForTests } from '../../src/shared/transfer/pending-transfers.js'
 import { initDownloads } from '../../src/shared/transfer/files.js'
-import { partialPathFor } from '../../src/shared/transfer/partial-suffix.js'
 import { CODES } from '../../src/shared/contract/errors.js'
 import { createOverlayDownloadEngine } from '../../src/shared/transfer/backends/overlay/overlay-download.js'
 import { scaled } from '../helpers/bare-timing.js'
 import { until } from '../helpers/bare-poll.js'
+import { SPACE, OWNER, testChannel, makeJob, readOnlyDir, writingHolder, errorsIn } from '../helpers/readonly-download.js'
 
 // A download whose folder the app may not write fails the same way on every attempt, so it is a
 // terminal fault: the reconnect re-drive leaves it alone and only the user's Resume re-attempts.
-
-const SPACE = 'space1'
-const OWNER = 'ownerpub'
-const HASH = 'c'.repeat(64)
-
-function testChannel(events, job) {
-  return {
-    diagLabel: 'test download',
-    inPlace: false,
-    ownsPendingRow: (row) => row.overlayShare === true,
-    pendingExtra: (j) => ({ overlayShare: true, shareId: j.shareId, relPath: j.relPath }),
-    emitProgress: () => {},
-    emitVerifying: () => {},
-    emitError: (_job, code) => events.push(['error', code]),
-    emitComplete: () => events.push(['complete']),
-    emitCancelled: () => {},
-    emitSuperseded: () => {},
-    emitPaused: (_job, reason) => events.push(['paused', reason]),
-    emitUpdated: () => {},
-    emitDecorationDone: () => {},
-    transferIdForRow: (spaceId, row) => spaceId + '|folder1|' + row.relPath,
-    isOwnerOnline: () => true,
-    resolvePendingRow: async () => ({ removed: false, seq: undefined, job }),
-  }
-}
 
 async function setup(t) {
   const ctx = await freshPeer(t)
@@ -48,42 +22,6 @@ async function setup(t) {
   return ctx
 }
 
-function makeJob(dir) {
-  return {
-    spaceId: SPACE, pendingKey: '/Photos/doc.bin', path: '/Photos/doc.bin', relPath: 'doc.bin',
-    shareId: 'folder1', transferId: SPACE + '|folder1|doc.bin',
-    contentHash: HASH, size: 11, ownerKey: OWNER, verifyKey: 'folder1|doc.bin',
-    finalPath: path.join(dir, 'doc.bin'),
-  }
-}
-
-// A folder this process cannot write, or null where the mode bits do not make it so: Windows
-// ignores a directory's mode and root bypasses it. The probe write is the honest test of both.
-function readOnlyDir(t, ctx, name) {
-  const dir = ctx.tmpDir(name)
-  fs.chmodSync(dir, 0o555)
-  t.teardown(() => { try { fs.chmodSync(dir, 0o755) } catch {} })
-  try {
-    fs.writeFileSync(path.join(dir, '.probe'), 'x')
-    return null
-  } catch (err) {
-    return ['EACCES', 'EPERM', 'EROFS'].includes(err.code) ? dir : null
-  }
-}
-
-// The holder's receive path, reduced to its first local write: open the partial beside the final
-// name, then rename it into place. On a read-only folder the open throws the real errno.
-function writingHolder(seen) {
-  getOverlay().fetchFile = async (_hash, opts) => {
-    seen.push(opts.destPath)
-    const part = partialPathFor(opts.destPath)
-    fs.writeFileSync(part, 'hello bytes')
-    fs.renameSync(part, opts.destPath)
-    return { destPath: opts.destPath, local: false, size: 11 }
-  }
-}
-
-const errorsIn = (events) => events.filter((e) => e[0] === 'error').map((e) => e[1])
 const tick = () => new Promise((r) => setTimeout(r, scaled(60)))
 const settle = () => new Promise((r) => setTimeout(r, scaled(400))) // past the 250ms resume coalescer
 

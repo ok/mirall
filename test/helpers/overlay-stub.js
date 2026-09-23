@@ -7,5 +7,6 @@ export const stubOverlayBackend = {
   detach: async () => {},
   resumeForOwner() {},
   resumeForOwnerAllSpaces() {},
+  redriveUnblocked: async () => {},
   revokeServesForSpace() {},
 }

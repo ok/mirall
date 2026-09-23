@@ -1,8 +1,9 @@
 // The level-triggered recovery of the engine's INACTIVE pending rows, run when an owner's catalog
-// appends or the owner (re)connects. ONE catalog read per row decides its fate through
-// republishDecision: a tombstone or a re-add of identical content terminates the intent (a
-// deliberate remove+re-add must not auto-resume); a still-mid-rehash null hash holds the row; a
-// genuinely new materialized hash restarts on the new content; else an interrupted download resumes.
+// appends, the owner (re)connects, or the convergence tick finds a fault the user has cleared. ONE
+// catalog read per row decides its fate through republishDecision: a tombstone or a re-add of
+// identical content terminates the intent (a deliberate remove+re-add must not auto-resume); a
+// still-mid-rehash null hash holds the row; a genuinely new materialized hash restarts on the new
+// content; else an interrupted download resumes.
 //
 // `deep` is the catalog-APPEND path: the owner is online and its head is present, so paused and
 // errored rows are read too, and a deliberate removal terminates them. The RECONNECT path is
