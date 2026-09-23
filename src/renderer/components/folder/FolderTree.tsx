@@ -22,7 +22,6 @@ interface FileRowCallbacks {
   onReveal: (relPath: string) => void
   onPause: (transferId: string) => void
   onCancel: (transferId: string) => void
-  onDiscardPartial: (relPath: string) => void
 }
 
 interface FolderTreeProps extends FileRowCallbacks {
@@ -111,7 +110,6 @@ export default function FolderTree(props: FolderTreeProps) {
             onReveal={rest.onReveal}
             onPause={rest.onPause}
             onCancel={rest.onCancel}
-            onDiscardPartial={rest.onDiscardPartial}
           />
         )
       )}

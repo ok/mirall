@@ -102,7 +102,7 @@ export default function FolderScreen({ spaceId, share, onBack, onMirror }: Folde
   const {
     files, info, loading, error,
     getDecoration, isSeeded,
-    downloadFile, revealFile, discardPartial,
+    downloadFile, revealFile,
   } = useShareFiles(spaceId, share.owner, share.id)
   const { cancelDownload, pauseDownload } = useTransferControls()
   // The worker reports whether it capped the rows. Never inferred from (fileCount > files.length):
@@ -209,7 +209,6 @@ export default function FolderScreen({ spaceId, share, onBack, onMirror }: Folde
           onReveal={revealFile}
           onPause={pauseDownload}
           onCancel={cancelDownload}
-          onDiscardPartial={discardPartial}
         />
 
         <FolderSidebar

@@ -11,7 +11,7 @@
 // service's lane, never under the lock.
 import path from 'bare-path'
 import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../../../contract/main-requests.js'
-import { tombstone as catalogTombstone, getOwnEntry, listOwnShare, listOwnShareForDisplay } from '../../../shares/own-catalog.js'
+import { getOwnEntry, listOwnShare, listOwnShareForDisplay } from '../../../shares/own-catalog.js'
 import { nextFreeName } from '../../../folders/path-keys.js'
 import { AppError } from '../../../core/errors.js'
 import { CODES } from '../../../contract/errors.js'
@@ -22,8 +22,8 @@ import { fileStatPresent, statFacts } from '../../../folders/disk-presence.js'
 import { createLogger } from '../../../core/logger.js'
 import { markOwnedSource, getOwnedSourcePath, clearOwnedSource } from '../../files.js'
 import { LOOSE_SHARE_ID } from '../../transfer-id.js'
-import { publishContent } from './overlay-publish.js'
-import { evictIfUnreferenced, makeServable } from './serve-registration.js'
+import { publishContent, retireContent } from './overlay-publish.js'
+import { makeServable } from './serve-registration.js'
 import { makePublishProgress } from './publish-progress.js'
 import { looseRelPath, looseDrivePath } from './loose-job.js'
 
@@ -162,7 +162,7 @@ export async function looseCancelPublish(spaceId, drivePath) {
       const entry = await getOwnEntry(spaceId, LOOSE_SHARE_ID, relPath)
       if (!entry || entry.contentHash) return
       const src = await getOwnedSourcePath(spaceId, drivePath)
-      await unshareEntry(spaceId, relPath, null, src)
+      await unshareEntry(spaceId, relPath, src)
       reverted = true
     })
   } catch (err) {
@@ -223,10 +223,7 @@ registerPublishChannel('loose', {
     filesUpdated(item.spaceId)
   },
   async retire(item, { absPath }) {
-    await withSpaceLock(item.spaceId, async () => {
-      const prev = await getOwnEntry(item.spaceId, LOOSE_SHARE_ID, item.relPath)
-      await unshareEntry(item.spaceId, item.relPath, prev?.contentHash || null, absPath)
-    })
+    await withSpaceLock(item.spaceId, () => unshareEntry(item.spaceId, item.relPath, absPath))
     filesUpdated(item.spaceId)
   },
 })
@@ -248,9 +245,8 @@ async function clearOwnedSourceIfUnshared(spaceId, relPath, absPath = null, { un
   }
 }
 
-async function unshareEntry(spaceId, relPath, contentHash, src) {
-  await catalogTombstone(spaceId, LOOSE_SHARE_ID, relPath)
-  await evictIfUnreferenced({ contentHash, spaceId, shareId: LOOSE_SHARE_ID, relPath })
+async function unshareEntry(spaceId, relPath, src) {
+  await retireContent(spaceId, LOOSE_SHARE_ID, relPath)
   await clearOwnedSource(spaceId, looseDrivePath(relPath))
   if (src) { untrackSource(src, spaceId); disarmWatch(spaceId, src) }
 }
@@ -258,7 +254,7 @@ async function unshareEntry(spaceId, relPath, contentHash, src) {
 // A never-hashed entry with no recorded source is an unrecoverable half-publish: revert it so it
 // stops showing "Adding" forever.
 export async function revertUnhashedEntry(spaceId, relPath) {
-  await withSpaceLock(spaceId, () => unshareEntry(spaceId, relPath, null, null))
+  await withSpaceLock(spaceId, () => unshareEntry(spaceId, relPath, null))
   filesUpdated(spaceId)
 }
 
@@ -285,8 +281,7 @@ export async function looseUnshareFile(spaceId, drivePath) {
   if (cancelled) await exited
   await withSpaceLock(spaceId, async () => {
     if (getPublishScheduler().isPending(spaceId, LOOSE_SHARE_ID, relPath)) return
-    const prev = await getOwnEntry(spaceId, LOOSE_SHARE_ID, relPath)
-    await unshareEntry(spaceId, relPath, prev?.contentHash || null, src)
+    await unshareEntry(spaceId, relPath, src)
   })
   filesUpdated(spaceId)
 }

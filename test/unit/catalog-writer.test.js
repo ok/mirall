@@ -98,12 +98,14 @@ test('REGRESSION (FIX-133): a flush error is best-effort — the chain self-heal
   }
   const w = createCatalogBatch('sp', { flushMs: 999999, maxOps: 1000, resolveBee: () => bee })
 
-  await w.advertise('sp', 'sh', 'a', { size: 1, mtime: 1 })
+  const dropped = await w.advertise('sp', 'sh', 'a', { size: 1, mtime: 1 })
   await w.flush() // the failing flush resolves (best-effort) rather than rejecting
   t.pass('a failing flush resolved without rejecting (chain not poisoned)')
+  t.is(await dropped.landed, false, 'a dropped write says it did not land')
 
-  await w.advertise('sp', 'sh', 'b', { size: 2, mtime: 2 })
+  const kept = await w.advertise('sp', 'sh', 'b', { size: 2, mtime: 2 })
   await w.close() // would reject if the chain were poisoned
+  t.is(await kept.landed, true, 'a written one says it did')
   t.alike(bee.store.get('file/sh/b'), { size: 2, mtime: 2, contentHash: null }, 'ops staged after the error still commit')
 })
 

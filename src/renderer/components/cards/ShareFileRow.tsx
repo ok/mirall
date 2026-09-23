@@ -33,7 +33,6 @@ export interface ShareFileRowProps {
   onReveal: (relPath: string) => void
   onPause: (transferId: string) => void
   onCancel: (transferId: string) => void
-  onDiscardPartial: (relPath: string) => void
   displayName?: string
   leadingGutter?: boolean
 }
@@ -47,10 +46,9 @@ interface FileRowActionsProps {
   onReveal: (relPath: string) => void
   onPause: (transferId: string) => void
   onCancel: (transferId: string) => void
-  onDiscardPartial: (relPath: string) => void
 }
 
-function FileRowActions({ action, relPath, transferId, busyLabel, onDownload, onReveal, onPause, onCancel, onDiscardPartial }: FileRowActionsProps) {
+function FileRowActions({ action, relPath, transferId, busyLabel, onDownload, onReveal, onPause, onCancel }: FileRowActionsProps) {
   const { t } = useTranslation()
   if (action === 'pause-cancel' && transferId) {
     return (
@@ -64,7 +62,7 @@ function FileRowActions({ action, relPath, transferId, busyLabel, onDownload, on
     return (
       <>
         <IconButton icon="play_arrow" iconSize={22} iconClassName="text-secondary" onClick={() => onDownload(relPath)} ariaLabel={t('file.resume')} title={t('file.resume')} />
-        <IconButton icon="close" iconSize={22} iconClassName="text-error" onClick={() => onDiscardPartial(relPath)} ariaLabel={t('file.discardPartial')} title={t('file.discardPartial')} />
+        {transferId && <IconButton icon="close" iconSize={22} iconClassName="text-error" onClick={() => onCancel(transferId)} ariaLabel={t('file.discardPartial')} title={t('file.discardPartial')} />}
       </>
     )
   }
@@ -72,12 +70,12 @@ function FileRowActions({ action, relPath, transferId, busyLabel, onDownload, on
     return (
       <>
         <IconButton icon="refresh" iconSize={22} iconClassName="text-secondary" onClick={() => onDownload(relPath)} ariaLabel={t('file.retry')} title={t('file.retry')} />
-        <IconButton icon="close" iconSize={22} iconClassName="text-error" onClick={() => onDiscardPartial(relPath)} ariaLabel={t('file.dismiss')} title={t('file.dismiss')} />
+        {transferId && <IconButton icon="close" iconSize={22} iconClassName="text-error" onClick={() => onCancel(transferId)} ariaLabel={t('file.dismiss')} title={t('file.dismiss')} />}
       </>
     )
   }
   if (action === 'discard') {
-    return <IconButton icon="close" iconSize={22} iconClassName="text-error" onClick={() => onDiscardPartial(relPath)} ariaLabel={t('file.discardPartial')} title={t('file.discardPartial')} />
+    return transferId ? <IconButton icon="close" iconSize={22} iconClassName="text-error" onClick={() => onCancel(transferId)} ariaLabel={t('file.discardPartial')} title={t('file.discardPartial')} /> : null
   }
   if (action === 'reveal') {
     return <IconButton icon="folder_open" iconSize={22} iconClassName="text-secondary" onClick={() => onReveal(relPath)} ariaLabel={t('file.revealInFolder')} title={t('file.revealInFolder')} />
@@ -99,7 +97,7 @@ function FileRowActions({ action, relPath, transferId, busyLabel, onDownload, on
   return <div className="w-10 h-10" />
 }
 
-function ShareFileRow({ file, decoration, seeded, isOwn, manualControls, spaceId, members, downloadSummary, onDownload, onReveal, onPause, onCancel, onDiscardPartial, displayName, leadingGutter }: ShareFileRowProps) {
+function ShareFileRow({ file, decoration, seeded, isOwn, manualControls, spaceId, members, downloadSummary, onDownload, onReveal, onPause, onCancel, displayName, leadingGutter }: ShareFileRowProps) {
   const { t } = useTranslation()
   const { t: tErr } = useTranslation('errors')
   const rowName = displayName || file.relPath
@@ -157,7 +155,6 @@ function ShareFileRow({ file, decoration, seeded, isOwn, manualControls, spaceId
             onReveal={onReveal}
             onPause={onPause}
             onCancel={onCancel}
-            onDiscardPartial={onDiscardPartial}
           />
         </div>
       </div>

@@ -14,7 +14,6 @@ import { revealFile } from '../../shared/transfer/reveal.js'
 import {
   looseDownload,
   loosePause,
-  looseCancelByKey,
   looseCancelTransfer,
 } from '../../shared/transfer/backends/overlay/loose-downloads.js'
 import { looseCancelPublish, handleLooseFsEvent } from '../../shared/transfer/backends/overlay/loose-publish.js'
@@ -67,12 +66,6 @@ export function registerFiles(ipc, { log }) {
     ipc.emit('event:files-updated', { spaceId: msg.spaceId })
     return { ok: true }
   })
-  ipc.handle('files:discard-partial', async (msg) => {
-    // Loose downloads run on the overlay engine; it clears the partial + pending row
-    // and emits files-updated + the decoration done frame itself.
-    await looseCancelByKey(msg.spaceId, msg.path)
-    return { ok: true }
-  })
   ipc.handle('files:reveal', async (msg) => {
     await revealFile(msg.spaceId, msg.path)
     return { ok: true }
@@ -100,9 +93,9 @@ export function registerFiles(ipc, { log }) {
   })
   ipc.handle('files:cancel-download', async (msg) => {
     const id = msg.transferId
-    // Route on the id's shape, not on a live transfer — the same rule as files:pause-download below,
-    // and here a has() gate would leave the partial and the pending row behind a discard that
-    // reported ok.
+    // One verb for "stop it and drop the partial", from a downloading row's Cancel and a paused or
+    // failed row's Discard alike. Routed on the id's shape, not on a live transfer: a settled row is
+    // resolved from its pending row, and a row with nothing left to stop is re-derived.
     if (isLooseTransferId(id)) await looseCancelTransfer(id)
     else await folderCancel(id)
     return { ok: true }

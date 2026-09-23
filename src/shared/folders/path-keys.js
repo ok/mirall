@@ -176,8 +176,8 @@ export function splitFileName(fileName) {
 }
 
 // Pick a name that `isTaken` reports free, suffixing " (1)", " (2)", … before the
-// extension. `isTaken(name)` is supplied by the caller (it checks the filesystem
-// for both the final file and an in-flight partial).
+// extension. `isTaken(name)` is supplied by the caller; a filesystem destination asks
+// nameTakenAt (transfer/download-dest.js).
 export function nextFreeName(fileName, isTaken) {
   if (!isTaken(fileName)) return fileName
   const { base, ext } = splitFileName(fileName)

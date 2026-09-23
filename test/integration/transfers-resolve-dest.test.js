@@ -1,7 +1,7 @@
 import test from 'brittle'
 import fs from 'bare-fs'
 import path from 'bare-path'
-import { resolveDest } from '../../src/shared/transfer/download-dest.js'
+import { nameTakenAt, resolveDest } from '../../src/shared/transfer/download-dest.js'
 import { tmpDir } from '../helpers/bare-tmp.js'
 
 // FIX-3 — the destination picker is the core data-loss guard for downloads: it
@@ -53,4 +53,15 @@ test('dotted names treat only the last segment as the extension', (t) => {
   const dir = tmpDir('rd', t)
   fs.writeFileSync(path.join(dir, 'archive.tar.gz'), 'x')
   t.is(resolveDest(dir, 'archive.tar.gz'), path.join(dir, 'archive.tar (1).gz'))
+})
+
+test('nameTakenAt sees a final file or its in-flight partial as taken', (t) => {
+  const dir = tmpDir('rd', t)
+  const abs = path.join(dir, 'a.txt')
+  t.absent(nameTakenAt(abs), 'nothing there → free')
+  fs.writeFileSync(abs + '.mirall.part', 'half')
+  t.ok(nameTakenAt(abs), 'a partial alone takes the name')
+  fs.rmSync(abs + '.mirall.part')
+  fs.writeFileSync(abs, 'whole')
+  t.ok(nameTakenAt(abs), 'a final file takes the name')
 })

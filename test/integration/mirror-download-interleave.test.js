@@ -114,7 +114,7 @@ test('a start() against a held claim records the pending row and returns the liv
 // has no mirror by construction. Pinned so a later sweep does not finish the job.
 test('a browse listing still reads isActive from the folder engine', (t) => {
   const src = fs.readFileSync(new URL('../../src/shared/shares/share-listing.js', import.meta.url).pathname, 'utf8')
-  t.ok(/isActive: deps\.overlayHasTransfer\(transferId\)/.test(src), 'the browse row still probes the engine directly')
+  t.ok(/isActive: deps\.overlayHasTransfer\(transferIdFor\(/.test(src), 'the browse row still probes the engine directly')
   t.absent(/fetch-gate/.test(src), 'and does not ask the claim registry')
 })
 

@@ -15,7 +15,7 @@ const v2flags = () => ({ overlayEnabled: true, inPlaceFilesEnabled: true, identi
 // owner who stayed online) used owner-removal as the vehicle to produce an interrupted
 // pause. FIX-REMOVE-1 makes a deliberate removal TERMINAL, so it no longer surfaces as a
 // pause at all — it tears the download down. The interrupted-vs-offline pause-reason predicate
-// FIX-EDA-20 protected now lives in test/unit/paused-status.test.js; here we pin the new
+// FIX-EDA-20 protected now lives in test/unit/consumer-row-status.test.js; here we pin the new
 // terminal behavior: an online owner's mid-download removal terminates the transfer.
 test('FIX-REMOVE-1: an online owner removing mid-download terminates the transfer, no lingering pause',
   { timeout: scaled(180000) }, async (t) => {

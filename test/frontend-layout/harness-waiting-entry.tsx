@@ -49,7 +49,7 @@ const summary: PeerDownloadSummary = {
   spaceId: 's1', path: file.path, personKeys: [], pausedKeys: [], waitingKeys: ['k1', 'k2', 'k3'], bytes: 0, total: 0, avgSpeed: 0,
 }
 const noop = () => {}
-const handlers = { onDownload: noop, onCancel: noop, onPause: noop, onReveal: noop, onUnshare: noop, onDiscardPartial: noop, onCancelPublish: noop }
+const handlers = { onDownload: noop, onCancel: noop, onPause: noop, onReveal: noop, onUnshare: noop, onCancelPublish: noop }
 
 createRoot(document.getElementById('root') as HTMLElement).render(
   <div className="bg-surface p-8 space-y-4">

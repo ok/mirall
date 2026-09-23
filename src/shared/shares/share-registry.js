@@ -3,7 +3,7 @@
 import { getLocalPublicKeyHex } from '../spaces/profile.js'
 import { getSpace } from '../spaces/space.js'
 import { readOwnShares, readPeerShares } from './shares.js'
-import { interactiveReadTimeoutMs } from '../core/with-timeout.js'
+import { peerMembersOf, readEachPeer } from '../spaces/member-fanout.js'
 
 export async function listSharesForSpace(spaceId) {
   const space = await getSpace(spaceId)
@@ -13,21 +13,11 @@ export async function listSharesForSpace(spaceId) {
   const own = await readOwnShares(spaceId)
   const ownTagged = own.map((s) => ({ ...s, owner: me, source: 'own' }))
 
-  const personKeys = (space.members || [])
-    .map((m) => m.publicKey)
-    .filter((k) => k && k !== me)
-
-  // Interactive fan-out: bound each peer read to the short interactive budget so one
-  // un-replicated member can't stall share:list — the renderer refreshes on event:shares-updated
-  // when the peer's profile bee appends.
-  const budget = interactiveReadTimeoutMs()
-  const peerLists = await Promise.all(
-    personKeys.map(async (personKey) => {
-      const shares = await readPeerShares(personKey, spaceId, budget)
-      if (!shares) return []
-      return shares.map((s) => ({ ...s, owner: personKey, source: 'peer' }))
-    })
-  )
+  // The renderer refreshes on event:shares-updated when a peer's profile bee appends.
+  const peerLists = await readEachPeer(peerMembersOf(space.members, me), async (m, budget) => {
+    const shares = await readPeerShares(m.publicKey, spaceId, budget)
+    return shares ? shares.map((s) => ({ ...s, owner: m.publicKey, source: 'peer' })) : []
+  })
 
   const merged = [...ownTagged, ...peerLists.flat()]
   return dedupeByKey(merged)

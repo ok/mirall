@@ -8,7 +8,7 @@ import { useRunAction } from './useRunAction.js'
 export function useTransferControls() {
   const run = useRunAction()
   const cancelDownload = useCallback(
-    (transferId: string) => run(() => request('files:cancel-download', { transferId })),
+    (transferId: string) => run(() => request('files:cancel-download', { transferId }), 'transferFailed'),
     [run],
   )
   const pauseDownload = useCallback(

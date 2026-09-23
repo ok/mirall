@@ -8,9 +8,9 @@ import { mkTmpDir, patternedBytes } from '../helpers/fixtures.js'
 import { scaled } from '../helpers/timing.js'
 
 // Loose CANCEL / DISCARD mechanics over two peers (FE s83/s84/s101). loose-pause-resume proves
-// pause-and-keep; cancel-download and discard-partial (clear the partial) had NO two-peer flow
-// coverage. A cancelled/discarded download returns the row to 'remote' with nothing left on
-// disk, and re-downloading afterwards completes byte-exact (no stale partial).
+// pause-and-keep; here files:cancel-download clears the partial, from a live transfer and from a
+// paused one alike. A cancelled/discarded download returns the row to 'remote' with nothing left
+// on disk, and re-downloading afterwards completes byte-exact (no stale partial).
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
 const v2flags = () => ({ overlayEnabled: true, inPlaceFilesEnabled: true, identityKEK: kekHex() })
@@ -58,7 +58,7 @@ test('loose cancel mid-download: partial discarded, row back to remote, nothing 
   })
 
 // A3 — pause then discard the partial.
-test('loose pause then discard-partial: partial cleared, row back to remote',
+test('loose pause then discard by transfer id: partial cleared, row back to remote',
   { timeout: scaled(150000) }, async (t) => {
     const { A, B, spaceId, aKey, aSrc } = await setup(t)
     await shareAndSee(A, B, spaceId, aSrc, 'draft.bin', 21)
@@ -66,7 +66,7 @@ test('loose pause then discard-partial: partial cleared, row back to remote',
 
     await B.request('files:pause-download', { transferId })
     await B.until('files:list', { spaceId }, (list) => { const e = list.find((x) => x.path === '/draft.bin'); return e && e.status === 'paused-interrupted' }, { ms: 30000 })
-    await B.request('files:discard-partial', { spaceId, path: '/draft.bin' })
+    await B.request('files:cancel-download', { transferId })
     await B.until('files:list', { spaceId }, (list) => { const e = list.find((x) => x.path === '/draft.bin'); return e && e.status === 'remote' }, { ms: 30000 })
     await sleep(1000)
     t.ok(noResidue(B.downloads, 'draft'), 'no partial left after discard')

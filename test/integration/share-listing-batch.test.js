@@ -191,7 +191,8 @@ const CLAIMS = {
 // before records named their path, `elsewhere` one written for another path (the other writer),
 // `stale` one for an older content.
 const VERIFIED = ['match', 'edited', 'moved', 'unlocal', 'elsewhere', 'stale', 'absent']
-const PENDING = { none: undefined, partial: { bytesTransferred: 5 }, error: { errorCode: 'EBAD', bytesTransferred: 0 } }
+// `foreign` is a row under the same share NAME written for another owner's share.
+const PENDING = { none: undefined, partial: { bytesTransferred: 5 }, error: { errorCode: 'EBAD', bytesTransferred: 0 }, foreign: { bytesTransferred: 5 } }
 
 const entryOf = (w) => ({ relPath: 'f.txt', size: 10, contentHash: w.hashed ? 'h1' : null, mtime: 7 })
 const claimedPathFor = (drivePath, rec) => rec?.localPath || '/downloads/' + path.basename(drivePath)
@@ -278,7 +279,7 @@ function baselineRow(w, mountPath, rec, landed) {
   const row = consumerRowStatusFor({
     hashed: Boolean(entry.contentHash),
     isActive: w.active,
-    pendingRow: PENDING[w.pending],
+    pendingRow: w.pending === 'foreign' ? undefined : PENDING[w.pending],
     ownerOnline: w.ownerOnline,
   })
   return { ...out, row: { ...row, localPath: null } }
@@ -321,7 +322,7 @@ function worldDeps(w, mountPath, rec, landed) {
     getForeignMount: async () => (w.mirrored
       ? { enabled: true, mountPath, ...(w.renamed ? { renamedPaths: { 'f.txt': RENAMED_LEAF } } : {}) }
       : null),
-    listPendingForSpace: async () => (PENDING[w.pending] ? [{ ...PENDING[w.pending], filePath: drivePath }] : []),
+    listPendingForSpace: async () => (PENDING[w.pending] ? [{ ...PENDING[w.pending], shareId: w.pending === 'foreign' ? 'other-share' : SHARE.id, filePath: drivePath }] : []),
     foreignFetchActive: () => w.fetchActive,
     requestMirrorWalk: () => { reads.walkRequests++ },
     overlayHasTransfer: () => w.active,
@@ -345,7 +346,9 @@ function matrix() {
             for (const verified of VERIFIED) {
               for (const hashed of [true, false]) {
                 for (const ownerOnline of [true, false]) {
-                  for (const pending of mirrored ? ['none'] : Object.keys(PENDING)) {
+                  // A mirrored row crosses every pending row too: the mirror never reads one, so it never
+                  // renders error or paused whatever the pending bee holds for its path.
+                  for (const pending of Object.keys(PENDING)) {
                     for (const active of mirrored ? [false] : [true, false]) {
                       cells.push({ mirrored, sizeMatch, renamed, fetchActive, claim, verified, hashed, ownerOnline, pending, active })
                     }

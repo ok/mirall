@@ -5,7 +5,7 @@ import { createLogger } from '../core/logger.js'
 import { getListFilesCap } from '../core/runtime-config.js'
 import { throwIfAborted } from '../core/cancellation.js'
 import { pathFromMount } from '../folders/path-guard.js'
-import { consumerRowStatusFor, unhashedStatusFor } from '../transfer/transfer-status.js'
+import { consumerRowStatusFor } from '../transfer/transfer-status.js'
 import { transferIdFor } from '../transfer/transfer-id.js'
 import { listingTruncated } from '../folders/share-limits.js'
 import { getOwnedMount, getForeignMount } from '../folders/mount-store.js'
@@ -52,13 +52,6 @@ const productionDeps = {
   pruneDownloadClaims,
 }
 
-// A row that holds local bytes: a verified copy is vouched for, an edited one is 'modified', and a
-// copy nothing proves either way keeps `status` unverified.
-function onDeviceRow(status, localPath, verdict) {
-  if (verdict === COPY_VERDICT.MODIFIED) return { status: SHARE_FILE_STATUS.MODIFIED, localPath, verified: false }
-  return { status, localPath, verified: verdict === COPY_VERDICT.VERIFIED }
-}
-
 // Consumer-side status for a catalog-backed overlay share row. A null contentHash means the owner
 // is still hashing → `preparing` while the owner is online, else `unavailable` (entries are
 // advertised before hashing completes). A file counts as downloaded iff the downloaded registry
@@ -75,6 +68,7 @@ function onDeviceRow(status, localPath, verdict) {
 function overlayConsumerRow(spaceId, share, entry, { ownerOnline, foreignMount, pending, verified, claims, prune, dirProbe, deps }) {
   const rec = verified.get(entry.relPath)
   const copyVerdict = (stat, expectLocal, rehashed) => verifiedCopyVerdict(rec, stat, { contentHash: entry.contentHash, expectedSize: entry.size, expectLocal, rehashed })
+  const hashed = Boolean(entry.contentHash)
 
   if (foreignMount && foreignMount.enabled) {
     // Not entry.relPath: a pre-existing user file at the natural name forces the mirror to
@@ -87,19 +81,20 @@ function overlayConsumerRow(spaceId, share, entry, { ownerOnline, foreignMount, 
     // The record decides when it describes this file; without one, a file of the advertised size is
     // taken as the mirror's, unverified. A copy that drifted from its record asks for the walk that
     // re-hashes it.
-    if (verdict !== COPY_VERDICT.UNPROVEN || stat?.size === entry.size) {
-      const wantsWalk = verdict === COPY_VERDICT.MODIFIED || verdict === COPY_VERDICT.DRIFTED
-      return { ...onDeviceRow(SHARE_FILE_STATUS.SYNCED, abs, verdict), mirrored: true, wantsWalk }
-    }
-    // The mirror loop is pulling this row right now — 'downloading', so FolderView's bar/speed/
-    // verify lane render. Gated on reachability, like the strip and the folder tile: a fetch parked
-    // on the overlay's peer wait pulls nothing, and a downloading row with no bytes paints as
-    // "Preparing…" beside a banner saying the owner is offline.
-    if (ownerOnline && deps.foreignFetchActive(spaceId, share.id, entry.relPath)) {
-      return { status: 'downloading', localPath: null, pendingBytes: 0, mirrored: true }
-    }
-    if (!entry.contentHash) return { status: unhashedStatusFor(ownerOnline), localPath: null, mirrored: true }
-    return { status: ownerOnline ? 'remote' : 'unavailable', localPath: null, mirrored: true }
+    const onDevice = verdict !== COPY_VERDICT.UNPROVEN || stat?.size === entry.size
+    const row = consumerRowStatusFor({
+      copyVerdict: onDevice ? verdict : null,
+      onDeviceStatus: SHARE_FILE_STATUS.SYNCED,
+      hashed,
+      // Gated on reachability, like the strip and the folder tile: a fetch parked on the overlay's
+      // peer wait pulls nothing, and a downloading row with no bytes paints as "Preparing…" beside a
+      // banner saying the owner is offline.
+      isActive: ownerOnline && deps.foreignFetchActive(spaceId, share.id, entry.relPath),
+      pendingRow: null,
+      ownerOnline,
+    })
+    const wantsWalk = onDevice && (verdict === COPY_VERDICT.MODIFIED || verdict === COPY_VERDICT.DRIFTED)
+    return { ...row, localPath: onDevice ? abs : null, mirrored: true, wantsWalk }
   }
 
   const drivePath = '/' + share.name + '/' + entry.relPath
@@ -108,23 +103,18 @@ function overlayConsumerRow(spaceId, share, entry, { ownerOnline, foreignMount, 
   // Collected, never acted on here: a del is a write, and taking a write turn per stale row is the
   // cost this batching exists to remove. The listing flushes them once, after the rows.
   if (verdict.prune) prune.push(drivePath)
-  if (verdict.downloaded) {
-    const localPath = deps.claimedPathFor(drivePath, claim)
-    return onDeviceRow(SHARE_FILE_STATUS.DOWNLOADED, localPath, copyVerdict(verdict.stat ?? null, localPath, false))
-  }
-
-  // Status is one ordered rule set, mirroring the loose path's order (which hand-rolls the same
-  // null-hash-first check at its call site) — an in-flight fetch is 'downloading', a null hash is
-  // the owner's index, and only then does the durable pending row decide error/paused. Derived
-  // there, never overlaid by the renderer.
-  const transferId = transferIdFor(spaceId, share.id, entry.relPath)
+  const localPath = verdict.downloaded ? deps.claimedPathFor(drivePath, claim) : null
+  // Keyed by the share's NAME, which two owners can share: the row counts only for the share it names.
+  const pendingRow = pending?.get(drivePath)
   const row = consumerRowStatusFor({
-    hashed: Boolean(entry.contentHash),
-    isActive: deps.overlayHasTransfer(transferId),
-    pendingRow: pending?.get(drivePath),
+    copyVerdict: verdict.downloaded ? copyVerdict(verdict.stat ?? null, localPath, false) : null,
+    onDeviceStatus: SHARE_FILE_STATUS.DOWNLOADED,
+    hashed,
+    isActive: deps.overlayHasTransfer(transferIdFor(spaceId, share.id, entry.relPath)),
+    pendingRow: pendingRow?.shareId === share.id ? pendingRow : undefined,
     ownerOnline,
   })
-  return { ...row, localPath: null }
+  return { ...row, localPath }
 }
 
 // Two range scans replace up to three point reads PER ROW. Scoped to the rows this listing can
@@ -143,7 +133,7 @@ async function prefetchRowState(spaceId, share, entries, { isOwn, foreignMount, 
 
 function ownerRow(entry, ownedMount) {
   return {
-    status: entry.contentHash ? 'synced' : 'publishing',
+    status: entry.contentHash ? SHARE_FILE_STATUS.SYNCED : SHARE_FILE_STATUS.PUBLISHING,
     localPath: ownedMount ? pathFromMount(ownedMount.mountPath, entry.relPath) : null,
   }
 }

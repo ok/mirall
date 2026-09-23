@@ -1,14 +1,10 @@
 // The merged "who mirrors what" listing for a space: own mirror records plus every member's, each
 // tagged with the mirroring peer. Only current members are trusted — a non-member's record is never
-// read — mirroring share-registry's member fan-out.
+// read — through the one member fan-out.
 import { getLocalPublicKeyHex } from '../spaces/profile.js'
 import { getSpace } from '../spaces/space.js'
 import { readOwnMirrors, readPeerMirrors, readOwnMirror, readPeerMirror } from './mirror-records.js'
-import { interactiveReadTimeoutMs } from '../core/with-timeout.js'
-
-function personKeysOf(space, me) {
-  return (space.members || []).map((m) => m.publicKey).filter((k) => k && k !== me)
-}
+import { peerMembersOf, readEachPeer } from '../spaces/member-fanout.js'
 
 export async function listMirrorsForSpace(spaceId) {
   const space = await getSpace(spaceId)
@@ -17,14 +13,10 @@ export async function listMirrorsForSpace(spaceId) {
   const me = getLocalPublicKeyHex()
   const own = (await readOwnMirrors(spaceId)).map((m) => ({ ...m, mirrorer: me }))
 
-  const budget = interactiveReadTimeoutMs()
-  const peerLists = await Promise.all(
-    personKeysOf(space, me).map(async (personKey) => {
-      const mirrors = await readPeerMirrors(personKey, spaceId, budget)
-      if (!mirrors) return []
-      return mirrors.map((m) => ({ ...m, mirrorer: personKey }))
-    })
-  )
+  const peerLists = await readEachPeer(peerMembersOf(space.members, me), async (member, budget) => {
+    const mirrors = await readPeerMirrors(member.publicKey, spaceId, budget)
+    return mirrors ? mirrors.map((m) => ({ ...m, mirrorer: member.publicKey })) : []
+  })
 
   return [...own, ...peerLists.flat()]
 }
@@ -39,13 +31,10 @@ export async function listMirrorsForShare(spaceId, shareId) {
   const own = await readOwnMirror(spaceId, shareId)
   const ownTagged = own ? [{ ...own, mirrorer: me }] : []
 
-  const budget = interactiveReadTimeoutMs()
-  const peerRecs = await Promise.all(
-    personKeysOf(space, me).map(async (personKey) => {
-      const rec = await readPeerMirror(personKey, spaceId, shareId, budget)
-      return rec ? { ...rec, mirrorer: personKey } : null
-    })
-  )
+  const peerRecs = await readEachPeer(peerMembersOf(space.members, me), async (member, budget) => {
+    const rec = await readPeerMirror(member.publicKey, spaceId, shareId, budget)
+    return rec ? { ...rec, mirrorer: member.publicKey } : null
+  })
 
   return [...ownTagged, ...peerRecs.filter(Boolean)]
 }

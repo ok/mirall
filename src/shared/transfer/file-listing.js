@@ -13,19 +13,19 @@ import {
   pruneDownloadClaims,
   verdictForClaim,
 } from './files.js'
-import { COPY_VERDICT, verifiedCopyVerdict } from './verified-copy.js'
+import { verifiedCopyVerdict } from './verified-copy.js'
 import { FILE_STATUS } from '../contract/statuses.js'
 import { createLogger } from '../core/logger.js'
 
 import { CODES } from '../contract/errors.js'
 import { AppError } from '../core/errors.js'
 import { getListFullReadEvery, isInPlaceFilesEnabled } from '../core/runtime-config.js'
-import { interactiveReadTimeoutMs } from '../core/with-timeout.js'
 import { isEphemeralSourcePath } from './temp-paths.js'
 import { readCatalogKey } from '../shares/catalog-keys.js'
 import { getLocalPublicKeyHex } from '../spaces/profile.js'
 import { getSpace } from '../spaces/space.js'
 import { isParticipating } from '../spaces/participation.js'
+import { peerMembersOf, readEachPeer } from '../spaces/member-fanout.js'
 /** @import { StoredSpace } from '../spaces/space.js' */
 import { dedupeFileRows } from './file-dedupe.js'
 import { markListIncomplete } from './list-deficits.js'
@@ -35,7 +35,7 @@ import { looseCatalogVersion, looseListPeer, looseTransferActive } from './backe
 import { listPendingForSpace } from './pending-transfers.js'
 import { isOwnerOnline } from '../network/presence-leases.js'
 import { LOOSE_SHARE_ID, looseTransferIdFor } from './transfer-id.js'
-import { unhashedStatusFor } from './transfer-status.js'
+import { consumerRowStatusFor } from './transfer-status.js'
 import fs from 'bare-fs'
 import path from 'bare-path'
 
@@ -69,17 +69,7 @@ export async function addFile(spaceId, filePath, fileName) {
   await looseShareFile(spaceId, filePath, fileName || path.basename(filePath))
 }
 
-// The display status of a peer-held file, most-progressed first. `copyVerdict` is the on-device
-// copy's verified-copy reading, null when there is none. Exported for unit coverage.
-/** @internal */
-export function peerFileStatus(copyVerdict, pendingRow, ownerOnline, isActive) {
-  if (copyVerdict === COPY_VERDICT.MODIFIED) return FILE_STATUS.MODIFIED
-  if (copyVerdict) return 'downloaded'
-  if (isActive) return 'downloading'
-  if (pendingRow?.errorCode) return 'error'
-  if (pendingRow) return ownerOnline ? 'paused-interrupted' : 'paused-offline'
-  return ownerOnline ? 'remote' : 'unavailable'
-}
+const NO_CLAIM = Object.freeze({ downloaded: false, prune: false })
 
 // What production passes for `deps`; a test passes doubles and counts them.
 const productionDeps = {
@@ -101,27 +91,20 @@ function ownRow(e, localPublicKey) {
   return {
     path: '/' + e.relPath, size: e.size, hash: e.contentHash || '', inPlace: true,
     owner: { displayName: 'You', publicKey: localPublicKey },
-    localBytes: hashed ? e.size : 0, isAvailable: true, status: hashed ? 'mine' : 'publishing',
-  }
-}
-
-// Owner advertised before hashing finished → 'preparing' while reachable, else 'unavailable' (the
-// frozen null-hash placeholder can never complete once the owner is offline).
-function unhashedPeerRow(member, e, ownerOnline) {
-  return {
-    path: '/' + e.relPath, size: e.size, hash: '', inPlace: true,
-    owner: { displayName: member.displayName, publicKey: member.publicKey },
-    localBytes: 0, isAvailable: ownerOnline,
-    status: unhashedStatusFor(ownerOnline),
+    localBytes: hashed ? e.size : 0, isAvailable: true, status: hashed ? FILE_STATUS.MINE : FILE_STATUS.PUBLISHING,
   }
 }
 
 // One peer-held row. Synchronous: every fact is a prefetched map, an in-memory engine read or a
 // stat, so the loop over every row never yields. A stale claim is collected, never deleted here.
+// A claim and a live slot are keyed by name alone and only the content hash ties either to this
+// owner's file, so an unhashed entry reads neither; a pending row names its owner, so it counts only
+// for that owner's row.
 function peerRow(spaceId, member, e, ctx) {
   const drivePath = '/' + e.relPath
+  const hashed = Boolean(e.contentHash)
   const claim = ctx.claims.get(drivePath) || null
-  const verdict = ctx.deps.verdictForClaim(spaceId, drivePath, claim, e.contentHash, ctx.dirProbe)
+  const verdict = hashed ? ctx.deps.verdictForClaim(spaceId, drivePath, claim, e.contentHash, ctx.dirProbe) : NO_CLAIM
   if (verdict.prune) ctx.stale.set(drivePath, verdict.reason)
   if (verdict.downloaded) ctx.held.add(drivePath)
   const copyVerdict = verdict.downloaded
@@ -129,16 +112,20 @@ function peerRow(spaceId, member, e, ctx) {
       contentHash: e.contentHash, expectedSize: e.size, expectLocal: claimedPathFor(drivePath, claim),
     })
     : null
-  // Status is derived here (single source of truth): an in-flight fetch is 'downloading',
-  // otherwise the durable pending row decides paused-*/error. The renderer never overrides it.
-  const isActive = ctx.deps.transferActive(spaceId, e.relPath)
   const pendingRow = ctx.pending.get(drivePath)
+  const row = consumerRowStatusFor({
+    copyVerdict,
+    onDeviceStatus: FILE_STATUS.DOWNLOADED,
+    hashed,
+    isActive: hashed && ctx.deps.transferActive(spaceId, e.relPath),
+    pendingRow: pendingRow?.ownerKey === member.publicKey ? pendingRow : undefined,
+    ownerOnline: ctx.ownerOnline,
+  })
   return {
-    path: drivePath, size: e.size, hash: e.contentHash, inPlace: true,
+    path: drivePath, size: e.size, hash: e.contentHash || '', inPlace: true,
     owner: { displayName: member.displayName, publicKey: member.publicKey },
-    localBytes: copyVerdict ? e.size : 0,
-    isAvailable: ctx.ownerOnline, status: peerFileStatus(copyVerdict, pendingRow, ctx.ownerOnline, isActive), verified: copyVerdict === COPY_VERDICT.VERIFIED,
-    pendingBytes: pendingRow?.bytesTransferred, errorCode: isActive ? undefined : pendingRow?.errorCode,
+    localBytes: copyVerdict ? e.size : 0, isAvailable: ctx.ownerOnline,
+    status: row.status, verified: row.verified || false, pendingBytes: row.pendingBytes, errorCode: row.errorCode,
     transferId: looseTransferIdFor(spaceId, e.relPath),
   }
 }
@@ -160,10 +147,9 @@ async function prefetchLooseRowState(spaceId, peerEntries, deps) {
   return { verified, claims }
 }
 
-// Interactive fan-out: every member's catalog is read at once, each under the short interactive
-// budget, so the listing costs one budget in total however many members are unreachable. A member
-// whose read fails contributes no rows instead of failing the listing. A catalog whose version has
-// not moved since its last complete read is served from the listing memo instead.
+// One member's catalog, under the fan-out's budget. A member whose read fails contributes no rows
+// instead of failing the listing. A catalog whose version has not moved since its last complete read
+// is served from the listing memo instead.
 async function readPeerEntries(spaceId, member, { budget, space, deps }) {
   const { keyHex } = readCatalogKey(member)
   let prior = null
@@ -189,12 +175,11 @@ async function readPeerEntries(spaceId, member, { budget, space, deps }) {
 async function collectLooseInPlace(spaceId, members, { localPublicKey, space, deps }) {
   if (!isInPlaceFilesEnabled()) return []
   const out = (await looseListOwn(spaceId)).map((e) => ownRow(e, localPublicKey))
-  const peerMembers = (members || []).filter((m) => m?.publicKey && m.publicKey !== localPublicKey && readCatalogKey(m).keyHex)
+  const peerMembers = peerMembersOf(members, localPublicKey, (m) => Boolean(readCatalogKey(m).keyHex))
   retainListingMemo(spaceId, new Set(peerMembers.map((m) => readCatalogKey(m).keyHex)))
   if (peerMembers.length === 0) return out
   const pending = new Map((await deps.listPendingForSpace(spaceId)).map((p) => [p.filePath, p]))
-  const budget = interactiveReadTimeoutMs()
-  const peerEntries = await Promise.all(peerMembers.map((member) => readPeerEntries(spaceId, member, { budget, space, deps })))
+  const peerEntries = await readEachPeer(peerMembers, (member, budget) => readPeerEntries(spaceId, member, { budget, space, deps }))
   const { verified, claims } = await prefetchLooseRowState(spaceId, peerEntries, deps)
 
   const stale = new Map() // drivePath -> the verdict's reason
@@ -203,7 +188,7 @@ async function collectLooseInPlace(spaceId, members, { localPublicKey, space, de
   // Member order is the dedupe tie-break, so the fold must see candidates in this order.
   for (const [i, member] of peerMembers.entries()) {
     const ctx = { deps, verified, claims, pending, stale, held, dirProbe, ownerOnline: deps.isOwnerOnline(member.publicKey) }
-    for (const e of peerEntries[i]) out.push(e.contentHash ? peerRow(spaceId, member, e, ctx) : unhashedPeerRow(member, e, ctx.ownerOnline))
+    for (const e of peerEntries[i]) out.push(peerRow(spaceId, member, e, ctx))
   }
   // A claim is keyed by name, not by owner: one member's replaced file must not prune the claim
   // another member's row in this same listing reads as downloaded.

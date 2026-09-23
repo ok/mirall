@@ -12,9 +12,9 @@ const log = createLogger('catalog-writer')
 // one write). Method signatures mirror ownCatalogWriter so it drops into publishContent
 // via the `catalog` option; the per-op value shape and merge guards mirror
 // own-catalog's advertise/setMaterializedHash/tombstone. Each write resolves to
-// `{ landed }` — a promise for the flush that carries it — so a caller that must act only
-// once the write is durable (drop a serve reference after its tombstone) can wait for
-// exactly that, without awaiting the flush inline.
+// `{ landed }` — a promise for the flush that carries it, true when that flush wrote it and false
+// when it dropped it — so a caller that must act only once the write is durable (drop a serve
+// reference after its tombstone) can wait for exactly that, without awaiting the flush inline.
 export function createCatalogBatch(spaceId, {
   flushMs = getRuntimeConfig().catalogFlushMs,
   maxOps = getRuntimeConfig().catalogFlushMaxOps,
@@ -63,6 +63,7 @@ export function createCatalogBatch(spaceId, {
     // driving it must survive a failed write. A rejection here would poison `flushing` for every
     // later flush/close. Log and continue; dropped ops self-heal on the next full scan.
     flushing = flushing.then(async () => {
+      let written = false
       const bee = await resolveBee()
       const batch = bee.batch()
       try {
@@ -79,12 +80,13 @@ export function createCatalogBatch(spaceId, {
           }
         }
         await batch.flush()
+        written = true
       } catch (err) {
         try { await batch.close?.() } catch {}
         log.warn('catalog batch flush dropped ' + gen.ops.size + ' op(s):', err.message)
       } finally {
         inflight.splice(inflight.indexOf(gen), 1)
-        gen.land()
+        gen.land(written)
       }
     })
     return flushing

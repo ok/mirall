@@ -23,7 +23,6 @@ interface FileCardProps {
   onPause: (transferId: string) => void
   onReveal: (file: FileEntry) => void
   onUnshare: (file: FileEntry) => void
-  onDiscardPartial: (file: FileEntry) => void
   onCancelPublish: (file: FileEntry) => void
   members?: SpaceMember[]
   downloadSummary?: PeerDownloadSummary | null
@@ -52,10 +51,11 @@ function deriveActions(
     onPause: (transferId: string) => void
     onReveal: (file: FileEntry) => void
     onUnshare: (file: FileEntry) => void
-    onDiscardPartial: (file: FileEntry) => void
     onCancelPublish: (file: FileEntry) => void
   }
 ): ActionPair {
+  const { transferId } = file
+  const discard = (title: string): ActionButton | null => (transferId ? { icon: 'close', title, onClick: () => handlers.onCancel(transferId) } : null)
   switch (file.status) {
     case 'mine':
       return {
@@ -83,10 +83,7 @@ function deriveActions(
           title: t('file.pause'),
           onClick: () => handlers.onPause(file.transferId ?? ''),
         },
-        // Loose downloads can be stopped outright (discard the partial).
-        secondary: file.inPlace
-          ? { icon: 'close', title: t('file.cancel'), onClick: () => handlers.onCancel(file.transferId ?? ''), variant: 'danger' }
-          : null,
+        secondary: { icon: 'close', title: t('file.cancel'), onClick: () => handlers.onCancel(file.transferId ?? ''), variant: 'danger' },
       }
     case 'publishing':
       return {
@@ -101,11 +98,11 @@ function deriveActions(
     case 'paused-interrupted':
       return {
         primary: { icon: 'play_arrow', title: t('file.resume'), onClick: () => handlers.onDownload(file) },
-        secondary: { icon: 'close', title: t('file.discardPartial'), onClick: () => handlers.onDiscardPartial(file) },
+        secondary: discard(t('file.discardPartial')),
       }
     case 'paused-offline':
       return {
-        primary: { icon: 'close', title: t('file.discardPartial'), onClick: () => handlers.onDiscardPartial(file) },
+        primary: discard(t('file.discardPartial')),
         secondary: null,
       }
     case 'unavailable':
@@ -113,7 +110,7 @@ function deriveActions(
     case 'error':
       return {
         primary: { icon: 'refresh', title: t('file.retry'), onClick: () => handlers.onDownload(file) },
-        secondary: { icon: 'close', title: t('file.dismiss'), onClick: () => handlers.onDiscardPartial(file) },
+        secondary: discard(t('file.dismiss')),
       }
   }
 }
@@ -157,7 +154,6 @@ function FileCard({
   onPause,
   onReveal,
   onUnshare,
-  onDiscardPartial,
   onCancelPublish,
   members,
   downloadSummary,
@@ -182,7 +178,6 @@ function FileCard({
     onPause,
     onReveal,
     onUnshare,
-    onDiscardPartial,
     onCancelPublish,
   })
 

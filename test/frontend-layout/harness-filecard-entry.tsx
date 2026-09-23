@@ -53,7 +53,6 @@ const cardHandlers = {
   onPause: noop,
   onReveal: noop,
   onUnshare: noop,
-  onDiscardPartial: noop,
   onCancelPublish: noop,
 }
 

@@ -4,9 +4,9 @@ import fs from 'bare-fs'
 import { shareDecoKey } from '../../../contract/decoration-key.js'
 import { ownCatalogWriter, setOwnCatalogAppendHook } from '../../../shares/own-catalog.js'
 import { makeSharesRefresh } from './overlay-refresh.js'
-import { publishContent } from './overlay-publish.js'
+import { publishContent, retireContent } from './overlay-publish.js'
 import { overlayHashFile } from './overlay-hash.js'
-import { makeServable, evictIfUnreferenced } from './serve-registration.js'
+import { makeServable } from './serve-registration.js'
 import { makePublishProgress } from './publish-progress.js'
 
 let ipcRef = null
@@ -41,16 +41,9 @@ export async function folderPublishAdd(spaceId, share, relPath, absPath, opts = 
 }
 
 // A bulk retire writes through the space's catalog batch like a bulk publish (one head for a
-// thousand deletions, not a thousand). The serve reference is dropped only once the tombstone
-// has LANDED — a peer must never see a file still advertised but no longer servable — and for a
-// batched write that wait is off the executor's critical path: the item settles at once, the
-// eviction follows the flush.
+// thousand deletions, not a thousand), so the eviction is off the executor's critical path.
 export async function folderPublishDelete(spaceId, share, relPath, { catalog = ownCatalogWriter } = {}) {
-  const prev = await catalog.get(spaceId, share.id, relPath)
-  const staged = await catalog.tombstone(spaceId, share.id, relPath)
-  const evict = () => evictIfUnreferenced({ contentHash: prev?.contentHash, spaceId, shareId: share.id, relPath })
-  if (staged?.landed) void staged.landed.then(evict)
-  else await evict()
+  await retireContent(spaceId, share.id, relPath, { catalog })
   if (catalog === ownCatalogWriter) sharesRefresh.flush(spaceId, share.id)
   else sharesRefresh.touch(spaceId, share.id)
 }

@@ -43,7 +43,7 @@ interface SpaceContentPaneProps {
   cardActions: CardActions
   listing: Pick<FilesProps,
     'files' | 'error' | 'onRetry' | 'getDecoration' | 'isSeeded' | 'getDownloadSummary'
-    | 'onDownload' | 'onCancel' | 'onPause' | 'onDiscardPartial'
+    | 'onDownload' | 'onCancel' | 'onPause'
   >
   drag: DropProps & { handlers: Record<string, unknown> }
   onFilesSelected: (files: File[]) => void

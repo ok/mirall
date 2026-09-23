@@ -118,7 +118,6 @@ export const REQUESTS = Object.freeze({
   } },
   'files:cancel-download': { kind: 'command', args: { transferId: { type: ARG.string } } },
   'files:cancel-publish': { kind: 'command', args: { path: { type: ARG.path }, spaceId: { type: ARG.spaceId } } },
-  'files:discard-partial': { kind: 'command', args: { path: { type: ARG.path }, spaceId: { type: ARG.spaceId } } },
   'files:download': { kind: 'command', args: {
     ownerKey: { type: ARG.string, max: ARG_MAX.key },
     path: { type: ARG.path, max: ARG_MAX.path },
@@ -251,12 +250,6 @@ export const REQUESTS = Object.freeze({
   } },
   'share:rename': { kind: 'command', args: {
     name: { type: ARG.string, max: ARG_MAX.name },
-    shareId: { type: ARG.shareId },
-    spaceId: { type: ARG.spaceId },
-  } },
-  'share:discard-partial': { kind: 'command', args: {
-    ownerKey: { type: ARG.string, max: ARG_MAX.key },
-    relPath: { type: ARG.path, max: ARG_MAX.path },
     shareId: { type: ARG.shareId },
     spaceId: { type: ARG.spaceId },
   } },

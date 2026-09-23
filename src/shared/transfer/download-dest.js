@@ -4,15 +4,14 @@ import { nextFreeName } from '../folders/path-keys.js'
 import { isInsideDownloadDir } from '../core/paths.js'
 import { PARTIAL_SUFFIX } from './partial-suffix.js'
 
-// Pick a Downloads destination that collides with neither a pre-existing file nor an
-// in-flight partial, so a fresh download never overwrites the user's file or adopts
-// another transfer's orphan.
+// A name is taken by a final file OR an in-flight partial, so a fresh destination, a collision
+// sibling and a conflict copy never land on the user's file or another transfer's orphan.
+export function nameTakenAt(absPath) {
+  return fs.existsSync(absPath) || fs.existsSync(absPath + PARTIAL_SUFFIX)
+}
+
 export function resolveDest(localDir, fileName) {
-  const isTaken = (name) => {
-    const candidate = path.join(localDir, name)
-    return fs.existsSync(candidate) || fs.existsSync(candidate + PARTIAL_SUFFIX)
-  }
-  return path.join(localDir, nextFreeName(fileName, isTaken))
+  return path.join(localDir, nextFreeName(fileName, (name) => nameTakenAt(path.join(localDir, name))))
 }
 
 // The destination for a transfer that may already have a pinned one. A pending row records

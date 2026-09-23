@@ -1,4 +1,4 @@
-// The publish core folder shares and loose files share. Advertise FIRST with contentHash:null so
+// The publish and retire core folder shares and loose files share. Advertise FIRST with contentHash:null so
 // the entry is visible to members the instant it is added (consumer status `preparing`), then hash
 // and backfill (the catalog update replicates → consumer flips preparing→remote). The canonical
 // bytes stay in the user's real file on disk; nothing is copied into a core.
@@ -6,7 +6,7 @@ import fs from 'bare-fs'
 import { ownCatalogWriter } from '../../../shares/own-catalog.js'
 import { createLogger } from '../../../core/logger.js'
 import { getOverlay } from './overlay-instance.js'
-import { makeServable } from './serve-registration.js'
+import { evictIfUnreferenced, makeServable } from './serve-registration.js'
 
 const log = createLogger('overlay')
 
@@ -65,6 +65,18 @@ export async function publishContent(spaceId, shareId, relPath, absPath, { onAdv
   }
   await makeServable({ spaceId, shareId, relPath, absPath, contentHash, size: st.size })
   return { changed: true, contentHash }
+}
+
+// Tombstone a path and drop its serve reference only once the tombstone has LANDED — a peer must
+// never see a file still advertised but no longer servable. A direct write lands at once and the
+// eviction is awaited; a batched write settles the caller now and evicts after the flush, and a
+// flush that dropped the tombstone keeps the file servable for the scan that re-retires it.
+export async function retireContent(spaceId, shareId, relPath, { catalog = ownCatalogWriter } = {}) {
+  const prev = await catalog.get(spaceId, shareId, relPath)
+  const staged = await catalog.tombstone(spaceId, shareId, relPath)
+  const evict = () => evictIfUnreferenced({ contentHash: prev?.contentHash, spaceId, shareId, relPath })
+  if (staged?.landed) void staged.landed.then((written) => written && evict())
+  else await evict()
 }
 
 // Undo a half-advertised (contentHash:null) catalog entry after a failed publish: re-advertise the
