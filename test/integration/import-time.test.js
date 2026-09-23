@@ -38,7 +38,6 @@ test('REGRESSION (LIFECYCLE-1d): importing every src/shared module creates zero 
 const SCC = [
   'transfer/backends/overlay/loose-publish.js',
   'transfer/backends/overlay/loose-downloads.js',
-  'transfer/backends/overlay/loose-maintenance.js',
   'transfer/files.js',
   'transfer/backends/overlay/overlay-download.js',
   'transfer/backends/overlay/download-start.js',

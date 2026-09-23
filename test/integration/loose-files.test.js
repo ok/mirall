@@ -11,7 +11,7 @@ import { initDownloads, markOwnedSource, getOwnedSourcePath } from '../../src/sh
 import { addFile, removeFile, listFiles } from '../../src/shared/transfer/file-listing.js'
 import { initPendingTransfers } from '../../src/shared/transfer/pending-transfers.js'
 import { MAX_LOOSE_FILES_PER_SPACE } from '../../src/shared/transfer/backends/overlay/loose-publish.js'
-import { sweepLoosePresence } from '../../src/shared/transfer/backends/overlay/loose-maintenance.js'
+import { sweepOwnedPresence } from '../../src/shared/transfer/backends/overlay/overlay-maintenance.js'
 import { LOOSE_SHARE_ID } from '../../src/shared/transfer/transfer-id.js'
 import { initLooseIpc } from '../helpers/overlay-ipc.js'
 
@@ -86,9 +86,9 @@ test('sweep tombstones a gone loose file but leaves a non-loose owned-source mar
   await addFile(ctx.spaceId, abs, 'loose.txt', 4, ctx.fake.ipc)
   fs.unlinkSync(abs)
 
-  await sweepLoosePresence() // confirm-gone-twice: first pass defers
+  await sweepOwnedPresence() // confirm-gone-twice: first pass defers
   t.ok(await getOwnEntry(ctx.spaceId, LOOSE_SHARE_ID, 'loose.txt'), 'first sweep defers (atomic-save guard)')
-  await sweepLoosePresence() // second pass tombstones
+  await sweepOwnedPresence() // second pass tombstones
   t.absent(await getOwnEntry(ctx.spaceId, LOOSE_SHARE_ID, 'loose.txt'), 'gone loose entry tombstoned')
   t.is(await getOwnedSourcePath(ctx.spaceId, '/eager.txt'), '/somewhere/eager.txt', 'eager owned-source untouched by the loose sweep')
 })

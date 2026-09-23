@@ -16,7 +16,7 @@ import { listFiles } from '../../src/shared/transfer/file-listing.js'
 import { initPendingTransfers, recordPending, getPendingFor } from '../../src/shared/transfer/pending-transfers.js'
 import { looseShareFile, looseUnshareFile, looseListOwn, looseCancelPublish, handleLooseFsEvent, MAX_LOOSE_FILES_PER_SPACE, looseSources } from '../../src/shared/transfer/backends/overlay/loose-publish.js'
 import { looseCancelTransfer } from '../../src/shared/transfer/backends/overlay/loose-downloads.js'
-import { rehydrateLooseFiles, sweepLoosePresence } from '../../src/shared/transfer/backends/overlay/loose-maintenance.js'
+import { rehydrateOwnedContent, sweepOwnedPresence } from '../../src/shared/transfer/backends/overlay/overlay-maintenance.js'
 import { LOOSE_SHARE_ID, looseTransferIdFor } from '../../src/shared/transfer/transfer-id.js'
 import { initLooseIpc } from '../helpers/overlay-ipc.js'
 
@@ -160,7 +160,7 @@ test('R5: rehydrate re-registers own loose files from the catalog after a restar
   await initOverlay()
   t.absent(serveIndex.has(hash), 'precondition: serve maps cleared')
 
-  await rehydrateLooseFiles()
+  await rehydrateOwnedContent()
   t.ok(serveIndex.has(hash), 'rehydrated: hash servable again')
   t.ok(looseSources.has(abs), 'reverse map repopulated')
   const got = await getOverlay().fetchFile(hash, {})
@@ -190,7 +190,7 @@ test('REGRESSION (FIX-1b: rehydrate isolation): one file that throws does not ab
   }
   t.teardown(() => { overlay.registerFile = realRF })
 
-  await rehydrateLooseFiles()
+  await rehydrateOwnedContent()
   t.ok(serveIndex.has(hashB), 'b.txt re-registered despite a.txt throwing earlier in the loop')
 })
 
@@ -201,9 +201,9 @@ test('R6: sweep tombstones a loose entry whose source vanished', async (t) => {
   const hash = (await getOwnEntry(ctx.spaceId, LOOSE_SHARE_ID, 'gone.txt')).contentHash
 
   fs.unlinkSync(abs)
-  await sweepLoosePresence() // confirm-gone-twice: first pass defers (atomic-save guard)
+  await sweepOwnedPresence() // confirm-gone-twice: first pass defers (atomic-save guard)
   t.ok(await getOwnEntry(ctx.spaceId, LOOSE_SHARE_ID, 'gone.txt'), 'first sweep defers')
-  await sweepLoosePresence() // second pass tombstones
+  await sweepOwnedPresence() // second pass tombstones
 
   t.absent(await getOwnEntry(ctx.spaceId, LOOSE_SHARE_ID, 'gone.txt'), 'source gone → entry tombstoned')
   t.absent(serveIndex.has(hash), 'serve-index claim dropped')

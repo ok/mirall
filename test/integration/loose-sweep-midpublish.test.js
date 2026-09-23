@@ -9,7 +9,7 @@ import { initOverlay, teardownOverlay } from '../../src/shared/transfer/backends
 import { initDownloads } from '../../src/shared/transfer/files.js'
 import { initPendingTransfers } from '../../src/shared/transfer/pending-transfers.js'
 import { looseShareFile, looseSources } from '../../src/shared/transfer/backends/overlay/loose-publish.js'
-import { sweepLoosePresence } from '../../src/shared/transfer/backends/overlay/loose-maintenance.js'
+import { sweepOwnedPresence } from '../../src/shared/transfer/backends/overlay/overlay-maintenance.js'
 import { LOOSE_SHARE_ID } from '../../src/shared/transfer/transfer-id.js'
 import { initLooseIpc } from '../helpers/overlay-ipc.js'
 
@@ -41,8 +41,8 @@ test('REGRESSION (FIX-1): the sweep does not tombstone a still-preparing loose e
   await advertise(ctx.spaceId, LOOSE_SHARE_ID, 'big.mp4', { size: 43_000_000_000, mtime: Date.now(), contentHash: null })
   t.ok(await getOwnEntry(ctx.spaceId, LOOSE_SHARE_ID, 'big.mp4'), 'precondition: advertised (preparing)')
 
-  await sweepLoosePresence() // would arm (first miss)
-  await sweepLoosePresence() // would tombstone (second consecutive miss) — the bug
+  await sweepOwnedPresence() // would arm (first miss)
+  await sweepOwnedPresence() // would tombstone (second consecutive miss) — the bug
 
   t.ok(await getOwnEntry(ctx.spaceId, LOOSE_SHARE_ID, 'big.mp4'), 'a preparing entry (source map not written yet) survives the sweep')
 })
@@ -58,8 +58,8 @@ test('FIX-1: the sweep still tombstones a shared entry whose recorded source van
 
   fs.unlinkSync(abs) // source vanishes; no real watcher in-test → the sweep is the backstop
 
-  await sweepLoosePresence() // arm
-  await sweepLoosePresence() // tombstone
+  await sweepOwnedPresence() // arm
+  await sweepOwnedPresence() // tombstone
 
   t.absent(await getOwnEntry(ctx.spaceId, LOOSE_SHARE_ID, 'gone.bin'), 'a genuinely-vanished recorded source is reclaimed')
 })

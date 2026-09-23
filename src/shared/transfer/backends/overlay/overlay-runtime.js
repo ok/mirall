@@ -9,7 +9,7 @@ import { resetFetchSlots, drainFetchSlots } from './fetch-gate.js'
 import { registerFetchOwner, resetFetchClaims } from './fetch-gate.js'
 import { initOverlay, teardownOverlay, attachOverlay, revokeServesForSpace, bumpServeEpoch } from './overlay-instance.js'
 import { serveIndex } from './overlay-serve-index.js'
-import { rehydrateOwnedFiles, resetOverlayMaintenance } from './overlay-maintenance.js'
+import { rehydrateOwnedContent, resetOverlayMaintenance } from './overlay-maintenance.js'
 import { resetOverlayPublish } from './overlay-publish.js'
 import { initPublishProgress, resetPublishProgress } from './publish-progress.js'
 import { initFolderPublish, resetFolderPublish } from './folder-publish.js'
@@ -20,7 +20,6 @@ import { initLoosePublish, resetLoosePublish } from './loose-publish.js'
 import {
   initLooseDownloads, resetLooseDownloads, looseChannel, setLooseEngine, resumeLooseForOwner,
 } from './loose-downloads.js'
-import { rehydrateLooseFiles, resetLooseMaintenance } from './loose-maintenance.js'
 import { listSpaces } from '../../../spaces/space.js'
 import { listPendingOwnerKeys, listPendingOwnerSpaces } from '../../pending-transfers.js'
 
@@ -43,7 +42,7 @@ export class OverlayBackend extends Subsystem {
     initFolderDownloads({ ipc })
     initLoosePublish({ ipc })
     initLooseDownloads({ ipc })
-    // The instance comes first: the rehydrate below reaches makeServable and enqueueLoosePublish,
+    // The instance comes first: the rehydrate below reaches makeServable and the loose re-publish,
     // and both fall through on a null getOverlay() — so a rehydrate that runs ahead of it silently
     // leaves a crash-interrupted entry unhashed and stuck on "Adding".
     this.overlay = await initOverlay()
@@ -61,8 +60,7 @@ export class OverlayBackend extends Subsystem {
     registerFetchOwner('folder', (transferId) => this.folderEngine.has(transferId))
     registerFetchOwner('loose', (transferId) => this.looseEngine.has(transferId))
     // Backgrounded: re-registering every owned file walks and chunk-maps each one.
-    rehydrateLooseFiles().catch((err) => this.log.debug('loose rehydrate failed:', err.message))
-    rehydrateOwnedFiles().catch((err) => this.log.debug('overlay rehydrate failed:', err.message))
+    rehydrateOwnedContent().catch((err) => this.log.debug('rehydrate failed:', err.message))
   }
 
   // Destroys the protocol — and only the protocol — while the sockets its frames travel on are
@@ -97,7 +95,6 @@ export class OverlayBackend extends Subsystem {
     resetPublishProgress()
     resetLoosePublish()
     resetLooseDownloads()
-    resetLooseMaintenance()
   }
 
   attach(mux, socket) {

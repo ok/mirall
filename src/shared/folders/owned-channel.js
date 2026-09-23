@@ -8,8 +8,11 @@
 import { getOwnedMount } from './mount-store.js'
 import { getContentBackend, isUnsupportedShare } from '../transfer/content-backends.js'
 import { pathFromMount } from './path-guard.js'
-import { registerPublishChannel, settleCatalog, mountRootAvailable } from './publish-service.js'
+import { registerPublishChannel, settleCatalog, mountRootAvailable, getPublishScheduler } from './publish-service.js'
+import { OP, PRIORITY } from './work-item.js'
 import { loadShare } from './owned-shares.js'
+import { fileExactlyPresent, fileStatPresent } from './disk-presence.js'
+import { makeServable } from '../transfer/backends/overlay/serve-registration.js'
 
 // Injected by owned-folders.js: the channel is registered at import and the engine it belongs to
 // does not exist until _open.
@@ -56,4 +59,30 @@ registerPublishChannel('folder', {
     settleCatalog(spaceId).then(() => emit('event:share-files-updated', { spaceId, shareId }))
   },
   onSpaceIdle: (spaceId) => state?.forgetShares(spaceId),
+  // Maintenance walks a share only while its root is a directory: a temporarily unavailable mount
+  // must never read as an empty folder and mass-retire.
+  async contentRoot({ spaceId, shareId }) {
+    const mount = await getOwnedMount(spaceId, shareId)
+    return mount?.mountPath && mountRootAvailable(mount.mountPath) ? mount.mountPath : null
+  },
+  // Exact-name presence, as the retire executor judges it. A relPath that escapes the mount is
+  // catalog poison, not a file: absent, so the lane reclaims it.
+  async presentAt({ root, relPath }) {
+    try { return fileExactlyPresent(pathFromMount(root, relPath)) } catch { return false }
+  },
+  // Drift is the reconcile pass's job, not the rehydrate's: a hashed entry whose file is still
+  // there is re-registered as it stands.
+  async rehydrate({ root, spaceId, shareId, entry }) {
+    if (!entry.contentHash) return
+    const absPath = pathFromMount(root, entry.relPath)
+    if (!fileStatPresent(absPath)) return
+    await makeServable({ spaceId, shareId, relPath: entry.relPath, absPath, contentHash: entry.contentHash, size: entry.size })
+  },
+  // The lane's ticket resolves with a settlement and never rejects, so the outcome is read; a
+  // cancel is the user stopping it, not a failure.
+  async retireGone({ spaceId, shareId, relPath }) {
+    const { settled } = getPublishScheduler().enqueue({ spaceId, shareId, relPath, op: OP.RETIRE, priority: PRIORITY.BULK })
+    const s = await settled
+    if (s?.outcome === 'failed') throw s.error ?? new Error('the publish runner refused it')
+  },
 })

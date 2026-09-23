@@ -10,11 +10,8 @@ import { clearShareGuards } from './echo-guard.js'
 import { getOwnedMount } from './mount-store.js'
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
-import { setFolderPublishLane } from '../transfer/backends/overlay/overlay-maintenance.js'
 import { countDiskFiles } from './walk-disk.js'
 import { DEFAULT_IGNORE } from './path-keys.js'
-import { OP, PRIORITY } from './work-item.js'
-import { settleCatalog } from './publish-service.js'
 import { getReconcileStallWindowMs } from '../core/runtime-config.js'
 import { ownedKey } from './owned-policy.js'
 import { createOwnedState } from './owned-state.js'
@@ -67,16 +64,6 @@ export function initOwnedFolders(ipc, { settleScan = null, broadcastIndex = null
     emit,
     onProgress: (spaceId, shareId) => progress?.poke(spaceId, shareId),
     onFlush: (spaceId, shareId) => progress?.flush(spaceId, shareId),
-  })
-
-  // The backend's presence sweep proposes reclaims onto this lane rather than writing tombstones
-  // itself. Installed here rather than by the service, which must not import the backend.
-  setFolderPublishLane({
-    isPending: (spaceId, shareId, relPath) => scheduler?.isPending(spaceId, shareId, relPath) ?? false,
-    enqueueRetire: (spaceId, shareId, relPath) => sched().enqueue({ spaceId, shareId, relPath, op: OP.RETIRE, priority: PRIORITY.BULK }).settled,
-    // A bulk retire writes through the space's catalog batch, so the item settles before the
-    // tombstone is durable. An awaited sweep has to outlast the flush, not the enqueue.
-    settle: (spaceId) => settleCatalog(spaceId),
   })
 }
 
@@ -138,7 +125,6 @@ export class OwnedFolders extends Subsystem {
   async _close() {
     progress?.stopAnnounce()
     stopWatcher()
-    setFolderPublishLane(null)
     abortAllPasses()
     await drainCatchups()
     // The scheduler reference is left in place: PublishService closes after this subsystem and

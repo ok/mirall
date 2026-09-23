@@ -7,7 +7,7 @@ import { runPublishPass } from '../../src/shared/folders/owned-pass.js'
 import { onFsEvent } from '../../src/shared/folders/owned-watcher.js'
 import { createOwnedMount, getOwnedMount } from '../../src/shared/folders/mount-store.js'
 import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
-import { overlaySweepPresence } from '../../src/shared/transfer/backends/overlay/overlay-maintenance.js'
+import { sweepOwnedPresence } from '../../src/shared/transfer/backends/overlay/overlay-maintenance.js'
 import { folderPublishAdd } from '../../src/shared/transfer/backends/overlay/folder-publish.js'
 import { overlayHashFile } from '../../src/shared/transfer/backends/overlay/overlay-hash.js'
 import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
@@ -267,8 +267,8 @@ test('REGRESSION (FIX-SCAN-4): the presence sweep does not reclaim a path with a
   await until(() => getIndexStatus(spaceId, share.id).running === 1, 5000)
   t.is(getIndexStatus(spaceId, share.id).queued, 1, 'x.txt is queued behind the running hash')
   fs.unlinkSync(abs)
-  await overlaySweepPresence()
-  await overlaySweepPresence()
+  await sweepOwnedPresence()
+  await sweepOwnedPresence()
   t.ok((await listRelPaths(share, spaceId)).includes('x.txt'), 'the sweep deferred to the queue')
   await scan
 })
@@ -370,8 +370,8 @@ test('REGRESSION (FIX-RETIRE-EXACT): a case-only rename retires the old key', { 
   fs.renameSync(path.join(mountPath, 'Report.txt'), path.join(mountPath, 'report.txt'))
 
   // The backstop sweep must see the old key as gone too (it confirms on the second consecutive miss).
-  await overlaySweepPresence()
-  await overlaySweepPresence()
+  await sweepOwnedPresence()
+  await sweepOwnedPresence()
   t.alike(await listRelPaths(share, spaceId), [], 'the sweep reclaimed the folded key')
 
   await runPublishPass(spaceId, share.id, mountPath, [])

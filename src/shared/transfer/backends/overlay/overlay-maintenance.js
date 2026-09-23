@@ -1,39 +1,29 @@
 // Overlay maintenance: the work that keeps the index and the serve maps honest, rather than
 // publishing or consuming anything.
 //
-// Two jobs with one thing in common — both run outside a user action and must not race one.
+// Three jobs with one thing in common — all run outside a user action and must not race one.
 // Compaction is single-flight because two reclaims racing the same core purge can strand a blob;
-// the boot rehydrate exists because the serve maps are not persisted, so after a restart owned
-// files stop being servable until they are re-registered.
+// the boot rehydrate and the presence sweep walk every own share, folder and loose alike, and ask
+// each share's publish channel for the per-kind facts: its root, whether a row's file is still
+// there, how an entry is re-registered and how a vanished one is retired.
 
 import { createLogger } from '../../../core/logger.js'
 
 import { getStore } from '../../../core/store.js'
-import { fileExactlyPresent } from '../../../folders/disk-presence.js'
-import { getOwnedMount } from '../../../folders/mount-store.js'
+import { getPublishScheduler, publishChannelFor, settleCatalog } from '../../../folders/publish-service.js'
 import { listOwnShare } from '../../../shares/own-catalog.js'
 import { readOwnShares } from '../../../shares/shares.js'
 import { clearAndPurgeCore } from '../../../storage/core-purge.js'
 import { listSpaces } from '../../../spaces/space.js'
 import { compactStore } from '../../../storage/compaction.js'
-import { pathFromMount } from '../../../folders/path-guard.js'
 import { createPresenceSweeper } from '../../../folders/retire-confirm.js'
 import { LOOSE_SHARE_ID } from '../../transfer-id.js'
-import { makeServable } from './serve-registration.js'
 import { getOverlay } from './overlay-instance.js'
-import fs from 'bare-fs'
 
 const log = createLogger('overlay-maintenance')
 
-// The owner's publish lane, installed by owned-folders — which owns the scheduler and imports this
-// module, so the edge cannot run the other way. `isPending` keeps the presence sweep off a path
-// whose publish has not started; `enqueueRetire` is how the sweep proposes a reclaim.
-let publishLane = null
-
 // Teardown: the sweeper's per-share consideration state dies with the process that formed it.
-export function resetOverlayMaintenance() { folderSweeper.reset() }
-
-export function setFolderPublishLane(lane) { publishLane = lane }
+export function resetOverlayMaintenance() { presenceSweeper.reset() }
 
 // Reclaim the overlay index: rebuild it without chunk maps for content no longer
 // shared or held, then return the freed disk to the OS. Non-destructive — a dropped
@@ -74,76 +64,83 @@ export async function compactOverlayIndex() {
   }
 }
 
-// Boot rehydrate: the facade serve maps (_contentHashPaths) are NOT persisted,
-// so after a worker restart owned files stop being servable until re-registered.
-// Re-register every owned overlay file whose source still exists.
-async function rehydrateShare(spaceId, shareId, mountPath) {
-  for await (const entry of listOwnShare(spaceId, shareId)) {
-    if (!entry.contentHash) continue
+// Every own share with content to walk: each folder share of each space, plus the loose
+// pseudo-share of each space. A channel whose files live under one root resolves it once per share
+// — a large share costs one mount read, not one per row — and a share with no root right now is
+// skipped whole. One share's failure never skips the shares after it.
+async function forEachOwnContent(cb) {
+  for (const { spaceId } of await listSpaces()) {
+    let folderIds = []
     try {
-      const abs = pathFromMount(mountPath, entry.relPath)
-      if (!fs.statSync(abs).isFile()) continue
-      await makeServable({ spaceId, shareId, relPath: entry.relPath, absPath: abs, contentHash: entry.contentHash, size: entry.size })
+      folderIds = (await readOwnShares(spaceId)).filter((s) => s.contentMode === 'overlay').map((s) => s.id)
     } catch (err) {
-      log.debug('rehydrate skipped:', entry.relPath, '-', err.message)
+      log.debug('skip folder shares of space', spaceId, '-', err.message)
+    }
+    for (const shareId of [...folderIds, LOOSE_SHARE_ID]) {
+      const channel = publishChannelFor(shareId)
+      try {
+        const root = channel.contentRoot ? await channel.contentRoot({ spaceId, shareId }) : null
+        if (channel.contentRoot && !root) continue
+        await cb({ spaceId, shareId, channel, root })
+      } catch (err) {
+        log.debug('skip share', spaceId, shareId, '-', err.message)
+      }
     }
   }
 }
 
-// Walk every owned overlay share that has a mount, invoking cb(spaceId, shareId,
-// mountPath). Shared by rehydrate (boot) and the presence sweep (backstop).
-async function forEachOwnedOverlayShare(cb) {
-  for (const space of await listSpaces()) {
-    let shares
-    try { shares = await readOwnShares(space.spaceId) } catch { continue }
-    for (const share of shares) {
-      if (share.contentMode !== 'overlay') continue
-      const mount = await getOwnedMount(space.spaceId, share.id)
-      if (mount?.mountPath) await cb(space.spaceId, share.id, mount.mountPath)
+// Boot rehydrate: the serve maps are not persisted, so after a restart every own file is
+// re-registered against its source. Entries are walked one at a time with per-file isolation; an
+// entry that needs a re-hash hands back its lane settlement, and those are awaited together at
+// the end, so no share waits on another share's hashing.
+export async function rehydrateOwnedContent() {
+  const tails = []
+  const skip = (shareId, relPath) => (err) => log.warn('skip file during rehydrate:', shareId, relPath, '-', err.message)
+  await forEachOwnContent(async ({ spaceId, shareId, channel, root }) => {
+    for await (const entry of listOwnShare(spaceId, shareId)) {
+      try {
+        const out = await channel.rehydrate({ root, spaceId, shareId, entry })
+        if (out?.settled) tails.push(out.settled.catch(skip(shareId, entry.relPath)))
+      } catch (err) {
+        skip(shareId, entry.relPath)(err)
+      }
     }
-  }
+  })
+  await Promise.all(tails)
 }
 
-export async function rehydrateOwnedFiles() {
-  await forEachOwnedOverlayShare(rehydrateShare)
-}
-
-const folderSweeper = createPresenceSweeper({
+// Proposes on two consecutive misses (an atomic-save window must not transiently unshare a
+// still-present file) and never touches an entry whose publish is queued or running. The reclaim
+// goes onto the lane through the channel, never written here: the runner re-confirms the file is
+// really gone, the write joins the space's catalog batch, and the eviction rides with it.
+const presenceSweeper = createPresenceSweeper({
   keyOf: ({ spaceId, shareId }, entry) => spaceId + '\0' + shareId + '\0' + entry.relPath,
-  isPending: ({ spaceId, shareId }, entry) => !!publishLane?.isPending(spaceId, shareId, entry.relPath),
-  // Exact-name presence, like the retire executor: a following stat would keep a case-only
-  // rename's old key alive forever on a case-folding volume.
-  presentAt: ({ mountPath }, entry) => {
-    try { return fileExactlyPresent(pathFromMount(mountPath, entry.relPath)) } catch { return false }
-  },
-  // Onto the shared publish lane, exactly as the loose sweep retires: the runner re-confirms the
-  // file is really gone, the write joins the space's catalog batch, and the eviction rides with it.
-  retire: ({ spaceId, shareId, retires }, entry) => {
-    const settled = publishLane?.enqueueRetire(spaceId, shareId, entry.relPath)
-    // The lane's ticket RESOLVES with a settlement and never rejects — work-item.js's deferred has
-    // no reject path — so this has to read the outcome; a .catch here could never fire. (The loose
-    // twin may catch because settledWithTail rethrows for it. A cancel is the user stopping it, not
-    // a failure.)
-    if (settled) {
-      retires.push(settled.then((s) => {
-        if (s?.outcome === 'failed') log.debug('folder retire failed:', entry.relPath, '-', s.error?.message || 'the publish runner refused it')
-      }))
-    }
+  isPending: ({ spaceId, shareId }, entry) => getPublishScheduler().isPending(spaceId, shareId, entry.relPath),
+  presentAt: ({ spaceId, channel, root }, entry) => channel.presentAt({ root, spaceId, relPath: entry.relPath }),
+  retire: ({ spaceId, shareId, channel, retires }, entry) => {
+    retires.push(channel.retireGone({ spaceId, shareId, relPath: entry.relPath })
+      .catch((err) => log.debug('retire failed:', shareId, entry.relPath, '-', err.message)))
   },
 })
 
-// Backstop: tombstone catalog entries whose source file vanished but whose
-// chokidar unlink event was missed. Mount-root guarded — a temporarily-
-// unavailable mount must never mass-tombstone a share.
-export async function overlaySweepPresence() {
-  await forEachOwnedOverlayShare(async (spaceId, shareId, mountPath) => {
-    try { if (!fs.statSync(mountPath).isDirectory()) return } catch { return } // root gone → skip
-    const retires = []
-    for await (const entry of listOwnShare(spaceId, shareId)) {
-      await folderSweeper.consider({ spaceId, shareId, mountPath, retires }, entry)
-    }
-    if (!retires.length) return
-    await Promise.all(retires)
-    await publishLane?.settle(spaceId)
+// Backstop: tombstone catalog entries whose source vanished without a watcher unlink. Single
+// flight: two overlapping passes would share the sweeper's miss set, and their back-to-back misses
+// would count as the two consecutive ones. A bulk retire through the space's catalog batch lands
+// only with the flush, so the pass outlasts the flush, not the enqueue.
+let sweeping = null
+export function sweepOwnedPresence() {
+  sweeping ??= sweepOnce().finally(() => { sweeping = null })
+  return sweeping
+}
+
+async function sweepOnce() {
+  const retires = []
+  const batched = new Set()
+  await forEachOwnContent(async (ctx) => {
+    const before = retires.length
+    for await (const entry of listOwnShare(ctx.spaceId, ctx.shareId)) await presenceSweeper.consider({ ...ctx, retires }, entry)
+    if (retires.length > before && !ctx.channel.direct) batched.add(ctx.spaceId)
   })
+  await Promise.all(retires)
+  for (const spaceId of batched) await settleCatalog(spaceId)
 }

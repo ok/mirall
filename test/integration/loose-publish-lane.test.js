@@ -8,9 +8,10 @@ import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-i
 import { initDownloads, getOwnedSourcePath, markOwnedSource, clearOwnedSource } from '../../src/shared/transfer/files.js'
 import { initPendingTransfers } from '../../src/shared/transfer/pending-transfers.js'
 import { looseShareFile, looseCancelPublish, looseSourceFor, looseSources, handleLooseFsEvent, looseUnshareFile } from '../../src/shared/transfer/backends/overlay/loose-publish.js'
-import { sweepLoosePresence, rehydrateLooseFiles } from '../../src/shared/transfer/backends/overlay/loose-maintenance.js'
+import { sweepOwnedPresence, rehydrateOwnedContent } from '../../src/shared/transfer/backends/overlay/overlay-maintenance.js'
 import { LOOSE_SHARE_ID } from '../../src/shared/transfer/transfer-id.js'
 import { initLooseIpc } from '../helpers/overlay-ipc.js'
+import { getPublishScheduler } from '../../src/shared/folders/publish-service.js'
 import { getOwnEntry, advertise } from '../../src/shared/shares/own-catalog.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { scaled } from '../helpers/bare-timing.js'
@@ -137,8 +138,8 @@ test('the sweep leaves a path with a queued retire alone; the retire runs once t
   fs.unlinkSync(abs)
   const retire = handleLooseFsEvent({ spaceId: ctx.spaceId, absPath: abs, action: 'unlink' })
   await sleep(30)
-  await sweepLoosePresence()
-  await sweepLoosePresence()
+  await sweepOwnedPresence()
+  await sweepOwnedPresence()
   t.ok(await getOwnEntry(ctx.spaceId, LOOSE_SHARE_ID, 'gone.txt'), 'two sweeps did not act on a path whose retire is queued')
 
   await retire
@@ -174,8 +175,8 @@ test('REGRESSION (FIX-LOOSE-QUEUED-CANCEL): cancelling a queued boot resume reve
   const holding = looseShareFile(ctx.spaceId, hold, 'hold.txt')
   t.ok(await until(() => probe.calls.includes('hold.txt')), 'precondition: the express lane is held')
 
-  const resume = rehydrateLooseFiles()
-  await sleep(50)
+  const resume = rehydrateOwnedContent()
+  t.ok(await until(() => getPublishScheduler().isPending(ctx.spaceId, LOOSE_SHARE_ID, 'big.bin')), 'precondition: the boot resume queued it')
   t.ok(await getOwnEntry(ctx.spaceId, LOOSE_SHARE_ID, 'big.bin'), 'precondition: the placeholder waits behind both lanes')
   await looseCancelPublish(ctx.spaceId, '/big.bin')
   t.absent(await getOwnEntry(ctx.spaceId, LOOSE_SHARE_ID, 'big.bin'), 'one cancel removes the placeholder')
@@ -232,8 +233,8 @@ test('REGRESSION (FIX-LOOSE-CASE-RENAME): a case-only rename keeps a loose share
   await looseShareFile(ctx.spaceId, abs, 'Report.PDF')
   fs.renameSync(abs, path.join(dir, 'report.pdf'))
   await handleLooseFsEvent({ spaceId: ctx.spaceId, absPath: abs, action: 'unlink' })
-  await sweepLoosePresence()
-  await sweepLoosePresence()
+  await sweepOwnedPresence()
+  await sweepOwnedPresence()
   t.ok(await getOwnEntry(ctx.spaceId, LOOSE_SHARE_ID, 'Report.PDF'), 'still shared: the recorded path still opens')
 })
 

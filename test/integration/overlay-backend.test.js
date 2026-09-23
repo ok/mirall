@@ -14,7 +14,7 @@ import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-s
 import { getOverlay, initOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
 import { initOverlayIpc } from '../helpers/overlay-ipc.js'
-import { overlaySweepPresence } from '../../src/shared/transfer/backends/overlay/overlay-maintenance.js'
+import { sweepOwnedPresence } from '../../src/shared/transfer/backends/overlay/overlay-maintenance.js'
 import { makeServable } from '../../src/shared/transfer/backends/overlay/serve-registration.js'
 import { until as pollUntil } from '../helpers/bare-poll.js'
 
@@ -126,10 +126,10 @@ test('REGRESSION (FIX: a folder file is not tombstoned on a single presence-swee
   t.ok(await getOwnEntry(ctx.spaceId, ctx.share.id, 'a.txt'), 'published')
 
   fs.unlinkSync(abs) // source gone (could be a transient atomic-save window)
-  await overlaySweepPresence()
+  await sweepOwnedPresence()
   t.ok(await getOwnEntry(ctx.spaceId, ctx.share.id, 'a.txt'), 'a single miss only arms — not tombstoned')
 
-  await overlaySweepPresence()
+  await sweepOwnedPresence()
   t.absent(await getOwnEntry(ctx.spaceId, ctx.share.id, 'a.txt'), 'a second consecutive miss reclaims it')
 })
 
@@ -144,14 +144,14 @@ test('REGRESSION (FIX-PI1-4: an owned-folder file gone from disk is retired thro
 
   await setOwnedIndexPaused(ctx.spaceId, ctx.share.id, true)
   fs.unlinkSync(abs)
-  await overlaySweepPresence()
-  await overlaySweepPresence()
+  await sweepOwnedPresence()
+  await sweepOwnedPresence()
   t.ok(await getOwnEntry(ctx.spaceId, ctx.share.id, 'a.txt'),
     'a paused index publishes no deletions — the reclaim went through the lane and the lane declined it')
 
   await setOwnedIndexPaused(ctx.spaceId, ctx.share.id, false)
-  await overlaySweepPresence()
-  await overlaySweepPresence()
+  await sweepOwnedPresence()
+  await sweepOwnedPresence()
   t.absent(await getOwnEntry(ctx.spaceId, ctx.share.id, 'a.txt'), 'and once the index resumes, the same lane retires it')
 })
 
@@ -160,11 +160,11 @@ test('the presence sweep writes no catalog tombstone of its own', (t) => {
     path.join(new URL('../../src/shared/transfer/backends/overlay/overlay-maintenance.js', import.meta.url).pathname),
     'utf8',
   )
-  const start = src.indexOf('const folderSweeper =')
-  const sweep = src.slice(start, src.indexOf('\n}', src.indexOf('export async function overlaySweepPresence')))
+  const start = src.indexOf('const presenceSweeper =')
+  const sweep = src.slice(start, src.indexOf('\n}', src.indexOf('async function sweepOnce')))
   t.ok(start > 0 && sweep.length > 200, 'the sweep was located — an empty slice would pass every assertion below')
   t.absent(/catalogTombstone|evictIfUnreferenced/.test(sweep), 'the reclaim is proposed onto the lane, never written here')
-  t.ok(/enqueueRetire/.test(sweep), 'and the proposal is the lane call')
+  t.ok(/channel\.retireGone\(/.test(sweep), 'and the proposal goes to the channel\'s lane retire')
 })
 
 test('FIX: a folder file that reappears between sweeps (atomic save) is never tombstoned', async (t) => {
@@ -173,9 +173,9 @@ test('FIX: a folder file that reappears between sweeps (atomic save) is never to
   await overlayBackend.publishAdd(ctx.spaceId, ctx.share, 'a.txt', abs)
 
   fs.unlinkSync(abs)            // brief absence (atomic save in progress)
-  await overlaySweepPresence() // arms
+  await sweepOwnedPresence() // arms
   fs.writeFileSync(abs, 'data') // back before the next sweep
-  await overlaySweepPresence() // disarms on presence — must NOT tombstone
+  await sweepOwnedPresence() // disarms on presence — must NOT tombstone
 
   t.ok(await getOwnEntry(ctx.spaceId, ctx.share.id, 'a.txt'), 'reappeared file is not tombstoned')
 })

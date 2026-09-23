@@ -9,7 +9,7 @@ import { initOverlay, teardownOverlay } from '../../src/shared/transfer/backends
 import { initDownloads, markOwnedSource, getOwnedSourcePath } from '../../src/shared/transfer/files.js'
 import { initPendingTransfers } from '../../src/shared/transfer/pending-transfers.js'
 import { looseShareFile, looseCancelPublish } from '../../src/shared/transfer/backends/overlay/loose-publish.js'
-import { rehydrateLooseFiles, sweepLoosePresence } from '../../src/shared/transfer/backends/overlay/loose-maintenance.js'
+import { rehydrateOwnedContent, sweepOwnedPresence } from '../../src/shared/transfer/backends/overlay/overlay-maintenance.js'
 import { LOOSE_SHARE_ID } from '../../src/shared/transfer/transfer-id.js'
 import { initLooseIpc, initOverlayIpc } from '../helpers/overlay-ipc.js'
 
@@ -85,7 +85,7 @@ test('REGRESSION (FIX-D1: boot re-hashes an advertised entry whose source is rec
   await advertise(ctx.spaceId, LOOSE_SHARE_ID, 'doc.pdf', { size: st.size, mtime: st.mtimeMs, contentHash: null })
   await markOwnedSource(ctx.spaceId, '/doc.pdf', abs)
 
-  await rehydrateLooseFiles()
+  await rehydrateOwnedContent()
 
   const entry = await getOwnEntry(ctx.spaceId, LOOSE_SHARE_ID, 'doc.pdf')
   t.ok(entry?.contentHash, 'null-hash entry re-hashed at boot via the recorded source')
@@ -97,7 +97,7 @@ test('REGRESSION (FIX-F1: boot reverts a null-hash orphan that has no recorded s
   // or a crash inside the advertise-then-link window. Unresumable, so boot must revert it.
   await advertise(ctx.spaceId, LOOSE_SHARE_ID, 'ghost.pdf', { size: 5, mtime: 1, contentHash: null })
 
-  await rehydrateLooseFiles()
+  await rehydrateOwnedContent()
 
   t.absent(await getOwnEntry(ctx.spaceId, LOOSE_SHARE_ID, 'ghost.pdf'),
     'orphaned half-publish tombstoned at boot — no more immortal "Adding"')
@@ -107,7 +107,7 @@ test('FIX-F1: boot LEAVES a finished entry that merely lost its source', async (
   const ctx = await setup(t)
   await advertise(ctx.spaceId, LOOSE_SHARE_ID, 'done.pdf', { size: 5, mtime: 1, contentHash: 'abc123' })
 
-  await rehydrateLooseFiles()
+  await rehydrateOwnedContent()
 
   t.ok(await getOwnEntry(ctx.spaceId, LOOSE_SHARE_ID, 'done.pdf'),
     'a completed entry with a lost source is not a zombie — keep it')
@@ -168,8 +168,8 @@ test('REGRESSION (FIX-22: the presence sweep never tombstones a file whose publi
   // Delete the source mid-hash — statSync will now throw in the sweep (exists=false). Run the
   // confirm-gone-twice sweep while the publish is still hashing.
   fs.rmSync(abs)
-  await sweepLoosePresence()
-  await sweepLoosePresence()
+  await sweepOwnedPresence()
+  await sweepOwnedPresence()
 
   t.ok(await getOwnEntry(ctx.spaceId, LOOSE_SHARE_ID, 'live.bin'),
     'the in-flight publish survived both sweeps despite the vanished source')
@@ -212,7 +212,7 @@ test('REGRESSION (FIX-F4: boot resume of a null-hash entry emits a live progress
   const ctx = await setup(t, (type, payload) => { if (type === 'event:decoration') decos.push(payload) })
   await seedNullHashOrphan(ctx, 'resume.bin', writeBig(ctx, 'resume.bin'))
 
-  await rehydrateLooseFiles()
+  await rehydrateOwnedContent()
 
   console.error('DBG decos', JSON.stringify(decos.map((d) => [d.key, d.phase, d.done])), 'fake', JSON.stringify(ctx.fake.emitted('event:decoration').map((e) => [e.payload.key, e.payload.phase, e.payload.done])))
   t.ok(decos.some((d) => d.phase === 'publishing'), 'resume advertised a visible publishing bar, not a silent hash')
@@ -227,7 +227,7 @@ test('FIX-F4: a healthy entry re-registers silently at boot (no phantom bar)', a
   await looseShareFile(ctx.spaceId, abs)
   decos.length = 0
 
-  await rehydrateLooseFiles()
+  await rehydrateOwnedContent()
 
   t.absent(decos.find((d) => d.phase === 'publishing'), 'no "Adding" bar for an unchanged entry at boot')
 })
@@ -242,7 +242,7 @@ test('FIX-F4: cancel aborts an in-flight boot resume', async (t) => {
   })
   await seedNullHashOrphan(ctx, 'live-resume.bin', writeBig(ctx, 'live-resume.bin'))
 
-  await rehydrateLooseFiles()
+  await rehydrateOwnedContent()
 
   t.ok(resumeSeen, 'resume advertised, so it was live and cancellable')
   t.absent(await getOwnEntry(ctx.spaceId, LOOSE_SHARE_ID, 'live-resume.bin'), 'cancel during the boot re-hash tombstoned it')

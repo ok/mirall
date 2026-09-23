@@ -4,7 +4,6 @@
 // enforce the same thing, so a tick that fails or never runs only defers cleanup.
 import { Subsystem } from '../shared/core/subsystem.js'
 import { sweepBackends } from '../shared/transfer/content-backends.js'
-import { sweepLoosePresence } from '../shared/transfer/backends/overlay/loose-maintenance.js'
 import { listSpaces } from '../shared/spaces/space.js'
 import { createLocalBee } from '../shared/core/store.js'
 import { sweepExpiredInvites } from '../shared/spaces/profile.js'
@@ -54,8 +53,7 @@ export class Sweeps extends Subsystem {
     // Backstop for catalog-backed shares: tombstone catalog entries whose source vanished
     // (chokidar unlinks cover the live case; this catches missed events).
     this.timers.setInterval(() => {
-      sweepBackends().catch((err) => log.debug('overlay presence sweep failed:', err.message))
-      sweepLoosePresence().catch((err) => log.debug('loose presence sweep failed:', err.message))
+      sweepBackends().catch((err) => log.debug('presence sweep failed:', err.message))
     }, PRESENCE_SWEEP_INTERVAL_MS)
 
     this.timers.setInterval(() => {
