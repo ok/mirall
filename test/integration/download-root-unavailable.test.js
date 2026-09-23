@@ -218,13 +218,17 @@ test('REGRESSION (FIX-DLDIR-2: the folder-share channel emits transfer-error for
 
 // === Auto-resume suppression ===
 
-test('REGRESSION (FIX-DLDIR-2: a dest-unavailable row does not re-fail on every owner reconnect)', async (t) => {
-  const ctx = await setup(t)
-  const events = []
-  const dir = ctx.tmpDir('dl-suppress')
+// Drives one reconnect against a dest-unavailable row pinned at `dir`, and reports what the row
+// cost: a fetch, an error re-emitted to the renderer, and whether it survived. The destination is
+// judged as the reconcile would resolve it — against the space's CURRENT download root — so `dir`
+// has to be the folder the download would really land in, not merely a name that happens to be
+// absent. The error count is the load-bearing one: a re-drive into a folder that is still gone is
+// refused by the start gate before any fetch, so it costs no bytes and still fires the toast and
+// the critical-urgency notification the suppression exists to stop.
+async function reconnectOnGoneDest(t, dir) {
   const job = makeJob(dir)
+  const events = []
   let fetches = 0
-
   const engine = createOverlayDownloadEngine(testChannel(events, {
     resolvePendingRow: async () => ({ removed: false, seq: undefined, job }),
   }))
@@ -239,10 +243,34 @@ test('REGRESSION (FIX-DLDIR-2: a dest-unavailable row does not re-fail on every 
 
   await engine.resumeForOwner(OWNER, SPACE)
   await settle()
+  return { fetches, errors: errorsIn(events), row: await getPendingFor(SPACE, job.pendingKey) }
+}
+
+test('REGRESSION (FIX-DLDIR-2: a dest-unavailable row does not re-fail on every owner reconnect)', async (t) => {
+  const ctx = await setup(t)
+
+  // A folder inside the space's download root that the user deleted and has not recreated.
+  const { fetches, errors, row } = await reconnectOnGoneDest(t, path.join(ctx.downloads, 'ejected'))
 
   // Without the suppression the reconnect restarts the download, it fails again, and the renderer
   // fires another critical-urgency notification — once per reconnect, for as long as the folder
   // stays gone. The row is deliberately kept: it is the user's unfulfilled intent.
-  t.is(fetches, 0, 'the reconnect did not retry a download that cannot land')
-  t.ok(await getPendingFor(SPACE, job.pendingKey), 'the intent survives — this is a pause, not a drop')
+  t.alike(errors, [], 'the reconnect did not re-fail a download that cannot land')
+  t.is(fetches, 0, 'and spent no bytes on it')
+  t.ok(row, 'the intent survives — this is a pause, not a drop')
+})
+
+// The row's own folder is no longer in the space's download root, so the reconcile would re-anchor
+// it — and the root it would re-anchor to is gone as well. Nothing on this device can take the
+// bytes, so the fault has not cleared: a directory existing SOMEWHERE is not the question.
+test('REGRESSION (FIX-DLDIR-2: a dest-unavailable row whose download root is gone is not re-driven)', async (t) => {
+  const ctx = await setup(t)
+  const elsewhere = ctx.tmpDir('dl-old-root')
+  fs.rmSync(ctx.downloads, { recursive: true, force: true })
+
+  const { fetches, errors, row } = await reconnectOnGoneDest(t, elsewhere)
+
+  t.is(fetches, 0, 'a missing download root re-drove nothing')
+  t.alike(errors, [], 'and re-failed nothing')
+  t.ok(row, 'and the intent survives, waiting for a root that exists')
 })

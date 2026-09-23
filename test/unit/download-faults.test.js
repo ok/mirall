@@ -4,7 +4,7 @@ import { CODES } from '../../src/shared/contract/errors.js'
 import { FREE_SPACE_HEADROOM } from '../../src/shared/transfer/free-space.js'
 
 const GB = 1024 ** 3
-const dest = (over = {}) => ({ dirExists: () => true, dirWritable: () => false, freeBytes: () => 10 * GB, allocatedBytes: () => 0, ...over })
+const dest = (over = {}) => ({ dirExists: () => true, dirWritable: () => false, dirAcceptsWrite: () => true, freeBytes: () => 10 * GB, allocatedBytes: () => 0, ...over })
 const errno = (code) => Object.assign(new Error(code), { code })
 
 test('preflight refuses a gone folder before it asks about space', (t) => {
@@ -59,22 +59,59 @@ test('a permission errno from a folder that still takes a write is the retryable
   t.is(terminalFault(eperm, dest()), CODES.TRANSFER_PERMISSION, 'a folder that refuses the probe is the permission fault')
 })
 
-test('a permission fault clears once its folder takes a write', (t) => {
-  const writable = () => true
-  const readOnly = () => false
-  t.is(faultCleared(CODES.TRANSFER_PERMISSION, '/dl/a.bin', writable), true)
-  t.is(faultCleared(CODES.TRANSFER_PERMISSION, '/dl/a.bin', readOnly), false)
-  t.is(faultCleared(CODES.TRANSFER_PERMISSION, undefined, writable), false, 'a row without a destination has no folder to probe')
-  t.is(faultCleared(CODES.TRANSFER_DISK_FULL, '/dl/a.bin', writable), false, 'a writable folder says nothing about a full disk')
+// The preflight is what refuses a download the destination cannot take, so a row it wrote carries
+// the flag; a row a failed write produced does not.
+const refused = (code, size) => ({ code, size, refusedByPreflight: true })
+
+test('a permission fault clears once its folder takes a write, whichever check refused it', (t) => {
+  t.is(faultCleared(refused(CODES.TRANSFER_PERMISSION, 0), dest()), true)
+  t.is(faultCleared({ code: CODES.TRANSFER_PERMISSION, size: 0 }, dest()), true,
+    'the folder accepting a write is stronger than the errno that recorded it, on either route')
+  t.is(faultCleared(refused(CODES.TRANSFER_PERMISSION, 0), dest({ dirAcceptsWrite: () => false })), false)
+  t.is(faultCleared(refused(CODES.TRANSFER_PERMISSION, 0), dest({ dirAcceptsWrite: () => false, freeBytes: () => 10 * GB })), false,
+    'a volume with room says nothing about a folder that refuses writes')
+})
+
+test('REGRESSION (FIX-473: a freed disk and a restored folder never clear their fault)', (t) => {
+  t.is(faultCleared(refused(CODES.TRANSFER_DISK_FULL, GB), dest({ freeBytes: () => GB / 2 })), false,
+    'a volume that still cannot hold the rest stays blocked')
+  t.is(faultCleared(refused(CODES.TRANSFER_DISK_FULL, GB), dest({ freeBytes: () => GB + FREE_SPACE_HEADROOM })), true,
+    'space freed since the refusal clears it')
+  t.is(faultCleared(refused(CODES.TRANSFER_DISK_FULL, GB), dest({ freeBytes: () => GB / 2 + FREE_SPACE_HEADROOM, allocatedBytes: () => GB / 2 })), true,
+    'the partial\'s bytes count toward the requirement, as they do in the preflight')
+  t.is(faultCleared(refused(CODES.TRANSFER_DEST_UNAVAILABLE, 1), dest({ dirExists: () => false })), false)
+  t.is(faultCleared(refused(CODES.TRANSFER_DEST_UNAVAILABLE, 1), dest()), true, 'the folder is back')
+  t.is(faultCleared({ code: CODES.TRANSFER_DEST_UNAVAILABLE, size: 1 }, dest()), true,
+    'a folder present again is stronger than the folder being gone, on either route')
+  t.is(faultCleared(refused(CODES.TRANSFER_DEST_UNAVAILABLE, GB), dest({ freeBytes: () => 0 })), false,
+    'a folder that came back on a full volume is not cleared — the next start would refuse it')
+  t.is(faultCleared(refused(CODES.TRANSFER_CHECKSUM, 1), dest()), false, 'the owner clears a checksum fault, not the user')
+  t.is(faultCleared(refused(CODES.DOWNLOAD_FAILED, 1), dest()), false, 'a non-terminal failure is re-driven without a clear')
+})
+
+test('REGRESSION (FIX-ENOSPC-3: a disk-full write was cleared by the preflight it had already passed)', (t) => {
+  const roomy = dest({ freeBytes: () => 10 * GB })
+  t.is(faultCleared({ code: CODES.TRANSFER_DISK_FULL, size: GB }, roomy), false,
+    'a write that hit ENOSPC outranks a free-space reading that says there is room')
+  t.is(faultCleared({ code: CODES.TRANSFER_DISK_FULL, size: GB }, dest({ freeBytes: () => Infinity })), false,
+    'and an unmeasurable volume, which the preflight fails open on, clears nothing')
+  t.is(faultCleared(refused(CODES.TRANSFER_DISK_FULL, GB), roomy), true, 'the preflight-refused row still clears')
+  t.is(faultCleared({ code: CODES.TRANSFER_DISK_FULL, size: null, refusedByPreflight: true }, roomy), false,
+    'a row carrying no byte count cannot be judged against the volume')
+  t.is(faultCleared({ code: CODES.TRANSFER_DEST_UNAVAILABLE, size: null }, roomy), true,
+    'but a missing folder is about the folder, so it clears without one')
 })
 
 test('a row awaits its owner unless only the user can unblock it', (t) => {
-  const readOnly = () => false
-  t.is(faultAwaitsOwner(undefined, '/dl/a.bin', readOnly), true)
-  t.is(faultAwaitsOwner(CODES.DOWNLOAD_FAILED, '/dl/a.bin', readOnly), true, 'a generic failure is re-driven on reconnect')
-  t.is(faultAwaitsOwner(CODES.TRANSFER_CHECKSUM, '/dl/a.bin', readOnly), true, 'the owner clears a checksum fault by republishing')
-  t.is(faultAwaitsOwner(CODES.TRANSFER_DISK_FULL, '/dl/a.bin', readOnly), false)
-  t.is(faultAwaitsOwner(CODES.TRANSFER_DEST_UNAVAILABLE, '/dl/a.bin', readOnly), false)
-  t.is(faultAwaitsOwner(CODES.TRANSFER_PERMISSION, '/dl/a.bin', readOnly), false)
-  t.is(faultAwaitsOwner(CODES.TRANSFER_PERMISSION, '/dl/a.bin', () => true), true)
+  const blocked = dest({ dirExists: () => false, dirAcceptsWrite: () => false, freeBytes: () => 0 })
+  t.is(faultAwaitsOwner(refused(undefined, 0), blocked), true)
+  t.is(faultAwaitsOwner(refused(CODES.DOWNLOAD_FAILED, 0), blocked), true, 'a generic failure is re-driven on reconnect')
+  t.is(faultAwaitsOwner(refused(CODES.TRANSFER_CHECKSUM, 0), blocked), true, 'the owner clears a checksum fault by republishing')
+  t.is(faultAwaitsOwner(refused(CODES.TRANSFER_DISK_FULL, GB), blocked), false)
+  t.is(faultAwaitsOwner(refused(CODES.TRANSFER_DEST_UNAVAILABLE, GB), blocked), false)
+  t.is(faultAwaitsOwner(refused(CODES.TRANSFER_PERMISSION, GB), blocked), false)
+  t.is(faultAwaitsOwner(refused(CODES.TRANSFER_PERMISSION, GB), dest()), true)
+  t.is(faultAwaitsOwner(refused(CODES.TRANSFER_DISK_FULL, GB), dest()), true, 'a volume with room no longer waits on anyone')
+  t.is(faultAwaitsOwner({ code: CODES.TRANSFER_DISK_FULL, size: GB }, dest()), false,
+    'a write-refused row waits on the user, whatever the volume reports')
 })

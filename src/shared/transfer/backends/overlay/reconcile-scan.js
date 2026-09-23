@@ -67,7 +67,7 @@ export function createReconcile({ registry, pausedHashes, terminalCodes, retries
   async function restartOnRepublished(spaceId, row, job, transferId) {
     discardPartial(job.finalPath)
     retries.cancel(transferId)
-    const { errorCode: _priorCode, erroredAt: _priorAt, ...cleanRow } = row
+    const { errorCode: _priorCode, erroredAt: _priorAt, refusedByPreflight: _priorRefusal, ...cleanRow } = row
     try {
       await recordPending(spaceId, row.filePath, { ...cleanRow, sourceSeq: job.sourceSeq, contentHash: job.contentHash, bytesTransferred: 0 })
     } catch (err) {

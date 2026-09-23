@@ -11,9 +11,11 @@ import { CODES } from '../../src/shared/contract/errors.js'
 const SPACE = 'space1'
 const SHARE = 'share1'
 
-async function seed(ownerKey, finalPath, code, { space = SPACE, relPath = ownerKey } = {}) {
-  await recordPending(space, relPath, { ownerKey, finalPath, overlayShare: true, shareId: SHARE, relPath, bytesTransferred: 0 })
-  if (code) await recordPendingError(space, relPath, code)
+// `refusedByPreflight` is how the engine records a verdict the preflight produced; false is the one
+// a failed write produced, which no destination reading clears.
+async function seed(ownerKey, finalPath, code, { space = SPACE, relPath = ownerKey, total = 0, refusedByPreflight = true } = {}) {
+  await recordPending(space, relPath, { ownerKey, finalPath, overlayShare: true, shareId: SHARE, relPath, bytesTransferred: 0, total })
+  if (code) await recordPendingError(space, relPath, code, { refusedByPreflight })
 }
 
 const awaited = async (engine) => [...await listPendingOwnerKeys({ keep: (row) => engine.awaitsOwner(row) })].sort()
@@ -33,7 +35,9 @@ test('the stalled-owner rescue skips rows only the user can unblock', async (t) 
   fs.chmodSync(readOnly, 0o555)
   t.teardown(() => fs.chmodSync(readOnly, 0o755))
 
-  await seed('disk-full', path.join(writable, 'a.bin'), CODES.TRANSFER_DISK_FULL)
+  await seed('disk-full', path.join(writable, 'a.bin'), CODES.TRANSFER_DISK_FULL, { total: Number.MAX_SAFE_INTEGER })
+  await seed('disk-freed', path.join(writable, 'a2.bin'), CODES.TRANSFER_DISK_FULL, { relPath: 'disk-freed' })
+  await seed('disk-full-mid-write', path.join(writable, 'a3.bin'), CODES.TRANSFER_DISK_FULL, { refusedByPreflight: false })
   await seed('dest-unavailable', path.join(downloads, 'gone', 'b.bin'), CODES.TRANSFER_DEST_UNAVAILABLE)
   await seed('perm-read-only', path.join(readOnly, 'c.bin'), CODES.TRANSFER_PERMISSION)
   await seed('perm-missing-folder', path.join(downloads, 'gone', 'd.bin'), CODES.TRANSFER_PERMISSION)
@@ -46,11 +50,13 @@ test('the stalled-owner rescue skips rows only the user can unblock', async (t) 
   const engine = createOverlayDownloadEngine(folderChannel)
   engine.pause(transferIdFor(SPACE, SHARE, 'paused'))
 
-  t.alike(await awaited(engine), ['checksum', 'download-failed', 'no-code', 'perm-writable'])
+  t.alike(await awaited(engine), ['checksum', 'disk-freed', 'download-failed', 'no-code', 'perm-writable'],
+    'the volume with room clears the row the preflight refused, and not the one the write refused')
 })
 
 // The tick re-drives only the rows whose user-blocked fault has cleared, once per (owner, space):
-// a second cleared row in the same space is the same reconcile, one in another space is not.
+// a second cleared row in the same space is the same reconcile, one in another space is not. A
+// user-blocked row clears on the check that refused it, not only a permission row on a write probe.
 test('the tick re-drives the rows whose fault cleared, keyed by owner and space', async (t) => {
   const { downloads } = await freshPeer(t)
   const readOnly = path.join(downloads, 'read-only')
@@ -60,7 +66,9 @@ test('the tick re-drives the rows whose fault cleared, keyed by owner and space'
   fs.chmodSync(readOnly, 0o555)
   t.teardown(() => fs.chmodSync(readOnly, 0o755))
 
-  await seed('disk-full', path.join(writable, 'a.bin'), CODES.TRANSFER_DISK_FULL)
+  await seed('disk-full', path.join(writable, 'a.bin'), CODES.TRANSFER_DISK_FULL, { total: Number.MAX_SAFE_INTEGER })
+  await seed('disk-freed', path.join(writable, 'a2.bin'), CODES.TRANSFER_DISK_FULL, { relPath: 'disk-freed' })
+  await seed('disk-full-mid-write', path.join(writable, 'a3.bin'), CODES.TRANSFER_DISK_FULL, { refusedByPreflight: false })
   await seed('perm-read-only', path.join(readOnly, 'c.bin'), CODES.TRANSFER_PERMISSION)
   await seed('perm-writable', path.join(writable, 'e.bin'), CODES.TRANSFER_PERMISSION)
   await seed('perm-writable', path.join(writable, 'e2.bin'), CODES.TRANSFER_PERMISSION, { relPath: 'perm-writable-2' })
@@ -72,7 +80,8 @@ test('the tick re-drives the rows whose fault cleared, keyed by owner and space'
   const engine = createOverlayDownloadEngine({ ...folderChannel, isOwnerOnline: () => true })
   engine.pause(transferIdFor(SPACE, SHARE, 'perm-paused'))
 
-  t.alike(await unblocked(engine), ['perm-writable@space1', 'perm-writable@space2'])
+  t.alike(await unblocked(engine), ['disk-freed@space1', 'perm-writable@space1', 'perm-writable@space2'],
+    'a disk-full verdict the write produced is the user\'s to clear, however much room the volume reports')
   t.alike(await unblocked(engine), [], 'a cleared row is handed out once, not on every tick')
 })
 
