@@ -13,6 +13,7 @@
 import { createIPC } from '../shared/core/ipc.js'
 import { createHealthMonitor } from '../shared/core/health.js'
 import { registerSpaceLeave } from './ipc/space-leave.js'
+import { registerWorkerProcess } from './ipc/worker-process.js'
 import { registerAudit } from './ipc/audit.js'
 import { registerNetwork } from './ipc/network.js'
 import { registerSettings } from './ipc/settings.js'
@@ -37,7 +38,6 @@ import { createLogger } from '../shared/core/logger.js'
 import { installCrashBackstop } from '../shared/core/crash-backstop.js'
 import { WORKER_EXIT_UNSTABLE, WORKER_EXIT_PROTOCOL_MISMATCH, WORKER_EXIT_ORPHANED } from '../shared/contract/exit-codes.js'
 import { bindConnectionLifecycle } from './connection-lifecycle.js'
-import { requireHost } from '../shared/core/client-trust.js'
 import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../shared/contract/main-requests.js'
 import {
   getProfile,
@@ -187,14 +187,7 @@ root = await boot(bootstrap, {
 const { mounts, intents, applyRelayConfig } = root
 const mountOwnedShare = createOwnedMounter({ ipc, mounts })
 
-// A stop, asked for rather than inferred from a pipe going quiet. Answered BEFORE the teardown
-// starts so a caller can tell it landed: the timer fires after the router has written the response,
-// which is a microtask away, and the teardown that follows takes far longer than that to flush.
-ipc.handle('shutdown', (msg, ctx) => {
-  requireHost(ctx.client)
-  setTimeout(() => { safeShutdown('shutdown-request') }, 0)
-  return { ok: true }
-})
+registerWorkerProcess(ipc, { stop: () => { safeShutdown('shutdown-request') } })
 
 // === IPC: folder-share handlers (shares, owned & foreign mounts) ===
 
@@ -224,15 +217,6 @@ registerSettings(ipc, { mounts, publishDownloadRoots })
 registerFeedback(ipc)
 registerNetwork(ipc, { applyRelayConfig })
 registerDiagnostics(ipc, { health, getRoot: () => root })
-
-ipc.handle('ping', async () => ({ pong: true, timestamp: Date.now() }))
-
-// Catch a client up from where it stopped reading, or tell it honestly that it cannot be caught up.
-// The cursor is the caller's own account of what it holds, so the replay is bounded by that and not
-// by when its socket attached: the renderer asks over main's pipe, which has been attached since
-// before the first frame.
-ipc.handle('events:resume', async (msg, ctx) =>
-  ipc.resume(ctx.client, { epoch: msg.epoch, since: msg.since }, { sinceAttach: false }))
 
 // === IPC: audit log ===
 

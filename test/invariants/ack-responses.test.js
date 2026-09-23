@@ -8,10 +8,10 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.resolve(here, '../..')
 const WORKER = path.join(ROOT, 'src/worker')
 
-// The response map is enforced on the CONSUMER side only — tsconfig does not read the worker — so
-// a handler returning something other than what its row declares is not a compile error. This
-// closes the gap for the one family where it is mechanically checkable and where drift is most
-// likely: the ~25 rows typed `Ack`, which promise the literal { ok: true } and nothing else.
+// The typed ipc.handle rejects a handler whose result is not assignable to its row, but assignable
+// is not equal: TypeScript runs no excess-property check on an inferred return, so { ok: true,
+// removed: 1 } satisfies Ack. This pins the part the types cannot — the rows typed `Ack` answer the
+// literal { ok: true } and nothing else.
 //
 // Read as text, per this folder's rule: a guard scans src/** and imports nothing from it.
 function ackRows() {

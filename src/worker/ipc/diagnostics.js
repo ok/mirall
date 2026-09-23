@@ -1,8 +1,12 @@
+// @ts-check
 // The support bundle. health and the boot root are injected: the root is REASSIGNED during boot
 // (the partial-root handoff), so this reads it through a getter rather than capturing it.
 
+/** @import { WorkerIpc } from '../../shared/core/ipc.js' */
+/** @import { WorkerRoot } from '../boot.js' */
+/** @import { HealthMonitor } from '../../shared/core/health.js' */
 import os from 'bare-os'
-import { getRuntimeConfig, getUpgradeKey, getRelayConfig } from '../../shared/core/runtime-config.js'
+import { getRuntimeConfig, getUpgradeKey, getRelayConfig, getAppVersionLabel, getStoragePath } from '../../shared/core/runtime-config.js'
 import { getRequestFailureCounters, getRequestMetrics } from '../../shared/core/ipc.js'
 import { buildDiagnostics, verdictHistoryFromAudit, VERDICT_KINDS } from '../../shared/network/support-bundle.js'
 import { queryAudit } from '../../shared/audit/audit-query.js'
@@ -34,17 +38,21 @@ async function durableVerdictHistory() {
   }
 }
 
+/**
+ * @param {WorkerIpc} ipc
+ * @param {{ health: HealthMonitor, getRoot: () => WorkerRoot | null }} deps
+ */
 export function registerDiagnostics(ipc, { health, getRoot }) {
   ipc.handle('diagnostics:export', async (msg) => {
-    const cfg = getRuntimeConfig()
+    const storage = getStoragePath()
     const root = getRoot()
     return buildDiagnostics({
       status: getSwarmStatus(),
       history: await durableVerdictHistory(),
       env: {
-        appVersion: cfg.appVersion || (cfg.dev ? 'dev' : 'unknown'),
-        channel: deriveChannel(cfg),
-        installId: cfg.storage ? await getInstallId(cfg.storage) : null,
+        appVersion: getAppVersionLabel(),
+        channel: deriveChannel(getRuntimeConfig()),
+        installId: storage ? await getInstallId(storage) : null,
         packaged: !!getUpgradeKey(),
         platform: os.platform(),
         release: os.release(),

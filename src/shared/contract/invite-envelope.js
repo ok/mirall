@@ -16,7 +16,7 @@ import { NAME_MAX } from './limits.js'
  *   schemaVersion?: number, autoAdmit?: boolean, inviteId?: string, expiresAt?: number }} DecodedInviteV1
  * @typedef {DecodedInviteV0 | DecodedInviteV1} DecodedInvite
  * @typedef {{ topic: string, name?: string, owner?: string, ownerName?: string, creator?: string,
- *   schemaVersion?: number, autoAdmit?: boolean, inviteId?: string, expiresAt?: number }} InviteFields
+ *   schemaVersion?: number, autoAdmit?: boolean, inviteId?: string, expiresAt?: number | null }} InviteFields
  * @typedef {{ v: 1, t: string, n?: string, o?: string, d?: string, c?: string, s?: number, a?: 1, id?: string, x?: number }} InviteWire
  */
 
@@ -25,7 +25,7 @@ const HEX32 = /^[0-9a-f]{32}$/i
 const B64URL = /^[A-Za-z0-9_-]+$/
 const SCHEMA_MAX = 2
 
-/** @param {number | undefined} v */
+/** @param {number | null | undefined} v */
 const positiveInt = (v) => (typeof v === 'number' && Number.isInteger(v) && v > 0 ? v : null)
 /** @param {string | undefined} v @param {RegExp} re */
 const hexOrNull = (v, re) => (typeof v === 'string' && re.test(v) ? v.toLowerCase() : null)

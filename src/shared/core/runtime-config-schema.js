@@ -1,4 +1,5 @@
 import { PUBLISH_ORDERS } from '../contract/paths.js'
+/** @import { RelayMode } from '../contract/relay-apply.js' */
 import {
   finiteAtLeast, intAtLeast, intAtLeastOrInfinity, capOrInfinity, boundedOrSentinel, failOpen,
 } from './runtime-config-rules.js'
@@ -276,6 +277,7 @@ function coercePublishOrder(order) {
 // 'off' is the default and the kill switch: relayFunctionFor returns null for it, so
 // swarm.relayThrough is never installed and the transport is byte-identical to a build with no
 // relay support.
+/** @returns {RelayMode} */
 function coerceRelayMode(mode) {
   return mode === 'auto' || mode === 'always' ? mode : 'off'
 }

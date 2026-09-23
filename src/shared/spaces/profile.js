@@ -15,9 +15,11 @@ import { UNKNOWN_DISPLAY_NAME } from '../contract/limits.js'
 import { isEpoch } from '../shares/catalog-keys.js'
 import { voucheesToAdopt } from './membership/fold.js'
 import b4a from 'b4a'
+import crypto from 'hypercore-crypto'
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
 import { prefixRange } from '../core/bee-keys.js'
+/** @import { Profile } from '../contract/responses.js' */
 
 import { openProfileBee, withPeerBee, capturePeerBee } from './peer-bee.js'
 
@@ -40,6 +42,7 @@ export async function initProfile() {
   await profileBee.ready()
 }
 
+/** @returns {Promise<Profile | null>} */
 export async function getProfile() {
   const displayName = await profileBee.get('displayName')
   if (!displayName) return null
@@ -85,9 +88,18 @@ export function getProfileKey() {
   return profileBee.core.key
 }
 
+/** @returns {string | null} */
 export function getLocalPublicKeyHex() {
   if (!profileBee) return null
   return b4a.toString(profileBee.core.key, 'hex')
+}
+
+// For the paths that stamp our key onto something: a closed profile has no key to stamp.
+/** @returns {string} */
+export function requireLocalPublicKeyHex() {
+  const key = getLocalPublicKeyHex()
+  if (!key) throw new AppError(CODES.UNKNOWN, 'the profile is not open')
+  return key
 }
 
 export function getProfileBee() {
@@ -197,8 +209,19 @@ function loadPeerApproval(approverProfileKeyHex, spaceId, joinerKeyHex, timeoutM
   }, { timeoutMs })
 }
 
+/** @returns {string} */
+export function mintInviteId() {
+  return b4a.toString(crypto.randomBytes(16), 'hex')
+}
+
 // Per-link invite record authored in our own (replicated) profile bee, so any member can resolve a
 // join through this link. Reusable until expiry — not consumed on use.
+
+/**
+ * @param {string} spaceId
+ * @param {string} inviteId
+ * @param {{ autoApprove?: boolean, expiresAt?: number | null }} [opts]
+ */
 export async function markInvite(spaceId, inviteId, { autoApprove = false, expiresAt = null } = {}) {
   await ensureMembershipManifestCap()
   await profileBee.put('invite/' + spaceId + '/' + inviteId, {
@@ -300,6 +323,11 @@ export async function sweepExpiredInvites(spaceId, now = Date.now()) {
 // rides a member's receipt. Idempotent: re-author only when our own dismissal currently
 // supersedes the receipt (they were denied/withdrew and are knocking again), so a fresh ts
 // overrides the tombstone; otherwise no-op to avoid append churn on every reconnect.
+/**
+ * @param {string} spaceId
+ * @param {string} joinerKeyHex
+ * @param {{ displayName?: string, avatar?: string | null, refresh?: boolean }} [opts]
+ */
 export async function markRequest(spaceId, joinerKeyHex, { displayName = UNKNOWN_DISPLAY_NAME, avatar = null, refresh = false } = {}) {
   await ensureMembershipManifestCap()
   const reqKey = 'request/' + spaceId + '/' + joinerKeyHex
@@ -481,6 +509,7 @@ export async function markSpaceLooseCatalogKeyEnc(spaceId, keyHex, epoch = 0) {
 // reads so an unreachable / not-yet-replicated bee degrades to null rather than hanging. Null
 // when no field is present yet; the caller keeps its placeholder until a later read (driven by
 // the member-view bee watcher) heals it.
+/** @param {string} profileKeyHex @param {string | null} [spaceId] */
 export async function readProfileRecord(profileKeyHex, spaceId = null) {
   try {
     return await withReadTimeout(loadProfileRecord(profileKeyHex, spaceId), peerReadTimeoutMs(), null)

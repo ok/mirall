@@ -146,6 +146,9 @@ function recordVerdict(next) {
   if (state.history.length > VERDICT_HISTORY_CAP) state.history.shift()
 }
 
+/** @typedef {{ at: number, verdict: string, cause: string | null, confidence: string | null }} VerdictSample */
+
+/** @returns {VerdictSample[]} */
 export function getVerdictHistory() {
   return state.history.slice()
 }

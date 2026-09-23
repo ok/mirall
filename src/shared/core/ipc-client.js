@@ -3,7 +3,16 @@
 // client is the other half. Holding the in-flight map on the client IS the namespacing: there is no
 // composite key to build, parse or get wrong.
 import { TRUST } from '../contract/ipc-frames.js'
+/** @import { ClientKind } from '../contract/ipc-frames.js' */
 
+/** @typedef {{ write(line: string): void, on(event: 'data', fn: (chunk: Uint8Array) => void): void }} ClientPipe */
+/** @typedef {ReturnType<typeof createClient>} Client */
+
+/**
+ * @param {number} id
+ * @param {ClientPipe} pipe
+ * @param {{ trust?: (typeof TRUST)[keyof typeof TRUST], attachedAt?: number }} [opts]
+ */
 export function createClient(id, pipe, { trust = TRUST.PEER, attachedAt = 0 } = {}) {
   let closed = false
   return {
@@ -19,6 +28,7 @@ export function createClient(id, pipe, { trust = TRUST.PEER, attachedAt = 0 } = 
     trust,
     // What the client said it is, once its hello was accepted. Null until then, and the router
     // refuses every other frame while it is.
+    /** @type {{ kind: ClientKind, name: string, version: string } | null} */
     hello: null,
     inFlight: new Map(),
     get closed() { return closed },
@@ -88,8 +98,10 @@ export function createClientRegistry({ bindReader, onRemoved, log, headAt = () =
       return aborted
     },
 
+    /** @param {(client: Client) => void | Promise<void>} fn */
     onAttach(fn) { greeter = fn },
 
+    /** @param {(client: Client) => void} fn */
     onDisconnect(fn) {
       disconnectHooks.add(fn)
       return () => disconnectHooks.delete(fn)

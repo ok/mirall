@@ -16,6 +16,14 @@ export class AppError extends Error {
   }
 }
 
+// What a thrown value says, whatever was thrown: an Error from another realm or a plain object with a
+// message reads the same as an Error, as it does in the renderer and main.
+/** @template T @param {T} err @returns {string} */
+export function errorMessage(err) {
+  if (typeof err === 'object' && err !== null && 'message' in err && typeof err.message === 'string') return err.message
+  return String(err)
+}
+
 // A local I/O errno decides first, through the same table the mount paths read, so the engine and
 // the mounts cannot disagree about which errno is a full disk or a folder we may not write.
 export function classifyTransferError(err) {

@@ -141,6 +141,8 @@ export async function bootDurable(bootstrap, { ipc, log, masterSecret = undefine
  *                         bootstrap.identityKEK as production does.
  * @returns the root: the handles the entry's handlers need, plus close().
  */
+/** @typedef {Awaited<ReturnType<typeof boot>>} WorkerRoot */
+
 export async function boot(bootstrap, {
   ipc, log, membershipControl = null, publishDownloadRoots = () => {}, memberRegistry = {},
   swarm = true, onPartialRoot = null, masterSecret = undefined,

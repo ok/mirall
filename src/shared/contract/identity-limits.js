@@ -5,10 +5,11 @@
 // this is the production default. The renderer reads the same constant from contract/limits.js.
 import { AVATAR_MAX_BYTES, NAME_MAX, UNKNOWN_DISPLAY_NAME } from './limits.js'
 export { AVATAR_MAX_BYTES }
+/** @import { JsonValue } from './request-args.js' */
 
 const DATA_IMAGE = /^data:image\/(png|jpe?g|webp|gif);base64,/i
 
-/** @param {string | null | undefined} name */
+/** @param {JsonValue | undefined} name */
 export function clampDisplayName(name) {
   if (typeof name !== 'string' || name.length === 0) return UNKNOWN_DISPLAY_NAME
   return name.slice(0, NAME_MAX)
@@ -16,7 +17,7 @@ export function clampDisplayName(name) {
 
 // Returns the avatar iff it is a well-formed image data URI within maxBytes, else null (treated
 // everywhere as "no avatar"). maxBytes === 0 disables the size bound; the format check always applies.
-/** @param {string | null | undefined} value @param {number} [maxBytes] */
+/** @param {JsonValue | undefined} value @param {number} [maxBytes] */
 export function sanitizeAvatar(value, maxBytes = AVATAR_MAX_BYTES) {
   if (typeof value !== 'string' || value.length === 0) return null
   if (!DATA_IMAGE.test(value)) return null

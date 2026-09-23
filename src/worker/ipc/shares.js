@@ -1,12 +1,19 @@
+// @ts-check
 // Folder shares: the record a space advertises, and the read paths over one share's contents.
 // Creation is split into a refusal half and a replicating half because the composed
 // create-and-mount has to record a durable intent between them.
 
-import { AppError } from '../../shared/core/errors.js'
+/** @import { WorkerIpc } from '../../shared/core/ipc.js' */
+/** @import { Logger } from '../../shared/core/logger.js' */
+/** @import { WorkerRoot } from '../boot.js' */
+/** @import { OwnedMounter } from '../owned-mount.js' */
+/** @import { StoredShare } from '../../shared/shares/shares.js' */
+/** @import { StoredSpace } from '../../shared/spaces/space.js' */
+import { AppError, errorMessage } from '../../shared/core/errors.js'
 import { CODES } from '../../shared/contract/errors.js'
 import { TARGET_KIND } from '../../shared/contract/audit-kinds.js'
 import { isOverlayEnabled } from '../../shared/core/runtime-config.js'
-import { getLocalPublicKeyHex } from '../../shared/spaces/profile.js'
+import { getLocalPublicKeyHex, requireLocalPublicKeyHex } from '../../shared/spaces/profile.js'
 import { getSpace, getSpaceContentKey, isLegacySpace, LEGACY_SPACE_MESSAGE } from '../../shared/spaces/space.js'
 import { publishShare, tombstoneShare, readOwnShares, isValidShareName, generateShareId } from '../../shared/shares/shares.js'
 import { listSharesForSpace } from '../../shared/shares/share-registry.js'
@@ -30,6 +37,7 @@ import { spaceRefOf } from '../audit-refs.js'
 // yet. Split from the publish below because the composed create-and-mount has to record a durable
 // intent naming this share AFTER the last refusal and BEFORE the first replicated write, and the
 // share's id does not exist until here.
+/** @param {string} spaceId @param {string} name */
 async function prepareOwnedShare(spaceId, name) {
   const space = await getSpace(spaceId)
   if (!space) throw new AppError(CODES.SPACE_NOT_FOUND, 'Space not found')
@@ -41,11 +49,12 @@ async function prepareOwnedShare(spaceId, name) {
     throw new AppError(CODES.SHARE_NAME_COLLISION, 'A folder with this name already exists in this space')
   }
 
+  /** @type {StoredShare} */
   const share = {
     id: generateShareId(),
     type: 'owned-folder',
     name: trimmed,
-    owner: getLocalPublicKeyHex(),
+    owner: requireLocalPublicKeyHex(),
     spaceId,
     createdAt: Date.now(),
   }
@@ -70,6 +79,7 @@ async function prepareOwnedShare(spaceId, name) {
 
 // The replicated half: the moment this returns, every co-member's view of our profile bee carries
 // the folder.
+/** @param {WorkerIpc} ipc @param {StoredSpace} space @param {StoredShare} share */
 async function publishOwnedShare(ipc, space, share) {
   await publishShare(space.spaceId, share)
   record('share.created', {
@@ -80,6 +90,7 @@ async function publishOwnedShare(ipc, space, share) {
   ipc.emit('event:shares-updated', { spaceId: space.spaceId })
 }
 
+/** @param {string} spaceId @param {string} ownerKey @param {string} shareId */
 async function loadShareDescriptor(spaceId, ownerKey, shareId) {
   const all = await listSharesForSpace(spaceId)
   const share = all.find((s) => s.id === shareId && s.owner === ownerKey)
@@ -87,6 +98,10 @@ async function loadShareDescriptor(spaceId, ownerKey, shareId) {
   return share
 }
 
+/**
+ * @param {WorkerIpc} ipc
+ * @param {{ log: Logger, intents: WorkerRoot['intents'], mountOwnedShare: OwnedMounter }} deps
+ */
 export function registerShares(ipc, { log, intents, mountOwnedShare }) {
   ipc.handle('share:list', async (msg) => {
     return await listSharesForSpace(msg.spaceId)
@@ -135,7 +150,7 @@ export function registerShares(ipc, { log, intents, mountOwnedShare }) {
         await intents.complete(intentId)
       } catch (tombstoneErr) {
         // The intent is deliberately left standing: this is exactly the state it exists for.
-        log.warn('could not retire a folder whose mount failed — the next boot will:', share.id, '-', tombstoneErr.message)
+        log.warn('could not retire a folder whose mount failed — the next boot will:', share.id, '-', errorMessage(tombstoneErr))
       }
       ipc.emit('event:shares-updated', { spaceId: msg.spaceId })
       throw err
@@ -157,7 +172,7 @@ export function registerShares(ipc, { log, intents, mountOwnedShare }) {
     const own = await readOwnShares(msg.spaceId)
     const share = own.find((s) => s.id === msg.shareId)
     if (!share) throw new AppError(CODES.SHARE_NOT_FOUND, 'Share not found')
-    const labelOf = (s) => s.displayName || s.name
+    const labelOf = (/** @type {StoredShare} */ s) => s.displayName || s.name
     if (labelOf(share) === displayName) return share
     if (own.some((s) => s.id !== msg.shareId && labelOf(s) === displayName)) {
       throw new AppError(CODES.SHARE_NAME_COLLISION, 'A folder with this name already exists in this space')

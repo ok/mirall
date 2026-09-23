@@ -1,3 +1,4 @@
+// @ts-check
 // Membership: the four peer-frame handlers behind mirall/handshake's membership control channel,
 // the durable member registry the composition root folds with, and the approve/deny surface the
 // renderer drives. One module because a knock reaches us on both paths and must resolve the same
@@ -14,7 +15,7 @@ import { OUTCOME, TARGET_KIND } from '../../shared/contract/audit-kinds.js'
 import { DENY_OUTCOME } from '../../shared/contract/deny-outcome.js'
 import { CODES } from '../../shared/contract/errors.js'
 import { PEER_FRAME } from '../../shared/contract/peer-frames.js'
-import { AppError } from '../../shared/core/errors.js'
+import { AppError, errorMessage } from '../../shared/core/errors.js'
 import { getDeriveDebounceMs, getMembershipCaps, isHandshakeIdentityBindingEnabled } from '../../shared/core/runtime-config.js'
 import { peerReadTimeoutMs } from '../../shared/core/with-timeout.js'
 import { sanitizeAvatar } from '../../shared/contract/identity-limits.js'
@@ -41,16 +42,29 @@ import { getBoundSignerKey, getConnectedMemberMeta } from '../../shared/network/
 import { broadcastMembershipCancel, sendMembershipDeny, sendMembershipGrant } from '../../shared/network/membership-frames.js'
 import { peerActorIn, spaceRefOf } from '../audit-refs.js'
 import b4a from 'b4a'
+/** @import { WorkerIpc } from '../../shared/core/ipc.js' */
+/** @import { Logger } from '../../shared/core/logger.js' */
+/** @import { StoredSpace } from '../../shared/spaces/space.js' */
+/** @import { JsonValue } from '../../shared/contract/request-args.js' */
+/** @import { ApproveMemberResult, JoinRequest } from '../../shared/contract/responses.js' */
 
-let ipc = null
-let log = null
-let dropSpaceDownloadRoot = null
+// A frame is the sender's claim: the intake proves only that it is an object with a string type,
+// so every other field is narrowed where it is read.
+/** @typedef {{ type: string, [field: string]: JsonValue }} PeerFrame */
+/** @typedef {{ socket: object, peerInfo: object, reply: (payload: object) => void }} PeerFrameContext */
+
+/** @type {WorkerIpc} */
+let ipc
+/** @type {Logger} */
+let log
+/** @type {(spaceId: string) => void} */
+let dropSpaceDownloadRoot
 
 // One poke per followed member per share-record append — K raw frames while K records
 // replicate, each driving a 3-IPC useShares refresh incl. per-member network head-pulls.
 // Coalesce per space at the source; files-updated is additionally coalesced downstream
 // into event:reconcile by the hint bus.
-const sharesPoke = makeKeyedCoalescer((spaceId) => {
+const sharesPoke = makeKeyedCoalescer((/** @type {string} */ spaceId) => {
   ipc.emit('event:shares-updated', { spaceId })
   ipc.emit('event:files-updated', { spaceId })
 }, { intervalMs: 250 })
@@ -62,30 +76,31 @@ const sharesPoke = makeKeyedCoalescer((spaceId) => {
 // evidence and the live connection state agree — a live handshake always outranks stale
 // records.)
 const memberRegistry = {
-  metaFor: (spaceId, key) => getConnectedMemberMeta(spaceId, key),
-  isConnected: (spaceId, key) => !!getConnectedMemberMeta(spaceId, key),
-  profileFor: (spaceId, key) => readProfileRecord(key, spaceId),
-  readmitConnected: (spaceId, keys) => readmitConnectedMembers(spaceId, keys),
+  metaFor: (/** @type {string} */ spaceId, /** @type {string} */ key) => getConnectedMemberMeta(spaceId, key),
+  isConnected: (/** @type {string} */ spaceId, /** @type {string} */ key) => !!getConnectedMemberMeta(spaceId, key),
+  profileFor: (/** @type {string} */ spaceId, /** @type {string} */ key) => readProfileRecord(key, spaceId),
+  readmitConnected: (/** @type {string} */ spaceId, /** @type {readonly string[]} */ keys) => readmitConnectedMembers(spaceId, keys),
   // A change in the derived member set changes whose files + shares we surface (both lists
   // read peer content keyed on space.members), so refresh all three renderer views — not
   // just the member list. On a removal these events are the only signal that drops the gone
   // member's content from the file/share views.
-  emitMembersUpdated: (spaceId) => {
+  emitMembersUpdated: (/** @type {string} */ spaceId) => {
     ipc.emit('event:members-updated', { spaceId })
     ipc.emit('event:shares-updated', { spaceId })
     ipc.emit('event:files-updated', { spaceId })
   },
-  emitJoinRequest: (spaceId, req) => {
+  emitJoinRequest: (/** @type {string} */ spaceId, /** @type {JoinRequest} */ req) => {
     ipc.emit('event:member-join-request', { spaceId, ...req })
     auditJoinRequest(spaceId, req.publicKey, req.displayName)
   },
-  emitJoinRequestsUpdated: (spaceId) => ipc.emit('event:join-requests-updated', { spaceId }),
+  emitJoinRequestsUpdated: (/** @type {string} */ spaceId) => ipc.emit('event:join-requests-updated', { spaceId }),
   // A followed member added/removed a share/<space>/* record (shares live in the profile bee, which
   // doesn't move the member set). Poke the share + file lists so a derived-only member's share
   // surfaces without waiting for an unrelated member-set change.
-  emitSharesUpdated: (spaceId) => sharesPoke.poke(spaceId),
+  emitSharesUpdated: (/** @type {string} */ spaceId) => sharesPoke.poke(spaceId),
 }
 
+/** @type {Readonly<Record<string, (msg: PeerFrame, ctx: Partial<PeerFrameContext>) => Promise<void>>>} */
 const MEMBERSHIP_HANDLERS = Object.freeze({
   [PEER_FRAME.MEMBERSHIP_REQUEST]: (msg) => onJoinRequest(msg),
   [PEER_FRAME.MEMBERSHIP_GRANT]: (msg, ctx) => onGrant(msg, ctx),
@@ -93,16 +108,23 @@ const MEMBERSHIP_HANDLERS = Object.freeze({
   [PEER_FRAME.MEMBERSHIP_CANCEL]: (msg, ctx) => onCancel(msg, ctx),
 })
 
+/** @param {PeerFrame} msg @param {Partial<PeerFrameContext>} [ctx] */
 async function handleMembershipControl(msg, ctx) {
   try {
-    return await MEMBERSHIP_HANDLERS[msg.type]?.(msg, ctx)
+    return await MEMBERSHIP_HANDLERS[msg.type]?.(msg, ctx ?? {})
   } catch (err) {
-    log.warn('membership control failed:', msg?.type, '-', err.message)
+    log.warn('membership control failed:', msg?.type, '-', errorMessage(err))
   }
 }
 
+/** @param {PeerFrame} msg */
+const frameSpaceId = (msg) => (typeof msg.spaceTopic === 'string' ? msg.spaceTopic.slice(0, 16) : '')
+
+/** @param {PeerFrame} msg */
 async function onJoinRequest(msg) {
-  const spaceId = (msg.spaceTopic || '').slice(0, 16)
+  const { profileKey } = msg
+  if (typeof profileKey !== 'string') return
+  const spaceId = frameSpaceId(msg)
   const space = spaceId ? await getSpace(spaceId) : null
   if (!space) return
   // Capture the leave-tombstone (the kept "this peer left" marker) BEFORE clearing it: a peer
@@ -110,17 +132,17 @@ async function onJoinRequest(msg) {
   // committed), so a peer we've observed leaving must go through fresh approval, never the
   // reconnect re-grant shortcut. It reads a different record than the approval below, so the two
   // are free to be read together.
-  const hadLeft = isLeft(spaceId, msg.profileKey)
+  const hadLeft = isLeft(spaceId, profileKey)
   const settled = knockSettledByRecords({
     selfPending: space.status === 'pending',
-    isMember: (space.members || []).some((m) => m.publicKey === msg.profileKey),
+    isMember: (space.members || []).some((m) => m.publicKey === profileKey),
     hadLeft,
-    isApproved: isApprovedJoiner(spaceId, msg.profileKey),
+    isApproved: isApprovedJoiner(spaceId, profileKey),
   })
   if (settled === 'ignore') return
   // A fresh request means they want back in — lift any leave-tombstone (in-memory + durable) so the
   // gate and the fold treat them as a normal (re)joiner again.
-  await dropTombstone(spaceId, msg.profileKey)
+  await dropTombstone(spaceId, profileKey)
   const grant = () => {
     // Honor the same pause resolveJoinRequest enforces: while the creator-root conflict is
     // unresolved, hand out no content key. Harmless for a reconnecting member (it already holds
@@ -128,7 +150,7 @@ async function onJoinRequest(msg) {
     // joiner's FIRST SCK delivery under the disputed trust anchor.
     if (space.creatorDivergence) { log.warn('re-grant blocked — creator root divergence unresolved:', spaceId); return }
     const sck = getSpaceContentKey(spaceId, space)
-    if (sck) sendMembershipGrant(msg.profileKey, space.topic, b4a.toString(sck, 'hex'), space.creatorKey, boundSignerPk(msg.profileKey), { epoch: spaceEpoch(space) })
+    if (sck) sendMembershipGrant(profileKey, space.topic, b4a.toString(sck, 'hex'), space.creatorKey, boundSignerPk(profileKey), { epoch: spaceEpoch(space) })
   }
   if (settled === 'regrant') return grant()
 
@@ -144,14 +166,14 @@ async function onJoinRequest(msg) {
     inviteVerdict,
     hasInviteRecord: !!inviteRec,
     hadLeft,
-    isDenied: isDeniedJoiner(spaceId, msg.profileKey) || await ownDenialStands(spaceId, msg.profileKey),
+    isDenied: isDeniedJoiner(spaceId, profileKey) || await ownDenialStands(spaceId, profileKey),
   })
   if (verdict === 'deny-expired' || verdict === 'deny-replay') {
-    if (space.topic) sendMembershipDeny(msg.profileKey, space.topic)
+    if (space.topic) sendMembershipDeny(profileKey, space.topic)
     return
   }
   if (verdict === 'auto-approve') {
-    await resolveJoinRequest(space, msg.profileKey, 'approve')
+    await resolveJoinRequest(space, profileKey, 'approve')
     return
   }
 
@@ -162,7 +184,7 @@ async function onJoinRequest(msg) {
   // and reach the renderer. Bounded by the storage cap, not the frame budget: an arrived frame is
   // by definition already under the frame cap.
   const avatar = sanitizeAvatar(msg.avatar, getMembershipCaps().maxAvatarBytes)
-  const changed = recordJoinRequest(spaceId, msg.profileKey, displayName, avatar)
+  const changed = recordJoinRequest(spaceId, profileKey, displayName, avatar)
   // The durable receipt runs on EVERY knock — markRequest short-circuits on an existing one,
   // so a re-announced (heartbeat) request is nearly free while a first write that failed
   // self-heals. A departed peer (hadLeft) that re-requests must write a FRESH receipt ts, so
@@ -170,17 +192,18 @@ async function onJoinRequest(msg) {
   // against our leave stamp. Only the renderer emit is deduped: an unchanged heartbeat
   // keeps the banner quiet, and this sits strictly AFTER the replay branches above, so a
   // re-knock still replays a lost grant/deny.
-  await markRequest(spaceId, msg.profileKey, { displayName, avatar, refresh: hadLeft })
-  if (changed || hadLeft) ipc.emit('event:member-join-request', { spaceId, publicKey: msg.profileKey, displayName, avatar })
+  await markRequest(spaceId, profileKey, { displayName, avatar, refresh: hadLeft })
+  if (changed || hadLeft) ipc.emit('event:member-join-request', { spaceId, publicKey: profileKey, displayName, avatar })
   // Every knock, not only a changed one: the audit dedupes itself, and a row the log did not take is
   // retried by the next heartbeat knock.
-  auditJoinRequest(spaceId, msg.profileKey, displayName)
+  auditJoinRequest(spaceId, profileKey, displayName)
 }
 
 // A knock reaches us two ways — the live membership:request frame, and the replicated fold when a
 // co-member heard it first — and either can arrive first. Both record through here so the row
 // appears regardless of path, and appears once. The claim is taken before the read so concurrent
 // knocks record once, and given back only for a lost row, which the next knock then retries.
+/** @param {string} spaceId @param {string} publicKey @param {string | null} displayName */
 function auditJoinRequest(spaceId, publicKey, displayName) {
   const claim = claimJoinRequestAudit(spaceId, publicKey)
   if (!claim) return
@@ -199,6 +222,7 @@ function auditJoinRequest(spaceId, publicKey, displayName) {
 // The bound ed25519 signer key of a currently-connected peer, as a buffer, to seal its SCK grant.
 // A grant only reaches a connected peer, so this is the single reliable source (boundSignerKeys is
 // populated from every verified identity frame); no need to thread it through the request record.
+/** @param {string} profileKeyHex */
 function boundSignerPk(profileKeyHex) {
   const hex = getBoundSignerKey(profileKeyHex)
   return hex ? b4a.from(hex, 'hex') : null
@@ -208,6 +232,7 @@ function boundSignerPk(profileKeyHex) {
 // assertion = an authenticated granter re-confirmed the pinned root, so a flagged divergence
 // is no longer live (noop without one clears nothing); refuse = a confirmed conflict, the
 // grant must stop. Returns { blocked, decision }.
+/** @param {string} spaceId @param {StoredSpace} space @param {string | null} asserted */
 async function reconcileGrantCreator(spaceId, space, asserted) {
   const pinnedIsAuthenticated = !!space.creatorKey && !space.creatorUnverified
   const decision = reconcileAssertedRoot({ pinned: space.creatorKey || null, pinnedIsAuthenticated, asserted })
@@ -231,8 +256,9 @@ async function reconcileGrantCreator(spaceId, space, asserted) {
   return { blocked: false, decision }
 }
 
+/** @param {PeerFrame} msg @param {Partial<PeerFrameContext>} [ctx] */
 async function onGrant(msg, ctx = {}) {
-  const spaceId = (msg.spaceTopic || '').slice(0, 16)
+  const spaceId = frameSpaceId(msg)
   const space = spaceId ? await getSpace(spaceId) : null
   if (!space || space.status !== 'pending') return
 
@@ -288,8 +314,9 @@ async function onGrant(msg, ctx = {}) {
 // A pending joiner withdrew their request (an ephemeral Tier-3 lifecycle signal) — drop our banner. Only the
 // members actually showing it author a durable tombstone (the cancel is broadcast to every
 // socket; don't pollute uninvolved members' bees) so the withdrawal converges + survives restart.
+/** @param {PeerFrame} msg @param {Partial<PeerFrameContext>} [ctx] */
 async function onCancel(msg, ctx = {}) {
-  const spaceId = (msg.spaceTopic || '').slice(0, 16)
+  const spaceId = frameSpaceId(msg)
   if (!spaceId || typeof msg.joinerKey !== 'string') return
   const showing = listJoinRequests(spaceId).some((r) => r.publicKey === msg.joinerKey)
   const had = clearJoinRequest(spaceId, msg.joinerKey)
@@ -303,8 +330,9 @@ async function onCancel(msg, ctx = {}) {
   if (had || showing) ipc.emit('event:join-requests-updated', { spaceId })
 }
 
+/** @param {PeerFrame} msg */
 async function onDeny(msg) {
-  const spaceId = (msg.spaceTopic || '').slice(0, 16)
+  const spaceId = frameSpaceId(msg)
   if (!spaceId) return
   // The request was rejected — the joiner never became a member, so drop the
   // pending space entirely instead of leaving it stranded in their list.
@@ -320,6 +348,26 @@ async function onDeny(msg) {
 // fold re-derives) — no approval gossip. On deny it signals the joiner and tells
 // co-members to drop the banner. Routing all decision sites (manual approve, auto-admit,
 // deny) through here means none can omit a step. outcome: 'approve' | 'deny'.
+/**
+ * @overload
+ * @param {StoredSpace} space
+ * @param {string} joinerKey
+ * @param {'approve'} outcome
+ * @returns {Promise<ApproveMemberResult>}
+ */
+/**
+ * @overload
+ * @param {StoredSpace} space
+ * @param {string} joinerKey
+ * @param {'deny'} outcome
+ * @returns {Promise<void>}
+ */
+/**
+ * @param {StoredSpace} space
+ * @param {string} joinerKey
+ * @param {'approve' | 'deny'} outcome
+ * @returns {Promise<ApproveMemberResult | void>}
+ */
 async function resolveJoinRequest(space, joinerKey, outcome) {
   // The knock is settled; forget it so a genuine later re-knock (e.g. after a denial) records
   // again rather than being swallowed by the first one's dedupe.
@@ -372,7 +420,8 @@ async function resolveJoinRequest(space, joinerKey, outcome) {
   ipc.emit('event:join-requests-updated', { spaceId })
 }
 
-function denyFacts(space, joinerKey, vouched) {
+/** @param {StoredSpace} space @param {string} joinerKey */
+function denyFacts(space, joinerKey) {
   const spaceId = space.spaceId
   return {
     isMember: (space.members || []).some((m) => m.publicKey === joinerKey),
@@ -380,7 +429,6 @@ function denyFacts(space, joinerKey, vouched) {
     isApproved: isApprovedJoiner(spaceId, joinerKey),
     recentlyApproved: hasApprovedVerdict(spaceId, joinerKey),
     hasOpenRequest: listJoinRequests(spaceId).some((r) => r.publicKey === joinerKey),
-    vouched,
   }
 }
 
@@ -388,6 +436,7 @@ function denyFacts(space, joinerKey, vouched) {
 // fold's worth of peer reads.
 const approvedVerdictTtlMs = () => getDeriveDebounceMs() + peerReadTimeoutMs()
 
+/** @param {StoredSpace} space @param {string} joinerKey */
 async function decideDeny(space, joinerKey) {
   const spaceId = space.spaceId
   let current = space
@@ -395,7 +444,7 @@ async function decideDeny(space, joinerKey) {
   if (verdict === ASK_PEERS) {
     const vouched = await getAdmissionGates().isApprovedByPeers(current, joinerKey)
     current = await joinedSpace(spaceId)
-    verdict = denyVerdict(denyFacts(current, joinerKey, vouched))
+    verdict = denyVerdict({ ...denyFacts(current, joinerKey), vouched })
     if (verdict === DENY_OUTCOME.ALREADY_APPROVED) rememberApprovedVerdict(spaceId, joinerKey, approvedVerdictTtlMs())
   }
   if (verdict === DENY_OUTCOME.DENIED) {
@@ -417,17 +466,18 @@ async function decideDeny(space, joinerKey) {
 // on the closing cores. This is the cancel path for both a deny and a manual
 // "stop waiting". Every step is best-effort so a single failure can't reject the
 // caller and surface as an Uncaught in the renderer.
+/** @param {string} spaceId */
 async function discardPendingSpace(spaceId) {
   markSpaceLeaving(spaceId)
   closeMemberView(spaceId)
   try {
     const space = await getSpace(spaceId)
     const peerMembers = (space?.members || []).filter((m) => !!m.driveKey)
-    try { await leaveSpaceTopic(spaceId) } catch (err) { log.warn('discard pending: leave topic failed:', err.message) }
-    try { await cleanupSpaceDrives(spaceId, peerMembers) } catch (err) { log.warn('discard pending: peer-drive cleanup failed:', err.message) }
-    try { await purgeSpace(spaceId) } catch (err) { log.warn('discard pending: remove failed:', err.message) }
+    try { await leaveSpaceTopic(spaceId) } catch (err) { log.warn('discard pending: leave topic failed:', errorMessage(err)) }
+    try { await cleanupSpaceDrives(spaceId, peerMembers) } catch (err) { log.warn('discard pending: peer-drive cleanup failed:', errorMessage(err)) }
+    try { await purgeSpace(spaceId) } catch (err) { log.warn('discard pending: remove failed:', errorMessage(err)) }
     dropSpaceDownloadRoot(spaceId)
-    try { await forgetUnreferencedPeerCores(space?.members || []) } catch (err) { log.warn('discard pending: peer-core gc failed:', err.message) }
+    try { await forgetUnreferencedPeerCores(space?.members || []) } catch (err) { log.warn('discard pending: peer-core gc failed:', errorMessage(err)) }
   } finally {
     unmarkSpaceLeaving(spaceId)
   }
@@ -435,6 +485,7 @@ async function discardPendingSpace(spaceId) {
 
 // A peer handed us the space content key — the moment read access was actually granted, and the
 // counterpart to the approver's own `membership.approved` row.
+/** @param {string} spaceId @param {string | null} granterKey */
 async function recordGrantReceived(spaceId, granterKey) {
   // One fresh read for all three fields: onGrant's own `space` was loaded before four awaits
   // (materializeOwnDrive, pinCreatorKey, broadcastProfileUpdate, openMemberView), and the roster
@@ -450,6 +501,7 @@ async function recordGrantReceived(spaceId, granterKey) {
 // A member's decision on a request needs a space we have joined. While pending we hold no content
 // key, so we could neither grant nor meaningfully refuse — the sck check inside resolveJoinRequest
 // is the real gate; this makes the refusal an error the renderer can show.
+/** @param {string} spaceId */
 async function joinedSpace(spaceId) {
   const space = await getSpace(spaceId)
   if (!space) throw new AppError(CODES.SPACE_NOT_FOUND, 'Space not found')
@@ -458,6 +510,7 @@ async function joinedSpace(spaceId) {
 }
 
 // Registers the renderer-facing half and returns the two collaborators boot() needs.
+/** @param {WorkerIpc} ipcRef @param {{ log: Logger, dropSpaceDownloadRoot: (spaceId: string) => void }} deps */
 export function createMembership(ipcRef, deps) {
   ipc = ipcRef
   log = deps.log

@@ -36,6 +36,7 @@ export async function revealFile(spaceId, filePath) {
 
 // missingCode is the caller's, because the same walk backs revealing a file and revealing a folder
 // and "This file isn't on this device yet." is the wrong sentence for a folder.
+/** @param {string} target @param {string} [missingCode] */
 export function revealLocalPath(target, missingCode = CODES.FILE_NOT_ON_DEVICE) {
   const platform = os.platform()
   const exists = fs.existsSync(target)

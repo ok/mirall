@@ -1,9 +1,13 @@
+// @ts-check
 // The loose-file surface: what a space holds, what is being sent, and the download controls.
 // "Loose" files live in the space itself rather than in a shared folder, and their transfers run
 // on the overlay engine alongside folder content — which is why the download controls route on
 // the transfer id's shape.
 
+/** @import { WorkerIpc } from '../../shared/core/ipc.js' */
+/** @import { Logger } from '../../shared/core/logger.js' */
 import { getSpace } from '../../shared/spaces/space.js'
+import { errorMessage } from '../../shared/core/errors.js'
 import { isSpaceLeaving } from '../../shared/network/leave-protocol.js'
 import { listFiles, removeFile, addFile } from '../../shared/transfer/file-listing.js'
 import { revealFile } from '../../shared/transfer/reveal.js'
@@ -23,12 +27,13 @@ import { selfActor, targetRef } from '../../shared/audit/audit-record.js'
 import { TARGET_KIND } from '../../shared/contract/audit-kinds.js'
 import { spaceRefOf, fileNameOf } from '../audit-refs.js'
 
+/** @param {WorkerIpc} ipc @param {{ log: Logger }} deps */
 export function registerFiles(ipc, { log }) {
   ipc.handle('event:loose-file-fs-event', async (msg) => {
     try {
       await handleLooseFsEvent({ spaceId: msg.spaceId, absPath: msg.absPath, action: msg.action })
     } catch (err) {
-      log.warn('loose-file fs event failed:', err.message)
+      log.warn('loose-file fs event failed:', errorMessage(err))
     }
     return { ok: true }
   })
@@ -90,7 +95,7 @@ export function registerFiles(ipc, { log }) {
     const res = await looseDownload(msg.spaceId, member, msg.path)
     // Couldn't start: the owner may simply be unreachable on the bulk plane. Don't make the user
     // wait for the next tick to find that out — the rescue throttles itself, so clicks stay cheap.
-    if (res?.queued) rescueStalledTransfers().catch((err) => log.debug('stalled-transfer rescue failed:', err.message))
+    if (res?.queued) rescueStalledTransfers().catch((err) => log.debug('stalled-transfer rescue failed:', errorMessage(err)))
     return res
   })
   ipc.handle('files:cancel-download', async (msg) => {

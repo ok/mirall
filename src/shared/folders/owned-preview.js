@@ -9,7 +9,22 @@ import { driveKeyToSegments } from './path-keys.js'
 import { exceedsShareFileLimit, listingWillTruncate } from './share-limits.js'
 import { createPreviewTally } from './preview-tally.js'
 import { walkDisk } from './walk-disk.js'
+/** @import { CancellationSignal } from '../core/cancellation.js' */
+/** @import { ScanPreview } from '../contract/responses.js' */
 
+/**
+ * @typedef {{ phase: string, scanned: number, total: number, bytes: number }} PreviewProgress
+ * @typedef {{ signal?: CancellationSignal | null, onProgress?: ((progress: PreviewProgress) => void) | null }} PreviewOptions
+ */
+
+/**
+ * @param {string} spaceId
+ * @param {string | null} shareId
+ * @param {string} mountPath
+ * @param {readonly string[]} ignore
+ * @param {PreviewOptions} [opts]
+ * @returns {Promise<ScanPreview>}
+ */
 export async function previewInitialPublishScan(spaceId, shareId, mountPath, ignore, opts = {}) {
   // Catalog side only matters when re-previewing an existing share (relocate). The
   // Add-Folder UI passes shareId=null → onCatalog empty → a pure stat-only walk.

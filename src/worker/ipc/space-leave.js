@@ -1,5 +1,10 @@
+// @ts-check
 // The space:leave handler. Its teardown ORDER is shared with boot's interrupted-leave pass through
 // spaces/membership/leave-state.js (LEAVE_PHASES + runLeaveTeardown), so the two cannot drift.
+/** @import { WorkerIpc } from '../../shared/core/ipc.js' */
+/** @import { Logger } from '../../shared/core/logger.js' */
+/** @import { WorkerRoot } from '../boot.js' */
+/** @import { StoredSpace } from '../../shared/spaces/space.js' */
 import { TARGET_KIND } from '../../shared/contract/audit-kinds.js'
 import { selfActor, spaceRef, targetRef } from '../../shared/audit/audit-record.js'
 import { record } from '../../shared/audit/audit-log.js'
@@ -26,6 +31,7 @@ import { clearPendingForSpace } from '../../shared/transfer/pending-transfers.js
 import { cleanupSpaceDrives, leaveSpaceTopic } from '../../shared/network/space-topics.js'
 import { awaitLeaveAcks, hasPendingCancel, hasPendingLeave, isSpaceLeaving, joinPendingCancelTopic, joinPendingLeaveTopic, markSpaceLeaving, registerPendingCancel, registerPendingLeave, sendLeaveFrameToConnectedPeers, sendPendingCancelToConnected, takeLeaveAckedKeys, unmarkSpaceLeaving } from '../../shared/network/leave-protocol.js'
 import { compactStore } from '../../shared/storage/compaction.js'
+import { errorMessage } from '../../shared/core/errors.js'
 
 // Persist a pending-leave marker BEFORE the record purge erases the topic, so the swarm can
 // re-announce the leave to members who were offline at leave time (and boot re-joins the topic)
@@ -34,6 +40,7 @@ import { compactStore } from '../../shared/storage/compaction.js'
 // immortal marker) and covers a member that dropped mid-leave (never acked → still owed the
 // replay), which the raw awaitLeaveAcks boolean conflated with "nobody was connected". ts is the
 // leave stamp: a genuine later rejoin writes a strictly newer member/<S> ts and outranks the replay.
+/** @param {string} spaceId @param {StoredSpace | null} space @param {Logger} log */
 async function armPendingLeaveIfUnwitnessed(spaceId, space, log) {
   if (!space?.topic) return false
   const others = (space.members || []).map((m) => m.publicKey)
@@ -47,7 +54,7 @@ async function armPendingLeaveIfUnwitnessed(spaceId, space, log) {
     log.info('leave unwitnessed — pending-leave marker armed:', spaceId)
     return true
   } catch (err) {
-    log.warn('pending-leave persist failed:', err.message)
+    log.warn('pending-leave persist failed:', errorMessage(err))
     return false
   }
 }
@@ -56,27 +63,32 @@ async function armPendingLeaveIfUnwitnessed(spaceId, space, log) {
 // returning THIS session still receives the leave (boot covers restarts). Re-check the live
 // marker rather than a stale armed-flag: an ack that landed mid-teardown already cleared the
 // marker and left the topic, and re-joining here would strand a zombie topic nothing can leave.
+/** @param {string} spaceId @param {StoredSpace | null} space @param {Logger} log */
 function rejoinPendingLeaveTopicAfterTeardown(spaceId, space, log) {
   if (!hasPendingLeave(spaceId) || !space?.topic) return
   try { joinPendingLeaveTopic(spaceId, space.topic) } catch (err) {
-    log.warn('pending-leave topic rejoin failed:', err.message)
+    log.warn('pending-leave topic rejoin failed:', errorMessage(err))
   }
 }
 
 // The live path's teardown steps. Unlike boot's pass they also stop the in-memory machinery —
 // watcher, mirror loop, periodic reconcile, publish lane — that would otherwise keep writing to the
 // drive the purge closes.
+/**
+ * @param {string} spaceId
+ * @param {{ ipc: WorkerIpc, mounts: WorkerRoot['mounts'], log: Logger, onPhase: (phase: string) => void }} deps
+ */
 function liveLeaveSteps(spaceId, { ipc, mounts, log, onPhase }) {
   return {
     clearMembership: async () => {
       // Best-effort here, unlike the boot pass's hard gate: the purge steps below still have
       // to run, and the durable marker already survives for the next boot to finish.
       try { await clearOwnMembership(spaceId) } catch (err) {
-        log.warn('clearOwnMembership failed:', err.message)
+        log.warn('clearOwnMembership failed:', errorMessage(err))
       }
       onPhase('leave-frame')
       try { sendLeaveFrameToConnectedPeers(spaceId) } catch (err) {
-        log.warn('leave-frame broadcast failed:', err.message)
+        log.warn('leave-frame broadcast failed:', errorMessage(err))
       }
     },
     ownedMounts: async () => {
@@ -107,6 +119,10 @@ function liveLeaveSteps(spaceId, { ipc, mounts, log, onPhase }) {
   }
 }
 
+/**
+ * @param {WorkerIpc} ipc
+ * @param {{ log: Logger, mounts: WorkerRoot['mounts'], discardPendingSpace: (spaceId: string) => Promise<void>, dropSpaceDownloadRoot: (spaceId: string) => void }} deps
+ */
 export function registerSpaceLeave(ipc, { log, mounts, discardPendingSpace, dropSpaceDownloadRoot }) {
   ipc.handle('space:leave', async (msg, ctx) => {
     // A teardown is already in flight (it can outlive the IPC response) — a re-click must be a no-op,
@@ -164,12 +180,12 @@ export function registerSpaceLeave(ipc, { log, mounts, discardPendingSpace, drop
         // markOwnMembership backfill. Best-effort.
         tracker.phase = 'mark-leaving'
         try { await markSpaceLeavingDurable(msg.spaceId) } catch (err) {
-          log.warn('durable leaving mark failed:', err.message)
+          log.warn('durable leaving mark failed:', errorMessage(err))
         }
         // The durable departure (member/<S> del) is authored BEFORE the frame is broadcast, so it is
         // written and announced when co-members apply the leave and their live-follow can re-host it
         // for members offline at leave time. Same step order as boot's pass (spaces/membership/leave-state.js).
-        const onPhase = (phase) => { tracker.phase = phase }
+        const onPhase = (/** @type {string} */ phase) => { tracker.phase = phase }
         await runLeaveTeardown(msg.spaceId, liveLeaveSteps(msg.spaceId, { ipc, mounts, log, onPhase }), { log, onPhase })
         log.info('leave: own state cleared, waiting flush...')
 
@@ -193,7 +209,7 @@ export function registerSpaceLeave(ipc, { log, mounts, discardPendingSpace, drop
         // not. The drive stays in the in-memory map for purgeSpaceDrive.
         tracker.phase = 'forgetSpaceRecord'
         try { await forgetSpaceRecord(msg.spaceId) } catch (err) {
-          log.warn('leave: catalog record delete failed:', err.message)
+          log.warn('leave: catalog record delete failed:', errorMessage(err))
         }
         dropSpaceDownloadRoot(msg.spaceId)
 
@@ -207,7 +223,7 @@ export function registerSpaceLeave(ipc, { log, mounts, discardPendingSpace, drop
             new Promise((resolve) => setTimeout(() => resolve(0), 2000)),
           ])
         } catch (err) {
-          log.warn('cannot precompute space cache size:', err.message)
+          log.warn('cannot precompute space cache size:', errorMessage(err))
         }
         log.info('leave: cache bytes computed:', totalBytes)
 
@@ -216,11 +232,14 @@ export function registerSpaceLeave(ipc, { log, mounts, discardPendingSpace, drop
         const totalSteps = 5 + peerDriveCount + (peerDriveCount > 0 ? 1 : 0)
         let step = 0
 
+        /** @param {string} phase @param {{ peerName: string }} [data] */
         const progress = (phase, data) => {
           step++
-          const payload = { spaceId: msg.spaceId, step, totalSteps, phase }
-          if (data) payload.data = data
-          if (step === 1) payload.totalBytes = totalBytes
+          const payload = {
+            spaceId: msg.spaceId, step, totalSteps, phase,
+            ...(data ? { data } : {}),
+            ...(step === 1 ? { totalBytes } : {}),
+          }
           // To the caller alone, and tolerant of it having gone: the teardown answers at a 12s
           // deadline and keeps running afterwards, so these frames outlive their own request.
           ipc.emit('event:leave-progress', payload, { to: ctx.client })
@@ -260,17 +279,17 @@ export function registerSpaceLeave(ipc, { log, mounts, discardPendingSpace, drop
           progress(phase)
         }, { compact: false })
         try { await purgeOwnCatalog(msg.spaceId, space) } catch (err) {
-          log.warn('leave: own catalog purge failed:', err.message)
+          log.warn('leave: own catalog purge failed:', errorMessage(err))
         }
         await purgeSpace(msg.spaceId)
         tracker.phase = 'forgetUnreferencedPeerCores'
         try { await forgetUnreferencedPeerCores(members) } catch (err) {
-          log.warn('leave: peer-core gc failed:', err.message)
+          log.warn('leave: peer-core gc failed:', errorMessage(err))
         }
         // One background compaction pass for everything purged above — never awaited, so the
         // leave completes as soon as the cores are tombstoned; the bytes come back shortly after.
         compactStore()
-          .catch((err) => log.warn('leave: background reclaim compaction failed:', err.message))
+          .catch((err) => log.warn('leave: background reclaim compaction failed:', errorMessage(err)))
         tracker.phase = 'complete'
         log.info('leave: complete (reclaim compaction running in background):', msg.spaceId)
       } finally {
@@ -290,7 +309,7 @@ export function registerSpaceLeave(ipc, { log, mounts, discardPendingSpace, drop
     ])
     if (stalled) {
       log.warn('leave: teardown exceeded', LEAVE_RESPOND_DEADLINE_MS, 'ms — stalled at phase:', tracker.phase, '— space', msg.spaceId, '— finishing in background')
-      teardown.catch((err) => log.warn('leave: background teardown failed:', err.message))
+      teardown.catch((err) => log.warn('leave: background teardown failed:', errorMessage(err)))
     }
     return { ok: true }
   })

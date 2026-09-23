@@ -150,7 +150,7 @@ test('REGRESSION (FIX-AVFRAME-3): the ingest sanitizes before all three consumer
   const here = path.dirname(url.fileURLToPath(import.meta.url))
   const src = fs.readFileSync(path.join(here, '..', '..', 'src', 'worker', 'ipc', 'membership.js'), 'utf8')
   const ingest = src.slice(src.indexOf('const displayName = clampDisplayName(msg.displayName)'),
-    src.indexOf('auditJoinRequest(spaceId, msg.profileKey, displayName)'))
+    src.indexOf('auditJoinRequest(spaceId, profileKey, displayName)'))
 
   const sanitizeAt = ingest.indexOf('const avatar = sanitizeAvatar(msg.avatar,')
   t.ok(sanitizeAt >= 0, 'the frame avatar is sanitized on arrival')

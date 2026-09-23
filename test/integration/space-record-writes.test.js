@@ -25,6 +25,20 @@ test('REGRESSION (DL-5): a favorite toggle racing an update does not drop the do
   t.is(durable.favorite, true, 'without losing the favorite the other write set')
 })
 
+test('REGRESSION (SPACE-UPDATE-PARTIAL): an update that omits the name and icon keeps both', async (t) => {
+  await freshPeer(t)
+  const space = await createSpace('Draco', 'star')
+
+  // space:update declares name and icon optional, and the handler forwards them as sent.
+  const updated = await updateSpace(space.spaceId, undefined, null, { downloadFolder: '/tmp/draco-dl' })
+
+  const durable = await getSpace(space.spaceId)
+  t.is(durable.name, 'Draco', 'the name survives')
+  t.is(durable.icon, 'star', 'the icon survives')
+  t.is(durable.downloadFolder, '/tmp/draco-dl', 'and the field that was sent lands')
+  t.is(updated.name, 'Draco', 'the answer carries the kept name')
+})
+
 test('the reverse order loses neither write either', async (t) => {
   await freshPeer(t)
   const space = await createSpace('Borealis')

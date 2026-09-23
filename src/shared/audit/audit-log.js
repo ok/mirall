@@ -159,6 +159,11 @@ export const RESOLVE_OUTCOME = Object.freeze({
 // passed to the caller: the returned promise always resolves, to a RESOLVE_OUTCOME. A resolver
 // returning null records nothing. A closed or disabled log would write nothing, so it does not read
 // either, and a failure there is no lost row.
+/**
+ * @param {string} kind
+ * @param {() => Promise<object | null>} resolve
+ * @param {{ context?: Record<string, string> | null }} [opts]
+ */
 export function recordResolved(kind, resolve, { context = null } = {}) {
   if (!bee || !config.enabled) return Promise.resolve(RESOLVE_OUTCOME.LOST)
   const pending = Promise.resolve()

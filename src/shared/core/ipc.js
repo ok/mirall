@@ -15,6 +15,9 @@ import { CODES } from '../contract/errors.js'
 import { createHandlerTable } from './handler-table.js'
 import { createRequestMetrics } from './request-metrics.js'
 import { createFrameReader } from './frame-reader.js'
+/** @import { RequestName } from '../contract/requests.js' */
+/** @import { RequestHandler } from './handler-table.js' */
+/** @import { Client } from './ipc-client.js' */
 
 const log = createLogger('ipc')
 
@@ -74,6 +77,7 @@ export function resetRequestFailureCounters() {
 // `requests` is injectable so a test can declare the small vocabulary it exercises. Production
 // passes nothing and gets the real contract, which is what makes an unknown handler name a boot
 // failure rather than a 404 discovered in the field.
+/** @typedef {ReturnType<typeof createIPC>} WorkerIpc */
 export function createIPC(pipe, {
   requests, maxFrameBytes = IPC_MAX_FRAME_BYTES, maxQueuedFrames = MAX_QUEUED_FRAMES, now = Date.now,
   epoch = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10),
@@ -232,6 +236,7 @@ export function createIPC(pipe, {
   const { emit, resume } = events
   const handshake = createHandshake({ log, events, clients, isPrimary: (client) => client === primary })
 
+  /** @template {RequestName} N @param {N} type @param {RequestHandler<N>} fn */
   function handle(type, fn) {
     table.register(type, fn)
   }
@@ -255,8 +260,8 @@ export function createIPC(pipe, {
     head: events.head,
     attach: (p, opts) => clients.attach(p, opts),
     detach: (client, reason) => clients.detach(client, reason),
-    onClientAttach: (fn) => clients.onAttach(fn),
-    onClientDisconnect: (fn) => clients.onDisconnect(fn),
+    onClientAttach: /** @param {(client: Client) => void | Promise<void>} fn */ (fn) => clients.onAttach(fn),
+    onClientDisconnect: /** @param {(client: Client) => void} fn */ (fn) => clients.onDisconnect(fn),
     primary,
     bootstrapPromise: handshake.bootstrapPromise,
     // The pre-start queue is otherwise invisible: it is bounded, and a caller that keeps hitting that

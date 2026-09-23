@@ -907,3 +907,17 @@ PR/issue comments, code comments, changelogs, release notes), and a dedicated se
 reminder and says to ignore it. The operational half is a grep, not vigilance — `git log
 origin/staging..HEAD --format='%B'` and `gh pr view <n> --json body,title` both piped through
 `grep -ni 'claude\|co-authored\|🤖'`, run *after* writing rather than trusting that it was not added.
+
+**"The tree type-checks under strict" was measured wrong, and a typed handler is not an exact one.**
+Holding worker handlers to `responses.ts` started from a claim that strict `tsc` over the worker
+entry reported 0 errors. Re-run with the same flags it reports 6,106 (and `src/main` 578): widening
+`tsconfig.include` to the worker is a project, not a free ratchet. What made it tractable is
+scoping by opt-in rather than by `include`: `tsconfig.worker.json` sets `checkJs: false`, so the
+data layer is *read* for inference and JSDoc but only files that open with `// @ts-check` are
+*reported*. Two consequences worth knowing before extending it. (1) Inference over untyped JS is
+where most errors come from — JS widens `{ ok: true }` to `{ ok: boolean }` and a `{ to = null }`
+default to `null` — and the fix is a JSDoc `@param`/`@returns` on the callee, never a cast at the
+call. (2) TypeScript runs no excess-property check on an inferred function return, so a typed
+`ipc.handle('files:remove', async () => ({ ok: true, removed: 1 }))` compiles: `Ack` is enforced
+as "assignable", not "exactly", which is why `ack-responses.test.js` still exists. Mutation-test a
+new compile-time guard (loosen the signature, count the TS2578s) before trusting it.

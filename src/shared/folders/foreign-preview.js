@@ -15,6 +15,8 @@ import { createLogger } from '../core/logger.js'
 import { mapLimit } from '../core/concurrency.js'
 import { AbortError, countDiskFiles } from './walk-disk.js'
 import { loadShareForForeignMount } from './foreign-shares.js'
+/** @import { PreviewOptions } from './owned-preview.js' */
+/** @import { ScanPreview } from '../contract/responses.js' */
 
 const log = createLogger('foreign-preview')
 
@@ -66,6 +68,14 @@ async function classifyForeignEntry(entry, mountPath, spaceId, shareId, hashOf) 
   }
 }
 
+/**
+ * @param {string} spaceId
+ * @param {string} ownerKey
+ * @param {string} shareId
+ * @param {string} mountPath
+ * @param {PreviewOptions & { hashOf?: typeof overlayHashFile }} [opts]
+ * @returns {Promise<ScanPreview>}
+ */
 export async function previewMaterializeScan(spaceId, ownerKey, shareId, mountPath, opts = {}) {
   const { onProgress = null, signal = null, hashOf = overlayHashFile } = opts
   const checkAborted = () => { if (signal && signal.aborted) throw new AbortError() }

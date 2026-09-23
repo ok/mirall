@@ -13,6 +13,7 @@ import { isInPlaceFilesEnabled } from '../core/runtime-config.js'
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
 import { prefixRange } from '../core/bee-keys.js'
+/** @import { StoredSpace } from '../spaces/space.js' */
 import { fileKey, sharePrefixKey, catalogEntry, classifyEntryNode } from './catalog-keys.js'
 import { entryTally } from './catalog-tally.js'
 
@@ -163,6 +164,7 @@ export function dropOwnCatalog(spaceId) {
 // the deleted core. The leave flow deletes the space record BEFORE this runs, so it passes the
 // record it already read. The discovery key is name-derived and independent of encryption, so
 // no SCK is needed just to purge.
+/** @param {string} spaceId @param {StoredSpace | null} [space] */
 export async function purgeOwnCatalog(spaceId, space = null) {
   const rec = space || await getSpace(spaceId)
   const name = catalogNameForSpace(spaceId, rec)

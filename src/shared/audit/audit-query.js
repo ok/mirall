@@ -5,10 +5,13 @@ import { auditBee, flushAudit, newestSeq, oldestSeq } from './audit-log.js'
 import { AGE_HYSTERESIS } from './audit-retention.js'
 import { BY_DEVICE, BY_SPACE, evtKey, evtRange, indexRange } from './audit-keys.js'
 import { SCHEMA_VERSION } from './audit-record.js'
+/** @import { AuditEntry, AuditPage } from '../contract/responses.js' */
 
 // Rows walked per query call before returning a partial page. A filtered listing may have to
 // walk far past `limit` to fill it; this bounds the work so one query cannot stall the worker.
 const SCAN_BUDGET = 5000
+
+const PAGE_LIMIT = 50
 
 const EMPTY_STATS = { count: 0, oldestTs: null, newestTs: null, oldestSeq: null, newestSeq: null }
 
@@ -110,10 +113,16 @@ async function collectPage(rows, filters, limit) {
 // Returns { entries, nextCursor }. `entries` may be SHORTER than `limit` while nextCursor is
 // non-null: a partial page is normal under a filter, and the viewer renders "Load more" rather
 // than a total (a filtered total would need a full scan).
-export async function queryAudit({ spaceId = null, cursor = null, limit = 50, ...filterOpts } = {}) {
+/**
+ * @param {{ spaceId?: string | null, cursor?: number | null, limit?: number | null, kinds?: readonly string[] | null,
+ *   categories?: readonly string[] | null, actorKey?: string | null, search?: string | null, since?: number | null,
+ *   until?: number | null }} [query]
+ * @returns {Promise<AuditPage>}
+ */
+export async function queryAudit({ spaceId = null, cursor = null, limit = null, ...filterOpts } = {}) {
   const bee = auditBee()
   if (!bee) return { entries: [], nextCursor: null }
-  return collectPage(walk(bee, spaceId, cursor), buildFilters(filterOpts), limit)
+  return collectPage(walk(bee, spaceId, cursor), buildFilters(filterOpts), limit ?? PAGE_LIMIT)
 }
 
 // The most recent SCAN_BUDGET rows, reduced to the distinct refs `pick` names. These fill the
@@ -176,6 +185,10 @@ function atExportVersion(rec) {
 
 // Whole-log JSON export. Streams the primary range in ascending order so the file reads
 // chronologically.
+/**
+ * @param {{ spaceId?: string | null, since?: number | null, until?: number | null }} [range]
+ * @returns {Promise<AuditEntry[]>}
+ */
 export async function exportAudit({ spaceId = null, since = null, until = null } = {}) {
   const bee = auditBee()
   if (!bee) return []

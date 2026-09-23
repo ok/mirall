@@ -1112,6 +1112,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `eslint.config.mjs`, `eslint-rules/` | Flat config incl. `eslint-plugin-jsx-a11y` (a `npm run build` / CI gate) and the repo's own rule (`no-unguarded-async-effect`) |
 | `tailwind.config.js` | Design tokens + content globs |
 | `tsconfig.json` | `target: ES2022`, `jsx: react-jsx`, `rootDir: src/renderer`, `outDir: assets/dist` — **typecheck only**; esbuild is the bundler |
+| `tsconfig.worker.json` | The worker program, **typecheck only**: `strict`, `lib: ES2022` (no DOM), no ambient `types`, and `checkJs: false`, so only files that open with `// @ts-check` are reported — every handler module under `src/worker/ipc/`, plus `test/typecheck/worker/`. The data layer they import is read for its types, not reported. `src/worker/global.d.ts` declares the Bare timer globals no package does |
 
 ### `src/main/` + `src/preload/`
 
@@ -1185,6 +1186,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/worker/ipc/spaces.js` | `registerSpaces(ipc, deps)` — create, join, invite, update, favourite, and the per-space reads (roster, mirrors, who is online, how each connected member is reached). `space:leave` stays its own module because its teardown order is shared with boot's interrupted-leave pass (§6) |
 | `src/worker/ipc/membership.js` | `createMembership(ipc, deps)` — both halves of a knock: the four peer-frame handlers (request, grant, deny, cancel), the durable member registry the root folds with, `resolveJoinRequest`, the pending-space discard, and the approve/deny/pending-requests handlers. Built before the root, because the root folds with what it returns (§4.2, §6) |
 | `src/worker/ipc/space-leave.js` | `registerSpaceLeave(ipc, deps)` — the `space:leave` handler as a module (§6): the pending-cancel path, the background teardown with its phase tracker, the 12 s respond deadline |
+| `src/worker/ipc/worker-process.js` | `registerWorkerProcess(ipc, deps)` — the worker process's own surface: `shutdown` (host only, answered before the entry's teardown starts), `ping`, and `events:resume`, which replays from the caller's own cursor rather than its socket's attach point |
 | `src/worker/package.json` | `"type": "module"` so Bare imports the worker as ESM |
 
 ### `src/shared/core/`
@@ -1250,7 +1252,8 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/contract/ipc-frames.js` | The non-request frames on the IPC pipe: `hello`, `hello-ack`, `bootstrap`, `response`, `cancel`, the `CLIENT_KINDS` / `TRUST` vocabularies, plus `IPC_PROTOCOL_VERSION` (2) — the wire's own version, independent of package.json |
 | `src/shared/contract/hello.js` | Whether a client's introduction may be accepted: its wire version first, then what it says it is and where it claims to have read to. A malformed cursor is refused rather than ignored, and `refusalMessage` is the one sentence any refusal prints |
 | `src/shared/contract/event-cursor.js` | Where a client has read to on the worker's event stream, and what a greeting means: a first connection, a resumable gap in the same generation, or a new process that only a resync answers honestly. A client that came up over a running worker is greeted by nobody, so it marks itself connected and the next greeting it sees is a resync |
-| `src/shared/contract/responses.ts` | What each request resolves with, and the wire shapes those responses carry. The map is total over `RequestName` by construction, so a request with no response cannot compile. The renderer's types.ts re-exports every name it used to own |
+| `src/shared/contract/responses.ts` | What each request resolves with, and the wire shapes those responses carry. The map is total over `RequestName` by construction, so a request with no response cannot compile. Read by both ends: the renderer's `request()` resolves with `RequestResponse[K]`, and the worker's `ipc.handle` accepts only a handler whose result is `RequestResponse[name]` — where that result has a type; one inferred as `any` from an untyped data-layer callee is not held. The renderer's types.ts re-exports every name it used to own |
+| `src/shared/contract/request-args.ts` | Type-only: `RequestArgs<N>`, a request's arguments derived from its `requests.js` row (an optional field admits `null`, as the boundary validator does). The type a handler's `msg` has |
 | `src/shared/contract/request-deadlines.js` | How long a request may run before the router reports it: per row, with a per-kind default, and 0 for deliberately unbounded |
 | `src/shared/contract/protocol-compat.js` | Whether the hello frame's wire version falls inside this build's window. The worker refuses an incompatible client outright rather than defaulting its fields |
 | `src/shared/contract/principals.js` | The org / person / device vocabulary: which question each key answers, and `principalRef()` — the one site that says a profile key is simultaneously the person and the device (§16) |
@@ -1590,7 +1593,7 @@ src/renderer/styles/tailwind.css ─@tailwindcss/cli──►  assets/dist/app.c
 
 - `npm run build` → typecheck + bundle JS + bundle CSS + lint
 - `npm run dev` → esbuild watch + tailwind watch + `npx serve -l 5173 assets` + `electron-forge start --no-updates` (via `PEAR_DEV_SERVER_URL`)
-- `npm run typecheck` → `tsc --noEmit`
+- `npm run typecheck` → `tsc --noEmit && tsc -p tsconfig.worker.json` — the renderer program, then the worker's handler modules
 - `npm test` → `test:node && test:bare` (§15)
 
 ### Linux AppImage

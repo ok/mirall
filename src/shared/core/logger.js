@@ -38,6 +38,9 @@ function level() {
   return cfg.verbose ? LOG_LEVELS.debug : LOG_LEVELS.warn
 }
 
+/** @typedef {ReturnType<typeof createLogger>} Logger */
+
+/** @param {string} module */
 export function createLogger(module) {
   return {
     debug: (...args) => { if (level() <= 0) console.log(`[${module}]`, ...render(args)) },

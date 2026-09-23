@@ -6,9 +6,20 @@
 // Step 1 is the hard gate for the boot caller: co-member convergence depends on the durable
 // departure, so a throw there must keep the intent for the next boot rather than continue to the
 // forget. Steps 2-4 are best-effort, so one bad record cannot strand the others or the forget.
+/** @import { Logger } from '../../core/logger.js' */
+
 /** @internal */
 export const LEAVE_PHASES = ['clearOwnMembership', 'ownedMounts', 'shares', 'foreignMounts', 'forget']
 
+/**
+ * @typedef {Record<'clearMembership' | 'ownedMounts' | 'shares' | 'foreignMounts' | 'forget', () => Promise<void>>} LeaveSteps
+ */
+
+/**
+ * @param {string} spaceId
+ * @param {LeaveSteps} steps
+ * @param {{ log?: Logger, onPhase?: (phase: string) => void }} [opts]
+ */
 export async function runLeaveTeardown(spaceId, steps, { log, onPhase = () => {} } = {}) {
   onPhase('clearOwnMembership')
   await steps.clearMembership()

@@ -19,8 +19,18 @@ import { createOwnedMount } from '../shared/folders/mount-store.js'
 import { record } from '../shared/audit/audit-log.js'
 import { selfActor, targetRef } from '../shared/audit/audit-record.js'
 import { spaceRefOf } from './audit-refs.js'
+/** @import { WorkerIpc } from '../shared/core/ipc.js' */
+/** @import { MountsRuntime } from './mounts-runtime.js' */
+/** @import { Share, MountValidationResult, OwnedMountResult } from '../shared/contract/responses.js' */
 
+/** @typedef {ReturnType<typeof createOwnedMounter>} OwnedMounter */
+
+/** @param {{ ipc: WorkerIpc, mounts: MountsRuntime }} deps */
 export function createOwnedMounter({ ipc, mounts }) {
+  /**
+   * @param {{ spaceId: string, share: Share, validated: Omit<MountValidationResult, 'host'>, ignore?: readonly string[] | null }} args
+   * @returns {Promise<OwnedMountResult>}
+   */
   return async function mountOwnedShare({ spaceId, share, validated, ignore: requestedIgnore }) {
     const shareId = share.id
     const { mountPath, advisories } = validated
