@@ -370,8 +370,7 @@ export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentT
   // Stop + discard a transfer addressed by its id alone. A live slot carries the spaceId +
   // pending key; with none the fetch already settled, so resolve them from the pending ROW — the
   // id names the row but cannot rebuild a folder pendingKey, which embeds the share NAME the id
-  // does not carry. A folder click on an unhashed file leaves only a wait. With none of those the
-  // row that offered the click is stale, so it is told to re-derive, and the answer is false.
+  // does not carry. A folder click on an unhashed file leaves only a wait; false when none exist.
   async function cancel(transferId) {
     const slot = registry.get(transferId)
     if (slot) {
@@ -386,8 +385,7 @@ export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentT
       await cancelByKey(spaceId, row.filePath, transferId)
       return true
     }
-    if (!memberWaits.cancel(transferId)) { channel.emitUpdated(spaceId); return false }
-    return true
+    return memberWaits.cancel(transferId)
   }
 
   // The source file changed under an in-flight transfer. Abort the stale fetch + discard the

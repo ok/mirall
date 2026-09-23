@@ -8,6 +8,8 @@ import { initPendingTransfers, recordPending, getPendingFor } from '../../src/sh
 import { initDownloads } from '../../src/shared/transfer/files.js'
 import { createOverlayDownloadEngine } from '../../src/shared/transfer/backends/overlay/overlay-download.js'
 import { scaled } from '../helpers/bare-timing.js'
+import { createFakeIpc } from '../helpers/fake-ipc.js'
+import { registerFiles } from '../../src/worker/ipc/files.js'
 
 // REGRESSION (FIX-9: a download interrupted by a dropped connection never resumed).
 //
@@ -24,6 +26,7 @@ import { scaled } from '../helpers/bare-timing.js'
 // manual resume must never leave a pause marker that suppresses every later reconnect.
 
 const SPACE = 'space1'
+const silentLog = { debug() {}, info() {}, warn() {}, error() {} }
 const OWNER = 'ownerpub'
 const HASH = 'a'.repeat(64)
 
@@ -290,6 +293,19 @@ test('cancel of an id with neither a slot nor a row is a clean no-op', async (t)
 
   t.absent(await engine.cancel(SPACE + '|folder1|never-started.bin'), 'nothing to cancel — reports false')
   t.is(events.length, 0, 'no cancelled/updated events for a no-op')
+})
+
+// The engine keeps a no-op silent; the click that found nothing is the handler's to answer, because
+// the row that offered it is stale and would otherwise keep its dead Discard.
+test('a cancel click that finds nothing re-derives the stale row on the right listing', async (t) => {
+  await setup(t)
+  const fake = createFakeIpc()
+  registerFiles(fake.ipc, { log: silentLog })
+
+  t.alike(await fake.call('files:cancel-download', { transferId: SPACE + '|folder1|gone.bin' }), { ok: true })
+  t.alike(fake.emitted('event:share-files-updated').map((e) => e.payload), [{ spaceId: SPACE, shareId: 'folder1' }])
+  t.alike(await fake.call('files:cancel-download', { transferId: SPACE + '|__loose__|gone.bin' }), { ok: true })
+  t.alike(fake.emitted('event:files-updated').map((e) => e.payload), [{ spaceId: SPACE }])
 })
 
 // The engine cannot observe which gate the worker routes on, so pin it structurally the way the

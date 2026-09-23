@@ -18,7 +18,7 @@ import {
 } from '../../shared/transfer/backends/overlay/loose-downloads.js'
 import { looseCancelPublish, handleLooseFsEvent } from '../../shared/transfer/backends/overlay/loose-publish.js'
 import { folderPause, folderCancel } from '../../shared/transfer/backends/overlay/folder-downloads.js'
-import { isLooseTransferId } from '../../shared/transfer/transfer-id.js'
+import { isLooseTransferId, transferIdParts } from '../../shared/transfer/transfer-id.js'
 import { subscribeServeDetail, unsubscribeServeDetail, dropServeDetailClient, listServeSummaries } from '../../shared/transfer/serve-ledger.js'
 import { rescueStalledTransfers } from '../../shared/network/convergence-tick.js'
 import { record } from '../../shared/audit/audit-log.js'
@@ -95,9 +95,15 @@ export function registerFiles(ipc, { log }) {
     const id = msg.transferId
     // One verb for "stop it and drop the partial", from a downloading row's Cancel and a paused or
     // failed row's Discard alike. Routed on the id's shape, not on a live transfer: a settled row is
-    // resolved from its pending row, and a row with nothing left to stop is re-derived.
-    if (isLooseTransferId(id)) await looseCancelTransfer(id)
-    else await folderCancel(id)
+    // resolved from its pending row, and a row with nothing left to stop is stale, so its listing
+    // is told to re-derive it.
+    const loose = isLooseTransferId(id)
+    const found = loose ? await looseCancelTransfer(id) : await folderCancel(id)
+    const parts = transferIdParts(id)
+    if (!found && parts) {
+      if (loose) ipc.emit('event:files-updated', { spaceId: parts.spaceId })
+      else ipc.emit('event:share-files-updated', { spaceId: parts.spaceId, shareId: parts.shareId })
+    }
     return { ok: true }
   })
   ipc.handle('files:pause-download', async (msg) => {

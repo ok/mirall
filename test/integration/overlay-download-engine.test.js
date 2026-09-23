@@ -277,7 +277,7 @@ test('engine.cancelByKey removes the partial + pending row and emits', async (t)
   t.ok(events.some((e) => e[0] === 'updated'), 'emitUpdated fired')
 })
 
-test('engine.cancel by id resolves a settled row from its pending row; an id with nothing behind it re-derives the row', async (t) => {
+test('engine.cancel by id resolves a settled row from its pending row', async (t) => {
   const ctx = await setup(t)
   const events = []
   const engine = createOverlayDownloadEngine(testChannel(events))
@@ -288,10 +288,6 @@ test('engine.cancel by id resolves a settled row from its pending row; an id wit
   t.ok(await engine.cancel('space1|folder1|big.bin'), 'the id resolved the row')
   t.absent(await getPendingFor('space1', '/Photos/big.bin'), 'pending row cleared')
   t.absent(fs.existsSync(finalPath + '.mirall.part'), 'visible partial removed')
-
-  events.length = 0
-  t.is(await engine.cancel('space1|folder1|gone.bin'), false, 'nothing to stop')
-  t.alike(events, [['updated', 'space1']], 'the stale row is told to re-derive')
 })
 
 // REGRESSION (FIX-1: a mid-transfer source change aborts the stale fetch and restarts
