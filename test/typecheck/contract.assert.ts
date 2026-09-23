@@ -9,6 +9,7 @@ import type { MainQueryName } from '../../src/renderer/store/main-queries.js'
 import type { PublishOrder } from '../../src/shared/contract/paths.js'
 import type { RequestResponse } from '../../src/shared/contract/responses.js'
 import type { PathHost } from '../../src/shared/contract/paths.js'
+import type { MemberReach } from '../../src/shared/contract/member-reach.js'
 
 const request: RequestName = 'spaces:list'
 // @ts-expect-error a mistyped request name
@@ -46,6 +47,11 @@ const pathHost: PathHost = 'daemon'
 // @ts-expect-error a path belongs to the daemon or the client, and nothing else
 const pathHostTypo: PathHost = 'server'
 
+const reachRelayed: MemberReach = 'relayed'
+const reachDirect: MemberReach = 'direct'
+// @ts-expect-error a reach value the vocabulary does not declare
+const reachTypo: MemberReach = 'proxied'
+
 const spacesList: RequestResponse['spaces:list'] = []
 // @ts-expect-error a response is keyed by a declared request, not by any string
 type NoSuchResponse = RequestResponse['spces:list']
@@ -64,5 +70,7 @@ const deniedBool: RequestResponse['space:deny-member'] = false
 const deniedTypo: RequestResponse['space:deny-member'] = { outcome: 'removed' }
 
 void [pathHost, pathHostTypo, spacesList, spacesListWrong, ackExtra, name, denied, deniedBool, deniedTypo] as unknown as NoSuchResponse
+
+void [reachRelayed, reachDirect, reachTypo]
 
 void [request, requestTypo, event, eventTypo, fileStatus, fileStatusTypo, ownedStatus, ownedStatusIdle, invite, inviteV0, docs, docsTypo, publishOrder, publishOrderTypo, mainQuery, mainQueryTypo]

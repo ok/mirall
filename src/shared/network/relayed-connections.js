@@ -59,8 +59,13 @@ export function trackConnection(socket, { plane, memberOf, now = Date.now() }) {
   entries.set(socket, entry)
   relayedSeen++
   const unrelay = () => {
-    if (!entries.delete(socket)) return
-    onUnrelayed(socket)
+    const current = entries.get(socket)
+    if (!current) return
+    // Resolved before the delete: memberOf lives on the entry, and the consumer of this edge has to
+    // know whose rows changed.
+    const member = current.memberOf(socket)
+    entries.delete(socket)
+    onUnrelayed(socket, member)
     onChange()
   }
   socket.rawStream.on('remote-changed', () => {
@@ -75,6 +80,12 @@ export function trackConnection(socket, { plane, memberOf, now = Date.now() }) {
   onRelayed(socket)
   onChange()
   return entry
+}
+
+// Whether this socket currently runs through a relay. Asked per person, over every socket bound to
+// that person, so the answer carries no identity of its own.
+export function isRelayedSocket(socket) {
+  return entries.has(socket)
 }
 
 export function describeConnection(socket) {

@@ -1,40 +1,10 @@
 import test from 'brittle'
-import crypto from 'crypto'
-import path from 'path'
-import DHT from 'hyperdht'
-import BlindRelay from 'blind-relay'
-import idEncoding from 'hypercore-id-encoding'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpace } from '../helpers/peer.js'
 import { mkTmpDir } from '../helpers/fixtures.js'
 import { scaled } from '../helpers/timing.js'
+import { localRelay, relayFlags, flags, idStore, bothPlanesSettled, RELAY_AUDIT_DWELL_MS } from '../helpers/local-relay.js'
 import { DIAGNOSTICS_SCHEMA } from '../../src/shared/network/support-bundle.js'
-
-const RELAY_AUDIT_DWELL_MS = 500
-
-const kekHex = () => crypto.randomBytes(32).toString('hex')
-const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
-const flags = () => ({ identityKEK: kekHex(), handshakeIdentityBindingEnabled: true, relayAuditDwellMs: RELAY_AUDIT_DWELL_MS })
-const relayFlags = (key) => ({
-  ...flags(),
-  relayMode: 'always',
-  relay: { publicKey: key, kind: 'open', label: 'Test relay', enabled: true, lastTest: null },
-})
-
-async function localRelay(t, bootstrap) {
-  const dht = new DHT({ bootstrap })
-  const relay = new BlindRelay.Server({ createStream: (opts) => dht.createRawStream(opts) })
-  const server = dht.createServer((socket) => relay.accept(socket, { id: socket.remotePublicKey }))
-  await server.listen()
-  t.teardown(async () => {
-    try { await relay.close() } catch {}
-    try { await server.close() } catch {}
-    try { await dht.destroy() } catch {}
-  })
-  return { key: idEncoding.encode(server.publicKey), stats: relay.stats }
-}
-
-const settled = (frame) => frame.relay.connections.length + frame.relay.direct.control + frame.relay.direct.content === 2
 
 test('a relay offered by one peer is attributed on both sides', { timeout: scaled(180000) }, async (t) => {
   const bootstrap = await localTestnet(t)
@@ -47,8 +17,8 @@ test('a relay offered by one peer is attributed on both sides', { timeout: scale
   t.ok(relay.stats.pairings.requested >= 1, 'both sides asked the relay to pair')
   t.ok(relay.stats.pairings.matched >= 1, 'the relay matched a pairing between the two peers')
 
-  const frameA = await A.until('network:status:get', {}, settled, { ms: 30000 })
-  const frameB = await B.until('network:status:get', {}, settled, { ms: 30000 })
+  const frameA = await A.until('network:status:get', {}, bothPlanesSettled, { ms: 30000 })
+  const frameB = await B.until('network:status:get', {}, bothPlanesSettled, { ms: 30000 })
 
   t.ok(frameA.stats.relaying.selected >= 1, 'A chose its relay for the dial')
   t.is(typeof frameA.relay.digest, 'string')

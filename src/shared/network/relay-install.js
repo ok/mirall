@@ -16,16 +16,18 @@ import { initRelayedConnections, resetRelayedConnections, describeConnection } f
 const log = createLogger('relay-install')
 
 let getSwarm = () => null
+let onReachChange = () => {}
 
 export function initRelayInstall(deps) {
   getSwarm = deps.getSwarm
+  onReachChange = deps.onReachChange ?? (() => {})
   installRelayObserver()
   initRelayedConnections({
     ownRelay,
     relayMode: () => getRelayConfig().mode,
     onChange: deps.onStatusChange,
     onRelayed: (socket) => peerRelayed(socket, () => describeConnection(socket)),
-    onUnrelayed: peerUnrelayed,
+    onUnrelayed: (socket, member) => { peerUnrelayed(socket); onReachChange(member) },
   })
 }
 
@@ -120,6 +122,7 @@ export function relaySelectionCount() {
 }
 
 export function resetRelayInstall() {
+  onReachChange = () => {}
   relaySelections = 0
   relayIdentityPinned = false
   resetRelayedConnections()

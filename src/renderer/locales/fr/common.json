@@ -343,6 +343,7 @@
   "member": {
     "online": "En ligne",
     "offline": "Hors ligne",
+    "relayed": "En ligne · via un relais",
     "unknown": "Membre inconnu",
     "you": "Vous",
     "approve": "Approuver",

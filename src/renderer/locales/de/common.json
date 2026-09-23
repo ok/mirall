@@ -343,6 +343,7 @@
   "member": {
     "online": "Online",
     "offline": "Offline",
+    "relayed": "Online · über Relay",
     "unknown": "Unbekanntes Mitglied",
     "you": "Du",
     "approve": "Annehmen",

@@ -482,6 +482,7 @@ export const pureNetworkModules = [
   'handshake-guard',
   'leave-protocol',
   'link-liveness',
+  'member-reach',
   'net-impair',
   'network-status',
   'presence',

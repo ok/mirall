@@ -1,6 +1,7 @@
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { SpaceMember } from '../../types/types.js'
+import { memberPresence, MEMBER_PRESENCE, PRESENCE_LABEL } from '../../model/member-presence.js'
 import Icon from '../primitives/Icon.js'
 import Avatar from '../primitives/Avatar.js'
 
@@ -10,7 +11,8 @@ interface MemberCardProps {
 
 function MemberCard({ member }: MemberCardProps) {
   const { t } = useTranslation()
-  const isOnline = member.online !== false
+  const presence = memberPresence(member)
+  const isOnline = presence !== MEMBER_PRESENCE.OFFLINE
 
   return (
     <div className="flex items-center justify-between">
@@ -21,16 +23,16 @@ function MemberCard({ member }: MemberCardProps) {
         </div>
         <div>
           <p className={`font-bold ${isOnline ? 'text-accent' : 'text-outline'}`}>{member.displayName || t('member.unknown')}</p>
-          <p className="text-xs text-on-surface-variant">{isOnline ? t('member.online') : t('member.offline')}</p>
+          <p className="text-xs text-on-surface-variant">{t(PRESENCE_LABEL[presence])}</p>
         </div>
       </div>
       {isOnline && (
-        <Icon name="check_circle" className="text-on-surface-variant opacity-30" />
+        <Icon name={presence === MEMBER_PRESENCE.RELAYED ? 'hub' : 'check_circle'} className="text-on-surface-variant opacity-30" />
       )}
     </div>
   )
 }
 
 // memo: `member` keeps its identity while the roster is unchanged (useMembers memoizes it); a
-// presence transition rebuilds the roster, which is correct (src/renderer/hooks/README.md).
+// presence or reach transition rebuilds the roster, which is correct (src/renderer/hooks/README.md).
 export default memo(MemberCard)

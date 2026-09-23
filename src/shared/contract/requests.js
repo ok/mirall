@@ -166,6 +166,7 @@ export const REQUESTS = Object.freeze({
     shareId: { type: ARG.shareId, optional: true },
   } },
   'members:online': { kind: 'query', args: { spaceId: { type: ARG.spaceId } } },
+  'members:reach': { kind: 'query', args: { spaceId: { type: ARG.spaceId } } },
   'mounts:list-all': { kind: 'query', args: {} },
   'network:check-liveness': { kind: 'command', args: {} },
   'network:online-hint': { kind: 'command', args: { online: { type: ARG.boolean, optional: true } } },

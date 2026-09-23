@@ -19,6 +19,10 @@ import { createSpace, joinSpace } from '../../shared/spaces/space-lifecycle.js'
 import { clearPendingLeave } from '../../shared/spaces/leave-records.js'
 import { getConnectedPeers } from '../../shared/network/presence-leases.js'
 import { joinSpaceTopic } from '../../shared/network/space-topics.js'
+import { peersInSpace } from '../../shared/network/swarm-registries.js'
+import { isRelayedSocket } from '../../shared/network/relayed-connections.js'
+import { contentSocketsFor } from '../../shared/network/content-swarm.js'
+import { memberReach } from '../../shared/network/member-reach.js'
 import {
   isSpaceLeaving,
   hasPendingLeave,
@@ -192,6 +196,12 @@ export function registerSpaces(ipc, { log, publishDownloadRoots }) {
     return [getLocalPublicKeyHex(), ...getConnectedPeers(msg.spaceId)]
   })
 
+  // The path per connected member, folded over both planes. Self is never here: there is no socket
+  // to oneself.
+  ipc.handle('members:reach', async (msg) => ({
+    members: memberReach(socketsPerMember(msg.spaceId), isRelayedSocket),
+  }))
+
   ipc.handle('space:update', async (msg) => {
     const space = await getSpace(msg.spaceId)
     if (space?.status === 'pending') return null
@@ -223,4 +233,11 @@ export function registerSpaces(ipc, { log, publishDownloadRoots }) {
   ipc.handle('space:toggle-favorite', async (msg) => {
     return await toggleFavorite(msg.spaceId)
   })
+}
+
+// The control socket the handshake bound, plus every content socket a content-hello did.
+function* socketsPerMember(spaceId) {
+  for (const [personKey, peer] of peersInSpace(spaceId)) {
+    yield [personKey, [peer.socket, ...contentSocketsFor(personKey)]]
+  }
 }

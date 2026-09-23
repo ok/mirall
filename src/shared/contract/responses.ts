@@ -16,6 +16,7 @@ import type { FILE_STATUSES, SHARE_FILE_STATUSES, OWNED_MOUNT_STATUSES, FOREIGN_
 import type { CATEGORIES, OUTCOMES, ACTOR_TYPES, TARGET_KINDS } from './audit-kinds.js'
 import type { CANARY_STATES } from './reachability.js'
 import type { DENY_OUTCOMES } from './deny-outcome.js'
+import type { MemberReach } from './member-reach.js'
 import type { RequestName } from './requests.js'
 import type { PathHost } from './paths.js'
 import type { PersonKey, PrincipalRef } from './principals.js'
@@ -38,6 +39,9 @@ export interface SpaceMember {
   driveKey: string
   displayName: string
   online?: boolean
+  // Folded in by useMembers from members:reach, as `online` is from members:online. Null wherever
+  // that map has no entry for the member (network/member-reach.js says when it has none).
+  reach?: MemberReach | null
   avatar?: string | null
   status?: MemberStatus
   looseCatalogKey?: string
@@ -59,6 +63,11 @@ export interface JoinRequest {
   publicKey: PersonKey
   displayName: string
   avatar?: string | null
+}
+
+// The answer `members:reach` gives, folded per person by network/member-reach.js.
+export interface MembersReach {
+  members: Record<PersonKey, MemberReach>
 }
 
 export interface Space {
@@ -473,6 +482,7 @@ interface Responses {
   'foreign-folder:unmount': Ack
   'foreign-folder:validate': MountValidationResult
   'members:online': string[]
+  'members:reach': MembersReach
   'mounts:list-all': AnyMount[]
   'network:check-liveness': LivenessCheck
   'network:online-hint': Ack

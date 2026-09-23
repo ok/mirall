@@ -52,6 +52,7 @@ import {
 import { setRelayThrough } from '../shared/network/relay-install.js'
 import { compactStore } from '../shared/storage/compaction.js'
 import { ContentSwarm } from '../shared/network/content-swarm.js'
+import { pokeMemberSpacesByKey } from '../shared/network/handshake-apply.js'
 import { ensureSharesCap } from '../shared/shares/shares.js'
 import { ensureFolderMirrorsCap } from '../shared/folders/mirror-records.js'
 import { MountsBee, listForeignMounts } from '../shared/folders/mount-store.js'
@@ -275,7 +276,7 @@ export async function boot(bootstrap, {
         // bootstrap.identityKEK is: a private relay's member seed is a bearer credential.
         relaySeedHex: bootstrap.relaySeed || null,
       }))
-      await life.start(new ContentSwarm('content-swarm', { swarm: swarmSubsystem, overlayBackend }))
+      await life.start(new ContentSwarm('content-swarm', { swarm: swarmSubsystem, overlayBackend, onPeerBound: pokeMemberSpacesByKey }))
       // After BOTH: getContentSwarm() is null until the content swarm starts, and a relay
       // installed on the control swarm alone leaves every file byte unrelayed.
       applyRelayConfig(log)
