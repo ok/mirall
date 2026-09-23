@@ -13,14 +13,8 @@ changes do not appear here.
 
 ### Unreleased
 
-Finishes the relay work from 1.11 and fixes a few smaller problems.
-
-#### Added
-
-- **Ubuntu and Debian users can install Mirall from a `.deb` package.** It
-installs like any other package and, unlike the AppImage, runs with the
-browser sandbox on. A `.deb` install is updated by installing the next
-`.deb` over it; automatic updates stay on for the AppImage.
+Finishes the relay work from 1.11, makes the file list honest about files
+you have edited, and fixes a broad batch of silent failures.
 
 #### Fixed
 
@@ -37,15 +31,60 @@ notice that stays until you act on it — someone asking to join your space,
 a declined request, being offline, or a missing download folder — could be
 pushed off the screen by a few newer notices in a row. It now stays until
 you close it or it no longer applies.
-- **Failed actions now say so.** If saving your profile, deleting the
-Activity Log or turning on detailed logging didn't work, Mirall could stay
-stuck on "Saving…", close the dialog as if it had worked, or say logging was
-on when it wasn't. Copy buttons could also say "Copied!" when nothing was
-copied. Mirall now tells you what went wrong and lets you try again.
 - **Downloads into a folder Mirall can't write to no longer retry
 endlessly.** A download into a read-only folder or drive used to fail again
 every time the sharer reconnected. It now shows "Permission denied" until
 you fix the folder; then it resumes on its own, or you can press Retry.
+- **A file you edit inside a mirrored folder is marked "Edited locally".**
+An edit that didn't change the file's size still showed as synced, with a
+"content hash matches" badge that nothing had actually checked. Edited
+files now say so, and explain that the shared version will be restored and
+your edit kept as a conflicted copy.
+- **An edit inside a mirrored folder is undone promptly.** Mirall promises
+to restore the owner's version, but it could take up to five minutes — or
+only happen once you opened the folder. It now notices within seconds. A
+file you delete from a mirror comes back the same way.
+- **A mirror you pause stays paused.** Pausing one while it was still
+scanning could leave it running but showing "Active", and it could start
+itself again later. Moving a mirror's folder while it was working could
+also leave stray duplicate copies behind.
+- **A file deleted from a mirror while the owner was offline is restored**
+when they come back, instead of staying missing.
+- **A file you are still indexing no longer hides the people waiting for
+it.** Mirall lists a large file or folder before it has finished indexing
+it, and anyone who clicks it waits — but nothing on your side showed that,
+in exactly the window where quitting strands them. The row now shows their
+avatars and "N waiting" while it indexes.
+- **A burst of download problems is now one notification, not one per
+file.** A folder downloading into a full disk, a read-only folder or a
+missing download folder raised a separate system notification for every
+file in it, and completed or paused folder downloads did the same. Mirall
+now sends a single notification that counts the files.
+- **Denying someone who has already been approved says what happened.** The
+button silently cleared the request, leaving you to believe you had removed
+someone who still had access. It now tells you they have already been
+approved.
+- **Joining a space no longer stalls on members who are offline.** Each
+unreachable member was checked in turn, adding several seconds each, so a
+space with a few offline members could leave you waiting. They are now
+checked at once.
+- **The Activity Log stops losing entries.** Someone joining, "downloaded
+from you", a withdrawn approval and a join request could all go missing if
+Mirall couldn't write the entry on the first try — including a second join
+request from someone whose first was denied. Entries are now retried, and
+entries still being written when you quit are finished first.
+- **Settings no longer show a change that wasn't saved.** The theme,
+language, zoom, tray, login, notification and Activity Log switches were
+set without checking the result, so a refused save left the switch showing
+the new value. They now revert and tell you. Changing one twice quickly no
+longer snaps it back to the old value.
+- **Deleting a folder share that fails keeps the dialog open** instead of
+closing as though the folder were gone.
+- **Reconnecting too soon says so.** Pressing Reconnect within the
+cool-down quietly did nothing, and made a pending relay change look
+applied. It now explains, and keeps the change pending.
+- **A transfer limit that can't take effect until restart says so**,
+instead of showing the new limit while Mirall kept using the old one.
 
 ## v1.11.0
 
