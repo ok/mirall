@@ -182,9 +182,10 @@ export const swallowedRejectionExemptions = Object.freeze({
     ],
   },
   'src/renderer/hooks/useSpaces.ts': {
-    why: 'The re-read after a space mutation; the mutation itself rejects to its caller and the store owns read errors.',
+    why: 'The re-reads after a space mutation; the mutation itself rejects to its caller and the store owns read errors.',
     sites: [
       'useSpaces > refresh: refetchQuery<Space[]>(\'spaces:list\', {}, SPACES_SCOPES).catch(() => {})',
+      'useSpaces > refreshAfterDecision: fetchQuery(\'space:pending-requests\', { spaceId }).catch(() => {})',
     ],
   },
   'src/renderer/ipc/ipc.ts': {

@@ -25,13 +25,16 @@ const upgrade = pkg.upgrade
 let pear = null
 
 // Bound by the entry: the data directory is resolved after userData is redirected, and the
-// update-enabled flag comes from argv.
+// update-enabled flag comes from argv and the install kind. The reason names what turned updates
+// off so a manual check can say so instead of triggering a lookup nothing will apply.
 let getDataDir = null
 let updatesEnabled = false
+let updatesOffReason = null
 
 function initUpdater(d) {
   getDataDir = d.getDataDir
   updatesEnabled = d.updatesEnabled
+  updatesOffReason = d.updatesOffReason ?? null
 }
 
 function getAppPath() {
@@ -199,6 +202,7 @@ function registerUpdater() {
   })
 
   ipcMain.handle('pear:checkForUpdate', async () => {
+    if (!updatesEnabled) return { triggered: false, reason: updatesOffReason ?? 'updates disabled' }
     const p = getPear()
     if (!p.updater) return { triggered: false, reason: 'updater disabled' }
     try {

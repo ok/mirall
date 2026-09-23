@@ -4,6 +4,7 @@ import os from 'os'
 import path from 'path'
 import {
   integrateXdgLinux,
+  retireXdgAppImageEntry,
   desktopEntryFor,
   writeIfChanged,
   copyFileIfChanged,
@@ -184,4 +185,35 @@ test('a missing desktop tool costs the integration nothing', (t) => {
     spawn: () => { throw new Error('ENOENT') },
   }), 'the entry is still written; the desktop picks it up on its next scan')
   t.ok(fs.existsSync(path.join(home, '.local', 'share', 'applications', 'Mirall.desktop')))
+})
+
+test('a deb install retires the per-user entry an earlier AppImage left and re-points the scheme at the packaged one', (t) => {
+  const home = tmpdir(t)
+  const appsDir = path.join(home, '.local', 'share', 'applications')
+  const iconsRoot = path.join(home, '.local', 'share', 'icons', 'hicolor')
+  fs.mkdirSync(appsDir, { recursive: true })
+  fs.writeFileSync(path.join(appsDir, 'Mirall.desktop'), `[Desktop Entry]\nExec="${APPIMAGE}" %U\nMimeType=${MIME};\n`)
+  fs.writeFileSync(path.join(appsDir, 'Other.desktop'), '[Desktop Entry]\n')
+  for (const size of [16, 256]) {
+    fs.mkdirSync(path.join(iconsRoot, `${size}x${size}`, 'apps'), { recursive: true })
+    fs.writeFileSync(path.join(iconsRoot, `${size}x${size}`, 'apps', 'Mirall.png'), 'png')
+    fs.writeFileSync(path.join(iconsRoot, `${size}x${size}`, 'apps', 'other.png'), 'png')
+  }
+  const { spawn, calls } = fakeSpawn()
+
+  t.ok(retireXdgAppImageEntry({ appName: 'Mirall', protocol: 'mirall', packageName: 'mirall', homedir: home, spawn }))
+
+  t.absent(fs.existsSync(path.join(appsDir, 'Mirall.desktop')), 'the AppImage entry is gone')
+  t.ok(fs.existsSync(path.join(appsDir, 'Other.desktop')), 'other entries are untouched')
+  t.absent(fs.existsSync(path.join(iconsRoot, '256x256', 'apps', 'Mirall.png')), 'its icons are gone')
+  t.ok(fs.existsSync(path.join(iconsRoot, '256x256', 'apps', 'other.png')), 'other icons are untouched')
+  t.alike(calls.map((c) => c.cmd), ['update-desktop-database', 'xdg-mime'])
+  t.alike(calls[1].args, ['default', 'mirall.desktop', MIME], 'the scheme now names the packaged entry')
+})
+
+test('with no AppImage entry to retire, a deb install touches nothing and spawns nothing', (t) => {
+  const home = tmpdir(t)
+  const { spawn, calls } = fakeSpawn()
+  t.absent(retireXdgAppImageEntry({ appName: 'Mirall', protocol: 'mirall', packageName: 'mirall', homedir: home, spawn }))
+  t.is(calls.length, 0)
 })
