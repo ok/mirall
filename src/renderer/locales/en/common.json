@@ -369,6 +369,7 @@
   "member": {
     "online": "Online",
     "offline": "Offline",
+    "relayed": "Online · via relay",
     "unknown": "Unknown Member",
     "you": "You",
     "approve": "Approve",

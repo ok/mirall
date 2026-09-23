@@ -33,6 +33,13 @@ export const CASES = [
   // This one scans the stylesheet rather than rendering against it.
   { name: "logohover", title: "Mirall top bar logo hover harness", note: "The REAL built stylesheet, so the harness scans the app's actual CSS." },
   { name: "members", title: "Mirall members layout harness" },
+  {
+    name: "memberreach",
+    title: "Mirall member reach label harness",
+    // One relayed member beside self, so the relayed and the plain line render in the same list.
+    // The key is written out because this block runs before fake-bridge.js defines OWNER_PK.
+    cfg: `      reach: { members: { 'owner-pk-0000000000000000000000000000000000000000000000000000000000': 'relayed' } },`,
+  },
   { name: "memo", title: "Mirall row memo / render-count harness" },
   { name: "mirrorers", title: "Mirall mirrored-by facepile layout harness" },
   { name: "modaltitle", title: "Mirall confirm-modal title overflow layout harness" },

@@ -36,6 +36,14 @@ export function createContentPeerSockets() {
       return false
     },
 
+    // Every live content socket this profile is authenticated on. A per-person fold over the bulk
+    // plane needs them all; hasPeer is the same walk asked as a boolean.
+    socketsFor(profileKeyHex) {
+      const out = []
+      for (const [socket, keys] of socketToPeers) if (keys.has(profileKeyHex)) out.push(socket)
+      return out
+    },
+
     // Destroy every socket this profile is authenticated on. Returns how many were dropped.
     destroyFor(profileKeyHex) {
       let dropped = 0

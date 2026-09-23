@@ -41,6 +41,7 @@ const bannedContentKeys = new Set()    // Noise keys evicted for content-hello f
 let helloLimiter = null
 let contentAttachHook = null
 let contentResumeHook = null
+let contentBoundHook = null
 let contentBinding = null
 
 // Null between worker boot and initContentSwarm, and again after destroyContentSwarm
@@ -106,6 +107,7 @@ function onContentConnection(socket, peerInfo) {
       // connection (a different Noise key) fails.
       if (!verifyIdentityBinding(peerInfo, msg)) { log.warn('content-hello rejected from', remoteKey + '...'); return }
       contentPeerSockets.add(socket, msg.profileKey)
+      contentBoundHook?.(msg.profileKey)
       log.debug('content-hello verified from', msg.profileKey.slice(0, 12) + '... — resuming its downloads')
       // The plane can now serve/fetch this owner → resume its paused/interrupted downloads.
       contentResumeHook?.(msg.profileKey)
@@ -188,6 +190,12 @@ export function contentPlaneHasPeer(profileKeyHex) {
   return contentPeerSockets.hasPeer(profileKeyHex)
 }
 
+// The content sockets one peer is authenticated on. The control plane's socket comes from
+// connectedPeers; this is the other half of the same question.
+export function contentSocketsFor(profileKeyHex) {
+  return contentPeerSockets.socketsFor(profileKeyHex)
+}
+
 export function getContentPlaneStatus() {
   if (!contentSwarm) return { active: false, connections: 0, authedPeers: 0, topics: 0 }
   return {
@@ -226,6 +234,7 @@ export class ContentSwarm extends Subsystem {
     if (!isOverlayEnabled() || !isSeparateContentPlaneEnabled()) return
     contentAttachHook = (mux, socket) => this.deps.overlayBackend.attach(mux, socket)
     contentResumeHook = (ownerKey) => this.deps.overlayBackend.resumeForOwnerAllSpaces(ownerKey)
+    contentBoundHook = this.deps.onPeerBound ?? null
     initContentSwarm(this.deps.swarm.dht)
   }
 
@@ -236,5 +245,6 @@ export class ContentSwarm extends Subsystem {
     await destroyContentSwarm()
     contentAttachHook = null
     contentResumeHook = null
+    contentBoundHook = null
   }
 }

@@ -65,6 +65,7 @@
       case 'space:mirrors': return (window.__HARNESS_CFG && window.__HARNESS_CFG.mirrors) || []
       case 'profile:get': return profile
       case 'members:online': return [OWNER_PK, SELF_PK]
+      case 'members:reach': return (window.__HARNESS_CFG && window.__HARNESS_CFG.reach) || { members: {} }
       case 'foreign-folder:get': return foreignMount
       case 'owned-folder:get': return null
       case 'features:get': return { overlay: false }

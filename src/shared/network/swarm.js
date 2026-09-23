@@ -24,7 +24,7 @@ import { connectedPeers, resetRegistries } from './swarm-registries.js'
 import { resetPresenceLeases, presence } from './presence-leases.js'
 import { initFrameIntake, createFrameLimiters, isBannedNoiseKey, getDroppedFrameCounters, resetFrameIntake } from './frame-intake.js'
 import { initIdentityFrames, sendSingleHandshake, resetIdentityFrames } from './identity-frames.js'
-import { initHandshakeApply, handleHandshake, membersPoke, getAdmissionGates, resetHandshakeApply } from './handshake-apply.js'
+import { initHandshakeApply, handleHandshake, membersPoke, pokeMemberSpaces, getAdmissionGates, resetHandshakeApply } from './handshake-apply.js'
 import { initPeerConnection, acceptConnection, resetPeerConnection } from './peer-connection.js'
 import { initSpaceTopics } from './space-topics.js'
 import { initPresenceBroadcast, startPresenceHeartbeat, stopPresenceHeartbeat } from './presence-broadcast.js'
@@ -49,7 +49,7 @@ let stalledOwnersHook = null
 let revokeServesForSpaceHook = null
 
 function wireCollaborators() {
-  initRelayInstall({ getSwarm: () => swarm, onStatusChange: scheduleStatusEmit })
+  initRelayInstall({ getSwarm: () => swarm, onStatusChange: scheduleStatusEmit, onReachChange: pokeMemberSpaces })
   initPeerProfileWatch({ getIpc: () => ipcRef, connectedPeers })
   initFrameIntake({ getMembershipControlHandler: () => membershipControlHandler })
   initIdentityFrames({ getSwarm: () => swarm })

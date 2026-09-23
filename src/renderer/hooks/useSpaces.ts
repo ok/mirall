@@ -10,7 +10,7 @@ import { pruneSpaceCardState } from './useSpaceCardState.js'
 import { pruneShareCache } from './useShares.js'
 import type { Space } from '../types/types.js'
 
-const SPACE_SCOPED_REQUESTS = ['members:online', 'space:pending-requests', 'space:storage-summary'] as const
+const SPACE_SCOPED_REQUESTS = ['members:online', 'members:reach', 'space:pending-requests', 'space:storage-summary'] as const
 
 function pruneSpaceScopedQueries(liveSpaceIds: string[]) {
   pruneByParam(SPACE_SCOPED_REQUESTS, 'spaceId', liveSpaceIds)

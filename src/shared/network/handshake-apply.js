@@ -58,6 +58,17 @@ export const membersPoke = makeKeyedCoalescer(
   { intervalMs: 250 },
 )
 
+// A change to how a live socket reaches someone is a roster fact, so it lands on the members scope
+// — the same scope a presence transition pokes — for every space that person shares with us.
+export function pokeMemberSpacesByKey(personKey) {
+  const peer = connectedPeers.get(personKey)
+  for (const spaceId of peer?.spaces.keys() ?? []) membersPoke.poke(spaceId)
+}
+
+export function pokeMemberSpaces(member) {
+  if (member) pokeMemberSpacesByKey(member.profileKey)
+}
+
 // On silent-death lease expiry, re-emit so the roster + file availability re-derive (a peer that
 // goes quiet without a clean disconnect would otherwise stay "online" until an unrelated refresh).
 // files-updated is already coalesced downstream into event:reconcile by the hint bus.

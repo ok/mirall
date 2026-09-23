@@ -1,5 +1,4 @@
 import test from 'brittle'
-import { EventEmitter } from 'node:events'
 import b4a from 'b4a'
 import idEncoding from 'hypercore-id-encoding'
 import { installRelayObserver, resetRelayObserver } from '../../src/shared/network/relay-observe.js'
@@ -8,18 +7,11 @@ import {
   resetRelayedConnections,
   trackConnection,
   describeConnection,
+  isRelayedSocket,
   snapshotRelayedConnections,
   relayVia,
 } from '../../src/shared/network/relayed-connections.js'
-
-const OWN = b4a.alloc(32, 1)
-const OTHER = b4a.alloc(32, 2)
-const PEER = b4a.alloc(32, 9)
-const RELAY_ENDPOINT = { host: '203.0.113.9', port: 49737 }
-
-class Stub extends EventEmitter {
-  static from() { return new Stub() }
-}
+import { OWN, OTHER, PEER, Stub, socketOf } from '../helpers/relayed-socket.js'
 
 function harness(t, { own = { key: OWN, label: 'Hetzner box' }, member = null, mode = 'always' } = {}) {
   const calls = { change: 0, relayed: [], unrelayed: [] }
@@ -30,7 +22,7 @@ function harness(t, { own = { key: OWN, label: 'Hetzner box' }, member = null, m
     relayMode: () => state.mode,
     onChange: () => { calls.change++ },
     onRelayed: (socket) => { calls.relayed.push(socket) },
-    onUnrelayed: (socket) => { calls.unrelayed.push(socket) },
+    onUnrelayed: (socket, member) => { calls.unrelayed.push({ socket, member }) },
   })
   t.teardown(() => { resetRelayedConnections(); resetRelayObserver() })
   const track = (socket, over = {}) => trackConnection(socket, { plane: 'control', memberOf: () => state.member, ...over })
@@ -40,16 +32,6 @@ function harness(t, { own = { key: OWN, label: 'Hetzner box' }, member = null, m
 function snapshotWithoutSeen() {
   const { seen, ...rest } = snapshotRelayedConnections()
   return rest
-}
-
-function socketOf({ relayKey = null, adopted = false } = {}) {
-  const rawStream = Object.assign(new EventEmitter(), { remoteHost: RELAY_ENDPOINT.host, remotePort: RELAY_ENDPOINT.port })
-  const socket = Object.assign(new EventEmitter(), { remotePublicKey: PEER, rawStream })
-  if (relayKey) {
-    const client = Stub.from({ remotePublicKey: relayKey, rawStream: { remoteHost: RELAY_ENDPOINT.host, remotePort: RELAY_ENDPOINT.port } }, {})
-    client.emit('pair', !adopted, b4a.alloc(4), rawStream, b4a.alloc(4))
-  }
-  return socket
 }
 
 test('a direct socket counts as direct and returns null', (t) => {
@@ -153,7 +135,7 @@ test('close removes a relayed entry, releases its dwell, and removes a direct so
   track(direct)
   relayed.emit('close')
   t.alike(snapshotWithoutSeen(), { connections: [], direct: { control: 1, content: 0 }, digest: '' })
-  t.is(calls.unrelayed[0], relayed)
+  t.is(calls.unrelayed[0].socket, relayed)
   direct.emit('close')
   t.alike(snapshotRelayedConnections().direct, { control: 0, content: 0 })
 })
@@ -290,4 +272,44 @@ test('seen counts every connection observed relayed since start and survives clo
   t.is(snapshotRelayedConnections().seen, 2)
   resetRelayedConnections()
   t.is(snapshotRelayedConnections().seen, 0)
+})
+
+test('isRelayedSocket answers per socket and follows the entry', (t) => {
+  const { track } = harness(t)
+  const relayed = socketOf({ relayKey: OWN })
+  const direct = socketOf()
+  track(relayed)
+  track(direct)
+  t.ok(isRelayedSocket(relayed))
+  t.absent(isRelayedSocket(direct))
+  relayed.rawStream.remoteHost = '198.51.100.1'
+  relayed.rawStream.emit('remote-changed')
+  t.absent(isRelayedSocket(relayed), 'a socket that punched through is direct')
+})
+
+test('the unrelay edge reports the bound member, and reports none before a handshake', (t) => {
+  const { state, calls, track } = harness(t)
+  const first = socketOf({ relayKey: OWN })
+  track(first)
+  first.rawStream.remoteHost = '198.51.100.1'
+  first.rawStream.emit('remote-changed')
+  t.is(calls.unrelayed[0].member, null, 'nothing to poke while no person is bound to the socket')
+
+  const second = socketOf({ relayKey: OWN })
+  track(second)
+  state.member = { profileKey: 'p1'.repeat(32), displayName: 'Anna' }
+  second.rawStream.remoteHost = '198.51.100.2'
+  second.rawStream.emit('remote-changed')
+  t.alike(calls.unrelayed[1].member, { profileKey: 'p1'.repeat(32), displayName: 'Anna' })
+})
+
+test('a relayed socket that closes reports its member exactly once', (t) => {
+  const { state, calls, track } = harness(t)
+  state.member = { profileKey: 'p2'.repeat(32), displayName: 'Bob' }
+  const socket = socketOf({ relayKey: OWN })
+  track(socket)
+  socket.emit('close')
+  socket.emit('close')
+  t.is(calls.unrelayed.length, 1, 'the entry is gone after the first close')
+  t.alike(calls.unrelayed[0].member, { profileKey: 'p2'.repeat(32), displayName: 'Bob' })
 })
