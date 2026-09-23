@@ -448,6 +448,7 @@ interface Responses {
   'audit:stats': AuditStats
   'diagnostics:export': WorkerDiagnostics
   'downloads:roots-status': RootsStatus
+  'event:foreign-folder-fs-event': Ack
   'event:loose-file-fs-event': Ack
   'event:owned-folder-fs-event': Ack
   'events:resume': ResumeResult

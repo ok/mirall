@@ -25,7 +25,7 @@ function recorder(overrides = {}) {
     calls,
     steps: {
       markQuitting: step('mark-quitting'),
-      stopOwnedWatchers: step('stop-owned-watchers'),
+      stopFolderWatchers: step('stop-folder-watchers'),
       stopLooseWatchers: step('stop-loose-watchers'),
       flushConfig: step('flush-config'),
       stopWorkers: step('stop-workers'),
@@ -37,7 +37,7 @@ function recorder(overrides = {}) {
 test('QUIT_STEPS is the declared teardown order', (t) => {
   t.alike([...QUIT_STEPS], [
     'mark-quitting',
-    'stop-owned-watchers',
+    'stop-folder-watchers',
     'stop-loose-watchers',
     'flush-config',
     'stop-workers',
@@ -82,7 +82,7 @@ test('the worker is asked to exit before the update apply starts', (t) => {
   const order = []
   const handler = createQuitSequence({
     markQuitting: () => {},
-    stopOwnedWatchers: () => {},
+    stopFolderWatchers: () => {},
     stopLooseWatchers: () => {},
     flushConfig: () => order.push('flush-config'),
     stopWorkers: () => order.push('stop-workers'),
@@ -96,7 +96,7 @@ test('the worker is asked to exit before the update apply starts', (t) => {
 test('a step that throws is reported and does not skip the steps after it', (t) => {
   const errors = []
   const rec = recorder({
-    'stop-owned-watchers': () => { throw new Error('watcher boom') },
+    'stop-folder-watchers': () => { throw new Error('watcher boom') },
     'flush-config': () => { throw new Error('flush boom') },
   })
   const handler = createQuitSequence({
@@ -106,7 +106,7 @@ test('a step that throws is reported and does not skip the steps after it', (t) 
   })
   handler({ preventDefault() {} })
   t.alike(rec.calls, [...QUIT_STEPS], 'every later step still ran')
-  t.alike(errors, [['stop-owned-watchers', 'watcher boom'], ['flush-config', 'flush boom']])
+  t.alike(errors, [['stop-folder-watchers', 'watcher boom'], ['flush-config', 'flush boom']])
 })
 
 test('a synchronous throw from applyUpdate is reported and the quit is not deferred', (t) => {

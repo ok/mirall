@@ -11,11 +11,12 @@ const read = (p) => { try { return readFileSync(p, 'utf8') } catch { return null
 // REGRESSION (FIX-267-DISPLAY): a same-size local edit of a mirrored file kept listing as "On your
 // device" with the verified check, while the next mirror pass was about to move it aside. The row
 // must say "Edited locally", drop the check, offer Reveal, and print the consequence as text under
-// the file name; the listing then asks for a walk, so the next pass keeps the edit as a conflicted
-// copy and restores the owner's version.
+// the file name; the next pass then keeps the edit as a conflicted copy and restores the owner's
+// version.
 //
-// The edit is made with the folder view closed and the folder opened right after: a foreign mount
-// has no watcher, so the listing that opening the folder runs is the one that sees the edit.
+// The edit is made while the owner is away: the mirror's watcher asks for a walk at once, but a
+// pass gated on an offline owner walks nothing, so the row keeps its edited state until the owner
+// returns — and their return is the next sync the third step waits for.
 export default async function s148({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
@@ -46,6 +47,7 @@ export default async function s148({ runDir, bootstrap }) {
       await B.back()
     })
     await r.ok('a same-size local edit reads "Edited locally", unverified, with Reveal', async () => {
+      await A.quit()
       writeFileSync(mirrored, edited)
       await B.openFolder('Ledger')
       await B.waitText('Edited locally', 20000)
@@ -55,6 +57,7 @@ export default async function s148({ runDir, bootstrap }) {
       await B.shot('s148-B-edited-locally', runDir)
     })
     await r.ok('the next sync keeps the edit as a conflicted copy and restores the owner version', async () => {
+      await A.launch({ onboard: false })
       await waitFor(() => read(conflicted) === edited, 90000, 'the edit kept as a conflicted copy')
       await waitFor(() => read(mirrored) === original, 30000, 'the owner version restored at the natural name')
       // Several re-lists follow a landing; the row has settled once the edited state is gone and the

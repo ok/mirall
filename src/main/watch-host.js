@@ -1,4 +1,4 @@
-// The single owner of chokidar in this process, shared by owned-folder-watchers (one recursive
+// The single owner of chokidar in this process, shared by folder-watchers (one recursive
 // root per share) and loose-file-watchers (scattered individual files). It owns the three things
 // every chokidar caller has to get right: a network mount emits no native events (watch it by
 // polling or not at all — a file there otherwise silently stops re-publishing, with no error, no

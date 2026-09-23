@@ -83,8 +83,8 @@ test('a poll tick re-hashes a mirror file whose size changed even if mtime was p
 
 // REGRESSION (FIX-VERIFY-MTIME-2): the size check above is the only thing that caught an
 // mtime-preserving restore, so the SAME-size case walked straight through — every tick, forever.
-// Nothing else re-reads a mirrored file: there is no watcher over a foreign mount, and the
-// full-walk backstop forces a walk that hits this same short-circuit. A replacement whose mtime
+// Nothing else re-reads a mirrored file: the mirror's watcher asks only whether a file is still
+// the one that landed, and the full-walk backstop forces a walk that hits this same short-circuit. A replacement whose mtime
 // did not move past the record must still be re-hashed, or the mirror reports a divergent file as
 // synced and verified for as long as the mount lives.
 test('a poll tick re-hashes a same-size mirror file whose mtime was preserved', async (t) => {

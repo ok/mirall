@@ -24,6 +24,13 @@ export function localRelOf(mount, ownerKey) {
   return mount.renamedPaths?.[ownerKey] || ownerKey
 }
 
+// The inverse: the owner key a mount materialized at `localRel`. Only a collision sibling differs
+// from its owner key, so the map is scanned rather than indexed — it holds a handful of entries.
+export function ownerKeyOf(mount, localRel) {
+  for (const [ownerKey, rel] of Object.entries(mount.renamedPaths ?? {})) if (rel === localRel) return ownerKey
+  return localRel
+}
+
 export function createMirrorState() {
   // mirrorKey -> Set<ownerKey>. Membership is asked once per catalog entry per tick, so it must be
   // O(1): the array scan it replaces made a fully-synced tick quadratic. The set outlives

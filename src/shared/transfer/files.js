@@ -178,9 +178,9 @@ async function getVerifiedRecord(spaceId, key) {
 //
 // Equality, not "no newer than the record": `at` is stamped AFTER the bytes land, so a file merely
 // older than it is every mtime-preserving restore there is (cp -p, rsync -t, tar -x, a backup
-// restore). Nothing else ever re-reads a mirrored file — a foreign mount has no watcher and the
-// full-walk backstop hits this same short-circuit — so anything admitted here is admitted for the
-// life of the mount.
+// restore). Nothing else ever re-reads a mirrored file — the mirror's watcher asks only whether a
+// file is still the one that landed, and the full-walk backstop hits this same short-circuit — so
+// anything admitted here is admitted for the life of the mount.
 //
 // Still a proxy, and deliberately so: a same-size write that leaves both mtime and inode untouched
 // (a coarse-granularity filesystem, an in-place write inside its resolution) slips past, the cost of
@@ -199,6 +199,15 @@ export async function isVerifiedUnchanged(spaceId, key, contentHash, expectedSiz
   try { rec = await getVerifiedRecord(spaceId, key) } catch { return false }
   if (!rec || rec.hash !== contentHash) return false
   return fingerprintMatches(rec, stat, expectedSize, { expectLocal })
+}
+
+// True when `stat` describes exactly the file the record for `key` fingerprinted at `expectLocal`
+// — the mirror's own landing, as opposed to a write by anyone else. Weaker than
+// isVerifiedUnchanged on purpose: the caller has no catalog entry, so hash and size are not asked.
+export async function isVerifiedLanding(spaceId, key, stat, { expectLocal }) {
+  let rec = null
+  try { rec = await getVerifiedRecord(spaceId, key) } catch { return false }
+  return fingerprintMatches(rec, stat, undefined, { expectLocal })
 }
 
 export function statOrNull(absPath) {

@@ -48,7 +48,7 @@ function downloadRoots() { return workerDownloadRoots }
 // The watchers live in main because Bare has no recursive watch, and they feed the worker through
 // this module — so the quit sequence reaches them here. They stay two steps: the sequence records
 // each by name, and a failure in one must not skip the other.
-function stopOwnedWatchers() { ownedFolderWatchers.stopAllWatchers() }
+function stopFolderWatchers() { folderWatchers.stopAllWatchers() }
 function stopLooseWatchers() { looseFileWatchers.stopLooseWatchers() }
 
 // Per-space download roots, pushed by the worker (it owns the space records). Main
@@ -57,7 +57,7 @@ let workerDownloadRoots = []
 
 // === Worker frame writer + the worker→main request router ===
 
-const ownedFolderWatchers = require('./owned-folder-watchers.js')
+const folderWatchers = require('./folder-watchers.js')
 const looseFileWatchers = require('./loose-file-watchers.js')
 
 // The one path that puts a frame on the worker pipe — bootstrap, shutdown and every watcher event
@@ -89,7 +89,7 @@ function sendToWorker(worker, frame) {
 // Declared before getWorker: the worker's data handler closes over this binding, and a spawn
 // dispatched synchronously would otherwise read it in its temporal dead zone.
 const mainRequests = createMainRequestRouter({
-  ownedFolderWatchers,
+  folderWatchers,
   looseFileWatchers,
   setDownloadRoots: (roots) => { workerDownloadRoots = roots },
   sendToWorker,
@@ -346,6 +346,6 @@ module.exports = {
   restartWorker,
   sendToWorker,
   downloadRoots,
-  stopOwnedWatchers,
+  stopFolderWatchers,
   stopLooseWatchers,
 }

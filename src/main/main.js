@@ -24,7 +24,7 @@ const {
   initWorkerHost,
   registerWorkerHost,
   stopWorkers,
-  stopOwnedWatchers,
+  stopFolderWatchers,
   stopLooseWatchers,
   downloadRoots,
 } = require('./worker-host.js')
@@ -221,7 +221,7 @@ app.on('before-quit', createQuitSequence({
   // Read by the window close handler, which hides to tray unless the app is
   // quitting. Tray-menu Quit sets it directly before calling app.quit.
   markQuitting,
-  stopOwnedWatchers,
+  stopFolderWatchers,
   stopLooseWatchers,
   flushConfig: () => configStore?.flush(),
   stopWorkers,
