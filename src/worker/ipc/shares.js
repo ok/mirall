@@ -22,8 +22,6 @@ import { catalogKeyField } from '../../shared/shares/catalog-keys.js'
 import { ownCatalogPublish } from '../../shared/shares/own-catalog.js'
 import { getContentBackend, UNSUPPORTED } from '../../shared/transfer/content-backends.js'
 import { revealLocalPath } from '../../shared/transfer/reveal.js'
-import { folderCancelByKey } from '../../shared/transfer/backends/overlay/folder-downloads.js'
-import { transferIdFor } from '../../shared/transfer/transfer-id.js'
 import { pathFromMount } from '../../shared/folders/path-guard.js'
 import { isSpaceLeaving } from '../../shared/network/leave-protocol.js'
 import { spaceStorageSummary } from '../../shared/storage/space-storage.js'
@@ -281,14 +279,5 @@ export function registerShares(ipc, { log, intents, mountOwnedShare }) {
     // overlay: request the file via the backend (catalog/overlay), not a drive
     if (isOwn) return { ok: true, alreadyOwned: true }
     return await backend.requestDownload(msg.spaceId, share, msg.relPath)
-  })
-
-  ipc.handle('share:discard-partial', async (msg) => {
-    const share = await loadShareDescriptor(msg.spaceId, msg.ownerKey, msg.shareId)
-    const drivePath = '/' + share.name + '/' + msg.relPath
-    // Overlay folder downloads run on the shared engine; it clears the partial +
-    // pending row and emits the share refresh itself.
-    await folderCancelByKey(msg.spaceId, drivePath, transferIdFor(msg.spaceId, msg.shareId, msg.relPath))
-    return { ok: true }
   })
 }

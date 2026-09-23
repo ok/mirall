@@ -40,7 +40,6 @@ const base = {
   onReveal: noop,
   onPause: noop,
   onCancel: noop,
-  onDiscardPartial: noop,
   isExpanded: () => true,
   onToggle: noop,
 }

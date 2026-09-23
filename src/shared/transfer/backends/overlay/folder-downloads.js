@@ -161,7 +161,6 @@ export async function folderRequestDownload(spaceId, share, relPath) {
 
 export const folderPause = (transferId) => engine().pause(transferId)
 export const folderCancel = (transferId) => engine().cancel(transferId)
-export const folderCancelByKey = (spaceId, drivePath, transferId) => engine().cancelByKey(spaceId, drivePath, transferId)
 export async function folderCancelSpace(spaceId) {
   await cancelSpaceOn(engine(), spaceId, log)
 }

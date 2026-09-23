@@ -14,7 +14,7 @@ type TreeProps = ComponentProps<typeof FolderTree>
 
 type FolderListPaneProps = Pick<TreeProps,
   'isOwn' | 'manualControls' | 'spaceId' | 'members' | 'getDownloadSummary' | 'getDecoration'
-  | 'isSeeded' | 'onDownload' | 'onReveal' | 'onPause' | 'onCancel' | 'onDiscardPartial'
+  | 'isSeeded' | 'onDownload' | 'onReveal' | 'onPause' | 'onCancel'
 > & {
   filter: string
   setFilter: (next: string) => void

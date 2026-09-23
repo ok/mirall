@@ -452,7 +452,6 @@ interface Responses {
   'files:add': Ack
   'files:cancel-download': Ack
   'files:cancel-publish': Ack
-  'files:discard-partial': Ack
   'files:download': LooseDownloadResult
   'files:list': FileEntry[]
   'files:pause-download': Ack
@@ -504,7 +503,6 @@ interface Responses {
   'share:create': Share
   'share:create-and-mount': ShareAndMountResult
   'share:delete': Ack
-  'share:discard-partial': Ack
   'share:folder-info': FolderInfo
   'share:list': Share[]
   'share:list-files': ShareFileListing

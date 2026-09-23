@@ -1,5 +1,6 @@
 import test from 'brittle'
 import { pausedStatusFor, pauseReasonFor, unhashedStatusFor, consumerRowStatusFor } from '../../src/shared/transfer/transfer-status.js'
+import { COPY_VERDICT } from '../../src/shared/transfer/verified-copy.js'
 
 // REGRESSION (FIX-1): a mid-index (null-hash) file must degrade preparing→unavailable when the
 // owner goes offline, so a peer that quit mid-add doesn't leave the file stuck on "Preparing…".
@@ -110,4 +111,36 @@ test('consumerRowStatusFor: a reachable owner mid-re-hash outranks a partial (th
     consumerRowStatusFor({ hashed: false, isActive: false, pendingRow: { bytesTransferred: 4096 }, ownerOnline: true }),
     { status: 'preparing' }
   )
+})
+
+test('consumerRowStatusFor: a copy on this device outranks everything, and MODIFIED overrides the on-device spelling', (t) => {
+  const base = { hashed: true, isActive: false, pendingRow: null, ownerOnline: true }
+  t.alike(consumerRowStatusFor({ ...base, copyVerdict: COPY_VERDICT.VERIFIED }), { status: 'downloaded', verified: true })
+  t.alike(consumerRowStatusFor({ ...base, copyVerdict: COPY_VERDICT.UNPROVEN }), { status: 'downloaded', verified: false }, 'an unproven copy is still on the device')
+  t.alike(consumerRowStatusFor({ ...base, copyVerdict: COPY_VERDICT.DRIFTED }), { status: 'downloaded', verified: false })
+  t.alike(consumerRowStatusFor({ ...base, copyVerdict: COPY_VERDICT.MODIFIED }), { status: 'modified', verified: false })
+  t.alike(consumerRowStatusFor({ ...base, copyVerdict: COPY_VERDICT.VERIFIED, onDeviceStatus: 'synced' }), { status: 'synced', verified: true }, 'the mirror spells "here" as synced')
+  t.alike(consumerRowStatusFor({ ...base, copyVerdict: COPY_VERDICT.MODIFIED, onDeviceStatus: 'synced' }), { status: 'modified', verified: false }, 'MODIFIED overrides synced too')
+  t.is(consumerRowStatusFor({ ...base, copyVerdict: COPY_VERDICT.VERIFIED, isActive: true, pendingRow: { bytesTransferred: 5 } }).status, 'downloaded', 'a just-completed row: downloaded beats an active flag and its row')
+  t.is(consumerRowStatusFor({ ...base, copyVerdict: COPY_VERDICT.VERIFIED, pendingRow: { errorCode: 'X' }, ownerOnline: false }).status, 'downloaded', 'downloaded beats a pending error')
+  t.is(consumerRowStatusFor({ ...base, copyVerdict: COPY_VERDICT.VERIFIED, hashed: false, ownerOnline: false }).status, 'downloaded', 'downloaded beats an unhashed entry from an offline owner')
+  t.is(consumerRowStatusFor({ ...base, copyVerdict: COPY_VERDICT.MODIFIED, isActive: true, pendingRow: { errorCode: 'X' }, ownerOnline: false }).status, 'modified')
+})
+
+test('REGRESSION (FIX-EDA-1: an active fetch is downloading, never paused/remote/error)', (t) => {
+  for (const [pendingRow, ownerOnline] of [[{ bytesTransferred: 10 }, true], [{ bytesTransferred: 10 }, false], [{ errorCode: 'X' }, true], [null, false]]) {
+    t.is(consumerRowStatusFor({ hashed: true, isActive: true, pendingRow, ownerOnline }).status, 'downloading')
+  }
+  t.absent(consumerRowStatusFor({ hashed: true, isActive: true, pendingRow: { errorCode: 'X' }, ownerOnline: true }).errorCode, 'an active row carries no stale error')
+})
+
+test('REGRESSION (FIX-LOOSE-OFFLINE-PARTIAL): a null-hash row with partial bytes from an offline owner keeps paused-offline for every row kind', (t) => {
+  t.alike(
+    consumerRowStatusFor({ copyVerdict: null, hashed: false, isActive: false, pendingRow: { bytesTransferred: 4096 }, ownerOnline: false }),
+    { status: 'paused-offline', pendingBytes: 4096 },
+  )
+})
+
+test('consumerRowStatusFor: the defaults leave the rungs below on-device unchanged', (t) => {
+  t.alike(consumerRowStatusFor({ hashed: true, isActive: false, pendingRow: null, ownerOnline: true }), { status: 'remote' })
 })

@@ -277,6 +277,19 @@ test('engine.cancelByKey removes the partial + pending row and emits', async (t)
   t.ok(events.some((e) => e[0] === 'updated'), 'emitUpdated fired')
 })
 
+test('engine.cancel by id resolves a settled row from its pending row', async (t) => {
+  const ctx = await setup(t)
+  const events = []
+  const engine = createOverlayDownloadEngine(testChannel(events))
+  const finalPath = path.join(ctx.tmpDir('dl'), 'big.bin')
+  fs.writeFileSync(finalPath + '.mirall.part', 'half a download')
+  await recordPending('space1', '/Photos/big.bin', { total: 100, overlayShare: true, shareId: 'folder1', relPath: 'big.bin', ownerKey: 'peerpub', finalPath })
+
+  t.ok(await engine.cancel('space1|folder1|big.bin'), 'the id resolved the row')
+  t.absent(await getPendingFor('space1', '/Photos/big.bin'), 'pending row cleared')
+  t.absent(fs.existsSync(finalPath + '.mirall.part'), 'visible partial removed')
+})
+
 // REGRESSION (FIX-1: a mid-transfer source change aborts the stale fetch and restarts
 // on the new hash, with no terminal cancelled/error event).
 test('#supersede: aborts the in-flight fetch and restarts on the new contentHash', async (t) => {

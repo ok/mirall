@@ -278,6 +278,21 @@ test('publishDelete tombstones and drops the serve-index claim', async (t) => {
   t.absent(serveIndex.has(entry.contentHash), 'serve-index claim dropped')
 })
 
+test('a batched publishDelete evicts after the flush lands, not before', async (t) => {
+  const ctx = await setup(t, { files: { 'a.txt': 'data' } })
+  await overlayBackend.publishAdd(ctx.spaceId, ctx.share, 'a.txt', path.join(ctx.mountPath, 'a.txt'))
+  const entry = await getOwnEntry(ctx.spaceId, ctx.share.id, 'a.txt')
+  const catalog = createCatalogBatch(ctx.spaceId, { flushMs: 60_000 })
+  t.teardown(() => catalog.close())
+
+  await overlayBackend.publishDelete(ctx.spaceId, ctx.share, 'a.txt', { catalog })
+  t.ok(serveIndex.has(entry.contentHash), 'still servable while the tombstone is only staged')
+  await catalog.flush()
+  await pollUntil(() => !serveIndex.has(entry.contentHash), 5000)
+  t.absent(await getOwnEntry(ctx.spaceId, ctx.share.id, 'a.txt'), 'the tombstone landed')
+  t.absent(serveIndex.has(entry.contentHash), 'the claim is dropped once it has')
+})
+
 // Content-addressed dedup (R3): two identical files share one content hash, and
 // the serve index refcounts by path — so deleting one of them must NOT revoke
 // serve for the other (the bug a space-granular index would have).

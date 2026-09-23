@@ -16,9 +16,9 @@ import { initDownloads, markDownloaded, markVerified, getOwnedSourcePath } from 
 import { listFiles } from '../../src/shared/transfer/file-listing.js'
 import { initPendingTransfers, recordPending, getPendingFor } from '../../src/shared/transfer/pending-transfers.js'
 import { looseShareFile, looseUnshareFile, looseListOwn, looseCancelPublish, handleLooseFsEvent, MAX_LOOSE_FILES_PER_SPACE, looseSources } from '../../src/shared/transfer/backends/overlay/loose-publish.js'
-import { looseCancelByKey } from '../../src/shared/transfer/backends/overlay/loose-downloads.js'
+import { looseCancelTransfer } from '../../src/shared/transfer/backends/overlay/loose-downloads.js'
 import { rehydrateLooseFiles, sweepLoosePresence } from '../../src/shared/transfer/backends/overlay/loose-maintenance.js'
-import { LOOSE_SHARE_ID } from '../../src/shared/transfer/transfer-id.js'
+import { LOOSE_SHARE_ID, looseTransferIdFor } from '../../src/shared/transfer/transfer-id.js'
 import { initLooseIpc } from '../helpers/overlay-ipc.js'
 
 // Drive the in-place loose-file adapter against one fresh data layer. The defining
@@ -212,7 +212,7 @@ test('R6: sweep tombstones a loose entry whose source vanished', async (t) => {
   t.absent(serveIndex.has(hash), 'serve-index claim dropped')
 })
 
-test('looseCancelByKey discards a paused/queued partial: removes the partial file and the pending row', async (t) => {
+test('a discard by transfer id resolves a settled row from its pending row: removes the partial file and the pending row', async (t) => {
   const ctx = await setup(t)
   // A paused/queued loose download = a pending row + a visible partial on disk, no
   // live transfer. Discard must clear both and emit the decoration done frame.
@@ -223,7 +223,7 @@ test('looseCancelByKey discards a paused/queued partial: removes the partial fil
   t.ok(await getPendingFor(ctx.spaceId, '/big.bin'), 'precondition: pending row exists')
   t.ok(fs.existsSync(partialPath), 'precondition: partial on disk')
 
-  await looseCancelByKey(ctx.spaceId, '/big.bin')
+  t.ok(await looseCancelTransfer(looseTransferIdFor(ctx.spaceId, 'big.bin')), 'the id resolved a row')
 
   t.absent(await getPendingFor(ctx.spaceId, '/big.bin'), 'pending row cleared')
   t.absent(fs.existsSync(partialPath), 'visible partial removed')

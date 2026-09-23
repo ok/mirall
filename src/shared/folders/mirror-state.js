@@ -12,9 +12,20 @@
 //    settled mirror re-walks only when that version moves.
 import fs from 'bare-fs'
 import { pathFromMount } from './path-guard.js'
-import { PARTIAL_SUFFIX } from '../transfer/partial-suffix.js'
+import { nameTakenAt } from '../transfer/download-dest.js'
 import { driveKeyToSegments, nextFreeName } from './path-keys.js'
 import { mirrorKey } from './mirror-policy.js'
+
+// A free name for `relPath` beside it in the mirror: `pickName(leaf, isTaken)` chooses the leaf
+// (nextFreeName for a collision sibling, conflictCopyName for a conflict copy) and the directory
+// is kept.
+export function freeMirrorRel(mountPath, relPath, pickName) {
+  const segs = driveKeyToSegments(relPath)
+  const leaf = segs.pop()
+  const dir = segs.join('/')
+  const isTaken = (name) => nameTakenAt(pathFromMount(mountPath, dir ? dir + '/' + name : name))
+  return (dir ? dir + '/' : '') + pickName(leaf, isTaken)
+}
 
 // The on-disk relPath an owner key was materialized as (its natural name unless a conflict forced
 // a collision-free sibling). Exported free-standing because share-listing must ask the same
@@ -105,16 +116,7 @@ export function createMirrorState() {
       try { if (await hashOf(naturalAbs) === ownerHash) return ownerKey } catch {}
     }
 
-    const segs = driveKeyToSegments(ownerKey)
-    const leaf = segs.pop()
-    const dir = segs.join('/')
-    const isTaken = (name) => {
-      const abs = pathFromMount(mount.mountPath, dir ? dir + '/' + name : name)
-      // A candidate is taken by a real file OR an in-flight partial, so we never mint a sibling
-      // name onto another transfer's partial.
-      return fs.existsSync(abs) || fs.existsSync(abs + PARTIAL_SUFFIX)
-    }
-    const localRel = (dir ? dir + '/' : '') + nextFreeName(leaf, isTaken)
+    const localRel = freeMirrorRel(mount.mountPath, ownerKey, nextFreeName)
     const map = mount.renamedPaths ?? renamedFor(mount)
     map[ownerKey] = localRel
     markDirty(mirrorKey(mount.spaceId, mount.shareId), renamedMaps, map)

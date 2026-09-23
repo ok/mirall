@@ -72,7 +72,6 @@ const HANDLERS = {
   onReveal: noop,
   onPause: noop,
   onCancel: noop,
-  onDiscardPartial: noop,
 }
 const MEMBERS: SpaceMember[] = []
 

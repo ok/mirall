@@ -270,8 +270,7 @@ const LOOSE_FILE: FileEntry = {
 }
 
 const TRANSFER_FAILS = [
-  'files:cancel-download', 'files:pause-download', 'share:read-file', 'share:reveal-file',
-  'share:discard-partial', 'files:download', 'files:discard-partial',
+  'files:cancel-download', 'files:pause-download', 'share:read-file', 'share:reveal-file', 'files:download',
 ]
 
 // The row controls are handed to memoized rows as `(x) => void`: one button per control, wired the
@@ -285,14 +284,12 @@ function TransferControls({ only }: { only: string }) {
     'pause': () => { pauseDownload('t1') },
     'folder-download': () => { share.downloadFile('a.bin') },
     'folder-reveal': () => { share.revealFile('a.bin') },
-    'folder-discard': () => { share.discardPartial('a.bin') },
     'space-download': () => { loose.downloadFile(LOOSE_FILE) },
-    'space-discard': () => { loose.discardPartial(LOOSE_FILE) },
   }
   return <button type="button" onClick={acts[only]}>{`act ${only}`}</button>
 }
 
-const TRANSFER_ACTS = ['cancel', 'pause', 'folder-download', 'folder-reveal', 'folder-discard', 'space-download', 'space-discard']
+const TRANSFER_ACTS = ['cancel', 'pause', 'folder-download', 'folder-reveal', 'space-download']
 
 async function probeTransfers(root: Root, kit: FailpathsKit): Promise<DroppedResults['transfers']> {
   const { Shell } = kit
@@ -312,7 +309,7 @@ async function probeTransfers(root: Root, kit: FailpathsKit): Promise<DroppedRes
   // A failure with no code of its own reads as the transfer sentence, as a failed upload does.
   for (const type of TRANSFER_FAILS) kit.answer(type, 'failUncoded')
   const transferFallback: Record<string, boolean> = {}
-  for (const act of ['space-download', 'space-discard']) {
+  for (const act of ['space-download', 'cancel']) {
     root.render(<Shell key={`transfer-uncoded-${act}`}><TransferControls only={act} /></Shell>)
     await kit.sleep(200)
     kit.buttonWithText(`act ${act}`)?.click()

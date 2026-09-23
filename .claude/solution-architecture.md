@@ -292,7 +292,7 @@ Writes to one row are serialized per key (`createKeyedLock`), so the progress ti
 
 `finalPath` is the real landing path in the download folder (collision-avoided, §3.5); `<finalPath>.mirall.part` and the resume journal derive from it. A row represents an in-flight or interrupted download. The progress ticker persists `bytesTransferred` here so we can derive the UI status (`paused-interrupted` / `paused-offline` / `error`) without the active transfer, auto-resume when the owner returns (§4.5), and show partial progress after restart.
 
-Rows clear on completion (`clearPending`), cancel, `files:discard-partial`, and space leave.
+Rows clear on completion (`clearPending`), cancel or discard (`files:cancel-download`), and space leave.
 
 ### 3.5 Participation id
 
@@ -339,13 +339,13 @@ Progress streams locally as `event:decoration { channel:'transfer', phase:'publi
 
 `files:download` routes to the shared **overlay download engine** (`transfer/backends/overlay/overlay-download.js`; `overlay/loose-downloads.js` supplies the loose glue; the same engine serves non-mirrored folder-share reads). Observers (Finder/Explorer, Quick Look, backup tools, antivirus, the orphan sweep) only ever see no file or a complete file — never a half-written one under the real name:
 
-1. **Destination.** `resolveDest(downloadDir, basename)` (`download-dest.js`) picks a free final name — a name is taken if the plain file or `<name>.mirall.part` exists. A download never overwrites the user's own file nor adopts another transfer's partial. A resumed download reuses the pending row's `finalPath`.
+1. **Destination.** `resolveDest(downloadDir, basename)` (`download-dest.js`) picks a free final name — a name is taken if the plain file or `<name>.mirall.part` exists (`nameTakenAt`, the probe the mirror's sibling and conflict-copy names use too). A download never overwrites the user's own file nor adopts another transfer's partial. A resumed download reuses the pending row's `finalPath`.
 2. **Pending row first.** `recordPending` writes the §3.4 row before any bytes move. The engine is single-flight per file.
 3. **Fetch by content hash** through the overlay (§7.7). Bytes land in `<finalPath>.mirall.part`; chunks verify against the chunk map as they arrive; a **receive journal** (app-private `journals/` — received-chunk bitmap + streaming-hash snapshot) makes resume O(1); partial → final is an atomic rename.
 4. **Progress is decoration, never status.** Ticks emit `event:decoration` and persist `bytesTransferred`; the row's *status* is always re-derived by `files:list`, never pushed.
 5. **Completion.** Pending row cleared, Downloads bee marked (`markDownloaded` + the verified hash), `event:transfer-complete` + `event:files-updated`.
 
-**Pause / cancel / discard.** `files:pause-download` stops the fetch but keeps partial + journal + row (`event:transfer-paused`); a manual pause is remembered so reconnects don't resurrect it, and a fresh `files:download` resumes from the journal. `files:cancel-download` / `files:discard-partial` unlink partial + journal and clear the row.
+**Pause / cancel / discard.** `files:pause-download` stops the fetch but keeps partial + journal + row (`event:transfer-paused`); a manual pause is remembered so reconnects don't resurrect it, and a fresh `files:download` resumes from the journal. `files:cancel-download` unlinks partial + journal and clears the row — from a downloading row's Cancel and a paused or failed row's Discard alike; with no live slot the id is resolved from the pending row, and an id with nothing behind it re-derives the stale row.
 
 **Failure semantics.** Recovery is level-triggered, with **no retry budget** — see the table in §4.5.
 
@@ -856,8 +856,8 @@ One JSON object per line. Requests carry an `id`; events don't. Default request 
 | `members:online` | `{ spaceId }` | `publicKey[]` |
 | `files:list` | `{ spaceId }` | `FileEntry[]` |
 | `files:add` | `{ spaceId, filePath, fileName, fileSize }` | `{ ok:true }` (timeout=0) |
-| `files:remove` / `files:discard-partial` / `files:reveal` | `{ spaceId, path }` | `{ ok:true }` — `reveal` spawns `open -R` / `explorer /select,` / `xdg-open` |
-| `files:download` | `{ spaceId, path, ownerKey, inPlace? }` | `{ transferId }` |
+| `files:remove` / `files:reveal` | `{ spaceId, path }` | `{ ok:true }` — `reveal` spawns `open -R` / `explorer /select,` / `xdg-open` |
+| `files:download` | `{ spaceId, path, ownerKey }` | `{ transferId }` |
 | `files:pause-download` / `files:cancel-download` | `{ transferId }` | `{ ok:true }` |
 | `storage:info` | `{}` | `{ totalDiskUsage, storagePath, host, indexBytes, dbBytes }` |
 | `settings:set-download-folder` | `{ folder }` | `{ ok:true }` — relocate the GLOBAL download dir (per-space overrides go through `space:update`) |
@@ -960,7 +960,7 @@ copy in component state that could disagree with it.
 | Hook | Requests | Re-derives on |
 |---|---|---|
 | `useSpaces` | `spaces:list`, `space:create`/`join`/`leave`/`invite`/`update`/`toggle-favorite` | `Scope` members + join-requests. The `event:state` and membership push re-reads live in `installPushBridges` (one subscription for the app), not in the hook |
-| `useFiles(spaceId)` | `files:list`/`remove`/`download`/`cancel-download`/`discard-partial`/`reveal`, uploads via `addFileToSpace()` | `Scope` files + members (coalesced); publish/prepare progress from `useDecorations` |
+| `useFiles(spaceId)` | `files:list`/`remove`/`download`/`cancel-download`/`reveal`, uploads via `addFileToSpace()` | `Scope` files + members (coalesced); publish/prepare progress from `useDecorations` |
 | `useMembers(spaceId)` | `space:members`, `members:online`, `space:pending-requests` | `Scope` members + join-requests |
 | `useSpaceMembers(spaceId)` | `space:members` — the full roster behind card facepiles | `Scope` members |
 | `useShares(spaceId, myKey)` | `share:list`, `owned-folder:list-all`, `foreign-folder:list-all` → `ShareWithRole[]` (`mine`/`browse`/`mirrored`) | `Scope` shares |
@@ -1287,6 +1287,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/spaces/profile.js` | The user's replicated profile bee: identity + `ProfileBee`, the signer, `openProfileBee`; the membership-manifest writers and their bounded peer readers (`member/`, `approved/`, `invite/`, `request/`, `denied/`, §3.1); `withPeerBee` — the one bounded peer read (§3.1); peer-bee capture; the per-space key announcements (`drive/`, `loosecat/`, `loosecatEnc/`) |
 | `src/shared/spaces/member-registry.js` | One live member view per space: fold → `space.members` reconcile, the local leave tombstones (`lefts`) and observed-leave revoke, pending-request reconcile, capture refcounts; `MemberViews` (§6) |
 | `src/shared/spaces/member-view.js` | `deriveMemberSet` (transitive discovery over roster bees) + `createMemberView` (a derived view over watched ranges, live follows, share-range watchers) |
+| `src/shared/spaces/member-fanout.js` | The pure member fan-out every "own plus every member's" listing runs: `peerMembersOf` + `readEachPeer`, all peers at once under one interactive budget |
 | `src/shared/spaces/membership/fold.js` | The pure OR-Set fold (`foldMembership`) + `voucheesToAdopt`, `reconnectGrantAllowed`, `tombstoneActive`, `observedLeavers` (§6) |
 | `src/shared/spaces/space-keys.js` | The SCK vault (`space-keys.enc`, wrapped by an M-derived key): the current key per space plus the keys of earlier epochs, read by epoch + `SpaceKeysVault` (§16) |
 | `src/shared/spaces/space-keys-codec.js` | The vault's plaintext codec, both shapes: a v1 entry (one bare hex key) decodes as epoch 0, v2 holds `{ epoch, key, history }`; a vault still entirely at epoch 0 encodes as v1 so an older release opens it. Pure, byte helpers injected, so test/unit drives it (§16) |
@@ -1415,12 +1416,12 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/folders/path-guard.js` | `pathFromMount(mount, rel)` — the single guarded mount-relative join every backend and the mirror use (path-traversal guard) |
 | `src/shared/spaces/sck-seal.js` | Seals the SCK to a joiner's bound signer key at approval (§16) |
 | `src/shared/folders/retire-confirm.js` | **Confirm-gone-twice**: a path must be missing on two consecutive sweeps before its catalog entry is retired, so an atomic-save window cannot cascade a transient tombstone to every mirror. Pure — the caller supplies the key, probes and retire |
-| `src/shared/transfer/download-dest.js` | `resolveDest` — collision-free Downloads naming — and `reuseDest`, the resume re-anchor rule (§3.5) |
+| `src/shared/transfer/download-dest.js` | `nameTakenAt` — a final file or its partial takes a name — `resolveDest` — collision-free Downloads naming — and `reuseDest`, the resume re-anchor rule (§3.5) |
 | `src/shared/transfer/download-claim.js` | `claimVerdict(...)` — the downloaded / prune ladder for one download-history claim, pure (§3.3) |
 | `src/shared/transfer/verified-copy.js` | `fingerprintMatches` — the one rule for "is this local file still the one a verified record fingerprinted?", shared by the mirror's fast path and every listing row — and `verifiedCopyVerdict`, a row's `verified` / `modified` / `unproven` reading of it. Pure |
 | `src/shared/transfer/progress-ticker.js` | `makeProgressTicker(total, emit)` — 250 ms-throttled `{bytes,total,speed,eta}` over `EtaEstimator`; shared by single-file transfers and folder mirroring |
 | `src/shared/transfer/file-dedupe.js` | The pure fold from per-owner loose-file candidates to listing rows: one row per distinct file, the most-progressed copy winning, the rest counted as `sharedByCount` (§3.5) |
-| `src/shared/transfer/transfer-status.js` | The pure consumer-row status ladder (`consumerRowStatusFor` & co.) for a share-file row (§7.3) |
+| `src/shared/transfer/transfer-status.js` | The one pure consumer-row status ladder (`consumerRowStatusFor` & co.) for every consumer row kind — loose, folder download and mirror (§7.3) |
 | `src/shared/transfer/content-backends.js` | The seam: `getContentBackend(share)` → the overlay backend, else `UNSUPPORTED`; the presence-sweep fan-out. Locked by `content-backend-conformance.test.js` (§7.7) |
 | `src/shared/transfer/supersede-decision.js` | The decision ladder for an in-flight transfer whose owner's catalog changed (§4.5) |
 | `src/shared/transfer/chunk-map-cache.js` | The bounded byte-cost LRU of decoded chunk maps, injected into the vendored `FileIndex` (§7.7) |
@@ -1435,7 +1436,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/transfer/backends/overlay/index.js` | The `overlayBackend` contract object the seam hands out: `publishAdd`, `publishDelete`, `listOwn`, `listPeerWithMeta`, `requestDownload`, `ensureRemote`, `releaseRemote`, plus the optional `catalogVersion` / `init` / `attach` / `teardown` / `sweepPresence`. `catalogVersion` and `sweepPresence` are reached optionally |
 | `src/shared/transfer/backends/overlay/overlay-hash.js` | `overlayHashFile`: the size-bound, wire-compatible content hash of a file on disk — the one hash a mirror may compare against a catalog `contentHash` |
 | `src/shared/transfer/backends/overlay/serve-registration.js` | `makeServable` / `ensureServable` / `evictIfUnreferenced`: keeps `serveIndex` and the overlay's path map in lockstep, refcounted by advertising path |
-| `src/shared/transfer/backends/overlay/overlay-publish.js` | The publish core folder shares and loose files share: advertise-null → hash → materialize → serve, the half-advertised revert, and the shutdown abort flag |
+| `src/shared/transfer/backends/overlay/overlay-publish.js` | The publish and retire core folder shares and loose files share: advertise-null → hash → materialize → serve, the half-advertised revert, the shutdown abort flag, and `retireContent` (tombstone, evict once landed) |
 | `src/shared/transfer/backends/overlay/publish-progress.js` | The one publishing-progress reporter both publish sides use: ticker, `publishing` decoration, `broadcastSharePrepare` per tick, terminal frames only for a bar it raised |
 | `src/shared/transfer/backends/overlay/folder-publish.js` | The folder share's publish side: `publishAdd` / `publishDelete` over the core, the deep-scan verdict, the owner's coalesced view refresh and its catalog-append trigger |
 | `src/shared/transfer/backends/overlay/folder-job.js` | The one download-job builder for the folder engine (pure) |

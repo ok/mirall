@@ -92,10 +92,5 @@ export function useShareFiles(spaceId: string, ownerKey: string, shareId: string
     [run, spaceId, ownerKey, shareId]
   )
 
-  const discardPartial = useCallback(
-    (relPath: string) => run(() => request('share:discard-partial', { spaceId, ownerKey, shareId, relPath })),
-    [run, spaceId, ownerKey, shareId]
-  )
-
-  return { files, info, loading, error, getDecoration, isSeeded, downloadFile, revealFile, discardPartial }
+  return { files, info, loading, error, getDecoration, isSeeded, downloadFile, revealFile }
 }

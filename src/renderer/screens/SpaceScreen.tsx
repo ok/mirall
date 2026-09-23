@@ -47,7 +47,7 @@ export default function SpaceScreen({ spaceId, pendingAction, onActionConsumed, 
   const { profile } = useProfile()
   const {
     files, loading, error, refresh, isSeeded, addFiles, downloadFile,
-    unshareFile, discardPartial, cancelPublish, revealFile,
+    unshareFile, cancelPublish, revealFile,
   } = useFiles(spaceId)
   const { getDecoration } = useDecorations('transfer', spaceId, '/')
   const { cancelDownload, pauseDownload } = useTransferControls()
@@ -177,7 +177,6 @@ export default function SpaceScreen({ spaceId, pendingAction, onActionConsumed, 
             onDownload: downloadFile,
             onCancel: cancelDownload,
             onPause: pauseDownload,
-            onDiscardPartial: discardPartial,
           }}
         />
       )}

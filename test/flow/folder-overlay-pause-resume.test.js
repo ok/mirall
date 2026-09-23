@@ -70,6 +70,47 @@ test('overlay folder: pause mid-flight surfaces paused-interrupted; resume compl
     A.kill()
   })
 
+// The folder twin of the loose discard: a paused row has no live slot, so the id alone must resolve
+// the pending row (whose key embeds the share name the id does not carry) and drop the partial.
+test('overlay folder: pause then discard by transfer id clears the partial and returns the row to remote',
+  { timeout: scaled(180000) }, async (t) => {
+    const bootstrap = await localTestnet(t)
+    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags: FLAGS })
+    const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags: FLAGS })
+    const spaceId = await connectInSpace(t, A, B)
+    const aKey = (await A.request('profile:get')).personKey
+
+    const share = await A.request('share:create', { spaceId, name: 'Vault', contentMode: 'overlay' })
+    const folder = mkTmpDir(t)
+    fs.writeFileSync(path.join(folder, 'big.bin'), patternedBytes(8 * 1024 * 1024, 41))
+    const scanDone = A.waitFor('event:owned-folder-scan-completed', (m) => m.shareId === share.id)
+    await A.request('owned-folder:mount', { spaceId, shareId: share.id, mountPath: folder })
+    await scanDone
+
+    const listing = { spaceId, ownerKey: aKey, shareId: share.id }
+    const rowIs = (status) => (list) => Array.isArray(list?.entries) && list.entries.some((e) => e.relPath === 'big.bin' && e.status === status)
+    await B.until('share:list-files', listing, rowIs('remote'), { ms: 60000 })
+
+    const flowing = new Promise((resolve) => {
+      B.on('event:decoration', (m) => {
+        if (m.channel !== 'transfer' || m.key !== share.id + ':big.bin' || m.done) return
+        if (m.bytes > 0) resolve()
+      })
+    })
+    const { transferId } = await B.request('share:read-file', { spaceId, ownerKey: aKey, shareId: share.id, relPath: 'big.bin' })
+    await flowing
+    await B.request('files:pause-download', { transferId })
+    await B.until('share:list-files', listing, rowIs('paused-interrupted'), { ms: 60000 })
+    const onDisk = () => fs.readdirSync(B.downloads, { recursive: true }).filter((f) => String(f).includes('big.bin'))
+    t.ok(onDisk().length > 0, 'precondition: the paused partial is on disk')
+
+    await B.request('files:cancel-download', { transferId })
+    await B.until('share:list-files', listing, rowIs('remote'), { ms: 30000 })
+    t.alike(onDisk(), [], 'no partial left after discard')
+
+    A.kill()
+  })
+
 test('overlay folder: a queued download auto-resumes when the owner returns',
   { timeout: scaled(180000) }, async (t) => {
     const bootstrap = await localTestnet(t)

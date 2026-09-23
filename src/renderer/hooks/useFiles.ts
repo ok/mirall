@@ -87,12 +87,7 @@ export function useFiles(spaceId: string) {
 
   // Stable identities: props of memoized rows (README.md).
   const downloadFile = useCallback((file: FileEntry) => run(async () => {
-    const res = await request('files:download', {
-      spaceId,
-      path: file.path,
-      inPlace: file.inPlace ?? false,
-      ownerKey: file.owner.publicKey,
-    })
+    const res = await request('files:download', { spaceId, path: file.path, ownerKey: file.owner.publicKey })
     // A queued click started nothing — the owner is unreachable and the intent is recorded for the
     // reconnect machinery — so there is no transfer to report movement for.
     if ('transferId' in res) setSeeded((prev) => { const next = new Set(prev); next.add(file.path); return next })
@@ -101,11 +96,6 @@ export function useFiles(spaceId: string) {
   const unshareFile = useCallback(async (path: string) => {
     await request('files:remove', { spaceId, path })
   }, [spaceId])
-
-  const discardPartial = useCallback(
-    (file: FileEntry) => run(() => request('files:discard-partial', { spaceId, path: file.path, inPlace: file.inPlace ?? false }), 'transferFailed'),
-    [run, spaceId],
-  )
 
   const cancelPublish = useCallback(async (path: string) => {
     await request('files:cancel-publish', { spaceId, path })
@@ -130,7 +120,6 @@ export function useFiles(spaceId: string) {
     addFiles,
     downloadFile,
     unshareFile,
-    discardPartial,
     cancelPublish,
     revealFile,
     refresh,

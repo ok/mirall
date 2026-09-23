@@ -11,7 +11,7 @@ import type { FileEntry } from '../../types/types.js'
 type CardProps = ComponentProps<typeof FileCard>
 
 type SpaceFilesPaneProps = Pick<CardProps,
-  'onDownload' | 'onCancel' | 'onPause' | 'onReveal' | 'onUnshare' | 'onDiscardPartial'
+  'onDownload' | 'onCancel' | 'onPause' | 'onReveal' | 'onUnshare'
   | 'onCancelPublish' | 'members'
 > & {
   files: FileEntry[]

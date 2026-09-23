@@ -9,7 +9,7 @@ const sleep = (ms) => new Promise((res) => setTimeout(res, ms))
 
 // A3 — pause a loose download, then Discard Partial from the paused row (distinct
 // from cancel-while-running in s83): the row returns to "Available" + Download and
-// the partial is removed (files:discard-partial). Best-effort on catching the paused
+// the partial is removed (files:cancel-download). Best-effort on catching the paused
 // state — loopback can finish a 256 MB download before we can pause — so when the
 // pause is lost the discard path simply isn't exercised (logged, not failed); when
 // it is caught, the discard→revert is the asserted guarantee.

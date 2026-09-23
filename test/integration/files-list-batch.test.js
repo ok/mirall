@@ -200,3 +200,59 @@ test('REGRESSION (FIX-CLAIM-ORDER): a claim whose download folder is gone is kep
   t.alike(prunes, [], 'nothing pruned')
   t.is(await getDownloadedPath(ctx.spaceId, '/v.bin'), detached, 'the claim survives for the volume to come back to')
 })
+
+const oneRow = async (ctx, deps) => (await listFiles(ctx.spaceId, [memberNo(1)], { deps }))[0]
+
+test('REGRESSION (FIX-LOOSE-OFFLINE-PARTIAL): an unhashed row holding partial bytes from an offline owner keeps paused-offline', async (t) => {
+  const ctx = await setup(t)
+  const unhashed = () => [{ relPath: 'r-0.bin', size: 10, contentHash: null, mtime: 0 }]
+  const withPending = (bytesTransferred, online) => {
+    const deps = countingDeps({ entriesFor: unhashed })
+    deps.listPendingForSpace = async () => [{ filePath: '/r-0.bin', ownerKey: 'peer1pub', bytesTransferred }]
+    deps.isOwnerOnline = () => online
+    return deps
+  }
+  const row = await oneRow(ctx, withPending(4096, false))
+  t.is(row.status, 'paused-offline', 'the partial keeps its Discard')
+  t.is(row.pendingBytes, 4096)
+  t.ok(row.transferId, 'the Discard has a transfer id to address')
+  t.is((await oneRow(ctx, withPending(0, false))).status, 'unavailable', 'no bytes on disk → nothing to manage')
+  t.is((await oneRow(ctx, withPending(4096, true))).status, 'preparing', 'a reachable owner re-hashing wins')
+})
+
+// A claim, a live slot and a pending row are keyed by name: another member's same-named file must
+// never read as this owner's while the owner is still hashing theirs.
+test('an unhashed entry never takes another owner\'s same-named claim, transfer or pending row', async (t) => {
+  const ctx = await setup(t)
+  const deps = countingDeps({
+    entriesFor: () => [{ relPath: 'r-0.bin', size: 10, contentHash: null, mtime: 0 }],
+    verdict: () => ({ downloaded: true, prune: false, reason: null, stat: null }),
+  })
+  deps.transferActive = () => true
+  deps.isOwnerOnline = () => false
+  deps.listPendingForSpace = async () => [{ filePath: '/r-0.bin', ownerKey: 'someone-else', bytesTransferred: 4096 }]
+  const row = await oneRow(ctx, deps)
+  t.is(deps.calls.verdicts, 0, 'the claim is not asked without a hash to tie it to this owner')
+  t.is(row.status, 'unavailable')
+  t.is(row.localBytes, 0)
+})
+
+test('an error row carries its code and no bytes; a downloading row carries its bytes and no stale code', async (t) => {
+  const ctx = await setup(t)
+  const withPending = (pendingRow, active) => {
+    const deps = countingDeps({ entriesFor: () => rows('r', 1) })
+    deps.listPendingForSpace = async () => [{ filePath: '/r-0.bin', ownerKey: 'peer1pub', ...pendingRow }]
+    deps.transferActive = () => active
+    return deps
+  }
+  const error = await oneRow(ctx, withPending({ errorCode: 'EHASHMISMATCH', bytesTransferred: 10 }, false))
+  t.is(error.status, 'error')
+  t.is(error.errorCode, 'EHASHMISMATCH')
+  t.is(error.pendingBytes, undefined)
+  const active = await oneRow(ctx, withPending({ bytesTransferred: 77 }, true))
+  t.is(active.status, 'downloading')
+  t.is(active.pendingBytes, 77)
+  const activeOverError = await oneRow(ctx, withPending({ errorCode: 'X' }, true))
+  t.is(activeOverError.status, 'downloading')
+  t.is(activeOverError.errorCode, undefined)
+})

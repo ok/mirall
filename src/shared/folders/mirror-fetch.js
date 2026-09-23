@@ -39,7 +39,8 @@ import { pauseMount, pauseMountForIoError } from './foreign-pause.js'
 import { emitMirrorEvent } from './mirror-signals.js'
 import { classifyLocalCopy, mayOverwriteInPlace, mirrorKey } from './mirror-policy.js'
 import { STATUS_MOUNT_GONE, statusForFaultCode } from './mount-fault.js'
-import { conflictCopyName, driveKeyToSegments } from './path-keys.js'
+import { conflictCopyName } from './path-keys.js'
+import { freeMirrorRel } from './mirror-state.js'
 import { mountRootAvailable } from './publish-service.js'
 
 const log = createLogger('mirror-fetch')
@@ -121,14 +122,7 @@ async function preserveLocalEdit(mount, entry, verifyKey, diskHash, abs, localRe
   const ancestorHash = await getVerifiedHash(mount.spaceId, verifyKey, { expectLocal: localRelPath }).catch(() => null)
   if (mayOverwriteInPlace(classifyLocalCopy({ diskHash, ownerHash: entry.contentHash, ancestorHash }))) return
 
-  const segs = driveKeyToSegments(entry.relPath)
-  const leaf = segs.pop()
-  const dir = segs.join('/')
-  const isTaken = (name) => {
-    const candidate = pathFromMount(mount.mountPath, dir ? dir + '/' + name : name)
-    return fs.existsSync(candidate) || fs.existsSync(candidate + PARTIAL_SUFFIX)
-  }
-  const conflictRel = (dir ? dir + '/' : '') + conflictCopyName(leaf, isTaken)
+  const conflictRel = freeMirrorRel(mount.mountPath, entry.relPath, conflictCopyName)
   try {
     await fs.promises.rename(abs, pathFromMount(mount.mountPath, conflictRel))
     log.warn('mirror conflict on', entry.relPath, '- the local copy was not the one we delivered; kept it as', conflictRel)

@@ -172,9 +172,6 @@ export async function looseDownload(spaceId, member, drivePath) {
 
 export function loosePause(transferId) { return engine().pause(transferId) }
 export function looseCancelTransfer(transferId) { return engine().cancel(transferId) }
-export function looseCancelByKey(spaceId, drivePath) {
-  return engine().cancelByKey(spaceId, drivePath, looseTransferIdFor(spaceId, looseRelPath(drivePath)))
-}
 export async function looseCancelSpace(spaceId) {
   await cancelSpaceOn(engine(), spaceId, log)
 }
