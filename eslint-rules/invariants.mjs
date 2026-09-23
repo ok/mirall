@@ -496,7 +496,8 @@ export const pureNetworkModules = [
 export const pureFolderPolicyModules = [
   'echo-guard', 'mirror-budgets', 'mirror-loop', 'mirror-policy',
   'mount-fault', 'owned-policy', 'owned-state', 'path-keys', 'preview-tally',
-  'publish-queue', 'publish-scheduler', 'retire-confirm', 'share-limits', 'work-item',
+  'publish-queue', 'publish-scheduler', 'retire-confirm', 'share-limits', 'watch-derive',
+  'work-item',
 ]
 
 // The pure half of spaces/ — the decision tables and the in-memory caches the record modules

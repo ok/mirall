@@ -1,9 +1,10 @@
 import test from 'brittle'
 import { loadWithFakeChokidar } from '../helpers/fake-chokidar.js'
 import { withPlatform, UNC_PATH, NETWORK_CASES } from '../helpers/with-platform.js'
+import { looksLikeNetworkPath } from '../../src/shared/contract/network-paths.js'
 
 const { created, modules } = loadWithFakeChokidar(['src/main/watch-host.js'])
-const { createWatchHost, looksLikeNetworkPath } = modules[0]
+const { createWatchHost } = modules[0]
 
 function host(opts = {}) {
   created.length = 0
@@ -177,24 +178,19 @@ test('atomic defaults to false, and ignored is omitted when the caller has none'
 })
 
 test('looksLikeNetworkPath across the three platforms', (t) => {
-  const asPlatform = withPlatform
+  t.ok(looksLikeNetworkPath('\\\\server\\share\\a.txt', 'win32'), 'UNC')
+  t.absent(looksLikeNetworkPath('C:\\Users\\me\\a.txt', 'win32'), 'a local drive letter')
 
-  asPlatform('win32', () => {
-    t.ok(looksLikeNetworkPath('\\\\server\\share\\a.txt'), 'UNC')
-    t.absent(looksLikeNetworkPath('C:\\Users\\me\\a.txt'), 'a local drive letter')
-  })
-  asPlatform('darwin', () => {
-    t.ok(looksLikeNetworkPath('/Volumes/NAS/a.txt'), '/Volumes')
-    t.ok(looksLikeNetworkPath('\\\\server\\share\\a.txt'), 'UNC is platform-independent')
-    t.absent(looksLikeNetworkPath('/Users/me/a.txt'), 'a home path')
-    t.absent(looksLikeNetworkPath('/mnt/x/a.txt'), '/mnt is a linux-only signal')
-  })
-  asPlatform('linux', () => {
-    t.ok(looksLikeNetworkPath('/mnt/nas/a.txt'), '/mnt')
-    t.ok(looksLikeNetworkPath('/media/usb/a.txt'), '/media')
-    t.absent(looksLikeNetworkPath('/Volumes/NAS/a.txt'), '/Volumes is a darwin-only signal')
-    t.absent(looksLikeNetworkPath('/home/me/a.txt'), 'a home path')
-  })
-  t.absent(looksLikeNetworkPath(''), 'empty')
-  t.absent(looksLikeNetworkPath(null), 'null')
+  t.ok(looksLikeNetworkPath('/Volumes/NAS/a.txt', 'darwin'), '/Volumes')
+  t.ok(looksLikeNetworkPath('\\\\server\\share\\a.txt', 'darwin'), 'UNC is platform-independent')
+  t.absent(looksLikeNetworkPath('/Users/me/a.txt', 'darwin'), 'a home path')
+  t.absent(looksLikeNetworkPath('/mnt/x/a.txt', 'darwin'), '/mnt is a linux-only signal')
+
+  t.ok(looksLikeNetworkPath('/mnt/nas/a.txt', 'linux'), '/mnt')
+  t.ok(looksLikeNetworkPath('/media/usb/a.txt', 'linux'), '/media')
+  t.absent(looksLikeNetworkPath('/Volumes/NAS/a.txt', 'linux'), '/Volumes is a darwin-only signal')
+  t.absent(looksLikeNetworkPath('/home/me/a.txt', 'linux'), 'a home path')
+
+  t.absent(looksLikeNetworkPath('', 'linux'), 'empty')
+  t.absent(looksLikeNetworkPath(null, 'linux'), 'null')
 })
