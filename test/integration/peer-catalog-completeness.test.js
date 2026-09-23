@@ -59,3 +59,23 @@ test('REGRESSION (FIX-359): a truncated drain reports complete:false WITH its pa
   t.is(res.complete, false, 'a cut-short drain is NOT complete — this is the flag the mirror acts on')
   t.is(res.entries.length, 10, 'and it is partial but non-empty: the exact shape that used to authorize deletions')
 })
+
+// The version a complete read returns is the watermark the files:list memo keeps, so it must be the
+// writer's head the drain read from; an incomplete read has none to offer.
+test('a complete read returns the head version it drained; an incomplete one returns none', { timeout: scaled(20000) }, async (t) => {
+  await freshPeer(t)
+  const saved = getRuntimeConfig()
+  t.teardown(() => setRuntimeConfig(saved))
+
+  const B = await makePeer(t)
+  await seed(B, 5)
+  replicate(getStore(), B.store, t)
+  t.ok(await waitFor(async () => (await collectPeerShare(B.key, shareId)).entries.length === 5), 'replicates fully')
+  t.is((await collectPeerShare(B.key, shareId)).version, B.bee.version, 'the writer’s head')
+
+  await seed(B, 6)
+  t.ok(await waitFor(async () => (await collectPeerShare(B.key, shareId)).version === B.bee.version), 'an append moves it')
+
+  setRuntimeConfig({ ...getRuntimeConfig(), peerReadTimeoutMs: 200 })
+  t.is((await collectPeerShare(b4a.toString(crypto.randomBytes(32), 'hex'), shareId)).version, null)
+})

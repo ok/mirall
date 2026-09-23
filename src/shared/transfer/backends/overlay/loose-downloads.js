@@ -3,7 +3,8 @@
 // auto-resume), driven by a channel built from the same factory as the folder side. A loose row
 // has no file list to surface an error inline in, so every error code crosses the wire.
 import path from 'bare-path'
-import { collectPeerShare, getPeerEntry, getPeerEntryState, watchPeerCatalog, resolvePeerCatalog } from '../../../shares/peer-catalog.js'
+import { collectPeerShare, getPeerEntry, getPeerEntryState, isPeerCatalogWatched, peerCatalogVersion, watchPeerCatalog, resolvePeerCatalog } from '../../../shares/peer-catalog.js'
+import { readCatalogKey } from '../../../shares/catalog-keys.js'
 import { observePeerCatalog } from '../../../audit/peer-records-watch.js'
 import { getDownloadDir } from '../../../core/paths.js'
 import { getSpace } from '../../../spaces/space.js'
@@ -20,6 +21,7 @@ import { cancelSpaceOn, reconcileActiveSlots } from './active-transfers.js'
 import { looseJob, looseRelPath, looseDrivePath } from './loose-job.js'
 
 const log = createLogger('loose-downloads')
+const LOOSE_WATCH = 'loose'
 
 let ipcRef = null
 let looseEngine = null
@@ -33,17 +35,26 @@ function engine() {
   return looseEngine
 }
 
+// One member's loose entries, with whether the read was whole and the catalog version it read.
 export async function looseListPeer(spaceId, member, { timeoutMs, space } = {}) {
   const { keyHex, sck, readable } = await resolvePeerCatalog(spaceId, member, { space })
-  if (!readable) return []
+  if (!readable) return { entries: [], complete: false, version: null }
   ensureLooseCatalogWatch(spaceId, member, keyHex, sck)
-  const { entries, stalled } = await collectPeerShare(keyHex, LOOSE_SHARE_ID, { sck, timeoutMs })
+  const { entries, stalled, complete, version } = await collectPeerShare(keyHex, LOOSE_SHARE_ID, { sck, timeoutMs })
   // A stalled read (head-sync failed or the traversal timed out) self-heals on the peer's
   // next append — unless the stream stays stalled; flag it so the convergence tick re-pokes
   // the listing as the level-triggered backstop. A legitimately-empty catalog is NOT stalled,
   // so a zero-share peer doesn't trigger a perpetual re-poke.
   if (stalled) markListIncomplete(spaceId)
-  return entries
+  return { entries, complete, version }
+}
+
+// The live version of a member's loose catalog, for a listing deciding whether it may skip the read.
+// Null — read it — while no loose append watch is armed on that catalog: a skip is only safe when
+// the owner's next append will poke the next listing, and only a read arms the watch.
+export async function looseCatalogVersion(spaceId, member, { space } = {}) {
+  if (!isPeerCatalogWatched(readCatalogKey(member).keyHex, LOOSE_WATCH)) return null
+  return await peerCatalogVersion(spaceId, member, { space })
 }
 
 // Register the peer-catalog append watch once per catalog key. The append fires when
@@ -51,7 +62,7 @@ export async function looseListPeer(spaceId, member, { timeoutMs, space } = {}) 
 // transfer whose content the owner just replaced.
 function ensureLooseCatalogWatch(spaceId, member, keyHex, sck) {
   if (!keyHex) return
-  const watched = watchPeerCatalog(keyHex, 'loose', (bee) => {
+  const watched = watchPeerCatalog(keyHex, LOOSE_WATCH, (bee) => {
     ipcRef?.emit('event:files-updated', { spaceId })
     // A peer publishing or removing a loose file in a space we share. The append is a bare poke,
     // so the observer diffs the catalog's own history to find what actually changed.

@@ -16,6 +16,7 @@ import { createRefCountedLru } from '../core/lru.js'
 import { prefixRange } from '../core/bee-keys.js'
 import { fileKey, sharePrefixKey, catalogEntry, isValidCatalogKey, readCatalogKey, classifyEntryNode } from './catalog-keys.js'
 import { entryTally } from './catalog-tally.js'
+import { resetListingMemo } from '../transfer/listing-memo.js'
 
 const log = createLogger('peer-catalog')
 
@@ -77,6 +78,10 @@ export function watchPeerCatalog(catalogKeyHex, listenerId, onAppend, sck = null
   return w.bee
 }
 
+export function isPeerCatalogWatched(catalogKeyHex, listenerId) {
+  return !!peerCatalogWatchers.get(catalogKeyHex)?.ids.has(listenerId)
+}
+
 // Pull the owner's latest catalog head before reading: a read-only core opened by key starts at
 // length 0, and bee.ready() does NOT fetch the remote head. Bounded so an offline owner doesn't
 // hang the listing.
@@ -93,12 +98,15 @@ async function syncPeerHead(bee, timeoutMs = peerReadTimeoutMs()) {
 // reported complete:false and stalled, so the renderer keeps its previous list for that owner.
 const LOCAL_DRAIN_MS = 250
 
-const EMPTY_STALLED = { entries: [], complete: false, stalled: true, total: 0, totalBytes: 0 }
+const EMPTY_STALLED = { entries: [], complete: false, stalled: true, total: 0, totalBytes: 0, version: null }
 
 // Single-pass peer read: head-sync, then drain the prefix. ONE `timeoutMs` covers both; a budget
 // spent on the head degrades the drain to a local-only read, so an unreachable owner costs one
 // budget, not two. `complete` needs a full drain, the head landed, and blocks in the core; a
-// partial read is flagged so the renderer keeps its last list.
+// partial read is flagged so the renderer keeps its last list. A complete read also returns the
+// `version` its drain started from (null otherwise), for a caller that memoises it to compare
+// against peerCatalogVersion later: an append landing mid-drain leaves the live version past it,
+// and that caller reads again.
 export async function collectPeerShare(catalogKeyHex, shareId, { sck = null, limit = Infinity, timeoutMs = peerReadTimeoutMs(), onEach = null } = {}) {
   const bee = openPeerCatalog(catalogKeyHex, sck)
   if (!bee) return { ...EMPTY_STALLED }
@@ -107,6 +115,8 @@ export async function collectPeerShare(catalogKeyHex, shareId, { sck = null, lim
     const deadlineAt = Date.now() + timeoutMs
     let headSynced = false
     try { headSynced = await syncPeerHead(bee, timeoutMs) } catch { return { ...EMPTY_STALLED } }
+    // hyperbee reports version 1 for an empty core as well as a header-only one.
+    const version = bee.core.length > 0 ? bee.version : null
     const prefix = sharePrefixKey(shareId)
     const left = remainingMs(deadlineAt)
     // Budget spent on the head: read only what is already on disk. hyperbee forwards `wait` to
@@ -118,7 +128,8 @@ export async function collectPeerShare(catalogKeyHex, shareId, { sck = null, lim
     // empty read; `stalled` is the narrower "the read could not finish" signal — a legitimately
     // empty catalog is fully read, NOT stalled, so a re-poll keyed on stalled won't churn.
     const traversed = headSynced && complete
-    return { entries, total, totalBytes, complete: traversed && bee.core.length > 0, stalled: !traversed }
+    const whole = traversed && bee.core.length > 0
+    return { entries, total, totalBytes, version: whole ? version : null, complete: whole, stalled: !traversed }
   } finally {
     peerCatalogs.release(catalogKeyHex)
   }
@@ -230,11 +241,12 @@ export class PeerCatalogs extends Subsystem {
   }
 
   // The watchers hold the same bees peerCatalogs does, and their 'append' listeners sit on the
-  // core session, so closing the bee drops them too.
+  // core session, so closing the bee drops them too. The listing memo goes with them.
   async _closeAll() {
     const open = peerCatalogs.values()
     peerCatalogs.clear()
     peerCatalogWatchers.clear()
+    resetListingMemo()
     await Promise.allSettled(open.map((bee) => bee.close()))
   }
 

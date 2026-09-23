@@ -93,3 +93,41 @@ test('in-place loose file is unavailable while the owner is offline',
     const res = await B.request('files:download', { spaceId, path: '/note.txt', inPlace: true, ownerKey: aKey })
     t.ok(res && res.queued, 'download queues (no holder online), no hang')
   })
+
+// Bob's listing memo holds Alice's catalog across her absence, and his backstop is off, so the only
+// thing that can surface what she publishes on her return is her catalog's version moving on his
+// side. Every file of a burst must land, not just the first poke's worth.
+test('files an owner publishes on returning are all listed, with the listing backstop off',
+  { timeout: scaled(240000) }, async (t) => {
+    const bootstrap = await localTestnet(t)
+    const aStore = idStore(t)
+    const aFlags = v2flags()
+    let A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: aStore, downloads: mkTmpDir(t), flags: aFlags })
+    const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: { ...v2flags(), listFullReadEvery: 1_000_000 } })
+    const spaceId = await connectInSpaceWithApproval(t, A, B)
+    const aKey = (await A.request('profile:get')).personKey
+    const src = mkTmpDir(t)
+
+    const add = async (name) => {
+      fs.writeFileSync(path.join(src, name), name)
+      await A.request('files:add', { spaceId, filePath: path.join(src, name), fileName: name, fileSize: name.length })
+    }
+    await add('first.txt')
+    await B.until('files:list', { spaceId },
+      (f) => Array.isArray(f) && f.some((e) => e.path === '/first.txt' && e.status === 'remote'), { ms: 60000 })
+
+    A.kill()
+    await B.until('members:online', { spaceId }, (o) => !o.includes(aKey), { ms: 90000 })
+    const away = await B.request('files:list', { spaceId })
+    t.is(away.find((e) => e.path === '/first.txt')?.status, 'unavailable', 'the memoised row follows presence')
+
+    A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: aStore, downloads: mkTmpDir(t), flags: aFlags })
+    const burst = Array.from({ length: 20 }, (_, i) => `late-${String(i).padStart(2, '0')}.txt`)
+    for (const name of burst) await add(name)
+
+    const expected = ['/first.txt', ...burst.map((n) => '/' + n)].sort()
+    const listed = await B.until('files:list', { spaceId },
+      (f) => Array.isArray(f) && expected.every((p) => f.some((e) => e.path === p && e.status === 'remote')), { ms: 90000 })
+    t.alike(listed.map((e) => e.path).sort(), expected, 'every file, and nothing else')
+    A.kill()
+  })

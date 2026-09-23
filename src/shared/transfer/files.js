@@ -21,7 +21,7 @@ import path from 'bare-path'
 import { getGlobalDownloadDir, getSpaceDownloadOverride, isInsideDownloadDir } from '../core/paths.js'
 
 import { claimVerdict } from './download-claim.js'
-import { fingerprintMatches, verifiedCopyVerdict } from './verified-copy.js'
+import { fingerprintMatches } from './verified-copy.js'
 import { prefixRange } from '../core/bee-keys.js'
 
 // Reveal keeps its address here: the IPC layer reaches a file's on-disk location through this
@@ -139,12 +139,35 @@ export async function listDownloadClaimsForShare(spaceId, shareName, { keep = nu
   return map
 }
 
-// Prune the claims a listing found stale, in ONE batch after its rows are assembled. Deferred out
-// of the row loop because a del is a WRITE: inline, a read path took a write turn per stale row.
-//
-// Best-effort by design and never rethrown into the listing: a claim is a cache of a fact the disk
-// owns, so a failed prune costs one more re-check on the next listing, never correctness. A listing
-// that failed because its own cleanup failed would be the worse bug.
+// The loose claims of one space: drivePath -> claim record. A loose file's drivePath is '/' + its
+// flat name, so its claim key has no separator after the space prefix, while a folder share's
+// claims sit in a <space>:/<shareName>/ subtree. The scan steps over each such subtree the moment it
+// meets one — the first key past it is <shareName> followed by the character after '/' — so a space
+// full of folder downloads costs one seek per share, not one node per claim. `keep` bounds retention
+// to the rows the listing renders.
+export async function listLooseDownloadClaims(spaceId, { keep = null } = {}) {
+  const prefix = spaceId + ':/'
+  const map = new Map()
+  let range = prefixRange(prefix)
+  let subtree = null
+  do {
+    subtree = null
+    for await (const node of downloadsBee.createReadStream(range)) {
+      const name = node.key.slice(prefix.length)
+      const slash = name.indexOf('/')
+      if (slash !== -1) {
+        subtree = prefix + name.slice(0, slash)
+        break
+      }
+      const drivePath = '/' + name
+      if (keep && !keep.has(drivePath)) continue
+      if (node.value) map.set(drivePath, node.value)
+    }
+    if (subtree) range = { gte: subtree + '0', lt: range.lt }
+  } while (subtree)
+  return map
+}
+
 // Drops a single file's claim AND its owned-source record — what a removal leaves behind on the
 // bee. Exported so the listing half can retire a file without reaching for the bee itself.
 export async function forgetFileRecords(spaceId, filePath) {
@@ -152,6 +175,12 @@ export async function forgetFileRecords(spaceId, filePath) {
   await downloadsBee.del('src:' + spaceId + ':' + filePath)
 }
 
+// Prune the claims a listing found stale, in ONE batch after its rows are assembled. Deferred out
+// of the row loop because a del is a WRITE: inline, a read path took a write turn per stale row.
+//
+// Best-effort by design and never rethrown into the listing: a claim is a cache of a fact the disk
+// owns, so a failed prune costs one more re-check on the next listing, never correctness. A listing
+// that failed because its own cleanup failed would be the worse bug.
 export async function pruneDownloadClaims(spaceId, drivePaths) {
   if (!drivePaths.length) return 0
   const batch = downloadsBee.batch()
@@ -214,18 +243,6 @@ export function statOrNull(absPath) {
   try { return fs.statSync(absPath) } catch { return null }
 }
 
-// A downloaded copy's verdict for a listing row, or null when it is not on this device. `key` is
-// the verified-record key (`<shareId>|<relPath>`, loose uses LOOSE_SHARE_ID); the record must name
-// the path the claim says the bytes landed at, so a mirror's record of the same share path cannot
-// vouch for a download.
-export async function downloadedCopyVerdict(spaceId, filePath, key, contentHash, expectedSize) {
-  const { downloaded, localPath, stat } = await verifyOnDevice(spaceId, filePath, contentHash)
-  if (!downloaded) return null
-  let rec = null
-  try { rec = await getVerifiedRecord(spaceId, key) } catch {}
-  return verifiedCopyVerdict(rec, stat, { contentHash, expectedSize, expectLocal: localPath })
-}
-
 // Answers "does this folder exist?" once per folder instead of once per claim.
 //
 // The probe only runs for a claim whose FILE is missing, so on a healthy volume it never runs at
@@ -281,7 +298,7 @@ export function verdictForClaim(spaceId, filePath, rec, currentHash = null, dirP
 async function verifyOnDevice(spaceId, filePath, currentHash = null) {
   const key = spaceId + ':' + filePath
   const node = await downloadsBee.get(key)
-  if (!node) return { downloaded: false, localPath: null, stat: null }
+  if (!node) return false
   const rec = node.value || {}
   const verdict = verdictForClaim(spaceId, filePath, rec, currentHash)
   if (verdict.prune) {
@@ -292,11 +309,11 @@ async function verifyOnDevice(spaceId, filePath, currentHash = null) {
   } else if (verdict.reason === 'outside-space-folder') {
     log.debug('claim outside the space download folder:', filePath)
   }
-  return { downloaded: verdict.downloaded, localPath: claimedPathFor(filePath, rec), stat: verdict.stat }
+  return verdict.downloaded
 }
 
 export async function isDownloadedFile(spaceId, filePath, currentHash = null) {
-  return (await verifyOnDevice(spaceId, filePath, currentHash)).downloaded
+  return await verifyOnDevice(spaceId, filePath, currentHash)
 }
 
 // Strict form for callers that DROP work when the answer is yes (the resume scan's
@@ -308,7 +325,7 @@ export async function isDownloadedWithHash(spaceId, filePath, contentHash) {
   if (!contentHash) return false
   const node = await downloadsBee.get(spaceId + ':' + filePath)
   if (node?.value?.hash !== contentHash) return false
-  return (await verifyOnDevice(spaceId, filePath, contentHash)).downloaded
+  return await verifyOnDevice(spaceId, filePath, contentHash)
 }
 
 // For a file you OWN (added/shared by you, never downloaded), remember where its

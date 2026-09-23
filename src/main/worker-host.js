@@ -200,6 +200,8 @@ function getWorker(specifier) {
     listFilesCap: process.env.MIRALL_LIST_FILES_CAP ? Number(process.env.MIRALL_LIST_FILES_CAP) : undefined,
     // The mirror-walk skip's rollback lever: 1 restores the pre-skip cadence without a release.
     foreignFullWalkEvery: process.env.MIRALL_FOREIGN_FULL_WALK_EVERY ? Number(process.env.MIRALL_FOREIGN_FULL_WALK_EVERY) : undefined,
+    // The files:list memo's rollback lever, the same way: 1 re-reads every catalog on every listing.
+    listFullReadEvery: process.env.MIRALL_LIST_FULL_READ_EVERY ? Number(process.env.MIRALL_LIST_FULL_READ_EVERY) : undefined,
     // Same idea for the add-folder admission gate, so the frontend suite can trip it with a
     // handful of files; a bad value is caught by getMaxFilesPerShare's fail-safe.
     maxFilesPerShare: process.env.MIRALL_MAX_FILES_PER_SHARE ? Number(process.env.MIRALL_MAX_FILES_PER_SHARE) : undefined,

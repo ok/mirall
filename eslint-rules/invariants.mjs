@@ -453,6 +453,7 @@ export const pureTransferModules = [
   'file-dedupe',
   'free-space',
   'list-deficits',
+  'listing-memo',
   'partial-suffix',
   'pending-transfers',
   'progress-ticker',
