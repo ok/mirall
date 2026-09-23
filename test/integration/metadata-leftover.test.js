@@ -15,10 +15,6 @@ function leftoverDkSet(scan) {
   const dks = new Set()
   for (const r of scan.profiles.keys) dks.add(r.discoveryKeyHex)
   for (const r of scan.catalogs.keys) dks.add(r.discoveryKeyHex)
-  for (const d of scan.orphanDrives.keys) {
-    dks.add(d.metaDkHex)
-    if (d.blobsDkHex) dks.add(d.blobsDkHex)
-  }
   return dks
 }
 

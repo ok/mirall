@@ -321,7 +321,7 @@ export const promiseLintAllowlist = Object.freeze({
   'src/renderer/components/modals/LeaveSpaceModal.tsx': {
     why: 'handleLeave catches and toasts, then re-arms the dialog.',
     sites: [
-      'no-misused-promises LeaveSpaceModal > onClick: {handleLeave}',
+      'no-floating-promises LeaveSpaceModal > onConfirm: void handleLeave()',
     ],
   },
   'src/renderer/components/modals/MirrorFolderModal.tsx': {

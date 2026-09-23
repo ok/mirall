@@ -21,7 +21,7 @@ import { runMigrations, stageCompacted } from '../shared/storage/migrations/inde
 import { SpaceKeysVault } from '../shared/spaces/space-keys.js'
 import { ProfileBee, markOwnMembership, ensureMembershipManifestCap } from '../shared/spaces/profile.js'
 import { SpacesBee, listSpaces, getSpace, isLegacySpace } from '../shared/spaces/space.js'
-import { SpaceDrives } from '../shared/spaces/space-drives.js'
+import { announceParticipation } from '../shared/spaces/participation.js'
 import { backfillCreatedBySelf, backfillSelfCreatedCreatorKey, flagUnverifiedJoinedCreators } from '../shared/spaces/creator-pin.js'
 import {
   resumeInterruptedLeave, persistPendingLeave, clearPendingLeave, listPendingLeaves,
@@ -118,8 +118,7 @@ export async function bootDurable(bootstrap, { ipc, log, masterSecret = undefine
   await durable.start(new ServeLedger('serve-ledger', { ipc }))
   await durable.start(new OwnCatalogs('own-catalogs'))
   await durable.start(new PeerCatalogs('peer-catalogs'))
-  const drives = await durable.start(new SpaceDrives('drives'))
-  return { durable, store, auditLog, drives, durableMigrations, close: (opts) => durable.close(opts) }
+  return { durable, store, auditLog, durableMigrations, close: (opts) => durable.close(opts) }
 }
 
 /**
@@ -203,11 +202,7 @@ export async function boot(bootstrap, {
     log.info('starting...')
 
     const tier = await bootDurable(bootstrap, { ipc, log, masterSecret, onTier: (d) => { durable = d } })
-    const { store, auditLog, drives, durableMigrations } = tier
-    // A space whose drive did not open keeps every core it owns; the leftover sweep below reads
-    // the same condition itself (buildWantedKeys' unopenedDrive) and withholds accordingly, so
-    // this is a diagnostic, not a gate.
-    if (drives.load.hadFailure) log.warn('a space drive did not load this boot — its cores stay untouched until it opens')
+    const { store, auditLog, durableMigrations } = tier
     await ensureMembershipManifestCap()
     await ensureSharesCap()
     await ensureFolderMirrorsCap()
@@ -304,10 +299,9 @@ export async function boot(bootstrap, {
     await life.start(mounts)
     await life.start(new Sweeps('sweeps', { ipc, auditLog }))
 
-    // After every subsystem has started, not interleaved with their startup: the sweep opens the
-    // own catalog and each drive's blobs to build its wanted set, and doing that while the publish
-    // and owned-folder subsystems are still coming up leaves an owner that boots, answers IPC, and
-    // never serves. Running here also keeps it after the content migrations and the overlay start,
+    // After every subsystem has started, not interleaved with their startup: the sweep opens each
+    // own catalog to build its wanted set, and doing that while the publish and owned-folder
+    // subsystems are still coming up leaves an owner that boots, answers IPC, and never serves. Running here also keeps it after the content migrations and the overlay start,
     // both load-bearing: migrateCatalogsToEncrypted still needs the plaintext catalog it copies
     // from (a sweep ahead of it would classify that core as stray and delete it), and
     // getOverlayLocalDiscoveryKeys returns [] while the overlay is down, which would leave the
@@ -370,6 +364,9 @@ async function backfillMembership(activeSpaces, log) {
   for (const space of activeSpaces) {
     try { await markOwnMembership(space.spaceId) } catch (err) {
       log.warn('manifest backfill failed for space', space.spaceId, '-', err.message)
+    }
+    try { await announceParticipation(space.spaceId, space) } catch (err) {
+      log.warn('participation backfill failed for space', space.spaceId, '-', err.message)
     }
   }
   // First, so the two creator passes below read the split created-by-me field.

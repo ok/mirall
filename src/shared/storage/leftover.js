@@ -5,12 +5,10 @@
 import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
 import Hyperbee from 'hyperbee'
-import Hyperdrive from 'hyperdrive'
 import { createLogger } from '../core/logger.js'
 import { getStore, createBee, createLocalBee, LOCAL_BEE_NAMES } from '../core/store.js'
 import { purgeCoreDk } from './core-purge.js'
 import { listSpaces } from '../spaces/space.js'
-import { getDrive } from '../spaces/space-drives.js'
 import { getProfileBee, withPeerBee } from '../spaces/profile.js'
 import { readCatalogKey } from '../shares/catalog-keys.js'
 import { ownCatalog } from '../shares/own-catalog.js'
@@ -38,15 +36,9 @@ const SHARE_PREFIX = 'share/'
 const INSPECT_MS = 2000
 const INSPECT_CONCURRENCY = 12
 
-// Cores we can purge without risking live data:
-//  - profiles / catalogs: bee cores positively identified by content, re-replicable.
-//  - orphanDrives: a drive whose metadata core's discovery key is provably absent
-//    from the complete, deterministic set of every current (own + member) drive
-//    metadata key (everything in `wanted`). The blobs core is reached ONLY by
-//    dereferencing that orphan metadata's own header, so a current drive's blobs
-//    (reachable only via its current — hence kept — metadata) is never traversed.
-// A naked blobs core (no metadata) is never matched here, so it is left intact.
-const PURGEABLE = ['profiles', 'catalogs', 'orphanDrives']
+// Cores we can purge without risking live data: profile and catalog bee cores, positively
+// identified by content and re-replicable. Anything else is left intact.
+const PURGEABLE = ['profiles', 'catalogs']
 
 const hex = (buf) => b4a.toString(buf, 'hex')
 const dkOfKey = (keyHex) => hex(crypto.discoveryKey(b4a.from(keyHex, 'hex')))
@@ -65,15 +57,6 @@ async function addAndCloseBeeCore(set, bee) {
   } finally {
     try { await bee.close() } catch {}
   }
-}
-
-// Own drives are loaded and local, so reading their blobs core key is cheap and
-// reliable. Bounded only as defence; never opens a drive by key.
-async function addLocalDriveCores(set, drive) {
-  await drive.ready()
-  set.add(hex(drive.core.discoveryKey))
-  const blobs = await drive.getBlobs()
-  if (blobs) set.add(hex(blobs.core.discoveryKey))
 }
 
 // Local read only: a current member's published catalog keys come from their
@@ -102,17 +85,12 @@ function localPeerCatalogKeys(profileKeyHex, spaceId) {
 // without this arm a live peer's catalog scans as an orphan and is purged while they are still a
 // member.
 async function addMemberCores(wanted, member, spaceId) {
-  // The member's drive metadata core (deterministic discovery key). Overlay opens no peer drive,
-  // so there is no cached blobs core to add here.
-  if (member.driveKey && HEX64.test(member.driveKey)) wanted.add(dkOfKey(member.driveKey))
   if (!member.publicKey || !HEX64.test(member.publicKey)) return
   wanted.add(dkOfKey(member.publicKey))
   const memberCatalog = readCatalogKey(member).keyHex
   if (memberCatalog && HEX64.test(memberCatalog)) wanted.add(dkOfKey(memberCatalog))
   for (const ck of await localPeerCatalogKeys(member.publicKey, spaceId)) wanted.add(dkOfKey(ck))
 }
-
-const TIMED_OUT = Symbol('timed-out')
 
 // Every core current state still needs, built from local, deterministic sources only — no
 // open-by-key, no swarm reads — so it never blocks. A GAP means the set is INCOMPLETE — something
@@ -152,20 +130,6 @@ export async function buildWantedKeys({ openSystemBee = null } = {}) {
   // Deliberately NOT wrapped: a listSpaces() throw must propagate and fail the whole scan, which is
   // already the correct outcome — purgeLeftovers never runs, so nothing is deleted.
   for (const space of await listSpaces()) {
-    const drive = getDrive(space.spaceId)
-    if (drive) {
-      // withReadTimeout RESOLVES the sentinel instead of rejecting, so the `.catch` never sees a
-      // timeout — check TIMED_OUT explicitly, or a drive that merely read slowly contributes nothing
-      // and records no gap.
-      const res = await withReadTimeout(addLocalDriveCores(wanted, drive).then(() => true), INSPECT_MS, TIMED_OUT)
-        .catch((err) => { gap('own-drive:' + space.spaceId, err.message); return null })
-      if (res === TIMED_OUT) gap('own-drive:' + space.spaceId, 'read timed out after ' + INSPECT_MS + 'ms')
-    } else if (space.status !== 'pending' && !space.leaving) {
-      // A listed space whose drive is not loaded — a boot open that failed and is being retried
-      // next boot (driveLoadError). Its cores are reachable only through the drive handle, so they
-      // cannot be added here.
-      gap('unopened-drive:' + space.spaceId, 'drive not loaded this boot')
-    }
     try { await addBeeCore(wanted, await ownCatalog(space.spaceId)) } catch (err) {
       gap('own-catalog:' + space.spaceId, err.message)
     }
@@ -191,46 +155,11 @@ async function readSampleKeys(bee) {
   return sample
 }
 
-async function driveBlobs(drive) {
-  await drive.ready()
-  return await drive.getBlobs()
-}
-
-// Drive probes are opened at most once per process and reused across scans: a
-// scan followed by a cleanup re-classifies, and opening a second Hyperdrive on
-// the same cores either deadlocks or yields no blobs. Each probe runs on its own
-// store session so closing it (only at purge time) never tears down the root db.
-const probeDrives = new Map()
-
-function probeDrive(store, dkHex, key, encryptionKey = null) {
-  // Keyed by encryption too: the same core probed plaintext and under an SCK are different opens,
-  // and handing back the plaintext one would read the encrypted drive's header as noise.
-  const cacheKey = encryptionKey ? dkHex + ':enc' : dkHex
-  let drive = probeDrives.get(cacheKey)
-  if (!drive) {
-    drive = new Hyperdrive(store.session(), key, encryptionKey ? { encryptionKey } : {})
-    probeDrives.set(cacheKey, drive)
-  }
-  return drive
-}
-
-// Both cache keys: probeDrive files an SCK-encrypted probe under `<dk>:enc`, and a handle left open
-// across the RocksDB delete is what this exists to prevent.
-async function closeProbe(dkHex) {
-  for (const cacheKey of [dkHex, dkHex + ':enc']) {
-    const drive = probeDrives.get(cacheKey)
-    if (!drive) continue
-    probeDrives.delete(cacheKey)
-    try { await drive.close() } catch {}
-  }
-}
-
 // Read a core's first keys under `encryptionKey` (null = plaintext) and name the shape they are.
 // `readable` separates "opened, has blocks, made no sense" — worth retrying under a key — from
 // "empty or unopenable", which no key can help.
 async function sampleCore(store, dk, encryptionKey) {
   let metaBytes = 0
-  let key = null
   let beeKind = null
   let readable = false
 
@@ -238,7 +167,6 @@ async function sampleCore(store, dk, encryptionKey) {
   try {
     const ready = await withReadTimeout(core.ready().then(() => true), INSPECT_MS, false)
     metaBytes = core.byteLength || 0
-    key = core.key
     if (ready && core.length > 0) {
       readable = true
       const bee = new Hyperbee(core, { keyEncoding: 'utf-8', valueEncoding: 'json' })
@@ -248,48 +176,28 @@ async function sampleCore(store, dk, encryptionKey) {
   } catch { /* unreadable → other */ } finally {
     try { await core.close() } catch {}
   }
-  return { metaBytes, key, beeKind, readable }
+  return { metaBytes, beeKind, readable }
 }
 
-// Classify one non-wanted core, each step bounded so a core advertising blocks
-// no longer served (owner gone) can't hang the scan.
-//  - profile/catalog bee keys → leftover metadata.
-//  - the overlay file-index bee → 'other' (protected: never a drive, never purged).
-//  - a readable 'orphan' bee that opens as a Hyperdrive with a NON-EMPTY blobs core →
-//    orphan drive. getBlobs() derives an empty blobs core for ANY bee opened as a
-//    Hyperdrive, so the non-empty check is what separates a real content-bearing drive
-//    from a plain bee — an empty derived core would false-positive to 'drive' → purge →
-//    data loss. The Hyperdrive runs on a store *session* — Hyperdrive._close() closes
-//    the corestore it is handed, so the root db must not be passed.
-//  - everything else (raw blobs core, unreadable, a contentless bee) stays 'other'.
+// Classify one non-wanted core, each step bounded so a core advertising blocks no longer served
+// (owner gone) can't hang the scan. Profile and catalog bee keys are leftover metadata; everything
+// else — the overlay file-index bee, a raw blobs core, an unreadable or unrecognised core — stays
+// 'other' and is never purged.
 async function inspectCore(store, dk) {
   let probe = await sampleCore(store, dk, null)
-  let sck = null
 
-  // An SCK-encrypted catalog or drive reads as noise without its key. Retry under each key the
-  // vault holds — a leave keeps the entry, so the key for a space whose leftovers these are is
-  // still there. Only the two shapes that are actually SCK-encrypted are accepted, so a wrong key's
-  // garbage cannot be mistaken for a match.
+  // An SCK-encrypted catalog reads as noise without its key. Retry under each key the vault holds —
+  // a leave keeps the entry, so the key for a space whose leftovers these are is still there. Only
+  // a catalog is accepted, so a wrong key's garbage cannot be mistaken for a match.
   if (probe.readable && probe.beeKind === null) {
     for (const candidate of listContentKeys()) {
       const enc = await sampleCore(store, dk, candidate)
-      if (enc.beeKind === 'catalog' || enc.beeKind === 'orphan') { probe = enc; sck = candidate; break }
+      if (enc.beeKind === 'catalog') { probe = enc; break }
     }
   }
 
-  const { metaBytes, key, beeKind } = probe
+  const { metaBytes, beeKind } = probe
   if (beeKind === 'profile' || beeKind === 'catalog') return { kind: beeKind, bytes: metaBytes }
-  if (beeKind === 'file-index') return { kind: 'other', bytes: metaBytes }
-
-  if (beeKind === 'orphan' && key) {
-    try {
-      const drive = probeDrive(store, hex(dk), key, sck)
-      const blobs = await withReadTimeout(driveBlobs(drive), INSPECT_MS, undefined).catch(() => undefined)
-      if (blobs && blobs.core.byteLength > 0) {
-        return { kind: 'drive', blobsDkHex: hex(blobs.core.discoveryKey), bytes: metaBytes + blobs.core.byteLength }
-      }
-    } catch { /* not a drive */ }
-  }
   return { kind: 'other', bytes: metaBytes }
 }
 
@@ -313,19 +221,16 @@ export async function classifyLeftovers(opts = {}) {
 
   const profiles = []
   const catalogs = []
-  const orphanDrives = []
   for (const r of inspected) {
     if (r.kind === 'profile') profiles.push({ discoveryKeyHex: r.discoveryKeyHex, bytes: r.bytes })
     else if (r.kind === 'catalog') catalogs.push({ discoveryKeyHex: r.discoveryKeyHex, bytes: r.bytes })
-    else if (r.kind === 'drive') orphanDrives.push({ metaDkHex: r.discoveryKeyHex, blobsDkHex: r.blobsDkHex, bytes: r.bytes })
   }
   if (wanted.gaps.length) log.warn('the wanted set is incomplete —', wanted.gaps.map((g) => g.stage).join(', '))
   const sum = (a) => a.reduce((n, r) => n + r.bytes, 0)
   return {
     profiles: { count: profiles.length, bytes: sum(profiles), keys: profiles },
     catalogs: { count: catalogs.length, bytes: sum(catalogs), keys: catalogs },
-    orphanDrives: { count: orphanDrives.length, bytes: sum(orphanDrives), keys: orphanDrives },
-    totalBytes: sum(profiles) + sum(catalogs) + sum(orphanDrives),
+    totalBytes: sum(profiles) + sum(catalogs),
     totalCores,
     gaps: wanted.gaps,
     scanComplete: wanted.gaps.length === 0,
@@ -333,18 +238,7 @@ export async function classifyLeftovers(opts = {}) {
 }
 
 function purgeTargets(scan, allowed) {
-  const dks = []
-  for (const c of allowed) {
-    if (c === 'orphanDrives') {
-      for (const d of scan.orphanDrives.keys) {
-        dks.push(d.metaDkHex)
-        if (d.blobsDkHex) dks.push(d.blobsDkHex)
-      }
-    } else if (scan[c]) {
-      for (const r of scan[c].keys) dks.push(r.discoveryKeyHex)
-    }
-  }
-  return [...new Set(dks)]
+  return [...new Set(allowed.flatMap((c) => scan[c].keys.map((r) => r.discoveryKeyHex)))]
 }
 
 export async function purgeLeftovers({ categories = PURGEABLE, onProgress, compact = true, openSystemBee = null } = {}) {
@@ -371,11 +265,6 @@ export async function purgeLeftovers({ categories = PURGEABLE, onProgress, compa
     return { purged: 0, freedEstimate: 0, scanComplete: false, refused: decision.reason }
   }
 
-  // Released only once the sweep is known to be going ahead: closing them on a refused pass would
-  // drop the cache this module keeps so a scan and a later cleanup do not re-open the same drive.
-  if (allowed.includes('orphanDrives')) {
-    for (const d of scan.orphanDrives.keys) await closeProbe(d.metaDkHex)
-  }
   let purged = 0
   const purgedDks = []
   for (const dkHex of dks) {
@@ -413,8 +302,7 @@ function peerCoreKeys(member) {
 }
 
 // A departed peer's cores are only leftover if that peer appears in no other active space. No
-// compaction here: leave already compacts in purgeSpaceDrive, and these are metadata bees worth
-// a few KB, reclaimed on the next pass.
+// compaction here: these are metadata bees worth a few KB, collected by whatever compaction runs next.
 export async function forgetUnreferencedPeerCores(removedMembers) {
   const store = getStore()
   const stillReferenced = new Set()

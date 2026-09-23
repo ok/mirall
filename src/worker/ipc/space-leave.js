@@ -19,17 +19,16 @@ import { closeMemberView } from '../../shared/spaces/member-registry.js'
 import { clearOwnMembership, getLocalPublicKeyHex } from '../../shared/spaces/profile.js'
 import { getSpace } from '../../shared/spaces/space.js'
 import { forgetSpaceRecord, markSpaceLeavingDurable, persistPendingLeave, purgeSpace } from '../../shared/spaces/leave-records.js'
-import { purgeSpaceDrive } from '../../shared/spaces/space-drives.js'
 import { runLeaveTeardown } from '../../shared/spaces/membership/leave-state.js'
 import { forgetUnreferencedPeerCores } from '../../shared/storage/leftover.js'
-import { getSpaceCacheBytes } from '../../shared/storage/storage.js'
+import { purgeOwnRetiredDrive } from '../../shared/storage/retired-drive-cores.js'
 import { folderCancelSpace } from '../../shared/transfer/backends/overlay/folder-downloads.js'
 import { bumpServeEpoch, revokeServesForSpace } from '../../shared/transfer/backends/overlay/overlay-instance.js'
 import { cleanupDownloadHistory } from '../../shared/transfer/files.js'
 import { looseCancelSpace } from '../../shared/transfer/backends/overlay/loose-downloads.js'
 import { clearPendingForSpace } from '../../shared/transfer/pending-transfers.js'
 import { forgetListingMemo } from '../../shared/transfer/listing-memo.js'
-import { cleanupSpaceDrives, leaveSpaceTopic } from '../../shared/network/space-topics.js'
+import { disconnectPeersFromSpace, leaveSpaceTopic } from '../../shared/network/space-topics.js'
 import { awaitLeaveAcks, hasPendingCancel, hasPendingLeave, isSpaceLeaving, joinPendingCancelTopic, joinPendingLeaveTopic, markSpaceLeaving, registerPendingCancel, registerPendingLeave, sendLeaveFrameToConnectedPeers, sendPendingCancelToConnected, takeLeaveAckedKeys, unmarkSpaceLeaving } from '../../shared/network/leave-protocol.js'
 import { compactStore } from '../../shared/storage/compaction.js'
 import { errorMessage } from '../../shared/core/errors.js'
@@ -74,7 +73,7 @@ function rejoinPendingLeaveTopicAfterTeardown(spaceId, space, log) {
 
 // The live path's teardown steps. Unlike boot's pass they also stop the in-memory machinery —
 // watcher, mirror loop, periodic reconcile, publish lane — that would otherwise keep writing to the
-// drive the purge closes.
+// catalog the purge closes.
 /**
  * @param {string} spaceId
  * @param {{ ipc: WorkerIpc, mounts: WorkerRoot['mounts'], log: Logger, onPhase: (phase: string) => void }} deps
@@ -125,15 +124,15 @@ function liveLeaveSteps(spaceId, { ipc, mounts, log, onPhase }) {
  * @param {{ log: Logger, mounts: WorkerRoot['mounts'], discardPendingSpace: (spaceId: string) => Promise<void>, dropSpaceDownloadRoot: (spaceId: string) => void }} deps
  */
 export function registerSpaceLeave(ipc, { log, mounts, discardPendingSpace, dropSpaceDownloadRoot }) {
-  ipc.handle('space:leave', async (msg, ctx) => {
+  ipc.handle('space:leave', async (msg) => {
     // A teardown is already in flight (it can outlive the IPC response) — a re-click must be a no-op,
     // not a second run that clobbers the in-flight leave-ack tracking and re-purges half-torn state.
     // Claim the flag SYNCHRONOUSLY before any await, so two near-simultaneous leaves can't both pass
     // the guard during the getSpace round-trip below.
     if (isSpaceLeaving(msg.spaceId)) return { ok: true }
     markSpaceLeaving(msg.spaceId)
-    // A pending space was never joined — take the lightweight cancel path instead of
-    // the drive-purge teardown, which assumes a materialized drive and crashes without one.
+    // A pending space was never joined — take the lightweight cancel path instead of the teardown,
+    // which assumes a materialized space.
     const pending = await getSpace(msg.spaceId)
     // Recorded up front, while the space record still exists: the teardown deletes it, and the row
     // must carry the name snapshot or it renders as raw hex forever afterwards.
@@ -146,7 +145,7 @@ export function registerSpaceLeave(ipc, { log, mounts, discardPendingSpace, drop
       })
     }
     if (pending?.status === 'pending') {
-      unmarkSpaceLeaving(msg.spaceId)   // a pending cancel is not a drive teardown
+      unmarkSpaceLeaving(msg.spaceId)   // a pending cancel is not a teardown
       log.info('cancel pending join:', msg.spaceId)
       // Tell members who saw our request to drop it. A lost frame self-heals: register a pending
       // cancel replayed on every connection until a member acks it applied, and re-join the topic
@@ -199,52 +198,18 @@ export function registerSpaceLeave(ipc, { log, mounts, discardPendingSpace, drop
 
         space = await getSpace(msg.spaceId)
         const members = space?.members || []
-        const peerDrivenMembers = members.filter(m => !!m.driveKey)
-        const peerDriveCount = peerDrivenMembers.length
 
         await armPendingLeaveIfUnwitnessed(msg.spaceId, space, log)
 
         // Drop the catalog record up front so the leave is durable: if any purge step
         // below fails (or the worker dies mid-teardown), the space is already gone from
         // the list and won't reappear — leftover cores are reclaimable, a stuck space is
-        // not. The drive stays in the in-memory map for purgeSpaceDrive.
+        // not.
         tracker.phase = 'forgetSpaceRecord'
         try { await forgetSpaceRecord(msg.spaceId) } catch (err) {
           log.warn('leave: catalog record delete failed:', errorMessage(err))
         }
         dropSpaceDownloadRoot(msg.spaceId)
-
-        // Cache-size precompute is best-effort; cap at 2s so a stuck drive read
-        // can't block the rest of the leave teardown.
-        tracker.phase = 'cache-bytes'
-        let totalBytes = 0
-        try {
-          totalBytes = await Promise.race([
-            getSpaceCacheBytes(msg.spaceId),
-            new Promise((resolve) => setTimeout(() => resolve(0), 2000)),
-          ])
-        } catch (err) {
-          log.warn('cannot precompute space cache size:', errorMessage(err))
-        }
-        log.info('leave: cache bytes computed:', totalBytes)
-
-        // Must match the number of progress calls below: 1 disconnecting + N
-        // cleaningPeer + (N>0 ? compactingPeerCache : 0) + 4 local phases.
-        const totalSteps = 5 + peerDriveCount + (peerDriveCount > 0 ? 1 : 0)
-        let step = 0
-
-        /** @param {string} phase @param {{ peerName: string }} [data] */
-        const progress = (phase, data) => {
-          step++
-          const payload = {
-            spaceId: msg.spaceId, step, totalSteps, phase,
-            ...(data ? { data } : {}),
-            ...(step === 1 ? { totalBytes } : {}),
-          }
-          // To the caller alone, and tolerant of it having gone: the teardown answers at a 12s
-          // deadline and keeps running afterwards, so these frames outlive their own request.
-          ipc.emit('event:leave-progress', payload, { to: ctx.client })
-        }
 
         // Cancel + discard any in-flight downloads for this space before the purges, so the
         // overlay/loose engine stops fetching (no orphaned partial) and can't re-write the
@@ -259,29 +224,21 @@ export function registerSpaceLeave(ipc, { log, mounts, discardPendingSpace, drop
         bumpServeEpoch()
 
         tracker.phase = 'leaveSpaceTopic'
-        progress('disconnecting')
         await leaveSpaceTopic(msg.spaceId)
-        log.info('leave: topic left, cleaning peer drives...')
-        // Defer the disk-reclaim compaction (compact: false): purging tombstones the cores (the
-        // leave is effective immediately), but a forced full-range compaction scans the WHOLE store
-        // and is expensive on a large one — one pass per drive (peer caches here, local cache below)
-        // would serially block the leave for tens of seconds. Run a SINGLE coalesced pass in the
-        // background after the purges instead.
-        tracker.phase = 'cleanupSpaceDrives'
-        await cleanupSpaceDrives(msg.spaceId, peerDrivenMembers, (phase, data) => {
-          progress(phase, data)
-        }, { compact: false })
-        log.info('leave: peer drives cleaned, purging local...')
+        disconnectPeersFromSpace(msg.spaceId)
+        log.info('leave: topic left, purging local...')
 
         tracker.phase = 'purge-local'
         await cleanupDownloadHistory(msg.spaceId)
         await clearPendingForSpace(msg.spaceId)
         forgetListingMemo(msg.spaceId)
-        await purgeSpaceDrive(msg.spaceId, (phase) => {
-          progress(phase)
-        }, { compact: false })
         try { await purgeOwnCatalog(msg.spaceId, space) } catch (err) {
           log.warn('leave: own catalog purge failed:', errorMessage(err))
+        }
+        if (space) {
+          try { await purgeOwnRetiredDrive(space) } catch (err) {
+            log.warn('leave: retired drive purge failed:', errorMessage(err))
+          }
         }
         await purgeSpace(msg.spaceId)
         tracker.phase = 'forgetUnreferencedPeerCores'

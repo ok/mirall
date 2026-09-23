@@ -1,10 +1,10 @@
 # Integration tests
 
-Single-peer, in-process tests of the worker/shared **data layer** (`src/shared/*.js`), exercised against the real `bare-*` / Corestore / Hyperdrive / Hyperbee modules — no mocks of the storage engine, no networking.
+Single-peer, in-process tests of the worker/shared **data layer** (`src/shared/*.js`), exercised against the real `bare-*` / Corestore / Hyperbee modules — no mocks of the storage engine, no networking.
 
 - **Runner:** `npm run test:bare` → `test/bare-runner.mjs`, which runs each file in its **own** `brittle-bare` process, four at a time (`--jobs N` to change it). `bare` must be on `PATH` (`node_modules/bare-runtime/bin`). One file per process is what keeps a crash attributable: brittle's own `-j` is threads sharing one process, where one file's unhandled rejection aborts the run with no summary and no file name.
 - **Deadlines scale.** A poll deadline, settle window or per-test `{ timeout }` passes through `scaled()` from `test/helpers/bare-timing.js`, so CI's `MIRALL_TEST_TIMEOUT_SCALE` reaches it; `scripts/ci/check-test-timing.sh` fails lint on one that does not. A budget passed into the code under test is part of the assertion and stays absolute.
-- **What this layer is for:** correctness of a single peer's data operations — publish/reconcile, materialize, mount validation, drive CRUD, storage accounting, share registry, pure predicates. Fast (per file ≈ seconds) and deterministic.
+- **What this layer is for:** correctness of a single peer's data operations — publish/reconcile, materialize, mount validation, catalog CRUD, storage accounting, share registry, pure predicates. Fast (per file ≈ seconds) and deterministic.
 
 ## The single-peer constraint (integration vs. flow)
 
@@ -54,7 +54,7 @@ Anything that needs **two or more peers** — replication, transfers between pee
 ### E. Loose files & transfers
 | File | Covers |
 |------|--------|
-| `files-ops.test.js` | `addFile` streams into the drive with its content hash; `removeFile` clears + tombstones the drive entry **and leaves the user's local source file untouched**; `markDownloaded` records the landed path (reveal/status); `discardPartial` unlinks the partial + clears the pending row. |
+| `files-ops.test.js` | `addFile` refuses a source not saved on disk; `removeFile` unshares the catalog entry **and leaves the user's local source file untouched**; `markDownloaded` records the landed path (reveal/status); `discardPartial` unlinks the partial + clears the pending row. |
 | `transfers-resolve-dest.test.js` | **FIX-3** `resolveDest` collision picker — never overwrites a pre-existing file or an in-flight `.mirall.part`; `name.ext → name (1).ext → name (2).ext`; extension-less + dotted-name handling. |
 | `transfers-partials.test.js` | Pending-transfer row lifecycle (resume-stable dest, error set/clear, list/clear); `cleanupOrphanedPartials` sweeps unreferenced partials, keeps referenced + real files. |
 | `list-files.test.js` | `listFiles` (single-peer slice): own loose files show as `mine` (owner "You"); files inside an owned-folder share prefix are excluded from the loose list; distinct files are each listed. (Cross-peer hash-dedup / status-priority is a flow concern.) |
@@ -67,15 +67,16 @@ Anything that needs **two or more peers** — replication, transfers between pee
 ### G. Spaces & profile
 | File | Covers |
 |------|--------|
-| `space-join-guard.test.js` | Re-joining the same invite topic is idempotent (one space, drive reused); joining a space you created is a no-op. |
-| `space-drive-lifecycle.test.js` | `purgeSpaceDrive` removes the drive and the store stays usable; re-joining after a purge gets a **fresh, empty, writable** drive (new key) — guards the zombie-alias `STORAGE_EMPTY` crash and stale content leaking back after a leave. |
+| `space-join-guard.test.js` | Re-joining the same invite topic is idempotent (one space, still pending); joining a space you created is a no-op. |
+| `participation.test.js` | The participation id a space announces (`drive/<spaceId>`) derives from the record; a pending joiner and a space being left have none; a rejoin after a leave is a **new** participation; a create or grant whose announce fails leaves no half-joined space (the grant retries); a rejoin through an interrupted leave re-announces; the departure write retracts the id atomically and releases the profile bee on failure. |
+| `retire-space-drives.test.js` | The computed keys equal the retired per-space drive's metadata and blobs keys (pinned against real Hyperdrive); the migration purges empty own drives and co-member replicas once, compacts only after clearing blocks, defers without M, and leaves an own drive holding blocks — which the leave path then deletes. |
 | `profile-store.test.js` | `getProfile`/`setProfile` identity shape; name/avatar update; omitting avatar preserves it; identity key is stable across edits. |
 
 ### H. Storage hygiene
 | File | Covers |
 |------|--------|
-| `cleanup-orphans.test.js` | **FIX-2** `cleanupOrphanedData` does not purge a member's replicated peer drive (meta + blobs cores preserved). |
-| `storage-info.test.js` | `getStorageInfo` per-space byte breakdown is internally consistent and grows with content; `getSpaceCacheBytes` (the "X MB will be freed" figure) reports the local-drive footprint and grows with content. |
+| `cleanup-orphans.test.js` | **FIX-2** `cleanupOrphanedData` does not purge a replicated core it cannot classify (a peer drive's meta + blobs cores preserved). |
+| `storage-info.test.js` | `getStorageInfo`'s index + database parts sum to the on-disk total, and sharing a file in place does not grow it by the file bytes. |
 
 **FIX index:** FIX-2 (cleanup-orphans), FIX-3 (transfers-resolve-dest), FIX-4/FIX-5 (owned-folder-edge), FIX-6 (foreign-del-guard), FIX-MIRROR-PROMPT/FIX-MIRROR-ECHO (foreign-prompt-materialize), FIX-UNMOUNT-REFRESH (foreign-unmount), FIX-WATCHER-MISS (owned-concurrent-add).
 
@@ -85,10 +86,8 @@ Anything that needs **two or more peers** — replication, transfers between pee
 
 The single-peer, integration-testable behaviour of the data layer is covered (groups A–I above). What is *not* covered here is, by design, out of this layer's reach — listed so the boundary is explicit:
 
-- **Multi-peer convergence → `test/flow/`.** Replication, transfers between peers, cross-peer `listFiles` hash-dedup, 3–4-peer share visibility, multiple peers mirroring one folder, same-named folders from two owners, concurrent downloads, and the peer-downloaded portion of `getSpaceCacheBytes`. A test process is one peer, so none of these are reachable in this suite.
+- **Multi-peer convergence → `test/flow/`.** Replication, transfers between peers, cross-peer `listFiles` hash-dedup, 3–4-peer share visibility, multiple peers mirroring one folder, same-named folders from two owners, concurrent downloads. A test process is one peer, so none of these are reachable in this suite.
 - **Pure path / string / predicate math → `test/unit/`.** Separator round-trips, share-prefix boundaries, the download collision walk, `shouldIgnore`, `shouldHonorDeletions`, system/reserved-path rejection, and cloud-sync detection live in `src/shared/folders/path-keys.js` (share-name validation in `src/shared/shares/shares.js`). The integration tests that touch the same logic — `mount-validate`, `transfers-resolve-dest`, `ignore-matchers`, `foreign-del-guard` — exercise it against a real drive/filesystem.
-
-The **`loadDrives` startup-failure path** is covered by `space-record-durability.test.js`: `loadDrives({ openDrive })` injects a failing opener, so both branches are exercised — a transient failure keeps the space record and stamps `driveLoadError` for the next boot, while a positively identified storage inconsistency still drops it.
 
 ## Layering
 Single-peer data-layer correctness lives here; replication / transfers / membership convergence go to `test/flow/`; pure platform/string math goes to `test/unit/`. Where an operation spans layers, its single-peer core is covered here and its convergence in flow.

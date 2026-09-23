@@ -120,14 +120,14 @@ function trackPeerConnection(socket, spaceId, msg) {
   let peerEntry = connectedPeers.get(personKey)
   const isNewToSpace = !peerEntry || !peerEntry.spaces.has(spaceId)
   if (!peerEntry) {
-    peerEntry = { socket, profileKey: personKey, displayName: msg.displayName, avatar: null, spaces: new Map(), looseCatalogKeys: new Map() }
+    peerEntry = { socket, profileKey: personKey, displayName: msg.displayName, avatar: null, spaces: new Set(), looseCatalogKeys: new Map() }
     connectedPeers.set(personKey, peerEntry)
   } else {
     peerEntry.socket = socket
     peerEntry.displayName = msg.displayName
   }
-  peerEntry.spaces.set(spaceId, msg.driveKey)
-  // Carry the loose-catalog key on the live-meta tier too (like driveKey), so the member fold
+  peerEntry.spaces.add(spaceId)
+  // Carry the loose-catalog key on the live-meta tier too, so the member fold
   // prefers the fresh handshake value over a stale profile-bee record on a rejoin with a new key.
   // A v2 catalog is SCK-encrypted — its key travels in a distinct field so a reader knows to
   // apply the SCK; only one of the two is ever set per space.
@@ -176,7 +176,6 @@ async function persistHandshakeMember(spaceId, space, msg, existingMember) {
   const hint = looseCatalogHint(msg)
   const changed = await upsertMember(spaceId, {
     publicKey: msg.profileKey,
-    driveKey: msg.driveKey,
     displayName: msg.displayName,
     looseCatalogKey: hint.key,
     looseCatalogKeyEnc: hint.keyEnc,
@@ -247,7 +246,7 @@ export async function handleHandshake(socket, peerInfo, msg) {
   const ipc = getIpc()
   ipc.emit('event:member-joined', {
     spaceId,
-    member: { publicKey: personKey, driveKey: msg.driveKey, displayName: msg.displayName, avatar: cachedAvatar, online: true },
+    member: { publicKey: personKey, displayName: msg.displayName, avatar: cachedAvatar, online: true },
   })
   ipc.emit('event:files-updated', { spaceId })
 
@@ -319,7 +318,7 @@ export function handleDisconnect(socket) {
     // Peer already reconnected on a different socket — don't remove
     if (peer.socket !== socket) continue
 
-    for (const [spaceId] of peer.spaces) {
+    for (const spaceId of peer.spaces) {
       log.info('peer left:', peer.displayName, 'from space', spaceId)
       auditPeerLost(personKey, spaceId, peer.displayName)
       ipc.emit('event:member-left', { spaceId, publicKey: personKey })

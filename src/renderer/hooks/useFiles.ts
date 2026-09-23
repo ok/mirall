@@ -64,7 +64,6 @@ export function useFiles(spaceId: string) {
           size: file.size,
           hash: 'pending:' + path,
           owner: { displayName: 'You', publicKey: '' },
-          driveKey: '',
           localBytes: 0,
           isAvailable: true,
           status: 'publishing',
@@ -90,7 +89,6 @@ export function useFiles(spaceId: string) {
   const downloadFile = useCallback((file: FileEntry) => run(async () => {
     const res = await request('files:download', {
       spaceId,
-      driveKey: file.driveKey,
       path: file.path,
       inPlace: file.inPlace ?? false,
       ownerKey: file.owner.publicKey,

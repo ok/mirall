@@ -4,7 +4,6 @@ import path from 'bare-path'
 import { freshPeer } from '../helpers/store.js'
 import { getRuntimeConfig, setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
-import { getDrive } from '../../src/shared/spaces/space-drives.js'
 import { advertise, getOwnEntry, ownCatalogKeyHex, dropOwnCatalog } from '../../src/shared/shares/own-catalog.js'
 import { getProfileBee } from '../../src/shared/spaces/profile.js'
 import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
@@ -43,14 +42,12 @@ function writeSource(ctx, name, contents) {
   return abs
 }
 
-test('addFile (flag on) shares in place — loose-catalog entry, no drive write', async (t) => {
+test('addFile (flag on) shares in place — a loose-catalog entry', async (t) => {
   const ctx = await setup(t)
   const abs = writeSource(ctx, 'a.txt', 'in place')
   await addFile(ctx.spaceId, abs, 'a.txt', 8, ctx.fake.ipc)
 
   t.ok(await getOwnEntry(ctx.spaceId, LOOSE_SHARE_ID, 'a.txt'), 'loose catalog entry created')
-  const driveEntry = await getDrive(ctx.spaceId).entry('/a.txt')
-  t.absent(driveEntry, 'no drive entry written for the loose file (zero copy)')
 })
 
 test('listFiles surfaces own in-place files as inPlace + mine', async (t) => {

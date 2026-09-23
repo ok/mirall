@@ -12,7 +12,7 @@
 // and a dead socket says nothing about membership.
 //
 // Takes its collaborators through init() rather than importing swarm.js: the swarm handle and the
-// IPC channel are both reassigned across a restart, and getLocalBinding caches per-drive-key
+// IPC channel are both reassigned across a restart, and getLocalBinding caches per-space
 // signatures that only the connection layer can mint.
 import { PEER_FRAME } from '../contract/peer-frames.js'
 import b4a from 'b4a'
@@ -46,7 +46,7 @@ export function initLeaveProtocol(deps) {
 }
 
 // spaceIds whose teardown is in flight. Read all over the worker (files:list and size reads
-// short-circuit on it so they never race a drive being closed), which is why it is exported
+// short-circuit on it so they never race the catalog being purged), which is why it is exported
 // through three accessors rather than as the Set.
 const leavingSpaces = new Set()
 export function markSpaceLeaving(spaceId) { leavingSpaces.add(spaceId) }

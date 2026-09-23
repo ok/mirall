@@ -584,10 +584,8 @@ pure function, `primitives/modalKeys.ts`, unit-tested in `test/invariants/modal-
 - **No `onConfirm` means no keyboard confirm.** The destructive confirms deliberately pass none,
   declare `role="alertdialog"` with `ariaDescribedBy` pointing at their body text, and put
   `autoFocus` on Cancel: an alert dialog rests on its least destructive action. All of that is
-  **`modals/ConfirmDestructiveModal.tsx`** (Remove file, Delete folder, Delete activity log, relay
-  removal) — the role and the described body are one contract, so neither is a prop. `LeaveSpaceModal`
-  is the exception: only its confirm step is an alert, and the progress step it becomes has no
-  description to announce.
+  **`modals/ConfirmDestructiveModal.tsx`** (Remove file, Delete folder, Leave space, Delete activity
+  log, relay removal) — the role and the described body are one contract, so neither is a prop.
 - **Initial focus** is the first field with `autoFocus`, else the panel itself — never the header ✕.
   (`FocusScope`'s own `autoFocus` takes the first *tabbable* element, which is that ✕, which is why
   Enter used to cancel dialogs that wired no confirm.)
@@ -613,10 +611,6 @@ pure function, `primitives/modalKeys.ts`, unit-tested in `test/invariants/modal-
      state machine behind both — validate, scan, commit — is `hooks/useMountWizard.ts`.
 - **Destructive intent is carried only by the `danger` button** — titles and
   body text stay in normal `text-accent` / `text-on-surface-variant`.
-- The one progress modal, `LeaveSpaceModal`, animates confirm → running → done. Its bar is
-  hand-rolled (`role="progressbar"`, the `bg-progress-track` / `bg-on-info` pair, plus the
-  `leave-progress-stripe` overlay once it reaches its 50 % cap) with the step label in a
-  `role="status" aria-live="polite"` line and the close button hidden while running.
 
 ### Toasts — `components/toast/`
 Bottom-center stack: `fixed inset-x-0 bottom-6 z-[60] flex flex-col items-center gap-2`,
@@ -782,9 +776,8 @@ Three slots, one rule: **tiles state, the header acts, the strip acts for now.**
 ### Progress bar — `primitives/ProgressBar.tsx`
 `h-1.5 bg-progress-track rounded-full` track, `bg-on-info` fill, `transition-all
 motion-reduce:transition-none`, `role="progressbar"` (no `aria-live` — frequent
-updates would spam screen readers). All five bars — this primitive,
-`DownloadProgressLane`, `PeerDownloadIndicator`, `PeerDownloadRow`, and the
-`LeaveSpaceModal` bar — share that track/fill pair.
+updates would spam screen readers). Every bar — this primitive,
+`DownloadProgressLane`, `PeerDownloadIndicator` and `PeerDownloadRow` — shares that track/fill pair.
 
 The transfer-row variant — `primitives/DownloadProgressLane.tsx` — adds a meta line
 (speed · ETA, ETA alone, or downloaded-so-far) and an **indeterminate** mode used
@@ -874,8 +867,7 @@ logo. Pinned by `npm run test:layout:logohover`.
 - Global `@media (prefers-reduced-motion: reduce)` neutralizes all
   animations/transitions (`tailwind.css`).
 - Universal visible focus ring (see §7).
-- Keyframes: `avatar-issue-pulse` (2.4s), `leave-progress-stripe-shift`
-  (1.4s diagonal stripe used by leave-progress), and `progress-indeterminate-sweep`
+- Keyframes: `avatar-issue-pulse` (2.4s) and `progress-indeterminate-sweep`
   (1.4s; the warmup sweep on `DownloadProgressLane`, reduced to a static 40%-opacity
   fill under `prefers-reduced-motion`).
 - Standardized thin scrollbar (`.scrollbar-thin`), resolving against

@@ -10,7 +10,6 @@ import { getStore } from '../core/store.js'
 import { prefixRange } from '../core/bee-keys.js'
 import { createLogger } from '../core/logger.js'
 import { spacesMeta, mutateSpace, deleteSpaceRecord } from './space.js'
-import { dropDrive } from './space-drives.js'
 
 const log = createLogger('leave-records')
 
@@ -99,20 +98,18 @@ export function markSpaceLeavingDurable(spaceId) {
   return mutateSpace(spaceId, (space) => (space.leaving ? null : { ...space, leaving: true }))
 }
 
-// Delete only the catalog record, keeping the drive in the in-memory map so a
-// subsequent purgeSpaceDrive can still free its on-disk cores. Used early in leave
-// so the space disappears durably even if a later purge step fails — a partial
-// teardown then leaves reclaimable orphan cores, not a space stuck in the list.
+// Delete only the space record. Used early in leave so the space disappears durably even if a later
+// purge step fails — a partial teardown then leaves reclaimable orphan cores, not a space stuck in
+// the list.
 export async function forgetSpaceRecord(spaceId) {
   await clearAllLeftTombstones(spaceId)
   await deleteSpaceRecord(spaceId)
 }
 
-// The end of a leave: the record is gone, the drive is no longer live, and the store is flushed
-// so the deletion survives a quit that follows immediately.
+// The end of a leave: the record is gone and the store is flushed so the deletion survives a quit
+// that follows immediately.
 export async function purgeSpace(spaceId) {
   await forgetSpaceRecord(spaceId)
-  dropDrive(spaceId)
   try { await getStore().storage.db.flush() } catch (err) {
     log.warn('flush after purgeSpace failed:', err.message)
   }

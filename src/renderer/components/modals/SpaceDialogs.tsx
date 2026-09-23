@@ -65,7 +65,6 @@ export default function SpaceDialogs({
       <LeaveSpaceModal
         isOpen={dialog?.kind === 'leave'}
         spaceName={spaceName}
-        spaceId={spaceId}
         onClose={onClose}
         onLeave={onLeave}
         onComplete={onLeft}

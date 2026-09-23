@@ -21,7 +21,6 @@ test('paused-interrupted: pending row present, no active transfer, owner online'
 
   await recordPending('space-a', '/Photos/big.bin', {
     transferId: 't1',
-    driveKey: 'deadbeef'.repeat(8),
     totalBytes: 1024 * 1024,
     localPath: '/dl/big.bin.mirall.part',
     finalPath: '/dl/big.bin',
@@ -41,7 +40,6 @@ test('paused-offline when owner offline; null after the row is cleared', async (
 
   await recordPending('space-b', '/Docs/a.pdf', {
     transferId: 't2',
-    driveKey: 'beefdead'.repeat(8),
     totalBytes: 512,
     localPath: '/dl/a.pdf.mirall.part',
     finalPath: '/dl/a.pdf',
@@ -66,7 +64,6 @@ test('shareContext is persisted on the pending row so resume can re-emit downloa
   const ctx = { shareId: 'sh-42', relPath: 'nested/file.dat' }
   await recordPending('space-c', '/Owner/nested/file.dat', {
     transferId: 't3',
-    driveKey: 'aabb'.repeat(16),
     totalBytes: 1000,
     localPath: '/dl/file.dat.mirall.part',
     finalPath: '/dl/file.dat',

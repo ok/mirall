@@ -1,7 +1,6 @@
 // The owner's catalog: one replicated, SCK-encrypted Hyperbee per (owner, space) listing every
 // file this peer shares there (path, size, mtime, content hash — metadata only; bytes are served
-// by the overlay backend). Same cardinality as the per-space drive, so a share with N files is N
-// keys, not N cores. The core key is published in the share record so peers open it read-only
+// by the overlay backend). One per (owner, space), so a share with N files is N keys, not N cores. The core key is published in the share record so peers open it read-only
 // by key (peer-catalog.js). Opened here, written here, listed here, purged on leave here.
 import b4a from 'b4a'
 import { createBee, getStore, isStorageInconsistency } from '../core/store.js'

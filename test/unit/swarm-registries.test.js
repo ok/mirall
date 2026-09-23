@@ -23,7 +23,7 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 function peer(socket, spaces, loose = []) {
   return {
     socket,
-    spaces: new Map(spaces.map((s) => [s, 'drive-' + s])),
+    spaces: new Set(spaces),
     looseCatalogKeys: new Map(loose.map((s) => [s, { key: 'k', keyEnc: 'e' }])),
   }
 }
@@ -124,7 +124,7 @@ test('detachPeerFromSpace drops the space and reports when none is left', (t) =>
 })
 
 test('detachPeerFromSpace tolerates a peer with no loose catalog map', (t) => {
-  const p = { socket: { id: 's1' }, spaces: new Map([['space-a', 'drive']]) }
+  const p = { socket: { id: 's1' }, spaces: new Set(['space-a']) }
   t.ok(detachPeerFromSpace(p, 'space-a'))
 })
 

@@ -1,5 +1,5 @@
-// The loose owner side: in-place loose files served through the overlay instance instead of
-// copied into the per-space drive. A reserved share id groups loose entries in the per-(owner,space)
+// The loose owner side: in-place loose files served through the overlay instance, never copied
+// into app storage. A reserved share id groups loose entries in the per-(owner,space)
 // catalog; the bytes stay at the user's original file on disk, resolved per file via the source
 // map (not a mount root). The publish core and serve registration are shared with folder shares —
 // this module is the loose-specific glue: source map, watch, cap, naming, the `loose` publish

@@ -15,7 +15,6 @@ test('recordPending persists the resume-stable destination', async (t) => {
   await initPendingTransfers()
   await recordPending('space1', '/a.txt', {
     transferId: 't1',
-    driveKey: 'deadbeef',
     totalBytes: 100,
     localPath: '/dl/a.txt.mirall.part',
     finalPath: '/dl/a.txt',
@@ -43,7 +42,7 @@ test('recordPending persists blobId so reconcile can detect a delete+readd', asy
   await freshPeer(t)
   await initPendingTransfers()
   await recordPending('space1', '/a.txt', {
-    transferId: 't1', driveKey: 'deadbeef', totalBytes: 100,
+    transferId: 't1', totalBytes: 100,
     localPath: '/dl/a.txt.mirall.part', finalPath: '/dl/a.txt', bytesTransferred: 0,
     blobId: 'hash-of-original',
   })

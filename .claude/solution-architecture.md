@@ -86,7 +86,6 @@ Three processes. **Main** owns lifecycle, the BrowserWindow, and all access to `
 │   ├── profile bee (+ share/… records)          │
 │   ├── spaces-meta / downloads-meta             │
 │   ├── pending-transfers / mounts-meta          │
-│   └── per-space drives (identity only)         │
 │                                                │
 │   swarm.js         → Hyperswarm + Protomux     │
 │   backends/overlay → content backend           │
@@ -153,7 +152,7 @@ Bootstrap:
    1. `Store` → identity unlock → `migrateLocalBeesToEncrypted` → `SpaceKeysVault` → `ProfileBee` → `SpacesBee` → `DownloadsBee` → `PendingTransfersBee` → `MountsBee` → `IntentsBee`.
    2. `AuditLog` (bee + connectivity watch) — started before the drives, so the log is writable before anything worth recording happens. A failed start degrades to no rows; it never aborts boot.
    3. `ServeLedger`, immediately after `AuditLog`, so on the way out it closes just before the log: the `serve.completed` rows its close reaps are still being read when `AuditLog`'s close drains every in-flight `recordResolved`, while the spaces bee those reads use is still open.
-   4. `OwnCatalogs` → `PeerCatalogs` (the catalog bee caches) → `SpaceDrives` (`loadDrives`). That is the whole durable tier. The orphan sweep is **not** hung off a `loadDrives` failure — it runs unconditionally at the end of the runtime tier (step 10).
+   4. `OwnCatalogs` → `PeerCatalogs` (the catalog bee caches). That is the whole durable tier. The orphan sweep runs unconditionally at the end of the runtime tier (step 10).
 
    The **runtime** tier is closed first, in reverse of this order:
    5. First the three manifest caps (`ensureMembershipManifestCap`, `ensureSharesCap`, `ensureFolderMirrorsCap`) and the one-time content migrations (`runMigrations('content')`) — before any publish scan and before the overlay opens its index. Then `MountsRuntime` is **constructed** (side-effect-free) so `OwnedFolders` can take its settle callback; then `OverlayBackend` (the overlay instance, the serve index and both download engines, built per lifetime here so nothing in the overlay package constructs an engine at import time), `PublishService`, `OwnedFolders`, `ForeignMirrors`, `EchoGuardPurge` and `PeerWatch` start. `ForeignMirrors` installs `setOverlayCatalogChangeHook(onPeerDriveChanged)` so a peer-catalog append promptly nudges the relevant mirror loops.
@@ -217,7 +216,7 @@ sends. `createIPC(pipe, { requests })` lets a test declare the small vocabulary 
 
 ## 3. Data Model
 
-All persistent state lives in one **Corestore** at `Pear.config.storage` (the worker bootstrap's `storage`, i.e. main's `getDataDir()`). `src/shared/core/store.js` exposes `openStore()`, `getStore()`, `createBee(name)`, `createDrive(name)`. Lifetimes are owned, not shared: `Store` owns the Corestore, and each bee's module owns its bee (`ProfileBee`, `SpacesBee`, `DownloadsBee`, `PendingTransfersBee`, `MountsBee`, `SpaceDrives`, `OwnCatalogs`, `PeerCatalogs`) — closing the store would close every session anyway, but a Hyperbee or Hyperdrive whose store closed underneath still reports `closed === false`, so a handle must be closed by its owner rather than probed by whoever cached it.
+All persistent state lives in one **Corestore** at `Pear.config.storage` (the worker bootstrap's `storage`, i.e. main's `getDataDir()`). `src/shared/core/store.js` exposes `openStore()`, `getStore()`, `createBee(name)`. Lifetimes are owned, not shared: `Store` owns the Corestore, and each bee's module owns its bee (`ProfileBee`, `SpacesBee`, `DownloadsBee`, `PendingTransfersBee`, `MountsBee`, `OwnCatalogs`, `PeerCatalogs`) — closing the store would close every session anyway, but a Hyperbee whose store closed underneath still reports `closed === false`, so a handle must be closed by its owner rather than probed by whoever cached it.
 
 Every bee below uses **utf-8 keys, JSON values**.
 
@@ -236,7 +235,7 @@ Every bee below uses **utf-8 keys, JSON values**.
 | `invite/<spaceId>/<inviteId>` | `{ … }` | An invite this user minted — expiry + auto-approve policy, revocable. §5 |
 | `share/<spaceId>/<shareId>` | `{ id, type:'owned-folder', name, owner, createdAt, deletedAt? }` | A folder share this user owns. Replicates via the profile bee — that's how peers discover shares. Deletion is a **tombstone** (row kept) so peers distinguish "owner removed it" from "never replicated". Gated by `caps/folder-shares`. §7 |
 | `mirror/<spaceId>/<shareId>` | `{ state:'syncing'\|'synced'\|'paused', ts, unmirroredAt? }` | Written by the peer **mirroring** a share, so the owner and every member can see who mirrors it and how far along — a durable, replicated fact that survives the owner being offline. Removal is a soft tombstone (`unmirroredAt`) so a reader tells "stopped mirroring" from "not replicated yet". Per-key serialized read-modify-write, because mount / pause / tick / unmount all write it. Gated by `caps/folder-mirrors`. §7.3 |
-| `drive/<spaceId>` | `"ab3f…"` | This peer's per-space Hyperdrive key (§3.5) |
+| `drive/<spaceId>` | `"ab3f…"` | This peer's participation id for the space (§3.5); deleted with the departure on leave |
 | `loosecat/<spaceId>` / `loosecatEnc/<spaceId>` | `"ab3f…"` | This peer's loose-file catalog key — plaintext and SCK-encrypted variants (§3.7) |
 
 Peers read each other's avatars and manifests through `withPeerBee()`, which opens the remote profile bee by that key, pulls its head, runs the read and **closes the session** — one bounded read, one budget covering both phases, and a session-level timeout so an abandoned read cannot pin the core through a hung batch. Exactly one bee per peer is held open for the process: the holder carrying the `append` listener that drives admission re-evaluation, the share-list refresh and the audit observer. (Before this, every transient read opened a session that was never closed, so nothing was ever reclaimed and every leaked core stayed attached to every replication stream.) Reads are bounded by a 10 s budget for avatars and 1.5 s for the membership read.
@@ -262,13 +261,11 @@ Defined today: `caps/membership-manifest`, `caps/folder-shares`, `caps/folder-mi
 
 | Key | Value |
 |---|---|
-| `space/<id>` | `{ name, icon, topic, created, members, favorite?, leaving?, downloadFolder?, driveLoadError? }` |
-
-`driveLoadError: { message, at }` is stamped when the space's drive could not be opened at boot and cleared on the next successful load (§4.6).
+| `space/<id>` | `{ name, icon, topic, created, members, favorite?, leaving?, downloadFolder? }` |
 
 `id` = first 16 hex chars of the topic. `icon` = Material Symbols name. `topic` = 32-byte Hyperswarm discovery topic (hex). `members` = `[{ publicKey, driveKey, displayName, avatar? }]`.
 
-The user's own drive key is **not stored** — it derives from `store.namespace('space-drive-<spaceId>-<driveSuffix>')`. `driveSuffix` (random 8-byte hex) is generated on `createSpace`/`joinSpace` and persisted on the record. It is stable across restarts but **re-rolls on rejoin after leave**, because `purgeSpace` deletes the record: fresh suffix → fresh keypair → fresh `driveKey`, so peers see a rejoiner as a new drive identity with empty contents. That sidesteps "stale blocks resurrect on deterministic-key reuse". Records predating `driveSuffix` fall back to the unsuffixed name, so existing installs keep working.
+The user's own participation id is **not stored** — it derives from M and `driveSuffix` (§3.5). `driveSuffix` (random 8-byte hex) is generated on `createSpace`/`joinSpace` and persisted on the record; it also names the own catalog core. It is stable across restarts but **re-rolls on rejoin after leave**, because `purgeSpace` deletes the record: fresh suffix → fresh participation id and a fresh catalog core, so peers see a rejoiner as a new participation. That sidesteps "stale blocks resurrect on deterministic-key reuse". Records predating `driveSuffix` fall back to the unsuffixed name, so existing installs keep working.
 
 ### 3.3 Downloads bee (`downloads-meta`) — local only
 
@@ -297,11 +294,9 @@ Writes to one row are serialized per key (`createKeyedLock`), so the progress ti
 
 Rows clear on completion (`clearPending`), cancel, `files:discard-partial`, and space leave.
 
-### 3.5 Per-space Hyperdrive — identity only
+### 3.5 Participation id
 
-Created via `store.namespace('space-drive-<spaceId>-<driveSuffix>')` → `new Hyperdrive(...)`.
-
-**The drive carries no file bytes.** Its `driveKey` is the member's per-space identity: the handshake binding signs `noise||driveKey` (§16) and members are matched by it. `listFiles` reads the local drive solely for that key; `files:add` only checks it exists.
+Each member has one id per space and per participation: `Hypercore.key(deriveParticipationKeyPair(M, spaceId, driveSuffix).publicKey)` (`core/identity-keys.js`). It is byte-identical to the key a per-space Hyperdrive of the name `space-drive-<spaceId>[-<driveSuffix>]` had, which is what earlier releases used as this identity — so no peer sees it change. No core backs it. It travels under its old name: `driveKey` in the handshake (the binding signs `noise||driveKey`, §16) and `drive/<spaceId>` in the profile bee, both written only once the space is materialized (`spaces/participation.js`). A pending joiner has none, which is how the send path picks `membership:request` over `handshake`. The one-shot `retire-space-drives` migration deletes the retired drives earlier releases left (own and co-member replicas); a leave deletes that space's own old drive whatever it holds.
 
 **No peer drives are opened.** Peers' loose/folder metadata comes from their replicated, SCK-encrypted catalogs (§3.7), opened lazily per catalog key and cached (`peerCatalogs` in `shares/peer-catalog.js`), read **in parallel**, each under **one** interactive NETWORK budget covering head sync and drain together (a spent budget degrades the drain to a local-only read, bounded by a short guard that is reported as an incomplete read rather than as fewer files), so a listing costs about one budget however many members are unreachable. File bytes travel only through the overlay backend (§7.7), addressed by content hash. For `files:list`, a catalog whose version has not moved since its last complete read is served from `transfer/listing-memo.js` without a head sync — only while its loose append watch is armed, so the move pokes the next listing — and every `listFullReadEvery`-th consult reads it anyway.
 
@@ -456,7 +451,7 @@ The local-only bees (§3.2–3.4, §3.6) are encrypted at rest with an M-derived
 
 ### Why single-writer per member today — and Autobee next
 
-**Shipped.** Each member writes only its own logs — its catalog bee, and a per-space Hyperdrive that now holds no data and survives for its `driveKey` (§3.5; retirement tracked as #436): no conflicts, inherent ownership, trivial aggregation at list time. Peers' logs are read-only by design, so a folder share is single-owner. Loose files are already a multi-writer *union* — every member's catalog folded at list time — but with no convergence on a contested path and no cross-peer delete.
+**Shipped.** Each member writes only its own log — its catalog bee: no conflicts, inherent ownership, trivial aggregation at list time. Peers' logs are read-only by design, so a folder share is single-owner. Loose files are already a multi-writer *union* — every member's catalog folded at list time — but with no convergence on a contested path and no cross-peer delete.
 
 **Direction.** Collaborative read-write folders and third-party authority — roles, removal, cross-peer delete — need an ordered multi-writer log; `membership/fold.js` records that third-party removal is not modelled for exactly that reason. The chosen primitive is **Autobee** (`holepunchto/autobee`), not Autobase: a standalone multi-writer Hyperbee with no `autobase` dependency, keeping the same shape — per-peer cores merged by a deterministic `apply`, writers added and removed in-band. Planned, not shipped, and experimental upstream. Two constraints are known up front: its view is `hyperbee2`, not the `hyperbee` the catalogs are written against; and it pins one static `encryptionKey` at open, so rotating the space content key inside a view needs the per-version encryption provider exposed.
 
@@ -498,7 +493,7 @@ Every identity-asserting frame carries a signature binding sender → socket Noi
 
 1. Match `spaceTopic` → local `spaceId`; ignore unknown topics.
 2. **Gate before admitting.** While we ourselves are still pending in the space (no SCK yet), stop here. For a v2 space, `admitV2Member` enforces the read gate: only a peer we or a co-member approved is admitted; anyone else is recorded as a converging join request and the handshake ends.
-3. Upsert a `connectedPeers` entry keyed by `profileKey`. One peer can be connected on behalf of many spaces — `peerEntry.spaces: Map<spaceId, driveKey>`. No peer drive or catalog opens here; catalogs open lazily on first read.
+3. Upsert a `connectedPeers` entry keyed by `profileKey`. One peer can be connected on behalf of many spaces — `peerEntry.spaces: Map<spaceId, participation id>`. No catalog opens here; catalogs open lazily on first read.
 4. Emit `event:member-joined` immediately (with any cached avatar) so the UI unblocks without waiting on replication; clear any stale join-request entry.
 5. Fire the overlay reconnect hook — pending downloads from this peer auto-resume (§4.5).
 6. **Reciprocal handshake:** if the peer is new to this space, send ours back. Without this, two peers who joined a space late can stay invisible to each other.
@@ -544,7 +539,7 @@ Recovery is **level-triggered** — reconnects and catalog changes re-drive the 
 
 ### 4.6 Startup reconnection
 
-Open Corestore → load profile → load spaces → init downloads bee → init pending-transfers bee → re-open all local drives — a drive that fails to load keeps its space record, stamped `driveLoadError`, and is retried next boot; only a positively identified storage inconsistency drops the record (before this narrowing, *any* transient open failure — a lock held by a dying instance, disk pressure, a half-written core — deleted the space record outright, with a log line as the only trace) → join all topics. The orphan-core sweep is **not** conditional on a load failure; it runs every boot, after every subsystem is up (§2 boot step 10, §14). Peers rediscover via the DHT; pending transfers resume as their owners reconnect.
+Open Corestore → load profile → load spaces → init downloads bee → init pending-transfers bee → re-announce each materialized space's participation id and loose-catalog key → join all topics. The orphan-core sweep runs every boot, after every subsystem is up (§2 boot step 10, §14). Peers rediscover via the DHT; pending transfers resume as their owners reconnect.
 
 ### 4.7 Presence & liveness
 
@@ -612,7 +607,7 @@ The codec is one declaration, `shared/contract/invite-envelope.js` — plain ESM
 
 ## 6. Space Leave & Cleanup
 
-Multi-step, with progress events (`event:leave-progress`). The handler (`worker/ipc/space-leave.js`) answers the renderer within 12 s whatever the teardown is doing — the load-bearing steps come first, the slow ones finish in the background, and a stall is logged with its phase.
+The dialog is a destructive confirm whose button reads "Leaving…" until the request answers; there are no progress events. The handler (`worker/ipc/space-leave.js`) answers the renderer within 12 s whatever the teardown is doing — the load-bearing steps come first, the slow ones finish in the background, and a stall is logged with its phase.
 
 1. **Durable `leaving` marker** on the space record (`markSpaceLeavingDurable`) — the first durable act, so an interrupted teardown is completed at the next boot (below).
 2. **The shared teardown order** (`spaces/membership/leave-state.js#runLeaveTeardown`, the same sequence boot's interrupted-leave pass runs):
@@ -623,10 +618,9 @@ Multi-step, with progress events (`event:leave-progress`). The handler (`worker/
 3. **Bounded ack flush** (`awaitLeaveAcks`, 500 ms – 2 s): wait for connected members to confirm they applied the leave; then `armPendingLeaveIfUnwitnessed` persists a pending-leave marker when some member did not ack, so the leave is replayed to them later (§4.2 replay lanes).
 4. `forgetSpaceRecord(spaceId)` — the space is gone from the list from here on, whatever fails below; the download root is dropped.
 5. Cancel our own in-flight fetches (`overlayCancelSpace`, `looseCancelSpace`) and stop **serving** the space (`revokeServesForSpace` + `bumpServeEpoch`) — as the owner we hold no fetch slots, so without this the content plane would keep streaming the space's bytes.
-6. Leave the Hyperswarm topic (`disconnecting`).
-7. `cleanupSpaceDrives` — per member, close the cached drive cores and `purgeCoreDk` them out of RocksDB; progress emitted per peer. Compaction is deferred (`compact: false`).
-8. `cleanupDownloadHistory`, `clearPendingForSpace`, `purgeSpaceDrive` (local drive, `compact: false`), `purgeOwnCatalog`, `purgeSpace` (the space row), `forgetUnreferencedPeerCores`.
-9. One background `compactStore()` for everything purged above — never awaited.
+6. Leave the Hyperswarm topic and detach every connected peer from the space (`disconnectPeersFromSpace`).
+7. `cleanupDownloadHistory`, `clearPendingForSpace`, `purgeOwnCatalog`, `purgeSpace` (the space row), `forgetUnreferencedPeerCores`.
+8. One background `compactStore()` for everything purged above — never awaited.
 
 `purgeCoreDk` writes RocksDB tombstones directly for the `TL_CORE_BY_DKEY`, `TL_CORE`, `TL_DATA` ranges. **Not** `Corestore.deleteCore()` — it short-circuits when auth blocks are missing, leaving zombie aliases that crash later opens with `STORAGE_EMPTY` / `unslab`.
 
@@ -641,7 +635,7 @@ At boot, before the membership backfill, `resumeInterruptedLeave` completes any 
 - best-effort delete the space's owned/foreign **mount records** (the watcher/mirror restart loops iterate the mount stores, not the space list — a surviving record would re-arm against a forgotten space);
 - tombstone own share ads; drop the record. The boot call site also purges the space's download-history + pending-transfer rows (spaceId-keyed, no sweep reclaims them). Leftover cores/partials are reclaimable garbage for the existing sweeps.
 
-A `leaving` space is invisible everywhere it matters — `loadDrives`, the backfill/topic-join loops (`activeSpaces`), `openMemberView`, and the renderer projection (`slimSpaces` / `space:members`) all skip it. `joinSpace` clears a surviving marker when a rejoin reuses the record, so a failed completion can never delete a space the user rejoined.
+A `leaving` space is invisible everywhere it matters — the backfill/topic-join loops (`activeSpaces`), `openMemberView`, and the renderer projection (`slimSpaces` / `space:members`) all skip it. `joinSpace` clears a surviving marker when a rejoin reuses the record, so a failed completion can never delete a space the user rejoined.
 
 ### Fold-observed leave revoke (offline approver)
 
@@ -853,7 +847,7 @@ One JSON object per line. Requests carry an `id`; events don't. Default request 
 |---|---|---|
 | `shutdown` | `{}` | fire-and-forget; worker exits |
 | `profile:get` / `profile:set` | `{}` / `{ displayName, avatar? }` | `Profile \| null` / `Profile` |
-| `spaces:list` | `{}` | `Space[]` — rosters are **slim** (`{publicKey, driveKey, displayName, status?}`, no avatars/catalog keys) + `memberCount`/`pendingCount` |
+| `spaces:list` | `{}` | `Space[]` — rosters are **slim** (`{publicKey, displayName, status?}`, no avatars, participation ids or catalog keys) + `memberCount`/`pendingCount` |
 | `space:members` | `{ spaceId }` | `SpaceMember[]` — full self-first roster **incl. avatars** (the only payload carrying them) |
 | `space:create` / `space:join` | `{ name, icon? }` / `{ inviteCode, name?, icon? }` | `Space` |
 | `space:update` / `space:toggle-favorite` | `{ spaceId, … }` | `Space` — `space:update` also takes `downloadFolder?` (absent = unchanged, `null` = inherit the global root, string = validated per-space override) |
@@ -863,9 +857,9 @@ One JSON object per line. Requests carry an `id`; events don't. Default request 
 | `files:list` | `{ spaceId }` | `FileEntry[]` |
 | `files:add` | `{ spaceId, filePath, fileName, fileSize }` | `{ ok:true }` (timeout=0) |
 | `files:remove` / `files:discard-partial` / `files:reveal` | `{ spaceId, path }` | `{ ok:true }` — `reveal` spawns `open -R` / `explorer /select,` / `xdg-open` |
-| `files:download` | `{ spaceId, driveKey, path }` | `{ transferId }` |
+| `files:download` | `{ spaceId, path, ownerKey, inPlace? }` | `{ transferId }` |
 | `files:pause-download` / `files:cancel-download` | `{ transferId }` | `{ ok:true }` |
-| `storage:info` | `{}` | `{ totalDiskUsage, storagePath, spaces[], otherBytes }` |
+| `storage:info` | `{}` | `{ totalDiskUsage, storagePath, host, indexBytes, dbBytes }` |
 | `settings:set-download-folder` | `{ folder }` | `{ ok:true }` — relocate the GLOBAL download dir (per-space overrides go through `space:update`) |
 | `settings:set-bandwidth` | `{ downloadKBps, uploadKBps }` | `{ ok:true }` — content-plane transfer caps, `0` = unlimited. Applies to **in-flight** transfers: the limiters read their rate per call (§ below) |
 | `network:status:get` / `network:reconnect` | `{}` | `{ online, … }` / `{ ok:true, control, content }` — **reconnect ends the live connections and re-announces**: a peer already connected is never re-dialled, so refreshing discovery alone leaves a transport setting reaching nothing |
@@ -921,7 +915,6 @@ The worker also **receives** `event:owned-folder-fs-event { shareId, action, rel
 | `event:transfer-paused` | `{ transferId, spaceId, path, reason }` — `reason` (`'interrupted'`/`'offline'`) is toast wording only, **never a status source** |
 | `event:transfer-error` | `{ transferId, spaceId, path, errorCode, errorMessage }` |
 | `event:transfer-superseded` | `{ transferId, spaceId, path, fileName }` |
-| `event:leave-progress` | `{ spaceId, step, totalSteps, label }` |
 | `event:reconcile` | `{ scope }` — the coalesced, level-triggered "state in this scope changed, refetch it" hint (§4.7), fanned from the named `*-updated` pokes via `POKE_SCOPE` |
 | `event:decoration` | `{ channel:'transfer', spaceId, key, bytes, total, speed?, eta?, phase?, verifyFraction?, done? }` — the **one** per-file progress channel (download *and* owner-side publish/prepare, tagged `phase:'publishing'\|'preparing'\|'verifying'`). Loose rows key by drive path, folder rows by `shareId:relPath` (`decoration-key.js`); cleared only by a terminal `done` |
 | `event:awareness` | `{ channel:'serving'\|'serving-detail', spaceId, path, … }` — ephemeral "who is downloading" cross-peer soft-state, re-announced on the ledger sweep, expired by a receiver TTL. The summary carries `peers` (downloaders only), `pausedKeys` and `waitingKeys` (members waiting on a file we are still hashing — never in `peers` or the byte sums); a detail peer carries `paused` and `waiting`. Never persisted, never a status source |
@@ -1073,7 +1066,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `SpaceCard` | Icon tile + member avatars + active badge + favourite toggle |
 | `CreateSpaceModal` / `EditSpaceModal` | Name + `IconPicker`; edit also surfaces Leave |
 | `JoinSpaceModal` | Invite-code input + optional local name + icon |
-| `LeaveSpaceModal` | Undownloaded-file warning + progress bar driven by `event:leave-progress` |
+| `LeaveSpaceModal` | `ConfirmDestructiveModal` for `space:leave`; busy until the request answers |
 | `InviteModal` | Copy the invite code for an existing space |
 | `DropZone` | Drag-and-drop + file picker. Files → `addFileToSpace`; a dropped **folder** → `AddFolderShareModal`. Rejects ephemeral/promised drop sources (`temp-paths`) |
 | `FileCard` | Renders the file states of §3.5; per-state action button (Download / Cancel / Resume / Discard / Reveal / Remove) |
@@ -1207,7 +1200,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/core/verbose-policy.js` | Verbose while ANY client wants it, released when one says so or goes away — the honest semantic, since worker stdout is broadcast to every window and a per-client verbose is not achievable |
 | `src/shared/core/ipc-deadlines.js` | In-flight ages and the per-kind deadline sweep the health tick drives: a query past its bound is aborted, a command is only reported |
 | `src/shared/core/frame-reader.js` | The router's byte half: NDJSON framing over the pipe — the per-frame cap, the oversize resync and `bufferedBytes` |
-| `src/shared/core/store.js` | Corestore init, `createBee()` / `createDrive()` / `createLocalBee()` factories, the M-derived key policy, the `Store` resource that owns the store's lifetime + `openSessionNames()` |
+| `src/shared/core/store.js` | Corestore init, `createBee()` / `createLocalBee()` factories, the M-derived key policy (including `ownParticipationId`), the `Store` resource that owns the store's lifetime + `openSessionNames()` |
 | `src/shared/core/reachability.js` | The pure connectivity verdict (`classify`, `stabilise`) and its VERDICT / CAUSE / CANARY vocabulary |
 | `src/shared/core/supervisor.js` | `Supervisor` — polls every started subsystem's supervisable units and recovers the condemned ones. Started last so it closes first (§2 boot step 11) |
 | `src/shared/core/subsystem.js` | `Subsystem extends ReadyResource` (owned timers, `require()`, `stopping`) + `createLifecycle()`, the ordered start/close registry |
@@ -1284,8 +1277,8 @@ Behaviour worth knowing (styling → `design.md`):
 | File | Purpose |
 |---|---|
 | `src/shared/spaces/space.js` | The `spaces-meta` bee and the space record: reads (`getSpace` / `listSpaces`), the whole-record writes create and join mint, and the one per-space write chain every later change is serialized through (`mutateSpace` / `mutateMembers`, + the arrival audit row). Also the record predicates — the SCK resolve, the legacy-space refusal — and `SpacesBee`. `spacesMeta()` is how the two sibling modules that own the bee's other key namespaces reach it |
-| `src/shared/spaces/space-lifecycle.js` | How a space comes to exist for this peer: `createSpace`, `joinSpace`, `materializeOwnDrive` (the grant landing, which is what flips a pending space to approved) and `recordApproval` (§4.2). The only paths that write a whole record |
-| `src/shared/spaces/space-drives.js` | This peer's own writable Hyperdrive per space: the live drive map, the rejoin-safe drive name, open / announce (`markSpaceDriveKey` + the loose-catalog key) / boot load with its two drive-load fault policies / purge; `SpaceDrives` (§6) |
+| `src/shared/spaces/space-lifecycle.js` | How a space comes to exist for this peer: `createSpace`, `joinSpace`, `materializeSpace` (the grant landing: stores the key, announces the participation id, and only then flips a pending space to approved) and `recordApproval` (§4.2). The only paths that write a whole record |
+| `src/shared/spaces/participation.js` | This peer's participation in each space: `makeDriveSuffix`, `isParticipating`, `getOwnParticipationId`, and the announce (`markSpaceDriveKey` + the loose-catalog key) boot repeats (§3.5) |
 | `src/shared/spaces/leave-records.js` | The durable leave state in `spaces-meta` — the `leaving` marker, the `left/` tombstones, the `pendingleave/` markers — plus the record deletions (`forgetSpaceRecord`, `purgeSpace`) and `resumeInterruptedLeave`, the boot pass that finishes a leave a crash interrupted (§6). `membership/leave-state.js` owns the step ORDER; this owns what survives between the steps |
 | `src/shared/spaces/creator-pin.js` | The durable creator-root pin: `pinCreatorKey`, the divergence latch, and the two one-shot boot passes that bring older records to the current shape. `creator-root.js` decides whether to adopt; this persists it (§16) |
 | `src/shared/spaces/peer-profile-watch.js` | `fetchPeerAvatar` and the ONE held profile-bee session per peer — a live Hyperbee with an append listener, which is what turns a co-member's later profile edit into a local update with no poll. The session is why this is a module: it has to be closed, and closed once (§6) |
@@ -1373,7 +1366,7 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/network/peer-connection.js` | One accepted socket: Corestore replication, the `mirall/handshake` channel, the content backend's extra channels bound to the same mux before `channel.open()`, the pending leave/cancel replay, and the close / error teardown (incl. the once-per-worker storage-corruption inventory) |
 | `src/shared/network/handshake-apply.js` | What an admitted handshake means: the admission gates, the peer registry write, the presence lease, the durable member upsert and the emit order that straddles it; the reciprocal reply, the peer-online edge (`onPeerOnline`) and the disconnect teardown (§4.2) |
 | `src/shared/network/identity-frames.js` | The two identity-asserting frames we send — `handshake` and `membership:request` — the per-drive-key Noise binding they carry, the measured send path (`sendFrame`), and `broadcastProfileUpdate` (§4.2, §16) |
-| `src/shared/network/space-topics.js` | `joinSpaceTopic` / `leaveSpaceTopic`, `reconnectAll` (the throttled discovery refresh), the new-space handshake to already-connected peers (Hyperswarm reuses sockets and fires no `'connection'`), and `cleanupSpaceDrives` — the leave-side peer eviction and its progress contract (§4.4, §6) |
+| `src/shared/network/space-topics.js` | `joinSpaceTopic` / `leaveSpaceTopic`, `reconnectAll` (the throttled discovery refresh), the new-space handshake to already-connected peers (Hyperswarm reuses sockets and fires no `'connection'`), and `disconnectPeersFromSpace` — the leave-side peer eviction (§4.4, §6) |
 | `src/shared/network/presence-leases.js` | The one presence-lease store: `isOwnerOnline`, `getConnectedPeers` and the TTL. Apart from the swarm because the folder, share and transfer domains read it and must not import the connection layer to do so (§4.7) |
 | `src/shared/network/connectivity.js` | "Are we reachable": the swarm-fact ledger (DHT readiness, NAT host, announce, last connection, the browser's online hint) and the root that wires the canary probe, the link-liveness watch and the status frame |
 | `src/shared/network/canary-probe.js` | The two-stage seeder probe: DHT lookup for the upgrade key's announce records, then a dial with an ephemeral keypair; the newest probe's verdict wins; the one automatic probe after NAT settle. Imports no `bare-*` |
@@ -1481,7 +1474,7 @@ Behaviour worth knowing (styling → `design.md`):
 |---|---|
 | `src/shared/storage/storage.js` | The store-dir footprint for the Storage screen, the drive byte read, and `cleanupOrphanedData` — the boot-sweep wrapper (§2 boot step 10, §14) |
 | `src/shared/storage/compaction.js` | `compactStore()` / `settleCompaction()` — forced full-range blob-GC compaction, chained so two never overlap (an overlapping background pass can strand a blob permanently) and drained on a bounded wait at teardown, because it runs under the runtime tier's shared budget (§7.7) |
-| `src/shared/storage/core-purge.js` | `purgeCoreDk` / `clearAndPurgeCore` / `purgeAlias` — the RocksDB core-purge primitives every drive, catalog and leftover reclaim goes through. Written as direct tombstones because hypercore-storage's own `deleteCore` short-circuits without auth and strands the alias |
+| `src/shared/storage/core-purge.js` | `purgeCoreDk` / `clearAndPurgeCore` / `purgeAlias` — the RocksDB core-purge primitives every catalog, retired-drive and leftover reclaim goes through. Written as direct tombstones because hypercore-storage's own `deleteCore` short-circuits without auth and strands the alias |
 | `src/shared/storage/leftover.js` | The wanted-set builder (`buildWantedKeys`), the core sampler / classifier, the scan report, the purge, and the leave-time peer-core GC (`forgetUnreferencedPeerCores`) |
 | `src/shared/sweep/sweep-rules.js` | `decideSweep` — fail-closed allow / refuse for one sweep: any scan gap, the absolute cap, the ratio cap. Pure (§14) |
 | `src/shared/storage/sweep-journal.js` | The `purge/…` rows in `reclaim-meta` — what a sweep deleted or why it refused; read back by `diagnostics:export` |
@@ -1489,8 +1482,8 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/storage/migrations/index.js` | The one-shot install migrations as one ordered list, plus the per-stage runner (`durable` / `content`, §2) |
 | `src/shared/storage/migrations/metadata-migration.js` | One-shot plaintext → encrypted copy of every `LOCAL_BEE_NAMES` bee (§16) |
 | `src/shared/storage/space-storage.js` | The per-space `{ totalBytes, onDeviceBytes }` summary behind the space storage widget |
-| `src/shared/storage/migrations/legacy-peer-cache.js` | One-shot `clearAll` of pre-overlay peer drive caches (bee-flag marker) |
-| `src/shared/storage/legacy-orphan-drives.js` | The one-shot orphan-drive reclaim flag pair in `app-migrations` |
+| `src/shared/storage/migrations/retire-space-drives.js` | One-shot purge of every retired per-space drive — own drives that hold no blocks, and co-member replicas opened by their participation id (bee-flag marker; waits for a boot with M) |
+| `src/shared/storage/retired-drive-cores.js` | Finds a retired drive's metadata and blobs cores by key (the blobs key derived the way Hyperdrive derives it) and clears + purges them; `purgeOwnRetiredDrive` is what a leave calls |
 
 ### `src/shared/audit/`
 
@@ -1697,7 +1690,7 @@ The **wire spelling does not change with the vocabulary**: peer frames keep `pro
 
 ### Handshake identity binding
 
-Every identity-asserting frame on `mirall/handshake` (handshake, membership request/grant, leave) carries a signature binding the sender's profile key to the socket's Noise key — and, on handshakes, to its per-space drive key — verified in `network/handshake-guard.js`. Frames are therefore attributable: a connected peer cannot impersonate another member, kick a third party out of member lists, or claim a foreign drive as its own.
+Every identity-asserting frame on `mirall/handshake` (handshake, membership request/grant, leave) carries a signature binding the sender's profile key to the socket's Noise key — and, on handshakes, to its per-space participation id — verified in `network/handshake-guard.js`. Frames are therefore attributable: a connected peer cannot impersonate another member, kick a third party out of member lists, or claim another member's participation as its own.
 
 ### Membership
 
@@ -1755,7 +1748,8 @@ Locally the reasons are kept apart: only `UNAUTHENTICATED` and `NOT_A_MEMBER` ar
 - **Device key** — the identity of one install. Equal to the person key until a device roster exists.
 - **Org key** — the identity of the contract holder; representable in every principal shape and null on every install today.
 - **Profile key** — the wire and bee spelling of that one value: the hex manifest hash of an install's profile core, carried as `profileKey` on peer frames and `publicKey` in rosters.
-- **Identity binding** — the signature tying a peer's profile key to its socket's Noise key (and per-space drive key); what makes frames attributable.
+- **Identity binding** — the signature tying a peer's profile key to its socket's Noise key (and per-space participation id); what makes frames attributable.
+- **Participation id** — a member's per-space, per-participation identifier, derived from M and `driveSuffix`; carried as `driveKey` on the wire (§3.5).
 - **Membership grant** — the approval message carrying the sealed SCK and the authenticated member-set root.
 - **OR-Set** — conflict-free add/remove set used to fold member records from multiple writers.
 - **LWW** — last-writer-wins: newest timestamp takes the value (for single-value records).

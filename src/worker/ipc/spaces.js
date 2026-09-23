@@ -39,7 +39,7 @@ import { validateDownloadFolderAgainstMounts } from '../../shared/folders/mount-
 import { record } from '../../shared/audit/audit-log.js'
 import { selfActor, targetRef } from '../../shared/audit/audit-record.js'
 import { spaceRefOf } from '../audit-refs.js'
-import { fullRoster, stripCatalogKeys, slimSpaces } from '../space-projection.js'
+import { fullRoster, stripWorkerFields, slimSpaces } from '../space-projection.js'
 
 import { openMemberView } from '../../shared/spaces/member-registry.js'
 
@@ -50,7 +50,7 @@ export function registerSpaces(ipc, { log, publishDownloadRoots }) {
   ipc.handle('space:members', async (msg) => {
     const space = await getSpace(msg.spaceId)
     if (!space || space.leaving) return []
-    return fullRoster(space, await getProfile()).map(stripCatalogKeys)
+    return fullRoster(space, await getProfile()).map(stripWorkerFields)
   })
   ipc.handle('space:mirrors', async (msg) => {
     const mirrors = msg.shareId
@@ -73,8 +73,8 @@ export function registerSpaces(ipc, { log, publishDownloadRoots }) {
     return space
   })
   // Block a rejoin until a concurrent leave of the same space has fully torn down (the leaving flag
-  // clears only after the catalog record + drive are purged), so the rejoin sees no stale record and
-  // mints a fresh driveSuffix instead of resurrecting the just-purged deterministic drive key.
+  // clears only after the space record and own catalog are purged), so the rejoin sees no stale
+  // record and mints a fresh driveSuffix instead of resurrecting the just-purged deterministic keys.
   /** @param {string} spaceId @param {number} [capMs] */
   async function awaitSpaceLeaveSettled(spaceId, capMs = 15000) {
     if (!isSpaceLeaving(spaceId)) return true
@@ -99,11 +99,12 @@ export function registerSpaces(ipc, { log, publishDownloadRoots }) {
     }
     const name = (typeof msg.name === 'string' && msg.name.trim()) || envelope?.name || 'Shared Space'
     // Rejoining a space we just left: wait for the leave teardown to settle. While it runs the
-    // catalog record still holds the old driveSuffix, and joinSpace would reuse it — resurrecting
-    // the deterministic drive key and forking replication against the blocks co-members still hold
+    // space record still holds the old driveSuffix, and joinSpace would reuse it — resurrecting the
+    // deterministic catalog key and forking replication against the blocks co-members still hold
     // (the INVALID_OPERATION "Nodes is out of bounds" reconnect loop). Once leaving clears, the
-    // record is gone, so the rejoin mints a fresh suffix → a genuinely new, fork-free drive. If the
-    // teardown is still running past the cap, refuse the join rather than fork — the user retries.
+    // record is gone, so the rejoin mints a fresh suffix → a new participation and a fork-free
+    // catalog. If the teardown is still running past the cap, refuse the join rather than fork —
+    // the user retries.
     if (!(await awaitSpaceLeaveSettled(decoded.topic.slice(0, 16)))) {
       throw new AppError(CODES.LEAVE_IN_PROGRESS, 'A leave of this space is still finishing — try joining again in a moment')
     }
@@ -236,7 +237,7 @@ export function registerSpaces(ipc, { log, publishDownloadRoots }) {
 
 // Pre-seed the inviter as an offline shell member (when the envelope carries their identity) so the
 // space isn't empty until their handshake lands. Keyed by their real public key, so the handshake's
-// upsertMember merges into this entry — filling driveKey/avatar and flipping them online — rather
+// upsertMember merges into this entry — filling the avatar and flipping them online — rather
 // than adding a duplicate. Skipped if the invite predates this field or names ourselves.
 /** @param {string} spaceId @param {DecodedInviteV1 | null} envelope */
 async function seedInviter(spaceId, envelope) {

@@ -68,7 +68,7 @@ test('facepileSlice: guards non-array input and a negative total', (t) => {
 })
 
 test('peer faces resolve each key against the roster, unknown keys kept as a face with no member', (t) => {
-  const bob = { publicKey: 'k2', driveKey: 'd2', displayName: 'Bob', avatar: 'data:bob', online: true }
+  const bob = { publicKey: 'k2', displayName: 'Bob', avatar: 'data:bob', online: true }
   const faces = peerFaces(['k1', 'k2'], [bob])
   t.alike(faces, [{ key: 'k1', member: null }, { key: 'k2', member: bob }])
   t.alike(peerStackAvatar(faces[1], 'opacity-50'), { key: 'k2', src: 'data:bob', displayName: 'Bob', title: 'Bob', className: 'opacity-50' })

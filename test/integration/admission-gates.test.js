@@ -144,7 +144,7 @@ test('the joiner and this peer are never asked', async (t) => {
   t.alike(reader.calls, [other], 'only the other member')
 })
 
-const connectedIn = (...keys) => new Map(keys.map((key) => [key, { spaces: new Map([[SPACE, null]]) }]))
+const connectedIn = (...keys) => new Map(keys.map((key) => [key, { spaces: new Set([SPACE]) }]))
 
 test('offline members listed first cannot hold every slot from a connected approver', async (t) => {
   await freshPeer(t)

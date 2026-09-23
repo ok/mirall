@@ -35,12 +35,10 @@ test('sckDerivable is read only by the compatibility fallback and written only b
 })
 
 // Every peer-catalog read goes through resolvePeerCatalog, which is where the record's epoch
-// picks the key. The only other replicated core opened under an SCK is the legacy peer-drive
-// purge, which clears cores it never decrypts. A third site is a reader that breaks on the first
-// rotation.
-test('a replicated core is opened under an SCK in exactly two places', (t) => {
+// picks the key. A second site is a reader that breaks on the first rotation.
+test('a replicated core is opened under an SCK in exactly one place', (t) => {
   const offenders = filesMatching(/(getStore\(\)\.get\(\{ key:|new Hyperdrive\(getStore\(\), )[^\n]*encryptionKey/)
-  t.alike(offenders, ['src/shared/shares/peer-catalog.js', 'src/shared/storage/migrations/legacy-peer-cache.js'])
+  t.alike(offenders, ['src/shared/shares/peer-catalog.js'])
   t.ok(/getSpaceContentKeyForEpoch\(/.test(codeOf(path.join(srcDir, 'shared/shares/peer-catalog.js'))), 'and the catalog read picks the key by epoch')
 })
 
@@ -48,5 +46,5 @@ test('a replicated core is opened under an SCK in exactly two places', (t) => {
 // beside, by the one projection every roster payload runs through.
 test('the roster projection strips looseCatalogEpoch with its siblings', (t) => {
   const src = readFileSync(path.join(srcDir, 'worker/space-projection.js'), 'utf8')
-  t.ok(/stripCatalogKeys\(\{ looseCatalogKey, looseCatalogKeyEnc, looseCatalogEpoch, \.\.\.m \}\)/.test(src))
+  t.ok(/stripWorkerFields\(\{ driveKey, looseCatalogKey, looseCatalogKeyEnc, looseCatalogEpoch, \.\.\.m \}\)/.test(src))
 })

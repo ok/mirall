@@ -67,7 +67,7 @@ test('REGRESSION (FIX-3 wiring): the worker installs the crash backstop at boot'
 
 // REGRESSION (FIX: the backstop must be installed BEFORE any core-opening boot init).
 // A fire-and-forget STORAGE_EMPTY rejection from a background core open during the data-layer
-// init (initStore…loadDrives…initBackends) was escaping because the backstop was installed
+// init (initStore…initBackends) was escaping because the backstop was installed
 // only further down (just before initSwarm) — Bare's default handler then aborted the worker
 // at boot ("the app won't start"). Installing it up front catches that rejection so boot
 // continues. Was RED before the fix (call site sat after initStore); ordering is asserted so

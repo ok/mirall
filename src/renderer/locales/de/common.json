@@ -396,21 +396,9 @@
   },
   "leaveSpace": {
     "titleConfirm": "„{{name}}“ verlassen?",
-    "titleProgress": "Verlasse…",
     "body": "Du synchronisierst nicht mehr mit Mitgliedern dieses Raums. Andere Mitglieder können weiterhin untereinander Dateien teilen.",
     "leaveAction": "Verlassen",
-    "preparing": "Wird vorbereitet…",
-    "phases": {
-      "disconnecting": "Trenne Verbindung zu Peers…",
-      "cleaningPeer": "Räume Daten von {{peerName}} auf…",
-      "compactingPeerCache": "Komprimiere Peer-Cache…",
-      "compactingPeerCache_withSize": "Komprimiere Peer-Cache ({{size}})…",
-      "purgingLocalMeta": "Entferne Raum-Metadaten…",
-      "purgingLocalBlobs": "Entferne zwischengespeicherte Dateien…",
-      "compactingLocalCache": "Gebe zwischengespeicherte Daten frei…",
-      "compactingLocalCache_withSize": "Gebe {{size}} zwischengespeicherte Daten frei…",
-      "finalizing": "Schließe ab…"
-    }
+    "leaving": "Verlasse…"
   },
   "removeFile": {
     "titleConfirm": "„{{name}}“ entfernen?",

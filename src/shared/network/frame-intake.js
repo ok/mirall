@@ -155,7 +155,7 @@ function admitIdentityFrame(conn, msg) {
   return true
 }
 
-// A pending joiner has no drive/handshake yet, so remember its socket to deliver a grant later.
+// A pending joiner has no handshake yet, so remember its socket to deliver a grant later.
 // Bounded by the pendingRequesters cap; an already-tracked requester re-registering is allowed.
 function registerPendingRequester(conn, msg) {
   const { socket, remoteKey } = conn
@@ -172,7 +172,7 @@ function registerPendingRequester(conn, msg) {
 const PEER_FRAME_HANDLERS = Object.freeze({
   // Fire-and-forget: handleHandshake is async, so the synchronous try/catch around the dispatch
   // cannot catch its rejection. A failure handling one peer's handshake (e.g. a transiently
-  // unopenable peer drive) must degrade that peer, not crash the worker.
+  // unreadable record) must degrade that peer, not crash the worker.
   [PEER_FRAME.HANDSHAKE]: ({ socket, peerInfo }, msg) =>
     handleHandshake(socket, peerInfo, msg).catch((err) => log.warn('handshake handling failed:', err?.message || err)),
   [PEER_FRAME.PRESENCE]: ({ socket }, msg) => handlePresenceFrame(socket, msg),

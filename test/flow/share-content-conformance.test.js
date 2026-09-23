@@ -15,10 +15,6 @@ import { scaled } from '../helpers/timing.js'
 // browses so an un-fetched file can go 'unavailable' when the owner drops.
 function runContract(label, { flags, contentMode }) {
   const statusOf = (list, rel) => (Array.isArray(list?.entries) ? list.entries.find((e) => e.relPath === rel)?.status : undefined)
-  const totalOf = (info, spaceId) => {
-    const s = (info?.spaces || []).find((x) => x.spaceId === spaceId)
-    return s ? s.totalBytes : 0
-  }
 
   test(`[${label}] status matrix: remote → downloaded → synced → unavailable`,
     { timeout: scaled(150000) }, async (t) => {
@@ -48,10 +44,9 @@ function runContract(label, { flags, contentMode }) {
       await scanB
 
       const info = await A.request('storage:info')
-      // Overlay advertises from source: mounting + scanning the two 64 KiB files must NOT grow
-      // the per-space drive by the file bytes. A backend that imported content would grow it by
-      // >= m1+m2. (Reading the hardcoded contentBytes:0 would have made this pass vacuously.)
-      t.ok(totalOf(info, spaceId) - totalOf(before, spaceId) < m1.length, `${label}: advertise only — no file bytes imported up front`)
+      // Overlay advertises from source: mounting + scanning the two 64 KiB files must NOT grow app
+      // storage by the file bytes. A backend that imported content would grow it by >= m1+m2.
+      t.ok(info.totalDiskUsage - before.totalDiskUsage < m1.length * 2, `${label}: advertise only — no file bytes imported up front`)
 
       // remote — visible, owner online, nothing local.
       const remote = await B.until('share:list-files', { spaceId, ownerKey: aKey, shareId: shareM.id },

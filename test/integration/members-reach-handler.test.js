@@ -17,7 +17,7 @@ const CARA = 'c1'.repeat(32)
 function seed(personKey, socket, spaceId) {
   connectedPeers.set(personKey, {
     socket, profileKey: personKey, displayName: personKey.slice(0, 4), avatar: null,
-    spaces: new Map([[spaceId, null]]), looseCatalogKeys: new Map(),
+    spaces: new Set([spaceId]), looseCatalogKeys: new Map(),
   })
 }
 

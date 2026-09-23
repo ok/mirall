@@ -12,8 +12,8 @@
 // `sckDerivable` and `creatorKey` stamped at creation (creatorKey may instead be pre-seeded from
 // an invite and marked `creatorUnverified` until onGrant pins it), `inviteId` from the invite we
 // joined through, `leaving` while a leave runs, `left`/`joined`/`updated` as timestamps,
-// `favorite` and `downloadFolder` as user choices, and `creatorDivergence`, `creatorMigrated`,
-// `legacyWarning` and `driveLoadError` as diagnoses a later pass records.
+// `favorite` and `downloadFolder` as user choices, and `creatorDivergence`, `creatorMigrated` and
+// `legacyWarning` as diagnoses a later pass records.
 import { createLocalBee, storeEpoch, deriveSpaceContentKey } from '../core/store.js'
 import { getContentKeyForEpoch } from './space-keys.js'
 import { hasOwnApproval } from './profile.js'
@@ -204,7 +204,7 @@ export function upsertMember(spaceId, patch, { create = true } = {}) {
     const idx = members.findIndex((m) => m.publicKey === patch.publicKey)
     if (idx === -1) {
       if (!create) return null
-      const fresh = { publicKey: patch.publicKey, driveKey: null, displayName: UNKNOWN_DISPLAY_NAME, avatar: null }
+      const fresh = { publicKey: patch.publicKey, displayName: UNKNOWN_DISPLAY_NAME, avatar: null }
       for (const [k, v] of Object.entries(patch)) if (v != null) fresh[k] = v
       members.push(fresh)
       return members

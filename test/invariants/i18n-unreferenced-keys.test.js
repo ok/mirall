@@ -34,7 +34,7 @@ const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 const PREFIX_SHAPE = /^[a-zA-Z][\w-]*(\.[\w-]+)*\.$/
 
 // Every quoted literal, plus a pattern per dynamic key: a template whose static head is a dotted
-// prefix (`leaveSpace.phases.${phase}`, `networkSettings.${dir}CustomLabel`) and a literal ending
+// prefix (`networkSettings.${dir}CustomLabel`) and a literal ending
 // in a dot ('activityLog.kindLabel.' + kind). A template with no such head (`${a}.${b}`) says
 // nothing about which keys exist and is ignored rather than allowed to match everything.
 function references() {
@@ -78,7 +78,7 @@ test('every en locale key is referenced by the renderer, main or the contract', 
 test('the scan sees a literal, a plural base and a dotted-prefix template — and not a bare one', (t) => {
   const { literals, patterns } = references()
   t.ok(literals.has('actions.cancel'), 'a plain t() key is a literal')
-  t.ok(patterns.some((re) => re.test('leaveSpace.phases.finalizing')), 'a `prefix.${x}` template covers its family')
+  t.ok(patterns.some((re) => re.test('networkSettings.uploadCustomLabel')), 'a `prefix.${x}` template covers its family')
   t.absent(patterns.some((re) => re.test('zzz.never.defined')), 'no template matches everything')
 })
 

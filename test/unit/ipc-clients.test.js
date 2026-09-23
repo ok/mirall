@@ -76,17 +76,17 @@ test('a broadcast reaches every client', (t) => {
 
 test('a targeted event reaches one client, by object or by id', (t) => {
   const { ipc, wires, clients } = router()
-  ipc.emit('event:leave-progress', { step: 1 }, { to: clients[1] })
-  t.is(wires[0].of('event:leave-progress').length, 0)
-  t.is(wires[1].of('event:leave-progress').length, 1, 'by object')
+  ipc.emit('event:owned-folder-preview-progress', { step: 1 }, { to: clients[1] })
+  t.is(wires[0].of('event:owned-folder-preview-progress').length, 0)
+  t.is(wires[1].of('event:owned-folder-preview-progress').length, 1, 'by object')
 
-  ipc.emit('event:leave-progress', { step: 2 }, { to: clients[0].id })
-  t.is(wires[0].of('event:leave-progress').length, 1, 'by id')
+  ipc.emit('event:owned-folder-preview-progress', { step: 2 }, { to: clients[0].id })
+  t.is(wires[0].of('event:owned-folder-preview-progress').length, 1, 'by id')
 })
 
 test('a targeted event with no target is dropped, never broadcast', (t) => {
   const { ipc, wires } = router()
-  ipc.emit('event:leave-progress', { step: 1 })
+  ipc.emit('event:owned-folder-preview-progress', { step: 1 })
   t.is(wires[0].written.length, 0)
   t.is(wires[1].written.length, 0, 'one caller’s progress never lands in another’s UI')
 })
@@ -94,8 +94,8 @@ test('a targeted event with no target is dropped, never broadcast', (t) => {
 test('a targeted event to a client that has gone is a silent no-op', (t) => {
   const { ipc, clients } = router()
   ipc.detach(clients[1])
-  t.execution(() => ipc.emit('event:leave-progress', { step: 1 }, { to: clients[1] }),
-    'the teardown outlives its client, and says so to nobody')
+  t.execution(() => ipc.emit('event:owned-folder-preview-progress', { step: 1 }, { to: clients[1] }),
+    'a progress emit outlives its client, and says so to nobody')
 })
 
 test('a targeted event fans no reconcile hint', (t) => {

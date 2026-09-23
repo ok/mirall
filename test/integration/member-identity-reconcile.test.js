@@ -72,7 +72,7 @@ test('REGRESSION (missing avatar): connected member with no handshake avatar get
   await markApproval(S, B.key)
   replicate(getStore(), B.store, t)
 
-  const meta = { displayName: 'Steve', avatar: null, driveKey: 'd'.repeat(64) }
+  const meta = { displayName: 'Steve', avatar: null }
   configureMemberRegistry({
     metaFor: (_s, k) => (k === B.key ? meta : null),
     isConnected: (_s, k) => k === B.key,
@@ -85,34 +85,4 @@ test('REGRESSION (missing avatar): connected member with no handshake avatar get
   const memberOf = async () => (await getSpace(S)).members?.find((m) => m.publicKey === B.key)
   t.ok(await waitFor(async () => (await memberOf())?.avatar === 'data:image/png;base64,STEVE'), 'avatar backfilled from bee')
   t.is((await memberOf()).displayName, 'Steve', 'name still from live meta')
-})
-
-test('REGRESSION (no files): derived member gets its driveKey from the replicated bee (no handshake)', async (t) => {
-  await boot(t, 'drivekey')
-  const space = await createSpace('Approval Test')
-  const S = space.spaceId
-  await markOwnMembership(S)
-
-  // A member we derive purely from records (no live handshake/meta) that published its per-space
-  // drive key in its bee. Without hydrating driveKey from the bee, the member shows driveKey=null
-  // and its drive (and therefore its files) can never be opened by us.
-  const driveKeyHex = 'a'.repeat(64)
-  const B = await makePeer(t)
-  await B.bee.put('displayName', 'Steve')
-  await B.bee.put('member/' + S, { active: true, ts: 1 })
-  await B.bee.put('drive/' + S, driveKeyHex)
-  await markApproval(S, B.key)
-  replicate(getStore(), B.store, t)
-
-  configureMemberRegistry({
-    metaFor: () => null,                       // no live handshake → driveKey can only come from the bee
-    isConnected: () => false,
-    profileFor: (s, k) => readProfileRecord(k, s),
-    readmitConnected: () => {},
-    emitMembersUpdated: () => {},
-  })
-  await openMemberView(S)
-
-  const memberOf = async () => (await getSpace(S)).members?.find((m) => m.publicKey === B.key)
-  t.ok(await waitFor(async () => (await memberOf())?.driveKey === driveKeyHex), 'driveKey hydrated from the replicated bee')
 })

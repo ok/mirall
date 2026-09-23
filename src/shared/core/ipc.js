@@ -36,7 +36,7 @@ const MAX_FAILURE_KEYS = 256
 const requestFailures = new Map()
 
 // Frames arriving before start() are queued so no request is lost during boot — which runs the
-// migrations and the drive load and can take seconds on a large library. Uncapped, a caller
+// migrations and the data-layer open and can take seconds on a large library. Uncapped, a caller
 // retrying across that window grows this without bound. Worker-internal capacity with no
 // counterpart on the sender's side, so unlike IPC_MAX_FRAME_BYTES it is NOT contract vocabulary.
 const MAX_QUEUED_FRAMES = 1000

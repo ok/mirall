@@ -73,13 +73,7 @@ test('REGRESSION (FIX-D8/FIX-D9: a busy dialog clears its busy flag when the ope
 
 // The other half of the same trap: while the busy flag refuses Escape and the backdrop, the header
 // ✕ must not stay live — it is the one exit the busy state claims is unsafe. Every close button a
-// busy dialog renders is therefore disabled from the flag, except where the header is on the
-// dialog's non-busy branch and so is not on screen at all while the operation runs.
-const CLOSE_OFF_BUSY_BRANCH = new Map([
-  // LeaveSpaceModal renders two headers: the progress step's carries no close button, and the one
-  // below is the confirm step, which `leaving` has already replaced by the time it could matter.
-  ['components/modals/LeaveSpaceModal.tsx', 1],
-])
+// busy dialog renders is therefore disabled from the flag.
 
 function jsxElements(src, name) {
   const els = []
@@ -101,10 +95,8 @@ test('REGRESSION (FIX-D8: a busy dialog disables every close button it renders w
   for (const f of dialogs) {
     const flag = f.src.match(/isDismissable=\{!(\w+)\}/)[1]
     const closable = jsxElements(f.src, 'ModalHeader').filter((el) => el.includes('onClose'))
-    const exempt = CLOSE_OFF_BUSY_BRANCH.get(f.rel) || 0
     const guarded = closable.filter((el) => el.includes(`closeDisabled={${flag}}`)).length
-    t.is(guarded, closable.length - exempt,
-      `${f.rel}: ${closable.length - exempt} of ${closable.length} close button(s) disabled while ${flag}`)
+    t.is(guarded, closable.length, `${f.rel}: all ${closable.length} close button(s) disabled while ${flag}`)
   }
 })
 

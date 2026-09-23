@@ -1,6 +1,6 @@
 // RocksDB compaction — returning tombstoned blocks to the OS.
 //
-// core.clear() / drive.clearAll() only mark blocks deleted in the shared store; the bytes are not
+// core.clear() and a core purge only mark blocks deleted in the shared store; the bytes are not
 // reclaimed from disk until a compaction with blob GC runs. Leave-space, clear-peer-cache and the
 // reclaim sweep all depend on this to actually shrink on-disk usage.
 //

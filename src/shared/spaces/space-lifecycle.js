@@ -8,22 +8,15 @@ import crypto from 'hypercore-crypto'
 import b4a from 'b4a'
 import { hasMasterSecret, deriveSpaceContentKey } from '../core/store.js'
 import { putContentKey } from './space-keys.js'
-import { markApproval, clearRequest, markSpaceDriveKey, getLocalPublicKeyHex } from './profile.js'
+import { markApproval, clearRequest, getLocalPublicKeyHex } from './profile.js'
 import { clearJoinRequest } from './join-requests.js'
 import {
   getSpace,
   putSpaceRecord,
   mutateSpace,
   upsertMember,
-  getSpaceContentKey,
 } from './space.js'
-import {
-  getDrive,
-  openOwnDrive,
-  announceOwnDrive,
-  publishLooseCatalogKey,
-  makeDriveSuffix,
-} from './space-drives.js'
+import { announceParticipation, makeDriveSuffix, publishLooseCatalogKey, publishParticipationId } from './participation.js'
 
 export async function createSpace(name, icon = 'folder') {
   const topicHex = b4a.toString(crypto.randomBytes(32), 'hex')
@@ -33,10 +26,6 @@ export async function createSpace(name, icon = 'folder') {
   if (!hasMasterSecret()) throw new Error('createSpace: an identity is required to create a space')
   const sck = deriveSpaceContentKey(spaceId)
   await putContentKey(spaceId, sck)
-
-  const drive = await openOwnDrive(spaceId, driveSuffix, sck)
-  const driveKey = b4a.toString(drive.key, 'hex')
-  await markSpaceDriveKey(spaceId, driveKey)
 
   const space = {
     name,
@@ -54,12 +43,14 @@ export async function createSpace(name, icon = 'folder') {
     // fold. I created this space, so I am its root — stamp myself.
     creatorKey: getLocalPublicKeyHex(),
   }
+  // Before the record: a failed profile write then leaves no half-created space behind.
+  await publishParticipationId(spaceId, space)
   await putSpaceRecord(spaceId, space)
   // The catalog name derives from the SAVED record, so the loose-catalog key is published only
   // after the put — publishing earlier forks a divergent core.
   await publishLooseCatalogKey(spaceId, space)
 
-  return { spaceId, ...space, driveKey }
+  return { spaceId, ...space }
 }
 
 export async function joinSpace(topicHex, name = 'Unnamed Space', icon = 'folder', { inviteId, creator } = {}) {
@@ -78,14 +69,14 @@ export async function joinSpace(topicHex, name = 'Unnamed Space', icon = 'folder
       })
       delete existing.leaving
     }
-    return rejoinDrive(existing)
+    // The interrupted leave may already have retracted the id; re-publish it for this participation.
+    await announceParticipation(spaceId, existing)
+    return existing
   }
 
   if (!hasMasterSecret()) throw new Error('joinSpace: an identity is required to join a space')
 
-  // Stay pending and DON'T create the writable drive yet — it must be encrypted from block 0
-  // once the granted SCK arrives (hypercore can't retro-encrypt). materializeOwnDrive creates
-  // it on grant.
+  // Pending until the grant: nothing is announced before the space content key arrives.
   const space = {
     name,
     icon,
@@ -95,7 +86,7 @@ export async function joinSpace(topicHex, name = 'Unnamed Space', icon = 'folder
     driveSuffix: makeDriveSuffix(),
     schemaVersion: 2,
     epoch: 0,
-    status: 'pending',
+    status: /** @type {'pending'} */ ('pending'),
     ...(inviteId ? { inviteId } : {}),
     // The invite's creator (envelope `c`) is an UNAUTHENTICATED bearer hint —
     // pre-seed it so the waiting view isn't empty, but mark it provisional. onGrant
@@ -105,27 +96,19 @@ export async function joinSpace(topicHex, name = 'Unnamed Space', icon = 'folder
     ...(creator ? { creatorKey: creator, creatorUnverified: true } : {}),
   }
   await putSpaceRecord(spaceId, space)
-  return { spaceId, ...space, driveKey: null, pending: true }
+  return { spaceId, ...space, pending: true }
 }
 
-async function rejoinDrive(space) {
-  if (space.status !== 'pending' && !getDrive(space.spaceId)) {
-    await openOwnDrive(space.spaceId, space.driveSuffix, getSpaceContentKey(space.spaceId, space))
-  }
-  return space
-}
-
-// Create our own writable space drive, encrypted from block 0 with the granted SCK, and flip
-// the space out of the pending state at the epoch the grant named.
-export async function materializeOwnDrive(spaceId, sck, { epoch = 0 } = {}) {
+// Store the granted key at the epoch the grant named, announce, then flip the space out of the
+// pending state. The epoch lands first because the announce publishes it from the record; the flip
+// lands last so a failed announce leaves the space pending, where the next grant retries it all.
+export async function materializeSpace(spaceId, sck, { epoch = 0 } = {}) {
   await putContentKey(spaceId, sck, { epoch })
-  // The epoch lands on the record before the announce, which publishes it from the record.
   const space = await mutateSpace(spaceId, (s) => ({ ...s, epoch }))
   if (!space) return null
-  const drive = getDrive(spaceId) || await openOwnDrive(spaceId, space.driveSuffix, sck)
-  await announceOwnDrive(spaceId, space, drive)
-  await mutateSpace(spaceId, (s) => ({ ...s, status: 'approved' }))
-  return drive
+  await publishParticipationId(spaceId, space)
+  await publishLooseCatalogKey(spaceId, space)
+  return await mutateSpace(spaceId, (s) => ({ ...s, status: 'approved' }))
 }
 
 export async function recordApproval(spaceId, joinerKey) {

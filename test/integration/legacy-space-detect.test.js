@@ -29,7 +29,7 @@ test('isLegacySpace is false for a missing record', (t) => {
 })
 
 // A keyless boot stays legal — only creating or joining a space needs an identity. The store's
-// name-derived core paths (createBee / localBeeCore / createDrive) are reached no other way.
+// name-derived core paths (createBee / localBeeCore) are reached no other way.
 test('the data layer still boots with no identity, but cannot create a space', async (t) => {
   await freshDurable(t)
   t.alike(await listSpaces(), [], 'the spaces bee opened and is empty')

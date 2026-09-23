@@ -1,14 +1,10 @@
-// Storage accounting behind the Storage screen: measure the store's disk footprint (per-space
-// drives, overlay index, database remainder), plus the boot-time metadata sweep.
+// Storage accounting behind the Storage screen: measure the store's disk footprint (overlay index,
+// database remainder), plus the boot-time metadata sweep.
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { createLogger } from '../core/logger.js'
-import { listSpaces } from '../spaces/space.js'
-import { getDrive } from '../spaces/space-drives.js'
 import { getStoragePath } from '../core/store.js'
 import { purgeLeftovers } from './leftover.js'
-import { shouldReclaimOrphanDrives, markOrphanDrivesReclaimed } from './legacy-orphan-drives.js'
-import { compactStore } from './compaction.js'
 
 const log = createLogger('storage')
 
@@ -33,97 +29,33 @@ function getDirSize(dirPath) {
 
 export async function getStorageInfo() {
   const totalDiskUsage = getDirSize(getStoragePath())
-
-  const spaces = await listSpaces()
-  const perSpace = []
-  let activeSpacesTotal = 0
-
-  for (const space of spaces) {
-    const drive = getDrive(space.spaceId)
-    if (!drive) continue
-    try {
-      await drive.ready()
-      // Overlay copies no bytes into the per-space drive (it serves straight from
-      // the source file), so the only retained bytes are the drive's metadata core.
-      const metadataBytes = drive.core.byteLength
-      const totalBytes = metadataBytes
-      activeSpacesTotal += totalBytes
-      perSpace.push({
-        spaceId: space.spaceId,
-        name: space.name,
-        icon: space.icon,
-        metadataBytes,
-        contentBytes: 0,
-        totalBytes,
-      })
-    } catch (err) {
-      log.warn('cannot measure drive:', space.name, err.message)
-    }
-  }
-
   let indexBytes = 0
   try {
     const { getOverlayLocalByteLength } = await import('../transfer/backends/overlay/overlay-instance.js')
     indexBytes = await getOverlayLocalByteLength()
   } catch (err) { log.warn('overlay index size failed:', err.message) }
-  const dbBytes = Math.max(0, totalDiskUsage - activeSpacesTotal - indexBytes)
-
   return {
     totalDiskUsage,
     storagePath: getStoragePath(),
-    spaces: perSpace,
     indexBytes,
-    dbBytes,
-  }
-}
-
-async function readDriveBytes(drive) {
-  await drive.ready()
-  return drive.core.byteLength
-}
-
-export async function getSpaceCacheBytes(spaceId) {
-  const localDrive = getDrive(spaceId)
-  if (!localDrive) return 0
-  try {
-    return await readDriveBytes(localDrive)
-  } catch (err) {
-    log.warn('cannot measure local drive for space:', spaceId, err.message)
-    return 0
+    dbBytes: Math.max(0, totalDiskUsage - indexBytes),
   }
 }
 
 // Boot sweep. Prunes leftover peer metadata (profile and catalog bee cores no longer tied to any
-// active space) — never system bees, active drives, or any raw blob/drive core.
+// active space) — never system bees or any raw blob core.
 //
 // The deletes are irreversible, so the go/no-go is sweep/sweep-rules.js and it fails closed: any gap
 // in the scan refuses the WHOLE sweep, and past a floor the target set is refused above an
-// absolute cap or a fraction of the store. Every pass, allowed or refused, is journaled.
-//
-// Orphan drives ride along exactly once, on the first boot after upgrading past the copy-based
-// content path (see legacy-orphan-drives.js). That is the only category that can free gigabytes,
-// so it is also the only one worth a compaction: metadata tombstones are collected by whatever
-// compaction happens next, while blocking every boot on a full-range pass is not acceptable.
+// absolute cap or a fraction of the store. Every pass, allowed or refused, is journaled. Metadata
+// tombstones are collected by whatever compaction happens next: blocking every boot on a full-range
+// pass is not acceptable.
 export async function cleanupOrphanedData() {
-  const withDrives = await shouldReclaimOrphanDrives()
-  const categories = withDrives ? ['profiles', 'catalogs', 'orphanDrives'] : ['profiles', 'catalogs']
-  const { purged, scanComplete, refused } = await purgeLeftovers({ categories, compact: false })
-  // A refused sweep looked at nothing, so it must not consume the one-shot orphan-drive pass below
-  // — that flag is the only chance this build ever gets to reclaim pre-overlay drive blobs.
+  const { purged, refused } = await purgeLeftovers({ compact: false })
   if (refused) {
     log.warn('leftover metadata cleanup skipped this boot:', refused)
     return { purged: 0, refused }
   }
   log.info('leftover metadata cleanup done, pruned', purged, 'cores')
-  // A scan with gaps looked away on purpose — a space drive had not opened — so spending the single
-  // pass here would strand those bytes for good. Retry on a later boot.
-  if (withDrives && scanComplete) {
-    await markOrphanDrivesReclaimed(purged)
-    // Awaited, not deferred: a compaction left running behind a short-lived process races the
-    // store's close, and RocksDB does not survive that politely.
-    if (purged > 0) {
-      try { await compactStore() } catch (err) { log.warn('reclaim compaction failed:', err.message) }
-    }
-  }
   return { purged, refused: null }
 }

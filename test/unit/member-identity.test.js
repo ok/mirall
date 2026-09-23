@@ -8,13 +8,22 @@ const DK = 'd'.repeat(64)
 test('live meta wins over bee and held', (t) => {
   const { entry } = mergeMemberIdentity({
     publicKey: K,
-    meta: { displayName: 'Live', avatar: 'data:live', driveKey: DK },
+    meta: { displayName: 'Live', avatar: 'data:live', looseCatalogKey: DK },
     profile: { displayName: 'Bee', avatar: 'data:bee' },
-    held: { publicKey: K, displayName: 'Old', avatar: 'data:old', driveKey: null },
+    held: { publicKey: K, displayName: 'Old', avatar: 'data:old', looseCatalogKey: null },
   })
   t.is(entry.displayName, 'Live')
   t.is(entry.avatar, 'data:live')
-  t.is(entry.driveKey, DK)
+  t.is(entry.looseCatalogKey, DK)
+})
+
+// No reader in this release needs a member's participation id, so the fold neither merges nor
+// compares it: a rejoin's fresh id costs no record write.
+test('a participation id is not part of the merged identity', (t) => {
+  const held = { publicKey: K, displayName: 'Steve', avatar: null }
+  const { entry, changed } = mergeMemberIdentity({ publicKey: K, meta: { displayName: 'Steve', driveKey: DK }, profile: null, held })
+  t.absent('driveKey' in entry)
+  t.absent(changed)
 })
 
 test('REGRESSION (Unknown): bee fills name + avatar when no live meta', (t) => {
@@ -29,16 +38,16 @@ test('REGRESSION (Unknown): bee fills name + avatar when no live meta', (t) => {
 test('REGRESSION (missing avatar): connected peer with null meta-avatar falls through to bee', (t) => {
   const { entry } = mergeMemberIdentity({
     publicKey: K,
-    meta: { displayName: 'Steve', avatar: null, driveKey: DK },
+    meta: { displayName: 'Steve', avatar: null },
     profile: { displayName: 'Steve', avatar: 'data:steve' },
-    held: { publicKey: K, displayName: 'Steve', avatar: null, driveKey: DK },
+    held: { publicKey: K, displayName: 'Steve', avatar: null },
   })
   t.is(entry.avatar, 'data:steve')
 })
 
 test('never regresses a known name to Unknown', (t) => {
   const { entry, changed } = mergeMemberIdentity({
-    publicKey: K, meta: null, profile: null, held: { publicKey: K, displayName: 'Known', avatar: null, driveKey: null },
+    publicKey: K, meta: null, profile: null, held: { publicKey: K, displayName: 'Known', avatar: null },
   })
   t.is(entry.displayName, 'Known')
   t.absent(changed)
@@ -52,9 +61,9 @@ test('brand-new member with nothing → Unknown placeholder, changed', (t) => {
 })
 
 test('no change → changed=false (skips the write+emit)', (t) => {
-  const held = { publicKey: K, displayName: 'Steve', avatar: 'data:steve', driveKey: DK }
+  const held = { publicKey: K, displayName: 'Steve', avatar: 'data:steve' }
   const { changed } = mergeMemberIdentity({
-    publicKey: K, meta: { displayName: 'Steve', avatar: 'data:steve', driveKey: DK }, profile: null, held,
+    publicKey: K, meta: { displayName: 'Steve', avatar: 'data:steve' }, profile: null, held,
   })
   t.absent(changed)
 })
@@ -79,9 +88,9 @@ test('the placeholder it refuses is the one mergeMemberIdentity writes', (t) => 
 test('looseCatalogEpoch is carried with the same tier precedence as the key it decrypts', (t) => {
   const { entry } = mergeMemberIdentity({
     publicKey: K,
-    meta: { displayName: 'Live', driveKey: DK, looseCatalogKeyEnc: DK, looseCatalogEpoch: 2 },
+    meta: { displayName: 'Live', looseCatalogKeyEnc: DK, looseCatalogEpoch: 2 },
     profile: { looseCatalogKeyEnc: DK, looseCatalogEpoch: 1 },
-    held: { publicKey: K, displayName: 'Live', driveKey: DK, looseCatalogKeyEnc: DK, looseCatalogEpoch: 0 },
+    held: { publicKey: K, displayName: 'Live', looseCatalogKeyEnc: DK, looseCatalogEpoch: 0 },
   })
   t.is(entry.looseCatalogEpoch, 2, 'live meta wins')
   const fromBee = mergeMemberIdentity({ publicKey: K, meta: null, profile: { looseCatalogKeyEnc: DK, looseCatalogEpoch: 1 }, held: null })
@@ -92,7 +101,7 @@ test('the epoch always comes from the tier that supplied the encrypted key, neve
   const K2 = 'e'.repeat(64)
   const { entry } = mergeMemberIdentity({
     publicKey: K,
-    meta: { displayName: 'Live', driveKey: DK, looseCatalogKeyEnc: null, looseCatalogEpoch: 0 },
+    meta: { displayName: 'Live', looseCatalogKeyEnc: null, looseCatalogEpoch: 0 },
     profile: { looseCatalogKeyEnc: K2, looseCatalogEpoch: 2 },
     held: null,
   })
@@ -104,7 +113,7 @@ test('the epoch always comes from the tier that supplied the encrypted key, neve
 })
 
 test('a member entry that predates looseCatalogEpoch carries null and is not marked changed', (t) => {
-  const held = { publicKey: K, displayName: 'Steve', avatar: null, driveKey: DK, looseCatalogKeyEnc: DK }
+  const held = { publicKey: K, displayName: 'Steve', avatar: null, looseCatalogKeyEnc: DK }
   const { entry, changed } = mergeMemberIdentity({ publicKey: K, meta: null, profile: null, held })
   t.is(entry.looseCatalogEpoch, null)
   t.absent(changed, 'a fold over an older record is not a change')

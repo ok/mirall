@@ -39,7 +39,6 @@ function fileEntry(overrides: Partial<FileEntry>): FileEntry {
     size: 629.7 * 1024 ** 3,
     hash: 'hash1',
     owner: { displayName: 'Oliver', publicKey: 'ownerkey' },
-    driveKey: 'drivekey',
     localBytes: 0,
     isAvailable: true,
     status: 'remote',

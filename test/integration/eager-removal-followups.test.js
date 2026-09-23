@@ -1,14 +1,9 @@
 import test from 'brittle'
 import fs from 'bare-fs'
 import path from 'bare-path'
-import Hyperdrive from 'hyperdrive'
-import b4a from 'b4a'
-import { freshPeer, freshDurableWithIdentity } from '../helpers/store.js'
+import { freshPeer } from '../helpers/store.js'
 import { setupOwnedShare } from '../helpers/owned.js'
-import { getSpace, getSpaceContentKey, upsertMember } from '../../src/shared/spaces/space.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
-import { getStore } from '../../src/shared/core/store.js'
-import { reclaimLegacyPeerCaches } from '../../src/shared/storage/migrations/legacy-peer-cache.js'
 import { getOwnEntry } from '../../src/shared/shares/own-catalog.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { runPublishPass } from '../../src/shared/folders/owned-pass.js'
@@ -118,37 +113,4 @@ test('REGRESSION (C6): removeFile unshares a loose file even when the inPlaceFil
   setRuntimeConfig({ ...getRuntimeConfig(), inPlaceFilesEnabled: false })
   await removeFile(space.spaceId, '/note.txt')
   t.absent(await looseHasOwn(space.spaceId, '/note.txt'), 'file was unshared despite the flag being off')
-})
-
-// C7 — the retired eager path cached peer downloads in per-member driveKey blob cores. Overlay
-// never clears/surfaces them (storage:info reports contentBytes:0, reclaim UI removed), so on
-// upgrade the bytes strand on disk. A one-shot flag-guarded migration must reclaim them.
-test('REGRESSION (C7): boot migration reclaims a stranded legacy peer-drive cache (idempotently)', async (t) => {
-  await freshDurableWithIdentity(t)   // boot() runs this very migration; the test drives it itself
-  const space = await createSpace('Cached')
-  const sck = getSpaceContentKey(space.spaceId, await getSpace(space.spaceId))
-
-  // Simulate a legacy eager peer-download cache: a peer drive in our store with a cached block.
-  const peerDrive = new Hyperdrive(getStore(), null, sck ? { encryptionKey: sck } : {})
-  await peerDrive.ready()
-  await peerDrive.put('/cached.bin', b4a.alloc(4096, 7))
-  const driveKey = b4a.toString(peerDrive.key, 'hex')
-  await upsertMember(space.spaceId, { publicKey: 'ab'.repeat(32), driveKey, displayName: 'Peer' })
-  t.ok(await peerDrive.has('/cached.bin'), 'peer cache block present before migration')
-  // Release the seed sessions so the migration can open the same drive by key (in production the
-  // peer drive isn't otherwise open — the peer-drive registry was removed with the eager path).
-  await peerDrive.getBlobs()
-  try { await peerDrive.blobs?.core.close() } catch {}
-  try { await peerDrive.db?.close() } catch {}
-
-  const res = await reclaimLegacyPeerCaches()
-  t.is(res.cleared, 1, 'one legacy peer cache reclaimed')
-
-  const check = new Hyperdrive(getStore(), b4a.from(driveKey, 'hex'), sck ? { encryptionKey: sck } : {})
-  await check.ready()
-  t.absent(await check.has('/cached.bin'), 'cached block cleared by the migration')
-  try { await check.blobs?.core.close() } catch {}
-  try { await check.db?.close() } catch {}
-
-  t.alike(await reclaimLegacyPeerCaches(), { status: 'skipped', compact: false }, 'idempotent — flag-guarded, skips on re-run')
 })

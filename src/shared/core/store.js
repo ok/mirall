@@ -1,13 +1,12 @@
-// The factory for everything in the app's single Corestore: every bee, drive, and core
+// The factory for everything in the app's single Corestore: every bee and core
 // is opened here. When the master secret M is set, every writable core's keyPair and
 // every local encryption key derive from it (identity-keys.js), so the on-disk seed
 // carries no identity. Also hosts the core-name registry + inventory diagnostics used
 // to pin down which core a storage corruption belongs to.
 import Corestore from 'corestore'
 import Hyperbee from 'hyperbee'
-import Hyperdrive from 'hyperdrive'
 import b4a from 'b4a'
-import { deriveKeyPair, deriveDriveKeyPair, deriveContentKey } from './identity-keys.js'
+import { deriveKeyPair, deriveParticipationKeyPair, deriveParticipationId, deriveContentKey } from './identity-keys.js'
 import { createLogger } from './logger.js'
 import { Subsystem } from './subsystem.js'
 
@@ -19,6 +18,9 @@ let storagePath
 let masterSecret = null
 let metadataKey = null
 let overlayIndexKey = null
+// Own participation ids, memoized per (space, suffix): every handshake to every socket reads one,
+// and deriving it is a key-pair derivation plus a manifest hash. Cleared with M.
+const participationIds = new Map()
 
 // test seam — production opens the store through this file's own _open()
 function initStore(path) {
@@ -73,6 +75,7 @@ export function setMasterSecret(buf) {
   masterSecret = buf
   metadataKey = null
   overlayIndexKey = null
+  participationIds.clear()
 }
 
 export function hasMasterSecret() {
@@ -92,6 +95,22 @@ export function deriveSpaceContentKey(spaceId) {
   return masterSecret ? deriveContentKey(masterSecret, 'space-content/' + spaceId) : null
 }
 
+// This peer's participation key pair for a space is M-derived, so it needs no core and no storage.
+export function ownParticipationPublicKey(spaceId, driveSuffix) {
+  return masterSecret ? deriveParticipationKeyPair(masterSecret, spaceId, driveSuffix).publicKey : null
+}
+
+export function ownParticipationId(spaceId, driveSuffix) {
+  if (!masterSecret) return null
+  const key = spaceId + ':' + (driveSuffix || '')
+  let id = participationIds.get(key)
+  if (!id) {
+    id = b4a.toString(deriveParticipationId(masterSecret, spaceId, driveSuffix), 'hex')
+    participationIds.set(key, id)
+  }
+  return id
+}
+
 // Key that wraps space-keys.enc (the joined-SCK vault); also M-derived.
 export function getSpaceKeysVaultKey() {
   return masterSecret ? deriveContentKey(masterSecret, 'space-keys-vault') : null
@@ -101,7 +120,7 @@ export function getSpaceKeysVaultKey() {
 // (diagnoseStoreCores) can identify our own cores. corestore drops the alias from the
 // in-memory core, and a keyPair's discovery key is the hash of its derived manifest (not
 // of the public key), so we record the real discoveryKey once the core is ready. The
-// .then is attached before the caller awaits the bee/drive, so the name is registered by
+// .then is attached before the caller awaits the bee, so the name is registered by
 // the time anything reads the inventory. Best effort: never throws, never blocks open.
 const nameByDk = new Map()
 function rememberCoreName(core, name) {
@@ -166,36 +185,6 @@ function localBeeCore(name) {
 
 export function createLocalBee(name) {
   return new Hyperbee(localBeeCore(name), { keyEncoding: 'utf-8', valueEncoding: 'json' })
-}
-
-export function createDrive(name, { encryptionKey = null } = {}) {
-  if (!masterSecret) {
-    const ns = store.namespace(name)
-    return encryptionKey ? new Hyperdrive(ns, { encryptionKey }) : new Hyperdrive(ns)
-  }
-  // The _db path bypasses Hyperdrive's makeBee, which is the only place an encryptionKey
-  // reaches the metadata core. So thread the SCK to the db core's store.get AND the
-  // Hyperdrive ctor (blobs) — passing one alone leaves file paths or contents in plaintext.
-  const core = store.get({
-    keyPair: deriveDriveKeyPair(masterSecret, name),
-    exclusive: true,
-    ...(encryptionKey ? { encryptionKey } : {}),
-  })
-  rememberCoreName(core, name)
-  const db = new Hyperbee(core, {
-    keyEncoding: 'utf-8',
-    valueEncoding: 'json',
-    metadata: { contentFeed: null },
-  })
-  const drive = encryptionKey
-    ? new Hyperdrive(store, { _db: db, encryptionKey })
-    : new Hyperdrive(store, { _db: db })
-  // Hyperdrive opens the blobs core by key (no alias), so name it via the 'blobs' event
-  // — for an OWN drive that's the likeliest large-file "Expected tree node" site, and we
-  // want diagnoseStoreCores to pin it, not just the metadata core. Fires during ready()
-  // for writable drives; a harmless no-op listener if blobs never open.
-  drive.on('blobs', (blobs) => rememberCoreName(blobs.core, name + ':blobs'))
-  return drive
 }
 
 // Every session still open on the store, named where we opened it. What this returns as the store

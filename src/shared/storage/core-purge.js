@@ -1,5 +1,5 @@
 // The RocksDB core-purge primitives: delete a core's storage, or the alias that names it.
-// Every caller that reclaims on-disk bytes for a drive, a catalog or a leftover core goes
+// Every caller that reclaims on-disk bytes for a catalog or a leftover core goes
 // through here, so the tombstone-writing rules below are stated once.
 import b4a from 'b4a'
 import keysMod from 'hypercore-storage/lib/keys.js'
@@ -42,7 +42,7 @@ export async function clearAndPurgeCore(cs, core) {
 }
 
 // Removes the TL_CORE_BY_ALIAS entry that maps a (namespace, name) pair to
-// a discovery key. Required when purging a drive: corestore.get({ name })
+// a discovery key. Required when purging a named core: corestore.get({ name })
 // resolves the alias first; without this, a same-name reopen after purge
 // returns the old discovery key and throws STORAGE_EMPTY because the core
 // itself was deleted.

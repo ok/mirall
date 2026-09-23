@@ -10,12 +10,10 @@ import { scaled } from '../helpers/timing.js'
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
 
-// REGRESSION (FIX): in identity mode (MIR-02) the own drive is built over the ROOT
-// corestore (the `_db` Hyperdrive ctor path), so purgeSpaceDrive's drive.close()
-// closed the root corestore and killed every other session ("RocksDB session is
-// closed" / "Cannot make sessions on a closing core"). The leave then never reached
-// the catalog-record delete, so the space was stranded in the list forever and every
-// subsequent worker op threw SESSION_CLOSED.
+// REGRESSION (FIX): a leave that closed the root corestore killed every other session ("RocksDB
+// session is closed" / "Cannot make sessions on a closing core"). The leave then never reached the
+// record delete, so the space was stranded in the list forever and every subsequent worker op
+// threw SESSION_CLOSED.
 test('leaving an identity-mode space leaves the root store intact and removes the record', { timeout: scaled(150000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, {

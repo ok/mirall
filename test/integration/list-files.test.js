@@ -4,7 +4,7 @@ import path from 'bare-path'
 import b4a from 'b4a'
 import { freshPeer } from '../helpers/store.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
-import { getDrive } from '../../src/shared/spaces/space-drives.js'
+import { advertise } from '../../src/shared/shares/own-catalog.js'
 import { initDownloads } from '../../src/shared/transfer/files.js'
 import { addFile, listFiles } from '../../src/shared/transfer/file-listing.js'
 import { initPendingTransfers } from '../../src/shared/transfer/pending-transfers.js'
@@ -34,7 +34,7 @@ async function setup(t) {
   await initDownloads()
   await initPendingTransfers()
   const space = await createSpace('Aurora')
-  return { ...ctx, spaceId: space.spaceId, drive: getDrive(space.spaceId) }
+  return { ...ctx, spaceId: space.spaceId }
 }
 
 test('own loose files are listed as "mine" (owner You)', async (t) => {
@@ -56,15 +56,16 @@ test('files inside an owned-folder share are excluded from the loose list', asyn
   const src = path.join(ctx.tmpDir('src'), 'loose.txt')
   fs.writeFileSync(src, 'at root')
   await addFile(ctx.spaceId, src, 'loose.txt', 7, null)
-  // an owned folder share + a file living under its prefix on the drive
+  // an owned folder share + a file advertised under it in the same catalog
+  const shareId = generateShareId()
   await publishShare(ctx.spaceId, {
-    id: generateShareId(), type: 'owned-folder', name: 'MyFolder', owner: getLocalPublicKeyHex(), createdAt: Date.now(),
+    id: shareId, type: 'owned-folder', name: 'MyFolder', owner: getLocalPublicKeyHex(), createdAt: Date.now(),
   })
-  await ctx.drive.put('/MyFolder/inside.txt', b4a.from('belongs to the folder'), { metadata: { hash: 'h-inside' } })
+  await advertise(ctx.spaceId, shareId, 'inside.txt', { size: 21, mtime: 0, contentHash: 'h-inside' })
 
   const paths = (await listFiles(ctx.spaceId, [])).map((f) => f.path)
   t.ok(paths.includes('/loose.txt'), 'the loose file is listed')
-  t.absent(paths.includes('/MyFolder/inside.txt'), 'a file inside an owned share is NOT a loose file')
+  t.absent(paths.some((p) => p.endsWith('/inside.txt')), 'a file inside an owned share is NOT a loose file')
 })
 
 // REGRESSION (FIX-1: an entry that has not finished hashing carries an empty contentHash, and the
@@ -130,7 +131,7 @@ async function ghostCatalogMember(i) {
   const core = getStore().get(b4a.from(key, 'hex'))
   await core.ready()
   await core.clear(0, len)
-  return { publicKey: 'ghost' + i + 'pub', driveKey: null, displayName: 'G' + i, looseCatalogKey: key }
+  return { publicKey: 'ghost' + i + 'pub', displayName: 'G' + i, looseCatalogKey: key }
 }
 
 // REGRESSION (FIX-127: files:list froze ~8s per un-replicated member) — the members are read

@@ -63,7 +63,6 @@ const files: FileEntry[] = ['Bios-Ren7000.zip', 'Rack-Layout.pdf'].map((name, i)
   size: 8_200_000 + i,
   hash: String(i).repeat(64),
   owner: { displayName: 'You', publicKey: SELF_PK },
-  driveKey: 'e'.repeat(64),
   localBytes: 8_200_000 + i,
   isAvailable: true,
   status: 'mine',

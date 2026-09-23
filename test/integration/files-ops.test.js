@@ -3,7 +3,7 @@ import fs from 'bare-fs'
 import path from 'bare-path'
 import { freshPeer } from '../helpers/store.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
-import { getDrive } from '../../src/shared/spaces/space-drives.js'
+import { looseHasOwn } from '../../src/shared/transfer/backends/overlay/loose-publish.js'
 import { initDownloads, markDownloaded, getDownloadedPath, getOwnedSourcePath, isDownloadedFile, markVerified, getVerifiedHash, isVerifiedUnchanged, cleanupDownloadHistory, listDownloadClaimsForShare, listVerifiedForShare, listVerifiedRecordsForShare, pruneDownloadClaims, verdictForClaim, createDirProbe } from '../../src/shared/transfer/files.js'
 import { addFile, removeFile } from '../../src/shared/transfer/file-listing.js'
 import { resolveRevealTarget } from '../../src/shared/transfer/reveal.js'
@@ -22,7 +22,7 @@ async function setup(t) {
   await initDownloads()
   await initPendingTransfers()
   const space = await createSpace('Aurora')
-  return { ...ctx, spaceId: space.spaceId, drive: getDrive(space.spaceId) }
+  return { ...ctx, spaceId: space.spaceId }
 }
 
 // Dragging an unsaved screenshot / Photo Booth capture into the drop zone gives
@@ -30,7 +30,7 @@ async function setup(t) {
 // used to stream it anyway, publishing a file whose source promptly disappeared
 // (so "Open in folder" later just opened an empty Downloads). Reject it up front.
 test('REGRESSION (FIX-DROP-2): addFile rejects an ephemeral macOS promised-file source', async (t) => {
-  const { spaceId, drive, tmpDir } = await setup(t)
+  const { spaceId, tmpDir } = await setup(t)
   const dir = path.join(tmpDir('drop'), 'TemporaryItems')
   fs.mkdirSync(dir, { recursive: true })
   const ephemeral = path.join(dir, 'Screenshot.png')
@@ -41,11 +41,11 @@ test('REGRESSION (FIX-DROP-2): addFile rejects an ephemeral macOS promised-file 
     /not saved on disk/,
     'rejects a source under TemporaryItems even though it momentarily exists',
   )
-  t.absent(await drive.entry('/Screenshot.png'), 'nothing was published to the drive')
+  t.absent(await looseHasOwn(spaceId, '/Screenshot.png'), 'nothing was published')
 })
 
 test('REGRESSION (FIX-DROP-2): addFile rejects a source that is not on disk', async (t) => {
-  const { spaceId, drive, tmpDir } = await setup(t)
+  const { spaceId, tmpDir } = await setup(t)
   const missing = path.join(tmpDir('src'), 'never-existed.txt')
 
   await t.exception(
@@ -53,32 +53,33 @@ test('REGRESSION (FIX-DROP-2): addFile rejects a source that is not on disk', as
     /not saved on disk/,
     'rejects a path with no file behind it',
   )
-  t.absent(await drive.entry('/never-existed.txt'), 'nothing was published to the drive')
+  t.absent(await looseHasOwn(spaceId, '/never-existed.txt'), 'nothing was published')
 })
 
-test('removeFile clears + tombstones the drive entry', async (t) => {
-  const { spaceId, drive, tmpDir } = await setup(t)
+test('removeFile unshares the entry', async (t) => {
+  const { spaceId, tmpDir } = await setup(t)
   const src = path.join(tmpDir('src'), 'gone.txt')
   fs.writeFileSync(src, 'bye')
   await addFile(spaceId, src, 'gone.txt', 3, null)
+  t.ok(await looseHasOwn(spaceId, '/gone.txt'), 'precondition: shared')
 
   await removeFile(spaceId, '/gone.txt')
 
-  t.absent(await drive.entry('/gone.txt'), 'entry removed')
+  t.absent(await looseHasOwn(spaceId, '/gone.txt'), 'entry removed')
 })
 
-// Unsharing must only remove the file from the space (the drive entry + download
+// Unsharing must only remove the file from the space (the catalog entry + download
 // record). It must NEVER touch the user's local source file on disk — that would
 // be silent destruction of the user's original.
 test('removeFile leaves the user’s local source file untouched', async (t) => {
-  const { spaceId, drive, tmpDir } = await setup(t)
+  const { spaceId, tmpDir } = await setup(t)
   const src = path.join(tmpDir('src'), 'keep-local.txt')
   fs.writeFileSync(src, 'my original')
   await addFile(spaceId, src, 'keep-local.txt', 11, null)
 
   await removeFile(spaceId, '/keep-local.txt')
 
-  t.absent(await drive.entry('/keep-local.txt'), 'precondition: drive entry removed')
+  t.absent(await looseHasOwn(spaceId, '/keep-local.txt'), 'precondition: entry removed')
   t.ok(fs.existsSync(src), 'the user’s local source file still exists')
   t.is(fs.readFileSync(src, 'utf8'), 'my original', 'and its content is intact')
 })

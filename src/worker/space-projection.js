@@ -13,21 +13,20 @@ export function fullRoster(space, profile) {
   if (!profile) return others
   const self = {
     publicKey: profile.personKey,
-    driveKey: null,
     displayName: profile.displayName,
     avatar: profile.avatar,
   }
   return [self, ...others]
 }
 
-// The catalog-key fields are worker-internal (handshake fallbacks) — no roster payload
-// ships them to the renderer.
-export function stripCatalogKeys({ looseCatalogKey, looseCatalogKeyEnc, looseCatalogEpoch, ...m }) {
+// The catalog-key fields are worker-internal (handshake fallbacks), and a member record written by an
+// earlier release may still carry its participation id — no roster payload ships either.
+export function stripWorkerFields({ driveKey, looseCatalogKey, looseCatalogKeyEnc, looseCatalogEpoch, ...m }) {
   return m
 }
 
 function slimMember(m) {
-  const { avatar, ...slim } = stripCatalogKeys(m)
+  const { avatar, ...slim } = stripWorkerFields(m)
   return slim
 }
 
@@ -36,7 +35,7 @@ function slimMember(m) {
 // unprojected emit path would leak raw rosters and desync the renderer's Space type.
 export async function slimSpaces(profile) {
   // A space mid-leave (or one whose interrupted-leave completion failed at boot) must not
-  // surface as a normal space: it has no drive, no swarm, and is about to be forgotten.
+  // surface as a normal space: it has no swarm and is about to be forgotten.
   const allSpaces = (await listSpaces()).filter((s) => !s.leaving)
   return allSpaces.map(s => {
     const memberKeys = new Set((s.members || []).map(m => m.publicKey))

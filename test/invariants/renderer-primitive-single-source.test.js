@@ -69,9 +69,6 @@ const RULES = [
     exempt: [
       // Declares the role as a Modal prop — it is the element the primitive configures.
       'components/primitives/Modal.tsx',
-      // Only its confirm step is an alert; once the leave is running the dialog is a progress
-      // report with no description to announce, so the role changes under it.
-      'components/modals/LeaveSpaceModal.tsx',
     ],
   },
 ]

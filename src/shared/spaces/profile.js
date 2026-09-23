@@ -142,10 +142,19 @@ export async function markOwnMembership(spaceId, { refresh = false } = {}) {
 // Record the departure as a value rather than deleting the key: the record's own seq is the log
 // position of the departure, which is what lets a reader tell a vouch authored while a member from
 // one authored after leaving. A delete erases that position. Readers fold a present-but-inactive
-// record and an absent one to the same `active: false`, so this stays compatible both ways.
+// record and an absent one to the same `active: false`, so this stays compatible both ways. The
+// participation id goes with it, in the same batch, so no co-member hydrates it for an ex-member.
 export async function clearOwnMembership(spaceId) {
   await ensureMembershipManifestCap()
-  await profileBee.put('member/' + spaceId, { active: false, ts: Date.now() })
+  const batch = profileBee.batch()
+  try {
+    await batch.put('member/' + spaceId, { active: false, ts: Date.now() })
+    await batch.del('drive/' + spaceId)
+    await batch.flush()
+  } catch (err) {
+    try { await batch.close() } catch {}
+    throw err
+  }
 }
 
 // Authored approval record in our own profile bee: the approver vouches that
@@ -460,13 +469,9 @@ export async function captureJoinerMembership(joinerKeyHex, spaceId, { timeoutMs
   return false
 }
 
-// Publish OUR space drive's key into our own (replicated) profile bee, keyed by space. The live
-// handshake announces the driveKey too, but a member derived purely from replicated records (no
-// direct handshake, e.g. a peer approved by a co-member) never sees that announcement — without
-// this record it has no driveKey and can't open our drive, so our files stay invisible to it.
-// Publishing it here lets the fold hydrate driveKey from records like it does displayName/avatar.
-// Safe: the drive is encrypted with the space content key (SCK), and only members (who hold the
-// SCK) meaningfully replicate this bee.
+// Publish OUR participation id for a space into our own (replicated) profile bee, under the
+// `drive/<spaceId>` name. Nothing in this release reads a peer's copy: the row is for co-members on
+// earlier releases, whose fold hydrates a record-derived member's id from it.
 export async function markSpaceDriveKey(spaceId, driveKeyHex) {
   if (!profileBee || !driveKeyHex) return
   const cur = await profileBee.get('drive/' + spaceId)
@@ -522,12 +527,12 @@ export async function readProfileRecord(profileKeyHex, spaceId = null) {
 // deadline. The epoch is meaningful only beside an encrypted key; a profile written before the
 // row existed reads as epoch 0.
 async function readSpaceKeyRows(bee, spaceId) {
-  if (!spaceId) return { driveKey: null, looseCatalogKey: null, looseCatalogKeyEnc: null, looseCatalogEpoch: null }
-  const [driveKey, looseCatalogKey, looseCatalogKeyEnc, epoch] = await Promise.all(
-    ['drive/', 'loosecat/', 'loosecatEnc/', 'loosecatEpoch/'].map(async (prefix) => (await bee.get(prefix + spaceId))?.value ?? null),
+  if (!spaceId) return { looseCatalogKey: null, looseCatalogKeyEnc: null, looseCatalogEpoch: null }
+  const [looseCatalogKey, looseCatalogKeyEnc, epoch] = await Promise.all(
+    ['loosecat/', 'loosecatEnc/', 'loosecatEpoch/'].map(async (prefix) => (await bee.get(prefix + spaceId))?.value ?? null),
   )
   const looseCatalogEpoch = looseCatalogKeyEnc ? (isEpoch(epoch) ? epoch : 0) : null
-  return { driveKey: driveKey || null, looseCatalogKey: looseCatalogKey || null, looseCatalogKeyEnc: looseCatalogKeyEnc || null, looseCatalogEpoch }
+  return { looseCatalogKey: looseCatalogKey || null, looseCatalogKeyEnc: looseCatalogKeyEnc || null, looseCatalogEpoch }
 }
 
 function loadProfileRecord(profileKeyHex, spaceId) {
@@ -535,7 +540,7 @@ function loadProfileRecord(profileKeyHex, spaceId) {
     const displayName = (await bee.get('displayName'))?.value || null
     const avatar = (await bee.get('avatar'))?.value || null
     const keys = await readSpaceKeyRows(bee, spaceId)
-    if (!displayName && !avatar && !keys.driveKey && !keys.looseCatalogKey && !keys.looseCatalogKeyEnc) return null
+    if (!displayName && !avatar && !keys.looseCatalogKey && !keys.looseCatalogKeyEnc) return null
     return {
       displayName: displayName ? clampDisplayName(displayName) : null,
       avatar: sanitizeAvatar(avatar, getMembershipCaps().maxAvatarBytes),

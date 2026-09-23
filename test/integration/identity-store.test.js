@@ -4,31 +4,31 @@ import fs from 'bare-fs'
 import path from 'bare-path'
 import Corestore from 'corestore'
 import Hyperdrive from 'hyperdrive'
-import { openStore, getStore, setMasterSecret, createBee, createDrive } from '../../src/shared/core/store.js'
+import { openStore, getStore, setMasterSecret, createBee, ownParticipationId } from '../../src/shared/core/store.js'
 import { tmpDir } from '../helpers/bare-tmp.js'
 
-// Guards the explicit-keypair store path, including the private Hyperdrive `_db`
-// option: createBee/createDrive must open writable cores from a derived keyPair,
-// round-trip data (meta + blobs), reopen the same keys after a restart, and stay
-// byte-identical to today's seed-derived cores (so migration preserves identity).
-test('explicit-keypair createBee/createDrive: writable, round-trips, restart-stable, identity-preserving', async (t) => {
+// Guards the explicit-keypair store path: createBee must open a writable core from a derived
+// keyPair, round-trip data, reopen the same key after a restart, and stay byte-identical to today's
+// seed-derived core (so migration preserves identity). The participation id must equal the key a
+// Hyperdrive of the same name has under the same seed — that key is what every peer already holds
+// for this member, so a drift here changes every member's identity in every space.
+test('explicit-keypair createBee and the participation id: restart-stable, identity-preserving', async (t) => {
   const M = b4a.from('55'.repeat(32), 'hex')
   const root = tmpDir('identity-store-store')
   const storagePath = path.join(root, 'app-storage')
 
-  // What today's seed-derivation (primaryKey = M) produces, for the identity check.
   const vanillaDir = tmpDir('identity-store-vanilla')
   const vanilla = new Corestore(vanillaDir, { primaryKey: M, unsafe: true })
   await vanilla.ready()
   const vBee = vanilla.get({ name: 'profile' })
   await vBee.ready()
   const expectedProfileKey = vBee.key
-  const vDrive = new Hyperdrive(vanilla.namespace('space-drive-x'))
-  await vDrive.ready()
-  const expectedDriveKey = vDrive.core.key
+  const drives = [new Hyperdrive(vanilla.namespace('space-drive-x')), new Hyperdrive(vanilla.namespace('space-drive-x-ab12'))]
+  for (const d of drives) await d.ready()
+  const [plainDriveKey, suffixedDriveKey] = drives.map((d) => b4a.toString(d.core.key, 'hex'))
 
   t.teardown(async () => {
-    try { await vDrive.close() } catch {}
+    for (const d of drives) { try { await d.close() } catch {} }
     try { await vanilla.close() } catch {}
     try { fs.rmSync(vanillaDir, { recursive: true, force: true }) } catch {}
     try { fs.rmSync(root, { recursive: true, force: true }) } catch {}
@@ -42,32 +42,17 @@ test('explicit-keypair createBee/createDrive: writable, round-trips, restart-sta
   t.ok(bee.core.writable, 'profile bee writable')
   t.alike(bee.core.key, expectedProfileKey, 'profile core key == seed-derived')
   await bee.put('displayName', 'Alice')
-
-  const drive = createDrive('space-drive-x')
-  await drive.ready()
-  t.ok(drive.core.writable, 'drive meta core writable')
-  t.alike(drive.core.key, expectedDriveKey, 'drive meta core key == seed-derived')
-  await drive.put('/a.txt', b4a.from('hello'))
-  t.alike(await drive.get('/a.txt'), b4a.from('hello'), 'drive blob round-trips')
-  const blobs = await drive.getBlobs()
-  t.ok(blobs && blobs.core, 'blobs core present')
-  const driveKeyHex = b4a.toString(drive.core.key, 'hex')
-
-  await drive.close()
+  t.is(ownParticipationId('x', undefined), plainDriveKey, 'unsuffixed participation id == that drive key')
+  t.is(ownParticipationId('x', 'ab12'), suffixedDriveKey, 'suffixed participation id == that drive key')
   await bee.close()
   await getStore().close()
 
-  // Restart: same M reopens the same cores + data.
   await openStore(storagePath)
   setMasterSecret(M)
   const bee2 = createBee('profile')
   await bee2.ready()
   t.is((await bee2.get('displayName')).value, 'Alice', 'bee data survives restart')
-  const drive2 = createDrive('space-drive-x')
-  await drive2.ready()
-  t.is(b4a.toString(drive2.core.key, 'hex'), driveKeyHex, 'drive key stable across restart')
-  t.alike(await drive2.get('/a.txt'), b4a.from('hello'), 'drive data survives restart')
-  await drive2.close()
+  t.is(ownParticipationId('x', 'ab12'), suffixedDriveKey, 'participation id stable across restart')
   await bee2.close()
   await getStore().close()
 })

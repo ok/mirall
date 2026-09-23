@@ -1,29 +1,16 @@
 import test from 'brittle'
 import fs from 'bare-fs'
 import path from 'bare-path'
-import SubEncoder from 'sub-encoder'
 import { setupSelfMirror } from '../helpers/owned.js'
-import { getDrive } from '../../src/shared/spaces/space-drives.js'
+import { advertise } from '../../src/shared/shares/own-catalog.js'
 import { applyChange, initialMaterializeScan } from '../../src/shared/folders/mirror-pass.js'
 import { getForeignMount } from '../../src/shared/folders/mount-store.js'
 import { pathFromMount } from '../../src/shared/folders/path-guard.js'
 import { CODES } from '../../src/shared/contract/errors.js'
 
-// MIR-06: a malicious owner writes a RAW Hyperbee entry under Hyperdrive's
-// SubEncoder('files','utf-8') keyspace (hyperdrive/index.js:16), bypassing the
-// std() normalization that drive.put() applies. drive.list() serves the raw key
-// verbatim, so the consuming mirror must re-validate containment independently.
-// The honest API would throw "too many '..'".
-const filesEnc = new SubEncoder('files', 'utf-8')
-
-async function injectRawKey(drive, key) {
-  await drive.ready()
-  await drive.db.put(
-    key,
-    { executable: false, linkname: null, blob: null, metadata: { hash: 'deadbeef', mtime: 0 } },
-    { keyEncoding: filesEnc },
-  )
-}
+// MIR-06: a malicious owner advertises a traversal relPath in its own catalog. Nothing on the
+// owner's side normalizes a catalog key and the catalog serves it verbatim, so the consuming mirror
+// must re-validate containment independently.
 
 function relToSibling(mirrorPath, target) {
   return path.relative(mirrorPath, target).split(path.sep).join('/')
@@ -69,10 +56,9 @@ test('REGRESSION (MIR-06): a traversal put is refused', async (t) => {
 // still materializes (one bad key does not abort or DoS the mirror).
 test('REGRESSION (MIR-06): the materialize scan drops a poisoned key, keeps syncing', async (t) => {
   const ctx = await setupSelfMirror(t, { name: 'Docs', files: { 'real.txt': 'legit' } })
-  const drive = getDrive(ctx.spaceId)
   const outside = ctx.tmpDir('outside')
   const evil = path.join(outside, 'evil.txt')
-  await injectRawKey(drive, '/Docs/' + relToSibling(ctx.mirrorPath, evil))
+  await advertise(ctx.spaceId, ctx.share.id, relToSibling(ctx.mirrorPath, evil), { size: 5, mtime: 0, contentHash: 'deadbeef' })
 
   await initialMaterializeScan(ctx.mount)
 

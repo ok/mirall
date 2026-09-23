@@ -32,7 +32,7 @@ test('every pushed frame is numbered, and the numbers only go up', (t) => {
   const { ipc, wires, clients } = router()
   ipc.emit('event:files-updated', { spaceId: 's1' })
   ipc.emit('event:decoration', { path: '/a' })
-  ipc.emit('event:leave-progress', { step: 1 }, { to: clients[0] })
+  ipc.emit('event:owned-folder-preview-progress', { step: 1 }, { to: clients[0] })
   ipc.emit('event:network-status', {})
   const seqs = wires[0].seqs()
   // Five, not four: the files-updated poke also fans an event:reconcile, which is a pushed frame
@@ -110,7 +110,7 @@ test('REGRESSION (FIX-401-1): a resume never re-sends what the client got live',
 
 test('a targeted frame is never replayed to anyone', (t) => {
   const { ipc, clients } = router({ pipes: 2 })
-  ipc.emit('event:leave-progress', { step: 1 }, { to: clients[0] })
+  ipc.emit('event:owned-folder-preview-progress', { step: 1 }, { to: clients[0] })
   t.is(ipc.resume(clients[1], { epoch: ipc.epoch, since: 0 }).replayed, 0,
     'one caller’s progress is not another’s to catch up on')
 })

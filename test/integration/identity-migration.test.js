@@ -6,7 +6,7 @@ import Corestore from 'corestore'
 import { resolveMasterSecret } from '../../src/shared/core/identity.js'
 import { osKeychainProvider } from '../../src/shared/core/identity.js'
 import { randomKEK, wrap } from '../../src/shared/core/identity-envelope.js'
-import { deriveKeyPair, deriveDriveKeyPair } from '../../src/shared/core/identity-keys.js'
+import { deriveKeyPair, deriveParticipationKeyPair } from '../../src/shared/core/identity-keys.js'
 import { tmpDir } from '../helpers/bare-tmp.js'
 
 test('REGRESSION (MIR-02): migration preserves identity, scrubs the seed, re-unlocks across restart', async (t) => {
@@ -17,7 +17,7 @@ test('REGRESSION (MIR-02): migration preserves identity, scrubs the seed, re-unl
   const store = new Corestore(storagePath)
   await store.ready()
   const oldProfile = (await store.createKeyPair('profile')).publicKey
-  const oldDrive = (await store.namespace('space-drive-x').createKeyPair('db')).publicKey
+  const oldParticipation = (await store.namespace('space-drive-x').createKeyPair('db')).publicKey
   // A realistic legacy (pre-envelope) install has actual cores derived from the seed,
   // not just derived keypairs — that is what marks it as migrating rather than fresh.
   await store.get({ name: 'profile' }).append(b4a.from('x'))
@@ -25,7 +25,7 @@ test('REGRESSION (MIR-02): migration preserves identity, scrubs the seed, re-unl
 
   const M = await resolveMasterSecret({ store, storagePath, provider: osKeychainProvider(kekHex) })
   t.alike(deriveKeyPair(M, 'profile').publicKey, oldProfile, 'profile identity preserved')
-  t.alike(deriveDriveKeyPair(M, 'space-drive-x').publicKey, oldDrive, 'drive identity preserved')
+  t.alike(deriveParticipationKeyPair(M, 'x').publicKey, oldParticipation, 'participation identity preserved')
   t.ok(fs.existsSync(path.join(root, 'identity.enc')), 'envelope written')
   await store.close()
 

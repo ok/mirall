@@ -1,6 +1,6 @@
 import test from 'brittle'
 import b4a from 'b4a'
-import { deriveContentKey, deriveKeyPair, deriveDriveKeyPair } from '../../src/shared/core/identity-keys.js'
+import { deriveContentKey, deriveKeyPair, deriveParticipationKeyPair } from '../../src/shared/core/identity-keys.js'
 
 const M = b4a.from('11'.repeat(32), 'hex')
 
@@ -13,7 +13,7 @@ test('deriveContentKey is deterministic and label-scoped', (t) => {
 test('content keys are domain-separated from signing seeds', (t) => {
   const ck = deriveContentKey(M, 'db')
   t.unlike(ck, deriveKeyPair(M, 'db').publicKey)
-  t.unlike(ck, deriveDriveKeyPair(M, 'db').publicKey)
+  t.unlike(ck, deriveParticipationKeyPair(M, 'db').publicKey)
 })
 
 test('different M yields a different content key', (t) => {

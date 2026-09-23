@@ -36,7 +36,6 @@ type MemberStatus = 'pending' | 'approved'
 
 export interface SpaceMember {
   publicKey: PersonKey
-  driveKey: string
   displayName: string
   online?: boolean
   // Folded in by useMembers from members:reach, as `online` is from members:online. Null wherever
@@ -53,7 +52,6 @@ export interface SpaceMember {
 // worker-internal); the full SpaceMember roster comes from the per-space space:members request.
 interface SpaceMemberSummary {
   publicKey: PersonKey
-  driveKey: string | null
   displayName: string
   online?: boolean
   status?: MemberStatus
@@ -77,7 +75,6 @@ export interface Space {
   topic: string
   created: string
   members: SpaceMemberSummary[]
-  driveKey?: string
   favorite?: boolean
   schemaVersion?: number
   status?: 'pending' | 'approved'
@@ -94,7 +91,6 @@ export interface FileEntry {
   size: number
   hash: string
   owner: { displayName: string; publicKey: PersonKey }
-  driveKey: string
   localBytes: number
   isAvailable: boolean
   status: FileStatus
@@ -419,20 +415,10 @@ export interface WorkerDiagnostics {
 }
 
 
-export interface SpaceStorageRow {
-  spaceId: string
-  name: string
-  icon: string
-  metadataBytes: number
-  contentBytes: number
-  totalBytes: number
-}
-
 export interface StorageInfo {
   totalDiskUsage: number
   storagePath: string
   host: PathHost
-  spaces: SpaceStorageRow[]
   indexBytes: number
   dbBytes: number
 }

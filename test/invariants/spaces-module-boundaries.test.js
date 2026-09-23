@@ -34,7 +34,7 @@ test('no module in spaces/ re-exports a sibling it does not own', (t) => {
 test('the space record store imports no module that reads it', (t) => {
   const src = readFileSync(path.join(spacesDir, 'space.js'), 'utf8')
   const imported = [...src.matchAll(/^import[^']*'([^']+)'/gm)].map((m) => m[1])
-  for (const bad of ['../shares/own-catalog.js', '../shares/peer-catalog.js', './space-drives.js', './space-lifecycle.js', './leave-records.js', './creator-pin.js']) {
+  for (const bad of ['../shares/own-catalog.js', '../shares/peer-catalog.js', './participation.js', './space-lifecycle.js', './leave-records.js', './creator-pin.js']) {
     t.absent(imported.includes(bad), `space.js does not import ${bad}`)
   }
 })
