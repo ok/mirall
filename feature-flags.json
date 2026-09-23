@@ -1,6 +1,4 @@
 {
   "handshakeIdentityBinding": true,
-  "overlay": true,
-  "inPlaceFiles": true,
   "sharePrepareProgress": true
 }

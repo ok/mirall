@@ -28,7 +28,7 @@ export async function wedgedMirror(t, {
   relPath = 'big.bin', contentHash = 'a'.repeat(64), size = 96 * 1024 * 1024, pollMs = 30_000,
 } = {}) {
   const ctx = await freshPeer(t)
-  setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true, foreignPollIntervalMs: pollMs })
+  setRuntimeConfig({ ...getRuntimeConfig(), foreignPollIntervalMs: pollMs })
   await initOverlay()
   t.teardown(async () => { await teardownOverlay() })
 

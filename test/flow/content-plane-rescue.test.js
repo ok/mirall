@@ -29,8 +29,6 @@ const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
 const FLAP_MS = 6000
 const HOSTILE_LINK = { latencyMs: 200, jitterMs: 150, flapEveryMs: FLAP_MS, flapJitterMs: 1000 }
 const flags = () => ({
-  overlayEnabled: true,
-  inPlaceFilesEnabled: true,
   identityKEK: kekHex(),
   netImpair: HOSTILE_LINK,
   convergenceTickMs: 3000,

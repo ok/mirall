@@ -19,7 +19,7 @@ import { createLogger } from '../core/logger.js'
 
 import { CODES } from '../contract/errors.js'
 import { AppError } from '../core/errors.js'
-import { getListFullReadEvery, isInPlaceFilesEnabled } from '../core/runtime-config.js'
+import { getListFullReadEvery } from '../core/runtime-config.js'
 import { isEphemeralSourcePath } from './temp-paths.js'
 import { readCatalogKey } from '../shares/catalog-keys.js'
 import { getLocalPublicKeyHex } from '../spaces/profile.js'
@@ -173,7 +173,6 @@ async function readPeerEntries(spaceId, member, { budget, space, deps }) {
 // In-place loose files (own + each peer's) read from the loose catalog, one candidate row per
 // owner, so dedupeFileRows can merge them.
 async function collectLooseInPlace(spaceId, members, { localPublicKey, space, deps }) {
-  if (!isInPlaceFilesEnabled()) return []
   const out = (await looseListOwn(spaceId)).map((e) => ownRow(e, localPublicKey))
   const peerMembers = peerMembersOf(members, localPublicKey, (m) => Boolean(readCatalogKey(m).keyHex))
   retainListingMemo(spaceId, new Set(peerMembers.map((m) => readCatalogKey(m).keyHex)))
@@ -212,9 +211,6 @@ export async function listFiles(spaceId, members, { space = null, deps = product
 }
 
 export async function removeFile(spaceId, filePath) {
-  // Unshare regardless of the inPlaceFiles flag: addFile always publishes loose
-  // (overlay is the only path), so gating the unshare on the flag would leave a
-  // file permanently shared if the flag were ever off.
   if (await looseHasOwn(spaceId, filePath)) {
     await looseUnshareFile(spaceId, filePath)
     return

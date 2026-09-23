@@ -6,8 +6,6 @@ import { launchPeer, connectInSpace, addPeerToSpace } from '../helpers/peer.js'
 import { mkTmpDir, patternedBytes, mkStoreDir } from '../helpers/fixtures.js'
 import { scaled } from '../helpers/timing.js'
 
-const FLAGS = { overlayEnabled: true }
-
 // GAP #10: two peers download the SAME file from one owner at the same time. The owner
 // must serve concurrent reads of one blob, and each downloader must finalise its own
 // `.mirall.part` to byte-exact content without a bookkeeping race / partial collision.
@@ -15,9 +13,9 @@ const FLAGS = { overlayEnabled: true }
 test('REGRESSION (GAP #10): concurrent downloaders of one file each land byte-exact',
   { timeout: scaled(150000) }, async (t) => {
     const bootstrap = await localTestnet(t)
-    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags: FLAGS })
-    const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags: FLAGS })
-    const C = await launchPeer(t, { bootstrap, displayName: 'Carol', downloads: mkTmpDir(t), flags: FLAGS })
+    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t) })
+    const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t) })
+    const C = await launchPeer(t, { bootstrap, displayName: 'Carol', downloads: mkTmpDir(t) })
     const spaceId = await connectInSpace(t, A, B)
     await addPeerToSpace(A, C, spaceId)
     const aKey = (await A.request('profile:get')).personKey

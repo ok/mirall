@@ -1,7 +1,6 @@
 import test from 'brittle'
 import b4a from 'b4a'
 import { freshDurableWithIdentity } from '../helpers/store.js'
-import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { mutateSpace, listSpaces, getSpace } from '../../src/shared/spaces/space.js'
 import { createSpace, joinSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { getLocalPublicKeyHex, readProfileRecord } from '../../src/shared/spaces/profile.js'
@@ -21,18 +20,11 @@ async function coreInStore(dkHex) {
   return false
 }
 
-// The durable tier only: boot() runs migrateCatalogsToEncrypted, and these tests drive it.
-async function v2Peer(t) {
-  const ctx = await freshDurableWithIdentity(t)
-  setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true, inPlaceFilesEnabled: true })
-  return ctx
-}
-
 // REGRESSION (FIX-326): the migration must COPY the plaintext catalog's entries into the encrypted
 // core, not just purge + rely on a rescan — loose files (and offline-mount folders) are repopulated
 // from the CATALOG, not disk, so an empty encrypted core loses them permanently.
 test('migration copies folder AND loose entries into the encrypted core, then purges the plaintext one', async (t) => {
-  await v2Peer(t)
+  await freshDurableWithIdentity(t)
   const space = await createSpace('Aurora')
   const spaceId = space.spaceId
 
@@ -79,7 +71,7 @@ test('migration copies folder AND loose entries into the encrypted core, then pu
 // REGRESSION (FIX-326): a v2 space we hold no SCK for (a pending joiner) must be DEFERRED, not
 // marked complete — otherwise its plaintext catalog is never purged and never retried after approval.
 test('defers a v2 space with no SCK and does not mark the migration complete', async (t) => {
-  await v2Peer(t)
+  await freshDurableWithIdentity(t)
   await joinSpace('ab'.repeat(32), 'Pending', 'folder')
 
   const res = await migrateCatalogsToEncrypted()
@@ -91,7 +83,7 @@ test('defers a v2 space with no SCK and does not mark the migration complete', a
 // A legacy space can never obtain an SCK, so counting it as "deferred" would hold the global flag
 // open and re-run the whole pass on every boot for the life of the install.
 test('a legacy space is skipped, not deferred — the migration still closes out', async (t) => {
-  await v2Peer(t)
+  await freshDurableWithIdentity(t)
   const space = await createSpace('Ancient')
   await mutateSpace(space.spaceId, (s) => { const next = { ...s }; delete next.schemaVersion; return next })
 
@@ -103,7 +95,7 @@ test('a legacy space is skipped, not deferred — the migration still closes out
 // REGRESSION (FIX-MIGRATE-CONTINUE): a space whose catalog copy throws must not end the pass —
 // every space after it stayed plaintext until the next boot, where it failed the same way.
 test('REGRESSION (FIX-MIGRATE-CONTINUE): a failing space is counted and the rest still migrate', async (t) => {
-  await v2Peer(t)
+  await freshDurableWithIdentity(t)
   for (const name of ['Aurora', 'Borealis', 'Corona']) await createSpace(name)
   const spaces = await listSpaces()
   t.is(spaces.length, 3, 'precondition: three v2 spaces')

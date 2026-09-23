@@ -6,8 +6,6 @@ import { launchPeer, connectInSpace } from '../helpers/peer.js'
 import { mkTmpDir, patternedBytes, mkStoreDir } from '../helpers/fixtures.js'
 import { scaled } from '../helpers/timing.js'
 
-const FLAGS = { overlayEnabled: true }
-
 // REGRESSION (FIX-EDA-7: overlayConsumerRow's foreignMount branch early-returned 'remote'
 // before any active-fetch check, and mirror fetches run in the foreign loop — never in the
 // folder engine — so a materializing mirror row showed no progress UI for the whole
@@ -15,8 +13,8 @@ const FLAGS = { overlayEnabled: true }
 test('REGRESSION (FIX-EDA-7): a materializing mirror row reports downloading, then synced',
   { timeout: scaled(240000) }, async (t) => {
     const bootstrap = await localTestnet(t)
-    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags: FLAGS })
-    const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags: FLAGS })
+    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t) })
+    const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t) })
     const spaceId = await connectInSpace(t, A, B)
     const aKey = (await A.request('profile:get')).personKey
 

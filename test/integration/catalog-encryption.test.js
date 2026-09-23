@@ -2,7 +2,6 @@ import test from 'brittle'
 import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
 import { freshPeer } from '../helpers/store.js'
-import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { getSpace, getSpaceContentKey, upsertMember } from '../../src/shared/spaces/space.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { getLocalPublicKeyHex, readProfileRecord, getProfileBee } from '../../src/shared/spaces/profile.js'
@@ -11,17 +10,11 @@ import { buildWantedKeys } from '../../src/shared/storage/leftover.js'
 import { catalogKeyField } from '../../src/shared/shares/catalog-keys.js'
 import { ownCatalogKeyHex, ownCatalogPublish, catalogNameForSpace, advertise, collectOwnShare } from '../../src/shared/shares/own-catalog.js'
 import { collectPeerShare, resolvePeerCatalog } from '../../src/shared/shares/peer-catalog.js'
-// A v2 (membership-gated) peer: identity keypair + the flags createSpace reads to pick schema v2.
-async function v2Peer(t) {
-  const ctx = await freshPeer(t)
-  setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true, inPlaceFilesEnabled: true })
-  return ctx
-}
 
 const SHARE = 'share-1'
 
 test('v2 space: catalog is SCK-encrypted, key published in the …Enc field', async (t) => {
-  await v2Peer(t)
+  await freshPeer(t)
   const space = await createSpace('Aurora')
   t.is(space.schemaVersion, 2, 'space is schema v2')
 
@@ -38,7 +31,7 @@ test('v2 space: catalog is SCK-encrypted, key published in the …Enc field', as
 })
 
 test('owner reads back its own encrypted catalog', async (t) => {
-  await v2Peer(t)
+  await freshPeer(t)
   const space = await createSpace('Aurora')
   await advertise(space.spaceId, SHARE, 'a.txt', { size: 7, mtime: 1, contentHash: 'h-a' })
   await advertise(space.spaceId, SHARE, 'b.txt', { size: 9, mtime: 2, contentHash: 'h-b' })
@@ -55,7 +48,7 @@ test('owner reads back its own encrypted catalog', async (t) => {
 })
 
 test('resolvePeerCatalog: …Enc demands the SCK, legacy stays plaintext', async (t) => {
-  await v2Peer(t)
+  await freshPeer(t)
   const space = await createSpace('Aurora')
   const sck = getSpaceContentKey(space.spaceId, await getSpace(space.spaceId))
 
@@ -89,7 +82,7 @@ test('resolvePeerCatalog: …Enc demands the SCK, legacy stays plaintext', async
 // #326 / leftover: a v2 peer's encrypted catalog (published as catalogKeyEnc) must be kept in the
 // wanted-set, or the orphan sweep would purge the live encrypted core.
 test('a peer\'s encrypted catalog key is wanted (not treated as leftover)', async (t) => {
-  await v2Peer(t)
+  await freshPeer(t)
   const space = await createSpace('Aurora')
   const encKey = await ownCatalogKeyHex(space.spaceId)
   const me = getLocalPublicKeyHex()
@@ -107,7 +100,7 @@ test('a peer\'s encrypted catalog key is wanted (not treated as leftover)', asyn
 // absent field to 0, and the key that comes out is the epoch-0 key.
 
 test('the own publish, the share record and the profile bee all carry epoch 0', async (t) => {
-  await v2Peer(t)
+  await freshPeer(t)
   const space = await createSpace('Aurora')
   const me = getLocalPublicKeyHex()
   const pub = await ownCatalogPublish(space.spaceId, await getSpace(space.spaceId))
@@ -126,7 +119,7 @@ test('the own publish, the share record and the profile bee all carry epoch 0', 
 })
 
 test('a profile bee with no loosecatEpoch/ row (an older publisher) reads at epoch 0', async (t) => {
-  await v2Peer(t)
+  await freshPeer(t)
   const space = await createSpace('Aurora')
   const me = getLocalPublicKeyHex()
   await getProfileBee().del('loosecatEpoch/' + space.spaceId)
@@ -139,7 +132,7 @@ test('a profile bee with no loosecatEpoch/ row (an older publisher) reads at epo
 })
 
 test('resolvePeerCatalog reads a record without catalogEpoch (an older owner) with the epoch-0 key', async (t) => {
-  await v2Peer(t)
+  await freshPeer(t)
   const space = await createSpace('Aurora')
   const keyHex = await ownCatalogKeyHex(space.spaceId)
   const sck = getSpaceContentKey(space.spaceId, await getSpace(space.spaceId))
@@ -154,7 +147,7 @@ test('resolvePeerCatalog reads a record without catalogEpoch (an older owner) wi
 })
 
 test('resolvePeerCatalog for an epoch we hold no key for is unreadable, not garbage', async (t) => {
-  await v2Peer(t)
+  await freshPeer(t)
   const space = await createSpace('Aurora')
   const keyHex = await ownCatalogKeyHex(space.spaceId)
   const r = await resolvePeerCatalog(space.spaceId, { catalogKeyEnc: keyHex, catalogEpoch: 1 })

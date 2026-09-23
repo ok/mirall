@@ -5,7 +5,6 @@ import { freshPeer } from '../helpers/store.js'
 import { setupOwnedShare } from '../helpers/owned.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { getOwnEntry } from '../../src/shared/shares/own-catalog.js'
-import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { runPublishPass } from '../../src/shared/folders/owned-pass.js'
 import { onFsEvent } from '../../src/shared/folders/owned-watcher.js'
 import { getOverlay, initOverlay, teardownOverlay, getJournalDir } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
@@ -62,10 +61,9 @@ test('REGRESSION (C5): DEFAULT_IGNORE excludes .mirall.part so a stale mirror pa
 // keeping any partial a paused/in-flight transfer can still resume from (its journal survives).
 test('REGRESSION (C5): boot sweep reclaims orphaned .mirall.part in a foreign mount dir but keeps a resumable one', async (t) => {
   const ctx = await freshPeer(t)
-  setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true })
   await initOverlay()
   await initPendingTransfers()
-  t.teardown(async () => { await teardownOverlay(); setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: false }) })
+  t.teardown(async () => { await teardownOverlay() })
 
   const downloadsDir = ctx.tmpDir('dl')
   const mountDir = ctx.tmpDir('mount')
@@ -88,11 +86,8 @@ test('REGRESSION (C5): boot sweep reclaims orphaned .mirall.part in a foreign mo
   t.ok(fs.existsSync(keep), 'a partial with a live resume journal was kept')
 })
 
-// C6 — addFile always publishes loose (overlay is the only path), but removeFile still gated the
-// unshare on the inPlaceFiles flag, so with the flag off a file could be added but never unshared.
-test('REGRESSION (C6): removeFile unshares a loose file even when the inPlaceFiles flag is off', async (t) => {
+test('removeFile unshares a loose file', async (t) => {
   const ctx = await freshPeer(t)
-  setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true, inPlaceFilesEnabled: true })
   await initDownloads()
   await initPendingTransfers()
   const space = await createSpace('Aurora')
@@ -100,17 +95,13 @@ test('REGRESSION (C6): removeFile unshares a loose file even when the inPlaceFil
   looseSources.clear()
   await initOverlay()
   initLooseIpc(ctx.fake.ipc)
-  t.teardown(async () => { serveIndex.reset(); await teardownOverlay()
-    setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: false, inPlaceFilesEnabled: false })
-  })
+  t.teardown(async () => { serveIndex.reset(); await teardownOverlay() })
 
   const src = path.join(ctx.tmpDir('src'), 'note.txt')
   fs.writeFileSync(src, 'hello')
   await addFile(space.spaceId, src, 'note.txt')
   t.ok(await looseHasOwn(space.spaceId, '/note.txt'), 'file is shared loose after addFile')
 
-  // Flag off (a degraded / version-skew config): removeFile must still unshare.
-  setRuntimeConfig({ ...getRuntimeConfig(), inPlaceFilesEnabled: false })
   await removeFile(space.spaceId, '/note.txt')
-  t.absent(await looseHasOwn(space.spaceId, '/note.txt'), 'file was unshared despite the flag being off')
+  t.absent(await looseHasOwn(space.spaceId, '/note.txt'), 'file was unshared')
 })

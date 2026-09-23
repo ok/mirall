@@ -6,7 +6,6 @@ import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { publishShare, generateShareId } from '../../src/shared/shares/shares.js'
 import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
 import { createForeignMount, deleteForeignMount, getForeignMount, patchForeignMount } from '../../src/shared/folders/mount-store.js'
-import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { isAutoPaused, pauseMount } from '../../src/shared/folders/foreign-pause.js'
 import { relocateForeignFolder, scanForeignMount, setForeignEnabled, stopForeignLoop, unmountForeignFolder } from '../../src/shared/folders/foreign-verbs.js'
 import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
@@ -19,7 +18,6 @@ import { registerForeignFolders } from '../../src/worker/ipc/foreign-folders.js'
 
 async function setupMirror(t, { enabled = true, status = null } = {}) {
   const ctx = await freshPeer(t)
-  setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true })
   await initOverlay()
   const space = await createSpace('Aurora')
   const spaceId = space.spaceId

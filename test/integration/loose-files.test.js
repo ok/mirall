@@ -2,7 +2,6 @@ import test from 'brittle'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { freshPeer } from '../helpers/store.js'
-import { getRuntimeConfig, setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { advertise, getOwnEntry, ownCatalogKeyHex, dropOwnCatalog } from '../../src/shared/shares/own-catalog.js'
 import { getProfileBee } from '../../src/shared/spaces/profile.js'
@@ -16,12 +15,11 @@ import { sweepLoosePresence } from '../../src/shared/transfer/backends/overlay/l
 import { LOOSE_SHARE_ID } from '../../src/shared/transfer/transfer-id.js'
 import { initLooseIpc } from '../helpers/overlay-ipc.js'
 
-// Exercise the files.js integration (addFile/listFiles/removeFile) with the
-// in-place flag ON — the production entry points the renderer drives. These are
+// Exercise the files.js integration (addFile/listFiles/removeFile) — the
+// production entry points the renderer drives. These are
 // the CI-runnable layer for routing the flow test covers end-to-end.
 async function setup(t) {
   const ctx = await freshPeer(t)
-  setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true, inPlaceFilesEnabled: true })
   await initDownloads()
   await initPendingTransfers()
   serveIndex.reset()
@@ -31,7 +29,6 @@ async function setup(t) {
   t.teardown(async () => {
     serveIndex.reset()
     await teardownOverlay()
-    setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: false, inPlaceFilesEnabled: false })
   })
   return { ...ctx, spaceId: space.spaceId }
 }

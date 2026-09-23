@@ -4,7 +4,6 @@ import Corestore from 'corestore'
 import { mkdtempSync, fs, path, os } from './overlay-vendor-helpers.js'
 import { FileIndex } from '../../src/shared/transfer/backends/overlay/vendor/file-index.js'
 import { freshPeer } from '../helpers/store.js'
-import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { initOverlayIpc } from '../helpers/overlay-ipc.js'
 
@@ -57,7 +56,6 @@ test('overlay FileIndex without a key stays plaintext (insecure/test fallback)',
 
 test('initOverlay encrypts the local index cores when M is present', async (t) => {
   const ctx = await freshPeer(t)
-  setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true })
   await initOverlay()
   initOverlayIpc(ctx.fake.ipc)
   t.teardown(async () => { await teardownOverlay() })

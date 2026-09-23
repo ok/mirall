@@ -2,7 +2,6 @@ import test from 'brittle'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { freshPeer } from '../helpers/store.js'
-import { getRuntimeConfig, setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { advertise, getOwnEntry } from '../../src/shared/shares/own-catalog.js'
 import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
@@ -20,7 +19,6 @@ const BIG = 32 * 1024 * 1024
 
 async function setup(t, onEmit) {
   const ctx = await freshPeer(t)
-  setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true, inPlaceFilesEnabled: true })
   await initDownloads()
   await initPendingTransfers()
   serveIndex.reset()
@@ -35,7 +33,6 @@ async function setup(t, onEmit) {
   t.teardown(async () => {
     serveIndex.reset()
     await teardownOverlay()
-    setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: false, inPlaceFilesEnabled: false })
   })
   return { ...ctx, spaceId: space.spaceId }
 }

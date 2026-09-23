@@ -11,13 +11,12 @@ import { scaled } from '../helpers/timing.js'
 // Non-mirrored overlay folder downloads now run on the same engine as space-root
 // loose files, so they gain real pause/resume + auto-resume on owner reconnect
 // (previously fire-and-forget; the pause/stop buttons were no-ops). End-to-end proof.
-const FLAGS = { overlayEnabled: true }
 
 test('overlay folder: pause mid-flight surfaces paused-interrupted; resume completes byte-exact',
   { timeout: scaled(180000) }, async (t) => {
     const bootstrap = await localTestnet(t)
-    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags: FLAGS })
-    const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags: FLAGS })
+    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t) })
+    const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t) })
     const spaceId = await connectInSpace(t, A, B)
     const aKey = (await A.request('profile:get')).personKey
 
@@ -75,8 +74,8 @@ test('overlay folder: pause mid-flight surfaces paused-interrupted; resume compl
 test('overlay folder: pause then discard by transfer id clears the partial and returns the row to remote',
   { timeout: scaled(180000) }, async (t) => {
     const bootstrap = await localTestnet(t)
-    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags: FLAGS })
-    const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags: FLAGS })
+    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t) })
+    const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t) })
     const spaceId = await connectInSpace(t, A, B)
     const aKey = (await A.request('profile:get')).personKey
 
@@ -116,8 +115,8 @@ test('overlay folder: a queued download auto-resumes when the owner returns',
     const bootstrap = await localTestnet(t)
     const aStore = mkStoreDir(t)
     const folder = mkTmpDir(t)
-    let A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: aStore, flags: FLAGS })
-    const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags: FLAGS })
+    let A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: aStore })
+    const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t) })
     const spaceId = await connectInSpace(t, A, B)
     const aKey = (await A.request('profile:get')).personKey
 
@@ -138,7 +137,7 @@ test('overlay folder: a queued download auto-resumes when the owner returns',
     t.ok(queued && queued.queued, 'overlay folder download queued while owner offline')
 
     const done = B.waitFor('event:transfer-complete', (m) => m.path === '/Docs/resume.bin', 120000)
-    A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: aStore, flags: FLAGS })
+    A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: aStore })
     const completed = await done
 
     t.ok(!completed.localPath.endsWith('.mirall.part'), 'finalised, not a partial')
@@ -153,8 +152,8 @@ test('overlay folder: a queued download auto-resumes when the owner returns',
 test('REGRESSION (FIX-EDA-15: a manual folder pause survives an owner catalog append — no auto-resume)',
   { timeout: scaled(240000) }, async (t) => {
     const bootstrap = await localTestnet(t)
-    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags: FLAGS })
-    const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags: FLAGS })
+    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t) })
+    const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t) })
     const spaceId = await connectInSpace(t, A, B)
     const aKey = (await A.request('profile:get')).personKey
 
@@ -217,8 +216,8 @@ test('REGRESSION (FIX-EDA-15: a manual folder pause survives an owner catalog ap
 test('REGRESSION (FIX-PI1-1: an owner going offline mid-download raises the paused notification)',
   { timeout: scaled(240000) }, async (t) => {
     const bootstrap = await localTestnet(t)
-    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags: FLAGS })
-    const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags: FLAGS })
+    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t) })
+    const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t) })
     const spaceId = await connectInSpace(t, A, B)
     const aKey = (await A.request('profile:get')).personKey
 

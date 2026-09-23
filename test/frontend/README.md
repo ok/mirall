@@ -126,7 +126,6 @@ One row per file in `scenarios/`; the id is the `run.mjs` argument (`node test/f
 | s12 | `s12-add-folder-validation.mjs` | AddFolder validation: name-collision and invalid-name errors (`role=alert`, `aria-describedby`) each block "Next: Preview". |
 | s23 | `s23-relocate.mjs` | Source folder moved on disk → "missing on disk" → Locate re-points the share. |
 | s66 | `s66-overlay-folder.mjs` | A share publishes in place: no mode picker, no bytes imported, the peer sees the file from the catalog and fetches it by content hash. |
-| s67 | `s67-overlay-toggle-hidden.mjs` | With overlay off, the Add Folder modal renders no "In place" segment (feature gate). |
 | s70 | `s70-folder-card-hit-area.mjs` | The folder card's action menu is reachable above the full-bleed nav overlay, Escape dismisses it, clicking the card navigates. |
 | s75 | `s75-folder-peer-download-indicator.mjs` | FolderView parity for the owner's "who is downloading" indicator on an in-place folder file. |
 | s77 | `s77-folder-listing-no-flicker.mjs` | While the owner indexes a large folder, a browsing peer's open FolderView grows monotonically and never blanks. |

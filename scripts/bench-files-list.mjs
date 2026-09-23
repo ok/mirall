@@ -24,7 +24,6 @@ const teardowns = []
 const harness = { teardown: (fn, { order = 0 } = {}) => teardowns.push({ fn, order }) }
 
 const ctx = await freshPeer(harness)
-setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true, inPlaceFilesEnabled: true })
 await initDownloads()
 await initPendingTransfers()
 const { spaceId } = await createSpace('Bench')

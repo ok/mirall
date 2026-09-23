@@ -10,8 +10,8 @@ import { primeFeatureFlags, readFeatureFlags, _resetForTests } from '../../src/m
 // wraps _update/applyUpdate in `process.noAsar = true` (see main.js getPear).
 // readFeatureFlags() used to read the asar path lazily, inside getWorker — which
 // runs AFTER getPear installs the noAsar wrappers — so a read landing in that
-// window threw ENOTDIR, the silent catch returned {}, and EVERY flag (overlay,
-// inPlaceFiles, and the MIR-03 security gate) fell to false for the worker's
+// window threw ENOTDIR, the silent catch returned {}, and EVERY flag (the MIR-03
+// security gate among them) fell to false for the worker's
 // whole lifetime. A restart that didn't overlap an update read the flags fine —
 // the intermittency the user observed. The fix reads + caches the file once at
 // boot (primeFeatureFlags, in preloadAsarCache, before the noAsar window opens).
@@ -41,7 +41,7 @@ function resetEnv(t) {
 test('REGRESSION (FIX: feature flags survive the OTA noAsar read window): the boot cache holds even after the file becomes unreadable', (t) => {
   _resetForTests()
   resetEnv(t)
-  const dir = tmpRootWith({ overlay: true, inPlaceFiles: true, handshakeIdentityBinding: true })
+  const dir = tmpRootWith({ sharePrepareProgress: true, handshakeIdentityBinding: true })
 
   // Boot read (before the noAsar window) succeeds and caches.
   primeFeatureFlags(dir)
@@ -51,18 +51,17 @@ test('REGRESSION (FIX: feature flags survive the OTA noAsar read window): the bo
   fs.rmSync(path.join(dir, 'feature-flags.json'))
 
   const flags = readFeatureFlags()
-  t.is(flags.overlay, true, 'overlay stays true from the boot cache (would be undefined on a fresh racy read)')
-  t.is(flags.inPlaceFiles, true, 'inPlaceFiles stays true')
+  t.is(flags.sharePrepareProgress, true, 'sharePrepareProgress stays true from the boot cache (would be undefined on a fresh racy read)')
   t.is(flags.handshakeIdentityBinding, true, 'security-gate flag stays true — not silently disabled')
 })
 
 test('primeFeatureFlags parses the on-disk flags', (t) => {
   _resetForTests()
   resetEnv(t)
-  const dir = tmpRootWith({ overlay: true })
+  const dir = tmpRootWith({ sharePrepareProgress: true })
   primeFeatureFlags(dir)
   const flags = readFeatureFlags()
-  t.is(flags.overlay, true)
+  t.is(flags.sharePrepareProgress, true)
 })
 
 test('a missing/unreadable file falls back to {} AND logs a warning (never silent)', (t) => {
@@ -72,7 +71,7 @@ test('a missing/unreadable file falls back to {} AND logs a warning (never silen
   const dir = tmpRootWith(undefined) // no feature-flags.json written
   primeFeatureFlags(dir)
   const flags = readFeatureFlags()
-  t.is(flags.overlay, undefined, 'absent flag is undefined (=== true checks → false), not a crash')
+  t.is(flags.sharePrepareProgress, undefined, 'absent flag is undefined (=== true checks → false), not a crash')
   t.ok(warns.some((l) => l.includes('failed to read feature-flags.json')), 'a read failure is logged')
 })
 
@@ -82,30 +81,30 @@ test('invalid (non-object) JSON falls back to {} with a warning', (t) => {
   const warns = captureWarn(t)
   const dir = tmpRootWith('"a string, not an object"')
   primeFeatureFlags(dir)
-  t.is(readFeatureFlags().overlay, undefined)
+  t.is(readFeatureFlags().sharePrepareProgress, undefined)
   t.ok(warns.some((l) => l.includes('not a JSON object')), 'non-object content is warned')
 })
 
 test('MIRALL_FEATURE_FLAGS overrides the cached base (dev/test escape hatch)', (t) => {
   _resetForTests()
   resetEnv(t)
-  const dir = tmpRootWith({ overlay: true, inPlaceFiles: true })
+  const dir = tmpRootWith({ sharePrepareProgress: true, handshakeIdentityBinding: true })
   primeFeatureFlags(dir)
-  process.env.MIRALL_FEATURE_FLAGS = JSON.stringify({ overlay: false })
+  process.env.MIRALL_FEATURE_FLAGS = JSON.stringify({ sharePrepareProgress: false })
   const flags = readFeatureFlags()
-  t.is(flags.overlay, false, 'env override wins over cached value')
-  t.is(flags.inPlaceFiles, true, 'un-overridden cached flag is preserved')
+  t.is(flags.sharePrepareProgress, false, 'env override wins over cached value')
+  t.is(flags.handshakeIdentityBinding, true, 'un-overridden cached flag is preserved')
 })
 
 test('malformed MIRALL_FEATURE_FLAGS is ignored (with a warning), base preserved', (t) => {
   _resetForTests()
   resetEnv(t)
   const warns = captureWarn(t)
-  const dir = tmpRootWith({ overlay: true })
+  const dir = tmpRootWith({ sharePrepareProgress: true })
   primeFeatureFlags(dir)
   process.env.MIRALL_FEATURE_FLAGS = '{not json'
   const flags = readFeatureFlags()
-  t.is(flags.overlay, true, 'base survives a malformed override')
+  t.is(flags.sharePrepareProgress, true, 'base survives a malformed override')
   t.ok(warns.some((l) => l.includes('ignoring malformed MIRALL_FEATURE_FLAGS')), 'malformed override is warned')
 })
 

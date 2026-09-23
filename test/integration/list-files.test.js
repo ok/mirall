@@ -27,7 +27,6 @@ import { until } from '../helpers/bare-poll.js'
 // files). Cross-peer hash-dedup / status-priority is a flow concern.
 async function setup(t) {
   const ctx = await freshPeer(t)
-  setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true })
   await initOverlay()
   initOverlayIpc(ctx.fake.ipc)
   t.teardown(async () => { await teardownOverlay() })

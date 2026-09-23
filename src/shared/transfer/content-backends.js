@@ -7,17 +7,14 @@
 // suite exercises this contract.
 
 import { overlayBackend } from './backends/overlay/index.js'
-import { isOverlayEnabled } from '../core/runtime-config.js'
 
-// A share this build can't serve: an `overlay` share met by a flag-off /
-// pre-overlay (version-skew) build, an 'eager'/'deferred' share from an older
+// A share this build can't serve: an 'eager'/'deferred' share from an older
 // release, an absent contentMode, or an unknown future mode. Callers render it
 // as unavailable.
 export const UNSUPPORTED = Symbol('unsupported-content-mode')
 
 export function getContentBackend(share) {
-  if (share?.contentMode === 'overlay') return isOverlayEnabled() ? overlayBackend : UNSUPPORTED
-  return UNSUPPORTED
+  return share?.contentMode === 'overlay' ? overlayBackend : UNSUPPORTED
 }
 
 export function hasContentBackend(share) {
@@ -31,6 +28,5 @@ export function isUnsupportedShare(share) {
 // Periodic missed-event backstop (e.g. tombstone catalog entries whose source vanished without a
 // chokidar unlink).
 export async function sweepBackends() {
-  if (!isOverlayEnabled()) return
   await overlayBackend.sweepPresence()
 }

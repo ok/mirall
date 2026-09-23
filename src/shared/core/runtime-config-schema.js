@@ -42,14 +42,11 @@ const BOOLEAN = [
 ]
 
 // Flags that ship ENABLED, so an absent or partial bootstrap frame can never silently degrade the
-// app — only an explicit `false` disables one. Overlay is the only content backend, so off degrades
-// every share to UNSUPPORTED. separateContentPlane off reverts to control + content on one stream.
+// app — only an explicit `false` disables one. separateContentPlane off reverts to control + content on one stream.
 // sharePrepareProgress off removes both the "preparing NN%" decoration and the liveness signal that
 // keeps a download parked on a re-publish alive: a source that hashes for hours re-arms the
 // receiver's wait with every frame, so the wait bounds SILENCE rather than the hash.
-const DEFAULT_ON = [
-  'overlayEnabled', 'inPlaceFilesEnabled', 'separateContentPlane', 'sharePrepareProgressEnabled',
-]
+const DEFAULT_ON = ['separateContentPlane', 'sharePrepareProgressEnabled']
 
 // Keys production never sets, each defaulting to "off"; tests set them for a deterministic
 // reproduction.

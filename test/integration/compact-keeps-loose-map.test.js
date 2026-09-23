@@ -2,7 +2,6 @@ import test from 'brittle'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { freshPeer } from '../helpers/store.js'
-import { getRuntimeConfig, setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { getOwnEntry } from '../../src/shared/shares/own-catalog.js'
 import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
@@ -19,16 +18,13 @@ import { initPendingTransfers } from '../../src/shared/transfer/pending-transfer
 // chunk maps were dropped — a shared file re-chunked on its next download).
 test('Free up space keeps a still-shared loose file’s chunk map', async (t) => {
   const ctx = await freshPeer(t)
-  setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true, inPlaceFilesEnabled: true })
   await initDownloads()
   await initPendingTransfers()
   serveIndex.reset()
   await initOverlay()
   initOverlayIpc(ctx.fake.ipc)
   initLooseIpc(ctx.fake.ipc)
-  t.teardown(async () => { serveIndex.reset(); await teardownOverlay()
-    setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: false, inPlaceFilesEnabled: false })
-  })
+  t.teardown(async () => { serveIndex.reset(); await teardownOverlay() })
   const space = await createSpace('Aurora')
 
   const abs = path.join(ctx.tmpDir('src'), 'big.bin')

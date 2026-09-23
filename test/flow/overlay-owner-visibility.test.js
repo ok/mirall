@@ -13,7 +13,7 @@ import { scaled } from '../helpers/timing.js'
 test('overlay owner refreshes incrementally during the scan, not only at the end',
   { timeout: scaled(150000) }, async (t) => {
     const bootstrap = await localTestnet(t)
-    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags: { overlayEnabled: true } })
+    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t) })
     const aKey = (await A.request('profile:get')).personKey
     const { spaceId } = await A.request('space:create', { name: 'Aurora' })
     const share = await A.request('share:create', { spaceId, name: 'Vault', contentMode: 'overlay' })

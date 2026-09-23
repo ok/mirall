@@ -6,8 +6,6 @@ import { launchPeer, connectInSpace } from '../helpers/peer.js'
 import { mkTmpDir, patternedBytes, mkStoreDir } from '../helpers/fixtures.js'
 import { scaled } from '../helpers/timing.js'
 
-const FLAGS = { overlayEnabled: true }
-
 // REGRESSION (FIX-MIRROR-STOP): end-to-end proof that a mirror paused mid-download and then
 // unmounted while still online clears the OWNER's "who is downloading" indicator promptly. Before
 // the fix the pause released the in-flight fetch slot, so the unmount signalled nothing and the
@@ -15,8 +13,8 @@ const FLAGS = { overlayEnabled: true }
 test('mirror paused then unmounted clears the owner serve ledger without waiting for the sweep',
   { timeout: scaled(120000) }, async (t) => {
     const bootstrap = await localTestnet(t)
-    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags: FLAGS })
-    const B = await launchPeer(t, { bootstrap, displayName: 'Bob', flags: FLAGS })
+    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t) })
+    const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })
     const spaceId = await connectInSpace(t, A, B)
     const aKey = (await A.request('profile:get')).personKey
     const bKey = (await B.request('profile:get')).personKey

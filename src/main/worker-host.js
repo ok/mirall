@@ -207,14 +207,11 @@ function getWorker(specifier) {
     maxFilesPerShare: process.env.MIRALL_MAX_FILES_PER_SHARE ? Number(process.env.MIRALL_MAX_FILES_PER_SHARE) : undefined,
     deriveDebounceMs: process.env.MIRALL_DERIVE_DEBOUNCE_MS ? Number(process.env.MIRALL_DERIVE_DEBOUNCE_MS) : undefined,
     handshakeIdentityBindingEnabled: readFeatureFlags().handshakeIdentityBinding === true,
-    // in-place files are served through the overlay instance, so enabling them implies overlay.
-    overlayEnabled: readFeatureFlags().overlay === true || readFeatureFlags().inPlaceFiles === true,
-    inPlaceFilesEnabled: readFeatureFlags().inPlaceFiles === true,
     // Hashing progress for a file being (re-)published: members see "preparing 34%" instead of a
     // frozen placeholder, and it is the liveness signal that keeps a download parked on a
     // re-publish alive while a large source hashes. On by default; set false to revert.
     sharePrepareProgressEnabled: readFeatureFlags().sharePrepareProgress !== false,
-    // Bulk content rides its own transport by default when overlay is on; feature-flags.json
+    // Bulk content rides its own transport by default; feature-flags.json
     // can set separateContentPlane:false to revert to the single-plane overlay.
     separateContentPlane: readFeatureFlags().separateContentPlane !== false,
     // Relay config rides the boot frame unconditionally: it is inert when relayMode is

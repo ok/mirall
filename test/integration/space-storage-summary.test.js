@@ -17,7 +17,6 @@ import { advertise } from '../../src/shared/shares/own-catalog.js'
 import { collectPeerShare } from '../../src/shared/shares/peer-catalog.js'
 import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
 import { getStore } from '../../src/shared/core/store.js'
-import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { initOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { initOverlayIpc } from '../helpers/overlay-ipc.js'
 import { createForeignMount } from '../../src/shared/folders/mount-store.js'
@@ -34,7 +33,6 @@ import { spaceStorageSummary } from '../../src/shared/storage/space-storage.js'
 
 async function setup(t) {
   const ctx = await freshPeer(t)
-  setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true })
   await initOverlay()
   initOverlayIpc(ctx.fake.ipc)
   t.teardown(async () => { await teardownOverlay() })

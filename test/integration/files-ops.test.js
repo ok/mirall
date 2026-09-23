@@ -8,14 +8,12 @@ import { initDownloads, markDownloaded, getDownloadedPath, getOwnedSourcePath, i
 import { addFile, removeFile } from '../../src/shared/transfer/file-listing.js'
 import { resolveRevealTarget } from '../../src/shared/transfer/reveal.js'
 import { initPendingTransfers } from '../../src/shared/transfer/pending-transfers.js'
-import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { setSpaceDownloadRoot } from '../../src/shared/core/paths.js'
 import { initOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { initOverlayIpc } from '../helpers/overlay-ipc.js'
 
 async function setup(t) {
   const ctx = await freshPeer(t)
-  setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true })
   await initOverlay()
   initOverlayIpc(ctx.fake.ipc)
   t.teardown(async () => { await teardownOverlay() })

@@ -4,7 +4,6 @@ import path from 'bare-path'
 import { freshPeer } from '../helpers/store.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { advertise, getOwnEntry } from '../../src/shared/shares/own-catalog.js'
-import { getRuntimeConfig, setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
 import { initOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { initDownloads } from '../../src/shared/transfer/files.js'
@@ -16,7 +15,6 @@ import { initLooseIpc } from '../helpers/overlay-ipc.js'
 
 async function setup(t) {
   const ctx = await freshPeer(t)
-  setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true, inPlaceFilesEnabled: true })
   await initDownloads()
   await initPendingTransfers()
   const space = await createSpace('Aurora')
@@ -27,7 +25,6 @@ async function setup(t) {
   t.teardown(async () => {
     serveIndex.reset()
     await teardownOverlay()
-    setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: false, inPlaceFilesEnabled: false })
   })
   return { ...ctx, spaceId: space.spaceId }
 }

@@ -6,7 +6,7 @@ import { launchPeer, connectInSpace } from '../helpers/peer.js'
 import { mkTmpDir, patternedBytes, mkStoreDir } from '../helpers/fixtures.js'
 import { scaled } from '../helpers/timing.js'
 
-const FLAGS = { overlayEnabled: true, sharePrepareProgressEnabled: true }
+const FLAGS = { sharePrepareProgressEnabled: true }
 
 // Pausing an owner's index has a member-visible effect no single-peer test can see: emptying the
 // queue pokes progress, which goes out over the handshake channel as a zero frame. Without it the

@@ -6,7 +6,7 @@ import { launchPeer, connectInSpace } from '../helpers/peer.js'
 import { mkTmpDir, patternedBytes, mkStoreDir } from '../helpers/fixtures.js'
 import { scaled } from '../helpers/timing.js'
 
-const FLAGS = { overlayEnabled: true, sharePrepareProgressEnabled: true }
+const FLAGS = { sharePrepareProgressEnabled: true }
 
 // A file that is only QUEUED has no catalog entry, so it replicates nothing — a member watching an
 // owner add a folder saw only the two or three files being hashed at that instant. The owner now
@@ -54,7 +54,7 @@ test('owner broadcasts its scan queue; a member sees how much is still to be add
 test('owner with the flag off never broadcasts its scan queue',
   { timeout: scaled(150000) }, async (t) => {
     const bootstrap = await localTestnet(t)
-    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags: { overlayEnabled: true, sharePrepareProgressEnabled: false } })
+    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags: { sharePrepareProgressEnabled: false } })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags: FLAGS })
     const spaceId = await connectInSpace(t, A, B)
     const aKey = (await A.request('profile:get')).personKey

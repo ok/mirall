@@ -12,7 +12,6 @@
 import { AppError, errorMessage } from '../../shared/core/errors.js'
 import { CODES } from '../../shared/contract/errors.js'
 import { TARGET_KIND } from '../../shared/contract/audit-kinds.js'
-import { isOverlayEnabled } from '../../shared/core/runtime-config.js'
 import { getLocalPublicKeyHex, requireLocalPublicKeyHex } from '../../shared/spaces/profile.js'
 import { getSpace, getSpaceContentKey, isLegacySpace, LEGACY_SPACE_MESSAGE } from '../../shared/spaces/space.js'
 import { publishShare, tombstoneShare, readOwnShares, isValidShareName, generateShareId } from '../../shared/shares/shares.js'
@@ -58,8 +57,7 @@ async function prepareOwnedShare(spaceId, name) {
   }
   // Overlay is the only content backend: serve straight from the source file (no
   // second copy), advertising into a replicated catalog peers list/fetch from.
-  // Stamped at creation (replicates). A build without overlay can't create shares.
-  if (!isOverlayEnabled()) throw new AppError(CODES.OVERLAY_REQUIRED, 'Folder sharing requires the overlay backend')
+  // Stamped at creation (replicates).
   // Before the SCK check below, which would otherwise report a pre-encryption space as one we are
   // merely un-approved for.
   if (isLegacySpace(space)) throw new AppError(CODES.SPACE_UNSUPPORTED, LEGACY_SPACE_MESSAGE)

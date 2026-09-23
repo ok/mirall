@@ -12,7 +12,6 @@ import { scaled } from '../helpers/timing.js'
 // downloads FOLDER (a separate dir), fetched content-addressed straight from the
 // owner's source file. An 8 MB file makes the signal unmistakable: if blocks were
 // written, the store would grow by ~8 MB; here both stores grow by metadata only.
-const FLAGS = { overlayEnabled: true }
 const SIZE = 8 * 1024 * 1024 // dwarfs RocksDB WAL/compaction + catalog/chunk-map metadata
 
 const flush = (ms = scaled(1500)) => new Promise((r) => setTimeout(r, ms))
@@ -22,8 +21,8 @@ test('overlay: publish imports no blob; download writes no content blocks into t
     const bootstrap = await localTestnet(t)
     const aStore = mkStoreDir(t)
     const bStore = mkStoreDir(t)
-    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: aStore, flags: FLAGS })
-    const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: bStore, downloads: mkTmpDir(t), flags: FLAGS })
+    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: aStore })
+    const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: bStore, downloads: mkTmpDir(t) })
     const spaceId = await connectInSpace(t, A, B)
     const aKey = (await A.request('profile:get')).personKey
 

@@ -27,7 +27,7 @@ import { LOOSE_SHARE_ID } from '../../src/shared/transfer/transfer-id.js'
 // read live. Asserted by read COUNTS through the injected catalog reader, never by wall time.
 async function setup(t, config = {}) {
   const ctx = await freshPeer(t)
-  setRuntimeConfig({ ...getRuntimeConfig(), inPlaceFilesEnabled: true, ...config })
+  setRuntimeConfig({ ...getRuntimeConfig(), ...config })
   await initDownloads()
   await initPendingTransfers()
   const space = await createSpace('Aurora')

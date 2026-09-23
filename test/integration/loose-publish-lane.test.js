@@ -42,7 +42,7 @@ function slowHash(t, ms, { only = null } = {}) {
 async function setup(t, { concurrency = 2 } = {}) {
   const ctx = await setupOwnedShare(t)
   const cfg = getRuntimeConfig()
-  setRuntimeConfig({ ...cfg, inPlaceFilesEnabled: true, publishConcurrency: concurrency })
+  setRuntimeConfig({ ...cfg, publishConcurrency: concurrency })
   await initDownloads()
   await initPendingTransfers()
   looseSources.clear()

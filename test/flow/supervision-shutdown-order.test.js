@@ -8,7 +8,7 @@ import { scaled, unscaled } from '../helpers/timing.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
-const v2flags = () => ({ overlayEnabled: true, inPlaceFilesEnabled: true, identityKEK: kekHex() })
+const v2flags = () => ({ identityKEK: kekHex() })
 
 // The supervisor is a new subsystem in the composition root, started after every subsystem it
 // supervises so the lifecycle's reverse close order stops it first. Adding a subsystem to boot.js
