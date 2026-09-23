@@ -4,10 +4,14 @@ import path from 'bare-path'
 import url from 'bare-url'
 import { freshPeer } from '../helpers/store.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
-import { initDownloads, markDownloaded, markVerified, downloadedCopyVerdict } from '../../src/shared/transfer/files.js'
-import { peerFileStatus } from '../../src/shared/transfer/file-listing.js'
+import b4a from 'b4a'
+import { initDownloads, markDownloaded, markVerified } from '../../src/shared/transfer/files.js'
+import { listFiles } from '../../src/shared/transfer/file-listing.js'
 import { initPendingTransfers, recordPending, getPendingFor } from '../../src/shared/transfer/pending-transfers.js'
 import { setSpaceDownloadRoot } from '../../src/shared/core/paths.js'
+import { createBee } from '../../src/shared/core/store.js'
+import { getRuntimeConfig, setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
+import { LOOSE_SHARE_ID } from '../../src/shared/transfer/transfer-id.js'
 
 const here = path.dirname(url.fileURLToPath(import.meta.url))
 const engineSrc = fs.readFileSync(
@@ -34,6 +38,7 @@ test("REGRESSION (FIX-D2: completion records the durable downloaded fact before 
 
 test('a pending row lingering after markDownloaded is masked by the downloaded status', async (t) => {
   const { tmpDir } = await freshPeer(t)
+  setRuntimeConfig({ ...getRuntimeConfig(), inPlaceFilesEnabled: true })
   await initDownloads()
   await initPendingTransfers()
   const space = await createSpace('Aurora')
@@ -44,15 +49,17 @@ test('a pending row lingering after markDownloaded is masked by the downloaded s
   const landed = path.join(dir, 'report.pdf')
   fs.writeFileSync(landed, 'downloaded bytes')
   const drivePath = '/report.pdf'
+  const catalog = createBee('owner-catalog')
+  await catalog.ready()
+  await catalog.put('file/' + LOOSE_SHARE_ID + '/report.pdf', { size: 16, mtime: 1, contentHash: 'h'.repeat(64) })
+  const owner = { publicKey: 'o'.repeat(64), displayName: 'Owner', driveKey: 'dk', looseCatalogKey: b4a.toString(catalog.core.key, 'hex') }
+  await catalog.close()
 
   await recordPending(spaceId, drivePath, { finalPath: landed, bytesTransferred: 16, ownerKey: 'o'.repeat(64) })
   await markDownloaded(spaceId, drivePath, landed, { hash: 'h'.repeat(64) })
-  await markVerified(spaceId, 'loose|report.pdf', 'h'.repeat(64))
+  await markVerified(spaceId, LOOSE_SHARE_ID + '|report.pdf', 'h'.repeat(64))
 
-  const copyVerdict = await downloadedCopyVerdict(spaceId, drivePath, 'loose|report.pdf', 'h'.repeat(64), 16)
-  const pendingRow = await getPendingFor(spaceId, drivePath)
-  t.ok(copyVerdict, 'downloaded fact recorded and file on disk')
-  t.ok(pendingRow, 'the resume row lingers (crash window)')
-  t.is(peerFileStatus(copyVerdict, pendingRow, true, false), 'downloaded',
-    'status derives downloaded, not paused/error, while the stale row lingers')
+  t.ok(await getPendingFor(spaceId, drivePath), 'the resume row lingers (crash window)')
+  const row = (await listFiles(spaceId, [owner])).find((f) => f.path === drivePath)
+  t.is(row?.status, 'downloaded', 'status derives downloaded, not paused/error, while the stale row lingers')
 })

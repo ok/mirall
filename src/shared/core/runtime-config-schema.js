@@ -236,6 +236,13 @@ const DEFAULTED = {
   // 1 disables the skip entirely: the rollback, settable in a shipped build via
   // MIRALL_FOREIGN_FULL_WALK_EVERY, which the host forwards on the bootstrap frame.
   foreignFullWalkEvery: 10,
+  // Every Nth listing that consults a member's memoised loose catalog reads it anyway (the N-1
+  // between are served from the memo; the storage summary lists through the same path and counts
+  // too). The catalog version only moves while that catalog replicates, and this backstop re-syncs
+  // its head under a steady stream of pokes without costing a quiet space anything. 1 disables the
+  // skip: the rollback, settable in a shipped build via MIRALL_LIST_FULL_READ_EVERY, which the host
+  // forwards on the bootstrap frame.
+  listFullReadEvery: 10,
   // Per-requester rate limit on the overlay serve gate (inbound content-requests),
   // keyed on the asker's authenticated profile key. More
   // generous than the handshake limiter — a legit consumer issues one request

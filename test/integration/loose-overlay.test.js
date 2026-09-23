@@ -12,7 +12,7 @@ import { setSpaceDownloadRoot } from '../../src/shared/core/paths.js'
 import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
 import { getOverlay, initOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { overlayHashFile } from '../../src/shared/transfer/backends/overlay/overlay-hash.js'
-import { initDownloads, markDownloaded, markVerified, downloadedCopyVerdict, getOwnedSourcePath } from '../../src/shared/transfer/files.js'
+import { initDownloads, markDownloaded, markVerified, getOwnedSourcePath } from '../../src/shared/transfer/files.js'
 import { listFiles } from '../../src/shared/transfer/file-listing.js'
 import { initPendingTransfers, recordPending, getPendingFor } from '../../src/shared/transfer/pending-transfers.js'
 import { looseShareFile, looseUnshareFile, looseListOwn, looseCancelPublish, handleLooseFsEvent, MAX_LOOSE_FILES_PER_SPACE, looseSources } from '../../src/shared/transfer/backends/overlay/loose-publish.js'
@@ -232,27 +232,6 @@ test('looseCancelByKey discards a paused/queued partial: removes the partial fil
   t.is(done[done.length - 1].payload.spaceId, ctx.spaceId, 'decoration frame carries spaceId (FIX-EDA-12 contract)')
 })
 
-test('Item 1: downloadedCopyVerdict vouches only for the landed file, unchanged, at the current hash', async (t) => {
-  const ctx = await setup(t)
-  const key = '__loose__|a.txt'
-  const landed = path.join(ctx.tmpDir('dl'), 'a.txt')
-  fs.writeFileSync(landed, 'aaaa')
-  t.is(await downloadedCopyVerdict(ctx.spaceId, '/a.txt', key, 'hhh', 4), null, 'no claim → not on the device')
-  await markDownloaded(ctx.spaceId, '/a.txt', landed, { hash: 'hhh' })
-  t.is(await downloadedCopyVerdict(ctx.spaceId, '/a.txt', key, 'hhh', 4), 'unproven', 'no record → unproven')
-  await markVerified(ctx.spaceId, key, 'hhh', { local: '/elsewhere/a.txt', stat: fs.statSync(landed) })
-  t.is(await downloadedCopyVerdict(ctx.spaceId, '/a.txt', key, 'hhh', 4), 'unproven', 'a record for another path → unproven')
-  await markVerified(ctx.spaceId, key, 'hhh', { local: landed, stat: fs.statSync(landed) })
-  t.is(await downloadedCopyVerdict(ctx.spaceId, '/a.txt', key, 'hhh', 4), 'verified', 'the landed file, unchanged → verified')
-  t.is(await downloadedCopyVerdict(ctx.spaceId, '/a.txt', key, null, 4), 'unproven', 'no advertised hash → on the device, vouched for by nothing')
-  fs.writeFileSync(landed, 'bbbb')
-  const future = new Date(Date.now() + 60000)
-  fs.utimesSync(landed, future, future)
-  t.is(await downloadedCopyVerdict(ctx.spaceId, '/a.txt', key, 'hhh', 4), 'drifted', 'a same-size write nothing will re-hash → no longer vouched for, not an edit')
-  fs.writeFileSync(landed, 'bbbbb')
-  t.is(await downloadedCopyVerdict(ctx.spaceId, '/a.txt', key, 'hhh', 4), 'modified', 'a size that moved → modified')
-})
-
 // Owner in space A; consumer-context is space B (no own loose entry there → no
 // own/peer dedupe collision). A verified, on-disk download surfaces verified:true.
 test('Item 1: a downloaded+verified peer loose file surfaces verified:true (false otherwise)', async (t) => {
@@ -272,6 +251,10 @@ test('Item 1: a downloaded+verified peer loose file surfaces verified:true (fals
   let row = (await listFiles(spaceB.spaceId, [member])).find((f) => f.path === '/v.bin')
   t.is(row?.status, 'downloaded', 'present on device')
   t.is(row.verified, false, 'no verified record → verified:false')
+
+  await markVerified(spaceB.spaceId, LOOSE_SHARE_ID + '|v.bin', entry.contentHash, { local: path.join(dir, 'elsewhere.bin'), stat: fs.statSync(landed) })
+  row = (await listFiles(spaceB.spaceId, [member])).find((f) => f.path === '/v.bin')
+  t.is(row.verified, false, 'a record for another landing path vouches for nothing')
 
   await markVerified(spaceB.spaceId, LOOSE_SHARE_ID + '|v.bin', entry.contentHash, { local: landed, stat: fs.statSync(landed) })
   row = (await listFiles(spaceB.spaceId, [member])).find((f) => f.path === '/v.bin')

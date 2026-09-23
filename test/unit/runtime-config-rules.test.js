@@ -195,9 +195,9 @@ test('the rules table is exactly the declared set', (t) => {
 // The module header states these two counts. Asserting them is what keeps them from rotting.
 test('the ruled and unruled key counts are the ones the header claims', (t) => {
   const { ruled, defaultedKeys } = _rulesForTests()
-  t.is(defaultedKeys, 65, 'DEFAULTED keys')
+  t.is(defaultedKeys, 66, 'DEFAULTED keys')
   t.is(Object.keys(ruled).length, 21, 'of which carry a validation rule')
-  t.is(defaultedKeys - Object.keys(ruled).length, 44, 'the rest are read raw')
+  t.is(defaultedKeys - Object.keys(ruled).length, 45, 'the rest are read raw')
 })
 
 test('every ruled key is a DEFAULTED key', (t) => {

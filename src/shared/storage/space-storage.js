@@ -71,7 +71,7 @@ export async function spaceStorageSummary(spaceId) {
   }
   // Loose files reuse the files:list source of truth verbatim, so the widget's
   // loose semantics (dedupe by hash, disk-reverified "downloaded") can't drift.
-  for (const f of await listFiles(spaceId, space.members || [])) {
+  for (const f of await listFiles(spaceId, space.members || [], { space })) {
     totalBytes += f.size || 0
     if (f.status === FILE_STATUS.MINE || f.status === FILE_STATUS.DOWNLOADED || f.status === FILE_STATUS.MODIFIED) onDeviceBytes += f.size || 0
   }

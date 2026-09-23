@@ -121,6 +121,10 @@ export function getForeignFullWalkEvery() {
   return read('foreignFullWalkEvery')
 }
 
+export function getListFullReadEvery() {
+  return read('listFullReadEvery')
+}
+
 export function getCaptureMemberRecordMs() {
   return read('captureMemberRecordMs')
 }

@@ -23,6 +23,7 @@ import { bumpServeEpoch, revokeServesForSpace } from '../../shared/transfer/back
 import { cleanupDownloadHistory } from '../../shared/transfer/files.js'
 import { looseCancelSpace } from '../../shared/transfer/backends/overlay/loose-downloads.js'
 import { clearPendingForSpace } from '../../shared/transfer/pending-transfers.js'
+import { forgetListingMemo } from '../../shared/transfer/listing-memo.js'
 import { cleanupSpaceDrives, leaveSpaceTopic } from '../../shared/network/space-topics.js'
 import { awaitLeaveAcks, hasPendingCancel, hasPendingLeave, isSpaceLeaving, joinPendingCancelTopic, joinPendingLeaveTopic, markSpaceLeaving, registerPendingCancel, registerPendingLeave, sendLeaveFrameToConnectedPeers, sendPendingCancelToConnected, takeLeaveAckedKeys, unmarkSpaceLeaving } from '../../shared/network/leave-protocol.js'
 import { compactStore } from '../../shared/storage/compaction.js'
@@ -256,6 +257,7 @@ export function registerSpaceLeave(ipc, { log, mounts, discardPendingSpace, drop
         tracker.phase = 'purge-local'
         await cleanupDownloadHistory(msg.spaceId)
         await clearPendingForSpace(msg.spaceId)
+        forgetListingMemo(msg.spaceId)
         await purgeSpaceDrive(msg.spaceId, (phase) => {
           progress(phase)
         }, { compact: false })
