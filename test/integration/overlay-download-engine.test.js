@@ -525,7 +525,8 @@ test('preflight lets a download through when the volume has room', async (t) => 
 
 // REGRESSION (FIX-ENOSPC-3: a disk-full row was auto-resumed on every owner catalog append
 // and reconnect — each retry re-preallocating and re-failing with another error toast,
-// though a retry cannot succeed until the user frees space).
+// though a retry cannot succeed until the user frees space. The row asks for more than any
+// volume holds, so nothing the destination can report clears it.)
 test('REGRESSION (FIX-ENOSPC-3): auto-resume skips a disk-full row', async (t) => {
   const ctx = await setup(t)
   const built = []
@@ -536,8 +537,8 @@ test('REGRESSION (FIX-ENOSPC-3): auto-resume skips a disk-full row', async (t) =
   }
   const engine = createOverlayDownloadEngine(channel, { hasOverlay: () => true })
 
-  await recordPending('space4', '/full.bin', { total: 10, overlayShare: true, relPath: 'full.bin', ownerKey: 'peerpub', errorCode: CODES.TRANSFER_DISK_FULL, finalPath: path.join(ctx.tmpDir('dl'), 'full.bin') })
-  await recordPending('space4', '/other.bin', { total: 10, overlayShare: true, relPath: 'other.bin', ownerKey: 'peerpub', finalPath: path.join(ctx.tmpDir('dl'), 'other.bin') })
+  await recordPending('space4', '/full.bin', { total: Number.MAX_SAFE_INTEGER, overlayShare: true, relPath: 'full.bin', ownerKey: 'peerpub', errorCode: CODES.TRANSFER_DISK_FULL, finalPath: path.join(ctx.downloads, 'full.bin') })
+  await recordPending('space4', '/other.bin', { total: 10, overlayShare: true, relPath: 'other.bin', ownerKey: 'peerpub', finalPath: path.join(ctx.downloads, 'other.bin') })
 
   await engine.resumeForOwner('peerpub', 'space4')
   await new Promise((r) => setTimeout(r, 400))

@@ -108,7 +108,7 @@ export function createStart({
     registry.delete(job.transferId)
     if (code === CODES.TRANSFER_DISK_FULL) log.warn('overlay download refused — not enough free disk space:', job.relPath, 'needs', job.size, 'bytes')
     else log.warn('overlay download refused — download folder unavailable:', path.dirname(job.finalPath))
-    await recordTerminal(job, code)
+    await recordTerminal(job, code, { refusedByPreflight: true })
     failTerminal(job, code)
     return { queued: true }
   }

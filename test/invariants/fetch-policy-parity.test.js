@@ -68,7 +68,7 @@ test('both producers reach the vendor through the shared instrumentation', (t) =
 test('both producers refuse a fetch whose destination is gone', (t) => {
   // Anchored on the call, not the declaration: the folder is asked through the per-job probe the
   // engine root builds, and the pure rule in download-faults.js is what asks it first.
-  t.ok(/dirExists: \(\) => dirExists\(dir\)/.test(read(ENGINE)), 'the engine probes the download folder')
+  t.ok(/dirExists: \(\) =>[^\n]*dirExists\(dir\)/.test(read(ENGINE)), 'the engine probes the download folder')
   t.ok(/if \(!dest\.dirExists\(\)\) return CODES\.TRANSFER_DEST_UNAVAILABLE/.test(ENGINE_ALL), 'and refuses on a gone folder')
   // Not /mountRootAvailable\(/: that matches two pre-existing calls in the auto-pause probes, so
   // the preflight could be deleted without failing. The preflight lives in mountCanTake.

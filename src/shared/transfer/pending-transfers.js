@@ -57,7 +57,10 @@ export async function getPendingFor(spaceId, filePath) {
   return entry?.value || null
 }
 
-export function recordPendingError(spaceId, filePath, errorCode) {
+// `refusedByPreflight` names the check that produced the verdict, which is what decides whether the
+// same check passing later is evidence the fault cleared. It is written on every error, so a second
+// verdict cannot inherit the first one's answer.
+export function recordPendingError(spaceId, filePath, errorCode, { refusedByPreflight = false } = {}) {
   const key = rowKey(spaceId, filePath)
   return exclusive(key, async () => {
     const cur = await bee.get(key)
@@ -66,6 +69,7 @@ export function recordPendingError(spaceId, filePath, errorCode) {
       ...cur.value,
       errorCode,
       erroredAt: Date.now(),
+      refusedByPreflight,
     })
   })
 }

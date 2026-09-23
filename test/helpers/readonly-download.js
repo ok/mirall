@@ -40,10 +40,13 @@ export function makeJob(dir) {
   }
 }
 
-// A folder this process cannot write, or null where the mode bits do not make it so: Windows
-// ignores a directory's mode and root bypasses it. The probe write is the honest test of both.
+// A folder this process cannot write, INSIDE the space's download root — where a production
+// finalPath's folder always sits, so the re-anchor rule leaves the row pinned to it. Null where the
+// mode bits do not make it read-only: Windows ignores a directory's mode and root bypasses it. The
+// probe write is the honest test of both.
 export function readOnlyDir(t, ctx, name) {
-  const dir = ctx.tmpDir(name)
+  const dir = path.join(ctx.downloads, name)
+  fs.mkdirSync(dir, { recursive: true })
   fs.chmodSync(dir, 0o555)
   t.teardown(() => { try { fs.chmodSync(dir, 0o755) } catch {} })
   try {
@@ -69,3 +72,21 @@ export function writingHolder(seen, { gate = null } = {}) {
 }
 
 export const errorsIn = (events) => events.filter((e) => e[0] === 'error').map((e) => e[1])
+
+// A writable destination folder inside the space's download root, for the faults that are about the
+// volume rather than the folder's mode.
+export function writableDir(ctx, name) {
+  const dir = path.join(ctx.downloads, name)
+  fs.mkdirSync(dir, { recursive: true })
+  return dir
+}
+
+// A holder whose write hits a full volume: the errno the kernel raises during the transfer, which
+// no free-space reading predicted.
+export function enospcHolder(seen, { gate = null } = {}) {
+  getOverlay().fetchFile = async (_hash, opts) => {
+    seen.push(opts.destPath)
+    if (gate) await gate()
+    throw Object.assign(new Error('write failed'), { code: 'ENOSPC' })
+  }
+}

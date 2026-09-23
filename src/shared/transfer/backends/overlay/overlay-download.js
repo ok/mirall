@@ -11,6 +11,7 @@
 // settle-verdict.js. The last two are pure.
 import fs from 'bare-fs'
 import path from 'bare-path'
+import { getDownloadDir, isInsideDownloadDir } from '../../../core/paths.js'
 import { getOverlay, getJournalDir } from './overlay-instance.js'
 import { journalNameFor } from './vendor/transfer.js'
 import { PARTIAL_SUFFIX, partialPathFor } from '../../partial-suffix.js'
@@ -86,30 +87,70 @@ function defaultDirAcceptsWrite(dir) {
   }
 }
 
-// The stalled-owner rescue asks on every convergence tick, and each probe is a synchronous
-// create/delete in the user's folder, so it reads a verdict at most this old.
-const FOLDER_VERDICT_TTL_MS = 60_000
+// The convergence tick asks about every pending row, and a permission row's reading is a real
+// create/delete in the user's folder, so a destination answers at most this often however many rows
+// point at it.
+const DEST_VERDICT_TTL_MS = 60_000
 
-// The two questions the convergence tick asks about a row, both answered from the kept folder
+// Where a re-driven row would actually be written. The reconcile re-anchors a pin that sits outside
+// the space's download folder (reuseDest), so a fault is judged against the folder the next attempt
+// uses rather than the one the download first targeted. A re-anchored row gives up the partial it
+// left behind, so it has nothing allocated.
+/**
+ * @param {{ spaceId: string, finalPath?: string }} row
+ * @returns {{ dir: string, partialFor: string | null }}
+ */
+function rowDest(row) {
+  const localDir = getDownloadDir(row.spaceId)
+  const pinned = !!row.finalPath && isInsideDownloadDir(row.finalPath, localDir)
+  return { dir: pinned ? path.dirname(row.finalPath) : localDir, partialFor: pinned ? row.finalPath : null }
+}
+
+// What a pending row's verdict is judged as. `size` is null for a row that carries no byte count:
+// the start gate asks the volume for the job's real size, and nothing on the row stands in for it.
+/**
+ * @param {{ total?: number, refusedByPreflight?: boolean }} row
+ * @param {string | undefined} code
+ * @returns {import('./download-faults.js').RowFault}
+ */
+function rowFault(row, code) {
+  const total = Number(row.total)
+  return { code, size: Number.isFinite(total) ? total : null, refusedByPreflight: row.refusedByPreflight === true }
+}
+
+// The two questions the convergence tick asks about a row, both answered from the kept destination
 // verdict: whether the stalled-owner rescue should keep reaching for its owner (a manual pause and
 // a fault only the user can clear wait on the user, not the owner), and whether the user has since
 // cleared that fault, which is the tick's cue to re-drive the row through the reconcile. A cleared
 // row is handed out once: a re-drive the reconcile could not start (a member gone from the roster,
 // a catalog it cannot read) is not repeated every tick, and the reconnect and catalog-append paths
 // still reach the row. The owner gate is the one start() reads, so a re-drive cannot rewrite the
-// row only to park it as owner-offline. The reconcile's own faultCleared probes the folder afresh.
-function createOwnerWait({ channel, registry, pausedHashes, terminalCodes, ownerOnline, dirAcceptsWrite, now }) {
-  const folderVerdicts = new Map() // dir -> { writable, at }
-  function probeFolder(finalPath) {
-    const dir = path.dirname(finalPath)
-    const writable = dirAcceptsWrite(dir)
-    folderVerdicts.set(dir, { writable, at: now() })
-    return writable
+// row only to park it as owner-offline. The reconcile's own faultCleared reads the destination
+// afresh.
+function createOwnerWait({ channel, registry, pausedHashes, terminalCodes, ownerOnline, makeDestProbe, now }) {
+  // dir -> { at, exists?, writable?, acceptsWrite?, freeBytes? }. The raw readings, not a verdict:
+  // two rows on one folder need different amounts of room, so a cached "it is full" would answer
+  // the second row with the first row's size. Each field is filled only when a code asks for it.
+  const destVerdicts = new Map()
+  function keptReader(dir) {
+    return (field, probe) => {
+      let kept = destVerdicts.get(dir)
+      if (!kept || now() - kept.at >= DEST_VERDICT_TTL_MS) { kept = { at: now() }; destVerdicts.set(dir, kept) }
+      if (kept[field] === undefined) kept[field] = probe()
+      return kept[field]
+    }
   }
-  function keptFolderVerdict(finalPath) {
-    const kept = folderVerdicts.get(path.dirname(finalPath))
-    return kept && now() - kept.at < FOLDER_VERDICT_TTL_MS ? kept.writable : probeFolder(finalPath)
+  // The entry is replaced only once a field is actually read, so a code that answers without
+  // probing leaves the kept readings the tick relies on in place.
+  function freshReader(dir) {
+    let kept = null
+    return (field, probe) => {
+      if (!kept) { kept = { at: now() }; destVerdicts.set(dir, kept) }
+      return (kept[field] = probe())
+    }
   }
+  const keptProbe = (row) => { const { dir, partialFor } = rowDest(row); return makeDestProbe(dir, partialFor, keptReader(dir)) }
+  const freshProbe = (row) => { const { dir, partialFor } = rowDest(row); return makeDestProbe(dir, partialFor, freshReader(dir)) }
   function faultOf(row) {
     if (!channel.ownsPendingRow(row)) return null
     const transferId = channel.transferIdForRow(row.spaceId, row)
@@ -118,22 +159,25 @@ function createOwnerWait({ channel, registry, pausedHashes, terminalCodes, owner
   }
   function awaitsOwner(row) {
     const fault = faultOf(row)
-    return !!fault && faultAwaitsOwner(fault.code, row.finalPath, keptFolderVerdict)
+    return !!fault && faultAwaitsOwner(rowFault(row, fault.code), keptProbe(row))
   }
   const redriven = new Set() // transferIds handed to the tick, until their fault is no longer cleared
-  // An active row waits on nothing: the fetch the last re-drive started owns it.
+  // The fault going away is the ONLY thing that returns a transferId to the tick. An active row is
+  // refused without forgetting it: the fetch a re-drive started outlives a tick, so releasing the
+  // memory here would make the row eligible again the moment that fetch failed.
   function takeUnblocked(row) {
     const fault = faultOf(row)
     if (!fault) return false
-    if (registry.has(fault.transferId) || !faultCleared(fault.code, row.finalPath, keptFolderVerdict)) {
+    if (!faultCleared(rowFault(row, fault.code), keptProbe(row))) {
       redriven.delete(fault.transferId)
       return false
     }
+    if (registry.has(fault.transferId)) return false
     if (!ownerOnline(row.ownerKey) || redriven.has(fault.transferId)) return false
     redriven.add(fault.transferId)
     return true
   }
-  return { awaitsOwner, takeUnblocked, faultCleared: (code, row) => faultCleared(code, row.finalPath, probeFolder) }
+  return { awaitsOwner, takeUnblocked, faultCleared: (code, row) => faultCleared(rowFault(row, code), freshProbe(row)) }
 }
 
 function partialAllocatedBytes(finalPath) {
@@ -175,22 +219,30 @@ export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentT
 
   const ownerOnline = (pk) => (channel.isOwnerOnline ?? isOwnerOnline)(pk)
   const pauseReasonFor = (job) => ownerPauseReason(ownerOnline(job.ownerKey))
-  const destProbeFor = (job) => {
-    const dir = path.dirname(job.finalPath)
-    return {
-      dirExists: () => dirExists(dir),
-      dirWritable: () => dirWritable(dir),
-      freeBytes: () => freeBytes(dir),
-      allocatedBytes: () => partialAllocatedBytes(job.finalPath),
-    }
-  }
+  // One shape for every destination question, so the preflight that refuses a download and the rule
+  // that says its fault cleared ask the same things of the same folder. `read` lets a caller answer
+  // from a kept verdict; without one each call is a fresh syscall.
+  /**
+   * @param {string} dir
+   * @param {string | null} partialFor
+   * @param {(field: string, probe: () => boolean | number) => boolean | number} [read]
+   * @returns {import('./download-faults.js').DestProbe}
+   */
+  const makeDestProbe = (dir, partialFor, read = (_field, probe) => probe()) => ({
+    dirExists: () => !!read('exists', () => dirExists(dir)),
+    dirWritable: () => !!read('writable', () => dirWritable(dir)),
+    dirAcceptsWrite: () => !!read('acceptsWrite', () => dirAcceptsWrite(dir)),
+    freeBytes: () => Number(read('freeBytes', () => freeBytes(dir))),
+    allocatedBytes: () => (partialFor ? partialAllocatedBytes(partialFor) : 0),
+  })
+  const destProbeFor = (job) => makeDestProbe(path.dirname(job.finalPath), job.finalPath)
 
   // Never throws: the caller still emits the error (the transfer DID fail); the warn adds that the
   // failure is not durable. Only the codes isTerminalFault names are remembered — anything else
   // would grow the map for the life of the worker without ever being read.
-  async function recordTerminal(job, code) {
+  async function recordTerminal(job, code, { refusedByPreflight = false } = {}) {
     try {
-      await recordPendingError(job.spaceId, job.pendingKey, code)
+      await recordPendingError(job.spaceId, job.pendingKey, code, { refusedByPreflight })
       terminalCodes.delete(job.transferId)
     } catch (err) {
       if (isTerminalFault(code)) terminalCodes.set(job.transferId, code)
@@ -238,7 +290,7 @@ export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentT
     registry, pausedHashes, channel, log, hasOverlay, ownerOnline, destProbeFor,
     pauseReasonFor, recordTerminal, failTerminal, runFetch: settle.run,
   })
-  const ownerWait = createOwnerWait({ channel, registry, pausedHashes, terminalCodes, ownerOnline, dirAcceptsWrite, now })
+  const ownerWait = createOwnerWait({ channel, registry, pausedHashes, terminalCodes, ownerOnline, makeDestProbe, now })
   const reconcile = createReconcile({
     registry, pausedHashes, terminalCodes, retries, channel, log, hasOverlay, start: starter.start, cancelByKey, discardPartial, faultCleared: ownerWait.faultCleared,
   })
