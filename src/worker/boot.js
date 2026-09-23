@@ -22,7 +22,7 @@ import { SpaceKeysVault } from '../shared/spaces/space-keys.js'
 import { ProfileBee, markOwnMembership, ensureMembershipManifestCap } from '../shared/spaces/profile.js'
 import { SpacesBee, listSpaces, getSpace, isLegacySpace } from '../shared/spaces/space.js'
 import { SpaceDrives } from '../shared/spaces/space-drives.js'
-import { backfillSelfCreatedCreatorKey, flagUnverifiedJoinedCreators } from '../shared/spaces/creator-pin.js'
+import { backfillCreatedBySelf, backfillSelfCreatedCreatorKey, flagUnverifiedJoinedCreators } from '../shared/spaces/creator-pin.js'
 import {
   resumeInterruptedLeave, persistPendingLeave, clearPendingLeave, listPendingLeaves,
 } from '../shared/spaces/leave-records.js'
@@ -362,12 +362,16 @@ async function resumeInterruptedLeaves(knownSpaces, log) {
   }
 }
 
-// Membership manifest backfill plus the two one-time creator-key passes.
+// Membership manifest backfill plus the one-time creator-key passes.
 async function backfillMembership(activeSpaces, log) {
   for (const space of activeSpaces) {
     try { await markOwnMembership(space.spaceId) } catch (err) {
       log.warn('manifest backfill failed for space', space.spaceId, '-', err.message)
     }
+  }
+  // First, so the two creator passes below read the split created-by-me field.
+  try { await backfillCreatedBySelf() } catch (err) {
+    log.warn('createdBySelf backfill failed:', err.message)
   }
   // One-time, idempotent backfill: stamp the member-set root (creatorKey) on self-created
   // spaces whose records predate the field. The OR-Set membership fold (conflict-free

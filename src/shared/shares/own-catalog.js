@@ -6,7 +6,7 @@
 import b4a from 'b4a'
 import { createBee, getStore, isStorageInconsistency } from '../core/store.js'
 import { purgeCoreDk, purgeAlias } from '../storage/core-purge.js'
-import { getSpace, getSpaceContentKey, isLegacySpace, LEGACY_SPACE_MESSAGE } from '../spaces/space.js'
+import { getSpace, getSpaceContentKey, isLegacySpace, spaceEpoch, LEGACY_SPACE_MESSAGE } from '../spaces/space.js'
 import { AppError } from '../core/errors.js'
 import { CODES } from '../contract/errors.js'
 import { isInPlaceFilesEnabled } from '../core/runtime-config.js'
@@ -73,18 +73,19 @@ export async function ownCatalogKeyHex(spaceId) {
   return b4a.toString(bee.core.key, 'hex')
 }
 
-// The own catalog key. Published into the …Enc field so a reader knows from the FIELD to apply
-// the SCK; the bare field is still read only for a peer whose record predates its own migration.
-export async function ownCatalogPublish(spaceId) {
-  return { keyHex: await ownCatalogKeyHex(spaceId), encrypted: true }
+// The own catalog key and the epoch whose SCK encrypts it, read from the record the caller
+// holds. Published into the …Enc field so a reader knows from the FIELD to apply the SCK; the
+// bare field is still read only for a peer whose record predates its own migration.
+export async function ownCatalogPublish(spaceId, space) {
+  return { keyHex: await ownCatalogKeyHex(spaceId), encrypted: true, epoch: spaceEpoch(space) }
 }
 
 // The same key as a value the announce paths can publish unconditionally: null when loose files
 // are off or the catalog cannot be resolved, so neither the handshake nor a boot backfill has to
 // decide whether this space has one.
-export async function ownLooseCatalogPublish(spaceId) {
+export async function ownLooseCatalogPublish(spaceId, space) {
   if (!isInPlaceFilesEnabled()) return null
-  try { return await ownCatalogPublish(spaceId) } catch (err) { log.debug('own loose-catalog key resolve failed:', err.message); return null }
+  try { return await ownCatalogPublish(spaceId, space) } catch (err) { log.debug('own loose-catalog key resolve failed:', err.message); return null }
 }
 
 export async function advertise(spaceId, shareId, relPath, { size, mtime, contentHash = null }) {

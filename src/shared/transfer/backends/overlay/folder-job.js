@@ -11,9 +11,9 @@ export const folderLabel = (share) => share?.displayName || share?.name || null
 // `prevBytes` resumes a partial only while the destination is the one the row recorded; a row
 // re-anchored to a re-pointed download folder starts from zero (its bytes live in the old
 // folder's partial, which the boot sweep reclaims).
-export function folderJob({ spaceId, share, shareId, ownerKey, relPath, pendingKey, keyHex, encrypted, entry, finalPath, prevFinalPath, prevBytes }) {
+export function folderJob({ spaceId, share, shareId, ownerKey, relPath, pendingKey, keyHex, encrypted, epoch = 0, entry, finalPath, prevFinalPath, prevBytes }) {
   return {
-    spaceId, pendingKey, path: pendingKey, relPath, shareId, ...catalogKeyField(keyHex, encrypted),
+    spaceId, pendingKey, path: pendingKey, relPath, shareId, ...catalogKeyField(keyHex, encrypted, 'catalogKey', epoch),
     folderName: folderLabel(share),
     transferId: transferIdFor(spaceId, shareId, relPath),
     contentHash: entry.contentHash, size: entry.size || 0, sourceSeq: entry.seq,

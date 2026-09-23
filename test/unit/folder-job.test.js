@@ -41,3 +41,9 @@ test('the folder label prefers the display name and survives an unreadable descr
   t.is(folderLabel(null), null)
   t.is(folderJob({ ...base, share: null }).folderName, null)
 })
+
+test('the job carries the epoch of the catalog it reads, defaulting to 0', (t) => {
+  t.is(folderJob(base).catalogEpoch, 0)
+  t.is(folderJob({ ...base, epoch: 2 }).catalogEpoch, 2)
+  t.absent('catalogEpoch' in folderJob({ ...base, encrypted: false }), 'a plaintext catalog has no epoch')
+})

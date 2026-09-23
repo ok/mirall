@@ -22,6 +22,7 @@ test('spaces:list ships slim rosters; space:members carries the full roster',
       t.absent('avatar' in m, `slim roster carries no avatar field (${m.displayName})`)
       t.absent('looseCatalogKey' in m, 'nor looseCatalogKey')
       t.absent('looseCatalogKeyEnc' in m, 'nor looseCatalogKeyEnc')
+      t.absent('looseCatalogEpoch' in m, 'nor looseCatalogEpoch')
       t.ok(typeof m.publicKey === 'string' && typeof m.displayName === 'string', 'identity fields intact')
     }
     t.is(space.memberCount, space.members.length, 'memberCount mirrors the roster length')
@@ -34,6 +35,7 @@ test('spaces:list ships slim rosters; space:members carries the full roster',
       t.ok('avatar' in m, `full roster carries the avatar field (${m.displayName})`)
       t.absent('looseCatalogKey' in m, 'space:members strips the catalog-key fields')
       t.absent('looseCatalogKeyEnc' in m, 'both of them')
+      t.absent('looseCatalogEpoch' in m, 'and the epoch beside them')
     }
 
     const gone = await A.request('space:members', { spaceId: 'no-such-space' })

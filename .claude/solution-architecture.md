@@ -1287,7 +1287,8 @@ Behaviour worth knowing (styling → `design.md`):
 | `src/shared/spaces/member-registry.js` | One live member view per space: fold → `space.members` reconcile, the local leave tombstones (`lefts`) and observed-leave revoke, pending-request reconcile, capture refcounts; `MemberViews` (§6) |
 | `src/shared/spaces/member-view.js` | `deriveMemberSet` (transitive discovery over roster bees) + `createMemberView` (a derived view over watched ranges, live follows, share-range watchers) |
 | `src/shared/spaces/membership/fold.js` | The pure OR-Set fold (`foldMembership`) + `voucheesToAdopt`, `reconnectGrantAllowed`, `tombstoneActive`, `observedLeavers` (§6) |
-| `src/shared/spaces/space-keys.js` | The SCK vault (`space-keys.enc`, wrapped by an M-derived key) + `SpaceKeysVault` (§16) |
+| `src/shared/spaces/space-keys.js` | The SCK vault (`space-keys.enc`, wrapped by an M-derived key): the current key per space plus the keys of earlier epochs, read by epoch + `SpaceKeysVault` (§16) |
+| `src/shared/spaces/space-keys-codec.js` | The vault's plaintext codec, both shapes: a v1 entry (one bare hex key) decodes as epoch 0, v2 holds `{ epoch, key, history }`; a vault still entirely at epoch 0 encodes as v1 so an older release opens it. Pure, byte helpers injected, so test/unit drives it (§16) |
 | `src/shared/spaces/membership/leave-state.js` | `runLeaveTeardown()` — the one teardown ORDER the live leave and the boot pass share (§6) |
 | `src/shared/spaces/knock-policy.js` | `knockSettledByRecords` / `knockInviteVerdict` — the verdict table for a join request. Split in two because resolving an invite REVOKES an expired one, so a knock the records already settle is answered without reading one (§4.2) |
 | `src/shared/spaces/invites.js` | `classifyInvite`, `snapshotCandidates` — what an incoming `inviteId` means from the resolver's per-link record (§5) |
@@ -1670,7 +1671,7 @@ Local-only metadata bees (`LOCAL_BEE_NAMES`: spaces-meta, downloads-meta, pendin
 
 ### Space content key (SCK)
 
-A per-space symmetric key encrypting the space's catalogs — **possession is read access**, which makes membership approval a cryptographic gate rather than a UI state. The creator derives a space's SCK deterministically from M (nothing to store); joiners receive it at approval, sealed to their bound signer key (`spaces/sck-seal.js`), and keep it in the space-keys vault (`space-keys.enc`, wrapped by an M-derived key).
+A per-space symmetric key encrypting the space's catalogs — **possession is read access**, which makes membership approval a cryptographic gate rather than a UI state. The creator derives a space's SCK deterministically from M (nothing to store); joiners receive it at approval, sealed to their bound signer key (`spaces/sck-seal.js`), and keep it in the space-keys vault (`space-keys.enc`, wrapped by an M-derived key). Every key carries an **epoch**: the space record, the vault entry, the published catalog key (`catalogEpoch` / `looseCatalogEpoch` beside the `…Enc` field, `loosecatEpoch/<S>` in the profile bee) and the grant frame all name one, a reader defaults an absent field to 0, and `resolvePeerCatalog` picks a peer catalog's key by the epoch its record names. Epoch 0 is the derived key; nothing rotates yet, so every value is 0.
 
 ### Principals: org, person, device
 

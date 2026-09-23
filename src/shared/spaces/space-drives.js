@@ -58,10 +58,10 @@ export async function openOwnDrive(spaceId, driveSuffix, sck) {
 // adds no extra read and never publishes before the record is saved.
 export async function publishLooseCatalogKey(spaceId, space) {
   if (!space) { log.warn('skipping loose-catalog key publish — no space record:', spaceId); return }
-  const pub = await ownLooseCatalogPublish(spaceId)
+  const pub = await ownLooseCatalogPublish(spaceId, space)
   if (!pub) return
   try {
-    if (pub.encrypted) await markSpaceLooseCatalogKeyEnc(spaceId, pub.keyHex)
+    if (pub.encrypted) await markSpaceLooseCatalogKeyEnc(spaceId, pub.keyHex, pub.epoch)
     else await markSpaceLooseCatalogKey(spaceId, pub.keyHex)
   } catch (err) { log.debug('loose-catalog key publish failed:', err.message) }
 }

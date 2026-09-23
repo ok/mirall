@@ -22,7 +22,7 @@ export function fullRoster(space, profile) {
 
 // The catalog-key fields are worker-internal (handshake fallbacks) — no roster payload
 // ships them to the renderer.
-export function stripCatalogKeys({ looseCatalogKey, looseCatalogKeyEnc, ...m }) {
+export function stripCatalogKeys({ looseCatalogKey, looseCatalogKeyEnc, looseCatalogEpoch, ...m }) {
   return m
 }
 

@@ -1,15 +1,20 @@
 // The SCK vault: per-space content keys (SCK — the key that encrypts a space's catalogs;
 // holding it is read access) kept in memory and persisted to space-keys.enc, wrapped by
-// a vault key derived from the master secret.
+// a vault key derived from the master secret. Each space holds its current epoch's key and
+// the keys of earlier epochs (space-keys-codec.js); the file's plaintext stays in the shape a
+// release before epochs reads until an entry leaves epoch 0.
 import b4a from 'b4a'
 import { wrap, unwrap } from '../core/identity-envelope.js'
 import { getSpaceKeysVaultKey, getStoragePath } from '../core/store.js'
 import { writeFileAtomic } from '../core/atomic-file.js'
 import { Subsystem } from '../core/subsystem.js'
+import { decodeVault, encodeVault, setEntry, keyForEpoch } from './space-keys-codec.js'
 
 // bare-fs/bare-path are loaded lazily so importing this module never needs the Bare runtime
 // globals; only the vault's fs paths do, and those run in the worker.
-let map = new Map()
+let map = new Map()   // spaceId -> { epoch, key, history }
+
+const toHex = (buf) => b4a.toString(buf, 'hex')
 
 async function keysFile() {
   const path = (await import('bare-path')).default
@@ -30,33 +35,37 @@ export async function initSpaceKeys() {
     vault,
   )
   if (!plain) throw new Error('space-keys: unlock failed')
-  const obj = JSON.parse(b4a.toString(plain))
-  for (const [spaceId, hex] of Object.entries(obj.entries || {})) {
-    map.set(spaceId, b4a.from(hex, 'hex'))
-  }
+  map = decodeVault(JSON.parse(b4a.toString(plain)), b4a.from)
 }
 
-export function getContentKey(spaceId) {
-  return map.get(spaceId) || null
+// The key for one epoch, current or historical. The space record names the epoch an own core is
+// at; a peer catalog's record names the epoch that decrypts it.
+export function getContentKeyForEpoch(spaceId, epoch) {
+  return keyForEpoch(map.get(spaceId), epoch)
 }
 
-// Every SCK we hold, for the leftover scan: a core encrypted under one of them reads as garbage
-// without it, and a leave keeps the vault entry — which is exactly when its leftovers show up.
+// Every SCK we hold, history included, for the leftover scan: a core encrypted under one of them
+// reads as garbage without it, and a leave keeps the vault entry — which is exactly when its
+// leftovers show up.
 export function listContentKeys() {
-  return [...map.values()]
+  const out = []
+  for (const { key, history } of map.values()) {
+    out.push(key)
+    for (const h of history) out.push(h.key)
+  }
+  return out
 }
 
-export async function putContentKey(spaceId, sck) {
-  map.set(spaceId, b4a.from(sck))
+export async function putContentKey(spaceId, sck, { epoch = 0 } = {}) {
+  map.set(spaceId, setEntry(map.get(spaceId), epoch, b4a.from(sck), b4a.equals))
   await persist()
 }
 
 async function persist() {
   const vault = getSpaceKeysVaultKey()
   if (!vault) throw new Error('space-keys: identity mode required to persist content keys')
-  const entries = {}
-  for (const [spaceId, buf] of map) entries[spaceId] = b4a.toString(buf, 'hex')
-  const { nonce, ciphertext } = wrap(b4a.from(JSON.stringify({ v: 1, entries })), vault)
+  const plain = encodeVault(map, toHex)
+  const { nonce, ciphertext } = wrap(b4a.from(JSON.stringify(plain)), vault)
   const env = {
     v: 1,
     nonce: b4a.toString(nonce, 'base64'),
@@ -69,7 +78,7 @@ export class SpaceKeysVault extends Subsystem {
   async _open() { await initSpaceKeys() }
 
   async _close() {
-    for (const buf of map.values()) { try { b4a.fill(buf, 0) } catch {} }
+    for (const buf of listContentKeys()) { try { b4a.fill(buf, 0) } catch {} }
     map = new Map()
   }
 }

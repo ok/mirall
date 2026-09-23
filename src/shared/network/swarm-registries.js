@@ -7,7 +7,7 @@
 import { createAnnounceLedger } from './announce-ledger.js'
 
 // profileKey → { socket, profileKey, displayName, avatar, spaces: Map<spaceId, driveKey>,
-//                looseCatalogKeys: Map<spaceId, { key, keyEnc }> }
+//                looseCatalogKeys: Map<spaceId, { key, keyEnc, epoch }> }
 export const connectedPeers = new Map()
 // socket → Set<profileKey>  (reverse index for disconnect lookup)
 export const socketToPeers = new Map()
@@ -69,7 +69,7 @@ export function getConnectedMemberMeta(spaceId, profileKeyHex) {
   const peer = connectedPeers.get(profileKeyHex)
   if (!peer || !peer.spaces.has(spaceId)) return null
   const loose = peer.looseCatalogKeys?.get(spaceId)
-  return { driveKey: peer.spaces.get(spaceId) || null, looseCatalogKey: loose?.key || null, looseCatalogKeyEnc: loose?.keyEnc || null, displayName: peer.displayName, avatar: peer.avatar }
+  return { driveKey: peer.spaces.get(spaceId) || null, looseCatalogKey: loose?.key || null, looseCatalogKeyEnc: loose?.keyEnc || null, looseCatalogEpoch: loose?.epoch ?? null, displayName: peer.displayName, avatar: peer.avatar }
 }
 
 // The bound signer key a connected peer last asserted, for sealing a membership:grant to it.

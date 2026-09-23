@@ -42,6 +42,7 @@ export interface SpaceMember {
   status?: MemberStatus
   looseCatalogKey?: string
   looseCatalogKeyEnc?: string
+  looseCatalogEpoch?: number
 }
 
 // The slim roster shape spaces:list ships (no avatar / catalog-key fields — those are heavy or

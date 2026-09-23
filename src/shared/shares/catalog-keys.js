@@ -30,22 +30,44 @@ export function catalogEntry(relPath, value) {
   return { relPath, size: value.size, mtime: value.mtime, contentHash: value.contentHash ?? null }
 }
 
-// The catalog-key field convention has ONE owner (read + write) so a future variant can't drift
-// across the many sites that touch it. A v2 (SCK-encrypted) key lives in the '<prefix>Enc'
-// field, a v1/plaintext key in '<prefix>'; prefix is 'catalogKey' for share records/jobs,
-// 'looseCatalogKey' for profile/handshake/member records.
-export function catalogKeyField(keyHex, encrypted, prefix = 'catalogKey') {
-  return { [encrypted ? prefix + 'Enc' : prefix]: keyHex }
+// An SCK epoch: the non-negative integer naming which vault key decrypts a catalog.
+export function isEpoch(value) {
+  return Number.isInteger(value) && value >= 0
 }
 
-// Read the catalog key + whether it's encrypted from a share/member/job/pending record. The …Enc
-// field wins; a plaintext key (written before catalog encryption, or by a peer that has not yet
-// migrated) falls back. Recognises both the 'catalogKey' and 'looseCatalogKey' field pairs so one
-// reader serves shares, members, and persisted rows.
+// The epoch field paired with a key prefix: 'catalogKey' → 'catalogEpoch', 'looseCatalogKey' →
+// 'looseCatalogEpoch'.
+function epochFieldFor(prefix) {
+  return prefix.replace(/Key$/, 'Epoch')
+}
+
+// The catalog-key field convention has ONE owner (read + write) so a future variant can't drift
+// across the many sites that touch it. A v2 (SCK-encrypted) key lives in the '<prefix>Enc'
+// field with the epoch whose key decrypts it beside it, a v1/plaintext key in '<prefix>' alone;
+// prefix is 'catalogKey' for share records/jobs, 'looseCatalogKey' for profile/handshake/member
+// records.
+export function catalogKeyField(keyHex, encrypted, prefix = 'catalogKey', epoch = 0) {
+  return encrypted
+    ? { [prefix + 'Enc']: keyHex, [epochFieldFor(prefix)]: epoch }
+    : { [prefix]: keyHex }
+}
+
+// The epoch of an encrypted catalog record. A record that predates the field, or carries a
+// malformed one, reads as epoch 0 — the only epoch a record without the field can be at.
+export function readCatalogEpoch(rec) {
+  const epoch = rec?.catalogKeyEnc ? rec.catalogEpoch : rec?.looseCatalogEpoch
+  return isEpoch(epoch) ? epoch : 0
+}
+
+// Read the catalog key, whether it's encrypted and (if so) under which epoch from a
+// share/member/job/pending record. The …Enc field wins; a plaintext key (written before catalog
+// encryption, or by a peer that has not yet migrated) falls back and has no epoch. Recognises
+// both the 'catalogKey' and 'looseCatalogKey' field pairs so one reader serves shares, members,
+// and persisted rows.
 export function readCatalogKey(rec) {
   const enc = rec?.catalogKeyEnc || rec?.looseCatalogKeyEnc || null
-  if (enc) return { keyHex: enc, encrypted: true }
-  return { keyHex: rec?.catalogKey || rec?.looseCatalogKey || null, encrypted: false }
+  if (enc) return { keyHex: enc, encrypted: true, epoch: readCatalogEpoch(rec) }
+  return { keyHex: rec?.catalogKey || rec?.looseCatalogKey || null, encrypted: false, epoch: 0 }
 }
 
 // Map a raw catalog node to the consumer-visible entry state — the one place that encodes

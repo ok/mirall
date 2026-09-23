@@ -1,9 +1,9 @@
 // The durable creator-root pin: which key a space record trusts as the root of its membership
-// OR-Set, how sure we are of it, and the two one-shot boot passes that bring older records up to
+// OR-Set, how sure we are of it, and the one-shot boot passes that bring older records up to
 // the current shape. creator-root.js decides WHETHER an asserted root may be adopted; this module
 // is what persists the outcome.
 import { getLocalPublicKeyHex } from './profile.js'
-import { listSpaces, mutateSpace } from './space.js'
+import { listSpaces, mutateSpace, isCreatedBySelf } from './space.js'
 import { createLogger } from '../core/logger.js'
 
 const log = createLogger('creator-pin')
@@ -33,19 +33,30 @@ export function clearCreatorDivergence(spaceId) {
   return mutateSpace(spaceId, (s) => (s.creatorDivergence ? { ...s, creatorDivergence: false } : s))
 }
 
+// Stamp `createdBySelf` on a record that carries only the older created-by-me marker, so the
+// passes below read one field. Idempotent; returns the count stamped.
+export async function backfillCreatedBySelf() {
+  let stamped = 0
+  for (const space of await listSpaces()) {
+    if (space.createdBySelf !== undefined || !isCreatedBySelf(space)) continue
+    if (await mutateSpace(space.spaceId, (s) => ({ ...s, createdBySelf: true }))) stamped += 1
+  }
+  if (stamped) log.info('stamped createdBySelf on', stamped, 'space(s)')
+  return stamped
+}
+
 // Backfill the OR-Set root for v2 spaces whose stored record predates `creatorKey`.
-// A space I created is identifiable by `sckDerivable` (set only by createSpace, never
-// by a join), so I am its root — stamp myself. Joined spaces whose creatorKey is
-// unknown (their invite carried no `c` hint) are deliberately left untouched: the
-// membership fold falls back to seeding from the known member set for them until a
-// fresh invite or an authenticated handshake assertion supplies the real creator.
-// Idempotent; returns the count stamped.
+// A space I created (set only by createSpace, never by a join) has me as its root —
+// stamp myself. Joined spaces whose creatorKey is unknown (their invite carried no `c`
+// hint) are deliberately left untouched: the membership fold falls back to seeding from
+// the known member set for them until a fresh invite or an authenticated handshake
+// assertion supplies the real creator. Idempotent; returns the count stamped.
 export async function backfillSelfCreatedCreatorKey() {
   const me = getLocalPublicKeyHex()
   if (!me) return 0
   let stamped = 0
   for (const space of await listSpaces()) {
-    if (space.creatorKey || !space.sckDerivable) continue
+    if (space.creatorKey || !isCreatedBySelf(space)) continue
     const ok = await mutateSpace(space.spaceId, (s) => ({ ...s, creatorKey: me }))
     if (ok) stamped += 1
   }
@@ -58,13 +69,13 @@ export async function backfillSelfCreatedCreatorKey() {
 // handshake divergence cross-check and letting the UI flag an unverified owner. It does NOT
 // self-heal through onGrant — an approved space never re-enters the grant flow — so the
 // authenticated re-confirmation comes from the handshake `creator` assertion. Self-created
-// (sckDerivable) spaces are untouched. One-shot per space (creatorMigrated stamp):
-// re-flagging on every boot would downgrade an authenticated pin back to provisional,
-// re-opening the adopt path to a divergent root after any restart. Returns the count flagged.
+// spaces are untouched. One-shot per space (creatorMigrated stamp): re-flagging on every
+// boot would downgrade an authenticated pin back to provisional, re-opening the adopt path
+// to a divergent root after any restart. Returns the count flagged.
 export async function flagUnverifiedJoinedCreators() {
   let flagged = 0
   for (const space of await listSpaces()) {
-    if (space.sckDerivable) continue
+    if (isCreatedBySelf(space)) continue
     if (space.creatorMigrated) continue
     if (!space.creatorKey || space.creatorUnverified) {
       // Nothing to flag, but stamp it so a later authenticated pin is never re-armed either.

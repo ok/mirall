@@ -63,8 +63,8 @@ async function prepareOwnedShare(spaceId, name) {
     throw new AppError(CODES.EOWNERSHIP, 'Cannot share into a space you have not been approved for yet')
   }
   share.contentMode = 'overlay'
-  const { keyHex, encrypted } = await ownCatalogPublish(spaceId)
-  Object.assign(share, catalogKeyField(keyHex, encrypted))
+  const { keyHex, encrypted, epoch } = await ownCatalogPublish(spaceId, space)
+  Object.assign(share, catalogKeyField(keyHex, encrypted, 'catalogKey', epoch))
   return { share, space }
 }
 

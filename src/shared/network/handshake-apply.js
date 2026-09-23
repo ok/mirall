@@ -13,7 +13,7 @@ import { peerLost, peerLostMeta, peerSeen } from '../audit/network-watch.js'
 import { fetchPeerAvatar } from '../spaces/peer-profile-watch.js'
 import { makeKeyedCoalescer } from '../core/coalesce.js'
 import { createLogger } from '../core/logger.js'
-import { clampDisplayName } from './handshake-guard.js'
+import { clampDisplayName, frameEpoch } from './handshake-guard.js'
 import { createAdmissionGates } from './admission-gates.js'
 import { presence, setPresenceExpireHandler } from './presence-leases.js'
 import { sendSingleHandshake } from './identity-frames.js'
@@ -120,10 +120,7 @@ function trackPeerConnection(socket, spaceId, msg) {
   // prefers the fresh handshake value over a stale profile-bee record on a rejoin with a new key.
   // A v2 catalog is SCK-encrypted — its key travels in a distinct field so a reader knows to
   // apply the SCK; only one of the two is ever set per space.
-  peerEntry.looseCatalogKeys.set(spaceId, {
-    key: normalizeLooseCatalogKey(msg.looseCatalogKey),
-    keyEnc: normalizeLooseCatalogKey(msg.looseCatalogKeyEnc),
-  })
+  peerEntry.looseCatalogKeys.set(spaceId, looseCatalogHint(msg))
   if (!socketToPeers.has(socket)) socketToPeers.set(socket, new Set())
   socketToPeers.get(socket).add(personKey)
   // A live handshake is proof of presence — lease them online now, before their first
@@ -142,6 +139,19 @@ function normalizeLooseCatalogKey(value) {
   return typeof value === 'string' && HEX64.test(value) ? value.toLowerCase() : null
 }
 
+// The sender's loose-catalog hint: the plaintext key, or the encrypted key with the epoch that
+// decrypts it. The epoch is meaningless without the key and the key unreadable without a valid
+// epoch, so a malformed epoch drops the encrypted pair — a degraded hint, never a dropped peer.
+function looseCatalogHint(msg) {
+  const keyEnc = normalizeLooseCatalogKey(msg.looseCatalogKeyEnc)
+  const epoch = keyEnc ? frameEpoch(msg.looseCatalogEpoch) : null
+  return {
+    key: normalizeLooseCatalogKey(msg.looseCatalogKey),
+    keyEnc: epoch === null ? null : keyEnc,
+    epoch,
+  }
+}
+
 // Persist the member (add new, or update a renamed display name), respecting the per-space cap.
 // Serialized + re-read inside upsertMember, so concurrent handshakes can't clobber this write;
 // existingMember only picks the log line — correctness comes from upsertMember's merge.
@@ -152,12 +162,14 @@ async function persistHandshakeMember(spaceId, space, msg, existingMember) {
     log.warn('members-per-space cap reached for', spaceId, '- not persisting', msg.displayName)
     return
   }
+  const hint = looseCatalogHint(msg)
   const changed = await upsertMember(spaceId, {
     publicKey: msg.profileKey,
     driveKey: msg.driveKey,
     displayName: msg.displayName,
-    looseCatalogKey: normalizeLooseCatalogKey(msg.looseCatalogKey),
-    looseCatalogKeyEnc: normalizeLooseCatalogKey(msg.looseCatalogKeyEnc),
+    looseCatalogKey: hint.key,
+    looseCatalogKeyEnc: hint.keyEnc,
+    looseCatalogEpoch: hint.epoch,
   })
   if (changed) log.info(existingMember ? 'member updated:' : 'new member added:', msg.displayName, 'to space', spaceId)
 }

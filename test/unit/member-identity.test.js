@@ -75,3 +75,39 @@ test('the placeholder it refuses is the one mergeMemberIdentity writes', (t) => 
   t.is(entry.displayName, UNKNOWN_DISPLAY_NAME, 'one constant, so the two cannot drift apart')
   t.is(displayNameOrNull(entry.displayName), null)
 })
+
+test('looseCatalogEpoch is carried with the same tier precedence as the key it decrypts', (t) => {
+  const { entry } = mergeMemberIdentity({
+    publicKey: K,
+    meta: { displayName: 'Live', driveKey: DK, looseCatalogKeyEnc: DK, looseCatalogEpoch: 2 },
+    profile: { looseCatalogKeyEnc: DK, looseCatalogEpoch: 1 },
+    held: { publicKey: K, displayName: 'Live', driveKey: DK, looseCatalogKeyEnc: DK, looseCatalogEpoch: 0 },
+  })
+  t.is(entry.looseCatalogEpoch, 2, 'live meta wins')
+  const fromBee = mergeMemberIdentity({ publicKey: K, meta: null, profile: { looseCatalogKeyEnc: DK, looseCatalogEpoch: 1 }, held: null })
+  t.is(fromBee.entry.looseCatalogEpoch, 1, 'the profile bee fills it when there is no live meta')
+})
+
+test('the epoch always comes from the tier that supplied the encrypted key, never from another', (t) => {
+  const K2 = 'e'.repeat(64)
+  const { entry } = mergeMemberIdentity({
+    publicKey: K,
+    meta: { displayName: 'Live', driveKey: DK, looseCatalogKeyEnc: null, looseCatalogEpoch: 0 },
+    profile: { looseCatalogKeyEnc: K2, looseCatalogEpoch: 2 },
+    held: null,
+  })
+  t.is(entry.looseCatalogKeyEnc, K2, 'the key falls through to the profile')
+  t.is(entry.looseCatalogEpoch, 2, 'and brings its own epoch, not the live tier\'s')
+  const noKey = mergeMemberIdentity({ publicKey: K, meta: { looseCatalogEpoch: 3 }, profile: null, held: null })
+  t.is(noKey.entry.looseCatalogKeyEnc, null)
+  t.is(noKey.entry.looseCatalogEpoch, null, 'an epoch without a key is nothing')
+})
+
+test('a member entry that predates looseCatalogEpoch carries null and is not marked changed', (t) => {
+  const held = { publicKey: K, displayName: 'Steve', avatar: null, driveKey: DK, looseCatalogKeyEnc: DK }
+  const { entry, changed } = mergeMemberIdentity({ publicKey: K, meta: null, profile: null, held })
+  t.is(entry.looseCatalogEpoch, null)
+  t.absent(changed, 'a fold over an older record is not a change')
+  const moved = mergeMemberIdentity({ publicKey: K, meta: { looseCatalogKeyEnc: DK, looseCatalogEpoch: 1 }, profile: null, held })
+  t.ok(moved.changed, 'a published epoch beside the key is a change the fold reports')
+})

@@ -1,6 +1,6 @@
 // The user's replicated profile bee: public identity (displayName/avatar), the membership
 // manifest (member/, approved/, invite/, request/, denied/ — the records peers fold
-// membership from), and per-space key announcements (drive/, loosecat/, loosecatEnc/).
+// membership from), and per-space key announcements (drive/, loosecat/, loosecatEnc/, loosecatEpoch/).
 // Also the bounded readers of PEERS' profile bees: every remote read is deadline-capped
 // so an offline or not-yet-replicated peer degrades to null/empty instead of hanging.
 import { createBee, storeEpoch } from '../core/store.js'
@@ -12,6 +12,7 @@ import { CODES } from '../contract/errors.js'
 import { AppError } from '../core/errors.js'
 import { principalRef } from '../contract/principals.js'
 import { UNKNOWN_DISPLAY_NAME } from '../contract/limits.js'
+import { isEpoch } from '../shares/catalog-keys.js'
 import { voucheesToAdopt } from './membership/fold.js'
 import b4a from 'b4a'
 import { createLogger } from '../core/logger.js'
@@ -454,16 +455,25 @@ export async function markSpaceLooseCatalogKey(spaceId, keyHex) {
   await profileBee.put('loosecat/' + spaceId, keyHex)
 }
 
-// v2 (SCK-encrypted) loose-catalog key. Published in a distinct field so a reader knows
-// from the FIELD that the catalog is encrypted and needs the SCK to read. Setting it clears the
-// plaintext loosecat/ key so we never advertise a dangling key pointing at a purged plaintext core
-// (write-time invariant: exactly one of the two is set, not a convention readers must tolerate).
-export async function markSpaceLooseCatalogKeyEnc(spaceId, keyHex) {
+// v2 (SCK-encrypted) loose-catalog key with the epoch whose SCK decrypts it. Published in a
+// distinct field so a reader knows from the FIELD that the catalog is encrypted and needs the
+// SCK to read; the epoch is a sibling row, loosecatEpoch/<spaceId>, because every reader of the
+// …Enc row takes a bare hex string, and a profile with no epoch row is at epoch 0. Setting the
+// pair clears the plaintext loosecat/ key so we never advertise a dangling key pointing at a
+// purged plaintext core (write-time invariant: exactly one of the two is set, not a convention
+// readers must tolerate). Key, epoch and the clear land in one batch, so a replicating peer
+// never reads a key with the epoch of another.
+export async function markSpaceLooseCatalogKeyEnc(spaceId, keyHex, epoch = 0) {
   if (!profileBee || !keyHex) return
-  if ((await profileBee.get('loosecat/' + spaceId)) != null) await profileBee.del('loosecat/' + spaceId)
+  const plaintext = await profileBee.get('loosecat/' + spaceId)
   const cur = await profileBee.get('loosecatEnc/' + spaceId)
-  if (cur?.value === keyHex) return
-  await profileBee.put('loosecatEnc/' + spaceId, keyHex)
+  const curEpoch = await profileBee.get('loosecatEpoch/' + spaceId)
+  if (plaintext == null && cur?.value === keyHex && curEpoch?.value === epoch) return
+  const batch = profileBee.batch()
+  if (plaintext != null) await batch.del('loosecat/' + spaceId)
+  await batch.put('loosecatEnc/' + spaceId, keyHex)
+  await batch.put('loosecatEpoch/' + spaceId, epoch)
+  await batch.flush()
 }
 
 // A peer's display identity (displayName + avatar, plus per-space keys) read from their
@@ -479,21 +489,28 @@ export async function readProfileRecord(profileKeyHex, spaceId = null) {
   }
 }
 
+// The per-space key rows of a profile bee, as values, read together so the added row costs no
+// deadline. The epoch is meaningful only beside an encrypted key; a profile written before the
+// row existed reads as epoch 0.
+async function readSpaceKeyRows(bee, spaceId) {
+  if (!spaceId) return { driveKey: null, looseCatalogKey: null, looseCatalogKeyEnc: null, looseCatalogEpoch: null }
+  const [driveKey, looseCatalogKey, looseCatalogKeyEnc, epoch] = await Promise.all(
+    ['drive/', 'loosecat/', 'loosecatEnc/', 'loosecatEpoch/'].map(async (prefix) => (await bee.get(prefix + spaceId))?.value ?? null),
+  )
+  const looseCatalogEpoch = looseCatalogKeyEnc ? (isEpoch(epoch) ? epoch : 0) : null
+  return { driveKey: driveKey || null, looseCatalogKey: looseCatalogKey || null, looseCatalogKeyEnc: looseCatalogKeyEnc || null, looseCatalogEpoch }
+}
+
 function loadProfileRecord(profileKeyHex, spaceId) {
   return withPeerBee(profileKeyHex, async (bee) => {
-
-    const displayName = await bee.get('displayName')
-    const avatar = await bee.get('avatar')
-    const driveKey = spaceId ? await bee.get('drive/' + spaceId) : null
-    const looseCatalogKey = spaceId ? await bee.get('loosecat/' + spaceId) : null
-    const looseCatalogKeyEnc = spaceId ? await bee.get('loosecatEnc/' + spaceId) : null
-    if (!displayName && !avatar && !driveKey && !looseCatalogKey && !looseCatalogKeyEnc) return null
+    const displayName = (await bee.get('displayName'))?.value || null
+    const avatar = (await bee.get('avatar'))?.value || null
+    const keys = await readSpaceKeyRows(bee, spaceId)
+    if (!displayName && !avatar && !keys.driveKey && !keys.looseCatalogKey && !keys.looseCatalogKeyEnc) return null
     return {
-      displayName: displayName?.value ? clampDisplayName(displayName.value) : null,
-      avatar: sanitizeAvatar(avatar?.value || null, getMembershipCaps().maxAvatarBytes),
-      driveKey: driveKey?.value || null,
-      looseCatalogKey: looseCatalogKey?.value || null,
-      looseCatalogKeyEnc: looseCatalogKeyEnc?.value || null,
+      displayName: displayName ? clampDisplayName(displayName) : null,
+      avatar: sanitizeAvatar(avatar, getMembershipCaps().maxAvatarBytes),
+      ...keys,
     }
   })
 }

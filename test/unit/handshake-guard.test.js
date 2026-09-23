@@ -4,7 +4,7 @@ import crypto from 'hypercore-crypto'
 import Hypercore from 'hypercore'
 import {
   clampDisplayName, validSenderFrame, signNoiseBinding, verifyIdentityBinding, checkInboundSender,
-  leaveFrameBound,
+  leaveFrameBound, frameEpoch,
 } from '../../src/shared/network/handshake-guard.js'
 
 const hex = (n = 32) => b4a.toString(crypto.randomBytes(n), 'hex')
@@ -168,4 +168,23 @@ test('leaveFrameBound rejects malformed / missing binding fields', (t) => {
   t.absent(leaveFrameBound(peerInfo, { ...msg, profileKey: 'not-hex' }))
   t.absent(leaveFrameBound(peerInfo, { ...msg, signerKey: undefined }))
   t.absent(leaveFrameBound(null, msg), 'no peerInfo → not bound (falls back to the socket-index path)')
+})
+
+test('validSenderFrame never refuses a handshake over its loose-catalog epoch: the epoch is a hint, like the key', (t) => {
+  const base = { spaceTopic: hex(), profileKey: hex() }
+  t.ok(validSenderFrame(base), 'a handshake from a sender that predates the field')
+  t.ok(validSenderFrame({ ...base, looseCatalogEpoch: 7 }))
+  t.ok(validSenderFrame({ ...base, looseCatalogEpoch: '0' }), 'a malformed epoch degrades the hint, never the peer')
+})
+
+test('frameEpoch: absent → 0, non-negative integer → itself, anything else → null', (t) => {
+  t.is(frameEpoch(undefined), 0)
+  t.is(frameEpoch(null), 0)
+  t.is(frameEpoch(0), 0)
+  t.is(frameEpoch(4), 4)
+  t.is(frameEpoch('1'), null)
+  t.is(frameEpoch(-2), null)
+  t.is(frameEpoch(2.5), null)
+  t.is(frameEpoch({}), null)
+  t.is(frameEpoch([1]), null)
 })

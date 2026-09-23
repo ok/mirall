@@ -7,6 +7,7 @@ import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
 import Hypercore from 'hypercore'
 import { HEX64 } from '../contract/invite-envelope.js'
+import { isEpoch } from '../shares/catalog-keys.js'
 
 export { clampDisplayName } from '../contract/identity-limits.js'
 
@@ -34,6 +35,13 @@ export function validSenderFrame(msg) {
   // divergence cross-check.
   if (msg.creator != null && (typeof msg.creator !== 'string' || !HEX64.test(msg.creator))) return false
   return true
+}
+
+// An epoch field on a frame. Absent on a sender that predates the field: epoch 0, the only epoch
+// there has ever been. Anything that is not a non-negative integer is malformed: null.
+export function frameEpoch(value) {
+  if (value == null) return 0
+  return isEpoch(value) ? value : null
 }
 
 function bindingMessage(noisePublicKey, driveKeyBuf) {

@@ -187,19 +187,29 @@ export function displayNameOrNull(name) {
   return name && name !== UNKNOWN_DISPLAY_NAME ? name : null
 }
 
+// The identity fields a member entry carries beside displayName, each taken from the first tier
+// that knows it: live meta, then the replicated profile, then the entry already held. The
+// encrypted loose-catalog key and its epoch travel as a pair from the SAME tier — an epoch from
+// one tier never decrypts a key from another.
+const IDENTITY_FIELDS = ['driveKey', 'avatar', 'looseCatalogKey']
+const COMPARED_FIELDS = ['displayName', ...IDENTITY_FIELDS, 'looseCatalogKeyEnc', 'looseCatalogEpoch']
+
+function firstKnown(field, tiers) {
+  for (const tier of tiers) if (tier?.[field] != null) return tier[field]
+  return null
+}
+
+function firstEncryptedKey(tiers) {
+  const tier = tiers.find((t) => t?.looseCatalogKeyEnc != null)
+  return { looseCatalogKeyEnc: tier?.looseCatalogKeyEnc ?? null, looseCatalogEpoch: tier?.looseCatalogEpoch ?? null }
+}
+
 export function mergeMemberIdentity({ publicKey, meta, profile, held }) {
-  const m = meta || {}
-  const p = profile || {}
-  const h = held || {}
-  const entry = {
-    publicKey,
-    driveKey: m.driveKey ?? p.driveKey ?? h.driveKey ?? null,
-    displayName: m.displayName || p.displayName || h.displayName || UNKNOWN_DISPLAY_NAME,
-    avatar: m.avatar ?? p.avatar ?? h.avatar ?? null,
-    looseCatalogKey: m.looseCatalogKey ?? p.looseCatalogKey ?? h.looseCatalogKey ?? null,
-    looseCatalogKeyEnc: m.looseCatalogKeyEnc ?? p.looseCatalogKeyEnc ?? h.looseCatalogKeyEnc ?? null,
-  }
+  const tiers = [meta, profile, held]
+  const entry = { publicKey, displayName: tiers.map((t) => t?.displayName).find(Boolean) || UNKNOWN_DISPLAY_NAME }
+  for (const field of IDENTITY_FIELDS) entry[field] = firstKnown(field, tiers)
+  Object.assign(entry, firstEncryptedKey(tiers))
   if (!held) return { entry, changed: true }
-  const changed = ['driveKey', 'displayName', 'avatar', 'looseCatalogKey', 'looseCatalogKeyEnc'].some((k) => entry[k] !== (held[k] ?? null))
+  const changed = COMPARED_FIELDS.some((k) => entry[k] !== (held[k] ?? null))
   return { entry, changed }
 }
