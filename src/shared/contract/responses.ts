@@ -425,7 +425,6 @@ export interface StorageInfo {
 
 export interface SpaceStorageSummary { totalBytes: number, onDeviceBytes: number }
 export interface RootsStatus { unavailable: string[], host: PathHost }
-export interface FeatureFlags { overlay: boolean, inPlaceFiles: boolean }
 export interface VerboseState { verbose: boolean }
 export interface PingResult { pong: true, timestamp: number }
 export interface ResumeResult { epoch: string, head: number, gap: boolean, replayed: number }
@@ -447,7 +446,6 @@ interface Responses {
   'event:loose-file-fs-event': Ack
   'event:owned-folder-fs-event': Ack
   'events:resume': ResumeResult
-  'features:get': FeatureFlags
   'feedback:send': Ack
   'files:add': Ack
   'files:cancel-download': Ack

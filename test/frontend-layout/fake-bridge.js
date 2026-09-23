@@ -68,7 +68,6 @@
       case 'members:reach': return (window.__HARNESS_CFG && window.__HARNESS_CFG.reach) || { members: {} }
       case 'foreign-folder:get': return foreignMount
       case 'owned-folder:get': return null
-      case 'features:get': return { overlay: false }
       // Routes the full SpaceScreen mount (members layout harness) needs; the
       // FolderScreen scenario never calls these, so the empties are inert there.
       // A harness that wants a populated space screen seeds these two through __HARNESS_CFG;

@@ -92,7 +92,6 @@ export const REQUESTS = Object.freeze({
     relPath: { type: ARG.path, max: ARG_MAX.path },
     shareId: { type: ARG.shareId },
   } },
-  'features:get': { kind: 'query', args: {} },
   // A query because it only reads: it writes nothing and a caller may ask again. It is not free of
   // consequence, though — a second call replays frames the first already delivered, and while
   // pokes are level-triggered and the OS notifications are keyed by transfer id, the membership
