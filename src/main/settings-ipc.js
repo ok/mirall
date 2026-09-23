@@ -19,7 +19,13 @@ const version = pkg.version
 // The config store is the entry's, not one this module opens: it is created once, after the
 // userData path has been redirected, and a second store would write somewhere else.
 let config = null
-function initSettings(deps) { config = deps.config }
+// The autostart entry's Icon= is a theme lookup name: the AppImage integration installs the icons
+// under the product name, the deb under the package name.
+let installKind = 'none'
+function initSettings(deps) {
+  config = deps.config
+  installKind = deps.installKind ?? 'none'
+}
 
 function setOpenAtLogin(enabled) {
   if (isMac) {
@@ -46,12 +52,13 @@ function writeLinuxAutostart(enabled) {
     return
   }
   const exec = process.env.APPIMAGE || process.execPath
+  const icon = installKind === 'deb' ? pkg.name : appName
   const lines = [
     '[Desktop Entry]',
     'Type=Application',
     `Name=${appName}`,
     `Exec="${exec}" --hidden`,
-    `Icon=${appName}`,
+    `Icon=${icon}`,
     'Terminal=false',
     'X-GNOME-Autostart-enabled=true',
     'Hidden=false',

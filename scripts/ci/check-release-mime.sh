@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Release artifacts must be uploaded to R2 with an explicit Content-Type. R2 serves the
-# stored contentType verbatim and `aws s3 cp` derives nothing for .msix/.dmg/.AppImage
+# stored contentType verbatim and `aws s3 cp` derives nothing for .msix/.dmg/.AppImage/.deb
 # (Python's mimetypes knows none of them), so a bare `aws s3 cp` publishes an artifact
 # with NO Content-Type header. Microsoft requires application/msix for HTTP-delivered
 # MSIX; a wrong or missing type is a documented App Installer failure mode.
@@ -24,14 +24,15 @@ fi
 
 if ! grep -q 'aws s3 cp .* --content-type' "$WF"; then
   echo "ERROR: $WF uploads to R2 without --content-type." >&2
-  echo "  fix: aws s3 cp \"artifact/Mirall.\$EXT\" \"\$DEST\" --content-type \"\$CT\"" >&2
+  echo "  fix: aws s3 cp \"\$FILE\" \"\$DEST\" --content-type \"\$CT\"" >&2
   fail=1
 fi
 
 # Every ext the build matrix produces needs an arm in the Content-Type map.
 for pair in "msix:application/msix" \
             "dmg:application/x-apple-diskimage" \
-            "AppImage:application/vnd.appimage"; do
+            "AppImage:application/vnd.appimage" \
+            "deb:application/vnd.debian.binary-package"; do
   ext="${pair%%:*}"
   ct="${pair#*:}"
   if ! grep -qE "^[[:space:]]*$ext\)[[:space:]]+CT=\"$ct\"" "$WF"; then

@@ -66,7 +66,8 @@ const { isMac, isLinux, isWindows } = require('which-runtime')
 const { parseBootArgv, extractDeepLinks } = require('./boot-argv.js')
 const { ConfigStore } = require('./config-store.js')
 const { initDebugGate, setVerbose } = require('./debug-gate.js')
-const { integrateXdgLinux } = require('./xdg-integration.js')
+const { integrateXdgLinux, retireXdgAppImageEntry } = require('./xdg-integration.js')
+const { linuxInstallKind, updatesOffReason } = require('./install-kind.js')
 
 installMainLogForwarding()
 
@@ -86,8 +87,12 @@ const boot = parseBootArgv(app.isPackaged ? process.argv.slice(1) : process.argv
 })
 for (const w of boot.warnings) console.warn('[argv] ignored:', w)
 const customStorage = boot.flags.storage
-// No upgrade key (e.g. running from source) → disable OTA. pear-runtime-updater throws otherwise.
-const updatesEnabled = boot.flags.updates !== false && !!upgrade
+// OTA is off without an upgrade key (pear-runtime-updater throws otherwise), under --no-updates,
+// and on a .deb install, whose updates come from the package manager (install-kind.js).
+const installKind = linuxInstallKind({ isLinux, isPackaged: app.isPackaged })
+const offReason = updatesOffReason({ installKind, updatesFlag: boot.flags.updates, upgrade })
+const updatesEnabled = offReason === null
+if (installKind === 'deb') console.log('[updater] deb install: updates come from the package manager')
 const startHiddenFlag = !!boot.flags.hidden
 
 // With --storage, redirect Electron's userData too, so config.json, the corestore and the
@@ -145,8 +150,8 @@ function config() {
   return configStore
 }
 
-initUpdater({ getDataDir, updatesEnabled })
-initSettings({ config })
+initUpdater({ getDataDir, updatesEnabled, updatesOffReason: offReason })
+initSettings({ config, installKind })
 initWorkerHost({ config, getPear, isDev, identityKEK: () => identityKEKHex })
 initMenus({ revealWindow, targetWindow, zoomByDirection, appName, isDev })
 initWindow({
@@ -279,7 +284,10 @@ if (!lock) {
   app.whenReady().then(async () => {
     initPrefs({ config })
     try {
-      integrateXdgLinux({ appName, protocol, isLinux, homedir: os.homedir() })
+      // The package owns the desktop entry on a deb install; a per-user entry left by an earlier
+      // AppImage would shadow it and keep routing the scheme to the old file.
+      if (installKind === 'deb') retireXdgAppImageEntry({ appName, protocol, packageName: pkg.name, homedir: os.homedir() })
+      else integrateXdgLinux({ appName, protocol, isLinux, homedir: os.homedir() })
     } catch (err) {
       console.error('[xdg] integration failed:', err.message)
     }

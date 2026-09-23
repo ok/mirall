@@ -67,5 +67,26 @@ function integrateXdgLinux({ appName, protocol, isLinux, homedir, env = process.
   return true
 }
 
+// The reverse of integrateXdgLinux, for a build the package manager installed: the per-user entry
+// and icons an earlier AppImage run wrote are removed, and the scheme is pointed at the packaged
+// entry, so the launcher shows one Mirall and a mirall:// link opens the installed one.
+function retireXdgAppImageEntry({ appName, protocol, packageName, homedir, spawn }) {
+  const appsDir = path.join(homedir, '.local', 'share', 'applications')
+  const userDesktop = path.join(appsDir, `${appName}.desktop`)
+  if (!fs.existsSync(userDesktop)) return false
+  fs.rmSync(userDesktop, { force: true })
+
+  const iconsRoot = path.join(homedir, '.local', 'share', 'icons', 'hicolor')
+  for (const size of ICON_SIZES) {
+    fs.rmSync(path.join(iconsRoot, `${size}x${size}`, 'apps', `${appName}.png`), { force: true })
+  }
+
+  const mimeToken = 'x-scheme-handler/' + protocol
+  const run = spawn || require('child_process').spawn
+  try { run('update-desktop-database', [appsDir], { detached: true, stdio: 'ignore' }).unref() } catch {}
+  try { run('xdg-mime', ['default', `${packageName}.desktop`, mimeToken], { detached: true, stdio: 'ignore' }).unref() } catch {}
+  return true
+}
+
 // test seam: desktopEntryFor, writeIfChanged and copyFileIfChanged are exported for tests only.
-module.exports = { integrateXdgLinux, desktopEntryFor, writeIfChanged, copyFileIfChanged }
+module.exports = { integrateXdgLinux, retireXdgAppImageEntry, desktopEntryFor, writeIfChanged, copyFileIfChanged }
