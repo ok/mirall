@@ -1,7 +1,10 @@
+// @ts-check
 // The network status and relay surface. applyRelayConfig is injected because it belongs to the
 // boot root: setting a relay mode has to re-apply it to the live swarm, not just persist it.
 
-import { setRelayConfig, getUpgradeKey } from '../../shared/core/runtime-config.js'
+/** @import { WorkerIpc } from '../../shared/core/ipc.js' */
+/** @import { WorkerRoot } from '../boot.js' */
+import { setRelayConfig, getRelayConfig, getUpgradeKey } from '../../shared/core/runtime-config.js'
 import { relayMismatch } from '../../shared/contract/relay-apply.js'
 import { getSwarmStatus, scheduleStatusEmit } from '../../shared/network/network-status.js'
 import { reconnectAll } from '../../shared/network/space-topics.js'
@@ -12,6 +15,7 @@ import { testRelayReachable } from '../../shared/network/relay-install.js'
 import { snapshotRelayedConnections } from '../../shared/network/relayed-connections.js'
 import { transfersMoving } from '../../shared/transfer/transfer-activity.js'
 
+/** @param {WorkerIpc} ipc @param {{ applyRelayConfig: WorkerRoot['applyRelayConfig'] }} deps */
 export function registerNetwork(ipc, { applyRelayConfig }) {
   ipc.handle('network:status:get', async () => getSwarmStatus())
   ipc.handle('network:reconnect', async () => await reconnectAll())
@@ -22,12 +26,14 @@ export function registerNetwork(ipc, { applyRelayConfig }) {
   // it is theirs to trigger, so the verdict goes back for the renderer to explain. deferApply is set
   // when a pinned identity is waiting on a restart — no reconnect can apply that.
   ipc.handle('network:set-relay', async (msg) => {
-    setRelayConfig(msg?.mode, msg?.relay)
+    setRelayConfig(msg.mode, msg.relay)
     const applied = applyRelayConfig()
     // A connection's `replaced` flag follows the slot, and no connection event reports a slot change.
     scheduleStatusEmit()
-    const mismatch = relayMismatch(msg?.mode, snapshotRelayedConnections())
-    if (!mismatch || msg?.deferApply) return { ok: true, ...applied, mismatch, reconnected: false }
+    // The mode as stored, not as sent: an unknown word is stored as 'off', and the verdict has to
+    // describe the mode the swarm is now running.
+    const mismatch = relayMismatch(getRelayConfig().mode, snapshotRelayedConnections())
+    if (!mismatch || msg.deferApply) return { ok: true, ...applied, mismatch, reconnected: false }
     if (await transfersMoving()) return { ok: true, ...applied, mismatch, reconnected: false }
     const res = await reconnectAll()
     return { ok: true, ...applied, mismatch, reconnected: res.ok === true }

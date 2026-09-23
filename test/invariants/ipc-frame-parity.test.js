@@ -66,7 +66,7 @@ test('the hello-ack carries the stream coordinates and the trust it assigned', (
 // over main's pipe, which joined before the first frame. Bounding that one by the attach point
 // replays nothing, ever.
 test('the requested resume is bounded by the cursor and the hello by the attach point', (t) => {
-  const worker = read('src/worker/main.js')
+  const worker = read('src/worker/ipc/worker-process.js')
   t.ok(/ipc\.resume\(ctx\.client,[\s\S]{0,120}?\{ sinceAttach: false \}\)/.test(worker),
     'the events:resume handler answers for the caller, not for its socket')
   const handshake = read('src/shared/core/ipc-handshake.js')

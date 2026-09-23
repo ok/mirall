@@ -1,8 +1,12 @@
+// @ts-check
 // Foreign folders — a share someone else owns, mirrored into a folder on this disk. The mount
 // record and the mirror record live in two stores, which is why removal runs under an intent.
 
+/** @import { WorkerIpc } from '../../shared/core/ipc.js' */
+/** @import { Logger } from '../../shared/core/logger.js' */
+/** @import { WorkerRoot } from '../boot.js' */
 import { daemonPaths } from '../../shared/contract/paths.js'
-import { AppError } from '../../shared/core/errors.js'
+import { AppError, errorMessage } from '../../shared/core/errors.js'
 import { CODES } from '../../shared/contract/errors.js'
 import { MOUNT_STATUS } from '../../shared/contract/statuses.js'
 import { getSpace } from '../../shared/spaces/space.js'
@@ -16,10 +20,12 @@ import { selfActor, targetRef } from '../../shared/audit/audit-record.js'
 import { TARGET_KIND } from '../../shared/contract/audit-kinds.js'
 import { spaceRefOf, shareNameOrNull } from '../audit-refs.js'
 
+/** @param {WorkerIpc} ipc @param {{ log: Logger, intents: WorkerRoot['intents'] }} deps */
 export function registerForeignFolders(ipc, { log, intents }) {
   // One place, so a new return path cannot forget it: a mount record crossing the wire says whose
   // disk its mountPath is on. The stored record is untouched — a persisted 'daemon' would be a lie
   // the day the store is moved to another machine.
+  /** @template {object} T @param {T | null} mount */
   const wire = (mount) => (mount ? daemonPaths(mount) : mount)
 
   ipc.handle('foreign-folder:validate', async (msg) => {
@@ -47,7 +53,7 @@ export function registerForeignFolders(ipc, { log, intents }) {
     }
     ipc.emit('event:foreign-folder-mount-status', { spaceId: msg.spaceId, shareId: msg.shareId, status: MOUNT_STATUS.SCANNING })
     try { await publishMirror(msg.spaceId, msg.shareId, { state: 'syncing' }) }
-    catch (err) { log.warn('mirror record publish failed:', msg.shareId, '-', err.message) }
+    catch (err) { log.warn('mirror record publish failed:', msg.shareId, '-', errorMessage(err)) }
     ipc.emit('event:mirrors-updated', { spaceId: msg.spaceId, shareId: msg.shareId })
 
     // The loop is armed before the scan, as at boot: its first tick coalesces behind the scan, a
@@ -116,7 +122,7 @@ export function registerForeignFolders(ipc, { log, intents }) {
 
   ipc.handle('event:foreign-folder-fs-event', async (msg) => {
     try { await handleMirrorFsEvent({ spaceId: msg.spaceId, shareId: msg.shareId, action: msg.action, relPath: msg.relPath }) }
-    catch (err) { log.warn('foreign-folder fs event failed:', err.message) }
+    catch (err) { log.warn('foreign-folder fs event failed:', errorMessage(err)) }
     return { ok: true }
   })
 }

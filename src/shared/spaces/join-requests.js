@@ -44,6 +44,13 @@ export function setDerivedRequests(spaceId, map) {
 
 // Returns whether the entry is new or materially changed, so a re-announced (heartbeat)
 // request doesn't re-fire the approval banner on every repeat.
+/**
+ * @param {string} spaceId
+ * @param {string} profileKey
+ * @param {string} displayName
+ * @param {string | null} [avatar]
+ * @param {string | null} [driveKey]
+ */
 export function recordJoinRequest(spaceId, profileKey, displayName, avatar = null, driveKey = null) {
   if (!pendingRequests.has(spaceId)) pendingRequests.set(spaceId, new Map())
   const prev = pendingRequests.get(spaceId).get(profileKey)
@@ -74,6 +81,7 @@ export function listJoinRequests(spaceId) {
 // Pending requests for the UI, excluding anyone already in the roster: a member can never also be
 // "pending" (a stale live/derived entry can outlive the handshake gate, which clears only the live
 // cache, or an approval learned from records before the gate ran).
+/** @param {string} spaceId @param {Set<string> | null} [memberKeys] */
 export function listPendingRequests(spaceId, memberKeys = null) {
   const reqs = listJoinRequests(spaceId)
   if (!memberKeys || !memberKeys.size) return reqs

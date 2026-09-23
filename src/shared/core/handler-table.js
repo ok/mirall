@@ -1,4 +1,15 @@
 import { REQUESTS } from '../contract/requests.js'
+/** @import { RequestName } from '../contract/requests.js' */
+/** @import { RequestArgs } from '../contract/request-args.js' */
+/** @import { RequestResponse } from '../contract/responses.js' */
+/** @import { Client } from './ipc-client.js' */
+/** @import { CancellationSignal } from './cancellation.js' */
+
+/** @typedef {{ id: number | null, signal: CancellationSignal | null, client: Client }} HandlerContext */
+/**
+ * @template {RequestName} N
+ * @typedef {(msg: RequestArgs<N>, ctx: HandlerContext) => RequestResponse[N] | Promise<RequestResponse[N]>} RequestHandler
+ */
 
 // Presence, primitive type and length only. Anything richer is the handler's business: this exists
 // to stop a malformed payload reaching a handler body, not to re-implement the domain rules.
@@ -11,7 +22,10 @@ function checkType(type, value, field) {
     case 'boolean':
       return typeof value === 'boolean' ? null : `${field} must be a boolean`
     case 'array':
-      return Array.isArray(value) ? null : `${field} must be an array`
+      // Every array the contract declares is a list of words, so the elements are part of the type.
+      return Array.isArray(value) && value.every((item) => typeof item === 'string')
+        ? null
+        : `${field} must be an array of strings`
     case 'object':
       // Presence and kind only. What is INSIDE stays the handler's business, as it does for every
       // other type here — this exists to stop a malformed payload reaching a body, not to

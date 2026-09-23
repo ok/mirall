@@ -4,6 +4,7 @@
 // download root appearing or disappearing. A Subsystem: the maps are instance state, the probe
 // rides `this.timers`, and _close is the bulk stop.
 import { daemonPaths } from '../shared/contract/paths.js'
+/** @import { PauseIndexResult, ResumeIndexResult } from '../shared/contract/responses.js' */
 import { MOUNT_STATUS, MIRROR_STATE } from '../shared/contract/statuses.js'
 import fs from 'bare-fs'
 import { Subsystem } from '../shared/core/subsystem.js'
@@ -290,6 +291,7 @@ export class MountsRuntime extends Subsystem {
 
   // Pause an owned folder's index: stop the burst and the cadence, and record the pause durably.
   // Only resumeIndex reverses it; cancelIndex below is the internal primitive, not a user verb.
+  /** @param {string} spaceId @param {string} shareId @returns {Promise<PauseIndexResult>} */
   async pauseIndex(spaceId, shareId) {
     const mount = await getOwnedMount(spaceId, shareId)
     if (!mount) throw new AppError(CODES.MOUNT_NOT_ON_DEVICE, 'Folder is not mounted on this device')
@@ -309,6 +311,7 @@ export class MountsRuntime extends Subsystem {
   // Everything that can fail happens BEFORE the flag is cleared, so a resume that cannot run leaves
   // the pause intact rather than destroying the intent and silently doing nothing. Clearing it
   // still precedes arming the scan, or that scan is declined by the gate resume has not yet lifted.
+  /** @param {string} spaceId @param {string} shareId @returns {Promise<ResumeIndexResult>} */
   async resumeIndex(spaceId, shareId) {
     const mount = await getOwnedMount(spaceId, shareId)
     if (!mount) throw new AppError(CODES.MOUNT_NOT_ON_DEVICE, 'Folder is not mounted on this device')

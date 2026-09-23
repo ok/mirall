@@ -55,8 +55,11 @@ test('validateArgs checks each declared arg type', (t) => {
   t.is(validateArgs({ b: { type: ARG.boolean } }, { b: false }), null, 'false is a value, not an absence')
   t.is(validateArgs({ b: { type: ARG.boolean } }, { b: 'no' }), 'b must be a boolean')
   t.is(validateArgs({ a: { type: ARG.array } }, { a: [] }), null)
-  t.is(validateArgs({ a: { type: ARG.array } }, { a: 'x' }), 'a must be an array')
-  t.is(validateArgs({ a: { type: ARG.array } }, { a: {} }), 'a must be an array', 'an object is not an array')
+  t.is(validateArgs({ a: { type: ARG.array } }, { a: ['x'] }), null)
+  t.is(validateArgs({ a: { type: ARG.array } }, { a: 'x' }), 'a must be an array of strings')
+  t.is(validateArgs({ a: { type: ARG.array } }, { a: {} }), 'a must be an array of strings', 'an object is not an array')
+  t.is(validateArgs({ a: { type: ARG.array } }, { a: ['x', 1] }), 'a must be an array of strings',
+    'the elements are part of the type the handler is given')
 })
 
 test('null and undefined are treated as absent, not as values', (t) => {

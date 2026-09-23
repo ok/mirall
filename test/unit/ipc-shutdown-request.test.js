@@ -2,12 +2,12 @@ import test from 'brittle'
 import { EventEmitter } from 'events'
 import { createIPC } from '../../src/shared/core/ipc.js'
 import { requireHost } from '../../src/shared/core/client-trust.js'
+import { registerWorkerProcess } from '../../src/worker/ipc/worker-process.js'
 import { sayHello } from '../helpers/ipc-hello.js'
 
 // A stop ends every client's session, so it is the host's call. Every client is the host until the
 // worker listens on a socket, so this refuses nobody today — the point is that the rule exists
 // before the first client it would refuse does.
-const REQUESTS = Object.freeze({ 'shutdown': { kind: 'command', args: {} } })
 
 function fakePipe() {
   const ee = new EventEmitter()
@@ -20,17 +20,13 @@ function fakePipe() {
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0))
 
-// The shape worker/main.js registers, minus Bare.exit.
+// The production registration, with the entry's teardown replaced by a record of the call.
 function router() {
   const host = fakePipe()
-  const ipc = createIPC(host, { requests: REQUESTS })
+  const ipc = createIPC(host)
   sayHello(host)
   const stops = []
-  ipc.handle('shutdown', (msg, ctx) => {
-    requireHost(ctx.client)
-    setTimeout(() => stops.push(ctx.client.id), 0)
-    return { ok: true }
-  })
+  registerWorkerProcess(ipc, { stop: () => { stops.push('stopped') } })
   ipc.start()
   return { ipc, host, stops }
 }
@@ -49,7 +45,7 @@ test('the host is acknowledged BEFORE the teardown runs', async (t) => {
   // microtasks drain. That ordering is what lets a caller tell the stop landed.
   t.alike(host.frames(), [{ id: 1, type: 'response', data: { ok: true } }])
   await tick()
-  t.alike(stops, [1], 'and only then does it begin')
+  t.alike(stops, ['stopped'], 'and only then does it begin')
 })
 
 test('a non-host client is refused and nothing stops', async (t) => {
@@ -72,5 +68,14 @@ test('an id-less shutdown frame still stops, and answers nobody', async (t) => {
   await tick()
   await tick()
   t.alike(host.frames(), [], 'respond is a no-op without an id')
-  t.alike(stops, [1], 'but the stop still happened')
+  t.alike(stops, ['stopped'], 'but the stop still happened')
+})
+
+test('ping answers with the pong its row declares', async (t) => {
+  const { host } = router()
+  host.feed({ id: 1, type: 'ping' })
+  await tick()
+  const [reply] = host.frames()
+  t.is(reply.data.pong, true)
+  t.is(typeof reply.data.timestamp, 'number')
 })

@@ -7,6 +7,7 @@
 
 import { reconnectGrantAllowed } from './membership/fold.js'
 import { DENY_OUTCOME } from '../contract/deny-outcome.js'
+/** @import { DENY_OUTCOMES } from '../contract/deny-outcome.js' */
 
 // Verdicts the records settle on their own, before any invite is read.
 // `null` means the invite has to be resolved to decide.
@@ -43,6 +44,24 @@ export const ASK_PEERS = 'ask-peers'
 // co-members' bees only once a request is known to be open, so a click on a stale row never waits
 // on an offline peer. `vouched` is undefined until the peers were asked; the caller asks, re-reads
 // the local facts (the read can take the whole admission budget) and decides again.
+/**
+ * @typedef {{ isMember: boolean, hadLeft: boolean, isApproved: boolean, recentlyApproved: boolean, hasOpenRequest: boolean }} DenyFacts
+ * @typedef {(typeof DENY_OUTCOMES)[number]} DenyOutcome
+ */
+/**
+ * @overload
+ * @param {DenyFacts & { vouched: boolean }} facts
+ * @returns {DenyOutcome}
+ */
+/**
+ * @overload
+ * @param {DenyFacts & { vouched?: undefined }} facts
+ * @returns {DenyOutcome | typeof ASK_PEERS}
+ */
+/**
+ * @param {DenyFacts & { vouched?: boolean }} facts
+ * @returns {DenyOutcome | typeof ASK_PEERS}
+ */
 export function denyVerdict({ isMember, hadLeft, isApproved, recentlyApproved, hasOpenRequest, vouched }) {
   if (knockSettledByRecords({ selfPending: false, isMember, hadLeft, isApproved }) === 'regrant') return DENY_OUTCOME.ALREADY_APPROVED
   if (recentlyApproved) return DENY_OUTCOME.ALREADY_APPROVED

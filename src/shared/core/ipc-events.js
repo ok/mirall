@@ -6,6 +6,7 @@ import { TARGETED_EVENTS, isEphemeralEvent } from '../contract/events.js'
 import { MAIN_REQUEST_FRAME } from '../contract/main-requests.js'
 import { createHintBus } from './hints.js'
 import { createReplayRing } from './replay-ring.js'
+/** @import { Client } from './ipc-client.js' */
 
 // Fan a coalesced `event:reconcile` out of a POKE so its view re-derives through the level-triggered
 // reconcile channel. The named events stay on the wire as the emit-site API (and as flow-test /
@@ -58,6 +59,7 @@ export function createEventPlane({ clients, log, epoch, replay }) {
   // One method rather than emit + emitTo: the contract guards find emit sites by parsing for a
   // callee named `emit` with the event name first (test/helpers/emit-sites.js), and a second
   // spelling would hide every targeted event from "is every declared event emitted somewhere".
+  /** @param {string} type @param {object} [payload] @param {{ to?: Client | number | null }} [opts] */
   function emit(type, payload = {}, { to = null } = {}) {
     // Not an event: main consumes this off the same pipe and no subscribing client ever sees it, so
     // it takes no ordinal and is never replayed.
@@ -113,6 +115,12 @@ export function createEventPlane({ clients, log, epoch, replay }) {
   // which attached before frame one and has been handed everything since, while the window behind
   // it may have been closed for any part of that. Filtering by the attach point there replays
   // nothing, ever.
+  /**
+   * @param {Client} client
+   * @param {{ epoch?: string | null, since?: number }} [cursor]
+   * @param {{ sinceAttach?: boolean }} [opts]
+   * @returns {{ epoch: string, head: number, gap: boolean, replayed: number }}
+   */
   function resume(client, { epoch: theirs = null, since = 0 } = {}, { sinceAttach = true } = {}) {
     const head = seq
     // No epoch at all is a first-time subscriber: it has missed nothing because it has seen

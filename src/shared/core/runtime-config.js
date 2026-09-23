@@ -1,5 +1,7 @@
 import { JOIN_REQUEST_FRAME_OVERHEAD } from '../contract/limits.js'
 import { buildConfig, defaultOf, ruleOf, tabledKeys } from './runtime-config-schema.js'
+/** @import { RelayMode } from '../contract/relay-apply.js' */
+/** @import { JsonValue } from '../contract/request-args.js' */
 
 // The live runtime config: one built object, replaced whole by setRuntimeConfig(bootstrap) and
 // patched by the live setters. getRuntimeConfig() hands back the raw overrides; the getters below
@@ -65,6 +67,18 @@ function coerceKBps(next, fallback) {
   return typeof next === 'number' && Number.isFinite(next) && next >= 0 ? next : fallback
 }
 
+// The version a report names: a dev build has none of its own, and a packaged one always does.
+/** @returns {string} */
+export function getAppVersionLabel() {
+  return config.appVersion || (config.dev ? 'dev' : 'unknown')
+}
+
+/** @returns {string | null} */
+export function getStoragePath() {
+  return config.storage
+}
+
+/** @returns {{ mode: RelayMode, relay: { [key: string]: JsonValue } | null }} */
 export function getRelayConfig() {
   return { mode: config.relayMode, relay: config.relay }
 }

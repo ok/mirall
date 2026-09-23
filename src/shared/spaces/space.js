@@ -24,6 +24,7 @@ import { prefixRange } from '../core/bee-keys.js'
 import { TARGET_KIND } from '../contract/audit-kinds.js'
 import { UNKNOWN_DISPLAY_NAME } from '../contract/limits.js'
 import { peerActor, spaceRef, targetRef } from '../audit/audit-record.js'
+/** @import { SpaceRecord } from '../contract/responses.js' */
 
 let spacesBee
 let spacesStore = -1
@@ -96,6 +97,12 @@ export async function listSpaces() {
   return spaces
 }
 
+/**
+ * The stored record: the wire shape plus the fields only the worker keeps.
+ * @typedef {SpaceRecord & { creatorKey?: string, creatorUnverified?: boolean, creatorDivergence?: boolean, leaving?: boolean }} StoredSpace
+ */
+
+/** @param {string} spaceId @returns {Promise<StoredSpace | null>} */
 export async function getSpace(spaceId) {
   const entry = await spacesBee.get('space/' + spaceId)
   return entry ? { spaceId, ...entry.value } : null
@@ -219,13 +226,21 @@ export function removeMember(spaceId, publicKey) {
   })
 }
 
-// `downloadFolder` is tri-state: undefined leaves the override untouched, null clears it
-// (the space falls back to the global download root), a string sets it. Routed through
-// mutateSpace so it serializes against concurrent member writes.
+// A partial update: an absent name or icon leaves the stored one alone. `downloadFolder` is
+// tri-state: undefined leaves the override untouched, null clears it (the space falls back to the
+// global download root), a string sets it. Routed through mutateSpace so it serializes against
+// concurrent member writes.
+/**
+ * @param {string} spaceId
+ * @param {string | null | undefined} name
+ * @param {string | null | undefined} icon
+ * @param {{ downloadFolder?: string | null }} [opts]
+ * @returns {Promise<StoredSpace | null>}
+ */
 export function updateSpace(spaceId, name, icon, { downloadFolder } = {}) {
   return mutateSpace(spaceId, (space) => {
-    space.name = name
-    space.icon = icon
+    if (name != null) space.name = name
+    if (icon != null) space.icon = icon
     if (downloadFolder !== undefined) {
       if (downloadFolder === null) delete space.downloadFolder
       else space.downloadFolder = downloadFolder
@@ -236,6 +251,7 @@ export function updateSpace(spaceId, name, icon, { downloadFolder } = {}) {
 
 // Serialized with updateSpace via mutateSpace: a raw get/put would write back a record read BEFORE a
 // concurrent space:update landed, silently dropping the download folder the user just chose.
+/** @param {string} spaceId @returns {Promise<StoredSpace | null>} */
 export function toggleFavorite(spaceId) {
   return mutateSpace(spaceId, (space) => {
     space.favorite = !space.favorite

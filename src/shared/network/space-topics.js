@@ -1,5 +1,6 @@
 // Joining and leaving a space's Hyperswarm topic, and evicting that space's peers when we leave it.
 import b4a from 'b4a'
+/** @import { ReconnectResult, SpaceMember } from '../contract/responses.js' */
 import { getSpace } from '../spaces/space.js'
 import { compactStore } from '../storage/compaction.js'
 import { createLogger } from '../core/logger.js'
@@ -80,6 +81,7 @@ export async function leaveSpaceTopic(spaceId) {
 // just changed — a relay above all — would keep missing exactly the connections they are watching.
 // hyperswarm reads swarm.relayThrough per dial and hyperdht per inbound handshake, so the choice is
 // made once, when the connection is built: dropping the socket is the only way to have it made again.
+/** @param {{ now?: number }} [opts] @returns {Promise<ReconnectResult>} */
 export async function reconnectAll({ now = Date.now() } = {}) {
   if (now - lastReconnectAt < RECONNECT_THROTTLE_MS) return { ok: false, throttled: true }
   lastReconnectAt = now
@@ -134,6 +136,12 @@ function disconnectPeersFromSpace(spaceId) {
 // releases that cached file bytes per peer) are reclaimed by forgetUnreferencedPeerCores
 // during leave. The progress contract (one cleaningPeer per member, then compactingPeerCache
 // + a compaction) is kept so the leave UI step accounting stays correct.
+/**
+ * @param {string} spaceId
+ * @param {readonly SpaceMember[]} members
+ * @param {((phase: string, data?: { peerName: string }) => void) | null} [onProgress]
+ * @param {{ compact?: boolean }} [opts]
+ */
 export async function cleanupSpaceDrives(spaceId, members, onProgress, { compact = true } = {}) {
   const emit = (phase, data) => { if (onProgress) onProgress(phase, data) }
 

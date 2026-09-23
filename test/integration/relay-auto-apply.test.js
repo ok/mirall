@@ -135,6 +135,15 @@ test('REGRESSION (FIX-411: always → auto reconnects what always relayed)', asy
   t.is(socketMsgHandlers.size, 0)
 })
 
+test('a mode the worker does not know is judged as the off it is stored as', async (t) => {
+  const { fake } = await setup(t, { relayMode: 'always', socket: 'relayed' })
+
+  const reply = await fake.call('network:set-relay', { mode: 'sometimes', relay: SLOT })
+
+  t.is(reply.mismatch, 'stale-relayed', 'our relay carries a connection the stored mode forbids')
+  t.is(reply.reconnected, true)
+})
+
 test('always → auto with a transfer moving is left for the user', async (t) => {
   const { fake } = await setup(t, { relayMode: 'always', socket: 'relayed' })
   await moveATransfer(t, fake)

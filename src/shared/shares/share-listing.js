@@ -28,6 +28,10 @@ import {
 } from '../transfer/files.js'
 import { COPY_VERDICT, verifiedCopyVerdict } from '../transfer/verified-copy.js'
 import { SHARE_FILE_STATUS } from '../contract/statuses.js'
+/** @import { CancellationSignal } from '../core/cancellation.js' */
+/** @import { StoredShare } from './shares.js' */
+/** @import { getContentBackend, UNSUPPORTED } from '../transfer/content-backends.js' */
+/** @import { ShareFileListing } from '../contract/responses.js' */
 
 const log = createLogger('share-listing')
 
@@ -159,6 +163,14 @@ async function loadListingContext(spaceId, share, isOwn, deps) {
 // `signal` is the router's cancellation token. The checkpoints sit at the await boundaries, not in
 // the row loop: that loop is synchronous, so `aborted` cannot change mid-pass. The one that pays is
 // the catalog read above it, network-bound for a peer share and carrying its own timeout.
+/**
+ * @param {string} spaceId
+ * @param {StoredShare} share
+ * @param {Exclude<ReturnType<typeof getContentBackend>, typeof UNSUPPORTED>} backend
+ * @param {typeof productionDeps} [deps]
+ * @param {{ signal?: CancellationSignal | null }} [opts]
+ * @returns {Promise<ShareFileListing>}
+ */
 export async function listOverlayShareFiles(spaceId, share, backend, deps = productionDeps, { signal = null } = {}) {
   throwIfAborted(signal)
   const isOwn = share.owner === deps.getLocalPublicKeyHex()

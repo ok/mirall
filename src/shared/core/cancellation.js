@@ -8,11 +8,16 @@ import { CODES } from '../contract/errors.js'
 //
 // `onAbort` exists for the one thing the ad-hoc version could not do: hand the abort to something
 // that is BLOCKED rather than looping — a peer read parked on a socket cannot poll a boolean.
+/** @typedef {ReturnType<typeof createCancellation>['signal']} CancellationSignal */
+
 export function createCancellation() {
+  /** @type {Set<(reason: Error | null) => void>} */
   const listeners = new Set()
   const signal = {
     aborted: false,
+    /** @type {Error | null} */
     reason: null,
+    /** @param {(reason: Error | null) => void} fn */
     onAbort(fn) {
       if (signal.aborted) { fn(signal.reason); return () => {} }
       listeners.add(fn)
@@ -21,6 +26,7 @@ export function createCancellation() {
   }
   return {
     signal,
+    /** @param {Error | null} [reason] */
     abort(reason = null) {
       if (signal.aborted) return
       signal.aborted = true

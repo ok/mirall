@@ -13,6 +13,9 @@ import { getProfileBee, withPeerBee } from '../spaces/profile.js'
 import { withReadTimeout, peerReadTimeoutMs } from '../core/with-timeout.js'
 import { createLogger } from '../core/logger.js'
 import { prefixRange } from '../core/bee-keys.js'
+/** @import { Share } from '../contract/responses.js' */
+
+/** @typedef {Share & { contentMode?: 'overlay' }} StoredShare */
 
 const log = createLogger('shares')
 
@@ -38,6 +41,7 @@ export async function tombstoneShare(spaceId, shareId) {
   await bee.put(key, { ...entry.value, deletedAt: Date.now() })
 }
 
+/** @param {string} spaceId @returns {Promise<StoredShare[]>} */
 export async function readOwnShares(spaceId) {
   const bee = getProfileBee()
   const prefix = SHARE_PREFIX + spaceId + '/'

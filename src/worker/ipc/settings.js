@@ -1,6 +1,9 @@
+// @ts-check
 // Settings, storage and feature flags. The download-folder setter is the one that carries a rule:
 // the global root is the effective root of every space that never overrode it.
 
+/** @import { WorkerIpc } from '../../shared/core/ipc.js' */
+/** @import { WorkerRoot } from '../boot.js' */
 import { createVerbosePolicy } from '../../shared/core/verbose-policy.js'
 import {
   setVerbose,
@@ -13,6 +16,10 @@ import { daemonPaths } from '../../shared/contract/paths.js'
 import { getStorageInfo } from '../../shared/storage/storage.js'
 import { validateDownloadFolderAgainstMounts } from '../../shared/folders/mount-validate.js'
 
+/**
+ * @param {WorkerIpc} ipc
+ * @param {{ mounts: WorkerRoot['mounts'], publishDownloadRoots: () => void }} deps
+ */
 export function registerSettings(ipc, { mounts, publishDownloadRoots }) {
   const verbose = createVerbosePolicy({ apply: setVerbose })
   ipc.onClientDisconnect((client) => verbose.release(client.id))

@@ -29,7 +29,7 @@ import { ARG_MAX } from './limits.js'
 /** @typedef {{ kind: 'query' | 'command', args: Record<string, ArgRule>, deadlineMs?: number }} RequestSpec */
 /** @typedef {Record<string, string | number | boolean | readonly string[] | null | undefined>} RequestParams */
 
-/** @internal @type {Readonly<Record<ArgType, ArgType>>} */
+/** @internal @satisfies {Readonly<Record<ArgType, ArgType>>} */
 export const ARG = Object.freeze({
   string: 'string',
   number: 'number',

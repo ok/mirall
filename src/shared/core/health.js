@@ -6,6 +6,8 @@
 // them directly instead of sleeping, which is what keeps this out of check-test-timing.sh.
 const LAG_INTERVAL_MS = 1000
 
+/** @typedef {ReturnType<typeof createHealthMonitor>} HealthMonitor */
+
 export function createHealthMonitor({
   now = Date.now,
   setInterval: setIv = setInterval,

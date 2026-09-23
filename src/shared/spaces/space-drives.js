@@ -142,6 +142,11 @@ async function releaseDriveCores(drive, blobs) {
   }
 }
 
+/**
+ * @param {string} spaceId
+ * @param {((phase: string) => void) | null} onProgress
+ * @param {{ compact?: boolean }} [opts]
+ */
 export async function purgeSpaceDrive(spaceId, onProgress, { compact = true } = {}) {
   const drive = drives.get(spaceId)
   if (!drive) {

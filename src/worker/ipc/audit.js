@@ -1,10 +1,13 @@
+// @ts-check
 // The audit-log query surface. Every write path records through shared/audit/audit-log.js
 // directly; this module only reads, configures and purges, so it needs nothing from the entry.
 
+/** @import { WorkerIpc } from '../../shared/core/ipc.js' */
 import { getAuditConfig, setAuditConfig } from '../../shared/audit/audit-log.js'
 import { queryAudit, auditSpaces, auditActors, auditStats, exportAudit } from '../../shared/audit/audit-query.js'
 import { purgeAudit } from '../../shared/audit/audit-reclaim.js'
 
+/** @param {WorkerIpc} ipc */
 export function registerAudit(ipc) {
   // Projected, not forwarded. Passing `msg` carried the frame envelope — id and type — into a query
   // builder alongside the filters, and made the contract's args the only description of a surface

@@ -6,12 +6,12 @@
 // one consumer of the same vocabulary. src/renderer/types/types.ts re-exports every name it used to
 // own, so the ~100 sites that import from there are untouched.
 //
-// ENFORCED ON THE CONSUMER SIDE ONLY, and worth saying plainly: tsconfig covers the renderer and
-// this package, not the worker, so a handler returning something else is not a compile error. Two
-// things narrow the gap. The map at the bottom is total over RequestName by construction, so a
-// request with no response cannot compile. And the acknowledgement family is pinned against the
-// handler sources by test/invariants/ack-responses.test.js, which is where drift is both most
-// likely and mechanically checkable.
+// Read by both ends. The renderer's request() resolves with RequestResponse[K], and the worker's
+// ipc.handle(name, fn) only accepts a handler whose result is RequestResponse[name]; every handler
+// module is type-checked by tsconfig.worker.json. The producer side binds only where the result has a
+// type: a handler returning a value inferred as `any` from an untyped data-layer callee is not held
+// until that callee is typed. The map at the bottom is total over RequestName by construction, so a
+// request with no response cannot compile.
 import type { FILE_STATUSES, SHARE_FILE_STATUSES, OWNED_MOUNT_STATUSES, FOREIGN_MOUNT_STATUSES, MIRROR_STATES } from './statuses.js'
 import type { CATEGORIES, OUTCOMES, ACTOR_TYPES, TARGET_KINDS } from './audit-kinds.js'
 import type { CANARY_STATES } from './reachability.js'
@@ -537,7 +537,7 @@ interface Responses {
   'space:mirrors': MirrorParticipant[]
   'space:pending-requests': JoinRequest[]
   'space:storage-summary': SpaceStorageSummary
-  'space:toggle-favorite': SpaceRecord
+  'space:toggle-favorite': SpaceRecord | null
   'space:update': SpaceRecord | null
   'spaces:list': Space[]
   'storage:info': StorageInfo

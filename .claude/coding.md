@@ -140,9 +140,25 @@ the literal union — and the type beside it is `@typedef {(typeof TUPLE)[number
 `unknown` are banned in JSDoc as they are in TypeScript; a JSDoc cast `/** @type {X} */ (expr)`
 narrows at the one boundary where the transport hands back an untyped value. No `.d.ts` sidecar may
 sit beside a `.js` (`renderer-contract-only-imports.test.js` asserts it): TypeScript reads a
-declaration INSTEAD of the implementation and never compares the two. The one ambient declaration
-file is `platform/global.d.ts`, which declares `window.bridge` and has no `.js`. The compile-time
+declaration INSTEAD of the implementation and never compares the two. The ambient declaration
+files are `platform/global.d.ts`, which declares `window.bridge`, and `src/worker/global.d.ts`, which
+declares Bare's timer globals; neither has a `.js`. The compile-time
 assertions in `test/typecheck/` are what a contract union is pinned by.
+
+**Handlers are held to their contract row.** `ipc.handle(name, fn)` is generic over the request
+name: `fn` receives `RequestArgs<name>` (derived from the `requests.js` row) and a `HandlerContext`,
+and must resolve with `RequestResponse[name]`. That only binds where `tsc` reads the handler, so
+every `ipc.handle` lives in a module under `src/worker/ipc/` that opens with `// @ts-check`, checked
+by `tsconfig.worker.json` (`test/invariants/worker-handlers-typechecked.test.js` holds both halves).
+Under strict, a handler module types its own parameters and `deps`, deriving each from the module
+that produces it (`WorkerRoot['mounts']`, `Logger`, `StoredSpace`) rather than restating a shape.
+When a callee's *inferred* type is what disagrees, the fix is a JSDoc `@param`/`@returns` on the
+callee in the data layer, not a cast at the call. Know what that buys: the data layer is outside the
+checked set, so the annotation is the producer's claim, trusted until its file opts into
+`// @ts-check` — it sits where it will be verified, but it is not verified yet. Likewise a handler
+whose result is inferred as `any` from an untyped callee is not held to its row at all. A catch
+variable, and a `.catch` callback's argument, is read through `errorMessage(err)`.
+`test/typecheck/worker/handlers.assert.ts` pins the rejections.
 
 ---
 
@@ -302,8 +318,8 @@ uses is a needless keyword, to be dropped when the module is next touched.
 Copy these rather than inventing a parallel mechanism.
 
 - **Table-driven request surface.** `ipc.handle` → `table.register` throws on an undeclared name;
-handlers and contract rows are pinned equal by `test/unit/main-request-parity.test.js`. Add a row
-when you add a handler.
+handlers and contract rows are pinned equal by `test/unit/contract-requests.test.js`, and each
+handler's result is typed against its `responses.ts` row (§3). Add both rows when you add a handler.
 - `**Subsystem` + owned timers + supervisor.** `_open()` / `_close()`, `health()`, `this.timers`.
 Reference: `src/shared/core/` and `src/worker/boot.js`'s partial-root handoff.
 - **Composition-root tests.** `test/helpers/store.js`'s `freshPeer` boots the production wiring

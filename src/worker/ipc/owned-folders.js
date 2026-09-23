@@ -1,9 +1,14 @@
+// @ts-check
 // Owned folders — a folder on this disk published into a space. The watcher lives in the main
 // process (Bare has no recursive watch), so its events arrive here as IPC rather than from a
 // local watcher.
 
+/** @import { WorkerIpc } from '../../shared/core/ipc.js' */
+/** @import { Logger } from '../../shared/core/logger.js' */
+/** @import { WorkerRoot } from '../boot.js' */
+/** @import { OwnedMounter } from '../owned-mount.js' */
 import { daemonPaths } from '../../shared/contract/paths.js'
-import { AppError } from '../../shared/core/errors.js'
+import { AppError, errorMessage } from '../../shared/core/errors.js'
 import { CODES } from '../../shared/contract/errors.js'
 import { MOUNT_STATUS } from '../../shared/contract/statuses.js'
 import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../../shared/contract/main-requests.js'
@@ -26,15 +31,20 @@ import { record } from '../../shared/audit/audit-log.js'
 import { selfActor, targetRef } from '../../shared/audit/audit-record.js'
 import { spaceRefOf } from '../audit-refs.js'
 
+/**
+ * @param {WorkerIpc} ipc
+ * @param {{ log: Logger, mounts: WorkerRoot['mounts'], intents: WorkerRoot['intents'], mountOwnedShare: OwnedMounter }} deps
+ */
 export function registerOwnedFolders(ipc, { log, mounts, intents, mountOwnedShare }) {
   // See foreign-folders.js: tagged as it crosses the wire, never in the record.
+  /** @template {object} T @param {T | null} mount */
   const wire = (mount) => (mount ? daemonPaths(mount) : mount)
 
   ipc.handle('event:owned-folder-fs-event', async (msg) => {
     try {
       await handleFsEventFromMain({ shareId: msg.shareId, action: msg.action, relPath: msg.relPath, absPath: msg.absPath })
     } catch (err) {
-      log.warn('owned-folder fs event failed:', err.message)
+      log.warn('owned-folder fs event failed:', errorMessage(err))
     }
     return { ok: true }
   })

@@ -1,12 +1,16 @@
+// @ts-check
 // Spaces: create, join, invite, update, and the per-space reads the renderer polls. space:leave
 // is its own module — its teardown order is shared with boot's interrupted-leave pass.
 
+/** @import { WorkerIpc } from '../../shared/core/ipc.js' */
+/** @import { Logger } from '../../shared/core/logger.js' */
+/** @import { DecodedInviteV1 } from '../../shared/contract/invite-envelope.js' */
 import { AppError } from '../../shared/core/errors.js'
 import { CODES } from '../../shared/contract/errors.js'
 import { TARGET_KIND } from '../../shared/contract/audit-kinds.js'
 import { UNKNOWN_DISPLAY_NAME } from '../../shared/contract/limits.js'
 import { encodeInvite, decodeInvite } from '../../shared/contract/invite-envelope.js'
-import { getProfile, getLocalPublicKeyHex, markInvite, markOwnMembership } from '../../shared/spaces/profile.js'
+import { getProfile, getLocalPublicKeyHex, markInvite, mintInviteId, markOwnMembership } from '../../shared/spaces/profile.js'
 import {
   getSpace,
   updateSpace,
@@ -38,9 +42,8 @@ import { spaceRefOf } from '../audit-refs.js'
 import { fullRoster, stripCatalogKeys, slimSpaces } from '../space-projection.js'
 
 import { openMemberView } from '../../shared/spaces/member-registry.js'
-import b4a from 'b4a'
-import crypto from 'hypercore-crypto'
 
+/** @param {WorkerIpc} ipc @param {{ log: Logger, publishDownloadRoots: () => void }} deps */
 export function registerSpaces(ipc, { log, publishDownloadRoots }) {
   ipc.handle('spaces:list', async () => slimSpaces(await getProfile()))
 
@@ -57,7 +60,7 @@ export function registerSpaces(ipc, { log, publishDownloadRoots }) {
   })
   ipc.handle('space:create', async (msg) => {
     log.info('creating space:', msg.name)
-    const space = await createSpace(msg.name, msg.icon)
+    const space = await createSpace(msg.name, msg.icon ?? undefined)
     await markOwnMembership(space.spaceId, { refresh: true })
     await joinSpaceTopic(space.spaceId)
     await openMemberView(space.spaceId)   // the creator's own space derives its membership too
@@ -72,6 +75,7 @@ export function registerSpaces(ipc, { log, publishDownloadRoots }) {
   // Block a rejoin until a concurrent leave of the same space has fully torn down (the leaving flag
   // clears only after the catalog record + drive are purged), so the rejoin sees no stale record and
   // mints a fresh driveSuffix instead of resurrecting the just-purged deterministic drive key.
+  /** @param {string} spaceId @param {number} [capMs] */
   async function awaitSpaceLeaveSettled(spaceId, capMs = 15000) {
     if (!isSpaceLeaving(spaceId)) return true
     log.info('join: waiting for in-progress leave to settle:', spaceId)
@@ -86,12 +90,14 @@ export function registerSpaces(ipc, { log, publishDownloadRoots }) {
     if (!decoded) {
       throw new AppError(CODES.INVITE_INVALID, 'Invalid invite code')
     }
+    // A v0 code carries only the topic; everything else on an invite comes from the v1 envelope.
+    const envelope = decoded.v === 1 ? decoded : null
     // Soft pre-check for instant feedback. `x` is a strippable hint, so allow 60s for clock skew;
     // the minting member's record is the authority on the handshake.
-    if (decoded.expiresAt && decoded.expiresAt + 60_000 < Date.now()) {
+    if (envelope?.expiresAt && envelope.expiresAt + 60_000 < Date.now()) {
       throw new AppError(CODES.INVITE_EXPIRED, 'This invite link has expired')
     }
-    const name = (typeof msg.name === 'string' && msg.name.trim()) || decoded.name || 'Shared Space'
+    const name = (typeof msg.name === 'string' && msg.name.trim()) || envelope?.name || 'Shared Space'
     // Rejoining a space we just left: wait for the leave teardown to settle. While it runs the
     // catalog record still holds the old driveSuffix, and joinSpace would reuse it — resurrecting
     // the deterministic drive key and forking replication against the blocks co-members still hold
@@ -103,7 +109,7 @@ export function registerSpaces(ipc, { log, publishDownloadRoots }) {
     }
     const rejoinSpaceId = decoded.topic.slice(0, 16)
     log.info('joining space', decoded.v === 1 ? '(envelope)' : '(legacy)')
-    const space = await joinSpace(decoded.topic, name, msg.icon, { inviteId: decoded.inviteId, creator: decoded.creator })
+    const space = await joinSpace(decoded.topic, name, msg.icon ?? undefined, { inviteId: envelope?.inviteId, creator: envelope?.creator })
     await markOwnMembership(space.spaceId, { refresh: true })
     // A genuine rejoin supersedes any pending outbound leave: the fresh member/<S> record (strictly
     // newer ts) outranks the old tombstone on co-members, so retire the marker + its replay topic.
@@ -116,17 +122,7 @@ export function registerSpaces(ipc, { log, publishDownloadRoots }) {
       await clearPendingLeave(rejoinSpaceId)
       await leavePendingLeaveTopic(rejoinSpaceId)
     }
-    // Pre-seed the inviter as an offline shell member (when the envelope carries
-    // their identity) so the space isn't empty until their handshake lands. Keyed
-    // by their real public key, so the handshake's upsertMember merges into this
-    // entry — filling driveKey/avatar and flipping them online — rather than adding
-    // a duplicate. Skipped if the invite predates this field or names ourselves.
-    if (decoded.owner && decoded.owner !== getLocalPublicKeyHex()) {
-      await upsertMember(space.spaceId, {
-        publicKey: decoded.owner,
-        displayName: decoded.ownerName || UNKNOWN_DISPLAY_NAME,
-      })
-    }
+    await seedInviter(space.spaceId, envelope)
     await joinSpaceTopic(space.spaceId)
     await openMemberView(space.spaceId)   // no-op while pending; opens on re-join of an approved space
     log.info('space joined:', space.spaceId)
@@ -134,7 +130,7 @@ export function registerSpaces(ipc, { log, publishDownloadRoots }) {
       actor: selfActor(),
       space: spaceRefOf(space),
       target: targetRef(TARGET_KIND.SPACE, space.spaceId, space.name),
-      subject: { inviteId: decoded.inviteId || null, autoAdmit: !!decoded.autoAdmit },
+      subject: { inviteId: envelope?.inviteId || null, autoAdmit: !!envelope?.autoAdmit },
     })
     return space
   })
@@ -161,10 +157,11 @@ export function registerSpaces(ipc, { log, publishDownloadRoots }) {
     // Mint a replicated per-link record when the caller asks for auto-approve OR an expiry — the
     // new UI always sends an expiry. A bare programmatic call (no opts) stays record-less = a
     // plain manual, never-expiring invite.
+    const ttlMs = msg.expiresInMs != null && Number.isInteger(msg.expiresInMs) ? msg.expiresInMs : null
     let inviteId, expiresAt
-    if (msg.autoAdmit || Number.isInteger(msg.expiresInMs)) {
-      inviteId = b4a.toString(crypto.randomBytes(16), 'hex')
-      expiresAt = Number.isInteger(msg.expiresInMs) ? Date.now() + msg.expiresInMs : null
+    if (msg.autoAdmit || ttlMs !== null) {
+      inviteId = mintInviteId()
+      expiresAt = ttlMs !== null ? Date.now() + ttlMs : null
       await markInvite(space.spaceId, inviteId, { autoApprove: !!msg.autoAdmit, expiresAt })
       record('invite.minted', {
         actor: selfActor(),
@@ -193,7 +190,9 @@ export function registerSpaces(ipc, { log, publishDownloadRoots }) {
   ipc.handle('members:online', async (msg) => {
     // Include self: the local peer never leases itself in presence, and every consumer
     // wants "who is reachable INCLUDING me".
-    return [getLocalPublicKeyHex(), ...getConnectedPeers(msg.spaceId)]
+    const me = getLocalPublicKeyHex()
+    const peers = getConnectedPeers(msg.spaceId)
+    return me ? [me, ...peers] : [...peers]
   })
 
   // The path per connected member, folded over both planes. Self is never here: there is no socket
@@ -235,7 +234,21 @@ export function registerSpaces(ipc, { log, publishDownloadRoots }) {
   })
 }
 
+// Pre-seed the inviter as an offline shell member (when the envelope carries their identity) so the
+// space isn't empty until their handshake lands. Keyed by their real public key, so the handshake's
+// upsertMember merges into this entry — filling driveKey/avatar and flipping them online — rather
+// than adding a duplicate. Skipped if the invite predates this field or names ourselves.
+/** @param {string} spaceId @param {DecodedInviteV1 | null} envelope */
+async function seedInviter(spaceId, envelope) {
+  if (!envelope?.owner || envelope.owner === getLocalPublicKeyHex()) return
+  await upsertMember(spaceId, {
+    publicKey: envelope.owner,
+    displayName: envelope.ownerName || UNKNOWN_DISPLAY_NAME,
+  })
+}
+
 // The control socket the handshake bound, plus every content socket a content-hello did.
+/** @param {string} spaceId @returns {Generator<[string, object[]]>} */
 function* socketsPerMember(spaceId) {
   for (const [personKey, peer] of peersInSpace(spaceId)) {
     yield [personKey, [peer.socket, ...contentSocketsFor(personKey)]]

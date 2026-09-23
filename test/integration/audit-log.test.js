@@ -54,6 +54,18 @@ test('records land newest-first with monotonic seqs', async (t) => {
   t.is(entries[0].installId, 'install-under-test')
 })
 
+test('REGRESSION (AUDIT-NULL-LIMIT): a null limit reads a full page, not one row', async (t) => {
+  await boot(t)
+  member('member.joined', 'sp1', 'Design Team', 'Anna')
+  member('member.joined', 'sp1', 'Design Team', 'Ben')
+  member('member.left', 'sp1', 'Design Team', 'Clara')
+  await flushAudit()
+
+  // The contract's optional args admit null, and audit:list forwards the field as sent.
+  const { entries } = await queryAudit({ limit: null })
+  t.is(entries.length, 3)
+})
+
 test('a disabled log records nothing but still reads', async (t) => {
   await boot(t)
   await setAuditConfig({ enabled: false })
