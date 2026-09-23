@@ -53,7 +53,7 @@ export function registerFiles(ipc, { log }) {
   ipc.onClientDisconnect((client) => dropServeDetailClient(client.id))
 
   ipc.handle('files:list', async (msg) => {
-    if (isSpaceLeaving(msg.spaceId)) return [] // teardown is closing the drive — don't race it
+    if (isSpaceLeaving(msg.spaceId)) return [] // teardown is purging the catalog — don't race it
     const space = await getSpace(msg.spaceId)
     return await listFiles(msg.spaceId, space?.members || [], { space })
   })

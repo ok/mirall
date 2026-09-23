@@ -175,9 +175,7 @@ export function foldPendingSet({ requests, denied, members, approved, lefts }) {
 
 // Best-known identity for a member, merged from (highest priority first): live swarm meta (the
 // handshake — freshest), the replicated profile bee, then whatever we already hold; the
-// UNKNOWN_DISPLAY_NAME/null placeholders rank last so we never regress a name we once knew. driveKey now also
-// falls back to the replicated bee (profile.driveKey) so a member derived from records with no live
-// handshake can still have its drive opened — otherwise that peer's files would be invisible.
+// UNKNOWN_DISPLAY_NAME/null placeholders rank last so we never regress a name we once knew.
 // Returns { entry, changed }; changed is false when held already equals the merge (skip the write+emit).
 // The inverse of the UNKNOWN_DISPLAY_NAME default below: a caller that must not persist a placeholder asks
 // for the name it can actually stand behind. Audit rows snapshot names at write time and never
@@ -191,7 +189,7 @@ export function displayNameOrNull(name) {
 // that knows it: live meta, then the replicated profile, then the entry already held. The
 // encrypted loose-catalog key and its epoch travel as a pair from the SAME tier — an epoch from
 // one tier never decrypts a key from another.
-const IDENTITY_FIELDS = ['driveKey', 'avatar', 'looseCatalogKey']
+const IDENTITY_FIELDS = ['avatar', 'looseCatalogKey']
 const COMPARED_FIELDS = ['displayName', ...IDENTITY_FIELDS, 'looseCatalogKeyEnc', 'looseCatalogEpoch']
 
 function firstKnown(field, tiers) {

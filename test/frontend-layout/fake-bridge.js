@@ -33,8 +33,8 @@
 
   const profile = { displayName: 'You', avatar: null, personKey: SELF_PK, deviceKey: SELF_PK, orgKey: null }
   const members = [
-    { publicKey: OWNER_PK, driveKey: 'd'.repeat(64), displayName: 'Vhinz', online: true, avatar: null },
-    { publicKey: SELF_PK, driveKey: 'e'.repeat(64), displayName: 'You', online: true, avatar: null },
+    { publicKey: OWNER_PK, displayName: 'Vhinz', online: true, avatar: null },
+    { publicKey: SELF_PK, displayName: 'You', online: true, avatar: null },
   ]
   // schemaVersion 2 is what every shipped space carries; without it SpaceScreen renders the
   // legacy banner and hides the drop zone, i.e. not the screen users see.

@@ -30,14 +30,12 @@ function walk(dir, out = []) {
 }
 
 // An event that belongs to one caller's operation must name that caller. The router drops an
-// untargeted one at runtime with a warn — deliberately, because leave-progress fires from a
-// teardown that outlives its own request and a throw there lands in the crash backstop's fault
-// window. This is the half that stops such a call site shipping at all.
+// untargeted one at runtime with a warn — deliberately, because a progress emit can outlive its own
+// request and a throw there lands in the crash backstop's fault window. This is the half that stops such a call site shipping at all.
 test('every targeted event is emitted with a target', (t) => {
   const targeted = new Set(targetedNames())
   t.alike([...targeted].sort(), [
     'event:foreign-folder-preview-progress',
-    'event:leave-progress',
     'event:owned-folder-preview-progress',
   ], 'the guard reads exactly the targeted list, not whatever is declared beside it')
 

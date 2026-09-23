@@ -177,7 +177,6 @@ async function run() {
   for (let i = 0; i < 30; i++) {
     f.members.push({
       publicKey: `grown-${i}-`.padEnd(64, '0'),
-      driveKey: 'd'.repeat(64),
       displayName: `Member ${i}`,
       online: i % 2 === 0,
       avatar: null,

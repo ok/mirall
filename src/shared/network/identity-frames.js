@@ -1,11 +1,11 @@
-// The two identity-asserting frames we send: `handshake` for a space we hold a drive in, and
+// The two identity-asserting frames we send: `handshake` for a space we participate in, and
 // `membership:request` for one we are still pending in. Both carry a signature binding our profile
 // key to this socket's Noise key, so the receiver can attribute them to a member (verified in
 // handshake-guard.js) and cannot replay them on another connection.
 import b4a from 'b4a'
 import { getProfileKey, getProfile, getIdentitySigner } from '../spaces/profile.js'
 import { getSpace } from '../spaces/space.js'
-import { getDrive } from '../spaces/space-drives.js'
+import { getOwnParticipationId } from '../spaces/participation.js'
 import { getPeerFrameMaxBytes, joinRequestAvatarMaxBytes } from '../core/runtime-config.js'
 import { catalogKeyField } from '../shares/catalog-keys.js'
 import { ownLooseCatalogPublish } from '../shares/own-catalog.js'
@@ -29,8 +29,9 @@ export function initIdentityFrames(deps) {
 // (ephemeral) Noise static key by the profile signer, plus the signer key + manifest
 // namespace the verifier needs to tie the signer back to profileKey. The Noise key is
 // fixed for the swarm's lifetime, so compute it once; cleared on teardown.
-// The binding covers noise||driveKey, so it varies per space (the Noise key is fixed,
-// the driveKey isn't). Cache per driveKey ('' = the no-drive form for membership:request/grant).
+// The binding covers noise||driveKey, so it varies per space (the Noise key is fixed, the
+// participation id carried as driveKey isn't). Cache per id ('' = the unbound form for
+// membership:request/grant).
 const localBindings = new Map()
 export function getLocalBinding(driveKeyHex = '') {
   if (localBindings.has(driveKeyHex)) return localBindings.get(driveKeyHex)
@@ -68,9 +69,8 @@ async function sendIdentityFrame(socket, msgHandler, spaceId, topicHex, profile)
   const profileKeyHex = b4a.toString(getProfileKey(), 'hex')
   const displayName = profile?.displayName || UNKNOWN_DISPLAY_NAME
   const space = await getSpace(spaceId)
-  const drive = getDrive(spaceId)
-  if (drive) {
-    const driveKeyHex = b4a.toString(drive.key, 'hex')
+  const driveKeyHex = getOwnParticipationId(spaceId, space)
+  if (driveKeyHex) {
     // A v2 catalog is SCK-encrypted, so send its key in the …Enc field — the receiver reads the
     // field to decide whether to apply the SCK. A v1/plaintext key travels in the plain field.
     const loose = await ownLooseCatalogPublish(spaceId, space)
@@ -90,7 +90,7 @@ async function sendIdentityFrame(socket, msgHandler, spaceId, topicHex, profile)
     announceLedger.recordSend(socket, spaceId, 'handshake', Date.now())
     return
   }
-  // No local drive ⇒ a pending v2 join: announce a join request instead, echoing the
+  // No participation yet ⇒ a pending join: announce a join request instead, echoing the
   // (single-use) auto-admit nonce from the invite so an auto-admit invite resolves.
   if (space?.status === 'pending') {
     sendFrame(msgHandler, {

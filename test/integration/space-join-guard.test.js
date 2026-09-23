@@ -3,7 +3,6 @@ import b4a from 'b4a'
 import { freshPeer } from '../helpers/store.js'
 import { listSpaces, getSpace, upsertMember } from '../../src/shared/spaces/space.js'
 import { joinSpace, createSpace } from '../../src/shared/spaces/space-lifecycle.js'
-import { getDrive } from '../../src/shared/spaces/space-drives.js'
 import { encodeInvite, decodeInvite } from '../../src/shared/contract/invite-envelope.js'
 
 test('re-joining the same invite topic is idempotent (one space, still pending)', async (t) => {
@@ -13,9 +12,7 @@ test('re-joining the same invite topic is idempotent (one space, still pending)'
   const b = await joinSpace(topic, 'Project (again)')
   t.is(a.spaceId, b.spaceId, 'spaceId derived from the topic')
   t.is((await listSpaces()).filter((s) => s.spaceId === a.spaceId).length, 1, 'not duplicated')
-  // The writable drive is minted on grant (materializeOwnDrive), not at join.
   t.is((await getSpace(a.spaceId)).status, 'pending', 'still pending after the second join')
-  t.absent(getDrive(a.spaceId), 'no drive while pending')
 })
 
 test('joining a space you created returns the existing record (no-op)', async (t) => {
@@ -26,11 +23,11 @@ test('joining a space you created returns the existing record (no-op)', async (t
 })
 
 // Joining via an invite that carries the inviter's identity should pre-seed them
-// as an offline shell member (default avatar, no driveKey) so the space isn't
-// empty before their first handshake — and the handshake must merge into that
-// shell by public key rather than adding a duplicate. Mirrors the building blocks
-// the space:join handler composes (decodeInvite → joinSpace → upsertMember) and
-// the handshake path (upsertMember with driveKey).
+// as an offline shell member (default avatar) so the space isn't empty before
+// their first handshake — and the handshake must merge into that shell by public
+// key rather than adding a duplicate. Mirrors the building blocks the space:join
+// handler composes (decodeInvite → joinSpace → upsertMember) and the handshake
+// path (upsertMember).
 test('an invite carrying the inviter seeds an offline shell member that the handshake merges', async (t) => {
   await freshPeer(t)
   const topic = b4a.toString(b4a.alloc(32, 7), 'hex')
@@ -47,14 +44,12 @@ test('an invite carrying the inviter seeds an offline shell member that the hand
   t.is(members.length, 1, 'inviter seeded as the sole member')
   t.is(members[0].publicKey, ownerKey, 'keyed by the inviter public key')
   t.is(members[0].displayName, 'Alice', 'shows the invited display name')
-  t.is(members[0].driveKey, null, 'shell has no driveKey until the handshake')
   t.is(members[0].avatar, null, 'shell has no avatar until the handshake')
 
   // Handshake from the now-online inviter — same call swarm.js makes.
-  await upsertMember(space.spaceId, { publicKey: ownerKey, driveKey: 'c'.repeat(64), displayName: 'Alice Renamed' })
+  await upsertMember(space.spaceId, { publicKey: ownerKey, displayName: 'Alice Renamed' })
   members = (await getSpace(space.spaceId)).members
   t.is(members.length, 1, 'merged into the shell, not duplicated')
-  t.is(members[0].driveKey, 'c'.repeat(64), 'driveKey filled in by the handshake')
   t.is(members[0].displayName, 'Alice Renamed', 'display name corrected by the handshake')
 })
 

@@ -5,8 +5,6 @@ import { getStore, createBee, createLocalBee } from '../../src/shared/core/store
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { getProfileBee, getProfile } from '../../src/shared/spaces/profile.js'
 import { purgeLeftovers, classifyLeftovers } from '../../src/shared/storage/leftover.js'
-import { cleanupOrphanedData } from '../../src/shared/storage/storage.js'
-import { shouldReclaimOrphanDrives } from '../../src/shared/storage/legacy-orphan-drives.js'
 import { listRecentSweeps } from '../../src/shared/storage/sweep-journal.js'
 
 // D1 — the boot sweep must not delete on evidence it could not gather.
@@ -113,30 +111,6 @@ test('D1: the journal records what a sweep did, and why it refused', async (t) =
   const [refused] = await listRecentSweeps(1)
   t.is(refused.refused, 'scan-incomplete', 'the refusal is recorded too')
   t.ok(refused.gaps.some((g) => g.stage === 'system-bee:spaces-meta'), 'naming the gap that caused it')
-})
-
-test('REGRESSION (FIX-D1-4): a refused sweep does not consume the one-shot orphan-drive pass', async (t) => {
-  await freshPeer(t)
-  await createSpace('Aurora')
-
-  // Booting the peer already ran one sweep, which consumed the flag. Put it back, because the
-  // property under test is what a REFUSED sweep does to it.
-  const flags = createLocalBee('app-migrations')
-  await flags.ready()
-  await flags.del('legacy-orphan-drive-reclaim-v1')
-  await flags.close()
-  t.ok(await shouldReclaimOrphanDrives(), 'precondition: the one-shot pass is owed again')
-
-  // Refuse through a real condition rather than a seam: cleanupOrphanedData takes no injection
-  // point, and an implausible target set reaches the same branch.
-  for (let i = 0; i < 25; i++) await plantStray('stray-profile-' + i, 'displayName', 'Ghost ' + i)
-
-  const { purged, refused } = await cleanupOrphanedData()
-  t.is(refused, 'over-ratio-cap', 'the boot sweep refused')
-  t.is(purged, 0)
-
-  t.ok(await shouldReclaimOrphanDrives(),
-    'the one-shot pass survives — a refused sweep looked at nothing, so it must not spend it')
 })
 
 // D12 — a sweep with nothing to delete is allowed (there is no risk to weigh), but its scan can

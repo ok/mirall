@@ -25,7 +25,8 @@ import { isEphemeralSourcePath } from './temp-paths.js'
 import { readCatalogKey } from '../shares/catalog-keys.js'
 import { getLocalPublicKeyHex } from '../spaces/profile.js'
 import { getSpace } from '../spaces/space.js'
-import { getDrive } from '../spaces/space-drives.js'
+import { isParticipating } from '../spaces/participation.js'
+/** @import { StoredSpace } from '../spaces/space.js' */
 import { dedupeFileRows } from './file-dedupe.js'
 import { markListIncomplete } from './list-deficits.js'
 import { beginListingRead, retainListingMemo, settleListingRead, takeListingMemo } from './listing-memo.js'
@@ -35,7 +36,6 @@ import { listPendingForSpace } from './pending-transfers.js'
 import { isOwnerOnline } from '../network/presence-leases.js'
 import { LOOSE_SHARE_ID, looseTransferIdFor } from './transfer-id.js'
 import { unhashedStatusFor } from './transfer-status.js'
-import b4a from 'b4a'
 import fs from 'bare-fs'
 import path from 'bare-path'
 
@@ -62,8 +62,7 @@ async function assertSharableSource(filePath) {
 }
 
 export async function addFile(spaceId, filePath, fileName) {
-  const drive = getDrive(spaceId)
-  if (!drive) throw new AppError(CODES.DRIVE_NOT_FOUND, 'Drive not found for space')
+  if (!isParticipating(await getSpace(spaceId))) throw new AppError(CODES.DRIVE_NOT_FOUND, 'Space not joined yet')
 
   await assertSharableSource(filePath)
 
@@ -95,14 +94,14 @@ const productionDeps = {
   catalogVersion: looseCatalogVersion,
 }
 
-function ownRow(e, localPublicKey, localDriveKeyHex) {
+function ownRow(e, localPublicKey) {
   const hashed = !!e.contentHash
   // Still hashing → 'publishing' (server-truth) so it survives a navigate-away/remount, not just
   // the optimistic client row.
   return {
     path: '/' + e.relPath, size: e.size, hash: e.contentHash || '', inPlace: true,
-    owner: { displayName: 'You', publicKey: localPublicKey || localDriveKeyHex },
-    driveKey: localDriveKeyHex, localBytes: hashed ? e.size : 0, isAvailable: true, status: hashed ? 'mine' : 'publishing',
+    owner: { displayName: 'You', publicKey: localPublicKey },
+    localBytes: hashed ? e.size : 0, isAvailable: true, status: hashed ? 'mine' : 'publishing',
   }
 }
 
@@ -112,7 +111,7 @@ function unhashedPeerRow(member, e, ownerOnline) {
   return {
     path: '/' + e.relPath, size: e.size, hash: '', inPlace: true,
     owner: { displayName: member.displayName, publicKey: member.publicKey },
-    driveKey: member.driveKey, localBytes: 0, isAvailable: ownerOnline,
+    localBytes: 0, isAvailable: ownerOnline,
     status: unhashedStatusFor(ownerOnline),
   }
 }
@@ -137,7 +136,7 @@ function peerRow(spaceId, member, e, ctx) {
   return {
     path: drivePath, size: e.size, hash: e.contentHash, inPlace: true,
     owner: { displayName: member.displayName, publicKey: member.publicKey },
-    driveKey: member.driveKey, localBytes: copyVerdict ? e.size : 0,
+    localBytes: copyVerdict ? e.size : 0,
     isAvailable: ctx.ownerOnline, status: peerFileStatus(copyVerdict, pendingRow, ctx.ownerOnline, isActive), verified: copyVerdict === COPY_VERDICT.VERIFIED,
     pendingBytes: pendingRow?.bytesTransferred, errorCode: isActive ? undefined : pendingRow?.errorCode,
     transferId: looseTransferIdFor(spaceId, e.relPath),
@@ -185,18 +184,17 @@ async function readPeerEntries(spaceId, member, { budget, space, deps }) {
   }
 }
 
-// In-place loose files (own + each peer's) read from the loose catalog, shaped like drive-backed
-// candidates so dedupeFileRows merges them with the rest.
-async function collectLooseInPlace(spaceId, members, { localPublicKey, localDriveKeyHex, space, deps }) {
+// In-place loose files (own + each peer's) read from the loose catalog, one candidate row per
+// owner, so dedupeFileRows can merge them.
+async function collectLooseInPlace(spaceId, members, { localPublicKey, space, deps }) {
   if (!isInPlaceFilesEnabled()) return []
-  const out = (await looseListOwn(spaceId)).map((e) => ownRow(e, localPublicKey, localDriveKeyHex))
+  const out = (await looseListOwn(spaceId)).map((e) => ownRow(e, localPublicKey))
   const peerMembers = (members || []).filter((m) => m?.publicKey && m.publicKey !== localPublicKey && readCatalogKey(m).keyHex)
   retainListingMemo(spaceId, new Set(peerMembers.map((m) => readCatalogKey(m).keyHex)))
   if (peerMembers.length === 0) return out
   const pending = new Map((await deps.listPendingForSpace(spaceId)).map((p) => [p.filePath, p]))
   const budget = interactiveReadTimeoutMs()
-  const spaceRecord = space || await getSpace(spaceId)
-  const peerEntries = await Promise.all(peerMembers.map((member) => readPeerEntries(spaceId, member, { budget, space: spaceRecord, deps })))
+  const peerEntries = await Promise.all(peerMembers.map((member) => readPeerEntries(spaceId, member, { budget, space, deps })))
   const { verified, claims } = await prefetchLooseRowState(spaceId, peerEntries, deps)
 
   const stale = new Map() // drivePath -> the verdict's reason
@@ -218,16 +216,12 @@ async function collectLooseInPlace(spaceId, members, { localPublicKey, localDriv
 }
 
 // `space` is the caller's already-read record, so a listing costs one spaces-bee read, not two.
+/** @param {string} spaceId @param {object[]} members @param {{ space?: StoredSpace | null, deps?: typeof productionDeps }} [opts] */
 export async function listFiles(spaceId, members, { space = null, deps = productionDeps } = {}) {
-  // The local per-space drive holds no file blobs (overlay serves in place); it is
-  // still read for the local driveKey that attributes own loose rows.
-  const localDrive = getDrive(spaceId)
-  if (!localDrive) return []
+  const spaceRecord = space || await getSpace(spaceId)
+  if (!isParticipating(spaceRecord)) return []
 
-  const localDriveKeyHex = b4a.toString(localDrive.key, 'hex')
-  const localPublicKey = getLocalPublicKeyHex()
-
-  const files = dedupeFileRows(await collectLooseInPlace(spaceId, members, { localPublicKey, localDriveKeyHex, space, deps }))
+  const files = dedupeFileRows(await collectLooseInPlace(spaceId, members, { localPublicKey: getLocalPublicKeyHex(), space: spaceRecord, deps }))
   log.debug('listed', files.length, 'files in space', spaceId, '(' + members?.length, 'members)')
   return files
 }

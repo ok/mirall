@@ -22,8 +22,8 @@ const log = createLogger('member-registry')
 // One live member-view per active v2 space. The view folds the replicated membership
 // records into the current member set and, on every change (local or replicated),
 // reconciles it into `space.members` (the renderer's read model) — making membership a
-// derived fact, not a handshake-time cache. Swarm metadata (a connected peer's driveKey /
-// displayName / avatar) and the IPC emitter are injected so this module stays free of a
+// derived fact, not a handshake-time cache. Swarm metadata (a connected peer's displayName /
+// avatar / loose-catalog key) and the IPC emitter are injected so this module stays free of a
 // swarm import (no cycle); swarm owns connectedPeers, this owns the derived set.
 const views = new Map()   // spaceId -> { view, members: Set<keyHex> }
 
@@ -80,7 +80,7 @@ export function captureDeficits() {
 const lefts = new Map()   // spaceId -> Map<keyHex, leaveTs>
 
 const DEFAULT_DEPS = {
-  metaFor: () => null,              // (spaceId, key) => { driveKey, displayName, avatar } | null (live swarm)
+  metaFor: () => null,              // (spaceId, key) => { displayName, avatar, looseCatalog* } | null (live swarm)
   isConnected: () => false,         // (spaceId, key) => bool (a live handshake for this space)
   profileFor: async () => null,     // (spaceId, key) => { displayName, avatar } | null (replicated bee)
   readmitConnected: () => {},       // (spaceId, keys[]) => void (admit derived peers we have a socket with)
@@ -352,11 +352,11 @@ function forgetPending(spaceId, entry, key) {
 // Reconcile the derived set into space.members. ADD what the fold holds and we do not; REMOVE a held
 // member only on positive evidence of leaving (their bee was considered AND says not-a-member AND no
 // live handshake contradicts it) — mere absence never removes anyone, so no flicker. Identity
-// (displayName/avatar/driveKey) is hydrated from the replicated profile bee as well as live swarm
-// meta, so a member we have no live handshake with still shows their real name and photo.
+// (displayName/avatar/loose-catalog key) is hydrated from the replicated profile bee as well as live
+// swarm meta, so a member we have no live handshake with still shows their real name and photo.
 async function reconcile(spaceId, members, considered) {
   // space.members is the OTHER members (the renderer shows self separately; every consumer
-  // — warmKnownPeerDrives, cleanupSpaceDrives, isApprovedByPeers — skips self). The fold's
+  // — isApprovedByPeers among them — skips self). The fold's
   // set includes self, so exclude self throughout.
   const self = getLocalPublicKeyHex()
 

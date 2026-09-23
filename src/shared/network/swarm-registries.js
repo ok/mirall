@@ -6,7 +6,7 @@
 // one by hand.
 import { createAnnounceLedger } from './announce-ledger.js'
 
-// profileKey → { socket, profileKey, displayName, avatar, spaces: Map<spaceId, driveKey>,
+// profileKey → { socket, profileKey, displayName, avatar, spaces: Set<spaceId>,
 //                looseCatalogKeys: Map<spaceId, { key, keyEnc, epoch }> }
 export const connectedPeers = new Map()
 // socket → Set<profileKey>  (reverse index for disconnect lookup)
@@ -16,7 +16,7 @@ export const spaceTopics = new Map()
 export const spaceDiscoveries = new Map()
 // socket → Protomux msgHandler (for sending handshakes to existing connections)
 export const socketMsgHandlers = new Map()
-// profileKey → socket. A pending joiner has no drive or handshake yet, so its socket is tracked here
+// profileKey → socket. A pending joiner has no handshake yet, so its socket is tracked here
 // to grant against later.
 export const pendingRequesters = new Map()
 // profileKey → signerKey hex. Every identity frame a peer sends carries its bound ed25519 signer
@@ -61,15 +61,15 @@ export function handlerForPeer(profileKeyHex) {
   return sock ? socketMsgHandlers.get(sock) || null : null
 }
 
-// A connected peer's live metadata for a space (driveKey announced in its handshake, plus
-// displayName/avatar), or null if it isn't currently handshaked here. The member registry uses this
-// to enrich a newly-derived member entry; absent ⇒ the member is offline and its driveKey fills in
-// on its next handshake.
+// A connected peer's live metadata for a space (the loose-catalog key announced in its handshake,
+// plus displayName/avatar), or null if it isn't currently handshaked here. The member registry uses
+// this to enrich a newly-derived member entry; absent ⇒ the member is offline and its identity fills
+// in from its profile bee or its next handshake.
 export function getConnectedMemberMeta(spaceId, profileKeyHex) {
   const peer = connectedPeers.get(profileKeyHex)
   if (!peer || !peer.spaces.has(spaceId)) return null
   const loose = peer.looseCatalogKeys?.get(spaceId)
-  return { driveKey: peer.spaces.get(spaceId) || null, looseCatalogKey: loose?.key || null, looseCatalogKeyEnc: loose?.keyEnc || null, looseCatalogEpoch: loose?.epoch ?? null, displayName: peer.displayName, avatar: peer.avatar }
+  return { looseCatalogKey: loose?.key || null, looseCatalogKeyEnc: loose?.keyEnc || null, looseCatalogEpoch: loose?.epoch ?? null, displayName: peer.displayName, avatar: peer.avatar }
 }
 
 // The bound signer key a connected peer last asserted, for sealing a membership:grant to it.

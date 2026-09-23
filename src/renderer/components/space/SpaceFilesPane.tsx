@@ -62,7 +62,7 @@ export default function SpaceFilesPane(props: SpaceFilesPaneProps) {
     <SpaceSection title={t('space.filesShared')} count={t('space.fileCount', { count: files.length })}>
       {files.map((file) => (
         <FileCard
-          key={`${file.driveKey}-${file.path}`}
+          key={`${file.owner.publicKey}-${file.path}`}
           file={file}
           decoration={getDecoration(file.path)}
           seeded={isSeeded(file.path)}

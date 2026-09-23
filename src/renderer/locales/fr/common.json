@@ -396,21 +396,9 @@
   },
   "leaveSpace": {
     "titleConfirm": "Quitter « {{name}} » ?",
-    "titleProgress": "Sortie en cours…",
     "body": "Vous cesserez de vous synchroniser avec les membres de cet espace. Les autres membres pourront toujours partager des fichiers entre eux.",
     "leaveAction": "Quitter l'espace",
-    "preparing": "Préparation…",
-    "phases": {
-      "disconnecting": "Déconnexion des pairs…",
-      "cleaningPeer": "Nettoyage des données de {{peerName}}…",
-      "compactingPeerCache": "Compactage du cache des pairs…",
-      "compactingPeerCache_withSize": "Compactage du cache des pairs ({{size}})…",
-      "purgingLocalMeta": "Suppression des métadonnées de l'espace…",
-      "purgingLocalBlobs": "Suppression des fichiers en cache…",
-      "compactingLocalCache": "Récupération des données en cache…",
-      "compactingLocalCache_withSize": "Récupération de {{size}} de données en cache…",
-      "finalizing": "Finalisation…"
-    }
+    "leaving": "Sortie en cours…"
   },
   "removeFile": {
     "titleConfirm": "Supprimer « {{name}} » ?",

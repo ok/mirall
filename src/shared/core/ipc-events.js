@@ -70,8 +70,8 @@ export function createEventPlane({ clients, log, epoch, replay }) {
     }
     if (TARGETED.has(type) && to == null) {
       // One caller's progress must never land in another's UI. Dropped with a warn rather than
-      // thrown: leave-progress fires from a teardown that outlives its own request, and a throw
-      // there is an unhandled rejection inside the crash backstop's fault window. The static guard
+      // thrown: a progress emit can outlive its own request, and a throw there is an unhandled
+      // rejection inside the crash backstop's fault window. The static guard
       // (test/invariants/targeted-events.test.js) is what stops a new call site shipping like this.
       log.warn('targeted event emitted with no target, dropped:', type)
       return

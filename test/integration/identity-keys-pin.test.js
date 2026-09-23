@@ -2,7 +2,7 @@ import test from 'brittle'
 import b4a from 'b4a'
 import fs from 'bare-fs'
 import Corestore from 'corestore'
-import { deriveKeyPair, deriveDriveKeyPair } from '../../src/shared/core/identity-keys.js'
+import { deriveKeyPair, deriveParticipationKeyPair } from '../../src/shared/core/identity-keys.js'
 import { tmpDir } from '../helpers/bare-tmp.js'
 
 // Pins identity-keys.js against Corestore's own seed-derivation: the derived
@@ -22,8 +22,8 @@ test('derived keys match Corestore seed-derivation byte-for-byte', async (t) => 
   t.alike(deriveKeyPair(M, 'profile').publicKey, (await store.createKeyPair('profile')).publicKey, 'profile key matches')
   t.alike(deriveKeyPair(M, 'spaces-meta').publicKey, (await store.createKeyPair('spaces-meta')).publicKey, 'named bee key matches')
   t.alike(
-    deriveDriveKeyPair(M, 'space-drive-x').publicKey,
-    (await store.namespace('space-drive-x').createKeyPair('db')).publicKey,
-    'drive db key matches'
+    deriveParticipationKeyPair(M, 'x', 'ab12').publicKey,
+    (await store.namespace('space-drive-x-ab12').createKeyPair('db')).publicKey,
+    'participation key matches the key a drive of that name had'
   )
 })

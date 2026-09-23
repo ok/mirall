@@ -6,16 +6,11 @@ import { launchPeer, connectInSpace } from '../helpers/peer.js'
 import { mkTmpDir, patternedBytes, mkStoreDir } from '../helpers/fixtures.js'
 import { scaled } from '../helpers/timing.js'
 
-// Overlay: the owner's REAL file on disk is the source — nothing is copied into a
-// drive. A peer lists from the replicated catalog and fetches by content hash
+// Overlay: the owner's REAL file on disk is the source — nothing is copied into app
+// storage. A peer lists from the replicated catalog and fetches by content hash
 // straight from the owner over the hyper-overlay/v2 channel (serve-gated by
-// membership). The headline proof: no drive blob import on the owner, ever.
+// membership). The headline proof: no import on the owner, ever.
 const FLAGS = { overlayEnabled: true }
-
-function spaceLive(info, spaceId) {
-  const s = (info?.spaces || []).find((x) => x.spaceId === spaceId)
-  return s ? s.contentBytes : 0
-}
 
 test('overlay: owner publishes in place (no second copy); peer fetches by content hash',
   { timeout: scaled(150000) }, async (t) => {
@@ -25,6 +20,7 @@ test('overlay: owner publishes in place (no second copy); peer fetches by conten
     const spaceId = await connectInSpace(t, A, B)
     const aKey = (await A.request('profile:get')).personKey
 
+    const baseline = await A.request('storage:info')
     const share = await A.request('share:create', { spaceId, name: 'Vault', contentMode: 'overlay' })
     t.is(share.contentMode, 'overlay', 'share created in overlay mode under the flag')
     t.ok(share.catalogKeyEnc, 'share record carries the SCK-encrypted catalog key')
@@ -37,9 +33,9 @@ test('overlay: owner publishes in place (no second copy); peer fetches by conten
     await A.request('owned-folder:mount', { spaceId, shareId: share.id, mountPath: folder })
     await scanDone
 
-    // No second copy: overlay never imports bytes into a drive.
+    // No second copy: overlay never imports bytes into app storage.
     const before = await A.request('storage:info')
-    t.ok(spaceLive(before, spaceId) < bytes.length / 2, 'no drive import — serves in place')
+    t.ok(before.totalDiskUsage - baseline.totalDiskUsage < bytes.length / 2, 'no import — serves in place')
 
     // B browses the catalog and waits until the file is `remote` (owner finished hashing).
     const listed = await B.until('share:list-files', { spaceId, ownerKey: aKey, shareId: share.id },
@@ -57,9 +53,9 @@ test('overlay: owner publishes in place (no second copy); peer fetches by conten
     const completed = await done
     t.ok(fs.readFileSync(completed.localPath).equals(bytes), 'downloaded bytes match the source')
 
-    // Still no drive blobs on the owner — the fetch streamed from the source file.
+    // Still no copy on the owner — the fetch streamed from the source file.
     const after = await A.request('storage:info')
-    t.ok(spaceLive(after, spaceId) < bytes.length / 2, 'still no drive materialization after serving')
+    t.ok(after.totalDiskUsage - baseline.totalDiskUsage < bytes.length / 2, 'still no copy after serving')
 
     // B now lists the file as downloaded — and verified (the overlay checked the
     // whole-file hash byte-for-byte during the transfer).

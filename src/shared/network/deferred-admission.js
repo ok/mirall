@@ -35,11 +35,11 @@ export function resetDeferredAdmission() {
 }
 
 // The shared tail of both deferred-admission paths: given a joiner we have decided to admit, replay
-// their handshake over whatever live socket we hold. If we captured their driveKey (from a
-// post-grant re-handshake) we replay it directly — opening their drive, listing them as a member,
-// sending the reciprocal, and clearing the stale request through the shared admit path. If we only
-// ever saw their membership:request, we send OUR handshake to prompt a fresh one carrying a driveKey
-// the gate can then admit for content, rather than bailing and leaving a connected member showing as
+// their handshake over whatever live socket we hold. If we captured their participation id (from a
+// post-grant re-handshake) we replay it directly — listing them as a member, sending the
+// reciprocal, and clearing the stale request through the shared admit path. If we only ever saw
+// their membership:request, we send OUR handshake to prompt a fresh one carrying an id the gate can
+// then admit for content, rather than bailing and leaving a connected member showing as
 // Unknown/Offline.
 //
 // The DECISION to admit belongs to the callers and stays there — this is only the replay.

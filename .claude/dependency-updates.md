@@ -79,11 +79,9 @@ Before merging:
 
 **The Bare that ships in production rides on `bare-sidecar`'s baked-in prebuild.** Any lockfile re-resolution — `npm update`, a Renovate lock-maintenance PR, a full lock regen — can therefore bump the production Bare with no visible change to `bare` in `package.json`. Review the `bare-sidecar` diff on every lockfile-only PR, and smoke-test the worker whenever it moves.
 
-## hyperdrive — pinned
+## hyperdrive — a dev dependency, pinned
 
-`hyperdrive` is pinned to an exact version in `package.json` (`"hyperdrive": "13.3.3"`, no caret), so Renovate won't bump it without a manual `package.json` change. The owned-folder sync path (`src/shared/folders/owned-pass.js` and `owned-channel.js`) depends on hyperdrive's on-disk/wire behavior, so a version drift carries replication and wire-format risk.
-
-There is **no** automated pin-guard test — nothing fails CI when the version changes. Any manual hyperdrive bump is therefore a `needs-smoke-test` candidate: re-read the release notes for replication/wire-format changes, run the two-window smoke test, and confirm end-to-end replication before merging.
+No `src` module imports `hyperdrive` (`test/invariants/no-space-drive.test.js`). Production gets it only through `pear-runtime-updater`, which the OTA path rides and which brings its own version range. The pinned dev copy (`"hyperdrive": "13.3.3"`) serves the `test/raw` primitive gate and two integration tests that recreate a retired per-space drive: `identity-store.test.js` (the participation id equals that drive's key) and `retire-space-drives.test.js` (the migration's computed blobs key equals Hyperdrive's). A bump that changes Hyperdrive's key derivation fails those two — which is the point: the migration's port of the derivation has to follow.
 
 ## `@react-types/shared` — pinned twin of `react-aria`
 

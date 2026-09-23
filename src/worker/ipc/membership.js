@@ -27,14 +27,14 @@ import { captureJoinerMembership, getIdentitySigner, markRequest, markRequestDen
 import { getSpace, getSpaceContentKey, spaceEpoch } from '../../shared/spaces/space.js'
 import { claimJoinRequestAudit, clearJoinRequest, forgetJoinRequestAudit, hasApprovedVerdict, listJoinRequests, listPendingRequests, recordJoinRequest, releaseJoinRequestAudit, rememberApprovedVerdict } from '../../shared/spaces/join-requests.js'
 import { clearCreatorDivergence, markCreatorDivergence, pinCreatorKey } from '../../shared/spaces/creator-pin.js'
-import { materializeOwnDrive, recordApproval } from '../../shared/spaces/space-lifecycle.js'
+import { materializeSpace, recordApproval } from '../../shared/spaces/space-lifecycle.js'
 import { purgeSpace } from '../../shared/spaces/leave-records.js'
 import { makeKeyedCoalescer } from '../../shared/core/coalesce.js'
 import { forgetUnreferencedPeerCores } from '../../shared/storage/leftover.js'
 import { checkGrantAssertion, clampDisplayName, frameEpoch } from '../../shared/network/handshake-guard.js'
 import { openSealedSck } from '../../shared/spaces/sck-seal.js'
 import { broadcastProfileUpdate } from '../../shared/network/identity-frames.js'
-import { cleanupSpaceDrives, leaveSpaceTopic } from '../../shared/network/space-topics.js'
+import { disconnectPeersFromSpace, leaveSpaceTopic } from '../../shared/network/space-topics.js'
 import { getAdmissionGates, resolveInvite } from '../../shared/network/handshake-apply.js'
 import { markSpaceLeaving, unmarkSpaceLeaving } from '../../shared/network/leave-protocol.js'
 import { readmitConnectedMembers } from '../../shared/network/deferred-admission.js'
@@ -295,7 +295,7 @@ async function onGrant(msg, ctx = {}) {
   const sckBuf = openSealedSck(b4a.from(msg.sckSealed, 'hex'), signer)
   if (!sckBuf || sckBuf.length !== 32) return
 
-  await materializeOwnDrive(spaceId, sckBuf, { epoch })
+  await materializeSpace(spaceId, sckBuf, { epoch })
   if (asserted && (decision === 'adopt' || decision === 'confirm')) await pinCreatorKey(spaceId, asserted)
   await broadcastProfileUpdate()
   await openMemberView(spaceId)
@@ -460,21 +460,18 @@ async function decideDeny(space, joinerKey) {
   return verdict
 }
 
-// Tear down a space we only ever sat pending in: no own drive, owned/foreign
-// mounts, or authored membership records exist, so the heavyweight leave path
-// (which purges a drive that was never materialized) does not apply and crashes
-// on the closing cores. This is the cancel path for both a deny and a manual
-// "stop waiting". Every step is best-effort so a single failure can't reject the
-// caller and surface as an Uncaught in the renderer.
+// Tear down a space we only ever sat pending in: no own catalog, owned/foreign mounts, or authored
+// membership records exist, so the leave teardown does not apply. This is the cancel path for both
+// a deny and a manual "stop waiting". Every step is best-effort so a single failure can't reject
+// the caller and surface as an Uncaught in the renderer.
 /** @param {string} spaceId */
 async function discardPendingSpace(spaceId) {
   markSpaceLeaving(spaceId)
   closeMemberView(spaceId)
   try {
     const space = await getSpace(spaceId)
-    const peerMembers = (space?.members || []).filter((m) => !!m.driveKey)
     try { await leaveSpaceTopic(spaceId) } catch (err) { log.warn('discard pending: leave topic failed:', errorMessage(err)) }
-    try { await cleanupSpaceDrives(spaceId, peerMembers) } catch (err) { log.warn('discard pending: peer-drive cleanup failed:', errorMessage(err)) }
+    try { disconnectPeersFromSpace(spaceId) } catch (err) { log.warn('discard pending: peer disconnect failed:', errorMessage(err)) }
     try { await purgeSpace(spaceId) } catch (err) { log.warn('discard pending: remove failed:', errorMessage(err)) }
     dropSpaceDownloadRoot(spaceId)
     try { await forgetUnreferencedPeerCores(space?.members || []) } catch (err) { log.warn('discard pending: peer-core gc failed:', errorMessage(err)) }
@@ -488,7 +485,7 @@ async function discardPendingSpace(spaceId) {
 /** @param {string} spaceId @param {string | null} granterKey */
 async function recordGrantReceived(spaceId, granterKey) {
   // One fresh read for all three fields: onGrant's own `space` was loaded before four awaits
-  // (materializeOwnDrive, pinCreatorKey, broadcastProfileUpdate, openMemberView), and the roster
+  // (materializeSpace, pinCreatorKey, broadcastProfileUpdate, openMemberView), and the roster
   // this needs is exactly what those may have just filled in.
   const space = await getSpace(spaceId)
   record('membership.granted', {

@@ -93,7 +93,7 @@ const SPACE: Space = {
   // themselves come from the fake bridge's `space:members` roster; no avatar images, since the
   // initials fallback is the same disc wearing the same ring.
   memberCount: 4,
-  members: [1, 2, 3, 4].map((i) => ({ publicKey: pk(i), driveKey: pk(i), displayName: `Member ${i}` })),
+  members: [1, 2, 3, 4].map((i) => ({ publicKey: pk(i), displayName: `Member ${i}` })),
 }
 
 const faces = (n: number) => Array.from({ length: n }, (_, i) => ({ key: String(i), displayName: `Member ${i}` }))

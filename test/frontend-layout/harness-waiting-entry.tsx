@@ -33,14 +33,13 @@ declare global {
 const WIDTHS = [{ id: 'wide', w: 760 }, { id: 'medium', w: 520 }, { id: 'narrow', w: 400 }]
 const BAR_MIN = 120
 
-const member = (n: number, name: string): SpaceMember => ({ publicKey: 'k' + n, driveKey: 'd' + n, displayName: name, online: true })
+const member = (n: number, name: string): SpaceMember => ({ publicKey: 'k' + n, displayName: name, online: true })
 const members = [member(1, 'Alexandra Featherstonehaugh'), member(2, 'Bob'), member(3, 'Carol')]
 const file: FileEntry = {
   path: '/a-rather-long-archive-name-that-must-truncate.bin',
   size: 32 * 1024 ** 3,
   hash: '',
   owner: { displayName: 'Oliver', publicKey: 'ownerkey' },
-  driveKey: 'drivekey',
   localBytes: 0,
   isAvailable: true,
   status: 'publishing',

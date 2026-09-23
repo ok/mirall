@@ -1,7 +1,9 @@
 import test from 'brittle'
 import fs from 'bare-fs'
 import path from 'bare-path'
+import b4a from 'b4a'
 import { freshDurable } from '../helpers/store.js'
+import { setMasterSecret } from '../../src/shared/core/store.js'
 import { MIGRATIONS, runMigrations } from '../../src/shared/storage/migrations/index.js'
 import { STAGES } from '../../src/shared/storage/migrations/migration-result.js'
 
@@ -13,9 +15,12 @@ const srcRoot = path.join(path.dirname(import.meta.url.replace(/^file:\/\//, '')
 // fails leaves its own marker unwritten and retries at the next boot, and it must neither reject
 // the boot nor stop the rest of its stage.
 test('a migration that throws is reported, not propagated', async (t) => {
+  // An M with no store: the background migration gets past its identity check and throws on the bee.
+  setMasterSecret(b4a.alloc(32, 1))
+  t.teardown(() => setMasterSecret(null))
   const warnings = []
   const results = await runMigrations('background', { log: { warn: (...args) => warnings.push(args) } })
-  t.is(results['legacy-peer-cache'].status, 'failed', 'the failure is reported against its id')
+  t.is(results['retire-space-drives'].status, 'failed', 'the failure is reported against its id')
   t.is(warnings.length, 1, 'and logged, so a permanently-failing migration is visible')
 })
 
@@ -44,7 +49,7 @@ test('every migration the composition root used to call is in the list, and none
     'migrateLocalBeesToEncrypted',
     'migrateCatalogsToEncrypted',
     'migrateOverlayIndexToEncrypted',
-    'reclaimLegacyPeerCaches',
+    'retireSpaceDrives',
   ]
   t.is(entryPoints.length, MIGRATIONS.length, 'the list covers exactly the migrations that exist')
   for (const name of entryPoints) {

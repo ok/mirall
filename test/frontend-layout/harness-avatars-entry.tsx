@@ -58,7 +58,6 @@ const PIXEL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcS
 
 const MEMBER: SpaceMember = {
   publicKey: 'a'.repeat(64),
-  driveKey: 'b'.repeat(64),
   displayName: 'Vhinz Sanchez',
   online: true,
   avatar: PIXEL,

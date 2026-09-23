@@ -422,21 +422,9 @@
   },
   "leaveSpace": {
     "titleConfirm": "Leave “{{name}}”?",
-    "titleProgress": "Leaving...",
     "body": "You'll stop syncing with members in this space. Other members can still share files with each other.",
     "leaveAction": "Leave Space",
-    "preparing": "Preparing...",
-    "phases": {
-      "disconnecting": "Disconnecting peers…",
-      "cleaningPeer": "Cleaning up data from {{peerName}}…",
-      "compactingPeerCache": "Compacting peer cache…",
-      "compactingPeerCache_withSize": "Compacting peer cache ({{size}})…",
-      "purgingLocalMeta": "Removing space metadata…",
-      "purgingLocalBlobs": "Removing cached files…",
-      "compactingLocalCache": "Reclaiming cached data…",
-      "compactingLocalCache_withSize": "Reclaiming {{size}} of cached data…",
-      "finalizing": "Finalizing…"
-    }
+    "leaving": "Leaving..."
   },
   "removeFile": {
     "titleConfirm": "Remove “{{name}}”?",

@@ -112,7 +112,7 @@ body {
 }
 
 /* Honor the OS "reduce motion" setting globally — neutralizes the infinite
- * keyframe animations (avatar pulse, leave-progress stripe) and collapses
+ * keyframe animations (avatar pulse, progress sweep) and collapses
  * transitions/transforms in one rule. */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -170,15 +170,6 @@ button:disabled,
  * (CrystalBackdrop), not on the panel. */
 .glass-modal {
   background: var(--color-surface-container-lowest);
-}
-
-@keyframes leave-progress-stripe-shift {
-  from {
-    background-position: 0 0;
-  }
-  to {
-    background-position: 24px 0;
-  }
 }
 
 /* An avatar sits IN the surface rather than on it: the ring is the hole it occupies and this is the
@@ -251,19 +242,6 @@ input[type='search']::-webkit-search-decoration {
   --avatar-issue-color: var(--color-on-info);
   box-shadow: 0 0 0 2px var(--avatar-issue-color);
   animation: avatar-issue-pulse 2.4s ease-in-out infinite;
-}
-
-.leave-progress-stripe {
-  background-image: repeating-linear-gradient(
-    -45deg,
-    color-mix(in srgb, var(--color-on-info) 18%, transparent) 0,
-    color-mix(in srgb, var(--color-on-info) 18%, transparent) 6px,
-    transparent 6px,
-    transparent 12px
-  );
-  background-size: 24px 24px;
-  animation: leave-progress-stripe-shift 1.4s linear infinite;
-  pointer-events: none;
 }
 
 /* Indeterminate progress sweep — shown during the ETA warmup before a stable rate exists. A

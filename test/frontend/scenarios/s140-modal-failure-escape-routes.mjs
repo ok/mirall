@@ -9,8 +9,8 @@ import { workDir } from '../paths.mjs'
 //
 // FIX-D8 — RemoveFileModal held `removing` true forever when the removal rejected, so Escape and
 // the backdrop were refused while the header ✕ stayed live: the only way out was the one click the
-// busy flag claimed was unsafe. FIX-D9 — LeaveSpaceModal completed from a `finally`, painting the
-// bar to 100% and navigating away from a space the user was still in.
+// busy flag claimed was unsafe. FIX-D9 — LeaveSpaceModal completed from a `finally`, navigating
+// away from a space the user was still in.
 //
 // The rejection itself is not reachable from the UI: `space:leave` answers ok even when its
 // teardown throws, and the only other rejection source — the worker dying — reloads the renderer.
@@ -79,24 +79,25 @@ export default async function s140({ runDir, bootstrap }) {
       await A.shot('s140-leave-dismissed', runDir)
     })
 
-    await r.ok('leaving reports progress with no live close button, and lands on the list', async () => {
+    await r.ok('leaving shows a busy confirm with no live close button, and lands on the list', async () => {
       await openLeaveConfirm()
       await A.click({ role: 'button', name: 'Leave Space', last: true })
-      let sawProgress = false
+      let sawBusy = false
       await waitFor(async () => {
         const tree = await A.snap()
         const text = allText(tree)
-        // The progress step is undismissable by design; a close button there would be the one exit
-        // the busy state refuses everywhere else.
+        // The busy dialog is undismissable by design; a live close button there would be the one
+        // exit the busy state refuses everywhere else.
         if (text.includes('Leaving...')) {
-          sawProgress = true
-          assert(!findNode(tree, { role: 'button', name: 'Close' }), 'no close button on the progress step')
+          sawBusy = true
+          const close = findNode(tree, { role: 'button', name: 'Close', actionable: true })
+          assert(!close || (close.states ?? []).includes('disabled'), 'the close button is disabled while leaving')
         }
         return text.includes('Create Space')
       }, 60000, 'the leave to finish and land on the spaces list')
-      // A solo space can tear down faster than one snapshot round trip, so seeing the progress
-      // step is an observation, not a precondition.
-      console.error(sawProgress ? 'observed the leave progress step' : 'leave completed before a snapshot caught the progress step')
+      // A solo space can tear down faster than one snapshot round trip, so seeing the busy state is
+      // an observation, not a precondition.
+      console.error(sawBusy ? 'observed the busy leave confirm' : 'leave completed before a snapshot caught the busy state')
       assert(!(await A.hasText('Aurora')), 'the space is gone from the list')
       await A.shot('s140-left', runDir)
     })

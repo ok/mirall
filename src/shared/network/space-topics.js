@@ -1,8 +1,7 @@
 // Joining and leaving a space's Hyperswarm topic, and evicting that space's peers when we leave it.
 import b4a from 'b4a'
-/** @import { ReconnectResult, SpaceMember } from '../contract/responses.js' */
+/** @import { ReconnectResult } from '../contract/responses.js' */
 import { getSpace } from '../spaces/space.js'
-import { compactStore } from '../storage/compaction.js'
 import { createLogger } from '../core/logger.js'
 import { joinContentTopic, leaveContentTopic, destroyContentPeerSockets, destroyAllContentPeerSockets, clearContentForcedRelaying, refreshContentDiscoveries } from './content-swarm.js'
 import { clearForcedRelaying } from './relay.js'
@@ -116,7 +115,7 @@ function destroyControlPeerSockets() {
 }
 
 // Detach every connected peer from this space; a peer left in no spaces has its socket dropped.
-function disconnectPeersFromSpace(spaceId) {
+export function disconnectPeersFromSpace(spaceId) {
   memberWaits.forget({ spaceId })
   for (const [key, peer] of connectedPeers) {
     if (!peer.spaces.has(spaceId)) continue
@@ -128,29 +127,5 @@ function disconnectPeersFromSpace(spaceId) {
     // The close handler that follows finds this key already gone from connectedPeers and skips the
     // rest of its per-peer teardown, so finish it here.
     forgetPeer(key)
-  }
-}
-
-// Disconnect every member from this space. Overlay copies no bytes into a peer drive, so
-// there is no per-member blob cache to purge here — leftover peer cores (written by older
-// releases that cached file bytes per peer) are reclaimed by forgetUnreferencedPeerCores
-// during leave. The progress contract (one cleaningPeer per member, then compactingPeerCache
-// + a compaction) is kept so the leave UI step accounting stays correct.
-/**
- * @param {string} spaceId
- * @param {readonly SpaceMember[]} members
- * @param {((phase: string, data?: { peerName: string }) => void) | null} [onProgress]
- * @param {{ compact?: boolean }} [opts]
- */
-export async function cleanupSpaceDrives(spaceId, members, onProgress, { compact = true } = {}) {
-  const emit = (phase, data) => { if (onProgress) onProgress(phase, data) }
-
-  disconnectPeersFromSpace(spaceId)
-  const list = members || []
-  for (const member of list) emit('cleaningPeer', { peerName: member.displayName })
-
-  if (list.length > 0) {
-    emit('compactingPeerCache')
-    if (compact) await compactStore()
   }
 }

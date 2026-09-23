@@ -2,7 +2,7 @@ import test from 'brittle'
 import { freshPeer } from '../helpers/store.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { ownCatalog, advertise, listOwnShare, listOwnShareForDisplay } from '../../src/shared/shares/own-catalog.js'
-import { collectStoreCoreInfo, isStorageInconsistency, createDrive } from '../../src/shared/core/store.js'
+import { collectStoreCoreInfo, isStorageInconsistency } from '../../src/shared/core/store.js'
 
 // Patch a catalog bee so its read stream yields one entry then throws — simulating a
 // backing core whose merkle tree is inconsistent (the exact error the replicator hits).
@@ -82,22 +82,4 @@ test('collectStoreCoreInfo names open cores so a corrupt one can be pinned', asy
   t.ok(catalog, 'the space catalog core resolves to its registered name, not "(opened by key)"')
   t.ok(/^[0-9a-f]{16}$/.test(catalog.dk), 'discovery key captured')
   t.is(typeof catalog.len, 'number', 'length captured')
-})
-
-// FIX-5: a drive opens its blobs core BY KEY (no alias), so without explicit naming the
-// inventory shows an OWN drive's blobs core — the likeliest large-file "Expected tree
-// node" site — as "(opened by key)", indistinguishable from a peer core. createDrive
-// names both the metadata and the blobs core.
-test('FIX-5: createDrive names the drive metadata AND blobs cores', async (t) => {
-  await freshPeer(t) // masterSecret path → metadata core is named too
-  const drive = createDrive('diag-test-drive')
-  t.teardown(async () => { try { await drive.close() } catch {} })
-  await drive.ready()
-  const blobs = await drive.getBlobs() // ensure the blobs core is open
-  await blobs.core.ready()
-  await Promise.resolve() // flush the rememberCoreName registration microtask
-
-  const info = collectStoreCoreInfo()
-  t.ok(info.find((c) => c.name === 'diag-test-drive'), 'drive metadata core is named')
-  t.ok(info.find((c) => c.name === 'diag-test-drive:blobs'), 'drive blobs core is named (pinnable in the inventory)')
 })

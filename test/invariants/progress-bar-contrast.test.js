@@ -35,7 +35,6 @@ const BARS = [
   'src/renderer/components/cards/PeerDownloadRow.tsx',
   'src/renderer/components/primitives/ProgressBar.tsx',
   'src/renderer/components/primitives/DownloadProgressLane.tsx',
-  'src/renderer/components/modals/LeaveSpaceModal.tsx',
 ]
 
 test('REGRESSION (FIX-1): on-info fill clears 3:1 vs track AND both hover lifts, both themes', (t) => {
@@ -75,13 +74,10 @@ test('REGRESSION (FIX-4): indicator chevron is text-secondary, not text-outline'
   t.ok(/chevron_right[\s\S]{0,160}text-secondary/.test(src), 'chevron tinted text-secondary')
 })
 
-test('FIX-5: indeterminate sweep and leave stripe use --color-on-info', (t) => {
+test('FIX-5: indeterminate sweep uses --color-on-info', (t) => {
   const sweep = classBlock('progress-indeterminate')
   t.ok(sweep.includes('var(--color-on-info)'), 'sweep background is on-info')
   t.absent(sweep.includes('--color-secondary-container'), 'sweep no longer secondary-container')
-  const stripe = classBlock('leave-progress-stripe')
-  t.ok(stripe.includes('var(--color-on-info)'), 'leave stripe is on-info')
-  t.absent(stripe.includes('--color-primary'), 'leave stripe no longer primary')
 })
 
 // Every surface a progress bar can rest on. Bars live inside file/folder rows that lift to

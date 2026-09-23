@@ -1,80 +1,27 @@
-// Confirm-then-progress dialog for leaving a space; tracks the worker's
-// leave-progress events while local data is cleaned up and compacted.
-import { useState, useEffect, useRef } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import ModalFooter from '../layout/ModalFooter.js'
 import { useErrorText } from '../../hooks/useErrorText.js'
-import { subscribe } from '../../ipc/ipc.js'
-import { formatSize } from '../../format/utils.js'
 import { useToast } from '../toast/ToastProvider.js'
-import Modal from '../primitives/Modal.js'
-import ModalHeader from '../primitives/ModalHeader.js'
-import Button from '../primitives/Button.js'
+import ConfirmDestructiveModal from './ConfirmDestructiveModal.js'
 import FilenameTitle from '../primitives/FilenameTitle.js'
 
 interface LeaveSpaceModalProps {
   isOpen: boolean
   spaceName: string
-  spaceId: string
   onClose: () => void
   onLeave: () => Promise<void>
   onComplete: () => void
 }
 
-interface LeaveProgress {
-  step: number
-  totalSteps: number
-  phase: string
-  data?: Record<string, string>
-}
-
-// The teardown reports steps, but the reclaim that follows reports nothing, so the bar holds at
-// half and switches to a stripe rather than showing a percentage it cannot honour.
-const PROGRESS_CAP = 50
-// Long enough for the bar to reach 100 and be seen there before the modal closes.
-const COMPLETION_HOLD_MS = 350
-
-const PHASES_WITH_SIZE = new Set(['compactingPeerCache', 'compactingLocalCache'])
-
-export default function LeaveSpaceModal({ isOpen, spaceName, spaceId, onClose, onLeave, onComplete }: LeaveSpaceModalProps) {
+export default function LeaveSpaceModal({ isOpen, spaceName, onClose, onLeave, onComplete }: LeaveSpaceModalProps) {
   const { t } = useTranslation()
   const toast = useToast()
   const errorText = useErrorText()
   const [leaving, setLeaving] = useState(false)
-  const [done, setDone] = useState(false)
-  const [progress, setProgress] = useState<LeaveProgress | null>(null)
-  const totalBytesRef = useRef<number>(0)
 
-  useEffect(() => {
-    if (isOpen && spaceId) {
-      setLeaving(false)
-      setDone(false)
-      setProgress(null)
-      totalBytesRef.current = 0
-    }
-  }, [isOpen, spaceId])
-
-  useEffect(() => {
-    if (!leaving) return
-    const unsub = subscribe('event:leave-progress', (msg) => {
-      if (msg.spaceId !== spaceId) return
-      if (typeof msg.totalBytes === 'number') {
-        totalBytesRef.current = msg.totalBytes
-      }
-      setProgress({
-        step: msg.step as number,
-        totalSteps: msg.totalSteps as number,
-        phase: msg.phase as string,
-        data: (msg.data as Record<string, string> | undefined),
-      })
-    })
-    return unsub
-  }, [leaving, spaceId])
-
-  // Leaving a space is destructive and irreversible, so the completion half — the bar filled to
-  // 100% and the navigation away from the space — runs on RESOLVE only. A rejection reports and
+  // Leaving is irreversible, so navigating away runs on resolve only. A rejection reports and
   // returns the dialog to its confirm step, where the space is still joined and the leave can be
-  // retried.
+  // retried; the dialog stays busy on success because it unmounts with the navigation.
   async function handleLeave() {
     if (leaving) return
     setLeaving(true)
@@ -83,92 +30,21 @@ export default function LeaveSpaceModal({ isOpen, spaceName, spaceId, onClose, o
     } catch (err) {
       toast.error(errorText(err))
       setLeaving(false)
-      setProgress(null)
-      totalBytesRef.current = 0
       return
     }
-    setDone(true)
-    setTimeout(() => { onComplete() }, COMPLETION_HOLD_MS)
-  }
-
-  const computedPercent = progress
-    ? Math.min(PROGRESS_CAP, Math.round((progress.step / progress.totalSteps) * PROGRESS_CAP))
-    : 0
-  const percent = done ? 100 : computedPercent
-  const showStripe = leaving && !done && computedPercent >= PROGRESS_CAP
-
-  function renderLabel(): string {
-    if (!progress) return t('leaveSpace.preparing')
-    const phaseKey = `leaveSpace.phases.${progress.phase}`
-    const useSize = PHASES_WITH_SIZE.has(progress.phase) && totalBytesRef.current > 0
-    if (useSize) {
-      const sizeKey = `${phaseKey}_withSize`
-      return t(sizeKey, { size: formatSize(totalBytesRef.current), defaultValue: t(phaseKey) })
-    }
-    const interp = (progress.data && typeof progress.data === 'object') ? progress.data : {}
-    return t(phaseKey, { ...interp, defaultValue: t('leaveSpace.preparing') })
+    onComplete()
   }
 
   return (
-    <Modal
+    <ConfirmDestructiveModal
       isOpen={isOpen}
+      title={t('leaveSpace.titleConfirm', { name: spaceName })}
+      titleNode={<FilenameTitle i18nKey="leaveSpace.titleConfirm" name={spaceName} />}
+      body={t('leaveSpace.body')}
+      confirmLabel={leaving ? t('leaveSpace.leaving') : t('leaveSpace.leaveAction')}
+      busy={leaving}
       onClose={onClose}
-      isDismissable={!leaving}
-      /* Only the confirm step is an alert: once the leave is running the dialog is a progress
-         report, and its body paragraph — the description — is gone. */
-      role={leaving ? 'dialog' : 'alertdialog'}
-      ariaDescribedBy={leaving ? undefined : 'leave-space-body'}
-      ariaLabel={leaving ? t('leaveSpace.titleProgress') : t('leaveSpace.titleConfirm', { name: spaceName })}
-    >
-      <>
-        {leaving ? (
-          <ModalHeader title={t('leaveSpace.titleProgress')} />
-        ) : (
-          <ModalHeader
-            titleNode={<FilenameTitle i18nKey="leaveSpace.titleConfirm" name={spaceName} />}
-            onClose={onClose}
-          />
-        )}
-
-        <div className="px-10 pb-10 space-y-6">
-          {leaving ? (
-            <div className="space-y-3">
-              <div
-                role="progressbar"
-                aria-label={t('leaveSpace.titleProgress')}
-                aria-valuenow={percent}
-                aria-valuemin={0}
-                aria-valuemax={100}
-                className="relative h-2 bg-progress-track rounded-full overflow-hidden"
-              >
-                {showStripe && <div className="absolute inset-0 leave-progress-stripe" />}
-                <div
-                  className="relative h-full bg-on-info rounded-full transition-all duration-300"
-                  style={{ width: `${percent}%` }}
-                />
-              </div>
-              <p role="status" aria-live="polite" className="text-sm text-on-surface-variant font-medium">
-                {renderLabel()}
-              </p>
-            </div>
-          ) : (
-            <>
-              <p id="leave-space-body" className="text-on-surface-variant font-medium">
-                {t('leaveSpace.body')}
-              </p>
-
-              <ModalFooter layout="split">
-                <Button variant="secondary" autoFocus onClick={onClose} className="h-14">
-                  {t('actions.cancel')}
-                </Button>
-                <Button variant="danger" onClick={handleLeave} disabled={leaving} className="h-14">
-                  {t('leaveSpace.leaveAction')}
-                </Button>
-              </ModalFooter>
-            </>
-          )}
-        </div>
-      </>
-    </Modal>
+      onConfirm={() => void handleLeave()}
+    />
   )
 }

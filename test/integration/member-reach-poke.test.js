@@ -28,7 +28,7 @@ test('a stream leaving its relay pokes the members scope of every space that per
   trackConnection(socket, { plane: 'control', memberOf: () => member })
   connectedPeers.set(ALICE, {
     socket, profileKey: ALICE, displayName: 'Alice', avatar: null,
-    spaces: new Map([[SPACE, null]]), looseCatalogKeys: new Map(),
+    spaces: new Set([SPACE]), looseCatalogKeys: new Map(),
   })
 
   socket.rawStream.remoteHost = '198.51.100.1'

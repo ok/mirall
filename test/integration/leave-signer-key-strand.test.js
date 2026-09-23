@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { cleanupSpaceDrives } from '../../src/shared/network/space-topics.js'
+import { disconnectPeersFromSpace } from '../../src/shared/network/space-topics.js'
 import { getBoundSignerKey } from '../../src/shared/network/swarm-registries.js'
 import { connectedPeers, boundSignerKeys, pendingRequesters, resetRegistries } from '../../src/shared/network/swarm-registries.js'
 
@@ -15,13 +15,13 @@ const seed = (key, spaces) => {
     socket: { destroy() {} },
     profileKey: key,
     displayName: key,
-    spaces: new Map(spaces.map((s) => [s, 'drive-' + s])),
+    spaces: new Set(spaces),
     looseCatalogKeys: new Map(),
   })
   boundSignerKeys.set(key, 'signer-' + key)
 }
 
-const leave = (spaceId) => cleanupSpaceDrives(spaceId, [], null, { compact: false })
+const leave = (spaceId) => disconnectPeersFromSpace(spaceId)
 
 // REGRESSION (FIX-SIGNER-STRAND): leaving a space dropped the peer from connectedPeers and then
 // destroyed its socket, so handleDisconnect's `if (!peer) continue` skipped the rest of the

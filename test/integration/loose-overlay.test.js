@@ -5,7 +5,7 @@ import fs from 'bare-fs'
 import path from 'bare-path'
 import { freshPeer } from '../helpers/store.js'
 import { getSpace, getSpaceContentKey } from '../../src/shared/spaces/space.js'
-import { createSpace, joinSpace, materializeOwnDrive } from '../../src/shared/spaces/space-lifecycle.js'
+import { createSpace, joinSpace, materializeSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { advertise, getOwnEntry, ownCatalogKeyHex } from '../../src/shared/shares/own-catalog.js'
 import { getRuntimeConfig, setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { setSpaceDownloadRoot } from '../../src/shared/core/paths.js'
@@ -47,7 +47,7 @@ async function setup(t) {
 // encrypted core, so the reader must hold the key that opens it.
 async function consumerSpace(ctx, name) {
   const joined = await joinSpace(b4a.toString(crypto.randomBytes(32), 'hex'), name)
-  await materializeOwnDrive(joined.spaceId, getSpaceContentKey(ctx.spaceId, await getSpace(ctx.spaceId)))
+  await materializeSpace(joined.spaceId, getSpaceContentKey(ctx.spaceId, await getSpace(ctx.spaceId)))
   return getSpace(joined.spaceId)
 }
 
@@ -239,7 +239,7 @@ test('Item 1: a downloaded+verified peer loose file surfaces verified:true (fals
   const abs = writeSource(ctx, 'v.bin', 'x'.repeat(2048))
   await looseShareFile(ctx.spaceId, abs, 'v.bin')
   const entry = await getOwnEntry(ctx.spaceId, LOOSE_SHARE_ID, 'v.bin')
-  const member = { publicKey: 'peerpub', displayName: 'Peer', driveKey: 'dk', looseCatalogKeyEnc: await ownCatalogKeyHex(ctx.spaceId) }
+  const member = { publicKey: 'peerpub', displayName: 'Peer', looseCatalogKeyEnc: await ownCatalogKeyHex(ctx.spaceId) }
 
   const spaceB = await consumerSpace(ctx, 'Borealis')
   const dir = ctx.tmpDir('dl')
@@ -366,7 +366,7 @@ test('A: a still-hashing own loose file is listed as publishing, then flips to m
 test('Item 2B: a still-hashing peer loose entry is listed and presence-gates to unavailable when the owner is offline', async (t) => {
   const ctx = await setup(t)
   await advertise(ctx.spaceId, LOOSE_SHARE_ID, 'p.bin', { size: 4096, mtime: 1, contentHash: null })
-  const member = { publicKey: 'peerpub', displayName: 'Peer', driveKey: 'dk', looseCatalogKeyEnc: await ownCatalogKeyHex(ctx.spaceId) }
+  const member = { publicKey: 'peerpub', displayName: 'Peer', looseCatalogKeyEnc: await ownCatalogKeyHex(ctx.spaceId) }
 
   const spaceB = await consumerSpace(ctx, 'Borealis')
   const row = (await listFiles(spaceB.spaceId, [member])).find((f) => f.path === '/p.bin')

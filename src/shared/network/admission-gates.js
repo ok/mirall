@@ -125,11 +125,11 @@ export function createAdmissionGates({
   // approved (admitted via the APPROVAL record in the approver's already-replicated bee, not the
   // joiner's own record, which isn't replicated to us until admission). When admitted with the
   // identity binding enforced, its authenticated creator root is cross-checked. Returns false
-  // (handshake must STOP, drive never opened) for a peer we just saw leave, or an unapproved one
-  // — which we record as a converging join request: it already holds a drive (so it was approved
-  // by SOME member), but we raise no approve banner, since under replication lag that would let a
-  // co-member "re-approve" a peer who already joined. (Genuine no-drive joiners come through
-  // onJoinRequest, which still does.)
+  // (handshake must STOP) for a peer we just saw leave, or an unapproved one — which we record as a
+  // converging join request: it already announces a participation id (so it was approved by SOME
+  // member), but we raise no approve banner, since under replication lag that would let a co-member
+  // "re-approve" a peer who already joined. (Genuine joiners come through onJoinRequest, which
+  // still does.)
   async function admitMember(spaceId, space, msg) {
     // A peer we just saw leave: ignore lingering handshakes (the connection often outlives the leave
     // frame during teardown). Cleared when they send a fresh join request.

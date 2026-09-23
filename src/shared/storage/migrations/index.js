@@ -12,7 +12,7 @@
 // constraint — see STAGES in migration-result.js.
 // `id` is this list's own name, not a durable key: the durable keys are frozen inside each module.
 import { migrateLocalBeesToEncrypted } from './metadata-migration.js'
-import { reclaimLegacyPeerCaches } from './legacy-peer-cache.js'
+import { retireSpaceDrives } from './retire-space-drives.js'
 import { migrateCatalogsToEncrypted } from '../../shares/migrate-catalog-encrypt.js'
 import { migrateOverlayIndexToEncrypted } from '../../transfer/backends/overlay/migrate-overlay-index-encrypt.js'
 import { MIGRATION_STATUS, migrationResult } from './migration-result.js'
@@ -22,7 +22,7 @@ export const MIGRATIONS = Object.freeze([
   { id: 'local-bees-encrypt', stage: 'durable', run: () => migrateLocalBeesToEncrypted() },
   { id: 'catalogs-encrypt', stage: 'content', run: () => migrateCatalogsToEncrypted() },
   { id: 'overlay-index-encrypt', stage: 'content', run: () => migrateOverlayIndexToEncrypted() },
-  { id: 'legacy-peer-cache', stage: 'background', run: () => reclaimLegacyPeerCaches() },
+  { id: 'retire-space-drives', stage: 'background', run: () => retireSpaceDrives() },
 ])
 
 // Runs one stage in list order and returns each migration's result by id. Never throws, and a

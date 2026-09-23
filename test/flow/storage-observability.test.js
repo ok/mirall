@@ -6,18 +6,19 @@ import { launchPeer, connectInSpace } from '../helpers/peer.js'
 import { mkTmpDir } from '../helpers/fixtures.js'
 import { scaled } from '../helpers/timing.js'
 
-// Overlay serves straight from the source file, so it copies NO bytes into the
-// per-space drive: a space's only retained bytes are its metadata core. This
-// two-peer test covers what only a real run can: the per-space breakdown crossing
-// the worker IPC reports zero drive content on both the owner and a browsing peer.
-test('storage breakdown: a space reports no drive content (overlay serves in place)', async (t) => {
+// Overlay serves straight from the source file, so sharing a folder grows neither the owner's nor a
+// browsing peer's app storage by the file bytes. Only a real run crosses the worker IPC on both.
+test('storage breakdown: sharing and browsing a folder imports no file bytes', async (t) => {
   t.timeout(scaled(120000))
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })
   const spaceId = await connectInSpace(t, A, B)
   const aKey = (await A.request('profile:get')).personKey
+  const aBefore = await A.request('storage:info')
+  const bBefore = await B.request('storage:info')
 
+  const FILES = 500_000
   const share = await A.request('share:create', { spaceId, name: 'Notes' })
   const folder = mkTmpDir(t)
   fs.writeFileSync(path.join(folder, 'a.bin'), Buffer.alloc(300_000, 1))
@@ -27,10 +28,9 @@ test('storage breakdown: a space reports no drive content (overlay serves in pla
   await A.request('owned-folder:mount', { spaceId, shareId: share.id, mountPath: folder })
   await scanDone
 
-  const aSpace = (await A.request('storage:info')).spaces.find((s) => s.spaceId === spaceId)
-  t.ok(aSpace, 'owner space appears in the breakdown')
-  t.is(aSpace.contentBytes, 0, 'overlay copies no bytes into the per-space drive')
-  t.is(aSpace.totalBytes, aSpace.metadataBytes + aSpace.contentBytes, 'totalBytes = metadata + content')
+  const aAfter = await A.request('storage:info')
+  t.is(aAfter.indexBytes + aAfter.dbBytes, aAfter.totalDiskUsage, 'the owner breakdown sums to its total')
+  t.ok(aAfter.totalDiskUsage - aBefore.totalDiskUsage < FILES / 2, 'the owner imported no file bytes')
 
   await B.until(
     'share:list-files',
@@ -38,7 +38,6 @@ test('storage breakdown: a space reports no drive content (overlay serves in pla
     (f) => Array.isArray(f?.entries) && f.entries.length >= 2,
   )
 
-  const bSpace = (await B.request('storage:info')).spaces.find((s) => s.spaceId === spaceId)
-  t.ok(bSpace, 'the space appears in the peer breakdown')
-  t.is(bSpace.contentBytes, 0, 'a peer replicating the catalog holds no drive blobs')
+  const bAfter = await B.request('storage:info')
+  t.ok(bAfter.totalDiskUsage - bBefore.totalDiskUsage < FILES / 2, 'a peer replicating the catalog holds no file bytes')
 })

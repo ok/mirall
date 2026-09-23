@@ -16,8 +16,8 @@ async function coreInStore(dkHex) {
   return false
 }
 
-// REGRESSION (FIX-144: leftover "Clean up" probed the overlay file-index as a
-// Hyperdrive, tagged it an orphan drive, and purged it — stranding every chunk map).
+// REGRESSION (FIX-144: the leftover sweep classified the overlay file-index as purgeable and deleted
+// it — stranding every chunk map).
 test('overlay file-index is never classified or purged as leftover', async (t) => {
   const { spaceId, share, mountPath } = await setupOwnedShare(t)
   const abs = path.join(mountPath, 'big.bin')
@@ -30,9 +30,10 @@ test('overlay file-index is never classified or purged as leftover', async (t) =
   t.ok(fiDk && await coreInStore(fiDk), 'precondition: file-index core present + resolved')
 
   const scan = await classifyLeftovers()
-  t.absent(scan.orphanDrives.keys.find((d) => d.metaDkHex === fiDk), 'file-index not an orphan drive')
+  const leftover = [...scan.profiles.keys, ...scan.catalogs.keys].map((r) => r.discoveryKeyHex)
+  t.absent(leftover.includes(fiDk), 'file-index not classified as leftover')
 
-  await purgeLeftovers({ categories: ['profiles', 'catalogs', 'orphanDrives'] })
+  await purgeLeftovers()
   t.ok(await coreInStore(fiDk), 'file-index core survives a full leftover cleanup')
   t.ok(await getOverlay()._index.hasChunkMapByHash(hash), 'chunk map intact after cleanup')
 })

@@ -3,7 +3,7 @@ import { deriveRowView, rowBytesOnDevice } from '../../src/renderer/model/row-vi
 
 const file = (o) => ({
   path: '/s/f', size: 100, hash: 'h', owner: { displayName: 'O', publicKey: 'k' },
-  driveKey: 'd', localBytes: 0, isAvailable: true, status: 'remote', ...o,
+  localBytes: 0, isAvailable: true, status: 'remote', ...o,
 })
 const dec = (o) => ({ bytes: 0, total: 100, speed: 0, avgSpeed: 0, eta: null, ...o })
 const summary = { spaceId: 's', path: '/s/f', personKeys: ['p1'], pausedKeys: [], bytes: 0, total: 0, avgSpeed: 0 }

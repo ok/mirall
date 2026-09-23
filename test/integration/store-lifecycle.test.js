@@ -7,7 +7,6 @@ import { createFakeIpc } from '../helpers/fake-ipc.js'
 import { getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { getStore, openSessionNames } from '../../src/shared/core/store.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
-import { getDrive } from '../../src/shared/spaces/space-drives.js'
 import { listJoinRequests, recordJoinRequest } from '../../src/shared/spaces/join-requests.js'
 import { publishShare, generateShareId } from '../../src/shared/shares/shares.js'
 import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
@@ -72,7 +71,6 @@ test('REGRESSION (LIFECYCLE-2b): a catalog write on a pre-restart space works af
   await advertise(space.spaceId, share.id, 'two.txt', { size: 3, mtime: 1 })
   const { entries } = await collectOwnShare(space.spaceId, share.id)
   t.ok(entries.some((e) => e.relPath === 'two.txt'), 'and the write landed')
-  t.absent(getDrive(space.spaceId)?.core.closed, 'the drive is live')
   t.is(listJoinRequests(space.spaceId).length, 0, 'a join request is this-session state and did not survive')
 })
 

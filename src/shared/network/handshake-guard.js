@@ -1,6 +1,6 @@
 // Pure verification helpers for the mirall/handshake channel: frame shape checks, the
 // identity binding (a signature tying the sender's profileKey to this socket's Noise key
-// and, in its V2 form, to the sender's per-space drive key), the leave-frame and
+// and, in its V2 form, to the sender's per-space participation id), the leave-frame and
 // membership:grant assertion checks, and the per-socket rate limiter. Stateless apart from
 // the limiter's token buckets; swarm.js is the caller.
 import b4a from 'b4a'
@@ -53,9 +53,9 @@ function bindingMessage(noisePublicKey, driveKeyBuf) {
 // Sign our own (ephemeral) Noise static key with the profile core's signing key. No
 // nonce: the Noise key is unique and possession-proven by the transport handshake, so a
 // captured signature can't be replayed onto a different connection (a different Noise key).
-// A handshake carries a driveKey, so bind it too (V2): the signed message covers
-// noise||driveKey, making the signature vary per space. A membership:request/grant has no
-// driveKey and stays V1.
+// A handshake carries the sender's participation id as driveKey, so bind it too (V2): the signed
+// message covers noise||driveKey, making the signature vary per space. A membership:request/grant
+// has no driveKey and stays V1.
 export function signNoiseBinding(noisePublicKey, signerSecretKey, driveKeyBuf = null) {
   return b4a.toString(crypto.sign(bindingMessage(noisePublicKey, driveKeyBuf), signerSecretKey), 'hex')
 }

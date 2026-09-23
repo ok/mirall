@@ -2,8 +2,8 @@
 // channel, one JSON line each. `validFrameShape` gates all of them before any property is read, and
 // an unrecognised type is counted and dropped.
 //
-//   handshake               any peer, once per shared space on connect. Carries the sender's drive
-//                           key and, optionally, its asserted creator root.
+//   handshake               any peer, once per shared space on connect. Carries the sender's
+//                           participation id (as `driveKey`) and, optionally, its asserted creator root.
 //   membership:request      a joiner asking to be admitted.
 //   membership:grant        the approver's answer, carrying the space content key.
 //   membership:deny         the approver's refusal.

@@ -48,7 +48,7 @@ const STATES = ['synced', 'syncing', 'paused', 'synced', 'synced', 'synced', 'sy
 window.__HARNESS_CFG = {
   mirrors: KEYS.map((k, i): MirrorParticipant => ({ mirrorer: k, shareId: SHARE_ID, state: STATES[i], mountedAt: 0 })),
 }
-const members: SpaceMember[] = KEYS.map((k, i) => ({ publicKey: k, driveKey: 'd'.repeat(64), displayName: 'Peer ' + i, online: true }))
+const members: SpaceMember[] = KEYS.map((k, i) => ({ publicKey: k, displayName: 'Peer ' + i, online: true }))
 // A self key that mirrors nothing, so every row is a named peer rather than "You" — the stack cap
 // and the ring colours are what this harness measures.
 const SELF_PK = 'self-key'

@@ -126,7 +126,7 @@ export class MountsRuntime extends Subsystem {
             this.log.debug('foreign gone-at-boot pause failed for', mount.shareId, '-', err.message))
           continue
         }
-        // Owner drive may not be replicated at boot — the polling loop tolerates this and retries
+        // Owner catalog may not be replicated at boot — the polling loop tolerates this and retries
         // every 30 s. The loop starts unconditionally; a scan that faults records it on the mount,
         // as a fresh mount's does, and the first tick that walks the catalog clears it.
         startForeignLoop(mount)
