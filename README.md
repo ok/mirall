@@ -75,20 +75,11 @@ of the latest release:
 | macOS (Apple silicon) | [Mirall.dmg](https://mirall.app/download/darwin-arm64) |
 | macOS (Intel) | [Mirall.dmg](https://mirall.app/download/darwin-x64) |
 | Windows 10/11 (x64) | [Mirall.msix](https://mirall.app/download/win32-x64) |
-| Linux — Ubuntu / Debian / Mint (x64) | [Mirall.deb](https://mirall.app/download/linux-x64-deb) |
-| Linux — Ubuntu / Debian / Mint (arm64) | [Mirall.deb](https://mirall.app/download/linux-arm64-deb) |
-| Linux — other distributions (x64) | [Mirall.AppImage](https://mirall.app/download/linux-x64) |
-| Linux — other distributions (arm64) | [Mirall.AppImage](https://mirall.app/download/linux-arm64) |
+| Linux (x64) | [Mirall.AppImage](https://mirall.app/download/linux-x64) |
+| Linux (arm64) | [Mirall.AppImage](https://mirall.app/download/linux-arm64) |
 
 **Installing:** on macOS, open the `.dmg` and drag Mirall to Applications. On Windows,
-double-click the `.msix`. On Ubuntu, Debian or Mint, install the `.deb` like any other package
-(it runs with the browser sandbox on, which the AppImage cannot):
-
-```sh
-sudo apt install ./Mirall.deb
-```
-
-On other Linux distributions, make the AppImage executable before running it:
+double-click the `.msix`. On Linux, make the AppImage executable before running it:
 
 ```sh
 chmod +x Mirall.AppImage && ./Mirall.AppImage
@@ -105,13 +96,11 @@ chmod +x Mirall.AppImage && ./Mirall.AppImage
 
 > [!NOTE]
 > After the first install, Mirall keeps itself up to date automatically — new releases are
-> distributed over the same peer-to-peer network and applied on the next start. This covers
-> the macOS, Windows and AppImage builds; a `.deb` install is updated by downloading the new
-> `.deb` and installing it over the old one.
+> distributed over the same peer-to-peer network and applied on the next start.
 
 **Signed releases:** the macOS app is code-signed and notarized by Apple; the Windows MSIX
-is signed with a Certum code-signing certificate; the Linux AppImage and `.deb` are unsigned,
-as is common for directly downloaded Linux packages.
+is signed with a Certum code-signing certificate; the Linux AppImage is unsigned, as is
+common for AppImages.
 
 ## How it works
 
