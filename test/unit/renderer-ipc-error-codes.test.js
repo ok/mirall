@@ -58,3 +58,16 @@ test('neither sentence exposes the internal message', (t) => {
     t.absent(/\bIPC\b|worker|\d+ms/i.test(enErrors[key]), `errors.${key} is user language, not wire detail`)
   }
 })
+
+// The catch-up runs BEFORE the channel reports ready, so a resume the worker cannot answer must not
+// be able to leave readiness unset while that worker is still the live one: every request behind it
+// would park on a promise nothing resolves, which is the wedge a dead worker already has its own
+// code for. The generation guard is the one exception, and it is pinned in
+// test/invariants/renderer-catchup-generation.test.js.
+test('a catch-up that fails still marks the channel ready', (t) => {
+  const settle = src.slice(src.indexOf('async function settleArrival'), src.indexOf('function handleLine'))
+  t.ok(/markReady\(\)\s*\}\s*$/.test(settle.trimEnd()), 'readiness is the last thing the catch-up does, on every branch')
+  const arrival = src.slice(src.indexOf("if (msg.type === 'event:worker-ready')"), src.indexOf('// Per-listener isolation'))
+  t.ok(/\.catch\(\(err\) => \{[\s\S]*?resync\('new-worker'\)[\s\S]*?markReady\(\)/.test(arrival),
+    'and a catch-up that rejects resyncs and reports ready rather than wedging the channel')
+})

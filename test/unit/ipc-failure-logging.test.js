@@ -3,6 +3,7 @@ import { createIPC, getRequestFailureCounters, resetRequestFailureCounters, getR
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { AppError } from '../../src/shared/core/errors.js'
 import { capture } from '../helpers/capture-console.js'
+import { sayHello } from '../helpers/ipc-hello.js'
 
 // The router is strict about names it does not know, which is the point in production. A test
 // declares the small vocabulary it exercises instead of registering into the real contract.
@@ -43,6 +44,7 @@ function setup(t, { verbose = false } = {}) {
   t.teardown(() => { setRuntimeConfig(prev); resetRequestFailureCounters() })
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  sayHello(pipe)
   return { ipc, pipe }
 }
 
@@ -165,6 +167,7 @@ test('REGRESSION (FIX-R09-7): a synchronous handler throw is answered, counted, 
   setRuntimeConfig({ verbose: false })
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  sayHello(pipe)
   ipc.handle('thing:sync-boom', () => { throw new Error('sync throw') })
   ipc.start()
 
@@ -186,6 +189,7 @@ test('the failure line carries req, id, code and ms as separate fields', async (
   setRuntimeConfig({ verbose: false })
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  sayHello(pipe)
   ipc.handle('thing:do', async () => { throw new AppError('NOT_FOUND', 'gone') })
   ipc.start()
   pipe.feed({ id: '9', type: 'thing:do' })
@@ -206,6 +210,7 @@ test("REGRESSION (FIX-R09-7): an AppError's fields reach both the log and the ca
   setRuntimeConfig({ verbose: false })
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  sayHello(pipe)
   ipc.handle('thing:fields', async () => {
     throw new AppError('EOWNERSHIP', 'not yours', { spaceId: 'S1', shareId: 'F2' })
   })
@@ -226,6 +231,7 @@ test('an error without fields produces a response with no fields key at all', as
   setRuntimeConfig({ verbose: false })
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  sayHello(pipe)
   ipc.handle('thing:do', async () => { throw new AppError('NOT_FOUND', 'gone') })
   ipc.start()
   pipe.feed({ id: '5', type: 'thing:do' })
@@ -239,6 +245,7 @@ test("an error's own fields cannot overwrite the router's canonical ones", async
   setRuntimeConfig({ verbose: false })
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  sayHello(pipe)
   ipc.handle('thing:fields', async () => {
     throw new AppError('NOT_FOUND', 'gone', { code: 'FORGED', req: 'forged' })
   })
@@ -256,6 +263,7 @@ test('an expected code still logs at debug once it carries fields', async (t) =>
   setRuntimeConfig({ verbose: true })
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  sayHello(pipe)
   ipc.handle('thing:cancel', async () => { throw new AppError('ECANCELLED', 'user cancelled', { spaceId: 'S1' }) })
   ipc.start()
   pipe.feed({ id: '8', type: 'thing:cancel' })

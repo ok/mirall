@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { request, subscribe } from '../ipc/ipc.js'
+import { onResync, request, subscribe } from '../ipc/ipc.js'
 import { useSpeedTracker } from './useSpeedTracker.js'
 import { SERVE_TTL_MS } from './usePeerDownloads.js'
 import type { PeerDownloadPeer } from '../types/types.js'
@@ -43,10 +43,17 @@ export function usePeerDownloadDetail(spaceId: string, path: string): PeerDownlo
       })))
     }
 
-    request('serving:detail-subscribe', { spaceId, path }).then((snap) => {
-      if (!active) return
-      if (Array.isArray(snap?.peers)) apply(snap.peers)
-    }).catch(() => {})
+    const arm = (): void => {
+      request('serving:detail-subscribe', { spaceId, path }).then((snap) => {
+        if (!active) return
+        if (Array.isArray(snap?.peers)) apply(snap.peers)
+      }).catch(() => {})
+    }
+
+    arm()
+    // The worker holds this subscription against the connection, so a new worker has never heard of
+    // it and would stream nothing while the row stayed expanded.
+    const rearm = onResync(arm)
 
     const unsub = subscribe<DetailEvent>('event:awareness', (msg) => {
       if (msg.channel === 'serving-detail' && msg.spaceId === spaceId && msg.path === path) apply(msg.peers)
@@ -73,6 +80,7 @@ export function usePeerDownloadDetail(spaceId: string, path: string): PeerDownlo
 
     return () => {
       active = false
+      rearm()
       unsub()
       clearInterval(heartbeat)
       speed.reset()

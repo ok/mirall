@@ -1,12 +1,12 @@
 // Network diagnostics screen: connectivity verdict plus DHT/swarm details with maskable, copyable fields.
-import { useState } from 'react'
+import { useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import { reachableState, formatDuration } from '../model/connectivity.js'
 import { relayApplyNotice } from '../model/relay-apply.js'
 import { relayState, relayedPeopleCount } from '../model/relay-groups.js'
 import { getRelayMode } from '../platform/config-client.js'
-import { isApplyArmed, isReconnectPending } from '../platform/relay-session.js'
+import { isApplyArmed, isReconnectPending, subscribeRelaySession } from '../platform/relay-session.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import { useConnectionStatus } from '../hooks/useConnectionStatus.js'
 import { useRunAction } from '../hooks/useRunAction.js'
@@ -179,6 +179,8 @@ export default function NetworkStatusScreen({ onBack, onShowHistory, onOpenSetti
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
   const [reconnecting, setReconnecting] = useState(false)
   const [reconnectThrottled, setReconnectThrottled] = useState(false)
+  const armed = useSyncExternalStore(subscribeRelaySession, isApplyArmed, isApplyArmed)
+  const pendingIdentity = useSyncExternalStore(subscribeRelaySession, isReconnectPending, isReconnectPending)
   const browserOnline = typeof navigator !== 'undefined' ? navigator.onLine : true
   const now = Date.now()
 
@@ -203,8 +205,8 @@ export default function NetworkStatusScreen({ onBack, onShowHistory, onOpenSetti
   const applyNotice = relayApplyNotice({
     mode: getRelayMode(),
     relay: status?.relay ?? null,
-    armed: isApplyArmed(),
-    pendingIdentity: isReconnectPending(),
+    armed,
+    pendingIdentity,
   })
 
   return (

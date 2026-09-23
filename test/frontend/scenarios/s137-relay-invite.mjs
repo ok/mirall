@@ -78,15 +78,14 @@ export default async function s137({ runDir, bootstrap }) {
     })
 
     // The whole deferred-restart path, end to end: main stops the worker and starts the next one on
-    // the new boot frame, the window reloads, and only then is the verdict worth having. It is a
-    // restart, not a crash — the respawn policy is not consulted and no budget is spent.
-    // The reload resumes on this screen (resume-screen.ts), so the pending control going away is
-    // the reload's tell — landing on the space list would now be a regression.
+    // the new boot frame, and only then is the verdict worth having. It is a restart, not a crash —
+    // the respawn policy is not consulted and no budget is spent. Nothing tears the React tree
+    // down, so the screen stays put; landing on the space list would be a regression.
     await r.ok('reconnecting applies the identity and the probe then runs', async () => {
       await Relays.click({ name: 'Reconnect now' })
       await waitFor(async () => !(await Relays.has({ name: 'Reconnect now' })), 30000, 'the restart to apply')
       await Relays.waitText('Family relay', 30000)
-      if (await Relays.hasText('Shared Spaces')) throw new Error('the reload dropped the user on the space list')
+      if (await Relays.hasText('Shared Spaces')) throw new Error('the restart dropped the user on the space list')
       if (await Relays.has({ name: 'Reconnect now' })) throw new Error('still pending after the restart')
       await Relays.waitText('Unreachable', 30000)
       await Relays.shot('s137-reconnected', runDir)

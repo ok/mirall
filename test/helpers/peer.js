@@ -202,15 +202,19 @@ export async function launchPeer(t, { bootstrap, displayName = 'Peer', debug = f
     },
   }
 
-  // Boot: attach listeners (above) are live, send the bootstrap line, await ready.
+  // Boot: attach listeners (above) are live, introduce ourselves, send the bootstrap line, await
+  // ready. The worker refuses every frame from a client that has not said what it is and on which
+  // wire, so the harness is a third writer of the hello.
   const ready = peer.waitFor('event:worker-ready')
   sidecar.write(JSON.stringify({
-    type: 'bootstrap',
-    // The worker refuses a bootstrap frame from a host on a different wire, and a frame with no
-    // version at all is one of those — so the harness is a third writer of this field.
+    type: 'hello',
     protocolVersion: IPC_PROTOCOL_VERSION,
     protocolMin: IPC_PROTOCOL_MIN_SUPPORTED,
     protocolMax: IPC_PROTOCOL_VERSION,
+    client: { kind: 'test', name: 'flow-harness', version: '0.0.0-test' },
+  }) + '\n')
+  sidecar.write(JSON.stringify({
+    type: 'bootstrap',
     storage,
     appVersion: '0.0.0-test',
     dev: true,

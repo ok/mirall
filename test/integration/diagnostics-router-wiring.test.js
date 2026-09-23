@@ -3,6 +3,7 @@ import { createIPC } from '../../src/shared/core/ipc.js'
 import { createHealthMonitor } from '../../src/shared/core/health.js'
 import { registerDiagnostics } from '../../src/worker/ipc/diagnostics.js'
 import { freshDurable } from '../helpers/store.js'
+import { sayHello } from '../helpers/ipc-hello.js'
 
 // The producer being correct proves nothing about the export: requestFailures and requestMetrics were
 // both built, tested and shipped as no-ops because nothing handed them to buildDiagnostics. The
@@ -41,6 +42,7 @@ test('the diagnostics bundle carries the router\'s own queue depth', async (t) =
 
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: QUEUE_REQUESTS })
+  sayHello(pipe)
   ipc.handle('q:one', async () => null)
   const exportDiagnostics = diagnosticsHandlerFor(ipc)
 

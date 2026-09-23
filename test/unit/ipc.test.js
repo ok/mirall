@@ -4,6 +4,7 @@ import { IPC_PROTOCOL_VERSION } from '../../src/shared/contract/ipc-frames.js'
 import { createIPC, scopeForEvent, getRequestFailureCounters, resetRequestFailureCounters } from '../../src/shared/core/ipc.js'
 import { setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { tagged } from '../helpers/capture-console.js'
+import { helloFrame, sayHello } from '../helpers/ipc-hello.js'
 
 // The router is strict about names it does not know, which is the point in production. A test
 // declares the small vocabulary it exercises instead of registering into the real contract.
@@ -33,6 +34,7 @@ const tick = () => new Promise((r) => setImmediate(r))
 test('requests are queued until start(), then dispatched', async (t) => {
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  sayHello(pipe)
   ipc.handle('add', (m) => m.a + m.b)
   pipe.feed({ id: '1', type: 'add', a: 2, b: 3 })
   await tick()
@@ -45,6 +47,7 @@ test('requests are queued until start(), then dispatched', async (t) => {
 test('NDJSON frame split across chunks reassembles', async (t) => {
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  sayHello(pipe)
   ipc.handle('echo', (m) => m.v)
   ipc.start()
   const frame = JSON.stringify({ id: '9', type: 'echo', v: 'hi' }) + '\n'
@@ -61,6 +64,7 @@ test('NDJSON frame split across chunks reassembles', async (t) => {
 test('REGRESSION (FIX-H2-3): a request frame split inside a multi-byte character reaches the handler intact', async (t) => {
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  sayHello(pipe)
   ipc.handle('echo', (m) => m.v)
   ipc.start()
 
@@ -79,6 +83,7 @@ test('REGRESSION (FIX-H2-3): a request frame split inside a multi-byte character
 test('the oversized-frame resync survives a split mid-character', async (t) => {
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS, maxFrameBytes: 1024 })
+  sayHello(pipe)
   let calls = 0
   ipc.handle('echo', (m) => { calls++; return m.v })
   ipc.start()
@@ -100,6 +105,7 @@ test('the oversized-frame resync survives a split mid-character', async (t) => {
 test('unknown command responds NOT_FOUND', async (t) => {
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  sayHello(pipe)
   ipc.start()
   pipe.feed({ id: '7', type: 'nope' })
   await tick()
@@ -114,6 +120,7 @@ test('handler rejection returns error + code (default UNKNOWN)', async (t) => {
   // non-async handler escapes uncaught — all app handlers avoid that by being async.)
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  sayHello(pipe)
   ipc.handle('boom', async () => { const e = new Error('kaboom'); e.code = 'MYCODE'; throw e })
   ipc.handle('boom2', async () => { throw new Error('no code') })
   ipc.start()
@@ -129,6 +136,7 @@ test('handler rejection returns error + code (default UNKNOWN)', async (t) => {
 test('bootstrap line resolves ipc.bootstrapPromise and is not dispatched', async (t) => {
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  sayHello(pipe)
   let called = false
   ipc.handle('bootstrap', () => { called = true })
   ipc.start()
@@ -140,34 +148,81 @@ test('bootstrap line resolves ipc.bootstrapPromise and is not dispatched', async
   t.is(pipe.written.length, 0, 'no response written for bootstrap')
 })
 
-test('bootstrap REJECTS when the host speaks a version outside our window', async (t) => {
+test('a hello on a wire we do not speak is acked with a refusal and ends the boot', async (t) => {
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
-  pipe.feed({ type: 'bootstrap', storage: '/tmp/x', protocolVersion: 9999, protocolMin: 9999, protocolMax: 9999 })
+  const ack = sayHello(pipe, { protocolVersion: 9999, protocolMin: 9999, protocolMax: 9999 })
+  t.absent(ack.ok)
+  t.is(ack.reason, 'we-are-older')
   await t.exception(ipc.bootstrapPromise, /protocol mismatch/)
 })
 
-test('a versionless bootstrap rejects rather than resolving with defaults', async (t) => {
+test('a bootstrap with no hello in front of it is refused as a host on another wire', async (t) => {
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
-  pipe.feed({ type: 'bootstrap', storage: '/tmp/x' })
+  pipe.feed({ type: 'bootstrap', storage: '/tmp/x', protocolVersion: IPC_PROTOCOL_VERSION })
   await t.exception(ipc.bootstrapPromise, /no protocol version/)
 })
 
 test('a bootstrap frame after a refusal cannot settle the promise a second time', async (t) => {
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
-  pipe.feed({ type: 'bootstrap', storage: '/first' })
-  await t.exception(ipc.bootstrapPromise)
-  // The resolver and the rejecter are nulled together, so a host retrying with a good frame does
-  // not turn a settled refusal into a boot.
-  pipe.feed({ type: 'bootstrap', storage: '/second', protocolVersion: IPC_PROTOCOL_VERSION })
+  const ack = sayHello(pipe, { protocolVersion: 0, protocolMin: 0, protocolMax: 0 })
+  t.is(ack.reason, 'too-old', 'refused on the version, before any other field was read')
+  await t.exception(ipc.bootstrapPromise, /protocol mismatch/)
+  // The resolver and the rejecter are nulled together, so a host that introduces itself properly
+  // and retries — a frame pair that would otherwise boot the worker — does not turn a settled
+  // refusal into a boot.
+  t.ok(sayHello(pipe).ok, 'the retry is accepted as an introduction')
+  pipe.feed({ type: 'bootstrap', storage: '/second' })
   await t.exception(ipc.bootstrapPromise, 'still rejected')
+})
+
+test('a request before hello is refused and never dispatched', async (t) => {
+  const pipe = fakePipe()
+  const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  let called = false
+  ipc.handle('ok', () => { called = true; return 'good' })
+  ipc.start()
+  pipe.feed({ id: '1', type: 'ok' })
+  await tick()
+  t.is(pipe.lastMsg().code, 'NOT_AUTHORIZED')
+  t.absent(called, 'the handler never ran')
+  t.is(ipc.inFlightCount(), 0)
+})
+
+test('a hello is acked during boot, and the request behind it still runs at start()', async (t) => {
+  const pipe = fakePipe()
+  const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  ipc.handle('ok', () => 'good')
+  const ack = sayHello(pipe)
+  t.ok(ack.ok, 'acked before the router was live')
+  t.is(ack.trust, 'host', 'the spawn pipe is the host by construction')
+  t.is(ack.protocolVersion, IPC_PROTOCOL_VERSION)
+  t.is(typeof ack.epoch, 'string')
+  t.is(ack.resume, null, 'a client with no cursor is caught up by definition')
+  pipe.feed({ id: '1', type: 'ok' })
+  await tick()
+  t.is(pipe.written.length, 0, 'and nothing answered it while the router was still starting')
+  ipc.start()
+  await tick()
+  t.is(pipe.lastMsg().data, 'good', 'the queued request ran once the router went live')
+})
+
+test('a second hello is ignored rather than re-greeting the client', async (t) => {
+  const pipe = fakePipe()
+  createIPC(pipe, { requests: TEST_REQUESTS })
+  sayHello(pipe)
+  const after = pipe.written.length
+  pipe.feed(helloFrame())
+  await tick()
+  t.is(pipe.written.length, after, 'nothing was written for the second hello')
 })
 
 test('emit writes {type, ...payload}; respond without id is a no-op', async (t) => {
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  sayHello(pipe)
   ipc.emit('event:hello', { a: 1 })
   // Every pushed frame is numbered, so a client that was away can say where it got to.
   t.alike(pipe.lastMsg(), { type: 'event:hello', a: 1, seq: 1 })
@@ -179,6 +234,7 @@ test('emit writes {type, ...payload}; respond without id is a no-op', async (t) 
 test('malformed JSON is skipped, not fatal', async (t) => {
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  sayHello(pipe)
   ipc.handle('ok', () => 'good')
   ipc.start()
   pipe.feedRaw('{ this is not json }\n')
@@ -202,6 +258,7 @@ test('dispatcher emits no [ipc] debug lines when verbose is off, still dispatche
   const lines = captureIpcLog(t)
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  sayHello(pipe)
   ipc.handle('echo', async (m) => m.v)
   ipc.start()
   setRuntimeConfig({ verbose: false })
@@ -215,6 +272,7 @@ test('verbose traces req + res (with timing); response payload is unchanged', as
   const lines = captureIpcLog(t)
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  sayHello(pipe)
   ipc.handle('echo', async (m) => m.v)
   ipc.start()
   setRuntimeConfig({ verbose: true })
@@ -231,6 +289,7 @@ test('logs handler errors and unknown commands', async (t) => {
   const lines = captureIpcLog(t)
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  sayHello(pipe)
   ipc.handle('boom', async () => { throw new Error('kaboom') })
   ipc.start()
   setRuntimeConfig({ verbose: true })
@@ -253,6 +312,7 @@ test('emit logs events but skips the noisy *-progress streams', (t) => {
   const lines = captureIpcLog(t)
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  sayHello(pipe)
   setRuntimeConfig({ verbose: true })
   ipc.emit('event:files-updated', { spaceId: 'x' })
   ipc.emit('event:transfer-progress', { transferId: 't', bytes: 1 })
@@ -305,6 +365,7 @@ test('scopeForEvent: deliberately unmapped and malformed events fan no hint', (t
 test('emitting a members poke fans a members reconcile hint on the wire', (t) => {
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  sayHello(pipe)
   ipc.emit('event:members-updated', { spaceId: 'S9' })
   const msgs = pipe.written.map((s) => JSON.parse(s))
   t.alike(msgs.find((m) => m.type === 'event:reconcile')?.scope, { kind: 'members', spaceId: 'S9' })
@@ -321,6 +382,7 @@ test('REGRESSION (FIX-IPC-CAP: an unterminated frame grew the read buffer withou
   resetRequestFailureCounters()
   t.teardown(() => resetRequestFailureCounters())
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS, maxFrameBytes: 1024 })
+  sayHello(pipe)
   ipc.handle('echo', (m) => m.v)
   ipc.start()
 
@@ -343,6 +405,7 @@ test('REGRESSION (FIX-IPC-CAP: an unterminated frame grew the read buffer withou
 test('REGRESSION (FIX-IPC-CAP: the tail of a discarded frame was parsed as a fresh frame)', async (t) => {
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS, maxFrameBytes: 1024 })
+  sayHello(pipe)
   let calls = 0
   ipc.handle('echo', (m) => { calls++; return m.v })
   ipc.start()
@@ -367,6 +430,7 @@ test('a frame just under the REAL cap is delivered intact', async (t) => {
   // a base64 avatar (AVATAR_MAX_BYTES * 4/3 plus JSON escaping). A cap chosen too low — main's
   // 64 KB MAIN_REQUEST_MAX_LINE, say — would break avatar upload and no other test would notice.
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  sayHello(pipe)
   ipc.handle('echo', (m) => m.v.length)
   ipc.start()
 
@@ -379,6 +443,7 @@ test('a frame just under the REAL cap is delivered intact', async (t) => {
 test('many small frames arriving in one oversized chunk all dispatch', async (t) => {
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS, maxFrameBytes: 1024 })
+  sayHello(pipe)
   let calls = 0
   ipc.handle('echo', () => { calls++; return null })
   ipc.start()
@@ -395,6 +460,7 @@ test('many small frames arriving in one oversized chunk all dispatch', async (t)
 test('a frame exactly at the cap is accepted, one byte over is refused', async (t) => {
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS, maxFrameBytes: 200 })
+  sayHello(pipe)
   let calls = 0
   ipc.handle('echo', () => { calls++; return null })
   ipc.start()
@@ -422,6 +488,7 @@ test('REGRESSION (FIX-R7): an oversized frame that arrives with its terminator i
   resetRequestFailureCounters()
   t.teardown(() => resetRequestFailureCounters())
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS, maxFrameBytes: 1024 })
+  sayHello(pipe)
   let calls = 0
   ipc.handle('echo', () => { calls++; return null })
   ipc.start()
@@ -441,6 +508,7 @@ test('REGRESSION (FIX-R7): an oversized frame that arrives with its terminator i
 test('REGRESSION (FIX-IPC-CAP: the pre-start queue was unbounded)', async (t) => {
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS, maxQueuedFrames: 10 })
+  sayHello(pipe)
   let calls = 0
   ipc.handle('echo', () => { calls++; return null })
 
@@ -460,6 +528,7 @@ test('REGRESSION (FIX-IPC-CAP: the pre-start queue was unbounded)', async (t) =>
 test('the pre-start queue cap does not apply once started', async (t) => {
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS, maxQueuedFrames: 2 })
+  sayHello(pipe)
   let calls = 0
   ipc.handle('echo', () => { calls++; return null })
   ipc.start()

@@ -104,7 +104,16 @@ export function createEventPlane({ clients, log, epoch, replay }) {
   // Catch a client up from its cursor. The replayed lines are written BEFORE this returns and the
   // router answers after the handler resolves, so on the client's ordered pipe the replay always
   // precedes the answer describing it.
-  function resume(client, { epoch: theirs = null, since = 0 } = {}) {
+  //
+  // `sinceAttach` names which of the two questions is being asked. A HELLO carries a cursor from an
+  // earlier connection, while every frame past the attach point is already on its way to this one,
+  // so the replay stops there or an older ordinal lands after a newer one. A resume
+  // asked for by REQUEST is a statement of what the caller holds as of now — it is the only party
+  // that knows, because the consumer need not be the socket: the renderer asks over main's pipe,
+  // which attached before frame one and has been handed everything since, while the window behind
+  // it may have been closed for any part of that. Filtering by the attach point there replays
+  // nothing, ever.
+  function resume(client, { epoch: theirs = null, since = 0 } = {}, { sinceAttach = true } = {}) {
     const head = seq
     // No epoch at all is a first-time subscriber: it has missed nothing because it has seen
     // nothing. A DIFFERENT epoch is a worker that restarted under it, and only a resync is honest.
@@ -114,10 +123,7 @@ export function createEventPlane({ clients, log, epoch, replay }) {
     if (since > head) return { epoch, head, gap: true, replayed: 0 }
     const lines = ring.since(since)
     if (lines === null) return { epoch, head, gap: true, replayed: 0 }
-    // Only up to where the client joined. It has been receiving broadcasts live since then, and
-    // sending those again would put an older ordinal after a newer one on its pipe — which is
-    // exactly what a client using the sequence to dedupe cannot survive.
-    const missed = lines.filter((line) => frameSeq(line) <= client.attachedAt)
+    const missed = sinceAttach ? lines.filter((line) => frameSeq(line) <= client.attachedAt) : lines
     for (const line of missed) client.write(line)
     return { epoch, head, gap: false, replayed: missed.length }
   }

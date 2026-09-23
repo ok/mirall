@@ -4,6 +4,8 @@ import type { EventName } from '../../shared/contract/events.js'
 import { FRAME } from '../../shared/contract/ipc-frames.js'
 import { MAIN_WORKER_SPEC } from '../../shared/contract/workers.js'
 import { CODES } from '../../shared/contract/errors.js'
+import { createEventCursor } from '../../shared/contract/event-cursor.js'
+import { resyncQueries } from '../store/query-store.js'
 // The renderer's worker channel: NDJSON request/response with timeouts over window.bridge, event:* fan-out, and crash-respawn recovery.
 //
 // One JSON object per line, in both directions. A request is { id, type, ...payload } and its answer
@@ -11,7 +13,8 @@ import { CODES } from '../../shared/contract/errors.js'
 // the same way. { type: 'cancel', id } is a control frame rather than a request, so it cannot queue
 // behind the request it cancels. Any other line carrying a string `type` is an event, fanned out to
 // subscribe()'s listeners — except event:worker-ready, which the channel consumes itself and which
-// arrives once per worker boot.
+// arrives once per worker CONNECTION: main holds one across renderers, so a window that comes up
+// over a running worker never sees it.
 //
 // subscribe() takes a declared EventName and allows any number of listeners per name. They are called
 // synchronously, each inside its own try: a throwing subscriber must not starve the listeners after
@@ -32,6 +35,9 @@ interface PendingRequest {
 interface IpcEnvelope {
   id?: number
   type?: string
+  // The frame's ordinal on the worker's event stream. Absent on a response, which is what makes a
+  // response a no-op for the cursor.
+  seq?: number
   data?: unknown
   error?: string
   code?: string
@@ -61,9 +67,16 @@ let handlersBound = false
 let shuttingDown = false
 let permanentlyDown = false   // respawn policy gave up — requests fail fast instead of hanging
 let respawnScheduled = false  // a respawn timer is armed — don't spawn a second worker
-let reloadOnReady = false     // the next 'ready' follows an exit that lost our subscriptions → reload
 let restartInFlight = false   // main is replacing the worker on purpose — its exit is not a crash
+// Bumped by every worker exit, so work that spans one can tell whether the process it started
+// against is still the process it would be finishing against.
+let workerGeneration = 0
 const respawnPolicy = makeRespawnPolicy()
+
+// Where this client has read to on the worker's event stream, and the per-connection worker state
+// a new generation has to be asked for again.
+const cursor = createEventCursor()
+const resyncHooks = new Set<(reason: ResyncReason) => void>()
 
 // The channel is terminally down and no request will ever be answered again. Exposed as a store
 // rather than only as a rejection code because the app shell has to gate on it BEFORE the profile
@@ -107,13 +120,47 @@ function markReady(): void {
   workerReady = true
   readyResolve?.()
   respawnPolicy.recordReady()
-  // A worker came back after an unexpected exit: in-flight requests were rejected and the fresh
-  // worker has none of the renderer's prior subscriptions, so reload to re-establish them cleanly
-  // (mirrors the OTA apply path). Never on first boot or during shutdown.
-  if (reloadOnReady && !shuttingDown) {
-    reloadOnReady = false
-    window.location.reload()
+}
+
+// Why a client's whole view has to be re-read. 'new-worker' is a process that has never heard of
+// anything this client set up; 'gap' is the same process, still holding it, whose ring can no longer
+// say what was missed. State keyed by the worker's IDENTITY — what it booted from — survives the
+// second and not the first, so the two are not interchangeable.
+export type ResyncReason = 'new-worker' | 'gap'
+
+// A hook whose request created state on the WORKER keyed by this connection — a serve-detail
+// subscription, the verbose refcount — re-issues it here after a re-read. The renderer's own event
+// listeners need nothing: they live in this module and outlive any worker.
+export function onResync(fn: (reason: ResyncReason) => void): () => void {
+  resyncHooks.add(fn)
+  return () => { resyncHooks.delete(fn) }
+}
+
+// The re-arms are ISSUED first: each is one small frame restarting a push the worker would otherwise
+// never resume, and building them after every refetched listing would leave a live view silent for
+// as long as the reads take. Issue order only — both go through request(), so the order they reach
+// the wire is whatever its worker wait hands back, and nothing here depends on that.
+function resync(reason: ResyncReason): void {
+  resyncHooks.forEach((fn) => {
+    try { fn(reason) } catch (err) { console.error('[ipc] resync hook failed', err) }
+  })
+  resyncQueries()
+}
+
+// What a greeting from a worker means for a client that has been listening. The same stream is
+// replayable; a different one is a new process whose ring holds frames this client never asked
+// about, so only a full re-read is honest. markReady comes last in every branch: a request parked
+// on readiness must not race the catch-up it is about to depend on.
+async function settleArrival(coords: { epoch: string, head: number }, generation: number): Promise<void> {
+  const verdict = cursor.arrived(coords)
+  if (verdict === 'resync') {
+    resync('new-worker')
+  } else if (verdict === 'resume') {
+    const answer = await dispatch('events:resume', cursor.cursor(), DEFAULT_TIMEOUT, {})
+    if (cursor.resumed(answer) === 'resync') resync('gap')
   }
+  if (generation !== workerGeneration) return
+  markReady()
 }
 
 function handleLine(line: string): void {
@@ -142,8 +189,28 @@ function handleLine(line: string): void {
 
   if (typeof msg.type !== 'string') return
 
+  // Before the worker-ready test: the greeting carries an ordinal of its own, and the cursor has to
+  // see every numbered frame in the order the pipe delivered them.
+  cursor.observe(msg)
+
   if (msg.type === 'event:worker-ready') {
-    markReady()
+    const greeted = workerGeneration
+    settleArrival({
+      epoch: typeof msg.epoch === 'string' ? msg.epoch : '',
+      head: typeof msg.head === 'number' ? msg.head : 0,
+    }, greeted).catch((err) => {
+      // The worker could not say what we missed, so we have to assume we missed something. Ready is
+      // set either way: a channel that never reports ready parks every request behind the catch-up.
+      // Unless the worker that greeted us has since exited — the successor's own greeting settles
+      // that generation, and marking ready for a process that is gone wakes every parked request
+      // into a pipe with nothing behind it.
+      if (greeted !== workerGeneration) return
+      console.warn('[ipc] catch-up failed, resyncing', err)
+      // A greeting is emitted per connection and main connects once per worker, so a greeting we
+      // could not settle is still a process this client has told nothing.
+      resync('new-worker')
+      markReady()
+    })
     return
   }
 
@@ -200,6 +267,7 @@ function bindHandlers(): void {
 // backoff/give-up budget can't be bypassed by an incidental request().
 function onWorkerExit(code: number): void {
   console.warn('worker exited with code', code, '(0x' + code.toString(16) + ')')
+  workerGeneration += 1
   workerReady = false
   workerStarted = false
   buffer = '' // drop any half-frame left by the dead worker
@@ -208,10 +276,9 @@ function onWorkerExit(code: number): void {
   stderrDecoder = new TextDecoder('utf-8')
   failAllPending('Worker exited with code ' + code, CODES.WORKER_UNAVAILABLE)
   // A restart we asked for is not a crash. Main already has the next worker coming, so the policy
-  // is not consulted and no budget is spent — the only thing this side still owes is the reload
-  // that re-establishes the subscriptions the old worker took with it.
+  // is not consulted and no budget is spent; the new generation's greeting is what re-establishes
+  // the per-connection state.
   if (exitDisposition({ shuttingDown, restartInFlight }) === 'restart') {
-    reloadOnReady = true
     armReady()
     return
   }
@@ -256,7 +323,6 @@ function scheduleRespawn(exitCode: number): void {
       : 'worker exited repeatedly; not respawning — reload the app to recover')
     return
   }
-  reloadOnReady = true
   respawnScheduled = true
   armReady() // parked requests re-arm onto the new promise and wait for the respawn
   setTimeout(() => {
@@ -290,12 +356,15 @@ async function spawnWorker(): Promise<void> {
   probeWorkerReady()
 }
 
-// `event:worker-ready` is emitted exactly once on worker startup. On a renderer
-// reload the worker is reused (main.getWorker() keeps the existing handle), so
-// the broadcast has already happened and our fresh listener never sees it. Ping
-// the worker directly: a successful pong proves the worker is reachable, which
-// is the same liveness guarantee `event:worker-ready` was conveying. On a clean
-// boot, whichever signal arrives first flips workerReady; the other is a no-op.
+// `event:worker-ready` is emitted once per worker CONNECTION, and main holds that connection across
+// renderers: a window that comes up over a worker already running — a reload, or re-opening from
+// the tray or the dock — never sees the greeting. Ping the worker directly: a successful pong
+// proves it is reachable, which is the same liveness guarantee the greeting was conveying. On a
+// clean boot, whichever signal arrives first flips workerReady; the other is a no-op.
+//
+// The pong also tells the cursor it is LIVE on a stream it has no coordinates for, which is what
+// separates this window from one that has never been connected: the next greeting it sees is a
+// different process, and everything it is holding came from the one before it.
 function probeWorkerReady(): void {
   if (workerReady) return
   const id = nextId++
@@ -305,7 +374,7 @@ function probeWorkerReady(): void {
   // every resolve/reject/error path below regardless.)
   const reap = setTimeout(() => { pending.delete(id) }, DEFAULT_TIMEOUT)
   pending.set(id, {
-    resolve: () => { clearTimeout(reap); markReady() },
+    resolve: () => { clearTimeout(reap); cursor.connected(); markReady() },
     reject: () => { clearTimeout(reap) },
   })
   const envelope = JSON.stringify({ id, type: 'ping' }) + '\n'
@@ -355,7 +424,18 @@ export async function request<K extends RequestName>(
     if (permanentlyDown) throw codedError('Worker is unavailable (respawn limit reached)', CODES.WORKER_UNAVAILABLE)
     await readyPromise
   }
+  return dispatch(type, payload, timeout, opts)
+}
 
+// The frame, its timeout and its cancellation — everything request() does once the worker is known
+// to be there. Private, and the one caller that skips the readiness wait is the catch-up the
+// readiness signal itself triggers: it cannot wait for a flag it is on the way to setting.
+function dispatch<K extends RequestName>(
+  type: K,
+  payload: Record<string, unknown>,
+  timeout: number,
+  opts: RequestOptions,
+): Promise<RequestResponse[K]> {
   const id = nextId++
   return new Promise<RequestResponse[K]>((resolve, reject) => {
     const signal = opts.signal

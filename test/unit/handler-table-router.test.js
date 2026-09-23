@@ -3,6 +3,7 @@ import { createIPC, getRequestFailureCounters, resetRequestFailureCounters } fro
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { ARG } from '../../src/shared/contract/requests.js'
 import { INVALID_ARGUMENT } from '../../src/shared/contract/errors.js'
+import { sayHello } from '../helpers/ipc-hello.js'
 
 const TEST_REQUESTS = Object.freeze({
   'thing:do': { kind: 'command', args: { spaceId: { type: ARG.spaceId }, count: { type: ARG.number, optional: true } } },
@@ -31,6 +32,7 @@ function setup(t) {
   t.teardown(() => { console.warn = origWarn; setRuntimeConfig(prev); resetRequestFailureCounters() })
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  sayHello(pipe)
   return { ipc, pipe, warns }
 }
 

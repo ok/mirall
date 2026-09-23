@@ -171,7 +171,7 @@ export const swallowedRejectionExemptions = Object.freeze({
   'src/renderer/hooks/usePeerDownloadDetail.ts': {
     why: 'Subscribe seed read and unmount unsubscribe for serving detail; frames arrive by push.',
     sites: [
-      'usePeerDownloadDetail > useEffect: request(\'serving:detail-subscribe\', { spaceId, path }).then((snap) => { if (!act',
+      'usePeerDownloadDetail > useEffect > arm: request(\'serving:detail-subscribe\', { spaceId, path }).then((snap) => { if (!act',
       'usePeerDownloadDetail > useEffect: request(\'serving:detail-unsubscribe\', { spaceId, path }).catch(() => {})',
     ],
   },
@@ -191,7 +191,7 @@ export const swallowedRejectionExemptions = Object.freeze({
   'src/renderer/ipc/ipc.ts': {
     why: 'Tells the worker to stop a request nobody waits for any more; a late answer is dropped anyway.',
     sites: [
-      'request > tellWorkerToStop: window.bridge.writeWorkerIPC(WORKER_SPEC, encoder.encode(frame)).catch(() => und',
+      'dispatch > tellWorkerToStop: window.bridge.writeWorkerIPC(WORKER_SPEC, encoder.encode(frame)).catch(() => und',
     ],
   },
   'src/renderer/notifications/prefs.ts': {
@@ -213,8 +213,9 @@ export const swallowedRejectionExemptions = Object.freeze({
     ],
   },
   'src/renderer/screens/NetworkDiagnosticsScreen.tsx': {
-    why: 'Unmount cleanup turning verbose logging back off; nobody is left on the screen to tell.',
+    why: 'Unmount cleanup turning verbose logging back off, and the re-arm that asks a new worker for it again; in neither case is anyone left waiting on the answer.',
     sites: [
+      'NetworkDiagnosticsScreen > useEffect > rearm > onResync: request(\'setVerbose\', { verbose: true }).catch(() => {})',
       'NetworkDiagnosticsScreen > useEffect: request(\'setVerbose\', { verbose: false }).catch(() => {})',
       'NetworkDiagnosticsScreen > useEffect: window.bridge.setVerbose(false).catch(() => {})',
     ],
@@ -223,12 +224,6 @@ export const swallowedRejectionExemptions = Object.freeze({
     why: 'The re-read after a purge; the purge outcome is already reported and the store owns read errors.',
     sites: [
       'ActivityLogSettings > handlePurge > useCallback > runAction: refresh().catch(() => {})',
-    ],
-  },
-  'src/renderer/shell/resume-screen.ts': {
-    why: 'Remembering the screen to resume in sessionStorage; without storage the app boots at the root.',
-    sites: [
-      'rememberScreen: try { sessionStorage.setItem(KEY, screen) } catch { /* no resume, no harm */ }',
     ],
   },
   'src/renderer/store/query-store.js': {

@@ -2,6 +2,7 @@ import test from 'brittle'
 import { createIPC, getRequestMetrics, resetRequestMetrics } from '../../src/shared/core/ipc.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { ARG } from '../../src/shared/contract/requests.js'
+import { sayHello } from '../helpers/ipc-hello.js'
 
 const TEST_REQUESTS = Object.freeze({
   'thing:do': { kind: 'command', args: { spaceId: { type: ARG.spaceId, optional: true } } },
@@ -27,7 +28,9 @@ function setup(t) {
   console.warn = () => {}
   t.teardown(() => { console.warn = origWarn; setRuntimeConfig(prev); resetRequestMetrics() })
   const pipe = fakePipe()
-  return { ipc: createIPC(pipe, { requests: TEST_REQUESTS }), pipe }
+  const ipc = createIPC(pipe, { requests: TEST_REQUESTS })
+  sayHello(pipe)
+  return { ipc, pipe }
 }
 
 const flush = () => new Promise((r) => setTimeout(r, 20))

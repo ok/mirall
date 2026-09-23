@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url'
 import path from 'path'
 import { EventEmitter } from 'events'
 import { createIPC } from '../../src/shared/core/ipc.js'
+import { sayHello } from '../helpers/ipc-hello.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const workerDir = path.join(here, '..', '..', 'src', 'worker')
@@ -54,6 +55,7 @@ const QUEUE_REQUESTS = Object.freeze({ 'q:one': { kind: 'command', args: {} } })
 test('queueDepth reports frames parked before the router goes live', async (t) => {
   const pipe = fakePipe()
   const ipc = createIPC(pipe, { requests: QUEUE_REQUESTS })
+  sayHello(pipe)
   ipc.handle('q:one', async () => null)
   pipe.feed({ id: '1', type: 'q:one' })
   pipe.feed({ id: '2', type: 'q:one' })

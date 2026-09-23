@@ -228,7 +228,11 @@ registerDiagnostics(ipc, { health, getRoot: () => root })
 ipc.handle('ping', async () => ({ pong: true, timestamp: Date.now() }))
 
 // Catch a client up from where it stopped reading, or tell it honestly that it cannot be caught up.
-ipc.handle('events:resume', async (msg, ctx) => ipc.resume(ctx.client, { epoch: msg.epoch, since: msg.since }))
+// The cursor is the caller's own account of what it holds, so the replay is bounded by that and not
+// by when its socket attached: the renderer asks over main's pipe, which has been attached since
+// before the first frame.
+ipc.handle('events:resume', async (msg, ctx) =>
+  ipc.resume(ctx.client, { epoch: msg.epoch, since: msg.since }, { sinceAttach: false }))
 
 // === IPC: audit log ===
 

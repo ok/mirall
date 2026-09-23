@@ -73,6 +73,10 @@ from you", a withdrawn approval and a join request could all go missing if
 Mirall couldn't write the entry on the first try — including a second join
 request from someone whose first was denied. Entries are now retried, and
 entries still being written when you quit are finished first.
+- **Mirall no longer reloads its window when its background engine
+restarts.** Applying a new relay, or recovering from a background crash,
+took you back to the start and discarded anything you had typed but not
+saved. The screen you were on now stays put while the engine comes back.
 - **Settings no longer show a change that wasn't saved.** The theme,
 language, zoom, tray, login, notification and Activity Log switches were
 set without checking the result, so a refused save left the switch showing

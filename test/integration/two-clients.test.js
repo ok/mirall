@@ -1,6 +1,7 @@
 import test from 'brittle'
 import { EventEmitter } from 'bare-events'
 import { createIPC } from '../../src/shared/core/ipc.js'
+import { sayHello } from '../helpers/ipc-hello.js'
 
 // The first test in the repo that drives the router with more than one client. Two in-process
 // pipes stand in for two connections; what is under test is the routing, not the transport.
@@ -24,12 +25,14 @@ test('two clients interleave, and one cancelling leaves the other to finish', as
   const a = pipe()
   const b = pipe()
   const ipc = createIPC(a, { requests: REQUESTS })
+  sayHello(a)
   const pending = new Map()
   ipc.handle('slow', (msg, ctx) => new Promise((resolve) => {
     pending.set(ctx.client.id, () => resolve({ for: ctx.client.id }))
     ctx.signal.onAbort(() => resolve({ cancelled: ctx.client.id }))
   }))
   const clientB = ipc.attach(b)
+  sayHello(b)
   ipc.start()
 
   a.send({ id: 1, type: 'slow' })
@@ -52,12 +55,14 @@ test('a client that disconnects mid-flight does not take the survivor with it', 
   const a = pipe()
   const b = pipe()
   const ipc = createIPC(a, { requests: REQUESTS })
+  sayHello(a)
   let releaseB = null
   ipc.handle('slow', (msg, ctx) => new Promise((resolve) => {
     if (ctx.client.id === 2) releaseB = () => resolve({ ok: true })
     ctx.signal.onAbort(() => resolve({ cancelled: true }))
   }))
   ipc.attach(b)
+  sayHello(b)
   ipc.start()
 
   a.send({ id: 1, type: 'slow' })
@@ -76,9 +81,11 @@ test('a client that disconnects mid-flight does not take the survivor with it', 
 test('a greeting runs once per client, with the router live', async (t) => {
   const a = pipe()
   const ipc = createIPC(a, { requests: REQUESTS })
+  sayHello(a)
   ipc.onClientAttach((client) => { ipc.emit('event:worker-ready', {}, { to: client }) })
   const b = pipe()
   ipc.attach(b)
+  sayHello(b)
   ipc.start()
   await tick()
 
@@ -89,6 +96,7 @@ test('a greeting runs once per client, with the router live', async (t) => {
 
   const c = pipe()
   ipc.attach(c)
+  sayHello(c)
   await tick()
   t.alike(c.frames().map((f) => f.type), ['event:worker-ready'], 'and a client arriving later gets the same')
 })

@@ -3,14 +3,13 @@
 // sections are out here; every other one is inline, and that is the rule, not an accident.
 // Relays section of Settings ▸ Network. One slot, taking either a bare relay key (open
 // relay) or an invite ticket (private relay).
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 import ConfirmDestructiveModal from '../../components/modals/ConfirmDestructiveModal.js'
-import { request, restartWorker } from '../../ipc/ipc.js'
+import { request } from '../../ipc/ipc.js'
 import { getRelay, getRelayMode, setRelay, type RelayMode, type RelayParseErrorCode, type RelaySlot } from '../../platform/config-client.js'
 import { truncateRelayKey } from '../../platform/relay-key.js'
-import { isReconnectPending, setReconnectPending } from '../../platform/relay-session.js'
-import { rememberScreen } from '../../shell/resume-screen.js'
+import { isReconnectPending, setReconnectPending, subscribeRelaySession } from '../../platform/relay-session.js'
 import Badge from '../../components/primitives/Badge.js'
 import Button from '../../components/primitives/Button.js'
 import CopyButton from '../../components/primitives/CopyButton.js'
@@ -52,8 +51,8 @@ export default function RelaySettingsSection() {
   // are confirmed. An OPEN relay has no seed and a public, re-pasteable key — confirming that
   // would be a nag, which is why Remove already branches on kind.
   const [confirm, setConfirm] = useState<'remove' | 'replace' | null>(null)
-  const [reconnectPending, setPending] = useState(isReconnectPending)
-  const { notice, reconnecting, arm, apply } = useRelayApply(mode, reconnectPending)
+  const reconnectPending = useSyncExternalStore(subscribeRelaySession, isReconnectPending, isReconnectPending)
+  const { notice, busy, arm, act } = useRelayApply(mode, reconnectPending)
 
   // A probe runs for up to ten seconds and outlives the screen: ScreenRouter unmounts this on
   // navigation, and a verdict resolving afterwards would commit this instance's stale slot.
@@ -80,10 +79,7 @@ export default function RelaySettingsSection() {
     const result = await setRelay(payload)
     if (!alive.current || !result.ok) return result
     adopt({ relayMode: result.network.relayMode, relay: result.network.relay })
-    if (result.identityChanged) {
-      setReconnectPending(true)
-      setPending(true)
-    }
+    if (result.identityChanged) setReconnectPending(true)
     const applied = await request('network:set-relay', {
       mode: result.network.relayMode,
       relay: usableRelay(result.network.relay, isReconnectPending()),
@@ -95,19 +91,6 @@ export default function RelaySettingsSection() {
     if (alive.current) arm(applied)
     return result
   }, [adopt, arm])
-
-  // A new relay identity needs a new process: defaultKeyPair is fixed when the DHT node is built,
-  // and the seed is read at spawn. Main stops the worker and starts the next one; the window
-  // reloads when it reports ready.
-  // Not cleared here: the flag is the only affordance for applying the new identity, and a restart
-  // that never lands would otherwise take the banner with it. One that does land reloads the
-  // window, which resets it anyway.
-  const handleReconnect = useCallback(() => {
-    // Park this screen first: the reload that follows would otherwise land on the space list, which
-    // shows nothing about the relay that was just applied.
-    rememberScreen('network-settings')
-    runAction(restartWorker)
-  }, [runAction])
 
   const handleTest = useCallback(() => runAction(async () => {
     const target = latest.current.relay
@@ -183,11 +166,7 @@ export default function RelaySettingsSection() {
       <SectionHeading>{t('networkSettings.relays.heading')}</SectionHeading>
 
       {notice && (
-        <RelayApplyNotice
-          notice={notice}
-          busy={reconnecting}
-          onAct={notice === 'restart' ? handleReconnect : apply}
-        />
+        <RelayApplyNotice notice={notice} busy={busy} onAct={act} />
       )}
 
       {/* One surface: the section's prose and its trailing note live on it, above and below the

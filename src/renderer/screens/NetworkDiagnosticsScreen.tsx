@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { buildBundle, serialiseBundle, bundleFilename, previewText } from '../platform/diagnostics-bundle.js'
-import { request } from '../ipc/ipc.js'
+import { onResync, request } from '../ipc/ipc.js'
 import DiagnosticsPreviewModal from '../components/modals/DiagnosticsPreviewModal.js'
 import Toggle from '../components/primitives/Toggle.js'
 import Button from '../components/primitives/Button.js'
@@ -30,9 +30,15 @@ export default function NetworkDiagnosticsScreen({ onBack }: Props) {
   const [preview, setPreview] = useState<{ text: string; bytes: number; redacted: boolean; serialised: string; filename: string } | null>(null)
 
   // Detailed logging stays on only while this screen is mounted. Leaving also makes every write
-  // still in flight stale, so a late reply cannot switch main back on.
+  // still in flight stale, so a late reply cannot switch main back on. A new worker starts with the
+  // refcount empty, so a screen that still wants logs has to ask again or the lines it is open for
+  // are the ones that were never recorded.
   useEffect(() => {
+    const rearm = onResync(() => {
+      if (includeLogsRef.current) request('setVerbose', { verbose: true }).catch(() => {})
+    })
     return () => {
+      rearm()
       verboseSeqRef.current += 1
       if (includeLogsRef.current) {
         window.bridge.setVerbose(false).catch(() => {})

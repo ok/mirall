@@ -3,6 +3,7 @@ import { EventEmitter } from 'events'
 import { createIPC } from '../../src/shared/core/ipc.js'
 import { EPHEMERAL_EVENTS, TARGETED_EVENTS, isEphemeralEvent } from '../../src/shared/contract/events.js'
 import { MAIN_REQUEST_FRAME } from '../../src/shared/contract/main-requests.js'
+import { sayHello } from '../helpers/ipc-hello.js'
 
 const REQUESTS = Object.freeze({ 'ping': { kind: 'query', args: {} } })
 
@@ -20,6 +21,7 @@ function router({ pipes = 1 } = {}) {
   const wires = Array.from({ length: pipes }, fakePipe)
   const ipc = createIPC(wires[0], { requests: REQUESTS, epoch: 'test-epoch' })
   const clients = [ipc.primary, ...wires.slice(1).map((p) => ipc.attach(p))]
+  wires.forEach((wire) => sayHello(wire))
   ipc.start()
   return { ipc, wires, clients }
 }
@@ -97,6 +99,7 @@ test('REGRESSION (FIX-401-1): a resume never re-sends what the client got live',
 
   const late = fakePipe()
   const client = ipc.attach(late)
+  sayHello(late)
   ipc.emit('event:network-status', { n: 2 })
   ipc.emit('event:network-status', { n: 3 })
 
@@ -121,6 +124,7 @@ test('resume in range replays exactly what was missed, before it answers', (t) =
   // The reconnecting client: away since frame 1, back now.
   const back = fakePipe()
   const client = ipc.attach(back)
+  sayHello(back)
   const answer = ipc.resume(client, { epoch: ipc.epoch, since: 1 })
   t.alike(answer, { epoch: 'test-epoch', head: 3, gap: false, replayed: 2 })
   t.alike(back.frames().map((f) => f.n), [2, 3], 'in order, and only the ones after the cursor')
