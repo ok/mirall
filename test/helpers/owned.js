@@ -7,7 +7,6 @@ import { publishShare, generateShareId } from '../../src/shared/shares/shares.js
 import { createOwnedMount, createForeignMount } from '../../src/shared/folders/mount-store.js'
 import { runPublishPass } from '../../src/shared/folders/owned-pass.js'
 import { listOwnShare, ownCatalogKeyHex } from '../../src/shared/shares/own-catalog.js'
-import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
 
@@ -15,7 +14,6 @@ import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index
 // Overlay is the only content backend, so the share is stamped overlay and the
 // overlay instance is brought up in-process (no second peer).
 export async function setupOwnedShare(t, { name = 'Notes', files = null } = {}) {
-  setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true })
   const ctx = await freshPeer(t)
 
   const space = await createSpace('Aurora')

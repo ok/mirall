@@ -6,7 +6,6 @@ import { publishShare, generateShareId } from '../../src/shared/shares/shares.js
 import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
 import { createForeignMount, getForeignMount } from '../../src/shared/folders/mount-store.js'
 import { publishMirror, readOwnMirrors } from '../../src/shared/folders/mirror-records.js'
-import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { initDownloads } from '../../src/shared/transfer/files.js'
 import { createFakeIpc } from '../helpers/fake-ipc.js'
 import { initForeignFolders } from '../../src/shared/folders/foreign-folders.js'
@@ -25,7 +24,6 @@ const ONE_FILE = [{ relPath: 'a.bin', contentHash: 'a'.repeat(64), size: 1024 }]
 // the overlay's fetchFile is stubbed to succeed or to find no holder.
 async function setupMirror(t, { fetchResult, entries = ONE_FILE } = {}) {
   const ctx = await freshPeer(t)
-  setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true })
   await initDownloads()
   await initOverlay()
   t.teardown(async () => { await teardownOverlay() })

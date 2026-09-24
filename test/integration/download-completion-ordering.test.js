@@ -10,7 +10,6 @@ import { listFiles } from '../../src/shared/transfer/file-listing.js'
 import { initPendingTransfers, recordPending, getPendingFor } from '../../src/shared/transfer/pending-transfers.js'
 import { setSpaceDownloadRoot } from '../../src/shared/core/paths.js'
 import { createBee } from '../../src/shared/core/store.js'
-import { getRuntimeConfig, setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { LOOSE_SHARE_ID } from '../../src/shared/transfer/transfer-id.js'
 
 const here = path.dirname(url.fileURLToPath(import.meta.url))
@@ -38,7 +37,6 @@ test("REGRESSION (FIX-D2: completion records the durable downloaded fact before 
 
 test('a pending row lingering after markDownloaded is masked by the downloaded status', async (t) => {
   const { tmpDir } = await freshPeer(t)
-  setRuntimeConfig({ ...getRuntimeConfig(), inPlaceFilesEnabled: true })
   await initDownloads()
   await initPendingTransfers()
   const space = await createSpace('Aurora')

@@ -7,8 +7,6 @@ import { mkTmpDir, patternedBytes, waitForFile, mkStoreDir } from '../helpers/fi
 import { scaled } from '../helpers/timing.js'
 import { waitFor } from '../helpers/poll.js'
 
-const FLAGS = { overlayEnabled: true }
-
 // Poll a mirrored file's CONTENT (waitForFile only checks presence) until it
 // matches, or fail — for asserting the mirror re-fetched an owner edit.
 async function waitForContent(file, want, ms = 70000) {
@@ -25,8 +23,8 @@ async function waitForContent(file, want, ms = 70000) {
 test('overlay mirror: re-fetches on owner edit and removes on owner delete',
   { timeout: scaled(180000) }, async (t) => {
     const bootstrap = await localTestnet(t)
-    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags: FLAGS })
-    const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags: FLAGS })
+    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t) })
+    const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t) })
     const spaceId = await connectInSpace(t, A, B)
     const aKey = (await A.request('profile:get')).personKey
 

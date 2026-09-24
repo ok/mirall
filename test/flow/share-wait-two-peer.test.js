@@ -9,7 +9,7 @@ import { scaled } from '../helpers/timing.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
-const flags = (o = {}) => ({ overlayEnabled: true, inPlaceFilesEnabled: true, sharePrepareProgressEnabled: true, identityKEK: kekHex(), ...o })
+const flags = (o = {}) => ({ sharePrepareProgressEnabled: true, identityKEK: kekHex(), ...o })
 
 // Sparse, so it costs no disk to write, while the owner still hashes every byte of it — which is
 // what holds the waiting window open long enough to observe.

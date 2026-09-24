@@ -173,7 +173,6 @@ export interface MirallDevConsole {
   audit(opts?: Record<string, unknown>): Promise<unknown>
   profile(): Promise<unknown>
   mounts(): Promise<unknown>
-  features(): Promise<unknown>
   metrics(): Promise<unknown>
   version(): Promise<unknown>
   update(): Promise<unknown>

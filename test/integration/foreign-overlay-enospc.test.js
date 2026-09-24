@@ -4,7 +4,6 @@ import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { publishShare, generateShareId } from '../../src/shared/shares/shares.js'
 import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
 import { createForeignMount, getForeignMount } from '../../src/shared/folders/mount-store.js'
-import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { scanForeignMount, setForeignEnabled } from '../../src/shared/folders/foreign-verbs.js'
 import { runMaterializeTick } from '../../src/shared/folders/mirror-pass.js'
 import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
@@ -32,7 +31,6 @@ function faultEvents(ctx, shareId) {
 
 async function setupOverlayMirror(t, code) {
   const ctx = await freshPeer(t)
-  setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true })
   await initOverlay()
   t.teardown(async () => { await teardownOverlay() })
 

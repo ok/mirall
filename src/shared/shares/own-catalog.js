@@ -8,7 +8,6 @@ import { purgeCoreDk, purgeAlias } from '../storage/core-purge.js'
 import { getSpace, getSpaceContentKey, isLegacySpace, spaceEpoch, LEGACY_SPACE_MESSAGE } from '../spaces/space.js'
 import { AppError } from '../core/errors.js'
 import { CODES } from '../contract/errors.js'
-import { isInPlaceFilesEnabled } from '../core/runtime-config.js'
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
 import { prefixRange } from '../core/bee-keys.js'
@@ -80,11 +79,10 @@ export async function ownCatalogPublish(spaceId, space) {
   return { keyHex: await ownCatalogKeyHex(spaceId), encrypted: true, epoch: spaceEpoch(space) }
 }
 
-// The same key as a value the announce paths can publish unconditionally: null when loose files
-// are off or the catalog cannot be resolved, so neither the handshake nor a boot backfill has to
-// decide whether this space has one.
+// The same key as a value the announce paths can publish unconditionally: null when the catalog
+// cannot be resolved, so neither the handshake nor a boot backfill has to decide whether this
+// space has one.
 export async function ownLooseCatalogPublish(spaceId, space) {
-  if (!isInPlaceFilesEnabled()) return null
   try { return await ownCatalogPublish(spaceId, space) } catch (err) { log.debug('own loose-catalog key resolve failed:', err.message); return null }
 }
 

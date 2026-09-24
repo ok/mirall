@@ -221,8 +221,7 @@ export async function launchPeer(t, { bootstrap, displayName = 'Peer', debug = f
     verbose: false,
     downloadFolder: downloads,
     dhtBootstrap: bootstrap,
-    // Feature-flag overrides (default off). main.js derives these from
-    // feature-flags.json in production; tests pass them explicitly.
+    // Runtime-config overrides for this peer (the bootstrap frame IS the runtime config).
     ...flags,
   }) + '\n')
   await ready

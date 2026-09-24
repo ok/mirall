@@ -117,12 +117,12 @@ async function admitLoosePublish(spaceId, relPath, absPath, priority) {
   return getPublishScheduler().enqueue({ spaceId, shareId: LOOSE_SHARE_ID, relPath, op: OP.PUBLISH, size, mtime, priority })
 }
 
-export async function enqueueLoosePublish(spaceId, relPath, absPath, priority) {
+async function enqueueLoosePublish(spaceId, relPath, absPath, priority) {
   const ticket = await withSpaceLock(spaceId, () => admitLoosePublish(spaceId, relPath, absPath, priority))
   return await settledWithTail(spaceId, relPath, ticket, absPath)
 }
 
-export async function enqueueLooseRetire(spaceId, relPath, priority) {
+async function enqueueLooseRetire(spaceId, relPath, priority) {
   const ticket = getPublishScheduler().enqueue({ spaceId, shareId: LOOSE_SHARE_ID, relPath, op: OP.RETIRE, priority })
   return await settledWithTail(spaceId, relPath, ticket, null)
 }
@@ -226,6 +226,32 @@ registerPublishChannel('loose', {
     await withSpaceLock(item.spaceId, () => unshareEntry(item.spaceId, item.relPath, absPath))
     filesUpdated(item.spaceId)
   },
+  // No recorded source → a crash inside the tiny advertise→link window, reverted by the rehydrate:
+  // not the sweep's to reclaim.
+  async presentAt({ spaceId, relPath }) {
+    const src = await getOwnedSourcePath(spaceId, looseDrivePath(relPath))
+    return src ? fileStatPresent(src) : null
+  },
+  // A finished entry that merely lost its source stays (it still displays as owned); only an entry
+  // that needs the hash — null hash, or a source changed while offline — goes on the lane, and its
+  // settlement is handed back rather than awaited.
+  async rehydrate({ spaceId, entry }) {
+    const { relPath } = entry
+    const src = await getOwnedSourcePath(spaceId, looseDrivePath(relPath))
+    if (!src) {
+      if (!entry.contentHash) await revertUnhashedEntry(spaceId, relPath)
+      return
+    }
+    if (entry.contentHash && !fileStatPresent(src)) return
+    const { size, mtime } = statFacts(src)
+    if (entry.contentHash && entry.size === size && entry.mtime === mtime) {
+      await adoptServable(spaceId, relPath, src, entry)
+      return
+    }
+    const ticket = await withSpaceLock(spaceId, () => admitLoosePublish(spaceId, relPath, src, PRIORITY.BULK))
+    return { settled: settledWithTail(spaceId, relPath, ticket, src) }
+  },
+  retireGone: ({ spaceId, relPath }) => enqueueLooseRetire(spaceId, relPath, PRIORITY.BULK),
 })
 
 // After a failed, aborted or never-started publish: drop the source link and tracking ONLY if
@@ -253,14 +279,14 @@ async function unshareEntry(spaceId, relPath, src) {
 
 // A never-hashed entry with no recorded source is an unrecoverable half-publish: revert it so it
 // stops showing "Adding" forever.
-export async function revertUnhashedEntry(spaceId, relPath) {
+async function revertUnhashedEntry(spaceId, relPath) {
   await withSpaceLock(spaceId, () => unshareEntry(spaceId, relPath, null))
   filesUpdated(spaceId)
 }
 
 // Re-register a healthy, unchanged entry with the serve gate directly, so it is servable at once
 // rather than after a lane slot frees.
-export async function adoptServable(spaceId, relPath, absPath, { contentHash, size }) {
+async function adoptServable(spaceId, relPath, absPath, { contentHash, size }) {
   await makeServable({ spaceId, shareId: LOOSE_SHARE_ID, relPath, absPath, contentHash, size })
   trackSource(absPath, spaceId, relPath)
   armWatch(spaceId, absPath)

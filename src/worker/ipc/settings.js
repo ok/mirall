@@ -1,5 +1,5 @@
 // @ts-check
-// Settings, storage and feature flags. The download-folder setter is the one that carries a rule:
+// Settings and storage. The download-folder setter is the one that carries a rule:
 // the global root is the effective root of every space that never overrode it.
 
 /** @import { WorkerIpc } from '../../shared/core/ipc.js' */
@@ -9,8 +9,6 @@ import {
   setVerbose,
   setDownloadFolder,
   setBandwidthLimits,
-  isOverlayEnabled,
-  isInPlaceFilesEnabled,
 } from '../../shared/core/runtime-config.js'
 import { daemonPaths } from '../../shared/contract/paths.js'
 import { getStorageInfo } from '../../shared/storage/storage.js'
@@ -48,8 +46,6 @@ export function registerSettings(ipc, { mounts, publishDownloadRoots }) {
     setBandwidthLimits({ downloadKBps: msg?.downloadKBps, uploadKBps: msg?.uploadKBps })
     return { ok: true }
   })
-
-  ipc.handle('features:get', async () => ({ overlay: isOverlayEnabled(), inPlaceFiles: isInPlaceFilesEnabled() }))
 
   // Live verbose-logging toggle, driven from the renderer dev console (window.mirall.verbose).
   // The logger reads the config on every call, so flipping it here takes effect with no relaunch.

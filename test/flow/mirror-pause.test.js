@@ -8,10 +8,8 @@ import { scaled } from '../helpers/timing.js'
 import { PARTIAL_SUFFIX as PARTIAL } from '../../src/shared/transfer/partial-suffix.js'
 import { waitFor } from '../helpers/poll.js'
 
-// overlayEnabled for both peers; a short foreign poll so resume re-fetches
-// promptly instead of waiting the 30s production cadence.
-const OWNER_FLAGS = { overlayEnabled: true }
-const MIRROR_FLAGS = { overlayEnabled: true, foreignPollIntervalMs: 1500 }
+// A short foreign poll so resume re-fetches promptly instead of waiting the 30s production cadence.
+const MIRROR_FLAGS = { foreignPollIntervalMs: 1500 }
 
 async function waitForSize(file, want, ms = 60000) {
   const reached = () => { try { return fs.statSync(file).size === want } catch { return false } }
@@ -26,7 +24,7 @@ async function waitForSize(file, want, ms = 60000) {
 test('REGRESSION (FIX-128): pausing a mirror aborts the in-flight download; resume completes it',
   { timeout: scaled(180000) }, async (t) => {
     const bootstrap = await localTestnet(t)
-    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags: OWNER_FLAGS })
+    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t) })
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags: MIRROR_FLAGS })
     const spaceId = await connectInSpace(t, A, B)
     const aKey = (await A.request('profile:get')).personKey

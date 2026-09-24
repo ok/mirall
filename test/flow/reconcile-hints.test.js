@@ -7,7 +7,6 @@ import { mkTmpDir, mkStoreDir } from '../helpers/fixtures.js'
 import { scaled } from '../helpers/timing.js'
 import { until } from '../helpers/poll.js'
 
-const FLAGS = { overlayEnabled: true }
 const scopeIs = (kind, spaceId) => (m) => !!m.scope && m.scope.kind === kind && (spaceId == null || m.scope.spaceId === spaceId)
 
 // REGRESSION (FIX-EDA-18: handshake/presence member transitions emitted event:members-updated but
@@ -17,8 +16,8 @@ const scopeIs = (kind, spaceId) => (m) => !!m.scope && m.scope.kind === kind && 
 test('REGRESSION (FIX-EDA-18): member and share transitions fan reconcile hints',
   { timeout: scaled(180000) }, async (t) => {
     const bootstrap = await localTestnet(t)
-    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags: FLAGS })
-    const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags: FLAGS })
+    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t) })
+    const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t) })
 
     // Arm before the join: the arrival hint fires during connect, when the spaceId is not yet known.
     const sawJoinHint = A.waitFor('event:reconcile', scopeIs('members'), 60000)
@@ -47,9 +46,8 @@ test('REGRESSION (FIX-EDA-18): member and share transitions fan reconcile hints'
 test('a joiner gets files hints after member persist and lists a pre-connect loose file',
   { timeout: scaled(180000) }, async (t) => {
     const bootstrap = await localTestnet(t)
-    const flags = { overlayEnabled: true, inPlaceFilesEnabled: true }
-    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags })
-    const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags })
+    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t) })
+    const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t) })
 
     const space = await A.request('space:create', { name: 'Loose' })
     const spaceId = space.spaceId

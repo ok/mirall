@@ -80,11 +80,11 @@ test('reset() forgets every arming', async (t) => {
   t.alike(retired, [])
 })
 
-// REGRESSION: both call sites collect their retire promises the same way, but they do not settle the
-// same way. The loose one goes through settledWithTail, which rethrows, so .catch is meaningful
-// there. The folder one pushes the publish lane's raw ticket, and that deferred (work-item.js) is
-// built with a resolve and no reject — so its copied .catch could never fire and a failed retire
-// vanished with no log at all. The failure has to be read off the settlement outcome.
+// REGRESSION: the two channels' sweep retires do not settle the same way. The loose one goes through
+// settledWithTail, which rethrows, so a rejection is meaningful there. The folder one awaits the
+// publish lane's raw ticket, and that deferred (work-item.js) is built with a resolve and no reject —
+// so a .catch could never fire and a failed retire would vanish with no log at all. The failure has
+// to be read off the settlement outcome.
 test('the folder retire reads its settlement instead of catching a rejection that cannot happen', (t) => {
   const here = nodePath.dirname(fileURLToPath(import.meta.url))
   const read = (rel) => readFileSync(nodePath.resolve(here, '../../src', rel), 'utf8')
@@ -92,9 +92,9 @@ test('the folder retire reads its settlement instead of catching a rejection tha
   const deferredSrc = read('shared/folders/work-item.js')
   t.absent(/new Promise\(\(resolve, reject\)/.test(deferredSrc), 'the lane ticket still has no reject path')
 
-  const backend = read('shared/transfer/backends/overlay/overlay-maintenance.js')
-  const retire = backend.match(/retire: \(\{ spaceId, shareId, retires \}[\s\S]*?\n  \},/)?.[0] || ''
-  t.ok(retire.length > 0, 'found the folder sweep retire')
+  const channel = read('shared/folders/owned-channel.js')
+  const retire = channel.match(/async retireGone\([\s\S]*?\n  \},/)?.[0] || ''
+  t.ok(retire.length > 0, 'found the folder channel\'s sweep retire')
   t.absent(/settled\.catch\(/.test(retire), 'no catch on a promise that never rejects')
   t.ok(/outcome === 'failed'/.test(retire), 'a failed retire is read off the outcome and logged')
 })

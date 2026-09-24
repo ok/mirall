@@ -7,7 +7,6 @@ import { freshPeer } from '../helpers/store.js'
 import { getSpace, getSpaceContentKey } from '../../src/shared/spaces/space.js'
 import { createSpace, joinSpace, materializeSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { advertise, getOwnEntry, ownCatalogKeyHex } from '../../src/shared/shares/own-catalog.js'
-import { getRuntimeConfig, setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { setSpaceDownloadRoot } from '../../src/shared/core/paths.js'
 import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
 import { getOverlay, initOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
@@ -17,7 +16,7 @@ import { listFiles } from '../../src/shared/transfer/file-listing.js'
 import { initPendingTransfers, recordPending, getPendingFor } from '../../src/shared/transfer/pending-transfers.js'
 import { looseShareFile, looseUnshareFile, looseListOwn, looseCancelPublish, handleLooseFsEvent, MAX_LOOSE_FILES_PER_SPACE, looseSources } from '../../src/shared/transfer/backends/overlay/loose-publish.js'
 import { looseCancelTransfer } from '../../src/shared/transfer/backends/overlay/loose-downloads.js'
-import { rehydrateLooseFiles, sweepLoosePresence } from '../../src/shared/transfer/backends/overlay/loose-maintenance.js'
+import { rehydrateOwnedContent, sweepOwnedPresence } from '../../src/shared/transfer/backends/overlay/overlay-maintenance.js'
 import { LOOSE_SHARE_ID, looseTransferIdFor } from '../../src/shared/transfer/transfer-id.js'
 import { initLooseIpc } from '../helpers/overlay-ipc.js'
 
@@ -26,7 +25,6 @@ import { initLooseIpc } from '../helpers/overlay-ipc.js'
 // straight from the user's source file on disk, addressed by content hash.
 async function setup(t) {
   const ctx = await freshPeer(t)
-  setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true, inPlaceFilesEnabled: true })
   await initDownloads()
   await initPendingTransfers()
   const space = await createSpace('Aurora')
@@ -37,7 +35,6 @@ async function setup(t) {
   t.teardown(async () => {
     serveIndex.reset()
     await teardownOverlay()
-    setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: false, inPlaceFilesEnabled: false })
   })
   return { ...ctx, spaceId: space.spaceId }
 }
@@ -163,7 +160,7 @@ test('R5: rehydrate re-registers own loose files from the catalog after a restar
   await initOverlay()
   t.absent(serveIndex.has(hash), 'precondition: serve maps cleared')
 
-  await rehydrateLooseFiles()
+  await rehydrateOwnedContent()
   t.ok(serveIndex.has(hash), 'rehydrated: hash servable again')
   t.ok(looseSources.has(abs), 'reverse map repopulated')
   const got = await getOverlay().fetchFile(hash, {})
@@ -193,7 +190,7 @@ test('REGRESSION (FIX-1b: rehydrate isolation): one file that throws does not ab
   }
   t.teardown(() => { overlay.registerFile = realRF })
 
-  await rehydrateLooseFiles()
+  await rehydrateOwnedContent()
   t.ok(serveIndex.has(hashB), 'b.txt re-registered despite a.txt throwing earlier in the loop')
 })
 
@@ -204,9 +201,9 @@ test('R6: sweep tombstones a loose entry whose source vanished', async (t) => {
   const hash = (await getOwnEntry(ctx.spaceId, LOOSE_SHARE_ID, 'gone.txt')).contentHash
 
   fs.unlinkSync(abs)
-  await sweepLoosePresence() // confirm-gone-twice: first pass defers (atomic-save guard)
+  await sweepOwnedPresence() // confirm-gone-twice: first pass defers (atomic-save guard)
   t.ok(await getOwnEntry(ctx.spaceId, LOOSE_SHARE_ID, 'gone.txt'), 'first sweep defers')
-  await sweepLoosePresence() // second pass tombstones
+  await sweepOwnedPresence() // second pass tombstones
 
   t.absent(await getOwnEntry(ctx.spaceId, LOOSE_SHARE_ID, 'gone.txt'), 'source gone → entry tombstoned')
   t.absent(serveIndex.has(hash), 'serve-index claim dropped')

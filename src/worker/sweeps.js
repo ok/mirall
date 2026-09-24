@@ -3,9 +3,7 @@
 // path: the live signals (chokidar unlinks, invite expiry checks, the audit retention read) already
 // enforce the same thing, so a tick that fails or never runs only defers cleanup.
 import { Subsystem } from '../shared/core/subsystem.js'
-import { isInPlaceFilesEnabled } from '../shared/core/runtime-config.js'
 import { sweepBackends } from '../shared/transfer/content-backends.js'
-import { sweepLoosePresence } from '../shared/transfer/backends/overlay/loose-maintenance.js'
 import { listSpaces } from '../shared/spaces/space.js'
 import { createLocalBee } from '../shared/core/store.js'
 import { sweepExpiredInvites } from '../shared/spaces/profile.js'
@@ -55,10 +53,7 @@ export class Sweeps extends Subsystem {
     // Backstop for catalog-backed shares: tombstone catalog entries whose source vanished
     // (chokidar unlinks cover the live case; this catches missed events).
     this.timers.setInterval(() => {
-      // Overlay shares get a missed-unlink backstop via the backend fan-out (no-ops when overlay
-      // is off / there are no overlay shares).
-      sweepBackends().catch((err) => log.debug('overlay presence sweep failed:', err.message))
-      if (isInPlaceFilesEnabled()) sweepLoosePresence().catch((err) => log.debug('loose presence sweep failed:', err.message))
+      sweepBackends().catch((err) => log.debug('presence sweep failed:', err.message))
     }, PRESENCE_SWEEP_INTERVAL_MS)
 
     this.timers.setInterval(() => {

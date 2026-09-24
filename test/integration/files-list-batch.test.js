@@ -5,7 +5,6 @@ import b4a from 'b4a'
 import { freshPeer } from '../helpers/store.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { createBee } from '../../src/shared/core/store.js'
-import { getRuntimeConfig, setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import {
   initDownloads,
   markDownloaded,
@@ -25,7 +24,6 @@ import { LOOSE_SHARE_ID } from '../../src/shared/transfer/transfer-id.js'
 // instrumenting a bee. The space itself is real: the listing reads the local drive and own catalog.
 async function setup(t) {
   const ctx = await freshPeer(t)
-  setRuntimeConfig({ ...getRuntimeConfig(), inPlaceFilesEnabled: true })
   await initDownloads()
   await initPendingTransfers()
   const space = await createSpace('Aurora')

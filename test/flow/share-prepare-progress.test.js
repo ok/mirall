@@ -6,7 +6,7 @@ import { launchPeer, connectInSpace } from '../helpers/peer.js'
 import { mkTmpDir, patternedBytes, mkStoreDir } from '../helpers/fixtures.js'
 import { scaled } from '../helpers/timing.js'
 
-const FLAGS = { overlayEnabled: true, sharePrepareProgressEnabled: true }
+const FLAGS = { sharePrepareProgressEnabled: true }
 
 // While the owner is still hashing a freshly-added file (advertised with contentHash:null),
 // it broadcasts live indexing progress to connected members over the handshake channel. The
@@ -42,8 +42,8 @@ test('owner broadcasts indexing progress; receiver sees a preparing decoration w
 test('owner with the flag off never broadcasts prepare-progress',
   { timeout: scaled(150000) }, async (t) => {
     const bootstrap = await localTestnet(t)
-    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags: { overlayEnabled: true, sharePrepareProgressEnabled: false } })
-    const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags: { overlayEnabled: true, sharePrepareProgressEnabled: true } })
+    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags: { sharePrepareProgressEnabled: false } })
+    const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags: { sharePrepareProgressEnabled: true } })
     const spaceId = await connectInSpace(t, A, B)
     const aKey = (await A.request('profile:get')).personKey
 

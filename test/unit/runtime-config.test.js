@@ -130,11 +130,9 @@ test('resource caps coerce overrides, including the 0 / Infinity escape hatches'
 // The always-on defaults: each ships enabled and only an explicit `false` reverts it, so an
 // absent/partial bootstrap can never silently disable them. sharePrepareProgress drives the
 // receiver's "preparing NN%" decoration while an owner (re-)hashes a shared file.
-test('overlay, in-place files, the content plane and prepare-progress default ON; explicit false reverts', (t) => {
+test('the content plane and prepare-progress default ON; explicit false reverts', (t) => {
   setRuntimeConfig({})
   const on = getRuntimeConfig()
-  t.ok(on.overlayEnabled, 'overlay on by default')
-  t.ok(on.inPlaceFilesEnabled, 'in-place files on by default')
   t.ok(on.separateContentPlane, 'content plane on by default')
   t.ok(on.sharePrepareProgressEnabled, 'share-prepare progress on by default')
 
@@ -145,6 +143,16 @@ test('overlay, in-place files, the content plane and prepare-progress default ON
 
   setRuntimeConfig({ sharePrepareProgressEnabled: undefined })
   t.ok(getRuntimeConfig().sharePrepareProgressEnabled, 'an absent flag stays ON — only false disables')
+  setRuntimeConfig({})
+})
+
+// The content flags are gone: a bootstrap frame that still carries them (an older main process, a
+// stale test helper) is ignored, never turned into a switch.
+test('overlayEnabled and inPlaceFilesEnabled are not runtime-config keys', (t) => {
+  setRuntimeConfig({ overlayEnabled: false, inPlaceFilesEnabled: false })
+  const cfg = getRuntimeConfig()
+  t.absent('overlayEnabled' in cfg, 'unknown key dropped')
+  t.absent('inPlaceFilesEnabled' in cfg, 'unknown key dropped')
   setRuntimeConfig({})
 })
 

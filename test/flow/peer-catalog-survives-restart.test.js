@@ -8,7 +8,6 @@ import { mkTmpDir, mkStoreDir, patternedBytes } from '../helpers/fixtures.js'
 import { scaled } from '../helpers/timing.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
-const FLAGS = { overlayEnabled: true, inPlaceFilesEnabled: true }
 
 // The leftover sweep runs on EVERY boot now, and it deletes any core it cannot place in the wanted
 // set. A peer sharing only loose files publishes their catalog at loosecat*/<space> on their member
@@ -19,8 +18,8 @@ const FLAGS = { overlayEnabled: true, inPlaceFilesEnabled: true }
 test('a live peer’s loose catalog survives the boot sweep', { timeout: scaled(180000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const bStore = mkStoreDir(t)
-  const bFlags = { ...FLAGS, identityKEK: kekHex() } // stable across the relaunch
-  const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags: FLAGS })
+  const bFlags = { identityKEK: kekHex() } // stable across the relaunch
+  const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t) })
   let B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: bStore, downloads: mkTmpDir(t), flags: bFlags })
   const spaceId = await connectInSpace(t, A, B)
 

@@ -18,7 +18,7 @@ const native = () => created.filter((w) => !w.opts.usePolling)
 // REGRESSION (FIX-PI3-1: a loose file shared from a network volume — /Volumes on macOS, /mnt or
 // /media on Linux, a UNC path on Windows — got no watcher events at all, because the loose
 // watcher had no polling fallback. The user edited the file, the app never noticed, and the
-// stale version kept serving to every peer with no error and no badge. sweepLoosePresence was
+// stale version kept serving to every peer with no error and no badge. sweepOwnedPresence was
 // no backstop: it reclaims files that vanished, not files that merely changed.)
 test('REGRESSION (FIX-PI3-1): a loose file on a network path is polled, and still fans out', (t) => {
   // Pinned per case: /Volumes is darwin-only and /mnt is linux-only, so a test that inherits the

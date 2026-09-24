@@ -16,7 +16,7 @@ import { scaled } from '../helpers/timing.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
-const flags = () => ({ overlayEnabled: true, inPlaceFilesEnabled: true, identityKEK: kekHex(), convergenceTickMs: 3000 })
+const flags = () => ({ identityKEK: kekHex(), convergenceTickMs: 3000 })
 
 // Null where the mode bits do not bind this process (Windows, root): the probe write is the test.
 function makeReadOnly(dir) {

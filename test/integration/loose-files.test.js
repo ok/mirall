@@ -2,7 +2,6 @@ import test from 'brittle'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { freshPeer } from '../helpers/store.js'
-import { getRuntimeConfig, setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { advertise, getOwnEntry, ownCatalogKeyHex, dropOwnCatalog } from '../../src/shared/shares/own-catalog.js'
 import { getProfileBee } from '../../src/shared/spaces/profile.js'
@@ -12,16 +11,15 @@ import { initDownloads, markOwnedSource, getOwnedSourcePath } from '../../src/sh
 import { addFile, removeFile, listFiles } from '../../src/shared/transfer/file-listing.js'
 import { initPendingTransfers } from '../../src/shared/transfer/pending-transfers.js'
 import { MAX_LOOSE_FILES_PER_SPACE } from '../../src/shared/transfer/backends/overlay/loose-publish.js'
-import { sweepLoosePresence } from '../../src/shared/transfer/backends/overlay/loose-maintenance.js'
+import { sweepOwnedPresence } from '../../src/shared/transfer/backends/overlay/overlay-maintenance.js'
 import { LOOSE_SHARE_ID } from '../../src/shared/transfer/transfer-id.js'
 import { initLooseIpc } from '../helpers/overlay-ipc.js'
 
-// Exercise the files.js integration (addFile/listFiles/removeFile) with the
-// in-place flag ON — the production entry points the renderer drives. These are
+// Exercise the files.js integration (addFile/listFiles/removeFile) — the
+// production entry points the renderer drives. These are
 // the CI-runnable layer for routing the flow test covers end-to-end.
 async function setup(t) {
   const ctx = await freshPeer(t)
-  setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true, inPlaceFilesEnabled: true })
   await initDownloads()
   await initPendingTransfers()
   serveIndex.reset()
@@ -31,7 +29,6 @@ async function setup(t) {
   t.teardown(async () => {
     serveIndex.reset()
     await teardownOverlay()
-    setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: false, inPlaceFilesEnabled: false })
   })
   return { ...ctx, spaceId: space.spaceId }
 }
@@ -89,9 +86,9 @@ test('sweep tombstones a gone loose file but leaves a non-loose owned-source mar
   await addFile(ctx.spaceId, abs, 'loose.txt', 4, ctx.fake.ipc)
   fs.unlinkSync(abs)
 
-  await sweepLoosePresence() // confirm-gone-twice: first pass defers
+  await sweepOwnedPresence() // confirm-gone-twice: first pass defers
   t.ok(await getOwnEntry(ctx.spaceId, LOOSE_SHARE_ID, 'loose.txt'), 'first sweep defers (atomic-save guard)')
-  await sweepLoosePresence() // second pass tombstones
+  await sweepOwnedPresence() // second pass tombstones
   t.absent(await getOwnEntry(ctx.spaceId, LOOSE_SHARE_ID, 'loose.txt'), 'gone loose entry tombstoned')
   t.is(await getOwnedSourcePath(ctx.spaceId, '/eager.txt'), '/somewhere/eager.txt', 'eager owned-source untouched by the loose sweep')
 })

@@ -11,10 +11,10 @@ import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-s
 import { getOverlay, initOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
 import { initOverlayIpc } from '../helpers/overlay-ipc.js'
-import { rehydrateOwnedFiles } from '../../src/shared/transfer/backends/overlay/overlay-maintenance.js'
+import { rehydrateOwnedContent } from '../../src/shared/transfer/backends/overlay/overlay-maintenance.js'
 
 // init() backgrounds rehydrate (non-blocking boot, C9); drive it deterministically.
-const initAndRehydrate = async () => { await initOverlay(); await rehydrateOwnedFiles() }
+const initAndRehydrate = async () => { await initOverlay(); await rehydrateOwnedContent() }
 
 // R5: the facade serve maps (_contentHashPaths) are NOT persisted — after a
 // worker restart owned files stop being servable until re-registered. init()'s

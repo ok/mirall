@@ -95,14 +95,6 @@ export function isHandshakeIdentityBindingEnabled() {
   return config.handshakeIdentityBindingEnabled
 }
 
-export function isOverlayEnabled() {
-  return config.overlayEnabled
-}
-
-export function isInPlaceFilesEnabled() {
-  return config.inPlaceFilesEnabled
-}
-
 export function isSharePrepareProgressEnabled() {
   return config.sharePrepareProgressEnabled
 }

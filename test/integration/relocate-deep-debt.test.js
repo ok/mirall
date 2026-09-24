@@ -41,7 +41,7 @@ function peerDirs(t) {
   return {
     mountPath,
     masterSecret: crypto.randomBytes(32),
-    config: { storage, appVersion: '0.0.0-test', dev: true, verbose: false, downloadFolder: downloads, overlayEnabled: true },
+    config: { storage, appVersion: '0.0.0-test', dev: true, verbose: false, downloadFolder: downloads },
   }
 }
 

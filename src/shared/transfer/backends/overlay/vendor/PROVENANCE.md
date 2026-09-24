@@ -229,7 +229,7 @@ re-diffable against upstream. Categories:
     `test/integration/overlay-vendor-transfer.test.js`, `overlay-vendor-serve-chunkmap.test.js`,
     and `overlay-backend.test.js` (makeServable guard). (The folder publish path —
     `folders/publish-runner.js` driving `overlay-backend.js#publishContent` per file — and the
-    loose boot-rehydrate loop `loose-maintenance.js#rehydrateLooseFiles` are both Mirall code, not
+    boot-rehydrate loop `overlay-maintenance.js#rehydrateOwnedContent` are both Mirall code, not
     vendored, and handle the null return themselves.)
 
 15. **§4.14 — async + journaled resume (`transfer.js` + `chunk-scheduler.js` + `chunker.js`,

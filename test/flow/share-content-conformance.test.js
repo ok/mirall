@@ -13,14 +13,14 @@ import { scaled } from '../helpers/timing.js'
 // Two shares are used because mirroring makes every file local ('synced'), which
 // would mask 'unavailable': one share B downloads-from + mirrors, one B only
 // browses so an un-fetched file can go 'unavailable' when the owner drops.
-function runContract(label, { flags, contentMode }) {
+function runContract(label, { contentMode }) {
   const statusOf = (list, rel) => (Array.isArray(list?.entries) ? list.entries.find((e) => e.relPath === rel)?.status : undefined)
 
   test(`[${label}] status matrix: remote → downloaded → synced → unavailable`,
     { timeout: scaled(150000) }, async (t) => {
       const bootstrap = await localTestnet(t)
-      const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags })
-      const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags })
+      const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t) })
+      const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t) })
       const spaceId = await connectInSpace(t, A, B)
       const aKey = (await A.request('profile:get')).personKey
 
@@ -82,4 +82,4 @@ function runContract(label, { flags, contentMode }) {
     })
 }
 
-runContract('overlay', { flags: { overlayEnabled: true }, contentMode: 'overlay' })
+runContract('overlay', { contentMode: 'overlay' })

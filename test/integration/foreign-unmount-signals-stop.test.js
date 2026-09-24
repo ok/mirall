@@ -4,7 +4,6 @@ import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { publishShare, generateShareId } from '../../src/shared/shares/shares.js'
 import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
 import { createForeignMount, getForeignMount } from '../../src/shared/folders/mount-store.js'
-import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { ForeignMirrors } from '../../src/shared/folders/foreign-folders.js'
 import { setForeignEnabled, unmountForeignFolder } from '../../src/shared/folders/foreign-verbs.js'
 import { runMaterializeTick } from '../../src/shared/folders/mirror-pass.js'
@@ -26,7 +25,6 @@ const waitUntil = (pred, ms = 5000) => waitFor(pred, ms, { interval: 20 })
 
 async function setupOverlayMirror(t, { relPath = 'big.bin', contentHash = 'a'.repeat(64), size = 96 * 1024 * 1024 } = {}) {
   const ctx = await freshPeer(t)
-  setRuntimeConfig({ ...getRuntimeConfig(), overlayEnabled: true })
   await initOverlay()
   t.teardown(async () => { await teardownOverlay() })
 

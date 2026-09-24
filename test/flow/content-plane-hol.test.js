@@ -7,7 +7,7 @@ import { mkTmpDir, patternedBytes, mkStoreDir } from '../helpers/fixtures.js'
 import { scaled } from '../helpers/timing.js'
 import { LINKS } from '../helpers/impair.js'
 
-const FLAGS = (netImpair) => ({ overlayEnabled: true, separateContentPlane: true, ...(netImpair ? { netImpair } : {}) })
+const FLAGS = (netImpair) => ({ separateContentPlane: true, ...(netImpair ? { netImpair } : {}) })
 
 // Bulk content rides its own transport, so control-plane replication (a peer's newly shared
 // folder) is not blocked behind an in-flight download. Both peers run an impaired link so the

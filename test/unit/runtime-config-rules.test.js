@@ -138,7 +138,7 @@ test('re-ingesting a built config is a no-op', (t) => {
 
   setRuntimeConfig({
     storage: '/tmp/s', downloadFolder: '', listFilesCap: 0, relayMode: 'auto',
-    relay: { key: 'ab' }, publishOrder: 'random', overlayEnabled: false, downloadKBps: -3,
+    relay: { key: 'ab' }, publishOrder: 'random', downloadKBps: -3,
     peerFrameRefillMs: 0, dev: 1,
   })
   const once = getRuntimeConfig()

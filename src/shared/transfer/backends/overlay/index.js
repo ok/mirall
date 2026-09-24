@@ -5,7 +5,7 @@ import { collectOwnShare } from '../../../shares/own-catalog.js'
 import { peerCatalogVersion } from '../../../shares/peer-catalog.js'
 import { folderPublishAdd, folderPublishDelete } from './folder-publish.js'
 import { folderListPeerWithMeta, folderRequestDownload } from './folder-downloads.js'
-import { overlaySweepPresence } from './overlay-maintenance.js'
+import { sweepOwnedPresence } from './overlay-maintenance.js'
 
 export const overlayBackend = {
   mode: 'overlay',
@@ -22,5 +22,5 @@ export const overlayBackend = {
   // the test runner without printing an assertion — expensive to diagnose, trivial to avoid.
   catalogVersion: peerCatalogVersion,
   requestDownload: folderRequestDownload,
-  sweepPresence: overlaySweepPresence,
+  sweepPresence: sweepOwnedPresence,
 }

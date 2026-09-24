@@ -4,13 +4,12 @@
 // Nothing in the package imports this file — only the boot root does — so wiring the modules
 // together here adds no edge to the import graph test/integration/import-time guards.
 import { Subsystem } from '../../../core/subsystem.js'
-import { isOverlayEnabled, isInPlaceFilesEnabled } from '../../../core/runtime-config.js'
 import { createOverlayDownloadEngine } from './overlay-download.js'
 import { resetFetchSlots, drainFetchSlots } from './fetch-gate.js'
 import { registerFetchOwner, resetFetchClaims } from './fetch-gate.js'
 import { initOverlay, teardownOverlay, attachOverlay, revokeServesForSpace, bumpServeEpoch } from './overlay-instance.js'
 import { serveIndex } from './overlay-serve-index.js'
-import { rehydrateOwnedFiles, resetOverlayMaintenance } from './overlay-maintenance.js'
+import { rehydrateOwnedContent, resetOverlayMaintenance } from './overlay-maintenance.js'
 import { resetOverlayPublish } from './overlay-publish.js'
 import { initPublishProgress, resetPublishProgress } from './publish-progress.js'
 import { initFolderPublish, resetFolderPublish } from './folder-publish.js'
@@ -21,7 +20,6 @@ import { initLoosePublish, resetLoosePublish } from './loose-publish.js'
 import {
   initLooseDownloads, resetLooseDownloads, looseChannel, setLooseEngine, resumeLooseForOwner,
 } from './loose-downloads.js'
-import { rehydrateLooseFiles, resetLooseMaintenance } from './loose-maintenance.js'
 import { listSpaces } from '../../../spaces/space.js'
 import { listPendingOwnerKeys, listPendingOwnerSpaces } from '../../pending-transfers.js'
 
@@ -40,19 +38,14 @@ export class OverlayBackend extends Subsystem {
   async _open() {
     const { ipc } = this.deps
     initPublishProgress({ emit: (name, payload) => ipc.emit(name, payload), broadcast: this.deps.broadcastSharePrepare })
-    // The instance comes first: the rehydrate below reaches makeServable and enqueueLoosePublish,
-    // and both fall through on a null getOverlay() — so a rehydrate that runs ahead of it silently
-    // leaves a crash-interrupted entry unhashed and stuck on "Adding".
-    if (isOverlayEnabled()) {
-      initFolderPublish({ ipc })
-      initFolderDownloads({ ipc })
-      this.overlay = await initOverlay()
-    }
-    // The engines are built whatever the overlay flag says. They are inert without an instance
-    // (every entry point checks getOverlay()), and on the kill-switch build the alternative is an
-    // engine() that throws out of files:list, space:leave and the transfer handlers.
+    initFolderPublish({ ipc })
+    initFolderDownloads({ ipc })
     initLoosePublish({ ipc })
     initLooseDownloads({ ipc })
+    // The instance comes first: the rehydrate below reaches makeServable and the loose re-publish,
+    // and both fall through on a null getOverlay() — so a rehydrate that runs ahead of it silently
+    // leaves a crash-interrupted entry unhashed and stuck on "Adding".
+    this.overlay = await initOverlay()
     // The gate is a module singleton, so unlike the engines it does not die with the previous
     // lifetime: a slot whose release was lost would shrink the cap for every later open.
     resetFetchSlots()
@@ -66,12 +59,8 @@ export class OverlayBackend extends Subsystem {
     resetFetchClaims()
     registerFetchOwner('folder', (transferId) => this.folderEngine.has(transferId))
     registerFetchOwner('loose', (transferId) => this.looseEngine.has(transferId))
-    if (isInPlaceFilesEnabled()) {
-      rehydrateLooseFiles().catch((err) => this.log.debug('loose rehydrate failed:', err.message))
-    }
-    if (!isOverlayEnabled()) return
     // Backgrounded: re-registering every owned file walks and chunk-maps each one.
-    rehydrateOwnedFiles().catch((err) => this.log.debug('overlay rehydrate failed:', err.message))
+    rehydrateOwnedContent().catch((err) => this.log.debug('rehydrate failed:', err.message))
   }
 
   // Destroys the protocol — and only the protocol — while the sockets its frames travel on are
@@ -106,11 +95,9 @@ export class OverlayBackend extends Subsystem {
     resetPublishProgress()
     resetLoosePublish()
     resetLooseDownloads()
-    resetLooseMaintenance()
   }
 
   attach(mux, socket) {
-    if (!isOverlayEnabled()) return
     attachOverlay(mux, socket)
   }
 
@@ -120,10 +107,7 @@ export class OverlayBackend extends Subsystem {
   }
 
   resumeForOwner(ownerKey, spaceId) {
-    if (!isOverlayEnabled()) return
-    if (isInPlaceFilesEnabled()) {
-      resumeLooseForOwner(ownerKey, spaceId).catch((err) => this.log.debug('loose auto-resume failed:', err.message))
-    }
+    resumeLooseForOwner(ownerKey, spaceId).catch((err) => this.log.debug('loose auto-resume failed:', err.message))
     resumeFolderForOwner(ownerKey, spaceId).catch((err) => this.log.debug('overlay folder auto-resume failed:', err.message))
   }
 

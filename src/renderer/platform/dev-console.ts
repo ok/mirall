@@ -22,7 +22,6 @@ const COMMANDS: Cmd[] = [
   { command: 'audit(opts)', description: 'Recent audit-log rows. Pass e.g. {spaceId, limit} to narrow.' },
   { command: 'mounts()', description: 'All mounted drives.' },
   { command: 'profile()', description: 'This peer’s profile / identity.' },
-  { command: 'features()', description: 'Enabled feature flags.' },
   { command: 'metrics()', description: 'Per-request call counts, failures, in-flight and timing.' },
   { command: 'version()', description: 'App version (drive length / fork / semver).' },
   { command: 'update()', description: 'Trigger the OTA update lookup now (debounced).' },
@@ -83,7 +82,6 @@ const mirall: MirallDevConsole = {
   audit: (opts: Record<string, unknown> = {}) => diag('audit', 'audit:list', { limit: 20, ...opts }),
   mounts: () => diag('mounts', 'mounts:list-all'),
   profile: () => diag('profile', 'profile:get'),
-  features: () => diag('feature flags', 'features:get'),
   // Per-request call counts, failures, in-flight and timing — how many round-trips a UI action
   // really costs, measured on the running app rather than estimated.
   metrics: async () => {

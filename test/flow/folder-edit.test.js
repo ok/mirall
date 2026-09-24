@@ -6,15 +6,13 @@ import { launchPeer, connectInSpace } from '../helpers/peer.js'
 import { mkTmpDir, mkStoreDir } from '../helpers/fixtures.js'
 import { scaled } from '../helpers/timing.js'
 
-const FLAGS = { overlayEnabled: true }
-
 // The name lives on the owner's share record, so a rename is a write every member replicates. What
 // this proves is the part a single peer cannot: the member sees the new name, and nothing else about
 // the share moves with it — same id, same catalog, same files, no re-index.
 test('a rename reaches the member and moves nothing else', { timeout: scaled(240000) }, async (t) => {
   const bootstrap = await localTestnet(t)
-  const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags: FLAGS })
-  const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags: FLAGS })
+  const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t) })
+  const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t) })
   const spaceId = await connectInSpace(t, A, B)
   const aKey = (await A.request('profile:get')).personKey
 
@@ -53,7 +51,7 @@ test('a rename reaches the member and moves nothing else', { timeout: scaled(240
 
 test('the owner cannot rename a folder onto a name it already uses', { timeout: scaled(120000) }, async (t) => {
   const bootstrap = await localTestnet(t)
-  const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags: FLAGS })
+  const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t) })
   const space = await A.request('space:create', { name: 'Aurora' })
   await A.request('share:create', { spaceId: space.spaceId, name: 'Vault', contentMode: 'overlay' })
   const second = await A.request('share:create', { spaceId: space.spaceId, name: 'Photos', contentMode: 'overlay' })
@@ -71,8 +69,8 @@ test('the owner cannot rename a folder onto a name it already uses', { timeout: 
 // afterwards — the owner is still its source, and the record it publishes still says so.
 test('a member can move its mirror and it keeps syncing', { timeout: scaled(240000) }, async (t) => {
   const bootstrap = await localTestnet(t)
-  const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags: FLAGS })
-  const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags: FLAGS })
+  const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t) })
+  const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t) })
   const spaceId = await connectInSpace(t, A, B)
   const aKey = (await A.request('profile:get')).personKey
 

@@ -36,7 +36,7 @@ test('the pause survives a restart, and boot arms no cadence for it', async (t) 
   t.teardown(() => {
     for (const dir of [root, downloads]) { try { fs.rmSync(dir, { recursive: true, force: true }) } catch {} }
   })
-  const config = { storage, appVersion: '0.0.0-test', dev: true, verbose: false, downloadFolder: downloads, overlayEnabled: true }
+  const config = { storage, appVersion: '0.0.0-test', dev: true, verbose: false, downloadFolder: downloads }
   // Passed to BOTH boots: a space needs the master secret, and the cores are keyPair-derived from
   // it, so the restart only reopens the same store when it presents the same one.
   const masterSecret = crypto.randomBytes(32)
@@ -89,7 +89,7 @@ test('REGRESSION (A.4): a paused and faulted mount comes back showing the fault'
   t.teardown(() => {
     for (const dir of [root, downloads]) { try { fs.rmSync(dir, { recursive: true, force: true }) } catch {} }
   })
-  const config = { storage, appVersion: '0.0.0-test', dev: true, verbose: false, downloadFolder: downloads, overlayEnabled: true }
+  const config = { storage, appVersion: '0.0.0-test', dev: true, verbose: false, downloadFolder: downloads }
   const masterSecret = crypto.randomBytes(32)
 
   const first = await boot(config, { ipc: createFakeIpc().ipc, log: silentLog, swarm: false, masterSecret, memberRegistry: offlineMemberRegistry })

@@ -20,7 +20,7 @@ const log = createLogger('publish-service')
 
 // A channel is a pure function of the share id: the loose pseudo-share, else a folder share.
 const channels = {}
-const channelFor = (shareId) => channels[shareId === LOOSE_SHARE_ID ? 'loose' : 'folder']
+export const publishChannelFor = (shareId) => channels[shareId === LOOSE_SHARE_ID ? 'loose' : 'folder']
 
 export function registerPublishChannel(kind, channel) {
   channels[kind] = channel
@@ -63,14 +63,14 @@ let current = null
 export class PublishService extends Subsystem {
   async _open() {
     this.scheduler = createPublishScheduler({
-      execute: createPublishRunner({ channelFor, catalogFor, settleCatalog }),
+      execute: createPublishRunner({ channelFor: publishChannelFor, catalogFor, settleCatalog }),
       concurrency: getPublishConcurrency,
       order: getPublishOrder,
       log: this.log,
-      onProgress: (spaceId, shareId) => channelFor(shareId)?.onProgress?.(spaceId, shareId),
+      onProgress: (spaceId, shareId) => publishChannelFor(shareId)?.onProgress?.(spaceId, shareId),
       // The scheduler fires onSpaceIdle (the batch close) before this, so a channel's refresh can
       // wait for the closing flush and the renderer never re-lists ahead of the pass's last writes.
-      onShareDrained: (spaceId, shareId, tally) => channelFor(shareId)?.onDrained?.(spaceId, shareId, tally),
+      onShareDrained: (spaceId, shareId, tally) => publishChannelFor(shareId)?.onDrained?.(spaceId, shareId, tally),
       onSpaceIdle: (spaceId) => {
         closeBatch(spaceId)
         for (const ch of Object.values(channels)) ch.onSpaceIdle?.(spaceId)
@@ -157,12 +157,19 @@ export function mountRootAvailable(mountPath) {
 
 // channel: {
 //   direct?         — never writes through the space batch (so no batch is settled or opened)
-//   present?(abs)   — how "still on disk" is judged before a retire; exact readdir name by default
+//   present?(abs)   — how "still on disk" is judged, before a retire and by the presence sweep;
+//                     exact readdir name by default
 //   resolve(item)   → { absPath, ...channel-private } | { skip: outcome }
 //   publish(item, ctx, { catalog, signal, deep, beat }) → { changed, ... }
 //   retire(item, ctx, { catalog })
 //   onPublishFailed?(item, ctx, err), afterPublish?(item, ctx, result)
 //   onProgress?(spaceId, shareId), onDrained?(spaceId, shareId, tally), onSpaceIdle?(spaceId)
+//   — the maintenance surface the boot rehydrate and the presence sweep drive, per own share:
+//   contentRoot?({ spaceId, shareId })       → root | null, for a kind whose files live under one
+//                                              root (null: nothing to walk for this share now)
+//   presentAt({ root, spaceId, relPath })    → boolean | null (null: no source — not ours to reclaim)
+//   rehydrate({ root, spaceId, shareId, entry }) → void | { settled } (a lane settlement to await)
+//   retireGone({ spaceId, shareId, relPath }) → settles once the lane retire has, throws on failure
 // }
 export function createPublishRunner({ channelFor, catalogFor, settleCatalog }) {
   // `beat` is the item's heartbeat: the scheduler reports an item that is running and not

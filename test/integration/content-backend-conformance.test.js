@@ -1,6 +1,5 @@
 import test from 'brittle'
 import { getContentBackend, hasContentBackend, isUnsupportedShare, UNSUPPORTED } from '../../src/shared/transfer/content-backends.js'
-import { setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 
 // The content-backend seam contract. 'overlay' is the only backend and must
 // implement every operation; every other contentMode — absent, legacy
@@ -30,28 +29,18 @@ test('absent / legacy / unknown content modes are UNSUPPORTED', (t) => {
   }
 })
 
-test('overlay resolves to a backend when the flag is on (UNSUPPORTED when off)', (t) => {
-  t.teardown(() => setRuntimeConfig({ overlayEnabled: false }))
-
-  setRuntimeConfig({ overlayEnabled: false })
-  t.is(getContentBackend({ contentMode: 'overlay' }), UNSUPPORTED, 'flag off → unsupported, not eager, not deferred')
-  t.absent(hasContentBackend({ contentMode: 'overlay' }), 'hasContentBackend false when unsupported')
-  t.ok(isUnsupportedShare({ contentMode: 'overlay' }), 'isUnsupportedShare true (owner/consumer sites skip, never eager-route)')
-
-  setRuntimeConfig({ overlayEnabled: true })
+test('an overlay share resolves to the overlay backend, which implements the contract', (t) => {
   const backend = getContentBackend({ contentMode: 'overlay' })
-  t.not(backend, UNSUPPORTED, 'flag on → a real backend, not the sentinel')
+  t.not(backend, UNSUPPORTED, 'a real backend, not the sentinel')
   t.is(backend.mode, 'overlay')
   for (const method of CONTRACT) {
     t.is(typeof backend[method], 'function', `overlay backend implements ${method}()`)
   }
   t.ok(hasContentBackend({ contentMode: 'overlay' }), 'hasContentBackend true when usable')
-  t.absent(isUnsupportedShare({ contentMode: 'overlay' }), 'isUnsupportedShare false when the flag is on')
+  t.absent(isUnsupportedShare({ contentMode: 'overlay' }), 'isUnsupportedShare false')
 })
 
 test('optional backend members are optional, and absent ones are never called unguarded', (t) => {
-  setRuntimeConfig({ overlayEnabled: true })
-  t.teardown(() => setRuntimeConfig({ overlayEnabled: false }))
   const backend = getContentBackend({ contentMode: 'overlay' })
   for (const name of OPTIONAL) {
     t.is(typeof backend[name], 'function', `overlay implements the optional ${name}`)

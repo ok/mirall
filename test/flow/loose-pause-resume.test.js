@@ -16,7 +16,7 @@ import { scaled } from '../helpers/timing.js'
 // owner's profile bee).
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
-const v2flags = () => ({ overlayEnabled: true, inPlaceFilesEnabled: true, identityKEK: kekHex() })
+const v2flags = () => ({ identityKEK: kekHex() })
 
 test('loose download: pause mid-flight surfaces paused-interrupted; resume completes byte-exact',
   { timeout: scaled(180000) }, async (t) => {
