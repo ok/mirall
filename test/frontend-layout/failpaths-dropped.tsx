@@ -95,7 +95,7 @@ export const OFFLINE_STATUS: { [key: string]: Json } = {
   topics: 0,
   peerReach: { discovered: 0, connected: 0 },
   canary: { state: 'unavailable', at: null },
-  relay: { connections: [{ via: 'own', relayMode: 'auto', replaced: false }], direct: { control: 0, content: 0 } },
+  relay: { connections: [{ via: 'own', supplied: true, relayMode: 'auto', replaced: false }], direct: { control: 0, content: 0 } },
   reachability: { verdict: 'offline', cause: 'generic' },
   versions: { dht: '0' },
 }

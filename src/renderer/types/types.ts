@@ -133,6 +133,7 @@ export interface RelayedConnection {
   plane: RelayPlane
   displayName: string | null
   via: 'own' | 'adopted'
+  supplied: boolean
   relayKey: string
   relayMode: RelayMode
   replaced: boolean

@@ -48,7 +48,7 @@ export class Stub extends Emitter {
 // `adopted` flips which side offered the relay.
 export function socketOf({ relayKey = null, adopted = false } = {}) {
   const rawStream = Object.assign(new Emitter(), { remoteHost: RELAY_ENDPOINT.host, remotePort: RELAY_ENDPOINT.port })
-  const socket = Object.assign(new Emitter(), { remotePublicKey: PEER, rawStream })
+  const socket = Object.assign(new Emitter(), { remotePublicKey: PEER, rawStream, destroy() { this.emit('close') } })
   if (relayKey) {
     const client = Stub.from({ remotePublicKey: relayKey, rawStream: { remoteHost: RELAY_ENDPOINT.host, remotePort: RELAY_ENDPOINT.port } }, {})
     client.emit('pair', !adopted, b4a.alloc(4), rawStream, b4a.alloc(4))

@@ -31,9 +31,11 @@ export function initRelayInstall(deps) {
   })
 }
 
+// `live` is whether a relay function is installed, not whether the config names one: a slot with the
+// mode off, or a private relay whose identity never came up, names a key this node offers to no one.
 function ownRelay() {
   const { relay } = getRelayConfig()
-  return { key: enabledRelayKeys(relay)[0] ?? null, label: relay?.label || null }
+  return { key: enabledRelayKeys(relay)[0] ?? null, label: relay?.label || null, live: !!getSwarm()?.relayThrough }
 }
 
 const RELAY_PROBE_TIMEOUT_MS = 10000

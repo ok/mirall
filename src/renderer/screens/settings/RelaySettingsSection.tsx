@@ -19,10 +19,12 @@ import SectionHeading from '../../components/layout/SectionHeading.js'
 import ActionMenu from '../../components/primitives/ActionMenu.js'
 import DocsLink from '../../components/primitives/DocsLink.js'
 import AddRelayModal from '../../components/modals/AddRelayModal.js'
+import AdoptedRelayNote from '../../components/network/AdoptedRelayNote.js'
 import RelayApplyNotice from '../../components/network/RelayApplyNotice.js'
+import { useConnectionStatus } from '../../hooks/useConnectionStatus.js'
 import { useRelayApply, type RelayApplyResult } from '../../hooks/useRelayApply.js'
 import { useRunAction } from '../../hooks/useRunAction.js'
-import { relayKindClasses } from '../../model/relay-groups.js'
+import { peersRelayingWhileOff, relayKindClasses } from '../../model/relay-groups.js'
 
 // A private relay whose seed the running worker has not booted with must not be installed: the
 // node still presents its old key, so every dial through it is refused instead of falling back
@@ -53,6 +55,8 @@ export default function RelaySettingsSection() {
   const [confirm, setConfirm] = useState<'remove' | 'replace' | null>(null)
   const reconnectPending = useSyncExternalStore(subscribeRelaySession, isReconnectPending, isReconnectPending)
   const { notice, busy, arm, act } = useRelayApply(mode, reconnectPending)
+  const { status } = useConnectionStatus()
+  const relayedByPeers = peersRelayingWhileOff(mode, status?.relay ?? null)
 
   // A probe runs for up to ten seconds and outlives the screen: ScreenRouter unmounts this on
   // navigation, and a verdict resolving afterwards would commit this instance's stale slot.
@@ -195,6 +199,7 @@ export default function RelaySettingsSection() {
         ) : (
           <EmptyRelayRow onAdd={() => setAddOpen(true)} />
         )}
+        {relayedByPeers.length > 0 && <AdoptedRelayNote people={relayedByPeers} />}
       </div>
 
       <AddRelayModal

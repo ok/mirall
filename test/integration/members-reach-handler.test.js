@@ -25,7 +25,7 @@ function setup(t) {
   const fake = createFakeIpc()
   registerSpaces(fake.ipc, { log: console, publishDownloadRoots: () => {} })
   installRelayObserver({ Client: Stub })
-  initRelayedConnections({ ownRelay: () => ({ key: OWN, label: null }), onChange: () => {} })
+  initRelayedConnections({ ownRelay: () => ({ key: OWN, label: null, live: true }), onChange: () => {} })
   t.teardown(() => { resetRegistries(); resetRelayedConnections(); resetRelayObserver() })
   return fake
 }

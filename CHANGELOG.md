@@ -24,6 +24,11 @@ until you restarted Mirall. They now switch to a direct connection where one
 works, after any transfer in progress finishes.
 - **Replacing your relay moves existing connections to the new one.**
 Connections made through the old relay kept using it, with no notice.
+- **With your relay turned off, another member's relay is no longer shown as
+yours.** Network Status and the Activity Log called it "your relay", and
+every change to your relay settings reconnected it, only for it to come
+straight back. Relay settings now name the members whose own relay still
+connects you, since turning yours off does not end theirs.
 - **Notices that wait for you no longer disappear when others arrive.** A
 notice that stays until you act on it — someone asking to join your space,
 a declined request, being offline, or a missing download folder — could be

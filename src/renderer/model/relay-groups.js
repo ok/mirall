@@ -43,6 +43,28 @@ export function relayState(relayMode, relay) {
   return relayMode === 'off' ? 'off' : 'none'
 }
 
+// The members whose own relay carries a connection to us while ours is off, one entry per person
+// whichever relay key each socket paired on. Nothing local can end those — hyperdht relays when either
+// side offers one — so the settings section names them instead.
+/** @param {'off' | 'auto' | 'always'} relayMode @param {RelayStatus | null} relay @returns {RelayPerson[]} */
+export function peersRelayingWhileOff(relayMode, relay) {
+  if (relayMode !== 'off' || !relay) return []
+  /** @type {Map<PersonKey | NoiseKey, RelayPerson>} */
+  const byPerson = new Map()
+  for (const c of relay.connections) {
+    if (c.via !== 'adopted') continue
+    const foldKey = foldKeyOf(c)
+    const person = byPerson.get(foldKey)
+    if (person) {
+      if (!person.planes.includes(c.plane)) person.planes.push(c.plane)
+      person.since = Math.min(person.since, c.since)
+    } else {
+      byPerson.set(foldKey, { foldKey, noiseKey: c.noiseKey, displayName: c.displayName, since: c.since, planes: [c.plane] })
+    }
+  }
+  return [...byPerson.values()]
+}
+
 // What one row folds by: the person, once the handshake has bound one to the socket. A socket seen
 // before that has no person yet, so it folds under its own Noise key — one row per socket until the
 // identity arrives, rather than a row that claims to be nobody. Hence not a PersonKey.

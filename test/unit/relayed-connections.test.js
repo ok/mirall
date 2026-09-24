@@ -13,7 +13,7 @@ import {
 } from '../../src/shared/network/relayed-connections.js'
 import { OWN, OTHER, PEER, Stub, socketOf } from '../helpers/relayed-socket.js'
 
-function harness(t, { own = { key: OWN, label: 'Hetzner box' }, member = null, mode = 'always' } = {}) {
+function harness(t, { own = { key: OWN, label: 'Hetzner box', live: true }, member = null, mode = 'always' } = {}) {
   const calls = { change: 0, relayed: [], unrelayed: [] }
   const state = { own, member, mode }
   installRelayObserver({ Client: Stub })
@@ -69,21 +69,56 @@ test("a relayed socket through the configured key is 'own' and carries the confi
   t.is(calls.change, 1)
 })
 
-test("a relayed socket through another key is 'adopted' even when this side initiated the pairing", (t) => {
+test("a relayed socket through another key the peer supplied is 'adopted'", (t) => {
   const { track } = harness(t)
-  const socket = socketOf({ relayKey: OTHER, adopted: false })
+  const socket = socketOf({ relayKey: OTHER, adopted: true })
   track(socket)
   t.is(snapshotRelayedConnections().connections[0].via, 'adopted')
   t.is(describeConnection(socket).relayLabel, null)
 })
 
-test("our own key handed back by the peer is still 'own'", (t) => {
+test("a pairing this side supplied through a key the slot no longer names is 'own' and replaced", (t) => {
+  const { track } = harness(t)
+  const socket = socketOf({ relayKey: OTHER, adopted: false })
+  track(socket)
+  const [c] = snapshotRelayedConnections().connections
+  t.is(c.via, 'own')
+  t.is(c.supplied, true)
+  t.is(c.replaced, true)
+  t.is(describeConnection(socket).relayLabel, null, "the slot's label names a different relay")
+})
+
+test("our own key handed back by the peer is still 'own' while we are live on it", (t) => {
   const { track } = harness(t)
   track(socketOf({ relayKey: OWN, adopted: true }))
   t.is(snapshotRelayedConnections().connections[0].via, 'own')
-  t.is(relayVia(OWN, OWN), 'own')
-  t.is(relayVia(OTHER, OWN), 'adopted')
-  t.is(relayVia(OTHER, null), 'adopted')
+  t.is(snapshotRelayedConnections().connections[0].supplied, false, 'the peer supplied it all the same')
+  t.is(relayVia({ relayKey: OWN, adopted: true }, { key: OWN, live: true }), 'own')
+  t.is(relayVia({ relayKey: OWN, adopted: true }, { key: OWN, live: false }), 'adopted')
+  t.is(relayVia({ relayKey: OTHER, adopted: false }, { key: OWN, live: true }), 'own')
+  t.is(relayVia({ relayKey: OTHER, adopted: true }, { key: OWN, live: true }), 'adopted')
+  t.is(relayVia({ relayKey: OTHER, adopted: true }, { key: null, live: false }), 'adopted')
+})
+
+// REGRESSION (FIX-490: with the mode off, a peer relaying us through the relay in our own slot was
+// recorded as 'own', so Network Status said "your relay" and relayMismatch('off') asked for a
+// reconnect the peer's relay rebuilt every time.)
+test("REGRESSION (FIX-490: a peer-supplied pairing through our slot's key is 'adopted' while we are not live)", (t) => {
+  const { track } = harness(t, { own: { key: OWN, label: 'Hetzner box', live: false }, mode: 'off' })
+  const socket = socketOf({ relayKey: OWN, adopted: true })
+  track(socket)
+  const [c] = snapshotRelayedConnections().connections
+  t.is(c.via, 'adopted')
+  t.is(c.replaced, false)
+  t.is(describeConnection(socket).relayLabel, null)
+})
+
+test("a pairing this side supplied is 'own' even with the mode already off", (t) => {
+  const { track } = harness(t, { own: { key: OWN, label: 'Hetzner box', live: false }, mode: 'off' })
+  track(socketOf({ relayKey: OWN, adopted: false }))
+  const [c] = snapshotRelayedConnections().connections
+  t.is(c.via, 'own')
+  t.is(c.relayMode, 'off')
 })
 
 test('an empty configured label reads as no label', (t) => {
@@ -97,11 +132,14 @@ test('the provenance is fixed at pairing time and survives a relay config change
   const { state, track } = harness(t)
   const socket = socketOf({ relayKey: OWN })
   track(socket)
-  state.own = { key: OTHER, label: 'New relay' }
+  state.own = { key: OTHER, label: 'New relay', live: true }
   t.is(snapshotRelayedConnections().connections[0].via, 'own')
   t.is(describeConnection(socket).relayLabel, 'Hetzner box')
-  state.own = { key: null, label: null }
+  state.own = { key: null, label: null, live: false }
   t.is(snapshotRelayedConnections().connections[0].via, 'own')
+  state.own = { key: OWN, label: 'Hetzner box', live: false }
+  t.is(snapshotRelayedConnections().connections[0].via, 'own', 'going off does not relabel it')
+  t.is(snapshotRelayedConnections().connections[0].replaced, false)
 })
 
 test("'remote-changed' to a different endpoint drops the entry and counts the peer as direct", (t) => {
@@ -200,19 +238,19 @@ test('replaced is read against the configured key at snapshot time', (t) => {
   const { state, track } = harness(t)
   track(socketOf({ relayKey: OWN }))
   t.is(snapshotRelayedConnections().connections[0].replaced, false)
-  state.own = { key: OTHER, label: 'New relay' }
+  state.own = { key: OTHER, label: 'New relay', live: true }
   t.is(snapshotRelayedConnections().connections[0].replaced, true)
   t.is(snapshotRelayedConnections().connections[0].via, 'own', 'the provenance does not move')
-  state.own = { key: null, label: null }
+  state.own = { key: null, label: null, live: false }
   t.is(snapshotRelayedConnections().connections[0].replaced, true, 'no slot at all is replaced too')
-  state.own = { key: OWN, label: 'Hetzner box' }
+  state.own = { key: OWN, label: 'Hetzner box', live: true }
   t.is(snapshotRelayedConnections().connections[0].replaced, false, 'swapping back clears it')
 })
 
 test('an adopted connection is never replaced', (t) => {
   const { state, track } = harness(t)
-  track(socketOf({ relayKey: OTHER }))
-  state.own = { key: b4a.alloc(32, 3), label: null }
+  track(socketOf({ relayKey: OTHER, adopted: true }))
+  state.own = { key: b4a.alloc(32, 3), label: null, live: true }
   t.is(snapshotRelayedConnections().connections[0].replaced, false)
 })
 
@@ -220,14 +258,14 @@ test('the digest changes when a slot swap flips replaced', (t) => {
   const { state, track } = harness(t)
   track(socketOf({ relayKey: OWN }))
   const before = snapshotRelayedConnections().digest
-  state.own = { key: OTHER, label: null }
+  state.own = { key: OTHER, label: null, live: true }
   t.not(snapshotRelayedConnections().digest, before)
 })
 
 test('reset restores the default mode accessor', (t) => {
   const { track } = harness(t, { mode: 'always' })
   resetRelayedConnections()
-  initRelayedConnections({ ownRelay: () => ({ key: OWN, label: null }), onChange: () => {} })
+  initRelayedConnections({ ownRelay: () => ({ key: OWN, label: null, live: true }), onChange: () => {} })
   track(socketOf({ relayKey: OWN }))
   t.is(snapshotRelayedConnections().connections[0].relayMode, 'off', 'an init without the accessor reads off')
 })

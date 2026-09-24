@@ -883,6 +883,16 @@ pairing time (`via`, `relayMode` in `relayed-connections.js`) and let the pure r
 flag then clears itself as the old connections close, and connections rebuilt afterwards carry the
 new mode, so the notice cannot keep nagging after the reconnect.
 
+**Relay provenance by key equality lies whenever both sides configured the same relay (#490).** With
+our mode `off`, a peer relaying us through the relay still sitting in our slot was recorded as `own`:
+Network Status said "your relay", and `relayMismatch('off')` reconnected a path the peer's relay
+rebuilt every time. The fact is the blind-relay pairing's `isInitiator` — hyperdht pairs as initiator
+exactly when the key came from this side's own `relayThrough` — and a matching key counts only while
+a relay function is actually installed on the swarm. The config is not that fact: a slot survives
+`off`, and a private relay whose identity never came up is configured but installs nothing. Keep the
+label and the reconnect decision apart: a same-key relay the peer supplied may read as "your relay",
+but only a connection this side supplied (`supplied`) is one a reconnect can move.
+
 **A two-peer loopback flow never reaches "relayed, then punched through".** The relay-release plan
 assumed that because the punch wins on loopback, a flow test with `relayMode: 'always'` would show a
 relayed connection upgrading and leaving its pairing behind. It does not: on loopback the punch
