@@ -1,10 +1,12 @@
 import test from 'brittle'
 import b4a from 'b4a'
 import idEncoding from 'hypercore-id-encoding'
-import EventEmitter from 'bare-events'
 import { bootSwarms } from '../helpers/swarms.js'
+import { Stub, socketOf } from '../helpers/relayed-socket.js'
 import { createFakeIpc } from '../helpers/fake-ipc.js'
 import { registerNetwork } from '../../src/worker/ipc/network.js'
+import { getRelayConfig } from '../../src/shared/core/runtime-config.js'
+import { setRelayThrough } from '../../src/shared/network/relay-install.js'
 import { trackConnection, resetRelayedConnections, snapshotRelayedConnections } from '../../src/shared/network/relayed-connections.js'
 import { installRelayObserver, resetRelayObserver } from '../../src/shared/network/relay-observe.js'
 import { socketMsgHandlers } from '../../src/shared/network/swarm-registries.js'
@@ -18,24 +20,6 @@ const SLOT = { publicKey: KEY_A, kind: 'open', enabled: true }
 const SLOT_B = { publicKey: idEncoding.encode(b4a.alloc(32, 12)), kind: 'open', enabled: true }
 const HASH = 'h'.repeat(64)
 const PEER = 'p'.repeat(64)
-const RELAY_ENDPOINT = { host: '203.0.113.9', port: 49737 }
-
-class Stub extends EventEmitter { static from() { return new Stub() } }
-
-// A socket with no relay pairing behind it: the direct count is what `always` contradicts.
-function directSocket() {
-  const rawStream = Object.assign(new EventEmitter(), { remoteHost: '198.51.100.7', remotePort: 4001 })
-  return Object.assign(new EventEmitter(), { remotePublicKey: b4a.alloc(32, 9), rawStream, destroy() { this.emit('close') } })
-}
-
-// A socket paired through `relayKey`, the way hyperdht reports it: blind-relay's client emits 'pair'
-// with the peer raw stream, and the observer records the relay behind it.
-function relayedSocket(relayKey) {
-  const rawStream = Object.assign(new EventEmitter(), { remoteHost: RELAY_ENDPOINT.host, remotePort: RELAY_ENDPOINT.port })
-  const client = Stub.from({ remotePublicKey: relayKey, rawStream: { remoteHost: RELAY_ENDPOINT.host, remotePort: RELAY_ENDPOINT.port } }, {})
-  client.emit('pair', true, b4a.alloc(32), rawStream, 1)
-  return Object.assign(new EventEmitter(), { remotePublicKey: b4a.alloc(32, 8), rawStream, destroy() { this.emit('close') } })
-}
 
 async function setup(t, { relayMode = 'always', socket: kind = 'direct' } = {}) {
   const { ipcEvents } = await bootSwarms(t, { relayMode, relay: SLOT })
@@ -46,7 +30,7 @@ async function setup(t, { relayMode = 'always', socket: kind = 'direct' } = {}) 
     installRelayObserver({ Client: Stub })
     t.teardown(resetRelayObserver)
   }
-  const socket = kind === 'relayed' ? relayedSocket(idEncoding.decode(KEY_A)) : directSocket()
+  const socket = kind === 'relayed' ? socketOf({ relayKey: idEncoding.decode(KEY_A) }) : socketOf()
   trackConnection(socket, { plane: 'control', memberOf: () => null })
   socketMsgHandlers.set(socket, {})
   // The real control socket unregisters itself on close (peer-connection.js); the fake has to do the
@@ -114,7 +98,7 @@ test('a throttled reconnect reports reconnected:false', async (t) => {
   await reconnectAll()
   // What a re-dial leaves behind on a network that punches: direct again, and the setting still
   // unapplied. The throttle is what stops the next change from fixing it on its own.
-  trackConnection(directSocket(), { plane: 'control', memberOf: () => null })
+  trackConnection(socketOf(), { plane: 'control', memberOf: () => null })
 
   const reply = await fake.call('network:set-relay', { mode: 'always', relay: SLOT })
 
@@ -200,4 +184,52 @@ test('re-saving the same relay is not a swap', async (t) => {
 
   t.is(reply.mismatch, null)
   t.is(reply.reconnected, false)
+})
+
+// REGRESSION (FIX-490: with the mode off, a peer relaying us through the relay in our own slot was
+// counted as ours, so every settings write reconnected a connection the peer's relay rebuilt.)
+test('REGRESSION (FIX-490: set-relay off leaves a peer-supplied relay on our key alone)', async (t) => {
+  await bootSwarms(t, { relayMode: 'auto', relay: SLOT })
+  const fake = createFakeIpc()
+  registerNetwork(fake.ipc, { applyRelayConfig: () => setRelayThrough(getRelayConfig().relay, getRelayConfig().mode) })
+  resetRelayObserver()
+  installRelayObserver({ Client: Stub })
+  t.teardown(() => { socketMsgHandlers.clear(); resetRelayedConnections(); resetRelayObserver() })
+
+  await fake.call('network:set-relay', { mode: 'off', relay: SLOT })
+  const socket = socketOf({ relayKey: idEncoding.decode(KEY_A), adopted: true })
+  trackConnection(socket, { plane: 'control', memberOf: () => null })
+  socketMsgHandlers.set(socket, {})
+  socket.once('close', () => socketMsgHandlers.delete(socket))
+
+  const reply = await fake.call('network:set-relay', { mode: 'off', relay: SLOT })
+
+  t.is(snapshotRelayedConnections().connections[0].via, 'adopted', 'the peer chose it; we offered nothing')
+  t.is(reply.mismatch, null)
+  t.is(reply.reconnected, false)
+  t.is(socketMsgHandlers.size, 1, 'no reconnect was spent on a path nothing local can move')
+})
+
+// A peer that names our own relay key while we are live on it is labelled ours, but it supplied the
+// relay: turning ours off must not spend a reconnect the peer rebuilds on the redial.
+test('set-relay off leaves a same-key relay the peer supplied while we were live alone', async (t) => {
+  await bootSwarms(t, { relayMode: 'auto', relay: SLOT })
+  const fake = createFakeIpc()
+  registerNetwork(fake.ipc, { applyRelayConfig: () => setRelayThrough(getRelayConfig().relay, getRelayConfig().mode) })
+  resetRelayObserver()
+  installRelayObserver({ Client: Stub })
+  t.teardown(() => { socketMsgHandlers.clear(); resetRelayedConnections(); resetRelayObserver() })
+
+  await fake.call('network:set-relay', { mode: 'auto', relay: SLOT })
+  const socket = socketOf({ relayKey: idEncoding.decode(KEY_A), adopted: true })
+  trackConnection(socket, { plane: 'control', memberOf: () => null })
+  socketMsgHandlers.set(socket, {})
+  socket.once('close', () => socketMsgHandlers.delete(socket))
+  t.is(snapshotRelayedConnections().connections[0].via, 'own', 'precondition: labelled ours')
+
+  const reply = await fake.call('network:set-relay', { mode: 'off', relay: SLOT })
+
+  t.is(reply.mismatch, null)
+  t.is(reply.reconnected, false)
+  t.is(socketMsgHandlers.size, 1)
 })

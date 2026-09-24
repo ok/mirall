@@ -3,8 +3,10 @@ import { relayMismatch } from '../../src/shared/contract/relay-apply.js'
 import { relayApplyNotice } from '../../src/renderer/model/relay-apply.js'
 
 const facts = (over = {}) => ({ connections: [], direct: { control: 0, content: 0 }, ...over })
-const own = (relayMode = 'always', replaced = false) => ({ via: 'own', relayMode, replaced })
-const adopted = (relayMode = 'always') => ({ via: 'adopted', relayMode, replaced: false })
+const own = (relayMode = 'always', replaced = false) => ({ via: 'own', supplied: true, relayMode, replaced })
+const adopted = (relayMode = 'always') => ({ via: 'adopted', supplied: false, relayMode, replaced: false })
+// Our key, named by the peer while we were live on it: labelled ours, but the peer's to keep.
+const handedBack = (relayMode = 'always', replaced = false) => ({ via: 'own', supplied: false, relayMode, replaced })
 
 test('off with a connection still on OUR relay is a mismatch', (t) => {
   t.is(relayMismatch('off', facts({ connections: [own()] })), 'stale-relayed')
@@ -16,6 +18,21 @@ test('off with a connection still on OUR relay is a mismatch', (t) => {
 test('off with only an ADOPTED relay is not', (t) => {
   t.is(relayMismatch('off', facts({ connections: [adopted()] })), null)
   t.is(relayMismatch('off', facts({ connections: [adopted(), own()] })), 'stale-relayed')
+})
+
+// REGRESSION (FIX-490: a peer relaying us through the relay in our own slot arrived here as 'own' and
+// asked for a reconnect it rebuilt.) Provenance is decided upstream; this pins what the contract does.
+test('REGRESSION (FIX-490: off with only peer-supplied relays is not a mismatch, whatever mode they paired under)', (t) => {
+  t.is(relayMismatch('off', facts({ connections: [adopted('off'), adopted('auto')] })), null)
+})
+
+// A reconnect cannot move a connection the peer supplied the relay for, even through our own key: the
+// peer names the same relay again on the redial.
+test('a relay the peer supplied through our own key is never a mismatch', (t) => {
+  t.is(relayMismatch('off', facts({ connections: [handedBack('auto')] })), null)
+  t.is(relayMismatch('auto', facts({ connections: [handedBack('always')] })), null)
+  t.is(relayMismatch('auto', facts({ connections: [handedBack('auto', true)] })), null)
+  t.is(relayMismatch('off', facts({ connections: [handedBack('auto'), own('auto')] })), 'stale-relayed')
 })
 
 test('always with any live direct connection is a mismatch', (t) => {
@@ -49,7 +66,7 @@ test('auto never flags an ADOPTED relay, whatever mode it paired under', (t) => 
   t.is(relayMismatch('auto', facts({ connections: [adopted('always'), own('auto')] })), null)
 })
 
-// `off` can be the stamp too: a peer handing our own key back relays through us with the mode off.
+// `off` can be the stamp too: a dial that chose our relay just before the mode went off pairs after it.
 test('auto does not flag a connection stamped off', (t) => {
   t.is(relayMismatch('auto', facts({ connections: [own('off')] })), null)
 })

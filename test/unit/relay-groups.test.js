@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { relayGroups, relayState, peopleLabel, relayKindClasses, relayedPeopleCount, MAX_NAMES_SHOWN } from '../../src/renderer/model/relay-groups.js'
+import { relayGroups, relayState, peopleLabel, relayKindClasses, relayedPeopleCount, peersRelayingWhileOff, MAX_NAMES_SHOWN } from '../../src/renderer/model/relay-groups.js'
 
 const R1 = 'r1'.repeat(26)
 const R2 = 'r2'.repeat(26)
@@ -98,4 +98,31 @@ test('a bound socket folds by its person while still naming its socket', (t2) =>
   const [group] = relayGroups([conn({ noiseKey: 'a2'.repeat(32), personKey: 'b1'.repeat(32) })])
   t2.is(group.people[0].foldKey, 'b1'.repeat(32))
   t2.is(group.people[0].noiseKey, 'a2'.repeat(32))
+})
+
+test('peersRelayingWhileOff names each member whose own relay carries us, once, and only while off', (t2) => {
+  const status = { connections: [
+    conn({ noiseKey: 'bb'.repeat(32), personKey: 'b1'.repeat(32), displayName: 'Bob', via: 'adopted', relayKey: R2 }),
+    conn({ noiseKey: 'bc'.repeat(32), personKey: 'b1'.repeat(32), displayName: 'Bob', via: 'adopted', relayKey: R2, plane: 'content' }),
+    conn({ noiseKey: 'cc'.repeat(32), personKey: 'c1'.repeat(32), displayName: 'Carla', via: 'adopted', relayKey: R2 }),
+    conn({ noiseKey: 'aa'.repeat(32), displayName: 'Anna' }),
+  ], direct: { control: 0, content: 0 }, seen: 4, digest: 'd' }
+  const people = peersRelayingWhileOff('off', status)
+  t2.alike(people.map((p) => p.displayName), ['Bob', 'Carla'])
+  t2.alike(people[0].planes, ['control', 'content'], 'both planes fold into one person')
+  t2.alike(peersRelayingWhileOff('auto', status), [], 'an adopted relay under auto is the feature working')
+  t2.alike(peersRelayingWhileOff('always', status), [])
+  t2.alike(peersRelayingWhileOff('off', null), [])
+  t2.alike(peersRelayingWhileOff('off', { ...status, connections: [conn({})] }), [], 'our own relay is not named')
+})
+
+test('peersRelayingWhileOff names a member once when their sockets paired on different relay keys', (t2) => {
+  const status = { connections: [
+    conn({ noiseKey: 'bb'.repeat(32), personKey: 'b1'.repeat(32), displayName: 'Bob', via: 'adopted', relayKey: R1, since: 20 }),
+    conn({ noiseKey: 'bc'.repeat(32), personKey: 'b1'.repeat(32), displayName: 'Bob', via: 'adopted', relayKey: R2, plane: 'content', since: 5 }),
+  ], direct: { control: 0, content: 0 }, seen: 2, digest: 'd' }
+  const people = peersRelayingWhileOff('off', status)
+  t2.is(people.length, 1)
+  t2.alike(people[0].planes, ['control', 'content'])
+  t2.is(people[0].since, 5)
 })

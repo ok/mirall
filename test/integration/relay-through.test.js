@@ -11,6 +11,9 @@ import { setRelayThrough, testRelayReachable } from '../../src/shared/network/re
 import { ContentSwarm, getContentSwarm } from '../../src/shared/network/content-swarm.js'
 import { createFakeIpc } from '../helpers/fake-ipc.js'
 import { stubOverlayBackend } from '../helpers/overlay-stub.js'
+import { Stub, socketOf } from '../helpers/relayed-socket.js'
+import { installRelayObserver, resetRelayObserver } from '../../src/shared/network/relay-observe.js'
+import { trackConnection, describeConnection, resetRelayedConnections } from '../../src/shared/network/relayed-connections.js'
 
 // The relay tests exercise the swarm, not the overlay; the backend is a dep so it is stubbed.
 
@@ -83,6 +86,42 @@ test('mode off and empty key lists install no relay function', async (t) => {
 
   setRelayThrough({ publicKey: KEY_A, enabled: false }, 'always')
   t.is(getContentSwarm().relayThrough, null, 'a disabled relay is not a relay')
+})
+
+function observeRelays(t) {
+  resetRelayObserver()
+  installRelayObserver({ Client: Stub })
+  t.teardown(() => { resetRelayedConnections(); resetRelayObserver() })
+}
+
+function trackPeerSupplied(key) {
+  const socket = socketOf({ relayKey: idEncoding.decode(key), adopted: true })
+  trackConnection(socket, { plane: 'control', memberOf: () => null })
+  return socket
+}
+
+test('provenance follows what is installed, not what the slot names', async (t) => {
+  const slot = { publicKey: KEY_A, kind: 'open', enabled: true }
+  await bootSwarms(t, { relayMode: 'auto', relay: slot })
+  observeRelays(t)
+
+  setRelayThrough(slot, 'off')
+  const whileOff = trackPeerSupplied(KEY_A)
+  t.is(describeConnection(whileOff).via, 'adopted', 'the peer chose it; we offered nothing')
+
+  setRelayThrough(slot, 'auto')
+  const whileLive = trackPeerSupplied(KEY_A)
+  t.is(describeConnection(whileLive).via, 'own', 'the same key handed back while we are live on it')
+  t.is(describeConnection(whileOff).via, 'adopted', 'decided at pairing, never relabelled')
+})
+
+test('a private relay whose identity never came up is not ours to claim', async (t) => {
+  const slot = { publicKey: KEY_B, kind: 'private', enabled: true }
+  await bootSwarms(t, { relayMode: 'auto', relay: slot })
+  observeRelays(t)
+
+  t.is(setRelayThrough(slot, 'auto').reason, 'identity-missing')
+  t.is(describeConnection(trackPeerSupplied(KEY_B)).via, 'adopted')
 })
 
 // The relay used to be gated on a boot-frame flag as well as the mode. The flag is gone, so a
