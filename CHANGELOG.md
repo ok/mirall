@@ -11,7 +11,7 @@ changes do not appear here.
 
 ## v1.11.1
 
-### Unreleased
+### 2026-09-24
 
 Finishes the relay work from 1.11, makes the file list honest about files
 you have edited, and fixes a broad batch of silent failures.
