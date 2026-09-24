@@ -24,8 +24,6 @@ until you restarted Mirall. They now switch to a direct connection where one
 works, after any transfer in progress finishes.
 - **Replacing your relay moves existing connections to the new one.**
 Connections made through the old relay kept using it, with no notice.
-- **Changing your relay several times in a row no longer stops Mirall from
-working.** It could stop responding until you quit and reopened it.
 - **Notices that wait for you no longer disappear when others arrive.** A
 notice that stays until you act on it — someone asking to join your space,
 a declined request, being offline, or a missing download folder — could be
@@ -41,9 +39,9 @@ An edit that didn't change the file's size still showed as synced, with a
 files now say so, and explain that the shared version will be restored and
 your edit kept as a conflicted copy.
 - **An edit inside a mirrored folder is undone promptly.** Mirall promises
-to restore the owner's version, but it could take up to five minutes — or
-only happen once you opened the folder. It now notices within seconds. A
-file you delete from a mirror comes back the same way.
+to restore the owner's version, but it could take up to five minutes. It
+now notices within seconds. A file you delete from a mirror comes back the
+same way.
 - **A mirror you pause stays paused.** Pausing one while it was still
 scanning could leave it running but showing "Active", and it could start
 itself again later. Moving a mirror's folder while it was working could
@@ -70,18 +68,16 @@ space with a few offline members could leave you waiting. They are now
 checked at once.
 - **The Activity Log stops losing entries.** Someone joining, "downloaded
 from you", a withdrawn approval and a join request could all go missing if
-Mirall couldn't write the entry on the first try — including a second join
-request from someone whose first was denied. Entries are now retried, and
-entries still being written when you quit are finished first.
-- **Mirall no longer reloads its window when its background engine
-restarts.** Applying a new relay, or recovering from a background crash,
-took you back to the start and discarded anything you had typed but not
-saved. The screen you were on now stays put while the engine comes back.
+Mirall couldn't write the entry on the first try. Entries are now retried,
+and entries still being written when you quit are finished first.
+- **Starting to use a relay from an invite no longer reloads the window.**
+Pressing Reconnect now after adding or replacing a relay with an invite
+reloaded the whole of Mirall's window. It now reconnects while you stay
+where you are.
 - **Settings no longer show a change that wasn't saved.** The theme,
 language, zoom, tray, login, notification and Activity Log switches were
 set without checking the result, so a refused save left the switch showing
-the new value. They now revert and tell you. Changing one twice quickly no
-longer snaps it back to the old value.
+the new value. They now revert and tell you.
 - **Deleting a folder share that fails keeps the dialog open** instead of
 closing as though the folder were gone.
 - **Reconnecting too soon says so.** Pressing Reconnect within the
