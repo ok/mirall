@@ -29,8 +29,6 @@ yours.** Network Status and the Activity Log called it "your relay", and
 every change to your relay settings reconnected it, only for it to come
 straight back. Relay settings now name the members whose own relay still
 connects you, since turning yours off does not end theirs.
-- **Changing your relay several times in a row no longer stops Mirall from
-working.** It could stop responding until you quit and reopened it.
 - **Notices that wait for you no longer disappear when others arrive.** A
 notice that stays until you act on it — someone asking to join your space,
 a declined request, being offline, or a missing download folder — could be
@@ -40,15 +38,31 @@ you close it or it no longer applies.
 endlessly.** A download into a read-only folder or drive used to fail again
 every time the sharer reconnected. It now shows "Permission denied" until
 you fix the folder; then it resumes on its own, or you can press Retry.
+- **A download stopped by a full disk or a missing drive picks up again by
+itself.** Freeing space, reconnecting the drive or choosing another download
+folder for the space did nothing until you pressed Retry. The download now
+resumes on its own while the sharer is online. A download that stopped on a
+full disk before this update still needs one Retry.
+- **A partly downloaded file keeps its Discard button when the sharer goes
+offline.** If the sharer edited the file and went offline before Mirall had
+re-checked it, the row read "Not available" with no actions, and the partial
+download stayed on disk. It now reads "Owner offline" with Discard Partial,
+like files in a folder.
+- **Files two people share under the same name no longer borrow each
+other's status.** Your paused download of one person's copy also showed on
+the other person's copy, with its own Resume and Discard.
+- **One damaged folder share no longer stops your other shares from being
+served after a restart.** Everyone could still see the files, but their
+downloads stalled.
 - **A file you edit inside a mirrored folder is marked "Edited locally".**
 An edit that didn't change the file's size still showed as synced, with a
 "content hash matches" badge that nothing had actually checked. Edited
 files now say so, and explain that the shared version will be restored and
 your edit kept as a conflicted copy.
 - **An edit inside a mirrored folder is undone promptly.** Mirall promises
-to restore the owner's version, but it could take up to five minutes — or
-only happen once you opened the folder. It now notices within seconds. A
-file you delete from a mirror comes back the same way.
+to restore the owner's version, but it could take up to five minutes. It
+now notices within seconds. A file you delete from a mirror comes back the
+same way.
 - **A mirror you pause stays paused.** Pausing one while it was still
 scanning could leave it running but showing "Active", and it could start
 itself again later. Moving a mirror's folder while it was working could
@@ -75,18 +89,22 @@ space with a few offline members could leave you waiting. They are now
 checked at once.
 - **The Activity Log stops losing entries.** Someone joining, "downloaded
 from you", a withdrawn approval and a join request could all go missing if
-Mirall couldn't write the entry on the first try — including a second join
-request from someone whose first was denied. Entries are now retried, and
-entries still being written when you quit are finished first.
-- **Mirall no longer reloads its window when its background engine
-restarts.** Applying a new relay, or recovering from a background crash,
-took you back to the start and discarded anything you had typed but not
-saved. The screen you were on now stays put while the engine comes back.
+Mirall couldn't write the entry on the first try. Entries are now retried,
+and entries still being written when you quit are finished first.
+- **Starting to use a relay from an invite no longer reloads the window.**
+Pressing Reconnect now after adding or replacing a relay with an invite
+reloaded the whole of Mirall's window. It now reconnects while you stay
+where you are.
+- **Failed actions now say so.** If saving your profile, deleting the
+Activity Log or turning on detailed logging didn't work, Mirall could stay
+stuck on "Saving…", close the dialog as if it had worked, or say logging was
+on when it wasn't. Copy buttons could also say "Copied!" when nothing was
+copied, and picking a picture Mirall couldn't read as your avatar did
+nothing. Mirall now tells you what went wrong and lets you try again.
 - **Settings no longer show a change that wasn't saved.** The theme,
 language, zoom, tray, login, notification and Activity Log switches were
 set without checking the result, so a refused save left the switch showing
-the new value. They now revert and tell you. Changing one twice quickly no
-longer snaps it back to the old value.
+the new value. They now revert and tell you.
 - **Deleting a folder share that fails keeps the dialog open** instead of
 closing as though the folder were gone.
 - **Reconnecting too soon says so.** Pressing Reconnect within the
