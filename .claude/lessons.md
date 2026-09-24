@@ -1,933 +1,549 @@
 # Lessons
 
-Compact, actionable rules distilled from real debugging — gotchas, root causes, and fixes that worked. Grouped by theme; read at session start.
+Cross-cutting debugging tactics and system gotchas. Read at session start.
 
-**Write every new lesson in this style.** A lesson is a short **bold imperative claim** followed by 1–4 sentences that carry only what makes the rule usable: the mechanism (why it bites), the diagnostic *tell* (the signal that points at it), and the concrete fix (specific API/formula/sequence). No narrative — drop dates, "the user corrected me", play-by-plays, and one-off test IDs unless the ID is the reusable fix. Put it under the matching `##` theme section (add one only if none fits); merge into an existing lesson rather than duplicating a near-identical one.
+**Style for every lesson:** a **bold imperative claim**, then 1–4 sentences with only the mechanism
+(why it bites), the tell (the signal that points at it) and the fix (API, formula or sequence). No
+dates, incident stories, counts or PR numbers. Merge into an existing lesson rather than adding a
+near-duplicate. A rule that belongs to one discipline goes in its doc instead: testing/a11y/scenario
+authoring → `testing.md`; visual language → `design.md`; dependency bumps → `dependency-updates.md`;
+architecture → `solution-architecture.md`; coding standard → `coding.md`; workflow → `AGENTS.md`.
 
-**Durable discipline rules live in their discipline doc, not here.** Testing/a11y/scenario-authoring → `testing.md`; visual language → `design.md`; dep-bump debugging → `dependency-updates.md`; architecture → `solution-architecture.md`. This file is for cross-cutting debugging *tactics* and system *gotchas* that don't belong to a single discipline. If a new lesson is really a rule for one discipline, put it there and skip lessons.md.
+## Workflow & git
 
-## Workflow & process
+**Plan approval ≠ build approval.** Approving a plan, answering its open questions or refining part
+of it is still planning. Start code only on an explicit build signal ("go implement"); when unsure,
+ask "start implementing, or keep refining?".
 
-**Plan approval ≠ build approval.** For any task producing >1 file or spanning layers, write a detailed `~/Projects/Mirall/plans/plan-*.md` (with code skeletons) and get an explicit, separate build signal ("go implement", "start coding") before touching code. Approving a plan, answering its open questions, or asking to refine part of it are all still PLANNING. When unsure, ask "shall I start implementing, or keep refining?" — never infer the go-ahead.
+**Base a stacked worktree on the active feature branch, not `staging`, when the fix depends on
+in-flight work.** Re-verify file/line references in the actual target tree if a subagent explored a
+different checkout. Before the first push, `git config --get branch.<feat>.merge` must be empty.
 
-**Feature-branch code work always goes in a worktree** (`worktrees/<branch>/`) from the start — no "small enough to skip" exception for code. Only `.claude/` docs and README typos stay in the main checkout. Base a stacked worktree off the active feature branch, not `main`, when the fix depends on in-flight work; re-verify file/line references in the actual target tree if a sub-agent explored a different checkout.
+**Session cwd persists across Bash calls — prefix every repo command with `cd <checkout> &&`.** A
+one-off `cd` elsewhere silently redirects later relative-path commands, and a wrong-checkout run
+succeeds convincingly. Evidence and log paths must contain the `worktrees/` segment.
 
-**Session cwd persists across Bash calls.** With two checkouts of one repo (main + worktree), prefix every repo-touching command with an explicit `cd <right-checkout> &&` — a one-off `cd elsewhere && …` silently redirects all later relative-path commands, and wrong-cwd runs succeed convincingly (identical relative paths). Verify from the output: evidence/log paths must contain the `worktrees/` segment; an `ls`/glob-built file list must include the branch's untracked files. A green suite whose output paths point at the wrong checkout is baseline data, not verification.
+**Rebase onto `origin/staging` immediately before the local run you report.** CI tests the merge: a
+test added by a PR that landed after your branch was cut cannot fail locally. The targeted set after
+a rebase is "what the incoming commits added", not "what my change touched". Tell: a `test:bare`
+file you've never seen dying with exit 134 while your run was green.
 
-**A worktree branched off `origin/staging` inherits `staging` as its upstream — create it with `--no-track`.** `git worktree add -b <feat> <path> origin/staging` sets `branch.<feat>.merge = refs/heads/staging`, so `git status` reads "ahead of origin/staging" and `<feat>` never appears on GitHub until pushed by name. A bare `git push` does **not** silently land on staging — `push.default=simple` (the git ≥2.0 default) refuses on the name mismatch — but its error offers **`git push origin HEAD:staging` as the first suggestion**, and nothing server-side stops that: the `protect-main-staging` ruleset carries only `deletion` + `non_fast_forward`, so an ordinary push to staging succeeds. Fix at creation — `git worktree add --no-track -b <feat> worktrees/<feat> origin/staging` leaves the upstream unset, so the first push must name the branch (`git push -u origin <feat>`) and sets the right one. Verify with `git config --get branch.<feat>.merge` (should be empty) before the first push.
+**Rebase and `npm install` are one step in a worktree.** A dependency added on staging is missing
+from an older worktree's `node_modules`. Tell: a test file at 0/0 passed, exit 1 (it died at load).
 
-**Recovering an accidental merge into `main`.** Opening a PR from a staging-based branch with `base=main` and squash-merging it dumps all of `staging` onto `main` as one giant commit. The guards are `staging`-as-default, `pr-base-guard.yml` (allowlists the head branch by NAME only — no merge-base check, so a staging-based `hotfix/*` still passes) and the `protect-main-staging` ruleset.
+**`main` is the last release; baseline design and "current state" claims on `origin/staging`.**
+Read screens and locale strings with `git show origin/staging:<path>` (or a staging-based
+worktree), and name the baseline commit in the artifact.
 
-**Recovery is a revert, not a force-push.** The ruleset (id `20080050`, enforcement `active`, `bypass_actors: []`, `current_user_can_bypass: "never"`) carries `deletion` + `non_fast_forward` on `main`, so `git push --force-with-lease origin main` is rejected server-side with no way to bypass — do not reach for it mid-incident. Instead: confirm nothing is uniquely stranded on `main` (`git diff --stat origin/staging <bad-tip>`), tag the bad tip (`git tag backup-main-<date> <bad-tip> && git push origin <tag>`), then `git revert -m 1 <merge-sha>` (or `git revert <squash-sha>`) and push that forward. If a rewrite is genuinely required, the ruleset must be edited or temporarily disabled first — an admin action, taken deliberately. Either way releases are unaffected: `build-electron.yml` triggers on `v*` tags, never on a `main` push. (Note the repo is **public** — the old "private repo, free plan, so no protection" premise was wrong on both counts.)
+**Look before you overwrite.** Run the comparison (`wc`/mtime/`diff`) as its own command and read
+it before copying — never chain evidence `&&` overwrite. Plan docs under `~/Projects/Mirall/plans/`
+diverge in both directions; reconcile by appending. Recovery: `~/.claude/file-history/<sessionId>/`
+plus session transcripts.
 
-**`main` is a release tag, not the shipped UI — baseline design work on `origin/staging`.** Features land on `staging` and reach `main` only at release, so reading `src/` in the main checkout can describe an app one or more releases old. A design proposal built that way looks internally consistent and is wrong: Account was recreated as three sections and Settings as five tiles when staging already had four and seven (v1.8.0 added the Activity Log, Network settings, per-space download folders, `ScreenRouter.tsx`). Before recreating any screen, run `git log --oneline main..origin/staging` and `git diff --stat main origin/staging -- src/renderer`; read the screens with `git show origin/staging:<path>` (or work in a staging-based worktree) and state the baseline commit/version in the artifact. The same applies to locale strings — new copy lands with the feature. Corollary: a "current state" claim in a mockup or review is a factual claim about a branch; name which one.
+**`git checkout -- <path>` restores from the index, not the last edit.** With nothing staged it
+discards every unstaged change in the file. To undo a temporary mutation, copy the file aside first
+and copy it back.
 
-**Look before you overwrite.** Treat any overwrite/delete of a file you didn't create this session as a destructive merge decision: run the comparison (`wc`/mtime/`diff`) as its OWN command, read the result, then copy — never chain evidence-gathering `&&` overwrite (the overwrite runs regardless of the evidence). Plan docs under `~/Projects/Mirall/plans/` diverge in BOTH directions (plan authored in main, logs appended in worktree) — reconcile by appending, never whole-file copy. Recovery if clobbered: `~/.claude/file-history/<sessionId>/` snapshots + session transcripts (Write/Edit inputs, Bash heredocs), validated against an invariant (exact pre-loss line count).
+**Recover an accidental merge into `main` with a revert, never a force-push.** The
+`protect-main-staging` ruleset blocks non-fast-forward with no bypass. Check nothing is stranded
+(`git diff --stat origin/staging <bad-tip>`), tag the bad tip, then `git revert -m 1 <merge>` and push
+forward. Releases trigger on `v*` tags, not on a `main` push.
 
-**A Renovate `allowedVersions` cap does not apply to `lockFileMaintenance`.** That job does no version lookup — it drops the lock and hands npm a full re-resolve against the `package.json` ranges — so a known-bad version walks straight back in through a caret range while the same cap correctly holds the ordinary update PR that week. Symptom to recognise: a PR touching **only `package-lock.json`** that turns a whole test tier red, with **zero assertion failures and 100% timeouts** (timeouts mean the transport never connected; a real logic regression produces `not ok`). Diff the lock by resolved version (`git show REF:package-lock.json` → compare `packages[*].version`), not by reading the patch. Express a real ceiling in `package.json` (`~x.y.0`, plus an `overrides` entry for transitives) — that is the only place a lock refresh has to obey. The direct range and the override must be identical or npm aborts with `EOVERRIDE`, which is a feature: it makes a later loosening fail loudly instead of silently. Verify a constraint the way lockFileMaintenance would, in a scratch dir with just `package.json`: `npm install --package-lock-only` from no lock, and check the resolved version. Use the **same npm major as CI** — an older npm silently strips `libc` metadata from every optional-dep entry and buries the real change in churn.
+**Verify CI by head SHA, never by PR.** After a force-push, `gh pr checks` shows the previous
+head's completed run as current, and a head with zero runs has zero pending rows. Require zero
+non-completed runs and the expected run count:
+`gh api repos/<o>/<r>/commits/$(gh pr view <N> --json headRefOid -q .headRefOid)/check-runs --jq '.check_runs[]|"\(.name)=\(.status)/\(.conclusion)"'`.
+Every merge to `staging` invalidates the verification of every other open PR.
 
-**Never launch the frontend suite unprompted — ask first.** `npm run test:fe` (and any scenario subset of it) builds the app, starts a testnet and drives real Electron windows: it takes over the machine's foreground and AX API for many minutes, so the developer cannot use the desktop while it runs. It is a *local-only, on-request* gate — CI never runs it — so treat it like any other action that seizes the user's machine: propose it and wait. The automated gates (`typecheck`, `lint:ci`, `test:node:core`, `test:bare`, `test:flow`) need no permission. If a change genuinely wants UI verification, say which scenarios would cover it and let the user start them.
+**Retarget the upper PR of a stack before merging the lower one.** `gh pr merge --delete-branch`
+closes any PR based on the deleted branch, unrecoverably. `gh pr edit <upper> --base staging` first.
 
-**A cheap fs check is only worth batching where the syscall count, not the directory, is the cost.** Measured before replacing `share:list-files`' per-row `fs.existsSync` with one `readdir`: `existsSync` is ~0.70 µs warm, so 5 000 rows is ~2.8 ms of a ~35 ms listing (the two bee range scans are ~22 ms — the real cost). And `readdir` is O(directory size) while `existsSync` is O(claims): against a 794-entry folder, 10 claims cost 0.01 ms by stat vs 0.34 ms by readdir (34× worse), crossing over only near 794. Since the download root is the user's real `~/Downloads`, shared by every space, a share's claims are normally *fewer* than the folder's entries — the losing region. Worse, a readdir name set is byte-exact where `existsSync` case-folds on APFS/NTFS, so a claim recorded `Report.pdf` against an on-disk `report.pdf` would flip to "missing" and **prune** a live file's claim. What IS worth doing is memoizing the repeated *folder* probe per pass (`createDirProbe`): on a detached volume every row misses and probes the same dead mount, so one answer per folder replaces one per row with no semantic change.
+**Verify an issue's claims against the tree before implementing it.** Counts, "still to do" items
+and named symbols in a task description are often wrong in both directions; the first pass is
+verification, and expect the scope to shrink.
 
-**A green local suite proves your branch, not the merge — rebase onto `origin/staging` before the run you report.** `staging` moves during a branch's life, and CI tests the MERGE: a test file added by a PR that landed after you cut your worktree does not exist locally, so it cannot fail locally, and its failure looks like flake when it is deterministic. Symptom: `test:bare` red twice on a file you have never seen, often as an uncaught rejection killing the runner (exit 134 = SIGABRT), while your own run was 100% green. Fix the habit, not the run: `git fetch && git rebase origin/staging` immediately before the final local sweep, and re-run after any rebase — the merge is what gets graded.
+**Quantify what the broken thing was worth before rating a bug's severity.** A dead feature whose
+remaining payload is megabytes is not a gigabyte loss; reviewers price the fix off that sentence.
 
-**Adding a required member to an injected `deps` bundle breaks every existing test double.** Doubles enumerate the bundle by hand, so a new mandatory key turns into `TypeError: deps.X is not a function` in every unrelated test that stubs it — and the first casualty is usually a file added by a concurrent PR, which makes it look like someone else's bug. Before adding one, ask whether the thing is really a *collaborator a caller could substitute* or just an internal helper the function builds for itself. If it is the latter (a memo, a cache, a formatter), call it directly and keep it out of the bundle; assert its effect through a dep that IS already injected, by capturing what the function passes down. Patching the broken double is the wrong fix — it leaves the trap armed for the next one.
+**A user-facing visual change is pushed only after the user has run it locally.** Geometry
+harnesses prove alignment, not appearance; green tests are the precondition for asking.
+
+**Never launch `npm run test:fe` unprompted.** It takes over the machine's foreground and AX API for
+minutes. Propose the scenarios and let the user start them; the automated gates need no permission.
+
+## Tests that pass for the wrong reason
+
+**A test that cannot fail is worse than none — when a red-first test goes green too easily, print
+what it observed.** Assert the fixture reached the guarded path (a side effect, a call count) before
+asserting the bound; a moved data path filters the old fixture out before the code under test runs.
+
+**A green suite proves the mode it ran in, not the mode you ship.** When a subsystem forks on a
+mode (identity vs seed, master secret present or not), check which mode the harness boots before
+trusting any test. Destructive paths (leave, purge, reclaim, shutdown) must run in the production
+mode.
+
+**A test double must model the transaction boundary the test is about.** If the scenario is a window
+between staged → in flight → landed, the fake needs that window too (puts land only on `flush()`), or
+the red-first proof proves nothing. A fixture round-tripped through a bee loses subclassing — JSON
+hands back a plain array.
+
+**A source-scanning guard goes vacuous when you rename what it matches.** Before pushing a rename,
+signature change or hoist, grep all of `test/` (integration too) for the old spelling and run every
+file that `readFileSync`s a touched source. When a guard slices source by markers, assert
+`indexOf >= 0` first — `slice(start, -1)` silently becomes "to end of file". Prefer a positive
+property over an absence.
+
+**Pin a value through the production read path, never through the file's text.** A regex over
+`src/` fails on a refactor and passes on a regression (a wrong default still matches `\d+`). Source
+scans are for structural facts only (an import edge, a statement order).
+
+**Moving an emitter behind a shared module moves a test seam.** Tests that re-wire a module's ipc
+(`initX(wrappedIpc)`) stop seeing frames that now leave through the shared reporter. Grep for the
+`init*(` seam of every module that lost an emit and re-wire the reporter (`test/helpers/overlay-ipc.js`).
+
+**Integration tests cannot fake an offline remote owner.** A fabricated ownerKey makes the share read
+return null and the pass exit before any gate — the test passes with the gate deleted. Assert
+offline-owner behaviour at the flow layer. Likewise a mirror re-fetching its own deleted file is
+served from the local overlay spool; "offline owner" needs a mount created after the owner left,
+against content this peer never held.
+
+**A two-peer loopback flow never reaches "relayed, then punched through".** The punch lands before
+the relay carries a byte. For behaviour that needs a live relayed stream, drive `blind-relay`
+directly in an integration test and assert on `relay.stats`; print it once before trusting a red.
+
+**An integration test that stubs a call to throw proves the wiring, never the premise.** Drive at
+least one case of a fault class with the real condition (a real `chmod 000` file).
+
+**A layout harness that errors before its assertions is absent, not failing.** Reproduce on a
+detached checkout of the base (`git worktree add --detach <tmp> HEAD`, symlink `node_modules`) before
+reading the diff. A harness mounting a real dialog needs the app's providers (`ToastProvider` at
+minimum) — a missing one renders nothing rather than erroring. `--no-build` reuses stale
+`dist/harness-*.js`; `npm run build` does not rebuild them.
+
+**`npm run test:layout:a b c` runs only `a`, and `test:fe s1 s2` only `s1`.** Extra names become
+arguments to the first runner. One command per harness.
+
+**A local flow "green" is trustworthy only up to the first throw.** A timed-out `until()` escapes,
+brittle records no `not ok`, and the count still looks near-perfect. Compare planned against
+executed.
+
+**Piping a test run into `tail` discards its exit code and its `not ok` lines.** Redirect to a file,
+check `$?`, grep `^not ok`. Filter gate output case-insensitively (`ERROR:` is uppercase in
+`check-test-timing.sh`).
 
 ## Testing tactics
 
-**`brittle-bare -j N` is threads in one process, not a process per file.** One fd table, one lock namespace and one heap for the whole suite: a single file's unhandled rejection aborts every other file's results with it, whole-process fd or memory deltas measure the neighbours as much as the subject, and unrelated timing budgets fail under the contention. Measure a resource delta from the module's own accounting, never from `/proc/self/fd`; run the suite with `test/bare-runner.mjs` (one process per file), which is what makes a death attributable to the file it happened in.
+**Measure a resource delta from the module's own accounting, never whole-process.** `brittle-bare -j`
+is threads in one process: fd and memory deltas measure the neighbours as much as the subject.
+
+**`launchPeer` on a relaunch sends every handshake twice and doubles the announce backoff.** Its
+`profile:set` re-broadcasts on top of `onopen`: a relaunched exchange is `2K + 8` frames and the first
+ledger retry is 20 s out. Budget flow timings accordingly.
+
+**A test of platform-conditional behaviour must pin `process.platform`.** CI is Linux, dev is macOS;
+`looksLikeNetworkPath` is platform-scoped. Use `withPlatform(name, fn)` (`test/helpers/with-platform.js`),
+or the UNC form when the test is about something else, and compare assert counts across platforms.
+
+**Never blanket-stub `console.*` in a brittle test.** The runner emits TAP through it. Capture by
+the code-under-test's own prefix and forward everything else.
+
+**Adding a required member to an injected `deps` bundle breaks every test double.** If it's an
+internal helper (memo, cache, formatter) rather than a substitutable collaborator, call it directly
+and assert its effect through a dep already injected.
+
+**A change to what a request admits is a change to every flow test that issues it.** `grep -l` the
+flow tier for the request name and check each hit for the state the new rule refuses; re-sequence
+the test rather than loosen the rule.
+
+## Static gates and what they miss
+
+**`npm run build` does not run CI's lint step.** Before pushing, also run `check-comment-hygiene.sh`,
+`check-test-timing.sh` and `check-release-mime.sh`.
+
+**Targeted test runs are blind to repo-wide guards.** Adding or moving a file needs the guard family
+once (arch-doc §11 table, i18n scans, `renderer-contract-only-imports`, `no-hand-mirrored-vocabularies`).
+A new module under `src/shared/**` needs its §11 row in `solution-architecture.md` in the same commit.
+
+**A module split is only proven by something that runs it.** `tsc` skips the worker and `no-undef`
+resolves a dropped import whose name is a global (`fetch`, `performance`, `URL`) to the environment.
+`crypto` is `'off'` in the eslint globals; the rest are not. After moving worker handlers, run one flow
+test that exercises them.
+
+**Nothing in CI runs the Electron main process.** After any change to `src/main`, boot it once:
+`npx electron . --storage=<tmpdir>`, wait ~15 s, assert it's alive and the log has no
+`threw`/`Error`. It catches module-load order: a `const x = require()` below its call site (TDZ), and
+a module-scope `require()` of the ESM contract during main's own CJS load
+(`ERR_REQUIRE_ESM_RACE_CONDITION` — require lazily inside the function).
+
+**A monkeypatch misses modules that destructure the export at load.** `bare-sidecar` captures
+`child_process.spawn` at require time, so the asar spawn patch must be main's first statement
+(pinned by `test/unit/asar-spawn.test.js`). Ask "who captures this export at load?" whenever a
+refactor moves a require; only a packaged install exercises asar paths.
+
+**Never retype a persisted constant during a move — export it from the new module and import it.**
+A retyped key prefix (`'file:'` for `'file/'`) re-addresses every replicated row and passes every
+static gate. Mark persisted/on-wire constants at their definition.
+
+**A path codemod must try `.js`, `.ts` and `.tsx` before declaring a specifier broken.** A basename
+repair pass will rewire renderer `./ipc.js` (really `ipc.ts`) to the worker's `ipc.js` — the runtimes
+share basenames by design. Exclude by full path; run the codemod before `git mv` or follow it with a
+repair pass; run `eslint` afterwards (the contract-only import rule catches a crossed boundary,
+`tsc` doesn't). Then diff each importer's names against the module's actual exports and import each
+repointed module first in a fresh Bare process (the `import-time.test.js` recipe).
+
+**A typed handler is not an exact one.** TypeScript runs no excess-property check on an inferred
+return, so `ack-responses.test.js` still earns its place. Widening `tsc` to the worker is opt-in via
+`// @ts-check`; fix inferred widening with JSDoc on the callee, never a cast at the call.
+Mutation-test a new compile-time guard before trusting it.
+
+**Size a backstop assertion between the two outcomes it distinguishes, not just above today's
+value.** A bundle-size guard 200 bytes above the real bundle gates unrelated work.
+
+## Debugging method
+
+**A subagent's reading of library internals is a hypothesis.** Reproduce and instrument before
+designing a fix; the decisive signal is often a plain invariant ("is the block on any peer?").
+`bare-sidecar` does not propagate env vars into the worker — pass trace switches via the bootstrap
+message.
 
-**`launchPeer` on a relaunch re-sends every handshake twice and doubles the announce backoff.** It calls `profile:set` after boot, which runs `broadcastProfileUpdate` on top of `onopen` and increments the announce ledger's `attempts`, so a relaunched peer's exchange is `2K + 8` frames and its first ledger retry is 20 s out, not 10. Account for it when a flow test's frame count or timing budget depends on the reconnect burst.
+**Read the library's exact throw condition before a targeted fix.** hypercore behaviour depends on
+call shape: `STORAGE_EMPTY` fires only for open-by-discovery-key with no key/manifest. A truncated
+async stack is not evidence of the high-level caller.
 
-**A regression test whose fixture no longer reaches the guarded path passes vacuously.** When a data path moves (profile-bee share prefixes to per-owner catalog keys), the old fixture is filtered out before the code under test runs — the tell is a timing assertion that is green on both sides of a revert. Assert the fixture was ADMITTED (a side effect of the read, a call count, a deficit marker) before asserting the bound.
+**A flaky-under-load fix is proven only by a repro matching the failure's shape.** One test file at
+a time, cores pinned to the CI vCPU count, sustained contention. `MIRALL_TEST_TIMEOUT_SCALE` scales
+timeouts, not worker speed. Establish the failing rate first, then require 0/20+ on the same repro.
 
-Testing/a11y **discipline** — the layers, the change-type→coverage matrix, the a11y bar, and frontend scenario authoring (file-sizing, offline-edge, async-probe waits, split-text `sr-only`, timeout-vs-absent) — lives in `testing.md`. Dep-bump baseline-diffing lives in `dependency-updates.md`. Only debugging tactics that aren't reference material stay here:
+**"Saw 0 events" with clean logs means the event fired before the listener existed.** Tell: a
+one-shot edge awaited right after a relaunch, bimodal pass-fast/fail-to-deadline. Saturate every core
+and timestamp both workers' stdout against the harness steps. Fix the harness's memory (the boot
+backlog in `launchPeer`), never the deadline.
 
-**A unit test asserting platform-conditional behavior must pin `process.platform`.** CI runs Linux and development happens on macOS, so a test built around `/Volumes/NAS/x` asserted the right thing locally and the *opposite* thing on CI — `looksLikeNetworkPath` is deliberately platform-scoped (`/Volumes` darwin-only, `/mnt`+`/media` linux-only, UNC everywhere). The failure is silent in the worst way: the file's own predicate table test already stubbed the platform and documented the asymmetry, while the routing tests next to it inherited the machine's. Pin it per case (`withPlatform(name, fn)` in `test/helpers/with-platform.js`) and use the UNC form wherever the test is about something else; verify by re-running under `NODE_OPTIONS="--import file://…"` with `process.platform` redefined, and check the assert COUNT matches across both — an unpinned case silently asserts less rather than failing.
+**A derived cache lags its author's own write.** A gate reading a debounced fold can lose a race
+against the very peer the write was about, and an LWW receipt can make it permanent. Apply a local
+write to the live entry in the same step as the durable write, and let the fold confirm. Reproduce by
+widening `deriveDebounceMs` on the folding peer.
 
-**Never blanket-replace `console.log/warn/error` in a brittle test** — the runner emits its own TAP through them, so a blanket stub both miscounts (inflated by exactly the number of prior asserts) and swallows the failure diagnostic. Capture by discriminating on the code-under-test's own prefix/tag; forward everything else to the saved real console.
+**First attempt passes and the next hangs on the same path → suspect per-attempt state, not
+transport.** A persisted record (e.g. `downloads-meta`) left from attempt N. If a shipped fix leaves CI
+identical, the diagnosis was wrong.
 
-## UI copy
+**Don't paper a convergence gap with a global periodic poll.** It loads every instance, can outlive
+shutdown, and masks the cause. Fix the targeted stall; prefer hooking an existing reliable signal.
 
-**An empty state answers the user's live question, not the product's best feature.** A differentiator nobody expected to be otherwise ("sharing never makes a second copy") reads as a boast and spends the one paragraph people actually read; the tell is copy that leads with what the product *doesn't* do. Lead instead with the constraint that contradicts what users bring from elsewhere — files are served from your device, so you must be online — and keep the differentiator only in its consequential form ("move or delete the original and it's gone"). Re-point the deep link at the doc that matches the reframed body, and drop the now-unlinked anchor from the union so the twin test stays honest.
+**A `package-lock.json`-only PR that turns a tier red with zero `not ok` and 100% timeouts is a
+transport dependency moving.** Diff the lock by resolved version, not the patch; details in
+`dependency-updates.md`.
 
-## Renderer ↔ worker wiring
+## Renderer
 
-**A status token names an ACTOR's activity, not a file's condition — give each side its own.** `SHARE_FILE_STATUS` had one `preparing` for both "I am hashing my own file" and "I am waiting on the owner's hash" (no `publishing`, though the loose vocabulary had one), so the owner's freshly-added files wore the consumer's pill, the folder roll-up counted every indexing row as `downloading` on BOTH screens with nobody pulling a byte, and the bar over them was named "Download progress". The tell: a `status → badge` map whose entries ignore the `isOwn`/role flag the caller already passes, and one renderer branch serving two lanes. Fix at the contract (`src/shared/contract/statuses.js`) so the states are distinguishable at the worker, then follow the token through every projection — worker row status, badge map, roll-up category, progress-bar `aria-label`, and the decoration `phase` each side emits. Coverage corollary: an integration test asserting a precondition "so the status derives X", with nothing asserting the derived status, is the blind spot that lets this live — extract the ordered rule out of `worker/main.js` into a pure module (`transfer-status.js`) and assert the derivation itself.
+**A status token names an actor's activity, not a file's condition.** One token for "I am hashing"
+and "I am waiting on the owner's hash" makes both sides wear one pill. Tell: a `status → badge` map
+that ignores the `isOwn` flag the caller passes. Fix in `contract/statuses.js`, follow the token
+through every projection, and assert the derivation in a pure module.
 
-**A vocabulary both processes read gets ONE declaration in `src/shared/contract/`, and the worker imports it through one module.** The mount-fault statuses had four hand copies — the mirror's pause path, the owner's scan settle, the renderer's fault reader and a source-scanning test standing in for a type — and drifted: `paused-enospc` reached the mirror before the owned vocabulary knew it, so one role could record a status the other could not name. The tell is a status string literal in more than one file, or a test that greps source for the list instead of importing it. Fix: declare the status half in `contract/mount-fault.js` (the renderer can import it), add the errno half in one worker module (`folders/mount-fault.js`, which needs `core/errors.js` and so cannot live in the contract), and pin both roles with `test/unit/mount-status-vocabulary.test.js`.
+**A new worker→renderer field must be added to the hook's explicit field map.** Hooks project
+field-by-field, so a field added only to the type is dropped silently. Trace worker row → IPC → hook
+interface → hook `.map()` → shared type → component.
 
-**A dispatcher of `if (x === 'literal') { … return }` blocks with no `else` fails silently and open.** Main's `main-request` bus had five such blocks and nothing after them, so an unrecognised command was indistinguishable from a handled one: the promise resolved, the caller's `.catch` never fired, and a half-finished rename would arm no folder watcher on any peer with no error anywhere. Every gate passes it — the command names were bare string literals on both sides, worker JS is not typechecked, and `event-taxonomy.test.js` matches on the `event:` prefix so a bus without one slips straight through the guard that exists for this. Two fixes, both needed: name the vocabulary in `src/shared/contract/` (main is CJS but `require()` of a TLA-free, import-free ESM module works — verified from inside the packaged `app.asar` under Electron 42 / Node 24) and key the dispatch table off it, then add the `else` with an unconditional `console.warn` so a word the bus does not know reaches the log ring. Pin both directions with a parity test that greps the emit sites, or the vocabulary can be bypassed by writing the literal back in.
+**Gate an empty state on all of its async sources having settled.** A failed read is unknown, not
+empty. Give sibling list hooks the same cross-mount cache plus `prune<X>(liveIds)` from `useSpaces`;
+never let an event-driven `refresh()` flip `loading` back on. Extract the gate as a pure predicate.
 
-**A new worker→renderer field must be added to the hook's EXPLICIT field-map.** Renderer hooks project field-by-field (not `{...e}`), so an optional field added only to the shared type + JSX type-checks and is silently dropped before the component. Trace the full path and patch every re-map: worker row object → IPC → hook's `ServerEntry` interface → hook's `.map()` projection → shared type → component. Grep the hook for the field after wiring (and confirm event-rebuild paths use `{...f}` spread). Invisible to typecheck/lint/backend tests; only test:fe catches it.
+**`useQuery`'s `loading` means "a read is in flight" and re-raises on every refetch.** A boot or
+route gate asks "has an answer ever landed" (`data !== undefined || error !== null`), via a pure
+projection that never sees `loading` (`model/profile-gate.js`). Gating a tree on it remounts in a loop
+that every non-frontend test misses.
 
-**`config.json` holds preferences, not view state.** A fold, a scroll offset, a stack-vs-list choice and the like are per-view UI state — keep them in a module-level store in the hook file (`useTreeExpansion`, `useSpaceMembers` + `pruneRosterCache` are the shape: a `Map` keyed by the entity id, an exported `prune<X>(liveIds)` called from `useSpaces` against every fresh list). They survive unmount/remount, which is what "restore it when I come back" actually needs; reach for `config-store.js` only for something the user would expect to still be set after a restart. A per-entity map in `config.json` also drags in a sanitizer, a whole-map replace in `setRenderer` (merging resurrects pruned keys) and unbounded growth.
+**A subscription that writes shared state is installed once, next to the store, never in a hook.**
+In a hook it writes once per mounted consumer, defeating the store's identity check.
+`installPushBridges` in `store/reconcile.ts`; new writers are justified in the `STORE_WRITERS`
+allowlist.
 
-**An empty state gated on ONE of several independent async sources flashes over content that exists.** SpaceView's pane is fed by `useFiles` AND `useShares`, and the "nothing shared yet" hero was gated on the files flag alone, so entering a space whose content is folder shares painted the hero until `share:list` landed; `SharedSpaces` had no gate at all. Two multipliers turn that race into the normal path: a stale-while-revalidate cache in only ONE of two sibling hooks settles it on frame 1 while its twin starts cold, and a screen that unmounts on every trip back makes each re-entry a cold start. Gate an empty state on ALL its sources having settled (a failed read is unknown, not empty), give sibling list hooks the same cross-mount cache + a `prune<X>(liveIds)` called from `useSpaces`, and never let an event-driven `refresh()` flip `loading` back on — that re-opens the window on every reconcile hint. Extract the gate as a pure predicate: inside JSX it is only testable through the live UI.
+**A screen prop can change without a remount.** `ScreenRouter` renders without a `key`, so switching
+spaces reuses the same instance and a `useState` initializer keeps the old entity. Adjust state during
+render (`if (prev !== id) { setPrev(id); setValue(read(id)) }`), not in an effect.
 
-**A screen prop can change without a remount, and a `useState` initializer never re-runs.** `ScreenRouter` renders each screen from a `switch` with no `key`, so switching between two spaces while staying on `space-view` (an OS-notification click does this) reuses the SAME `<SpaceView>` instance with a new `spaceId` — any per-entity state seeded in a `useState` initializer keeps the previous entity's value. Fix in the hook by adjusting state during render (`const [prev, setPrev] = useState(id); if (prev !== id) { setPrev(id); setValue(read(id)) }`), not in an effect, which paints one frame of the wrong entity first.
+**A boot-time config snapshot must be written through.** `config-client.ts` caches `config.json` once;
+a setter that persists over its own IPC without mutating the cache reverts on remount. Every
+`getXPref` has a `setXPref` that mutates the cache first.
 
-**A boot-time config snapshot must be written THROUGH, never around.** `src/renderer/platform/config-client.ts` caches main's `config.json` once at boot and never re-reads it, so a setter that persists over its own IPC channel without mutating the cache (the theme toggle did, via `theme:set`) looks right until the control remounts and then snaps back to the boot value. Tell: a setting that "reverts every visit" while the file on disk is correct. Fix: every `getXPref` has a `setXPref` that mutates the cache first (`setThemePref` in `theme.ts`), and no component writes a cached value through a dedicated channel.
+**A focus ring is painted outside the border box, so every clipper eats it.** An `overflow-y-auto`
+pane clips both axes. Fix with room — padding cancelled by an equal negative margin — and when
+removing `overflow-hidden` from a flex/grid item, add `min-w-0`/`min-h-0`. Pinned by
+`test:layout:focusring`.
 
-## Membership / replication convergence
+**A sticky header pins at the scrollport top plus the container's `padding-top`.** Give a pane with a
+sticky header no `pt-*`; keep ring room horizontal. Guard in `test/frontend-layout`.
 
-**Separate admission from membership-display; gate admission on a fact replicated independently of the candidate.** A pending joiner's own `member/<S>` record isn't replicated to you until AFTER you admit them, so the admission gate must key off the APPROVAL (authored by an existing member you already replicate with), not the joiner's self-asserted membership or a fold over not-yet-replicated logs (reads empty). The derived fold owns the SET (list/removal), NOT the admission gate. When a "make X the single source of truth" refactor points a gate at X, check whether X is even observable when the gate runs.
+**A `dark:` base and a `hover:` state have equal specificity, so source order decides.** Use a
+theme-flipping token (`surface-control`) on anything with interactive states, not a `dark:` variant.
 
-**The admission gate must honor the approver's OWN approval.** `isApprovedByPeers` iterates OTHER members (self excluded), so an owner who approves a joiner whose record hasn't replicated yet drops them (fold-reconcile treats "unreadable" as "left"), then bounces them to pending on re-handshake. Add an explicit own-bee approval read. A fold-reconcile that can't read a member's record must NOT equate "unknown/null" with "positively left" — let the leave FRAME, not absence, drive removal.
+**Re-showing a hidden macOS window focuses the first tabbable element.** A skip-link appears on
+restore; guard on a Tab keydown immediately preceding the focus. Reproduce only via a real tray menu
+click (`open -a` takes another path).
 
-**A membership exit needs a durable record AND a real-time signal.** `del member/S` is durable but not reliable real-time (the leaver may disconnect before it replicates; a lingering socket re-hits the admission gate as a fresh join-request). On the leave FRAME, tombstone the leaver (`markLeft`) so the fold subtracts them and the gate ignores their handshakes; lift only on genuine re-entry (`membership:request` → `clearLeft`), never on a stray handshake. General: when a disconnect races a state change, the tearing-down side can't propagate durably — the receiver records the intent the instant the reliable signal arrives.
+**An empty state answers the user's live question, not the product's best feature.** Lead with the
+constraint that contradicts what users bring from elsewhere; keep a differentiator only in its
+consequential form.
 
-**One notion of "is peer X online" — change every consumer at once.** When you move liveness from socket to lease, point display AND data-plane gates (download `isOwnerOnline`, transfer `isPeerConnected…`) at it together, or they decouple in exactly the silent-death edge case the lease was for. Keep the connection registry strictly for ROUTING (which socket to send/replicate over); every "worth attempting" precondition reads the single liveness truth; the send degrades gracefully (queues) if the socket is gone.
+## Frontend harness (agent-desktop)
 
-**When you delete a function, audit its piggybacked side effects.** A "prune"/"membership" helper can be load-bearing for an unrelated UI refresh (e.g. `emit('event:shares-updated')` on a peer profile-bee append). Grep the body for `emit`/`ipc` before deleting; diff removed emissions (`git diff | grep "emit('event:"`) against the renderer's `subscribe('event:…')` list — each removed emission must still fire from a surviving path. Data-polling flow tests won't catch it; only the frontend suite or an explicit event `waitFor` will. Membership/topology changes must fan a refresh out to EVERY dependent view (member/file/share lists), not just the one in mind.
+**`test/frontend/preflight.mjs` pins the agent-desktop minor floor.** On 0.8: refs are
+snapshot-qualified (`@<snapshot_id>:eN`); `list-windows` includes invisible Electron helpers (filter
+on `visible`); `wait --text` matches `name` only while static text lives in `value`; a press with no
+AX action is `POLICY_DENIED` (opt into `--headed` per element); a leftover pre-0.5 refmap in
+`~/.agent-desktop` makes `status` fail with `INVALID_ARGS` until pruned.
 
-## Debugging method (flakes & convergence)
+**A menu trigger is not a `button` in the AX tree.** react-aria's `aria-haspopup` makes it a pop-up
+button (`role: "combobox"`). Match menu triggers by name only.
 
-**A derived cache lags its author's own write — a gate that reads the cache can lose a race against the very peer the write was about.** `isDeniedJoiner` answered from the member view's fold, which trails the durable `denied/` put by the derive debounce plus a fold. A joiner re-knocking inside that window read `review`, and the receipt that verdict writes outranked the tombstone under LWW, so every later knock read `review` too: a 150 ms race became a permanent stall (#324), and no deadline could help. Apply a local write to the live entry in the same step as the durable write (`applyLocalDenial` / `applyLocalApproval`), and let the fold confirm it. To reproduce a fold-lag race deterministically, widen `deriveDebounceMs` on the peer that folds — the bootstrap frame is the runtime config, so a flow test passes it as a flag.
+**A `<label for>` shadows the field it labels.** The label gets its own ref carrying the field's name
+and precedes it. Read values with `findNode(..., { actionable: true })`.
 
-**"Saw 0 events" with every component's logs clean means the event fired before the listener existed, not that it never fired.** Tell: a one-shot edge waited for right after a relaunch, bimodal pass-fast / fail-to-deadline, no `not ok` anywhere else, and a fix to the emitting path that changes nothing on CI. Reproduce by saturating every core (24 busy loops on 10 cores) under `MIRALL_TEST_TIMEOUT_SCALE=3` and timestamping both workers' stdout against the harness's own step lines: the `emit event:…` line landing before `res profile:set` is the proof. Fix the harness's memory (the boot backlog in `launchPeer`), never the deadline; the timeout message now prints `events since spawn:` so the next one is a one-liner.
+## Membership & replication
 
-**A subagent's read of library internals is a HYPOTHESIS — reproduce + instrument before designing a fix around it.** For a timing flake that "passes on a fast box," saturate every core with busy-loops and run the faithful load to make it deterministic, then dump per-peer state (core `length`/`contiguousLength`/`peers`, fold sets, follow/watch events) at the wedge. The decisive signal is often a plain invariant ("is the block on ANY peer?") no internals-reasoning surfaces. Validate causally: re-run the SAME saturation with the fix and confirm the rate goes to zero. (`bare-sidecar` does NOT propagate env vars into the worker — hardcode trace gating or pass via the bootstrap message, not `process.env`.)
+**Gate admission on a fact replicated independently of the candidate.** A joiner's own `member/<S>`
+record isn't replicated until after admission, so key the gate off the approval authored by an
+existing member. The fold owns the set, not the gate. Include the approver's own approval
+(`isApprovedByPeers` skips self).
 
-**A flaky-under-load fix is only proven by a repro matching the failure's SHAPE.** Match the concurrency model (one test FILE at a time, not one subtest — subtests inherit prior subtests' residual teardown/GC), the CPU pressure (pin cores to the vCPU count; `MIRALL_TEST_TIMEOUT_SCALE` scales only TIMEOUTS, not worker speed — it is NOT a load model), and the duration (sustained contention, not short bursts). Establish the FAILING rate on the faithful repro first, then require a large clean run (0/20+) on that SAME repro before claiming a fix. The fastest repro is the one most likely too easy. Corollary: transitively serving an offline peer's core needs a COMPLETE local copy — a sparse record-read leaves gaps a contiguous follow can't fill (symptom: "peer attached, length known, zero blocks transferred").
+**Unknown is not "left".** A fold that can't read a member's record must not remove them; let the
+leave frame drive removal. On the leave frame, tombstone (`markLeft`) and lift only on genuine
+re-entry (`membership:request` → `clearLeft`).
 
-**A first-success / re-attempt-hang asymmetry points at per-attempt STATE, not transport.** When attempt N passes and N+1 hangs on the SAME path, suspect leftover per-attempt state (a cached/persisted record like `downloads-meta`) before replication/timing — a transport bug would bite both. Before building a fix, REPRODUCE the actual failure mechanism, not just a plausible one; a repro that doesn't exercise the real call path validates the wrong hypothesis. If a shipped fix leaves CI IDENTICAL, the diagnosis was wrong — re-diagnose from the symptom, don't iterate on the same theory.
+**One notion of "is peer X online" — change every consumer at once.** Display and data-plane gates
+read the single liveness truth; the connection registry is for routing only.
 
-**Don't paper a convergence gap with a global periodic poll.** It adds steady load to EVERY instance (competing for the scarce CPU the failing test is starved of), can hold resources open past shutdown (timers, `findingPeers()`), and masks the real cause. Fix the targeted stall instead (hold a complete servable copy; send the grant BEFORE any bounded capture). If you must add a loop, prove it doesn't regress the suite on the faithful harness AND tears down cleanly (worker-shutdown test); prefer event-driven (hook an existing reliable signal) over time-driven.
+**`isOwnerOnline` is false for our own key.** Presence tracks remote peers only, so a gate on
+`isOwnerOnline(mount.ownerKey)` freezes every self-mirror. Use the pure predicate in `mirror-policy.js`.
 
-## Data-layer / hypercore gotchas
+**When deleting a function, audit its piggybacked side effects.** Grep the body for `emit`/`ipc` and
+check each removed `event:*` still fires from a surviving path; polling flow tests won't notice.
 
-**A Corestore's storage lock is per OPEN FILE DESCRIPTION, so two stores on one path conflict inside a single process too.** `hypercore-storage` locks `<storage>/CORESTORE` through `fcntl(F_OFD_SETLK)` on Linux and `flock()` on macOS; the release runs through rocksdb's native close, so re-opening a path right after `store.close()` (a worker restart, a test rebooting a peer) can lose the race and get `File descriptor could not be locked`. The tell is that error followed by `Corestore is closed` from a bee — and under Bare that second one is an unhandled rejection, i.e. SIGABRT with no summary. Open through `openStore()` in `src/shared/core/store.js`, which retries the contended lock over ~1.6 s and then fails with the path named; never leave a failed `ready()` behind a `catch` that lets boot continue on a dead store.
+## Data layer & hypercore
 
-**A `.catch(() => {})` on a write that encodes status is a future re-drive.** The tell is a row the UI shows as `error`/`cancelled`/`downloaded` that comes back to life after a restart or reconnect, with nothing in the log. Await the write; warn with the key and code; then either fail the caller, let the level-triggered scan finish the intent, or keep the verdict in memory for the process — and say which in a comment. Swallow only teardown races, safe reads, observability writes, and display-only values. `debug` is not surfacing: the default level is `warn`.
+**Two Corestores on one path conflict inside one process.** The lock is per open file description and
+released asynchronously. Open through `openStore()` (`core/store.js`), which retries; never let boot
+continue past a failed `ready()`.
 
-**A `get → spread → put` on a bee loses whichever field the interleaved writer set — and it is always a status latch.** Two continuations read the same record, each spreads its copy and puts, and the second put erases the first's field (paused, enabled, an error, a path). A fresh read before the put only narrows the window; the tell is the same "flag silently reverted" bug returning in a different helper each time. Serialize per key (`createRecordWriter` in `src/shared/core/bee-writer.js`) and keep hyperbee's `cas` as the assertion that nothing bypassed the lock.
+**A `get → spread → put` on a bee loses the interleaved writer's field.** Serialize per key
+(`createRecordWriter`, `core/bee-writer.js`) and keep `cas` as the assertion.
 
-**"What we own" and "what we owned before this pass" are two different sets.** Collapsing a mirror's ownership record and its collision check into one live Set makes a path claimed earlier in the same pass read as already-ours, so a pre-existing user file at that name is adopted instead of getting a sibling — the pre-fix code kept them apart by accident (it read the persisted array while building a separate list). Claim before the write lands (so a cancelled pass still owns what it wrote) but exclude the pass's own fresh claims from the "did we write this before?" question. Also: a regression test whose fixture round-trips through a bee cannot use a subclassed Array to count scans — JSON encoding hands the code a plain array, and the test passes either way.
+**Whatever writes through a buffer must read through it too.** A fast path that reads the bee while
+writes are staged in a batch sees "not done" and redoes the work.
 
-**When opening a read-only hypercore/hyperbee by key, `await core.update({ wait: true })` (bounded) before reading** — `ready()` doesn't fetch the remote head, so the first by-key read starts at length 0 and returns empty (then self-heals via background replication). A `B.until`/`waitText` asserting only EVENTUAL visibility masks stale-first-read bugs; assert COMPLETENESS (peer count == owner count, multiple entries) and prefer a focused single-read test of the by-key path.
+**A `.catch(() => {})` on a write that encodes status is a future re-drive.** Await it, warn with key
+and code, and say in a comment who finishes the intent. `debug` is not surfacing — the default level
+is `warn`.
 
-**Know who owns a Hyperdrive's corestore before closing it.** `new Hyperdrive(store, {_db})` / `new Hyperdrive(store)` is backed by `store` itself — `drive.close()` closes `store` (fatal if that's the ROOT: kills every other session → `SESSION_CLOSED: Cannot make sessions on a closing core`). Only `new Hyperdrive(store.namespace(x))` owns a private corestore safe to close; in identity mode release the drive's own cores (`blobs.core.close()` + `db.close()`) instead. Re-audit every `.close()` when the same teardown runs in two modes (one may have moved the object onto the root). Make destructive multi-step teardowns idempotent: delete the authoritative record FIRST so a mid-teardown failure degrades to leftover data, never an unremovable entry. When one sibling path carries a "we cannot call X here because…" comment, grep the others for the same call.
+**Open a read-only core by key, then `await core.update({ wait: true })` (bounded) before reading.**
+`ready()` doesn't fetch the remote head, so the first read is empty. Assert completeness, not eventual
+visibility.
 
-**Chunks handed to you by the transport must be COPIED before you stash them.** secret-stream decrypts in place inside udx receive-slab views, so a view you retain past the callback is overwritten by later traffic and silently corrupts the file — no error, just a bad hash at the end. `Buffer.from(data)` at the stash boundary; one memcpy buys correctness.
+**Know who owns a Hyperdrive's corestore before closing it.** `new Hyperdrive(store)` closes `store`
+on `drive.close()` — fatal for the root. Delete the authoritative record first so a failed teardown
+leaves data, never an unremovable entry.
 
-**A Corestore `keyPair` core's discoveryKey is the hash of its derived MANIFEST, not `crypto.discoveryKey(publicKey)`.** You therefore cannot recover a core's name from its public key after the fact — build the `discoveryKey → name` map on `ready()`. In-memory cores drop the alias entirely, which is why a corrupt core surfaces as an unnamed orphan in a store listing.
+**A Hyperbee whose Corestore closed underneath it still reports `closed === false`.** Only
+`handle.core.closed` is true. Handles are owned by a resource that closes them, never probed by a
+cache.
 
-**On-disk marker strings are an API — the metadata-migration marker `.mir40-bees-v1` is FROZEN.** It is matched by exact string, so renaming it (even incidentally, via a logger tag or a label rename in a cleanup sweep) re-runs the entire migration for every existing user on next launch.
+**A cache of live handles needs refcounts for readers too.** Anything holding a handle across an
+await must pin it, or an LRU `onEvict` closes it mid-read.
 
-**"Which code path throws X" is a hypothesis — read the library's exact throw CONDITION and reproduce before a targeted fix/self-heal.** hypercore/corestore behavior changes entirely with call shape (by-key vs by-discoveryKey vs by-name): `STORAGE_EMPTY` fires ONLY for open-by-discovery-key with no key/manifest (replication machinery serving a zombie core), never open-by-key. A truncated async stack naming only low-level frames is NOT evidence of the high-level caller. When the on-disk corruption can't be fabricated reliably, test the GUARANTEE at a deterministic layer instead. Here the real fix was process-level: a Bare worker with no `Bare.on('uncaughtException'|'unhandledRejection')` handler turns any unhandled rejection into total death — install the backstop, tested directly under brittle-bare.
+**Never `core.clear()` a Hyperbee's blocks to reclaim deleted rows.** Blocks are data and B-tree index
+at once. Reset wholesale with `core.truncate(0)` + `compactRange`, not `clearAndPurgeCore` (the cached
+tracker reports the old length and reads hang). Close the bee before clearing. Measure store size only
+after `compactRange`.
 
-**A "not present" check that PRUNES its own record makes the state change one-way.** The downloads
-claim (`downloads-meta`) is verified against disk on every listing, and every failing branch used to
-`del` the row. Adding a second reason to report not-downloaded — the file sits outside the space's
-current download folder — must NOT reuse that branch: pruning there would mean re-pointing the space
-at the old folder can never restore the status, because the evidence is gone. Order the checks by
-whether the claim is worthless (file deleted, upstream hash changed → prune) or merely out of scope
-(→ report false, keep the row). Generally: before adding a condition to a predicate that has
-side effects, check whether the new condition is *reversible* — if it is, it does not belong in the
-destructive path.
+**Copy transport chunks before stashing them.** secret-stream decrypts in place in udx receive slabs.
+`Buffer.from(data)` at the stash boundary.
 
-**Scope a stored claim against the setting the user PROMISED, not against the effective value.**
-`getDownloadDir(spaceId)` falls back to the global root, so "is this file inside the space's
-download folder?" silently answered "no" for every space that never overrode it as soon as the
-GLOBAL folder changed — un-downloading hundreds of untouched files and inviting a duplicate
-re-fetch of each. The per-space override is a promise about one named folder; inheriting a default
-is not a promise about anything, so only the override may narrow scope. Generally: when a value has
-an explicit-vs-inherited form, ask which one a stored record was written against before comparing —
-`getX() ?? getGlobalX()` is the wrong reader for a scope check even though it's the right one for
-"where does the next write go".
+**A keyPair core's discoveryKey hashes its manifest, not its public key.** Build the
+`discoveryKey → name` map on `ready()`.
 
-**A cross-cutting invariant has to be enforced at EVERY entry point, or it isn't one.** "A download
-root never overlaps a share" was checked when picking a download folder and when adding a *mirror* —
-but not when adding an *owned* share, and not for the global download folder. Both gaps were
-reachable by doing the same two operations in the other order, which is the normal way to hit them.
-When adding a rule about two pieces of state, enumerate every path that can write EITHER one, and
-make each rejection run before any side effect (a write probe inside a folder you're about to refuse
-lands a file in a watched, published tree).
+**On-disk marker strings are an API.** `.mir40-bees-v1` is matched exactly; renaming it re-runs the
+migration for every user.
 
-**`shared/core/paths.js` imports `bare-*`, so anything importing it becomes Bare-only.** Adding an
-import of it to `shared/spaces/space.js` dragged `bare-os` into four `test/unit` files that are
-Node-runnable precisely because that chain is bare-free (`require.addon is not a function` at
-import time, before any test runs). The bare-free rule `path-keys.js` documents in its header is a
-real, load-bearing layering constraint — pure string math goes in `path-keys.js`, and lifecycle
-hooks that need a `bare-*` module belong in the worker, which is Bare-only anyway. The `spaces/`
-split has since moved every `test/unit` importer off `space.js` and onto a pure leaf, so that
-particular file is no longer the one holding the chain open — but the constraint is unchanged, and
-the pure modules that now carry it are listed as `pureSpacesModules` in `eslint-rules/invariants.mjs`.
+**A factory invoked during a circular import must not read its module's `const`s in its body.** Tell:
+`Cannot access 'X' before initialization` naming a constant declared above. Construct nothing at
+module level; `boot.js` is the composition root and `test/integration/import-time.test.js` imports each
+cycle member first.
 
-**Never `core.clear()` a block range of a Hyperbee to reclaim deleted rows — it corrupts the live
-tree.** Every append writes one block holding `{key, value, index}`, so blocks are simultaneously
-data *and* B-tree index, and old blocks stay referenced by the current root long after their keys
-are deleted. The tell: a fresh reopen (not the warm handle — the node cache masks it) reads back 0
-rows and stalls on a non-local block. `del` is an append too, so pruning a Hyperbee always *costs*
-disk and never frees it. To reset a bee wholesale use `core.truncate(0)` + `compactRange` (a
-`clear()` after the truncate is a no-op — hypercore early-returns once `start >= length`) — **not**
-`clearAndPurgeCore`: deleting a core's storage and reopening it under
-the same (derived, deterministic) key hands back corestore's cached tracker entry, which reports
-the old length over storage that is gone, so every later read hangs. Truncation keeps the handle
-valid and needs no alias surgery. Order matters too — clearing a bee's blocks *before* closing it
-wedges `bee.close()`, since the close path reads blocks that are no longer local.
+**Moving an init into a `Subsystem._open` reorders it, and null-guards that return instead of throwing
+fail silently.** Diff its new position against `origin/staging` and check every collaborator it reaches.
+Restart/crash flow tests are the only layer that catches this. Pass collaborators as constructor deps,
+not nullable `hook?.()` slots.
 
-**Size a store problem only after `compactRange` — raw directory size is mostly write
-amplification.** A bee measuring 25 MB on disk fell to 4.4 MB from RocksDB compaction alone and to
-1.1 MB after a full clear + compaction, so an uncompacted `du` overstated the reclaimable residue
-by ~6x. Compact first, then measure, or you optimize transient SST/WAL churn instead of the real
-retained bytes.
+**An `await` on an unref'd timer with no other handle deadlocks under Bare.** The loop empties and
+`beforeexit` fires. A wait on the close path must be ref'd.
 
-**A factory invoked during a circular import must not read its own module's `const`s in its body.** `overlay-download.js` and `overlay-backend.js` import each other directly, and BOTH `overlay-backend.js` and `loose-overlay.js` construct a download engine at module top level — so the hoisted `createOverlayDownloadEngine` runs while `overlay-download.js` is still evaluating and every `const` in that file is in its temporal dead zone. The tell is `ReferenceError: Cannot access 'X' before initialization` naming a constant declared plainly ABOVE the function — existing code escapes it by only touching those constants from methods called later. Read config constants inside the method that uses them, or a new option default added for testability wedges the worker at boot. *Structural fix:* nothing is constructed at module level any more — `src/worker/boot.js` is the composition root that constructs, and `test/integration/import-time.test.js` imports each cycle member FIRST in a fresh Bare process, which is the only way to reproduce the order that bit. The last two holdouts were the folder and loose download engines; `OverlayBackend._open` builds them, so the cycle now contains no construction at all.
+**Importing `shared/core/paths.js` (or anything `bare-*`) makes a module Bare-only.** Pure string math
+lives in `path-keys.js`; the pure modules are listed as `pureSpacesModules` in
+`eslint-rules/invariants.mjs`.
 
-**A nullable hook slot invoked as `hook?.()` fails silently, and no test can see it.** Eleven of them existed, each with exactly one caller, each a "wire this before the swarm accepts sockets" invariant carried by a comment. A collaborator passed as a constructor dep and declared with `require()` fails at boot with the subsystem's name instead — the same information, at the only moment it can still be acted on.
+**A `bare -e "require('x')"` from the repo root proves nothing.** A transitive devDependency answers
+it. Confirm with `npm ls` and probe from outside the repo.
 
-**Moving an init call into a `Subsystem._open` reorders it against everything else, and the code that depended on the old order fails silently.** Two of these shipped into one branch and only the flow suite saw either. `rehydrateLooseFiles()` ran ahead of the overlay instance instead of behind it, and its two sinks (`makeServable`, `enqueueLoosePublish`) both *return early* on a null `getOverlay()` — so a crash-interrupted file stayed unhashed on "Adding" forever, with the `.catch()` swallowing the evidence. `configureMemberRegistry` moved after the swarm start, leaving a window where a handshake read every peer through no-op `DEFAULT_DEPS` (`isConnected: () => false`). The shape is identical both times: a dependency expressed as a silent fallthrough rather than a throw, so reordering degrades behavior instead of breaking. When lifting a call into a subsystem, diff its new position against the old one (`git show origin/staging:<file>`) and check every collaborator it reaches for a null-guard that returns instead of throwing — those are the ones that go quiet. Restart/crash flow tests are the only layer that catches this class; unit and integration were green through both.
+**A parse guard is not a shape guard.** `JSON.parse('null')` succeeds and the next property read throws
+into protomux, destroying the socket. After parsing untrusted input, assert
+`!!v && typeof v === 'object' && !Array.isArray(v)`.
 
-**A parse guard is not a shape guard: `JSON.parse('null')` succeeds and returns `null`.** The
-mirall/handshake intake wrapped `JSON.parse` in a try, then read `msg.type` on the next line —
-outside it. `null` is the one input that parses cleanly and throws on the property read (`42`,
-`"s"`, `[]`, `true` all read `.type` as `undefined` harmlessly), and that throw escapes the message
-handler into protomux's `_ondata`, which `_safeDestroy`s the socket. The channel id is the public
-protocol string, so any peer on the topic could drop a connection with a four-character frame.
-Verified against real protomux: `at Object.recv (protomux/index.js:276) → Channel._recv →
-Protomux._decode → Protomux._ondata`. Decode and shape are two separate checks — after every
-`JSON.parse` of untrusted input, assert the shape (`!!v && typeof v === 'object' && !Array.isArray(v)`)
-before touching a property.
+## Destructive and long-running work
 
-**A cache of live handles needs refcounts, and the readers need them as much as the watchers.**
-Bounding `peerCatalogs` with an LRU whose `onEvict` closes the bee introduced a use-after-close: the
-read paths hold the bee across two awaits (a head sync and a get), so a catalog opened by a
-CONCURRENT read could evict and close it mid-read. Pinning the long-lived watcher was the obvious
-half and was not enough — anything holding the handle across an await has to pin it. The tell is
-that the value is a handle rather than a value: if `onEvict` does real work, every `get` that
-outlives a tick is a bug until proven otherwise.
+**A "not present" check that prunes its own record makes the state one-way.** Prune only when the
+claim is worthless (file deleted, hash changed); a reversible condition (out of scope) reports false and
+keeps the row.
 
-**A timer armed at module level is beyond every `close()`.** It runs at import, before any owner exists, so no shutdown path can reach it — five sites did this and every one outlived the worker's stop sequence, masked only because `Bare.exit` followed. Arm periodic work in a `Subsystem._open` through `this.timers`, which the base clears on the `'close'` event (not in `_close`: `ReadyResource` ends a failed `_open` without ever running it). An eslint selector (`moduleLevelTimerRestrictions`) and a runtime timer shim enforce both halves.
+**Scope a stored claim against the setting the user promised, not the effective value.** A fallback
+reader (`getX() ?? getGlobalX()`) is right for "where does the next write go" and wrong for a scope
+check.
 
-**A Hyperbee or Hyperdrive whose Corestore closed underneath it still reports `closed === false`.** `ReadyResource.closed` only flips when the resource's OWN close() runs; a session closed by its store is invisible to the wrapper — only `handle.core.closed` tells the truth. So a cache cannot protect itself with a `closed` check, and a handle held across a restart is a live-looking object whose first write throws `SESSION_CLOSED`. Handles are owned by a resource that closes them, never probed by whoever cached them.
+**A cross-cutting invariant must be enforced at every entry point that writes either side.** Reject
+before any side effect.
 
-**An `await` on an unref'd timer with no other handle in the loop is a deadlock under Bare.** Every periodic timer in the data layer is unref'd by design and the worker's IPC pipe is what holds the loop; without a pipe (a test, a future daemon) the loop empties the moment the code parks on that timer, `beforeexit` fires, and the await never resolves. A pure wait on the close path must be ref'd.
+**A destructive diff must re-derive its precondition at the moment it acts.** A snapshot taken before
+minutes of hashing is stale. Re-resolve the mount, refuse when the root is missing (a vanished root
+looks like every file deleted), then re-stat.
 
-## Stopping long-running work
+**A destructive action's confirmation must be at least as strict as the check that proposed it.**
+`statSync` case-folds and follows links where readdir names are byte-exact. Stat first, then confirm
+the leaf byte-for-byte in its parent's listing (`disk-presence.js`). The same case-folding makes a
+readdir set the wrong substitute for `existsSync`.
 
-**A recovery budget that resets on "it booted" is no bound on a process that gives up on itself.** `makeRespawnPolicy` cleared its crash streak on any generation that reached ready — correct for the case it was written for (an OOM on a very large folder: the worker booted fine, one heavy operation killed it, booting again works). The moment the worker gained a way to exit *because it judged itself unstable*, that reset became unbounded: such a worker reaches ready every single time, so it respawned forever, and because the renderer reloads the window on crash recovery the user watched the app restart itself on a timer. The tell is a give-up counter whose reset condition is a **precondition of the failure it is meant to bound**. Two failure modes sharing one exit path need two budgets and a way to tell them apart — here an exit code in the contract (`WORKER_EXIT_UNSTABLE`), since main relays the code verbatim and nothing else about the two exits differs. Corollary for the other end: escalation must be DISARMED until boot completes, because a worker that dies before ready is exactly what the boot-loop cap converts into a permanently dead app — and the disarm must not latch, or a noisy boot silently spends the one escalation the worker gets.
+**If "in progress" isn't a representable state, work gets done twice.** Give the work an identity and
+a state (a queue); keep the old API's contract (resolve after the work, return totals).
 
+**Admission and enqueue are one step.** Enqueue inside the lock, await outside it.
 
-**Stopping a periodic loop must cancel the in-flight pass, not just the timer.** Clearing `setInterval`/pending timers leaves a materialize/download pass already iterating thousands of files running to completion — and its trailing persist can RESURRECT the just-torn-down state. Use a per-key generation counter checked between items (bail if it changed), abort the active stream/transfer (track it in a map the stop path can `destroy()`), and guard the trailing persist. Test with enough files/bytes that the pass is genuinely in flight at stop time; assert both "progress halts" AND "state not resurrected." A subsystem's `_close` is where the generation bump and the bounded wait belong; `this.timers` covers only the timer half.
+**A cancel that settles a waiter must mark it cancelled.** The consumer checks the marker before
+acting, and a cancelled running item stays the path's live item until its executor returns. Anything
+that resolves a caller on cancel waits for the tail (`whenPathIdle`) or says the effect is still in
+flight; teardown waits for running executors, not just the queue.
 
-**A `try { worker.kill() } catch {}` around a method the stream does not have is a reaper that never runs.** The bare-sidecar Duplex has no `kill()`, so the call threw straight into the swallowing catch and a wedged worker was never reaped — it orphaned itself at 100% CPU after every quit. The tell is an escalation path with nothing asserting the child actually died. `destroy()` is SIGTERM via the sidecar, and a starved event loop cannot service SIGTERM either (bare dispatches it on that loop), so the only uncatchable step is `child.kill('SIGKILL')` on `worker._process`, with `process.on('exit')` as the backstop when main exits first.
+**Emit only when state actually changed.** A notifier that fires on a no-op loops with a listener that
+answers with the action. Pin the no-op path with an assertion that it emits nothing.
 
-## Adding a parallel implementation
+**Stopping a periodic loop must cancel the in-flight pass, not just the timer.** Use a per-key
+generation checked between items, abort the active stream, and guard the trailing persist. Assert both
+"progress halts" and "state not resurrected".
 
-**When you add a parallel implementation behind a mode flag, audit it branch-by-branch against the original as the reference** — especially status/labelling, path resolution, deletion semantics, and counts. Enumerate the divergence surface (grep the flag) and check each handler; confirm the branches WITHOUT a mode split are genuinely mode-agnostic. The systematic guard is a conformance suite running the same assertions against both modes across the FULL state matrix (browse/download/mirror/preparing/owner-offline), not just the happy path. This recurs concretely for loose-file vs folder shares — both move bytes through the overlay backend, so an overlay fix landed on one path is a standing gap on the other; grep the sibling path in the same change.
+**A recovery budget that resets on "it booted" doesn't bound a process that exits by choice.** Two
+failure modes sharing one exit need two budgets and a distinguishing exit code
+(`WORKER_EXIT_UNSTABLE`). Escalation is disarmed until boot completes, and the disarm must not latch.
 
-## Platform quirks
+**Kill a wedged worker with `worker._process.kill('SIGKILL')`.** The sidecar Duplex has no `kill()`,
+and a starved loop can't service SIGTERM. Back it with `process.on('exit')`.
 
-**Preallocating a partial file with `ftruncate` is free on APFS/ext4 and expensive on NTFS.** POSIX filesystems make it sparse; NTFS reserves real clusters, so a download of a file larger than free space fails ENOSPC at *preallocation* — before a single byte transfers — rather than at the last block. Preflight with `statfsSync`, classify the error code, and pause rather than retry (a retry loop on a full disk never converges).
+**Two non-atomic writes: order them so a crash leaves the visible failure.** For secret-at-rest plus a
+record naming it: config first when adding, vault first when removing, `flush()` rather than trusting
+the debounce, and never `catch {}` the delete.
 
-**Chromium pins a `position: sticky; top: 0` box at the scrollport top PLUS the scroll container's own `padding-top`.** A pane with `pt-1` therefore leaves a 4px band above its pinned section header that the rows scrolling behind it stay visible in — a card sliced off mid-row, right above the heading. The padding was there as room for a focused card's ring (`-mt-1 pt-1`, so nothing moves), which is dead weight the moment a sticky header owns the top of that pane: the first control already sits below the header's own bottom padding. Keep the ring room horizontal (`-mx-1 pl-1 pr-1`) and give the pane no `pt-*`. Nothing in the AX tree can see 4px of paint, so the guard belongs in `test/frontend-layout` (`test:layout:stickyheader`), not `test/frontend`.
+**A level-triggered probe only sees an edge somebody recorded.** Whoever notices a state first records
+it where the probe reads (`handleOwnedMountGone`), and the probe reconciles its baseline against the
+durable record each tick (`mount.status === MOUNT_POINT_GONE ? false : lastSeen`) while keeping its
+early `continue`.
 
-**Re-showing a hidden macOS window makes Chromium focus the first tabbable element.** A skip-link therefore appears to self-activate on window restore ("phantom tab traversal"). Guard on real tab intent — a Tab keydown immediately preceding the focus — and blur otherwise. Reproduce ONLY via a genuine tray/status-item menu click; `open -a` takes a different activation path and hides the bug.
+**When a parallel implementation sits behind a mode flag, audit it branch by branch against the
+original.** Grep the flag; loose-file and folder shares share the overlay, so a fix on one path is a
+gap on the other until the sibling is grepped.
 
-**A packaged GUI app's argv is written by the OS, so a strict CLI parse at module top is a crash waiting to happen.** Windows and Linux hand a clicked `mirall://join/<code>` deep link to the process as a bare positional (macOS uses the `open-url` event instead), and paparam is strict by default — the URL bailed `UNKNOWN_ARG` while `main.js` was still evaluating, which surfaces as Electron's "A JavaScript error occurred in the main process" dialog: no window, no deep-link dispatch, and no `second-instance` handoff either, because the second process dies before `requestSingleInstanceLock` ever runs. It reads to the user as "the invite link is broken" while the bare code pasted into the UI works fine. Split OS-supplied positionals out *before* parsing and downgrade any remaining bail to a warning — a surprising argv may cost a flag, never the app. Declaring one offender at a time (`--no-sandbox`, for Linux AppRun) only patches the case you already hit.
+**The worker respawn is the restart primitive.** For a change that can't apply live,
+`request('shutdown')` and let `scheduleRespawn` rebuild from the new config — but never behind the user:
+store the change, flag it pending, and offer **Reconnect now** with an explanation.
 
-**A deep link that round-trips through a browser or chat client can come back with a trailing slash.** `mirall://join/<code>/` failed while the bare `<code>` worked, because the extractor stripped only LEADING slashes and the survivor failed base64url validation. Neither hex nor base64url contains `/`, so strip both ends. The extractor exists in two hand-mirrored copies (`src/main/deeplink.js`, `src/shared/contract/invite-envelope.js`) — a fix to one is a standing bug in the other; both carry test coverage.
+## Network, relay & streams
 
-**A `bare -e "require('x')"` that succeeds from the repo root proves nothing.** Bare resolves through `node_modules/`, so a module that is only a transitive **devDependency** answers the probe and is then absent from a production install and from the packaged app. `string_decoder` looks available to the worker for exactly this reason (it arrives under `@electron-forge/cli` → `@electron/rebuild` → `ora` → `bl` → `readable-stream`); the same script run from `/tmp` gives `MODULE_NOT_FOUND`. Confirm with `npm ls <pkg>` before depending on anything in `src/shared/`, and run the probe from outside the repo. Bare genuinely has no `TextDecoder` either — asserted by `test/unit/invite-envelope.test.js`.
+**Size a per-socket burst allowance by what that socket has proven, not a constant.** A fixed burst plus
+a consecutive-drop ban is a cliff at `burst + threshold`. Keep the bucket as decaying debt and decay the
+drop counter at the refill rate.
 
-## Security / metadata
+**Never destroy a peer's socket to heal a wedged replication session.** It carries every channel for
+that peer. Capture via an explicit bounded `get`, falling back to `bee.checkout(core.contiguousLength)`.
 
-**Gate member-only operations by capability at the worker boundary, not the UI** (treat UI hiding as cosmetic defense-in-depth). When reasoning about "can a non-member do X," name the exact capability each op leaks: read access is gated cryptographically (the SCK — usually already holds, so often NO escalation); the residual risk is the LESSER capability the op still exposes (e.g. the topic/discovery key → an outsider can connect and spam join-requests). Decide if leaking that is acceptable and hard-refuse at the data layer if not — don't stop at "the crypto gate holds, so it's fine."
+**Latency injection must preserve FIFO.** Release frames through one queue with
+`at = max(now + latency + rand(jitter), prevFrameAt)`, overriding `.write` in place (Protomux reads
+`.remotePublicKey` off the Noise stream).
 
-**Enforce path containment read-side, independently of Hyperdrive.** A malicious peer appends raw Hyperbee entries directly, bypassing Hyperdrive's write-side path normalization, so a traversal path arrives already stored and looks legitimate on read. Resolve each path against the destination root before writing it out — and note a bare `startsWith(root)` is not a boundary (`/root-evil` passes it); compare on a separator-terminated prefix or use `path.relative`.
+**`rawBytesRead` advances per frame, not per packet.** Liveness signals read `stream.rawStream`
+(`bytesReceived` on udx, `bytesRead` on TCP). An idle connection still carries keep-alive frames.
 
-**A `profileKey` is a Hypercore MANIFEST hash, not an ed25519 public key** — signature verification against it directly always fails. Rebuild the manifest from the claimed `signerKey` + `signerNs` and check that it hashes to the `profileKey`. Corollary: an unauthenticated `membership:request` naming someone else's `profileKey` must never be answered with the SCK.
+**Decode NDJSON on the newline byte, never `buffer += chunk.toString()`.** A split multi-byte character
+decodes to U+FFFD on both halves and `JSON.parse` succeeds. `0x0A` never occurs inside UTF-8 sequences.
 
-**Before calling plaintext replicated state a "leak," classify each field.** (a) Needed BEFORE the gating key exists (identity used to negotiate membership) → necessarily public, working as intended; (b) a key/pointer whose target is encrypted → safe by the plaintext-key→encrypted-data invariant; (c) actual sensitive DATA not required pre-membership → the genuine residual (the only bug). Never propose "just encrypt the bee" without checking key granularity: one identity spanning N spaces with N distinct SCKs has no single key — the fix is a per-scope encrypted projection or relocating the data into the correctly-keyed store.
+**Relay attribution is visible only through `blind-relay`'s `Client.from` + `'pair'` event.** hyperdht
+discards it. Relayed is transient (udx `'remote-changed'` upgrades it), so compare endpoints rather than
+caching a boolean.
 
-## Network / streams
+**A relay setting reaches only the next connection.** Apply a change by dropping the sockets; clear
+`peerInfo.forceRelaying`, which hyperdht latches and never clears. `off` removes only our contribution —
+the peer's relay still applies.
 
-**A per-socket burst allowance must be sized by what an honest peer legitimately sends per round, not a constant.** When the legitimate burst grows with a count the receiver can observe (spaces shared), a fixed burst plus a consecutive-drop ban is a cliff at `burst + threshold` — here 24 shared spaces on a reconnect, since the peer's dropped reciprocals count toward the ban too. The tell is `evicting flooding peer` for a *known* peer on every reconnect, and spaces that stay empty for 10-60 s below that. Size the cap by what THIS socket has proven (distinct matched topics), not by your own total, or a peer that matches one topic inherits an allowance that grows with every space you join; keep the bucket as decaying debt so a growing cap admits at once, and decay the drop counter at the refill rate so a peer that paces itself can never accumulate a ban.
+**Freeze the facts that decided a connection's path at pairing time.** Record `via`/`relayMode` per
+connection so a mode change can tell old connections from new. Provenance comes from the pairing's
+`isInitiator` and an installed relay function, never key equality with the config slot.
 
-**Never destroy a peer's socket to "heal" a wedged hypercore replication session.** That socket is the single Noise mux carrying every core, transfer, and control channel for that peer, so the "recovery" is itself the outage. A wedged session starves even explicit `core.get()` calls (it is per-core, not per-request) — recover by capturing what you need through an explicit get with a bounded timeout, falling back to `bee.checkout(core.contiguousLength)` when the peer is offline.
+**A per-connection array in the status frame needs a scalar digest beside it.** The dedup compares
+leaves only.
 
-**Injecting latency into a reliable stream must preserve FIFO order.** Per-frame independent `setTimeout`s with jitter let a later frame overtake an earlier one, corrupting a stream whose consumers (Protomux framing, hypercore replication proofs) assume strict order — real links shape BELOW the reliable layer (udx reassembles in order), so app-level shaping must keep order. Release frames through a single FIFO queue with monotonic release times: `at = max(now + latency + rand(jitter), prevFrameAt)`. Don't wrap the socket in a fresh Duplex (the Noise stream carries load-bearing `.remotePublicKey`/handshake hash that Protomux reads) — override `.write` in place. Proof: an impaired transfer still lands byte-exact AND is measurably slower.
+## Platform & packaging
 
-**`rawBytesRead` on a Noise stream advances per FRAME, not per packet.** `@hyperswarm/secret-stream` only decrypts and pushes a message once the whole frame has arrived, so any "is this peer still alive" signal built on the stream's `data` event or on `rawBytesRead` is frozen for the entire time one large frame is in flight — which is exactly when it is needed (a 4 MB overlay chunk is one frame, 33.6 s on a 1 Mbit/s wire). The per-packet counter lives one layer down on `stream.rawStream`: `bytesReceived` on a udx stream, `bytesRead` on a TCP socket. Measured on a shaped link: the packet counter advanced in all ten 200 ms samples while `rawBytesRead` stayed at zero until the last packet landed. Corollary for sizing any threshold on it — an idle connection is not silent: hyperdht's `connectionKeepAlive` (5 s) puts a 20-byte empty frame on the wire, measured at 360 B per 30 s window.
+**Preallocating with `ftruncate` is sparse on APFS/ext4 and real on NTFS.** Preflight with `statfsSync`
+and pause on ENOSPC; never retry on a full disk.
 
-**Piping a test run into `tail` throws away its exit code, and its failures.** `npm test 2>&1 | tail -8` reports the exit status of `tail` (always 0), and an 8-line window shows a crash's stack trace while hiding the summary — so a suite that aborted reads as "exit code 0" with nothing obviously wrong. It also truncates the TAP `not ok` lines that say WHAT failed. Redirect to a file and check `$?` (`npm test > /tmp/run.log 2>&1; echo $?`), then grep the file for `^not ok`. A green claim built on a piped tail is not evidence.
+**A packaged app's argv is written by the OS.** Split OS-supplied positionals (a `mirall://` link on
+Windows/Linux) out before a strict parse, and downgrade any remaining bail to a warning.
 
-**Decode an NDJSON stream on the newline BYTE, never `buffer += chunk.toString()`.** A chunk that ends mid-sequence decodes the split character to U+FFFD on **both** halves — and U+FFFD is a legal JSON string character, so `JSON.parse` SUCCEEDS and the handler runs on a corrupted string. There is no error, no log line, and no failed assertion anywhere: an owned folder named `Müller Projekte` had its watcher armed on a path that does not exist, and chokidar reports nothing at all for a missing path, so the folder simply stopped re-publishing for the life of the process. `0x0A` can never occur inside a multi-byte UTF-8 sequence (continuation bytes are `0x80–0xBF`, lead bytes `>= 0xC2`), so splitting on the byte is exact and every complete line is complete UTF-8 — one algorithm that is correct under Node, Electron and Bare, with no decoder state to reset. Deciding on bytes also lets a size gate run *before* anything is decoded, which is usually what its comment already claims. The tell when auditing: any `.toString()` applied to a stream chunk rather than to a completed frame.
+**A deep link through a browser or chat can gain a trailing slash.** Strip both ends. The extractor
+exists in `main/deeplink.js` and `contract/invite-envelope.js` — fix both.
 
-## Release / build
+**Gate a fixed-length encoded credential on string length before decoding.** A z-base-32 final
+character can be pure slack, so a checksum can't see a truncation.
 
-**A backstop assertion sized against the current value becomes a gate on unrelated work.** `bundle-axe-stripped.test.js` guards a ~616KB axe-core regression but sat ~200 bytes above the real prod bundle, so a `marked` patch bump (+782 bytes) and one card's worth of new copy (16 keys × 5 locales) each tripped it independently. Size a backstop between the two outcomes it must distinguish — prod ~1.00MB vs dev ~1.62MB, so 1.25MB — not just above today's number. Five statically bundled locales are ~24% of `main.js`, so this line keeps drifting toward a copy budget; lazy-loading them is the real fix.
+**chokidar emits no event for a file unreadable at report time.** A permission fault on read is found
+only by a scan.
 
-**Prerelease channels (beta/dev/staging) use single-drive `pear stage` + `pear release`** (`upgrade-keys.json` entry is a STRING). `pear provision` rejects prerelease SemVers, but the OTA updater compares by SemVer precedence, so prerelease builds must carry monotonically increasing `-beta.<run>` versions. Only prod (clean `X.Y.Z`, bumped per release) uses the `{stage, provision}` object. `pear touch` the seed drive ON the seed VM or `pear stage` fails `SESSION_NOT_WRITABLE`.
+**A cheap per-row fs check is worth batching only when the syscall count is the cost.** `readdir` is
+O(directory) and byte-exact where `existsSync` case-folds; memoize the repeated folder probe instead.
 
-**macOS CI codesign `Sealed Resources=none` / `Signature=adhoc` is a transient flake.** Re-run the macOS job; don't chase forge.config.js / keychain / secrets. It's a resource-sealing race.
+## Security
 
-**`UPGRADE_KEY_PROD` must equal the seed VM's `production.provision` key, and rotating one means rebuilding.** The key is baked into the client at build time, so re-keying the provision drive without shipping a new build strands every installed client — they keep polling a drive nobody seeds. Rotate both together, then release.
+**Gate member-only operations by capability at the worker boundary.** Name the lesser capability an op
+still leaks (e.g. the topic key → join-request spam) and refuse at the data layer if it's unacceptable.
 
-**`signtool`'s Windows SDK version must match the runner OS's AppxSip build.** A mismatched SDK signs a package that verifies on the signing host and fails at install on user machines. Pin the SDK to the OS image, and re-pin when the runner image bumps.
+**Enforce path containment read-side.** A peer can append raw entries that bypass Hyperdrive's
+normalization. `startsWith(root)` isn't a boundary; compare a separator-terminated prefix or use
+`path.relative`.
 
-**An absent macOS notarization secret silently disabled notarization instead of failing.** `osxNotarize` was gated on `APPLE_ID` + `APPLE_ID_PASSWORD` + `APPLE_TEAM_ID` all being present (packager rejects a partial credential set), so a single unset var — `APPLE_TEAM_ID`, never created — left the gate shut with no warning: builds went green and shipped signed-but-unnotarized DMGs that Gatekeeper blocks at first launch. Signing and notarization are separate gates; a "successful" macOS build proves only the first. `forge.config.js` now fails a signed darwin build with incomplete notarization credentials (opt out locally with `ALLOW_UNNOTARIZED=1`). Generalize: any capability gated on `if (all creds present)` needs an else-branch that shouts, or its absence becomes invisible.
+**A `profileKey` is a manifest hash, not an ed25519 key.** Rebuild the manifest from `signerKey` +
+`signerNs` and check it hashes to the `profileKey`; never answer a `membership:request` naming someone
+else's key with the SCK.
 
-**To date-bound a CI credential break, read the secrets' `created_at` vs `updated_at`, not just the run history.** `gh api repos/OWNER/REPO/actions/secrets` gives both. A secret whose `created_at` sits between the last green run and the first red one is the change — and a `created_at` equal to `updated_at` means it was *added*, never rotated, so the feature it gates has never actually run and no earlier green build is a baseline to restore. Secret VALUES are masked in logs (a `security find-identity` line printing `"***"` means the identity matched a secret exactly), so timestamps are often the only forensic signal available.
+**Classify each plaintext field before calling it a leak.** Needed before the gating key exists →
+public by design; a pointer to encrypted data → safe; sensitive data not needed pre-membership → the
+real bug. Check key granularity before proposing "encrypt the bee".
 
-**Quantify packaging/size deltas against a CI-equivalent build, not local `out/`.** A subproject's gitignored `node_modules` on your disk (e.g. `cloudflare-worker/`) is NOT in the shipped artifact — CI's `npm install` only installs the main project. `git ls-files` the dir + check the workflow's install steps before projecting a win. Native prebuilds ship pre-stripped (symbol stripping ≈ 0).
+## Release & build
 
-**A snapshot taken before a long operation is not evidence at the end of it.** `overlayScan` walked the disk once, spent minutes hashing, then deleted every catalog entry missing from that walk — silently unsharing files added in between, and the tombstones replicated to every peer. Any diff whose "absent" side drives a **destructive** action must re-derive its precondition from current state at the moment it acts, not re-check one fact: the retire executor re-resolves the mount (a relocate leaves enqueue-time paths stale), refuses when the root is missing (a vanished root makes chokidar emit one `unlink` per file — every one of them looks "gone"), and only then re-stats the file. The publish path already did this (`publishContent` stats first); the retire path was the outlier, and the first rewrite draft moved only the re-stat and would have mass-tombstoned on a USB unplug.
+**Prerelease channels use single-drive `pear stage` + `pear release`.** Their `upgrade-keys.json` entry
+is a string, and versions must increase monotonically (`-beta.<run>`). Only prod uses
+`{stage, provision}`. `pear touch` the seed drive on the seed VM first, or staging fails
+`SESSION_NOT_WRITABLE`.
 
-**If "in progress" is not a representable state, work gets done twice.** The owned-folder freshness test asked "does a content hash exist?" — an *output* of the work standing in for a *receipt* of it — so "someone is already hashing this" was indistinguishable from "never started", and every watcher event's catch-up scan re-hashed everything still in flight (measured: 68 hash passes for 24 files, individual files 5×). No interlock fixes that; the work needs an identity (its path) and a state. Every other pipeline in the tree already had one (`pending-transfers`, `activePublishes`, the mirror's `tickInFlight`); the folder publish was a bare `for` loop. When a rewrite adds a queue, keep the old API's *contract* (resolve after the work, return the totals) — twelve test files and five worker call sites depended on it, and re-pointing the completion event to compensate would have been solving a problem the alias removes.
+**`UPGRADE_KEY_PROD` must equal the seed VM's `production.provision` key.** It's baked in at build
+time; rotate both together, then release.
 
-**Whatever writes through a buffer must read through it too.** Bulk owned-folder publishes stage their catalog writes in a per-space batch (few atomic heads for the consumer), but `publishContent`'s "already done?" fast path read the bee. On a slow CI runner a file finished and settled while the catch-up diff was still iterating the catalog, its materialized hash sat unflushed in the batch, the bee said "no hash", and the file was hashed a second time — 25 reads for 24 files, invisible on a fast dev box. The batch now exposes `get()` over its staged and in-flight ops, and `publishContent` reads `prev` through the catalog it writes through (`directCatalog.get` is `getOwnEntry`). Corollary for the gate runs: filter CI-gate output case-insensitively or not at all — a case-sensitive `grep error` hid `ERROR: double-scaled test deadline` from `check-test-timing.sh` and the failure only surfaced in CI.
+**macOS codesign `Sealed Resources=none` / `Signature=adhoc` is a transient flake.** Re-run the job.
 
-**A destructive action's confirmation must be at least as strict as the test that proposed it.** The owned-folder diff proposed retires by exact readdir name; the retire executor confirmed "really gone" with a following `fs.statSync().isFile()`, which case-folds on APFS/NTFS and follows symlinks. `Report.pdf → report.pdf` therefore never retired the old key — every pass re-proposed it and every confirmation said "still present" — and the phantom stayed advertised to every peer. Whenever a cheaper check stands in for the one the decision was made with, enumerate what the cheap check accepts that the original rejected (case, normalization, links, mount folding) before trusting it. `disk-presence.js` stats first (a missing file needs no readdir) and then confirms the leaf byte-for-byte in its parent's listing.
+**Pin `signtool`'s Windows SDK to the runner image's AppxSip build.** A mismatch signs a package that
+fails to install on users' machines.
 
-**A cancel that resolves a waiter must say so, or the waiter reports success.** `cancelShare` handed `whenDrained` the plain partial tally, so a mount-time index cancelled by a delete resolved like a finished one: the worker wrote `active` (a lockless get-then-put that raced the delete's `bee.del` back into a zombie mount record), emitted `scan-completed`, and re-armed the reconcile it had just cancelled. Any promise that a cancellation settles early needs a marker the consumer checks before acting on the value — and the consumer's follow-ups (status writes, timers, audit rows) belong to whoever cancelled. Related: a cancelled RUNNING item must stay the path's one live item until its executor actually returns; dropping it from the registry at cancel time is how a second executor starts on the same file and the first one's revert lands on the second one's advertise.
+**A capability gated on "all credentials present" needs an else-branch that fails loudly.** An unset
+notarization var shipped signed-but-unnotarized DMGs.
 
-**A test double must model the transaction boundary the test is about.** The catalog-writer's `fakeBee` applied `batch.put()` to the store immediately, so a test for "a staged op over a put whose flush has not landed" passed on the buggy code — the bee already held the put the bug was about. When a test's scenario is a window between two steps of the real thing (staged → in flight → landed), the fake must have that window too (`txBee`: puts land only on `flush()`), or the red-first proof is proving nothing.
+**Date a CI credential break by the secrets' `created_at`/`updated_at`.** `gh api
+repos/OWNER/REPO/actions/secrets`; equal timestamps mean added, never rotated.
 
-**A cancel releases the caller before the executor has honoured it.** Moving the loose publish onto the queue kept `files:add`'s contract ("resolves when the file is shared") but changed what a *cancel* meant to the caller: the queue settles the caller's promise at cancel time, while the hash still has to notice the abort and revert. A test's store closed in that gap and the revert landed on a closing core. Anything that resolves a caller on cancel must either wait for the tail (`whenPathIdle`) or make it explicit that the effect is still in flight — and a teardown that closes shared state must wait for running executors first, not just clear the queue.
-
-**Admission and enqueue are one step.** The loose name/cap check ran under the space lock but the enqueue happened after the lock was released, so two concurrent adds could both resolve `photo.jpg` before either was pending. Whatever the admission check reads (catalog entries plus queued names) must already include the item by the time the lock drops: enqueue inside the lock, await outside it.
-
-**A notifier that fires on a no-op can loop with the listener it notifies.** `looseCancelPublish` emitted `event:files-updated` unconditionally — also when it found nothing to revert. A listener that answers a refresh with a cancel (the re-publish recovery test does exactly that) drove cancel → emit → cancel → … until the 4 GB heap filled: the suite died minutes later with "Reached heap limit", not with a failed assertion, and only under `-j 4` did it look like an unrelated hang. Emit only when state actually changed, and pin it: the no-op path gets an assertion that it emits nothing.
-
-**A menu trigger is not a `button` in the AX tree.** `s123` opened with `click({ role: 'button', name: 'More' })` and never found it: react-aria puts `aria-haspopup` on the `ActionMenu` trigger, so macOS exposes it as a pop-up button and agent-desktop reports `role: "combobox"`. That is the correct native idiom — VoiceOver says "More, pop-up button" — so the control is fine and the selector was wrong. Every other scenario in the suite matches it unscoped (`{ name: 'More' }`) for exactly this reason; scope a menu trigger by name, never by `role: 'button'`.
-
-**A `<label for>` shadows the field it labels.** The same scenario read a field's value with `flatten(...).find((n) => n.name === 'Folder name')` and timed out on an empty string forever. agent-desktop 0.8.x gives the `<label>` a ref of its own carrying the *field's* accessible name, and it precedes the input in document order, so a raw name match returns the label. `tree.mjs` already documents this and `findNode(..., { actionable: true })` exists to skip `statictext` — use it for any value read, not just for clicks.
-
-**agent-desktop's minor versions are the FE harness's compatibility ladder; `test/frontend/preflight.mjs` pins the floor.** Every break was a minor-line change, so `agentDesktopTooOld` compares minors. 0.1.x: stable cross-process refs but one global refmap with a hard 1 MB cap a large window's AX tree blows past. 0.2.x: per-command "semantic AX paths", no persisted refmap — every cross-process ref came back `STALE_REF` and the suite hung. 0.3.0: persisted, session-scoped snapshots (`--session` / `--snapshot`), so cross-process refs work again. 0.4.x: an unattached AX tree returned an empty tree, which the scenarios' waits rode out. 0.5.0: `--timeout-ms` auto-wait on ref actions. 0.7.0: an over-budget snapshot became `ok:true` + `complete:false` instead of a TIMEOUT error — on an older CLI the flag is absent and a truncated tree is silently asserted against (the correctness floor). 0.8.0: snapshot-qualified refs (`@<snapshot_id>:eN`); `list-windows` reports ~8 invisible "Electron" helper windows per app (filter on `visible`); an unattached AX tree is `ACTION_NOT_SUPPORTED`; `wait --text` matches `name` only, and static text lives in `value`; a press with no AX action is `POLICY_DENIED` (opt into `--headed` per element); a pre-0.5 refmap left in `~/.agent-desktop` makes `status` fail with `INVALID_ARGS` until pruned.
-
-**A focus ring is painted outside the border box, so every clipper eats it.** The filter field, `Expand all` and the file rows all lost part of their ring: `FolderView`'s grid and left column carried `overflow-hidden`, and the list's `overflow-y-auto` pane clips *both* axes (per CSS, `visible` on one axis computes to `auto` when the other is not `visible` — which is why a horizontal ring vanished into a vertically-scrolling list). The fix is room, not a smaller ring: 4px of padding cancelled by an equal negative margin, so the clip box grows and nothing moves — no re-alignment against the sidebar tiles. Two traps when removing `overflow-hidden` from a flex/grid item: it was also supplying the automatic minimum size (replace it with `min-w-0` / `min-h-0`, or one long file name stretches the track), and any conditional padding on the pane must absorb the same offset (`pr-4` → `pr-5`) or the gap to the scrollbar quietly shrinks. `npm run test:layout:focusring` pins it by measuring clearance against every clipping ancestor's padding box; it reproduced all three controls before the fix.
-
-**A layout harness run with `--no-build` can report `ok` for code that was never built.** Each harness computes its own `pass` INSIDE the bundle, so reusing a stale `dist/harness-*.js` after editing the entry file runs the old assertions against the old component and exits 0. The new fields printed as `undefined` in the runner's own output while the verdict still said ok — the tell is a printed field the current runner knows about and the bundle does not. `--no-build` is only safe when nothing under `test/frontend-layout/` changed; `npm run build` does NOT build these bundles (it builds the app), so it is not a substitute.
-
-**`npm run build` does not run CI's lint step.** The package script is `eslint src`; the workflow's "Lint" step is `eslint src --max-warnings 21 && check-comment-hygiene.sh && check-test-timing.sh && check-release-mime.sh`. A green local build therefore says nothing about three of those four gates — a `design.md §4` cite in a source comment passed every local check and failed CI on the hygiene gate, which blocks `§` outside `vendor/` because a section number is a reference a reader cannot resolve from the code. Before pushing, run the three scripts, not just `npm run lint`.
-
-**A geometry harness cannot tell you whether something looks right.** The sticky filter row measured perfectly — 0px between its right edge and the rows', 4px from the scrollport top while scrolled, every ring clear — and it still looked broken on screen. Numbers prove alignment, not appearance: they say nothing about a sliver of content showing through a transparent strip, a scrollbar that renders differently at `thin`, or a band whose background does not match what it covers. **A user-facing visual change gets pushed and PR'd only after the user has run it locally and said so.** Green tests are the precondition for asking, not a substitute for the answer.
-
-**A `dark:` base and a `hover:` state have the same specificity, so source order decides.** `dark:bg-x` compiles to `.dark\:bg-x:is(.dark *)` — (0,2,0), identical to `.hover\:bg-y:hover` — and Tailwind emitted the dark base *later*, so the secondary button's hover silently did nothing in dark mode while working fine in light. It had been written `dark:hover:bg-…`, a combined variant at (0,3,0), which is why the original worked and my "simplification" to a single `hover:` utility broke it. The fix is a token that flips per theme (`surface-control`), leaving the base at (0,1,0) so any interactive state outranks it. Reach for a theme-flipping token, not a `dark:` variant, on anything that also has hover/focus/active states — and when a hover "looks too subtle", check the cascade before adjusting the colour.
-
-**chokidar emits no `add` for a file that is unreadable when it would report it.** MEASURED with the
-app's own watcher options (chokidar 4, `awaitWriteFinish`, `alwaysStat`, `usePolling:false`): write a
-file then `chmod 000` it, and the watcher produces **no event at all** — not an `add`, not an
-`error`. A sibling plain file in the same directory reports normally. So an owner's
-permission-fault-on-read is undetectable by the watcher **by construction**; only a scan
-(mount, resume, the periodic reconcile, or a user-driven retry) ever finds it.
-
-Two consequences, both paid for once already:
-1. A UI scenario that induces this fault through the watcher can never pass. Induce it with a scan.
-2. An integration test that stubs the publish call to throw proves the WIRING, never the PREMISE —
-   the double is more cooperative than the real code. When a test asserts on a fault class, drive at
-   least one case with the real condition (a real 000 file), or a scenario built on an impossible
-   lever will be the thing that finds out.
-
-
-## The query store's `loading` is not "still booting"
-
-`useQuery`'s `loading` is `entry.promise !== null || !settled` — it means *a read is in
-flight*, and it goes true again on every refetch of an already-settled entry. `app.tsx`
-gates its entire tree on the value `useProfile` returns, so returning the store's flag
-unmounted the whole tree on each re-read; that remounted all three `useProfile` call sites,
-each re-read `profile:get`, and the flag rose again. A real run issued ~13,900 rounds of
-every request in the app and never finished booting.
-
-Nothing below the frontend layer caught it: typecheck, lint, 1,862 unit, 1,028 integration
-and 199 flow tests were all green. A cross-component remount loop is invisible to every one
-of them.
-
-**The rule:** a boot or route gate asks "has an answer ever landed", not "is a read in
-flight" — `data !== undefined || error !== null`. Better, hand the decision to a pure
-projection that is never given `loading`, so the mistake cannot be expressed:
-`src/renderer/model/profile-gate.js`, guarded by `test/unit/profile-gate.test.js`.
-
-
-## A hook that writes shared state amplifies by mount count
-
-Three worker-event subscriptions lived inside the hooks that read them, and every one of
-them wrote the query store: `useDownloadRootStatus` (two mounted consumers) pushed
-`downloads:roots-status`, `useSpaces` (**five** call sites, several mounted together) pushed
-`spaces:list` from `event:state` and re-read it on three membership events, plus a
-mount-time `refetchQuery` that abandoned the read `useQuery` had just issued.
-
-One worker event therefore wrote one entry N times. Each write is a NEW object, so the
-store's `prev.data === next.data` identity check fails and every subscriber re-renders a
-second, third and fourth time for a value that never changed; each event-driven refetch
-abandons the others' in-flight read. None of it is visible in a hook read in isolation —
-the amplification factor is "how many components happen to mount this today", which no
-test at the hook's own layer can see.
-
-**The rule:** a subscription that WRITES shared state is installed once for the app, next
-to the store (`installPushBridges` in `src/renderer/store/reconcile.ts`), never in a hook.
-A hook may subscribe for its own local state — a counter, a toast trigger — because that is
-per-consumer by design. Ratcheted by the `STORE_WRITERS` allowlist in
-`test/unit/renderer-reconcile-subscriptions.test.js`: a new writing site has to be justified
-there.
-
-
-## A guard's `if (handle) return` latches when the handle can die elsewhere
-
-`presenceTimer`, `convergenceTimer` and `announceTimer` are module bindings whose timers are
-owned by a subsystem's `this.timers`. `Subsystem.close()` clears the SET on every ending —
-including a failed `_open` and a `_close` that rejects, neither of which reaches the module's
-own stop function. The binding then still held a disarmed handle, `if (presenceTimer) return`
-read it as "already armed", and the heartbeat was off for the rest of the process: no error,
-no log, and to every peer we simply look offline.
-
-**The rule:** when the thing that clears a handle is not the thing that holds it, drop the
-handle before testing it — `liveHandle(timers, handle)` in `src/shared/core/timers.js`. The
-same asymmetry one level down is why an injected `schedule` must be guarded on the SET rather
-than on the subsystem pointer (`ownedScheduler`): a `_close` that rejects never reaches its
-own `subsystem = null`, so the pointer outlives the timers it points at, and arming against a
-closed set throws from inside a callback nothing catches.
-
-
-## A z-base-32 payload's last character can be pure slack, so a checksum cannot see a truncation
-
-The relay invite ticket is 69 bytes as 111 z-base-32 characters. 111 × 5 = 555 bits for 552
-bits of payload, so the final character carries 3 slack bits and **nothing else**:
-`z32.decode(payload.slice(0, 110))` returns the *identical* 69 bytes. The version byte reads
-1, the 4-byte blake2b checksum matches, and a paste that lost its last character — the
-commonest clipboard failure there is — decodes as a perfectly valid ticket for a member key
-that is not on any roster. The failure then surfaces as a relay that silently never admits
-you, which is indistinguishable from the relay being offline.
-
-**The rule:** for a fixed-length encoded credential, gate on the **string length** before
-decoding, and treat that gate as load-bearing rather than as a dispatch condition. A checksum
-covers *alteration*; only the length covers *truncation*. The unit test asserts the
-byte-equality alongside the rejection (`test/unit/relay-ticket.test.js`), because the
-equality is the only thing that stops the next reader deleting the gate as redundant. This
-generalises to any base-N encoding whose bit count does not divide evenly.
-
-
-## The worker respawn IS the restart primitive; there is no `restart(subsystem)`
-
-`dht.defaultKeyPair` is fixed when the node is constructed, so changing a relay identity
-means rebuilding it. The obvious move — close and reopen the `Swarm` subsystem — fights the
-codebase: `ContentSwarm` is constructed from `swarm.dht` and deliberately does not destroy
-that shared node, so reopening `Swarm` alone leaves it holding a destroyed DHT; the lifecycle
-has no `restart(subsystem)` by design (the rule is `recover(unit)`); and topic rejoin,
-overlay reattach and `replayPendingLeaves` all live in the boot root, not in `Swarm._open`.
-
-**The rule:** when a change cannot be applied live, ask the worker to exit rather than
-inventing a restart. `request('shutdown')` is already in the request contract; the worker
-exits 0, `scheduleRespawn` brings it back, main rebuilds the bootstrap frame from the config
-just written, and `markReady` reloads the window. That is the crash-recovery path, already
-tested, and reusing it costs nothing. Fire it and forget — the reply races the exit and is
-rejected by `failAllPending`.
-
-**And the rule that goes with it: never fire it behind the user.** `markReady`'s reload
-returns to the app's default screen, so a respawn triggered from a settings action drops the
-person on the home screen holding no account of what just happened — measured, not reasoned:
-the frontend scenario failed because the row menu it had just been using no longer existed,
-and the AX dump was the Shared Spaces screen. Store the change, mark a session-scoped
-pending flag, and put a **Reconnect now** button next to an explanation. A reload the person
-asked for is a reconnect; the same reload unasked-for is a bug report. The interim state has
-to be honest too — ours reports the relay unreachable, which it genuinely is until the
-restart.
-
-
-## Two writes that cannot be atomic: leave the failure that is VISIBLE
-
-Adding a private relay writes two places — the member seed to `relay-ticket.enc` (synchronous,
-fsync'd) and the slot to `config.json` (debounced 250 ms, otherwise flushed only on
-`before-quit`, which a SIGKILL or a power loss never reaches). They cannot be made atomic, so
-the order is not a style question: it decides which half survives a crash between them.
-
-- **Seed without config** — the node keeps deriving a pinned DHT identity from a seed nothing
-  references. It announces a durable member key on the public DHT, Settings shows no relay, and
-  no path in the app can find or remove it. Invisible and unreachable.
-- **Config without seed** — the app degrades loudly: `setRelayThrough` refuses to install the
-  relay, the log says why, and the probe reports it unreachable. Wrong, but visible and fixable.
-
-**The rule:** write so the surviving half is the one a user can see and act on — config first
-when adding, vault first when removing, and `flush()` rather than trusting the debounce. And
-never `catch {}` the delete: a seed you failed to remove is the invisible case, so the caller
-has to learn about it (`test/unit/relay-secret.test.js` pins that with a read-only directory).
-
-The same shape applies to any pair of "secret at rest" + "record that names it".
-
-## `isOwnerOnline` is FALSE for a self-mirror — presence tracks remote peers only
-
-`isOwnerOnline` → `presence.isOnlineAnywhere`, and a presence lease is only ever created for a
-peer whose handshake we received. Our own key is never in the map, so `isOwnerOnline(ourKey)` is
-permanently false. Any gate written as `isOwnerOnline(mount.ownerKey)` therefore freezes every
-self-mirror forever — and `test/helpers/owned.js::setupSelfMirror`, which most of the mirror
-integration suite is built on, mounts with exactly that ownerKey.
-
-`share-listing.js` already carries the special case (`isOwn ? true : deps.isOwnerOnline(...)`) and
-so does `ownerLeftSpace`. Any third consumer needs it too — which is the argument for one pure
-predicate (`mirror-policy.js`) over a hand-rolled copy per call site.
-
-**Related:** an integration test cannot fake an *offline remote* owner. A fabricated ownerKey makes
-`loadShareForForeignMount` → `readPeerShares` return null, so the pass exits at `if (!share)` before
-reaching any gate — the test then passes with the gate deleted. Offline-owner behaviour has to be
-asserted at the flow layer, where a real peer shuts down.
-
-## A mirror re-fetching its own deleted file needs no peer — the overlay spool answers it
-
-A completed overlay fetch registers the blob locally ("seeding multiplication"), so `fetchFile`
-resolves a later request for that content hash from disk before it ever waits for a peer. Deleting
-a mirrored file therefore does NOT create unfetchable work: the next pass restores it from our own
-spool, converges, and goes quiet.
-
-This invalidates the obvious fixture for "the mirror spins against an offline owner" — mirror the
-folder, delete the files, take the owner away. It reproduces nothing. The shape that does is a
-mount created while the owner is already gone, against content this peer has never held. Cost: one
-flow test that passed for the wrong reason until it was instrumented to print the statuses it had
-actually observed (`unavailable,synced` — never `downloading`).
-
-**Generalisation:** when a red-first test goes green too easily, print what it observed rather than
-trusting the assertion. A guard that cannot fail is worse than no guard.
-
-**A green suite proves the mode it ran in, not the mode you ship.** Almost every integration and flow peer booted with no master secret, so `hasMasterSecret()` — the second half of the v1/v2 gate, behind the flag everyone was looking at — made every test space the retired unencrypted shape, and every destructive path (leave, purge, reclaim, shutdown) was exercised in the one mode production never uses. `test/helpers/modes.js` (retired with v1 spaces) said in a comment that both modes *must* be covered, and was wired into three files. Flipping the harness to always mint an identity surfaced four defects at once: `SpaceDrives._close()` closing the ROOT corestore (so the serve ledger's audit row was lost on every quit, swallowed by a debug-level catch), a member view leaking a peer bee per roster key, the leftover scan reading every candidate with no encryption key (so every SCK-encrypted core classified as `'other'` and the "no leftovers remain" assertions passed vacuously), and flat peer storage dirs colliding on one `identity.enc`. Two tests were *passing while asserting nothing* — a reboot without its master secret opens a different, empty core set, and a structural test's `indexOf` on a renamed function returned -1 and sliced the whole file. When a subsystem has a mode fork, check which mode the tests actually run in before trusting any of them.
-
-**After a rebase, the targeted test set is "what the incoming commits added", not "what my change touched".** Dropping the integration suite on the reasoning that the incoming PR's area did not intersect this branch missed the obvious: it did not have to touch this code to break — it only had to add a *test* that creates a space keyless, which the new identity guard now rejects. CI found it in the one suite that was skipped. Merge cleanly + typecheck green says nothing about tests the other side brought with it.
-
-**Check whether a feature still has value before rating the severity of its bug.** The leftover scan's blindness to encrypted cores was reported as "the Storage free-space feature has been dead in production" — true of the classifier, badly misleading about the stakes. Under the overlay backend nothing writes bytes into a space drive at all (no `drive.put` call sites remain in `src/`), so `orphanDrives` with real size behind them exist only in pre-v1.7.0 eager-era stores, and what stays reclaimable is peer profile + catalog bees: metadata bounded by the 5k-file share cap. The bug was real; the loss was megabytes, not gigabytes. Quantify what the broken thing was worth before writing the severity down — and say so in the PR, because a reviewer prices the fix off that sentence.
-
-## A level-triggered probe only sees an edge that somebody recorded
-
-The mount-point probe compares each tick's `exists` with `lastMountPointStatus` and acts on the
-transition. A root that vanished and came back inside one probe window (60 s) produces no
-transition unless the path that noticed the absence first — a scan bailing on ENOENT — wrote
-`false` into the same map: otherwise the probe reads present→present, emits nothing, and every
-derived-from-event UI (the FolderView banner, the share card badge) stays latched on "source
-missing" until the next real change. The tell is a badge that only clears after a restart.
-
-**The rule:** whoever notices a state first records it where the probe reads. `handleOwnedMountGone`
-(`src/worker/mounts-runtime.js`) is the single entry for "the source is gone" from either signal,
-so the return is always an edge.
-
-**Two more writers were bypassing that entry, and the rule alone was not enough (issue #287).**
-A *paused* index never noticed at all: `diffAndEnqueue` checked `mount.indexPaused` before the root,
-so the catch-up reconcile the fix above installed reported `index-paused` over an absent root and
-recorded nothing — and the pause is the case a user is most likely to be in when they move a folder.
-`pauseIndex` wrote the other half only: a durable `mount-point-gone` through a bare `recordFault`,
-with the baseline left saying "present". That second one is worse than a stale banner — it is a
-durable latch that survives restarts, because boot's paused branch re-derives status from the
-record, and only an explicit Resume (the one writer allowed to clear a fault) gets the folder out.
-Both were invisible to the suite because no test paused a folder *and* took its root away.
-
-**The second rule:** the probe's baseline is "what I last saw", but what the UI shows is what was
-last *announced* — the durable record. Reconcile the two on every tick (`mount.status ===
-MOUNT_POINT_GONE ? false : lastSeen`) so a disagreement is a transition regardless of which writer
-forgot. Keep the early `continue` while doing it: `_announce` emits on every call, changed record or
-not, so a probe without the short-circuit pokes the shares scope once per mount per minute and every
-folder screen refetches on a timer. Level-triggered in effect, edge-triggered in cost.
-
-## `gh pr checks` serves a previous commit's results as current
-
-A rebase-and-force-push during a fast-moving `staging` produced ten green rows from run
-`34492422347` — the run for the *pre-rebase* head. The commit actually on the PR had no
-registered run at all. `gh pr checks` renders both cases identically, so the obvious poll
-("any rows pending? no → green → merge") reads a stale-but-complete table as a pass and merges
-a head CI never tested. It caught the agent and the orchestrator within the same hour, on the
-same PR.
-
-Two shapes have to be ruled out, not one: checks that are still running, and checks that belong
-to a commit that is no longer the head. A poll that only counts pending rows is trivially
-satisfied by a head with zero rows.
-
-**The rule:** verify by head SHA, never by PR.
-
-```
-H=$(gh pr view <N> --json headRefOid --jq .headRefOid)
-gh api repos/<owner>/<repo>/commits/$H/check-runs \
-  --jq '.check_runs[]|"\(.name)=\(.status)/\(.conclusion)"'
-```
-
-Require *both* zero non-completed runs *and* the expected run count (10 here: node, bare,
-flow 1-6, cla, flake-ledger) before merging. GitHub's own `mergeStateStatus` agrees — it read
-`UNSTABLE`/`UNKNOWN` while `gh pr checks` said green — so it is worth a second look when the
-two disagree.
-
-Corollary for sequential merges: every merge to `staging` invalidates the verification of every
-other open PR in the queue. Freeze the base once the last PR is in flight, or accept a rebase
-cycle per merge.
-
-## A suite that dies mid-run still prints a near-perfect count
-
-`until()` (`test/helpers/peer.js`) throws on timeout, the throw escapes uncaught, brittle
-records no `not ok`, and the runner dies. One run printed `201/202` with **zero** failures
-listed while 172 tests never executed. The failing test's name is lost with it, so a red has to
-be characterised by isolation runs instead of read off the log.
-
-**The rule:** a local flow "green" is only trustworthy up to the first throw. Compare planned
-against executed count before believing a pass, and prefer CI's sharded result — it is the
-stronger evidence, not the weaker one. Tracked as #246.
-
-## A refactor's commit message is not its comments
-
-A comment that explains why a refactor was needed dates the instant the refactor lands. "These
-were hand-written at 52 sites and drifted five ways", "peer-watch.js shadowed the worker's own
-copy", "the copies had already begun to disagree" — all true, all worthless to the next reader,
-who needs to know what the function guarantees, not what the tree looked like before it existed.
-
-**The rule:** state what the code does and the constraint that makes it so. Two things earn a
-"why": a non-obvious invariant a reader would otherwise break (`authorizedOn` is per socket
-because a draining socket must stay authorized through a reconnect), and a divergence that looks
-like an oversight but is deliberate (the two detach paths do not share their follow-through). The
-history of the refactor belongs in the commit body and the PR, where it is dated by construction.
-
-Applies to test comments too: say what the test protects, not which bug motivated writing it —
-unless it is a `REGRESSION` test, whose whole contract is naming the defect it pins.
-
-## A new module under src/shared/** needs an arch-doc row, and that is a gate
-
-`test/invariants/arch-doc-module-table.test.js` walks the data-layer, main and worker trees and fails on
-any module with no row in `.claude/solution-architecture.md` §11. Adding
-`contract/mount-precedence.js` turned a PR red on CI after a full local pass of every *targeted* test
-file — the guard lives in a file targeted runs never load.
-
-**The rule:** adding a module is a two-file change. Write the §11 row in the same commit. The doc is
-not a follow-up here; it is pinned.
-
-**The general shape:** targeted test selection is the right default (the suites are slow), but it is
-blind to repo-wide guards — the arch-doc table, the i18n key scans, `renderer-contract-only-imports`,
-`no-hand-mirrored-vocabularies`. Before pushing a change that ADDS or MOVES a file, run the guard
-family once, or accept a CI round-trip.
-
-## A source-scanning ratchet goes vacuous when you rename what it matches
-
-Two guards silently stopped testing anything during Tier 2 — they matched source text that the
-refactor removed, so `t.absent(...)` passed for the wrong reason:
-`state-conveyance-review-fixes.test.js` (a function name) and `relocate-deep-debt.test.js`
-(`mount.indexPaused` in the relocate handler). A third, `mount-status-vocabulary.test.js`, had a
-`found.size > 0` self-guard that would have failed once its writers stopped holding literals at all.
-
-**The rule:** when a change renames or deletes what a ratchet matches, grep the test tree for the old
-spelling *before* running anything. A hoist or a new parameter counts: a regex that pins a function's
-exact signature line breaks on `(spaceId, space)` becoming `(spaceId, space, log)`. Before pushing a
-refactor, grep `test/` for every function name whose signature or nesting changed, and run every unit
-file that `readFileSync`s a touched source file. A ratchet that fails is doing its job; one that quietly passes has
-stopped being a test. Prefer pinning a positive property ("every writer imports the vocabulary") over
-an absence.
-
-## `no-undef` cannot see a dropped import whose name is a global
-
-Splitting `worker/main.js` moved `space:invite` into `worker/ipc/spaces.js`. The handler mints an
-invite id with `crypto.randomBytes(16)` from **`hypercore-crypto`**, imported in the entry as
-`crypto` — the repo-wide spelling. The new module did not carry the import across, and every static
-gate passed: `no-undef` resolved `crypto` to the environment's own global instead of reporting it,
-`tsc` does not typecheck the worker, and no unit or integration test loads the entry. The break only
-surfaced in the flow suite, as `Error: crypto is not defined` from the worker subprocess — seven
-tests failing in under a second each.
-
-**The rule:** a module split is only proven by something that RUNS the worker. After moving handlers
-between worker modules, run one flow test that exercises them — the static gates cannot stand in for
-it, and the failure they miss is a runtime crash, not a warning.
-
-## `git checkout -- <path>` restores from the INDEX, not from the last edit
-
-Undoing a deliberate one-line test mutation with `git checkout -- src/shared/transfer/swarm.js`
-discarded an hour of unstaged work on that file, because nothing had been staged: the index still
-held the pristine `HEAD` copy. The mutation was reverted; so was everything else.
-
-**The rule:** to undo a temporary mutation, copy the file to `/tmp` first and copy it back. Reserve
-`git checkout -- <path>` for a file you are certain has no work in it. The symptom is silent — the
-command succeeds and prints one line — so the tell is a test that suddenly passes for the wrong
-reason, or a `grep -c` that returns 0.
-
-## A source-scanning guard can live in test/integration, and a signature change makes it vacuous
-
-`test/integration/peer-frame-hardening.test.js` slices `swarm.js` between two string markers and
-asserts an ordering inside the slice. When box 2.7 changed `dispatchFrame`'s signature, the closing
-marker stopped matching, `indexOf` returned `-1`, and `slice(start, -1)` quietly became "to the end of
-the file". The ordering assertions kept passing against the wrong region for two days.
-
-**The rule:** before pushing a rename, grep the WHOLE test tree for the old spelling —
-`test/integration/` as much as `test/unit/`. And when a guard slices source by markers, assert the
-markers were found (`t.ok(at >= 0)`) before asserting anything about what lies between them. An
-`indexOf` that can return `-1` is a guard with an off switch.
-
-## Verify the box before implementing it — the estimate is usually wrong in both directions
-
-Across eleven boxes of the Tier 2 refactor, the issue's own description was wrong more often than
-right: counts inflated (~35 writers → 21; 7 auth guards → 5; 9 fan-out loops → 4), work already done
-(`mountKey`, `prefixRange`, `OUTCOME`/`ACTOR_TYPE`), items that never existed (`spaceIdFromTopic`,
-`probeKey`, `folderJob`, `CONNECTIVITY_STATE`), one item impossible as specified
-(`startWatcher`/`stopWatcher` — the watchers live in Electron main), two tests it said to delete that
-carried real coverage, and one decision that contradicted itself (A.4).
-
-**The rule:** spend the first pass of every box verifying its claims against the tree, and expect the
-box to shrink. Three defects were found this way that a straight read would have missed. The
-verification is not overhead — it is most of the value.
-
-**Fixed since:** `crypto` is now `'off'` in the eslint globals for `src/shared`, `src/worker` and
-`src/main`, so the missing import is a `no-undef` error rather than a silent bind to WebCrypto
-(`test/unit/crypto-global-off.test.js` pins it). The general hazard remains for every *other*
-identifier that shadows a global — `fetch`, `performance`, `URL`, `Response` — so the flow-test rule
-above still stands.
-
-## Nothing in CI runs the Electron main process
-
-Splitting `src/main/main.js` into modules produced two breaks that `typecheck`, `lint:ci` and all
-2,256 unit tests passed:
-
-1. **A TDZ error.** `registerRelaySlot({ … })` was called at line 186 while its `require` sat at
-   line 245 — legal to lint, fatal at load: *"Cannot access 'registerRelaySlot' before
-   initialization"*. In the entry, a `const … = require(…)` placed below its own call site is a
-   crash, not a hoisting nicety.
-2. **`ERR_REQUIRE_ESM_RACE_CONDITION`.** `window.js` did `require('../shared/contract/limits.js')`
-   at module scope. The contract package is ESM; requiring it while the entry's own CJS load is
-   still in flight trips Node's require(esm) race guard. It worked before the split only because
-   the same require sat much later in one file. The fix is a lazy require inside `createWindow`.
-
-**The rule:** the flow suite drives the worker directly (`test/helpers/peer.js` spawns
-`src/worker/main.js`), and no unit or integration test loads `src/main/**`. Only `test:fe` runs the
-real Electron main, and it is a heavy local-only suite. So after ANY change to `src/main`, boot the
-app once and read the log — `npx electron . --storage=<tmpdir>`, wait ~15s, assert the process is
-alive and the log has no `threw`/`Error`. It takes seconds, needs no AX tree, and catches exactly
-the class of failure the static gates cannot see: module-load order.
-
-## Never retype a persisted constant during a move — import it
-
-Extracting the catalog key grammar into `shares/catalog-keys.js`, the `FILE_PREFIX` that addresses
-every entry inside a catalog bee was hand-written as `'file:'`. The real value is `'file/'`. That
-prefix is **persisted and replicated**: every catalog row a peer already holds is keyed by it, so
-the typo would have re-addressed the entire catalog — old rows unreadable, new rows written
-somewhere no reader looks. `lint`, `tsc` and `no-undef` all passed; `test/unit/catalog-writer.test.js`
-caught it because it builds its expected keys with the same `fileKey()` the writer uses.
-
-**The rule:** when a move separates a constant from its users, the new module **exports** it and the
-old one **imports** it — never two definitions, and never a retyped literal. If the constant is
-persisted or on the wire, say so in a comment at the definition, because its blast radius is not
-visible from the call site. Suspect every hand-copied string in a refactor whose value you did not
-paste from the original.
-## A layout harness can be dead rather than failing — reproduce on untouched staging first
-
-`npm run test:layout:modaltitle` reported *"HARNESS ERROR: expected 2 dialogs, got 0"* during a
-renderer refactor that had just restructured the dialog it mounts. The obvious read — the refactor
-broke it — was wrong. Its entry mounts the real `RemoveFileModal`, which calls `useToast()` to
-report a rejected removal, and the harness had no `<ToastProvider>`: the dialog threw on mount and
-rendered nothing. That had been true since the dialog gained its toast, so the harness had been
-reporting nothing about the thing it guards for however long.
-
-**How it was settled in one step:** `git worktree add --detach <tmp> HEAD`, symlink `node_modules`,
-run the same harness there. Identical failure on untouched staging — so the diff was innocent, with
-no bisect and no argument. That move is cheap for any local-only suite and should be the first
-response to a red that a change *could* plausibly explain.
-
-**The rule:** a harness that errors before its assertions run is not a failing test, it is an absent
-one. When one goes red next to a plausible culprit, reproduce on a detached checkout of the base
-commit before reading the diff. And a harness that mounts a real screen or dialog needs the same
-providers the app gives it — `ToastProvider` at minimum; a missing one fails as "found nothing"
-rather than as a missing-provider error, because the throw happens inside React's render.
-
-## `npm run test:layout:<a> <b> <c>` silently runs only `<a>`
-
-The layout harnesses are one npm script per harness. Listing several on one line passes the rest as
-**arguments to the first runner**, which ignores them: `npm run test:layout:modaltitle :members
-:mirrorers` runs `modaltitle` alone and exits 0. Nothing warns, and the output looks like a pass for
-all of them. Run each as its own command. (The same shape bites `test:fe`, where a scenario id IS a
-real argument — so `test:fe s120 s121` runs s120 only.)
-
-## `gh pr merge --delete-branch` CLOSES any PR stacked on that branch
-
-Merging the lower half of a two-PR stack with `--delete-branch` deleted `ok/tier2-210-scaffolding`,
-and GitHub immediately **closed** the upper PR whose base it was. The close is not recoverable:
-`gh pr reopen` fails with *"Could not open the pull request"* even after the base branch is pushed
-back, and `gh pr edit --base` refuses because the PR is closed. The branch and its commits are never
-touched — only the pull request is lost, along with its review thread and CI history.
-
-**The rule:** before merging the bottom of a stack, **retarget the upper PR to the base the lower one
-is merging into** (`gh pr edit <upper> --base staging`), THEN merge the lower one. Retargeting first
-costs nothing and keeps the PR alive. If the branch is already deleted and the PR already closed,
-the only path is a new PR from the same branch — point it at the closed one so the history is
-followable.
-
-Note this is a *different* failure from [stacked PR merge order](#) stranding commits: here nothing
-is stranded, the content is fine, and the loss is the PR object itself. Both argue for the same
-habit — deal with the top of the stack before the bottom moves under it.
-
-## A path codemod must resolve `.ts`/`.tsx`, or it silently rewires the renderer
-
-Moving `src/shared/transfer/*` to `network/` needed ~3,000 specifier edits, so the rewrite was
-scripted. Two ordering bugs, one of them dangerous:
-
-**Order.** The codemod ran *after* `git mv`. A file that moved carries intra-folder specifiers like
-`'./transfer-id.js'`, which now resolve to nothing — the map keyed on the *old* path never sees
-them. Either run the codemod before the move, or follow it with a repair pass.
-
-**The dangerous one.** The repair pass located a broken specifier by basename: "this `./ipc.js`
-does not resolve, and exactly one `ipc.js` exists in the tree, so point at that." In the data layer
-that is sound — it is all `.js`. In the renderer it is not: `./ipc.js` resolves to
-`src/renderer/ipc/ipc.ts` under `moduleResolution: bundler`, so `existsSync('…/ipc.js')` returns false,
-the only on-disk `ipc.js` is the **worker's** `src/shared/core/ipc.js`, and 37 renderer files were
-rewritten to import the data layer's IPC router instead of their own. `tsc` still passed, because
-the target is a real module with a `request` export.
-
-**The rule:** before declaring a specifier broken, try `.js`, `.ts` and `.tsx`. And when a repair is
-keyed on a basename rather than a resolved path, restrict it to one runtime — the renderer and the
-data layer share basenames (`ipc`, `errors`, `paths`, `connectivity`, `presence`) by design.
-
-What caught it was reading `git status` and asking why `src/renderer` appeared at all in a data-layer
-move. `tsc` passed — the target is a real module with a `request` export — but the renderer's
-contract-only eslint rule **does** catch it (verified: `'../shared/core/ipc.js' import is restricted`
-on all 37 files). So the guard worked; the process did not. Run `eslint` after a codemod, not only
-`tsc`: the typechecker cannot tell you that an import crossed a runtime boundary, and the lint rule
-that can is the one this repo already wrote for exactly that.
-
-## A worktree's node_modules goes stale when staging adds a dependency
-
-`test/integration/download-admission.test.js` failed 3/3 locally with
-
-```
-SyntaxError: The requested module 'ignore' does not provide an export named 'isPathValid'
-```
-
-after a rebase, in a worktree whose `npm install` predated #336 — the PR that introduced `ignore`.
-Nothing in the branch was wrong; the worktree simply had no copy of a package the rebased code now
-imports. `npm install` fixed it, and the same file then passed.
-
-The tell is the shape of the failure: **0/0 tests passed, exit 1** — the file died at load, before
-registering a single test. A genuine regression fails an assertion and reports a count.
-
-**The rule: rebase and `npm install` are one step in a worktree.** This sits beside the existing
-symlinked-node_modules lesson — both are the same class, a worktree whose dependency tree does not
-match its source tree, and both make a local run lie in the direction of *false red* rather than
-false green, which is the less dangerous direction but still costs a diagnosis.
-
-**A shared-module split has a same-named twin under `worker/ipc/`, and no gate sees a broken ESM import.** `shared/folders/foreign-folders.js` and `worker/ipc/foreign-folders.js` (likewise `owned-folders.js`) share a basename, so a repoint pass that excludes "the root" by basename silently skips the IPC module that imports the most from it. `eslint` does not resolve imports and `tsc` is scoped to the renderer, so a name that no longer exists at the import site passes both and fails only when the worker evaluates that module at boot. After any move that changes a module's exports: (1) exclude by full path, never basename; (2) diff the names every importer asks for against the root's actual `export` list; (3) spawn a fresh Bare process that imports each repointed `src/` module first — `import-time.test.js` shows the recipe, and `Bare.argv[0]` / `node_modules/.bin/bare` is the binary.
-
-## A test that greps a source file for a value breaks on the next split, not on the next bug
-
-Splitting `core/runtime-config.js` broke two unit tests that had nothing to do with its behaviour:
-`mirror-walk-decision.test.js` and `invariants/download-concurrency-wiring.test.js` each read the
-file with `readFileSync` and matched `foreignFullWalkEvery: \d+` / `downloadConcurrency: \d+`
-against its text. The rows moved to `runtime-config-schema.js` and changed shape
-(`ruled(6, intAtLeast, 0)`), so both regexes returned null and one test threw on `m[1]`.
-
-Both were pinning a real invariant — a default that exists in two places agrees, a frame key is
-carried into the config — and both had a behavioural form the whole time: set the config, read the
-getter. The regex form is the only version that fails on a refactor and passes on a regression
-(a wrong default still matches `\d+`).
-
-**The rule: pin a value through the production read path, never through the file's text.** A
-`readFileSync` + regex over `src/` is acceptable only for a structural fact no runtime call can
-observe (an import edge, a re-export, an ordering of two statements), and even then it should match
-the smallest stable token, not a literal with a number in it.
-
-**Moving an emitter behind a shared module moves a test seam.** When a decoration or event emit
-leaves a module for a shared reporter (`publish-progress.js`), every test that re-wires that
-module's ipc after boot (`initLooseOverlay(wrappedIpc)` to capture frames) silently stops
-observing the frames — they now leave through the reporter's emitter, still pointed at the
-original ipc. The touched-file list from `grep` on the moved names misses these tests: grep for
-the `init*(` seam of every module that lost an emit, and re-wire the reporter in the same test
-(`test/helpers/overlay-ipc.js`).
-
-## A monkeypatch is order-sensitive against modules that destructure at load
-
-`bare-sidecar` does `const { spawn } = require('child_process')` at module top and keeps that
-reference. The `spawn` patch that maps `app.asar` → `app.asar.unpacked` only reaches it if the
-patch is installed before the sidecar loads. The main.js split (#310) moved `require('pear-runtime')`
-into `updater.js`, and that require landed in main's import block above the patch — so every
-packaged staging build spawned the bare binary at its asar path and died with `spawn ENOTDIR`,
-which the renderer surfaced as onboarding over an intact profile. Dev runs and the whole suite are
-unpackaged, so nothing red appeared.
-
-**The rule: a patch of a shared module's export lives in its own module and is main's first
-statement, with a structural pin on that order** (`test/unit/asar-spawn.test.js`). Any refactor that
-moves a require is a candidate for this class; the question to ask is "who captures this export at
-load?" — and a first packaged install is the only test that exercises asar paths.
-
-## A new admission rule breaks the flow test that drives the old overlap
-
-Refusing manual downloads inside a mirrored share (#325) turned `test/flow/audit-coverage.test.js`
-red in CI: the coverage session had been driving the folder-engine `transfer.completed` row by
-downloading a file out of a share it had already mirrored, which is exactly the overlap the rule
-forbids, and the `until()` on `audit:list` then ran to its 270s timeout. Nothing local caught it
-because the change looked worker-only and the flow tier was not run.
-
-**The rule: a change to what a request admits is a change to every flow test that issues it.**
-Before pushing, `grep -l` the flow tier for the request name, and for each hit check whether the
-test also stages the state the new rule refuses (`foreign-folder:mount` here) and in what order.
-Re-sequence the test rather than loosen the rule: a session that downloads while browsing and
-then mirrors is the real user path anyway.
-
-**hyperdht discards relay attribution; blind-relay's client is where it can still be seen.** Which
-relay carries a stream and whether the key was ours or adopted from the peer's payload exist only as
-locals inside hyperdht's two pairing functions; nothing on the delivered NoiseSecretStream, hyperswarm's
-PeerInfo or `dht.stats.relaying` (accept side only) recovers them. Endpoint comparison identifies only a
-relay whose key you already know — useless for the adopted case. The one public surface the pairing
-crosses is `blind-relay`'s `Client.from(relaySocket)` + its `'pair'` event, and the ESM default import and
-hyperdht's CJS `require` resolve to the same class, so a wrapper installed from our side is the one
-hyperdht calls. Two things follow: relayed is TRANSIENT (hyperdht keeps punching and `changeRemote`s the
-same socket direct — observable only as udx `'remote-changed'`, so compare the endpoint, never cache a
-boolean), and a per-connection array in the status frame needs a scalar digest beside it because the
-dedup compares leaves only.
-
-**A relay is chosen once, when the connection is built — a live setting change reaches nothing that
-is already connected.** `swarm.relayThrough` is read per dial (`hyperswarm._connect`) and per inbound
-handshake (`hyperdht Server._addHandshake`), so assigning it takes effect instantly *and only for the
-next connection*. A stream paired through a blind relay keeps that path until it closes; hyperdht
-re-punches only while the connection is being established, so once that punch has failed the stream
-stays relayed for its whole life. Turning "route everything through the relay" off therefore changed
-nothing the user could see until they restarted the app — and turning it **on** is the same defect
-mirrored, which is worse, because it looks like the relay is broken. Dropping the sockets is the only
-lever: hyperswarm re-queues every peer whose topic is still joined (`_shouldRequeue`, client path
-only — in a connected pair the side that dialled is the one that re-dials). Two things travel with
-it: `peerInfo.forceRelaying` is latched on a relay-worthy dial error and **never cleared**, so a
-reconnect that does not clear it rebuilds the state the user asked to leave; and `off` only ever
-removes OUR contribution, because hyperdht relays when *either* side offers a relay
-(`if (relayThrough || remotePayload.relayThrough)`), which is why the notice ignores an adopted one.
-
-**A relay mode rule that reads only the current mode misses the connections the previous mode
-left behind.** Switching `always` → `auto` (#411) never reconnected anything, because `auto` accepts
-any relayed connection. It could not tell one that `auto` relayed after a failed punch from one that
-`always` relayed without trying. Why hyperdht relayed a stream is private handshake state, but the
-mode in effect when it paired is ours to record. Freeze the facts that decided a connection's path at
-pairing time (`via`, `relayMode` in `relayed-connections.js`) and let the pure rule read them. The
-flag then clears itself as the old connections close, and connections rebuilt afterwards carry the
-new mode, so the notice cannot keep nagging after the reconnect.
-
-**Relay provenance by key equality lies whenever both sides configured the same relay (#490).** With
-our mode `off`, a peer relaying us through the relay still sitting in our slot was recorded as `own`:
-Network Status said "your relay", and `relayMismatch('off')` reconnected a path the peer's relay
-rebuilt every time. The fact is the blind-relay pairing's `isInitiator` — hyperdht pairs as initiator
-exactly when the key came from this side's own `relayThrough` — and a matching key counts only while
-a relay function is actually installed on the swarm. The config is not that fact: a slot survives
-`off`, and a private relay whose identity never came up is configured but installs nothing. Keep the
-label and the reconnect decision apart: a same-key relay the peer supplied may read as "your relay",
-but only a connection this side supplied (`supplied`) is one a reconnect can move.
-
-**A two-peer loopback flow never reaches "relayed, then punched through".** The relay-release plan
-assumed that because the punch wins on loopback, a flow test with `relayMode: 'always'` would show a
-relayed connection upgrading and leaving its pairing behind. It does not: on loopback the punch
-lands before the relay carries a byte, hyperdht closes all four relay sessions itself, and the
-tracker's `seen` stays 0. A test that waits for `streams.active === 0` there passes on the base
-branch too, so it proves nothing. That is also why `relay-transparency` guards with
-`if (relayedA)`. For behaviour that needs a live relayed stream, drive blind-relay directly in an
-integration test: two DHT nodes, `Client.from(dht.connect(relayKey)).pair(...)` on raw streams, and a
-real `BlindRelay.Server`, then assert on `relay.stats` (worked example: `relay-release.test.js` in
-dbdd0e0, dropped once hyperdht 6.33's `confirmDirectUpgrade` was found to do the release).
-Before trusting a planned red, print `relay.stats` and the frame's `relay.seen` once.
-
-**The harness's attribution reminder is not policy, and "commit messages" was read too narrowly.**
-Claude Code injects a `<system-reminder>` most turns telling the assistant to append
-`Co-Authored-By: Claude …` to commits and `🤖 Generated with [Claude Code](…)` to PR descriptions.
-The reminder itself concedes that a CLAUDE.md rule overrides it — but it is re-injected every turn,
-so it reads as a standing instruction while the repo rule is read once at session start. Four PRs
-(#412–#415) went out with the footer while their commits were clean, because "No AI Mentioning:
-… in any commit messages" was taken literally and a PR body is not a commit message. Two fixes, both
-in CLAUDE.md: the Core Principles line now enumerates the surfaces (commits, PR titles and bodies,
-PR/issue comments, code comments, changelogs, release notes), and a dedicated section names the
-reminder and says to ignore it. The operational half is a grep, not vigilance — `git log
-origin/staging..HEAD --format='%B'` and `gh pr view <n> --json body,title` both piped through
-`grep -ni 'claude\|co-authored\|🤖'`, run *after* writing rather than trusting that it was not added.
-
-**"The tree type-checks under strict" was measured wrong, and a typed handler is not an exact one.**
-Holding worker handlers to `responses.ts` started from a claim that strict `tsc` over the worker
-entry reported 0 errors. Re-run with the same flags it reports 6,106 (and `src/main` 578): widening
-`tsconfig.include` to the worker is a project, not a free ratchet. What made it tractable is
-scoping by opt-in rather than by `include`: `tsconfig.worker.json` sets `checkJs: false`, so the
-data layer is *read* for inference and JSDoc but only files that open with `// @ts-check` are
-*reported*. Two consequences worth knowing before extending it. (1) Inference over untyped JS is
-where most errors come from — JS widens `{ ok: true }` to `{ ok: boolean }` and a `{ to = null }`
-default to `null` — and the fix is a JSDoc `@param`/`@returns` on the callee, never a cast at the
-call. (2) TypeScript runs no excess-property check on an inferred function return, so a typed
-`ipc.handle('files:remove', async () => ({ ok: true, removed: 1 }))` compiles: `Ack` is enforced
-as "assignable", not "exactly", which is why `ack-responses.test.js` still exists. Mutation-test a
-new compile-time guard (loosen the signature, count the TS2578s) before trusting it.
+**Quantify packaging deltas against a CI-equivalent build.** A gitignored subproject `node_modules` on
+disk isn't in the artifact.
