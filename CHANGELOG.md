@@ -33,6 +33,22 @@ you close it or it no longer applies.
 endlessly.** A download into a read-only folder or drive used to fail again
 every time the sharer reconnected. It now shows "Permission denied" until
 you fix the folder; then it resumes on its own, or you can press Retry.
+- **A download stopped by a full disk or a missing drive picks up again by
+itself.** Freeing space, reconnecting the drive or choosing another download
+folder for the space did nothing until you pressed Retry. The download now
+resumes on its own while the sharer is online. A download that stopped on a
+full disk before this update still needs one Retry.
+- **A partly downloaded file keeps its Discard button when the sharer goes
+offline.** If the sharer edited the file and went offline before Mirall had
+re-checked it, the row read "Not available" with no actions, and the partial
+download stayed on disk. It now reads "Owner offline" with Discard Partial,
+like files in a folder.
+- **Files two people share under the same name no longer borrow each
+other's status.** Your paused download of one person's copy also showed on
+the other person's copy, with its own Resume and Discard.
+- **One damaged folder share no longer stops your other shares from being
+served after a restart.** Everyone could still see the files, but their
+downloads stalled.
 - **A file you edit inside a mirrored folder is marked "Edited locally".**
 An edit that didn't change the file's size still showed as synced, with a
 "content hash matches" badge that nothing had actually checked. Edited
@@ -74,6 +90,12 @@ and entries still being written when you quit are finished first.
 Pressing Reconnect now after adding or replacing a relay with an invite
 reloaded the whole of Mirall's window. It now reconnects while you stay
 where you are.
+- **Failed actions now say so.** If saving your profile, deleting the
+Activity Log or turning on detailed logging didn't work, Mirall could stay
+stuck on "Saving…", close the dialog as if it had worked, or say logging was
+on when it wasn't. Copy buttons could also say "Copied!" when nothing was
+copied, and picking a picture Mirall couldn't read as your avatar did
+nothing. Mirall now tells you what went wrong and lets you try again.
 - **Settings no longer show a change that wasn't saved.** The theme,
 language, zoom, tray, login, notification and Activity Log switches were
 set without checking the result, so a refused save left the switch showing
