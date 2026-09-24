@@ -901,6 +901,8 @@ drag region (`WebkitAppRegion: 'drag'`) with `no-drag` islands for controls; a
 - Carry destructive intent with the `danger` button, not red titles.
 - Give every control a name/role/state and rely on the universal focus ring.
 - Keep ambient shadows purple-tinted (`rgba(74,59,82,…)`).
+- Report the outcome of something the user just did with a toast (`useRunAction` inside `ToastProvider`, `InlineError` outside it); OS notifications are for background events the user may not be watching.
+- Write German UI copy in the generic masculine — no `Kolleg:innen`-style forms.
 
 **Don't**
 - Don't introduce CSS gradients or new glass surfaces — glass is limited to the

@@ -390,7 +390,7 @@ A change is not done until all of these hold.
 - [ ] **Dead code removed in the same change**, including its `@typedef` and any test that
 
   exists only to keep it alive.
-- [ ] **Docs updated in the same change** when a rule, module table, or convention moved
+- [ ] **Docs updated in the same change** when a rule, module boundary, or convention moved
 
   (`.claude/solution-architecture.md`, `.claude/testing.md`, and this file).
 - [ ] **Commit message**: `[type] Short imperative title` (`[feat]`, `[fix]`, `[chore]`, …), ≤ ~60

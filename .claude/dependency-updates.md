@@ -91,6 +91,10 @@ No `src` module imports `hyperdrive` (`test/invariants/no-space-drive.test.js`).
 
 `test/invariants/renderer-declared-dependencies.test.js` fails if the renderer imports a package that `package.json` does not declare, so a dropped declaration is caught; it does not pin the version, which is what this note is for.
 
+## `hypercore-storage` — undeclared, deep-imported
+
+`hypercore-storage` is not in `package.json`: it arrives as a `corestore` transitive, and `src/shared/storage/core-purge.js` deep-imports its `lib/keys.js` to write RocksDB range tombstones. A `corestore` bump can therefore change that key layout with no manifest change — when the holepunch group moves `corestore`, check `npm ls hypercore-storage` and run the purge tests.
+
 ## Security PRs
 
 Renovate's `vulnerabilityAlerts` rule bypasses the weekly schedule. When one shows up:

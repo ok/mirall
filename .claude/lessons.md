@@ -161,8 +161,7 @@ the test rather than loosen the rule.
 `check-test-timing.sh` and `check-release-mime.sh`.
 
 **Targeted test runs are blind to repo-wide guards.** Adding or moving a file needs the guard family
-once (arch-doc §11 table, i18n scans, `renderer-contract-only-imports`, `no-hand-mirrored-vocabularies`).
-A new module under `src/shared/**` needs its §11 row in `solution-architecture.md` in the same commit.
+once (the `.claude/` doc path check, i18n scans, `renderer-contract-only-imports`, `no-hand-mirrored-vocabularies`).
 
 **A module split is only proven by something that runs it.** `tsc` skips the worker and `no-undef`
 resolves a dropped import whose name is a global (`fetch`, `performance`, `URL`) to the environment.

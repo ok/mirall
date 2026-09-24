@@ -103,6 +103,13 @@ bundles the renderer, Tailwind compiles CSS, `tsc --noEmit` typechecks) →
   same packaged tree. `scripts/ci/check-deb.sh` asserts the package layout before upload. Both
   ship unsigned by convention. The deb's control `Version` is the CI version with a prerelease
   label rewritten `-beta.N` → `~beta.N` (Debian ordering); the file name follows it.
+  `make:linux` runs the deb maker *before* the AppImage script, because forge's `preMake` wipes
+  `out/make`. The deb uses xz members (dpkg before Debian 12 cannot read zstd) and turns OTA off
+  (`src/main/install-kind.js`: root owns the install, the package manager owns updates). The
+  AppImage cannot keep a setuid sandbox, so `resources/linux/AppRun` passes `--no-sandbox`, and it
+  swaps its FUSE runtime for uruntime (`URUNTIME_VERSION` in the script) because current distros
+  lack `libfuse2`. Both use `~/.config/mirall/`; a deb install retires any per-user AppImage
+  desktop entry.
 - **Windows** — `electron-forge make` with `@electron-forge/maker-msix`. The
   `preMake` hook in `forge.config.js` rewrites the 4-part `Version` in
   `resources/win32/AppxManifest.xml`. CI produces the MSIX **unsigned**; it is
@@ -110,6 +117,14 @@ bundles the renderer, Tailwind compiles CSS, `tsc --noEmit` typechecks) →
 
 Installers are uploaded to object storage, from which the website's download page
 serves first installs.
+
+**Asar layout.** `forge.config.js` seals `src/main`, `src/preload` and the built renderer into an
+**uncompressed** `app.asar`, and unpacks `src/worker`, `src/shared`, `node_modules`, `resources` and
+every `*.{node,bare}`: Bare cannot load from an archive, `bare-sidecar` `chmod`s its binary on first
+launch, `dlopen` cannot read an archive, and native tray/notification APIs need real paths.
+`src/main/asar-spawn.js` rewrites `app.asar/` → `app.asar.unpacked/` in spawn paths, because
+`require.resolve` returns archive paths the OS cannot exec. OTA swaps the whole bundle, so the
+layout does not affect it.
 
 ## Release channels & OTA
 
