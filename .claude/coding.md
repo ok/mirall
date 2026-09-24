@@ -8,9 +8,9 @@ This is the binding style and architecture guide for `mirall-app`. It states the
 codebase actually holds itself to: what to name things, where code goes, how big a unit may get,
 what a comment is for, which shapes are banned, and which existing patterns to copy. Check new code
 against it before calling the work done. It is written to stand alone — you should not need any
-other document to write code that fits here. For deeper reference: `.claude/solution-architecture.md`
-(what the system is), `.claude/testing.md` (test layers and the a11y bar), `.claude/lessons.md`
-(hard-won debugging specifics).
+other document to write code that fits here. For deeper reference:
+`.claude/solution-architecture.md` (what the system is), `.claude/testing.md` (test layers and the
+a11y bar), `.claude/lessons.md` (hard-won debugging specifics).
 
 ---
 
@@ -33,20 +33,20 @@ main can `require` it. **Never add an import to a `contract/` module.**
 Hard boundaries, each enforced by a gate rather than a comment:
 
 - The renderer imports `src/shared/contract/**` only (`no-restricted-imports` +
-`test/invariants/renderer-contract-only-imports.test.js`). Need data-layer logic in the UI? Move the
-rule into `contract/`, or ask the worker over IPC. Do not copy it.
+  `test/invariants/renderer-contract-only-imports.test.js`). Need data-layer logic in the UI? Move
+  the rule into `contract/`, or ask the worker over IPC. Do not copy it.
 - A module that a `test/unit` test loads under plain Node must not import `bare-*`. The pure half of
-`folders/` is listed in `eslint.config.mjs` → `pureFolderPolicyModules` and enforced there; do the
-I/O in the engine that calls the policy.
+  `folders/` is listed in `eslint.config.mjs` → `pureFolderPolicyModules` and enforced there; do the
+  I/O in the engine that calls the policy.
 - Vendored code (`src/shared/transfer/backends/overlay/vendor/`) stays re-diffable against upstream.
-Do not restyle it, do not apply our lint rules to it, and record every local divergence in its
-`PROVENANCE.md`.
+  Do not restyle it, do not apply our lint rules to it, and record every local divergence in its
+  `PROVENANCE.md`.
 - **Dependencies are not patched.** No `patch-package`, no edits under `node_modules`, no fork for a
-local change. When a fact a dependency computes is needed and not exposed, the order is: an upstream
-issue or pull request first; then, only if the fact crosses one of the dependency's *exported*
-surfaces, a runtime interposition kept in one module with an install/reset pair, a shape test that
-pins the surface it couples to, and the upstream reference in the module header.
-`network/relay-observe.js` + `test/unit/relay-observe-shape.test.js` are the one such pair today.
+  local change. When a fact a dependency computes is needed and not exposed, the order is: an
+  upstream issue or pull request first; then, only if the fact crosses one of the dependency's
+  *exported* surfaces, a runtime interposition kept in one module with an install/reset pair, a
+  shape test that pins the surface it couples to, and the upstream reference in the module header.
+  `network/relay-observe.js` + `test/unit/relay-observe-shape.test.js` are the one such pair today.
 
 ---
 
@@ -56,9 +56,10 @@ pins the surface it couples to, and the upstream reference in the module header.
 
 - `kebab-case.js` for modules — everywhere (`shared/`, `worker/`, `main/`, `store/`).
 - `PascalCase.tsx` for React components. Nothing non-PascalCase inside `components/*` except a
-co-located `types.ts`.
+  co-located `types.ts`.
 - `use*.ts` for hooks. `.tsx` only if the file also houses a Provider.
-- Test files: `test/<layer>/<subject>.test.js`. Frontend scenarios: `test/frontend/scenarios/sNN-<slug>.mjs`.
+- Test files: `test/<layer>/<subject>.test.js`. Frontend scenarios:
+  `test/frontend/scenarios/sNN-<slug>.mjs`.
 
 **Components** — the suffix is a contract, not decoration:
 
@@ -73,7 +74,8 @@ co-located `types.ts`.
 | `*Section`  | a piece of a page                  |
 
 
-Props types are `XxxProps`, never a bare `Props`. Use `TFunction` from i18next, never a hand-typed `t`.
+Props types are `XxxProps`, never a bare `Props`. Use `TFunction` from i18next, never a hand-typed
+`t`.
 
 **Functions and variables** — `camelCase`; `SCREAMING_SNAKE` for frozen vocabulary and tuning
 constants. Booleans read as predicates (`isMountFault`, `hasRoutableAddress`). A function that
@@ -84,13 +86,13 @@ returns a decision is named for the decision (`supersedeDecision`, `stallVerdict
 tax here, because they make `grep` lie. Respect these splits:
 
 - *presence* = peer liveness (`network/presence.js`, `network/presence-broadcast.js`). File-on-disk
-presence is *retire-confirm* / *disk-presence*.
+  presence is *retire-confirm* / *disk-presence*.
 - *admission* = membership gating. The download engine's slot gating is a *fetch gate*.
 - *diagnostics*: `network/support-bundle.js` = support bundle; `swarm-diagnostics.js` = live status;
-`core/diagnostics-redact.js` = redaction.
+  `core/diagnostics-redact.js` = redaction.
 - *health*: `core/health.js` = event-loop lag; `Subsystem.health()` = readiness.
 - Error codes are `CODES` (from `contract/errors.js`). The `ErrorCodes` alias is gone — do not
-reintroduce a second name for one object.
+  reintroduce a second name for one object.
 
 Before adding a name, grep it. If it already means something else in another domain, pick a
 different word — do not disambiguate with a comment.
@@ -103,22 +105,23 @@ different word — do not disambiguate with a comment.
 domain, one file per cohesive unit that shares consumers and purity.**
 
 - Put new data-layer code in its domain folder (`spaces/`, `shares/`, `folders/`, `audit/`,
-`storage/`, `sweep/`, `network/`, `transfer/`), not in a technical-layer bucket. `network/` answers
-"are we reachable"; `transfer/` answers "did the bytes arrive".
+  `storage/`, `sweep/`, `network/`, `transfer/`), not in a technical-layer bucket. `network/`
+  answers "are we reachable"; `transfer/` answers "did the bytes arrive".
 - Renderer code goes in a named bucket too: `shell/ ipc/ platform/ model/ format/ errors/ types/`
-for modules, and `components/<feature>/` for UI. Both sets are pinned by a guard, so adding a folder
-is a decision that takes a row rather than a default for whatever had nowhere else to go.
+  for modules, and `components/<feature>/` for UI. Both sets are pinned by a guard, so adding a
+  folder is a decision that takes a row rather than a default for whatever had nowhere else to go.
 - New IPC handlers follow the `ipc/space-leave.js` precedent: a `registerX(ipc, deps)` module under
-`src/worker/ipc/`. Do not grow `worker/main.js`.
-- New main-process concerns are their own module exposing `register(deps)`. Do not grow `main/main.js`.
+  `src/worker/ipc/`. Do not grow `worker/main.js`.
+- New main-process concerns are their own module exposing `register(deps)`. Do not grow
+  `main/main.js`.
 - A screen that needs derivation gets a pure, Node-testable module (`model/folder-strips.js`,
-`model/folder-status.js`, `model/mirror-state-label.js` are the pattern) and stays a renderer of that result.
+  `model/folder-status.js`, `model/mirror-state-label.js` are the pattern) and stays a renderer of
+  that result.
 
 **When to split a file:** it has more than one reason to change, or a reviewer cannot state its job
-in one sentence. Files over ~600 lines are a standing smell; none exceeds it today. Splitting one
-is its own tier of work, tracked
-separately from the folder reorganisation, because a merge can legitimately grow a file while
-removing duplication.
+in one sentence. Files over ~600 lines are a standing smell; none exceeds it today. Splitting one is
+its own tier of work, tracked separately from the folder reorganisation, because a merge can
+legitimately grow a file while removing duplication.
 
 **When *not* to split:** a one-line re-export "for the import path". Those shims are all deleted;
 importers name the real module. Adding a file that only re-exports another is a regression.
@@ -140,10 +143,10 @@ the literal union — and the type beside it is `@typedef {(typeof TUPLE)[number
 `unknown` are banned in JSDoc as they are in TypeScript; a JSDoc cast `/** @type {X} */ (expr)`
 narrows at the one boundary where the transport hands back an untyped value. No `.d.ts` sidecar may
 sit beside a `.js` (`renderer-contract-only-imports.test.js` asserts it): TypeScript reads a
-declaration INSTEAD of the implementation and never compares the two. The ambient declaration
-files are `platform/global.d.ts`, which declares `window.bridge`, and `src/worker/global.d.ts`, which
-declares Bare's timer globals; neither has a `.js`. The compile-time
-assertions in `test/typecheck/` are what a contract union is pinned by.
+declaration INSTEAD of the implementation and never compares the two. The ambient declaration files
+are `platform/global.d.ts`, which declares `window.bridge`, and `src/worker/global.d.ts`, which
+declares Bare's timer globals; neither has a `.js`. The compile-time assertions in `test/typecheck/`
+are what a contract union is pinned by.
 
 **Handlers are held to their contract row.** `ipc.handle(name, fn)` is generic over the request
 name: `fn` receives `RequestArgs<name>` (derived from the `requests.js` row) and a `HandlerContext`,
@@ -166,40 +169,43 @@ variable, and a `.catch` callback's argument, is read through `errorMessage(err)
 
 - **One responsibility per function.** If you need "and" to describe it, split it.
 - **Guardrails (enforced as warnings by `complexityBudget` in `eslint.config.mjs`):** cyclomatic
-complexity ≤ 20, nesting depth ≤ 4, ≤ 150 lines per function. These are a ceiling, not a target.
-The tree is at zero warnings and the CI ceiling (`lint:ci --max-warnings 0`) holds it there: a new
-warning fails CI, so split the function instead.
+  complexity ≤ 20, nesting depth ≤ 4, ≤ 150 lines per function. These are a ceiling, not a target.
+  The tree is at zero warnings and the CI ceiling (`lint:ci --max-warnings 0`) holds it there: a new
+  warning fails CI, so split the function instead.
 - **Prefer returning a decision to performing one.** A pure `xDecision(state) → verdict` that an
-impure caller acts on is testable at the unit layer; a function that decides *and* writes is not.
+  impure caller acts on is testable at the unit layer; a function that decides *and* writes is not.
 - **Parameters:** past three, take an options object. Never take a parameter you do not read — an
-unused `_db`-style placeholder is dead weight that every caller has to keep passing.
+  unused `_db`-style placeholder is dead weight that every caller has to keep passing.
 - **Introduce a type when the shape crosses a boundary** (IPC payload, persisted record, component
-props). Inside one module, a local object literal is fine. Do not wrap a primitive in a class for
-its own sake.
+  props). Inside one module, a local object literal is fine. Do not wrap a primitive in a class for
+  its own sake.
 - `**any` and `unknown` are banned** in renderer TypeScript. If the type is genuinely open, model it
-— a union, a discriminated record, or a declared contract type.
+  — a union, a discriminated record, or a declared contract type.
 - **Shared logic gets extracted once, into the layer both callers can reach.** If two runtimes need
-it, it belongs in `contract/`. Copying a rule into a second runtime is the origin of every
-vocabulary drift this codebase has had.
+  it, it belongs in `contract/`. Copying a rule into a second runtime is the origin of every
+  vocabulary drift this codebase has had.
 
 **Lifecycle rules (non-negotiable — the data layer is built on them):**
 
 - Every periodic or deferred job is owned by a `Subsystem` and armed through `this.timers`, inside
-`_open()`. **A timer armed at module level runs at import, where no `close()` can ever reach it**
-— banned by `moduleLevelTimerRestrictions` and pinned by `test/invariants/module-level-timers.test.js`.
+  `_open()`. **A timer armed at module level runs at import, where no `close()` can ever reach it**
+  — banned by `moduleLevelTimerRestrictions` and pinned by
+  `test/invariants/module-level-timers.test.js`.
 - A timer handle that outlives the call that armed it (`announceTimer`, `presenceBeat`) must be
-owned by `this.timers` or a module's own `createTimers()` that its `reset` closes.
+  owned by `this.timers` or a module's own `createTimers()` that its `reset` closes.
 - A module-level flag that nothing clears is a shutdown latch bug. State that survives a stop must
-live on a subsystem that the stop reaches.
-- Order two non-atomic writes so that a crash leaves the *visible* failure, not the silent one. Never
-swallow the second half with an empty `catch {}`.
-- **Collaborators are read through accessors, installed by `initX(deps)` and cleared by `resetX()`.**
-A module that outlives a subsystem restart (`network/*`) never captures the swarm, the ipc or a hook
-as a value; it holds `() => current`, is wired in one place (`swarm.js` `wireCollaborators()`) and
-reset in one list (`destroySwarm()`). A value captured at import goes stale on the second open.
+  live on a subsystem that the stop reaches.
+- Order two non-atomic writes so that a crash leaves the *visible* failure, not the silent one.
+  Never swallow the second half with an empty `catch {}`.
+- **Collaborators are read through accessors, installed by `initX(deps)` and cleared by
+  `resetX()`.** A module that outlives a subsystem restart (`network/*`) never captures the swarm,
+  the ipc or a hook as a value; it holds `() => current`, is wired in one place (`swarm.js`
+  `wireCollaborators()`) and reset in one list (`destroySwarm()`). A value captured at import goes
+  stale on the second open.
 - **A field added to the network status frame touches four places together**: `readSwarmFacts`, the
-offline snapshot in `swarm-diagnostics.js`, a scalar leaf in `STATUS_PATHS` (an array needs a digest
-string beside it — the dedup compares leaves only), and the renderer's `NetworkStatusScreen` type.
+  offline snapshot in `swarm-diagnostics.js`, a scalar leaf in `STATUS_PATHS` (an array needs a
+  digest string beside it — the dedup compares leaves only), and the renderer's
+  `NetworkStatusScreen` type.
 
 ---
 
@@ -207,27 +213,29 @@ string beside it — the dedup compares leaves only), and the renderer's `Networ
 
 The house style is long-form *why* prose, and it earns its place. The failure mode here has never
 been "what" comments — it is **bug archaeology**: explaining what the code used to do and which  
-incident changed it, instead of the rule the code now enforces. But the best comment is a comment not written because the code is self explainatory.
+incident changed it, instead of the rule the code now enforces. But the best comment is a comment
+not written because the code is self explainatory.
 
 **Rules**
 
 1. **State the rule the code enforces, in the present tense.** Name the mechanism. No history.
 2. **No "used to", "previously", "the hand-rolled version", "before this fix", "slipped past".** If
- the story matters, its home is a `REGRESSION (…)` test name, the commit message, or
- `.claude/lessons.md` — all three survive; a comment rots.
+   the story matters, its home is a `REGRESSION (…)` test name, the commit message, or
+   `.claude/lessons.md` — all three survive; a comment rots.
 3. **No internal ids in `src/`** — no `FIX-n`, `MIR-n`, `LIFECYCLE-n`. A contributor cannot resolve
- them from this repository. Blocked by `scripts/ci/check-comment-hygiene.sh`.
+   them from this repository. Blocked by `scripts/ci/check-comment-hygiene.sh`.
 4. **No references a reader cannot follow from the repo** — no `.claude/` or plan-doc paths, no `§`
- section cites, no `#123` issue numbers in comments. The one permitted pointer target is
- `.claude/solution-architecture.md`. (`vendor/` is exempt: its tags are defined in `PROVENANCE.md`.)
+   section cites, no `#123` issue numbers in comments. The one permitted pointer target is
+   `.claude/solution-architecture.md`. (`vendor/` is exempt: its tags are defined in
+   `PROVENANCE.md`.)
 5. **No commented-out code.** There is none in `src/` today. Keep it that way; git remembers.
 6. **No dated or personal TODOs.** Use the issue tracker.
 7. **State an invariant once.** If a rule applies at three sites, write it at the canonical site and
- have the others point there ("Scroll-pane rules: see SpaceView's pane."). Three copies drift.
+   have the others point there ("Scroll-pane rules: see SpaceView's pane."). Three copies drift.
 8. **Do not restate the code.** `// Send handshake to all connected peers` above a loop that does
- exactly that is noise.
+   exactly that is noise.
 9. **Numbers in comments rot.** Prefer "every handler" to "all 85 handlers". If you must give a
- count, a test should assert it.
+   count, a test should assert it.
 
 **When a comment IS warranted:** a non-obvious business rule; a correctness-critical ordering; an
 algorithm whose shape isn't self-evident; a public API/prop contract; a deliberate asymmetry that
@@ -269,47 +277,47 @@ your header is over ~15 lines, it is burying the rule — compress it, or move a
 Each of these was found in this codebase. Named so they can be called out in review.
 
 - **God-module.** One file accumulating every new handler (`worker/main.js`: 21 responsibilities;
-`main/main.js`: 15). *Instead:* a `registerX(ipc, deps)` module per domain.
+  `main/main.js`: 15). *Instead:* a `registerX(ipc, deps)` module per domain.
 - **God-screen.** A React screen holding derivation, eight modal slots and three error policies
-(`FolderView`, `SpaceView`). *Instead:* pure derivation in a Node-tested module; one hook per
-concern; the screen renders.
+  (`FolderView`, `SpaceView`). *Instead:* pure derivation in a Node-tested module; one hook per
+  concern; the screen renders.
 - **Re-export shim.** A one-line file existing only as an import path. *Instead:* importers name the
-real module. All such shims have been deleted.
+  real module. All such shims have been deleted.
 - **Hand-mirrored vocabulary.** The renderer keeping its own copy of a data-layer rule because it
-"cannot import the worker". *Instead:* put it in `contract/` and import it. Pinned by
-`test/invariants/no-hand-mirrored-vocabularies.test.js`.
+  "cannot import the worker". *Instead:* put it in `contract/` and import it. Pinned by
+  `test/invariants/no-hand-mirrored-vocabularies.test.js`.
 - **Two names for one object.** `CODES` and `ErrorCodes` for the same export. *Instead:* one name,
-renamed everywhere in a single change.
+  renamed everywhere in a single change.
 - **Word collision across domains.** *presence*, *health*, *diagnostics*, *admission* meaning two
-things each. *Instead:* see §2.
+  things each. *Instead:* see §2.
 - **Bug archaeology in comments.** See §5.
 - **The same invariant restated per site.** See §5 rule 7.
 - **Speculative generality.** A polymorphic backend list with one implementation; lifecycle hooks
-(`init`/`attach`/`teardown`) nothing calls; a `refresh` escape hatch no consumer uses. *Instead:*
-write the concrete call. Add the seam when the second implementation exists.
+  (`init`/`attach`/`teardown`) nothing calls; a `refresh` escape hatch no consumer uses. *Instead:*
+  write the concrete call. Add the seam when the second implementation exists.
 - **Dead code kept alive by its own test.** A symbol with no production caller and a passing unit
-test reads as live API. *Instead:* delete it with its test, or route the test through the
-production path and mark the seam.
+  test reads as live API. *Instead:* delete it with its test, or route the test through the
+  production path and mark the seam.
 - **Timer armed at import.** See §4.
 - **Module-level flag nothing clears.** A stop flag that survives a restart — the shutdown-latch bug
-class. *Instead:* subsystem-owned state.
+  class. *Instead:* subsystem-owned state.
 - **Primitive obsession on the wire.** Passing a bare status string where a declared vocabulary
-exists in `contract/statuses.js`.
+  exists in `contract/statuses.js`.
 - **Unused parameter kept for shape.** Every caller pays to pass it. Drop it.
-- **Locale keys added to one language.** `i18n-key-parity.test.js` refuses it: a key lands in all five
-locales in the same change, and an audit kind additionally needs `kind` and `kindLabel` copy in every
-locale (`audit-coverage.test.js`).
+- **Locale keys added to one language.** `i18n-key-parity.test.js` refuses it: a key lands in all
+  five locales in the same change, and an audit kind additionally needs `kind` and `kindLabel` copy
+  in every locale (`audit-coverage.test.js`).
 - **Locale keys and colour tokens outliving their use.** Guarded now by
-`test/invariants/i18n-unreferenced-keys.test.js` and `test/invariants/unused-color-tokens.test.js` — do not
-add an allowlist entry to silence them unless the key really is reached dynamically, and name the
-site when you do.
+  `test/invariants/i18n-unreferenced-keys.test.js` and `test/invariants/unused-color-tokens.test.js`
+  — do not add an allowlist entry to silence them unless the key really is reached dynamically, and
+  name the site when you do.
 
-Known open issues, recorded rather than fixed here: `knip` runs with `ignoreExportsUsedInFile`,
-so it reports only exports with no reader anywhere in production. Two things that setting hides:
-the `src/main` rows are unmeasurable because knip does not trace member access on a namespace
+Known open issues, recorded rather than fixed here: `knip` runs with `ignoreExportsUsedInFile`, so
+it reports only exports with no reader anywhere in production. Two things that setting hides: the
+`src/main` rows are unmeasurable because knip does not trace member access on a namespace
 `require()` (main's style), and `@internal` is not honoured on a CommonJS export — the
-`// test seam:` comments there stay; and an `export` keyword on a symbol its own file already
-uses is a needless keyword, to be dropped when the module is next touched.
+`// test seam:` comments there stay; and an `export` keyword on a symbol its own file already uses
+is a needless keyword, to be dropped when the module is next touched.
 
 ---
 
@@ -318,49 +326,53 @@ uses is a needless keyword, to be dropped when the module is next touched.
 Copy these rather than inventing a parallel mechanism.
 
 - **Table-driven request surface.** `ipc.handle` → `table.register` throws on an undeclared name;
-handlers and contract rows are pinned equal by `test/unit/contract-requests.test.js`, and each
-handler's result is typed against its `responses.ts` row (§3). Add both rows when you add a handler.
+  handlers and contract rows are pinned equal by `test/unit/contract-requests.test.js`, and each
+  handler's result is typed against its `responses.ts` row (§3). Add both rows when you add a
+  handler.
 - `**Subsystem` + owned timers + supervisor.** `_open()` / `_close()`, `health()`, `this.timers`.
-Reference: `src/shared/core/` and `src/worker/boot.js`'s partial-root handoff.
+  Reference: `src/shared/core/` and `src/worker/boot.js`'s partial-root handoff.
 - **Composition-root tests.** `test/helpers/store.js`'s `freshPeer` boots the production wiring
-(`boot(config, { swarm: false })`); `root.close()` is the production stop. Use `freshDurable` when
-the subject is work `boot()` itself does.
+  (`boot(config, { swarm: false })`); `root.close()` is the production stop. Use `freshDurable` when
+  the subject is work `boot()` itself does.
 - **Shared step order instead of a second implementation.** `worker/ipc/space-leave.js` and
-`shared/spaces/membership/leave-state.js` share `LEAVE_PHASES` + `runLeaveTeardown`, so the live path and
-boot's interrupted-leave pass cannot drift.
+  `shared/spaces/membership/leave-state.js` share `LEAVE_PHASES` + `runLeaveTeardown`, so the live
+  path and boot's interrupted-leave pass cannot drift.
 - **Zero-import contract package.** `src/shared/contract/` — one declaration per vocabulary, frozen
-(`Object.freeze`), typed in place; `contract-package.test.js` pins the zero-import rule and
-`test/typecheck/contract.assert.ts` pins the derived unions.
+  (`Object.freeze`), typed in place; `contract-package.test.js` pins the zero-import rule and
+  `test/typecheck/contract.assert.ts` pins the derived unions.
 - **Query store with scope-predicate invalidation.** `src/renderer/store/` — `useQuery` for worker
-data, `useMainQuery` for main-process facts (`write` replaces, `patch` merges). `loading` means
-*cold*, and re-raises on refetch — never gate a subtree on it.
+  data, `useMainQuery` for main-process facts (`write` replaces, `patch` merges). `loading` means
+  *cold*, and re-raises on refetch — never gate a subtree on it.
 - **Modal contract.** `Modal` + `ModalHeader` + `modalKeys`, with guard tests. New dialogs compose
-these; they do not hand-roll padding or a ⌘Enter handler.
+  these; they do not hand-roll padding or a ⌘Enter handler.
 - **Errors.** Throw `AppError` with a `CODES.*` code from `contract/errors.js`; classify I/O faults
-through `classifyLocalIoFault` / `classifyTransferError` rather than matching `err.message`.
+  through `classifyLocalIoFault` / `classifyTransferError` rather than matching `err.message`.
 - **Registries are exported `Map`s with one reset.** `network/swarm-registries.js` — bindings, not
-accessors; `resetRegistries()` clears them all. Two key spaces live there: a socket's Noise key and a
-member's profile key; `socketToPeers` is the only bridge between them. Do not add a second index.
-- **Audit hooks on a hot path are `guarded`.** Auditing never throws, slows or fails into the operation
-it describes (`audit/network-watch.js`); every hook the handshake or disconnect path calls goes
-through the wrapper, and its dwell timers belong to the `AuditLog` subsystem's `timers`.
+  accessors; `resetRegistries()` clears them all. Two key spaces live there: a socket's Noise key
+  and a member's profile key; `socketToPeers` is the only bridge between them. Do not add a second
+  index.
+- **Audit hooks on a hot path are `guarded`.** Auditing never throws, slows or fails into the
+  operation it describes (`audit/network-watch.js`); every hook the handshake or disconnect path
+  calls goes through the wrapper, and its dwell timers belong to the `AuditLog` subsystem's
+  `timers`.
 - **An audit row that needs a read goes through `recordResolved`**, never
-`read().then(record).catch(noop)`: the resolver's failure is warned as a lost row, and the audit
-log drains it on close. State that means "we recorded this" (a dedupe mark) is set *before* the
-call, so concurrent attempts record once, and rolled back only on `RESOLVE_OUTCOME.LOST`; a resolver
-that returned null on purpose (`SKIPPED`) and a rate-limit refusal (`REFUSED`, already counted as
-`audit.suppressed`) are not retried. `audit-writes-not-silenced.test.js` flags a silenced `record`.
+  `read().then(record).catch(noop)`: the resolver's failure is warned as a lost row, and the audit
+  log drains it on close. State that means "we recorded this" (a dedupe mark) is set *before* the
+  call, so concurrent attempts record once, and rolled back only on `RESOLVE_OUTCOME.LOST`; a
+  resolver that returned null on purpose (`SKIPPED`) and a rate-limit refusal (`REFUSED`, already
+  counted as `audit.suppressed`) are not retried. `audit-writes-not-silenced.test.js` flags a
+  silenced `record`.
 - **Data that leaves the device is built by an allow-list.** `network/support-bundle.js` names every
-section it emits and shortens keys under `redact`; an unnamed key is dropped. A new section is spelled
-out there, never spread in.
-- **Renderer config is read through `platform/config-client.ts` getters**, a boot snapshot every setter
-keeps current. A screen calls the getter; it does not subscribe to config.
+  section it emits and shortens keys under `redact`; an unnamed key is dropped. A new section is
+  spelled out there, never spread in.
+- **Renderer config is read through `platform/config-client.ts` getters**, a boot snapshot every
+  setter keeps current. A screen calls the getter; it does not subscribe to config.
 - **A frontend scenario registers itself by filename.** `test/frontend/scenarios/sNN-<slug>.mjs` is
-picked up by `scenarios/index.mjs`; there is no list to edit.
+  picked up by `scenarios/index.mjs`; there is no list to edit.
 - **Lint rules as executable invariants.** `eslint.config.mjs` exports its selector arrays
-(`rendererStatusRestrictions`, `moduleLevelTimerRestrictions`, `pureFolderPolicyModules`, …) and a
-unit test parses the same grammar. When you find a rule worth stating, encode it here instead of
-writing it in twelve file headers.
+  (`rendererStatusRestrictions`, `moduleLevelTimerRestrictions`, `pureFolderPolicyModules`, …) and a
+  unit test parses the same grammar. When you find a rule worth stating, encode it here instead of
+  writing it in twelve file headers.
 
 ---
 
@@ -371,14 +383,18 @@ A change is not done until all of these hold.
 - [ ] **Tests at the layers the change touches** — pure logic → Unit; single-peer data layer →
 
   Integration; P2P → Flow; renderer UI → Frontend **+ accessibility**. Bug fixes are **red-first**:
-  add a failing `REGRESSION (…)` test at the bug's layer before fixing. Docs/config-only → state `SKIP`.
+  add a failing `REGRESSION (…)` test at the bug's layer before fixing. Docs/config-only → state
+  `SKIP`.
 - [ ] `**npm run typecheck**` clean; no new `any`/`unknown`.
-- [ ] `**npm run lint**` — 0 errors, and no *new* warnings (the `lint:ci` ceiling is a downward ratchet).
+- [ ] `**npm run lint**` — 0 errors, and no *new* warnings (the `lint:ci` ceiling is a downward
+      ratchet).
 - [ ] `**bash scripts/ci/check-comment-hygiene.sh**` exits 0.
 - [ ] `**npm run test:unit**` and, for data-layer changes, `**npm run test:bare**` green.
 
-  (`test:bare` names the file that failed — re-run that one file, `node test/bare-runner.mjs <file>`, not the suite.)
-- [ ] **UI changes:** `npm run test:fe` run locally and green (CI cannot drive the AX tree), plus the
+  (`test:bare` names the file that failed — re-run that one file,
+  `node test/bare-runner.mjs <file>`, not the suite.)
+- [ ] **UI changes:** `npm run test:fe` run locally and green (CI cannot drive the AX tree), plus
+      the
 
   a11y spot-check — keyboard, focus-visible, accessible name/role/state, `prefers-reduced-motion`.
   If `agent-desktop` cannot target a control by name/role, that is an a11y gap in the control.

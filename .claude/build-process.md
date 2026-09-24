@@ -1,16 +1,15 @@
 # Build & release (overview)
 
 How Mirall is built and how updates reach users — the contributor-facing summary. For the
-update-system architecture, see [`solution-architecture.md`](./solution-architecture.md)
-§1 (How the app ships) and §8 (Update System).
+update-system architecture, see [`solution-architecture.md`](./solution-architecture.md) §1 (How the
+app ships) and §8 (Update System).
 
-Mirall ships as a standard Electron app that embeds `pear-runtime` as a library —
-one binary per platform (`.dmg` / `.msix` / `.AppImage`). Releasing has two stages:
+Mirall ships as a standard Electron app that embeds `pear-runtime` as a library — one binary per
+platform (`.dmg` / `.msix` / `.AppImage`). Releasing has two stages:
 
 1. **Build** — CI builds the per-platform installers and uploads them to object storage.
-2. **Distribute** — each release is promoted to a per-channel Pear Hyperdrive;
-   installed clients mirror the new bundle over Hyperswarm and swap it in on the
-   next launch (OTA).
+2. **Distribute** — each release is promoted to a per-channel Pear Hyperdrive; installed clients
+   mirror the new bundle over Hyperswarm and swap it in on the next launch (OTA).
 
 ```
 tag push (v*)          CI: build-electron.yml            distribution
@@ -27,60 +26,57 @@ git push --tags ─→ matrix build (5 archs)
 
 ## Branches & promotion
 
-`main` is the repo's **default branch** and is **production** — every commit on it is
-releasable, and it is what a visitor cloning the public repo gets. `staging` is the
-integration branch where the next release accumulates. Features and chores squash-merge
-into `staging`, so a merged PR becomes exactly one commit (PR title + PR body). A release
-promotes `staging → main` as a pure fast-forward:
+`main` is the repo's **default branch** and is **production** — every commit on it is releasable,
+and it is what a visitor cloning the public repo gets. `staging` is the integration branch where the
+next release accumulates. Features and chores squash-merge into `staging`, so a merged PR becomes
+exactly one commit (PR title + PR body). A release promotes `staging → main` as a pure fast-forward:
 
 ```
 git switch main && git merge --ff-only staging && git push origin main
 ```
 
-`main` is kept a strict ancestor of `staging` so that promotion never has to squash, which
-is what used to produce the recurring "N ahead / M behind" graph divergence. A hotfix may
-land on `main` directly, then gets forward-ported to `staging`.
+`main` is kept a strict ancestor of `staging` so that promotion never has to squash, which is what
+used to produce the recurring "N ahead / M behind" graph divergence. A hotfix may land on `main`
+directly, then gets forward-ported to `staging`.
 
-> **`staging` means two different things.** The git branch `staging` is where code
-> integrates. The release channel `staging` is a Pear Hyperdrive (see *Release channels &
-> OTA* below). They are independent: a `workflow_dispatch` build can publish any branch to
-> any channel.
+> **`staging` means two different things.** The git branch `staging` is where code integrates. The
+> release channel `staging` is a Pear Hyperdrive (see *Release channels & OTA* below). They are
+> independent: a `workflow_dispatch` build can publish any branch to any channel.
 
-Because GitHub always pre-selects the repo's default branch as a PR base, new PRs open
-against `main`. **Feature and chore PRs must have their base switched to `staging` by
-hand** — only a release promotion or a hotfix legitimately targets `main`.
+Because GitHub always pre-selects the repo's default branch as a PR base, new PRs open against
+`main`. **Feature and chore PRs must have their base switched to `staging` by hand** — only a
+release promotion or a hotfix legitimately targets `main`.
 
-`.github/workflows/pr-base-guard.yml` enforces this: a PR based on `main` fails unless its
-head is `staging`, `hotfix/*` or `release/*`. It is an allowlist, so an unfamiliar branch
-prefix fails closed. A deliberate exception — an infrastructure change that must land on
-`main` first, like the `renovate.json` case below — is unblocked with the `base:main`
-label, which should be justified in the PR body.
+`.github/workflows/pr-base-guard.yml` enforces this: a PR based on `main` fails unless its head is
+`staging`, `hotfix/*` or `release/*`. It is an allowlist, so an unfamiliar branch prefix fails
+closed. A deliberate exception — an infrastructure change that must land on `main` first, like the
+`renovate.json` case below — is unblocked with the `base:main` label, which should be justified in
+the PR body.
 
-Renovate is exempt: `renovate.json` sets `"baseBranches": ["staging"]`, so its PRs target
-the integration branch regardless of the default. That key must stay on `main` — Renovate
-defaults to `useBaseBranchConfig: "none"`, meaning it reads its config **only from the
-repo's default branch**. A `renovate.json` that exists on `staging` but not on `main` is
-silently ignored.
+Renovate is exempt: `renovate.json` sets `"baseBranches": ["staging"]`, so its PRs target the
+integration branch regardless of the default. That key must stay on `main` — Renovate defaults to
+`useBaseBranchConfig: "none"`, meaning it reads its config **only from the repo's default branch**.
+A `renovate.json` that exists on `staging` but not on `main` is silently ignored.
 
-Long-lived branches are limited to `main` and `staging`. Feature (`feat/*`, `fix/*`) and
-release (`release/*`) branches are short-lived and deleted after merge. There is no
-permanent branch per version: the channels are build flavors of one commit lineage, not
-divergent code, and OTA clients roll forward within a channel, so no released version
-needs parallel maintenance. Cut a `release/x.y` branch from its tag only if a patch to an
-older line is ever actually needed after `staging` has moved on.
+Long-lived branches are limited to `main` and `staging`. Feature (`feat/*`, `fix/*`) and release
+(`release/*`) branches are short-lived and deleted after merge. There is no permanent branch per
+version: the channels are build flavors of one commit lineage, not divergent code, and OTA clients
+roll forward within a channel, so no released version needs parallel maintenance. Cut a
+`release/x.y` branch from its tag only if a patch to an older line is ever actually needed after
+`staging` has moved on.
 
 ## CI build — `.github/workflows/build-electron.yml`
 
 **Triggers**
 - **Tag push `v<version>`** → builds the `prod` channel; version comes from the tag.
-- **`workflow_dispatch`** → a maintainer picks `channel` (`dev` / `staging` / `prod`)
-  and optionally a single `platform`. Non-prod builds get a unique
-  `<version>-<channel>.<run>` string so every build is distinct.
+- **`workflow_dispatch`** → a maintainer picks `channel` (`dev` / `staging` / `prod`) and optionally
+  a single `platform`. Non-prod builds get a unique `<version>-<channel>.<run>` string so every
+  build is distinct.
 
 **Pre-flight gates** (tag pushes) — the build refuses to start unless:
 1. the tag matches `package.json#version` (no "tagged but forgot to bump"), and
-2. the top `## v<version>` heading in `CHANGELOG.md` matches the tag (forces a
-   release note into the same commit).
+2. the top `## v<version>` heading in `CHANGELOG.md` matches the tag (forces a release note into the
+   same commit).
 
 **Build matrix**
 
@@ -90,33 +86,29 @@ older line is ever actually needed after `staging` has moved on.
 | `ubuntu-latest` / `ubuntu-24.04-arm` | `linux-x64` / `linux-arm64` | `Mirall.deb` + `Mirall.AppImage` — unsigned by convention |
 | `windows-latest` | `win32-x64` | `Mirall.msix` — unsigned |
 
-Each job: patch `package.json#version` → `npm install` → `npm run build` (esbuild
-bundles the renderer, Tailwind compiles CSS, `tsc --noEmit` typechecks) →
-`npm run make:<platform>`:
+Each job: patch `package.json#version` → `npm install` → `npm run build` (esbuild bundles the
+renderer, Tailwind compiles CSS, `tsc --noEmit` typechecks) → `npm run make:<platform>`:
 
-- **macOS** — `electron-forge make`; `osxSign` + `osxNotarize` run during packaging
-  (wired via env in `forge.config.js`) using an Apple Developer ID cert stored in
-  repo secrets.
+- **macOS** — `electron-forge make`; `osxSign` + `osxNotarize` run during packaging (wired via env
+  in `forge.config.js`) using an Apple Developer ID cert stored in repo secrets.
 - **Linux** — `electron-forge make` builds the `.deb` via `@electron-forge/maker-deb`
   (`chrome-sandbox` is recorded setuid root in the package, so the installed app runs with the
-  Chromium sandbox on), then `scripts/build/build-app-image.sh` assembles the AppImage from the
-  same packaged tree. `scripts/ci/check-deb.sh` asserts the package layout before upload. Both
-  ship unsigned by convention. The deb's control `Version` is the CI version with a prerelease
-  label rewritten `-beta.N` → `~beta.N` (Debian ordering); the file name follows it.
-  `make:linux` runs the deb maker *before* the AppImage script, because forge's `preMake` wipes
-  `out/make`. The deb uses xz members (dpkg before Debian 12 cannot read zstd) and turns OTA off
-  (`src/main/install-kind.js`: root owns the install, the package manager owns updates). The
-  AppImage cannot keep a setuid sandbox, so `resources/linux/AppRun` passes `--no-sandbox`, and it
-  swaps its FUSE runtime for uruntime (`URUNTIME_VERSION` in the script) because current distros
-  lack `libfuse2`. Both use `~/.config/mirall/`; a deb install retires any per-user AppImage
-  desktop entry.
-- **Windows** — `electron-forge make` with `@electron-forge/maker-msix`. The
-  `preMake` hook in `forge.config.js` rewrites the 4-part `Version` in
-  `resources/win32/AppxManifest.xml`. CI produces the MSIX **unsigned**; it is
-  signed out-of-band by a maintainer (the signing process is internal).
+  Chromium sandbox on), then `scripts/build/build-app-image.sh` assembles the AppImage from the same
+  packaged tree. `scripts/ci/check-deb.sh` asserts the package layout before upload. Both ship
+  unsigned by convention. The deb's control `Version` is the CI version with a prerelease label
+  rewritten `-beta.N` → `~beta.N` (Debian ordering); the file name follows it. `make:linux` runs the
+  deb maker *before* the AppImage script, because forge's `preMake` wipes `out/make`. The deb uses
+  xz members (dpkg before Debian 12 cannot read zstd) and turns OTA off (`src/main/install-kind.js`:
+  root owns the install, the package manager owns updates). The AppImage cannot keep a setuid
+  sandbox, so `resources/linux/AppRun` passes `--no-sandbox`, and it swaps its FUSE runtime for
+  uruntime (`URUNTIME_VERSION` in the script) because current distros lack `libfuse2`. Both use
+  `~/.config/mirall/`; a deb install retires any per-user AppImage desktop entry.
+- **Windows** — `electron-forge make` with `@electron-forge/maker-msix`. The `preMake` hook in
+  `forge.config.js` rewrites the 4-part `Version` in `resources/win32/AppxManifest.xml`. CI produces
+  the MSIX **unsigned**; it is signed out-of-band by a maintainer (the signing process is internal).
 
-Installers are uploaded to object storage, from which the website's download page
-serves first installs.
+Installers are uploaded to object storage, from which the website's download page serves first
+installs.
 
 **Asar layout.** `forge.config.js` seals `src/main`, `src/preload` and the built renderer into an
 **uncompressed** `app.asar`, and unpacks `src/worker`, `src/shared`, `node_modules`, `resources` and
@@ -128,15 +120,14 @@ layout does not affect it.
 
 ## Release channels & OTA
 
-Each channel — `dev`, `staging`, `prod` — is a **separate Pear Hyperdrive** with its
-own upgrade key. An installed client subscribes to exactly one channel and only moves
-within it. The target channel is baked into the bundle at package time:
-`forge.config.js` writes the channel's upgrade key into `package.json#upgrade`, which
-`src/main/main.js` hands to `pear-runtime` at startup.
+Each channel — `dev`, `staging`, `prod` — is a **separate Pear Hyperdrive** with its own upgrade
+key. An installed client subscribes to exactly one channel and only moves within it. The target
+channel is baked into the bundle at package time: `forge.config.js` writes the channel's upgrade key
+into `package.json#upgrade`, which `src/main/main.js` hands to `pear-runtime` at startup.
 
-First install downloads the installer once over HTTPS. After that, `pear-runtime`
-(embedded in the Electron main process) follows the channel's drive over Hyperswarm
-and pulls subsequent updates peer-to-peer — no app store, no central update server.
+First install downloads the installer once over HTTPS. After that, `pear-runtime` (embedded in the
+Electron main process) follows the channel's drive over Hyperswarm and pulls subsequent updates
+peer-to-peer — no app store, no central update server.
 
 ## Versioning & tags
 
@@ -145,16 +136,15 @@ Tags must match `v<MAJOR>.<MINOR>.<PATCH>` or `v<MAJOR>.<MINOR>.<PATCH>-<label><
 - prerelease `<N>` is `0`–`65535` (constrained by the MSIX revision range);
 - e.g. `v1.0.0`, `v1.2.3-rc2`, `v1.0.0-beta10`.
 
-**Version coupling.** The OTA "update available" banner fires only when the running
-app's bundled version differs from the staged release's version, so three values must
-agree: the **bundle version** (`package.json#version` at package time), the **MSIX
-manifest version** (4-part, derived by `forge.config.js`), and the **staged release
-version**. A freshly-installed build and its channel drive therefore carry the same
-string, so the updater early-returns instead of looping a banner on every launch.
+**Version coupling.** The OTA "update available" banner fires only when the running app's bundled
+version differs from the staged release's version, so three values must agree: the **bundle
+version** (`package.json#version` at package time), the **MSIX manifest version** (4-part, derived
+by `forge.config.js`), and the **staged release version**. A freshly-installed build and its channel
+drive therefore carry the same string, so the updater early-returns instead of looping a banner on
+every launch.
 
 ## Where the rest lives
 
-The operational release pipeline — code signing, channel-drive promotion, and the
-seed infrastructure — is documented privately alongside the tooling that runs it.
-This document covers only what a contributor needs to understand how the app is built
-and how updates reach users.
+The operational release pipeline — code signing, channel-drive promotion, and the seed
+infrastructure — is documented privately alongside the tooling that runs it. This document covers
+only what a contributor needs to understand how the app is built and how updates reach users.

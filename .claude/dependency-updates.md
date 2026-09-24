@@ -1,24 +1,90 @@
 # Dependency Updates
 
-Operational playbook for keeping the Holepunch / Bare / Pear stack and the rest of the dependency tree current. Read this before reviewing a Renovate PR or running a manual sweep.
+Operational playbook for keeping the Holepunch / Bare / Pear stack and the rest of the dependency
+tree current. Read this before reviewing a Renovate PR or running a manual sweep.
 
 ## What's wired up
 
-- **`renovate.json`** — Renovate config at the repo root. **Renovate reads this file from `main`, not `staging`** — `renovate.yml` runs `actions/checkout` with no `ref`, so it takes the default branch. `baseBranchPatterns: ["staging"]` only controls which branch Renovate *targets*. A config change merged to `staging` alone does nothing; it needs a `hotfix/*` PR to `main` too (the `pr-base-guard` allowlist permits `staging`, `hotfix/*`, `release/*`, or a `base:main` label). Seven `packageRules`, in order:
-  - routine `minor`/`patch`/`pin`/`digest` — flagged `automerge: true` (squash). **This has never actually fired** — see "Automerge is aspirational" below. The named groups after it override back to manual (`automerge: false`).
-  - `major` — `dependencyDashboardApproval: true`. Majors are adopted deliberately and several stay blocked upstream for months, so they queue on the dashboard as checkboxes instead of opening PRs that squat on `prConcurrentLimit` and get re-tested every run. Tick the box when you want one.
-  - `engines.npm` — `enabled: false`. The field is a policy floor (npm 11, so the lockfile keeps its `libc` metadata — see the `.npmrc` note below), not a dependency to track. Left enabled, `rangeStrategy: bump` rewrites it to the latest npm on every release, and because `.npmrc` sets `engine-strict` the unmet range is a hard failure: Node bundles npm with a lag (24.20 and 24.21 ship 11.19.0 while 11.19.1 was current), so PR #305 died in `npm ci` in every job before a test ran. To raise the floor deliberately, first move the Node pins in `.github/actions/setup/action.yml` and `build-electron.yml` to a release that bundles the target npm, then change `engines.npm` in the same PR. `engines.node` stays tracked; CI runs Node 24 while the floor sits on 22, and a major goes to the dashboard.
+- **`renovate.json`** — Renovate config at the repo root. **Renovate reads this file from `main`,
+  not `staging`** — `renovate.yml` runs `actions/checkout` with no `ref`, so it takes the default
+  branch. `baseBranchPatterns: ["staging"]` only controls which branch Renovate *targets*. A config
+  change merged to `staging` alone does nothing; it needs a `hotfix/*` PR to `main` too (the
+  `pr-base-guard` allowlist permits `staging`, `hotfix/*`, `release/*`, or a `base:main` label).
+  Seven `packageRules`, in order:
+  - routine `minor`/`patch`/`pin`/`digest` — flagged `automerge: true` (squash). **This has never
+    actually fired** — see "Automerge is aspirational" below. The named groups after it override
+    back to manual (`automerge: false`).
+  - `major` — `dependencyDashboardApproval: true`. Majors are adopted deliberately and several stay
+    blocked upstream for months, so they queue on the dashboard as checkboxes instead of opening PRs
+    that squat on `prConcurrentLimit` and get re-tested every run. Tick the box when you want one.
+  - `engines.npm` — `enabled: false`. The field is a policy floor (npm 11, so the lockfile keeps its
+    `libc` metadata — see the `.npmrc` note below), not a dependency to track. Left enabled,
+    `rangeStrategy: bump` rewrites it to the latest npm on every release, and because `.npmrc` sets
+    `engine-strict` the unmet range is a hard failure: Node bundles npm with a lag (24.20 and 24.21
+    ship 11.19.0 while 11.19.1 was current), so PR #305 died in `npm ci` in every job before a test
+    ran. To raise the floor deliberately, first move the Node pins in
+    `.github/actions/setup/action.yml` and `build-electron.yml` to a release that bundles the target
+    npm, then change `engines.npm` in the same PR. `engines.node` stays tracked; CI runs Node 24
+    while the floor sits on 22, and a major goes to the dashboard.
   - `pear-runtime` — isolated group, pinned, `prPriority: 10`, `needs-smoke-test` label.
-  - `holepunch` — single grouped weekly PR for the whole P2P stack (`b4a`, `corestore`, `debounceify`, `hypercore-crypto`, `paparam`, `sodium-native`, `which-runtime`, `brittle`, `compact-encoding`, plus `bare-*`, `hyper*`, `pear-*` minus `pear-runtime`).
-  - `electron` + `@electron-forge/*` — grouped, `needs-smoke-test`. `@electron-forge/maker-deb` pulls `electron-installer-debian` as an optional dependency on its `^3.2.0` line; the 4.x line is ESM and the maker `require()`s it, so a proposed 4.x bump needs a maker release that supports it first. The config test loads only `forge.config.js`, so that failure would surface at make time: run a dev-channel Linux dispatch after any bump on this group.
-  - `hyperdht` — `allowedVersions: "<6.33.0"`. 6.33.0 rewrote the LAN shortcut and fails every flow shard on Linux CI while passing on macOS (issue #13); holding it back turned the four-week-red holepunch PR green in one run. Patches on the 6.32 line still flow. Raise only after a Linux runner proves a newer version green. **This rule does not cover `lockFileMaintenance`** — see below.
-- **`lockFileMaintenance` bypasses every `packageRules` version cap.** It performs no per-package lookup: it deletes the lock and lets npm re-resolve the whole tree against the ranges in `package.json`, so `allowedVersions` never runs. A cap that lives only in `renovate.json` therefore protects the weekly *update* PRs and not the weekly *lock refresh* PR. Proven: in the same week the `holepunch` group PR (#82) correctly held `hyperdht` at 6.32.0 while the lock-maintenance PR (#87) resolved it to 6.33.2 and turned all six flow shards red. **Any dependency that must not move needs its ceiling expressed in `package.json`** — a `~`/pinned range, plus an `overrides` entry to bind transitives. Keep the two identical: npm fails the install with `EOVERRIDE` if an override disagrees with a direct dependency, which is the tripwire that stops a future range loosening from silently regressing.
-- **`prConcurrentLimit: 10`** — Renovate's own default. With majors on the dashboard the limit rarely binds; it can go to `0` (unlimited) if it ever does.
-- **Schedule** — Mondays before 8am Europe/Berlin (00:00 → 06:00 UTC during CEST / → 07:00 UTC during CET). Vulnerability alerts run outside the schedule (immediate).
-- **`test/raw/holepunch-integration.test.js`** — the merge gate for the `holepunch` group. Spins up an in-memory `hyperdht/testnet`, two Corestores in tmp dirs, two Hyperswarms, and asserts Hyperdrive + Hyperbee replicate end-to-end across namespaced cores. Runs in ~1s.
-- **`.github/workflows/test.yml`** — four jobs on every PR and on pushes to `staging` and `main`. There are no path filters, so a docs- or config-only PR still runs the full suite including all six flow shards and four bare shards: a `node` job (`typecheck` + `lint:ci` + `knip` (advisory, `continue-on-error`) + `test:node:core`), a `flow` job (sharded two-peer flow tests), and a `bare` job (sharded integration tests). Together they give a Renovate PR its green/red signal.
-- **`knip` is advisory for a reason — read its `src/main` rows before acting on them.** Ten of its "unused export" rows there are false positives from two shapes its CommonJS analysis cannot follow: dependency injection (`createMainRequestRouter({ ownedFolderWatchers, looseFileWatchers })` calls `startWatcher`/`stopWatcher`/`addLooseWatch`/`removeLooseWatch` on the injected objects) and a `require()` inside a function body (`require('./identity-kek.js')` inside `whenReady`, `require('./notifications').register(…)`). Deleting one of those "unused" exports breaks the watcher API at runtime with a green lint. `knip.json` ignores `src/renderer/platform/global.d.ts` (an ambient declaration nothing imports by path) and the vendored overlay subtree (upstream surface, kept re-diffable). `test/**` is deliberately NOT an entry, so an export whose only reader is a test IS reported: that is the A.10 shape (production-dead code kept alive by its test), and it must stay visible. A reviewed test seam carries `/** @internal */` above the export, which `"tags": ["-internal"]` hides; an unmarked test-only export is a row to review, not to delete. Its four `rules` (`dependencies`, `devDependencies`, `binaries`, `unlisted`) are all `off` because knip reads neither the Electron Forge packaging graph nor the Bare worker's runtime resolution: every build-time and worker-only package reads as unused, and each of the three runtimes resolves binaries its own way. Knip is kept for the one question it answers well here — which exports nothing imports.
-- **`.github/workflows/renovate.yml`** — self-hosted Renovate runner. Fires Mondays at 01:00 UTC and on manual `workflow_dispatch`. The cron must fire inside the `renovate.json` schedule window — `before 8am Europe/Berlin` gives ~5h of slack to absorb GitHub Actions cron delay (which routinely runs 30–90min late). Authenticates via the `RENOVATE_TOKEN` repo secret (a fine-grained PAT — required instead of `GITHUB_TOKEN` so PRs opened by Renovate trigger the test workflow).
+  - `holepunch` — single grouped weekly PR for the whole P2P stack (`b4a`, `corestore`,
+    `debounceify`, `hypercore-crypto`, `paparam`, `sodium-native`, `which-runtime`, `brittle`,
+    `compact-encoding`, plus `bare-*`, `hyper*`, `pear-*` minus `pear-runtime`).
+  - `electron` + `@electron-forge/*` — grouped, `needs-smoke-test`. `@electron-forge/maker-deb`
+    pulls `electron-installer-debian` as an optional dependency on its `^3.2.0` line; the 4.x line
+    is ESM and the maker `require()`s it, so a proposed 4.x bump needs a maker release that supports
+    it first. The config test loads only `forge.config.js`, so that failure would surface at make
+    time: run a dev-channel Linux dispatch after any bump on this group.
+  - `hyperdht` — `allowedVersions: "<6.33.0"`. 6.33.0 rewrote the LAN shortcut and fails every flow
+    shard on Linux CI while passing on macOS (issue #13); holding it back turned the four-week-red
+    holepunch PR green in one run. Patches on the 6.32 line still flow. Raise only after a Linux
+    runner proves a newer version green. **This rule does not cover `lockFileMaintenance`** — see
+    below.
+- **`lockFileMaintenance` bypasses every `packageRules` version cap.** It performs no per-package
+  lookup: it deletes the lock and lets npm re-resolve the whole tree against the ranges in
+  `package.json`, so `allowedVersions` never runs. A cap that lives only in `renovate.json`
+  therefore protects the weekly *update* PRs and not the weekly *lock refresh* PR. Proven: in the
+  same week the `holepunch` group PR (#82) correctly held `hyperdht` at 6.32.0 while the
+  lock-maintenance PR (#87) resolved it to 6.33.2 and turned all six flow shards red. **Any
+  dependency that must not move needs its ceiling expressed in `package.json`** — a `~`/pinned
+  range, plus an `overrides` entry to bind transitives. Keep the two identical: npm fails the
+  install with `EOVERRIDE` if an override disagrees with a direct dependency, which is the tripwire
+  that stops a future range loosening from silently regressing.
+- **`prConcurrentLimit: 10`** — Renovate's own default. With majors on the dashboard the limit
+  rarely binds; it can go to `0` (unlimited) if it ever does.
+- **Schedule** — Mondays before 8am Europe/Berlin (00:00 → 06:00 UTC during CEST / → 07:00 UTC
+  during CET). Vulnerability alerts run outside the schedule (immediate).
+- **`test/raw/holepunch-integration.test.js`** — the merge gate for the `holepunch` group. Spins up
+  an in-memory `hyperdht/testnet`, two Corestores in tmp dirs, two Hyperswarms, and asserts
+  Hyperdrive + Hyperbee replicate end-to-end across namespaced cores. Runs in ~1s.
+- **`.github/workflows/test.yml`** — four jobs on every PR and on pushes to `staging` and `main`.
+  There are no path filters, so a docs- or config-only PR still runs the full suite including all
+  six flow shards and four bare shards: a `node` job (`typecheck` + `lint:ci` + `knip` (advisory,
+  `continue-on-error`) + `test:node:core`), a `flow` job (sharded two-peer flow tests), and a `bare`
+  job (sharded integration tests). Together they give a Renovate PR its green/red signal.
+- **`knip` is advisory for a reason — read its `src/main` rows before acting on them.** Ten of its
+  "unused export" rows there are false positives from two shapes its CommonJS analysis cannot
+  follow: dependency injection
+  (`createMainRequestRouter({ ownedFolderWatchers, looseFileWatchers })` calls
+  `startWatcher`/`stopWatcher`/`addLooseWatch`/`removeLooseWatch` on the injected objects) and a
+  `require()` inside a function body (`require('./identity-kek.js')` inside `whenReady`,
+  `require('./notifications').register(…)`). Deleting one of those "unused" exports breaks the
+  watcher API at runtime with a green lint. `knip.json` ignores `src/renderer/platform/global.d.ts`
+  (an ambient declaration nothing imports by path) and the vendored overlay subtree (upstream
+  surface, kept re-diffable). `test/**` is deliberately NOT an entry, so an export whose only reader
+  is a test IS reported: that is the A.10 shape (production-dead code kept alive by its test), and
+  it must stay visible. A reviewed test seam carries `/** @internal */` above the export, which
+  `"tags": ["-internal"]` hides; an unmarked test-only export is a row to review, not to delete. Its
+  four `rules` (`dependencies`, `devDependencies`, `binaries`, `unlisted`) are all `off` because
+  knip reads neither the Electron Forge packaging graph nor the Bare worker's runtime resolution:
+  every build-time and worker-only package reads as unused, and each of the three runtimes resolves
+  binaries its own way. Knip is kept for the one question it answers well here — which exports
+  nothing imports.
+- **`.github/workflows/renovate.yml`** — self-hosted Renovate runner. Fires Mondays at 01:00 UTC and
+  on manual `workflow_dispatch`. The cron must fire inside the `renovate.json` schedule window —
+  `before 8am Europe/Berlin` gives ~5h of slack to absorb GitHub Actions cron delay (which routinely
+  runs 30–90min late). Authenticates via the `RENOVATE_TOKEN` repo secret (a fine-grained PAT —
+  required instead of `GITHUB_TOKEN` so PRs opened by Renovate trigger the test workflow).
 
 ## Regular cadence
 
@@ -36,7 +102,8 @@ Operational playbook for keeping the Holepunch / Bare / Pear stack and the rest 
 For the weekly `holepunch` group PR, when CI is green:
 
 1. Open the PR. Renovate auto-includes changelog links per package.
-2. Skim the per-package changes. Holepunch repos sometimes ship behavior changes inside minor bumps — flag anything that looks like a wire-format or replication change for closer review.
+2. Skim the per-package changes. Holepunch repos sometimes ship behavior changes inside minor bumps
+   — flag anything that looks like a wire-format or replication change for closer review.
 3. Confirm the `Test` workflow ran and is green.
 4. Squash-merge.
 
@@ -44,64 +111,104 @@ Total time: ~2 minutes.
 
 ## Automerge is aspirational — merge by hand
 
-`automerge: true` is set for routine bumps, but **it has never once fired**. Verified 2026-08-11 across six PRs (#29, #30, #31, #41, #43, #44): every one was merged manually, including three that sat through two scheduled Renovate runs.
+`automerge: true` is set for routine bumps, but **it has never once fired**. Verified 2026-08-11
+across six PRs (#29, #30, #31, #41, #43, #44): every one was merged manually, including three that
+sat through two scheduled Renovate runs.
 
 Two independent causes:
 
-1. **GitHub's auto-merge is unavailable here.** It is only offered on PRs that *cannot* be merged immediately — blocked by required status checks or required reviews. The `protect-main-staging` ruleset carries only `deletion` and `non_fast_forward`, no required checks, so every Renovate PR is `MERGEABLE`/`CLEAN` the moment it opens and the option never appears. **Enabling the repo's `allow_auto_merge` setting alone is a no-op** — it is not the fix.
-2. **Renovate's native fallback only runs when the workflow runs**, and that cron is weekly. (Timing-consistent hypothesis, not verified in Renovate's logs: `rebaseWhen: behind-base-branch` re-rebases the branch on each run, so CI is pending again at the moment automerge is evaluated.)
+1. **GitHub's auto-merge is unavailable here.** It is only offered on PRs that *cannot* be merged
+   immediately — blocked by required status checks or required reviews. The `protect-main-staging`
+   ruleset carries only `deletion` and `non_fast_forward`, no required checks, so every Renovate PR
+   is `MERGEABLE`/`CLEAN` the moment it opens and the option never appears. **Enabling the repo's
+   `allow_auto_merge` setting alone is a no-op** — it is not the fix.
+2. **Renovate's native fallback only runs when the workflow runs**, and that cron is weekly.
+   (Timing-consistent hypothesis, not verified in Renovate's logs: `rebaseWhen: behind-base-branch`
+   re-rebases the branch on each run, so CI is pending again at the moment automerge is evaluated.)
 
-Either lever would fix it — a more frequent `renovate.yml` cron, or required status checks on `staging`. Both were considered and declined 2026-08-11 in favour of merging by hand. Treat the flag as intent, not behavior, and don't be misled into thinking a PR will land itself.
+Either lever would fix it — a more frequent `renovate.yml` cron, or required status checks on
+`staging`. Both were considered and declined 2026-08-11 in favour of merging by hand. Treat the flag
+as intent, not behavior, and don't be misled into thinking a PR will land itself.
 
 ## Smoke-test workflow (pear-runtime, electron, anything `needs-smoke-test`)
 
-These changes can break things the integration test does not cover (the Bare worker boot, native module ABI, OTA, packaging, the UI):
+These changes can break things the integration test does not cover (the Bare worker boot, native
+module ABI, OTA, packaging, the UI):
 
 1. `gh pr checkout <num>`
 2. `npm ci && npm run start`
 3. Two-window smoke:
    - Create a space, generate the invite.
-   - In a second instance (different storage path, e.g. `npm run start -- --storage=/tmp/mirall2`), accept the invite.
+   - In a second instance (different storage path, e.g. `npm run start -- --storage=/tmp/mirall2`),
+     accept the invite.
    - Transfer a file. Confirm both peers see it.
    - Quit both, restart both, confirm spaces resume and transfers complete.
-4. If pear-runtime: also build at least one platform (`npm run make:darwin` locally) and confirm the DMG launches.
+4. If pear-runtime: also build at least one platform (`npm run make:darwin` locally) and confirm the
+   DMG launches.
 5. Merge.
 
 ## pear-runtime — extra care
 
-`pear-runtime` is the host process; bumping it can change Bare ABI and break native modules (`sodium-native`, `bare-fs`, `bare-https`, `bare-os`, `bare-path`, `bare-subprocess`). It is pinned (no caret) for a reason.
+`pear-runtime` is the host process; bumping it can change Bare ABI and break native modules
+(`sodium-native`, `bare-fs`, `bare-https`, `bare-os`, `bare-path`, `bare-subprocess`). It is pinned
+(no caret) for a reason.
 
 Before merging:
 - Read the `pear-runtime` and `bare` release notes for ABI/breaking changes.
 - Run a full local `make` for at least one platform.
-- If there's a corresponding bump pending in the `holepunch` group (especially `bare-*` packages), consider landing them together rather than separately.
-- After merging and shipping, watch the OTA channel for crash reports for ~24h before tagging the next release.
+- If there's a corresponding bump pending in the `holepunch` group (especially `bare-*` packages),
+  consider landing them together rather than separately.
+- After merging and shipping, watch the OTA channel for crash reports for ~24h before tagging the
+  next release.
 
-**The Bare that ships in production rides on `bare-sidecar`'s baked-in prebuild.** Any lockfile re-resolution — `npm update`, a Renovate lock-maintenance PR, a full lock regen — can therefore bump the production Bare with no visible change to `bare` in `package.json`. Review the `bare-sidecar` diff on every lockfile-only PR, and smoke-test the worker whenever it moves.
+**The Bare that ships in production rides on `bare-sidecar`'s baked-in prebuild.** Any lockfile
+re-resolution — `npm update`, a Renovate lock-maintenance PR, a full lock regen — can therefore bump
+the production Bare with no visible change to `bare` in `package.json`. Review the `bare-sidecar`
+diff on every lockfile-only PR, and smoke-test the worker whenever it moves.
 
 ## hyperdrive — a dev dependency, pinned
 
-No `src` module imports `hyperdrive` (`test/invariants/no-space-drive.test.js`). Production gets it only through `pear-runtime-updater`, which the OTA path rides and which brings its own version range. The pinned dev copy (`"hyperdrive": "13.3.3"`) serves the `test/raw` primitive gate and two integration tests that recreate a retired per-space drive: `identity-store.test.js` (the participation id equals that drive's key) and `retire-space-drives.test.js` (the migration's computed blobs key equals Hyperdrive's). A bump that changes Hyperdrive's key derivation fails those two — which is the point: the migration's port of the derivation has to follow.
+No `src` module imports `hyperdrive` (`test/invariants/no-space-drive.test.js`). Production gets it
+only through `pear-runtime-updater`, which the OTA path rides and which brings its own version
+range. The pinned dev copy (`"hyperdrive": "13.3.3"`) serves the `test/raw` primitive gate and two
+integration tests that recreate a retired per-space drive: `identity-store.test.js` (the
+participation id equals that drive's key) and `retire-space-drives.test.js` (the migration's
+computed blobs key equals Hyperdrive's). A bump that changes Hyperdrive's key derivation fails those
+two — which is the point: the migration's port of the derivation has to follow.
 
 ## `@react-types/shared` — pinned twin of `react-aria`
 
-`@react-types/shared` is pinned to an exact version in `package.json` (`"@react-types/shared": "3.36.1"`, no caret). It is not a dependency we chose: `src/renderer/components/primitives/ActionMenu.tsx` needs the `Node`, `CollectionElement` and `FocusStrategy` types, and `react-aria` re-exports only `Key` from that package. It must therefore stay on the exact version the installed `react-aria` resolves for it.
+`@react-types/shared` is pinned to an exact version in `package.json`
+(`"@react-types/shared": "3.36.1"`, no caret). It is not a dependency we chose:
+`src/renderer/components/primitives/ActionMenu.tsx` needs the `Node`, `CollectionElement` and
+`FocusStrategy` types, and `react-aria` re-exports only `Key` from that package. It must therefore
+stay on the exact version the installed `react-aria` resolves for it.
 
-**When Renovate bumps `react-aria` (or `@react-stately/*`), bump `@react-types/shared` in the same PR** to whatever the new `react-aria` resolves — `npm ls @react-types/shared` after the bump tells you. Leaving it behind gives the renderer types from one React Aria release against hooks from another.
+**When Renovate bumps `react-aria` (or `@react-stately/*`), bump `@react-types/shared` in the same
+PR** to whatever the new `react-aria` resolves — `npm ls @react-types/shared` after the bump tells
+you. Leaving it behind gives the renderer types from one React Aria release against hooks from
+another.
 
-`test/invariants/renderer-declared-dependencies.test.js` fails if the renderer imports a package that `package.json` does not declare, so a dropped declaration is caught; it does not pin the version, which is what this note is for.
+`test/invariants/renderer-declared-dependencies.test.js` fails if the renderer imports a package
+that `package.json` does not declare, so a dropped declaration is caught; it does not pin the
+version, which is what this note is for.
 
 ## `hypercore-storage` — undeclared, deep-imported
 
-`hypercore-storage` is not in `package.json`: it arrives as a `corestore` transitive, and `src/shared/storage/core-purge.js` deep-imports its `lib/keys.js` to write RocksDB range tombstones. A `corestore` bump can therefore change that key layout with no manifest change — when the holepunch group moves `corestore`, check `npm ls hypercore-storage` and run the purge tests.
+`hypercore-storage` is not in `package.json`: it arrives as a `corestore` transitive, and
+`src/shared/storage/core-purge.js` deep-imports its `lib/keys.js` to write RocksDB range tombstones.
+A `corestore` bump can therefore change that key layout with no manifest change — when the holepunch
+group moves `corestore`, check `npm ls hypercore-storage` and run the purge tests.
 
 ## Security PRs
 
 Renovate's `vulnerabilityAlerts` rule bypasses the weekly schedule. When one shows up:
 
 1. Read the advisory linked in the PR body.
-2. If the vulnerable code path is reachable from our app, fast-track: review, run CI, merge same-day.
-3. If the dep is transitive-only and not on a reachable code path, treat as a normal PR but still merge within the week.
+2. If the vulnerable code path is reachable from our app, fast-track: review, run CI, merge
+   same-day.
+3. If the dep is transitive-only and not on a reachable code path, treat as a normal PR but still
+   merge within the week.
 
 ## Manual sweep (if Renovate is paused or unavailable)
 
@@ -120,29 +227,49 @@ npm run typecheck
 npm test
 ```
 
-Then do the smoke test from the section above before merging. Do **not** include `pear-runtime` in the auto-bump — handle it deliberately.
+Then do the smoke test from the section above before merging. Do **not** include `pear-runtime` in
+the auto-bump — handle it deliberately.
 
 ## Where to look when something breaks
 
-- Test fails after a `holepunch` bump → check the diff in `node_modules/<pkg>/` against the previous version, especially around replication / wire format.
-- Typecheck fails after a `@types/*` bump → usually a single API surface change in React/Node typings; revert or follow the upstream fix.
-- App boots but spaces don't replicate after `pear-runtime` bump → check Bare ABI mismatch in `sodium-native` / `bare-fs` (look for `NODE_MODULE_VERSION` errors in the worker log).
-- DMG/MSIX build fails after Electron bump → likely `electron-forge` version mismatch; bump `@electron-forge/*` together (the `electron` group rule does this).
-- Linux deb build fails or `check-deb.sh` reports `chrome-sandbox` not setuid → `electron-installer-debian` / `electron-installer-common` moved; the sandbox chmod lives in the latter's `copyApplication`.
+- Test fails after a `holepunch` bump → check the diff in `node_modules/<pkg>/` against the previous
+  version, especially around replication / wire format.
+- Typecheck fails after a `@types/*` bump → usually a single API surface change in React/Node
+  typings; revert or follow the upstream fix.
+- App boots but spaces don't replicate after `pear-runtime` bump → check Bare ABI mismatch in
+  `sodium-native` / `bare-fs` (look for `NODE_MODULE_VERSION` errors in the worker log).
+- DMG/MSIX build fails after Electron bump → likely `electron-forge` version mismatch; bump
+  `@electron-forge/*` together (the `electron` group rule does this).
+- Linux deb build fails or `check-deb.sh` reports `chrome-sandbox` not setuid →
+  `electron-installer-debian` / `electron-installer-common` moved; the sandbox chmod lives in the
+  latter's `copyApplication`.
 
-**Diff a failing test against the no-change baseline before blaming the bump.** A bump's blast radius is only what it changes — data-layer `node_modules`. If the renderer + harness + scenarios are byte-identical to `main`, a renderer/harness/test-string failure is pre-existing *by construction*. Confirm both directions: the headless gate green under the new deps AND a baseline run (merge-base / `main`) failing the same way WITHOUT them. Read the literal failing key first — don't let an invocation artifact (comma-split CLI args) masquerade as a code failure.
+**Diff a failing test against the no-change baseline before blaming the bump.** A bump's blast
+radius is only what it changes — data-layer `node_modules`. If the renderer + harness + scenarios
+are byte-identical to `main`, a renderer/harness/test-string failure is pre-existing *by
+construction*. Confirm both directions: the headless gate green under the new deps AND a baseline
+run (merge-base / `main`) failing the same way WITHOUT them. Read the literal failing key first —
+don't let an invocation artifact (comma-split CLI args) masquerade as a code failure.
 
 ## One-time setup
 
 To activate the loop on a fresh clone or after rotating credentials:
 
-1. Generate a [fine-grained PAT](https://github.com/settings/personal-access-tokens) scoped to this repo only with permissions: contents:write, pull-requests:write, issues:write (required for the dependency dashboard issue), metadata:read, workflows:write. Set a long expiry (1y) and add a calendar reminder to rotate.
-2. Add it as repo secret `RENOVATE_TOKEN` (Settings → Secrets and variables → Actions → New repository secret).
-3. Trigger the workflow once manually (Actions → Renovate → Run workflow) to confirm it runs cleanly. Use `logLevel: debug` for the first run.
-4. Renovate detects the existing `renovate.json` and skips the onboarding PR, opening real dependency PRs on the next scheduled tick.
+1. Generate a [fine-grained PAT](https://github.com/settings/personal-access-tokens) scoped to this
+   repo only with permissions: contents:write, pull-requests:write, issues:write (required for the
+   dependency dashboard issue), metadata:read, workflows:write. Set a long expiry (1y) and add a
+   calendar reminder to rotate.
+2. Add it as repo secret `RENOVATE_TOKEN` (Settings → Secrets and variables → Actions → New
+   repository secret).
+3. Trigger the workflow once manually (Actions → Renovate → Run workflow) to confirm it runs
+   cleanly. Use `logLevel: debug` for the first run.
+4. Renovate detects the existing `renovate.json` and skips the onboarding PR, opening real
+   dependency PRs on the next scheduled tick.
 
 ## Future work (not done)
 
-- Boot-test job: spawn the Electron app headlessly in CI, confirm the worker reaches "ready". Closes the gap that the integration test runs without the actual Bare worker.
+- Boot-test job: spawn the Electron app headlessly in CI, confirm the worker reaches "ready". Closes
+  the gap that the integration test runs without the actual Bare worker.
 - `npm audit` step alongside Renovate vulnerability alerts.
-- Renovate `automerge` for pure patch bumps in the `holepunch` group, gated on green CI. Defer until the boot-test job exists.
+- Renovate `automerge` for pure patch bumps in the `holepunch` group, gated on green CI. Defer until
+  the boot-test job exists.
