@@ -46,7 +46,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingProps) {
   return (
     <div className="min-h-screen flex flex-col">
       <header className="fixed top-0 w-full z-50" style={{ WebkitAppRegion: 'drag' }}>
-        <div className="bg-surface-container-lowest/70 backdrop-blur-xl shadow-[0_12px_40px_rgba(74,59,82,0.06)]">
+        <div className="bg-surface-container-lowest/70 backdrop-blur-xl shadow-[0_12px_40px_rgba(74,59,82,0.06)] dark:shadow-none">
           <div className="flex items-center justify-center py-4 px-8 w-full max-w-7xl mx-auto">
             <span className="flex h-8 items-center text-on-surface">
               <Logo label="Mirall" />
@@ -66,7 +66,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingProps) {
             </p>
           </div>
 
-          <div className="bg-surface-container-low rounded-2xl p-8 space-y-8 shadow-[0_12px_40px_rgba(74,59,82,0.04)]">
+          <div className="bg-surface-container-low rounded-2xl p-8 space-y-8 shadow-[0_12px_40px_rgba(74,59,82,0.04)] dark:shadow-none">
             <div className="flex justify-center md:justify-start">
               <button
                 type="button"
