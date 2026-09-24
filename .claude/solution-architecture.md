@@ -1,1666 +1,1221 @@
 # Mirall — Solution Architecture
 
-> **Scope.** Authoritative for: process model, data model, networking, IPC catalog, update mechanics, security model.
-> **Not authoritative for** (cited, never duplicated): `build-process.md` — release/CI/seed-host pipeline · `design.md` — visual language, component styling · `testing.md` — test layers + a11y discipline · `dependency-updates.md` — dep-bump playbook · `package.json` — dependency versions.
-> Section numbers are stable: `README.md`, `CONTRIBUTING.md`, `build-process.md`, and code comments cite them.
+> **Scope.** Authoritative for process model, data model, networking, IPC, update mechanics, security model. Cited, never duplicated: `build-process.md`, `design.md`, `testing.md`, `dependency-updates.md`, `package.json`. Section numbers are stable — README, CONTRIBUTING, `build-process.md` and code comments cite them.
 
 ## 1. Overview
 
-A peer-to-peer file-sharing desktop app on the **pear-electron-runtime** architecture: an Electron host embedding [`pear-runtime`](https://github.com/holepunchto/pear-runtime) as a library, plus a Bare worker holding the P2P data layer. Users create a profile, organize into **spaces** (collaborative topics), and share files directly between peers — no servers.
+A serverless P2P file-sharing desktop app: an Electron host that embeds `pear-runtime` for OTA only, plus a Bare worker holding the entire data layer. Users keep a profile, join **spaces**, and exchange files directly with peers.
 
-Two sharing modes coexist inside a space:
+A space has two sharing modes, stored as separate share ids in one per-owner catalog (`LOOSE_SHARE_ID` for loose files, §3.7), so a file lives in exactly one place:
 
-1. **Loose files** — never synced automatically. Peers see a catalog of everything available in the space and explicitly choose what to download. The UI reflects a canonical file-state model (§3.5).
-2. **Shared folders (owned folders)** — a whole local directory tree published as a *share*. The owner mounts a disk folder and a `chokidar` watcher keeps the share's catalog in sync with disk. Any peer may **mirror** the share to a local folder of their choosing (a *foreign mount*), and the worker continuously materializes the owner's files there. Unlike loose files these *do* sync continuously — but only after the owner opts in (mount) and the peer opts in (mirror). §7.
+1. **Loose files** — never synced automatically; peers pick what to download. UI state follows the canonical file-state model (§3.5).
+2. **Folder shares** — an owner-mounted directory tree, kept in step with disk by a watcher; a peer who **mirrors** it gets the files materialized continuously. Both opt-ins are required (§7).
 
-Loose files and folder shares are separate share ids in the same per-owner catalog (`LOOSE_SHARE_ID` for loose files, §3.7), so each file appears in exactly one place without any path filtering.
-
-§16 is the identity & security model. §17 is the glossary — every domain term is defined there once and used undefined thereafter.
+§16 is the identity & security model; §17 the glossary.
 
 ### How it ships
 
-- **Local dev** — `npm start` (Electron + worker, OTA disabled). `npm start -- --updates` exercises the OTA flow. `npm run dev` = esbuild + Tailwind watch + a local HTTP server for `assets/`.
-- **Installers** — `.dmg` (macOS), `.msix` (Windows), `.deb` + `.AppImage` (Linux). → `build-process.md`.
-- **OTA** — the installed app subscribes to a per-channel Pear Hyperdrive. When the drive head advances past the running version, the app mirrors the new bundle and atomically swaps it in. §9.
-- **Seed host** — Arch Linux VM running `mirall-seed.service`, a systemd unit that runs `pear seed production` continuously. Operators publish with `seed-host/scripts/release.sh`. → `build-process.md`.
+- **Dev** — `npm start` (OTA off); `npm run dev` serves the renderer from a watch build via `PEAR_DEV_SERVER_URL`. A source `package.json` has no `upgrade` key, so OTA never runs from source.
+- **Installers** — `.dmg`, `.msix`, `.deb`, `.AppImage` → `build-process.md`.
+- **OTA** — follows a per-channel Pear Hyperdrive (§9). Off on `.deb` installs, which update through the package manager.
 
-### Release channels
+**Channels.** `dev`, `staging` (shipped publicly as the beta, `-beta.N`), `prod` — each its own drive and upgrade key, injected by CI (`UPGRADE_KEY_<CHANNEL>`). `prod` builds on a `v*` tag; any channel via `workflow_dispatch`. The bundle version must equal the drive's `/package.json#version` → `build-process.md` "Version coupling". Seed-host operations are documented privately.
 
-Three release lines, each its own Pear Hyperdrive with its own `pear://` upgrade key (stored in CI secrets and the seed host's `~/.config/mirall/upgrade-keys.json`).
-
-| Channel | Trigger | Audience | Snapshot |
-|---|---|---|---|
-| `dev` | `workflow_dispatch` | internal devs | no |
-| `staging` | `workflow_dispatch` | wider stakeholders | no |
-| `prod` | `v*` tag push, or `workflow_dispatch` with channel=prod | end users | yes — Hetzner VM snapshot via `release.sh` |
-
-Bundle version **===** the drive's `/package.json#version`. That equality is what makes the OTA banner fire only when a genuinely newer release exists. → `build-process.md` "Version coupling".
-
-### Stack
-
-Roles only; `package.json` is authoritative for versions, and §12 records the few non-obvious constraints.
-
-| Component | Role |
-|---|---|
-| Electron | Host process, BrowserWindow, IPC bridge |
-| `pear-runtime` | Embedded library — OTA updater, drive replication, `pear.run(entrypoint)` worker spawn |
-| `pear-runtime-updater` | Watches the channel drive, mirrors bundles, applies them |
-| Corestore, Hyperbee, Hyperdrive, Hyperswarm, Protomux | The Holepunch stack — defined in §17 |
-| `chokidar` | Recursive FS watcher for shares. **Electron main only** — Bare has no native recursive watch |
-| `hypercore-storage` | Low-level RocksDB keys used by `purgeCoreDk()` |
-| `compact-encoding` / `b4a` | Handshake wire encoding / Bare-compatible Buffer utils |
-| `sodium-native` / `hypercore-crypto` | Cryptographic primitives / random bytes + key generation |
-| `which-runtime` | Detects Bare vs Node vs Electron, plus platform/arch |
-| `bare-fs` `-path` `-os` `-subprocess` `-https` | Bare stdlib, worker only |
-| React 19, React Aria (+ `@react-stately/*` state containers), Tailwind v4 | Renderer (TypeScript) — see `design.md` |
-| `modern-screenshot` | Screenshot capture for the feedback payload |
+**Stack.** Versions: `package.json` and §12. Placement rules: `chokidar` runs in Electron main only (Bare has no recursive watch); `bare-*` modules are worker-only; `purgeCoreDk()` uses `hypercore-storage` internals (transitive dep) for raw RocksDB range deletes.
 
 ---
 
 ## 2. Process Architecture
 
-Three processes. **Main** owns lifecycle, the BrowserWindow, and all access to `pear.updater` / OS APIs. The **renderer** is sandboxed and reaches main only through a contextBridge. The **worker** is a Bare child process holding all P2P / filesystem / network logic; it talks to the renderer through main, which forwards IPC frames both ways.
+**Main** owns lifecycle, window, OS integration, the OTA updater and the filesystem watchers. The **renderer** is sandboxed and reaches main only through `window.bridge`. The **worker** (Bare child process) owns all P2P, storage and transfer logic. Main relays NDJSON between renderer and worker and parses only its own control frames.
 
 ```
-┌────────────────────────────────┐  contextBridge   ┌────────────────────────────────┐
-│   ELECTRON MAIN                │ ◄──────────────► │   ELECTRON RENDERER            │
-│   src/main/main.js             │  (window.bridge) │   src/renderer → assets/dist   │
-│                                │                  │                                │
-│  PearRuntime (library)         │                  │  React 19 + Tailwind           │
-│  ├─ updater (channel drive)    │                  │  ├─ Onboarding / Shared Spaces │
-│  ├─ run(workerPath) → Bare     │                  │  ├─ Space View / Folder View   │
-│  └─ external Corestore + swarm │                  │  ├─ Settings family / Storage  │
-│  IPC handlers (pear:*, …)      │                  │  └─ About / Feedback           │
-│  notifications.js              │                  │                                │
-│  folder-watchers.js            │                  │  src/renderer/ipc/ipc.ts       │
-│  loose-file-watchers.js        │                  │  └─ window.bridge.*            │
-│   └─ chokidar → fs-event       │                  │                                │
-└────────────────────────────────┘                  └────────────────────────────────┘
-            │           ▲                                        ▲
-            │ NDJSON    │ event:{owned,foreign}-folder-fs-event  │ pear:worker:ipc / stdout / exit
-            ▼           │                                        │
-┌────────────────────────────────────────────────┐               │
-│   BARE WORKER  src/worker/main.js              │ ──────────────┘
-│                                                │
-│   shared/core/store.js → Corestore             │
-│   ├── profile bee (+ share/… records)          │
-│   ├── spaces-meta / downloads-meta             │
-│   ├── pending-transfers / mounts-meta          │
-│                                                │
-│   swarm.js         → Hyperswarm + Protomux     │
-│   backends/overlay → content backend           │
-│   files.js  shares/*  folders/*  storage.js    │
-└────────────────────────────────────────────────┘
-                        │
-                        ▼
-                   ┌────────┐
-                   │ PEERS  │  Corestore replication +
-                   └────────┘  mirall/handshake channel
+┌─────────────────────────────┐ window.bridge ┌───────────────────────────┐
+│ MAIN  src/main/             │ ◄───────────► │ RENDERER  src/renderer/   │
+│  pear-runtime: OTA only,    │               │  app:// origin, sandboxed │
+│   own corestore + swarm     │               └───────────────────────────┘
+│  worker host · config.json  │                            ▲ pear:worker:ipc/
+│  chokidar watchers          │                            │ stdout/exit
+└─────────────────────────────┘                            │
+   │ hello, bootstrap,    ▲ main-request frames            │
+   ▼ fs events, relayed   │ (watch, download roots)        │
+┌───────────────────────────────────────────┐              │
+│ WORKER  src/worker/main.js + boot.js      │ ─────────────┘
+│  Corestore: profile bee, encrypted local  │
+│   bees, share catalogs, intents           │
+│  Swarm (mirall/handshake) + ContentSwarm  │
+│  overlay content backend                  │
+└───────────────────────────────────────────┘
+                  ▼  replication + handshake / content channels → PEERS
 ```
 
-### Main process (`src/main/main.js`)
+### Main process (`src/main/`)
 
-1. **Argv** via `paparam` — `--storage <dir>` (custom data dir; also redirects Electron's `userData`), `--no-updates`, `--menu` (force-show menu on Win/Linux for DevTools), `--no-sandbox` (declared so paparam doesn't bail when AppRun forwards it on Linux).
-2. **`PearRuntime` construction** with an externally-built `Corestore` + `Hyperswarm`, so we control replication and topic-join behaviour. The `version` passed in is the bundled `package.json`'s, which CI patches at build time.
-3. **Updater wiring** — when `updates !== false`: join the upgrade drive's discovery key as a swarm client, replicate incoming connections into the Corestore, listen for `pear.updater.on('updating'|'updated')`, forward to the renderer as `pear:event:*`.
-4. **Worker spawn** via `pear.run(entrypoint, [])`. `getWorker(specifier)` is idempotent (cached in `workers: Map`), bootstraps the worker with a JSON line `{ storage, appVersion, dev, fork, length, verbose }`, and bridges: `pear:worker:writeIPC:<spec>` (renderer→worker NDJSON to stdin; try/catched to swallow shutdown-race EPIPE/FIN), `pear:worker:ipc:<spec>` (worker→renderer), and `pear:worker:stdout/stderr/exit:<spec>`.
-5. **BrowserWindow** with `preload: src/preload/preload.js`, `sandbox: true`, `contextIsolation: true`. All app config (window bounds + zoom, theme, general prefs, download folder, on-demand cache budget, renderer-only UI prefs) lives in one `getDataDir()/config.json`, owned exclusively by main via `ConfigStore` (`src/main/config-store.js`): atomic writes (tmp→fsync→rename), merge-over-defaults on read, a `version` migration seam, and a one-time fold of the pre-unification per-setting files (`zoom/window-bounds/theme/app-prefs/download-settings.json`, the worker's `ondemand-cache.json`) plus the renderer's `localStorage` keys (originals deleted only after the unified file is durably written). Bounds are read on launch, written debounced on resize/move.
-6. **DevTools shortcut** — `webContents.before-input-event` toggles DevTools on F12 / Ctrl-Shift-I (Win/Linux) or Cmd-Opt-I (mac). Needed because the menu is hidden on Win/Linux by default.
-7. **Update apply** — automatic, no user action. Windows/Linux pre-stage the swap in the background as soon as the updater reports `updated`; macOS defers to quit. A `before-quit` hook promotes any staged-but-unapplied bundle. §9.
-8. **Diagnostic IPC** — `pear:checkForUpdate` → `pear.updater._debouncedUpdate()`, reports `{length, fork}`. `pear:appVersion` reads the live drive head's `package.json#version`. Both feed the renderer's update flow (§8). `diagnostics:lastApplyError` reports the OTA apply journal (`src/main/apply-error.js`) — a failed `applyUpdate` writes `last-apply-error.json`, a successful one clears it, and the handler returns it **only** while the record names the running version; a record from any other version is history, so it is dropped from disk and the diagnostics bundle omits the key entirely. Redacted fail-closed, like `diagnostics:logs`.
-9. **Native notifications & shell** (`src/main/notifications.js`) — `notify:show` builds an Electron `Notification` (per-platform fallback icon under `resources/{darwin/icon.icns,win32/icon.ico,linux/icon.png}`); `notify:isWindowFocused` lets the renderer suppress notifications when focused; `notify:focus` raises the window on click; `shell:showInFolder` reveals a path, **gated to `os.homedir()` plus the download roots the worker publishes** (`downloads:roots`, which carries the per-space overrides) so the renderer can't poke arbitrary disk locations.
-10. **Asar spawn shim** — when the bundle is asar-packed (§13), `child_process.spawn` is monkey-patched to rewrite `app.asar/` → `app.asar.unpacked/` in both the executable path and argv. Without it `bare-sidecar`'s `spawn(bareBinary, [workerEntry, …])` ENOTDIRs, because `require.resolve()` returns asar paths and the OS can't walk into the archive. No-op outside packaged builds. Lives in `src/main/asar-spawn.js` and is main's first statement: `bare-sidecar` keeps the `spawn` it destructured at load, so the shim must be installed before any sibling require can reach `pear-runtime`.
-11. **Custom protocol** — `app.setAsDefaultProtocolClient('mirall')` registers `mirall://` on macOS/Windows; `app.requestSingleInstanceLock()` makes repeat launches focus the running instance. Three paths funnel into `dispatchDeepLink()`: macOS `open-url`, Win/Linux `second-instance` (warm), and a direct argv scan at boot (cold-start URLs are positional, so paparam can't help). `parseDeepLink` (`src/main/deeplink.js`) validates and returns `{kind:'join', code, name?}`; main forwards on the `deeplink` channel, queueing in `pendingDeepLinks[]` until the renderer calls `deeplink:flush`. Linux AppImage installs additionally rewrite `~/.local/share/applications/Mirall.desktop` at launch (`integrateXdgLinux`, `src/main/xdg-integration.js`) to declare the MimeType and an absolute `Exec=`, so xdg-mime can route URLs to a possibly-moved AppImage. §5.2.
-12. **Filesystem watchers** — `chokidar` lives in Electron main, never in the worker, because Bare has no native recursive watch.
-    - `src/main/watch-host.js` — **the single owner of chokidar in this process**, which both watcher modules below sit on. chokidar's options are per-*instance*, not per-path, so `usePolling` cannot vary inside one watcher: a host therefore holds up to two instances — native, plus a lazily-created polling one — and routes each target by `looksLikeNetworkPath` (a UNC `\\…` prefix anywhere, `/Volumes/` on macOS, `/mnt/` or `/media/` on Linux). That routing is load-bearing: native filesystem events never reach a network mount, so a watch there emits **nothing at all** and the file silently stops re-publishing — no error, no badge, no log line. The host also owns the error-burst guard (a watcher throwing ≥5 times in 10 s is stopped, since an erroring watcher otherwise spins for the life of the process) and the shared option bag; only `atomic` and `ignored` vary per caller. It exists because those three lessons had been learned once on the owned side and never carried across, and the two option bags had drifted.
-    - `src/main/folder-watchers.js` — recursive roots over the host, one per key: an owned share's id, or a mirror's `spaceId:shareId`. The worker asks main to `owned-folder:start-watcher` / `stop-watcher` and `foreign-folder:start-watcher` / `stop-watcher` over the main-request bus (`src/main/main-requests.js`), which names the key and builds the frame; the renderer has no watcher bridge of its own. Watches set `ignoreInitial: true`, `awaitWriteFinish` (debounced) and `followSymlinks: false`; an owned root takes the share's ignore globs, a mirror the data layer's defaults. Each `add`/`change`/`unlink` is forwarded to the worker as `event:owned-folder-fs-event { shareId, action, relPath, absPath }` or `event:foreign-folder-fs-event { spaceId, shareId, action, relPath, absPath }`. `stopAllWatchers()` runs on `before-quit`.
-    - `src/main/loose-file-watchers.js` — the scattered set: individual absolute paths for in-place loose-file shares, fanning each event out to every space watching that path.
+`src/main/main.js` only wires modules. Invariants:
 
-Main holds **almost no** application state — no profile, no spaces, no transfers. The one exception is the **reveal allowlist**: `shell:showInFolder` is gated to `os.homedir()` plus the download roots the worker pushes on the `downloads:roots` main-request, and main caches that list in a module-level `workerDownloadRoots`, cleared in `worker.once('exit')` so a dead worker's roots stop authorising reveals. Everything else is a bridge between OS / pear-runtime / OTA / the filesystem watchers on one side and the renderer + worker on the other.
+- **Asar shim first.** `src/main/asar-spawn.js` is main's first statement: `bare-sidecar` captures `spawn` at load, and without the `app.asar/` → `app.asar.unpacked/` rewrite the packaged worker spawn fails with ENOTDIR.
+- **Argv never aborts boot.** `src/main/boot-argv.js` strips deep links (Win/Linux pass them as positionals) and turns any parse bail into a warning. Flags: `--storage <dir>` (also redirects `userData`, so instances never share a `config.json`), `--no-updates`, `--hidden`.
+- **Updater.** `src/main/updater.js` builds `PearRuntime` lazily, with its own Corestore under `<dataDir>/pear-runtime/` (never the worker's store); without an upgrade key the updater is `null`. Windows/Linux apply a staged update as soon as it arrives. macOS waits for quit, because swapping mid-session lets disk reads mix new files with old in-memory code. `src/main/apply-error.js` reports a failed apply only while it names the running version, and never deletes the record on read.
+- **Worker spawn.** `src/main/worker-host.js` spawns only allowlisted specifiers (`src/shared/contract/workers.js`), then writes `hello` (IPC protocol version) and `bootstrap`. The bootstrap is the worker's whole starting state (storage, version, upgrade key, prefs, relay config, feature flags, test overrides) and carries the only two secrets main passes, `identityKEK` and `relaySeed`; runtime config never stores them. A failed write of either frame destroys the worker and fails the spawn, because the worker never asks for its bootstrap again. The KEK comes from `safeStorage` (`src/main/identity-kek.js`). Without secure storage, main refuses to start rather than write an unprotected identity.
+- **Window.** It loads `app://-/index.html`, a privileged scheme, so origin and CSP `'self'` survive a reload, with `sandbox` and `contextIsolation` on.
+- **Config.** `config.json` holds preferences only. `src/main/config-store.js` is its only writer (debounced atomic writes, merge-over-defaults). The renderer reads a sync snapshot and adopts the sanitized snapshot main returns from each patch.
+- **Quit order** (`src/main/lifecycle.js`, one run per process): mark quitting → stop watchers → flush config (watchers can dirty it) → stop workers (shutdown frame, SIGTERM 3 s, SIGKILL 5 s) → apply update, the only step that may defer the quit. A failing step never skips later ones.
+- **Deep links.** `open-url`, `second-instance` and cold-start argv all go through `dispatchDeepLink`. `src/main/deeplink.js` accepts only a `mirall://join/<code>` whose invite decodes. Links queue until the renderer calls `deeplink:flush`. Linux desktop-entry handling: `src/main/xdg-integration.js`, §5.2.
+- **Reveal allowlist** — the only app state main holds. `shell:showInFolder` accepts home, the configured download folder, and the per-space roots the worker pushes (`downloads:roots`). The pushed roots are dropped when that worker exits.
+- **Watchers.** The worker requests them over the main-request bus (commands named in `src/shared/contract/main-requests.js`). `src/main/watch-host.js` is the sole chokidar owner. Options are per instance, so it keeps a native and a lazy polling instance and routes by `looksLikeNetworkPath`, because a native watch on a network mount emits nothing and fails silently. It also stops a watcher after 5 errors in 10 s. `src/main/folder-watchers.js` keys roots by `shareId` (owned) or `spaceId:shareId` (mirror), and the newest caller adopts a live key after a worker respawn. `src/main/loose-file-watchers.js` fans a path's events out to every space watching it.
 
 ### Renderer (`src/renderer/` → `assets/dist/`)
 
-React 19, typechecked by `tsc --noEmit`, bundled by esbuild. Loaded via `assets/index.html`.
+`src/renderer/ipc/ipc.ts` is the worker channel. Requests are `{ id, type, …args }` and answers `{ id, data }` or `{ id, error, code }`. Any other `type` is an event for `subscribe()`, and cancel is a control frame. The worker starts on the first request, and `src/renderer/ipc/worker-respawn.js` owns respawns. After a respawn, the `event:worker-ready` epoch tells the renderer to resync its query store in place.
 
-`src/renderer/ipc/ipc.ts` wraps the worker bridge into a request/response API:
-
-```ts
-await request('files:list', { spaceId })   // Promise<FileEntry[]>
-const off = subscribe('event:files-updated', ({ spaceId }) => …)
-```
-
-It calls `window.bridge.startWorker('/src/worker/main.js')` once on mount; outgoing requests serialize to NDJSON with an `id`; incoming frames dispatch to pending resolvers (matched by `id`) or to event subscribers.
-
-`src/renderer/shell/navigation.ts` holds the screen graph: one table mapping each screen to the one it backs out to, from which `Screen` (the union of screen ids) and `parentOf` are derived. `hooks/useAppNavigation.ts` owns the navigation state and walks that table in `goBack`; `ScreenRouter.tsx` renders from it and ends its switch on a `never` binding, so a screen with no branch fails to compile. Actions raised for a screen that is not mounted yet — "mirror this folder", a title-bar command fired from the folder screen — are carried as `pendingSpaceAction` state that the screen consumes when it arrives, never as window events, which cannot be retried and were lost on a slow mount.
-
-`components/primitives/modalPresence.ts` counts the dialogs on screen, from inside `Modal` itself. Back navigation (`hooks/useCanGoBack.ts`) asks it rather than reading a list of per-screen dialog flags.
-
-`src/renderer/platform/updates.ts` (singleton) subscribes to `bridge.onPearEvent('updated')` and exposes staged-update state to React (`UpdateBanner` + `useUpdates`). On `updated` it reads the staged version via `bridge.appVersion()`; dev builds simply reload the window. The banner is passive — the update applies in the background or at quit (§9). Dismiss only hides the banner; the About screen keeps showing the notice.
+`src/renderer/ScreenRouter.tsx` ends on a `never` binding, so every screen in `src/renderer/shell/navigation.ts` must be routed. An action aimed at a screen that is not mounted yet travels as `pendingSpaceAction` state, never as a window event, which cannot be retried and is lost on a slow mount. The update banner is passive (§9).
 
 ### Worker (`src/worker/main.js` entry + `src/worker/boot.js` root)
 
-Bare process spawned by `pear.run('/src/worker/main.js')`. ESM (`src/worker/package.json` has `"type": "module"`). Registers IPC handlers with `src/shared/core/ipc.js`'s NDJSON router.
-
-The process is split in two. **`worker/main.js` is the entry**: the crash backstop, the IPC pipe and its close hooks, the bootstrap frame, the membership-control block, every `domain:verb` handler, the shutdown deadline and `Bare.exit`. **`worker/boot.js` is the composition root**: it constructs every subsystem with its collaborators passed in, starts them in a declared order, and returns a root whose `close()` closes them in the reverse of that order. `boot()` and `close()` never exit the process, which is what makes an in-process restart testable.
+The **entry** owns the crash backstop, the pipe and its close hooks, bootstrap, membership control, handler registration (handlers in `src/worker/ipc/`), the shutdown deadline and `Bare.exit`. The **composition root** builds subsystems with their collaborators, starts them in a declared order, and returns `close()`, which reverses it. Neither `boot()` nor `close()` exits the process, which makes in-process restart testable.
 
 Bootstrap:
 
-1. `createIPC(Bare.IPC)` — buffered NDJSON router on the stdio pipe.
-2. `installCrashBackstop(log)` — **before the first `await`**, so no boot-time rejection can abort the worker.
-3. `await ipc.bootstrapPromise` blocks for the first `{type:'bootstrap'}` line `{ storage, appVersion, dev, fork, length, verbose }`; `setRuntimeConfig(bootstrap)`.
-4. `root = await boot(bootstrap, { ipc, log, membershipControl, publishDownloadRoots })`, which starts **two lifecycle tiers**. *(Cross-references to this inner list are written `§2 boot step N`, to keep them apart from the numbered main-process list above.)* The **durable** tier (`bootDurable()`, exported from the same file) holds everything that must outlive the network teardown — every handle on a Corestore session, plus the recorder the teardown writes through — and is closed **last**:
-   1. `Store` → identity unlock → `migrateLocalBeesToEncrypted` → `SpaceKeysVault` → `ProfileBee` → `SpacesBee` → `DownloadsBee` → `PendingTransfersBee` → `MountsBee` → `IntentsBee`.
-   2. `AuditLog` (bee + connectivity watch) — started before the drives, so the log is writable before anything worth recording happens. A failed start degrades to no rows; it never aborts boot.
-   3. `ServeLedger`, immediately after `AuditLog`, so on the way out it closes just before the log: the `serve.completed` rows its close reaps are still being read when `AuditLog`'s close drains every in-flight `recordResolved`, while the spaces bee those reads use is still open.
-   4. `OwnCatalogs` → `PeerCatalogs` (the catalog bee caches). That is the whole durable tier. The orphan sweep runs unconditionally at the end of the runtime tier (step 10).
+1. `createIPC(Bare.IPC)`.
+2. `installCrashBackstop` **before the first `await`** (it escalates only once boot completes).
+3. `await ipc.bootstrapPromise`. An unsupported protocol version exits with `WORKER_EXIT_PROTOCOL_MISMATCH`, which the renderer does not respawn. Then `setRuntimeConfig(bootstrap)`.
+4. `boot()` starts two tiers *(cited as `§2 boot step N`)*. The **durable** tier holds every Corestore-session handle plus the recorders the teardown writes through, and closes **last**:
+   1. `Store` → identity unlock → `runMigrations('durable')` → `SpaceKeysVault` → `ProfileBee` → `SpacesBee` → `DownloadsBee` → `PendingTransfersBee` → `MountsBee` → `IntentsBee`.
+   2. `AuditLog`: writable before anything worth recording. A failed start loses rows, never boot.
+   3. `ServeLedger` next, so it closes just before the log, whose close drains the `serve.completed` rows the ledger reaps.
+   4. `OwnCatalogs` → `PeerCatalogs`.
 
-   The **runtime** tier is closed first, in reverse of this order:
-   5. First the three manifest caps (`ensureMembershipManifestCap`, `ensureSharesCap`, `ensureFolderMirrorsCap`) and the one-time content migrations (`runMigrations('content')`) — before any publish scan and before the overlay opens its index. Then `MountsRuntime` is **constructed** (side-effect-free) so `OwnedFolders` can take its settle callback; then `OverlayBackend` (the overlay instance, the serve index and both download engines, built per lifetime here so nothing in the overlay package constructs an engine at import time), `PublishService`, `OwnedFolders`, `ForeignMirrors`, `EchoGuardPurge` and `PeerWatch` start. `ForeignMirrors` installs `setOverlayCatalogChangeHook(onPeerDriveChanged)` so a peer-catalog append promptly nudges the relevant mirror loops.
-   6. Interrupted-leave resume, then `intents.recover()` — the durable intent log's boot pass (§ below) — then download-root hydration and the membership backfill. Recovery runs after every reconciler has registered and before the swarm, so a topic join cannot re-arm a watcher against a space the pass is about to forget.
-   7. `MemberViews` — **before** the swarms, because starting it is what wires the member registry's collaborators, and a handshake that landed while they were still the no-op defaults would read every peer as disconnected. It is also necessarily before the topic joins, so an inbound membership request cannot be handled with an unseeded tombstone set.
-   8. `Swarm`, then `ContentSwarm` (which needs the control swarm's DHT node), then `applyRelayConfig()` — a relay installed on the control swarm alone leaves every file byte unrelayed. Every hook the swarm fires is a **constructor dep** (`membershipControl`, `overlayBackend`, `stalledOwners`) declared with `require()`, so a missing one fails at boot with the subsystem's name instead of being a `hook?.()` that never fires. Then the crash-leftover sweeps, the topic joins and the pending-leave replay.
-   9. `MountsRuntime` **starts**: resume every owned and foreign mount, then arm the 60 s mount probe — it re-checks every mount's disk path so USB unmounts / network drops flip a share to `mount-point-gone`, and a re-appearance restarts the watcher/loop. Then `Sweeps` (presence, invite expiry, audit prune).
-   10. `cleanupOrphanedData()` — the leftover-metadata sweep, run **after every subsystem is constructed**, not interleaved with their startup: it opens the own catalog and each drive's blobs to build its wanted set, and doing that mid-startup leaves an owner that boots, answers IPC and then never serves. It must also land after the content migrations (which need the plaintext catalog they copy from) and after the overlay start (`getOverlayLocalDiscoveryKeys` returns `[]` while it is down). A failure is logged, never fatal. **This sweep hard-deletes cores** — see §14.
-   11. `Supervisor` **last**, so the lifecycle's reverse close order stops it **first**. It polls every started subsystem's supervisable units and recovers the ones the policy condemns — a *unit* inside a subsystem, never a subsystem: closing one and constructing another hands every holder that captured it a dead instance. Recoveries are narrow and abandon rather than drain, because a recovery broader than the fault is itself the outage (a peer's socket is the single mux carrying every core and transfer for that peer, and a `close()` awaiting a stalled pass never settles). The condemnation rule is **progress, not elapsed time** (`core/pass-liveness.js`): supervised work is a keyed pass with at most one in flight, so a genuinely slow pass over thousands of files would fail any elapsed-time rule — only a pass that is in flight *and* not advancing its heartbeat is stalled. The durable tier is deliberately **unsupervised**: nothing there has a recoverable unit, and closing a store-backed handle would close every session with it. The escalation ladder, each rung handing off to the next: a unit is condemned after `consecutiveBad: 2` probes and recovered at most `maxRecoveries: 3` times (`core/supervision.js`) → a worker producing 10 uncaught errors in 60 s stops trying and **exits for respawn** instead (`core/crash-backstop.js`, latched so escalation fires exactly once) → the renderer's respawn policy (`renderer/ipc/worker-respawn.js`) spawns a new worker with backoff, up to 5 retries, giving up after 3 *unstable* lifetimes in 10 min → `permanentlyDown`, where requests fail fast rather than hanging.
+   The **runtime** tier closes first:
+   5. Manifest caps and `runMigrations('content')`, before any publish scan or overlay index open. Then `MountsRuntime` is constructed without side effects, then `OverlayBackend` (engines built per lifetime, never at import), `PublishService`, `OwnedFolders`, `ForeignMirrors`, `EchoGuardPurge`, `PeerWatch`.
+   6. Interrupted-leave resume → `intents.recover()` → download-root hydration → membership backfill. This comes after every reconciler registers and before the swarm, so a topic join cannot re-arm a space the pass is about to forget.
+   7. `MemberViews` before the swarms: a handshake that lands on the registry's no-op defaults reads every peer as disconnected, and without a seeded tombstone set a membership request is mishandled.
+   8. `Swarm` → `ContentSwarm` (needs the control DHT) → `applyRelayConfig()` on **both**, because a relay on the control swarm alone leaves file bytes unrelayed. Swarm hooks are `require()`d constructor deps, so a missing hook fails boot by name. Then leftover sweeps, topic joins and pending-leave replay.
+   9. `MountsRuntime` starts: it resumes mounts and arms the 60 s probe (`mount-point-gone` ↔ restart). Then `Sweeps`.
+   10. `cleanupOrphanedData()` runs only after everything else starts. Opening catalogs mid-startup leaves an owner that answers IPC but never serves. It must also follow the content migrations (they copy from plaintext catalogs) and the overlay start (overlay keys are `[]` while it is down). It **hard-deletes cores** — §14.
+   11. `Supervisor` last, so it stops first. It recovers a *unit* inside a subsystem, never a subsystem, because every holder of a replaced subsystem would keep a dead instance. It abandons rather than drains, because a socket carries all of a peer's cores and a stalled `close()` never settles. The stall test is **no progress**, not elapsed time (`src/shared/core/pass-liveness.js`). The durable tier is unsupervised. Escalation: 2 bad probes condemn a unit, which gets at most 3 recoveries (`src/shared/core/supervision.js`) → 10 uncaught errors in 60 s exit with `WORKER_EXIT_UNSTABLE`, latched (`src/shared/core/crash-backstop.js`) → the renderer respawns with backoff (5 retries, gives up after 3 unstable lifetimes in 10 min; then requests fail fast).
+5. Register handlers; `ipc.start()` flushes frames queued during boot.
+6. Every attaching client gets `event:worker-ready` (`{ epoch, head }`) and then `event:state` or `event:profile-needed`, computed per client so a reloaded renderer still receives them.
 
-5. Register IPC handlers, then `ipc.start()` flushes requests that arrived before handlers existed.
-6. Emit `event:worker-ready` (carrying the event stream's `{ epoch, head }`), then `event:state` (profile + spaces) — or `event:profile-needed` if onboarding hasn't happened. A renderer whose worker was replaced compares the epoch against its cursor and resyncs its query store in place; the screen it was on stays where it is.
+**Shutdown.** A closed pipe detaches the client. `src/worker/connection-lifecycle.js` then stops the worker, because a worker with no client is an orphan holding the store lock. A `shutdown` request does the same. `safeShutdown` keeps the first reason's exit code, aborts in-flight requests, and runs `root.close()` under a 4 s hard deadline. `close()` pauses the supervisor, broadcasts departure and halts publishing before anything closes (the departure datagram must leave UDX before sockets drop). It then waits a **ref'd** 150 ms (an unref'd timer would empty the loop for an in-process caller) and closes the runtime tier and then the durable tier, each within its own budget. `Store` close names any Corestore session still open. Downloads need no suspend step: pending rows (§3.4) rebuild resume state.
 
-Shutdown is driven by `Bare.IPC.on('end'|'close'|'error')` → `safeShutdown()` → `root.close()` under a 4 s hard deadline, then `Bare.exit(0)`. `close()` announces departure and halts publishing first (deliberately not in reverse order — the datagram has to leave UDX before any socket drops), waits a 150 ms flush window (**ref'd**: it is the one await on the path with no work behind it, and an unref'd timer there empties the loop for an in-process caller holding no other handle), then closes the runtime tier in reverse — there is no hand-ordered tail left — and **last** the durable tier — whose `Store._close` warns, naming any Corestore session still open, because that list is precisely the handles nobody owned. Tearing the network down is itself what emits `serve.completed` rows, which is why the ledger and the audit bee are in the tier that closes after it. In-flight downloads need no suspend step: the durable pending rows (§3.4) reconstruct resume state next run.
+**Durable intents** (`src/shared/core/intents.js`). A flow spanning stores writes `intent/<kind>/<id>` first and deletes it last. The reconciler registered for that kind (`src/shared/folders/folder-intents.js`) finishes it idempotently at next boot. Recording is best-effort: refusing the user's action over bookkeeping is worse. A reconciler that throws keeps its record. An unknown kind is left untouched, so a downgrade cannot eat a newer build's work. `space:leave` keeps its own `leaving` marker but shares teardown order with the boot pass via `src/shared/spaces/membership/leave-state.js`.
 
-**Durable intents.** A multi-step flow whose steps span stores writes `intent/<kind>/<id>` to the
-intents bee as its FIRST durable act and deletes it as its LAST (`core/intents.js`); a reconciler
-registered against that kind completes it idempotently at the next boot. Recording is best-effort —
-a flow that cannot write its intent still runs, losing only the recovery net, because refusing the
-user's action over a bookkeeping write would be the worse outcome. A reconciler that throws keeps
-its record for the next boot; an intent whose kind is unknown is left untouched, so a downgrade
-cannot eat a newer build's pending work. Converted so far: `owned-delete`, `foreign-unmount`.
-`space:leave` keeps its own `space.leaving` marker (load-bearing in the boot filter and the member
-fold) but shares the teardown ORDER with the boot pass through `spaces/membership/leave-state.js`, which is what
-the two used to encode independently and drift on.
+**Bounds** (runtime-config levers; `0` disables). `downloadConcurrency` (6) gates fetches through a FIFO semaphore with express lanes for user clicks, so a reconnect backlog cannot start a scheduler per pending row. `peerFrameBurst` and `peerFrameMaxBytes` meter and cap **every** peer frame before decode. `peerCatalogCacheLimit` (64) is a refcounted LRU; watchers and reads pin entries, because eviction closes live handles.
 
-**Bounded by construction.** Three caps the review's scale findings asked for, each with a `0`
-rollback: `downloadConcurrency` (3) admits fetches through a FIFO semaphore with one express lane
-for user-initiated downloads, so a reconnect backlog cannot spawn one chunk scheduler, watchdog, fd
-and ticker per pending row; `peerFrameBurst`/`peerFrameMaxBytes` meter and size-cap EVERY peer frame
-before the decode, not just the two identity types; `peerCatalogCacheLimit` (64) bounds the open
-peer-catalog set with a refcounted LRU — watchers and in-flight reads pin their entry, because the
-cached values are live handles and `onEvict` closes them.
+**Contract package** (`src/shared/contract/`). The request, event, error, frame, limit, status, `Scope` and audit-kind vocabulary that all three runtimes share. Its `.js` files import only siblings, so esbuild, Bare and CJS `require()` can all load them. They are JSDoc-typed `.js` because neither Bare nor CJS main rewrites `.js` specifiers to `.ts`; the `.ts` files there are type-only. Enforced by `test/unit/contract-package.test.js` and `test/typecheck/contract.assert.ts`.
 
-**The contract package.** `src/shared/contract/` is the vocabulary all three runtimes speak:
-request names and their argument shapes (`requests.js`), error codes (`errors.js`), event names,
-limits, status tuples, the reconcile `Scope`, and the audit kinds. **Plain ESM with zero imports** —
-that constraint is what lets esbuild bundle it into the renderer, Bare load it in the worker and
-main reach it through `import()`, and it is test-enforced. The renderer's hand-maintained twins
-(`scope-match.js`, and the kind list inside `auditKinds.ts`) are gone; the renderer imports
-`scope.js` and `audit-kinds.js` from the contract directly. Plain `.js` typed by JSDoc under `checkJs` rather than `.ts`:
-the worker (Bare) and main (CJS `require`) load these files as they are, and neither rewrites a
-`'./x.js'` specifier from a `.ts` module. `contract-package.test.js` pins the zero-import rule;
-`test/typecheck/contract.assert.ts` pins the unions the renderer derives from the tuples.
+**Handler table** (`src/shared/core/handler-table.js`). Registering a name `src/shared/contract/requests.js` does not declare, or registering one twice, **throws at boot**. Payloads are validated before the handler runs, and a bad one is refused with `INVALID_ARGUMENT`. Fields are required unless marked `optional`, `null` counts as missing, and `max` is a transport bound.
 
-**The handler table.** `core/handler-table.js` holds each request's function beside its contract
-spec. `ipc.handle(name, fn)` is now a shim onto `table.register`, so registering a name the contract
-does not declare **throws at boot** rather than surfacing as a field 404, and the router validates
-every payload against the declared arg shape before the handler runs — replacing the four
-`typeof msg.` checks that were spread across 85 handlers. A bad payload is refused with
-`INVALID_ARGUMENT` and counted. Only `spaceId` and `shareId` are required; everything else is
-type-checked when present but never demanded, so the gate cannot reject traffic a caller already
-sends. `createIPC(pipe, { requests })` lets a test declare the small vocabulary it exercises.
-
-**Two import-time rules**, both test-enforced, because anything a module does at import is beyond every `close()`:
-
-- **No module-level timers.** Arm periodic work in a `Subsystem._open` through `this.timers`, so it dies with the subsystem. Enforced by an eslint `no-restricted-syntax` selector on the data-layer block (`moduleLevelTimerRestrictions`), driven through eslint's own parser by `test/invariants/module-level-timers.test.js`.
-- **No module-level construction that arms a resource, and none inside an import cycle.** The static rule cannot see a `const x = createFoo()` whose body arms a timer, nor a TDZ. `test/integration/import-time.test.js` covers both: importing every `src/shared` module behind a timer shim must create zero timers, and each member of the known import cycle must be importable *first* in a fresh Bare process.
+**Import-time rules** (nothing done at import is reachable by any `close()`): no module-level timers, since periodic work goes through a subsystem's `this.timers` (eslint `moduleLevelTimerRestrictions`, `test/invariants/module-level-timers.test.js`); no import-time construction that arms a resource; and no TDZ in an import cycle, since each cycle member must import first in a fresh Bare process (`test/integration/import-time.test.js`).
 
 ---
 
 ## 3. Data Model
 
-All persistent state lives in one **Corestore** at `Pear.config.storage` (the worker bootstrap's `storage`, i.e. main's `getDataDir()`). `src/shared/core/store.js` exposes `openStore()`, `getStore()`, `createBee(name)`. Lifetimes are owned, not shared: `Store` owns the Corestore, and each bee's module owns its bee (`ProfileBee`, `SpacesBee`, `DownloadsBee`, `PendingTransfersBee`, `MountsBee`, `OwnCatalogs`, `PeerCatalogs`) — closing the store would close every session anyway, but a Hyperbee whose store closed underneath still reports `closed === false`, so a handle must be closed by its owner rather than probed by whoever cached it.
+All persistent state lives in one Corestore at the worker bootstrap's `storage` path (`src/shared/core/store.js`). Every bee is `utf-8` keys / JSON values. Each bee is owned by one `Subsystem` that opens and closes it; a handle must be closed by its owner, never probed by whoever cached it, because a Hyperbee whose store closed underneath still reports `closed === false`. Every prefix scan uses `prefixRange` (`src/shared/core/bee-keys.js`), never a `'\xff'` bound.
 
-Every bee below uses **utf-8 keys, JSON values**.
+| Bee | Owner | Replicates | At rest |
+|---|---|---|---|
+| `profile` | `src/shared/spaces/profile.js` | yes — peers read it | plaintext |
+| catalog `space-catalog-<spaceId>-<driveSuffix>-e1` | `src/shared/shares/own-catalog.js` | yes — members read it | SCK at the space's epoch |
+| `spaces-meta`, `downloads-meta`, `pending-transfers`, `mounts-meta`, `audit-log`, `reclaim-meta`, `app-migrations` (`LOCAL_BEE_NAMES`) | one module each | never | `deriveContentKey(M,'metadata-bees')`, core keyPair from `name + '/v2'` |
+| `intents` | `src/shared/core/intents.js` | never | **plaintext** (not in `LOCAL_BEE_NAMES`) |
+
+A new local bee must be added to `LOCAL_BEE_NAMES`: `createLocalBee` throws otherwise, and the list drives the plaintext→encrypted metadata migration and the leftover-scan wanted set. The `/v2` keyPair exists because a plaintext core can never be reopened with an `encryptionKey`.
 
 ### 3.1 Profile bee (`profile`) — replicated
 
-| Key | Value | Notes |
+The profile core's key (`core.key`, the hash of its single-signer manifest — not the signer public key) **is the peer identity**. Only this peer writes it; every row below is authored by the profile's owner.
+
+| Key | Value | Rule |
 |---|---|---|
-| `displayName` | `"Alice"` | Required |
-| `avatar` | `"data:image/jpeg;base64,…"` | Optional; resized to 160×160 JPEG client-side (`renderer/utils.ts::resizeAvatar`) |
-| `publicKey` | `"ab3f…"` | Hex of the profile core's public key — **this is the peer identity** |
-| `caps/<name>` | `true` | Capability flag — see below |
-| `member/<spaceId>` | `{ active: true, ts }` | **Liveness**, and only this peer ever writes it: `active:true` ⇒ in the space, `active:false` ⇒ departed, absent ⇒ never joined. One half of the OR-Set fold (§6). Gated by `caps/membership-manifest` |
-| `approved/<spaceId>/<joinerKey>` | `{ ts }` | **Authorization** — a vouch this peer authored for a joiner. Grow-only; the only retraction is deleting the row (`revokeApproval`), an edit to the author's own log. The other half of the fold (§6) |
-| `request/<spaceId>/<joinerKey>` | `{ displayName, avatar, ts }` | A join request receipt, replicated so the pending banner appears for every member, not just the peer that happened to be online |
-| `denied/<spaceId>/<joinerKey>` | `{ ts }` | Durable, replicated dismissal of that request (a member's deny, or a withdrawal we saw). Subtracted from the fold LWW against the receipt `ts`, so the banner clears everywhere and stays cleared across restart |
-| `invite/<spaceId>/<inviteId>` | `{ … }` | An invite this user minted — expiry + auto-approve policy, revocable. §5 |
-| `share/<spaceId>/<shareId>` | `{ id, type:'owned-folder', name, owner, createdAt, deletedAt? }` | A folder share this user owns. Replicates via the profile bee — that's how peers discover shares. Deletion is a **tombstone** (row kept) so peers distinguish "owner removed it" from "never replicated". Gated by `caps/folder-shares`. §7 |
-| `mirror/<spaceId>/<shareId>` | `{ state:'syncing'\|'synced'\|'paused', ts, unmirroredAt? }` | Written by the peer **mirroring** a share, so the owner and every member can see who mirrors it and how far along — a durable, replicated fact that survives the owner being offline. Removal is a soft tombstone (`unmirroredAt`) so a reader tells "stopped mirroring" from "not replicated yet". Per-key serialized read-modify-write, because mount / pause / tick / unmount all write it. Gated by `caps/folder-mirrors`. §7.3 |
-| `drive/<spaceId>` | `"ab3f…"` | This peer's participation id for the space (§3.5); deleted with the departure on leave |
-| `loosecat/<spaceId>` / `loosecatEnc/<spaceId>` | `"ab3f…"` | This peer's loose-file catalog key — plaintext and SCK-encrypted variants (§3.7) |
+| `displayName` / `avatar` / `publicKey` | string / JPEG data URI or null / core-key hex | avatar is 160×160, capped by `maxAvatarBytes` |
+| `caps/<feature>` | `true` | capability flag, below |
+| `member/<spaceId>` | `{ active, ts }` | liveness; a departure is written as `active:false`, not deleted, so its `seq` marks the log position after which this peer's vouches are discounted. Readers treat absent = inactive |
+| `approved/<spaceId>/<joinerKey>` | `{ ts }` | authorization vouch; grow-only, retracted only by `del` (`revokeApproval`) |
+| `request/<spaceId>/<joinerKey>` | `{ displayName, avatar, ts }` | join-request receipt, so every member sees the banner |
+| `denied/<spaceId>/<joinerKey>` | `{ ts }` | dismissal; wins over the receipt by LWW on `ts` |
+| `invite/<spaceId>/<inviteId>` | `{ autoApprove, expiresAt, created }` | reusable until expiry; revoke = `del` (§5) |
+| `share/<spaceId>/<shareId>` | `{ id, type:'owned-folder', name, displayName?, owner, spaceId, createdAt, contentMode:'overlay', catalogKeyEnc, catalogEpoch, deletedAt? }` | how peers discover shares. `name` is immutable (it keys claims and pending rows; `displayName` is the label). Delete = tombstone `deletedAt`, so "owner removed it" ≠ "not replicated yet" (§7) |
+| `mirror/<spaceId>/<shareId>` | `{ shareId, state:'syncing'\|'synced'\|'paused', mountedAt, ts, unmirroredAt? }` | written by the mirroring peer; soft tombstone `unmirroredAt`; per-key serialized RMW (`src/shared/folders/mirror-records.js`) (§7.3) |
+| `drive/<spaceId>` | participation id hex (§3.5) | deleted in the same batch as the `member/` departure |
+| `loosecatEnc/<spaceId>` + `loosecatEpoch/<spaceId>` | catalog key hex + int (absent ⇒ 0) | written in one batch that also deletes plaintext `loosecat/<spaceId>`, so exactly one form is ever set |
 
-Peers read each other's avatars and manifests through `withPeerBee()`, which opens the remote profile bee by that key, pulls its head, runs the read and **closes the session** — one bounded read, one budget covering both phases, and a session-level timeout so an abandoned read cannot pin the core through a hung batch. Exactly one bee per peer is held open for the process: the holder carrying the `append` listener that drives admission re-evaluation, the share-list refresh and the audit observer. (Before this, every transient read opened a session that was never closed, so nothing was ever reclaimed and every leaked core stayed attached to every replication stream.) Reads are bounded by a 10 s budget for avatars and 1.5 s for the membership read.
+`member/`, `approved/`, `request/`, `denied/`, `invite/` are gated by `caps/membership-manifest`; `share/` by `caps/folder-shares`; `mirror/` by `caps/folder-mirrors`. The two tombstone fields differ (`deletedAt` vs `unmirroredAt`); reading the wrong one turns an unmirror into a fresh mirror.
 
-#### Capability flags
+**Capability flags, not versions.** When a feature's missing data must read as "unknown" rather than "no", it publishes `caps/<feature> = true` **before** its first data key. With no flag, readers treat the data as unknown. A flag is never reused for an incompatible meaning. Flags let independent features ship and retire independently, which one version field cannot. Absence that is already unambiguous (no avatar) needs no flag.
 
-Any P2P feature that must distinguish "this peer doesn't publish X" from "this peer left / disabled X" uses a named flag in the profile bee, **never** the app version.
+**Reading peers' profiles.** The process holds exactly one long-lived session per peer (`src/shared/spaces/peer-profile-watch.js`), whose `append` listener drives admission re-evaluation, the share-list refresh and the audit observer. Every other read is `withPeerBee` (`src/shared/spaces/peer-bee.js`): open, pull head, read, close, under one deadline and a session-level timeout so an abandoned read cannot pin the core. Budgets: `src/shared/core/runtime-config-schema.js` (`peerReadTimeoutMs`, `interactiveReadTimeoutMs`, `admissionReadTimeoutMs`).
 
-| Aspect | Rule |
-|---|---|
-| Shape | `caps/<feature-name>` = `true` |
-| Read | Absence ⇒ peer doesn't publish this feature ⇒ treat related data absences as **unknown**, not negative |
-| Write order | The flag is written **before** the feature's data keys (`ensureMembershipManifestCap` precedes the `member/<spaceId>` put) |
-| Removal | Drop the flag; never reuse it for an incompatible meaning — add a new one |
-
-**Why flags, not a version number:** independent features ship at different cadences; a single `manifest/version` couples them, a fork can support one without the other, and removing a feature from a version field is awkward. Flags decouple this and self-document at the storage layer — the pattern of HTTP `Upgrade`, IRCv3 `CAP`, OAuth scopes.
-
-**When to skip:** if absence of the data is already unambiguous (avatar ⇒ "no avatar set"), no flag is needed.
-
-Defined today: `caps/membership-manifest`, `caps/folder-shares`, `caps/folder-mirrors`.
-
-### 3.2 Spaces bee (`spaces-meta`) — local only, never replicated
+### 3.2 Spaces bee (`spaces-meta`) — local
 
 | Key | Value |
 |---|---|
-| `space/<id>` | `{ name, icon, topic, created, members, favorite?, leaving?, downloadFolder? }` |
+| `space/<spaceId>` | space record (below) |
+| `left/<spaceId>/<memberKey>` | `{ leaveTs }` — a leave we observed; keeps the leaver subtracted from our fold across restarts until a strictly-later `member/` ts |
+| `pendingleave/<spaceId>` | `{ topic, ts }` — our leave not yet acked by any co-member; re-announced until one does (§6) |
 
-`id` = first 16 hex chars of the topic. `icon` = Material Symbols name. `topic` = 32-byte Hyperswarm discovery topic (hex). `members` = `[{ publicKey, driveKey, displayName, avatar? }]`.
+`spaceId` = first 16 hex chars of the 32-byte topic. The record always holds `name, icon, topic, created, members, driveSuffix, schemaVersion:2`; every other field is a single-writer latch listed in the header of `src/shared/spaces/space.js` (e.g. `status:'pending'` until the grant, `epoch`, `leaving`, `downloadFolder`). `schemaVersion !== 2` is a legacy space and is refused. `members` holds the *other* members as `{ publicKey, displayName, avatar, looseCatalogKeyEnc?, looseCatalogEpoch?, looseCatalogKey? (plaintext, pre-encryption peers), status? }`. Every record write goes through one per-space promise chain (`mutateSpace` / `mutateMembers`), because concurrent handshakes would otherwise lose roster updates.
 
-The user's own participation id is **not stored** — it derives from M and `driveSuffix` (§3.5). `driveSuffix` (random 8-byte hex) is generated on `createSpace`/`joinSpace` and persisted on the record; it also names the own catalog core. It is stable across restarts but **re-rolls on rejoin after leave**, because `purgeSpace` deletes the record: fresh suffix → fresh participation id and a fresh catalog core, so peers see a rejoiner as a new participation. That sidesteps "stale blocks resurrect on deterministic-key reuse". Records predating `driveSuffix` fall back to the unsuffixed name, so existing installs keep working.
+`driveSuffix` (random 8 bytes hex) is minted on create/join and names both the participation id and the own catalog core. A leave deletes the record, so a rejoin mints a fresh suffix: peers see a new participation and a new catalog, and stale blocks under a reused deterministic key can never resurface.
 
-### 3.3 Downloads bee (`downloads-meta`) — local only
+### 3.3 Downloads bee (`downloads-meta`) — local
 
-`<spaceId>:<filePath>` → `{ downloadedAt, localPath, hash }` — `localPath` is the ACTUAL landed
-path (a collision-avoiding download may not sit at `<root>/<basename>`). The same bee also holds
-`verified:<spaceId>:<shareId>|<relPath>` → `{ hash, at, local, mtime, ino }` (`local` = where the
-bytes landed — mount-relative for a mirror, absolute for a download; `mtime`/`ino` fingerprint the
-file the hash was proven against, judged by `transfer/verified-copy.js`) and `src:<spaceId>:<filePath>` →
-`{ sourcePath, addedAt }` (where a file you OWN lives, for reveal). Survives restarts; cleared
-per-space on leave (`cleanupDownloadHistory`).
-
-A file counts as `downloaded` iff the bee has an entry, the recorded path exists on disk, the
-recorded hash still matches the advertised content, **and** the path is inside the space's current
-download folder. The first two prune the claim on failure; the scope check does **not** — a copy
-outside the current folder reports not-downloaded while the claim survives, so re-pointing the space
-at the old folder restores it. Download roots resolve through `shared/core/paths.js`:
-per-space override (from `space/<id>.downloadFolder`) → the global root → the OS downloads folder.
-
-### 3.4 Pending-transfers bee (`pending-transfers`) — local only
-
-`<spaceId>:<filePath>` → `{ total, inPlace, ownerKey, finalPath, shareId, relPath, bytesTransferred, updatedAt, errorCode?, erroredAt? }`
-
-Writes to one row are serialized per key (`createKeyedLock`), so the progress ticker cannot overtake a status write — a tick issued after an error verdict can no longer read the row before the verdict and put it back without one.
-
-`finalPath` is the real landing path in the download folder (collision-avoided, §3.5); `<finalPath>.mirall.part` and the resume journal derive from it. A row represents an in-flight or interrupted download. The progress ticker persists `bytesTransferred` here so we can derive the UI status (`paused-interrupted` / `paused-offline` / `error`) without the active transfer, auto-resume when the owner returns (§4.5), and show partial progress after restart.
-
-Rows clear on completion (`clearPending`), cancel or discard (`files:cancel-download`), and space leave.
-
-### 3.5 Participation id
-
-Each member has one id per space and per participation: `Hypercore.key(deriveParticipationKeyPair(M, spaceId, driveSuffix).publicKey)` (`core/identity-keys.js`). It is byte-identical to the key a per-space Hyperdrive of the name `space-drive-<spaceId>[-<driveSuffix>]` had, which is what earlier releases used as this identity — so no peer sees it change. No core backs it. It travels under its old name: `driveKey` in the handshake (the binding signs `noise||driveKey`, §16) and `drive/<spaceId>` in the profile bee, both written only once the space is materialized (`spaces/participation.js`). A pending joiner has none, which is how the send path picks `membership:request` over `handshake`. The one-shot `retire-space-drives` migration deletes the retired drives earlier releases left (own and co-member replicas); a leave deletes that space's own old drive whatever it holds.
-
-**No peer drives are opened.** Peers' loose/folder metadata comes from their replicated, SCK-encrypted catalogs (§3.7), opened lazily per catalog key and cached (`peerCatalogs` in `shares/peer-catalog.js`), read **in parallel**, each under **one** interactive NETWORK budget covering head sync and drain together (a spent budget degrades the drain to a local-only read, bounded by a short guard that is reported as an incomplete read rather than as fewer files), so a listing costs about one budget however many members are unreachable. File bytes travel only through the overlay backend (§7.7), addressed by content hash. For `files:list`, a catalog whose version has not moved since its last complete read is served from `transfer/listing-memo.js` without a head sync — only while its loose append watch is armed, so the move pokes the next listing — and every `listFullReadEvery`-th consult reads it anyway.
-
-#### Canonical file-state model
-
-`src/shared/transfer/files.js` derives every loose file's status from five signals: own/peer catalog entries, the Downloads bee (**re-verified against disk on every list** — disk is the truth, stale claims are pruned), the pending-transfers row, live presence (`isOwnerOnline`), and live engine state.
-
-| Status | Meaning | Signals |
-|---|---|---|
-| `mine` | Local file I shared, in place | Own catalog entry with a content hash |
-| `publishing` | Own file still being hashed | Own catalog entry without a hash + active publish |
-| `preparing` | Peer's file still being hashed by its owner | Peer catalog entry without a content hash |
-| `downloaded` | Peer file, fully on disk | Downloads-bee claim, verified against disk |
-| `modified` | Peer file on disk, edited here since it was verified ("Edited locally") | Claim on disk + a verified record for that path whose size no longer matches (a mirrored row also on a moved mtime; `verifiedCopyVerdict`) |
-| `downloading` | Active fetch in progress | Live engine state |
-| `paused-interrupted` | Fetch interrupted, owner online | Pending row (no `errorCode`) + owner online |
-| `paused-offline` | Paused because the owner went away | Pending row + owner offline |
-| `remote` | Peer file, owner online, no local data | Peer catalog entry, no pending row |
-| `unavailable` | Peer file, owner offline, no local data | Peer catalog entry + owner offline |
-| `error` | Fetch failed | Pending row with `errorCode` |
-
-`verifying` also exists in the renderer's `FileStatus` union, surfaced from the `event:decoration` `phase` (§8) rather than derived by the resolver.
-
-Duplicates collapse per **content hash** (`file-dedupe.js#dedupeFileRows`): the most-progressed candidate wins by `STATUS_RANK` (`mine` > `downloaded` = `modified` > `verifying` > `downloading`/`publishing` > `paused-*` > `remote` > `preparing` > `unavailable` > `error`) and the rest fold into a `sharedByCount`. A candidate whose owner has not finished hashing carries no content hash and keys on **owner + path** instead, so files prepared at the same moment stay separate rows and a shared name alone never merges two owners' copies. Every `FILE_STATUS` member has a rank, asserted by `test/unit/file-dedupe.test.js`.
-
-#### Sharing a file (in-place publish)
-
-Nothing is copied, and nothing is chunked over IPC. The renderer resolves a dropped browser `File` to its real path via `webUtils.getPathForFile(file)` (exposed as `bridge.getPathForFile`) and hands the path to `files:add` (timeout `0`); `overlay/loose-publish.js` registers it **in place**:
-
-1. **Vet the source** (`assertSharableSource`) — must be a real, non-empty file. macOS promised-file temp paths are refused, so a share never points at a path that vanishes.
-2. **Admit** under the space lock: resolve the name against the loose catalog *and* the names already queued (collision → free-name suffix; cap `MAX_LOOSE_FILES_PER_SPACE = 100`), record the source path durably, and **enqueue** an `INTERACTIVE` item on the publish service (§7.2) with `shareId = LOOSE_SHARE_ID`. The lock covers only admission; the hash never runs under it, so several adds in one space no longer serialize.
-3. **Publish on the shared lane.** The loose channel resolves the path from the recorded source, advertises a placeholder entry (no hash yet — peers render `preparing`), then streams the file **once**, computing the whole-file content hash and the chunk map in the same pass (`prepareForServe`, §7.7); finalizes the entry and makes the hash servable. An interactive item rides the express lane, so a dropped-in file starts even while a folder backfill holds every bulk slot. `files:add` resolves once the item has settled — and, after a cancel, once its executor has honoured the abort and reverted.
-4. **Track + watch the source path** — kept for reveal-in-file-manager, watched so edits/moves are noticed. A watcher `change` enqueues a re-publish, an `unlink` a retire; the retire executor confirms the file is gone under exactly that name before tombstoning. Boot re-enqueues every entry with a recorded source; the presence sweep proposes retires by exact name on two consecutive misses and skips any path with a queued or running item.
-
-Progress streams locally as `event:decoration { channel:'transfer', phase:'publishing' }` and to peers as share-prepare frames that the receiver re-emits as `phase:'preparing'`, so their `preparing` rows show live progress.
-
-**Who is waiting (`share-wait`).** The inverse direction: a member whose fetch hits a null `contentHash` unicasts `share-wait { profileKey, spaceId, shareId, relPath, cancel? }` to the owner (`network/share-wait.js`). The sites that send are the manual entry points (`folderRequestDownload`, `looseDownload`), the reconcile of a pending row the owner is still hashing (`awaitingHash` from the channel's resolver; a paused or terminal row sends nothing), the republish park (`releasePark`) and the mirror's per-entry walk (`materializeOverlayFile`); `download-start.js`'s own null-hash guard is a backstop and does not. The member keeps an in-memory waiting set (`transfer/share-wait-set.js`, keyed by transferId, 64 per owner) in which each file carries the sources waiting on it — `row` (a pending row: lives as long as the row, cleared on every path that clears it), `mirror` and `click` (an unrecorded folder download; both expire 90 s after their last re-note — a mirror is re-noted by every pass and by the owner's progress frames for that file). A file is re-announced at most every 10 s, riding the owner's prepare-progress frames, the mirror pass and our reciprocal handshake — no timer of its own; after an owner reconnects the first frame heard from it re-announces at once, because one sent before the owner admitted us is dropped. A fetch start, or the owner's own `done`, resolves the file silently; a user pause / cancel / discard releases the engine sources and a mirror stop the mirror source, and `cancel: true` goes out only when no source is left; the owner leaving the space, or us, forgets silently. Sending follows `sharePrepareProgressEnabled`, and so does the owner's intake. The owner accepts a notice only from a sender authenticated on that socket and connected in that space, with bounded strings, for an entry of its **own** catalog whose hash is still null (`network/share-wait-intake.js`, pure; a cancel landing during that read wins), and records it in the serve ledger as a `waiting` peer entry (below); a member that leaves the space or disconnects has its waiting entries dropped at once. Nothing is persisted and nothing reaches the Activity Log.
-
-#### Downloading a file (overlay engine)
-
-`files:download` routes to the shared **overlay download engine** (`transfer/backends/overlay/overlay-download.js`; `overlay/loose-downloads.js` supplies the loose glue; the same engine serves non-mirrored folder-share reads). Observers (Finder/Explorer, Quick Look, backup tools, antivirus, the orphan sweep) only ever see no file or a complete file — never a half-written one under the real name:
-
-1. **Destination.** `resolveDest(downloadDir, basename)` (`download-dest.js`) picks a free final name — a name is taken if the plain file or `<name>.mirall.part` exists (`nameTakenAt`, the probe the mirror's sibling and conflict-copy names use too). A download never overwrites the user's own file nor adopts another transfer's partial. A resumed download reuses the pending row's `finalPath`.
-2. **Pending row first.** `recordPending` writes the §3.4 row before any bytes move. The engine is single-flight per file.
-3. **Fetch by content hash** through the overlay (§7.7). Bytes land in `<finalPath>.mirall.part`; chunks verify against the chunk map as they arrive; a **receive journal** (app-private `journals/` — received-chunk bitmap + streaming-hash snapshot) makes resume O(1); partial → final is an atomic rename.
-4. **Progress is decoration, never status.** Ticks emit `event:decoration` and persist `bytesTransferred`; the row's *status* is always re-derived by `files:list`, never pushed.
-5. **Completion.** Pending row cleared, Downloads bee marked (`markDownloaded` + the verified hash), `event:transfer-complete` + `event:files-updated`.
-
-**Pause / cancel / discard.** `files:pause-download` stops the fetch but keeps partial + journal + row (`event:transfer-paused`); a manual pause is remembered so reconnects don't resurrect it, and a fresh `files:download` resumes from the journal. `files:cancel-download` unlinks partial + journal and clears the row — from a downloading row's Cancel and a paused or failed row's Discard alike; with no live slot the id is resolved from the pending row, and an id with nothing behind it re-derives the stale row.
-
-**Failure semantics.** Recovery is level-triggered, with **no retry budget** — see the table in §4.5.
-
-**Boot sweeps.** `cleanupOrphanedPartials` removes `.mirall.part` files (download dir + every foreign mount) that no pending row or journal references — a resumable partial is preserved. `cleanupOrphanedJournals` drops corrupt, stale (>7 d), or partner-less journals. Shutdown marks nothing: resume state reconstructs from the durable rows.
-
-### 3.5b Audit-log bee (`audit-log`) — local only, never replicated
-
-The on-device activity record (`shared/audit/`). Registered in `LOCAL_BEE_NAMES`, so it inherits
-the M-derived at-rest encryption, the metadata migration and the leftover-scan wanted-set.
+`downloads-meta` has three namespaces, told apart by prefix (`src/shared/transfer/files.js`):
 
 | Key | Value |
 |---|---|
-| `evt/<seq zero-padded to 16>` | the audit record (schema v1) |
-| `by-space/<spaceId>/<seq>` | `seq` — the space filter's index |
-| `config` | `{ enabled, retentionDays, maxEntries }` — worker-owned |
-| `seen/<beeId>` | the version of a peer's bee already turned into rows (§3.5c). Working state, not a record — `audit:purge` deliberately leaves it |
+| `<spaceId>:<filePath>` | claim `{ downloadedAt, localPath, hash }` — `localPath` is the real landed path |
+| `verified:<spaceId>:<shareId>\|<relPath>` | `{ hash, at, local, mtime, ino }` — `local` is mount-relative for a mirror, absolute for a download; `mtime`+`ino` fingerprint the exact file the hash was proven on (`src/shared/transfer/verified-copy.js`) |
+| `src:<spaceId>:<filePath>` | `{ sourcePath, addedAt }` — where a file we own lives |
 
-Zero-padded seqs make lexicographic order numeric order, so one reverse range scan is both the
-newest-first listing and the pagination cursor. `seq` is a monotonic local counter, never
-`Date.now()`: a backwards clock jump would otherwise reorder or collide rows.
+A claim is a hint and the disk is the truth, re-checked on every listing in the order fixed by `src/shared/transfer/download-claim.js`: file and its folder both gone ⇒ a detached volume, report not-downloaded but **keep** the claim; file gone, folder present ⇒ prune; content hash moved upstream ⇒ prune; outside the space's *pinned* download folder ⇒ not-downloaded, keep (re-pinning restores it). Download roots resolve per-space override → global root → OS downloads (`src/shared/core/paths.js`). A leave clears the claim and `verified:` rows (`cleanupDownloadHistory`); `src:` rows are not cleared.
 
-**Every row is self-contained.** Participant names (`actor` / `space` / `target`) are snapshotted
-at write time because nothing can be joined at render time — §6 deletes the space record on
-leave, and a peer's name needs that peer reachable. A `search` blob of lowercased proper nouns
-backs free-text search; the *kind* is deliberately excluded so stored text stays locale-neutral
-(the renderer resolves a typed term against translated kind labels and passes matching kinds as a
-filter).
+### 3.4 Pending-transfers bee (`pending-transfers`) — local
 
-Attribution is recorded per row as a tier: **A** first-party, **B** a peer action authenticated
-through the §16 identity binding or a Noise-authenticated socket, **C** derived from a peer's
-replicated bee (authorship proven, timestamp self-reported). A transfer between two *other*
-members is unobservable — overlay transfers are point-to-point, so only the holder sees them.
+`pending-transfers` rows are keyed `<spaceId>:<filePath>`, one per in-flight or interrupted download; field sets are built in `src/shared/transfer/backends/overlay/download-start.js` (`pendingRowFor`) and the channels' `pendingExtra`. `finalPath` is the collision-avoided landing path from which `<finalPath>.mirall.part` and the resume journal derive; `bytesTransferred` lets the UI show `paused-*` / `error` and partial progress without a live transfer. Every write to one row goes through a per-key lock (`createKeyedLock`), including the leave purge, so a progress tick can neither strip an error verdict nor resurrect a row for a left space. Rows clear on completion, cancel/discard and leave.
 
-Volume is bounded structurally: no event class scales with file count (a folder share is one row
-carrying the totals; the recurring reconcile records nothing), byte-moving activity is folded into
-one row per transfer by `transfer/serve-sessions.js`, and a per-kind token bucket collapses any overflow
-into a single `audit.suppressed` row.
+### 3.5 Participation id and loose-file lifecycle
 
-Retention prunes by age **and** count on boot and daily (`maxEntries`, default 200k, binds
-whenever a burst outruns the age window). It bounds the **row count, not the bytes**: a Hyperbee
-`del` only appends a tombstone, so pruned rows stop being readable while their blocks stay on
-disk. Byte reclamation is deliberately not attempted — `core.clear()` over the pruned range is
-unsafe here, because every Hyperbee block carries B-tree index data alongside its key/value, so
-clearing old blocks strands index nodes the live tree still points at (measured: after clearing a
-pruned prefix, a fresh open reads back **0** surviving rows and stalls on a missing block).
-Residue after RocksDB compaction is on the order of ~1&nbsp;KB per pruned row, retained
-indefinitely — see the header of `audit-reclaim.js`.
+One id per (member, space, participation): `Hypercore.key(deriveParticipationKeyPair(M, spaceId, driveSuffix).publicKey)` (`src/shared/core/identity-keys.js`). No core backs it. It must stay byte-identical to the key of a Hyperdrive named `space-drive-<spaceId>-<driveSuffix>`, because that is how every existing peer knows the member — a pin test holds it. On the wire it keeps the name `driveKey` (the identity binding signs `noise||driveKey`, §16) and in the profile the row `drive/<spaceId>`. A pending joiner has none, which is how the send path picks `membership:request` over `handshake`. 
 
-**`audit:purge` is the one path that does reclaim.** A purge discards the whole event set, so it
-can reset the core outright where a partial prune cannot: `truncate(0)` empties the tree in place
-and drops its blocks, and a `compactRange` then returns the bytes (measured: 8.3&nbsp;MB
-of log → 0.08&nbsp;MB, against 22&nbsp;MB when the same rows were deleted key-by-key). Truncation
-rather than a core purge-and-recreate is deliberate — recreating the core hands back a stale
-corestore tracker entry whose storage is gone, and every later read hangs. The retention config and
-the `seen/` watermarks are written back across the reset; `pstate/` is not, since observed peer
-state is log content.
+#### Loose-file status
 
-**The log survives a space leave** — a deliberate exception to §6's "leave removes everything
-space-scoped" rule, since a space left under dispute is exactly when the trail matters. It never
-replicates and never leaves the device; `audit:purge` is the user's explicit wipe.
+`src/shared/transfer/file-listing.js` folds five signals into one row per file: own/peer catalog entries, the claim (re-verified against disk), the pending row, owner presence, and live engine state (pure rules in `src/shared/transfer/transfer-status.js`). Status is always re-derived by `files:list`, never pushed; progress is only `event:decoration`.
 
-#### Observing peer actions
+| Status | Signals |
+|---|---|
+| `mine` / `publishing` | own entry with / without a hash (+ active publish) |
+| `preparing` | peer entry without a hash |
+| `downloaded` / `modified` | verified claim; `modified` = a verified record whose size (mirror: or mtime) no longer matches |
+| `downloading` / `verifying` | live engine / `event:decoration` phase |
+| `paused-interrupted` / `paused-offline` | pending row, no `errorCode`, owner online / offline |
+| `remote` / `unavailable` | peer entry, no pending row, owner online / offline |
+| `error` | pending row with `errorCode` |
 
-A peer's profile bee and share catalog are append-only logs, so "what did they just do" needs no
-snapshot of their records — only the version we last processed (`seen/<beeId>`) plus
-`createHistoryStream`, which replays the put/del operations since then. `audit/peer-records-observer.js`
-classifies those operations; `audit/peer-records-watch.js` resolves names and writes the rows.
+Rows collapse per content hash by `STATUS_RANK` (`src/shared/transfer/file-dedupe.js`); a hashless row keys on owner + path, so a shared name never merges two owners' files.
 
-Three rules make it correct:
+#### Publish, share-wait, download
 
-- **Baseline at registration, after a head sync.** Taken when the watch is attached rather than on
-  the first append — adopting lazily swallows the very first act, and adopting before the head
-  replicates turns a peer's whole existing catalog into a flood of "just shared" rows.
-- **Fingerprint dedupe.** One logical act can be several puts (a mirror record is written
-  `syncing` then `active`), so changes collapse to a stable fingerprint; the opposite transition
-  clears it, so mirror → unmirror → re-mirror still records three times.
-- **Relevance gates.** A share/file event counts only for a space we are in; a mirror event counts
-  only when the mirrored share is *ours*. Folder-share catalog contents are excluded outright —
-  one mount is one act (`share.mounted`), never five thousand file rows.
+Mechanics are in §4.5, §7.2 and §7.6; these are the data-model invariants.
 
-This yields the peer-action kinds (`peer.file_shared`/`_unshared`, `peer.share_created`/`_deleted`,
-`mirror.peer_mirrored`/`_unmirrored`), all tier C: authorship is proven by the bee signature, but
-the timing is the author's clock and we learn of it only when their append reaches us.
+- **Publish in place** (`src/shared/transfer/backends/overlay/loose-publish.js`): the file stays at its real path; nothing is copied or chunked over IPC. Only admission (name, `MAX_LOOSE_FILES_PER_SPACE`, the `src:` row) holds the space lock, never the hash. A hashless placeholder entry goes out first, so peers render `preparing`.
+- **share-wait** `{ profileKey, spaceId, shareId, relPath, cancel? }` is unicast by a member whose fetch hits a null `contentHash`. The owner accepts it only from an authenticated sender connected in that space, and only for its own still-unhashed entry (`src/shared/network/share-wait-intake.js`). It is never persisted or audited; limits are in `src/shared/transfer/share-wait-set.js`.
+- **Download** (`src/shared/transfer/backends/overlay/overlay-download.js`): observers see no file or a complete file, never a partial under the real name. The pending row is written before any byte moves. A name counts as taken if the file or its `.mirall.part` exists, so a download never overwrites a user file or adopts another transfer's partial. Pause keeps partial, journal and row; cancel/discard removes all three. The boot sweeps delete only partials and journals that no row references.
 
-### 3.6 Mounts bee (`mounts-meta`) — local only
-
-Owned by `src/shared/folders/mount-store.js`. Records which local paths back a share and which mirror a peer's share. §7.
+### 3.5b Audit-log bee (`audit-log`) — local, never replicated
 
 | Key | Value |
 |---|---|
-| `owned-folder-mount/<spaceId>/<shareId>` | `{ spaceId, shareId, mountPath, ignore[], createdAt, lastScanCompletedAt? }` |
-| `foreign-folder-mount/<spaceId>/<shareId>` | `{ spaceId, shareId, ownerKey, mountPath, enabled, attachedAt, status?, initialScanCompletedAt? }` |
+| `evt/<seq, zero-padded to 16>` | record (`SCHEMA_VERSION` in `src/shared/audit/audit-record.js`) |
+| `by-space/<spaceId>/<seq padded>` | seq — space filter index |
+| `by-device/<seq padded>` | seq — index for rows with no space (device connectivity) |
+| `seen/<beeKeyHex>` | version of a peer bee already turned into rows |
+| `pstate/<kind\|person\|space\|id>` | `'on'`; absence = off — last recorded peer-subject state |
+| `nstate` | last recorded device-connectivity episode; absence = healthy |
+| `config` | `{ enabled, retentionDays, maxEntries }` |
 
-### 3.7 Share catalogs & encryption at rest
+Grammar: `src/shared/audit/audit-keys.js`. `seq` is a monotonic local counter, never `Date.now()`, and zero-padded, so one reverse range scan is both the newest-first listing and the pagination cursor, and a clock jump cannot reorder rows. Rows snapshot the names they show, because nothing can be joined at render time: a left space's record is gone and a peer's name needs that peer online. The `search` blob excludes the kind, so stored text stays locale-neutral. Each kind carries an attribution tier (`src/shared/contract/audit-kinds.js`): A first-party, B authenticated peer action, C derived from a peer's replicated bee (authorship proven, time self-reported). No event class scales with file count; a per-kind token bucket collapses overflow into one `audit.suppressed` row.
 
-Each folder/loose share has a replicated **catalog** — written by its owner through `shares/own-catalog.js`, read by everyone else through `shares/peer-catalog.js` — that the overlay backend advertises into and consumers list from: per-file path, size, mtime, content hash — keyed by the share's `catalogKey` and encrypted with the space's SCK, so only members can read it.
+Retention prunes by age and count at boot and on an interval. Pruning bounds rows, not bytes: `core.clear()` over a pruned range is unsafe because Hyperbee interleaves index nodes with value blocks, and a cleared prefix strands nodes the live tree still points at. `audit:purge` is the one path that reclaims bytes: `truncate(0)` in place, then a store compaction. It writes back `config` and `seen/` and drops `pstate/` and `nstate`. It never recreates the core, because a recreated core returns a stale corestore tracker whose storage is gone and later reads hang (`src/shared/audit/audit-reclaim.js`). The log survives a space leave, a deliberate exception to §6, because a disputed space is when the trail matters.
 
-#### Write discipline for status-bearing rows
+**Observing peer actions** (`src/shared/audit/peer-records-observer.js` classifies, `src/shared/audit/peer-records-watch.js` writes). A peer's profile bee and catalog are append-only, so "what changed" is `createHistoryStream` from `seen/<bee>`. Three rules keep this correct:
+- Baseline at registration, after a head sync. Baselining lazily swallows the first act; baselining before the head arrives turns the peer's existing catalog into a flood of rows.
+- Emit only on a durable `on`/`off` flip per subject (`pstate/`), because one act is many puts. A mirror record is re-put on every state change and at the peer's boot.
+- Relevance gates: share and file events only for spaces we are in, mirror events only for our own shares. Folder-share catalog rows are excluded, so one mount is one act. Only `__loose__` entries become file rows.
 
-A write that encodes **status or intent** — a transfer's `errorCode`, a claim, a pending row, a leave marker — may fail loudly, never silently. Await it, log at `warn` with the key and the code, and then do one of three things, saying which in a comment: fail the caller (the user asked for something durable that did not happen), let the level-triggered scan finish the intent (the durable state already implies it), or hold the verdict in memory for the process (the write is the only thing suppressing a re-drive). A bare `.catch(() => {})` is reserved for teardown races, safe reads, observability writes, and display-only values, and carries a comment naming the race. `log.debug` does not count as surfacing: the default level is `warn`.
+### 3.6 Mounts bee (`mounts-meta`) — local
 
-The local-only bees (§3.2–3.4, §3.6) are encrypted at rest with an M-derived key. The **profile bee stays plaintext** because peers must read it. §16.
+| Key | Value |
+|---|---|
+| `owned-folder-mount/<spaceId>/<shareId>` | `{ spaceId, shareId, mountPath, ignore[], createdAt, status, lastError, indexPaused, lastScanCompletedAt? }` |
+| `foreign-folder-mount/<spaceId>/<shareId>` | `{ spaceId, shareId, ownerKey, mountPath, enabled, attachedAt, status, lastError, syncedPaths, renamedPaths, initialScanCompletedAt? }` |
 
-### Why single-writer per member today — and Autobee next
+Owner: `src/shared/folders/mount-store.js`. Every create, read-modify-write and delete goes through one per-key record writer, so an hours-long pass can never write back a stale whole record over a pause or unmount. An owned mount's `status` is derived from activity, fault and `indexPaused` and set only through `setOwned*`; `patchOwnedMount` refuses it (§7).
 
-**Shipped.** Each member writes only its own log — its catalog bee: no conflicts, inherent ownership, trivial aggregation at list time. Peers' logs are read-only by design, so a folder share is single-owner. Loose files are already a multi-writer *union* — every member's catalog folded at list time — but with no convergence on a contested path and no cross-peer delete.
+### 3.7 Share catalogs, encryption at rest, single-writer
 
-**Direction.** Collaborative read-write folders and third-party authority — roles, removal, cross-peer delete — need an ordered multi-writer log; `membership/fold.js` records that third-party removal is not modelled for exactly that reason. The chosen primitive is **Autobee** (`holepunchto/autobee`), not Autobase: a standalone multi-writer Hyperbee with no `autobase` dependency, keeping the same shape — per-peer cores merged by a deterministic `apply`, writers added and removed in-band. Planned, not shipped, and experimental upstream. Two constraints are known up front: its view is `hyperbee2`, not the `hyperbee` the catalogs are written against; and it pins one static `encryptionKey` at open, so rotating the space content key inside a view needs the per-version encryption provider exposed.
+Each member has **one catalog per space** — a replicated, SCK-encrypted Hyperbee holding every file it shares there, folder shares and loose files alike:
 
----
+| Key | Value |
+|---|---|
+| `file/<shareId>/<relPath>` | `{ size, mtime, contentHash }` (`contentHash` null while hashing); removal = tombstone `deletedAt` |
+
+Loose files use shareId `__loose__` (`src/shared/transfer/transfer-id.js`). The catalog key is published in the share record (`catalogKeyEnc` + `catalogEpoch`), in `loosecatEnc/` + `loosecatEpoch/`, and in the handshake as `looseCatalogKeyEnc` + `looseCatalogEpoch`; the field-name convention has one owner, `src/shared/shares/catalog-keys.js`. The `…Enc` field name itself tells a reader to decrypt with the SCK of that epoch. A catalog's name derives from the **saved** space record, so its key is published only after the record put — publishing earlier forks a divergent core. A node's `seq` is the re-publish generation marker (`classifyEntryNode`).
+
+Peer catalogs are opened read-only by key, cached, and read in parallel under one interactive budget (`src/shared/shares/peer-catalog.js`, §4.3). No peer drive is ever opened; file bytes travel only through the overlay backend, addressed by content hash (§7.6).
+
+Each member writes only its own logs, so there are no write conflicts and aggregation happens at list time. Loose files are therefore a union with no convergence on a contested path and no cross-peer delete, and third-party removal is not modelled (`src/shared/spaces/membership/fold.js`). Multi-writer work (shared read-write folders, roles, cross-peer delete) is to use **Autobee** (`holepunchto/autobee`), never Autobase; it is not built. Two known constraints: its view is `hyperbee2`, not the `hyperbee` the catalogs use, and it pins one static `encryptionKey` at open, so rotating the SCK inside a view needs a per-version encryption provider.
+
+Status-bearing writes follow the rule in `.claude/lessons.md` (no silent `.catch` on a write that encodes status or intent).
 
 ## 4. Networking
 
 ### 4.1 Hyperswarm topology
 
-Two swarms, sharing the same Corestore (passed from main into the worker), so any incoming `store.replicate(socket)` works against the unified store:
+Main's OTA updater runs its own Corestore and a client-only swarm on the upgrade drive (`src/main/updater.js`). The worker runs two swarms over one store and one DHT node:
+- **Control** (`src/shared/network/swarm.js`) joins each space's random 32-byte topic. It carries Corestore replication and `mirall/handshake`.
+- **Content** (`src/shared/network/content-swarm.js`) joins `hash(topic ‖ 'mirall/content-plane/v1')`. It carries only the overlay channel and authenticates with its own signed `mirall/content-hello`. It has its own Noise identity, so bulk bytes never head-of-line-block control traffic. The derived topic stops each swarm from dialling the other's identity.
 
-- **Main-process swarm** — joins only the upgrade-drive discovery key, as a client, for `pear-runtime-updater`.
-- **Worker swarm** (`network/swarm.js`) — one 32-byte topic per space; handles peer file-sharing connections.
-
-Topic join is non-blocking (`discovery.flushed()` in the background). `swarm.on('connection')` drops sockets immediately when the user is in zero spaces, so stray peers never reach handshake code.
+A socket that arrives while we hold no topic is destroyed before any handshake code runs.
 
 ### 4.2 Protomux handshake
 
-Two channels multiplexed on one socket:
+All channels open synchronously before `channel.open()`, because Protomux will not pair a channel opened after the remote's (`src/shared/network/peer-connection.js`). The vocabulary is `src/shared/contract/peer-frames.js`, and routing is `src/shared/network/frame-intake.js`.
 
-1. **Corestore replication** — `store.replicate(socket)` syncs all Hypercore data.
-2. **`mirall/handshake`** — JSON frames dispatched by `type` (`dispatchFrame`, `swarm.js`): `handshake`, `presence`, `leave`, `leave-ack`, `share-prepare-progress`, `share-index-progress`, `share-wait`, and the `membership:*` family (`request` / `grant` / `deny` / `cancel` / `cancel-ack`), the last handled by the membership-control block in `worker/main.js`. The content swarm (§7.7) carries one more, `content-hello`, on its own `mirall/content-hello` channel. The two identity-asserting shapes:
+| Frame | Fields |
+|---|---|
+| `handshake` | `profileKey, driveKey` (participation id), `displayName, spaceTopic`, `looseCatalogKey` \| `looseCatalogKeyEnc`+`looseCatalogEpoch`, `creator?`, binding `sig, signerKey, signerNs` |
+| `membership:request` | `profileKey, displayName, avatar, spaceTopic, inviteId`, binding. Sent instead of `handshake` while we are pending |
+| `leave` / `leave-ack` | `spaceId, profileKey, ts`, binding / `spaceId, profileKey` |
+| `presence` | `profileKey, spaceTopic, offline?` |
 
-```json
-{ "type": "handshake", "profileKey": "<hex>", "driveKey": "<hex>",
-  "displayName": "<string>", "spaceTopic": "<hex>" }
-{ "type": "leave", "spaceId": "<id>", "profileKey": "<hex>" }
-```
+`membership:grant/deny/cancel` go to `handleMembershipControl` (`src/worker/ipc/membership.js`). The swarm answers `membership:cancel-ack` itself.
 
-Every identity-asserting frame carries a signature binding sender → socket Noise key (§16).
+**Binding.** `handshake` and `membership:request` must carry a signature by a key that manifest-hashes to `profileKey`, made over this socket's Noise key. The handshake form also covers `driveKey`, with a fallback to the Noise-only form (`src/shared/network/handshake-guard.js`, §16). A captured signature therefore cannot be replayed onto another connection.
 
-**Handshake:** one per local space per connection. `channel.onopen` iterates every joined topic (`sendHandshakeMessages`).
+**Budgets** (defaults in `src/shared/core/runtime-config-schema.js`). Every frame first passes a 64 KiB size cap and a per-socket budget **before** `JSON.parse`, because parsing is the work being bounded. Identity frames then pay a dual-lane budget. The lane is chosen by a cheap topic lookup, and only a matched frame pays for the ed25519 verify. The matched lane's burst (8 + 3 × topics *this socket* matched) grows with the spaces the peer has proven it shares, not with our own space count. Buckets are keyed by Noise key. A ban destroys the socket, and the firewall refuses the key until the swarm closes.
 
-**Identity-frame rate limit.** `admitIdentityFrame` charges a per-socket dual-lane token bucket (`handshake-guard.js`) keyed on the Noise key: frames for a topic we joined ride the *matched* lane, everything else the generous *unmatched* lane, so a multi-space peer's foreign-topic frames can't starve the one that matters. The matched lane's burst is `handshakeBurst + handshakeBurstPerTopic x the distinct topics THAT SOCKET has matched` (8 + 3 per shared space, re-read per take and never counted past the topics we hold), because an honest reconnect legitimately sends one frame per shared space plus our reciprocal — a fixed burst banned any pair sharing 24+ spaces, while scaling by our own space count instead would hand a peer that matched one topic an allowance that grows with every space we join. Refill is 1/s; the drop counter decays at the same rate, and 24 consecutive drops on either lane evict the Noise key (`bannedNoiseKeys` -> the swarm firewall) for the process lifetime.
+**Admitting a handshake** (`src/shared/network/handshake-apply.js`):
+- Nothing is admitted while we are pending, or on a topic we hold only to replay a leave.
+- `admitMember` (`src/shared/network/admission-gates.js`) admits a known or peer-approved member and cross-checks the creator root. Anyone else becomes a converging join request. A tombstoned leaver is ignored.
+- `event:member-joined` fires before the persist so the UI unblocks. `members-updated` fires after the persist, and always, because a handshake is a presence arrival.
+- A reciprocal handshake goes to a peer new to the space. It also answers a duplicate once `dupReciprocalFloorMs` has passed, because the duplicate means the peer never admitted us.
+- A newly joined topic reuses existing sockets and fires no `connection`, so `joinSpaceTopic` sends its handshake on every live socket.
 
-**Leave frame:** broadcast by `space:leave` to every connected socket right after the durable `member/<S>` delete and before the heavyweight teardown (§6). `handleLeaveFrame` (`network/leave-protocol.js`) accepts it iff the sender proves it controls `profileKey` on **this** connection — the per-socket auth index (`socketToPeers`) or, when a teardown/reconnect race has cleared that index, the frame's own identity binding (§16), which is strictly stronger — so a third party still cannot evict a member. It then adopts the leaver's vouchees (a leaver whose record is unreadable is deferred, never tombstoned, so the replication path can retry), tombstones the leaver, revokes our vouch, acks, and evicts the socket from `connectedPeers`/`socketToPeers` (so the eventual disconnect doesn't fire a duplicate `event:member-left`).
+**Leave frame** (`src/shared/network/leave-protocol.js`). It is accepted only if the sender controls `profileKey` on *this* socket, shown by the auth index or by the frame's own binding. The binding survives the teardown race that clears the index, so a third party still cannot evict a member. The handler runs in order:
+1. Adopt the leaver's vouchees. If its record is unreadable, apply nothing and let replication retry.
+2. Tombstone the leaver.
+3. Revoke our vouch.
+4. Ack, but only if the tombstone and revoke landed durably.
+5. Revoke the leaver's serve grants.
+6. Detach the peer from that space. The connection goes only if no shared space remains.
 
-**On receipt (`handleHandshake`):**
+A plain disconnect never prunes membership.
 
-1. Match `spaceTopic` → local `spaceId`; ignore unknown topics.
-2. **Gate before admitting.** While we ourselves are still pending in the space (no SCK yet), stop here. For a v2 space, `admitV2Member` enforces the read gate: only a peer we or a co-member approved is admitted; anyone else is recorded as a converging join request and the handshake ends.
-3. Upsert a `connectedPeers` entry keyed by `profileKey`. One peer can be connected on behalf of many spaces — `peerEntry.spaces: Map<spaceId, participation id>`. No catalog opens here; catalogs open lazily on first read.
-4. Emit `event:member-joined` immediately (with any cached avatar) so the UI unblocks without waiting on replication; clear any stale join-request entry.
-5. Fire the overlay reconnect hook — pending downloads from this peer auto-resume (§4.5).
-6. **Reciprocal handshake:** if the peer is new to this space, send ours back. Without this, two peers who joined a space late can stay invisible to each other.
-7. Persist the peer as a member if new, emit `event:members-updated` — a handshake is also a presence arrival (§4.7).
-8. Asynchronously fetch the peer's avatar from their profile bee (retried — the block may not have replicated yet); a changed avatar updates the member record.
-
-When a new space is joined while connections already exist, Hyperswarm reuses the sockets and fires no `'connection'` event — so `joinSpaceTopic` walks `socketMsgHandlers` and sends the new-space handshake to every already-connected peer.
+**Replay lanes.** Two frames are re-sent on every new connection, over a re-joined purged topic, until acked:
+- an unwitnessed leave, kept as a durable `pendingleave/` marker;
+- a withdrawn join request, kept in memory for at most 30 attempts.
 
 ### 4.3 Peer catalog caching
 
-Peer file metadata lives in replicated catalogs, not drives (§3.5). A peer catalog bee opens lazily on first read (`openPeerCatalog`, keyed by catalog key, decrypted with the space SCK) and caches in `peerCatalogs`; reads fan out in parallel and are bounded by ONE interactive timeout per peer covering head sync and drain, so an offline peer can't stall a listing. A peer whose head sync spends the whole budget still has its drain run, with `wait: false` — only blocks already on disk are read, so previously replicated rows keep surfacing instead of the read parking for a second budget. Catalog appends fire per-owner watches (`watchPeerCatalog`) that nudge foreign mirrors (§7.3) and re-drive pending downloads (§4.5).
+Peer catalogs (§3.5) open lazily by key, decrypted with the SCK of the record's epoch. They sit in a refcounted LRU, pinned while read or watched (`src/shared/shares/peer-catalog.js`). One read budget per peer covers head sync and drain. If the head sync spends it, the drain reads with `wait: false`, so an offline owner costs one budget and rows already on disk still surface. Catalog appends drive foreign mirrors (§7.3) and re-drive pending downloads (§4.5).
 
 ### 4.4 Disconnect & multi-socket handling
 
-- `socketToPeers: Map<socket, Set<profileKey>>` — reverse index for disconnect.
-- If a peer reconnects on a new socket, the old socket's `close` handler runs *after* the peer entry was updated; it guards with `if (peer.socket !== socket) continue` so it can't delete a peer that already reconnected.
-- On genuine disconnect: `event:member-left` + `event:files-updated` per space, presence lease cleared instantly, `connectedPeers` entry dropped. In-flight fetches notice the lost holder themselves and derive `paused-offline`; pending rows stay.
+A peer that reconnects on a new socket is re-pointed before the old socket's `close` runs. `handleDisconnect` therefore skips any peer whose `peer.socket !== socket`. On a genuine disconnect it emits `member-left` and `files-updated`, clears the lease and drops the entry. Pending rows stay, and in-flight fetches derive `paused-offline`.
 
 ### 4.5 Pause / resume transfers
 
-Recovery is **level-triggered** — reconnects and catalog changes re-drive the durable pending rows. The one exception is the stall retry below: a holder that goes silent without ever disconnecting fires no level change at all, so there is nothing for a reconnect to re-drive.
+Recovery is **level-triggered**: reconnects (a handshake or `content-hello`), catalog appends and the convergence tick re-drive durable pending rows. The one exception is a holder that stalls without disconnecting, which produces no level change. For that case the engine retries on its own, with 3 s doubling backoff, and parks after `STALL_RETRY_DRY_LIMIT = 3` attempts that bank no new bytes. While a retry is pending, the paused event still fires with `retrying`. On the folder channel that event is the terminal decoration frame, and the flag only suppresses the loose channel's OS notification.
 
-| Event | Effect |
+| Case | Rule |
 |---|---|
-| Owner goes away mid-fetch | Not terminal. Partial + row kept, `event:transfer-paused { reason:'offline' }`; status derives `paused-offline` / `paused-interrupted` |
-| Fetch stalls while the owner stays online | Retried by the engine itself with exponential backoff (FIX-BW9). A code-less fetch failure is either a vanished holder or one throttled past our watchdog, and neither fires a reconnect or an append — so pre-fix the row simply parked. The retry gives up after `STALL_RETRY_DRY_LIMIT` attempts that bank **no new bytes**, which is what separates a wedged holder (parks, as before) from a slow one (keeps going). While a retry is pending the paused event still fires, flagged `retrying` — on the folder channel that emit IS the terminal decoration frame, so withholding it strands a progress bar; the flag only suppresses the loose channel's OS notification |
-| Owner reconnects | The overlay reconnect hook fires `resumeLooseForOwner` / `resumeOverlayForOwner`, re-driving every pending row for that owner (skipping active and manually-paused rows, and every row whose `errorCode` is terminal per `isTerminalFault` — a checksum row always; a folder-unavailable or not-writable row only while its destination still fails the check that refused it; and a disk-full row only when the preflight is what refused it and the volume still cannot hold the file — a disk-full verdict a write's ENOSPC produced waits for the user's Retry, because no free-space reading is stronger evidence than the write itself. The destination is the space's **current** download folder, so fixing the fault by re-pointing the space counts) |
-| Owner republishes (catalog append) | The per-owner catalog watch re-drives pending rows; an in-flight fetch of a superseded hash is cancelled and re-fetched (`event:transfer-superseded`) |
-| Integrity failure (`EHASHMISMATCH`) | `TRANSFER_CHECKSUM` — **terminal**, never auto-resumed (the same holder would fail identically). Only an explicit user retry re-attempts (§14). The verdict is written to the row; if that write fails the engine holds it in memory for the process and logs at `warn`, so the row is still not re-driven until a restart |
-| Download folder not writable (`EACCES` / `EPERM` / `EROFS`, and a probe write into the folder is refused too) | `TRANSFER_PERMISSION` — **terminal** while the folder stays read-only: a reconnect, or the convergence tick while the owner stays connected, re-drives the row only once the folder takes a write again. A folder-unavailable row clears the same way, on the preflight that refused it, as does a disk-full row the preflight refused — a freed volume or a re-attached folder is re-driven without a Retry. A disk-full verdict written by a failed WRITE is not: the volume already passed the preflight once, so only the user's Retry re-attempts it. The same errno with a writable folder (a file another program holds for a moment) is the retryable `DOWNLOAD_FAILED`. The same in-memory fallback as a checksum verdict applies |
-| Download completed, row outlives the claim | The next reconcile sees the file claimed on disk and clears the row; nothing is re-fetched |
-| Any other engine error | `DOWNLOAD_FAILED` on the row → `error` status until the user retries |
-| Worker shutdown | Nothing is marked; durable rows (§3.4) reconstruct resume state next boot/reconnect |
+| Owner offline mid-fetch | Not terminal. The partial and row are kept; status derives `paused-offline` / `paused-interrupted` |
+| Owner reconnects | `resumeLooseForOwner` + `resumeFolderForOwner` re-drive that owner's rows. Active, user-paused and still-terminal rows are skipped. The destination is the space's *current* folder |
+| Republish | The superseded in-flight hash is cancelled and re-fetched |
+| `EHASHMISMATCH` → `TRANSFER_CHECKSUM` | Terminal, because the same holder fails the same way. Only the user's Retry or a republish re-attempts it |
+| `TRANSFER_PERMISSION` (errno **and** a refused probe write) | Terminal until the folder accepts a write. The same errno on a writable folder is the retryable `DOWNLOAD_FAILED` |
+| Folder missing / disk full, refused by the preflight | Re-driven without a Retry once the preflight would pass |
+| Disk full from a write's `ENOSPC` | Waits for Retry, because no free-space reading outranks the write that failed |
+| Other error | `DOWNLOAD_FAILED` until Retry |
 
-**The engine's durable-write policy is deliberately not uniform.** Each case is a decision:
+The terminal set and its clearing rules live in `src/shared/transfer/backends/overlay/fetch-policy.js` and `src/shared/transfer/backends/overlay/download-faults.js`.
+
+**The engine's durable-write policy is deliberately not uniform:**
 
 | Write | On failure | Why |
 |---|---|---|
-| `recordPending` at start | throws; the slot is released and `start()` fails | without the row a crash loses the transfer entirely |
-| `clearPending` on completion | tolerated, with a warn | the downloaded claim already decides the status; a surviving row costs one extra read at the next reconcile |
-| `clearPending` on discard | fatal, rethrown before anything destructive | everything after it is in-memory only: a live row whose partial and pause marker are gone auto-resumes from zero a transfer the user discarded |
-| `recordPendingError` | never throws; the verdict is kept in memory instead | suppresses auto-resume only until the next restart, and the failure is logged as not durable |
+| `recordPending` at start | throws; `start()` fails | without the row, a crash loses the transfer |
+| `clearPending` on completion | warn | the downloaded claim decides status; a stale row costs one read |
+| `clearPending` on discard | rethrown before anything destructive | a live row whose partial is gone would auto-resume from zero a discarded transfer |
+| `recordPendingError` | never throws; the code is held in memory | suppresses auto-resume until restart |
 
 ### 4.6 Startup reconnection
 
-Open Corestore → load profile → load spaces → init downloads bee → init pending-transfers bee → re-announce each materialized space's participation id and loose-catalog key → join all topics. The orphan-core sweep runs every boot, after every subsystem is up (§2 boot step 10, §14). Peers rediscover via the DHT; pending transfers resume as their owners reconnect.
+Boot order is `src/worker/boot.js`. Three constraints in it are load-bearing:
+- Interrupted leaves complete **before** the membership backfill, which would otherwise re-assert `active:true` (§6).
+- Member views start **before** the swarm, so the first handshake sees seeded tombstones.
+- The relay is applied **after** both swarms exist (§4.8).
+
+After that come topic joins for non-leaving spaces and then the pending-leave replay. The orphan sweeps run last (§14).
 
 ### 4.7 Presence & liveness
 
-Liveness is tracked separately from connection state. Peers hold short-lived **presence leases** — heartbeat-refreshed, TTL-expired, cleared on disconnect (`network/presence.js`). `connectedPeers` stays the routing registry ("where to send frames"); the lease answers "who is online".
+`connectedPeers` answers "where to send". A **presence lease** answers "who is online" (`src/shared/network/presence-leases.js`). A handshake marks the lease. A 5 s heartbeat refreshes it, and a disconnect or an `offline:true` presence frame clears it. The TTL is 15 s and set by the receiver, so a peer cannot extend its own lease. The TTL catches silently dead sockets, and its expiry re-emits the roster and file hints.
 
-Durable state changes reach the renderer as **level-triggered hints**: the worker coalesces them into `event:reconcile { scope }` (`core/hints.js`) and the UI refetches that scope, so a missed event can never leave the UI stale. Every list view rides this channel — `files`, `shares`, `share-files`, `members`, `join-requests` — fanned from the named `*-updated` pokes via `POKE_SCOPE` (`core/ipc.js`). The named events stay on the wire as the emit-site API and as test/debug observables.
+Durable changes reach the renderer as scope-only hints, coalesced into `event:reconcile { scope }` (`src/shared/core/hints.js`, mapped by `POKE_SCOPE` in `src/shared/core/ipc-events.js`). The UI refetches the scope, so a lost hint costs latency, never correctness.
 
 ### 4.8 Blind relay
 
-When two peers cannot hole-punch to each other, `hyperswarm`'s `relayThrough` option routes the connection through a **blind relay** — a `hyperdht` node that pairs two raw UDX streams by token. Noise runs *over* the relayed stream, so the relay sees ciphertext only. The client side is entirely built into the stack; Mirall only decides which key to supply and when.
+Mirall only chooses which relay key hyperswarm's `relayThrough` supplies, and when. Noise runs end to end over the relayed stream.
 
-- **One slot, two kinds of input.** `config.json` holds a single `network.relay` — `{ publicKey, kind, label, enabled, lastTest }` — beside `network.relayMode` (`'off' | 'auto' | 'always'`). It is configured either with a bare 32-byte relay key (**open** relay) or with an **invite ticket** (**private** relay). More than one relay was never buying what it looked like: `hyperdht` picks uniformly at random per connection, with no health check and no per-peer targeting, and a stable member identity is a property of the DHT *node*, so a second private relay would need an upstream change.
-- **The ticket** — 69 bytes (`version || relayPublicKey || memberSeed || checksum`) as 111 z-base-32 characters behind `mirall://relay/`. `network/relay-ticket.js` is the codec, and its wire format is a contract with `mirall-relay`; `test/unit/relay-ticket.test.js` pins the vector both repos pin. The 111-character length gate is load-bearing and is **not** redundant with the checksum: the last character is 3 slack bits, so a paste that lost it decodes to the identical 69 bytes and the checksum passes.
-- **Identity.** An open relay keeps today's behaviour — `dht.defaultKeyPair` random per boot. A ticket derives it from the member seed instead, which is the key the relay's roster matches. hyperswarm gives no way to set that key (its `seed`/`keyPair` options set `swarm.keyPair` only), so `initSwarm` constructs the `hyperdht` node itself. Peer-facing identity is untouched: spaces, handshakes and the identity binding all keep using the swarm keys.
-- **The seed at rest** — `relay-ticket.enc` beside `kek.enc`, under Electron `safeStorage`, `0600` (`main/relay-secret.js`). It is a bearer credential, so it does not go in `config.json`; the renderer never receives it back, and it reaches the worker only on the `bootstrap` frame, exactly as `identityKEK` does. The vault and the config slot cannot be written atomically, so the order is chosen to leave the **visible** failure on a crash: config first when adding, vault first when removing, each followed by an explicit `flush()`. A delete that fails is reported rather than swallowed — a seed still on disk that the config no longer names is a pinned identity nothing in the app can find.
-- **A config naming a private relay is not proof the identity is live.** A machine move that copied `config.json` but not `relay-ticket.enc`, or a vault unreadable under a new keyring, leaves the node presenting a different key. `setRelayThrough` refuses to install the relay in that case (`{ applied: 0, reason: 'identity-missing' }`) and stays direct, because routing every dial into a firewall refusal is worse than not relaying.
-- **Validation** stays in main, the trust boundary: `relay:parse` returns one of three error codes (`invalid-format` / `unsupported-version` / `checksum-failed`, never a generic "invalid"), and `relay:set` is the single writer for the slot and the vault. The renderer's `relay-key.ts` is a shape-only pre-check for typing feedback.
-- **Delivery**: the `bootstrap` frame carries `relayMode` / `relay` / `relaySeed`; live changes ride `network:set-relay` over the existing NDJSON channel. A change of **pinned identity** cannot be applied live — `defaultKeyPair` is fixed at DHT construction — so `relay:set` reports `identityChanged`, the renderer records a session-scoped pending flag (`renderer/platform/relay-session.ts`) and the section offers **Reconnect now**. Only that button sends `shutdown`, which the existing respawn policy turns into a fresh boot frame and a window reload. Doing it automatically is what the reload cost makes wrong: it returns the user to the home screen with nothing to explain why. Until they press it the config is stored and the probe honestly reports the relay unreachable, because the worker really is still presenting its old identity.
-- **Reaching the connections that already exist** — a relay is chosen **once**, when a connection is built: hyperswarm reads `swarm.relayThrough` per dial (`_connect`) and hyperdht per inbound handshake (`Server._addHandshake`), and nothing re-evaluates it for a live stream. A relayed stream leaves its relay only if the punch hyperdht keeps running underneath it lands. So `network:set-relay` does not stop at installing the mode: it asks `contract/relay-apply.js` whether the live connections contradict the new setting (`off` with a connection still on **our** relay; `always` with any direct one; `auto` only with a connection on **our** relay that paired while the mode was `always`; `always` or `auto` with a connection on **our** relay whose key the slot no longer names, after a Replace — never for a relay the **peer** supplies, which no local act can end). `network/relayed-connections.js` freezes each connection's `relayMode` at pairing beside `via`, so the rule stays pure and a connection `auto` rebuilds is never flagged, and reads `replaced` at snapshot time against the configured key, which is why `set-relay` also schedules a status emit: no connection event reports a slot change. The handler applies the change when `transfer/transfer-activity.js` reports nothing moving. The reply carries `{ mismatch, reconnected }` — what it DID, not what it found — and a change it could not apply (a transfer in flight, the reconnect throttle) arms the renderer's notice, which offers the same reconnect and is gated on live status so it clears when the peers cycle on their own.
-- **Application** — `setRelayThrough` (`network/swarm.js`) installs the relay function on **both** the control and content swarms. Configuring only the control swarm yields a build whose handshakes connect and whose transfers stall, so it must run **after** `initContentSwarm` — the two swarms are constructed on consecutive lines and `getContentSwarm()` is null in between.
-- **Mode** maps onto hyperswarm's own semantics: `off` installs no function at all (byte-identical to a build without relay support, and the only kill switch since the `relay` feature flag was retired), `auto` engages after a failed punch or on a randomized NAT, `always` asks for a relay on every connection (the only way to *test* a relay end-to-end — best-effort, because the punch running underneath can still move the stream direct, which is why the control reads "prefer"). Under `auto` we also **offer** our relay on the announce path, so a peer with no relay of its own can adopt ours — but never for a **private** relay: a stranger who adopted that key is not on the roster, and the refusal it gets is indistinguishable from the relay being offline. `off` removes only **our** contribution: hyperdht relays when either side names a relay, so a member whose own relay offers or dials still carries the connection, and the Relay settings section names those members (`peersRelayingWhileOff`) rather than offering a reconnect that cannot move it.
-- **Probe** — `network:test-relay` dials the key and waits for the `blind-relay` Protomux channel to open, so a mistyped key fails at configuration time rather than weeks later as a space that silently never syncs. It runs on its own when a relay is added.
-- **Attribution** — hyperdht keeps which relay carries a stream, and whether this side supplied it or adopted it from the remote payload, on private handshake state and discards both. They cross a public surface once: hyperdht obtains its pairing client through `blind-relay`'s `Client.from(relaySocket)` and that client emits `'pair'` with the peer's raw stream. `network/relay-observe.js` wraps that static for the life of the swarm (restored on close; nothing under `node_modules` changes) and records `{ relayKey, adopted, relayEndpoint }` per raw stream. `network/relayed-connections.js` reads it once per accepted socket and decides provenance then: a relay is `own` when this side supplied it (the blind-relay pairing initiator) or when the peer named the key we are live on (a relay function is installed on the swarm), and `adopted` otherwise — key equality alone would call a peer's relay ours whenever both sides configured the same one with ours off. Each entry also records `supplied` (this side was the initiator), and `relayMismatch` reconnects only those: a relay the peer supplied comes straight back on the redial, even through our own key. It keeps the live set, and drops an entry on `close` or when udx's `'remote-changed'` shows the stream no longer points at the relay's endpoint — hyperdht keeps hole-punching after the pairing and moves the SAME socket direct when the punch lands, so relayed is a transient state. The member roster reads the same live set per person through `members:reach`, folded over both planes by `network/member-reach.js`, and re-derives on the `members` scope when a stream leaves its relay or a content socket binds. The frame carries it as `relay: { connections, direct, digest }` (`digest` is the scalar leaf the status dedup compares); the audit log records `network.peer_relayed` after `relayAuditDwellMs`; the support bundle ships a redacted `relay` section. Upstream request to expose the fact on the stream: https://github.com/holepunchto/hyperdht/issues/303.
-- **Obtaining one** is an operator task. A relay publishes the public key of its `hyperdht` node — that string is the entire configuration for an open relay — or mints a per-member ticket for a private one.
+- **Slot.** `network.relay` holds `{ publicKey, kind: 'open'|'private', label, enabled, lastTest }`, and `network.relayMode` is `'off'|'auto'|'always'` (default `off`). There is one slot because hyperdht picks among several keys at random, without health checks.
+- **Ticket.** A ticket is 69 bytes, z-base-32 encoded to exactly 111 chars behind `mirall://relay/`:
+  - byte `[0]` version = 1;
+  - bytes `[1..33)` relay key;
+  - bytes `[33..65)` member seed;
+  - bytes `[65..69)` checksum: the first 4 bytes of the blake2b hash of bytes `[0..65)`.
+
+  The codec is `src/shared/network/relay-ticket.js`, a frozen contract shared with `mirall-relay` and pinned by a shared test vector. The 111-char gate is **not** redundant with the checksum: the last char is 3 slack bits, so a paste missing it decodes to identical bytes. Wire errors are `invalid-format` / `unsupported-version` / `checksum-failed`. The app adds `incomplete-invite`.
+- **Identity.** A ticket's seed derives the DHT `defaultKeyPair`, which is the key the relay roster matches. `swarm.js` builds the `hyperdht` node itself because hyperswarm cannot set that key. Open relays use a random per-boot key. Peer identity is unaffected.
+- **Seed at rest.** The seed is stored in `relay-ticket.enc` under `safeStorage`, mode `0600` (`src/main/relay-secret.js`). It is a bearer credential: it stays out of `config.json`, is never returned to the renderer, and reaches the worker only on the `bootstrap` frame. `relay:set` (`src/main/relay-slot.js`) is the single writer of vault and slot. A crash between the two writes must leave the *visible* failure, a config naming a missing seed. Today the vault is written first on add as well as on remove, which meets that rule only on remove.
+- **Missing identity.** A config naming a private relay does not prove the seed is live. If the seed is missing, `setRelayThrough` (`src/shared/network/relay-install.js`) refuses with `identity-missing` and stays direct, because routing every dial into a roster refusal is worse than no relay.
+- **Install.** `setRelayThrough` installs on **both** swarms; on control alone, handshakes connect and transfers stall.
+  - `off` installs no function.
+  - `auto` relays after a failed punch or on a randomized NAT.
+  - `always` relays every dial, best-effort, because the punch underneath can still go direct.
+  - `auto` and `always` also offer our key to dialers, except a private relay's: a stranger would get a refusal indistinguishable from an outage.
+- **Existing connections keep their path.** The relay is chosen per dial and per inbound handshake. `network:set-relay` (`src/worker/ipc/network.js`) asks `relayMismatch` (`src/shared/contract/relay-apply.js`) whether live connections contradict the new mode. If they do and nothing is transferring, it reconnects, and it replies with `{ mismatch, reconnected }`. A pinned-identity change needs a new DHT node, so `relay:set` reports `identityChanged`, and the renderer restarts the worker via `pear:restartWorker` (`src/renderer/hooks/useRelayApply.ts`).
+- **Provenance.** hyperdht discards which relay carries a stream. `src/shared/network/relay-observe.js` wraps `blind-relay`'s `Client.from` and records the relay key per raw stream on `'pair'`. `src/shared/network/relayed-connections.js` classifies each socket once, on both planes:
+  - `own` when this side supplied the relay (the pairing initiator), or when the peer named the key we are live on;
+  - `adopted` otherwise. Comparing keys alone would call a peer's relay ours whenever both sides configured the same one.
+
+  Only `supplied` connections can be moved by a reconnect. A peer-supplied relay comes straight back on redial, so `off` cannot end it, and Settings names those members instead. An entry drops on `close` or on udx `'remote-changed'`, because hyperdht keeps punching and moves the same socket direct. `members:reach` folds this per person across both planes (`src/shared/network/member-reach.js`).
+- **Probe.** `network:test-relay` waits for the `blind-relay` channel to open, not just a Noise connect, so a wrong key fails at configuration time.
 
 ---
 
 ## 5. Invitation Mechanism
 
-1. Creator generates a space → 32-byte random topic → invite code (`encodeInvite`, §5.1).
-2. Joiner pastes the code or clicks a deep link; `decodeInvite` recovers the topic and any metadata.
-3. Joiner's app creates a local drive (same namespace scheme), stores metadata, joins the topic.
-4. On first connection the protomux handshake exchanges drive keys; reciprocal handshake + Corestore replication do the rest.
+1. `createSpace` draws a random 32-byte topic. The `spaceId` is its first 16 hex chars.
+2. `joinSpace` (`src/shared/spaces/space-lifecycle.js`) records a **pending** space. The envelope's `c` becomes a provisional `creatorKey`. Nothing is announced before the grant.
+3. The joiner sends `membership:request`. The approver's `membership:grant` carries the SCK and the authenticated creator root. `materializeSpace` then publishes the participation id and loose-catalog key, and from then on the space handshakes normally.
 
 ### 5.1 Invite envelope formats
 
-Two wire formats coexist. `decodeInvite` accepts either; `encodeInvite` always emits v1.
+`src/shared/contract/invite-envelope.js` is the only codec. It has no imports and a hand-rolled UTF-8 layer, so the renderer, Bare and main (via `import()`) all decode identically. `decodeInvite` first peels a `mirall://join` link, then tries v0, then v1, else returns `null`. `encodeInvite` emits v1.
 
-| Version | Shape | Use |
+- **v0 (compat)** is 64 hex chars (the topic), case-insensitive, with dashes stripped.
+- **v1** is unpadded base64url of UTF-8 JSON:
+
+| Key | Meaning | Rule |
 |---|---|---|
-| **v0** (compat) | Bare 64-char lowercase hex — `topic` only | Emitted by older clients; older peers paste the dashed hex code |
-| **v1** | Base64url-encoded JSON, `{v:1, t:<hex64>, …}` | Default. Carries the space name (`NAME_MAX = 80` chars, truncated) plus owner/creator, schema version, invite id, expiry, and auto-admit policy (`encodeInvite({ topic, name, owner, ownerName, creator, schemaVersion, autoAdmit, inviteId, expiresAt })`) |
+| `v` | version | `1` |
+| `t` | topic | hex64, required |
+| `n` | space name | truncated to 80 |
+| `o` / `d` | inviter key / name | `d` only with a valid `o` |
+| `c` | creator root | hex64 |
+| `s` | schema | emitted if ≥ 2; accepted 1–2 |
+| `a` | auto-admit | literal `1` |
+| `id` | invite id | hex32 |
+| `x` | expiry | positive int, ms epoch |
 
-`decodeInvite` strips dashes/whitespace, tries hex first (v0), then base64url-JSON (v1); anything else returns `null`.
-
-The codec is one declaration, `shared/contract/invite-envelope.js` — plain ESM with no imports, so esbuild bundles it into the renderer, Bare loads it in the worker and `main/deeplink.js` reaches it through a dynamic `import()`.
+Every field but `t` is an unauthenticated hint. The minting member's invite record and the grant are authoritative.
 
 ### 5.2 Deep-link delivery
 
-`mirall://join/<code>` (or `mirall://join/?code=<code>`) launches or focuses Mirall and pre-fills the Join Space dialog. `<code>` is a v0 hex string or a v1 envelope; `parseDeepLink` (`main/deeplink.js`) validates protocol + host + code.
+`mirall://join/<code>` or `mirall://join?code=<code>` launches or focuses Mirall and pre-fills Join (`src/main/deeplink.js`).
 
-| Platform | Hookup | Triggered by |
-|---|---|---|
-| **macOS** | `setAsDefaultProtocolClient` → `LSSetDefaultHandlerForURLScheme`. Cold + warm both arrive via `app.on('open-url')` | Browser click, `open mirall://…`, Messages tap |
-| **Windows** | Same call writes the registry entry. **Cold**: URL lands in `process.argv`, scanned for `mirall://` (paparam would reject positional URLs). **Warm**: `requestSingleInstanceLock()` + `app.on('second-instance')` forwards argv to the running instance | Browser click, Run dialog, second `Mirall.exe mirall://…` |
-| **Linux** | `.desktop` declares `MimeType=x-scheme-handler/mirall;` and `Exec="…/Mirall" %U`. AppImage installs rewrite `~/.local/share/applications/Mirall.desktop` on every launch (`integrateXdgLinux`, §2 step 11); deb installs ship the same MimeType statically. Same single-instance + argv path as Windows | `xdg-open`, browser click, `gio open mirall://…` |
+| Platform | Hookup |
+|---|---|
+| macOS | `setAsDefaultProtocolClient`; cold and warm links both arrive via `open-url` |
+| Windows / Linux | Cold start: the URL is an argv positional, split off before `paparam` so a strict parse cannot bail (`src/main/boot-argv.js`). Warm start: `requestSingleInstanceLock` + `second-instance` |
+| Linux | AppImage: `integrateXdgLinux` rewrites the per-user `.desktop` (`%U`, `x-scheme-handler/mirall`) on each launch. deb: the package owns the entry, and `retireXdgAppImageEntry` removes a shadowing per-user one |
 
-**Cold-start queue.** Links can arrive before the renderer mounts, so main buffers them in `pendingDeepLinks[]` until the renderer's `bridge.deepLink.subscribe(fn)` triggers `deeplink:flush`. Later links forward live. `revealWindow()` runs on every dispatch.
+Main buffers links until the preload's subscribe calls `deeplink:flush`. The renderer routes them invalid → expired (60 s grace) → already a member → join (`src/renderer/model/deep-link-route.js`).
 
-**Renderer routing.** `hooks/useDeepLinks.ts` subscribes once above the boot gate and queues links; the shell drains the queue through `model/deep-link-route.js` (invalid → expired → already a member → join) and opens the join dialog with code (and name) prefilled. Subscribing returns the unsubscribe fn so React's effect cleanup tears the listener down.
-
-**Security.** The topic is a shared secret; anyone holding a code can *knock*. The deep-link layer adds no new authority — `mirall://join/<code>` is exactly equivalent to pasting `<code>`. The `name` field is a UI hint the joiner can override. Read access still requires approval (§16, §14).
+**Security.** The topic is a shared secret, so a code lets its holder *knock*, never read. A deep link carries exactly the authority of pasting its code. Read access still needs approval (§16).
 
 ---
 
 ## 6. Space Leave & Cleanup
 
-The dialog is a destructive confirm whose button reads "Leaving…" until the request answers; there are no progress events. The handler (`worker/ipc/space-leave.js`) answers the renderer within 12 s whatever the teardown is doing — the load-bearing steps come first, the slow ones finish in the background, and a stall is logged with its phase.
+`space:leave` (`src/worker/ipc/space-leave.js`) handles a **pending** space with the cancel replay (§4.2), not a teardown. For a materialized space it closes the member view and runs a background teardown, answering the renderer within 12 s. Durable steps come first, and a stall is logged with its phase.
 
-1. **Durable `leaving` marker** on the space record (`markSpaceLeavingDurable`) — the first durable act, so an interrupted teardown is completed at the next boot (below).
-2. **The shared teardown order** (`spaces/membership/leave-state.js#runLeaveTeardown`, the same sequence boot's interrupted-leave pass runs):
-   - `clearOwnMembership(spaceId)` — the durable `member/<spaceId>` delete, authored **before** the frame so co-members can re-host it — then `sendLeaveFrameToConnectedPeers(spaceId)`, the instant signal on every live `mirall/handshake` channel (§4.2).
-   - Owned mounts: cancel the periodic reconcile, stop the owned folder and its watcher, delete the mount record; then `stopPublishingForSpace` (awaited — a cancelled publish still writes its revert).
-   - Tombstone our own share records, so a rejoining co-member does not read a stale advertisement back.
-   - Unmount every foreign mount of the space.
-3. **Bounded ack flush** (`awaitLeaveAcks`, 500 ms – 2 s): wait for connected members to confirm they applied the leave; then `armPendingLeaveIfUnwitnessed` persists a pending-leave marker when some member did not ack, so the leave is replayed to them later (§4.2 replay lanes).
-4. `forgetSpaceRecord(spaceId)` — the space is gone from the list from here on, whatever fails below; the download root is dropped.
-5. Cancel our own in-flight fetches (`overlayCancelSpace`, `looseCancelSpace`) and stop **serving** the space (`revokeServesForSpace` + `bumpServeEpoch`) — as the owner we hold no fetch slots, so without this the content plane would keep streaming the space's bytes.
-6. Leave the Hyperswarm topic and detach every connected peer from the space (`disconnectPeersFromSpace`).
-7. `cleanupDownloadHistory`, `clearPendingForSpace`, `purgeOwnCatalog`, `purgeSpace` (the space row), `forgetUnreferencedPeerCores`.
-8. One background `compactStore()` for everything purged above — never awaited.
+1. Write the **`leaving` marker** (`markSpaceLeavingDurable`). It is the first durable act, so a crash later is completed at boot.
+2. Run **`runLeaveTeardown`** (`src/shared/spaces/membership/leave-state.js`). Boot recovery runs the same sequence:
+   1. `clearOwnMembership` deletes `member/<S>`. It runs **before** the leave frame, so that co-members who apply the frame can already re-host the delete.
+   2. Stop owned mounts, then await `stopPublishingForSpace`. A cancelled publish still writes its revert, and that write must precede the purge.
+   3. Tombstone our share ads, so a rejoining co-member cannot read them back.
+   4. Unmount foreign mounts.
 
-`purgeCoreDk` writes RocksDB tombstones directly for the `TL_CORE_BY_DKEY`, `TL_CORE`, `TL_DATA` ranges. **Not** `Corestore.deleteCore()` — it short-circuits when auth blocks are missing, leaving zombie aliases that crash later opens with `STORAGE_EMPTY` / `unslab`.
+   The membership delete is a hard gate at boot and best-effort live. The other steps are best-effort.
+3. Run the **ack flush** (500 ms floor, 2 s cap). The floor leaves co-members time to pull the `del` block. If any member did not ack, a pending-leave marker is armed.
+4. `forgetSpaceRecord`: from here the space is gone, whatever fails later.
+5. Cancel our fetches, then revoke **serving** (`revokeServesForSpace` + `bumpServeEpoch`) while the serve index still resolves. As owner we hold no fetch slots, so without this the content plane keeps streaming.
+6. Leave the topic and detach the space's peers.
+7. Purge history, pending rows, the own catalog, the retired drive, the space row, and unreferenced peer cores (§14). Then start one background `compactStore()`, never awaited.
 
-### Interrupted-leave recovery (durable `leaving` marker)
-
-The teardown's edge signals can be lost: a quit mid-teardown used to leave the space record present, and boot's `markOwnMembership` backfill re-PUT `member/<S> = {active:true}`, silently reversing the leave.
-
-So the teardown persists a durable `leaving: true` marker on the space record as its **first** durable step (`markSpaceLeavingDurable`, riding `mutateSpace`'s serialized write chain, before `clearOwnMembership`). A clean leave deletes the whole record (`forgetSpaceRecord`), so the marker only ever survives an *interrupted* teardown.
-
-At boot, before the membership backfill, `resumeInterruptedLeave` completes any space still carrying it:
-- re-run `clearOwnMembership` — the hard gate; a throw keeps the marker so the next boot retries the `del`;
-- best-effort delete the space's owned/foreign **mount records** (the watcher/mirror restart loops iterate the mount stores, not the space list — a surviving record would re-arm against a forgotten space);
-- tombstone own share ads; drop the record. The boot call site also purges the space's download-history + pending-transfer rows (spaceId-keyed, no sweep reclaims them). Leftover cores/partials are reclaimable garbage for the existing sweeps.
-
-A `leaving` space is invisible everywhere it matters — the backfill/topic-join loops (`activeSpaces`), `openMemberView`, and the renderer projection (`slimSpaces` / `space:members`) all skip it. `joinSpace` clears a surviving marker when a rejoin reuses the record, so a failed completion can never delete a space the user rejoined.
-
-### Fold-observed leave revoke (offline approver)
-
-`handleLeaveFrame`'s cleanup triple (`markLeft` + `persistLeftTombstone` + `revokeApproval`) only ran on the **live** frame, which reaches connected sockets only. An approver offline at leave time therefore never revoked its grow-only vouch — so a departed member re-asserting `member/<S> {active:true}` was silently re-admitted off it.
-
-The member view now surfaces `inactive` from `deriveMemberSet` — peers whose record was actually **read** as `active:false` (a replicated `del`); never a null/unreplicated peer, never a cascade victim. `member-registry.applyObservedLeaves` mirrors the frame handler for peers that were in our prior-member belief and now read inactive.
-
-**The revoke comes first and gates the tombstone.** A failed revoke leaves the key unhandled (no `markLeft`), and since the surviving vouch keeps it seeded in `prior` at the next view open, the retry is self-sustaining across sessions.
-
-Prior-member belief (`entry.prior`, a `Map<key, lastKnownTs>` that also stamps the tombstone's single-clock `leaveTs`) is seeded at view open from the durable roster (`space.members`) **and our own authored approvals** — the roster alone can lose a vouchee that reconcile dropped on a transient null read — and grows with each fold, so the observation also fires when the `del` lands before the session's first fold (approver restarted). `isLeft` guards against double-acting after a received frame. The pure decision is `observedLeavers` in `membership/fold.js`.
+**Interrupted leave.** The marker survives only an interrupted teardown. At boot, before the backfill, each marked space with members first arms a pending-leave replay, then re-runs `runLeaveTeardown` with durable-only steps. The steps are: the member delete (a throw keeps the marker), then mount records (the restart loops iterate mount stores), share ads, the record, and the space's transfer rows. A `leaving` space is skipped by topic joins, the backfill, `openMemberView`, `slimSpaces` and `space:members`. A rejoin via `joinSpace` clears the marker.
 
 ### Membership reconciliation
 
-**This replaces an earlier design** in which each peer published witness observations
-(`observed/<leaverPk>/<spaceId>`) and a `reconcileMember` pass evaluated them as second-hand evidence
-that a third party had left. None of that ships: third-party removal is deliberately **not modelled**
-(`membership/fold.js`), because a claim about someone *else's* membership would need an ordered log to
-decide which of two concurrent claims came first. Membership is instead a **derived** fact —
-recomputed from replicated records — rather than a handshake-time cache anyone patches.
+Membership is **derived**, never patched as a handshake-time cache. `foldMembership` (`src/shared/spaces/membership/fold.js`) is a pure, order-independent OR-Set fold over replicated profile-bee records:
 
-**The fold (`spaces/membership/fold.js`, pure).** `foldMembership(records, creatorKey)` is an order-independent,
-idempotent OR-Set fold over the roster's replicated profile-bee records. It keeps two questions strictly apart:
-
-| | Question | Record | Who may write it |
+| | Question | Record | Writer |
 |---|---|---|---|
-| **Authorization** | is `p` in the approval tree rooted at the creator? | `approved/<S>/<joiner>` | the voucher, in their own log — grow-only, retracted only by deleting the row |
-| **Liveness** | does `p` assert membership? | `member/<S> = { active }` | `p` alone |
+| Authorization | in the approval tree rooted at the creator? | `approved/<S>/<joiner>` | the voucher, in its own log; retracted only by deleting the row |
+| Liveness | asserts membership? | `member/<S> = { active }` | `p` alone |
 
-`p` is a member **iff both hold**. Deriving authorization from the member set instead would let a
-departure retroactively invalidate every vouch its author ever wrote — the creator leaving would
-unroot the tree and empty the space. So the creator's key is the permanent **root** of authorization:
-it marks where the chain starts, confers no powers, and leaves the creator subject to liveness like
-everyone else. A vouch authored *after* its author recorded its own departure confers nothing;
-`memberSeq` and `approvalSeqs` are positions in the same append-only log, so that comparison needs no
-clock and no local state. A peer whose bee hasn't replicated yet is simply absent from `records` — it,
-and anyone only it approved, stays out until it arrives, and the next fold self-heals.
+A peer is a member only if both hold. Authorization does not depend on the member set, because otherwise a departure would void every vouch its author wrote, and the creator leaving would empty the space. The creator is a permanent, powerless root that is still subject to liveness. A vouch authored after its author's own departure confers nothing; this is judged from log positions, with no clock. Third-party removal is **not modelled**, because it needs an ordered log (Autobee, §3). Discovery uses `.authorized`, not `.members`, so a departed member's approvees are still fetched.
 
-The fold returns `.members` (the roster) **and** `.authorized`. Discovery takes `.authorized`, since it
-must open the bees of a departed member's approvees too, or they are never fetched and can never heal.
+**Local tombstone.** A leaver's `del` may not replicate before it disconnects, and the fold would re-add it. Peers we saw leave go into `lefts` (`src/shared/spaces/member-registry.js`, persisted in `spaces-meta`). The fold subtracts them and the handshake gate ignores them. A tombstone is **never replicated**, because it records our own observation, not a claim about a third party. It self-clears when the leaver writes a newer `member/<S>` (`tombstoneActive`).
 
-**The tombstone (`spaces/member-registry.js`), and why it is local.** A leaver's `del member/<S>` is
-durable but may not replicate before they disconnect mid-teardown, so a fold would keep reading their
-stale `active:true` and re-add them. Peers we received a **leave frame** from are therefore recorded in
-`lefts` (spaceId → key → `leaveTs`), which the fold subtracts and the handshake gate ignores. It is
-backed by `spaces-meta`, i.e. **local and never replicated** — it is our own record of what we
-observed, not an assertion about a third party, which is exactly the distinction the retired witness
-design lost. It self-clears when the leaver asserts a newer `member/<S>` (`tombstoneActive`), which
-covers the creator/root too, so a genuine rejoin needs no manual reset.
+**Fold-observed leave.** An approver that was offline during a leave gets no frame. If it kept its vouch, a later re-assert would silently re-admit the leaver. `applyObservedLeaves` therefore mirrors the frame handler for any peer that was in `prior` and now reads `active:false`. That is positive evidence of a leave, which a null, unreplicated or cascade-dropped record is not.
+- `prior` is seeded from the durable roster **and** our own approvals, because the roster alone can drop a vouchee on a transient null read.
+- Adopting the vouchees and revoking our vouch **gate the tombstone**. If either fails, the surviving vouch re-seeds `prior` next session, so the retry is self-sustaining.
+- Serve grants are revoked too.
+- `isLeft` prevents a second action after a leave frame.
 
-**Fold-observed leaves.** `applyObservedLeaves` mirrors the frame handler for a peer that was in our
-prior-member belief and now reads **`active:false`** — a replicated `del` we can attribute to the peer
-itself. Never a null or unreplicated peer, never a cascade victim. Prior-member belief (`entry.prior`)
-is seeded at view open from the durable roster **and our own authored approvals** — the roster alone
-can lose a vouchee that a fold dropped on a transient null read — and grows with each fold, so the
-observation still fires when the `del` lands before the session's first fold (approver restarted).
-**The revoke comes first and gates the tombstone**: a failed revoke leaves the key unhandled, and since
-the surviving vouch keeps it seeded in `prior` at the next view open, the retry is self-sustaining
-across sessions. `isLeft` guards against double-acting after a received frame.
-
-**Peer-bee capture.** Enforcement reads (invite records, member records) must stay answerable after the
-author goes offline, so every followed roster bee is explicitly captured into a local contiguous
-snapshot (`makeCaptureScheduler`) rather than relying on the follow's range download, which a starved
-replication session never delivers. A bee is refcounted across the views that reach it (`captureRefs`),
-so leaving one space doesn't stop capturing a peer shared with another; the convergence tick retries
-deficits under its own throttle.
-
-**Convergence properties.** Because the fold is pure and order-independent, every replica converges on
-the same set without a linearization step, and a peer offline at leave-time converges as soon as the
-leaver's `member/<S>` record replicates — from the leaver directly, or from any peer already carrying
-it. The remaining gap is §14: while the leaver is offline *and* its record has reached nobody we
-connect to, a departed member lingers in the roster.
-
----
+**Capture and convergence.** Every followed roster bee is captured into a local snapshot (`makeCaptureScheduler`, `src/shared/spaces/peer-bee.js`), because a starved follow's range download never completes. Captures are refcounted across spaces. Replicas converge once the leaver's `member/<S>` reaches them, from anyone. One gap remains (§14): while the leaver is offline and its record has reached no one we connect to, the departed member stays in the roster.
 
 ## 7. Folder Sharing (Owned & Foreign Folders)
 
-Publishes a whole local directory tree into a space and lets any peer mirror it locally. A share is a record in the owner's profile bee plus a section of the owner's replicated catalog keyed `file/<shareId>/<relPath>` (§3.7) — no new core types, and no bytes in any drive (§7.7). Loose files are the `LOOSE_SHARE_ID` section of the same catalog, so the two never need filtering apart.
-
 ### 7.1 Concepts
+
+A share is two things. One is a record in the owner's profile bee at `share/<spaceId>/<shareId>` (`src/shared/shares/shares.js`): id, immutable `name`, `displayName?`, owner, `contentMode`, catalog key. The other is a `file/<shareId>/<relPath>` section of the owner's replicated catalog (§3.7). No bytes go into any drive (§7.6). Loose files are the `LOOSE_SHARE_ID` section of the same catalog.
 
 | Term | Meaning |
 |---|---|
-| **Share** | A named folder offered into a space. Record `{ id, type:'owned-folder', name, owner, createdAt, deletedAt? }` published to the **owner's profile bee** at `share/<spaceId>/<shareId>`, so it replicates to peers |
-| **Drive path** | The consumer-side row key `/<ShareName>/<relPath>` (built in `shares/share-listing.js`). It keys download claims, pending transfers and reveal targets on every member, which is why `share:rename` writes `displayName` and never `name` (§8). Catalog keys themselves are `file/<shareId>/<relPath>` (§3.7) |
-| **Owned folder / owned mount** | Owner side. A local `mountPath` attached to a share; a chokidar watcher keeps the share in sync with it. Persisted at `owned-folder-mount/…` |
-| **Foreign folder / mirror** | Consumer side. A local path receiving a *read-only* copy of someone else's share, continuously materialized. Persisted at `foreign-folder-mount/…` |
+| **Owned folder / owned mount** | The owner's local `mountPath` for a share. A chokidar watcher in Electron main keeps the catalog in step with it. Persisted locally at `owned-folder-mount/<spaceId>/<shareId>` (`src/shared/folders/mount-store.js`) |
+| **Foreign folder / mirror** | A consumer's local path that receives a read-only, continuously materialized copy. Persisted at `foreign-folder-mount/<spaceId>/<shareId>` |
+| **Drive path** | The consumer-side row key `/<name>/<relPath>` (`src/shared/shares/share-listing.js`). It keys download claims, pending transfers and reveal targets on every member, so **`name` is never rewritten**: a rename sets `displayName` |
 
-Catalog entries carry `{ mtime, hash }` so both sides diff disk vs. catalog by content hash instead of re-transferring unchanged files.
-
-Module map: §11.
+Mount statuses and their transitions are documented in the header of `src/shared/contract/statuses.js`. The owned tuple is the foreign one minus `idle`. An owned mount's status is derived by `src/shared/contract/mount-precedence.js` from its `indexPaused` and `lastError`; a mirror's status is assigned.
 
 ### 7.2 Publishing (owner side)
 
-1. **Mount** (`owned-folder:mount`). After `mount-validate` passes, save the owned mount, ask main to start a chokidar watcher, emit `event:owned-folder-mount-status: 'scanning'`.
-2. **Initial scan** (`runPublishPass`). A **diff-and-enqueue** producer: walks the tree **stat-only** honoring `ignore` globs (`DEFAULT_IGNORE` is `.DS_Store`, `Thumbs.db`, `*.mirall.part` — OS litter and our own in-flight downloads; a folder's own contents, repository and dependencies included, publish), diffs against the catalog by **size+mtime** — the git-index change signal, no reads for unchanged files — and enqueues one `publish` item per new/changed file and one `retire` item per catalog entry with no file behind it (never when the mount root itself is missing). It resolves once the share's items have settled, with `{ uploaded, deleted, totalOnDisk }`, which the worker emits as `event:owned-folder-scan-completed`. The content hash is published as entry metadata for mirrors to verify against; it does **not** drive owner-side change detection.
-   **The publish queue** (`folders/publish-service.js` over `publish-queue.js`, `publish-scheduler.js`, `work-item.js`). Every producer — mount, relocate, boot, the watcher, the catch-up, the periodic reconcile and a loose-file add — only enqueues; one scheduler executes, and the runner hands each item to the **channel** its share id selects (`folder`, registered by `owned-channel.js`; `loose`, by `overlay/loose-publish.js`): the channel resolves the path, publishes or retires, and declares whether it writes direct or through the space's catalog batch. A work item is keyed by **path** (`shareId\0relPath`), never by content hash: at most one live item per path, so a second request folds into a queued item or marks a running one dirty for exactly one rerun — a file can never be read twice concurrently. Queues are **per space**; a bounded runner (`publishConcurrency`, default 2) hands slots out round-robin across spaces, and while more than one space has work no space may hold every slot, so a large index in one space never stalls another. Within a space the order is a runtime-config knob (`publishOrder`: `fifo` | `smallest-first` (default) | `largest-first`; not surfaced in `config.json`); an interactive item (a watcher event) outranks a bulk backfill, and a retire outranks a publish. Scheduling is non-preemptive, so interactive items also get an **express lane**: one may run past `publishConcurrency` while every bulk slot is held by a running hash. Bulk items — publishes and retires alike — write through one catalog batch per space (few atomic heads for the consumer); an interactive item first lands whatever the batch holds, then writes direct, so a dropped-in file is visible at once and no staged op can land after it and undo it. **Every executor re-derives its precondition from current state**: it re-resolves the mount (a relocate leaves enqueue-time paths stale), refuses to act when the root is missing (a vanished root makes chokidar emit one `unlink` per file), and a retire confirms the file is gone **under exactly that name** (`disk-presence.js`: a following stat would call a case-only rename or a symlink "present" forever) — absence from a minutes-old snapshot is a candidate, never a delete. A cancelled item stays the path's one live item until its executor honours the abort (a request arriving meanwhile becomes its rerun), and a cancelled pass resolves `cancelled: true` — the worker records no status for it. Unchanged files the diff skips still get their serve registration checked (`ensureServable`), so a transient `registerFile` failure heals on the next pass. `owned-folder:index-status` exposes a share's queue (there is no user-facing cancel: the only verb is Pause, and `cancelIndex` is reached through delete / relocate / leave); `event:owned-folder-index-progress` (decoration, coalesced) carries its progress.
-3. **Live updates** (`onFsEvent`). `add`/`change` enqueue an interactive `publish`; `unlink` enqueues an interactive `retire`. The executor applies the guards (root must still exist, file confirmed gone — an editor's rename-over fires a raw unlink for a path that is immediately back). `echo-guard` drops events for paths the worker itself just wrote — no upload-of-our-own-download loop. A 2 s-debounced catch-up diff follows quiet periods (macOS fsevents coalescing drops adds); it enqueues only what is missing and leaves a file younger than 2 s with no catalog entry to the watcher's `awaitWriteFinish` rather than reading it mid-copy — and re-arms itself with backoff (2 s → 60 s) while a pass deferred anything, since the deferred file's own add may be the one that was dropped.
-4. **Periodic reconcile.** A recurring timer re-runs the fast stat-only diff to heal what the watcher missed (sleep, dropped events). Every Nth pass (`deepReconcileEvery`, default 4 → ~daily at the 6 h interval) runs **deep**, content-hashing every file to catch an in-place rewrite that preserved size+mtime. Boot and the periodic pass enqueue into the same queue as everything else, so several mounted folders no longer hash concurrently.
-5. **Relocate** (`owned-folder:relocate`). Moves the mount; runs a **deep** reconcile so an identical tree at the new path — whose mtimes typically differ after a move/copy — relocates with zero re-upload and no mirror churn.
-6. **Delete** (`owned-folder:delete`). Stop the periodic reconcile and the watcher, delete the mount record, tombstone the **share record** — which retires the whole share from every consumer's view and cascades to every peer's mirror. The two writes land in different bees, so the flow is bracketed by an `owned-delete` **durable intent** (§2) and boot finishes an interrupted pair.
-   **It does *not* tombstone the per-file catalog entries under the prefix**, and that is deliberate at the content layer — the overlay keeps no per-share drive blobs, so the share tombstone alone is what consumers act on. The cost is that a deleted share's full file metadata (path, size, mtime, hash per file) stays live in the owner's catalog for the lifetime of the space, and is excluded from the one sweep that could collect it. §14.
+**One queue, many producers.** Mount, relocate, boot, the watcher, the catch-up, the periodic reconcile and a loose-file add all only *enqueue*. `src/shared/folders/publish-service.js` executes, and hands each item to the channel its share id selects: `folder` (`src/shared/folders/owned-channel.js`) or `loose` (`src/shared/transfer/backends/overlay/loose-publish.js`). The rules:
+
+- **An item is keyed by path (`shareId\0relPath`), never by hash.** At most one item per path is live. A second request folds into the queued item, or marks a running one for exactly one rerun, so a file is never read twice concurrently.
+- **Queues are per space and the scheduler is fair across spaces.** The rules are in the header of `src/shared/folders/publish-scheduler.js`: bulk slots (`publishConcurrency`) go round-robin, no space holds every slot while another has work, and one express lane lets an interactive watcher event start while every bulk slot is held by a long hash. Within a space, retires go before publishes, and `publishOrder` (runtime config) orders the bulk work.
+- **Bulk items write through one catalog batch per space**, so a consumer sees few atomic heads. An interactive item first flushes the batch and then writes direct, so a dropped-in file shows up at once and no staged op can land after it and undo it.
+- **Every executor re-derives its precondition from current state.** It re-resolves the mount (a relocate makes enqueue-time paths stale). It refuses to act while the root is missing, because a vanished root makes chokidar emit one `unlink` per file. A retire confirms the file is gone **under exactly that name** (`src/shared/folders/disk-presence.js`), because a following stat would call a case-only rename "present" forever. Absence from an older snapshot only makes a file a candidate for deletion.
+
+**Change detection is size+mtime and stat-only.** The content hash is published so mirrors can verify against it; it does not drive owner-side detection. `DEFAULT_IGNORE` (`src/shared/folders/path-keys.js`) excludes only OS litter and our own `*.mirall.part` files. The rest of the folder publishes, repository and dependency directories included.
+
+**Watcher gaps.** `src/shared/folders/echo-guard.js` drops events for paths the worker itself just wrote, so our own downloads are not re-uploaded. macOS fsevents coalescing drops adds, so after the watcher goes quiet a debounced catch-up diff runs (`src/shared/folders/owned-watcher.js`). It leaves a file still being written to `awaitWriteFinish`, and re-arms with backoff while it deferred anything. A periodic stat-only reconcile (6 h, `src/worker/mounts-runtime.js`) heals sleep and dropped events. Every `deepReconcileEvery`-th pass content-hashes everything, to catch an in-place rewrite that kept size+mtime. **Relocate** always runs deep, so that a moved tree (identical content, new mtimes) re-uploads nothing.
+
+**Delete** stops the watcher and the reconcile, deletes the mount record, and tombstones the share record. Consumers act on that tombstone, and it cascades to every mirror. The two writes go to different bees, so an `owned-delete` durable intent brackets them (`src/shared/folders/folder-intents.js`, §2). The per-file catalog entries are **not** tombstoned. The overlay needs only the share tombstone, but the deleted share's metadata stays in the owner's catalog for the life of the space (§14).
 
 ### 7.3 Mirroring (consumer side)
 
-1. **Mirror** (`foreign-folder:mount`). After `mount-validate` passes (foreign mounts additionally reject paths inside `~/Downloads`), save the mount (`enabled:true`) and start the materialize loop.
-2. **Initial materialize** (`initialMaterializeScan`). List the owner's share prefix, download everything to the mount path, recording each delivered path in `syncedPaths`. Pre-existing user files at the destination are left untouched.
-3. **Steady state.** Membership of an already-mirrored path is an in-memory `Set` per mount (seeded from the persisted `syncedPaths` array, which keeps its shape — no migration), so a converged tick is linear in the file count rather than quadratic; a path is claimed *before* its bytes land, so a pass cancelled mid-file still owns what it wrote, while the collision check still treats a path claimed by the current pass as not-yet-ours so a pre-existing user file gets a sibling rather than being adopted. The record is written **once per pass and only when something changed**, through a read-merge patch that cannot clobber a concurrent pause or resurrect an unmounted record. `runMaterializeTick` runs every 30 s *and* on `onPeerDriveChanged` (a debounced tick fired when the owner's catalog appends — so owner edits land in seconds, not after the next poll). A converged tick skips the walk while the owner's catalog version matches the watermark the last converged pass set, up to `foreignFullWalkEvery` skips. That version cannot see a **local** change, so main keeps a recursive watcher over every enabled mirror (armed and disarmed by `startForeignLoop` / `stopForeignLoop`, the only two verbs that make a mirror live or not): `folders/mirror-watcher.js` drops an event whose file is exactly the one its verified record fingerprinted — the mirror's own landing — and asks for a walk for everything else through `requestMirrorWalk`, the same request a folder listing makes for a `modified` row; the walk keeps a foreign edit as a `(conflicted copy)` sibling and restores the owner's bytes, or fetches back a deleted file. Each tick diffs the catalog: a missing or changed entry is fetched by content hash through the overlay (`materializeOverlayFile`) into a `.mirall.part` and renamed into place; an entry that vanished from the catalog is unlinked by `applyChange` — the delete primitive — **only if** its path is in `syncedPaths`. Per-file progress streams as `event:decoration { key: shareId+':'+relPath, … }` with a terminal `done`.
-4. **Deletion safety.** `shouldHonorDeletions({ ownerOnline, driveCount, listingComplete })` honors owner-side deletions only when **all three** hold:
-   - **the owner is online** — the listing is live, not a replica snapshot;
-   - **the listing is non-empty** (`driveCount > 0`) — an all-empty listing is a transient replication gap, never "the owner deleted everything";
-   - **the listing was read to completion** — a catalog drain that timed out mid-tree returns a *partial, non-empty* list, indistinguishable from a real deletion unless completeness is checked. The likelihood of such a drain grows with the file count, so the bigger the folder the likelier the wrong delete.
+The mirror loop (`src/shared/folders/mirror-pass.js`) ticks every 30 s and again when the owner's catalog appends. It fetches changed entries by hash through the overlay (§7.6). A converged tick skips the walk while the owner's catalog version is unchanged. That version cannot see a **local** edit, so main also watches every enabled mirror (`src/shared/folders/mirror-watcher.js`) and requests a walk for anything but the mirror's own landings. The walk keeps a foreign edit as a `(conflicted copy)` sibling and restores the owner's bytes. `startForeignLoop` / `stopForeignLoop` (`src/shared/folders/foreign-verbs.js`) are the only verbs that make a mirror live or not live.
 
-   Those three are boolean gates on *whether* to act. Past them a **magnitude guard** applies (`minMirrorDeletions` / `maxMirrorDeletionRatio`, `runtime-config.js`): up to 8 deletions are always honoured; above that a pass may never remove more than half of what the mirror owns — a listing that shrank 1,000 → 3 is treated as a replication gap, not as a deletion. Mirrors are otherwise read-only and idempotent. A failed file retries on the next tick under a per-(path, hash) **attempt budget** (`folders/mirror-budgets.js`, 3 attempts, eviction-bounded): a bounded budget rather than a permanent block, so a second healthy holder still gets its turn.
-5. **Pause / unmount** (`folders/foreign-verbs.js`). `foreign-folder:set-enabled` toggles the loop; `foreign-folder:unmount` stops it, removes the record and tombstones the mirror row — the materialized files stay on disk (the overlay keeps no per-share cache to reclaim, matching owner-delete behaviour). Status flows through `event:foreign-folder-mount-status`. The tuple is `contract/statuses.js#FOREIGN_MOUNT_STATUSES`: `idle` / `scanning` / `active` / `paused` / `paused-enospc` / `paused-error` / `mount-point-gone` (the owned side is the same minus `idle`).
+**Ownership of paths.** A mirror may delete only paths in `syncedPaths`, the set of paths it delivered, so a user's pre-existing file is never removed. On a name collision the user's file gets a sibling. A path is claimed before its bytes land. The record is written through a read-merge patch, so it cannot clobber a concurrent pause or resurrect an unmounted record.
 
-### 7.4 Mount validation (`folders/mount-validate.js`)
+**Deletion safety** (`shouldHonorDeletions`, `src/shared/folders/path-keys.js`). Owner-side deletions are honoured only when all three of these hold:
 
-`validateMountPath(absPath, role, ctx)` **rejects** (codes surfaced via `errors/error-messages.js`): system folders (`MOUNT_FORBIDDEN_SYSTEM`), the app's storage dir (`MOUNT_FORBIDDEN_APP_DATA`), cloud-sync roots — Dropbox/OneDrive/iCloud (`MOUNT_FORBIDDEN_CLOUD_SYNC`), Windows reserved names / illegal chars (`MOUNT_FORBIDDEN_WIN_RESERVED`), overlap with an existing mount of the same role (`MOUNT_OVERLAPS`), a foreign mount inside `~/Downloads` (`MOUNT_INSIDE_DOWNLOADS`), non-writable paths (`MOUNT_NOT_WRITABLE`).
+- the owner is online, so the listing is live and not a replica snapshot;
+- the listing is non-empty, because an empty listing is a replication gap;
+- the listing was read to completion, because a drain that timed out returns a partial list that looks exactly like a deletion, and the risk grows with the folder's size.
 
-It also returns non-blocking **advisories**: macOS TCC-gated folders (Desktop/Documents), non-`C:` Windows drives that may be removable or network.
+Past those gates a magnitude cap applies. Up to `minMirrorDeletions` deletions pass. Above that, a pass may remove at most `maxMirrorDeletionRatio` of what the mirror owns, and ties keep the files.
 
-### 7.5 Path math (`folders/path-keys.js`) — pure, cross-platform
+A failed file retries under a per-(path, hash) attempt budget (`src/shared/folders/mirror-budgets.js`). The budget is bounded rather than a permanent block, so a second healthy holder still gets its turn. Unmount stops the loop and removes the record. It tombstones the mirror row but leaves the files on disk.
 
-Imports `PARTIAL_SUFFIX` (`transfer/partial-suffix.js`, which holds to the same no-`bare-*` rule) and `ignore` (zero-dependency pure JS, so it loads under Bare, Node and Electron main alike), so it unit-tests under plain Node on every platform. Exports: `relToDriveKey` / `driveKeyToSegments` / `driveBaseName` (OS path ⇄ always-POSIX drive key), `stripLongPathPrefix`, `isAbsoluteDriveKey` / `relKeyEscapes` / `dropUnsafeEntries` (owner-supplied key hygiene), `pathContains` / `pathsOverlap` / `overlapAllowed` (mount overlap), `shouldIgnore` (gitignore-spec match via `ignore`, one matcher instance memoized per pattern array) + `shouldPruneDir` (the same question asked of a path presented as a directory, which is what a walk may skip a descent on) + `DEFAULT_IGNORE`, `shouldHonorDeletions` (the mirror-delete gate, magnitude caps included — §7.3), `nextFreeName` / `conflictCopyName` (collision-free naming), and the validator predicates `systemRootViolation` / `personalRootViolation` / `isWindowsReservedName` / `cloudSyncHint`.
+### 7.4 Mount validation
 
-### 7.6 Mount lifecycle & the probe loop
+`src/shared/folders/mount-validate.js` checks every mount path, owned or foreign. It **refuses**:
 
-Mounts survive restarts: `MountsRuntime` (§2 boot step 9) rehydrates both mount kinds from `mounts-meta` and arms the 60 s **mount-probe loop**, which watches every mount's disk path — a USB eject or network-share drop flips the share to `mount-point-gone` and stops its watcher/loop; reappearance restarts it. State is instance state on the subsystem (`lastMountPointStatus`, `periodicTimers`), and the probe rides `this.timers`, so `_close` is the bulk stop — it was previously a module-level map plus a top-level interval with a per-share cancel but no bulk one, and so nothing could stop it.
+- system roots, the app's storage dir, personal roots (home, Desktop…), cloud-sync roots, Windows reserved names, and non-writable paths;
+- an overlap with **any** existing mount, except two owned folders at the exact same path;
+- nesting with **any** download root, in either direction. Downloads inside an owned folder would be republished, and mirrors mixed with downloads are indistinguishable. The download-folder validator runs the reverse check.
 
-The probe acts on a **transition**, and each tick reconciles its `lastMountPointStatus` baseline against the durable record before comparing: a record that already reads `mount-point-gone` over a path that is back is an edge, whether or not the probe saw the departure itself. That is what makes "source missing" clearable — the owned listing (`owned-folder:list-all`) stamps `mountPointMissing` from a live `mountRootAvailable` on every read and the renderer's precedence takes it first, so the strip *appears* level-triggered off any read, while clearing it needs an `event:owned-folder-mount-status` to poke the shares scope. Every writer that notices an absent root records it through `handleOwnedMountGone`, which is what puts the absence where the probe reads it; the reconcile is the backstop for one that does not.
+It also returns non-blocking advisories: macOS TCC-gated folders, and possibly removable Windows drives. The path math (`src/shared/folders/path-keys.js`) is pure and has no `bare-*` imports, so it unit-tests under Node.
 
-### 7.7 Content backend (`overlay`)
+### 7.5 Mount lifecycle & the probe loop
 
-Every share — folder and loose — moves bytes through the **overlay** backend (`transfer/backends/overlay/`). The canonical bytes are the user's **real file on disk**; nothing is copied into a Hyperdrive blob store.
+`MountsRuntime` (`src/worker/mounts-runtime.js`, §2 boot step 9) resumes both mount kinds from `mounts-meta` and arms a 60 s probe over every mount path and download root. A missing path flips the share to `mount-point-gone` and stops its watcher or loop. A returning path restarts it. A returning *owned* path goes back to `scanning` (a paused index stays paused), and the scan's outcome, not the probe, writes the next status.
 
-1. **Publish.** Stream the file once, computing the whole-file **content hash** and the content-addressed **chunk map** in the same pass; advertise its metadata into the share's replicated catalog (SCK-encrypted, §3.7).
-2. **Fetch.** A consumer lists the catalog and requests a file *by content hash* from any online holder over the `hyper-overlay/v2` Protomux channel. Chunks verify against the chunk map as they arrive; the file lands as a visible `<name>.mirall.part` beside its final name and is atomically renamed on completion, so observers see only a missing or a complete file. Serving passes the §16 authorization gates — **a denial is indistinguishable from "I don't hold it"**.
-3. **Resume.** Interrupted downloads persist a **receive journal** (received-chunk bitmap + streaming-hash snapshot) in the app-private `journals/` dir, so a resume continues where it stopped rather than re-verifying from scratch. Transfers pause when the holder goes offline and resume on reconnect.
+The probe acts on **transitions**, against a baseline reconciled with the durable record. A record reading `mount-point-gone` over a path that is back counts as an edge, whoever wrote it, and that is what makes "source missing" clearable. `owned-folder:list-all` stamps a live `mountPointMissing` that the renderer ranks first, so the strip *appears* off any read, but clearing it needs a mount-status poke. Every writer that notices an absent root records it through `handleOwnedMountGone`.
 
-The dispatch seam is `getContentBackend(share)` (`transfer/content-backends.js`): the overlay backend for `contentMode === 'overlay'`, and the `UNSUPPORTED` sentinel for every other mode — absent, the retired `'eager'`/`'deferred'` modes, or an unknown future mode — which callers render as unavailable rather than routing to a removed path. `test/integration/content-backend-conformance.test.js` locks the contract.
+### 7.6 Content backend (`overlay`)
 
-**Channel version negotiation.** The `hyper-overlay/v2` channel announces `{version, capabilities}` in its protomux channel handshake. A peer that sends no handshake bytes — every build before this shipped — is read as the *unannounced* version (1) with no capabilities, so a behaviour gated on a capability bit is simply off against it. The decoder is **total**: any channel on the socket dying takes the whole socket with it, and the channel id is the public protocol string, so a decoder that could throw would hand any swarm peer a one-frame socket kill. `MIN_VERSION` is 1 today, so no installed build is refused; when it is raised (in the same change that drops a message slot or changes a codec), a peer below it loses **only its content channel** — the socket, its sibling control channel (`mirall/handshake`, or `mirall/content-hello` when the separate content plane is on) and Corestore replication all stay up.
+All shares move bytes through `src/shared/transfer/backends/overlay/`. The canonical bytes are the user's **real file on disk**, never a Hyperdrive blob store.
 
-The generic v2 serve/fetch engine is a vendored subset of the `hyper-overlay` project; `backends/overlay/vendor/PROVENANCE.md` documents what was vendored and every local modification. Mirall-specific policy (authorization, catalogs, lifecycle) lives **outside** `vendor/`.
+- **Publish** streams the file once and computes the whole-file hash and the content-addressed chunk map in the same pass. Its metadata goes into the SCK-encrypted catalog (§3.7).
+- **Fetch** requests a file *by content hash* from any online holder over the `hyper-overlay/v2` Protomux channel, and verifies chunks against the chunk map as they arrive. The file lands as a visible `<name>.mirall.part` and is atomically renamed, so observers see only a missing or a complete file. Serving passes the §16 authorization gates, and **a denial looks the same as "I don't hold it"**.
+- **Resume**: an app-private receive journal (chunk bitmap + streaming-hash snapshot, in `journals/`) lets an interrupted download continue without re-verifying from scratch.
 
-#### Bandwidth limiting
+`getContentBackend(share)` (`src/shared/transfer/content-backends.js`) returns the overlay for `contentMode === 'overlay'` and `UNSUPPORTED` for every other mode. Callers render `UNSUPPORTED` as unavailable, never as a route; `test/integration/content-backend-conformance.test.js` locks this.
 
-User-set transfer caps (`transfer/bandwidth-limiter.js`) are byte-denominated token buckets — one for each direction, created in `overlay-instance.js` and **injected** into the protocol so `vendor/` keeps no app imports. Both read their rate through a getter on every call, so a settings change applies to **in-flight** transfers with nothing to re-plumb.
+**Channel versioning.** The channel handshake announces `{version, capabilities}`. A peer that sends nothing is version 1 with no capabilities, so a capability-gated behaviour is simply off against it. The decoder must be **total**: any channel dying takes the whole socket, and the channel id is public, so a decoder that could throw gives any swarm peer a one-frame socket kill. Raise `MIN_VERSION` (`src/shared/transfer/backends/overlay/vendor/protocol-v2.js`) only in the change that drops a message slot or changes a codec. A peer below it loses only its content channel. The control channel (`mirall/handshake`, or `mirall/content-hello` with the separate content plane) and Corestore replication stay up. New wire messages are appended last, so older peers ignore them.
 
-**The serve path decodes a file's chunk map once, not once per chunk.** A chunk-need used to re-read and JSON-decode the whole map from the file-index bee, and the scheduler re-assigns after every accepted chunk — measured at 101 bee reads for a 113-chunk file, which extrapolates to roughly 1.7 GB of JSON parsed per 1 GiB served, synchronously on the worker thread. A bounded LRU of decoded maps (`transfer/chunk-map-cache.js`, injected into the vendored `FileIndex` the way the limiters are injected; `serveChunkMapCacheBytes`, default 32 MiB, `0` disables) makes it one decode per serve; every write to a chunk-map key invalidates it, and a fence stops an in-flight decode from caching a pre-write value. Chunks are read asynchronously on **one fd per (peer, file)**, released on channel close or after 30 s idle, instead of an `openSync`/`readSync` pair per chunk.
+**Vendor boundary.** The serve/fetch engine in `vendor/` is a subset of `hyper-overlay`, and `src/shared/transfer/backends/overlay/vendor/PROVENANCE.md` records every local change. Mirall policy (authorization, catalogs, lifecycle, limiters, caches) stays outside `vendor/` and is **injected** from `src/shared/transfer/backends/overlay/overlay-instance.js`.
 
-**Every consumer holds its own `stream()` handle** — one per `ChunkScheduler`, one per peer on the serve side. There is deliberately no way to consume budget from the limiter object itself: a shared implicit handle would let two consumers overwrite each other's pending request, and a scheduler racing the bucket directly starves everything waiting its turn.
+**Bandwidth caps** (`src/shared/transfer/bandwidth-limiter.js`; its header has the mechanics):
 
-- **Upload** is charged in `_onChunkNeed` before each `chunkData.send`, against that peer's handle. `take()` resolves with the bytes actually **paid for** — `0` means the wait was aborted (limiter destroyed, peer's channel closed) and the caller must not send. The wait opens a revocation window just like the existing drain boundary, so the serve grant is re-checked on the far side of it.
-- **Download** is charged in `ChunkScheduler._assign`. It is a *pull* protocol, so inbound bytes are paced by pacing chunk **requests** — by arrival the bytes are already spent.
-- **Sharing is deficit round-robin, in BYTES.** Each waiting stream accrues an equal share of every refill and is granted once its balance is positive, then charged in full so it owes the difference back before its next turn. Arbitrating *turns* instead looks fair only while every transfer uses the same chunk size — and chunk size comes from the file-size tier (64 KB at tier 0, 4 MB at tier 3), so two concurrent transfers routinely differ 64x. Measured on a turn-based revision: the large-chunk transfer took 100% of the cap and the small one exactly 0.
-- **Anti-barge.** `tryTake` refuses the shared bucket while any stream is queued. Without it the transfer that polls most often wins everything, because the bucket refills continuously in wall-clock time and a transfer with chunks in flight re-enters `_assign` on every arrival.
-- **An oversized chunk** (tier-3 chunks reach 4 MB; a cap may be 64 KB/s) is released on any *positive* balance and the deficit repaid, or it could never be afforded at all. Deliberately not "on a full bucket": with concurrent streams the bucket never reaches full, because a stream with small asks drains each refill as it lands, and the large-chunk stream is starved outright.
-- **The idle watchdog is not suppressed by pacing; it is scoped to it.** `_armIdleTimer` runs only while something is actually outstanding with a peer (`_inflight` or `_requested` non-empty). Waiting on our own cap is not silence, and with nothing outstanding there is no one to be silent. Re-arming it on a limiter heartbeat instead — an earlier attempt — makes it never fire, so a peer that wedges while still TCP-alive is never detected. Note `MIN_BYTES_PER_SECOND` does **not** keep a chunk inside the window and never did (32 KB/s x 30 s = 983,040 bytes, under the 1 MB tier-2 max chunk); it is a usability floor only.
-- Caps govern the **content plane only**. Catalog/profile replication, handshakes and DHT traffic stay unthrottled — throttling them would starve the convergence that `test/flow/content-plane-hol.test.js` guards. A corrupt cap value fails **open** (unlimited), the inverse of the protective bounds in `runtime-config.js`; so does a getter that *throws*, since it runs inside a timer callback.
-- **A throttled sender announces itself (FIX-BW9).** The upload cap is invisible to the peer being served — the serve loop waits on `take()` and puts nothing on the wire — so past the downloader's 30 s watchdog a capped-but-healthy holder read as a wedged one, and the fetch aborted. It tripped whenever `chunkBytes x filesFromThatPeer x peersBeingServed > 30 s x uploadCap` — at the 32 KB/s cap floor that is any chunk over 983,040 B, so a tier-2 file's max-size (1 MB) chunks fail while its 256 KB average ones do not, and a tier-3 file fails on its *average* chunk. A parked serve loop now sends a **keep-alive** (wire message 14, appended-last so older peers ignore it) naming the chunk it is paying for; the receiver re-arms its watchdog only for a peer that owes it that chunk, and only within a bound (30 min) since VERIFIED progress — a signal no remote peer can drive — so a peer that keep-alives while sending nothing is still failed. A revoked serve grant stops the announcements too, or they would tell a peer we just removed that we hold the content. Holders that predate the frame (every v1.8.0 peer) are covered on the receiver side instead, by the stall retry in §4.5.
-- **Liveness is measured at the transport (FIX-BW10).** The same abort was reachable with no cap at all: a serve loop parked on stream backpressure is silent, and a single 4 MB tier-3 chunk takes 33.6 s to flush on a 1 Mbit/s wire — past the 30 s window with nothing stuck anywhere. A keep-alive answers neither (on a backpressured stream it queues behind the data it waits on). The watchdog now asks the transport before failing: **bytes arriving from that peer**, read from udx's per-packet `rawStream.bytesReceived` — secret-stream's `rawBytesRead` advances per decrypted *frame*, and a 4 MB chunk is one frame, so a frame-granular signal is blind for exactly the window that matters. Four gates keep it from becoming a watchdog that never fires: only a peer holding chunks of ours may extend (a peer that never answered our content request may never answer at all, so it is excluded), the delivery rate must clear a floor far above idle keep-alive chatter, the reach is bounded by the same verified-progress bound the keep-alive uses, and the bytes must plausibly be ours (a holder that silently dropped our batch is as busy as one mid-chunk). It needs nothing from the holder, so it covers peers already in the field. The holder's drain wait is measured the same way — it re-arms while its transport is still sending and abandons after 20 s with nothing leaving, rather than racing a flat deadline that would abandon a legitimate slow flush.
+- Caps govern the **content plane only**. Throttling replication, handshakes or DHT traffic would starve convergence (`test/flow/content-plane-hol.test.js`).
+- A corrupt cap, or a getter that throws, fails **open** (unlimited).
+- Each consumer holds its own `stream()` handle.
+- Fairness is measured in bytes, not turns, because chunk sizes differ up to 64× across tiers.
+- Upload is charged before each send: a `take()` of 0 means don't send, and the serve grant is re-checked after the wait.
+- Download is paced by pacing chunk requests.
+
+**Liveness.** The downloader's 30 s no-progress watchdog runs only while something is outstanding with that peer. It is extended in two ways, both bounded by 30 min since the last *verified* progress:
+
+- a holder parked on its own upload cap sends **keep-alive** frames;
+- the watchdog asks the transport whether bytes are still arriving (udx packets, because one 4 MB chunk is a single secret-stream frame).
+
+Decoded chunk maps are cached on the serve side (`src/shared/transfer/chunk-map-cache.js`). A write invalidates the entry, and a fence stops an in-flight decode from caching a stale value.
 
 ---
 
 ## 8. IPC Protocol
 
-### Renderer ↔ Main (Electron `contextBridge`)
+### Renderer ↔ Main (`window.bridge`)
 
-`src/preload/preload.js` exposes one `window.bridge`. Renderer→main goes through `ipcRenderer.invoke` (Promises) or `send`/`sendSync` (fire-and-forget / sync accessors); main→renderer events go via `webContents.send`, subscribed through `ipcRenderer.on` wrappers.
+`src/preload/preload.js` is the renderer's entire native surface, and the list of methods lives there. The rules:
 
-| Bridge method | Purpose |
-|---|---|
-| `pkg()` *(sync)* | The bundled `package.json` object |
-| `isDev()` *(sync)* | True if not packaged, or `PEAR_DEV_SERVER_URL` is set |
-| `getPlatform()` | `process.platform` |
-| `getPathForFile(file)` | Browser `File` → absolute path (`webUtils.getPathForFile`) |
-| `applyUpdate()` | Manual `pear.updater.applyUpdate()` — normally automatic (§9) |
-| `checkForUpdate()` | Manual `pear.updater._debouncedUpdate()` → `{triggered, length, fork}`. Useful when the swarm connection has gone stale |
-| `appVersion()` | The live drive head's `{length, fork, semver}` — what the banner renders |
-| `onPearEvent(name, fn)` | Subscribe to `pear:event:updating` / `pear:event:updated` |
-| `startWorker(spec)` | Spawn the worker via `pear.run(spec)` |
-| `writeWorkerIPC(spec, data)` / `onWorkerIPC(spec, fn)` | NDJSON frames to / from the worker |
-| `onWorkerStdout/Stderr/Exit(spec, fn)` | Worker stdio + lifecycle |
-| `getWindowBounds()` / `setWindowBounds(b)` | Window-bounds persistence (in `config.json`) |
-| `getConfig()` *(sync)* / `setConfig(patch)` | Read the renderer-facing slice of the unified `config.json` synchronously at boot / persist a validated patch. **Main is the sole writer**; the renderer caches the snapshot in `config-client.ts` |
-| `getLocale()` *(sync)* | `app.getLocale()` (BCP-47). Seeds `i18n.ts` |
-| `notify(spec)` / `notifyIsSupported()` | Native OS notification. `spec` = `{ id?, title, body, urgency?, silent?, icon?, payload?, groupId? }` |
-| `isWindowFocused()` / `focusWindow()` | Suppress notifications when focused; raise the window from a click handler |
-| `onNotificationClick(fn)` | `notify:click`; the worker dispatches the routed payload back through standard IPC |
-| `showInFolder(fullPath)` | Reveal in the OS file manager. **Rejected unless under `os.homedir()` or a published download root** |
-| `setVerbose(on)` | Flip main's live debug-log gate (and the verbose seed for future worker spawns); returns the new state |
-| `getIdentityProtection()` | The identity-at-rest protection level (§16) |
-| `onMainLog(fn)` | Main-process log lines (only while the debug gate is on); the dev console mirrors them as `[main]` |
-| `getLastApplyError(opts?)` | The OTA apply failure this build has not got past, or `null` — the diagnostics bundle omits the key when null (§2 step 8) |
-| `parseRelayInput(input)` | Validate a pasted relay key or invite ticket; returns the decoded relay key and kind, or one of three error codes. No side effects (§4.8) |
-| `setRelay(payload)` | The single writer for the relay slot: persists the public half and the member seed, and reports whether the DHT identity changed (§4.8) |
-| `deepLink.subscribe(fn)` | `mirall://join/<code>` links. First subscribe drains the cold-start queue via `deeplink:flush`. Returns an unsubscribe fn. §5.2 |
-| `browseShareFolder()` | OS folder picker (`share:browseFolder`) → absolute dir path or `null` |
-| `getBandwidth()` / `setBandwidth(patch)` | Read/persist the content-plane transfer caps (`network.downloadKBps` / `network.uploadKBps` in `config.json`, `0` = unlimited). Main validates and returns the stored value; the renderer then forwards it to the worker as `settings:set-bandwidth` — the same two-step the download folder uses |
+- Only `pkg`, `isDev`, `getLocale` and `getConfig` are synchronous. Each is read once at first render, where a promise would paint the wrong locale or theme first. Every new method is async.
+- Every subscription returns its own unsubscribe.
+- `startWorker` / `restartWorker` accept only the specifiers in the worker-entrypoint allowlist, and main enforces the same list.
+- **Main is the sole writer of `config.json`.** The renderer caches the snapshot (`src/renderer/platform/config-client.ts`). Settings that the worker also needs, such as bandwidth caps and the download folder, are written to main first. The renderer then forwards the stored value to the worker (`settings:set-bandwidth`, `settings:set-download-folder`).
+- `showInFolder({ host, path })` is an authorization check (`src/main/notifications.js`). Anything but `host: 'client'` is refused. The path is resolved *before* the containment test and must lie under the home dir or a download root the worker published.
 
 ### Renderer ↔ Worker (NDJSON)
 
-One JSON object per line. Requests carry an `id`; events don't. Default request timeout 30 s (`0` for uploads — they stream and must not time out).
+Newline-delimited JSON over the worker's stdio pipe, relayed by main. The vocabulary is the contract:
 
-**Core requests**
-
-| Type | Payload | Returns |
-|---|---|---|
-| `shutdown` | `{}` | fire-and-forget; worker exits |
-| `profile:get` / `profile:set` | `{}` / `{ displayName, avatar? }` | `Profile \| null` / `Profile` |
-| `spaces:list` | `{}` | `Space[]` — rosters are **slim** (`{publicKey, displayName, status?}`, no avatars, participation ids or catalog keys) + `memberCount`/`pendingCount` |
-| `space:members` | `{ spaceId }` | `SpaceMember[]` — full self-first roster **incl. avatars** (the only payload carrying them) |
-| `space:create` / `space:join` | `{ name, icon? }` / `{ inviteCode, name?, icon? }` | `Space` |
-| `space:update` / `space:toggle-favorite` | `{ spaceId, … }` | `Space` — `space:update` also takes `downloadFolder?` (absent = unchanged, `null` = inherit the global root, string = validated per-space override) |
-| `space:invite` | `{ spaceId }` | `string` (formatted invite) |
-| `space:leave` | `{ spaceId }` | `{ ok:true }` (progress via events) |
-| `members:online` | `{ spaceId }` | `publicKey[]` |
-| `files:list` | `{ spaceId }` | `FileEntry[]` |
-| `files:add` | `{ spaceId, filePath, fileName, fileSize }` | `{ ok:true }` (timeout=0) |
-| `files:remove` / `files:reveal` | `{ spaceId, path }` | `{ ok:true }` — `reveal` spawns `open -R` / `explorer /select,` / `xdg-open` |
-| `files:download` | `{ spaceId, path, ownerKey }` | `{ transferId }` |
-| `files:pause-download` / `files:cancel-download` | `{ transferId }` | `{ ok:true }` |
-| `storage:info` | `{}` | `{ totalDiskUsage, storagePath, host, indexBytes, dbBytes }` |
-| `settings:set-download-folder` | `{ folder }` | `{ ok:true }` — relocate the GLOBAL download dir (per-space overrides go through `space:update`) |
-| `settings:set-bandwidth` | `{ downloadKBps, uploadKBps }` | `{ ok:true }` — content-plane transfer caps, `0` = unlimited. Applies to **in-flight** transfers: the limiters read their rate per call (§ below) |
-| `network:status:get` / `network:reconnect` | `{}` | `{ online, … }` / `{ ok:true, control, content }` — **reconnect ends the live connections and re-announces**: a peer already connected is never re-dialled, so refreshing discovery alone leaves a transport setting reaching nothing |
-| `feedback:send` | `{ comment, screenshot? }` | `{ ok:true }` — POSTs to `feedback.mirall.app` |
-| `ping` | `{}` | `{ pong:true, timestamp }` |
-| `audit:list` | `{ spaceId?, kinds?, categories?, actorKey?, search?, since?, until?, cursor?, limit }` | `{ entries[], nextCursor }` — a **partial page with a non-null cursor is normal** (the scan is budgeted) |
-| `audit:spaces` / `audit:actors` | `{}` | filter facets read from the **log**, so a left space stays filterable |
-| `audit:stats` | `{}` | `{ count, oldestTs, newestTs, oldestSeq, newestSeq }` |
-| `audit:get-config` / `audit:configure` | `{}` / `{ enabled?, retentionDays?, maxEntries? }` | `AuditConfig` |
-| `audit:purge` | `{}` | `{ purged }` |
-| `audit:export` | `{ spaceId?, since?, until? }` | `{ version, exportedAt, entries[] }` — send with `timeout:0` |
-
-**Folder-sharing requests** (§7)
-
-| Type | Payload | Returns |
-|---|---|---|
-| `share:create` | `{ spaceId, name }` | the share record |
-| `share:list` | `{ spaceId }` | `Share[]` (own + every member's, via `listSharesForSpace`) |
-| `share:delete` | `{ spaceId, shareId }` | `{ ok:true }` (tombstone) |
-| `share:rename` | `{ spaceId, shareId, name }` | the share record with `displayName` set (or cleared when it equals `name`). **`name` itself is never rewritten** — it is the first segment of the consumer drive path (`/<name>/<relPath>`) that keys download claims, pending transfers and reveal targets on every member |
-| `share:list-files` | `{ spaceId, ownerKey, shareId }` | `[{ relPath, size, hash, mtime, status, localPath? }]` |
-| `share:folder-info` | `{ spaceId, ownerKey, shareId }` | `{ fileCount, totalBytes, blobsLength }` |
-| `share:read-file` | `{ spaceId, ownerKey, shareId, relPath }` | `{ transferId }` or `{ ok:true, alreadyOwned? }` |
-| `share:reveal-folder` / `share:reveal-file` | `{ spaceId, ownerKey, shareId, relPath? }` | `{ ok:true }` |
-| `owned-folder:validate` / `foreign-folder:validate` | `{ mountPath, shareId? }` | `{ mountPath, advisories[] }` |
-| `owned-folder:preview` | `{ spaceId, shareId, mountPath, ignore?, previewId? }` | `ScanPreview { toUpload, totalBytes, conflicts, existingAtDestination, perFile[], perFileOmitted? }` — **stat-only**, sent with `timeout:0`; streams `event:owned-folder-preview-progress`. `perFile` is omitted (empty + `perFileOmitted:true`) above 50 action-set files |
-| `owned-folder:cancel-preview` | `{ previewId }` | `{ ok:true }` — rejects the in-flight walk with `PREVIEW_CANCELLED` |
-| `owned-folder:mount` | `{ spaceId, shareId, mountPath, ignore? }` | `{ mount, advisories[] }` (starts watcher + scan) |
-| `owned-folder:relocate` | `{ spaceId, shareId, mountPath }` | `{ mount, advisories[] }` (hash-based, no re-upload) |
-| `owned-folder:get` / `foreign-folder:get` | `{ spaceId, shareId }` | the mount record or `null` |
-| `owned-folder:delete` | `{ spaceId, shareId }` | `{ ok:true }` (unmount + tombstone, cascades to mirrors) |
-| `owned-folder:index-status` | `{ spaceId, shareId }` | `{ queued, running, done, failed, totalOnDisk, bytesQueued, order, concurrency }` — the share's publish-queue snapshot |
-| `foreign-folder:preview` | `{ spaceId, ownerKey, shareId, mountPath }` | `{ toDownload, totalBytes, … }` |
-| `foreign-folder:mount` | `{ spaceId, shareId, ownerKey, mountPath }` | `{ mount, advisories[] }` (starts materialize loop) |
-| `foreign-folder:set-enabled` | `{ spaceId, shareId, enabled }` | `{ ok:true }` (pause/resume) |
-| `foreign-folder:relocate` | `{ spaceId, shareId, mountPath }` | `{ mount, advisories[] }` — moves the mount, not the bytes: the record is patched first, then the loop stops and the per-path caches (synced set, renamed map, in-flight tick) are dropped so the next pass re-verifies from disk. A disabled mount keeps the status it was disabled with, so an auto-pause stays auto-resumable |
-| `foreign-folder:unmount` | `{ spaceId, shareId }` | `{ ok:true }` |
-| `owned-folder:list-all` | `{}` | `[{ …mount, mountPointMissing }]` across all spaces |
-| `foreign-folder:list-all` / `mounts:list-all` | `{}` | `ForeignFolderMount[]` / `[{ role:'owned-folder'\|'foreign-folder', … }]` |
-
-The worker also **receives** `event:owned-folder-fs-event { shareId, action, relPath, absPath }` and `event:foreign-folder-fs-event { spaceId, shareId, action, relPath, absPath }` — chokidar events forwarded from main (§2 step 12), handled by `onFsEvent` and `handleMirrorFsEvent`.
-
-**Events (worker → renderer)**
-
-| Type | Payload |
+| File | Owns |
 |---|---|
-| `event:state` | `{ profile, spaces }` (initial) |
-| `event:profile-needed` | `{}` |
-| `event:worker-ready` | `{ epoch, head }` (per client, on arrival) — the stream's generation and where its numbering has reached, so a client learns what it may resume from without asking |
-| `event:member-joined` / `event:member-left` | `{ spaceId, member }` / `{ spaceId, publicKey }` |
-| `event:files-updated` | `{ spaceId }` |
-| `event:transfer-complete` | `{ transferId, spaceId, path, localPath }` — notification signal; status re-derives from `files:list` |
-| `event:transfer-paused` | `{ transferId, spaceId, path, reason }` — `reason` (`'interrupted'`/`'offline'`) is toast wording only, **never a status source** |
-| `event:transfer-error` | `{ transferId, spaceId, path, errorCode, errorMessage }` |
-| `event:transfer-superseded` | `{ transferId, spaceId, path, fileName }` |
-| `event:reconcile` | `{ scope }` — the coalesced, level-triggered "state in this scope changed, refetch it" hint (§4.7), fanned from the named `*-updated` pokes via `POKE_SCOPE` |
-| `event:decoration` | `{ channel:'transfer', spaceId, key, bytes, total, speed?, eta?, phase?, verifyFraction?, done? }` — the **one** per-file progress channel (download *and* owner-side publish/prepare, tagged `phase:'publishing'\|'preparing'\|'verifying'`). Loose rows key by drive path, folder rows by `shareId:relPath` (`decoration-key.js`); cleared only by a terminal `done` |
-| `event:awareness` | `{ channel:'serving'\|'serving-detail', spaceId, path, … }` — ephemeral "who is downloading" cross-peer soft-state, re-announced on the ledger sweep, expired by a receiver TTL. The summary carries `peers` (downloaders only), `pausedKeys` and `waitingKeys` (members waiting on a file we are still hashing — never in `peers` or the byte sums); a detail peer carries `paused` and `waiting`. Never persisted, never a status source |
-| `event:audit-updated` | `{}` — poke; fans to `Scope.audit()` so the viewer refetches |
-| `event:shares-updated` / `event:share-files-updated` | `{ spaceId }` / `{ spaceId, shareId? }` (shareId absent = space-wide) |
-| `event:owned-folder-mount-status` | `{ spaceId, shareId, status, error? }` — `OWNED_MOUNT_STATUS`: `scanning` / `active` / `paused` / `paused-enospc` / `paused-error` / `mount-point-gone` |
-| `event:owned-folder-scan-completed` | `{ spaceId, shareId, uploaded, deleted, totalOnDisk }` — not emitted for a cancelled pass |
-| `event:owned-folder-index-progress` | `{ spaceId, shareId, …index-status }` — coalesced (500 ms) while a share's items run; the terminal frame carries the pass's final counts |
-| `event:owned-folder-preview-progress` | `{ previewId, phase, scanned, total, bytes }` |
-| `event:foreign-folder-mount-status` | `{ spaceId, shareId, status, error?, reason? }` |
+| `src/shared/contract/requests.js` | Every request row: name, `kind` (`query` = read-only, retry-safe; `command` = may mutate), `args` (drives the router's validator), and optional `deadlineMs` |
+| `src/shared/contract/responses.ts` | The response type per request |
+| `src/shared/contract/events.js` | Every event name, `TARGETED_EVENTS`, `isEphemeralEvent` |
+| `src/shared/contract/ipc-frames.js` | The non-request frames: `hello`/`hello-ack`, `bootstrap`, `response`, `cancel`, `CLIENT_KINDS`, `TRUST`, and `IPC_PROTOCOL_VERSION` (the wire's own version, bumped by hand in the change that alters a frame) |
 
-### React integration
+The rules for adding to the contract:
 
-Three small stores sit between the hooks and the two transports. Each is **plain JS with an injected
-transport, typed by JSDoc**, so it unit-tests under brittle-node like the other renderer `.js`
-modules, and each is bound to React through `useSyncExternalStore` — not a `useState` mirror, since
-the store already holds the value and the hand-rolled module caches this replaced each kept a second
-copy in component state that could disagree with it.
+- **A field is required unless the handler defines what its absence means** (see the `requests.js` header).
+- `kind` decides deadline enforcement (`src/shared/contract/request-deadlines.js`). A query's worker deadline (default 30 s) *aborts*. A command's deadline only *warns*, because aborting mid-write makes the half-states that durable intents exist to prevent. `deadlineMs: 0` means deliberately unbounded, for uploads, previews, exports and `share:read-file`. The renderer's own give-up timeout (`src/renderer/ipc/ipc.ts`) is a separate bound. A caller that gives up sends `cancel`, which is a control frame so it is not queued behind the request it cancels.
+- `test/unit/event-taxonomy.test.js` checks that the emit sites, the renderer subscriptions and `events.js` name the same set of events.
 
-| Store | Transport | Owns | Bound by |
-|---|---|---|---|
-| `store/query-store.js` | worker NDJSON (`ipc.ts`) | fetching, dedup, caching, **scope invalidation**, `AbortController` → `FRAME.CANCEL` | `useQuery(type, params, scopes, opts)` |
-| `store/main-store.js` | `window.bridge` (Electron main) | one shared copy per main-process fact | `useMainQuery` |
+**Connection and replay.** A client sends `hello` (wire version, kind, cursor) and nothing else is honoured until `hello-ack`. A version outside `IPC_PROTOCOL_MIN_SUPPORTED` is refused (`src/shared/contract/hello.js`). Each event carries a `seq` within a per-process `epoch` (`src/shared/contract/event-cursor.js`). A reconnecting client resumes through `events:resume`, or learns it must resync, and `event:worker-ready { epoch, head }` tells a client where the stream stands. Ephemeral events (`event:decoration`, `event:awareness`, `*-progress`) are numbered but never replayed. Targeted events (the preview progress events) go only to the client whose operation they belong to.
 
-- **One entry per `[type, params]`.** `keyOf` sorts the param keys, so `{a,b}` and `{b,a}` are one
-  entry rather than two. An entry holds a *list* of scopes, because a view may re-derive on several
-  (`useSpaces` watches members and join-requests; `useSpaceStorage` watches files, share-files and shares).
-- **The store owns fetching and invalidation and nothing else.** The never-blank merge and the
-  terminal-vs-transient error policy stay in the hooks: they are per-view decisions — `useShareFiles`
-  keeps its last good rows when a peer read comes back incomplete — and a store that interpreted
-  responses would blank the most-used screen on a blip.
-- **`enabled: false`** is how a hook says "the ids are not ready yet". Without it a falsy `spaceId`
-  would send `space:members` with no `spaceId`, which the contract validator refuses — one
-  `req-invalid` warn and one `INVALID_ARGUMENT` counter per render.
-- **`main-store` is deliberately not the query store.** `useQuery` is typed to `RequestName` — the
-  *worker* contract — and these are Electron **main** calls, so routing them through it would mean
-  either widening `RequestName` to a lie or adding an untyped escape hatch. It is the query store's
-  shape with none of its scope machinery: a main fact changes when this app writes it or when main
-  pushes a new value, and neither is a reconcile hint. It also has no abort — `ipcRenderer.invoke`
-  offers no cancellation channel — but it keeps `seq`, because "the answer in flight is no longer
-  wanted" is still a real state when a write or a push lands mid-read.
+**Event semantics.**
 
-| Hook | Requests | Re-derives on |
-|---|---|---|
-| `useSpaces` | `spaces:list`, `space:create`/`join`/`leave`/`invite`/`update`/`toggle-favorite` | `Scope` members + join-requests. The `event:state` and membership push re-reads live in `installPushBridges` (one subscription for the app), not in the hook |
-| `useFiles(spaceId)` | `files:list`/`remove`/`download`/`cancel-download`/`reveal`, uploads via `addFileToSpace()` | `Scope` files + members (coalesced); publish/prepare progress from `useDecorations` |
-| `useMembers(spaceId)` | `space:members`, `members:online`, `space:pending-requests` | `Scope` members + join-requests |
-| `useSpaceMembers(spaceId)` | `space:members` — the full roster behind card facepiles | `Scope` members |
-| `useShares(spaceId, myKey)` | `share:list`, `owned-folder:list-all`, `foreign-folder:list-all` → `ShareWithRole[]` (`mine`/`browse`/`mirrored`) | `Scope` shares |
-| `useShareFiles(…)` | `share:list-files`, `share:folder-info`, `share:read-file`, `share:reveal-file` | `Scope` share-files + files; progress from `useDecorations` |
-| `useSpaceMirrors(spaceId)` | the `mirror/<spaceId>/<shareId>` roster — who mirrors a share and how far (§3.1) | `Scope` shares |
-| `useSpaceStorage(spaceId)` | per-space byte accounting | `Scope` files + share-files + shares |
-| `useAuditLog` | `audit:list` + the facet/config requests | `Scope.audit()` |
-| `useZoom` | main's zoom factor | `main-store` push |
-| `useProfile` | `profile:get` (scope-less `useQuery`; `profile:set` pushes the saved record into the entry) | nothing re-derives it — the profile changes only when this app writes it; `event:profile-needed` flips the needs-setup flag |
-| `useDecorations(channel, spaceId)` | — | `event:decoration` — merge-by-key progress map, cleared only by `done` |
-| `useOwnedMount` (`hooks/useFolderMount.ts`) / `useForeignMount` | `owned-folder:list-all` (the same entry `useShares` reads) / `foreign-folder:get`, plus the `validate`/`preview`/`mount`(/`set-enabled`/`unmount`) RPCs | `Scope` shares — the worker maps every `*-folder-mount-status` transition onto it, so the store re-reads behind its fence; no event subscription in the hooks |
-| `useUpdates` | — (passive: staged update + `dismiss`) | `bridge.onPearEvent('updated')` via `updates.ts` |
+- **State pokes are not status.** Named `*-updated` / mount-status pokes are mapped to a `Scope` by `POKE_SCOPE` (`src/shared/core/ipc-events.js`) and fanned out as `event:reconcile { scope }`, a coalesced, level-triggered hint to refetch (§4.7). Both mount-status events map to the *shares* scope.
+- `event:decoration` is the **one** per-file progress channel, used for download and for owner-side publish/prepare (`phase`). Folder rows key by `shareDecoKey` (`src/shared/contract/decoration-key.js`) and loose rows by drive path. An entry is cleared only by a terminal `done`.
+- `event:awareness` ("who is downloading from me") is TTL soft-state. It is never persisted and never a status source.
+- `event:transfer-*` are notification signals. Status is always re-derived from `files:list` / `share:list-files`, and `transfer-paused.reason` is toast wording only.
 
-**Off the store on purpose:** `usePeerDownloads` / `usePeerDownloadDetail` (`serving:*` is a seed for an awareness feed that the first live frame supersedes — nothing invalidates it, nothing dedups with it), `useIndexProgress` and `useDecorations` (decoration events carry no scope, so they are named subscriptions), `useConnectionStatus` (one read, then an event projection), and the validate probe inside `useMountWizard`. `useAuditLog` reads its facets through the store and pages the list by hand. Each of these says why in its header; anything else that fetches goes through `useQuery` / `useMainQuery`.
+**Request semantics a caller would not guess.**
 
-### Developer console (`window.mirall`)
+- `space:members` is the only payload that carries avatars; `spaces:list` rosters are slim.
+- `network:reconnect` ends the live connections, because a connected peer is never re-dialled.
+- A partial `audit:list` page with a non-null cursor is normal, because the scan is budgeted.
+- `shutdown` is host-only and is answered before teardown begins.
+- Main's chokidar events reach the worker as the `event:*-fs-event` request rows.
 
-`src/renderer/platform/dev-console.ts` (imported unconditionally by `main.tsx`) exposes a debugging surface on `window.mirall` — **present in every build, including production**, reachable through DevTools (§2 step 6). Read-only diagnostics go through the worker RPC (`request`); logging/version/update/identity go through `window.bridge`. Every command logs its result *and* returns it, so both `mirall.spaces()` and `const s = await mirall.spaces()` work. Typed as `MirallDevConsole` in `global.d.ts`.
+### React integration (`src/renderer/store/`)
 
-`help()` · `verbose(on = true)` — flips verbose logging across **worker and main at runtime**, no relaunch, no env var · `status()` (`network:status:get`) · `spaces()` · `members(spaceId)` (`members:online`) · `storage()` · `mounts()` (`mounts:list-all`) · `profile()` · `version()` (`bridge.appVersion()`) · `update()` (`bridge.checkForUpdate()`) · `identity()` (`bridge.getIdentityProtection()`).
+There are two stores. Each is plain JS with an injected transport, so it tests under brittle-node, and each is bound to React through `useSyncExternalStore` rather than a `useState` mirror, which could disagree with the store.
+
+- **`query-store.js`** (the worker contract, via `useQuery(type, params, scopes, { enabled, coalesceMs })`). It has one entry per `[type, sorted params]` and owns fetching, dedup, caching and scope invalidation. An invalidation bumps `seq`, aborts the read in flight (`cancel`), keeps the cached value, and refetches only subscribed entries. The store does **not** interpret responses. The never-blank merge and the terminal-vs-transient error policy are per-view decisions and stay in the hooks. `enabled: false` means the ids are not ready: the hook neither fetches nor subscribes. An entry keeps the scopes it was first registered with.
+- **`main-store.js`** (Electron main facts, catalogued in `main-queries.js`, via `useMainQuery`). It is deliberately separate. `useQuery` is typed to the worker's `RequestName`, and a main fact changes only when this app writes it or main pushes it, neither of which is a reconcile hint. It has no abort (`invoke` cannot cancel) but keeps `seq`, because a write or a push can land mid-read.
+
+The per-hook contract lives in `src/renderer/hooks/README.md`: `loading` means *cold*, hooks re-derive through scopes rather than event subscriptions, and props given to memoized rows must be identity-stable. Every hook that does not use the store says why in its header.
+
+### Developer console
+
+`src/renderer/platform/dev-console.ts` installs `window.mirall` in **every build, production included**. It offers read-only worker diagnostics plus `verbose()`, which flips worker and main logging live, and `update()` / `version()` / `identity()` over the bridge. `mirall.help()` lists the commands.
 
 ---
 
 ## 9. Update System
 
-Driven by `pear-runtime-updater` (a dependency of `pear-runtime`), which watches the channel Hyperdrive identified by `package.json#upgrade`.
+OTA runs on `pear-runtime`'s updater (`pear-runtime-updater`), wrapped by `src/main/updater.js`. It watches the release channel's Hyperdrive, named by `package.json#upgrade`. The source tree has no `upgrade` key; the release build bakes it in (→ `build-process.md`). OTA is **off** when the key is absent, under `--no-updates`, and on a `.deb` install, which updates through the package manager (`src/main/install-kind.js`). The runtime is constructed lazily, because building it opens drives and joins a swarm.
 
-1. **Drive subscription.** Main constructs `PearRuntime({ upgrade, store, swarm, version, … })`. The runtime opens a Hyperdrive against the upgrade key and joins its discovery key as a swarm client. Every append to the drive's metadata core fires the updater's debounced `_update`.
-2. **Version check.** `_update` reads `/package.json` from the latest checkout and parses `version` as semver. Strictly greater than the running version ⇒ proceed. **Equal** ⇒ prefetch the binary so apply is instant when triggered. Otherwise return silently.
-3. **Mirror.** Iterate `co.list('/by-arch/<host>/app/<name>')` — `host = process.platform + '-' + process.arch`, `name = Mirall.app | Mirall.AppImage | Mirall.msix` — into `<userData>/pear-runtime/next/<length>.<fork>/by-arch/<host>/app/<name>`.
-4. **Events.** `pear.updater.emit('updating')` on mirror start, `'updated'` on completion; both forwarded to the renderer as `pear:event:updating` / `pear:event:updated`.
-5. **Banner.** `renderer/platform/updates.ts` listens for `updated`. Dev builds reload the window. Packaged builds read the staged version via `bridge.appVersion()` — **from main**, because the worker's bootstrap fork/length snapshot can be a stale `0/0` before replication completes — and store it through the `updateState` reducer. `UpdateBanner` (inside `TopNav`) is passive: *"Update to vX available — applied on next start"* plus **Dismiss**. Dismissing hides the banner; the About screen keeps showing the notice.
-6. **Apply — no user action.** `pear.updater.applyUpdate()` runs automatically:
-   - **Windows / Linux** — main pre-stages the apply the moment `updated` fires. On Windows because `msix-manager.addPackage` takes seconds and would race a quit→relaunch inside `before-quit`, silently failing if the `.msix` is still locked. On Linux so the staged AppImage doesn't sit unused until a clean quit.
-   - **macOS** — applies only at quit: a mid-session `fsx.swap` would let a later disk re-read mix new-version files with old in-memory code.
-   - **All platforms** — a `before-quit` hook promotes any staged-but-unapplied bundle: `event.preventDefault()` → `await applyUpdate()` → re-`quit()`, because **Electron does not await async listeners** and the swap must finish before exit.
+When the drive's `/package.json` version is greater than the running one, the updater mirrors this platform's bundle into `pear-runtime/next/<length>.<fork>` and emits `updating` and then `updated`. Main forwards both as `pear:event:updating` / `pear:event:updated` (`src/main/window.js`). At an *equal* version it only prefetches. The installed build must therefore equal the staged drive version, or the banner loops on every launch (→ `build-process.md`).
 
-   Mechanics: macOS/Linux `fsx.swap(nextApp, this.app)` atomically exchanges `/Applications/Mirall.app` (or the AppImage path) with the mirrored bundle, then `rm -rf next/<length>.<fork>`. Windows `msix-manager.addPackage(nextApp, { forceUpdateFromAnyVersion: true })` re-registers over the existing install. Main wraps `applyUpdate` with `process.noAsar` scoping (Electron would otherwise choke on the half-written `app.asar` in the mirror destination), a pre-swap `chmod 0o755` of the staged AppImage (`localdrive` preserves the executable bit only when the drive entry carries `executable:true`), and apply-error recording to `pear-runtime/last-apply-error.json`, cleared on the next successful apply.
-7. **Next start runs the new version.** There is no in-app relaunch — the swap already happened in the background or completed during quit.
+**Banner.** `src/renderer/platform/updates.ts` reacts to `updated`. A dev build reloads. A packaged build reads the staged version from **main** (`bridge.appVersion()`), because the worker's bootstrap fork/length can still be a stale `0/0`. The banner is passive ("applied on next start" plus Dismiss). There is no in-app relaunch.
 
-Version coupling: the bundled CI version must equal the drive's `/package.json#version`, so a freshly-installed build and the staged drive compare equal (`current.compare(remote) === 0`) and the updater early-returns instead of looping an update banner on every launch. → `build-process.md`.
+**Apply — no user action**, with timing per platform:
 
-`pear.updater.on('error', …)` is wired in `getPear()` so any updater-side rejection surfaces as `pear updater error: …` on stderr instead of a swallowed promise rejection. A global `unhandledRejection` handler is registered for the same reason.
+| Platform | When | Why |
+|---|---|---|
+| Windows | Pre-staged the moment `updated` fires | `msix-manager.addPackage` takes seconds, and inside `before-quit` it races the relaunch and fails silently while the `.msix` is locked. `bundled: app.isPackaged` is passed explicitly, or the updater stays dormant (there is no app path on Windows) |
+| Linux | Pre-staged on `updated` | So the staged AppImage does not wait for a clean quit |
+| macOS | At quit only | A mid-session `fsx.swap` would let a later disk read mix new files with old in-memory code |
 
-Diagnostic IPC (`bridge.checkForUpdate()`, `bridge.appVersion()`) is catalogued in §8.
+On every platform the quit sequence (`src/main/lifecycle.js`) promotes a staged-but-unapplied bundle: `preventDefault()`, await the apply, re-`quit()`. It works this way because Electron does not await async listeners.
 
----
+`src/main/updater.js` wraps the library's `_update` and `applyUpdate`:
+
+- `process.noAsar` is scoped to those calls. Electron would otherwise open the half-written `app.asar` in the mirror as an archive, and the flag cannot be set globally because our own requires need the shim.
+- The staged AppImage is `chmod 0o755`'d before the swap, because `localdrive` sets the executable bit only when the drive entry carries it.
+- Apply failures are recorded to `pear-runtime/last-apply-error.json` (`src/main/apply-error.js`) and cleared on the next success.
 
 ## 10. UI Structure
 
-**Visual language — colour tokens, typography, spacing, radii, elevation/glass, motion, platform chrome, and the styling of every component — lives in `design.md` and is authoritative there.** This section covers only structure and behaviour.
-
-The design system is named **"Editorial Etherealism"**. `src/renderer/platform/platform.ts` stamps `data-platform="darwin|win32|linux|other"` on `<html>` at load, which drives platform-specific chrome. Window bounds persist across launches via `renderer/platform/window-bounds.ts` + `bridge.getWindowBounds`/`setWindowBounds`.
+Visual language (tokens, typography, component styling, motion, platform chrome) lives in `design.md` and is authoritative. This section covers structure and behaviour only. `src/renderer/platform/platform.ts` stamps `data-platform` on `<html>`. Window bounds persist through `src/renderer/platform/window-bounds.ts` → `bridge.get/setWindowBounds`.
 
 ### Internationalization
 
-`renderer/platform/i18n.ts` initialises `i18next` + `react-i18next` with five locales (`en`, `de`, `fr`, `es`, `it`). Catalogs live at `renderer/locales/<code>/{common,errors}.json` and are **statically imported** so esbuild bundles them — no runtime fetch.
+`src/renderer/platform/i18n.ts` sets up i18next with five locales (`en`, `de`, `fr`, `es`, `it`). Catalogs at `src/renderer/locales/<code>/{common,errors}.json` are **statically imported**, so esbuild bundles them and nothing is fetched at runtime. The language resolves as: persisted pref (`config-client.ts`, hydrated synchronously from `bridge.getConfig()`) → the primary subtag of `bridge.getLocale()` → `en`. `setLocale` persists the choice, switches i18next, updates `<html lang>` and re-labels the tray. To add a locale: add the two JSON files, a `SUPPORTED_LANGUAGES` entry and the imports in `i18n.ts`.
 
-Initial language: persisted choice from the unified config (`config-client.ts`, hydrated synchronously from `bridge.getConfig()`) → else `bridge.getLocale()` (Electron's `app.getLocale()`) reduced to its primary subtag → else `en`. `setLocale(code)` persists via `config-client` (→ `config:set`) and calls `i18n.changeLanguage()`; `document.documentElement.lang` stays in sync. Components use `useTranslation()`. `SUPPORTED_LANGUAGES` is exported for the language picker.
+**German UI uses the generic masculine.** Never propose `Kolleg:innen`-style forms.
 
-Adding a locale: drop `locales/<code>/{common,errors}.json`, add a `SUPPORTED_LANGUAGES` entry, register the imports in `i18n.ts`.
+### Screens and routing
 
-> **German UI convention: generic masculine.** Never propose `Kolleg:innen` / `Mitglied*innen` or similar inclusive-language forms.
+`app.tsx` renders `WorkerFaultScreen` or `OnboardingScreen` (no profile yet) *before* the router. Everything else goes through `src/renderer/ScreenRouter.tsx`, whose `switch` ends in a `never` assignment: a screen added to `src/renderer/shell/navigation.ts` without a case fails to compile.
 
-### Screens
+- **Spaces** (the default; swapped for **ConnectionProblem** while the connection gate is up) → **Space View** → **Folder View** (one share).
+- **Account**: profile edit, network status, Activity Log, app version, Feedback.
+- **Settings** hub → General / Appearance / Notifications / Network / Storage / Activity Log settings.
+- **Network status** → Diagnostics / Advanced. Both children always back out to Network status, never to where status was opened from.
 
-| Screen | Trigger | Key components |
-|---|---|---|
-| **Onboarding** | First launch (no profile) | Avatar upload (`CrystalBackdrop` + `IconPicker`), display-name input |
-| **Shared Spaces** | Default after onboarding | `SpaceCard` grid, Create/Join, empty state |
-| **Space View** | Click a space | A **Folders Shared** section (`ShareCard` grid — one per owned/mirrored/browsable share) above the loose-files grid (`FileCard`s), plus a sidebar (`DropZone`, `StorageIndicator`, `MemberCard`s, invite + edit + leave). Dropping a *folder* (or `⌘⇧U`) opens `AddFolderShareModal`; clicking a `ShareCard` navigates to Folder View |
-| **Folder View** | Click a `ShareCard` | Full-screen browse of one share (`screens/FolderScreen.tsx`): file rows with per-file download/reveal + progress, an owner/role sidebar, and role-dependent actions — **Mirror to Disk** (browse), pause/resume + unmount (mirrored), relocate + **Delete Folder** (owned) |
-| **Activity Log** | Account → Activity | The audit-log viewer: search, space/person/time/category filters, day-grouped rows, Load more. Cross-links to its settings |
-| **Activity Log settings** | Settings → Activity Log | Recording toggle, retention, JSON export, delete. Cross-links back to the viewer |
-| **Settings** | Gear icon | Profile edit, theme toggle, nav to Storage / Activity Log / About |
-| **Storage Settings** | From Settings | `StorageIndicator` per space, download-folder picker, usage breakdown (read-only — reclaim is automatic) |
-| **About** | From Settings | Version info, "Send feedback" → `FeedbackModal` |
+The Folder View route reads its share from the live listing and is **keyed by `share.id`**. A re-target without the key merges one folder's rows into the next folder's listing, and a share deleted underneath the route makes it go back. Root dialogs (`components/modals/AppDialogs.tsx`: Feedback, What's New, Create, Join) show one at a time by construction, so a deep link replaces an open dialog rather than stacking behind it.
 
-Modals rendered from root: `FeedbackModal` (comment + `modern-screenshot` capture via `feedback:send`).
+### Toasts vs OS notifications
 
-### Toast notifications
+These are two deliberately separate systems. **Toasts** (`src/renderer/components/toast/`) give foreground feedback on something the user just did. **OS notifications** (`bridge.notify` → `src/main/notifications.js`, dispatched by `src/renderer/notifications/dispatcher.ts`) report background events the user may not be watching. New error-surfacing code defaults to toasts. Renderer actions report failures through `useRunAction` inside `ToastProvider`, or through `InlineError` outside it.
 
-The in-app transient-feedback primitive for **foreground** actions. `renderer/components/toast/` — `ToastProvider` (context + state + timers), `ToastContainer` (fixed stack at `z-[60]`, above modals at `z-50`), `Toast`, `useToast`, `types.ts`. Mounted as the **outermost** provider in `app.tsx` so any descendant — including modals — can raise one.
+`ToastProvider` is the outermost provider in `app.tsx`, so modals can raise toasts. The stack rules (`toastStack.js`):
 
-Four variants: `error` / `warning` / `success` / `info`. Behaviour: stacks up to 4 visible (past that the oldest auto-dismissing toast is dropped; a sticky `duration: 0` toast is never dropped, so the stack grows when only stickies remain — `toastStack.js`), dedupes by stable `id` (same id replaces in place), auto-dismisses after a configurable duration, pauses the timer on hover and resumes on leave, optional inline action button. Styling, motion, and ARIA roles → `design.md`.
+- Same `id` replaces in place.
+- At most 4 are visible. Past the cap, the oldest auto-dismissing toast that is not hovered or focused is evicted.
+- A sticky toast (`duration: 0`) is never evicted, so the stack can grow past the cap.
+- Timers pause on hover and focus.
 
-**Toasts vs OS notifications.** Deliberately separate systems. Toasts = foreground feedback on something the user *just did* (folder dropped that we don't accept, validation failed, action confirmed). OS notifications (`bridge.notify` → `main/notifications.js`, §8) = background events the user may not be watching (transfer complete, peer joined). Different IPC, different OS muting rules, different ARIA semantics. **New error-surfacing code defaults to toasts** unless the event is genuinely async-and-passive.
+`toast/bridges/*` turn worker, connectivity, download-folder and join-request state into toasts. In dev builds (`bridge.isDev()`), the API is exposed as `window.__toast`. Packaged builds never expose it.
 
-**Dev hook.** When `bridge.isDev()` is true, `ToastProvider` attaches its API to `window.__toast` for console testing (`__toast.error('…')`). Packaged production builds never set the global — the main-process handler returns `false` when `app.isPackaged && !PEAR_DEV_SERVER_URL`. Typed via `declare global { interface Window { __toast?: ToastApi } }`, so no `any`/`unknown` casts.
+### Component behaviour worth knowing
 
-Current consumer: `DropZone` (folder-drop rejection, via `webkitGetAsEntry().isDirectory`).
+Browse the inventory with `ls src/renderer/components`; styling is in `design.md`.
 
-### Component library
-
-Tailwind + React Aria, grouped under `renderer/components/`: `primitives/` (Avatar, Badge, Button, CollapsibleCard, CopyButton, Icon, IconButton, Logo, Modal + `modalKeys.ts`, ProgressBar, SegmentedControl, TextButton, Toggle, VerifiedCheck, ActionMenu, DocsLink, DownloadProgressLane, FileName, FilenameTitle, IconPicker, ModalBackdrop, StatusDot, LoadingHeadline), `cards/` (FileCard, ShareFileRow, RowLane, MemberCard, ShareCard, SpaceCard, FolderPeopleCard, FolderStatsCard, PeerDownloadIndicator, PeerDownloadDropdown, PeerDownloadRow, DocsCard, JoinRequestCard, SpaceMembersCard, SpaceStorageCard), `modals/` (17 dialogs incl. the shared `MountWizardStep` and `ScanPreviewModal`), `layout/` (TopNav, UpdateBanner, PageHeader, EntityHeader, SectionHeading, ScreenRouter), `folder/` (FolderTree, FolderWorkStrip, FolderControlsRow, FolderListPane, FolderSidebar, FolderStripBand), `space/` (SpaceContentPane, SpaceSharesSection, SpaceFilesPane, SpaceSection, SpaceAlert, SpaceEmptyState, PendingSpaceHero), `path/` (PathRow, MountPathField, FilePath), `activity/` (ActivityFeed, ActivityFilterBar), `share-drop/` (DropZone, DropOverlay), `toast/` + `toast/bridges/` (Connectivity / DownloadFolder / Worker / JoinRequest).
-
-Behaviour worth knowing (styling → `design.md`):
-
-| Component | Behaviour |
-|---|---|
-| `TopNav` | Logo, update-banner slot, settings + feedback buttons, profile avatar |
-| `UpdateBanner` | Staged version + "applied on next start" + Dismiss. Publishes its height as `--banner-h` so screens shift down instead of being overlaid |
-| `SpaceCard` | Icon tile + member avatars + active badge + favourite toggle |
-| `CreateSpaceModal` / `EditSpaceModal` | Name + `IconPicker`; edit also surfaces Leave |
-| `JoinSpaceModal` | Invite-code input + optional local name + icon |
-| `LeaveSpaceModal` | `ConfirmDestructiveModal` for `space:leave`; busy until the request answers |
-| `InviteModal` | Copy the invite code for an existing space |
-| `DropZone` | Drag-and-drop + file picker. Files → `addFileToSpace`; a dropped **folder** → `AddFolderShareModal`. Rejects ephemeral/promised drop sources (`temp-paths`) |
-| `FileCard` | Renders the file states of §3.5; per-state action button (Download / Cancel / Resume / Discard / Reveal / Remove) |
-| `ActionMenu` | The dropdown-button primitive (react-aria menu, portalled popup). Three triggers: `primary` (labelled key action — Space View / Folder View "More"), `subtle` (icon-only three-dot — `ShareCard`), `neutral` (labelled, secondary-button tokens — the Activity Log filter bar, where several menus sit together and none is the screen's main action). Items may omit `icon`, which single-choice menus use to check only the selected row |
-| `RemoveFileModal` | Delete confirmation with a "members keep their copy" warning |
-| `StorageIndicator` | Local-mirror progress bar (Space View + Storage Settings) |
-| `FeedbackModal` | Textarea + optional screenshot toggle; POSTs through `feedback:send` |
-| `IconPicker` | Material Symbols picker for space create/edit |
-| `ShareCard` | One folder share — name, owner avatar, role badge (Shared by you / Mirrored / Browse), mount status, action menu (mirror, pause/resume, locate, unmount, delete) |
-| `AddFolderShareModal` | Two-step owner flow (edit → preview): pick a folder (`browseShareFolder`), name + validate, preview the scan, then `createShareThenMount` — **rolls the share back if the mount fails** |
-| `MirrorFolderModal` | Two-step consumer flow: owner + folder size (`share:folder-info`), pick a destination, always show the read-only warning, then `createForeignMount` |
-| `ScanPreviewModal` | Shared preview step for add-folder / mirror / relocate — summary cards (to-upload / to-download / conflicts / already-present) + collapsible per-file list |
-| `DeleteFolderShareModal` | Owner-side confirm for `owned-folder:delete` (warns it removes the share for everyone and stops mirrors) |
-| `PageHeader` | Back button + title + optional subtitle (Folder View, settings sub-screens) |
-| `ProgressBar` | Non-cancellable (the caller owns controls) — used for mirror file rows |
-| `FilePath` | Monospace path, middle-truncated (directory ellipsizes, filename stays) via `splitPathForDisplay()` in `renderer/model/share-paths.js`. Renders FS paths consistently everywhere |
-| `IconButton` | Circular icon-only button with a **mandatory** `ariaLabel` |
+- `UpdateBanner` publishes its height as `--banner-h`, which every screen subtracts, so a banner pushes screens down rather than covering them.
+- `IconButton` requires `ariaLabel`. `ActionMenu` has three trigger variants: `primary` (the screen's key action), `subtle` (the icon-only three-dot) and `neutral` (several menus side by side).
+- Adding a folder share is **one worker command** (`share:create-and-mount`, via `createShareThenMount` in `src/renderer/hooks/useFolderMount.ts`), with a durable intent across both writes. There is no renderer-side rollback to keep in sync.
+- `ScanPreviewModal` is the shared preview step for add-folder, mirror and relocate.
+- `FilePath` middle-truncates every filesystem path through `splitPathForDisplay()` (`src/renderer/model/share-paths.js`).
+- Folder-vs-files drop classification is in `src/renderer/model/drag-share.js`: `webkitGetAsEntry()` is null during `dragover`, so a single typeless item is treated as a folder.
 
 ---
 
 ## 11. Module Structure
 
+One row per source file, named by its full backticked path. `test/invariants/arch-doc-module-table.test.js` holds this section to the tree: every `.js`/`.ts`/`.tsx` under `src/shared`, `src/main`, `src/preload` and `src/worker` (minus `vendor/`, `locales/`, `.d.ts`) needs a row, and every `src/…` path named here must exist. The renderer keeps directory-level rows.
+
 ### Repository
 
 | Path | Purpose |
 |---|---|
-| `src/main/`, `src/preload/` | The Electron host process and its contextBridge — tables below |
-| `src/worker/` | The Bare worker: entry, composition root, mount runtime, sweeps — table below |
-| `src/shared/` | The worker's data layer, by domain — tables below. Main reaches three of its modules directly: `contract/main-requests.js` and `contract/workers.js` by `require`, `contract/invite-envelope.js` by `import()` |
-| `src/renderer/` | Renderer source (TS + React → `assets/dist/`) — tables below |
-| `assets/` | Shipped renderer assets: `index.html`, `fonts/`, `theme-bootstrap.js` (pre-paint dark-mode, no FOUC), esbuild/Tailwind output in `dist/` |
-| `resources/` | Platform build assets per target: `darwin/` (`icon.icns`, `entitlements.plist`, `dmg/`), `win32/` (`icon.ico`, `AppxManifest.xml`, `msix-assets/`), `linux/` (`AppRun`, `icon.png`, `icons/`), `tray/`, `brand/` (the source SVGs) |
-| `forge.config.js` | electron-forge config — packagerConfig, makers, the `afterCopy` hook that injects `UPGRADE_KEY` into `package.json#upgrade`, the `afterComplete` hook that stamps the app licence onto the Linux tree, MSIX manifest version patching |
-| `scripts/` | Build: `build-app-image.sh`, `generate-app-icons.mjs`, `generate-tray-icons.mjs`, `rasterize-svg.cjs`. CI gates: `check-comment-hygiene.sh`, `check-test-timing.sh`, `check-release-mime.sh`, `flake-ledger.mjs`. Install/uninstall: `install-windows.ps1`, `uninstall-windows.ps1`, `uninstall.sh`. Store forensics (quit Mirall first): `inspect-store.mjs`. Perf: `bench-prepare.mjs` (under Bare). i18n: `export-translations.mjs`. MSIX signing is out-of-band and has no script here (→ `build-process.md`) |
-| `test/` | Test suite — a CI gate. §15 |
-| `eslint.config.mjs`, `eslint-rules/` | Flat config incl. `eslint-plugin-jsx-a11y` (a `npm run build` / CI gate) and the repo's own rule (`no-unguarded-async-effect`) |
+| `src/main/`, `src/preload/` | Electron host process (CommonJS) and its contextBridge |
+| `src/worker/` | Bare worker: entry, composition root, IPC handler modules |
+| `src/shared/` | The worker's data layer, by domain (ESM, `src/shared/package.json` marks it). Main reaches into it only by `require`/`import()` of single modules, mostly `contract/` |
+| `src/renderer/` | Renderer source (TS + React → `assets/dist/`) |
+| `assets/` | Shipped renderer assets: `index.html`, `fonts/`, `theme-bootstrap.js` (pre-paint theme), build output in `dist/` |
+| `resources/` | Per-platform build assets: `darwin/`, `win32/`, `linux/`, `tray/`, `brand/` (source SVGs) |
+| `forge.config.js` | electron-forge config: makers, the `afterCopy` hook that injects `UPGRADE_KEY`, the Linux licence stamp, MSIX version patching |
+| `scripts/` | `build/` (AppImage, icon generation), `ci/` (gate scripts), `install/` (Windows/Linux install + uninstall), plus top-level dev tools (`inspect-store.mjs` — quit Mirall first; `bench-*.mjs`; `export-translations.mjs`). MSIX signing is out-of-band (→ `build-process.md`) |
+| `test/` | Test suite, a CI gate (§15) |
+| `eslint.config.mjs`, `eslint-rules/` | Flat config (incl. `jsx-a11y`, a build gate); `eslint-rules/invariants.mjs` holds the invariant tables (pure-module lists, single-owner rules) that guard tests read back |
 | `tailwind.config.js` | Design tokens + content globs |
-| `tsconfig.json` | `target: ES2022`, `jsx: react-jsx`, `rootDir: src/renderer`, `outDir: assets/dist` — **typecheck only**; esbuild is the bundler |
-| `tsconfig.worker.json` | The worker program, **typecheck only**: `strict`, `lib: ES2022` (no DOM), no ambient `types`, and `checkJs: false`, so only files that open with `// @ts-check` are reported — every handler module under `src/worker/ipc/`, plus `test/typecheck/worker/`. The data layer they import is read for its types, not reported. `src/worker/global.d.ts` declares the Bare timer globals no package does |
+| `tsconfig.json` | Typecheck only (esbuild bundles): `src/renderer`, `src/shared/contract`, `test/typecheck` |
+| `tsconfig.worker.json` | Typecheck only, `lib: ES2022`, `checkJs: false`: reports only `// @ts-check` files — every `src/worker/ipc/` module and `test/typecheck/worker/`. `src/worker/global.d.ts` declares Bare's timer globals |
 
 ### `src/main/` + `src/preload/`
 
+CommonJS. `src/main/watch-host.js` is the only module allowed to load chokidar (lint rule).
+
 | File | Purpose |
 |---|---|
-| `src/main/main.js` | Electron main. The `app://` scheme + asset server (asar preload cache, msix-manager warm-up), argv + `userData` redirect, PearRuntime construction + OTA wiring + apply journaling (§9), `getWorker` (spawn, bootstrap frame, renderer byte relay, control-frame router), the `ipcMain` handlers (config, relay slot writer, updater, identity, net-online poll, diagnostics, verbose, zoom / theme / prefs / download folder / bandwidth, tray, dir picker), BrowserWindow + menu + theme repaint, tray + autostart, `mirall://` deep-link dispatch + single-instance lock (§5.2), KEK boot, lifecycle |
-| `src/preload/preload.js` | `contextBridge.exposeInMainWorld('bridge', …)` — the only file touching both Electron internals and the renderer window (§8) |
-| `src/main/apply-error.js` | The OTA apply journal (`last-apply-error.json`) — written on a failed apply, cleared on success, reported only for the running version (§2 step 8) |
-| `src/main/app-protocol.js` | `preloadAsarCache` / `registerAppProtocol` — the `app://` scheme the renderer loads from, plus the boot warm-up every asar-internal read depends on: the worker allowlist FIRST (the assets walk can ENOENT), the assets cache, the feature flags, and the win32 msix-manager require, all before the updater's noAsar window (§10) |
-| `src/main/asar-spawn.js` | The `child_process.spawn` asar→`app.asar.unpacked` translation. Installed as main's first statement: bare-sidecar keeps the `spawn` it destructured at load, so the fix must precede every sibling require that can reach pear-runtime |
-| `src/main/boot-argv.js` | paparam wrapper: peels `mirall://` links out of argv and downgrades a parse bail to a warning |
-| `src/main/config-store.js` | The single owner of `config.json` — atomic writes, merge-over-defaults, the legacy-file fold, validated setters, migration seam (§2 step 5) |
-| `src/main/debug-gate.js` | The live logging gate (`baseDebug` / `debug` / `verbose`) — one reader/writer seam for the five sections that consult it |
-| `src/main/deeplink.js` | `parseDeepLink(url)` — validates `mirall://join/<code>`, decodes the envelope (dynamic import, since main is CJS) |
-| `src/main/dir-tripwire.js` | DIAGNOSTIC — wraps the destructive `fs` calls (and `fs-native-extensions.swap`) so anything that would remove the profile directory, an ancestor or `app-storage` logs a stack to `~/mirall-tripwire.log` and is refused; armed once `userData` is settled (#431) |
-| `src/main/env-json.js` | `envJson(name)` — the JSON-valued env knobs (test/debug overrides): parses one, ignores a malformed or scalar value with a warning that never repeats it |
-| `src/main/feature-flags.js` | Boot-cached `feature-flags.json` from the package root + env override |
-| `src/main/identity-kek.js` | The os-keychain unlock provider's host side: the identity KEK at rest under `safeStorage` (§16) |
-| `src/main/ipc-frame.js` | Byte-level NDJSON splitter for worker→main control frames, with a 64 KB per-frame gate |
-| `src/main/install-kind.js` | `linuxInstallKind` — how a packaged Linux build reached the disk (`appimage` / `deb` / `unpacked` / `none`), pure. A deb install turns OTA off (§13) |
-| `src/main/lifecycle.js` | The quit teardown: one ordered `before-quit` sequence (mark-quitting → owned watchers → loose watchers → config flush → workers → apply update), run at most once per process so the update-apply deferral cannot tear the app down twice |
-| `src/main/log-ring.js` | Bounded in-memory ring of recent log lines from all three processes, for the diagnostics bundle; never written to disk |
-| `src/main/logging.js` | `sendToAll` (broadcast to every live webContents, swallowing a disposed frame per target) plus the main-console → log-ring → renderer forwarding with its re-entrancy guard, and the lazy redaction loader. Installed by the entry before anything else logs (§10) |
-| `src/main/loose-file-watchers.js` | Individual watched paths for in-place loose-file shares, over the watch host; path → `Set<spaceId>` fan-out (§2 step 12) |
-| `src/main/main-requests.js` | The worker→main command router — a null-prototype table keyed off `contract/main-requests.js`; `dispatch` never rejects (requests are one-way); unknown and failed commands take the worker-bus failure policy (`worker-bus-failure.js`) with capped, rate-limited warnings as the report |
-| `src/main/menu.js` | The application-menu template — a pure function of platform + UI context |
-| `src/main/net-online.js` | `registerNetOnline` / `startNetOnlineWatch` — Chromium's `net.online`, polled and pushed to the renderer on change. Asymmetric by design: false declares offline, true is inconclusive and never declares healthy (§5) |
-| `src/main/menus.js` | `registerMenus()` plus the tray and app-menu builders — both are rebuilt rather than mutated, because Electron's Menu is immutable once set, so a label change, a locale change or a space appearing means a new menu. Takes `revealWindow`/`targetWindow`/`zoomByDirection` as deps: a menu item acts on the window, and the window knows nothing about menus (§5) |
-| `src/main/notifications.js` | Native `Notification` IPC (`notify:*`) + the `shell:showInFolder` reveal allowlist |
-| `src/main/folder-watchers.js` | Recursive roots over the watch host, keyed per owned share or per mirror, plus the watcher-side ignore matcher (§2 step 12, §7) |
-| `src/main/prefs.js` | The general-preferences record behind accessors — four places act on a change (tray, app menu, the window's close handler, `window-all-closed`), so none of them holds a copy that can go stale. `setPrefs` takes the whole next record because `prefs:set` compares three previous values before deciding what to re-apply (§5) |
-| `src/main/quit-state.js` | `isQuitting()` / `markQuitting()` — one flag with four readers and no natural owner: the worker writer (a write failure during teardown is expected, not a fault), the window's close handler (which otherwise hides to tray), the spawn path, and the quit sequence (§10) |
-| `src/main/relay-keys.js` | Relay-slot validation for `config-store` — decode, mode, sanitize (§4.8) |
-| `src/main/relay-slot.js` | `registerRelaySlot(deps)` — the one relay this node offers: `relay:parse` classifies a pasted key or ticket with no side effects and no secret in the reply; `relay:set` stores the seed and re-applies the slot (§5) |
-| `src/main/relay-secret.js` | The private-relay member seed at rest (`relay-ticket.enc`, `safeStorage`, `0600`) (§4.8) |
-| `src/main/settings-ipc.js` | `registerSettingsIpc(deps)` — the download folder (validated against the same rules a per-space folder gets), the bandwidth caps, the general preferences and the two directory pickers, plus the login-item/XDG autostart writer. `prefs:set` takes its tray and app-menu actions as injected deps rather than re-implementing them (§5) |
-| `src/main/updater.js` | `getPear()` and the OTA surface — the embedded pear-runtime, built lazily because constructing it opens drives and joins a swarm a run may never need. `applyPendingUpdate` reads the runtime binding directly rather than through `getPear`, so a quit never builds one just to find there is nothing to apply. `pear:checkForUpdate` answers with the reason updates are off (`deb-install`, `flag`) instead of triggering a lookup nothing will apply (§8) |
-| `src/main/watch-host.js` | The single owner of chokidar in main — native + lazy polling instance, network-path routing, the error-burst guard, the shared option bag (§2 step 12) |
-| `src/main/window.js` | `registerWindow()`, `createWindow()` and everything persisted about the window — zoom, bounds and theme. The window is hidden rather than closed, so its state has to survive a hide as well as a quit, which is why every read and write goes through config.json rather than the window object (§5) |
-| `src/main/window-bounds.js` | Off-screen-bounds guard for a restored window whose display is gone, pure |
-| `src/main/window-shortcuts.js` | Classifies a `before-input-event` into DevTools toggle / zoom command / nothing, pure (§2 step 6) |
-| `src/main/worker-entrypoints.js` | The worker spawn allowlist (`contract/workers.js`), resolved before the `noAsar` window opens |
-| `src/main/worker-bus-failure.js` | `createFailureGate` — the one policy for a failure on the worker bus (a frame write, a main request): debug logs every one, a quit is silent outside debug, otherwise the caller's reporter; reporting never throws |
-| `src/main/worker-host.js` | `registerWorkerHost()`, `getWorker`, `sendToWorker`, `stopWorkers` — spawning a Bare worker, the one guarded path that frames anything onto its pipe, the hello (the wire version and what main is) followed by the bootstrap frame (the worker's whole starting state, sent once), the stdout/stderr mirror and the exit reaper. Either frame failing to write fails the spawn rather than caching a worker nothing can talk to (§3) |
-| `src/main/xdg-integration.js` | Linux AppImage `.desktop` + icon integration (`integrateXdgLinux`, §2 step 11) and its reverse for a deb install (`retireXdgAppImageEntry`, §13) |
+| `src/main/main.js` | Entry/wiring: argv + `userData` redirect, config/identity/diagnostics IPC, deep-link dispatch + single-instance lock, KEK boot, quit wiring |
+| `src/preload/preload.js` | `window.bridge` — the renderer's entire native surface; the only file touching both Electron and the renderer window |
+| `src/main/asar-spawn.js` | `spawn` asar→`app.asar.unpacked` fix; must install before any module that can load bare-sidecar |
+| `src/main/app-protocol.js` | `app://` scheme + boot warm-up of every asar-internal read (must precede the updater's noAsar window) |
+| `src/main/apply-error.js` | OTA apply-failure journal (`last-apply-error.json`) for the diagnostics bundle |
+| `src/main/boot-argv.js` | paparam argv parse: splits off `mirall://` links, downgrades a bail to a warning |
+| `src/main/config-store.js` | Single owner/writer of `config.json`: debounced atomic writes, defaults, legacy-file fold |
+| `src/main/debug-gate.js` | The live `debug` / `verbose` logging gate |
+| `src/main/deeplink.js` | `parseDeepLink` — validates `mirall://join/<code>` against the invite envelope |
+| `src/main/dir-tripwire.js` | DIAGNOSTIC: refuses + logs `fs` calls that would destroy the profile dir; rule duplicated from `src/shared/core/dir-tripwire.js`, a unit test pins both |
+| `src/main/env-json.js` | `envJson` — JSON-valued env overrides; malformed values ignored, never echoed |
+| `src/main/feature-flags.js` | `feature-flags.json` read once at boot and cached (lazy reads race noAsar) |
+| `src/main/folder-watchers.js` | Recursive watch roots per owned share / mirror over the watch host |
+| `src/main/loose-file-watchers.js` | Watched individual loose-file paths; path → spaces fan-out |
+| `src/main/watch-host.js` | Sole chokidar owner: native + polling instances, network-path routing, error-storm guard |
+| `src/main/identity-kek.js` | Identity KEK at rest under `safeStorage` (`kek.enc`); worker receives the KEK, never M |
+| `src/main/relay-secret.js` | Private-relay member seed at rest (`relay-ticket.enc`, `safeStorage`) |
+| `src/main/relay-keys.js` | Relay-slot validation (key decode, mode, sanitize) for `config-store` |
+| `src/main/relay-slot.js` | `relay:parse` / `relay:set` IPC — the one relay this node offers |
+| `src/main/install-kind.js` | Linux install kind (`appimage`/`deb`/`unpacked`/`none`) + why OTA is off. Pure |
+| `src/main/ipc-frame.js` | Worker-pipe byte splitter; only small `main-request` frames are parsed on main's thread |
+| `src/main/main-requests.js` | Worker→main command router keyed off `contract/main-requests.js`; `dispatch` never rejects |
+| `src/main/worker-bus-failure.js` | The one failure-reporting policy for the worker bus |
+| `src/main/worker-entrypoints.js` | Worker spawn allowlist, resolved before the noAsar window |
+| `src/main/worker-host.js` | Spawns the Bare worker; the one path that writes its pipe (hello, bootstrap, watcher events); exit reaper |
+| `src/main/lifecycle.js` | The ordered, run-once quit sequence and the worker-restart steps |
+| `src/main/quit-state.js` | `isQuitting` / `markQuitting` — shared quit flag |
+| `src/main/log-ring.js` | Bounded in-memory log ring for the diagnostics bundle; never written to disk |
+| `src/main/logging.js` | `sendToAll` broadcast + main-console forwarding into the log ring; installed first |
+| `src/main/net-online.js` | Polls Chromium `net.online`; may only declare offline, never healthy |
+| `src/main/notifications.js` | `notify:*` IPC over native `Notification` + the `shell:showInFolder` allowlist |
+| `src/main/updater.js` | Lazily built embedded pear-runtime and the OTA IPC surface |
+| `src/main/settings-ipc.js` | Download folder, bandwidth caps, general prefs, dir pickers, login-item/XDG autostart |
+| `src/main/prefs.js` | The general-preferences record behind accessors (no stale copies) |
+| `src/main/window.js` | BrowserWindow + its persisted zoom, bounds and theme |
+| `src/main/window-bounds.js` | Off-screen restored-bounds guard. Pure |
+| `src/main/window-shortcuts.js` | Classifies `before-input-event` → DevTools / zoom / nothing. Pure |
+| `src/main/menu.js` | Application-menu template. Pure |
+| `src/main/menus.js` | Tray + app menu, rebuilt (never mutated) on change |
+| `src/main/xdg-integration.js` | Linux AppImage `.desktop`/icon integration and its removal on a deb install |
 
 ### `src/worker/`
 
+ESM under Bare (`src/worker/package.json`). Every `src/worker/ipc/` module opens with `// @ts-check` (test-enforced).
+
 | File | Purpose |
 |---|---|
-| `src/worker/main.js` | Bare worker entry — the crash backstop, the IPC pipe and its close hooks, the bootstrap frame, the membership-control block, every `domain:verb` handler registration, the shutdown deadline and `Bare.exit` |
-| `src/worker/dir-tripwire.js` | DIAGNOSTIC — the same guard over `bare-fs`, armed from the bootstrap frame's storage path before the composition root opens the Corestore (#431) |
-| `src/worker/connection-lifecycle.js` | What a closed pipe means: detach the client, then decide separately whether to stay up. Stops today because nothing can connect a new client; a worker that can accept one lingers instead |
-| `src/worker/boot.js` | The composition root — `bootDurable()` (the tier that outlives the network teardown) plus the runtime tier; starts them in order, closes them in reverse (§2) |
-| `src/worker/mounts-runtime.js` | `MountsRuntime` — owned/foreign mount resume, the durable status writer and the scan-outcome → status mapping, deep-scan debt, the per-share reconcile timers, pause/resume, the 60 s mount + download-root probe (§7.6) |
-| `src/worker/sweeps.js` | `Sweeps` — four missed-event backstops on five timers: presence (60 s), invite expiry (1 h), overlay index compaction (a 5 min boot delay + 6 h, with the last run persisted in `reclaim-meta` so short sessions still pay their due pass — `compactIndexIfDue()`), audit prune (daily, only when the audit bee opened) |
-| `src/worker/owned-mount.js` | `createOwnedMounter({ ipc, mounts })` — everything `owned-folder:mount` does once the share exists and the path is validated: the file-count admission gate, the mount record, the watcher start and the initial publish scan. The entry builds one and hands it to both callers, so mount and create-and-mount cannot drift (§7.5) |
-| `src/worker/space-projection.js` | `slimSpaces` / `fullRoster` / `stripCatalogKeys` — the two shapes a space is read in. Rosters ship slim in `spaces:list` because avatars are base64 data-URLs at the sanitizeAvatar cap; the full roster is a separate per-space read (§6) |
-| `src/worker/audit-refs.js` | The worker's audit-participant adapters — `peerActorIn` (resolves a peer name off the live roster, then the persisted members), `spaceRefOf` (adapts a worker space RECORD onto `spaceRef`), `fileNameOf`, `shareNameOrNull`, `refreshAuditSelfName`. Rows render with zero joins, so every name is snapshotted at write time (§9) |
-| `src/worker/ipc/audit.js` | `registerAudit(ipc)` — the Activity Log's read surface: list, spaces, actors, stats, export, and the config/purge pair, each of which emits `event:audit-updated` because it changes what every open log is showing (§9) |
-| `src/worker/ipc/network.js` | `registerNetwork(ipc, deps)` — swarm status, reconnect, the relay mode/key pair (which re-applies to the live swarm through the root's `applyRelayConfig`), the canary probe, the renderer's `navigator.onLine` hint and the liveness check (§5) |
-| `src/worker/ipc/settings.js` | `registerSettings(ipc, deps)` — storage info, the bandwidth limits (read per call, so they reach in-flight transfers), the global download folder with the same mount-overlap rejection a per-space folder gets, the download-root probe and the live verbose toggle (§5) |
-| `src/worker/ipc/profile.js` | `registerProfile(ipc, deps)` — read and write the local profile. A name change reaches the profile record, the audit identity later rows are stamped with, and every peer holding an open member view |
-| `src/worker/ipc/feedback.js` | `registerFeedback(ipc)` — `feedback:send`: builds the support caption (who, build, platform, time) and truncates the comment to the room the transport leaves, smaller when a screenshot rides along |
-| `src/worker/ipc/diagnostics.js` | `registerDiagnostics(ipc, deps)` — `diagnostics:export`: the support bundle, merging the durable verdict rows with this session's in-memory ring. Reads the boot root through a getter because the partial-root handoff reassigns it (§10) |
-| `src/worker/ipc/files.js` | `registerFiles(ipc, deps)` — the loose-file surface: list/add/remove/reveal, the sender-side serve-ledger subscriptions, and the download controls, which route on the transfer id's SHAPE rather than on a live transfer so a settled fetch cannot make a cancel or pause silently do nothing (§7.4) |
-| `src/worker/ipc/folder-preview.js` | `registerFolderPreview(ipc)` — the scan previews both mount wizards run before committing, plus the two cancel-preview request names. Owned and foreign share the module because they share the abort registry: a preview is cancelled by id, and the id does not say which scan runs behind it (§7.5) |
-| `src/worker/ipc/foreign-folders.js` | `registerForeignFolders(ipc, deps)` — mirror mounts of a share someone else owns: validate, mount (which refuses a second folder for a share already mirrored, answers a repeated request with the mount it made, and arms the poll loop before the initial scan, as boot does, so its first tick coalesces behind the scan and a pause or unmount during the scan stops a loop that already exists), get, enable, relocate and unmount. Removal runs under an intent because the mount record and the mirror record live in two stores (§7.6) |
-| `src/worker/ipc/owned-folders.js` | `registerOwnedFolders(ipc, deps)` — a folder on this disk published into a space: validate, mount, index status and pause/resume, relocate (deep-diff by content hash, with the debt recorded before either pass is armed), delete under an intent, and the watcher events relayed from main (§7.5) |
-| `src/worker/ipc/shares.js` | `registerShares(ipc, deps)` — the folder-share records a space advertises and the read paths over one share's contents. Creation splits into a refusal half (`prepareOwnedShare`) and a replicating half (`publishOwnedShare`) so `share:create-and-mount` can record a durable intent between them (§7.5) |
-| `src/worker/ipc/spaces.js` | `registerSpaces(ipc, deps)` — create, join, invite, update, favourite, and the per-space reads (roster, mirrors, who is online, how each connected member is reached). `space:leave` stays its own module because its teardown order is shared with boot's interrupted-leave pass (§6) |
-| `src/worker/ipc/membership.js` | `createMembership(ipc, deps)` — both halves of a knock: the four peer-frame handlers (request, grant, deny, cancel), the durable member registry the root folds with, `resolveJoinRequest`, the pending-space discard, and the approve/deny/pending-requests handlers. Built before the root, because the root folds with what it returns (§4.2, §6) |
-| `src/worker/ipc/space-leave.js` | `registerSpaceLeave(ipc, deps)` — the `space:leave` handler as a module (§6): the pending-cancel path, the background teardown with its phase tracker, the 12 s respond deadline |
-| `src/worker/ipc/worker-process.js` | `registerWorkerProcess(ipc, deps)` — the worker process's own surface: `shutdown` (host only, answered before the entry's teardown starts), `ping`, and `events:resume`, which replays from the caller's own cursor rather than its socket's attach point |
-| `src/worker/package.json` | `"type": "module"` so Bare imports the worker as ESM |
+| `src/worker/main.js` | Entry: crash backstop, pipe + close hooks, bootstrap frame, handler registration, shutdown deadline, `Bare.exit` |
+| `src/worker/boot.js` | Composition root: `bootDurable` + runtime tier, started in order, closed in reverse; never exits the process |
+| `src/worker/connection-lifecycle.js` | What a closed pipe means: detach the client, then decide stay / linger / stop |
+| `src/worker/dir-tripwire.js` | DIAGNOSTIC: the tripwire over `bare-fs`, armed from the bootstrap storage path |
+| `src/worker/mounts-runtime.js` | `MountsRuntime`: mount resume, durable status writer, per-share reconcile timers, mount/download-root probe |
+| `src/worker/owned-mount.js` | `createOwnedMounter` — shared by mount and create-and-mount so they cannot drift |
+| `src/worker/sweeps.js` | `Sweeps`: periodic missed-event backstops (presence, invite expiry, index compaction, audit prune) |
+| `src/worker/space-projection.js` | Slim (`spaces:list`) vs full-roster space projections |
+| `src/worker/audit-refs.js` | Audit-row name snapshots resolved from live worker state |
+| `src/worker/ipc/audit.js` | Activity Log read/config/purge handlers |
+| `src/worker/ipc/diagnostics.js` | `diagnostics:export` support bundle; reads the boot root via a getter (it is reassigned) |
+| `src/worker/ipc/feedback.js` | `feedback:send` |
+| `src/worker/ipc/files.js` | Loose-file list/add/remove/reveal and download controls (routed by transfer-id shape) |
+| `src/worker/ipc/folder-preview.js` | Owned + foreign pre-mount scan previews and their cancel (one abort registry) |
+| `src/worker/ipc/foreign-folders.js` | Mirror-mount handlers; removal runs under an intent |
+| `src/worker/ipc/owned-folders.js` | Owned-folder handlers + watcher events relayed from main |
+| `src/worker/ipc/shares.js` | Share records and reads; create split into refuse/replicate halves around an intent |
+| `src/worker/ipc/spaces.js` | Space create/join/invite/update and per-space reads |
+| `src/worker/ipc/space-leave.js` | `space:leave`; teardown order shared with boot via `spaces/membership/leave-state.js` |
+| `src/worker/ipc/membership.js` | `createMembership`: knock peer-frame handlers, member registry, approve/deny; built before the root |
+| `src/worker/ipc/network.js` | Swarm status, reconnect, relay config, canary, liveness |
+| `src/worker/ipc/profile.js` | Local profile read/write |
+| `src/worker/ipc/settings.js` | Storage info, bandwidth, global download folder, verbose |
+| `src/worker/ipc/worker-process.js` | `shutdown` (host only), `ping`, `events:resume` |
 
 ### `src/shared/core/`
 
-| File | Purpose |
-|---|---|
-| `src/shared/core/runtime-config.js` | The live runtime config: the one built object, `setRuntimeConfig(bootstrap)`, the live setters that patch it through `buildConfig`, and every getter — a getter validates on read through the schema's rule (§16); `getRuntimeConfig()` is the raw override |
-| `src/shared/core/runtime-config-schema.js` | Every runtime-config key with its default and, where it carries one, its validation rule (one row per knob); the four coercion groups and `buildConfig`, which is a no-op on its own output (§16) |
-| `src/shared/core/runtime-config-rules.js` | The six pure validation rules a getter applies on read (§16) |
-| `src/shared/core/ipc.js` | NDJSON router + pre-start message queue, cancel, request metrics and failure counters, the `POKE_SCOPE` fan-out (§4.7), and `emit(type, payload, { to })` — broadcast, or one client. Wraps `Bare.IPC` as the first client |
-| `src/shared/core/dir-tripwire.js` | The tripwire's rule — what a filesystem call would destroy (the profile dir, an ancestor, the store) given already-resolved paths. Pure and path-module-free, so one copy serves Node and Bare (#431) |
-| `src/shared/core/client-trust.js` | `requireHost(client)` — stopping or restarting the worker ends every client's session, so it is the host's call and not a connected peer's |
-| `src/shared/core/ipc-events.js` | The event plane: the poke→reconcile fan-out table, one sequence number per pushed frame, broadcast vs per-client routing, and the resume a client uses to catch up from a cursor |
-| `src/shared/core/replay-ring.js` | The recent durable frames a resuming client can be replayed, bounded by count and by bytes, with a floor that says when only a resync is honest |
-| `src/shared/core/ipc-handshake.js` | The client's `hello` and the worker's `hello-ack`, plus the bootstrap promise the ack's refusal rejects: the exchange that has to complete before any other frame is honoured |
-| `src/shared/core/ipc-client.js` | One connected peer (its pipe, its in-flight requests, its trust) and the registry of them: attach, detach, the per-client greeting and the disconnect hooks |
-| `src/shared/core/ipc-dispatch.js` | One request frame from table lookup to answer: boundary validation, the cancellation token, per-request metrics and the failure log |
-| `src/shared/core/verbose-policy.js` | Verbose while ANY client wants it, released when one says so or goes away — the honest semantic, since worker stdout is broadcast to every window and a per-client verbose is not achievable |
-| `src/shared/core/ipc-deadlines.js` | In-flight ages and the per-kind deadline sweep the health tick drives: a query past its bound is aborted, a command is only reported |
-| `src/shared/core/frame-reader.js` | The router's byte half: NDJSON framing over the pipe — the per-frame cap, the oversize resync and `bufferedBytes` |
-| `src/shared/core/store.js` | Corestore init, `createBee()` / `createLocalBee()` factories, the M-derived key policy (including `ownParticipationId`), the `Store` resource that owns the store's lifetime + `openSessionNames()` |
-| `src/shared/core/reachability.js` | The pure connectivity verdict (`classify`, `stabilise`) and its VERDICT / CAUSE / CANARY vocabulary |
-| `src/shared/core/supervisor.js` | `Supervisor` — polls every started subsystem's supervisable units and recovers the condemned ones. Started last so it closes first (§2 boot step 11) |
-| `src/shared/core/subsystem.js` | `Subsystem extends ReadyResource` (owned timers, `require()`, `stopping`) + `createLifecycle()`, the ordered start/close registry |
-| `src/shared/core/intents.js` | `createIntentLog()` — durable intent records + the per-kind reconcilers boot dispatches (§2) |
-| `src/shared/core/supervision.js` | `createSupervisionPolicy()` + `DEFAULT_POLICY` (`consecutiveBad: 2`, `maxRecoveries: 3`) — the condemn/recover/give-up counters. Pure |
-| `src/shared/core/concurrency.js` | `mapLimit` + `createSemaphore` (express lane, drain) — the `downloadConcurrency` gate's primitive (§2) |
-| `src/shared/core/identity-envelope.js` | The secretbox envelope wrapping the master secret under a KEK — kept separate from `identity.js` because it imports no `bare-*` and `test/unit` drives it under plain Node |
-| `src/shared/core/identity.js` | Resolves M from `identity.enc`, or migrates a pre-envelope store's RocksDB seed into one (§16) |
-| `src/shared/core/pass-liveness.js` | Per-key heartbeat bookkeeping for supervised passes — the record `stall-verdict` reads |
-| `src/shared/core/errors.js` | `AppError`, `classifyTransferError`, `classifyLocalIoFault`, `isLocalDestFault`, `isRetryableTransferError`. The code vocabulary itself is `contract/errors.js#CODES`, imported from there directly |
-| `src/shared/core/crash-backstop.js` | Installs the pre-first-`await` rejection handler; 10 uncaught errors in 60 s exits the worker for respawn, latched to fire once |
-| `src/shared/core/timers.js` | `createTimers()` — an owned timer set that clears on close and refuses to schedule after it |
-| `src/shared/core/bee-writer.js` | One serialized read-modify-write path over a bee, with `cas` |
-| `src/shared/core/bee-keys.js` | `prefixRange()` — the one upper bound every data-layer bee prefix scan uses; bumps the prefix's final ASCII byte so a suffix above U+00FF is not dropped |
-| `src/shared/core/paths.js` | Download-root resolution: the global root plus the per-space override map (§3.3) |
-| `src/shared/core/handler-table.js` | `createHandlerTable()` + `validateArgs()` — each request's function beside its declared shape (§2) |
-| `src/shared/core/lru.js` | `createRefCountedLru()` — bounded cache of live handles; an entry with readers is never evicted |
-| `src/shared/core/request-metrics.js` | Per-request timing rollups the router feeds; surfaced by `diagnostics:export` |
-| `src/shared/core/with-timeout.js` | `withReadTimeout(promise, ms, fallback)` + `remainingMs` — bounds peer reads so one offline peer can't stall aggregation |
-| `src/shared/core/logger.js` | Scoped logger, `--verbose` gated (default level: warn), with a `fields()` bag |
-| `src/shared/core/health.js` | Process-level health for the diagnostics export — the event-loop lag monitor (not a subsystem's `health()`) |
-| `src/shared/core/cancellation.js` | The worker's cancellation token — `{ aborted, reason, onAbort }` + `throwIfAborted` (`AbortController` is not a Bare global) |
-| `src/shared/core/identity-keys.js` | Corestore-identical keypair derivation from M (§16); must stay byte-identical to corestore internals |
-| `src/shared/core/diagnostics-redact.js` | Regex redaction for the diagnostics bundle, pure |
-| `src/shared/telemetry/channel.js` | `deriveChannel({dev, appVersion})` → `dev` / `staging` / `prod`; dependency-free, consumed by `telemetry/feedback.js` |
-| `src/shared/core/atomic-file.js` | Crash-safe file write: write + fsync a sibling `.tmp`, then rename |
-
-### `src/shared/contract/` — the vocabulary all three runtimes share (plain ESM, imports nothing but siblings; test-enforced)
+Infrastructure with no domain knowledge. May not import `folders/` (shared path rules live in `contract/paths.js`).
 
 | File | Purpose |
 |---|---|
-| `src/shared/contract/requests.js` | One row per renderer/main → worker request: name + arg shape; the `RequestName` union is `keyof` the table |
-| `src/shared/contract/invite-envelope.js` | The invite codec, v0 + v1 (§5.1), incl. hand-rolled UTF-8 + base64url — Bare has no `TextDecoder`, the renderer no `Buffer` |
-| `src/shared/contract/audit-kinds.js` | The closed audit vocabulary + category/tier tables; the renderer reads it too. Excludes per-file folder sync on purpose — the deliberate act is mounting (§14) |
-| `src/shared/contract/errors.js` | Every error code that can cross the IPC boundary (`CODES`) and the EXPECTED / INTERNAL / UNUSED lists |
-| `src/shared/contract/statuses.js` | The status tuples the worker produces and the renderer derives its unions from (§3.5, §7.3) |
-| `src/shared/contract/events.js` | Every `event:*` name; emit sites stay the source of truth and `contract-declarations.test.js` compares both directions |
-| `src/shared/contract/mount-fault.js` | Fault code ↔ mount status bridge (the errno half lives in `folders/mount-fault.js`) |
-| `src/shared/contract/mount-precedence.js` | The order an owned mount's two facts resolve in: `mount-point-gone` > fault > `paused` > `scanning` > `active`. `status` is derived from it, never assigned |
-| `src/shared/contract/scope.js` | `Scope` constructors + `scopeMatches` — the identity of a re-derivable view (§4.7) |
-| `src/shared/contract/main-requests.js` | Every worker→main control frame name (`MAIN_REQUEST`, `MAIN_REQUEST_FRAME`) |
-| `src/shared/contract/ipc-frames.js` | The non-request frames on the IPC pipe: `hello`, `hello-ack`, `bootstrap`, `response`, `cancel`, the `CLIENT_KINDS` / `TRUST` vocabularies, plus `IPC_PROTOCOL_VERSION` (2) — the wire's own version, independent of package.json |
-| `src/shared/contract/hello.js` | Whether a client's introduction may be accepted: its wire version first, then what it says it is and where it claims to have read to. A malformed cursor is refused rather than ignored, and `refusalMessage` is the one sentence any refusal prints |
-| `src/shared/contract/event-cursor.js` | Where a client has read to on the worker's event stream, and what a greeting means: a first connection, a resumable gap in the same generation, or a new process that only a resync answers honestly. A client that came up over a running worker is greeted by nobody, so it marks itself connected and the next greeting it sees is a resync |
-| `src/shared/contract/responses.ts` | What each request resolves with, and the wire shapes those responses carry. The map is total over `RequestName` by construction, so a request with no response cannot compile. Read by both ends: the renderer's `request()` resolves with `RequestResponse[K]`, and the worker's `ipc.handle` accepts only a handler whose result is `RequestResponse[name]` — where that result has a type; one inferred as `any` from an untyped data-layer callee is not held. The renderer's types.ts re-exports every name it used to own |
-| `src/shared/contract/request-args.ts` | Type-only: `RequestArgs<N>`, a request's arguments derived from its `requests.js` row (an optional field admits `null`, as the boundary validator does). The type a handler's `msg` has |
-| `src/shared/contract/request-deadlines.js` | How long a request may run before the router reports it: per row, with a per-kind default, and 0 for deliberately unbounded |
-| `src/shared/contract/protocol-compat.js` | Whether the hello frame's wire version falls inside this build's window. The worker refuses an incompatible client outright rather than defaulting its fields |
-| `src/shared/contract/principals.js` | The org / person / device vocabulary: which question each key answers, and `principalRef()` — the one site that says a profile key is simultaneously the person and the device (§16) |
-| `src/shared/contract/peer-frames.js` | The mirall/handshake frame vocabulary two peers exchange, which frames assert the sender's identity, and which the worker's membership handler owns |
-| `src/shared/contract/limits.js` | `AVATAR_MAX_BYTES`, `NAME_MAX`, `JOIN_REQUEST_FRAME_OVERHEAD`, `IPC_MAX_FRAME_BYTES`, `RETENTION_CHOICES` |
-| `src/shared/contract/reachability.js` | The reachability vocabulary — verdict, cause, confidence and canary state — which core/reachability.js re-exports and types.ts derives its unions from |
-| `src/shared/contract/deny-outcome.js` | `DENY_OUTCOME` — what `space:deny-member` did: `denied`, `already-approved` (states the no-revocation rule), or `not-applicable` (no open request) |
-| `src/shared/contract/member-reach.js` | `MEMBER_REACH` — how a connected member is reached (`direct` / `relayed`); the vocabulary `members:reach` answers in |
-| `src/shared/contract/relay-apply.js` | `relayMismatch(mode, relay)` — whether a relay setting has reached the connections that already exist. Both runtimes decide on it: the worker to apply the change itself when nothing is moving, the renderer to explain it when it cannot (§4.8) |
-| `src/shared/contract/paths.js` | The path rules every runtime shares: the partial-file suffix, the publish orders, pathContains — the two cross-folder edges core/ and folders/ were reading across — and `PATH_HOST`, which says whose filesystem a path on the wire belongs to |
-| `src/shared/contract/network-paths.js` | `looksLikeNetworkPath` — UNC, `/Volumes`, `/mnt`, `/media`; the one predicate that routes a path to a polled watch instead of a native one |
-| `src/shared/contract/workers.js` | The worker entrypoint allowlist |
-| `src/shared/contract/exit-codes.js` | `WORKER_EXIT_UNSTABLE = 70` (§2 boot step 11) |
-| `src/shared/contract/decoration-key.js` | `shareId + ':' + relPath` — the folder row's `event:decoration` key (§8) |
-| `src/shared/contract/entry-ref.js` | Which file in which share, as one string — the `verified:` bee key grammar and the range prefix that must agree with it |
-
-### `src/shared/state/`
-
-| File | Purpose |
-|---|---|
-| `src/shared/core/derived-view.js` | Generic durable-state view: watch N replicated bees, fold once per burst, liveness-tracked — `spaces/member-view.js` builds on it |
-| `src/shared/network/presence.js` | Presence leases — heartbeat-refreshed, TTL-expired, cleared on disconnect (§4.7) |
+| `src/shared/core/runtime-config.js` | Live runtime config: `setRuntimeConfig`, live setters, validated getters |
+| `src/shared/core/runtime-config-schema.js` | Every config key, default and rule; `buildConfig` |
+| `src/shared/core/runtime-config-rules.js` | The validation rules getters apply; never throw |
+| `src/shared/core/ipc.js` | Worker IPC router `createIPC`: pre-start queue, cancel, metrics/failure counters |
+| `src/shared/core/ipc-events.js` | Event plane: poke→reconcile fan-out, seq numbers, broadcast vs targeted, resume |
+| `src/shared/core/ipc-handshake.js` | `hello` / `hello-ack` + bootstrap exchange gating all other frames |
+| `src/shared/core/ipc-client.js` | One connected client (pipe, in-flight requests, trust) + the registry |
+| `src/shared/core/ipc-dispatch.js` | One request frame: validation, cancellation token, metrics, failure log |
+| `src/shared/core/ipc-deadlines.js` | In-flight ages + per-kind deadline sweep driven by the health tick |
+| `src/shared/core/frame-reader.js` | NDJSON byte framing with the per-frame cap |
+| `src/shared/core/replay-ring.js` | Bounded ring of recent durable frames for client resume |
+| `src/shared/core/handler-table.js` | `createHandlerTable` + `validateArgs` against `contract/requests.js` |
+| `src/shared/core/request-metrics.js` | Per-request timing/failure rollups |
+| `src/shared/core/client-trust.js` | `requireHost` — only the host may stop the worker |
+| `src/shared/core/verbose-policy.js` | Verbose on while any client wants it |
+| `src/shared/core/store.js` | Single Corestore owner: `createBee`/`createLocalBee`, M-derived key policy |
+| `src/shared/core/identity.js` | Resolves master secret M from `identity.enc` |
+| `src/shared/core/identity-envelope.js` | Secretbox envelope for M under a KEK; no `bare-*`, unit-tested under Node |
+| `src/shared/core/identity-keys.js` | Corestore-identical keypair derivation from M; must stay byte-identical |
+| `src/shared/core/subsystem.js` | `Subsystem` lifecycle base + `createLifecycle` ordered start/close |
+| `src/shared/core/supervisor.js` | Recovers condemned units of started subsystems; started last |
+| `src/shared/core/supervision.js` | Condemn/recover/give-up policy. Pure |
+| `src/shared/core/pass-liveness.js` | Per-key pass heartbeats + `stallVerdict` |
+| `src/shared/core/intents.js` | Durable intent log + per-kind reconcilers run at boot; no `bare-*` |
+| `src/shared/core/timers.js` | Owned timer set; refuses to schedule after close |
+| `src/shared/core/concurrency.js` | `mapLimit`, semaphore (express lane), keyed lock, coalescing runner |
 | `src/shared/core/coalesce.js` | Keyed leading + trailing coalescer |
-| `src/shared/core/hints.js` | The `event:reconcile` hint bus over the coalescer (§4.7) |
+| `src/shared/core/hints.js` | `event:reconcile` hint bus (lossy by design; consumers re-derive) |
+| `src/shared/core/derived-view.js` | In-memory view folded from watched replicated bees; never persisted |
+| `src/shared/core/bee-writer.js` | Serialized read-modify-write over a bee with `cas`; no `bare-*` |
+| `src/shared/core/bee-keys.js` | `prefixRange` — the one upper bound for every bee prefix scan |
+| `src/shared/core/lru.js` | Refcounted LRU of live handles; in-use entries never evicted |
+| `src/shared/core/with-timeout.js` | `withReadTimeout` — bounds peer reads, resolves to a fallback |
+| `src/shared/core/cancellation.js` | Cancellation token (`AbortController` is not a Bare global) |
+| `src/shared/core/errors.js` | `AppError` + error classifiers; codes come from `contract/errors.js` |
+| `src/shared/core/crash-backstop.js` | Uncaught-error handler; exits the worker past a fault rate |
+| `src/shared/core/health.js` | Event-loop lag monitor for diagnostics |
+| `src/shared/core/logger.js` | Scoped leveled logger gated by `verbose` |
+| `src/shared/core/diagnostics-redact.js` | Diagnostics redaction; dependency-free, loads in all three runtimes |
+| `src/shared/core/paths.js` | Download-root resolution: global root + per-space overrides |
+| `src/shared/core/atomic-file.js` | Crash-safe write: fsync temp, then rename |
+| `src/shared/core/reachability.js` | Connectivity verdict (`classify`, `stabilise`); Node-loadable |
+| `src/shared/core/dir-tripwire.js` | The tripwire rule over resolved paths; path-module-free, shared by Node and Bare |
+
+### `src/shared/contract/`
+
+The vocabulary all three runtimes share. Imports nothing but its own siblings (`test/unit/contract-package.test.js`); the renderer may import only this package from `src/shared/`.
+
+| File | Purpose |
+|---|---|
+| `src/shared/contract/requests.js` | One row per worker request: name, kind, arg shape |
+| `src/shared/contract/request-args.ts` | Type-only: a request's args derived from its `requests.js` row |
+| `src/shared/contract/responses.ts` | Response type per request + the wire shapes; total over `RequestName` |
+| `src/shared/contract/request-deadlines.js` | Per-request run-time bound the router reports on |
+| `src/shared/contract/events.js` | Every `event:*` name; emit sites checked against it by test |
+| `src/shared/contract/errors.js` | Every IPC error code (`CODES`); spellings never renamed |
+| `src/shared/contract/ipc-frames.js` | Non-request pipe frames, client kinds, trust, `IPC_PROTOCOL_VERSION` |
+| `src/shared/contract/protocol-compat.js` | Wire-version window check |
+| `src/shared/contract/hello.js` | Accept/refuse a client's `hello` |
+| `src/shared/contract/event-cursor.js` | Client read position on the event stream and what a greeting means |
+| `src/shared/contract/main-requests.js` | Every worker→main control frame name |
+| `src/shared/contract/workers.js` | Worker entrypoint allowlist |
+| `src/shared/contract/exit-codes.js` | Worker exit codes and their meaning to the respawn policy |
+| `src/shared/contract/peer-frames.js` | Peer-to-peer `mirall/handshake` frame vocabulary |
+| `src/shared/contract/invite-envelope.js` | Invite codec (hand-rolled UTF-8/base64url for all runtimes) |
+| `src/shared/contract/principals.js` | Org/person/device key vocabulary; `principalRef` |
+| `src/shared/contract/identity-limits.js` | `clampDisplayName`, `sanitizeAvatar` for peer-supplied identity fields |
+| `src/shared/contract/limits.js` | Numeric bounds both sides share |
+| `src/shared/contract/statuses.js` | Status tuples the renderer derives its unions from |
+| `src/shared/contract/mount-fault.js` | Fault code ↔ mount status (errno half: `src/shared/folders/mount-fault.js`) |
+| `src/shared/contract/mount-precedence.js` | Owned-mount status precedence; status is derived, never assigned |
+| `src/shared/contract/scope.js` | `Scope` + `scopeMatches` — identity of a re-derivable view |
+| `src/shared/contract/audit-kinds.js` | Closed audit vocabulary, categories, tiers |
+| `src/shared/contract/reachability.js` | Reachability verdict vocabulary |
+| `src/shared/contract/deny-outcome.js` | `DENY_OUTCOME` — states the no-revocation rule |
+| `src/shared/contract/member-reach.js` | `MEMBER_REACH` vocabulary (`direct` / `relayed`) |
+| `src/shared/contract/relay-apply.js` | `relayMismatch` — has a relay change reached live connections |
+| `src/shared/contract/paths.js` | Cross-runtime path rules: partial suffix, publish orders, `pathContains`, `PATH_HOST` |
+| `src/shared/contract/network-paths.js` | `looksLikeNetworkPath` — routes a path to polled watching |
+| `src/shared/contract/decoration-key.js` | Folder-row `event:decoration` key |
+| `src/shared/contract/entry-ref.js` | `verified:` bee key grammar + its range prefix |
 
 ### `src/shared/spaces/`
 
+Modules in `pureSpacesModules` (`eslint-rules/invariants.mjs`) may not import `bare-*`.
+
 | File | Purpose |
 |---|---|
-| `src/shared/spaces/space.js` | The `spaces-meta` bee and the space record: reads (`getSpace` / `listSpaces`), the whole-record writes create and join mint, and the one per-space write chain every later change is serialized through (`mutateSpace` / `mutateMembers`, + the arrival audit row). Also the record predicates — the SCK resolve, the legacy-space refusal — and `SpacesBee`. `spacesMeta()` is how the two sibling modules that own the bee's other key namespaces reach it |
-| `src/shared/spaces/space-lifecycle.js` | How a space comes to exist for this peer: `createSpace`, `joinSpace`, `materializeSpace` (the grant landing: stores the key, announces the participation id, and only then flips a pending space to approved) and `recordApproval` (§4.2). The only paths that write a whole record |
-| `src/shared/spaces/participation.js` | This peer's participation in each space: `makeDriveSuffix`, `isParticipating`, `getOwnParticipationId`, and the announce (`markSpaceDriveKey` + the loose-catalog key) boot repeats (§3.5) |
-| `src/shared/spaces/leave-records.js` | The durable leave state in `spaces-meta` — the `leaving` marker, the `left/` tombstones, the `pendingleave/` markers — plus the record deletions (`forgetSpaceRecord`, `purgeSpace`) and `resumeInterruptedLeave`, the boot pass that finishes a leave a crash interrupted (§6). `membership/leave-state.js` owns the step ORDER; this owns what survives between the steps |
-| `src/shared/spaces/creator-pin.js` | The durable creator-root pin: `pinCreatorKey`, the divergence latch, and the two one-shot boot passes that bring older records to the current shape. `creator-root.js` decides whether to adopt; this persists it (§16) |
-| `src/shared/spaces/peer-profile-watch.js` | `fetchPeerAvatar` and the ONE held profile-bee session per peer — a live Hyperbee with an append listener, which is what turns a co-member's later profile edit into a local update with no poll. The session is why this is a module: it has to be closed, and closed once (§6) |
-| `src/shared/spaces/join-requests.js` | Who is asking to join, in memory and per space. Two maps on purpose: `pendingRequests` is what this peer heard directly, `derivedRequests` is what the member registry's fold over the replicated records converged on and is authoritative for the UI. Neither survives a restart — a request is a live claim (§6) |
-| `src/shared/spaces/peer-bee.js` | Reading another peer's profile bee: open by key, pull the head, run the read, close — all under ONE budget covering both phases, because a peer that is merely slow and a peer that is gone look identical until it expires. Every reader goes through `withPeerBee` and none adds a second budget (§3.1) |
-| `src/shared/spaces/profile.js` | The user's replicated profile bee: identity + `ProfileBee`, the signer, `openProfileBee`; the membership-manifest writers and their bounded peer readers (`member/`, `approved/`, `invite/`, `request/`, `denied/`, §3.1); `withPeerBee` — the one bounded peer read (§3.1); peer-bee capture; the per-space key announcements (`drive/`, `loosecat/`, `loosecatEnc/`) |
-| `src/shared/spaces/member-registry.js` | One live member view per space: fold → `space.members` reconcile, the local leave tombstones (`lefts`) and observed-leave revoke, pending-request reconcile, capture refcounts; `MemberViews` (§6) |
-| `src/shared/spaces/member-view.js` | `deriveMemberSet` (transitive discovery over roster bees) + `createMemberView` (a derived view over watched ranges, live follows, share-range watchers) |
-| `src/shared/spaces/member-fanout.js` | The pure member fan-out every "own plus every member's" listing runs: `peerMembersOf` + `readEachPeer`, all peers at once under one interactive budget |
-| `src/shared/spaces/membership/fold.js` | The pure OR-Set fold (`foldMembership`) + `voucheesToAdopt`, `reconnectGrantAllowed`, `tombstoneActive`, `observedLeavers` (§6) |
-| `src/shared/spaces/space-keys.js` | The SCK vault (`space-keys.enc`, wrapped by an M-derived key): the current key per space plus the keys of earlier epochs, read by epoch + `SpaceKeysVault` (§16) |
-| `src/shared/spaces/space-keys-codec.js` | The vault's plaintext codec, both shapes: a v1 entry (one bare hex key) decodes as epoch 0, v2 holds `{ epoch, key, history }`; a vault still entirely at epoch 0 encodes as v1 so an older release opens it. Pure, byte helpers injected, so test/unit drives it (§16) |
-| `src/shared/spaces/membership/leave-state.js` | `runLeaveTeardown()` — the one teardown ORDER the live leave and the boot pass share (§6) |
-| `src/shared/spaces/knock-policy.js` | `knockSettledByRecords` / `knockInviteVerdict` — the verdict table for a join request. Split in two because resolving an invite REVOKES an expired one, so a knock the records already settle is answered without reading one (§4.2) |
-| `src/shared/spaces/invites.js` | `classifyInvite`, `snapshotCandidates` — what an incoming `inviteId` means from the resolver's per-link record (§5) |
-| `src/shared/spaces/creator-root.js` | `reconcileAssertedRoot` — the adopt / confirm / refuse table for a member-set root assertion (§16) |
+| `src/shared/spaces/space.js` | `spaces-meta` bee owner: space record reads, the one serialized per-space write chain, `SpacesBee` |
+| `src/shared/spaces/space-lifecycle.js` | Create, join, materialize on grant, record approval — the only whole-record writers |
+| `src/shared/spaces/participation.js` | This peer's participation id per space and its announce |
+| `src/shared/spaces/leave-records.js` | Durable leave state (markers, tombstones), record purge, interrupted-leave resume |
+| `src/shared/spaces/membership/leave-state.js` | The one leave teardown ORDER, shared by live leave and boot |
+| `src/shared/spaces/membership/fold.js` | Pure OR-Set membership fold and its helpers |
+| `src/shared/spaces/member-view.js` | Transitive member discovery + derived member view |
+| `src/shared/spaces/member-registry.js` | One live member view per space, reconciled into `space.members`; `MemberViews` |
+| `src/shared/spaces/member-fanout.js` | "Own + every member" peer fan-out under one budget |
+| `src/shared/spaces/profile.js` | Own replicated profile bee: identity, membership manifest, per-space key announcements; `ProfileBee` |
+| `src/shared/spaces/peer-bee.js` | Bounded reads of peers' profile bees (`withPeerBee`) — one budget per read, never a second |
+| `src/shared/spaces/peer-profile-watch.js` | The one held profile-bee session per peer + avatar fetch |
+| `src/shared/spaces/join-requests.js` | In-memory pending/derived join requests; not persisted |
+| `src/shared/spaces/knock-policy.js` | Join-request (knock) verdict tables |
+| `src/shared/spaces/invites.js` | Classify an incoming `inviteId` |
+| `src/shared/spaces/creator-root.js` | Adopt/confirm/refuse rule for a member-set root assertion |
+| `src/shared/spaces/creator-pin.js` | Persists the creator-root pin + one-shot boot backfills |
+| `src/shared/spaces/space-keys.js` | SCK vault (`space-keys.enc`) owner; `SpaceKeysVault` |
+| `src/shared/spaces/space-keys-codec.js` | Vault plaintext codec (v1/v2, epochs) |
+| `src/shared/spaces/sck-seal.js` | Seals the SCK to a joiner's signer key at approval |
 
 ### `src/shared/shares/`
 
+`catalog-keys` and `catalog-tally` are pure (`pureSharesModules`).
+
 | File | Purpose |
 |---|---|
-| `src/shared/shares/catalog-keys.js` | The catalog's key grammar: `FILE_PREFIX` (PERSISTED — it addresses every replicated entry), `sharePrefixKey` / `fileKey`, `isValidCatalogKey`, the `catalogKey`/`…Enc` field convention read and written in one place, `classifyEntryNode` and the `catalogEntry` row shape. Pure, so the modules that need only the grammar stop importing the catalog itself (§3.7) |
-| `src/shared/shares/own-catalog.js` | The owner's per-space catalog bee (§3.7): open, key publish, `ownCatalogWriter` (advertise / tombstone / materialized hash), `listOwnShare` / `collectOwnShare`, purge on leave and the legacy plaintext core; `OwnCatalogs` |
-| `src/shared/shares/peer-catalog.js` | Other peers' catalogs opened read-only by key behind a refcounted LRU with append watchers (§4.3): `resolvePeerCatalog`, `collectPeerShare` (one budget for head sync + bounded drain; returns the `version` it read), `getPeerEntry` / `getPeerEntryState`, `peerCatalogVersion`, `isPeerCatalogWatched`; `PeerCatalogs` |
-| `src/shared/shares/catalog-tally.js` | The single-pass count / byte-sum / cap fold both catalog listings run, skipping mount-escaping paths. Pure |
-| `src/shared/shares/share-listing.js` | The display listing for one folder share: catalog entries in, status-bearing rows keyed by drive path out (`/<name>/<relPath>`); prefetch, prune |
-| `src/shared/shares/catalog-writer.js` | The batched catalog writer a bulk publish pass writes through, with read-your-writes generations (§7.2) |
-| `src/shared/shares/shares.js` | Share records — the `share/<spaceId>/<shareId>` rows on profile bees: `publishShare`, `tombstoneShare`, `readOwnShares`, `readPeerShares`, `readPeerShareEntry` (raw — sees tombstones), `isValidShareName`, `generateShareId`, `ensureSharesCap` |
-| `src/shared/shares/migrate-catalog-encrypt.js` | One-shot plaintext → SCK-encrypted catalog migration |
-| `src/shared/shares/share-registry.js` | `listSharesForSpace(spaceId)` — own + every current member's share records, tagged `owner` / `source` |
+| `src/shared/shares/shares.js` | Share records (`share/<spaceId>/<shareId>` rows on profile bees) |
+| `src/shared/shares/share-registry.js` | Own + members' share records merged for a space |
+| `src/shared/shares/catalog-keys.js` | Catalog key grammar and key-field convention; `FILE_PREFIX` is PERSISTED |
+| `src/shared/shares/own-catalog.js` | Owner's SCK-encrypted per-space catalog bee; `OwnCatalogs` |
+| `src/shared/shares/peer-catalog.js` | Peers' catalogs read-only behind a refcounted LRU; `PeerCatalogs` |
+| `src/shared/shares/catalog-writer.js` | Batched catalog writes for a bulk publish pass |
+| `src/shared/shares/catalog-tally.js` | Single-pass count / byte-sum / cap fold for listings |
+| `src/shared/shares/share-listing.js` | Display listing for one folder share |
+| `src/shared/shares/migrate-catalog-encrypt.js` | One-shot plaintext → encrypted catalog migration |
 
 ### `src/shared/folders/`
 
+Owner side: `owned-*`, publish lane: `publish-*`, mirror engine: `mirror-*`, mirror mount lifecycle: `foreign-*`. The two `*-folders.js` roots are never imported back by their leaves. Modules in `pureFolderPolicyModules` (`eslint-rules/invariants.mjs`) may not import `bare-*`.
+
 | File | Purpose |
 |---|---|
-| `src/shared/folders/foreign-folders.js` | Mirror side (§7.3), composition root: constructs the loop engine and the per-mount state, injects them into the leaves, subscribes the two level triggers (`onPeerDriveChanged`, owner-online) and owns `ForeignMirrors` — `_open` / `_close`, `supervise`, `recover`, `health`, `mirrorHealth`. Naming rule for the mirror side: `mirror-*` is the engine (what a pass does), `foreign-*` is the mount's lifecycle as the worker sees it |
-| `src/shared/folders/foreign-verbs.js` | The mount verbs: `startForeignLoop` / `stopForeignLoop` / `restartForeignLoop`, `unmountForeignFolder`, `relocateForeignFolder`, `setForeignEnabled` — each a mount-record write plus the loop control that keeps the running mirror in step with it (§7.3) |
-| `src/shared/folders/foreign-orphan.js` | `maybeUnmountIfOwnerGone` — tears a mirror down only on positive evidence that its owner left the space or deleted the share; a replication gap is left to retry (§7.3) |
-| `src/shared/folders/foreign-shares.js` | `loadShareForForeignMount` — the owner's share record behind a mirror, read by the pass and by the preview |
-| `src/shared/folders/mirror-signals.js` | What a mirror reports outward: `emitStatus` (`event:foreign-folder-mount-status`), `syncMirrorRecord` / `settleMirrorSyncState` (the replicated participation record, then `event:mirrors-updated`), and the one IPC slot the whole mirror side emits through |
-| `src/shared/folders/owned-folders.js` | Owner side (§7.2), composition root: constructs the state and the progress broadcaster, injects them into the leaves below, and owns `OwnedFolders` — `_open` / `_close`, `supervise`, `recover`, `health` — plus `reconcileOwnedShare`, `countFolderFiles`, `getIndexStatus` / `cancelIndex`, `stopOwnedFolder` |
-| `src/shared/folders/owned-pass.js` | One reconcile pass: `runPublishPass` (diff → enqueue → settle), the coalesced diff over the disk walk and the catalog, the per-pass abort signal and the heartbeat every phase bumps (§7.2) |
-| `src/shared/folders/owned-watcher.js` | The watcher's side: `handleFsEventFromMain` / `onFsEvent` (one event → one interactive work item) and the trailing catch-up diff that covers what chokidar dropped, with backoff (§7.2) |
-| `src/shared/folders/owned-channel.js` | The `folder` publish channel registered on the shared lane: how one owned-folder item resolves against its mount, and what publishing or retiring it means (§7.2) |
-| `src/shared/folders/owned-progress.js` | `createOwnedProgress` — the throttled `event:owned-folder-index-progress` frame and the re-announce timer that keeps members told during the long gaps between queue-shape changes (§7.2) |
-| `src/shared/folders/owned-state.js` | `createOwnedState` — what the owner side remembers between passes: the share-record cache, the worst I/O fault since the last pass settled, and the shares whose pass the supervisor abandoned |
-| `src/shared/folders/owned-shares.js` | `loadShareForMount` / `loadShare` — the share record behind a mount, read fresh by the diff and cached by the channel |
-| `src/shared/folders/owned-policy.js` | The owner scan's pure judgements: `ownedKey`, `publishVerdict` (publish / unchanged / defer) and `worsePassFault` (a full disk outranks a permission fault) |
-| `src/shared/folders/publish-scheduler.js` | Cross-space runner: bounded slots, round-robin, the space and interactive reservations, tallies, `whenDrained`. Pure (§7.2) |
-| `src/shared/folders/preview-tally.js` | The result shape both previews return, and the per-file detail cap (`PREVIEW_DETAIL_MAX_FILES`, `includePerFile`) that §8 `owned-folder:preview` applies |
-| `src/shared/folders/path-keys.js` | Pure cross-platform path math, ignore globs, overlap / containment, the deletion gate, collision naming, the validator predicates (§7.5) |
-| `src/shared/folders/mount-validate.js` | `validateMountPath` — reject / advisory rules, async and sync twins (§7.4) |
-| `src/shared/folders/publish-queue.js` | One space's queue: heap in the configured order + byKey map (one live item per path; fold / supersede / cancel). Pure (§7.2) |
-| `src/shared/folders/mount-store.js` | `mounts-meta` CRUD for both mount kinds through one serialized writer (§3.6) |
-| `src/shared/folders/mirror-watcher.js` | The watcher's side of a mirror: `handleMirrorFsEvent` — the mirror's own landing is dropped by its verified fingerprint, anything else requests a walk (§7.3) |
-| `src/shared/folders/mirror-state.js` | What a mirror owns on disk — the synced `Set`, the `renamedPaths` collision map, the convergence watermark — three per-mount pieces that live, die and reset together |
-| `src/shared/folders/mirror-records.js` | The replicated `mirror/<spaceId>/<shareId>` participation rows — per-key serialized, soft-tombstoned on unmount (§3.1) |
-| `src/shared/folders/publish-service.js` | The shared owner-side lane: the scheduler singleton, the per-space catalog batch, the channel registry (`registerPublishChannel` / `publishChannelFor`; a channel also carries the maintenance members `contentRoot` (folder only), `presentAt`, `rehydrate`, `retireGone`), space / global stop; `PublishService` (§7.2) |
-| `src/shared/folders/mirror-loop.js` | The per-mount loop, with no knowledge of catalogs, hashes or mounts: one interval per key, at most one pass in flight, a dirty flag, a cancellation generation, the liveness heartbeat. `invalidate` cancels the passes in flight without disarming the cadence |
-| `src/shared/folders/pass-writer.js` | The one write path of a mirror pass, scoped to the generation the pass started at: the mount record (`mutate` / `patch`) and the mirror-participation record (`setMirrorState`). A pause, relocate or unmount invalidates the generation before its own write, and the writer checks it inside the serialized write, so a cancelled pass never writes after the verb that cancelled it |
-| `src/shared/folders/foreign-preview.js` | `previewMaterializeScan` — the mirror's pre-mount preview; classifies the destination the way a fresh mount will (`mirror-state.js#resolveLocalRelPath`: adopt an identical file, otherwise a numbered sibling), so its conflict count is what the mount does (§14) |
-| `src/shared/folders/walk-disk.js` | Stat-only recursive walk of a mount root → `/`-separated relative keys (Windows long-path prefix stripped, ignores applied); `countDiskFiles`; `AbortError` |
-| `src/shared/folders/watch-derive.js` | Pure watcher decisions: `WATCH_MODE` + `watchModeFor` (poll / per-directory tree / recursive), `settledAction` (`rename`\|`change` + a stat → `add`\|`change`\|`unlink`), `underPrefix` |
-| `src/shared/folders/watch-budget.js` | The inotify ceiling read from `/proc/sys/fs/inotify/max_user_watches`, accounted for every tree in this process with a reserve for the rest of the system; `resetWatchBudget` is its one reset |
-| `src/shared/folders/watch-tree.js` | `createWatchTree` — one `bare-fs` watcher per root in the pipelines' `add`\|`change`\|`unlink` vocabulary: stat before arm, 1 s settle window, arm-time scan of a directory that appeared, subtree drop on a rename or delete, symlinked directories never descended |
-| `src/shared/folders/work-item.js` | The path-keyed work item: `OP` / `STATE` / `PRIORITY`, ordering comparators (`PUBLISH_ORDERS`), lazy deferreds. Pure (§7.2) |
-| `src/shared/folders/owned-preview.js` | `previewInitialPublishScan` — the owner's stat-only pre-mount preview (§8 `owned-folder:preview`) |
-| `src/shared/folders/mirror-budgets.js` | The mirror's bounded per-(path, hash) failure budget — eviction-bounded, so a corrupt holder cannot pin a file forever nor block a healthy one (§7.3) |
-| `src/shared/folders/mirror-registry.js` | The merged "who mirrors what" listing for a space: own rows plus every current member's, tagged with the mirroring peer |
-| `src/shared/folders/echo-guard.js` | Per-share TTL set of paths we just wrote, so the watcher ignores our own writes; `EchoGuardPurge` |
-| `src/shared/folders/mirror-policy.js` | `classifyLocalCopy` — whose bytes are on disk (`owner-current` / `ours` / `diverged` / `unknown`) from the disk, owner and ancestor hashes — + `mayOverwriteInPlace`. Pure (§14) |
-| `src/shared/folders/disk-presence.js` | `fileExactlyPresent` / `fileStatPresent` / `statFacts` — exact-name presence before a retire (a following stat would call a case-only rename or a symlink "present" forever) |
-| `src/shared/folders/share-limits.js` | The one folder-share file-limit rule, read by the preview, the worker's mount gate and the renderer alike (§14) |
-| `src/shared/folders/folder-intents.js` | The boot reconcilers for the folder flows that write to more than one bee (§2 durable intents) |
-| `src/shared/transfer/temp-paths.js` | `isEphemeralSourcePath()` — rejects macOS promised-file temps as share / drop sources |
-| `src/shared/folders/mirror-pass.js` | The two pass entries — `initialMaterializeScan` (mount / boot) and `runMaterializeTick` (poll / level trigger) — and one walk of a mirrored share's catalog: for every entry, already right / fetch / withhold, plus the deletion primitive `applyChange` and the reachability gate the walk and the deletion guard share. Restartable by design — everything here is derived fresh from the catalog each tick, which is why it is separate from the fetch that is not (§7.3) |
-| `src/shared/folders/mirror-fetch.js` | The per-entry fetch: everything between "the pass wants this file" and "the bytes are at the natural name" — the free-space and mount-root preflights, the conflict copy (`preserveLocalEdit`, §14), the slot, the integrity audit and the attempt budget. Separate from the pass because it owns what a pass must not: the one in-flight fetch per mount, the paused-stop markers, the attempt budget and the integrity rows all outlive a pass (§7.3) |
-| `src/shared/folders/foreign-pause.js` | The mirror's pause / fault / resume ladder. A mirror's pause really does stop it — loop, in-flight fetch and generation go with it — which is what separates it from the owner side, where a fault only marks status. The INITIAL scan failing is deliberately not a pause: the loop still starts, so it records the fault without touching `enabled` and stays out of the resume gate, and the first tick that walks the catalog closes it (§7.3) |
-| `src/shared/folders/mount-fault.js` | The worker's import path for the mount-fault vocabulary: the status half from `contract/`, plus `faultFromError` (the errno half needs `core/errors.js`) |
+| `src/shared/folders/owned-folders.js` | Owner-side composition root; `OwnedFolders` |
+| `src/shared/folders/owned-pass.js` | One owner reconcile pass: diff → enqueue → settle |
+| `src/shared/folders/owned-watcher.js` | Watcher event → interactive work item; catch-up diff |
+| `src/shared/folders/owned-channel.js` | The `folder` publish channel: resolves items against current mount state |
+| `src/shared/folders/owned-progress.js` | Throttled index-progress frames + re-announce |
+| `src/shared/folders/owned-state.js` | Owner state kept between passes |
+| `src/shared/folders/owned-shares.js` | Share record behind an owned mount |
+| `src/shared/folders/owned-policy.js` | `ownedKey`, `publishVerdict`, `worsePassFault` |
+| `src/shared/folders/owned-preview.js` | Owner pre-mount scan preview |
+| `src/shared/folders/publish-service.js` | Shared owner-side publish lane + channel registry; `PublishService` |
+| `src/shared/folders/publish-scheduler.js` | Cross-space bulk/express slot scheduler |
+| `src/shared/folders/publish-queue.js` | One space's work queue, one live item per path |
+| `src/shared/folders/work-item.js` | Path-keyed work item, states, priorities, comparators |
+| `src/shared/folders/retire-confirm.js` | Confirm-gone-twice before retiring a catalog entry |
+| `src/shared/folders/foreign-folders.js` | Mirror-side composition root; `ForeignMirrors` |
+| `src/shared/folders/foreign-verbs.js` | Mirror mount verbs: record write + loop control |
+| `src/shared/folders/foreign-pause.js` | Mirror pause / fault / resume ladder |
+| `src/shared/folders/foreign-orphan.js` | Unmount a mirror only on positive evidence its share is gone |
+| `src/shared/folders/foreign-shares.js` | Owner's share record behind a mirror |
+| `src/shared/folders/foreign-preview.js` | Mirror pre-mount scan preview |
+| `src/shared/folders/mirror-loop.js` | Per-mount loop: interval, one pass in flight, dirty flag, generation |
+| `src/shared/folders/mirror-pass.js` | Restartable materialize pass over a share's catalog |
+| `src/shared/folders/mirror-fetch.js` | Per-entry fetch; owns state that outlives a pass |
+| `src/shared/folders/mirror-state.js` | Per-mount synced set, rename map, watermark |
+| `src/shared/folders/mirror-policy.js` | Mirror decisions: `mirrorKey`, local-copy verdict, walk/fetch/stall rules |
+| `src/shared/folders/mirror-budgets.js` | Per-(path, hash) attempt budget and integrity-row cap |
+| `src/shared/folders/mirror-watcher.js` | Mirror fs event → walk request |
+| `src/shared/folders/mirror-signals.js` | Mirror status event + participation record sync; the mirror side's one IPC slot |
+| `src/shared/folders/mirror-records.js` | Replicated `mirror/<spaceId>/<shareId>` participation rows |
+| `src/shared/folders/mirror-registry.js` | "Who mirrors what" for a space or share |
+| `src/shared/folders/pass-writer.js` | Generation-scoped writer: a cancelled pass never writes after its canceller |
+| `src/shared/folders/mount-store.js` | `mounts-meta` owner for both mount kinds; `MountsBee` |
+| `src/shared/folders/mount-validate.js` | Mount-path and download-folder validation rules |
+| `src/shared/folders/mount-fault.js` | Mount-fault vocabulary for the worker + `faultFromError` |
+| `src/shared/folders/folder-intents.js` | Boot reconcilers for multi-bee folder flows |
+| `src/shared/folders/path-keys.js` | Pure cross-platform path math, ignore globs, overlap, deletion gate |
+| `src/shared/folders/path-guard.js` | `pathFromMount` — the one guarded mount-relative join (traversal guard) |
+| `src/shared/folders/walk-disk.js` | Stat-only recursive walk of a mount root |
+| `src/shared/folders/disk-presence.js` | Exact-name presence checks before a retire |
+| `src/shared/folders/echo-guard.js` | TTL set of our own writes so watchers ignore them |
+| `src/shared/folders/watch-tree.js` | `bare-fs` watcher per root in add/change/unlink vocabulary |
+| `src/shared/folders/watch-derive.js` | Watch mode + settled-action decisions |
+| `src/shared/folders/watch-budget.js` | Linux inotify watch accounting |
+| `src/shared/folders/preview-tally.js` | Shared preview result shape + per-file detail cap |
+| `src/shared/folders/share-limits.js` | The one folder-share file-limit rule |
 
 ### `src/shared/network/` — reachability and swarm plumbing
 
-| File | Purpose |
+The modules that import no `bare-*` (Node-loadable, unit-driven) are listed in `pureNetworkModules`
+in `eslint-rules/invariants.mjs`; that list is the statement, not the rows below.
+
+| File | Role |
 |---|---|
-| `src/shared/network/swarm.js` | The control-plane composition root: DHT + Hyperswarm construction and the `Swarm` subsystem. Every collaborator is wired in `_open` and released in `_close` — nothing runs at import, so a worker booted with the swarm off carries none of this state |
-| `src/shared/network/peer-connection.js` | One accepted socket: Corestore replication, the `mirall/handshake` channel, the content backend's extra channels bound to the same mux before `channel.open()`, the pending leave/cancel replay, and the close / error teardown (incl. the once-per-worker storage-corruption inventory) |
-| `src/shared/network/handshake-apply.js` | What an admitted handshake means: the admission gates, the peer registry write, the presence lease, the durable member upsert and the emit order that straddles it; the reciprocal reply, the peer-online edge (`onPeerOnline`) and the disconnect teardown (§4.2) |
-| `src/shared/network/identity-frames.js` | The two identity-asserting frames we send — `handshake` and `membership:request` — the per-drive-key Noise binding they carry, the measured send path (`sendFrame`), and `broadcastProfileUpdate` (§4.2, §16) |
-| `src/shared/network/space-topics.js` | `joinSpaceTopic` / `leaveSpaceTopic`, `reconnectAll` (the throttled discovery refresh), the new-space handshake to already-connected peers (Hyperswarm reuses sockets and fires no `'connection'`), and `disconnectPeersFromSpace` — the leave-side peer eviction (§4.4, §6) |
-| `src/shared/network/presence-leases.js` | The one presence-lease store: `isOwnerOnline`, `getConnectedPeers` and the TTL. Apart from the swarm because the folder, share and transfer domains read it and must not import the connection layer to do so (§4.7) |
-| `src/shared/network/connectivity.js` | "Are we reachable": the swarm-fact ledger (DHT readiness, NAT host, announce, last connection, the browser's online hint) and the root that wires the canary probe, the link-liveness watch and the status frame |
-| `src/shared/network/canary-probe.js` | The two-stage seeder probe: DHT lookup for the upgrade key's announce records, then a dial with an ephemeral keypair; the newest probe's verdict wins; the one automatic probe after NAT settle. Imports no `bare-*` |
-| `src/shared/network/link-liveness.js` | Catches a silently-dead link: the routable-interface poll and the routing-table ping that runs only while no peer vouches for us; a first failure is confirmed by a prompt retry. Imports no `bare-*` |
-| `src/shared/network/member-reach.js` | `memberReach(socketsByMember, isRelayed)` — the per-person fold over a member's control and content sockets; relayed when any one of them is. Imports no `bare-*` |
-| `src/shared/network/network-status.js` | The `event:network-status` frame: facts read once, the reachability verdict folded from them, the dedup path list, the debounced emit, the dwell recheck and the audit hook; the verdict history and the diagnostic counters. Owns the reporting defaults (the `hyperdht` version and the `swarm-diagnostics` instance) so status is answerable whether or not a `Swarm` was ever opened. Imports no `bare-*` |
-| `src/shared/network/leave-protocol.js` | Inbound `leave` apply (adopt vouchees → tombstone → revoke → ack → evict), the `leaving` marker set, leave-ack collection, and the pending-leave and pending-cancel replay lanes (§4.2, §6) |
-| `src/shared/network/convergence-tick.js` | The slow level-triggered re-drive: announce-ledger drain, roster-deficit escalation, listing re-poke, capture retry, unblocked-transfer re-drive (a user-cleared fault whose owner stayed connected), stalled-transfer discovery refresh; supervised pass liveness |
-| `src/shared/network/content-swarm.js` | The bulk-content transport plane: a second Hyperswarm on the shared DHT node carrying only the overlay channel, the `mirall/content-hello` identity channel, its own banned-key firewall and topic maps; `ContentSwarm` (§7.7) |
-| `src/shared/network/membership-frames.js` | `sendMembershipGrant` / `sendMembershipDeny` / `broadcastMembershipCancel` — the three addressed outbound membership frames. The cancel goes to every open socket rather than one peer's channel, because a pending joiner is in nobody's `connectedPeers` and there is no membership to address it by (§4.2) |
-| `src/shared/network/presence-broadcast.js` | Presence heartbeat / departure frames and their inbound apply, plus the share-prepare and index-progress frames (owner → member) and their handlers; `resolveSpaceIdForTopic` (§4.7) |
-| `src/shared/network/share-wait.js` | The `share-wait` frame (member → owner, §3.5): the unicast send behind `sharePrepareProgressEnabled`, the member's waiting set as a process singleton (`memberWaits`), and the owner's inbound handler; `resetShareWait` on swarm teardown |
-| `src/shared/network/share-wait-intake.js` | Which inbound `share-wait` notices become a waiting row: our own switch on, authenticated on the socket, in the space, bounded strings, our own still-unhashed catalog entry; a cancel beats a notice still reading. Pure |
-| `src/shared/network/frame-intake.js` | `receiveFrame(conn, str)` — everything an inbound peer frame passes before a handler sees it: the size cap and the per-socket budget charged BEFORE the decode (the budget exists to bound the work an unauthenticated peer can make us do, and `JSON.parse` is that work), the shape guard, the identity gate, and the routing table. Only a frame whose topic we joined pays for signature verification (§4.2) |
-| `src/shared/network/handshake-guard.js` | Pure frame-shape checks, the Noise-key identity binding sign / verify (§16), the leave / grant assertion checks, the dual-lane event rate limiter (§4.2) |
-| `src/shared/network/swarm-diagnostics.js` | The swarm's read-only reporting surface: address, routing-table size, peer reach / samples, DHT health, connect / relay stats, the offline status shape. Imports no `bare-*` |
-| `src/shared/network/support-bundle.js` | The support-bundle builder over `getSwarmStatus()` and the audit verdict history, redacted (`diagnostics:export`) |
-| `src/shared/network/swarm-registries.js` | The swarm's shared indexes — `connectedPeers`, `socketToPeers`, `spaceTopics`, the pending-requester and handler maps — plus `announceLedger`, `resetRegistries`, and the reads over them: `authorizedOn`, `handlerForPeer`, `getConnectedMemberMeta`, `getBoundSignerKey` (§4.4) |
-| `src/shared/network/net-impair.js` | Test-only link shaper (runtime-config `netImpair`) applied to a socket in place; production never sets it |
-| `src/shared/network/content-peer-sockets.js` | Which authenticated identities ride which content socket; `destroyFor`, `socketsFor` |
-| `src/shared/network/announce-ledger.js` | The level-triggered retry ledger for per-(connection, space) identity-frame announcements — `announceStatus`, `escalationDue` |
-| `src/shared/network/relay.js` | `enabledRelayKeys`, `relayIdentityKeyPair`, `relayFunctionFor` — the one-slot relay policy handed to hyperdht (§4.8) |
-| `src/shared/network/relay-install.js` | `setRelayThrough` / `testRelayReachable` — installs the relay function on BOTH swarms (configuring only the control plane yields a build whose handshakes connect and whose transfers stall) and probes one. The impure third of the relay trio: `relay.js` holds the pure rules, `relay-ticket.js` the codec (§4.8) |
-| `src/shared/network/relay-observe.js` | Wraps `blind-relay`'s `Client.from` for the life of the swarm and records, per raw stream, which relay paired it and whether the key was ours or adopted; `isStillRelayed` for the direct-upgrade check (§4.8) |
-| `src/shared/network/relayed-connections.js` | The live set of relayed control-plane connections keyed by socket; `trackConnection` from `acceptConnection`, `snapshotRelayedConnections` into the status frame, `describeConnection` for the audit row, `isRelayedSocket` for the roster's reach fold (§4.8) |
-| `src/shared/network/relay-ticket.js` | The frozen 69-byte z-base-32 ticket codec shared with `mirall-relay`, `parseRelayInput`, `decodeRelayKey` (§4.8) |
-| `src/shared/network/deferred-admission.js` | Replays a parked joiner's handshake once an approval replicates in or a space is re-entered; `emitPeerSharesUpdated` (§4.2) |
-| `src/shared/network/admission-gates.js` | `createAdmissionGates` — the approval read gate, invite resolve, the creator-root cross-check the handshake asks before registering anyone (§4.2 step 2) |
+| `src/shared/network/swarm.js` | Control-plane composition root: DHT + Hyperswarm, the `Swarm` subsystem. Nothing runs at import |
+| `src/shared/network/peer-connection.js` | One accepted socket: replication, the `mirall/handshake` channel, backend channels bound before open, teardown |
+| `src/shared/network/handshake-apply.js` | Applies an admitted handshake and its disconnect teardown; the emit order is load-bearing (§4.2) |
+| `src/shared/network/handshake-guard.js` | Frame-shape checks, Noise-key identity binding, leave / grant assertions, rate limiters (§4.2, §16) |
+| `src/shared/network/identity-frames.js` | Our outbound `handshake` / `membership:request` frames and their binding; `sendFrame`, profile broadcast |
+| `src/shared/network/membership-frames.js` | Outbound grant / deny (one peer) and cancel (every socket: a pending joiner has no membership) |
+| `src/shared/network/frame-intake.js` | Every inbound frame's gate: size cap and budget charged before decode, shape, identity, routing (§4.2) |
+| `src/shared/network/admission-gates.js` | The approval and creator-root checks a handshake asks before registering a peer (§4.2) |
+| `src/shared/network/deferred-admission.js` | Re-admits a parked joiner once an approval replicates in or a space is re-entered |
+| `src/shared/network/swarm-registries.js` | The shared peer / socket / topic maps and `announceLedger`, with the reads and sends over them (§4.4) |
+| `src/shared/network/announce-ledger.js` | Level-triggered retry ledger for identity frames still awaiting their implicit ack |
+| `src/shared/network/space-topics.js` | Join / leave a space topic, throttled `reconnectAll`, handshake on reused sockets, leave-side eviction |
+| `src/shared/network/leave-protocol.js` | Inbound `leave` apply, the leaving marker, leave acks, pending-leave / pending-cancel replay (§4.2, §6) |
+| `src/shared/network/convergence-tick.js` | The slow level-triggered re-drive of every observable deficit; idle when converged |
+| `src/shared/network/presence.js` | `createPresence`: the receiver-controlled TTL lease primitive, in memory only (§4.7) |
+| `src/shared/network/presence-leases.js` | The one presence-lease store; domains read it without importing the connection layer (§4.7) |
+| `src/shared/network/presence-broadcast.js` | Heartbeat / departure and share-prepare / index-progress frames, send and apply (§4.7) |
+| `src/shared/network/share-wait.js` | The `share-wait` frame (member → owner): send, the member's `memberWaits` singleton, owner handler (§3.5) |
+| `src/shared/network/share-wait-intake.js` | Which inbound `share-wait` notices the owner accepts as waiting rows. Pure |
+| `src/shared/network/content-swarm.js` | Bulk-content plane: a second Hyperswarm on the shared DHT carrying only the overlay channel (§7.6) |
+| `src/shared/network/content-peer-sockets.js` | Which authenticated identities ride which content socket; the per-peer teardown rule |
+| `src/shared/network/connectivity.js` | Swarm-fact ledger for our own reachability; wires canary probe, link liveness and status frame |
+| `src/shared/network/canary-probe.js` | Two-stage seeder probe (DHT lookup, then an ephemeral dial); the newest verdict wins |
+| `src/shared/network/link-liveness.js` | Detects a silently-dead link: routable-interface poll plus routing-table ping |
+| `src/shared/network/network-status.js` | The `event:network-status` frame: verdict fold, dedup / debounce emit, audit hook; works without a `Swarm` |
+| `src/shared/network/swarm-diagnostics.js` | Read-only snapshot builders over the live swarm |
+| `src/shared/network/support-bundle.js` | The redacted `diagnostics:export` bundle; only device-level audit rows may enter it |
+| `src/shared/network/member-reach.js` | Per-member direct / relayed fold over their live sockets (relayed if any one is). Pure |
+| `src/shared/network/relay.js` | Pure relay rules: enabled keys, seeded identity, the per-mode `relayThrough` function (§4.8) |
+| `src/shared/network/relay-ticket.js` | The frozen 69-byte ticket codec shared with `mirall-relay`; any change is a protocol change (§4.8) |
+| `src/shared/network/relay-install.js` | Installs the relay on BOTH swarms, probes one, wires the observer and connection tracking (§4.8) |
+| `src/shared/network/relay-observe.js` | Wraps `blind-relay`'s `Client.from` to record which relay paired a stream, own or adopted (§4.8) |
+| `src/shared/network/relayed-connections.js` | Live relayed / direct connections on both planes; own / adopted provenance fixed at pairing (§4.8) |
+| `src/shared/network/net-impair.js` | Test-only link shaper (runtime-config `netImpair`); production never sets it |
 
 ### `src/shared/transfer/`
 
-| File | Purpose |
+The no-`bare-*` modules are listed in `pureTransferModules` in `eslint-rules/invariants.mjs`.
+
+| File | Role |
 |---|---|
-| `src/shared/transfer/file-listing.js` | The aggregated loose listing and the two verbs that change the set. A loose file has no single source of truth — the owner's catalog says it exists, the claim bee whether we have it, the pending row whether it is moving, the disk whether "on your device" is still true — and this is where they fold into one row per file (§3.5). Two range scans (claims, verified records) and a synchronous row loop, whatever the row count; a member's catalog is read only when `transfer/listing-memo.js` cannot serve it |
-| `src/shared/transfer/reveal.js` | Showing a file in the OS file manager. A download and a share resolve to different places: a downloaded file sits at its claim path, a file we shared is wherever the user keeps it (recorded by `markOwnedSource` at share time). Both resolve to a local path before the reveal (§3.3) |
-| `src/shared/transfer/files.js` | The `downloads-meta` bee (claims, `verified:`, `src:` — §3.3), the claim verdict I/O, `addFile` / `removeFile`, the aggregated loose listing with status derivation (§3.5), reveal-in-file-manager, per-space cleanup, `DownloadsBee` |
-| `src/shared/transfer/serve-ledger.js` | Sender-side download indicator: who is pulling a file we own and how far — summary tier (always on) + per-peer detail tier (only while a row is subscribed), idle / paused sweeps, audit `serve.completed` sessions; `ServeLedger`. Fed by `overlay-instance.js`, read via `serving:*`. Also holds `waiting` entries (`markWaiting` / `clearWaiting` / `clearWaitingFor`, fed by `network/share-wait.js`, the leave frame and disconnect): no bytes, out of the sums, `hasRecentServe` and a serve's end, dropped at the 30 s idle window, 64 per peer (counted, not scanned), converted by `onServeStart`; every entry records its share, so a waiter never displaces another share's serve under the same folder path |
-| `src/shared/transfer/share-wait-set.js` | The member's waiting set for `share-wait`: per-file entries keyed by transferId with per-source lifetimes (`row` / `mirror` / `click`), indexed by owner, the 10 s re-announce throttle, the post-reconnect repeat, the per-owner cap, cancel / forget. Pure, the send injected |
-| `src/shared/transfer/bandwidth-limiter.js` | The byte token bucket pacing content-plane transfers — deficit round-robin over stream handles, anti-barge, oversized-chunk release. Pure (§7.7) |
-| `src/shared/transfer/reveal-exit.js` | `revealExitIsFailure(platform, code)` — `explorer.exe` exits 1 on success |
-| `src/shared/transfer/transfer-id.js` | The `spaceId\|shareId\|relPath` wire id the renderer round-trips, `LOOSE_SHARE_ID`, the loose routing predicate, `transferIdParts` |
-| `src/shared/transfer/free-space-probe.js`, `src/shared/transfer/free-space.js` | The one `statfs` both producers ask through (fails open), and the pure `shortfall()` arithmetic with its 64 MiB headroom |
-| `src/shared/transfer/partial-suffix.js` | `PARTIAL_SUFFIX = '.mirall.part'` + `partialPathFor` — the one definition, injected into the vendored engine (§17) |
-| `src/shared/transfer/list-deficits.js` | The spaces whose last interactive listing gave up on a peer catalog under the read budget (take semantics; the convergence tick re-pokes them, §4.3) |
-| `src/shared/transfer/listing-memo.js` | The `files:list` memo: per (space, peer catalog), the entries of the last complete read, watermarked on the version it read and consulted through `folders/mirror-policy.js#shouldWalk` with a `listFullReadEvery` backstop. Entries only — every local input to a row's status is re-read per listing. A skip needs the catalog's loose append watch armed (`looseCatalogVersion` answers null otherwise); a backstop read that stalls keeps the prior entries. Trimmed to the current members per listing, forgotten on leave, reset when `PeerCatalogs` closes. Pure |
-| `src/shared/folders/path-guard.js` | `pathFromMount(mount, rel)` — the single guarded mount-relative join every backend and the mirror use (path-traversal guard) |
-| `src/shared/spaces/sck-seal.js` | Seals the SCK to a joiner's bound signer key at approval (§16) |
-| `src/shared/folders/retire-confirm.js` | **Confirm-gone-twice**: a path must be missing on two consecutive sweeps before its catalog entry is retired, so an atomic-save window cannot cascade a transient tombstone to every mirror. Pure — the caller supplies the key, probes and retire |
-| `src/shared/transfer/download-dest.js` | `nameTakenAt` — a final file or its partial takes a name — `resolveDest` — collision-free Downloads naming — and `reuseDest`, the resume re-anchor rule (§3.5) |
-| `src/shared/transfer/download-claim.js` | `claimVerdict(...)` — the downloaded / prune ladder for one download-history claim, pure (§3.3) |
-| `src/shared/transfer/verified-copy.js` | `fingerprintMatches` — the one rule for "is this local file still the one a verified record fingerprinted?", shared by the mirror's fast path and every listing row — and `verifiedCopyVerdict`, a row's `verified` / `modified` / `unproven` reading of it. Pure |
-| `src/shared/transfer/progress-ticker.js` | `makeProgressTicker(total, emit)` — 250 ms-throttled `{bytes,total,speed,eta}` over `EtaEstimator`; shared by single-file transfers and folder mirroring |
-| `src/shared/transfer/file-dedupe.js` | The pure fold from per-owner loose-file candidates to listing rows: one row per distinct file, the most-progressed copy winning, the rest counted as `sharedByCount` (§3.5) |
-| `src/shared/transfer/transfer-status.js` | The one pure consumer-row status ladder (`consumerRowStatusFor` & co.) for every consumer row kind — loose, folder download and mirror (§7.3) |
-| `src/shared/transfer/content-backends.js` | The seam: `getContentBackend(share)` → the overlay backend, else `UNSUPPORTED`; the presence-sweep fan-out. Locked by `content-backend-conformance.test.js` (§7.7) |
-| `src/shared/transfer/supersede-decision.js` | The decision ladder for an in-flight transfer whose owner's catalog changed (§4.5) |
-| `src/shared/transfer/chunk-map-cache.js` | The bounded byte-cost LRU of decoded chunk maps, injected into the vendored `FileIndex` (§7.7) |
-| `src/shared/transfer/eta-estimator.js` | The size-adaptive EWMA + overall-average blended ETA behind every progress source |
-| `src/shared/transfer/partial-sweep.js` | `cleanupOrphanedPartials` — the boot sweep of `.mirall.part` files no pending row or journal references (§3.5) |
-| `src/shared/transfer/pending-transfers.js` | The `pending-transfers` bee CRUD with its per-key write lock (§3.4); `PendingTransfersBee` |
+| `src/shared/transfer/content-backends.js` | The seam: `getContentBackend(share)` → overlay or `UNSUPPORTED`; presence-sweep fan-out (§7.6) |
+| `src/shared/transfer/files.js` | The `downloads-meta` bee — claims, `verified:`, `src:` records — and the claim verdicts; `DownloadsBee` (§3.3) |
+| `src/shared/transfer/file-listing.js` | A space's loose listing (catalog, claims, pending rows, disk folded per file) and `addFile` / `removeFile` (§3.5) |
+| `src/shared/transfer/file-dedupe.js` | Folds per-owner loose candidates into one row per file, most-progressed wins (§3.5) |
+| `src/shared/transfer/listing-memo.js` | Per-catalog `files:list` memo of entries only, watermarked on catalog version |
+| `src/shared/transfer/list-deficits.js` | Spaces whose last listing gave up on a peer catalog; the convergence tick drains it (§4.3) |
+| `src/shared/transfer/transfer-status.js` | The one consumer-row status ladder for loose, folder and mirror rows (§7.3) |
+| `src/shared/transfer/transfer-id.js` | The `spaceId\|shareId\|relPath` wire id, `LOOSE_SHARE_ID`, loose routing predicate |
+| `src/shared/transfer/pending-transfers.js` | The `pending-transfers` bee with a per-row write order; `PendingTransfersBee` (§3.4) |
+| `src/shared/transfer/download-claim.js` | `claimVerdict`: the downloaded / keep / prune ladder for one claim (§3.3) |
+| `src/shared/transfer/download-dest.js` | Collision-free destination naming and the resume re-anchor rule (§3.5) |
+| `src/shared/transfer/verified-copy.js` | The one "is this local file still the verified one?" rule, shared by engine and listing |
+| `src/shared/transfer/supersede-decision.js` | Decisions for an in-flight transfer whose owner's catalog changed (§4.5) |
+| `src/shared/transfer/partial-suffix.js` | App-side re-export of `PARTIAL_SUFFIX` / `partialPathFor` (defined in `contract/paths.js`) |
+| `src/shared/transfer/partial-sweep.js` | Boot sweep of `.mirall.part` files no pending row or journal references (§3.5) |
+| `src/shared/transfer/temp-paths.js` | `isEphemeralSourcePath`: rejects macOS promised-file temps as share / drop sources |
+| `src/shared/transfer/free-space.js` | `shortfall()` arithmetic with headroom; Node-loadable half |
+| `src/shared/transfer/free-space-probe.js` | The one `statfs` probe (`bare-fs`), fails open |
+| `src/shared/transfer/progress-ticker.js` | Throttled `{bytes,total,speed,eta}` ticker every overlay fetch path shares |
+| `src/shared/transfer/eta-estimator.js` | Size-adaptive blended ETA behind every progress source |
+| `src/shared/transfer/bandwidth-limiter.js` | Global byte token bucket with deficit round-robin fairness for the content plane (§7.6) |
+| `src/shared/transfer/chunk-map-cache.js` | Byte-bounded LRU of decoded chunk maps, injected into the vendored `FileIndex` (§7.6) |
+| `src/shared/transfer/serve-ledger.js` | Sender-side "who is downloading from us": summary and per-peer detail tiers, share-wait waiters |
+| `src/shared/transfer/serve-sessions.js` | Folds start / end serve activity into one audit row per session. Pure, clock-injected |
+| `src/shared/transfer/share-wait-set.js` | The member's in-memory set of files waited on, with per-source lifetimes. Pure, send injected |
+| `src/shared/transfer/transfer-activity.js` | `transfersMoving()`: is any download or serve moving now (asked before a transport change) |
+| `src/shared/transfer/reveal.js` | Show-in-file-manager: resolves a download's claim path or an owned file's source (§3.3) |
+| `src/shared/transfer/reveal-exit.js` | `revealExitIsFailure`: `explorer.exe` exits 1 on success |
 
 ### `src/shared/transfer/backends/overlay/`
 
-| File | Purpose |
-|---|---|
-| `src/shared/transfer/backends/overlay/index.js` | The `overlayBackend` contract object the seam hands out: `publishAdd`, `publishDelete`, `listOwn`, `listPeerWithMeta`, `requestDownload`, `ensureRemote`, `releaseRemote`, plus the optional `catalogVersion` / `init` / `attach` / `teardown` / `sweepPresence`. `catalogVersion` and `sweepPresence` are reached optionally |
-| `src/shared/transfer/backends/overlay/overlay-hash.js` | `overlayHashFile`: the size-bound, wire-compatible content hash of a file on disk — the one hash a mirror may compare against a catalog `contentHash` |
-| `src/shared/transfer/backends/overlay/serve-registration.js` | `makeServable` / `ensureServable` / `evictIfUnreferenced`: keeps `serveIndex` and the overlay's path map in lockstep, refcounted by advertising path |
-| `src/shared/transfer/backends/overlay/overlay-publish.js` | The publish and retire core folder shares and loose files share: advertise-null → hash → materialize → serve, the half-advertised revert, the shutdown abort flag, and `retireContent` (tombstone, evict once landed) |
-| `src/shared/transfer/backends/overlay/publish-progress.js` | The one publishing-progress reporter both publish sides use: ticker, `publishing` decoration, `broadcastSharePrepare` per tick, terminal frames only for a bar it raised |
-| `src/shared/transfer/backends/overlay/folder-publish.js` | The folder share's publish side: `publishAdd` / `publishDelete` over the core, the deep-scan verdict, the owner's coalesced view refresh and its catalog-append trigger |
-| `src/shared/transfer/backends/overlay/folder-job.js` | The one download-job builder for the folder engine (pure) |
-| `src/shared/transfer/backends/overlay/folder-downloads.js` | The folder share's consumer side: peer-catalog list / watch, active-transfer reconcile, the `folderChannel`, `requestDownload`, the engine slot and forwarders |
-| `src/shared/transfer/backends/overlay/loose-publish.js` | The loose owner side: the reverse source map and watch arming, name + cap admission under the space lock, the lane producers and their settle tail, the `loose` publish channel, cancel / unshare, the fs-event dispatch |
-| `src/shared/transfer/backends/overlay/loose-job.js` | The one download-job builder for the loose engine and the loose drive-path grammar (pure) |
-| `src/shared/transfer/backends/overlay/loose-downloads.js` | The loose consumer side: peer-catalog list / watch (and `looseCatalogVersion`, the watch-gated version the listing memo skips on), active-transfer reconcile, the `looseChannel`, `looseDownload`, the engine slot and forwarders |
-| `src/shared/transfer/backends/overlay/active-transfers.js` | The two operations both channels run against their own engine: cancel a space's transfers on leave; reconcile active slots after an owner append through `activeSlotAction` (pure) |
-| `src/shared/transfer/backends/overlay/overlay-maintenance.js` | The work that keeps the index and the serve maps honest rather than publishing or consuming: the single-flight index reclaim (two racing reclaims can strand a blob), and the one boot rehydrate and presence sweep over every own share, folder and loose alike, driven through the publish channels' maintenance members (the serve maps are not persisted, so owned files stop being servable after a restart; §7.7) |
-| `src/shared/transfer/backends/overlay/overlay-instance.js` | The process-global `HyperOverlayV2`: constructed with the injected limiters, chunk-map cache, serve authorizer and ledger callbacks; mux attach, serve revocation, epoch bump, teardown, the security-denial audit row |
-| `src/shared/transfer/backends/overlay/overlay-download.js` | The consumer download engine root (one instance per channel): the slot registry, the three memories that outlive a slot (pause marker, in-memory terminal verdict, stall retry), the user verbs (pause / cancel / supersede / republish-park) and the wiring of the four siblings below (§4.5); `awaitsOwner(row)`, the engine's verdict for the stalled-owner rescue (`OverlayBackend.awaitedOwnerKeys` unions both engines) |
-| `src/shared/transfer/backends/overlay/download-start.js` | `createStart(deps)` — how a download begins: reserve the slot synchronously, record the durable row, re-check the intents that landed during the write (`abandonReason`), refuse what the destination cannot take (`preflightFault`), hand the slot to the fetch task; the supersede restart and its outcome resolution |
-| `src/shared/transfer/backends/overlay/fetch-settle.js` | `createFetchSettle(deps)` — the gated half of a download: acquire the fetch gate, the post-gate abandon check, the instrumented vendor call, then one function per `settleVerdict` (done / stalled / failed / cancelled / paused / park); the durable order of the completion writes lives here |
-| `src/shared/transfer/backends/overlay/reconcile-scan.js` | `createReconcile(deps)` — the two level-triggered scans over inactive pending rows (shallow on reconnect, deep on append), the `republishDecision` ladder, the republish restart, `dropRemoved` |
-| `src/shared/transfer/backends/overlay/settle-verdict.js` | `settleVerdict(slot, result)` — the precedence a finished fetch is judged by (supersede > user pause/cancel > republish park > result) — and `abandonReason(slot, probes)`, why a reserved slot must not fetch. Pure |
-| `src/shared/transfer/backends/overlay/download-faults.js` | `preflightFault(size, dest)` / `terminalFault(result, dest)` — which ErrorCode a refused or failed download gets, read through a per-job destination probe the root builds; `faultCleared(fault, dest)` / `faultAwaitsOwner` — whether a user-blocked row's fault has cleared, on a reading strictly stronger than the one that recorded it, and whether the row still counts for the stalled-owner rescue. Pure |
-| `src/shared/transfer/backends/overlay/overlay-runtime.js` | `OverlayBackend` — the instance, the serve index and both download engines as one lifetime, built per lifetime here so nothing in this package constructs an engine at import time; claim-probe registration, detach / close ordering, the per-owner resume fan-out, the stalled-owner rescue's owner set |
-| `src/shared/transfer/backends/overlay/overlay-authorize.js` | The serve gate as a pure truth table: `DENY` reasons + `makeServeAuthorizer` (§16) |
-| `src/shared/transfer/backends/overlay/overlay-channel.js` | The consumer-side channel object the engine drives — event names, decoration keys, row ownership — built by one factory for the loose pseudo-share and folder shares from the few facts that differ, so a policy that holds for one holds for the other by construction. Imports no `bare-*` |
-| `src/shared/transfer/backends/overlay/overlay-serve-index.js` | The in-memory `contentHash → Set<(space, share, relPath)>` refcount the serve gate and the ledger read |
-| `src/shared/transfer/backends/overlay/overlay-refresh.js` | `makeKeyedCoalescer` keyed `spaceId\|shareId` — coalesces owner-side share-files refreshes during a large scan |
-| `src/shared/transfer/backends/overlay/single-flight-scan.js` | `makeSingleFlightScan(fn, log)` — a keyed, debounced scan that cannot stack: one queued trailing re-run absorbs every poke landing mid-scan. Knows nothing about what it scans, and closes over none of the engine's state, which is why the download engine's resume and reconcile drivers both take it from here (§4.5) |
-| `src/shared/transfer/backends/overlay/stall-retry.js` | `createStallRetry(deps)` — the backstop for a fetch whose bytes simply stopped: a holder that never disconnects fires neither auto-resume trigger. Retries while the owner is online and only while the retries bank bytes, so a wedged holder parks after the dry limit. Apart from the engine because it owns a timer per transfer that must not outlive the engine that armed it (§4.5) |
-| `src/shared/transfer/backends/overlay/fetch-run.js` | One instrumented vendor `fetchFile`: the ticker, the diag, the three callbacks; the mirror's throwing wrapper `runOverlayFetch` |
-| `src/shared/transfer/backends/overlay/fetch-gate.js` | The process-wide "who is fetching this transferId" registry — engine probes + mirror claims |
-| `src/shared/transfer/backends/overlay/fetch-policy.js` | `isTerminalFault`, `isUserBlockedFault`, `classifyMiss`, `nextRetryDelay` — one rule set for every producer. Pure |
-| `src/shared/transfer/backends/overlay/fetch-outcome.js` | `FETCH_OUTCOME` — the closed vocabulary every `diag.finish()` accepts, and the `DELIBERATE_STOPS` derived from it. Pure |
-| `src/shared/transfer/backends/overlay/paused-holders.js` | The paused-transfer markers a producer leaves behind, and the "tell the holder we stopped" primitives |
-| `src/shared/transfer/backends/overlay/migrate-overlay-index-encrypt.js` | One-shot copy of the plaintext file-index bee into the encrypted namespace, then purge |
-| `src/shared/transfer/backends/overlay/vendor/` | The vendored `hyper-overlay` v2 subset (8 files) + `PROVENANCE.md`, which records every local modification (§7.7) |
+The one content backend: engine, serve side and catalogs over the vendored `hyper-overlay` v2.
 
-### `src/shared/storage/`
-
-| File | Purpose |
+| File | Role |
 |---|---|
-| `src/shared/storage/storage.js` | The store-dir footprint for the Storage screen, the drive byte read, and `cleanupOrphanedData` — the boot-sweep wrapper (§2 boot step 10, §14) |
-| `src/shared/storage/compaction.js` | `compactStore()` / `settleCompaction()` — forced full-range blob-GC compaction, chained so two never overlap (an overlapping background pass can strand a blob permanently) and drained on a bounded wait at teardown, because it runs under the runtime tier's shared budget (§7.7) |
-| `src/shared/storage/core-purge.js` | `purgeCoreDk` / `clearAndPurgeCore` / `purgeAlias` — the RocksDB core-purge primitives every catalog, retired-drive and leftover reclaim goes through. Written as direct tombstones because hypercore-storage's own `deleteCore` short-circuits without auth and strands the alias |
-| `src/shared/storage/leftover.js` | The wanted-set builder (`buildWantedKeys`), the core sampler / classifier, the scan report, the purge, and the leave-time peer-core GC (`forgetUnreferencedPeerCores`) |
-| `src/shared/sweep/sweep-rules.js` | `decideSweep` — fail-closed allow / refuse for one sweep: any scan gap, the absolute cap, the ratio cap. Pure (§14) |
-| `src/shared/storage/sweep-journal.js` | The `purge/…` rows in `reclaim-meta` — what a sweep deleted or why it refused; read back by `diagnostics:export` |
-| `src/shared/storage/migrations/migration-result.js` | `STAGES`, `MIGRATION_STATUS` and `migrationResult` — the answer shape every migration returns, in a leaf that imports nothing so a migration need not depend on the list that runs it |
-| `src/shared/storage/migrations/index.js` | The one-shot install migrations as one ordered list, plus the per-stage runner (`durable` / `content`, §2) |
-| `src/shared/storage/migrations/metadata-migration.js` | One-shot plaintext → encrypted copy of every `LOCAL_BEE_NAMES` bee (§16) |
-| `src/shared/storage/space-storage.js` | The per-space `{ totalBytes, onDeviceBytes }` summary behind the space storage widget |
-| `src/shared/storage/migrations/retire-space-drives.js` | One-shot purge of every retired per-space drive — own drives that hold no blocks, and co-member replicas opened by their participation id (bee-flag marker; waits for a boot with M) |
-| `src/shared/storage/retired-drive-cores.js` | Finds a retired drive's metadata and blobs cores by key (the blobs key derived the way Hyperdrive derives it) and clears + purges them; `purgeOwnRetiredDrive` is what a leave calls |
+| `src/shared/transfer/backends/overlay/index.js` | The `overlayBackend` contract object the seam hands out; lifecycle is `OverlayBackend`'s |
+| `src/shared/transfer/backends/overlay/overlay-runtime.js` | `OverlayBackend` subsystem: instance, serve index and both engines as one lifetime. Only boot imports it |
+| `src/shared/transfer/backends/overlay/overlay-instance.js` | The process-global `HyperOverlayV2`: construction with injected collaborators, mux attach, serve revocation |
+| `src/shared/transfer/backends/overlay/overlay-authorize.js` | The serve gate as a pure truth table: `DENY` + `makeServeAuthorizer`; a deny is a silent drop (§16) |
+| `src/shared/transfer/backends/overlay/overlay-serve-index.js` | In-memory `contentHash` → advertising paths refcount the serve gate reads |
+| `src/shared/transfer/backends/overlay/serve-registration.js` | Keeps `serveIndex` and the overlay path map in lockstep, refcounted per path |
+| `src/shared/transfer/backends/overlay/overlay-hash.js` | The wire-compatible content hash of a file on disk; the only valid comparison with a catalog hash |
+| `src/shared/transfer/backends/overlay/overlay-publish.js` | Publish / retire core shared by folder and loose: advertise-null, hash, serve |
+| `src/shared/transfer/backends/overlay/publish-progress.js` | The publishing-progress reporter both publish sides use |
+| `src/shared/transfer/backends/overlay/folder-publish.js` | Folder-share publish side: `publishAdd` / `publishDelete` over the core, owner view refresh |
+| `src/shared/transfer/backends/overlay/loose-publish.js` | Loose owner side: source map, watch, per-space cap, `loose` publish channel, cancel / unshare |
+| `src/shared/transfer/backends/overlay/overlay-refresh.js` | `makeSharesRefresh`: coalesces owner-side share-files refreshes per share |
+| `src/shared/transfer/backends/overlay/overlay-maintenance.js` | Single-flight index compaction, the boot rehydrate and presence sweep over own shares (§7.6) |
+| `src/shared/transfer/backends/overlay/overlay-channel.js` | One factory for the consumer channel the engine drives, loose and folder alike |
+| `src/shared/transfer/backends/overlay/folder-downloads.js` | Folder-share consumer side: peer-catalog list / watch, `folderChannel`, downloads |
+| `src/shared/transfer/backends/overlay/loose-downloads.js` | Loose consumer side: peer-catalog list / watch, `looseCatalogVersion`, `looseChannel`, downloads |
+| `src/shared/transfer/backends/overlay/folder-job.js` | Builds a folder engine download job. Pure |
+| `src/shared/transfer/backends/overlay/loose-job.js` | Builds a loose engine download job; the loose drive-path grammar. Pure |
+| `src/shared/transfer/backends/overlay/overlay-download.js` | The consumer download engine root (one per channel): slot registry, user verbs, sibling wiring (§4.5) |
+| `src/shared/transfer/backends/overlay/download-start.js` | How a download begins: slot reservation, durable row, preflight, supersede restart |
+| `src/shared/transfer/backends/overlay/fetch-settle.js` | The gated half: fetch gate, vendor call, one settle per verdict; owns completion-write order |
+| `src/shared/transfer/backends/overlay/settle-verdict.js` | The precedence a finished fetch is judged by and why a reserved slot abandons. Pure |
+| `src/shared/transfer/backends/overlay/reconcile-scan.js` | Level-triggered recovery of inactive pending rows on reconnect or append |
+| `src/shared/transfer/backends/overlay/active-transfers.js` | Cancel a space's transfers on leave; reconcile active slots after an append |
+| `src/shared/transfer/backends/overlay/stall-retry.js` | Retries a fetch whose bytes stopped while the owner stays online; owns a timer per transfer (§4.5) |
+| `src/shared/transfer/backends/overlay/single-flight-scan.js` | Keyed, debounced, non-stacking scan scaffold for the resume and reconcile drivers |
+| `src/shared/transfer/backends/overlay/download-faults.js` | Which `ErrorCode` a refused or failed download gets, and when a user-blocked fault has cleared. Pure |
+| `src/shared/transfer/backends/overlay/fetch-policy.js` | Fault classes, miss classification and retry delay for every producer. Pure |
+| `src/shared/transfer/backends/overlay/fetch-outcome.js` | `FETCH_OUTCOME`: the closed outcome vocabulary. Imports nothing |
+| `src/shared/transfer/backends/overlay/fetch-run.js` | One instrumented vendor fetch; the mirror's `runOverlayFetch` |
+| `src/shared/transfer/backends/overlay/fetch-gate.js` | Process-wide "who is fetching this transferId" registry: engine probes and mirror claims |
+| `src/shared/transfer/backends/overlay/paused-holders.js` | Paused-transfer markers and the "tell the holder we stopped" primitives |
+| `src/shared/transfer/backends/overlay/migrate-overlay-index-encrypt.js` | One-shot copy of the plaintext file-index cores into the encrypted namespace, then purge |
+| `src/shared/transfer/backends/overlay/vendor/` | Vendored `hyper-overlay` v2 subset; `PROVENANCE.md` records every local change, re-diffable upstream. No app imports (§7.6) |
+
+### `src/shared/storage/` and `src/shared/sweep/`
+
+| File | Role |
+|---|---|
+| `src/shared/storage/storage.js` | Store footprint for the Storage screen and the boot leftover sweep entry (§2, §14) |
+| `src/shared/storage/space-storage.js` | Per-space `{ totalBytes, onDeviceBytes }` behind the space storage widget |
+| `src/shared/storage/compaction.js` | Serialized forced blob-GC compaction; two passes must never overlap (§7.6) |
+| `src/shared/storage/core-purge.js` | The RocksDB core / alias purge primitives every reclaim goes through; direct tombstones |
+| `src/shared/storage/leftover.js` | Wanted-set builder, leftover classifier and purge, leave-time peer-core GC |
+| `src/shared/storage/sweep-journal.js` | Forensic `purge/…` rows in `reclaim-meta`: what each sweep deleted or refused |
+| `src/shared/storage/retired-drive-cores.js` | Finds and purges a retired per-space drive's metadata and blobs cores by key |
+| `src/shared/sweep/sweep-rules.js` | `decideSweep`: fail-closed go / no-go for one leftover sweep. Pure (§14) |
+| `src/shared/storage/migrations/index.js` | The one-shot install migrations as one ordered list, plus the per-stage runner (§2) |
+| `src/shared/storage/migrations/migration-result.js` | `STAGES`, `MIGRATION_STATUS`, `migrationResult`. A leaf that imports nothing |
+| `src/shared/storage/migrations/metadata-migration.js` | One-shot plaintext → encrypted copy of every `LOCAL_BEE_NAMES` bee; frozen marker name (§16) |
+| `src/shared/storage/migrations/retire-space-drives.js` | One-shot purge of retired per-space drives; waits for a boot with the master secret |
 
 ### `src/shared/audit/`
 
-| File | Purpose |
+| File | Role |
 |---|---|
-| `src/shared/audit/audit-runtime.js` | The audit log as a lifecycle resource — the bee and the connectivity watch open and close together |
-| `src/shared/audit/audit-record.js` | `buildRecord()` — schema v1, name snapshots, search blob. Pure |
-| `src/shared/audit/audit-retention.js` | Prune-boundary math incl. the clock-jump hysteresis. Pure |
-| `src/shared/transfer/transfer-activity.js` | `transfersMoving()` — is anything actually receiving or sending bytes right now, folding the pending rows' `updatedAt` with the serve ledger's per-peer `lastTs`. Read before the peer connections are dropped to apply a transport setting |
-| `src/shared/transfer/serve-sessions.js` | Folds start / end activity into one row per transfer. Pure (consumed by `transfer/serve-ledger.js`) |
-| `src/shared/audit/audit-log.js` | The `audit-log` bee's handle and write path: `record`, `recordResolved` (a row whose fields need a read first; the read's failure is warned as a lost row, the promise resolves to a `RESOLVE_OUTCOME` — only `LOST` is worth a retry — and `flushAudit` / `closeAuditLog` drain the reads in flight), the serialized append chain, config, `truncateLog`. Imports `core/` and its audit siblings only, so the instrumentation call sites can't form a cycle |
-| `src/shared/audit/audit-keys.js` | The bee's key layout: prefixes, seq padding, the index key of a record, range builders. Pure |
-| `src/shared/audit/audit-rate-guard.js` | The per-kind token bucket that collapses a burst into one suppressed count. Pure, clock-injected |
-| `src/shared/audit/audit-query.js` | The reads: `queryAudit` (index-merged, cursor-paginated), the filter vocabularies, stats, export |
-| `src/shared/audit/audit-reclaim.js` | `pruneAudit` (rows, daily) and `purgeAudit` (bytes, on request) |
-| `src/shared/audit/audit-watch-state.js` | The watches' durable memory in the bee: peer-bee watermarks, recorded peer-subject and device-connectivity states |
-| `src/shared/audit/peer-records-observer.js` | Pure diff of a peer's bee: key classification, the fingerprint dedupe, the bounded history read. No I/O |
-| `src/shared/audit/transfer-audit.js` | One audit row per finished consumer download at its terminal outcome, through `recordResolved`; a row still being read at shutdown is drained by `AuditLog`'s close |
-| `src/shared/audit/peer-records-watch.js` | Wires that diff into the data layer — name resolution, the relevance gates, the registration-time baseline; `PeerWatch` |
-| `src/shared/audit/presence-episodes.js` | Folds per-peer presence flapping into at most one row per real absence. Pure, clock-injected |
-| `src/shared/audit/connectivity-episodes.js` | Folds the connectivity verdict into rows. Pure, clock-injected |
-| `src/shared/audit/network-watch.js` | The I/O half of both trackers: owns the timers, writes the rows, advances durable device state, and enforces that a peer row is only honest while our own connectivity is healthy |
+| `src/shared/audit/audit-runtime.js` | `AuditLog` subsystem: the bee and the network watch open and close together |
+| `src/shared/audit/audit-log.js` | The local-only `audit-log` bee's handle and write path (`record`, `recordResolved`). Imports only `core/` and audit siblings |
+| `src/shared/audit/audit-keys.js` | The bee's key layout and range builders. Pure |
+| `src/shared/audit/audit-record.js` | `buildRecord()`: row schema with name snapshots (no joins at render time). Pure |
+| `src/shared/audit/audit-query.js` | Budget-bounded reads: paginated listing, filter vocabularies, stats, export |
+| `src/shared/audit/audit-retention.js` | Prune-boundary math with clock-jump hysteresis. Pure |
+| `src/shared/audit/audit-reclaim.js` | `pruneAudit` (rows) and `purgeAudit` (bytes) |
+| `src/shared/audit/audit-rate-guard.js` | Per-kind token bucket reporting a suppressed count. Pure, clock-injected |
+| `src/shared/audit/audit-watch-state.js` | The watches' durable state in the bee: peer-bee watermarks, recorded peer and device states |
+| `src/shared/audit/peer-records-observer.js` | Diff of a peer's bee: key classification, transition dedupe, bounded history read. Pure |
+| `src/shared/audit/peer-records-watch.js` | Wires that diff into the data layer with relevance gates; `PeerWatch` |
+| `src/shared/audit/presence-episodes.js` | Folds peer presence flapping into one row per real absence. Pure, clock-injected |
+| `src/shared/audit/connectivity-episodes.js` | Folds the device connectivity verdict into rows. Pure, clock-injected |
+| `src/shared/audit/network-watch.js` | I/O half of both trackers and the relay rows; a peer row is written only while we are healthy |
+| `src/shared/audit/transfer-audit.js` | One row per finished consumer download, called by the engine, never a channel |
 
 ### `src/shared/telemetry/` and root
 
-| File | Purpose |
+| File | Role |
 |---|---|
-| `src/shared/telemetry/feedback.js` | HTTPS POST (via `bare-https`) of the feedback caption + optional screenshot. Sends `x-mirall-install-id`, `x-mirall-version`, `x-mirall-channel` |
-| `src/shared/telemetry/install-id.js` | Lazily mints + persists an opaque per-install UUID at `<storage>/install-id`, for rate-limit bucketing on the relay |
-| `src/shared/contract/identity-limits.js` | `clampDisplayName`, `sanitizeAvatar` — the clamps for peer-supplied identity fields (§16) |
+| `src/shared/telemetry/feedback.js` | User-initiated feedback POST (`bare-https`) with install id, version and channel headers |
+| `src/shared/telemetry/install-id.js` | Mints and persists the anonymous per-install UUID; unrelated to any identity key |
+| `src/shared/telemetry/channel.js` | `deriveChannel`: `dev` / `staging` / `prod` from the version string. Dependency-free |
 | `src/shared/package.json` | `"type": "module"` |
 
 ### `src/renderer/`
 
-The root holds only `main.tsx`, `app.tsx`, `ScreenRouter.tsx` and `package.json`; every other
-module sits in a named bucket, kebab-cased (`renderer-root-is-empty.test.js`).
+Directory-level rows. The root holds only `main.tsx`, `app.tsx`, `ScreenRouter.tsx` and
+`package.json`; every other module sits in a kebab-cased bucket (`renderer-root-is-empty.test.js`).
 
-| File / dir | Purpose |
+| File / dir | Role |
 |---|---|
-| `src/renderer/main.tsx` | `createRoot(…)`; imports `platform.ts`, `theme.ts`, `dev-console.ts` for side effects |
-| `src/renderer/app.tsx` | Root — `App` is the boot gate (loading → onboarding → shell) and owns the deep-link queue; `AppShell` composes the providers (outermost `ToastProvider`), the toast bridges, the `AppDialogs` host, the command hooks (`useAppCommands` / `useSpaceCommands`), the route announcer and `ScreenRouter`. Theme apply and window-bounds tracking run from `hooks/useAppShellEffects.ts` |
-| `src/renderer/ipc/ipc.ts` | Worker IPC wrapper — `request()`, `subscribe()`, `addFileToSpace()`, first-boot spawn and crash-respawn orchestration |
-| `src/renderer/platform/updates.ts` | Singleton update state → `UpdateBanner` |
-| `src/renderer/platform/config-client.ts` | Synchronously-hydrated cache of the renderer slice of `config.json`; writes via `config:set` |
-| `src/renderer/types/types.ts` | `Profile`, `Space`, `SpaceMember`, `FileEntry`, `FileStatus`, `Transfer`, `UpdateInfo`, plus folder-sharing types (`Share`, `ShareRole`, `ShareWithRole`, `OwnedFolderMount`, `ForeignFolderMount`, `ShareFileEntry`, `MountValidationResult`, `ScanPreview`, …) — the status unions are derived from `contract/statuses.js` |
-| `src/renderer/model/` | The pure view-models the screens derive from worker data — row folding (`row-view.js`), folder status and strips, mirror sync state, profile rows, `file-icon.js`, `optimistic-rows.js`, `deep-link-route.js`. Plain JS typed by JSDoc, so they unit-test under brittle-node |
-| `src/renderer/shell/` | Cross-screen shell logic — `navigation.ts` (the screen graph, §10), `screen-titles.ts` (the announced name per screen), `space-actions.ts`, `tab-intent.js`, `docs-links.js` |
-| `src/renderer/model/share-paths.js` | `splitPathForDisplay()` — middle-truncation math for `FilePath` |
-| `src/renderer/errors/error-messages.js` | The one backend-code → i18n-key map |
-| `src/renderer/errors/error-text.js` | `errorTextFor(err, t)` — the single place a failure becomes text a user reads; falls back to a localized generic sentence, never the raw worker message |
-| `src/renderer/hooks/useErrorText.ts` | The React binding for `errorTextFor` |
-| `src/renderer/keyboard/` | `KeyboardProvider` + `registry`, `accelerator` (chord parsing) + `AcceleratorLabel`, `CommandPalette` (`⌘K`), `ShortcutsHint`, `known-commands.ts`. Screens register via `useRegisterCommand` (SpaceView: `⌘U` add files, `⌘⇧U` add folder, `⌘J` join, `⌘⇧L` leave) |
-| `src/renderer/format/utils.ts` | `formatSize` (over `format/bytes.js`), `formatSpeed`, `resolveEta` / `etaFromRate` / `progressValueText`, `resizeAvatar`, `fileName`, `gradientForSpaceId`; re-exports `getFileIcon` from `model/file-icon.js` — the two pure modules unit-test under brittle-node |
-| `src/renderer/platform/platform.ts` / `theme.ts` / `window-bounds.ts` | `data-platform` stamp; theme apply; window-bounds **tracking** (debounced `setWindowBounds` on resize / blur / hide / unload — main restores bounds itself at launch, §2 step 5) |
-| `src/renderer/platform/dev-console.ts` | `window.mirall` debugging surface (§8) |
-| `src/renderer/platform/global.d.ts` | Type declarations for `window.bridge` |
-| `src/renderer/store/` | The two renderer stores and their React bindings — `query-store.js` + `useQuery.ts` (worker requests) and `main-store.js` + `main-queries.js` + `useMainQuery.ts` (main-process reads, `patchMain` for a local write-through), plus `reconcile.ts` (the reconcile bridges) and `scopes.ts` (the per-hook scope lists). Plain JS typed by JSDoc so they unit-test under brittle-node. §8 |
-| `src/renderer/hooks/` | The hooks. Fetching ones read through `useQuery` / `useMainQuery`; the ones that stay off the store on purpose — `usePeerDownloads`, `usePeerDownloadDetail`, `useIndexProgress`, `useDecorations`, `useConnectionStatus`, the validate probe in `useMountWizard` — say why in their headers (§8). Non-fetching: `useUpdates`, `useErrorText`, `useTreeExpansion`, `useTransferControls`, `useAppNavigation`, `useAppShellEffects`, `useHasVerticalOverflow`, … |
-| `src/renderer/ipc/worker-respawn.js` | `makeRespawnPolicy()` — the crash-respawn ladder `ipc.ts` drives (5 retries, backoff, give up after 3 unstable lifetimes in 10 min). §2 boot step 11 |
-| `src/renderer/screens/` | `Onboarding`, `SharedSpaces`, `SpaceScreen`, `FolderScreen`, `ConnectionProblem`, and the settings family — `Settings` (shell) + `Account` (the Profile page: profile, this device, app info), `AppearanceSettings`, `GeneralSettings`, `NotificationSettings`, `NetworkSettings`, `NetworkStatus`, `StorageSettings`, `ActivityLog`, `ActivityLogSettings` |
-| `src/renderer/components/` | `primitives/`, `cards/`, `modals/`, `layout/`, `folder/`, `space/`, `path/`, `activity/`, `share-drop/`, `toast/` (§10) |
-| `src/renderer/styles/tailwind.css` | Font faces, custom utilities, glass classes → `design.md` |
-| `src/renderer/platform/i18n.ts` | `i18next` setup, initial-locale resolver, `setLocale`, `SUPPORTED_LANGUAGES` |
-| `src/renderer/locales/` | One `<code>/common.json` + `<code>/errors.json` pair per locale. Catalogues, statically imported so esbuild bundles them |
-| `src/renderer/notifications/` | `dispatcher.ts` (suppress-when-focused gate + `bridge.notify`), `click-router.ts` (`bridge.onNotificationClick` → focus + routing), `prefs.ts` (the notification preference slice), `pausedToast.js` (the paused-transfer toast wording). OS-level — distinct from in-app toasts |
-
----
+| `src/renderer/main.tsx` | Entry: platform side-effect imports, store transports and push bridges, `createRoot` |
+| `src/renderer/app.tsx` | `App` boot gate (loading → onboarding → shell) and `AppShell` provider / dialog composition |
+| `src/renderer/ScreenRouter.tsx` | Maps the current screen to its screen component |
+| `src/renderer/ipc/` | Worker IPC client (`request`, `subscribe`, resync, respawn orchestration) and the pure respawn policy |
+| `src/renderer/store/` | The worker query store and main-process store with their hooks and reconcile bridges (§8) |
+| `src/renderer/hooks/` | React hooks; shared rules in `hooks/README.md`, off-store exceptions say why in their headers (§8) |
+| `src/renderer/model/` | Pure view-models derived from worker data; plain JS typed by JSDoc, Node-testable |
+| `src/renderer/shell/` | Cross-screen shell logic: screen graph (§10), screen titles, cross-screen actions, docs links |
+| `src/renderer/screens/` | One `*Screen.tsx` per screen; the settings family under `screens/settings/` |
+| `src/renderer/components/` | Components by area: `primitives/`, `layout/`, `modals/`, `folder/`, `space/`, `network/`, … (§10) |
+| `src/renderer/keyboard/` | Command registry and provider, accelerators, command palette, shortcuts hint |
+| `src/renderer/notifications/` | OS-level notifications: dispatcher, click router, prefs, coalescing (distinct from toasts) |
+| `src/renderer/platform/` | Platform glue: bridge types, theme, i18n, config cache, updates, window bounds, dev console, relay session |
+| `src/renderer/errors/` | The backend-code → i18n-key map and `errorTextFor`, the single place a failure becomes text |
+| `src/renderer/format/` | Display formatting: sizes, speed, ETA, dates, status values |
+| `src/renderer/types/` | Renderer-only types; wire types are re-exported from `src/shared/contract/` |
+| `src/renderer/locales/` | `<code>/common.json` + `<code>/errors.json` per locale, statically bundled |
+| `src/renderer/styles/tailwind.css` | Fonts, custom utilities, glass classes; see `design.md` |
 
 ## 12. Dependencies
 
-**`package.json` is the single source of truth for versions.** Versions are deliberately not restated here — they drift with Renovate, and a stale copy is worse than no copy. Bump procedure → `dependency-updates.md`.
-
-Only the non-obvious constraints are recorded:
+`package.json` is the source of truth for versions. Pins and bump procedure are in `dependency-updates.md`, which covers the `hyperdht` ceiling and its `overrides` entry, the dev-only `hyperdrive` pin, and `@react-types/shared` as react-aria's twin. The constraints below are not visible from the manifest:
 
 | Dependency | Constraint |
 |---|---|
-| `pear-runtime` | **Exact pin, no caret.** It carries `pear-runtime-updater` transitively; a surprise minor can change OTA behaviour |
-| `chokidar` | **Electron main only, never the worker** — Bare has no native recursive watch (§2 step 12) |
-| `bare-fs` / `-path` / `-os` / `-subprocess` / `-https` | Bare stdlib. Worker only — these are *not* Node modules |
-| `hypercore-storage` | Pulled in for the low-level RocksDB key layout `purgeCoreDk()` writes tombstones against (§6). Upgrades can change that layout |
-| `bare-runtime` | Bare VM for `test:bare` + the flow layer's worker subprocesses. A `postinstall` symlinks `node_modules/.bin/bare` |
-| `eslint-plugin-jsx-a11y` | A build + CI **gate**, not advisory (§15) |
-| `@axe-core/react` | Dev-only runtime a11y checker; logs WCAG violations, not CI-blocking |
-| `electron` | A devDependency — forge bundles it into the artifact |
+| `pear-runtime` | Exact pin. It brings `pear-runtime-updater`, which main also resolves directly for OTA, so a surprise minor can change update behaviour |
+| `chokidar` | Electron main only, with `src/main/watch-host.js` as its single owner (invariant-tested). All production filesystem watching runs in main. `src/shared/folders/watch-tree.js` (Bare `fs.watch`) exists and is tested, but nothing in production imports it |
+| `bare-fs` / `-path` / `-os` / `-subprocess` / `-https` | Bare stdlib, used by the worker and `src/shared` only. A module that imports them at top level loads only under Bare |
+| `hypercore-storage` | **Not declared.** It is a corestore transitive that `src/shared/storage/core-purge.js` deep-imports (`lib/keys.js`) to write RocksDB range tombstones. A corestore upgrade can change that key layout without any manifest change |
+| `eslint-plugin-jsx-a11y` / `@axe-core/react` | The first is a build and CI gate; the second is a dev-only runtime checker |
 
 ---
 
 ## 13. Build & Distribution Pipeline
 
-**The release pipeline (CI channel/version resolution, R2 upload, seed-host deploy, MSIX signing ceremony, snapshot creation + rotation) lives in `build-process.md` and is authoritative there.** This section covers only what the *application source* has to know.
+The release pipeline (channels, CI, R2, seeding, signing) is in `build-process.md` and is authoritative. Script definitions are in `package.json`. This section records only what the application source depends on.
 
-Backup posture, for the record: prod releases snapshot the whole seed VM disk (including the live corestore) via `release.sh`; disaster recovery is "restore that snapshot in the Hetzner UI." Dev/staging deploys do **not** snapshot — those drives are regenerable from source. No in-VM tarballs are made and no data is rsync'd to dev machines.
+**Linux packaging.** `make:linux` runs the deb maker *before* `scripts/build/build-app-image.sh`, because forge's `preMake` wipes `out/make`. Both are built from one packaged tree.
 
-### Renderer build
+- **Sandbox.** The deb installs to `/usr/lib/mirall/` with `chrome-sandbox` setuid, so it runs with the Chromium sandbox on. The AppImage cannot, because its payload is extracted as the user, so `resources/linux/AppRun` passes `--no-sandbox`.
+- **FUSE.** The AppImage swaps its FUSE runtime for uruntime in extract-and-run mode (the `URUNTIME_VERSION` pin in the script), because current distros lack `libfuse2`.
+- **OTA.** `linuxInstallKind` (`src/main/install-kind.js`) recognises a deb install (execPath under `/usr/lib/mirall/`, no `APPIMAGE`) and turns OTA off. Root owns the swap target and the package manager owns updates.
+- **Shared data.** Both packagings use the same `~/.config/mirall/`. A deb install retires any per-user AppImage desktop entry (`retireXdgAppImageEntry`).
+- **Compression.** The deb uses xz members, because dpkg before Debian 12 can't read zstd. `scripts/ci/check-deb.sh` checks the package on every CI build.
 
-```
-src/renderer/**/*.ts(x)          ─tsc --noEmit──────►  typecheck only
-src/renderer/main.tsx            ─esbuild───────────►  assets/dist/main.js   (bundled, minified, sourcemap --sources-content=false)
-src/renderer/styles/tailwind.css ─@tailwindcss/cli──►  assets/dist/app.css   (--minify)
-```
+**Asar.** `forge.config.js` seals `src/main`, `src/preload` and the built renderer into `app.asar`. It unpacks `src/worker`, `src/shared`, `node_modules`, `resources` and every `*.{node,bare}`. The reasons:
 
-- `npm run build` → typecheck + bundle JS + bundle CSS + lint
-- `npm run dev` → esbuild watch + tailwind watch + `npx serve -l 5173 assets` + `electron-forge start --no-updates` (via `PEAR_DEV_SERVER_URL`)
-- `npm run typecheck` → `tsc --noEmit && tsc -p tsconfig.worker.json` — the renderer program, then the worker's handler modules
-- `npm test` → `test:node && test:bare` (§15)
+- Bare has no asar support, so it can't load its entry, its JS or `.bare` modules from an archive.
+- `bare-sidecar` `chmod`s its binary on first launch.
+- `dlopen` can't read from an archive.
+- Native notification and tray APIs take real file paths.
 
-### Linux AppImage
-
-`electron-forge package --platform=linux` produces an unpacked tree; `scripts/build/build-app-image.sh` assembles the `.AppImage` via `app-builder-lib`. It bundles a custom `resources/linux/AppRun` that exports library paths and exec's the binary with `--no-sandbox`.
-
-After `app-builder` finishes, the script **swaps the stock libfuse2-based AppImage runtime for `VHSgunzo/uruntime` in extract-and-run mode (`URUNTIME_MOUNT=0`)**, so the AppImage runs on Ubuntu 24.04 / Fedora 40+ where `libfuse2` is no longer installed by default. Pinned by the `URUNTIME_VERSION` constant in `build-app-image.sh`; bump by editing that line and triggering a dev build.
-
-### Linux deb
-
-`electron-forge make --platform=linux` runs `@electron-forge/maker-deb` (`electron-installer-debian`) over the same packaged tree the AppImage is built from, and `make:linux` runs it **before** the AppImage script because the `preMake` hook wipes `out/make`. The package installs the tree to `/usr/lib/mirall/` with `/usr/bin/mirall → ../lib/mirall/Mirall`, a static `mirall.desktop` (`Exec=mirall %U`, `MimeType=x-scheme-handler/mirall;`) and the hicolor icons; the `.desktop` file id matches the lower-cased WM class Electron sets from the product name, so no `StartupWMClass` line is needed. `electron-installer-common` chmods `chrome-sandbox` to `4755` in the staged tree and dpkg preserves it, so **a deb install runs with the Chromium sandbox on** — the AppImage cannot (its payload is extracted as the user, so setuid never applies, hence `AppRun`'s `--no-sandbox`). No maintainer scripts, nothing under `/etc`; user data is `~/.config/mirall/` for both packagings, so an AppImage user who switches keeps identity and spaces, and on a deb install main retires the per-user `Mirall.desktop` + icons an earlier AppImage run wrote and re-points the scheme at `mirall.desktop` (`retireXdgAppImageEntry`), so one launcher entry remains and a `mirall://` link opens the installed build. `/usr/share/doc/mirall/copyright` is the packaged tree's root `LICENSE`, which the `afterComplete` packager hook (`stampLinuxLicense`) makes the app's own on Linux, keeping Electron's as `LICENSE.electron.txt`. The package is built with xz members (dpkg before Debian 12 cannot unpack zstd). The Linux autostart entry names the icon by install kind (`mirall` for the deb's hicolor files, `Mirall` for the AppImage's).
-
-`linuxInstallKind` (`src/main/install-kind.js`) recognises the install by `execPath` under `/usr/lib/mirall/` with no `APPIMAGE` in the environment, and main turns OTA off for it: the swap target belongs to root and the package manager owns updates. `pear:checkForUpdate` then answers `{ triggered: false, reason: 'deb-install' }`. `scripts/ci/check-deb.sh` asserts the sandbox-helper mode, the layout, the control fields (including the `~`-form prerelease `Version`), the xz members and the desktop entry on every Linux CI build before upload.
-
-### Asar packaging
-
-`forge.config.js` packages with `asar: { unpack: '*.{node,bare}', unpackDir: '{src/worker,src/shared,node_modules,resources}' }`. Host code lands in a sealed `app.asar` (~3 MB); everything else materialises into a sibling `app.asar.unpacked/`.
-
-The asar **is not compressed** — the goal is binary form + light obfuscation, not size reduction. Disk usage is unchanged from a loose-files layout. Extracting it takes `npx @electron/asar extract`.
-
-| | Contents |
-|---|---|
-| **Inside the archive** | `src/main/`, `src/preload/`, `assets/index.html`, `assets/dist/{main.js,app.css}`, `assets/fonts/`, `assets/theme-bootstrap.js`, `package.json` |
-| **Unpacked** (forced onto the real FS) | `src/worker/`, `src/shared/`, `node_modules/**` — **Bare is a separate C runtime with no asar awareness**; it can't read `.bare` modules, JS sources, or the worker entry from inside an archive, and `bare-sidecar` `chmod`s its own `bare` binary on first launch, which fails on a read-only asar path. All `*.{node,bare}` files — `dlopen` / Bare's loader can't read from asar. The whole `resources/` dir — per-platform Notification + tray icons go to native APIs (`NSImage` / Toast / libnotify) that don't traverse asar (`nativeImage.createFromPath` was rejected: it decodes only PNG/JPEG, not `.icns`/`.ico`) |
-| **Fully ignored** | `resources/darwin/dmg/`, `resources/darwin/entitlements.plist`, `resources/win32/AppxManifest.xml`, `resources/win32/msix-assets/`, `resources/linux/AppRun`, `resources/linux/icons/` — package-time-only inputs, read by forge makers and `build-app-image.sh` from the source tree, never from the shipped bundle |
-
-Asar also forces the spawn shim in `src/main/asar-spawn.js` (§2 step 10): `require.resolve()` returns asar paths, but `child_process.spawn` hands paths straight to the OS, which can't walk into a flat archive. The shim rewrites `app.asar/` → `app.asar.unpacked/` for both executable and argv, fixing the bare-binary spawn and the worker-entry argument in one place.
-
-OTA is unaffected: the channel drive ships the whole `.app` / `.AppImage` / `.msix` (which contains both `app.asar` and `app.asar.unpacked/`), and `fsx.swap` operates on the bundle root.
+`src/main/asar-spawn.js` rewrites `app.asar/` → `app.asar.unpacked/` in spawn paths and argv, because `require.resolve` returns archive paths the OS can't exec. The asar is deliberately **uncompressed** (binary form, not size or obfuscation). Real obfuscation such as bytecode is deferred until there is a threat model. OTA is unaffected, since `fsx.swap` replaces the whole bundle.
 
 ---
 
 ## 14. Known Limitations & Future Work
 
-- **Invite links gate reading, not knocking.** The topic inside an invite is a discovery capability: anyone holding a code can join the swarm topic and send join requests until the link expires or is revoked (`invite-envelope.js` carries expiry + auto-approve policy; `revokeInvite` kills a link). Read access always requires approval — the SCK handout (§16).
-- **Terminal transfer failures need manual intervention.** Transfers auto-pause and auto-resume across owner offline/reconnect, but one whose `errorCode` is terminal (`isTerminalFault`: checksum, disk full, download folder unavailable) is never auto-resumed — re-fetching would fail identically — so it waits for an explicit resume or discard (`overlay-download.js#resumeForOwner`). A download folder that refused writes (`TRANSFER_PERMISSION`) is the one exception: once the folder takes a write again, the next reconnect re-drives the row — or, when the owner stayed connected, the convergence tick does (`OverlayBackend.redriveUnblocked` → `resumeForOwner`, on the kept one-minute folder verdict).
-- **Very large listings are capped, not paged.** Listings return at most `runtime-config.js#getListFilesCap()` entries; a share with more files doesn't render fully. Paging/virtualization is future work. Very large folders (hundreds of thousands of entries) also remain a memory-scaling risk for the single Bare worker.
-- **Departed members can linger under some offline patterns.** Leave convergence (§6) is driven by the leaver's own `member/<S>` record. A live leave frame propagates within ~1 RTT to connected peers, but a peer offline at leave-time keeps the departed member in its roster until that record replicates — from the leaver, or from any peer already carrying it. There is no third-party witness path; that design was retired (§6).
-- **The boot leftover sweep hard-deletes cores.** `cleanupOrphanedData` (§2 boot step 10) purges cores by raw RocksDB range delete — no backup, no undo, no audit row. The wanted set it purges *against* is assembled best-effort by `storage/leftover.js#buildWantedKeys`, so the decision fails closed (`sweep/sweep-rules.js`): any gap in that scan refuses the **whole** sweep — deliberately not per category, since "this gap can only reach that category" is an inference that rots silently — and a target set above `minSweepPurgeCores` (8) is refused past `maxSweepPurgeCores` (64) or `maxSweepPurgeRatio` (half the store). A refused sweep is journaled (`storage/sweep-journal.js`, read by `diagnostics:export`) and retried next boot. What remains open is the irreversibility: a sweep that passes every guard still has no undo and writes no audit row.
-- **A local edit to a mirrored file is preserved, not audited.** Before the fetch renames over a local file, `folders/mirror-fetch.js#preserveLocalEdit` classifies it against the owner's current hash **and** the ancestor the mirror itself delivered (`transfer/files.js#markVerified`, read back through `getVerifiedHash`; `folders/mirror-policy.js`): only a copy that is provably ours is overwritten in place, and a diverged, unknown or unreadable one is moved aside under a conflict name first. Still open: mirrored files are not `chmod`ed read-only, and neither the conflict copy nor the overwrite writes an audit row.
-- **Mirror deletions are capped, not trashed or audited.** Past the three boolean gates, `shouldHonorDeletions` (§7.3) refuses a pass that would remove more than `maxMirrorDeletionRatio` of what the mirror owns (above the `minMirrorDeletions` floor). The unlinks that do run go through bare `fs.promises.unlink` — no trash — and `contract/audit-kinds.js` excludes per-file folder sync, so they leave no record.
-- **The preview can skip a file the mount will download.** The wizard previews a mount that does not exist yet, so the engine rule it must match is `folders/mirror-state.js#resolveLocalRelPath` — adopt a local file whose bytes already equal the owner's, otherwise mint a numbered sibling and never overwrite — and on that decision the two agree, including on an unreadable local file (conflict both sides). `preserveLocalEdit`'s ancestor branch governs a different question, the synced paths of an *established* mount, which no preview observes. What does diverge is the preview's cache shortcut: `isVerifiedUnchanged` reads a `verified:` row keyed by the owner's relPath, which `markVerified` writes even when the bytes landed at a renamed sibling, so a same-size local file at the natural path can be reported as needing no download and then be sibling-copied at mount time (issue #243).
-- **A deleted folder share leaves its file metadata behind.** `owned-folder:delete` tombstones the share record but not the per-file catalog entries under its prefix (§7.2), and those entries are excluded from the sweep that could collect them — so path, size, mtime and hash per file stay live in the owner's catalog for the lifetime of the space.
-- **Cancellation is a discard, not an abort.** The `FRAME.CANCEL` path is complete on the wire and the query store drives it, but only `share:list-files` reads `ctx.signal` in its handler. For every other request a cancel discards the response while the worker runs the read to completion — a bounded resource cost, not a correctness bug.
-- **`src/main` and `src/preload` share no contract.** `shared/contract/` covers the renderer and the worker; neither Electron process imports it. The renderer↔main surface is ~52 hand-mirrored `preload.js` methods against `renderer/platform/global.d.ts`, and since preload sits outside `tsconfig`, `tsc` never compares the two and no parity test does either. They agree today.
-- **The vendored overlay has no static analysis.** `eslint.config.mjs` and `tsconfig.json` both exclude `vendor/**` as third-party code kept re-diffable against upstream, but it has taken behavioural commits here (bandwidth limits, relay support, transport liveness, handshake encoding, chunk-map caching) and has diverged substantially from the upstream `lib/`. Test coverage of it is strong and is what carries it. → `PROVENANCE.md`.
-- **Frontend tests are local-only.** `test/frontend/` drives the real Electron app through the macOS accessibility tree, which headless CI can't do. §15.
-- **Only production is actively seeded.** `mirall-seed.service` (prod) is the one active unit on the seed VM. `mirall-seed-staging.service` ships as a **disabled template** — there is no staging install base today. The dev channel has no seeder by design: dev builds are validated by direct download/install. → `seed-host/setup-guide.md`.
-- **Asar is binary, not compressed.** True compression / bytecode obfuscation would need another layer (e.g. `bytenode` for the renderer); deferred until there's a concrete threat model. §13.
-- **Custom `--storage` redirects userData.** `--storage <dir>` also calls `app.setPath('userData', dir)`, so `config.json` and the OTA applied-version marker share the custom dir. This enables clean multi-instance dev testing; dev data written by older builds may still sit split across two locations.
+- **Invite links gate reading, not knocking.** Anyone holding an unexpired, unrevoked code can join the topic and send join requests. Read access still requires approval (the SCK grant, §16).
+- **Some transfer faults wait for the user.** A checksum fault clears only when the owner republishes. Disk-full from a write-time ENOSPC always needs Retry. Permission, missing-folder and preflight disk-full faults clear themselves once the destination recovers (`faultCleared`, `src/shared/transfer/backends/overlay/download-faults.js`).
+- **Large folders are bounded by a cap, not paged.** One number (`maxFilesPerShare` = `listFilesCap`) is both the admission gate and the display ceiling, so an admitted share renders in full. There is no paging or virtualization, and hundreds of thousands of entries would still strain the single Bare worker.
+- **Departed members can linger.** Leave convergence rides the leaver's own `member/<S>` record. A peer that was offline at leave time keeps the member in its roster until that record replicates, and there is no third-party witness path.
+- **The boot leftover sweep is irreversible.** The sweep fails closed (`src/shared/sweep/sweep-rules.js`): any gap in the wanted-set scan refuses the whole sweep, and absolute and ratio caps bound it. Refusals are journaled and retried at the next boot. A sweep that passes still hard-deletes by RocksDB range delete, with no undo and no audit row.
+- **Mirror writes and deletions are unaudited.** A diverged local edit is moved aside before an overwrite (`preserveLocalEdit`), and deletions are ratio-capped (`shouldHonorDeletions`). Still, mirrored files are not made read-only, unlinks bypass the trash, and neither overwrites nor deletions write an audit row.
+- **A deleted folder share leaves its catalog rows.** `owned-folder:delete` tombstones only the share record. Each file's path, size, mtime and hash stays in the owner's catalog for the life of the space.
+- **Cancellation is mostly a discard.** Only `share:list-files` and the two folder-preview requests read `ctx.signal`. For every other request, a cancel drops the response while the worker finishes the work.
+- **Preload has no structural contract.** `src/preload/preload.js` is sandboxed and unbundled, so it can't import `src/shared/contract/`. `test/invariants/preload-parity.test.js` checks its key set against `src/renderer/platform/global.d.ts`, but nothing checks signatures.
+- **The vendored overlay has no static analysis.** eslint and knip ignore `vendor/**`, and tsc doesn't cover `src/shared` beyond `contract/`. The vendored code has taken substantial local changes (see `PROVENANCE.md`), so its tests are what protect it.
 
 ---
 
 ## 15. Testing & Accessibility
 
-**The discipline — the change-type → required-coverage matrix, the a11y bar, red-first bug fixes, the CI gate composition — lives in `testing.md` and is authoritative there.** Also summarized for contributors in `CONTRIBUTING.md`; each `test/<layer>/` dir has its own `README.md`.
+The layers, the coverage matrix, the a11y bar and the CI composition are in `testing.md`, which is authoritative. Each `test/<layer>/` has a README. Two facts that don't appear there:
 
-Structure only:
-
-| Layer | Dir | Runner | Scope |
-|---|---|---|---|
-| **Unit** | `test/unit/` | `brittle-node` | Pure logic, no I/O: `path-keys`, validators, invite/ipc/share encoders, `echo-guard` TTL, ignore-matchers, runtime-config |
-| **Integration** | `test/integration/` | `test/bare-runner.mjs` — one `brittle-bare` process per file (Bare) | Single-peer data layer against real `corestore`/`hyperdrive`/`hyperbee`, **no mocks**: owned-folder publish/reconcile, foreign-mirror materialize, mount validation, share registry, transfers, cleanup-orphans, the membership fold and its bounds, leave tombstone durability, observed-leave revoke, member-view supervision |
-| **Flow** | `test/flow/` | `test/flow-runner.mjs` (brittle) orchestrating **real worker subprocesses** over a hermetic `hyperdht` testnet | End-to-end P2P: membership convergence, transfers, owned-folder replication, foreign-mirror, move/copy/delete, leave/reconcile, offline behaviour, multi-peer (3–4) |
-| **Raw (holepunch)** | `test/raw/` | `brittle-node` | Primitive guarantees of the deps themselves (Hyperdrive replication/deletes/blob streaming, Hyperbee mutations, Corestore namespacing) — **no Mirall code**. A trust-but-verify layer |
-| **Frontend (UI)** | `test/frontend/scenarios/` | `node test/frontend/run.mjs` driving the **real Electron app** via `agent-desktop` (macOS AX tree) | User-facing flows incl. owner-side filesystem operations — **the only layer exercising the real chokidar → publish → replicate → materialize path.** Local-only |
-| **Layout** | `test/frontend-layout/` | `node test/frontend-layout/run.mjs` (real Chromium) | Pixel-layout assertions on real components inside the real app-shell wrappers — complements the AX-tree suite, which can't read layout. Local-only |
-
-`test/helpers/` is the shared harness: `peer.js` (`launchPeer`, `connectInSpace`, `addPeerToSpace`, `waitForCatalogEntry`), `store.js` (`freshPeer` — single in-process peer), `owned.js` (`setupOwnedShare`, `setupSelfMirror`), `fixtures.js`, `testnet.js` (`localTestnet` — 3-node DHT bootstrap), `fake-ipc.js`.
-
-Local scripts: `npm test` = `test:node` (`test:node:core` = unit + raw, then `test:flow`) + `test:bare` (integration). `npm run lint` = `eslint src`; `lint:ci` adds the comment-hygiene gate (`scripts/ci/check-comment-hygiene.sh` — comments must be purpose-driven and self-contained; `.claude/solution-architecture.md` is the one permitted pointer target).
-
-CI composition and the a11y bar → `testing.md`.
+- The frontend suite (`test/frontend/`, local-only) is the **only** layer that drives the real chokidar → publish → replicate → materialize path.
+- `lint:ci`'s comment-hygiene gate (`scripts/ci/check-comment-hygiene.sh`) lets source comments point at exactly one doc: `.claude/solution-architecture.md`. `test/invariants/arch-doc-module-table.test.js` requires every backticked `src/…` path in `.claude/*.md` to exist, and requires §11 to have a row for every data-layer, main and worker module.
 
 ---
 
@@ -1668,97 +1223,96 @@ CI composition and the a11y bar → `testing.md`.
 
 ### Master secret (M) & key derivation
 
-A 32-byte **master secret (M)** roots all local key material: every writable core's keypair and every local encryption key derives from it (`core/store.js`, `identity-keys.js`). M is stored only in `identity.enc` beside the store, wrapped by a **KEK** from a pluggable unlock provider — by default the OS keychain via Electron's `safeStorage` (`main/identity-kek.js`, `core/identity.js`, `identity-envelope.js`).
+A 32-byte **master secret M** roots every writable core's keypair and every local encryption key. `src/shared/core/identity-keys.js` reproduces Corestore's derivation byte-for-byte, and content keys use a separate namespace. M exists on disk only in `identity.enc`, wrapped (secretbox) under a **KEK** from a pluggable unlock provider.
 
-The wrap flow guarantees **the RocksDB seed never doubles as the identity**: a fresh install generates an independent random M, while a store predating the envelope preserves its seed as M, then replaces the persisted seed and best-effort-drops the superseded seed blocks.
+The default provider is a random KEK stored as `kek.enc`, encrypted with Electron `safeStorage` (`src/main/identity-kek.js`). Main passes the worker the KEK, never M. **On Linux with no keyring, safeStorage falls back to `basic_text`**, so protection degrades to disk encryption rather than failing to start.
+
+**The RocksDB seed is never the identity.** A fresh install gets an independent random M. A store that predates the envelope keeps its seed as M, fsyncs the envelope, then replaces the seed and makes a best-effort attempt to compact away the old blocks (`src/shared/core/identity.js`).
 
 ### Encryption at rest
 
-Local-only metadata bees (`LOCAL_BEE_NAMES`: spaces-meta, downloads-meta, pending-transfers, reclaim-meta, mounts-meta, app-migrations) are encrypted with an M-derived key. Stores peers must read are not encrypted at that layer: the **profile bee replicates in plaintext**; share catalogs are encrypted with the space's SCK instead, so only members can read them (§3.7).
+The local-only bees (`LOCAL_BEE_NAMES` in `src/shared/core/store.js`: spaces, downloads, pending transfers, reclaim, mounts, migrations and the audit log) are encrypted under an M-derived key. The overlay's local index cores are encrypted under a second M-derived key. Anything peers must read is not encrypted with M:
+
+- The **profile bee replicates in plaintext**.
+- Share catalogs are encrypted with the space's SCK (§3.7).
 
 ### Space content key (SCK)
 
-A per-space symmetric key encrypting the space's catalogs — **possession is read access**, which makes membership approval a cryptographic gate rather than a UI state. The creator derives a space's SCK deterministically from M (nothing to store); joiners receive it at approval, sealed to their bound signer key (`spaces/sck-seal.js`), and keep it in the space-keys vault (`space-keys.enc`, wrapped by an M-derived key). Every key carries an **epoch**: the space record, the vault entry, the published catalog key (`catalogEpoch` / `looseCatalogEpoch` beside the `…Enc` field, `loosecatEpoch/<S>` in the profile bee) and the grant frame all name one, a reader defaults an absent field to 0, and `resolvePeerCatalog` picks a peer catalog's key by the epoch its record names. Epoch 0 is the derived key; nothing rotates yet, so every value is 0.
+Each space has a symmetric key that encrypts its catalogs. **Holding the SCK is read access**, which makes approval a cryptographic gate.
+
+- The creator derives epoch 0 from M.
+- Joiners receive the key at approval, sealed to their bound ed25519 signer key (`src/shared/spaces/sck-seal.js`).
+- Members keep keys in the vault `space-keys.enc`, which is wrapped under an M-derived key and holds each space's current epoch plus its history.
+- Every key carries an **epoch**, named by the space record, the vault entry, the published catalog key and the grant frame. A missing field reads as 0.
+- Only epoch 0 can be re-derived, and only by the creator. After a rotation, even the creator holds the key only in the vault. No code path mints an epoch above 0 yet.
 
 ### Principals: org, person, device
 
-Three tiers can hold keys, and the contract names them apart even though **all three resolve to one value today**: an install's person key, its device key and the `profileKey` it puts on the wire are all the hex manifest hash of its profile core. `contract/principals.js` declares the tiers (`PersonKey`, `DeviceKey`, `OrgKey`) and `principalRef()` is the single site that writes that equality down, so a device roster later changes one function rather than every payload carrying a key. `orgKey` is representable everywhere a principal is and is null on every install.
+The contract (`src/shared/contract/principals.js`) names three tiers: `PersonKey`, `DeviceKey` and `OrgKey`. Today person and device both equal the profile key, which is the hex manifest hash of the profile core. `orgKey` is always null. `principalRef()` is the one place that equality is written down, so a future device roster changes one function.
 
-A **Noise key is none of these**. It identifies one socket, lives only as long as that socket, and differs between a peer's control and content connections — folding by it shows one person twice — so it is `noiseKey` wherever it appears and never an identity.
-
-The **wire spelling does not change with the vocabulary**: peer frames keep `profileKey`, `granterKey` and `joinerKey`, and the bee keys keep `publicKey`, because there is no frame-level version negotiation (a renamed field fails `validSenderFrame` and is dropped with only a log line, so two versions would connect and never become members of each other). The tiers are how the contract *describes* those fields, not a rename of them.
+A **Noise key is never an identity**: it identifies one socket, and a peer's control and content sockets have different ones. The **wire spelling doesn't follow the vocabulary**. Frames keep `profileKey` / `granterKey` / `joinerKey` and bees keep `publicKey`, because there is no frame-version negotiation. A renamed field fails `validSenderFrame` and is dropped, so two versions would connect and never become members of each other.
 
 ### Handshake identity binding
 
-Every identity-asserting frame on `mirall/handshake` (handshake, membership request/grant, leave) carries a signature binding the sender's profile key to the socket's Noise key — and, on handshakes, to its per-space participation id — verified in `network/handshake-guard.js`. Frames are therefore attributable: a connected peer cannot impersonate another member, kick a third party out of member lists, or claim another member's participation as its own.
+Handshake, membership request/grant and leave frames carry a signature from the profile signer over the socket's Noise key; handshakes also cover the participation id (V2). `src/shared/network/handshake-guard.js` checks the signer against the claimed profile key's manifest and verifies the signature. The result: frames are attributable, and a third party can't impersonate a member or evict one.
+
+- **Enforcement for handshake and grant frames depends on the `handshakeIdentityBindingEnabled` flag.** `feature-flags.json` ships it on, but the runtime-config default is off. A failed flag read (`src/main/feature-flags.js`) therefore silently accepts unbound frames, and the socket-to-identity map then trusts the claim.
+- Leave frames are always checked.
+- The V2 participation-id binding is best-effort: a V1 signature over the Noise key alone still verifies during rolling upgrades.
 
 ### Membership
 
-Joining is request → approval. A **membership grant** hands over the sealed SCK and asserts the space's member-set root, authenticated by the granter's identity binding (**a plaintext SCK is refused as a downgrade**). Member rosters fold as an **OR-Set** (adds/removes with tombstones) so concurrent joins and leaves converge. The set's root of trust is pinned to the space creator and adopted only from authenticated assertions — a TOFU-pinned root (e.g. from a bearer invite hint) stays *provisional* until confirmed.
+Joining is request → approval. A **membership grant** carries the sealed SCK and asserts the space's member-set root (the creator), authenticated by the granter's binding. **A plaintext SCK is refused as a downgrade**, and the sealed field is length-bounded. Rosters fold as an **OR-Set** with tombstones. The root is pinned to the creator and adopted only from an authenticated assertion, which requires enforcement to be on. A root taken from a bearer invite hint stays *provisional* (`creatorUnverified`) until confirmed.
 
 ### Serve authorization
 
-File bytes are served only when three gates pass (`transfer/backends/overlay/overlay-authorize.js`):
+File bytes are served only when all three gates pass (`src/shared/transfer/backends/overlay/overlay-authorize.js`, wired in `overlay-instance.js`):
 
-1. the requester's claimed profile key is Noise-authenticated on the requesting socket,
-2. a per-requester rate limit admits the request,
-3. the requester is an approved member of a space advertising that content hash.
+1. The requester's profile key is authenticated on the requesting socket (control or content plane). This is only as strong as the binding enforcement above.
+2. A per-requester rate limit admits the request. This gate is skipped when re-validating a grant this peer already issued, such as on an epoch bump.
+3. The requester is an approved member of some space that advertises the content hash.
 
-**A denial is observationally identical to "I don't hold this file"**, so membership cannot be probed.
-
-Locally the reasons are kept apart: only `UNAUTHENTICATED` and `NOT_A_MEMBER` are refusals, and only those reach the audit log as `security.serve_denied` (the Activity Log row names the reason). `NO_SOCKET` (teardown race), `RATE_LIMITED` (flow control) and `NOT_HELD` (gate 3 found no space advertising the hash) are ordinary operation and record nothing — a multi-source fetch broadcasts its content-request to every connected peer instead of asking holders first, so being asked for content this device does not advertise is the normal case, not an incident.
+**A denial looks exactly like "I don't hold this file"**, so membership can't be probed. Locally, only `UNAUTHENTICATED` and `NOT_A_MEMBER` count as refusals and are audited as `security.serve_denied`. `NO_SOCKET`, `RATE_LIMITED` and `NOT_HELD` are normal operation and record nothing: a multi-source fetch sends its request to every connected peer, so being asked for unadvertised content is routine.
 
 ### Resource bounds
 
-`core/runtime-config.js` centralizes DoS/resource budgets: caps on peer-supplied data (e.g. avatar data-URI length), read timeouts bounding how long an offline peer can stall aggregation, the identity-frame limiter (matched burst scaled by the topics a socket has proven it shares) and the serve-gate rate limiter. Each key is one row in `runtime-config-schema.js` holding its default and, where it carries one, which of the six rules in `runtime-config-rules.js` guards it; the rule is applied where a getter READS rather than where the config is built — the live setters re-ingest their own output, so `buildConfig` has to stay a no-op on it. A budget that is multiplied by a live count, or divided into an elapsed time, is clamped finite and within its bound, so a hand-edited `Infinity` or `0` cannot silently disable the lane it is meant to bound. Most tabled keys carry no rule and are read raw; `getRuntimeConfig()` returns the raw overrides, the getters the validated reads.
+`src/shared/core/runtime-config.js` centralizes the DoS budgets: caps on peer-supplied data, peer-read timeouts, the identity-frame limiter (its burst scales with the topics a socket has proven) and the serve limiter. Each key has one row in `runtime-config-schema.js` with its default and, optionally, one of the six rules in `runtime-config-rules.js`.
+
+- **Rules apply when a getter reads, not when config is built.** The live setters feed their own output back in, so `buildConfig` must stay a no-op on it.
+- A budget that is multiplied by a count, or divided into elapsed time, is clamped finite and within bounds. A hand-edited `Infinity` or `0` therefore can't silently disable a lane.
+- Most keys have no rule and are read raw. Adding a rule changes a DoS bound, so it needs a behaviour test.
 
 ---
 
 ## 17. Glossary
 
-**Stack terms** ([Holepunch](https://docs.pears.com) building blocks):
+Holepunch stack terms (Bare, Hypercore/"core", Hyperbee/"bee", Hyperdrive, Corestore, Hyperswarm, Noise, Protomux) carry their upstream meanings; see [docs.pears.com](https://docs.pears.com). The worker runs on **Bare**, not Node.
 
-- **Bare** — the minimal JavaScript runtime the worker runs on (not Node; `bare-fs`, `bare-path`, … are its stdlib).
-- **Hypercore** — signed append-only log, the primitive under everything; a "core".
-- **Hyperbee** — key/value database on a Hypercore; a "bee".
-- **Hyperdrive** — filesystem abstraction on Hypercores; a "drive".
-- **Corestore** — manages all cores in one storage directory (RocksDB-backed).
-- **Hyperswarm** — DHT peer discovery + encrypted socket connections.
-- **Noise** — the encrypted transport under every peer socket; a socket's *Noise key* identifies its endpoint.
-- **Protomux** — multiplexes several protocol channels over one socket.
+- **Space**: a shared topic, and the unit of membership, discovery and sharing.
+- **Loose file**: a file shared into a space individually. Peers download it explicitly; it never auto-syncs.
+- **Share / owned folder**: a local directory tree an owner publishes into a space.
+- **Foreign folder / mirror**: another member's share, materialized read-only to a local folder.
+- **Mount**: the link between a share and a local disk path, on either side.
+- **Share record**: the `share/<spaceId>/<shareId>` row in the owner's profile bee. It is tombstoned, never deleted (`src/shared/shares/shares.js`).
+- **Catalog**: the owner's replicated, SCK-encrypted per-space bee of `file/<shareId>/<relPath>` rows. Loose files sit under `LOOSE_SHARE_ID` (`src/shared/shares/own-catalog.js`; peers read it through `src/shared/shares/peer-catalog.js`).
+- **Registry**: the merged share records for a space, own plus every member's (`src/shared/shares/share-registry.js`).
+- **Listing**: the display rows of one share (`src/shared/shares/share-listing.js`).
+- **Catalog batch**: the buffered writer a bulk publish pass writes through (`src/shared/shares/catalog-writer.js`).
+- **Overlay (backend)**: the content-addressed serve/fetch engine. Bytes come from holders' real files on disk.
+- **Content hash / chunk map**: a file's whole-file hash and its per-chunk hash list. Both are computed at publish and verified at fetch.
+- **M / KEK / SCK**: master secret, key-encryption key, space content key (§16).
+- **Person / device / org key**: the principal tiers (§16).
+- **Profile key**: the wire and bee spelling of the person key. It is the profile core's manifest hash, sent as `profileKey` on frames and stored as `publicKey` in rosters.
+- **Identity binding**: the signature that ties a profile key to a socket's Noise key (§16).
+- **Participation id**: a member's per-space, per-participation id, derived from M and `driveSuffix` and sent as `driveKey` (§3.5).
+- **Membership grant**: the approval frame that carries the sealed SCK and the authenticated member-set root.
+- **OR-Set / LWW / TOFU**: the add/remove set for member records; last-writer-wins for single-value records; trust on first use, held provisionally until authenticated.
+- **Tombstone**: a record kept with `deletedAt`, so replicas can tell "removed" from "never seen".
+- **Capability flag**: a `caps/<feature>` row in the profile bee. If it is absent, the peer doesn't publish that data; it does not mean the data is gone.
+- **Presence lease**: a short-lived, re-announced liveness claim. When it expires, the peer counts as offline.
+- **Hint / `event:reconcile`**: a coalesced worker → renderer signal meaning "this scope changed, refetch".
+- **Audit tier**: the confidence recorded on each audit row. A is first-party. B is a peer action authenticated on the socket. C is derived from a peer's replicated bee, with a self-reported timestamp.
+- **Partial**: an in-progress download, `*.mirall.part`, renamed atomically on completion. The suffix is defined in `src/shared/transfer/partial-suffix.js` and injected into the vendored engine. A plain `.part` would collide with browser downloads.
+- **Pending transfer**: the persisted row for an unfinished download, which drives resume and the paused and error states.
+- **Channel**: a release line (`dev` / `staging` / `prod`), each with its own update drive.
 
-**Mirall terms:**
-
-- **Space** — a shared topic peers join; the unit of membership, discovery, and sharing.
-- **Loose file** — a file shared individually into a space; peers download it explicitly (never auto-synced).
-- **Share / owned folder** — a local directory tree published into a space by its owner.
-- **Foreign folder / mirror** — another member's share materialized read-only to a local folder.
-- **Mount** — the association between a share and a local disk path, on either side.
-- **Share record** — the `share/<spaceId>/<shareId>` row in the owner's profile bee: that a share exists, who owns it and which catalog holds it (`shares/shares.js`). Tombstoned, never deleted.
-- **Catalog** — the owner's replicated, SCK-encrypted per-space bee of `file/<shareId>/<relPath>` rows (path, size, mtime, content hash) — what is in every share the owner has in that space, loose files included under `LOOSE_SHARE_ID` (`shares/own-catalog.js`; read by peers through `shares/peer-catalog.js`).
-- **Registry** — the merged list of share records for a space: our own plus every current member's, tagged `owner` / `source` (`shares/share-registry.js`).
-- **Listing** — the display rows of one share: catalog entries in, status-bearing rows keyed by drive path out (`shares/share-listing.js`).
-- **Catalog batch** — the buffered catalog writer a bulk publish pass writes through, landed once per pass (`shares/catalog-writer.js`, §7.2).
-- **Overlay (backend)** — the content-addressed serve/fetch engine: bytes come from holders' real files on disk, addressed by content hash.
-- **Content hash / chunk map** — a file's whole-file hash and its per-chunk hash list; both computed at publish, verified at fetch.
-- **M (master secret)** — the 32-byte root secret all writable-core keys and local encryption keys derive from; stored wrapped in `identity.enc`.
-- **KEK** — key-encryption key wrapping M; from a pluggable unlock provider (OS keychain by default).
-- **SCK (space content key)** — per-space key encrypting catalogs; possession = read access; handed to joiners at approval.
-- **Person key** — the identity of the human holding a seat; what peers pin, vouch for and attribute to (§16).
-- **Device key** — the identity of one install. Equal to the person key until a device roster exists.
-- **Org key** — the identity of the contract holder; representable in every principal shape and null on every install today.
-- **Profile key** — the wire and bee spelling of that one value: the hex manifest hash of an install's profile core, carried as `profileKey` on peer frames and `publicKey` in rosters.
-- **Identity binding** — the signature tying a peer's profile key to its socket's Noise key (and per-space participation id); what makes frames attributable.
-- **Participation id** — a member's per-space, per-participation identifier, derived from M and `driveSuffix`; carried as `driveKey` on the wire (§3.5).
-- **Membership grant** — the approval message carrying the sealed SCK and the authenticated member-set root.
-- **OR-Set** — conflict-free add/remove set used to fold member records from multiple writers.
-- **LWW** — last-writer-wins: newest timestamp takes the value (for single-value records).
-- **TOFU** — trust on first use: accepting a key provisionally until an authenticated assertion confirms it.
-- **Tombstone** — a record marked deleted (`deletedAt`) but kept, so replicas distinguish "removed" from "never seen".
-- **Capability flag** — `caps/<feature>` marker in the profile bee; absence means "this peer doesn't publish that data", never "the data is gone".
-- **Presence lease** — a short-lived, re-announced liveness claim; expiry means the peer is treated as offline.
-- **Hint / `event:reconcile`** — the coalesced worker→renderer signal "state in this scope changed, refetch it".
-- **Audit tier** — the confidence recorded with every audit row: A first-party, B a peer action authenticated on the socket, C derived from a peer's replicated bee (timestamp self-reported).
-- **Partial** — an in-progress download file (`*.mirall.part`), atomically renamed on completion. The suffix is defined once in `src/shared/transfer/partial-suffix.js` and injected into the vendored overlay engine; it deliberately is not a bare `*.part`, which would collide with Firefox/KDE downloads in the same folder.
-- **Pending transfer** — the persisted row describing an unfinished download; the source of resume and of paused/error UI states.
-- **Channel** — a release line (`dev` / `staging` / `prod`), each an independently-keyed update drive.
