@@ -9,7 +9,7 @@ import b4a from 'b4a'
 import idEncoding from 'hypercore-id-encoding'
 import { relayPairingFor, isStillRelayed } from './relay-observe.js'
 
-let ownRelay = () => ({ key: null, label: null })
+let ownRelay = () => ({ key: null, label: null, live: false })
 let relayMode = () => 'off'
 let onChange = () => {}
 let onRelayed = () => {}
@@ -27,10 +27,18 @@ export function initRelayedConnections(deps) {
   onUnrelayed = deps.onUnrelayed ?? (() => {})
 }
 
-// 'own' is decided by key equality, not by the initiator flag: a peer can hand our own key back
-// to us in its payload, and that connection still runs through our relay.
-export function relayVia(relayKey, own) {
-  return own && b4a.equals(relayKey, own) ? 'own' : 'adopted'
+// A relay is ours when this side supplied it — hyperdht pairs as the blind-relay initiator exactly
+// when the key came from our own relayThrough (Server._relayConnection, relayConnection in
+// connect.js) — or when the peer named the key we are live on, which happens when both sides
+// configured the same relay. A key we are not live on is the peer's choice whatever the slot says:
+// with the mode off we offered nothing.
+export function relayVia(pairing, own) {
+  if (!pairing.adopted) return 'own'
+  return own.live && sameRelayKey(pairing.relayKey, own.key) ? 'own' : 'adopted'
+}
+
+function sameRelayKey(a, b) {
+  return !!a && !!b && b4a.equals(a, b)
 }
 
 export function trackConnection(socket, { plane, memberOf, now = Date.now() }) {
@@ -44,13 +52,14 @@ export function trackConnection(socket, { plane, memberOf, now = Date.now() }) {
     return null
   }
   const own = ownRelay()
-  const via = relayVia(pairing.relayKey, own.key)
+  const via = relayVia(pairing, own)
   const entry = {
     plane,
     memberOf,
     relayKey: pairing.relayKey,
     via,
-    relayLabel: via === 'own' ? own.label || null : null,
+    supplied: !pairing.adopted,
+    relayLabel: via === 'own' && sameRelayKey(pairing.relayKey, own.key) ? own.label || null : null,
     // Read when the swarm reports the connection, after the relay was already chosen: a dial in
     // flight across a mode change carries the new mode.
     relayMode: relayMode(),
@@ -98,10 +107,11 @@ export function describeConnection(socket) {
     personKey: member?.profileKey ?? null,
     displayName: member?.displayName ?? null,
     via: entry.via,
+    supplied: entry.supplied,
     relayKey: idEncoding.encode(entry.relayKey),
     relayLabel: entry.relayLabel,
     relayMode: entry.relayMode,
-    replaced: entry.via === 'own' && relayVia(entry.relayKey, ownRelay().key) !== 'own',
+    replaced: entry.via === 'own' && !sameRelayKey(entry.relayKey, ownRelay().key),
     since: entry.since,
   }
 }
@@ -109,10 +119,10 @@ export function describeConnection(socket) {
 export function snapshotRelayedConnections() {
   const connections = []
   for (const socket of entries.keys()) {
-    const { noiseKey, personKey, plane, displayName, via, relayKey, relayMode, replaced, since } = describeConnection(socket)
-    connections.push({ noiseKey, personKey, plane, displayName, via, relayKey, relayMode, replaced, since })
+    const { noiseKey, personKey, plane, displayName, via, supplied, relayKey, relayMode, replaced, since } = describeConnection(socket)
+    connections.push({ noiseKey, personKey, plane, displayName, via, supplied, relayKey, relayMode, replaced, since })
   }
-  const digest = connections.map((c) => `${c.noiseKey}:${c.personKey ?? ''}:${c.plane}:${c.relayKey}:${c.via}:${c.relayMode}:${c.replaced ? 1 : 0}:${c.displayName ?? ''}`).join('|')
+  const digest = connections.map((c) => `${c.noiseKey}:${c.personKey ?? ''}:${c.plane}:${c.relayKey}:${c.via}:${c.relayMode}:${c.replaced ? 1 : 0}:${c.supplied ? 1 : 0}:${c.displayName ?? ''}`).join('|')
   return { connections, direct: directCounts(), seen: relayedSeen, digest }
 }
 
@@ -126,7 +136,7 @@ export function resetRelayedConnections() {
   entries.clear()
   direct.clear()
   relayedSeen = 0
-  ownRelay = () => ({ key: null, label: null })
+  ownRelay = () => ({ key: null, label: null, live: false })
   relayMode = () => 'off'
   onChange = () => {}
   onRelayed = () => {}

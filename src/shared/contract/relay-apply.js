@@ -7,7 +7,7 @@
 // the renderer to explain it when it cannot.
 
 /** @typedef {'off' | 'auto' | 'always'} RelayMode */
-/** @typedef {{ via: 'own' | 'adopted', relayMode: RelayMode, replaced: boolean }} RelayConnectionFacts */
+/** @typedef {{ via: 'own' | 'adopted', supplied: boolean, relayMode: RelayMode, replaced: boolean }} RelayConnectionFacts */
 /** @typedef {{ connections: readonly RelayConnectionFacts[], direct: { control: number, content: number } }} RelayFacts */
 /** @typedef {'stale-relayed' | 'stale-direct' | 'replaced-relay' | null} RelayMismatch */
 
@@ -18,9 +18,9 @@
  */
 export function relayMismatch(mode, relay) {
   if (!relay) return null
-  // Only connections through OUR relay are ours to end: hyperdht relays when EITHER side offers one,
-  // so an adopted relay survives any local act.
-  const own = relay.connections.filter((c) => c.via === 'own')
+  // Only connections this side supplied the relay for are ours to end: hyperdht relays when EITHER side
+  // offers one, so a relay the peer supplied survives any local act — even one through our own key.
+  const own = relay.connections.filter((c) => c.via === 'own' && c.supplied)
   if (mode === 'off') return own.length > 0 ? 'stale-relayed' : null
   if (mode === 'always' && relay.direct.control + relay.direct.content > 0) return 'stale-direct'
   // `auto` relays when a punch fails and offers our relay to inbound dials, so a relayed connection

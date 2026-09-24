@@ -46,6 +46,7 @@ function relaySection(relay, relayConfig, redact) {
       noiseKey: redact ? shortId(c.noiseKey) : c.noiseKey,
       plane: c.plane,
       via: c.via,
+      supplied: c.supplied,
       relay: redact ? shortId(c.relayKey) : c.relayKey,
       sinceMs: c.since,
       ...(redact ? {} : { displayName: c.displayName }),
