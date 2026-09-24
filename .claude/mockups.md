@@ -53,13 +53,12 @@ If you cannot name the file (for recreated parts) or the `design.md` token/compo
 ## Scaffolding convention
 
 - Self-contained single HTML file at `.claude/mockups/<name>.html`. No build step.
-- **Copy the head verbatim from an existing mockup** (`invite-approval-ux-v2.html` or
-  `space-folder-sync.html`): the CSS custom-property token block (light + `.dark`), the
+- **Copy the head verbatim from `identity-key-backup-recovery.html`**: the CSS custom-property token block (light + `.dark`), the
   Tailwind CDN + `tailwind.config` color/font mapping, the Google-Fonts link (Manrope +
   Plus Jakarta Sans), the `.device-frame` window chrome (traffic lights + "Mirall"), and
   the light/dark toggle script. These mirror `tailwind.css` / `tailwind.config.js` —
   keep them in sync with `design.md`.
-- Icons follow the existing mockups' style (inline **stroke** SVGs). The app ships
+- Icons are inline **stroke** SVGs. The app ships
   Material Symbols; the mockups approximate with simple SVGs — that is the *one*
   acceptable divergence from production.
 - Multiple states per file as `<section>`s, each with a heading + one-line description +
@@ -82,7 +81,7 @@ If you cannot name the file (for recreated parts) or the `design.md` token/compo
 
 ---
 
-## Anti-patterns (these have bitten us — do not repeat)
+## Anti-patterns
 
 - **Inventing a screen/modal from a description** instead of recreating the real
   component. (E.g. guessing the invite modal rather than reproducing `InviteModal.tsx`.)
@@ -101,5 +100,4 @@ If you cannot name the file (for recreated parts) or the `design.md` token/compo
 - `design.md` — the visual language (mandatory grounding truth).
 - `.claude/testing.md` §2 — the accessibility bar mockups must depict.
 - `src/renderer/**` + `src/renderer/locales/**` — the implemented baseline (always the truth).
-- Scaffolding templates: `.claude/mockups/invite-approval-ux-v2.html`,
-  `.claude/mockups/space-folder-sync.html`.
+- Scaffolding template: `.claude/mockups/identity-key-backup-recovery.html`.
