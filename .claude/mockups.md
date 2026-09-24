@@ -53,14 +53,16 @@ If you cannot name the file (for recreated parts) or the `design.md` token/compo
 ## Scaffolding convention
 
 - Self-contained single HTML file at `.claude/mockups/<name>.html`. No build step.
-- **Copy the head verbatim from `identity-key-backup-recovery.html`**: the CSS custom-property token block (light + `.dark`), the
-  Tailwind CDN + `tailwind.config` color/font mapping, the Google-Fonts link (Manrope +
-  Plus Jakarta Sans), the `.device-frame` window chrome (traffic lights + "Mirall"), and
-  the light/dark toggle script. These mirror `tailwind.css` / `tailwind.config.js` —
-  keep them in sync with `design.md`.
-- Icons are inline **stroke** SVGs. The app ships
-  Material Symbols; the mockups approximate with simple SVGs — that is the *one*
-  acceptable divergence from production.
+- **Start by copying `.claude/mockups/_template.html`.** It holds the token block (light +
+  `.dark`), the Tailwind CDN config (colours, fonts, radii), the fonts, the macOS window frame with
+  the app header recreated from `TopNav.tsx` (and the logo-only onboarding header), the annotation
+  badges, the light/dark toggle and one example state. Its tokens mirror
+  `src/renderer/styles/tailwind.css` and `tailwind.config.js`; when those change, update the
+  template in the same change. `_template.html` is a scaffold, never a mockup — don't edit it to
+  depict a proposal.
+- Icons are the app's own: copy the path for the icon name from
+  `src/renderer/components/primitives/Icon.tsx` into an inline `<svg viewBox="0 -960 960 960"
+  fill="currentColor">`, as the template's header does. Never a different icon set.
 - Multiple states per file as `<section>`s, each with a heading + one-line description +
   an a11y note.
 
@@ -100,4 +102,4 @@ If you cannot name the file (for recreated parts) or the `design.md` token/compo
 - `design.md` — the visual language (mandatory grounding truth).
 - `.claude/testing.md` §2 — the accessibility bar mockups must depict.
 - `src/renderer/**` + `src/renderer/locales/**` — the implemented baseline (always the truth).
-- Scaffolding template: `.claude/mockups/identity-key-backup-recovery.html`.
+- Scaffold: `.claude/mockups/_template.html`.
