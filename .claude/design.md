@@ -283,6 +283,9 @@ card uses `rounded-2xl` (1.5rem), and modal panels sit one step above at
 - **Ambient, purple-tinted shadow** for floating chrome:
   `shadow-[0_12px_40px_rgba(74,59,82,0.06)]` (TopNav, Onboarding header);
   `0.04` variant on the Onboarding card. This is the system's signature soft lift.
+  **Light mode only** — every use pairs it with `dark:shadow-none`: over a dark
+  surface the mauve is lighter than what it falls on and paints a haze band
+  instead of a shadow. Guarded by `test:layout:case -- darkshadow`.
 - **Primary buttons** carry `shadow-lg shadow-primary/10`.
 - **Modals** use `shadow-2xl shadow-black/30` (the one place a black-tinted
   shadow is used).

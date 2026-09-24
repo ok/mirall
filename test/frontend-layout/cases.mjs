@@ -22,6 +22,8 @@ export const CASES = [
   },
   // Mounts every avatar the app draws and sweeps for one that is not recessed.
   { name: "avatars", title: "Mirall avatar recess harness" },
+  // This one sweeps computed box-shadows in both themes.
+  { name: "darkshadow", title: "Mirall dark-mode chrome shadow harness" },
   { name: "dropoverlay", title: "Mirall drop-overlay layout harness" },
   { name: "errorassoc", title: "Mirall dialog error-association harness" },
   { name: "failpaths", title: "Mirall action failure-path harness" },
