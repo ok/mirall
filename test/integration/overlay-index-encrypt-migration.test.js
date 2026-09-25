@@ -5,6 +5,7 @@ import path from 'bare-path'
 import { openStore, getStore, setMasterSecret, overlayIndexEncryptionKey } from '../../src/shared/core/store.js'
 import { FileIndex } from '../../src/shared/transfer/backends/overlay/vendor/file-index.js'
 import { migrateOverlayIndexToEncrypted } from '../../src/shared/transfer/backends/overlay/migrate-overlay-index-encrypt.js'
+import { clearAndPurgeCore } from '../../src/shared/storage/core-purge.js'
 import { tmpDir } from '../helpers/bare-tmp.js'
 
 async function rawContains(core, needle) {
@@ -133,6 +134,54 @@ test('migration is a no-op without a master secret', async (t) => {
 
   const res = await migrateOverlayIndexToEncrypted()
   t.is(res.status, 'skipped', 'skipped without M')
+
+  await getStore().close()
+})
+
+// Scheduled compaction purges the retired generation's core and leaves its by-name alias, so on
+// the next boot opening that name resolves to a deleted core and throws STORAGE_EMPTY. The
+// migration must count such a generation as purged, drop the alias, and write its flag.
+test('REGRESSION (FIX-504: a generation compaction purged, alias left behind, counts as purged)', async (t) => {
+  const M = b4a.from('77'.repeat(32), 'hex')
+  const DROPPED = 'ef'.repeat(32)
+  const root = tmpDir('ovmig-dangling')
+  const storePath = path.join(root, 'app-storage')
+  t.teardown(() => { try { fs.rmSync(root, { recursive: true, force: true }) } catch {} })
+
+  await openStore(storePath)
+  setMasterSecret(M)
+
+  // A real-path entry and its served chunk map survive the compaction; the unserved chunk map is
+  // what makes a generation roll at all.
+  const legacy = new FileIndex(getStore().namespace('mirall-overlay'))
+  await legacy.ready()
+  await legacy.putFile('/docs/keep.bin', { contentHash: HASH, size: 10, mtime: 1 })
+  await legacy.putChunkMapByHash(HASH, CHUNK)
+  await legacy.putChunkMapByHash(DROPPED, CHUNK)
+  const oldCore = await legacy.compact({ isServed: (hash) => hash === HASH })
+  t.ok(oldCore, 'precondition: compaction rolled to a new generation')
+  const v2Dk = b4a.toString(legacy.bee.core.discoveryKey, 'hex')
+  await clearAndPurgeCore(getStore(), oldCore) // the core goes, the by-name alias stays
+  await legacy.close()
+
+  // The next boot: a fresh store handle, so the retired generation cannot be served from a core
+  // the previous session still had cached.
+  await getStore().close()
+  await openStore(storePath)
+  setMasterSecret(M)
+  const v1Alias = { name: 'file-index', namespace: getStore().namespace('mirall-overlay').ns }
+  t.ok(await getStore().storage.getAlias(v1Alias), 'precondition: the retired generation’s alias dangles')
+
+  const res = await migrateOverlayIndexToEncrypted()
+  t.is(res.status, 'done', 'the dangling generation does not fail the migration')
+  t.absent(await coreInStore(v2Dk), 'current plaintext generation purged')
+  t.absent(await getStore().storage.getAlias(v1Alias), 'the dangling alias is dropped')
+  t.is((await migrateOverlayIndexToEncrypted()).status, 'skipped', 'the flag is written, so no retry next boot')
+
+  const enc = new FileIndex(getStore().namespace('mirall-overlay-e1'), { encryptionKey: overlayIndexEncryptionKey() })
+  await enc.ready()
+  t.is((await enc.getFile('/docs/keep.bin'))?.size, 10, 'entries reached the encrypted generation')
+  await enc.close()
 
   await getStore().close()
 })

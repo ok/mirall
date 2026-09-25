@@ -8,7 +8,7 @@
 // unpurged would defeat the whole point. The caller compacts the store when this reports migrated.
 import { migrationResult, MIGRATION_STATUS } from '../../../storage/migrations/migration-result.js'
 import { getStore, hasMasterSecret, overlayIndexEncryptionKey, createLocalBee } from '../../../core/store.js'
-import { clearAndPurgeCore, purgeAlias } from '../../../storage/core-purge.js'
+import { purgeNamedCore } from '../../../storage/core-purge.js'
 import { FileIndex, indexCoreName } from './vendor/file-index.js'
 import { createLogger } from '../../../core/logger.js'
 
@@ -58,10 +58,11 @@ async function migrateIndex(store) {
 
     // Purge every plaintext generation (index-meta, sync-feed, and each file-index version),
     // dropping the by-name alias so a later reopen can't hit a dangling alias. Older generations
-    // (v < current) left by an interrupted prior compaction are covered too. A failure throws.
+    // (v < current) are covered too, whether an interrupted compaction left one behind or a
+    // completed one already purged its core and left only the alias. A failure throws.
     const names = ['index-meta', 'sync-feed']
     for (let v = 1; v <= version; v++) names.push(indexCoreName(v))
-    for (const name of names) await purgePlaintextCore(store, nsPlain, name)
+    for (const name of names) await purgeNamedCore(store, nsPlain, name)
 
     return copied
   } finally {
@@ -101,11 +102,4 @@ async function copyBee(src, dst) {
 function approxValueBytes(value) {
   if (Array.isArray(value)) return value.length * 96
   try { return JSON.stringify(value).length } catch { return 64 }
-}
-
-async function purgePlaintextCore(store, nsPlain, name) {
-  const core = nsPlain.get({ name, valueEncoding: 'binary' })
-  await core.ready()
-  await clearAndPurgeCore(store, core)
-  await purgeAlias(store, nsPlain.ns, name)
 }
