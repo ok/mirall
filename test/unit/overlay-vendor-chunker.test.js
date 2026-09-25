@@ -4,7 +4,8 @@
 // overlay's PROVENANCE.md carries the full license notice.
 
 // Ported from hyper-overlay upstream test/chunker.test.js (6cac8ee). Body
-// verbatim; only import paths retargeted to the vendored subset. See
+// verbatim except the CDC stability test, which uses seeded input; import paths
+// retargeted to the vendored subset. See
 // src/shared/transfer/backends/overlay/vendor/PROVENANCE.md.
 import test from 'brittle'
 import { chunk, hashChunk, MIN_SIZE, MAX_SIZE, selectTier, getTierParams } from '../../src/shared/transfer/backends/overlay/vendor/chunker.js'
@@ -72,15 +73,26 @@ test('deterministic — same input always produces same chunks', (t) => {
   }
 })
 
+// Deterministic pseudo-random bytes: the stability assertions hold for typical
+// input, not every input, so the test must not re-roll it per run.
+function seededBytes(n, seed) {
+  const out = Buffer.alloc(n)
+  for (let off = 0, i = 0; off < n; off += 32, i++) {
+    crypto.data(Buffer.from(`${seed}:${i}`)).copy(out, off)
+  }
+  return out
+}
+
+// 512 KB stays in tier 0 but yields ~27 chunks; at 128 KB an unlucky input
+// split into 2, where "more than half shared" cannot hold.
 test('CDC stability — edit in middle changes only ~2 chunks', (t) => {
-  const data = Buffer.alloc(128 * 1024)
-  crypto.randomBytes(128 * 1024).copy(data)
+  const data = seededBytes(512 * 1024, 'cdc-stability')
 
   const original = chunk(data)
 
   // Edit 100 bytes in the middle
   const modified = Buffer.from(data)
-  crypto.randomBytes(100).copy(modified, 64 * 1024)
+  seededBytes(100, 'cdc-edit').copy(modified, 256 * 1024)
 
   const edited = chunk(modified)
 
