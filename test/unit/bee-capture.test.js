@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { makeCaptureScheduler } from '../../src/shared/spaces/peer-bee.js'
+import { makeCaptureScheduler, captureVerdict } from '../../src/shared/spaces/peer-bee.js'
 
 const tick = () => new Promise((r) => setTimeout(r, 0))
 
@@ -78,11 +78,12 @@ test('a completed capture re-arms when the core grows', async (t) => {
   t.ok(h.sched.schedule('k'), 'growth re-arms the capture')
 })
 
-// A bee larger than the sweep cap is as captured as it will ever be: it must retire like a
-// complete one, or the tick re-sweeps it every window for the worker's lifetime.
+// A bee larger than the sweep cap is as captured as it will ever be once its capped prefix is
+// held: it must retire like a complete one, or the tick re-sweeps it every window for the
+// worker's lifetime.
 test('a capped capture retires — no permanent deficit, but growth still re-arms', async (t) => {
   const h = harness({ retryMinMs: 1000 })
-  h.setResult({ complete: false, capped: true, contiguous: 4096, length: 5000 })
+  h.setResult(captureVerdict({ length: 5000, contiguousLength: 4096, maxBlocks: 4096 }))
   h.setLength(5000)
   t.ok(h.sched.schedule('k'))
   await h.release()
@@ -142,4 +143,56 @@ test('a throwing capture is recorded via onError and stays a deficit', async (t)
   t.ok((await sched.incomplete()).includes('k'))
   clock = 200
   t.ok(sched.schedule('k'), 'failed capture retries after the window')
+})
+
+// A core that grows while its sweep runs ends longer than the prefix the sweep targeted. That is
+// not the cap: the bee is incomplete, and the tail waits for the next sweep.
+test('REGRESSION (FIX-503: a core that grows mid-sweep is incomplete, not capped)', (t) => {
+  t.alike(captureVerdict({ length: 11, contiguousLength: 5, maxBlocks: 4096 }), { complete: false, capped: false, contiguous: 5, length: 11 })
+  t.alike(captureVerdict({ length: 5000, contiguousLength: 4096, maxBlocks: 4096 }), { complete: true, capped: true, contiguous: 4096, length: 5000 }, 'past the cap: the prefix is all we will hold')
+  t.alike(captureVerdict({ length: 5100, contiguousLength: 4096, maxBlocks: 4096 }), { complete: true, capped: true, contiguous: 4096, length: 5100 }, 'growth past the cap is still the cap')
+  t.alike(captureVerdict({ length: 5000, contiguousLength: 4000, maxBlocks: 4096 }), { complete: false, capped: true, contiguous: 4000, length: 5000 }, 'crossed the cap mid-sweep: the prefix inside the cap is still owed')
+  t.alike(captureVerdict({ length: 11, contiguousLength: 11, maxBlocks: 4096 }), { complete: true, capped: false, contiguous: 11, length: 11 })
+  t.alike(captureVerdict({ length: 11, contiguousLength: 3, maxBlocks: 4096 }), { complete: false, capped: false, contiguous: 3, length: 11 }, 'a sweep the deadline cut short')
+  t.alike(captureVerdict({ length: 0, contiguousLength: 0, maxBlocks: 4096 }), { complete: false, capped: false, contiguous: 0, length: 0 })
+})
+
+// The capture stub answers with the verdict a real sweep produces when the core was 5 long at the
+// start and 11 at the end, so the scheduler sees the production shape rather than a literal.
+test('REGRESSION (FIX-503: the scheduler keeps a grown-mid-sweep core as a deficit and sweeps its tail)', async (t) => {
+  const h = harness({ retryMinMs: 1000 })
+  h.setResult(captureVerdict({ length: 11, contiguousLength: 5, maxBlocks: 4096 }))
+  h.setLength(11)
+  t.ok(h.sched.schedule('k'))
+  await h.release()
+  await tick()
+  t.ok((await h.sched.incomplete()).includes('k'), 'a grown core is a deficit, not a retired key')
+
+  h.setClock(500)
+  t.absent(h.sched.schedule('k'), 'under the throttle like any incomplete sweep')
+  h.setClock(2000)
+  h.setResult(captureVerdict({ length: 11, contiguousLength: 11, maxBlocks: 4096 }))
+  t.ok(h.sched.schedule('k'), 'retried after the window')
+  await h.release()
+  await tick()
+  t.alike(await h.sched.incomplete(), [], 'the tail is captured and the key retires')
+})
+
+// A bee that crosses the cap while its sweep runs is past the cap but not yet held up to it: it is
+// swept again, and retires only once the capped prefix is contiguous.
+test('REGRESSION (FIX-503: a bee that crosses the cap mid-sweep is swept again up to the cap)', async (t) => {
+  const h = harness({ retryMinMs: 1000 })
+  h.setResult(captureVerdict({ length: 5000, contiguousLength: 4000, maxBlocks: 4096 }))
+  h.setLength(5000)
+  t.ok(h.sched.schedule('k'))
+  await h.release()
+  await tick()
+  t.ok((await h.sched.incomplete()).includes('k'), 'the prefix inside the cap is still owed')
+
+  h.setClock(2000)
+  h.setResult(captureVerdict({ length: 5000, contiguousLength: 4096, maxBlocks: 4096 }))
+  t.ok(h.sched.schedule('k'), 'swept again after the window')
+  await h.release()
+  await tick()
+  t.alike(await h.sched.incomplete(), [], 'the capped prefix is held and the key retires')
 })

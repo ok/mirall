@@ -464,8 +464,9 @@ export async function captureJoinerMembership(joinerKeyHex, spaceId, { timeoutMs
   const r = await capturePeerBee(joinerKeyHex, { deadline: startedAt + timeoutMs })
   if (r.complete) return true
   // len=0 ⇒ the joiner's profile-bee head never reached us in time (replication/announce);
-  // len>0 && contig<len ⇒ the head arrived but blocks stalled (starved session / throughput).
-  log.debug(`membership capture timed out — ${joinerKeyHex.slice(0, 8)} space ${spaceId.slice(0, 8)} len=${r.length} contig=${r.contiguous} ${Date.now() - startedAt}ms`)
+  // len>0 && contig<len ⇒ the head arrived but blocks stalled (starved session / throughput), or
+  // the bee grew while the sweep ran and the tail is still owed.
+  log.debug(`membership capture incomplete — ${joinerKeyHex.slice(0, 8)} space ${spaceId.slice(0, 8)} len=${r.length} contig=${r.contiguous} ${Date.now() - startedAt}ms`)
   return false
 }
 
