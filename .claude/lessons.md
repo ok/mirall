@@ -15,7 +15,7 @@ architecture → `solution-architecture.md`; coding standard → `coding.md`; wo
 of it is still planning. Start code only on an explicit build signal ("go implement"); when unsure,
 ask "start implementing, or keep refining?".
 
-**Base a stacked worktree on the active feature branch, not `staging`, when the fix depends on
+**Base a stacked worktree on the active feature branch, not `main`, when the fix depends on
 in-flight work.** Re-verify file/line references in the actual target tree if a subagent explored a
 different checkout. Before the first push, `git config --get branch.<feat>.merge` must be empty.
 
@@ -23,17 +23,17 @@ different checkout. Before the first push, `git config --get branch.<feat>.merge
 one-off `cd` elsewhere silently redirects later relative-path commands, and a wrong-checkout run
 succeeds convincingly. Evidence and log paths must contain the `worktrees/` segment.
 
-**Rebase onto `origin/staging` immediately before the local run you report.** CI tests the merge: a
+**Rebase onto `origin/main` immediately before the local run you report.** CI tests the merge: a
 test added by a PR that landed after your branch was cut cannot fail locally. The targeted set after
 a rebase is "what the incoming commits added", not "what my change touched". Tell: a `test:bare`
 file you've never seen dying with exit 134 while your run was green.
 
-**Rebase and `npm install` are one step in a worktree.** A dependency added on staging is missing
+**Rebase and `npm install` are one step in a worktree.** A dependency added on main is missing
 from an older worktree's `node_modules`. Tell: a test file at 0/0 passed, exit 1 (it died at load).
 
-**`main` is the last release; baseline design and "current state" claims on `origin/staging`.** Read
-screens and locale strings with `git show origin/staging:<path>` (or a staging-based worktree), and
-name the baseline commit in the artifact.
+**A `release/x.y` branch is the last release; baseline design and "current state" claims on
+`origin/main`.** Read screens and locale strings with `git show origin/main:<path>` (or a main-based
+worktree), and name the baseline commit in the artifact.
 
 **Look before you overwrite.** Run the comparison (`wc`/mtime/`diff`) as its own command and read it
 before copying — never chain evidence `&&` overwrite. Plan docs under `~/Projects/Mirall/plans/`
@@ -44,14 +44,14 @@ plus session transcripts.
 discards every unstaged change in the file. To undo a temporary mutation, copy the file aside first
 and copy it back.
 
-**Recover an accidental merge into `main` with a revert, never a force-push.** The
-`protect-main-staging` ruleset blocks non-fast-forward with no bypass. Check nothing is stranded
-(`git diff --stat origin/staging <bad-tip>`), tag the bad tip, then `git revert -m 1 <merge>` and
-push forward. Releases trigger on `v*` tags, not on a `main` push.
+**Recover an accidental merge into `main` or a `release/*` branch with a revert, never a
+force-push.** The `protect-main-release` ruleset blocks non-fast-forward with no bypass. Check
+nothing is stranded (`git diff --stat <last-good> <bad-tip>`), tag the bad tip, then
+`git revert -m 1 <merge>` and push forward. Releases trigger on `v*` tags, not on a branch push.
 
 **Verify CI by head SHA, never by PR.** After a force-push, `gh pr checks` shows the previous head's
 completed run as current, and a head with zero runs has zero pending rows. Require zero
-non-completed runs and the expected run count. Every merge to `staging` invalidates the verification
+non-completed runs and the expected run count. Every merge to `main` invalidates the verification
 of every other open PR.
 
 ```
@@ -61,7 +61,7 @@ gh api repos/<o>/<r>/commits/$H/check-runs \
 ```
 
 **Retarget the upper PR of a stack before merging the lower one.** `gh pr merge --delete-branch`
-closes any PR based on the deleted branch, unrecoverably. `gh pr edit <upper> --base staging` first.
+closes any PR based on the deleted branch, unrecoverably. `gh pr edit <upper> --base main` first.
 
 **Verify an issue's claims against the tree before implementing it.** Counts, "still to do" items
 and named symbols in a task description are often wrong in both directions; the first pass is
@@ -380,7 +380,7 @@ at module level; `boot.js` is the composition root and `test/integration/import-
 imports each cycle member first.
 
 **Moving an init into a `Subsystem._open` reorders it, and null-guards that return instead of
-throwing fail silently.** Diff its new position against `origin/staging` and check every
+throwing fail silently.** Diff its new position against `origin/main` and check every
 collaborator it reaches. Restart/crash flow tests are the only layer that catches this. Pass
 collaborators as constructor deps, not nullable `hook?.()` slots.
 

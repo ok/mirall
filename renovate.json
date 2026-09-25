@@ -3,7 +3,6 @@
   "extends": ["config:recommended", ":dependencyDashboard"],
   "timezone": "Europe/Berlin",
   "schedule": ["before 8am on Monday"],
-  "baseBranchPatterns": ["staging"],
   "labels": ["dependencies"],
   "prConcurrentLimit": 10,
   "prHourlyLimit": 0,

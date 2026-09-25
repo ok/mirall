@@ -24,46 +24,63 @@ git push --tags ─→ matrix build (5 archs)
                      promoted to the channel's Pear drive → clients OTA-update
 ```
 
-## Branches & promotion
+## Branches & releases
 
-`main` is the repo's **default branch** and is **production** — every commit on it is releasable,
-and it is what a visitor cloning the public repo gets. `staging` is the integration branch where the
-next release accumulates. Features and chores squash-merge into `staging`, so a merged PR becomes
-exactly one commit (PR title + PR body). A release promotes `staging → main` as a pure fast-forward:
+`main` is the repo's **default branch** and the **development trunk**. Feature, fix and chore PRs
+target it (GitHub pre-selects it) and squash-merge, so a merged PR becomes exactly one commit (PR
+title + PR body), and `Fixes #N` closes its issue on merge. A commit on `main` is not shipped until
+a tag carries it.
+
+Each release line has a long-lived **`release/<major>.<minor>`** branch, and every `v*` tag sits on
+one. Release branches are never deleted — they record what each line shipped — and the
+`protect-main-release` ruleset blocks their deletion and any non-fast-forward push, as it does for
+`main`.
+
+**Fixes go upstream first.** A fix merges to `main`, then is cherry-picked with `-x` onto the release
+branch through a `backport/<slug>` PR. Only a fix that no longer applies on `main` lands on the
+release branch directly (`hotfix/<slug>`), saying so in its PR body, and is forward-ported to `main`
+afterwards.
 
 ```
-git switch main && git merge --ff-only staging && git push origin main
+# backport a fix merged to main
+git worktree add --no-track -b backport/<slug> worktrees/backport-<slug> origin/release/1.11
+git -C worktrees/backport-<slug> cherry-pick -x <main-sha>
+gh pr create --base release/1.11 --head backport/<slug>
 ```
 
-`main` is kept a strict ancestor of `staging` so that promotion never has to squash, which is what
-used to produce the recurring "N ahead / M behind" graph divergence. A hotfix may land on `main`
-directly, then gets forward-ported to `staging`.
+**Patch release** (e.g. `v1.11.2`): once its fixes are backported, a `release-prep/1.11.2` PR to
+`release/1.11` bumps `package.json#version` and dates the `## v1.11.2` heading in `CHANGELOG.md`.
+When it has merged and the Test run on the release-branch push is green, tag the branch:
 
-> **`staging` means two different things.** The git branch `staging` is where code integrates. The
-> release channel `staging` is a Pear Hyperdrive (see *Release channels & OTA* below). They are
-> independent: a `workflow_dispatch` build can publish any branch to any channel.
+```
+git fetch origin && git tag v1.11.2 origin/release/1.11 && git push origin v1.11.2
+```
 
-Because GitHub always pre-selects the repo's default branch as a PR base, new PRs open against
-`main`. **Feature and chore PRs must have their base switched to `staging` by hand** — only a
-release promotion or a hotfix legitimately targets `main`.
+Then forward-port the release-prep commit to `main` in a small PR. If `main`'s `package.json` has
+already moved ahead, keep `main`'s version and take only the `CHANGELOG.md` section, placed below any
+newer `## v…` heading. The tag gate below reads only the release branch's top heading.
 
-`.github/workflows/pr-base-guard.yml` enforces this: a PR based on `main` fails unless its head is
-`staging`, `hotfix/*` or `release/*`. It is an allowlist, so an unfamiliar branch prefix fails
-closed. A deliberate exception — an infrastructure change that must land on `main` first, like the
-`renovate.json` case below — is unblocked with the `base:main` label, which should be justified in
-the PR body.
+**Minor release** (e.g. `v1.12.0`): at feature freeze, cut the branch from `main`, stabilise it with
+backports, then release-prep and tag exactly as for a patch:
 
-Renovate is exempt: `renovate.json` sets `"baseBranches": ["staging"]`, so its PRs target the
-integration branch regardless of the default. That key must stay on `main` — Renovate defaults to
-`useBaseBranchConfig: "none"`, meaning it reads its config **only from the repo's default branch**.
-A `renovate.json` that exists on `staging` but not on `main` is silently ignored.
+```
+git fetch origin && git push origin origin/main:refs/heads/release/1.12
+```
 
-Long-lived branches are limited to `main` and `staging`. Feature (`feat/*`, `fix/*`) and release
-(`release/*`) branches are short-lived and deleted after merge. There is no permanent branch per
-version: the channels are build flavors of one commit lineage, not divergent code, and OTA clients
-roll forward within a channel, so no released version needs parallel maintenance. Cut a
-`release/x.y` branch from its tag only if a patch to an older line is ever actually needed after
-`staging` has moved on.
+`main` keeps taking features during the freeze; they ship with the next minor.
+
+`.github/workflows/pr-base-guard.yml` guards the release branches: a PR based on `release/**` fails
+unless its head is `backport/*`, `hotfix/*` or `release-prep/*`. It is an allowlist, so an
+unfamiliar branch prefix fails closed. A deliberate exception is unblocked with the `base:release`
+label, which should be justified in the PR body. PRs to `main` are not checked.
+
+Renovate reads its config from the default branch and targets it, so dependency PRs land on `main`.
+Release branches get no automatic bumps; a security fix is backported by hand like any other.
+
+The **beta** download (the `staging` release channel, a Pear Hyperdrive — see *Release channels &
+OTA* below) is a `workflow_dispatch` build: from `main` during normal development, and from the
+`release/x.y` branch while a minor stabilises. Channels are build flavors, not branches; any ref can
+be built for any channel.
 
 ## CI build — `.github/workflows/build-electron.yml`
 
