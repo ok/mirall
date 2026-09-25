@@ -5,11 +5,10 @@ tree current. Read this before reviewing a Renovate PR or running a manual sweep
 
 ## What's wired up
 
-- **`renovate.json`** — Renovate config at the repo root. **Renovate reads this file from `main`,
-  not `staging`** — `renovate.yml` runs `actions/checkout` with no `ref`, so it takes the default
-  branch. `baseBranchPatterns: ["staging"]` only controls which branch Renovate *targets*. A config
-  change merged to `staging` alone does nothing; it needs a `hotfix/*` PR to `main` too (the
-  `pr-base-guard` allowlist permits `staging`, `hotfix/*`, `release/*`, or a `base:main` label).
+- **`renovate.json`** — Renovate config at the repo root. Renovate reads it from the default branch
+  (`main`) — `renovate.yml` runs `actions/checkout` with no `ref` — and, with no `baseBranchPatterns`,
+  targets that branch too. Release branches get no Renovate PRs; a security bump is backported by
+  hand (`build-process.md` → "Branches & releases").
   Seven `packageRules`, in order:
   - routine `minor`/`patch`/`pin`/`digest` — flagged `automerge: true` (squash). **This has never
     actually fired** — see "Automerge is aspirational" below. The named groups after it override
@@ -57,7 +56,7 @@ tree current. Read this before reviewing a Renovate PR or running a manual sweep
 - **`test/raw/holepunch-integration.test.js`** — the merge gate for the `holepunch` group. Spins up
   an in-memory `hyperdht/testnet`, two Corestores in tmp dirs, two Hyperswarms, and asserts
   Hyperdrive + Hyperbee replicate end-to-end across namespaced cores. Runs in ~1s.
-- **`.github/workflows/test.yml`** — four jobs on every PR and on pushes to `staging` and `main`.
+- **`.github/workflows/test.yml`** — four jobs on every PR and on pushes to `main` and `release/**`.
   There are no path filters, so a docs- or config-only PR still runs the full suite including all
   six flow shards and four bare shards: a `node` job (`typecheck` + `lint:ci` + `knip` (advisory,
   `continue-on-error`) + `test:node:core`), a `flow` job (sharded two-peer flow tests), and a `bare`
@@ -118,7 +117,7 @@ sat through two scheduled Renovate runs.
 Two independent causes:
 
 1. **GitHub's auto-merge is unavailable here.** It is only offered on PRs that *cannot* be merged
-   immediately — blocked by required status checks or required reviews. The `protect-main-staging`
+   immediately — blocked by required status checks or required reviews. The `protect-main-release`
    ruleset carries only `deletion` and `non_fast_forward`, no required checks, so every Renovate PR
    is `MERGEABLE`/`CLEAN` the moment it opens and the option never appears. **Enabling the repo's
    `allow_auto_merge` setting alone is a no-op** — it is not the fix.
@@ -127,7 +126,7 @@ Two independent causes:
    re-rebases the branch on each run, so CI is pending again at the moment automerge is evaluated.)
 
 Either lever would fix it — a more frequent `renovate.yml` cron, or required status checks on
-`staging`. Both were considered and declined 2026-08-11 in favour of merging by hand. Treat the flag
+`main`. Both were considered and declined 2026-08-11 in favour of merging by hand. Treat the flag
 as intent, not behavior, and don't be misled into thinking a PR will land itself.
 
 ## Smoke-test workflow (pear-runtime, electron, anything `needs-smoke-test`)

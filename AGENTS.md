@@ -16,7 +16,8 @@
 
 ### 4. Verification Before Done
 - Never mark a task complete without proving it works: run the tests, check the logs, and diff
-  behavior against `origin/staging` when relevant (`main` is the last release, not the baseline).
+  behavior against `origin/main` when relevant (a `release/x.y` branch is the last shipped line, not
+  the baseline).
 
 ### 5. Autonomous Bug Fixing
 - Given a bug report or failing CI, diagnose it yourself from the logs, errors, and failing tests;
@@ -71,7 +72,7 @@ This applies to **pull request descriptions and comments** as well as commit mes
 **Verify, don't assume.** Before opening or updating a PR, and after writing commits:
 
 ```
-git log origin/staging..HEAD --format='%B' | grep -ni 'claude\|co-authored\|🤖\|generated with'
+git log origin/main..HEAD --format='%B' | grep -ni 'claude\|co-authored\|🤖\|generated with'
 gh pr view <n> --json body,title -q '.title + .body' | grep -ni 'claude\|co-authored\|🤖'
 ```
 
@@ -111,34 +112,34 @@ ports, or `git switch`.
 - Worktrees live at `mirall-app/worktrees/<branch>/`. The `worktrees/` folder is gitignored.
 - Branch slug is descriptive (`feat-linux-process-name-fix`, `fix-appimage-icons`); slashes in
   branch names are preserved as subfolders.
-- **Always create with `--no-track`, based on `origin/staging`** — feature PRs target `staging`,
-  never `main` (CI enforces this):
+- **Always create with `--no-track`, based on `origin/main`** — feature PRs target `main`:
 
   ```
-  git worktree add --no-track -b <branch> worktrees/<branch> origin/staging
+  git worktree add --no-track -b <branch> worktrees/<branch> origin/main
   ```
 
-  Without `--no-track` the new branch's upstream becomes `origin/staging`, which is wrong in two
-  ways: `git status` reports "ahead of origin/staging", and a bare `git push` fails with a message
-  whose **first suggestion is `git push origin HEAD:staging`** — following it lands the feature
-  branch straight on the integration branch. Nothing server-side stops that: the
-  `protect-main-staging` ruleset blocks only deletion and non-fast-forward, so an ordinary push to
-  `staging` succeeds. With no upstream, the first push must name the branch, which creates it on the
-  remote and sets the correct upstream:
+  Without `--no-track` the new branch's upstream becomes `origin/main`, which is wrong in two ways:
+  `git status` reports "ahead of origin/main", and a bare `git push` fails with a message whose
+  **first suggestion is `git push origin HEAD:main`** — following it lands the feature branch
+  straight on the trunk, unreviewed. Nothing server-side stops that: the `protect-main-release`
+  ruleset blocks only deletion and non-fast-forward, so an ordinary push to `main` succeeds. With no
+  upstream, the first push must name the branch, which creates it on the remote and sets the
+  correct upstream:
 
   ```
   git push -u origin <branch>
-  gh pr create --base staging
+  gh pr create --base main
   ```
-- **Exception — a hotfix branches from `origin/main`.** A hotfix targets `main` directly
-  (`build-process.md` → "Branches & promotion"), so basing one on `staging` drags every unreleased
-  commit onto production with it. `pr-base-guard.yml` will **not** catch that: it allowlists by
-  branch **name** (`hotfix/*`), with no merge-base or content check, so a staging-based `hotfix/…`
-  passes the gate and merges clean. Cut it from `main` and forward-port to `staging` afterwards:
+- **Exception — a backport branches from `origin/release/<x.y>`.** A fix merged to `main` reaches a
+  shipped line by cherry-pick (`build-process.md` → "Branches & releases"), so basing a backport on
+  `main` drags every unreleased commit into the next patch with it. `pr-base-guard.yml` will **not**
+  catch that: it allowlists by branch **name** (`backport/*`, `hotfix/*`, `release-prep/*`), with
+  no merge-base or content check, so a `main`-based `backport/…` passes the gate and merges clean:
 
   ```
-  git worktree add --no-track -b hotfix/<slug> worktrees/hotfix-<slug> origin/main
-  gh pr create --base main
+  git worktree add --no-track -b backport/<slug> worktrees/backport-<slug> origin/release/<x.y>
+  git -C worktrees/backport-<slug> cherry-pick -x <main-sha>
+  gh pr create --base release/<x.y>
   ```
 - Each worktree is its own checkout — needs its own `npm install` and Electron native-dep rebuild.
   Pick a non-default dev-server port to avoid clashes with sibling worktrees.

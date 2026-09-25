@@ -47,8 +47,9 @@ see **Two-peer testing** in the [README](./README.md).
 
 ## Before you open a PR
 
-- **Base branch.** Open PRs against `staging`, the default integration branch —
-  not `main`, which is production. GitHub preselects this for you.
+- **Base branch.** Open PRs against `main`, the development branch. GitHub
+  preselects this for you. `release/x.y` branches hold shipped release lines;
+  maintainers backport fixes to them.
 - **Tests.** Every change ships with test coverage at the layer(s) it touches.
   Run `npm test` (and `npm run test:fe` for renderer/UI changes).
 - **Lint & types.** `npm run build` runs ESLint (including `jsx-a11y`) and
