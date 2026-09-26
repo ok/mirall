@@ -5,6 +5,7 @@
 // to pin down which core a storage corruption belongs to.
 import Corestore from 'corestore'
 import Hyperbee from 'hyperbee'
+import Hypercore from 'hypercore'
 import b4a from 'b4a'
 import { deriveKeyPair, deriveParticipationKeyPair, deriveParticipationId, deriveContentKey } from './identity-keys.js'
 import { createLogger } from './logger.js'
@@ -173,18 +174,43 @@ export function overlayIndexEncryptionKey() {
 // a one-time migration copies any plaintext core into it. Without M (insecure /
 // test mode) this is plain createBee behaviour. The registration assert makes a
 // forgotten LOCAL_BEE_NAMES entry fail loudly instead of silently skipping
-// migration + the leftover wanted-set.
-function localBeeCore(name) {
+// migration + the leftover wanted-set. The scratch suffix is the boot rewrite's
+// temporary copy. Both suffixes are frozen: a changed one opens an empty core.
+const LOCAL_BEE_SUFFIX = '/v2'
+const REWRITE_SCRATCH_SUFFIX = '/rewrite-scratch'
+
+function localBeeCore(name, suffix = LOCAL_BEE_SUFFIX) {
   if (!LOCAL_BEE_NAMES.includes(name)) throw new Error('createLocalBee: unregistered local bee "' + name + '"')
   const core = !masterSecret
     ? store.get({ name })
-    : store.get({ keyPair: deriveKeyPair(masterSecret, name + '/v2'), encryptionKey: metadataBeeKey() })
-  rememberCoreName(core, name)
+    : store.get({ keyPair: deriveKeyPair(masterSecret, name + suffix), encryptionKey: metadataBeeKey() })
+  rememberCoreName(core, suffix === LOCAL_BEE_SUFFIX ? name : name + suffix)
   return core
 }
 
+// alwaysDuplicate:false makes a put whose stored bytes equal the current value's a no-op, so no
+// writer of a local bee can grow it by repeating a record.
+function openLocalBee(core) {
+  return new Hyperbee(core, { keyEncoding: 'utf-8', valueEncoding: 'json', alwaysDuplicate: false })
+}
+
 export function createLocalBee(name) {
-  return new Hyperbee(localBeeCore(name), { keyEncoding: 'utf-8', valueEncoding: 'json' })
+  return openLocalBee(localBeeCore(name))
+}
+
+export function createLocalBeeScratch(name) {
+  if (!masterSecret) throw new Error('createLocalBeeScratch: needs the master secret')
+  return openLocalBee(localBeeCore(name, REWRITE_SCRATCH_SUFFIX))
+}
+
+// Whether a local bee's core, or its rewrite scratch, is on disk. Answered without opening, because
+// an open creates the core: a keyPair core's discovery key hashes the manifest corestore builds for
+// it, rebuilt here the same way.
+export function hasLocalBeeCore(name, { scratch = false } = {}) {
+  if (!masterSecret) throw new Error('hasLocalBeeCore: needs the master secret')
+  const { publicKey } = deriveKeyPair(masterSecret, name + (scratch ? REWRITE_SCRATCH_SUFFIX : LOCAL_BEE_SUFFIX))
+  const key = Hypercore.key({ version: store.manifestVersion, signers: [{ publicKey }] })
+  return store.storage.hasCore(Hypercore.discoveryKey(key))
 }
 
 // Every session still open on the store, named where we opened it. What this returns as the store

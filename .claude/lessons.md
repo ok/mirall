@@ -365,6 +365,11 @@ index at once. Reset wholesale with `core.truncate(0)` + `compactRange`, not `cl
 (the cached tracker reports the old length and reads hang). Close the bee before clearing. Measure
 store size only after `compactRange`.
 
+**Rewrite a local bee in place, never under a new key.** A new key is invisible to every build that
+predates it: a rollback, or an installed release sharing the store with a dev build (`npm start`
+passes no `--storage`), opens the old key and finds it empty. Copy live entries to a scratch core,
+verify, mark, `truncate(0)` the bee and refill it, verify, unmark (`local-bee-rewrite.js`).
+
 **Copy transport chunks before stashing them.** secret-stream decrypts in place in udx receive
 slabs. `Buffer.from(data)` at the stash boundary.
 

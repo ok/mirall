@@ -20,6 +20,9 @@ Completes the move to the encrypted shared-folder index where it had stalled.
 - **The shared-folder index is now encrypted at rest on every profile.** On
 profiles whose index had been compacted, the one-time move to the encrypted
 index failed on every start and left the previous, unencrypted copy in place.
+- **Mirall frees storage left behind by older versions.** Profiles that
+mirrored a folder before 1.10 could hold hundreds of megabytes of repeated
+folder records. They are cleared once, the next time Mirall starts.
 
 ## v1.11.1
 
