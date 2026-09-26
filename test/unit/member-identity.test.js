@@ -120,3 +120,15 @@ test('a member entry that predates looseCatalogEpoch carries null and is not mar
   const moved = mergeMemberIdentity({ publicKey: K, meta: { looseCatalogKeyEnc: DK, looseCatalogEpoch: 1 }, profile: null, held })
   t.ok(moved.changed, 'a published epoch beside the key is a change the fold reports')
 })
+
+test('a merged entry fed back as held is unchanged', (t) => {
+  const tiers = [
+    { meta: null, profile: { displayName: 'Steve', avatar: null, looseCatalogKeyEnc: 'enc', looseCatalogEpoch: 0 } },
+    { meta: { displayName: 'Steve', avatar: 'data:steve' }, profile: { displayName: 'Bee', looseCatalogKey: DK } },
+    { meta: null, profile: null },
+  ]
+  for (const { meta, profile } of tiers) {
+    const { entry } = mergeMemberIdentity({ publicKey: K, meta, profile, held: null })
+    t.absent(mergeMemberIdentity({ publicKey: K, meta, profile, held: entry }).changed, JSON.stringify(profile))
+  }
+})
