@@ -181,7 +181,7 @@ export class MountsRuntime extends Subsystem {
     // mount config are left untouched — a missing root is ambiguous, never a delete.
     this.deps.ipc.emit(MAIN_REQUEST_FRAME, { command: MAIN_REQUEST.OWNED_FOLDER_STOP_WATCHER, args: { shareId } })
     this.cancelPeriodicReconcile(spaceId, shareId)
-    // A vanished root makes chokidar emit one unlink per file; every queued retire dies with it.
+    // A vanished root makes the watcher emit one unlink per file; every queued retire dies with it.
     stopOwnedFolder(spaceId, shareId)
     await this.recordFault(spaceId, shareId, MOUNT_STATUS.MOUNT_POINT_GONE)
   }

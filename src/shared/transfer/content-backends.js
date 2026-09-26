@@ -26,7 +26,7 @@ export function isUnsupportedShare(share) {
 }
 
 // Periodic missed-event backstop (e.g. tombstone catalog entries whose source vanished without a
-// chokidar unlink).
+// watcher unlink).
 export async function sweepBackends() {
   await overlayBackend.sweepPresence()
 }

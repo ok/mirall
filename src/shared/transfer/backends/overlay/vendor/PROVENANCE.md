@@ -52,7 +52,7 @@ from `overlay-v2.js` along the v2 path.
 
 - **v1 stack + orphans:** `index.js`, `chunk-registry.js`, `protocol.js`, `messages.js`,
   `http.js`, `fuse.js`, `pairing.js` (drops the `blind-pairing` dep), `watch-manager.js`
-  (Mirall uses `chokidar`).
+  (Mirall uses `chokidar4bare`).
 - **v2 files unreachable from the facade:** `pointer.js`, `manifest.js`, `tree.js`,
   `ignore.js` — they are **not imported** by the `overlay-v2.js → …` graph, so
   vendoring them would be dead code.

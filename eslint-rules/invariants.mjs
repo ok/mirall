@@ -47,14 +47,14 @@ export const moduleScopeTimerHandleRestrictions = [
   },
 ]
 
-// Mechanism invariant: chokidar's options are per-INSTANCE (network mounts need polling, an erroring
-// watcher spins), and src/main/watch-host.js is the single owner of every chokidar decision; a second
-// require('chokidar') is how a divergence comes back. Exported so
+// Mechanism invariant: a file watcher's options are per-INSTANCE (network mounts need polling, an
+// erroring watcher spins), and src/main/watch-host.js is the single owner of every watcher decision;
+// a second require of the watcher package is how a divergence comes back. Exported so
 // test/invariants/watch-host-single-owner.test.js parses the same grammar.
-const chokidarMessage = 'Only src/main/watch-host.js may load chokidar — arm the watch through createWatchHost so network polling, the error-storm cut-off and the option bag stay in one place.'
-export const chokidarSingleOwnerRestrictions = [
-  { selector: "CallExpression[callee.name='require'][arguments.0.value='chokidar']", message: chokidarMessage },
-  { selector: "ImportDeclaration[source.value='chokidar']", message: chokidarMessage },
+const watcherMessage = 'Only src/main/watch-host.js may load the file watcher (chokidar4bare) — arm the watch through createWatchHost so network polling, the error-storm cut-off and the option bag stay in one place.'
+export const watcherSingleOwnerRestrictions = [
+  { selector: "CallExpression[callee.name='require'][arguments.0.value=/^chokidar(4bare)?$/]", message: watcherMessage },
+  { selector: "ImportDeclaration[source.value=/^chokidar(4bare)?$/]", message: watcherMessage },
 ]
 
 // Boundary invariant: the renderer may import the contract package and nothing else under
@@ -493,8 +493,7 @@ export const pureNetworkModules = [
 export const pureFolderPolicyModules = [
   'echo-guard', 'mirror-budgets', 'mirror-loop', 'mirror-policy',
   'mount-fault', 'owned-policy', 'owned-state', 'path-keys', 'preview-tally',
-  'publish-queue', 'publish-scheduler', 'retire-confirm', 'share-limits', 'watch-derive',
-  'work-item',
+  'publish-queue', 'publish-scheduler', 'retire-confirm', 'share-limits', 'work-item',
 ]
 
 // The pure half of spaces/ — the decision tables and the in-memory caches the record modules

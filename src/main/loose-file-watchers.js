@@ -2,7 +2,7 @@
 // are scattered, not under one root). The same file can be shared in several spaces, so each
 // path maps to the set of spaces watching it and an event fans out to all of them. That
 // fan-out is the only loose-specific logic here; polling for network paths, the error-storm
-// cut-off and the chokidar option bag belong to watch-host.js and are shared with
+// cut-off and the watcher option bag belong to watch-host.js and are shared with
 // folder-watchers.js.
 const { createWatchHost } = require('./watch-host.js')
 

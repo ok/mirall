@@ -10,7 +10,7 @@ End-to-end UI scenarios that drive the **real Electron app** via `agent-desktop`
 
 ### Why several flows can *only* be proven here
 
-Owner-side filesystem operations — adding, editing, deleting, moving, or copying files inside a shared folder, and creating subfolders — reach the data layer through the **chokidar watcher in Electron main**. The backend flow tests (`test/flow/`) run the worker as a bare subprocess with **no Electron main**, so they *inject synthetic* `owned-folder-fs-event` IPC frames to stand in for the watcher. This frontend suite runs the real app, so it is the **only** layer that exercises the genuine *filesystem → chokidar → publish → replicate → materialize* path. That is exactly where the gaps below concentrate, and why they matter most at this layer.
+Owner-side filesystem operations — adding, editing, deleting, moving, or copying files inside a shared folder, and creating subfolders — reach the data layer through the **file watcher (`chokidar4bare`) in Electron main**. The backend flow tests (`test/flow/`) run the worker as a bare subprocess with **no Electron main**, so they *inject synthetic* `owned-folder-fs-event` IPC frames to stand in for the watcher. This frontend suite runs the real app, so it is the **only** layer that exercises the genuine *filesystem → watcher → publish → replicate → materialize* path. That is exactly where the gaps below concentrate, and why they matter most at this layer.
 
 ---
 
@@ -166,7 +166,7 @@ One row per file in `scenarios/`; the id is the `run.mjs` argument (`node test/f
 | s142 | `s142-paused-and-missing-one-state.mjs` | **REGRESSION (A.4):** a paused folder whose source went missing shows one state, not both — the fault the user can act on, with the pause resurfacing once it clears. |
 
 ### I. Owned folders — live file operations (ongoing edits to a shared folder)
-These drive the real *filesystem → chokidar → publish → replicate → materialize* path: the scenario mutates files on disk in the owner's mount directory, the running app's watcher publishes, and the scenario asserts on the peer's folder view and the mirror's on-disk contents.
+These drive the real *filesystem → watcher → publish → replicate → materialize* path: the scenario mutates files on disk in the owner's mount directory, the running app's watcher publishes, and the scenario asserts on the peer's folder view and the mirror's on-disk contents.
 
 | ID | File | Covers |
 |----|------|--------|
@@ -198,7 +198,7 @@ These drive the real *filesystem → chokidar → publish → replicate → mate
 
 ## Coverage map
 
-Groups A–J above are the full UI suite. Owned-folder behaviour is exercised end-to-end through the real *filesystem → chokidar → publish → replicate → materialize* path, in two layers:
+Groups A–J above are the full UI suite. Owned-folder behaviour is exercised end-to-end through the real *filesystem → watcher → publish → replicate → materialize* path, in two layers:
 
 - **Setup** — share, mirror, delete, relocate, unmount, pause (groups F–H).
 - **Live file operations** on an already-shared folder — add, delete, edit, move, copy, subfolders/nesting, multiple folders, ignored junk, empty subfolders, large files, owner-offline (group I).
@@ -211,7 +211,7 @@ Some guarantees are deliberately proven at a lower layer, or need a harness addi
 
 | Gap | Status / where it lives instead |
 |---|---|
-| **`awaitWriteFinish` timing** — no premature publish of a still-being-written file | Chokidar-config property; too racy to assert in the UI window. s37 asserts byte-exact integrity of the settled file. |
+| **`awaitWriteFinish` timing** — no premature publish of a still-being-written file | Watcher-config property; too racy to assert in the UI window. s37 asserts byte-exact integrity of the settled file. |
 | **Same-named folders from two owners** disambiguate | `test/integration/share-registry` (per-owner name uniqueness; dedupe by `owner:id`). Not UI-drivable — two identically-named cards expose ambiguous `Open <name>` selectors. |
 | **Fully empty top-level folder** share | Not yet covered: the scan-preview modal omits the "Upload" line at 0 files, which the `addOwnedFolder` helper waits on (would need a preview-helper tweak). s40 covers the empty-*subfolder* case. |
 | **Owner returns → mirror catches up** | `test/flow/{offline-transfer,resume-transfer,foreign-sync}`. The harness `kill()` wipes the store, so suspend/relaunch isn't available; s41 covers offline *detection*. |
