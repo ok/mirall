@@ -78,7 +78,7 @@ async function classifyForeignEntry(entry, mountPath, spaceId, shareId, hashOf) 
  */
 export async function previewMaterializeScan(spaceId, ownerKey, shareId, mountPath, opts = {}) {
   const { onProgress = null, signal = null, hashOf = overlayHashFile } = opts
-  const checkAborted = () => { if (signal && signal.aborted) throw new AbortError() }
+  const checkAborted = () => { if (signal && signal.aborted) throw new AbortError(signal.reason) }
   const emit = (phase, scanned, total) => { if (onProgress) { try { onProgress({ phase, scanned, total, bytes: 0 }) } catch {} } }
 
   // Local count (disk) and remote listing (network) are independent — overlap them.

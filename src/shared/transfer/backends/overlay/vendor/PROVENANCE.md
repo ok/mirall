@@ -636,6 +636,13 @@ re-diffable against upstream. Categories:
     a character was unservable through that fallback. Covered by
     `test/integration/overlay-vendor-prefix-bound.test.js`.
 
+25. **§4.23 — compaction hands back the retired alias (`overlay-v2.js`).** `compactIndex` returns
+    `{ core, alias: { name, namespace } }` for the generation it retired, rather than the bare
+    core, so the caller that clears and purges the core drops its by-name alias in the same
+    pass. Without that row gone, a later `get({ name })` of the retired generation resolves the
+    alias to a deleted core and throws `STORAGE_EMPTY`. Upstream's `FileIndex.compact` is
+    unchanged. Covered by `test/integration/storage-info-and-compaction.test.js`.
+
 ## Re-diffing against upstream
 
 From this folder, with an upstream clone at `$UPSTREAM`:

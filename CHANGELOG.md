@@ -9,6 +9,18 @@ build-pipeline tweaks, and dependency bumps that don't change how the app
 behaves are intentionally omitted. Releases that contained only such
 changes do not appear here.
 
+## v1.11.2
+
+### Unreleased
+
+Completes the move to the encrypted shared-folder index where it had stalled.
+
+#### Fixed
+
+- **The shared-folder index is now encrypted at rest on every profile.** On
+profiles whose index had been compacted, the one-time move to the encrypted
+index failed on every start and left the previous, unencrypted copy in place.
+
 ## v1.11.1
 
 ### 2026-09-24

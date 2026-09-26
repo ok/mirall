@@ -31,7 +31,7 @@ import path from 'bare-path'
 import os from 'bare-os'
 import crypto from 'hypercore-crypto'
 
-import { FileIndex } from './file-index.js'
+import { FileIndex, indexCoreName } from './file-index.js'
 import { SyncEngine } from './sync-engine.js'
 import { TransferManager } from './transfer.js'
 import { OverlayProtocolV2 } from './protocol-v2.js'
@@ -257,9 +257,13 @@ export class HyperOverlayV2 extends ReadyResource {
     return this._index.evictContent(contentHash)
   }
 
+  // [mirall] §4.23 — the retired generation's alias rides along with its core, so the caller
+  // that clears and purges the core can drop the by-name alias in the same pass.
   async compactIndex (opts) {
     await this._ensure()
-    return this._index.compact(opts)
+    const retired = { name: indexCoreName(this._index.version), namespace: this._corestore.ns }
+    const core = await this._index.compact(opts)
+    return core ? { core, alias: retired } : null
   }
 
   /**
