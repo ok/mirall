@@ -54,3 +54,19 @@ export async function purgeAlias(cs, namespace, name) {
   await tx.flush()
   log.info('deleted alias:', name)
 }
+
+// Purge a core by its (namespace, name), resolving the alias first rather than opening the name
+// blind: a name that was never written needs nothing, and a name whose core an earlier purge
+// deleted, alias left behind, is finished by dropping the alias instead of failing the open with
+// STORAGE_EMPTY (see purgeAlias). A core that is there is cleared and purged whole, and its open
+// failing propagates. `ns` is the namespaced corestore the name lives in.
+export async function purgeNamedCore(cs, ns, name) {
+  const dk = await cs.storage.getAlias({ name, namespace: ns.ns })
+  if (!dk) return
+  if (await cs.storage.hasCore(dk)) {
+    const core = ns.get({ name, valueEncoding: 'binary' })
+    await core.ready()
+    await clearAndPurgeCore(cs, core)
+  }
+  await purgeAlias(cs, ns.ns, name)
+}

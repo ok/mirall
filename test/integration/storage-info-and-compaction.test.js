@@ -8,6 +8,7 @@ import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-i
 import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
 import { getStorageInfo } from '../../src/shared/storage/storage.js'
 import { compactOverlayIndex } from '../../src/shared/transfer/backends/overlay/overlay-maintenance.js'
+import { indexCoreName } from '../../src/shared/transfer/backends/overlay/vendor/file-index.js'
 
 // REGRESSION (FIX-148: storage numbers were a residual that hid real usage, and the old
 // "Clean up" relabeled bytes instead of freeing them / could delete the index). The action is
@@ -33,6 +34,10 @@ test('getStorageInfo reports measured categories; compaction shrinks the index a
   const before = await getStorageInfo()
   t.ok((await compactOverlayIndex()).compacted, 'compaction ran')
   t.ok(await getOverlay()._index.hasChunkMapByHash(liveHash), 'the served map survives compaction')
+  // REGRESSION (FIX-504): the retired generation's by-name alias goes with its core, or a later
+  // open of that name resolves to a deleted core and throws STORAGE_EMPTY.
+  const retiredAlias = { name: indexCoreName(getOverlay()._index.version - 1), namespace: getOverlay()._corestore.ns }
+  t.absent(await getStore().storage.getAlias(retiredAlias), 'the retired generation’s alias is dropped with its core')
   const after = await getStorageInfo()
   t.ok(after.indexBytes < before.indexBytes, `index shrank (before=${before.indexBytes} after=${after.indexBytes})`)
 
