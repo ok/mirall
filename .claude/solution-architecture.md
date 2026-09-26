@@ -149,7 +149,7 @@ Bootstrap:
    `setRuntimeConfig(bootstrap)`.
 4. `boot()` starts two tiers *(cited as `§2 boot step N`)*. The **durable** tier holds every
    Corestore-session handle plus the recorders the teardown writes through, and closes **last**:
-   1. `Store` → identity unlock → `runMigrations('durable')` → `SpaceKeysVault` → `ProfileBee` →
+   1. `Store` → identity unlock → `runMigrations('durable')` → `maintainLocalBees` → `SpaceKeysVault` → `ProfileBee` →
       `SpacesBee` → `DownloadsBee` → `PendingTransfersBee` → `MountsBee` → `IntentsBee`.
    2. `AuditLog`: writable before anything worth recording. A failed start loses rows, never boot.
    3. `ServeLedger` next, so it closes just before the log, whose close drains the `serve.completed`
@@ -252,6 +252,20 @@ prefix scan uses `prefixRange` (`src/shared/core/bee-keys.js`), never a `'\xff'`
 A new local bee must be added to `LOCAL_BEE_NAMES`: `createLocalBee` throws otherwise, and the list
 drives the plaintext→encrypted metadata migration and the leftover-scan wanted set. The `/v2`
 keyPair exists because a plaintext core can never be reopened with an `encryptionKey`.
+
+Local bees are append-only. They open with `alwaysDuplicate: false`, so a put whose stored bytes equal
+the current value's appends nothing. History that already exists is reclaimed at boot, before any
+holder opens a bee: `maintainLocalBees` (`src/shared/storage/local-bee-rewrite.js`) rewrites a bee
+whose history is at least 20 MB and at least 4× its fresh size, **in place under its own key**. It
+copies the live entries (as stored bytes) to a `name + '/rewrite-scratch'` core, verifies, flushes
+the store, marks the bee in `app-storage/.local-bee-rewrite.json` with its fork and the scratch's
+length, `truncate(0)`s and refills it, verifies, flushes, unmarks and purges the scratch; the boot
+compacts afterwards. The key never changes because a new key is invisible to any build that
+predates it. Every marker is settled before any new rewrite starts: an unmoved fork means the
+truncate never landed and the bee is intact, otherwise the bee is refilled from its scratch, and a
+restore that cannot complete fails the boot. A bee under 20 MB is never scanned, a larger one is
+scanned again only after 20 MB of growth, a bee with more than 64 MB of live data is left alone,
+and the stored-bytes-per-live-byte overhead each copy measures is kept with the verdict.
 
 ### 3.1 Profile bee (`profile`) — replicated
 
