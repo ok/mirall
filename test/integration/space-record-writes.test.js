@@ -1,6 +1,6 @@
 import test from 'brittle'
 import { freshPeer } from '../helpers/store.js'
-import { updateSpace, toggleFavorite, getSpace } from '../../src/shared/spaces/space.js'
+import { updateSpace, toggleFavorite, getSpace, mutateSpace, mutateMembers, _spacesBeeForTests } from '../../src/shared/spaces/space.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 
 // Every read-modify-write of a space record has to run on the one per-space chain. Two that
@@ -68,4 +68,20 @@ test('clearing the override survives a concurrent toggle', async (t) => {
   const durable = await getSpace(space.spaceId)
   t.absent(durable.downloadFolder, 'the cleared override stays cleared')
   t.is(durable.favorite, true)
+})
+
+test('REGRESSION (#498): a mutation that changes nothing appends no block', async (t) => {
+  await freshPeer(t)
+  const { spaceId } = await createSpace('Quiet', 'star')
+  const bee = _spacesBeeForTests()
+  const length = bee.core.length
+
+  t.ok(await mutateSpace(spaceId, (s) => ({ ...s })), 'an equal record still resolves to the record')
+  t.is(await mutateMembers(spaceId, (ms) => ms.map((m) => ({ ...m }))), false, 'an equal member list reports no write')
+  const updated = await updateSpace(spaceId, 'Quiet', 'star')
+  t.is(updated?.name, 'Quiet', 'an edit to the same values still answers with the record')
+  t.is(bee.core.length, length, 'none of the three appended a block')
+
+  await updateSpace(spaceId, 'Loud', 'star')
+  t.is(bee.core.length, length + 1, 'a real change still writes')
 })

@@ -2,7 +2,7 @@ import test from 'brittle'
 import { readFileSync, readdirSync, statSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'
-import { createRecordWriter } from '../../src/shared/core/bee-writer.js'
+import { createRecordWriter, sameStoredValue } from '../../src/shared/core/bee-writer.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(here, '..', '..')
@@ -65,6 +65,53 @@ test('an apply that declines succeeds without writing', async (t) => {
   const before = b.seqOf('k')
   t.is(await b.writer().mutate('k', () => null), null, 'reports that nothing was written')
   t.is(b.seqOf('k'), before, 'and appended no block — this is what keeps a probe tick from writing every second')
+})
+
+test('REGRESSION (#498): an apply that returns the stored value writes nothing and resolves to it', async (t) => {
+  const b = fakeBee()
+  b.seed('k', { a: 1, list: ['x', 'y'] })
+  const before = b.seqOf('k')
+  const out = await b.writer().mutate('k', () => ({ list: ['x', 'y'], a: 1, gone: undefined }))
+  t.alike(out, { a: 1, list: ['x', 'y'] }, 'resolves to the stored value, so a caller still sees success')
+  t.is(b.seqOf('k'), before, 'and appends no block')
+})
+
+test('a change in array order still writes', async (t) => {
+  const b = fakeBee()
+  b.seed('k', { list: ['x', 'y'] })
+  const before = b.seqOf('k')
+  await b.writer().mutate('k', () => ({ list: ['y', 'x'] }))
+  t.not(b.seqOf('k'), before)
+})
+
+test('a nested field changed in place by apply is still written', async (t) => {
+  const b = fakeBee()
+  b.seed('k', { renamedPaths: { a: 'a (1)' } })
+  const before = b.seqOf('k')
+  await b.writer().mutate('k', (m) => { m.renamedPaths.b = 'b (1)'; return m })
+  t.not(b.seqOf('k'), before, 'apply works on a deep copy, so the change is seen')
+  t.alike(b.get('k'), { renamedPaths: { a: 'a (1)', b: 'b (1)' } })
+})
+
+test('mutateWithOutcome tells a write from an equal value', async (t) => {
+  const b = fakeBee()
+  b.seed('k', { n: 1 })
+  const w = b.writer()
+  t.alike(await w.mutateWithOutcome('k', (m) => m), { value: { n: 1 }, previous: { n: 1 }, written: false })
+  t.alike(await w.mutateWithOutcome('k', (m) => ({ n: m.n + 1 })), { value: { n: 2 }, previous: { n: 1 }, written: true })
+  t.is(await w.mutateWithOutcome('gone', (m) => m), null)
+})
+
+test('sameStoredValue compares what JSON would store', (t) => {
+  t.ok(sameStoredValue({ a: 1, b: undefined }, { a: 1 }), 'an undefined property is not stored')
+  t.ok(sameStoredValue({ a: { x: 1, y: 2 } }, { a: { y: 2, x: 1 } }), 'key order is not significant')
+  t.ok(sameStoredValue([{ k: 'p', e: 0 }], [{ e: 0, k: 'p' }]), 'nested in an array')
+  t.absent(sameStoredValue({ a: null }, { a: undefined }), 'null is stored, undefined is not')
+  t.absent(sameStoredValue({ a: null }, {}), 'a stored null differs from an absent key')
+  t.absent(sameStoredValue([1, 2], [2, 1]), 'array order is significant')
+  t.absent(sameStoredValue({ a: 1 }, { a: '1' }))
+  t.absent(sameStoredValue([], {}))
+  t.absent(sameStoredValue({ a: [1] }, { a: [1, 2] }))
 })
 
 test('a record changed outside the lock is retried, not lost', async (t) => {

@@ -21,10 +21,14 @@ import { resetJoinRequests } from './join-requests.js'
 import { Subsystem } from '../core/subsystem.js'
 import { recordResolved } from '../audit/audit-log.js'
 import { prefixRange } from '../core/bee-keys.js'
+import { createRecordWriter } from '../core/bee-writer.js'
+import { createLogger } from '../core/logger.js'
 import { TARGET_KIND } from '../contract/audit-kinds.js'
 import { UNKNOWN_DISPLAY_NAME } from '../contract/limits.js'
 import { peerActor, spaceRef, targetRef } from '../audit/audit-record.js'
 /** @import { SpaceRecord } from '../contract/responses.js' */
+
+const log = createLogger('spaces')
 
 let spacesBee
 let spacesStore = -1
@@ -108,65 +112,43 @@ export async function getSpace(spaceId) {
   return entry ? { spaceId, ...entry.value } : null
 }
 
+const spaceKey = (spaceId) => 'space/' + spaceId
+
+// Every write of a space record goes through one record writer. A peer joining a space that already
+// has 2+ members fires several handshakes at once, and leave frames and reconcile prunes land
+// concurrently with them: the per-record lock orders them so each write sees the previous one, and
+// cas turns a write that bypassed the lock into a retry rather than a clobbered roster.
+const records = createRecordWriter({ bee: () => spacesBee, log })
+
 // Writes a whole record. Only the two paths that mint one — create and join — write this way;
-// every later change goes through mutateSpace so it serializes.
+// every later change goes through mutateSpace or mutateMembers.
 export function putSpaceRecord(spaceId, space) {
-  return spacesBee.put('space/' + spaceId, space)
+  return records.put(spaceKey(spaceId), space)
 }
 
 export function deleteSpaceRecord(spaceId) {
-  return spacesBee.del('space/' + spaceId)
+  return records.del(spaceKey(spaceId))
 }
 
-// Per-space serialization of every read-modify-write of a space record. A peer
-// joining a space that already has 2+ members fires several handshakes at once,
-// and leave-frames / reconcile-prunes can land concurrently with them. Writing
-// the whole roster from a stale read would silently drop concurrent updates —
-// the last writer clobbers the others, and a joiner could permanently miss a
-// co-member (typically the owner) until a reconnect. So: funnel all record
-// mutations through one per-space promise chain and re-read inside it, so each
-// write sees the previous one.
-const writeChains = new Map()
-
-function enqueue(spaceId, run) {
-  const prev = writeChains.get(spaceId) ?? Promise.resolve()
-  const next = prev.then(run, run)
-  // Swallow rejections on the tail so one failed write can't poison the chain.
-  writeChains.set(spaceId, next.then(() => {}, () => {}))
-  return next
-}
-
-// `mutate(members)` gets a fresh deep-ish copy of the current member list and
-// returns the next array to persist, or null/undefined to skip the write.
-// Resolves to true iff a write happened.
-export function mutateMembers(spaceId, mutate) {
-  return enqueue(spaceId, async () => {
-    const entry = await spacesBee.get('space/' + spaceId)
-    if (!entry) return false
-    // Snapshot the keys BEFORE mutate runs: callers mutate `current` in place and return the same
-    // array, so a before/after comparison of the arrays themselves would always come up empty.
-    const before = new Set((entry.value.members || []).map((m) => m.publicKey))
-    const current = (entry.value.members || []).map((m) => ({ ...m }))
-    const next = mutate(current)
-    if (!next) return false
-    await spacesBee.put('space/' + spaceId, { ...entry.value, members: next })
-    auditArrivals(spaceId, entry.value, next.filter((m) => !before.has(m.publicKey)))
-    return true
+// `mutate(members)` gets a copy of the current member list and returns the next array to persist,
+// or null/undefined to skip the write. Resolves to true iff the list changed and was written.
+export async function mutateMembers(spaceId, mutate) {
+  const out = await records.mutateWithOutcome(spaceKey(spaceId), (space) => {
+    const next = mutate(space.members || [])
+    return next ? { ...space, members: next } : null
   })
+  if (!out?.written) return false
+  const before = new Set((out.previous.members || []).map((m) => m.publicKey))
+  auditArrivals(spaceId, out.previous, out.value.members.filter((m) => !before.has(m.publicKey)))
+  return true
 }
 
-// Serialized read-modify-write of a space's non-member fields (e.g. status),
-// sharing the per-space chain so it can't lose-update against member writes.
-// Resolves to the written record, or null when nothing was written.
-export function mutateSpace(spaceId, mutate) {
-  return enqueue(spaceId, async () => {
-    const entry = await spacesBee.get('space/' + spaceId)
-    if (!entry) return null
-    const next = mutate({ ...entry.value })
-    if (!next) return null
-    await spacesBee.put('space/' + spaceId, next)
-    return { spaceId, ...next }
-  })
+// Read-modify-write of a space's non-member fields (e.g. status). Resolves to the record as stored
+// after the call — written, or unchanged when `mutate` returned an equal record — or null when the
+// space is gone or `mutate` declined.
+export async function mutateSpace(spaceId, mutate) {
+  const out = await records.mutateWithOutcome(spaceKey(spaceId), mutate)
+  return out ? { spaceId, ...out.value } : null
 }
 
 // The audit-worthy fact is the DURABLE roster gaining a member, never a handshake: connection state
@@ -274,7 +256,6 @@ export class SpacesBee extends Subsystem {
     // This-session state: a live join request is a peer that handshook during THIS run. Left
     // behind it re-surfaces as a pending approval after an in-process restart.
     resetJoinRequests()
-    writeChains.clear()
     await bee?.close()
   }
 }
