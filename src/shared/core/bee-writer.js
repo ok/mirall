@@ -14,6 +14,20 @@ import { createKeyedLock } from './concurrency.js'
 
 const MAX_ATTEMPTS = 3
 
+// True when `next` would be stored as the value already held. JSON semantics: an undefined property
+// is not stored, so it equals an absent one; object key order is not significant; array order is.
+export function sameStoredValue(a, b) {
+  if (a === b) return true
+  if (Array.isArray(a) || Array.isArray(b)) {
+    return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((v, i) => sameStoredValue(v, b[i]))
+  }
+  if (!a || !b || typeof a !== 'object' || typeof b !== 'object') return false
+  const keys = storedKeys(a)
+  return keys.length === storedKeys(b).length && keys.every((k) => Object.hasOwn(b, k) && sameStoredValue(a[k], b[k]))
+}
+
+const storedKeys = (o) => Object.keys(o).filter((k) => o[k] !== undefined)
+
 export function createRecordWriter({ bee, log, attempts = MAX_ATTEMPTS } = {}) {
   // Per KEY, not global: two different records have no reason to serialize against each other, and
   // a minutes-long scan settle must not block an unrelated probe.
@@ -33,32 +47,36 @@ export function createRecordWriter({ bee, log, attempts = MAX_ATTEMPTS } = {}) {
       return null
     }),
 
-    // Resolves to the value written, or null when nothing was: the record is gone (the documented
-    // no-op every caller relies on) or `apply` declined. `apply` receives a copy of the stored value
-    // and returns the next value, or a falsy value to decline the write, which is what keeps an
-    // unchanged status from appending a block per probe tick.
-    mutate(key, apply) {
-      return exclusive(key, async () => {
-        for (let attempt = 0; attempt < attempts; attempt++) {
-          const entry = await bee().get(key)
-          if (!entry?.value) return null
-          const next = apply({ ...entry.value })
-          if (!next) return null
-          let superseded = false
-          await bee().put(key, next, {
-            cas: (prev) => {
-              if (prev.seq === entry.seq) return true
-              superseded = true
-              return false
-            },
-          })
-          if (!superseded) return next
-          log?.warn('record changed under a serialized write — retrying:', key)
-        }
-        // Losing the race `attempts` times in a row means a writer outside the lock, not
-        // contention. Loud, because a silent give-up here is the lost update this exists to prevent.
-        throw new Error(`could not commit ${key} after ${attempts} attempts`)
+    // Resolves to the value the record now holds — written, or already stored when `apply` returned
+    // an equal value — or null when the record is gone (the documented no-op every caller relies on)
+    // or `apply` declined. `apply` receives a deep copy of the stored value and returns the next value,
+    // or a falsy value to decline the write; an equal value costs no block either.
+    mutate: (key, apply) => exclusive(key, async () => (await commit(key, apply))?.value ?? null),
+
+    // mutate, answering { value, previous, written } so a caller can tell a write from an equal value.
+    mutateWithOutcome: (key, apply) => exclusive(key, () => commit(key, apply)),
+  }
+
+  async function commit(key, apply) {
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      const entry = await bee().get(key)
+      if (!entry?.value) return null
+      const next = apply(JSON.parse(JSON.stringify(entry.value)))
+      if (!next) return null
+      if (sameStoredValue(next, entry.value)) return { value: entry.value, previous: entry.value, written: false }
+      let superseded = false
+      await bee().put(key, next, {
+        cas: (prev) => {
+          if (prev.seq === entry.seq) return true
+          superseded = true
+          return false
+        },
       })
-    },
+      if (!superseded) return { value: next, previous: entry.value, written: true }
+      log?.warn('record changed under a serialized write — retrying:', key)
+    }
+    // Losing the race `attempts` times in a row means a writer outside the lock, not
+    // contention. Loud, because a silent give-up here is the lost update this exists to prevent.
+    throw new Error(`could not commit ${key} after ${attempts} attempts`)
   }
 }

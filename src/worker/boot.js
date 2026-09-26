@@ -18,6 +18,7 @@ import { Store, getStore, setMasterSecret } from '../shared/core/store.js'
 import { resolveMasterSecret } from '../shared/core/identity.js'
 import { osKeychainProvider } from '../shared/core/identity.js'
 import { runMigrations, stageCompacted } from '../shared/storage/migrations/index.js'
+import { maintainLocalBees } from '../shared/storage/local-bee-rewrite.js'
 import { SpaceKeysVault } from '../shared/spaces/space-keys.js'
 import { ProfileBee, markOwnMembership, ensureMembershipManifestCap } from '../shared/spaces/profile.js'
 import { SpacesBee, listSpaces, getSpace, isLegacySpace } from '../shared/spaces/space.js'
@@ -98,6 +99,8 @@ export async function bootDurable(bootstrap, { ipc, log, masterSecret = undefine
     setMasterSecret(await resolveMasterSecret({ store: getStore(), storagePath: bootstrap.storage, provider }))
   }
   const durableMigrations = await runMigrations('durable', { log })
+  // Rewrites local bees in place, so it runs before anything holds one.
+  const localBees = await maintainLocalBees({ log })
   await durable.start(new SpaceKeysVault('space-keys'))
   await durable.start(new ProfileBee('profile'))
   await durable.start(new SpacesBee('spaces'))
@@ -118,7 +121,7 @@ export async function bootDurable(bootstrap, { ipc, log, masterSecret = undefine
   await durable.start(new ServeLedger('serve-ledger', { ipc }))
   await durable.start(new OwnCatalogs('own-catalogs'))
   await durable.start(new PeerCatalogs('peer-catalogs'))
-  return { durable, store, auditLog, durableMigrations, close: (opts) => durable.close(opts) }
+  return { durable, store, auditLog, durableMigrations, localBees, close: (opts) => durable.close(opts) }
 }
 
 /**
@@ -202,7 +205,7 @@ export async function boot(bootstrap, {
     log.info('starting...')
 
     const tier = await bootDurable(bootstrap, { ipc, log, masterSecret, onTier: (d) => { durable = d } })
-    const { store, auditLog, durableMigrations } = tier
+    const { store, auditLog, durableMigrations, localBees } = tier
     await ensureMembershipManifestCap()
     await ensureSharesCap()
     await ensureFolderMirrorsCap()
@@ -279,9 +282,9 @@ export async function boot(bootstrap, {
       applyRelayConfig(log)
     }
 
-    // Deferred past the core-opening init above so the one-time compaction (which
-    // scrubs the migrated plaintext from old SSTs) doesn't contend with boot I/O.
-    if (stageCompacted(durableMigrations) || stageCompacted(content)) {
+    // Deferred past the core-opening init above so the compaction (which scrubs migrated plaintext
+    // and rewritten local-bee history from old SSTs) doesn't contend with boot I/O.
+    if (stageCompacted(durableMigrations) || localBees.compact || stageCompacted(content)) {
       compactStore().catch((err) => log.warn('post-migration compaction failed:', err.message))
     }
 
