@@ -10,10 +10,11 @@ const log = createLogger('walk-disk')
 // Every aborted walk raises this, not just a cancelled preview: the code is named for the first
 // caller and kept because it is the on-the-wire value a catch already tests for. A caller that
 // aborts a scan, a reconcile or a preview sees PREVIEW_CANCELLED and must treat it as "the walk
-// stopped because I asked", never as a failure.
+// stopped because I asked", never as a failure. The token's reason, when it carries one, says
+// why the walk was ended and rides along in the message; the code is the same either way.
 export class AbortError extends Error {
-  constructor() {
-    super('preview cancelled')
+  constructor(reason = null) {
+    super(reason?.message ? `preview cancelled: ${reason.message}` : 'preview cancelled')
     this.code = 'PREVIEW_CANCELLED'
   }
 }
@@ -74,7 +75,7 @@ async function enumerateFiles(root, cleanRoot, ignore, onProgress, signal) {
   const files = []
   const dirs = [root]
   for (let i = 0; i < dirs.length; i++) {
-    if (signal?.aborted) throw new AbortError()
+    if (signal?.aborted) throw new AbortError(signal.reason)
     const dir = dirs[i]
     for (const entry of await fs.promises.readdir(dir, { withFileTypes: true })) {
       const abs = path.join(dir, entry.name)
@@ -106,7 +107,7 @@ export async function walkDisk(root, ignore, { onProgress = null, signal = null 
   onProgress?.({ phase: 'enumerating', scanned: 0, total, bytes: 0 })
 
   for (const entry of files) {
-    if (signal?.aborted) throw new AbortError()
+    if (signal?.aborted) throw new AbortError(signal.reason)
     const key = entryKey(entry, root, cleanRoot, ignore)
     if (!key) continue
     const { abs, rel } = key

@@ -13,7 +13,7 @@ import { getStore } from '../../../core/store.js'
 import { getPublishScheduler, publishChannelFor, settleCatalog } from '../../../folders/publish-service.js'
 import { listOwnShare } from '../../../shares/own-catalog.js'
 import { readOwnShares } from '../../../shares/shares.js'
-import { clearAndPurgeCore } from '../../../storage/core-purge.js'
+import { clearAndPurgeCore, purgeAlias } from '../../../storage/core-purge.js'
 import { listSpaces } from '../../../spaces/space.js'
 import { compactStore } from '../../../storage/compaction.js'
 import { createPresenceSweeper } from '../../../folders/retire-confirm.js'
@@ -53,10 +53,11 @@ export async function compactOverlayIndex() {
       // being shared, forcing a re-chunk on the next serve.
       await addCatalogHashes(space.spaceId, LOOSE_SHARE_ID)
     }
-    const oldCore = await overlay.compactIndex({ isServed: (hash) => served.has(hash) })
-    if (!oldCore) return { compacted: false } // nothing droppable — index left untouched
+    const retired = await overlay.compactIndex({ isServed: (hash) => served.has(hash) })
+    if (!retired) return { compacted: false } // nothing droppable — index left untouched
     const cs = getStore()
-    await clearAndPurgeCore(cs, oldCore)
+    await clearAndPurgeCore(cs, retired.core)
+    await purgeAlias(cs, retired.alias.namespace, retired.alias.name)
     await compactStore()
     return { compacted: true }
   } finally {

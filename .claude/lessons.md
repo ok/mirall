@@ -368,6 +368,13 @@ store size only after `compactRange`.
 **Copy transport chunks before stashing them.** secret-stream decrypts in place in udx receive
 slabs. `Buffer.from(data)` at the stash boundary.
 
+**A purged core whose by-name alias survived fails only across a store reopen.** In one process
+corestore still serves the deleted core from its cache, so a `get({ name })` + `ready()` passes and
+a red-first test goes green for the wrong reason; close and reopen the store before the assertion.
+Once it fails, the session whose `ready()` threw leaves a core that `store.close()` trips over
+(uncaught `STORAGE_EMPTY`, then a hang), so a purge resolves the alias (`storage.getAlias` +
+`hasCore`) and never opens the name blind — `purgeNamedCore` in `core-purge.js`.
+
 **A keyPair core's discoveryKey hashes its manifest, not its public key.** Build the
 `discoveryKey → name` map on `ready()`.
 

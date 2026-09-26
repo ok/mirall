@@ -7,6 +7,7 @@
 /** @import { HandlerContext } from '../../shared/core/handler-table.js' */
 /** @import { CancellationSignal } from '../../shared/core/cancellation.js' */
 /** @import { Ack } from '../../shared/contract/responses.js' */
+/** @import { PreviewProgress } from '../../shared/folders/owned-preview.js' */
 import { DEFAULT_IGNORE } from '../../shared/folders/path-keys.js'
 import { previewInitialPublishScan } from '../../shared/folders/owned-preview.js'
 import { previewMaterializeScan } from '../../shared/folders/foreign-preview.js'
@@ -63,18 +64,33 @@ export function registerFolderPreview(ipc) {
     const off = ctx.signal?.onAbort((reason) => local.abort(reason))
     let mine = previews.get(ctx.client.id)
     if (!mine) previews.set(ctx.client.id, (mine = new Map()))
+    // The newest request wins an id. A scan still running under it for this client is ended
+    // before its slot is taken, so a cancel for the id always reaches the scan that is running,
+    // never one the registry has lost. The superseded request rejects as cancelled, which its
+    // caller treats as a quiet close. Another client's identical id lives in its own map.
+    mine.get(previewId)?.abort(cancelled('superseded by a newer preview under the same id'))
     mine.set(previewId, local)
     try {
       return await run(local.signal)
     } finally {
       off?.()
-      // Only if it is still OURS. One client may reuse an id — a cancel that raced the scan's
-      // completion, then a retry under the same id — and an unconditional delete here would remove
-      // the retry's token, leaving its cancel button wired to nothing.
+      // Only if it is still OURS: a superseded scan unwinds after its successor took the slot, and
+      // an unconditional delete here would remove the successor's token, leaving its cancel wired
+      // to nothing.
       if (mine.get(previewId) === local) mine.delete(previewId)
       if (mine.size === 0) previews.delete(ctx.client.id)
     }
   }
+
+  // A scan reports progress only while its token is live. The checkpoint after a cancel or a
+  // supersede ends the scan, but a frame emitted before that checkpoint would land on a progress
+  // bar that a newer scan under the same id now drives.
+  /**
+   * @param {CancellationSignal | null} signal
+   * @param {(p: PreviewProgress) => void} emitFrame
+   * @returns {(p: PreviewProgress) => void}
+   */
+  const whileLive = (signal, emitFrame) => (p) => { if (!signal?.aborted) emitFrame(p) }
 
   ipc.handle('owned-folder:preview', async (msg, ctx) => {
     const ignore = msg.ignore || DEFAULT_IGNORE
@@ -84,7 +100,7 @@ export function registerFolderPreview(ipc) {
       previewInitialPublishScan(msg.spaceId, shareId, msg.mountPath, ignore, {
         signal,
         onProgress: previewId
-          ? (p) => ipc.emit('event:owned-folder-preview-progress', { previewId, ...p }, { to: ctx.client })
+          ? whileLive(signal, (p) => ipc.emit('event:owned-folder-preview-progress', { previewId, ...p }, { to: ctx.client }))
           : null,
       }))
   })
@@ -95,7 +111,7 @@ export function registerFolderPreview(ipc) {
       previewMaterializeScan(msg.spaceId, msg.ownerKey, msg.shareId, msg.mountPath, {
         signal,
         onProgress: previewId
-          ? (p) => ipc.emit('event:foreign-folder-preview-progress', { previewId, ...p }, { to: ctx.client })
+          ? whileLive(signal, (p) => ipc.emit('event:foreign-folder-preview-progress', { previewId, ...p }, { to: ctx.client }))
           : null,
       }))
   })

@@ -76,9 +76,9 @@ export async function withPeerBee(profileKeyHex, fn, {
 // enforcement reads stay answerable from a local snapshot after the author goes offline.
 // A contiguous prefix is what makes offline snapshot reads sound: a checkout at
 // contiguousLength only ever touches local blocks. Idempotent — gets on local blocks skip
-// the network, so re-running is cheap. `capped` marks a bee larger than the sweep budget:
-// the prefix is as complete as we will ever make it, so callers must retire the key rather
-// than retry forever (records past the cap are not snapshot-readable — surfaced as a warn).
+// the network, so re-running is cheap. `complete` means the prefix this capture will ever hold
+// is contiguous, which for a bee past the sweep cap is the capped prefix; `capped` marks such a
+// bee (records past the cap are not snapshot-readable — surfaced as a warn).
 export async function capturePeerBee(profileKeyHex, {
   deadline = Date.now() + getCaptureMemberRecordMs(),
   maxBlocks = getMembershipCaps().peerBeeCaptureMaxBlocks,
@@ -95,9 +95,9 @@ export async function capturePeerBee(profileKeyHex, {
       await boundedUpdate(core, Math.min(1000, Math.max(0, deadline - Date.now())))
       const target = Math.min(core.length, maxBlocks)
       await sweepBlocks(core, target, parallel, deadline)
-      const capped = target < core.length
-      if (capped) log.warn(`peer-bee exceeds the capture cap — ${profileKeyHex.slice(0, 8)} len=${core.length} cap=${maxBlocks}; records past the cap are not readable offline`)
-      return { complete: core.length > 0 && core.contiguousLength >= target, capped, contiguous: core.contiguousLength, length: core.length }
+      const verdict = captureVerdict({ length: core.length, contiguousLength: core.contiguousLength, maxBlocks })
+      if (verdict.capped) log.warn(`peer-bee exceeds the capture cap — ${profileKeyHex.slice(0, 8)} len=${core.length} cap=${maxBlocks}; records past the cap are not readable offline`)
+      return verdict
     } catch (err) {
       log.debug(`peer-bee capture incomplete — ${profileKeyHex.slice(0, 8)} len=${core.length} contig=${core.contiguousLength}: ${err?.message || err}`)
       return { complete: false, capped: false, contiguous: core.contiguousLength, length: core.length }
@@ -107,6 +107,16 @@ export async function capturePeerBee(profileKeyHex, {
   } finally {
     await bee.close().catch(() => {})
   }
+}
+
+// The verdict of one sweep, from the lengths it left behind. `capped` is the cap alone: the bee is
+// longer than the sweep budget. `complete` is decided against the length the bee has NOW, bounded
+// by the cap, so a bee that grew while the sweep ran — past the cap or not — stays incomplete
+// until a later sweep has captured the tail it still owes.
+export function captureVerdict({ length, contiguousLength, maxBlocks }) {
+  const capped = length > maxBlocks
+  const complete = length > 0 && contiguousLength >= Math.min(length, maxBlocks)
+  return { complete, capped, contiguous: contiguousLength, length }
 }
 
 function sweepBlocks(core, target, parallel, deadline) {
@@ -147,18 +157,16 @@ export function makeCaptureScheduler({ capture, coreLength, retryMinMs = 30_000,
   // while a genuinely appended core bypasses the window.
   const grew = (key, s) => s.seenLength != null && s.knownLength > s.seenLength
 
-  // A `capped` bee is as captured as it will ever be (its tail is past the sweep budget),
-  // so it retires like a complete one instead of retrying forever.
-  const settled = (s) => s.complete || s.capped
-
+  // A capture settles on `complete` alone: for a bee past the sweep cap that is the capped
+  // prefix, so it retires like any other complete one instead of retrying forever.
   function schedule(key) {
     let s = state.get(key)
     if (!s) {
-      s = { inFlight: false, attempted: false, lastAt: 0, seenLength: null, knownLength: 0, complete: false, capped: false }
+      s = { inFlight: false, attempted: false, lastAt: 0, seenLength: null, knownLength: 0, complete: false }
       state.set(key, s)
     }
     if (s.inFlight) return false
-    if (settled(s) && !grew(key, s)) return false
+    if (s.complete && !grew(key, s)) return false
     if (s.attempted && now() - s.lastAt < retryMinMs && !grew(key, s)) return false
     s.inFlight = true
     s.attempted = true
@@ -167,7 +175,6 @@ export function makeCaptureScheduler({ capture, coreLength, retryMinMs = 30_000,
       .then(() => capture(key))
       .then((r) => {
         s.complete = !!r?.complete
-        s.capped = !!r?.capped
         s.seenLength = r?.length ?? s.seenLength
       })
       .catch((err) => onError(key, err))
@@ -182,7 +189,7 @@ export function makeCaptureScheduler({ capture, coreLength, retryMinMs = 30_000,
     for (const [key, s] of state) {
       if (s.inFlight) continue
       try { s.knownLength = await coreLength(key) } catch { /* keep the last known length */ }
-      if (!settled(s) || grew(key, s)) out.push(key)
+      if (!s.complete || grew(key, s)) out.push(key)
     }
     return out
   }
