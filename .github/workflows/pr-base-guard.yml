@@ -1,15 +1,15 @@
 name: PR Base Guard
 
-# Feature and chore work integrates on `staging`; `main` is production. Because
-# GitHub pre-selects the default branch (`main`) as the PR base, the easy mistake
-# is merging unintegrated work straight into production. This guard catches it.
-# See .claude/build-process.md → "Branches & promotion".
+# Development happens on `main`; each `release/x.y` branch holds one shipped
+# release line and only takes fixes that already landed on `main`. A feature PR
+# aimed at a release branch would ship unreleased work in the next patch. This
+# guard catches it. See .claude/build-process.md → "Branches & releases".
 on:
   pull_request:
     # `edited` catches a base switched after the PR was opened; the label events
     # re-run the check when the bypass label is added or removed.
     types: [opened, reopened, edited, synchronize, labeled, unlabeled]
-    branches: [main]
+    branches: ['release/**']
 
 permissions:
   contents: read
@@ -18,28 +18,28 @@ jobs:
   base:
     runs-on: ubuntu-latest
     steps:
-      - name: Check head branch may target main
+      - name: Check head branch may target a release branch
         env:
           HEAD_REF: ${{ github.head_ref }}
           LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
         run: |
-          if echo "$LABELS" | jq -e 'index("base:main")' >/dev/null; then
-            echo "Bypassed by the \`base:main\` label — deliberate exception."
+          if echo "$LABELS" | jq -e 'index("base:release")' >/dev/null; then
+            echo "Bypassed by the \`base:release\` label — deliberate exception."
             exit 0
           fi
           # Allowlist, not denylist: a branch prefix nobody thought about should
-          # fail closed and get a human decision, not slip into production.
+          # fail closed and get a human decision, not slip into a release.
           case "$HEAD_REF" in
-            staging)      echo "Release promotion from staging — OK" ;;
-            hotfix/*)     echo "Hotfix — OK (remember to forward-port to staging)" ;;
-            release/*)    echo "Release branch — OK" ;;
+            backport/*)     echo "Backport of a fix merged to main — OK" ;;
+            hotfix/*)       echo "Hotfix — OK (remember to forward-port to main)" ;;
+            release-prep/*) echo "Release prep — OK (forward-port the changelog to main)" ;;
             *)
-              echo "::error::'$HEAD_REF' targets main, but feature and chore work integrates on staging."
+              echo "::error::'$HEAD_REF' targets a release branch, but feature and fix work lands on main."
               echo ""
-              echo "Retarget this PR:  gh pr edit ${{ github.event.pull_request.number }} --base staging"
+              echo "Retarget this PR:  gh pr edit ${{ github.event.pull_request.number }} --base main"
               echo ""
-              echo "Only 'staging' (release promotion), 'hotfix/*' and 'release/*' may target main."
-              echo "For a deliberate exception, add the 'base:main' label and explain why in the PR body."
+              echo "Only 'backport/*', 'hotfix/*' and 'release-prep/*' may target a release branch."
+              echo "For a deliberate exception, add the 'base:release' label and explain why in the PR body."
               exit 1
               ;;
           esac
