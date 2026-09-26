@@ -3,7 +3,7 @@ name: Test
 on:
   pull_request:
   push:
-    branches: [staging, main]
+    branches: [main, 'release/**']
 
 jobs:
   # Tier 1 pure units + raw holepunch mechanics. Fast; has never flaked.
