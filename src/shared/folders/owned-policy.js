@@ -9,7 +9,7 @@ export function ownedKey(spaceId, shareId) {
   return spaceId + ':' + shareId
 }
 
-// Longer than chokidar's awaitWriteFinish stabilityThreshold, so a catch-up diff that runs
+// Longer than the watcher's awaitWriteFinish stabilityThreshold, so a catch-up diff that runs
 // mid-copy leaves the file to the watcher instead of reading it and reverting.
 export const SCAN_SETTLE_MS = 2000
 

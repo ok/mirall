@@ -36,7 +36,7 @@ import {
   rendererStatusRestrictions,
   moduleLevelTimerRestrictions,
   moduleScopeTimerHandleRestrictions,
-  chokidarSingleOwnerRestrictions,
+  watcherSingleOwnerRestrictions,
   rendererContractOnlyImports,
   byteFormatterSingleOwnerRestrictions,
   unmountOnlyAsyncEffects,
@@ -210,7 +210,7 @@ export default [
       ...complexityBudget,
       ...whitespace,
       'no-undef': 'error',
-      'no-restricted-syntax': ['error', ...chokidarSingleOwnerRestrictions],
+      'no-restricted-syntax': ['error', ...watcherSingleOwnerRestrictions],
     },
   },
 
@@ -227,7 +227,7 @@ export default [
       ...complexityBudget,
       ...whitespace,
       'no-undef': 'error',
-      'no-restricted-syntax': ['error', ...chokidarSingleOwnerRestrictions],
+      'no-restricted-syntax': ['error', ...watcherSingleOwnerRestrictions],
     },
   },
 

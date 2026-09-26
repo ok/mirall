@@ -1,6 +1,6 @@
 // Every worker→main control frame. This bus does not go through the request table: main is not a
 // handler-table peer, it is the host, and these commands ask it to do something only the host
-// can do (own the chokidar watchers, hold the download roots). Naming them here is what makes a
+// can do (own the file watchers, hold the download roots). Naming them here is what makes a
 // rename mechanical instead of a silent half-rename — main's dispatch table is keyed off these
 // constants and main-request-parity.test.js fails if the emitted set and the routed set differ.
 // The event taxonomy guard cannot help: it matches on the `event:` prefix, and these have none.

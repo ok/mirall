@@ -1,6 +1,6 @@
 // The worker's periodic backstops: presence, invite expiry, overlay-index compaction (a boot
 // delay plus an interval) and audit prune. Each one is a missed-event catch-up, never the primary
-// path: the live signals (chokidar unlinks, invite expiry checks, the audit retention read) already
+// path: the live signals (watcher unlinks, invite expiry checks, the audit retention read) already
 // enforce the same thing, so a tick that fails or never runs only defers cleanup.
 import { Subsystem } from '../shared/core/subsystem.js'
 import { sweepBackends } from '../shared/transfer/content-backends.js'
@@ -51,7 +51,7 @@ export class Sweeps extends Subsystem {
     const { log } = this
 
     // Backstop for catalog-backed shares: tombstone catalog entries whose source vanished
-    // (chokidar unlinks cover the live case; this catches missed events).
+    // (watcher unlinks cover the live case; this catches missed events).
     this.timers.setInterval(() => {
       sweepBackends().catch((err) => log.debug('presence sweep failed:', err.message))
     }, PRESENCE_SWEEP_INTERVAL_MS)
