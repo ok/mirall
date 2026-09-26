@@ -99,7 +99,8 @@ test('a pass that does not complete leaves the debt standing', async (t) => {
 
   for (const outcome of [{ cancelled: true }, { skipped: 'mount-point-gone' }, null]) {
     await patchOwnedMount(spaceId, shareId, { deepScanOwed: true })
-    root.mounts.settleScanStatus = async () => outcome
+    // Like the real settle, the stand-in waits for the pass it was handed before answering for it.
+    root.mounts.settleScanStatus = async (pass) => { await pass.catch(() => {}); return outcome }
     await root.mounts.armCatchUpScan(spaceId, shareId, mount)
     t.ok((await getOwnedMount(spaceId, shareId)).deepScanOwed,
       `a ${JSON.stringify(outcome)} pass still owes the deep scan`)
