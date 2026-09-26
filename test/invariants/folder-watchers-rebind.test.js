@@ -2,14 +2,14 @@ import test from 'brittle'
 import { readFileSync } from 'fs'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
-import { loadWithFakeChokidar } from '../helpers/fake-chokidar.js'
+import { loadWithFakeWatcher } from '../helpers/fake-watcher.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const SRC = join(here, '..', '..', 'src', 'main', 'folder-watchers.js')
 
-// chokidar is stubbed (see the helper) so the watcher's event routing is driven synchronously:
+// The watcher package is stubbed (see the helper) so event routing is driven synchronously:
 // real fsevents timing plus awaitWriteFinish makes an fs-watch test slow and flaky.
-const { created, modules } = loadWithFakeChokidar(['src/main/watch-host.js', 'src/main/folder-watchers.js'])
+const { created, modules } = loadWithFakeWatcher(['src/main/watch-host.js', 'src/main/folder-watchers.js'])
 const { startWatcher, stopWatcher, stopAllWatchers } = modules[1]
 
 // REGRESSION (G3): after a worker "respawn" (a second startWatcher for the SAME key with a NEW
@@ -139,7 +139,7 @@ test('G3 guard: startWatcher adopts a live entry before the await and again afte
   t.ok(/entry\.onEvent\?\.\(/.test(body), 'the handler emits via the entry, not a module-level ref')
 })
 
-// chokidar's per-instance `ignored` option is this watcher's only ignore decision, and the
+// The per-instance `ignored` option is this watcher's only ignore decision, and the
 // periodic reconcile asks the data layer's matcher for the same answer. A matcher of its own
 // here is how the two sides come to disagree about what a glob covers.
 test('the ignore globs are matched by the data layer, not re-implemented here', (t) => {

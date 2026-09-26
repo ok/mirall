@@ -37,7 +37,7 @@ registerPublishChannel('folder', {
     // Dropping it is the same recovery shape as skipped-root-gone — the resume scan re-derives it.
     if (mount.indexPaused) return { skip: 'skipped-index-paused' }
     // A missing root is ambiguous (unplugged, offline) and never a delete. When a root vanishes
-    // chokidar emits one unlink per file, and every one of them lands here.
+    // the watcher emits one unlink per file, and every one of them lands here.
     if (!mountRootAvailable(mount.mountPath)) return { skip: 'skipped-root-gone' }
     const share = await loadShare(state, item.spaceId, item.shareId)
     if (!share || isUnsupportedShare(share)) return { skip: 'skipped' }

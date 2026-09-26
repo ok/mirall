@@ -90,7 +90,7 @@
     "bare-path": "^3.1.2",
     "bare-subprocess": "^6.2.0",
     "blind-relay": "^1.6.1",
-    "chokidar": "^5.0.0",
+    "chokidar4bare": "0.1.0",
     "compact-encoding": "^3.5.2",
     "corestore": "^7.12.6",
     "debounceify": "^1.1.0",

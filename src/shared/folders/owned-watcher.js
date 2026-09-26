@@ -40,7 +40,7 @@ export function initOwnedWatcher(d) {
   stopping = false
 }
 
-// Chokidar can drop `add` events when several files land in a new subfolder at once (macOS
+// The watcher can drop `add` events when several files land in a new subfolder at once (macOS
 // fsevents coalescing). After watcher activity settles, one catch-up diff publishes stragglers.
 // A pass that deferred a still-settling file re-arms itself (with backoff): the deferred file's
 // own add may be the one that was dropped, and nothing else would publish it before the periodic

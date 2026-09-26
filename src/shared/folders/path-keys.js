@@ -109,7 +109,7 @@ export function overlapAllowed(aPath, aRole, bPath, bRole) {
 
 // ─── ignore globs ─────────────────────────────────────────────────────────────
 // The one matcher both sides of an owned folder ask: the recursive watcher in Electron main (as
-// chokidar's per-instance `ignored`) and the periodic reconcile's disk walk. A second
+// the watcher's per-instance `ignored`) and the periodic reconcile's disk walk. A second
 // implementation is a share where a file one side withholds the other publishes.
 export const DEFAULT_IGNORE = ['.DS_Store', 'Thumbs.db', '*' + PARTIAL_SUFFIX]
 
@@ -128,7 +128,7 @@ function matcherFor(patterns) {
 }
 
 // A path outside the matcher's domain (absolute, escaping, empty) is published rather than
-// withheld: asking about one raises, and this runs inside chokidar's ignore callback where a throw
+// withheld: asking about one raises, and this runs inside the watcher's ignore callback where a throw
 // stops the watcher. The walk discards those shapes before they reach here for its own reasons.
 export function shouldIgnore(rel, ignorePatterns) {
   if (!Array.isArray(ignorePatterns) || ignorePatterns.length === 0) return false
