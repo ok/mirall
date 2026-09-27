@@ -13,7 +13,9 @@ changes do not appear here.
 
 ### Unreleased
 
-Completes the move to the encrypted shared-folder index where it had stalled.
+Finishes two one-time cleanups that stalled or never ran on older profiles:
+the move to the encrypted shared-folder index, and freeing storage left
+behind by earlier versions.
 
 #### Fixed
 
@@ -21,8 +23,9 @@ Completes the move to the encrypted shared-folder index where it had stalled.
 profiles whose index had been compacted, the one-time move to the encrypted
 index failed on every start and left the previous, unencrypted copy in place.
 - **Mirall frees storage left behind by older versions.** Profiles that
-mirrored a folder before 1.10 could hold hundreds of megabytes of repeated
-folder records. They are cleared once, the next time Mirall starts.
+mirrored a folder before 1.10 could hold hundreds of megabytes of identical
+copies of the same folder record. The extra copies are removed once, the
+next time Mirall starts. Your folders and settings are unaffected.
 
 ## v1.11.1
 
