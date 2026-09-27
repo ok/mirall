@@ -1,0 +1,52 @@
+name: Frontend (macOS)
+
+# The agent-desktop UI suite on a GitHub macOS runner, in background mode. Opt-in: a manual run
+# with a scenario list, and PRs that touch the harness itself, where a smoke set proves the harness
+# still drives a real window on a machine that is not the developer's.
+on:
+  workflow_dispatch:
+    inputs:
+      scenarios:
+        description: Scenario ids, space-separated (empty = smoke set)
+        default: ''
+  pull_request:
+    paths:
+      - 'test/frontend/**'
+      - 'scripts/ci/grant-macos-tcc.sh'
+      - '.github/workflows/fe-macos.yml'
+
+jobs:
+  frontend:
+    runs-on: macos-15
+    timeout-minutes: 60
+    env:
+      SMOKE: s1 s2 s3 s9 s20 s116 s133
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - name: Install agent-desktop
+        run: npm install -g agent-desktop@0.9.4
+      - name: Grant Accessibility + Screen Recording
+        run: |
+          bash scripts/ci/grant-macos-tcc.sh \
+            "$(command -v agent-desktop)" \
+            "$(npm root -g)/agent-desktop/bin/agent-desktop-darwin-arm64" \
+            "$(command -v node)" \
+            /bin/bash /bin/zsh /usr/bin/env \
+            /usr/local/opt/runner/provisioner/provisioner \
+            "$HOME/runners/"*/bin/Runner.Listener \
+            "$HOME/runners/"*/bin/Runner.Worker
+          agent-desktop status
+      - name: Frontend scenarios (background mode)
+        env:
+          SCENARIOS: ${{ inputs.scenarios }}
+        run: node test/frontend/run.mjs ${SCENARIOS:-$SMOKE}
+      - name: Upload evidence and instance logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fe-macos-evidence
+          path: |
+            test/frontend/evidence/
+            /tmp/mirall-fe-*.log
+          retention-days: 7
