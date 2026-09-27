@@ -36,7 +36,9 @@ export default async function s95({ runDir, bootstrap }) {
       await A.addFile(big)
       await A.waitText('feed', 60000)
       await B.waitText('feed', 90000)
-      await B.waitText('Available', 90000)
+      // Row-scoped: the owner is still indexing 256 MB, and a whole-window "Available" matches
+      // other text long before this row's Download control exists.
+      await waitFor(() => B.has({ name: 'feed.bin: Available' }), 90000, "B's row turns Available")
     })
 
     await r.ok('B downloads then pauses; A reflects the paused peer when the race allows', async () => {

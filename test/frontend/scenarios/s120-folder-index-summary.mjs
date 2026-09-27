@@ -57,8 +57,11 @@ export default async function s120({ runDir, bootstrap }) {
         writeFileSync(path.join(ownDir, `vol-0${i}.bin`), Buffer.alloc(256 * 1024 * 1024, 11 + i))
       }
       const [aText, bText] = await Promise.all([
-        catchWindow(A, (t) => /adding \d+ files to this folder/i.test(t), 'the owner announces its own scan'),
-        catchWindow(B, (t) => /alice is adding \d+ files to this folder/i.test(t), 'the member is told whose scan it is'),
+        // The watcher picks the batch up as the writes land, so the first notice on either screen can
+        // count only the files seen so far; wait for one that includes queued work, which a notice
+        // counting only running files never reaches.
+        catchWindow(A, (t) => Number(/adding (\d+) files to this folder/i.exec(t)?.[1] ?? 0) > 3, 'the owner announces its own scan'),
+        catchWindow(B, (t) => Number(/alice is adding (\d+) files to this folder/i.exec(t)?.[1] ?? 0) > 3, 'the member is told whose scan it is'),
       ])
       await Promise.all([A.shot('s120-A-scan-notice', runDir), B.shot('s120-B-scan-notice', runDir)])
 
