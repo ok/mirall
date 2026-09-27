@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { rmSync, mkdirSync } from 'node:fs'
+import { rmSync, mkdirSync, copyFileSync } from 'node:fs'
 import path from 'node:path'
 import { startTestnet } from './testnet.mjs'
 import { SCENARIOS, load } from './scenarios/index.mjs'
@@ -55,6 +55,13 @@ function isolateAgentDesktopState() {
   process.env.AGENT_DESKTOP_HOME = home
 }
 
+function keepLogs(key, instances) {
+  mkdirSync(runDir, { recursive: true })
+  for (const i of instances) {
+    try { copyFileSync(i.logPath, path.join(runDir, `${key}-${i.name}.log`)) } catch {}
+  }
+}
+
 const pick = args.filter((a) => !a.startsWith('--'))
 const keys = pick.length ? pick : SCENARIOS.map((s) => s.key)
 
@@ -97,6 +104,8 @@ const slugByKey = Object.fromEntries(SCENARIOS.map((s) => [s.key, s.slug]))
       const failedSteps = drainReports()
         .flatMap((r) => r.steps.filter((s) => !s.pass).map((s) => ({ label: s.label, err: s.err })))
       results.push({ key, pass: pass && !crash, crash, failedSteps, secs })
+      // Each launch overwrites its instance log, so a failure's log is kept with its evidence.
+      if (!(pass && !crash)) keepLogs(key, instances)
       // Tear down and WAIT before the next scenario launches: overlapping teardowns starve worker IPC.
       await Promise.all(instances.map((i) => i.kill({ hard: true })))
     }

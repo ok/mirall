@@ -303,12 +303,13 @@ export const withAx = (Base) => class extends Base {
     await this.focus()
     await this.click(buttonSel)
     const deadline = Date.now() + timeout
+    let v = null
     while (Date.now() < deadline) {
-      const v = await this.clipboard()
+      v = await this.clipboard()
       if (v && v !== sentinel) return v
       await new Promise((r) => setTimeout(r, 100))
     }
-    throw new Error(`${this.name}: clipboard did not update after copy`)
+    throw new Error(`${this.name}: clipboard did not update after copy (still ${JSON.stringify(v)})`)
   }
 
   // agent-desktop's `screenshot` resolves the window through the unscoped inventory, which times out
