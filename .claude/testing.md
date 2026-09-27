@@ -86,10 +86,9 @@ logic (runtime-config, handshake-guard).
 > real gate-bypass bug client-side invites). **Every new or changed user flow, for any feature or
 > enhancement, ships with a `test/frontend/scenarios/*.mjs` scenario that exercises it through the
 > UI — and you run it and confirm it passes before the change is "done."** Setup, if the harness
-> "won't start": `agent-desktop@>=0.3.0` on PATH (older 0.2.x re-resolved refs cross-process and
-> returned `STALE_REF`; `run.mjs` enforces `MIN_AGENT_DESKTOP` via `preflight.mjs`) with
-> Accessibility + Screen-Recording granted; `node_modules/electron` must contain its downloaded
-> binary (`npm rebuild electron` if a prior `npm install --ignore-scripts` skipped it); and drop the
+> "won't start": `agent-desktop@>=0.9.0` on PATH (`run.mjs` enforces `MIN_AGENT_DESKTOP` via
+> `preflight.mjs`; 0.9 also needs the `MIRALL_FORCE_A11Y` hook the harness sets) with Accessibility
+> and Screen-Recording granted; `node_modules/electron` must contain its downloaded binary (`npm rebuild electron` if a prior `npm install --ignore-scripts` skipped it); and drop the
 > new scenario into `test/frontend/scenarios/` as `sNN-<slug>.mjs` — the directory is the registry
 > (`scenarios/index.mjs`), there is no list to edit. Multi-peer flows (e.g. approval needs a
 > creator + joiners) launch N `Instance`s with `total: N`. Evidence screenshots land in
@@ -217,9 +216,11 @@ Hard-won rules for `test/frontend/scenarios/*.mjs` that otherwise silently pass:
   a code bug, and not something a longer timeout fixes. Reap stray Electron / `agent-desktop`
   processes to recover, and bound a hung AX call with a `perl` alarm wrapper (`timeout` does not
   interrupt the blocking AX syscall).
-- **A trigger that opens something can be LOST, so re-fire it instead of waiting longer.** Keyboard
-  triggers are delivered to whatever process is frontmost at that instant, so a sibling instance
-  mid-launch or mid-teardown eats them, and the menu items behind `⌘U` / `⌘⇧U` are
+- **A trigger that opens something can be LOST, so re-fire it instead of waiting longer.** In
+  `--foreground` mode keyboard triggers are delivered to whatever process is frontmost at that
+  instant, so a sibling instance mid-launch or mid-teardown eats them (background mode sends keys to
+  the instance's own window and logs `press <combo>: disabled` for an inert menu item), and the menu
+  items behind `⌘U` / `⌘⇧U` are
   `enabled: inSpace` — disabled, and silently inert, until the renderer's `menu:context-changed` IPC
   lands. Both cases look identical to "slow": nothing appears, and the wait expires. Distinguish
   them by measuring the happy path (a native Open panel that IS coming takes ~1.6s against a 20s

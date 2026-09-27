@@ -98,9 +98,10 @@ requirements.
   fix in the control). No a11y regressions.
 - **Gates**: CI (`test.yml`) runs typecheck + `test:node` + `test:bare` + lint automatically. The
   frontend suite (`npm run test:fe`) and manual a11y/VoiceOver spot-check are **local** (headless CI
-  can't drive the AX tree) and required for UI-affecting changes. `test:fe` takes over the desktop
-  while it runs, so propose the scenarios that cover the change and let the user start them; note
-  the flows exercised.
+  can't drive the AX tree) and required for UI-affecting changes. `test:fe` runs real app windows
+  for minutes (background mode by default: they stay behind the user's apps and never take the
+  keyboard or pointer; `--foreground` does), so propose the scenarios that cover the change and let
+  the user start them; note the flows exercised.
 
 ## Branching & Worktrees
 

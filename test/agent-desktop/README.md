@@ -28,7 +28,7 @@ Not in scope:
 
 ## Preconditions
 
-1. **macOS** with the `agent-desktop` CLI on `PATH` (>= 0.8.0). Install once:
+1. **macOS** with the `agent-desktop` CLI on `PATH` (>= 0.9.0). Install once:
    ```bash
    npm install -g agent-desktop
    ```
@@ -46,7 +46,11 @@ Not in scope:
 3. **`jq`** on `PATH` (preinstalled on macOS).
 4. **Mirall is running** in one of two modes:
    - Installed app — process name `Mirall`. This is what end users see.
-   - Dev build via `npm start` / `electron-forge start` — process name `Electron`.
+   - Dev build via `MIRALL_FORCE_A11Y=1 npm start` — process name `Electron`. 0.9 switches a
+     renderer's accessibility on itself and refuses an app that does not confirm it
+     (`Renderer accessibility activation was not reflected`); Electron confirms only when the app
+     enabled accessibility through `app.setAccessibilitySupportEnabled`, which that hook does. An
+     installed build has no hook, so a 0.9 snapshot of it may be refused the same way.
 5. **Only one Electron window open.** If Chrome DevTools is attached, close it first (Cmd+Opt+I in Mirall, or Cmd+W from inside DevTools). Both windows are owned by the same `Electron` app, and this script targets by `--app`. On 0.8.x that is a hard `AMBIGUOUS_TARGET` error listing the candidates — earlier versions silently snapshotted whichever window had focus, which was usually DevTools and produced a confusing "button not found" instead.
 
 ## How to run
