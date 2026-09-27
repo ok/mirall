@@ -52,7 +52,8 @@ export default async function s133({ runDir, bootstrap }) {
     })
     await r.ok('Enter never fires a destructive confirm', async () => {
       await A.addFile(file)
-      await A.waitText('keeper.txt', 30000)
+      // The name shows on the publishing row already; Unshare exists only once it is ours.
+      await waitFor(() => A.has({ name: 'keeper.txt: Shared by you' }), 30000, 'the file is shared')
       await A.click({ role: 'button', name: 'Unshare from Space', last: true })
       await A.waitText('Remove File', 8000)
       await A.press('return')
