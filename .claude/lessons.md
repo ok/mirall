@@ -310,8 +310,10 @@ window fine.
 
 **Scope every agent-desktop window lookup to `--app Electron`.** The unscoped inventory times out
 for as long as Finder's desktop is frontmost (Finder's focused element is not a window), and an
-unscoped `snapshot --window-id` resolves through that inventory at ~3× the cost. `screenshot` is the
-exception: with several instances `--app` is `AMBIGUOUS_TARGET`, so it takes `--window-id` alone.
+unscoped `snapshot --window-id` resolves through that inventory at ~3× the cost. `screenshot` cannot
+be scoped (`--app` is `AMBIGUOUS_TARGET` with several instances), so the harness captures with
+`screencapture -l <N>` for a `w-N` window id — the same call agent-desktop makes. A CI runner
+always has Finder frontmost.
 
 **A background window takes AX actions but not keys.** `click`/`set-value`/`get` work while another
 app is frontmost; `press` needs an AX-focused element the inactive app does not have, and `--app`

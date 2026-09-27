@@ -1,10 +1,14 @@
+import { execFile } from 'node:child_process'
 import path from 'node:path'
+import { promisify } from 'node:util'
 import { ad, withRetry, RETRYABLE } from './agent.mjs'
 import { findNode, allText } from './tree.mjs'
 import { POLL_MS, mirallWindows, electronWindows, background } from './ax-support.mjs'
 
 // The accessibility-tree half of Instance: everything that talks to agent-desktop and nothing that
 // knows a Mirall screen. Applied as a mixin so the scenarios keep one object with one surface.
+const execFileAsync = promisify(execFile)
+
 export const withAx = (Base) => class extends Base {
   async _waitForAx(timeout = 30000) {
     const deadline = Date.now() + timeout
@@ -307,9 +311,12 @@ export const withAx = (Base) => class extends Base {
     throw new Error(`${this.name}: clipboard did not update after copy`)
   }
 
+  // agent-desktop's `screenshot` resolves the window through the unscoped inventory, which times out
+  // while Finder's desktop is frontmost (always, on a CI runner), and its capture is
+  // `screencapture -l <window number>` — the number a `w-N` id carries. Call that directly.
   async shot(label, dir) {
     const file = path.join(dir, `${this.name}-${label}.png`)
-    await ad(['screenshot', file, '--window-id', this.windowId])
+    await execFileAsync('/usr/sbin/screencapture', ['-x', '-t', 'png', '-l', this.windowId.replace(/^w-/, ''), file])
     return file
   }
 
