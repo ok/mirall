@@ -90,11 +90,23 @@ function installHooks() {
   const { BrowserWindow, Menu, dialog } = process.mainModule.require('electron')
   const appWindow = () => BrowserWindow.getAllWindows()
     .find((w) => !w.isDestroyed() && w.webContents.getURL().startsWith('app://'))
+  // The window is shown before its page loads, so it is not yet the app:// window when the harness
+  // first looks.
+  const loadedAppWindow = async (timeout = 30000) => {
+    const deadline = Date.now() + timeout
+    for (;;) {
+      const win = appWindow()
+      if (win && !win.webContents.isLoading()) return win
+      if (Date.now() > deadline) return null
+      await new Promise((r) => setTimeout(r, 100))
+    }
+  }
   const menuItems = () => {
     const walk = (items) => items.flatMap((i) => [i, ...(i.submenu ? walk(i.submenu.items) : [])])
     return walk(Menu.getApplicationMenu()?.items ?? [])
   }
   const fe = {
+    reapplyOnLoad: false,
     picks: 0,
     opened: 0,
     pickError: null,
@@ -128,14 +140,16 @@ function installHooks() {
     return wc.debugger
   }
   Object.assign(fe, {
+    // A reload drops the page's CDP state, so it is re-applied after every load.
     async focusEmulation() {
-      const win = appWindow()
+      const win = await loadedAppWindow()
       if (!win) return false
       const dbg = attach(win.webContents)
       await dbg.sendCommand('Emulation.setFocusEmulationEnabled', { enabled: true })
       await dbg.sendCommand('Page.enable')
       await dbg.sendCommand('Page.setInterceptFileChooserDialog', { enabled: true })
-      if (!win.webContents.listenerCount('did-finish-load')) {
+      if (!fe.reapplyOnLoad) {
+        fe.reapplyOnLoad = true
         win.webContents.on('did-finish-load', () => { fe.focusEmulation() })
       }
       return true
@@ -243,8 +257,8 @@ export class MainChannel {
     })
   }
 
-  focusEmulation() {
-    return this.eval('globalThis.__fe.focusEmulation()')
+  async focusEmulation() {
+    if (!(await this.eval('globalThis.__fe.focusEmulation()'))) throw new Error('the app window never finished loading app://')
   }
 
   // A chord that is a menu accelerator clicks that menu item, like macOS does before the page sees
