@@ -110,6 +110,19 @@ export const withAx = (Base) => class extends Base {
     })
   }
 
+  // A click delivered as pointer events at the element's position instead of an accessibility
+  // press. For a control React re-mounts faster than a press lands (a row re-rendering on every
+  // progress tick) the press hits a node that is already gone; pointer events hit whatever sits at
+  // that point when they arrive, as a user's click does.
+  pointerClick(sel) {
+    return withRetry(async () => {
+      await this.focus()
+      const ref = await this._ref(sel)
+      if (background()) return this._pointer(ref, ['mouseMove', 'mouseDown', 'mouseUp'])
+      return this.ad(['click', ref], { headed: true })
+    })
+  }
+
   // Background mode's stand-in for a physical pointer: synthetic events at the element's centre,
   // delivered to this window only, so the real cursor never moves.
   async _pointer(ref, types) {

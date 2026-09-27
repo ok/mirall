@@ -320,6 +320,12 @@ cannot tell dev instances apart (all are "Electron"). Keys go through the main-p
 rendered frame before the next step, and give Return/Space their `char` event — a focused button
 activates on keypress, not keyDown.
 
+**A click that did not throw is not a click that landed.** agent-desktop 0.9 runs one delivery
+and reports `delivered_unverified` when it cannot read the effect, and an AX press on a node React
+replaces mid-press (a row re-rendering on every progress tick) does nothing. Confirm by the effect
+(the request in the instance log, the state change), and use `pointerClick` for such controls —
+pointer events hit whatever sits at that point, as a user's click does.
+
 **A menu trigger is not a `button` in the AX tree.** react-aria's `aria-haspopup` makes it a pop-up
 button (`role: "combobox"`). Match menu triggers by name only.
 
