@@ -297,19 +297,34 @@ export const withAx = (Base) => class extends Base {
     }
   }
 
+  // Background mode depends on focus emulation for the page's clipboard write; when a copy does not
+  // land, the page's focus state is logged, emulation is re-applied and the button pressed again.
   async _copyFrom(buttonSel, timeout) {
+    for (let attempt = 0; ; attempt++) {
+      const { text, last } = await this._copyOnce(buttonSel, timeout)
+      if (text) return text
+      if (!background() || attempt > 0) {
+        throw new Error(`${this.name}: clipboard did not update after copy (still ${JSON.stringify(last)})`)
+      }
+      const page = await this.main.pageState().catch((e) => e.message)
+      console.error(`[${this.name}] copy did not reach the clipboard (page ${JSON.stringify(page)}) — re-applying focus emulation`)
+      await this.main.focusEmulation()
+    }
+  }
+
+  async _copyOnce(buttonSel, timeout) {
     const sentinel = `__sentinel_${Date.now()}__`
     await ad(['clipboard-set', sentinel])
     await this.focus()
     await this.click(buttonSel)
     const deadline = Date.now() + timeout
-    let v = null
+    let last = null
     while (Date.now() < deadline) {
-      v = await this.clipboard()
-      if (v && v !== sentinel) return v
+      last = await this.clipboard()
+      if (last && last !== sentinel) return { text: last, last }
       await new Promise((r) => setTimeout(r, 100))
     }
-    throw new Error(`${this.name}: clipboard did not update after copy (still ${JSON.stringify(v)})`)
+    return { text: null, last }
   }
 
   // agent-desktop's `screenshot` resolves the window through the unscoped inventory, which times out

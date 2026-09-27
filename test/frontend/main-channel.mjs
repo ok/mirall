@@ -165,6 +165,12 @@ function installHooks() {
       )
       return 'keys'
     },
+    async pageState() {
+      const win = appWindow()
+      if (!win) return null
+      const page = await win.webContents.executeJavaScript('({ focused: document.hasFocus(), visibility: document.visibilityState })')
+      return { ...page, debugger: win.webContents.debugger.isAttached() }
+    },
     contentOrigin() {
       const b = appWindow()?.getContentBounds()
       return b ? { x: b.x, y: b.y } : null
@@ -262,6 +268,10 @@ export class MainChannel {
     const y = Math.round(screenY - origin.y)
     const events = types.map((type) => ({ type, x, y, button: 'left', clickCount: 1 }))
     return this.eval(`globalThis.__fe.sendInput(${JSON.stringify(events)})`)
+  }
+
+  pageState() {
+    return this.eval('globalThis.__fe.pageState()')
   }
 
   // Move the synthetic pointer to the content's top-left corner, off every element, so the element
