@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync, existsSync } from 'node:fs'
+import { mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { Instance } from '../instance.mjs'
 import { connectInSpace } from '../helpers.mjs'
@@ -67,8 +67,17 @@ export default async function s95({ runDir, bootstrap }) {
       if (sawPaused) await A.shot('s95-A-peer-paused', runDir)
       console.log(`s95: owner reflected a paused peer: ${sawPaused}`)
 
+      // Resume re-issues the download request. The paused row renders its Resume a beat after the
+      // pause lands and a press on the re-rendering row can be lost, so it is pressed until a new
+      // request shows in B's log (the verbose worker logs every request).
       await B.focus()
-      if (await B.has({ role: 'button', name: 'Resume' })) await B.click({ role: 'button', name: 'Resume' })
+      const downloadRequests = () => (readFileSync(B.logPath, 'utf8').match(/\[worker stdout\] \[ipc\] req files:download #/g) ?? []).length
+      const before = downloadRequests()
+      const rd = Date.now() + 15000
+      while (Date.now() < rd && downloadRequests() === before && !existsSync(landed)) {
+        try { await B.pointerClick({ role: 'button', name: 'Resume' }) } catch { /* not rendered yet */ }
+        await sleep(300)
+      }
     })
 
     await r.ok('B completes; A clears the downloader indicator', async () => {
