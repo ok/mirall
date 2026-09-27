@@ -55,10 +55,11 @@ function isolateAgentDesktopState() {
   process.env.AGENT_DESKTOP_HOME = home
 }
 
-function keepLogs(key, instances) {
+async function keepFailureEvidence(key, instances) {
   mkdirSync(runDir, { recursive: true })
   for (const i of instances) {
     try { copyFileSync(i.logPath, path.join(runDir, `${key}-${i.name}.log`)) } catch {}
+    if (i.windowId) await i.shot(`${key}-at-failure`, runDir).catch(() => {})
   }
 }
 
@@ -104,8 +105,9 @@ const slugByKey = Object.fromEntries(SCENARIOS.map((s) => [s.key, s.slug]))
       const failedSteps = drainReports()
         .flatMap((r) => r.steps.filter((s) => !s.pass).map((s) => ({ label: s.label, err: s.err })))
       results.push({ key, pass: pass && !crash, crash, failedSteps, secs })
-      // Each launch overwrites its instance log, so a failure's log is kept with its evidence.
-      if (!(pass && !crash)) keepLogs(key, instances)
+      // Each launch overwrites its instance log, so a failure's log is kept with its evidence, with
+      // a last look at every window.
+      if (!(pass && !crash)) await keepFailureEvidence(key, instances)
       // Tear down and WAIT before the next scenario launches: overlapping teardowns starve worker IPC.
       await Promise.all(instances.map((i) => i.kill({ hard: true })))
     }
