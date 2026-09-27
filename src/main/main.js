@@ -107,8 +107,20 @@ require('./dir-tripwire.js').installDataDirTripwire({ getDataDir: () => app.getP
 
 // Test hook: force Chromium to always build the renderer accessibility tree.
 // Without this, a backgrounded/secondary instance's web-content AX tree may
-// never activate (lazy per-process), leaving automation snapshots empty.
-if (process.env.MIRALL_FORCE_A11Y === '1') app.commandLine.appendSwitch('force-renderer-accessibility')
+// never activate (lazy per-process), leaving automation snapshots empty. Enabled through the API
+// (in whenReady) rather than the `force-renderer-accessibility` switch: only the API makes the
+// app report AXManualAccessibility as true, and automation that reads the flag back after setting
+// it treats a false as a failed activation.
+const forceA11y = process.env.MIRALL_FORCE_A11Y === '1'
+
+// Test hook: the frontend harness drives this window while another app stays frontmost. Chromium
+// otherwise throttles an occluded or unfocused window's renderer and timers, which stalls the
+// screen the harness is waiting on.
+if (process.env.MIRALL_FE_BACKGROUND === '1') {
+  app.commandLine.appendSwitch('disable-renderer-backgrounding')
+  app.commandLine.appendSwitch('disable-backgrounding-occluded-windows')
+  app.commandLine.appendSwitch('disable-background-timer-throttling')
+}
 
 if (isWindows) app.setAppUserModelId(pkg.build?.appId || pkg.name)
 
@@ -282,6 +294,7 @@ if (!lock) {
   }
 
   app.whenReady().then(async () => {
+    if (forceA11y) app.setAccessibilitySupportEnabled(true)
     initPrefs({ config })
     try {
       // The package owns the desktop entry on a deb install; a per-user entry left by an earlier

@@ -1,6 +1,6 @@
-import { ad } from './agent.mjs'
-import { findNode, flatten } from './tree.mjs'
-import { POLL_MS, PANEL_TRIES, PANEL_WAIT_MS } from './ax-support.mjs'
+import { ad, withRetry } from './agent.mjs'
+import { findNode } from './tree.mjs'
+import { POLL_MS, PANEL_TRIES, PANEL_WAIT_MS, background, electronWindows } from './ax-support.mjs'
 
 // The app-flow half of Instance: onboarding, navigation and the mount/share verbs. Knows Mirall's
 // screens; knows nothing about process lifecycle. Applied as a mixin so the scenarios keep one
@@ -101,7 +101,8 @@ export const withFlows = (Base) => class extends Base {
   // only while NO panel is up) instead of stretching the deadline.
 
   async nativeChoosePath(absPath, { trigger = null } = {}) {
-    const findPanel = async () => (await ad(['list-windows'])).data.find(
+    if (background()) return this._stubChoosePath(absPath, trigger)
+    const findPanel = async () => (await electronWindows()).find(
       (w) => w.app_name === 'Electron' && w.title === 'Open' && w.pid === this.pid,
     )
     let openWin = null
@@ -147,7 +148,7 @@ export const withFlows = (Base) => class extends Base {
     // actually closed, re-pressing return while it lingers.
     const closedBy = Date.now() + 10000
     while (Date.now() < closedBy) {
-      const still = (await ad(['list-windows'])).data.find(
+      const still = (await electronWindows()).find(
         (w) => w.app_name === 'Electron' && w.title === 'Open' && w.pid === this.pid,
       )
       if (!still) return
@@ -156,6 +157,29 @@ export const withFlows = (Base) => class extends Base {
       await new Promise((r) => setTimeout(r, 400))
     }
     throw new Error(`${this.name}: native Open panel did not close after selection`)
+  }
+
+  // Background mode: the app's pickers are stubbed in its main process (main-channel.mjs), so the
+  // path is handed over instead of typed into a panel. Same lost-trigger re-fire as the native path.
+
+  async _stubChoosePath(absPath, trigger) {
+    const { picks: before } = await this.main.pickState()
+    await this.main.armPick(absPath)
+    for (let attempt = 0; attempt < PANEL_TRIES; attempt++) {
+      if (attempt) console.error(`[${this.name}] no picker after ${PANEL_WAIT_MS}ms — re-firing trigger (${attempt + 1}/${PANEL_TRIES})`)
+      if (trigger) await trigger()
+      const deadline = Date.now() + PANEL_WAIT_MS
+      while (Date.now() < deadline) {
+        const { picks, error } = await this.main.pickState()
+        if (error) throw new Error(`${this.name}: picker stub failed: ${error}`)
+        if (picks > before) return
+        await new Promise((r) => setTimeout(r, POLL_MS))
+      }
+      if (!trigger) break
+    }
+    await this.main.disarmPick()
+    const { opened } = await this.main.pickState()
+    throw new Error(`${this.name}: no picker answered for ${absPath} (pickers opened this launch: ${opened})`)
   }
 
   // Add a loose file (mod+u opens the file picker) and pick it via the panel.
@@ -168,15 +192,16 @@ export const withFlows = (Base) => class extends Base {
   // to enable (validation is async — advisories are now non-blocking warning text,
   // nothing to acknowledge), advance to the ScanPreviewModal, and confirm.
 
+  // "Next: Preview" enables once the async validation lands. agent-desktop polls the one element
+  // in-process; a miss falls through to the click, whose own retry is the last word.
+
+  async _previewReady() {
+    const ref = await withRetry(() => this._ref({ role: 'button', name: 'Next: Preview' }))
+    await this.ad(['wait', '--element', ref, '--predicate', 'enabled', '--timeout', '12000'], { allowError: true })
+  }
+
   async _confirmPreview(createLabel, previewText) {
-    await new Promise((r) => setTimeout(r, 400))
-    for (let i = 0; i < 20; i++) {
-      const next = flatten(await this.snap()).find(
-        (n) => n.role === 'button' && (n.name === 'Next: Preview' || n.description === 'Next: Preview'),
-      )
-      if (next && !(next.states ?? []).includes('disabled')) break
-      await new Promise((r) => setTimeout(r, POLL_MS))
-    }
+    await this._previewReady()
     await this.click({ role: 'button', name: 'Next: Preview' })
     await this.waitText(previewText, 20000)
     await this.click({ role: 'button', name: createLabel, last: true })
@@ -206,14 +231,7 @@ export const withFlows = (Base) => class extends Base {
   async openAddFolderPreview(absDir) {
     await this.nativeChoosePath(absDir, { trigger: () => this.press('cmd+shift+u') })
     await this.waitText('Add Folder', 20000)
-    await new Promise((r) => setTimeout(r, 400))
-    for (let i = 0; i < 20; i++) {
-      const next = flatten(await this.snap()).find(
-        (n) => n.role === 'button' && (n.name === 'Next: Preview' || n.description === 'Next: Preview'),
-      )
-      if (next && !(next.states ?? []).includes('disabled')) break
-      await new Promise((r) => setTimeout(r, POLL_MS))
-    }
+    await this._previewReady()
     await this.click({ role: 'button', name: 'Next: Preview' })
   }
 
@@ -247,14 +265,7 @@ export const withFlows = (Base) => class extends Base {
     await this.click({ name: 'Mirror to Disk…' })
     await this.waitText('to Disk', 20000)
     await this.nativeChoosePath(mirrorDir, { trigger: () => this.click({ role: 'button', name: 'Browse…' }) })
-    await new Promise((r) => setTimeout(r, 400))
-    for (let i = 0; i < 20; i++) {
-      const next = flatten(await this.snap()).find(
-        (n) => n.role === 'button' && (n.name === 'Next: Preview' || n.description === 'Next: Preview'),
-      )
-      if (next && !(next.states ?? []).includes('disabled')) break
-      await new Promise((r) => setTimeout(r, POLL_MS))
-    }
+    await this._previewReady()
     await this.click({ role: 'button', name: 'Next: Preview' })
     await this.waitText('Download', 20000)
   }

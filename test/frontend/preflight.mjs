@@ -1,7 +1,9 @@
 // agent-desktop floor for this harness. Observations and actions run in SEPARATE CLI processes, so a
 // ref taken from a snapshot must resolve in a later one: 0.8.0 is where refs became
 // snapshot-qualified (`@<snapshot_id>:eN`) and ref actions gained their own --timeout-ms budget.
-export const MIN_AGENT_DESKTOP = '0.8.0'
+// 0.9.0 runs stateful actions once and verifies them by read-back, and it activates a renderer's
+// accessibility itself, which the app answers only when MIRALL_FORCE_A11Y uses the Electron API.
+export const MIN_AGENT_DESKTOP = '0.9.0'
 
 // True if `version` is older than the floor (or unparseable). Only the
 // major/minor are significant — every break above was a minor-line change.

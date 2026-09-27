@@ -150,6 +150,26 @@ function maybeShowFirstHideNotice() {
   sendToAll('pear:event:first-hide-notice', { platform: process.platform })
 }
 
+// Test hooks the frontend harness sets. MIRALL_WINDOW_BOUNDS pins the window to its tile.
+// MIRALL_FE_BACKGROUND opens the window without activating the app, so the user's frontmost app
+// keeps focus, and keeps the renderer running while it is occluded. Returns whether the caller
+// shows the window inactive instead of letting the constructor show it.
+function applyHarnessWindowHooks(winOpts) {
+  if (process.env.MIRALL_WINDOW_BOUNDS) {
+    try {
+      const b = JSON.parse(process.env.MIRALL_WINDOW_BOUNDS)
+      if (Number.isFinite(b.x)) winOpts.x = b.x
+      if (Number.isFinite(b.y)) winOpts.y = b.y
+      if (Number.isFinite(b.width)) winOpts.width = b.width
+      if (Number.isFinite(b.height)) winOpts.height = b.height
+    } catch {}
+  }
+  if (process.env.MIRALL_FE_BACKGROUND !== '1' || !winOpts.show) return false
+  winOpts.show = false
+  winOpts.webPreferences.backgroundThrottling = false
+  return true
+}
+
 async function createWindow() {
   // Required here, not at module scope: the contract package is ESM, and requiring it while the
   // entry's own CJS load is still in flight trips Node's require(esm) race guard. By the time a
@@ -188,16 +208,9 @@ async function createWindow() {
     winOpts.width = placeable.width
     winOpts.height = placeable.height
   }
-  if (process.env.MIRALL_WINDOW_BOUNDS) {
-    try {
-      const b = JSON.parse(process.env.MIRALL_WINDOW_BOUNDS)
-      if (Number.isFinite(b.x)) winOpts.x = b.x
-      if (Number.isFinite(b.y)) winOpts.y = b.y
-      if (Number.isFinite(b.width)) winOpts.width = b.width
-      if (Number.isFinite(b.height)) winOpts.height = b.height
-    } catch {}
-  }
+  const showInactive = applyHarnessWindowHooks(winOpts)
   const win = new BrowserWindow(winOpts)
+  if (showInactive) win.showInactive()
   applyAppMenuVisibility(win)
 
   win.webContents.setWindowOpenHandler(({ url }) => {

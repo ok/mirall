@@ -1,9 +1,11 @@
 import { spawn } from 'node:child_process'
 import { rmSync, openSync, closeSync } from 'node:fs'
+import path from 'node:path'
 import { ad } from './agent.mjs'
 import { tile } from './layout.mjs'
 import { workDir } from './paths.mjs'
-import { POLL_MS, mirallWindows, REPO, STORE_RELEASE_TIMEOUT_MS, storeHeldByApp } from './ax-support.mjs'
+import { MainChannel } from './main-channel.mjs'
+import { POLL_MS, mirallWindows, REPO, STORE_RELEASE_TIMEOUT_MS, storeHeldByApp, background } from './ax-support.mjs'
 
 import { withAx } from './ax.mjs'
 import { withFlows } from './flows.mjs'
@@ -21,6 +23,7 @@ class InstanceBase {
     this.store = workDir(`store-${name}-`)
     this.downloadFolder = workDir(`dl-${name}-`)
     this.proc = null
+    this.main = null
     this.windowId = null
     this.pid = null
     // agent-desktop 0.3.0+ resolves a ref against the latest snapshot saved in its
@@ -46,11 +49,15 @@ class InstanceBase {
     }
     if (this.bootstrap) env.MIRALL_DHT_BOOTSTRAP = JSON.stringify(this.bootstrap)
     if (this.flags) env.MIRALL_FEATURE_FLAGS = JSON.stringify(this.flags)
+    if (background()) env.MIRALL_FE_BACKGROUND = '1'
     this.logPath = `/tmp/mirall-fe-${this.name}.log`
     const logFd = openSync(this.logPath, 'w')
+    // Electron directly, not `npx electron-forge start` (whose start step builds nothing here) — the
+    // wrapper costs seconds per launch. `--inspect=0` goes after the app's own flags, which its argv
+    // parser reads from position 2; it opens the main-process channel background mode drives.
     this.proc = spawn(
-      'npx',
-      ['electron-forge', 'start', '--', '--no-updates', '--storage', this.store],
+      path.join(REPO, 'node_modules/.bin/electron'),
+      ['.', '--no-updates', '--storage', this.store, '--inspect=0'],
       { cwd: REPO, env, detached: true, stdio: ['ignore', logFd, logFd] },
     )
     // The child dup'd its own copy of the log fd; close ours so 82 sequential
@@ -65,15 +72,21 @@ class InstanceBase {
         this.pid = fresh[fresh.length - 1].pid
         break
       }
-      await new Promise((r) => setTimeout(r, 500))
+      await new Promise((r) => setTimeout(r, POLL_MS))
     }
     if (!this.windowId) throw new Error(`${this.name}: Mirall window never appeared`)
     console.error(`[${this.name}] before=[${[...before].join(',')}] resolved=${this.windowId}`)
-    // Raise the new window so Chromium paints it; a backgrounded renderer never
-    // builds its AX tree, which leaves snapshots empty. Unconditional (not via
-    // focus()) because focus() no-ops for single instances — the one-time initial
-    // raise must still happen so the renderer paints and snapshots aren't empty.
-    await ad(['focus-window', '--window-id', this.windowId], { allowError: true })
+    // Background: the window opened inactive and the MIRALL_FE_BACKGROUND hook keeps its renderer
+    // painting; focus emulation makes the page behave as the focused one (document focus,
+    // clipboard writes) without the app ever becoming frontmost. Foreground: raise the new window
+    // so Chromium paints it — unconditional (not via focus()) because focus() no-ops for single
+    // instances, and a renderer that never painted leaves snapshots empty.
+    if (background()) {
+      this.main = await MainChannel.open(this.logPath)
+      await this.main.focusEmulation()
+    } else {
+      await ad(['focus-window', '--window-id', this.windowId], { allowError: true })
+    }
     await this._waitForAx()
     if (onboard) await this.onboard()
     return this
@@ -84,6 +97,7 @@ class InstanceBase {
   // starts from a window that is known to be drivable.
 
   moveCursorAway() {
+    if (background()) return this.main.park()
     return this.ad(['mouse-move', '--xy', '5,5'], { allowError: true, headed: true })
   }
 
@@ -94,6 +108,8 @@ class InstanceBase {
   async _stopProcess({ hard = false } = {}) {
     const proc = this.proc
     this.proc = null
+    this.main?.close()
+    this.main = null
     if (!proc?.pid) return
     const exited = new Promise((resolve) => {
       if (proc.exitCode !== null || proc.signalCode !== null) return resolve()
@@ -135,8 +151,10 @@ class InstanceBase {
     throw new Error(`${this.name}: Electron still holds ${this.store} ${STORE_RELEASE_TIMEOUT_MS}ms after exit`)
   }
 
-  async kill() {
-    await this._stopProcess()
+  // `hard` is for end-of-scenario teardown: the store is deleted right after, so the graceful
+  // before-quit (seconds per instance) protects nothing.
+  async kill({ hard = false } = {}) {
+    await this._stopProcess({ hard })
     // Only now is nothing still writing the store — safe to remove it.
     try {
       rmSync(this.store, { recursive: true, force: true })

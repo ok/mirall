@@ -49,12 +49,35 @@ export function storeHeldByApp(store) {
   }
 }
 
+// Background mode (the default) drives every instance while another app stays frontmost: no window
+// raise, no global keystroke, no cursor. `--foreground` restores the old behaviour, where the
+// harness raises each window and sends real input to the frontmost app.
+export const background = () => process.env.FE_MODE !== 'foreground'
+
+// Scoped to our app name: the unscoped inventory times out for as long as Finder's desktop is the
+// frontmost app, and the scoped one is several times faster. No running dev instance is an empty
+// list, not an error.
+export async function electronWindows() {
+  const res = await ad(['list-windows', '--app', 'Electron'], { allowError: true })
+  if (res.ok) return res.data
+  if (res.error?.code === 'APP_NOT_FOUND' || res.error?.code === 'WINDOW_NOT_FOUND') return []
+  throw Object.assign(new Error(`agent-desktop list-windows -> ${res.error?.code}: ${res.error?.message}`), { code: res.error?.code, raw: res })
+}
+
 export async function mirallWindows() {
-  const { data } = await ad(['list-windows'])
+  const data = await electronWindows()
   return data
     // `visible` is the property we depend on: helper windows share the pid and answer no AX query.
     .filter((w) => w.app_name === 'Electron' && w.visible === true && !NATIVE_PANEL_TITLES.has(w.title))
     .map((w) => ({ id: w.id, pid: w.pid }))
+}
+
+// Mirall windows that hold focus. In background mode this must stay empty: the harness never raises
+// a window, so a focused one means something stole the user's foreground.
+export async function focusedMirallWindows() {
+  return (await electronWindows())
+    .filter((w) => w.is_focused && w.visible === true && !NATIVE_PANEL_TITLES.has(w.title))
+    .map((w) => w.id)
 }
 
 // Process lifecycle only. The AX primitives and the app flows are mixins — three files, one
