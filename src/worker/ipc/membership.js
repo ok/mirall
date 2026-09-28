@@ -43,6 +43,7 @@ import { readmitConnectedMembers } from '../../shared/network/deferred-admission
 import { getBoundSignerKey, getConnectedMemberMeta } from '../../shared/network/swarm-registries.js'
 import { broadcastMembershipCancel, sendMembershipDeny, sendMembershipGrant } from '../../shared/network/membership-frames.js'
 import { topicField } from '../../shared/network/topic-refs.js'
+import { attachPeerCore, replicateOn } from '../../shared/network/replication-gate.js'
 import { peerActorIn, spaceRefOf } from '../audit-refs.js'
 import b4a from 'b4a'
 /** @import { WorkerIpc } from '../../shared/core/ipc.js' */
@@ -282,7 +283,7 @@ async function onGrant(msg, ctx = {}) {
     return
   }
   // Checked before the root reconcile, so a refused granter neither adopts nor refuses a root.
-  if (!(await granterRecognized(spaceId, space, verdict.granterKey))) {
+  if (!(await granterRecognizedOver(ctx.socket, spaceId, space, verdict.granterKey))) {
     log.warn('rejected membership:grant — granter is not the inviter, the creator or a member:', verdict.granterKey?.slice(0, 12))
     return
   }
@@ -303,6 +304,7 @@ async function onGrant(msg, ctx = {}) {
   if (!sckBuf || sckBuf.length !== 32) return
 
   await materializeSpace(spaceId, sckBuf, { epoch })
+  if (ctx.socket) replicateOn(ctx.socket)
   if (asserted && (decision === 'adopt' || decision === 'confirm')) await pinCreatorKey(spaceId, asserted)
   await broadcastProfileUpdate()
   await openMemberView(spaceId)
@@ -315,6 +317,19 @@ async function onGrant(msg, ctx = {}) {
   // way, so the kind's tier B describes the enforced case.
   await recordGrantReceived(spaceId, verdict.granterKey)
   ipc.emit('event:membership-granted', { spaceId })
+}
+
+// The fold check reads the granter's own records, which may reach us only from the granter. Its
+// core alone is attached to its socket for the check: the socket is not replicating yet, and must
+// not until the grant is applied.
+/** @param {object | undefined} socket @param {string} spaceId @param {StoredSpace} space @param {string | null} granterKey */
+async function granterRecognizedOver(socket, spaceId, space, granterKey) {
+  const pulled = socket && granterKey ? await attachPeerCore(socket, granterKey) : null
+  try {
+    return await granterRecognized(spaceId, space, granterKey)
+  } finally {
+    try { await pulled?.close() } catch (err) { log.debug('granter core session close failed:', errorMessage(err)) }
+  }
 }
 
 /** @param {string} spaceId @param {StoredSpace} space @param {string | null} granterKey */

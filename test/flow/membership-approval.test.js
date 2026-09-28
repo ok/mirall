@@ -244,20 +244,33 @@ test('a pending member does not receive join requests for other joiners', { time
   t.alike(await B.request('space:pending-requests', { spaceId: space.spaceId }), [], 'pending member records no requests')
 })
 
-test("a pending joiner pulls the inviter's avatar onto the pre-seeded member", { timeout: scaled(150000) }, async (t) => {
+// The inviter's avatar lives in its profile bee, beside its share records, and a member serves that
+// bee to nobody it has not admitted: a pending joiner sees initials until the grant, then the avatar.
+test("REGRESSION (MIR-47: a pending joiner gets the inviter's avatar only once approved)", { timeout: scaled(150000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
   const AVATAR = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/1eOAAAAAElFTkSuQmCC'
   await A.request('profile:set', { displayName: 'Alice', avatar: AVATAR })
   const aKey = (await A.request('profile:get')).personKey
+  const bKey = (await B.request('profile:get')).personKey
   const space = await A.request('space:create', { name: 'Secret' })
   const invite = await A.request('space:invite', { spaceId: space.spaceId })
-
-  await B.request('space:join', { inviteCode: invite })
   // spaces:list rosters are slim (no avatars) — the avatar rides the full space:members roster.
+  const inviterAvatar = async () => (await B.request('space:members', { spaceId: space.spaceId })).find((m) => m.publicKey === aKey)?.avatar ?? null
+
+  const aSawB = A.waitFor('event:member-join-request', (m) => m.publicKey === bKey)
+  await B.request('space:join', { inviteCode: invite })
+  await aSawB
+  await new Promise((r) => setTimeout(r, scaled(8000)))
+  t.is((await B.request('spaces:list')).find((s) => s.spaceId === space.spaceId)?.status, 'pending', 'B is still pending')
+  t.is(await inviterAvatar(), null, 'the pending joiner holds no avatar from the inviter\'s bee')
+
+  const granted = B.waitFor('event:membership-granted', (m) => m.spaceId === space.spaceId)
+  await A.request('space:approve-member', { spaceId: space.spaceId, publicKey: bKey })
+  await granted
   await B.until('space:members', { spaceId: space.spaceId },
     (roster) => Array.isArray(roster) && roster.some((m) => m.publicKey === aKey && m.avatar === AVATAR),
     { ms: 90000, every: 1000 })
-  t.is((await B.request('spaces:list')).find((s) => s.spaceId === space.spaceId)?.status, 'pending', 'B is still pending')
+  t.pass('the approved joiner pulls the inviter\'s avatar')
 })

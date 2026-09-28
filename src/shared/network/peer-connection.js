@@ -1,11 +1,12 @@
-// What happens to one accepted socket. Corestore replication rides it, the `mirall/handshake` JSON
-// channel is opened on it, and a content backend may bind further channels to the same Protomux —
-// all before the channel opens, because Protomux will not pair a channel opened after the remote's.
+// What happens to one accepted socket. The `mirall/handshake` JSON channel is opened on it and a
+// content backend may bind further channels to the same Protomux — all before the channel opens,
+// because Protomux will not pair a channel opened after the remote's. Corestore replication is gated
+// until the peer is admitted (replication-gate.js).
 import Protomux from 'protomux'
 import c from 'compact-encoding'
 import b4a from 'b4a'
 import idEncoding from 'hypercore-id-encoding'
-import { getStore, diagnoseStoreCores, isStorageInconsistency } from '../core/store.js'
+import { diagnoseStoreCores, isStorageInconsistency } from '../core/store.js'
 import { createLogger } from '../core/logger.js'
 import { applyNetImpairment } from './net-impair.js'
 import { noteConnection } from './connectivity.js'
@@ -16,6 +17,7 @@ import { sendPendingLeaveFrames, sendPendingCancelFrames } from './leave-protoco
 import { spaceTopics, socketMsgHandlers, memberOnSocket } from './swarm-registries.js'
 import { relayPairingFor } from './relay-observe.js'
 import { trackConnection } from './relayed-connections.js'
+import { gateReplication } from './replication-gate.js'
 
 const log = createLogger('peer-connection')
 
@@ -65,9 +67,8 @@ export function acceptConnection(socket, peerInfo) {
   }
 
   trackConnection(socket, { plane: 'control', memberOf: memberOnSocket })
-  const store = getStore()
-  store.replicate(socket)
-  log.debug('replicating corestore with', remoteKey + '...')
+  // Before Protomux.from: the gate creates the mux the handshake channel shares.
+  gateReplication(socket)
 
   const mux = Protomux.from(socket)
   const channel = mux.createChannel({

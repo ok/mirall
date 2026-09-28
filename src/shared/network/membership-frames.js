@@ -9,6 +9,7 @@ import { getProfileKey } from '../spaces/profile.js'
 import { socketMsgHandlers, channelForPeer } from './swarm-registries.js'
 import { sendFrame, getLocalBinding } from './identity-frames.js'
 import { topicField } from './topic-refs.js'
+import { replicateOn } from './replication-gate.js'
 
 // Hand the joiner the SCK AND assert this space's OR-Set root, bound to our identity. The
 // joiner pins creatorKey only from this authenticated assertion — never from the bearer
@@ -32,6 +33,7 @@ export function sendMembershipGrant(profileKeyHex, spaceId, sckHex, creatorKeyHe
       granterKey: b4a.toString(getProfileKey(), 'hex'),
       ...(getLocalBinding() || {}),
     })
+    replicateOn(channel.socket)
     return true
   } catch {
     return false
