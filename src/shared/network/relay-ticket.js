@@ -5,7 +5,7 @@
 // Not in src/shared/contract/ despite being a cross-repo contract: that package imports
 // nothing (contract-declarations.test.js enforces it) so it can load in the renderer, and
 // this needs blake2b. The renderer gets its verdict from main over relay:parse (parseRelayInput
-// through the bridge); renderer/relay-key.ts only truncates a key for display.
+// through the bridge); contract/relay-key.js only truncates a key for display.
 //
 // CHANGING THIS FILE IS A PROTOCOL CHANGE. test/unit/relay-ticket.test.js pins the
 // vector mirall-relay pins too; if it fails, one side has drifted.
