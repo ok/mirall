@@ -3,7 +3,8 @@ import fs from 'bare-fs'
 import path from 'bare-path'
 import { setupSelfMirror } from '../helpers/owned.js'
 import { advertise } from '../../src/shared/shares/own-catalog.js'
-import { applyChange, initialMaterializeScan } from '../../src/shared/folders/mirror-pass.js'
+import { deleteMirrorFile, initialMaterializeScan } from '../../src/shared/folders/mirror-pass.js'
+import { materializeOverlayFile } from '../../src/shared/folders/mirror-fetch.js'
 import { getForeignMount } from '../../src/shared/folders/mount-store.js'
 import { pathFromMount } from '../../src/shared/folders/path-guard.js'
 import { CODES } from '../../src/shared/contract/errors.js'
@@ -17,9 +18,9 @@ function relToSibling(mirrorPath, target) {
 }
 
 // REGRESSION (MIR-06): the strongest primitive — arbitrary file DELETION outside
-// the mount. applyChange({action:'del'}) joins a peer relPath straight onto the
-// mount and unlinks it with no blob read and no containment check. On the unfixed
-// tree this deletes the victim; the guard must refuse it.
+// the mount. The deletion reconcile joined a peer relPath straight onto the mount
+// and unlinked it with no blob read and no containment check. On the unfixed tree
+// this deletes the victim; the guard must refuse it.
 test('REGRESSION (MIR-06): a traversal del cannot unlink a file outside the mount', async (t) => {
   const ctx = await setupSelfMirror(t, { name: 'Docs', files: { 'real.txt': 'legit' } })
   const outside = ctx.tmpDir('outside')
@@ -28,15 +29,16 @@ test('REGRESSION (MIR-06): a traversal del cannot unlink a file outside the moun
   const relPath = relToSibling(ctx.mirrorPath, victim)
 
   await t.exception(
-    applyChange(ctx.mount, { action: 'del', relPath }),
+    deleteMirrorFile(ctx.mount, relPath),
     /escapes the share folder|outside the share folder/,
-    'applyChange(del) on a traversal relPath throws',
+    'a traversal delete throws',
   )
   t.ok(fs.existsSync(victim), 'victim outside the mount survives')
   t.is(fs.readFileSync(victim, 'utf8'), 'precious', 'victim bytes intact')
 })
 
-// REGRESSION (MIR-06): a traversal put must be refused before any mkdir/read/write.
+// REGRESSION (MIR-06): a traversal put must be refused before any mkdir/read/write. Driven through
+// the fetch a mirror pass runs per entry, past the ingest filter the scan test below covers.
 test('REGRESSION (MIR-06): a traversal put is refused', async (t) => {
   const ctx = await setupSelfMirror(t, { name: 'Docs', files: { 'real.txt': 'legit' } })
   const outside = ctx.tmpDir('outside')
@@ -44,9 +46,9 @@ test('REGRESSION (MIR-06): a traversal put is refused', async (t) => {
   const relPath = relToSibling(ctx.mirrorPath, escaped)
 
   await t.exception(
-    applyChange(ctx.mount, { action: 'put', relPath, hash: 'deadbeef', mtime: 0, size: 0 }),
+    materializeOverlayFile(ctx.mount, ctx.share, { relPath, contentHash: 'deadbeef', size: 5 }),
     /escapes the share folder|outside the share folder/,
-    'applyChange(put) on a traversal relPath throws',
+    'materializing a traversal relPath throws',
   )
   t.absent(fs.existsSync(path.join(outside, 'PWNED')), 'no directory created outside the mount')
 })
@@ -83,7 +85,7 @@ test('the mirror and the content backend reject an escaping key identically', as
   // Captured by hand: brittle's t.exception asserts, it does not hand back the error, and the
   // point here is to compare the two errors field by field.
   let fromMirror = null
-  try { await applyChange(ctx.mount, { action: 'del', relPath: bad }) } catch (err) { fromMirror = err }
+  try { await deleteMirrorFile(ctx.mount, bad) } catch (err) { fromMirror = err }
   let fromBackend = null
   try { pathFromMount(ctx.mirrorPath, bad) } catch (err) { fromBackend = err }
 

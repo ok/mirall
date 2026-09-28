@@ -173,8 +173,8 @@ const PEER_FRAME_HANDLERS = Object.freeze({
   // Fire-and-forget: handleHandshake is async, so the synchronous try/catch around the dispatch
   // cannot catch its rejection. A failure handling one peer's handshake (e.g. a transiently
   // unreadable record) must degrade that peer, not crash the worker.
-  [PEER_FRAME.HANDSHAKE]: ({ socket, peerInfo }, msg) =>
-    handleHandshake(socket, peerInfo, msg).catch((err) => log.warn('handshake handling failed:', err?.message || err)),
+  [PEER_FRAME.HANDSHAKE]: ({ socket }, msg) =>
+    handleHandshake(socket, msg).catch((err) => log.warn('handshake handling failed:', err?.message || err)),
   [PEER_FRAME.PRESENCE]: ({ socket }, msg) => handlePresenceFrame(socket, msg),
   [PEER_FRAME.LEAVE]: ({ socket, peerInfo }, msg) => handleLeaveFrame(socket, peerInfo, msg),
   [PEER_FRAME.LEAVE_ACK]: ({ socket }, msg) => handleLeaveAckFrame(socket, msg),

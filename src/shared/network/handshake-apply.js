@@ -196,7 +196,7 @@ function replyReciprocalHandshake(socket, spaceId, msg, isNewToSpace) {
   sendSingleHandshake(socket, handler, spaceId, msg.spaceTopic)
 }
 
-export async function handleHandshake(socket, peerInfo, msg) {
+export async function handleHandshake(socket, msg) {
   msg.displayName = clampDisplayName(msg.displayName)
   log.info('handshake received from', msg.displayName)
 
