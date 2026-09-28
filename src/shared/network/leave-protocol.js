@@ -24,7 +24,9 @@ import { destroyContentPeerSockets } from './content-swarm.js'
 import { record } from '../audit/audit-log.js'
 import { peerLeft } from '../audit/network-watch.js'
 import { markLeft, applyLocalRevocation, adoptVouchees, isLeft, persistTombstoneWithinCap } from '../spaces/member-registry.js'
-import { connectedPeers, spaceTopics, spaceDiscoveries, socketMsgHandlers, authorizedOn, detachPeerFromSpace, forgetPeerOnSocket, forgetBoundSignerKey } from './swarm-registries.js'
+import { capturePeerBee } from '../spaces/peer-bee.js'
+import { attachPeerCore, closeIfUnadmitted } from './replication-gate.js'
+import { connectedPeers, socketToPeers, spaceTopics, spaceDiscoveries, socketMsgHandlers, authorizedOn, detachPeerFromSpace, forgetPeerOnSocket, forgetBoundSignerKey } from './swarm-registries.js'
 import { TARGET_KIND } from '../contract/audit-kinds.js'
 import { peerActor, spaceRef, targetRef } from '../audit/audit-record.js'
 import { getLocalBinding } from './identity-frames.js'
@@ -106,17 +108,21 @@ async function applyDurableLeave(spaceId, profileKey, leaveTs) {
   return applied
 }
 
-function disconnectLeaver(profileKey, spaceId) {
+// Detaches the leaver from the socket it is reached by and the one its frame came on (they differ
+// across a reconnect). Returns those left carrying nobody admitted, for the caller to close.
+function disconnectLeaver(profileKey, spaceId, frameSocket) {
   const peer = connectedPeers.get(profileKey)
-  if (!peer || !detachPeerFromSpace(peer, spaceId)) return
+  if (!peer || !detachPeerFromSpace(peer, spaceId)) return []
   connectedPeers.delete(profileKey)
-  forgetPeerOnSocket(peer.socket, profileKey)
-  // Their socket stays up, so no close handler will ever run this: the bound signer key has to be
-  // dropped here or it outlives every index that says the peer is reachable.
+  const sockets = [...new Set([peer.socket, frameSocket])]
+  for (const s of sockets) forgetPeerOnSocket(s, profileKey)
+  // The socket's close handler may run long after this, so the bound signer key has to be dropped
+  // here or it outlives every index that says the peer is reachable.
   forgetBoundSignerKey(profileKey)
   // The overlay content channel rides the CONTENT socket, not this one: a peer we no longer
   // share any space with must lose that socket too, or we keep serving it bulk bytes.
   try { destroyContentPeerSockets(profileKey) } catch {}
+  return sockets.filter((s) => !socketToPeers.has(s))
 }
 
 export async function handleLeaveFrame(socket, peerInfo, msg) {
@@ -148,6 +154,19 @@ export async function handleLeaveFrame(socket, peerInfo, msg) {
     return
   }
 
+  // The leaver's own core over its own socket, whatever that socket's standing: the adoption reads
+  // it, the departure it holds is ours to re-host, and a replayed leave arrives on a socket that
+  // never replicates.
+  const pulled = await attachPeerCore(socket, profileKey)
+  try {
+    await applyLeave(socket, space, msg, alreadyLeft)
+  } finally {
+    try { await pulled?.close() } catch (err) { log.debug('leaver core session close failed:', err.message) }
+  }
+}
+
+async function applyLeave(socket, space, msg, alreadyLeft) {
+  const { spaceId, profileKey } = msg
   // Take over the leaver's vouchees before touching anything else. The revoke below unroots the
   // leaver, and from then on the fold stops walking its bee, so the subtree it alone vouched for
   // could never be recovered. The leaver is connected right now, which is the best window there is
@@ -159,6 +178,10 @@ export async function handleLeaveFrame(socket, peerInfo, msg) {
     log.warn('leave frame deferred — leaver record unreadable, cannot adopt:', profileKey.slice(0, 12))
     return
   }
+
+  // Started before the ack, because an acked leaver tears its socket down: the capture holds the
+  // departure we re-host to members that were offline when it left.
+  const captured = capturePeerBee(profileKey)
 
   // After the deferral above, so a leave we did not apply records nothing.
   const leftSnapshot = memberSnapshot(space, profileKey)
@@ -179,15 +202,23 @@ export async function handleLeaveFrame(socket, peerInfo, msg) {
   }
 
   const removed = await removeMember(spaceId, profileKey)
-  if (!removed) return
-  log.info('peer left space (leave frame):', profileKey.slice(0, 12) + '...', '→', spaceId)
+  if (removed) {
+    log.info('peer left space (leave frame):', profileKey.slice(0, 12) + '...', '→', spaceId)
+    presence.clear(profileKey, spaceId)   // the leaver is offline in this space immediately
+    memberWaits.forget({ spaceId, ownerKey: profileKey })
+    clearWaitingFor(profileKey, spaceId)
+    peerLeft(profileKey, spaceId)         // ...but that is a LEAVE; member.left carries it
+  }
 
-  presence.clear(profileKey, spaceId)   // the leaver is offline in this space immediately
-  memberWaits.forget({ spaceId, ownerKey: profileKey })
-  clearWaitingFor(profileKey, spaceId)
-  peerLeft(profileKey, spaceId)         // ...but that is a LEAVE; member.left carries it
+  // Detached even when the fold removed the member before this frame: its live entry is ours.
+  const unadmitted = disconnectLeaver(profileKey, spaceId, socket)
+  if (removed) announceLeft(spaceId, profileKey, leftSnapshot)
 
-  disconnectLeaver(profileKey, spaceId)
+  await captured
+  for (const s of unadmitted) closeIfUnadmitted(s)
+}
+
+function announceLeft(spaceId, profileKey, leftSnapshot) {
   // Their leave revokes our serve grants for this space: the grant is cached per (peer, path) at
   // request time and re-checked against that cache only, so a membership change has to invalidate
   // it actively — otherwise an in-flight transfer keeps streaming to a peer no longer entitled.
