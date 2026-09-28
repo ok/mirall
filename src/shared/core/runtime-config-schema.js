@@ -307,6 +307,8 @@ export function buildConfig(next) {
   for (const k of DEFAULT_ON) out[k] = next?.[k] !== false
   out.relayMode = coerceRelayMode(next?.relayMode)
   out.relay = coerceRelaySlot(next?.relay)
+  // No boot frame carries it: a fresh worker booted from the stored identity has nothing pending.
+  out.relayIdentityPending = next?.relayIdentityPending === true
   out.publishOrder = coercePublishOrder(next?.publishOrder)
   return out
 }

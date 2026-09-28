@@ -7,7 +7,7 @@ import { setRuntimeConfig, setRelayConfig } from '../../src/shared/core/runtime-
 import crypto from 'hypercore-crypto'
 import { Swarm } from '../../src/shared/network/swarm.js'
 import { getSwarmStatus } from '../../src/shared/network/network-status.js'
-import { setRelayThrough, testRelayReachable } from '../../src/shared/network/relay-install.js'
+import { installConfiguredRelay, setRelayThrough, testRelayReachable } from '../../src/shared/network/relay-install.js'
 import { ContentSwarm, getContentSwarm } from '../../src/shared/network/content-swarm.js'
 import { createFakeIpc } from '../helpers/fake-ipc.js'
 import { stubOverlayBackend } from '../helpers/overlay-stub.js'
@@ -291,4 +291,22 @@ test('a private relay IS installed once its identity is live', async (t) => {
   const res = setRelayThrough({ publicKey: KEY_A, kind: 'private', enabled: true }, 'auto')
   t.is(res.applied, 1)
   t.is(typeof getContentSwarm().relayThrough, 'function')
+})
+
+// Another private relay's identity is live, and the new one's waits on the restart: the node still
+// presents the old key, so installing the new relay would route every dial into its refusal.
+test('a saved private relay whose identity waits on a restart is not installed', async (t) => {
+  const seedHex = '9d73b3a76df0938ff055a76e4c096c54cc245b35d4db31b582faba9dde94ae4e'
+  const slot = { publicKey: KEY_B, kind: 'private', enabled: true }
+  await bootSwarms(t, { relaySeedHex: seedHex, relayMode: 'auto', relay: { publicKey: KEY_A, kind: 'private', enabled: true } })
+
+  setRelayConfig('auto', slot, { identityPending: true })
+  t.is(installConfiguredRelay().applied, 0)
+  t.is(getContentSwarm().relayThrough, null, 'direct until the restart')
+
+  setRelayConfig('auto', { publicKey: KEY_B, kind: 'open', enabled: true }, { identityPending: true })
+  t.is(installConfiguredRelay().applied, 1, 'an open relay needs no identity, pending or not')
+
+  setRelayConfig('auto', slot)
+  t.is(installConfiguredRelay().applied, 1, 'installed once nothing is pending')
 })

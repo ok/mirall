@@ -8,7 +8,7 @@ import BlindRelay from 'blind-relay'
 import { createLogger } from '../core/logger.js'
 import { getRelayConfig } from '../core/runtime-config.js'
 import { peerRelayed, peerUnrelayed, setRelayReach } from '../audit/network-watch.js'
-import { enabledRelayKeys, relayFunctionFor, decodeRelayKey } from './relay.js'
+import { enabledRelayKeys, installableRelay, relayFunctionFor, decodeRelayKey } from './relay.js'
 import { getContentSwarm } from './content-swarm.js'
 import { installRelayObserver, resetRelayObserver } from './relay-observe.js'
 import { initRelayedConnections, resetRelayedConnections, describeConnection } from './relayed-connections.js'
@@ -36,8 +36,9 @@ export function initRelayInstall(deps) {
 // `live` is whether a relay function is installed, not whether the config names one: a slot with the
 // mode off, or a private relay whose identity never came up, names a key this node offers to no one.
 function ownRelay() {
-  const { relay } = getRelayConfig()
-  return { key: enabledRelayKeys(relay)[0] ?? null, label: relay?.label || null, live: !!getSwarm()?.relayThrough }
+  const { relay, identityPending } = getRelayConfig()
+  const installed = installableRelay(relay, identityPending)
+  return { key: enabledRelayKeys(installed)[0] ?? null, label: installed?.label || null, live: !!getSwarm()?.relayThrough }
 }
 
 const RELAY_PROBE_TIMEOUT_MS = 10000
@@ -73,6 +74,12 @@ export function setRelayThrough(relay, mode) {
     s.relayThrough = fn
   }
   return identityMissing ? { applied: 0, reason: 'identity-missing' } : { applied: fn ? keys.length : 0 }
+}
+
+// The saved relay, installed as the config allows: a private one waits for its identity.
+export function installConfiguredRelay() {
+  const { mode, relay, identityPending } = getRelayConfig()
+  return setRelayThrough(installableRelay(relay, identityPending), mode)
 }
 
 // A mistyped or stale key is otherwise invisible until a space silently fails to sync

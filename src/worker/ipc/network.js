@@ -24,16 +24,21 @@ export function registerNetwork(ipc, { applyRelayConfig }) {
   // difference is invisible from here: the setting is live either way. When nothing is moving the
   // reconnect is cheap and the user gets what they asked for at once; while a transfer is in flight
   // it is theirs to trigger, so the verdict goes back for the renderer to explain. deferApply is set
-  // when a pinned identity is waiting on a restart — no reconnect can apply that.
+  // when a pinned identity is waiting on a restart — no reconnect can apply that, and the worker
+  // installs no private relay until it has. Only that restart clears it: a renderer reloaded in the
+  // meantime has forgotten, but this node still presents the old identity.
   ipc.handle('network:set-relay', async (msg) => {
-    setRelayConfig(msg.mode, msg.relay)
+    const before = getRelayConfig()
+    const identityPending = before.identityPending || msg.deferApply === true
+    setRelayConfig(msg.mode, msg.relay ?? null, { identityPending })
     const applied = applyRelayConfig()
-    // A connection's `replaced` flag follows the slot, and no connection event reports a slot change.
-    scheduleStatusEmit()
     // The mode as stored, not as sent: an unknown word is stored as 'off', and the verdict has to
     // describe the mode the swarm is now running.
-    const mismatch = relayMismatch(getRelayConfig().mode, snapshotRelayedConnections())
-    if (!mismatch || msg.deferApply) return { ok: true, ...applied, mismatch, reconnected: false }
+    const after = getRelayConfig()
+    // A connection's `replaced` flag follows the slot, and no connection event reports a slot change.
+    scheduleStatusEmit()
+    const mismatch = relayMismatch(after.mode, snapshotRelayedConnections())
+    if (!mismatch || identityPending) return { ok: true, ...applied, mismatch, reconnected: false }
     if (await transfersMoving()) return { ok: true, ...applied, mismatch, reconnected: false }
     const res = await reconnectAll()
     return { ok: true, ...applied, mismatch, reconnected: res.ok === true }

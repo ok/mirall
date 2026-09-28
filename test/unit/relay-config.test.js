@@ -1,7 +1,7 @@
 import test from 'brittle'
 import b4a from 'b4a'
 import idEncoding from 'hypercore-id-encoding'
-import { decodeRelayKey, enabledRelayKeys, relayFunctionFor, relayIdentityKeyPair } from '../../src/shared/network/relay.js'
+import { decodeRelayKey, enabledRelayKeys, installableRelay, relayFunctionFor, relayIdentityKeyPair } from '../../src/shared/network/relay.js'
 import { isValidRelayKey, normalizeRelayMode, sanitizeRelay, MAX_LABEL_LENGTH } from '../../src/main/relay-keys.js'
 
 const KEY_A = idEncoding.encode(b4a.alloc(32, 1))
@@ -164,4 +164,13 @@ test('sanitizeRelay drops an undecodable slot rather than storing it', (t) => {
 test('a malformed lastTest is dropped rather than trusted', (t) => {
   t.is(sanitizeRelay({ publicKey: KEY_A, lastTest: { at: 'soon', ok: true } }).lastTest, null)
   t.alike(sanitizeRelay({ publicKey: KEY_A, lastTest: { at: 5, ok: false } }).lastTest, { at: 5, ok: false })
+})
+
+test('a private relay is not installed while its identity waits on a restart', (t) => {
+  const privateSlot = { publicKey: KEY_A, kind: 'private', enabled: true }
+  const openSlot = { publicKey: KEY_A, kind: 'open', enabled: true }
+  t.is(installableRelay(privateSlot, true), null)
+  t.is(installableRelay(privateSlot, false), privateSlot, 'installed once the identity is live')
+  t.is(installableRelay(openSlot, true), openSlot, 'an open relay needs no identity')
+  t.is(installableRelay(null, true), null)
 })

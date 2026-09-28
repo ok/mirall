@@ -163,6 +163,23 @@ test('both relay-mode paths coerce identically', (t) => {
   }
 })
 
+// The pending flag belongs to the save that set it: the next save without it clears it, and a boot
+// frame never carries one, because a worker booted from the stored identity has nothing pending.
+test('a pinned identity waiting on a restart is held beside the saved slot', (t) => {
+  const saved = getRuntimeConfig()
+  t.teardown(() => setRuntimeConfig(saved))
+  const slot = { publicKey: 'k', kind: 'private', enabled: true }
+
+  setRelayConfig('auto', slot, { identityPending: true })
+  t.alike(getRelayConfig(), { mode: 'auto', relay: slot, identityPending: true })
+  setRelayConfig('always', slot)
+  t.is(getRelayConfig().identityPending, false, 'a later save without it clears it')
+
+  setRelayConfig('auto', slot, { identityPending: true })
+  setRuntimeConfig({ ...saved, relayMode: 'auto', relay: slot })
+  t.is(getRelayConfig().identityPending, false, 'a boot frame starts with nothing pending')
+})
+
 // The keys that carry a validation rule. A key absent from this map is read RAW — including every
 // connection, membership and sweep cap and the burst and threshold of every rate-limited lane. Adding
 // a row changes a DoS bound or a user-facing cap: do it deliberately, with the behaviour test that

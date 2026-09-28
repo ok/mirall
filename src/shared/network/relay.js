@@ -12,6 +12,13 @@ export function enabledRelayKeys(relay) {
   return key ? [key] : []
 }
 
+// A private relay is installed only with the member identity it was minted for. While a new pinned
+// identity waits on a restart the node still presents the old one, so every dial through the new
+// relay would be refused instead of falling back to a direct connection.
+export function installableRelay(relay, identityPending) {
+  return identityPending && relay?.kind === 'private' ? null : relay
+}
+
 // The key the relay matches in its firewall, and the only thing derived from a ticket seed.
 // No seed means today's behaviour — a fresh random key per boot, which is the correct
 // identity for an open relay: one that admits everyone has no business holding a durable

@@ -26,14 +26,6 @@ import { useRelayApply, type RelayApplyResult } from '../../hooks/useRelayApply.
 import { useRunAction } from '../../hooks/useRunAction.js'
 import { peersRelayingWhileOff, relayKindClasses } from '../../model/relay-groups.js'
 
-// A private relay whose seed the running worker has not booted with must not be installed: the
-// node still presents its old key, so every dial through it is refused instead of falling back
-// to a direct connection. The rest of the config always goes through — a removal or a mode
-// change has to reach the worker whether or not an identity is waiting on a restart.
-function usableRelay(relay: RelaySlot | null, pendingIdentity: boolean): RelaySlot | null {
-  return pendingIdentity && relay?.kind === 'private' ? null : relay
-}
-
 function statusOf(relay: RelaySlot, testing: boolean, active: boolean) {
   if (!active || !relay.enabled) return { key: 'disabled', classes: 'bg-surface-container-high text-on-surface-variant' }
   if (testing) return { key: 'testing', classes: 'bg-surface-container-high text-on-surface-variant' }
@@ -81,14 +73,17 @@ export default function RelaySettingsSection() {
   // still presenting its old identity.
   const commit = useCallback(async (payload: Parameters<typeof setRelay>[0]) => {
     const result = await setRelay(payload)
-    if (!alive.current || !result.ok) return result
-    adopt({ relayMode: result.network.relayMode, relay: result.network.relay })
+    if (!result.ok) return result
+    // The worker hears of a saved change even when the section is gone: it installs the relay and
+    // records the change from what it is told, and main's save has already happened.
+    if (alive.current) adopt({ relayMode: result.network.relayMode, relay: result.network.relay })
     if (result.identityChanged) setReconnectPending(true)
+    // The saved slot always goes through, so the worker knows what was saved. While a pinned
+    // identity waits on the restart the worker installs no private relay, and a reconnect cannot
+    // apply one: it would be churn on connections the user is about to lose to the restart anyway.
     const applied = await request('network:set-relay', {
       mode: result.network.relayMode,
-      relay: usableRelay(result.network.relay, isReconnectPending()),
-      // A reconnect cannot apply a pinned identity, so it would be churn on connections the user is
-      // about to lose to the restart anyway.
+      relay: result.network.relay,
       deferApply: isReconnectPending(),
     }) as RelayApplyResult | null
     // What the worker DID, not what it found: a change it applied itself needs no notice.
