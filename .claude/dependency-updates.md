@@ -49,6 +49,13 @@ tree current. Read this before reviewing a Renovate PR or running a manual sweep
   range, plus an `overrides` entry to bind transitives. Keep the two identical: npm fails the
   install with `EOVERRIDE` if an override disagrees with a direct dependency, which is the tripwire
   that stops a future range loosening from silently regressing.
+- **Releases ship the lock, not the ranges.** `build-electron.yml` installs with `npm ci` and fails
+  on any `package-lock.json` change, so a tag builds exactly the tree its commit's CI tested. A caret
+  range in `package.json` therefore moves nothing by itself: Electron, the production Bare and every
+  transitive advance only when a PR changes the lock — a Renovate group PR (`electron`,
+  `holepunch`, `pear-runtime`) or the lock-maintenance PR — reviewed and green. A lock missing some
+  platform's optional binding fails that runner's `npm run build`; the invariant
+  `test/invariants/release-lockfile-install.test.js` catches it in the PR that drops it.
 - **`prConcurrentLimit: 10`** — Renovate's own default. With majors on the dashboard the limit
   rarely binds; it can go to `0` (unlimited) if it ever does.
 - **Schedule** — Mondays before 8am Europe/Berlin (00:00 → 06:00 UTC during CEST / → 07:00 UTC
@@ -168,8 +175,9 @@ Before merging:
 
 **The Bare that ships in production rides on `bare-sidecar`'s baked-in prebuild.** Any lockfile
 re-resolution — `npm update`, a Renovate lock-maintenance PR, a full lock regen — can therefore bump
-the production Bare with no visible change to `bare` in `package.json`. Review the `bare-sidecar`
-diff on every lockfile-only PR, and smoke-test the worker whenever it moves.
+the production Bare with no visible change to `bare` in `package.json`. The release build installs
+the committed lock, so that bump happens in the PR that changes the lock and nowhere else: review
+the `bare-sidecar` diff on every lockfile-only PR, and smoke-test the worker whenever it moves.
 
 ## hyperdrive — a dev dependency, pinned
 

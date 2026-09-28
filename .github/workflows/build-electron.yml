@@ -177,9 +177,11 @@ jobs:
 
       - name: Install dependencies
         shell: bash
-        run: |
-          rm -f package-lock.json
-          npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
+
+      - name: Verify package-lock.json is unchanged
+        shell: bash
+        run: git diff --exit-code -- package-lock.json
 
       - name: Build TS + CSS
         run: npm run build

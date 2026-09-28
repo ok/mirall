@@ -579,6 +579,11 @@ real bug. Check key granularity before proposing "encrypt the bee".
 
 ## Release & build
 
+**Never delete the lockfile to make a cross-platform CI build pass.** A lock regenerated over an
+existing `node_modules` can record only the host's optional native bindings; `npm ci` then fails on
+the other runners with "Cannot find native binding" (Tailwind oxide, lightningcss). Deleting the lock
+"fixes" it by shipping an untested tree; regenerate the lock on npm 11 from a clean tree instead.
+
 **Prerelease channels use single-drive `pear stage` + `pear release`.** Their `upgrade-keys.json`
 entry is a string, and versions must increase monotonically (`-beta.<run>`). Only prod uses
 `{stage, provision}`. `pear touch` the seed drive on the seed VM first, or staging fails

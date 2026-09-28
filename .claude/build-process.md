@@ -120,8 +120,9 @@ be built for any channel.
 | `ubuntu-latest` / `ubuntu-24.04-arm` | `linux-x64` / `linux-arm64` | `Mirall.deb` + `Mirall.AppImage` — unsigned by convention |
 | `windows-latest` | `win32-x64` | `Mirall.msix` — unsigned |
 
-Each job: patch `package.json#version` → `npm install` → `npm run build` (esbuild bundles the
-renderer, Tailwind compiles CSS, `tsc --noEmit` typechecks) → `npm run make:<platform>`:
+Each job: patch `package.json#version` → `npm ci` → fail if `package-lock.json` changed →
+`npm run build` (esbuild bundles the renderer, Tailwind compiles CSS, `tsc --noEmit` typechecks) →
+`npm run make:<platform>`:
 
 - **macOS** — `electron-forge make`; `osxSign` + `osxNotarize` run during packaging (wired via env
   in `forge.config.js`) using an Apple Developer ID cert stored in repo secrets.
@@ -140,6 +141,16 @@ renderer, Tailwind compiles CSS, `tsc --noEmit` typechecks) → `npm run make:<p
 - **Windows** — `electron-forge make` with `@electron-forge/maker-msix`. The `preMake` hook in
   `forge.config.js` rewrites the 4-part `Version` in `resources/win32/AppxManifest.xml`. CI produces
   the MSIX **unsigned**; it is signed out-of-band by a maintainer (the signing process is internal).
+
+**The shipped tree is the tested tree.** The build installs the committed `package-lock.json` with
+`npm ci`, the same install `test.yml` runs, and a `git diff --exit-code` step fails the job if the
+lock changed. A dependency reaches a release only through a PR that changed the lock and passed CI.
+The one lock serves all five matrix rows: npm 11 records every platform's optional native binding
+(esbuild, Tailwind oxide, lightningcss, oxc, `@parcel/watcher`, `bare-runtime`) with its
+`os`/`cpu`/`libc`, and installs the host's. If a runner ever fails on a missing binding, the lock is
+broken — regenerate it on npm 11 from a clean tree; never delete it in CI.
+`test/invariants/release-lockfile-install.test.js` pins the install step, the drift check and the
+lock's completeness.
 
 Installers are uploaded to object storage, from which the website's download page serves first
 installs.
