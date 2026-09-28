@@ -10,6 +10,7 @@ import { hasMasterSecret, deriveSpaceContentKey } from '../core/store.js'
 import { putContentKey } from './space-keys.js'
 import { markApproval, clearRequest, getLocalPublicKeyHex } from './profile.js'
 import { clearJoinRequest } from './join-requests.js'
+import { UNKNOWN_DISPLAY_NAME } from '../contract/limits.js'
 import {
   getSpace,
   putSpaceRecord,
@@ -53,7 +54,7 @@ export async function createSpace(name, icon = 'folder') {
   return { spaceId, ...space }
 }
 
-export async function joinSpace(topicHex, name = 'Unnamed Space', icon = 'folder', { inviteId, creator } = {}) {
+export async function joinSpace(topicHex, name = 'Unnamed Space', icon = 'folder', { inviteId, creator, owner, ownerName } = {}) {
   const spaceId = topicHex.slice(0, 16)
 
   const existing = await getSpace(spaceId)
@@ -76,13 +77,18 @@ export async function joinSpace(topicHex, name = 'Unnamed Space', icon = 'folder
 
   if (!hasMasterSecret()) throw new Error('joinSpace: an identity is required to join a space')
 
+  // The inviter the invite names (envelope `owner`) is shown while we wait so the space is not
+  // empty. The name is the invite's unauthenticated claim, so the entry is seeded unverified and the
+  // key is kept as `inviteOwner` only so the grant check can recognise them as a granter. Only a
+  // record minted here is seeded: re-pasting a link into a space we hold adds no one.
+  const inviter = owner && owner !== getLocalPublicKeyHex() ? owner : null
   // Pending until the grant: nothing is announced before the space content key arrives.
   const space = {
     name,
     icon,
     topic: topicHex,
     created: new Date().toISOString(),
-    members: [],
+    members: inviter ? [{ publicKey: inviter, displayName: ownerName || UNKNOWN_DISPLAY_NAME, avatar: null, unverified: true }] : [],
     driveSuffix: makeDriveSuffix(),
     schemaVersion: 2,
     epoch: 0,
@@ -94,6 +100,7 @@ export async function joinSpace(topicHex, name = 'Unnamed Space', icon = 'folder
     // ever folds a member set. Distinct from the pre-seeded inviter (`owner`): the fold
     // must seed from the creator, not whichever member's invite we joined through.
     ...(creator ? { creatorKey: creator, creatorUnverified: true } : {}),
+    ...(inviter ? { inviteOwner: inviter } : {}),
   }
   await putSpaceRecord(spaceId, space)
   return { spaceId, ...space, pending: true }
@@ -113,7 +120,7 @@ export async function materializeSpace(spaceId, sck, { epoch = 0 } = {}) {
 
 export async function recordApproval(spaceId, joinerKey) {
   await markApproval(spaceId, joinerKey)
-  await upsertMember(spaceId, { publicKey: joinerKey, status: 'approved' })
+  await upsertMember(spaceId, { publicKey: joinerKey, status: 'approved' }, { verified: true })
   await clearRequest(spaceId, joinerKey)
   clearJoinRequest(spaceId, joinerKey)
 }

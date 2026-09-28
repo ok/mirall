@@ -11,6 +11,7 @@ const { usableBounds } = require('./window-bounds.js')
 const { matchWindowShortcut } = require('./window-shortcuts.js')
 const { logRing } = require('./log-ring.js')
 const { isDebug } = require('./debug-gate.js')
+const { envOverride } = require('./env-overrides.js')
 const { getPrefs, setPrefs } = require('./prefs.js')
 const { isQuitting } = require('./quit-state.js')
 const { sendToAll, MAIN_LOG_PREFIX } = require('./logging.js')
@@ -188,9 +189,10 @@ async function createWindow() {
     winOpts.width = placeable.width
     winOpts.height = placeable.height
   }
-  if (process.env.MIRALL_WINDOW_BOUNDS) {
+  const bounds = envOverride('MIRALL_WINDOW_BOUNDS')
+  if (bounds) {
     try {
-      const b = JSON.parse(process.env.MIRALL_WINDOW_BOUNDS)
+      const b = JSON.parse(bounds)
       if (Number.isFinite(b.x)) winOpts.x = b.x
       if (Number.isFinite(b.y)) winOpts.y = b.y
       if (Number.isFinite(b.width)) winOpts.width = b.width
@@ -303,14 +305,14 @@ async function createWindow() {
     })
   }
 
-  const devUrl = process.env.PEAR_DEV_SERVER_URL
+  const devUrl = envOverride('PEAR_DEV_SERVER_URL')
   if (devUrl) {
     await win.loadURL(devUrl)
     win.webContents.openDevTools({ mode: 'detach' })
     return
   }
   await win.loadURL('app://-/index.html')
-  if (isDebug() && process.env.MIRALL_NO_DEVTOOLS !== '1') win.webContents.openDevTools({ mode: 'detach' })
+  if (isDebug() && envOverride('MIRALL_NO_DEVTOOLS') !== '1') win.webContents.openDevTools({ mode: 'detach' })
 }
 
 // Renderer pushes its theme choice so the BrowserWindow's native background tracks it across

@@ -32,16 +32,16 @@ import { faultAwaitsOwner, faultCleared } from './download-faults.js'
 
 const log = createLogger('overlay-download')
 
-// The engine's default fetch: pull by content hash to finalPath, no second copy, integrity-verified
-// during the transfer. A local hit returns the source path → copy it to finalPath so the download
-// is real. Returns { ok:true } | { ok:false, code, cause? } (EHASHMISMATCH or an error message,
-// cause = the underlying Error for classification) | { ok:false } (no holder).
-export async function fetchContentToFile(contentHash, { finalPath, onProgress, onVerify, onEnd }) {
+// The engine's default fetch: pull by content hash from the file's owner to finalPath, no second
+// copy, integrity-verified during the transfer. A local hit returns the source path → copy it to
+// finalPath so the download is real. Returns { ok:true } | { ok:false, code, cause? } (EHASHMISMATCH
+// or an error message, cause = the underlying Error for classification) | { ok:false } (no holder).
+export async function fetchContentToFile(contentHash, { finalPath, ownerKey, size, onProgress, onVerify, onEnd }) {
   const overlay = getOverlay()
   if (!overlay) return { ok: false }
   let res
   try {
-    res = await overlay.fetchFile(contentHash, { destPath: finalPath, onProgress, onVerify, onEnd, reSeed: false })
+    res = await overlay.fetchFile(contentHash, { destPath: finalPath, ownerKey, size, onProgress, onVerify, onEnd, reSeed: false })
   } catch (err) {
     if (err?.code === 'EHASHMISMATCH') return { ok: false, code: 'EHASHMISMATCH' }
     if (err?.code === 'ECANCELLED') return { ok: false, code: 'ECANCELLED' }

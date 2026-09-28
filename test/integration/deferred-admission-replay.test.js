@@ -60,7 +60,7 @@ function wire(t, { isApprovedByPeers = async () => true, onPrompt = null } = {})
       isApprovedByPeers: (space, joinerKey) => { calls.gate++; return isApprovedByPeers(space, joinerKey) },
     }),
     log: quiet,
-    handleHandshake: async (_socket, _peerInfo, msg) => { calls.handshakes.push(msg) },
+    handleHandshake: async (_socket, msg, spaceId) => { calls.handshakes.push({ ...msg, spaceId }) },
     sendSingleHandshake: (...args) => { calls.prompts++; return onPrompt ? onPrompt(...args) : Promise.resolve() },
     getIpc: () => null,
   })
@@ -103,7 +103,8 @@ test('a readmitted member is replayed under the name its bounced handshake carri
   t.is(calls.handshakes[0].displayName, 'Bob', 'the replay carries the recorded name, not a constant Unknown')
   t.is(calls.handshakes[0].driveKey, driveKey, 'and the driveKey captured alongside it')
   t.is(calls.handshakes[0].profileKey, joiner)
-  t.is(calls.handshakes[0].spaceTopic, space.topic)
+  t.is(calls.handshakes[0].spaceId, space.spaceId, 'the replay names the space itself')
+  t.absent(calls.handshakes[0].spaceTopic, 'and carries no topic')
   t.is(calls.prompts, 0, 'no fallback prompt when we already hold the drive')
   t.is(calls.gate, 0, 'the fold is trusted — no approval re-check, which is how the creator gets in')
 })

@@ -9,13 +9,14 @@ import { mkTmpDir } from '../helpers/fixtures.js'
 import { scaled } from '../helpers/timing.js'
 import { encodeInvite, HEX64 } from '../../src/shared/contract/invite-envelope.js'
 import { sealSck } from '../../src/shared/spaces/sck-seal.js'
+import { deriveTopicRef } from '../../src/shared/network/handshake-guard.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const hex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
-// Identity mode with binding enforcement at its shipped default (off), which is what lets a raw
-// peer stand in for a granter.
-const v2flags = () => ({ identityKEK: kekHex() })
+// Identity mode with binding enforcement forced off, which is what lets a raw peer stand in for a
+// granter. The subject here is epoch parsing, not the binding.
+const v2flags = () => ({ identityKEK: kekHex(), handshakeIdentityBindingEnabled: false })
 
 const spaceOf = async (peer, spaceId) => (await peer.request('spaces:list')).find((s) => s.spaceId === spaceId)
 
@@ -46,17 +47,17 @@ test('a grant with a malformed epoch is refused; one with no epoch field (an old
 
   const granter = await rawPeer(t, { bootstrap, topicHex: topic })
   await withDeadline(granter.waitConnected(), scaled(30000), 'raw granter connection')
-  const request = await granter.waitFrame((m) => m.type === 'membership:request' && m.spaceTopic === topic, scaled(20000))
+  const request = await granter.waitFrame((m) => m.type === 'membership:request' && m.topicRef === deriveTopicRef(topic, granter.remotePublicKey()), scaled(20000))
   t.ok(HEX64.test(request.signerKey), 'the join request carries the signer key a grant is sealed to')
   const seal = () => b4a.toString(sealSck(crypto.randomBytes(32), b4a.from(request.signerKey, 'hex')), 'hex')
 
-  granter.send({ type: 'membership:grant', spaceTopic: topic, sckSealed: seal(), creator, granterKey: hex(), epoch: '1' })
+  granter.send({ type: 'membership:grant', spaceTopic: topic, sckSealed: seal(), creator, granterKey: creator, epoch: '1' })
   await new Promise((r) => setTimeout(r, scaled(4000)))
   t.is((await spaceOf(B, spaceId)).status, 'pending', 'B did not materialize from the malformed grant')
   t.ok(B.readStderr().includes('malformed epoch'), 'B logged the refusal')
 
   const granted = B.waitFor('event:membership-granted', (m) => m.spaceId === spaceId, 20000)
-  granter.send({ type: 'membership:grant', spaceTopic: topic, sckSealed: seal(), creator, granterKey: hex() })
+  granter.send({ type: 'membership:grant', spaceTopic: topic, sckSealed: seal(), creator, granterKey: creator })
   await granted
 
   const space = await spaceOf(B, spaceId)

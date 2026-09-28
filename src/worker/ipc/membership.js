@@ -22,9 +22,11 @@ import { sanitizeAvatar } from '../../shared/contract/identity-limits.js'
 import { reconcileAssertedRoot } from '../../shared/spaces/creator-root.js'
 import { classifyInvite } from '../../shared/spaces/invites.js'
 import { applyLocalApproval, applyLocalDenial, closeMemberView, dropTombstone, isApprovedJoiner, isDeniedJoiner, isLeft, openMemberView } from '../../shared/spaces/member-registry.js'
-import { ASK_PEERS, denyVerdict, knockSettledByRecords, knockInviteVerdict } from '../../shared/spaces/knock-policy.js'
+import { ASK_PEERS, denyVerdict, granterVerdict, knockSettledByRecords, knockInviteVerdict } from '../../shared/spaces/knock-policy.js'
+import { foldHoldsMember } from '../../shared/spaces/member-view.js'
 import { captureJoinerMembership, getIdentitySigner, markRequest, markRequestDenied, ownDenialStands, readProfileRecord } from '../../shared/spaces/profile.js'
 import { getSpace, getSpaceContentKey, spaceEpoch } from '../../shared/spaces/space.js'
+import { verifiedMembers, isVerifiedMember } from '../../shared/spaces/member-standing.js'
 import { claimJoinRequestAudit, clearJoinRequest, forgetJoinRequestAudit, hasApprovedVerdict, listJoinRequests, listPendingRequests, recordJoinRequest, releaseJoinRequestAudit, rememberApprovedVerdict } from '../../shared/spaces/join-requests.js'
 import { clearCreatorDivergence, markCreatorDivergence, pinCreatorKey } from '../../shared/spaces/creator-pin.js'
 import { materializeSpace, recordApproval } from '../../shared/spaces/space-lifecycle.js'
@@ -40,6 +42,7 @@ import { markSpaceLeaving, unmarkSpaceLeaving } from '../../shared/network/leave
 import { readmitConnectedMembers } from '../../shared/network/deferred-admission.js'
 import { getBoundSignerKey, getConnectedMemberMeta } from '../../shared/network/swarm-registries.js'
 import { broadcastMembershipCancel, sendMembershipDeny, sendMembershipGrant } from '../../shared/network/membership-frames.js'
+import { topicField } from '../../shared/network/topic-refs.js'
 import { peerActorIn, spaceRefOf } from '../audit-refs.js'
 import b4a from 'b4a'
 /** @import { WorkerIpc } from '../../shared/core/ipc.js' */
@@ -51,7 +54,7 @@ import b4a from 'b4a'
 // A frame is the sender's claim: the intake proves only that it is an object with a string type,
 // so every other field is narrowed where it is read.
 /** @typedef {{ type: string, [field: string]: JsonValue }} PeerFrame */
-/** @typedef {{ socket: object, peerInfo: object, reply: (payload: object) => void }} PeerFrameContext */
+/** @typedef {{ socket: object, peerInfo: object, reply: (payload: object) => void, spaceId: string | null }} PeerFrameContext */
 
 /** @type {WorkerIpc} */
 let ipc
@@ -102,9 +105,9 @@ const memberRegistry = {
 
 /** @type {Readonly<Record<string, (msg: PeerFrame, ctx: Partial<PeerFrameContext>) => Promise<void>>>} */
 const MEMBERSHIP_HANDLERS = Object.freeze({
-  [PEER_FRAME.MEMBERSHIP_REQUEST]: (msg) => onJoinRequest(msg),
+  [PEER_FRAME.MEMBERSHIP_REQUEST]: (msg, ctx) => onJoinRequest(msg, ctx),
   [PEER_FRAME.MEMBERSHIP_GRANT]: (msg, ctx) => onGrant(msg, ctx),
-  [PEER_FRAME.MEMBERSHIP_DENY]: (msg) => onDeny(msg),
+  [PEER_FRAME.MEMBERSHIP_DENY]: (_msg, ctx) => onDeny(ctx),
   [PEER_FRAME.MEMBERSHIP_CANCEL]: (msg, ctx) => onCancel(msg, ctx),
 })
 
@@ -117,15 +120,13 @@ async function handleMembershipControl(msg, ctx) {
   }
 }
 
-/** @param {PeerFrame} msg */
-const frameSpaceId = (msg) => (typeof msg.spaceTopic === 'string' ? msg.spaceTopic.slice(0, 16) : '')
-
-/** @param {PeerFrame} msg */
-async function onJoinRequest(msg) {
+/** @param {PeerFrame} msg @param {Partial<PeerFrameContext>} [ctx] */
+async function onJoinRequest(msg, ctx = {}) {
   const { profileKey } = msg
   if (typeof profileKey !== 'string') return
-  const spaceId = frameSpaceId(msg)
-  const space = spaceId ? await getSpace(spaceId) : null
+  const { spaceId } = ctx
+  if (!spaceId) return
+  const space = await getSpace(spaceId)
   if (!space) return
   // Capture the leave-tombstone (the kept "this peer left" marker) BEFORE clearing it: a peer
   // mid-leave can still be transiently in space.members (handleLeaveFrame's removeMember hasn't
@@ -135,7 +136,7 @@ async function onJoinRequest(msg) {
   const hadLeft = isLeft(spaceId, profileKey)
   const settled = knockSettledByRecords({
     selfPending: space.status === 'pending',
-    isMember: (space.members || []).some((m) => m.publicKey === profileKey),
+    isMember: isVerifiedMember(space.members, profileKey),
     hadLeft,
     isApproved: isApprovedJoiner(spaceId, profileKey),
   })
@@ -150,7 +151,7 @@ async function onJoinRequest(msg) {
     // joiner's FIRST SCK delivery under the disputed trust anchor.
     if (space.creatorDivergence) { log.warn('re-grant blocked — creator root divergence unresolved:', spaceId); return }
     const sck = getSpaceContentKey(spaceId, space)
-    if (sck) sendMembershipGrant(profileKey, space.topic, b4a.toString(sck, 'hex'), space.creatorKey, boundSignerPk(profileKey), { epoch: spaceEpoch(space) })
+    if (sck) sendMembershipGrant(profileKey, spaceId, b4a.toString(sck, 'hex'), space.creatorKey, boundSignerPk(profileKey), { epoch: spaceEpoch(space) })
   }
   if (settled === 'regrant') return grant()
 
@@ -169,7 +170,7 @@ async function onJoinRequest(msg) {
     isDenied: isDeniedJoiner(spaceId, profileKey) || await ownDenialStands(spaceId, profileKey),
   })
   if (verdict === 'deny-expired' || verdict === 'deny-replay') {
-    if (space.topic) sendMembershipDeny(profileKey, space.topic)
+    sendMembershipDeny(profileKey, spaceId)
     return
   }
   if (verdict === 'auto-approve') {
@@ -258,8 +259,9 @@ async function reconcileGrantCreator(spaceId, space, asserted) {
 
 /** @param {PeerFrame} msg @param {Partial<PeerFrameContext>} [ctx] */
 async function onGrant(msg, ctx = {}) {
-  const spaceId = frameSpaceId(msg)
-  const space = spaceId ? await getSpace(spaceId) : null
+  const { spaceId } = ctx
+  if (!spaceId) return
+  const space = await getSpace(spaceId)
   if (!space || space.status !== 'pending') return
 
   // Authenticate the member-set root assertion before trusting it. The granter is, by the read
@@ -277,6 +279,11 @@ async function onGrant(msg, ctx = {}) {
   const epoch = frameEpoch(msg.epoch)
   if (epoch === null) {
     log.warn('rejected membership:grant — malformed epoch')
+    return
+  }
+  // Checked before the root reconcile, so a refused granter neither adopts nor refuses a root.
+  if (!(await granterRecognized(spaceId, space, verdict.granterKey))) {
+    log.warn('rejected membership:grant — granter is not the inviter, the creator or a member:', verdict.granterKey?.slice(0, 12))
     return
   }
   // While binding enforcement is off the assertion is unverified, so we leave the provisional
@@ -303,12 +310,19 @@ async function onGrant(msg, ctx = {}) {
   // carries `granterKey` and no profileKey at all.
   //
   // How strong that attribution is depends on the same flag `asserted` above is gated on:
-  // checkGrantAssertion verifies granterKey against the socket's identity binding only when
-  // enforcement is ON, and returns it unverified when OFF (the shipped default). It is recorded
-  // either way — the alternative is the '?' row for every user until the flag flips — but the
-  // kind's tier B therefore describes the enforced case, not today's default.
+  // checkGrantAssertion verifies granterKey against the socket's identity binding when enforcement
+  // is on (the default), and returns it unverified when it is switched off. It is recorded either
+  // way, so the kind's tier B describes the enforced case.
   await recordGrantReceived(spaceId, verdict.granterKey)
   ipc.emit('event:membership-granted', { spaceId })
+}
+
+/** @param {string} spaceId @param {StoredSpace} space @param {string | null} granterKey */
+async function granterRecognized(spaceId, space, granterKey) {
+  const creatorKey = space.creatorKey ?? null
+  const verdict = granterVerdict({ granterKey, inviteOwner: space.inviteOwner ?? null, creatorKey })
+  if (verdict !== 'check-fold' || !granterKey || !creatorKey) return verdict === 'accept'
+  return foldHoldsMember({ spaceId, creatorKey, key: granterKey })
 }
 
 // A pending joiner withdrew their request (an ephemeral Tier-3 lifecycle signal) — drop our banner. Only the
@@ -316,7 +330,7 @@ async function onGrant(msg, ctx = {}) {
 // socket; don't pollute uninvolved members' bees) so the withdrawal converges + survives restart.
 /** @param {PeerFrame} msg @param {Partial<PeerFrameContext>} [ctx] */
 async function onCancel(msg, ctx = {}) {
-  const spaceId = frameSpaceId(msg)
+  const { spaceId, socket } = ctx
   if (!spaceId || typeof msg.joinerKey !== 'string') return
   const showing = listJoinRequests(spaceId).some((r) => r.publicKey === msg.joinerKey)
   const had = clearJoinRequest(spaceId, msg.joinerKey)
@@ -326,13 +340,13 @@ async function onCancel(msg, ctx = {}) {
   // replay so a single lost ack can't leave the joiner replaying forever. isDeniedJoiner reflects
   // the tombstone that replicates the withdrawal to co-members.
   const applied = showing || isDeniedJoiner(spaceId, msg.joinerKey)
-  ctx.reply?.({ type: PEER_FRAME.MEMBERSHIP_CANCEL_ACK, spaceTopic: msg.spaceTopic, joinerKey: msg.joinerKey, applied })
+  if (socket) ctx.reply?.({ type: PEER_FRAME.MEMBERSHIP_CANCEL_ACK, ...topicField(socket, spaceId), joinerKey: msg.joinerKey, applied })
   if (had || showing) ipc.emit('event:join-requests-updated', { spaceId })
 }
 
-/** @param {PeerFrame} msg */
-async function onDeny(msg) {
-  const spaceId = frameSpaceId(msg)
+/** @param {Partial<PeerFrameContext>} ctx */
+async function onDeny(ctx) {
+  const { spaceId } = ctx
   if (!spaceId) return
   // The request was rejected — the joiner never became a member, so drop the
   // pending space entirely instead of leaving it stranded in their list.
@@ -396,7 +410,7 @@ async function resolveJoinRequest(space, joinerKey, outcome) {
       // (the joiner must be connected to be granted). Surface a failure loudly rather than leaving
       // the joiner silently stuck on "waiting for approval".
       const signerPk = boundSignerPk(joinerKey)
-      delivered = sendMembershipGrant(joinerKey, space.topic, b4a.toString(sck, 'hex'), space.creatorKey, signerPk, { epoch: spaceEpoch(space) })
+      delivered = sendMembershipGrant(joinerKey, spaceId, b4a.toString(sck, 'hex'), space.creatorKey, signerPk, { epoch: spaceEpoch(space) })
       if (!delivered) log.warn('approval grant not delivered —', joinerKey.slice(0, 8), '— signer key', signerPk ? 'present' : 'missing')
     }
     // THEN durably capture the joiner's OWN profile core while it is still connected (it stays
@@ -414,8 +428,8 @@ async function resolveJoinRequest(space, joinerKey, outcome) {
   const deniedTs = await markRequestDenied(spaceId, joinerKey)   // durable, replicated dismissal (+ drops our receipt)
   applyLocalDenial(spaceId, joinerKey, deniedTs)
   if (space.topic) {
-    sendMembershipDeny(joinerKey, space.topic)
-    broadcastMembershipCancel(spaceId, space.topic, joinerKey)   // co-members drop the banner
+    sendMembershipDeny(joinerKey, spaceId)
+    broadcastMembershipCancel(spaceId, joinerKey)   // co-members drop the banner
   }
   ipc.emit('event:join-requests-updated', { spaceId })
 }
@@ -424,7 +438,7 @@ async function resolveJoinRequest(space, joinerKey, outcome) {
 function denyFacts(space, joinerKey) {
   const spaceId = space.spaceId
   return {
-    isMember: (space.members || []).some((m) => m.publicKey === joinerKey),
+    isMember: isVerifiedMember(space.members, joinerKey),
     hadLeft: isLeft(spaceId, joinerKey),
     isApproved: isApprovedJoiner(spaceId, joinerKey),
     recentlyApproved: hasApprovedVerdict(spaceId, joinerKey),
@@ -540,7 +554,7 @@ export function createMembership(ipcRef, deps) {
   })
   ipc.handle('space:pending-requests', async (msg) => {
     const space = await getSpace(msg.spaceId)
-    const memberKeys = new Set((space?.members || []).map(m => m.publicKey))
+    const memberKeys = new Set(verifiedMembers(space?.members).map(m => m.publicKey))
     return listPendingRequests(msg.spaceId, memberKeys)
   })
 

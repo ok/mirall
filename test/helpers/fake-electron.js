@@ -14,6 +14,7 @@ const require = createRequire(import.meta.url)
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
 
 export function makeFakeElectron(overrides = {}) {
+  const { app: appOverrides, ...rest } = overrides
   const handlers = new Map()
   const sent = []
   const ipcMain = {
@@ -35,12 +36,12 @@ export function makeFakeElectron(overrides = {}) {
       getPath: (name) => path.join(root, '.test-paths', name),
       getAppPath: () => root,
       quit: () => {},
-      ...overrides.app,
+      ...appOverrides,
     },
     dialog: { showErrorBox: () => {}, showOpenDialog: async () => ({ canceled: true, filePaths: [] }) },
     BrowserWindow: { getAllWindows: () => [] },
     nativeTheme: new EventEmitter(),
-    ...overrides,
+    ...rest,
   }
 }
 

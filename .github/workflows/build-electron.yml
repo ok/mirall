@@ -177,9 +177,11 @@ jobs:
 
       - name: Install dependencies
         shell: bash
-        run: |
-          rm -f package-lock.json
-          npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
+
+      - name: Verify package-lock.json is unchanged
+        shell: bash
+        run: git diff --exit-code -- package-lock.json
 
       - name: Build TS + CSS
         run: npm run build
@@ -226,6 +228,16 @@ jobs:
         if: matrix.platform == 'win32'
         shell: bash
         run: npm run make:win32
+
+      - name: Check Electron fuses
+        shell: bash
+        run: |
+          case "${{ matrix.platform }}" in
+            darwin) APP="out/Mirall-darwin-${{ matrix.arch }}/Mirall.app" ;;
+            linux)  APP="out/Mirall-linux-${{ matrix.arch }}/Mirall" ;;
+            win32)  APP="out/Mirall-win32-${{ matrix.arch }}/Mirall.exe" ;;
+          esac
+          node scripts/ci/check-fuses.mjs "$APP"
 
       - name: Locate artifact (macOS)
         if: matrix.platform == 'darwin'

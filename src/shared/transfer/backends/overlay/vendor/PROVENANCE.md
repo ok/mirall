@@ -643,6 +643,32 @@ re-diffable against upstream. Categories:
     alias to a deleted core and throws `STORAGE_EMPTY`. Upstream's `FileIndex.compact` is
     unchanged. Covered by `test/integration/storage-info-and-compaction.test.js`.
 
+26. **§4.24 — download-side holder gate + chunk-map acceptance (`overlay-v2.js` + `protocol-v2.js` +
+    `chunk-scheduler.js`, security).** The serve side has been gated since §4.1/§S1; the receive side
+    trusted any attached peer. Every socket that reaches the overlay channel is a peer before its
+    identity is known, so a multi-source fetch sent its `contentRequest` (and with it the hash) to
+    every one of them, and the first `chunkHashes` reply from anyone became the file's geometry:
+    `startReceive` truncated the partial to the sum of its lengths. Four changes:
+    - `HyperOverlayV2` gains a `holderAuthorizer(peer, ownerKey)` opt. `fetchFile` sends the content
+      request, and waits `peerWaitMs`, only for peers it accepts (a throw denies); `fetchFile` takes
+      `opts.ownerKey` and `opts.size` and passes `size` through `fetchContent` to the scheduler.
+      Absent the opt, every attached peer is asked, as upstream.
+    - `ChunkScheduler.onChunkHashes` accepts a list only from a peer in `_requested` (so once per
+      peer). With a known (positive) `size` it must sum to it, hold at most `ceil(size / minSize) + 1` entries
+      for `selectTier(size)`, and keep each length in `[1, maxSize]`. Once a map is adopted, a
+      differing list refuses that peer as a source. A refused peer never enters `_peers`; when no
+      peer is left the fetch fails with an uncoded `chunk map rejected: …` error, which `fetchFile`
+      reports as no holder.
+    - `_onChunkHashes` drops pages before reassembly unless the path's scheduler awaits a map from
+      that peer (`awaitsMapFrom`), and in mirall mode drops pages for a path with no scheduler.
+    - `transferControl`/`transferProgress` go only to peers we sent a content request for that hash
+      (`peer.askedFor`, forgotten when the fetch completes, fails or is stopped), not to every attached
+      peer; `_broadcast` became `_sendToAsked`.
+    Wire format unchanged. Covered by `test/unit/overlay-vendor-scheduler.test.js` (acceptance
+    rules), `test/integration/overlay-fetch-holder-gate.test.js` (fan-out, unsolicited map, size
+    mismatch, control frames), `test/integration/overlay-vendor-protocol.test.js` (control frames)
+    and `test/flow/content-chunkmap-poisoning.test.js`.
+
 ## Re-diffing against upstream
 
 From this folder, with an upstream clone at `$UPSTREAM`:

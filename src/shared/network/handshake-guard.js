@@ -14,6 +14,13 @@ export { clampDisplayName } from '../contract/identity-limits.js'
 const BINDING_CONTEXT = b4a.from('mirall/handshake-binding/v1')
 const BINDING_CONTEXT_V2 = b4a.from('mirall/handshake-binding/v2')
 const SIG_HEX = /^[0-9a-f]{128}$/i
+const TOPIC_REF_CONTEXT = b4a.from('mirall/topic-ref/v1')
+
+// How a frame names a space: a hash of the topic under the SENDER's Noise key. Useless without the
+// topic, never the DHT key, and unlinkable between two senders naming the same space.
+export function deriveTopicRef(topicHex, senderNoiseKey) {
+  return b4a.toString(crypto.hash(b4a.concat([TOPIC_REF_CONTEXT, senderNoiseKey, b4a.from(topicHex, 'hex')])), 'hex')
+}
 
 // Every decoded frame must be a plain object carrying a string `type` before anything reads a
 // property off it. JSON.parse('null') returns null, and the property read that follows sits
@@ -23,12 +30,14 @@ export function validFrameShape(msg) {
   return !!msg && typeof msg === 'object' && !Array.isArray(msg) && typeof msg.type === 'string'
 }
 
+export const isHex64 = (value) => typeof value === 'string' && HEX64.test(value)
+
 // Shape check for frames that assert the SENDER's identity (handshake,
 // membership:request). Rejects malformed hex before any b4a.from reaches the data
 // layer, so a garbage key can't poison the in-memory maps.
 /** @internal */
 export function validSenderFrame(msg) {
-  if (typeof msg.spaceTopic !== 'string' || !HEX64.test(msg.spaceTopic)) return false
+  if (!isHex64(msg.topicRef) && !isHex64(msg.spaceTopic)) return false
   if (typeof msg.profileKey !== 'string' || !HEX64.test(msg.profileKey)) return false
   if (msg.driveKey != null && (typeof msg.driveKey !== 'string' || !HEX64.test(msg.driveKey))) return false
   // A handshake may carry the asserter's member-set (OR-Set) root for the creator-root
@@ -108,15 +117,15 @@ export function leaveFrameBound(peerInfo, msg) {
   return verifyIdentityBinding(peerInfo, msg)
 }
 
-// One decision for the swarm onmessage choke point. Hex validation always applies; the
-// identity binding applies only when enforceBinding is on (post-saturation). peerInfo ==
-// null marks a locally-originated replay (trusted).
+// One decision for the swarm onmessage choke point. Hex validation always applies. `bound` reports
+// whether the identity binding verified, whatever the enforcement; enforceBinding decides only
+// whether an unbound frame is still admitted. peerInfo == null marks a locally-originated replay
+// (trusted, never bound).
 export function checkInboundSender(peerInfo, msg, { enforceBinding }) {
-  if (!validSenderFrame(msg)) return { ok: false, reason: 'malformed' }
-  if (!enforceBinding) return { ok: true }
-  if (peerInfo == null) return { ok: true }
-  if (!verifyIdentityBinding(peerInfo, msg)) return { ok: false, reason: 'identity-unbound' }
-  return { ok: true }
+  if (!validSenderFrame(msg)) return { ok: false, reason: 'malformed', bound: false }
+  const bound = verifyIdentityBinding(peerInfo, msg)
+  if (enforceBinding && peerInfo != null && !bound) return { ok: false, reason: 'identity-unbound', bound }
+  return { ok: true, bound }
 }
 
 // Per-socket token bucket keyed on the connection's Noise key (unspoofable, vs the

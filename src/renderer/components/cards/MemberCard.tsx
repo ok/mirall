@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import type { SpaceMember } from '../../types/types.js'
 import { memberPresence, MEMBER_PRESENCE, PRESENCE_LABEL } from '../../model/member-presence.js'
 import Icon from '../primitives/Icon.js'
+import Badge from '../primitives/Badge.js'
 import Avatar from '../primitives/Avatar.js'
 
 interface MemberCardProps {
@@ -26,7 +27,9 @@ function MemberCard({ member }: MemberCardProps) {
           <p className="text-xs text-on-surface-variant">{t(PRESENCE_LABEL[presence])}</p>
         </div>
       </div>
-      {isOnline && (
+      {member.unverified ? (
+        <Badge label={t('member.unverified')} classes="bg-surface-container-highest text-accent" />
+      ) : isOnline && (
         <Icon name={presence === MEMBER_PRESENCE.RELAYED ? 'hub' : 'check_circle'} className="text-on-surface-variant opacity-30" />
       )}
     </div>

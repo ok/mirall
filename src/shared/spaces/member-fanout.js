@@ -3,10 +3,11 @@
 // bounds its own read by that budget and settles to its empty value when the peer fails, so the
 // listing costs one budget in total however many members are unreachable.
 import { interactiveReadTimeoutMs } from '../core/with-timeout.js'
+import { verifiedMembers } from './member-standing.js'
 
 // `admit` narrows to the members a caller can read at all (a listing that needs a catalog key).
 export function peerMembersOf(members, me, admit = () => true) {
-  return (members || []).filter((m) => m?.publicKey && m.publicKey !== me && admit(m))
+  return verifiedMembers(members).filter((m) => m?.publicKey && m.publicKey !== me && admit(m))
 }
 
 export function readEachPeer(peers, readOne, { budget = interactiveReadTimeoutMs() } = {}) {

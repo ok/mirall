@@ -42,6 +42,7 @@ export const CASES = [
     // The key is written out because this block runs before fake-bridge.js defines OWNER_PK.
     cfg: `      reach: { members: { 'owner-pk-0000000000000000000000000000000000000000000000000000000000': 'relayed' } },`,
   },
+  { name: "memberunverified", title: "Mirall unverified member pill harness" },
   { name: "memo", title: "Mirall row memo / render-count harness" },
   { name: "mirrorers", title: "Mirall mirrored-by facepile layout harness" },
   { name: "modaltitle", title: "Mirall confirm-modal title overflow layout harness" },

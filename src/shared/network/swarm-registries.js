@@ -16,8 +16,9 @@ export const spaceTopics = new Map()
 export const spaceDiscoveries = new Map()
 // socket → Protomux msgHandler (for sending handshakes to existing connections)
 export const socketMsgHandlers = new Map()
-// profileKey → socket. A pending joiner has no handshake yet, so its socket is tracked here
-// to grant against later.
+// profileKey → socket. A peer we cannot admit yet (a pending joiner, or a member whose approval has
+// not folded here) has no admitted handshake, so its socket is tracked here to grant against or
+// readmit later.
 export const pendingRequesters = new Map()
 // profileKey → signerKey hex. Every identity frame a peer sends carries its bound ed25519 signer
 // key; remembering it per profileKey is what lets a membership:grant be sealed to a
@@ -51,14 +52,13 @@ export function authorizedOn(socket, profileKeyHex) {
 
 // The channel a frame addressed to one peer goes out on. A pending joiner has no handshake yet, so
 // it isn't in connectedPeers — fall back to the socket recorded when its membership:request arrived.
-export function handlerForPeer(profileKeyHex) {
+export function channelForPeer(profileKeyHex) {
   const peer = connectedPeers.get(profileKeyHex)
-  if (peer) {
-    const h = socketMsgHandlers.get(peer.socket)
-    if (h) return h
-  }
-  const sock = pendingRequesters.get(profileKeyHex)
-  return sock ? socketMsgHandlers.get(sock) || null : null
+  const peerHandler = peer ? socketMsgHandlers.get(peer.socket) : null
+  if (peerHandler) return { socket: peer.socket, handler: peerHandler }
+  const socket = pendingRequesters.get(profileKeyHex)
+  const handler = socket ? socketMsgHandlers.get(socket) : null
+  return handler ? { socket, handler } : null
 }
 
 // A connected peer's live metadata for a space (the loose-catalog key announced in its handshake,
@@ -121,6 +121,16 @@ export function detachPeerFromSpace(peer, spaceId) {
   peer.spaces.delete(spaceId)
   peer.looseCatalogKeys?.delete(spaceId)
   return peer.spaces.size === 0
+}
+
+// Park a not-yet-admitted peer's socket, bounded by `cap` (0 = unbounded). Only a frame whose binding
+// verified may move an already-parked peer to another socket. Returns false when refused.
+export function parkPendingRequester(profileKey, socket, { bound, cap }) {
+  const current = pendingRequesters.get(profileKey)
+  if (current && current !== socket && !bound) return false
+  if (cap && pendingRequesters.size >= cap && !current) return false
+  pendingRequesters.set(profileKey, socket)
+  return true
 }
 
 // Forget the signer key a departing peer bound. The key may only outlive the socket while the peer

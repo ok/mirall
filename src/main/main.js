@@ -8,6 +8,7 @@
 // First, before any sibling module can load bare-sidecar: see asar-spawn.js.
 require('./asar-spawn.js').installAsarSpawnFix()
 const { app, BrowserWindow, dialog, ipcMain, protocol: electronProtocol } = require('electron')
+const { envOverride } = require('./env-overrides.js')
 const path = require('path')
 const fs = require('fs')
 const os = require('os')
@@ -103,12 +104,15 @@ if (customStorage) app.setPath('userData', customStorage)
 // DIAGNOSTIC — armed as soon as the profile path is settled (--storage moves it), and before the
 // updater, the worker host or any watcher can touch the disk. getDataDir is a thunk because
 // app.getPath is only meaningful after the line above. See src/main/dir-tripwire.js.
-require('./dir-tripwire.js').installDataDirTripwire({ getDataDir: () => app.getPath('userData') })
+require('./dir-tripwire.js').installDataDirTripwire({
+  getDataDir: () => app.getPath('userData'),
+  refuse: envOverride('MIRALL_TRIPWIRE_ALLOW') !== '1',
+})
 
 // Test hook: force Chromium to always build the renderer accessibility tree.
 // Without this, a backgrounded/secondary instance's web-content AX tree may
 // never activate (lazy per-process), leaving automation snapshots empty.
-if (process.env.MIRALL_FORCE_A11Y === '1') app.commandLine.appendSwitch('force-renderer-accessibility')
+if (envOverride('MIRALL_FORCE_A11Y') === '1') app.commandLine.appendSwitch('force-renderer-accessibility')
 
 if (isWindows) app.setAppUserModelId(pkg.build?.appId || pkg.name)
 
@@ -122,10 +126,10 @@ app.setAboutPanelOptions({
   website: 'https://mirall.app',
 })
 
-const isDev = !app.isPackaged || !!process.env.PEAR_DEV_SERVER_URL
+const isDev = !app.isPackaged
 // The gate reads false until this runs, which only suppresses forwarding to the renderer — there
 // is no renderer this early, and the log ring is written either way. See debug-gate.js.
-initDebugGate({ isDev })
+initDebugGate({ isDev, env: { MIRALL_DEBUG: envOverride('MIRALL_DEBUG'), MIRALL_VERBOSE: envOverride('MIRALL_VERBOSE') } })
 
 let identityKEKHex = null
 let identityProtection = 'disabled'

@@ -89,10 +89,12 @@ export function foldMemberSet(records, creatorKey) {
 
 // Which of a departing peer's vouchees the observer takes over before revoking its own vouch for
 // that peer. Revoking alone unroots the leaver, and with it everyone the leaver alone vouched for,
-// so the observer re-parents that subtree onto itself — it had already authorized them
-// transitively, so no new trust is conferred. Never the leaver itself (that would re-vouch the
-// very peer being revoked) and never us (the fold roots authorization elsewhere).
-export function voucheesToAdopt(approvals, selfKey, leaverKey) {
+// so the observer re-parents that subtree onto itself. Only a leaver the observer's fold authorizes
+// has such a subtree: its approvals already count in that fold, so taking them over confers no new
+// trust, including one authored since the fold last ran. Never the leaver itself (that would
+// re-vouch the very peer being revoked) and never us (the fold roots authorization elsewhere).
+export function voucheesToAdopt(approvals, { selfKey, leaverKey, authorized }) {
+  if (!authorized.has(leaverKey)) return []
   const out = []
   for (const k of approvals || []) {
     if (k === selfKey || k === leaverKey) continue

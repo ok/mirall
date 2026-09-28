@@ -24,7 +24,7 @@
  * (pgh NetworkFetcher) is untouched.
  */
 
-import { hashChunk } from './chunker.js'
+import { hashChunk, selectTier, getTierParams } from './chunker.js'
 
 const DEFAULT_CAP = 8
 // [mirall] How far _assign scans past chunks the download cap cannot currently afford
@@ -76,6 +76,9 @@ const ABANDON_SLACK_BYTES = 8 * 1024 * 1024
 // fails OPEN through the gates below (a floor of NaN is never exceeded, a negative budget is
 // always exceeded), so an option that is not a usable number falls back to the default.
 const positive = (value, fallback) => (Number.isFinite(value) && value > 0 ? value : fallback)
+// [mirall] §4.24 — chunking is deterministic (same bytes + same tier), so every honest holder of a
+// hash sends the same map; any difference is a fault in the sender.
+const sameMap = (a, b) => a.length === b.length && a.every((c, i) => c.hash === b[i].hash && c.length === b[i].length)
 // [mirall] Local write-error codes that may recover on retry (vs ENOSPC/EACCES/…
 // which are fatal): a transient one keeps the chunk retryable instead of failing
 // the whole multi-source fetch.
@@ -94,6 +97,7 @@ export class ChunkScheduler {
    *  opts.cap per-peer inflight cap (default 8)
    *  opts.timeout idle (no-progress) timeout ms (default 30000)
    *  opts.onProgress optional (receivedBytes, totalBytes) => void on each accepted chunk
+   *  opts.size [mirall] §4.24 — the file's catalog size; the chunk map must describe it
    */
   constructor (opts) {
     this.path = opts.path
@@ -137,6 +141,9 @@ export class ChunkScheduler {
     this._reject = null
     this._onEnd = opts.onEnd || null
     this._contentHash = opts.contentHash || null   // [mirall] enables incremental whole-file verify
+    // [mirall] §4.24 — the catalog size; null when the caller does not know it (upstream callers, and
+    // callers passing 0 for a catalog entry with no size).
+    this._expectedSize = Number.isSafeInteger(opts.size) && opts.size > 0 ? opts.size : null
     this._limiter = opts.limiter || null           // [mirall] download cap; absent → unthrottled
     this._startedAt = Date.now()
     // [mirall] idle timeout — re-armed on each progress signal (see _armIdleTimer).
@@ -373,10 +380,42 @@ export class ChunkScheduler {
     this._armIdleTimer()
   }
 
-  /** A peer responded with the chunk list. First response starts the transfer. */
+  // [mirall] §4.24 — the protocol asks this before buffering a peer's chunkHashes pages, so a peer
+  // we never asked can neither re-arm the watchdog nor grow the page buffer.
+  awaitsMapFrom (peer) { return !this._done && this._requested.has(peer) }
+
+  // [mirall] §4.24 — why this chunk list cannot describe the file, or null. With a known size the
+  // list must sum to it, hold no more entries than the size's tier allows, and keep every length
+  // inside the tier's bounds; once a map is adopted, any other list must equal it.
+  _mapFault (chunks) {
+    const size = this._expectedSize
+    if (size !== null) {
+      const { minSize, maxSize } = getTierParams(selectTier(size))
+      if (chunks.length > Math.ceil(size / minSize) + 1) return 'too many chunks'
+      let total = 0
+      for (const c of chunks) {
+        if (!Number.isSafeInteger(c.length) || c.length < 1 || c.length > maxSize) return 'chunk length out of range'
+        total += c.length
+      }
+      if (total !== size) return 'size mismatch'
+    }
+    if (this._chunks && !sameMap(this._chunks, chunks)) return 'differs from the adopted map'
+    return null
+  }
+
+  // [mirall] §4.24 — a refused map is never a source: the peer stays out of _peers and is never
+  // sent a chunk-need. Only when nobody is left to answer does the fetch fail.
+  _refuseMap (reason) {
+    if (this._peers.size === 0 && this._requested.size === 0) this._fail(new Error('chunk map rejected: ' + reason))
+  }
+
+  /** A peer we asked responded with the chunk list. The first acceptable one starts the transfer. */
   async onChunkHashes (peer, chunks) {
-    this._requested.delete(peer) // it answered — from here on its loss is handled by _peers
-    if (this._done) return
+    // [mirall] §4.24 — only a peer we asked may supply the map, and only once: _requested is
+    // exactly the set of peers owed an answer, and answering removes the peer from it.
+    if (!this._requested.delete(peer) || this._done) return
+    const fault = this._mapFault(chunks)
+    if (fault) return this._refuseMap(fault)
     this._peers.add(peer)
     if (!this._peerInflight.has(peer)) this._peerInflight.set(peer, 0)
 

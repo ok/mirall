@@ -27,7 +27,7 @@ A space has two sharing modes, stored as separate share ids in one per-owner cat
 
 - **Dev** — `npm start` (OTA off); `npm run dev` serves the renderer from a watch build via
   `PEAR_DEV_SERVER_URL`. A source `package.json` has no `upgrade` key, so OTA never runs from
-  source.
+  source. A packaged build ignores `PEAR_DEV_SERVER_URL` and the `MIRALL_*` levers.
 - **Installers** — `.dmg`, `.msix`, `.deb`, `.AppImage` → `build-process.md`.
 - **OTA** — follows a per-channel Pear Hyperdrive (§9). Off on `.deb` installs, which update through
   the package manager.
@@ -95,6 +95,10 @@ and parses only its own control frames.
   worker and fails the spawn, because the worker never asks for its bootstrap again. The KEK comes
   from `safeStorage` (`src/main/identity-kek.js`). Without secure storage, main refuses to start
   rather than write an unprotected identity.
+- **Environment levers.** Main reads `PEAR_DEV_SERVER_URL` and the `MIRALL_*` test and debug
+  hooks only through `src/main/env-overrides.js`, which returns nothing on a packaged build. The
+  two release rollback levers and the AppImage runtime's variables are the listed exceptions
+  (`test/invariants/main-env-reads.test.js`).
 - **Window.** It loads `app://-/index.html`, a privileged scheme, so origin and CSP `'self'` survive
   a reload, with `sandbox` and `contextIsolation` on.
 - **Config.** `config.json` holds preferences only. `src/main/config-store.js` is its only writer
@@ -516,13 +520,23 @@ opened after the remote's (`src/shared/network/peer-connection.js`). The vocabul
 
 | Frame | Fields |
 |---|---|
-| `handshake` | `profileKey, driveKey` (participation id), `displayName, spaceTopic`, `looseCatalogKey` \| `looseCatalogKeyEnc`+`looseCatalogEpoch`, `creator?`, binding `sig, signerKey, signerNs` |
-| `membership:request` | `profileKey, displayName, avatar, spaceTopic, inviteId`, binding. Sent instead of `handshake` while we are pending |
+| `handshake` | `profileKey, driveKey` (participation id), `displayName, topicRef`, `looseCatalogKey` \| `looseCatalogKeyEnc`+`looseCatalogEpoch`, `creator?`, binding `sig, signerKey, signerNs` |
+| `membership:request` | `profileKey, displayName, avatar, topicRef, inviteId`, binding. Sent instead of `handshake` while we are pending |
 | `leave` / `leave-ack` | `spaceId, profileKey, ts`, binding / `spaceId, profileKey` |
-| `presence` | `profileKey, spaceTopic, offline?` |
+| `presence` | `profileKey, topicRef, offline?` |
 
-`membership:grant/deny/cancel` go to `handleMembershipControl` (`src/worker/ipc/membership.js`). The
-swarm answers `membership:cancel-ack` itself.
+`membership:grant/deny/cancel` go to `handleMembershipControl` (`src/worker/ipc/membership.js`) with
+the space already resolved. The swarm answers `membership:cancel-ack` itself.
+
+**Naming a space.** No frame carries a space's topic by default. A frame that names a space carries
+`topicRef = hash('mirall/topic-ref/v1' ‖ sender Noise key ‖ topic)`
+(`src/shared/network/topic-refs.js`), and the receiver matches it against its own topics under the
+socket's remote Noise key. The reference is useless without the topic, is never the DHT key, and
+differs per sender, so two members' frames for one space cannot be linked. A socket that names a
+space by its bearer `spaceTopic` (a peer on an older release) is answered in that form for that
+space only, and a bearer topic a socket named before we joined it is remembered so the first frame
+after the join reaches it. Every socket is still sent one identity frame per space we hold: it learns
+how many, not which. Leave frames name the space by `spaceId`.
 
 **Binding.** `handshake` and `membership:request` must carry a signature by a key that
 manifest-hashes to `profileKey`, made over this socket's Noise key. The handshake form also covers
@@ -531,8 +545,9 @@ captured signature therefore cannot be replayed onto another connection.
 
 **Budgets** (defaults in `src/shared/core/runtime-config-schema.js`). Every frame first passes a 64
 KiB size cap and a per-socket budget **before** `JSON.parse`, because parsing is the work being
-bounded. Identity frames then pay a dual-lane budget. The lane is chosen by a cheap topic lookup,
-and only a matched frame pays for the ed25519 verify. The matched lane's burst (8 + 3 × topics *this
+bounded. Identity frames then pay a dual-lane budget. The lane is chosen by resolving the space the
+frame names (a memoized hash compare, no signature work), and only a matched frame pays for the
+ed25519 verify. The matched lane's burst (8 + 3 × topics *this
 socket* matched) grows with the spaces the peer has proven it shares, not with our own space count.
 Buckets are keyed by Noise key. A ban destroys the socket, and the firewall refuses the key until
 the swarm closes.
@@ -549,13 +564,19 @@ the swarm closes.
 - A newly joined topic reuses existing sockets and fires no `connection`, so `joinSpaceTopic` sends
   its handshake on every live socket.
 
-**Leave frame** (`src/shared/network/leave-protocol.js`). It is accepted only if the sender controls
+**Leave frame** (`src/shared/network/leave-protocol.js`). It is applied only for a peer held in
+`space.members` or one whose leave was already applied (`isLeft`); anyone else is dropped silently,
+before the binding check. It is accepted only if the sender controls
 `profileKey` on *this* socket, shown by the auth index or by the frame's own binding. The binding
 survives the teardown race that clears the index, so a third party still cannot evict a member. The
 handler runs in order:
-1. Adopt the leaver's vouchees. If its record is unreadable, apply nothing and let replication
-   retry.
-2. Tombstone the leaver.
+1. Adopt the leaver's vouchees (skipped for an already-tombstoned leaver). Only a leaver the fold
+   authorizes (before the view's first fold: a verified roster member) has vouchees to adopt, and
+   the fold already counts its approvals, so adoption never confers new trust. If the leaver's
+   record is unreadable, apply nothing and let replication retry.
+2. Tombstone the leaver. Durable tombstones are capped at `maxMembersPerSpace` per space: at the cap
+   the ones the fold no longer authorizes are cleared first, and a space full of authorized ones
+   keeps the new tombstone in memory only (no ack).
 3. Revoke our vouch.
 4. Ack, but only if the tombstone and revoke landed durably.
 5. Revoke the leaver's serve grants.
@@ -737,6 +758,14 @@ emits v1.
 Every field but `t` is an unauthenticated hint. The minting member's invite record and the grant are
 authoritative.
 
+The hints seed display state only. A fresh pending join shows the `o` inviter on the roster flagged
+`unverified` (`src/shared/spaces/member-standing.js`), and every admission, approval, grant, serve
+and listing decision reads the verified roster. The first settled fold after the grant either
+confirms the inviter (the flag clears) or drops them. Re-pasting a link into a space already held
+adds no one. While pending, a `membership:grant` is honoured from the `o` inviter, the `c` creator,
+or a key that the member set rooted at `c` holds. Any other granter is refused before the root
+reconcile.
+
 ### 5.2 Deep-link delivery
 
 `mirall://join/<code>` or `mirall://join?code=<code>` launches or focuses Mirall and pre-fills Join
@@ -751,7 +780,8 @@ authoritative.
 Main buffers links until the preload's subscribe calls `deeplink:flush`. The renderer routes them
 invalid → expired (60 s grace) → already a member → join (`src/renderer/model/deep-link-route.js`).
 
-**Security.** The topic is a shared secret, so a code lets its holder *knock*, never read. A deep
+**Security.** The topic is a shared secret, so a code lets its holder *knock*, never read. Peers
+never repeat it on the wire (§4.2), so a socket learns no topic it did not already hold. A deep
 link carries exactly the authority of pasting its code. Read access still needs approval (§16).
 
 ---
@@ -1138,6 +1168,10 @@ absent, under `--no-updates`, and on a `.deb` install, which updates through the
 (`src/main/install-kind.js`). The runtime is constructed lazily, because building it opens drives
 and joins a swarm.
 
+The packaged binary carries Electron fuses (no run-as-Node, no `NODE_OPTIONS`, no `--inspect`,
+asar-only with integrity validation on macOS/Windows). OTA swaps the whole bundle, so the fuse wire
+and the asar hash travel together.
+
 When the drive's `/package.json` version is greater than the running one, the updater mirrors this
 platform's bundle into `pear-runtime/next/<length>.<fork>` and emits `updating` and then `updated`.
 Main forwards both as `pear:event:updating` / `pear:event:updated` (`src/main/window.js`). At an
@@ -1175,6 +1209,12 @@ not await async listeners.
 
 - **Invite links gate reading, not knocking.** Anyone holding an unexpired, unrevoked code can join
   the topic and send join requests. Read access still requires approval (the SCK grant, §16).
+- **A connected socket learns how many spaces we are in.** Each identity frame names its space by an
+  unlinkable reference (§4.2), but it still carries the per-space participation id, loose-catalog
+  key and creator root. The same fields are readable from the profile bee until replication is gated
+  per admitted space.
+- **DHT nodes see topics.** Hyperswarm announces and looks up the raw topic as the DHT target, so
+  the nodes storing that key observe it. The wire between peers never carries it (§4.2).
 - **Some transfer faults wait for the user.** A checksum fault clears only when the owner
   republishes. Disk-full from a write-time ENOSPC always needs Retry. Permission, missing-folder and
   preflight disk-full faults clear themselves once the destination recovers (`faultCleared`,
@@ -1273,13 +1313,17 @@ the socket's Noise key; handshakes also cover the participation id (V2).
 and verifies the signature. The result: frames are attributable, and a third party can't impersonate
 a member or evict one.
 
-- **Enforcement for handshake and grant frames depends on the `handshakeIdentityBindingEnabled`
-  flag.** `feature-flags.json` ships it on, but the runtime-config default is off. A failed flag
-  read (`src/main/feature-flags.js`) therefore silently accepts unbound frames, and the
-  socket-to-identity map then trusts the claim.
+- **Enforcement fails closed.** `handshakeIdentityBindingEnabled` defaults on in runtime config and
+  in main's bootstrap, so a missing or unreadable `feature-flags.json` keeps it on; only an explicit
+  `false` in that file turns it off, and a packaged build ignores `MIRALL_FEATURE_FLAGS`
+  (`src/main/env-overrides.js`). With it off, unbound handshake and request frames are still
+  admitted, but a signer key for sealing a grant, and a pending requester's socket, are taken only
+  from a frame whose binding verified.
 - Leave frames are always checked.
 - The V2 participation-id binding is best-effort: a V1 signature over the Noise key alone still
   verifies during rolling upgrades.
+- The binding does not cover the space reference; the reference is itself derived from the sender's
+  Noise key, so it names nothing on another connection.
 
 ### Membership
 
@@ -1304,8 +1348,19 @@ File bytes are served only when all three gates pass
 **A denial looks exactly like "I don't hold this file"**, so membership can't be probed. Locally,
 only `UNAUTHENTICATED` and `NOT_A_MEMBER` count as refusals and are audited as
 `security.serve_denied`. `NO_SOCKET`, `RATE_LIMITED` and `NOT_HELD` are normal operation and record
-nothing: a multi-source fetch sends its request to every connected peer, so being asked for
-unadvertised content is routine.
+nothing: a requester may ask any peer it is connected to (releases before the fetch gate ask every
+one), so being asked for unadvertised content is routine.
+
+### Fetch authorization
+
+A content request goes only to a peer whose socket carries the file owner's authenticated identity
+(`makeHolderAuthorizer` in `overlay-authorize.js`, the vendor's `holderAuthorizer` opt), so a socket
+that merely shares the content topic never learns which hashes we fetch. A chunk map is adopted only
+from a peer that was asked, and only if it matches the catalog size and that size's chunk tier (sum,
+entry count, per-chunk length); a second map that differs from the adopted one drops its sender as a
+source. A refused map never reaches `startReceive`, so it cannot create, truncate or reset a partial;
+with no peer left the fetch reports no holder and the stall retry takes over. Transfer
+control/progress frames go only to the peers asked for that hash.
 
 ### Resource bounds
 

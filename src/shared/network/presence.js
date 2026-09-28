@@ -81,8 +81,8 @@ export function createPresence({ ttl = 15000, now = () => Date.now(), onExpire =
 
 // Classify an inbound presence frame by shape alone (no swarm state): a well-formed frame with
 // offline:true is a graceful-quit departure → 'clear'; a well-formed heartbeat → 'mark'; anything
-// malformed → 'ignore'. The caller still applies the anti-spoof guard + spaceId resolution.
+// malformed → 'ignore'. The space it names is resolved at intake; the caller applies the anti-spoof guard.
 export function presenceFrameKind(msg) {
-  if (!msg || typeof msg.profileKey !== 'string' || typeof msg.spaceTopic !== 'string') return 'ignore'
+  if (!msg || typeof msg.profileKey !== 'string') return 'ignore'
   return msg.offline === true ? 'clear' : 'mark'
 }
