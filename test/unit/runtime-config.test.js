@@ -1,7 +1,7 @@
 import {
   setRuntimeConfig, setDownloadFolder, setBandwidthLimits, getBandwidthLimits, getRuntimeConfig,
   getConnectionCaps, getMembershipCaps, getDeriveDebounceMs, getHandshakeRateLimit, getConvergenceConfig, getIdentityFrameDropWindow, getServeChunkMapCacheBytes,
-  isHandshakeIdentityBindingEnabled } from '../../src/shared/core/runtime-config.js'
+  isHandshakeIdentityBindingEnabled, isMembershipControlBindingEnforced } from '../../src/shared/core/runtime-config.js'
 import test from 'brittle'
 
 import { AVATAR_MAX_BYTES } from '../../src/shared/contract/identity-limits.js'
@@ -154,6 +154,14 @@ test('REGRESSION (MIR-54: identity binding defaulted off): an absent flag enforc
   t.ok(isHandshakeIdentityBindingEnabled(), 'an absent flag stays on')
   setRuntimeConfig({ handshakeIdentityBindingEnabled: false })
   t.absent(isHandshakeIdentityBindingEnabled(), 'only an explicit false turns it off')
+  setRuntimeConfig({})
+})
+
+test('membership control binding is staged: off until a bootstrap turns it on', (t) => {
+  setRuntimeConfig({})
+  t.absent(isMembershipControlBindingEnforced(), 'an empty bootstrap still honours frames that name no sender')
+  setRuntimeConfig({ membershipControlBindingEnforced: true })
+  t.ok(isMembershipControlBindingEnforced(), 'the flag enforces')
   setRuntimeConfig({})
 })
 

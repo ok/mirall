@@ -1,4 +1,5 @@
 {
   "handshakeIdentityBinding": true,
+  "membershipControlBinding": false,
   "sharePrepareProgress": true
 }
