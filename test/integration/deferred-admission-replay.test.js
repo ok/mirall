@@ -60,7 +60,7 @@ function wire(t, { isApprovedByPeers = async () => true, onPrompt = null } = {})
       isApprovedByPeers: (space, joinerKey) => { calls.gate++; return isApprovedByPeers(space, joinerKey) },
     }),
     log: quiet,
-    handleHandshake: async (_socket, _peerInfo, msg) => { calls.handshakes.push(msg) },
+    handleHandshake: async (_socket, msg) => { calls.handshakes.push(msg) },
     sendSingleHandshake: (...args) => { calls.prompts++; return onPrompt ? onPrompt(...args) : Promise.resolve() },
     getIpc: () => null,
   })

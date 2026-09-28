@@ -15,7 +15,7 @@ Anything that needs **two or more peers** — replication, transfers between pee
 ### Harness (`test/helpers/`)
 - **`freshPeer(t)`** — clean single-peer stack (store, profile+identity, spaces, mounts, owned/foreign folders) wired to a fake IPC; returns `{ storage, downloads, fake, tmpDir }`. Auto-teardown.
 - **`setupOwnedShare(t)`** — `freshPeer` + a space + an owned-folder share owned by this peer + its mount dir.
-- **`setupSelfMirror(t, { files })`** — publishes a share with files and mounts it back on the same peer as a foreign mirror, so `applyChange` / `runMaterializeTick` run in-process.
+- **`setupSelfMirror(t, { files })`** — publishes a share with files and mounts it back on the same peer as a foreign mirror, so `materializeOverlayFile` / `runMaterializeTick` run in-process.
 - **`createFakeIpc()`** — records `emit`ted events so tests can assert on emitted status/update events.
 
 ---
