@@ -60,6 +60,16 @@ Then forward-port the release-prep commit to `main` in a small PR. If `main`'s `
 already moved ahead, keep `main`'s version and take only the `CHANGELOG.md` section, placed below any
 newer `## v…` heading. The tag gate below reads only the release branch's top heading.
 
+**A patch is cut on demand, not per fix.** Backports collect on `release/x.y` untagged, and a patch
+is tagged only when a fix has to reach users before the next minor. Until then, each backported
+fix's changelog entry appears in two places:
+- the release branch's top `## v<x.y.z+1>` section;
+- `main`'s section for the next minor (`## v<x.y+1>.0` / `### Unreleased`), which is where the fix
+  ships if no patch is cut.
+
+If the patch is cut, its forward-port moves those entries out of `main`'s minor section into the
+patch section, so each fix is announced once.
+
 **Minor release** (e.g. `v1.12.0`): at feature freeze, cut the branch from `main`, stabilise it with
 backports, then release-prep and tag exactly as for a patch:
 
