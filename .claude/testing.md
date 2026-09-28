@@ -169,8 +169,11 @@ the **user-facing outcome** at the UI layer. Don't force a flaky UI assertion.
   of a failed file), and **flake-ledger**, which grades each suite's pass-on-retry count against its
   own `test/<suite>-flake-budget.json`. Green CI is required to merge.
 - **Local (you run it — not optional):** `npm run test:fe` is **required** for any UI-affecting
-  change and runs fine on a dev machine (only CI can't drive the AX tree). Run it, confirm it's
-  green, plus the manual a11y spot-check. Capture the evidence (the suite writes screenshots to
+  change and runs fine on a dev machine (only CI can't drive the AX tree). The agent runs the
+  scenarios covering the change itself, in background mode, without asking — for bug fixes, new
+  features and dependency smoke checks alike (`npm run test:fe s4 s152`). The full suite (no
+  scenario id, or a flag-only call — `run.mjs` has no `--help`) and `--foreground` wait for the
+  user's approval. Confirm the run is green, plus the manual a11y spot-check. Capture the evidence (the suite writes screenshots to
   `test/frontend/evidence/`) and note which UI flows were exercised.
 - **PR body:** `.github/pull_request_template.md` asks only for what CI cannot check — which layers
   the change touches (and why an obvious one is skipped), plus the local-only runs: `test:fe` and

@@ -98,10 +98,12 @@ requirements.
   fix in the control). No a11y regressions.
 - **Gates**: CI (`test.yml`) runs typecheck + `test:node` + `test:bare` + lint automatically. The
   frontend suite (`npm run test:fe`) and manual a11y/VoiceOver spot-check are **local** (headless CI
-  can't drive the AX tree) and required for UI-affecting changes. `test:fe` runs real app windows
-  for minutes (background mode by default: they stay behind the user's apps and never take the
-  keyboard or pointer; `--foreground` does), so propose the scenarios that cover the change and let
-  the user start them; note the flows exercised.
+  can't drive the AX tree) and required for UI-affecting changes. Background mode (the default)
+  keeps the app windows behind the user's apps and never takes the keyboard or pointer, so **the
+  agent runs the targeted scenarios for a change itself, without asking** (`npm run test:fe s4
+  s152`) and names them. The **full suite needs the user's approval first**: `test:fe` with no
+  scenario id runs all of it, and so does any flag-only call (there is no `--help`). So does
+  `--foreground`, which takes the desktop.
 
 ## Branching & Worktrees
 

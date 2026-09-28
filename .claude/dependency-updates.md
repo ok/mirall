@@ -134,6 +134,12 @@ as intent, not behavior, and don't be misled into thinking a PR will land itself
 These changes can break things the integration test does not cover (the Bare worker boot, native
 module ABI, OTA, packaging, the UI):
 
+The agent runs the automated part in background mode without asking: on the bump applied to
+current `main`, `npm run test:fe s1 s2 s3 s4 s9 s20 s116 s133 s152` — the `fe-macos.yml` smoke set
+plus two-peer transfer (s4) and worker restart (s152). Check `node_modules/electron/dist/version`
+first: npm 11 can leave the binary undownloaded (`node node_modules/electron/install.js`). The
+manual steps below remain for pear-runtime and packaging.
+
 1. `gh pr checkout <num>`
 2. `npm ci && npm run start`
 3. Two-window smoke:
