@@ -57,15 +57,11 @@ test('recursive: true on darwin reports a nested create by its relative path', {
   t.ok(await until(() => sawName(seen, rel), 2000), 'nested create observed with its path from the root')
 })
 
-test('a watch on a path that does not exist neither throws nor errors', async (t) => {
+test('a watch on a path that does not exist throws ENOENT', (t) => {
   const root = tmpDir('watch-facts', t)
-  // The binding does not check the start result, so a failed arm looks exactly like a quiet one.
-  // A host that wants to know must stat the path before it arms.
-  const { seen, lifecycle } = observe(t, path.join(root, 'missing'))
-  await settle(300)
-  t.is(lifecycle.error, null, 'no error event')
-  t.absent(lifecycle.closed, 'not closed')
-  t.is(seen.length, 0, 'no events')
+  // The binding checks the start result, so a failed arm throws at the call instead of returning a
+  // handle that never fires.
+  t.exception(() => fs.watch(path.join(root, 'missing')), /no such file or directory/)
 })
 
 test('a watcher on a removed directory stays open and reports the removal on its own name', async (t) => {
