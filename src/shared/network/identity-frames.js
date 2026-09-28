@@ -3,7 +3,7 @@
 // key to this socket's Noise key, so the receiver can attribute them to a member (verified in
 // handshake-guard.js) and cannot replay them on another connection.
 import b4a from 'b4a'
-import { getProfileKey, getProfile, getIdentitySigner } from '../spaces/profile.js'
+import { getProfileKey, getProfile, getIdentitySigner, getLocalPublicKeyHex } from '../spaces/profile.js'
 import { getSpace } from '../spaces/space.js'
 import { getOwnParticipationId } from '../spaces/participation.js'
 import { getPeerFrameMaxBytes, joinRequestAvatarMaxBytes } from '../core/runtime-config.js'
@@ -47,6 +47,14 @@ export function getLocalBinding(driveKeyHex = '') {
   }
   localBindings.set(driveKeyHex, binding)
   return binding
+}
+
+// Names us as the sender of a membership:cancel or membership:deny. With no identity signer to bind
+// with it names nobody, which the receiver treats as a peer on an older release.
+export function controlSenderFields() {
+  const binding = getLocalBinding()
+  const profileKey = getLocalPublicKeyHex()
+  return binding && profileKey ? { profileKey, ...binding } : {}
 }
 
 // Send path for the frames carrying variable-length content (an identity's name, avatar and

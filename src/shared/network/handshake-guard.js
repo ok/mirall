@@ -117,6 +117,14 @@ export function leaveFrameBound(peerInfo, msg) {
   return verifyIdentityBinding(peerInfo, msg)
 }
 
+// A membership:cancel or membership:deny names its sender by profileKey plus the identity binding.
+// senderKey null: the frame names no sender, as a peer on an older release sends it.
+export function checkControlSender(peerInfo, msg) {
+  if (msg.profileKey == null) return { ok: true, senderKey: null }
+  if (!isHex64(msg.profileKey) || !verifyIdentityBinding(peerInfo, msg)) return { ok: false, reason: 'sender-unbound' }
+  return { ok: true, senderKey: msg.profileKey }
+}
+
 // One decision for the swarm onmessage choke point. Hex validation always applies. `bound` reports
 // whether the identity binding verified, whatever the enforcement; enforceBinding decides only
 // whether an unbound frame is still admitted. peerInfo == null marks a locally-originated replay
