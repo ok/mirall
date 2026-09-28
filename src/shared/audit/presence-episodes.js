@@ -9,6 +9,7 @@
 // Nothing here is persisted, deliberately: after OUR OWN restart every peer is "disconnected", and
 // we cannot distinguish "they left while we were down" from "we were down". An open absence dies
 // with the process.
+import { createEpisodeCap } from './episode-cap.js'
 
 /** @internal */
 export const PEER_DWELL_MS = 300000
@@ -38,7 +39,7 @@ export function createPeerPresenceTracker({
   staleMs = PEER_STALE_MS,
 } = {}) {
   const open = new Map()
-  const recent = new Map()
+  const admission = createEpisodeCap({ cap, windowMs: capWindowMs })
 
   // `meta` is a snapshot taken now, because the row has to render once the roster is gone — the
   // same zero-joins rule the record itself follows.
@@ -81,31 +82,11 @@ export function createPeerPresenceTracker({
     for (const [key, episode] of open) if (episode.publicKey === publicKey) open.delete(key)
   }
 
-  // Returns 'record' | 'suppress-first' | 'suppress'. The marker fires only on the transition into
-  // the capped state: audit-log.js exempts audit.suppressed from its own rate guard, so emitting one
-  // per over-cap absence would bound nothing at all — the cap has to collapse them here.
-  function admission(key, now) {
-    const entry = recent.get(key) || { stamps: [], marked: false }
-    entry.stamps = entry.stamps.filter((at) => now - at < capWindowMs)
-    if (entry.stamps.length >= cap) {
-      const first = !entry.marked
-      entry.marked = true
-      recent.set(key, entry)
-      return first ? 'suppress-first' : 'suppress'
-    }
-    entry.marked = false
-    entry.stamps.push(now)
-    recent.set(key, entry)
-    return 'record'
-  }
-
   function forget(now) {
     for (const [key, episode] of open) {
       if (episode.recorded && now - episode.lostAt > staleMs) open.delete(key)
     }
-    for (const [key, entry] of recent) {
-      if (!entry.stamps.some((at) => now - at < capWindowMs) && !entry.marked) recent.delete(key)
-    }
+    admission.forget(now)
   }
 
   // Past the cap the tracker emits a marker rather than dropping silently — a gap the reader cannot
@@ -121,7 +102,7 @@ export function createPeerPresenceTracker({
         nextDue = nextDue === null ? due : Math.min(nextDue, due)
         continue
       }
-      const verdict = admission(key, now)
+      const verdict = admission.admit(key, now)
       if (verdict !== 'record') {
         // Dropped, not flagged recorded: a suppressed absence the reader never saw must not later
         // emit a lone "is back online" closing it.
@@ -157,7 +138,7 @@ export function createPeerPresenceTracker({
     annotate,
     abandon,
     step,
-    reset: () => { open.clear(); recent.clear() },
+    reset: () => { open.clear(); admission.reset() },
     size: () => open.size,
   }
 }
