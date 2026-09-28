@@ -29,7 +29,7 @@ import { attachPeerCore, closeIfUnadmitted } from './replication-gate.js'
 import { connectedPeers, socketToPeers, spaceTopics, spaceDiscoveries, socketMsgHandlers, authorizedOn, detachPeerFromSpace, forgetPeerOnSocket, forgetBoundSignerKey } from './swarm-registries.js'
 import { TARGET_KIND } from '../contract/audit-kinds.js'
 import { peerActor, spaceRef, targetRef } from '../audit/audit-record.js'
-import { getLocalBinding } from './identity-frames.js'
+import { controlSenderFields, getLocalBinding } from './identity-frames.js'
 import { topicField, frameSpace } from './topic-refs.js'
 import { presence } from './presence-leases.js'
 import { memberWaits } from './share-wait.js'
@@ -409,7 +409,7 @@ export function sendPendingCancelFrames(socket, msgHandler, { onlySpaceId = null
     if (onlySpaceId && spaceId !== onlySpaceId) continue
     const topic = topicField(socket, spaceId, pc.topic)
     if (!topic) continue
-    try { msgHandler.send(JSON.stringify({ type: PEER_FRAME.MEMBERSHIP_CANCEL, ...topic, joinerKey: pc.joinerKey })) } catch { continue }
+    try { msgHandler.send(JSON.stringify({ type: PEER_FRAME.MEMBERSHIP_CANCEL, ...topic, joinerKey: pc.joinerKey, ...controlSenderFields() })) } catch { continue }
     sent.add(spaceId)
     if (resend) continue
     if (++pc.attempts >= MAX_CANCEL_ATTEMPTS) {

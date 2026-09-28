@@ -51,6 +51,30 @@ export function granterVerdict({ granterKey, inviteOwner, creatorKey }) {
   return 'check-fold'
 }
 
+// Who may withdraw a pending joiner's request: the joiner itself, or a member clearing the banner
+// after its own deny. A frame that names no sender is honoured only until enforcement is on.
+/**
+ * @param {{ senderKey: string | null, joinerKey: string, senderIsMember: boolean, enforce: boolean }} facts
+ * @returns {'accept' | 'accept-unbound' | 'reject'}
+ */
+export function cancelVerdict({ senderKey, joinerKey, senderIsMember, enforce }) {
+  if (senderKey === null) return enforce ? 'reject' : 'accept-unbound'
+  return senderKey === joinerKey || senderIsMember ? 'accept' : 'reject'
+}
+
+// Who may turn down our pending request: the deciders granterVerdict recognises, except that with no
+// creator named nobody but the inviter counts. A wrong grant is harmless without the sealed key; a
+// wrong deny throws the request away.
+/**
+ * @param {{ denierKey: string | null, inviteOwner: string | null, creatorKey: string | null, enforce: boolean }} facts
+ * @returns {'accept' | 'accept-unbound' | 'check-fold' | 'reject'}
+ */
+export function denierVerdict({ denierKey, inviteOwner, creatorKey, enforce }) {
+  if (denierKey === null) return enforce ? 'reject' : 'accept-unbound'
+  if (denierKey === inviteOwner || denierKey === creatorKey) return 'accept'
+  return creatorKey ? 'check-fold' : 'reject'
+}
+
 export const ASK_PEERS = 'ask-peers'
 
 // What a member's Deny does (the rule behind ALREADY_APPROVED: contract/deny-outcome.js). Local

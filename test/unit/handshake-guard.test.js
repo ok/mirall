@@ -3,7 +3,7 @@ import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
 import {
   clampDisplayName, validSenderFrame, signNoiseBinding, verifyIdentityBinding, checkInboundSender,
-  leaveFrameBound, frameEpoch,
+  leaveFrameBound, frameEpoch, checkControlSender,
 } from '../../src/shared/network/handshake-guard.js'
 import { boundSender as boundIdentity } from '../helpers/identity-binding.js'
 
@@ -185,4 +185,15 @@ test('frameEpoch: absent → 0, non-negative integer → itself, anything else �
   t.is(frameEpoch(2.5), null)
   t.is(frameEpoch({}), null)
   t.is(frameEpoch([1]), null)
+})
+
+test('checkControlSender proves the key a cancel or deny names on this socket', (t) => {
+  const sender = boundIdentity()
+  const on = { publicKey: sender.noise.publicKey }
+  const other = { publicKey: crypto.keyPair().publicKey }
+  t.alike(checkControlSender(on, { joinerKey: hex() }), { ok: true, senderKey: null }, 'a frame naming no sender is unbound')
+  t.alike(checkControlSender(on, { ...sender.fields }), { ok: true, senderKey: sender.profileKey }, 'a binding over this socket proves the key')
+  t.alike(checkControlSender(other, { ...sender.fields }), { ok: false, reason: 'sender-unbound' }, 'a binding captured from another socket proves nothing')
+  t.alike(checkControlSender(on, { ...sender.fields, profileKey: hex() }), { ok: false, reason: 'sender-unbound' }, 'nor does one for a different key')
+  t.alike(checkControlSender(on, { ...sender.fields, profileKey: 'zz' }), { ok: false, reason: 'sender-unbound' }, 'a malformed key is refused')
 })

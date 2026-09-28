@@ -530,7 +530,7 @@ or one we exchanged a membership grant with (either side of it). A core key is a
 ask for a core, and the profile key rides every handshake, so before that point a socket is served
 nothing. That closes the plaintext profile bee and catalog cores to strangers, pending joiners and
 tombstoned leavers. Two reads need records before the socket may replicate, and attach only the
-cores they read to that socket: a pending joiner checking a granter against the fold attaches the
+cores they read to that socket: a pending joiner checking a granter or denier against the fold attaches the
 roster cores the walk from the creator reads, and a member applying a leave attaches the leaver's
 own core (a replayed leave arrives on a socket that never replicates).
 Protomux rejects a hypercore channel the remote opens before we attach, and the remote does not ask
@@ -544,6 +544,8 @@ no per-peer serve hook, and the profile bee spans every space anyway.
 | `membership:request` | `profileKey, displayName, avatar, topicRef, inviteId`, binding. Sent instead of `handshake` while we are pending |
 | `leave` / `leave-ack` | `spaceId, profileKey, ts`, binding / `spaceId, profileKey` |
 | `presence` | `profileKey, topicRef, offline?` |
+| `membership:cancel` / `membership:cancel-ack` | `topicRef, joinerKey, profileKey`, binding / `topicRef, joinerKey, applied` |
+| `membership:deny` | `topicRef, profileKey`, binding |
 
 `membership:grant/deny/cancel` go to `handleMembershipControl` (`src/worker/ipc/membership.js`) with
 the space already resolved. The swarm answers `membership:cancel-ack` itself.
@@ -562,6 +564,17 @@ how many, not which. Leave frames name the space by `spaceId`.
 manifest-hashes to `profileKey`, made over this socket's Noise key. The handshake form also covers
 `driveKey`, with a fallback to the Noise-only form (`src/shared/network/handshake-guard.js`, §16). A
 captured signature therefore cannot be replayed onto another connection.
+
+**Deciding on a request.** `membership:cancel` and `membership:deny` name their sender the same way,
+in the Noise-only form, and a frame whose binding does not prove the key it names is dropped. A
+cancel is applied (tombstone, banner cleared, ack) only when its sender is the joiner withdrawing its
+own request, or a verified member of the space clearing the banner after its own deny. A pending
+joiner applies a deny only from the invite's inviter, the creator it names, or a key the fold rooted
+at that creator holds; with no creator named, only the inviter counts. As for a granter, the fold
+walk attaches each roster core it reads to the denier's socket alone. A deny for a space we are not pending in does
+nothing. A frame that names no sender comes from an older release: it is honoured and logged until
+`membershipControlBindingEnforced` is on (`feature-flags.json` `membershipControlBinding`, default
+off), and dropped after.
 
 **Budgets** (defaults in `src/shared/core/runtime-config-schema.js`). Every frame first passes a 64
 KiB size cap and a per-socket budget **before** `JSON.parse`, because parsing is the work being
@@ -1347,7 +1360,7 @@ would connect and never become members of each other.
 
 ### Handshake identity binding
 
-Handshake, membership request/grant and leave frames carry a signature from the profile signer over
+Handshake, membership request/grant/deny/cancel and leave frames carry a signature from the profile signer over
 the socket's Noise key; handshakes also cover the participation id (V2).
 `src/shared/network/handshake-guard.js` checks the signer against the claimed profile key's manifest
 and verifies the signature. The result: frames are attributable, and a third party can't impersonate
@@ -1360,6 +1373,8 @@ a member or evict one.
   admitted, but a signer key for sealing a grant, and a pending requester's socket, are taken only
   from a frame whose binding verified.
 - Leave frames are always checked.
+- A membership deny or cancel that names no sender is still honoured until
+  `membershipControlBindingEnforced` is on; one that names a sender is always checked (§4.2).
 - The V2 participation-id binding is best-effort: a V1 signature over the Noise key alone still
   verifies during rolling upgrades.
 - The binding does not cover the space reference; the reference is itself derived from the sender's
