@@ -196,16 +196,32 @@ function formatClock(ts) {
   return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
-/** @param {AuditEntry} entry @returns {MetaPart[]} */
-function relayedMeta(entry) {
-  if (entry.kind !== 'network.peer_relayed') return []
-  const subject = entry.subject ?? {}
+/** @param {NonNullable<AuditEntry['subject']>} subject @returns {MetaPart[]} */
+function relayedMeta(subject) {
   const plane = subject.plane === 'content' ? [{ key: 'activityLog.relay.plane.content' }] : []
   if (subject.via === 'own') {
     const label = typeof subject.label === 'string' && subject.label ? subject.label : null
     return [...plane, label ? { key: 'activityLog.relay.ownLabelled', values: { label } } : { key: 'activityLog.relay.own' }]
   }
   return [...plane, { key: 'activityLog.relay.providedBy', values: { name: typeof subject.provider === 'string' ? subject.provider : '' } }]
+}
+
+/** @param {NonNullable<AuditEntry['subject']>} subject @returns {MetaPart[]} */
+function relayedForMeta(subject) {
+  const relayedMs = finiteNumber(subject.relayedMs)
+  return relayedMs === null ? [] : [{ key: 'activityLog.relay.relayedFor', values: { duration: formatDuration(relayedMs) } }]
+}
+
+// The detail a kind adds after the generic fields.
+/** @type {Readonly<Record<string, (subject: NonNullable<AuditEntry['subject']>) => MetaPart[]>>} */
+const KIND_META = {
+  'network.peer_relayed': relayedMeta,
+  'network.peer_direct': relayedForMeta,
+}
+
+/** @param {string} kind @param {NonNullable<AuditEntry['subject']>} subject @returns {MetaPart[]} */
+function kindMeta(kind, subject) {
+  return Object.hasOwn(KIND_META, kind) ? KIND_META[kind](subject) : []
 }
 
 // The muted second line: space name first (the row's strongest context), then the kind's detail.
@@ -236,7 +252,7 @@ export function metaParts(entry, locale) {
   if (typeof subject.mountPath === 'string' && subject.mountPath) parts.push({ text: subject.mountPath })
   if (typeof subject.to === 'string' && subject.to) parts.push({ text: subject.to })
 
-  parts.push(...relayedMeta(entry))
+  parts.push(...kindMeta(entry.kind, subject))
   if (entry.category === 'network') {
     if (typeof entry.code === 'string' && NETWORK_CAUSES.has(entry.code)) {
       parts.push({ key: 'activityLog.cause.' + entry.code })

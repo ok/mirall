@@ -1059,6 +1059,7 @@
       "network.peer_lost": "{{actor}} ist offline gegangen",
       "network.peer_back": "{{actor}} ist wieder online",
       "network.peer_relayed": "{{actor}} ist über ein Relay verbunden",
+      "network.peer_direct": "{{actor}} ist wieder direkt verbunden",
       "share.renamed": "Du hast den Ordner {{target}} umbenannt",
       "mirror.relocated": "Du hast die Spiegelung von {{target}} verschoben"
     },
@@ -1103,6 +1104,7 @@
       "network.peer_lost": "Mitglied offline gegangen",
       "network.peer_back": "Mitglied wieder online",
       "network.peer_relayed": "weitergeleitete Verbindung",
+      "network.peer_direct": "direkte Verbindung",
       "share.renamed": "Ordner umbenannt",
       "mirror.relocated": "Spiegelung verschoben"
     },
@@ -1114,6 +1116,7 @@
       "own": "Dein Relay",
       "ownLabelled": "Dein Relay {{label}}",
       "providedBy": "Relay bereitgestellt von {{name}}",
+      "relayedFor": "{{duration}} über Relay verbunden",
       "plane": {
         "content": "Dateiübertragungen"
       }

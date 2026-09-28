@@ -9,6 +9,20 @@ build-pipeline tweaks, and dependency bumps that don't change how the app
 behaves are intentionally omitted. Releases that contained only such
 changes do not appear here.
 
+## v1.12.0
+
+### Unreleased
+
+#### Added
+
+- **See when a member is reached through a relay.** The member list now reads
+"Online · via relay" instead of just "Online", so a slow transfer has a
+visible reason.
+- **See when a relay stops carrying someone.** The Activity Log now records
+when a member reached through a relay is connected directly again, and how
+long the relay carried them. Each relayed stretch gets its own entry, not
+just the first one after Mirall starts.
+
 ## v1.11.2
 
 ### 2026-09-28

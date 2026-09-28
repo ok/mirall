@@ -22,7 +22,7 @@ import { getConnectedPeers } from '../../shared/network/presence-leases.js'
 import { joinSpaceTopic } from '../../shared/network/space-topics.js'
 import { peersInSpace } from '../../shared/network/swarm-registries.js'
 import { isRelayedSocket } from '../../shared/network/relayed-connections.js'
-import { contentSocketsFor } from '../../shared/network/content-swarm.js'
+import { socketsOf } from '../../shared/network/member-sockets.js'
 import { memberReach } from '../../shared/network/member-reach.js'
 import {
   isSpaceLeaving,
@@ -232,10 +232,7 @@ export function registerSpaces(ipc, { log, publishDownloadRoots }) {
   })
 }
 
-// The control socket the handshake bound, plus every content socket a content-hello did.
 /** @param {string} spaceId @returns {Generator<[string, object[]]>} */
 function* socketsPerMember(spaceId) {
-  for (const [personKey, peer] of peersInSpace(spaceId)) {
-    yield [personKey, [peer.socket, ...contentSocketsFor(personKey)]]
-  }
+  for (const [personKey, peer] of peersInSpace(spaceId)) yield [personKey, socketsOf(personKey, peer)]
 }

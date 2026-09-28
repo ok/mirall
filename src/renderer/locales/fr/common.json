@@ -1059,6 +1059,7 @@
       "network.peer_lost": "{{actor}} s’est déconnecté",
       "network.peer_back": "{{actor}} est de nouveau en ligne",
       "network.peer_relayed": "{{actor}} est connecté via un relais",
+      "network.peer_direct": "{{actor}} est de nouveau connecté directement",
       "share.renamed": "Vous avez renommé le dossier {{target}}",
       "mirror.relocated": "Vous avez déplacé le miroir de {{target}}"
     },
@@ -1103,6 +1104,7 @@
       "network.peer_lost": "membre déconnecté",
       "network.peer_back": "membre de nouveau en ligne",
       "network.peer_relayed": "connexion relayée",
+      "network.peer_direct": "connexion directe",
       "share.renamed": "dossier renommé",
       "mirror.relocated": "miroir déplacé"
     },
@@ -1114,6 +1116,7 @@
       "own": "Votre relais",
       "ownLabelled": "Votre relais {{label}}",
       "providedBy": "Relais fourni par {{name}}",
+      "relayedFor": "Via un relais pendant {{duration}}",
       "plane": {
         "content": "Transferts de fichiers"
       }
