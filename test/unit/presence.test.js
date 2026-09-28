@@ -6,13 +6,12 @@ import { createPresence, presenceFrameKind } from '../../src/shared/network/pres
 // online, and a malformed frame is ignored. This is the only deterministic coverage for the
 // departure branch — swarm.js is a bare module and the flow socket-close path flips presence first.
 test('presenceFrameKind: offline flag → clear, heartbeat → mark, malformed → ignore', (t) => {
-  const ok = { profileKey: 'aa', spaceTopic: 'bb' }
+  const ok = { profileKey: 'aa' }
   t.is(presenceFrameKind({ ...ok, offline: true }), 'clear', 'graceful-quit departure clears the lease')
   t.is(presenceFrameKind(ok), 'mark', 'heartbeat marks online')
   t.is(presenceFrameKind({ ...ok, offline: 'yes' }), 'mark', 'only strict true is a departure (no truthy coercion)')
   t.is(presenceFrameKind({ ...ok, offline: false }), 'mark', 'offline:false is a normal heartbeat')
-  t.is(presenceFrameKind({ profileKey: 'aa' }), 'ignore', 'missing spaceTopic → ignore')
-  t.is(presenceFrameKind({ spaceTopic: 'bb' }), 'ignore', 'missing profileKey → ignore')
+  t.is(presenceFrameKind({ topicRef: 'bb' }), 'ignore', 'missing profileKey → ignore')
   t.is(presenceFrameKind(null), 'ignore', 'malformed → ignore')
 })
 

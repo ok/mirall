@@ -456,6 +456,7 @@ test('FIX-BW10: fetchContent wires the transport probe into the scheduler', asyn
   const peer = {
     mux: { stream: { rawStream: { bytesReceived: 1234 } } },
     msgs: { contentRequest: { send() {} } },
+    askedFor: new Set(),
   }
   const fetch = proto.fetchContent('abc', [peer], { destPath: '/disk/abc' })
   fetch.catch(() => {})

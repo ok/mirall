@@ -4,8 +4,8 @@ import b4a from 'b4a'
 // Anonymous sealed box for the SCK (space content key) carried in a membership:grant: the
 // SCK is encrypted to the recipient's ed25519 signer key — the same key the handshake
 // identity binding ties to its profileKey — converted to curve25519. Only the holder of the
-// matching signer secret can open it, so a transport spoofer that captures the grant frame
-// still cannot read the SCK, independently of the handshake-binding flag.
+// matching signer secret can open it. The recipient key is recorded only from a frame whose
+// binding verified, so a spoofer that names someone else's profile key cannot redirect the seal.
 export function sealSck(sckBuf, recipientSignerPkEd) {
   const xpk = b4a.alloc(sodium.crypto_box_PUBLICKEYBYTES)
   sodium.crypto_sign_ed25519_pk_to_curve25519(xpk, recipientSignerPkEd)

@@ -8,6 +8,7 @@ import { readCatalogKey } from '../../../shares/catalog-keys.js'
 import { observePeerCatalog } from '../../../audit/peer-records-watch.js'
 import { getDownloadDir } from '../../../core/paths.js'
 import { getSpace } from '../../../spaces/space.js'
+import { verifiedMembers } from '../../../spaces/member-standing.js'
 import { createLogger } from '../../../core/logger.js'
 import { markListIncomplete } from '../../list-deficits.js'
 import { getPendingFor, recordPending } from '../../pending-transfers.js'
@@ -115,7 +116,7 @@ async function buildLooseJob({ spaceId, member, drivePath, keyHex, sck, entry, p
 
 async function resolveLoosePendingRow(spaceId, row) {
   const space = await getSpace(spaceId)
-  const member = (space?.members || []).find((m) => m.publicKey === row.ownerKey)
+  const member = verifiedMembers(space?.members).find((m) => m.publicKey === row.ownerKey)
   if (!member) return { removed: false, seq: undefined, job: null }
   const { keyHex, sck, readable } = await resolvePeerCatalog(spaceId, member, { space })
   if (!readable) return { removed: false, seq: undefined, job: null }

@@ -6,7 +6,7 @@
 // rate-limit collaborators (see .claude/solution-architecture.md, "Serve authorization").
 import { HyperOverlayV2 } from './vendor/overlay-v2.js'
 import { serveIndex } from './overlay-serve-index.js'
-import { makeServeAuthorizer, SECURITY_DENIALS } from './overlay-authorize.js'
+import { makeServeAuthorizer, makeHolderAuthorizer, SECURITY_DENIALS } from './overlay-authorize.js'
 import { RESOLVE_OUTCOME, recordResolved } from '../../../audit/audit-log.js'
 import { getSpace } from '../../../spaces/space.js'
 import { onServeStart as ledgerServeStart, onChunkServed as ledgerChunkServed, onServeEnd as ledgerServeEnd, onServeControl as ledgerServeControl, onServeBaseline as ledgerServeBaseline } from '../../serve-ledger.js'
@@ -113,9 +113,8 @@ export async function initOverlay() {
   // line an audit trail exists for. Do not "simplify" this away.
   //
   // Only a SECURITY denial is recorded: a rate-limited request is flow control mid-transfer, a
-  // missing socket is a teardown race, and a hash we advertise nowhere is a multi-source fetch
-  // asking every connected peer — recording those is one identical row per file of an ordinary
-  // mirror.
+  // missing socket is a teardown race, and a hash we advertise nowhere is a requester asking a
+  // peer it is connected to — recording those is one identical row per file of an ordinary mirror.
   const serveAuthorizer = makeServeAuthorizer({
     peerSocket, socketAuthorized, isApprovedMember, serveLimiter, serveIndex,
     onDeny: (reason, ctx) => {
@@ -123,6 +122,7 @@ export async function initOverlay() {
       recordServeDenial(reason, ctx)
     },
   })
+  const holderAuthorizer = makeHolderAuthorizer({ peerSocket, socketAuthorized })
   const enc = useEncryptedOverlay()
   overlay = new HyperOverlayV2(getStore(), {
     namespace: enc ? NAMESPACE_ENC : NAMESPACE,
@@ -133,6 +133,7 @@ export async function initOverlay() {
     partialSuffix: PARTIAL_SUFFIX,
     localProfileKey: getLocalPublicKeyHex(), // stamped on outbound content-requests (msg.from)
     serveAuthorizer,                          // gates every inbound content-request
+    holderAuthorizer,                         // picks which peers an outbound content-request goes to
     // Sender-side download indicator: the protocol serves by synthetic path
     // 'content:<hash>'; strip it to the hash the serve ledger resolves to a file.
     onServeStart: ({ from, path, total }) => ledgerServeStart({ from, contentHash: contentHashOf(path), total }),

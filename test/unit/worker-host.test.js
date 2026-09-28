@@ -5,6 +5,8 @@ import { loadWithFakeElectron } from '../helpers/fake-electron.js'
 import { preloadEntrypoints } from '../../src/main/worker-entrypoints.js'
 import { MAIN_WORKER_SPEC } from '../../src/shared/contract/workers.js'
 import path from 'path'
+import fs from 'fs'
+import os from 'os'
 import { fileURLToPath } from 'url'
 
 const REPO = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
@@ -29,9 +31,15 @@ function stubWorker() {
   return w
 }
 
-function load({ worker = stubWorker(), config = {}, flags = {} } = {}) {
-  const { electron, modules } = loadWithFakeElectron(['src/main/settings-ipc.js', 'src/main/worker-host.js'])
-  const [settings, host] = modules
+// The gate and the flags module are reloaded with the host, so no test inherits another's
+// packaging or flags cache.
+function load({ worker = stubWorker(), config = {}, flags = {}, isPackaged = false, flagsRoot = null } = {}) {
+  const { electron, modules } = loadWithFakeElectron(
+    ['src/main/env-overrides.js', 'src/main/feature-flags.js', 'src/main/settings-ipc.js', 'src/main/worker-host.js'],
+    { app: { isPackaged } },
+  )
+  const [, featureFlags, settings, host] = modules
+  if (flagsRoot) featureFlags.primeFeatureFlags(flagsRoot)
   const store = {
     get: (k) => config[k],
     set: () => {},
@@ -51,6 +59,63 @@ function load({ worker = stubWorker(), config = {}, flags = {} } = {}) {
 function frames(worker) {
   return worker.written.join('').split('\n').filter(Boolean).map((l) => JSON.parse(l))
 }
+
+function withEnv(t, vars) {
+  const saved = Object.fromEntries(Object.keys(vars).map((k) => [k, process.env[k]]))
+  Object.assign(process.env, vars)
+  t.teardown(() => {
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k]
+      else process.env[k] = v
+    }
+  })
+}
+
+test('REGRESSION (MIR-54: a failed flags read dropped the binding gate): the bootstrap enforces with no feature-flags.json', (t) => {
+  const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'mirall-noflags-'))
+  t.teardown(() => fs.rmSync(empty, { recursive: true, force: true }))
+  const realWarn = console.warn
+  console.warn = (...a) => { if (!String(a[0]).startsWith('[mirall] failed to read feature-flags.json')) realWarn(...a) }
+  t.teardown(() => { console.warn = realWarn })
+  const { host, worker } = load({ flagsRoot: empty })
+  host.getWorker(MAIN_WORKER_SPEC)
+  t.is(frames(worker)[1].handshakeIdentityBindingEnabled, true)
+})
+
+test('REGRESSION (MIR-54: a packaged build took security flags from its environment): the MIRALL_* levers are ignored when packaged', (t) => {
+  withEnv(t, {
+    MIRALL_FEATURE_FLAGS: JSON.stringify({ handshakeIdentityBinding: false }),
+    MIRALL_DHT_BOOTSTRAP: JSON.stringify([{ host: '127.0.0.1', port: 1 }]),
+    MIRALL_LIST_FILES_CAP: '3',
+    MIRALL_MAX_FILES_PER_SHARE: '3',
+    MIRALL_DERIVE_DEBOUNCE_MS: '3',
+    MIRALL_DOWNLOAD_FOLDER: '/tmp/mirall-elsewhere',
+  })
+  const packaged = load({ isPackaged: true })
+  packaged.host.getWorker(MAIN_WORKER_SPEC)
+  const boot = frames(packaged.worker)[1]
+  t.is(boot.handshakeIdentityBindingEnabled, true, 'the environment cannot turn enforcement off')
+  t.absent(boot.dhtBootstrap, 'nor move the DHT')
+  t.absent(boot.listFilesCap, 'nor lift a cap')
+  t.absent(boot.maxFilesPerShare, 'nor the share admission gate')
+  t.absent(boot.deriveDebounceMs, 'nor retime the fold')
+  t.not(boot.downloadFolder, '/tmp/mirall-elsewhere', 'nor redirect downloads')
+
+  const dev = load()
+  dev.host.getWorker(MAIN_WORKER_SPEC)
+  const devBoot = frames(dev.worker)[1]
+  t.is(devBoot.handshakeIdentityBindingEnabled, false, 'an unpackaged run still honours the override')
+  t.is(devBoot.listFilesCap, 3, 'and the test levers')
+  t.is(devBoot.downloadFolder, '/tmp/mirall-elsewhere')
+})
+
+test('the rollback levers stay settable on a packaged build', (t) => {
+  withEnv(t, { MIRALL_FOREIGN_FULL_WALK_EVERY: '1', MIRALL_LIST_FULL_READ_EVERY: '1' })
+  const { host, worker } = load({ isPackaged: true })
+  host.getWorker(MAIN_WORKER_SPEC)
+  t.is(frames(worker)[1].foreignFullWalkEvery, 1)
+  t.is(frames(worker)[1].listFullReadEvery, 1)
+})
 
 test('REGRESSION (FIX-BOOTSTRAP-1): the bootstrap frame goes down the one guarded path', (t) => {
   const { host, worker } = load()

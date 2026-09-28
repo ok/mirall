@@ -46,6 +46,9 @@ export interface SpaceMember {
   looseCatalogKey?: string
   looseCatalogKeyEnc?: string
   looseCatalogEpoch?: number
+  // Present (true) only on the inviter an invite named, until the fold or an admitted handshake
+  // confirms them. Display only: it carries no membership authority.
+  unverified?: boolean
 }
 
 // The slim roster shape spaces:list ships (no avatar / catalog-key fields — those are heavy or
@@ -55,6 +58,8 @@ interface SpaceMemberSummary {
   displayName: string
   online?: boolean
   status?: MemberStatus
+  // Set as on SpaceMember.
+  unverified?: boolean
 }
 
 export interface JoinRequest {

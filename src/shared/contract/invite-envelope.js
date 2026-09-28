@@ -121,11 +121,10 @@ export function extractInviteCode(input) {
 }
 
 // Optional inviter identity (o = profile public key, d = display name). Lets the
-// joiner pre-seed the inviter as an offline shell member so the space isn't
-// empty before the first handshake. Keyed by the real public key, so the
-// handshake merges into the shell rather than adding a duplicate. Unauthenticated
-// until that handshake — purely a placeholder. ownerName is only carried when a
-// valid owner key is present.
+// joiner show the inviter while it waits, so the space isn't empty. It is the
+// link's unauthenticated claim: the entry is display only, flagged unverified
+// until the member fold or an admitted handshake confirms it. ownerName is only
+// carried when a valid owner key is present.
 // Optional space creator (c): the root the membership fold (an OR-Set) seeds from. Distinct from
 // `owner` (the inviter, which can be any member) — the creator is the single peer with no approval
 // record, so every peer must agree on it or honest member views diverge. Same trust status as `owner`.

@@ -13,6 +13,7 @@ import { sanitizeAvatar } from '../contract/identity-limits.js'
 import { PEER_FRAME } from '../contract/peer-frames.js'
 import { UNKNOWN_DISPLAY_NAME } from '../contract/limits.js'
 import { signNoiseBinding } from './handshake-guard.js'
+import { topicField } from './topic-refs.js'
 import { spaceTopics, socketMsgHandlers, announceLedger } from './swarm-registries.js'
 import { createLogger } from '../core/logger.js'
 
@@ -65,7 +66,9 @@ export function sendFrame(msgHandler, frame) {
   msgHandler.send(str)
 }
 
-async function sendIdentityFrame(socket, msgHandler, spaceId, topicHex, profile) {
+async function sendIdentityFrame(socket, msgHandler, spaceId, profile) {
+  const topic = topicField(socket, spaceId)
+  if (!topic) return
   const profileKeyHex = b4a.toString(getProfileKey(), 'hex')
   const displayName = profile?.displayName || UNKNOWN_DISPLAY_NAME
   const space = await getSpace(spaceId)
@@ -80,7 +83,7 @@ async function sendIdentityFrame(socket, msgHandler, spaceId, topicHex, profile)
       profileKey: profileKeyHex,
       driveKey: driveKeyHex,
       displayName,
-      spaceTopic: topicHex,
+      ...topic,
       ...looseField,
       // Carry our (bound) view of the member-set (OR-Set) root so connected members cross-check
       // it. A peer holding only a provisional pin confirms it from this; a divergent root surfaces.
@@ -104,7 +107,7 @@ async function sendIdentityFrame(socket, msgHandler, spaceId, topicHex, profile)
       // the joiner arrives with initials instead of a picture, which is what an avatar-less peer
       // already renders as.
       avatar: sanitizeAvatar(profile?.avatar, joinRequestAvatarMaxBytes()),
-      spaceTopic: topicHex,
+      ...topic,
       inviteId: space.inviteId || null,
       ...(getLocalBinding() || {}),
     })
@@ -112,8 +115,8 @@ async function sendIdentityFrame(socket, msgHandler, spaceId, topicHex, profile)
   }
 }
 
-export async function sendSingleHandshake(socket, msgHandler, spaceId, topicHex) {
-  await sendIdentityFrame(socket, msgHandler, spaceId, topicHex, await getProfile())
+export async function sendSingleHandshake(socket, msgHandler, spaceId) {
+  await sendIdentityFrame(socket, msgHandler, spaceId, await getProfile())
 }
 
 // One profile read for the whole fan-out: every space announces the same identity, and a read
@@ -121,8 +124,8 @@ export async function sendSingleHandshake(socket, msgHandler, spaceId, topicHex)
 export async function sendHandshakeMessages(socket, msgHandler) {
   log.debug('sending handshakes for', spaceTopics.size, 'spaces')
   const profile = await getProfile()
-  for (const [spaceId, topic] of spaceTopics) {
-    await sendIdentityFrame(socket, msgHandler, spaceId, topic, profile)
+  for (const spaceId of spaceTopics.keys()) {
+    await sendIdentityFrame(socket, msgHandler, spaceId, profile)
   }
 }
 

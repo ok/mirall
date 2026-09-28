@@ -89,13 +89,12 @@ async function drainAnnounceLedger(beat) {
   })
   for (const { socketId: socket, spaceId } of due) {
     const handler = socketMsgHandlers.get(socket)
-    const topic = spaceTopics.get(spaceId)
     // A dead socket (disconnected during a prior await) leaves zombie ledger entries the pure
     // due() can't see socketMsgHandlers to prune — forget it here so its bucket evaporates.
     if (!handler) { announceLedger.forgetSocket(socket); continue }
-    if (!topic) continue
+    if (!spaceTopics.has(spaceId)) continue
     log.debug('re-announcing space', spaceId)
-    await sendSingleHandshake(socket, handler, spaceId, topic)
+    await sendSingleHandshake(socket, handler, spaceId)
     beat()
   }
 }

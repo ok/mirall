@@ -4,6 +4,7 @@
 
 import { listSpaces } from '../shared/spaces/space.js'
 import { listPendingRequests } from '../shared/spaces/join-requests.js'
+import { verifiedMembers } from '../shared/spaces/member-standing.js'
 
 // The self-first roster (avatars included) for ONE space. Rosters ship slim in spaces:list —
 // avatars are base64 data-URLs up to the sanitizeAvatar cap, far too heavy for an
@@ -38,7 +39,7 @@ export async function slimSpaces(profile) {
   // surface as a normal space: it has no swarm and is about to be forgotten.
   const allSpaces = (await listSpaces()).filter((s) => !s.leaving)
   return allSpaces.map(s => {
-    const memberKeys = new Set((s.members || []).map(m => m.publicKey))
+    const memberKeys = new Set(verifiedMembers(s.members).map(m => m.publicKey))
     if (profile) memberKeys.add(profile.personKey)
     const members = fullRoster(s, profile).map(slimMember)
     return {

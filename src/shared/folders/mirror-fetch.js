@@ -383,6 +383,7 @@ async function fetchOverlayEntry(mount, share, entry, { abs, verifyKey, localRel
       label: 'overlay mirror',
       relPath: entry.relPath,
       size: total,
+      ownerKey: mount.ownerKey,
       destPath: abs,
       onProgress: ({ bytes, speed, eta }) => emitMirrorEvent('event:decoration', {
         channel: 'transfer', spaceId: mount.spaceId, key: decoKey, bytes, total, speed, eta,

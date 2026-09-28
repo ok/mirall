@@ -84,7 +84,7 @@ test('REGRESSION (FIX-2): a co-member enforces an auto-approve link the offline 
   await C.request('space:join', { inviteCode: invite })
   await cGranted
   await C.until('spaces:list', {}, (l) => (l.find((s) => s.spaceId === spaceId)?.members || [])
-    .some((m) => m.publicKey === aKey), { ms: 60000, every: 1000 })
+    .some((m) => m.publicKey === aKey && !m.unverified), { ms: 60000, every: 1000 })
   await new Promise((r) => setTimeout(r, 6000)) // let C fully replicate A's profile core (incl. the record)
 
   // The minter goes offline. Only C can resolve B's join now.

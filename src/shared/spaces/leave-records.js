@@ -25,9 +25,9 @@ const leftRange = (spaceId) => prefixRange(LEFT_TOMBSTONE_PREFIX + spaceId + '/'
 const sanitizeLeaveTs = (v) => (Number.isFinite(v) && v > 0 ? v : 0)
 
 // One ~1-record tombstone per lifetime departure, cleared on the leaver's rejoin (dropTombstone) and
-// on space deletion (clearAllLeftTombstones). Not count-pruned: a tombstone is load-bearing exactly
-// when its del has not replicated, and a long-gone unreachable leaver is the likeliest to be
-// un-replicated, so "evict the oldest" is the unsafe choice.
+// on space deletion (clearAllLeftTombstones). Writers go through the registry's per-space cap,
+// which only ever clears a tombstone the fold no longer authorizes: one whose del has not
+// replicated is exactly the one that must survive.
 export async function persistLeftTombstone(spaceId, key, leaveTs) {
   await spacesMeta().put(LEFT_TOMBSTONE_PREFIX + spaceId + '/' + key, { leaveTs: sanitizeLeaveTs(leaveTs) })
 }

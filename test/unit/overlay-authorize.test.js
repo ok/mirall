@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { makeServeAuthorizer, DENY, SECURITY_DENIALS } from '../../src/shared/transfer/backends/overlay/overlay-authorize.js'
+import { makeServeAuthorizer, makeHolderAuthorizer, DENY, SECURITY_DENIALS } from '../../src/shared/transfer/backends/overlay/overlay-authorize.js'
 
 // Build the authorizer with controllable fakes for each collaborator. Defaults
 // are the "everything passes" case; each test overrides one leg to drive a deny.
@@ -176,4 +176,21 @@ test('an onDeny that throws can never break the gate', async (t) => {
   }
   const auth = makeServeAuthorizer(deps)
   t.is(await auth({ id: 'x' }, 'k', 'h'), false, 'the gate still returns its verdict')
+})
+
+test('REGRESSION (MIR-46: fetch gate asks only a peer bound to the owner on its socket)', (t) => {
+  const owner = { id: 'owner-peer' }
+  const raw = { id: 'raw-peer' }
+  const ownerSock = { id: 's1' }
+  const rawSock = { id: 's2' }
+  const bound = new Map([[ownerSock, 'OWNER']])
+  const gate = makeHolderAuthorizer({
+    peerSocket: new Map([[owner, ownerSock], [raw, rawSock]]),
+    socketAuthorized: (s, k) => bound.get(s) === k,
+  })
+  t.is(gate(owner, 'OWNER'), true, 'owner-bound peer is asked')
+  t.is(gate(raw, 'OWNER'), false, 'a socket with no verified identity is not asked')
+  t.is(gate(owner, 'SOMEONE-ELSE'), false, 'a peer bound to another identity is not asked')
+  t.is(gate(owner, null), false, 'no owner key, nobody is asked')
+  t.is(gate({ id: 'detached' }, 'OWNER'), false, 'a peer with no socket is not asked')
 })

@@ -95,6 +95,11 @@ test('REGRESSION (FIX-1 wiring): the fire-and-forget handshake dispatch is .catc
   )
 })
 
+test('REGRESSION (MIR-62): the fire-and-forget leave dispatch is .catch-guarded', (t) => {
+  t.ok(/handleLeaveFrame\([^)]*\)\s*\.catch\s*\(/.test(intakeSrc),
+    'an un-awaited leave rejection would otherwise escape the synchronous try/catch around dispatchFrame')
+})
+
 // The escalation half. installCrashBackstop keeps a worker alive through ISOLATED faults — that is
 // what the two tests at the top of this file prove and it must not change. What is added is a RATE:
 // a worker producing faults faster than the threshold is not recovering, and staying up leaves it

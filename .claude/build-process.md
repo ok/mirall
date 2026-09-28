@@ -86,8 +86,9 @@ roll forward within a channel, so no released version needs parallel maintenance
 | `ubuntu-latest` / `ubuntu-24.04-arm` | `linux-x64` / `linux-arm64` | `Mirall.deb` + `Mirall.AppImage` — unsigned by convention |
 | `windows-latest` | `win32-x64` | `Mirall.msix` — unsigned |
 
-Each job: patch `package.json#version` → `npm install` → `npm run build` (esbuild bundles the
-renderer, Tailwind compiles CSS, `tsc --noEmit` typechecks) → `npm run make:<platform>`:
+Each job: patch `package.json#version` → `npm ci` → fail if `package-lock.json` changed →
+`npm run build` (esbuild bundles the renderer, Tailwind compiles CSS, `tsc --noEmit` typechecks) →
+`npm run make:<platform>`:
 
 - **macOS** — `electron-forge make`; `osxSign` + `osxNotarize` run during packaging (wired via env
   in `forge.config.js`) using an Apple Developer ID cert stored in repo secrets.
@@ -107,6 +108,16 @@ renderer, Tailwind compiles CSS, `tsc --noEmit` typechecks) → `npm run make:<p
   `forge.config.js` rewrites the 4-part `Version` in `resources/win32/AppxManifest.xml`. CI produces
   the MSIX **unsigned**; it is signed out-of-band by a maintainer (the signing process is internal).
 
+**The shipped tree is the tested tree.** The build installs the committed `package-lock.json` with
+`npm ci`, the same install `test.yml` runs, and a `git diff --exit-code` step fails the job if the
+lock changed. A dependency reaches a release only through a PR that changed the lock and passed CI.
+The one lock serves all five matrix rows: npm 11 records every platform's optional native binding
+(esbuild, Tailwind oxide, lightningcss, oxc, `@parcel/watcher`, `bare-runtime`) with its
+`os`/`cpu`/`libc`, and installs the host's. If a runner ever fails on a missing binding, the lock is
+broken — regenerate it on npm 11 from a clean tree; never delete it in CI.
+`test/invariants/release-lockfile-install.test.js` pins the install step, the drift check and the
+lock's completeness.
+
 Installers are uploaded to object storage, from which the website's download page serves first
 installs.
 
@@ -117,6 +128,14 @@ launch, `dlopen` cannot read an archive, and native tray/notification APIs need 
 `src/main/asar-spawn.js` rewrites `app.asar/` → `app.asar.unpacked/` in spawn paths, because
 `require.resolve` returns archive paths the OS cannot exec. OTA swaps the whole bundle, so the
 layout does not affect it.
+
+**Fuses.** `@electron-forge/plugin-fuses` in `forge.config.js` turns off `RunAsNode`,
+`NODE_OPTIONS` and `--inspect` on the packaged binary and turns on `OnlyLoadAppFromAsar` and
+embedded asar integrity validation; `scripts/ci/check-fuses.mjs` asserts them on every built binary.
+The integrity hash is written into `Info.plist` / the Windows exe resource at package time, covers
+only the packed files, and is not checked on Linux. A packaged build also ignores the `MIRALL_*`
+levers and `PEAR_DEV_SERVER_URL` (`src/main/env-overrides.js`); automation drives an unpackaged
+build.
 
 ## Release channels & OTA
 

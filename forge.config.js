@@ -1,6 +1,7 @@
 const path = require('path')
 const fs = require('fs')
 const os = require('os')
+const { FuseV1Options, FuseVersion } = require('@electron/fuses')
 
 const pkg = require('./package.json')
 const appName = pkg.productName || pkg.name
@@ -422,5 +423,19 @@ module.exports = {
   plugins: [
     { name: 'electron-forge-plugin-universal-prebuilds', config: {} },
     { name: 'electron-forge-plugin-prune-prebuilds', config: {} },
+    // The packaged binary runs only as Mirall: never as a generic Node (ELECTRON_RUN_AS_NODE,
+    // NODE_OPTIONS, --inspect), and only from its own app.asar, whose integrity is checked at
+    // launch on macOS and Windows. scripts/ci/check-fuses.mjs asserts the result on every build.
+    {
+      name: '@electron-forge/plugin-fuses',
+      config: {
+        version: FuseVersion.V1,
+        [FuseV1Options.RunAsNode]: false,
+        [FuseV1Options.EnableNodeOptionsEnvironmentVariable]: false,
+        [FuseV1Options.EnableNodeCliInspectArguments]: false,
+        [FuseV1Options.EnableEmbeddedAsarIntegrityValidation]: true,
+        [FuseV1Options.OnlyLoadAppFromAsar]: true,
+      },
+    },
   ],
 }

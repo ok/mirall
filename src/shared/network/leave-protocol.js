@@ -16,18 +16,19 @@
 // signatures that only the connection layer can mint.
 import { PEER_FRAME } from '../contract/peer-frames.js'
 import b4a from 'b4a'
-import { getProfileKey, revokeApproval, adoptVouchees } from '../spaces/profile.js'
+import { getProfileKey, revokeApproval } from '../spaces/profile.js'
 import { getSpace, removeMember } from '../spaces/space.js'
-import { persistLeftTombstone } from '../spaces/leave-records.js'
+import { isVerifiedMember } from '../spaces/member-standing.js'
 import { leaveFrameBound } from './handshake-guard.js'
 import { destroyContentPeerSockets } from './content-swarm.js'
 import { record } from '../audit/audit-log.js'
 import { peerLeft } from '../audit/network-watch.js'
-import { markLeft, applyLocalRevocation } from '../spaces/member-registry.js'
+import { markLeft, applyLocalRevocation, adoptVouchees, isLeft, persistTombstoneWithinCap } from '../spaces/member-registry.js'
 import { connectedPeers, spaceTopics, spaceDiscoveries, socketMsgHandlers, authorizedOn, detachPeerFromSpace, forgetPeerOnSocket, forgetBoundSignerKey } from './swarm-registries.js'
 import { TARGET_KIND } from '../contract/audit-kinds.js'
 import { peerActor, spaceRef, targetRef } from '../audit/audit-record.js'
 import { getLocalBinding } from './identity-frames.js'
+import { topicField, frameSpace } from './topic-refs.js'
 import { presence } from './presence-leases.js'
 import { memberWaits } from './share-wait.js'
 import { clearWaitingFor } from '../transfer/serve-ledger.js'
@@ -88,8 +89,10 @@ function leaveStampFrom(msg) {
 // creator (we hold no approval for the root). Safe to unroot the leaver here: the caller adopts its
 // vouchees first. Returns false when either write failed, which is what the ack attests.
 async function applyDurableLeave(spaceId, profileKey, leaveTs) {
-  let applied = true
-  try { await persistLeftTombstone(spaceId, profileKey, leaveTs) } catch (err) {
+  let applied
+  try {
+    applied = await persistTombstoneWithinCap(spaceId, profileKey, leaveTs)
+  } catch (err) {
     applied = false
     log.warn('persist leave tombstone failed:', err.message)
   }
@@ -118,11 +121,22 @@ function disconnectLeaver(profileKey, spaceId) {
 
 export async function handleLeaveFrame(socket, peerInfo, msg) {
   const { spaceId, profileKey } = msg
-  if (!spaceId || !profileKey) return
+  if (typeof spaceId !== 'string' || typeof profileKey !== 'string') return
 
   // Our own teardown destroys the sockets that clear the auth index, so an inbound
   // frame for a space we're leaving races into the rejection below — drop it quietly.
   if (leavingSpaces.has(spaceId)) return
+
+  // A leave is applied only for a peer we hold as a verified member of the space, or one whose leave
+  // we already applied: a leaver replays until someone acks, so a tombstoned key is acked again.
+  // Checked before the binding, so a key we never held costs no signature verify.
+  const space = await getSpace(spaceId)
+  if (!space?.members) return
+  const alreadyLeft = isLeft(spaceId, profileKey)
+  if (!alreadyLeft && !isVerifiedMember(space.members, profileKey)) {
+    log.debug('leave frame ignored — sender is not a member of', spaceId)
+    return
+  }
 
   // Accept iff the sender proves it controls profileKey on THIS connection: the fast path is the
   // per-socket auth index; the robust path is the frame's identity binding, which survives the
@@ -134,16 +148,14 @@ export async function handleLeaveFrame(socket, peerInfo, msg) {
     return
   }
 
-  const space = await getSpace(spaceId)
-  if (!space?.members) return
-
   // Take over the leaver's vouchees before touching anything else. The revoke below unroots the
   // leaver, and from then on the fold stops walking its bee, so the subtree it alone vouched for
   // could never be recovered. The leaver is connected right now, which is the best window there is
   // to read that record. When it is unreadable, apply NOTHING: the replication-driven path retries
   // once the departure record lands, which is strictly better than tombstoning here while our vouch
-  // still stands (a tombstone would suppress every retry).
-  if (!(await adoptVouchees(spaceId, profileKey))) {
+  // still stands (a tombstone would suppress every retry). A tombstoned leaver was adopted from
+  // when it was tombstoned.
+  if (!alreadyLeft && !(await adoptVouchees(spaceId, profileKey))) {
     log.warn('leave frame deferred — leaver record unreadable, cannot adopt:', profileKey.slice(0, 12))
     return
   }
@@ -356,13 +368,19 @@ export function hasPendingCancel(spaceId) { return pendingCancels.has(spaceId) }
 export function joinPendingCancelTopic(spaceId, topicHex) { joinPurgedSpaceTopic(spaceId, topicHex) }
 export async function leavePendingCancelTopic(spaceId) { await leavePurgedSpaceTopic(spaceId) }
 
-export function sendPendingCancelFrames(socket, msgHandler) {
+// A `resend` repeats, in a form the peer reads, a cancel already sent on this socket, so it does not
+// count as another attempt.
+export function sendPendingCancelFrames(socket, msgHandler, { onlySpaceId = null, resend = false } = {}) {
   if (pendingCancels.size === 0) return
   let sent = pendingCancelFramesSent.get(socket)
   if (!sent) pendingCancelFramesSent.set(socket, (sent = new Set()))
   for (const [spaceId, pc] of pendingCancels) {
-    try { msgHandler.send(JSON.stringify({ type: PEER_FRAME.MEMBERSHIP_CANCEL, spaceTopic: pc.topic, joinerKey: pc.joinerKey })) } catch { continue }
+    if (onlySpaceId && spaceId !== onlySpaceId) continue
+    const topic = topicField(socket, spaceId, pc.topic)
+    if (!topic) continue
+    try { msgHandler.send(JSON.stringify({ type: PEER_FRAME.MEMBERSHIP_CANCEL, ...topic, joinerKey: pc.joinerKey })) } catch { continue }
     sent.add(spaceId)
+    if (resend) continue
     if (++pc.attempts >= MAX_CANCEL_ATTEMPTS) {
       pendingCancels.delete(spaceId)
       leavePurgedSpaceTopic(spaceId).catch((err) => log.debug('pending-cancel give-up leave failed:', err.message))
@@ -381,14 +399,12 @@ export function sendPendingCancelToConnected() {
 // actually sent the cancel on — stop replaying and drop the topic. The socket + frame-sent check
 // mirrors handleLeaveAckFrame: a peer that never received our cancel can't clear it.
 export function handleMembershipCancelAck(socket, msg) {
-  if (!msg.applied || typeof msg.spaceTopic !== 'string') return
-  for (const [spaceId, pc] of pendingCancels) {
-    if (pc.topic !== msg.spaceTopic) continue
-    if (!pendingCancelFramesSent.get(socket)?.has(spaceId)) return
-    pendingCancels.delete(spaceId)
-    Promise.resolve(onPendingCancelApplied?.(spaceId)).catch((err) => log.debug('pending-cancel clear failed:', err.message))
-    return
-  }
+  if (!msg.applied) return
+  const topics = new Map([...pendingCancels].map(([spaceId, pc]) => [spaceId, pc.topic]))
+  const named = frameSpace(msg, socket, topics)
+  if (!named || !pendingCancelFramesSent.get(socket)?.has(named.spaceId)) return
+  pendingCancels.delete(named.spaceId)
+  Promise.resolve(onPendingCancelApplied?.(named.spaceId)).catch((err) => log.debug('pending-cancel clear failed:', err.message))
 }
 
 // What destroySwarm calls instead of clearing six containers by hand. The two onApplied hooks are

@@ -3,18 +3,19 @@
 //
 // The order is the point. A frame is charged BEFORE it is decoded, because the budget exists to
 // bound the work an unauthenticated peer can make us do and JSON.parse is that work. Only a frame
-// whose topic we actually joined pays for signature verification.
+// that names a space we hold pays for signature verification.
 
 import b4a from 'b4a'
 import { createLogger } from '../core/logger.js'
 import { PEER_FRAME, IDENTITY_ASSERTING, MEMBERSHIP_CONTROL_FRAMES } from '../contract/peer-frames.js'
-import { HEX64 } from '../contract/invite-envelope.js'
 import { getPeerFrameMaxBytes, getPeerFrameLimits, getHandshakeRateLimit, getConnectionCaps, isHandshakeIdentityBindingEnabled, getIdentityFrameDropWindow } from '../core/runtime-config.js'
 import { checkInboundSender, createDualRateLimiter, createRateLimiter, validFrameShape } from './handshake-guard.js'
-import { handlePresenceFrame, handleShareIndexProgressFrame, handleSharePrepareProgressFrame, resolveSpaceIdForTopic } from './presence-broadcast.js'
-import { handleLeaveFrame, handleLeaveAckFrame, handleMembershipCancelAck } from './leave-protocol.js'
+import { handlePresenceFrame, handleShareIndexProgressFrame, handleSharePrepareProgressFrame } from './presence-broadcast.js'
+import { handleLeaveFrame, handleLeaveAckFrame, handleMembershipCancelAck, sendPendingCancelFrames } from './leave-protocol.js'
+import { sendSingleHandshake } from './identity-frames.js'
+import { frameSpace, noteLegacyTopic, rememberUnheldTopic } from './topic-refs.js'
 import { handleShareWaitFrame } from './share-wait.js'
-import { spaceTopics, pendingRequesters, boundSignerKeys } from './swarm-registries.js'
+import { spaceTopics, boundSignerKeys, parkPendingRequester } from './swarm-registries.js'
 import { handleHandshake } from './handshake-apply.js'
 
 const log = createLogger('frame-intake')
@@ -94,41 +95,57 @@ export function receiveFrame(conn, str) {
     return
   }
 
+  const named = frameSpace(msg, socket)
+  if (named?.legacy && noteLegacyTopic(socket, named.spaceId)) answerInBearerForm(conn, named.spaceId)
+  if (!named) rememberUnheldTopic(socket, msg)
+  const spaceId = named?.spaceId ?? null
+
   // A frame asserting the SENDER's profileKey (handshake, membership:request) must be
   // well-formed and — when enforced — carry a signature binding the claimed profileKey to this
   // connection's Noise key. Gated before pendingRequesters.set so a spoofed request can't
   // capture a grant.
-  if (IDENTITY_ASSERTING.includes(msg.type) && !admitIdentityFrame(conn, msg)) return
+  let bound = false
+  if (IDENTITY_ASSERTING.includes(msg.type)) {
+    const admitted = admitIdentityFrame(conn, msg, spaceId)
+    if (!admitted) return
+    bound = admitted.bound
+  }
 
   try {
-    dispatchFrame(conn, msg)
+    dispatchFrame(conn, msg, spaceId, bound)
   } catch (err) {
     log.error('handshake dispatch error:', err)
   }
 }
 
+// A peer that names a space by its bearer topic cannot read a topicRef, so what we sent it for that
+// space is sent again in its form, now that it has shown it holds the topic.
+function answerInBearerForm({ socket, msgHandler }, spaceId) {
+  sendSingleHandshake(socket, msgHandler, spaceId).catch((err) => log.debug('bearer-form handshake failed:', err?.message || err))
+  sendPendingCancelFrames(socket, msgHandler, { onlySpaceId: spaceId, resend: true })
+}
+
 // Gate for frames that assert the sender's profileKey (handshake, membership:request).
-// Order matters: resolve the topic FIRST (a Map scan, no crypto) and charge the lane it
-// picks — frames for topics we didn't join are dropped cheaply on a generous lane and can
-// never starve the shared-space frame. Only matched frames pay for signature verification and
-// reach dispatch. Both lanes ban on a sustained flood. Returns false if the frame was
-// dropped/rejected.
-function admitIdentityFrame(conn, msg) {
+// Order matters: the space is resolved FIRST (a memoized hash compare, no signature work) and the
+// lane it picks is charged — frames naming no space of ours are dropped cheaply on a generous lane
+// and can never starve the shared-space frame. Only matched frames pay for signature verification
+// and reach dispatch. Both lanes ban on a sustained flood. Returns null if the frame was
+// dropped/rejected, else whether its binding verified.
+function admitIdentityFrame(conn, msg, spaceId) {
   const { socket, peerInfo, remoteKey } = conn
   if (testDrop) {
     const i = testDrop.seen++
     if (i >= testDrop.after && i < testDrop.after + testDrop.count) {
       log.debug('TEST drop identity frame', msg.type, 'from', remoteKey + '...')
-      return false
+      return null
     }
   }
-  const matched = typeof msg.spaceTopic === 'string' &&
-    HEX64.test(msg.spaceTopic) && !!resolveSpaceIdForTopic(msg.spaceTopic)
+  const matched = spaceId !== null
   const noiseHex = peerInfo?.publicKey ? b4a.toString(peerInfo.publicKey, 'hex') : null
   if (noiseHex && rateLimiter) {
-    // The topic is charged only when it matched one of ours, so the lane's cap grows with the
+    // The space is charged only when it matched one of ours, so the lane's cap grows with the
     // spaces this peer has actually proven it shares — not with our own space count.
-    const r = rateLimiter.take(noiseHex, matched, matched ? msg.spaceTopic : null)
+    const r = rateLimiter.take(noiseHex, matched, spaceId)
     if (!r.ok) {
       log.debug('rate-limited', msg.type, 'from', remoteKey + '...')
       if (r.ban) {
@@ -137,46 +154,43 @@ function admitIdentityFrame(conn, msg) {
         try { peerInfo.ban(true) } catch {}
         socket.destroy()
       }
-      return false
+      return null
     }
   }
   if (!matched) {
-    // Nothing to do with it (handleHandshake would return on the topic miss anyway) —
-    // drop before paying for the signature verify.
-    log.debug(msg.type, 'topic not matched locally:', String(msg.spaceTopic).slice(0, 16) + '...')
-    return false
+    // Names no space of ours: drop before paying for the signature verify.
+    log.debug(msg.type, 'names no space of ours from', remoteKey + '...')
+    return null
   }
   const verdict = checkInboundSender(peerInfo, msg, { enforceBinding: isHandshakeIdentityBindingEnabled() })
   if (!verdict.ok) {
     log.warn('rejected', msg.type, 'from', remoteKey + '... -', verdict.reason)
-    return false
+    return null
   }
-  if (typeof msg.signerKey === 'string' && HEX64.test(msg.signerKey)) boundSignerKeys.set(msg.profileKey, msg.signerKey)
-  return true
+  if (verdict.bound) boundSignerKeys.set(msg.profileKey, msg.signerKey)
+  if (msg.type === PEER_FRAME.MEMBERSHIP_REQUEST) registerPendingRequester(conn, msg.profileKey, verdict.bound)
+  return { bound: verdict.bound }
 }
 
-// A pending joiner has no handshake yet, so remember its socket to deliver a grant later.
-// Bounded by the pendingRequesters cap; an already-tracked requester re-registering is allowed.
-function registerPendingRequester(conn, msg) {
-  const { socket, remoteKey } = conn
-  const cap = getConnectionCaps().maxPendingRequesters
-  if (!cap || pendingRequesters.size < cap || pendingRequesters.has(msg.profileKey)) {
-    pendingRequesters.set(msg.profileKey, socket)
-  } else {
-    log.debug('pendingRequesters cap reached, dropping request from', remoteKey + '...')
+function registerPendingRequester({ socket, remoteKey }, profileKey, bound) {
+  if (!parkPendingRequester(profileKey, socket, { bound, cap: getConnectionCaps().maxPendingRequesters })) {
+    log.debug('pending requester not parked (cap, or unbound move), from', remoteKey + '...')
   }
 }
 
 // The frame vocabulary and what each frame means live in contract/peer-frames.js; this is only the
 // routing. A frame with no entry in the table is counted and dropped.
 const PEER_FRAME_HANDLERS = Object.freeze({
-  // Fire-and-forget: handleHandshake is async, so the synchronous try/catch around the dispatch
-  // cannot catch its rejection. A failure handling one peer's handshake (e.g. a transiently
-  // unreadable record) must degrade that peer, not crash the worker.
-  [PEER_FRAME.HANDSHAKE]: ({ socket, peerInfo }, msg) =>
-    handleHandshake(socket, peerInfo, msg).catch((err) => log.warn('handshake handling failed:', err?.message || err)),
-  [PEER_FRAME.PRESENCE]: ({ socket }, msg) => handlePresenceFrame(socket, msg),
-  [PEER_FRAME.LEAVE]: ({ socket, peerInfo }, msg) => handleLeaveFrame(socket, peerInfo, msg),
+  // Fire-and-forget: the async handlers' rejections escape the synchronous try/catch around the
+  // dispatch. A failure handling one peer's frame (e.g. a transiently unreadable record) must
+  // degrade that peer, not crash the worker.
+  [PEER_FRAME.HANDSHAKE]: (conn, msg, spaceId, bound) => {
+    const park = bound ? () => registerPendingRequester(conn, msg.profileKey, true) : null
+    return handleHandshake(conn.socket, msg, spaceId, { park }).catch((err) => log.warn('handshake handling failed:', err?.message || err))
+  },
+  [PEER_FRAME.PRESENCE]: ({ socket }, msg, spaceId) => handlePresenceFrame(socket, msg, spaceId),
+  [PEER_FRAME.LEAVE]: ({ socket, peerInfo }, msg) =>
+    handleLeaveFrame(socket, peerInfo, msg).catch((err) => log.warn('leave handling failed:', err?.message || err)),
   [PEER_FRAME.LEAVE_ACK]: ({ socket }, msg) => handleLeaveAckFrame(socket, msg),
   [PEER_FRAME.MEMBERSHIP_CANCEL_ACK]: ({ socket }, msg) => handleMembershipCancelAck(socket, msg),
   [PEER_FRAME.SHARE_INDEX_PROGRESS]: ({ socket }, msg) => handleShareIndexProgressFrame(socket, msg),
@@ -187,21 +201,20 @@ const PEER_FRAME_HANDLERS = Object.freeze({
 
 // The handler verifies a grant's identity binding and asserted root itself, which is why these
 // four leave the swarm rather than being answered here.
-function toMembershipControl(conn, msg) {
+function toMembershipControl(conn, msg, spaceId) {
   const { socket, peerInfo, msgHandler } = conn
-  if (msg.type === PEER_FRAME.MEMBERSHIP_REQUEST && msg.profileKey) registerPendingRequester(conn, msg)
   const reply = (payload) => { try { msgHandler.send(JSON.stringify(payload)) } catch {} }
-  getMembershipControlHandler()?.(msg, { socket, peerInfo, reply })
+  getMembershipControlHandler()?.(msg, { socket, peerInfo, reply, spaceId })
 }
 
-function dispatchFrame(conn, msg) {
+function dispatchFrame(conn, msg, spaceId, bound) {
   const handle = PEER_FRAME_HANDLERS[msg.type]
   if (!handle) {
     countDroppedFrame('unknown')
     log.debug('ignoring unknown peer frame type:', msg.type)
     return
   }
-  handle(conn, msg)
+  handle(conn, msg, spaceId, bound)
 }
 
 export function resetFrameIntake() {
