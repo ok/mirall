@@ -48,14 +48,24 @@ export function makeServeAuthorizer({ peerSocket, socketAuthorized, isApprovedMe
     if (rateLimit && !serveLimiter.take(from).ok) return deny(DENY.RATE_LIMITED)
     // 3) membership: the asker must be an approved member of a space advertising this hash.
     //    A hash NO space advertises is not a refusal of anyone — we hold nothing to refuse. A
-    //    multi-source fetch broadcasts its content-request to EVERY connected peer rather than
-    //    querying holders first, so a non-holder is asked as a matter of course; NOT_A_MEMBER
-    //    there would file one security row per file of an ordinary mirror.
+    //    requester may ask any peer it is connected to, so being asked for content we do not hold
+    //    is routine; NOT_A_MEMBER there would file one security row per file of an ordinary mirror.
     let advertised = false
     for (const spaceId of serveIndex.spacesFor(contentHash)) {
       advertised = true
       if (await isApprovedMember(spaceId, from)) return true
     }
     return deny(advertised ? DENY.NOT_A_MEMBER : DENY.NOT_HELD)
+  }
+}
+
+// THE FETCH GATE. A content request goes only to a peer whose socket carries the file owner's
+// authenticated identity. Only the owner advertises a hash for serving, so no other peer can answer;
+// a socket that merely shares the content topic never learns what we fetch and never supplies the
+// chunk map.
+export function makeHolderAuthorizer({ peerSocket, socketAuthorized }) {
+  return function authorizeHolder(peer, ownerKey) {
+    const socket = peerSocket.get(peer)
+    return !!socket && !!ownerKey && socketAuthorized(socket, ownerKey)
   }
 }

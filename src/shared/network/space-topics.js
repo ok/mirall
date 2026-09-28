@@ -12,6 +12,7 @@ import { sendSingleHandshake } from './identity-frames.js'
 import { forgetPeer } from './handshake-apply.js'
 import { connectedPeers, spaceTopics, spaceDiscoveries, socketMsgHandlers, detachPeerFromSpace } from './swarm-registries.js'
 import { memberWaits } from './share-wait.js'
+import { adoptUnheldTopics } from './topic-refs.js'
 
 const log = createLogger('space-topics')
 
@@ -51,9 +52,10 @@ export async function joinSpaceTopic(spaceId) {
   // Hyperswarm reuses existing sockets, so no connection event fires for them: handshake the new
   // space to every already-connected peer explicitly.
   if (socketMsgHandlers.size > 0) {
+    adoptUnheldTopics(spaceId, topicHex)
     log.info('sending new space handshake to', socketMsgHandlers.size, 'existing connections')
     for (const [sock, handler] of socketMsgHandlers) {
-      sendSingleHandshake(sock, handler, spaceId, topicHex)
+      sendSingleHandshake(sock, handler, spaceId).catch((err) => log.debug('join handshake failed:', err.message))
     }
   }
 }

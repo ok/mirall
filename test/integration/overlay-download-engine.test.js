@@ -875,3 +875,24 @@ test('FIX-BW9: an offline owner is left to the reconnect path, not retried', asy
   t.is(fetches, 1, 'no retry — resumeForOwner already covers a reconnect')
   t.ok(events.some((e) => e[0] === 'paused'), 'the row parks as paused-offline')
 })
+
+test('REGRESSION (MIR-46: the fetch is told the owner and the catalog size)', async (t) => {
+  const ctx = await setup(t)
+  const events = []
+  const engine = createOverlayDownloadEngine({ ...testChannel(events), isOwnerOnline: () => true }, {
+    freeBytes: () => Number.MAX_SAFE_INTEGER,
+  })
+  const overlay = getOverlay()
+  let seen = null
+  let resolveFetch = null
+  overlay.fetchFile = (_hash, opts) => { seen = opts; return new Promise((res) => { resolveFetch = res }) }
+  overlay.cancelFetch = () => {}
+
+  const job = makeJob(ctx)
+  await engine.start(job)
+  t.is(seen?.ownerKey, job.ownerKey, 'the owner key reaches fetchFile')
+  t.is(seen?.size, job.size, 'the catalog size reaches fetchFile')
+  await engine.cancelByKey(job.spaceId, job.pendingKey, job.transferId)
+  resolveFetch?.(null)
+  await tick()
+})

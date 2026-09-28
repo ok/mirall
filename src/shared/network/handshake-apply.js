@@ -17,7 +17,6 @@ import { clampDisplayName, frameEpoch } from './handshake-guard.js'
 import { createAdmissionGates } from './admission-gates.js'
 import { presence, setPresenceExpireHandler } from './presence-leases.js'
 import { sendSingleHandshake } from './identity-frames.js'
-import { resolveSpaceIdForTopic } from './presence-broadcast.js'
 import { scheduleStatusEmit } from './network-status.js'
 import { memberWaits } from './share-wait.js'
 import { clearWaitingFor } from '../transfer/serve-ledger.js'
@@ -180,7 +179,7 @@ async function persistHandshakeMember(spaceId, space, msg, existingMember) {
     looseCatalogKey: hint.key,
     looseCatalogKeyEnc: hint.keyEnc,
     looseCatalogEpoch: hint.epoch,
-  })
+  }, { verified: true })
   if (changed) log.info(existingMember ? 'member updated:' : 'new member added:', msg.displayName, 'to space', spaceId)
 }
 
@@ -193,18 +192,13 @@ function replyReciprocalHandshake(socket, spaceId, msg, isNewToSpace) {
   const dupReplyDue = Date.now() - announceLedger.lastSentAt(socket, spaceId) >= getConvergenceConfig().dupReciprocalFloorMs
   if (!isNewToSpace && !dupReplyDue) return
   log.debug('sending reciprocal handshake for space', spaceId, 'to', msg.displayName)
-  sendSingleHandshake(socket, handler, spaceId, msg.spaceTopic)
+  sendSingleHandshake(socket, handler, spaceId)
 }
 
-export async function handleHandshake(socket, msg) {
+// `park` parks the sender's socket for a deferred readmit; only a frame whose binding verified carries it.
+export async function handleHandshake(socket, msg, spaceId, { park = null } = {}) {
   msg.displayName = clampDisplayName(msg.displayName)
   log.info('handshake received from', msg.displayName)
-
-  const spaceId = resolveSpaceIdForTopic(msg.spaceTopic)
-  if (!spaceId) {
-    log.debug('handshake topic not matched locally:', msg.spaceTopic?.slice(0, 16) + '...')
-    return
-  }
 
   const space = await getSpace(spaceId)
 
@@ -233,7 +227,7 @@ export async function handleHandshake(socket, msg) {
 
   // Read gate: only admit a peer we (or a co-member) approved; everyone else is recorded as a
   // converging join request and the handshake stops here.
-  if (!(await gates.admitMember(spaceId, space, msg))) return
+  if (!(await gates.admitMember(spaceId, space, msg, { onDeferred: park }))) return
 
   const personKey = msg.profileKey
   const isNewToSpace = trackPeerConnection(socket, spaceId, msg)

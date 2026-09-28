@@ -10,10 +10,12 @@
 // schemaVersion. The rest are latches, each owned by one writer: `status: 'pending'` until the
 // grant arrives, `epoch` (the SCK epoch this peer holds; absent reads as 0), `createdBySelf`,
 // `sckDerivable` and `creatorKey` stamped at creation (creatorKey may instead be pre-seeded from
-// an invite and marked `creatorUnverified` until onGrant pins it), `inviteId` from the invite we
-// joined through, `leaving` while a leave runs, `left`/`joined`/`updated` as timestamps,
+// an invite and marked `creatorUnverified` until onGrant pins it), `inviteId` and `inviteOwner`
+// (the inviter it names, a hint the grant check reads) from the invite we joined through, `leaving`
+// while a leave runs, `left`/`joined`/`updated` as timestamps,
 // `favorite` and `downloadFolder` as user choices, and `creatorDivergence`, `creatorMigrated` and
-// `legacyWarning` as diagnoses a later pass records.
+// `legacyWarning` as diagnoses a later pass records. A member entry flagged `unverified` is display
+// only (member-standing.js).
 import { createLocalBee, storeEpoch, deriveSpaceContentKey } from '../core/store.js'
 import { getContentKeyForEpoch } from './space-keys.js'
 import { hasOwnApproval } from './profile.js'
@@ -103,7 +105,7 @@ export async function listSpaces() {
 
 /**
  * The stored record: the wire shape plus the fields only the worker keeps.
- * @typedef {SpaceRecord & { creatorKey?: string, creatorUnverified?: boolean, creatorDivergence?: boolean, leaving?: boolean }} StoredSpace
+ * @typedef {SpaceRecord & { creatorKey?: string, creatorUnverified?: boolean, creatorDivergence?: boolean, leaving?: boolean, inviteOwner?: string }} StoredSpace
  */
 
 /** @param {string} spaceId @returns {Promise<StoredSpace | null>} */
@@ -153,9 +155,9 @@ export async function mutateSpace(spaceId, mutate) {
 
 // The audit-worthy fact is the DURABLE roster gaining a member, never a handshake: connection state
 // is rebuilt on every boot, so a handshake-time row would re-report every known member as a fresh
-// arrival at each start. This is the one funnel every path runs through — approval, handshake
-// upsert, the join-time inviter pre-seed, the replicated membership fold — so an arrival is recorded
-// exactly once whichever lands first. Fire-and-forget: auditing must never delay or fail a write.
+// arrival at each start. This is the one funnel every later path runs through — approval, handshake
+// upsert, the replicated membership fold — so an arrival is recorded exactly once whichever lands
+// first. Fire-and-forget: auditing must never delay or fail a write.
 function auditArrivals(spaceId, space, added) {
   if (!added.length) return
   // While we are still pending we are not a member ourselves, so the roster we adopt during our
@@ -180,8 +182,9 @@ function auditArrivals(spaceId, space, added) {
 
 // Add a member, or merge fields into an existing one (matched by publicKey).
 // null/undefined patch fields never overwrite an existing value, so a handshake
-// (avatar:null) can't wipe an already-fetched avatar.
-export function upsertMember(spaceId, patch, { create = true } = {}) {
+// (avatar:null) can't wipe an already-fetched avatar. `verified` is the caller's
+// claim that the entry now carries authority: it drops an unverified seed's flag.
+export function upsertMember(spaceId, patch, { create = true, verified = false } = {}) {
   return mutateMembers(spaceId, (members) => {
     const idx = members.findIndex((m) => m.publicKey === patch.publicKey)
     if (idx === -1) {
@@ -196,6 +199,7 @@ export function upsertMember(spaceId, patch, { create = true } = {}) {
     for (const [k, v] of Object.entries(patch)) {
       if (v != null && m[k] !== v) { m[k] = v; changed = true }
     }
+    if (verified && m.unverified) { delete m.unverified; changed = true }
     return changed ? members : null
   })
 }

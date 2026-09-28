@@ -6,24 +6,26 @@ import b4a from 'b4a'
 import { PEER_FRAME } from '../contract/peer-frames.js'
 import { sealSck } from '../spaces/sck-seal.js'
 import { getProfileKey } from '../spaces/profile.js'
-import { socketMsgHandlers, handlerForPeer } from './swarm-registries.js'
+import { socketMsgHandlers, channelForPeer } from './swarm-registries.js'
 import { sendFrame, getLocalBinding } from './identity-frames.js'
+import { topicField } from './topic-refs.js'
 
 // Hand the joiner the SCK AND assert this space's OR-Set root, bound to our identity. The
 // joiner pins creatorKey only from this authenticated assertion — never from the bearer
 // invite. creatorKeyHex is our own pinned/derived root; granterKey + binding let the joiner
 // verify WE are an authorized member making the claim. `epoch` names which SCK epoch the
 // sealed key belongs to.
-export function sendMembershipGrant(profileKeyHex, topicHex, sckHex, creatorKeyHex, recipientSignerPkEd, { epoch = 0 } = {}) {
-  const handler = handlerForPeer(profileKeyHex)
+export function sendMembershipGrant(profileKeyHex, spaceId, sckHex, creatorKeyHex, recipientSignerPkEd, { epoch = 0 } = {}) {
+  const channel = channelForPeer(profileKeyHex)
+  const topic = channel && topicField(channel.socket, spaceId)
   // Sealed-only: without the recipient's bound signer key we cannot seal, so we refuse to
   // grant rather than fall back to a plaintext SCK a transport observer could capture.
-  if (!handler || !recipientSignerPkEd) return false
+  if (!topic || !recipientSignerPkEd) return false
   try {
     const sckSealed = b4a.toString(sealSck(b4a.from(sckHex, 'hex'), recipientSignerPkEd), 'hex')
-    sendFrame(handler, {
+    sendFrame(channel.handler, {
       type: PEER_FRAME.MEMBERSHIP_GRANT,
-      spaceTopic: topicHex,
+      ...topic,
       sckSealed,
       epoch,
       creator: creatorKeyHex || null,
@@ -41,17 +43,20 @@ export function sendMembershipGrant(profileKeyHex, topicHex, sckHex, creatorKeyH
 // pending joiner isn't admitted anywhere, so it isn't in any peer's connectedPeers — and
 // cancelling doesn't promptly close the shared socket — so send over every socket;
 // recipients no-op if they hold no matching request.
-export function broadcastMembershipCancel(spaceId, topicHex, joinerKey) {
-  for (const [, handler] of socketMsgHandlers) {
-    try { handler.send(JSON.stringify({ type: PEER_FRAME.MEMBERSHIP_CANCEL, spaceTopic: topicHex, joinerKey })) } catch {}
+export function broadcastMembershipCancel(spaceId, joinerKey) {
+  for (const [socket, handler] of socketMsgHandlers) {
+    const topic = topicField(socket, spaceId)
+    if (!topic) continue
+    try { handler.send(JSON.stringify({ type: PEER_FRAME.MEMBERSHIP_CANCEL, ...topic, joinerKey })) } catch {}
   }
 }
 
-export function sendMembershipDeny(profileKeyHex, topicHex) {
-  const handler = handlerForPeer(profileKeyHex)
-  if (!handler) return false
+export function sendMembershipDeny(profileKeyHex, spaceId) {
+  const channel = channelForPeer(profileKeyHex)
+  const topic = channel && topicField(channel.socket, spaceId)
+  if (!topic) return false
   try {
-    handler.send(JSON.stringify({ type: PEER_FRAME.MEMBERSHIP_DENY, spaceTopic: topicHex }))
+    channel.handler.send(JSON.stringify({ type: PEER_FRAME.MEMBERSHIP_DENY, ...topic }))
     return true
   } catch {
     return false

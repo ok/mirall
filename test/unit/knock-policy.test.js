@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { knockSettledByRecords, knockInviteVerdict } from '../../src/shared/spaces/knock-policy.js'
+import { knockSettledByRecords, knockInviteVerdict, granterVerdict } from '../../src/shared/spaces/knock-policy.js'
 
 const records = (over = {}) => ({ selfPending: false, isMember: false, hadLeft: false, isApproved: false, ...over })
 const invite = (over = {}) => ({ inviteVerdict: null, hasInviteRecord: false, hadLeft: false, isDenied: false, ...over })
@@ -55,4 +55,22 @@ test('a valid invite re-opens a denied door', (t) => {
 test('a departed peer is not re-denied', (t) => {
   t.is(knockInviteVerdict(invite({ isDenied: true, hadLeft: true })), 'review',
     'leaving clears the stuck-pending state the replay exists for')
+})
+
+test('REGRESSION (MIR-26: any bound granter is honoured during the pending window)', (t) => {
+  const O = 'o'.repeat(64)
+  const C = 'c'.repeat(64)
+  const X = 'x'.repeat(64)
+  t.is(granterVerdict({ granterKey: O, inviteOwner: O, creatorKey: C }), 'accept', 'the inviter')
+  t.is(granterVerdict({ granterKey: C, inviteOwner: O, creatorKey: C }), 'accept', 'the named creator')
+  t.is(granterVerdict({ granterKey: X, inviteOwner: O, creatorKey: C }), 'check-fold', 'a co-member is checked against the fold')
+  t.is(granterVerdict({ granterKey: X, inviteOwner: null, creatorKey: C }), 'check-fold', 'so is anyone when the invite names only the creator')
+  t.is(granterVerdict({ granterKey: X, inviteOwner: O, creatorKey: null }), 'accept', 'no root, so no member set to check a co-member against')
+  t.is(granterVerdict({ granterKey: X, inviteOwner: null, creatorKey: null }), 'accept', 'a bearer-only invite names nobody')
+  t.is(granterVerdict({ granterKey: null, inviteOwner: O, creatorKey: C }), 'accept', 'an older granter names no key')
+})
+
+test('a knock from a key that is only an unverified seed is left to the invite', (t) => {
+  t.is(knockSettledByRecords(records({ isMember: false })), null,
+    'the call site reads the verified roster, so a seed knocks as a stranger')
 })

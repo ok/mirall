@@ -26,6 +26,8 @@ const fakeTransfer = {
   pause: async () => {},
 }
 
+// The scheduler takes a chunk list only from a peer it asked.
+const answer = (sched, p, list) => { sched.noteRequested(p); return sched.onChunkHashes(p, list) }
 const chunkList = (n = TOTAL_CHUNKS, size = CHUNK) =>
   Array.from({ length: n }, (_, i) => ({ hash: 'h' + i, length: size }))
 const wait = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -52,7 +54,7 @@ function startTransfer(limiter, name, { chunkSize = CHUNK, mute = false } = {}) 
     },
   })
   sched.promise().catch(() => {})
-  sched.onChunkHashes(peer, chunkList(TOTAL_CHUNKS, chunkSize))
+  answer(sched, peer, chunkList(TOTAL_CHUNKS, chunkSize))
   rec.sched = sched
   return rec
 }
@@ -171,7 +173,7 @@ test('REGRESSION (FIX-BW2): a chunk costing more than the watchdog window is pac
     },
   })
   sched.promise().catch((err) => { rejection = err.message })
-  sched.onChunkHashes(peer, chunkList(40, BIG))
+  answer(sched, peer, chunkList(40, BIG))
 
   await wait(scaled(2000))
   const stalled = rejection
@@ -202,7 +204,7 @@ test('REGRESSION (FIX-BW4): a silent peer is still detected while a cap is in fo
     sendNeed: () => {},          // answers the chunk list, then never sends a byte
   })
   sched.promise().catch(() => { failedAfter = Date.now() - startedAt })
-  sched.onChunkHashes(peer, chunkList(200, CHUNK))
+  answer(sched, peer, chunkList(200, CHUNK))
 
   await wait(scaled(2500))
   limiter.destroy()
@@ -235,7 +237,7 @@ test('REGRESSION (FIX-BW5): a capped download still spreads across every holder'
     },
   })
   sched.promise().catch(() => {})
-  for (const p of peers) await sched.onChunkHashes(p, chunkList(TOTAL_CHUNKS, CHUNK))
+  for (const p of peers) await answer(sched, p, chunkList(TOTAL_CHUNKS, CHUNK))
 
   await wait(scaled(1200))
   sched.cancel()
@@ -265,7 +267,7 @@ test('REGRESSION (FIX-BW8): a torn-down limiter fails the fetch instead of hangi
     sendNeed: () => {},
   })
   sched.promise().then(() => { settled = 'ok' }).catch((e) => { settled = e.message })
-  sched.onChunkHashes(peer, chunkList(40, 512 * KB))   // each chunk is 16s of budget: gated
+  answer(sched, peer, chunkList(40, 512 * KB))   // each chunk is 16s of budget: gated
   await wait(scaled(100))
   limiter.destroy()                                     // teardown while parked
   await wait(scaled(1200))
@@ -303,9 +305,10 @@ test('REGRESSION (FIX-BW8): a second holder mid-setup does not resurrect the wat
     },
   })
   sched.promise().catch((e) => { failed = e.message })
-  for (const id of ['A', 'B', 'C']) sched.noteRequested({ id })
-  const first = sched.onChunkHashes({ id: 'A' }, chunkList(200, CHUNK))   // begins the long setup
-  await sched.onChunkHashes({ id: 'B' }, chunkList(200, CHUNK))           // re-enters _assign
+  const [A, B, C] = ['A', 'B', 'C'].map((id) => ({ id }))
+  for (const p of [A, B, C]) sched.noteRequested(p)
+  const first = sched.onChunkHashes(A, chunkList(200, CHUNK))   // begins the long setup
+  await sched.onChunkHashes(B, chunkList(200, CHUNK))           // re-enters _assign
   await wait(scaled(800))                                                 // well past the window
   t.absent(failed, `no stall-fail during setup (${failed || 'none'})`)
   release()
@@ -433,7 +436,7 @@ test('FIX-BW9: a keep-alive from a peer that owes us nothing does not hold the f
     sendNeed: () => {},                     // the real holder answers the list, then goes silent
   })
   sched.promise().catch((err) => { rejection = err.message })
-  sched.onChunkHashes(mute, chunkList(200, CHUNK))
+  answer(sched, mute, chunkList(200, CHUNK))
   // A peer with nothing assigned keep-alives hard for chunks it was never given.
   const spam = setInterval(() => { for (let i = 0; i < 8; i++) sched.notePeerAlive(bystander, i) }, 10)
 
@@ -515,7 +518,7 @@ test('REGRESSION (FIX-BW10): a chunk that outlives the idle window is not failed
     }, WINDOW * 3),
   })
   sched.promise().catch((err) => { failed = err })
-  await sched.onChunkHashes(peer, chunkList(4, CHUNK))
+  await answer(sched, peer, chunkList(4, CHUNK))
 
   await wait(WINDOW * 2)
   t.is(failed, null, 'still alive after twice the idle window, because the peer is delivering')
@@ -544,7 +547,7 @@ test('REGRESSION (FIX-BW10): a silent peer is still failed inside the window wit
     sendNeed: () => {},
   })
   sched.promise().catch(() => { failedAfter = Date.now() - startedAt })
-  await sched.onChunkHashes({ id: 'wedged' }, chunkList(200, CHUNK))
+  await answer(sched, { id: 'wedged' }, chunkList(200, CHUNK))
 
   await wait(WINDOW * 4)
   t.ok(failedAfter !== null, `the stall was detected (after ${failedAfter}ms)`)
@@ -568,7 +571,7 @@ test('REGRESSION (FIX-BW10): protocol chatter below the floor does not extend th
     sendNeed: () => {},
   })
   sched.promise().catch(() => { failed = true })
-  await sched.onChunkHashes({ id: 'chatty' }, chunkList(50, CHUNK))
+  await answer(sched, { id: 'chatty' }, chunkList(50, CHUNK))
 
   await wait(WINDOW * 3)
   rx.stop()
@@ -594,8 +597,8 @@ test('FIX-BW10: bytes from a peer that owes us nothing do not extend the fetch',
     sendNeed: () => {},
   })
   sched.promise().catch(() => { failed = true })
-  await sched.onChunkHashes(A, chunkList(4, CHUNK))   // A takes all four (the cap), then goes silent
-  await sched.onChunkHashes(B, chunkList(4, CHUNK))   // B answers, is assigned nothing, floods bytes
+  await answer(sched, A, chunkList(4, CHUNK))   // A takes all four (the cap), then goes silent
+  await answer(sched, B, chunkList(4, CHUNK))   // B answers, is assigned nothing, floods bytes
   t.is(sched._peerInflight.get(B), 0, 'B owes nothing (precondition)')
 
   await wait(WINDOW * 3)
@@ -626,7 +629,7 @@ test('REGRESSION (FIX-BW10): a peer that delivers everything except our chunks i
     sendNeed: () => {},                                   // asked, never served — the dropped batch
   })
   sched.promise().catch(() => { failedAfter = Date.now() - startedAt })
-  await sched.onChunkHashes({ id: 'busy-elsewhere' }, chunkList(20, CHUNK))
+  await answer(sched, { id: 'busy-elsewhere' }, chunkList(20, CHUNK))
 
   await wait(WINDOW * 8)
   rx.stop()
@@ -656,7 +659,7 @@ test('FIX-BW10: transport liveness cannot outlive the verified-progress bound', 
     sendNeed: () => {},
   })
   sched.promise().catch(() => { failedAfter = Date.now() - startedAt })
-  await sched.onChunkHashes({ id: 'forever' }, chunkList(200, CHUNK))
+  await answer(sched, { id: 'forever' }, chunkList(200, CHUNK))
 
   await wait(BOUND * 2)
   rx.stop()
@@ -690,7 +693,7 @@ test('REGRESSION (FIX-BW10): the abandon budget survives an accepted chunk with 
     }, 10),
   })
   sched.promise().catch(() => { failedAfter = Date.now() - startedAt })
-  await sched.onChunkHashes(peer, chunkList(8, CHUNK))
+  await answer(sched, peer, chunkList(8, CHUNK))
 
   await wait(WINDOW * 8)
   rx.stop()
@@ -721,7 +724,7 @@ test('REGRESSION (FIX-BW10): an unanswered content request cannot extend the fet
   })
   sched.promise().catch(() => { failedAfter = Date.now() - startedAt })
   sched.noteRequested(asked)                              // fanned out to it; it never answers
-  await sched.onChunkHashes(holder, chunkList(20, CHUNK)) // the real holder answers, then wedges
+  await answer(sched, holder, chunkList(20, CHUNK))       // the real holder answers, then wedges
   t.ok(sched._requested.has(asked), 'the unanswered peer is still outstanding (precondition)')
 
   await wait(WINDOW * 3)

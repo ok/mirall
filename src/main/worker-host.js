@@ -16,6 +16,7 @@ const { createWorkerRestart } = require('./lifecycle.js')
 const { entrypointFor } = require('./worker-entrypoints.js')
 const { createWorkerFrameReader } = require('./ipc-frame.js')
 const { envJson } = require('./env-json.js')
+const { envOverride } = require('./env-overrides.js')
 const { readFeatureFlags } = require('./feature-flags.js')
 const { isVerbose } = require('./debug-gate.js')
 const relaySecret = require('./relay-secret.js')
@@ -26,6 +27,8 @@ const { FRAME, IPC_PROTOCOL_VERSION, IPC_PROTOCOL_MIN_SUPPORTED } = require('../
 const pkg = require('../../package.json')
 const version = pkg.version
 const upgrade = pkg.upgrade
+
+const envNumber = (raw) => (raw ? Number(raw) : undefined)
 
 const workers = new Map()
 
@@ -140,18 +143,19 @@ function getWorker(specifier) {
   // before re-registering, otherwise ipcMain.handle throws.
   try { ipcMain.removeHandler('pear:worker:writeIPC:' + specifier) } catch {}
 
-  // Every MIRALL_* hook the app reads. All are unset in a normal run.
+  // Every environment hook main reads. All are unset in a normal run.
   //
-  //   Logging
+  //   Test and development levers — ignored by a packaged build (see env-overrides.js)
+  //     PEAR_DEV_SERVER_URL               load the renderer from a dev server
   //     MIRALL_DEBUG, MIRALL_VERBOSE      log level
-  //
-  //   Test environment
   //     MIRALL_DHT_BOOTSTRAP              a hermetic testnet instead of the public DHT
   //     MIRALL_DOWNLOAD_FOLDER            start from a known download folder
   //     MIRALL_WINDOW_BOUNDS              start from a known window size and position
+  //     MIRALL_FE_BACKGROUND              open the window without taking focus
   //     MIRALL_FEATURE_FLAGS              feature flags without a build
   //     MIRALL_FORCE_A11Y                 the AX tree the frontend suite drives
   //     MIRALL_NO_DEVTOOLS                no devtools window
+  //     MIRALL_TRIPWIRE_ALLOW             1 = the data-dir tripwire logs instead of refusing
   //     MIRALL_LIST_FILES_CAP             most files a folder listing shows, lowered to reach
   //                                       the truncation banner with a handful of files
   //     MIRALL_MAX_FILES_PER_SHARE        largest folder a user may share, lowered to reach
@@ -161,6 +165,7 @@ function getWorker(specifier) {
   //
   //   Behaviour levers, settable on a real install without a release
   //     MIRALL_FOREIGN_FULL_WALK_EVERY    1 = check every mirror in full, undoing the skip
+  //     MIRALL_LIST_FULL_READ_EVERY       1 = re-read every catalog on every listing
   //
   // The worker's whole starting state: it is sent once, before any request, and the worker never
   // asks main for these again. Three sources are mixed here on purpose — the packaged app (storage,
@@ -184,6 +189,7 @@ function getWorker(specifier) {
     client: { kind: 'electron-main', name: 'mirall', version },
   }
 
+  const flags = readFeatureFlags(envOverride('MIRALL_FEATURE_FLAGS'))
   const bootstrap = {
     type: FRAME.BOOTSTRAP,
     storage: p.storage,
@@ -193,27 +199,28 @@ function getWorker(specifier) {
     verbose: isVerbose(),
     downloadFolder: readDownloadFolder(),
     ...readBandwidth(),
-    dhtBootstrap: envJson('MIRALL_DHT_BOOTSTRAP'),
+    dhtBootstrap: envJson('MIRALL_DHT_BOOTSTRAP', envOverride('MIRALL_DHT_BOOTSTRAP')),
     // Test/debug override for the share:list-files row cap (undefined → omitted by JSON →
     // the runtime-config default). Lets the frontend suite exercise the truncation banner
     // with a handful of files; a bad value is caught by getListFilesCap's fail-safe.
-    listFilesCap: process.env.MIRALL_LIST_FILES_CAP ? Number(process.env.MIRALL_LIST_FILES_CAP) : undefined,
+    listFilesCap: envNumber(envOverride('MIRALL_LIST_FILES_CAP')),
     // The mirror-walk skip's rollback lever: 1 restores the pre-skip cadence without a release.
-    foreignFullWalkEvery: process.env.MIRALL_FOREIGN_FULL_WALK_EVERY ? Number(process.env.MIRALL_FOREIGN_FULL_WALK_EVERY) : undefined,
+    foreignFullWalkEvery: envNumber(process.env.MIRALL_FOREIGN_FULL_WALK_EVERY),
     // The files:list memo's rollback lever, the same way: 1 re-reads every catalog on every listing.
-    listFullReadEvery: process.env.MIRALL_LIST_FULL_READ_EVERY ? Number(process.env.MIRALL_LIST_FULL_READ_EVERY) : undefined,
+    listFullReadEvery: envNumber(process.env.MIRALL_LIST_FULL_READ_EVERY),
     // Same idea for the add-folder admission gate, so the frontend suite can trip it with a
     // handful of files; a bad value is caught by getMaxFilesPerShare's fail-safe.
-    maxFilesPerShare: process.env.MIRALL_MAX_FILES_PER_SHARE ? Number(process.env.MIRALL_MAX_FILES_PER_SHARE) : undefined,
-    deriveDebounceMs: process.env.MIRALL_DERIVE_DEBOUNCE_MS ? Number(process.env.MIRALL_DERIVE_DEBOUNCE_MS) : undefined,
-    handshakeIdentityBindingEnabled: readFeatureFlags().handshakeIdentityBinding === true,
+    maxFilesPerShare: envNumber(envOverride('MIRALL_MAX_FILES_PER_SHARE')),
+    deriveDebounceMs: envNumber(envOverride('MIRALL_DERIVE_DEBOUNCE_MS')),
+    // Enforced unless feature-flags.json says false, so a missing or unreadable file keeps it on.
+    handshakeIdentityBindingEnabled: flags.handshakeIdentityBinding !== false,
     // Hashing progress for a file being (re-)published: members see "preparing 34%" instead of a
     // frozen placeholder, and it is the liveness signal that keeps a download parked on a
     // re-publish alive while a large source hashes. On by default; set false to revert.
-    sharePrepareProgressEnabled: readFeatureFlags().sharePrepareProgress !== false,
+    sharePrepareProgressEnabled: flags.sharePrepareProgress !== false,
     // Bulk content rides its own transport by default; feature-flags.json
     // can set separateContentPlane:false to revert to the single-plane overlay.
-    separateContentPlane: readFeatureFlags().separateContentPlane !== false,
+    separateContentPlane: flags.separateContentPlane !== false,
     // Relay config rides the boot frame unconditionally: it is inert when relayMode is
     // 'off' (relayFunctionFor returns null, so swarm.relayThrough is never installed),
     // which is the shipped default.

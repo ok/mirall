@@ -4,6 +4,7 @@ import { freshPeer } from '../helpers/store.js'
 import { listSpaces, getSpace, upsertMember } from '../../src/shared/spaces/space.js'
 import { joinSpace, createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { encodeInvite, decodeInvite } from '../../src/shared/contract/invite-envelope.js'
+import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
 
 test('re-joining the same invite topic is idempotent (one space, still pending)', async (t) => {
   await freshPeer(t)
@@ -22,13 +23,10 @@ test('joining a space you created returns the existing record (no-op)', async (t
   t.is(joined.spaceId, created.spaceId)
 })
 
-// Joining via an invite that carries the inviter's identity should pre-seed them
-// as an offline shell member (default avatar) so the space isn't empty before
-// their first handshake — and the handshake must merge into that shell by public
-// key rather than adding a duplicate. Mirrors the building blocks the space:join
-// handler composes (decodeInvite → joinSpace → upsertMember) and the handshake
-// path (upsertMember).
-test('an invite carrying the inviter seeds an offline shell member that the handshake merges', async (t) => {
+// A v1 invite names its inviter; the pending record shows them so the space is not empty, but the
+// name is the invite's claim, so the entry is flagged unverified and carries no authority until the
+// fold or an admitted handshake confirms it.
+test('REGRESSION (MIR-44: the invite owner was seeded as a member with authority)', async (t) => {
   await freshPeer(t)
   const topic = b4a.toString(b4a.alloc(32, 7), 'hex')
   const ownerKey = 'b'.repeat(64)
@@ -37,20 +35,37 @@ test('an invite carrying the inviter seeds an offline shell member that the hand
   t.is(decoded.owner, ownerKey, 'envelope round-trips the inviter key')
   t.is(decoded.ownerName, 'Alice', 'envelope round-trips the inviter name')
 
-  const space = await joinSpace(decoded.topic, decoded.name)
-  await upsertMember(space.spaceId, { publicKey: decoded.owner, displayName: decoded.ownerName })
+  const space = await joinSpace(decoded.topic, decoded.name, undefined, { owner: decoded.owner, ownerName: decoded.ownerName })
+  const stored = await getSpace(space.spaceId)
+  t.alike(stored.members, [{ publicKey: ownerKey, displayName: 'Alice', avatar: null, unverified: true }], 'the inviter is seeded unverified')
+  t.is(stored.inviteOwner, ownerKey, 'and remembered as the invite\'s inviter')
 
-  let members = (await getSpace(space.spaceId)).members
-  t.is(members.length, 1, 'inviter seeded as the sole member')
-  t.is(members[0].publicKey, ownerKey, 'keyed by the inviter public key')
-  t.is(members[0].displayName, 'Alice', 'shows the invited display name')
-  t.is(members[0].avatar, null, 'shell has no avatar until the handshake')
+  t.ok(await upsertMember(space.spaceId, { publicKey: ownerKey, avatar: 'data:image/png;base64,A' }, { create: false }), 'an avatar lands')
+  t.ok((await getSpace(space.spaceId)).members[0].unverified, 'a display write does not verify the seed')
 
-  // Handshake from the now-online inviter — same call swarm.js makes.
-  await upsertMember(space.spaceId, { publicKey: ownerKey, displayName: 'Alice Renamed' })
-  members = (await getSpace(space.spaceId)).members
-  t.is(members.length, 1, 'merged into the shell, not duplicated')
-  t.is(members[0].displayName, 'Alice Renamed', 'display name corrected by the handshake')
+  t.ok(await upsertMember(space.spaceId, { publicKey: ownerKey, displayName: 'Alice' }, { verified: true }), 'a verified write reports a change')
+  const members = (await getSpace(space.spaceId)).members
+  t.is(members.length, 1, 'merged into the seed, not duplicated')
+  t.absent('unverified' in members[0], 'the flag is gone, not stored as false')
+})
+
+test('REGRESSION (MIR-44: re-pasting an invite adds its owner to a space we belong to)', async (t) => {
+  await freshPeer(t)
+  const created = await createSpace('Mine')
+  const again = await joinSpace(created.topic, 'Mine', undefined, { owner: 'c'.repeat(64), ownerName: 'Mallory' })
+  t.is(again.spaceId, created.spaceId)
+  const stored = await getSpace(created.spaceId)
+  t.alike(stored.members, [], 'the record we already hold gains no member')
+  t.absent(stored.inviteOwner, 'nor an inviter')
+})
+
+test('an invite naming ourselves seeds no one', async (t) => {
+  await freshPeer(t)
+  const topic = b4a.toString(b4a.alloc(32, 6), 'hex')
+  const space = await joinSpace(topic, 'Echo', undefined, { owner: getLocalPublicKeyHex(), ownerName: 'Me' })
+  const stored = await getSpace(space.spaceId)
+  t.is(stored.members.length, 0, 'no shell for ourselves')
+  t.absent(stored.inviteOwner, 'and no inviter hint')
 })
 
 // The space:join handler decodes the invite before joining, so a pasted App link

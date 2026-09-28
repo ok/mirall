@@ -46,6 +46,8 @@
     "@electron-forge/maker-deb": "^7.11.2",
     "@electron-forge/maker-dmg": "^7.11.2",
     "@electron-forge/maker-msix": "^7.11.2",
+    "@electron-forge/plugin-fuses": "^7.11.2",
+    "@electron/fuses": "^1.8.0",
     "@eslint/js": "^9.39.5",
     "@react-stately/collections": "^3.13.1",
     "@react-stately/menu": "^3.10.1",

@@ -3,7 +3,7 @@ import b4a from 'b4a'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { openStore, getStore, setMasterSecret } from '../../src/shared/core/store.js'
-import { setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
+import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { initSpaceKeys } from '../../src/shared/spaces/space-keys.js'
 import {
   initProfile, setProfile,
@@ -149,4 +149,75 @@ test('a member in the v1.11.0 shape is rewritten once, then left alone', async (
   const after = bee.core.length
   t.ok(await reopenAndSettle(S, counter), 'reconciled again')
   t.is(bee.core.length, after, 'and then nothing more')
+})
+
+// The inviter a bearer invite names sits on the roster flagged unverified. The fold never considers
+// it, so "mere absence never removes" would keep it forever; a settled fold (nothing unread, self
+// reached) is the positive evidence that decides it: held → verified, not held → dropped.
+function reconcileRig(counter = { readmits: 0 }) {
+  configureMemberRegistry({
+    metaFor: () => null,
+    isConnected: () => false,
+    profileFor: (_s, k) => readProfileRecord(k),
+    readmitConnected: () => { counter.readmits++ },
+    emitMembersUpdated: () => {},
+  })
+  return counter
+}
+
+const seed = (S, entry) => mutateMembers(S, (members) => [...members, { avatar: null, unverified: true, ...entry }])
+const rosterOf = async (S) => (await getSpace(S)).members || []
+
+test('REGRESSION (MIR-44: reconcile kept an unconfirmed invite seed forever)', async (t) => {
+  await boot(t, 'seed-drop')
+  const { spaceId: S } = await createSpace('Seeded')
+  await markOwnMembership(S)
+  const M = 'd'.repeat(64)
+  await seed(S, { publicKey: M, displayName: 'Mallory' })
+  reconcileRig()
+  await openMemberView(S)
+
+  const gone = await waitFor(async () => !(await rosterOf(S)).some((m) => m.publicKey === M))
+  t.comment('observed roster: ' + JSON.stringify((await rosterOf(S)).map((m) => [m.displayName, !!m.unverified])))
+  t.ok(gone, 'a settled fold that does not hold the seed drops it')
+})
+
+test('REGRESSION (MIR-44: the fold holding an invite seed left it unverified)', async (t) => {
+  await boot(t, 'seed-verify')
+  const { spaceId: S } = await createSpace('Seeded')
+  await markOwnMembership(S)
+  const B = await makePeer(t)
+  await B.bee.put('displayName', 'Steve')
+  await B.bee.put('member/' + S, { active: true, ts: 1 })
+  await markApproval(S, B.key)
+  await seed(S, { publicKey: B.key, displayName: 'Steve' })
+  replicate(getStore(), B.store, t)
+  reconcileRig()
+  await openMemberView(S)
+
+  const verified = await waitFor(async () => (await rosterOf(S)).some((m) => m.publicKey === B.key && !m.unverified))
+  t.comment('observed roster: ' + JSON.stringify((await rosterOf(S)).map((m) => [m.displayName, !!m.unverified])))
+  t.ok(verified, 'the fold vouches for the key, so the flag clears')
+  t.is((await rosterOf(S)).filter((m) => m.publicKey === B.key).length, 1, 'and the entry is not duplicated')
+})
+
+test('a fold with an unread key keeps the invite seed', async (t) => {
+  await boot(t, 'seed-unsettled')
+  // absolute: the unread key's read budget is the window the fold spends before it reports.
+  setRuntimeConfig({ ...getRuntimeConfig(), peerReadTimeoutMs: 300 })
+  const { spaceId: S } = await createSpace('Seeded')
+  await markOwnMembership(S)
+  const B = await makePeer(t)
+  await B.bee.put('member/' + S, { active: true, ts: 1 })
+  await markApproval(S, B.key)
+  await markApproval(S, 'e'.repeat(64))
+  replicate(getStore(), B.store, t)
+  const M = 'd'.repeat(64)
+  await seed(S, { publicKey: M, displayName: 'Mallory' })
+  const counter = reconcileRig()
+  await openMemberView(S)
+
+  t.ok(await waitFor(() => counter.readmits > 0), 'a fold reconciled (the readable co-member was readmitted)')
+  const held = (await rosterOf(S)).find((m) => m.publicKey === M)
+  t.ok(held?.unverified, 'the seed is still held, still unverified, while a key is unread')
 })

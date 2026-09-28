@@ -201,6 +201,7 @@ export class OverlayProtocolV2 {
     const sched = new ChunkScheduler({
       path: p,
       destPath: opts.destPath,
+      size: opts.size,   // [mirall] §4.24 — the catalog size the chunk map must match
       transfer: this._transferManager,
       sendNeed: (peer, indices) => peer.msgs.chunkNeed.send({ path: p, indices }),
       cap: opts.cap,
@@ -222,6 +223,10 @@ export class OverlayProtocolV2 {
     // [mirall] shared promise so joiners (above) can await the same completion —
     // calling sched.promise() twice would overwrite its resolve/reject handlers.
     sched.shared = sched.promise().finally(() => this._schedulers.delete(p))
+    // [mirall] §4.24 — a finished or failed fetch has no holder left to tell about it; a paused or
+    // cancelled one keeps them until its STOPPED goes out.
+    const forgetAsked = () => { for (const peer of peers) peer.askedFor.delete(contentHash) }
+    sched.shared.then(forgetAsked, (err) => { if (err?.code !== 'ECANCELLED') forgetAsked() })
     // [mirall] honor a cancel/pause that arrived before this scheduler existed.
     if (this._cancelPending.delete(p)) { sched.cancel(); return sched.shared }
     for (const peer of peers) {
@@ -257,20 +262,24 @@ export class OverlayProtocolV2 {
   // discarding an already-paused transfer) — no scheduler to tear down here.
   sendStopControl (contentHash) { this._sendTransferControl(contentHash, CONTROL_STOPPED) }
 
-  // Best-effort broadcast to all connected holders. A holder with no serve-ledger entry
-  // for us (or no slot for this message) just drops it; wrapped per-peer so a closing
-  // channel or an old peer can't throw.
-  _broadcast (msgName, payload) {
+  // Best-effort send to the holders. A holder with no serve-ledger entry for us (or no
+  // slot for this message) just drops it; wrapped per-peer so a closing channel or an
+  // old peer can't throw. [mirall] §4.24 — only to the peers we asked for this hash.
+  _sendToAsked (msgName, payload) {
     for (const [, peer] of this._peers) {
+      if (!peer.askedFor.has(payload.contentHash)) continue
       try { peer.msgs[msgName]?.send(payload) } catch {}
     }
   }
 
-  _sendTransferControl (contentHash, state) { this._broadcast('transferControl', { contentHash, state }) }
+  _sendTransferControl (contentHash, state) {
+    this._sendToAsked('transferControl', { contentHash, state })
+    if (state === CONTROL_STOPPED) for (const [, peer] of this._peers) peer.askedFor.delete(contentHash)   // [mirall] §4.24
+  }
 
   // Tell holders our current on-disk have-bytes for a hash we're (re)fetching, so their
   // sender-side bar mirrors our TRUE progress rather than only the bytes they re-serve.
-  sendTransferProgress (contentHash, have) { this._broadcast('transferProgress', { contentHash, have }) }
+  sendTransferProgress (contentHash, have) { this._sendToAsked('transferProgress', { contentHash, have }) }
 
   // [mirall] Drop a cancel recorded before a scheduler existed when the fetch is
   // abandoned without ever reaching fetchContent (no peer connected) — otherwise the
@@ -337,6 +346,9 @@ export class OverlayProtocolV2 {
       // was never authorized to fetch; the value flows the requester identity to
       // the serve telemetry.
       authorizedServe: new Map(),
+      // [mirall] §4.24 — content hashes we sent this peer a content-request for. Transfer
+      // control/progress about a hash goes only to these peers.
+      askedFor: new Set(),
       // [mirall] Lazily-created upload-cap handle — see _uploadStreamFor.
       uploadStream: null
     }
@@ -468,6 +480,7 @@ export class OverlayProtocolV2 {
    * is a no-op on the receive side. Full wiring deferred to 0.5c.
    */
   requestContent (peer, contentHash, chunksHave) {
+    peer.askedFor.add(contentHash)   // [mirall] §4.24
     peer.msgs.contentRequest.send({
       contentHash,
       chunksHave: chunksHave || null,
@@ -708,25 +721,25 @@ export class OverlayProtocolV2 {
   }
 
   async _onChunkHashes (peer, msg) {
+    const sched = this._schedulers.get(msg.path)
+    // [mirall] §4.24 — a scheduler's pages are taken only from a peer it awaits a map from.
+    // [mirall] the legacy single-peer receive below writes incoming bytes
+    // to _filePaths.get(path) and finalizes a rename OVER it. For a path that
+    // maps to one of OUR own files (e.g. /mir/<hash>), an unsolicited chunkHashes
+    // would let a peer overwrite the owner's source file. Mirall only ever
+    // receives via a scheduler, so refuse any other receive — before buffering a page.
+    if (sched ? !sched.awaitsMapFrom(peer) : this._serveAuthorizer) return
     // [mirall] §4.12 — reassemble paged chunkHashes frames before dispatching.
     const chunks = this._reassembleChunkHashes(peer, msg)
     if (chunks === null) {
       // A buffered page is forward progress — keep the scheduler's no-progress
       // watchdog from tripping while a large map streams across several frames.
-      const pending = this._schedulers.get(msg.path)
-      if (pending && pending.notePageProgress) pending.notePageProgress()
+      if (sched && sched.notePageProgress) sched.notePageProgress()
       return
     }
     // Multi-source: if a scheduler owns this path, let it distribute chunk
     // requests across peers instead of the legacy single-peer auto-flow.
-    const sched = this._schedulers.get(msg.path)
     if (sched) { Promise.resolve(sched.onChunkHashes(peer, chunks)).catch(() => {}); return }
-    // [mirall] the legacy single-peer receive below writes incoming bytes
-    // to _filePaths.get(path) and finalizes a rename OVER it. For a path that
-    // maps to one of OUR own files (e.g. /mir/<hash>), an unsolicited chunkHashes
-    // would let a peer overwrite the owner's source file. Mirall only ever
-    // receives via a scheduler (the branch above), so refuse any other receive.
-    if (this._serveAuthorizer) return
 
     const diskPath = this._filePaths.get(msg.path)
     if (!diskPath) return

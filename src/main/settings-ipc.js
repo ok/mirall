@@ -12,6 +12,7 @@ const { app, ipcMain, dialog, BrowserWindow } = require('electron')
 const { isMac, isLinux, isWindows } = require('which-runtime')
 const pkg = require('../../package.json')
 const { getPrefs, setPrefs } = require('./prefs.js')
+const { envOverride } = require('./env-overrides.js')
 
 const appName = pkg.productName || pkg.name
 const version = pkg.version
@@ -74,7 +75,8 @@ function getDefaultDownloadFolder() {
 }
 
 function readDownloadFolder() {
-  if (process.env.MIRALL_DOWNLOAD_FOLDER) return process.env.MIRALL_DOWNLOAD_FOLDER
+  const override = envOverride('MIRALL_DOWNLOAD_FOLDER')
+  if (override) return override
   const folder = config().get('downloads.folder')
   if (typeof folder === 'string' && folder.length > 0) return folder
   return getDefaultDownloadFolder()

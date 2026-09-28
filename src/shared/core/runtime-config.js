@@ -208,6 +208,10 @@ export function getNetImpair() {
   return read('netImpair')
 }
 
+export function isLegacyTopicWireForced() {
+  return read('testLegacyTopicWire') === true
+}
+
 export function getIdentityFrameDropWindow() {
   return { after: read('testDropIdentityFramesAfter'), count: read('testDropIdentityFramesCount') }
 }

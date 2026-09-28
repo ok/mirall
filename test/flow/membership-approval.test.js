@@ -34,13 +34,18 @@ test('joiner is pending, member approves, then files converge', { timeout: scale
   const bSpaces = await B.request('spaces:list')
   t.is(bSpaces.find((s) => s.spaceId === space.spaceId)?.status, 'pending', 'B is pending')
 
-  // REGRESSION (MIR-01, #326): the overlay catalog is SCK-encrypted, so a pending joiner (no SCK)
-  // can replicate the share DESCRIPTOR but NOT list its file METADATA. B seeing the "Docs" share
-  // proves it replicated A's profile, so the empty file list below is the SCK gate — not replication
-  // lag. The content SERVE gate is separately covered by test/unit/overlay-authorize.test.js.
-  await B.until('share:list', { spaceId: space.spaceId },
-    (list) => Array.isArray(list) && list.some((s) => s.id === share.id))
-  const bPre = await B.request('share:list-files', { spaceId: space.spaceId, ownerKey: aKey, shareId: share.id })
+  // REGRESSION (MIR-01, #326): a pending joiner (no SCK) cannot list the file METADATA of the
+  // SCK-encrypted catalog. The inviter it waits on is an unverified invite seed, which carries no
+  // listing authority either, so neither the share nor its files are listed before approval. The
+  // content SERVE gate is separately covered by test/unit/overlay-authorize.test.js.
+  const bSeed = (await B.request('spaces:list')).find((s) => s.spaceId === space.spaceId)?.members.find((m) => m.publicKey === aKey)
+  t.ok(bSeed?.unverified, 'pending B holds the inviter as an unverified seed')
+  t.absent((await B.request('share:list', { spaceId: space.spaceId })).some((s) => s.id === share.id),
+    'the unverified inviter\'s share is not listed while pending')
+  const bPre = await B.request('share:list-files', { spaceId: space.spaceId, ownerKey: aKey, shareId: share.id }).catch((err) => {
+    t.comment('pending share:list-files refused: ' + err.message)
+    return null
+  })
   t.absent((bPre?.entries || []).some((e) => e.relPath === 'plan.bin'),
     'pending joiner cannot list encrypted-catalog metadata before approval')
 
@@ -48,6 +53,8 @@ test('joiner is pending, member approves, then files converge', { timeout: scale
   await A.request('space:approve-member', { spaceId: space.spaceId, publicKey: bKey })
   await bGranted
 
+  await B.until('share:list', { spaceId: space.spaceId },
+    (list) => Array.isArray(list) && list.some((s) => s.id === share.id))
   await B.until('share:list-files', { spaceId: space.spaceId, ownerKey: aKey, shareId: share.id },
     (f) => Array.isArray(f?.entries) && f.entries.some((e) => e.relPath === 'plan.bin'))
   const done = B.waitFor('event:transfer-complete', (m) => m.path === '/Docs/plan.bin', 60000)

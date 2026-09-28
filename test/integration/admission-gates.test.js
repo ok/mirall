@@ -6,6 +6,8 @@ import { makePeer, replicate } from '../helpers/peer-bee.js'
 import { getStore } from '../../src/shared/core/store.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { createAdmissionGates } from '../../src/shared/network/admission-gates.js'
+import { getSpace, mutateMembers } from '../../src/shared/spaces/space.js'
+import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 
 // The approval gate asks the fold first, then every other member's bee concurrently under ONE
 // admission budget: an offline member costs at most that budget once, never once per member.
@@ -197,4 +199,68 @@ test('no approval read starts after the admission deadline', async (t) => {
   t.ok(dt < 1000, 'answered at the deadline (' + dt + 'ms)')
   t.is(reader.calls.length, 8, 'only the reads started before the deadline ever ran')
   t.ok(reader.budgets.every((ms) => ms >= 1), 'no read was handed a budget under 1 ms')
+})
+
+// The inviter a bearer invite names is held on the roster flagged unverified. Nothing it claims —
+// its own approvals, its invite records, its handshake — may admit anyone, and the serve gate must
+// not treat it as a member.
+async function seededSpace(entry) {
+  const { spaceId } = await createSpace('Seeded')
+  await mutateMembers(spaceId, () => [entry])
+  return await getSpace(spaceId)
+}
+
+test('REGRESSION (MIR-44: an unverified invite seed carried admission and serve authority)', async (t) => {
+  await freshPeer(t)
+  withConfig(t, { peerReadTimeoutMs: 300, admissionReadTimeoutMs: 1000 })
+  const M = hex()
+  const space = await seededSpace({ publicKey: M, displayName: 'Mallory', avatar: null, unverified: true })
+  const reader = recordingReader({ approves: () => true, ms: 5 })
+  const g = gates({ readApproval: reader.read, isFoldApproved: () => false })
+
+  const served = await g.isApprovedMember(space.spaceId, M)
+  const vouched = await g.isApprovedByPeers(space, hex())
+  const admitted = await g.admitMember(space.spaceId, space, { profileKey: M, displayName: 'Mallory' })
+  t.comment('observed: served=' + served + ' vouched=' + vouched + ' admitted=' + admitted + ' reads=' + reader.calls.length)
+  t.absent(served, 'the serve gate refuses the seed')
+  t.absent(vouched, 'its records admit nobody')
+  t.absent(reader.calls.includes(M), 'its bee is never asked for an approval')
+  t.absent(admitted, 'its handshake is not admitted')
+})
+
+test('a verified member on the same roster still vouches and is served', async (t) => {
+  await freshPeer(t)
+  withConfig(t, { peerReadTimeoutMs: 300, admissionReadTimeoutMs: 1000 })
+  const M = hex()
+  const space = await seededSpace({ publicKey: M, displayName: 'Mia', avatar: null })
+  const reader = recordingReader({ approves: () => true, ms: 5 })
+  const g = gates({ readApproval: reader.read, isFoldApproved: () => false })
+
+  t.ok(await g.isApprovedMember(space.spaceId, M), 'served')
+  t.ok(await g.isApprovedByPeers(space, hex()), 'its approval admits')
+  t.alike(reader.calls, [M], 'read from its bee')
+})
+
+async function inviteFromPeer(t, entryFor) {
+  await freshPeer(t)
+  withConfig(t, { peerReadTimeoutMs: 3000 })
+  const P = await makePeer(t)
+  const { spaceId } = await createSpace('Invited')
+  const id = 'inv-' + hex().slice(0, 8)
+  await P.bee.put('invite/' + spaceId + '/' + id, { autoApprove: true })
+  replicate(getStore(), P.store, t)
+  await mutateMembers(spaceId, () => [entryFor(P.key)])
+  const g = createAdmissionGates({ connectedPeers: new Map([[P.key, { spaces: new Set([spaceId]) }]]), log: quiet, getIpc: () => null })
+  return await g.resolveInvite(await getSpace(spaceId), id)
+}
+
+test('REGRESSION (MIR-44: an unverified invite seed authored an auto-approve invite record)', async (t) => {
+  const rec = await inviteFromPeer(t, (key) => ({ publicKey: key, displayName: 'Mallory', avatar: null, unverified: true }))
+  t.comment('observed: ' + JSON.stringify(rec))
+  t.is(rec, null, 'the seed\'s invite record resolves nothing')
+})
+
+test('a verified member\'s invite record resolves', async (t) => {
+  const rec = await inviteFromPeer(t, (key) => ({ publicKey: key, displayName: 'Mia', avatar: null }))
+  t.alike(rec, { autoApprove: true }, 'the fixture reaches the peer read')
 })

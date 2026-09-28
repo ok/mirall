@@ -77,7 +77,7 @@ export function makeFetchInstruments({ label, relPath, size = 0, contentHash = n
 }
 
 export async function runOverlayFetch(overlay, contentHash, {
-  label, relPath, size = 0, destPath, reSeed = false, onProgress, onVerify, onTick,
+  label, relPath, size = 0, ownerKey, destPath, reSeed = false, onProgress, onVerify, onTick,
 }) {
   let attempted = false
   const { diag, callbacks } = makeFetchInstruments({ label, relPath, size, contentHash, onProgress, onVerify, onTick })
@@ -85,6 +85,8 @@ export async function runOverlayFetch(overlay, contentHash, {
     const res = await overlay.fetchFile(contentHash, {
       destPath,
       reSeed,
+      ownerKey,
+      size,
       ...callbacks,
       onEnd: (info) => { attempted = true; callbacks.onEnd(info) },
     })

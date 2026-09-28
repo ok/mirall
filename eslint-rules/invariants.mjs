@@ -488,6 +488,7 @@ export const pureNetworkModules = [
   'support-bundle',
   'swarm-diagnostics',
   'swarm-registries',
+  'topic-refs',
 ]
 
 export const pureFolderPolicyModules = [

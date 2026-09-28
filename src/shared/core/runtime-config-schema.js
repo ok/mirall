@@ -35,18 +35,16 @@ function isRuled(row) {
 // testnet instead of the public DHT); production never sets it.
 const NULLABLE = ['storage', 'appVersion', 'downloadFolder', 'dhtBootstrap', 'upgradeKey']
 
-// Dev toggles + feature flags, all default-off.
-const BOOLEAN = [
-  'dev', 'verbose',
-  'handshakeIdentityBindingEnabled',
-]
+// Dev toggles, default-off.
+const BOOLEAN = ['dev', 'verbose']
 
 // Flags that ship ENABLED, so an absent or partial bootstrap frame can never silently degrade the
 // app — only an explicit `false` disables one. separateContentPlane off reverts to control + content on one stream.
 // sharePrepareProgress off removes both the "preparing NN%" decoration and the liveness signal that
 // keeps a download parked on a re-publish alive: a source that hashes for hours re-arms the
 // receiver's wait with every frame, so the wait bounds SILENCE rather than the hash.
-const DEFAULT_ON = ['separateContentPlane', 'sharePrepareProgressEnabled']
+// handshakeIdentityBindingEnabled off admits identity frames whose binding does not verify.
+const DEFAULT_ON = ['separateContentPlane', 'sharePrepareProgressEnabled', 'handshakeIdentityBindingEnabled']
 
 // Keys production never sets, each defaulting to "off"; tests set them for a deterministic
 // reproduction.
@@ -66,6 +64,9 @@ const TEST_LEVERS = {
   // How long a peer must be unreachable before the audit log records the absence. 0 = use
   // presence-episodes.js's own default (production).
   peerPresenceDwellMs: 0,
+  // Speak only the bearer-topic wire (send spaceTopic, ignore topicRef), so a flow test can stand in
+  // for a peer on a release that predates topic references. false = off.
+  testLegacyTopicWire: false,
 }
 
 // Numeric budgets / timeouts, mostly DoS / resource bounds: each caps how much work, memory,

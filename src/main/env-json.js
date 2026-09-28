@@ -8,8 +8,8 @@
 //
 // Only a JSON object or array is accepted: a scalar parses fine but is not a shape any knob
 // declares, and handing one on gives the consumer a value it cannot use.
-function envJson(name) {
-  const raw = process.env[name]
+/** @param {string} name @param {string | undefined} raw */
+function envJson(name, raw) {
   if (!raw) return null
   let parsed
   try {

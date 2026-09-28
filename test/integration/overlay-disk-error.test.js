@@ -63,10 +63,11 @@ test('REGRESSION (FIX-129): fetchFile rethrows a local I/O error code; an uncode
   await initOverlay()
   t.teardown(async () => { await teardownOverlay() })
   const overlay = getOverlay()
-  // Skip readiness/networking and present a peer so fetchFile proceeds to fetchContent.
-  // The fake peer carries the shape the protocol's destroy() touches at teardown.
+  // Skip readiness/networking and present a peer, accepted as the holder, so fetchFile proceeds
+  // to fetchContent. The fake peer carries the shape the protocol's destroy() touches at teardown.
   overlay._ensure = async () => {}
   overlay._protocol._peers = new Map([['p', { pendingTrees: new Map(), channel: { close() {} } }]])
+  overlay._holderAuthorizer = () => true
 
   overlay._protocol.fetchContent = async () => { const e = new Error('no space left'); e.code = 'ENOSPC'; throw e }
   await t.exception(

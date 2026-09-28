@@ -85,6 +85,11 @@ Never start a second run while one is going: every run wipes `test/frontend/.wor
 what it observed.** Assert the fixture reached the guarded path (a side effect, a call count) before
 asserting the bound; a moved data path filters the old fixture out before the code under test runs.
 
+**A "no such frame arrives" assertion is only as good as the waiter behind it.** A helper that
+drains every waiter on each incoming frame drops a waiter at the first non-matching frame, so
+`t.exception(waitFrame(...))` passes while the frame arrives later. Keep a waiter armed until its
+predicate matches, and count the frames the peer actually received.
+
 **A green suite proves the mode it ran in, not the mode you ship.** When a subsystem forks on a mode
 (identity vs seed, master secret present or not), check which mode the harness boots before trusting
 any test. Destructive paths (leave, purge, reclaim, shutdown) must run in the production mode.
@@ -540,6 +545,10 @@ leaves only.
 
 ## Platform & packaging
 
+**A packaged build ignores `MIRALL_*` and `PEAR_DEV_SERVER_URL`, and refuses `--inspect`.** Env
+levers pass only through `src/main/env-overrides.js` (closed when `app.isPackaged`) and the fuses
+disable the inspector. Automation that needs the hooks drives an unpackaged build.
+
 **Preallocating with `ftruncate` is sparse on APFS/ext4 and real on NTFS.** Preflight with
 `statfsSync` and pause on ENOSPC; never retry on a full disk.
 
@@ -578,6 +587,11 @@ public by design; a pointer to encrypted data → safe; sensitive data not neede
 real bug. Check key granularity before proposing "encrypt the bee".
 
 ## Release & build
+
+**Never delete the lockfile to make a cross-platform CI build pass.** A lock regenerated over an
+existing `node_modules` can record only the host's optional native bindings; `npm ci` then fails on
+the other runners with "Cannot find native binding" (Tailwind oxide, lightningcss). Deleting the lock
+"fixes" it by shipping an untested tree; regenerate the lock on npm 11 from a clean tree instead.
 
 **Prerelease channels use single-drive `pear stage` + `pear release`.** Their `upgrade-keys.json`
 entry is a string, and versions must increase monotonically (`-beta.<run>`). Only prod uses

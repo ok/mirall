@@ -268,7 +268,7 @@ async function awaitMutualMembership(A, B, spaceId) {
   const bKey = (await B.request('profile:get')).personKey
   const persisted = (key) => (list) => {
     const s = list.find((x) => x.spaceId === spaceId)
-    return !!(s && s.members.some((m) => m.publicKey === key && m.status !== 'pending'))
+    return !!(s && s.members.some((m) => m.publicKey === key && m.status !== 'pending' && !m.unverified))
   }
   await A.until('spaces:list', {}, persisted(bKey), { ms: 60000, every: 1000 })
   await B.until('spaces:list', {}, persisted(aKey), { ms: 60000, every: 1000 })
@@ -338,7 +338,7 @@ export async function addPeerToSpace(owner, joiner, spaceId) {
   await granted
   const persisted = (key) => (list) => {
     const s = list.find((x) => x.spaceId === spaceId)
-    return !!(s && s.members.some((m) => m.publicKey === key && m.status !== 'pending'))
+    return !!(s && s.members.some((m) => m.publicKey === key && m.status !== 'pending' && !m.unverified))
   }
   await owner.until('spaces:list', {}, persisted(joinerKey), { ms: 60000, every: 1000 })
   await joiner.until('spaces:list', {}, persisted(ownerKey), { ms: 60000, every: 1000 })
@@ -360,7 +360,7 @@ export async function addApprovedPeer(owner, joiner, spaceId) {
   await granted
   await joiner.until('spaces:list', {}, (list) => {
     const s = list.find((x) => x.spaceId === spaceId)
-    return !!(s && s.members.some((m) => m.publicKey === ownerKey && m.status !== 'pending'))
+    return !!(s && s.members.some((m) => m.publicKey === ownerKey && m.status !== 'pending' && !m.unverified))
   }, { ms: 30000, every: 1000 })
   return joinerKey
 }

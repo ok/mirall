@@ -1,5 +1,6 @@
 import test from 'brittle'
 import { ChunkScheduler } from '../../src/shared/transfer/backends/overlay/vendor/chunk-scheduler.js'
+import { TIERS } from '../../src/shared/transfer/backends/overlay/vendor/chunker.js'
 
 // A TransferManager stub: the scheduler only needs startReceive/writeChunk/finalize.
 // We accept every chunk (the real hash-verify is exercised in the vendor-transfer
@@ -15,6 +16,8 @@ function fakeTransfer(received = new Set()) {
 const peer = { id: 'p1' }
 const chunkList = (n) => Array.from({ length: n }, (_, i) => ({ hash: 'h' + i, length: 10 }))
 const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+// The scheduler takes a chunk list only from a peer it asked.
+const answer = (sched, p, list) => { sched.noteRequested(p); return sched.onChunkHashes(p, list) }
 
 // REGRESSION (FIX: large-file overlay download stall): the scheduler timeout used
 // to be a fixed OVERALL cap (30s), so any transfer slower than the cap — every
@@ -28,7 +31,7 @@ test('idle timeout: a steadily-progressing transfer outlives the window (no over
   })
   const done = sched.promise()
   const chunks = chunkList(4)
-  await sched.onChunkHashes(peer, chunks)
+  await answer(sched, peer, chunks)
   // Deliver one chunk every 100ms — 400ms total, well past the 300ms window a
   // fixed overall cap would impose, but each arrival is < 300ms apart so the idle
   // timer never fires.
@@ -46,7 +49,7 @@ test('idle timeout: a stalled transfer fails after the window', async (t) => {
     sendNeed: () => {}, timeout: 150,
   })
   const done = sched.promise()
-  await sched.onChunkHashes(peer, chunkList(2))
+  await answer(sched, peer, chunkList(2))
   sched.onChunkData(peer, 0, Buffer.alloc(10)) // some progress, then go silent
   await t.exception(done, /stalled/, 'fails ~one idle window after the last accepted chunk')
 })
@@ -60,7 +63,7 @@ test('onEnd reports the terminal reason and progress for the stall diagnostic', 
     sendNeed: () => {}, timeout: 120, onEnd: (info) => { ended = info },
   })
   const done = sched.promise()
-  await sched.onChunkHashes(peer, chunkList(3))
+  await answer(sched, peer, chunkList(3))
   sched.onChunkData(peer, 0, Buffer.alloc(10))
   await t.exception(done, /stalled/)
   t.ok(ended, 'onEnd fired')
@@ -85,7 +88,7 @@ test('resume: requests only the chunks the partial lacks + seeds bytes', async (
     cap: 8, timeout: 1000,
   })
   sched.promise().catch(() => {})
-  await sched.onChunkHashes(peer, chunkList(4)) // 4 chunks × 10 bytes
+  await answer(sched, peer, chunkList(4)) // 4 chunks × 10 bytes
   t.alike(needed.sort((a, b) => a - b), [2, 3], 'only the missing chunks are requested')
   t.ok(progress, 'progress emitted at resume')
   t.is(progress.r, 20, 'byte counter seeded with the two resumed chunks (10 each)')
@@ -101,7 +104,7 @@ test('resume: a fully-present partial finalizes without requesting any chunk', a
     sendNeed: () => { sent++ }, timeout: 1000,
   })
   const done = sched.promise()
-  await sched.onChunkHashes(peer, chunkList(3))
+  await answer(sched, peer, chunkList(3))
   await done
   t.is(sent, 0, 'no chunk requested — the partial was already complete')
 })
@@ -119,7 +122,7 @@ test('resume: emits onBaseline with the resumed byte count', async (t) => {
     cap: 8, timeout: 1000,
   })
   sched.promise().catch(() => {})
-  await sched.onChunkHashes(peer, chunkList(4))
+  await answer(sched, peer, chunkList(4))
   t.is(baseline, 20, 'baseline = the two resumed chunks (10 each)')
   sched.cancel()
 })
@@ -134,7 +137,7 @@ test('fresh download: no baseline is emitted at start (nothing resumed)', async 
     cap: 8, timeout: 1000,
   })
   sched.promise().catch(() => {})
-  await sched.onChunkHashes(peer, chunkList(3))
+  await answer(sched, peer, chunkList(3))
   t.is(called, false, 'have === 0 → no baseline frame at start')
   sched.cancel()
 })
@@ -153,7 +156,7 @@ test('reports cumulative have-progress as chunks arrive (throttled by reportInte
     cap: 8, timeout: 1000,
   })
   sched.promise().catch(() => {})
-  await sched.onChunkHashes(peer, chunkList(3)) // fresh: have=0, no baseline at start
+  await answer(sched, peer, chunkList(3)) // fresh: have=0, no baseline at start
   t.is(reports.length, 0, 'no report before any chunk lands')
   sched.onChunkData(peer, 0, Buffer.alloc(10))
   sched.onChunkData(peer, 1, Buffer.alloc(10))
@@ -167,7 +170,7 @@ test('cancel(): rejects the fetch with ECANCELLED and marks done', async (t) => 
     sendNeed: () => {}, timeout: 1000,
   })
   const done = sched.promise()
-  await sched.onChunkHashes(peer, chunkList(3))
+  await answer(sched, peer, chunkList(3))
   sched.cancel()
   t.is(sched.done, true, 'scheduler marked done')
   await t.exception(done, /cancelled/, 'promise rejects on cancel')
@@ -188,7 +191,7 @@ test('REGRESSION (FIX-A): a slow startReceive is not charged against the idle wa
     sendNeed: (_p, idx) => sent.push(...idx), timeout: 20,
   })
   const settled = sched.promise().catch((e) => e)
-  await sched.onChunkHashes(peer, chunkList(2))
+  await answer(sched, peer, chunkList(2))
   t.absent(sched.done, 'did not stall-fail despite setup > idle window')
   t.ok(sent.length > 0, 'assigned chunk-needs after setup')
   sched.cancel()
@@ -210,7 +213,7 @@ test('REGRESSION (FIX-A): cancel during startReceive setup is honored', async (t
     sendNeed: (_p, idx) => sent.push(...idx), timeout: 1000,
   })
   const settled = sched.promise().catch((e) => e.code)
-  const pending = sched.onChunkHashes(peer, chunkList(2))
+  const pending = answer(sched, peer, chunkList(2))
   sched.cancel()
   release()
   await pending
@@ -237,7 +240,7 @@ test('REGRESSION (FIX-129): a fatal coded writeChunk failure fails the fetch wit
     sendNeed: () => { assigns++ }, timeout: 1000,
   })
   const done = sched.promise()
-  await sched.onChunkHashes(peer, chunkList(3))
+  await answer(sched, peer, chunkList(3))
   const before = assigns
   sched.onChunkData(peer, 0, Buffer.alloc(10))
   await t.exception(done, /write failed/, 'fetch rejects on the fatal write error')
@@ -257,7 +260,7 @@ test('REGRESSION (FIX-129): an uncoded writeChunk failure (mismatch) stays retry
     sendNeed: () => {}, timeout: 1000,
   })
   sched.promise().catch(() => {})
-  await sched.onChunkHashes(peer, chunkList(2))
+  await answer(sched, peer, chunkList(2))
   sched.onChunkData(peer, 0, Buffer.alloc(10))
   t.absent(sched.done, 'a content mismatch does not fail the fetch (retried elsewhere)')
   sched.cancel()
@@ -274,7 +277,7 @@ test('REGRESSION (FIX-129): a TRANSIENT coded writeChunk failure (EBUSY) is retr
     sendNeed: () => {}, timeout: 1000,
   })
   sched.promise().catch(() => {})
-  await sched.onChunkHashes(peer, chunkList(2))
+  await answer(sched, peer, chunkList(2))
   sched.onChunkData(peer, 0, Buffer.alloc(10))
   t.absent(sched.done, 'a transient fs error does not fail the whole fetch')
   sched.cancel()
@@ -296,8 +299,8 @@ test('REGRESSION (FIX-A): a second seeder during setup does not re-arm the stall
     sendNeed: (_p, idx) => sent.push(...idx), timeout: 20,
   })
   const settled = sched.promise().catch((e) => e)
-  const p1 = sched.onChunkHashes('peerA', chunkList(2)) // begins the long setup
-  await sched.onChunkHashes('peerB', chunkList(2))       // a concurrent seeder lands mid-setup
+  const p1 = answer(sched, 'peerA', chunkList(2)) // begins the long setup
+  await answer(sched, 'peerB', chunkList(2))       // a concurrent seeder lands mid-setup
   await wait(50)                                          // > the 20ms idle window
   t.absent(sched.done, 'no stall-fail: the later seeder did not re-arm the watchdog during setup')
   release()
@@ -323,7 +326,7 @@ test('a stall _fail releases the receiver state via transfer.pause', async (t) =
     sendNeed: () => {}, timeout: 100,
   })
   const done = sched.promise()
-  await sched.onChunkHashes(peer, chunkList(2))
+  await answer(sched, peer, chunkList(2))
   sched.onChunkData(peer, 0, Buffer.alloc(10)) // progress, then silence → idle stall
   await t.exception(done, /stalled/)
   t.alike(paused, ['/tmp/failpause'], 'pause(destPath) called exactly once at the failure boundary')
@@ -335,7 +338,7 @@ test('a _fail with a transfer lacking pause() does not throw', async (t) => {
     sendNeed: () => {}, timeout: 80,
   })
   const done = sched.promise()
-  await sched.onChunkHashes(peer, chunkList(2))
+  await answer(sched, peer, chunkList(2))
   await t.exception(done, /stalled/, 'stall still rejects cleanly without a pause method')
 })
 
@@ -380,7 +383,7 @@ test('download cap: chunks are requested only as budget allows', async (t) => {
     sendNeed: (_peer, indices) => requested.push(...indices), timeout: 5000, cap: 8, limiter,
   })
   const done = sched.promise()
-  await sched.onChunkHashes(peer, chunkList(4))
+  await answer(sched, peer, chunkList(4))
   t.is(requested.length, 2, 'only the affordable chunks were asked for')
   t.is(limiter.pendingWaiters(), 1, 'the scheduler registered a retry for the rest')
 
@@ -403,7 +406,7 @@ test('download cap: waiting on the limiter does not trip the idle watchdog', asy
     sendNeed: () => {}, timeout: 120, cap: 8, limiter,
   })
   const done = sched.promise()
-  await sched.onChunkHashes(peer, chunkList(4))
+  await answer(sched, peer, chunkList(4))
 
   // Stay gated for well over the idle window, re-arming as a real refill loop would.
   for (let i = 0; i < 4; i++) {
@@ -421,4 +424,134 @@ test('download cap: waiting on the limiter does not trip the idle watchdog', asy
   for (let i = 0; i < 4; i++) sched.onChunkData(peer, i, Buffer.alloc(10))
   await done
   t.pass('completes once the cap allows')
+})
+
+function countingTransfer() {
+  const calls = []
+  return {
+    calls,
+    startReceive(dest, meta) { calls.push(meta); return { received: new Set() } },
+    writeChunk() { return { ok: true } },
+    finalize() { return { ok: true } },
+    pause() {},
+  }
+}
+const MIN0 = TIERS[0].minSize
+// A tier-0 honest map: three min-size chunks and a 100-byte tail.
+const SIZE = 3 * MIN0 + 100
+const honest = () => [
+  { hash: 'a'.repeat(64), length: MIN0 }, { hash: 'b'.repeat(64), length: MIN0 },
+  { hash: 'c'.repeat(64), length: MIN0 }, { hash: 'd'.repeat(64), length: 100 },
+]
+const sized = (transfer, extra = {}) => new ChunkScheduler({
+  path: 'content:x', destPath: '/tmp/x', transfer, sendNeed: () => {}, timeout: 1000, size: SIZE, ...extra,
+})
+
+test('REGRESSION (MIR-46: a map from a peer we never asked is dropped)', async (t) => {
+  const transfer = countingTransfer()
+  const sched = sized(transfer)
+  sched.promise().catch(() => {})
+  const owner = { id: 'owner' }
+  const raw = { id: 'raw' }
+  sched.noteRequested(owner)
+  await sched.onChunkHashes(raw, [{ hash: 'e'.repeat(64), length: SIZE }])
+  t.is(transfer.calls.length, 0, 'the unsolicited map never reached startReceive')
+  t.absent(sched.done, 'the fetch is still waiting on the owner')
+  await sched.onChunkHashes(owner, honest())
+  t.is(transfer.calls.length, 1, 'the owner map started the receive')
+  t.is(transfer.calls[0]?.size, SIZE, 'geometry is the owner map')
+  sched.cancel()
+})
+
+test('REGRESSION (MIR-46: a map whose lengths do not sum to the catalog size never reaches startReceive)', async (t) => {
+  const transfer = countingTransfer()
+  const sched = sized(transfer)
+  const done = sched.promise()
+  const owner = { id: 'owner' }
+  sched.noteRequested(owner)
+  await sched.onChunkHashes(owner, [...honest(), { hash: 'f'.repeat(64), length: 1 }])
+  await t.exception(done, /chunk map rejected: size mismatch/)
+  t.is(transfer.calls.length, 0, 'no partial was created or truncated')
+})
+
+test('a size of 0 is an unknown size, not an empty file the map must match', async (t) => {
+  const transfer = countingTransfer()
+  const sched = sized(transfer, { size: 0 })
+  sched.promise().catch(() => {})
+  const owner = { id: 'owner' }
+  sched.noteRequested(owner)
+  await sched.onChunkHashes(owner, honest())
+  t.is(transfer.calls.length, 1, 'the owner map started the receive')
+  sched.cancel()
+})
+
+test('REGRESSION (MIR-46: a map with more entries than the tier allows is refused)', async (t) => {
+  const transfer = countingTransfer()
+  const sched = sized(transfer)
+  const done = sched.promise()
+  const owner = { id: 'owner' }
+  sched.noteRequested(owner)
+  const n = Math.ceil(SIZE / MIN0) + 2
+  const base = Math.floor(SIZE / n)
+  const list = Array.from({ length: n }, (_, i) => ({ hash: i.toString(16).padStart(64, '0'), length: i === n - 1 ? SIZE - base * (n - 1) : base }))
+  await sched.onChunkHashes(owner, list)
+  await t.exception(done, /too many chunks/)
+  t.is(transfer.calls.length, 0)
+})
+
+test('REGRESSION (MIR-46: a chunk longer than the tier maximum is refused)', async (t) => {
+  const size = TIERS[0].maxSize + 1
+  const transfer = countingTransfer()
+  const sched = sized(transfer, { size })
+  const done = sched.promise()
+  const owner = { id: 'owner' }
+  sched.noteRequested(owner)
+  await sched.onChunkHashes(owner, [{ hash: 'a'.repeat(64), length: size }])
+  await t.exception(done, /chunk length out of range/)
+  t.is(transfer.calls.length, 0)
+})
+
+test('REGRESSION (MIR-46: a second map that differs from the adopted one is not a source)', async (t) => {
+  const needs = []
+  const transfer = countingTransfer()
+  const sched = sized(transfer, { sendNeed: (p, idx) => needs.push([p.id, ...idx]) })
+  sched.promise().catch(() => {})
+  const a = { id: 'a' }
+  const b = { id: 'b' }
+  sched.noteRequested(a)
+  sched.noteRequested(b)
+  await sched.onChunkHashes(a, honest())
+  const forged = honest().map((c) => ({ ...c, hash: 'f'.repeat(64) }))
+  await sched.onChunkHashes(b, forged)
+  t.absent(sched._peers.has(b), 'b was refused as a source')
+  t.ok(needs.every(([id]) => id === 'a'), 'no chunk-need was ever sent to b')
+  t.is(transfer.calls.length, 1, 'the adopted map was not replaced')
+  sched.cancel()
+})
+
+test('MIR-46: an identical second map joins as a source', async (t) => {
+  const transfer = countingTransfer()
+  const sched = sized(transfer)
+  sched.promise().catch(() => {})
+  const a = { id: 'a' }
+  const b = { id: 'b' }
+  sched.noteRequested(a)
+  sched.noteRequested(b)
+  await sched.onChunkHashes(a, honest())
+  await sched.onChunkHashes(b, honest())
+  t.ok(sched._peers.has(b), 'an honest co-holder is a source')
+  sched.cancel()
+})
+
+test('MIR-46: a peer that already answered cannot answer again', async (t) => {
+  const transfer = countingTransfer()
+  const sched = sized(transfer, { size: undefined })
+  sched.promise().catch(() => {})
+  const a = { id: 'a' }
+  sched.noteRequested(a)
+  await sched.onChunkHashes(a, honest())
+  t.absent(sched.awaitsMapFrom(a), 'no longer awaited')
+  await sched.onChunkHashes(a, [{ hash: 'e'.repeat(64), length: 5 }])
+  t.is(transfer.calls.length, 1, 'the repeat was ignored')
+  sched.cancel()
 })
