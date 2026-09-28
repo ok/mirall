@@ -70,7 +70,7 @@
     "hyperdrive": "13.3.3",
     "i18next": "^26.4.2",
     "knip": "^6.37.0",
-    "marked": "^18.0.13",
+    "marked": "^18.0.14",
     "modern-screenshot": "^4.7.0",
     "pear-runtime-updater": "^3.4.0",
     "react": "^19.3.0",
