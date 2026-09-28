@@ -1,10 +1,10 @@
 // Electron main process — the host. Owns the BrowserWindow, tray, native
 // notifications, and deep links; embeds pear-runtime as a library for OTA
 // updates; spawns the Bare worker (all P2P and data logic) and relays NDJSON
-// IPC frames renderer↔worker in both directions; runs the chokidar folder
-// watchers on the worker's behalf (Bare has no recursive watch). Main holds no
-// durable application state — that lives in the worker's store (preferences aside,
-// which are main's config.json); what main keeps in memory is session-only.
+// IPC frames renderer↔worker in both directions; runs the folder and loose-file
+// watchers on the worker's behalf. Main holds no durable application state —
+// that lives in the worker's store (preferences aside, which are main's
+// config.json); what main keeps in memory is session-only.
 // First, before any sibling module can load bare-sidecar: see asar-spawn.js.
 require('./asar-spawn.js').installAsarSpawnFix()
 const { app, BrowserWindow, dialog, ipcMain, protocol: electronProtocol } = require('electron')

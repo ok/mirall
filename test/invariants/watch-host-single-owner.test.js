@@ -3,7 +3,7 @@ import { readFileSync, readdirSync, statSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'
 import { Linter } from 'eslint'
-import { chokidarSingleOwnerRestrictions } from '../../eslint-rules/invariants.mjs'
+import { watcherSingleOwnerRestrictions } from '../../eslint-rules/invariants.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const mainDir = path.join(here, '..', '..', 'src', 'main')
@@ -22,7 +22,7 @@ function verify(linter, source, filename) {
   return linter.verify(source, {
     files: ['**/*.js'],
     languageOptions: { ecmaVersion: 2023, sourceType: 'commonjs' },
-    rules: { 'no-restricted-syntax': ['error', ...chokidarSingleOwnerRestrictions] },
+    rules: { 'no-restricted-syntax': ['error', ...watcherSingleOwnerRestrictions] },
   }, filename)
 }
 
@@ -30,15 +30,17 @@ function verify(linter, source, filename) {
 // The owned-folder watcher polled network mounts and cut off an error storm; the loose-file
 // watcher did neither, so a file on a network volume stopped re-publishing in silence. Extracting
 // watch-host.js fixes today's divergence; this rule is what stops the NEXT watcher re-learning it
-// wrong — a third `require('chokidar')` cannot reach main without failing lint.)
-test('REGRESSION (FIX-PI3-3): src/main/watch-host.js is the only module that loads chokidar', (t) => {
+// wrong — a third require of the watcher package cannot reach main without failing lint.)
+test('REGRESSION (FIX-PI3-3): src/main/watch-host.js is the only module that loads the file watcher', (t) => {
   const linter = new Linter()
 
   // The grammar itself, on fixtures: what must be caught, and what must stay legal.
-  t.ok(verify(linter, "const chokidar = require('chokidar')\n", 'control.js').length > 0, 'a bare require is caught')
-  t.ok(verify(linter, "const { watch } = require('chokidar')\n", 'control2.js').length > 0, 'a destructured require is caught')
-  t.ok(verify(linter, "require('chokidar').watch('/x')\n", 'control3.js').length > 0, 'an inline require is caught')
-  t.ok(verify(linter, "import chokidar from 'chokidar'\n", 'control4.js').length > 0, 'an ESM import is caught')
+  t.ok(verify(linter, "const watcher = require('chokidar4bare')\n", 'control.js').length > 0, 'a bare require is caught')
+  t.ok(verify(linter, "const { watch } = require('chokidar4bare')\n", 'control2.js').length > 0, 'a destructured require is caught')
+  t.ok(verify(linter, "require('chokidar4bare').watch('/x')\n", 'control3.js').length > 0, 'an inline require is caught')
+  t.ok(verify(linter, "import watcher from 'chokidar4bare'\n", 'control4.js').length > 0, 'an ESM import is caught')
+  t.ok(verify(linter, "const chokidar = require('chokidar')\n", 'control5.js').length > 0, 'upstream chokidar is caught too')
+  t.ok(verify(linter, "import chokidar from 'chokidar'\n", 'control6.js').length > 0, 'and its ESM import')
   t.alike(verify(linter, "const { createWatchHost } = require('./watch-host.js')\n", 'ok.js'), [], 'the host is the supported door')
   t.alike(verify(linter, "const chokidarish = require('chokidar-cli')\n", 'ok2.js'), [], 'a different package stays legal')
 
@@ -47,5 +49,5 @@ test('REGRESSION (FIX-PI3-3): src/main/watch-host.js is the only module that loa
   for (const file of files) {
     t.alike(verify(linter, readFileSync(file, 'utf8'), file).map((m) => `${m.line}: ${m.message}`), [], path.relative(process.cwd(), file))
   }
-  t.ok(/require\('chokidar'\)/.test(readFileSync(OWNER, 'utf8')), 'and watch-host.js is where chokidar actually lives')
+  t.ok(/require\('chokidar4bare'\)/.test(readFileSync(OWNER, 'utf8')), 'and watch-host.js is where the watcher actually lives')
 })

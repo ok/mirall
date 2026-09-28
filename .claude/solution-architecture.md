@@ -38,8 +38,8 @@ channel via `workflow_dispatch`. The bundle version must equal the drive's `/pac
 `build-process.md` "Version coupling". Seed-host operations are documented privately.
 
 **Stack.** Versions: `package.json`; pins and their reasons: `dependency-updates.md`. Placement
-rules: `chokidar` runs in Electron main only (Bare has no recursive watch); `bare-*` modules are
-worker-only; `purgeCoreDk()` uses `hypercore-storage` internals (transitive dep) for raw RocksDB
+rules: the file watcher, `chokidar4bare`, runs in Electron main (its `imports` map resolves Node's
+own `fs` there, so no `bare-*` module loads in main); `bare-*` modules are worker-only; `purgeCoreDk()` uses `hypercore-storage` internals (transitive dep) for raw RocksDB
 range deletes.
 
 ---
@@ -57,7 +57,7 @@ and parses only its own control frames.
 │  pear-runtime: OTA only,    │               │  app:// origin, sandboxed │
 │   own corestore + swarm     │               └───────────────────────────┘
 │  worker host · config.json  │                            ▲ pear:worker:ipc/
-│  chokidar watchers          │                            │ stdout/exit
+│  file watchers              │                            │ stdout/exit
 └─────────────────────────────┘                            │
    │ hello, bootstrap,    ▲ main-request frames            │
    ▼ fs events, relayed   │ (watch, download roots)        │
@@ -111,10 +111,13 @@ and parses only its own control frames.
   configured download folder, and the per-space roots the worker pushes (`downloads:roots`). The
   pushed roots are dropped when that worker exits.
 - **Watchers.** The worker requests them over the main-request bus (commands named in
-  `src/shared/contract/main-requests.js`). `src/main/watch-host.js` is the sole chokidar owner.
-  Options are per instance, so it keeps a native and a lazy polling instance and routes by
-  `looksLikeNetworkPath`, because a native watch on a network mount emits nothing and fails
-  silently. It also stops a watcher after 5 errors in 10 s. `src/main/folder-watchers.js` keys roots
+  `src/shared/contract/main-requests.js`). `src/main/watch-host.js` is the sole owner of the
+  watcher package (`chokidar4bare`). Options are per instance, so it keeps a native and a lazy
+  polling instance and routes by `looksLikeNetworkPath`, because a native watch on a network mount
+  emits nothing and fails silently. It also stops a watcher after 5 errors in 10 s. A watch the OS
+  has no budget for (`ENOSPC` past the inotify limit, `EMFILE`) raises one error per path it could
+  not arm; those never count toward the storm, and the host logs one `watch-degraded` line and
+  keeps serving every path it did arm. `src/main/folder-watchers.js` keys roots
   by `shareId` (owned) or `spaceId:shareId` (mirror), and the newest caller adopts a live key after
   a worker respawn. `src/main/loose-file-watchers.js` fans a path's events out to every space
   watching it.
@@ -845,7 +848,7 @@ bytes go into any drive (§7.6). Loose files are the `LOOSE_SHARE_ID` section of
 
 | Term | Meaning |
 |---|---|
-| **Owned folder / owned mount** | The owner's local `mountPath` for a share. A chokidar watcher in Electron main keeps the catalog in step with it. Persisted locally at `owned-folder-mount/<spaceId>/<shareId>` (`src/shared/folders/mount-store.js`) |
+| **Owned folder / owned mount** | The owner's local `mountPath` for a share. A watcher in Electron main keeps the catalog in step with it. Persisted locally at `owned-folder-mount/<spaceId>/<shareId>` (`src/shared/folders/mount-store.js`) |
 | **Foreign folder / mirror** | A consumer's local path that receives a read-only, continuously materialized copy. Persisted at `foreign-folder-mount/<spaceId>/<shareId>` |
 | **Drive path** | The consumer-side row key `/<name>/<relPath>` (`src/shared/shares/share-listing.js`). It keys download claims, pending transfers and reveal targets on every member, so **`name` is never rewritten**: a rename sets `displayName` |
 
@@ -875,7 +878,7 @@ and hands each item to the channel its share id selects: `folder`
   once and no staged op can land after it and undo it.
 - **Every executor re-derives its precondition from current state.** It re-resolves the mount (a
   relocate makes enqueue-time paths stale). It refuses to act while the root is missing, because a
-  vanished root makes chokidar emit one `unlink` per file. A retire confirms the file is gone
+  vanished root makes the watcher emit one `unlink` per file. A retire confirms the file is gone
   **under exactly that name** (`src/shared/folders/disk-presence.js`), because a following stat
   would call a case-only rename "present" forever. Absence from an older snapshot only makes a file
   a candidate for deletion.
@@ -1094,7 +1097,7 @@ they belong to.
 - `network:reconnect` ends the live connections, because a connected peer is never re-dialled.
 - A partial `audit:list` page with a non-null cursor is normal, because the scan is budgeted.
 - `shutdown` is host-only and is answered before teardown begins.
-- Main's chokidar events reach the worker as the `event:*-fs-event` request rows.
+- Main's watcher events reach the worker as the `event:*-fs-event` request rows.
 
 ### React integration (`src/renderer/store/`)
 

@@ -1,9 +1,9 @@
 import test from 'brittle'
-import { loadWithFakeChokidar } from '../helpers/fake-chokidar.js'
+import { loadWithFakeWatcher } from '../helpers/fake-watcher.js'
 import { withPlatform, UNC_PATH, NETWORK_CASES } from '../helpers/with-platform.js'
 import { looksLikeNetworkPath } from '../../src/shared/contract/network-paths.js'
 
-const { created, modules } = loadWithFakeChokidar(['src/main/watch-host.js'])
+const { created, modules } = loadWithFakeWatcher(['src/main/watch-host.js'])
 const { createWatchHost } = modules[0]
 
 function host(opts = {}) {
@@ -58,7 +58,7 @@ test('one host serves both kinds of target from the same event callback', (t) =>
   const { h, events } = host()
   h.add('/Users/me/a.txt')
   h.add(UNC_PATH)
-  t.is(created.length, 2, 'two chokidar instances, one host')
+  t.is(created.length, 2, 'two watcher instances, one host')
   native()[0].emit('change', '/Users/me/a.txt')
   polling()[0].emit('change', UNC_PATH)
   t.alike(events.map((e) => e.absPath), ['/Users/me/a.txt', UNC_PATH], 'both route to the same onEvent')
@@ -110,6 +110,46 @@ test('errors spread beyond the window do not trip the storm cut-off', (t) => {
   t.teardown(() => h.stop())
 })
 
+const budgetError = (code, dir) => Object.assign(new Error(code + ': watch ' + dir), { code, path: dir })
+
+// REGRESSION (WATCH-BUDGET: past the OS watch limit the watcher raises one error per directory it
+// could not arm. Counted as a storm, a large tree stopped the whole watcher — every directory it
+// had armed went silent with it — and each error was a log line of its own.)
+for (const code of ['ENOSPC', 'EMFILE']) {
+  test(`REGRESSION (WATCH-BUDGET): a ${code} per un-armable directory keeps the host running and is reported once`, (t) => {
+    const { h, events, errors, storms } = host()
+    h.add('/Users/me/root')
+    const w = created[0]
+    for (let i = 0; i < 50; i++) w.emit('error', budgetError(code, '/Users/me/root/d' + i))
+    t.is(storms.length, 0, 'no storm')
+    t.absent(w.closed, 'the instance still serves every armed directory')
+    t.is(errors.length, 1, 'one report, not one per directory')
+    t.ok(errors[0].message.includes('watch-degraded') && errors[0].message.includes(code), 'the report says degraded and why')
+    t.ok(errors[0].message.includes(' t '), 'and names the host')
+    w.emit('change', '/Users/me/root/a.txt')
+    t.alike(events.map((e) => e.action), ['change'], 'events still flow')
+    t.teardown(() => h.stop())
+  })
+}
+
+test('a budget error without a path (as Bare raises it) is reported without one', (t) => {
+  const { h, errors } = host()
+  h.add('/Users/me/root')
+  created[0].emit('error', Object.assign(new Error('ENOSPC'), { code: 'ENOSPC' }))
+  t.is(errors.length, 1, 'reported')
+  t.absent(errors[0].message.includes('undefined'), 'no placeholder path in the report')
+  t.teardown(() => h.stop())
+})
+
+test('a budget error does not mask a genuine storm behind it', (t) => {
+  const { h, storms } = host()
+  h.add('/Users/me/root')
+  const w = created[0]
+  for (let i = 0; i < 20; i++) w.emit('error', budgetError('ENOSPC', '/Users/me/root/d' + i))
+  for (let i = 0; i < 6; i++) w.emit('error', new Error('boom' + i))
+  t.is(storms.length, 1, 'six ordinary errors in the window still stop the host')
+})
+
 test('a stormed host stays stopped — add() must not re-arm it', (t) => {
   const { h } = host()
   h.add('/Users/me/a.txt')
@@ -135,6 +175,19 @@ test('stop() closes every instance, and a close throw does not escape', (t) => {
   created[0].closeError = new Error('close failed')
   t.execution(() => h.stop(), 'stop() swallows a close throw')
   t.ok(created[1].closed, 'the second instance was still closed')
+})
+
+test('stop() reports a close() that rejects instead of leaving the rejection unhandled', async (t) => {
+  const { h } = host()
+  h.add('/Users/me/a.txt')
+  created[0].closeRejection = new Error('close rejected')
+  const warned = []
+  const warn = console.warn
+  console.warn = (...args) => warned.push(args.join(' '))
+  t.teardown(() => { console.warn = warn })
+  h.stop()
+  await new Promise((resolve) => setImmediate(resolve))
+  t.ok(warned.some((line) => line.includes('watcher.close failed') && line.includes('close rejected')), 'the rejection is warned')
 })
 
 test('remove() unwatches on the instance that holds the target', (t) => {

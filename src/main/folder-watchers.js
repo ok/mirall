@@ -1,12 +1,11 @@
 // Recursive watchers over mounted folders, one per key: an owned share's id, or a mirror's
-// `spaceId:shareId`. They live in Electron main because the Bare worker has no recursive
-// filesystem watch; add/change/unlink events are forwarded to the worker, which publishes an owned
-// folder's changes into the share catalog and asks a mirror's loop to re-walk. The caller names
-// the key and builds the frame — this module knows neither kind.
+// `spaceId:shareId`, living in Electron main. add/change/unlink events are forwarded to the worker,
+// which publishes an owned folder's changes into the share catalog and asks a mirror's loop to
+// re-walk. The caller names the key and builds the frame — this module knows neither kind.
 //
-// Everything chokidar-shaped — the option bag, polling for network mounts, the error-storm
+// Everything watcher-shaped — the option bag, polling for network mounts, the error-storm
 // cut-off — belongs to watch-host.js and is shared with loose-file-watchers.js. A root needs its
-// own host rather than a shared one because `ignored` is a per-instance chokidar option and each
+// own host rather than a shared one because `ignored` is a per-instance watcher option and each
 // owned share's ignore patterns differ.
 //
 // The ignore globs are matched by the data layer's `shouldIgnore`, the same function the periodic
@@ -24,7 +23,7 @@ const pathKeys = import('../shared/folders/path-keys.js').catch((err) => {
 const watchers = new Map() // key -> { host, mountPath, onEvent, onError }
 
 // The newest caller owns a live key: on a worker respawn the new worker re-issues start-watcher
-// for a key whose chokidar watcher is still alive, and the surviving watcher must deliver to the
+// for a key whose watcher is still alive, and the surviving watcher must deliver to the
 // new worker's closure, not the dead one's. A live key at another path is a stop-watcher that never
 // arrived (the worker died between a relocate's record write and its stop), so the root is re-made.
 function adopt(key, mountPath, onEvent, onError) {
@@ -51,7 +50,7 @@ async function startWatcher(key, mountPath, ignorePatterns, onEvent, onError) {
   // newest caller owns it there too.
   if (adopt(key, mountPath, onEvent, onError)) return
   const patterns = ignorePatterns ?? mod.DEFAULT_IGNORE
-  // A directory is asked about as a directory — chokidar supplies the stats on the traversal
+  // A directory is asked about as a directory — the watcher supplies the stats on the traversal
   // decision, and a glob naming a directory only answers for one when it is presented as one.
   const ignoreFn = (full, stats) => {
     if (full === mountPath) return false

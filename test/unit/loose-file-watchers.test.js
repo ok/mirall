@@ -1,8 +1,8 @@
 import test from 'brittle'
-import { loadWithFakeChokidar } from '../helpers/fake-chokidar.js'
+import { loadWithFakeWatcher } from '../helpers/fake-watcher.js'
 import { withPlatform, UNC_PATH, NETWORK_CASES } from '../helpers/with-platform.js'
 
-const { created, modules } = loadWithFakeChokidar(['src/main/watch-host.js', 'src/main/loose-file-watchers.js'])
+const { created, modules } = loadWithFakeWatcher(['src/main/watch-host.js', 'src/main/loose-file-watchers.js'])
 const { addLooseWatch, removeLooseWatch, stopLooseWatchers } = modules[1]
 
 function arm() {
@@ -64,7 +64,7 @@ test('one path shared in two spaces fans one event out to both', (t) => {
   addLooseWatch('space-1', '/Users/me/notes.md', onEvent, onError)
   addLooseWatch('space-2', '/Users/me/notes.md', onEvent, onError)
   t.is(created.length, 1, 'the path is armed once')
-  t.alike(native()[0].targets, ['/Users/me/notes.md'], 'and added to chokidar once')
+  t.alike(native()[0].targets, ['/Users/me/notes.md'], 'and added to the watcher once')
   native()[0].emit('change', '/Users/me/notes.md')
   t.alike(events.map((e) => e.spaceId).sort(), ['space-1', 'space-2'], 'both spaces were told')
   t.teardown(stopLooseWatchers)
