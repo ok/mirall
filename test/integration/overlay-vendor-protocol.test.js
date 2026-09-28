@@ -25,12 +25,13 @@ test('#2: a concurrent same-hash fetch joins the in-flight one and copies the re
   const a = path.join(dir, 'a'); const b = path.join(dir, 'b')
   fs.writeFileSync(a, 'shared bytes') // the leader's assembled file
 
-  const first = proto.fetchContent('abc', [], { destPath: a, timeout: 200 })
-  const second = proto.fetchContent('abc', [], { destPath: b, timeout: 200 }) // joins (no 'already fetching' reject)
+  const p = { id: 'p', askedFor: new Set(), msgs: { contentRequest: { send() {} } } }
+  const first = proto.fetchContent('abc', [p], { destPath: a, timeout: 200 })
+  const second = proto.fetchContent('abc', [p], { destPath: b, timeout: 200 }) // joins (no 'already fetching' reject)
   t.is(proto._schedulers.size, 1, 'the join did not create a second scheduler')
 
   // Drive the leader to completion: an empty chunk list finalizes immediately.
-  proto._onChunkHashes({ id: 'p' }, { path: 'content:abc', chunks: [] })
+  proto._onChunkHashes(p, { path: 'content:abc', chunks: [] })
   await first
   await second
   t.is(fs.readFileSync(b).toString(), 'shared bytes', 'the joiner received a copy of the leader\'s verified bytes')
@@ -60,8 +61,9 @@ test('#2: a joiner re-issues its own fetch when the leader was cancelled', async
 
 // ── transfer-control (message 12): downloader→holder pause/stop signal ─────────
 
-function fakePeer(sent) {
-  return { msgs: { transferControl: { send: (m) => sent.push(m) } }, authorizedServe: new Map() }
+// Transfer frames about a hash go only to a peer we sent a content-request for it (askedFor).
+function fakePeer(sent, asked = ['abc']) {
+  return { msgs: { transferControl: { send: (m) => sent.push(m) } }, authorizedServe: new Map(), askedFor: new Set(asked) }
 }
 
 // cancelContent only signals when a scheduler exists (an active fetch); seed one.
@@ -110,6 +112,21 @@ test('sendStopControl broadcasts STOPPED without a scheduler (discard-after-paus
   proto._peers.set({}, fakePeer(sent))
   proto.sendStopControl('abc')
   t.alike(sent, [{ contentHash: 'abc', state: 1 }], 'STOPPED sent directly, no scheduler required')
+  proto.sendStopControl('abc')
+  t.is(sent.length, 1, 'a stopped hash is forgotten, so the holder is not told twice')
+})
+
+test('REGRESSION (MIR-67: transfer frames skip a peer never asked for the hash)', (t) => {
+  const proto = new OverlayProtocolV2({}, fakeTransfer(), {})
+  const asked = []
+  const other = []
+  proto._peers.set({}, { ...fakePeer(asked), msgs: { transferControl: { send: (m) => asked.push(m) }, transferProgress: { send: (m) => asked.push(m) } } })
+  proto._peers.set({}, { ...fakePeer(other, []), msgs: { transferControl: { send: (m) => other.push(m) }, transferProgress: { send: (m) => other.push(m) } } })
+  seedScheduler(proto, 'abc')
+  proto.sendTransferProgress('abc', 700)
+  proto.cancelContent('abc', { discardPartial: false })
+  t.is(asked.length, 2, 'the asked holder got the progress and the pause')
+  t.is(other.length, 0, 'the unasked peer got nothing')
 })
 
 // The authorizedServe VALUE is a grant record — { from, epoch } — not a bare `from`. The epoch is
@@ -135,7 +152,7 @@ test('_onTransferControl is a no-op for a hash the peer was never authorized to 
 
 test('_sendTransferControl tolerates a peer that predates slot 12 (no throw)', (t) => {
   const proto = new OverlayProtocolV2({}, fakeTransfer(), {})
-  proto._peers.set({}, { msgs: {}, authorizedServe: new Map() }) // old peer: no transferControl slot
+  proto._peers.set({}, { msgs: {}, authorizedServe: new Map(), askedFor: new Set(['abc']) }) // old peer: no transferControl slot
   seedScheduler(proto, 'abc')
   try { proto.cancelContent('abc', { discardPartial: false }); t.pass('cancelContent did not throw') }
   catch (err) { t.fail('threw: ' + err.message) }
@@ -146,7 +163,7 @@ test('_sendTransferControl tolerates a peer that predates slot 12 (no throw)', (
 test('sendTransferProgress broadcasts the have-baseline to every connected holder', (t) => {
   const proto = new OverlayProtocolV2({}, fakeTransfer(), {})
   const sent = []
-  proto._peers.set({}, { msgs: { transferProgress: { send: (m) => sent.push(m) } }, authorizedServe: new Map() })
+  proto._peers.set({}, { msgs: { transferProgress: { send: (m) => sent.push(m) } }, authorizedServe: new Map(), askedFor: new Set(['abc']) })
   proto.sendTransferProgress('abc', 700)
   t.alike(sent, [{ contentHash: 'abc', have: 700 }], 'have-baseline broadcast to the holder')
 })
@@ -169,7 +186,7 @@ test('_onTransferProgress is a no-op for a hash the peer was never authorized to
 
 test('sendTransferProgress tolerates a peer that predates slot 13 (no throw)', (t) => {
   const proto = new OverlayProtocolV2({}, fakeTransfer(), {})
-  proto._peers.set({}, { msgs: {}, authorizedServe: new Map() }) // old peer: no transferProgress slot
+  proto._peers.set({}, { msgs: {}, authorizedServe: new Map(), askedFor: new Set(['abc']) }) // old peer: no transferProgress slot
   try { proto.sendTransferProgress('abc', 700); t.pass('sendTransferProgress did not throw') }
   catch (err) { t.fail('threw: ' + err.message) }
 })

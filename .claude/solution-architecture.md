@@ -1307,8 +1307,19 @@ File bytes are served only when all three gates pass
 **A denial looks exactly like "I don't hold this file"**, so membership can't be probed. Locally,
 only `UNAUTHENTICATED` and `NOT_A_MEMBER` count as refusals and are audited as
 `security.serve_denied`. `NO_SOCKET`, `RATE_LIMITED` and `NOT_HELD` are normal operation and record
-nothing: a multi-source fetch sends its request to every connected peer, so being asked for
-unadvertised content is routine.
+nothing: a requester may ask any peer it is connected to (releases before the fetch gate ask every
+one), so being asked for unadvertised content is routine.
+
+### Fetch authorization
+
+A content request goes only to a peer whose socket carries the file owner's authenticated identity
+(`makeHolderAuthorizer` in `overlay-authorize.js`, the vendor's `holderAuthorizer` opt), so a socket
+that merely shares the content topic never learns which hashes we fetch. A chunk map is adopted only
+from a peer that was asked, and only if it matches the catalog size and that size's chunk tier (sum,
+entry count, per-chunk length); a second map that differs from the adopted one drops its sender as a
+source. A refused map never reaches `startReceive`, so it cannot create, truncate or reset a partial;
+with no peer left the fetch reports no holder and the stall retry takes over. Transfer
+control/progress frames go only to the peers asked for that hash.
 
 ### Resource bounds
 

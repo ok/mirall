@@ -75,6 +75,10 @@ export class HyperOverlayV2 extends ReadyResource {
     // serveAuthorizer gates every inbound content-request; localProfileKey stamps
     // outbound content-requests so the remote's gate can authenticate the asker.
     this._serveAuthorizer = opts.serveAuthorizer || null
+    // [mirall] §4.24 — the fetch gate, serveAuthorizer's download-side twin:
+    // holderAuthorizer(peer, ownerKey) → boolean picks which attached peers a fetchFile
+    // sends its content request to. Absent → every attached peer (upstream).
+    this._holderAuthorizer = opts.holderAuthorizer || null
     this._localProfileKey = opts.localProfileKey || null
     // [mirall] channel handshake policy, threaded to OverlayProtocolV2 unchanged.
     this._minVersion = opts.minVersion
@@ -270,7 +274,8 @@ export class HyperOverlayV2 extends ReadyResource {
    * Fetch a file by its content hash. Serves from the local disk copy if we
    * have it; otherwise pulls from a connected peer that does (hash-verified).
    * @param {string} contentHash
-   * @param {object} [opts] opts.timeout (idle), opts.destPath
+   * @param {object} [opts] opts.timeout (idle), opts.destPath, [mirall] §4.24 opts.ownerKey
+   *   (handed to holderAuthorizer) and opts.size (the size the chunk map must describe)
    * @returns {Promise<{ destPath: string, local: boolean, size: number } | null>}
    */
   async fetchFile (contentHash, opts = {}) {
@@ -286,19 +291,19 @@ export class HyperOverlayV2 extends ReadyResource {
     // (lazy attach) or just forming when the fetch is issued. Without this a
     // fetch issued the instant a peer connects would spuriously 404.
     const peerWaitMs = opts.peerWaitMs || 3000
-    for (let waited = 0; this._protocol._peers.size === 0 && waited < peerWaitMs; waited += 100) {
+    for (let waited = 0; this._fetchPeers(opts.ownerKey).length === 0 && waited < peerWaitMs; waited += 100) {
       await new Promise(r => setTimeout(r, 100))
     }
-    if (this._protocol._peers.size === 0) {
+    // Multi-source: fetch chunks in parallel from ALL connected peers that
+    // have the file (torrent-style). The scheduler dedups + fails over.
+    const peers = this._fetchPeers(opts.ownerKey)   // [mirall] §4.24
+    if (peers.length === 0) {
       // No fetchContent will run, so drop any cancel recorded during the wait — a
       // stale marker would otherwise cancel the next fetch of the same content. [mirall]
       this._protocol.clearCancelPending(contentHash)
       return null
     }
 
-    // Multi-source: fetch chunks in parallel from ALL connected peers that
-    // have the file (torrent-style). The scheduler dedups + fails over.
-    const peers = [...this._protocol._peers.values()]
     // opts.mirrorSpool: store the verified blob CONTENT-ADDRESSED at
     // <mirrorSpool>/<contentHash> rather than a throwaway destDir name. This is
     // the overlay-mirror path — a forge backend with no working tree fetches a
@@ -324,6 +329,7 @@ export class HyperOverlayV2 extends ReadyResource {
     try {
       result = await this._protocol.fetchContent(contentHash, peers, {
         destPath,
+        size: opts.size,                              // [mirall] §4.24 — the geometry the map must match
         timeout: opts.timeout,
         onProgress: opts.onProgress || (() => {}),   // [mirall] forward bytes/total
         onVerify: opts.onVerify,                      // [mirall] resume re-verify fraction
@@ -352,6 +358,15 @@ export class HyperOverlayV2 extends ReadyResource {
       } catch {}
     }
     return { destPath, local: false, size }
+  }
+
+  // [mirall] §4.24 — the peers a fetch may ask. A throwing authorizer denies, like serveAuthorizer.
+  _fetchPeers (ownerKey) {
+    const peers = [...this._protocol._peers.values()]
+    if (!this._holderAuthorizer) return peers
+    return peers.filter((peer) => {
+      try { return this._holderAuthorizer(peer, ownerKey ?? null) === true } catch { return false }
+    })
   }
 
   // [mirall] Stop an in-flight fetchFile for this content hash. opts.discardPartial

@@ -87,6 +87,7 @@ test('FIX-12: the receiver reassembles paged frames and dispatches the full list
   let dispatchCount = 0
   let pings = 0
   proto._schedulers.set('content:x', {
+    awaitsMapFrom: () => true,
     onChunkHashes(peer, list) { dispatchCount++; dispatched = list },
     notePageProgress() { pings++ }
   })
@@ -112,7 +113,7 @@ test('FIX-12: a small list still ships as one frame and dispatches immediately',
   t.is(sent[0].more, 0, 'lone frame is final')
 
   let dispatched = null
-  proto._schedulers.set('content:s', { onChunkHashes(peer, list) { dispatched = list } })
+  proto._schedulers.set('content:s', { awaitsMapFrom: () => true, onChunkHashes(peer, list) { dispatched = list } })
   const peer = { id: 'p2' }
   proto._onChunkHashes(peer, sent[0])
   t.is(dispatched, chunks, 'lone complete frame passes straight through (no copy)')
@@ -122,8 +123,8 @@ test('FIX-12: pages for two files interleaved on one channel reassemble independ
   const proto = new OverlayProtocolV2({}, fakeTransfer(), {})
   const peer = { id: 'p3' }
   const got = {}
-  proto._schedulers.set('content:A', { onChunkHashes(_p, list) { got.A = list }, notePageProgress() {} })
-  proto._schedulers.set('content:B', { onChunkHashes(_p, list) { got.B = list }, notePageProgress() {} })
+  proto._schedulers.set('content:A', { awaitsMapFrom: () => true, onChunkHashes(_p, list) { got.A = list }, notePageProgress() {} })
+  proto._schedulers.set('content:B', { awaitsMapFrom: () => true, onChunkHashes(_p, list) { got.B = list }, notePageProgress() {} })
 
   const a1 = { hash: 'a'.repeat(64), length: 1 }
   const a2 = { hash: 'a'.repeat(64), length: 2 }
