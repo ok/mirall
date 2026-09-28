@@ -15,6 +15,7 @@ interface PendingSpaceHeroProps {
  */
 export default function PendingSpaceHero({ spaceName, inviters }: PendingSpaceHeroProps) {
   const { t } = useTranslation()
+  const unverified = inviters.find((m) => m.unverified)
   return (
     <div className="flex-1 flex flex-col items-center justify-center text-center pb-8">
       {inviters.length > 0 ? (
@@ -30,6 +31,9 @@ export default function PendingSpaceHero({ spaceName, inviters }: PendingSpaceHe
             displayName: m.displayName,
           }))}
         />
+      ) : null}
+      {unverified ? (
+        <p className="text-xs text-on-surface-variant mb-4">{t('space.inviterUnverified', { name: unverified.displayName })}</p>
       ) : null}
       {/* The live region covers only the two strings that change; the card below is
           static and would be re-announced on every render from inside it. */}

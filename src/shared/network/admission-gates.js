@@ -8,6 +8,7 @@
 // `readApproval` and `isFoldApproved` default to the production readers and are test seams.
 import { getLocalPublicKeyHex, readPeerApproval, hasOwnApproval, readOwnInvite, readPeerInvite, readPeerInviteSnapshot, revokeInvite } from '../spaces/profile.js'
 import { getSpace } from '../spaces/space.js'
+import { verifiedMembers, isVerifiedMember } from '../spaces/member-standing.js'
 import { recordJoinRequest } from '../spaces/join-requests.js'
 import { pinCreatorKey, markCreatorDivergence, clearCreatorDivergence } from '../spaces/creator-pin.js'
 import { isHandshakeIdentityBindingEnabled, getAdmissionReadTimeoutMs } from '../core/runtime-config.js'
@@ -42,7 +43,7 @@ export function createAdmissionGates({
   // budget, so offline ones queued ahead of it cannot hold every read slot until the deadline.
   function approversToAsk(space, joinerKey) {
     const me = getLocalPublicKeyHex()
-    const others = (space.members || []).map((m) => m.publicKey).filter((key) => key !== joinerKey && key !== me)
+    const others = verifiedMembers(space.members).map((m) => m.publicKey).filter((key) => key !== joinerKey && key !== me)
     const live = (key) => !!connectedPeers.get(key)?.spaces?.has(space.spaceId)
     return [...others.filter(live), ...others.filter((key) => !live(key))]
   }
@@ -50,7 +51,7 @@ export function createAdmissionGates({
   async function isApprovedMember(spaceId, joinerKey) {
     const space = await getSpace(spaceId)
     if (!space) return false
-    if ((space.members || []).some((m) => m.publicKey === joinerKey)) return true
+    if (isVerifiedMember(space.members, joinerKey)) return true
     return await isApprovedByPeers(space, joinerKey)
   }
 
@@ -75,7 +76,7 @@ export function createAdmissionGates({
       }
       return own
     }
-    const peers = (space.members || []).filter((m) => m.publicKey !== me).map((m) => m.publicKey)
+    const peers = verifiedMembers(space.members).filter((m) => m.publicKey !== me).map((m) => m.publicKey)
     const live = await Promise.all(peers.map((key) => readPeerInvite(key, space.spaceId, inviteId)))
     for (const rec of live) {
       if (rec?.resolved && rec.value) return rec.value   // an authoritative live read wins outright
@@ -129,14 +130,16 @@ export function createAdmissionGates({
   // converging join request: it already announces a participation id (so it was approved by SOME
   // member), but we raise no approve banner, since under replication lag that would let a co-member
   // "re-approve" a peer who already joined. (Genuine joiners come through onJoinRequest, which
-  // still does.)
-  async function admitMember(spaceId, space, msg) {
+  // still does.) `onDeferred` runs for that recorded case, so the caller can park the socket for the
+  // readmit that follows once the fold vouches for the peer.
+  async function admitMember(spaceId, space, msg, { onDeferred = null } = {}) {
     // A peer we just saw leave: ignore lingering handshakes (the connection often outlives the leave
     // frame during teardown). Cleared when they send a fresh join request.
     if (isLeft(spaceId, msg.profileKey)) return false
-    const known = !!(space.members || []).find((m) => m.publicKey === msg.profileKey)
+    const known = isVerifiedMember(space.members, msg.profileKey)
     if (!known && !(await isApprovedByPeers(space, msg.profileKey))) {
       recordJoinRequest(spaceId, msg.profileKey, msg.displayName, null, msg.driveKey || null)
+      onDeferred?.()
       return false
     }
     // Confirm a provisional pin against the now-authenticated asserted root, or surface

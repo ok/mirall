@@ -17,6 +17,9 @@
 //   leave                   a member announcing it has left the space.
 //   leave-ack               the receipt that lets the leaver stop announcing.
 //
+// A frame that names a space by its topic carries `topicRef`, never the topic itself
+// (network/topic-refs.js); leave and leave-ack name it by spaceId.
+//
 // The content plane runs its own channel with one frame, content-hello (content-swarm.js), which is
 // deliberately not in this vocabulary — a different socket, a different authorization question.
 // The IPC control frames are contract/ipc-frames.js; these travel between devices, those do not.

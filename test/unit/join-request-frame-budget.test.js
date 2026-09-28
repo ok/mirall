@@ -15,9 +15,9 @@ function withConfig(t, patch) {
 const hex = (n) => 'a'.repeat(n)
 const avatarOf = (bytes) => 'data:image/png;base64,' + 'A'.repeat(bytes - 'data:image/png;base64,'.length)
 
-// The membership:request frame swarm.js builds, at its worst case: a NAME_MAX display name whose
-// every character is multi-byte, hex64 profileKey/spaceTopic/inviteId/signerKey/signerNs and the
-// hex128 ed25519 binding signature.
+// The membership:request frame swarm.js builds, at its worst case: the bearer-topic form (its field
+// name is the longer one), a NAME_MAX display name whose every character is multi-byte, hex64
+// profileKey/spaceTopic/inviteId/signerKey/signerNs and the hex128 ed25519 binding signature.
 function maximalRequestFrame(avatar) {
   return JSON.stringify({
     type: 'membership:request',

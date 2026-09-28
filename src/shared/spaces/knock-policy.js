@@ -37,6 +37,20 @@ export function knockInviteVerdict({ inviteVerdict, hasInviteRecord, hadLeft, is
   return 'review'
 }
 
+// Who may hand a pending joiner the space key. The invite's inviter or the creator it names are
+// recognised at once; anyone else only once the member set rooted at that creator holds them. An
+// invite that names no creator (a space from before the root existed) and an older granter that
+// names no key leave no member set to check against.
+/**
+ * @param {{ granterKey: string | null, inviteOwner: string | null, creatorKey: string | null }} facts
+ * @returns {'accept' | 'check-fold'}
+ */
+export function granterVerdict({ granterKey, inviteOwner, creatorKey }) {
+  if (granterKey === null || !creatorKey) return 'accept'
+  if (granterKey === inviteOwner || granterKey === creatorKey) return 'accept'
+  return 'check-fold'
+}
+
 export const ASK_PEERS = 'ask-peers'
 
 // What a member's Deny does (the rule behind ALREADY_APPROVED: contract/deny-outcome.js). Local

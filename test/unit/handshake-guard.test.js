@@ -1,34 +1,17 @@
 import test from 'brittle'
 import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
-import Hypercore from 'hypercore'
 import {
   clampDisplayName, validSenderFrame, signNoiseBinding, verifyIdentityBinding, checkInboundSender,
   leaveFrameBound, frameEpoch,
 } from '../../src/shared/network/handshake-guard.js'
+import { boundSender as boundIdentity } from '../helpers/identity-binding.js'
 
 const hex = (n = 32) => b4a.toString(crypto.randomBytes(n), 'hex')
 
-// Mirror the worker's single-writer profile core: profileKey is the manifest hash, the
-// signer keypair is what actually signs, and the binding is over an ephemeral Noise key.
 function boundSender() {
-  const signer = crypto.keyPair()
-  const namespace = crypto.randomBytes(32)
-  const noise = crypto.keyPair()
-  const manifest = {
-    version: 1, hash: 'blake2b', allowPatch: false, quorum: 1,
-    signers: [{ signature: 'ed25519', namespace, publicKey: signer.publicKey }],
-    prologue: null, linked: null, userData: null,
-  }
-  const profileKey = b4a.toString(Hypercore.key(manifest), 'hex')
-  const msg = {
-    spaceTopic: hex(),
-    profileKey,
-    sig: signNoiseBinding(noise.publicKey, signer.secretKey),
-    signerKey: b4a.toString(signer.publicKey, 'hex'),
-    signerNs: b4a.toString(namespace, 'hex'),
-  }
-  return { signer, namespace, noise, profileKey, msg }
+  const sender = boundIdentity()
+  return { ...sender, msg: { spaceTopic: hex(), ...sender.fields } }
 }
 
 test('clampDisplayName truncates to 80 and coerces empties/non-strings', (t) => {
@@ -39,7 +22,9 @@ test('clampDisplayName truncates to 80 and coerces empties/non-strings', (t) => 
   t.is(clampDisplayName(12345), 'Unknown')
 })
 
-test('validSenderFrame requires HEX64 profileKey + spaceTopic; driveKey optional but hex', (t) => {
+test('validSenderFrame requires HEX64 profileKey + topicRef or spaceTopic; driveKey optional but hex', (t) => {
+  t.ok(validSenderFrame({ topicRef: hex(), profileKey: hex() }), 'a space named by reference')
+  t.absent(validSenderFrame({ topicRef: 'zz', profileKey: hex() }), 'a malformed reference names nothing')
   t.ok(validSenderFrame({ spaceTopic: hex(), profileKey: hex(), driveKey: hex() }))
   t.ok(validSenderFrame({ spaceTopic: hex(), profileKey: hex() }))
   t.absent(validSenderFrame({ spaceTopic: hex(), profileKey: 'not-hex' }))
@@ -129,6 +114,19 @@ test('checkInboundSender: binding only enforced when the flag is on', (t) => {
   t.ok(checkInboundSender(peerInfo, msg, { enforceBinding: true }).ok, 'bound sender admitted')
   t.is(checkInboundSender(peerInfo, spoof, { enforceBinding: true }).reason, 'identity-unbound', 'unsigned rejected when enforced')
   t.ok(checkInboundSender(peerInfo, spoof, { enforceBinding: false }).ok, 'unsigned admitted pre-saturation')
+})
+
+test('REGRESSION (MIR-54: an unverified signer key was recorded while enforcement was off): the verdict reports whether the binding verified', (t) => {
+  const { noise, msg } = boundSender()
+  const peerInfo = { publicKey: noise.publicKey }
+  const spoof = { ...msg, signerKey: b4a.toString(crypto.keyPair().publicKey, 'hex'), sig: hex(64) }
+
+  t.is(checkInboundSender(peerInfo, msg, { enforceBinding: false }).bound, true, 'a real binding is bound with enforcement off')
+  const off = checkInboundSender(peerInfo, spoof, { enforceBinding: false })
+  t.ok(off.ok, 'an unbound frame is still admitted with enforcement off')
+  t.is(off.bound, false, 'but it is not bound')
+  t.is(checkInboundSender(peerInfo, spoof, { enforceBinding: true }).reason, 'identity-unbound')
+  t.is(checkInboundSender(null, msg, { enforceBinding: true }).bound, false, 'a local replay is admitted, never bound')
 })
 
 test('checkInboundSender: null peerInfo is a trusted internal replay', (t) => {

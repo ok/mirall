@@ -190,16 +190,25 @@ test('order-independent and idempotent under the split fold', (t) => {
 // everyone it alone vouched for with it. The observer adopts those vouchees first so the subtree
 // survives — but must never adopt the leaver itself, which would re-vouch the peer being revoked.
 test('REGRESSION (FIX-363): adoption takes the leaver\'s vouchees but never the leaver', (t) => {
-  t.alike(voucheesToAdopt([B, D], C, A), [B, D], 'plain vouchees are adopted')
-  t.alike(voucheesToAdopt([B, A, D], C, A), [B, D], 'the leaver is never adopted from its own record')
-  t.alike(voucheesToAdopt([B, C, D], C, A), [B, D], 'we never adopt a vouch for ourselves')
-  t.alike(voucheesToAdopt([A, C], C, A), [], 'a record holding only those two adopts nothing')
+  const opts = { selfKey: C, leaverKey: A, authorized: new Set([A, B, C, D]) }
+  t.alike(voucheesToAdopt([B, D], opts), [B, D], 'plain vouchees are adopted')
+  t.alike(voucheesToAdopt([B, A, D], opts), [B, D], 'the leaver is never adopted from its own record')
+  t.alike(voucheesToAdopt([B, C, D], opts), [B, D], 'we never adopt a vouch for ourselves')
+  t.alike(voucheesToAdopt([A, C], opts), [], 'a record holding only those two adopts nothing')
 })
 
 test('adoption tolerates an empty or absent approval list', (t) => {
-  t.alike(voucheesToAdopt([], C, A), [])
-  t.alike(voucheesToAdopt(undefined, C, A), [])
-  t.alike(voucheesToAdopt(new Set([B, A]), C, A), [B], 'accepts a Set as well as an array')
+  const opts = { selfKey: C, leaverKey: A, authorized: new Set([A, B, C, D]) }
+  t.alike(voucheesToAdopt([], opts), [])
+  t.alike(voucheesToAdopt(undefined, opts), [])
+  t.alike(voucheesToAdopt(new Set([B, A]), opts), [B], 'accepts a Set as well as an array')
+})
+
+test('REGRESSION (MIR-43: adoption takes vouchees only from a leaver the fold authorizes)', (t) => {
+  const authorized = new Set([A, B, C])
+  t.alike(voucheesToAdopt([B, D], { selfKey: C, leaverKey: A, authorized }), [B, D], 'an authorized leaver\'s not-yet-folded vouch is adopted')
+  t.alike(voucheesToAdopt([B], { selfKey: C, leaverKey: D, authorized }), [], 'nothing is adopted from a leaver the fold never authorized')
+  t.alike(voucheesToAdopt([B], { selfKey: C, leaverKey: A, authorized: new Set() }), [], 'no fold, no adoption')
 })
 
 // REGRESSION (FIX-362: post-departure vouch). A peer that records its own departure cannot keep

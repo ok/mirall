@@ -13,7 +13,6 @@ import { AppError } from '../core/errors.js'
 import { principalRef } from '../contract/principals.js'
 import { UNKNOWN_DISPLAY_NAME } from '../contract/limits.js'
 import { isEpoch } from '../shares/catalog-keys.js'
-import { voucheesToAdopt } from './membership/fold.js'
 import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
 import { createLogger } from '../core/logger.js'
@@ -170,22 +169,6 @@ export async function markApproval(spaceId, joinerKeyHex) {
 export async function revokeApproval(spaceId, joinerKeyHex) {
   if (!profileBee) return
   await profileBee.del('approved/' + spaceId + '/' + joinerKeyHex)
-}
-
-// Take over a departing peer's vouchees so revoking our vouch for it doesn't strand the subtree it
-// alone vouched for. MUST run before revokeApproval: once the leaver is unauthorized the fold stops
-// walking its bee, so its approvals may never be readable again. Returns false when the record is
-// unreadable — the caller then leaves the whole departure unapplied so a later fold retries, and
-// never revokes on its own.
-export async function adoptVouchees(spaceId, leaverKeyHex) {
-  const rec = await readMembershipRecord(leaverKeyHex, spaceId)
-  if (!rec) return false
-  for (const vouchee of voucheesToAdopt(rec.approvals, getLocalPublicKeyHex(), leaverKeyHex)) {
-    if (await hasOwnApproval(spaceId, vouchee)) continue
-    await markApproval(spaceId, vouchee)
-    log.info('adopted vouchee from a departing peer:', vouchee.slice(0, 12) + '...', '→', spaceId)
-  }
-  return true
 }
 
 // True iff WE authored an approval for joinerKeyHex in this space (our own bee — a local read).

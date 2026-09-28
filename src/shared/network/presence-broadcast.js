@@ -12,7 +12,8 @@ import { LOOSE_SHARE_ID, transferIdFor } from '../transfer/transfer-id.js'
 import { shareDecoKey } from '../contract/decoration-key.js'
 import { peerSeen } from '../audit/network-watch.js'
 import { presenceFrameKind } from './presence.js'
-import { spaceTopics, socketMsgHandlers, authorizedOn, broadcastToSpace } from './swarm-registries.js'
+import { spaceTopics, socketMsgHandlers, authorizedOn, broadcastToSpace, peersInSpace, safeSend } from './swarm-registries.js'
+import { topicField } from './topic-refs.js'
 import { presence as defaultPresence } from './presence-leases.js'
 import { memberWaits } from './share-wait.js'
 import { createLogger } from '../core/logger.js'
@@ -61,14 +62,24 @@ export function stopPresenceHeartbeat() {
   if (presenceTimer) { timers?.clear(presenceTimer); presenceTimer = null }
 }
 
+// Every recipient in a form gets the same bytes; a space has at most two forms on the wire.
+function broadcastPresenceFrame(spaceId, fields) {
+  const frames = new Map()
+  for (const [, peer] of peersInSpace(spaceId)) {
+    const topic = topicField(peer.socket, spaceId)
+    if (!topic) continue
+    const form = 'topicRef' in topic ? 'ref' : 'bearer'
+    if (!frames.has(form)) frames.set(form, JSON.stringify({ type: PEER_FRAME.PRESENCE, ...fields, ...topic }))
+    safeSend(peer, frames.get(form))
+  }
+}
+
 // Heartbeat: advertise our own liveness per space to the peers in it. The recipient leases
 // us for PRESENCE_TTL_MS from when it receives this — we can't extend our own lease.
 function broadcastPresence() {
   if (socketMsgHandlers.size === 0) return
   const profileKeyHex = b4a.toString(getProfileKey(), 'hex')
-  for (const [spaceId, topicHex] of spaceTopics) {
-    broadcastToSpace(spaceId, JSON.stringify({ type: PEER_FRAME.PRESENCE, profileKey: profileKeyHex, spaceTopic: topicHex }))
-  }
+  for (const spaceId of spaceTopics.keys()) broadcastPresenceFrame(spaceId, { profileKey: profileKeyHex })
 }
 
 // Graceful-quit departure: tell every connected peer we're going offline NOW so they flip us
@@ -81,9 +92,7 @@ export function broadcastDeparture() {
   if (presenceTimer) { timers?.clear(presenceTimer); presenceTimer = null }
   if (!getSwarm() || socketMsgHandlers.size === 0) return
   const profileKeyHex = b4a.toString(getProfileKey(), 'hex')
-  for (const [spaceId, topicHex] of spaceTopics) {
-    broadcastToSpace(spaceId, JSON.stringify({ type: PEER_FRAME.PRESENCE, profileKey: profileKeyHex, spaceTopic: topicHex, offline: true }))
-  }
+  for (const spaceId of spaceTopics.keys()) broadcastPresenceFrame(spaceId, { profileKey: profileKeyHex, offline: true })
 }
 
 // Owner→members: live indexing/hashing progress for a file still advertised with contentHash:null
@@ -133,13 +142,11 @@ export function handleShareIndexProgressFrame(socket, msg) {
 // authenticated on this socket (same guard as the leave frame) — so presence can't be
 // spoofed for a peer we never handshaked. The TTL is ours; any sender-claimed expiry is
 // ignored.
-export function handlePresenceFrame(socket, msg) {
+export function handlePresenceFrame(socket, msg, spaceId) {
   const kind = presenceFrameKind(msg)
-  if (kind === 'ignore') return
-  const { profileKey, spaceTopic } = msg
+  if (kind === 'ignore' || !spaceId) return
+  const { profileKey } = msg
   if (!authorizedOn(socket, profileKey)) return
-  const spaceId = resolveSpaceIdForTopic(spaceTopic)
-  if (!spaceId) return
   if (kind === 'clear') {
     // Explicit graceful-quit departure (offline:true): flip the peer offline now, don't wait for
     // the socket close or the TTL. Gate the emit on a real online→offline transition (like the mark
@@ -189,9 +196,4 @@ export function handleSharePrepareProgressFrame(socket, msg) {
   // other value is a peer-controlled number, so clamp non-finite/non-positive to 0.
   const safeEta = eta == null ? null : (Number.isFinite(eta) && eta > 0 ? eta : 0)
   getIpc().emit('event:decoration', { channel: 'transfer', spaceId, key, phase: 'preparing', bytes, total, speed: 0, eta: safeEta })
-}
-
-export function resolveSpaceIdForTopic(topicHex) {
-  for (const [spaceId, topic] of spaceTopics) if (topic === topicHex) return spaceId
-  return null
 }

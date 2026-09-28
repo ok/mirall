@@ -6,6 +6,7 @@
 // because its two in-flight sets are its own: nothing else reads them.
 import { PEER_FRAME } from '../contract/peer-frames.js'
 import { getSpace, listSpaces } from '../spaces/space.js'
+import { isVerifiedMember } from '../spaces/member-standing.js'
 import { listJoinRequests, getConvergingMember } from '../spaces/join-requests.js'
 import { connectedPeers, spaceTopics, socketMsgHandlers, pendingRequesters } from './swarm-registries.js'
 import { createLogger } from '../core/logger.js'
@@ -45,12 +46,11 @@ export function resetDeferredAdmission() {
 // The DECISION to admit belongs to the callers and stays there — this is only the replay.
 async function replayHandshakeFor(spaceId, joinerKey) {
   const sock = connectedPeers.get(joinerKey)?.socket || pendingRequesters.get(joinerKey)
-  const topic = spaceTopics.get(spaceId)
-  if (!sock || !topic) return
+  if (!sock || !spaceTopics.has(spaceId)) return
   const converging = getConvergingMember(spaceId, joinerKey)
   if (!converging) {
     const handler = socketMsgHandlers.get(sock)
-    if (handler) await sendSingleHandshake(sock, handler, spaceId, topic)
+    if (handler) await sendSingleHandshake(sock, handler, spaceId)
     return
   }
   await handleHandshake(sock, {
@@ -58,8 +58,7 @@ async function replayHandshakeFor(spaceId, joinerKey) {
     profileKey: joinerKey,
     driveKey: converging.driveKey,
     displayName: converging.displayName,
-    spaceTopic: topic,
-  })
+  }, spaceId)
 }
 
 // A peer we recorded as a pending join request may since have been approved by a co-member. Re-run
@@ -71,7 +70,7 @@ async function reconcilePendingRequester(spaceId, joinerKey) {
   try {
     const space = await getSpace(spaceId)
     if (!space || space.status === 'pending') return
-    if ((space.members || []).some((m) => m.publicKey === joinerKey)) return
+    if (isVerifiedMember(space.members, joinerKey)) return
     if (!(await getGates().isApprovedByPeers(space, joinerKey))) return
     await replayHandshakeFor(spaceId, joinerKey)
   } finally {
@@ -90,7 +89,7 @@ async function reconcilePendingRequestersForSpace(spaceId) {
 export async function reconcilePendingRequestersForApprover(approverKey) {
   const spaces = await listSpaces()
   for (const space of spaces) {
-    if (!(space.members || []).some((m) => m.publicKey === approverKey)) continue
+    if (!isVerifiedMember(space.members, approverKey)) continue
     await reconcilePendingRequestersForSpace(space.spaceId)
   }
 }

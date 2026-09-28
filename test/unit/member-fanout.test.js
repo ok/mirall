@@ -10,6 +10,11 @@ test('peerMembersOf drops ourselves and members without a key, and admits by pre
   t.alike(peerMembersOf(undefined, 'me'), [], 'no members, no peers')
 })
 
+test('REGRESSION (MIR-44: an unverified invite seed was listed as a member to read from)', (t) => {
+  const roster = [{ publicKey: 'a' }, { publicKey: 'm', unverified: true }, { publicKey: 'me' }]
+  t.alike(peerMembersOf(roster, 'me').map((m) => m.publicKey), ['a'], 'only the verified peer is read')
+})
+
 test('readEachPeer reads every peer at once under one interactive budget, in member order', async (t) => {
   const saved = getRuntimeConfig()
   t.teardown(() => setRuntimeConfig(saved))

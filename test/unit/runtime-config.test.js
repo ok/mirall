@@ -1,6 +1,7 @@
 import {
   setRuntimeConfig, setDownloadFolder, setBandwidthLimits, getBandwidthLimits, getRuntimeConfig,
-  getConnectionCaps, getMembershipCaps, getDeriveDebounceMs, getHandshakeRateLimit, getConvergenceConfig, getIdentityFrameDropWindow, getServeChunkMapCacheBytes } from '../../src/shared/core/runtime-config.js'
+  getConnectionCaps, getMembershipCaps, getDeriveDebounceMs, getHandshakeRateLimit, getConvergenceConfig, getIdentityFrameDropWindow, getServeChunkMapCacheBytes,
+  isHandshakeIdentityBindingEnabled } from '../../src/shared/core/runtime-config.js'
 import test from 'brittle'
 
 import { AVATAR_MAX_BYTES } from '../../src/shared/contract/identity-limits.js'
@@ -143,6 +144,16 @@ test('the content plane and prepare-progress default ON; explicit false reverts'
 
   setRuntimeConfig({ sharePrepareProgressEnabled: undefined })
   t.ok(getRuntimeConfig().sharePrepareProgressEnabled, 'an absent flag stays ON — only false disables')
+  setRuntimeConfig({})
+})
+
+test('REGRESSION (MIR-54: identity binding defaulted off): an absent flag enforces; only false disables', (t) => {
+  setRuntimeConfig({})
+  t.ok(isHandshakeIdentityBindingEnabled(), 'an empty bootstrap enforces the binding')
+  setRuntimeConfig({ handshakeIdentityBindingEnabled: undefined })
+  t.ok(isHandshakeIdentityBindingEnabled(), 'an absent flag stays on')
+  setRuntimeConfig({ handshakeIdentityBindingEnabled: false })
+  t.absent(isHandshakeIdentityBindingEnabled(), 'only an explicit false turns it off')
   setRuntimeConfig({})
 })
 

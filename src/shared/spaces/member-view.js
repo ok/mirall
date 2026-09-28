@@ -70,6 +70,22 @@ export async function deriveMemberSet({ creatorKey, selfKey, readRecord }) {
   }
 }
 
+// Whether the member set rooted at `creatorKey` holds `key`, from one bounded pass over the
+// replicated records: for a peer with no live view yet (a pending joiner vetting its granter). An
+// unreadable root holds nobody, so the answer fails closed.
+/**
+ * @param {{ spaceId: string, creatorKey: string, key: string }} args
+ * @returns {Promise<boolean>}
+ */
+export async function foldHoldsMember({ spaceId, creatorKey, key }) {
+  const { members } = await deriveMemberSet({
+    creatorKey,
+    selfKey: getLocalPublicKeyHex(),
+    readRecord: (k) => readMembershipRecord(k, spaceId),
+  })
+  return members.has(key)
+}
+
 // Order-independent digest of a derived view's membership-relevant output (member +
 // approved key-sets, and the request/denied maps keyed by joiner + write-ts). The watcher
 // fires on EVERY append to a roster bee, including ones that don't change membership

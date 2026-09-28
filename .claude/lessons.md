@@ -85,6 +85,11 @@ Never start a second run while one is going: every run wipes `test/frontend/.wor
 what it observed.** Assert the fixture reached the guarded path (a side effect, a call count) before
 asserting the bound; a moved data path filters the old fixture out before the code under test runs.
 
+**A "no such frame arrives" assertion is only as good as the waiter behind it.** A helper that
+drains every waiter on each incoming frame drops a waiter at the first non-matching frame, so
+`t.exception(waitFrame(...))` passes while the frame arrives later. Keep a waiter armed until its
+predicate matches, and count the frames the peer actually received.
+
 **A green suite proves the mode it ran in, not the mode you ship.** When a subsystem forks on a mode
 (identity vs seed, master secret present or not), check which mode the harness boots before trusting
 any test. Destructive paths (leave, purge, reclaim, shutdown) must run in the production mode.

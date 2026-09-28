@@ -7,6 +7,7 @@
 /** @import { WorkerIpc } from '../../shared/core/ipc.js' */
 /** @import { Logger } from '../../shared/core/logger.js' */
 import { getSpace } from '../../shared/spaces/space.js'
+import { verifiedMembers } from '../../shared/spaces/member-standing.js'
 import { errorMessage } from '../../shared/core/errors.js'
 import { isSpaceLeaving } from '../../shared/network/leave-protocol.js'
 import { listFiles, removeFile, addFile } from '../../shared/transfer/file-listing.js'
@@ -84,7 +85,7 @@ export function registerFiles(ipc, { log }) {
   })
   ipc.handle('files:download', async (msg) => {
     const space = await getSpace(msg.spaceId)
-    const member = (space?.members || []).find((m) => m.publicKey === msg.ownerKey)
+    const member = verifiedMembers(space?.members).find((m) => m.publicKey === msg.ownerKey)
     const res = await looseDownload(msg.spaceId, member, msg.path)
     // Couldn't start: the owner may simply be unreachable on the bulk plane. Don't make the user
     // wait for the next tick to find that out — the rescue throttles itself, so clicks stay cheap.

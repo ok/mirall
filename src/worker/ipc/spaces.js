@@ -4,11 +4,9 @@
 
 /** @import { WorkerIpc } from '../../shared/core/ipc.js' */
 /** @import { Logger } from '../../shared/core/logger.js' */
-/** @import { DecodedInviteV1 } from '../../shared/contract/invite-envelope.js' */
 import { AppError } from '../../shared/core/errors.js'
 import { CODES } from '../../shared/contract/errors.js'
 import { TARGET_KIND } from '../../shared/contract/audit-kinds.js'
-import { UNKNOWN_DISPLAY_NAME } from '../../shared/contract/limits.js'
 import { encodeInvite, decodeInvite } from '../../shared/contract/invite-envelope.js'
 import { getProfile, getLocalPublicKeyHex, markInvite, mintInviteId, markOwnMembership } from '../../shared/spaces/profile.js'
 import {
@@ -17,7 +15,6 @@ import {
   toggleFavorite,
   isLegacySpace,
   LEGACY_SPACE_MESSAGE,
-  upsertMember,
 } from '../../shared/spaces/space.js'
 import { createSpace, joinSpace } from '../../shared/spaces/space-lifecycle.js'
 import { clearPendingLeave } from '../../shared/spaces/leave-records.js'
@@ -110,7 +107,8 @@ export function registerSpaces(ipc, { log, publishDownloadRoots }) {
     }
     const rejoinSpaceId = decoded.topic.slice(0, 16)
     log.info('joining space', decoded.v === 1 ? '(envelope)' : '(legacy)')
-    const space = await joinSpace(decoded.topic, name, msg.icon ?? undefined, { inviteId: envelope?.inviteId, creator: envelope?.creator })
+    const { inviteId, creator, owner, ownerName } = envelope ?? {}
+    const space = await joinSpace(decoded.topic, name, msg.icon ?? undefined, { inviteId, creator, owner, ownerName })
     await markOwnMembership(space.spaceId, { refresh: true })
     // A genuine rejoin supersedes any pending outbound leave: the fresh member/<S> record (strictly
     // newer ts) outranks the old tombstone on co-members, so retire the marker + its replay topic.
@@ -123,7 +121,6 @@ export function registerSpaces(ipc, { log, publishDownloadRoots }) {
       await clearPendingLeave(rejoinSpaceId)
       await leavePendingLeaveTopic(rejoinSpaceId)
     }
-    await seedInviter(space.spaceId, envelope)
     await joinSpaceTopic(space.spaceId)
     await openMemberView(space.spaceId)   // no-op while pending; opens on re-join of an approved space
     log.info('space joined:', space.spaceId)
@@ -232,19 +229,6 @@ export function registerSpaces(ipc, { log, publishDownloadRoots }) {
   })
   ipc.handle('space:toggle-favorite', async (msg) => {
     return await toggleFavorite(msg.spaceId)
-  })
-}
-
-// Pre-seed the inviter as an offline shell member (when the envelope carries their identity) so the
-// space isn't empty until their handshake lands. Keyed by their real public key, so the handshake's
-// upsertMember merges into this entry — filling the avatar and flipping them online — rather
-// than adding a duplicate. Skipped if the invite predates this field or names ourselves.
-/** @param {string} spaceId @param {DecodedInviteV1 | null} envelope */
-async function seedInviter(spaceId, envelope) {
-  if (!envelope?.owner || envelope.owner === getLocalPublicKeyHex()) return
-  await upsertMember(spaceId, {
-    publicKey: envelope.owner,
-    displayName: envelope.ownerName || UNKNOWN_DISPLAY_NAME,
   })
 }
 
