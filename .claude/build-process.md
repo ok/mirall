@@ -48,8 +48,15 @@ git -C worktrees/backport-<slug> cherry-pick -x <main-sha>
 gh pr create --base release/1.11 --head backport/<slug>
 ```
 
+A backport PR carries only cherry-picks, several at once when they go to the same release, and is
+**rebase-merged**, never squashed: each fix stays its own commit with its `(cherry picked from
+commit …)` line, so every commit on the release branch maps to one on `main`. A fix's changelog
+entry arrives with its cherry-pick; a wording change to that entry goes in the release-prep PR, not
+the backport, so it reaches `main` with the release-prep forward-port.
+
 **Patch release** (e.g. `v1.11.2`): once its fixes are backported, a `release-prep/1.11.2` PR to
-`release/1.11` bumps `package.json#version` and dates the `## v1.11.2` heading in `CHANGELOG.md`.
+`release/1.11` bumps `package.json#version`, dates the `## v1.11.2` heading in `CHANGELOG.md` and
+settles that section's wording.
 When it has merged and the Test run on the release-branch push is green, tag the branch:
 
 ```
