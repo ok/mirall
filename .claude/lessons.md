@@ -513,6 +513,14 @@ user: store the change, flag it pending, and offer **Reconnect now** with an exp
 plus a consecutive-drop ban is a cliff at `burst + threshold`. Keep the bucket as decaying debt and
 decay the drop counter at the refill rate.
 
+**Attaching replication late strands the cores the remote asked for first.** Protomux rejects a
+channel open that nothing is paired for, and the remote does not ask again until that core next
+turns downloading; our own later open for that discovery key is what makes its per-core pair answer.
+Tell: a core that replicates only after a reconnect or once the remote reopens it. Fix: record the
+discovery keys asked for before attaching and open each from our side afterwards, only after the
+session's `ready()` (a `replicate` on a session that failed to open destroys the mux) —
+`network/replication-gate.js`.
+
 **Never destroy a peer's socket to heal a wedged replication session.** It carries every channel for
 that peer. Capture via an explicit bounded `get`, falling back to
 `bee.checkout(core.contiguousLength)`.

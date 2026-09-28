@@ -506,7 +506,7 @@ encodes status or intent).
 Main's OTA updater runs its own Corestore and a client-only swarm on the upgrade drive
 (`src/main/updater.js`). The worker runs two swarms over one store and one DHT node:
 - **Control** (`src/shared/network/swarm.js`) joins each space's random 32-byte topic. It carries
-  Corestore replication and `mirall/handshake`.
+  `mirall/handshake`, and Corestore replication once the socket carries an admitted member (§4.2).
 - **Content** (`src/shared/network/content-swarm.js`) joins
   `hash(topic ‖ 'mirall/content-plane/v1')`. It carries only the overlay channel and authenticates
   with its own signed `mirall/content-hello`. It has its own Noise identity, so bulk bytes never
@@ -520,6 +520,19 @@ A socket that arrives while we hold no topic is destroyed before any handshake c
 All channels open synchronously before `channel.open()`, because Protomux will not pair a channel
 opened after the remote's (`src/shared/network/peer-connection.js`). The vocabulary is
 `src/shared/contract/peer-frames.js`, and routing is `src/shared/network/frame-intake.js`.
+
+**Replication gate** (`src/shared/network/replication-gate.js`). Corestore replication is the one
+exception to that rule: it attaches only once the socket carries a peer admitted to a space we share,
+or one we exchanged a membership grant with (either side of it). A core key is all a peer needs to
+ask for a core, and the profile key rides every handshake, so before that point a socket is served
+nothing. That closes the plaintext profile bee and catalog cores to strangers, pending joiners and
+tombstoned leavers. Two reads need one peer's own records before its socket may replicate, and
+attach that peer's own core alone to its socket: a pending joiner checking a granter against the
+fold, and a member applying a leave (a replayed leave arrives on a socket that never replicates).
+Protomux rejects a hypercore channel the remote opens before we attach, and the remote does not ask
+again until its core next turns downloading, so the gate remembers what the socket asked for and
+offers those cores from our side on admission. The gate is per socket, not per core: hypercore has
+no per-peer serve hook, and the profile bee spans every space anyway.
 
 | Frame | Fields |
 |---|---|
@@ -583,7 +596,9 @@ handler runs in order:
 3. Revoke our vouch.
 4. Ack, but only if the tombstone and revoke landed durably.
 5. Revoke the leaver's serve grants.
-6. Detach the peer from that space. The connection goes only if no shared space remains.
+6. Detach the peer from that space. A socket left carrying nobody admitted is closed, because
+   closing is the only way to stop its replication. The leaver's profile bee is captured first
+   (bounded), so we can re-host its departure to members that were offline.
 
 A plain disconnect never prunes membership.
 
@@ -1214,8 +1229,17 @@ not await async listeners.
   the topic and send join requests. Read access still requires approval (the SCK grant, §16).
 - **A connected socket learns how many spaces we are in.** Each identity frame names its space by an
   unlinkable reference (§4.2), but it still carries the per-space participation id, loose-catalog
-  key and creator root. The same fields are readable from the profile bee until replication is gated
-  per admitted space.
+  key and creator root. The same fields sit in the profile bee, which replicates only to admitted
+  sockets (§4.2).
+- **Admission needs the approval from a member, not the joiner.** A joiner's socket replicates
+  nothing until it is admitted, so a co-member whose copy of the approver's bee lacks the approval
+  admits the joiner only once that bee reaches it from the approver or another admitted member.
+  Serving the approver's bee to the joiner to read it back would hand member records to an
+  unapproved peer.
+- **Replication is gated per socket, not per space.** A peer admitted to one space can replicate any
+  core it holds a key for over that socket, including another space's catalog. The profile bee
+  holds every space's `member/`, `share/` and catalog-key records, so separating spaces needs a
+  per-space layout or encrypted fields, not a finer gate.
 - **DHT nodes see topics.** Hyperswarm announces and looks up the raw topic as the DHT target, so
   the nodes storing that key observe it. The wire between peers never carries it (§4.2).
 - **Some transfer faults wait for the user.** A checksum fault clears only when the owner
