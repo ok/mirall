@@ -99,7 +99,7 @@
     "hypercore-crypto": "^3.7.0",
     "hypercore-id-encoding": "^1.3.0",
     "hyperswarm": "^4.17.1",
-    "ignore": "^7.0.9",
+    "ignore": "^7.0.10",
     "msix-manager": "^0.2.5",
     "paparam": "^1.13.0",
     "pear-runtime": "1.3.1",
