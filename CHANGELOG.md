@@ -9,7 +9,7 @@ build-pipeline tweaks, and dependency bumps that don't change how the app
 behaves are intentionally omitted. Releases that contained only such
 changes do not appear here.
 
-## v1.11.2
+## v1.12.0
 
 ### Unreleased
 
