@@ -53,7 +53,7 @@ async function replayHandshakeFor(spaceId, joinerKey) {
     if (handler) await sendSingleHandshake(sock, handler, spaceId, topic)
     return
   }
-  await handleHandshake(sock, null, {
+  await handleHandshake(sock, {
     type: PEER_FRAME.HANDSHAKE,
     profileKey: joinerKey,
     driveKey: converging.driveKey,

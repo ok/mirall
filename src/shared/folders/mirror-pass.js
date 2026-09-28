@@ -178,19 +178,15 @@ async function runInitialMaterializeScan(mount, gen) {
   return { skipped: 'no-content-backend' }
 }
 
-// The containment-guarded delete primitive, used by the catalog deletion reconcile. pathFromMount
-// rejects any owner-controlled relPath that escapes the mount BEFORE the unlink — the
-// path-traversal guard the security suite exercises (foreign-path-containment). Puts never come
-// here: they are fetched by materializeOverlayFile.
+// The deletion reconcile's unlink. pathFromMount rejects a relPath that escapes the mount BEFORE
+// the unlink, so an owner-controlled key can never delete a file outside the mirror folder.
 /** @internal */
-export async function applyChange(mount, change) {
-  const abs = pathFromMount(mount.mountPath, change.localRelPath || change.relPath)
-  if (change.action === 'del') {
-    try { await fs.promises.unlink(abs) } catch (err) {
-      if (err && err.code !== 'ENOENT') throw err
-    }
-    emitMirrorEvent('event:share-files-updated', { spaceId: mount.spaceId, shareId: mount.shareId })
+export async function deleteMirrorFile(mount, localRelPath) {
+  const abs = pathFromMount(mount.mountPath, localRelPath)
+  try { await fs.promises.unlink(abs) } catch (err) {
+    if (err && err.code !== 'ENOENT') throw err
   }
+  emitMirrorEvent('event:share-files-updated', { spaceId: mount.spaceId, shareId: mount.shareId })
 }
 
 async function initialMaterializeScanCatalog(mount, share, gen) {
@@ -262,7 +258,7 @@ async function applyDeletions(mount, pendingDeletions, { key, gen, synced }) {
       state.forgetSynced(key, synced, ownerKey)
       continue
     }
-    await applyChange(mount, { action: 'del', relPath: ownerKey, localRelPath: localRelOf(mount, ownerKey) })
+    await deleteMirrorFile(mount, localRelOf(mount, ownerKey))
     state.forgetSynced(key, synced, ownerKey)
   }
   return true

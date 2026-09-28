@@ -42,3 +42,16 @@ test('re-enabling a mirror resumes it and the tick materializes', async (t) => {
   await runMaterializeTick(ctx.spaceId, shareId)
   t.ok(fs.existsSync(path.join(ctx.mirrorPath, 'doc.txt')), 'mirror materializes after resume')
 })
+
+test('the reply is the record the toggle wrote, sync fields included', async (t) => {
+  const ctx = await setupSelfMirror(t, { files: { 'doc.txt': 'data' } })
+  const shareId = ctx.share.id
+  await runMaterializeTick(ctx.spaceId, shareId)
+
+  const paused = await setForeignEnabled(ctx.spaceId, shareId, false)
+  t.alike(paused, await getForeignMount(ctx.spaceId, shareId), 'pause replies with the stored record')
+  t.ok(paused.syncedPaths.includes('doc.txt'), 'including the paths the mirror has synced')
+
+  const resumed = await setForeignEnabled(ctx.spaceId, shareId, true)
+  t.alike(resumed.syncedPaths, paused.syncedPaths, 'resume carries them too')
+})

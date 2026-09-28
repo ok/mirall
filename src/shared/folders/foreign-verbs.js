@@ -184,19 +184,18 @@ async function rearmAfterFailedPause(spaceId, shareId) {
 // The record half of setForeignEnabled. Resolves the mount as written, and whether it was enabled
 // before.
 async function writeEnabled(spaceId, shareId, enabled) {
-  const mount = await getForeignMount(spaceId, shareId)
+  let wasEnabled = false
+  const mount = await mutateForeignMount(spaceId, shareId, (m) => {
+    wasEnabled = m.enabled !== false
+    return {
+      ...m,
+      enabled,
+      status: enabled ? MOUNT_STATUS.ACTIVE : MOUNT_STATUS.PAUSED,
+      ...(enabled ? { lastError: null } : {}),
+      ...state.syncFields(m),
+    }
+  })
   if (!mount) throw new AppError(CODES.MOUNT_NOT_ON_DEVICE, 'Mount not found')
-  const wasEnabled = mount.enabled !== false
-  mount.enabled = enabled
-  mount.status = enabled ? MOUNT_STATUS.ACTIVE : MOUNT_STATUS.PAUSED
-  if (enabled) mount.lastError = null
-  await mutateForeignMount(spaceId, shareId, (m) => ({
-    ...m,
-    enabled,
-    status: mount.status,
-    ...(enabled ? { lastError: null } : {}),
-    ...state.syncFields(m),
-  }))
   return { mount, wasEnabled }
 }
 
