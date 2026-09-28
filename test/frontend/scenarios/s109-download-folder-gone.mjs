@@ -105,10 +105,15 @@ export default async function s109({ runDir, bootstrap }) {
       await B.waitText('Archive', 30000)
       await B.openFolder('Archive')
       await B.waitText('second.txt', 20000)
-      // The failed row offers Retry, not Download — which is also what makes it targetable here.
-      // notes.txt has meanwhile reverted to Download (its copy lived in the folder that is gone),
-      // so a name:'Download' match would be ambiguous between the two rows.
-      await B.click({ role: 'button', name: 'Retry' })
+      // A folder that takes writes again re-drives the failed row on the worker's next tick, so the
+      // download may already be under way; Retry is offered only until then. The failed row offers
+      // Retry, not Download — notes.txt has meanwhile reverted to Download (its copy lived in the
+      // folder that is gone), so a name:'Download' match would be ambiguous between the two rows.
+      try {
+        await B.click({ role: 'button', name: 'Retry' })
+      } catch (e) {
+        if (e.code !== 'ELEMENT_NOT_FOUND') throw e
+      }
       await waitFor(() => existsSync(path.join(rescueDl, 'second.txt')), 60000, 'downloaded into the new folder')
       assert(!(await B.hasText('Download folder unavailable')), 'no stale failure text left behind')
     })

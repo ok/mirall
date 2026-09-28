@@ -1,10 +1,14 @@
+import { execFile } from 'node:child_process'
 import path from 'node:path'
+import { promisify } from 'node:util'
 import { ad, withRetry, RETRYABLE } from './agent.mjs'
 import { findNode, allText } from './tree.mjs'
-import { POLL_MS, mirallWindows } from './ax-support.mjs'
+import { POLL_MS, mirallWindows, electronWindows, background } from './ax-support.mjs'
 
 // The accessibility-tree half of Instance: everything that talks to agent-desktop and nothing that
 // knows a Mirall screen. Applied as a mixin so the scenarios keep one object with one surface.
+const execFileAsync = promisify(execFile)
+
 export const withAx = (Base) => class extends Base {
   async _waitForAx(timeout = 30000) {
     const deadline = Date.now() + timeout
@@ -37,7 +41,9 @@ export const withAx = (Base) => class extends Base {
     // as unexplained "no element {...}" flake. Reject it here instead. `complete`
     // is absent on <0.7.0, and `=== false` leaves that case untouched.
     const take = async () => {
-      const { data } = await this.ad(['snapshot', '--window-id', this.windowId, '--max-depth', '40', ...lens])
+      // --app scopes the window lookup to our app; with only --window-id, 0.9 resolves the window
+      // through the global inventory, which triples the cost of every snapshot.
+      const { data } = await this.ad(['snapshot', '--app', 'Electron', '--window-id', this.windowId, '--max-depth', '40', ...lens])
       if (data.complete === false) {
         throw Object.assign(new Error(`${this.name}: AX snapshot truncated (window ${this.windowId})`), {
           code: 'SNAPSHOT_INCOMPLETE',
@@ -102,9 +108,32 @@ export const withAx = (Base) => class extends Base {
         // --headed for exactly those elements (react-aria composites whose press handler sits on a
         // wrapper), so the default run stays cursor-free.
         if (e.code !== 'POLICY_DENIED') throw e
+        if (background()) return this._pointer(ref, ['mouseMove', 'mouseDown', 'mouseUp'])
         return await this.ad(['click', ref], { headed: true })
       }
     })
+  }
+
+  // A click delivered as pointer events at the element's position instead of an accessibility
+  // press. For a control React re-mounts faster than a press lands (a row re-rendering on every
+  // progress tick) the press hits a node that is already gone; pointer events hit whatever sits at
+  // that point when they arrive, as a user's click does.
+  pointerClick(sel) {
+    return withRetry(async () => {
+      await this.focus()
+      const ref = await this._ref(sel)
+      if (background()) return this._pointer(ref, ['mouseMove', 'mouseDown', 'mouseUp'])
+      return this.ad(['click', ref], { headed: true })
+    })
+  }
+
+  // Background mode's stand-in for a physical pointer: synthetic events at the element's centre,
+  // delivered to this window only, so the real cursor never moves.
+  async _pointer(ref, types) {
+    const { data } = await this.ad(['get', ref, '--property', 'bounds'])
+    const b = data.value
+    if (!b) throw Object.assign(new Error(`${this.name}: ${ref} has no bounds`), { code: 'ACTION_FAILED' })
+    return this.main.mouse(b.x + b.width / 2, b.y + b.height / 2, types)
   }
 
   // Move the OS cursor onto an element (real mouseenter/mouseleave to the DOM).
@@ -112,7 +141,9 @@ export const withAx = (Base) => class extends Base {
   hover(sel) {
     return withRetry(async () => {
       await this.focus()
-      return this.ad(['hover', await this._ref(sel)], { headed: true })
+      const ref = await this._ref(sel)
+      if (background()) return this._pointer(ref, ['mouseMove'])
+      return this.ad(['hover', ref], { headed: true })
     })
   }
 
@@ -152,18 +183,24 @@ export const withAx = (Base) => class extends Base {
   // different instance currently holds focus (the multi-instance case this guards).
 
   async focus() {
+    if (background()) return
     // A single-instance scenario has no competing Mirall window, so this instance
     // stays frontmost after its initial raise (done unconditionally in launch()).
     // Skip the per-action list-windows round-trip (~0.4s each) AND the re-focus,
     // which would dismiss any open react-aria popover. Multi-instance still needs
     // the check to bring the acting window forward when a sibling holds focus.
     if (this.total === 1) return
-    const me = (await ad(['list-windows'])).data.find((w) => w.id === this.windowId)
+    const me = (await electronWindows()).find((w) => w.id === this.windowId)
     if (me?.is_focused) return
     await ad(['focus-window', '--window-id', this.windowId], { allowError: true })
   }
 
   async press(combo) {
+    if (background()) {
+      const how = await this.main.press(combo)
+      if (how !== 'menu' && how !== 'keys') console.error(`[${this.name}] press ${combo}: ${how}`)
+      return how
+    }
     await this.focus()
     return ad(['press', combo])
   }
@@ -250,22 +287,52 @@ export const withAx = (Base) => class extends Base {
   // sentinel first and waiting for it to change.
 
   async copyFrom(buttonSel, timeout = 5000) {
+    // The pasteboard is the user's too: in background mode they are working while this runs, so
+    // their text is put back once the copy has been read.
+    const saved = background() ? await this.clipboard().catch(() => null) : null
+    try {
+      return await this._copyFrom(buttonSel, timeout)
+    } finally {
+      if (saved != null) await ad(['clipboard-set', saved], { allowError: true })
+    }
+  }
+
+  // Background mode depends on focus emulation for the page's clipboard write; when a copy does not
+  // land, the page's focus state is logged, emulation is re-applied and the button pressed again.
+  async _copyFrom(buttonSel, timeout) {
+    for (let attempt = 0; ; attempt++) {
+      const { text, last } = await this._copyOnce(buttonSel, timeout)
+      if (text) return text
+      if (!background() || attempt > 0) {
+        throw new Error(`${this.name}: clipboard did not update after copy (still ${JSON.stringify(last)})`)
+      }
+      const page = await this.main.pageState().catch((e) => e.message)
+      console.error(`[${this.name}] copy did not reach the clipboard (page ${JSON.stringify(page)}) — re-applying focus emulation`)
+      await this.main.focusEmulation()
+    }
+  }
+
+  async _copyOnce(buttonSel, timeout) {
     const sentinel = `__sentinel_${Date.now()}__`
     await ad(['clipboard-set', sentinel])
     await this.focus()
     await this.click(buttonSel)
     const deadline = Date.now() + timeout
+    let last = null
     while (Date.now() < deadline) {
-      const v = await this.clipboard()
-      if (v && v !== sentinel) return v
+      last = await this.clipboard()
+      if (last && last !== sentinel) return { text: last, last }
       await new Promise((r) => setTimeout(r, 100))
     }
-    throw new Error(`${this.name}: clipboard did not update after copy`)
+    return { text: null, last }
   }
 
+  // agent-desktop's `screenshot` resolves the window through the unscoped inventory, which times out
+  // while Finder's desktop is frontmost (always, on a CI runner), and its capture is
+  // `screencapture -l <window number>` — the number a `w-N` id carries. Call that directly.
   async shot(label, dir) {
     const file = path.join(dir, `${this.name}-${label}.png`)
-    await ad(['screenshot', file, '--window-id', this.windowId])
+    await execFileAsync('/usr/sbin/screencapture', ['-x', '-t', 'png', '-l', this.windowId.replace(/^w-/, ''), file])
     return file
   }
 

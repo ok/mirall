@@ -73,8 +73,9 @@ remaining payload is megabytes is not a gigabyte loss; reviewers price the fix o
 **A user-facing visual change is pushed only after the user has run it locally.** Geometry harnesses
 prove alignment, not appearance; green tests are the precondition for asking.
 
-**Never launch `npm run test:fe` unprompted.** It takes over the machine's foreground and AX API for
-minutes. Propose the scenarios and let the user start them; the automated gates need no permission.
+**Never launch `npm run test:fe` unprompted.** It runs real app windows and the machine's AX API for
+minutes (`--foreground` also takes the keyboard and pointer). Propose the scenarios and let the user
+start them; the automated gates need no permission.
 
 ## Tests that pass for the wrong reason
 
@@ -296,11 +297,36 @@ consequential form.
 
 ## Frontend harness (agent-desktop)
 
-**`test/frontend/preflight.mjs` pins the agent-desktop minor floor.** On 0.8: refs are
-snapshot-qualified (`@<snapshot_id>:eN`); `list-windows` includes invisible Electron helpers (filter
-on `visible`); `wait --text` matches `name` only while static text lives in `value`; a press with no
-AX action is `POLICY_DENIED` (opt into `--headed` per element); a leftover pre-0.5 refmap in
-`~/.agent-desktop` makes `status` fail with `INVALID_ARGS` until pruned.
+**`test/frontend/preflight.mjs` pins the agent-desktop minor floor.** Refs are snapshot-qualified
+(`@<snapshot_id>:eN`); `list-windows` includes invisible Electron helpers (filter on `visible`);
+`wait --text` matches `name` only while static text lives in `value`; a press with no AX action is
+`POLICY_DENIED` (background mode clicks the element's centre through the main channel instead).
+
+**Electron must enable accessibility through `app.setAccessibilitySupportEnabled`, not the
+`force-renderer-accessibility` switch.** agent-desktop 0.9 sets `AXManualAccessibility` and reads it
+back; Electron reports `false` unless the API turned accessibility on, and every snapshot then fails
+with `Renderer accessibility activation was not reflected`. The tell is 0.8 snapshotting the same
+window fine.
+
+**Scope every agent-desktop window lookup to `--app Electron`.** The unscoped inventory times out
+for as long as Finder's desktop is frontmost (Finder's focused element is not a window), and an
+unscoped `snapshot --window-id` resolves through that inventory at ~3× the cost. `screenshot` cannot
+be scoped (`--app` is `AMBIGUOUS_TARGET` with several instances), so the harness captures with
+`screencapture -l <N>` for a `w-N` window id — the same call agent-desktop makes. A CI runner
+always has Finder frontmost.
+
+**A background window takes AX actions but not keys.** `click`/`set-value`/`get` work while another
+app is frontmost; `press` needs an AX-focused element the inactive app does not have, and `--app`
+cannot tell dev instances apart (all are "Electron"). Keys go through the main-process channel
+(`sendInputEvent`, menu accelerators via their menu item). `sendInputEvent` only queues, so wait a
+rendered frame before the next step, and give Return/Space their `char` event — a focused button
+activates on keypress, not keyDown.
+
+**A click that did not throw is not a click that landed.** agent-desktop 0.9 runs one delivery
+and reports `delivered_unverified` when it cannot read the effect, and an AX press on a node React
+replaces mid-press (a row re-rendering on every progress tick) does nothing. Confirm by the effect
+(the request in the instance log, the state change), and use `pointerClick` for such controls —
+pointer events hit whatever sits at that point, as a user's click does.
 
 **A menu trigger is not a `button` in the AX tree.** react-aria's `aria-haspopup` makes it a pop-up
 button (`role: "combobox"`). Match menu triggers by name only.

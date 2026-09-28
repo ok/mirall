@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync, existsSync } from 'node:fs'
+import { mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { Instance } from '../instance.mjs'
 import { connectInSpace } from '../helpers.mjs'
@@ -36,7 +36,9 @@ export default async function s95({ runDir, bootstrap }) {
       await A.addFile(big)
       await A.waitText('feed', 60000)
       await B.waitText('feed', 90000)
-      await B.waitText('Available', 90000)
+      // Row-scoped: the owner is still indexing 256 MB, and a whole-window "Available" matches
+      // other text long before this row's Download control exists.
+      await waitFor(() => B.has({ name: 'feed.bin: Available' }), 90000, "B's row turns Available")
     })
 
     await r.ok('B downloads then pauses; A reflects the paused peer when the race allows', async () => {
@@ -65,8 +67,17 @@ export default async function s95({ runDir, bootstrap }) {
       if (sawPaused) await A.shot('s95-A-peer-paused', runDir)
       console.log(`s95: owner reflected a paused peer: ${sawPaused}`)
 
+      // Resume re-issues the download request. The paused row renders its Resume a beat after the
+      // pause lands and a press on the re-rendering row can be lost, so it is pressed until a new
+      // request shows in B's log (the verbose worker logs every request).
       await B.focus()
-      if (await B.has({ role: 'button', name: 'Resume' })) await B.click({ role: 'button', name: 'Resume' })
+      const downloadRequests = () => (readFileSync(B.logPath, 'utf8').match(/\[worker stdout\] \[ipc\] req files:download #/g) ?? []).length
+      const before = downloadRequests()
+      const rd = Date.now() + 15000
+      while (Date.now() < rd && downloadRequests() === before && !existsSync(landed)) {
+        try { await B.pointerClick({ role: 'button', name: 'Resume' }) } catch { /* not rendered yet */ }
+        await sleep(300)
+      }
     })
 
     await r.ok('B completes; A clears the downloader indicator', async () => {

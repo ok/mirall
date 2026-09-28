@@ -2,6 +2,7 @@ import test from 'brittle'
 import { agentArgs, ACTION_TIMEOUT_MS } from '../frontend/agent.mjs'
 import { agentDesktopTooOld, MIN_AGENT_DESKTOP } from '../frontend/preflight.mjs'
 import { findNode } from '../frontend/tree.mjs'
+import { inspectorUrl, parseCombo, acceleratorMatches, keyEvents } from '../frontend/main-channel.mjs'
 
 // The frontend AX suite itself is local-only (CI can't drive the AX tree), but
 // these two pure helpers gate the agent-desktop upgrade and can run in CI. They
@@ -52,11 +53,11 @@ test('agentArgs adds no auto-wait budget to subcommands that reject the flag', (
 })
 
 test('agentDesktopTooOld rejects everything below the floor', (t) => {
-  for (const v of ['0.1.14', '0.2.0', '0.2.3', '0.3.0', '0.4.4', '0.7.9']) t.is(agentDesktopTooOld(v), true, v)
+  for (const v of ['0.1.14', '0.2.0', '0.2.3', '0.3.0', '0.4.4', '0.7.9', '0.8.0', '0.8.5']) t.is(agentDesktopTooOld(v), true, v)
 })
 
-test('agentDesktopTooOld accepts 0.8.0 and newer', (t) => {
-  for (const v of ['0.8.0', '0.8.1', '0.9.0', '1.0.0']) t.is(agentDesktopTooOld(v), false, v)
+test('agentDesktopTooOld accepts 0.9.0 and newer', (t) => {
+  for (const v of ['0.9.0', '0.9.4', '0.10.0', '1.0.0']) t.is(agentDesktopTooOld(v), false, v)
 })
 
 test('agentDesktopTooOld treats unparseable versions as too old', (t) => {
@@ -107,4 +108,55 @@ test('actionable resolves to the control that carries the disabled state', (t) =
   }
   t.ok(findNode(tree, { name: 'Create', actionable: true }).states.includes('disabled'))
   t.absent(findNode(tree, { name: 'Create' }).states.includes('disabled'), 'the label looks enabled')
+})
+
+// Background mode drives each instance's main process over its Node inspector; the URL comes from
+// the line Node prints on stderr, which lands in the instance log among the app's own output.
+test('inspectorUrl finds the websocket URL in an instance log', (t) => {
+  const log = '[boot] storage /x\nDebugger listening on ws://127.0.0.1:61492/ace308cf-a7c8\nFor help, see: https://nodejs.org\n'
+  t.is(inspectorUrl(log), 'ws://127.0.0.1:61492/ace308cf-a7c8')
+  t.is(inspectorUrl('[boot] no inspector here'), null)
+})
+
+test('parseCombo maps a harness combo to Electron input-event names', (t) => {
+  t.alike(parseCombo('cmd+shift+u'), { key: 'U', modifiers: ['meta', 'shift'] })
+  t.alike(parseCombo('Escape'), { key: 'Escape', modifiers: [] })
+  t.alike(parseCombo('return'), { key: 'Return', modifiers: [] })
+  t.alike(parseCombo('cmd+return'), { key: 'Return', modifiers: ['meta'] })
+  t.alike(parseCombo('z'), { key: 'Z', modifiers: [] })
+  t.alike(parseCombo('cmd++'), { key: 'Plus', modifiers: ['meta'] })
+  t.alike(parseCombo('arrowleft'), { key: 'Left', modifiers: [] })
+})
+
+test('parseCombo rejects a key or modifier it cannot deliver', (t) => {
+  t.exception(() => parseCombo('hyper+k'), /unknown modifier/)
+  t.exception(() => parseCombo('cmd+f13'), /unknown key/)
+})
+
+// The app's menu accelerators (src/main/menu.js) are matched the way macOS matches a key equivalent,
+// so ⌘U clicks "Add Files…" exactly when a real keystroke would.
+test('acceleratorMatches pairs a combo with the menu accelerator macOS would fire', (t) => {
+  t.ok(acceleratorMatches('CmdOrCtrl+U', parseCombo('cmd+u')))
+  t.ok(acceleratorMatches('CmdOrCtrl+Shift+U', parseCombo('cmd+shift+u')))
+  t.ok(acceleratorMatches('Cmd+Shift+H', parseCombo('cmd+shift+h')))
+  t.ok(acceleratorMatches('CmdOrCtrl+K', parseCombo('cmd+k')))
+  t.ok(acceleratorMatches('CmdOrCtrl+Left', parseCombo('cmd+left')))
+  t.ok(acceleratorMatches('CmdOrCtrl+Plus', parseCombo('cmd++')))
+  t.absent(acceleratorMatches('CmdOrCtrl+Shift+U', parseCombo('cmd+u')), 'extra modifier')
+  t.absent(acceleratorMatches('CmdOrCtrl+U', parseCombo('cmd+shift+u')), 'missing modifier')
+  t.absent(acceleratorMatches('CmdOrCtrl+K', parseCombo('k')), 'a bare key is never a menu chord')
+})
+
+test('keyEvents types a character only when no command modifier is held', (t) => {
+  t.alike(keyEvents(parseCombo('z')).map((e) => [e.type, e.keyCode]), [['keyDown', 'Z'], ['char', 'z'], ['keyUp', 'Z']])
+  t.alike(keyEvents(parseCombo('cmd+f')).map((e) => e.type), ['keyDown', 'keyUp'])
+  t.alike(keyEvents(parseCombo('escape')).map((e) => e.type), ['keyDown', 'keyUp'])
+})
+
+// A focused button activates on the keypress Return/Space produce, not on keyDown — without the
+// char event, Enter on a confirm dialog resting on Cancel does nothing.
+test('keyEvents gives Return and Space their char event', (t) => {
+  t.alike(keyEvents(parseCombo('return')).map((e) => [e.type, e.keyCode]), [['keyDown', 'Return'], ['char', '\r'], ['keyUp', 'Return']])
+  t.alike(keyEvents(parseCombo('space'))[1], { type: 'char', keyCode: ' ', modifiers: [] })
+  t.alike(keyEvents(parseCombo('cmd+return')).map((e) => e.type), ['keyDown', 'keyUp'])
 })

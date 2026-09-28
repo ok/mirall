@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, writeFileSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { Instance } from '../instance.mjs'
 import { connectInSpace } from '../helpers.mjs'
@@ -37,12 +37,17 @@ export default async function s85({ runDir, bootstrap }) {
       await A.addFile(big)
       // Tight loop: try to click Cancel every iteration — the click's own ref-resolve doubles
       // as detection, so it lands the moment the publishing row exists, with no extra snapshot
-      // latency between "seen" and "clicked". Stop when it lands, or when the publish settles.
+      // latency between "seen" and "clicked". The row re-renders on every progress tick, so the
+      // click is pointer events at the button's position rather than a press on a node that may
+      // already be gone, and it counts only once the request is in A's log (the verbose worker
+      // logs every request); until then, keep clicking while the row still publishes.
+      const cancelSent = () => readFileSync(A.logPath, 'utf8').includes('req files:cancel-publish')
       const dl = Date.now() + 30000
       while (Date.now() < dl) {
-        try { await A.click({ role: 'button', name: 'Cancel' }); cancelled = true; break } catch { /* no publishing row yet, or already finished */ }
-        if (await A.hasText('Shared by you')) break // publish finished — window missed
+        try { await A.pointerClick({ role: 'button', name: 'Cancel' }) } catch { /* no publishing row yet, or already finished */ }
         await sleep(80)
+        if (cancelSent()) { cancelled = true; break }
+        if (await A.hasText('Shared by you')) break // publish finished — window missed
       }
       if (!cancelled) { console.log('s85: publish finished before Cancel could be clicked — cancel-publish not exercised'); return }
       await waitFor(async () => !(await A.hasText('huge')), 20000, 'file row gone for owner after cancel-publish')
