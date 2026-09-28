@@ -206,8 +206,8 @@ export function createWatchTree({
     onDegraded?.({ code, absPath, mode, ...watchBudgetFacts() })
   }
 
-  // fs.watch on a path that is not there returns a watcher that never fires and never errors, so a
-  // failed arm and a quiet one are the same thing to the caller. Stat first, and report.
+  // fs.watch throws on a path that is not there without saying why it is not watchable, so the stat
+  // names the reason, and the catch covers a path that went between the stat and the arm.
   function arm(dir, recursive) {
     if (watchers.has(dir)) return true
     let st = null

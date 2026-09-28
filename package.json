@@ -84,7 +84,7 @@
   },
   "dependencies": {
     "b4a": "^1.9.0",
-    "bare-fs": "^4.8.1",
+    "bare-fs": "^4.8.2",
     "bare-https": "^3.1.0",
     "bare-os": "^3.9.3",
     "bare-path": "^3.1.2",
