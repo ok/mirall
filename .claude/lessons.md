@@ -545,6 +545,10 @@ leaves only.
 
 ## Platform & packaging
 
+**A packaged build ignores `MIRALL_*` and `PEAR_DEV_SERVER_URL`, and refuses `--inspect`.** Env
+levers pass only through `src/main/env-overrides.js` (closed when `app.isPackaged`) and the fuses
+disable the inspector. Automation that needs the hooks drives an unpackaged build.
+
 **Preallocating with `ftruncate` is sparse on APFS/ext4 and real on NTFS.** Preflight with
 `statfsSync` and pause on ENOSPC; never retry on a full disk.
 

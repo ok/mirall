@@ -4,8 +4,8 @@ const path = require('path')
 // Feature flags ship with the app in feature-flags.json at the package root (the repo root in
 // dev, inside app.asar when packaged), read ONCE at boot (primeFeatureFlags, from main.js
 // preloadAsarCache) and cached. A lazy read could land inside the OTA updater's noAsar window
-// (see wrapWithNoAsar in main.js), fall back to {} and silently degrade EVERY flag — including
-// the security gates — to false for the worker's whole lifetime.
+// (see wrapWithNoAsar in main.js), fall back to {} and silently revert EVERY flag to its runtime
+// default for the worker's whole lifetime.
 
 // Two levels up from src/main/ is the package root — what app.getAppPath() resolves to in both
 // dev and packaged builds, and the convention preloadAsarCache uses.
@@ -20,8 +20,8 @@ function loadFromDisk(rootDir) {
     if (parsed && typeof parsed === 'object') return parsed
     console.warn('[mirall] feature-flags.json is not a JSON object — using defaults')
   } catch (err) {
-    // Never swallow silently: a failed read collapses every flag to false, so a
-    // warning is the only signal that the app is running degraded.
+    // Never swallow silently: a failed read reverts every flag to its runtime default, so a
+    // warning is the only signal that the app is not running the shipped flags.
     console.warn('[mirall] failed to read feature-flags.json:', err.message)
   }
   return {}
@@ -34,14 +34,15 @@ function primeFeatureFlags(rootDir = DEFAULT_ROOT) {
   return cache
 }
 
-// Resolved flags = boot cache (or, defensively, a direct read if called before
-// prime) merged with the MIRALL_FEATURE_FLAGS env override (dev/test, never an
-// asar read). Returns a fresh object so callers can't mutate the cache.
-function readFeatureFlags() {
+// Resolved flags = boot cache (or, defensively, a direct read if called before prime) merged with
+// an override JSON object the caller supplies (the MIRALL_FEATURE_FLAGS lever, already gated by the
+// caller). Returns a fresh object so callers can't mutate the cache.
+/** @param {string | undefined} [overrideJson] */
+function readFeatureFlags(overrideJson) {
   const flags = { ...(cache ?? loadFromDisk(DEFAULT_ROOT)) }
-  if (process.env.MIRALL_FEATURE_FLAGS) {
+  if (overrideJson) {
     try {
-      const override = JSON.parse(process.env.MIRALL_FEATURE_FLAGS)
+      const override = JSON.parse(overrideJson)
       if (override && typeof override === 'object') Object.assign(flags, override)
     } catch (err) {
       console.warn('[mirall] ignoring malformed MIRALL_FEATURE_FLAGS:', err.message)

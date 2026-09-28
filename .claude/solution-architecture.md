@@ -27,7 +27,7 @@ A space has two sharing modes, stored as separate share ids in one per-owner cat
 
 - **Dev** — `npm start` (OTA off); `npm run dev` serves the renderer from a watch build via
   `PEAR_DEV_SERVER_URL`. A source `package.json` has no `upgrade` key, so OTA never runs from
-  source.
+  source. A packaged build ignores `PEAR_DEV_SERVER_URL` and the `MIRALL_*` levers.
 - **Installers** — `.dmg`, `.msix`, `.deb`, `.AppImage` → `build-process.md`.
 - **OTA** — follows a per-channel Pear Hyperdrive (§9). Off on `.deb` installs, which update through
   the package manager.
@@ -95,6 +95,10 @@ and parses only its own control frames.
   worker and fails the spawn, because the worker never asks for its bootstrap again. The KEK comes
   from `safeStorage` (`src/main/identity-kek.js`). Without secure storage, main refuses to start
   rather than write an unprotected identity.
+- **Environment levers.** Main reads `PEAR_DEV_SERVER_URL` and the `MIRALL_*` test and debug
+  hooks only through `src/main/env-overrides.js`, which returns nothing on a packaged build. The
+  two release rollback levers and the AppImage runtime's variables are the listed exceptions
+  (`test/invariants/main-env-reads.test.js`).
 - **Window.** It loads `app://-/index.html`, a privileged scheme, so origin and CSP `'self'` survive
   a reload, with `sandbox` and `contextIsolation` on.
 - **Config.** `config.json` holds preferences only. `src/main/config-store.js` is its only writer
@@ -1167,6 +1171,10 @@ absent, under `--no-updates`, and on a `.deb` install, which updates through the
 (`src/main/install-kind.js`). The runtime is constructed lazily, because building it opens drives
 and joins a swarm.
 
+The packaged binary carries Electron fuses (no run-as-Node, no `NODE_OPTIONS`, no `--inspect`,
+asar-only with integrity validation on macOS/Windows). OTA swaps the whole bundle, so the fuse wire
+and the asar hash travel together.
+
 When the drive's `/package.json` version is greater than the running one, the updater mirrors this
 platform's bundle into `pear-runtime/next/<length>.<fork>` and emits `updating` and then `updated`.
 Main forwards both as `pear:event:updating` / `pear:event:updated` (`src/main/window.js`). At an
@@ -1308,13 +1316,17 @@ the socket's Noise key; handshakes also cover the participation id (V2).
 and verifies the signature. The result: frames are attributable, and a third party can't impersonate
 a member or evict one.
 
-- **Enforcement for handshake and grant frames depends on the `handshakeIdentityBindingEnabled`
-  flag.** `feature-flags.json` ships it on, but the runtime-config default is off. A failed flag
-  read (`src/main/feature-flags.js`) therefore silently accepts unbound frames, and the
-  socket-to-identity map then trusts the claim.
+- **Enforcement fails closed.** `handshakeIdentityBindingEnabled` defaults on in runtime config and
+  in main's bootstrap, so a missing or unreadable `feature-flags.json` keeps it on; only an explicit
+  `false` in that file turns it off, and a packaged build ignores `MIRALL_FEATURE_FLAGS`
+  (`src/main/env-overrides.js`). With it off, unbound handshake and request frames are still
+  admitted, but a signer key for sealing a grant, and a pending requester's socket, are taken only
+  from a frame whose binding verified.
 - Leave frames are always checked.
 - The V2 participation-id binding is best-effort: a V1 signature over the Noise key alone still
   verifies during rolling upgrades.
+- The binding does not cover the space reference; the reference is itself derived from the sender's
+  Noise key, so it names nothing on another connection.
 
 ### Membership
 

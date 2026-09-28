@@ -73,7 +73,7 @@ function record(name, kind, args) {
  * the profile path after argv parsing (--storage moves it), and the guard has to be armed before
  * that without knowing the answer yet. An unset dir classifies as null and nothing is refused.
  */
-function installDataDirTripwire({ getDataDir, refuse = process.env.MIRALL_TRIPWIRE_ALLOW !== '1' } = {}) {
+function installDataDirTripwire({ getDataDir, refuse = true } = {}) {
   const sync = ['rmSync', 'rmdirSync', 'unlinkSync', 'renameSync']
   const async_ = ['rm', 'rmdir', 'unlink', 'rename']
   const arity = (name) => (name.startsWith('rename') ? 2 : 1)

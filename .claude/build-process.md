@@ -163,6 +163,14 @@ launch, `dlopen` cannot read an archive, and native tray/notification APIs need 
 `require.resolve` returns archive paths the OS cannot exec. OTA swaps the whole bundle, so the
 layout does not affect it.
 
+**Fuses.** `@electron-forge/plugin-fuses` in `forge.config.js` turns off `RunAsNode`,
+`NODE_OPTIONS` and `--inspect` on the packaged binary and turns on `OnlyLoadAppFromAsar` and
+embedded asar integrity validation; `scripts/ci/check-fuses.mjs` asserts them on every built binary.
+The integrity hash is written into `Info.plist` / the Windows exe resource at package time, covers
+only the packed files, and is not checked on Linux. A packaged build also ignores the `MIRALL_*`
+levers and `PEAR_DEV_SERVER_URL` (`src/main/env-overrides.js`); automation drives an unpackaged
+build.
+
 ## Release channels & OTA
 
 Each channel — `dev`, `staging`, `prod` — is a **separate Pear Hyperdrive** with its own upgrade

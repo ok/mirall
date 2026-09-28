@@ -3,24 +3,10 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { createRequire } from 'node:module'
+import { loadConfig } from '../helpers/forge-config.js'
 
 const require = createRequire(import.meta.url)
-const CONFIG = require.resolve('../../forge.config.js')
 const pkg = require('../../package.json')
-
-// forge.config.js reads the environment at module scope; it is swapped wholesale so a developer's
-// APPLE_* cannot leak in, and the module cache is cleared on both sides of the load.
-function loadConfig() {
-  const saved = process.env
-  process.env = { UPGRADE_KEY: 'none' }
-  try {
-    delete require.cache[CONFIG]
-    return require(CONFIG)
-  } finally {
-    process.env = saved
-    delete require.cache[CONFIG]
-  }
-}
 
 test('the deb maker names the package, the executable and the scheme handler the rest of the tree uses', (t) => {
   const cfg = loadConfig()
