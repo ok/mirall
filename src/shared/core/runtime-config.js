@@ -95,6 +95,10 @@ export function isHandshakeIdentityBindingEnabled() {
   return config.handshakeIdentityBindingEnabled
 }
 
+export function isMembershipControlBindingEnforced() {
+  return config.membershipControlBindingEnforced
+}
+
 export function isSharePrepareProgressEnabled() {
   return config.sharePrepareProgressEnabled
 }

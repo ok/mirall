@@ -35,8 +35,9 @@ function isRuled(row) {
 // testnet instead of the public DHT); production never sets it.
 const NULLABLE = ['storage', 'appVersion', 'downloadFolder', 'dhtBootstrap', 'upgradeKey']
 
-// Dev toggles, default-off.
-const BOOLEAN = ['dev', 'verbose']
+// Dev toggles and staged security enforcement, default-off. membershipControlBindingEnforced on
+// refuses a membership:cancel or membership:deny that names no sender.
+const BOOLEAN = ['dev', 'verbose', 'membershipControlBindingEnforced']
 
 // Flags that ship ENABLED, so an absent or partial bootstrap frame can never silently degrade the
 // app — only an explicit `false` disables one. separateContentPlane off reverts to control + content on one stream.
