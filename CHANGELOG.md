@@ -11,9 +11,10 @@ changes do not appear here.
 
 ## v1.11.2
 
-### Unreleased
+### 2026-09-28
 
-Finishes two one-time cleanups that stalled or never ran on older profiles:
+Closes security gaps that let people outside a space interfere with it, and
+finishes two one-time cleanups that stalled or never ran on older profiles:
 the move to the encrypted shared-folder index, and freeing storage left
 behind by earlier versions.
 
@@ -26,6 +27,18 @@ index failed on every start and left the previous, unencrypted copy in place.
 mirrored a folder before 1.10 could hold hundreds of megabytes of identical
 copies of the same folder record. The extra copies are removed once, the
 next time Mirall starts. Your folders and settings are unaffected.
+
+#### Security
+
+- **Only verified members can affect a space's members and downloads.**
+Someone outside a space who knew its network address could stall your
+downloads or send messages that changed who appeared to be a member.
+Mirall now takes these only from members it has verified.
+- **You can see whether the person who invited you has been verified.**
+While your invite is pending, they are marked "Unverified" until Mirall
+confirms they belong to the space.
+- **The installed app can no longer be started in a debugging mode or
+with modified files.**
 
 ## v1.11.1
 
