@@ -73,9 +73,11 @@ remaining payload is megabytes is not a gigabyte loss; reviewers price the fix o
 **A user-facing visual change is pushed only after the user has run it locally.** Geometry harnesses
 prove alignment, not appearance; green tests are the precondition for asking.
 
-**Never launch `npm run test:fe` unprompted.** It runs real app windows and the machine's AX API for
-minutes (`--foreground` also takes the keyboard and pointer). Propose the scenarios and let the user
-start them; the automated gates need no permission.
+**Run the `test:fe` scenarios that cover a change yourself; ask before the full suite or
+`--foreground`.** Background mode keeps the windows behind the user's apps and never takes the
+keyboard or pointer, so a targeted run does not interrupt them. `run.mjs` with no scenario id (or with
+only flags) runs the whole suite, about 35 minutes; `--foreground` takes the keyboard and pointer.
+Never start a second run while one is going: every run wipes `test/frontend/.work`.
 
 ## Tests that pass for the wrong reason
 
