@@ -1061,7 +1061,13 @@
       "network.peer_relayed": "{{actor}} está conectado a través de un relay",
       "network.peer_direct": "{{actor}} vuelve a estar conectado directamente",
       "share.renamed": "Renombraste la carpeta {{target}}",
-      "mirror.relocated": "Moviste la réplica de {{target}}"
+      "mirror.relocated": "Moviste la réplica de {{target}}",
+      "relay.added": "Añadiste el relay {{target}}",
+      "relay.replaced": "Reemplazaste el relay por {{target}}",
+      "relay.removed": "Quitaste el relay {{target}}",
+      "relay.turned_on": "Activaste el relay {{target}}",
+      "relay.turned_off": "Desactivaste el relay {{target}}",
+      "relay.mode_changed": "Cambiaste cuándo se usa el relay {{target}}"
     },
     "kindLabel": {
       "space.created": "espacio creado",
@@ -1106,7 +1112,13 @@
       "network.peer_relayed": "conexión retransmitida",
       "network.peer_direct": "conexión directa",
       "share.renamed": "carpeta renombrada",
-      "mirror.relocated": "réplica movida"
+      "mirror.relocated": "réplica movida",
+      "relay.added": "relay añadido",
+      "relay.replaced": "relay reemplazado",
+      "relay.removed": "relay quitado",
+      "relay.turned_on": "relay activado",
+      "relay.turned_off": "relay desactivado",
+      "relay.mode_changed": "ajuste del relay cambiado"
     },
     "metaFiles_one": "{{formatted}} archivo",
     "metaFiles_other": "{{formatted}} archivos",
@@ -1119,7 +1131,12 @@
       "relayedFor": "A través de un relay durante {{duration}}",
       "plane": {
         "content": "Transferencias de archivos"
-      }
+      },
+      "mode": {
+        "auto": "Solo cuando falla la conexión directa",
+        "always": "Preferido en todas las conexiones"
+      },
+      "previous": "Sustituye a {{previous}}"
     },
     "emptyNetworkTitle": "No se han registrado problemas de conexión",
     "emptyNetworkDesc": "Mirall ha podido conectarse a la red durante todo el tiempo que ha estado en marcha.",

@@ -1061,7 +1061,13 @@
       "network.peer_relayed": "{{actor}} ist über ein Relay verbunden",
       "network.peer_direct": "{{actor}} ist wieder direkt verbunden",
       "share.renamed": "Du hast den Ordner {{target}} umbenannt",
-      "mirror.relocated": "Du hast die Spiegelung von {{target}} verschoben"
+      "mirror.relocated": "Du hast die Spiegelung von {{target}} verschoben",
+      "relay.added": "Du hast das Relay {{target}} hinzugefügt",
+      "relay.replaced": "Du hast das Relay durch {{target}} ersetzt",
+      "relay.removed": "Du hast das Relay {{target}} entfernt",
+      "relay.turned_on": "Du hast das Relay {{target}} eingeschaltet",
+      "relay.turned_off": "Du hast das Relay {{target}} ausgeschaltet",
+      "relay.mode_changed": "Du hast geändert, wann das Relay {{target}} verwendet wird"
     },
     "kindLabel": {
       "space.created": "Raum erstellt",
@@ -1106,7 +1112,13 @@
       "network.peer_relayed": "weitergeleitete Verbindung",
       "network.peer_direct": "direkte Verbindung",
       "share.renamed": "Ordner umbenannt",
-      "mirror.relocated": "Spiegelung verschoben"
+      "mirror.relocated": "Spiegelung verschoben",
+      "relay.added": "Relay hinzugefügt",
+      "relay.replaced": "Relay ersetzt",
+      "relay.removed": "Relay entfernt",
+      "relay.turned_on": "Relay eingeschaltet",
+      "relay.turned_off": "Relay ausgeschaltet",
+      "relay.mode_changed": "Relay-Einstellung geändert"
     },
     "metaFiles_one": "{{formatted}} Datei",
     "metaFiles_other": "{{formatted}} Dateien",
@@ -1119,7 +1131,12 @@
       "relayedFor": "{{duration}} über Relay verbunden",
       "plane": {
         "content": "Dateiübertragungen"
-      }
+      },
+      "mode": {
+        "auto": "Nur wenn keine direkte Verbindung zustande kommt",
+        "always": "Für jede Verbindung bevorzugt"
+      },
+      "previous": "Ersetzt: {{previous}}"
     },
     "emptyNetworkTitle": "Keine Verbindungsprobleme aufgezeichnet",
     "emptyNetworkDesc": "Mirall konnte das Netzwerk erreichen, solange die App lief.",

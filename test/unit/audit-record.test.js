@@ -96,6 +96,7 @@ test('an unknown target kind is refused, as an unknown kind and outcome already 
   t.exception(() => buildRecord({ ...base, target: { kind: 'folder', id: 'x', name: 'x' } }), /unknown target kind/)
   t.exception(() => buildRecord({ ...base, target: { id: 'x', name: 'x' } }), /unknown target kind/)
   t.execution(() => buildRecord({ ...base, target: targetRef(TARGET_KIND.SPACE, 'x', 'x') }), 'a declared kind passes')
+  t.execution(() => buildRecord({ ...base, target: targetRef(TARGET_KIND.RELAY, 'yry4bqau…e6xk7q', 'Hetzner') }), 'a relay is a declared target')
 })
 
 // The builders' output is what the normalizers read, so their field names and null handling are

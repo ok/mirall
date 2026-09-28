@@ -1061,7 +1061,13 @@
       "network.peer_relayed": "{{actor}} is connected through a relay",
       "network.peer_direct": "{{actor}} is connected directly again",
       "share.renamed": "You renamed the folder {{target}}",
-      "mirror.relocated": "You moved the mirror of {{target}}"
+      "mirror.relocated": "You moved the mirror of {{target}}",
+      "relay.added": "You added the relay {{target}}",
+      "relay.replaced": "You replaced the relay with {{target}}",
+      "relay.removed": "You removed the relay {{target}}",
+      "relay.turned_on": "You turned on the relay {{target}}",
+      "relay.turned_off": "You turned off the relay {{target}}",
+      "relay.mode_changed": "You changed when the relay {{target}} is used"
     },
     "kindLabel": {
       "space.created": "space created",
@@ -1106,7 +1112,13 @@
       "network.peer_relayed": "relayed connection",
       "network.peer_direct": "direct connection",
       "share.renamed": "folder renamed",
-      "mirror.relocated": "mirror moved"
+      "mirror.relocated": "mirror moved",
+      "relay.added": "relay added",
+      "relay.replaced": "relay replaced",
+      "relay.removed": "relay removed",
+      "relay.turned_on": "relay turned on",
+      "relay.turned_off": "relay turned off",
+      "relay.mode_changed": "relay setting changed"
     },
     "metaFiles_one": "{{formatted}} file",
     "metaFiles_other": "{{formatted}} files",
@@ -1119,7 +1131,12 @@
       "relayedFor": "Relayed for {{duration}}",
       "plane": {
         "content": "File transfers"
-      }
+      },
+      "mode": {
+        "auto": "Only when a direct connection fails",
+        "always": "Preferred for every connection"
+      },
+      "previous": "Replaced {{previous}}"
     },
     "emptyNetworkTitle": "No connection problems recorded",
     "emptyNetworkDesc": "Mirall has been able to reach the network the whole time it has been running.",

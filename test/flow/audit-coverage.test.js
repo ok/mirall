@@ -80,6 +80,12 @@ const UNTRIGGERABLE = {
   'network.restored': 'closes one of the above',
   'network.peer_lost': 'driven in audit-network-presence.test.js, which shrinks the presence dwell',
   'network.peer_back': 'driven in audit-network-presence.test.js',
+  'relay.added': 'a single-peer settings act — covered in network-relay-audit.test.js',
+  'relay.replaced': 'a single-peer settings act — covered in network-relay-audit.test.js',
+  'relay.removed': 'a single-peer settings act — covered in network-relay-audit.test.js',
+  'relay.turned_on': 'a single-peer settings act — covered in network-relay-audit.test.js',
+  'relay.turned_off': 'a single-peer settings act — covered in network-relay-audit.test.js',
+  'relay.mode_changed': 'a single-peer settings act — covered in network-relay-audit.test.js',
 }
 
 async function rows(peer) {

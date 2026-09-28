@@ -1061,7 +1061,13 @@
       "network.peer_relayed": "{{actor}} est connecté via un relais",
       "network.peer_direct": "{{actor}} est de nouveau connecté directement",
       "share.renamed": "Vous avez renommé le dossier {{target}}",
-      "mirror.relocated": "Vous avez déplacé le miroir de {{target}}"
+      "mirror.relocated": "Vous avez déplacé le miroir de {{target}}",
+      "relay.added": "Vous avez ajouté le relais {{target}}",
+      "relay.replaced": "Vous avez remplacé le relais par {{target}}",
+      "relay.removed": "Vous avez retiré le relais {{target}}",
+      "relay.turned_on": "Vous avez activé le relais {{target}}",
+      "relay.turned_off": "Vous avez désactivé le relais {{target}}",
+      "relay.mode_changed": "Vous avez modifié quand le relais {{target}} est utilisé"
     },
     "kindLabel": {
       "space.created": "espace créé",
@@ -1106,7 +1112,13 @@
       "network.peer_relayed": "connexion relayée",
       "network.peer_direct": "connexion directe",
       "share.renamed": "dossier renommé",
-      "mirror.relocated": "miroir déplacé"
+      "mirror.relocated": "miroir déplacé",
+      "relay.added": "relais ajouté",
+      "relay.replaced": "relais remplacé",
+      "relay.removed": "relais retiré",
+      "relay.turned_on": "relais activé",
+      "relay.turned_off": "relais désactivé",
+      "relay.mode_changed": "réglage du relais modifié"
     },
     "metaFiles_one": "{{formatted}} fichier",
     "metaFiles_other": "{{formatted}} fichiers",
@@ -1119,7 +1131,12 @@
       "relayedFor": "Via un relais pendant {{duration}}",
       "plane": {
         "content": "Transferts de fichiers"
-      }
+      },
+      "mode": {
+        "auto": "Uniquement si la connexion directe échoue",
+        "always": "Préféré pour chaque connexion"
+      },
+      "previous": "Remplace {{previous}}"
     },
     "emptyNetworkTitle": "Aucun problème de connexion enregistré",
     "emptyNetworkDesc": "Mirall a pu joindre le réseau pendant toute la durée d'exécution.",

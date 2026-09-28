@@ -360,3 +360,45 @@ test('the reassuring copy needs every other filter clear', (t) => {
   t.is(emptyStateFor(filters({ categories: ['network', 'files'] }), true).key, 'emptyFiltered',
     'and a second category is not a network-only view')
 })
+
+const relayRow = (kind, subject) => row({
+  kind,
+  category: 'network',
+  tier: 'A',
+  actor: { type: 'self', key: null, name: null },
+  space: null,
+  target: { kind: 'relay', id: 'yry4bqau…e6xk7q', name: 'Hetzner' },
+  subject: { relayKind: 'open', ...subject },
+})
+const metaKeys = (entry) => metaParts(entry).map((p) => p.key ?? p.text)
+
+test('an added relay names its kind, then when it is used', (t) => {
+  t.alike(metaKeys(relayRow('relay.added', { mode: 'auto' })), ['networkSettings.relays.kind.open', 'activityLog.relay.mode.auto'])
+  t.alike(metaKeys(relayRow('relay.added', { relayKind: 'private', mode: 'always' })), ['networkSettings.relays.kind.private', 'activityLog.relay.mode.always'])
+})
+
+test('a replaced relay names what it replaced, by label before key', (t) => {
+  const labelled = metaParts(relayRow('relay.replaced', { previous: 'usdgj55y…j398xqo', previousLabel: 'Old box', previousKind: 'open' }))
+  t.alike(labelled.map((p) => p.key), ['networkSettings.relays.kind.open', 'activityLog.relay.previous'])
+  t.alike(labelled[1].values, { previous: 'Old box' })
+
+  const unlabelled = metaParts(relayRow('relay.replaced', { previous: 'usdgj55y…j398xqo', previousLabel: null }))
+  t.alike(unlabelled[1].values, { previous: 'usdgj55y…j398xqo' })
+
+  t.alike(metaKeys(relayRow('relay.replaced', { mode: 'auto', previous: 'usdgj55y…j398xqo' })),
+    ['networkSettings.relays.kind.open', 'activityLog.relay.mode.auto', 'activityLog.relay.previous'],
+    'a replace that turned relays on names the mode')
+})
+
+test('each relay setting row carries only its own detail', (t) => {
+  t.alike(metaKeys(relayRow('relay.removed', {})), ['networkSettings.relays.kind.open'])
+  t.alike(metaKeys(relayRow('relay.turned_on', { mode: 'always' })), ['activityLog.relay.mode.always'])
+  t.alike(metaKeys(relayRow('relay.mode_changed', { mode: 'auto' })), ['activityLog.relay.mode.auto'])
+  t.alike(metaKeys(relayRow('relay.turned_off', {})), [], 'the sentence already names the relay')
+})
+
+test('a relay kind or mode from another version renders nothing', (t) => {
+  t.alike(metaKeys(relayRow('relay.added', { relayKind: 'federated', mode: 'sometimes' })), [])
+  t.alike(metaKeys(relayRow('relay.turned_on', { mode: 'off' })), [], 'off is never a detail')
+  t.alike(metaKeys(relayRow('relay.replaced', { relayKind: 'open', previous: '', previousLabel: '' })), ['networkSettings.relays.kind.open'])
+})
