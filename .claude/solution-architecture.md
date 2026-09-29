@@ -706,7 +706,11 @@ to end over the relayed stream.
   matches. `swarm.js` builds the `hyperdht` node itself because hyperswarm cannot set that key. Open
   relays use a random per-boot key. Peer identity is unaffected.
 - **Seed at rest.** The seed is stored in `relay-ticket.enc` under `safeStorage`, mode `0600`
-  (`src/main/relay-secret.js`). It is a bearer credential: it stays out of `config.json`, is never
+  (`src/main/relay-secret.js`). The reader also opens a sealed form (`{ v: 2 }`, XChaCha20-Poly1305
+  under a `crypto_kdf` subkey of the identity KEK) that a runtime without Electron can read. Nothing
+  writes it yet: the writer moves only after a release that reads it has shipped, because a build
+  sharing the store that cannot read the vault loses the private relay, and a read never rewrites
+  the file. It is a bearer credential: it stays out of `config.json`, is never
   returned to the renderer, and reaches the worker only on the `bootstrap` frame. `relay:set`
   (`src/main/relay-slot.js`) is the single writer of vault and slot. A crash between the two writes
   must leave the *visible* failure, a config naming a missing seed. Today the vault is written first

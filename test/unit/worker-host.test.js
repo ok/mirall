@@ -4,6 +4,7 @@ import { Duplex } from 'streamx'
 import { loadWithFakeElectron } from '../helpers/fake-electron.js'
 import { preloadEntrypoints } from '../../src/main/worker-entrypoints.js'
 import { MAIN_WORKER_SPEC } from '../../src/shared/contract/workers.js'
+import { seedFile, _sealForTests } from '../../src/main/relay-secret.js'
 import path from 'path'
 import fs from 'fs'
 import os from 'os'
@@ -33,7 +34,7 @@ function stubWorker() {
 
 // The gate and the flags module are reloaded with the host, so no test inherits another's
 // packaging or flags cache.
-function load({ worker = stubWorker(), config = {}, flags = {}, isPackaged = false, flagsRoot = null } = {}) {
+function load({ worker = stubWorker(), config = {}, flags = {}, isPackaged = false, flagsRoot = null, storage = '/tmp/mirall-test' } = {}) {
   const { electron, modules } = loadWithFakeElectron(
     ['src/main/env-overrides.js', 'src/main/feature-flags.js', 'src/main/settings-ipc.js', 'src/main/worker-host.js'],
     { app: { isPackaged } },
@@ -49,7 +50,7 @@ function load({ worker = stubWorker(), config = {}, flags = {}, isPackaged = fal
   settings.initSettings({ config: () => store })
   host.initWorkerHost({
     config: () => store,
-    getPear: () => ({ run: () => worker, storage: '/tmp/mirall-test' }),
+    getPear: () => ({ run: () => worker, storage }),
     isDev: true,
     identityKEK: () => flags.identityKEK ?? null,
   })
@@ -175,6 +176,19 @@ test('the identity KEK is read at spawn time, not at require time', (t) => {
   host.getWorker(MAIN_WORKER_SPEC)
   t.is(frames(worker)[1].identityKEK, 'deadbeef',
     'resolved inside whenReady, after this module loads and before the first spawn')
+})
+
+test('the bootstrap carries the relay seed the identity KEK unseals', (t) => {
+  const storage = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'worker-host-relay-')), 'app-storage')
+  t.teardown(() => fs.rmSync(path.dirname(storage), { recursive: true, force: true }))
+  const identityKEK = 'cd'.repeat(32)
+  const seed = 'ef'.repeat(32)
+  fs.mkdirSync(storage, { recursive: true })
+  fs.writeFileSync(seedFile(storage), _sealForTests(seed, identityKEK))
+
+  const { host, worker } = load({ flags: { identityKEK }, storage })
+  host.getWorker(MAIN_WORKER_SPEC)
+  t.is(frames(worker)[1].relaySeed, seed)
 })
 
 test('the hello frame carries the protocol version, the window main accepts, and what main is', (t) => {

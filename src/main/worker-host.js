@@ -228,7 +228,7 @@ function getWorker(specifier) {
     relay: config().get('network.relay'),
     // The one secret in this frame besides identityKEK, and it travels the same way: read
     // at spawn, consumed in boot.js, never stored in runtime config.
-    relaySeed: relaySecret.readRelaySeedHex(p.storage),
+    relaySeed: relaySecret.readRelaySeedHex(p.storage, identityKEK()),
     // Read at spawn only. getDownloadConcurrency() re-reads it per acquire, so a live push would
     // take effect without a restart — but there is no setter by design, so a change means editing
     // config.json and restarting.
