@@ -47,5 +47,7 @@
   "requestTimedOut": "Mirall ha tardado demasiado en responder. Inténtalo de nuevo en un momento.",
   "workerUnavailable": "El servicio en segundo plano de Mirall no está disponible. Reinicia Mirall si sigue ocurriendo.",
   "unexpected": "Algo ha ido mal. Inténtalo de nuevo — si sigue ocurriendo, envía tus comentarios desde Ajustes.",
-  "approveBlockedDivergence": "Las aprobaciones están en pausa mientras el conflicto de identidad del propietario no se resuelva."
+  "approveBlockedDivergence": "Las aprobaciones están en pausa mientras el conflicto de identidad del propietario no se resuelva.",
+  "wrongPassphrase": "Esa frase de contraseña no coincide con esta clave de recuperación. Revísala e inténtalo de nuevo.",
+  "recoveryFileInvalid": "Este archivo no es una clave de recuperación que esta versión de Mirall pueda leer."
 }

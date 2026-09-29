@@ -4,7 +4,7 @@ import fs from 'fs'
 import path from 'path'
 import mod from '../../src/main/identity-kek.js'
 
-const { resolveKEKHex, storageBackend } = mod
+const { resolveKEKHex, recoverUnreadableKEK, storageBackend } = mod
 
 // A temp storage dir per call; kek.enc lands in dirname(storagePath).
 function tmpStoragePath() {
@@ -115,4 +115,47 @@ test('genuine unavailability still fails closed', (t) => {
     /safeStorage unavailable/,
     'no secure storage anywhere → still throws (fatal dialog path preserved)'
   )
+})
+
+test('a kek.enc inside the store directory is read before the one beside it', (t) => {
+  const sp = tmpStoragePath()
+  fs.mkdirSync(sp)
+  fs.writeFileSync(path.join(path.dirname(sp), 'kek.enc'), enc('bb'.repeat(32)))
+  fs.writeFileSync(path.join(sp, 'kek.enc'), enc('aa'.repeat(32)))
+  t.is(resolveKEKHex(sp, { safeStorage: appleKeychain(), platform: 'darwin' }), 'aa'.repeat(32))
+})
+
+test('a new kek.enc is created beside the store, where every build sharing it looks', (t) => {
+  const sp = tmpStoragePath()
+  resolveKEKHex(sp, { safeStorage: appleKeychain(), platform: 'darwin' })
+  t.ok(fs.existsSync(path.join(path.dirname(sp), 'kek.enc')))
+  t.absent(fs.existsSync(path.join(sp, 'kek.enc')))
+})
+
+// A keychain that no longer opens kek.enc: reset, or a folder copied from another machine or account.
+const resetKeychain = () => ({ ...appleKeychain(), decryptString: () => { throw new Error('Error while decrypting the ciphertext provided to safeStorage.decryptString') } })
+
+test('REGRESSION (MIR-30: an unreadable kek.enc stopped the app instead of locking the identity)', (t) => {
+  const sp = tmpStoragePath()
+  const dir = path.dirname(sp)
+  fs.writeFileSync(path.join(dir, 'kek.enc'), enc('cc'.repeat(32)))
+  const now = new Date('2026-09-29T10:00:00.000Z')
+  const minted = resolveKEKHex(sp, { safeStorage: resetKeychain(), platform: 'darwin', now })
+  t.is(minted.length, 64, 'the app starts with a new key, so the identity locks rather than the app failing')
+  t.not(minted, 'cc'.repeat(32))
+  t.ok(fs.existsSync(path.join(dir, 'kek.enc.unreadable-2026-09-29T10-00-00')), 'the unreadable key is kept, not overwritten')
+  t.ok(fs.existsSync(path.join(dir, 'kek.enc')), 'and a new one is written')
+})
+
+test('Try again puts back a set-aside key the keychain can open now', (t) => {
+  const sp = tmpStoragePath()
+  const dir = path.dirname(sp)
+  fs.writeFileSync(path.join(dir, 'kek.enc'), enc('cc'.repeat(32)))
+  resolveKEKHex(sp, { safeStorage: resetKeychain(), platform: 'darwin', now: new Date('2026-09-29T10:00:00Z') })
+
+  t.is(recoverUnreadableKEK(sp, { safeStorage: resetKeychain() }), null, 'still unreadable: nothing changes')
+  t.is(recoverUnreadableKEK(sp, { safeStorage: appleKeychain(), now: new Date('2026-09-29T11:00:00Z') }), 'cc'.repeat(32),
+    'readable again: the old key is back')
+  t.is(resolveKEKHex(sp, { safeStorage: appleKeychain(), platform: 'darwin' }), 'cc'.repeat(32), 'and is the one resolved next')
+  t.ok(fs.existsSync(path.join(dir, 'kek.enc.unused-2026-09-29T11-00-00')), 'the minted key is kept aside, not deleted')
 })

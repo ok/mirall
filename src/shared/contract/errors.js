@@ -43,6 +43,7 @@ export const CODES = Object.freeze({
   PREPARE_FAILED: 'PREPARE_FAILED',
   PREVIEW_CANCELLED: 'PREVIEW_CANCELLED',
   PROTOCOL_MISMATCH: 'PROTOCOL_MISMATCH',  // internal: the host's wire version is outside this build's window
+  RECOVERY_FILE_INVALID: 'RECOVERY_FILE_INVALID',
   REMOVABLE_OR_NETWORK: 'REMOVABLE_OR_NETWORK',
   SHARE_FILE_LIMIT: 'SHARE_FILE_LIMIT',
   SHARE_NAME_COLLISION: 'SHARE_NAME_COLLISION',
@@ -69,6 +70,7 @@ export const CODES = Object.freeze({
   UNKNOWN: 'UNKNOWN',
   UPLOAD_FAILED: 'UPLOAD_FAILED',
   WORKER_UNAVAILABLE: 'WORKER_UNAVAILABLE',  // the renderer's channel has no worker behind it
+  WRONG_PASSPHRASE: 'WRONG_PASSPHRASE',
 })
 
 /** @internal the declaration-parity guard's list */
@@ -90,8 +92,9 @@ export const INTERNAL_CODES = Object.freeze([
   'EIO',
   'EPATH',
   'ETARGETCHANGED',
-  // Boot faults: a worker that cannot resolve its identity answers no request, so no per-request
-  // sentence can reach the renderer.
+  // Identity faults: a missing key stops the worker, and a key that cannot open the identity locks
+  // it. Neither is thrown to a request the user made; the locked screen reads the code from
+  // identity:status and owns its copy.
   'IDENTITY_NO_KEK',
   'IDENTITY_PROVIDER_MISMATCH',
   'IDENTITY_UNLOCK_FAILED',
@@ -125,6 +128,11 @@ export const UNUSED_CODES = Object.freeze([
   'TRANSFER_RENAME_FAILED',
   'UPLOAD_FAILED',
 ])
+
+// The identity faults a worker answers by locking rather than stopping: the key it was given cannot
+// open this identity, which the user resolves with a recovery key. A missing key is the host's bug.
+export const IDENTITY_LOCK_CODES = Object.freeze(['IDENTITY_PROVIDER_MISMATCH', 'IDENTITY_UNLOCK_FAILED'])
+/** @typedef {(typeof IDENTITY_LOCK_CODES)[number]} IdentityLockCode */
 
 // Named export for the router's own use; declared inside CODES as well so the "is every
 // user-visible code mapped?" ratchet can see it.

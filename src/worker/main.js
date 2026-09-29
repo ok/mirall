@@ -19,6 +19,7 @@ import { registerNetwork } from './ipc/network.js'
 import { registerSettings } from './ipc/settings.js'
 import { registerStorage } from './ipc/storage.js'
 import { registerProfile } from './ipc/profile.js'
+import { registerIdentity } from './ipc/identity.js'
 import { registerFeedback } from './ipc/feedback.js'
 import { registerDiagnostics } from './ipc/diagnostics.js'
 import { registerFiles } from './ipc/files.js'
@@ -38,6 +39,7 @@ import { daemonPaths } from '../shared/contract/paths.js'
 import { createLogger } from '../shared/core/logger.js'
 import { installCrashBackstop } from '../shared/core/crash-backstop.js'
 import { WORKER_EXIT_UNSTABLE, WORKER_EXIT_PROTOCOL_MISMATCH, WORKER_EXIT_ORPHANED } from '../shared/contract/exit-codes.js'
+import { IDENTITY_LOCK_CODES } from '../shared/contract/errors.js'
 import { bindConnectionLifecycle } from './connection-lifecycle.js'
 import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../shared/contract/main-requests.js'
 import {
@@ -172,19 +174,43 @@ armDataDirTripwire(bootstrap.storage)
 const { memberRegistry, handleMembershipControl, discardPendingSpace } =
   createMembership(ipc, { log, dropSpaceDownloadRoot })
 
+// A key that cannot open this identity locks the worker instead of crashing it: the renderer shows
+// the recovery screen, and the router serves only the process and identity handlers. boot() has
+// already closed what it started, so the store is free for a recovery key to be checked against.
+// The top level parks there; the next generation, after an import or a set-aside, boots normally.
+async function serveLockedIdentity(code) {
+  log.warn('identity locked, serving recovery only:', code)
+  registerWorkerProcess(ipc, { stop: () => { safeShutdown('shutdown-request') } })
+  registerIdentity(ipc, { storagePath: bootstrap.storage, identityKEK: bootstrap.identityKEK, log, lockedBy: code })
+  ipc.onClientAttach((client) => {
+    ipc.emit('event:worker-ready', { epoch: ipc.epoch, head: ipc.head() }, { to: client })
+  })
+  health.start()
+  ipc.start()
+  await new Promise(() => {})
+}
+
 // The root constructs everything it needs; the membership collaborators and publishDownloadRoots
 // are passed in because they close over state that belongs here.
-root = await boot(bootstrap, {
-  ipc,
-  log,
-  membershipControl: handleMembershipControl,
-  publishDownloadRoots,
-  memberRegistry,
-  // Publishes a closable handle before the root finishes starting, so a pipe close or a quit
-  // during boot still announces departure and drops what came up. The full root replaces it on
-  // the line below; both carry the same close().
-  onPartialRoot: (partial) => { root = partial },
-})
+let lockedBy = null
+try {
+  root = await boot(bootstrap, {
+    ipc,
+    log,
+    membershipControl: handleMembershipControl,
+    publishDownloadRoots,
+    memberRegistry,
+    // Publishes a closable handle before the root finishes starting, so a pipe close or a quit
+    // during boot still announces departure and drops what came up. The full root replaces it on
+    // the line below; both carry the same close().
+    onPartialRoot: (partial) => { root = partial },
+  })
+} catch (err) {
+  if (!IDENTITY_LOCK_CODES.includes(err?.code)) throw err
+  root = null
+  lockedBy = err.code
+}
+if (lockedBy) await serveLockedIdentity(lockedBy)
 const { mounts, intents, applyRelayConfig, overlayBackend } = root
 const mountOwnedShare = createOwnedMounter({ ipc, mounts })
 
@@ -203,6 +229,7 @@ registerForeignFolders(ipc, { log, intents })
 // === IPC: profile & space handlers ===
 
 registerProfile(ipc, { log })
+registerIdentity(ipc, { storagePath: bootstrap.storage, identityKEK: bootstrap.identityKEK, log, lockedBy: null })
 
 registerSpaces(ipc, { log, publishDownloadRoots })
 

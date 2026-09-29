@@ -54,7 +54,7 @@ function installExitBackstop() {
 
 // `bootSettleMs` holds the boot window open past profile:set, so a test can make an edge the
 // worker consumes right after boot land inside the window on any machine.
-export async function launchPeer(t, { bootstrap, displayName = 'Peer', debug = false, storage, downloads, flags = {}, bootSettleMs = 0 } = {}) {
+export async function launchPeer(t, { bootstrap, displayName = 'Peer', debug = false, storage, downloads, flags = {}, bootSettleMs = 0, setProfile = true } = {}) {
   // When storage/downloads are passed in, the caller owns their lifetime (used
   // to relaunch a peer with the same identity + drive after an offline window).
   const ownsDirs = !storage
@@ -224,8 +224,9 @@ export async function launchPeer(t, { bootstrap, displayName = 'Peer', debug = f
     ...flags,
   }) + '\n')
   await ready
-  // Fresh store has no profile → give the peer an identity.
-  await peer.request('profile:set', { displayName, avatar: null })
+  // Fresh store has no profile → give the peer an identity. A locked worker serves no profile, so a
+  // test booting into one skips this.
+  if (setProfile) await peer.request('profile:set', { displayName, avatar: null })
   events.takeFromBacklog('event:worker-ready', () => true)
   if (bootSettleMs) await new Promise((r) => setTimeout(r, scaled(bootSettleMs)))
   events.seal()

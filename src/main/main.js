@@ -18,6 +18,8 @@ const { initPrefs, getPrefs } = require('./prefs.js')
 const { markQuitting } = require('./quit-state.js')
 const { preloadAsarCache, registerAppProtocol } = require('./app-protocol.js')
 const { registerRelaySlot } = require('./relay-slot.js')
+const { registerRecoveryFile } = require('./recovery-file.js')
+const { hardenStorageDirs } = require('./storage-perms.js')
 const { registerNetOnline, startNetOnlineWatch } = require('./net-online.js')
 const { parseDeepLink } = require('./deeplink')
 const { initUpdater, registerUpdater, getPear, applyPendingUpdate } = require('./updater.js')
@@ -204,6 +206,13 @@ registerNetOnline()
 registerUpdater()
 
 ipcMain.handle('app:identityProtection', () => identityProtection)
+// The locked screen's "Try again": a keychain that can open the set-aside key again gets it back, and
+// the next worker spawn carries it.
+ipcMain.handle('identity:retry-unlock', () => {
+  const kekHex = require('./identity-kek.js').recoverUnreadableKEK(getPear().storage)
+  if (kekHex) identityKEKHex = kekHex
+  return kekHex !== null
+})
 
 ipcMain.handle('diagnostics:logs', async (_evt, opts) => {
   const redactLine = opts?.redact !== false ? await loadRedactLine() : null
@@ -227,6 +236,7 @@ registerWorkerHost()
 registerWindow()
 
 registerSettingsIpc({ createTray, destroyTray, applyAppMenuVisibility, targetWindow })
+registerRecoveryFile({ targetWindow })
 
 // The one quit teardown. Electron re-emits before-quit to every listener on every
 // app.quit(), so the update-apply step's deferral (preventDefault → apply → quit
@@ -322,15 +332,16 @@ if (!lock) {
     // and resolve the KEK that unwraps identity.enc (see identity-kek.js). Fail
     // closed if secure storage is unavailable rather than write an unprotected key.
     const storagePath = getPear().storage
+    // Survivable, unlike the KEK failure below, and the difference is what each one protects. The
+    // permissions are defence in depth over files that are already encrypted; the KEK is the secret
+    // that encrypts them, so starting without one would write an unprotected identity.
     try {
       fs.mkdirSync(storagePath, { recursive: true })
-      if (!isWindows) fs.chmodSync(storagePath, 0o700)
     } catch (err) {
-      // Survivable, unlike the KEK failure below, and the difference is what each one protects. The
-      // mode is defence in depth over a file that is already encrypted; the KEK is the secret that
-      // encrypts it, so starting without one would write an unprotected identity.
-      console.error('[identity] storage perms failed:', err.message)
+      console.error('[identity] storage dir failed:', err.message)
     }
+    // Never rejects; on Windows it finishes in the background.
+    hardenStorageDirs(storagePath)
     try {
       const identityKek = require('./identity-kek.js')
       identityKEKHex = identityKek.resolveKEKHex(storagePath)

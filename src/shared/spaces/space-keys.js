@@ -4,7 +4,8 @@
 // the keys of earlier epochs (space-keys-codec.js); the file's plaintext stays in the shape a
 // release before epochs reads until an entry leaves epoch 0.
 import b4a from 'b4a'
-import { wrap, unwrap } from '../core/identity-envelope.js'
+import { wrap, unwrap, open } from '../core/identity-envelope.js'
+import { SECRET_FILE, resolveSecretFile } from '../contract/secret-files.js'
 import { getSpaceKeysVaultKey, getStoragePath } from '../core/store.js'
 import { writeFileAtomic } from '../core/atomic-file.js'
 import { Subsystem } from '../core/subsystem.js'
@@ -19,7 +20,18 @@ const toHex = (buf) => b4a.toString(buf, 'hex')
 
 async function keysFile() {
   const path = (await import('bare-path')).default
-  return path.join(path.dirname(getStoragePath()), 'space-keys.enc')
+  const fs = (await import('bare-fs')).default
+  return resolveSecretFile(getStoragePath(), SECRET_FILE.SPACE_KEYS, { join: path.join, dirname: path.dirname, exists: fs.existsSync })
+}
+
+// The v2 envelope authenticates its version, so a v1 reader's blob cannot pass for it.
+const VAULT_AAD_V2 = b4a.from('mirall-space-keys|2')
+
+function unsealVault(env, vault) {
+  const box = { nonce: b4a.from(String(env.nonce), 'base64'), ciphertext: b4a.from(String(env.ciphertext), 'base64') }
+  if (env.v === 1) return unwrap(box, vault)
+  if (env.v === 2) return open(box, vault, VAULT_AAD_V2)
+  throw new Error(`space-keys: unsupported envelope version ${env.v}`)
 }
 
 /** @internal production opens the key store through this file's own _open() */
@@ -32,10 +44,7 @@ export async function initSpaceKeys() {
   const file = await keysFile()
   if (!fs.existsSync(file)) return
   const env = JSON.parse(b4a.toString(fs.readFileSync(file)))
-  const plain = unwrap(
-    { nonce: b4a.from(env.nonce, 'base64'), ciphertext: b4a.from(env.ciphertext, 'base64') },
-    vault,
-  )
+  const plain = unsealVault(env, vault)
   if (!plain) throw new Error('space-keys: unlock failed')
   const vaultPlain = JSON.parse(b4a.toString(plain))
   map = decodeVault(vaultPlain, b4a.from)

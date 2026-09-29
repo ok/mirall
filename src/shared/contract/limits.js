@@ -50,4 +50,5 @@ export const ARG_MAX = Object.freeze({
   key: 256,        // hex public keys, transfer ids, preview ids
   text: 4096,      // search strings, cursors, invite codes, free text
   path: 32768,     // the Windows long-path ceiling
+  recoveryFile: 65536,  // a recovery key file, which is a few hundred bytes
 })

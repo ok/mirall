@@ -1,6 +1,8 @@
 // The single code -> i18n key map: one map, one meaning per code.
 /** @type {Readonly<Record<string, string>>} */
 export const ERROR_I18N_KEY_BY_CODE = {
+  WRONG_PASSPHRASE: 'wrongPassphrase',
+  RECOVERY_FILE_INVALID: 'recoveryFileInvalid',
   TRANSFER_DISK_FULL: 'transferDiskFull',
   TRANSFER_PERMISSION: 'transferPermission',
   TRANSFER_CHECKSUM: 'transferChecksum',

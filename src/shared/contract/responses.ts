@@ -20,6 +20,7 @@ import type { MemberReach } from './member-reach.js'
 import type { RequestName } from './requests.js'
 import type { PathHost } from './paths.js'
 import type { PersonKey, PrincipalRef } from './principals.js'
+import type { IdentityLockCode } from './errors.js'
 
 /** A command that succeeded and has nothing to report. */
 export interface Ack { ok: true }
@@ -460,6 +461,26 @@ export interface ResumeResult { epoch: string, head: number, gap: boolean, repla
 
 // ---- the map --------------------------------------------------------------
 
+/** Whether this worker could open its identity; `code` names why not. */
+export interface IdentityStatus {
+  locked: boolean
+  code: IdentityLockCode | null
+}
+
+/** A sealed recovery key, ready to save: the plaintext never leaves the worker. */
+export interface RecoveryExport {
+  fileName: string
+  content: string
+}
+
+/** A recovery key adopted, or refused because this device holds another identity's data. */
+export type RecoveryImport = { ok: true } | { ok: false; mismatch: true }
+
+/** Where the locked data was moved. */
+export interface IdentitySetAside {
+  folder: string
+}
+
 interface Responses {
   'audit:actors': AuditActorRef[]
   'audit:configure': AuditConfig
@@ -493,6 +514,10 @@ interface Responses {
   'foreign-folder:set-enabled': ForeignFolderMount
   'foreign-folder:unmount': Ack
   'foreign-folder:validate': MountValidationResult
+  'identity:export-recovery': RecoveryExport
+  'identity:import-recovery': RecoveryImport
+  'identity:set-aside': IdentitySetAside
+  'identity:status': IdentityStatus
   'members:online': string[]
   'members:reach': MembersReach
   'mounts:list-all': AnyMount[]
