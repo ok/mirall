@@ -529,6 +529,15 @@ discovery keys asked for before attaching and open each from our side afterwards
 session's `ready()` (a `replicate` on a session that failed to open destroys the mux) —
 `network/replication-gate.js`.
 
+**A measurement that styles the thing it measures needs a tolerance and a rate limit.**
+`useHasVerticalOverflow` set its flag from a dependency-less layout effect, and every caller pads its list
+by that flag, so any layout that measures differently padded and unpadded flipped it on every synchronous
+commit until React hit its nested-update limit (#185, a blank window). It showed only with one real profile
+whose list sat on the pixel boundary, and only in the minified production build — fresh-profile scenarios
+never overflowed. Fix: overflow means more than 1px, and the flag changes synchronously at most once per
+frame (later readings wait for the next frame). A synthetic consumer that fits only when padded
+reproduces it deterministically (`test:layout:case -- overflowloop`).
+
 **Never destroy a peer's socket to heal a wedged replication session.** It carries every channel for
 that peer. Capture via an explicit bounded `get`, falling back to
 `bee.checkout(core.contiguousLength)`.

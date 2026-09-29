@@ -55,6 +55,7 @@ if (import.meta.filename === process.argv[1]) {
   execFileSync('npm', ['run', 'build:css'], { cwd: REPO, stdio: 'inherit' })
   await Promise.all(CASES.map((c) => build({
     ...common,
+    ...(c.production ? { define: { ...common.define, 'process.env.NODE_ENV': '"production"' } } : {}),
     entryPoints: [path.join(HERE, entryFor(c.name))],
     outfile: path.join(HERE, 'dist', bundleFor(c.name)),
   })))

@@ -46,6 +46,9 @@ export const CASES = [
   { name: "memo", title: "Mirall row memo / render-count harness" },
   { name: "mirrorers", title: "Mirall mirrored-by facepile layout harness" },
   { name: "modaltitle", title: "Mirall confirm-modal title overflow layout harness" },
+  // Production React, like the shipped app: the render loop this case guards against reached the
+  // nested-update limit there, not in the development runtime the other cases bundle.
+  { name: "overflowloop", title: "Mirall scroll-gutter render-loop harness", production: true },
   { name: "peerdownload", title: "Mirall peer-download serve UI harness" },
   { name: "progress", title: "Mirall progress-lane ARIA harness" },
   { name: "segments", title: "Mirall segmented-control harness" },
