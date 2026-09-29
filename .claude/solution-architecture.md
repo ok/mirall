@@ -434,6 +434,9 @@ The `search` blob excludes the kind, so stored text stays locale-neutral. Each k
 attribution tier (`src/shared/contract/audit-kinds.js`): A first-party, B authenticated peer action,
 C derived from a peer's replicated bee (authorship proven, time self-reported). No event class
 scales with file count; a per-kind token bucket collapses overflow into one `audit.suppressed` row.
+The episode kinds are capped per person per day as well (`src/shared/audit/episode-cap.js`: absences
+in `presence-episodes.js`, relayed stretches in `relay-episodes.js`), with one marker on the
+transition into the cap.
 
 Retention prunes by age and count at boot and on an interval. Pruning bounds rows, not bytes:
 `core.clear()` over a pruned range is unsafe because Hyperbee interleaves index nodes with value
@@ -738,6 +741,15 @@ to end over the relayed stream.
   `close` or on udx `'remote-changed'`, because hyperdht keeps punching and moves the same socket
   direct. `members:reach` folds this per person across both planes
   (`src/shared/network/member-reach.js`).
+- **Activity Log.** The log folds the path per person, as `members:reach` does, over the same socket
+  list (`src/shared/network/member-sockets.js`). `src/shared/audit/relay-episodes.js` writes one
+  `network.peer_relayed` per relayed stretch, once a socket has held the relay for
+  `relayAuditDwellMs`. When a socket leaves its relay, the person's path is read one dwell later, off
+  the close handlers: `direct` writes `network.peer_direct` with how long the relay carried them, and
+  `relayed` keeps the stretch. A disconnect writes nothing and keeps the stretch until the person's
+  next handshake, so a direct return closes it and a relayed one continues it. The newest path row
+  therefore matches the roster once both have settled. Rows store the relay key masked
+  (`src/shared/contract/relay-key.js`), the form Settings shows.
 - **Probe.** `network:test-relay` waits for the `blind-relay` channel to open, not just a Noise
   connect, so a wrong key fails at configuration time.
 

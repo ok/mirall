@@ -7,11 +7,12 @@
 import BlindRelay from 'blind-relay'
 import { createLogger } from '../core/logger.js'
 import { getRelayConfig } from '../core/runtime-config.js'
-import { peerRelayed, peerUnrelayed } from '../audit/network-watch.js'
+import { peerRelayed, peerUnrelayed, setRelayReach } from '../audit/network-watch.js'
 import { enabledRelayKeys, relayFunctionFor, decodeRelayKey } from './relay.js'
 import { getContentSwarm } from './content-swarm.js'
 import { installRelayObserver, resetRelayObserver } from './relay-observe.js'
 import { initRelayedConnections, resetRelayedConnections, describeConnection } from './relayed-connections.js'
+import { reachOf } from './member-sockets.js'
 
 const log = createLogger('relay-install')
 
@@ -22,12 +23,13 @@ export function initRelayInstall(deps) {
   getSwarm = deps.getSwarm
   onReachChange = deps.onReachChange ?? (() => {})
   installRelayObserver()
+  setRelayReach(reachOf)
   initRelayedConnections({
     ownRelay,
     relayMode: () => getRelayConfig().mode,
     onChange: deps.onStatusChange,
     onRelayed: (socket) => peerRelayed(socket, () => describeConnection(socket)),
-    onUnrelayed: (socket, member) => { peerUnrelayed(socket); onReachChange(member) },
+    onUnrelayed: (socket, member) => { peerUnrelayed(socket, member?.profileKey ?? null); onReachChange(member) },
   })
 }
 
@@ -125,6 +127,7 @@ export function relaySelectionCount() {
 
 export function resetRelayInstall() {
   onReachChange = () => {}
+  setRelayReach(null)
   relaySelections = 0
   relayIdentityPinned = false
   resetRelayedConnections()

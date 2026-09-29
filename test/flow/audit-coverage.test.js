@@ -73,6 +73,7 @@ const UNTRIGGERABLE = {
   'security.creator_divergence': 'needs a forked member-set root',
   'audit.suppressed': 'needs a burst past the rate guard — integration-tested',
   'network.peer_relayed': 'needs a connection that stays relayed past the dwell — pinned in integration (network-watch-relay.test.js); the loopback flow goes direct first',
+  'network.peer_direct': 'closes a relayed stretch the loopback flow never holds — pinned in integration (network-watch-relay.test.js)',
   'network.offline': 'needs the machine to lose its network — unit-tested in network-episodes.test.js',
   'network.blocked': 'needs a network that blocks peer connections',
   'network.at_risk': 'needs a symmetric NAT',

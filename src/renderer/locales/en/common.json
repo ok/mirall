@@ -1059,6 +1059,7 @@
       "network.peer_lost": "{{actor}} went offline",
       "network.peer_back": "{{actor}} is back online",
       "network.peer_relayed": "{{actor}} is connected through a relay",
+      "network.peer_direct": "{{actor}} is connected directly again",
       "share.renamed": "You renamed the folder {{target}}",
       "mirror.relocated": "You moved the mirror of {{target}}"
     },
@@ -1103,6 +1104,7 @@
       "network.peer_lost": "member went offline",
       "network.peer_back": "member back online",
       "network.peer_relayed": "relayed connection",
+      "network.peer_direct": "direct connection",
       "share.renamed": "folder renamed",
       "mirror.relocated": "mirror moved"
     },
@@ -1114,6 +1116,7 @@
       "own": "Your relay",
       "ownLabelled": "Your relay {{label}}",
       "providedBy": "Relay provided by {{name}}",
+      "relayedFor": "Relayed for {{duration}}",
       "plane": {
         "content": "File transfers"
       }

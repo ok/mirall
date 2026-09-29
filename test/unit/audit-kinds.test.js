@@ -49,6 +49,7 @@ test('the network category is exactly the connectivity vocabulary', (t) => {
     'network.blocked',
     'network.offline',
     'network.peer_back',
+    'network.peer_direct',
     'network.peer_lost',
     'network.peer_relayed',
     'network.restored',
@@ -59,7 +60,7 @@ test('the device family is first-party and the peer family is handshake-attribut
   for (const kind of ['network.offline', 'network.blocked', 'network.at_risk', 'network.restored']) {
     t.is(tierOf(kind), 'A', kind + ' is measured on this device')
   }
-  for (const kind of ['network.peer_lost', 'network.peer_back']) {
+  for (const kind of ['network.peer_lost', 'network.peer_back', 'network.peer_relayed', 'network.peer_direct']) {
     t.is(tierOf(kind), 'B', kind + ' rides the handshake identity binding')
   }
 })

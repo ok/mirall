@@ -1059,6 +1059,7 @@
       "network.peer_lost": "{{actor}} se desconectó",
       "network.peer_back": "{{actor}} está de nuevo en línea",
       "network.peer_relayed": "{{actor}} está conectado a través de un relay",
+      "network.peer_direct": "{{actor}} vuelve a estar conectado directamente",
       "share.renamed": "Renombraste la carpeta {{target}}",
       "mirror.relocated": "Moviste la réplica de {{target}}"
     },
@@ -1103,6 +1104,7 @@
       "network.peer_lost": "miembro desconectado",
       "network.peer_back": "miembro de nuevo en línea",
       "network.peer_relayed": "conexión retransmitida",
+      "network.peer_direct": "conexión directa",
       "share.renamed": "carpeta renombrada",
       "mirror.relocated": "réplica movida"
     },
@@ -1114,6 +1116,7 @@
       "own": "Tu relay",
       "ownLabelled": "Tu relay {{label}}",
       "providedBy": "Relay proporcionado por {{name}}",
+      "relayedFor": "A través de un relay durante {{duration}}",
       "plane": {
         "content": "Transferencias de archivos"
       }

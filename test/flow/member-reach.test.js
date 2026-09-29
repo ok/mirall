@@ -45,6 +45,8 @@ test('the roster names the path the frame says a member is reached over', { time
 
   t.comment(`A: ${await agreesWithFrame(t, A, spaceId, bKey)}`)
   t.comment(`B: ${await agreesWithFrame(t, B, spaceId, aKey)}`)
+  t.comment(`A's log: ${await logAgreesWithRoster(t, A, spaceId, bKey)}`)
+  t.comment(`B's log: ${await logAgreesWithRoster(t, B, spaceId, aKey)}`)
 })
 
 // Both facts are read together and re-read until they match: a disagreement is either a sample
@@ -60,5 +62,23 @@ async function agreesWithFrame(t, peer, spaceId, personKey) {
     return reach === (relayed ? MEMBER_REACH.RELAYED : MEMBER_REACH.DIRECT)
   }, 30000, { interval: 250 })
   t.ok(agreed, `the roster names the path the frame names — ${sample}`)
+  return sample
+}
+
+const PATH_KINDS = ['network.peer_relayed', 'network.peer_direct']
+
+// The log folds the path as the roster does and lags it by one dwell each way. Once both have
+// settled, a relayed person's newest path row is peer_relayed, and a direct person has either no
+// path row or a newest peer_direct: a relayed row left open after an upgrade never reaches that.
+async function logAgreesWithRoster(t, peer, spaceId, personKey) {
+  let sample = 'nothing sampled'
+  const agreed = await until(async () => {
+    const reach = (await peer.request('members:reach', { spaceId })).members[personKey]
+    const { entries } = await peer.request('audit:list', { kinds: PATH_KINDS, actorKey: personKey, limit: 1 })
+    const newest = entries[0]?.kind ?? 'none'
+    sample = `the roster reads ${reach}, the newest path row is ${newest}`
+    return (reach === MEMBER_REACH.RELAYED) === (newest === 'network.peer_relayed')
+  }, 30000, { interval: 250 })
+  t.ok(agreed, `the log names the path the roster names — ${sample}`)
   return sample
 }

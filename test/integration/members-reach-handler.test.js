@@ -2,6 +2,7 @@ import test from 'brittle'
 import { createFakeIpc } from '../helpers/fake-ipc.js'
 import { OWN, Stub, socketOf } from '../helpers/relayed-socket.js'
 import { registerSpaces } from '../../src/worker/ipc/spaces.js'
+import { reachOf } from '../../src/shared/network/member-sockets.js'
 import { connectedPeers, resetRegistries } from '../../src/shared/network/swarm-registries.js'
 import { installRelayObserver, resetRelayObserver } from '../../src/shared/network/relay-observe.js'
 import {
@@ -62,4 +63,20 @@ test('a member with no live socket is absent from the map', async (t) => {
   const fake = setup(t)
   seed(ALICE, null, SPACE)
   t.alike((await fake.call('members:reach', { spaceId: SPACE })).members, {})
+})
+
+test('the Activity Log reads each person\'s path from the same fold the roster does', async (t) => {
+  const fake = setup(t)
+  const relayed = socketOf({ relayKey: OWN })
+  const direct = socketOf()
+  trackConnection(relayed, { plane: 'control', memberOf: () => null })
+  trackConnection(direct, { plane: 'control', memberOf: () => null })
+  seed(ALICE, relayed, SPACE)
+  seed(BOB, direct, SPACE)
+
+  t.is(reachOf(ALICE), 'relayed')
+  t.is(reachOf(BOB), 'direct')
+  t.is(reachOf(CARA), null, 'nobody connected has no path, so a closing stretch writes nothing')
+  const { members } = await fake.call('members:reach', { spaceId: SPACE })
+  for (const [personKey, reach] of Object.entries(members)) t.is(reachOf(personKey), reach, personKey + ' agrees with members:reach')
 })

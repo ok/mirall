@@ -5,6 +5,7 @@ import {
   splitSentence, sentinelValues, systemIcon, emptyStateFor, FIELD_SENTINEL, SENTENCE_FIELDS,
 } from '../../src/renderer/model/audit-row.js'
 import { formatSize } from '../../src/renderer/format/bytes.js'
+import { formatDuration } from '../../src/renderer/model/connectivity.js'
 
 const row = (over = {}) => ({
   v: 1, seq: 1, ts: Date.now(), tzOffset: 0,
@@ -312,6 +313,31 @@ test('a peer connectivity row still leads with its space', (t) => {
   }))
   t.is(parts[0].text, 'Design Team')
   t.ok(parts.some((p) => p.key === 'activityLog.wasOfflineFor'))
+})
+
+const pathRow = (kind, subject) => netRow({
+  kind,
+  code: null,
+  space: null,
+  actor: { type: 'peer', key: 'aa', name: 'Lena' },
+  target: { kind: 'member', id: 'aa', name: 'Lena' },
+  subject,
+})
+const keysOf = (parts) => parts.map((p) => p.key)
+
+test('a relayed row names the relay\'s provenance, and a file-transfer relay says so first', (t) => {
+  const relayed = (subject) => metaParts(pathRow('network.peer_relayed', { plane: 'control', ...subject }))
+  t.alike(relayed({ via: 'own', label: 'Hetzner box' }), [{ key: 'activityLog.relay.ownLabelled', values: { label: 'Hetzner box' } }])
+  t.alike(relayed({ via: 'own', label: null }), [{ key: 'activityLog.relay.own' }])
+  t.alike(relayed({ via: 'adopted', provider: 'Lena' }), [{ key: 'activityLog.relay.providedBy', values: { name: 'Lena' } }])
+  t.alike(keysOf(relayed({ via: 'adopted', provider: 'Lena', plane: 'content' })), ['activityLog.relay.plane.content', 'activityLog.relay.providedBy'])
+})
+
+test('a direct row says how long the relay carried the person, never how long they were offline', (t) => {
+  const parts = metaParts(pathRow('network.peer_direct', { relayedMs: 240000 }))
+  t.alike(parts, [{ key: 'activityLog.relay.relayedFor', values: { duration: formatDuration(240000) } }])
+  t.absent(keysOf(parts).includes('activityLog.wasOfflineFor'))
+  t.alike(metaParts(pathRow('network.peer_direct', { relayedMs: null })), [], 'an unknown duration renders nothing')
 })
 
 const filters = (over = {}) => ({

@@ -82,7 +82,10 @@ export const KINDS = Object.freeze({
   // healthy, because a blocked device makes every peer look gone.
   'network.peer_lost': { category: CATEGORY.NETWORK, tier: 'B' },
   'network.peer_back': { category: CATEGORY.NETWORK, tier: 'B' },
+  // The path a connected person is reached over: one row per relayed stretch, and one when that
+  // stretch ends with the person still connected directly.
   'network.peer_relayed': { category: CATEGORY.NETWORK, tier: 'B' },
+  'network.peer_direct': { category: CATEGORY.NETWORK, tier: 'B' },
 })
 
 // Absent on purpose — a kind that can never fire still shows in the search labels and the i18n
