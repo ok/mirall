@@ -17,7 +17,7 @@ function walk(dir, out = []) {
 // Service-locator reads may fall but never rise: new code takes its collaborators as deps. These
 // are the measured counts on this branch (definitions excluded), and Phase 3 lowers them as the
 // swarm and overlay take their collaborators explicitly.
-const CEILINGS = { 'getStore(': 20, 'getOverlay(': 18, 'getProfileBee(': 12, 'getContentSwarm(': 1 }
+const CEILINGS = { 'getStore(': 19, 'getOverlay(': 18, 'getProfileBee(': 12, 'getContentSwarm(': 1 }
 
 function countCalls(needle) {
   let n = 0

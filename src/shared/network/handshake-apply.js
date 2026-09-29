@@ -20,6 +20,7 @@ import { sendSingleHandshake } from './identity-frames.js'
 import { scheduleStatusEmit } from './network-status.js'
 import { memberWaits } from './share-wait.js'
 import { clearWaitingFor } from '../transfer/serve-ledger.js'
+import { replicateOn } from './replication-gate.js'
 import {
   connectedPeers, socketToPeers, socketMsgHandlers, pendingRequesters, announceLedger,
   forgetBoundSignerKey,
@@ -133,6 +134,7 @@ function trackPeerConnection(socket, spaceId, msg) {
   peerEntry.looseCatalogKeys.set(spaceId, looseCatalogHint(msg))
   if (!socketToPeers.has(socket)) socketToPeers.set(socket, new Set())
   socketToPeers.get(socket).add(personKey)
+  replicateOn(socket)
   // A live handshake is proof of presence — lease them online now, before their first
   // heartbeat. Refreshed by presence frames; cleared on disconnect. The flip return value is
   // ignored here: the handshake path emits members-updated unconditionally after the persist.
@@ -212,12 +214,12 @@ export async function handleHandshake(socket, msg, spaceId, { park = null } = {}
     return
   }
 
-  // While we're pending in this space we hold no content key — don't admit the peer.
-  // But if it's a member we pre-seeded (the inviter), pull their avatar so it shows in the
-  // spaces list / waiting view. After the grant flips us to approved, our re-handshake
-  // draws the reciprocal back in.
+  // While we're pending in this space we hold no content key — don't admit the peer. A member we
+  // pre-seeded (the inviter) has its avatar pulled for the waiting view only when the socket already
+  // replicates through a space we share with it; otherwise it arrives after the grant, when our
+  // re-handshake draws the reciprocal back in.
   if (space?.status === 'pending') {
-    if ((space.members || []).some((m) => m.publicKey === msg.profileKey)) {
+    if (socketToPeers.has(socket) && (space.members || []).some((m) => m.publicKey === msg.profileKey)) {
       fetchPeerAvatar(msg.profileKey, msg, spaceId, space).catch((err) => {
         log.warn('pending inviter avatar fetch failed:', err.message)
       })

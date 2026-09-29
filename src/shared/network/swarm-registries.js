@@ -115,8 +115,8 @@ export function broadcastToSpace(spaceId, frame) {
 //
 // What follows that `true` belongs to the caller, because it differs by event. When WE leave a
 // space the control socket is destroyed and its close handler completes the teardown; when THEY
-// leave, the socket stays up — they remain a peer, just not here — so that path unwinds
-// socketToPeers itself.
+// leave, that path unwinds socketToPeers itself, and closes the socket only once nobody admitted
+// rides it.
 export function detachPeerFromSpace(peer, spaceId) {
   peer.spaces.delete(spaceId)
   peer.looseCatalogKeys?.delete(spaceId)

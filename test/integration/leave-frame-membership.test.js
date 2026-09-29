@@ -11,7 +11,7 @@ import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { openMemberView, closeMemberView, isLeft, isApprovedJoiner } from '../../src/shared/spaces/member-registry.js'
 import { loadLeftTombstones, persistLeftTombstone } from '../../src/shared/spaces/leave-records.js'
 import { initLeaveProtocol, handleLeaveFrame, resetLeaveProtocol } from '../../src/shared/network/leave-protocol.js'
-import { socketMsgHandlers, resetRegistries } from '../../src/shared/network/swarm-registries.js'
+import { connectedPeers, socketToPeers, socketMsgHandlers, resetRegistries } from '../../src/shared/network/swarm-registries.js'
 import { signNoiseBinding, leaveFrameBound } from '../../src/shared/network/handshake-guard.js'
 import { PEER_FRAME } from '../../src/shared/contract/peer-frames.js'
 
@@ -194,4 +194,54 @@ test('REGRESSION (MIR-43: a cap full of authorized tombstones refuses the durabl
   t.ok(isLeft(spaceId, B.key), 'the leave still holds in memory')
   t.absent(await hasOwnApproval(spaceId, B.key), 'our vouch for B is still revoked')
   t.absent(leave.acked(), 'no ack, since the tombstone did not land durably')
+})
+
+// B admitted on the leave's own socket, in `spaces`, alongside any other identities on that socket.
+function admitOnSocket(leave, B, spaces, others = []) {
+  let destroyed = 0
+  leave.socket.destroy = () => { destroyed++ }
+  connectedPeers.set(B.key, { socket: leave.socket, profileKey: B.key, displayName: 'Bob', avatar: null, spaces: new Set(spaces), looseCatalogKeys: new Map() })
+  socketToPeers.set(leave.socket, new Set([B.key, ...others]))
+  return () => destroyed
+}
+
+test('REGRESSION (MIR-47: a leave that strips a socket of its last admitted peer ends the socket, after capturing the leaver)', async (t) => {
+  await freshPeer(t)
+  wire(t)
+  const { spaceId, B } = await spaceWithMember(t, 'MIR47-last')
+  // Records a membership read never touches, so only a whole-core capture holds them.
+  for (let i = 0; i < 24; i++) await B.bee.put('filler/' + i, { i })
+
+  const leave = boundLeave(B, spaceId)
+  const destroyed = admitOnSocket(leave, B, [spaceId])
+  await handleLeaveFrame(leave.socket, leave.peerInfo, leave.msg)
+
+  t.ok(leave.acked(), 'precondition: the leave was applied')
+  t.is(destroyed(), 1, 'the socket is ended')
+  t.absent(socketToPeers.has(leave.socket), 'and carries nobody admitted')
+  const held = getStore().get({ key: B.bee.core.key })
+  await held.ready()
+  t.comment(`leaver core here: length=${held.length} contiguous=${held.contiguousLength}`)
+  t.ok(held.length > 24 && held.contiguousLength === held.length, 'the leaver\'s whole bee is held here to re-host')
+  await held.close()
+})
+
+test('a leaver still admitted elsewhere on the socket keeps it', async (t) => {
+  await freshPeer(t)
+  wire(t)
+  const { spaceId, B } = await spaceWithMember(t, 'MIR47-shared')
+
+  const inOtherSpace = boundLeave(B, spaceId)
+  const destroyedA = admitOnSocket(inOtherSpace, B, [spaceId, hex()])
+  await handleLeaveFrame(inOtherSpace.socket, inOtherSpace.peerInfo, inOtherSpace.msg)
+  t.ok(inOtherSpace.acked(), 'precondition: the leave was applied')
+  t.is(destroyedA(), 0, 'a peer that still shares a space with us keeps its socket')
+  resetRegistries()
+
+  const { spaceId: second, B: C } = await spaceWithMember(t, 'MIR47-cohabited')
+  const withNeighbour = boundLeave(C, second)
+  const destroyedB = admitOnSocket(withNeighbour, C, [second], [hex()])
+  await handleLeaveFrame(withNeighbour.socket, withNeighbour.peerInfo, withNeighbour.msg)
+  t.ok(withNeighbour.acked(), 'precondition: the second leave was applied')
+  t.is(destroyedB(), 0, 'a socket that still carries another admitted identity stays up')
 })

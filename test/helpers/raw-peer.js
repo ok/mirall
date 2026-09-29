@@ -62,6 +62,7 @@ export async function rawPeer(t, { bootstrap, topicHex, keyPair = crypto.keyPair
     // Resolves once `n` sockets are open at the same time: a peer on a topic with several workers
     // must reach each of them.
     waitConnections,
+    openSockets: () => senders.size,
     // Every open socket gets the frame.
     send: (obj) => { for (const sender of senders) sender(obj) },
     waitFrame: (pred = () => true, ms = 8000) => new Promise((resolve, reject) => {
