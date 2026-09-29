@@ -3,6 +3,8 @@ import path from 'bare-path'
 import crypto from 'hypercore-crypto'
 import b4a from 'b4a'
 import { wrap, unwrap } from './identity-envelope.js'
+import { AppError } from './errors.js'
+import { CODES } from '../contract/errors.js'
 
 const encFile = (storagePath) => path.join(path.dirname(storagePath), 'identity.enc')
 
@@ -27,13 +29,18 @@ const encFile = (storagePath) => path.join(path.dirname(storagePath), 'identity.
 export async function resolveMasterSecret({ store, storagePath, provider }) {
   await store.ready()
   const file = encFile(storagePath)
-  const kek = provider.getKEK()
-  if (!kek) throw new Error('identity: no unlock key available')
+  // The provider is checked before it is asked for a key: one that must wait for input would
+  // otherwise wait for a key that cannot open this envelope.
+  const sealed = fs.existsSync(file) ? JSON.parse(b4a.toString(fs.readFileSync(file))) : null
+  if (sealed && sealed.provider !== provider.name) {
+    throw new AppError(CODES.IDENTITY_PROVIDER_MISMATCH, `identity: sealed by provider "${sealed.provider}", not "${provider.name}"`)
+  }
+  const kek = await provider.getKEK()
+  if (!kek) throw new AppError(CODES.IDENTITY_NO_KEK, 'identity: no unlock key available')
 
-  if (fs.existsSync(file)) {
-    const env = JSON.parse(b4a.toString(fs.readFileSync(file)))
-    const M = unwrap({ nonce: b4a.from(env.nonce, 'base64'), ciphertext: b4a.from(env.ciphertext, 'base64') }, kek)
-    if (!M) throw new Error('identity unlock failed')
+  if (sealed) {
+    const M = unwrap({ nonce: b4a.from(sealed.nonce, 'base64'), ciphertext: b4a.from(sealed.ciphertext, 'base64') }, kek)
+    if (!M) throw new AppError(CODES.IDENTITY_UNLOCK_FAILED, 'identity unlock failed')
     return M
   }
 
@@ -74,13 +81,4 @@ async function dropOldSeedBlocks(store) {
     if (typeof db?.flush === 'function') await db.flush()
     if (typeof db?.compactRange === 'function') await db.compactRange(null, null)
   } catch {}
-}
-
-// An unlock provider yields the KEK that unwraps identity.enc; getKEK() returns a
-// 32-byte Buffer or null. The host supplies the KEK (Electron main's safeStorage by
-// default) — the data layer never imports Electron. Other providers
-// (passphrase/platform-bind/file/TPM) slot in behind the same shape.
-export function osKeychainProvider(kekHex) {
-  const kek = kekHex ? b4a.from(kekHex, 'hex') : null
-  return { name: 'os-keychain', getKEK: () => kek }
 }

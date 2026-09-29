@@ -4,7 +4,7 @@ import fs from 'bare-fs'
 import path from 'bare-path'
 import Corestore from 'corestore'
 import { resolveMasterSecret } from '../../src/shared/core/identity.js'
-import { osKeychainProvider } from '../../src/shared/core/identity.js'
+import { osKeychainProvider } from '../../src/shared/core/unlock-provider.js'
 import { randomKEK, wrap } from '../../src/shared/core/identity-envelope.js'
 import { deriveKeyPair, deriveParticipationKeyPair } from '../../src/shared/core/identity-keys.js'
 import { tmpDir } from '../helpers/bare-tmp.js'
@@ -50,11 +50,13 @@ test('wrong KEK fails closed', async (t) => {
 
   const store2 = new Corestore(storagePath)
   await store2.ready()
-  await t.exception(
-    resolveMasterSecret({ store: store2, storagePath, provider: osKeychainProvider(b4a.toString(randomKEK(), 'hex')) }),
-    /identity unlock failed/,
-    'a different KEK cannot unlock the envelope'
-  )
+  try {
+    await resolveMasterSecret({ store: store2, storagePath, provider: osKeychainProvider(b4a.toString(randomKEK(), 'hex')) })
+    t.fail('a different KEK unlocked the envelope')
+  } catch (err) {
+    t.is(err.code, 'IDENTITY_UNLOCK_FAILED')
+    t.is(err.message, 'identity unlock failed')
+  }
   await store2.close()
 })
 
@@ -96,4 +98,42 @@ test('resolves from an un-readied store (a freshly constructed Corestore, as the
   t.is(M.length, 32, 'resolves M without a prior store.ready()')
   t.ok(fs.existsSync(path.join(root, 'identity.enc')), 'envelope written')
   await store.close()
+})
+
+async function sealedStore(t, label) {
+  const root = tmpDir(label)
+  const storagePath = path.join(root, 'app-storage')
+  t.teardown(() => { try { fs.rmSync(root, { recursive: true, force: true }) } catch {} })
+  const kekHex = b4a.toString(randomKEK(), 'hex')
+  const store = new Corestore(storagePath)
+  const M = await resolveMasterSecret({ store, storagePath, provider: osKeychainProvider(kekHex) })
+  await store.close()
+  const reopened = new Corestore(storagePath)
+  t.teardown(() => reopened.close())
+  return { storagePath, kekHex, M, store: reopened }
+}
+
+test('an envelope sealed by one provider refuses another, even with the same KEK', async (t) => {
+  const { storagePath, kekHex, store } = await sealedStore(t, 'identity-provider-mismatch')
+  const kek = b4a.from(kekHex, 'hex')
+  let asked = 0
+  const other = { name: 'file', getKEK: async () => { asked++; return kek } }
+  try {
+    await resolveMasterSecret({ store, storagePath, provider: other })
+    t.fail('a different provider unlocked the envelope')
+  } catch (err) {
+    t.is(err.code, 'IDENTITY_PROVIDER_MISMATCH')
+    t.ok(err.message.includes('"os-keychain"') && err.message.includes('"file"'), 'the message names both providers')
+  }
+  t.is(asked, 0, 'a provider that cannot open the envelope is never asked for a key')
+})
+
+test('a provider with no KEK to give fails with IDENTITY_NO_KEK', async (t) => {
+  const { storagePath, store } = await sealedStore(t, 'identity-provider-empty')
+  try {
+    await resolveMasterSecret({ store, storagePath, provider: { name: 'os-keychain', getKEK: async () => null } })
+    t.fail('resolved without a KEK')
+  } catch (err) {
+    t.is(err.code, 'IDENTITY_NO_KEK')
+  }
 })

@@ -2,8 +2,10 @@ import test from 'brittle'
 import fs from 'fs'
 import path from 'path'
 import crypto from 'crypto'
+import Corestore from 'corestore'
+import Hyperbee from 'hyperbee'
 import { localTestnet } from '../helpers/testnet.js'
-import { launchPeer, connectInSpace, waitForWorkerExit } from '../helpers/peer.js'
+import { launchPeer, connectInSpace } from '../helpers/peer.js'
 import { mkTmpDir, patternedBytes } from '../helpers/fixtures.js'
 import { scaled } from '../helpers/timing.js'
 
@@ -42,24 +44,18 @@ test('migration through the real worker preserves the network identity', { timeo
   const storage = path.join(root, 'app-storage')
   const downloads = mkTmpDir(t)
 
-  // Boot legacy (no KEK) → seed-derived identity. `identityKEK: undefined` opts out of the KEK
-  // launchPeer injects for every other peer; this is the one test whose subject IS the keyless
-  // store a pre-MIR-02 build left behind.
-  //
-  // It no longer creates a space first: a space cannot exist without a master secret, so the
-  // "space survived migration" half can only be rebuilt from a hand-written seed-derived fixture.
-  // The profile core the boot opens is seed-derived either way, which is what makes this a genuine
+  // A pre-envelope store, written the way a keyless build left it: the profile bee on a core derived
+  // from the store's own seed by name. That seed-derived core is what makes the first KEK boot a
   // migrating install (resolveMasterSecret's hasExistingCores branch) rather than a fresh one.
-  let A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage, downloads, flags: { identityKEK: undefined } })
-  const keyBefore = (await A.request('profile:get')).personKey
+  const legacy = new Corestore(storage)
+  const profile = new Hyperbee(legacy.get({ name: 'profile' }), { keyEncoding: 'utf-8', valueEncoding: 'json' })
+  await profile.put('displayName', 'Alice')
+  const keyBefore = profile.core.key.toString('hex')
+  await legacy.close()
   t.absent(fs.existsSync(path.join(root, 'identity.enc')), 'no envelope on the legacy install')
 
-  const pid = A.sidecar?._process?.pid
-  A.kill()
-  if (pid) await waitForWorkerExit(pid, 5000)
-
-  // Relaunch the SAME storage WITH a KEK → migration carries the seed forward as M.
-  A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage, downloads, flags: { identityKEK: kekHex() } })
+  // Launch the SAME storage WITH a KEK → migration carries the seed forward as M.
+  const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage, downloads, flags: { identityKEK: kekHex() } })
   t.is((await A.request('profile:get')).personKey, keyBefore, 'network identity preserved across migration')
   t.ok(fs.existsSync(path.join(root, 'identity.enc')), 'envelope created by migration')
 })

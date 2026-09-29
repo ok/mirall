@@ -16,7 +16,7 @@ import { createIntentLog } from '../shared/core/intents.js'
 import { registerFolderIntents } from '../shared/folders/folder-intents.js'
 import { Store, getStore, setMasterSecret } from '../shared/core/store.js'
 import { resolveMasterSecret } from '../shared/core/identity.js'
-import { osKeychainProvider } from '../shared/core/identity.js'
+import { unlockProviderFor } from '../shared/core/unlock-provider.js'
 import { runMigrations, stageCompacted } from '../shared/storage/migrations/index.js'
 import { maintainLocalBees } from '../shared/storage/local-bee-rewrite.js'
 import { SpaceKeysVault } from '../shared/spaces/space-keys.js'
@@ -88,16 +88,16 @@ function applyRelayConfig(log) {
 // crash-backstop test pins the core-opening call sites to boot.js by source text.
 /** @internal */
 export async function bootDurable(bootstrap, { ipc, log, masterSecret = undefined, onTier = null } = {}) {
+  // Chosen before anything opens, so a host that sent no unlock key fails boot with nothing to close.
+  const provider = masterSecret === undefined ? unlockProviderFor(bootstrap) : null
   const durable = createLifecycle({ log })
   // Handed over before anything can throw: a failure part-way through this tier must still leave
   // the caller something to close, or the store and every resource started so far leak.
   onTier?.(durable)
   const store = await durable.start(new Store('store', { path: bootstrap.storage }))
-  if (masterSecret !== undefined) setMasterSecret(masterSecret)
-  else if (bootstrap.identityKEK) {
-    const provider = osKeychainProvider(bootstrap.identityKEK)
-    setMasterSecret(await resolveMasterSecret({ store: getStore(), storagePath: bootstrap.storage, provider }))
-  }
+  setMasterSecret(provider
+    ? await resolveMasterSecret({ store: getStore(), storagePath: bootstrap.storage, provider })
+    : masterSecret)
   const durableMigrations = await runMigrations('durable', { log })
   // Rewrites local bees in place, so it runs before anything holds one.
   const localBees = await maintainLocalBees({ log })
@@ -195,7 +195,7 @@ export async function boot(bootstrap, {
   } catch (err) {
     // A boot that throws must still close what it started: `root` is never assigned in the entry
     // on this path, so nothing downstream would. Close, then rethrow.
-    log.error('boot failed:', err.message)
+    log.error('boot failed:', err.code ? `${err.code}: ${err.message}` : err.message)
     await close().catch((closeErr) => log.warn('cleanup after failed boot failed:', closeErr.message))
     throw err
   }

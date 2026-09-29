@@ -1,6 +1,6 @@
 import test from 'brittle'
 import b4a from 'b4a'
-import { decodeVault, encodeVault, setEntry, keyForEpoch } from '../../src/shared/spaces/space-keys-codec.js'
+import { decodeVault, encodeVault, reservedSlots, setEntry, keyForEpoch } from '../../src/shared/spaces/space-keys-codec.js'
 
 const hex = (n) => n.toString(16).padStart(2, '0').repeat(32)
 const key = (n) => b4a.from(hex(n), 'hex')
@@ -19,6 +19,18 @@ test('an empty or absent entries object decodes to an empty vault', (t) => {
   t.is(decodeVault({ v: 1 }, b4a.from).size, 0)
   t.is(decodeVault({ v: 2, entries: {} }, b4a.from).size, 0)
   t.is(decodeVault(null, b4a.from).size, 0)
+})
+
+test('the reserved person slot is carried through a decode and re-encode', (t) => {
+  const entries = { s1: hex(1), s2: { epoch: 1, key: hex(2), history: [{ epoch: 0, key: hex(3) }] } }
+  const stored = { v: 2, entries, person: hex(9) }
+  const map = decodeVault(stored, b4a.from)
+  t.alike([...map.entries()], [...decodeVault({ v: 2, entries }, b4a.from).entries()], 'the slot does not change the space keys')
+  t.alike(reservedSlots(stored), { person: hex(9) })
+  const rewritten = encodeVault(map, toHex, reservedSlots(stored))
+  t.is(rewritten.person, hex(9), 'a rewrite keeps it')
+  t.alike(decodeVault(rewritten, b4a.from), map, 'beside the same space keys')
+  t.alike(reservedSlots({ v: 1, entries, other: 1 }), {}, 'only reserved names are carried')
 })
 
 test('a v2 vault round-trips through encode/decode', (t) => {

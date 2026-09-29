@@ -101,3 +101,15 @@ test('the same epoch-0 key re-put (a re-grant) is a no-op that still persists cl
   t.is(readPlaintext(file).entries[SPACE], 'aa'.repeat(32))
   t.is(listContentKeys().length, 1)
 })
+
+test('the reserved person slot survives a rewrite by a build that does not read it', async (t) => {
+  const file = await bootStore(t, 'person-slot')
+  const person = 'bb'.repeat(32)
+  writeEnvelope(file, { v: 1, entries: { [SPACE]: 'aa'.repeat(32) }, person })
+  await initSpaceKeys()
+
+  await putContentKey('feedface00000000', K('cc'))
+  const after = readPlaintext(file)
+  t.is(after.person, person, 'the slot is written back untouched')
+  t.is(Object.keys(after.entries).length, 2, 'and the new key is there beside it')
+})

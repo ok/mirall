@@ -94,7 +94,8 @@ and parses only its own control frames.
   and `relaySeed`; runtime config never stores them. A failed write of either frame destroys the
   worker and fails the spawn, because the worker never asks for its bootstrap again. The KEK comes
   from `safeStorage` (`src/main/identity-kek.js`). Without secure storage, main refuses to start
-  rather than write an unprotected identity.
+  rather than write an unprotected identity, and a bootstrap without a KEK fails the worker's boot
+  with `IDENTITY_NO_KEK` before the store opens.
 - **Environment levers.** Main reads `PEAR_DEV_SERVER_URL` and the `MIRALL_*` test and debug
   hooks only through `src/main/env-overrides.js`, which returns nothing on a packaged build. The
   two release rollback levers and the AppImage runtime's variables are the listed exceptions
@@ -723,7 +724,11 @@ to end over the relayed stream.
   matches. `swarm.js` builds the `hyperdht` node itself because hyperswarm cannot set that key. Open
   relays use a random per-boot key. Peer identity is unaffected.
 - **Seed at rest.** The seed is stored in `relay-ticket.enc` under `safeStorage`, mode `0600`
-  (`src/main/relay-secret.js`). It is a bearer credential: it stays out of `config.json`, is never
+  (`src/main/relay-secret.js`). The reader also opens a sealed form (`{ v: 2 }`, XChaCha20-Poly1305
+  under a `crypto_kdf` subkey of the identity KEK) that a runtime without Electron can read. Nothing
+  writes it yet: the writer moves only after a release that reads it has shipped, because a build
+  sharing the store that cannot read the vault loses the private relay, and a read never rewrites
+  the file. It is a bearer credential: it stays out of `config.json`, is never
   returned to the renderer, and reaches the worker only on the `bootstrap` frame. `relay:set`
   (`src/main/relay-slot.js`) is the single writer of vault and slot. A crash between the two writes
   must leave the *visible* failure, a config naming a missing seed. Today the vault is written first
@@ -1314,7 +1319,10 @@ not await async listeners.
 A 32-byte **master secret M** roots every writable core's keypair and every local encryption key.
 `src/shared/core/identity-keys.js` reproduces Corestore's derivation byte-for-byte, and content keys
 use a separate namespace. M exists on disk only in `identity.enc`, wrapped (secretbox) under a
-**KEK** from a pluggable unlock provider.
+**KEK** from an unlock provider (`src/shared/core/unlock-provider.js`: `{ name, getKEK() }`). The
+envelope records the provider's name and every unlock checks it, so an envelope sealed by one provider
+fails with `IDENTITY_PROVIDER_MISMATCH` under another; a wrong KEK fails with `IDENTITY_UNLOCK_FAILED`.
+`os-keychain` is the only provider.
 
 The default provider is a random KEK stored as `kek.enc`, encrypted with Electron `safeStorage`
 (`src/main/identity-kek.js`). Main passes the worker the KEK, never M. **On Linux with no keyring,
