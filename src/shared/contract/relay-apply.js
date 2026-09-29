@@ -6,7 +6,8 @@
 // contract/ because both runtimes decide on it — the worker to apply the change itself when it can,
 // the renderer to explain it when it cannot.
 
-/** @typedef {'off' | 'auto' | 'always'} RelayMode */
+export const RELAY_MODES = Object.freeze(/** @type {const} */ (['off', 'auto', 'always']))
+/** @typedef {(typeof RELAY_MODES)[number]} RelayMode */
 /** @typedef {{ via: 'own' | 'adopted', supplied: boolean, relayMode: RelayMode, replaced: boolean }} RelayConnectionFacts */
 /** @typedef {{ connections: readonly RelayConnectionFacts[], direct: { control: number, content: number } }} RelayFacts */
 /** @typedef {'stale-relayed' | 'stale-direct' | 'replaced-relay' | null} RelayMismatch */

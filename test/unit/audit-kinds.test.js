@@ -1,5 +1,14 @@
 import test from 'brittle'
-import { KINDS, CATEGORY, CATEGORIES, isKnownKind, categoryOf, tierOf } from '../../src/shared/contract/audit-kinds.js'
+import { KINDS, CATEGORY, CATEGORIES, TARGET_KINDS, isKnownKind, categoryOf, tierOf } from '../../src/shared/contract/audit-kinds.js'
+
+const RELAY_SETTING_KINDS = [
+  'relay.added',
+  'relay.mode_changed',
+  'relay.removed',
+  'relay.replaced',
+  'relay.turned_off',
+  'relay.turned_on',
+]
 
 test('every kind declares a valid category and tier', (t) => {
   for (const [kind, meta] of Object.entries(KINDS)) {
@@ -42,7 +51,7 @@ test('the security category is what remains of the old app bucket', (t) => {
   ])
 })
 
-test('the network category is exactly the connectivity vocabulary', (t) => {
+test('the network category is exactly the connectivity vocabulary and the relay settings that shape it', (t) => {
   const network = Object.entries(KINDS).filter(([, m]) => m.category === CATEGORY.NETWORK).map(([k]) => k)
   t.alike(network.sort(), [
     'network.at_risk',
@@ -53,7 +62,13 @@ test('the network category is exactly the connectivity vocabulary', (t) => {
     'network.peer_lost',
     'network.peer_relayed',
     'network.restored',
+    ...RELAY_SETTING_KINDS,
   ])
+})
+
+test('a relay settings row is this install acting, and points at a relay', (t) => {
+  for (const kind of RELAY_SETTING_KINDS) t.is(tierOf(kind), 'A', kind + ' is first-party')
+  t.ok(TARGET_KINDS.includes('relay'))
 })
 
 test('the device family is first-party and the peer family is handshake-attributed', (t) => {

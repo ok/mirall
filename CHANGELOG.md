@@ -22,6 +22,10 @@ visible reason.
 when a member reached through a relay is connected directly again, and how
 long the relay carried them. Each relayed stretch gets its own entry, not
 just the first one after Mirall starts.
+- **Your relay changes are in the Activity Log.** Adding, replacing or
+removing your relay, and turning it or "Prefer the relay for every
+connection" on or off, each leave one entry under Network. Entries name the
+relay by its label and a shortened key.
 
 ## v1.11.2
 

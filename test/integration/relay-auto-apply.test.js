@@ -5,8 +5,7 @@ import { bootSwarms } from '../helpers/swarms.js'
 import { Stub, socketOf } from '../helpers/relayed-socket.js'
 import { createFakeIpc } from '../helpers/fake-ipc.js'
 import { registerNetwork } from '../../src/worker/ipc/network.js'
-import { getRelayConfig } from '../../src/shared/core/runtime-config.js'
-import { setRelayThrough } from '../../src/shared/network/relay-install.js'
+import { installConfiguredRelay } from '../../src/shared/network/relay-install.js'
 import { trackConnection, resetRelayedConnections, snapshotRelayedConnections } from '../../src/shared/network/relayed-connections.js'
 import { installRelayObserver, resetRelayObserver } from '../../src/shared/network/relay-observe.js'
 import { socketMsgHandlers } from '../../src/shared/network/swarm-registries.js'
@@ -191,7 +190,7 @@ test('re-saving the same relay is not a swap', async (t) => {
 test('REGRESSION (FIX-490: set-relay off leaves a peer-supplied relay on our key alone)', async (t) => {
   await bootSwarms(t, { relayMode: 'auto', relay: SLOT })
   const fake = createFakeIpc()
-  registerNetwork(fake.ipc, { applyRelayConfig: () => setRelayThrough(getRelayConfig().relay, getRelayConfig().mode) })
+  registerNetwork(fake.ipc, { applyRelayConfig: installConfiguredRelay })
   resetRelayObserver()
   installRelayObserver({ Client: Stub })
   t.teardown(() => { socketMsgHandlers.clear(); resetRelayedConnections(); resetRelayObserver() })
@@ -215,7 +214,7 @@ test('REGRESSION (FIX-490: set-relay off leaves a peer-supplied relay on our key
 test('set-relay off leaves a same-key relay the peer supplied while we were live alone', async (t) => {
   await bootSwarms(t, { relayMode: 'auto', relay: SLOT })
   const fake = createFakeIpc()
-  registerNetwork(fake.ipc, { applyRelayConfig: () => setRelayThrough(getRelayConfig().relay, getRelayConfig().mode) })
+  registerNetwork(fake.ipc, { applyRelayConfig: installConfiguredRelay })
   resetRelayObserver()
   installRelayObserver({ Client: Stub })
   t.teardown(() => { socketMsgHandlers.clear(); resetRelayedConnections(); resetRelayObserver() })

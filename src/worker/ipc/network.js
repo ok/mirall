@@ -14,6 +14,8 @@ import { checkLivenessNow } from '../../shared/network/link-liveness.js'
 import { testRelayReachable } from '../../shared/network/relay-install.js'
 import { snapshotRelayedConnections } from '../../shared/network/relayed-connections.js'
 import { transfersMoving } from '../../shared/transfer/transfer-activity.js'
+import { record } from '../../shared/audit/audit-log.js'
+import { relayConfigRow } from '../../shared/audit/relay-config-change.js'
 
 /** @param {WorkerIpc} ipc @param {{ applyRelayConfig: WorkerRoot['applyRelayConfig'] }} deps */
 export function registerNetwork(ipc, { applyRelayConfig }) {
@@ -24,16 +26,26 @@ export function registerNetwork(ipc, { applyRelayConfig }) {
   // difference is invisible from here: the setting is live either way. When nothing is moving the
   // reconnect is cheap and the user gets what they asked for at once; while a transfer is in flight
   // it is theirs to trigger, so the verdict goes back for the renderer to explain. deferApply is set
-  // when a pinned identity is waiting on a restart — no reconnect can apply that.
+  // when a pinned identity is waiting on a restart — no reconnect can apply that, and the worker
+  // installs no private relay until it has. Only that restart clears it: a renderer reloaded in the
+  // meantime has forgotten, but this node still presents the old identity.
+  //
+  // `relay` is the slot as main saved it, and the renderer sends this only after main's save
+  // succeeded, so the Activity Log row diffed here records a saved change and never a refused one.
   ipc.handle('network:set-relay', async (msg) => {
-    setRelayConfig(msg.mode, msg.relay)
+    const before = getRelayConfig()
+    const identityPending = before.identityPending || msg.deferApply === true
+    setRelayConfig(msg.mode, msg.relay ?? null, { identityPending })
     const applied = applyRelayConfig()
+    // The mode as stored, not as sent: an unknown word is stored as 'off', and both the row and the
+    // verdict have to describe the mode the swarm is now running.
+    const after = getRelayConfig()
+    const change = relayConfigRow(before, after)
+    if (change) record(change.kind, change.row)
     // A connection's `replaced` flag follows the slot, and no connection event reports a slot change.
     scheduleStatusEmit()
-    // The mode as stored, not as sent: an unknown word is stored as 'off', and the verdict has to
-    // describe the mode the swarm is now running.
-    const mismatch = relayMismatch(getRelayConfig().mode, snapshotRelayedConnections())
-    if (!mismatch || msg.deferApply) return { ok: true, ...applied, mismatch, reconnected: false }
+    const mismatch = relayMismatch(after.mode, snapshotRelayedConnections())
+    if (!mismatch || identityPending) return { ok: true, ...applied, mismatch, reconnected: false }
     if (await transfersMoving()) return { ok: true, ...applied, mismatch, reconnected: false }
     const res = await reconnectAll()
     return { ok: true, ...applied, mismatch, reconnected: res.ok === true }

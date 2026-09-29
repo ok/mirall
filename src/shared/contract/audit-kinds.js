@@ -86,6 +86,15 @@ export const KINDS = Object.freeze({
   // stretch ends with the person still connected directly.
   'network.peer_relayed': { category: CATEGORY.NETWORK, tier: 'B' },
   'network.peer_direct': { category: CATEGORY.NETWORK, tier: 'B' },
+  // Tier A: this install changed its relay. Unlike the settings listed as absent below, this is not
+  // housekeeping: a relay decides who can see that two devices are connected, when, and how much
+  // passes between them, and it is the "your relay" every relayed row names.
+  'relay.added': { category: CATEGORY.NETWORK, tier: 'A' },
+  'relay.replaced': { category: CATEGORY.NETWORK, tier: 'A' },
+  'relay.removed': { category: CATEGORY.NETWORK, tier: 'A' },
+  'relay.turned_on': { category: CATEGORY.NETWORK, tier: 'A' },
+  'relay.turned_off': { category: CATEGORY.NETWORK, tier: 'A' },
+  'relay.mode_changed': { category: CATEGORY.NETWORK, tier: 'A' },
 })
 
 // Absent on purpose — a kind that can never fire still shows in the search labels and the i18n
@@ -118,6 +127,7 @@ export const TARGET_KIND = Object.freeze({
   FILE: 'file',
   INVITE: 'invite',
   MEMBER: 'member',
+  RELAY: 'relay',
   SHARE: 'share',
   SPACE: 'space',
 })

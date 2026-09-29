@@ -50,7 +50,7 @@ import {
   configurePendingCancels,
   leavePendingCancelTopic,
 } from '../shared/network/leave-protocol.js'
-import { setRelayThrough } from '../shared/network/relay-install.js'
+import { installConfiguredRelay } from '../shared/network/relay-install.js'
 import { compactStore } from '../shared/storage/compaction.js'
 import { ContentSwarm } from '../shared/network/content-swarm.js'
 import { pokeMemberSpacesByKey } from '../shared/network/handshake-apply.js'
@@ -74,8 +74,8 @@ import { Sweeps } from './sweeps.js'
 // Apply the configured relay to BOTH swarms. Exported through the root because the
 // settings handler re-applies it at runtime.
 function applyRelayConfig(log) {
+  const res = installConfiguredRelay()
   const { mode, relay } = getRelayConfig()
-  const res = setRelayThrough(relay, mode)
   if (res.applied > 0) log.info('relay configured: mode', mode, relay?.kind === 'private' ? '(private)' : '(open)')
   else if (res.reason) log.warn('relay NOT configured:', res.reason)
   return res

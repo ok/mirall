@@ -5,6 +5,8 @@
 // state, because a row routinely outlives the space, share or peer it describes.
 import { formatDuration } from './connectivity.js'
 import { formatSize } from '../format/bytes.js'
+import { RELAY_MODES } from '../../shared/contract/relay-apply.js'
+import { RELAY_KINDS } from '../../shared/contract/relay-key.js'
 /** @import { AuditEntry, AuditFilters } from '../types/types.js' */
 
 /** @typedef {{ key: string | null, name: string | null }} ActorLabel */
@@ -212,11 +214,44 @@ function relayedForMeta(subject) {
   return relayedMs === null ? [] : [{ key: 'activityLog.relay.relayedFor', values: { duration: formatDuration(relayedMs) } }]
 }
 
-// The detail a kind adds after the generic fields.
+/** @type {ReadonlySet<string>} */
+const RELAY_KIND_SET = new Set(RELAY_KINDS)
+// 'off' is a turned_off row's whole sentence, never a detail.
+/** @type {ReadonlySet<string>} */
+const ACTIVE_RELAY_MODES = new Set(RELAY_MODES.filter((mode) => mode !== 'off'))
+
+/** @param {NonNullable<AuditEntry['subject']>} subject @returns {MetaPart[]} */
+function relayKindMeta(subject) {
+  return typeof subject.relayKind === 'string' && RELAY_KIND_SET.has(subject.relayKind)
+    ? [{ key: 'networkSettings.relays.kind.' + subject.relayKind }]
+    : []
+}
+
+/** @param {NonNullable<AuditEntry['subject']>} subject @returns {MetaPart[]} */
+function relayModeMeta(subject) {
+  return typeof subject.mode === 'string' && ACTIVE_RELAY_MODES.has(subject.mode)
+    ? [{ key: 'activityLog.relay.mode.' + subject.mode }]
+    : []
+}
+
+/** @param {NonNullable<AuditEntry['subject']>} subject @returns {MetaPart[]} */
+function replacedRelayMeta(subject) {
+  const previous = [subject.previousLabel, subject.previous].find((v) => typeof v === 'string' && v)
+  return typeof previous === 'string' ? [{ key: 'activityLog.relay.previous', values: { previous } }] : []
+}
+
+// The detail a kind adds after the generic fields. The relay settings rows read closed sets, like
+// DENIAL_REASONS: a relay kind or mode written by another version renders nothing rather than a raw
+// key. turned_off adds nothing, because its sentence already names the relay.
 /** @type {Readonly<Record<string, (subject: NonNullable<AuditEntry['subject']>) => MetaPart[]>>} */
 const KIND_META = {
   'network.peer_relayed': relayedMeta,
   'network.peer_direct': relayedForMeta,
+  'relay.added': (subject) => [...relayKindMeta(subject), ...relayModeMeta(subject)],
+  'relay.replaced': (subject) => [...relayKindMeta(subject), ...relayModeMeta(subject), ...replacedRelayMeta(subject)],
+  'relay.removed': relayKindMeta,
+  'relay.turned_on': relayModeMeta,
+  'relay.mode_changed': relayModeMeta,
 }
 
 /** @param {string} kind @param {NonNullable<AuditEntry['subject']>} subject @returns {MetaPart[]} */

@@ -757,6 +757,17 @@ to end over the relayed stream.
   do and nothing is transferring, it reconnects, and it replies with `{ mismatch, reconnected }`. A
   pinned-identity change needs a new DHT node, so `relay:set` reports `identityChanged`, and the
   renderer restarts the worker via `pear:restartWorker` (`src/renderer/hooks/useRelayApply.ts`).
+  The renderer always sends the slot as saved, with `deferApply` set while that restart is pending;
+  the worker keeps both, holds the pending flag until the restart clears it, and installs through
+  `installConfiguredRelay`, which withholds a private relay until its identity is live
+  (`installableRelay`, `src/shared/network/relay.js`).
+- **Relay settings in the Activity Log.** Each saved relay change is one tier-A self row: `relay.added`, `relay.replaced`,
+  `relay.removed`, `relay.turned_on`, `relay.turned_off` or `relay.mode_changed`, target kind
+  `relay`. `network:set-relay` diffs the config before and after the save
+  (`src/shared/audit/relay-config-change.js`), and the renderer calls it only after `relay:set`
+  succeeded, so a refused save records nothing. A slot change outranks the mode change riding with
+  it, and a save that only stores a probe verdict or a new label records nothing. Rows name the relay by label and
+  the masked key (`src/shared/contract/relay-key.js`), never the full key.
 - **Provenance.** hyperdht discards which relay carries a stream.
   `src/shared/network/relay-observe.js` wraps `blind-relay`'s `Client.from` and records the relay
   key per raw stream on `'pair'`. `src/shared/network/relayed-connections.js` classifies each socket

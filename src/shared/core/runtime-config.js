@@ -49,8 +49,10 @@ export function setVerbose(verbose) {
   patch({ verbose })
 }
 
-export function setRelayConfig(mode, relay) {
-  patch({ relayMode: mode, relay })
+// The slot as saved, and whether the pinned identity it needs is waiting on a restart. What gets
+// installed is derived from both (network/relay.js installableRelay).
+export function setRelayConfig(mode, relay, { identityPending = false } = {}) {
+  patch({ relayMode: mode, relay, relayIdentityPending: identityPending })
 }
 
 export function setBandwidthLimits({ downloadKBps, uploadKBps } = {}) {
@@ -78,9 +80,9 @@ export function getStoragePath() {
   return config.storage
 }
 
-/** @returns {{ mode: RelayMode, relay: { [key: string]: JsonValue } | null }} */
+/** @returns {{ mode: RelayMode, relay: { [key: string]: JsonValue } | null, identityPending: boolean }} */
 export function getRelayConfig() {
-  return { mode: config.relayMode, relay: config.relay }
+  return { mode: config.relayMode, relay: config.relay, identityPending: config.relayIdentityPending }
 }
 
 export function getUpgradeKey() {
