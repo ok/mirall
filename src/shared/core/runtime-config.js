@@ -99,6 +99,10 @@ export function isMembershipControlBindingEnforced() {
   return config.membershipControlBindingEnforced
 }
 
+export function isTopicRefsEnforced() {
+  return config.topicRefsEnforced
+}
+
 export function isSharePrepareProgressEnabled() {
   return config.sharePrepareProgressEnabled
 }

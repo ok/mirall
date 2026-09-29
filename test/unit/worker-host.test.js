@@ -93,6 +93,16 @@ test('the membership control binding reaches the worker off unless feature-flags
   t.is(frames(on.worker)[1].membershipControlBindingEnforced, true)
 })
 
+test('topic-ref enforcement reaches the worker off unless feature-flags.json turns it on', (t) => {
+  const off = load()
+  off.host.getWorker(MAIN_WORKER_SPEC)
+  t.is(frames(off.worker)[1].topicRefsEnforced, false)
+  withEnv(t, { MIRALL_FEATURE_FLAGS: JSON.stringify({ topicRefs: true }) })
+  const on = load()
+  on.host.getWorker(MAIN_WORKER_SPEC)
+  t.is(frames(on.worker)[1].topicRefsEnforced, true)
+})
+
 test('REGRESSION (MIR-54: a packaged build took security flags from its environment): the MIRALL_* levers are ignored when packaged', (t) => {
   withEnv(t, {
     MIRALL_FEATURE_FLAGS: JSON.stringify({ handshakeIdentityBinding: false }),
