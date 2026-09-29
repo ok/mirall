@@ -29,13 +29,22 @@ export function decodeVault(obj, from) {
   return map
 }
 
+// Top-level slots reserved for secrets beside the space keys (a person-level secret). A build that
+// does not use one still carries it through every rewrite, so a newer build's secret survives an
+// older build persisting the vault.
+const RESERVED_SLOTS = ['person']
+
+export function reservedSlots(obj) {
+  return Object.fromEntries(RESERVED_SLOTS.filter((name) => obj?.[name] !== undefined).map((name) => [name, obj[name]]))
+}
+
 const isEpochZeroOnly = (entry) => entry.epoch === 0 && entry.history.length === 0
 
-export function encodeVault(map, toHex) {
+export function encodeVault(map, toHex, reserved = {}) {
   const entries = {}
   if ([...map.values()].every(isEpochZeroOnly)) {
     for (const [spaceId, { key }] of map) entries[spaceId] = toHex(key)
-    return { v: 1, entries }
+    return { v: 1, entries, ...reserved }
   }
   for (const [spaceId, { epoch, key, history }] of map) {
     entries[spaceId] = {
@@ -44,7 +53,7 @@ export function encodeVault(map, toHex) {
       history: history.map((h) => ({ epoch: h.epoch, key: toHex(h.key) })),
     }
   }
-  return { v: 2, entries }
+  return { v: 2, entries, ...reserved }
 }
 
 // Set the key for one epoch. Every key at a lower epoch is kept as history; the key at the same

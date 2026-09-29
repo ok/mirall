@@ -8,11 +8,12 @@ import { wrap, unwrap } from '../core/identity-envelope.js'
 import { getSpaceKeysVaultKey, getStoragePath } from '../core/store.js'
 import { writeFileAtomic } from '../core/atomic-file.js'
 import { Subsystem } from '../core/subsystem.js'
-import { decodeVault, encodeVault, setEntry, keyForEpoch } from './space-keys-codec.js'
+import { decodeVault, encodeVault, reservedSlots, setEntry, keyForEpoch } from './space-keys-codec.js'
 
 // bare-fs/bare-path are loaded lazily so importing this module never needs the Bare runtime
 // globals; only the vault's fs paths do, and those run in the worker.
 let map = new Map()   // spaceId -> { epoch, key, history }
+let reserved = {}
 
 const toHex = (buf) => b4a.toString(buf, 'hex')
 
@@ -24,6 +25,7 @@ async function keysFile() {
 /** @internal production opens the key store through this file's own _open() */
 export async function initSpaceKeys() {
   map = new Map()
+  reserved = {}
   const vault = getSpaceKeysVaultKey()
   if (!vault) return
   const fs = (await import('bare-fs')).default
@@ -35,7 +37,9 @@ export async function initSpaceKeys() {
     vault,
   )
   if (!plain) throw new Error('space-keys: unlock failed')
-  map = decodeVault(JSON.parse(b4a.toString(plain)), b4a.from)
+  const vaultPlain = JSON.parse(b4a.toString(plain))
+  map = decodeVault(vaultPlain, b4a.from)
+  reserved = reservedSlots(vaultPlain)
 }
 
 // The key for one epoch, current or historical. The space record names the epoch an own core is
@@ -64,7 +68,7 @@ export async function putContentKey(spaceId, sck, { epoch = 0 } = {}) {
 async function persist() {
   const vault = getSpaceKeysVaultKey()
   if (!vault) throw new Error('space-keys: identity mode required to persist content keys')
-  const plain = encodeVault(map, toHex)
+  const plain = encodeVault(map, toHex, reserved)
   const { nonce, ciphertext } = wrap(b4a.from(JSON.stringify(plain)), vault)
   const env = {
     v: 1,
@@ -80,5 +84,6 @@ export class SpaceKeysVault extends Subsystem {
   async _close() {
     for (const buf of listContentKeys()) { try { b4a.fill(buf, 0) } catch {} }
     map = new Map()
+    reserved = {}
   }
 }
