@@ -10,7 +10,6 @@
 import Hypercore from 'hypercore'
 import Protomux from 'protomux'
 import b4a from 'b4a'
-import { getStore } from '../core/store.js'
 import { createLogger } from '../core/logger.js'
 import { mapLimit } from '../core/concurrency.js'
 import { socketToPeers } from './swarm-registries.js'
@@ -25,6 +24,16 @@ const HEX64 = /^[0-9a-f]{64}$/i
 
 // socket → hex discovery keys asked for before admission. Present only while the socket is gated.
 const earlyAsks = new WeakMap()
+
+let currentStore = () => null
+
+export function initReplicationGate(deps) {
+  currentStore = deps.getStore
+}
+
+export function resetReplicationGate() {
+  currentStore = () => null
+}
 
 export function gateReplication(socket) {
   const asked = new Set()
@@ -51,9 +60,11 @@ export function replicateOn(socket) {
   // Corestore forgets a stream only on its 'close', which a socket already closing has emitted or
   // is about to: attaching it now would leave the stream tracked forever.
   if (!asked || socket.destroying || socket.destroyed) return false
+  const store = currentStore()
+  if (!store) return false
   earlyAsks.delete(socket)
   try {
-    getStore().replicate(socket)
+    store.replicate(socket)
   } catch (err) {
     log.warn('replication attach failed:', err.message)
     return false
@@ -85,8 +96,9 @@ export async function attachPeerCore(socket, profileKeyHex) {
 // and only once the session opened: attaching one that failed would destroy the mux.
 async function attachCore(socket, opts) {
   const mux = socket.userData
-  if (!Protomux.isProtomux(mux) || socket.destroying || socket.destroyed) return null
-  const core = getStore().get({ ...opts, active: false })
+  const store = currentStore()
+  if (!store || !Protomux.isProtomux(mux) || socket.destroying || socket.destroyed) return null
+  const core = store.get({ ...opts, active: false })
   try {
     await core.ready()
   } catch (err) {

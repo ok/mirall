@@ -1,10 +1,10 @@
 // The control plane's composition root. It builds the DHT node and the Hyperswarm, wires the
 // collaborators that make up the peer-connection layer, and tears all of it down again.
 //
-// One Hyperswarm topic per space, one Noise socket per peer carrying Corestore replication, the
-// `mirall/handshake` JSON channel and the overlay content channel over Protomux. What arrives on a
-// socket is peer-connection.js; what an admitted handshake means is handshake-apply.js; what we
-// announce is identity-frames.js; topics are space-topics.js.
+// One Hyperswarm topic per space, one Noise socket per peer carrying the `mirall/handshake` JSON
+// channel, the overlay content channel and, once the peer is admitted, Corestore replication. What
+// arrives on a socket is peer-connection.js; what an admitted handshake means is handshake-apply.js;
+// what we announce is identity-frames.js; topics are space-topics.js.
 //
 // Nothing here runs at import. Every collaborator is wired in _open and released in _close, so a
 // worker that never starts a swarm carries none of this state.

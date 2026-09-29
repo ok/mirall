@@ -526,9 +526,10 @@ exception to that rule: it attaches only once the socket carries a peer admitted
 or one we exchanged a membership grant with (either side of it). A core key is all a peer needs to
 ask for a core, and the profile key rides every handshake, so before that point a socket is served
 nothing. That closes the plaintext profile bee and catalog cores to strangers, pending joiners and
-tombstoned leavers. Two reads need one peer's own records before its socket may replicate, and
-attach that peer's own core alone to its socket: a pending joiner checking a granter against the
-fold, and a member applying a leave (a replayed leave arrives on a socket that never replicates).
+tombstoned leavers. Two reads need records before the socket may replicate, and attach only the
+cores they read to that socket: a pending joiner checking a granter against the fold attaches the
+roster cores the walk from the creator reads, and a member applying a leave attaches the leaver's
+own core (a replayed leave arrives on a socket that never replicates).
 Protomux rejects a hypercore channel the remote opens before we attach, and the remote does not ask
 again until its core next turns downloading, so the gate remembers what the socket asked for and
 offers those cores from our side on admission. The gate is per socket, not per core: hypercore has

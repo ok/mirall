@@ -6,7 +6,7 @@ import Protomux from 'protomux'
 import c from 'compact-encoding'
 import b4a from 'b4a'
 import idEncoding from 'hypercore-id-encoding'
-import { diagnoseStoreCores, isStorageInconsistency } from '../core/store.js'
+import { getStore, diagnoseStoreCores, isStorageInconsistency } from '../core/store.js'
 import { createLogger } from '../core/logger.js'
 import { applyNetImpairment } from './net-impair.js'
 import { noteConnection } from './connectivity.js'
@@ -17,7 +17,7 @@ import { sendPendingLeaveFrames, sendPendingCancelFrames } from './leave-protoco
 import { spaceTopics, socketMsgHandlers, memberOnSocket } from './swarm-registries.js'
 import { relayPairingFor } from './relay-observe.js'
 import { trackConnection } from './relayed-connections.js'
-import { gateReplication } from './replication-gate.js'
+import { gateReplication, initReplicationGate, resetReplicationGate } from './replication-gate.js'
 
 const log = createLogger('peer-connection')
 
@@ -27,6 +27,7 @@ let getAttachHook = () => null
 
 export function initPeerConnection(deps) {
   getAttachHook = deps.getAttachHook
+  initReplicationGate({ getStore })
 }
 
 function relayNote(socket) {
@@ -122,5 +123,6 @@ export function acceptConnection(socket, peerInfo) {
 
 export function resetPeerConnection() {
   getAttachHook = () => null
+  resetReplicationGate()
   corruptionDiagnosed = false
 }

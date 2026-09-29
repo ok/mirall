@@ -24,7 +24,7 @@ import { classifyInvite } from '../../shared/spaces/invites.js'
 import { applyLocalApproval, applyLocalDenial, closeMemberView, dropTombstone, isApprovedJoiner, isDeniedJoiner, isLeft, openMemberView } from '../../shared/spaces/member-registry.js'
 import { ASK_PEERS, denyVerdict, granterVerdict, knockSettledByRecords, knockInviteVerdict } from '../../shared/spaces/knock-policy.js'
 import { foldHoldsMember } from '../../shared/spaces/member-view.js'
-import { captureJoinerMembership, getIdentitySigner, markRequest, markRequestDenied, ownDenialStands, readProfileRecord } from '../../shared/spaces/profile.js'
+import { captureJoinerMembership, getIdentitySigner, markRequest, markRequestDenied, ownDenialStands, readMembershipRecord, readProfileRecord } from '../../shared/spaces/profile.js'
 import { getSpace, getSpaceContentKey, spaceEpoch } from '../../shared/spaces/space.js'
 import { verifiedMembers, isVerifiedMember } from '../../shared/spaces/member-standing.js'
 import { claimJoinRequestAudit, clearJoinRequest, forgetJoinRequestAudit, hasApprovedVerdict, listJoinRequests, listPendingRequests, recordJoinRequest, releaseJoinRequestAudit, rememberApprovedVerdict } from '../../shared/spaces/join-requests.js'
@@ -319,25 +319,38 @@ async function onGrant(msg, ctx = {}) {
   ipc.emit('event:membership-granted', { spaceId })
 }
 
-// The fold check reads the granter's own records, which may reach us only from the granter. Its
-// core alone is attached to its socket for the check: the socket is not replicating yet, and must
-// not until the grant is applied.
+// The fold check walks this space's roster from the creator to the granter, and a pending joiner
+// may hold none of those records: the granter does. So each core the walk reads is attached to the
+// granter's socket alone, which replicates nothing else until the grant is applied. What the socket
+// can read from us is limited to those same roster cores.
 /** @param {object | undefined} socket @param {string} spaceId @param {StoredSpace} space @param {string | null} granterKey */
 async function granterRecognizedOver(socket, spaceId, space, granterKey) {
-  const pulled = socket && granterKey ? await attachPeerCore(socket, granterKey) : null
+  /** @type {{ close: () => Promise<void> }[]} */
+  const attached = []
+  /** @param {string} key */
+  const readOver = async (key) => {
+    const core = socket ? await attachPeerCore(socket, key) : null
+    if (core) attached.push(core)
+    return readMembershipRecord(key, spaceId)
+  }
   try {
-    return await granterRecognized(spaceId, space, granterKey)
+    return await granterRecognized(spaceId, space, granterKey, readOver)
   } finally {
-    try { await pulled?.close() } catch (err) { log.debug('granter core session close failed:', errorMessage(err)) }
+    for (const core of attached) {
+      try { await core.close() } catch (err) { log.debug('roster core session close failed:', errorMessage(err)) }
+    }
   }
 }
 
-/** @param {string} spaceId @param {StoredSpace} space @param {string | null} granterKey */
-async function granterRecognized(spaceId, space, granterKey) {
+/**
+ * @param {string} spaceId @param {StoredSpace} space @param {string | null} granterKey
+ * @param {(key: string) => Promise<object | null>} readRecord
+ */
+async function granterRecognized(spaceId, space, granterKey, readRecord) {
   const creatorKey = space.creatorKey ?? null
   const verdict = granterVerdict({ granterKey, inviteOwner: space.inviteOwner ?? null, creatorKey })
   if (verdict !== 'check-fold' || !granterKey || !creatorKey) return verdict === 'accept'
-  return foldHoldsMember({ spaceId, creatorKey, key: granterKey })
+  return foldHoldsMember({ spaceId, creatorKey, key: granterKey, readRecord })
 }
 
 // A pending joiner withdrew their request (an ephemeral Tier-3 lifecycle signal) — drop our banner. Only the

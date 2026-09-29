@@ -5,12 +5,15 @@ import { makePeer } from '../helpers/peer-bee.js'
 import { scaled } from '../helpers/bare-timing.js'
 import { getStore } from '../../src/shared/core/store.js'
 import { getProfileKey } from '../../src/shared/spaces/profile.js'
-import { attachPeerCore, gateReplication, replicateOn } from '../../src/shared/network/replication-gate.js'
+import { attachPeerCore, gateReplication, initReplicationGate, replicateOn, resetReplicationGate } from '../../src/shared/network/replication-gate.js'
 
 // Our side runs the gate on a real Noise socket; the remote is a plain corestore that replicates
 // everything, as any peer on the topic can. The remote needs nothing but a core key to ask for a
 // core, so each case hands it one.
 async function connect(t) {
+  // The swarm wires the gate's store; these tests boot without one.
+  initReplicationGate({ getStore })
+  t.teardown(resetReplicationGate)
   const remote = await makePeer(t)
   const ours = new NoiseSecretStream(true)
   const theirs = new NoiseSecretStream(false)

@@ -72,16 +72,17 @@ export async function deriveMemberSet({ creatorKey, selfKey, readRecord }) {
 
 // Whether the member set rooted at `creatorKey` holds `key`, from one bounded pass over the
 // replicated records: for a peer with no live view yet (a pending joiner vetting its granter). An
-// unreadable root holds nobody, so the answer fails closed.
+// unreadable root holds nobody, so the answer fails closed. `readRecord` replaces the plain read
+// for a caller that has to route each record's core first.
 /**
- * @param {{ spaceId: string, creatorKey: string, key: string }} args
+ * @param {{ spaceId: string, creatorKey: string, key: string, readRecord?: (key: string) => Promise<object | null> }} args
  * @returns {Promise<boolean>}
  */
-export async function foldHoldsMember({ spaceId, creatorKey, key }) {
+export async function foldHoldsMember({ spaceId, creatorKey, key, readRecord = (k) => readMembershipRecord(k, spaceId) }) {
   const { members } = await deriveMemberSet({
     creatorKey,
     selfKey: getLocalPublicKeyHex(),
-    readRecord: (k) => readMembershipRecord(k, spaceId),
+    readRecord,
   })
   return members.has(key)
 }
