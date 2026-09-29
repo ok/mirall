@@ -186,7 +186,7 @@ const PEER_FRAME_HANDLERS = Object.freeze({
   // degrade that peer, not crash the worker.
   [PEER_FRAME.HANDSHAKE]: (conn, msg, spaceId, bound) => {
     const park = bound ? () => registerPendingRequester(conn, msg.profileKey, true) : null
-    return handleHandshake(conn.socket, msg, spaceId, { park }).catch((err) => log.warn('handshake handling failed:', err?.message || err))
+    return handleHandshake(conn.socket, msg, spaceId, { park, bound }).catch((err) => log.warn('handshake handling failed:', err?.message || err))
   },
   [PEER_FRAME.PRESENCE]: ({ socket }, msg, spaceId) => handlePresenceFrame(socket, msg, spaceId),
   [PEER_FRAME.LEAVE]: ({ socket, peerInfo }, msg) =>

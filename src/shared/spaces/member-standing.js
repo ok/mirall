@@ -21,3 +21,7 @@ export function verifiedMembers(members) {
 export function isVerifiedMember(members, key) {
   return (members || []).some((m) => m?.publicKey === key && !m.unverified)
 }
+
+export function isUnverifiedMember(members, key) {
+  return (members || []).some((m) => m?.publicKey === key && m.unverified === true)
+}

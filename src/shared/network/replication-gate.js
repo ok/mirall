@@ -91,6 +91,19 @@ export async function attachPeerCore(socket, profileKeyHex) {
   return attachCore(socket, { key: b4a.from(profileKeyHex, 'hex') })
 }
 
+// One peer's own core on a socket that replicates nothing yet, held until the socket closes, for a
+// peer that has to read it before either side admits the other. An admitted socket is left to the
+// store, which already serves every core there.
+export async function holdPeerCore(socket, profileKeyHex) {
+  if (!earlyAsks.has(socket)) return false
+  const core = await attachPeerCore(socket, profileKeyHex)
+  if (!core) return false
+  const release = () => core.close().catch((err) => log.debug('held core close failed:', err.message))
+  if (socket.destroyed) release()
+  else socket.once('close', release)
+  return true
+}
+
 // An inactive session, so the core turns downloading only for a reader that wants it and is not
 // pushed to every other replicating stream. It attaches to the mux gateReplication gave the socket,
 // and only once the session opened: attaching one that failed would destroy the mux.

@@ -21,6 +21,8 @@ import { scheduleStatusEmit } from './network-status.js'
 import { memberWaits } from './share-wait.js'
 import { clearWaitingFor } from '../transfer/serve-ledger.js'
 import { replicateOn } from './replication-gate.js'
+import { servePendingLeave } from './leave-protocol.js'
+import { isUnverifiedMember } from '../spaces/member-standing.js'
 import {
   connectedPeers, socketToPeers, socketMsgHandlers, pendingRequesters, announceLedger,
   forgetBoundSignerKey,
@@ -198,18 +200,19 @@ function replyReciprocalHandshake(socket, spaceId, msg, isNewToSpace) {
 }
 
 // `park` parks the sender's socket for a deferred readmit; only a frame whose binding verified carries it.
-export async function handleHandshake(socket, msg, spaceId, { park = null } = {}) {
+export async function handleHandshake(socket, msg, spaceId, { park = null, bound = false } = {}) {
   msg.displayName = clampDisplayName(msg.displayName)
   log.info('handshake received from', msg.displayName)
 
   const space = await getSpace(spaceId)
 
   // No local record for a topic we resolved means the topic is only joined for a pending-leave
-  // replay (the space was purged). We only broadcast leave frames on it — we never admit its
-  // peers. Stop here: the admit gate below optional-chains past a null space, which would
+  // replay (the space was purged). We only broadcast leave frames on it and serve our own core to
+  // the roster it is owed to — we never admit its peers. Stop here: the admit gate below optional-chains past a null space, which would
   // otherwise register an unadmitted peer into connectedPeers/presence for a space that no
   // longer exists (and emit reconcile hints the renderer can't resolve).
   if (!space) {
+    if (bound) await servePendingLeave(socket, spaceId, msg.profileKey)
     log.debug('handshake for a space with no local record — ignoring:', spaceId)
     return
   }
@@ -226,6 +229,10 @@ export async function handleHandshake(socket, msg, spaceId, { park = null } = {}
     }
     return
   }
+
+  // The inviter we hold unverified waits on the gate's reads, which can outlast a leave of ours;
+  // parked now, it is reachable by that leave on this socket.
+  if (park && isUnverifiedMember(space.members, msg.profileKey)) park()
 
   // Read gate: only admit a peer we (or a co-member) approved; everyone else is recorded as a
   // converging join request and the handshake stops here.

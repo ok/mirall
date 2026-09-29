@@ -3,7 +3,7 @@
 // leave-records.js:
 //   space/<spaceId>            the space record (below)
 //   left/<spaceId>/<memberKey> a leave tombstone: { leaveTs }
-//   pendingleave/<spaceId>     an interrupted leave boot must finish: { topic, ts }
+//   pendingleave/<spaceId>     an interrupted leave boot must finish: { topic, ts, members }
 //
 // A space record is written whole by createSpace and joinSpace and patched through mutateSpace
 // thereafter. Seven fields are always present — name, icon, topic, created, members, driveSuffix,

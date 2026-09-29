@@ -319,7 +319,7 @@ session-level timeout so an abandoned read cannot pin the core. Budgets:
 |---|---|
 | `space/<spaceId>` | space record (below) |
 | `left/<spaceId>/<memberKey>` | `{ leaveTs }` — a leave we observed; keeps the leaver subtracted from our fold across restarts until a strictly-later `member/` ts |
-| `pendingleave/<spaceId>` | `{ topic, ts }` — our leave not yet acked by any co-member; re-announced until one does (§6) |
+| `pendingleave/<spaceId>` | `{ topic, ts, members }` — our leave not yet acked by any co-member; re-announced until one does, and our own core served to the listed roster over the replay (§6) |
 
 `spaceId` = first 16 hex chars of the 32-byte topic. The record always holds
 `name, icon, topic, created, members, driveSuffix, schemaVersion:2`; every other field is a
@@ -533,7 +533,14 @@ nothing. That closes the plaintext profile bee and catalog cores to strangers, p
 tombstoned leavers. Two reads need records before the socket may replicate, and attach only the
 cores they read to that socket: a pending joiner checking a granter or denier against the fold attaches the
 roster cores the walk from the creator reads, and a member applying a leave attaches the leaver's
-own core (a replayed leave arrives on a socket that never replicates).
+own core (a replayed leave arrives on a socket that never replicates). A channel opens only when
+both ends pair the core, so the leaver holds its own core (`holdPeerCore`) on every socket its
+departure has to be read over but that it has not admitted: the parked socket of a roster member
+still in the gate (an unverified inviter is parked as soon as its bound handshake arrives), and,
+for a replay, the socket of a roster member whose bound handshake names the purged space. The
+pending-leave marker keeps the roster for that. A leave whose read still fails is read again a
+bounded number of times while the frame's socket stays open: a peer that vanished holding an older
+copy of the leaver's core keeps the head request until its own socket times out.
 Protomux rejects a hypercore channel the remote opens before we attach, and the remote does not ask
 again until its core next turns downloading, so the gate remembers what the socket asked for and
 offers those cores from our side on admission. The gate is per socket, not per core: hypercore has
