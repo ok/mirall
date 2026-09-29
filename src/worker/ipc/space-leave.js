@@ -49,8 +49,8 @@ async function armPendingLeaveIfUnwitnessed(spaceId, space, log) {
   if (others.every((k) => acked.has(k))) return false
   try {
     const leaveTs = Date.now()
-    await persistPendingLeave(spaceId, space.topic, leaveTs)
-    registerPendingLeave(spaceId, space.topic, leaveTs)
+    await persistPendingLeave(spaceId, space.topic, leaveTs, others)
+    registerPendingLeave(spaceId, space.topic, leaveTs, others)
     log.info('leave unwitnessed — pending-leave marker armed:', spaceId)
     return true
   } catch (err) {
@@ -76,9 +76,9 @@ function rejoinPendingLeaveTopicAfterTeardown(spaceId, space, log) {
 // catalog the purge closes.
 /**
  * @param {string} spaceId
- * @param {{ ipc: WorkerIpc, mounts: WorkerRoot['mounts'], log: Logger, onPhase: (phase: string) => void }} deps
+ * @param {{ ipc: WorkerIpc, mounts: WorkerRoot['mounts'], log: Logger, onPhase: (phase: string) => void, rosterKeys: string[] }} deps
  */
-function liveLeaveSteps(spaceId, { ipc, mounts, log, onPhase }) {
+function liveLeaveSteps(spaceId, { ipc, mounts, log, onPhase, rosterKeys }) {
   return {
     clearMembership: async () => {
       // Best-effort here, unlike the boot pass's hard gate: the purge steps below still have
@@ -87,7 +87,7 @@ function liveLeaveSteps(spaceId, { ipc, mounts, log, onPhase }) {
         log.warn('clearOwnMembership failed:', errorMessage(err))
       }
       onPhase('leave-frame')
-      try { sendLeaveFrameToConnectedPeers(spaceId) } catch (err) {
+      try { await sendLeaveFrameToConnectedPeers(spaceId, rosterKeys) } catch (err) {
         log.warn('leave-frame broadcast failed:', errorMessage(err))
       }
     },
@@ -186,7 +186,8 @@ export function registerSpaceLeave(ipc, { log, mounts, discardPendingSpace, drop
         // written and announced when co-members apply the leave and their live-follow can re-host it
         // for members offline at leave time. Same step order as boot's pass (spaces/membership/leave-state.js).
         const onPhase = (/** @type {string} */ phase) => { tracker.phase = phase }
-        await runLeaveTeardown(msg.spaceId, liveLeaveSteps(msg.spaceId, { ipc, mounts, log, onPhase }), { log, onPhase })
+        const rosterKeys = (pending?.members || []).map((m) => m.publicKey)
+        await runLeaveTeardown(msg.spaceId, liveLeaveSteps(msg.spaceId, { ipc, mounts, log, onPhase, rosterKeys }), { log, onPhase })
         log.info('leave: own state cleared, waiting flush...')
 
         // Wait (bounded) for connected members to confirm they applied our leave — an observed signal

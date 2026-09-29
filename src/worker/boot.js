@@ -340,8 +340,9 @@ async function resumeInterruptedLeaves(knownSpaces, log) {
     // announced once a co-member connects. Armed before the resume deletes the record: the
     // replay setup below skips markers whose record still exists, so a failed resume merely
     // retires this marker until the next boot re-arms it. Solo spaces skip (nobody to tell).
-    if (space.topic && (space.members || []).length) {
-      try { await persistPendingLeave(space.spaceId, space.topic, Date.now()) } catch (err) {
+    const members = (space.members || []).map((m) => m.publicKey)
+    if (space.topic && members.length) {
+      try { await persistPendingLeave(space.spaceId, space.topic, Date.now(), members) } catch (err) {
         log.warn('interrupted-leave replay arm failed:', space.spaceId, '-', err.message)
       }
     }
@@ -442,7 +443,7 @@ async function replayPendingLeaves(swarm, log) {
       // space) — drop the stale marker rather than replaying a leave for a live space, which would
       // otherwise swarm.leave() its topic on the first ack and strand it deaf until restart.
       if (!pl.topic || await getSpace(pl.spaceId)) { await clearPendingLeave(pl.spaceId); continue }
-      registerPendingLeave(pl.spaceId, pl.topic, pl.ts || Date.now())
+      registerPendingLeave(pl.spaceId, pl.topic, pl.ts || Date.now(), pl.members)
       if (swarm) joinPendingLeaveTopic(pl.spaceId, pl.topic)
       log.info('replaying pending leave for space', pl.spaceId)
     }

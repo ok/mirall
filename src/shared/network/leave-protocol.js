@@ -25,8 +25,8 @@ import { record } from '../audit/audit-log.js'
 import { peerLeft } from '../audit/network-watch.js'
 import { markLeft, applyLocalRevocation, adoptVouchees, isLeft, persistTombstoneWithinCap } from '../spaces/member-registry.js'
 import { capturePeerBee } from '../spaces/peer-bee.js'
-import { attachPeerCore, closeIfUnadmitted } from './replication-gate.js'
-import { connectedPeers, socketToPeers, spaceTopics, spaceDiscoveries, socketMsgHandlers, authorizedOn, detachPeerFromSpace, forgetPeerOnSocket, forgetBoundSignerKey } from './swarm-registries.js'
+import { attachPeerCore, closeIfUnadmitted, holdPeerCore } from './replication-gate.js'
+import { connectedPeers, socketToPeers, spaceTopics, spaceDiscoveries, socketMsgHandlers, pendingRequesters, authorizedOn, detachPeerFromSpace, forgetPeerOnSocket, forgetBoundSignerKey } from './swarm-registries.js'
 import { TARGET_KIND } from '../contract/audit-kinds.js'
 import { peerActor, spaceRef, targetRef } from '../audit/audit-record.js'
 import { controlSenderFields, getLocalBinding } from './identity-frames.js'
@@ -34,6 +34,7 @@ import { topicField, frameSpace } from './topic-refs.js'
 import { presence } from './presence-leases.js'
 import { memberWaits } from './share-wait.js'
 import { clearWaitingFor } from '../transfer/serve-ledger.js'
+import { createTimers } from '../core/timers.js'
 
 let log = null
 let getRevokeServesHook = () => null
@@ -125,7 +126,18 @@ function disconnectLeaver(profileKey, spaceId, frameSocket) {
   return sockets.filter((s) => !socketToPeers.has(s))
 }
 
-export async function handleLeaveFrame(socket, peerInfo, msg) {
+// A deferred leave is read again while the frame's socket stays up. The read can lose to a peer that
+// went away holding an older copy of the leaver's core: its socket stays open until it times out,
+// and the head request sent to it waits that long.
+const LEAVE_READ_ATTEMPTS = 3
+const LEAVE_READ_RETRY_MS = 1000
+let timers = createTimers()
+
+export function handleLeaveFrame(socket, peerInfo, msg) {
+  return receiveLeave(socket, peerInfo, msg, 1)
+}
+
+async function receiveLeave(socket, peerInfo, msg, attempt) {
   const { spaceId, profileKey } = msg
   if (typeof spaceId !== 'string' || typeof profileKey !== 'string') return
 
@@ -158,11 +170,16 @@ export async function handleLeaveFrame(socket, peerInfo, msg) {
   // it, the departure it holds is ours to re-host, and a replayed leave arrives on a socket that
   // never replicates.
   const pulled = await attachPeerCore(socket, profileKey)
+  let applied
   try {
-    await applyLeave(socket, space, msg, alreadyLeft)
+    applied = await applyLeave(socket, space, msg, alreadyLeft)
   } finally {
     try { await pulled?.close() } catch (err) { log.debug('leaver core session close failed:', err.message) }
   }
+  if (applied || attempt >= LEAVE_READ_ATTEMPTS || socket.destroying || socket.destroyed) return
+  timers.setTimeout(() => {
+    receiveLeave(socket, peerInfo, msg, attempt + 1).catch((err) => log.warn('leave retry failed:', err.message))
+  }, LEAVE_READ_RETRY_MS)
 }
 
 async function applyLeave(socket, space, msg, alreadyLeft) {
@@ -170,13 +187,13 @@ async function applyLeave(socket, space, msg, alreadyLeft) {
   // Take over the leaver's vouchees before touching anything else. The revoke below unroots the
   // leaver, and from then on the fold stops walking its bee, so the subtree it alone vouched for
   // could never be recovered. The leaver is connected right now, which is the best window there is
-  // to read that record. When it is unreadable, apply NOTHING: the replication-driven path retries
-  // once the departure record lands, which is strictly better than tombstoning here while our vouch
-  // still stands (a tombstone would suppress every retry). A tombstoned leaver was adopted from
-  // when it was tombstoned.
+  // to read that record. When it is unreadable, apply NOTHING: the frame is read again while its
+  // socket stays up, and the replication-driven path retries once the departure record lands. Both
+  // are strictly better than tombstoning here while our vouch still stands (a tombstone would
+  // suppress every retry). A tombstoned leaver was adopted from when it was tombstoned.
   if (!alreadyLeft && !(await adoptVouchees(spaceId, profileKey))) {
     log.warn('leave frame deferred — leaver record unreadable, cannot adopt:', profileKey.slice(0, 12))
-    return
+    return false
   }
 
   // Started before the ack, because an acked leaver tears its socket down: the capture holds the
@@ -216,6 +233,7 @@ async function applyLeave(socket, space, msg, alreadyLeft) {
 
   await captured
   for (const s of unadmitted) closeIfUnadmitted(s)
+  return true
 }
 
 function announceLeft(spaceId, profileKey, leftSnapshot) {
@@ -231,7 +249,7 @@ function announceLeft(spaceId, profileKey, leftSnapshot) {
 }
 
 // ── pending outbound leaves (leave-while-alone recovery) ────────────────────────
-// spaceId → { topic, ts }. A leave that provably reached no member is re-announced on
+// spaceId → { topic, ts, members }. A leave that provably reached no member is re-announced on
 // every new connection until a co-member acks its durable apply. Seeded from the
 // pendingleave/ markers at boot (the space record itself is already purged); the worker
 // injects onApplied to clear the marker + leave the topic. ts is the ORIGINAL leave
@@ -243,8 +261,8 @@ let onPendingLeaveApplied = null
 
 export function configurePendingLeaves(onApplied) { onPendingLeaveApplied = onApplied }
 
-export function registerPendingLeave(spaceId, topicHex, ts) {
-  pendingLeaves.set(spaceId, { topic: topicHex, ts })
+export function registerPendingLeave(spaceId, topicHex, ts, members = []) {
+  pendingLeaves.set(spaceId, { topic: topicHex, ts, members })
 }
 
 export function unregisterPendingLeave(spaceId) { pendingLeaves.delete(spaceId) }
@@ -278,6 +296,14 @@ export async function leavePendingLeaveTopic(spaceId) {
   if (await leavePurgedSpaceTopic(spaceId)) log.info('left pending-leave topic:', spaceId)
 }
 
+// The replay reaches a co-member on a socket we never admit (the space is purged), so a roster
+// member whose bound handshake names the space is served our own core there to read the departure.
+export async function servePendingLeave(socket, spaceId, profileKey) {
+  if (!pendingLeaves.get(spaceId)?.members.includes(profileKey)) return
+  const self = getProfileKey()
+  if (self) await holdPeerCore(socket, b4a.toString(self, 'hex'))
+}
+
 export function sendPendingLeaveFrames(socket, msgHandler) {
   if (pendingLeaves.size === 0) return
   const profileKey = getProfileKey()
@@ -295,12 +321,19 @@ export function sendPendingLeaveFrames(socket, msgHandler) {
   }
 }
 
-export function sendLeaveFrameToConnectedPeers(spaceId) {
+// A co-member reads our departure from our own core over the socket the frame arrives on. One we
+// have not admitted yet sits parked on a socket that replicates nothing, so our core is held there
+// before the frame goes out.
+export async function sendLeaveFrameToConnectedPeers(spaceId, rosterKeys) {
   if (socketMsgHandlers.size === 0) return
   const profileKey = getProfileKey()
   if (!profileKey) return
   const profileKeyHex = b4a.toString(profileKey, 'hex')
   leaveAcks.set(spaceId, new Set())   // collect co-member acks BEFORE the frames go out (no missed-ack race)
+  for (const key of rosterKeys) {
+    const parked = pendingRequesters.get(key)
+    if (parked) await holdPeerCore(parked, profileKeyHex)
+  }
   const payload = JSON.stringify({
     type: PEER_FRAME.LEAVE,
     spaceId,
@@ -438,9 +471,11 @@ export function handleMembershipCancelAck(socket, msg) {
   Promise.resolve(onPendingCancelApplied?.(named.spaceId)).catch((err) => log.debug('pending-cancel clear failed:', err.message))
 }
 
-// What destroySwarm calls instead of clearing six containers by hand. The two onApplied hooks are
-// injected by the worker per boot, so they drop with everything else.
+// What destroySwarm calls instead of clearing each container and timer by hand. The two onApplied
+// hooks are injected by the worker per boot, so they drop with everything else.
 export function resetLeaveProtocol() {
+  timers.close()
+  timers = createTimers()
   leavingSpaces.clear()
   leaveAcks.clear()
   pendingLeaves.clear()

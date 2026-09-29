@@ -65,8 +65,8 @@ async function clearAllLeftTombstones(spaceId) {
 // the topic, until one co-member acks the durable apply and the marker clears.
 const PENDING_LEAVE_PREFIX = 'pendingleave/'
 
-export async function persistPendingLeave(spaceId, topic, ts) {
-  await spacesMeta().put(PENDING_LEAVE_PREFIX + spaceId, { topic, ts })
+export async function persistPendingLeave(spaceId, topic, ts, members = []) {
+  await spacesMeta().put(PENDING_LEAVE_PREFIX + spaceId, { topic, ts, members })
 }
 
 // Non-throwing by contract. A del that fails means the leave is re-announced at the next boot,
@@ -84,6 +84,7 @@ export async function listPendingLeaves() {
       spaceId: entry.key.slice(PENDING_LEAVE_PREFIX.length),
       topic: entry.value?.topic || null,
       ts: entry.value?.ts || 0,
+      members: Array.isArray(entry.value?.members) ? entry.value.members : [],
     })
   }
   return out

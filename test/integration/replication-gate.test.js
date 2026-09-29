@@ -1,11 +1,12 @@
 import test from 'brittle'
 import NoiseSecretStream from '@hyperswarm/secret-stream'
+import b4a from 'b4a'
 import { freshPeer } from '../helpers/store.js'
 import { makePeer } from '../helpers/peer-bee.js'
 import { scaled } from '../helpers/bare-timing.js'
 import { getStore } from '../../src/shared/core/store.js'
 import { getProfileKey } from '../../src/shared/spaces/profile.js'
-import { attachPeerCore, gateReplication, initReplicationGate, replicateOn, resetReplicationGate } from '../../src/shared/network/replication-gate.js'
+import { attachPeerCore, gateReplication, holdPeerCore, initReplicationGate, replicateOn, resetReplicationGate } from '../../src/shared/network/replication-gate.js'
 
 // Our side runs the gate on a real Noise socket; the remote is a plain corestore that replicates
 // everything, as any peer on the topic can. The remote needs nothing but a core key to ask for a
@@ -85,6 +86,32 @@ test('REGRESSION (MIR-47: a peer\'s own core read over its socket serves it noth
   t.ok(theirs && await firstBlock(theirs, 5000), 'we read the peer\'s own core over its socket')
   t.is(await firstBlock(mirror, 1500), null, 'while it still reads nothing of ours')
   t.is(await attachPeerCore(ours, 'not-a-key'), null, 'a malformed key attaches nothing')
+})
+
+test('REGRESSION (FIX-551: a core held on a gated socket is served there and nothing else is)', async (t) => {
+  await freshPeer(t)
+  const held = getStore().get({ name: 'gate-held-other', active: false })
+  await held.ready()
+  await held.append('other')
+  t.teardown(() => held.close())
+
+  const { ours, remote } = await connect(t)
+  const mirror = await mirrorOf(remote, getProfileKey())
+  const other = await mirrorOf(remote, held.key)
+  await settle()
+
+  t.ok(await holdPeerCore(ours, b4a.toString(getProfileKey(), 'hex')), 'the gated socket holds our profile core')
+  t.ok(await firstBlock(mirror, 5000), 'the remote reads it')
+  t.is(await firstBlock(other, 1500), null, 'and no other core of ours')
+})
+
+test('a socket that already replicates holds nothing extra', async (t) => {
+  await freshPeer(t)
+  const { ours } = await connect(t)
+  replicateOn(ours)
+
+  t.absent(await holdPeerCore(ours, b4a.toString(getProfileKey(), 'hex')), 'an admitted socket is left to the store')
+  t.absent(await holdPeerCore(ours, 'not-a-key'), 'as is a malformed key')
 })
 
 test('a socket that closed before admission is never attached', async (t) => {
