@@ -14,6 +14,9 @@ export const CODES = Object.freeze({
   EOWNERSHIP: 'EOWNERSHIP',
   FILE_NOT_ON_DEVICE: 'FILE_NOT_ON_DEVICE',
   FILE_SOURCE_MISSING: 'FILE_SOURCE_MISSING',
+  IDENTITY_NO_KEK: 'IDENTITY_NO_KEK',
+  IDENTITY_PROVIDER_MISMATCH: 'IDENTITY_PROVIDER_MISMATCH',
+  IDENTITY_UNLOCK_FAILED: 'IDENTITY_UNLOCK_FAILED',
   EPATH: 'EPATH',
   INVALID_INVITE: 'INVALID_INVITE',
   INVITE_EXPIRED: 'INVITE_EXPIRED',
@@ -84,6 +87,11 @@ export const INTERNAL_CODES = Object.freeze([
   'EHASHMISMATCH',
   'EIO',
   'EPATH',
+  // Boot faults: a worker that cannot resolve its identity answers no request, so no per-request
+  // sentence can reach the renderer.
+  'IDENTITY_NO_KEK',
+  'IDENTITY_PROVIDER_MISMATCH',
+  'IDENTITY_UNLOCK_FAILED',
   'INVALID_ARGUMENT',
   'NOT_FOUND',
   // Refused before any UI could show it: only the host can reach the requests it guards, and a

@@ -65,8 +65,7 @@ export async function launchPeer(t, { bootstrap, displayName = 'Peer', debug = f
   // in identity mode.
   storage = storage || path.join(tmp('peer'), 'app-storage')
   downloads = downloads || tmp('dl')
-  // An explicit `identityKEK: undefined` opts out — the one caller that wants a keyless (pre-MIR-02)
-  // store is identity-replication's migration test.
+  // Every worker unlocks with a KEK, as main's are: a bootstrap without one fails boot.
   flags = { identityKEK: kekFor(storage), ...flags }
   const sidecar = new Sidecar(WORKER_ENTRY)
   installExitBackstop()

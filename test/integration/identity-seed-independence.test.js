@@ -4,7 +4,7 @@ import fs from 'bare-fs'
 import path from 'bare-path'
 import Corestore from 'corestore'
 import { resolveMasterSecret } from '../../src/shared/core/identity.js'
-import { osKeychainProvider } from '../../src/shared/core/identity.js'
+import { osKeychainProvider } from '../../src/shared/core/unlock-provider.js'
 import { randomKEK } from '../../src/shared/core/identity-envelope.js'
 import { tmpDir } from '../helpers/bare-tmp.js'
 
