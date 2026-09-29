@@ -94,6 +94,7 @@ const STORE_WRITERS = {
   'store/reconcile.ts': 'the app-wide push bridges — one subscription each, installed once in main.tsx',
   'hooks/useProfile.ts': 'post-mutation, so one call is one user action however many components are mounted',
   'screens/settings/ActivityLogSettings.tsx': 'post-mutation, same reason',
+  'hooks/useIdentityStatus.ts': 'post-action (a restart the user asked for drops the stale lock answer), and a re-read of an unanswered status from the one consumer, App',
 }
 
 function walkRenderer(dir, out = []) {

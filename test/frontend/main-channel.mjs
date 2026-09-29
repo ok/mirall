@@ -83,9 +83,9 @@ export function keyEvents({ key, modifiers }) {
 
 // Runs inside the instance's main process (serialised with toString, so it closes over nothing).
 // The app window is the one that loaded the app:// bundle; the others are internal helpers.
-// Pickers never open natively: a folder pick (`dialog.showOpenDialog`) and a file pick (the page's
-// `<input type=file>`, intercepted over CDP) both wait for the path the harness queues with
-// armPick, in whichever order the two arrive.
+// Pickers never open natively: a folder or file pick (`dialog.showOpenDialog`), a save target
+// (`dialog.showSaveDialog`) and a page file pick (`<input type=file>`, intercepted over CDP) all wait
+// for the path the harness queues with armPick, in whichever order the two arrive.
 function installHooks() {
   const { BrowserWindow, Menu, dialog } = process.mainModule.require('electron')
   const appWindow = () => BrowserWindow.getAllWindows()
@@ -126,6 +126,10 @@ function installHooks() {
   dialog.showOpenDialog = () => new Promise((resolve) => openPicker((absPath) => {
     fe.picks++
     resolve({ canceled: false, filePaths: [absPath] })
+  }))
+  dialog.showSaveDialog = () => new Promise((resolve) => openPicker((absPath) => {
+    fe.picks++
+    resolve({ canceled: false, filePath: absPath })
   }))
   const attach = (wc) => {
     if (wc.debugger.isAttached()) return wc.debugger

@@ -40,7 +40,10 @@
     "identityTitle": "Identitätsschutz",
     "upToDate": "Aktuell.",
     "activityDesc": "Eine Aufzeichnung dessen, was in deinen Räumen passiert ist.",
-    "recordingOff": "Aufzeichnung ist aus · {{kept}}"
+    "recordingOff": "Aufzeichnung ist aus · {{kept}}",
+    "backupRecoveryKey": "Wiederherstellungsschlüssel sichern",
+    "backupRecoveryKeyDesc": "Speichere einen verschlüsselten Schlüssel, damit du deine Identität behältst, wenn du dieses Gerät verlierst.",
+    "backupRecoveryKeyDescWeak": "Dieses Gerät hat keinen Systemschlüsselbund — ein Wiederherstellungsschlüssel ist dein eigentlicher Schutz."
   },
   "spaces": {
     "title": "Geteilte",
@@ -1297,5 +1300,54 @@
     "protocolBody": "Teile von Mirall wurden aktualisiert und passen nicht mehr zusammen. Beende Mirall vollständig und öffne es erneut. Wenn das weiterhin auftritt, installiere die neueste Version neu.",
     "budgetTitle": "Der Hintergrunddienst von Mirall wurde beendet",
     "budgetBody": "Er wurde mehrmals hintereinander beendet und nicht neu gestartet. Beende Mirall vollständig und öffne es erneut."
+  },
+  "identityLocked": {
+    "title": "Dein Identitätsschlüssel ist gesperrt",
+    "body": "Wir konnten deinen Identitätsschlüssel auf diesem Gerät nicht entsperren — vielleicht hat sich dein sicherer Speicher geändert (ein neuer Computer, ein zurückgesetzter Schlüsselbund oder ein wiederhergestelltes Backup). Deine Daten sind sicher, bleiben aber gesperrt, bis du deinen Schlüssel wiederherstellst.",
+    "bodyProvider": "Dein Identitätsschlüssel wurde mit einer anderen Methode gesperrt, als diese App jetzt verwendet. Deine Daten sind sicher, bleiben aber gesperrt, bis du deinen Schlüssel wiederherstellst.",
+    "restore": "Mit Wiederherstellungsschlüssel wiederherstellen",
+    "retry": "Erneut versuchen",
+    "startFresh": "Neu beginnen und eine neue Identität erstellen",
+    "startFreshHint": "Die gesperrten Daten werden auf diesem Gerät beiseitegelegt, nicht gelöscht.",
+    "startFreshTitle": "Neu beginnen?",
+    "startFreshBody": "Mirall verschiebt die gesperrten Daten in einen eigenen Ordner daneben und beginnt mit einer neuen Identität. Deine Kontakte erkennen die neue Identität nicht wieder, und deine Räume sind nicht darauf.",
+    "startFreshConfirm": "Beiseitelegen und neu beginnen"
+  },
+  "recoveryBackup": {
+    "title": "Wiederherstellungsschlüssel sichern",
+    "intro": "Das ist der Hauptschlüssel zu deiner Mirall-Identität. Mit dieser Datei und ihrer Passphrase kannst du auf einem neuen Gerät wieder du selbst sein — auch wenn dein Computer oder Schlüsselbund weg ist.",
+    "weakDevice": "Dieses Gerät hat keinen Systemschlüsselbund, daher ist diese Sicherung dein eigentlicher Schutz gegen den Verlust deiner Identität.",
+    "passphraseLabel": "Passphrase wählen",
+    "passphrasePlaceholder": "Mindestens {{min}} Zeichen",
+    "passphraseHelp": "Du brauchst diese Passphrase zum Wiederherstellen. Wir können sie nicht zurücksetzen.",
+    "tooShort": "Verwende mindestens {{min}} Zeichen.",
+    "confirmLabel": "Passphrase bestätigen",
+    "confirmPlaceholder": "Passphrase erneut eingeben",
+    "mismatch": "Die Passphrasen stimmen nicht überein.",
+    "scopeRestoresLead": "Stellt wieder her:",
+    "scopeRestores": "deine Identität — deine Kontakte erkennen dich wieder und können dich erneut einladen.",
+    "scopeExcludesLead": "Stellt allein nicht wieder her:",
+    "scopeExcludes": "deine Liste der Räume oder Dateien in Räumen, die andere mit dir geteilt haben. Bewahre dafür auch eine Kopie deines Mirall-Datenordners auf.",
+    "warningsTitle": "Sicher aufbewahren",
+    "warningAccess": "Wer diese Datei und ihre Passphrase hat, kann deine Identität nutzen und deine Dateien lesen.",
+    "warningLostPassphrase": "Wenn du die Passphrase verlierst, ist die Datei unbrauchbar — und wir können sie nicht wiederherstellen.",
+    "warningNotFiles": "Das sichert deine Identität, nicht deine Dateien.",
+    "save": "Sicherungsdatei speichern…",
+    "savedToast": "Wiederherstellungsschlüssel am gewählten Ort gespeichert."
+  },
+  "recoveryRestore": {
+    "title": "Mit Wiederherstellungsschlüssel wiederherstellen",
+    "introChoose": "Wähle die Datei mit dem Wiederherstellungsschlüssel, die du gespeichert hast, und gib dann ihre Passphrase ein.",
+    "introPassphrase": "Gib die Passphrase für diesen Wiederherstellungsschlüssel ein.",
+    "chooseFile": "Datei mit Wiederherstellungsschlüssel wählen…",
+    "fileHint": "Mirall-Wiederherstellungsschlüssel (.mirallkey)",
+    "createdAt": "Erstellt am {{date}}",
+    "passphraseLabel": "Passphrase",
+    "restore": "Identität wiederherstellen",
+    "restarting": "Starte neu, um deine Identität zu laden…",
+    "notAKey": "Diese Datei ist kein Mirall-Wiederherstellungsschlüssel.",
+    "mismatchTitle": "Daten auf diesem Gerät ersetzen?",
+    "mismatchBody": "Dieser Wiederherstellungsschlüssel gehört zu einer anderen Identität als die Daten auf diesem Gerät. Beim Wiederherstellen werden diese Daten unlesbar, und das lässt sich nicht rückgängig machen.",
+    "mismatchConfirm": "Ersetzen und wiederherstellen"
   }
 }

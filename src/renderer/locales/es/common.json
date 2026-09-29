@@ -40,7 +40,10 @@
     "identityTitle": "Protección de identidad",
     "upToDate": "Actualizado.",
     "activityDesc": "Un registro de lo que ha ocurrido en tus espacios.",
-    "recordingOff": "El registro está desactivado · {{kept}}"
+    "recordingOff": "El registro está desactivado · {{kept}}",
+    "backupRecoveryKey": "Guarda una copia de tu clave de recuperación",
+    "backupRecoveryKeyDesc": "Guarda una clave cifrada para conservar tu identidad si pierdes este dispositivo.",
+    "backupRecoveryKeyDescWeak": "Este dispositivo no tiene llavero del sistema: una clave de recuperación es tu verdadera protección."
   },
   "spaces": {
     "title": "Espacios",
@@ -1297,5 +1300,54 @@
     "protocolBody": "Algunas partes de Mirall se actualizaron y ya no coinciden. Cierra Mirall por completo y vuelve a abrirlo. Si sigue ocurriendo, reinstala la última versión.",
     "budgetTitle": "El servicio en segundo plano de Mirall se detuvo",
     "budgetBody": "Se detuvo varias veces seguidas y no se reinició. Cierra Mirall por completo y vuelve a abrirlo."
+  },
+  "identityLocked": {
+    "title": "Tu clave de identidad está bloqueada",
+    "body": "No pudimos desbloquear tu clave de identidad en este dispositivo; puede que tu almacenamiento seguro haya cambiado (un ordenador nuevo, un llavero restablecido o una copia de seguridad restaurada). Tus datos están a salvo, pero seguirán bloqueados hasta que restaures tu clave.",
+    "bodyProvider": "Tu clave de identidad se bloqueó con un método distinto del que usa ahora la aplicación. Tus datos están a salvo, pero seguirán bloqueados hasta que restaures tu clave.",
+    "restore": "Restaurar con la clave de recuperación",
+    "retry": "Reintentar",
+    "startFresh": "Empezar de cero con una identidad nueva",
+    "startFreshHint": "Los datos bloqueados se apartan en este dispositivo, no se eliminan.",
+    "startFreshTitle": "¿Empezar de cero?",
+    "startFreshBody": "Mirall mueve los datos bloqueados a una carpeta aparte, junto a ellos, y empieza con una identidad nueva. Tus contactos no reconocerán la identidad nueva y tus espacios no estarán en ella.",
+    "startFreshConfirm": "Apartar y empezar de cero"
+  },
+  "recoveryBackup": {
+    "title": "Guarda una copia de tu clave de recuperación",
+    "intro": "Esta es la clave maestra de tu identidad de Mirall. Con este archivo y su frase de contraseña puedes volver a ser tú en un dispositivo nuevo, aunque ya no tengas tu ordenador o tu llavero.",
+    "weakDevice": "Este dispositivo no tiene llavero del sistema, así que esta copia es tu verdadera protección contra la pérdida de tu identidad.",
+    "passphraseLabel": "Elige una frase de contraseña",
+    "passphrasePlaceholder": "Al menos {{min}} caracteres",
+    "passphraseHelp": "Necesitarás esta frase de contraseña para restaurar. No podemos restablecerla.",
+    "tooShort": "Usa al menos {{min}} caracteres.",
+    "confirmLabel": "Confirma la frase de contraseña",
+    "confirmPlaceholder": "Vuelve a escribir la frase de contraseña",
+    "mismatch": "Las frases de contraseña no coinciden.",
+    "scopeRestoresLead": "Restaura",
+    "scopeRestores": "tu identidad: tus contactos te siguen reconociendo y pueden volver a invitarte.",
+    "scopeExcludesLead": "No restaura por sí sola",
+    "scopeExcludes": "tu lista de espacios ni los archivos de espacios que otros compartieron contigo. Para eso, guarda también una copia de tu carpeta de datos de Mirall.",
+    "warningsTitle": "Guárdala en un lugar seguro",
+    "warningAccess": "Cualquiera que tenga este archivo y su frase de contraseña puede usar tu identidad y leer tus archivos.",
+    "warningLostPassphrase": "Si pierdes la frase de contraseña, el archivo no sirve, y no podemos recuperarla.",
+    "warningNotFiles": "Esto guarda tu identidad, no tus archivos.",
+    "save": "Guardar archivo de copia…",
+    "savedToast": "Clave de recuperación guardada en la ubicación elegida."
+  },
+  "recoveryRestore": {
+    "title": "Restaurar con una clave de recuperación",
+    "introChoose": "Elige el archivo de clave de recuperación que guardaste y luego escribe su frase de contraseña.",
+    "introPassphrase": "Escribe la frase de contraseña de esta clave de recuperación.",
+    "chooseFile": "Elegir archivo de clave de recuperación…",
+    "fileHint": "Clave de recuperación de Mirall (.mirallkey)",
+    "createdAt": "Creada el {{date}}",
+    "passphraseLabel": "Frase de contraseña",
+    "restore": "Restaurar identidad",
+    "restarting": "Reiniciando para cargar tu identidad…",
+    "notAKey": "Este archivo no es una clave de recuperación de Mirall.",
+    "mismatchTitle": "¿Reemplazar los datos de este dispositivo?",
+    "mismatchBody": "Esta clave de recuperación pertenece a una identidad distinta de la de los datos de este dispositivo. Al restaurar, esos datos quedan ilegibles y no se puede deshacer.",
+    "mismatchConfirm": "Reemplazar y restaurar"
   }
 }
