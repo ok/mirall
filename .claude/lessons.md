@@ -352,6 +352,14 @@ existing member. The fold owns the set, not the gate. Include the approver's own
 leave frame drive removal. On the leave frame, tombstone (`markLeft`) and lift only on genuine
 re-entry (`membership:request` → `clearLeft`).
 
+**A gated socket serves a core only when both ends pair it.** `attachPeerCore` on the reader alone
+opens a channel the gated remote rejects, so the read times out at `peerReadTimeoutMs` while the
+socket stays up. Admission is one-sided (the joiner holds the inviter unverified while the inviter
+admits the joiner), so the side that owns the core must hold it on the socket (`holdPeerCore`).
+Tell: a remote read that fails after exactly the read budget on a live connection. A second tell:
+the session lists an open peer with a `remoteLength` yet its own length stays 0 — the head
+request went to a killed peer whose socket has not timed out yet, so retry while the socket lives.
+
 **One notion of "is peer X online" — change every consumer at once.** Display and data-plane gates
 read the single liveness truth; the connection registry is for routing only.
 
