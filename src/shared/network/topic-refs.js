@@ -1,11 +1,12 @@
 // How a peer frame names a space. A frame carries `topicRef` (deriveTopicRef under the sender's
 // Noise key), never the topic. The bearer topic goes out as `spaceTopic` only to a socket that named
 // that space by its topic first — a peer on a release that cannot read a reference — and both forms
-// are accepted. The receiver matches either against the topics it holds.
+// are accepted. The receiver matches either against the topics it holds. With topic refs enforced
+// the bearer form names nothing, and a socket that has not named a space yet is sent only its ref.
 //
 // Everything here is per socket and held in WeakMaps: the Noise keys refs are derived under are the
 // socket's own, so the state goes when the socket does and a swarm restart starts from nothing.
-import { isLegacyTopicWireForced } from '../core/runtime-config.js'
+import { isLegacyTopicWireForced, isTopicRefsEnforced } from '../core/runtime-config.js'
 import { deriveTopicRef, isHex64 } from './handshake-guard.js'
 import { spaceTopics, socketMsgHandlers } from './swarm-registries.js'
 
@@ -17,6 +18,7 @@ const ownRefs = new WeakMap()      // socket → Map<spaceId, our ref under sock
 const remoteRefs = new WeakMap()   // socket → Map<spaceId, the remote's ref under socket.remotePublicKey>
 const bearerSockets = new WeakMap()   // socket → Set<spaceId> it named by the bearer topic
 const unheldTopics = new WeakMap()    // socket → Set<topic> it named before we held it
+const provenSpaces = new WeakMap()    // socket → Set<spaceId> it named in a form we matched
 
 function memoRef(memo, socket, noiseKey, spaceId, topicHex) {
   let refs = memo.get(socket)
@@ -57,7 +59,7 @@ export function frameSpace(msg, socket, topics = spaceTopics) {
     }
     return null
   }
-  if (!isHex64(msg.spaceTopic)) return null
+  if (isTopicRefsEnforced() || !isHex64(msg.spaceTopic)) return null
   for (const [spaceId, topicHex] of topics) if (topicHex === msg.spaceTopic) return { spaceId, legacy: true }
   return null
 }
@@ -68,6 +70,7 @@ export function frameSpace(msg, socket, topics = spaceTopics) {
  * @param {string} spaceId
  */
 export function noteLegacyTopic(socket, spaceId) {
+  if (isTopicRefsEnforced()) return false
   let spaces = bearerSockets.get(socket)
   if (!spaces) bearerSockets.set(socket, (spaces = new Set()))
   if (spaces.has(spaceId)) return false
@@ -78,7 +81,7 @@ export function noteLegacyTopic(socket, spaceId) {
 // A bearer topic we do not hold yet. Joining it later must answer this socket in the same form, or
 // an older peer that announced before we joined never reads our first frame for the space.
 export function rememberUnheldTopic(socket, msg) {
-  if (typeof msg.topicRef === 'string' || !isHex64(msg.spaceTopic)) return
+  if (isTopicRefsEnforced() || typeof msg.topicRef === 'string' || !isHex64(msg.spaceTopic)) return
   let topics = unheldTopics.get(socket)
   if (!topics) unheldTopics.set(socket, (topics = new Set()))
   if (topics.size >= UNHELD_TOPICS_PER_SOCKET) topics.delete(topics.values().next().value)
@@ -90,4 +93,18 @@ export function adoptUnheldTopics(spaceId, topicHex) {
   for (const socket of socketMsgHandlers.keys()) {
     if (unheldTopics.get(socket)?.delete(topic)) noteLegacyTopic(socket, spaceId)
   }
+}
+
+// A socket proves a space by naming it in a form only a holder of the topic can produce. True the
+// first time socket proves spaceId.
+export function noteSpaceProven(socket, spaceId) {
+  let spaces = provenSpaces.get(socket)
+  if (!spaces) provenSpaces.set(socket, (spaces = new Set()))
+  if (spaces.has(spaceId)) return false
+  spaces.add(spaceId)
+  return true
+}
+
+export function hasProvenSpace(socket, spaceId) {
+  return provenSpaces.get(socket)?.has(spaceId) ?? false
 }

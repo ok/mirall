@@ -550,10 +550,11 @@ no per-peer serve hook, and the profile bee spans every space anyway.
 |---|---|
 | `handshake` | `profileKey, driveKey` (participation id), `displayName, topicRef`, `looseCatalogKey` \| `looseCatalogKeyEnc`+`looseCatalogEpoch`, `creator?`, binding `sig, signerKey, signerNs` |
 | `membership:request` | `profileKey, displayName, avatar, topicRef, inviteId`, binding. Sent instead of `handshake` while we are pending |
-| `leave` / `leave-ack` | `spaceId, profileKey, ts`, binding / `spaceId, profileKey` |
+| `leave` / `leave-ack` | `topicRef` \| `spaceId`, `profileKey, ts`, binding / `topicRef` \| `spaceId`, `profileKey` |
 | `presence` | `profileKey, topicRef, offline?` |
 | `membership:cancel` / `membership:cancel-ack` | `topicRef, joinerKey, profileKey`, binding / `topicRef, joinerKey, applied` |
 | `membership:deny` | `topicRef, profileKey`, binding |
+| `space-ref` | `topicRef`. Sent instead of an identity frame to a socket that has not named the space, with topic refs enforced |
 
 `membership:grant/deny/cancel` go to `handleMembershipControl` (`src/worker/ipc/membership.js`) with
 the space already resolved. The swarm answers `membership:cancel-ack` itself.
@@ -566,7 +567,16 @@ differs per sender, so two members' frames for one space cannot be linked. A soc
 space by its bearer `spaceTopic` (a peer on an older release) is answered in that form for that
 space only, and a bearer topic a socket named before we joined it is remembered so the first frame
 after the join reaches it. Every socket is still sent one identity frame per space we hold: it learns
-how many, not which. Leave frames name the space by `spaceId`.
+how many, not which. A leave names the space by `spaceId`, or by `topicRef` from a node enforcing
+topic refs, and its ack answers in the same form.
+
+**Topic refs enforced** (`topicRefsEnforced`, from `feature-flags.json` `topicRefs`, off by default).
+A bearer-form frame names nothing, so a peer that can only send `spaceTopic` is cut off. A socket
+that has not yet named a space in a form we matched is sent only `space-ref` for it; the first frame
+in which it names the space is answered with our identity frame and any pending leave or cancel for
+it, and `leave` and a member's `membership:cancel` go only to sockets that named the space. Every
+node reads `space-ref` and ref-named leaves whatever the flag, and answers a `space-ref` with its
+identity frame, so the flag can be turned on once no peer predates that capability.
 
 **Binding.** `handshake` and `membership:request` must carry a signature by a key that
 manifest-hashes to `profileKey`, made over this socket's Noise key. The handshake form also covers
@@ -1284,7 +1294,8 @@ not await async listeners.
 - **A connected socket learns how many spaces we are in.** Each identity frame names its space by an
   unlinkable reference (§4.2), but it still carries the per-space participation id, loose-catalog
   key and creator root. The same fields sit in the profile bee, which replicates only to admitted
-  sockets (§4.2).
+  sockets (§4.2). With topic refs enforced those fields wait until the socket names the space, and
+  only the count of `space-ref` frames remains.
 - **Admission needs the approval from a member, not the joiner.** A joiner's socket replicates
   nothing until it is admitted, so a co-member whose copy of the approver's bee lacks the approval
   admits the joiner only once that bee reaches it from the approver or another admitted member.

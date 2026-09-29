@@ -1,7 +1,7 @@
 import {
   setRuntimeConfig, setDownloadFolder, setBandwidthLimits, getBandwidthLimits, getRuntimeConfig,
   getConnectionCaps, getMembershipCaps, getDeriveDebounceMs, getHandshakeRateLimit, getConvergenceConfig, getIdentityFrameDropWindow, getServeChunkMapCacheBytes,
-  isHandshakeIdentityBindingEnabled, isMembershipControlBindingEnforced } from '../../src/shared/core/runtime-config.js'
+  isHandshakeIdentityBindingEnabled, isMembershipControlBindingEnforced, isTopicRefsEnforced } from '../../src/shared/core/runtime-config.js'
 import test from 'brittle'
 
 import { AVATAR_MAX_BYTES } from '../../src/shared/contract/identity-limits.js'
@@ -162,6 +162,16 @@ test('membership control binding is staged: off until a bootstrap turns it on', 
   t.absent(isMembershipControlBindingEnforced(), 'an empty bootstrap still honours frames that name no sender')
   setRuntimeConfig({ membershipControlBindingEnforced: true })
   t.ok(isMembershipControlBindingEnforced(), 'the flag enforces')
+  setRuntimeConfig({})
+})
+
+test('topic-ref enforcement is staged: off until a bootstrap turns it on', (t) => {
+  setRuntimeConfig({})
+  t.absent(isTopicRefsEnforced(), 'an empty bootstrap still reads the bearer topic')
+  setRuntimeConfig({ topicRefsEnforced: undefined })
+  t.absent(isTopicRefsEnforced(), 'an absent flag stays off')
+  setRuntimeConfig({ topicRefsEnforced: true })
+  t.ok(isTopicRefsEnforced(), 'the flag enforces')
   setRuntimeConfig({})
 })
 

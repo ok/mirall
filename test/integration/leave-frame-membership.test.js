@@ -6,13 +6,14 @@ import { makePeer, replicate, waitFor } from '../helpers/peer-bee.js'
 import { getStore } from '../../src/shared/core/store.js'
 import { getRuntimeConfig, setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { markOwnMembership, markApproval, hasOwnApproval } from '../../src/shared/spaces/profile.js'
-import { upsertMember, mutateMembers } from '../../src/shared/spaces/space.js'
+import { upsertMember, mutateMembers, getSpace } from '../../src/shared/spaces/space.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { openMemberView, closeMemberView, isLeft, isApprovedJoiner } from '../../src/shared/spaces/member-registry.js'
 import { loadLeftTombstones, persistLeftTombstone } from '../../src/shared/spaces/leave-records.js'
-import { initLeaveProtocol, handleLeaveFrame, resetLeaveProtocol } from '../../src/shared/network/leave-protocol.js'
-import { connectedPeers, socketToPeers, socketMsgHandlers, resetRegistries } from '../../src/shared/network/swarm-registries.js'
-import { signNoiseBinding, leaveFrameBound } from '../../src/shared/network/handshake-guard.js'
+import { initLeaveProtocol, handleLeaveFrame, resetLeaveProtocol, handleLeaveAckFrame, registerPendingLeave, configurePendingLeaves, sendPendingLeaveFrames, hasPendingLeave } from '../../src/shared/network/leave-protocol.js'
+import { connectedPeers, socketToPeers, socketMsgHandlers, spaceTopics, resetRegistries } from '../../src/shared/network/swarm-registries.js'
+import { signNoiseBinding, leaveFrameBound, deriveTopicRef } from '../../src/shared/network/handshake-guard.js'
+import { noteSpaceProven } from '../../src/shared/network/topic-refs.js'
 import { PEER_FRAME } from '../../src/shared/contract/peer-frames.js'
 
 const quiet = { debug() {}, info() {}, warn() {}, error() {} }
@@ -244,4 +245,98 @@ test('a leaver still admitted elsewhere on the socket keeps it', async (t) => {
   await handleLeaveFrame(withNeighbour.socket, withNeighbour.peerInfo, withNeighbour.msg)
   t.ok(withNeighbour.acked(), 'precondition: the second leave was applied')
   t.is(destroyedB(), 0, 'a socket that still carries another admitted identity stays up')
+})
+
+function enforceTopicRefs(t) {
+  const prev = { ...getRuntimeConfig() }
+  setRuntimeConfig({ ...prev, topicRefsEnforced: true })
+  t.teardown(() => setRuntimeConfig(prev))
+}
+
+// The leave named by reference, on a socket that carries our Noise key and the leaver's.
+async function refLeave(peer, spaceId) {
+  const leave = boundLeave(peer, spaceId)
+  const topic = (await getSpace(spaceId)).topic
+  spaceTopics.set(spaceId, topic)
+  leave.socket.publicKey = crypto.keyPair().publicKey
+  leave.socket.remotePublicKey = leave.peerInfo.publicKey
+  const { spaceId: _named, ...rest } = leave.msg
+  leave.msg = { ...rest, topicRef: deriveTopicRef(topic, leave.peerInfo.publicKey) }
+  return { ...leave, topic }
+}
+
+test('a leave named by reference is applied and acked by reference', async (t) => {
+  await freshPeer(t)
+  const emitted = wire(t)
+  const { spaceId, B } = await spaceWithMember(t, 'ref-leave')
+  const leave = await refLeave(B, spaceId)
+  const acks = []
+  socketMsgHandlers.set(leave.socket, { send: (str) => acks.push(JSON.parse(str)) })
+  await handleLeaveFrame(leave.socket, leave.peerInfo, leave.msg, spaceId)
+
+  t.ok((await loadLeftTombstones(spaceId)).has(B.key), 'B is durably tombstoned')
+  t.ok(emitted.some((e) => e.name === 'event:member-left' && e.payload.publicKey === B.key), 'member-left is announced')
+  const ack = acks.find((f) => f.type === PEER_FRAME.LEAVE_ACK)
+  t.is(ack?.topicRef, deriveTopicRef(leave.topic, leave.socket.publicKey), 'the ack names the space by our ref')
+  t.absent('spaceId' in (ack || {}), 'and carries no spaceId')
+})
+
+test('a leave by reference that names none of our spaces is ignored', async (t) => {
+  await freshPeer(t)
+  const emitted = wire(t)
+  const { spaceId, B } = await spaceWithMember(t, 'ref-leave-unknown')
+  const leave = await refLeave(B, spaceId)
+  await handleLeaveFrame(leave.socket, leave.peerInfo, leave.msg, null)
+
+  t.absent(isLeft(spaceId, B.key), 'nothing applied')
+  t.absent(leave.acked(), 'no ack')
+  t.absent(emitted.some((e) => e.name === 'event:member-left'))
+})
+
+test('a leave by spaceId is still applied and acked by spaceId with topic refs enforced', async (t) => {
+  await freshPeer(t)
+  wire(t)
+  enforceTopicRefs(t)
+  const { spaceId, B } = await spaceWithMember(t, 'id-leave-enforced')
+  const leave = boundLeave(B, spaceId)
+  const acks = []
+  socketMsgHandlers.set(leave.socket, { send: (str) => acks.push(JSON.parse(str)) })
+  await handleLeaveFrame(leave.socket, leave.peerInfo, leave.msg, null)
+
+  t.ok(isLeft(spaceId, B.key), 'applied')
+  t.is(acks.find((f) => f.type === PEER_FRAME.LEAVE_ACK)?.spaceId, spaceId, 'acked by spaceId')
+})
+
+test('with topic refs enforced a pending leave goes by reference, and only to a socket that named the space', async (t) => {
+  await freshPeer(t)
+  wire(t)
+  enforceTopicRefs(t)
+  const topic = hex()
+  const spaceId = topic.slice(0, 16)
+  registerPendingLeave(spaceId, topic, 1000)
+  const applied = []
+  configurePendingLeaves((id) => applied.push(id))
+
+  const socketOf = () => {
+    const sent = []
+    const socket = { publicKey: crypto.keyPair().publicKey, remotePublicKey: crypto.keyPair().publicKey }
+    const handler = { send: (str) => sent.push(JSON.parse(str)) }
+    return { socket, handler, sent }
+  }
+  const stranger = socketOf()
+  sendPendingLeaveFrames(stranger.socket, stranger.handler)
+  t.alike(stranger.sent, [], 'a socket that has not named the space is told nothing')
+
+  const member = socketOf()
+  noteSpaceProven(member.socket, spaceId)
+  sendPendingLeaveFrames(member.socket, member.handler, { onlySpaceId: spaceId })
+  const frame = member.sent.find((f) => f.type === PEER_FRAME.LEAVE)
+  t.is(frame?.topicRef, deriveTopicRef(topic, member.socket.publicKey), 'named by our ref on that socket')
+  t.absent('spaceId' in (frame || {}), 'and not by spaceId')
+
+  handleLeaveAckFrame(stranger.socket, { type: PEER_FRAME.LEAVE_ACK, topicRef: deriveTopicRef(topic, stranger.socket.remotePublicKey), profileKey: hex() })
+  t.ok(hasPendingLeave(spaceId), 'an ack on a socket the leave never went out on clears nothing')
+  handleLeaveAckFrame(member.socket, { type: PEER_FRAME.LEAVE_ACK, topicRef: deriveTopicRef(topic, member.socket.remotePublicKey), profileKey: hex() })
+  t.absent(hasPendingLeave(spaceId), 'the ack by reference clears the pending leave')
+  t.alike(applied, [spaceId])
 })

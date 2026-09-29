@@ -1,5 +1,6 @@
 {
   "handshakeIdentityBinding": true,
   "membershipControlBinding": false,
-  "sharePrepareProgress": true
+  "sharePrepareProgress": true,
+  "topicRefs": false
 }

@@ -16,9 +16,13 @@
 //                           hashing: { spaceId, shareId, relPath, cancel? }.
 //   leave                   a member announcing it has left the space.
 //   leave-ack               the receipt that lets the leaver stop announcing.
+//   space-ref               a space named by reference and nothing else, sent in place of an identity
+//                           frame to a socket that has not named the space yet. A holder of the space
+//                           answers with its own identity frame.
 //
 // A frame that names a space by its topic carries `topicRef`, never the topic itself
-// (network/topic-refs.js); leave and leave-ack name it by spaceId.
+// (network/topic-refs.js). leave and leave-ack name it by `topicRef`, or by spaceId on the
+// bearer-compatible wire.
 //
 // The content plane runs its own channel with one frame, content-hello (content-swarm.js), which is
 // deliberately not in this vocabulary — a different socket, a different authorization question.
@@ -36,6 +40,7 @@ export const PEER_FRAME = Object.freeze({
   SHARE_INDEX_PROGRESS: 'share-index-progress',
   SHARE_PREPARE_PROGRESS: 'share-prepare-progress',
   SHARE_WAIT: 'share-wait',
+  SPACE_REF: 'space-ref',
 })
 
 /** @internal the no-raw-literal guard's list */
