@@ -2,7 +2,7 @@ import test from 'brittle'
 import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
 import { deriveTopicRef } from '../../src/shared/network/handshake-guard.js'
-import { topicField, frameSpace, noteLegacyTopic, rememberUnheldTopic, adoptUnheldTopics } from '../../src/shared/network/topic-refs.js'
+import { topicField, frameSpace, noteLegacyTopic, rememberUnheldTopic, adoptUnheldTopics, noteSpaceProven, hasProvenSpace } from '../../src/shared/network/topic-refs.js'
 import { spaceTopics, socketMsgHandlers, resetRegistries } from '../../src/shared/network/swarm-registries.js'
 import { getRuntimeConfig, setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 
@@ -106,4 +106,42 @@ test('the legacy-wire lever sends and reads only the bearer form', (t) => {
   const sender = crypto.keyPair().publicKey
   t.alike(topicField(socketFrom(), 's1'), { spaceTopic: topic })
   t.is(frameSpace({ topicRef: deriveTopicRef(topic, sender) }, socketFrom(sender)), null)
+})
+
+function enforced(t) {
+  const prev = getRuntimeConfig()
+  setRuntimeConfig({ ...prev, topicRefsEnforced: true })
+  t.teardown(() => setRuntimeConfig(prev))
+}
+
+test('REGRESSION (MIR-42: enforcement still read the bearer topic): with enforcement on a bearer topic names nothing', (t) => {
+  const topic = heldSpace(t)
+  enforced(t)
+  const sender = crypto.keyPair().publicKey
+  t.is(frameSpace({ spaceTopic: topic }, socketFrom(sender)), null)
+  t.alike(frameSpace({ topicRef: deriveTopicRef(topic, sender) }, socketFrom(sender)), { spaceId: 's1', legacy: false }, 'a ref still resolves')
+})
+
+test('with enforcement on no socket is answered in the bearer form', (t) => {
+  const topic = heldSpace(t)
+  enforced(t)
+  const socket = socketFrom()
+  socketMsgHandlers.set(socket, {})
+  t.absent(noteLegacyTopic(socket, 's1'), 'a bearer sighting is not noted')
+  t.ok('topicRef' in topicField(socket, 's1'))
+  const other = socketFrom()
+  socketMsgHandlers.set(other, {})
+  rememberUnheldTopic(other, { spaceTopic: topic })
+  adoptUnheldTopics('s1', topic)
+  t.ok('topicRef' in topicField(other, 's1'), 'an unheld bearer topic is not remembered')
+})
+
+test('a socket proves a space once, and only for itself', (t) => {
+  const socket = socketFrom()
+  t.absent(hasProvenSpace(socket, 's1'))
+  t.ok(noteSpaceProven(socket, 's1'), 'first proof')
+  t.absent(noteSpaceProven(socket, 's1'), 'noted once')
+  t.ok(hasProvenSpace(socket, 's1'))
+  t.absent(hasProvenSpace(socket, 's2'), 'per space')
+  t.absent(hasProvenSpace(socketFrom(), 's1'), 'per socket')
 })

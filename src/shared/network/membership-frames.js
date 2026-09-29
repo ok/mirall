@@ -1,6 +1,7 @@
 // The three outbound membership frames. They leave the swarm because each is addressed: a grant
-// and a deny go to ONE peer's channel, a cancel to every open socket — a pending joiner is not in
-// any peer's connectedPeers, so there is no membership to address it by.
+// and a deny go to ONE peer's channel, a cancel to every open socket (with topic refs enforced, every
+// socket that named the space) — a pending joiner is not in any peer's connectedPeers, so there is no
+// membership to address it by.
 
 import b4a from 'b4a'
 import { PEER_FRAME } from '../contract/peer-frames.js'
@@ -8,7 +9,8 @@ import { sealSck } from '../spaces/sck-seal.js'
 import { getProfileKey } from '../spaces/profile.js'
 import { socketMsgHandlers, channelForPeer } from './swarm-registries.js'
 import { sendFrame, getLocalBinding, controlSenderFields } from './identity-frames.js'
-import { topicField } from './topic-refs.js'
+import { topicField, hasProvenSpace } from './topic-refs.js'
+import { isTopicRefsEnforced } from '../core/runtime-config.js'
 import { replicateOn } from './replication-gate.js'
 
 // Hand the joiner the SCK AND assert this space's OR-Set root, bound to our identity. The
@@ -48,6 +50,7 @@ export function sendMembershipGrant(profileKeyHex, spaceId, sckHex, creatorKeyHe
 export function broadcastMembershipCancel(spaceId, joinerKey) {
   const sender = controlSenderFields()
   for (const [socket, handler] of socketMsgHandlers) {
+    if (isTopicRefsEnforced() && !hasProvenSpace(socket, spaceId)) continue
     const topic = topicField(socket, spaceId)
     if (!topic) continue
     try { handler.send(JSON.stringify({ type: PEER_FRAME.MEMBERSHIP_CANCEL, ...topic, joinerKey, ...sender })) } catch {}

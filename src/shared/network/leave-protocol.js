@@ -30,7 +30,8 @@ import { connectedPeers, socketToPeers, spaceTopics, spaceDiscoveries, socketMsg
 import { TARGET_KIND } from '../contract/audit-kinds.js'
 import { peerActor, spaceRef, targetRef } from '../audit/audit-record.js'
 import { controlSenderFields, getLocalBinding } from './identity-frames.js'
-import { topicField, frameSpace } from './topic-refs.js'
+import { topicField, frameSpace, hasProvenSpace } from './topic-refs.js'
+import { isTopicRefsEnforced } from '../core/runtime-config.js'
 import { presence } from './presence-leases.js'
 import { memberWaits } from './share-wait.js'
 import { clearWaitingFor } from '../transfer/serve-ledger.js'
@@ -133,12 +134,15 @@ const LEAVE_READ_ATTEMPTS = 3
 const LEAVE_READ_RETRY_MS = 1000
 let timers = createTimers()
 
-export function handleLeaveFrame(socket, peerInfo, msg) {
-  return receiveLeave(socket, peerInfo, msg, 1)
+// A leave names its space by topicRef (resolved by the frame intake into namedSpaceId) or, from a
+// peer on the bearer-compatible wire, by spaceId.
+export function handleLeaveFrame(socket, peerInfo, msg, namedSpaceId = null) {
+  const spaceId = typeof msg.topicRef === 'string' ? namedSpaceId : msg.spaceId
+  return receiveLeave(socket, peerInfo, msg, { spaceId, attempt: 1 })
 }
 
-async function receiveLeave(socket, peerInfo, msg, attempt) {
-  const { spaceId, profileKey } = msg
+async function receiveLeave(socket, peerInfo, msg, { spaceId, attempt }) {
+  const { profileKey } = msg
   if (typeof spaceId !== 'string' || typeof profileKey !== 'string') return
 
   // Our own teardown destroys the sockets that clear the auth index, so an inbound
@@ -172,18 +176,18 @@ async function receiveLeave(socket, peerInfo, msg, attempt) {
   const pulled = await attachPeerCore(socket, profileKey)
   let applied
   try {
-    applied = await applyLeave(socket, space, msg, alreadyLeft)
+    applied = await applyLeave(socket, space, msg, { spaceId, alreadyLeft })
   } finally {
     try { await pulled?.close() } catch (err) { log.debug('leaver core session close failed:', err.message) }
   }
   if (applied || attempt >= LEAVE_READ_ATTEMPTS || socket.destroying || socket.destroyed) return
   timers.setTimeout(() => {
-    receiveLeave(socket, peerInfo, msg, attempt + 1).catch((err) => log.warn('leave retry failed:', err.message))
+    receiveLeave(socket, peerInfo, msg, { spaceId, attempt: attempt + 1 }).catch((err) => log.warn('leave retry failed:', err.message))
   }, LEAVE_READ_RETRY_MS)
 }
 
-async function applyLeave(socket, space, msg, alreadyLeft) {
-  const { spaceId, profileKey } = msg
+async function applyLeave(socket, space, msg, { spaceId, alreadyLeft }) {
+  const { profileKey } = msg
   // Take over the leaver's vouchees before touching anything else. The revoke below unroots the
   // leaver, and from then on the fold stops walking its bee, so the subtree it alone vouched for
   // could never be recovered. The leaver is connected right now, which is the best window there is
@@ -213,9 +217,11 @@ async function applyLeave(socket, space, msg, alreadyLeft) {
   // Ack the leaver over its own socket so it can stop waiting (awaitLeaveAcks) — but ONLY once the
   // durable tombstone + revoke actually landed, since that is exactly what the ack attests. A
   // swallowed durable failure must not resolve the wait early; the leaver falls back to the cap.
+  // The ack names the space the way the leave did.
   const selfKey = getProfileKey()
-  if (durablyApplied && selfKey) {
-    try { socketMsgHandlers.get(socket)?.send(JSON.stringify({ type: PEER_FRAME.LEAVE_ACK, spaceId, profileKey: b4a.toString(selfKey, 'hex') })) } catch {}
+  const ackSpace = typeof msg.topicRef === 'string' ? topicField(socket, spaceId) : { spaceId }
+  if (durablyApplied && selfKey && ackSpace) {
+    try { socketMsgHandlers.get(socket)?.send(JSON.stringify({ type: PEER_FRAME.LEAVE_ACK, ...ackSpace, profileKey: b4a.toString(selfKey, 'hex') })) } catch {}
   }
 
   const removed = await removeMember(spaceId, profileKey)
@@ -304,17 +310,29 @@ export async function servePendingLeave(socket, spaceId, profileKey) {
   if (self) await holdPeerCore(socket, b4a.toString(self, 'hex'))
 }
 
-export function sendPendingLeaveFrames(socket, msgHandler) {
+// How a leave names its space on socket. With topic refs enforced it goes by reference, and only to a
+// socket that named the space: frame-intake.js sends a pending leave on that proof. null: this socket
+// is not told.
+function leaveSpaceField(socket, spaceId, topicHex) {
+  if (!isTopicRefsEnforced()) return { spaceId }
+  if (!hasProvenSpace(socket, spaceId)) return null
+  return topicField(socket, spaceId, topicHex)
+}
+
+export function sendPendingLeaveFrames(socket, msgHandler, { onlySpaceId = null } = {}) {
   if (pendingLeaves.size === 0) return
   const profileKey = getProfileKey()
   if (!profileKey) return
   const profileKeyHex = b4a.toString(profileKey, 'hex')
   let sent = pendingLeaveFramesSent.get(socket)
   if (!sent) pendingLeaveFramesSent.set(socket, (sent = new Set()))
-  for (const [spaceId, { ts }] of pendingLeaves) {
+  for (const [spaceId, { topic, ts }] of pendingLeaves) {
+    if (onlySpaceId && spaceId !== onlySpaceId) continue
+    const named = leaveSpaceField(socket, spaceId, topic)
+    if (!named) continue
     sent.add(spaceId)
     try {
-      msgHandler.send(JSON.stringify({ type: PEER_FRAME.LEAVE, spaceId, profileKey: profileKeyHex, ts, ...(getLocalBinding() || {}) }))
+      msgHandler.send(JSON.stringify({ type: PEER_FRAME.LEAVE, ...named, profileKey: profileKeyHex, ts, ...(getLocalBinding() || {}) }))
     } catch (err) {
       log.debug('pending-leave frame send failed:', err.message)
     }
@@ -334,15 +352,12 @@ export async function sendLeaveFrameToConnectedPeers(spaceId, rosterKeys) {
     const parked = pendingRequesters.get(key)
     if (parked) await holdPeerCore(parked, profileKeyHex)
   }
-  const payload = JSON.stringify({
-    type: PEER_FRAME.LEAVE,
-    spaceId,
-    profileKey: profileKeyHex,
-    ts: Date.now(),
-    ...(getLocalBinding() || {}),
-  })
-  for (const [, handler] of socketMsgHandlers) {
-    try { handler.send(payload) } catch (err) {
+  const ts = Date.now()
+  const binding = getLocalBinding() || {}
+  for (const [socket, handler] of socketMsgHandlers) {
+    const named = leaveSpaceField(socket, spaceId)
+    if (!named) continue
+    try { handler.send(JSON.stringify({ type: PEER_FRAME.LEAVE, ...named, profileKey: profileKeyHex, ts, ...binding })) } catch (err) {
       log.warn('leave frame send failed:', err.message)
     }
   }
@@ -392,7 +407,8 @@ export function takeLeaveAckedKeys(spaceId) {
 }
 
 export function handleLeaveAckFrame(socket, msg) {
-  const { spaceId, profileKey } = msg
+  const spaceId = typeof msg.topicRef === 'string' ? frameSpace(msg, socket, leaveAckTopics())?.spaceId : msg.spaceId
+  const { profileKey } = msg
   if (!spaceId || !profileKey) return
   // A pending-leave replay ack arrives on a socket with no live handshake for the purged
   // space (we no longer handshake it), so the strict rule below would drop it. Accept it
@@ -407,6 +423,11 @@ export function handleLeaveAckFrame(socket, msg) {
   // can't forge acks for other members and collapse the leaver's flush wait early.
   if (!authorizedOn(socket, profileKey)) return
   leaveAcks.get(spaceId)?.add(profileKey)
+}
+
+// A pending leave's space is purged, so its topic may live only in the pending record.
+function leaveAckTopics() {
+  return new Map([...spaceTopics, ...[...pendingLeaves].map(([spaceId, pl]) => [spaceId, pl.topic])])
 }
 
 // ── pending outbound cancels (withdraw-a-request delivery) ──────────────────────
@@ -440,6 +461,8 @@ export function sendPendingCancelFrames(socket, msgHandler, { onlySpaceId = null
   if (!sent) pendingCancelFramesSent.set(socket, (sent = new Set()))
   for (const [spaceId, pc] of pendingCancels) {
     if (onlySpaceId && spaceId !== onlySpaceId) continue
+    // With topic refs enforced a cancel waits for the socket to name the space (frame-intake.js).
+    if (isTopicRefsEnforced() && !hasProvenSpace(socket, spaceId)) continue
     const topic = topicField(socket, spaceId, pc.topic)
     if (!topic) continue
     try { msgHandler.send(JSON.stringify({ type: PEER_FRAME.MEMBERSHIP_CANCEL, ...topic, joinerKey: pc.joinerKey, ...controlSenderFields() })) } catch { continue }

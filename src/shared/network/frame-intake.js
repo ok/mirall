@@ -8,12 +8,12 @@
 import b4a from 'b4a'
 import { createLogger } from '../core/logger.js'
 import { PEER_FRAME, IDENTITY_ASSERTING, MEMBERSHIP_CONTROL_FRAMES } from '../contract/peer-frames.js'
-import { getPeerFrameMaxBytes, getPeerFrameLimits, getHandshakeRateLimit, getConnectionCaps, isHandshakeIdentityBindingEnabled, getIdentityFrameDropWindow } from '../core/runtime-config.js'
+import { getPeerFrameMaxBytes, getPeerFrameLimits, getHandshakeRateLimit, getConnectionCaps, isHandshakeIdentityBindingEnabled, getIdentityFrameDropWindow, isTopicRefsEnforced, getConvergenceConfig } from '../core/runtime-config.js'
 import { checkInboundSender, createDualRateLimiter, createRateLimiter, validFrameShape } from './handshake-guard.js'
 import { handlePresenceFrame, handleShareIndexProgressFrame, handleSharePrepareProgressFrame } from './presence-broadcast.js'
-import { handleLeaveFrame, handleLeaveAckFrame, handleMembershipCancelAck, sendPendingCancelFrames } from './leave-protocol.js'
+import { handleLeaveFrame, handleLeaveAckFrame, handleMembershipCancelAck, sendPendingCancelFrames, sendPendingLeaveFrames } from './leave-protocol.js'
 import { sendSingleHandshake } from './identity-frames.js'
-import { frameSpace, noteLegacyTopic, rememberUnheldTopic } from './topic-refs.js'
+import { frameSpace, noteLegacyTopic, rememberUnheldTopic, noteSpaceProven } from './topic-refs.js'
 import { handleShareWaitFrame } from './share-wait.js'
 import { spaceTopics, boundSignerKeys, parkPendingRequester } from './swarm-registries.js'
 import { handleHandshake } from './handshake-apply.js'
@@ -27,6 +27,7 @@ const droppedFrames = { oversize: 0, rate: 0, parse: 0, shape: 0, unknown: 0 }
 function countDroppedFrame(reason) { droppedFrames[reason] += 1 }
 function getDroppedFrameCounters() { return { ...droppedFrames } }
 let testDrop = null                     // test-only inbound identity-frame drop window
+const spaceRefAnswers = new WeakMap()   // socket → Map<spaceId, when we last answered its space-ref>
 
 // The membership-control handler is injected rather than imported: the composition root sets it at
 // open, and importing the worker's handler here would close a cycle.
@@ -110,12 +111,44 @@ export function receiveFrame(conn, str) {
     if (!admitted) return
     bound = admitted.bound
   }
+  answerSpaceNamed(conn, msg, named)
 
   try {
     dispatchFrame(conn, msg, spaceId, bound)
   } catch (err) {
     log.error('handshake dispatch error:', err)
   }
+}
+
+// A frame that names a space by reference, and passed the identity gate if it asserts an identity,
+// proves the sender holds the topic. With topic refs enforced the first proof on a socket is answered
+// with what an unproven socket is not sent. A space-ref asks for our identity frame: the first is
+// answered at once, since its sender never matched what we sent before it held the space, and a
+// repeat once per floor window.
+function answerSpaceNamed(conn, msg, named) {
+  if (!named || named.legacy) return
+  const { spaceId } = named
+  const first = noteSpaceProven(conn.socket, spaceId)
+  const asked = msg.type === PEER_FRAME.SPACE_REF && spaceRefAnswerDue(conn.socket, spaceId)
+  if (first && isTopicRefsEnforced()) answerProvenSpace(conn, spaceId)
+  else if (asked) sendSingleHandshake(conn.socket, conn.msgHandler, spaceId).catch((err) => log.debug('space-ref answer failed:', err?.message || err))
+}
+
+// Stamped before the answer is built, so a burst of space-refs is answered once.
+function spaceRefAnswerDue(socket, spaceId) {
+  let answered = spaceRefAnswers.get(socket)
+  if (!answered) spaceRefAnswers.set(socket, (answered = new Map()))
+  const now = Date.now()
+  const last = answered.get(spaceId)
+  if (last !== undefined && now - last < getConvergenceConfig().dupReciprocalFloorMs) return false
+  answered.set(spaceId, now)
+  return true
+}
+
+function answerProvenSpace({ socket, msgHandler }, spaceId) {
+  sendSingleHandshake(socket, msgHandler, spaceId).catch((err) => log.debug('proven-space handshake failed:', err?.message || err))
+  sendPendingLeaveFrames(socket, msgHandler, { onlySpaceId: spaceId })
+  sendPendingCancelFrames(socket, msgHandler, { onlySpaceId: spaceId })
 }
 
 // A peer that names a space by its bearer topic cannot read a topicRef, so what we sent it for that
@@ -189,13 +222,15 @@ const PEER_FRAME_HANDLERS = Object.freeze({
     return handleHandshake(conn.socket, msg, spaceId, { park, bound }).catch((err) => log.warn('handshake handling failed:', err?.message || err))
   },
   [PEER_FRAME.PRESENCE]: ({ socket }, msg, spaceId) => handlePresenceFrame(socket, msg, spaceId),
-  [PEER_FRAME.LEAVE]: ({ socket, peerInfo }, msg) =>
-    handleLeaveFrame(socket, peerInfo, msg).catch((err) => log.warn('leave handling failed:', err?.message || err)),
+  [PEER_FRAME.LEAVE]: ({ socket, peerInfo }, msg, spaceId) =>
+    handleLeaveFrame(socket, peerInfo, msg, spaceId).catch((err) => log.warn('leave handling failed:', err?.message || err)),
   [PEER_FRAME.LEAVE_ACK]: ({ socket }, msg) => handleLeaveAckFrame(socket, msg),
   [PEER_FRAME.MEMBERSHIP_CANCEL_ACK]: ({ socket }, msg) => handleMembershipCancelAck(socket, msg),
   [PEER_FRAME.SHARE_INDEX_PROGRESS]: ({ socket }, msg) => handleShareIndexProgressFrame(socket, msg),
   [PEER_FRAME.SHARE_PREPARE_PROGRESS]: ({ socket }, msg) => handleSharePrepareProgressFrame(socket, msg),
   [PEER_FRAME.SHARE_WAIT]: ({ socket }, msg) => handleShareWaitFrame(socket, msg),
+  // Answered in answerSpaceNamed, which sees every frame that names a space.
+  [PEER_FRAME.SPACE_REF]: () => {},
   ...Object.fromEntries(MEMBERSHIP_CONTROL_FRAMES.map((type) => [type, toMembershipControl])),
 })
 

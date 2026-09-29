@@ -1,19 +1,21 @@
 // The two identity-asserting frames we send: `handshake` for a space we participate in, and
 // `membership:request` for one we are still pending in. Both carry a signature binding our profile
 // key to this socket's Noise key, so the receiver can attribute them to a member (verified in
-// handshake-guard.js) and cannot replay them on another connection.
+// handshake-guard.js) and cannot replay them on another connection. With topic refs enforced, a
+// socket that has not named the space yet gets a `space-ref` instead, and the full frame follows
+// its proof (frame-intake.js).
 import b4a from 'b4a'
 import { getProfileKey, getProfile, getIdentitySigner, getLocalPublicKeyHex } from '../spaces/profile.js'
 import { getSpace } from '../spaces/space.js'
 import { getOwnParticipationId } from '../spaces/participation.js'
-import { getPeerFrameMaxBytes, joinRequestAvatarMaxBytes } from '../core/runtime-config.js'
+import { getPeerFrameMaxBytes, joinRequestAvatarMaxBytes, isTopicRefsEnforced } from '../core/runtime-config.js'
 import { catalogKeyField } from '../shares/catalog-keys.js'
 import { ownLooseCatalogPublish } from '../shares/own-catalog.js'
 import { sanitizeAvatar } from '../contract/identity-limits.js'
 import { PEER_FRAME } from '../contract/peer-frames.js'
 import { UNKNOWN_DISPLAY_NAME } from '../contract/limits.js'
 import { signNoiseBinding } from './handshake-guard.js'
-import { topicField } from './topic-refs.js'
+import { topicField, hasProvenSpace } from './topic-refs.js'
 import { spaceTopics, socketMsgHandlers, announceLedger } from './swarm-registries.js'
 import { createLogger } from '../core/logger.js'
 
@@ -81,6 +83,14 @@ async function sendIdentityFrame(socket, msgHandler, spaceId, profile) {
   const displayName = profile?.displayName || UNKNOWN_DISPLAY_NAME
   const space = await getSpace(spaceId)
   const driveKeyHex = getOwnParticipationId(spaceId, space)
+  const kind = driveKeyHex ? 'handshake' : space?.status === 'pending' ? 'request' : null
+  if (!kind) return
+  // Recorded as the frame it stands in for, so the convergence tick retries and settles it the same way.
+  if (isTopicRefsEnforced() && !hasProvenSpace(socket, spaceId)) {
+    sendFrame(msgHandler, { type: PEER_FRAME.SPACE_REF, ...topic })
+    announceLedger.recordSend(socket, spaceId, kind, Date.now())
+    return
+  }
   if (driveKeyHex) {
     // A v2 catalog is SCK-encrypted, so send its key in the …Enc field — the receiver reads the
     // field to decide whether to apply the SCK. A v1/plaintext key travels in the plain field.
