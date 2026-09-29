@@ -95,10 +95,11 @@ test('REGRESSION (MIR-48: a deny from anyone discarded our pending request)', (t
   for (const enforce of [false, true]) {
     t.is(denierVerdict({ denierKey: O, inviteOwner: O, creatorKey: C, enforce }), 'accept', 'the inviter')
     t.is(denierVerdict({ denierKey: C, inviteOwner: O, creatorKey: C, enforce }), 'accept', 'the named creator')
-    t.is(denierVerdict({ denierKey: X, inviteOwner: O, creatorKey: C, enforce }), 'check-fold', 'anyone else only if the fold holds them')
-    t.is(denierVerdict({ denierKey: X, inviteOwner: O, creatorKey: null, enforce }), 'reject', 'with no root there is no member set to hold them')
-    t.is(denierVerdict({ denierKey: O, inviteOwner: O, creatorKey: null, enforce }), 'accept', 'but the inviter still counts')
+    t.is(denierVerdict({ denierKey: O, inviteOwner: O, creatorKey: null, enforce }), 'accept', 'the inviter with no root named')
   }
-  t.is(denierVerdict({ denierKey: null, inviteOwner: O, creatorKey: C, enforce: false }), 'accept-unbound', 'an older member is honoured until enforcement')
-  t.is(denierVerdict({ denierKey: null, inviteOwner: O, creatorKey: C, enforce: true }), 'reject', 'and refused once it is on')
+  t.is(denierVerdict({ denierKey: X, inviteOwner: O, creatorKey: C, enforce: true }), 'check-fold', 'under enforcement anyone else only if the fold holds them')
+  t.is(denierVerdict({ denierKey: X, inviteOwner: O, creatorKey: null, enforce: true }), 'reject', 'with no root there is no member set to hold them')
+  t.is(denierVerdict({ denierKey: null, inviteOwner: O, creatorKey: C, enforce: true }), 'reject', 'and a deny naming no sender is refused')
+  t.is(denierVerdict({ denierKey: X, inviteOwner: O, creatorKey: C, enforce: false }), 'accept-unvetted', 'until then a co-member the joiner cannot vet is honoured')
+  t.is(denierVerdict({ denierKey: null, inviteOwner: O, creatorKey: C, enforce: false }), 'accept-unvetted', 'and so is an older member naming nobody')
 })

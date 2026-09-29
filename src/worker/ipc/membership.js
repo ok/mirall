@@ -24,7 +24,7 @@ import { classifyInvite } from '../../shared/spaces/invites.js'
 import { applyLocalApproval, applyLocalDenial, closeMemberView, dropTombstone, isApprovedJoiner, isDeniedJoiner, isLeft, openMemberView } from '../../shared/spaces/member-registry.js'
 import { ASK_PEERS, cancelVerdict, denierVerdict, denyVerdict, granterVerdict, knockSettledByRecords, knockInviteVerdict } from '../../shared/spaces/knock-policy.js'
 import { foldHoldsMember } from '../../shared/spaces/member-view.js'
-import { captureJoinerMembership, getIdentitySigner, markRequest, markRequestDenied, ownDenialStands, readMembershipRecord, readProfileRecord } from '../../shared/spaces/profile.js'
+import { captureJoinerMembership, getIdentitySigner, getLocalPublicKeyHex, markRequest, markRequestDenied, ownDenialStands, readMembershipRecord, readProfileRecord } from '../../shared/spaces/profile.js'
 import { getSpace, getSpaceContentKey, spaceEpoch } from '../../shared/spaces/space.js'
 import { verifiedMembers, isVerifiedMember } from '../../shared/spaces/member-standing.js'
 import { claimJoinRequestAudit, clearJoinRequest, forgetJoinRequestAudit, hasApprovedVerdict, listJoinRequests, listPendingRequests, recordJoinRequest, releaseJoinRequestAudit, rememberApprovedVerdict } from '../../shared/spaces/join-requests.js'
@@ -323,28 +323,37 @@ async function onGrant(msg, ctx = {}) {
 async function granterRecognized(socket, spaceId, space, granterKey) {
   const creatorKey = space.creatorKey ?? null
   const verdict = granterVerdict({ granterKey, inviteOwner: space.inviteOwner ?? null, creatorKey })
-  return deciderHeld(socket, spaceId, creatorKey, granterKey, verdict)
+  return deciderHeld(socket, spaceId, creatorKey, granterKey, verdict, { attachOwn: true })
 }
 
 // A decider verdict settled: 'check-fold' asks the fold rooted at the creator, anything but
 // 'reject' is accepted as it stands.
-/** @param {object | undefined} socket @param {string} spaceId @param {string | null} creatorKey @param {string | null} key @param {'accept' | 'accept-unbound' | 'check-fold' | 'reject'} verdict */
-async function deciderHeld(socket, spaceId, creatorKey, key, verdict) {
+/**
+ * @param {object | undefined} socket @param {string} spaceId @param {string | null} creatorKey @param {string | null} key
+ * @param {'accept' | 'accept-unvetted' | 'check-fold' | 'reject'} verdict @param {{ attachOwn: boolean }} opts
+ */
+async function deciderHeld(socket, spaceId, creatorKey, key, verdict, opts) {
   if (verdict !== 'check-fold') return verdict !== 'reject'
-  return !!key && !!creatorKey && await foldHoldsOver(socket, { spaceId, creatorKey, key })
+  return !!key && !!creatorKey && await foldHoldsOver(socket, { spaceId, creatorKey, key }, opts)
 }
 
 // The fold check walks this space's roster from the creator to the decider (a granter or a
 // denier), and a pending joiner may hold none of those records: the decider does. So each core the
 // walk reads is attached to the decider's socket alone, which replicates nothing else until a grant
-// is applied. What the socket can read from us is limited to those same roster cores.
-/** @param {object | undefined} socket @param {{ spaceId: string, creatorKey: string, key: string }} member */
-async function foldHoldsOver(socket, { spaceId, creatorKey, key }) {
+// is applied. What the socket can read from us is limited to those same roster cores. Our own is
+// among them only for a granter, which captures our profile core over this socket once it has
+// approved us; for a denier it would only serve our profile bee to whoever sent the frame.
+/**
+ * @param {object | undefined} socket @param {{ spaceId: string, creatorKey: string, key: string }} member
+ * @param {{ attachOwn: boolean }} opts
+ */
+async function foldHoldsOver(socket, { spaceId, creatorKey, key }, { attachOwn }) {
   /** @type {{ close: () => Promise<void> }[]} */
   const attached = []
+  const self = getLocalPublicKeyHex()
   /** @param {string} rosterKey */
   const readOver = async (rosterKey) => {
-    const core = socket ? await attachPeerCore(socket, rosterKey) : null
+    const core = socket && (attachOwn || rosterKey !== self) ? await attachPeerCore(socket, rosterKey) : null
     if (core) attached.push(core)
     return readMembershipRecord(rosterKey, spaceId)
   }
@@ -420,9 +429,9 @@ async function denierRecognized(socket, peerInfo, space, msg) {
   const denierKey = sender.senderKey
   const creatorKey = space.creatorKey ?? null
   const verdict = denierVerdict({ denierKey, inviteOwner: space.inviteOwner ?? null, creatorKey, enforce: isMembershipControlBindingEnforced() })
-  const accepted = await deciderHeld(socket, spaceId, creatorKey, denierKey, verdict)
+  const accepted = await deciderHeld(socket, spaceId, creatorKey, denierKey, verdict, { attachOwn: false })
   if (!accepted) log.warn('rejected membership:deny — sender is not the inviter, the creator or a member:', denierKey?.slice(0, 12) ?? 'unnamed')
-  else if (verdict === 'accept-unbound') log.info('honouring a membership:deny that names no sender:', spaceId)
+  else if (verdict === 'accept-unvetted') log.info('honouring an unvetted membership:deny from', denierKey?.slice(0, 12) ?? 'an unnamed sender', 'for', spaceId)
   return accepted
 }
 

@@ -569,12 +569,17 @@ captured signature therefore cannot be replayed onto another connection.
 in the Noise-only form, and a frame whose binding does not prove the key it names is dropped. A
 cancel is applied (tombstone, banner cleared, ack) only when its sender is the joiner withdrawing its
 own request, or a verified member of the space clearing the banner after its own deny. A pending
-joiner applies a deny only from the invite's inviter, the creator it names, or a key the fold rooted
-at that creator holds; with no creator named, only the inviter counts. As for a granter, the fold
-walk attaches each roster core it reads to the denier's socket alone. A deny for a space we are not pending in does
-nothing. A frame that names no sender comes from an older release: it is honoured and logged until
-`membershipControlBindingEnforced` is on (`feature-flags.json` `membershipControlBinding`, default
-off), and dropped after.
+joiner always applies a deny from the invite's inviter or the creator it names. A deny for a space
+we are not pending in does nothing. Everything else waits on `membershipControlBindingEnforced`
+(`feature-flags.json` `membershipControlBinding`, default off):
+
+- **Off:** any other deny is honoured and logged. That covers a frame that names no sender (an older
+  release) and a co-member the joiner cannot vet: the replication gate keeps the roster out of a
+  pending joiner's reach over a denier's socket, since a deny, unlike a grant, opens no replication.
+- **On:** a frame that names no sender is dropped, and another member counts only when the fold
+  rooted at the creator holds it, walked like a granter's (each roster core it reads is attached to
+  the denier's socket, never our own). With no creator named, only the inviter counts. Until the
+  denier side serves that roster, a co-member's deny is refused here, so the flag stays off.
 
 **Budgets** (defaults in `src/shared/core/runtime-config-schema.js`). Every frame first passes a 64
 KiB size cap and a per-socket budget **before** `JSON.parse`, because parsing is the work being
@@ -1374,7 +1379,8 @@ a member or evict one.
   from a frame whose binding verified.
 - Leave frames are always checked.
 - A membership deny or cancel that names no sender is still honoured until
-  `membershipControlBindingEnforced` is on; one that names a sender is always checked (§4.2).
+  `membershipControlBindingEnforced` is on; one that names a sender always has its binding checked
+  (§4.2).
 - The V2 participation-id binding is best-effort: a V1 signature over the Noise key alone still
   verifies during rolling upgrades.
 - The binding does not cover the space reference; the reference is itself derived from the sender's
