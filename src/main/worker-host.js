@@ -214,6 +214,9 @@ function getWorker(specifier) {
     deriveDebounceMs: envNumber(envOverride('MIRALL_DERIVE_DEBOUNCE_MS')),
     // Enforced unless feature-flags.json says false, so a missing or unreadable file keeps it on.
     handshakeIdentityBindingEnabled: flags.handshakeIdentityBinding !== false,
+    // Staged: until feature-flags.json turns it on, a membership:cancel or membership:deny that names
+    // no sender (a peer on an older release) is still honoured.
+    membershipControlBindingEnforced: flags.membershipControlBinding === true,
     // Hashing progress for a file being (re-)published: members see "preparing 34%" instead of a
     // frozen placeholder, and it is the liveness signal that keeps a download parked on a
     // re-publish alive while a large source hashes. On by default; set false to revert.

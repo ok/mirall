@@ -7,7 +7,7 @@ import { PEER_FRAME } from '../contract/peer-frames.js'
 import { sealSck } from '../spaces/sck-seal.js'
 import { getProfileKey } from '../spaces/profile.js'
 import { socketMsgHandlers, channelForPeer } from './swarm-registries.js'
-import { sendFrame, getLocalBinding } from './identity-frames.js'
+import { sendFrame, getLocalBinding, controlSenderFields } from './identity-frames.js'
 import { topicField } from './topic-refs.js'
 import { replicateOn } from './replication-gate.js'
 
@@ -46,10 +46,11 @@ export function sendMembershipGrant(profileKeyHex, spaceId, sckHex, creatorKeyHe
 // cancelling doesn't promptly close the shared socket — so send over every socket;
 // recipients no-op if they hold no matching request.
 export function broadcastMembershipCancel(spaceId, joinerKey) {
+  const sender = controlSenderFields()
   for (const [socket, handler] of socketMsgHandlers) {
     const topic = topicField(socket, spaceId)
     if (!topic) continue
-    try { handler.send(JSON.stringify({ type: PEER_FRAME.MEMBERSHIP_CANCEL, ...topic, joinerKey })) } catch {}
+    try { handler.send(JSON.stringify({ type: PEER_FRAME.MEMBERSHIP_CANCEL, ...topic, joinerKey, ...sender })) } catch {}
   }
 }
 
@@ -58,7 +59,7 @@ export function sendMembershipDeny(profileKeyHex, spaceId) {
   const topic = channel && topicField(channel.socket, spaceId)
   if (!topic) return false
   try {
-    channel.handler.send(JSON.stringify({ type: PEER_FRAME.MEMBERSHIP_DENY, ...topic }))
+    channel.handler.send(JSON.stringify({ type: PEER_FRAME.MEMBERSHIP_DENY, ...topic, ...controlSenderFields() }))
     return true
   } catch {
     return false

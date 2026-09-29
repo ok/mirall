@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { knockSettledByRecords, knockInviteVerdict, granterVerdict } from '../../src/shared/spaces/knock-policy.js'
+import { knockSettledByRecords, knockInviteVerdict, granterVerdict, cancelVerdict, denierVerdict } from '../../src/shared/spaces/knock-policy.js'
 
 const records = (over = {}) => ({ selfPending: false, isMember: false, hadLeft: false, isApproved: false, ...over })
 const invite = (over = {}) => ({ inviteVerdict: null, hasInviteRecord: false, hadLeft: false, isDenied: false, ...over })
@@ -73,4 +73,33 @@ test('REGRESSION (MIR-26: any bound granter is honoured during the pending windo
 test('a knock from a key that is only an unverified seed is left to the invite', (t) => {
   t.is(knockSettledByRecords(records({ isMember: false })), null,
     'the call site reads the verified roster, so a seed knocks as a stranger')
+})
+
+test('REGRESSION (MIR-48: a cancel from anyone withdrew a pending joiner\'s request)', (t) => {
+  const J = 'j'.repeat(64)
+  const M = 'm'.repeat(64)
+  const S = 's'.repeat(64)
+  for (const enforce of [false, true]) {
+    t.is(cancelVerdict({ senderKey: J, joinerKey: J, senderIsMember: false, enforce }), 'accept', 'the joiner withdraws its own request')
+    t.is(cancelVerdict({ senderKey: M, joinerKey: J, senderIsMember: true, enforce }), 'accept', 'a member clears the banner after its deny')
+    t.is(cancelVerdict({ senderKey: S, joinerKey: J, senderIsMember: false, enforce }), 'reject', 'a bound stranger names someone else')
+  }
+  t.is(cancelVerdict({ senderKey: null, joinerKey: J, senderIsMember: false, enforce: false }), 'accept-unbound', 'an older release is honoured until enforcement')
+  t.is(cancelVerdict({ senderKey: null, joinerKey: J, senderIsMember: false, enforce: true }), 'reject', 'and refused once it is on')
+})
+
+test('REGRESSION (MIR-48: a deny from anyone discarded our pending request)', (t) => {
+  const O = 'o'.repeat(64)
+  const C = 'c'.repeat(64)
+  const X = 'x'.repeat(64)
+  for (const enforce of [false, true]) {
+    t.is(denierVerdict({ denierKey: O, inviteOwner: O, creatorKey: C, enforce }), 'accept', 'the inviter')
+    t.is(denierVerdict({ denierKey: C, inviteOwner: O, creatorKey: C, enforce }), 'accept', 'the named creator')
+    t.is(denierVerdict({ denierKey: O, inviteOwner: O, creatorKey: null, enforce }), 'accept', 'the inviter with no root named')
+  }
+  t.is(denierVerdict({ denierKey: X, inviteOwner: O, creatorKey: C, enforce: true }), 'check-fold', 'under enforcement anyone else only if the fold holds them')
+  t.is(denierVerdict({ denierKey: X, inviteOwner: O, creatorKey: null, enforce: true }), 'reject', 'with no root there is no member set to hold them')
+  t.is(denierVerdict({ denierKey: null, inviteOwner: O, creatorKey: C, enforce: true }), 'reject', 'and a deny naming no sender is refused')
+  t.is(denierVerdict({ denierKey: X, inviteOwner: O, creatorKey: C, enforce: false }), 'accept-unvetted', 'until then a co-member the joiner cannot vet is honoured')
+  t.is(denierVerdict({ denierKey: null, inviteOwner: O, creatorKey: C, enforce: false }), 'accept-unvetted', 'and so is an older member naming nobody')
 })

@@ -16,15 +16,15 @@ import { DENY_OUTCOME } from '../../shared/contract/deny-outcome.js'
 import { CODES } from '../../shared/contract/errors.js'
 import { PEER_FRAME } from '../../shared/contract/peer-frames.js'
 import { AppError, errorMessage } from '../../shared/core/errors.js'
-import { getDeriveDebounceMs, getMembershipCaps, isHandshakeIdentityBindingEnabled } from '../../shared/core/runtime-config.js'
+import { getDeriveDebounceMs, getMembershipCaps, isHandshakeIdentityBindingEnabled, isMembershipControlBindingEnforced } from '../../shared/core/runtime-config.js'
 import { peerReadTimeoutMs } from '../../shared/core/with-timeout.js'
 import { sanitizeAvatar } from '../../shared/contract/identity-limits.js'
 import { reconcileAssertedRoot } from '../../shared/spaces/creator-root.js'
 import { classifyInvite } from '../../shared/spaces/invites.js'
 import { applyLocalApproval, applyLocalDenial, closeMemberView, dropTombstone, isApprovedJoiner, isDeniedJoiner, isLeft, openMemberView } from '../../shared/spaces/member-registry.js'
-import { ASK_PEERS, denyVerdict, granterVerdict, knockSettledByRecords, knockInviteVerdict } from '../../shared/spaces/knock-policy.js'
+import { ASK_PEERS, cancelVerdict, denierVerdict, denyVerdict, granterVerdict, knockSettledByRecords, knockInviteVerdict } from '../../shared/spaces/knock-policy.js'
 import { foldHoldsMember } from '../../shared/spaces/member-view.js'
-import { captureJoinerMembership, getIdentitySigner, markRequest, markRequestDenied, ownDenialStands, readMembershipRecord, readProfileRecord } from '../../shared/spaces/profile.js'
+import { captureJoinerMembership, getIdentitySigner, getLocalPublicKeyHex, markRequest, markRequestDenied, ownDenialStands, readMembershipRecord, readProfileRecord } from '../../shared/spaces/profile.js'
 import { getSpace, getSpaceContentKey, spaceEpoch } from '../../shared/spaces/space.js'
 import { verifiedMembers, isVerifiedMember } from '../../shared/spaces/member-standing.js'
 import { claimJoinRequestAudit, clearJoinRequest, forgetJoinRequestAudit, hasApprovedVerdict, listJoinRequests, listPendingRequests, recordJoinRequest, releaseJoinRequestAudit, rememberApprovedVerdict } from '../../shared/spaces/join-requests.js'
@@ -33,7 +33,7 @@ import { materializeSpace, recordApproval } from '../../shared/spaces/space-life
 import { purgeSpace } from '../../shared/spaces/leave-records.js'
 import { makeKeyedCoalescer } from '../../shared/core/coalesce.js'
 import { forgetUnreferencedPeerCores } from '../../shared/storage/leftover.js'
-import { checkGrantAssertion, clampDisplayName, frameEpoch } from '../../shared/network/handshake-guard.js'
+import { checkControlSender, checkGrantAssertion, clampDisplayName, frameEpoch } from '../../shared/network/handshake-guard.js'
 import { openSealedSck } from '../../shared/spaces/sck-seal.js'
 import { broadcastProfileUpdate } from '../../shared/network/identity-frames.js'
 import { disconnectPeersFromSpace, leaveSpaceTopic } from '../../shared/network/space-topics.js'
@@ -108,7 +108,7 @@ const memberRegistry = {
 const MEMBERSHIP_HANDLERS = Object.freeze({
   [PEER_FRAME.MEMBERSHIP_REQUEST]: (msg, ctx) => onJoinRequest(msg, ctx),
   [PEER_FRAME.MEMBERSHIP_GRANT]: (msg, ctx) => onGrant(msg, ctx),
-  [PEER_FRAME.MEMBERSHIP_DENY]: (_msg, ctx) => onDeny(ctx),
+  [PEER_FRAME.MEMBERSHIP_DENY]: (msg, ctx) => onDeny(msg, ctx),
   [PEER_FRAME.MEMBERSHIP_CANCEL]: (msg, ctx) => onCancel(msg, ctx),
 })
 
@@ -283,7 +283,7 @@ async function onGrant(msg, ctx = {}) {
     return
   }
   // Checked before the root reconcile, so a refused granter neither adopts nor refuses a root.
-  if (!(await granterRecognizedOver(ctx.socket, spaceId, space, verdict.granterKey))) {
+  if (!(await granterRecognized(ctx.socket, spaceId, space, verdict.granterKey))) {
     log.warn('rejected membership:grant — granter is not the inviter, the creator or a member:', verdict.granterKey?.slice(0, 12))
     return
   }
@@ -319,38 +319,51 @@ async function onGrant(msg, ctx = {}) {
   ipc.emit('event:membership-granted', { spaceId })
 }
 
-// The fold check walks this space's roster from the creator to the granter, and a pending joiner
-// may hold none of those records: the granter does. So each core the walk reads is attached to the
-// granter's socket alone, which replicates nothing else until the grant is applied. What the socket
-// can read from us is limited to those same roster cores.
 /** @param {object | undefined} socket @param {string} spaceId @param {StoredSpace} space @param {string | null} granterKey */
-async function granterRecognizedOver(socket, spaceId, space, granterKey) {
+async function granterRecognized(socket, spaceId, space, granterKey) {
+  const creatorKey = space.creatorKey ?? null
+  const verdict = granterVerdict({ granterKey, inviteOwner: space.inviteOwner ?? null, creatorKey })
+  return deciderHeld(socket, spaceId, creatorKey, granterKey, verdict, { attachOwn: true })
+}
+
+// A decider verdict settled: 'check-fold' asks the fold rooted at the creator, anything but
+// 'reject' is accepted as it stands.
+/**
+ * @param {object | undefined} socket @param {string} spaceId @param {string | null} creatorKey @param {string | null} key
+ * @param {'accept' | 'accept-unvetted' | 'check-fold' | 'reject'} verdict @param {{ attachOwn: boolean }} opts
+ */
+async function deciderHeld(socket, spaceId, creatorKey, key, verdict, opts) {
+  if (verdict !== 'check-fold') return verdict !== 'reject'
+  return !!key && !!creatorKey && await foldHoldsOver(socket, { spaceId, creatorKey, key }, opts)
+}
+
+// The fold check walks this space's roster from the creator to the decider (a granter or a
+// denier), and a pending joiner may hold none of those records: the decider does. So each core the
+// walk reads is attached to the decider's socket alone, which replicates nothing else until a grant
+// is applied. What the socket can read from us is limited to those same roster cores. Our own is
+// among them only for a granter, which captures our profile core over this socket once it has
+// approved us; for a denier it would only serve our profile bee to whoever sent the frame.
+/**
+ * @param {object | undefined} socket @param {{ spaceId: string, creatorKey: string, key: string }} member
+ * @param {{ attachOwn: boolean }} opts
+ */
+async function foldHoldsOver(socket, { spaceId, creatorKey, key }, { attachOwn }) {
   /** @type {{ close: () => Promise<void> }[]} */
   const attached = []
-  /** @param {string} key */
-  const readOver = async (key) => {
-    const core = socket ? await attachPeerCore(socket, key) : null
+  const self = getLocalPublicKeyHex()
+  /** @param {string} rosterKey */
+  const readOver = async (rosterKey) => {
+    const core = socket && (attachOwn || rosterKey !== self) ? await attachPeerCore(socket, rosterKey) : null
     if (core) attached.push(core)
-    return readMembershipRecord(key, spaceId)
+    return readMembershipRecord(rosterKey, spaceId)
   }
   try {
-    return await granterRecognized(spaceId, space, granterKey, readOver)
+    return await foldHoldsMember({ spaceId, creatorKey, key, readRecord: readOver })
   } finally {
     for (const core of attached) {
       try { await core.close() } catch (err) { log.debug('roster core session close failed:', errorMessage(err)) }
     }
   }
-}
-
-/**
- * @param {string} spaceId @param {StoredSpace} space @param {string | null} granterKey
- * @param {(key: string) => Promise<object | null>} readRecord
- */
-async function granterRecognized(spaceId, space, granterKey, readRecord) {
-  const creatorKey = space.creatorKey ?? null
-  const verdict = granterVerdict({ granterKey, inviteOwner: space.inviteOwner ?? null, creatorKey })
-  if (verdict !== 'check-fold' || !granterKey || !creatorKey) return verdict === 'accept'
-  return foldHoldsMember({ spaceId, creatorKey, key: granterKey, readRecord })
 }
 
 // A pending joiner withdrew their request (an ephemeral Tier-3 lifecycle signal) — drop our banner. Only the
@@ -360,6 +373,7 @@ async function granterRecognized(spaceId, space, granterKey, readRecord) {
 async function onCancel(msg, ctx = {}) {
   const { spaceId, socket } = ctx
   if (!spaceId || typeof msg.joinerKey !== 'string') return
+  if (!(await cancelSenderAccepted(spaceId, msg.joinerKey, msg, ctx.peerInfo))) return
   const showing = listJoinRequests(spaceId).some((r) => r.publicKey === msg.joinerKey)
   const had = clearJoinRequest(spaceId, msg.joinerKey)
   if (showing) await markRequestDenied(spaceId, msg.joinerKey)
@@ -372,15 +386,53 @@ async function onCancel(msg, ctx = {}) {
   if (had || showing) ipc.emit('event:join-requests-updated', { spaceId })
 }
 
-/** @param {Partial<PeerFrameContext>} ctx */
-async function onDeny(ctx) {
+/** @param {string} spaceId @param {string} joinerKey @param {PeerFrame} msg @param {object | undefined} peerInfo */
+async function cancelSenderAccepted(spaceId, joinerKey, msg, peerInfo) {
+  const sender = checkControlSender(peerInfo, msg)
+  if (!sender.ok) {
+    log.debug('dropped membership:cancel —', sender.reason)
+    return false
+  }
+  const { senderKey } = sender
+  const senderIsMember = !!senderKey && senderKey !== joinerKey && isVerifiedMember((await getSpace(spaceId))?.members, senderKey)
+  const verdict = cancelVerdict({ senderKey, joinerKey, senderIsMember, enforce: isMembershipControlBindingEnforced() })
+  // debug, not warn: a member's banner-clearing cancel reaches every socket holding the topic,
+  // pending joiners that cannot place that member included.
+  if (verdict === 'reject') log.debug('dropped membership:cancel — sender is neither the joiner nor a member:', spaceId)
+  if (verdict === 'accept-unbound') log.info('honouring a membership:cancel that names no sender:', spaceId)
+  return verdict !== 'reject'
+}
+
+// The request was rejected — the joiner never became a member, so drop the pending space entirely
+// instead of leaving it stranded in the list.
+/** @param {PeerFrame} msg @param {Partial<PeerFrameContext>} [ctx] */
+async function onDeny(msg, ctx = {}) {
   const { spaceId } = ctx
   if (!spaceId) return
-  // The request was rejected — the joiner never became a member, so drop the
-  // pending space entirely instead of leaving it stranded in their list.
   const space = await getSpace(spaceId)
-  if (space?.status === 'pending') await discardPendingSpace(spaceId)
+  if (space?.status !== 'pending') return
+  if (!(await denierRecognized(ctx.socket, ctx.peerInfo, space, msg))) return
+  // The fold read can outlast a grant that lands meanwhile, and a granted space is not ours to purge.
+  if ((await getSpace(spaceId))?.status !== 'pending') return
+  await discardPendingSpace(spaceId)
   ipc.emit('event:membership-denied', { spaceId })
+}
+
+/** @param {object | undefined} socket @param {object | undefined} peerInfo @param {StoredSpace} space @param {PeerFrame} msg */
+async function denierRecognized(socket, peerInfo, space, msg) {
+  const sender = checkControlSender(peerInfo, msg)
+  if (!sender.ok) {
+    log.warn('rejected membership:deny —', sender.reason)
+    return false
+  }
+  const { spaceId } = space
+  const denierKey = sender.senderKey
+  const creatorKey = space.creatorKey ?? null
+  const verdict = denierVerdict({ denierKey, inviteOwner: space.inviteOwner ?? null, creatorKey, enforce: isMembershipControlBindingEnforced() })
+  const accepted = await deciderHeld(socket, spaceId, creatorKey, denierKey, verdict, { attachOwn: false })
+  if (!accepted) log.warn('rejected membership:deny — sender is not the inviter, the creator or a member:', denierKey?.slice(0, 12) ?? 'unnamed')
+  else if (verdict === 'accept-unvetted') log.info('honouring an unvetted membership:deny from', denierKey?.slice(0, 12) ?? 'an unnamed sender', 'for', spaceId)
+  return accepted
 }
 
 // Single chokepoint for a member resolving a pending join request (an ephemeral Tier-3
