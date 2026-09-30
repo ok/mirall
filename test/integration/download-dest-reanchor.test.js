@@ -44,3 +44,12 @@ test('no pin at all resolves fresh', async (t) => {
   t.is(reuseDest(undefined, downloads, 'a.txt'), path.join(downloads, 'a.txt'))
   t.is(reuseDest(null, downloads, 'a.txt'), path.join(downloads, 'a.txt'))
 })
+
+test('REGRESSION (MIR-13): a pin a file now sits at is re-resolved, never written over', async (t) => {
+  const { downloads } = await freshPeer(t)
+  const pinned = path.join(downloads, 'big.iso')
+  fs.writeFileSync(pinned, 'saved here while the download was paused')
+
+  const dest = reuseDest(pinned, downloads, 'big.iso')
+  t.is(dest, path.join(downloads, 'big (1).iso'), 'a free sibling instead of the occupied pin')
+})

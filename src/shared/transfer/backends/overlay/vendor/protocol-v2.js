@@ -202,6 +202,7 @@ export class OverlayProtocolV2 {
       path: p,
       destPath: opts.destPath,
       size: opts.size,   // [mirall] §4.24 — the catalog size the chunk map must match
+      parentMustExist: opts.parentMustExist,   // [mirall] §4.25
       transfer: this._transferManager,
       sendNeed: (peer, indices) => peer.msgs.chunkNeed.send({ path: p, indices }),
       cap: opts.cap,

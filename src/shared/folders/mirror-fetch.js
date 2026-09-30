@@ -409,6 +409,9 @@ async function fetchOverlayEntry(mount, share, entry, { abs, verifyKey, localRel
       size: total,
       ownerKey: mount.ownerKey,
       destPath: abs,
+      // mkdirUnderMount made the parent: a parent gone by the time the receive starts is a mount
+      // root the user deleted, which the receive must not recreate.
+      parentMustExist: true,
       onProgress: ({ bytes, speed, eta }) => emitMirrorEvent('event:decoration', {
         channel: 'transfer', spaceId: mount.spaceId, key: decoKey, bytes, total, speed, eta,
       }),

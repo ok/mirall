@@ -65,6 +65,21 @@ function openSyncTracked (filePath, flags) {
   return fd
 }
 
+// [mirall] §4.25
+function isDirectory (dir) {
+  try { return fs.statSync(dir).isDirectory() } catch { return false }
+}
+
+// [mirall] §4.25 What sits at a receive's target, compared across the receive.
+function targetFingerprint (targetPath) {
+  try {
+    const st = fs.lstatSync(targetPath)
+    return st.ino + ':' + st.size + ':' + st.mtimeMs
+  } catch {
+    return null
+  }
+}
+
 async function closeTracked (fd) {
   try { await fs.close(fd) } catch { return }
   openFds--
@@ -370,10 +385,21 @@ export class TransferManager {
     const partialPath = path.join(dir, base + this._partialSuffix)
     const journalPath = this._journalPathFor(targetPath)
 
-    fs.mkdirSync(dir, { recursive: true })
+    // [mirall] §4.25 opts.parentMustExist: the caller made the folder, so one that is gone
+    // was deleted meanwhile and is not recreated.
+    if (opts.parentMustExist) {
+      if (!isDirectory(dir)) { const e = new Error('receive folder is gone: ' + dir); e.code = 'ENOENT'; throw e }
+    } else {
+      fs.mkdirSync(dir, { recursive: true })
+    }
 
     let resumed = false
-    try { resumed = fs.statSync(partialPath).size === meta.size } catch {}
+    // [mirall] §4.25 lstat: only a regular file is a partial to resume — a link at the partial
+    // name would carry the 'r+' writes to wherever it points.
+    try {
+      const st = fs.lstatSync(partialPath)
+      resumed = st.isFile() && st.size === meta.size
+    } catch {}
 
     let received = new Set()
     let hasher = meta.contentHash ? createStreamingHasher({ size: meta.size }) : null
@@ -398,9 +424,12 @@ export class TransferManager {
     // [mirall][B1] ONE persistent fd for the whole transfer — positioned
     // writeSync/fs.read never move a shared cursor, so a single handle serves the
     // chunk writes, the hash pump's gap read-back, and the journal fsync. Replaces
-    // an openSync+closeSync per chunk; 'w+' creates+truncates the fresh partial in
-    // the same open.
-    const fd = openSyncTracked(partialPath, resumed ? 'r+' : 'w+')
+    // an openSync+closeSync per chunk. [mirall] §4.25 A fresh partial replaces
+    // whatever holds the name (unlinking a link removes the link, not its target)
+    // and is created exclusively: O_EXCL refuses a name that reappears in
+    // between, a link included.
+    if (!resumed) { try { fs.unlinkSync(partialPath) } catch {} }
+    const fd = openSyncTracked(partialPath, resumed ? 'r+' : 'wx+')
     if (!resumed) {
       try { fs.ftruncateSync(fd, meta.size) } catch (err) { closeSyncTracked(fd); throw err }
     }
@@ -409,6 +438,7 @@ export class TransferManager {
     const state = {
       partialPath,
       targetPath,
+      targetFingerprint: targetFingerprint(targetPath),   // [mirall] §4.25
       journalPath,
       chunks: meta.chunks,
       received,
@@ -769,6 +799,16 @@ export class TransferManager {
       }
     }
     this._closeFd(state)
+
+    // [mirall] §4.25 The target must still be what it was when the receive began: a
+    // file that appeared or was replaced meanwhile is not the caller's to overwrite.
+    // The name is no longer this transfer's, so its partial and journal go with it.
+    if (targetFingerprint(state.targetPath) !== state.targetFingerprint) {
+      try { fs.unlinkSync(state.partialPath) } catch {}
+      if (state.journalPath) { try { fs.unlinkSync(state.journalPath) } catch {} }
+      this._active.delete(targetPath)
+      return { ok: false, error: 'target changed during receive', code: 'ETARGETCHANGED' }
+    }
 
     try {
       fs.renameSync(state.partialPath, state.targetPath)
