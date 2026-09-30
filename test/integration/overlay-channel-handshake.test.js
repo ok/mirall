@@ -1,9 +1,9 @@
 import test from 'brittle'
 import Protomux from 'protomux'
 import { Duplex } from 'streamx'
-import { tmpStore, tmpDir } from './overlay-vendor-helpers.js'
-import { HyperOverlayV2 } from '../../src/shared/transfer/backends/overlay/vendor/overlay-v2.js'
-import { VERSION, MIN_VERSION, CAP_LOCAL_FILES, CAP_ADAPTIVE_CHUNKS } from '../../src/shared/transfer/backends/overlay/vendor/protocol-v2.js'
+import { tmpStore, tmpDir } from './overlay-engine-helpers.js'
+import { HyperOverlayV2 } from '../../src/shared/transfer/backends/overlay/engine/overlay-v2.js'
+import { VERSION, MIN_VERSION, CAP_LOCAL_FILES, CAP_ADAPTIVE_CHUNKS } from '../../src/shared/transfer/backends/overlay/engine/protocol-v2.js'
 import { scaled } from '../helpers/bare-timing.js'
 
 function makeDuplex() {

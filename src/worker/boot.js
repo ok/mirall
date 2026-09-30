@@ -33,7 +33,7 @@ import { PendingTransfersBee, clearPendingForSpace } from '../shared/transfer/pe
 import { abortInFlightPublishes } from '../shared/transfer/backends/overlay/overlay-publish.js'
 import { ServeLedger } from '../shared/transfer/serve-ledger.js'
 import { getJournalDir } from '../shared/transfer/backends/overlay/overlay-instance.js'
-import { cleanupOrphanedJournals } from '../shared/transfer/backends/overlay/vendor/transfer.js'
+import { cleanupOrphanedJournals } from '../shared/transfer/backends/overlay/engine/transfer.js'
 import { cleanupOrphanedPartials } from '../shared/transfer/partial-sweep.js'
 import { Swarm } from '../shared/network/swarm.js'
 import { joinSpaceTopic } from '../shared/network/space-topics.js'

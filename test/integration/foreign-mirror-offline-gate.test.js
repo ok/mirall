@@ -42,8 +42,8 @@ test('REGRESSION (FIX-MIRROR-OFFLINE): a self-mirror still materializes under th
   t.is(fetches.calls, 2, 'both files were fetched — the gate did not mistake us for an offline peer')
 })
 
-// A fetchFile that resolves null WITHOUT calling onEnd is exactly what the vendor does when
-// _peers.size === 0 (vendor/overlay-v2.js) — the shape the reported bug ran on. That answer is a
+// A fetchFile that resolves null WITHOUT calling onEnd is exactly what the engine does when
+// _peers.size === 0 (engine/overlay-v2.js) — the shape the reported bug ran on. That answer is a
 // process-global fact, so the pass must stop rather than re-ask it once per file.
 test('a zero-peer answer stops the pass instead of re-asking per file', async (t) => {
   const ctx = await setupSelfMirror(t, { files: { 'a.txt': '1', 'b.txt': '2', 'c.txt': '3', 'd.txt': '4' } })

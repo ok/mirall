@@ -1,6 +1,6 @@
 // One overlay fetch, instrumented. The mirror's materialize runs the whole thing (runOverlayFetch);
 // the download engine builds only the instruments (makeFetchInstruments) and keeps its own settle,
-// because its vendor call resolves { ok, code } instead of throwing. What differs (where the bytes
+// because its engine call resolves { ok, code } instead of throwing. What differs (where the bytes
 // go, what a settle means durably, who owns the row) stays with the caller.
 //
 // `attempted` is true once a chunk scheduler ran — i.e. onEnd fired — which is what separates "a
@@ -62,7 +62,7 @@ export function makeFetchDiag(label, relPath, total, contentHash) {
 }
 
 // The ticker, the diag, and the three callbacks that wire them together — everything either
-// consumer builds AROUND the vendor call.
+// consumer builds AROUND the engine call.
 export function makeFetchInstruments({ label, relPath, size = 0, contentHash = null, onProgress, onVerify, onTick }) {
   const ticker = makeProgressTicker(size, onProgress)
   const diag = makeFetchDiag(label, relPath, size, contentHash)

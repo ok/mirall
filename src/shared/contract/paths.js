@@ -1,9 +1,9 @@
 // Path rules every runtime shares. They live here because `core/` may not import `folders/` and
 // `folders/` may not import `transfer/` — the two edges those rules were being read across.
 
-// A file's own suffix while it is still being written. The vendored overlay engine keeps its own
+// A file's own suffix while it is still being written. The overlay engine keeps its own
 // default for the same idea; PROVENANCE.md records the divergence and a test pins that no
-// non-vendor module re-declares this one.
+// non-engine module re-declares this one.
 export const PARTIAL_SUFFIX = '.mirall.part'
 
 /** @param {string} targetPath */

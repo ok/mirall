@@ -82,7 +82,7 @@ test('REGRESSION (HOL): a new share reaches a peer that is mid-download — no p
 
     // Note: on fast loopback the transfer can finish before shares-updated arrives, so this
     // is an end-to-end guard, not the deterministic proof — that lives in
-    // test/integration/overlay-vendor-backpressure.test.js (seeder backpressure red-first).
+    // test/integration/overlay-engine-backpressure.test.js (seeder backpressure red-first).
     const sawShare = B.waitFor('event:shares-updated', (m) => m.spaceId === spaceId, 15000)
     await A.request('share:create', { spaceId, name: 'Vault' })
     await sawShare

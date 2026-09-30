@@ -11,7 +11,7 @@ const shared = path.join(here, '..', '..', 'src', 'shared')
 const walk = (dir, out = []) => {
   for (const name of fs.readdirSync(dir)) {
     const p = path.join(dir, name)
-    if (fs.statSync(p).isDirectory()) { if (name !== 'vendor') walk(p, out) } else if (name.endsWith('.js')) out.push(p)
+    if (fs.statSync(p).isDirectory()) { if (name !== 'engine') walk(p, out) } else if (name.endsWith('.js')) out.push(p)
   }
   return out
 }

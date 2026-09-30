@@ -6,9 +6,9 @@
 // Ported from hyper-overlay upstream test/chunker.test.js (6cac8ee). Body
 // verbatim except the CDC stability test, which uses seeded input; import paths
 // retargeted to the vendored subset. See
-// src/shared/transfer/backends/overlay/vendor/PROVENANCE.md.
+// src/shared/transfer/backends/overlay/engine/PROVENANCE.md.
 import test from 'brittle'
-import { chunk, hashChunk, MIN_SIZE, MAX_SIZE, selectTier, getTierParams } from '../../src/shared/transfer/backends/overlay/vendor/chunker.js'
+import { chunk, hashChunk, MIN_SIZE, MAX_SIZE, selectTier, getTierParams } from '../../src/shared/transfer/backends/overlay/engine/chunker.js'
 import crypto from 'hypercore-crypto'
 
 test('empty buffer produces zero chunks', (t) => {
@@ -197,7 +197,7 @@ test('different data produces different hashes', (t) => {
 })
 
 import { Readable } from 'stream'
-import { chunkStream, createStreamingHasher, chunkStats, setChunkStats } from '../../src/shared/transfer/backends/overlay/vendor/chunker.js'
+import { chunkStream, createStreamingHasher, chunkStats, setChunkStats } from '../../src/shared/transfer/backends/overlay/engine/chunker.js'
 
 function bufToStream(buf, partSize) {
   const parts = []

@@ -5,12 +5,12 @@
 
 // Ported from hyper-overlay upstream test/transfer.test.js (6cac8ee). Body
 // verbatim; only import paths retargeted to the vendored subset. See
-// src/shared/transfer/backends/overlay/vendor/PROVENANCE.md.
+// src/shared/transfer/backends/overlay/engine/PROVENANCE.md.
 import test from 'brittle'
-import { tmpStore, tmpDir, fs, path } from './overlay-vendor-helpers.js'
-import { FileIndex } from '../../src/shared/transfer/backends/overlay/vendor/file-index.js'
-import { TransferManager, openFdCount } from '../../src/shared/transfer/backends/overlay/vendor/transfer.js'
-import { hashChunk, selectTier, chunk as chunkBuffer } from '../../src/shared/transfer/backends/overlay/vendor/chunker.js'
+import { tmpStore, tmpDir, fs, path } from './overlay-engine-helpers.js'
+import { FileIndex } from '../../src/shared/transfer/backends/overlay/engine/file-index.js'
+import { TransferManager, openFdCount } from '../../src/shared/transfer/backends/overlay/engine/transfer.js'
+import { hashChunk, selectTier, chunk as chunkBuffer } from '../../src/shared/transfer/backends/overlay/engine/chunker.js'
 import crypto from 'hypercore-crypto'
 
 async function setup(transferOpts) {

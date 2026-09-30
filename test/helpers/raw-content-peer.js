@@ -2,7 +2,7 @@ import Hyperswarm from 'hyperswarm'
 import Protomux from 'protomux'
 import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
-import * as m from '../../src/shared/transfer/backends/overlay/vendor/messages-v2.js'
+import * as m from '../../src/shared/transfer/backends/overlay/engine/messages-v2.js'
 
 // A hand-built peer on a space's CONTENT topic (not the worker): it never sends a content-hello,
 // it only opens the raw hyper-overlay/v2 channel. It records what the worker sends it and can push

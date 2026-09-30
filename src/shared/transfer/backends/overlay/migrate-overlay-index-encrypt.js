@@ -9,7 +9,7 @@
 import { migrationResult, MIGRATION_STATUS } from '../../../storage/migrations/migration-result.js'
 import { getStore, hasMasterSecret, overlayIndexEncryptionKey, createLocalBee } from '../../../core/store.js'
 import { purgeNamedCore } from '../../../storage/core-purge.js'
-import { FileIndex, indexCoreName } from './vendor/file-index.js'
+import { FileIndex, indexCoreName } from './engine/file-index.js'
 import { createLogger } from '../../../core/logger.js'
 
 const log = createLogger('overlay-index-migration')

@@ -2,7 +2,7 @@ import test from 'brittle'
 import fs from 'bare-fs'
 import os from 'bare-os'
 import path from 'bare-path'
-import { OverlayProtocolV2 } from '../../src/shared/transfer/backends/overlay/vendor/protocol-v2.js'
+import { OverlayProtocolV2 } from '../../src/shared/transfer/backends/overlay/engine/protocol-v2.js'
 
 // The protocol's fetchContent owns the per-contentHash scheduler: the cancel-before-
 // scheduler window (#1b) and the same-hash join (#2). A minimal transfer stub is

@@ -41,7 +41,7 @@ test('both producers gate a fetch on reachability', (t) => {
 })
 
 // Deliberately one-sided. The two look like the same question and are not: the mirror asks whether a
-// chunk scheduler ever ran (onEnd fired), the engine asks whether the vendor attached a cause code.
+// chunk scheduler ever ran (onEnd fired), the engine asks whether the overlay engine attached a cause code.
 // An earlier draft of this file demanded both use classifyMiss, and forcing the engine onto it
 // inverted its retry branch — the engine suite caught it. The shared rule owns the mirror's fact
 // only; the engine's stays its own.
@@ -58,7 +58,7 @@ test('one terminal-fault set, read by every producer that judges a fault', (t) =
   t.absent(/USER_FACING_ERRORS\s*=/.test(read(CHANNEL)), 'the channel keeps no private set')
 })
 
-test('both producers reach the vendor through the shared instrumentation', (t) => {
+test('both producers reach the overlay engine through the shared instrumentation', (t) => {
   for (const [label, src] of [['the engine', ENGINE_ALL], [MIRROR, read(MIRROR)]]) {
     t.absent(/makeFetchDiag\(/.test(src), `${label} does not build its own diag`)
     t.absent(/makeProgressTicker\(/.test(src), `${label} does not build its own ticker`)

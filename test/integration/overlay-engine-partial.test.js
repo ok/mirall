@@ -1,7 +1,7 @@
 import test from 'brittle'
-import { tmpStore, tmpDir, fs, path } from './overlay-vendor-helpers.js'
-import { FileIndex } from '../../src/shared/transfer/backends/overlay/vendor/file-index.js'
-import { TransferManager } from '../../src/shared/transfer/backends/overlay/vendor/transfer.js'
+import { tmpStore, tmpDir, fs, path } from './overlay-engine-helpers.js'
+import { FileIndex } from '../../src/shared/transfer/backends/overlay/engine/file-index.js'
+import { TransferManager } from '../../src/shared/transfer/backends/overlay/engine/transfer.js'
 import crypto from 'hypercore-crypto'
 
 // The receive side writes into folders the user also writes into: the partial beside the target

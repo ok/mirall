@@ -1,7 +1,7 @@
 import test from 'brittle'
-import { OverlayProtocolV2 } from '../../src/shared/transfer/backends/overlay/vendor/protocol-v2.js'
+import { OverlayProtocolV2 } from '../../src/shared/transfer/backends/overlay/engine/protocol-v2.js'
 import { createBandwidthLimiter } from '../../src/shared/transfer/bandwidth-limiter.js'
-import * as m from '../../src/shared/transfer/backends/overlay/vendor/messages-v2.js'
+import * as m from '../../src/shared/transfer/backends/overlay/engine/messages-v2.js'
 import { scaled } from '../helpers/bare-timing.js'
 
 // chunkData, mirall/handshake, and the Corestore replication that carries a peer's

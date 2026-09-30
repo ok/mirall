@@ -2,8 +2,8 @@ import test from 'brittle'
 import Protomux from 'protomux'
 import crypto from 'hypercore-crypto'
 import { Duplex } from 'streamx'
-import { tmpStore, tmpDir, fs, path } from './overlay-vendor-helpers.js'
-import { HyperOverlayV2 } from '../../src/shared/transfer/backends/overlay/vendor/overlay-v2.js'
+import { tmpStore, tmpDir, fs, path } from './overlay-engine-helpers.js'
+import { HyperOverlayV2 } from '../../src/shared/transfer/backends/overlay/engine/overlay-v2.js'
 import { scaled } from '../helpers/bare-timing.js'
 
 function makeDuplex() {

@@ -31,26 +31,26 @@ test('DEFAULT_IGNORE does not swallow files that merely look partial', (t) => {
   t.absent(shouldIgnore('report.mirall.partner', DEFAULT_IGNORE), 'a near-miss name is not ignored')
 })
 
-// The vendored engine keeps its own PARTIAL_SUFFIX/partialPathFor as a standalone default,
+// The overlay engine keeps its own PARTIAL_SUFFIX/partialPathFor as a standalone default,
 // but they are free of instance config: importing them while the app injects a different
 // suffix would silently desync the writer from the sweep. App code reads partial-suffix.js.
-test('no app module imports the suffix helpers out of the vendored engine', (t) => {
+test('no app module imports the suffix helpers out of the overlay engine', (t) => {
   const offenders = []
   const walk = (dir) => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       const full = path.join(dir, entry.name)
       if (entry.isDirectory()) {
-        if (entry.name !== 'vendor') walk(full)
+        if (entry.name !== 'engine') walk(full)
         continue
       }
       if (!entry.name.endsWith('.js')) continue
       const src = fs.readFileSync(full, 'utf8')
-      for (const m of src.matchAll(/import\s*{([^}]*)}\s*from\s*['"]([^'"]*vendor\/transfer\.js)['"]/g)) {
+      for (const m of src.matchAll(/import\s*{([^}]*)}\s*from\s*['"]([^'"]*engine\/transfer\.js)['"]/g)) {
         const named = m[1]
         if (/\bPARTIAL_SUFFIX\b|\bpartialPathFor\b/.test(named)) offenders.push(path.relative(SRC, full))
       }
     }
   }
   walk(SRC)
-  t.alike(offenders, [], 'PARTIAL_SUFFIX / partialPathFor are never imported from vendor/transfer.js')
+  t.alike(offenders, [], 'PARTIAL_SUFFIX / partialPathFor are never imported from engine/transfer.js')
 })

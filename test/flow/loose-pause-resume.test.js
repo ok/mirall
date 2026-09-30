@@ -10,8 +10,8 @@ import { scaled } from '../helpers/timing.js'
 
 // In-place (loose) downloads: real pause/resume (continue the partial, not restart)
 // and auto-resume when the owner reconnects. The resume mechanics themselves are
-// covered deterministically in the vendor tests (overlay-vendor-transfer +
-// overlay-vendor-scheduler); these exercise the end-to-end wiring over two peers.
+// covered deterministically in the engine tests (overlay-engine-transfer +
+// overlay-engine-scheduler); these exercise the end-to-end wiring over two peers.
 // Loose discovery rides the membership fold (looseCatalogKey is folded from the
 // owner's profile bee).
 const kekHex = () => crypto.randomBytes(32).toString('hex')

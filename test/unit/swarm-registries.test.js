@@ -177,7 +177,7 @@ test('no module deletes a bound signer key behind forgetBoundSignerKey', (t) => 
   const walk = (dir) => {
     for (const name of readdirSync(dir)) {
       const p = path.join(dir, name)
-      if (statSync(p).isDirectory()) { if (name !== 'vendor' && name !== 'node_modules') walk(p) }
+      if (statSync(p).isDirectory()) { if (name !== 'engine' && name !== 'node_modules') walk(p) }
       else if (name.endsWith('.js') && name !== 'swarm-registries.js') files.push(p)
     }
   }
@@ -200,7 +200,7 @@ test('no module re-inlines the authorization test', (t) => {
   const walk = (dir) => {
     for (const name of readdirSync(dir)) {
       const p = path.join(dir, name)
-      if (statSync(p).isDirectory()) { if (name !== 'vendor') walk(p) }
+      if (statSync(p).isDirectory()) { if (name !== 'engine') walk(p) }
       else if (name.endsWith('.js') && !exempt.includes(name)) files.push(p)
     }
   }

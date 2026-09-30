@@ -13,7 +13,7 @@ import fs from 'bare-fs'
 import path from 'bare-path'
 import { getDownloadDir, isInsideDownloadDir } from '../../../core/paths.js'
 import { getOverlay, getJournalDir } from './overlay-instance.js'
-import { journalNameFor } from './vendor/transfer.js'
+import { journalNameFor } from './engine/transfer.js'
 import { PARTIAL_SUFFIX, partialPathFor } from '../../partial-suffix.js'
 import { isOwnerOnline } from '../../../network/presence-leases.js'
 import { clearPending, recordPendingError, getPendingFor, listPendingForSpace } from '../../pending-transfers.js'
@@ -192,7 +192,7 @@ function discardPartial(finalPath) {
   if (jd) { try { fs.unlinkSync(path.join(jd, journalNameFor(finalPath))) } catch {} }
 }
 
-// The one place an abort reaches the vendor, and only once a fetch is in flight there.
+// The one place an abort reaches the engine, and only once a fetch is in flight there.
 function abortFetch(slot, opts) {
   if (slot.fetching) getOverlay()?.cancelFetch(slot.contentHash, opts)
 }

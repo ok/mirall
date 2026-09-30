@@ -3,10 +3,10 @@
 // fetch; a peer past MAX_PAGED_ENTRIES_PER_PEER or MAX_PAGED_MAPS_PER_PEER is dropped. A closed
 // channel releases the peer's buffer, and a refused page releases what it buffered for that path.
 import test from 'brittle'
-import * as m from '../../src/shared/transfer/backends/overlay/vendor/messages-v2.js'
-import { OverlayProtocolV2, MAX_PAGED_ENTRIES_PER_PEER, MAX_PAGED_MAPS_PER_PEER } from '../../src/shared/transfer/backends/overlay/vendor/protocol-v2.js'
-import { ChunkScheduler } from '../../src/shared/transfer/backends/overlay/vendor/chunk-scheduler.js'
-import { TIERS } from '../../src/shared/transfer/backends/overlay/vendor/chunker.js'
+import * as m from '../../src/shared/transfer/backends/overlay/engine/messages-v2.js'
+import { OverlayProtocolV2, MAX_PAGED_ENTRIES_PER_PEER, MAX_PAGED_MAPS_PER_PEER } from '../../src/shared/transfer/backends/overlay/engine/protocol-v2.js'
+import { ChunkScheduler } from '../../src/shared/transfer/backends/overlay/engine/chunk-scheduler.js'
+import { TIERS } from '../../src/shared/transfer/backends/overlay/engine/chunker.js'
 
 function fakeTransfer() {
   const calls = []

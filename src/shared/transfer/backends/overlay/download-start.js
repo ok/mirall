@@ -12,8 +12,8 @@ import { memberWaits } from '../../../network/share-wait.js'
 
 // A download's slot IS its registry entry: start() reserves it before any await, so a duplicate
 // trigger cannot open a second fetch on the same hash; the fetch task holds it; settling deletes
-// it. `fetching` means a fetch is in flight in the vendor layer — it gates every abort, so an
-// abort only reaches the vendor once there is something to abort.
+// it. `fetching` means a fetch is in flight in the engine — it gates every abort, so an
+// abort only reaches the engine once there is something to abort.
 export function makeSlot(job) {
   return {
     job,

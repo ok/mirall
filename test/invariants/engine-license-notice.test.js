@@ -4,15 +4,15 @@ import { fileURLToPath } from 'url'
 import path from 'path'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
-const VENDOR = path.join(root, 'src/shared/transfer/backends/overlay/vendor')
+const VENDOR = path.join(root, 'src/shared/transfer/backends/overlay/engine')
 
 // Upstream tests ported alongside the vendored source, by their path upstream.
 const PORTED_TESTS = new Map([
-  ['test/unit/overlay-vendor-chunker.test.js', 'test/chunker.test.js'],
-  ['test/unit/overlay-vendor-messages-v2.test.js', 'test/messages-v2.test.js'],
-  ['test/integration/overlay-vendor-helpers.js', 'test/helpers.js'],
-  ['test/integration/overlay-vendor-restart-durability.test.js', 'test/overlay-v2-restart-durability.test.js'],
-  ['test/integration/overlay-vendor-transfer.test.js', 'test/transfer.test.js'],
+  ['test/unit/overlay-engine-chunker.test.js', 'test/chunker.test.js'],
+  ['test/unit/overlay-engine-messages-v2.test.js', 'test/messages-v2.test.js'],
+  ['test/integration/overlay-engine-helpers.js', 'test/helpers.js'],
+  ['test/integration/overlay-engine-restart-durability.test.js', 'test/overlay-v2-restart-durability.test.js'],
+  ['test/integration/overlay-engine-transfer.test.js', 'test/transfer.test.js'],
 ])
 
 const read = (file) => readFileSync(file, 'utf8').replace(/\r\n/g, '\n')
@@ -46,7 +46,7 @@ const TEST_POINTER = [
 ]
 
 test('the guard is looking at the vendored overlay and its recorded snapshot', (t) => {
-  t.ok(existsSync(path.join(VENDOR, 'overlay-v2.js')), 'vendor/ still holds the overlay facade — a moved folder must move this guard')
+  t.ok(existsSync(path.join(VENDOR, 'overlay-v2.js')), 'engine/ still holds the overlay facade — a moved folder must move this guard')
   t.ok(snapshot(), 'PROVENANCE.md still records the snapshot commit and version')
 })
 

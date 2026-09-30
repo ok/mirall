@@ -1,7 +1,7 @@
 import test from 'brittle'
 import { freshPeer } from '../helpers/store.js'
 import { getStore } from '../../src/shared/core/store.js'
-import { FileIndex } from '../../src/shared/transfer/backends/overlay/vendor/file-index.js'
+import { FileIndex } from '../../src/shared/transfer/backends/overlay/engine/file-index.js'
 
 // Each name's first byte is above the old `'\xff'` (C3 BF) bound.
 const NAMES = ['plain.txt', 'ÿ-latin1.txt', 'Łódź.pdf', 'Отчёты.txt', '日本語.txt', '😀.png']

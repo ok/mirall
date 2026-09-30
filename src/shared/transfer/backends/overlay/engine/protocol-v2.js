@@ -172,7 +172,7 @@ export class OverlayProtocolV2 {
     // [mirall] channel handshake policy. onPeerOpen({ peer, version, capabilities }) fires once
     // the remote's version + caps are known and accepted; onPeerRejected fires instead when the
     // remote is below minVersion, just before its channel is closed. Both are informational:
-    // vendor/ has no logger.
+    // engine/ has no logger.
     this._minVersion = opts.minVersion ?? MIN_VERSION
     this._peerOpenCb = opts.onPeerOpen || null
     this._peerRejectedCb = opts.onPeerRejected || null
@@ -950,7 +950,7 @@ export class OverlayProtocolV2 {
     }, this._keepAliveInterval)
     // Unref'd: the take() resolving is what advances the serve loop, never this timer.
     timer.unref?.()
-    // try/finally rather than .finally(): `vendor/` duck-types the limiter for embedders, and a
+    // try/finally rather than .finally(): `engine/` duck-types the limiter for embedders, and a
     // take() that returns a plain value (or throws synchronously) would otherwise leak this
     // interval for the process lifetime and throw out of _onChunkNeed.
     try {

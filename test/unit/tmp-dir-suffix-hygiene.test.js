@@ -71,8 +71,8 @@ test('the hex suffix comes from the helper, not from a second spelling', (t) => 
   ]
   const offenders = scannedFiles().filter((rel) => {
     if (owners.includes(rel)) return false
-    // The vendored overlay suite keeps its own by deliberate exception — see its header.
-    if (rel.endsWith('overlay-vendor-helpers.js')) return false
+    // The overlay engine suite keeps its own by deliberate exception — see its header.
+    if (rel.endsWith('overlay-engine-helpers.js')) return false
     return readFileSync(path.join(testRoot, rel), 'utf8').includes("Math.random().toString(16)")
   })
   t.alike(offenders.sort(), [], 'hex suffixes come from test/helpers/{tmp,bare-tmp}.js')

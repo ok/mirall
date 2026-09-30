@@ -1,6 +1,6 @@
 import test from 'brittle'
 import crypto from 'hypercore-crypto'
-import { tmpDir, fs, path } from './overlay-vendor-helpers.js'
+import { tmpDir, fs, path } from './overlay-engine-helpers.js'
 import { SUFFIX, overlay, link } from './overlay-link-helpers.js'
 import { scaled } from '../helpers/bare-timing.js'
 import { waitFor } from '../helpers/bare-poll.js'

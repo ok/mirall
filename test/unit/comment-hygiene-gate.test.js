@@ -50,7 +50,7 @@ test('every blocking class is reported by name and by site, and the tree exits 1
   t.ok(out.includes('plan-ref.js:1:'), 'plans/<name>.md is reported')
   t.ok(out.includes('claude-ref.js:1:'), '.claude/ is reported')
   t.ok(/BLOCKING: section cites/.test(out), 'section cites are a blocking class')
-  t.ok(out.includes('section-cite.ts:1:'), '§ outside vendor/ is reported')
+  t.ok(out.includes('section-cite.ts:1:'), '§ outside engine/ is reported')
   t.ok(/BLOCKING: issue\/PR number references/.test(out), 'issue numbers are a blocking class')
   t.ok(out.includes('issue-ref.tsx:1:'), '#123 in a comment is reported')
   t.absent(out.includes('clean.js'), 'a clean file is never named')
@@ -58,17 +58,17 @@ test('every blocking class is reported by name and by site, and the tree exits 1
 
 test('the vendored subset may carry its own markers', (t) => {
   const root = tree(t, {
-    'shared/transfer/backends/overlay/vendor/chunk-scheduler.js': '// [mirall] FIX-BW9 — keep-alive budget, per §4.6\nexport const v = 1\n',
+    'shared/transfer/backends/overlay/engine/chunk-scheduler.js': '// [mirall] FIX-BW9 — keep-alive budget, per §4.6\nexport const v = 1\n',
     'a/clean.js': CLEAN
   })
   const { code, out } = run(root)
-  t.is(code, 0, 'vendor/ ids and § cites do not block')
+  t.is(code, 0, 'engine/ ids and § cites do not block')
   t.ok(out.includes('comment-hygiene: clean.'), 'and the tree reports clean')
 })
 
 test('PROVENANCE.md is the one .md the gate reads, for planning-doc references', (t) => {
   const root = tree(t, {
-    'shared/transfer/backends/overlay/vendor/PROVENANCE.md': '- item (plan: `.claude/tasks/plan-x.md`)\n',
+    'shared/transfer/backends/overlay/engine/PROVENANCE.md': '- item (plan: `.claude/tasks/plan-x.md`)\n',
     'a/clean.js': CLEAN
   })
   const { code, out } = run(root)
@@ -80,7 +80,7 @@ test('a clean tree exits 0', (t) => {
   const root = tree(t, {
     'a/clean.js': CLEAN,
     'b/clean.css': '/* The groove token sits outside the surface ramp. */\n',
-    'shared/transfer/backends/overlay/vendor/PROVENANCE.md': '- item, per .claude/solution-architecture.md\n'
+    'shared/transfer/backends/overlay/engine/PROVENANCE.md': '- item, per .claude/solution-architecture.md\n'
   })
   const { code, out } = run(root)
   t.is(code, 0)

@@ -34,7 +34,7 @@ export function createFetchSettle({
       // open, and they must not then fetch into a torn-down overlay.
       const reason = abandonReason(slot, { ownerOnline, hasOverlay })
       if (reason) { abandon(slot, job, reason); return }
-      // Set past the gate so it keeps meaning "a fetch is in flight in the vendor layer", which is
+      // Set past the gate so it keeps meaning "a fetch is in flight in the engine", which is
       // what gates every abortFetch.
       slot.fetching = true
       // The overlay scheduler reports CUMULATIVE bytes already seeded with the resumed on-disk

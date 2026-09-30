@@ -8,8 +8,8 @@
 // the receiver. The public flow (scheduler.onChunkHashes with the full list) is
 // unchanged.
 import test from 'brittle'
-import * as m from '../../src/shared/transfer/backends/overlay/vendor/messages-v2.js'
-import { OverlayProtocolV2 } from '../../src/shared/transfer/backends/overlay/vendor/protocol-v2.js'
+import * as m from '../../src/shared/transfer/backends/overlay/engine/messages-v2.js'
+import { OverlayProtocolV2 } from '../../src/shared/transfer/backends/overlay/engine/protocol-v2.js'
 
 // @hyperswarm/secret-stream rejects any frame whose payload exceeds this
 // (MAX_ATOMIC_WRITE = 256**3 - 1); the encrypted wrapper adds ABYTES on top, so

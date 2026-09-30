@@ -15,7 +15,7 @@ const UTILITY = 'bg|text|border|ring|fill|stroke|from|to|via|outline|decoration|
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const p = path.join(dir, name)
-    if (statSync(p).isDirectory()) { if (name !== 'dist' && name !== 'node_modules' && name !== 'vendor') walk(p, out) }
+    if (statSync(p).isDirectory()) { if (name !== 'dist' && name !== 'node_modules' && name !== 'engine') walk(p, out) }
     else if (/\.(js|mjs|ts|tsx|html|css)$/.test(name)) out.push(p)
   }
   return out

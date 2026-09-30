@@ -1,8 +1,8 @@
 import test from 'brittle'
 import crypto from 'hypercore-crypto'
-import { tmpDir, fs, path } from './overlay-vendor-helpers.js'
+import { tmpDir, fs, path } from './overlay-engine-helpers.js'
 import { SUFFIX, overlay, link } from './overlay-link-helpers.js'
-import { hashChunk } from '../../src/shared/transfer/backends/overlay/vendor/chunker.js'
+import { hashChunk } from '../../src/shared/transfer/backends/overlay/engine/chunker.js'
 import { scaled } from '../helpers/bare-timing.js'
 
 // S1/S2: the membership serve gate lives at _onContentRequest, but the protocol

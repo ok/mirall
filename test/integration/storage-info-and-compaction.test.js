@@ -8,7 +8,7 @@ import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-i
 import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
 import { getStorageInfo } from '../../src/shared/storage/storage.js'
 import { compactOverlayIndex } from '../../src/shared/transfer/backends/overlay/overlay-maintenance.js'
-import { indexCoreName } from '../../src/shared/transfer/backends/overlay/vendor/file-index.js'
+import { indexCoreName } from '../../src/shared/transfer/backends/overlay/engine/file-index.js'
 
 // REGRESSION (FIX-148: storage numbers were a residual that hid real usage, and the old
 // "Clean up" relabeled bytes instead of freeing them / could delete the index). The action is

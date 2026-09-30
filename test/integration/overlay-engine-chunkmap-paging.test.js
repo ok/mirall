@@ -5,8 +5,8 @@
 // failing files:add after the whole-file read. FileIndex pages large maps
 // across multiple values transparently; the public API is unchanged.
 import test from 'brittle'
-import { tmpStore } from './overlay-vendor-helpers.js'
-import { FileIndex } from '../../src/shared/transfer/backends/overlay/vendor/file-index.js'
+import { tmpStore } from './overlay-engine-helpers.js'
+import { FileIndex } from '../../src/shared/transfer/backends/overlay/engine/file-index.js'
 
 const HYPERCORE_MAX_BLOCK = 15 * 1024 * 1024
 

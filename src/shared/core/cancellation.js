@@ -3,7 +3,7 @@ import { CODES } from '../contract/errors.js'
 
 // The worker's cancellation token. A plain object with an `aborted` boolean, because AbortController
 // is not a Bare global and every `if (signal?.aborted)` check in the data layer (seven files, from
-// walk-disk to the vendored transfer) already reads that shape. The token adds a reason and a
+// walk-disk to the overlay engine's transfer) already reads that shape. The token adds a reason and a
 // subscription without changing it.
 //
 // `onAbort` exists for the one thing the ad-hoc version could not do: hand the abort to something

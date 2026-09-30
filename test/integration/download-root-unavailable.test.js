@@ -16,7 +16,7 @@ import { scaled } from '../helpers/bare-timing.js'
 // Two separate holes, both covered here:
 //
 //  1. NO ERROR AT ALL for the commonest case. The receive path mkdir -p's the destination
-//     (vendor/transfer.js), so a folder the user simply deleted was silently recreated and the
+//     (engine/transfer.js), so a folder the user simply deleted was silently recreated and the
 //     download completed into a resurrected empty folder. Nothing failed, so nothing could be
 //     classified — only a preflight catches it.
 //  2. THE WRONG ERROR when the mkdir did fail. Every local-fs errno fell through

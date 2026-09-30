@@ -5,8 +5,8 @@
 // (serveAuthorizer gate + no requestTree caller), so this drives the vendored protocol
 // directly, mirroring the shipped chunkHashes paging test.
 import test from 'brittle'
-import * as m from '../../src/shared/transfer/backends/overlay/vendor/messages-v2.js'
-import { OverlayProtocolV2 } from '../../src/shared/transfer/backends/overlay/vendor/protocol-v2.js'
+import * as m from '../../src/shared/transfer/backends/overlay/engine/messages-v2.js'
+import { OverlayProtocolV2 } from '../../src/shared/transfer/backends/overlay/engine/protocol-v2.js'
 
 const MAX_ATOMIC_WRITE = 256 * 256 * 256 - 1
 

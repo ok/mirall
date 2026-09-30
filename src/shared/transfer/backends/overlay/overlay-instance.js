@@ -4,7 +4,7 @@
 // lifecycle (initOverlay / attachOverlay / teardownOverlay) and wires the serve gate
 // (makeServeAuthorizer in overlay-authorize.js) to the real socket-auth, membership and
 // rate-limit collaborators (see .claude/solution-architecture.md, "Serve authorization").
-import { HyperOverlayV2 } from './vendor/overlay-v2.js'
+import { HyperOverlayV2 } from './engine/overlay-v2.js'
 import { serveIndex } from './overlay-serve-index.js'
 import { makeServeAuthorizer, makeHolderAuthorizer, SECURITY_DENIALS } from './overlay-authorize.js'
 import { RESOLVE_OUTCOME, recordResolved } from '../../../audit/audit-log.js'

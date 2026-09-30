@@ -64,12 +64,11 @@ const rendererRestrictedSyntax = (...drop) => [
 ]
 
 export default [
-  // Vendored hyper-overlay v2 subset — third-party code kept re-diffable
-  // against upstream (PROVENANCE.md), so our complexity/style rules don't apply.
+  // The overlay engine keeps its own style until its gates are turned on.
   // Both dist trees are generated bundles: assets/dist is the app's, test/frontend-layout/dist is
 // whatever the layout harnesses last built. Neither is source, and linting a 2MB bundle drowns the
 // run in tens of thousands of findings.
-{ ignores: ['assets/dist/**', 'test/frontend-layout/dist/**', 'node_modules/**', 'src/shared/transfer/backends/overlay/vendor/**'] },
+{ ignores: ['assets/dist/**', 'test/frontend-layout/dist/**', 'node_modules/**', 'src/shared/transfer/backends/overlay/engine/**'] },
 
   // Renderer — sandboxed React UI. Accessibility rules stay ERRORS (the a11y gate); complexity
   // is advisory on top.
