@@ -1,6 +1,6 @@
 // Boot-time reclaim of local-bee history. A Hyperbee is append-only, so a record rewritten many times
-// keeps every copy. Before any holder opens them, a bee whose history dwarfs its live data is
-// rewritten in place under its own key: live entries are copied to a scratch core and verified, the
+// keeps every copy. Before any holder opens them, a bee whose history dwarfs its live data, or one a
+// user asked to have rewritten, is rewritten in place under its own key: live entries are copied to a scratch core and verified, the
 // bee is truncated, refilled from the scratch and verified again, and the scratch is purged. The key
 // never changes, so every build that opens this store, older ones included, reads the same core.
 //
@@ -18,7 +18,8 @@ import {
 } from '../core/store.js'
 import { clearAndPurgeCore } from './core-purge.js'
 import {
-  copyOverhead, liveScanLimit, needsMeasure, normalizeRewriteState, rewriteDue, rewriteSaves,
+  REQUESTED_MIN_HISTORY_BYTES, REWRITE_MAX_LIVE_BYTES, copyOverhead, liveScanLimit, needsMeasure,
+  normalizeRewriteState, requestedRewriteDue, rewriteDue, rewriteSaves,
 } from './local-bee-rules.js'
 
 const moduleLog = createLogger('local-bee-rewrite')
@@ -53,15 +54,55 @@ export async function maintainLocalBees({ log = moduleLog } = {}) {
       result.compact = true
     }
   }
+  const requested = new Set(state.current.requested)
   for (const name of LOCAL_BEE_NAMES) {
     if (settled.has(name)) continue
-    const outcome = await guarded(name, 'rewrite', log, () => rewriteIfDue(name, state, log))
+    const outcome = await guarded(name, 'rewrite', log, () => rewriteIfDue(name, state, log, { requested: requested.has(name) }))
     if (outcome?.purged) result.compact = true
     if (outcome?.freedBytes == null) continue
     result.rewritten.push({ name, freedBytes: outcome.freedBytes })
     log.info('rewrote local bee', name, '- freed about', outcome.freedBytes, 'bytes')
   }
+  // A request is answered by one pass, whatever it found.
+  if (requested.size) {
+    await state.commit({ requested: [] }).catch((err) => log.warn('rewrite request kept for the next boot:', err.message))
+  }
   return result
+}
+
+// Leaves a rewrite request for the next boot's pass, which rewrites each named bee holding at least
+// REQUESTED_MIN_HISTORY_BYTES of history. Resolves to every name now requested.
+export async function requestLocalBeeRewrite(names) {
+  const state = await openRewriteState(moduleLog)
+  const requested = [...new Set([...state.current.requested, ...names])]
+  await state.commit({ requested })
+  return requested
+}
+
+// Every local bee on disk: its stored and live bytes, and the stored-per-live overhead its last
+// rewrite measured (null before one ran), which is what a fresh copy of it would cost. Past
+// REWRITE_MAX_LIVE_BYTES a scan stops, so `liveBytes` is a lower bound and `capped` says so. A bee
+// with no core is left out and never created.
+export async function measureLocalBees() {
+  const { measured } = (await openRewriteState(moduleLog)).current
+  const out = new Map()
+  for (const name of LOCAL_BEE_NAMES) {
+    if (hasMasterSecret() && !(await hasLocalBeeCore(name))) continue
+    const bee = createLocalBee(name)
+    try {
+      await bee.ready()
+      const liveBytes = await liveByteLength(bee, { stopAbove: REWRITE_MAX_LIVE_BYTES })
+      out.set(name, {
+        coreBytes: bee.core.byteLength,
+        liveBytes,
+        overhead: measured[name]?.overhead ?? null,
+        capped: liveBytes > REWRITE_MAX_LIVE_BYTES,
+      })
+    } finally {
+      await closeQuietly(bee)
+    }
+  }
+  return out
 }
 
 async function guarded(name, step, log, run) {
@@ -117,7 +158,8 @@ async function restoreFromScratch(marker) {
 
 // Resolves to { freedBytes, purged }: freedBytes null when the bee was left alone, purged when a
 // scratch was written and dropped, so the caller compacts.
-async function rewriteIfDue(name, state, log) {
+// A requested bee is measured whatever its size and judged by the requested bar.
+async function rewriteIfDue(name, state, log, { requested }) {
   if (!(await hasLocalBeeCore(name))) return null
   if (state.current.restoring) throw new Error('an interrupted rewrite is still marked')
   const bee = createLocalBee(name)
@@ -125,17 +167,17 @@ async function rewriteIfDue(name, state, log) {
     await bee.ready()
     const coreBytes = bee.core.byteLength
     const prior = state.current.measured[name]
-    if (!needsMeasure({ coreBytes, prior })) return null
-    const liveBytes = await liveByteLength(bee, { stopAbove: liveScanLimit(coreBytes) })
+    if (!requested && !needsMeasure({ coreBytes, prior })) return null
+    const liveBytes = await liveByteLength(bee, { stopAbove: requested ? REWRITE_MAX_LIVE_BYTES : liveScanLimit(coreBytes) })
     const verdict = { coreBytes, liveBytes, overhead: prior?.overhead ?? 1, at: Date.now() }
-    if (!rewriteDue(verdict)) {
+    if (!(requested ? requestedRewriteDue(verdict) : rewriteDue(verdict))) {
       await state.commit({ measured: { ...state.current.measured, [name]: verdict } })
       return null
     }
     log.info('rewriting local bee', name, '-', coreBytes, 'bytes stored,', liveBytes, 'live')
     let copy
     try {
-      copy = await rewriteInPlace(name, bee, state)
+      copy = await rewriteInPlace(name, bee, state, { minSavedBytes: requested ? REQUESTED_MIN_HISTORY_BYTES : undefined })
     } catch (err) {
       if (err.code === REWRITE_INCOMPLETE) throw err
       log.warn('local bee rewrite failed:', name, '-', err.message)
@@ -161,7 +203,7 @@ async function liveByteLength(bee, { stopAbove }) {
 
 // Resolves to { swapped, bytes }: whether the bee now holds only its live entries, and the size of
 // the copy, which is what a fresh bee of this data costs.
-async function rewriteInPlace(name, bee, state) {
+async function rewriteInPlace(name, bee, state, { minSavedBytes }) {
   const scratch = createLocalBeeScratch(name)
   let owned = false
   let authoritative = false
@@ -173,7 +215,7 @@ async function rewriteInPlace(name, bee, state) {
     await copyEntries(bee, scratch)
     await verifySameEntries(bee, scratch)
     const copy = { swapped: false, bytes: scratch.core.byteLength }
-    if (!rewriteSaves({ fromBytes: bee.core.byteLength, toBytes: copy.bytes })) return copy
+    if (!rewriteSaves({ fromBytes: bee.core.byteLength, toBytes: copy.bytes, minBytes: minSavedBytes })) return copy
     await flushStore()
     await state.commit({ restoring: { name, fork: bee.core.fork, scratchLength: scratch.core.length } })
     authoritative = true

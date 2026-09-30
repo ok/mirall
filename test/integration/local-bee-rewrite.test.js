@@ -4,6 +4,7 @@ import fs from 'bare-fs'
 import path from 'bare-path'
 import crypto from 'hypercore-crypto'
 import { freshDurable } from '../helpers/store.js'
+import { tmpDir } from '../helpers/bare-tmp.js'
 import { createFakeIpc } from '../helpers/fake-ipc.js'
 import { writeFileAtomic } from '../../src/shared/core/atomic-file.js'
 import {
@@ -11,7 +12,7 @@ import {
 } from '../../src/shared/core/store.js'
 import { compactStore } from '../../src/shared/storage/compaction.js'
 import {
-  maintainLocalBees, REWRITE_STATE_FILE, REWRITE_INCOMPLETE, _failRefillForTests,
+  maintainLocalBees, measureLocalBees, requestLocalBeeRewrite, REWRITE_STATE_FILE, REWRITE_INCOMPLETE, _failRefillForTests,
 } from '../../src/shared/storage/local-bee-rewrite.js'
 import {
   createForeignMount, createOwnedMount, getForeignMount, getOwnedMount, mutateForeignMount,
@@ -141,6 +142,42 @@ test('a bee under the floor is never scanned', async (t) => {
   const { tier, storage } = await reboot(t, seeded)
   t.is(tier.localBees.rewritten.length, 0)
   t.absent(readState(storage)?.measured?.[MOUNTS], 'no verdict recorded, so no scan ran')
+})
+
+test('a requested rewrite frees history under the automatic floor, once', async (t) => {
+  const seeded = await bootWithMirrors(t, 100)
+  const plain = await reboot(t, seeded)
+  t.is(plain.tier.localBees.rewritten.length, 0, 'a plain reboot leaves it alone')
+  const measured = (await measureLocalBees()).get(MOUNTS)
+  t.ok(measured.coreBytes - measured.liveBytes > 1e6, 'it holds history: ' + measured.coreBytes + ' stored, ' + measured.liveBytes + ' live')
+  t.absent(measured.capped)
+  t.alike(await requestLocalBeeRewrite([MOUNTS, MOUNTS]), [MOUNTS])
+  await plain.tier.close()
+
+  const asked = await reboot(t, seeded)
+  t.alike(asked.tier.localBees.rewritten.map((r) => r.name), [MOUNTS], 'the requested bee was rewritten')
+  t.ok(asked.tier.localBees.rewritten[0].freedBytes > 1e6, 'freeing its history')
+  t.alike(readState(asked.storage).requested, [], 'the request is answered')
+  t.is((await getForeignMount('s1', 'm1')).syncedPaths.length, PATHS.length, 'the record survives')
+})
+
+test('a request for a bee with nothing to free clears without a rewrite', async (t) => {
+  const masterSecret = crypto.randomBytes(32)
+  const first = await freshDurable(t, { masterSecret, displayName: null })
+  await createOwnedMount(OWNED)
+  await requestLocalBeeRewrite([MOUNTS, 'downloads-meta'])
+  await first.tier.close()
+
+  const { tier, storage } = await reboot(t, { storage: first.storage, masterSecret })
+  t.alike(tier.localBees.rewritten, [], 'nothing was rewritten')
+  t.alike(readState(storage).requested, [], 'the request is answered anyway')
+})
+
+test('measuring bees with no core creates none', async (t) => {
+  await withBareStore({ storage: tmpDir('measure-none', t), masterSecret: crypto.randomBytes(32) }, async () => {
+    t.alike([...(await measureLocalBees()).keys()], [], 'no bee has a core yet')
+    for (const name of LOCAL_BEE_NAMES) t.absent(await hasLocalBeeCore(name), name + ' was not created')
+  })
 })
 
 test('a big bee of live data is scanned once, then not again until it grows', async (t) => {
