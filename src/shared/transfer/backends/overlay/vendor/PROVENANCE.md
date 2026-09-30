@@ -705,6 +705,31 @@ re-diffable against upstream. Categories:
     Wire format unchanged. Covered by `test/integration/overlay-vendor-chunkhashes-page-bound.test.js`
     and `test/unit/overlay-vendor-scheduler.test.js`.
 
+29. **§4.26 — legacy path-sync frames are inert in mirall mode; chunk data only as asked
+    (`protocol-v2.js` + `chunk-scheduler.js` + `overlay-v2.js` + `file-index.js`, security).** Every
+    socket that reaches the overlay channel is a peer before its identity is known, and four legacy
+    handlers acted on any peer's frames: `syncState` stored a feed key of any length, after which each
+    `transferComplete` appended a `sync:<feedKey>:<path>` row to the index that `compact()` kept forever;
+    `chunkCancel` cancelled — and unlinked the partial and journal of — whatever receive a `_filePaths`
+    entry named, and those entries were never removed; `conflict` was inert only because no callback is
+    passed. A scheduler also took `chunkData` from any peer for any index, and a bad chunk refunded the
+    download cap whoever sent it. Changes:
+    - With a `serveAuthorizer` set, `_onSyncState`, `_onChunkCancel`, `_onTransferComplete` and
+      `_onConflictMsg` return first (the §S1 switch), and `_onOpen` sends no `syncState`.
+    - `ChunkScheduler.awaitsChunk(peer, index)`: a chunk is taken only from the peer it is in flight
+      to, which is the peer `_assign` charged for it. `_onChunkData` drops any other frame before the
+      progress hook, and in mirall mode drops a frame for a path with no scheduler there too.
+    - `HyperOverlayV2.evictContent` deletes the `/mir/<hash>` `_filePaths` entry. The `content:<hash>`
+      entry and `_contentHashPaths` are kept: a download in flight still reads the first, the readers of
+      the second re-check the disk, and deleting either would race a same-hash re-registration.
+    - `FileIndex.compact` takes `dropSyncState`, which `compactIndex` sets in mirall mode, so sync
+      rows already planted go with the next compaction.
+    All 15 message slots stay registered in order with their codecs; `MIN_VERSION` stays 1. Older mirall
+    peers only store a received `syncState` (autoSync is off on both ends), so its absence changes nothing
+    for them. Covered by `test/integration/overlay-serve-bypass.test.js`,
+    `test/integration/overlay-fetch-holder-gate.test.js`, `test/integration/overlay-vendor-protocol.test.js`,
+    `test/unit/overlay-vendor-scheduler.test.js` and `test/flow/overlay-legacy-frames.test.js`.
+
 ## Re-diffing against upstream
 
 From this folder, with an upstream clone at `$UPSTREAM`:

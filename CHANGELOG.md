@@ -27,6 +27,14 @@ removing your relay, and turning it or "Prefer the relay for every
 connection" on or off, each leave one entry under Network. Entries name the
 relay by its label and a shortened key.
 
+#### Security
+
+- **People outside a space can no longer fill your disk or restart your
+downloads through the file-transfer connection.** Someone who knew a space's
+network address could make Mirall store data nothing uses, discard a
+download's progress so it started over, or get around your download speed
+limit. Mirall now ignores these messages.
+
 ## v1.11.2
 
 ### 2026-09-28
