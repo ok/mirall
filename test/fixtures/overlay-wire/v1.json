@@ -1,0 +1,157 @@
+{
+  "_comment": "Wire bytes of the hyper-overlay/v2 channel as v1.11.2 encodes them. Generated once from the v1.11.2 codecs; never regenerate. live = codecs the engine still carries; retired = frames an old peer may still send on a retired slot. A Buffer is written as {\"$buf\": hex}.",
+  "live": {
+    "handshake": {
+      "value": {
+        "version": 2,
+        "capabilities": 3
+      },
+      "hex": "0203"
+    },
+    "chunkHashes": {
+      "value": {
+        "path": "content:abababababababababababababababababababababababababababababababab",
+        "tier": 1,
+        "chunks": [
+          {
+            "hash": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+            "length": 65536
+          },
+          {
+            "hash": "efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef",
+            "length": 300
+          }
+        ],
+        "more": 1
+      },
+      "hex": "48636f6e74656e743a616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261620102000000cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdfe00000100efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefeffd2c0101"
+    },
+    "chunkNeed": {
+      "value": {
+        "path": "content:abababababababababababababababababababababababababababababababab",
+        "indices": [
+          0,
+          1,
+          200,
+          70000
+        ]
+      },
+      "hex": "48636f6e74656e743a61626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162040000000001c8fe70110100"
+    },
+    "chunkData": {
+      "value": {
+        "path": "content:abababababababababababababababababababababababababababababababab",
+        "index": 7,
+        "data": {
+          "$buf": "6d6972616c6c"
+        }
+      },
+      "hex": "48636f6e74656e743a6162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616261626162616207066d6972616c6c"
+    },
+    "contentRequest": {
+      "value": {
+        "contentHash": "abababababababababababababababababababababababababababababababab",
+        "chunksHave": {
+          "$buf": ""
+        },
+        "from": "1212121212121212121212121212121212121212121212121212121212121212"
+      },
+      "hex": "20abababababababababababababababababababababababababababababababab004031323132313231323132313231323132313231323132313231323132313231323132313231323132313231323132313231323132313231323132313231323132"
+    },
+    "transferControl": {
+      "value": {
+        "contentHash": "abababababababababababababababababababababababababababababababab",
+        "state": 1
+      },
+      "hex": "20abababababababababababababababababababababababababababababababab01"
+    },
+    "transferProgress": {
+      "value": {
+        "contentHash": "abababababababababababababababababababababababababababababababab",
+        "have": 1048576
+      },
+      "hex": "20ababababababababababababababababababababababababababababababababfe00001000"
+    },
+    "keepAlive": {
+      "value": {
+        "contentHash": "abababababababababababababababababababababababababababababababab",
+        "index": 42
+      },
+      "hex": "20abababababababababababababababababababababababababababababababab2a"
+    }
+  },
+  "retired": {
+    "syncState": {
+      "value": {
+        "feedKey": "3434343434343434343434343434343434343434343434343434343434343434",
+        "localSeq": 5,
+        "remoteSeq": 0
+      },
+      "hex": "2034343434343434343434343434343434343434343434343434343434343434340500"
+    },
+    "fileOffer": {
+      "value": {
+        "path": "/a.txt",
+        "contentHash": "abababababababababababababababababababababababababababababababab",
+        "size": 10,
+        "mtime": 1700000000000,
+        "op": 0
+      },
+      "hex": "062f612e74787420abababababababababababababababababababababababababababababababab0aff0068e5cf8b01000000"
+    },
+    "fileRequest": {
+      "value": {
+        "path": "/a.txt",
+        "contentHash": "abababababababababababababababababababababababababababababababab",
+        "chunksHave": null
+      },
+      "hex": "062f612e74787420abababababababababababababababababababababababababababababababab00"
+    },
+    "chunkCancel": {
+      "value": {
+        "path": "/a.txt"
+      },
+      "hex": "062f612e747874"
+    },
+    "transferComplete": {
+      "value": {
+        "path": "/a.txt",
+        "contentHash": "abababababababababababababababababababababababababababababababab"
+      },
+      "hex": "062f612e74787420abababababababababababababababababababababababababababababababab"
+    },
+    "conflict": {
+      "value": {
+        "path": "/a.txt",
+        "myHash": "abababababababababababababababababababababababababababababababab",
+        "theirHash": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+        "ancestorHash": null
+      },
+      "hex": "062f612e74787420abababababababababababababababababababababababababababababababab20cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd200000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "treeRequest": {
+      "value": {
+        "hash": "abababababababababababababababababababababababababababababababab",
+        "nonce": 3
+      },
+      "hex": "20abababababababababababababababababababababababababababababababab03"
+    },
+    "treeResponse": {
+      "value": {
+        "hash": "abababababababababababababababababababababababababababababababab",
+        "entries": [
+          {
+            "kind": 0,
+            "exec": 0,
+            "name": "a.txt",
+            "childHash": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+            "size": 10
+          }
+        ],
+        "more": 0,
+        "nonce": 3
+      },
+      "hex": "20abababababababababababababababababababababababababababababababab01000000000005612e747874cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd0a0003"
+    }
+  }
+}

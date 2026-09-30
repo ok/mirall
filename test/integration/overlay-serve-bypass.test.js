@@ -1,7 +1,10 @@
 import test from 'brittle'
 import crypto from 'hypercore-crypto'
+import Protomux from 'protomux'
+import c from 'compact-encoding'
 import { tmpDir, fs, path } from './overlay-engine-helpers.js'
-import { SUFFIX, overlay, link } from './overlay-link-helpers.js'
+import { SUFFIX, overlay, link, makeDuplex } from './overlay-link-helpers.js'
+import * as m from '../../src/shared/transfer/backends/overlay/engine/messages-v2.js'
 import { hashChunk } from '../../src/shared/transfer/backends/overlay/engine/chunker.js'
 import { scaled } from '../helpers/bare-timing.js'
 
@@ -212,4 +215,21 @@ test('REGRESSION (MIR-53: compaction drops sync rows in mirall mode and keeps th
   t.alike(await syncRows(gated), [], 'and the compacted index holds none')
   t.is(await upstream.compactIndex({ isServed: () => true }), null, 'control: upstream mode keeps its sync state')
   t.is((await syncRows(upstream)).length, 4)
+})
+
+// protomux destroys the whole mux when a codec throws, taking the control channel and replication on
+// that socket with it, so a retired slot decodes nothing.
+test('REGRESSION (legacy slots are inert): garbage on a retired slot does not take the socket down', async (t) => {
+  const pub = await overlay(t, 'garbage-pub', { serveAuthorizer: async () => false })
+  const [a, b] = makeDuplex()
+  const pubSide = pub.attachProtocol(Protomux.from(a))
+  const channel = Protomux.from(b).createChannel({ protocol: 'hyper-overlay/v2', id: null, handshake: m.handshake })
+  const slots = Array.from({ length: 15 }, () => channel.addMessage({ encoding: c.raw }))
+  channel.open({ version: 2, capabilities: 0 })
+  await settle()
+  // A length prefix announcing bytes that never come.
+  for (const id of [0, 1, 2, 6, 7, 8, 9, 10]) slots[id].send(Buffer.from([0xff]))
+  await settle()
+  t.absent(pubSide.channel.closed, 'the overlay channel survived')
+  t.absent(a.destroyed, 'the socket survived')
 })
