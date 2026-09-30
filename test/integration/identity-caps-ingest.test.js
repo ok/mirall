@@ -17,6 +17,7 @@ function withConfig(t, patch) {
   setRuntimeConfig({ ...prev, ...patch })
   t.teardown(() => setRuntimeConfig(prev))
 }
+const JOINER = 'e'.repeat(64)
 const dataUri = (n, mime = 'image/png') => `data:${mime};base64,${'A'.repeat(n)}`
 
 // Writing raw values into our own profile bee (bypassing setProfile) then reading them back via the
@@ -55,8 +56,8 @@ test('REGRESSION (FIX-MIR-12): join-request stream clamps name + drops over-cap 
   const S = 'space-req-caps'
 
   // markRequest seeds the cap + a real receipt; overwrite it with a hostile payload to exercise loadPeerEntries.
-  await markRequest(S, 'joiner-1', { displayName: 'seed' })
-  await getProfileBee().put('request/' + S + '/joiner-1',
+  await markRequest(S, JOINER, { displayName: 'seed' })
+  await getProfileBee().put('request/' + S + '/' + JOINER,
     { displayName: 'y'.repeat(300), avatar: dataUri(4096, 'image/jpeg'), ts: 1 })
 
   const [r] = await readPeerRequests(me, S)
@@ -136,7 +137,7 @@ test('REGRESSION (FIX-AVFRAME-3): a hostile join-request avatar is stored as nul
   const avatar = sanitizeAvatar('data:text/html;base64,PHN2Zz4=', getMembershipCaps().maxAvatarBytes)
   t.is(avatar, null, 'a non-image data URI is not an avatar')
 
-  await markRequest(S, 'joiner-hostile', { displayName: 'Mallory', avatar })
+  await markRequest(S, JOINER, { displayName: 'Mallory', avatar })
   const [r] = await readPeerRequests(me, S)
   t.is(r.avatar, null, 'the replicated request receipt carries no avatar')
   t.is(r.displayName, 'Mallory', 'and the rest of the receipt is intact')

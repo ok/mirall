@@ -76,8 +76,8 @@ test('every key family the member fold reads wakes a re-fold', async (t) => {
     ['caps/membership-manifest', 1, 'the cap gate all three peer loaders read first'],
     ['member/' + S, { active: true, ts: 2 }, 'own membership, the record the OR-Set folds'],
     ['approved/' + S + '/' + C.key, { ts: 2 }, 'an approval — the OR-Set edge that grows the roster'],
-    ['request/' + S + '/joiner-1', { displayName: 'Joiner', ts: 2 }, 'a join request receipt'],
-    ['denied/' + S + '/joiner-2', { ts: 2 }, 'a denial'],
+    ['request/' + S + '/' + '1'.repeat(64), { displayName: 'Joiner', ts: 2 }, 'a join request receipt'],
+    ['denied/' + S + '/' + '2'.repeat(64), { ts: 2 }, 'a denial'],
   ]
 
   const counter = countReadsOf(t, B.key)

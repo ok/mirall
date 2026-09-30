@@ -154,3 +154,26 @@ test('a co-member\'s deny discards the joiner while enforcement is off', { timeo
   await discarded
   t.pass('Bob accepted a deny from a member that is neither the inviter nor the creator')
 })
+
+// With the identity binding off, the wire accepts a profileKey in either case; approve and deny
+// accept only the lowercase spelling, so a knock under any other spelling must never be listed.
+test('REGRESSION (MIR-49: a knock under a non-canonical key is never listed)', { timeout: scaled(180000) }, async (t) => {
+  const bootstrap = await localTestnet(t)
+  const A = await peer(t, bootstrap, 'Alice', { identityKEK: hex(), handshakeIdentityBindingEnabled: false })
+  const { spaceId } = await A.request('space:create', { name: 'Case' })
+  const topic = decodeInvite(await A.request('space:invite', { spaceId })).topic
+
+  const atk = await rawPeer(t, { bootstrap, topicHex: topic })
+  await atk.waitConnected()
+  const topicRef = deriveTopicRef(topic, atk.keyPair.publicKey)
+  const joiner = boundSender({ noise: atk.keyPair })
+  const upper = joiner.profileKey.toUpperCase()
+  const knock = (profileKey) => atk.send({ type: 'membership:request', displayName: 'Jo', topicRef, inviteId: null, ...joiner.fields, profileKey })
+
+  knock(upper)
+  const knocked = A.waitFor('event:member-join-request', (m) => m.publicKey === joiner.profileKey)
+  knock(joiner.profileKey)
+  await knocked
+  t.ok(await lists(A, spaceId, joiner.profileKey), 'the canonical knock on the same socket is listed')
+  t.absent(await lists(A, spaceId, upper), 'the uppercase knock before it is not')
+})
