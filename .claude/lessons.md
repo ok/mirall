@@ -361,10 +361,10 @@ the session lists an open peer with a `remoteLength` yet its own length stays 0 
 request went to a killed peer whose socket has not timed out yet, so retry while the socket lives.
 
 **Closing a lent session does not stop a gated socket serving that core.** The replicator belongs to
-the core, not the session, so while another session holds it open (a member view's follow does) the
-channel stays paired and the remote keeps reading appends. A bounded loan ends only by closing the
-socket (`closeIfUnadmitted`), as `lendPeerCores` does. Tell: a Bare test reads a block appended after
-the loan's session closed.
+the core, not the session, and the core stays open with its channel paired after its last session
+closes, so the remote keeps reading appends. A bounded loan ends only by closing the socket
+(`closeIfUnadmitted`), as `lendPeerCores` and the membership fold walk do. Tell: a Bare test reads a
+block appended after the loan's session closed.
 
 **One notion of "is peer X online" — change every consumer at once.** Display and data-plane gates
 read the single liveness truth; the connection registry is for routing only.
@@ -397,6 +397,12 @@ level is `warn`.
 eventual visibility. A read of blocks already held locally must skip that wait (`sync: false`): with
 the only peer holding the head offline, it spends the whole read budget and the read returns null.
 Tell: a flaky null at exactly `peerReadTimeoutMs` for data the store has.
+
+**An update answers from whatever is paired, not from the author.** With nothing paired it resolves
+at once, and a co-member's empty or stale copy answers in the author's place. When the author is
+known to be connected, wait for its own socket to pair the core (`peer.stream === socket`) and read
+up to its `remoteLength` (`authorHead`, `peer-bee.js`). Tell: an empty or short capture in
+milliseconds from a peer that is online.
 
 **Know who owns a Hyperdrive's corestore before closing it.** `new Hyperdrive(store)` closes `store`
 on `drive.close()` — fatal for the root. Delete the authoritative record first so a failed teardown
