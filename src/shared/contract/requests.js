@@ -18,11 +18,11 @@
 // `max` is a transport bound, not a domain rule: the deep clamps (identity-limits.js) truncate,
 // these refuse, and the two are different behaviours. They sit far above any domain limit.
 //
-// There is no hexKey type: ownerKey is a plain string at the boundary and can legitimately be '',
-// so a format assertion here would reject traffic the app already sends.
+// personKey is the one format-checked type (see isPersonKey). ownerKey stays a plain string: it can
+// legitimately be '', so a format assertion there would reject traffic the app already sends.
 import { ARG_MAX } from './limits.js'
 
-/** @typedef {'string' | 'number' | 'boolean' | 'array' | 'object' | 'spaceId' | 'shareId' | 'path'} ArgType */
+/** @typedef {'string' | 'number' | 'boolean' | 'array' | 'object' | 'spaceId' | 'shareId' | 'path' | 'personKey'} ArgType */
 /** @typedef {{ type: ArgType, optional?: boolean, max?: number }} ArgRule */
 // `deadlineMs` is optional and read by contract/request-deadlines.js: a row that omits it takes its
 // kind's default, and 0 means the request is deliberately unbounded.
@@ -39,6 +39,7 @@ export const ARG = Object.freeze({
   spaceId: 'spaceId',
   shareId: 'shareId',
   path: 'path',
+  personKey: 'personKey',
 })
 
 /** @satisfies {Record<string, RequestSpec>} */
@@ -285,7 +286,7 @@ export const REQUESTS = Object.freeze({
   } },
   'shutdown': { kind: 'command', args: {} },
   'space:approve-member': { kind: 'command', args: {
-    publicKey: { type: ARG.string, max: ARG_MAX.key },
+    publicKey: { type: ARG.personKey },
     spaceId: { type: ARG.spaceId },
   } },
   // icon is optional: createSpace supplies its own default when a caller omits one.
@@ -294,7 +295,7 @@ export const REQUESTS = Object.freeze({
     name: { type: ARG.string, max: ARG_MAX.name },
   } },
   'space:deny-member': { kind: 'command', args: {
-    publicKey: { type: ARG.string, max: ARG_MAX.key },
+    publicKey: { type: ARG.personKey },
     spaceId: { type: ARG.spaceId },
   } },
   'space:invite': { kind: 'command', args: {

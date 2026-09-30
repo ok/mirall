@@ -62,6 +62,19 @@ test('validateArgs checks each declared arg type', (t) => {
     'the elements are part of the type the handler is given')
 })
 
+test('REGRESSION (MIR-49: a person key arg is lowercase 64-char hex)', (t) => {
+  const rule = { k: { type: ARG.personKey } }
+  const key = 'ab'.repeat(32)
+  t.is(validateArgs(rule, { k: key }), null)
+  for (const bad of ['ab', key.toUpperCase(), key + 'a', key.slice(1), 'zz'.repeat(32), 7]) {
+    t.is(validateArgs(rule, { k: bad }), 'k must be a lowercase 64-character hex key', `refuses ${JSON.stringify(bad).slice(0, 12)}`)
+  }
+  for (const name of ['space:approve-member', 'space:deny-member']) {
+    t.ok(validateArgs(REQUESTS[name].args, { spaceId: 's', publicKey: 'ab' }), `${name} refuses a malformed key`)
+    t.is(validateArgs(REQUESTS[name].args, { spaceId: 's', publicKey: key }), null, `${name} takes a person key`)
+  }
+})
+
 test('null and undefined are treated as absent, not as values', (t) => {
   t.is(validateArgs({ x: { type: ARG.string, optional: true } }, { x: null }), null)
   t.is(validateArgs({ x: { type: ARG.string } }, { x: undefined }), 'missing required field: x')

@@ -1,4 +1,5 @@
 import { REQUESTS } from '../contract/requests.js'
+import { isPersonKey } from '../contract/principals.js'
 /** @import { RequestName } from '../contract/requests.js' */
 /** @import { RequestArgs } from '../contract/request-args.js' */
 /** @import { RequestResponse } from '../contract/responses.js' */
@@ -14,7 +15,7 @@ import { REQUESTS } from '../contract/requests.js'
 // Presence, primitive type and length only. Anything richer is the handler's business: this exists
 // to stop a malformed payload reaching a handler body, not to re-implement the domain rules.
 // spaceId, shareId and path are documentary names for a string check — they carry intent without
-// asserting a format the boundary has not proven every caller satisfies.
+// asserting a format the boundary has not proven every caller satisfies. personKey is the exception.
 function checkType(type, value, field) {
   switch (type) {
     case 'number':
@@ -33,6 +34,8 @@ function checkType(type, value, field) {
       return value !== null && typeof value === 'object' && !Array.isArray(value)
         ? null
         : `${field} must be an object`
+    case 'personKey':
+      return isPersonKey(value) ? null : `${field} must be a lowercase 64-character hex key`
     case 'spaceId':
     case 'shareId':
     case 'path':

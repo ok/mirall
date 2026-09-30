@@ -26,6 +26,7 @@
 //
 
 import { UNKNOWN_DISPLAY_NAME } from '../../contract/limits.js'
+import { isPersonKey } from '../../contract/principals.js'
 
 /**
  * Members plus the authorization tree behind them. Callers that only need the roster take
@@ -92,12 +93,13 @@ export function foldMemberSet(records, creatorKey) {
 // so the observer re-parents that subtree onto itself. Only a leaver the observer's fold authorizes
 // has such a subtree: its approvals already count in that fold, so taking them over confers no new
 // trust, including one authored since the fold last ran. Never the leaver itself (that would
-// re-vouch the very peer being revoked) and never us (the fold roots authorization elsewhere).
+// re-vouch the very peer being revoked), never us (the fold roots authorization elsewhere), and
+// never a key that is not a person key.
 export function voucheesToAdopt(approvals, { selfKey, leaverKey, authorized }) {
   if (!authorized.has(leaverKey)) return []
   const out = []
   for (const k of approvals || []) {
-    if (k === selfKey || k === leaverKey) continue
+    if (k === selfKey || k === leaverKey || !isPersonKey(k)) continue
     out.push(k)
   }
   return out

@@ -5,10 +5,10 @@ import { foldMemberSet, foldMembership, voucheesToAdopt, reconnectGrantAllowed, 
 const recs = (spec) => new Map(Object.entries(spec).map(([k, v]) => [k, v]))
 const sorted = (set) => [...set].sort()
 
-const C = 'creator'
-const A = 'alice'
-const B = 'bob'
-const D = 'dave'
+const C = 'c'.repeat(64)
+const A = 'a'.repeat(64)
+const B = 'b'.repeat(64)
+const D = 'd'.repeat(64)
 
 test('lone active creator is a member', (t) => {
   t.alike(sorted(foldMemberSet(recs({ [C]: { active: true, approvals: [] } }), C)), [C])
@@ -202,6 +202,11 @@ test('adoption tolerates an empty or absent approval list', (t) => {
   t.alike(voucheesToAdopt([], opts), [])
   t.alike(voucheesToAdopt(undefined, opts), [])
   t.alike(voucheesToAdopt(new Set([B, A]), opts), [B], 'accepts a Set as well as an array')
+})
+
+test('REGRESSION (MIR-49: adoption never copies a malformed key into our bee)', (t) => {
+  const opts = { selfKey: C, leaverKey: A, authorized: new Set([A, B, C, D]) }
+  t.alike(voucheesToAdopt([B, 'ab', B.toUpperCase(), B.slice(1), B + 'b', D], opts), [B, D])
 })
 
 test('REGRESSION (MIR-43: adoption takes vouchees only from a leaver the fold authorizes)', (t) => {

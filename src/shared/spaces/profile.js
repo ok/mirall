@@ -10,7 +10,7 @@ import { getMembershipCaps, getCaptureMemberRecordMs } from '../core/runtime-con
 import { clampDisplayName, sanitizeAvatar } from '../contract/identity-limits.js'
 import { CODES } from '../contract/errors.js'
 import { AppError } from '../core/errors.js'
-import { principalRef } from '../contract/principals.js'
+import { principalRef, isPersonKey } from '../contract/principals.js'
 import { UNKNOWN_DISPLAY_NAME } from '../contract/limits.js'
 import { isEpoch } from '../shares/catalog-keys.js'
 import b4a from 'b4a'
@@ -373,6 +373,15 @@ export async function readPeerDenials(profileKeyHex, spaceId) {
   catch { return [] }
 }
 
+// The joiner a membership row names, or null when the name is not a person key: a peer's bee is
+// untrusted input. Debug, not warn: the row stays in the peer's log and is re-read on every fold.
+function joinerKeyOf(entry, prefix, profileKeyHex) {
+  const joiner = entry.key.slice(prefix.length)
+  if (isPersonKey(joiner)) return joiner
+  log.debug('skipped a malformed joiner key in', profileKeyHex.slice(0, 8), prefix)
+  return null
+}
+
 // Stream one prefix of a peer's replicated bee. Cap-gated + bounded like the other peer reads.
 function loadPeerEntries(profileKeyHex, prefix) {
   return withPeerBee(profileKeyHex, async (bee) => {
@@ -382,7 +391,8 @@ function loadPeerEntries(profileKeyHex, prefix) {
     const limit = getMembershipCaps().maxRequestsPerMember
     const out = []
     for await (const entry of bee.createReadStream(prefixRange(prefix), limit ? { limit } : undefined)) {
-      const joiner = entry.key.slice(prefix.length)
+      const joiner = joinerKeyOf(entry, prefix, profileKeyHex)
+      if (!joiner) continue
       const v = entry.value || {}
       out.push({
         joiner,
@@ -426,7 +436,8 @@ function loadMembershipRecord(profileKeyHex, spaceId) {
     const approvals = []
     const approvalSeqs = new Map()
     for await (const entry of bee.createReadStream(prefixRange(prefix), limit ? { limit } : undefined)) {
-      const joiner = entry.key.slice(prefix.length)
+      const joiner = joinerKeyOf(entry, prefix, profileKeyHex)
+      if (!joiner) continue
       approvals.push(joiner)
       if (typeof entry.seq === 'number') approvalSeqs.set(joiner, entry.seq)
     }

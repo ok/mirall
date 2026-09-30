@@ -7,6 +7,10 @@ import { getDeriveDebounceMs } from '../core/runtime-config.js'
 import { peerReadTimeoutMs } from '../core/with-timeout.js'
 import { SHARE_PREFIX } from '../shares/shares.js'
 import { prefixRange } from '../core/bee-keys.js'
+import { isPersonKey } from '../contract/principals.js'
+import { createLogger } from '../core/logger.js'
+
+const log = createLogger('membership')
 
 // Transitive discovery + fold. Walks the approval graph FORWARD from the creator (the
 // root of the OR-Set fold — see member-set.js) and self, reading each reachable peer's
@@ -182,6 +186,23 @@ export function createMemberView({ spaceId, creatorKey, selfKey, onMembers, onEr
     }).catch(() => {})
   }
 
+  // A roster key that is not a person key, or whose bee will not open, is left untracked instead of
+  // failing the fold: one bad record must not freeze every co-member's roster. Said once per key,
+  // since every fold offers it again.
+  const skipped = new Set()
+  const watchKey = (key) => {
+    let bee = null
+    let reason = 'not a person key'
+    try { if (isPersonKey(key)) bee = beeFor(key) } catch (err) { reason = err.message }
+    if (bee) {
+      view.track(key, bee)
+      follow(key, bee)
+    } else if (!skipped.has(key)) {
+      skipped.add(key)
+      log.warn('roster key skipped:', key.slice(0, 12), reason)
+    }
+  }
+
   // Skip the reconcile/IPC emit when a fold reproduces the last view byte-for-byte (an
   // append that didn't touch membership). The fold itself still runs and re-reads, so a
   // real change is never missed; only redundant downstream work is dropped.
@@ -199,11 +220,7 @@ export function createMemberView({ spaceId, creatorKey, selfKey, onMembers, onEr
       // Watch + actively follow every bee we touched so a later change to it (an approval, a leave, a
       // request receipt) re-folds — pulled to us even with no direct connection to its author.
       for (const key of result.considered) {
-        if (!view.tracking(key)) {
-          const bee = beeFor(key)
-          view.track(key, bee)
-          follow(key, bee)
-        }
+        if (!view.tracking(key)) watchKey(key)
       }
       // Pending requests + dismissals authored by CURRENT members (only their bees replicate to
       // us; a pending joiner's own bee is never opened). Union across members, max-ts wins.
@@ -230,9 +247,7 @@ export function createMemberView({ spaceId, creatorKey, selfKey, onMembers, onEr
   // Fold in a key learned out-of-band that discovery wouldn't reach on its own.
   const trackKey = (key) => {
     if (!key || view.tracking(key)) return
-    const bee = beeFor(key)
-    view.track(key, bee)
-    follow(key, bee)
+    watchKey(key)
     view.recompute()
   }
 

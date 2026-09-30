@@ -11,6 +11,7 @@ interface ArgValues {
   spaceId: string
   shareId: string
   path: string
+  personKey: string
 }
 
 type ArgsOf<A extends Record<string, ArgRule>> =

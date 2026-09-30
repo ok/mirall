@@ -34,6 +34,17 @@
 
 /** @typedef {{ personKey: PersonKey, deviceKey: DeviceKey, orgKey: OrgKey | null }} PrincipalRef */
 
+const PERSON_KEY = /^[0-9a-f]{64}$/
+
+// The one spelling a person key has in every record and on every request: lowercase hex of 32
+// bytes. Keys are opened as cores and compared as strings, so an uppercase or overlong spelling is
+// a second name for one core and a short one names none. Membership reads, the join-request ingest
+// and the requests that name a member admit a key only through this check.
+/** @param {string} value @returns {boolean} */
+export function isPersonKey(value) {
+  return typeof value === 'string' && PERSON_KEY.test(value)
+}
+
 // The grandfathering rule, stated once: an install's profile key is simultaneously its person key
 // and its device key, and it belongs to no org. A second device attests to the same person key
 // later; until then the two questions are both legal to ask and the answers agree.

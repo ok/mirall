@@ -15,6 +15,7 @@ import { OUTCOME, TARGET_KIND } from '../../shared/contract/audit-kinds.js'
 import { DENY_OUTCOME } from '../../shared/contract/deny-outcome.js'
 import { CODES } from '../../shared/contract/errors.js'
 import { PEER_FRAME } from '../../shared/contract/peer-frames.js'
+import { isPersonKey } from '../../shared/contract/principals.js'
 import { AppError, errorMessage } from '../../shared/core/errors.js'
 import { getDeriveDebounceMs, getMembershipCaps, isHandshakeIdentityBindingEnabled, isMembershipControlBindingEnforced } from '../../shared/core/runtime-config.js'
 import { peerReadTimeoutMs } from '../../shared/core/with-timeout.js'
@@ -124,7 +125,9 @@ async function handleMembershipControl(msg, ctx) {
 /** @param {PeerFrame} msg @param {Partial<PeerFrameContext>} [ctx] */
 async function onJoinRequest(msg, ctx = {}) {
   const { profileKey } = msg
-  if (typeof profileKey !== 'string') return
+  // The wire admits either case when the identity binding is off; the key is recorded, approved
+  // and denied only in its canonical spelling.
+  if (typeof profileKey !== 'string' || !isPersonKey(profileKey)) return
   const { spaceId } = ctx
   if (!spaceId) return
   const space = await getSpace(spaceId)

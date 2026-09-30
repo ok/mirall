@@ -5,6 +5,8 @@ import {
   getLocalPublicKeyHex, markOwnMembership, markApproval, markRequest, readMembershipRecord, readPeerRequests,
 } from '../../src/shared/spaces/profile.js'
 
+const hexKey = (i) => i.toString(16).padStart(64, '0')
+
 // Shrink a cap for one test, then restore the full config (storage/identity included) so
 // later tests in the file are unaffected. setRuntimeConfig rebuilds from `next`, so we
 // spread the live config rather than passing only the patch.
@@ -21,7 +23,7 @@ test('REGRESSION (MIR-29): approved/* read stream is clamped to maxApprovalsPerM
   const S = 'space-approval-bounds'
 
   await markOwnMembership(S)
-  for (let i = 0; i < 20; i++) await markApproval(S, 'joiner-' + String(i).padStart(3, '0'))
+  for (let i = 0; i < 20; i++) await markApproval(S, hexKey(i))
 
   const rec = await readMembershipRecord(me, S)
   t.is(rec.active, true, 'own membership still read')
@@ -35,7 +37,7 @@ test('REGRESSION (MIR-29): request/* read stream is clamped to maxRequestsPerMem
   const S = 'space-request-bounds'
 
   await markOwnMembership(S)
-  for (let i = 0; i < 15; i++) await markRequest(S, 'req-' + String(i).padStart(3, '0'), { displayName: 'R' + i })
+  for (let i = 0; i < 15; i++) await markRequest(S, hexKey(i), { displayName: 'R' + i })
 
   const reqs = await readPeerRequests(me, S)
   t.is(reqs.length, 3, 'request stream clamped to the cap, not the 15 authored records')
@@ -48,7 +50,7 @@ test('a 0 cap disables the bound (escape hatch)', async (t) => {
   const S = 'space-uncapped'
 
   await markOwnMembership(S)
-  for (let i = 0; i < 10; i++) await markApproval(S, 'j-' + String(i).padStart(3, '0'))
+  for (let i = 0; i < 10; i++) await markApproval(S, hexKey(i))
 
   const rec = await readMembershipRecord(me, S)
   t.is(rec.approvals.length, 10, 'cap 0 reads every authored approval')

@@ -53,12 +53,13 @@ test('readMembershipRecord returns { active, approvals }, cap-gated', async (t) 
   t.is(await readMembershipRecord(me, S), null, 'no manifest cap → null (unknown)')
 
   await markOwnMembership(S)
-  await markApproval(S, 'joiner-1')
-  await markApproval(S, 'joiner-2')
+  const [j1, j2] = ['1'.repeat(64), '2'.repeat(64)]
+  await markApproval(S, j1)
+  await markApproval(S, j2)
 
   const rec = await readMembershipRecord(me, S)
   t.is(rec.active, true, 'own membership active')
-  t.alike(sorted(rec.approvals), ['joiner-1', 'joiner-2'], 'both authored approvals')
+  t.alike(sorted(rec.approvals), [j1, j2], 'both authored approvals')
 })
 
 test('a left member reads active:false (leave tombstone)', async (t) => {
