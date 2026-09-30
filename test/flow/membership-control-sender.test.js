@@ -96,8 +96,8 @@ test('REGRESSION (MIR-48: vetting a stranger\'s deny served the joiner\'s own pr
   const own = store.get({ key: b4a.from(joinerKey, 'hex') })
   await own.ready()
   const served = own.get(0, { timeout: scaled(30000) }).then(() => true, () => false)
-  deny(stranger.fields)
-  t.ok(await until(() => B.readStderr().includes('rejected membership:deny'), 60000, { interval: 250 }), 'the deny was vetted and refused')
+  deny({ ...stranger.fields, rosterPath: [creator, joinerKey, stranger.profileKey] })
+  t.ok(await until(() => B.readStderr().includes('rejected membership:deny'), 60000, { interval: 250 }), 'the deny and the chain it forged were vetted and refused')
   t.absent(await served, 'the stranger read no block of the joiner\'s profile core meanwhile')
   t.is((await spaceOf(B, spaceId))?.status, 'pending', 'B keeps its pending space')
 })
@@ -129,11 +129,9 @@ test('a deny that names no sender is still honoured while enforcement is off', {
 })
 
 // Alice, the inviter and creator, is offline when Carol denies, so the only deny Bob can act on is
-// Carol's. Bob cannot read the roster over Carol's gated socket, so until enforcement it is honoured
-// unvetted.
-test('a co-member\'s deny discards the joiner while enforcement is off', { timeout: scaled(300000) }, async (t) => {
+// Carol's.
+async function coMemberDeny(t, flags) {
   const bootstrap = await localTestnet(t)
-  const flags = () => ({ identityKEK: hex(), handshakeIdentityBindingEnabled: true })
   const A = await peer(t, bootstrap, 'Alice', flags())
   const C = await peer(t, bootstrap, 'Carol', flags())
   const B = await peer(t, bootstrap, 'Bob', flags())
@@ -153,6 +151,14 @@ test('a co-member\'s deny discards the joiner while enforcement is off', { timeo
   t.alike(await C.request('space:deny-member', { spaceId, publicKey: bKey }), { outcome: 'denied' }, 'Carol denies')
   await discarded
   t.pass('Bob accepted a deny from a member that is neither the inviter nor the creator')
+}
+
+test('a co-member\'s deny discards the joiner while enforcement is off', { timeout: scaled(300000) }, async (t) => {
+  await coMemberDeny(t, () => ({ identityKEK: hex(), handshakeIdentityBindingEnabled: true }))
+})
+
+test('REGRESSION (MIR-48: a co-member\'s deny was refused under enforcement)', { timeout: scaled(300000) }, async (t) => {
+  await coMemberDeny(t, enforcedFlags)
 })
 
 // With the identity binding off, the wire accepts a profileKey in either case; approve and deny

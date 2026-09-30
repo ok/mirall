@@ -1,7 +1,7 @@
 import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
 import { openProfileBee, readMembershipRecord, readPeerRequests, readPeerDenials, getLocalPublicKeyHex, CAP_MEMBERSHIP_MANIFEST } from './profile.js'
-import { foldMembership } from './membership/fold.js'
+import { foldMembership, standingApprovals } from './membership/fold.js'
 import { createDerivedView } from '../core/derived-view.js'
 import { getDeriveDebounceMs } from '../core/runtime-config.js'
 import { peerReadTimeoutMs } from '../core/with-timeout.js'
@@ -89,6 +89,34 @@ export async function foldHoldsMember({ spaceId, creatorKey, key, readRecord = (
     readRecord,
   })
   return members.has(key)
+}
+
+// The shortest chain of standing vouches from the creator to an active `key`, or null past
+// `maxLength` keys. The fold only ever adds reachability as records arrive, so the records on this
+// chain alone already place `key` in the member set: a reader handed just these cores reaches the
+// same verdict as a full walk.
+/**
+ * @param {{ creatorKey: string, key: string, maxLength: number, readRecord: (key: string) => Promise<object | null> }} args
+ * @returns {Promise<string[] | null>}
+ */
+export async function approvalPath({ creatorKey, key, maxLength, readRecord }) {
+  const parent = new Map([[creatorKey, null]])
+  const depth = new Map([[creatorKey, 1]])
+  const queue = [creatorKey]
+  while (queue.length && !parent.has(key)) {
+    const k = queue.shift()
+    if (depth.get(k) >= maxLength) continue
+    for (const j of standingApprovals(await readRecord(k))) {
+      if (parent.has(j)) continue
+      parent.set(j, k)
+      depth.set(j, depth.get(k) + 1)
+      queue.push(j)
+    }
+  }
+  if (!parent.has(key) || !(await readRecord(key))?.active) return null
+  const path = []
+  for (let k = key; k !== null; k = parent.get(k)) path.unshift(k)
+  return path
 }
 
 // Order-independent digest of a derived view's membership-relevant output (member +

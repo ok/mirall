@@ -12,6 +12,7 @@ import Protomux from 'protomux'
 import b4a from 'b4a'
 import { createLogger } from '../core/logger.js'
 import { mapLimit } from '../core/concurrency.js'
+import { createTimers } from '../core/timers.js'
 import { socketToPeers } from './swarm-registries.js'
 
 const log = createLogger('replication-gate')
@@ -26,6 +27,7 @@ const HEX64 = /^[0-9a-f]{64}$/i
 const earlyAsks = new WeakMap()
 
 let currentStore = () => null
+let timers = createTimers()
 
 export function initReplicationGate(deps) {
   currentStore = deps.getStore
@@ -33,6 +35,8 @@ export function initReplicationGate(deps) {
 
 export function resetReplicationGate() {
   currentStore = () => null
+  timers.close()
+  timers = createTimers()
 }
 
 export function gateReplication(socket) {
@@ -102,6 +106,29 @@ export async function holdPeerCore(socket, profileKeyHex) {
   if (socket.destroyed) release()
   else socket.once('close', release)
   return true
+}
+
+// Peers' own cores on a socket that replicates nothing yet, for `holdMs`: long enough for its peer to
+// read them once, not to follow them. A core another session keeps open stays served after its lent
+// session closes, so the window ends by closing the socket unless it was admitted meanwhile. An
+// admitted socket already reads every core.
+export async function lendPeerCores(socket, profileKeysHex, holdMs) {
+  if (!earlyAsks.has(socket)) return
+  const cores = (await Promise.all(profileKeysHex.map((key) => attachPeerCore(socket, key)))).filter((core) => core !== null)
+  const release = () => {
+    for (const core of cores) core.close().catch((err) => log.debug('lent core close failed:', err.message))
+  }
+  if (socket.destroyed) return release()
+  const onClose = () => {
+    timers.clear(expiry)
+    release()
+  }
+  const expiry = timers.setTimeout(() => {
+    socket.off('close', onClose)
+    release()
+    closeIfUnadmitted(socket)
+  }, holdMs)
+  socket.once('close', onClose)
 }
 
 // An inactive session, so the core turns downloading only for a reader that wants it and is not

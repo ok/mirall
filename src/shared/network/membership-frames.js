@@ -57,12 +57,14 @@ export function broadcastMembershipCancel(spaceId, joinerKey) {
   }
 }
 
-export function sendMembershipDeny(profileKeyHex, spaceId) {
+// `rosterPath` names the approval chain from the creator to us that the joiner vets the deny against.
+/** @param {string} profileKeyHex @param {string} spaceId @param {string[] | null} [rosterPath] */
+export function sendMembershipDeny(profileKeyHex, spaceId, rosterPath = null) {
   const channel = channelForPeer(profileKeyHex)
   const topic = channel && topicField(channel.socket, spaceId)
   if (!topic) return false
   try {
-    channel.handler.send(JSON.stringify({ type: PEER_FRAME.MEMBERSHIP_DENY, ...topic, ...controlSenderFields() }))
+    channel.handler.send(JSON.stringify({ type: PEER_FRAME.MEMBERSHIP_DENY, ...topic, ...controlSenderFields(), ...(rosterPath ? { rosterPath } : {}) }))
     return true
   } catch {
     return false

@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { deriveMemberSet, viewSignature } from '../../src/shared/spaces/member-view.js'
+import { approvalPath, deriveMemberSet, viewSignature } from '../../src/shared/spaces/member-view.js'
 
 // Fake bee-reader: a Map of key -> { active, approvals } | (absent => null record).
 const reader = (db) => async (k) => db.get(k) ?? null
@@ -196,4 +196,46 @@ test('viewSignature changes when only unread changes (healed deficit still re-em
   const healed = { ...base, unread: new Set() }
   t.not(viewSignature(healed), viewSignature(base), 'an unread-only change re-emits')
   t.is(viewSignature(base), viewSignature({ ...base, unread: new Set([B]) }), 'stable when unchanged')
+})
+
+test('approvalPath finds the shortest chain of standing vouches from the creator', async (t) => {
+  const db = new Map([
+    [C, { active: true, approvals: [A, B] }],
+    [A, { active: true, approvals: [S] }],
+    [B, { active: true, approvals: [] }],
+    [S, { active: true, approvals: [] }],
+  ])
+  t.alike(await approvalPath({ creatorKey: C, key: A, maxLength: 8, readRecord: reader(db) }), [C, A], 'one hop')
+  t.alike(await approvalPath({ creatorKey: C, key: S, maxLength: 8, readRecord: reader(db) }), [C, A, S], 'two hops')
+  t.alike(await approvalPath({ creatorKey: C, key: C, maxLength: 8, readRecord: reader(db) }), [C], 'the creator is its own path')
+  t.is(await approvalPath({ creatorKey: C, key: X, maxLength: 8, readRecord: reader(db) }), null, 'an unreachable key has no path')
+  t.is(await approvalPath({ creatorKey: C, key: S, maxLength: 2, readRecord: reader(db) }), null, 'nor does one past the length cap')
+})
+
+test('approvalPath skips a vouch its author wrote after departing, and survives a cycle', async (t) => {
+  const db = new Map([
+    [C, { active: true, approvals: [A] }],
+    [A, { active: false, approvals: [B, C], memberSeq: 5, approvalSeqs: new Map([[B, 9]]) }],
+    [B, { active: true, approvals: [] }],
+  ])
+  t.is(await approvalPath({ creatorKey: C, key: B, maxLength: 8, readRecord: reader(db) }), null, 'the late vouch does not stand')
+})
+
+test('a fold over the approval path alone places its endpoint as the full fold does', async (t) => {
+  const db = new Map([
+    [C, { active: true, approvals: [A, B, X] }],
+    [A, { active: true, approvals: [S] }],
+    [B, { active: true, approvals: [Y] }],
+    [X, { active: true, approvals: [] }],
+    [Y, { active: true, approvals: [] }],
+    [S, { active: true, approvals: [] }],
+  ])
+  for (const key of [A, B, X, Y, S]) {
+    const path = await approvalPath({ creatorKey: C, key, maxLength: 8, readRecord: reader(db) })
+    const only = new Map(path.map((k) => [k, db.get(k)]))
+    const { members } = await deriveMemberSet({ creatorKey: C, selfKey: null, readRecord: reader(only) })
+    t.ok(members.has(key), key + ' is a member on its path records alone')
+  }
+  db.set(S, { active: false, approvals: [] })
+  t.is(await approvalPath({ creatorKey: C, key: S, maxLength: 8, readRecord: reader(db) }), null, 'a departed endpoint has no chain to hand out')
 })

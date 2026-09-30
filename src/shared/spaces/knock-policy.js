@@ -65,8 +65,7 @@ export function cancelVerdict({ senderKey, joinerKey, senderIsMember, enforce })
 // Who may turn down our pending request: the deciders granterVerdict recognises, except that with no
 // creator named nobody but the inviter counts. A wrong grant is harmless without the sealed key; a
 // wrong deny throws the request away. Until enforcement is on, any other deny is honoured unvetted:
-// a joiner cannot read the roster over a co-member's gated socket, so the fold could not place a
-// member who denies it, and an older release names no sender at all.
+// a member on an older release names no sender and lends no approval chain to vet it against.
 /**
  * @param {{ denierKey: string | null, inviteOwner: string | null, creatorKey: string | null, enforce: boolean }} facts
  * @returns {'accept' | 'accept-unvetted' | 'check-fold' | 'reject'}
