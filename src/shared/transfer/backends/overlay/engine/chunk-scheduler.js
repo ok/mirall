@@ -17,14 +17,13 @@
  *  - hash-verifies every chunk (via TransferManager.writeChunk) and the whole
  *  file before finalizing.
  *
- * It drives the EXISTING v2 wire messages (chunk-need / chunk-data) — no new
- * message type is needed for the full-copy-seeder case. The protocol delegates
- * `_onChunkHashes` / `_onChunkData` to a scheduler ONLY when one is registered
- * for the synthetic `content:<hash>` path, so the legacy single-peer flow
- * (pgh NetworkFetcher) is untouched.
+ * It drives the v2 wire messages (chunk-need / chunk-data). The protocol hands
+ * `_onChunkHashes` / `_onChunkData` for a synthetic `content:<hash>` path to the
+ * scheduler registered for it, and drops them when there is none.
  */
 
 import { hashChunk, selectTier, getTierParams } from './chunker.js'
+import { isTransientWriteCode } from './local-faults.js'
 
 const DEFAULT_CAP = 8
 // [mirall] How far _assign scans past chunks the download cap cannot currently afford
@@ -79,10 +78,6 @@ const positive = (value, fallback) => (Number.isFinite(value) && value > 0 ? val
 // [mirall] §4.24 — chunking is deterministic (same bytes + same tier), so every honest holder of a
 // hash sends the same map; any difference is a fault in the sender.
 const sameMap = (a, b) => a.length === b.length && a.every((c, i) => c.hash === b[i].hash && c.length === b[i].length)
-// [mirall] Local write-error codes that may recover on retry (vs ENOSPC/EACCES/…
-// which are fatal): a transient one keeps the chunk retryable instead of failing
-// the whole multi-source fetch.
-const TRANSIENT_WRITE_CODES = new Set(['EBUSY', 'EAGAIN', 'EINTR', 'EMFILE', 'ENFILE'])
 // [mirall] Min interval between have-progress reports to holders (their sender-side bar).
 // Throttles the transferProgress frames so a fast transfer can't spam holders.
 const DEFAULT_REPORT_INTERVAL = 1000
@@ -502,12 +497,10 @@ export class ChunkScheduler {
     if (!res.ok) {
       // [mirall] Same refund as removePeer: a retried chunk is re-charged on re-assign.
       this._refund(index)
-      // [mirall] A coded failure is a local fs error. A TRANSIENT code (device busy,
-      // fd pressure, interrupted syscall) can succeed on retry — leave the chunk in
-      // `needed` and reassign. Any other coded error (ENOSPC / EACCES / ENOENT / …) is
-      // fatal: fail the whole fetch carrying the code. No code = a hash/length
-      // mismatch — also retried elsewhere.
-      if (res.code && !TRANSIENT_WRITE_CODES.has(res.code)) {
+      // A coded failure is a local fs error: a transient one leaves the chunk needed and
+      // reassigns it; any other ends the fetch carrying the code (local-faults.js). No code =
+      // a hash or length mismatch, retried elsewhere.
+      if (res.code && !isTransientWriteCode(res.code)) {
         const err = new Error('write failed: ' + res.error)
         err.code = res.code
         return this._fail(err)

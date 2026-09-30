@@ -3,24 +3,34 @@
 // hyper-overlay authors, licensed AGPL-3.0. Modified for Mirall in 2026; PROVENANCE.md
 // lists the changes and carries the full license notice.
 
-/**
- * Wire Protocol Messages for hyper-overlay/v2
- *
- * 13 message types for sync + transfer + trees (0.5a extension):
- *  0-2: Sync messages (state exchange, file offers/requests)
- *  3-8: Transfer messages (chunk hashes, data, completion)
- *  9-11: Tree messages (tree-request, tree-response, content-request)
- *  12: transfer-control (downloader→holder pause/stop notice)
- *
- * Messages 9-12 are backward-compatible additions — peers without
- * this code simply don't register the corresponding protomux slots, and
- * senders see no receiver for those messages. File-level sync (0-8)
- * keeps working unchanged.
- *
- * All use compact-encoding codecs with preencode/encode/decode.
- */
+// Codecs for the hyper-overlay/v2 channel, and the slot table that is its wire order; the eight
+// retired slots carry no codec. All use compact-encoding codecs with preencode/encode/decode.
 
 import c from 'compact-encoding'
+
+// The channel's message slots, in wire order. protomux routes a frame by the POSITION its message
+// was registered at, so this order is the contract with every released peer: never remove, insert
+// or reorder a row, and append new messages at the end. A retired slot keeps its position with no
+// codec and no handler — the protocol registers it as raw bytes, which never decode, so no frame on
+// it can throw and receiving one does nothing. Nothing sends on a retired slot.
+export const SLOTS = Object.freeze([
+  { name: 'syncState', retired: true },
+  { name: 'fileOffer', retired: true },
+  { name: 'fileRequest', retired: true },
+  { name: 'chunkHashes', retired: false },
+  { name: 'chunkNeed', retired: false },
+  { name: 'chunkData', retired: false },
+  { name: 'chunkCancel', retired: true },
+  { name: 'transferComplete', retired: true },
+  { name: 'conflict', retired: true },
+  { name: 'treeRequest', retired: true },
+  { name: 'treeResponse', retired: true },
+  { name: 'contentRequest', retired: false },
+  { name: 'transferControl', retired: false },
+  { name: 'transferProgress', retired: false },
+  { name: 'keepAlive', retired: false }
+])
+
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -109,78 +119,7 @@ export const handshake = {
   }
 }
 
-// ── Sync Messages (0-2) ──────────────────────────────────────
-
-// Message 0: sync-state — exchange last-synced sequence numbers
-export const syncState = {
-  preencode (state, m) {
-    c.buffer.preencode(state, toBuffer32(m.feedKey))
-    c.uint.preencode(state, m.localSeq)
-    c.uint.preencode(state, m.remoteSeq)
-  },
-  encode (state, m) {
-    c.buffer.encode(state, toBuffer32(m.feedKey))
-    c.uint.encode(state, m.localSeq)
-    c.uint.encode(state, m.remoteSeq)
-  },
-  decode (state) {
-    return {
-      feedKey: c.buffer.decode(state).toString('hex'),
-      localSeq: c.uint.decode(state),
-      remoteSeq: c.uint.decode(state)
-    }
-  }
-}
-
-// Message 1: file-offer — announce a file change
-export const fileOffer = {
-  preencode (state, m) {
-    c.string.preencode(state, m.path)
-    c.buffer.preencode(state, toBuffer32(m.contentHash))
-    c.uint.preencode(state, m.size)
-    c.uint.preencode(state, m.mtime)
-    c.uint8.preencode(state, m.op)
-  },
-  encode (state, m) {
-    c.string.encode(state, m.path)
-    c.buffer.encode(state, toBuffer32(m.contentHash))
-    c.uint.encode(state, m.size)
-    c.uint.encode(state, m.mtime)
-    c.uint8.encode(state, m.op)
-  },
-  decode (state) {
-    return {
-      path: c.string.decode(state),
-      contentHash: c.buffer.decode(state).toString('hex'),
-      size: c.uint.decode(state),
-      mtime: c.uint.decode(state),
-      op: c.uint8.decode(state)
-    }
-  }
-}
-
-// Message 2: file-request — request a file transfer
-export const fileRequest = {
-  preencode (state, m) {
-    c.string.preencode(state, m.path)
-    c.buffer.preencode(state, toBuffer32(m.contentHash))
-    c.buffer.preencode(state, m.chunksHave || Buffer.alloc(0))
-  },
-  encode (state, m) {
-    c.string.encode(state, m.path)
-    c.buffer.encode(state, toBuffer32(m.contentHash))
-    c.buffer.encode(state, m.chunksHave || Buffer.alloc(0))
-  },
-  decode (state) {
-    return {
-      path: c.string.decode(state),
-      contentHash: c.buffer.decode(state).toString('hex'),
-      chunksHave: c.buffer.decode(state)
-    }
-  }
-}
-
-// ── Transfer Messages (3-8) ──────────────────────────────────
+// ── Chunk transfer (slots 3-5) ────────────────────────────────
 
 // Message 3: chunk-hashes — chunk hash list for a requested file
 //
@@ -253,144 +192,7 @@ export const chunkData = {
   }
 }
 
-// Message 6: chunk-cancel — cancel a pending transfer
-export const chunkCancel = {
-  preencode (state, m) { c.string.preencode(state, m.path) },
-  encode (state, m) { c.string.encode(state, m.path) },
-  decode (state) { return { path: c.string.decode(state) } }
-}
-
-// Message 7: transfer-complete — confirm file fully received
-export const transferComplete = {
-  preencode (state, m) {
-    c.string.preencode(state, m.path)
-    c.buffer.preencode(state, toBuffer32(m.contentHash))
-  },
-  encode (state, m) {
-    c.string.encode(state, m.path)
-    c.buffer.encode(state, toBuffer32(m.contentHash))
-  },
-  decode (state) {
-    return {
-      path: c.string.decode(state),
-      contentHash: c.buffer.decode(state).toString('hex')
-    }
-  }
-}
-
-// Message 8: conflict — notify peer of a detected conflict
-export const conflict = {
-  preencode (state, m) {
-    c.string.preencode(state, m.path)
-    c.buffer.preencode(state, toBuffer32(m.myHash))
-    c.buffer.preencode(state, toBuffer32(m.theirHash))
-    c.buffer.preencode(state, toBuffer32(m.ancestorHash || Buffer.alloc(32)))
-  },
-  encode (state, m) {
-    c.string.encode(state, m.path)
-    c.buffer.encode(state, toBuffer32(m.myHash))
-    c.buffer.encode(state, toBuffer32(m.theirHash))
-    c.buffer.encode(state, toBuffer32(m.ancestorHash || Buffer.alloc(32)))
-  },
-  decode (state) {
-    return {
-      path: c.string.decode(state),
-      myHash: c.buffer.decode(state).toString('hex'),
-      theirHash: c.buffer.decode(state).toString('hex'),
-      ancestorHash: c.buffer.decode(state).toString('hex')
-    }
-  }
-}
-
-// ── Tree Messages (9-11) — 0.5a extension ────────────────────
-
-// Encode/decode an array of tree entries: { kind, exec, name, childHash, size }
-const treeEntryArray = {
-  preencode (state, arr) {
-    c.uint32.preencode(state, arr.length)
-    for (const e of arr) {
-      c.uint8.preencode(state, e.kind)
-      c.uint8.preencode(state, e.exec || 0)
-      c.string.preencode(state, e.name)
-      state.end += 32 // childHash fixed32
-      c.uint.preencode(state, e.size || 0)
-    }
-  },
-  encode (state, arr) {
-    c.uint32.encode(state, arr.length)
-    for (const e of arr) {
-      c.uint8.encode(state, e.kind)
-      c.uint8.encode(state, e.exec || 0)
-      c.string.encode(state, e.name)
-      toBuffer32(e.childHash).copy(state.buffer, state.start, 0, 32)
-      state.start += 32
-      c.uint.encode(state, e.size || 0)
-    }
-  },
-  decode (state) {
-    const len = c.uint32.decode(state)
-    const arr = []
-    for (let i = 0; i < len; i++) {
-      const kind = c.uint8.decode(state)
-      const exec = c.uint8.decode(state)
-      const name = c.string.decode(state)
-      const childHash = state.buffer.subarray(state.start, state.start + 32).toString('hex')
-      state.start += 32
-      const size = c.uint.decode(state)
-      arr.push({ kind, exec, name, childHash, size })
-    }
-    return arr
-  }
-}
-
-// Message 9: tree-request — ask peer for a tree by its content hash
-//
-// [mirall] §4.15 — `nonce` (per-request id) is appended last; the holder echoes it in
-// every treeResponse page so the requester can drop pages from a superseded attempt.
-// A pre-nonce peer omits it and decodes 0, which the requester treats as "unverifiable".
-export const treeRequest = {
-  preencode (state, m) {
-    c.buffer.preencode(state, toBuffer32(m.hash))
-    c.uint.preencode(state, m.nonce || 0)
-  },
-  encode (state, m) {
-    c.buffer.encode(state, toBuffer32(m.hash))
-    c.uint.encode(state, m.nonce || 0)
-  },
-  decode (state) {
-    const hash = c.buffer.decode(state).toString('hex')
-    const nonce = state.start < state.end ? c.uint.decode(state) : 0
-    return { hash, nonce }
-  }
-}
-
-// Message 10: tree-response — return a tree's entries to the requester
-//
-// [mirall] §4.15 — `more` (paging flag) mirrors chunkHashes: a tree too large for one
-// 16 MiB-1 Noise frame is split into several frames, every page but the last more:1.
-// `nonce` echoes the requester's per-request id so pages from a superseded attempt are
-// dropped. Both are appended last; a pre-paging peer omits them and decodes 0.
-export const treeResponse = {
-  preencode (state, m) {
-    c.buffer.preencode(state, toBuffer32(m.hash))
-    treeEntryArray.preencode(state, m.entries)
-    c.uint8.preencode(state, m.more || 0)
-    c.uint.preencode(state, m.nonce || 0)
-  },
-  encode (state, m) {
-    c.buffer.encode(state, toBuffer32(m.hash))
-    treeEntryArray.encode(state, m.entries)
-    c.uint8.encode(state, m.more || 0)
-    c.uint.encode(state, m.nonce || 0)
-  },
-  decode (state) {
-    const hash = c.buffer.decode(state).toString('hex')
-    const entries = treeEntryArray.decode(state)
-    const more = state.start < state.end ? c.uint8.decode(state) : 0
-    const nonce = state.start < state.end ? c.uint.decode(state) : 0
-    return { hash, entries, more, nonce }
-  }
-}
+// ── Content fetch and serve control (slots 11-14) ─────────────
 
 // Message 11: content-request — fetch a file by its content hash (not path)
 // Sender locates any local file matching the hash and serves its chunks.

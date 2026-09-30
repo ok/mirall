@@ -5,12 +5,12 @@
 
 // Ported from hyper-overlay upstream test/transfer.test.js (6cac8ee). Body
 // verbatim; only import paths retargeted to the vendored subset. See
-// src/shared/transfer/backends/overlay/vendor/PROVENANCE.md.
+// src/shared/transfer/backends/overlay/engine/PROVENANCE.md.
 import test from 'brittle'
-import { tmpStore, tmpDir, fs, path } from './overlay-vendor-helpers.js'
-import { FileIndex } from '../../src/shared/transfer/backends/overlay/vendor/file-index.js'
-import { TransferManager, openFdCount } from '../../src/shared/transfer/backends/overlay/vendor/transfer.js'
-import { hashChunk, selectTier, chunk as chunkBuffer } from '../../src/shared/transfer/backends/overlay/vendor/chunker.js'
+import { tmpStore, tmpDir, fs, path } from './overlay-engine-helpers.js'
+import { FileIndex } from '../../src/shared/transfer/backends/overlay/engine/file-index.js'
+import { TransferManager, openFdCount } from '../../src/shared/transfer/backends/overlay/engine/transfer.js'
+import { hashChunk, selectTier, chunk as chunkBuffer } from '../../src/shared/transfer/backends/overlay/engine/chunker.js'
 import crypto from 'hypercore-crypto'
 
 async function setup(transferOpts) {
@@ -25,6 +25,8 @@ async function setup(transferOpts) {
 function wipeJournals(journalDir) {
   for (const f of fs.readdirSync(journalDir)) fs.unlinkSync(path.join(journalDir, f))
 }
+
+const readAt = (p, o, l) => fs.readFileSync(p).subarray(o, o + l)
 
 function writeTestFile(dir, name, data) {
   fs.mkdirSync(dir, { recursive: true })
@@ -41,7 +43,7 @@ test('prepareFile — chunks a small file', async (t) => {
   const data = Buffer.from('Hello, this is a test file for transfer.')
   const filePath = writeTestFile(dir, 'hello.txt', data)
 
-  const result = await transfer.prepareFile(filePath, '/hello.txt')
+  const result = await transfer.prepareFile(filePath)
 
   t.ok(result)
   t.is(result.size, data.length)
@@ -51,14 +53,10 @@ test('prepareFile — chunks a small file', async (t) => {
   t.is(result.chunks[0].offset, 0)
   t.is(result.chunks[0].length, data.length)
 
-  // File index should be updated
-  const meta = await index.getFile('/hello.txt')
-  t.ok(meta)
-  t.is(meta.size, data.length)
-  t.ok(meta.contentHash)
+  t.ok(result.contentHash)
 
   // Small file should NOT have a persisted chunk map
-  t.is(await index.hasChunkMap('/hello.txt'), false)
+  t.is(await index.hasChunkMapByHash(result.contentHash), false)
 
   await index.close()
 })
@@ -69,7 +67,7 @@ test('prepareFile — large file persists chunk map', async (t) => {
   const data = crypto.randomBytes(2 * 1024 * 1024) // 2MB
   const filePath = writeTestFile(dir, 'large.bin', data)
 
-  const result = await transfer.prepareFile(filePath, '/large.bin')
+  const result = await transfer.prepareFile(filePath)
 
   t.ok(result)
   t.is(result.size, data.length)
@@ -77,25 +75,10 @@ test('prepareFile — large file persists chunk map', async (t) => {
   t.ok(result.chunks.length > 1)
 
   // Large file SHOULD have a persisted chunk map
-  t.is(await index.hasChunkMap('/large.bin'), true)
+  t.is(await index.hasChunkMapByHash(result.contentHash), true)
 
-  const map = await index.getChunkMap('/large.bin')
+  const map = await index.getChunkMapByHash(result.contentHash)
   t.is(map.length, result.chunks.length)
-
-  await index.close()
-})
-
-test('prepareFile — uses cached chunk map on second call', async (t) => {
-  const { index, transfer } = await setup()
-  const dir = tmpDir('sender')
-  const data = crypto.randomBytes(2 * 1024 * 1024)
-  const filePath = writeTestFile(dir, 'cached.bin', data)
-
-  const result1 = await transfer.prepareFile(filePath, '/cached.bin')
-  const result2 = await transfer.prepareFile(filePath, '/cached.bin')
-
-  t.is(result1.chunks.length, result2.chunks.length)
-  t.is(result1.chunks[0].hash, result2.chunks[0].hash)
 
   await index.close()
 })
@@ -103,7 +86,7 @@ test('prepareFile — uses cached chunk map on second call', async (t) => {
 test('prepareFile — returns null for missing file', async (t) => {
   const { index, transfer } = await setup()
 
-  const result = await transfer.prepareFile('/nonexistent/file.txt', '/file.txt')
+  const result = await transfer.prepareFile('/nonexistent/file.txt')
   t.is(result, null)
 
   await index.close()
@@ -133,7 +116,7 @@ test('REGRESSION (FIX-1: vanish mid-read): prepareFile re-queues (null), does no
   }
   t.teardown(() => { fs.statSync = realStat })
 
-  const result = await transfer.prepareFile(filePath, '/mir-prep' + filePath, { byHashOnly: true })
+  const result = await transfer.prepareFile(filePath)
   t.is(result, null, 'vanished-mid-read source re-queues instead of throwing')
   t.is(targetStats, 2, 'the post-read guard stat (the 2nd stat of the source) was reached')
 })
@@ -143,11 +126,11 @@ test('prepareFile — returns the content hash and reports streaming progress', 
   const data = crypto.randomBytes(256 * 1024)
   const filePath = writeTestFile(tmpDir('sender'), 'h.bin', data)
   let seen = 0
-  const prepared = await transfer.prepareFile(filePath, '/h.bin', { onProgress: (n) => { seen += n } })
+  const prepared = await transfer.prepareFile(filePath, { onProgress: (n) => { seen += n } })
   t.is(prepared.contentHash, crypto.data(data).toString('hex'), 'content hash == the wire (size-bound) hash')
   t.is(seen, data.length, 'onProgress summed to the whole file')
   // The cached second call still surfaces the content hash (from the file index).
-  const again = await transfer.prepareFile(filePath, '/h.bin')
+  const again = await transfer.prepareFile(filePath)
   t.is(again.contentHash, prepared.contentHash, 'cached path returns the content hash too')
   await index.close()
 })
@@ -158,78 +141,13 @@ test('prepareFile — no data field in chunks', async (t) => {
   const data = crypto.randomBytes(100 * 1024)
   const filePath = writeTestFile(dir, 'nodata.bin', data)
 
-  const result = await transfer.prepareFile(filePath, '/nodata.bin')
+  const result = await transfer.prepareFile(filePath)
 
   for (const c of result.chunks) {
     t.absent(c.data, 'no data in chunk metadata')
   }
 
   await index.close()
-})
-
-// ── Sender: readChunk ─────────────────────────────────────────
-
-test('readChunk — reads bytes at offset', async (t) => {
-  const { index, transfer } = await setup()
-  const dir = tmpDir('sender')
-  const data = Buffer.from('AAAABBBBCCCCDDDD')
-  const filePath = writeTestFile(dir, 'chunks.bin', data)
-
-  const chunk = transfer.readChunk(filePath, 4, 4)
-  t.ok(chunk)
-  t.alike(chunk, Buffer.from('BBBB'))
-
-  const chunk2 = transfer.readChunk(filePath, 8, 8)
-  t.alike(chunk2, Buffer.from('CCCCDDDD'))
-
-  await index.close()
-})
-
-test('readChunk — returns null for missing file', async (t) => {
-  const { transfer } = await setup()
-  t.is(transfer.readChunk('/nonexistent', 0, 10), null)
-})
-
-// ── Sender: computeNeeded ─────────────────────────────────────
-
-test('computeNeeded — filters out chunks peer already has', async (t) => {
-  const { transfer } = await setup()
-
-  const offered = [
-    { hash: 'h1', offset: 0, length: 100 },
-    { hash: 'h2', offset: 100, length: 100 },
-    { hash: 'h3', offset: 200, length: 100 },
-    { hash: 'h4', offset: 300, length: 100 }
-  ]
-
-  const peerHas = new Set(['h1', 'h3'])
-  const needed = transfer.computeNeeded(offered, peerHas)
-
-  t.alike(needed, [1, 3], 'only indices 1 and 3 needed')
-})
-
-test('computeNeeded — peer has nothing → all needed', async (t) => {
-  const { transfer } = await setup()
-
-  const offered = [
-    { hash: 'h1', offset: 0, length: 100 },
-    { hash: 'h2', offset: 100, length: 100 }
-  ]
-
-  const needed = transfer.computeNeeded(offered, new Set())
-  t.alike(needed, [0, 1])
-})
-
-test('computeNeeded — peer has everything → nothing needed', async (t) => {
-  const { transfer } = await setup()
-
-  const offered = [
-    { hash: 'h1', offset: 0, length: 100 },
-    { hash: 'h2', offset: 100, length: 100 }
-  ]
-
-  const needed = transfer.computeNeeded(offered, new Set(['h1', 'h2']))
-  t.alike(needed, [])
 })
 
 // ── Receiver: full transfer flow ──────────────────────────────
@@ -241,7 +159,7 @@ test('receive flow — small file round-trip', async (t) => {
   const senderDir = tmpDir('sender')
   const original = Buffer.from('This is the file content to transfer over P2P.')
   const senderPath = writeTestFile(senderDir, 'doc.txt', original)
-  const prepared = await transfer.prepareFile(senderPath, '/doc.txt')
+  const prepared = await transfer.prepareFile(senderPath)
 
   // Receiver side: start receiving
   const receiverDir = tmpDir('receiver')
@@ -254,15 +172,10 @@ test('receive flow — small file round-trip', async (t) => {
   // Simulate chunk transfer: sender reads, receiver writes
   for (let i = 0; i < prepared.chunks.length; i++) {
     const c = prepared.chunks[i]
-    const data = transfer.readChunk(senderPath, c.offset, c.length)
+    const data = readAt(senderPath, c.offset, c.length)
     const result = transfer.writeChunk(targetPath, i, data)
     t.ok(result.ok, `chunk ${i} written`)
   }
-
-  // Check progress
-  t.is(transfer.isComplete(targetPath), true)
-  const progress = transfer.getProgress(targetPath)
-  t.is(progress.percentage, 100)
 
   // Finalize
   const fin = await transfer.finalize(targetPath)
@@ -284,7 +197,7 @@ test('receive flow — multi-chunk file', async (t) => {
   const senderDir = tmpDir('sender')
   const original = crypto.randomBytes(128 * 1024) // 128KB, multiple chunks
   const senderPath = writeTestFile(senderDir, 'multi.bin', original)
-  const prepared = await transfer.prepareFile(senderPath, '/multi.bin')
+  const prepared = await transfer.prepareFile(senderPath)
 
   t.ok(prepared.chunks.length > 1, `${prepared.chunks.length} chunks`)
 
@@ -295,13 +208,12 @@ test('receive flow — multi-chunk file', async (t) => {
   // Transfer all chunks
   for (let i = 0; i < prepared.chunks.length; i++) {
     const c = prepared.chunks[i]
-    const data = transfer.readChunk(senderPath, c.offset, c.length)
+    const data = readAt(senderPath, c.offset, c.length)
     const result = transfer.writeChunk(targetPath, i, data)
     t.ok(result.ok)
   }
 
-  t.ok(transfer.isComplete(targetPath))
-  await transfer.finalize(targetPath)
+  t.ok((await transfer.finalize(targetPath)).ok)
 
   const received = fs.readFileSync(targetPath)
   t.alike(received, original, 'content matches')
@@ -315,7 +227,7 @@ test('receive flow — out-of-order chunks', async (t) => {
   const senderDir = tmpDir('sender')
   const original = crypto.randomBytes(128 * 1024)
   const senderPath = writeTestFile(senderDir, 'ooo.bin', original)
-  const prepared = await transfer.prepareFile(senderPath, '/ooo.bin')
+  const prepared = await transfer.prepareFile(senderPath)
 
   const receiverDir = tmpDir('receiver')
   const targetPath = path.join(receiverDir, 'ooo.bin')
@@ -324,13 +236,12 @@ test('receive flow — out-of-order chunks', async (t) => {
   // Send chunks in reverse order
   for (let i = prepared.chunks.length - 1; i >= 0; i--) {
     const c = prepared.chunks[i]
-    const data = transfer.readChunk(senderPath, c.offset, c.length)
+    const data = readAt(senderPath, c.offset, c.length)
     const result = transfer.writeChunk(targetPath, i, data)
     t.ok(result.ok)
   }
 
-  t.ok(transfer.isComplete(targetPath))
-  await transfer.finalize(targetPath)
+  t.ok((await transfer.finalize(targetPath)).ok)
 
   const received = fs.readFileSync(targetPath)
   t.alike(received, original, 'content matches even with out-of-order chunks')
@@ -346,13 +257,13 @@ test('incremental verify — correct content hash finalizes (in-order)', async (
   const original = crypto.randomBytes(256 * 1024)
   const senderPath = writeTestFile(tmpDir('sender'), 'iv.bin', original)
   const oid = crypto.data(original).toString('hex')
-  const prepared = await transfer.prepareFile(senderPath, '/iv.bin')
+  const prepared = await transfer.prepareFile(senderPath)
 
   const targetPath = path.join(tmpDir('receiver'), 'iv.bin')
   await transfer.startReceive(targetPath, { size: prepared.size, chunks: prepared.chunks, contentHash: oid })
   for (let i = 0; i < prepared.chunks.length; i++) {
     const c = prepared.chunks[i]
-    t.ok(transfer.writeChunk(targetPath, i, transfer.readChunk(senderPath, c.offset, c.length)).ok)
+    t.ok(transfer.writeChunk(targetPath, i, readAt(senderPath, c.offset, c.length)).ok)
   }
   const fin = await transfer.finalize(targetPath)
   t.ok(fin.ok, 'finalize ok with the correct content hash')
@@ -366,13 +277,13 @@ test('incremental verify — correct hash finalizes even with out-of-order arriv
   const original = crypto.randomBytes(256 * 1024)
   const senderPath = writeTestFile(tmpDir('sender'), 'ivo.bin', original)
   const oid = crypto.data(original).toString('hex')
-  const prepared = await transfer.prepareFile(senderPath, '/ivo.bin')
+  const prepared = await transfer.prepareFile(senderPath)
 
   const targetPath = path.join(tmpDir('receiver'), 'ivo.bin')
   await transfer.startReceive(targetPath, { size: prepared.size, chunks: prepared.chunks, contentHash: oid })
   for (let i = prepared.chunks.length - 1; i >= 0; i--) {
     const c = prepared.chunks[i]
-    t.ok(transfer.writeChunk(targetPath, i, transfer.readChunk(senderPath, c.offset, c.length)).ok)
+    t.ok(transfer.writeChunk(targetPath, i, readAt(senderPath, c.offset, c.length)).ok)
   }
   const fin = await transfer.finalize(targetPath)
   t.ok(fin.ok, 'finalize ok — the hash frontier handles reordering')
@@ -385,13 +296,13 @@ test('incremental verify — wrong content hash rejects in finalize, no file lan
   const { index, transfer } = await setup()
   const original = crypto.randomBytes(256 * 1024)
   const senderPath = writeTestFile(tmpDir('sender'), 'ivm.bin', original)
-  const prepared = await transfer.prepareFile(senderPath, '/ivm.bin')
+  const prepared = await transfer.prepareFile(senderPath)
 
   const targetPath = path.join(tmpDir('receiver'), 'ivm.bin')
   await transfer.startReceive(targetPath, { size: prepared.size, chunks: prepared.chunks, contentHash: 'f'.repeat(64) })
   for (let i = 0; i < prepared.chunks.length; i++) {
     const c = prepared.chunks[i]
-    transfer.writeChunk(targetPath, i, transfer.readChunk(senderPath, c.offset, c.length))
+    transfer.writeChunk(targetPath, i, readAt(senderPath, c.offset, c.length))
   }
   const fin = await transfer.finalize(targetPath)
   t.absent(fin.ok, 'finalize rejects on whole-file hash mismatch')
@@ -410,7 +321,7 @@ function partialFor(targetPath) {
 test('startReceive resumes a partial: verified chunks kept, gaps re-needed', async (t) => {
   const { index, transfer } = await setup()
   const senderPath = writeTestFile(tmpDir('sender'), 'resume.bin', crypto.randomBytes(256 * 1024))
-  const prepared = await transfer.prepareFile(senderPath, '/resume.bin')
+  const prepared = await transfer.prepareFile(senderPath)
   t.ok(prepared.chunks.length > 4, `${prepared.chunks.length} chunks`)
 
   const targetPath = path.join(tmpDir('receiver'), 'resume.bin')
@@ -418,7 +329,7 @@ test('startReceive resumes a partial: verified chunks kept, gaps re-needed', asy
   const half = Math.floor(prepared.chunks.length / 2)
   for (let i = 0; i < half; i++) {
     const c = prepared.chunks[i]
-    t.ok(transfer.writeChunk(targetPath, i, transfer.readChunk(senderPath, c.offset, c.length)).ok)
+    t.ok(transfer.writeChunk(targetPath, i, readAt(senderPath, c.offset, c.length)).ok)
   }
   await transfer.pause(targetPath) // keeps the partial on disk
   t.ok(fs.existsSync(partialFor(targetPath)), 'partial kept after pause')
@@ -431,7 +342,7 @@ test('startReceive resumes a partial: verified chunks kept, gaps re-needed', asy
   // Finish the resumed transfer from where it left off.
   for (let i = half; i < prepared.chunks.length; i++) {
     const c = prepared.chunks[i]
-    t.ok(transfer.writeChunk(targetPath, i, transfer.readChunk(senderPath, c.offset, c.length)).ok)
+    t.ok(transfer.writeChunk(targetPath, i, readAt(senderPath, c.offset, c.length)).ok)
   }
   t.ok((await transfer.finalize(targetPath)).ok, 'resumed transfer finalizes')
   t.alike(fs.readFileSync(targetPath), fs.readFileSync(senderPath), 'resumed file matches the source')
@@ -442,20 +353,20 @@ test('startReceive resumes a partial: verified chunks kept, gaps re-needed', asy
 test('B: prepareFile aborts on an aborted signal (ECANCELLED), reader torn down', async (t) => {
   const { index, transfer } = await setup()
   const p = writeTestFile(tmpDir('sender'), 'abrt.bin', crypto.randomBytes(4 * 1024 * 1024))
-  await t.exception(transfer.prepareFile(p, '/abrt.bin', { signal: { aborted: true } }), /abort/i, 'a pre-aborted signal stops the hash')
+  await t.exception(transfer.prepareFile(p, { signal: { aborted: true } }), /abort/i, 'a pre-aborted signal stops the hash')
   await index.close()
 })
 
 test('a corrupted partial chunk is not trusted on resume (re-needed)', async (t) => {
   const { index, transfer } = await setup()
   const senderPath = writeTestFile(tmpDir('sender'), 'corrupt.bin', crypto.randomBytes(256 * 1024))
-  const prepared = await transfer.prepareFile(senderPath, '/corrupt.bin')
+  const prepared = await transfer.prepareFile(senderPath)
 
   const targetPath = path.join(tmpDir('receiver'), 'corrupt.bin')
   await transfer.startReceive(targetPath, { size: prepared.size, chunks: prepared.chunks })
   for (let i = 0; i < prepared.chunks.length; i++) {
     const c = prepared.chunks[i]
-    transfer.writeChunk(targetPath, i, transfer.readChunk(senderPath, c.offset, c.length))
+    transfer.writeChunk(targetPath, i, readAt(senderPath, c.offset, c.length))
   }
   await transfer.pause(targetPath)
 
@@ -477,7 +388,7 @@ test('pause keeps the partial (active transfer cleared); cancel needs an active 
   const state = await transfer.startReceive(targetPath, { size: 100, chunks: [{ hash: 'h1', offset: 0, length: 100 }] })
   await transfer.pause(targetPath)
   t.ok(fs.existsSync(state.partialPath), 'pause keeps the partial on disk')
-  t.is(transfer.getProgress(targetPath), null, 'pause removes the active transfer')
+  t.absent(transfer._active.has(targetPath), 'pause removes the active transfer')
   fs.unlinkSync(state.partialPath) // the loose layer unlinks a paused partial by path on discard
   await index.close()
 })
@@ -522,7 +433,7 @@ test('cancel removes partial file', async (t) => {
   transfer.cancel(targetPath)
 
   t.is(fs.existsSync(state.partialPath), false, 'partial cleaned up')
-  t.is(transfer.getProgress(targetPath), null, 'no active transfer')
+  t.absent(transfer._active.has(targetPath), 'no active transfer')
 
   await index.close()
 })
@@ -549,44 +460,6 @@ test('finalize rejects incomplete transfer', async (t) => {
   await index.close()
 })
 
-// ── listActive ────────────────────────────────────────────────
-
-test('listActive shows active transfers', async (t) => {
-  const { index, transfer } = await setup()
-
-  t.is(transfer.listActive().length, 0)
-
-  const dir = tmpDir('receiver')
-  await transfer.startReceive(path.join(dir, 'a.bin'), { size: 100, chunks: [{ hash: 'h1', offset: 0, length: 100 }] })
-  await transfer.startReceive(path.join(dir, 'b.bin'), { size: 200, chunks: [{ hash: 'h2', offset: 0, length: 200 }] })
-
-  const active = transfer.listActive()
-  t.is(active.length, 2)
-
-  transfer.cancel(path.join(dir, 'a.bin'))
-  transfer.cancel(path.join(dir, 'b.bin'))
-  await index.close()
-})
-
-// ── cleanPartials ─────────────────────────────────────────────
-
-test('cleanPartials removes old partial files', async (t) => {
-  const { transfer } = await setup()
-  const dir = tmpDir('partials')
-
-  // Create a fake stale partial
-  const partial = path.join(dir, '.stale.txt.overlay-partial')
-  fs.writeFileSync(partial, 'stale data')
-
-  // Set mtime to 48 hours ago
-  const old = new Date(Date.now() - 48 * 60 * 60 * 1000)
-  fs.utimesSync(partial, old, old)
-
-  const cleaned = transfer.cleanPartials(dir, 86400000)
-  t.is(cleaned.length, 1)
-  t.is(fs.existsSync(partial), false)
-})
-
 // ── Phase 1/2: block-read prepareFile stays byte-exact and fd-safe ──
 
 test('prepareFile — content hash and chunk map match the buffer-mode reference', async (t) => {
@@ -595,7 +468,7 @@ test('prepareFile — content hash and chunk map match the buffer-mode reference
   const data = crypto.randomBytes(10 * 1024 * 1024) // > read block → exercises multi-block read
   const filePath = writeTestFile(dir, 'equiv.bin', data)
 
-  const result = await transfer.prepareFile(filePath, '/equiv.bin')
+  const result = await transfer.prepareFile(filePath)
   const tier = selectTier(data.length)
   const ref = chunkBuffer(data, { tier })
 
@@ -619,12 +492,12 @@ test('prepareFile — aborting mid-stream rejects and leaks no fd', async (t) =>
   const big = writeTestFile(dir, 'big.bin', crypto.randomBytes(10 * 1024 * 1024))
 
   // aborted runs throw before any persist, isolating the reader's fd lifecycle
-  await transfer.prepareFile(big, '/warm', { byHashOnly: true, signal: { aborted: true } }).catch(() => {})
+  await transfer.prepareFile(big, { signal: { aborted: true } }).catch(() => {})
   const ITERS = 25
   const before = fdCount()
   for (let i = 0; i < ITERS; i++) {
     let code = null
-    try { await transfer.prepareFile(big, '/abort-' + i, { byHashOnly: true, signal: { aborted: true } }) } catch (e) { code = e.code }
+    try { await transfer.prepareFile(big, { signal: { aborted: true } }) } catch (e) { code = e.code }
     t.is(code, 'ECANCELLED', 'abort ' + i + ' rejects with ECANCELLED')
   }
   const after = fdCount()
@@ -639,13 +512,13 @@ test('prepareFile — aborting mid-stream rejects and leaks no fd', async (t) =>
 test('REGRESSION (FIX-A): journal-less resume verifies via async I/O, not blocking readSync', async (t) => {
   const { index, transfer, journalDir } = await setup()
   const senderPath = writeTestFile(tmpDir('sender'), 'freeze.bin', crypto.randomBytes(256 * 1024))
-  const prepared = await transfer.prepareFile(senderPath, '/freeze.bin')
+  const prepared = await transfer.prepareFile(senderPath)
   t.ok(prepared.chunks.length > 4, `${prepared.chunks.length} chunks`)
   const targetPath = path.join(tmpDir('receiver'), 'freeze.bin')
   await transfer.startReceive(targetPath, { size: prepared.size, chunks: prepared.chunks, contentHash: prepared.contentHash })
   for (let i = 0; i < prepared.chunks.length; i++) {
     const c = prepared.chunks[i]
-    transfer.writeChunk(targetPath, i, transfer.readChunk(senderPath, c.offset, c.length))
+    transfer.writeChunk(targetPath, i, readAt(senderPath, c.offset, c.length))
   }
   await transfer.pause(targetPath)
   wipeJournals(journalDir) // model a lost/pre-upgrade journal → force the async re-verify
@@ -671,12 +544,12 @@ test('REGRESSION (FIX-A): journal-less resume verifies via async I/O, not blocki
 test('REGRESSION (FIX-A): journal-less resume aborts on isCancelled', async (t) => {
   const { index, transfer, journalDir } = await setup()
   const senderPath = writeTestFile(tmpDir('sender'), 'cancel.bin', crypto.randomBytes(256 * 1024))
-  const prepared = await transfer.prepareFile(senderPath, '/cancel.bin')
+  const prepared = await transfer.prepareFile(senderPath)
   const targetPath = path.join(tmpDir('receiver'), 'cancel.bin')
   await transfer.startReceive(targetPath, { size: prepared.size, chunks: prepared.chunks, contentHash: prepared.contentHash })
   for (let i = 0; i < prepared.chunks.length; i++) {
     const c = prepared.chunks[i]
-    transfer.writeChunk(targetPath, i, transfer.readChunk(senderPath, c.offset, c.length))
+    transfer.writeChunk(targetPath, i, readAt(senderPath, c.offset, c.length))
   }
   await transfer.pause(targetPath)
   wipeJournals(journalDir)
@@ -690,12 +563,12 @@ test('REGRESSION (FIX-A): journal-less resume aborts on isCancelled', async (t) 
 test('REGRESSION (FIX-A): _recoverPartialAsync reports a 0..1 verify fraction', async (t) => {
   const { index, transfer, journalDir } = await setup()
   const senderPath = writeTestFile(tmpDir('sender'), 'frac.bin', crypto.randomBytes(256 * 1024))
-  const prepared = await transfer.prepareFile(senderPath, '/frac.bin')
+  const prepared = await transfer.prepareFile(senderPath)
   const targetPath = path.join(tmpDir('receiver'), 'frac.bin')
   await transfer.startReceive(targetPath, { size: prepared.size, chunks: prepared.chunks, contentHash: prepared.contentHash })
   for (let i = 0; i < prepared.chunks.length; i++) {
     const c = prepared.chunks[i]
-    transfer.writeChunk(targetPath, i, transfer.readChunk(senderPath, c.offset, c.length))
+    transfer.writeChunk(targetPath, i, readAt(senderPath, c.offset, c.length))
   }
   await transfer.pause(targetPath)
   wipeJournals(journalDir)
@@ -711,12 +584,12 @@ test('REGRESSION (FIX-A): _recoverPartialAsync reports a 0..1 verify fraction', 
 test('FIX-C: journal resume does NOT report a verify fraction (O(1), no scan)', async (t) => {
   const { index, transfer } = await setup()
   const senderPath = writeTestFile(tmpDir('sender'), 'nofrac.bin', crypto.randomBytes(256 * 1024))
-  const prepared = await transfer.prepareFile(senderPath, '/nofrac.bin')
+  const prepared = await transfer.prepareFile(senderPath)
   const targetPath = path.join(tmpDir('receiver'), 'nofrac.bin')
   await transfer.startReceive(targetPath, { size: prepared.size, chunks: prepared.chunks, contentHash: prepared.contentHash })
   for (let i = 0; i < Math.floor(prepared.chunks.length / 2); i++) {
     const c = prepared.chunks[i]
-    transfer.writeChunk(targetPath, i, transfer.readChunk(senderPath, c.offset, c.length))
+    transfer.writeChunk(targetPath, i, readAt(senderPath, c.offset, c.length))
   }
   await transfer.pause(targetPath)
   const seen = []
@@ -730,14 +603,14 @@ test('REGRESSION (FIX-B): snapshot resume is O(1) and finalizes verified, no re-
   const { index, transfer } = await setup()
   const original = crypto.randomBytes(256 * 1024)
   const senderPath = writeTestFile(tmpDir('sender'), 'snap.bin', original)
-  const prepared = await transfer.prepareFile(senderPath, '/snap.bin')
+  const prepared = await transfer.prepareFile(senderPath)
   const oid = prepared.contentHash
   const targetPath = path.join(tmpDir('receiver'), 'snap.bin')
   await transfer.startReceive(targetPath, { size: prepared.size, chunks: prepared.chunks, contentHash: oid })
   const half = Math.floor(prepared.chunks.length / 2)
   for (let i = 0; i < half; i++) {
     const c = prepared.chunks[i]
-    transfer.writeChunk(targetPath, i, transfer.readChunk(senderPath, c.offset, c.length))
+    transfer.writeChunk(targetPath, i, readAt(senderPath, c.offset, c.length))
   }
   await transfer.pause(targetPath)
 
@@ -754,7 +627,7 @@ test('REGRESSION (FIX-B): snapshot resume is O(1) and finalizes verified, no re-
 
   for (let i = half; i < prepared.chunks.length; i++) {
     const c = prepared.chunks[i]
-    t.ok(transfer.writeChunk(targetPath, i, transfer.readChunk(senderPath, c.offset, c.length)).ok)
+    t.ok(transfer.writeChunk(targetPath, i, readAt(senderPath, c.offset, c.length)).ok)
   }
   const fin = await transfer.finalize(targetPath)
   t.ok(fin.ok, 'resumed transfer finalizes verified via the restored snapshot')
@@ -766,14 +639,14 @@ test('REGRESSION (FIX-B): a fresh TransferManager resumes from the on-disk journ
   const { index, transfer, journalDir } = await setup()
   const original = crypto.randomBytes(256 * 1024)
   const senderPath = writeTestFile(tmpDir('sender'), 'restart.bin', original)
-  const prepared = await transfer.prepareFile(senderPath, '/restart.bin')
+  const prepared = await transfer.prepareFile(senderPath)
   const oid = prepared.contentHash
   const targetPath = path.join(tmpDir('receiver'), 'restart.bin')
   await transfer.startReceive(targetPath, { size: prepared.size, chunks: prepared.chunks, contentHash: oid })
   const half = Math.floor(prepared.chunks.length / 2)
   for (let i = 0; i < half; i++) {
     const c = prepared.chunks[i]
-    transfer.writeChunk(targetPath, i, transfer.readChunk(senderPath, c.offset, c.length))
+    transfer.writeChunk(targetPath, i, readAt(senderPath, c.offset, c.length))
   }
   await transfer.pause(targetPath)
 
@@ -782,7 +655,7 @@ test('REGRESSION (FIX-B): a fresh TransferManager resumes from the on-disk journ
   t.is(st.received.size, half, 'received-set restored on a brand-new manager')
   for (let i = half; i < prepared.chunks.length; i++) {
     const c = prepared.chunks[i]
-    t.ok(fresh.writeChunk(targetPath, i, transfer.readChunk(senderPath, c.offset, c.length)).ok)
+    t.ok(fresh.writeChunk(targetPath, i, readAt(senderPath, c.offset, c.length)).ok)
   }
   t.ok((await fresh.finalize(targetPath)).ok, 'finalizes verified after a simulated restart')
   t.alike(fs.readFileSync(targetPath), original, 'bytes match')
@@ -793,14 +666,14 @@ test('REGRESSION (FIX-WIN: fsync on a read-only handle throws on Windows): journ
   const { index, transfer, journalDir } = await setup()
   const original = crypto.randomBytes(256 * 1024)
   const senderPath = writeTestFile(tmpDir('sender'), 'winfsync.bin', original)
-  const prepared = await transfer.prepareFile(senderPath, '/winfsync.bin')
+  const prepared = await transfer.prepareFile(senderPath)
   const oid = prepared.contentHash
   const targetPath = path.join(tmpDir('receiver'), 'winfsync.bin')
   await transfer.startReceive(targetPath, { size: prepared.size, chunks: prepared.chunks, contentHash: oid })
   const half = Math.floor(prepared.chunks.length / 2)
   for (let i = 0; i < half; i++) {
     const c = prepared.chunks[i]
-    transfer.writeChunk(targetPath, i, transfer.readChunk(senderPath, c.offset, c.length))
+    transfer.writeChunk(targetPath, i, readAt(senderPath, c.offset, c.length))
   }
 
   // Windows FlushFileBuffers needs GENERIC_WRITE; fsync on a read-only handle fails EPERM.
@@ -823,7 +696,7 @@ test('REGRESSION (FIX-WIN: fsync on a read-only handle throws on Windows): journ
 
   for (let i = half; i < prepared.chunks.length; i++) {
     const c = prepared.chunks[i]
-    t.ok(transfer.writeChunk(targetPath, i, transfer.readChunk(senderPath, c.offset, c.length)).ok)
+    t.ok(transfer.writeChunk(targetPath, i, readAt(senderPath, c.offset, c.length)).ok)
   }
   t.ok((await transfer.finalize(targetPath)).ok, 'resumed transfer finalizes verified')
   t.alike(fs.readFileSync(targetPath), original, 'bytes match')
@@ -834,20 +707,20 @@ test('FIX-B: snapshot resume + out-of-order remainder finalizes', async (t) => {
   const { index, transfer } = await setup()
   const original = crypto.randomBytes(256 * 1024)
   const senderPath = writeTestFile(tmpDir('sender'), 'ooo2.bin', original)
-  const prepared = await transfer.prepareFile(senderPath, '/ooo2.bin')
+  const prepared = await transfer.prepareFile(senderPath)
   const oid = prepared.contentHash
   const targetPath = path.join(tmpDir('receiver'), 'ooo2.bin')
   await transfer.startReceive(targetPath, { size: prepared.size, chunks: prepared.chunks, contentHash: oid })
   const half = Math.floor(prepared.chunks.length / 2)
   for (let i = 0; i < half; i++) {
     const c = prepared.chunks[i]
-    transfer.writeChunk(targetPath, i, transfer.readChunk(senderPath, c.offset, c.length))
+    transfer.writeChunk(targetPath, i, readAt(senderPath, c.offset, c.length))
   }
   await transfer.pause(targetPath)
   await transfer.startReceive(targetPath, { size: prepared.size, chunks: prepared.chunks, contentHash: oid })
   for (let i = prepared.chunks.length - 1; i >= half; i--) {
     const c = prepared.chunks[i]
-    transfer.writeChunk(targetPath, i, transfer.readChunk(senderPath, c.offset, c.length))
+    transfer.writeChunk(targetPath, i, readAt(senderPath, c.offset, c.length))
   }
   t.ok((await transfer.finalize(targetPath)).ok, 'snapshot frontier handles reordering')
   t.alike(fs.readFileSync(targetPath), original, 'bytes match')
@@ -858,13 +731,13 @@ test('REGRESSION (FIX-B): journal trusts the bitmap; manual reverify catches on-
   const { index, transfer } = await setup()
   const original = crypto.randomBytes(256 * 1024)
   const senderPath = writeTestFile(tmpDir('sender'), 'p2.bin', original)
-  const prepared = await transfer.prepareFile(senderPath, '/p2.bin')
+  const prepared = await transfer.prepareFile(senderPath)
   const oid = prepared.contentHash
   const targetPath = path.join(tmpDir('receiver'), 'p2.bin')
   await transfer.startReceive(targetPath, { size: prepared.size, chunks: prepared.chunks, contentHash: oid })
   for (let i = 0; i < prepared.chunks.length; i++) {
     const c = prepared.chunks[i]
-    transfer.writeChunk(targetPath, i, transfer.readChunk(senderPath, c.offset, c.length))
+    transfer.writeChunk(targetPath, i, readAt(senderPath, c.offset, c.length))
   }
   await transfer.pause(targetPath)
   const fd = fs.openSync(partialFor(targetPath), 'r+')
@@ -874,7 +747,7 @@ test('REGRESSION (FIX-B): journal trusts the bitmap; manual reverify catches on-
   const st = await transfer.startReceive(targetPath, { size: prepared.size, chunks: prepared.chunks, contentHash: oid })
   t.ok(st.received.has(2), 'journaled prefix chunk trusted on resume (no re-read)')
   t.ok((await transfer.finalize(targetPath)).ok, 'automatic stamp does not re-read → accepts the resumed file')
-  const actual = await transfer._hashWholeFileAsync(targetPath, prepared.size)
+  const actual = crypto.data(fs.readFileSync(targetPath)).toString('hex')
   t.not(actual, oid, 'manual re-verify detects the on-disk corruption')
   await index.close()
 })
@@ -883,12 +756,12 @@ test('REGRESSION (FIX-B): a non-binding journal is ignored (falls back to re-ver
   const { index, transfer } = await setup()
   const original = crypto.randomBytes(256 * 1024)
   const senderPath = writeTestFile(tmpDir('sender'), 'bind.bin', original)
-  const prepared = await transfer.prepareFile(senderPath, '/bind.bin')
+  const prepared = await transfer.prepareFile(senderPath)
   const targetPath = path.join(tmpDir('receiver'), 'bind.bin')
   await transfer.startReceive(targetPath, { size: prepared.size, chunks: prepared.chunks, contentHash: prepared.contentHash })
   for (let i = 0; i < prepared.chunks.length; i++) {
     const c = prepared.chunks[i]
-    transfer.writeChunk(targetPath, i, transfer.readChunk(senderPath, c.offset, c.length))
+    transfer.writeChunk(targetPath, i, readAt(senderPath, c.offset, c.length))
   }
   await transfer.pause(targetPath)
   const fd = fs.openSync(partialFor(targetPath), 'r+')
@@ -905,19 +778,19 @@ test('REGRESSION (FIX-B): journal removed on finalize; cleanJournals drops orpha
   const { index, transfer, journalDir } = await setup()
   const original = crypto.randomBytes(128 * 1024)
   const senderPath = writeTestFile(tmpDir('sender'), 'jf.bin', original)
-  const prepared = await transfer.prepareFile(senderPath, '/jf.bin')
+  const prepared = await transfer.prepareFile(senderPath)
   const targetPath = path.join(tmpDir('receiver'), 'jf.bin')
   await transfer.startReceive(targetPath, { size: prepared.size, chunks: prepared.chunks, contentHash: prepared.contentHash })
   for (let i = 0; i < prepared.chunks.length; i++) {
     const c = prepared.chunks[i]
-    transfer.writeChunk(targetPath, i, transfer.readChunk(senderPath, c.offset, c.length))
+    transfer.writeChunk(targetPath, i, readAt(senderPath, c.offset, c.length))
   }
   t.ok((await transfer.finalize(targetPath)).ok)
   t.is(fs.readdirSync(journalDir).length, 0, 'journal gone after finalize')
 
   const t2 = path.join(tmpDir('receiver'), 'orphan.bin')
   await transfer.startReceive(t2, { size: prepared.size, chunks: prepared.chunks, contentHash: prepared.contentHash })
-  transfer.writeChunk(t2, 0, transfer.readChunk(senderPath, prepared.chunks[0].offset, prepared.chunks[0].length))
+  transfer.writeChunk(t2, 0, readAt(senderPath, prepared.chunks[0].offset, prepared.chunks[0].length))
   await transfer.pause(t2)
   t.is(fs.readdirSync(journalDir).length, 1, 'journal written on pause')
   fs.unlinkSync(partialFor(t2))
@@ -935,7 +808,7 @@ test('REGRESSION (FIX-A2): a gap-fill that unlocks a large run does not block wr
   const { index, transfer } = await setup()
   const original = crypto.randomBytes(256 * 1024)
   const senderPath = writeTestFile(tmpDir('sender'), 'gap.bin', original)
-  const prepared = await transfer.prepareFile(senderPath, '/gap.bin')
+  const prepared = await transfer.prepareFile(senderPath)
   t.ok(prepared.chunks.length > 4, `${prepared.chunks.length} chunks`)
   const oid = prepared.contentHash
   const targetPath = path.join(tmpDir('receiver'), 'gap.bin')
@@ -943,10 +816,10 @@ test('REGRESSION (FIX-A2): a gap-fill that unlocks a large run does not block wr
   // Receive every chunk EXCEPT chunk 0 → frontier stuck at 0 with a large received tail.
   for (let i = 1; i < prepared.chunks.length; i++) {
     const c = prepared.chunks[i]
-    t.ok(transfer.writeChunk(targetPath, i, transfer.readChunk(senderPath, c.offset, c.length)).ok)
+    t.ok(transfer.writeChunk(targetPath, i, readAt(senderPath, c.offset, c.length)).ok)
   }
   const c0 = prepared.chunks[0]
-  const data0 = transfer.readChunk(senderPath, c0.offset, c0.length)
+  const data0 = readAt(senderPath, c0.offset, c0.length)
   const realReadSync = fs.readSync
   let syncReads = 0
   fs.readSync = (...a) => { syncReads++; return realReadSync(...a) }
@@ -971,14 +844,14 @@ const fdCount = () => openFdCount()
 
 function deliver(transfer, senderPath, prepared, targetPath, i) {
   const c = prepared.chunks[i]
-  return transfer.writeChunk(targetPath, i, transfer.readChunk(senderPath, c.offset, c.length))
+  return transfer.writeChunk(targetPath, i, readAt(senderPath, c.offset, c.length))
 }
 
 test('B1: fd count stays flat across a multi-chunk transfer and 20 transfers', async (t) => {
   const { index, transfer } = await setup()
   const original = crypto.randomBytes(1024 * 1024)
   const senderPath = writeTestFile(tmpDir('sender'), 'b1.bin', original)
-  const prepared = await transfer.prepareFile(senderPath, '/b1.bin')
+  const prepared = await transfer.prepareFile(senderPath)
   t.ok(prepared.chunks.length > 4, `${prepared.chunks.length} chunks`)
   const oid = prepared.contentHash
 
@@ -1007,35 +880,11 @@ test('B1: fd count stays flat across a multi-chunk transfer and 20 transfers', a
   await index.close()
 })
 
-// REGRESSION (FIX-358: readChunk leaks its fd when the read fails): the open sat inside the
-// try and the close ran only on the success path, so any throw in between fell straight to
-// `catch { return null }` with the descriptor still open — leaked for the life of the
-// process. protocol-v2 calls readChunk once per chunk of every served request, so a disk
-// throwing EIO while seeding drains the fd table until the worker can open nothing at all.
-// Forced below with an out-of-range length, which throws in Buffer.alloc after the open —
-// the same shape as a readSync I/O error, and the same leak.
-test('REGRESSION (FIX-358): readChunk closes its fd when the read throws', async (t) => {
-  const { index, transfer } = await setup()
-  const p = writeTestFile(tmpDir('rc'), 'rc.bin', crypto.randomBytes(1024))
-
-  t.is(transfer.readChunk(p, 0, 16)?.length, 16, 'a good read still returns its bytes')
-
-  const ITERS = 5
-  const before = fdCount()
-  for (let i = 0; i < ITERS; i++) {
-    t.is(transfer.readChunk(p, 0, Number.MAX_SAFE_INTEGER), null, 'a failing read returns null')
-  }
-  const after = fdCount()
-  t.is(after, before, `no fd leaked across ${ITERS} failing reads (${before} -> ${after})`)
-
-  await index.close()
-})
-
 test('B1: pause closes the fd; a late chunk is refused codeless; resume completes', async (t) => {
   const { index, transfer } = await setup()
   const original = crypto.randomBytes(512 * 1024)
   const senderPath = writeTestFile(tmpDir('sender'), 'b1p.bin', original)
-  const prepared = await transfer.prepareFile(senderPath, '/b1p.bin')
+  const prepared = await transfer.prepareFile(senderPath)
   const oid = prepared.contentHash
   const targetPath = path.join(tmpDir('rx'), 'b1p.bin')
 
@@ -1062,7 +911,7 @@ test('B2: in-order delivery hashes from memory — zero read-backs', async (t) =
   const { index, transfer } = await setup()
   const original = crypto.randomBytes(512 * 1024)
   const senderPath = writeTestFile(tmpDir('sender'), 'b2i.bin', original)
-  const prepared = await transfer.prepareFile(senderPath, '/b2i.bin')
+  const prepared = await transfer.prepareFile(senderPath)
   const targetPath = path.join(tmpDir('rx'), 'b2i.bin')
 
   const st = await transfer.startReceive(targetPath, { size: prepared.size, chunks: prepared.chunks, contentHash: prepared.contentHash })
@@ -1081,7 +930,7 @@ test('B2: reverse-order delivery verifies; gap chunks under the cap come from th
   const { index, transfer } = await setup()
   const original = crypto.randomBytes(512 * 1024)
   const senderPath = writeTestFile(tmpDir('sender'), 'b2r.bin', original)
-  const prepared = await transfer.prepareFile(senderPath, '/b2r.bin')
+  const prepared = await transfer.prepareFile(senderPath)
   t.ok(prepared.chunks.length >= 4)
   const targetPath = path.join(tmpDir('rx'), 'b2r.bin')
 
@@ -1099,7 +948,7 @@ test('B2: zero cap forces the read-back fallback — digest still verifies', asy
 
   const original = crypto.randomBytes(512 * 1024)
   const senderPath = writeTestFile(tmpDir('sender'), 'b2c.bin', original)
-  const prepared = await transfer.prepareFile(senderPath, '/b2c.bin')
+  const prepared = await transfer.prepareFile(senderPath)
   const targetPath = path.join(tmpDir('rx'), 'b2c.bin')
 
   const st = await transfer.startReceive(targetPath, { size: prepared.size, chunks: prepared.chunks, contentHash: prepared.contentHash })
@@ -1115,7 +964,7 @@ test('B2: duplicate delivery is idempotent — digest and stash accounting intac
   const { index, transfer } = await setup()
   const original = crypto.randomBytes(256 * 1024)
   const senderPath = writeTestFile(tmpDir('sender'), 'b2d.bin', original)
-  const prepared = await transfer.prepareFile(senderPath, '/b2d.bin')
+  const prepared = await transfer.prepareFile(senderPath)
   const targetPath = path.join(tmpDir('rx'), 'b2d.bin')
 
   const st = await transfer.startReceive(targetPath, { size: prepared.size, chunks: prepared.chunks, contentHash: prepared.contentHash })
@@ -1138,7 +987,7 @@ test('B1/B2: cancel clears the fd and the stash', async (t) => {
   const { index, transfer } = await setup()
   const original = crypto.randomBytes(256 * 1024)
   const senderPath = writeTestFile(tmpDir('sender'), 'b1c.bin', original)
-  const prepared = await transfer.prepareFile(senderPath, '/b1c.bin')
+  const prepared = await transfer.prepareFile(senderPath)
   const targetPath = path.join(tmpDir('rx'), 'b1c.bin')
 
   const st = await transfer.startReceive(targetPath, { size: prepared.size, chunks: prepared.chunks, contentHash: prepared.contentHash })
@@ -1159,7 +1008,7 @@ test('a short writeSync is retried to completion — no silent hole', async (t) 
   const { index, transfer } = await setup()
   const original = crypto.randomBytes(256 * 1024)
   const senderPath = writeTestFile(tmpDir('sender'), 'sw.bin', original)
-  const prepared = await transfer.prepareFile(senderPath, '/sw.bin')
+  const prepared = await transfer.prepareFile(senderPath)
   const targetPath = path.join(tmpDir('rx'), 'sw.bin')
   await transfer.startReceive(targetPath, { size: prepared.size, chunks: prepared.chunks, contentHash: prepared.contentHash })
 
@@ -1183,7 +1032,7 @@ test('a stuck write (0 bytes forever) fails the chunk with a code', async (t) =>
   const { index, transfer } = await setup()
   const original = crypto.randomBytes(64 * 1024)
   const senderPath = writeTestFile(tmpDir('sender'), 'sw0.bin', original)
-  const prepared = await transfer.prepareFile(senderPath, '/sw0.bin')
+  const prepared = await transfer.prepareFile(senderPath)
   const targetPath = path.join(tmpDir('rx'), 'sw0.bin')
   await transfer.startReceive(targetPath, { size: prepared.size, chunks: prepared.chunks, contentHash: prepared.contentHash })
 
@@ -1201,7 +1050,7 @@ test('finalize rename failure carries the code, clears the state, and a retry re
   const { index, transfer } = await setup()
   const original = crypto.randomBytes(256 * 1024)
   const senderPath = writeTestFile(tmpDir('sender'), 'rn.bin', original)
-  const prepared = await transfer.prepareFile(senderPath, '/rn.bin')
+  const prepared = await transfer.prepareFile(senderPath)
   const oid = prepared.contentHash
   const targetPath = path.join(tmpDir('rx'), 'rn.bin')
 
@@ -1215,7 +1064,7 @@ test('finalize rename failure carries the code, clears the state, and a retry re
   fs.renameSync = origRename
   t.absent(fin.ok, 'finalize reports the rename failure')
   t.is(fin.code, 'ENOENT', 'the fs error code is surfaced (coded local-I/O classification)')
-  t.is(transfer.getProgress(targetPath), null, 'no parked state left in _active')
+  t.absent(transfer._active.has(targetPath), 'no parked state left in _active')
   t.ok(fs.existsSync(partialFor(targetPath)), 'partial kept for the retry')
 
   const st2 = await transfer.startReceive(targetPath, { size: prepared.size, chunks: prepared.chunks, contentHash: oid })

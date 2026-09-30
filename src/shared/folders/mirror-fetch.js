@@ -340,7 +340,7 @@ async function beating(streamKey, work) {
 
 // Never express: a background materialize must not outrank a click. Taken BEFORE the in-flight
 // record, because cancelInflightFetch reads that record — a stop landing while parked would ask the
-// vendor layer to cancel a fetch that never started, and tell the holder we paused a transfer we
+// engine to cancel a fetch that never started, and tell the holder we paused a transfer we
 // never began.
 function acquireMirrorSlot(streamKey) {
   return beating(streamKey, () => acquireFetchSlot({ express: false, owner: FETCH_OWNER_MIRROR }))

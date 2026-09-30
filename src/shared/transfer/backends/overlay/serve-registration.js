@@ -13,7 +13,7 @@ const log = createLogger('overlay')
 export async function makeServable({ spaceId, shareId, relPath, absPath, contentHash, size }) {
   const overlay = getOverlay()
   if (!overlay) return
-  const registered = await overlay.registerFile('/mir/' + contentHash, absPath, { contentHash, size, prepare: false })
+  const registered = await overlay.registerFile(absPath, { contentHash, size })
   if (!registered) return
   serveIndex.add(contentHash, spaceId, shareId, relPath)
 }

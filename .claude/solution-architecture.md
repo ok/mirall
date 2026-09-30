@@ -1088,6 +1088,10 @@ user's **real file on disk**, never a Hyperdrive blob store.
   don't hold it"**.
 - **Resume**: an app-private receive journal (chunk bitmap + streaming-hash snapshot, in
   `journals/`) lets an interrupted download continue without re-verifying from scratch.
+- **Fault contract**: `fetchFile` rejects with the original error iff it carries a non-empty
+  string code that is not a transient write code (`engine/local-faults.js`); it resolves `null`
+  iff no holder answered or the fetch ended on an uncoded peer/transport outcome; otherwise it
+  resolves the result.
 
 `getContentBackend(share)` (`src/shared/transfer/content-backends.js`) returns the overlay for
 `contentMode === 'overlay'` and `UNSUPPORTED` for every other mode. Callers render `UNSUPPORTED` as
@@ -1097,15 +1101,19 @@ unavailable, never as a route; `test/integration/content-backend-conformance.tes
 nothing is version 1 with no capabilities, so a capability-gated behaviour is simply off against it.
 The decoder must be **total**: any channel dying takes the whole socket, and the channel id is
 public, so a decoder that could throw gives any swarm peer a one-frame socket kill. Raise
-`MIN_VERSION` (`src/shared/transfer/backends/overlay/vendor/protocol-v2.js`) only in the change that
+`MIN_VERSION` (`src/shared/transfer/backends/overlay/engine/protocol-v2.js`) only in the change that
 drops a message slot or changes a codec. A peer below it loses only its content channel. The control
 channel (`mirall/handshake`, or `mirall/content-hello` with the separate content plane) and
 Corestore replication stay up. New wire messages are appended last, so older peers ignore them.
+Retiring a slot is neither: it keeps its position with no codec and no handler, which changes no
+byte a released peer sends or receives (slots 0, 1, 2 and 6–10 are retired).
 
-**Vendor boundary.** The serve/fetch engine in `vendor/` is a subset of `hyper-overlay`, and
-`src/shared/transfer/backends/overlay/vendor/PROVENANCE.md` records every local change. Mirall
-policy (authorization, catalogs, lifecycle, limiters, caches) stays outside `vendor/` and is
-**injected** from `src/shared/transfer/backends/overlay/overlay-instance.js`.
+**Engine boundary.** The serve/fetch engine in `engine/` is Mirall's own fork of `hyper-overlay`
+0.2.9 and tracks no upstream; `src/shared/transfer/backends/overlay/engine/PROVENANCE.md` records its
+origin and license. It imports npm packages and its own files only. Mirall policy (authorization,
+catalogs, lifecycle, limiters, caches) stays outside it and is **injected** from
+`src/shared/transfer/backends/overlay/overlay-instance.js`. Its wire contract with released peers —
+message slots 0–14 in order, each kept codec byte-for-byte — is Mirall's to keep, not upstream's.
 
 **Bandwidth caps** (`src/shared/transfer/bandwidth-limiter.js`; its header has the mechanics):
 
@@ -1335,9 +1343,9 @@ not await async listeners.
 - **Preload has no structural contract.** `src/preload/preload.js` is sandboxed and unbundled, so it
   can't import `src/shared/contract/`. `test/invariants/preload-parity.test.js` checks its key set
   against `src/renderer/platform/global.d.ts`, but nothing checks signatures.
-- **The vendored overlay has no static analysis.** eslint and knip ignore `vendor/**`, and tsc
-  doesn't cover `src/shared` beyond `contract/`. The vendored code has taken substantial local
-  changes (see `PROVENANCE.md`), so its tests are what protect it.
+- **The overlay engine has no static analysis yet.** eslint, knip and the comment-hygiene gate
+  still exempt `engine/`, and tsc doesn't cover `src/shared` beyond `contract/`. Until those
+  exemptions are retired, its tests are what protect it.
 
 ---
 
@@ -1452,7 +1460,7 @@ one), so being asked for unadvertised content is routine.
 ### Fetch authorization
 
 A content request goes only to a peer whose socket carries the file owner's authenticated identity
-(`makeHolderAuthorizer` in `overlay-authorize.js`, the vendor's `holderAuthorizer` opt), so a socket
+(`makeHolderAuthorizer` in `overlay-authorize.js`, the engine's `holderAuthorizer` opt), so a socket
 that merely shares the content topic never learns which hashes we fetch. A chunk map is adopted only
 from a peer that was asked, and only if it matches the catalog size and that size's chunk tier (sum,
 entry count, per-chunk length); a second map that differs from the adopted one drops its sender as a
@@ -1529,7 +1537,7 @@ worker runs on **Bare**, not Node.
   authenticated on the socket. C is derived from a peer's replicated bee, with a self-reported
   timestamp.
 - **Partial**: an in-progress download, `*.mirall.part`, renamed atomically on completion. The
-  suffix is defined in `src/shared/transfer/partial-suffix.js` and injected into the vendored
+  suffix is defined in `src/shared/transfer/partial-suffix.js` and injected into the overlay
   engine. A plain `.part` would collide with browser downloads.
 - **Pending transfer**: the persisted row for an unfinished download, which drives resume and the
   paused and error states.

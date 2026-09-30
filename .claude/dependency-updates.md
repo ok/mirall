@@ -76,8 +76,8 @@ tree current. Read this before reviewing a Renovate PR or running a manual sweep
   `require()` inside a function body (`require('./identity-kek.js')` inside `whenReady`,
   `require('./notifications').register(…)`). Deleting one of those "unused" exports breaks the
   watcher API at runtime with a green lint. `knip.json` ignores `src/renderer/platform/global.d.ts`
-  (an ambient declaration nothing imports by path) and the vendored overlay subtree (upstream
-  surface, kept re-diffable). `test/**` is deliberately NOT an entry, so an export whose only reader
+  (an ambient declaration nothing imports by path) and the overlay engine (exempt until its
+  gates are turned on). `test/**` is deliberately NOT an entry, so an export whose only reader
   is a test IS reported: that is the A.10 shape (production-dead code kept alive by its test), and
   it must stay visible. A reviewed test seam carries `/** @internal */` above the export, which
   `"tags": ["-internal"]` hides; an unmarked test-only export is a row to review, not to delete. Its

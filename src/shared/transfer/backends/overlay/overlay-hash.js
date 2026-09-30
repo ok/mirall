@@ -4,7 +4,7 @@
 // does not hold its slot for the rest of a multi-gigabyte read; rejects with ECANCELLED like
 // prepareForServe.
 import fs from 'bare-fs'
-import { createStreamingHasher } from './vendor/chunker.js'
+import { createStreamingHasher } from './engine/chunker.js'
 
 export async function overlayHashFile(absPath, onProgress, signal) {
   const h = createStreamingHasher({ size: fs.statSync(absPath).size })

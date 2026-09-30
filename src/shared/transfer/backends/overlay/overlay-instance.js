@@ -4,7 +4,8 @@
 // lifecycle (initOverlay / attachOverlay / teardownOverlay) and wires the serve gate
 // (makeServeAuthorizer in overlay-authorize.js) to the real socket-auth, membership and
 // rate-limit collaborators (see .claude/solution-architecture.md, "Serve authorization").
-import { HyperOverlayV2 } from './vendor/overlay-v2.js'
+import { HyperOverlayV2 } from './engine/overlay-v2.js'
+import { OVERLAY_NAMESPACE, OVERLAY_NAMESPACE_ENC } from './overlay-namespaces.js'
 import { serveIndex } from './overlay-serve-index.js'
 import { makeServeAuthorizer, makeHolderAuthorizer, SECURITY_DENIALS } from './overlay-authorize.js'
 import { RESOLVE_OUTCOME, recordResolved } from '../../../audit/audit-log.js'
@@ -28,14 +29,6 @@ import { peerActor, targetRef } from '../../../audit/audit-record.js'
 
 const log = createLogger('overlay')
 
-// Stable across restarts — these are LOCAL-only cores (file-index Hyperbee +
-// sync-feed Hypercore). A fixed string means they aren't orphaned each boot.
-// The '-e1' generation encrypts those cores at rest under an M-derived key; a
-// fresh generation is required because a plaintext core can't be retro-encrypted.
-// One-time migrateOverlayIndexToEncrypted copies the legacy generation into it.
-const NAMESPACE = 'mirall-overlay'
-const NAMESPACE_ENC = 'mirall-overlay-e1'
-
 // Encrypt only when M is available. Insecure/headless mode (no KEK ⇒ no M) stays
 // on the plaintext generation with no key — never key a core we can't reopen.
 function useEncryptedOverlay() {
@@ -52,7 +45,7 @@ export async function getOverlayLocalDiscoveryKeys() {
   return dks
 }
 
-// Logical on-disk size of the overlay index (chunk maps + version marker + sync feed).
+// Logical on-disk size of the overlay index (chunk maps + version marker).
 export async function getOverlayLocalByteLength() {
   const cores = getOverlay()?.localCores() ?? []
   let bytes = 0
@@ -125,7 +118,7 @@ export async function initOverlay() {
   const holderAuthorizer = makeHolderAuthorizer({ peerSocket, socketAuthorized })
   const enc = useEncryptedOverlay()
   overlay = new HyperOverlayV2(getStore(), {
-    namespace: enc ? NAMESPACE_ENC : NAMESPACE,
+    namespace: enc ? OVERLAY_NAMESPACE_ENC : OVERLAY_NAMESPACE,
     indexEncryptionKey: enc ? overlayIndexEncryptionKey() : null,
     // App-private receive journals (resume snapshots) — sibling of the Corestore,
     // never in the user's downloads folder.
@@ -158,7 +151,7 @@ export async function initOverlay() {
     onPeerRejected: ({ peer, version, minVersion }) =>
       log.warn(`peer ${noiseKeyLabel(peer)} overlay v${version} is below the minimum v${minVersion} — content channel closed`),
   })
-  await overlay.ready() // builds protocol/index/sync cores; REQUIRED before attach
+  await overlay.ready() // builds the protocol and index cores; REQUIRED before attach
   log.info('instance ready')
   return overlay
 }

@@ -5,9 +5,9 @@
 
 // Ported from hyper-overlay upstream test/messages-v2.test.js (6cac8ee). Body
 // verbatim EXCEPT the contentRequest cases, updated for the [mirall] §4.1 `from`
-// field. See src/shared/transfer/backends/overlay/vendor/PROVENANCE.md.
+// field. See src/shared/transfer/backends/overlay/engine/PROVENANCE.md.
 import test from 'brittle'
-import * as m from '../../src/shared/transfer/backends/overlay/vendor/messages-v2.js'
+import * as m from '../../src/shared/transfer/backends/overlay/engine/messages-v2.js'
 import crypto from 'hypercore-crypto'
 
 function roundTrip(t, codec, value) {
@@ -29,55 +29,6 @@ const fakeHash3 = 'c'.repeat(64)
 
 test('handshake round-trip', (t) => {
   roundTrip(t, m.handshake, { version: 2, capabilities: 3 })
-})
-
-// ── Sync messages ─────────────────────────────────────────────
-
-test('syncState round-trip', (t) => {
-  roundTrip(t, m.syncState, {
-    feedKey: fakeHash,
-    localSeq: 42,
-    remoteSeq: 15
-  })
-})
-
-test('fileOffer round-trip (put)', (t) => {
-  roundTrip(t, m.fileOffer, {
-    path: '/docs/report.pdf',
-    contentHash: fakeHash,
-    size: 524288,
-    mtime: 1712345678,
-    op: 0
-  })
-})
-
-test('fileOffer round-trip (delete)', (t) => {
-  roundTrip(t, m.fileOffer, {
-    path: '/docs/old.txt',
-    contentHash: '0'.repeat(64),
-    size: 0,
-    mtime: 0,
-    op: 1
-  })
-})
-
-test('fileRequest round-trip (no chunks)', (t) => {
-  // [mirall] port note: upstream's compact-encoding decoded an empty buffer to
-  // null; Mirall's compact-encoding@3.1.0 decodes it to a zero-length buffer.
-  // Overlay never sends a non-null chunksHave, so the distinction is immaterial.
-  roundTrip(t, m.fileRequest, {
-    path: '/docs/report.pdf',
-    contentHash: fakeHash,
-    chunksHave: Buffer.alloc(0)
-  })
-})
-
-test('fileRequest round-trip (with chunks)', (t) => {
-  roundTrip(t, m.fileRequest, {
-    path: '/docs/report.pdf',
-    contentHash: fakeHash,
-    chunksHave: Buffer.from([0x01, 0x02, 0x03])
-  })
 })
 
 // ── Transfer messages ─────────────────────────────────────────
@@ -168,38 +119,6 @@ test('chunkData round-trip', (t) => {
   })
 })
 
-test('chunkCancel round-trip', (t) => {
-  roundTrip(t, m.chunkCancel, {
-    path: '/docs/report.pdf'
-  })
-})
-
-test('transferComplete round-trip', (t) => {
-  roundTrip(t, m.transferComplete, {
-    path: '/docs/report.pdf',
-    contentHash: fakeHash
-  })
-})
-
-test('conflict round-trip', (t) => {
-  roundTrip(t, m.conflict, {
-    path: '/docs/report.pdf',
-    myHash: fakeHash,
-    theirHash: fakeHash2,
-    ancestorHash: fakeHash3
-  })
-})
-
-test('conflict with null ancestor', (t) => {
-  const result = roundTrip(t, m.conflict, {
-    path: '/new-file.txt',
-    myHash: fakeHash,
-    theirHash: fakeHash2,
-    ancestorHash: '0'.repeat(64)
-  })
-  t.is(result.ancestorHash, '0'.repeat(64))
-})
-
 // ── Large payloads ────────────────────────────────────────────
 
 test('chunkHashes with 100 chunks', (t) => {
@@ -224,112 +143,7 @@ test('chunkData with 1MB payload', (t) => {
   })
 })
 
-// ── Tree messages (0.5a) ──────────────────────────────────────
-
-test('treeRequest round-trip', (t) => {
-  roundTrip(t, m.treeRequest, { hash: fakeHash, nonce: 0 })
-})
-
-test('treeRequest round-trip (with nonce)', (t) => {
-  roundTrip(t, m.treeRequest, { hash: fakeHash, nonce: 42 })
-})
-
-test('treeRequest — omitted nonce decodes to 0', (t) => {
-  const value = { hash: fakeHash }
-  const state = { start: 0, end: 0, buffer: null }
-  m.treeRequest.preencode(state, value)
-  state.buffer = Buffer.alloc(state.end)
-  m.treeRequest.encode(state, value)
-  state.start = 0
-  const decoded = m.treeRequest.decode(state)
-  t.is(decoded.nonce, 0, 'omitted nonce → 0')
-  t.is(decoded.hash, fakeHash)
-})
-
-test('treeResponse round-trip — empty entries', (t) => {
-  roundTrip(t, m.treeResponse, { hash: fakeHash, entries: [], more: 0, nonce: 0 })
-})
-
-test('treeResponse round-trip — mixed file/dir/symlink entries', (t) => {
-  roundTrip(t, m.treeResponse, {
-    hash: fakeHash,
-    entries: [
-      { kind: 0, exec: 0, name: 'a.js', childHash: fakeHash2, size: 1024 },
-      { kind: 0, exec: 1, name: 'run.sh', childHash: fakeHash3, size: 256 },
-      { kind: 1, exec: 0, name: 'lib', childHash: fakeHash, size: 50000 },
-      { kind: 2, exec: 0, name: 'current', childHash: fakeHash2, size: 12 }
-    ],
-    more: 0,
-    nonce: 0
-  })
-})
-
-test('treeResponse round-trip — many entries', (t) => {
-  const entries = []
-  for (let i = 0; i < 500; i++) {
-    entries.push({
-      kind: 0,
-      exec: 0,
-      name: 'file-' + i + '.js',
-      childHash: crypto.randomBytes(32).toString('hex'),
-      size: i * 100
-    })
-  }
-  roundTrip(t, m.treeResponse, { hash: fakeHash, entries, more: 0, nonce: 0 })
-})
-
-test('treeResponse preserves UTF-8 names', (t) => {
-  roundTrip(t, m.treeResponse, {
-    hash: fakeHash,
-    entries: [
-      { kind: 0, exec: 0, name: 'café.txt', childHash: fakeHash2, size: 10 },
-      { kind: 0, exec: 0, name: '日本.md', childHash: fakeHash3, size: 20 }
-    ],
-    more: 0,
-    nonce: 0
-  })
-})
-
-// [mirall] §4.15 — paging flag + nonce round-trip, and a pre-paging frame (no trailing
-// bytes) decodes to more:0/nonce:0 so a mixed-version swarm stays compatible.
-test('treeResponse round-trip (more:1 + nonce — a non-final page)', (t) => {
-  roundTrip(t, m.treeResponse, {
-    hash: fakeHash,
-    entries: [{ kind: 0, exec: 0, name: 'a.js', childHash: fakeHash2, size: 1024 }],
-    more: 1,
-    nonce: 7
-  })
-})
-
-test('treeResponse — omitted more/nonce encode/decode as 0', (t) => {
-  const value = { hash: fakeHash, entries: [{ kind: 1, exec: 0, name: 'lib', childHash: fakeHash2, size: 9 }] }
-  const state = { start: 0, end: 0, buffer: null }
-  m.treeResponse.preencode(state, value)
-  state.buffer = Buffer.alloc(state.end)
-  m.treeResponse.encode(state, value)
-  state.start = 0
-  const decoded = m.treeResponse.decode(state)
-  t.is(decoded.more, 0, 'omitted more → 0 (single, complete page)')
-  t.is(decoded.nonce, 0, 'omitted nonce → 0')
-  t.alike(decoded.entries, value.entries)
-})
-
-test('treeResponse — a pre-paging frame (no trailing more/nonce) decodes to 0/0', (t) => {
-  const value = { hash: fakeHash, entries: [{ kind: 0, exec: 0, name: 'x', childHash: fakeHash2, size: 3 }], more: 0, nonce: 0 }
-  const state = { start: 0, end: 0, buffer: null }
-  m.treeResponse.preencode(state, value)
-  state.buffer = Buffer.alloc(state.end)
-  m.treeResponse.encode(state, value)
-
-  // Old upstream frame = our encoding minus the two appended uints (more, nonce), each 1 byte for 0.
-  const oldFrame = state.buffer.subarray(0, state.buffer.length - 2)
-  const dstate = { start: 0, end: oldFrame.length, buffer: oldFrame }
-  const decoded = m.treeResponse.decode(dstate)
-  t.is(decoded.more, 0, 'missing trailing bytes → more:0')
-  t.is(decoded.nonce, 0, 'missing trailing bytes → nonce:0')
-  t.is(decoded.hash, fakeHash)
-  t.alike(decoded.entries, value.entries)
-})
+// ── Content request ───────────────────────────────────────────
 
 test('contentRequest round-trip — with chunksHave + from', (t) => {
   roundTrip(t, m.contentRequest, {
@@ -340,8 +154,8 @@ test('contentRequest round-trip — with chunksHave + from', (t) => {
 })
 
 test('contentRequest round-trip — empty chunksHave', (t) => {
-  // [mirall] port note: see fileRequest no-chunks — empty buffer round-trips as
-  // a zero-length buffer under compact-encoding@3.1.0, not null.
+  // [mirall] port note: an empty buffer round-trips as a zero-length buffer under
+  // compact-encoding@3.1.0, not null.
   roundTrip(t, m.contentRequest, {
     contentHash: fakeHash,
     chunksHave: Buffer.alloc(0),

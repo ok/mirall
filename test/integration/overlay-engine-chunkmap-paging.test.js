@@ -5,8 +5,8 @@
 // failing files:add after the whole-file read. FileIndex pages large maps
 // across multiple values transparently; the public API is unchanged.
 import test from 'brittle'
-import { tmpStore } from './overlay-vendor-helpers.js'
-import { FileIndex } from '../../src/shared/transfer/backends/overlay/vendor/file-index.js'
+import { tmpStore } from './overlay-engine-helpers.js'
+import { FileIndex } from '../../src/shared/transfer/backends/overlay/engine/file-index.js'
 
 const HYPERCORE_MAX_BLOCK = 15 * 1024 * 1024
 
@@ -30,13 +30,15 @@ async function setup() {
   return index
 }
 
-test('REGRESSION (FIX-1): putChunkMap round-trips a map larger than the 15 MiB block limit', async (t) => {
+const hashOf = (label) => Buffer.from(label).toString('hex').padEnd(64, '0')
+
+test('REGRESSION (FIX-1): putChunkMapByHash round-trips a map larger than the 15 MiB block limit', async (t) => {
   const index = await setup()
   const chunks = bigChunkMap(200000)
   t.ok(JSON.stringify(chunks).length > HYPERCORE_MAX_BLOCK, 'fixture exceeds the block limit')
 
-  await index.putChunkMap('/mir/huge.bin', chunks) // threw BAD_ARGUMENT before paging
-  const got = await index.getChunkMap('/mir/huge.bin')
+  await index.putChunkMapByHash(hashOf('huge'), chunks) // threw BAD_ARGUMENT before paging
+  const got = await index.getChunkMapByHash(hashOf('huge'))
 
   t.is(got.length, chunks.length, 'all chunks survive the round-trip')
   t.alike(got[0], chunks[0], 'first chunk intact')
@@ -44,39 +46,27 @@ test('REGRESSION (FIX-1): putChunkMap round-trips a map larger than the 15 MiB b
   t.alike(got, chunks, 'full map deep-equal (order + every field)')
 })
 
-test('FIX-1: putChunkMapByHash round-trips a map larger than the block limit', async (t) => {
-  const index = await setup()
-  const chunks = bigChunkMap(200000)
-  const oid = 'a'.repeat(64)
-
-  await index.putChunkMapByHash(oid, chunks)
-  const got = await index.getChunkMapByHash(oid)
-
-  t.is(got.length, chunks.length, 'all chunks survive the round-trip')
-  t.alike(got, chunks, 'full map deep-equal')
-})
-
 test('FIX-1: a small map is stored inline (no paging header) and round-trips', async (t) => {
   const index = await setup()
   const chunks = bigChunkMap(3)
 
-  await index.putChunkMap('/mir/small.bin', chunks)
+  await index.putChunkMapByHash(hashOf('small'), chunks)
 
-  const raw = await index.bee.get('chunkmap:/mir/small.bin')
+  const raw = await index.bee.get('chunkmap-oid:' + hashOf('small'))
   t.ok(Array.isArray(raw.value), 'small map stored as a plain array, not a paged header')
-  t.alike(await index.getChunkMap('/mir/small.bin'), chunks, 'round-trips')
+  t.alike(await index.getChunkMapByHash(hashOf('small')), chunks, 'round-trips')
 })
 
 test('FIX-1: rewriting a paged map with a smaller one leaves no orphan pages', async (t) => {
   const index = await setup()
-  await index.putChunkMap('/mir/shrink.bin', bigChunkMap(200000))
+  await index.putChunkMapByHash(hashOf('shrink'), bigChunkMap(200000))
   const small = bigChunkMap(2)
-  await index.putChunkMap('/mir/shrink.bin', small)
+  await index.putChunkMapByHash(hashOf('shrink'), small)
 
-  t.alike(await index.getChunkMap('/mir/shrink.bin'), small, 'returns the new small map')
+  t.alike(await index.getChunkMapByHash(hashOf('shrink')), small, 'returns the new small map')
 
   let pageKeys = 0
-  for await (const e of index.bee.createReadStream({ gte: 'chunkmap:/mir/shrink.bin', lt: 'chunkmap:/mir/shrink.bin\xff' })) {
+  for await (const e of index.bee.createReadStream({ gte: 'chunkmap-oid:' + hashOf('shrink'), lt: 'chunkmap-oid:' + hashOf('shrink') + '\xff' })) {
     if (e.key.includes('\x00')) pageKeys++
   }
   t.is(pageKeys, 0, 'no orphan page keys remain')
@@ -84,14 +74,14 @@ test('FIX-1: rewriting a paged map with a smaller one leaves no orphan pages', a
 
 test('FIX-1: deleting a paged map removes the header and every page', async (t) => {
   const index = await setup()
-  await index.putChunkMap('/mir/del.bin', bigChunkMap(200000))
-  await index.delChunkMap('/mir/del.bin')
+  await index.putChunkMapByHash(hashOf('del'), bigChunkMap(200000))
+  await index.delChunkMapByHash(hashOf('del'))
 
-  t.is(await index.getChunkMap('/mir/del.bin'), null, 'map gone')
-  t.is(await index.hasChunkMap('/mir/del.bin'), false, 'hasChunkMap false')
+  t.is(await index.getChunkMapByHash(hashOf('del')), null, 'map gone')
+  t.is(await index.hasChunkMapByHash(hashOf('del')), false, 'hasChunkMapByHash false')
 
   let leftover = 0
-  for await (const _e of index.bee.createReadStream({ gte: 'chunkmap:/mir/del.bin', lt: 'chunkmap:/mir/del.bin\xff' })) {
+  for await (const _e of index.bee.createReadStream({ gte: 'chunkmap-oid:' + hashOf('del'), lt: 'chunkmap-oid:' + hashOf('del') + '\xff' })) {
     leftover++
   }
   t.is(leftover, 0, 'no header or page keys remain')
@@ -100,10 +90,10 @@ test('FIX-1: deleting a paged map removes the header and every page', async (t) 
 test('FIX-1: a paged map missing a page reads as null (clean miss), never a truncated map', async (t) => {
   const index = await setup()
   const chunks = bigChunkMap(200000)
-  await index.putChunkMap('/mir/corrupt.bin', chunks)
+  await index.putChunkMapByHash(hashOf('corrupt'), chunks)
   // Simulate corruption: drop one interior page out from under the header.
-  await index.bee.del('chunkmap:/mir/corrupt.bin\x001')
+  await index.bee.del('chunkmap-oid:' + hashOf('corrupt') + '\x001')
 
-  const got = await index.getChunkMap('/mir/corrupt.bin')
+  const got = await index.getChunkMapByHash(hashOf('corrupt'))
   t.is(got, null, 'incomplete paged value returns null so the caller re-chunks — not a silently short array')
 })

@@ -38,9 +38,14 @@ Hard boundaries, each enforced by a gate rather than a comment:
 - A module that a `test/unit` test loads under plain Node must not import `bare-*`. The pure half of
   `folders/` is listed in `eslint.config.mjs` → `pureFolderPolicyModules` and enforced there; do the
   I/O in the engine that calls the policy.
-- Vendored code (`src/shared/transfer/backends/overlay/vendor/`) stays re-diffable against upstream.
-  Do not restyle it, do not apply our lint rules to it, and record every local divergence in its
-  `PROVENANCE.md`.
+- The overlay engine (`src/shared/transfer/backends/overlay/engine/`) is a first-party fork of
+  hyper-overlay 0.2.9 and tracks no upstream; its `PROVENANCE.md` records origin and license only.
+  It imports npm packages and its own files, never the app — Mirall policy is injected from
+  `overlay-instance.js`. Its wire contract (message slots 0-14 in order, every kept codec
+  byte-for-byte) never changes without a `MIN_VERSION` decision. It still sits outside eslint, knip
+  and the comment-hygiene gate until those exemptions are retired: new code in it follows this
+  standard anyway (no new `§` or `[mirall]` tags, no internal ids), and formatting-only churn waits
+  for that change.
 - **Dependencies are not patched.** No `patch-package`, no edits under `node_modules`, no fork for a
   local change. When a fact a dependency computes is needed and not exposed, the order is: an
   upstream issue or pull request first; then, only if the fact crosses one of the dependency's
@@ -226,8 +231,9 @@ not written because the code is self explainatory.
    them from this repository. Blocked by `scripts/ci/check-comment-hygiene.sh`.
 4. **No references a reader cannot follow from the repo** — no `.claude/` or plan-doc paths, no `§`
    section cites, no `#123` issue numbers in comments. The one permitted pointer target is
-   `.claude/solution-architecture.md`. (`vendor/` is exempt: its tags are defined in
-   `PROVENANCE.md`.)
+   `.claude/solution-architecture.md`. (The overlay engine's existing `§`/`[mirall]` tags are
+   exempt until they are rewritten as plain rationale; they point into its `PROVENANCE.md`. New
+   code adds none.)
 5. **No commented-out code.** There is none in `src/` today. Keep it that way; git remembers.
 6. **No dated or personal TODOs.** Use the issue tracker.
 7. **State an invariant once.** If a rule applies at three sites, write it at the canonical site and

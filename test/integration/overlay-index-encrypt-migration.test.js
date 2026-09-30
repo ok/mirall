@@ -3,7 +3,7 @@ import b4a from 'b4a'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { openStore, getStore, setMasterSecret, overlayIndexEncryptionKey } from '../../src/shared/core/store.js'
-import { FileIndex } from '../../src/shared/transfer/backends/overlay/vendor/file-index.js'
+import { FileIndex } from '../../src/shared/transfer/backends/overlay/engine/file-index.js'
 import { migrateOverlayIndexToEncrypted } from '../../src/shared/transfer/backends/overlay/migrate-overlay-index-encrypt.js'
 import { clearAndPurgeCore } from '../../src/shared/storage/core-purge.js'
 import { tmpDir } from '../helpers/bare-tmp.js'
@@ -36,7 +36,7 @@ test('REGRESSION: migration copies the plaintext overlay index into an encrypted
 
   const legacy = new FileIndex(getStore().namespace('mirall-overlay'))
   await legacy.ready()
-  await legacy.putFile('/mir/secret.bin', { contentHash: HASH, size: 100, mtime: 5 })
+  await legacy.bee.put('file:/mir/secret.bin', { contentHash: HASH, size: 100, mtime: 5 })
   await legacy.putChunkMapByHash(HASH, CHUNK)
   const legacyMainDk = b4a.toString(legacy.bee.core.discoveryKey, 'hex')
   t.ok(await rawContains(legacy.bee.core, '/mir/secret.bin'), 'precondition: legacy index is plaintext')
@@ -48,7 +48,7 @@ test('REGRESSION: migration copies the plaintext overlay index into an encrypted
 
   const enc = new FileIndex(getStore().namespace('mirall-overlay-e1'), { encryptionKey: overlayIndexEncryptionKey() })
   await enc.ready()
-  t.is((await enc.getFile('/mir/secret.bin'))?.size, 100, 'file entry copied into the encrypted generation')
+  t.is((await enc.bee.get('file:/mir/secret.bin'))?.value?.size, 100, 'an older build\'s row is copied into the encrypted generation')
   t.alike(await enc.getChunkMapByHash(HASH), CHUNK, 'chunk map preserved (no re-chunk needed)')
   t.absent(await rawContains(enc.bee.core, '/mir/secret.bin'), 'encrypted at rest')
   await enc.close()
@@ -72,7 +72,7 @@ test('REGRESSION: the purged plaintext generation reopens clean across a restart
   setMasterSecret(M)
   const legacy = new FileIndex(getStore().namespace('mirall-overlay'))
   await legacy.ready()
-  await legacy.putFile('/mir/secret.bin', { contentHash: HASH, size: 100, mtime: 5 })
+  await legacy.bee.put('file:/mir/secret.bin', { contentHash: HASH, size: 100, mtime: 5 })
   await legacy.close()
   await migrateOverlayIndexToEncrypted()
   await getStore().close()
@@ -85,7 +85,7 @@ test('REGRESSION: the purged plaintext generation reopens clean across a restart
   const reopened = new FileIndex(getStore().namespace('mirall-overlay'))
   await reopened.ready() // must not throw
   t.is(reopened.bee.core.length, 0, 'plaintext generation reopens fresh + empty')
-  t.is(await reopened.getFile('/mir/secret.bin'), null, 'no cleartext survives the purge')
+  t.is(await reopened.bee.get('file:/mir/secret.bin'), null, 'no cleartext survives the purge')
   await reopened.close()
   await getStore().close()
 })
@@ -103,7 +103,7 @@ test('REGRESSION: migration purges an orphaned older (compacted) plaintext gener
   // clearAndPurgeCore. v1 is left orphaned and plaintext.
   const legacy = new FileIndex(getStore().namespace('mirall-overlay'))
   await legacy.ready()
-  await legacy.putFile('/mir/keep.bin', { contentHash: HASH, size: 10, mtime: 1 })
+  await legacy.bee.put('file:/mir/keep.bin', { contentHash: HASH, size: 10, mtime: 1 })
   await legacy.putChunkMapByHash(HASH, CHUNK)
   const v1Dk = b4a.toString(legacy.bee.core.discoveryKey, 'hex')
   const oldCore = await legacy.compact({ isServed: () => false }) // drops the oid map → rolls to v2
@@ -151,11 +151,10 @@ test('REGRESSION (FIX-504: a generation compaction purged, alias left behind, co
   await openStore(storePath)
   setMasterSecret(M)
 
-  // A real-path entry and its served chunk map survive the compaction; the unserved chunk map is
-  // what makes a generation roll at all.
+  // The served chunk map survives the compaction; the unserved one is what makes a generation roll
+  // at all.
   const legacy = new FileIndex(getStore().namespace('mirall-overlay'))
   await legacy.ready()
-  await legacy.putFile('/docs/keep.bin', { contentHash: HASH, size: 10, mtime: 1 })
   await legacy.putChunkMapByHash(HASH, CHUNK)
   await legacy.putChunkMapByHash(DROPPED, CHUNK)
   const oldCore = await legacy.compact({ isServed: (hash) => hash === HASH })
@@ -180,7 +179,7 @@ test('REGRESSION (FIX-504: a generation compaction purged, alias left behind, co
 
   const enc = new FileIndex(getStore().namespace('mirall-overlay-e1'), { encryptionKey: overlayIndexEncryptionKey() })
   await enc.ready()
-  t.is((await enc.getFile('/docs/keep.bin'))?.size, 10, 'entries reached the encrypted generation')
+  t.alike(await enc.getChunkMapByHash(HASH), CHUNK, 'entries reached the encrypted generation')
   await enc.close()
 
   await getStore().close()

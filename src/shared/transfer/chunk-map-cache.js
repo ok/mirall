@@ -1,7 +1,7 @@
 // Bounded LRU of DECODED chunk maps, keyed by the FileIndex bee key the map is stored under
-// ('chunkmap-oid:<hash>' / 'chunkmap:<path>'). Injected into the vendored FileIndex from
+// ('chunkmap-oid:<hash>'). Injected into the engine's FileIndex from
 // overlay-instance.js the way the bandwidth limiters are injected into the protocol, so
-// vendor/ keeps no app imports and an embedder that injects nothing decodes from the bee on
+// engine/ keeps no app imports and an embedder that injects nothing decodes from the bee on
 // every read, as upstream does.
 //
 // Sized by an estimated resident byte cost the caller supplies. Eviction is least-recently-

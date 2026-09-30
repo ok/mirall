@@ -343,7 +343,7 @@ function createStream(ctx) {
     // The consumer is finished (transfer done/failed/cancelled, or the peer's channel
     // closed). Give up our place in the queue, resolve anything awaiting us, and return
     // credit granted but never spent — or a cap's worth of budget leaks out of the bucket
-    // on every consumer that ends mid-round. Named `detach`, not `release`: the vendored
+    // on every consumer that ends mid-round. Named `detach`, not `release`: the overlay
     // engine duck-types this object, and `release(amount)` means the OPPOSITE ("add budget
     // and wake everyone") on the limiter shapes it is tested against.
     detach() {

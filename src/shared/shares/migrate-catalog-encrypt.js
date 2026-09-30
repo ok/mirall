@@ -1,6 +1,6 @@
 import { migrationResult, MIGRATION_STATUS } from '../storage/migrations/migration-result.js'
+import { runMarkedPass } from '../storage/migrations/marked-pass.js'
 import { listSpaces, getSpaceContentKey, isLegacySpace } from '../spaces/space.js'
-import { createLocalBee } from '../core/store.js'
 import { readOwnShares, publishShare } from './shares.js'
 import { catalogKeyField } from './catalog-keys.js'
 import { ownCatalog, ownCatalogPublish, openLegacyPlaintextCatalog, purgeLegacyPlaintextCatalog } from './own-catalog.js'
@@ -21,19 +21,11 @@ const spaceFlag = (spaceId) => FLAG + '/' + spaceId
 // A per-space marker makes retries cheap and skips already-migrated spaces; the global flag is only
 // set once EVERY space is done, so a space still awaiting its SCK (a pending joiner) is retried
 // on later boots rather than silently left plaintext.
-export async function migrateCatalogsToEncrypted() {
-  const flagBee = createLocalBee('app-migrations')
-  try {
-    return await run(flagBee)
-  } finally {
-    try { await flagBee.close() } catch {}
-  }
+export function migrateCatalogsToEncrypted() {
+  return runMarkedPass(FLAG, (_store, flagBee) => run(flagBee), log)
 }
 
 async function run(flagBee) {
-  await flagBee.ready()
-  if ((await flagBee.get(FLAG))?.value?.completedAt) return migrationResult(MIGRATION_STATUS.SKIPPED)
-
   let migrated = 0
   let deferred = 0
   let failed = 0
@@ -57,10 +49,13 @@ async function run(flagBee) {
   // Only close out the migration once every space is done: one that failed, and one still waiting
   // on its SCK, are both retried on a later boot — and neither costs the spaces after it, whose
   // own markers make the retry a no-op for them.
-  if (deferred === 0 && failed === 0) await flagBee.put(FLAG, { completedAt: Date.now(), migrated })
+  const done = deferred === 0 && failed === 0
   if (migrated) log.info('SCK-encrypted', migrated, 'space catalog(s)')
   if (failed) log.warn(failed, 'space catalog(s) failed to encrypt — retrying on the next boot')
-  return migrationResult(deferred || failed ? MIGRATION_STATUS.DEFERRED : MIGRATION_STATUS.DONE, { compact: migrated > 0, migrated, deferred, failed })
+  return {
+    marker: done ? { migrated } : null,
+    result: migrationResult(done ? MIGRATION_STATUS.DONE : MIGRATION_STATUS.DEFERRED, { compact: migrated > 0, migrated, deferred, failed }),
+  }
 }
 
 async function migrateOneCatalog(space, spaceId) {

@@ -2,10 +2,10 @@ import test from 'brittle'
 import Protomux from 'protomux'
 import crypto from 'hypercore-crypto'
 import { Duplex } from 'streamx'
-import { tmpStore, tmpDir, fs, path } from './overlay-vendor-helpers.js'
-import { HyperOverlayV2 } from '../../src/shared/transfer/backends/overlay/vendor/overlay-v2.js'
-import { FileIndex } from '../../src/shared/transfer/backends/overlay/vendor/file-index.js'
-import { openFdCount } from '../../src/shared/transfer/backends/overlay/vendor/transfer.js'
+import { tmpStore, tmpDir, fs, path } from './overlay-engine-helpers.js'
+import { makeOverlay } from '../helpers/overlay-engine.js'
+import { FileIndex } from '../../src/shared/transfer/backends/overlay/engine/file-index.js'
+import { openFdCount } from '../../src/shared/transfer/backends/overlay/engine/transfer.js'
 import { createChunkMapCache } from '../../src/shared/transfer/chunk-map-cache.js'
 import { scaled } from '../helpers/bare-timing.js'
 
@@ -21,20 +21,19 @@ const settle = (ms = 800) => new Promise((r) => setTimeout(r, scaled(ms)))
 const FILE_BYTES = 8 * 1024 * 1024 // tier 1: 64 KiB average chunk, so C is comfortably over 64
 
 async function publisher(label, opts = {}) {
-  const pub = new HyperOverlayV2(tmpStore(label), {
-    namespace: 'mirall-overlay', destDir: tmpDir(label + '-d'), serveAuthorizer: async () => true, ...opts,
-  })
+  const pub = makeOverlay(tmpStore(label), { namespace: 'mirall-overlay', ...opts })
   await pub.ready()
   const content = crypto.randomBytes(FILE_BYTES)
   const oid = crypto.data(content).toString('hex')
   const src = path.join(tmpDir(label + '-src'), 'big.bin')
   fs.writeFileSync(src, content)
-  await pub.registerFile('/mir/' + oid, src, { contentHash: oid, size: content.length })
+  await pub.prepareForServe(src)
+  await pub.registerFile(src, { contentHash: oid, size: content.length })
   return { pub, content, oid }
 }
 
 async function connect(pub, label) {
-  const con = new HyperOverlayV2(tmpStore(label), { namespace: 'mirall-overlay', destDir: tmpDir(label + '-d') })
+  const con = makeOverlay(tmpStore(label), { namespace: 'mirall-overlay' })
   await con.ready()
   const [pa, pb] = makeDuplex()
   pub.attachProtocol(Protomux.from(pa))
@@ -71,7 +70,7 @@ test('REGRESSION (FIX-CHUNKMAP-CACHE): a serve decodes the chunk map once, not o
   const decodes = spyDecodes(pub._index, oid)
   const con = await connect(pub, 'cmc-con')
   t.teardown(async () => { try { await con.close() } catch {} })
-  const got = await con.fetchFile(oid, { timeout: 8000, reSeed: false })
+  const got = await con.fetchFile(oid, { destPath: path.join(tmpDir('dl'), 'big.bin'), timeout: 8000 })
   t.ok(got, 'consumer fetched the file')
   t.is(Buffer.compare(fs.readFileSync(got.destPath), content), 0, 'bytes match — receiver verification untouched')
   t.ok(decodes.n <= 2, `map decoded ${decodes.n}x for C=${C} (expected 1)`)
@@ -87,7 +86,7 @@ test('FIX-CHUNKMAP-CACHE: maxBytes 0 disables the cache — the bee is read abou
   const decodes = spyDecodes(pub._index, oid)
   const con = await connect(pub, 'cmc-off-con')
   t.teardown(async () => { try { await con.close() } catch {} })
-  t.ok(await con.fetchFile(oid, { timeout: 8000, reSeed: false }))
+  t.ok(await con.fetchFile(oid, { destPath: path.join(tmpDir('dl'), 'big.bin'), timeout: 8000 }))
   t.ok(decodes.n > C / 16, `uncached: ${decodes.n} decodes for C=${C} (about C expected)`)
 })
 
@@ -151,7 +150,7 @@ test('REGRESSION (FIX-CHUNKMAP-CACHE): a serve opens the source once and release
   const base = openFdCount()
 
   const con = await connect(pub, 'cmc-fd-con')
-  const got = await con.fetchFile(oid, { timeout: 8000, reSeed: false })
+  const got = await con.fetchFile(oid, { destPath: path.join(tmpDir('dl'), 'big.bin'), timeout: 8000 })
   t.ok(got && Buffer.compare(fs.readFileSync(got.destPath), content) === 0, 'fetched byte-exact')
   t.is(opens, 1, 'the source was opened once for the whole serve')
   t.is(openFdCount(), base + 1, 'one session fd held inside the idle window')
@@ -166,7 +165,7 @@ test('FIX-CHUNKMAP-CACHE: an idle serve session closes its fd on the sweep', asy
   const base = openFdCount()
   const con = await connect(pub, 'cmc-idle-con')
   t.teardown(async () => { try { await con.close() } catch {} })
-  t.ok(await con.fetchFile(oid, { timeout: 8000, reSeed: false }))
+  t.ok(await con.fetchFile(oid, { destPath: path.join(tmpDir('dl'), 'big.bin'), timeout: 8000 }))
   await settle(400)
   t.is(openFdCount(), base, 'idle sweep closed the session fd while the peer is still connected')
 })
@@ -179,7 +178,7 @@ test('FIX-CHUNKMAP-CACHE: a peer’s open serve sources stay bounded', async (t)
   t.teardown(async () => { try { await pub.close() } catch {} })
   const con = await connect(pub, 'cmc-cap-con')
   t.teardown(async () => { try { await con.close() } catch {} })
-  t.ok(await con.fetchFile(oid, { timeout: 8000, reSeed: false }))
+  t.ok(await con.fetchFile(oid, { destPath: path.join(tmpDir('dl'), 'big.bin'), timeout: 8000 }))
 
   const peer = [...pub._protocol._peers.values()][0]
   t.ok(peer._serveFds, 'the serve session opened a source')

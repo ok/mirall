@@ -16,7 +16,7 @@ test('REGRESSION (MIR-13): a root removed during the fetch is not recreated, and
   const overlay = getOverlay()
   const orig = overlay.fetchFile
   let asked = null
-  // Stands in for the vendor receive, whose refusal is pinned in overlay-vendor-partial.test.js.
+  // Stands in for the vendor receive, whose refusal is pinned in overlay-engine-partial.test.js.
   overlay.fetchFile = async (contentHash, opts) => {
     asked = opts.parentMustExist
     fs.rmSync(ctx.mirrorPath, { recursive: true, force: true })

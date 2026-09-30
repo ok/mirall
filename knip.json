@@ -10,7 +10,7 @@
     "src/**/*.{js,ts,tsx}"
   ],
   "ignore": [
-    "src/shared/transfer/backends/overlay/vendor/**"
+    "src/shared/transfer/backends/overlay/engine/**"
   ],
   "ignoreExportsUsedInFile": true,
   "rules": {

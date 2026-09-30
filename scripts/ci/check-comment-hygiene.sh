@@ -16,9 +16,9 @@ cd "$(dirname "$0")/../.."
 
 INCLUDES=(--include='*.js' --include='*.ts' --include='*.tsx' --include='*.css')
 SRC=src
-# The vendored overlay subset defines its own markers here; it is the one .md the
+# The overlay engine defines its own markers here; it is the one .md the
 # gate reads, and only for planning-doc references.
-PROVENANCE=src/shared/transfer/backends/overlay/vendor/PROVENANCE.md
+PROVENANCE=src/shared/transfer/backends/overlay/engine/PROVENANCE.md
 # A line in comment context: `//`, the opening of a block comment, or a block
 # comment's continuation line.
 COMMENT='(//|/\*|^\s*\*)'
@@ -50,9 +50,9 @@ check_blocking() {
 # Internal tracker/audit/fix identifiers, alphanumeric suffixes included (FIX-BW9,
 # FIX-R09-2, LIFECYCLE-3d). Uppercase-only on purpose: lowercase occurrences (e.g.
 # frozen on-disk marker strings) are identifiers, not comments; the leading class
-# keeps PREFIX-… from matching. vendor/ is exempt: its [mirall] FIX-BW tags are
+# keeps PREFIX-… from matching. engine/ is exempt: its [mirall] FIX-BW tags are
 # divergence markers defined in PROVENANCE.md.
-check_blocking "internal audit/fix identifiers (MIR-n / FIX-n / LIFECYCLE-n)" '(^|[^A-Z])(MIR|FIX|LIFECYCLE)-[A-Z0-9]' '--exclude-dir=vendor'
+check_blocking "internal audit/fix identifiers (MIR-n / FIX-n / LIFECYCLE-n)" '(^|[^A-Z])(MIR|FIX|LIFECYCLE)-[A-Z0-9]' '--exclude-dir=engine'
 
 # References to the planning workspace, in code and in PROVENANCE.md. The shipped
 # architecture reference (.claude/solution-architecture.md) is the one allowed
@@ -60,13 +60,13 @@ check_blocking "internal audit/fix identifiers (MIR-n / FIX-n / LIFECYCLE-n)" '(
 PLAN_DOCS='\.claude/|plan-[a-z0-9-]+\.md|plans?/[A-Za-z0-9_./-]+\.md'
 check_blocking "references to .claude/ or plan docs" "$PLAN_DOCS" '' '\.claude/solution-architecture\.md'
 if [ -f "$PROVENANCE" ]; then
-  report "references to .claude/ or plan docs in vendor/PROVENANCE.md" \
+  report "references to .claude/ or plan docs in engine/PROVENANCE.md" \
     "$(grep -HnE -e "$PLAN_DOCS" "$PROVENANCE" | grep -vE '\.claude/solution-architecture\.md' || true)"
 fi
 
-# Section cites into non-shipped docs. The vendored overlay subset is exempt:
+# Section cites into non-shipped docs. The overlay engine is exempt:
 # its § tags mark local divergence from upstream and are defined in PROVENANCE.md.
-check_blocking "section cites (§) outside vendor/" '§' '--exclude-dir=vendor'
+check_blocking "section cites (§) outside engine/" '§' '--exclude-dir=engine'
 
 # Issue/PR numbers in comment context.
 check_blocking "issue/PR number references in comments" "$COMMENT"'.*#[0-9]{2,4}\b'

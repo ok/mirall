@@ -3,10 +3,11 @@
 // fetch; a peer past MAX_PAGED_ENTRIES_PER_PEER or MAX_PAGED_MAPS_PER_PEER is dropped. A closed
 // channel releases the peer's buffer, and a refused page releases what it buffered for that path.
 import test from 'brittle'
-import * as m from '../../src/shared/transfer/backends/overlay/vendor/messages-v2.js'
-import { OverlayProtocolV2, MAX_PAGED_ENTRIES_PER_PEER, MAX_PAGED_MAPS_PER_PEER } from '../../src/shared/transfer/backends/overlay/vendor/protocol-v2.js'
-import { ChunkScheduler } from '../../src/shared/transfer/backends/overlay/vendor/chunk-scheduler.js'
-import { TIERS } from '../../src/shared/transfer/backends/overlay/vendor/chunker.js'
+import * as m from '../../src/shared/transfer/backends/overlay/engine/messages-v2.js'
+import { MAX_PAGED_ENTRIES_PER_PEER, MAX_PAGED_MAPS_PER_PEER } from '../../src/shared/transfer/backends/overlay/engine/protocol-v2.js'
+import { makeProtocol } from '../helpers/overlay-engine.js'
+import { ChunkScheduler } from '../../src/shared/transfer/backends/overlay/engine/chunk-scheduler.js'
+import { TIERS } from '../../src/shared/transfer/backends/overlay/engine/chunker.js'
 
 function fakeTransfer() {
   const calls = []
@@ -60,7 +61,7 @@ function awaitingScheduler(proto, path, peer, size) {
 const fakeScheduler = () => ({ awaitsMapFrom: () => true, maxMapEntries: () => null, notePageProgress() {}, removePeer() {}, onChunkHashes() {} })
 
 test('REGRESSION (MIR-52: a map paged past its size-derived bound is refused for that fetch)', (t) => {
-  const proto = new OverlayProtocolV2({}, fakeTransfer(), { serveAuthorizer: async () => true })
+  const proto = makeProtocol(fakeTransfer())
   t.teardown(() => proto.destroy())
   const { peer, channel, send } = attachPeer(proto)
   const size = 3 * TIERS[0].minSize + 100
@@ -83,7 +84,7 @@ test('REGRESSION (MIR-52: a map paged past its size-derived bound is refused for
 })
 
 test('MIR-52: a first page already past the size-derived bound is refused without buffering', (t) => {
-  const proto = new OverlayProtocolV2({}, fakeTransfer(), { serveAuthorizer: async () => true })
+  const proto = makeProtocol(fakeTransfer())
   t.teardown(() => proto.destroy())
   const { peer, channel, send } = attachPeer(proto)
   const size = 3 * TIERS[0].minSize + 100
@@ -96,7 +97,7 @@ test('MIR-52: a first page already past the size-derived bound is refused withou
 })
 
 test('REGRESSION (MIR-52: MAX_PAGED_ENTRIES_PER_PEER bounds a peer across its maps, whatever size the catalog claims)', (t) => {
-  const proto = new OverlayProtocolV2({}, fakeTransfer(), { serveAuthorizer: async () => true })
+  const proto = makeProtocol(fakeTransfer())
   t.teardown(() => proto.destroy())
   const { peer, channel, send } = attachPeer(proto)
   const claimed = awaitingScheduler(proto, 'content:claimed', peer, 2 ** 50)
@@ -119,7 +120,7 @@ test('REGRESSION (MIR-52: MAX_PAGED_ENTRIES_PER_PEER bounds a peer across its ma
 })
 
 test('REGRESSION (MIR-52: a peer cannot hold more than MAX_PAGED_MAPS_PER_PEER maps at once)', (t) => {
-  const proto = new OverlayProtocolV2({}, fakeTransfer(), { serveAuthorizer: async () => true })
+  const proto = makeProtocol(fakeTransfer())
   t.teardown(() => proto.destroy())
   const { peer, channel, send } = attachPeer(proto)
   for (let i = 0; i <= MAX_PAGED_MAPS_PER_PEER; i++) proto._schedulers.set('content:' + i, fakeScheduler())
@@ -134,7 +135,7 @@ test('REGRESSION (MIR-52: a peer cannot hold more than MAX_PAGED_MAPS_PER_PEER m
 })
 
 test('REGRESSION (MIR-52: pages for a path nobody awaits from this peer are never buffered)', (t) => {
-  const gated = new OverlayProtocolV2({}, fakeTransfer(), { serveAuthorizer: async () => true })
+  const gated = makeProtocol(fakeTransfer())
   t.teardown(() => gated.destroy())
   const a = attachPeer(gated)
   for (let i = 0; i < 100; i++) a.send(page('content:' + i, 1))
@@ -147,17 +148,15 @@ test('REGRESSION (MIR-52: pages for a path nobody awaits from this peer are neve
   t.absent(a.peer._chunkHashPages, 'a scheduler that asked another peer: nothing buffered')
   t.absent(a.channel.closed, 'refused pages do not drop the peer')
 
-  const ungated = new OverlayProtocolV2({}, fakeTransfer(), { filePaths: new Map([['/wanted', '/disk/wanted']]) })
-  t.teardown(() => ungated.destroy())
-  const b = attachPeer(ungated)
-  for (let i = 0; i < 100; i++) b.send(page('/rotating-' + i, 1))
-  t.absent(b.peer._chunkHashPages, 'ungated, no file target: nothing buffered')
+  const registered = makeProtocol(fakeTransfer(), { filePaths: new Map([['/wanted', '/disk/wanted']]) })
+  t.teardown(() => registered.destroy())
+  const b = attachPeer(registered)
   b.send(page('/wanted', 1))
-  t.is(b.peer._chunkHashPages.get('/wanted').length, 1, 'ungated, a registered file target still pages')
+  t.absent(b.peer._chunkHashPages, 'a registered file target without a scheduler: nothing buffered')
 })
 
 test('MIR-52: closing the channel releases the page buffer', (t) => {
-  const proto = new OverlayProtocolV2({}, fakeTransfer(), { serveAuthorizer: async () => true })
+  const proto = makeProtocol(fakeTransfer())
   t.teardown(() => proto.destroy())
   const { peer, channel, send } = attachPeer(proto)
   proto._schedulers.set('content:x', fakeScheduler())
@@ -170,7 +169,7 @@ test('MIR-52: closing the channel releases the page buffer', (t) => {
 
 test('MIR-52: a half-paged map left by an ended fetch is discarded, and a new answer assembles clean', async (t) => {
   const transfer = fakeTransfer()
-  const proto = new OverlayProtocolV2({}, transfer, { serveAuthorizer: async () => true })
+  const proto = makeProtocol(transfer)
   t.teardown(() => proto.destroy())
   const { peer, send } = attachPeer(proto)
   const hash = 'b'.repeat(64)
@@ -193,7 +192,7 @@ test('MIR-52: a half-paged map left by an ended fetch is discarded, and a new an
 
 test('MIR-52: a fetch re-issued before the old answer\'s tail lands still gets the whole map', async (t) => {
   const transfer = fakeTransfer()
-  const proto = new OverlayProtocolV2({}, transfer, { serveAuthorizer: async () => true })
+  const proto = makeProtocol(transfer)
   t.teardown(() => proto.destroy())
   const { peer, send } = attachPeer(proto)
   const hash = 'd'.repeat(64)
@@ -212,7 +211,7 @@ test('MIR-52: a fetch re-issued before the old answer\'s tail lands still gets t
 
 test('MIR-52: an honest paged map at its size bound still assembles', (t) => {
   const transfer = fakeTransfer()
-  const proto = new OverlayProtocolV2({}, transfer, { serveAuthorizer: async () => true })
+  const proto = makeProtocol(transfer)
   t.teardown(() => proto.destroy())
   const { peer, channel, send } = attachPeer(proto)
   const min = TIERS[3].minSize

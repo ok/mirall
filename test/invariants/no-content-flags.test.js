@@ -16,7 +16,7 @@ function sources(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const p = path.join(dir, name)
     if (statSync(p).isDirectory()) {
-      if (name !== 'node_modules' && name !== 'vendor') sources(p, out)
+      if (name !== 'node_modules' && name !== 'engine') sources(p, out)
     } else if (/\.(ts|tsx|js|mjs|cjs)$/.test(name)) out.push(p)
   }
   return out

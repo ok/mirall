@@ -1,17 +1,39 @@
-# Vendored: hyper-overlay v2 subset
+# Overlay engine — origin and license
 
-This folder is a **vendored, in-tree snapshot** of the `lib/` source from the
-upstream `hyper-overlay` project, reduced to the **v2 content-addressed serve/fetch**
-path that Mirall's `overlay` content-backend builds on.
+This folder is Mirall's **overlay engine**, the content-addressed serve/fetch stack behind the
+`overlay` content backend. It began as a copy of the v2 subset of `hyper-overlay`'s `lib/` and is a
+**first-party fork with no upstream tracking** (declared 2026-09-30). Nothing here is re-synced from
+upstream; an upstream fix is ported by hand, if at all. The wire contract with released Mirall peers
+(message slots 0–14 in order, every kept codec byte-for-byte) is Mirall's to keep.
 
 ## Provenance
 
-- **Upstream:** `hyper-overlay`
+- **Upstream:** `hyper-overlay` — https://7rnx.net/git/hyper-overlay.git (license `AGPL-3.0`)
 - **Snapshot copied from commit:** `6cac8ee5c184f7bb51f0daef3632301f6624c3a8` (v0.2.9)
-- **Pin of record:** v0.2.10 (`815492f`). `0.2.9 → 0.2.10` is a lockfile/version-only
-  bump — **no `lib/*` change** — so the bytes copied from `6cac8ee` are identical to the
-  `815492f` `lib/` for every file vendored here. Re-diff against either with
-  `git show <commit>:lib/<file>.js`.
+- **Pin of record:** v0.2.10 (`815492f992fd633033558059986f3601600e162d`). `0.2.9 → 0.2.10` is a
+  lockfile/version-only bump; every `lib/` file below is byte-identical at both commits.
+- **Fork declared:** 2026-09-30. Upstream has since renamed `protocol-v2.js`, `overlay-v2.js` and
+  `messages-v2.js` (0.3.x), so no mechanical re-diff exists past the snapshot.
+- **Snapshot files.** SHA-256 of each upstream file as upstream ships it, and its git blob id at
+  `6cac8ee`. Check one with `git -C "$UPSTREAM" show 6cac8ee:lib/<file> | shasum -a 256`.
+
+| upstream file | LOC | SHA-256 | git blob |
+|---|---:|---|---|
+| `lib/overlay-v2.js` | 308 | `7b0a13ce32537e6402dab1ca4017b7ad55c361483b6eed1f528f2e7771721851` | `a142155e41ed3b627bd2acc80720be5feec5a4a0` |
+| `lib/protocol-v2.js` | 603 | `ec00ec9f1f4c049b160dfd31535350fd9401148756ff2149b996a98f54a788b4` | `2486ff21145e49b75240b430e0a895c5005c7349` |
+| `lib/chunk-scheduler.js` | 168 | `959831fb7b7498ebee53e187f05123fd5158b5b68f9e808c9a42ed5328a07d98` | `2e469febdc1a3560a79611476abf3f633b2f8b84` |
+| `lib/transfer.js` | 344 | `591db52688377d2c09c9ea53887b4e8f395739fd30afba73f7445a6909888bc2` | `c1caf3676c08c583e9fba41bcb6013ca5de7becb` |
+| `lib/file-index.js` | 335 | `a677c9034af95bf0dbb370b589b5252d7ed0439f38a6f576e416b12c451cb4e6` | `49fd66f1fbb619c7c48f2aae462823a8e88e0982` |
+| `lib/sync-engine.js` | 360 | `be962b6ad0535006f7b3bc658d86d61762da406495b4162477417cc1231e4c7a` | `f00556ae604ad99ad5e7a8ddedde7d49e6553964` |
+| `lib/chunker.js` | 325 | `72674077ba58c7451c27437baef7da29da67c8b3c02b6cf5aa87f827588831e7` | `a632075b3b820d7d8dfcd32b63f11a4deef15435` |
+| `lib/messages-v2.js` | 364 | `c46d8e705138458458c9ff3e5160cc0310c8c897a7a44ef647c72501d93e3874` | `59558bdad8045dd3b5029c651c0546a3351c18e0` |
+
+## History
+
+Everything from "What was vendored" to "Re-diffing against the snapshot" records the changes made
+while this tree still tracked upstream (2026-07-09 → 2026-09-30). It is kept as history and is not
+extended: later changes live in git history and in the tests that pin them. The `§` and `[mirall]`
+tags in the code point into it until they are rewritten as plain rationale.
 
 ## License
 
@@ -23,12 +45,12 @@ path that Mirall's `overlay` content-backend builds on.
   inline with a `[mirall]` comment; a removal leaves nothing to mark, so the re-diff is the
   complete record. Modification began in 2026, when the snapshot was taken; git history
   records every later change.
-- **Notice on each file.** Each vendored `.js` file opens with a short header, a block of
-  `//` lines ending at the first blank line, that names its upstream file and snapshot,
+- **Notice on each file.** Each `.js` file derived from upstream opens with a short header, a
+  block of `//` lines ending at the first blank line, that names its upstream file and snapshot,
   the upstream license, and this modification. It is the only change above upstream's own
-  first line, and the re-diff recipe below strips it. The upstream tests ported under
-  `test/` (`overlay-vendor-chunker`, `-messages-v2`, `-helpers`, `-restart-durability`,
-  `-transfer`) carry the same notice.
+  first line, and the re-diff recipe below strips it. A file written after the fork carries no
+  such header. The upstream tests ported under `test/` (`overlay-engine-chunker`,
+  `-messages-v2`, `-helpers`, `-transfer`) carry the same notice.
 - **Distribution.** The modified files are conveyed under the GNU Affero General Public
   License version 3 as part of Mirall; the full license text is the repository's
   [`LICENSE`](../../../../../../LICENSE). Because upstream grants version 3 without "or any
@@ -39,7 +61,7 @@ path that Mirall's `overlay` content-backend builds on.
 - **No warranty.** As stated in sections 15 and 16 of the license, the code is provided
   without warranty of any kind.
 
-## What was vendored (8 files — the import-closed v2 subset)
+## What was vendored (8 files — the import-closed v2 subset; 7 remain)
 
 `overlay-v2.js` (facade entry) and its transitive imports:
 `protocol-v2.js`, `chunk-scheduler.js`, `transfer.js`, `file-index.js`,
@@ -47,6 +69,18 @@ path that Mirall's `overlay` content-backend builds on.
 
 These 8 form a **closed import graph** — no other upstream `lib/*` file is reachable
 from `overlay-v2.js` along the v2 path.
+
+## Removed after the fork (2026-10)
+
+The legacy path-sync half of the v2 stack, which Mirall switched off at runtime and never used:
+`sync-engine.js` (whole file); in `protocol-v2.js` the sync-state/offer/request, tree and conflict
+handlers and senders, the single-peer receive, the spool and index-scan serve tiers and the
+auto-offer loop; in `overlay-v2.js` the single-peer fetch, re-seed and spool destinations; in
+`file-index.js` the file, path-keyed chunk-map, sync-state, sync-config, tree and stats stores; in
+`messages-v2.js` the eight codecs whose slots are now retired; in `transfer.js` the synchronous
+`readChunk`, `computeNeeded`, `isComplete`, `getProgress`, `listActive` and `cleanPartials`.
+Retired slots 0, 1, 2, 6, 7, 8, 9 and 10 stay registered, in place, with no codec and no handler.
+`local-faults.js` is first-party code written after the fork and carries no upstream header.
 
 ## What was deliberately NOT vendored
 
@@ -60,8 +94,8 @@ from `overlay-v2.js` along the v2 path.
 
 ## Mirall vendor-time modifications
 
-Each change is small, marked inline with a `[mirall]` comment, and keeps the snapshot
-re-diffable against upstream. Categories:
+Each change is small, marked inline with a `[mirall]` comment, and kept the snapshot
+re-diffable against upstream while it was tracked. Categories:
 
 1. **Subpath-import rewrite (resolution).** Upstream resolved Node/Bare builtins through a
    package `imports` map (`#fs`/`#path`/`#os`). Mirall has no such map and uses the Bare
@@ -87,7 +121,7 @@ re-diffable against upstream. Categories:
 4. **§4.4 — diagnostics stripped.** All `console.log` and `[v2-diag]` instrumentation was
    removed from `protocol-v2.js` (the only file that had any). Nothing was rerouted to a
    logger — the vendored subset stays dependency-pure (npm deps + sibling vendor files only);
-   any operator logging lives in the Mirall adapter/instance layer outside `vendor/`.
+   any operator logging lives in the Mirall adapter/instance layer outside `engine/`.
 
 5. **§S1/§S2 — complete the serve gate (security).** The §4.1 authorizer covered only
    `_onContentRequest`, but the protocol has other serve/receive entry points. In "mirall
@@ -171,7 +205,7 @@ re-diffable against upstream. Categories:
     (`setChunkStats`/`resetChunkStats`/`chunkStats`) used only by tests + `scripts/bench-prepare.mjs`
     to validate the memcpy reduction. Chunk boundaries, chunk hashes, and the content hash are
     byte-identical to upstream for any block size (asserted across tiers in
-    `test/unit/overlay-vendor-chunker.test.js`).
+    `test/unit/overlay-engine-chunker.test.js`).
 
 12. **§4.11 — chunk-map paging (`file-index.js`, fix).** Upstream persisted a file's whole
     chunk map as one Hyperbee value (`chunkmap:<path>` / `chunkmap-oid:<hash>`). For a very
@@ -187,7 +221,7 @@ re-diffable against upstream. Categories:
     hash-keyed) and `delFile` route through private `_putPagedValue`/`_getPagedValue`/
     `_delPagedValue` helpers; the public API is unchanged, so `transfer.js`/`protocol-v2.js`/
     `overlay-v2.js` callers are untouched. `stats()` skips `\x00`-suffixed page keys. Covered by
-    `test/integration/overlay-vendor-chunkmap-paging.test.js` (round-trip > 15 MiB, inline-small,
+    `test/integration/overlay-engine-chunkmap-paging.test.js` (round-trip > 15 MiB, inline-small,
     rewrite-shrink, delete). Residual scaling limit left for a follow-up (not this fix): the map is
     still held whole in memory during prepare/serve. (The sibling wire-frame limit — shipping the
     whole array in one Protomux frame — is fixed in §4.12.)
@@ -207,10 +241,10 @@ re-diffable against upstream. Categories:
     Lists that fit one frame ship as one (`more:0`), byte-identical to upstream bar a trailing 0;
     `more` is appended last so a pre-paging peer omits it and the decoder reads `more:0` (back-compat
     for small files — a mixed-version swarm still transfers anything under one frame). Covered by
-    `test/integration/overlay-vendor-chunkhashes-wire-paging.test.js` (red-first: a 1.25 TB-scale
+    `test/integration/overlay-engine-chunkhashes-wire-paging.test.js` (red-first: a 1.25 TB-scale
     list exceeds `MAX_ATOMIC_WRITE` as one frame but every paged frame stays under it; round-trip
     reassembly; single-frame fast path) plus `chunkHashes` round-trip + back-compat cases in
-    `test/unit/overlay-vendor-messages-v2.test.js`.
+    `test/unit/overlay-engine-messages-v2.test.js`.
 
 14. **§4.13 — vanish-during-read resilience (`transfer.js`/`overlay-v2.js`, fix).** Two
     unguarded `statSync` calls turned a routine "file moved out of a shared folder mid-scan"
@@ -226,7 +260,7 @@ re-diffable against upstream. Categories:
     `protocol-v2.js#_onContentRequest` gains a matching `peer.authorizedServe.delete(syntheticPath)`
     on the serve-time `prepareFile`→null path (the vanish-during-read case now routes here),
     so `authorizedServe` stays in lockstep with `_filePaths`. Covered by regression tests in
-    `test/integration/overlay-vendor-transfer.test.js`, `overlay-vendor-serve-chunkmap.test.js`,
+    `test/integration/overlay-engine-transfer.test.js`, `overlay-engine-serve-chunkmap.test.js`,
     and `overlay-backend.test.js` (makeServable guard). (The folder publish path —
     `folders/publish-runner.js` driving `overlay-backend.js#publishContent` per file — and the
     boot-rehydrate loop `overlay-maintenance.js#rehydrateOwnedContent` are both Mirall code, not
@@ -269,12 +303,12 @@ re-diffable against upstream. Categories:
     so a fire-and-forget rejection can't escape. The integrity backstop against deliberate post-write
     editing of a journaled partial (a documented residual trust gap) is the manual re-verify primitive
     `_hashWholeFileAsync` (reuses `readFileBlocks`); surfacing it in the UI is a deferred follow-up.
-    Covered by regression tests in `test/integration/overlay-vendor-transfer.test.js` (async vs blocking
+    Covered by regression tests in `test/integration/overlay-engine-transfer.test.js` (async vs blocking
     I/O, cancellable verify, O(1) snapshot resume + verified finalize, gap-fill does no sync readback,
     fresh-manager restart durability, non-binding-journal fallback, journal lifecycle +
-    `cleanJournals`, the documented residual trust gap) and `test/unit/overlay-vendor-scheduler.test.js`
+    `cleanJournals`, the documented residual trust gap) and `test/unit/overlay-engine-scheduler.test.js`
     (watchdog not charged against setup, second-seeder no re-arm, cancel during setup) +
-    `test/unit/overlay-vendor-chunker.test.js` (snapshot/restore round-trip). The legacy single-peer
+    `test/unit/overlay-engine-chunker.test.js` (snapshot/restore round-trip). The legacy single-peer
     `protocol-v2.js#_onChunkHashes` `startReceive`/`finalize` calls gain an `await` (gated off in
     Mirall by the serve authorizer). **Windows fix (read-only fsync):** the durable-flush paths
     (`_flushJournalSync`, `_drainFlush`) fsync the partial's persistent fd (pre-§4.16 `readFd`), which is opened
@@ -282,7 +316,7 @@ re-diffable against upstream. Categories:
     handle fails `EPERM`, and the fsync is now best-effort (its own `try`) so a failing fsync can
     never skip the journal write. Without this, no receive journal ever persisted on Windows and
     every resume fell back to the full async re-verify. Covered by a regression test in
-    `test/integration/overlay-vendor-transfer.test.js` (mock fsync to throw → journal still
+    `test/integration/overlay-engine-transfer.test.js` (mock fsync to throw → journal still
     persists + resumes O(1)).
 
 16. **§4.15 — tree-response wire paging (`messages-v2.js` + `protocol-v2.js`, fix).** The sibling of
@@ -301,9 +335,7 @@ re-diffable against upstream. Categories:
     (`_failPendingTrees`). All fields are appended last, so a pre-paging peer omits them and the decoder
     reads 0 (back-compat). This path is dormant in Mirall (the serve authorizer refuses `_onTreeRequest`
     and nothing calls `requestTree`); the fix hardens the vendored library for any tree-enabled build.
-    Covered by `test/integration/overlay-vendor-treeresponse-wire-paging.test.js` (red-first paging +
-    reassembly, byte cap, stale-nonce drop, close rejection) plus `treeResponse`/`treeRequest` round-trip +
-    back-compat cases in `test/unit/overlay-vendor-messages-v2.test.js`.
+    Removed with the tree protocol after the fork.
 
 17. **§4.16 — persistent receive fd + in-memory in-order hashing (`transfer.js`, perf).** Two
     receiver-side changes, digest- and wire-identical.
@@ -322,7 +354,7 @@ re-diffable against upstream. Categories:
     never load-bearing (bytes hit disk before stashing; a miss reads back as before) and is skipped
     when the pump is mid-read on exactly that index (no double-feed) or the cap is hit. Per-transfer
     `state.stats = { readbacks, stashHits }` counts the paths for tests. Covered in
-    `test/integration/overlay-vendor-transfer.test.js` (fd flat across a transfer + 20-transfer leak
+    `test/integration/overlay-engine-transfer.test.js` (fd flat across a transfer + 20-transfer leak
     check, pause closes fd + codeless late-chunk refusal + journal resume, zero read-backs in-order,
     reverse-order stash + cap-0 forced read-back digest equality, duplicate-delivery idempotence,
     cancel clears fd + stash, EHASHMISMATCH unchanged).
@@ -362,7 +394,7 @@ re-diffable against upstream. Categories:
 19. **§4.18 — host-injected bandwidth limiters (`overlay-v2.js` + `protocol-v2.js` + `chunk-scheduler.js` + `messages-v2.js`).**
     User-set transfer caps are enforced inside the serve/fetch engine, but the limiter itself lives
     in app code (`src/shared/transfer/bandwidth-limiter.js`) and is **injected** as
-    `uploadLimiter` / `downloadLimiter` constructor opts, so `vendor/` gains no app imports and an
+    `uploadLimiter` / `downloadLimiter` constructor opts, so `engine/` gains no app imports and an
     embedder that injects nothing is unthrottled. `overlay-v2.js` forwards both to
     `OverlayProtocolV2`; `protocol-v2._onChunkNeed` awaits `uploadLimiter.take(bytes)` before each
     `chunkData.send` — and, because that wait opens a revocation window, re-checks the serve grant
@@ -376,7 +408,7 @@ re-diffable against upstream. Categories:
     silence, so a paced fetch must not be timed out — but the mechanism is watchdog SCOPING, not a
     re-arm while gated; see "Watchdog scoping" below for why the re-arm approach was removed.
     Covered by `test/unit/bandwidth-limiter.test.js` and the two download-cap cases in
-    `test/unit/overlay-vendor-scheduler.test.js`.
+    `test/unit/overlay-engine-scheduler.test.js`.
 
     **One stream per scheduler (FIX-BW1).** The handle is not decoration: one bucket paces every
     concurrent transfer, so the bucket has to arbitrate. Passing the limiter directly made `tryTake`
@@ -452,7 +484,7 @@ re-diffable against upstream. Categories:
     membership oracle §16 exists to deny. Deliberately NOT fixed by raising
     `MIN_BYTES_PER_SECOND`: tier 3 would need a 136.5 KB/s floor, and `F x P` contention defeats
     any fixed floor. Covered by the FIX-BW9 cases in `test/unit/bandwidth-fairness.test.js` (the
-    receiver gates) and `test/integration/overlay-vendor-backpressure.test.js` (the serve loop
+    receiver gates) and `test/integration/overlay-engine-backpressure.test.js` (the serve loop
     actually emitting them).
 
     **Transport liveness (FIX-BW10).** The same abort is reachable with no cap at all, on a path a
@@ -530,7 +562,7 @@ re-diffable against upstream. Categories:
     thread). `FileIndex` now takes an injected `opts.chunkMapCache` — a bounded LRU of DECODED
     maps living in app code (`src/shared/transfer/chunk-map-cache.js`, sized by
     `serveChunkMapCacheBytes`, default 32 MiB, `0` disables) — exactly the way the bandwidth
-    limiters are injected, so `vendor/` gains no app imports and an embedder that injects
+    limiters are injected, so `engine/` gains no app imports and an embedder that injects
     nothing decodes from the bee on every read as upstream does. The hook points are in
     `FileIndex` because it is the only module that sees every write to a chunk-map key:
     `_putPagedValue` / `_delPagedValue` became thin wrappers that invalidate in a `finally`,
@@ -580,7 +612,7 @@ re-diffable against upstream. Categories:
     frames the remote pipelined behind its open are dropped rather than dispatched: protomux
     drains them *after* `onopen` returns, against a record captured before our `close()`.
     `onPeerOpen` / `onPeerRejected` are constructor opts the app layer wires to its logger, so
-    `vendor/` keeps no logger; both must be synchronous. `protocol-v2.js` also gained
+    `engine/` keeps no logger; both must be synchronous. `protocol-v2.js` also gained
     `export { VERSION, MIN_VERSION, CAP_LOCAL_FILES, CAP_ADAPTIVE_CHUNKS }` (upstream keeps all
     four module-private) purely so the tests can assert against the real constants. Rollout is a
     single phase: old peers need nothing, and the tolerant decode must ship in the same commit as
@@ -605,7 +637,7 @@ re-diffable against upstream. Categories:
     `closeProtocol()` is idempotent, and `_close` is unchanged — its `if (this._protocol)` guard
     already makes the protocol half a no-op once `closeProtocol()` has run, so the ordinary
     single-shot teardown path still works untouched for a host that never calls it. Covered by
-    `test/integration/overlay-vendor-close-protocol.test.js` (the index keeps serving, idempotence,
+    `test/integration/overlay-engine-close-protocol.test.js` (the index keeps serving, idempotence,
     `close()` after it, and the peer teardown firing while both sockets are still up); the host-side
     ordering that depends on it is pinned by `test/integration/swarm-lifecycle.test.js`.
 
@@ -633,8 +665,8 @@ re-diffable against upstream. Categories:
     This is load-bearing on the serve path: `protocol-v2._onContentRequest` falls back to
     `listFiles()` to resolve a content hash to a disk path, and a miss there is a silent drop that
     the requester can only observe as a timeout. A shared file whose top-level name starts with such
-    a character was unservable through that fallback. Covered by
-    `test/integration/overlay-vendor-prefix-bound.test.js`.
+    a character was unservable through that fallback. Removed with that fallback after
+    the fork.
 
 25. **§4.23 — compaction hands back the retired alias (`overlay-v2.js`).** `compactIndex` returns
     `{ core, alias: { name, namespace } }` for the generation it retired, rather than the bare
@@ -664,9 +696,9 @@ re-diffable against upstream. Categories:
     - `transferControl`/`transferProgress` go only to peers we sent a content request for that hash
       (`peer.askedFor`, forgotten when the fetch completes, fails or is stopped), not to every attached
       peer; `_broadcast` became `_sendToAsked`.
-    Wire format unchanged. Covered by `test/unit/overlay-vendor-scheduler.test.js` (acceptance
+    Wire format unchanged. Covered by `test/unit/overlay-engine-scheduler.test.js` (acceptance
     rules), `test/integration/overlay-fetch-holder-gate.test.js` (fan-out, unsolicited map, size
-    mismatch, control frames), `test/integration/overlay-vendor-protocol.test.js` (control frames)
+    mismatch, control frames), `test/integration/overlay-engine-protocol.test.js` (control frames)
     and `test/flow/content-chunkmap-poisoning.test.js`.
 
 27. **§4.25 — the receive never writes through a link, over a newcomer, or into a recreated
@@ -683,7 +715,7 @@ re-diffable against upstream. Categories:
     - `fetchFile` takes `opts.parentMustExist`, passed through `fetchContent` and the scheduler to
       `startReceive`, which then requires the target's folder to exist (throwing a coded `ENOENT`)
       instead of `mkdir -p`-ing it. Absent the opt, the folder is created as upstream.
-    Covered by `test/integration/overlay-vendor-partial.test.js`.
+    Covered by `test/integration/overlay-engine-partial.test.js`.
 
 28. **MIR-52 — bounded chunkHashes reassembly (`protocol-v2.js` + `chunk-scheduler.js`, security).**
     The §4.24 gate kept pages from peers nobody asked, but a peer that was asked could still send
@@ -702,8 +734,8 @@ re-diffable against upstream. Categories:
       fetch re-issued before the old tail lands still completes from it.
     - Ungated (no `serveAuthorizer`), a page for a path with no scheduler is buffered only when
       `_filePaths` has a target for it, which the legacy receive requires anyway.
-    Wire format unchanged. Covered by `test/integration/overlay-vendor-chunkhashes-page-bound.test.js`
-    and `test/unit/overlay-vendor-scheduler.test.js`.
+    Wire format unchanged. Covered by `test/integration/overlay-engine-chunkhashes-page-bound.test.js`
+    and `test/unit/overlay-engine-scheduler.test.js`.
 
 29. **§4.26 — legacy path-sync frames are inert in mirall mode; chunk data only as asked
     (`protocol-v2.js` + `chunk-scheduler.js` + `overlay-v2.js` + `file-index.js`, security).** Every
@@ -727,10 +759,10 @@ re-diffable against upstream. Categories:
     All 15 message slots stay registered in order with their codecs; `MIN_VERSION` stays 1. Older mirall
     peers only store a received `syncState` (autoSync is off on both ends), so its absence changes nothing
     for them. Covered by `test/integration/overlay-serve-bypass.test.js`,
-    `test/integration/overlay-fetch-holder-gate.test.js`, `test/integration/overlay-vendor-protocol.test.js`,
-    `test/unit/overlay-vendor-scheduler.test.js` and `test/flow/overlay-legacy-frames.test.js`.
+    `test/integration/overlay-fetch-holder-gate.test.js`, `test/integration/overlay-engine-protocol.test.js`,
+    `test/unit/overlay-engine-scheduler.test.js` and `test/flow/overlay-legacy-frames.test.js`.
 
-## Re-diffing against upstream
+## Re-diffing against the snapshot (archaeology only)
 
 From this folder, with an upstream clone at `$UPSTREAM`:
 

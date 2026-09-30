@@ -8,8 +8,8 @@
 // the receiver. The public flow (scheduler.onChunkHashes with the full list) is
 // unchanged.
 import test from 'brittle'
-import * as m from '../../src/shared/transfer/backends/overlay/vendor/messages-v2.js'
-import { OverlayProtocolV2 } from '../../src/shared/transfer/backends/overlay/vendor/protocol-v2.js'
+import * as m from '../../src/shared/transfer/backends/overlay/engine/messages-v2.js'
+import { makeProtocol } from '../helpers/overlay-engine.js'
 
 // @hyperswarm/secret-stream rejects any frame whose payload exceeds this
 // (MAX_ATOMIC_WRITE = 256**3 - 1); the encrypted wrapper adds ABYTES on top, so
@@ -46,7 +46,7 @@ test('REGRESSION (FIX-12): a 1.25 TB-scale chunk list overflows one frame but pa
   t.ok(oneFrame > MAX_ATOMIC_WRITE, `single frame (${oneFrame} B) exceeds the ${MAX_ATOMIC_WRITE} B atomic-write limit`)
 
   // The fix: _sendChunkHashes splits it into frames that each fit.
-  const proto = new OverlayProtocolV2({}, fakeTransfer(), {})
+  const proto = makeProtocol(fakeTransfer())
   const sent = []
   const peer = { msgs: { chunkHashes: { send: (msg) => sent.push(msg) } } }
   proto._sendChunkHashes(peer, 'content:big', 3, chunks)
@@ -73,7 +73,7 @@ test('REGRESSION (FIX-12): a 1.25 TB-scale chunk list overflows one frame but pa
 
 test('FIX-12: the receiver reassembles paged frames and dispatches the full list once', (t) => {
   const chunks = bigChunkList(250000)
-  const proto = new OverlayProtocolV2({}, fakeTransfer(), {})
+  const proto = makeProtocol(fakeTransfer())
 
   // Page on the send side to get realistic frames, then feed them to the receiver.
   const sent = []
@@ -105,7 +105,7 @@ test('FIX-12: the receiver reassembles paged frames and dispatches the full list
 
 test('FIX-12: a small list still ships as one frame and dispatches immediately', (t) => {
   const chunks = [{ hash: 'b'.repeat(64), length: 16384 }, { hash: 'c'.repeat(64), length: 8192 }]
-  const proto = new OverlayProtocolV2({}, fakeTransfer(), {})
+  const proto = makeProtocol(fakeTransfer())
 
   const sent = []
   const sender = { msgs: { chunkHashes: { send: (msg) => sent.push(msg) } } }
@@ -121,7 +121,7 @@ test('FIX-12: a small list still ships as one frame and dispatches immediately',
 })
 
 test('FIX-12: pages for two files interleaved on one channel reassemble independently', (t) => {
-  const proto = new OverlayProtocolV2({}, fakeTransfer(), {})
+  const proto = makeProtocol(fakeTransfer())
   const peer = { id: 'p3' }
   const got = {}
   proto._schedulers.set('content:A', { awaitsMapFrom: () => true, maxMapEntries: () => null, onChunkHashes(_p, list) { got.A = list }, notePageProgress() {} })

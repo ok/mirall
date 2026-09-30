@@ -1,6 +1,6 @@
 import test from 'brittle'
-import { ChunkScheduler } from '../../src/shared/transfer/backends/overlay/vendor/chunk-scheduler.js'
-import { TIERS } from '../../src/shared/transfer/backends/overlay/vendor/chunker.js'
+import { ChunkScheduler } from '../../src/shared/transfer/backends/overlay/engine/chunk-scheduler.js'
+import { TIERS } from '../../src/shared/transfer/backends/overlay/engine/chunker.js'
 
 // A TransferManager stub: the scheduler only needs startReceive/writeChunk/finalize.
 // We accept every chunk (the real hash-verify is exercised in the vendor-transfer

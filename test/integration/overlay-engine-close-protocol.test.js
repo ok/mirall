@@ -2,8 +2,8 @@ import test from 'brittle'
 import Protomux from 'protomux'
 import crypto from 'hypercore-crypto'
 import { Duplex } from 'streamx'
-import { tmpStore, tmpDir, fs, path } from './overlay-vendor-helpers.js'
-import { HyperOverlayV2 } from '../../src/shared/transfer/backends/overlay/vendor/overlay-v2.js'
+import { tmpStore, tmpDir, fs, path } from './overlay-engine-helpers.js'
+import { makeOverlay } from '../helpers/overlay-engine.js'
 import { scaled } from '../helpers/bare-timing.js'
 
 function makeDuplex() {
@@ -18,7 +18,7 @@ function makeDuplex() {
 const settle = (ms = 400) => new Promise((r) => setTimeout(r, scaled(ms)))
 
 async function overlay(t, label, opts = {}) {
-  const o = new HyperOverlayV2(tmpStore(label), { namespace: 'mirall-overlay', destDir: tmpDir(label + '-d'), ...opts })
+  const o = makeOverlay(tmpStore(label), { namespace: 'mirall-overlay', ...opts })
   await o.ready()
   t.teardown(async () => { try { await o.close() } catch {} })
   return o
@@ -38,17 +38,20 @@ function fileOnDisk(label, bytes = 4096) {
 test('closeProtocol drops the protocol but leaves the index serving', async (t) => {
   const o = await overlay(t, 'cp-index')
   const early = fileOnDisk('cp-early')
-  await o.registerFile('/mir/early.bin', early.diskPath, { contentHash: early.contentHash, size: early.size })
+  await o.registerFile(early.diskPath, { contentHash: early.contentHash, size: early.size })
 
   o.closeProtocol()
   t.is(o._protocol, null, 'the protocol is gone')
 
-  t.ok(await o._index.hasFile('/mir/early.bin'), 'what was registered before is still readable')
+  t.is(o._contentHashPaths.get(early.contentHash), early.diskPath, 'what was registered before is still servable')
 
   const late = fileOnDisk('cp-late')
-  const res = await o.registerFile('/mir/late.bin', late.diskPath, { contentHash: late.contentHash, size: late.size })
-  t.not(res, null, 'the index still accepts writes')
-  t.ok(await o._index.hasFile('/mir/late.bin'), 'and the write landed')
+  const res = await o.registerFile(late.diskPath, { contentHash: late.contentHash, size: late.size })
+  t.not(res, null, 'registration still works')
+  t.is(o._contentHashPaths.get(late.contentHash), late.diskPath, 'and the registration landed')
+  const map = [{ hash: 'h', offset: 0, length: late.size }]
+  await o._index.putChunkMapByHash(late.contentHash, map)
+  t.alike(await o._index.getChunkMapByHash(late.contentHash), map, 'the index still accepts writes and serves them')
 
   // registerFile awaits _ensure(); the resolved stack promise must satisfy it rather than
   // rebuilding a protocol nobody is holding.
@@ -61,7 +64,7 @@ test('closeProtocol is idempotent and close() still completes after it', async (
   o.closeProtocol()
   t.is(o._protocol, null, 'the second call is a no-op')
   await o.close()
-  t.pass('close() runs its index and sync teardown with the protocol already gone')
+  t.pass('close() runs its index teardown with the protocol already gone')
 })
 
 // Destroying the protocol is what fires the per-peer teardown; doing it while the sockets are

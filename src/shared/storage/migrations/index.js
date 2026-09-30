@@ -15,6 +15,7 @@ import { migrateLocalBeesToEncrypted } from './metadata-migration.js'
 import { retireSpaceDrives } from './retire-space-drives.js'
 import { migrateCatalogsToEncrypted } from '../../shares/migrate-catalog-encrypt.js'
 import { migrateOverlayIndexToEncrypted } from '../../transfer/backends/overlay/migrate-overlay-index-encrypt.js'
+import { purgeOverlaySyncFeed } from '../../transfer/backends/overlay/purge-overlay-sync-feed.js'
 import { MIGRATION_STATUS, migrationResult } from './migration-result.js'
 
 /** @internal */
@@ -22,6 +23,7 @@ export const MIGRATIONS = Object.freeze([
   { id: 'local-bees-encrypt', stage: 'durable', run: () => migrateLocalBeesToEncrypted() },
   { id: 'catalogs-encrypt', stage: 'content', run: () => migrateCatalogsToEncrypted() },
   { id: 'overlay-index-encrypt', stage: 'content', run: () => migrateOverlayIndexToEncrypted() },
+  { id: 'overlay-sync-feed-purge', stage: 'content', run: () => purgeOverlaySyncFeed() },
   { id: 'retire-space-drives', stage: 'background', run: () => retireSpaceDrives() },
 ])
 

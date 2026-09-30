@@ -2,7 +2,7 @@
 //
 // This is the cross-component case the per-module suites both missed:
 // bandwidth-limiter.test.js only ever drove a single consumer, and
-// overlay-vendor-scheduler.test.js drove a single ChunkScheduler against a hand-rolled
+// overlay-engine-scheduler.test.js drove a single ChunkScheduler against a hand-rolled
 // fakeLimiter. Every bug in the FIX-BW series only exists when two or more real schedulers
 // share one real limiter, so they lived in the gap between the two files.
 //
@@ -12,7 +12,7 @@
 
 import test from 'brittle'
 import { createBandwidthLimiter } from '../../src/shared/transfer/bandwidth-limiter.js'
-import { ChunkScheduler } from '../../src/shared/transfer/backends/overlay/vendor/chunk-scheduler.js'
+import { ChunkScheduler } from '../../src/shared/transfer/backends/overlay/engine/chunk-scheduler.js'
 import { scaled } from '../helpers/timing.js'
 
 const KB = 1024
@@ -352,7 +352,7 @@ test('a cancelled transfer detaches its stream and returns unspent budget', asyn
 // that no reconnect or catalog append ever comes to resume.
 //
 // The wire half — protocol-v2 emitting message 14 while parked — is covered in
-// test/integration/overlay-vendor-backpressure.test.js; here the serve loop is modelled so a
+// test/integration/overlay-engine-backpressure.test.js; here the serve loop is modelled so a
 // real limiter and a real scheduler meet, which is the pair that produces the bug.
 
 // A holder serving one receiver, paced by ITS OWN upload limiter. `announce` decides whether

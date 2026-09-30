@@ -7,12 +7,12 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(here, '..', '..')
 const src = (rel) => readFileSync(path.join(root, 'src', rel), 'utf8')
 
-// Vendored overlay code spells a hypercore feed key `peerKey`; it stays re-diffable against
-// upstream, so it is exempt rather than renamed.
+// The overlay engine spells a hypercore feed key `peerKey`; it is exempt until its gates are
+// turned on.
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const p = path.join(dir, name)
-    if (statSync(p).isDirectory()) { if (name !== 'vendor' && name !== 'locales') walk(p, out) }
+    if (statSync(p).isDirectory()) { if (name !== 'engine' && name !== 'locales') walk(p, out) }
     else if (/\.(js|ts|tsx)$/.test(name)) out.push(p)
   }
   return out

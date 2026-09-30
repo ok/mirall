@@ -12,7 +12,7 @@ import { getSpace } from '../spaces/space.js'
 import { OUTCOME, TARGET_KIND } from '../contract/audit-kinds.js'
 import { selfActor, spaceRef, targetRef } from './audit-record.js'
 
-// 'EHASHMISMATCH' is the raw vendor code; the engine maps it to TRANSFER_CHECKSUM before this is
+// 'EHASHMISMATCH' is the raw engine code; the engine maps it to TRANSFER_CHECKSUM before this is
 // reached. Both are accepted so a caller that has not been through terminalCodeFor classifies the
 // same way.
 const INTEGRITY_CODES = new Set(['TRANSFER_CHECKSUM', 'EHASHMISMATCH'])

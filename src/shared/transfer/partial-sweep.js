@@ -1,7 +1,7 @@
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { listPending } from './pending-transfers.js'
-import { journalNameFor } from './backends/overlay/vendor/transfer.js'
+import { journalNameFor } from './backends/overlay/engine/transfer.js'
 import { PARTIAL_SUFFIX } from './partial-suffix.js'
 import { getJournalDir } from './backends/overlay/overlay-instance.js'
 import { createLogger } from '../core/logger.js'
