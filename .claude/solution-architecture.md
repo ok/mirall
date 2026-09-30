@@ -1460,6 +1460,11 @@ source. A refused map never reaches `startReceive`, so it cannot create, truncat
 with no peer left the fetch reports no holder and the stall retry takes over. Transfer
 control/progress frames go only to the peers asked for that hash.
 
+A chunk is taken only from the peer it was requested from (and charged to), so no other peer can
+write, refund or overrun the download cap. The overlay's path-sync messages (sync state, chunk cancel,
+transfer complete, conflict) keep their positional slots but are ignored, no sync feed is announced,
+and index compaction drops any sync rows a peer planted earlier.
+
 ### Resource bounds
 
 `src/shared/core/runtime-config.js` centralizes the DoS budgets: caps on peer-supplied data,

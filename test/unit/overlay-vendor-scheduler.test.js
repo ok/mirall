@@ -426,6 +426,53 @@ test('download cap: waiting on the limiter does not trip the idle watchdog', asy
   t.pass('completes once the cap allows')
 })
 
+test('REGRESSION (MIR-53: a bad chunk refunds the cap only when it was charged to its sender)', async (t) => {
+  const limiter = fakeLimiter(1000)
+  let refunded = 0
+  const give = limiter.give
+  limiter.give = (bytes) => { refunded += bytes; give(bytes) }
+  const mismatch = {
+    startReceive() { return { received: new Set() } },
+    writeChunk() { return { ok: false, error: 'hash mismatch' } },
+    finalize() { return { ok: true } },
+  }
+  const sched = new ChunkScheduler({
+    path: 'content:refund', destPath: '/tmp/refund', transfer: mismatch,
+    sendNeed: () => {}, timeout: 1000, cap: 8, limiter,
+  })
+  sched.promise().catch(() => {})
+  await answer(sched, peer, chunkList(2))
+
+  sched.onChunkData({ id: 'stranger' }, 0, Buffer.alloc(10))
+  t.is(refunded, 0, 'a chunk never charged to the sender refunds nothing')
+  sched.onChunkData(peer, 0, Buffer.alloc(10))
+  t.is(refunded, 10, "the charged peer's bad chunk is refunded, once")
+  sched.cancel()
+})
+
+test('REGRESSION (MIR-53: a source takes no chunk the fetch has in flight to another peer, nor one already written)', async (t) => {
+  const limiter = fakeLimiter(20)
+  const written = []
+  const transfer = { ...fakeTransfer(), writeChunk(_dest, index) { written.push(index); return { ok: true } } }
+  const sched = new ChunkScheduler({
+    path: 'content:owed', destPath: '/tmp/owed', transfer, sendNeed: () => {}, timeout: 1000, cap: 1, limiter,
+  })
+  sched.promise().catch(() => {})
+  const other = { id: 'p2' }
+  await answer(sched, peer, chunkList(4))
+  await answer(sched, other, chunkList(4))
+  t.ok(sched.awaitsChunk(peer, 0) && sched.awaitsChunk(other, 1), 'precondition: chunk 0 is in flight to peer, 1 to other')
+
+  sched.onChunkData(peer, 1, Buffer.alloc(10))
+  sched.onChunkData(peer, 3, Buffer.alloc(10))
+  t.alike(written, [], "neither another peer's chunk nor an unassigned one is written")
+  sched.onChunkData(peer, 0, Buffer.alloc(10))
+  sched.onChunkData(peer, 0, Buffer.alloc(10))
+  t.alike(written, [0], 'its own chunk is written, once')
+  sched.cancel()
+  t.absent(sched.awaitsChunk(other, 1), 'nothing is awaited once the fetch ends')
+})
+
 function countingTransfer() {
   const calls = []
   return {

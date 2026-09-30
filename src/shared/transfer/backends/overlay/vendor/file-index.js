@@ -140,15 +140,20 @@ export class FileIndex extends ReadyResource {
   // versioned core, flip the version pointer, and return the old core so the caller
   // can clear+purge it (the only way to return an append-only bee's disk to the OS).
   // Content-addressed entries (maps + /mir register) whose hash isServed() is false
-  // are dropped; real-path, tree, sync and config entries are always kept.
-  async compact ({ isServed }) {
+  // are dropped; real-path, tree and config entries are always kept. [mirall] §4.26 — sync entries
+  // are dropped too when `dropSyncState` is set.
+  async compact ({ isServed, dropSyncState = false }) {
+    const dropped = (key) => {
+      if (dropSyncState && key.startsWith('sync:')) return true
+      const hash = contentHashOfKey(key)
+      return hash !== null && !isServed(hash)
+    }
     // Skip the rewrite entirely when nothing is droppable — otherwise a compaction of
     // an already-clean index just churns (a fresh version core + a version-marker
     // append), which grows the index without reclaiming anything.
     let droppable = false
     for await (const { key } of this._bee.createReadStream()) {
-      const hash = contentHashOfKey(key)
-      if (hash !== null && !isServed(hash)) { droppable = true; break }
+      if (dropped(key)) { droppable = true; break }
     }
     if (!droppable) return null
 
@@ -161,8 +166,7 @@ export class FileIndex extends ReadyResource {
     let batch = dst.batch()
     let pending = 0
     for await (const { key, value } of this._bee.createReadStream()) {
-      const hash = contentHashOfKey(key)
-      if (hash !== null && !isServed(hash)) continue
+      if (dropped(key)) continue
       await batch.put(key, value)
       if (++pending >= 500) { await batch.flush(); batch = dst.batch(); pending = 0 }
     }

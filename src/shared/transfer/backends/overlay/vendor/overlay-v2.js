@@ -258,6 +258,10 @@ export class HyperOverlayV2 extends ReadyResource {
 
   async evictContent (contentHash) {
     await this._ensure()
+    // [mirall] §4.26 — a stale /mir/ entry names a path a later receive may reuse. The content: entry
+    // and _contentHashPaths stay: a download in flight still reads the first, the readers of the second
+    // re-check the disk, and dropping either races a same-hash re-registration.
+    this._filePaths.delete('/mir/' + contentHash)
     return this._index.evictContent(contentHash)
   }
 
@@ -266,7 +270,8 @@ export class HyperOverlayV2 extends ReadyResource {
   async compactIndex (opts) {
     await this._ensure()
     const retired = { name: indexCoreName(this._index.version), namespace: this._corestore.ns }
-    const core = await this._index.compact(opts)
+    // [mirall] §4.26 — mirall mode keeps no sync state, so compaction drops any sync: rows a peer planted.
+    const core = await this._index.compact({ ...opts, dropSyncState: !!this._serveAuthorizer })
     return core ? { core, alias: retired } : null
   }
 
