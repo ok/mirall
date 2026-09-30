@@ -5,8 +5,8 @@ import path from 'path'
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
 const rel = (p) => path.relative(root, p).split(path.sep).join('/')
-const ENGINE = 'src/shared/transfer/backends/overlay/engine/'
-const DOOR = 'src/shared/transfer/backends/overlay/overlay-journals.js'
+const ENGINE = 'src/shared/transfer/overlay/engine/'
+const DOOR = 'src/shared/transfer/overlay/overlay-journals.js'
 
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {

@@ -1,7 +1,7 @@
 import test from 'brittle'
 import c from 'compact-encoding'
 import { readFileSync } from 'fs'
-import * as m from '../../src/shared/transfer/backends/overlay/engine/wire/messages.js'
+import * as m from '../../src/shared/transfer/overlay/engine/wire/messages.js'
 import { LEGACY_FRAMES } from '../helpers/legacy-overlay-frames.js'
 
 const golden = JSON.parse(readFileSync(new URL('../fixtures/overlay-wire/v1.json', import.meta.url), 'utf8'))

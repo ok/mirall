@@ -5,9 +5,9 @@
 // reads one sits on its loading shape forever. Imported for side effect by EVERY harness entry: the failure is silent, arrives
 // whenever a harness later grows a real hook, and CI never runs these.
 import { request } from '../../src/renderer/ipc/ipc.js'
-import { configureQueryStore } from './../../src/renderer/store/query-store.js'
-import { configureMainStore, installMainPushBridge } from './../../src/renderer/store/main-store.js'
-import { installPushBridges, installReconcileBridge } from './../../src/renderer/store/reconcile.js'
+import { configureQueryStore } from '../../src/renderer/store/query-store.js'
+import { configureMainStore, installMainPushBridge } from '../../src/renderer/store/main-store.js'
+import { installPushBridges, installReconcileBridge } from '../../src/renderer/store/reconcile.js'
 
 configureQueryStore({ request: (type, params, opts) => request(type, params, undefined, opts) })
 configureMainStore(window.bridge)

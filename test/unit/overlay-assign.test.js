@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { planRound, refundChunks } from '../../src/shared/transfer/backends/overlay/engine/scheduler/assign.js'
+import { planRound, refundChunks } from '../../src/shared/transfer/overlay/engine/scheduler/assign.js'
 
 function state({ peers, lengths, cap = 8, limiter = null, cursor = 0 }) {
   return {

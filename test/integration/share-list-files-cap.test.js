@@ -2,7 +2,7 @@ import test from 'brittle'
 import { freshPeer } from '../helpers/store.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { advertise, collectOwnShare } from '../../src/shared/shares/own-catalog.js'
-import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
+import { overlayBackend } from '../../src/shared/transfer/overlay/index.js'
 
 // REGRESSION (FIX-141): a very large folder (the field repro was 150k files) made
 // share:list-files / share:folder-info materialise the ENTIRE catalog as a row array

@@ -58,7 +58,7 @@ test('every blocking class is reported by name and by site, and the tree exits 1
 
 test('the overlay engine is held to the same rules as the rest of src/', (t) => {
   const root = tree(t, {
-    'shared/transfer/backends/overlay/engine/scheduler/liveness.js': '// FIX-BW9 — keep-alive budget, per §4.6\nexport const v = 1\n',
+    'shared/transfer/overlay/engine/scheduler/liveness.js': '// FIX-BW9 — keep-alive budget, per §4.6\nexport const v = 1\n',
     'a/clean.js': CLEAN
   })
   const { code, out } = run(root)
@@ -69,7 +69,7 @@ test('the overlay engine is held to the same rules as the rest of src/', (t) => 
 
 test('PROVENANCE.md is the one .md the gate reads, for planning-doc references', (t) => {
   const root = tree(t, {
-    'shared/transfer/backends/overlay/engine/PROVENANCE.md': '- item (plan: `.claude/tasks/plan-x.md`)\n',
+    'shared/transfer/overlay/engine/PROVENANCE.md': '- item (plan: `.claude/tasks/plan-x.md`)\n',
     'a/clean.js': CLEAN
   })
   const { code, out } = run(root)
@@ -81,7 +81,7 @@ test('a clean tree exits 0', (t) => {
   const root = tree(t, {
     'a/clean.js': CLEAN,
     'b/clean.css': '/* The groove token sits outside the surface ramp. */\n',
-    'shared/transfer/backends/overlay/engine/PROVENANCE.md': '- item, per .claude/solution-architecture.md\n'
+    'shared/transfer/overlay/engine/PROVENANCE.md': '- item, per .claude/solution-architecture.md\n'
   })
   const { code, out } = run(root)
   t.is(code, 0)

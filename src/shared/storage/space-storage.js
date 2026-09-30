@@ -9,7 +9,8 @@ import { createLogger } from '../core/logger.js'
 import { getSpace } from '../spaces/space.js'
 import { getLocalPublicKeyHex } from '../spaces/profile.js'
 import { listSharesForSpace } from '../shares/share-registry.js'
-import { getContentBackend, UNSUPPORTED } from '../transfer/content-backends.js'
+import { isServableShare } from '../transfer/content-mode.js'
+import { overlayBackend as backend } from '../transfer/overlay/index.js'
 import { getForeignMount } from '../folders/mount-store.js'
 import { listVerifiedForShare } from '../transfer/files.js'
 import { listFiles } from '../transfer/file-listing.js'
@@ -20,8 +21,7 @@ const log = createLogger('space-storage')
 const ZERO = { totalBytes: 0, onDeviceBytes: 0 }
 
 async function shareContribution(spaceId, share, me) {
-  const backend = getContentBackend(share)
-  if (backend === UNSUPPORTED) return ZERO
+  if (!isServableShare(share)) return ZERO
   if (share.owner === me) {
     // An owned folder serves in place — its bytes are on this device by definition.
     const { totalBytes } = await backend.listOwn(spaceId, share.id, 0)

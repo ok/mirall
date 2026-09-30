@@ -1,6 +1,6 @@
 import test from 'brittle'
 import { setupSelfMirror } from '../helpers/owned.js'
-import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
+import { getOverlay } from '../../src/shared/transfer/overlay/overlay-instance.js'
 import { getForeignMount } from '../../src/shared/folders/mount-store.js'
 import fs from 'bare-fs'
 import path from 'bare-path'

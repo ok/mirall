@@ -8,15 +8,15 @@ import { getSpace, getSpaceContentKey } from '../../src/shared/spaces/space.js'
 import { createSpace, joinSpace, materializeSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { advertise, getOwnEntry, ownCatalogKeyHex } from '../../src/shared/shares/own-catalog.js'
 import { setSpaceDownloadRoot } from '../../src/shared/core/paths.js'
-import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
-import { getOverlay, initOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
-import { overlayHashFile } from '../../src/shared/transfer/backends/overlay/overlay-hash.js'
+import { serveIndex } from '../../src/shared/transfer/overlay/overlay-serve-index.js'
+import { getOverlay, initOverlay, teardownOverlay } from '../../src/shared/transfer/overlay/overlay-instance.js'
+import { overlayHashFile } from '../../src/shared/transfer/overlay/overlay-hash.js'
 import { initDownloads, markDownloaded, markVerified, getOwnedSourcePath } from '../../src/shared/transfer/files.js'
 import { listFiles } from '../../src/shared/transfer/file-listing.js'
 import { initPendingTransfers, recordPending, getPendingFor } from '../../src/shared/transfer/pending-transfers.js'
-import { looseShareFile, looseUnshareFile, looseListOwn, looseCancelPublish, handleLooseFsEvent, MAX_LOOSE_FILES_PER_SPACE, looseSources } from '../../src/shared/transfer/backends/overlay/loose-publish.js'
-import { looseCancelTransfer } from '../../src/shared/transfer/backends/overlay/loose-downloads.js'
-import { rehydrateOwnedContent, sweepOwnedPresence } from '../../src/shared/transfer/backends/overlay/overlay-maintenance.js'
+import { looseShareFile, looseUnshareFile, looseListOwn, looseCancelPublish, handleLooseFsEvent, MAX_LOOSE_FILES_PER_SPACE, looseSources } from '../../src/shared/transfer/overlay/loose-publish.js'
+import { looseCancelTransfer } from '../../src/shared/transfer/overlay/loose-downloads.js'
+import { rehydrateOwnedContent, sweepOwnedPresence } from '../../src/shared/transfer/overlay/overlay-maintenance.js'
 import { LOOSE_SHARE_ID, looseTransferIdFor } from '../../src/shared/transfer/transfer-id.js'
 import { initLooseIpc } from '../helpers/overlay-ipc.js'
 
@@ -380,7 +380,7 @@ test('Item 2B: a still-hashing peer loose entry is listed and presence-gates to 
 test('REGRESSION (FIX-cycle): the loose modules each import standalone', async (t) => {
   const fmod = await import('../../src/shared/transfer/files.js')
   const listing = await import('../../src/shared/transfer/file-listing.js')
-  const lmod = await import('../../src/shared/transfer/backends/overlay/loose-publish.js')
+  const lmod = await import('../../src/shared/transfer/overlay/loose-publish.js')
   t.is(typeof fmod.markOwnedSource, 'function')
   t.is(typeof listing.addFile, 'function')
   t.is(typeof lmod.looseShareFile, 'function')

@@ -12,7 +12,8 @@ import { MOUNT_STATUS } from '../contract/statuses.js'
 import { isMountFault } from '../contract/mount-fault.js'
 import { getForeignFullWalkEvery, getMirrorDeletionGuard } from '../core/runtime-config.js'
 import { getLocalPublicKeyHex } from '../spaces/profile.js'
-import { getContentBackend, hasContentBackend } from '../transfer/content-backends.js'
+import { isServableShare } from '../transfer/content-mode.js'
+import { overlayBackend } from '../transfer/overlay/index.js'
 import { isOwnerOnline } from '../network/presence-leases.js'
 import { createMountProbe, materializeOverlayFile, mirrorDeleteDecision } from './mirror-fetch.js'
 import { MIRROR_DELETE, mirrorMayFetch, mirrorKey, shouldWalk } from './mirror-policy.js'
@@ -84,10 +85,10 @@ export async function materializeOnce(spaceId, shareId) {
     return
   }
   const writer = passWriter(current, gen)
-  if (hasContentBackend(share)) return await materializeOnceCatalog(current, share, { gen, writer })
-  // No usable content backend (unsupported / unreadable mode) — don't mirror, but settle the
+  if (isServableShare(share)) return await materializeOnceCatalog(current, share, { gen, writer })
+  // A content mode this build cannot serve — don't mirror, but settle the
   // record so it doesn't advertise 'syncing' forever.
-  log.debug('skipping mirror tick — no usable content backend:', share.contentMode, shareId)
+  log.debug('skipping mirror tick — unsupported content mode:', share.contentMode, shareId)
   await settleMirrorSyncState(writer, current, true)
 }
 
@@ -162,17 +163,17 @@ async function runInitialMaterializeScan(mount, gen) {
   const key = mirrorKey(mount.spaceId, mount.shareId)
   const share = await loadShareForForeignMount(mount)
   if (mirrorStopped(key, gen)) return { stopped: true }
-  if (share && hasContentBackend(share)) return await initialMaterializeScanCatalog(mount, share, gen)
+  if (share && isServableShare(share)) return await initialMaterializeScanCatalog(mount, share, gen)
   // A share that could not be read says nothing about the folder: the poll tick settles it once it
   // reads, or unmounts it if the owner is gone.
   if (!share) {
     log.warn('skipping mirror scan — share not readable yet:', mount.shareId)
     return { skipped: 'share-unreadable' }
   }
-  // No usable content backend — skip the mirror rather than materialize from a path this build
+  // A content mode this build cannot serve — skip the mirror rather than materialize from a path it
   // can't serve. Still settle the record so it doesn't advertise 'syncing' forever for a mount that
   // can never fetch.
-  log.warn('skipping mirror — no usable content backend:', share.contentMode, mount.shareId)
+  log.warn('skipping mirror — unsupported content mode:', share.contentMode, mount.shareId)
   await settleMirrorSyncState(passWriter(mount, gen), mount, true)
   return { skipped: 'no-content-backend' }
 }
@@ -218,7 +219,7 @@ async function initialMaterializeScanCatalog(mount, share, gen) {
   // re-mounted key's Set or collision map from its stale mount object.
   const synced = state.syncedSetFor(mount)
   state.renamedFor(mount)
-  const { entries: raw, complete } = await getContentBackend(share).listPeerWithMeta(mount.spaceId, share)
+  const { entries: raw, complete } = await overlayBackend.listPeerWithMeta(mount.spaceId, share)
   const entries = dropUnsafeEntries(raw, (rel) => log.warn('refusing a peer file path that escapes the mount folder — skipping this entry (the owner drive may be malicious or corrupted):', rel, '(source: catalog-initial)'))
   const walk = await materializeEntries(mount, share, entries, {
     key, gen, synced, label: 'catalog initial materialize failed:',
@@ -303,7 +304,7 @@ async function materializeOnceCatalog(mount, share, { gen, writer }) {
 
   // Read BEFORE the listing: an append landing mid-walk leaves the head past the version this pass
   // records, so the next tick walks. A pass only ever converges against the snapshot it walked.
-  const version = await getContentBackend(share).catalogVersion?.(mount.spaceId, share) ?? null
+  const version = await overlayBackend.catalogVersion(mount.spaceId, share) ?? null
   const skipped = state.skipped(key)
   const decision = shouldWalk({
     // Only a non-null version is ever stored, so a miss and an unknown both read as null.
@@ -331,7 +332,7 @@ async function materializeOnceCatalog(mount, share, { gen, writer }) {
   state.beginWalk(key)
   const synced = state.syncedSetFor(mount)
   state.renamedFor(mount)
-  const { entries: raw, complete } = await getContentBackend(share).listPeerWithMeta(mount.spaceId, share)
+  const { entries: raw, complete } = await overlayBackend.listPeerWithMeta(mount.spaceId, share)
   const entries = dropUnsafeEntries(raw, (rel) => log.warn('refusing a peer file path that escapes the mount folder — skipping this entry (the owner drive may be malicious or corrupted):', rel, '(source: catalog-tick)'))
   const onDrive = new Map(entries.map((e) => [e.relPath, e]))
   const walk = await materializeEntries(mount, share, onDrive.values(), {

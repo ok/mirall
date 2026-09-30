@@ -2,8 +2,8 @@ import test from 'brittle'
 import { freshPeer } from '../helpers/store.js'
 import { flushAudit } from '../../src/shared/audit/audit-log.js'
 import { queryAudit } from '../../src/shared/audit/audit-query.js'
-import { recordServeDenial, resetServeDenialAudit } from '../../src/shared/transfer/backends/overlay/serve-denial-audit.js'
-import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
+import { recordServeDenial, resetServeDenialAudit } from '../../src/shared/transfer/overlay/serve-denial-audit.js'
+import { serveIndex } from '../../src/shared/transfer/overlay/overlay-serve-index.js'
 import { tagged } from '../helpers/capture-console.js'
 
 const REQUESTER = 'ab'.repeat(32)

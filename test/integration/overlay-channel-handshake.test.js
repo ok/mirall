@@ -3,7 +3,7 @@ import Protomux from 'protomux'
 import { Duplex } from 'streamx'
 import { tmpStore } from './overlay-engine-helpers.js'
 import { makeOverlay } from '../helpers/overlay-engine.js'
-import { VERSION, MIN_VERSION, CAP_LOCAL_FILES, CAP_ADAPTIVE_CHUNKS } from '../../src/shared/transfer/backends/overlay/engine/wire/slots.js'
+import { VERSION, MIN_VERSION, CAP_LOCAL_FILES, CAP_ADAPTIVE_CHUNKS } from '../../src/shared/transfer/overlay/engine/wire/slots.js'
 import { scaled } from '../helpers/bare-timing.js'
 
 function makeDuplex() {

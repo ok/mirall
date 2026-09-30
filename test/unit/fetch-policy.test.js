@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { isTerminalFault, classifyMiss, nextRetryDelay } from '../../src/shared/transfer/backends/overlay/fetch-policy.js'
+import { isTerminalFault, classifyMiss, nextRetryDelay } from '../../src/shared/transfer/overlay/fetch-policy.js'
 import { CODES } from '../../src/shared/contract/errors.js'
 
 test('the terminal set is exactly the faults no retry can fix', (t) => {

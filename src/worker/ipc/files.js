@@ -16,9 +16,9 @@ import {
   looseDownload,
   loosePause,
   looseCancelTransfer,
-} from '../../shared/transfer/backends/overlay/loose-downloads.js'
-import { looseCancelPublish, handleLooseFsEvent } from '../../shared/transfer/backends/overlay/loose-publish.js'
-import { folderPause, folderCancel } from '../../shared/transfer/backends/overlay/folder-downloads.js'
+} from '../../shared/transfer/overlay/loose-downloads.js'
+import { looseCancelPublish, handleLooseFsEvent } from '../../shared/transfer/overlay/loose-publish.js'
+import { folderPause, folderCancel } from '../../shared/transfer/overlay/folder-downloads.js'
 import { isLooseTransferId, transferIdParts } from '../../shared/transfer/transfer-id.js'
 import { subscribeServeDetail, unsubscribeServeDetail, dropServeDetailClient, listServeSummaries } from '../../shared/transfer/serve-ledger.js'
 import { rescueStalledTransfers } from '../../shared/network/convergence-tick.js'

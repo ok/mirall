@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
+import { serveIndex } from '../../src/shared/transfer/overlay/overlay-serve-index.js'
 import {
   ServeLedger,
   onServeStart,

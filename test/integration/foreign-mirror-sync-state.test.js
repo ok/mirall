@@ -11,8 +11,8 @@ import { createFakeIpc } from '../helpers/fake-ipc.js'
 import { initForeignFolders } from '../../src/shared/folders/foreign-folders.js'
 import { setForeignEnabled } from '../../src/shared/folders/foreign-verbs.js'
 import { initialMaterializeScan, runMaterializeTick } from '../../src/shared/folders/mirror-pass.js'
-import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
-import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
+import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/transfer/overlay/overlay-instance.js'
+import { overlayBackend } from '../../src/shared/transfer/overlay/index.js'
 import { until } from '../helpers/bare-poll.js'
 
 const ONE_FILE = [{ relPath: 'a.bin', contentHash: 'a'.repeat(64), size: 1024 }]

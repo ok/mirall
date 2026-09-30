@@ -1,6 +1,6 @@
 import test from 'brittle'
-import { mapFault, maxMapEntries, sameMap } from '../../src/shared/transfer/backends/overlay/engine/scheduler/map-admission.js'
-import { getTierParams } from '../../src/shared/transfer/backends/overlay/engine/chunker.js'
+import { mapFault, maxMapEntries, sameMap } from '../../src/shared/transfer/overlay/engine/scheduler/map-admission.js'
+import { getTierParams } from '../../src/shared/transfer/overlay/engine/chunker.js'
 
 const tier = getTierParams(0)
 const list = (...lengths) => lengths.map((length, i) => ({ hash: 'h' + i, length }))

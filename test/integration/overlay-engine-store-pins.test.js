@@ -1,7 +1,7 @@
 import test from 'brittle'
-import { createStreamingHasher, hashChunk } from '../../src/shared/transfer/backends/overlay/engine/chunker.js'
-import { encodeJournal, loadJournal, JOURNAL_MAGIC } from '../../src/shared/transfer/backends/overlay/engine/transfer/journal.js'
-import { indexCoreName } from '../../src/shared/transfer/backends/overlay/engine/store/file-index.js'
+import { createStreamingHasher, hashChunk } from '../../src/shared/transfer/overlay/engine/chunker.js'
+import { encodeJournal, loadJournal, JOURNAL_MAGIC } from '../../src/shared/transfer/overlay/engine/transfer/journal.js'
+import { indexCoreName } from '../../src/shared/transfer/overlay/engine/store/file-index.js'
 import { tmpDir, fs, path } from './overlay-engine-helpers.js'
 
 // The resume journal's bytes as released builds write them: a change here strands every paused

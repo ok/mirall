@@ -12,7 +12,7 @@
 
 import test from 'brittle'
 import { createBandwidthLimiter } from '../../src/shared/transfer/bandwidth-limiter.js'
-import { ChunkScheduler } from '../../src/shared/transfer/backends/overlay/engine/scheduler/scheduler.js'
+import { ChunkScheduler } from '../../src/shared/transfer/overlay/engine/scheduler/scheduler.js'
 import { scaled } from '../helpers/timing.js'
 
 const KB = 1024

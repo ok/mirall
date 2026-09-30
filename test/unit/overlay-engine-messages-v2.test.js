@@ -5,9 +5,9 @@
 
 // Ported from hyper-overlay upstream test/messages-v2.test.js (6cac8ee). Body
 // verbatim EXCEPT the contentRequest cases, updated for the [mirall] §4.1 `from`
-// field. See src/shared/transfer/backends/overlay/engine/PROVENANCE.md.
+// field. See src/shared/transfer/overlay/engine/PROVENANCE.md.
 import test from 'brittle'
-import * as m from '../../src/shared/transfer/backends/overlay/engine/wire/messages.js'
+import * as m from '../../src/shared/transfer/overlay/engine/wire/messages.js'
 import crypto from 'hypercore-crypto'
 
 function roundTrip(t, codec, value) {

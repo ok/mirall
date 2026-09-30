@@ -6,7 +6,7 @@
 // container would extend the document's own scroll area.
 import { useTranslation } from 'react-i18next'
 import { docsUrl, type DocsTarget } from '../../shell/docs-links.js'
-import Icon from '../primitives/Icon.js'
+import Icon from './Icon.js'
 
 interface DocsLinkProps {
   target: DocsTarget

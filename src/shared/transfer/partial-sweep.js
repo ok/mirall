@@ -2,7 +2,7 @@ import fs from 'bare-fs'
 import path from 'bare-path'
 import { listPending } from './pending-transfers.js'
 import { PARTIAL_SUFFIX } from './partial-suffix.js'
-import { hasResumeJournal } from './backends/overlay/overlay-journals.js'
+import { hasResumeJournal } from './overlay/overlay-journals.js'
 import { createLogger } from '../core/logger.js'
 
 const log = createLogger('partial-sweep')

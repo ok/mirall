@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import IconButton from '../primitives/IconButton.js'
+import IconButton from './IconButton.js'
 
 // The block every dialog opens with; design.md fixes its anatomy. Two axes are real variation: the
 // title is a sentence or a <FilenameTitle> carrying a typed name, and the close button is enabled,

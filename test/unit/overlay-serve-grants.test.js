@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { ServeGrants } from '../../src/shared/transfer/backends/overlay/engine/protocol/serve-grants.js'
+import { ServeGrants } from '../../src/shared/transfer/overlay/engine/protocol/serve-grants.js'
 
 const peer = () => ({ authorizedServe: new Map() })
 

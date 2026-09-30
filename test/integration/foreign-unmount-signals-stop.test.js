@@ -9,8 +9,8 @@ import { setForeignEnabled, unmountForeignFolder } from '../../src/shared/folder
 import { runMaterializeTick } from '../../src/shared/folders/mirror-pass.js'
 import { createLifecycle } from '../../src/shared/core/subsystem.js'
 import { createFakeIpc } from '../helpers/fake-ipc.js'
-import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
-import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
+import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/transfer/overlay/overlay-instance.js'
+import { overlayBackend } from '../../src/shared/transfer/overlay/index.js'
 import { waitFor } from '../helpers/bare-poll.js'
 
 // REGRESSION (FIX-MIRROR-STOP): a mirror paused mid-download and then unmounted while online

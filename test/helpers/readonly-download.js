@@ -3,7 +3,7 @@
 // (bare-fs), for the integration layer.
 import fs from 'bare-fs'
 import path from 'bare-path'
-import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
+import { getOverlay } from '../../src/shared/transfer/overlay/overlay-instance.js'
 import { partialPathFor } from '../../src/shared/transfer/partial-suffix.js'
 
 export const SPACE = 'space1'

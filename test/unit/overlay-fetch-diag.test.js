@@ -1,6 +1,6 @@
 import test from 'brittle'
-import { makeFetchDiag } from '../../src/shared/transfer/backends/overlay/fetch-run.js'
-import { DELIBERATE_STOPS } from '../../src/shared/transfer/backends/overlay/fetch-outcome.js'
+import { makeFetchDiag } from '../../src/shared/transfer/overlay/fetch-run.js'
+import { DELIBERATE_STOPS } from '../../src/shared/transfer/overlay/fetch-outcome.js'
 import { setVerbose } from '../helpers/runtime-verbose.js'
 import { around as capture } from '../helpers/capture-console.js'
 

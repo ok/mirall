@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url'
 import path from 'path'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
-const ENGINE = path.join(root, 'src/shared/transfer/backends/overlay/engine')
+const ENGINE = path.join(root, 'src/shared/transfer/overlay/engine')
 
 // Every engine file that derives from upstream, mapped to the upstream file it came from. A file born
 // in this repository has no row and carries no upstream header. When a derived file is split, each

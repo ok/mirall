@@ -6,7 +6,7 @@ import { ENGINE_DIR, pureEngineModules } from '../../eslint-rules/invariants.mjs
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const ENGINE = path.join(root, ENGINE_DIR)
-const WRAPPER = 'src/shared/transfer/backends/overlay'
+const WRAPPER = 'src/shared/transfer/overlay'
 
 // App code enters the engine only through these modules, and only from these files. A new importer
 // or a new entry is a decision that takes a row here; a re-export hub would hide the graph instead.

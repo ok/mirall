@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { isTransientWriteCode, surfacesToCaller, isDestinationFault } from '../../src/shared/transfer/backends/overlay/engine/local-faults.js'
+import { isTransientWriteCode, surfacesToCaller, isDestinationFault } from '../../src/shared/transfer/overlay/engine/local-faults.js'
 
 test('transient write codes stay retryable', (t) => {
   for (const code of ['EBUSY', 'EAGAIN', 'EINTR', 'EMFILE', 'ENFILE']) t.ok(isTransientWriteCode(code), code)

@@ -6,9 +6,9 @@
 // reaches assistive tech. Mounts the REAL <RemoveFileModal> twice.
 import './harness-bootstrap.js'
 import { createRoot } from 'react-dom/client'
-import RemoveFileModal from './../../src/renderer/components/modals/RemoveFileModal.js'
+import RemoveFileModal from '../../src/renderer/components/modals/RemoveFileModal.js'
 // The dialog reports a rejected removal through a toast, so it needs the provider to mount at all.
-import { ToastProvider } from './../../src/renderer/components/toast/ToastProvider.js'
+import { ToastProvider } from '../../src/renderer/components/toast/ToastProvider.js'
 
 const LONG_NAME = 'XXX-X002_T001_0401XI_16384x8192_25fps_409pt3_133pt2_S001_take_01_final.mov'
 const SHORT_NAME = 'notes.txt'

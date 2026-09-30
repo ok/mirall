@@ -10,7 +10,7 @@ import { trackConnection, resetRelayedConnections, snapshotRelayedConnections } 
 import { installRelayObserver, resetRelayObserver } from '../../src/shared/network/relay-observe.js'
 import { socketMsgHandlers } from '../../src/shared/network/swarm-registries.js'
 import { reconnectAll } from '../../src/shared/network/space-topics.js'
-import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
+import { serveIndex } from '../../src/shared/transfer/overlay/overlay-serve-index.js'
 import { ServeLedger, onServeStart } from '../../src/shared/transfer/serve-ledger.js'
 import { waitFor } from '../helpers/bare-poll.js'
 

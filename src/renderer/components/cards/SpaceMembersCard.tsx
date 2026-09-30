@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import type { SpaceMember } from '../../types/types.js'
 import CollapsibleCard from '../primitives/CollapsibleCard.js'
-import MemberCard from '../cards/MemberCard.js'
+import MemberCard from './MemberCard.js'
 import AvatarStack from '../primitives/AvatarStack.js'
 import TextButton from '../primitives/TextButton.js'
 import { summarizeMembers } from '../../model/member-summary.js'

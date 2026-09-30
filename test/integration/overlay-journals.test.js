@@ -3,9 +3,9 @@ import fs from 'bare-fs'
 import path from 'bare-path'
 import crypto from 'hypercore-crypto'
 import { freshPeer } from '../helpers/store.js'
-import { getJournalDir, hasResumeJournal, discardResumeJournal, sweepOrphanedJournals } from '../../src/shared/transfer/backends/overlay/overlay-journals.js'
-import { TransferManager } from '../../src/shared/transfer/backends/overlay/engine/transfer/transfer-manager.js'
-import { hashChunk } from '../../src/shared/transfer/backends/overlay/engine/chunker.js'
+import { getJournalDir, hasResumeJournal, discardResumeJournal, sweepOrphanedJournals } from '../../src/shared/transfer/overlay/overlay-journals.js'
+import { TransferManager } from '../../src/shared/transfer/overlay/engine/transfer/transfer-manager.js'
+import { hashChunk } from '../../src/shared/transfer/overlay/engine/chunker.js'
 
 // A paused receive into `dir`, journalled where the app keeps journals.
 async function pausedReceive(dir, name) {

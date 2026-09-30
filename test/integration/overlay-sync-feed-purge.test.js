@@ -2,8 +2,8 @@ import test from 'brittle'
 import b4a from 'b4a'
 import { freshPeer } from '../helpers/store.js'
 import { getStore, createLocalBee, overlayIndexEncryptionKey } from '../../src/shared/core/store.js'
-import { purgeOverlaySyncFeed, SYNC_FEED_CORE } from '../../src/shared/transfer/backends/overlay/purge-overlay-sync-feed.js'
-import { OVERLAY_NAMESPACE, OVERLAY_NAMESPACE_ENC } from '../../src/shared/transfer/backends/overlay/overlay-namespaces.js'
+import { purgeOverlaySyncFeed, SYNC_FEED_CORE } from '../../src/shared/transfer/overlay/purge-overlay-sync-feed.js'
+import { OVERLAY_NAMESPACE, OVERLAY_NAMESPACE_ENC } from '../../src/shared/transfer/overlay/overlay-namespaces.js'
 
 // The feed as a 1.11.x engine left it: named, JSON, encrypted under the overlay key in -e1.
 async function seedFeed(nsName, encryptionKey = null) {

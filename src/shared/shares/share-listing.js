@@ -15,7 +15,7 @@ import { getLocalPublicKeyHex } from '../spaces/profile.js'
 import { foreignFetchActive } from '../folders/mirror-fetch.js'
 import { requestMirrorWalk } from '../folders/foreign-verbs.js'
 import { localRelOf } from '../folders/mirror-state.js'
-import { folderHasTransfer } from '../transfer/backends/overlay/folder-downloads.js'
+import { folderHasTransfer } from '../transfer/overlay/folder-downloads.js'
 import {
   claimedPathFor,
   getDownloadedPath,
@@ -30,7 +30,6 @@ import { COPY_VERDICT, verifiedCopyVerdict } from '../transfer/verified-copy.js'
 import { SHARE_FILE_STATUS } from '../contract/statuses.js'
 /** @import { CancellationSignal } from '../core/cancellation.js' */
 /** @import { StoredShare } from './shares.js' */
-/** @import { getContentBackend, UNSUPPORTED } from '../transfer/content-backends.js' */
 /** @import { ShareFileListing } from '../contract/responses.js' */
 
 const log = createLogger('share-listing')
@@ -156,7 +155,7 @@ async function loadListingContext(spaceId, share, isOwn, deps) {
 /**
  * @param {string} spaceId
  * @param {StoredShare} share
- * @param {Exclude<ReturnType<typeof getContentBackend>, typeof UNSUPPORTED>} backend
+ * @param {typeof import('../transfer/overlay/index.js').overlayBackend} backend
  * @param {typeof productionDeps} [deps]
  * @param {{ signal?: CancellationSignal | null }} [opts]
  * @returns {Promise<ShareFileListing>}

@@ -38,7 +38,7 @@ Hard boundaries, each enforced by a gate rather than a comment:
 - A module that a `test/unit` test loads under plain Node must not import `bare-*`. The pure half of
   `folders/` is listed in `eslint.config.mjs` → `pureFolderPolicyModules` and enforced there; do the
   I/O in the engine that calls the policy.
-- The overlay engine (`src/shared/transfer/backends/overlay/engine/`) is a first-party fork of
+- The overlay engine (`src/shared/transfer/overlay/engine/`) is a first-party fork of
   hyper-overlay 0.2.9 and tracks no upstream; its `PROVENANCE.md` records origin and license only.
   It imports npm packages and its own files, never the app — Mirall policy is injected from
   `overlay-instance.js`. Its wire contract (message slots 0-14 in order, every kept codec

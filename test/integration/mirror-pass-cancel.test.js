@@ -9,7 +9,7 @@ import { initialMaterializeScan, mirrorIdleForTests, resetMirrorPass, runMateria
 import { mirrorHealth } from '../../src/shared/folders/foreign-folders.js'
 import { STALL_FACTOR } from '../../src/shared/folders/mirror-policy.js'
 import { getForeignPollIntervalMs } from '../../src/shared/core/runtime-config.js'
-import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
+import { overlayBackend } from '../../src/shared/transfer/overlay/index.js'
 import { registerForeignFolders } from '../../src/worker/ipc/foreign-folders.js'
 
 // A pass cancelled by a pause, relocate or unmount writes nothing after the verb that cancelled it:

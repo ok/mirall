@@ -6,7 +6,7 @@
 import './harness-bootstrap.js'
 import { createRoot } from 'react-dom/client'
 import '../../src/renderer/platform/i18n.js'
-import FileCard from './../../src/renderer/components/cards/FileCard.js'
+import FileCard from '../../src/renderer/components/cards/FileCard.js'
 import type { FileEntry, PeerDownloadSummary, SpaceMember } from '../../src/renderer/types/types.js'
 import type { Decoration } from '../../src/renderer/types/ui.js'
 

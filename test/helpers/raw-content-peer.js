@@ -2,8 +2,8 @@ import Hyperswarm from 'hyperswarm'
 import Protomux from 'protomux'
 import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
-import { handshake } from '../../src/shared/transfer/backends/overlay/engine/wire/messages.js'
-import { SLOTS } from '../../src/shared/transfer/backends/overlay/engine/wire/slots.js'
+import { handshake } from '../../src/shared/transfer/overlay/engine/wire/messages.js'
+import { SLOTS } from '../../src/shared/transfer/overlay/engine/wire/slots.js'
 import { LEGACY_FRAMES } from './legacy-overlay-frames.js'
 
 // A hand-built peer on a space's CONTENT topic (not the worker): it never sends a content-hello,

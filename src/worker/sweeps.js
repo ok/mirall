@@ -3,7 +3,7 @@
 // path: the live signals (watcher unlinks, invite expiry checks, the audit retention read) already
 // enforce the same thing, so a tick that fails or never runs only defers cleanup.
 import { Subsystem } from '../shared/core/subsystem.js'
-import { sweepBackends } from '../shared/transfer/content-backends.js'
+import { overlayBackend } from '../shared/transfer/overlay/index.js'
 import { listSpaces } from '../shared/spaces/space.js'
 import { createLocalBee } from '../shared/core/store.js'
 import { sweepExpiredInvites } from '../shared/spaces/profile.js'
@@ -29,7 +29,7 @@ export async function compactIndexIfDue() {
     await bee.ready()
     const last = (await bee.get(LAST_COMPACT_KEY))?.value?.at ?? 0
     if (Date.now() - last < INDEX_COMPACT_INTERVAL_MS) return false
-    const { compactOverlayIndex } = await import('../shared/transfer/backends/overlay/overlay-maintenance.js')
+    const { compactOverlayIndex } = await import('../shared/transfer/overlay/overlay-maintenance.js')
     await compactOverlayIndex()
     await bee.put(LAST_COMPACT_KEY, { at: Date.now() })
     return true
@@ -53,7 +53,7 @@ export class Sweeps extends Subsystem {
     // Backstop for catalog-backed shares: tombstone catalog entries whose source vanished
     // (watcher unlinks cover the live case; this catches missed events).
     this.timers.setInterval(() => {
-      sweepBackends().catch((err) => log.debug('presence sweep failed:', err.message))
+      overlayBackend.sweepPresence().catch((err) => log.debug('presence sweep failed:', err.message))
     }, PRESENCE_SWEEP_INTERVAL_MS)
 
     this.timers.setInterval(() => {

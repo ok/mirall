@@ -1,6 +1,6 @@
 import test from 'brittle'
 import { freshPeer, freshDurable } from '../helpers/store.js'
-import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
+import { serveIndex } from '../../src/shared/transfer/overlay/overlay-serve-index.js'
 import { onServeStart, onChunkServed } from '../../src/shared/transfer/serve-ledger.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { queryAudit } from '../../src/shared/audit/audit-query.js'

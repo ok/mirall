@@ -6,7 +6,7 @@ import path from 'path'
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
 const read = (rel) => readFileSync(path.join(root, rel), 'utf8')
 const rel = (p) => path.relative(root, p).split(path.sep).join('/')
-const RUNTIME = 'src/shared/transfer/backends/overlay/overlay-runtime.js'
+const RUNTIME = 'src/shared/transfer/overlay/overlay-runtime.js'
 const SPACE_LEAVE = 'src/worker/ipc/space-leave.js'
 const DOOR_FNS = ['revokeServesForSpace', 'bumpServeEpoch']
 

@@ -4,8 +4,8 @@ import { setupSelfMirror } from '../helpers/owned.js'
 import { materializeCatalogFile } from '../../src/shared/folders/mirror-pass.js'
 import { getForeignMount } from '../../src/shared/folders/mount-store.js'
 import { STATUS_MOUNT_GONE } from '../../src/shared/folders/mount-fault.js'
-import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
-import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
+import { overlayBackend } from '../../src/shared/transfer/overlay/index.js'
+import { getOverlay } from '../../src/shared/transfer/overlay/overlay-instance.js'
 
 // A pass probes the mount root once, and the waits after it are unbounded. The mirror makes the
 // file's folder itself, so it tells the receive that the folder must already exist: a root the

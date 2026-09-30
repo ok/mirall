@@ -1,7 +1,7 @@
 import test from 'brittle'
 import c from 'compact-encoding'
-import * as m from '../../src/shared/transfer/backends/overlay/engine/wire/messages.js'
-import { SLOTS, isRetired, VERSION, MIN_VERSION, CAPABILITIES } from '../../src/shared/transfer/backends/overlay/engine/wire/slots.js'
+import * as m from '../../src/shared/transfer/overlay/engine/wire/messages.js'
+import { SLOTS, isRetired, VERSION, MIN_VERSION, CAPABILITIES } from '../../src/shared/transfer/overlay/engine/wire/slots.js'
 
 // v1.8.0 through v1.11.2 register these fifteen, in this order; protomux routes by position.
 const WIRE_ORDER = ['syncState', 'fileOffer', 'fileRequest', 'chunkHashes', 'chunkNeed', 'chunkData', 'chunkCancel',

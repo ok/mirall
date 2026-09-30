@@ -10,8 +10,8 @@
 import './harness-bootstrap.js'
 import { createRoot } from 'react-dom/client'
 import i18n from '../../src/renderer/platform/i18n.js'
-import PeerDownloadIndicator from './../../src/renderer/components/cards/PeerDownloadIndicator.js'
-import PeerDownloadRow from './../../src/renderer/components/cards/PeerDownloadRow.js'
+import PeerDownloadIndicator from '../../src/renderer/components/cards/PeerDownloadIndicator.js'
+import PeerDownloadRow from '../../src/renderer/components/cards/PeerDownloadRow.js'
 import type { SpaceMember, PeerDownloadSummary } from '../../src/renderer/types/types.js'
 
 interface LaneFlags {

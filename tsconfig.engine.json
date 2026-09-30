@@ -14,7 +14,7 @@
     "resolveJsonModule": true
   },
   "include": [
-    "src/shared/transfer/backends/overlay/engine/**/*.js",
+    "src/shared/transfer/overlay/engine/**/*.js",
     "src/worker/global.d.ts",
     "node_modules/bare-buffer/global.d.ts"
   ]

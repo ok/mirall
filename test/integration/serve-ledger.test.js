@@ -1,6 +1,6 @@
 import test from 'brittle'
 import { createFakeIpc } from '../helpers/fake-ipc.js'
-import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
+import { serveIndex } from '../../src/shared/transfer/overlay/overlay-serve-index.js'
 import {
   ServeLedger, _sweepServeLedgerNow,
   onServeStart, onServePaused, onServeControl,

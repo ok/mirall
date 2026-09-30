@@ -1,5 +1,5 @@
 import path from 'bare-path'
-import { relKeyEscapes } from '../folders/path-keys.js'
+import { relKeyEscapes } from './path-keys.js'
 import { AppError } from '../core/errors.js'
 import { CODES } from '../contract/errors.js'
 

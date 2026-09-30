@@ -10,8 +10,8 @@
 import './harness-bootstrap.js'
 import { createRoot } from 'react-dom/client'
 import '../../src/renderer/platform/i18n.js'
-import TopNav from './../../src/renderer/components/layout/TopNav.js'
-import { ConnectionStatusProvider } from './../../src/renderer/hooks/useConnectionStatus.js'
+import TopNav from '../../src/renderer/components/layout/TopNav.js'
+import { ConnectionStatusProvider } from '../../src/renderer/hooks/useConnectionStatus.js'
 
 interface HoverHit {
   selector: string

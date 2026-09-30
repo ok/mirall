@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { peerRxBytes, peerTxBytes, createDrainWaiter } from '../../src/shared/transfer/backends/overlay/engine/protocol/transport-probe.js'
+import { peerRxBytes, peerTxBytes, createDrainWaiter } from '../../src/shared/transfer/overlay/engine/protocol/transport-probe.js'
 
 test('the RX probe prefers the packet counter, then the socket, then frames', (t) => {
   const withRaw = (rawStream) => ({ mux: { stream: { rawStream, rawBytesRead: 7 } } })

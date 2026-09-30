@@ -31,7 +31,7 @@ export async function getStorageInfo() {
   const totalDiskUsage = getDirSize(getStoragePath())
   let indexBytes = 0
   try {
-    const { getOverlayLocalByteLength } = await import('../transfer/backends/overlay/overlay-instance.js')
+    const { getOverlayLocalByteLength } = await import('../transfer/overlay/overlay-instance.js')
     indexBytes = await getOverlayLocalByteLength()
   } catch (err) { log.warn('overlay index size failed:', err.message) }
   return {

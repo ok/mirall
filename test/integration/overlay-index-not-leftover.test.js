@@ -6,8 +6,8 @@ import { setupOwnedShare } from '../helpers/owned.js'
 import { getStore } from '../../src/shared/core/store.js'
 import { getOwnEntry } from '../../src/shared/shares/own-catalog.js'
 import { classifyLeftovers, purgeLeftovers } from '../../src/shared/storage/leftover.js'
-import { getOverlay, getOverlayLocalDiscoveryKeys } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
-import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
+import { getOverlay, getOverlayLocalDiscoveryKeys } from '../../src/shared/transfer/overlay/overlay-instance.js'
+import { overlayBackend } from '../../src/shared/transfer/overlay/index.js'
 
 async function coreInStore(dkHex) {
   for await (const dk of getStore().list()) {

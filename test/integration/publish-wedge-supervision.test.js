@@ -4,7 +4,7 @@ import { setupOwnedShare } from '../helpers/owned.js'
 import { Supervisor } from '../../src/shared/core/supervisor.js'
 import { getIndexStatus } from '../../src/shared/folders/owned-folders.js'
 import { runPublishPass } from '../../src/shared/folders/owned-pass.js'
-import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
+import { getOverlay } from '../../src/shared/transfer/overlay/overlay-instance.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { waitFor } from '../helpers/bare-poll.js'
 

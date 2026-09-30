@@ -17,7 +17,7 @@ import {
 } from '../../src/shared/transfer/files.js'
 import { listFiles } from '../../src/shared/transfer/file-listing.js'
 import { initPendingTransfers, listPendingForSpace, recordPending, recordPendingError } from '../../src/shared/transfer/pending-transfers.js'
-import { looseCatalogVersion, looseListPeer, looseTransferActive } from '../../src/shared/transfer/backends/overlay/loose-downloads.js'
+import { looseCatalogVersion, looseListPeer, looseTransferActive } from '../../src/shared/transfer/overlay/loose-downloads.js'
 import { dropPeerCatalog } from '../../src/shared/shares/peer-catalog.js'
 import { forgetListingMemo } from '../../src/shared/transfer/listing-memo.js'
 import { takeIncompleteListSpaces } from '../../src/shared/transfer/list-deficits.js'

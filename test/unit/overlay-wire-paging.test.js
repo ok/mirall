@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { createChunkHashAssembler, sendChunkHashes, MAX_CHUNKS_PER_MSG, MAX_PAGED_ENTRIES_PER_PEER, MAX_PAGED_MAPS_PER_PEER } from '../../src/shared/transfer/backends/overlay/engine/wire/paging.js'
+import { createChunkHashAssembler, sendChunkHashes, MAX_CHUNKS_PER_MSG, MAX_PAGED_ENTRIES_PER_PEER, MAX_PAGED_MAPS_PER_PEER } from '../../src/shared/transfer/overlay/engine/wire/paging.js'
 
 const entry = (i) => ({ hash: String(i).padStart(64, '0'), length: 1 })
 const page = (path, chunks, more = 1) => ({ path, tier: 0, chunks, more })

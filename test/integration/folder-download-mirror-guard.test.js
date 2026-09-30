@@ -1,6 +1,6 @@
 import test from 'brittle'
 import { setupSelfMirror } from '../helpers/owned.js'
-import { folderRequestDownload, setFolderEngine } from '../../src/shared/transfer/backends/overlay/folder-downloads.js'
+import { folderRequestDownload, setFolderEngine } from '../../src/shared/transfer/overlay/folder-downloads.js'
 import { setForeignEnabled } from '../../src/shared/folders/foreign-verbs.js'
 import { deleteForeignMount } from '../../src/shared/folders/mount-store.js'
 

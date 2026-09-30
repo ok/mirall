@@ -7,12 +7,12 @@ import { publishShare, generateShareId } from '../../src/shared/shares/shares.js
 import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
 import { createOwnedMount } from '../../src/shared/folders/mount-store.js'
 import { getOwnEntry } from '../../src/shared/shares/own-catalog.js'
-import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
-import { getOverlay, initOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
+import { serveIndex } from '../../src/shared/transfer/overlay/overlay-serve-index.js'
+import { getOverlay, initOverlay, teardownOverlay } from '../../src/shared/transfer/overlay/overlay-instance.js'
 import { getStore } from '../../src/shared/core/store.js'
-import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
+import { overlayBackend } from '../../src/shared/transfer/overlay/index.js'
 import { initOverlayIpc } from '../helpers/overlay-ipc.js'
-import { rehydrateOwnedContent } from '../../src/shared/transfer/backends/overlay/overlay-maintenance.js'
+import { rehydrateOwnedContent } from '../../src/shared/transfer/overlay/overlay-maintenance.js'
 
 // init() backgrounds rehydrate (non-blocking boot, C9); drive it deterministically.
 const initAndRehydrate = async () => { await initOverlay(); await rehydrateOwnedContent() }

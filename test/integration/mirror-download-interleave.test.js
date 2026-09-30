@@ -2,15 +2,16 @@ import test from 'brittle'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { setupSelfMirror } from '../helpers/owned.js'
-import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
-import { createOverlayDownloadEngine } from '../../src/shared/transfer/backends/overlay/overlay-download.js'
+import { getOverlay } from '../../src/shared/transfer/overlay/overlay-instance.js'
+import { overlayBackend } from '../../src/shared/transfer/overlay/index.js'
+import { createOverlayDownloadEngine } from '../../src/shared/transfer/overlay/overlay-download.js'
 import { mirrorHealth } from '../../src/shared/folders/foreign-folders.js'
 import { startForeignLoop, stopForeignLoop, restartForeignLoop } from '../../src/shared/folders/foreign-verbs.js'
 import { materializeCatalogFile, runMaterializeTick } from '../../src/shared/folders/mirror-pass.js'
 import {
   claimFetch, fetchClaimedBy, registerFetchOwner, resetFetchClaims,
-} from '../../src/shared/transfer/backends/overlay/fetch-gate.js'
-import { resetFetchSlots, fetchSlotStats, acquireFetchSlot, FETCH_OWNER_MIRROR } from '../../src/shared/transfer/backends/overlay/fetch-gate.js'
+} from '../../src/shared/transfer/overlay/fetch-gate.js'
+import { resetFetchSlots, fetchSlotStats, acquireFetchSlot, FETCH_OWNER_MIRROR } from '../../src/shared/transfer/overlay/fetch-gate.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { transferIdFor } from '../../src/shared/transfer/transfer-id.js'
 import { initPendingTransfers, listPendingForSpace } from '../../src/shared/transfer/pending-transfers.js'
@@ -36,8 +37,7 @@ async function mirrorCtx(t, opts = {}) {
 }
 
 async function firstEntry(ctx) {
-  const { entries } = await (await import('../../src/shared/transfer/content-backends.js'))
-    .getContentBackend(ctx.share).listPeerWithMeta(ctx.spaceId, ctx.share)
+  const { entries } = await overlayBackend.listPeerWithMeta(ctx.spaceId, ctx.share)
   return entries[0]
 }
 
@@ -121,8 +121,7 @@ test('a browse listing still reads isActive from the folder engine', (t) => {
 test('the mirror releases its claim and its slot on every exit path', async (t) => {
   const ctx = await mirrorCtx(t, { files: { 'a.txt': 'aaa', 'b.txt': 'bbbb' } })
   const entries = []
-  const backend = await import('../../src/shared/transfer/content-backends.js')
-  const listed = await backend.getContentBackend(ctx.share).listPeerWithMeta(ctx.spaceId, ctx.share)
+  const listed = await overlayBackend.listPeerWithMeta(ctx.spaceId, ctx.share)
   entries.push(...listed.entries)
 
   const overlay = getOverlay()

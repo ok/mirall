@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { preflightFault, terminalFault, faultCleared, faultAwaitsOwner } from '../../src/shared/transfer/backends/overlay/download-faults.js'
+import { preflightFault, terminalFault, faultCleared, faultAwaitsOwner } from '../../src/shared/transfer/overlay/download-faults.js'
 import { CODES } from '../../src/shared/contract/errors.js'
 import { FREE_SPACE_HEADROOM } from '../../src/shared/transfer/free-space.js'
 

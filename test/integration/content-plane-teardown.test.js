@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { OverlayProtocolV2 } from '../../src/shared/transfer/backends/overlay/engine/protocol/protocol.js'
+import { OverlayProtocolV2 } from '../../src/shared/transfer/overlay/engine/protocol/protocol.js'
 
 // REGRESSION (FIX-3: a peer that left the space kept serving it). The serve grant is cached per
 // (peer, syntheticPath) at request time and every later chunkNeed is checked against that cache

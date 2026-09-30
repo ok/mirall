@@ -2,9 +2,9 @@ import test from 'brittle'
 import b4a from 'b4a'
 import Corestore from 'corestore'
 import { mkdtempSync, fs, path, os } from './overlay-engine-helpers.js'
-import { FileIndex } from '../../src/shared/transfer/backends/overlay/engine/store/file-index.js'
+import { FileIndex } from '../../src/shared/transfer/overlay/engine/store/file-index.js'
 import { freshPeer } from '../helpers/store.js'
-import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
+import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/transfer/overlay/overlay-instance.js'
 import { initOverlayIpc } from '../helpers/overlay-ipc.js'
 
 function tmpStore(label) {

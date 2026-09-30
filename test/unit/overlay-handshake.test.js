@@ -1,7 +1,7 @@
 import test from 'brittle'
 import Protomux from 'protomux'
 import { Duplex } from 'streamx'
-import * as messages from '../../src/shared/transfer/backends/overlay/engine/wire/messages.js'
+import * as messages from '../../src/shared/transfer/overlay/engine/wire/messages.js'
 
 // The overlay channel's handshake carries {version, capabilities}. protomux only puts a
 // handshake on the wire when the channel DECLARES an encoding — today's code passes the object

@@ -9,9 +9,9 @@ import { createLogger } from '../core/logger.js'
 import { createCoalescingRunner } from '../core/concurrency.js'
 import { createPassLiveness } from '../core/pass-liveness.js'
 import { getOwnedMount, touchOwnedMountScan } from './mount-store.js'
-import { isUnsupportedShare } from '../transfer/content-backends.js'
+import { isServableShare } from '../transfer/content-mode.js'
 import { listOwnShare } from '../shares/own-catalog.js'
-import { ensureServable } from '../transfer/backends/overlay/serve-registration.js'
+import { ensureServable } from '../transfer/overlay/serve-registration.js'
 import { pathFromMount } from './path-guard.js'
 import { walkDisk } from './walk-disk.js'
 import { relKeyEscapes } from './path-keys.js'
@@ -150,7 +150,7 @@ async function diffAndEnqueue(spaceId, shareId, { mountPath, ignore, deep, defer
   if (mount.indexPaused) return { skipped: 'index-paused', totalOnDisk: 0 }
   const share = await loadShareForMount(mount)
 
-  if (isUnsupportedShare(share)) {
+  if (!isServableShare(share)) {
     log.warn('skipping scan for unsupported content mode:', share.contentMode, shareId)
     return { skipped: 'unsupported-content-mode', totalOnDisk: 0 }
   }

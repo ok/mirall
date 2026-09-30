@@ -447,7 +447,7 @@ export const pureTransferModules = [
   'temp-paths',
   'bandwidth-limiter',
   'chunk-map-cache',
-  'content-backends',
+  'content-mode',
   'download-claim',
   'eta-estimator',
   'file-dedupe',
@@ -512,7 +512,7 @@ export const pureSharesModules = ['catalog-keys', 'catalog-tally']
 // wrapper passes collaborators in (overlay-instance.js). A relative climb out of engine/ is one
 // `../` from engine/*.js and two from engine/<dir>/*.js, so the grammar comes in two depths;
 // engine-closed-graph.test.js pins that nothing sits deeper.
-export const ENGINE_DIR = 'src/shared/transfer/backends/overlay/engine'
+export const ENGINE_DIR = 'src/shared/transfer/overlay/engine'
 const engineMessage = 'The overlay engine imports packages and its own files only — have the wrapper pass the collaborator in (overlay-instance.js).'
 export const engineClosedGraph = {
   top: [{ regex: '^\\.\\./', message: engineMessage }, { regex: '(^|/)src/', message: engineMessage }],

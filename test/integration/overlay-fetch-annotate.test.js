@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { runOverlayFetch } from '../../src/shared/transfer/backends/overlay/fetch-run.js'
+import { runOverlayFetch } from '../../src/shared/transfer/overlay/fetch-run.js'
 
 const ARGS = { label: 'test', relPath: 'a.txt', size: 4, destPath: '/tmp/mirall-fetch-diag-test' }
 

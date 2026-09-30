@@ -8,8 +8,8 @@
 // the receiver. The public flow (scheduler.onChunkHashes with the full list) is
 // unchanged.
 import test from 'brittle'
-import * as m from '../../src/shared/transfer/backends/overlay/engine/wire/messages.js'
-import { sendChunkHashes } from '../../src/shared/transfer/backends/overlay/engine/wire/paging.js'
+import * as m from '../../src/shared/transfer/overlay/engine/wire/messages.js'
+import { sendChunkHashes } from '../../src/shared/transfer/overlay/engine/wire/paging.js'
 import { makeProtocol } from '../helpers/overlay-engine.js'
 
 // @hyperswarm/secret-stream rejects any frame whose payload exceeds this

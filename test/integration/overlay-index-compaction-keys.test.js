@@ -1,6 +1,6 @@
 import test from 'brittle'
 import { tmpStore } from './overlay-engine-helpers.js'
-import { FileIndex } from '../../src/shared/transfer/backends/overlay/engine/store/file-index.js'
+import { FileIndex } from '../../src/shared/transfer/overlay/engine/store/file-index.js'
 
 const MAP = [{ hash: 'h', offset: 0, length: 1 }]
 

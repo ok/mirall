@@ -1,9 +1,9 @@
 // Construction helpers for engine-level tests. The engine serves only through an authorizer, so a
 // test that is not about the gate passes ALLOW_ALL, and one that drives the chunkNeed handler
 // directly gives its fake peer the grant a gated content request would have left behind.
-import { OverlayProtocolV2 } from '../../src/shared/transfer/backends/overlay/engine/protocol/protocol.js'
-import { createPeerRecord } from '../../src/shared/transfer/backends/overlay/engine/protocol/channel.js'
-import { HyperOverlayV2 } from '../../src/shared/transfer/backends/overlay/engine/overlay-v2.js'
+import { OverlayProtocolV2 } from '../../src/shared/transfer/overlay/engine/protocol/protocol.js'
+import { createPeerRecord } from '../../src/shared/transfer/overlay/engine/protocol/channel.js'
+import { HyperOverlayV2 } from '../../src/shared/transfer/overlay/engine/overlay-v2.js'
 
 export const ALLOW_ALL = async () => true
 

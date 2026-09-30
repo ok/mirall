@@ -17,7 +17,7 @@ import {
 } from '../../src/shared/transfer/files.js'
 import { listFiles } from '../../src/shared/transfer/file-listing.js'
 import { initPendingTransfers, listPendingForSpace } from '../../src/shared/transfer/pending-transfers.js'
-import { looseCatalogVersion, looseListPeer, looseTransferActive } from '../../src/shared/transfer/backends/overlay/loose-downloads.js'
+import { looseCatalogVersion, looseListPeer, looseTransferActive } from '../../src/shared/transfer/overlay/loose-downloads.js'
 import { LOOSE_SHARE_ID } from '../../src/shared/transfer/transfer-id.js'
 
 // The loose listing takes its data-layer calls injected, so read COUNTS are assertable without

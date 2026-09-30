@@ -1,0 +1,94 @@
+// One-time compat pass: stores written before overlay-index at-rest encryption hold the
+// overlay's local index in PLAINTEXT cores under the 'mirall-overlay' namespace. This copies
+// every entry into fresh, M-encrypted cores under 'mirall-overlay-e1', then clears + purges the
+// plaintext cores (including their by-name aliases) so no cleartext metadata is left at rest and
+// no dangling alias can wedge a later reopen. Gated by a marker in the app-migrations bee +
+// hasMasterSecret; must run before the overlay backend opens the index. A purge failure propagates so
+// the marker stays unwritten and the pass retries — leaving the plaintext cores marked-done-but-
+// unpurged would defeat the whole point. The caller compacts the store when this reports migrated.
+import { migrationResult, MIGRATION_STATUS } from '../../storage/migrations/migration-result.js'
+import { hasMasterSecret, overlayIndexEncryptionKey } from '../../core/store.js'
+import { runMarkedPass } from '../../storage/migrations/marked-pass.js'
+import { purgeNamedCore } from '../../storage/core-purge.js'
+import { FileIndex, indexCoreName } from './engine/store/file-index.js'
+import { OVERLAY_NAMESPACE, OVERLAY_NAMESPACE_ENC } from './overlay-namespaces.js'
+import { SYNC_FEED_CORE } from './purge-overlay-sync-feed.js'
+import { createLogger } from '../../core/logger.js'
+
+const log = createLogger('overlay-index-migration')
+
+const FLAG = 'overlay-index-encrypt-v1'
+// Flush the copy batch on EITHER cap. A paged chunk-map value can be several MB, so a
+// count-only bound could buffer gigabytes and OOM the worker on a large index.
+const MAX_BATCH_ENTRIES = 500
+const MAX_BATCH_BYTES = 8 * 1024 * 1024
+
+export async function migrateOverlayIndexToEncrypted() {
+  if (!hasMasterSecret()) return migrationResult(MIGRATION_STATUS.SKIPPED)
+  return runMarkedPass(FLAG, async (store) => {
+    const copied = await migrateIndex(store)
+    if (copied) log.info('overlay index encrypted at rest — copied', copied, 'entries')
+    return { marker: { copied }, result: migrationResult(MIGRATION_STATUS.DONE, { compact: copied > 0, copied }) }
+  }, log)
+}
+
+async function migrateIndex(store) {
+  const nsPlain = store.namespace(OVERLAY_NAMESPACE)
+  const legacy = new FileIndex(nsPlain)
+  const enc = new FileIndex(store.namespace(OVERLAY_NAMESPACE_ENC), { encryptionKey: overlayIndexEncryptionKey() })
+  try {
+    await legacy.ready()
+    await enc.ready()
+    const version = legacy.version
+
+    const copied = await copyBee(legacy.bee, enc.bee)
+    await enc.close()
+    await legacy.close()
+
+    // Purge every plaintext generation (index-meta, sync-feed, and each file-index version),
+    // dropping the by-name alias so a later reopen can't hit a dangling alias. Older generations
+    // (v < current) are covered too, whether an interrupted compaction left one behind or a
+    // completed one already purged its core and left only the alias. A failure throws.
+    const names = ['index-meta', SYNC_FEED_CORE]
+    for (let v = 1; v <= version; v++) names.push(indexCoreName(v))
+    for (const name of names) await purgeNamedCore(store, nsPlain, name)
+
+    return copied
+  } finally {
+    try { await enc.close() } catch {}
+    try { await legacy.close() } catch {}
+  }
+}
+
+async function copyBee(src, dst) {
+  let copied = 0
+  let batch = dst.batch()
+  let count = 0
+  let bytes = 0
+  try {
+    for await (const { key, value } of src.createReadStream()) {
+      await batch.put(key, value)
+      copied++
+      count++
+      bytes += key.length + approxValueBytes(value)
+      if (count >= MAX_BATCH_ENTRIES || bytes >= MAX_BATCH_BYTES) {
+        await batch.flush()
+        batch = dst.batch()
+        count = 0
+        bytes = 0
+      }
+    }
+    await batch.flush()
+  } catch (err) {
+    try { await batch.close() } catch {}
+    throw err
+  }
+  return copied
+}
+
+// Cheap batch-sizing estimate — chunk-map arrays (the only multi-MB values) dominate; each
+// { hash, offset, length } record is ~96 bytes of JSON.
+function approxValueBytes(value) {
+  if (Array.isArray(value)) return value.length * 96
+  try { return JSON.stringify(value).length } catch { return 64 }
+}

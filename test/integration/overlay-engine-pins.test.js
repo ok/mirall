@@ -1,6 +1,6 @@
 import test from 'brittle'
-import { VERSION, MIN_VERSION, CAPABILITIES, CAP_LOCAL_FILES, CAP_ADAPTIVE_CHUNKS } from '../../src/shared/transfer/backends/overlay/engine/wire/slots.js'
-import { handshake } from '../../src/shared/transfer/backends/overlay/engine/wire/messages.js'
+import { VERSION, MIN_VERSION, CAPABILITIES, CAP_LOCAL_FILES, CAP_ADAPTIVE_CHUNKS } from '../../src/shared/transfer/overlay/engine/wire/slots.js'
+import { handshake } from '../../src/shared/transfer/overlay/engine/wire/messages.js'
 import { makeProtocol } from '../helpers/overlay-engine.js'
 
 // The channel's identity on the wire. A released peer pairs channels by protocol name and id, and

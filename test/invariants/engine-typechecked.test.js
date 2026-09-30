@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url'
 import path from 'path'
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
-const ENGINE = 'src/shared/transfer/backends/overlay/engine'
+const ENGINE = 'src/shared/transfer/overlay/engine'
 
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {

@@ -13,7 +13,7 @@ const transferDir = path.resolve(here, '../../src/shared/transfer')
 // Listed as pure but not yet driven under Node. eslint still holds the no-bare-* line on them, so
 // the claim is enforced; what is missing is something that proves the purity is load-bearing. The
 // set may only shrink — a module that gains a unit test leaves it and cannot come back.
-const UNDRIVEN = new Set(['content-backends', 'pending-transfers', 'serve-ledger'])
+const UNDRIVEN = new Set(['pending-transfers', 'serve-ledger'])
 
 function unitSuite() {
   return readdirSync(unitDir)

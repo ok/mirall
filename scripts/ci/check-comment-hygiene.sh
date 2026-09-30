@@ -18,7 +18,7 @@ INCLUDES=(--include='*.js' --include='*.ts' --include='*.tsx' --include='*.css')
 SRC=src
 # The overlay engine defines its own markers here; it is the one .md the
 # gate reads, and only for planning-doc references.
-PROVENANCE=src/shared/transfer/backends/overlay/engine/PROVENANCE.md
+PROVENANCE=src/shared/transfer/overlay/engine/PROVENANCE.md
 # A line in comment context: `//`, the opening of a block comment, or a block
 # comment's continuation line.
 COMMENT='(//|/\*|^\s*\*)'

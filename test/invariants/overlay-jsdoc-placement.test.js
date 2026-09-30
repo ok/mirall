@@ -5,7 +5,7 @@ import path from 'path'
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
 const read = (rel) => readFileSync(path.join(root, rel), 'utf8')
-const OVERLAY = 'src/shared/transfer/backends/overlay'
+const OVERLAY = 'src/shared/transfer/overlay'
 
 // A JSDoc block binds to the declaration directly after it. One separated from its function by
 // another comment or declaration documents nothing, and the editor attaches it to the wrong symbol.

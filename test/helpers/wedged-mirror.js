@@ -9,8 +9,8 @@ import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
 import { createForeignMount } from '../../src/shared/folders/mount-store.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { startForeignLoop, stopForeignLoop } from '../../src/shared/folders/foreign-verbs.js'
-import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
-import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
+import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/transfer/overlay/overlay-instance.js'
+import { overlayBackend } from '../../src/shared/transfer/overlay/index.js'
 import { waitFor } from './bare-poll.js'
 
 export const delay = (ms) => new Promise((r) => setTimeout(r, ms))

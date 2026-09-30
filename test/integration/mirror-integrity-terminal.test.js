@@ -1,9 +1,9 @@
 import test from 'brittle'
 import { setupSelfMirror } from '../helpers/owned.js'
-import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
+import { getOverlay } from '../../src/shared/transfer/overlay/overlay-instance.js'
 import { unmountForeignFolder } from '../../src/shared/folders/foreign-verbs.js'
 import { runMaterializeTick } from '../../src/shared/folders/mirror-pass.js'
-import { isTerminalFault } from '../../src/shared/transfer/backends/overlay/fetch-policy.js'
+import { isTerminalFault } from '../../src/shared/transfer/overlay/fetch-policy.js'
 import { CODES } from '../../src/shared/contract/errors.js'
 
 // REGRESSION (FIX-MIRROR-CHECKSUM): a holder serving bytes that fail their advertised hash was

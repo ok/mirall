@@ -2,8 +2,8 @@ import test from 'brittle'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'
-import { FETCH_OUTCOME, DELIBERATE_STOPS } from '../../src/shared/transfer/backends/overlay/fetch-outcome.js'
-import { classifyMiss } from '../../src/shared/transfer/backends/overlay/fetch-policy.js'
+import { FETCH_OUTCOME, DELIBERATE_STOPS } from '../../src/shared/transfer/overlay/fetch-outcome.js'
+import { classifyMiss } from '../../src/shared/transfer/overlay/fetch-policy.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const read = (p) => readFileSync(path.resolve(here, '../../src', p), 'utf8')
@@ -11,8 +11,8 @@ const read = (p) => readFileSync(path.resolve(here, '../../src', p), 'utf8')
 // Every module that settles a fetch diag. Source-scanned rather than imported: they pull in bare-*,
 // which a Node runner cannot load — the same technique and rationale as fetch-policy-parity.test.js.
 const EMITTERS = [
-  'shared/transfer/backends/overlay/fetch-settle.js',
-  'shared/transfer/backends/overlay/fetch-run.js',
+  'shared/transfer/overlay/fetch-settle.js',
+  'shared/transfer/overlay/fetch-run.js',
   'shared/folders/mirror-fetch.js',
 ]
 
@@ -39,7 +39,7 @@ test('REGRESSION: every outcome a producer emits is a member of FETCH_OUTCOME', 
 // rather than at build time — so the reference itself has to be checked.
 test('every FETCH_OUTCOME reference names a real member', (t) => {
   let refs = 0
-  for (const f of [...EMITTERS, 'shared/transfer/backends/overlay/fetch-run.js', 'shared/transfer/backends/overlay/fetch-policy.js']) {
+  for (const f of [...EMITTERS, 'shared/transfer/overlay/fetch-run.js', 'shared/transfer/overlay/fetch-policy.js']) {
     for (const m of read(f).matchAll(/FETCH_OUTCOME\.([A-Z_]+)/g)) {
       refs++
       t.ok(m[1] in FETCH_OUTCOME, `${f} references FETCH_OUTCOME.${m[1]}`)

@@ -10,8 +10,8 @@
 import './harness-bootstrap.js'
 import { createRoot } from 'react-dom/client'
 import i18n from '../../src/renderer/platform/i18n.js'
-import { ToastProvider } from './../../src/renderer/components/toast/ToastProvider.js'
-import { KeyboardProvider } from './../../src/renderer/keyboard/KeyboardProvider.js'
+import { ToastProvider } from '../../src/renderer/components/toast/ToastProvider.js'
+import { KeyboardProvider } from '../../src/renderer/keyboard/KeyboardProvider.js'
 import SpaceScreen from '../../src/renderer/screens/SpaceScreen.js'
 import type { SpaceMember } from '../../src/renderer/types/types.js'
 

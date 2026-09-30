@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { contentPath, contentHashOf } from '../../src/shared/transfer/backends/overlay/engine/content-path.js'
+import { contentPath, contentHashOf } from '../../src/shared/transfer/overlay/engine/content-path.js'
 
 test('a content hash round-trips through its synthetic path', (t) => {
   const h = 'ab'.repeat(32)

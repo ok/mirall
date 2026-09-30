@@ -14,7 +14,7 @@ import { LOOSE_SHARE_ID } from '../../src/shared/transfer/transfer-id.js'
 
 const here = path.dirname(url.fileURLToPath(import.meta.url))
 const engineSrc = fs.readFileSync(
-  path.join(here, '..', '..', 'src', 'shared', 'transfer', 'backends', 'overlay', 'fetch-settle.js'),
+  path.join(here, '..', '..', 'src', 'shared', 'transfer', 'overlay', 'fetch-settle.js'),
   'utf8',
 )
 

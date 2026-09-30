@@ -1,7 +1,7 @@
 import test from 'brittle'
 import { setupOwnedShare } from '../helpers/owned.js'
-import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
-import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
+import { getOverlay } from '../../src/shared/transfer/overlay/overlay-instance.js'
+import { serveIndex } from '../../src/shared/transfer/overlay/overlay-serve-index.js'
 import { registerSpaceLeave } from '../../src/worker/ipc/space-leave.js'
 import { addPeer } from '../helpers/overlay-engine.js'
 

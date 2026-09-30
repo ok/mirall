@@ -14,11 +14,11 @@ import { getLocalPublicKeyHex, setProfile } from '../../src/shared/spaces/profil
 import { createOwnedMount } from '../../src/shared/folders/mount-store.js'
 import { advertise, getOwnEntry } from '../../src/shared/shares/own-catalog.js'
 import { markOwnedSource } from '../../src/shared/transfer/files.js'
-import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
-import { getOverlay, initOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
-import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
-import { looseShareFile, looseSources } from '../../src/shared/transfer/backends/overlay/loose-publish.js'
-import { rehydrateOwnedContent, sweepOwnedPresence } from '../../src/shared/transfer/backends/overlay/overlay-maintenance.js'
+import { serveIndex } from '../../src/shared/transfer/overlay/overlay-serve-index.js'
+import { getOverlay, initOverlay, teardownOverlay } from '../../src/shared/transfer/overlay/overlay-instance.js'
+import { overlayBackend } from '../../src/shared/transfer/overlay/index.js'
+import { looseShareFile, looseSources } from '../../src/shared/transfer/overlay/loose-publish.js'
+import { rehydrateOwnedContent, sweepOwnedPresence } from '../../src/shared/transfer/overlay/overlay-maintenance.js'
 import { LOOSE_SHARE_ID } from '../../src/shared/transfer/transfer-id.js'
 
 const silentLog = { debug() {}, info() {}, warn() {}, error() {} }
