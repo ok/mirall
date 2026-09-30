@@ -7,6 +7,7 @@ import { createKeyedLock } from '../core/concurrency.js'
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
 import { prefixRange } from '../core/bee-keys.js'
+import { isUserBlockedFault } from './overlay/fetch-policy.js'
 
 const log = createLogger('pending-transfers')
 
@@ -133,6 +134,22 @@ export async function clearPendingForSpace(spaceId) {
     keys.push(entry.key)
   }
   await Promise.all(keys.map((key) => exclusive(key, () => bee.del(key))))
+}
+
+export const FAILED_ROW_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000
+
+// A failed row untouched past the cap is forgotten, so the partial sweep that runs after it reclaims
+// the partial. A row without an error may be a pause, which is not durable, and a fault the user can
+// clear (a folder unplugged, a full disk) resumes on its own once cleared; neither ages out.
+export async function forgetStaleFailures(now = Date.now()) {
+  const stale = []
+  for await (const { key, value } of bee.createReadStream()) {
+    const failedAt = value?.erroredAt ?? value?.updatedAt ?? now
+    if (!value?.errorCode || isUserBlockedFault(value.errorCode)) continue
+    if (now - failedAt > FAILED_ROW_MAX_AGE_MS) stale.push(key)
+  }
+  await Promise.all(stale.map((key) => exclusive(key, () => bee.del(key))))
+  return stale.length
 }
 
 export class PendingTransfersBee extends Subsystem {

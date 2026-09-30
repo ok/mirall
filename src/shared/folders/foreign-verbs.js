@@ -15,6 +15,7 @@ import { mirrorKey } from './mirror-policy.js'
 import { ownerKeyOf } from './mirror-state.js'
 import { memberWaits } from '../network/share-wait.js'
 import { SHARE_WAIT_SOURCE } from '../transfer/share-wait-set.js'
+import { forgetMirrorVerified } from '../transfer/files.js'
 
 const log = createLogger('foreign-verbs')
 
@@ -84,7 +85,9 @@ function resetForeignSyncState(spaceId, shareId) {
   loops.forgetLiveness(key)
 }
 
-export async function unmountForeignFolder(spaceId, shareId) {
+// `shareGone` says the owner deleted the share or left: the mirror's verified rows are the ancestors a
+// re-mount onto the same folder merges against, so they are dropped only when no re-mount can come.
+export async function unmountForeignFolder(spaceId, shareId, { shareGone = false } = {}) {
   stopForeignLoop(spaceId, shareId, { discardPartial: true })
   // Only here, not in stopForeignLoop: that runs on pause and on a health restart too, and
   // re-arming there would re-record the same mismatch on every resume.
@@ -93,6 +96,8 @@ export async function unmountForeignFolder(spaceId, shareId) {
   // source), so there is no per-share blob cache to reclaim on unmount — the
   // materialized files stay on disk, matching owner-delete behaviour.
   await deleteForeignMount(spaceId, shareId)
+  // After the record: a failure here leaves rows no mount reads, never a mount without its hashes.
+  if (shareGone) await forgetMirrorVerified(spaceId, shareId).catch((err) => log.warn('mirror verified rows kept:', err.message))
   resetForeignSyncState(spaceId, shareId)
   await syncMirrorRecord(spaceId, shareId, () => tombstoneMirror(spaceId, shareId))
   emitStatus(spaceId, shareId, MOUNT_STATUS.IDLE)

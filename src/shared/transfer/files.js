@@ -356,14 +356,23 @@ export function claimedPathFor(filePath, rec) {
 
 export async function cleanupDownloadHistory(spaceId) {
   const batch = downloadsBee.batch()
-  for await (const entry of downloadsBee.createReadStream(prefixRange(spaceId + ':'))) {
-    await batch.del(entry.key)
-  }
-  for await (const entry of downloadsBee.createReadStream(prefixRange('verified:' + spaceId + ':'))) {
-    await batch.del(entry.key)
+  for (const prefix of [spaceId + ':', 'verified:' + spaceId + ':', 'src:' + spaceId + ':']) {
+    for await (const entry of downloadsBee.createReadStream(prefixRange(prefix))) {
+      await batch.del(entry.key)
+    }
   }
   await batch.flush()
   log.info('cleaned download history for space', spaceId)
+}
+
+// A mirror's verified rows hold a mount-relative `local`; a manual download of the same share holds
+// an absolute one and keeps its row.
+export async function forgetMirrorVerified(spaceId, shareId) {
+  const batch = downloadsBee.batch()
+  for await (const { key, value } of downloadsBee.createReadStream(prefixRange(verifiedPrefix(spaceId, shareId)))) {
+    if (typeof value?.local === 'string' && !path.isAbsolute(value.local)) await batch.del(key)
+  }
+  await batch.flush()
 }
 
 export class DownloadsBee extends Subsystem {
