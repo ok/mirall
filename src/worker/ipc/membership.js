@@ -509,12 +509,12 @@ async function resolveJoinRequest(space, joinerKey, outcome) {
     // THEN durably capture the joiner's OWN profile core while it is still connected (it stays
     // connected through this awaited handler). Without this, a joiner that disconnects right after
     // approval leaves NO peer holding its record, so the OR-Set fold can never converge it on
-    // anyone — the owner included. We serve it onward via our member-view follow. The capture is
-    // best-effort and time-bounded so slow replication can't stall the approval; the joiner
-    // usually hasn't authored/replicated its member record yet at this instant, so a miss here is
-    // normal and the fold converges it later anyway — keep it at debug.
-    const captured = await captureJoinerMembership(joinerKey, spaceId)
-    if (!captured) log.debug('approval: joiner membership record not captured —', joinerKey.slice(0, 8))
+    // anyone — the owner included. We serve it onward via our member-view follow. The joiner serves
+    // it on the socket the grant went out on, once it has vetted the grant, so without a delivered
+    // grant there is nobody to wait for. Best-effort and time-bounded so slow replication can't stall
+    // the approval; a miss is converged by the fold later.
+    const socket = delivered ? channelForPeer(joinerKey)?.socket ?? null : null
+    await captureJoinerMembership(joinerKey, spaceId, { socket })
     return { granted: true, delivered }
   }
   clearJoinRequest(spaceId, joinerKey)

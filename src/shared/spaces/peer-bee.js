@@ -38,6 +38,40 @@ async function boundedUpdate(core, ms) {
   await withReadTimeout(core.update({ wait: true }).catch(() => {}), ms, undefined)
 }
 
+// An update weighs only the first few paired peers, so the author's own head is rechecked this often.
+const AUTHOR_SYNC_TICK_MS = 50
+
+// The head the author serves once it pairs the core on `socket`. No other holder's copy stands in for
+// it: an update answers at once while nothing is paired, and a co-member's empty or stale copy looks
+// like a current head.
+async function authorHead(core, socket, ms) {
+  if (socket.destroyed) return
+  const deadline = Date.now() + ms
+  const author = () => core.peers.find((peer) => peer.stream === socket)
+  if (!author()) await untilEvent(core, 'peer-add', socket, () => !!author(), ms)
+  for (let peer = author(); peer && Date.now() < deadline; peer = author()) {
+    if (peer.remoteSynced && core.length >= peer.remoteLength) return
+    const grew = await withReadTimeout(core.update({ wait: true }).catch(() => false), Math.max(0, deadline - Date.now()), false)
+    if (!grew) await untilEvent(core, 'append', socket, () => true, Math.min(AUTHOR_SYNC_TICK_MS, Math.max(0, deadline - Date.now())))
+  }
+}
+
+// Resolves on the first `event` for which `done()` holds, when `socket` closes, or after `ms`.
+async function untilEvent(core, event, socket, done, ms) {
+  let settle = () => {}
+  const check = () => { if (done()) settle() }
+  try {
+    await withReadTimeout(new Promise((resolve) => {
+      settle = resolve
+      core.on(event, check)
+      socket.once('close', resolve)
+    }), ms, undefined)
+  } finally {
+    core.off(event, check)
+    socket.off('close', settle)
+  }
+}
+
 // One bounded read of a peer's profile bee: open, pull the head, run `fn`, close. Closing releases
 // only THIS session; the core stays open for every other holder (a member view's follow, the avatar
 // listener), and corestore reclaims it on idle GC once the last session goes, which also takes it
@@ -78,21 +112,24 @@ export async function withPeerBee(profileKeyHex, fn, {
 // contiguousLength only ever touches local blocks. Idempotent — gets on local blocks skip
 // the network, so re-running is cheap. `complete` means the prefix this capture will ever hold
 // is contiguous, which for a bee past the sweep cap is the capped prefix; `capped` marks such a
-// bee (records past the cap are not snapshot-readable — surfaced as a warn).
+// bee (records past the cap are not snapshot-readable — surfaced as a warn). `authorSocket` is the
+// author's live connection: its head is waited for on it, for as long as the budget allows.
 export async function capturePeerBee(profileKeyHex, {
   deadline = Date.now() + getCaptureMemberRecordMs(),
   maxBlocks = getMembershipCaps().peerBeeCaptureMaxBlocks,
   parallel = 8,
+  authorSocket = null,
 } = {}) {
   const bee = openProfileBee(b4a.from(profileKeyHex, 'hex'))
   try {
     await bee.ready()
     const core = bee.core
     try {
-      // At most a second waiting for the peer's head, however much of the budget is left: the
-      // sweep below is the part that needs the time, and a peer that has not answered by now is
-      // offline rather than slow.
-      await boundedUpdate(core, Math.min(1000, Math.max(0, deadline - Date.now())))
+      // Without an author connection, at most a second waiting for the peer's head, however much of
+      // the budget is left: the sweep below is the part that needs the time, and a peer that has
+      // not answered by now is offline rather than slow.
+      const left = Math.max(0, deadline - Date.now())
+      await (authorSocket ? authorHead(core, authorSocket, left) : boundedUpdate(core, Math.min(1000, left)))
       const target = Math.min(core.length, maxBlocks)
       await sweepBlocks(core, target, parallel, deadline)
       const verdict = captureVerdict({ length: core.length, contiguousLength: core.contiguousLength, maxBlocks })
