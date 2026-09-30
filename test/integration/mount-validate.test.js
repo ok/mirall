@@ -119,6 +119,28 @@ test('REGRESSION (MIR-10): both validators reject mounting at a personal root, b
   }
 })
 
+// MIR-51: a mirror writes every owner relPath under its root, so a root a login manager or a shell
+// runs from (LaunchAgents, autostart, authorized_keys) lets a co-member plant code. Both validators
+// must hard-reject those roots and their children for both roles; siblings stay allowed (unit test).
+test('REGRESSION (MIR-51): both validators reject a user system root, both roles', (t) => {
+  const home = os.homedir()
+  const roots = [path.join(home, '.ssh'), path.join(home, '.config', 'autostart')]
+  if (os.platform() === 'darwin') roots.push(path.join(home, 'Library', 'LaunchAgents'), path.join(home, 'Library', 'Mail', 'INBOX.mbox'), '/Applications')
+  for (const root of roots) {
+    for (const role of ['owned-folder', 'foreign-folder']) {
+      t.is(codeOf(() => validateMountPathSync(root, role, [])), CODES.MOUNT_FORBIDDEN_SYSTEM, `sync rejects ${root} (${role})`)
+      t.is(codeOf(() => validateMountPath(root, role, {})), CODES.MOUNT_FORBIDDEN_SYSTEM, `async rejects ${root} (${role})`)
+    }
+  }
+})
+
+test('iCloud Drive is rejected as cloud sync, ahead of the ~/Library rule', (t) => {
+  if (os.platform() !== 'darwin') { t.pass('darwin-only path'); return }
+  const icloud = path.join(os.homedir(), 'Library', 'Mobile Documents', 'com~apple~CloudDocs', 'x')
+  t.is(codeOf(() => validateMountPathSync(icloud, 'foreign-folder', [])), CODES.MOUNT_FORBIDDEN_CLOUD_SYNC)
+  t.is(codeOf(() => validateMountPath(icloud, 'foreign-folder', {})), CODES.MOUNT_FORBIDDEN_CLOUD_SYNC)
+})
+
 // MIR-21: the two validators had drifted — the async one rejected illegal Windows
 // characters + trailing space/dot, the sync one only reserved device names. They
 // now share one segment check, so both reject the same illegal names. (win32-only:

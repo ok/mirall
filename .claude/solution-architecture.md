@@ -1048,8 +1048,11 @@ tombstones the mirror row but leaves the files on disk.
 
 `src/shared/folders/mount-validate.js` checks every mount path, owned or foreign. It **refuses**:
 
-- system roots, the app's storage dir, personal roots (home, Desktop…), cloud-sync roots, Windows
-  reserved names, and non-writable paths;
+- system roots, and anything inside a per-user root the OS, a shell or a login manager runs from
+  (`~/Library`, `/Applications`, `AppData`, Start Menu, `$XDG_CONFIG_HOME`, every dot-directory
+  under home);
+- the app's storage dir, personal roots (home, Desktop…), cloud-sync roots (iCloud Drive included),
+  Windows reserved names, and non-writable paths;
 - an overlap with **any** existing mount, except two owned folders at the exact same path;
 - nesting with **any** download root, in either direction. Downloads inside an owned folder would be
   republished, and mirrors mixed with downloads are indistinguishable. The download-folder validator

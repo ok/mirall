@@ -48,7 +48,7 @@ Anything that needs **two or more peers** — replication, transfers between pee
 ### D. Mount path validation
 | File | Covers |
 |------|--------|
-| `mount-validate.test.js` | `validateMountPathSync` — system folders, nested (parent/child) overlap rejection, same-path owned↔owned **allowed** (one folder shared into multiple spaces), same-path overlap still rejected when a mirror is involved, foreign-inside-downloads, not-writable, cloud-sync rejection (`MOUNT_FORBIDDEN_CLOUD_SYNC`), no-advisory baseline. |
+| `mount-validate.test.js` | `validateMountPathSync` — system folders, nested (parent/child) overlap rejection, same-path owned↔owned **allowed** (one folder shared into multiple spaces), same-path overlap still rejected when a mirror is involved, foreign-inside-downloads, not-writable, cloud-sync rejection (`MOUNT_FORBIDDEN_CLOUD_SYNC`, iCloud Drive ahead of the `~/Library` rule), per-user system roots rejected by both validators for both roles, no-advisory baseline. |
 | `mount-validate-extra.test.js` | Rejects a mount inside the app-data (store) directory. |
 
 ### E. Loose files & transfers
