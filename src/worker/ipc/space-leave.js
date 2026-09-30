@@ -23,7 +23,6 @@ import { runLeaveTeardown } from '../../shared/spaces/membership/leave-state.js'
 import { forgetUnreferencedPeerCores } from '../../shared/storage/leftover.js'
 import { purgeOwnRetiredDrive } from '../../shared/storage/retired-drive-cores.js'
 import { folderCancelSpace } from '../../shared/transfer/backends/overlay/folder-downloads.js'
-import { bumpServeEpoch, revokeServesForSpace } from '../../shared/transfer/backends/overlay/overlay-instance.js'
 import { cleanupDownloadHistory } from '../../shared/transfer/files.js'
 import { looseCancelSpace } from '../../shared/transfer/backends/overlay/loose-downloads.js'
 import { clearPendingForSpace } from '../../shared/transfer/pending-transfers.js'
@@ -121,9 +120,9 @@ function liveLeaveSteps(spaceId, { ipc, mounts, log, onPhase, rosterKeys }) {
 
 /**
  * @param {WorkerIpc} ipc
- * @param {{ log: Logger, mounts: WorkerRoot['mounts'], discardPendingSpace: (spaceId: string) => Promise<void>, dropSpaceDownloadRoot: (spaceId: string) => void }} deps
+ * @param {{ log: Logger, mounts: WorkerRoot['mounts'], overlayBackend: WorkerRoot['overlayBackend'], discardPendingSpace: (spaceId: string) => Promise<void>, dropSpaceDownloadRoot: (spaceId: string) => void }} deps
  */
-export function registerSpaceLeave(ipc, { log, mounts, discardPendingSpace, dropSpaceDownloadRoot }) {
+export function registerSpaceLeave(ipc, { log, mounts, overlayBackend, discardPendingSpace, dropSpaceDownloadRoot }) {
   ipc.handle('space:leave', async (msg) => {
     // A teardown is already in flight (it can outlive the IPC response) — a re-click must be a no-op,
     // not a second run that clobbers the in-flight leave-ack tracking and re-purges half-torn state.
@@ -221,8 +220,7 @@ export function registerSpaceLeave(ipc, { log, mounts, discardPendingSpace, drop
         // fetch slots — as the owner we have none, so without this a leave stops nothing on the
         // serving side and the content plane keeps streaming the space's bytes. Runs BEFORE the
         // purges: it needs serveIndex to still resolve hash → space.
-        revokeServesForSpace(msg.spaceId)
-        bumpServeEpoch()
+        overlayBackend?.revokeServesForSpace(msg.spaceId)
 
         tracker.phase = 'leaveSpaceTopic'
         await leaveSpaceTopic(msg.spaceId)

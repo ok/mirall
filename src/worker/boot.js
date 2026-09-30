@@ -152,6 +152,7 @@ export async function boot(bootstrap, {
   const life = createLifecycle({ log })
   let durable = null
   let publishService = null
+  /** @type {OverlayBackend | null} */
   let overlayBackend = null
   let supervisor = null
 
@@ -319,7 +320,7 @@ export async function boot(bootstrap, {
     supervisor = await life.start(new Supervisor('supervision', { lifecycle: life }))
 
     return {
-      close, store, mounts, intents, ownedFolders, publishService,
+      close, store, mounts, intents, ownedFolders, publishService, overlayBackend,
       applyRelayConfig: () => applyRelayConfig(log),
       health: () => [...(durable?.health() || []), ...life.health()],
       supervision: () => supervisor?.stats() ?? null,

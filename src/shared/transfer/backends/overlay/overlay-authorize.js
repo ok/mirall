@@ -7,15 +7,6 @@
 // Deny is surfaced to the protocol as a silent drop — observationally
 // identical to "I don't hold it", so a non-member learns nothing (no oracle).
 
-/**
- * @param {object} deps
- * @param {{ get(peer): any }} deps.peerSocket overlay peer → swarm socket
- * @param {(socket, fromHex) => boolean} deps.socketAuthorized is this profile key Noise-authenticated on this socket?
- * @param {(spaceId, fromHex) => Promise<boolean>} deps.isApprovedMember approved-membership check for a space
- * @param {{ take(key): { ok: boolean } }} deps.serveLimiter per-requester serve rate limit
- * @param {{ spacesFor(hash): Iterable<string> }} deps.serveIndex
- * @returns {(peer, from, contentHash, opts?: { rateLimit?: boolean }) => Promise<boolean>}
- */
 // Denial reasons. Only UNAUTHENTICATED and NOT_A_MEMBER mean "access refused"; the other three are
 // ordinary operation — NO_SOCKET is a teardown race, RATE_LIMITED is flow control that fires
 // routinely mid-transfer when a peer asks for chunks faster than the budget allows, and NOT_HELD
@@ -32,6 +23,15 @@ export const DENY = {
 
 export const SECURITY_DENIALS = new Set([DENY.UNAUTHENTICATED, DENY.NOT_A_MEMBER])
 
+/**
+ * @param {object} deps
+ * @param {{ get(peer): any }} deps.peerSocket overlay peer → swarm socket
+ * @param {(socket, fromHex) => boolean} deps.socketAuthorized is this profile key Noise-authenticated on this socket?
+ * @param {(spaceId, fromHex) => Promise<boolean>} deps.isApprovedMember approved-membership check for a space
+ * @param {{ take(key): { ok: boolean } }} deps.serveLimiter per-requester serve rate limit
+ * @param {{ spacesFor(hash): Iterable<string> }} deps.serveIndex
+ * @returns {(peer, from, contentHash, opts?: { rateLimit?: boolean }) => Promise<boolean>}
+ */
 export function makeServeAuthorizer({ peerSocket, socketAuthorized, isApprovedMember, serveLimiter, serveIndex, onDeny = null }) {
   return async function authorizeServe(peer, from, contentHash, { rateLimit = true } = {}) {
     const deny = (reason) => {

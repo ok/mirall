@@ -184,7 +184,7 @@ root = await boot(bootstrap, {
   // the line below; both carry the same close().
   onPartialRoot: (partial) => { root = partial },
 })
-const { mounts, intents, applyRelayConfig } = root
+const { mounts, intents, applyRelayConfig, overlayBackend } = root
 const mountOwnedShare = createOwnedMounter({ ipc, mounts })
 
 registerWorkerProcess(ipc, { stop: () => { safeShutdown('shutdown-request') } })
@@ -205,7 +205,7 @@ registerProfile(ipc, { log })
 
 registerSpaces(ipc, { log, publishDownloadRoots })
 
-registerSpaceLeave(ipc, { log, mounts, discardPendingSpace, dropSpaceDownloadRoot })
+registerSpaceLeave(ipc, { log, mounts, overlayBackend, discardPendingSpace, dropSpaceDownloadRoot })
 
 // === IPC: presence, file & transfer handlers ===
 
