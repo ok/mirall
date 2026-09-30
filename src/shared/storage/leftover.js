@@ -3,13 +3,12 @@
 // sniffing, and purge only the provably-safe categories. Conservative by design —
 // anything unidentified stays on disk.
 import b4a from 'b4a'
-import crypto from 'hypercore-crypto'
 import Hyperbee from 'hyperbee'
 import { createLogger } from '../core/logger.js'
 import { getStore, createBee, createLocalBee, LOCAL_BEE_NAMES } from '../core/store.js'
 import { purgeCoreDk } from './core-purge.js'
 import { listSpaces } from '../spaces/space.js'
-import { getProfileBee, withPeerBee } from '../spaces/profile.js'
+import { getProfileBee } from '../spaces/profile.js'
 import { readCatalogKey } from '../shares/catalog-keys.js'
 import { ownCatalog } from '../shares/own-catalog.js'
 import { compactStore } from './compaction.js'
@@ -20,7 +19,7 @@ import { decideSweep } from '../sweep/sweep-rules.js'
 import { recordSweep } from './sweep-journal.js'
 import { getSweepPurgeGuard } from '../core/runtime-config.js'
 import { listContentKeys } from '../spaces/space-keys.js'
-import { prefixRange } from '../core/bee-keys.js'
+import { dkOfKey, memberCatalogKeys } from './space-catalog-cores.js'
 
 const log = createLogger('leftover')
 
@@ -32,7 +31,6 @@ const WANTED_BEE_GROUPS = [
 ]
 
 const HEX64 = /^[0-9a-f]{64}$/i
-const SHARE_PREFIX = 'share/'
 const INSPECT_MS = 2000
 const INSPECT_CONCURRENCY = 12
 
@@ -41,7 +39,6 @@ const INSPECT_CONCURRENCY = 12
 const PURGEABLE = ['profiles', 'catalogs']
 
 const hex = (buf) => b4a.toString(buf, 'hex')
-const dkOfKey = (keyHex) => hex(crypto.discoveryKey(b4a.from(keyHex, 'hex')))
 
 async function addBeeCore(set, bee) {
   await bee.core.ready()
@@ -59,37 +56,12 @@ async function addAndCloseBeeCore(set, bee) {
   }
 }
 
-// Local read only: a current member's published catalog keys come from their
-// already-replicated profile bee. No core.update (that waits on the swarm and is
-// what made the scan exceed the IPC deadline) and no waiting block reads.
-function localPeerCatalogKeys(profileKeyHex, spaceId) {
-  // The accumulator IS the fallback: a peer bee is by definition partially replicated, so a
-  // mid-stream BLOCK_NOT_AVAILABLE (the reason this read uses `wait: false`) is expected — and
-  // the keys collected before it must still reach the wanted set. Returning an empty list there
-  // would let the reclaim treat a live catalog as an orphan and purge it.
-  const keys = []
-  // sync:false keeps this a purely local read (no head pull); withPeerBee owns the close.
-  return withPeerBee(profileKeyHex, async (bee) => {
-    const prefix = SHARE_PREFIX + spaceId + '/'
-    for await (const entry of bee.createReadStream(prefixRange(prefix), { wait: false })) {
-      const ck = readCatalogKey(entry.value).keyHex
-      if (ck && HEX64.test(ck)) keys.push(ck)
-    }
-    return keys
-  }, { sync: false, fallback: keys })
-}
-
-// Every core a current member is entitled to keep. The member record's OWN catalog key matters as
-// much as the ones on their share records: localPeerCatalogKeys streams share/<space>/ only, and a
-// peer sharing nothing but LOOSE files publishes their catalog at loosecat*/<space> instead — so
-// without this arm a live peer's catalog scans as an orphan and is purged while they are still a
-// member.
+// Every core a current member is entitled to keep: their profile and every catalog they publish in
+// this space, or a live peer's catalog scans as an orphan and is purged while they are still a member.
 async function addMemberCores(wanted, member, spaceId) {
   if (!member.publicKey || !HEX64.test(member.publicKey)) return
   wanted.add(dkOfKey(member.publicKey))
-  const memberCatalog = readCatalogKey(member).keyHex
-  if (memberCatalog && HEX64.test(memberCatalog)) wanted.add(dkOfKey(memberCatalog))
-  for (const ck of await localPeerCatalogKeys(member.publicKey, spaceId)) wanted.add(dkOfKey(ck))
+  for (const ck of await memberCatalogKeys(member, spaceId)) wanted.add(dkOfKey(ck))
 }
 
 // Every core current state still needs, built from local, deterministic sources only — no
