@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { classifyLocalCopy, mayOverwriteInPlace, LOCAL_COPY } from '../../src/shared/folders/mirror-policy.js'
+import { classifyLocalCopy, mayDeleteMirrorCopy, mayOverwriteInPlace, LOCAL_COPY } from '../../src/shared/folders/mirror-policy.js'
 
 const OWNER = 'o'.repeat(64)
 const OURS = 'a'.repeat(64)
@@ -42,4 +42,14 @@ test('owner-current outranks ours when all three agree', (t) => {
 test('an empty call does not throw and does not authorize an overwrite', (t) => {
   t.is(classifyLocalCopy(), LOCAL_COPY.UNKNOWN)
   t.absent(mayOverwriteInPlace(classifyLocalCopy()))
+})
+
+// The delete leg has no owner hash to compare against: the owner removed the row. Only the ancestor
+// separates our copy from the user's.
+test('REGRESSION (MIR-50): the owner delete removes only an untouched mirror copy', (t) => {
+  t.ok(mayDeleteMirrorCopy(classifyLocalCopy({ diskHash: OURS, ancestorHash: OURS })), 'exactly what we delivered')
+  t.absent(mayDeleteMirrorCopy(classifyLocalCopy({ diskHash: USER, ancestorHash: OURS })), 'a local edit is kept')
+  t.absent(mayDeleteMirrorCopy(classifyLocalCopy({ diskHash: USER, ancestorHash: null })), 'no record of a landing is kept')
+  t.absent(mayDeleteMirrorCopy(classifyLocalCopy({ diskHash: null, ancestorHash: OURS })), 'an unreadable file is kept')
+  t.absent(mayDeleteMirrorCopy(LOCAL_COPY.OWNER_CURRENT), 'only OURS authorises a delete')
 })

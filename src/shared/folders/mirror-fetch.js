@@ -27,7 +27,8 @@ import { classifyMiss, isTerminalFault } from '../transfer/backends/overlay/fetc
 import { runOverlayFetch } from '../transfer/backends/overlay/fetch-run.js'
 import { FETCH_OWNER_MIRROR, acquireFetchSlot } from '../transfer/backends/overlay/fetch-gate.js'
 import { overlayHashFile } from '../transfer/backends/overlay/overlay-hash.js'
-import { getVerifiedHash, isVerifiedUnchanged, markVerified } from '../transfer/files.js'
+import { getVerifiedHash, getVerifiedRecord, isVerifiedUnchanged, markVerified } from '../transfer/files.js'
+import { fingerprintMatches } from '../transfer/verified-copy.js'
 import { freeBytesFor } from '../transfer/free-space-probe.js'
 import { shortfall } from '../transfer/free-space.js'
 import { PARTIAL_SUFFIX } from '../transfer/partial-suffix.js'
@@ -37,7 +38,7 @@ import { memberWaits } from '../network/share-wait.js'
 import { SHARE_WAIT_SOURCE } from '../transfer/share-wait-set.js'
 import { pauseMount, pauseMountForIoError } from './foreign-pause.js'
 import { emitMirrorEvent } from './mirror-signals.js'
-import { classifyLocalCopy, mayOverwriteInPlace, mirrorKey } from './mirror-policy.js'
+import { MIRROR_DELETE, classifyLocalCopy, mayDeleteMirrorCopy, mayOverwriteInPlace, mirrorKey } from './mirror-policy.js'
 import { STATUS_MOUNT_GONE, statusForFaultCode } from './mount-fault.js'
 import { conflictCopyName } from './path-keys.js'
 import { freeMirrorRel } from './mirror-state.js'
@@ -132,6 +133,29 @@ async function preserveLocalEdit(mount, entry, verifyKey, diskHash, abs, localRe
     log.error('could not preserve a locally-edited mirror file — leaving it untouched:', entry.relPath, '-', err.message)
     throw new AppError(CODES.TRANSFER_PERMISSION, 'could not preserve a local edit')
   }
+}
+
+// The delete leg's evidence, the same ancestor preserveLocalEdit reads: is the file at `localRel`
+// (lstat'ed as `onDisk`) still the copy this mirror delivered for `ownerKey`? Only a record that
+// fingerprinted the landing answers without a read; otherwise a hash equal to the recorded one
+// does. A non-file, or no record of a landing at this path, is not ours.
+export async function mirrorDeleteDecision(mount, ownerKey, localRel, onDisk) {
+  if (!onDisk.isFile()) return MIRROR_DELETE.KEEP
+  let rec = null
+  try { rec = await getVerifiedRecord(mount.spaceId, entryRef(mount.shareId, ownerKey)) } catch (err) {
+    log.debug('could not read the landing record before deleting a mirror file:', localRel, '-', err.message)
+    return MIRROR_DELETE.RETRY
+  }
+  if (!rec?.hash || rec.local !== localRel) return MIRROR_DELETE.KEEP
+  if (typeof rec.mtime === 'number' && fingerprintMatches(rec, onDisk, undefined, { expectLocal: localRel })) return MIRROR_DELETE.DELETE
+  let diskHash = null
+  try {
+    diskHash = await beating(mirrorKey(mount.spaceId, mount.shareId), () => overlayHashFile(pathFromMount(mount.mountPath, localRel)))
+  } catch (err) {
+    log.debug('could not hash a mirror file before deleting it:', localRel, '-', err.message)
+    return MIRROR_DELETE.RETRY
+  }
+  return mayDeleteMirrorCopy(classifyLocalCopy({ diskHash, ancestorHash: rec.hash })) ? MIRROR_DELETE.DELETE : MIRROR_DELETE.KEEP
 }
 
 // Overlay share: the bytes never enter a drive, so the mirror fetches the file by
@@ -257,7 +281,7 @@ export async function materializeOverlayFile(mount, share, entry, opts = {}) {
   // Overlay content hashes are leaf/size-prefixed, NOT plain blake2b — compare
   // the on-disk copy with the overlay hasher, or the skip/adopt checks never
   // match and the mirror re-fetches every file every tick.
-  const localRelPath = await state.resolveLocalRelPath(mount, entry.relPath, entry.contentHash, hashOf, opts.synced || state.syncedSetFor(mount), opts.fresh)
+  const localRelPath = await state.resolveLocalRelPath(mount, entry.relPath, entry.contentHash, hashOf, opts.synced || state.syncedSetFor(mount))
   const abs = pathFromMount(mount.mountPath, localRelPath)
   const { onDisk, unreadable } = await statLocal(abs, entry)
   // Retained past the checks below: it is the evidence the ancestor comparison needs, and a pass
@@ -448,7 +472,15 @@ async function finishLandedFetch(mount, entry, res, { abs, verifyKey, localRelPa
   } catch (err) {
     log.debug('could not fingerprint a landed mirror file:', entry.relPath, '-', err.message)
   }
-  await markVerified(mount.spaceId, verifyKey, entry.contentHash, { local: localRelPath, stat: landed })
+  // The bytes are ours from the rename on, so the sibling is claimed before the record write: a
+  // record that fails leaves a file the delete leg keeps and the next pass re-adopts by hash, never
+  // a landed sibling nothing points at.
+  state.recordRenamed(mount, entry.relPath, localRelPath)
+  try {
+    await markVerified(mount.spaceId, verifyKey, entry.contentHash, { local: localRelPath, stat: landed })
+  } catch (err) {
+    log.warn('could not record a landed mirror file — it stays until the next pass re-adopts it:', entry.relPath, '-', err.message)
+  }
   attempts.succeed(mirrorKey(mount.spaceId, mount.shareId), entry.relPath, entry.contentHash)
   return 'present'
 }

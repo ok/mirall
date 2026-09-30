@@ -196,7 +196,8 @@ export async function pruneDownloadClaims(spaceId, drivePaths) {
   return drivePaths.length
 }
 
-async function getVerifiedRecord(spaceId, key) {
+// The whole record for `key`, or null — for a caller that must weigh the fingerprint itself.
+export async function getVerifiedRecord(spaceId, key) {
   const entry = await downloadsBee.get('verified:' + spaceId + ':' + key)
   return entry?.value || null
 }

@@ -63,8 +63,8 @@ export function requestMirrorWalk(spaceId, shareId, { now = false } = {}) {
 }
 
 // The owner key the mirror materialized at `localRel`, or null for a path it never wrote. Read from
-// the live state, not the record: a pass persists once, at its end, and the sibling it minted a
-// moment ago is in the map before its bytes land.
+// the live state, not the record: a pass persists once, at its end, and what it claimed on landing
+// a moment ago is in the live state long before the record carries it.
 export function mirrorOwnerKeyAt(mount, localRel) {
   const ownerKey = ownerKeyOf({ renamedPaths: state.renamedFor(mount) }, localRel)
   return state.syncedSetFor(mount).has(ownerKey) ? ownerKey : null
