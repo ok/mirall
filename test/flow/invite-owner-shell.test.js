@@ -102,6 +102,9 @@ test('REGRESSION (MIR-26: a bound grant from a stranger is honoured while pendin
   t.comment('observed: status=' + status + ' refusal logged=' + refused)
   t.is(status, 'pending', 'B did not materialize from the stranger\'s grant')
   t.ok(refused, 'B logged the refusal')
+  // Vetting the squatter lent it roster cores, a loan that ends by closing the socket.
+  t.ok(await until(() => atk.closedSockets() > 0, 15000, { interval: 100 }), 'B closed the squatter\'s socket')
+  await atk.waitConnected()
 
   const granted = B.waitFor('event:membership-granted', (m) => m.spaceId === spaceId, 30000)
   atk.send(grantFrom(owner))

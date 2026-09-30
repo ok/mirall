@@ -451,17 +451,22 @@ function loadMembershipRecord(profileKeyHex, spaceId, sync) {
 // after a co-member's approval leaves NO peer holding its own record, and the OR-Set fold (which
 // needs the joiner's own `member/<S>.active`) can never converge it on anyone, the owner included.
 // The WHOLE core, contiguous: a sparse record-read leaves gaps the owner's live follow cannot
-// reconstruct from us (peers=1 yet no blocks ever land). Best-effort and bounded: never throws,
-// never blocks approval past `timeoutMs`, and timeoutMs<=0 disables capture.
-export async function captureJoinerMembership(joinerKeyHex, spaceId, { timeoutMs = getCaptureMemberRecordMs() } = {}) {
+// reconstruct from us (peers=1 yet no blocks ever land). The joiner serves its core on `socket` only
+// once it has vetted the grant we sent there, so the head is waited for on that socket. Best-effort
+// and bounded: never throws, never blocks approval past `timeoutMs`, and timeoutMs<=0 disables
+// capture.
+export async function captureJoinerMembership(joinerKeyHex, spaceId, { timeoutMs = getCaptureMemberRecordMs(), socket = null } = {}) {
   if (!(timeoutMs > 0)) return false
   const startedAt = Date.now()
-  const r = await capturePeerBee(joinerKeyHex, { deadline: startedAt + timeoutMs })
+  const r = await capturePeerBee(joinerKeyHex, { deadline: startedAt + timeoutMs, authorSocket: socket })
   if (r.complete) return true
   // len=0 ⇒ the joiner's profile-bee head never reached us in time (replication/announce);
   // len>0 && contig<len ⇒ the head arrived but blocks stalled (starved session / throughput), or
-  // the bee grew while the sweep ran and the tail is still owed.
-  log.debug(`membership capture incomplete — ${joinerKeyHex.slice(0, 8)} space ${spaceId.slice(0, 8)} len=${r.length} contig=${r.contiguous} ${Date.now() - startedAt}ms`)
+  // the bee grew while the sweep ran and the tail is still owed. A joiner we granted over a live
+  // socket is expected to serve, so its miss is surfaced.
+  const miss = `membership capture incomplete — ${joinerKeyHex.slice(0, 8)} space ${spaceId.slice(0, 8)} len=${r.length} contig=${r.contiguous} ${Date.now() - startedAt}ms`
+  if (socket) log.warn(miss)
+  else log.debug(miss)
   return false
 }
 

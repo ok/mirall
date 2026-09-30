@@ -161,3 +161,28 @@ test('a socket admitted during the hold stays open', async (t) => {
   await settle(1000)
   t.absent(ours.destroyed, 'an admitted socket is left open')
 })
+
+// Why a refused membership walk closes its socket: an attached core stays served after its session
+// closes, appends included.
+test('closing an attached core\'s session leaves it served on the socket', async (t) => {
+  await freshPeer(t)
+  const walked = getStore().get({ name: 'gate-walked', active: false })
+  await walked.ready()
+  await walked.append('first')
+  const walkedKey = b4a.toString(walked.key, 'hex')
+  await walked.close()
+
+  const { ours, remote } = await connect(t)
+  const mirror = await mirrorOf(remote, b4a.from(walkedKey, 'hex'))
+  await settle()
+
+  const attached = await attachPeerCore(ours, walkedKey)
+  t.ok(await firstBlock(mirror, 5000), 'precondition: the remote reads it over the gated socket')
+  await attached.close()
+
+  const writer = getStore().get({ key: b4a.from(walkedKey, 'hex') })
+  await writer.ready()
+  t.teardown(() => writer.close())
+  await writer.append('second')
+  t.ok(await mirror.get(1, { timeout: scaled(5000) }).catch(() => null), 'an append after the close still reaches the remote')
+})
