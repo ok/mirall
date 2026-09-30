@@ -669,6 +669,22 @@ re-diffable against upstream. Categories:
     mismatch, control frames), `test/integration/overlay-vendor-protocol.test.js` (control frames)
     and `test/flow/content-chunkmap-poisoning.test.js`.
 
+27. **§4.25 — the receive never writes through a link, over a newcomer, or into a recreated
+    folder (`transfer.js` + `chunk-scheduler.js` + `protocol-v2.js` + `overlay-v2.js`, security).**
+    The receive writes into folders the user also writes into. Four changes:
+    - `startReceive` resumes a partial only when `lstat` finds a regular file of the right size,
+      so a symlink at the partial name is never opened `'r+'` and written through.
+    - A fresh partial is unlinked, then created with `'wx+'` (upstream opened `'w+'`, which follows
+      a link and truncates its target).
+    - `startReceive` records a fingerprint of the target (`ino:size:mtimeMs` from `lstat`, or
+      null), and `finalize` compares it again before `renameSync`. A target that appeared or was
+      replaced meanwhile refuses with `{ ok: false, code: 'ETARGETCHANGED' }` and drops the partial
+      and journal, since the name is no longer the transfer's.
+    - `fetchFile` takes `opts.parentMustExist`, passed through `fetchContent` and the scheduler to
+      `startReceive`, which then requires the target's folder to exist (throwing a coded `ENOENT`)
+      instead of `mkdir -p`-ing it. Absent the opt, the folder is created as upstream.
+    Covered by `test/integration/overlay-vendor-partial.test.js`.
+
 ## Re-diffing against upstream
 
 From this folder, with an upstream clone at `$UPSTREAM`:

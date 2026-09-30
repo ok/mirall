@@ -14,7 +14,7 @@ import { listAllMounts } from './mount-store.js'
 import { createLogger } from '../core/logger.js'
 import {
   systemRootViolation, personalRootViolation, isWindowsReservedName, pathsOverlap, cloudSyncHint,
-  overlapAllowed, pathContains,
+  mountOverlapViolation, pathContains,
 } from './path-keys.js'
 
 const log = createLogger('mount-validate')
@@ -24,14 +24,16 @@ function normalizePath(absPath) {
   return os.platform() === 'darwin' ? resolved.normalize('NFC') : resolved
 }
 
-function overlaps(a, b) {
-  return pathsOverlap(a, b, path.sep)
-}
-
 // Case-folding filesystems where a hand-typed `~/documents` resolves to the same
 // folder as `~/Documents` — so personal-root equality must compare case-insensitively.
 function caseInsensitive(platform) {
   return platform === 'darwin' || platform === 'win32'
+}
+
+function rejectIfOverlapsAnyMount(normalized, role, mounts, ctx) {
+  const fold = caseInsensitive(os.platform())
+  const hit = mountOverlapViolation(normalized, role, mounts, { sep: path.sep, fold, shareId: ctx.shareId ?? null })
+  if (hit) throw new AppError(CODES.MOUNT_OVERLAPS, hit)
 }
 
 // Shared by both validators so their rules can't drift apart: reject Windows
@@ -203,14 +205,7 @@ export function validateMountPath(absPath, role, ctx = {}) {
 }
 
 async function validateOverlapAndWrite(normalized, role, ctx) {
-  const existing = await listAllMounts()
-  for (const m of existing) {
-    if (m.role === role && m.shareId === ctx.shareId) continue
-    if (overlaps(normalized, m.mountPath) &&
-        !overlapAllowed(normalized, role, m.mountPath, m.role)) {
-      throw new AppError(CODES.MOUNT_OVERLAPS, m.mountPath)
-    }
-  }
+  rejectIfOverlapsAnyMount(normalized, role, await listAllMounts(), ctx)
 
   rejectIfOverlapsAnyDownloadRoot(normalized, role)
 
@@ -246,13 +241,7 @@ export function validateMountPathSync(absPath, role, existingMounts, ctx = {}) {
 
   checkWindowsSegments(normalized, platform)
 
-  for (const m of existingMounts) {
-    if (m.role === role && m.shareId === ctx.shareId) continue
-    if (overlaps(normalized, m.mountPath) &&
-        !overlapAllowed(normalized, role, m.mountPath, m.role)) {
-      throw new AppError(CODES.MOUNT_OVERLAPS, m.mountPath)
-    }
-  }
+  rejectIfOverlapsAnyMount(normalized, role, existingMounts, ctx)
 
   rejectIfOverlapsAnyDownloadRoot(normalized, role)
 

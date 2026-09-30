@@ -6,6 +6,7 @@ import { getForeignMount, createForeignMount } from '../../src/shared/folders/mo
 import { createLocalBee } from '../../src/shared/core/store.js'
 import { unmountForeignFolder } from '../../src/shared/folders/foreign-verbs.js'
 import { initialMaterializeScan, runMaterializeTick } from '../../src/shared/folders/mirror-pass.js'
+import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
 
 // Count Array.prototype.includes calls for the duration of a pass. A subclassed array cannot be
 // used here: the record round-trips through the bee's JSON encoding, which hands the loop a plain
@@ -67,16 +68,22 @@ test('REGRESSION (FIX-MIRROR-SET): a converged tick with nothing to do writes no
   t.is(await mountsBeeLength(), before, 'two further converged ticks appended no blocks')
 })
 
-// Ownership is recorded BEFORE the write lands, so a pass interrupted after a file landed still
-// owns it — otherwise the owner's later delete of that file is never applied to the mirror.
-test('REGRESSION (FIX-MIRROR-SET): a file is owned before its bytes land', async (t) => {
+// Ownership follows the bytes: a row that lands is owned, a row that does not is not — otherwise
+// the owner's later delete of it reaches whatever file the user put at that path.
+test('REGRESSION (MIR-50): a file is owned once its bytes land, and only then', async (t) => {
   const ctx = await setupSelfMirror(t, { name: 'Order', files: { 'a.txt': 'a', 'b.txt': 'b' } })
+  const orig = overlayBackend.listPeerWithMeta
+  overlayBackend.listPeerWithMeta = async (...a) => {
+    const res = await orig(...a)
+    return { ...res, entries: res.entries.map((e) => (e.relPath === 'b.txt' ? { ...e, contentHash: null } : e)) }
+  }
+  t.teardown(() => { overlayBackend.listPeerWithMeta = orig })
   await initialMaterializeScan(ctx.mount)
   const stored = await getForeignMount(ctx.spaceId, ctx.share.id)
-  t.ok(stored.syncedPaths.includes('a.txt') && stored.syncedPaths.includes('b.txt'), 'both files are owned')
-  for (const rel of ['a.txt', 'b.txt']) {
-    t.ok(fs.existsSync(path.join(ctx.mirrorPath, rel)), rel + ' materialized')
-  }
+  t.ok(fs.existsSync(path.join(ctx.mirrorPath, 'a.txt')), 'a.txt materialized')
+  t.ok(stored.syncedPaths.includes('a.txt'), 'and is owned')
+  t.absent(fs.existsSync(path.join(ctx.mirrorPath, 'b.txt')), 'b.txt is still being hashed by the owner')
+  t.absent(stored.syncedPaths.includes('b.txt'), 'so it is not owned')
 })
 
 // The Set's lifetime is the record's: an unmount drops it so a re-mount starts from the persisted
@@ -93,10 +100,8 @@ test('unmount drops the in-memory ownership with the record', async (t) => {
   t.ok(again.syncedPaths.includes('k.txt'), 'the re-mount rebuilt ownership from its own scan')
 })
 
-// Ownership is recorded before the write lands, but the collision check must still treat such a
-// path as NOT-yet-ours: a pre-existing user file at the natural name has to get a sibling, not be
-// adopted. Unifying "what we own" with "what we owned before this pass" broke exactly this, and
-// only the two-peer foreign-sync test caught it — this pins it at the cheaper layer.
+// A pre-existing user file at the natural name is not ours, so it gets a sibling rather than being
+// adopted. Pinned here as well as in the two-peer foreign-sync flow, at the cheaper layer.
 test('REGRESSION (FIX-MIRROR-SET): a pre-existing user file at the natural name still gets a sibling', async (t) => {
   const ctx = await setupSelfMirror(t, { name: 'Collide', files: { 'report.pdf': 'OWNER CONTENT' } })
   // The user already has an unrelated file at that name in the mirror folder.

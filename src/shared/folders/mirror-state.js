@@ -2,12 +2,13 @@
 //
 // Three pieces of per-mount state that live and die together, which is why they share a module and
 // a single reset:
-//  - `synced`: the owner keys this mirror wrote. A deletion is honoured only for these, so the set
-//    is the evidence that makes an owner-side delete safe to apply. In memory it is the
-//    authoritative copy; mount.syncedPaths is its boot-time seed and durable snapshot.
+//  - `synced`: the owner keys whose bytes this mirror landed or adopted. The owner's delete is
+//    considered only for these, and even then applied only to a copy the verified record still
+//    vouches for. In memory it is the authoritative copy; mount.syncedPaths is its boot-time seed
+//    and durable snapshot.
 //  - `renamedPaths`: the collision mapping. A pre-existing user file at the natural name forces a
-//    sibling, and the mapping has to be idempotent across ticks or a re-mount breeds
-//    report (1).pdf, report (2).pdf … In memory it is authoritative for the same reason as the set.
+//    sibling, recorded once the owner's bytes land there, so the mapping is idempotent across
+//    ticks and a re-mount does not breed report (1).pdf, report (2).pdf …
 //  - the convergence watermark: the owner-catalog version the last converged pass walked, so a
 //    settled mirror re-walks only when that version moves.
 import fs from 'bare-fs'
@@ -49,9 +50,13 @@ export function createMirrorState() {
   // only on unmount, with the record.
   const syncedSets = new Map()
   // mirrorKey -> the collision map, shared by reference with the mount object a pass holds. Held
-  // here like the synced set, so a mapping whose sibling is already on disk outlives a pass whose
-  // write was declined: the pause and the next persist both read it from here.
+  // here like the synced set, so a mapping claimed by a landing outlives the pass that landed it:
+  // the pause and the next persist both read it from here.
   const renamedMaps = new Map()
+  // mirrorKey -> Map<ownerKey, sibling> picked for bytes that have not landed yet. Never persisted
+  // and never ownership: it only lets an interrupted fetch resume into the same sibling, whose
+  // partial would otherwise make the name read as taken and breed report (2).pdf.
+  const pendingSiblings = new Map()
   // mirrorKeys whose set / renamedPaths differ from the persisted record.
   const dirty = new Set()
   // A pass holds the set and map it bound at its start. Once a relocate or unmount has reset the
@@ -97,13 +102,15 @@ export function createMirrorState() {
   //  2) nothing on disk, or a path we already synced at its natural name -> natural;
   //  3) on-disk bytes already equal the share's hash -> natural (this is what lets
   //     unmount -> re-mount adopt the prior copy);
-  //  4) a genuine pre-existing user file -> a free sibling, recorded in renamedPaths.
-  async function resolveLocalRelPath(mount, ownerKey, ownerHash, hashOf, synced = syncedSetFor(mount), fresh = null) {
+  //  4) a genuine pre-existing user file -> a sibling: the one picked for this key before, while
+  //     no file has appeared at it, else a free one. Only remembered as pending here; the mapping
+  //     is claimed by recordRenamed once the bytes land.
+  async function resolveLocalRelPath(mount, ownerKey, ownerHash, hashOf, synced = syncedSetFor(mount)) {
     const mapped = mount.renamedPaths?.[ownerKey]
     if (mapped) return mapped
 
     const naturalAbs = pathFromMount(mount.mountPath, ownerKey)
-    if (!fs.existsSync(naturalAbs) || (synced.has(ownerKey) && !fresh?.has(ownerKey))) return ownerKey
+    if (!fs.existsSync(naturalAbs) || synced.has(ownerKey)) return ownerKey
 
     // hashOf must match how ownerHash was computed: the overlay hasher for overlay shares — else
     // the adopt-existing-copy check never matches and a collision sibling is minted.
@@ -116,11 +123,26 @@ export function createMirrorState() {
       try { if (await hashOf(naturalAbs) === ownerHash) return ownerKey } catch {}
     }
 
+    return pendingSiblingFor(mount, ownerKey)
+  }
+
+  function pendingSiblingFor(mount, ownerKey) {
+    const key = mirrorKey(mount.spaceId, mount.shareId)
+    let pending = pendingSiblings.get(key)
+    if (!pending) pendingSiblings.set(key, pending = new Map())
+    const picked = pending.get(ownerKey)
+    if (picked && !fs.existsSync(pathFromMount(mount.mountPath, picked))) return picked
     const localRel = freeMirrorRel(mount.mountPath, ownerKey, nextFreeName)
+    pending.set(ownerKey, localRel)
+    return localRel
+  }
+
+  function recordRenamed(mount, ownerKey, localRel) {
+    pendingSiblings.get(mirrorKey(mount.spaceId, mount.shareId))?.delete(ownerKey)
     const map = mount.renamedPaths ?? renamedFor(mount)
+    if (localRel === ownerKey || map[ownerKey] === localRel) return
     map[ownerKey] = localRel
     markDirty(mirrorKey(mount.spaceId, mount.shareId), renamedMaps, map)
-    return localRel
   }
 
   // Drop conflict mappings whose owner key the share no longer carries, so the map can't
@@ -139,17 +161,14 @@ export function createMirrorState() {
     renamedFor,
     syncFields,
     resolveLocalRelPath,
+    recordRenamed,
     pruneRenamedPaths,
 
-    // `fresh` collects the keys this pass claimed. Ownership is recorded BEFORE the write lands
-    // (so a cancelled pass still owns what it wrote), but the collision check must still see such
-    // a path as NOT-yet-ours — otherwise a pre-existing user file at the natural name is adopted
-    // instead of getting a sibling. The persisted record and the "did we write this before?"
-    // question are two different things.
-    recordSynced(key, set, ownerKey, fresh) {
+    // Called only once the entry is present on disk: a row that was skipped, blocked or failed
+    // owns nothing, or the owner's later delete of it would reach whatever file the user put there.
+    recordSynced(key, set, ownerKey) {
       if (set.has(ownerKey)) return
       set.add(ownerKey)
-      fresh?.add(ownerKey)
       markDirty(key, syncedSets, set)
     },
     forgetSynced(key, set, ownerKey) {
@@ -190,6 +209,7 @@ export function createMirrorState() {
     reset(key) {
       syncedSets.delete(key)
       renamedMaps.delete(key)
+      pendingSiblings.delete(key)
       dirty.delete(key)
       convergedHeads.delete(key)
       skippedTicks.delete(key)

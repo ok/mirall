@@ -68,23 +68,21 @@ test('REGRESSION (FIX-129): an ENOSPC overlay-mirror fetch pauses the mount (pau
   t.ok(statuses(ctx, shareId).includes('paused-enospc'), 'paused-enospc status surfaced')
 })
 
-// REGRESSION (FIX-MIRROR-PAUSE-RENAMES: a pause is the ONLY chance to persist the conflict mapping a
-// pass minted. resolveLocalRelPath records the sibling by mutating the pass-held mount object in
-// memory, and stopForeignLoop bumps the generation immediately after this write — after which
-// state.persist declines. Deriving the sync fields from the record read inside the lock instead of
-// from that object wrote the mapping the pass STARTED with, stranding the sibling on disk with
-// nothing pointing at it, so the next pass minted 'big (2).bin' beside it.)
-test('REGRESSION (FIX-MIRROR-PAUSE-RENAMES): a pause persists the conflict mapping the pass minted', async (t) => {
+// The collision sibling is claimed when the owner's bytes land there. A pass paused by a disk fault
+// before that must persist no mapping, or the record points the owner's key at a name that holds
+// nothing of ours — and a later delete of that key would reach whatever the user puts there.
+test('REGRESSION (MIR-50): a pause before the sibling landed persists no mapping', async (t) => {
   const { spaceId, shareId, mountPath } = await setupOverlayMirror(t, 'ENOSPC')
-  // The user's own file at the natural name, so the pass has to mint a sibling before it fetches.
+  // The user's own file at the natural name, so the pass has to pick a sibling before it fetches.
   fs.writeFileSync(mountPath + '/big.bin', 'the users own file')
 
   await runMaterializeTick(spaceId, shareId)
 
   const mount = await getForeignMount(spaceId, shareId)
   t.is(mount.status, 'paused-enospc', 'the pass paused on the disk fault')
-  t.ok(mount.renamedPaths?.['big.bin'], 'and the durable record carries the sibling it had already minted')
-  t.not(mount.renamedPaths['big.bin'], 'big.bin', 'which is a sibling, not the natural name')
+  t.absent(mount.renamedPaths?.['big.bin'], 'no sibling is mapped for bytes that never landed')
+  t.absent(mount.syncedPaths?.includes('big.bin'), 'nor is the key owned')
+  t.is(fs.readFileSync(mountPath + '/big.bin', 'utf8'), 'the users own file', 'the user file is untouched')
 })
 
 test('REGRESSION (FIX-129): an EACCES overlay-mirror fetch pauses the mount (paused-error)', async (t) => {

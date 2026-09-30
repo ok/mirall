@@ -275,7 +275,8 @@ export class HyperOverlayV2 extends ReadyResource {
    * have it; otherwise pulls from a connected peer that does (hash-verified).
    * @param {string} contentHash
    * @param {object} [opts] opts.timeout (idle), opts.destPath, [mirall] §4.24 opts.ownerKey
-   *   (handed to holderAuthorizer) and opts.size (the size the chunk map must describe)
+   *   (handed to holderAuthorizer) and opts.size (the size the chunk map must describe),
+   *   [mirall] §4.25 opts.parentMustExist (the receive never creates destPath's folder)
    * @returns {Promise<{ destPath: string, local: boolean, size: number } | null>}
    */
   async fetchFile (contentHash, opts = {}) {
@@ -330,6 +331,7 @@ export class HyperOverlayV2 extends ReadyResource {
       result = await this._protocol.fetchContent(contentHash, peers, {
         destPath,
         size: opts.size,                              // [mirall] §4.24 — the geometry the map must match
+        parentMustExist: opts.parentMustExist,        // [mirall] §4.25
         timeout: opts.timeout,
         onProgress: opts.onProgress || (() => {}),   // [mirall] forward bytes/total
         onVerify: opts.onVerify,                      // [mirall] resume re-verify fraction

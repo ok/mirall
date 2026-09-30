@@ -14,8 +14,8 @@ import { getForeignFullWalkEvery, getMirrorDeletionGuard } from '../core/runtime
 import { getLocalPublicKeyHex } from '../spaces/profile.js'
 import { getContentBackend, hasContentBackend } from '../transfer/content-backends.js'
 import { isOwnerOnline } from '../network/presence-leases.js'
-import { createMountProbe, materializeOverlayFile } from './mirror-fetch.js'
-import { mirrorMayFetch, mirrorKey, shouldWalk } from './mirror-policy.js'
+import { createMountProbe, materializeOverlayFile, mirrorDeleteDecision } from './mirror-fetch.js'
+import { MIRROR_DELETE, mirrorMayFetch, mirrorKey, shouldWalk } from './mirror-policy.js'
 import { localRelOf } from './mirror-state.js'
 import { getForeignMount } from './mount-store.js'
 import { dropUnsafeEntries, relKeyEscapes, shouldHonorDeletions } from './path-keys.js'
@@ -103,7 +103,7 @@ export async function materializeCatalogFile(mount, share, entry, opts = {}) {
 // `noPeers` is a pass that gave up early because there was nothing to fetch from, which leaves its
 // view of the catalog a prefix — the same partial view a truncated listing gives. `faulted` is a walk
 // in which some entry threw rather than reporting an outcome.
-async function materializeEntries(mount, share, entries, { key, gen, synced, fresh, label }) {
+async function materializeEntries(mount, share, entries, { key, gen, synced, label }) {
   let allPresent = true
   let faulted = false
   const probe = createMountProbe(mount)
@@ -117,14 +117,13 @@ async function materializeEntries(mount, share, entries, { key, gen, synced, fre
     if (mirrorStopped(key, gen)) return { allPresent, noPeers: false, stopped: true, faulted }
     // A walk over files already on disk fetches nothing, so the entry itself is the heartbeat.
     loops.noteProgress(key)
-    // Own the path BEFORE the write lands: a pass cancelled mid-file must still own what it
-    // wrote, or the owner's later delete of that file is never applied.
-    state.recordSynced(key, synced, entry.relPath, fresh)
     try {
-      const outcome = await materializeCatalogFile(mount, share, entry, { synced, fresh, gen, probe, noFetch: !canFetch })
+      const outcome = await materializeCatalogFile(mount, share, entry, { synced, gen, probe, noFetch: !canFetch })
       // A NOT-present test rather than a list of miss values: a future outcome must never read as
-      // done and let a file that was never fetched count toward convergence.
-      if (outcome !== 'present') allPresent = false
+      // done, and must never make the mirror own a path it did not fill. Recorded even when the
+      // pass was stopped meanwhile: the bytes landed, and the registry outlives the pause.
+      if (outcome === 'present') state.recordSynced(key, synced, entry.relPath)
+      else allPresent = false
       if (outcome === 'no-peers') {
         log.debug('mirror pass stopped early — nothing to fetch from:', mount.shareId)
         return { allPresent, noPeers: true, stopped: false, faulted }
@@ -178,15 +177,39 @@ async function runInitialMaterializeScan(mount, gen) {
   return { skipped: 'no-content-backend' }
 }
 
-// The deletion reconcile's unlink. pathFromMount rejects a relPath that escapes the mount BEFORE
-// the unlink, so an owner-controlled key can never delete a file outside the mirror folder.
+// The deletion reconcile's unlink of the copy `ownerKey` was materialized as. pathFromMount rejects
+// a path that escapes the mount BEFORE anything is read, so an owner-controlled key can never reach
+// a file outside the mirror folder; and the owner's delete removes only a copy the mirror can still
+// vouch for, so it never reaches bytes the user wrote there. The file is re-lstat'ed just before
+// the unlink: a save that replaced it while it was being hashed is someone else's file.
 /** @internal */
-export async function deleteMirrorFile(mount, localRelPath) {
-  const abs = pathFromMount(mount.mountPath, localRelPath)
+export async function deleteMirrorFile(mount, ownerKey) {
+  const localRel = localRelOf(mount, ownerKey)
+  const abs = pathFromMount(mount.mountPath, localRel)
+  const onDisk = await lstatOrNull(abs)
+  if (!onDisk) return MIRROR_DELETE.DELETE
+  const decision = await mirrorDeleteDecision(mount, ownerKey, localRel, onDisk)
+  if (decision === MIRROR_DELETE.KEEP) {
+    log.warn('the owner removed a mirrored file whose local copy is not the one delivered — keeping it:', localRel)
+  }
+  if (decision !== MIRROR_DELETE.DELETE) return decision
+  if (!sameFile(onDisk, await lstatOrNull(abs))) return MIRROR_DELETE.RETRY
   try { await fs.promises.unlink(abs) } catch (err) {
-    if (err && err.code !== 'ENOENT') throw err
+    if (err?.code !== 'ENOENT') throw err
   }
   emitMirrorEvent('event:share-files-updated', { spaceId: mount.spaceId, shareId: mount.shareId })
+  return MIRROR_DELETE.DELETE
+}
+
+async function lstatOrNull(abs) {
+  try { return await fs.promises.lstat(abs) } catch (err) {
+    if (err?.code === 'ENOENT') return null
+    throw err
+  }
+}
+
+function sameFile(a, b) {
+  return !!b && Number(a.ino) === Number(b.ino) && a.size === b.size && a.mtimeMs === b.mtimeMs
 }
 
 async function initialMaterializeScanCatalog(mount, share, gen) {
@@ -195,11 +218,10 @@ async function initialMaterializeScanCatalog(mount, share, gen) {
   // re-mounted key's Set or collision map from its stale mount object.
   const synced = state.syncedSetFor(mount)
   state.renamedFor(mount)
-  const fresh = new Set()
   const { entries: raw, complete } = await getContentBackend(share).listPeerWithMeta(mount.spaceId, share)
   const entries = dropUnsafeEntries(raw, (rel) => log.warn('refusing a peer file path that escapes the mount folder — skipping this entry (the owner drive may be malicious or corrupted):', rel, '(source: catalog-initial)'))
   const walk = await materializeEntries(mount, share, entries, {
-    key, gen, synced, fresh, label: 'catalog initial materialize failed:',
+    key, gen, synced, label: 'catalog initial materialize failed:',
   })
   if (walk.stopped || mirrorStopped(key, gen)) return { stopped: true }
   const allPresent = walk.allPresent
@@ -249,7 +271,9 @@ function logWithheldDeletions(key, pending, syncedSize, minDeletions) {
 }
 
 // Resolves false when the pass was cancelled part way: it stops deleting at once, because the
-// verb that cancelled it may have moved or paused the folder these paths are resolved against.
+// verb that cancelled it may have moved or paused the folder these paths are resolved against. A
+// key is forgotten once its copy is removed or kept as the user's; a copy that could not be judged
+// this time stays claimed, so the next pass decides again.
 async function applyDeletions(mount, pendingDeletions, { key, gen, synced }) {
   for (const ownerKey of pendingDeletions) {
     if (mirrorStopped(key, gen)) return false
@@ -258,8 +282,7 @@ async function applyDeletions(mount, pendingDeletions, { key, gen, synced }) {
       state.forgetSynced(key, synced, ownerKey)
       continue
     }
-    await deleteMirrorFile(mount, localRelOf(mount, ownerKey))
-    state.forgetSynced(key, synced, ownerKey)
+    if ((await deleteMirrorFile(mount, ownerKey)) !== MIRROR_DELETE.RETRY) state.forgetSynced(key, synced, ownerKey)
   }
   return true
 }
@@ -308,12 +331,11 @@ async function materializeOnceCatalog(mount, share, { gen, writer }) {
   state.beginWalk(key)
   const synced = state.syncedSetFor(mount)
   state.renamedFor(mount)
-  const fresh = new Set()
   const { entries: raw, complete } = await getContentBackend(share).listPeerWithMeta(mount.spaceId, share)
   const entries = dropUnsafeEntries(raw, (rel) => log.warn('refusing a peer file path that escapes the mount folder — skipping this entry (the owner drive may be malicious or corrupted):', rel, '(source: catalog-tick)'))
   const onDrive = new Map(entries.map((e) => [e.relPath, e]))
   const walk = await materializeEntries(mount, share, onDrive.values(), {
-    key, gen, synced, fresh, label: 'catalog materialize failed:',
+    key, gen, synced, label: 'catalog materialize failed:',
   })
   if (walk.stopped || mirrorStopped(key, gen)) return
   const allPresent = walk.allPresent
@@ -346,8 +368,8 @@ async function materializeOnceCatalog(mount, share, { gen, writer }) {
   await state.persist(writer, mount, key)
   if (!walk.faulted) await closeScanStatus(writer, mount)
   // Converged = every file present, the listing a full read, and no owned path the catalog no longer
-  // lists. Every listed entry was recorded into `synced` above, so the listing is a subset of the Set
-  // and equal sizes prove "no deletions pending" in O(1).
+  // lists. When every entry is present, each was recorded into `synced` above, so the listing is a
+  // subset of the Set and equal sizes prove "no deletions pending" in O(1).
   //
   // Deliberately NOT gated on `honorDeletions`: that gate says whether this pass was ALLOWED to act
   // on deletions, not whether any exist. An offline owner cannot append, so it is exactly when

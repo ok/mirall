@@ -20,8 +20,10 @@ export function resolveDest(localDir, fileName) {
 // the space's scope, and report as never downloaded (inviting a full re-download alongside it).
 // Reuse the pin only while it still sits inside `localDir`; otherwise re-resolve. The bytes
 // already in the old folder's partial are given up — the boot sweep reclaims them — which is
-// the cost of honouring the folder the user just chose.
+// the cost of honouring the folder the user just chose. A pin a file now sits at is re-resolved
+// too: the receive only refuses to replace a file that appears during it, so a retry into the pin
+// would take that file as its starting point and write over it.
 export function reuseDest(prevFinalPath, localDir, fileName) {
-  if (prevFinalPath && isInsideDownloadDir(prevFinalPath, localDir)) return prevFinalPath
+  if (prevFinalPath && isInsideDownloadDir(prevFinalPath, localDir) && !fs.existsSync(prevFinalPath)) return prevFinalPath
   return resolveDest(localDir, fileName)
 }

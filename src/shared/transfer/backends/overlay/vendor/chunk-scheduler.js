@@ -98,6 +98,7 @@ export class ChunkScheduler {
    *  opts.timeout idle (no-progress) timeout ms (default 30000)
    *  opts.onProgress optional (receivedBytes, totalBytes) => void on each accepted chunk
    *  opts.size [mirall] §4.24 — the file's catalog size; the chunk map must describe it
+   *  opts.parentMustExist [mirall] §4.25 — handed to startReceive
    */
   constructor (opts) {
     this.path = opts.path
@@ -107,6 +108,7 @@ export class ChunkScheduler {
     this._cap = opts.cap || DEFAULT_CAP
     this._onProgress = opts.onProgress || null
     this._onVerify = opts.onVerify || null
+    this._parentMustExist = !!opts.parentMustExist   // [mirall] §4.25
     this._onBaseline = opts.onBaseline || null
     this._reportInterval = opts.reportInterval ?? DEFAULT_REPORT_INTERVAL
     this._lastReportAt = 0
@@ -440,7 +442,7 @@ export class ChunkScheduler {
         state = await this._transfer.startReceive(
           this.destPath,
           { size: offset, chunks: this._chunks, contentHash: this._contentHash },
-          { isCancelled: () => this._done, onVerifyProgress: this._onVerify }
+          { isCancelled: () => this._done, onVerifyProgress: this._onVerify, parentMustExist: this._parentMustExist }
         )
       } catch (err) {
         this._settingUp = false

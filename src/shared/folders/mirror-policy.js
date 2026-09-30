@@ -44,6 +44,21 @@ export function mayOverwriteInPlace(verdict) {
   return verdict === LOCAL_COPY.OURS || verdict === LOCAL_COPY.OWNER_CURRENT
 }
 
+// The delete leg's half of the same rule. The owner removing a file authorises removing the copy we
+// delivered, never bytes someone else wrote at that path: a deleted row has no owner hash, so only
+// an untouched copy of our own landing qualifies.
+export function mayDeleteMirrorCopy(verdict) {
+  return verdict === LOCAL_COPY.OURS
+}
+
+// What the delete leg does with one owned path. KEEP ends the mirror's claim on a file that is not
+// its copy; RETRY keeps the claim because the evidence could not be read this time.
+export const MIRROR_DELETE = Object.freeze({
+  DELETE: 'delete',
+  KEEP: 'keep',
+  RETRY: 'retry',
+})
+
 // Whether a mirror tick must walk.
 //
 // The order is the safety argument: every branch that cannot prove nothing changed costs a walk.
