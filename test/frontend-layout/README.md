@@ -24,6 +24,7 @@ components run unmodified. `harness-bootstrap.ts` gives every harness the query 
 | `test:layout:case -- mirrorers` | `run-mirrorers.mjs` | `<FolderPeopleCard>` | facepile cap + "+N"; ring colour encodes state; toggle flush right |
 | `test:layout:case -- indexing` | `run-indexing.mjs` | `<FolderTree>` owner mid-index, member waiting | the indexing label matches the role |
 | `test:layout:case -- memo` | `run-memo.mjs` | a memoized list under the 1 Hz heartbeat | rows whose props did not change do not re-render |
+| `test:layout:case -- overflowloop` | `run-overflowloop.mjs` | a consumer whose content fits only when padded, then `<SpacesScreen>` walked across its overflow boundary (1px, then 0.05px), in production React | the overflow flag never locks the renderer (no #185) and the list settles at every height |
 | `test:layout:case -- spaceoverflow` | `run-spaceoverflow.mjs` | `<SpaceView>` with more rows than the pane | the document never scrolls |
 | `test:layout:case -- stickyheader` | `run-stickyheader.mjs` | `<SpaceView>` with both sections overflowing | pinned headers sit flush on the scrollport; the top control keeps ring room |
 | `test:layout:case -- focusring` | `run-focusring.mjs` | `<FolderView>` | every focusable control's ring is unclipped |
