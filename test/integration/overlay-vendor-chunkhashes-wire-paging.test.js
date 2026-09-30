@@ -88,6 +88,7 @@ test('FIX-12: the receiver reassembles paged frames and dispatches the full list
   let pings = 0
   proto._schedulers.set('content:x', {
     awaitsMapFrom: () => true,
+    maxMapEntries: () => null,
     onChunkHashes(peer, list) { dispatchCount++; dispatched = list },
     notePageProgress() { pings++ }
   })
@@ -123,8 +124,8 @@ test('FIX-12: pages for two files interleaved on one channel reassemble independ
   const proto = new OverlayProtocolV2({}, fakeTransfer(), {})
   const peer = { id: 'p3' }
   const got = {}
-  proto._schedulers.set('content:A', { awaitsMapFrom: () => true, onChunkHashes(_p, list) { got.A = list }, notePageProgress() {} })
-  proto._schedulers.set('content:B', { awaitsMapFrom: () => true, onChunkHashes(_p, list) { got.B = list }, notePageProgress() {} })
+  proto._schedulers.set('content:A', { awaitsMapFrom: () => true, maxMapEntries: () => null, onChunkHashes(_p, list) { got.A = list }, notePageProgress() {} })
+  proto._schedulers.set('content:B', { awaitsMapFrom: () => true, maxMapEntries: () => null, onChunkHashes(_p, list) { got.B = list }, notePageProgress() {} })
 
   const a1 = { hash: 'a'.repeat(64), length: 1 }
   const a2 = { hash: 'a'.repeat(64), length: 2 }
