@@ -555,3 +555,13 @@ test('MIR-46: a peer that already answered cannot answer again', async (t) => {
   t.is(transfer.calls.length, 1, 'the repeat was ignored')
   sched.cancel()
 })
+
+test('MIR-52: maxMapEntries is the tier bound for a known size, null without one', (t) => {
+  const known = sized(countingTransfer())
+  t.is(known.maxMapEntries(), Math.ceil(SIZE / MIN0) + 1, 'the same bound the map is refused past')
+  const big = sized(countingTransfer(), { size: 20 * 1024 ** 3 })
+  t.is(big.maxMapEntries(), Math.ceil(20 * 1024 ** 3 / TIERS[3].minSize) + 1, 'the tier follows the size')
+  const unknown = sized(countingTransfer(), { size: 0 })
+  t.is(unknown.maxMapEntries(), null, 'no known size, no derived bound')
+  for (const s of [known, big, unknown]) s.cancel()
+})

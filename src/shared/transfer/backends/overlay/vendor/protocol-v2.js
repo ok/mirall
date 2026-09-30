@@ -43,6 +43,14 @@ export { VERSION, MIN_VERSION, CAP_LOCAL_FILES, CAP_ADAPTIVE_CHUNKS }
 // ≤8 MiB send-batching.
 const MAX_CHUNKS_PER_MSG = 100000
 
+// [mirall] MIR-52 — what one peer may hold in half-paged chunkHashes maps. Entries are summed
+// across its maps: 2^21 is a 2 TiB file at the tier-3 average chunk, ~270 MB decoded. Only a map
+// over MAX_CHUNKS_PER_MSG entries pages at all, and a peer buffers only for fetches that asked it,
+// so the map count is headroom over downloadConcurrency.
+const MAX_PAGED_ENTRIES_PER_PEER = 2 ** 21
+const MAX_PAGED_MAPS_PER_PEER = 16
+export { MAX_PAGED_ENTRIES_PER_PEER, MAX_PAGED_MAPS_PER_PEER }
+
 // [mirall] §4.15 — tree entries are variable length (name is a var-string), unlike the
 // fixed-width chunkHashes entries, so treeResponse pages by an encoded-byte budget rather
 // than a fixed count. 4 MiB keeps each frame well under the atomic-write limit even after
@@ -313,6 +321,8 @@ export class OverlayProtocolV2 {
         if (peer?.uploadStream) { try { peer.uploadStream.detach() } catch {} ; peer.uploadStream = null }
         // [mirall] release every fd this peer's serve loops held.
         if (peer) self._closeServeFds(peer)
+        // [mirall] MIR-52 — a half-paged chunk map from this peer can never complete now.
+        if (peer) peer._chunkHashPages = null
         // Failover: let any active multi-source fetch reassign this peer's
         // inflight chunks to the remaining peers.
         if (peer) for (const sched of self._schedulers.values()) sched.removePeer(peer)
@@ -695,6 +705,21 @@ export class OverlayProtocolV2 {
     return acc
   }
 
+  // [mirall] MIR-52 — which bound buffering this page would break: 'map' past the fetch's
+  // size-derived entry count, 'peer' past the peer's own entry or map budget, else null.
+  _pageOverflow (peer, msg, sched) {
+    const pages = peer._chunkHashPages
+    const buffered = pages && pages.get(msg.path)
+    if (!buffered && !msg.more) return null
+    const bound = sched ? sched.maxMapEntries() : null
+    if (bound !== null && (buffered ? buffered.length : 0) + msg.chunks.length > bound) return 'map'
+    if (!pages) return msg.chunks.length > MAX_PAGED_ENTRIES_PER_PEER ? 'peer' : null
+    if (!buffered && pages.size >= MAX_PAGED_MAPS_PER_PEER) return 'peer'
+    let held = msg.chunks.length
+    for (const acc of pages.values()) held += acc.length
+    return held > MAX_PAGED_ENTRIES_PER_PEER ? 'peer' : null
+  }
+
   // [mirall] §4.15 — upper-bound wire size of one tree entry: kind(1)+exec(1) +
   // string(len-prefix ≤4 + utf8 name bytes) + childHash(32) + size varint(≤9, c.uint is
   // 9 bytes for a >4 GiB size).
@@ -729,7 +754,26 @@ export class OverlayProtocolV2 {
     // maps to one of OUR own files (e.g. /mir/<hash>), an unsolicited chunkHashes
     // would let a peer overwrite the owner's source file. Mirall only ever
     // receives via a scheduler, so refuse any other receive — before buffering a page.
-    if (sched ? !sched.awaitsMapFrom(peer) : this._serveAuthorizer) return
+    // [mirall] MIR-52 — ungated, the legacy receive needs a file target, so pages without one are
+    // dropped too. A refused page also discards what this peer buffered for the path: those pages
+    // answered a fetch that no longer awaits them, and a later answer must not be appended to them.
+    if (sched ? !sched.awaitsMapFrom(peer) : (this._serveAuthorizer || !this._filePaths.has(msg.path))) {
+      if (peer._chunkHashPages) peer._chunkHashPages.delete(msg.path)
+      return
+    }
+    // [mirall] MIR-52 — a map past its own bound is refused like an oversized list; a peer past its
+    // budget is dropped, and onclose takes it out of every fetch.
+    const overflow = this._pageOverflow(peer, msg, sched)
+    if (overflow === 'map') {
+      if (peer._chunkHashPages) peer._chunkHashPages.delete(msg.path)
+      sched.refuseMapFrom(peer, 'too many chunks')
+      return
+    }
+    if (overflow === 'peer') {
+      peer._chunkHashPages = null
+      peer.channel.close()
+      return
+    }
     // [mirall] §4.12 — reassemble paged chunkHashes frames before dispatching.
     const chunks = this._reassembleChunkHashes(peer, msg)
     if (chunks === null) {

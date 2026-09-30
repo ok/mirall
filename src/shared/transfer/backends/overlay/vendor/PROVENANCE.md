@@ -685,6 +685,26 @@ re-diffable against upstream. Categories:
       instead of `mkdir -p`-ing it. Absent the opt, the folder is created as upstream.
     Covered by `test/integration/overlay-vendor-partial.test.js`.
 
+28. **MIR-52 — bounded chunkHashes reassembly (`protocol-v2.js` + `chunk-scheduler.js`, security).**
+    The §4.24 gate kept pages from peers nobody asked, but a peer that was asked could still send
+    `more:1` pages for the awaited path without end, each growing `peer._chunkHashPages` until the
+    worker ran out of heap; nothing released a buffer when its fetch ended or its channel closed.
+    - `ChunkScheduler.maxMapEntries()` exposes the size-derived entry bound `_mapFault` already
+      enforced (`ceil(size / minSize) + 1`, `null` with no known size). A paged map that passes it is
+      refused for that fetch through the new `refuseMapFrom(peer, 'too many chunks')`, as the
+      assembled list would have been; the peer's channel stays.
+    - A peer may hold at most `MAX_PAGED_ENTRIES_PER_PEER` (2^21) entries across at most
+      `MAX_PAGED_MAPS_PER_PEER` (16) half-paged maps, whatever size the catalog claims. Past either,
+      its buffer is released and its channel closed, which `onclose` turns into `removePeer` for
+      every scheduler.
+    - `onclose` releases the peer's buffer. A page refused at the gate discards what that peer
+      buffered for the path, so a later answer is never appended to an ended fetch's pages, while a
+      fetch re-issued before the old tail lands still completes from it.
+    - Ungated (no `serveAuthorizer`), a page for a path with no scheduler is buffered only when
+      `_filePaths` has a target for it, which the legacy receive requires anyway.
+    Wire format unchanged. Covered by `test/integration/overlay-vendor-chunkhashes-page-bound.test.js`
+    and `test/unit/overlay-vendor-scheduler.test.js`.
+
 ## Re-diffing against upstream
 
 From this folder, with an upstream clone at `$UPSTREAM`:
