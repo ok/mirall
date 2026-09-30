@@ -3,7 +3,7 @@ import path from 'node:path'
 import {
   relToDriveKey, driveKeyToSegments,
   stripLongPathPrefix, isAbsoluteDriveKey, relKeyEscapes,
-  pathsOverlap, pathContains, overlapAllowed,
+  pathsOverlap, pathContains, overlapAllowed, mountOverlapViolation,
   DEFAULT_IGNORE, shouldIgnore, shouldPruneDir,
   shouldHonorDeletions,
   splitFileName, nextFreeName, conflictCopyName,
@@ -560,4 +560,27 @@ test('conflictCopyName preserves the extension and steps aside on collision', (t
   const taken = new Set(['note (conflicted copy).txt'])
   t.is(conflictCopyName('note.txt', (n) => taken.has(n)), 'note (conflicted copy) (1).txt',
     'a second conflict does not clobber the first')
+})
+
+// ── mount overlap across existing mounts (mountOverlapViolation) ───────────────
+const mounts = [
+  { mountPath: '/Users/x/Share', role: 'owned-folder', shareId: 's1' },
+  { mountPath: '/Users/x/Mirror', role: 'foreign-folder', shareId: 's2' },
+]
+
+test('REGRESSION (MIR-64): a case variant of a mount overlaps it on a case-folding filesystem', (t) => {
+  const fold = { sep: '/', fold: true }
+  t.is(mountOverlapViolation('/users/x/share/sub', 'foreign-folder', mounts, fold), '/Users/x/Share', 'folded descendant')
+  t.is(mountOverlapViolation('/USERS/X', 'foreign-folder', mounts, fold), '/Users/x/Share', 'folded ancestor')
+  t.is(mountOverlapViolation('/users/x/mirror', 'foreign-folder', mounts, fold), '/Users/x/Mirror', 'folded equal mirror')
+  t.is(mountOverlapViolation('/users/x/share', 'owned-folder', mounts, fold), null, 'the same owned folder in another case is still allowed')
+})
+
+test('mountOverlapViolation keeps the exact answer when the filesystem does not fold', (t) => {
+  const exact = { sep: '/', fold: false }
+  t.is(mountOverlapViolation('/users/x/share/sub', 'foreign-folder', mounts, exact), null, 'a different case is a different folder')
+  t.is(mountOverlapViolation('/Users/x/Share/sub', 'foreign-folder', mounts, exact), '/Users/x/Share', 'nesting is still refused')
+  t.is(mountOverlapViolation('/Users/x/Share', 'owned-folder', mounts, exact), null, 'an equal owned↔owned path is allowed')
+  t.is(mountOverlapViolation('/Users/x/Mirror/sub', 'foreign-folder', mounts, { ...exact, shareId: 's2' }), null, 'the mount being validated is skipped')
+  t.is(mountOverlapViolation('/elsewhere', 'foreign-folder', mounts, exact), null, 'unrelated')
 })

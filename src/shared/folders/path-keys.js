@@ -103,8 +103,22 @@ export function pathsOverlap(a, b, sep, fold = false) {
 // rejected: nesting (a parent scan would absorb the child share's tree) and any
 // overlap touching a foreign-folder (mirrors write to disk, so co-locating with an
 // owned source feedback-loops and two mirrors on one path double-write).
-export function overlapAllowed(aPath, aRole, bPath, bRole) {
-  return aPath === bPath && aRole === 'owned-folder' && bRole === 'owned-folder'
+export function overlapAllowed(aPath, aRole, bPath, bRole, fold = false) {
+  const same = fold ? aPath.toLowerCase() === bPath.toLowerCase() : aPath === bPath
+  return same && aRole === 'owned-folder' && bRole === 'owned-folder'
+}
+
+// The existing mount a new `normalized` path for `role` may not share disk with, or null. The mount
+// being re-validated (same role and share) is skipped. `fold` is set on the filesystems that
+// case-fold (darwin/win32), where a case variant of a mount's path IS that mount's folder.
+export function mountOverlapViolation(normalized, role, mounts, { sep, fold = false, shareId = null }) {
+  for (const m of mounts) {
+    if (m.role === role && m.shareId === shareId) continue
+    if (pathsOverlap(normalized, m.mountPath, sep, fold) && !overlapAllowed(normalized, role, m.mountPath, m.role, fold)) {
+      return m.mountPath
+    }
+  }
+  return null
 }
 
 // ─── ignore globs ─────────────────────────────────────────────────────────────
