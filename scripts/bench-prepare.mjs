@@ -49,7 +49,7 @@ const transfer = new TransferManager(index)
 
 setChunkStats(true)
 t0 = Date.now()
-const result = await transfer.prepareFile(filePath, '/bench', { byHashOnly: true })
+const result = await transfer.prepareFile(filePath)
 const newMs = Date.now() - t0
 const newStats = { ...chunkStats }
 setChunkStats(false)

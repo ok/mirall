@@ -14,7 +14,7 @@ function fakePeer(name) {
 
 // The sync engine + transfer manager are untouched by the grant paths under test.
 function protocolWith(peers, { authorize = async () => true } = {}) {
-  const proto = new OverlayProtocolV2(null, null, { serveAuthorizer: authorize })
+  const proto = new OverlayProtocolV2(null, { serveAuthorizer: authorize })
   for (const p of peers) proto._peers.set({ mux: p.name }, p)
   return proto
 }

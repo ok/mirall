@@ -1,8 +1,12 @@
 import test from 'brittle'
+import c from 'compact-encoding'
 import { OverlayProtocolV2 } from '../../src/shared/transfer/backends/overlay/engine/protocol-v2.js'
+import { HyperOverlayV2 } from '../../src/shared/transfer/backends/overlay/engine/overlay-v2.js'
 import { createBandwidthLimiter } from '../../src/shared/transfer/bandwidth-limiter.js'
 import * as m from '../../src/shared/transfer/backends/overlay/engine/messages-v2.js'
 import { scaled } from '../helpers/bare-timing.js'
+import { makeProtocol, grantServe } from '../helpers/overlay-engine.js'
+import { tmpStore } from './overlay-engine-helpers.js'
 
 // chunkData, mirall/handshake, and the Corestore replication that carries a peer's
 // freshly shared folder all multiplex over ONE Noise stream. The seeder must stop
@@ -14,10 +18,8 @@ const tick = () => new Promise((r) => setTimeout(r, 0))
 
 function fakeTransfer(chunkMap, bytes) {
   return {
-    _fileIndex: { getChunkMap: async () => chunkMap, getChunkMapByHash: async () => chunkMap },
-    readChunk: (_p, off, len) => bytes.subarray(off, off + len),
-    // The serve loop reads through a per-session fd now; a fake descriptor is enough here
-    // because readChunkAt resolves from the same buffer.
+    _fileIndex: { getChunkMapByHash: async () => chunkMap },
+    // A fake descriptor is enough: readChunkAt resolves from the same buffer.
     openChunkSource: async () => 1,
     closeChunkSource: () => {},
     readChunkAt: async (_fd, off, len) => bytes.subarray(off, off + len),
@@ -59,10 +61,11 @@ const map3 = () => [
 ]
 
 test('REGRESSION (FIX-1): seeder parks on backpressure and resumes on drain (no unbounded send)', async (t) => {
-  const proto = new OverlayProtocolV2({}, fakeTransfer(map3(), Buffer.alloc(12, 7)), {
+  const proto = makeProtocol(fakeTransfer(map3(), Buffer.alloc(12, 7)), {
     filePaths: new Map([['content:abc', '/disk/abc']]),
   })
   const { peer, sent, drain } = backpressuredPeer()
+  grantServe(proto, peer, 'content:abc')
 
   const p = proto._onChunkNeed(peer, { path: 'content:abc', indices: [0, 1, 2] })
   await tick()
@@ -76,7 +79,7 @@ test('REGRESSION (FIX-1): seeder parks on backpressure and resumes on drain (no 
 })
 
 test('FIX-1: a drained stream sends the whole batch in one pass (fast-path unchanged)', async (t) => {
-  const proto = new OverlayProtocolV2({}, fakeTransfer(map3(), Buffer.alloc(12, 7)), {
+  const proto = makeProtocol(fakeTransfer(map3(), Buffer.alloc(12, 7)), {
     filePaths: new Map([['content:abc', '/disk/abc']]),
   })
   const sent = []
@@ -86,15 +89,17 @@ test('FIX-1: a drained stream sends the whole batch in one pass (fast-path uncha
     authorizedServe: new Map(),
     msgs: { chunkData: { send(m) { sent.push(m); return true } } },
   }
+  grantServe(proto, peer, 'content:abc')
   await proto._onChunkNeed(peer, { path: 'content:abc', indices: [0, 1, 2] })
   t.is(sent.length, 3, 'all chunks flushed when the stream is not backpressured')
 })
 
 test('FIX-1: a channel that closes while parked stops the serve loop (no send after close)', async (t) => {
-  const proto = new OverlayProtocolV2({}, fakeTransfer(map3(), Buffer.alloc(12, 7)), {
+  const proto = makeProtocol(fakeTransfer(map3(), Buffer.alloc(12, 7)), {
     filePaths: new Map([['content:abc', '/disk/abc']]),
   })
   const { peer, sent, closeChannel } = backpressuredPeer()
+  grantServe(proto, peer, 'content:abc')
   const p = proto._onChunkNeed(peer, { path: 'content:abc', indices: [0, 1, 2] })
   await tick()
   t.is(sent.length, 1, 'first chunk sent, then parked')
@@ -104,11 +109,12 @@ test('FIX-1: a channel that closes while parked stops the serve loop (no send af
 
 test('FIX-1: per-chunk serve telemetry still fires before the backpressure wait', async (t) => {
   const served = []
-  const proto = new OverlayProtocolV2({}, fakeTransfer(map3(), Buffer.alloc(12, 7)), {
+  const proto = makeProtocol(fakeTransfer(map3(), Buffer.alloc(12, 7)), {
     filePaths: new Map([['content:abc', '/disk/abc']]),
     onChunkServe: (info) => served.push(info.index),
   })
   const { peer, drain } = backpressuredPeer()
+  grantServe(proto, peer, 'content:abc')
   const p = proto._onChunkNeed(peer, { path: 'content:abc', indices: [0, 1, 2] })
   await tick(); drain(); await tick(); drain(); await tick()
   await p
@@ -119,7 +125,7 @@ test('_onChunkNeed skips a chunk whose read returns null and serves the rest', a
   const transfer = fakeTransfer(map3(), Buffer.alloc(12, 7))
   // The serve loop reads through readChunkAt on the session fd.
   transfer.readChunkAt = async (_fd, off) => (off === 4 ? null : Buffer.alloc(4, 7)) // index 1 unreadable
-  const proto = new OverlayProtocolV2({}, transfer, {
+  const proto = makeProtocol(transfer, {
     filePaths: new Map([['content:abc', '/disk/abc']]),
   })
   const sent = []
@@ -129,6 +135,7 @@ test('_onChunkNeed skips a chunk whose read returns null and serves the rest', a
     authorizedServe: new Map(),
     msgs: { chunkData: { send(m) { sent.push(m.index); return true } } },
   }
+  grantServe(proto, peer, 'content:abc')
   await proto._onChunkNeed(peer, { path: 'content:abc', indices: [0, 1, 2] })
   t.alike(sent, [0, 2], 'the null chunk (index 1) is skipped; 0 and 2 still served')
 })
@@ -158,11 +165,12 @@ test('upload cap: the serve loop is paced by the cap rather than flushing the ba
   const LEN = 16 * KB
   const map = bigMap(8, LEN)
   const limiter = createBandwidthLimiter(() => 32 * KB)   // 2 chunks/second
-  const proto = new OverlayProtocolV2({}, fakeTransfer(map, Buffer.alloc(8 * LEN, 7)), {
+  const proto = makeProtocol(fakeTransfer(map, Buffer.alloc(8 * LEN, 7)), {
     filePaths: new Map([['content:abc', '/disk/abc']]),
     uploadLimiter: limiter,
   })
   const { peer, sent } = drainedPeer()
+  grantServe(proto, peer, 'content:abc')
 
   const p = proto._onChunkNeed(peer, { path: 'content:abc', indices: [0, 1, 2, 3, 4, 5, 6, 7] })
   await new Promise((r) => setTimeout(r, 600))
@@ -183,11 +191,12 @@ test('REGRESSION (FIX-BW6): concurrent serve loops on one peer do not corrupt th
   const LEN = 4 * KB
   const map = bigMap(6, LEN)
   const limiter = createBandwidthLimiter(() => 64 * KB)
-  const proto = new OverlayProtocolV2({}, fakeTransfer(map, Buffer.alloc(6 * LEN, 7)), {
+  const proto = makeProtocol(fakeTransfer(map, Buffer.alloc(6 * LEN, 7)), {
     filePaths: new Map([['content:abc', '/disk/abc']]),
     uploadLimiter: limiter,
   })
   const { peer, sent } = drainedPeer()
+  grantServe(proto, peer, 'content:abc')
 
   // Corruption showed up as a throw out of the limiter's pump, which strands both loops —
   // so "every chunk arrived and both awaits resolved" is the assertion that catches it.
@@ -207,11 +216,12 @@ test('upload cap: an aborted wait stops the serve loop instead of sending unpaid
   const LEN = 64 * KB
   const map = bigMap(4, LEN)
   const limiter = createBandwidthLimiter(() => 32 * KB)   // one chunk is 2s of budget
-  const proto = new OverlayProtocolV2({}, fakeTransfer(map, Buffer.alloc(4 * LEN, 7)), {
+  const proto = makeProtocol(fakeTransfer(map, Buffer.alloc(4 * LEN, 7)), {
     filePaths: new Map([['content:abc', '/disk/abc']]),
     uploadLimiter: limiter,
   })
   const { peer, sent } = drainedPeer()
+  grantServe(proto, peer, 'content:abc')
 
   const p = proto._onChunkNeed(peer, { path: 'content:abc', indices: [0, 1, 2, 3] })
   await new Promise((r) => setTimeout(r, 100))
@@ -232,12 +242,13 @@ test('REGRESSION (FIX-BW9): a serve loop parked on the upload cap sends keep-ali
   const LEN = 64 * KB
   const map = bigMap(4, LEN)
   const limiter = createBandwidthLimiter(() => 32 * KB)   // one chunk costs 2s: a long park
-  const proto = new OverlayProtocolV2({}, fakeTransfer(map, Buffer.alloc(4 * LEN, 7)), {
+  const proto = makeProtocol(fakeTransfer(map, Buffer.alloc(4 * LEN, 7)), {
     filePaths: new Map([['content:abc', '/disk/abc']]),
     uploadLimiter: limiter,
     keepAliveInterval: 50,
   })
   const { peer, sent } = drainedPeer()
+  grantServe(proto, peer, 'content:abc')
   const alive = []
   peer.msgs.keepAlive = { send: (m) => alive.push(m) }
 
@@ -263,12 +274,13 @@ test('FIX-BW9: chunks paid for without waiting send no keep-alives', async (t) =
   const LEN = 4 * KB
   const map = bigMap(3, LEN)
   const limiter = createBandwidthLimiter(() => 8 * 1024 * KB)   // capped, but 8 MB/s: no wait
-  const proto = new OverlayProtocolV2({}, fakeTransfer(map, Buffer.alloc(3 * LEN, 7)), {
+  const proto = makeProtocol(fakeTransfer(map, Buffer.alloc(3 * LEN, 7)), {
     filePaths: new Map([['content:abc', '/disk/abc']]),
     uploadLimiter: limiter,
     keepAliveInterval: 10,
   })
   const { peer, sent } = drainedPeer()
+  grantServe(proto, peer, 'content:abc')
   const alive = []
   peer.msgs.keepAlive = { send: (m) => alive.push(m) }
 
@@ -284,42 +296,65 @@ test('FIX-BW9: a peer that predates message 14 is served exactly as before', asy
   const LEN = 16 * KB
   const map = bigMap(2, LEN)
   const limiter = createBandwidthLimiter(() => 64 * KB)
-  const proto = new OverlayProtocolV2({}, fakeTransfer(map, Buffer.alloc(2 * LEN, 7)), {
+  const proto = makeProtocol(fakeTransfer(map, Buffer.alloc(2 * LEN, 7)), {
     filePaths: new Map([['content:abc', '/disk/abc']]),
     uploadLimiter: limiter,
     keepAliveInterval: 10,
   })
   const { peer, sent } = drainedPeer()   // no peer.msgs.keepAlive: an older overlay peer
+  grantServe(proto, peer, 'content:abc')
 
   await proto._onChunkNeed(peer, { path: 'content:abc', indices: [0, 1] })
   limiter.destroy()
   t.is(sent.length, 2, 'the serve loop still delivers the batch, with no slot-14 send attempted')
 })
 
-// The whole backward-compatibility argument for message 14 rests on it being registered
-// LAST: protomux dispatches by positional id, so inserting a message anywhere else shifts
-// every id after it and silently mis-routes frames between versions. Slots 0-13 are frozen.
-test('FIX-BW9: keep-alive is registered last, leaving every existing message id fixed', (t) => {
-  const proto = new OverlayProtocolV2({}, fakeTransfer(map3(), Buffer.alloc(12, 7)), {})
-  const order = []
+// protomux routes a frame by the POSITION its message was registered at, so ids 0-14 are the wire
+// contract with every released peer: v1.8.0 through v1.11.2 register these fifteen, in this order.
+// Removing or inserting a slot shifts every later id and mis-routes chunkNeed/chunkData between
+// versions; a round-trip test cannot see that, so the order is pinned by name and by codec.
+const WIRE_ORDER = [
+  'syncState', 'fileOffer', 'fileRequest', 'chunkHashes', 'chunkNeed', 'chunkData', 'chunkCancel',
+  'transferComplete', 'conflict', 'treeRequest', 'treeResponse', 'contentRequest', 'transferControl',
+  'transferProgress', 'keepAlive',
+]
+const RETIRED = new Set(['syncState', 'fileOffer', 'fileRequest', 'chunkCancel', 'transferComplete', 'conflict', 'treeRequest', 'treeResponse'])
+
+function registeredEncodings(proto) {
+  const encodings = []
   const fakeMux = {
     stream: { on() {}, removeListener() {}, emit() {} },
-    createChannel: () => ({
-      addMessage({ encoding }) {
-        const name = Object.keys(m).find((k) => m[k] === encoding) || 'unknown'
-        order.push(name)
-        return { send() {} }
-      },
-      open() {},
-    }),
+    createChannel: () => ({ addMessage(opts = {}) { encodings.push(opts.encoding); return { send() {} } }, open() {} }),
   }
   proto.attach(fakeMux)
+  return encodings
+}
 
-  t.alike(order, [
-    'syncState', 'fileOffer', 'fileRequest', 'chunkHashes', 'chunkNeed', 'chunkData',
-    'chunkCancel', 'transferComplete', 'conflict', 'treeRequest', 'treeResponse',
-    'contentRequest', 'transferControl', 'transferProgress', 'keepAlive',
-  ], 'keep-alive took slot 14; ids 0-13 are unmoved')
+test('FIX-BW9: keep-alive is registered last, leaving every existing message id fixed', (t) => {
+  const encodings = registeredEncodings(makeProtocol(fakeTransfer(map3(), Buffer.alloc(12, 7))))
+  t.is(encodings.length, WIRE_ORDER.length, 'ids 0-14, no more, no fewer')
+  t.is(encodings[14], m.keepAlive, 'keep-alive took slot 14')
+})
+
+test('each slot id carries the released message, or is retired in place', (t) => {
+  const encodings = registeredEncodings(makeProtocol(fakeTransfer(map3(), Buffer.alloc(12, 7))))
+  WIRE_ORDER.forEach((name, id) => {
+    const want = RETIRED.has(name) ? c.raw : m[name]
+    t.is(encodings[id], want, `id ${id} = ${name}${RETIRED.has(name) ? ' (retired: no codec, no handler)' : ''}`)
+  })
+})
+
+test('the exported slot table is the wire order', (t) => {
+  t.alike(m.SLOTS.map((s) => s.name), WIRE_ORDER)
+  t.alike(m.SLOTS.filter((s) => s.retired).map((s) => s.name), [...RETIRED])
+  for (const { name } of m.SLOTS.filter((s) => !s.retired)) {
+    t.is(typeof OverlayProtocolV2.prototype['_on' + name[0].toUpperCase() + name.slice(1)], 'function', name + ' has a handler')
+  }
+})
+
+test('the engine refuses to exist without a serve authorizer', (t) => {
+  t.exception.all(() => new OverlayProtocolV2({}, {}), /serveAuthorizer is required/)
+  t.exception.all(() => new HyperOverlayV2(tmpStore('no-auth'), {}), /serveAuthorizer is required/)
 })
 
 // A keep-alive names a content hash, so it is an outbound content frame like any other and must
@@ -330,16 +365,15 @@ test('REGRESSION (FIX-BW9): revoking a serve grant mid-park stops the keep-alive
   const LEN = 64 * KB
   const map = bigMap(4, LEN)
   const limiter = createBandwidthLimiter(() => 32 * KB)      // 2s per chunk: a long park
-  const proto = new OverlayProtocolV2({}, fakeTransfer(map, Buffer.alloc(4 * LEN, 7)), {
+  const proto = makeProtocol(fakeTransfer(map, Buffer.alloc(4 * LEN, 7)), {
     filePaths: new Map([['content:abc', '/disk/abc']]),
     uploadLimiter: limiter,
     keepAliveInterval: 30,
-    serveAuthorizer: async () => true,
   })
   const { peer } = drainedPeer()
   const alive = []
   peer.msgs.keepAlive = { send: (m) => alive.push(m) }
-  peer.authorizedServe.set('content:abc', { from: 'them', epoch: 0 })
+  grantServe(proto, peer, 'content:abc', 'them')
   proto._peers.set(peer.mux, peer)           // revokeServes walks _peers, not the passed peer
 
   const p = proto._onChunkNeed(peer, { path: 'content:abc', indices: [0, 1, 2, 3] })
@@ -384,11 +418,12 @@ function transmittingPeer(tx) {
 test('REGRESSION (FIX-BW10): a serve loop keeps waiting while bytes are still leaving', async (t) => {
   let tx = 0
   const ticker = setInterval(() => { tx += 64 * KB }, 20)   // a slow flush, still moving
-  const proto = new OverlayProtocolV2({}, fakeTransfer(map3(), Buffer.alloc(12, 7)), {
+  const proto = makeProtocol(fakeTransfer(map3(), Buffer.alloc(12, 7)), {
     filePaths: new Map([['content:abc', '/disk/abc']]),
     drainNoProgress: 100,
   })
   const { peer, sent, close } = transmittingPeer(() => tx)
+  grantServe(proto, peer, 'content:abc')
   let settled = false
   const p = proto._onChunkNeed(peer, { path: 'content:abc', indices: [0, 1, 2] }).then(() => { settled = true })
 
@@ -403,11 +438,12 @@ test('REGRESSION (FIX-BW10): a serve loop keeps waiting while bytes are still le
 })
 
 test('REGRESSION (FIX-BW10): a serve loop abandons a stream that stops transmitting', async (t) => {
-  const proto = new OverlayProtocolV2({}, fakeTransfer(map3(), Buffer.alloc(12, 7)), {
+  const proto = makeProtocol(fakeTransfer(map3(), Buffer.alloc(12, 7)), {
     filePaths: new Map([['content:abc', '/disk/abc']]),
     drainNoProgress: 100,
   })
   const { peer, sent } = transmittingPeer(() => 4096)      // frozen: nothing is going out
+  grantServe(proto, peer, 'content:abc')
   const startedAt = Date.now()
 
   await proto._onChunkNeed(peer, { path: 'content:abc', indices: [0, 1, 2] })
@@ -419,12 +455,13 @@ test('REGRESSION (FIX-BW10): a serve loop abandons a stream that stops transmitt
 })
 
 test('FIX-BW10: with no TX counter the wait falls back to a flat flush budget', async (t) => {
-  const proto = new OverlayProtocolV2({}, fakeTransfer(map3(), Buffer.alloc(12, 7)), {
+  const proto = makeProtocol(fakeTransfer(map3(), Buffer.alloc(12, 7)), {
     filePaths: new Map([['content:abc', '/disk/abc']]),
     drainTimeout: 120,
     drainNoProgress: 10,   // would fire far sooner if it were used
   })
   const { peer, sent } = backpressuredPeer()               // a stream with no rawStream at all
+  grantServe(proto, peer, 'content:abc')
   const startedAt = Date.now()
 
   await proto._onChunkNeed(peer, { path: 'content:abc', indices: [0, 1, 2] })
@@ -439,7 +476,7 @@ test('FIX-BW10: with no TX counter the wait falls back to a flat flush budget', 
 // samples while rawBytesRead stayed at zero until the last packet landed. That is the case the
 // downloader's watchdog has to see through, so the packet counter is preferred.
 test('FIX-BW10: the transport probe prefers the packet counter, then the socket, then frames', (t) => {
-  const proto = new OverlayProtocolV2({}, fakeTransfer(map3(), Buffer.alloc(12, 7)), {})
+  const proto = makeProtocol(fakeTransfer(map3(), Buffer.alloc(12, 7)), {})
   const withRaw = (rawStream) => ({ mux: { stream: { rawStream, rawBytesRead: 7 } } })
 
   t.is(proto._peerRxBytes(withRaw({ bytesReceived: 42, bytesRead: 9 })), 42, 'udx packet counter wins')
@@ -452,7 +489,7 @@ test('FIX-BW10: the transport probe prefers the packet counter, then the socket,
 // Both halves can be green in isolation while the fix is inert in production, because nothing
 // else connects them: fetchContent is the only place a scheduler is built.
 test('FIX-BW10: fetchContent wires the transport probe into the scheduler', async (t) => {
-  const proto = new OverlayProtocolV2({}, fakeTransfer(map3(), Buffer.alloc(12, 7)), {})
+  const proto = makeProtocol(fakeTransfer(map3(), Buffer.alloc(12, 7)), {})
   const peer = {
     mux: { stream: { rawStream: { bytesReceived: 1234 } } },
     msgs: { contentRequest: { send() {} } },

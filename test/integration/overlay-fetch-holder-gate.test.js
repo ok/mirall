@@ -21,7 +21,7 @@ async function scene(t, { holders, serveDelayMs = 300, reqOpts = {} }) {
   fs.writeFileSync(src, content)
 
   const owner = await overlay(t, 'hg-own', { serveAuthorizer: async (_p, from) => from === MEMBER })
-  await owner.registerFile('/mir/' + oid, src, { contentHash: oid, size: content.length })
+  await owner.registerFile(src, { contentHash: oid, size: content.length })
   const realServe = owner._protocol._onContentRequest.bind(owner._protocol)
   owner._protocol._onContentRequest = async (peer, msg) => {
     await settle(serveDelayMs)
@@ -57,7 +57,7 @@ async function scene(t, { holders, serveDelayMs = 300, reqOpts = {} }) {
 test('REGRESSION (MIR-46: a raw peer answering first cannot poison the download)', async (t) => {
   const { req, content, oid, seen } = await scene(t, { holders: ['owner'] })
   const dest = path.join(tmpDir('hg-out'), 'doc.bin')
-  const got = await req.fetchFile(oid, { destPath: dest, ownerKey: OWNER, size: content.length, timeout: scaled(6000), reSeed: false })
+  const got = await req.fetchFile(oid, { destPath: dest, ownerKey: OWNER, size: content.length, timeout: scaled(6000) })
   t.ok(got, 'the fetch completed')
   t.alike(got ? fs.readFileSync(dest) : null, content, "the owner's bytes landed")
   t.is(seen.contentRequest, 0, 'the raw peer never received the content request')
@@ -69,7 +69,7 @@ test('REGRESSION (MIR-46: a map whose sum is not the catalog size creates no par
   let started = 0
   const real = req._transfer.startReceive.bind(req._transfer)
   req._transfer.startReceive = (...a) => { started++; return real(...a) }
-  const got = await req.fetchFile(oid, { destPath: dest, ownerKey: OWNER, size: content.length, timeout: scaled(3000), reSeed: false })
+  const got = await req.fetchFile(oid, { destPath: dest, ownerKey: OWNER, size: content.length, timeout: scaled(3000) })
   t.is(got, null, 'reported as no holder, not as an integrity failure')
   t.is(started, 0, 'startReceive never ran')
   t.absent(fs.existsSync(dest + SUFFIX), 'no partial was created or truncated')
@@ -78,7 +78,7 @@ test('REGRESSION (MIR-46: a map whose sum is not the catalog size creates no par
 test('REGRESSION (MIR-67: a pause reaches only the peer we asked)', async (t) => {
   const { req, content, oid, seen, ownerSeen } = await scene(t, { holders: ['owner'], serveDelayMs: 3000 })
   const dest = path.join(tmpDir('hg-out3'), 'doc.bin')
-  const f = req.fetchFile(oid, { destPath: dest, ownerKey: OWNER, size: content.length, timeout: scaled(12000), reSeed: false })
+  const f = req.fetchFile(oid, { destPath: dest, ownerKey: OWNER, size: content.length, timeout: scaled(12000) })
   await settle(500)
   t.ok(await req.cancelFetch(oid, { discardPartial: false }), 'the pause hit a live fetch')
   await f.catch(() => {})
@@ -89,7 +89,7 @@ test('REGRESSION (MIR-67: a pause reaches only the peer we asked)', async (t) =>
 
 test('MIR-46: with no accepted holder the fetch reports no holder without asking anyone', async (t) => {
   const { req, content, oid, seen } = await scene(t, { holders: [] })
-  const got = await req.fetchFile(oid, { ownerKey: OWNER, size: content.length, peerWaitMs: 300, timeout: scaled(3000), reSeed: false })
+  const got = await req.fetchFile(oid, { ownerKey: OWNER, size: content.length, peerWaitMs: 300, timeout: scaled(3000) })
   t.is(got, null)
   t.is(seen.contentRequest, 0)
 })
@@ -112,7 +112,7 @@ test('REGRESSION (MIR-53: chunk data from a peer the fetch took no map from reac
   const { refunds, limiter } = countingLimiter(t, 32 * 1024)
   const { req, content, oid, rawOnReq, reqOnRaw } = await scene(t, { holders: ['owner'], reqOpts: { downloadLimiter: limiter } })
   const p = 'content:' + oid
-  const f = req.fetchFile(oid, { destPath: path.join(tmpDir('hg-out5'), 'doc.bin'), ownerKey: OWNER, size: content.length, timeout: scaled(20000), reSeed: false })
+  const f = req.fetchFile(oid, { destPath: path.join(tmpDir('hg-out5'), 'doc.bin'), ownerKey: OWNER, size: content.length, timeout: scaled(20000) })
   f.catch(() => {})
   await waitFor(() => req._protocol._schedulers.get(p)?._chunks, 5000, { interval: 10, label: "the owner's map adopted" })
   const sched = req._protocol._schedulers.get(p)

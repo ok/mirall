@@ -41,7 +41,7 @@ export async function fetchContentToFile(contentHash, { finalPath, ownerKey, siz
   if (!overlay) return { ok: false }
   let res
   try {
-    res = await overlay.fetchFile(contentHash, { destPath: finalPath, ownerKey, size, onProgress, onVerify, onEnd, reSeed: false })
+    res = await overlay.fetchFile(contentHash, { destPath: finalPath, ownerKey, size, onProgress, onVerify, onEnd })
   } catch (err) {
     if (err?.code === 'EHASHMISMATCH') return { ok: false, code: 'EHASHMISMATCH' }
     if (err?.code === 'ECANCELLED') return { ok: false, code: 'ECANCELLED' }

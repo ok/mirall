@@ -2,7 +2,7 @@ import test from 'brittle'
 import fs from 'bare-fs'
 import os from 'bare-os'
 import path from 'bare-path'
-import { OverlayProtocolV2 } from '../../src/shared/transfer/backends/overlay/engine/protocol-v2.js'
+import { makeProtocol } from '../helpers/overlay-engine.js'
 
 // The protocol's fetchContent owns the per-contentHash scheduler: the cancel-before-
 // scheduler window (#1b) and the same-hash join (#2). A minimal transfer stub is
@@ -13,24 +13,21 @@ function fakeTransfer() {
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'p2-'))
 
 test('REGRESSION (MIR-53: _onOpen sends no syncState in mirall mode)', (t) => {
-  const sync = { feedKey: 'ab'.repeat(32), feed: { length: 3 } }
   const sent = []
-  const peer = () => ({ msgs: { syncState: { send: (m) => sent.push(m) } }, channel: { close() {} }, rejected: false })
-  new OverlayProtocolV2(sync, fakeTransfer(), { serveAuthorizer: async () => true })._onOpen(peer(), { version: 2, capabilities: 3 })
-  t.is(sent.length, 0, 'mirall mode announces nothing')
-  new OverlayProtocolV2(sync, fakeTransfer(), {})._onOpen(peer(), { version: 2, capabilities: 3 })
-  t.alike(sent, [{ feedKey: 'ab'.repeat(32), localSeq: 3, remoteSeq: 0 }], 'upstream mode still announces')
+  const peer = { msgs: { syncState: { send: (m) => sent.push(m) } }, channel: { close() {} }, rejected: false }
+  makeProtocol(fakeTransfer())._onOpen(peer, { version: 2, capabilities: 3 })
+  t.is(sent.length, 0, 'the engine announces nothing on open')
 })
 
 test('#1b: cancelContent before the scheduler exists cancels the fetch at creation', async (t) => {
-  const proto = new OverlayProtocolV2({}, fakeTransfer(), {})
+  const proto = makeProtocol(fakeTransfer())
   proto.cancelContent('zzz', { discardPartial: true }) // no scheduler yet → recorded in _cancelPending
   await t.exception(proto.fetchContent('zzz', [], { destPath: path.join(tmp(), 'z'), timeout: 200 }), /cancelled/,
     'fetchContent honors the pending cancel and rejects ECANCELLED — no requestContent sent')
 })
 
 test('#2: a concurrent same-hash fetch joins the in-flight one and copies the result', async (t) => {
-  const proto = new OverlayProtocolV2({}, fakeTransfer(), {})
+  const proto = makeProtocol(fakeTransfer())
   const dir = tmp()
   const a = path.join(dir, 'a'); const b = path.join(dir, 'b')
   fs.writeFileSync(a, 'shared bytes') // the leader's assembled file
@@ -48,7 +45,7 @@ test('#2: a concurrent same-hash fetch joins the in-flight one and copies the re
 })
 
 test('#1b: clearCancelPending drops a stale marker so the next same-hash fetch is not cancelled', async (t) => {
-  const proto = new OverlayProtocolV2({}, fakeTransfer(), {})
+  const proto = makeProtocol(fakeTransfer())
   proto.cancelContent('ghi', { discardPartial: true }) // marks _cancelPending (no scheduler yet)
   proto.clearCancelPending('ghi')                       // fetchFile's no-peer abandon clears it
   const f = proto.fetchContent('ghi', [], { destPath: path.join(tmp(), 'g'), timeout: 200 })
@@ -57,7 +54,7 @@ test('#1b: clearCancelPending drops a stale marker so the next same-hash fetch i
 })
 
 test('#2: a joiner re-issues its own fetch when the leader was cancelled', async (t) => {
-  const proto = new OverlayProtocolV2({}, fakeTransfer(), {})
+  const proto = makeProtocol(fakeTransfer())
   const dir = tmp()
   const first = proto.fetchContent('def', [], { destPath: path.join(dir, 'a'), timeout: 200 })
   first.catch(() => {})
@@ -67,6 +64,14 @@ test('#2: a joiner re-issues its own fetch when the leader was cancelled', async
   // The joiner's ECANCELLED handler re-issues, creating a fresh scheduler for the same hash.
   await new Promise((r) => setTimeout(r, 20))
   t.is(proto._schedulers.size, 1, 'a fresh scheduler exists for the re-issued joiner (leader\'s was removed)')
+})
+
+test('a joiner shares the leader\'s integrity verdict', async (t) => {
+  const proto = makeProtocol(fakeTransfer())
+  const failed = Promise.reject(Object.assign(new Error('mismatch'), { code: 'EHASHMISMATCH' }))
+  failed.catch(() => {})
+  proto._schedulers.set('content:jkl', { shared: failed, destPath: '/leader/a' })
+  await t.exception(proto.fetchContent('jkl', [], { destPath: path.join(tmp(), 'b') }), /mismatch/)
 })
 
 // ── transfer-control (message 12): downloader→holder pause/stop signal ─────────
@@ -82,7 +87,7 @@ function seedScheduler(proto, contentHash) {
 }
 
 test('REGRESSION (FIX-1): cancelContent pause broadcasts transferControl PAUSED', (t) => {
-  const proto = new OverlayProtocolV2({}, fakeTransfer(), {})
+  const proto = makeProtocol(fakeTransfer())
   const sent = []
   proto._peers.set({}, fakePeer(sent))
   seedScheduler(proto, 'abc')
@@ -91,7 +96,7 @@ test('REGRESSION (FIX-1): cancelContent pause broadcasts transferControl PAUSED'
 })
 
 test('REGRESSION (FIX-2): cancelContent stop broadcasts transferControl STOPPED', (t) => {
-  const proto = new OverlayProtocolV2({}, fakeTransfer(), {})
+  const proto = makeProtocol(fakeTransfer())
   const sent = []
   proto._peers.set({}, fakePeer(sent))
   seedScheduler(proto, 'abc')
@@ -100,7 +105,7 @@ test('REGRESSION (FIX-2): cancelContent stop broadcasts transferControl STOPPED'
 })
 
 test('cancelContent with signal:false (supersede) sends nothing', (t) => {
-  const proto = new OverlayProtocolV2({}, fakeTransfer(), {})
+  const proto = makeProtocol(fakeTransfer())
   const sent = []
   proto._peers.set({}, fakePeer(sent))
   seedScheduler(proto, 'abc')
@@ -109,7 +114,7 @@ test('cancelContent with signal:false (supersede) sends nothing', (t) => {
 })
 
 test('cancelContent without a scheduler (pre-fetch cancel) sends nothing', (t) => {
-  const proto = new OverlayProtocolV2({}, fakeTransfer(), {})
+  const proto = makeProtocol(fakeTransfer())
   const sent = []
   proto._peers.set({}, fakePeer(sent))
   proto.cancelContent('abc', { discardPartial: false }) // no scheduler → _cancelPending path
@@ -117,7 +122,7 @@ test('cancelContent without a scheduler (pre-fetch cancel) sends nothing', (t) =
 })
 
 test('sendStopControl broadcasts STOPPED without a scheduler (discard-after-pause path)', (t) => {
-  const proto = new OverlayProtocolV2({}, fakeTransfer(), {})
+  const proto = makeProtocol(fakeTransfer())
   const sent = []
   proto._peers.set({}, fakePeer(sent))
   proto.sendStopControl('abc')
@@ -127,7 +132,7 @@ test('sendStopControl broadcasts STOPPED without a scheduler (discard-after-paus
 })
 
 test('REGRESSION (MIR-67: transfer frames skip a peer never asked for the hash)', (t) => {
-  const proto = new OverlayProtocolV2({}, fakeTransfer(), {})
+  const proto = makeProtocol(fakeTransfer())
   const asked = []
   const other = []
   proto._peers.set({}, { ...fakePeer(asked), msgs: { transferControl: { send: (m) => asked.push(m) }, transferProgress: { send: (m) => asked.push(m) } } })
@@ -144,7 +149,7 @@ test('REGRESSION (MIR-67: transfer frames skip a peer never asked for the hash)'
 // must go through .from. These two tests are the guard on that shape.
 test('_onTransferControl maps to onServeControl using the authenticated authorizedServe identity', (t) => {
   const calls = []
-  const proto = new OverlayProtocolV2({}, fakeTransfer(), { onServeControl: (info) => calls.push(info) })
+  const proto = makeProtocol(fakeTransfer(), { onServeControl: (info) => calls.push(info) })
   const peer = { authorizedServe: new Map([['content:abc', { from: 'peerProfileKey', epoch: 0 }]]) }
   proto._onTransferControl(peer, { contentHash: 'abc', state: 1 })
   proto._onTransferControl(peer, { contentHash: 'abc', state: 0 })
@@ -155,13 +160,13 @@ test('_onTransferControl maps to onServeControl using the authenticated authoriz
 
 test('_onTransferControl is a no-op for a hash the peer was never authorized to fetch (anti-spoof)', (t) => {
   const calls = []
-  const proto = new OverlayProtocolV2({}, fakeTransfer(), { onServeControl: (info) => calls.push(info) })
+  const proto = makeProtocol(fakeTransfer(), { onServeControl: (info) => calls.push(info) })
   proto._onTransferControl({ authorizedServe: new Map() }, { contentHash: 'zzz', state: 1 })
   t.is(calls.length, 0, 'no ledger callback without an authenticated serve record')
 })
 
 test('_sendTransferControl tolerates a peer that predates slot 12 (no throw)', (t) => {
-  const proto = new OverlayProtocolV2({}, fakeTransfer(), {})
+  const proto = makeProtocol(fakeTransfer())
   proto._peers.set({}, { msgs: {}, authorizedServe: new Map(), askedFor: new Set(['abc']) }) // old peer: no transferControl slot
   seedScheduler(proto, 'abc')
   try { proto.cancelContent('abc', { discardPartial: false }); t.pass('cancelContent did not throw') }
@@ -171,7 +176,7 @@ test('_sendTransferControl tolerates a peer that predates slot 12 (no throw)', (
 // ── transfer-progress (message 13): downloader→holder resume have-baseline ──────
 
 test('sendTransferProgress broadcasts the have-baseline to every connected holder', (t) => {
-  const proto = new OverlayProtocolV2({}, fakeTransfer(), {})
+  const proto = makeProtocol(fakeTransfer())
   const sent = []
   proto._peers.set({}, { msgs: { transferProgress: { send: (m) => sent.push(m) } }, authorizedServe: new Map(), askedFor: new Set(['abc']) })
   proto.sendTransferProgress('abc', 700)
@@ -180,7 +185,7 @@ test('sendTransferProgress broadcasts the have-baseline to every connected holde
 
 test('_onTransferProgress maps to onServeProgress using the authenticated authorizedServe identity', (t) => {
   const calls = []
-  const proto = new OverlayProtocolV2({}, fakeTransfer(), { onServeProgress: (info) => calls.push(info) })
+  const proto = makeProtocol(fakeTransfer(), { onServeProgress: (info) => calls.push(info) })
   const peer = { authorizedServe: new Map([['content:abc', { from: 'peerProfileKey', epoch: 0 }]]) }
   proto._onTransferProgress(peer, { contentHash: 'abc', have: 700 })
   t.is(calls.length, 1)
@@ -189,13 +194,13 @@ test('_onTransferProgress maps to onServeProgress using the authenticated author
 
 test('_onTransferProgress is a no-op for a hash the peer was never authorized to fetch (anti-spoof)', (t) => {
   const calls = []
-  const proto = new OverlayProtocolV2({}, fakeTransfer(), { onServeProgress: (info) => calls.push(info) })
+  const proto = makeProtocol(fakeTransfer(), { onServeProgress: (info) => calls.push(info) })
   proto._onTransferProgress({ authorizedServe: new Map() }, { contentHash: 'zzz', have: 700 })
   t.is(calls.length, 0, 'no ledger callback without an authenticated serve record')
 })
 
 test('sendTransferProgress tolerates a peer that predates slot 13 (no throw)', (t) => {
-  const proto = new OverlayProtocolV2({}, fakeTransfer(), {})
+  const proto = makeProtocol(fakeTransfer())
   proto._peers.set({}, { msgs: {}, authorizedServe: new Map(), askedFor: new Set(['abc']) }) // old peer: no transferProgress slot
   try { proto.sendTransferProgress('abc', 700); t.pass('sendTransferProgress did not throw') }
   catch (err) { t.fail('threw: ' + err.message) }

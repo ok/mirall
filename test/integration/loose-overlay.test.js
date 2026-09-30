@@ -184,9 +184,9 @@ test('REGRESSION (FIX-1b: rehydrate isolation): one file that throws does not ab
   await initOverlay()
   const overlay = getOverlay()
   const realRF = overlay.registerFile.bind(overlay)
-  overlay.registerFile = async (op, dp, meta) => {
+  overlay.registerFile = async (dp, meta) => {
     if (dp.endsWith('a.txt')) throw new Error('boom: a.txt unreadable')
-    return realRF(op, dp, meta)
+    return realRF(dp, meta)
   }
   t.teardown(() => { overlay.registerFile = realRF })
 
@@ -427,10 +427,10 @@ test('R11 (Item 2A): publish builds the chunk map in one pass; the first serve d
 
   t.is(prepareCalls, 1, 'publish built the chunk map once (single hash+chunk streaming pass)')
   t.ok(await overlay._index.getChunkMapByHash(entry.contentHash), 'chunk map persisted by hash → no fetch-time re-chunk')
-  // #4: the by-hash-only prep pass must NOT persist dead path-keyed state under the
-  // throwaway /mir-prep key (the serve path resolves by hash, never reads these).
-  t.absent(await overlay._index.getChunkMap('/mir-prep' + abs), 'no path-keyed /mir-prep chunk map (no FileIndex bloat)')
-  t.absent(await overlay._index.getFile('/mir-prep' + abs), 'no /mir-prep file record')
+  // The prep pass persists no path-keyed state under the throwaway /mir-prep key: the serve path
+  // resolves by hash and never reads it.
+  t.absent(await overlay._index.bee.get('chunkmap:/mir-prep' + abs), 'no path-keyed /mir-prep chunk map (no FileIndex bloat)')
+  t.absent(await overlay._index.bee.get('file:/mir-prep' + abs), 'no /mir-prep file record')
   t.ok(serveIndex.has(entry.contentHash), 'file is registered as servable')
   const got = await getOverlay().fetchFile(entry.contentHash, {})
   t.is(got.destPath, abs, 'a local fetch returns the source path (no copy)')

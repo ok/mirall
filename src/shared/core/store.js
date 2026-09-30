@@ -159,10 +159,10 @@ function metadataBeeKey() {
   return metadataKey
 }
 
-// One M-derived key for the overlay's local index cores (file-index, index-meta,
-// sync-feed). The overlay is global across spaces, so there's no per-space SCK to
-// use; an M-only key is correct AND safe — the cores are local, and the per-block
-// key mixes each core's public key, so one key never collides across them.
+// One M-derived key for the overlay's local index cores (file-index, index-meta). The
+// overlay is global across spaces, so there's no per-space SCK to use; an M-only key is
+// correct AND safe — the cores are local, and the per-block key mixes each core's public
+// key, so one key never collides across them.
 export function overlayIndexEncryptionKey() {
   if (!masterSecret) return null
   if (overlayIndexKey === null) overlayIndexKey = deriveContentKey(masterSecret, 'overlay-index')

@@ -4,20 +4,14 @@
 // lists the changes and carries the full license notice.
 
 /**
- * FileIndex — Metadata-only file index backed by Hyperbee
- *
- * Stores file metadata and chunk maps. Never stores file content.
- * The filesystem is the source of truth for actual bytes.
+ * FileIndex — chunk-map index backed by Hyperbee. Never stores file content; the
+ * filesystem is the source of truth for actual bytes.
  *
  * Hyperbee schema:
- *   file:<path>                → { contentHash, size, mtime, hashing, executable, linkname }
- *   chunkmap:<path>            → [{ hash, offset, length }]  (small) | { __paged: N } (large; see below)
- *   chunkmap-oid:<contentHash> → [{ hash, offset, length }]   (content-addressed; reused across overlay keys + restarts)
- *   sync:<peerKey>:<path>      → { lastSeq, lastHash }
- *   config:sync                → { folders: [...] }
+ *   chunkmap-oid:<contentHash> → [{ hash, offset, length }] (small) | { __paged: N } (large; see below)
  *
- *   tree:<hex-hash>            → { entries: [{kind, exec, name, childHash, size}], size }
- *   treepath:<path>            → <hex-hash>   (secondary: path → current tree hash)
+ * Rows of other shapes may exist on stores written by older builds; nothing reads them and
+ * compact() drops them.
  *
  * [mirall] §4.11 — chunk-map paging. A chunk map for a very large file (a 1.1 TB
  * file at tier 3 ≈ 1M entries ≈ ~120 MB of JSON) does not fit in one Hyperbee
@@ -42,28 +36,17 @@ const CHUNKS_PER_PAGE = 32768
 const CHUNK_ENTRY_BYTES = 160
 const CHUNK_MAP_BASE_BYTES = 64
 
-// [mirall] §4.22 Upper bound for a prefix scan. Upstream bounded these with `prefix + '\xff'`,
-// but the index is keyed `utf-8`, where U+00FF encodes to C3 BF: any path whose next character is
-// U+0100 or above (ł, Cyrillic, CJK, emoji) has a lead byte above that bound and is dropped from
-// the scan. UTF-8 preserves code-point order, so the prefix with its final code point incremented
-// bounds every suffix. Prefix-match semantics are upstream's and unchanged. Kept local rather
-// than imported from the app, so this file stays re-diffable; every call site passes a
-// non-empty constant prefix ending ':'. See PROVENANCE.md.
-function prefixUpperBound (prefix) {
-  const lastChar = Array.from(prefix).pop()
-  return prefix.slice(0, prefix.length - lastChar.length) + String.fromCodePoint(lastChar.codePointAt(0) + 1)
+// The one row kind anything reads: a content-addressed chunk map (`chunkmap-oid:<hash>`, its page
+// keys folded in). compact() keeps those whose hash is still served and drops every other row —
+// maps of hashes no longer served, and the rows older builds wrote, which nothing reads.
+function servedHashOfKey (key) {
+  if (!key.startsWith('chunkmap-oid:')) return null
+  return key.slice('chunkmap-oid:'.length).split('\x00')[0]
 }
 
-// The content hash an owner-side entry is addressed by (page suffix folded in), or
-// null for entries not keyed by a single content hash (real-path file:/chunkmap:,
-// tree:, sync:, config:). compact() drops the content-addressed entries whose hash is
-// no longer served, and keeps everything else.
-function contentHashOfKey (key) {
-  if (key.startsWith('chunkmap-oid:')) return key.slice('chunkmap-oid:'.length).split('\x00')[0]
-  if (key.startsWith('chunkmap:content:')) return key.slice('chunkmap:content:'.length).split('\x00')[0]
-  if (key.startsWith('chunkmap:/mir/')) return key.slice('chunkmap:/mir/'.length).split('\x00')[0]
-  if (key.startsWith('file:/mir/')) return key.slice('file:/mir/'.length)
-  return null
+function keepOnCompact (key, isServed) {
+  const hash = servedHashOfKey(key)
+  return hash !== null && isServed(hash)
 }
 
 // v1 keeps the original 'file-index' name so existing stores aren't orphaned on
@@ -98,7 +81,8 @@ export class FileIndex extends ReadyResource {
   async _open () {
     this._meta = new Hyperbee(this._store.get(this._coreOpts('index-meta')), {
       keyEncoding: 'utf-8',
-      valueEncoding: 'json'
+      valueEncoding: 'json',
+      alwaysDuplicate: false
     })
     await this._meta.ready()
     this._version = (await this._meta.get('version'))?.value ?? 1
@@ -109,7 +93,8 @@ export class FileIndex extends ReadyResource {
     for (let attempts = 0; ; attempts++) {
       const bee = new Hyperbee(this._store.get(this._coreOpts(indexCoreName(this._version))), {
         keyEncoding: 'utf-8',
-        valueEncoding: 'json'
+        valueEncoding: 'json',
+        alwaysDuplicate: false
       })
       try {
         await bee.ready()
@@ -136,18 +121,11 @@ export class FileIndex extends ReadyResource {
 
   get cores () { return [this._bee?.core, this._meta?.core].filter(Boolean) }
 
-  // Reclaim the append-only index: stream the still-served entries into a fresh
-  // versioned core, flip the version pointer, and return the old core so the caller
-  // can clear+purge it (the only way to return an append-only bee's disk to the OS).
-  // Content-addressed entries (maps + /mir register) whose hash isServed() is false
-  // are dropped; real-path, tree and config entries are always kept. [mirall] §4.26 — sync entries
-  // are dropped too when `dropSyncState` is set.
-  async compact ({ isServed, dropSyncState = false }) {
-    const dropped = (key) => {
-      if (dropSyncState && key.startsWith('sync:')) return true
-      const hash = contentHashOfKey(key)
-      return hash !== null && !isServed(hash)
-    }
+  // Reclaim the append-only index: stream the rows worth keeping into a fresh versioned core, flip
+  // the version pointer, and return the old core so the caller can clear+purge it (the only way to
+  // return an append-only bee's disk to the OS).
+  async compact ({ isServed }) {
+    const dropped = (key) => !keepOnCompact(key, isServed)
     // Skip the rewrite entirely when nothing is droppable — otherwise a compaction of
     // an already-clean index just churns (a fresh version core + a version-marker
     // append), which grows the index without reclaiming anything.
@@ -160,7 +138,8 @@ export class FileIndex extends ReadyResource {
     const next = this._version + 1
     const dst = new Hyperbee(this._store.get(this._coreOpts(indexCoreName(next))), {
       keyEncoding: 'utf-8',
-      valueEncoding: 'json'
+      valueEncoding: 'json',
+      alwaysDuplicate: false
     })
     await dst.ready()
     let batch = dst.batch()
@@ -181,112 +160,6 @@ export class FileIndex extends ReadyResource {
     this._mutations++
     if (this._chunkMapCache) this._chunkMapCache.clear()
     return oldCore // left open; caller clears + purges it
-  }
-
-  // ── File entries ────────────────────────────────────────────
-
-  /**
-   * Store or update a file entry (metadata only, no content)
-   * @param {string} path - file path
-   * @param {{ contentHash: string|null, size: number, mtime: number, hashing?: boolean, executable?: boolean, linkname?: string|null }} meta
-   */
-  async putFile (path, meta) {
-    await this._bee.put(`file:${path}`, {
-      contentHash: meta.contentHash || null,
-      size: meta.size,
-      mtime: meta.mtime,
-      hashing: meta.hashing || false,
-      executable: meta.executable || false,
-      linkname: meta.linkname || null
-    })
-  }
-
-  /**
-   * Get file metadata
-   * @param {string} path
-   * @returns {{ contentHash: string|null, size: number, mtime: number, hashing: boolean, executable: boolean, linkname: string|null } | null}
-   */
-  async getFile (path) {
-    const entry = await this._bee.get(`file:${path}`)
-    return entry ? entry.value : null
-  }
-
-  /**
-   * Check if file exists in the index
-   * @param {string} path
-   * @returns {boolean}
-   */
-  async hasFile (path) {
-    const entry = await this._bee.get(`file:${path}`)
-    return entry !== null
-  }
-
-  /**
-   * Remove a file entry and its chunk map
-   * @param {string} path
-   */
-  async delFile (path) {
-    await this._bee.del(`file:${path}`)
-    await this._delPagedValue(`chunkmap:${path}`)
-  }
-
-  /**
-   * List files under a directory prefix
-   * @param {string} [dir=''] - directory prefix
-   * @returns {Array<{ path: string, contentHash: string|null, size: number, mtime: number }>}
-   */
-  async listFiles (dir = '') {
-    const prefix = dir ? `file:${dir}` : 'file:'
-    const files = []
-
-    for await (const entry of this._bee.createReadStream({ gt: prefix, lt: prefixUpperBound(prefix) })) {
-      files.push({
-        path: entry.key.slice('file:'.length),
-        ...entry.value
-      })
-    }
-
-    return files
-  }
-
-  // ── Chunk maps ──────────────────────────────────────────────
-
-  /**
-   * Store a chunk map for a file (hash + offset + length per chunk, no data).
-   * Large maps are paged transparently (see §4.11) so they never exceed the
-   * Hypercore block limit.
-   * @param {string} path - file path
-   * @param {Array<{ hash: string, offset: number, length: number }>} chunks
-   */
-  async putChunkMap (path, chunks) {
-    await this._putPagedValue(`chunkmap:${path}`, chunks)
-  }
-
-  /**
-   * Get the chunk map for a file
-   * @param {string} path
-   * @returns {Array<{ hash: string, offset: number, length: number }> | null}
-   */
-  async getChunkMap (path) {
-    return this._getPagedValue(`chunkmap:${path}`)
-  }
-
-  /**
-   * Check if a chunk map exists for a file
-   * @param {string} path
-   * @returns {boolean}
-   */
-  async hasChunkMap (path) {
-    const entry = await this._bee.get(`chunkmap:${path}`)
-    return entry !== null
-  }
-
-  /**
-   * Remove a chunk map
-   * @param {string} path
-   */
-  async delChunkMap (path) {
-    await this._delPagedValue(`chunkmap:${path}`)
   }
 
   // [mirall] §4.11 paged-value storage. Small maps stay inline as a plain array
@@ -421,202 +294,8 @@ export class FileIndex extends ReadyResource {
     await this._delPagedValue(`chunkmap-oid:${contentHash}`)
   }
 
-  // Evict every durable entry a served content hash leaves behind: the content-
-  // addressed map plus the deterministic owner-side synthetic paths (the serve
-  // copy at content:<hash> and the register entry at /mir/<hash>). Peer-path-keyed
-  // receiver entries are unknowable from the hash — the file-index sweep handles those.
+  // Drop the served hash's chunk map.
   async evictContent (contentHash) {
     await this.delChunkMapByHash(contentHash)
-    await this.delChunkMap(`content:${contentHash}`)
-    await this.delFile(`/mir/${contentHash}`)
-  }
-
-  // ── Sync state ──────────────────────────────────────────────
-
-  /**
-   * Store sync state for a peer + file
-   * @param {string} peerKey - hex peer key
-   * @param {string} path - file path
-   * @param {{ lastSeq: number, lastHash: string }} state
-   */
-  async putSyncState (peerKey, path, state) {
-    await this._bee.put(`sync:${peerKey}:${path}`, {
-      lastSeq: state.lastSeq,
-      lastHash: state.lastHash
-    })
-  }
-
-  /**
-   * Get sync state for a peer + file
-   * @param {string} peerKey
-   * @param {string} path
-   * @returns {{ lastSeq: number, lastHash: string } | null}
-   */
-  async getSyncState (peerKey, path) {
-    const entry = await this._bee.get(`sync:${peerKey}:${path}`)
-    return entry ? entry.value : null
-  }
-
-  /**
-   * Remove sync state for a peer + file
-   * @param {string} peerKey
-   * @param {string} path
-   */
-  async delSyncState (peerKey, path) {
-    await this._bee.del(`sync:${peerKey}:${path}`)
-  }
-
-  /**
-   * List all sync states for a peer
-   * @param {string} peerKey
-   * @returns {Array<{ path: string, lastSeq: number, lastHash: string }>}
-   */
-  async listSyncStates (peerKey) {
-    const prefix = `sync:${peerKey}:`
-    const states = []
-
-    for await (const entry of this._bee.createReadStream({ gt: prefix, lt: prefixUpperBound(prefix) })) {
-      states.push({
-        path: entry.key.slice(prefix.length),
-        ...entry.value
-      })
-    }
-
-    return states
-  }
-
-  // ── Sync config ─────────────────────────────────────────────
-
-  /**
-   * Store sync configuration
-   * @param {{ folders: Array<{ path: string, strategy: string, quota?: string|null, peers?: string[] }> }} config
-   */
-  async putSyncConfig (config) {
-    await this._bee.put('config:sync', config)
-  }
-
-  /**
-   * Get sync configuration
-   * @returns {{ folders: Array } | null}
-   */
-  async getSyncConfig () {
-    const entry = await this._bee.get('config:sync')
-    return entry ? entry.value : null
-  }
-
-  // ── Trees ───────────────────────────────────────────────────
-
-  /**
-   * Store a tree by its content-addressed hash.
-   * Same hash put twice is a no-op (content-addressed — bytes can't differ).
-   *
-   * @param {string} hash - hex-encoded blake2b-256 tree hash
-   * @param {{ entries: Array, size: number }} tree
-   */
-  async putTree (hash, tree) {
-    await this._bee.put(`tree:${hash}`, {
-      entries: tree.entries,
-      size: tree.size
-    })
-  }
-
-  /**
-   * Get a tree by its hash.
-   * @param {string} hash
-   * @returns {{ entries: Array, size: number } | null}
-   */
-  async getTree (hash) {
-    const entry = await this._bee.get(`tree:${hash}`)
-    return entry ? entry.value : null
-  }
-
-  /**
-   * Check if a tree is present.
-   * @param {string} hash
-   * @returns {boolean}
-   */
-  async hasTree (hash) {
-    const entry = await this._bee.get(`tree:${hash}`)
-    return entry !== null
-  }
-
-  /**
-   * Remove a tree. Only safe when no treepath entries reference this hash.
-   * @param {string} hash
-   */
-  async delTree (hash) {
-    await this._bee.del(`tree:${hash}`)
-  }
-
-  /**
-   * Record the current tree hash for a path (secondary index).
-   * @param {string} path
-   * @param {string} hash
-   */
-  async putTreePath (path, hash) {
-    await this._bee.put(`treepath:${path}`, hash)
-  }
-
-  /**
-   * Look up the current tree hash for a path.
-   * @param {string} path
-   * @returns {string|null}
-   */
-  async getTreePath (path) {
-    const entry = await this._bee.get(`treepath:${path}`)
-    return entry ? entry.value : null
-  }
-
-  /**
-   * Remove the treepath entry. Does NOT delete the underlying tree — other
-   * paths may still reference the same hash.
-   * @param {string} path
-   */
-  async delTreePath (path) {
-    await this._bee.del(`treepath:${path}`)
-  }
-
-  /**
-   * List all stored tree hashes.
-   * @param {object} [opts]
-   * @param {number} [opts.limit] - optional cap
-   * @returns {Array<{ hash: string, entryCount: number, size: number }>}
-   */
-  async listTrees (opts = {}) {
-    const trees = []
-    for await (const entry of this._bee.createReadStream({ gt: 'tree:', lt: prefixUpperBound('tree:') })) {
-      trees.push({
-        hash: entry.key.slice('tree:'.length),
-        entryCount: entry.value.entries.length,
-        size: entry.value.size
-      })
-      if (opts.limit && trees.length >= opts.limit) break
-    }
-    return trees
-  }
-
-  // ── Stats ───────────────────────────────────────────────────
-
-  /**
-   * Get index statistics
-   * @returns {{ fileCount: number, chunkMapCount: number, syncStateCount: number, treeCount: number, treePathCount: number }}
-   */
-  async stats () {
-    let fileCount = 0
-    let chunkMapCount = 0
-    let syncStateCount = 0
-    let treeCount = 0
-    let treePathCount = 0
-
-    for await (const entry of this._bee.createReadStream()) {
-      if (entry.key.startsWith('file:')) fileCount++
-      // [mirall] §4.11 count one per file — skip the `\x00`-suffixed page values.
-      else if (entry.key.startsWith('chunkmap:') && !entry.key.includes('\x00')) chunkMapCount++
-      else if (entry.key.startsWith('sync:')) syncStateCount++
-      else if (entry.key.startsWith('tree:')) treeCount++
-      else if (entry.key.startsWith('treepath:')) treePathCount++
-    }
-
-    return { fileCount, chunkMapCount, syncStateCount, treeCount, treePathCount }
   }
 }

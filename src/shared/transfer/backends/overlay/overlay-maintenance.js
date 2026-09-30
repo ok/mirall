@@ -29,8 +29,8 @@ export function resetOverlayMaintenance() { presenceSweeper.reset() }
 // shared or held, then return the freed disk to the OS. Non-destructive — a dropped
 // map is content-addressed and re-chunks on the next serve.
 // Single-flight so two reclaims can't race the same core purge. A transfer write
-// that lands mid-compaction is rebuildable (chunk maps re-chunk, file:/sync:/tree:
-// re-derive from the catalog/source), so no user data is at risk.
+// that lands mid-compaction is rebuildable: a dropped chunk map re-chunks on the
+// next serve, and no other row is read, so no user data is at risk.
 let compactingIndex = false
 export async function compactOverlayIndex() {
   const overlay = getOverlay()

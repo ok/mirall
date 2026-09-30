@@ -25,5 +25,4 @@ test('removing a shared file evicts its chunk map; a shared hash survives', asyn
 
   await overlayBackend.publishDelete(spaceId, share, 'b.bin')
   t.absent(await fi.hasChunkMapByHash(hash), 'map evicted once no path references the hash')
-  t.absent(await fi.getFile('/mir/' + hash), 'the /mir register entry is evicted too')
 })

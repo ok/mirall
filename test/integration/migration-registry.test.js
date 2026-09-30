@@ -49,6 +49,7 @@ test('every migration the composition root used to call is in the list, and none
     'migrateLocalBeesToEncrypted',
     'migrateCatalogsToEncrypted',
     'migrateOverlayIndexToEncrypted',
+    'purgeOverlaySyncFeed',
     'retireSpaceDrives',
   ]
   t.is(entryPoints.length, MIGRATIONS.length, 'the list covers exactly the migrations that exist')
@@ -64,7 +65,7 @@ test('every migration the composition root used to call is in the list, and none
 test('the runner returns each migration its own result, keyed by id', async (t) => {
   await freshDurable(t)
   const results = await runMigrations('content', { log: { warn() {} } })
-  t.alike(Object.keys(results).sort(), ['catalogs-encrypt', 'overlay-index-encrypt'],
-    'only the content stage ran, and both of it did')
+  t.alike(Object.keys(results).sort(), ['catalogs-encrypt', 'overlay-index-encrypt', 'overlay-sync-feed-purge'],
+    'only the content stage ran, and all of it did')
   t.is(typeof results['overlay-index-encrypt'], 'object', 'the overlay pass reports its own outcome')
 })

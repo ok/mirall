@@ -1,9 +1,9 @@
 import Protomux from 'protomux'
 import { Duplex } from 'streamx'
-import { tmpStore, tmpDir } from './overlay-engine-helpers.js'
-import { HyperOverlayV2 } from '../../src/shared/transfer/backends/overlay/engine/overlay-v2.js'
+import { tmpStore } from './overlay-engine-helpers.js'
+import { makeOverlay } from '../helpers/overlay-engine.js'
 
-// In-memory overlay peers for the vendor protocol tests: a paired duplex stands in for a socket.
+// In-memory overlay peers for the engine protocol tests: a paired duplex stands in for a socket.
 
 export const SUFFIX = '.mirall.part'
 
@@ -17,7 +17,7 @@ export function makeDuplex() {
 }
 
 export async function overlay(t, label, opts = {}) {
-  const o = new HyperOverlayV2(tmpStore(label), { namespace: 'mirall-overlay', destDir: tmpDir(label + '-d'), partialSuffix: SUFFIX, ...opts })
+  const o = makeOverlay(tmpStore(label), { namespace: 'mirall-overlay', partialSuffix: SUFFIX, ...opts })
   await o.ready()
   t.teardown(async () => { try { await o.close() } catch {} })
   return o

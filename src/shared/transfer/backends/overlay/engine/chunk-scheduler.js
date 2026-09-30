@@ -17,11 +17,9 @@
  *  - hash-verifies every chunk (via TransferManager.writeChunk) and the whole
  *  file before finalizing.
  *
- * It drives the EXISTING v2 wire messages (chunk-need / chunk-data) — no new
- * message type is needed for the full-copy-seeder case. The protocol delegates
- * `_onChunkHashes` / `_onChunkData` to a scheduler ONLY when one is registered
- * for the synthetic `content:<hash>` path, so the legacy single-peer flow
- * (pgh NetworkFetcher) is untouched.
+ * It drives the v2 wire messages (chunk-need / chunk-data). The protocol hands
+ * `_onChunkHashes` / `_onChunkData` for a synthetic `content:<hash>` path to the
+ * scheduler registered for it, and drops them when there is none.
  */
 
 import { hashChunk, selectTier, getTierParams } from './chunker.js'

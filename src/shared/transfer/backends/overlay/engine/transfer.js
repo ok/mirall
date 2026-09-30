@@ -26,7 +26,7 @@ import path from 'bare-path'
 import os from 'bare-os'
 import c from 'compact-encoding'
 import sodium from 'sodium-universal'
-import { chunk as chunkBuffer, chunkStream, hashChunk, createStreamingHasher, selectTier, getTierParams } from './chunker.js'
+import { chunkStream, hashChunk, createStreamingHasher, selectTier, getTierParams } from './chunker.js'
 
 // [mirall] §4.17 — INTERNAL upstream default only. Mirall injects its own suffix via
 // the `partialSuffix` constructor opt and defines the real value in
@@ -193,14 +193,13 @@ export class TransferManager {
   // ── Sender side ─────────────────────────────────────────────
 
   /**
-   * Prepare a file for sending — read from disk, chunk, return hashes.
-   * Chunk map is persisted for large files (>1MB).
+   * Prepare a file for sending — read from disk, chunk, return hashes. Persists the
+   * content-addressed map for files ≥ 1 MiB.
    *
    * @param {string} filePath - absolute path on disk
-   * @param {string} overlayPath - path in the overlay namespace
-   * @returns {{ tier: number, chunks: Array<{ hash, offset, length }>, size: number } | null}
+   * @returns {{ tier: number, chunks: Array<{ hash, offset, length }>, size: number, contentHash: string } | null}
    */
-  async prepareFile (filePath, overlayPath, opts = {}) {
+  async prepareFile (filePath, opts = {}) {
     // Check file exists and get stats
     let stat
     try {
@@ -212,26 +211,6 @@ export class TransferManager {
     if (!stat.isFile()) return null
 
     const mtimeBefore = stat.mtimeMs
-
-    // Check for existing chunk map (skip re-chunking if valid)
-    const existing = await this._fileIndex.getChunkMap(overlayPath)
-    const fileMeta = await this._fileIndex.getFile(overlayPath)
-
-    if (existing && fileMeta && fileMeta.mtime === mtimeBefore) {
-      // Chunk map still valid — file hasn't changed.
-      // [mirall] Backfill the content-addressed alias so the serve path (a
-      // different overlay key) reuses this map instead of re-reading the file —
-      // covers maps chunked before content-addressed caching existed.
-      if (fileMeta.contentHash && stat.size >= 1048576 && !await this._fileIndex.hasChunkMapByHash(fileMeta.contentHash)) {
-        await this._fileIndex.putChunkMapByHash(fileMeta.contentHash, existing)
-      }
-      return {
-        tier: selectTier(stat.size),
-        chunks: existing,
-        size: stat.size,
-        contentHash: fileMeta.contentHash // [mirall] surfaced so the publish path gets the hash from one pass
-      }
-    }
 
     // [mirall] §4.10 Read in blocks >= tier maxSize and chunk from views (copy:false).
     // Cut points are content-stable across block sizes, so peers still match hashes.
@@ -275,57 +254,17 @@ export class TransferManager {
     // Update file index
     const contentHash = fileHasher.digest()
 
-    // Persist chunk map for large files — both path-keyed (legacy serve lookups)
-    // and content-addressed ([mirall], so the serve path reuses it across keys).
-    // [mirall] byHashOnly (the publish prepareForServe pass) keeps ONLY the
-    // content-addressed map — the serve path resolves by hash, so the path-keyed map
-    // + putFile under a throwaway overlay key would be dead, never-read state.
-    if (stat.size >= 1048576) {
-      if (!opts.byHashOnly) await this._fileIndex.putChunkMap(overlayPath, chunks)
-      if (!await this._fileIndex.hasChunkMapByHash(contentHash)) await this._fileIndex.putChunkMapByHash(contentHash, chunks)
-    }
-
-    if (!opts.byHashOnly) {
-      await this._fileIndex.putFile(overlayPath, {
-        contentHash,
-        size: stat.size,
-        mtime: mtimeBefore
-      })
+    // The serve path resolves a map by content hash, so that is the only key it is kept under.
+    if (stat.size >= 1048576 && !await this._fileIndex.hasChunkMapByHash(contentHash)) {
+      await this._fileIndex.putChunkMapByHash(contentHash, chunks)
     }
 
     return { tier, chunks, size: stat.size, contentHash }
   }
 
-  /**
-   * Read a specific chunk from disk by its offset and length.
-   * Returns raw bytes — caller sends them to the peer.
-   *
-   * @param {string} filePath - absolute path on disk
-   * @param {number} offset - byte offset
-   * @param {number} length - bytes to read
-   * @returns {Buffer | null}
-   */
-  readChunk (filePath, offset, length) {
-    // [mirall] The fd is closed in `finally`, not on the success path: an allocation or
-    // read that throws must not escape through the catch below with the handle still open.
-    // This serves every chunk request, so a leak here compounds per request.
-    let fd = null
-    try {
-      fd = openSyncTracked(filePath, 'r')
-      const buf = Buffer.alloc(length)
-      const bytesRead = fs.readSync(fd, buf, 0, length, offset)
-      if (bytesRead !== length) return null
-      return buf
-    } catch {
-      return null
-    } finally {
-      if (fd !== null) closeSyncTracked(fd)
-    }
-  }
-
   // [mirall] serve-side chunk source. One fd per (peer, file) serve session, opened once by the
-  // protocol and read with positioned async reads, instead of readChunk's openSync + readSync
-  // per chunk (a 4 MiB tier-3 read blocked the worker loop each time). Routed through the
+  // protocol and read with positioned async reads, so a 4 MiB tier-3 read never blocks the
+  // worker loop. Routed through the
   // tracked wrappers so openFdCount() sees these descriptors.
   async openChunkSource (filePath) {
     try { return await openTracked(filePath, 'r') } catch { return null }
@@ -335,9 +274,8 @@ export class TransferManager {
     return closeTracked(fd)
   }
 
-  // Resolves the chunk bytes, or null on a short read or any error (a closed fd included) —
-  // readChunk's contract, so the serve loop's skip/bail logic is unchanged. allocUnsafe is
-  // safe because a partially filled buffer is never returned.
+  // Resolves the chunk bytes, or null on a short read or any error (a closed fd included).
+  // allocUnsafe is safe because a partially filled buffer is never returned.
   async readChunkAt (fd, offset, length) {
     const buf = Buffer.allocUnsafe(length)
     let filled = 0
@@ -351,23 +289,6 @@ export class TransferManager {
       return null
     }
     return filled === length ? buf : null
-  }
-
-  /**
-   * Determine which chunks a peer needs (chunks they don't already have).
-   *
-   * @param {Array<{ hash, offset, length }>} offered - chunks the sender has
-   * @param {Set<string>} peerHas - set of chunk hashes the peer already has
-   * @returns {number[]} indices of chunks the peer needs
-   */
-  computeNeeded (offered, peerHas) {
-    const needed = []
-    for (let i = 0; i < offered.length; i++) {
-      if (!peerHas.has(offered[i].hash)) {
-        needed.push(i)
-      }
-    }
-    return needed
   }
 
   // ── Receiver side ───────────────────────────────────────────
@@ -622,15 +543,6 @@ export class TransferManager {
 
   cleanJournals (maxAge) { return cleanupOrphanedJournals(this._journalDir, maxAge) }
 
-  async _hashWholeFileAsync (filePath, size) {
-    const h = createStreamingHasher({ size })
-    for await (const buf of readFileBlocks(filePath, size, 8 * 1024 * 1024)) {
-      h.update(buf)
-      await yieldToLoop()
-    }
-    return h.digest()
-  }
-
   // [mirall] Advance the whole-file hash over the contiguous run of received chunks
   // as a single-flight BACKGROUND pump: chunk index order == file offset order, so
   // once chunk `hashFrontier` is present we feed its bytes and move on. The drain is
@@ -756,18 +668,6 @@ export class TransferManager {
   }
 
   /**
-   * Check if a transfer is complete (all chunks received).
-   *
-   * @param {string} targetPath
-   * @returns {boolean}
-   */
-  isComplete (targetPath) {
-    const state = this._active.get(targetPath)
-    if (!state) return false
-    return state.received.size === state.total
-  }
-
-  /**
    * Finalize a completed transfer — atomic rename from partial to target.
    *
    * @param {string} targetPath
@@ -858,71 +758,5 @@ export class TransferManager {
     if (state.journalPath) { try { fs.unlinkSync(state.journalPath) } catch {} }
 
     this._active.delete(targetPath)
-  }
-
-  /**
-   * Get transfer progress for an active transfer.
-   *
-   * @param {string} targetPath
-   * @returns {{ received: number, total: number, percentage: number } | null}
-   */
-  getProgress (targetPath) {
-    const state = this._active.get(targetPath)
-    if (!state) return null
-
-    return {
-      received: state.received.size,
-      total: state.total,
-      percentage: state.total > 0 ? Math.round(state.received.size / state.total * 100) : 0
-    }
-  }
-
-  /**
-   * List all active transfers.
-   *
-   * @returns {Array<{ path: string, received: number, total: number, percentage: number }>}
-   */
-  listActive () {
-    const result = []
-    for (const [targetPath, state] of this._active) {
-      result.push({
-        path: targetPath,
-        received: state.received.size,
-        total: state.total,
-        percentage: state.total > 0 ? Math.round(state.received.size / state.total * 100) : 0
-      })
-    }
-    return result
-  }
-
-  /**
-   * Clean up stale partial files in a directory (older than maxAge).
-   *
-   * @param {string} dir - directory to scan
-   * @param {number} [maxAge=86400000] - max age in ms (default 24h)
-   * @returns {string[]} paths of cleaned files
-   */
-  cleanPartials (dir, maxAge = 86400000) {
-    const cleaned = []
-    try {
-      const entries = fs.readdirSync(dir)
-      const now = Date.now()
-      for (const entry of entries) {
-        if (!entry.endsWith(this._partialSuffix)) continue
-        const full = path.join(dir, entry)
-        try {
-          const stat = fs.statSync(full)
-          if (now - stat.mtimeMs > maxAge) {
-            fs.unlinkSync(full)
-            cleaned.push(full)
-          }
-        } catch {
-          // skip unreadable files
-        }
-      }
-    } catch {
-      // directory may not exist
-    }
-    return cleaned
   }
 }

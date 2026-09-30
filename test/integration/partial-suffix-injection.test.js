@@ -18,7 +18,7 @@ function senderChunks(transfer, dir, data) {
   const filePath = path.join(dir, 'doc.txt')
   fs.mkdirSync(dir, { recursive: true })
   fs.writeFileSync(filePath, data)
-  return transfer.prepareFile(filePath, '/doc.txt')
+  return transfer.prepareFile(filePath)
 }
 
 test('startReceive writes the injected partial suffix', async (t) => {

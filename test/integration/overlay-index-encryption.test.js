@@ -30,12 +30,10 @@ test('overlay FileIndex is ciphertext at rest with a key, decrypts in-process', 
 
   const idx = new FileIndex(store.namespace('mirall-overlay-e1'), { encryptionKey: key })
   await idx.ready()
-  await idx.putFile('/docs/secret-plan.txt', { contentHash: HASH, size: 42, mtime: 123 })
   await idx.putChunkMapByHash(HASH, CHUNK)
 
-  t.absent(await rawContains(idx.bee.core, '/docs/secret-plan.txt'), 'path not in any plaintext block')
   t.absent(await rawContains(idx.bee.core, HASH), 'contentHash not in plaintext')
-  t.is((await idx.getFile('/docs/secret-plan.txt')).size, 42, 'file entry decrypts in-process')
+  t.absent(await rawContains(idx.bee.core, CHUNK[0].hash), 'chunk hash not in plaintext')
   t.alike(await idx.getChunkMapByHash(HASH), CHUNK, 'chunk map decrypts in-process')
 
   await idx.close()
@@ -47,9 +45,9 @@ test('overlay FileIndex without a key stays plaintext (insecure/test fallback)',
 
   const idx = new FileIndex(store.namespace('mirall-overlay'))
   await idx.ready()
-  await idx.putFile('/docs/visible.txt', { contentHash: 'ee'.repeat(32), size: 7, mtime: 1 })
+  await idx.putChunkMapByHash('ee'.repeat(32), CHUNK)
 
-  t.ok(await rawContains(idx.bee.core, '/docs/visible.txt'), 'plaintext present without a key')
+  t.ok(await rawContains(idx.bee.core, 'ee'.repeat(32)), 'plaintext present without a key')
 
   await idx.close()
 })
@@ -62,17 +60,18 @@ test('initOverlay encrypts the local index cores when M is present', async (t) =
 
   const dir = ctx.tmpDir('src')
   const file = path.join(dir, 'topsecret.bin')
-  fs.writeFileSync(file, Buffer.alloc(4096, 9))
+  fs.writeFileSync(file, Buffer.alloc(2 * 1024 * 1024, 9))
 
   const overlay = getOverlay()
-  await overlay.registerFile('/mir/topsecret', file, {})
+  const { contentHash } = await overlay.prepareForServe(file)
+  await overlay.registerFile(file, { contentHash })
 
   const cores = overlay.localCores()
-  t.ok(cores.length >= 3, 'file-index + index-meta + sync-feed present')
+  t.is(cores.length, 2, 'file-index + index-meta')
   for (const core of cores) {
-    t.absent(await rawContains(core, '/mir/topsecret'), 'no plaintext path in a local index core')
+    t.absent(await rawContains(core, contentHash), 'no plaintext hash in a local index core')
   }
-  t.ok(await overlay._index.getFile('/mir/topsecret'), 'index reads the entry back in-process')
+  t.ok(await overlay._index.getChunkMapByHash(contentHash), 'index reads the entry back in-process')
 })
 
 test('a keyless peer replicating the encrypted index reads only ciphertext', async (t) => {
@@ -83,7 +82,7 @@ test('a keyless peer replicating the encrypted index reads only ciphertext', asy
 
   const idx = new FileIndex(A.namespace('mirall-overlay-e1'), { encryptionKey: key })
   await idx.ready()
-  await idx.putFile('/mir/leak-me', { contentHash: 'ff'.repeat(32), size: 5, mtime: 1 })
+  await idx.putChunkMapByHash('ff'.repeat(32), CHUNK)
   const coreKey = idx.bee.core.key
 
   const s1 = A.replicate(true)
@@ -101,7 +100,7 @@ test('a keyless peer replicating the encrypted index reads only ciphertext', asy
   let plaintext = false
   for (let i = 0; i < bCore.length; i++) {
     const blk = await bCore.get(i, { timeout: 10000 })
-    if (blk && b4a.toString(blk).includes('/mir/leak-me')) plaintext = true
+    if (blk && b4a.toString(blk).includes('ff'.repeat(32))) plaintext = true
   }
   t.absent(plaintext, 'a peer without the key reads only ciphertext over the wire')
 
@@ -117,14 +116,14 @@ test('encrypted overlay index reopens across a store restart with the same key',
   let store = new Corestore(dir)
   let idx = new FileIndex(store.namespace('mirall-overlay-e1'), { encryptionKey: key })
   await idx.ready()
-  await idx.putFile('/mir/persist', { contentHash: '11'.repeat(32), size: 3, mtime: 1 })
+  await idx.putChunkMapByHash('11'.repeat(32), CHUNK)
   await idx.close()
   await store.close()
 
   store = new Corestore(dir)
   idx = new FileIndex(store.namespace('mirall-overlay-e1'), { encryptionKey: key })
   await idx.ready()
-  t.is((await idx.getFile('/mir/persist'))?.size, 3, 'entry survives restart + reopens with the key')
+  t.alike(await idx.getChunkMapByHash('11'.repeat(32)), CHUNK, 'entry survives restart + reopens with the key')
   await idx.close()
   await store.close()
 })

@@ -172,9 +172,9 @@ test('per-entry isolation holds for folder files', async (t) => {
   await restartOverlay()
   const overlay = getOverlay()
   const realRegister = overlay.registerFile.bind(overlay)
-  overlay.registerFile = async (op, dp, meta) => {
+  overlay.registerFile = async (dp, meta) => {
     if (dp.endsWith('a.txt')) throw new Error('boom: a.txt unreadable')
-    return realRegister(op, dp, meta)
+    return realRegister(dp, meta)
   }
   t.teardown(() => { overlay.registerFile = realRegister })
 

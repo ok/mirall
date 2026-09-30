@@ -1,8 +1,8 @@
 import test from 'brittle'
 import Protomux from 'protomux'
 import { Duplex } from 'streamx'
-import { tmpStore, tmpDir } from './overlay-engine-helpers.js'
-import { HyperOverlayV2 } from '../../src/shared/transfer/backends/overlay/engine/overlay-v2.js'
+import { tmpStore } from './overlay-engine-helpers.js'
+import { makeOverlay } from '../helpers/overlay-engine.js'
 import { VERSION, MIN_VERSION, CAP_LOCAL_FILES, CAP_ADAPTIVE_CHUNKS } from '../../src/shared/transfer/backends/overlay/engine/protocol-v2.js'
 import { scaled } from '../helpers/bare-timing.js'
 
@@ -17,7 +17,7 @@ function makeDuplex() {
 const settle = (ms = 500) => new Promise((r) => setTimeout(r, scaled(ms)))
 
 async function overlay(t, label, opts = {}) {
-  const o = new HyperOverlayV2(tmpStore(label), { namespace: 'mirall-overlay', destDir: tmpDir(label + '-d'), ...opts })
+  const o = makeOverlay(tmpStore(label), { namespace: 'mirall-overlay', ...opts })
   await o.ready()
   t.teardown(async () => { try { await o.close() } catch {} })
   return o

@@ -27,6 +27,13 @@ removing your relay, and turning it or "Prefer the relay for every
 connection" on or off, each leave one entry under Network. Entries name the
 relay by its label and a shortened key.
 
+#### Fixed
+
+- **App Storage no longer grows every time Mirall starts.** Mirall kept an
+internal log with an entry for every file you share and added to it on each
+start, though nothing ever read it. The log is removed once when you update,
+and the file index stops re-recording files it already knows.
+
 #### Security
 
 - **People outside a space can no longer fill your disk or restart your
@@ -34,6 +41,9 @@ downloads through the file-transfer connection.** Someone who knew a space's
 network address could make Mirall store data nothing uses, discard a
 download's progress so it started over, or get around your download speed
 limit. Mirall now ignores these messages.
+- **A malformed message can no longer cut a device off.** A garbled message
+of a kind Mirall no longer uses closed the whole connection to that device,
+syncing included. Mirall now ignores such messages.
 
 ## v1.11.2
 

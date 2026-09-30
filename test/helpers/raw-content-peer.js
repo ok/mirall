@@ -2,7 +2,9 @@ import Hyperswarm from 'hyperswarm'
 import Protomux from 'protomux'
 import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
+import c from 'compact-encoding'
 import * as m from '../../src/shared/transfer/backends/overlay/engine/messages-v2.js'
+import { LEGACY_FRAMES } from './legacy-overlay-frames.js'
 
 // A hand-built peer on a space's CONTENT topic (not the worker): it never sends a content-hello,
 // it only opens the raw hyper-overlay/v2 channel. It records what the worker sends it and can push
@@ -10,10 +12,8 @@ import * as m from '../../src/shared/transfer/backends/overlay/engine/messages-v
 const CONTENT_TOPIC_LABEL = b4a.from('mirall/content-plane/v1')
 const contentTopic = (topicHex) => crypto.hash(b4a.concat([b4a.from(topicHex, 'hex'), CONTENT_TOPIC_LABEL]))
 
-// protomux dispatches by position, so the slots follow protocol-v2.js attach() order.
-const SLOTS = ['syncState', 'fileOffer', 'fileRequest', 'chunkHashes', 'chunkNeed', 'chunkData', 'chunkCancel',
-  'transferComplete', 'conflict', 'treeRequest', 'treeResponse', 'contentRequest', 'transferControl',
-  'transferProgress', 'keepAlive']
+// protomux dispatches by position, so the slots follow the engine's slot table. A retired slot is
+// raw bytes both ways: `send` writes the released encoding, and a frame received on it is kept raw.
 
 export async function rawContentPeer(t, { bootstrap, topicHex, answer = null }) {
   const swarm = new Hyperswarm({ bootstrap })
@@ -24,9 +24,9 @@ export async function rawContentPeer(t, { bootstrap, topicHex, answer = null }) 
     const mux = Protomux.from(socket)
     const channel = mux.createChannel({ protocol: 'hyper-overlay/v2', id: null, handshake: m.handshake })
     const msgs = {}
-    for (const name of SLOTS) {
+    for (const { name, retired } of m.SLOTS) {
       msgs[name] = channel.addMessage({
-        encoding: m[name],
+        encoding: retired ? c.raw : m[name],
         onmessage: (msg) => {
           seen[name]?.push(msg)
           if (name === 'contentRequest' && answer) msgs.chunkHashes.send(answer(msg.contentHash))
@@ -42,7 +42,10 @@ export async function rawContentPeer(t, { bootstrap, topicHex, answer = null }) 
   return {
     seen,
     connections: () => channels.length,
-    push: (msg) => { for (const c of channels) { try { c.chunkHashes.send(msg) } catch {} } },
-    send: (name, msg) => { for (const c of channels) { try { c[name].send(msg) } catch {} } },
+    push: (msg) => { for (const ch of channels) { try { ch.chunkHashes.send(msg) } catch {} } },
+    send: (name, msg) => {
+      const frame = LEGACY_FRAMES[name] ? LEGACY_FRAMES[name](msg) : msg
+      for (const ch of channels) { try { ch[name].send(frame) } catch {} }
+    },
   }
 }

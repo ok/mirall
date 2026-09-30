@@ -45,12 +45,12 @@ tags in the code point into it until they are rewritten as plain rationale.
   inline with a `[mirall]` comment; a removal leaves nothing to mark, so the re-diff is the
   complete record. Modification began in 2026, when the snapshot was taken; git history
   records every later change.
-- **Notice on each file.** Each vendored `.js` file opens with a short header, a block of
-  `//` lines ending at the first blank line, that names its upstream file and snapshot,
+- **Notice on each file.** Each `.js` file derived from upstream opens with a short header, a
+  block of `//` lines ending at the first blank line, that names its upstream file and snapshot,
   the upstream license, and this modification. It is the only change above upstream's own
-  first line, and the re-diff recipe below strips it. The upstream tests ported under
-  `test/` (`overlay-engine-chunker`, `-messages-v2`, `-helpers`, `-restart-durability`,
-  `-transfer`) carry the same notice.
+  first line, and the re-diff recipe below strips it. A file written after the fork carries no
+  such header. The upstream tests ported under `test/` (`overlay-engine-chunker`,
+  `-messages-v2`, `-helpers`, `-transfer`) carry the same notice.
 - **Distribution.** The modified files are conveyed under the GNU Affero General Public
   License version 3 as part of Mirall; the full license text is the repository's
   [`LICENSE`](../../../../../../LICENSE). Because upstream grants version 3 without "or any
@@ -61,7 +61,7 @@ tags in the code point into it until they are rewritten as plain rationale.
 - **No warranty.** As stated in sections 15 and 16 of the license, the code is provided
   without warranty of any kind.
 
-## What was vendored (8 files — the import-closed v2 subset)
+## What was vendored (8 files — the import-closed v2 subset; 7 remain)
 
 `overlay-v2.js` (facade entry) and its transitive imports:
 `protocol-v2.js`, `chunk-scheduler.js`, `transfer.js`, `file-index.js`,
@@ -69,6 +69,17 @@ tags in the code point into it until they are rewritten as plain rationale.
 
 These 8 form a **closed import graph** — no other upstream `lib/*` file is reachable
 from `overlay-v2.js` along the v2 path.
+
+## Removed after the fork (2026-10)
+
+The legacy path-sync half of the v2 stack, which Mirall switched off at runtime and never used:
+`sync-engine.js` (whole file); in `protocol-v2.js` the sync-state/offer/request, tree and conflict
+handlers and senders, the single-peer receive, the spool and index-scan serve tiers and the
+auto-offer loop; in `overlay-v2.js` the single-peer fetch, re-seed and spool destinations; in
+`file-index.js` the file, path-keyed chunk-map, sync-state, sync-config, tree and stats stores; in
+`messages-v2.js` the eight codecs whose slots are now retired; in `transfer.js` the synchronous
+`readChunk`, `computeNeeded`, `isComplete`, `getProgress`, `listActive` and `cleanPartials`.
+Retired slots 0, 1, 2, 6, 7, 8, 9 and 10 stay registered, in place, with no codec and no handler.
 
 ## What was deliberately NOT vendored
 
@@ -323,9 +334,7 @@ re-diffable against upstream while it was tracked. Categories:
     (`_failPendingTrees`). All fields are appended last, so a pre-paging peer omits them and the decoder
     reads 0 (back-compat). This path is dormant in Mirall (the serve authorizer refuses `_onTreeRequest`
     and nothing calls `requestTree`); the fix hardens the vendored library for any tree-enabled build.
-    Covered by `test/integration/overlay-engine-treeresponse-wire-paging.test.js` (red-first paging +
-    reassembly, byte cap, stale-nonce drop, close rejection) plus `treeResponse`/`treeRequest` round-trip +
-    back-compat cases in `test/unit/overlay-engine-messages-v2.test.js`.
+    Removed with the tree protocol after the fork.
 
 17. **§4.16 — persistent receive fd + in-memory in-order hashing (`transfer.js`, perf).** Two
     receiver-side changes, digest- and wire-identical.
@@ -655,8 +664,8 @@ re-diffable against upstream while it was tracked. Categories:
     This is load-bearing on the serve path: `protocol-v2._onContentRequest` falls back to
     `listFiles()` to resolve a content hash to a disk path, and a miss there is a silent drop that
     the requester can only observe as a timeout. A shared file whose top-level name starts with such
-    a character was unservable through that fallback. Covered by
-    `test/integration/overlay-engine-prefix-bound.test.js`.
+    a character was unservable through that fallback. Removed with that fallback after
+    the fork.
 
 25. **§4.23 — compaction hands back the retired alias (`overlay-v2.js`).** `compactIndex` returns
     `{ core, alias: { name, namespace } }` for the generation it retired, rather than the bare

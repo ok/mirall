@@ -7,16 +7,17 @@
 // the marker stays unwritten and the pass retries — leaving the plaintext cores marked-done-but-
 // unpurged would defeat the whole point. The caller compacts the store when this reports migrated.
 import { migrationResult, MIGRATION_STATUS } from '../../../storage/migrations/migration-result.js'
-import { getStore, hasMasterSecret, overlayIndexEncryptionKey, createLocalBee } from '../../../core/store.js'
+import { hasMasterSecret, overlayIndexEncryptionKey } from '../../../core/store.js'
+import { runMarkedPass } from '../../../storage/migrations/marked-pass.js'
 import { purgeNamedCore } from '../../../storage/core-purge.js'
 import { FileIndex, indexCoreName } from './engine/file-index.js'
+import { OVERLAY_NAMESPACE, OVERLAY_NAMESPACE_ENC } from './overlay-namespaces.js'
+import { SYNC_FEED_CORE } from './purge-overlay-sync-feed.js'
 import { createLogger } from '../../../core/logger.js'
 
 const log = createLogger('overlay-index-migration')
 
 const FLAG = 'overlay-index-encrypt-v1'
-const NS_PLAINTEXT = 'mirall-overlay'
-const NS_ENC = 'mirall-overlay-e1'
 // Flush the copy batch on EITHER cap. A paged chunk-map value can be several MB, so a
 // count-only bound could buffer gigabytes and OOM the worker on a large index.
 const MAX_BATCH_ENTRIES = 500
@@ -24,29 +25,17 @@ const MAX_BATCH_BYTES = 8 * 1024 * 1024
 
 export async function migrateOverlayIndexToEncrypted() {
   if (!hasMasterSecret()) return migrationResult(MIGRATION_STATUS.SKIPPED)
-  const flagBee = createLocalBee('app-migrations')
-  try {
-    const store = getStore()
-    await store.ready()
-    await flagBee.ready()
-    if ((await flagBee.get(FLAG))?.value?.completedAt) return migrationResult(MIGRATION_STATUS.SKIPPED)
-
+  return runMarkedPass(FLAG, async (store) => {
     const copied = await migrateIndex(store)
-    await flagBee.put(FLAG, { completedAt: Date.now(), copied })
     if (copied) log.info('overlay index encrypted at rest — copied', copied, 'entries')
-    return migrationResult(MIGRATION_STATUS.DONE, { compact: copied > 0, copied })
-  } catch (err) {
-    log.warn('overlay-index at-rest migration skipped (will retry next boot):', err.message)
-    return migrationResult(MIGRATION_STATUS.DEFERRED)
-  } finally {
-    try { await flagBee.close() } catch {}
-  }
+    return { marker: { copied }, result: migrationResult(MIGRATION_STATUS.DONE, { compact: copied > 0, copied }) }
+  }, log)
 }
 
 async function migrateIndex(store) {
-  const nsPlain = store.namespace(NS_PLAINTEXT)
+  const nsPlain = store.namespace(OVERLAY_NAMESPACE)
   const legacy = new FileIndex(nsPlain)
-  const enc = new FileIndex(store.namespace(NS_ENC), { encryptionKey: overlayIndexEncryptionKey() })
+  const enc = new FileIndex(store.namespace(OVERLAY_NAMESPACE_ENC), { encryptionKey: overlayIndexEncryptionKey() })
   try {
     await legacy.ready()
     await enc.ready()
@@ -60,7 +49,7 @@ async function migrateIndex(store) {
     // dropping the by-name alias so a later reopen can't hit a dangling alias. Older generations
     // (v < current) are covered too, whether an interrupted compaction left one behind or a
     // completed one already purged its core and left only the alias. A failure throws.
-    const names = ['index-meta', 'sync-feed']
+    const names = ['index-meta', SYNC_FEED_CORE]
     for (let v = 1; v <= version; v++) names.push(indexCoreName(v))
     for (const name of names) await purgeNamedCore(store, nsPlain, name)
 
