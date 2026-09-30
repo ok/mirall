@@ -79,9 +79,9 @@ const failWith = (overlay, code) => {
 }
 
 // What the facade answers for each code the scheduler can fail a fetch on.
-const SURFACED = ['EHASHMISMATCH', 'ECANCELLED', 'ENOSPC', 'EACCES', 'EROFS', 'EPERM', 'ENOENT']
-const COLLAPSED = ['ENOTDIR', 'EISDIR', 'EIO', 'EFBIG', 'ENAMETOOLONG', 'EEXIST', 'EXDEV', 'ETARGETCHANGED',
-  'EBUSY', 'EAGAIN', 'EINTR', 'EMFILE', 'ENFILE']
+const SURFACED = ['EHASHMISMATCH', 'ECANCELLED', 'ENOSPC', 'EACCES', 'EROFS', 'EPERM', 'ENOENT',
+  'ENOTDIR', 'EISDIR', 'EIO', 'EFBIG', 'ENAMETOOLONG', 'EEXIST', 'EXDEV']
+const RETRIED = ['EBUSY', 'EAGAIN', 'EINTR', 'EMFILE', 'ENFILE', 'ETARGETCHANGED']
 
 test('REGRESSION (FIX-129): fetchFile rethrows a local I/O error code; an uncoded stall still yields null', async (t) => {
   const overlay = await facadeWith(t)
@@ -98,7 +98,7 @@ test('REGRESSION (FIX-129): fetchFile rethrows a local I/O error code; an uncode
   t.is(r, null, 'an uncoded stall still collapses to null (no-holder semantics preserved)')
 })
 
-test('fault contract (pinned): these coded faults reach the caller', async (t) => {
+test('REGRESSION (local faults read as no holder): every non-transient coded fault reaches the caller', async (t) => {
   const overlay = await facadeWith(t)
   for (const code of SURFACED) {
     failWith(overlay, code)
@@ -106,15 +106,15 @@ test('fault contract (pinned): these coded faults reach the caller', async (t) =
   }
 })
 
-test('fault contract (pinned): the facade collapses these coded faults to "no holder"', async (t) => {
+test('fault contract: transient write codes and a target collision read as "no holder"', async (t) => {
   const overlay = await facadeWith(t)
-  for (const code of COLLAPSED) {
+  for (const code of RETRIED) {
     failWith(overlay, code)
     t.is(await overlay.fetchFile('d'.repeat(64), { destPath: path.join(tmpDir('dl'), code) }), null, code)
   }
 })
 
-test('fault contract (pinned): a destination under a regular file reads as "no holder"', { skip: Bare.platform === 'win32' }, async (t) => {
+test('REGRESSION (local faults read as no holder): a destination under a regular file fails the fetch with its errno', { skip: Bare.platform === 'win32' }, async (t) => {
   const pub = await linkedOverlay(t, 'enotdir-pub')
   const con = await linkedOverlay(t, 'enotdir-con')
   const content = crypto.randomBytes(64 * 1024)
@@ -127,7 +127,10 @@ test('fault contract (pinned): a destination under a regular file reads as "no h
 
   const blocker = path.join(tmpDir('enotdir-dl'), 'not-a-folder')
   fs.writeFileSync(blocker, 'a file where the folder belongs')
-  t.is(await con.fetchFile(oid, { destPath: path.join(blocker, 'child.bin'), timeout: scaled(6000) }), null, 'the setup errno is lost')
+  const err = await con.fetchFile(oid, { destPath: path.join(blocker, 'child.bin'), timeout: scaled(6000) }).then(() => null, (e) => e)
+  t.ok(err, 'the fetch rejected rather than resolving "no holder"')
+  // The receive setup's recursive mkdir reports ENOTDIR on some platforms and EEXIST on others.
+  t.ok(['ENOTDIR', 'EEXIST'].includes(err?.code), `the setup errno reached the caller (${err?.code})`)
 })
 
 // A transfer that ended via _fail (stall / disk error) leaves its state — incl. an

@@ -1088,6 +1088,10 @@ user's **real file on disk**, never a Hyperdrive blob store.
   don't hold it"**.
 - **Resume**: an app-private receive journal (chunk bitmap + streaming-hash snapshot, in
   `journals/`) lets an interrupted download continue without re-verifying from scratch.
+- **Fault contract**: `fetchFile` rejects with the original error iff it carries a non-empty
+  string code that is not a transient write code (`engine/local-faults.js`); it resolves `null`
+  iff no holder answered or the fetch ended on an uncoded peer/transport outcome; otherwise it
+  resolves the result.
 
 `getContentBackend(share)` (`src/shared/transfer/content-backends.js`) returns the overlay for
 `contentMode === 'overlay'` and `UNSUPPORTED` for every other mode. Callers render `UNSUPPORTED` as

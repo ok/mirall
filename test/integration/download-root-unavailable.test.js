@@ -189,6 +189,41 @@ test('a local-fs failure with the folder still present keeps its own classificat
   t.is(errorsIn(events)[0], CODES.TRANSFER_PERMISSION, 'still a permission error, not a folder fault')
 })
 
+// The real engine, not a stubbed fetchFile: the receive fails with a coded local fault, which must
+// reach the classifier instead of reading as "no holder" and stall-retrying on every reconnect.
+test('REGRESSION (local faults read as no holder): an engine ENOTDIR on a vanished folder stops the row', async (t) => {
+  const ctx = await setup(t)
+  const events = []
+  const dir = path.join(ctx.downloads, 'vanishing')
+  fs.mkdirSync(dir, { recursive: true })
+  const job = makeJob(dir)
+  const engine = createOverlayDownloadEngine(testChannel(events, {
+    resolvePendingRow: async () => ({ removed: false, seq: undefined, job }),
+  }))
+  const overlay = getOverlay()
+  overlay._protocol._peers = new Map([['p', { channel: { close() {} } }]])
+  overlay._holderAuthorizer = () => true
+  let fetches = 0
+  overlay._protocol.fetchContent = async () => {
+    fetches++
+    fs.rmSync(dir, { recursive: true, force: true })
+    const err = new Error("ENOTDIR: not a directory, mkdir '" + dir + "'")
+    err.code = 'ENOTDIR'
+    throw err
+  }
+
+  await engine.start(job)
+  await tick()
+  t.is(errorsIn(events)[0], CODES.TRANSFER_DEST_UNAVAILABLE, 'the engine fault is classified by the folder')
+  t.is((await getPendingFor(SPACE, job.pendingKey))?.errorCode, CODES.TRANSFER_DEST_UNAVAILABLE, 'and recorded on the row')
+
+  events.length = 0
+  await engine.resumeForOwner(OWNER, SPACE)
+  await settle()
+  t.is(fetches, 1, 'an owner reconnect does not re-drive it')
+  t.alike(errorsIn(events), [], 'nor re-fail it')
+})
+
 // === The folder-share channel must let this code cross the wire ===
 
 // Folder rows normally surface an error only through the list refresh; only the terminal codes

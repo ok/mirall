@@ -33,6 +33,10 @@ relay by its label and a shortened key.
 internal log with an entry for every file you share and added to it on each
 start, though nothing ever read it. The log is removed once when you update,
 and the file index stops re-recording files it already knows.
+- **A download that can't be written now says why.** If the download folder
+was replaced by a file, or the disk reported a read or write error, the
+download kept retrying as if the sender were offline. It now stops and shows
+what went wrong.
 
 #### Security
 

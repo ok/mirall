@@ -11,6 +11,7 @@ import cenc from 'compact-encoding'
 import * as messages from './messages-v2.js'
 import { selectTier } from './chunker.js'
 import { ChunkScheduler } from './chunk-scheduler.js'
+import { isDestinationFault } from './local-faults.js'
 import fs from 'bare-fs'
 
 const PROTOCOL = 'hyper-overlay/v2'
@@ -154,7 +155,8 @@ export class OverlayProtocolV2 {
     // [mirall] Content-addressed dedup: a concurrent fetch of the SAME hash (a
     // different file/transfer with identical bytes) joins the in-flight one instead
     // of failing — await its verified bytes, then copy to our destPath. If the leader
-    // was cancelled, re-issue our own fetch (the scheduler entry is already gone).
+    // was cancelled or failed on its own destination, re-issue our own fetch (the
+    // scheduler entry is already gone).
     const inflight = this._schedulers.get(p)
     if (inflight) {
       return inflight.shared.then(
@@ -164,7 +166,10 @@ export class OverlayProtocolV2 {
           }
           return res
         },
-        (err) => { if (err?.code === 'ECANCELLED') return this.fetchContent(contentHash, peers, opts); throw err },
+        (err) => {
+          if (err?.code === 'ECANCELLED' || isDestinationFault(err)) return this.fetchContent(contentHash, peers, opts)
+          throw err
+        },
       )
     }
     const sched = new ChunkScheduler({

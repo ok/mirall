@@ -66,6 +66,19 @@ test('#2: a joiner re-issues its own fetch when the leader was cancelled', async
   t.is(proto._schedulers.size, 1, 'a fresh scheduler exists for the re-issued joiner (leader\'s was removed)')
 })
 
+test('a joiner re-issues its own fetch when the leader failed on its own destination', async (t) => {
+  const proto = makeProtocol(fakeTransfer())
+  const leaderFault = Object.assign(new Error('not a directory'), { code: 'ENOTDIR' })
+  const failed = Promise.reject(leaderFault)
+  failed.catch(() => {})
+  proto._schedulers.set('content:ghi', { shared: failed, destPath: '/leader/a' })
+  const joiner = proto.fetchContent('ghi', [], { destPath: path.join(tmp(), 'b'), timeout: 200 })
+  joiner.catch(() => {})
+  proto._schedulers.delete('content:ghi')
+  await new Promise((r) => setTimeout(r, 20))
+  t.is(proto._schedulers.size, 1, 'the joiner runs its own scheduler instead of taking the leader\'s ENOTDIR')
+})
+
 test('a joiner shares the leader\'s integrity verdict', async (t) => {
   const proto = makeProtocol(fakeTransfer())
   const failed = Promise.reject(Object.assign(new Error('mismatch'), { code: 'EHASHMISMATCH' }))

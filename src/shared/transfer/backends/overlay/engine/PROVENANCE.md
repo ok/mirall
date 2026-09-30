@@ -80,6 +80,7 @@ auto-offer loop; in `overlay-v2.js` the single-peer fetch, re-seed and spool des
 `messages-v2.js` the eight codecs whose slots are now retired; in `transfer.js` the synchronous
 `readChunk`, `computeNeeded`, `isComplete`, `getProgress`, `listActive` and `cleanPartials`.
 Retired slots 0, 1, 2, 6, 7, 8, 9 and 10 stay registered, in place, with no codec and no handler.
+`local-faults.js` is first-party code written after the fork and carries no upstream header.
 
 ## What was deliberately NOT vendored
 

@@ -16,6 +16,7 @@ import { FileIndex, indexCoreName } from './file-index.js'
 import { TransferManager } from './transfer.js'
 import { OverlayProtocolV2 } from './protocol-v2.js'
 import { createStreamingHasher } from './chunker.js'
+import { surfacesToCaller } from './local-faults.js'
 
 // [mirall] Stream-verify a file against its overlay content hash WITHOUT buffering
 // it — a readFileSync of a multi-GB blob OOMs the worker. Matches
@@ -256,13 +257,7 @@ export class HyperOverlayV2 extends ReadyResource {
         onEnd: opts.onEnd                             // [mirall] terminal diagnostic (reason + bytes/chunks)
       })
     } catch (err) {
-      // An integrity failure or an explicit cancel/pause is distinct from a
-      // no-holder / stall — surface it so the caller doesn't treat it as a failure.
-      if (err?.code === 'EHASHMISMATCH' || err?.code === 'ECANCELLED') throw err
-      // [mirall] A local I/O error (full disk / read-only / permission / vanished
-      // mount) is not a no-holder — surface it so the consumer can pause rather than
-      // retry forever.
-      if (err?.code === 'ENOSPC' || err?.code === 'EACCES' || err?.code === 'EROFS' || err?.code === 'EPERM' || err?.code === 'ENOENT') throw err
+      if (surfacesToCaller(err)) throw err
       return null
     }
     const size = result?.size ?? fs.statSync(destPath).size
