@@ -6,8 +6,8 @@ import { setupOwnedShare } from '../helpers/owned.js'
 import { getStore } from '../../src/shared/core/store.js'
 import { getOwnEntry } from '../../src/shared/shares/own-catalog.js'
 import { classifyLeftovers, purgeLeftovers } from '../../src/shared/storage/leftover.js'
-import { getOverlay, getOverlayLocalDiscoveryKeys } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
-import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
+import { getOverlay, getOverlayLocalDiscoveryKeys } from '../../src/shared/transfer/overlay/overlay-instance.js'
+import { overlayBackend } from '../../src/shared/transfer/overlay/index.js'
 
 async function coreInStore(dkHex) {
   for await (const dk of getStore().list()) {
@@ -24,7 +24,7 @@ test('overlay file-index is never classified or purged as leftover', async (t) =
   fs.writeFileSync(abs, Buffer.alloc(2 * 1024 * 1024, 5))
   await overlayBackend.publishAdd(spaceId, share, 'big.bin', abs)
   const hash = (await getOwnEntry(spaceId, share.id, 'big.bin')).contentHash
-  t.ok(await getOverlay()._index.hasChunkMapByHash(hash), 'precondition: chunk map present')
+  t.ok(await getOverlay().index.hasChunkMapByHash(hash), 'precondition: chunk map present')
 
   const fiDk = (await getOverlayLocalDiscoveryKeys())[0]
   t.ok(fiDk && await coreInStore(fiDk), 'precondition: file-index core present + resolved')
@@ -35,5 +35,5 @@ test('overlay file-index is never classified or purged as leftover', async (t) =
 
   await purgeLeftovers()
   t.ok(await coreInStore(fiDk), 'file-index core survives a full leftover cleanup')
-  t.ok(await getOverlay()._index.hasChunkMapByHash(hash), 'chunk map intact after cleanup')
+  t.ok(await getOverlay().index.hasChunkMapByHash(hash), 'chunk map intact after cleanup')
 })

@@ -6,8 +6,8 @@ import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
 import { createForeignMount, getForeignMount } from '../../src/shared/folders/mount-store.js'
 import { stopForeignLoop } from '../../src/shared/folders/foreign-verbs.js'
 import { runMaterializeTick, initialMaterializeScan } from '../../src/shared/folders/mirror-pass.js'
-import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
-import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
+import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/transfer/overlay/overlay-instance.js'
+import { overlayBackend } from '../../src/shared/transfer/overlay/index.js'
 import { waitFor } from '../helpers/bare-poll.js'
 
 // runMaterializeTick serialises passes per mount through one in-flight map. Whoever cleans that

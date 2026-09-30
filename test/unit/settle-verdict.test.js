@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { SETTLE, ABANDON, settleVerdict, abandonReason } from '../../src/shared/transfer/backends/overlay/settle-verdict.js'
+import { SETTLE, ABANDON, settleVerdict, abandonReason } from '../../src/shared/transfer/overlay/settle-verdict.js'
 
 const slot = (over = {}) => ({ paused: false, cancelled: false, restartJob: null, republishing: false, ownerKey: 'o', ...over })
 const OK = { ok: true }

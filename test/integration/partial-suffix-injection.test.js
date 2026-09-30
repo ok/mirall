@@ -3,8 +3,8 @@
 // sweep/probe/ignore logic that keys on the same constant.
 import test from 'brittle'
 import { tmpStore, tmpDir, path } from './overlay-engine-helpers.js'
-import { FileIndex } from '../../src/shared/transfer/backends/overlay/engine/file-index.js'
-import { TransferManager, PARTIAL_SUFFIX as VENDOR_DEFAULT_SUFFIX } from '../../src/shared/transfer/backends/overlay/engine/transfer.js'
+import { FileIndex } from '../../src/shared/transfer/overlay/engine/store/file-index.js'
+import { TransferManager, PARTIAL_SUFFIX as VENDOR_DEFAULT_SUFFIX } from '../../src/shared/transfer/overlay/engine/transfer/transfer-manager.js'
 import { PARTIAL_SUFFIX } from '../../src/shared/transfer/partial-suffix.js'
 import fs from 'bare-fs'
 

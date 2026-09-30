@@ -3,7 +3,7 @@ import b4a from 'b4a'
 import { freshPeer } from '../helpers/store.js'
 import { getStore, openStore } from '../../src/shared/core/store.js'
 import { purgeCoreDk } from '../../src/shared/storage/core-purge.js'
-import { FileIndex } from '../../src/shared/transfer/backends/overlay/engine/file-index.js'
+import { FileIndex } from '../../src/shared/transfer/overlay/engine/store/file-index.js'
 
 // REGRESSION (FIX-150: the old leftover "Clean up" purged the file-index core via
 // purgeCoreDk, which deletes the data + by-discovery-key alias but NOT the by-name
@@ -15,7 +15,7 @@ test('FileIndex recovers from a dangling index alias by advancing the version', 
   const fi1 = new FileIndex(getStore().namespace('recover-fi'))
   await fi1.ready()
   await fi1.putChunkMapByHash('cafe', [{ hash: 'h', offset: 0, length: 1 }])
-  t.is(fi1._version, 1, 'starts at v1 (core name "file-index")')
+  t.is(fi1.version, 1, 'starts at v1 (core name "file-index")')
   const dk = b4a.toString(fi1.bee.core.discoveryKey, 'hex')
   await fi1.close()
 
@@ -30,7 +30,7 @@ test('FileIndex recovers from a dangling index alias by advancing the version', 
 
   const fi2 = new FileIndex(getStore().namespace('recover-fi'))
   await fi2.ready() // must NOT throw STORAGE_EMPTY
-  t.ok(fi2._version > 1, 'advanced past the dangling version rather than failing boot')
+  t.ok(fi2.version > 1, 'advanced past the dangling version rather than failing boot')
   t.absent(await fi2.hasChunkMapByHash('cafe'), 'the recovered index is fresh (stale cache gone)')
   await fi2.putChunkMapByHash('beef', [{ hash: 'h', offset: 0, length: 1 }])
   t.ok(await fi2.hasChunkMapByHash('beef'), 'the recovered index is writable')

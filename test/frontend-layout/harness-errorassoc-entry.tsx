@@ -10,10 +10,10 @@
 import './harness-bootstrap.js'
 import { createRoot, type Root } from 'react-dom/client'
 import '../../src/renderer/platform/i18n.js'
-import EditSpaceModal from './../../src/renderer/components/modals/EditSpaceModal.js'
-import EditFolderModal from './../../src/renderer/components/modals/EditFolderModal.js'
+import EditSpaceModal from '../../src/renderer/components/modals/EditSpaceModal.js'
+import EditFolderModal from '../../src/renderer/components/modals/EditFolderModal.js'
 import MountPathField from '../../src/renderer/components/path/MountPathField.js'
-import CreateSpaceModal from './../../src/renderer/components/modals/CreateSpaceModal.js'
+import CreateSpaceModal from '../../src/renderer/components/modals/CreateSpaceModal.js'
 import type { Space } from '../../src/renderer/types/types.js'
 
 // The download-folder read fails for the whole page, so the space dialog carries BOTH a folder

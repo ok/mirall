@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
+import { serveIndex } from '../../src/shared/transfer/overlay/overlay-serve-index.js'
 
 test('add/spacesFor — single hash, single (space, share, path)', (t) => {
   serveIndex.reset()

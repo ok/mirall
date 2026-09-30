@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { makeSharesRefresh } from '../../src/shared/transfer/backends/overlay/overlay-refresh.js'
+import { makeSharesRefresh } from '../../src/shared/transfer/overlay/overlay-refresh.js'
 
 function manualClock() {
   const pending = new Map()

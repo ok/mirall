@@ -17,7 +17,7 @@
 //    on every append — worth it only when a spurious wake costs more than the watchers do,
 //    which it does for any fold that reads over the network. Exclusive with `range`.
 
-import { createPassLiveness } from '../core/pass-liveness.js'
+import { createPassLiveness } from './pass-liveness.js'
 
 // One fold at a time, so the keyed bookkeeping carries a single key.
 const FOLD = 'fold'

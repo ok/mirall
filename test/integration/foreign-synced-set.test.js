@@ -6,7 +6,7 @@ import { getForeignMount, createForeignMount } from '../../src/shared/folders/mo
 import { createLocalBee } from '../../src/shared/core/store.js'
 import { unmountForeignFolder } from '../../src/shared/folders/foreign-verbs.js'
 import { initialMaterializeScan, runMaterializeTick } from '../../src/shared/folders/mirror-pass.js'
-import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
+import { overlayBackend } from '../../src/shared/transfer/overlay/index.js'
 
 // Count Array.prototype.includes calls for the duration of a pass. A subclassed array cannot be
 // used here: the record round-trips through the bee's JSON encoding, which hands the loop a plain

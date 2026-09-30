@@ -22,7 +22,7 @@ test('REGRESSION (FIX-PUBLISH-HEARTBEAT): every phase of a publish beats, not ju
   t.ok(beats >= 2, `the runner beats after resolve and after the catalog settle (found ${beats})`)
   t.ok(runner.includes('beat }'), 'and hands the beat on to the channel')
 
-  const folder = read('src', 'shared', 'transfer', 'backends', 'overlay', 'folder-publish.js')
+  const folder = read('src', 'shared', 'transfer', 'overlay', 'folder-publish.js')
   t.ok(/onProgress: \(len\) => \{ progress\.onProgress\(len\); beat\?\.\(\) \}/.test(folder), 'and so does every chunk of the publish')
 })
 
@@ -32,7 +32,7 @@ test('REGRESSION (FIX-PUBLISH-HEARTBEAT): every phase of a publish beats, not ju
 // the recovery for the "wedged" item killed the hash that was making progress. A beat on either
 // side of a phase says nothing about the phase; only one INSIDE it does.)
 test('REGRESSION (FIX-DEEP-VERDICT-BEAT): the deep re-hash beats per chunk, not once it returns', (t) => {
-  const folder = read('src', 'shared', 'transfer', 'backends', 'overlay', 'folder-publish.js')
+  const folder = read('src', 'shared', 'transfer', 'overlay', 'folder-publish.js')
   t.ok(/overlayHashFile\(absPath, beat, signal\)/.test(folder),
     'the beat IS the hash\'s per-chunk callback — passing undefined there is the defect')
   t.absent(/overlayHashFile\(absPath, undefined, signal\)/.test(folder), 'and the discarded hook is gone')
@@ -41,7 +41,7 @@ test('REGRESSION (FIX-DEEP-VERDICT-BEAT): the deep re-hash beats per chunk, not 
 })
 
 test('the loose channel forwards the beat rather than dropping it', (t) => {
-  const loose = read('src', 'shared', 'transfer', 'backends', 'overlay', 'loose-publish.js')
+  const loose = read('src', 'shared', 'transfer', 'overlay', 'loose-publish.js')
   t.ok(/async publish\(item, \{ absPath \}, \{ signal, beat \}\)/.test(loose),
     'the channel destructures it — a channel that rebuilt its opts would silently lose it')
   t.ok(/onProgress: \(len\) => \{ progress\.onProgress\(len\); beat\?\.\(\) \}/.test(loose), 'and beats per chunk')

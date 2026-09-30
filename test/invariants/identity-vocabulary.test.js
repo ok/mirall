@@ -12,7 +12,7 @@ const src = (rel) => readFileSync(path.join(root, 'src', rel), 'utf8')
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const p = path.join(dir, name)
-    if (statSync(p).isDirectory()) { if (name !== 'engine' && name !== 'locales') walk(p, out) }
+    if (statSync(p).isDirectory()) { if (name !== 'locales') walk(p, out) }
     else if (/\.(js|ts|tsx)$/.test(name)) out.push(p)
   }
   return out

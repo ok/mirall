@@ -9,9 +9,6 @@
   "project": [
     "src/**/*.{js,ts,tsx}"
   ],
-  "ignore": [
-    "src/shared/transfer/backends/overlay/engine/**"
-  ],
   "ignoreExportsUsedInFile": true,
   "rules": {
     "dependencies": "off",

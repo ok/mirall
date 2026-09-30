@@ -2,8 +2,8 @@ import test from 'brittle'
 import { freshPeer } from '../helpers/store.js'
 import { flushAudit } from '../../src/shared/audit/audit-log.js'
 import { queryAudit } from '../../src/shared/audit/audit-query.js'
-import { recordServeDenial } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
-import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
+import { recordServeDenial, resetServeDenialAudit } from '../../src/shared/transfer/overlay/serve-denial-audit.js'
+import { serveIndex } from '../../src/shared/transfer/overlay/overlay-serve-index.js'
 import { tagged } from '../helpers/capture-console.js'
 
 const REQUESTER = 'ab'.repeat(32)
@@ -38,4 +38,20 @@ test('REGRESSION (FIX-OBS-2): a denial whose lookup throws is warned, and the ne
   await flushAudit()
   const { entries } = await queryAudit({})
   t.ok(entries.some((e) => e.kind === 'security.serve_denied'), 'the retry was not swallowed by the dedupe')
+})
+
+test('a repeat denial collapses until the audit is reset, which lets the same pair record again', async (t) => {
+  await freshPeer(t)
+  const deniedRows = async () => {
+    await flushAudit()
+    const { entries } = await queryAudit({})
+    return entries.filter((e) => e.kind === 'security.serve_denied').length
+  }
+  await recordServeDenial('not-a-member', { from: REQUESTER, contentHash: hashOf(3) })
+  await recordServeDenial('not-a-member', { from: REQUESTER, contentHash: hashOf(3) })
+  t.is(await deniedRows(), 1, 'the retry inside the window is one incident')
+
+  resetServeDenialAudit()
+  await recordServeDenial('not-a-member', { from: REQUESTER, contentHash: hashOf(3) })
+  t.is(await deniedRows(), 2, 'after the reset the same (peer, hash) records again')
 })

@@ -5,8 +5,9 @@ import { entryRef } from '../contract/entry-ref.js'
 import fs from 'bare-fs'
 import { pathFromMount } from './path-guard.js'
 import { DEFAULT_IGNORE, dropUnsafeEntries } from './path-keys.js'
-import { getContentBackend, hasContentBackend } from '../transfer/content-backends.js'
-import { overlayHashFile } from '../transfer/backends/overlay/overlay-hash.js'
+import { isServableShare } from '../transfer/content-mode.js'
+import { overlayBackend } from '../transfer/overlay/index.js'
+import { overlayHashFile } from '../transfer/overlay/overlay-hash.js'
 import { isVerifiedUnchanged } from '../transfer/files.js'
 import { getListFilesCap } from '../core/runtime-config.js'
 import { listingWillTruncate } from './share-limits.js'
@@ -24,12 +25,11 @@ const FOREIGN_PREVIEW_CONCURRENCY = 8
 const PREVIEW_PROGRESS_EVERY = 16
 
 // Resolve the peer share and enumerate its files from the overlay catalog.
-// Returns null when the share isn't visible / has no usable content backend.
+// Returns null when the share isn't visible or this build cannot serve it.
 async function loadForeignListing(spaceId, ownerKey, shareId) {
   const share = await loadShareForForeignMount({ spaceId, ownerKey, shareId })
-  if (!share || !hasContentBackend(share)) return null
-  const backend = getContentBackend(share)
-  const { entries } = await backend.listPeerWithMeta(spaceId, share)
+  if (!share || !isServableShare(share)) return null
+  const { entries } = await overlayBackend.listPeerWithMeta(spaceId, share)
   return dropUnsafeEntries(
     entries.map((e) => ({ relPath: e.relPath, size: e.size, hash: e.contentHash })),
     (rel) => log.warn('refusing a peer file path that escapes the mount folder — skipping this entry (the owner drive may be malicious or corrupted):', rel),

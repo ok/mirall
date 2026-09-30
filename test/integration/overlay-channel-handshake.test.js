@@ -3,7 +3,7 @@ import Protomux from 'protomux'
 import { Duplex } from 'streamx'
 import { tmpStore } from './overlay-engine-helpers.js'
 import { makeOverlay } from '../helpers/overlay-engine.js'
-import { VERSION, MIN_VERSION, CAP_LOCAL_FILES, CAP_ADAPTIVE_CHUNKS } from '../../src/shared/transfer/backends/overlay/engine/protocol-v2.js'
+import { VERSION, MIN_VERSION, CAP_LOCAL_FILES, CAP_ADAPTIVE_CHUNKS } from '../../src/shared/transfer/overlay/engine/wire/slots.js'
 import { scaled } from '../helpers/bare-timing.js'
 
 function makeDuplex() {
@@ -24,7 +24,7 @@ async function overlay(t, label, opts = {}) {
 }
 
 // REGRESSION (FIX-OVERLAY-HANDSHAKE: channel.open() was handed { version, capabilities } but the
-// channel declared no handshake encoding, so protomux never put the bits on the wire and _onOpen
+// channel declared no handshake encoding, so protomux never put the bits on the wire and onopen
 // never saw them — the content channel had no negotiated version at all.)
 test('REGRESSION (FIX-OVERLAY-HANDSHAKE): both peers learn the remote overlay version and caps', async (t) => {
   const opened = []
@@ -35,7 +35,7 @@ test('REGRESSION (FIX-OVERLAY-HANDSHAKE): both peers learn the remote overlay ve
   b.attachProtocol(Protomux.from(pb))
   await settle()
 
-  const peer = [...a._protocol._peers.values()][0]
+  const peer = [...a.protocol.peers()][0]
   t.ok(peer, 'the channel opened')
   t.is(peer.remoteVersion, VERSION, 'the remote version reached us')
   t.is(peer.remoteCaps, CAP_LOCAL_FILES | CAP_ADAPTIVE_CHUNKS, 'and its capability bits')
@@ -60,8 +60,8 @@ test('a peer below the minimum loses its content channel, not its socket', async
   t.absent(pa.destroyed, 'the socket stays up')
   t.absent(pb.destroyed, 'on both sides')
   // The gate must not leak the peer it refused: protomux runs onclose synchronously inside
-  // close(), and the vendored onclose is what drops the entry.
-  t.is(a._protocol.peerCount, 0, 'the rejected peer is not retained')
+  // close(), and the channel's onclose is what drops the entry.
+  t.is(a.peerCount, 0, 'the rejected peer is not retained')
 })
 
 test('the shipped minimum refuses nothing in the field', (t) => {

@@ -9,7 +9,7 @@ const roots = ['shared', 'worker'].map((d) => path.join(here, '..', '..', 'src',
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const p = path.join(dir, name)
-    if (statSync(p).isDirectory()) { if (name !== 'engine') walk(p, out) } else if (name.endsWith('.js')) out.push(p)
+    if (statSync(p).isDirectory()) { walk(p, out) } else if (name.endsWith('.js')) out.push(p)
   }
   return out
 }
@@ -40,6 +40,6 @@ test('REGRESSION (LIFECYCLE-2d): the storage-layer reset seams are gone from src
   }
   const scheduler = readFileSync(path.join(here, '..', '..', 'src', 'shared', 'folders', 'publish-scheduler.js'), 'utf8')
   t.absent(scheduler.includes('_reset('), 'the scheduler has no reset — instances are constructed per boot')
-  const serveIndexSrc = readFileSync(path.join(here, '..', '..', 'src', 'shared', 'transfer', 'backends', 'overlay', 'overlay-serve-index.js'), 'utf8')
+  const serveIndexSrc = readFileSync(path.join(here, '..', '..', 'src', 'shared', 'transfer', 'overlay', 'overlay-serve-index.js'), 'utf8')
   t.absent(serveIndexSrc.includes('_reset'), 'the serve index reset is owned by the overlay backend, not a test seam')
 })

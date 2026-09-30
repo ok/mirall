@@ -4,11 +4,10 @@ import path from 'bare-path'
 import { setupOwnedShare } from '../helpers/owned.js'
 import { getStore } from '../../src/shared/core/store.js'
 import { getOwnEntry } from '../../src/shared/shares/own-catalog.js'
-import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
-import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
+import { getOverlay } from '../../src/shared/transfer/overlay/overlay-instance.js'
+import { overlayBackend } from '../../src/shared/transfer/overlay/index.js'
 import { getStorageInfo } from '../../src/shared/storage/storage.js'
-import { compactOverlayIndex } from '../../src/shared/transfer/backends/overlay/overlay-maintenance.js'
-import { indexCoreName } from '../../src/shared/transfer/backends/overlay/engine/file-index.js'
+import { compactOverlayIndex } from '../../src/shared/transfer/overlay/overlay-maintenance.js'
 
 // REGRESSION (FIX-148: storage numbers were a residual that hid real usage, and the old
 // "Clean up" relabeled bytes instead of freeing them / could delete the index). The action is
@@ -32,12 +31,17 @@ test('getStorageInfo reports measured categories; compaction shrinks the index a
   t.absent('otherBytes' in info, 'the residual otherBytes field is gone')
 
   const before = await getStorageInfo()
+  const overlay = getOverlay()
+  const compactIndex = overlay.compactIndex.bind(overlay)
+  let retired = null
+  overlay.compactIndex = async (opts) => { const res = await compactIndex(opts); retired = res?.alias ?? retired; return res }
+  t.teardown(() => { overlay.compactIndex = compactIndex })
   t.ok((await compactOverlayIndex()).compacted, 'compaction ran')
-  t.ok(await getOverlay()._index.hasChunkMapByHash(liveHash), 'the served map survives compaction')
+  t.ok(await getOverlay().index.hasChunkMapByHash(liveHash), 'the served map survives compaction')
   // REGRESSION (FIX-504): the retired generation's by-name alias goes with its core, or a later
   // open of that name resolves to a deleted core and throws STORAGE_EMPTY.
-  const retiredAlias = { name: indexCoreName(getOverlay()._index.version - 1), namespace: getOverlay()._corestore.ns }
-  t.absent(await getStore().storage.getAlias(retiredAlias), 'the retired generation’s alias is dropped with its core')
+  t.ok(retired, 'the pass handed back the retired generation')
+  t.absent(await getStore().storage.getAlias(retired), 'the retired generation’s alias is dropped with its core')
   const after = await getStorageInfo()
   t.ok(after.indexBytes < before.indexBytes, `index shrank (before=${before.indexBytes} after=${after.indexBytes})`)
 
@@ -45,6 +49,6 @@ test('getStorageInfo reports measured categories; compaction shrinks the index a
   // now, so "idempotent" stopped being a nicety.
   await compactOverlayIndex()
   const after2 = await getStorageInfo()
-  t.ok(await getOverlay()._index.hasChunkMapByHash(liveHash), 'the served map survives a second pass')
+  t.ok(await getOverlay().index.hasChunkMapByHash(liveHash), 'the served map survives a second pass')
   t.is(after2.indexBytes, after.indexBytes, 'a second pass does not grow the clean index')
 })

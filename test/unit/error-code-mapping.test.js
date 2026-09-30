@@ -44,10 +44,10 @@ test('the generic fallback has copy', (t) => {
 // covered without anyone remembering to update this test.
 test('REGRESSION (FIX-DLDIR-3: every code the download engine emits has a renderer mapping)', (t) => {
   const engineSrc = [
-    'shared/transfer/backends/overlay/overlay-download.js',
-    'shared/transfer/backends/overlay/download-start.js',
-    'shared/transfer/backends/overlay/fetch-settle.js',
-    'shared/transfer/backends/overlay/download-faults.js',
+    'shared/transfer/overlay/overlay-download.js',
+    'shared/transfer/overlay/download-start.js',
+    'shared/transfer/overlay/fetch-settle.js',
+    'shared/transfer/overlay/download-faults.js',
   ].map(read).join('\n')
   const emitted = new Set([...engineSrc.matchAll(/\bCODES\.([A-Z][A-Z0-9_]*)/g)].map((m) => m[1]))
   t.ok(emitted.size > 0, 'the engine references error codes at all')

@@ -18,7 +18,7 @@ function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const p = path.join(dir, name)
     if (statSync(p).isDirectory()) {
-      if (name !== 'engine') walk(p, out)
+      walk(p, out)
     } else if (name.endsWith('.js')) out.push(p)
   }
   return out

@@ -7,8 +7,8 @@
 import './harness-bootstrap.js'
 import { createRoot } from 'react-dom/client'
 import i18n from '../../src/renderer/platform/i18n.js'
-import ShareCard from './../../src/renderer/components/cards/ShareCard.js'
-import type { ShareWithRole } from './../../src/renderer/hooks/useShares.js'
+import ShareCard from '../../src/renderer/components/cards/ShareCard.js'
+import type { ShareWithRole } from '../../src/renderer/hooks/useShares.js'
 import type { Profile } from '../../src/renderer/types/types.js'
 
 interface HarnessResults {

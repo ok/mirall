@@ -4,8 +4,8 @@ import crypto from 'hypercore-crypto'
 import { Duplex } from 'streamx'
 import { tmpStore, tmpDir, fs, path } from './overlay-engine-helpers.js'
 import { makeOverlay } from '../helpers/overlay-engine.js'
-import { FileIndex } from '../../src/shared/transfer/backends/overlay/engine/file-index.js'
-import { openFdCount } from '../../src/shared/transfer/backends/overlay/engine/transfer.js'
+import { FileIndex } from '../../src/shared/transfer/overlay/engine/store/file-index.js'
+import { openFdCount } from '../../src/shared/transfer/overlay/engine/transfer/fd-accounting.js'
 import { createChunkMapCache } from '../../src/shared/transfer/chunk-map-cache.js'
 import { scaled } from '../helpers/bare-timing.js'
 
@@ -47,8 +47,8 @@ async function connect(pub, label) {
 // sits below it), so the bee is the honest seam.
 function spyDecodes(index, oid) {
   const counter = { n: 0 }
-  const real = index._bee.get.bind(index._bee)
-  index._bee.get = (key, ...rest) => {
+  const real = index.bee.get.bind(index.bee)
+  index.bee.get = (key, ...rest) => {
     if (typeof key === 'string' && key.startsWith('chunkmap-oid:' + oid)) counter.n++
     return real(key, ...rest)
   }
@@ -64,10 +64,10 @@ test('REGRESSION (FIX-CHUNKMAP-CACHE): a serve decodes the chunk map once, not o
     chunkMapCache: createChunkMapCache({ maxBytes: 32 * 1024 * 1024 }),
   })
   t.teardown(async () => { try { await pub.close() } catch {} })
-  const C = (await pub._index.getChunkMapByHash(oid)).length
+  const C = (await pub.index.getChunkMapByHash(oid)).length
   t.ok(C >= 64, `fixture yields C=${C} chunks`)
 
-  const decodes = spyDecodes(pub._index, oid)
+  const decodes = spyDecodes(pub.index, oid)
   const con = await connect(pub, 'cmc-con')
   t.teardown(async () => { try { await con.close() } catch {} })
   const got = await con.fetchFile(oid, { destPath: path.join(tmpDir('dl'), 'big.bin'), timeout: 8000 })
@@ -82,8 +82,8 @@ test('REGRESSION (FIX-CHUNKMAP-CACHE): a serve decodes the chunk map once, not o
 test('FIX-CHUNKMAP-CACHE: maxBytes 0 disables the cache — the bee is read about once per chunk', async (t) => {
   const { pub, oid } = await publisher('cmc-off', { chunkMapCache: createChunkMapCache({ maxBytes: 0 }) })
   t.teardown(async () => { try { await pub.close() } catch {} })
-  const C = (await pub._index.getChunkMapByHash(oid)).length
-  const decodes = spyDecodes(pub._index, oid)
+  const C = (await pub.index.getChunkMapByHash(oid)).length
+  const decodes = spyDecodes(pub.index, oid)
   const con = await connect(pub, 'cmc-off-con')
   t.teardown(async () => { try { await con.close() } catch {} })
   t.ok(await con.fetchFile(oid, { destPath: path.join(tmpDir('dl'), 'big.bin'), timeout: 8000 }))
@@ -122,16 +122,16 @@ test('FIX-CHUNKMAP-CACHE: a decode in flight across a rewrite never caches the s
   await index.putChunkMapByHash(oid, v1)
 
   // Park the bee read after it has fetched v1, land the rewrite, then release it.
-  const realGet = index._bee.get.bind(index._bee)
+  const realGet = index.bee.get.bind(index.bee)
   let release
   const gate = new Promise((r) => { release = r })
-  index._bee.get = async (key, ...rest) => {
+  index.bee.get = async (key, ...rest) => {
     const v = await realGet(key, ...rest)
     if (String(key).startsWith('chunkmap-oid:')) await gate
     return v
   }
   const parked = index.getChunkMapByHash(oid)
-  index._bee.get = realGet
+  index.bee.get = realGet
   await index.putChunkMapByHash(oid, v2)
   release()
   t.alike(await parked, v1, 'the parked read returns what it read')
@@ -145,8 +145,8 @@ test('REGRESSION (FIX-CHUNKMAP-CACHE): a serve opens the source once and release
   const { pub, content, oid } = await publisher('cmc-fd', { serveFdIdleMs: 60000 })
   t.teardown(async () => { try { await pub.close() } catch {} })
   let opens = 0
-  const realOpen = pub._transfer.openChunkSource.bind(pub._transfer)
-  pub._transfer.openChunkSource = (...a) => { opens++; return realOpen(...a) }
+  const realOpen = pub.transfer.openChunkSource.bind(pub.transfer)
+  pub.transfer.openChunkSource = (...a) => { opens++; return realOpen(...a) }
   const base = openFdCount()
 
   const con = await connect(pub, 'cmc-fd-con')
@@ -180,11 +180,12 @@ test('FIX-CHUNKMAP-CACHE: a peer’s open serve sources stay bounded', async (t)
   t.teardown(async () => { try { await con.close() } catch {} })
   t.ok(await con.fetchFile(oid, { destPath: path.join(tmpDir('dl'), 'big.bin'), timeout: 8000 }))
 
-  const peer = [...pub._protocol._peers.values()][0]
-  t.ok(peer._serveFds, 'the serve session opened a source')
+  const fds = pub.protocol.serveFds
+  const peer = [...pub.protocol.peers()][0]
+  t.ok(fds.countFor(peer) > 0, 'the serve session opened a source')
 
   // Drive the trim directly: fabricate more idle entries than the cap allows.
-  for (let i = 0; i < 200; i++) peer._serveFds.set('/fake/' + i, { fd: -1, lastAt: 0, busy: 0, pendingClose: false })
-  pub._protocol._trimServeFds(peer)
-  t.ok(peer._serveFds.size <= 64, 'the map is trimmed to the per-peer cap (' + peer._serveFds.size + ')')
+  for (let i = 0; i < 200; i++) fds.adoptForTests(peer, '/fake/' + i, { fd: -1, lastAt: 0, busy: 0, pendingClose: false })
+  fds.trim(peer)
+  t.ok(fds.countFor(peer) <= 64, 'the map is trimmed to the per-peer cap (' + fds.countFor(peer) + ')')
 })

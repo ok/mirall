@@ -3,7 +3,7 @@ import fs from 'bare-fs'
 import path from 'bare-path'
 import { setupSelfMirror } from '../helpers/owned.js'
 import { initialMaterializeScan, materializeCatalogFile } from '../../src/shared/folders/mirror-pass.js'
-import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
+import { overlayBackend } from '../../src/shared/transfer/overlay/index.js'
 import { getForeignMount } from '../../src/shared/folders/mount-store.js'
 import { initDownloads } from '../../src/shared/transfer/files.js'
 
@@ -171,7 +171,7 @@ test('REGRESSION (FIX-D2-4): a record that vouches for another path does not aut
   // shared record with ITS path and ITS hash. Here that hash matches what the user wrote into the
   // mount — the case where a path-blind ancestor reads as "ours".
   const { markVerified } = await import('../../src/shared/transfer/files.js')
-  const { overlayHashFile } = await import('../../src/shared/transfer/backends/overlay/overlay-hash.js')
+  const { overlayHashFile } = await import('../../src/shared/transfer/overlay/overlay-hash.js')
   const downloaded = path.join(ctx.tmpDir('dl'), 'a.txt')
   fs.writeFileSync(downloaded, 'my own edit')
   await markVerified(ctx.spaceId, ctx.share.id + '|a.txt', await overlayHashFile(downloaded), {

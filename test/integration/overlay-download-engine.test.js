@@ -2,12 +2,12 @@ import test from 'brittle'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { freshPeer } from '../helpers/store.js'
-import { initOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
+import { initOverlay, teardownOverlay } from '../../src/shared/transfer/overlay/overlay-instance.js'
 import { initPendingTransfers, recordPending, getPendingFor, updatePendingProgress, clearPending } from '../../src/shared/transfer/pending-transfers.js'
 import { initDownloads, isDownloadedFile } from '../../src/shared/transfer/files.js'
-import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
+import { getOverlay } from '../../src/shared/transfer/overlay/overlay-instance.js'
 import { CODES } from '../../src/shared/contract/errors.js'
-import { createOverlayDownloadEngine } from '../../src/shared/transfer/backends/overlay/overlay-download.js'
+import { createOverlayDownloadEngine } from '../../src/shared/transfer/overlay/overlay-download.js'
 
 // The shared overlay consumer engine (used by both loose + folder). The success/
 // pause/resume paths need a peer to serve bytes (flow-tested in CI); here we cover

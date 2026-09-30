@@ -7,8 +7,8 @@ import { publishShare, generateShareId } from '../../src/shared/shares/shares.js
 import { createOwnedMount, createForeignMount } from '../../src/shared/folders/mount-store.js'
 import { runPublishPass } from '../../src/shared/folders/owned-pass.js'
 import { listOwnShare, ownCatalogKeyHex } from '../../src/shared/shares/own-catalog.js'
-import { getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
-import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
+import { getOverlay } from '../../src/shared/transfer/overlay/overlay-instance.js'
+import { overlayBackend } from '../../src/shared/transfer/overlay/index.js'
 
 // Create a space + an overlay owned-folder share owned by this peer + its mount dir.
 // Overlay is the only content backend, so the share is stamped overlay and the

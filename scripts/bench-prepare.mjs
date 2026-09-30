@@ -8,9 +8,9 @@ import fs from 'bare-fs'
 import os from 'bare-os'
 import path from 'bare-path'
 import Corestore from 'corestore'
-import { FileIndex } from '../src/shared/transfer/backends/overlay/engine/file-index.js'
-import { TransferManager } from '../src/shared/transfer/backends/overlay/engine/transfer.js'
-import { chunkStream, selectTier, setChunkStats, chunkStats } from '../src/shared/transfer/backends/overlay/engine/chunker.js'
+import { FileIndex } from '../src/shared/transfer/overlay/engine/store/file-index.js'
+import { prepareForServe } from '../src/shared/transfer/overlay/engine/transfer/prepare.js'
+import { chunkStream, selectTier, setChunkStats, chunkStats } from '../src/shared/transfer/overlay/engine/chunker.js'
 
 const sizeMB = Number(Bare.argv[2] || 512)
 const sizeBytes = sizeMB * 1024 * 1024
@@ -45,11 +45,10 @@ const oldStats = { ...chunkStats }
 const store = new Corestore(path.join(dir, 'store'))
 const index = new FileIndex(store)
 await index.ready()
-const transfer = new TransferManager(index)
 
 setChunkStats(true)
 t0 = Date.now()
-const result = await transfer.prepareFile(filePath)
+const result = await prepareForServe(index, filePath)
 const newMs = Date.now() - t0
 const newStats = { ...chunkStats }
 setChunkStats(false)

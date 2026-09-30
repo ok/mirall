@@ -357,7 +357,7 @@ restores it). Download roots resolve per-space override → global root → OS d
 ### 3.4 Pending-transfers bee (`pending-transfers`) — local
 
 `pending-transfers` rows are keyed `<spaceId>:<filePath>`, one per in-flight or interrupted
-download; field sets are built in `src/shared/transfer/backends/overlay/download-start.js`
+download; field sets are built in `src/shared/transfer/overlay/download-start.js`
 (`pendingRowFor`) and the channels' `pendingExtra`. `finalPath` is the collision-avoided landing
 path from which `<finalPath>.mirall.part` and the resume journal derive; `bytesTransferred` lets the
 UI show `paused-*` / `error` and partial progress without a live transfer. Every write to one row
@@ -399,7 +399,7 @@ row keys on owner + path, so a shared name never merges two owners' files.
 
 Mechanics are in §4.5, §7.2 and §7.6; these are the data-model invariants.
 
-- **Publish in place** (`src/shared/transfer/backends/overlay/loose-publish.js`): the file stays at
+- **Publish in place** (`src/shared/transfer/overlay/loose-publish.js`): the file stays at
   its real path; nothing is copied or chunked over IPC. Only admission (name,
   `MAX_LOOSE_FILES_PER_SPACE`, the `src:` row) holds the space lock, never the hash. A hashless
   placeholder entry goes out first, so peers render `preparing`.
@@ -408,7 +408,7 @@ Mechanics are in §4.5, §7.2 and §7.6; these are the data-model invariants.
   in that space, and only for its own still-unhashed entry
   (`src/shared/network/share-wait-intake.js`). It is never persisted or audited; limits are in
   `src/shared/transfer/share-wait-set.js`.
-- **Download** (`src/shared/transfer/backends/overlay/overlay-download.js`): observers see no file
+- **Download** (`src/shared/transfer/overlay/overlay-download.js`): observers see no file
   or a complete file, never a partial under the real name. The pending row is written before any
   byte moves. A name counts as taken if the file or its `.mirall.part` exists, so a download never
   overwrites a user file or adopts another transfer's partial. Pause keeps partial, journal and row;
@@ -684,8 +684,8 @@ notification.
 | Other error | `DOWNLOAD_FAILED` until Retry |
 
 The terminal set and its clearing rules live in
-`src/shared/transfer/backends/overlay/fetch-policy.js` and
-`src/shared/transfer/backends/overlay/download-faults.js`.
+`src/shared/transfer/overlay/fetch-policy.js` and
+`src/shared/transfer/overlay/download-faults.js`.
 
 **The engine's durable-write policy is deliberately not uniform:**
 
@@ -972,7 +972,7 @@ status is derived by `src/shared/contract/mount-precedence.js` from its `indexPa
 reconcile and a loose-file add all only *enqueue*. `src/shared/folders/publish-service.js` executes,
 and hands each item to the channel its share id selects: `folder`
 (`src/shared/folders/owned-channel.js`) or `loose`
-(`src/shared/transfer/backends/overlay/loose-publish.js`). The rules:
+(`src/shared/transfer/overlay/loose-publish.js`). The rules:
 
 - **An item is keyed by path (`shareId\0relPath`), never by hash.** At most one item per path is
   live. A second request folds into the queued item, or marks a running one for exactly one rerun,
@@ -1076,7 +1076,7 @@ mount-status poke. Every writer that notices an absent root records it through
 
 ### 7.6 Content backend (`overlay`)
 
-All shares move bytes through `src/shared/transfer/backends/overlay/`. The canonical bytes are the
+All shares move bytes through `src/shared/transfer/overlay/`. The canonical bytes are the
 user's **real file on disk**, never a Hyperdrive blob store.
 
 - **Publish** streams the file once and computes the whole-file hash and the content-addressed chunk
@@ -1093,15 +1093,16 @@ user's **real file on disk**, never a Hyperdrive blob store.
   iff no holder answered or the fetch ended on an uncoded peer/transport outcome; otherwise it
   resolves the result.
 
-`getContentBackend(share)` (`src/shared/transfer/content-backends.js`) returns the overlay for
-`contentMode === 'overlay'` and `UNSUPPORTED` for every other mode. Callers render `UNSUPPORTED` as
-unavailable, never as a route; `test/integration/content-backend-conformance.test.js` locks this.
+`isServableShare(share)` (`src/shared/transfer/content-mode.js`) is true for `contentMode ===
+'overlay'` only. A share in any other mode (absent, the `eager`/`deferred` modes older releases wrote,
+or an unknown one) renders as unavailable and is never routed; `test/unit/content-mode.test.js` locks
+this.
 
 **Channel versioning.** The channel handshake announces `{version, capabilities}`. A peer that sends
 nothing is version 1 with no capabilities, so a capability-gated behaviour is simply off against it.
 The decoder must be **total**: any channel dying takes the whole socket, and the channel id is
 public, so a decoder that could throw gives any swarm peer a one-frame socket kill. Raise
-`MIN_VERSION` (`src/shared/transfer/backends/overlay/engine/protocol-v2.js`) only in the change that
+`MIN_VERSION` (`src/shared/transfer/overlay/engine/wire/slots.js`) only in the change that
 drops a message slot or changes a codec. A peer below it loses only its content channel. The control
 channel (`mirall/handshake`, or `mirall/content-hello` with the separate content plane) and
 Corestore replication stay up. New wire messages are appended last, so older peers ignore them.
@@ -1109,11 +1110,20 @@ Retiring a slot is neither: it keeps its position with no codec and no handler, 
 byte a released peer sends or receives (slots 0, 1, 2 and 6–10 are retired).
 
 **Engine boundary.** The serve/fetch engine in `engine/` is Mirall's own fork of `hyper-overlay`
-0.2.9 and tracks no upstream; `src/shared/transfer/backends/overlay/engine/PROVENANCE.md` records its
+0.2.9 and tracks no upstream; `src/shared/transfer/overlay/engine/PROVENANCE.md` records its
 origin and license. It imports npm packages and its own files only. Mirall policy (authorization,
 catalogs, lifecycle, limiters, caches) stays outside it and is **injected** from
-`src/shared/transfer/backends/overlay/overlay-instance.js`. Its wire contract with released peers —
+`src/shared/transfer/overlay/overlay-instance.js`. Its wire contract with released peers —
 message slots 0–14 in order, each kept codec byte-for-byte — is Mirall's to keep, not upstream's.
+
+The engine's folders, each sibling owning its own state and its root holding only the wiring:
+`wire/` (the slot table, codecs and chunk-list paging), `protocol/` (the channel and its peers,
+serve grants, the serve loop, serve fds, transport probes, the fetch registry), `scheduler/` (one
+fetch's chunk state, liveness watchdog, map admission, assignment), `transfer/` (receives, the
+resume journal, prepare, serve reads, fd accounting) and `store/` (the chunk-map index and its paged
+values). `overlay-v2.js` is the facade the wrapper builds. App code enters only through an
+allowlisted module (`test/invariants/engine-boundaries.test.js`); journals go through
+`overlay-journals.js`.
 
 **Bandwidth caps** (`src/shared/transfer/bandwidth-limiter.js`; its header has the mechanics):
 
@@ -1318,7 +1328,7 @@ not await async listeners.
 - **Some transfer faults wait for the user.** A checksum fault clears only when the owner
   republishes. Disk-full from a write-time ENOSPC always needs Retry. Permission, missing-folder and
   preflight disk-full faults clear themselves once the destination recovers (`faultCleared`,
-  `src/shared/transfer/backends/overlay/download-faults.js`).
+  `src/shared/transfer/overlay/download-faults.js`).
 - **Large folders are bounded by a cap, not paged.** One number (`maxFilesPerShare` =
   `listFilesCap`) is both the admission gate and the display ceiling, so an admitted share renders
   in full. There is no paging or virtualization, and hundreds of thousands of entries would still
@@ -1343,9 +1353,6 @@ not await async listeners.
 - **Preload has no structural contract.** `src/preload/preload.js` is sandboxed and unbundled, so it
   can't import `src/shared/contract/`. `test/invariants/preload-parity.test.js` checks its key set
   against `src/renderer/platform/global.d.ts`, but nothing checks signatures.
-- **The overlay engine has no static analysis yet.** eslint, knip and the comment-hygiene gate
-  still exempt `engine/`, and tsc doesn't cover `src/shared` beyond `contract/`. Until those
-  exemptions are retired, its tests are what protect it.
 
 ---
 
@@ -1443,7 +1450,7 @@ which requires enforcement to be on. A root taken from a bearer invite hint stay
 ### Serve authorization
 
 File bytes are served only when all three gates pass
-(`src/shared/transfer/backends/overlay/overlay-authorize.js`, wired in `overlay-instance.js`):
+(`src/shared/transfer/overlay/overlay-authorize.js`, wired in `overlay-instance.js`):
 
 1. The requester's profile key is authenticated on the requesting socket (control or content plane).
    This is only as strong as the binding enforcement above.

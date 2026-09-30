@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { looseJob, looseRelPath, looseDrivePath } from '../../src/shared/transfer/backends/overlay/loose-job.js'
+import { looseJob, looseRelPath, looseDrivePath } from '../../src/shared/transfer/overlay/loose-job.js'
 import { entryRef } from '../../src/shared/contract/entry-ref.js'
 import { LOOSE_SHARE_ID } from '../../src/shared/transfer/transfer-id.js'
 

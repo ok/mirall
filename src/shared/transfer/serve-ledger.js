@@ -5,7 +5,7 @@
 // avatar stack) and a per-peer detail stream emitted only for files whose row is expanded
 // (detailSubs), so no per-peer progress is pushed that nobody is looking at. It owns nothing the
 // backend needs, so it lives beside the backend rather than inside it.
-import { serveIndex } from './backends/overlay/overlay-serve-index.js'
+import { serveIndex } from './overlay/overlay-serve-index.js'
 import { recordResolved } from '../audit/audit-log.js'
 import { createSessionStore, sessionKey } from './serve-sessions.js'
 import { getConnectedMemberMeta } from '../network/swarm-registries.js'

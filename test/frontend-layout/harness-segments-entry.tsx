@@ -14,8 +14,8 @@ import './harness-bootstrap.js'
 import { useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import '../../src/renderer/platform/i18n.js'
-import type { IconName } from './../../src/renderer/components/primitives/Icon.js'
-import SegmentedControl, { Segment } from './../../src/renderer/components/primitives/SegmentedControl.js'
+import type { IconName } from '../../src/renderer/components/primitives/Icon.js'
+import SegmentedControl, { Segment } from '../../src/renderer/components/primitives/SegmentedControl.js'
 
 // The three shapes the app ships: text-only (Settings ▸ Network transfer caps), icon + text
 // (Settings ▸ Appearance theme), and a wrapping multi-row group (the Activity Log category

@@ -6,13 +6,14 @@
 // enqueued with: an item can sit in the lane for minutes, and in that time the mount may have been
 // paused, relocated or unplugged.
 import { getOwnedMount } from './mount-store.js'
-import { getContentBackend, isUnsupportedShare } from '../transfer/content-backends.js'
+import { isServableShare } from '../transfer/content-mode.js'
+import { overlayBackend } from '../transfer/overlay/index.js'
 import { pathFromMount } from './path-guard.js'
 import { registerPublishChannel, settleCatalog, mountRootAvailable, getPublishScheduler } from './publish-service.js'
 import { OP, PRIORITY } from './work-item.js'
 import { loadShare } from './owned-shares.js'
 import { fileExactlyPresent, fileStatPresent } from './disk-presence.js'
-import { makeServable } from '../transfer/backends/overlay/serve-registration.js'
+import { makeServable } from '../transfer/overlay/serve-registration.js'
 
 // Injected by owned-folders.js: the channel is registered at import and the engine it belongs to
 // does not exist until _open.
@@ -40,17 +41,17 @@ registerPublishChannel('folder', {
     // the watcher emits one unlink per file, and every one of them lands here.
     if (!mountRootAvailable(mount.mountPath)) return { skip: 'skipped-root-gone' }
     const share = await loadShare(state, item.spaceId, item.shareId)
-    if (!share || isUnsupportedShare(share)) return { skip: 'skipped' }
+    if (!share || !isServableShare(share)) return { skip: 'skipped' }
     // A relPath that escapes the mount is catalog poison, not a file: no path, so a retire reclaims it.
     let absPath = null
     try { absPath = pathFromMount(mount.mountPath, item.relPath) } catch {}
     return { share, absPath }
   },
   async publish(item, { share, absPath }, opts) {
-    return { changed: await getContentBackend(share).publishAdd(item.spaceId, share, item.relPath, absPath, opts) }
+    return { changed: await overlayBackend.publishAdd(item.spaceId, share, item.relPath, absPath, opts) }
   },
   retire(item, { share }, { catalog }) {
-    return getContentBackend(share).publishDelete(item.spaceId, share, item.relPath, { catalog })
+    return overlayBackend.publishDelete(item.spaceId, share, item.relPath, { catalog })
   },
   onPublishFailed: (item, _ctx, err) => state?.recordFault(item.spaceId, item.shareId, err),
   onProgress: (spaceId, shareId) => onProgress(spaceId, shareId),

@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { makeServeAuthorizer, makeHolderAuthorizer, DENY, SECURITY_DENIALS } from '../../src/shared/transfer/backends/overlay/overlay-authorize.js'
+import { makeServeAuthorizer, makeHolderAuthorizer, DENY, SECURITY_DENIALS } from '../../src/shared/transfer/overlay/overlay-authorize.js'
 
 // Build the authorizer with controllable fakes for each collaborator. Defaults
 // are the "everything passes" case; each test overrides one leg to drive a deny.

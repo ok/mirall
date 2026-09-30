@@ -121,7 +121,7 @@ export async function buildWantedKeys({ openSystemBee = null } = {}) {
   }
 
   try {
-    const { getOverlayLocalDiscoveryKeys } = await import('../transfer/backends/overlay/overlay-instance.js')
+    const { getOverlayLocalDiscoveryKeys } = await import('../transfer/overlay/overlay-instance.js')
     for (const dk of await getOverlayLocalDiscoveryKeys()) wanted.add(dk)
   } catch (err) {
     gap('overlay-cores', err.message)

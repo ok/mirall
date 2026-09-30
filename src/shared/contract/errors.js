@@ -18,6 +18,7 @@ export const CODES = Object.freeze({
   IDENTITY_PROVIDER_MISMATCH: 'IDENTITY_PROVIDER_MISMATCH',
   IDENTITY_UNLOCK_FAILED: 'IDENTITY_UNLOCK_FAILED',
   EPATH: 'EPATH',
+  ETARGETCHANGED: 'ETARGETCHANGED',
   INVALID_INVITE: 'INVALID_INVITE',
   INVITE_EXPIRED: 'INVITE_EXPIRED',
   INVITE_INVALID: 'INVITE_INVALID',
@@ -78,8 +79,9 @@ export const CODE_NAMES = Object.freeze(Object.keys(CODES))
 export const EXPECTED_CODES = Object.freeze(['ECANCELLED', 'PREVIEW_CANCELLED'])
 
 // Codes that never become a sentence: folded into another code before they could surface
-// (EHASHMISMATCH -> TRANSFER_CHECKSUM, EIO via classifyTransferError), or a bug in our own code
-// rather than something the user did. The renderer shows its generic sentence for these and logs
+// (EHASHMISMATCH -> TRANSFER_CHECKSUM, EIO via classifyTransferError), retried before they could
+// (ETARGETCHANGED: a file appeared at a download's target, and the retry picks a fresh name), or a
+// bug in our own code rather than something the user did. The renderer shows its generic sentence for these and logs
 // the detail. Listed here so the mapping test can assert ZERO unmapped codes rather than pin a
 // number, and so copy for a code nobody can reach cannot creep back in.
 /** @internal the declaration-parity guard's allow-list */
@@ -87,6 +89,7 @@ export const INTERNAL_CODES = Object.freeze([
   'EHASHMISMATCH',
   'EIO',
   'EPATH',
+  'ETARGETCHANGED',
   // Boot faults: a worker that cannot resolve its identity answers no request, so no per-request
   // sentence can reach the renderer.
   'IDENTITY_NO_KEK',

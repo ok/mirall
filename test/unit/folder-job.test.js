@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { folderJob, folderLabel } from '../../src/shared/transfer/backends/overlay/folder-job.js'
+import { folderJob, folderLabel } from '../../src/shared/transfer/overlay/folder-job.js'
 import { catalogKeyField } from '../../src/shared/shares/catalog-keys.js'
 import { entryRef } from '../../src/shared/contract/entry-ref.js'
 

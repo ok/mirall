@@ -3,7 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { denialReasonKey } from '../../src/renderer/model/audit-row.js'
-import { DENY, SECURITY_DENIALS } from '../../src/shared/transfer/backends/overlay/overlay-authorize.js'
+import { DENY, SECURITY_DENIALS } from '../../src/shared/transfer/overlay/overlay-authorize.js'
 
 // Every locale must carry the SAME translation keys as the reference (en) for
 // every namespace — a missing key silently falls back to the key string in the

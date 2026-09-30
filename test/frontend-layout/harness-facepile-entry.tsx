@@ -17,8 +17,8 @@
 import './harness-bootstrap.js'
 import { createRoot } from 'react-dom/client'
 import '../../src/renderer/platform/i18n.js'
-import SpaceCard from './../../src/renderer/components/cards/SpaceCard.js'
-import AvatarStack from './../../src/renderer/components/primitives/AvatarStack.js'
+import SpaceCard from '../../src/renderer/components/cards/SpaceCard.js'
+import AvatarStack from '../../src/renderer/components/primitives/AvatarStack.js'
 import type { Space } from '../../src/renderer/types/types.js'
 
 interface StateMetrics {

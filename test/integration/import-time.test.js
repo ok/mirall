@@ -11,7 +11,7 @@ const shared = path.join(here, '..', '..', 'src', 'shared')
 const walk = (dir, out = []) => {
   for (const name of fs.readdirSync(dir)) {
     const p = path.join(dir, name)
-    if (fs.statSync(p).isDirectory()) { if (name !== 'engine') walk(p, out) } else if (name.endsWith('.js')) out.push(p)
+    if (fs.statSync(p).isDirectory()) { walk(p, out) } else if (name.endsWith('.js')) out.push(p)
   }
   return out
 }
@@ -36,20 +36,20 @@ test('REGRESSION (LIFECYCLE-1d): importing every src/shared module creates zero 
 // backend's _open cut the last edge into overlay-download.js, so neither it nor the owner side is
 // in any cycle. The rest stay listed — importing them first must keep working.
 const SCC = [
-  'transfer/backends/overlay/loose-publish.js',
-  'transfer/backends/overlay/loose-downloads.js',
+  'transfer/overlay/loose-publish.js',
+  'transfer/overlay/loose-downloads.js',
   'transfer/files.js',
-  'transfer/backends/overlay/overlay-download.js',
-  'transfer/backends/overlay/download-start.js',
-  'transfer/backends/overlay/fetch-settle.js',
-  'transfer/backends/overlay/reconcile-scan.js',
-  'transfer/backends/overlay/overlay-instance.js',
-  'transfer/backends/overlay/overlay-publish.js',
-  'transfer/backends/overlay/folder-publish.js',
-  'transfer/backends/overlay/folder-downloads.js',
-  'transfer/backends/overlay/overlay-runtime.js',
-  'transfer/backends/overlay/overlay-maintenance.js',
-  'transfer/backends/overlay/stall-retry.js',
+  'transfer/overlay/overlay-download.js',
+  'transfer/overlay/download-start.js',
+  'transfer/overlay/fetch-settle.js',
+  'transfer/overlay/reconcile-scan.js',
+  'transfer/overlay/overlay-instance.js',
+  'transfer/overlay/overlay-publish.js',
+  'transfer/overlay/folder-publish.js',
+  'transfer/overlay/folder-downloads.js',
+  'transfer/overlay/overlay-runtime.js',
+  'transfer/overlay/overlay-maintenance.js',
+  'transfer/overlay/stall-retry.js',
   'folders/publish-service.js',
   'folders/owned-folders.js',
   'folders/foreign-folders.js',

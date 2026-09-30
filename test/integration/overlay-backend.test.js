@@ -10,12 +10,12 @@ import { runPublishPass } from '../../src/shared/folders/owned-pass.js'
 import { getOwnEntry, ownCatalog } from '../../src/shared/shares/own-catalog.js'
 import { createCatalogBatch } from '../../src/shared/shares/catalog-writer.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
-import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
-import { getOverlay, initOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
-import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
+import { serveIndex } from '../../src/shared/transfer/overlay/overlay-serve-index.js'
+import { getOverlay, initOverlay, teardownOverlay } from '../../src/shared/transfer/overlay/overlay-instance.js'
+import { overlayBackend } from '../../src/shared/transfer/overlay/index.js'
 import { initOverlayIpc } from '../helpers/overlay-ipc.js'
-import { sweepOwnedPresence } from '../../src/shared/transfer/backends/overlay/overlay-maintenance.js'
-import { makeServable } from '../../src/shared/transfer/backends/overlay/serve-registration.js'
+import { sweepOwnedPresence } from '../../src/shared/transfer/overlay/overlay-maintenance.js'
+import { makeServable } from '../../src/shared/transfer/overlay/serve-registration.js'
 import { until as pollUntil } from '../helpers/bare-poll.js'
 
 // Drive the overlay adapter's OWNER side against one fresh data layer. The
@@ -157,7 +157,7 @@ test('REGRESSION (FIX-PI1-4: an owned-folder file gone from disk is retired thro
 
 test('the presence sweep writes no catalog tombstone of its own', (t) => {
   const src = fs.readFileSync(
-    path.join(new URL('../../src/shared/transfer/backends/overlay/overlay-maintenance.js', import.meta.url).pathname),
+    path.join(new URL('../../src/shared/transfer/overlay/overlay-maintenance.js', import.meta.url).pathname),
     'utf8',
   )
   const start = src.indexOf('const presenceSweeper =')

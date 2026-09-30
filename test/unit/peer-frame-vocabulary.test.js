@@ -49,7 +49,7 @@ test('every declared frame is sent somewhere, and no send names a raw literal', 
   const walk = (dir) => {
     for (const name of readdirSync(dir)) {
       const p = path.join(dir, name)
-      if (statSync(p).isDirectory()) { if (name !== 'engine') walk(p) }
+      if (statSync(p).isDirectory()) { walk(p) }
       else if (name.endsWith('.js')) files.push(p)
     }
   }

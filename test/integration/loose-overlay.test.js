@@ -8,15 +8,15 @@ import { getSpace, getSpaceContentKey } from '../../src/shared/spaces/space.js'
 import { createSpace, joinSpace, materializeSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { advertise, getOwnEntry, ownCatalogKeyHex } from '../../src/shared/shares/own-catalog.js'
 import { setSpaceDownloadRoot } from '../../src/shared/core/paths.js'
-import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
-import { getOverlay, initOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
-import { overlayHashFile } from '../../src/shared/transfer/backends/overlay/overlay-hash.js'
+import { serveIndex } from '../../src/shared/transfer/overlay/overlay-serve-index.js'
+import { getOverlay, initOverlay, teardownOverlay } from '../../src/shared/transfer/overlay/overlay-instance.js'
+import { overlayHashFile } from '../../src/shared/transfer/overlay/overlay-hash.js'
 import { initDownloads, markDownloaded, markVerified, getOwnedSourcePath } from '../../src/shared/transfer/files.js'
 import { listFiles } from '../../src/shared/transfer/file-listing.js'
 import { initPendingTransfers, recordPending, getPendingFor } from '../../src/shared/transfer/pending-transfers.js'
-import { looseShareFile, looseUnshareFile, looseListOwn, looseCancelPublish, handleLooseFsEvent, MAX_LOOSE_FILES_PER_SPACE, looseSources } from '../../src/shared/transfer/backends/overlay/loose-publish.js'
-import { looseCancelTransfer } from '../../src/shared/transfer/backends/overlay/loose-downloads.js'
-import { rehydrateOwnedContent, sweepOwnedPresence } from '../../src/shared/transfer/backends/overlay/overlay-maintenance.js'
+import { looseShareFile, looseUnshareFile, looseListOwn, looseCancelPublish, handleLooseFsEvent, MAX_LOOSE_FILES_PER_SPACE, looseSources } from '../../src/shared/transfer/overlay/loose-publish.js'
+import { looseCancelTransfer } from '../../src/shared/transfer/overlay/loose-downloads.js'
+import { rehydrateOwnedContent, sweepOwnedPresence } from '../../src/shared/transfer/overlay/overlay-maintenance.js'
 import { LOOSE_SHARE_ID, looseTransferIdFor } from '../../src/shared/transfer/transfer-id.js'
 import { initLooseIpc } from '../helpers/overlay-ipc.js'
 
@@ -380,7 +380,7 @@ test('Item 2B: a still-hashing peer loose entry is listed and presence-gates to 
 test('REGRESSION (FIX-cycle): the loose modules each import standalone', async (t) => {
   const fmod = await import('../../src/shared/transfer/files.js')
   const listing = await import('../../src/shared/transfer/file-listing.js')
-  const lmod = await import('../../src/shared/transfer/backends/overlay/loose-publish.js')
+  const lmod = await import('../../src/shared/transfer/overlay/loose-publish.js')
   t.is(typeof fmod.markOwnedSource, 'function')
   t.is(typeof listing.addFile, 'function')
   t.is(typeof lmod.looseShareFile, 'function')
@@ -415,9 +415,9 @@ test('R11 (Item 2A): publish builds the chunk map in one pass; the first serve d
   const ctx = await setup(t)
   const overlay = getOverlay()
   let prepareCalls = 0
-  const realPrepare = overlay._transfer.prepareFile.bind(overlay._transfer)
-  overlay._transfer.prepareFile = (...a) => { prepareCalls++; return realPrepare(...a) }
-  t.teardown(() => { overlay._transfer.prepareFile = realPrepare })
+  const realPrepare = overlay.transfer.prepareFile.bind(overlay.transfer)
+  overlay.transfer.prepareFile = (...a) => { prepareCalls++; return realPrepare(...a) }
+  t.teardown(() => { overlay.transfer.prepareFile = realPrepare })
 
   // >1MB so the chunk map is persisted (by hash) — proves it is built at publish, so
   // the first peer fetch never pays a full-file re-chunk before the first byte.
@@ -426,11 +426,11 @@ test('R11 (Item 2A): publish builds the chunk map in one pass; the first serve d
   const entry = await getOwnEntry(ctx.spaceId, LOOSE_SHARE_ID, 'big.bin')
 
   t.is(prepareCalls, 1, 'publish built the chunk map once (single hash+chunk streaming pass)')
-  t.ok(await overlay._index.getChunkMapByHash(entry.contentHash), 'chunk map persisted by hash → no fetch-time re-chunk')
+  t.ok(await overlay.index.getChunkMapByHash(entry.contentHash), 'chunk map persisted by hash → no fetch-time re-chunk')
   // The prep pass persists no path-keyed state under the throwaway /mir-prep key: the serve path
   // resolves by hash and never reads it.
-  t.absent(await overlay._index.bee.get('chunkmap:/mir-prep' + abs), 'no path-keyed /mir-prep chunk map (no FileIndex bloat)')
-  t.absent(await overlay._index.bee.get('file:/mir-prep' + abs), 'no /mir-prep file record')
+  t.absent(await overlay.index.bee.get('chunkmap:/mir-prep' + abs), 'no path-keyed /mir-prep chunk map (no FileIndex bloat)')
+  t.absent(await overlay.index.bee.get('file:/mir-prep' + abs), 'no /mir-prep file record')
   t.ok(serveIndex.has(entry.contentHash), 'file is registered as servable')
   const got = await getOverlay().fetchFile(entry.contentHash, {})
   t.is(got.destPath, abs, 'a local fetch returns the source path (no copy)')

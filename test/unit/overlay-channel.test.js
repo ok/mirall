@@ -2,7 +2,7 @@ import test from 'brittle'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'
-import { createOverlayChannel } from '../../src/shared/transfer/backends/overlay/overlay-channel.js'
+import { createOverlayChannel } from '../../src/shared/transfer/overlay/overlay-channel.js'
 import { CODES } from '../../src/shared/contract/errors.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
@@ -122,7 +122,7 @@ test('the superseded and removed events name the file, not the path', (t) => {
 })
 
 test('neither module hand-writes a channel bag any more', (t) => {
-  for (const file of ['shared/transfer/backends/overlay/loose-downloads.js', 'shared/transfer/backends/overlay/folder-downloads.js']) {
+  for (const file of ['shared/transfer/overlay/loose-downloads.js', 'shared/transfer/overlay/folder-downloads.js']) {
     const src = readSrc(file)
     t.absent(/^\s*emitProgress\s*:/m.test(src), `${file} declares no emit* members of its own`)
     t.absent(/^\s*emitPaused\s*:/m.test(src), `${file} declares no paused emitter of its own`)
@@ -131,16 +131,16 @@ test('neither module hand-writes a channel bag any more', (t) => {
 })
 
 test('event:transfer-paused has exactly one emitter in src/', (t) => {
-  const files = ['shared/transfer/backends/overlay/loose-downloads.js', 'shared/transfer/backends/overlay/folder-downloads.js',
-    'shared/transfer/backends/overlay/overlay-channel.js', 'shared/transfer/backends/overlay/overlay-download.js',
-    'shared/transfer/backends/overlay/download-start.js', 'shared/transfer/backends/overlay/fetch-settle.js',
-    'shared/transfer/backends/overlay/reconcile-scan.js']
+  const files = ['shared/transfer/overlay/loose-downloads.js', 'shared/transfer/overlay/folder-downloads.js',
+    'shared/transfer/overlay/overlay-channel.js', 'shared/transfer/overlay/overlay-download.js',
+    'shared/transfer/overlay/download-start.js', 'shared/transfer/overlay/fetch-settle.js',
+    'shared/transfer/overlay/reconcile-scan.js']
   const emitters = files.filter((f) => /emit\(\s*'event:transfer-paused'/.test(readSrc(f)))
-  t.alike(emitters, ['shared/transfer/backends/overlay/overlay-channel.js'],
+  t.alike(emitters, ['shared/transfer/overlay/overlay-channel.js'],
     'the notification is raised in one place, so no channel can forget it')
 })
 
 test('the factory imports nothing that only loads under Bare', (t) => {
-  const src = readSrc('shared/transfer/backends/overlay/overlay-channel.js')
+  const src = readSrc('shared/transfer/overlay/overlay-channel.js')
   t.absent(/from '(bare-|node:)/.test(src), 'it stays loadable under plain Node, which is why this file can test it')
 })

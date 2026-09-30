@@ -4,8 +4,9 @@ import Protomux from 'protomux'
 import c from 'compact-encoding'
 import { tmpDir, fs, path } from './overlay-engine-helpers.js'
 import { SUFFIX, overlay, link, makeDuplex } from './overlay-link-helpers.js'
-import * as m from '../../src/shared/transfer/backends/overlay/engine/messages-v2.js'
-import { hashChunk } from '../../src/shared/transfer/backends/overlay/engine/chunker.js'
+import * as m from '../../src/shared/transfer/overlay/engine/wire/messages.js'
+import { hashChunk } from '../../src/shared/transfer/overlay/engine/chunker.js'
+import { flushJournalSync } from '../../src/shared/transfer/overlay/engine/transfer/journal.js'
 import { scaled } from '../helpers/bare-timing.js'
 import { sendLegacy } from '../helpers/legacy-overlay-frames.js'
 
@@ -29,8 +30,8 @@ test('S1: serve gate cannot be bypassed via fileRequest or direct chunkNeed', as
   // streams bytes out.
   let served = 0
   // The serve loop now reads through a per-session fd, so the spy moves to readChunkAt.
-  const realRead = pub._transfer.readChunkAt.bind(pub._transfer)
-  pub._transfer.readChunkAt = (...a) => { served++; return realRead(...a) }
+  const realRead = pub.transfer.readChunkAt.bind(pub.transfer)
+  pub.transfer.readChunkAt = (...a) => { served++; return realRead(...a) }
 
   // Attacker: connected, but never authorized (no MEMBER identity).
   const atk = await overlay(t, 'byp-atk')
@@ -82,7 +83,7 @@ test('S2: an unsolicited chunkHashes push cannot overwrite the owner source file
 
 async function syncRows(o) {
   const keys = []
-  for await (const { key } of o._index.bee.createReadStream({ gte: 'sync:', lt: 'sync;' })) keys.push(key)
+  for await (const { key } of o.index.bee.createReadStream({ gte: 'sync:', lt: 'sync;' })) keys.push(key)
   return keys
 }
 
@@ -107,18 +108,18 @@ test('REGRESSION (MIR-53: legacy sync frames from an unverified peer write no in
   await victim.registerFile(target, { contentHash: oldHash, size: old.length })
   fs.unlinkSync(target)
   const content = crypto.randomBytes(64 * 1024)
-  const state = await victim._transfer.startReceive(target, {
+  const state = await victim.transfer.startReceive(target, {
     size: content.length,
     contentHash: crypto.data(content).toString('hex'),
     chunks: [{ hash: hashChunk(content), offset: 0, length: content.length }],
   })
-  t.teardown(() => victim._transfer.cancel(target))
-  victim._transfer._flushJournalSync(state)
+  t.teardown(() => victim.transfer.cancel(target))
+  flushJournalSync(state)
   t.ok(fs.existsSync(target + SUFFIX) && fs.existsSync(state.journalPath), 'precondition: partial and journal on disk')
 
   const [, atkPeer] = link(victim, atk)
   await settle()
-  const before = victim._index.bee.core.length
+  const before = victim.index.bee.core.length
   sendLegacy(atkPeer, 'syncState', { feedKey: Buffer.alloc(4096, 0xab), localSeq: 1, remoteSeq: 0 })
   await settle(200)
   for (let i = 0; i < 16; i++) sendLegacy(atkPeer, 'transferComplete', { path: '/junk/' + i, contentHash: 'cd'.repeat(32) })
@@ -126,11 +127,11 @@ test('REGRESSION (MIR-53: legacy sync frames from an unverified peer write no in
   sendLegacy(atkPeer, 'chunkCancel', { path: target })
   await settle(1500)
 
-  t.is(victim._index.bee.core.length, before, 'the index core did not grow')
+  t.is(victim.index.bee.core.length, before, 'the index core did not grow')
   t.alike(await syncRows(victim), [], 'no sync: row exists')
   t.ok(fs.existsSync(target + SUFFIX), 'the partial survived the chunkCancel')
   t.ok(fs.existsSync(state.journalPath), 'so did its resume journal')
-  t.ok(victim._transfer._active.has(target), 'and the receive is still active')
+  t.ok(victim.transfer.receiveState(target), 'and the receive is still active')
 })
 
 test('REGRESSION (MIR-53: mirall mode announces no sync feed on open)', async (t) => {
@@ -156,12 +157,12 @@ test('REGRESSION (MIR-53: evicting a hash drops its chunk map, and a re-register
 
   const first = await member.fetchFile(oid, { destPath: path.join(tmpDir('l53-ev-o1'), 'a.bin'), timeout: scaled(6000) })
   t.ok(first, 'served before the evict')
-  t.ok(pub._filePaths.has('content:' + oid), 'precondition: the serve left its content: entry')
-  t.ok(await pub._index.getChunkMapByHash(oid), 'precondition: the serve persisted its chunk map')
+  t.ok(pub.protocol.serve.servedPath(oid), 'precondition: the serve left its content: entry')
+  t.ok(await pub.index.getChunkMapByHash(oid), 'precondition: the serve persisted its chunk map')
 
   await pub.evictContent(oid)
-  t.absent(await pub._index.getChunkMapByHash(oid), 'the chunk map is gone')
-  t.ok(pub._filePaths.has('content:' + oid), 'the serve entry stays for a download still in flight')
+  t.absent(await pub.index.getChunkMapByHash(oid), 'the chunk map is gone')
+  t.ok(pub.protocol.serve.servedPath(oid), 'the serve entry stays for a download still in flight')
 
   await pub.registerFile(src, { contentHash: oid, size: content.length })
   const again = await member.fetchFile(oid, { destPath: path.join(tmpDir('l53-ev-o2'), 'b.bin'), timeout: scaled(6000) })
@@ -170,20 +171,12 @@ test('REGRESSION (MIR-53: evicting a hash drops its chunk map, and a re-register
 
 // A 1.11.x overlay differs on the wire only by announcing its sync feed on open; adding that send
 // to this build's overlay stands in for it.
-function announcingFeed(o) {
-  const proto = o._protocol
-  const open = proto._onOpen.bind(proto)
-  proto._onOpen = (peer, hs) => {
-    open(peer, hs)
-    if (!peer.rejected) sendLegacy(peer, 'syncState', { feedKey: 'ab'.repeat(32), localSeq: 0, remoteSeq: 0 })
-  }
-  return o
-}
+const announcesFeed = { onPeerOpen: ({ peer }) => sendLegacy(peer, 'syncState', { feedKey: 'ab'.repeat(32), localSeq: 0, remoteSeq: 0 }) }
 
 test('MIR-53: a peer that still announces its sync feed on open (1.11.x) downloads from and serves this build', async (t) => {
   const OLD = 'c'.repeat(64)
   const cur = await overlay(t, 'mv-cur', { localProfileKey: MEMBER, serveAuthorizer: async (_p, from) => from === OLD })
-  const old = announcingFeed(await overlay(t, 'mv-old', { localProfileKey: OLD, serveAuthorizer: async (_p, from) => from === MEMBER }))
+  const old = await overlay(t, 'mv-old', { ...announcesFeed, localProfileKey: OLD, serveAuthorizer: async (_p, from) => from === MEMBER })
   const files = {}
   for (const [name, o] of [['cur', cur], ['old', old]]) {
     const bytes = crypto.randomBytes(96 * 1024)
@@ -207,7 +200,7 @@ test('MIR-53: a peer that still announces its sync feed on open (1.11.x) downloa
 
 test('REGRESSION (MIR-53: compaction drops sync rows a peer planted)', async (t) => {
   const o = await overlay(t, 'l53-cmp', { serveAuthorizer: async () => false })
-  for (let i = 0; i < 4; i++) await o._index.bee.put('sync:' + 'ab'.repeat(2048) + ':/junk/' + i, { lastSeq: i, lastHash: 'cd'.repeat(32) })
+  for (let i = 0; i < 4; i++) await o.index.bee.put('sync:' + 'ab'.repeat(2048) + ':/junk/' + i, { lastSeq: i, lastHash: 'cd'.repeat(32) })
 
   t.ok(await o.compactIndex({ isServed: () => true }), 'a sync row alone makes the index compactable')
   t.alike(await syncRows(o), [], 'and the compacted index holds none')
@@ -218,7 +211,7 @@ test('REGRESSION (legacy slots are inert): an old peer\'s frames on every retire
   const old = await overlay(t, 'inert-old')
   const [pubSide, oldSide] = link(pub, old)
   await settle()
-  const indexLength = pub._index.bee.core.length
+  const indexLength = pub.index.bee.core.length
   let answered = 0
   for (const slot of oldSide.channel.messages) slot.onmessage = () => { answered++ }
   const H = 'ab'.repeat(32)
@@ -229,7 +222,7 @@ test('REGRESSION (legacy slots are inert): an old peer\'s frames on every retire
   sendLegacy(oldSide, 'transferComplete', { path: '/x', contentHash: H })
   sendLegacy(oldSide, 'treeRequest', { hash: H, nonce: 1 })
   await settle()
-  t.is(pub._index.bee.core.length, indexLength, 'no index row written')
+  t.is(pub.index.bee.core.length, indexLength, 'no index row written')
   t.absent(pubSide.channel.closed, 'the channel is still open')
   t.is(answered, 0, 'nothing came back on any slot')
 })

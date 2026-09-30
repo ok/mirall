@@ -4,7 +4,7 @@ import path from 'bare-path'
 import { setupOwnedShare } from '../helpers/owned.js'
 import { getOwnedMount, setOwnedActivity, setOwnedIndexPaused } from '../../src/shared/folders/mount-store.js'
 import { runPublishPass } from '../../src/shared/folders/owned-pass.js'
-import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
+import { overlayBackend } from '../../src/shared/transfer/overlay/index.js'
 import { CODES } from '../../src/shared/contract/errors.js'
 
 // How an owned folder's local I/O faults reach its durable status. The mirror side classified its

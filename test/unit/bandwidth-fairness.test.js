@@ -12,7 +12,7 @@
 
 import test from 'brittle'
 import { createBandwidthLimiter } from '../../src/shared/transfer/bandwidth-limiter.js'
-import { ChunkScheduler } from '../../src/shared/transfer/backends/overlay/engine/chunk-scheduler.js'
+import { ChunkScheduler } from '../../src/shared/transfer/overlay/engine/scheduler/scheduler.js'
 import { scaled } from '../helpers/timing.js'
 
 const KB = 1024
@@ -524,7 +524,7 @@ test('REGRESSION (FIX-BW10): a chunk that outlives the idle window is not failed
   t.is(failed, null, 'still alive after twice the idle window, because the peer is delivering')
   await wait(WINDOW * 2)
   t.is(failed, null, 'and the late chunk was accepted instead of the fetch being stall-failed')
-  t.is(sched._received.get(peer), 1, 'the chunk really did land')
+  t.is(sched.receivedFrom(peer), 1, 'the chunk really did land')
 
   rx.stop()
   sched.cancel()
@@ -599,7 +599,7 @@ test('FIX-BW10: bytes from a peer that owes us nothing do not extend the fetch',
   sched.promise().catch(() => { failed = true })
   await answer(sched, A, chunkList(4, CHUNK))   // A takes all four (the cap), then goes silent
   await answer(sched, B, chunkList(4, CHUNK))   // B answers, is assigned nothing, floods bytes
-  t.is(sched._peerInflight.get(B), 0, 'B owes nothing (precondition)')
+  t.is(sched.inflightFor(B), 0, 'B owes nothing (precondition)')
 
   await wait(WINDOW * 3)
   rxB.stop()
@@ -697,7 +697,7 @@ test('REGRESSION (FIX-BW10): the abandon budget survives an accepted chunk with 
 
   await wait(WINDOW * 8)
   rx.stop()
-  t.is(sched._received.get(peer), 1, 'one chunk landed, then the holder went quiet on the rest')
+  t.is(sched.receivedFrom(peer), 1, 'one chunk landed, then the holder went quiet on the rest')
   t.ok(failedAfter !== null, `the remaining batch was still budgeted (failed after ${failedAfter}ms)`)
   t.ok(failedAfter < WINDOW * 6, 'and not held to the 30-minute bound')
 })
@@ -725,7 +725,7 @@ test('REGRESSION (FIX-BW10): an unanswered content request cannot extend the fet
   sched.promise().catch(() => { failedAfter = Date.now() - startedAt })
   sched.noteRequested(asked)                              // fanned out to it; it never answers
   await answer(sched, holder, chunkList(20, CHUNK))       // the real holder answers, then wedges
-  t.ok(sched._requested.has(asked), 'the unanswered peer is still outstanding (precondition)')
+  t.ok(sched.awaitsMapFrom(asked), 'the unanswered peer is still outstanding (precondition)')
 
   await wait(WINDOW * 3)
   rx.stop()

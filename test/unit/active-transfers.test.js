@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { cancelSpaceOn, reconcileActiveSlots } from '../../src/shared/transfer/backends/overlay/active-transfers.js'
+import { cancelSpaceOn, reconcileActiveSlots } from '../../src/shared/transfer/overlay/active-transfers.js'
 
 const quiet = { warn() {}, debug() {} }
 

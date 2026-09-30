@@ -6,23 +6,23 @@ import path from 'path'
 const here = path.dirname(fileURLToPath(import.meta.url))
 const read = (p) => readFileSync(path.resolve(here, '../../src', p), 'utf8')
 
-const ENGINE = 'shared/transfer/backends/overlay/overlay-download.js'
+const ENGINE = 'shared/transfer/overlay/overlay-download.js'
 // A rule the engine must not re-implement must not be re-implemented in the modules it was split
 // across either: scanning only the residue would pass while a private copy grew next door.
 const ENGINE_ALL = [
   ENGINE,
-  'shared/transfer/backends/overlay/stall-retry.js',
-  'shared/transfer/backends/overlay/download-start.js',
-  'shared/transfer/backends/overlay/fetch-settle.js',
-  'shared/transfer/backends/overlay/reconcile-scan.js',
-  'shared/transfer/backends/overlay/download-faults.js',
-  'shared/transfer/backends/overlay/settle-verdict.js',
+  'shared/transfer/overlay/stall-retry.js',
+  'shared/transfer/overlay/download-start.js',
+  'shared/transfer/overlay/fetch-settle.js',
+  'shared/transfer/overlay/reconcile-scan.js',
+  'shared/transfer/overlay/download-faults.js',
+  'shared/transfer/overlay/settle-verdict.js',
 ].map((f) => read(f)).join('\n')
 // The mirror is two files: the pass decides WHETHER to fetch, the fetch decides HOW and judges
 // what came back. A parity rule belongs to whichever half actually applies it.
 const MIRROR_PASS = 'shared/folders/mirror-pass.js'
 const MIRROR = 'shared/folders/mirror-fetch.js'
-const CHANNEL = 'shared/transfer/backends/overlay/overlay-channel.js'
+const CHANNEL = 'shared/transfer/overlay/overlay-channel.js'
 
 // Two producers move bytes through one overlay: the download engine and the foreign-folder mirror.
 // A failure rule that holds for one has to hold for the other, and nothing else can notice when
@@ -94,7 +94,7 @@ test('the peer-online edge has one dispatcher, not one hook per producer', (t) =
 // The layering rule from testing.md: a policy module must stay Node-loadable, or the unit tests
 // above it silently belong to a different runner.
 for (const f of [
-  'shared/transfer/backends/overlay/fetch-policy.js',
+  'shared/transfer/overlay/fetch-policy.js',
   'shared/transfer/free-space.js',
   'shared/folders/mirror-policy.js',
 ]) {

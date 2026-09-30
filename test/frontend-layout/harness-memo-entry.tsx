@@ -21,10 +21,10 @@
 import { memo, useCallback, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import '../../src/renderer/platform/i18n.js'
-import ShareFileRow, { type ShareFileRowProps } from './../../src/renderer/components/cards/ShareFileRow.js'
+import ShareFileRow, { type ShareFileRowProps } from '../../src/renderer/components/cards/ShareFileRow.js'
 import { reconcileFiles } from '../../src/renderer/model/share-files-reconcile.js'
 import { buildFileTree } from '../../src/renderer/model/file-tree.js'
-import type { Decoration } from './../../src/renderer/hooks/useDecorations.js'
+import type { Decoration } from '../../src/renderer/hooks/useDecorations.js'
 import type { FileTreeNode, ShareFileEntry, SpaceMember, PeerDownloadSummary } from '../../src/renderer/types/types.js'
 
 interface HarnessResults {

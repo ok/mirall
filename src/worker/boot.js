@@ -30,10 +30,9 @@ import {
 import { MemberViews } from '../shared/spaces/member-registry.js'
 import { DownloadsBee, cleanupDownloadHistory } from '../shared/transfer/files.js'
 import { PendingTransfersBee, clearPendingForSpace } from '../shared/transfer/pending-transfers.js'
-import { abortInFlightPublishes } from '../shared/transfer/backends/overlay/overlay-publish.js'
+import { abortInFlightPublishes } from '../shared/transfer/overlay/overlay-publish.js'
 import { ServeLedger } from '../shared/transfer/serve-ledger.js'
-import { getJournalDir } from '../shared/transfer/backends/overlay/overlay-instance.js'
-import { cleanupOrphanedJournals } from '../shared/transfer/backends/overlay/engine/transfer.js'
+import { sweepOrphanedJournals } from '../shared/transfer/overlay/overlay-journals.js'
 import { cleanupOrphanedPartials } from '../shared/transfer/partial-sweep.js'
 import { Swarm } from '../shared/network/swarm.js'
 import { joinSpaceTopic } from '../shared/network/space-topics.js'
@@ -66,7 +65,7 @@ import { AuditLog } from '../shared/audit/audit-runtime.js'
 import { OwnCatalogs } from '../shared/shares/own-catalog.js'
 import { PeerCatalogs } from '../shared/shares/peer-catalog.js'
 import { PeerWatch } from '../shared/audit/peer-records-watch.js'
-import { OverlayBackend } from '../shared/transfer/backends/overlay/overlay-runtime.js'
+import { OverlayBackend } from '../shared/transfer/overlay/overlay-runtime.js'
 import { getInstallId } from '../shared/telemetry/install-id.js'
 import { MountsRuntime } from './mounts-runtime.js'
 import { Sweeps } from './sweeps.js'
@@ -152,6 +151,7 @@ export async function boot(bootstrap, {
   const life = createLifecycle({ log })
   let durable = null
   let publishService = null
+  /** @type {OverlayBackend | null} */
   let overlayBackend = null
   let supervisor = null
 
@@ -319,7 +319,7 @@ export async function boot(bootstrap, {
     supervisor = await life.start(new Supervisor('supervision', { lifecycle: life }))
 
     return {
-      close, store, mounts, intents, ownedFolders, publishService,
+      close, store, mounts, intents, ownedFolders, publishService, overlayBackend,
       applyRelayConfig: () => applyRelayConfig(log),
       health: () => [...(durable?.health() || []), ...life.health()],
       supervision: () => supervisor?.stats() ?? null,
@@ -421,7 +421,7 @@ async function sweepOrphans(log) {
   })
 
   try {
-    cleanupOrphanedJournals(getJournalDir())
+    sweepOrphanedJournals()
   } catch (err) {
     log.warn('journal sweep failed:', err.message)
   }

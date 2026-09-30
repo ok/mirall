@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { initPublishProgress, resetPublishProgress, makePublishProgress } from '../../src/shared/transfer/backends/overlay/publish-progress.js'
+import { initPublishProgress, resetPublishProgress, makePublishProgress } from '../../src/shared/transfer/overlay/publish-progress.js'
 
 function wired(t) {
   const emitted = []

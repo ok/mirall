@@ -8,8 +8,8 @@ import { createForeignMount, getForeignMount } from '../../src/shared/folders/mo
 import { isAutoPaused, resumeAutoPausedForeignMount, autoPauseForeignMountGone } from '../../src/shared/folders/foreign-pause.js'
 import { stopForeignLoop } from '../../src/shared/folders/foreign-verbs.js'
 import { runMaterializeTick } from '../../src/shared/folders/mirror-pass.js'
-import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
-import { overlayBackend } from '../../src/shared/transfer/backends/overlay/index.js'
+import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/transfer/overlay/overlay-instance.js'
+import { overlayBackend } from '../../src/shared/transfer/overlay/index.js'
 
 function statuses(ctx, shareId) {
   return ctx.fake.events

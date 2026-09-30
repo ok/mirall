@@ -19,7 +19,8 @@ import { listSharesForSpace } from '../../shared/shares/share-registry.js'
 import { consumerFilePath, listOverlayShareFiles } from '../../shared/shares/share-listing.js'
 import { catalogKeyField } from '../../shared/shares/catalog-keys.js'
 import { ownCatalogPublish } from '../../shared/shares/own-catalog.js'
-import { getContentBackend, UNSUPPORTED } from '../../shared/transfer/content-backends.js'
+import { isServableShare } from '../../shared/transfer/content-mode.js'
+import { overlayBackend as backend } from '../../shared/transfer/overlay/index.js'
 import { revealLocalPath } from '../../shared/transfer/reveal.js'
 import { pathFromMount } from '../../shared/folders/path-guard.js'
 import { isSpaceLeaving } from '../../shared/network/leave-protocol.js'
@@ -205,11 +206,10 @@ export function registerShares(ipc, { log, intents, mountOwnedShare }) {
 
   ipc.handle('share:list-files', async (msg, ctx) => {
     const share = await loadShareDescriptor(msg.spaceId, msg.ownerKey, msg.shareId)
-    // Overlay is the only content backend; an unsupported mode renders as unavailable. A
+    // A content mode this build cannot serve renders as unavailable. A
     // pre-encryption space lists empty for the same reason — its catalog cannot be opened, and the
     // renderer already explains why (space.legacyWarning) rather than surfacing a failed read.
-    const backend = getContentBackend(share)
-    if (backend === UNSUPPORTED) return { entries: [], complete: true, total: 0, totalBytes: 0 }
+    if (!isServableShare(share)) return { entries: [], complete: true, total: 0, totalBytes: 0 }
     if (isLegacySpace(await getSpace(msg.spaceId))) return { entries: [], complete: true, total: 0, totalBytes: 0 }
     // The first handler to honour a cancellation, and the one the renderer's query store actually
     // cancels: a folder listing whose view has been superseded or navigated away from.
@@ -250,8 +250,7 @@ export function registerShares(ipc, { log, intents, mountOwnedShare }) {
 
   ipc.handle('share:folder-info', async (msg) => {
     const share = await loadShareDescriptor(msg.spaceId, msg.ownerKey, msg.shareId)
-    const backend = getContentBackend(share)
-    if (backend === UNSUPPORTED) return { fileCount: 0, totalBytes: 0, blobsLength: null }
+    if (!isServableShare(share)) return { fileCount: 0, totalBytes: 0, blobsLength: null }
     // overlay: counts come from the catalog (no drive blobs)
     const isOwn = share.owner === getLocalPublicKeyHex()
     // limit=0 → count + sum the catalog in one pass WITHOUT retaining any rows, so a 150k-file
@@ -272,8 +271,7 @@ export function registerShares(ipc, { log, intents, mountOwnedShare }) {
   ipc.handle('share:read-file', async (msg) => {
     const share = await loadShareDescriptor(msg.spaceId, msg.ownerKey, msg.shareId)
     const isOwn = share.owner === getLocalPublicKeyHex()
-    const backend = getContentBackend(share)
-    if (backend === UNSUPPORTED) throw new AppError(CODES.SHARE_MODE_UNSUPPORTED, 'Share uses an unsupported content mode')
+    if (!isServableShare(share)) throw new AppError(CODES.SHARE_MODE_UNSUPPORTED, 'Share uses an unsupported content mode')
     // overlay: request the file via the backend (catalog/overlay), not a drive
     if (isOwn) return { ok: true, alreadyOwned: true }
     return await backend.requestDownload(msg.spaceId, share, msg.relPath)

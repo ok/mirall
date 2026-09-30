@@ -4,10 +4,10 @@ import path from 'bare-path'
 import { freshPeer } from '../helpers/store.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { getOwnEntry } from '../../src/shared/shares/own-catalog.js'
-import { serveIndex } from '../../src/shared/transfer/backends/overlay/overlay-serve-index.js'
-import { getOverlay, initOverlay, teardownOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
+import { serveIndex } from '../../src/shared/transfer/overlay/overlay-serve-index.js'
+import { getOverlay, initOverlay, teardownOverlay } from '../../src/shared/transfer/overlay/overlay-instance.js'
 import { initOverlayIpc, initLooseIpc } from '../helpers/overlay-ipc.js'
-import { compactOverlayIndex } from '../../src/shared/transfer/backends/overlay/overlay-maintenance.js'
+import { compactOverlayIndex } from '../../src/shared/transfer/overlay/overlay-maintenance.js'
 import { LOOSE_SHARE_ID } from '../../src/shared/transfer/transfer-id.js'
 import { initDownloads } from '../../src/shared/transfer/files.js'
 import { addFile } from '../../src/shared/transfer/file-listing.js'
@@ -31,7 +31,7 @@ test('Free up space keeps a still-shared loose file’s chunk map', async (t) =>
   fs.writeFileSync(abs, Buffer.alloc(2 * 1024 * 1024, 4)) // >= 1 MiB so its chunk map persists
   await addFile(space.spaceId, abs, 'big.bin', 2 * 1024 * 1024, ctx.fake.ipc)
   const looseHash = (await getOwnEntry(space.spaceId, LOOSE_SHARE_ID, 'big.bin')).contentHash
-  const fi = getOverlay()._index
+  const fi = getOverlay().index
   t.ok(looseHash && await fi.hasChunkMapByHash(looseHash), 'the loose file has a persisted chunk map')
 
   // A dead map for content nobody serves, so compaction actually runs the rebuild.
@@ -41,7 +41,7 @@ test('Free up space keeps a still-shared loose file’s chunk map', async (t) =>
   const res = await compactOverlayIndex()
   t.ok(res.compacted, 'compaction ran (there was a dead map to drop)')
 
-  const fi2 = getOverlay()._index
+  const fi2 = getOverlay().index
   t.ok(await fi2.hasChunkMapByHash(looseHash), 'the still-shared loose file’s map SURVIVES compaction')
   t.absent(await fi2.hasChunkMapByHash('deadfeed'), 'the genuinely-dead map is dropped')
 })

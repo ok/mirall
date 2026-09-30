@@ -14,8 +14,8 @@
 import { migrateLocalBeesToEncrypted } from './metadata-migration.js'
 import { retireSpaceDrives } from './retire-space-drives.js'
 import { migrateCatalogsToEncrypted } from '../../shares/migrate-catalog-encrypt.js'
-import { migrateOverlayIndexToEncrypted } from '../../transfer/backends/overlay/migrate-overlay-index-encrypt.js'
-import { purgeOverlaySyncFeed } from '../../transfer/backends/overlay/purge-overlay-sync-feed.js'
+import { migrateOverlayIndexToEncrypted } from '../../transfer/overlay/migrate-overlay-index-encrypt.js'
+import { purgeOverlaySyncFeed } from '../../transfer/overlay/purge-overlay-sync-feed.js'
 import { MIGRATION_STATUS, migrationResult } from './migration-result.js'
 
 /** @internal */
