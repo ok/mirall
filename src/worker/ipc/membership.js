@@ -44,7 +44,7 @@ import { readmitConnectedMembers } from '../../shared/network/deferred-admission
 import { channelForPeer, getBoundSignerKey, getConnectedMemberMeta } from '../../shared/network/swarm-registries.js'
 import { broadcastMembershipCancel, sendMembershipDeny, sendMembershipGrant } from '../../shared/network/membership-frames.js'
 import { topicField } from '../../shared/network/topic-refs.js'
-import { attachPeerCore, lendPeerCores, replicateOn } from '../../shared/network/replication-gate.js'
+import { attachPeerCore, closeIfUnadmitted, lendPeerCores, replicateOn } from '../../shared/network/replication-gate.js'
 import { peerActorIn, spaceRefOf } from '../audit-refs.js'
 import b4a from 'b4a'
 /** @import { WorkerIpc } from '../../shared/core/ipc.js' */
@@ -326,7 +326,7 @@ async function onGrant(msg, ctx = {}) {
 async function granterRecognized(socket, spaceId, space, granterKey) {
   const creatorKey = space.creatorKey ?? null
   const verdict = granterVerdict({ granterKey, inviteOwner: space.inviteOwner ?? null, creatorKey })
-  return deciderHeld(socket, spaceId, creatorKey, granterKey, verdict, { attachOwn: true, readable: null })
+  return deciderHeld(socket, spaceId, creatorKey, granterKey, verdict, { readable: null })
 }
 
 // A decider verdict settled: 'check-fold' asks the fold rooted at the creator, anything but
@@ -343,34 +343,38 @@ async function deciderHeld(socket, spaceId, creatorKey, key, verdict, opts) {
 // The fold check walks this space's roster from the creator to the decider (a granter or a
 // denier), and a pending joiner may hold none of those records: the decider does. So each core the
 // walk reads is attached to the decider's socket alone, which replicates nothing else until a grant
-// is applied. What the socket can read from us is limited to those same roster cores. Our own is
-// among them only for a granter, which captures our profile core over this socket once it has
-// approved us; for a denier it would only serve our profile bee to whoever sent the frame. A denier
-// serves only the approval chain it names, so the walk reads nothing outside `readable`.
+// is applied. What the socket can read from us is limited to those same roster cores, and never our
+// own: that would serve our profile bee to whoever sent the frame before either side admitted the
+// other. A denier serves only the approval chain it names, so the walk reads nothing outside
+// `readable`. Closing a walk's session leaves its core paired on the socket, so the walk is a loan
+// that ends by closing a refused sender's socket unless it was admitted meanwhile.
 /**
- * @typedef {{ attachOwn: boolean, readable: Set<string> | null }} FoldReadScope
+ * @typedef {{ readable: Set<string> | null }} FoldReadScope
  */
 /**
  * @param {object | undefined} socket @param {{ spaceId: string, creatorKey: string, key: string }} member
  * @param {FoldReadScope} opts
  */
-async function foldHoldsOver(socket, { spaceId, creatorKey, key }, { attachOwn, readable }) {
+async function foldHoldsOver(socket, { spaceId, creatorKey, key }, { readable }) {
   /** @type {{ close: () => Promise<void> }[]} */
   const attached = []
   const self = getLocalPublicKeyHex()
   /** @param {string} rosterKey */
   const readOver = async (rosterKey) => {
     if (readable && !readable.has(rosterKey)) return null
-    const core = socket && (attachOwn || rosterKey !== self) ? await attachPeerCore(socket, rosterKey) : null
+    const core = socket && rosterKey !== self ? await attachPeerCore(socket, rosterKey) : null
     if (core) attached.push(core)
     return readMembershipRecord(rosterKey, spaceId)
   }
+  let held = false
   try {
-    return await foldHoldsMember({ spaceId, creatorKey, key, readRecord: readOver })
+    held = await foldHoldsMember({ spaceId, creatorKey, key, readRecord: readOver })
+    return held
   } finally {
     for (const core of attached) {
       try { await core.close() } catch (err) { log.debug('roster core session close failed:', errorMessage(err)) }
     }
+    if (socket && attached.length && !held) closeIfUnadmitted(socket)
   }
 }
 
@@ -438,7 +442,7 @@ async function denierRecognized(socket, peerInfo, space, msg) {
   const creatorKey = space.creatorKey ?? null
   const verdict = denierVerdict({ denierKey, inviteOwner: space.inviteOwner ?? null, creatorKey, enforce: isMembershipControlBindingEnforced() })
   const readable = new Set(rosterPathOf(msg, { creatorKey, denierKey }) ?? [])
-  const accepted = await deciderHeld(socket, spaceId, creatorKey, denierKey, verdict, { attachOwn: false, readable })
+  const accepted = await deciderHeld(socket, spaceId, creatorKey, denierKey, verdict, { readable })
   if (!accepted) log.warn('rejected membership:deny — sender is not the inviter, the creator or a member:', denierKey?.slice(0, 12) ?? 'unnamed')
   else if (verdict === 'accept-unvetted') log.info('honouring an unvetted membership:deny from', denierKey?.slice(0, 12) ?? 'an unnamed sender', 'for', spaceId)
   return accepted

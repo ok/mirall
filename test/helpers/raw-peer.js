@@ -16,6 +16,7 @@ export async function rawPeer(t, { bootstrap, topicHex, keyPair = crypto.keyPair
   const senders = new Set()
   const connectionWaiters = new Set()
   let remoteKey = null
+  let closedSockets = 0
   const settleConnectionWaiters = () => {
     for (const w of connectionWaiters) if (senders.size >= w.n) { connectionWaiters.delete(w); w.resolve() }
   }
@@ -38,7 +39,10 @@ export async function rawPeer(t, { bootstrap, topicHex, keyPair = crypto.keyPair
     channel.open()
     const sender = (obj) => { try { message.send(JSON.stringify(obj)) } catch {} }
     senders.add(sender)
-    socket.on('close', () => senders.delete(sender))
+    socket.on('close', () => {
+      senders.delete(sender)
+      closedSockets++
+    })
     settleConnectionWaiters()
   })
 
@@ -63,6 +67,7 @@ export async function rawPeer(t, { bootstrap, topicHex, keyPair = crypto.keyPair
     // must reach each of them.
     waitConnections,
     openSockets: () => senders.size,
+    closedSockets: () => closedSockets,
     // Every open socket gets the frame.
     send: (obj) => { for (const sender of senders) sender(obj) },
     waitFrame: (pred = () => true, ms = 8000) => new Promise((resolve, reject) => {

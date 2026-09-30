@@ -13,6 +13,7 @@ import { scaled } from '../helpers/timing.js'
 import { until } from '../helpers/poll.js'
 import { decodeInvite, encodeInvite } from '../../src/shared/contract/invite-envelope.js'
 import { deriveTopicRef } from '../../src/shared/network/handshake-guard.js'
+import { sealSck } from '../../src/shared/spaces/sck-seal.js'
 
 const hex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
@@ -71,7 +72,9 @@ async function pendingJoiner(t, flags, { topic = hex(), creator = hex(), store =
   const request = await atk.waitFrame((m) => m.type === 'membership:request' && m.topicRef === deriveTopicRef(topic, atk.remotePublicKey()), scaled(20000))
   const topicRef = deriveTopicRef(topic, atk.keyPair.publicKey)
   const deny = (fields) => atk.send({ type: 'membership:deny', topicRef, ...fields })
-  return { B, spaceId, owner, stranger, deny, joinerKey: request.profileKey }
+  const sckSealed = () => b4a.toString(sealSck(crypto.randomBytes(32), b4a.from(request.signerKey, 'hex')), 'hex')
+  const grant = ({ profileKey, ...binding }) => atk.send({ type: 'membership:grant', topicRef, sckSealed: sckSealed(), creator, granterKey: profileKey, ...binding })
+  return { B, atk, spaceId, owner, stranger, deny, grant, joinerKey: request.profileKey }
 }
 
 // A creator roster the raw peer serves: it approves a key nobody serves, so the joiner's fold walk
@@ -91,14 +94,35 @@ test('REGRESSION (MIR-48: vetting a stranger\'s deny served the joiner\'s own pr
   t.teardown(() => store.close())
   const topic = hex()
   const creator = await stalledRoster(store, topic.slice(0, 16))
-  const { B, spaceId, stranger, deny, joinerKey } = await pendingJoiner(t, enforcedFlags(), { topic, creator, store })
+  const { B, atk, spaceId, stranger, deny, joinerKey } = await pendingJoiner(t, enforcedFlags(), { topic, creator, store })
 
   const own = store.get({ key: b4a.from(joinerKey, 'hex') })
   await own.ready()
   const served = own.get(0, { timeout: scaled(30000) }).then(() => true, () => false)
   deny({ ...stranger.fields, rosterPath: [creator, joinerKey, stranger.profileKey] })
   t.ok(await until(() => B.readStderr().includes('rejected membership:deny'), 60000, { interval: 250 }), 'the deny and the chain it forged were vetted and refused')
+  t.ok(await until(() => atk.closedSockets() > 0, 15000, { interval: 100 }), 'the walk ended by closing the stranger\'s socket')
   t.absent(await served, 'the stranger read no block of the joiner\'s profile core meanwhile')
+  t.is((await spaceOf(B, spaceId))?.status, 'pending', 'B keeps its pending space')
+})
+
+test('REGRESSION (FIX-553: vetting a stranger\'s grant served the joiner\'s own profile core to it)', { timeout: scaled(180000) }, async (t) => {
+  const store = new Corestore(mkTmpDir(t))
+  t.teardown(() => store.close())
+  const topic = hex()
+  const creator = await stalledRoster(store, topic.slice(0, 16))
+  const { B, atk, spaceId, stranger, grant, joinerKey } = await pendingJoiner(t, enforcedFlags(), { topic, creator, store })
+
+  const own = store.get({ key: b4a.from(joinerKey, 'hex') })
+  await own.ready()
+  const served = own.get(0).then(() => true, () => false)
+  grant(stranger.fields)
+  t.ok(await until(() => B.readStderr().includes('granter is not the inviter'), 60000, { interval: 250 }), 'the grant was vetted against the stalled roster and refused')
+  t.ok(await until(() => atk.closedSockets() > 0, 15000, { interval: 100 }), 'the walk ended by closing the stranger\'s socket')
+  await own.close()
+  const read = await served
+  t.comment('observed: stranger read block 0 of the joiner\'s profile core = ' + read)
+  t.absent(read, 'the stranger read no block of the joiner\'s profile core meanwhile')
   t.is((await spaceOf(B, spaceId))?.status, 'pending', 'B keeps its pending space')
 })
 
