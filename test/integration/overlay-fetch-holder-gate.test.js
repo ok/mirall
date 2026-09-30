@@ -1,41 +1,20 @@
 import test from 'brittle'
-import Protomux from 'protomux'
 import crypto from 'hypercore-crypto'
-import { Duplex } from 'streamx'
-import { tmpStore, tmpDir, fs, path } from './overlay-vendor-helpers.js'
-import { HyperOverlayV2 } from '../../src/shared/transfer/backends/overlay/vendor/overlay-v2.js'
+import { tmpDir, fs, path } from './overlay-vendor-helpers.js'
+import { SUFFIX, overlay, link } from './overlay-link-helpers.js'
 import { scaled } from '../helpers/bare-timing.js'
+import { waitFor } from '../helpers/bare-poll.js'
+import { createBandwidthLimiter } from '../../src/shared/transfer/bandwidth-limiter.js'
 
 // The fetch gate: a download asks only the peers the holderAuthorizer accepts, adopts a chunk map
 // only from a peer it asked and only when it fits the catalog size, and tells only the asked peers
 // about its pause/progress. The raw peer here is any socket on the content topic: attached to the
 // overlay channel, never authenticated, answering every request and pushing a forged map unasked.
-function makeDuplex() {
-  let aWrite, bWrite
-  const a = new Duplex({ write(d, cb) { bWrite(d); cb() }, read() {} })
-  const b = new Duplex({ write(d, cb) { aWrite(d); cb() }, read() {} })
-  aWrite = (d) => a.push(d)
-  bWrite = (d) => b.push(d)
-  return [a, b]
-}
 const settle = (ms = 600) => new Promise((r) => setTimeout(r, scaled(ms)))
 const MEMBER = 'a'.repeat(64)
 const OWNER = 'b'.repeat(64)
-const SUFFIX = '.mirall.part'
 
-async function overlay(t, label, opts = {}) {
-  const o = new HyperOverlayV2(tmpStore(label), { namespace: 'mirall-overlay', destDir: tmpDir(label + '-d'), partialSuffix: SUFFIX, ...opts })
-  await o.ready()
-  t.teardown(async () => { try { await o.close() } catch {} })
-  return o
-}
-
-function link(a, b) {
-  const [x, y] = makeDuplex()
-  return [a.attachProtocol(Protomux.from(x)), b.attachProtocol(Protomux.from(y))]
-}
-
-async function scene(t, { holders, serveDelayMs = 300 }) {
+async function scene(t, { holders, serveDelayMs = 300, reqOpts = {} }) {
   const content = crypto.randomBytes(192 * 1024)
   const oid = crypto.data(content).toString('hex')
   const src = path.join(tmpDir('hg-src'), 'doc.bin')
@@ -64,6 +43,7 @@ async function scene(t, { holders, serveDelayMs = 300 }) {
     localProfileKey: MEMBER,
     serveAuthorizer: async () => false,
     holderAuthorizer: (peer, ownerKey) => ownerKey === OWNER && accepted.has(peer),
+    ...reqOpts,
   })
   const [ownerOnReq] = link(req, owner)
   const [rawOnReq, reqOnRaw] = link(req, raw)
@@ -71,7 +51,7 @@ async function scene(t, { holders, serveDelayMs = 300 }) {
   await settle()
   const spam = setInterval(() => { try { reqOnRaw.msgs.chunkHashes.send(forged) } catch {} }, 20)
   t.teardown(() => clearInterval(spam))
-  return { req, content, oid, seen, ownerSeen }
+  return { req, content, oid, seen, ownerSeen, rawOnReq, reqOnRaw }
 }
 
 test('REGRESSION (MIR-46: a raw peer answering first cannot poison the download)', async (t) => {
@@ -112,4 +92,43 @@ test('MIR-46: with no accepted holder the fetch reports no holder without asking
   const got = await req.fetchFile(oid, { ownerKey: OWNER, size: content.length, peerWaitMs: 300, timeout: scaled(3000), reSeed: false })
   t.is(got, null)
   t.is(seen.contentRequest, 0)
+})
+
+// The download cap, with every refund made through a fetch's own stream handle counted.
+function countingLimiter(t, bytesPerSecond) {
+  const limiter = createBandwidthLimiter(() => bytesPerSecond)
+  t.teardown(() => limiter.destroy())
+  const refunds = { bytes: 0 }
+  const stream = () => {
+    const s = limiter.stream()
+    const give = s.give
+    s.give = (bytes) => { refunds.bytes += bytes; give(bytes) }
+    return s
+  }
+  return { refunds, limiter: { ...limiter, stream } }
+}
+
+test('REGRESSION (MIR-53: chunk data from a peer the fetch took no map from reaches neither the scheduler nor the download cap)', async (t) => {
+  const { refunds, limiter } = countingLimiter(t, 32 * 1024)
+  const { req, content, oid, rawOnReq, reqOnRaw } = await scene(t, { holders: ['owner'], reqOpts: { downloadLimiter: limiter } })
+  const p = 'content:' + oid
+  const f = req.fetchFile(oid, { destPath: path.join(tmpDir('hg-out5'), 'doc.bin'), ownerKey: OWNER, size: content.length, timeout: scaled(20000), reSeed: false })
+  f.catch(() => {})
+  await waitFor(() => req._protocol._schedulers.get(p)?._chunks, 5000, { interval: 10, label: "the owner's map adopted" })
+  const sched = req._protocol._schedulers.get(p)
+  const reached = []
+  const onChunkData = sched.onChunkData.bind(sched)
+  sched.onChunkData = (peer, index, data) => { if (peer === rawOnReq) reached.push(index); return onChunkData(peer, index, data) }
+
+  const last = sched._chunks.length - 1
+  const junk = Buffer.alloc(sched._chunks[last].length, 0x55)
+  for (let i = 0; i < 20; i++) reqOnRaw.msgs.chunkData.send({ path: p, index: last, data: junk })
+  await settle(300)
+  t.ok(req._protocol._schedulers.get(p) === sched && !sched._done, 'precondition: the fetch was still running as the frames landed')
+
+  t.is(reached.length, 0, 'no frame from the raw peer reached the scheduler')
+  t.is(refunds.bytes, 0, 'the download cap took no refund')
+  t.absent(sched._peers.has(rawOnReq), 'the raw peer is not a source')
+  t.is(sched._peers.size, 1, 'the owner still is')
+  await req.cancelFetch(oid, { discardPartial: true })
 })

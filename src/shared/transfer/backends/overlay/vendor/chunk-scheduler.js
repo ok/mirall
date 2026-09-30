@@ -377,8 +377,7 @@ export class ChunkScheduler {
   // Deliberately does NOT touch _lastProgressAt: a keep-alive is a claim about the future, not
   // progress, and letting it refresh its own bound would make the bound unreachable.
   notePeerAlive (peer, index) {
-    if (this._done) return
-    if (this._inflight.get(index) !== peer) return
+    if (!this.awaitsChunk(peer, index)) return
     if (Date.now() - this._lastProgressAt > this._keepAliveMaxSilence) return
     this._armIdleTimer()
   }
@@ -398,6 +397,9 @@ export class ChunkScheduler {
   refuseMapFrom (peer, reason) {
     if (this._requested.delete(peer) && !this._done) this._refuseMap(reason)
   }
+
+  // [mirall] §4.26 — a chunk is taken only from the peer _assign asked (and charged) for it.
+  awaitsChunk (peer, index) { return !this._done && this._inflight.get(index) === peer }
 
   // [mirall] §4.24 — why this chunk list cannot describe the file, or null. With a known size the
   // list must sum to it, hold no more entries than the size's tier allows, and keep every length
@@ -492,13 +494,11 @@ export class ChunkScheduler {
 
   /** A chunk arrived from a peer. Verify + write, then schedule more. */
   async onChunkData (peer, index, data) {
-    if (this._done) return
+    if (!this.awaitsChunk(peer, index)) return
     const res = this._transfer.writeChunk(this.destPath, index, data)
     // Free the inflight slot regardless — a bad chunk should be re-fetched.
-    if (this._inflight.get(index) === peer) {
-      this._inflight.delete(index)
-      this._peerInflight.set(peer, Math.max(0, (this._peerInflight.get(peer) || 1) - 1))
-    }
+    this._inflight.delete(index)
+    this._peerInflight.set(peer, Math.max(0, (this._peerInflight.get(peer) || 1) - 1))
     if (!res.ok) {
       // [mirall] Same refund as removePeer: a retried chunk is re-charged on re-assign.
       this._refund(index)

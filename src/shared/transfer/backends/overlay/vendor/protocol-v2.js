@@ -1103,6 +1103,11 @@ export class OverlayProtocolV2 {
   }
 
   async _onChunkData (peer, msg) {
+    const sched = this._schedulers.get(msg.path)
+    // [mirall] §4.26 — a scheduler takes only a chunk it has in flight to this peer, and mirall mode
+    // has no receive without one (see below); neither kind of frame reaches the watchdog hook.
+    if (sched ? !sched.awaitsChunk(peer, msg.index) : this._serveAuthorizer) return
+
     // Silent-peer watchdog hook: fire BEFORE any processing so a slow disk
     // doesn't get blamed for a peer-side stall.
     if (this._chunkProgressCb) {
@@ -1117,12 +1122,10 @@ export class OverlayProtocolV2 {
     }
 
     // Multi-source: scheduler owns the write + reschedule + finalize.
-    const sched = this._schedulers.get(msg.path)
     if (sched) { Promise.resolve(sched.onChunkData(peer, msg.index, msg.data)).catch(() => {}); return }
-    // [mirall] refuse the legacy single-peer receive (writes+renames over
-    // _filePaths.get(path), i.e. potentially our own source file). Mirall only
-    // receives via a scheduler (above).
-    if (this._serveAuthorizer) return
+    // [mirall] the legacy single-peer receive below writes+renames over _filePaths.get(path), i.e.
+    // potentially our own source file, so mirall mode refuses it at the top: it only receives via a
+    // scheduler.
 
     const diskPath = this._filePaths.get(msg.path)
     if (!diskPath) return
