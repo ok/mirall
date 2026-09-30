@@ -1,9 +1,8 @@
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { listPending } from './pending-transfers.js'
-import { journalNameFor } from './backends/overlay/engine/transfer.js'
 import { PARTIAL_SUFFIX } from './partial-suffix.js'
-import { getJournalDir } from './backends/overlay/overlay-instance.js'
+import { hasResumeJournal } from './backends/overlay/overlay-journals.js'
 import { createLogger } from '../core/logger.js'
 
 const log = createLogger('partial-sweep')
@@ -26,15 +25,7 @@ export async function cleanupOrphanedPartials(downloadsDirs, mountDirs = []) {
   for (const p of await listPending()) {
     if (p.finalPath) referenced.add(p.finalPath + PARTIAL_SUFFIX)
   }
-  let journalDir = null
-  try { journalDir = getJournalDir() } catch {}
-
-  const isResumable = (full) => {
-    if (referenced.has(full)) return true
-    if (!journalDir) return false
-    const target = full.slice(0, -PARTIAL_SUFFIX.length)
-    try { return fs.existsSync(path.join(journalDir, journalNameFor(target))) } catch { return false }
-  }
+  const isResumable = (full) => referenced.has(full) || hasResumeJournal(full.slice(0, -PARTIAL_SUFFIX.length))
   const sweepOne = async (full) => {
     if (isResumable(full)) return
     try {

@@ -2,10 +2,9 @@ import test from 'brittle'
 import crypto from 'hypercore-crypto'
 import { tmpStore, tmpDir, fs, path } from './overlay-engine-helpers.js'
 import { overlay as linkedOverlay, link } from './overlay-link-helpers.js'
-import { FileIndex } from '../../src/shared/transfer/backends/overlay/engine/file-index.js'
-import { TransferManager } from '../../src/shared/transfer/backends/overlay/engine/transfer.js'
-import { freshPeer } from '../helpers/store.js'
-import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
+import { FileIndex } from '../../src/shared/transfer/backends/overlay/engine/store/file-index.js'
+import { TransferManager } from '../../src/shared/transfer/backends/overlay/engine/transfer/transfer-manager.js'
+import { addPeer } from '../helpers/overlay-engine.js'
 import { scaled } from '../helpers/bare-timing.js'
 
 // FIX-129: a disk-write failure during an overlay consumer fetch must surface its
@@ -61,21 +60,15 @@ test('REGRESSION (FIX-129): writeChunk surfaces a write error code without openi
   await index.close()
 })
 
-// Skip readiness/networking and present a peer, accepted as the holder, so fetchFile proceeds
-// to fetchContent. The fake peer carries the shape the protocol's destroy() touches at teardown.
+// A facade with one attached peer and no holder gate, so fetchFile proceeds to fetchContent.
 async function facadeWith(t) {
-  await freshPeer(t)
-  await initOverlay()
-  t.teardown(async () => { await teardownOverlay() })
-  const overlay = getOverlay()
-  overlay._ensure = async () => {}
-  overlay._protocol._peers = new Map([['p', { channel: { close() {} } }]])
-  overlay._holderAuthorizer = () => true
+  const overlay = await linkedOverlay(t, 'disk-facade')
+  addPeer(overlay.protocol, 'p')
   return overlay
 }
 
 const failWith = (overlay, code) => {
-  overlay._protocol.fetchContent = async () => { const e = new Error('local fault ' + code); e.code = code; throw e }
+  overlay.protocol.fetchContent = async () => { const e = new Error('local fault ' + code); e.code = code; throw e }
 }
 
 // What the facade answers for each code the scheduler can fail a fetch on.
@@ -93,7 +86,7 @@ test('REGRESSION (FIX-129): fetchFile rethrows a local I/O error code; an uncode
     'a coded local I/O error is rethrown, not collapsed to null',
   )
 
-  overlay._protocol.fetchContent = async () => { throw new Error('peer went silent mid-stream') } // no code = stall
+  overlay.protocol.fetchContent = async () => { throw new Error('peer went silent mid-stream') } // no code = stall
   const r = await overlay.fetchFile('b'.repeat(64), { destPath: path.join(tmpDir('dl'), 'y') })
   t.is(r, null, 'an uncoded stall still collapses to null (no-holder semantics preserved)')
 })
@@ -148,7 +141,7 @@ test('REGRESSION (FIX-129): startReceive closes a prior transfer\'s fd on re-ent
   const destPath = path.join(tmpDir('recv'), 'g.bin')
   const meta = { size: data.length, chunks: prep.chunks, contentHash: prep.contentHash }
   await transfer.startReceive(destPath, meta)
-  const fd1 = transfer._active.get(destPath).fd
+  const fd1 = transfer.receiveState(destPath).fd
   t.ok(fd1 != null, 'first startReceive opened the persistent fd')
 
   const origCloseSync = fs.closeSync
@@ -158,7 +151,7 @@ test('REGRESSION (FIX-129): startReceive closes a prior transfer\'s fd on re-ent
 
   await transfer.startReceive(destPath, meta) // retry of the same path (prior state never cleaned)
   t.ok(closed.includes(fd1), 'the prior fd was closed, not orphaned')
-  t.not(transfer._active.get(destPath).fd, fd1, 'a fresh fd replaced it')
+  t.not(transfer.receiveState(destPath).fd, fd1, 'a fresh fd replaced it')
 
   await index.close()
 })

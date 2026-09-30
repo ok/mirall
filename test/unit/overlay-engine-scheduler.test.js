@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { ChunkScheduler } from '../../src/shared/transfer/backends/overlay/engine/chunk-scheduler.js'
+import { ChunkScheduler } from '../../src/shared/transfer/backends/overlay/engine/scheduler/scheduler.js'
 import { TIERS } from '../../src/shared/transfer/backends/overlay/engine/chunker.js'
 
 // A TransferManager stub: the scheduler only needs startReceive/writeChunk/finalize.
@@ -570,7 +570,7 @@ test('REGRESSION (MIR-46: a second map that differs from the adopted one is not 
   await sched.onChunkHashes(a, honest())
   const forged = honest().map((c) => ({ ...c, hash: 'f'.repeat(64) }))
   await sched.onChunkHashes(b, forged)
-  t.absent(sched._peers.has(b), 'b was refused as a source')
+  t.absent(sched.sources().has(b), 'b was refused as a source')
   t.ok(needs.every(([id]) => id === 'a'), 'no chunk-need was ever sent to b')
   t.is(transfer.calls.length, 1, 'the adopted map was not replaced')
   sched.cancel()
@@ -586,7 +586,7 @@ test('MIR-46: an identical second map joins as a source', async (t) => {
   sched.noteRequested(b)
   await sched.onChunkHashes(a, honest())
   await sched.onChunkHashes(b, honest())
-  t.ok(sched._peers.has(b), 'an honest co-holder is a source')
+  t.ok(sched.sources().has(b), 'an honest co-holder is a source')
   sched.cancel()
 })
 

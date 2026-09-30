@@ -8,7 +8,8 @@
 // the receiver. The public flow (scheduler.onChunkHashes with the full list) is
 // unchanged.
 import test from 'brittle'
-import * as m from '../../src/shared/transfer/backends/overlay/engine/messages-v2.js'
+import * as m from '../../src/shared/transfer/backends/overlay/engine/wire/messages.js'
+import { sendChunkHashes } from '../../src/shared/transfer/backends/overlay/engine/wire/paging.js'
 import { makeProtocol } from '../helpers/overlay-engine.js'
 
 // @hyperswarm/secret-stream rejects any frame whose payload exceeds this
@@ -45,11 +46,10 @@ test('REGRESSION (FIX-12): a 1.25 TB-scale chunk list overflows one frame but pa
   const oneFrame = encodedSize({ path: 'content:big', tier: 3, chunks, more: 0 })
   t.ok(oneFrame > MAX_ATOMIC_WRITE, `single frame (${oneFrame} B) exceeds the ${MAX_ATOMIC_WRITE} B atomic-write limit`)
 
-  // The fix: _sendChunkHashes splits it into frames that each fit.
-  const proto = makeProtocol(fakeTransfer())
+  // The fix: sendChunkHashes splits it into frames that each fit.
   const sent = []
   const peer = { msgs: { chunkHashes: { send: (msg) => sent.push(msg) } } }
-  proto._sendChunkHashes(peer, 'content:big', 3, chunks)
+  sendChunkHashes(peer, 'content:big', 3, chunks)
 
   t.ok(sent.length > 1, `paged into ${sent.length} frames`)
   for (const f of sent) {
@@ -78,7 +78,7 @@ test('FIX-12: the receiver reassembles paged frames and dispatches the full list
   // Page on the send side to get realistic frames, then feed them to the receiver.
   const sent = []
   const sender = { msgs: { chunkHashes: { send: (msg) => sent.push(msg) } } }
-  proto._sendChunkHashes(sender, 'content:x', 3, chunks)
+  sendChunkHashes(sender, 'content:x', 3, chunks)
   t.ok(sent.length > 1, 'multiple pages to reassemble')
 
   // A fake scheduler stands in for the multi-source fetch — it only needs to
@@ -86,7 +86,7 @@ test('FIX-12: the receiver reassembles paged frames and dispatches the full list
   let dispatched = null
   let dispatchCount = 0
   let pings = 0
-  proto._schedulers.set('content:x', {
+  proto.fetches.adoptForTests('x', {
     awaitsMapFrom: () => true,
     maxMapEntries: () => null,
     onChunkHashes(peer, list) { dispatchCount++; dispatched = list },
@@ -94,13 +94,13 @@ test('FIX-12: the receiver reassembles paged frames and dispatches the full list
   })
 
   const peer = { id: 'p1' }
-  for (const f of sent) proto._onChunkHashes(peer, f)
+  for (const f of sent) proto.fetches.onChunkHashes(peer, f)
 
   t.is(dispatchCount, 1, 'scheduler.onChunkHashes fired exactly once (on the final page)')
   t.is(dispatched.length, chunks.length, 'full list reassembled in order')
   t.is(dispatched[chunks.length - 1].length, chunks[chunks.length - 1].length, 'last entry intact')
   t.is(pings, sent.length - 1, 'every non-final page re-armed the watchdog')
-  t.absent(peer._chunkHashPages.has('content:x'), 'per-path page buffer cleared after the final page')
+  t.absent(proto.pages.has(peer, 'content:x'), 'per-path page buffer cleared after the final page')
 })
 
 test('FIX-12: a small list still ships as one frame and dispatches immediately', (t) => {
@@ -109,14 +109,14 @@ test('FIX-12: a small list still ships as one frame and dispatches immediately',
 
   const sent = []
   const sender = { msgs: { chunkHashes: { send: (msg) => sent.push(msg) } } }
-  proto._sendChunkHashes(sender, 'content:s', 0, chunks)
+  sendChunkHashes(sender, 'content:s', 0, chunks)
   t.is(sent.length, 1, 'single frame for a small list')
   t.is(sent[0].more, 0, 'lone frame is final')
 
   let dispatched = null
-  proto._schedulers.set('content:s', { awaitsMapFrom: () => true, onChunkHashes(peer, list) { dispatched = list } })
+  proto.fetches.adoptForTests('s', { awaitsMapFrom: () => true, onChunkHashes(peer, list) { dispatched = list } })
   const peer = { id: 'p2' }
-  proto._onChunkHashes(peer, sent[0])
+  proto.fetches.onChunkHashes(peer, sent[0])
   t.is(dispatched, chunks, 'lone complete frame passes straight through (no copy)')
 })
 
@@ -124,8 +124,8 @@ test('FIX-12: pages for two files interleaved on one channel reassemble independ
   const proto = makeProtocol(fakeTransfer())
   const peer = { id: 'p3' }
   const got = {}
-  proto._schedulers.set('content:A', { awaitsMapFrom: () => true, maxMapEntries: () => null, onChunkHashes(_p, list) { got.A = list }, notePageProgress() {} })
-  proto._schedulers.set('content:B', { awaitsMapFrom: () => true, maxMapEntries: () => null, onChunkHashes(_p, list) { got.B = list }, notePageProgress() {} })
+  proto.fetches.adoptForTests('A', { awaitsMapFrom: () => true, maxMapEntries: () => null, onChunkHashes(_p, list) { got.A = list }, notePageProgress() {} })
+  proto.fetches.adoptForTests('B', { awaitsMapFrom: () => true, maxMapEntries: () => null, onChunkHashes(_p, list) { got.B = list }, notePageProgress() {} })
 
   const a1 = { hash: 'a'.repeat(64), length: 1 }
   const a2 = { hash: 'a'.repeat(64), length: 2 }
@@ -133,10 +133,10 @@ test('FIX-12: pages for two files interleaved on one channel reassemble independ
   const b2 = { hash: 'b'.repeat(64), length: 4 }
 
   // Interleave A and B pages on the same peer/channel.
-  proto._onChunkHashes(peer, { path: 'content:A', tier: 0, chunks: [a1], more: 1 })
-  proto._onChunkHashes(peer, { path: 'content:B', tier: 0, chunks: [b1], more: 1 })
-  proto._onChunkHashes(peer, { path: 'content:A', tier: 0, chunks: [a2], more: 0 })
-  proto._onChunkHashes(peer, { path: 'content:B', tier: 0, chunks: [b2], more: 0 })
+  proto.fetches.onChunkHashes(peer, { path: 'content:A', tier: 0, chunks: [a1], more: 1 })
+  proto.fetches.onChunkHashes(peer, { path: 'content:B', tier: 0, chunks: [b1], more: 1 })
+  proto.fetches.onChunkHashes(peer, { path: 'content:A', tier: 0, chunks: [a2], more: 0 })
+  proto.fetches.onChunkHashes(peer, { path: 'content:B', tier: 0, chunks: [b2], more: 0 })
 
   t.alike(got.A, [a1, a2], 'file A reassembled from its own pages')
   t.alike(got.B, [b1, b2], 'file B reassembled from its own pages')

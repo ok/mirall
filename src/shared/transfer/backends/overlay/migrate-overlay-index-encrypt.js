@@ -10,7 +10,7 @@ import { migrationResult, MIGRATION_STATUS } from '../../../storage/migrations/m
 import { hasMasterSecret, overlayIndexEncryptionKey } from '../../../core/store.js'
 import { runMarkedPass } from '../../../storage/migrations/marked-pass.js'
 import { purgeNamedCore } from '../../../storage/core-purge.js'
-import { FileIndex, indexCoreName } from './engine/file-index.js'
+import { FileIndex, indexCoreName } from './engine/store/file-index.js'
 import { OVERLAY_NAMESPACE, OVERLAY_NAMESPACE_ENC } from './overlay-namespaces.js'
 import { SYNC_FEED_CORE } from './purge-overlay-sync-feed.js'
 import { createLogger } from '../../../core/logger.js'

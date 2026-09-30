@@ -1,7 +1,7 @@
 import test from 'brittle'
 import { tmpStore, tmpDir, fs, path } from './overlay-engine-helpers.js'
-import { FileIndex } from '../../src/shared/transfer/backends/overlay/engine/file-index.js'
-import { TransferManager } from '../../src/shared/transfer/backends/overlay/engine/transfer.js'
+import { FileIndex } from '../../src/shared/transfer/backends/overlay/engine/store/file-index.js'
+import { TransferManager } from '../../src/shared/transfer/backends/overlay/engine/transfer/transfer-manager.js'
 import crypto from 'hypercore-crypto'
 
 // The receive side writes into folders the user also writes into: the partial beside the target
@@ -69,7 +69,7 @@ test('REGRESSION (MIR-13): a target created during the receive is not replaced',
   t.is(fin.code, 'ETARGETCHANGED')
   t.is(fs.readFileSync(rx.targetPath, 'utf8'), 'the user saved this meanwhile', 'the new file survives')
   t.absent(fs.existsSync(rx.partialPath), 'the name is no longer this transfer\'s, so its partial goes')
-  t.absent(rx.transfer._active.has(rx.targetPath), 'and no state is parked')
+  t.absent(rx.transfer.receiveState(rx.targetPath), 'and no state is parked')
 })
 
 test('a target that was already there and did not change is replaced as before', async (t) => {

@@ -123,6 +123,10 @@ function liveLeaveSteps(spaceId, { ipc, mounts, log, onPhase, rosterKeys }) {
  * @param {{ log: Logger, mounts: WorkerRoot['mounts'], overlayBackend: WorkerRoot['overlayBackend'], discardPendingSpace: (spaceId: string) => Promise<void>, dropSpaceDownloadRoot: (spaceId: string) => void }} deps
  */
 export function registerSpaceLeave(ipc, { log, mounts, overlayBackend, discardPendingSpace, dropSpaceDownloadRoot }) {
+  // A leave must stop serving the space's bytes, so a wiring without the overlay is refused here
+  // rather than completing leaves that keep streaming.
+  if (!overlayBackend) throw new TypeError('registerSpaceLeave: overlayBackend is required')
+  const overlay = overlayBackend
   ipc.handle('space:leave', async (msg) => {
     // A teardown is already in flight (it can outlive the IPC response) — a re-click must be a no-op,
     // not a second run that clobbers the in-flight leave-ack tracking and re-purges half-torn state.
@@ -220,7 +224,7 @@ export function registerSpaceLeave(ipc, { log, mounts, overlayBackend, discardPe
         // fetch slots — as the owner we have none, so without this a leave stops nothing on the
         // serving side and the content plane keeps streaming the space's bytes. Runs BEFORE the
         // purges: it needs serveIndex to still resolve hash → space.
-        overlayBackend?.revokeServesForSpace(msg.spaceId)
+        overlay.revokeServesForSpace(msg.spaceId)
 
         tracker.phase = 'leaveSpaceTopic'
         await leaveSpaceTopic(msg.spaceId)

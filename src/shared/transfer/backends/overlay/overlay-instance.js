@@ -5,14 +5,15 @@
 // (makeServeAuthorizer in overlay-authorize.js) to the real socket-auth, membership and
 // rate-limit collaborators (see .claude/solution-architecture.md, "Serve authorization").
 import { HyperOverlayV2 } from './engine/overlay-v2.js'
+import { contentHashOf } from './engine/content-path.js'
+import { getJournalDir } from './overlay-journals.js'
 import { OVERLAY_NAMESPACE, OVERLAY_NAMESPACE_ENC } from './overlay-namespaces.js'
 import { serveIndex } from './overlay-serve-index.js'
 import { makeServeAuthorizer, makeHolderAuthorizer, SECURITY_DENIALS } from './overlay-authorize.js'
 import { recordServeDenial, resetServeDenialAudit } from './serve-denial-audit.js'
 import { onServeStart as ledgerServeStart, onChunkServed as ledgerChunkServed, onServeEnd as ledgerServeEnd, onServeControl as ledgerServeControl, onServeBaseline as ledgerServeBaseline } from '../../serve-ledger.js'
-import { getStore, getStoragePath, hasMasterSecret, overlayIndexEncryptionKey } from '../../../core/store.js'
+import { getStore, hasMasterSecret, overlayIndexEncryptionKey } from '../../../core/store.js'
 import { PARTIAL_SUFFIX } from '../../partial-suffix.js'
-import path from 'bare-path'
 import b4a from 'b4a'
 import { getLocalPublicKeyHex } from '../../../spaces/profile.js'
 import { authorizedOn } from '../../../network/swarm-registries.js'
@@ -60,12 +61,6 @@ let downloadLimiter = null
 // a content-request's peer back to the socket the handshake authenticated on.
 const peerSocket = new WeakMap()
 
-const CONTENT_PREFIX = 'content:'
-
-function contentHashOf(synthPath) {
-  return synthPath && synthPath.startsWith(CONTENT_PREFIX) ? synthPath.slice(CONTENT_PREFIX.length) : synthPath
-}
-
 // Short remote Noise key for log lines; attachOverlay records the socket before onopen fires.
 function noiseKeyLabel(peer) {
   const key = peerSocket.get(peer)?.remotePublicKey
@@ -74,12 +69,6 @@ function noiseKeyLabel(peer) {
 
 export function getOverlay() {
   return overlay
-}
-
-// App-private receive-journal dir (sibling of the Corestore, like identity.enc).
-// Resolved on demand so cleanup paths don't depend on the overlay being live.
-export function getJournalDir() {
-  return path.join(path.dirname(getStoragePath()), 'journals')
 }
 
 export async function initOverlay() {

@@ -41,28 +41,28 @@ test('closeProtocol drops the protocol but leaves the index serving', async (t) 
   await o.registerFile(early.diskPath, { contentHash: early.contentHash, size: early.size })
 
   o.closeProtocol()
-  t.is(o._protocol, null, 'the protocol is gone')
+  t.is(o.protocol, null, 'the protocol is gone')
 
-  t.is(o._contentHashPaths.get(early.contentHash), early.diskPath, 'what was registered before is still servable')
+  t.is((await o.fetchFile(early.contentHash, {}))?.destPath, early.diskPath, 'what was registered before is still servable')
 
   const late = fileOnDisk('cp-late')
   const res = await o.registerFile(late.diskPath, { contentHash: late.contentHash, size: late.size })
   t.not(res, null, 'registration still works')
-  t.is(o._contentHashPaths.get(late.contentHash), late.diskPath, 'and the registration landed')
+  t.is((await o.fetchFile(late.contentHash, {}))?.destPath, late.diskPath, 'and the registration landed')
   const map = [{ hash: 'h', offset: 0, length: late.size }]
-  await o._index.putChunkMapByHash(late.contentHash, map)
-  t.alike(await o._index.getChunkMapByHash(late.contentHash), map, 'the index still accepts writes and serves them')
+  await o.index.putChunkMapByHash(late.contentHash, map)
+  t.alike(await o.index.getChunkMapByHash(late.contentHash), map, 'the index still accepts writes and serves them')
 
-  // registerFile awaits _ensure(); the resolved stack promise must satisfy it rather than
+  // registerFile awaits the stack build; the resolved build must satisfy it rather than
   // rebuilding a protocol nobody is holding.
-  t.is(o._protocol, null, 'a post-close write does not resurrect the protocol')
+  t.is(o.protocol, null, 'a post-close write does not resurrect the protocol')
 })
 
 test('closeProtocol is idempotent and close() still completes after it', async (t) => {
   const o = await overlay(t, 'cp-idem')
   o.closeProtocol()
   o.closeProtocol()
-  t.is(o._protocol, null, 'the second call is a no-op')
+  t.is(o.protocol, null, 'the second call is a no-op')
   await o.close()
   t.pass('close() runs its index teardown with the protocol already gone')
 })
@@ -77,12 +77,12 @@ test('closeProtocol tears the peer down while the socket is still alive', async 
   b.attachProtocol(Protomux.from(pb))
   await settle()
 
-  t.is(a._protocol._peers.size, 1, 'the channel opened')
+  t.is(a.peerCount, 1, 'the channel opened')
 
   a.closeProtocol()
   await settle()
 
-  t.is(b._protocol._peers.size, 0, 'the remote saw the channel close')
+  t.is(b.peerCount, 0, 'the remote saw the channel close')
   t.absent(pa.destroyed, 'our socket stayed up')
   t.absent(pb.destroyed, 'and so did the remote one')
 })

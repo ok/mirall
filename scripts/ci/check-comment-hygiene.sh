@@ -50,9 +50,8 @@ check_blocking() {
 # Internal tracker/audit/fix identifiers, alphanumeric suffixes included (FIX-BW9,
 # FIX-R09-2, LIFECYCLE-3d). Uppercase-only on purpose: lowercase occurrences (e.g.
 # frozen on-disk marker strings) are identifiers, not comments; the leading class
-# keeps PREFIX-… from matching. engine/ is exempt: its [mirall] FIX-BW tags are
-# divergence markers defined in PROVENANCE.md.
-check_blocking "internal audit/fix identifiers (MIR-n / FIX-n / LIFECYCLE-n)" '(^|[^A-Z])(MIR|FIX|LIFECYCLE)-[A-Z0-9]' '--exclude-dir=engine'
+# keeps PREFIX-… from matching.
+check_blocking "internal audit/fix identifiers (MIR-n / FIX-n / LIFECYCLE-n)" '(^|[^A-Z])(MIR|FIX|LIFECYCLE)-[A-Z0-9]'
 
 # References to the planning workspace, in code and in PROVENANCE.md. The shipped
 # architecture reference (.claude/solution-architecture.md) is the one allowed
@@ -64,9 +63,8 @@ if [ -f "$PROVENANCE" ]; then
     "$(grep -HnE -e "$PLAN_DOCS" "$PROVENANCE" | grep -vE '\.claude/solution-architecture\.md' || true)"
 fi
 
-# Section cites into non-shipped docs. The overlay engine is exempt:
-# its § tags mark local divergence from upstream and are defined in PROVENANCE.md.
-check_blocking "section cites (§) outside engine/" '§' '--exclude-dir=engine'
+# Section cites into non-shipped docs.
+check_blocking "section cites (§)" '§'
 
 # Issue/PR numbers in comment context.
 check_blocking "issue/PR number references in comments" "$COMMENT"'.*#[0-9]{2,4}\b'

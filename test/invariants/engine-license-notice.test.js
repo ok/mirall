@@ -10,13 +10,20 @@ const ENGINE = path.join(root, 'src/shared/transfer/backends/overlay/engine')
 // in this repository has no row and carries no upstream header. When a derived file is split, each
 // part keeps its origin's row: code moved out of an AGPL-3.0-only file stays derived.
 const DERIVED = new Map([
-  ['chunk-scheduler.js', 'lib/chunk-scheduler.js'],
   ['chunker.js', 'lib/chunker.js'],
-  ['file-index.js', 'lib/file-index.js'],
-  ['messages-v2.js', 'lib/messages-v2.js'],
   ['overlay-v2.js', 'lib/overlay-v2.js'],
-  ['protocol-v2.js', 'lib/protocol-v2.js'],
-  ['transfer.js', 'lib/transfer.js'],
+  ['wire/messages.js', 'lib/messages-v2.js'],
+  ['wire/slots.js', 'lib/protocol-v2.js'],
+  ['wire/paging.js', 'lib/protocol-v2.js'],
+  ['protocol/protocol.js', 'lib/protocol-v2.js'],
+  ['protocol/channel.js', 'lib/protocol-v2.js'],
+  ['protocol/serve-session.js', 'lib/protocol-v2.js'],
+  ['protocol/fetch-session.js', 'lib/protocol-v2.js'],
+  ['scheduler/scheduler.js', 'lib/chunk-scheduler.js'],
+  ['scheduler/assign.js', 'lib/chunk-scheduler.js'],
+  ['transfer/transfer-manager.js', 'lib/transfer.js'],
+  ['transfer/prepare.js', 'lib/transfer.js'],
+  ['store/file-index.js', 'lib/file-index.js'],
 ])
 
 // Upstream tests ported alongside the engine source, by their path upstream.
@@ -69,6 +76,7 @@ test('every file derived from upstream opens with its license and modification n
 
 test('no first-party engine file claims an upstream origin', (t) => {
   const own = readdirSync(ENGINE, { recursive: true }).filter((name) => name.endsWith('.js') && !DERIVED.has(name))
+  t.ok(own.some((name) => name.includes('/')), 'the walk reaches the engine subfolders')
   t.alike(own.filter((name) => read(path.join(ENGINE, name)).includes('Derived from hyper-overlay')), [])
 })
 

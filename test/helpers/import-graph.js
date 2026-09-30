@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 
 export const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 
-const SKIP_DIRS = new Set(['node_modules', 'dist', 'engine', 'locales', '.git'])
+const SKIP_DIRS = new Set(['node_modules', 'dist', 'locales', '.git'])
 
 // Static relative imports only. A dynamic import() defers the edge to call time, so it cannot close
 // a load-time cycle; `import type` is erased before it runs and cannot either.

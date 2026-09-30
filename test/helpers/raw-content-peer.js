@@ -2,8 +2,8 @@ import Hyperswarm from 'hyperswarm'
 import Protomux from 'protomux'
 import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
-import c from 'compact-encoding'
-import * as m from '../../src/shared/transfer/backends/overlay/engine/messages-v2.js'
+import { handshake } from '../../src/shared/transfer/backends/overlay/engine/wire/messages.js'
+import { SLOTS } from '../../src/shared/transfer/backends/overlay/engine/wire/slots.js'
 import { LEGACY_FRAMES } from './legacy-overlay-frames.js'
 
 // A hand-built peer on a space's CONTENT topic (not the worker): it never sends a content-hello,
@@ -22,11 +22,12 @@ export async function rawContentPeer(t, { bootstrap, topicHex, answer = null }) 
   swarm.on('connection', (socket) => {
     socket.on('error', () => {})
     const mux = Protomux.from(socket)
-    const channel = mux.createChannel({ protocol: 'hyper-overlay/v2', id: null, handshake: m.handshake })
+    const channel = mux.createChannel({ protocol: 'hyper-overlay/v2', id: null, handshake })
     const msgs = {}
-    for (const { name, retired } of m.SLOTS) {
+    for (const slot of SLOTS) {
+      const name = slot.name
       msgs[name] = channel.addMessage({
-        encoding: retired ? c.raw : m[name],
+        encoding: slot.codec,
         onmessage: (msg) => {
           seen[name]?.push(msg)
           if (name === 'contentRequest' && answer) msgs.chunkHashes.send(answer(msg.contentHash))

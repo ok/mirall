@@ -12,8 +12,8 @@
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { getDownloadDir, isInsideDownloadDir } from '../../../core/paths.js'
-import { getOverlay, getJournalDir } from './overlay-instance.js'
-import { journalNameFor } from './engine/transfer.js'
+import { getOverlay } from './overlay-instance.js'
+import { discardResumeJournal } from './overlay-journals.js'
 import { PARTIAL_SUFFIX, partialPathFor } from '../../partial-suffix.js'
 import { isOwnerOnline } from '../../../network/presence-leases.js'
 import { clearPending, recordPendingError, getPendingFor, listPendingForSpace } from '../../pending-transfers.js'
@@ -188,8 +188,7 @@ function partialAllocatedBytes(finalPath) {
 // overlay singleton is currently live (cancel/discard can race startup or teardown).
 function discardPartial(finalPath) {
   try { fs.unlinkSync(partialPathFor(finalPath)) } catch {}
-  const jd = getJournalDir()
-  if (jd) { try { fs.unlinkSync(path.join(jd, journalNameFor(finalPath))) } catch {} }
+  discardResumeJournal(finalPath)
 }
 
 // The one place an abort reaches the engine, and only once a fetch is in flight there.

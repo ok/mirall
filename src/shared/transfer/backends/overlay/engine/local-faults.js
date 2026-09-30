@@ -16,18 +16,23 @@ const RETRIED_CODES = new Set([...TRANSIENT_WRITE_CODES, 'ETARGETCHANGED'])
 // Verdicts about the bytes or the fetch itself, as opposed to a fault of one destination.
 const FETCH_VERDICTS = new Set(['EHASHMISMATCH', 'ECANCELLED'])
 
-export function isTransientWriteCode (code) {
+export function isTransientWriteCode(code) {
   return TRANSIENT_WRITE_CODES.has(code)
 }
 
 // True when a failed fetch must reach the caller as a rejection rather than as "no holder".
-export function surfacesToCaller (err) {
+export function surfacesToCaller(err) {
   const code = err?.code
   return typeof code === 'string' && code !== '' && !RETRIED_CODES.has(code)
 }
 
 // True when a failed fetch ended on a fault of its own destination, which says nothing about
 // another fetch of the same content into a different one.
-export function isDestinationFault (err) {
+export function isDestinationFault(err) {
   return surfacesToCaller(err) && !FETCH_VERDICTS.has(err.code)
+}
+
+// An Error carrying a code, the one shape every coded failure above takes.
+export function codedError(message, code) {
+  return Object.assign(new Error(message), { code })
 }

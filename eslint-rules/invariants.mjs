@@ -507,3 +507,25 @@ export const pureSpacesModules = [
 // The pure half of shares/ — the catalog key grammar and the listing fold, loaded by test/unit
 // under plain Node.
 export const pureSharesModules = ['catalog-keys', 'catalog-tally']
+
+// The overlay engine is a closed import graph: packages and its own files, never the app. The
+// wrapper passes collaborators in (overlay-instance.js). A relative climb out of engine/ is one
+// `../` from engine/*.js and two from engine/<dir>/*.js, so the grammar comes in two depths;
+// engine-closed-graph.test.js pins that nothing sits deeper.
+export const ENGINE_DIR = 'src/shared/transfer/backends/overlay/engine'
+const engineMessage = 'The overlay engine imports packages and its own files only — have the wrapper pass the collaborator in (overlay-instance.js).'
+export const engineClosedGraph = {
+  top: [{ regex: '^\\.\\./', message: engineMessage }, { regex: '(^|/)src/', message: engineMessage }],
+  nested: [{ regex: '^\\.\\./\\.\\./', message: engineMessage }, { regex: '(^|/)src/', message: engineMessage }],
+  bare: { group: ['bare-*'], message: 'This engine module is pure so test/unit loads it under Node — do the I/O in the module that calls it.' },
+}
+// no-restricted-imports cannot see import(); the engine has none and needs none.
+export const engineDynamicImport = [{ selector: 'ImportExpression', message: engineMessage }]
+// The engine modules that import no bare-*, so test/unit drives them under Node.
+export const pureEngineModules = [
+  'chunker', 'content-path', 'local-faults', 'yield-to-loop',
+  'wire/messages', 'wire/slots', 'wire/paging',
+  'protocol/channel', 'protocol/serve-grants', 'protocol/serve-fds', 'protocol/transport-probe',
+  'scheduler/scheduler', 'scheduler/liveness', 'scheduler/map-admission', 'scheduler/assign',
+  'store/paged-values',
+]

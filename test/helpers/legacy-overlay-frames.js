@@ -1,7 +1,7 @@
 // Byte builders for the retired hyper-overlay/v2 slots, as v1.11.x encodes them (pinned by
 // test/fixtures/overlay-wire/v1.json). Tests use them to play an old or a hostile peer.
 import c from 'compact-encoding'
-import { SLOTS } from '../../src/shared/transfer/backends/overlay/engine/messages-v2.js'
+import { SLOTS } from '../../src/shared/transfer/backends/overlay/engine/wire/slots.js'
 
 const h32 = (x) => (Buffer.isBuffer(x) ? x : Buffer.from(x, 'hex'))
 

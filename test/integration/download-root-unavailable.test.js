@@ -9,6 +9,11 @@ import { CODES } from '../../src/shared/contract/errors.js'
 import { createOverlayDownloadEngine } from '../../src/shared/transfer/backends/overlay/overlay-download.js'
 import { createOverlayChannel } from '../../src/shared/transfer/backends/overlay/overlay-channel.js'
 import { scaled } from '../helpers/bare-timing.js'
+import Protomux from 'protomux'
+import { makeDuplex } from './overlay-link-helpers.js'
+import { attachOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
+import { socketToPeers } from '../../src/shared/network/swarm-registries.js'
+import { getRuntimeConfig, setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 
 // REGRESSION (FIX-DLDIR-2: a download folder that had been deleted, ejected, or replaced by a
 // file produced no message the user could act on).
@@ -16,7 +21,7 @@ import { scaled } from '../helpers/bare-timing.js'
 // Two separate holes, both covered here:
 //
 //  1. NO ERROR AT ALL for the commonest case. The receive path mkdir -p's the destination
-//     (engine/transfer.js), so a folder the user simply deleted was silently recreated and the
+//     (engine/transfer/transfer-manager.js), so a folder the user simply deleted was silently recreated and the
 //     download completed into a resurrected empty folder. Nothing failed, so nothing could be
 //     classified — only a preflight catches it.
 //  2. THE WRONG ERROR when the mkdir did fail. Every local-fs errno fell through
@@ -189,6 +194,21 @@ test('a local-fs failure with the folder still present keeps its own classificat
   t.is(errorsIn(events)[0], CODES.TRANSFER_PERMISSION, 'still a permission error, not a folder fault')
 })
 
+// The owner, reachable the way the app reaches one: an overlay channel attached through
+// attachOverlay on a socket the handshake registry says carries the owner. The overlay is rebuilt
+// with the control plane carrying content, so that registry is the one its holder gate reads.
+async function reachableOwner(t) {
+  const saved = getRuntimeConfig()
+  await teardownOverlay()
+  setRuntimeConfig({ ...saved, separateContentPlane: false })
+  await initOverlay()
+  const [socket] = makeDuplex()
+  socketToPeers.set(socket, new Set([OWNER]))
+  attachOverlay(Protomux.from(socket), socket)
+  t.teardown(() => { socketToPeers.delete(socket); setRuntimeConfig(saved) })
+  return getOverlay()
+}
+
 // The real engine, not a stubbed fetchFile: the receive fails with a coded local fault, which must
 // reach the classifier instead of reading as "no holder" and stall-retrying on every reconnect.
 test('REGRESSION (local faults read as no holder): an engine ENOTDIR on a vanished folder stops the row', async (t) => {
@@ -200,11 +220,9 @@ test('REGRESSION (local faults read as no holder): an engine ENOTDIR on a vanish
   const engine = createOverlayDownloadEngine(testChannel(events, {
     resolvePendingRow: async () => ({ removed: false, seq: undefined, job }),
   }))
-  const overlay = getOverlay()
-  overlay._protocol._peers = new Map([['p', { channel: { close() {} } }]])
-  overlay._holderAuthorizer = () => true
+  const overlay = await reachableOwner(t)
   let fetches = 0
-  overlay._protocol.fetchContent = async () => {
+  overlay.protocol.fetchContent = async () => {
     fetches++
     fs.rmSync(dir, { recursive: true, force: true })
     const err = new Error("ENOTDIR: not a directory, mkdir '" + dir + "'")

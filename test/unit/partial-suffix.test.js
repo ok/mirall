@@ -45,12 +45,12 @@ test('no app module imports the suffix helpers out of the overlay engine', (t) =
       }
       if (!entry.name.endsWith('.js')) continue
       const src = fs.readFileSync(full, 'utf8')
-      for (const m of src.matchAll(/import\s*{([^}]*)}\s*from\s*['"]([^'"]*engine\/transfer\.js)['"]/g)) {
+      for (const m of src.matchAll(/import\s*{([^}]*)}\s*from\s*['"]([^'"]*engine\/transfer\/[^'"]+\.js)['"]/g)) {
         const named = m[1]
         if (/\bPARTIAL_SUFFIX\b|\bpartialPathFor\b/.test(named)) offenders.push(path.relative(SRC, full))
       }
     }
   }
   walk(SRC)
-  t.alike(offenders, [], 'PARTIAL_SUFFIX / partialPathFor are never imported from engine/transfer.js')
+  t.alike(offenders, [], 'PARTIAL_SUFFIX / partialPathFor are never imported from engine/transfer/')
 })

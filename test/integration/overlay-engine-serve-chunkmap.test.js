@@ -36,12 +36,12 @@ test('owner reuses the publish-time chunk map at serve (no re-chunk)', async (t)
   // Publish — chunks the file exactly once.
   await pub.prepareForServe(src)
   await pub.registerFile(src, { contentHash: oid, size: content.length })
-  t.ok(await pub._index.getChunkMapByHash(oid), 'publish populated the content-addressed chunk map')
+  t.ok(await pub.index.getChunkMapByHash(oid), 'publish populated the content-addressed chunk map')
 
   // Spy AFTER publish: from here, any prepareFile call is a serve-time re-chunk.
   let reChunks = 0
-  const realPrepare = pub._transfer.prepareFile.bind(pub._transfer)
-  pub._transfer.prepareFile = (...a) => { reChunks++; return realPrepare(...a) }
+  const realPrepare = pub.transfer.prepareFile.bind(pub.transfer)
+  pub.transfer.prepareFile = (...a) => { reChunks++; return realPrepare(...a) }
 
   const con = makeOverlay(tmpStore('cm-con'), { namespace: 'mirall-overlay' })
   await con.ready()

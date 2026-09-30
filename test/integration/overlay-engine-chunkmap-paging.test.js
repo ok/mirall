@@ -6,7 +6,7 @@
 // across multiple values transparently; the public API is unchanged.
 import test from 'brittle'
 import { tmpStore } from './overlay-engine-helpers.js'
-import { FileIndex } from '../../src/shared/transfer/backends/overlay/engine/file-index.js'
+import { FileIndex } from '../../src/shared/transfer/backends/overlay/engine/store/file-index.js'
 
 const HYPERCORE_MAX_BLOCK = 15 * 1024 * 1024
 

@@ -41,6 +41,7 @@ test('only the overlay runtime imports the serve revoke and the epoch bump from 
 
 test('space:leave revokes serves through the overlay backend exactly once', (t) => {
   const src = read(SPACE_LEAVE)
-  t.is(src.split('overlayBackend?.revokeServesForSpace(').length - 1, 1, 'one call through the backend')
+  t.is(src.split('overlay.revokeServesForSpace(').length - 1, 1, 'one call through the backend')
+  t.ok(src.includes("if (!overlayBackend) throw new TypeError("), 'and the backend is required, not optional')
   t.absent(/\bbumpServeEpoch\s*\(/.test(src), 'and no hand-rolled epoch bump beside it')
 })

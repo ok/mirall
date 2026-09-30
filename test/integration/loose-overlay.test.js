@@ -415,9 +415,9 @@ test('R11 (Item 2A): publish builds the chunk map in one pass; the first serve d
   const ctx = await setup(t)
   const overlay = getOverlay()
   let prepareCalls = 0
-  const realPrepare = overlay._transfer.prepareFile.bind(overlay._transfer)
-  overlay._transfer.prepareFile = (...a) => { prepareCalls++; return realPrepare(...a) }
-  t.teardown(() => { overlay._transfer.prepareFile = realPrepare })
+  const realPrepare = overlay.transfer.prepareFile.bind(overlay.transfer)
+  overlay.transfer.prepareFile = (...a) => { prepareCalls++; return realPrepare(...a) }
+  t.teardown(() => { overlay.transfer.prepareFile = realPrepare })
 
   // >1MB so the chunk map is persisted (by hash) — proves it is built at publish, so
   // the first peer fetch never pays a full-file re-chunk before the first byte.
@@ -426,11 +426,11 @@ test('R11 (Item 2A): publish builds the chunk map in one pass; the first serve d
   const entry = await getOwnEntry(ctx.spaceId, LOOSE_SHARE_ID, 'big.bin')
 
   t.is(prepareCalls, 1, 'publish built the chunk map once (single hash+chunk streaming pass)')
-  t.ok(await overlay._index.getChunkMapByHash(entry.contentHash), 'chunk map persisted by hash → no fetch-time re-chunk')
+  t.ok(await overlay.index.getChunkMapByHash(entry.contentHash), 'chunk map persisted by hash → no fetch-time re-chunk')
   // The prep pass persists no path-keyed state under the throwaway /mir-prep key: the serve path
   // resolves by hash and never reads it.
-  t.absent(await overlay._index.bee.get('chunkmap:/mir-prep' + abs), 'no path-keyed /mir-prep chunk map (no FileIndex bloat)')
-  t.absent(await overlay._index.bee.get('file:/mir-prep' + abs), 'no /mir-prep file record')
+  t.absent(await overlay.index.bee.get('chunkmap:/mir-prep' + abs), 'no path-keyed /mir-prep chunk map (no FileIndex bloat)')
+  t.absent(await overlay.index.bee.get('file:/mir-prep' + abs), 'no /mir-prep file record')
   t.ok(serveIndex.has(entry.contentHash), 'file is registered as servable')
   const got = await getOverlay().fetchFile(entry.contentHash, {})
   t.is(got.destPath, abs, 'a local fetch returns the source path (no copy)')

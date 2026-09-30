@@ -24,7 +24,7 @@ test('overlay file-index is never classified or purged as leftover', async (t) =
   fs.writeFileSync(abs, Buffer.alloc(2 * 1024 * 1024, 5))
   await overlayBackend.publishAdd(spaceId, share, 'big.bin', abs)
   const hash = (await getOwnEntry(spaceId, share.id, 'big.bin')).contentHash
-  t.ok(await getOverlay()._index.hasChunkMapByHash(hash), 'precondition: chunk map present')
+  t.ok(await getOverlay().index.hasChunkMapByHash(hash), 'precondition: chunk map present')
 
   const fiDk = (await getOverlayLocalDiscoveryKeys())[0]
   t.ok(fiDk && await coreInStore(fiDk), 'precondition: file-index core present + resolved')
@@ -35,5 +35,5 @@ test('overlay file-index is never classified or purged as leftover', async (t) =
 
   await purgeLeftovers()
   t.ok(await coreInStore(fiDk), 'file-index core survives a full leftover cleanup')
-  t.ok(await getOverlay()._index.hasChunkMapByHash(hash), 'chunk map intact after cleanup')
+  t.ok(await getOverlay().index.hasChunkMapByHash(hash), 'chunk map intact after cleanup')
 })

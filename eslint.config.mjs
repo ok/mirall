@@ -49,6 +49,10 @@ import {
   pureFolderPolicyModules,
   pureSpacesModules,
   pureSharesModules,
+  pureEngineModules,
+  engineClosedGraph,
+  engineDynamicImport,
+  ENGINE_DIR,
 } from './eslint-rules/invariants.mjs'
 
 // Every renderer no-restricted-syntax table, by name. A later block's no-restricted-syntax REPLACES
@@ -64,11 +68,10 @@ const rendererRestrictedSyntax = (...drop) => [
 ]
 
 export default [
-  // The overlay engine keeps its own style until its gates are turned on.
   // Both dist trees are generated bundles: assets/dist is the app's, test/frontend-layout/dist is
-// whatever the layout harnesses last built. Neither is source, and linting a 2MB bundle drowns the
-// run in tens of thousands of findings.
-{ ignores: ['assets/dist/**', 'test/frontend-layout/dist/**', 'node_modules/**', 'src/shared/transfer/backends/overlay/engine/**'] },
+  // whatever the layout harnesses last built. Neither is source, and linting a 2MB bundle drowns the
+  // run in tens of thousands of findings.
+  { ignores: ['assets/dist/**', 'test/frontend-layout/dist/**', 'node_modules/**'] },
 
   // Renderer — sandboxed React UI. Accessibility rules stay ERRORS (the a11y gate); complexity
   // is advisory on top.
@@ -191,6 +194,33 @@ export default [
         patterns: [{ group: ['bare-*'], message: 'This module is pure so test/unit loads it under Node — do the I/O in the engine that calls it.' }],
       }],
     },
+  },
+
+  // The overlay engine — see engineClosedGraph. A later block's no-restricted-imports replaces an
+  // earlier one, so the pure blocks repeat the closed-graph patterns.
+  {
+    files: [`${ENGINE_DIR}/*.js`],
+    rules: {
+      'no-restricted-imports': ['error', { patterns: engineClosedGraph.top }],
+      'no-restricted-syntax': ['error', ...moduleLevelTimerRestrictions, ...moduleScopeTimerHandleRestrictions, ...engineDynamicImport],
+      'max-lines': ['warn', { max: 400, skipBlankLines: true, skipComments: true }],
+    },
+  },
+  {
+    files: [`${ENGINE_DIR}/*/*.js`],
+    rules: {
+      'no-restricted-imports': ['error', { patterns: engineClosedGraph.nested }],
+      'no-restricted-syntax': ['error', ...moduleLevelTimerRestrictions, ...moduleScopeTimerHandleRestrictions, ...engineDynamicImport],
+      'max-lines': ['warn', { max: 400, skipBlankLines: true, skipComments: true }],
+    },
+  },
+  {
+    files: pureEngineModules.filter((m) => !m.includes('/')).map((m) => `${ENGINE_DIR}/${m}.js`),
+    rules: { 'no-restricted-imports': ['error', { patterns: [...engineClosedGraph.top, engineClosedGraph.bare] }] },
+  },
+  {
+    files: pureEngineModules.filter((m) => m.includes('/')).map((m) => `${ENGINE_DIR}/${m}.js`),
+    rules: { 'no-restricted-imports': ['error', { patterns: [...engineClosedGraph.nested, engineClosedGraph.bare] }] },
   },
 
   // Electron main — host process (CommonJS). Node globals only: main is not a browser context, and

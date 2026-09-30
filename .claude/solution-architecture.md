@@ -1101,7 +1101,7 @@ unavailable, never as a route; `test/integration/content-backend-conformance.tes
 nothing is version 1 with no capabilities, so a capability-gated behaviour is simply off against it.
 The decoder must be **total**: any channel dying takes the whole socket, and the channel id is
 public, so a decoder that could throw gives any swarm peer a one-frame socket kill. Raise
-`MIN_VERSION` (`src/shared/transfer/backends/overlay/engine/protocol-v2.js`) only in the change that
+`MIN_VERSION` (`src/shared/transfer/backends/overlay/engine/wire/slots.js`) only in the change that
 drops a message slot or changes a codec. A peer below it loses only its content channel. The control
 channel (`mirall/handshake`, or `mirall/content-hello` with the separate content plane) and
 Corestore replication stay up. New wire messages are appended last, so older peers ignore them.
@@ -1114,6 +1114,15 @@ origin and license. It imports npm packages and its own files only. Mirall polic
 catalogs, lifecycle, limiters, caches) stays outside it and is **injected** from
 `src/shared/transfer/backends/overlay/overlay-instance.js`. Its wire contract with released peers —
 message slots 0–14 in order, each kept codec byte-for-byte — is Mirall's to keep, not upstream's.
+
+The engine's folders, each sibling owning its own state and its root holding only the wiring:
+`wire/` (the slot table, codecs and chunk-list paging), `protocol/` (the channel and its peers,
+serve grants, the serve loop, serve fds, transport probes, the fetch registry), `scheduler/` (one
+fetch's chunk state, liveness watchdog, map admission, assignment), `transfer/` (receives, the
+resume journal, prepare, serve reads, fd accounting) and `store/` (the chunk-map index and its paged
+values). `overlay-v2.js` is the facade the wrapper builds. App code enters only through an
+allowlisted module (`test/invariants/engine-boundaries.test.js`); journals go through
+`overlay-journals.js`.
 
 **Bandwidth caps** (`src/shared/transfer/bandwidth-limiter.js`; its header has the mechanics):
 
@@ -1343,9 +1352,6 @@ not await async listeners.
 - **Preload has no structural contract.** `src/preload/preload.js` is sandboxed and unbundled, so it
   can't import `src/shared/contract/`. `test/invariants/preload-parity.test.js` checks its key set
   against `src/renderer/platform/global.d.ts`, but nothing checks signatures.
-- **The overlay engine has no static analysis yet.** eslint, knip and the comment-hygiene gate
-  still exempt `engine/`, and tsc doesn't cover `src/shared` beyond `contract/`. Until those
-  exemptions are retired, its tests are what protect it.
 
 ---
 

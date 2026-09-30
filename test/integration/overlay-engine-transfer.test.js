@@ -8,8 +8,9 @@
 // src/shared/transfer/backends/overlay/engine/PROVENANCE.md.
 import test from 'brittle'
 import { tmpStore, tmpDir, fs, path } from './overlay-engine-helpers.js'
-import { FileIndex } from '../../src/shared/transfer/backends/overlay/engine/file-index.js'
-import { TransferManager, openFdCount } from '../../src/shared/transfer/backends/overlay/engine/transfer.js'
+import { FileIndex } from '../../src/shared/transfer/backends/overlay/engine/store/file-index.js'
+import { TransferManager } from '../../src/shared/transfer/backends/overlay/engine/transfer/transfer-manager.js'
+import { openFdCount } from '../../src/shared/transfer/backends/overlay/engine/transfer/fd-accounting.js'
 import { hashChunk, selectTier, chunk as chunkBuffer } from '../../src/shared/transfer/backends/overlay/engine/chunker.js'
 import crypto from 'hypercore-crypto'
 
@@ -388,7 +389,7 @@ test('pause keeps the partial (active transfer cleared); cancel needs an active 
   const state = await transfer.startReceive(targetPath, { size: 100, chunks: [{ hash: 'h1', offset: 0, length: 100 }] })
   await transfer.pause(targetPath)
   t.ok(fs.existsSync(state.partialPath), 'pause keeps the partial on disk')
-  t.absent(transfer._active.has(targetPath), 'pause removes the active transfer')
+  t.absent(transfer.receiveState(targetPath), 'pause removes the active transfer')
   fs.unlinkSync(state.partialPath) // the loose layer unlinks a paused partial by path on discard
   await index.close()
 })
@@ -433,7 +434,7 @@ test('cancel removes partial file', async (t) => {
   transfer.cancel(targetPath)
 
   t.is(fs.existsSync(state.partialPath), false, 'partial cleaned up')
-  t.absent(transfer._active.has(targetPath), 'no active transfer')
+  t.absent(transfer.receiveState(targetPath), 'no active transfer')
 
   await index.close()
 })
@@ -1064,7 +1065,7 @@ test('finalize rename failure carries the code, clears the state, and a retry re
   fs.renameSync = origRename
   t.absent(fin.ok, 'finalize reports the rename failure')
   t.is(fin.code, 'ENOENT', 'the fs error code is surfaced (coded local-I/O classification)')
-  t.absent(transfer._active.has(targetPath), 'no parked state left in _active')
+  t.absent(transfer.receiveState(targetPath), 'no parked state left')
   t.ok(fs.existsSync(partialFor(targetPath)), 'partial kept for the retry')
 
   const st2 = await transfer.startReceive(targetPath, { size: prepared.size, chunks: prepared.chunks, contentHash: oid })

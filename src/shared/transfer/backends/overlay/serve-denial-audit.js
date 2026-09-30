@@ -19,7 +19,6 @@ const deniedRecently = new Map()
 // refused" with a blank avatar and tells the reader nothing. Both are best-effort: a denied peer
 // is often not a member of any space we share (that is why it was denied), and a hash we do not
 // hold has no name here — in which case the row falls back to a short key rather than nothing.
-/** @internal */
 export function recordServeDenial(reason, { from, contentHash }) {
   const key = (from || '') + '\0' + (contentHash || '')
   const now = Date.now()

@@ -78,7 +78,7 @@ const DATA_LAYER = ['shared', 'worker', 'main']
 function walkSrc(dir, pattern, out = []) {
   for (const name of readdirSync(dir)) {
     const p = path.join(dir, name)
-    if (statSync(p).isDirectory()) { if (name !== 'engine' && name !== 'contract') walkSrc(p, pattern, out) }
+    if (statSync(p).isDirectory()) { if (name !== 'contract') walkSrc(p, pattern, out) }
     else if (pattern.test(name)) out.push(p)
   }
   return out

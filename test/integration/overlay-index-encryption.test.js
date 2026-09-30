@@ -2,7 +2,7 @@ import test from 'brittle'
 import b4a from 'b4a'
 import Corestore from 'corestore'
 import { mkdtempSync, fs, path, os } from './overlay-engine-helpers.js'
-import { FileIndex } from '../../src/shared/transfer/backends/overlay/engine/file-index.js'
+import { FileIndex } from '../../src/shared/transfer/backends/overlay/engine/store/file-index.js'
 import { freshPeer } from '../helpers/store.js'
 import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/transfer/backends/overlay/overlay-instance.js'
 import { initOverlayIpc } from '../helpers/overlay-ipc.js'
@@ -71,7 +71,7 @@ test('initOverlay encrypts the local index cores when M is present', async (t) =
   for (const core of cores) {
     t.absent(await rawContains(core, contentHash), 'no plaintext hash in a local index core')
   }
-  t.ok(await overlay._index.getChunkMapByHash(contentHash), 'index reads the entry back in-process')
+  t.ok(await overlay.index.getChunkMapByHash(contentHash), 'index reads the entry back in-process')
 })
 
 test('a keyless peer replicating the encrypted index reads only ciphertext', async (t) => {

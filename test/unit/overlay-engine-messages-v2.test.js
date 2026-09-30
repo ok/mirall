@@ -7,7 +7,7 @@
 // verbatim EXCEPT the contentRequest cases, updated for the [mirall] §4.1 `from`
 // field. See src/shared/transfer/backends/overlay/engine/PROVENANCE.md.
 import test from 'brittle'
-import * as m from '../../src/shared/transfer/backends/overlay/engine/messages-v2.js'
+import * as m from '../../src/shared/transfer/backends/overlay/engine/wire/messages.js'
 import crypto from 'hypercore-crypto'
 
 function roundTrip(t, codec, value) {

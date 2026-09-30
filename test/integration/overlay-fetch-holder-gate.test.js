@@ -22,21 +22,22 @@ async function scene(t, { holders, serveDelayMs = 300, reqOpts = {} }) {
 
   const owner = await overlay(t, 'hg-own', { serveAuthorizer: async (_p, from) => from === MEMBER })
   await owner.registerFile(src, { contentHash: oid, size: content.length })
-  const realServe = owner._protocol._onContentRequest.bind(owner._protocol)
-  owner._protocol._onContentRequest = async (peer, msg) => {
+  const ownerServe = owner.protocol.serve
+  const realServe = ownerServe.onContentRequest.bind(ownerServe)
+  ownerServe.onContentRequest = async (peer, msg) => {
     await settle(serveDelayMs)
     if (!owner.closing) return realServe(peer, msg)
   }
   const ownerSeen = { transferControl: 0 }
-  const realControl = owner._protocol._onTransferControl.bind(owner._protocol)
-  owner._protocol._onTransferControl = (peer, msg) => { ownerSeen.transferControl++; return realControl(peer, msg) }
+  const realControl = ownerServe.onTransferControl.bind(ownerServe)
+  ownerServe.onTransferControl = (peer, msg) => { ownerSeen.transferControl++; return realControl(peer, msg) }
 
   const raw = await overlay(t, 'hg-raw')
   const seen = { contentRequest: 0, transferControl: 0, transferProgress: 0 }
   const forged = { path: 'content:' + oid, tier: 0, chunks: [{ hash: 'e'.repeat(64), length: content.length * 4 }], more: 0 }
-  raw._protocol._onContentRequest = (peer) => { seen.contentRequest++; peer.msgs.chunkHashes.send(forged) }
-  raw._protocol._onTransferControl = () => { seen.transferControl++ }
-  raw._protocol._onTransferProgress = () => { seen.transferProgress++ }
+  raw.protocol.serve.onContentRequest = (peer) => { seen.contentRequest++; peer.msgs.chunkHashes.send(forged) }
+  raw.protocol.serve.onTransferControl = () => { seen.transferControl++ }
+  raw.protocol.serve.onTransferProgress = () => { seen.transferProgress++ }
 
   const accepted = new Set()
   const req = await overlay(t, 'hg-req', {
@@ -67,8 +68,8 @@ test('REGRESSION (MIR-46: a map whose sum is not the catalog size creates no par
   const { req, content, oid } = await scene(t, { holders: ['raw'] })
   const dest = path.join(tmpDir('hg-out2'), 'doc.bin')
   let started = 0
-  const real = req._transfer.startReceive.bind(req._transfer)
-  req._transfer.startReceive = (...a) => { started++; return real(...a) }
+  const real = req.transfer.startReceive.bind(req.transfer)
+  req.transfer.startReceive = (...a) => { started++; return real(...a) }
   const got = await req.fetchFile(oid, { destPath: dest, ownerKey: OWNER, size: content.length, timeout: scaled(3000) })
   t.is(got, null, 'reported as no holder, not as an integrity failure')
   t.is(started, 0, 'startReceive never ran')
@@ -114,21 +115,22 @@ test('REGRESSION (MIR-53: chunk data from a peer the fetch took no map from reac
   const p = 'content:' + oid
   const f = req.fetchFile(oid, { destPath: path.join(tmpDir('hg-out5'), 'doc.bin'), ownerKey: OWNER, size: content.length, timeout: scaled(20000) })
   f.catch(() => {})
-  await waitFor(() => req._protocol._schedulers.get(p)?._chunks, 5000, { interval: 10, label: "the owner's map adopted" })
-  const sched = req._protocol._schedulers.get(p)
+  const schedOf = () => req.protocol.fetches.get(oid)?.sched
+  await waitFor(() => schedOf()?.chunkMap, 5000, { interval: 10, label: "the owner's map adopted" })
+  const sched = schedOf()
   const reached = []
   const onChunkData = sched.onChunkData.bind(sched)
   sched.onChunkData = (peer, index, data) => { if (peer === rawOnReq) reached.push(index); return onChunkData(peer, index, data) }
 
-  const last = sched._chunks.length - 1
-  const junk = Buffer.alloc(sched._chunks[last].length, 0x55)
+  const last = sched.chunkMap.length - 1
+  const junk = Buffer.alloc(sched.chunkMap[last].length, 0x55)
   for (let i = 0; i < 20; i++) reqOnRaw.msgs.chunkData.send({ path: p, index: last, data: junk })
   await settle(300)
-  t.ok(req._protocol._schedulers.get(p) === sched && !sched._done, 'precondition: the fetch was still running as the frames landed')
+  t.ok(schedOf() === sched && !sched.done, 'precondition: the fetch was still running as the frames landed')
 
   t.is(reached.length, 0, 'no frame from the raw peer reached the scheduler')
   t.is(refunds.bytes, 0, 'the download cap took no refund')
-  t.absent(sched._peers.has(rawOnReq), 'the raw peer is not a source')
-  t.is(sched._peers.size, 1, 'the owner still is')
+  t.absent(sched.sources().has(rawOnReq), 'the raw peer is not a source')
+  t.is(sched.sources().size, 1, 'the owner still is')
   await req.cancelFetch(oid, { discardPartial: true })
 })

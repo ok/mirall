@@ -32,8 +32,7 @@ import { DownloadsBee, cleanupDownloadHistory } from '../shared/transfer/files.j
 import { PendingTransfersBee, clearPendingForSpace } from '../shared/transfer/pending-transfers.js'
 import { abortInFlightPublishes } from '../shared/transfer/backends/overlay/overlay-publish.js'
 import { ServeLedger } from '../shared/transfer/serve-ledger.js'
-import { getJournalDir } from '../shared/transfer/backends/overlay/overlay-instance.js'
-import { cleanupOrphanedJournals } from '../shared/transfer/backends/overlay/engine/transfer.js'
+import { sweepOrphanedJournals } from '../shared/transfer/backends/overlay/overlay-journals.js'
 import { cleanupOrphanedPartials } from '../shared/transfer/partial-sweep.js'
 import { Swarm } from '../shared/network/swarm.js'
 import { joinSpaceTopic } from '../shared/network/space-topics.js'
@@ -422,7 +421,7 @@ async function sweepOrphans(log) {
   })
 
   try {
-    cleanupOrphanedJournals(getJournalDir())
+    sweepOrphanedJournals()
   } catch (err) {
     log.warn('journal sweep failed:', err.message)
   }

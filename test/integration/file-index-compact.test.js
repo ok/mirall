@@ -28,7 +28,7 @@ test('compacting the overlay index drops superseded maps and frees disk', async 
   }
   await getStore().storage.db.flush()
 
-  const fi = getOverlay()._index
+  const fi = getOverlay().index
   t.ok(await fi.hasChunkMapByHash(liveHash), 'the current map is present')
   t.ok(await fi.hasChunkMapByHash(deadHashes[0]), 'a superseded map is present before compaction')
   const before = await getOverlayLocalByteLength()
@@ -36,7 +36,7 @@ test('compacting the overlay index drops superseded maps and frees disk', async 
   const res = await compactOverlayIndex()
   t.ok(res.compacted, 'compaction ran')
 
-  const fi2 = getOverlay()._index
+  const fi2 = getOverlay().index
   t.ok(await fi2.hasChunkMapByHash(liveHash), 'the served map survives compaction')
   for (const h of deadHashes) t.absent(await fi2.hasChunkMapByHash(h), 'a superseded map is dropped')
   const after = await getOverlayLocalByteLength()

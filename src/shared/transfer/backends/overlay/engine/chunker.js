@@ -17,8 +17,11 @@
 import crypto from 'hypercore-crypto'
 
 // ── Tier 0 (default, < 1 MB) ─────────────────────────────────
+/** @internal */
 export const MIN_SIZE = 4096
+/** @internal */
 export const AVG_SIZE = 16384
+/** @internal */
 export const MAX_SIZE = 65536
 
 // ── Adaptive chunk size tiers ─────────────────────────────────
@@ -40,7 +43,7 @@ const TIER_THRESHOLDS = [
  * @param {number} fileSize - total file size in bytes
  * @returns {number} tier index (0-3)
  */
-export function selectTier (fileSize) {
+export function selectTier(fileSize) {
   for (let i = 0; i < TIER_THRESHOLDS.length; i++) {
     if (fileSize < TIER_THRESHOLDS[i]) return i
   }
@@ -52,7 +55,7 @@ export function selectTier (fileSize) {
  * @param {number} tier - tier index (0-3)
  * @returns {{ minSize: number, avgSize: number, maxSize: number }}
  */
-export function getTierParams (tier) {
+export function getTierParams(tier) {
   return TIERS[tier] || TIERS[0]
 }
 
@@ -106,9 +109,10 @@ const TIER_MASKS = TIERS.map(t => ({
  *
  * @param {Buffer} data - Data to chunk
  * @param {{ tier?: number }} [opts] - Options. tier: force a specific tier (0-3). If omitted, auto-selects based on data.length.
- * @returns {Array<{ hash: string, offset: number, length: number, data: Buffer }>}
+ * @returns {Array<{ hash: string, offset: number, length: number, data: Uint8Array }>}
+ * @internal
  */
-export function chunk (data, opts) {
+export function chunk(data, opts) {
   if (data.length === 0) return []
 
   const tier = (opts && typeof opts.tier === 'number') ? opts.tier : selectTier(data.length)
@@ -169,10 +173,10 @@ export function chunk (data, opts) {
 
 /**
  * Hash a chunk using blake2b-256
- * @param {Buffer} data
+ * @param {Uint8Array} data
  * @returns {string} hex hash
  */
-export function hashChunk (data) {
+export function hashChunk(data) {
   return crypto.data(data).toString('hex')
 }
 
@@ -205,7 +209,7 @@ const LEAF_TYPE = Buffer.from([0])
  * stream open. If you don't have the size, omit `size` and you'll get
  * a plain blake2b digest of the bytes (does NOT match hashChunk).
  */
-export function createStreamingHasher (opts = {}) {
+export function createStreamingHasher(opts = {}) {
   const state = Buffer.alloc(sodium.crypto_generichash_STATEBYTES)
   let bytes = 0
   if (opts && opts.restore) {
@@ -222,24 +226,24 @@ export function createStreamingHasher (opts = {}) {
     }
   }
   return {
-    update (buf) {
+    update(buf) {
       sodium.crypto_generichash_update(state, buf)
       bytes += buf.length
     },
-    digest () {
+    digest() {
       const out = Buffer.alloc(32)
       sodium.crypto_generichash_final(state, out)
       return out.toString('hex')
     },
-    snapshot () { return { state: Buffer.from(state), bytes } },
-    get bytes () { return bytes }
+    snapshot() { return { state: Buffer.from(state), bytes } },
+    get bytes() { return bytes }
   }
 }
 
 // Find a FastCDC cut point inside `data` starting at offset 0. Returns
 // the chunk length. Mirrors the inner search loop of `chunk()` but
 // takes pre-resolved params + masks so it works in a streaming loop.
-function findCutPoint (data, params, masks) {
+function findCutPoint(data, params, masks) {
   const remaining = data.length
   if (remaining <= params.minSize) return remaining
 
@@ -263,14 +267,13 @@ function findCutPoint (data, params, masks) {
   return maxLen
 }
 
-// [mirall] §4.10 opt-in memcpy accounting for perf validation (see PROVENANCE.md).
-// Zero cost when off (one boolean check at the increment sites). Module-level
-// singletons — enabled only by tests + scripts/bench-prepare.mjs, never in src;
-// NOT concurrency-safe, so do not enable it in the running worker.
+// Opt-in memcpy accounting for perf validation, at the cost of one boolean check per increment
+// site when off. Module-level and not concurrency-safe: only tests and scripts/bench-prepare.mjs
+// enable it, never the running worker.
 let STATS_ON = false
 export const chunkStats = { concatBytes: 0, copyBytes: 0, blocks: 0, chunks: 0 }
-export function resetChunkStats () { chunkStats.concatBytes = 0; chunkStats.copyBytes = 0; chunkStats.blocks = 0; chunkStats.chunks = 0 }
-export function setChunkStats (on) { STATS_ON = !!on; if (on) resetChunkStats() }
+export function resetChunkStats() { chunkStats.concatBytes = 0; chunkStats.copyBytes = 0; chunkStats.blocks = 0; chunkStats.chunks = 0 }
+export function setChunkStats(on) { STATS_ON = !!on; if (on) resetChunkStats() }
 
 /**
  * Stream-friendly FastCDC chunker. Consumes an AsyncIterable<Buffer>
@@ -291,20 +294,22 @@ export function setChunkStats (on) { STATS_ON = !!on; if (on) resetChunkStats() 
  * boundaries as `chunk()`, regardless of input block size. Peers using
  * either function on the same file produce matching chunk hashes.
  *
- * @param {AsyncIterable<Buffer>} readable
+ * @param {AsyncIterable<Uint8Array>} readable
  * @param {{ tier?: number, copy?: boolean }} [opts]  tier index (0–3); copy
  *   defaults true. Callers with a known file size should pass `selectTier(size)`.
  */
-export async function * chunkStream (readable, opts = {}) {
+export async function * chunkStream(readable, opts = {}) {
   const tier = (opts && typeof opts.tier === 'number') ? opts.tier : 0
-  const copy = opts.copy !== false // [mirall] §4.10 false → yield views (see JSDoc)
+  const copy = opts.copy !== false
   const params = TIERS[tier] || TIERS[0]
   const masks = TIER_MASKS[tier] || TIER_MASKS[0]
 
   let pending = Buffer.alloc(0)
+  // bare-buffer declares subarray as returning a Uint8Array; on a Buffer it returns a Buffer.
+  const rest = (buf, from) => /** @type {Buffer} */ (buf.subarray(from))
   let absoluteOffset = 0
 
-  // [mirall] §4.10 single emit point for the stats accounting + copy:false decision.
+  // The one emit point, for the stats accounting and the copy decision.
   const emit = (slice) => {
     if (STATS_ON) { chunkStats.chunks++; if (copy) chunkStats.copyBytes += slice.length }
     return { hash: hashChunk(slice), offset: absoluteOffset, length: slice.length, data: copy ? Buffer.from(slice) : slice }
@@ -321,7 +326,7 @@ export async function * chunkStream (readable, opts = {}) {
       const cutLen = findCutPoint(pending, params, masks)
       yield emit(pending.subarray(0, cutLen))
       absoluteOffset += cutLen
-      pending = pending.subarray(cutLen)
+      pending = rest(pending, cutLen)
     }
   }
 
@@ -331,7 +336,7 @@ export async function * chunkStream (readable, opts = {}) {
     const cutLen = findCutPoint(pending, params, masks)
     yield emit(pending.subarray(0, cutLen))
     absoluteOffset += cutLen
-    pending = pending.subarray(cutLen)
+    pending = rest(pending, cutLen)
   }
 
   if (pending.length > 0) yield emit(pending)

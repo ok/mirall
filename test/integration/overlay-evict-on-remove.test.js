@@ -17,7 +17,7 @@ test('removing a shared file evicts its chunk map; a shared hash survives', asyn
   await overlayBackend.publishAdd(spaceId, share, 'a.bin', a)
   await overlayBackend.publishAdd(spaceId, share, 'b.bin', b)
   const hash = (await getOwnEntry(spaceId, share.id, 'a.bin')).contentHash
-  const fi = getOverlay()._index
+  const fi = getOverlay().index
   t.ok(await fi.hasChunkMapByHash(hash), 'chunk map present after publish')
 
   await overlayBackend.publishDelete(spaceId, share, 'a.bin')

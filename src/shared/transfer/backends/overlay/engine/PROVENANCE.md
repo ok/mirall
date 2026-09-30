@@ -14,6 +14,9 @@ upstream; an upstream fix is ported by hand, if at all. The wire contract with r
   lockfile/version-only bump; every `lib/` file below is byte-identical at both commits.
 - **Fork declared:** 2026-09-30. Upstream has since renamed `protocol-v2.js`, `overlay-v2.js` and
   `messages-v2.js` (0.3.x), so no mechanical re-diff exists past the snapshot.
+- **Derived files.** The engine is split into folders since the fork, so a file's upstream origin
+  is no longer its name: `test/invariants/engine-license-notice.test.js` maps every derived file to
+  the upstream file it came from, and a file with no row there is Mirall's own.
 - **Snapshot files.** SHA-256 of each upstream file as upstream ships it, and its git blob id at
   `6cac8ee`. Check one with `git -C "$UPSTREAM" show 6cac8ee:lib/<file> | shasum -a 256`.
 
@@ -293,10 +296,10 @@ re-diffable against upstream while it was tracked. Categories:
     an ordinary power-loss can never leave the journal marking a chunk received whose bytes aren't
     durable. The received bitmap is kept incrementally on the transfer state (one bit per `writeChunk`)
     rather than rebuilt from the `received` set each flush. The journal is removed on
-    finalize/cancel; orphans are swept by `cleanupOrphanedJournals(getJournalDir())`, wired into the
-    worker boot beside the partial sweep. Cancel/discard cleanup (`overlay-download.js#discardPartial`)
-    unlinks the partial + journal via the exported pure path helpers (`partialPathFor`/`journalNameFor`)
-    independent of whether the overlay singleton is live. `ChunkScheduler.onChunkHashes` is now
+    finalize/cancel; orphans are swept at worker boot beside the partial sweep, and cancel/discard
+    cleanup unlinks the partial and journal independent of whether the overlay singleton is live.
+    (Since the fork both go through the app's one journal door, `overlay-journals.js`:
+    `sweepOrphanedJournals` and `discardResumeJournal`.) `ChunkScheduler.onChunkHashes` is now
     `async` — it suppresses the no-progress watchdog (including later seeders' re-arms via a
     `_settingUp` flag) until setup completes, threads an `onVerify` callback alongside `onProgress`,
     and honors a cancel during setup; the protocol dispatches it (and `onChunkData`) with a `.catch`

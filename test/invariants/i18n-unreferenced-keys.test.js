@@ -24,7 +24,7 @@ function flatten(obj, prefix = '', out = []) {
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const p = path.join(dir, name)
-    if (statSync(p).isDirectory()) { if (name !== 'locales' && name !== 'engine') walk(p, out) }
+    if (statSync(p).isDirectory()) { if (name !== 'locales') walk(p, out) }
     else if (/\.(js|ts|tsx)$/.test(name) && !name.endsWith('.d.ts')) out.push(p)
   }
   return out

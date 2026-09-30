@@ -23,7 +23,7 @@ function targetedNames() {
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const p = path.join(dir, name)
-    if (statSync(p).isDirectory()) { if (name !== 'engine') walk(p, out) }
+    if (statSync(p).isDirectory()) { walk(p, out) }
     else if (p.endsWith('.js')) out.push(p)
   }
   return out
