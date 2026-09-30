@@ -94,6 +94,12 @@ export type DeepLinkPayload = DeepLinkJoin
 
 export type IdentityProtection = 'protected' | 'weak' | 'disabled'
 
+// The app-update store in the data folder: its size on disk, and about how much a prune would free.
+export interface UpdateCacheInfo {
+  bytes: number
+  reclaimableBytes: number
+}
+
 export interface MirallBridge {
   pkg(): PkgInfo
   isDev(): boolean
@@ -102,6 +108,8 @@ export interface MirallBridge {
   getPathForFile(file: File): string
 
   checkForUpdate(): Promise<{ triggered: boolean; length?: number; fork?: number; reason?: string; error?: string }>
+  getUpdateCacheInfo(): Promise<UpdateCacheInfo>
+  pruneUpdateCache(): Promise<{ clearedBlocks: number }>
   appVersion(): Promise<{ length: number; fork: number; semver: string | null }>
   getChangelog(): Promise<string>
   getIdentityProtection(): Promise<IdentityProtection>
