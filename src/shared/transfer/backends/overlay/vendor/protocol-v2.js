@@ -615,6 +615,8 @@ export class OverlayProtocolV2 {
     if (this._peerOpenCb) {
       try { this._peerOpenCb({ peer, version: announced.version, capabilities: announced.capabilities }) } catch {}
     }
+    // [mirall] §4.26 — mirall mode never path-syncs, so it announces no sync feed to a peer not yet verified.
+    if (this._serveAuthorizer) return
     peer.msgs.syncState.send({
       feedKey: this._syncEngine.feedKey,
       localSeq: this._syncEngine.feed.length,
@@ -623,6 +625,7 @@ export class OverlayProtocolV2 {
   }
 
   async _onSyncState (peer, msg) {
+    if (this._serveAuthorizer) return // [mirall] §4.26
     peer.remoteFeedKey = msg.feedKey
     peer.remoteSeq = msg.localSeq
 
@@ -1153,6 +1156,8 @@ export class OverlayProtocolV2 {
   }
 
   _onChunkCancel (peer, msg) {
+    // [mirall] §4.26 — mirall mode cancels only its own fetches (cancelContent).
+    if (this._serveAuthorizer) return
     const diskPath = this._filePaths.get(msg.path)
     if (diskPath) this._transferManager.cancel(diskPath)
   }
@@ -1183,6 +1188,7 @@ export class OverlayProtocolV2 {
   }
 
   async _onTransferComplete (peer, msg) {
+    if (this._serveAuthorizer) return // [mirall] §4.26
     if (peer.remoteFeedKey) {
       await this._syncEngine.markSynced(peer.remoteFeedKey, msg.path, msg.contentHash, this._syncEngine.feed.length - 1)
     }
@@ -1192,6 +1198,7 @@ export class OverlayProtocolV2 {
   }
 
   _onConflictMsg (peer, msg) {
+    if (this._serveAuthorizer) return // [mirall] §4.26
     if (this._conflictCb) this._conflictCb(msg, peer)
   }
 

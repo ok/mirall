@@ -6,7 +6,7 @@ import * as m from '../../src/shared/transfer/backends/overlay/vendor/messages-v
 
 // A hand-built peer on a space's CONTENT topic (not the worker): it never sends a content-hello,
 // it only opens the raw hyper-overlay/v2 channel. It records what the worker sends it and can push
-// chunk maps. The topic derivation mirrors content-swarm.js's deriveContentTopic.
+// chunk maps or any other slot's frame. The topic derivation mirrors content-swarm.js's deriveContentTopic.
 const CONTENT_TOPIC_LABEL = b4a.from('mirall/content-plane/v1')
 const contentTopic = (topicHex) => crypto.hash(b4a.concat([b4a.from(topicHex, 'hex'), CONTENT_TOPIC_LABEL]))
 
@@ -17,7 +17,7 @@ const SLOTS = ['syncState', 'fileOffer', 'fileRequest', 'chunkHashes', 'chunkNee
 
 export async function rawContentPeer(t, { bootstrap, topicHex, answer = null }) {
   const swarm = new Hyperswarm({ bootstrap })
-  const seen = { contentRequest: [], transferControl: [], transferProgress: [] }
+  const seen = { syncState: [], contentRequest: [], transferControl: [], transferProgress: [] }
   const channels = []
   swarm.on('connection', (socket) => {
     socket.on('error', () => {})
@@ -43,5 +43,6 @@ export async function rawContentPeer(t, { bootstrap, topicHex, answer = null }) 
     seen,
     connections: () => channels.length,
     push: (msg) => { for (const c of channels) { try { c.chunkHashes.send(msg) } catch {} } },
+    send: (name, msg) => { for (const c of channels) { try { c[name].send(msg) } catch {} } },
   }
 }

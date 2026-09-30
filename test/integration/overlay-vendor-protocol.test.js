@@ -12,6 +12,16 @@ function fakeTransfer() {
 }
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'p2-'))
 
+test('REGRESSION (MIR-53: _onOpen sends no syncState in mirall mode)', (t) => {
+  const sync = { feedKey: 'ab'.repeat(32), feed: { length: 3 } }
+  const sent = []
+  const peer = () => ({ msgs: { syncState: { send: (m) => sent.push(m) } }, channel: { close() {} }, rejected: false })
+  new OverlayProtocolV2(sync, fakeTransfer(), { serveAuthorizer: async () => true })._onOpen(peer(), { version: 2, capabilities: 3 })
+  t.is(sent.length, 0, 'mirall mode announces nothing')
+  new OverlayProtocolV2(sync, fakeTransfer(), {})._onOpen(peer(), { version: 2, capabilities: 3 })
+  t.alike(sent, [{ feedKey: 'ab'.repeat(32), localSeq: 3, remoteSeq: 0 }], 'upstream mode still announces')
+})
+
 test('#1b: cancelContent before the scheduler exists cancels the fetch at creation', async (t) => {
   const proto = new OverlayProtocolV2({}, fakeTransfer(), {})
   proto.cancelContent('zzz', { discardPartial: true }) // no scheduler yet → recorded in _cancelPending
