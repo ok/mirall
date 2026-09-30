@@ -146,6 +146,7 @@ export class ChunkScheduler {
     // [mirall] §4.24 — the catalog size; null when the caller does not know it (upstream callers, and
     // callers passing 0 for a catalog entry with no size).
     this._expectedSize = Number.isSafeInteger(opts.size) && opts.size > 0 ? opts.size : null
+    this._tier = this._expectedSize === null ? null : getTierParams(selectTier(this._expectedSize))
     this._limiter = opts.limiter || null           // [mirall] download cap; absent → unthrottled
     this._startedAt = Date.now()
     // [mirall] idle timeout — re-armed on each progress signal (see _armIdleTimer).
@@ -386,17 +387,28 @@ export class ChunkScheduler {
   // we never asked can neither re-arm the watchdog nor grow the page buffer.
   awaitsMapFrom (peer) { return !this._done && this._requested.has(peer) }
 
+  // [mirall] MIR-52 — the most entries a map of this file can hold, or null with no known size. The
+  // protocol stops buffering a paged map past it, since the assembled list would be refused anyway.
+  maxMapEntries () {
+    return this._tier === null ? null : Math.ceil(this._expectedSize / this._tier.minSize) + 1
+  }
+
+  // [mirall] MIR-52 — refuse a map the protocol stopped buffering. The peer no longer counts as owing
+  // one, so its remaining pages are dropped before buffering.
+  refuseMapFrom (peer, reason) {
+    if (this._requested.delete(peer) && !this._done) this._refuseMap(reason)
+  }
+
   // [mirall] §4.24 — why this chunk list cannot describe the file, or null. With a known size the
   // list must sum to it, hold no more entries than the size's tier allows, and keep every length
   // inside the tier's bounds; once a map is adopted, any other list must equal it.
   _mapFault (chunks) {
     const size = this._expectedSize
     if (size !== null) {
-      const { minSize, maxSize } = getTierParams(selectTier(size))
-      if (chunks.length > Math.ceil(size / minSize) + 1) return 'too many chunks'
+      if (chunks.length > this.maxMapEntries()) return 'too many chunks'
       let total = 0
       for (const c of chunks) {
-        if (!Number.isSafeInteger(c.length) || c.length < 1 || c.length > maxSize) return 'chunk length out of range'
+        if (!Number.isSafeInteger(c.length) || c.length < 1 || c.length > this._tier.maxSize) return 'chunk length out of range'
         total += c.length
       }
       if (total !== size) return 'size mismatch'
