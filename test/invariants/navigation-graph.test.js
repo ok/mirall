@@ -21,8 +21,8 @@ const { SCREENS, parentOf } = loadModule('src/renderer/shell/navigation.ts')
 // The back targets a screen can remember. Every combination has to land somewhere: these are the
 // two ends of each remembered range, so a target that cannot reach the root shows up here.
 const TARGETS = [
-  { preSettingsScreen: 'spaces', preAccountScreen: 'spaces', storageBackTarget: 'settings', activityLogBackTarget: 'account' },
-  { preSettingsScreen: 'space-view', preAccountScreen: 'space-view', storageBackTarget: 'space-view', activityLogBackTarget: 'network-status' },
+  { preSettingsScreen: 'spaces', preAccountScreen: 'spaces', storageBackTarget: 'settings', activityLogBackTarget: 'account', activityLogSettingsBackTarget: 'settings' },
+  { preSettingsScreen: 'space-view', preAccountScreen: 'space-view', storageBackTarget: 'space-view', activityLogBackTarget: 'network-status', activityLogSettingsBackTarget: 'storage-settings' },
 ]
 
 // Back has to terminate. A parent chain that loops means the user is stuck on a pair of screens

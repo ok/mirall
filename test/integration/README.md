@@ -76,7 +76,8 @@ Anything that needs **two or more peers** — replication, transfers between pee
 | File | Covers |
 |------|--------|
 | `cleanup-orphans.test.js` | **FIX-2** `cleanupOrphanedData` does not purge a replicated core it cannot classify (a peer drive's meta + blobs cores preserved). |
-| `storage-info.test.js` | `getStorageInfo`'s index + database parts sum to the on-disk total, and sharing a file in place does not grow it by the file bytes. |
+| `storage-info.test.js` | `getStorageInfo`'s measured parts (per-space catalogs, index, Activity Log, download history) plus other sum to the on-disk total; sharing a file in place does not grow it by the file bytes; catalog churn lands on its own space's row, not in other; a member's catalog core counts as that space's member catalog. |
+| `space-catalog-cores.test.js` | A named bee's discovery key is derived without opening anything and matches the opened core (own catalog, legacy plaintext catalog, a `/v2` local bee); member catalogs come from the member record, never include our own, and skip a malformed member. |
 
 **FIX index:** FIX-2 (cleanup-orphans), FIX-3 (transfers-resolve-dest), FIX-4/FIX-5 (owned-folder-edge), FIX-6 (foreign-del-guard), FIX-MIRROR-PROMPT/FIX-MIRROR-ECHO (foreign-prompt-materialize), FIX-UNMOUNT-REFRESH (foreign-unmount), FIX-WATCHER-MISS (owned-concurrent-add).
 

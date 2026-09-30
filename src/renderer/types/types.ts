@@ -234,4 +234,5 @@ export type {
   ShareFileStatus, MountValidationResult, ScanPreview,
   CanaryState, CanaryResult,
   AuditCategory, AuditSpaceRef, AuditEntry, AuditPage, AuditConfig, AuditStats, AuditActorRef,
+  StorageInfo,
 } from '../../shared/contract/responses.js'
