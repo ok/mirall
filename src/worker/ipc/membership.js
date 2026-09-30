@@ -24,7 +24,7 @@ import { reconcileAssertedRoot } from '../../shared/spaces/creator-root.js'
 import { classifyInvite } from '../../shared/spaces/invites.js'
 import { applyLocalApproval, applyLocalDenial, closeMemberView, dropTombstone, isApprovedJoiner, isDeniedJoiner, isLeft, openMemberView } from '../../shared/spaces/member-registry.js'
 import { ASK_PEERS, cancelVerdict, denierVerdict, denyVerdict, granterVerdict, knockSettledByRecords, knockInviteVerdict } from '../../shared/spaces/knock-policy.js'
-import { foldHoldsMember } from '../../shared/spaces/member-view.js'
+import { approvalPath, foldHoldsMember } from '../../shared/spaces/member-view.js'
 import { captureJoinerMembership, getIdentitySigner, getLocalPublicKeyHex, markRequest, markRequestDenied, ownDenialStands, readMembershipRecord, readProfileRecord } from '../../shared/spaces/profile.js'
 import { getSpace, getSpaceContentKey, spaceEpoch } from '../../shared/spaces/space.js'
 import { verifiedMembers, isVerifiedMember } from '../../shared/spaces/member-standing.js'
@@ -34,17 +34,17 @@ import { materializeSpace, recordApproval } from '../../shared/spaces/space-life
 import { purgeSpace } from '../../shared/spaces/leave-records.js'
 import { makeKeyedCoalescer } from '../../shared/core/coalesce.js'
 import { forgetUnreferencedPeerCores } from '../../shared/storage/leftover.js'
-import { checkControlSender, checkGrantAssertion, clampDisplayName, frameEpoch } from '../../shared/network/handshake-guard.js'
+import { MAX_ROSTER_PATH, checkControlSender, checkGrantAssertion, clampDisplayName, frameEpoch, rosterPathOf } from '../../shared/network/handshake-guard.js'
 import { openSealedSck } from '../../shared/spaces/sck-seal.js'
 import { broadcastProfileUpdate } from '../../shared/network/identity-frames.js'
 import { disconnectPeersFromSpace, leaveSpaceTopic } from '../../shared/network/space-topics.js'
 import { getAdmissionGates, resolveInvite } from '../../shared/network/handshake-apply.js'
 import { markSpaceLeaving, unmarkSpaceLeaving } from '../../shared/network/leave-protocol.js'
 import { readmitConnectedMembers } from '../../shared/network/deferred-admission.js'
-import { getBoundSignerKey, getConnectedMemberMeta } from '../../shared/network/swarm-registries.js'
+import { channelForPeer, getBoundSignerKey, getConnectedMemberMeta } from '../../shared/network/swarm-registries.js'
 import { broadcastMembershipCancel, sendMembershipDeny, sendMembershipGrant } from '../../shared/network/membership-frames.js'
 import { topicField } from '../../shared/network/topic-refs.js'
-import { attachPeerCore, replicateOn } from '../../shared/network/replication-gate.js'
+import { attachPeerCore, lendPeerCores, replicateOn } from '../../shared/network/replication-gate.js'
 import { peerActorIn, spaceRefOf } from '../audit-refs.js'
 import b4a from 'b4a'
 /** @import { WorkerIpc } from '../../shared/core/ipc.js' */
@@ -326,14 +326,14 @@ async function onGrant(msg, ctx = {}) {
 async function granterRecognized(socket, spaceId, space, granterKey) {
   const creatorKey = space.creatorKey ?? null
   const verdict = granterVerdict({ granterKey, inviteOwner: space.inviteOwner ?? null, creatorKey })
-  return deciderHeld(socket, spaceId, creatorKey, granterKey, verdict, { attachOwn: true })
+  return deciderHeld(socket, spaceId, creatorKey, granterKey, verdict, { attachOwn: true, readable: null })
 }
 
 // A decider verdict settled: 'check-fold' asks the fold rooted at the creator, anything but
 // 'reject' is accepted as it stands.
 /**
  * @param {object | undefined} socket @param {string} spaceId @param {string | null} creatorKey @param {string | null} key
- * @param {'accept' | 'accept-unvetted' | 'check-fold' | 'reject'} verdict @param {{ attachOwn: boolean }} opts
+ * @param {'accept' | 'accept-unvetted' | 'check-fold' | 'reject'} verdict @param {FoldReadScope} opts
  */
 async function deciderHeld(socket, spaceId, creatorKey, key, verdict, opts) {
   if (verdict !== 'check-fold') return verdict !== 'reject'
@@ -345,17 +345,22 @@ async function deciderHeld(socket, spaceId, creatorKey, key, verdict, opts) {
 // walk reads is attached to the decider's socket alone, which replicates nothing else until a grant
 // is applied. What the socket can read from us is limited to those same roster cores. Our own is
 // among them only for a granter, which captures our profile core over this socket once it has
-// approved us; for a denier it would only serve our profile bee to whoever sent the frame.
+// approved us; for a denier it would only serve our profile bee to whoever sent the frame. A denier
+// serves only the approval chain it names, so the walk reads nothing outside `readable`.
+/**
+ * @typedef {{ attachOwn: boolean, readable: Set<string> | null }} FoldReadScope
+ */
 /**
  * @param {object | undefined} socket @param {{ spaceId: string, creatorKey: string, key: string }} member
- * @param {{ attachOwn: boolean }} opts
+ * @param {FoldReadScope} opts
  */
-async function foldHoldsOver(socket, { spaceId, creatorKey, key }, { attachOwn }) {
+async function foldHoldsOver(socket, { spaceId, creatorKey, key }, { attachOwn, readable }) {
   /** @type {{ close: () => Promise<void> }[]} */
   const attached = []
   const self = getLocalPublicKeyHex()
   /** @param {string} rosterKey */
   const readOver = async (rosterKey) => {
+    if (readable && !readable.has(rosterKey)) return null
     const core = socket && (attachOwn || rosterKey !== self) ? await attachPeerCore(socket, rosterKey) : null
     if (core) attached.push(core)
     return readMembershipRecord(rosterKey, spaceId)
@@ -432,7 +437,8 @@ async function denierRecognized(socket, peerInfo, space, msg) {
   const denierKey = sender.senderKey
   const creatorKey = space.creatorKey ?? null
   const verdict = denierVerdict({ denierKey, inviteOwner: space.inviteOwner ?? null, creatorKey, enforce: isMembershipControlBindingEnforced() })
-  const accepted = await deciderHeld(socket, spaceId, creatorKey, denierKey, verdict, { attachOwn: false })
+  const readable = new Set(rosterPathOf(msg, { creatorKey, denierKey }) ?? [])
+  const accepted = await deciderHeld(socket, spaceId, creatorKey, denierKey, verdict, { attachOwn: false, readable })
   if (!accepted) log.warn('rejected membership:deny — sender is not the inviter, the creator or a member:', denierKey?.slice(0, 12) ?? 'unnamed')
   else if (verdict === 'accept-unvetted') log.info('honouring an unvetted membership:deny from', denierKey?.slice(0, 12) ?? 'an unnamed sender', 'for', spaceId)
   return accepted
@@ -510,11 +516,25 @@ async function resolveJoinRequest(space, joinerKey, outcome) {
   clearJoinRequest(spaceId, joinerKey)
   const deniedTs = await markRequestDenied(spaceId, joinerKey)   // durable, replicated dismissal (+ drops our receipt)
   applyLocalDenial(spaceId, joinerKey, deniedTs)
-  if (space.topic) {
-    sendMembershipDeny(joinerKey, spaceId)
-    broadcastMembershipCancel(spaceId, joinerKey)   // co-members drop the banner
-  }
+  if (space.topic) broadcastMembershipCancel(spaceId, joinerKey)   // co-members drop the banner
   ipc.emit('event:join-requests-updated', { spaceId })
+  if (space.topic) await sendVettableDeny(space, joinerKey)
+}
+
+// A joiner vets a deny from anyone but its inviter or the creator against the roster, which it can
+// read only from us: lend it the approval chain from the creator to us, and name the chain in the
+// frame. The loan outlasts twice the joiner's serial read of that chain, since closing the socket
+// ends it and a check cut short refuses the deny.
+/** @param {StoredSpace} space @param {string} joinerKey */
+async function sendVettableDeny(space, joinerKey) {
+  const socket = channelForPeer(joinerKey)?.socket
+  const self = getLocalPublicKeyHex()
+  const creatorKey = space.creatorKey
+  const rosterPath = socket && self && creatorKey && self !== creatorKey
+    ? await approvalPath({ creatorKey, key: self, maxLength: MAX_ROSTER_PATH, readRecord: (k) => readMembershipRecord(k, space.spaceId, { sync: false }) })
+    : null
+  if (socket && rosterPath) await lendPeerCores(socket, rosterPath, 2 * (rosterPath.length + 1) * peerReadTimeoutMs())
+  sendMembershipDeny(joinerKey, space.spaceId, rosterPath)
 }
 
 /** @param {StoredSpace} space @param {string} joinerKey */
