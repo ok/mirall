@@ -7,7 +7,7 @@ import {
   DEFAULT_IGNORE, shouldIgnore, shouldPruneDir,
   shouldHonorDeletions,
   splitFileName, nextFreeName, conflictCopyName,
-  systemRootViolation, personalRootViolation, isWindowsReservedName, cloudSyncHint,
+  systemRootViolation, personalRootViolation, userSystemRootViolation, iCloudRootViolation, isWindowsReservedName, cloudSyncHint,
 } from '../../src/shared/folders/path-keys.js'
 
 // These pure helpers are the platform-divergent backbone of every file/folder
@@ -444,6 +444,95 @@ test('systemRootViolation returns the offending root per platform', (t) => {
   t.is(systemRootViolation('C:\\Windows\\System32', 'win32', '\\'), 'C:\\Windows', 'windows system root')
   t.is(systemRootViolation('/Users/me/Docs', 'darwin', '/'), null, 'a home path is allowed')
   t.is(systemRootViolation('/usrfoo/x', 'darwin', '/'), null, 'name-prefix sibling of /usr is allowed')
+  t.is(systemRootViolation('/Applications/Foo.app', 'darwin', '/'), '/Applications', 'macOS application root')
+})
+
+test('systemRootViolation folds case only when asked (case-insensitive filesystems)', (t) => {
+  t.is(systemRootViolation('/applications/x', 'darwin', '/', true), '/Applications', 'darwin: lower-case matches')
+  t.is(systemRootViolation('/applications/x', 'darwin', '/', false), null, 'case-sensitive: no match')
+  t.is(systemRootViolation('c:\\windows\\system32', 'win32', '\\', true), 'C:\\Windows', 'win32: drive and name fold')
+  t.is(systemRootViolation('C:\\Documents and Settings\\me\\AppData', 'win32', '\\'), 'C:\\Documents and Settings', 'win32: legacy profile junction')
+})
+
+// ── MIR-51: per-user roots the OS, a shell or a login manager runs from ─────────
+const noEnv = () => undefined
+
+function envOf(map) {
+  return (name) => map[name]
+}
+
+const USER_SYSTEM_CASES = [
+  {
+    platform: 'darwin', home: '/Users/me', sep: '/', env: {},
+    rejected: [
+      ['/Users/me/Library', '/Users/me/Library'],
+      ['/Users/me/Library/LaunchAgents', '/Users/me/Library'],
+      ['/Users/me/Applications/X.app', '/Users/me/Applications'],
+      ['/Users/me/.ssh', '/Users/me/.ssh'],
+      ['/Users/me/.config/autostart', '/Users/me/.config'],
+      ['/Users/me/.zshrc.d', '/Users/me/.zshrc.d'],
+    ],
+  },
+  {
+    platform: 'win32', home: 'C:\\Users\\me', sep: '\\',
+    env: { APPDATA: 'C:\\Users\\me\\AppData\\Roaming', LOCALAPPDATA: 'C:\\Users\\me\\AppData\\Local', ProgramData: 'D:\\ProgramData' },
+    rejected: [
+      ['C:\\Users\\me\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup', 'C:\\Users\\me\\AppData'],
+      ['C:\\Users\\me\\AppData\\Local\\x', 'C:\\Users\\me\\AppData'],
+      ['C:\\Users\\me\\Start Menu', 'C:\\Users\\me\\Start Menu'],
+      ['C:\\Users\\me\\Application Data\\Microsoft\\Windows\\Start Menu', 'C:\\Users\\me\\Application Data'],
+      ['C:\\Users\\me\\Local Settings\\x', 'C:\\Users\\me\\Local Settings'],
+      ['C:\\Users\\me\\Documents\\WindowsPowerShell', 'C:\\Users\\me\\Documents\\WindowsPowerShell'],
+      ['C:\\Users\\me\\Documents\\PowerShell\\Modules', 'C:\\Users\\me\\Documents\\PowerShell'],
+      ['D:\\ProgramData\\Microsoft\\Windows\\Start Menu', 'D:\\ProgramData'],
+      ['C:\\Users\\me\\.ssh', 'C:\\Users\\me\\.ssh'],
+    ],
+  },
+  {
+    platform: 'linux', home: '/home/me', sep: '/', env: { XDG_CONFIG_HOME: '/data/cfg' },
+    rejected: [
+      ['/home/me/.config/autostart', '/home/me/.config'],
+      ['/home/me/.local/share', '/home/me/.local'],
+      ['/home/me/.ssh', '/home/me/.ssh'],
+      ['/data/cfg/autostart', '/data/cfg'],
+    ],
+  },
+]
+
+test('REGRESSION (MIR-51): user system roots and their children are rejected, per platform', (t) => {
+  for (const { platform, home, sep, env, rejected } of USER_SYSTEM_CASES) {
+    for (const [target, root] of rejected) {
+      t.is(userSystemRootViolation(target, { platform, home, sep, getEnv: envOf(env) }), root, `${platform}: ${target}`)
+    }
+  }
+})
+
+test('userSystemRootViolation leaves ordinary folders under home alone', (t) => {
+  const opts = { platform: 'darwin', home: '/Users/me', sep: '/', getEnv: noEnv }
+  for (const allowed of ['/Users/me/Projects', '/Users/me/Libraryx', '/Users/me/projects.v2', '/Users/me/Projects/.git', '/srv/.hidden', '/Users/me']) {
+    t.is(userSystemRootViolation(allowed, opts), null, allowed)
+  }
+  t.is(userSystemRootViolation('C:\\Users\\me\\Documents\\Projects', { platform: 'win32', home: 'C:\\Users\\me', sep: '\\', getEnv: noEnv }), null, 'win32 Documents subfolder')
+  t.is(userSystemRootViolation('C:\\Users\\me\\Projects', { platform: 'win32', home: 'C:\\Users\\me', sep: '\\', getEnv: noEnv }), null, 'win32 sibling')
+  t.is(userSystemRootViolation('/home/me/Projects', { platform: 'linux', home: '/home/me', sep: '/', getEnv: noEnv }), null, 'linux sibling')
+})
+
+test('userSystemRootViolation folds case only when asked (case-insensitive filesystems)', (t) => {
+  const darwin = { platform: 'darwin', home: '/Users/me', sep: '/', getEnv: noEnv }
+  t.is(userSystemRootViolation('/users/me/library/launchagents', { ...darwin, fold: true }), '/Users/me/Library', 'darwin: folded')
+  t.is(userSystemRootViolation('/users/me/library/launchagents', darwin), null, 'case-sensitive: no match')
+  const win = { platform: 'win32', home: 'C:\\Users\\me', sep: '\\', getEnv: envOf({ APPDATA: 'E:\\Roaming' }), fold: true }
+  t.is(userSystemRootViolation('e:\\roaming\\x', win), 'E:\\Roaming', 'win32: a relocated APPDATA folds too')
+})
+
+test('userSystemRootViolation: an unset, empty or relative env var adds no root; no home disables the home rules', (t) => {
+  const linux = (env) => ({ platform: 'linux', home: '/home/me', sep: '/', getEnv: envOf(env) })
+  t.is(userSystemRootViolation('/data/x', linux({})), null, 'unset')
+  t.is(userSystemRootViolation('/data/x', linux({ XDG_DATA_HOME: '' })), null, 'empty')
+  t.is(userSystemRootViolation('/home/me/cfg/x', linux({ XDG_CONFIG_HOME: 'cfg' })), null, 'relative')
+  const homeless = { platform: 'linux', home: '', sep: '/', getEnv: envOf({ XDG_DATA_HOME: '/data/share' }) }
+  t.is(userSystemRootViolation('/data/share/x', homeless), '/data/share', 'env roots still apply without a home')
+  t.is(userSystemRootViolation('/.ssh', homeless), null, 'no home → no dot-directory rule')
 })
 
 // ── MIR-10: personal-root mount guard (exact-equality, never a prefix) ──────────
@@ -479,6 +568,15 @@ test('cloudSyncHint detects cloud-sync provider folders (lower-cased input)', (t
   t.is(cloudSyncHint('c:\\users\\me\\onedrive\\docs'), 'onedrive')
   t.is(cloudSyncHint('/users/me/library/mobile documents/icloud'), 'icloud')
   t.is(cloudSyncHint('/users/me/projects/mirall'), null, 'an ordinary folder has no hint')
+})
+
+test('iCloudRootViolation anchors iCloud Drive to ~/Library/Mobile Documents', (t) => {
+  const home = '/Users/me'
+  t.is(iCloudRootViolation('/Users/me/Library/Mobile Documents/com~apple~CloudDocs/x', home, '/'), '/Users/me/Library/Mobile Documents', 'iCloud Drive')
+  t.is(iCloudRootViolation('/Users/me/Library/Mobile Documents/iCloud~md~obsidian', home, '/'), '/Users/me/Library/Mobile Documents', 'an app container')
+  t.is(iCloudRootViolation('/users/me/library/mobile documents/x', home, '/', true), '/Users/me/Library/Mobile Documents', 'folds when asked')
+  t.is(iCloudRootViolation('/Users/me/Work/Mobile Documents Scanner', home, '/'), null, 'the phrase elsewhere is not iCloud')
+  t.is(iCloudRootViolation('/Users/me/Library/Mobile Documents', '', '/'), null, 'no home → no violation')
 })
 
 // ── MIR-06: materialize containment guard ──────────────────────────────────────

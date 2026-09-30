@@ -215,8 +215,8 @@ export function conflictCopyName(fileName, isTaken) {
 
 // ─── mount path rejection rules ───────────────────────────────────────────────
 const SYSTEM_FOLDERS = {
-  darwin: ['/System', '/usr', '/bin', '/sbin', '/Library/Apple', '/private/var'],
-  win32: ['C:\\Windows', 'C:\\Program Files', 'C:\\Program Files (x86)', 'C:\\ProgramData'],
+  darwin: ['/System', '/usr', '/bin', '/sbin', '/Library/Apple', '/private/var', '/Applications'],
+  win32: ['C:\\Windows', 'C:\\Program Files', 'C:\\Program Files (x86)', 'C:\\ProgramData', 'C:\\Documents and Settings'],
   linux: ['/proc', '/sys', '/dev', '/etc', '/boot', '/var/lib'],
 }
 
@@ -226,13 +226,55 @@ const WIN_RESERVED = new Set([
   'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9',
 ])
 
-// Returns the offending system root (for the error message) or null.
-export function systemRootViolation(normalized, platform, sep) {
+// Returns the offending system root (for the error message) or null. `fold` is set on the
+// filesystems that case-fold (darwin/win32), where `/applications` IS `/Applications`.
+export function systemRootViolation(normalized, platform, sep, fold = false) {
   const roots = SYSTEM_FOLDERS[platform] || []
   for (const root of roots) {
-    if (normalized === root || normalized.startsWith(root + sep)) return root
+    if (pathContains(root, normalized, sep, fold)) return root
   }
   return null
+}
+
+// The per-user half of the system roots: folders a login manager, a shell or the OS runs from or
+// trusts (LaunchAgents, Startup shortcuts, autostart entries, authorized_keys). A mirror writes
+// every owner path beneath its root, so a subfolder is no safer than the root — a prefix rule.
+// `home` names folders relative to the home directory (Windows keeps legacy junctions into
+// AppData), `env` the variables that relocate them.
+const USER_SYSTEM_FOLDERS = {
+  darwin: { home: ['Library', 'Applications'], env: [] },
+  win32: {
+    home: ['AppData', 'Application Data', 'Local Settings', 'Start Menu', 'Documents\\PowerShell', 'Documents\\WindowsPowerShell'],
+    env: ['APPDATA', 'LOCALAPPDATA', 'ProgramData'],
+  },
+  linux: { home: [], env: ['XDG_CONFIG_HOME', 'XDG_DATA_HOME'] },
+}
+
+function isAbsoluteFor(p, sep) {
+  return sep === '\\' ? /^([a-zA-Z]:\\|\\\\)/.test(p) : p.startsWith('/')
+}
+
+// Every dot-directory directly under home counts too: that is where shells and tools keep the
+// configuration they execute. Returns that directory, or null.
+function homeDotDir(normalized, home, sep, fold) {
+  if (!home || !pathContains(home, normalized, sep, fold)) return null
+  const top = normalized.slice(home.length).split(sep).find(Boolean)
+  return top && top.startsWith('.') ? home + sep + top : null
+}
+
+// Returns the offending per-user system root (for the error message) or null. An unset, empty or
+// relative variable names no root.
+export function userSystemRootViolation(normalized, { platform, home, sep, getEnv, fold = false }) {
+  const rules = USER_SYSTEM_FOLDERS[platform] || { home: [], env: [] }
+  const roots = home ? rules.home.map((name) => home + sep + name) : []
+  for (const name of rules.env) {
+    const value = getEnv(name)
+    if (value && isAbsoluteFor(value, sep)) roots.push(value)
+  }
+  for (const root of roots) {
+    if (pathContains(root, normalized, sep, fold)) return root
+  }
+  return homeDotDir(normalized, home, sep, fold)
 }
 
 // Top-level personal roots that must never be a mount root themselves: a fresh
@@ -263,4 +305,12 @@ export function cloudSyncHint(lowerPath) {
     if (lowerPath.includes(hint)) return hint
   }
   return null
+}
+
+// iCloud Drive and every app's iCloud container live under this macOS root, by names no provider
+// hint matches. Returns the root, or null.
+export function iCloudRootViolation(normalized, home, sep, fold = false) {
+  if (!home) return null
+  const root = home + sep + 'Library' + sep + 'Mobile Documents'
+  return pathContains(root, normalized, sep, fold) ? root : null
 }

@@ -1,5 +1,5 @@
-// Mount-target validation: refuses dangerous mount paths — system folders, the
-// app's own storage, personal roots (~, Desktop, …), cloud-sync folders, Windows
+// Mount-target validation: refuses dangerous mount paths — system folders (machine-wide and
+// per-user), the app's own storage, personal roots (~, Desktop, …), cloud-sync folders, Windows
 // reserved names, overlaps with existing mounts, and any overlap with a download
 // root — then probes writability. The async and sync variants apply the same rules;
 // both also return non-blocking advisories to surface to the user.
@@ -13,7 +13,7 @@ import { listDownloadRoots } from '../core/paths.js'
 import { listAllMounts } from './mount-store.js'
 import { createLogger } from '../core/logger.js'
 import {
-  systemRootViolation, personalRootViolation, isWindowsReservedName, pathsOverlap, cloudSyncHint,
+  systemRootViolation, personalRootViolation, userSystemRootViolation, iCloudRootViolation, isWindowsReservedName, pathsOverlap, cloudSyncHint,
   mountOverlapViolation, pathContains,
 } from './path-keys.js'
 
@@ -53,6 +53,38 @@ function checkWindowsSegments(normalized, platform) {
       throw new AppError(CODES.MOUNT_FORBIDDEN_WIN_RESERVED, seg)
     }
   }
+}
+
+// Every rule about the path itself, shared by both validators. iCloud is checked before the
+// per-user system roots so iCloud Drive, which lives under ~/Library, is refused as cloud sync; the
+// provider hints are substring matches, so they run after them and never relabel a system folder.
+function checkPathRules(normalized, platform) {
+  const fold = caseInsensitive(platform)
+  const sysRoot = systemRootViolation(normalized, platform, path.sep, fold)
+  if (sysRoot) throw new AppError(CODES.MOUNT_FORBIDDEN_SYSTEM, sysRoot)
+
+  const appData = getStoragePath()
+  if (appData && pathContains(appData, normalized, path.sep, fold)) {
+    throw new AppError(CODES.MOUNT_FORBIDDEN_APP_DATA, appData)
+  }
+
+  const rawHome = os.homedir()
+  const home = rawHome ? normalizePath(rawHome) : ''
+  const personalRoot = personalRootViolation(normalized, home, path.sep, fold)
+  if (personalRoot) throw new AppError(CODES.MOUNT_FORBIDDEN_PERSONAL_ROOT, personalRoot)
+
+  if (platform === 'darwin' && iCloudRootViolation(normalized, home, path.sep, fold)) {
+    throw new AppError(CODES.MOUNT_FORBIDDEN_CLOUD_SYNC, normalized)
+  }
+
+  const userRoot = userSystemRootViolation(normalized, { platform, home, sep: path.sep, getEnv: os.getEnv, fold })
+  if (userRoot) throw new AppError(CODES.MOUNT_FORBIDDEN_SYSTEM, userRoot)
+
+  if (cloudSyncHint(normalized.toLowerCase())) {
+    throw new AppError(CODES.MOUNT_FORBIDDEN_CLOUD_SYNC, normalized)
+  }
+
+  checkWindowsSegments(normalized, platform)
 }
 
 function writeProbe(dir) {
@@ -151,7 +183,6 @@ function collectAdvisories(absPath) {
     const tccPaths = [
       path.join(home, 'Desktop'),
       path.join(home, 'Documents'),
-      path.join(home, 'Library/Mobile Documents/com~apple~CloudDocs'),
     ]
     for (const p of tccPaths) {
       if (absPath === p || absPath.startsWith(p + path.sep)) {
@@ -182,24 +213,7 @@ export function validateMountPath(absPath, role, ctx = {}) {
     throw new AppError(CODES.MOUNT_PATH_MISSING, 'No path provided')
   }
   const normalized = normalizePath(absPath)
-  const platform = os.platform()
-
-  const sysRoot = systemRootViolation(normalized, platform, path.sep)
-  if (sysRoot) throw new AppError(CODES.MOUNT_FORBIDDEN_SYSTEM, sysRoot)
-
-  const appData = getStoragePath()
-  if (appData && (normalized === appData || normalized.startsWith(appData + path.sep))) {
-    throw new AppError(CODES.MOUNT_FORBIDDEN_APP_DATA, appData)
-  }
-
-  const personalRoot = personalRootViolation(normalized, os.homedir(), path.sep, caseInsensitive(platform))
-  if (personalRoot) throw new AppError(CODES.MOUNT_FORBIDDEN_PERSONAL_ROOT, personalRoot)
-
-  if (cloudSyncHint(normalized.toLowerCase())) {
-    throw new AppError(CODES.MOUNT_FORBIDDEN_CLOUD_SYNC, normalized)
-  }
-
-  checkWindowsSegments(normalized, platform)
+  checkPathRules(normalized, os.platform())
 
   return validateOverlapAndWrite(normalized, role, ctx)
 }
@@ -222,24 +236,7 @@ export function validateMountPathSync(absPath, role, existingMounts, ctx = {}) {
     throw new AppError(CODES.MOUNT_PATH_MISSING, 'No path provided')
   }
   const normalized = normalizePath(absPath)
-  const platform = os.platform()
-
-  const sysRoot = systemRootViolation(normalized, platform, path.sep)
-  if (sysRoot) throw new AppError(CODES.MOUNT_FORBIDDEN_SYSTEM, sysRoot)
-
-  const appData = getStoragePath()
-  if (appData && (normalized === appData || normalized.startsWith(appData + path.sep))) {
-    throw new AppError(CODES.MOUNT_FORBIDDEN_APP_DATA, appData)
-  }
-
-  const personalRoot = personalRootViolation(normalized, os.homedir(), path.sep, caseInsensitive(platform))
-  if (personalRoot) throw new AppError(CODES.MOUNT_FORBIDDEN_PERSONAL_ROOT, personalRoot)
-
-  if (cloudSyncHint(normalized.toLowerCase())) {
-    throw new AppError(CODES.MOUNT_FORBIDDEN_CLOUD_SYNC, normalized)
-  }
-
-  checkWindowsSegments(normalized, platform)
+  checkPathRules(normalized, os.platform())
 
   rejectIfOverlapsAnyMount(normalized, role, existingMounts, ctx)
 
