@@ -42,14 +42,7 @@ import { isPersonKey } from '../../contract/principals.js'
  */
 export function foldMembership(records, creatorKey) {
   const norm = new Map()
-  for (const [k, rec] of records) {
-    norm.set(k, {
-      active: !!rec?.active,
-      approvals: toSet(rec?.approvals),
-      memberSeq: typeof rec?.memberSeq === 'number' ? rec.memberSeq : null,
-      approvalSeqs: rec?.approvalSeqs instanceof Map ? rec.approvalSeqs : null,
-    })
-  }
+  for (const [k, rec] of records) norm.set(k, normalizeRecord(rec))
 
   // Reachability from the root through standing approval edges, ignoring `active`. Seeded with
   // creatorKey unconditionally so the root anchors the tree even when its own record has not
@@ -74,6 +67,21 @@ export function foldMembership(records, creatorKey) {
   for (const k of authorized) if (norm.get(k)?.active) members.add(k)
 
   return { members, authorized, approved }
+}
+
+function normalizeRecord(rec) {
+  return {
+    active: !!rec?.active,
+    approvals: toSet(rec?.approvals),
+    memberSeq: typeof rec?.memberSeq === 'number' ? rec.memberSeq : null,
+    approvalSeqs: rec?.approvalSeqs instanceof Map ? rec.approvalSeqs : null,
+  }
+}
+
+// The approvals in one peer's record that count as vouches in the fold.
+export function standingApprovals(rec) {
+  const norm = normalizeRecord(rec)
+  return [...norm.approvals].filter((j) => vouchStands(norm, j))
 }
 
 // A departed peer's vouch stands only if the log shows it was authored before the departure.

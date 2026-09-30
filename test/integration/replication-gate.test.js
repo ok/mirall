@@ -5,8 +5,9 @@ import { freshPeer } from '../helpers/store.js'
 import { makePeer } from '../helpers/peer-bee.js'
 import { scaled } from '../helpers/bare-timing.js'
 import { getStore } from '../../src/shared/core/store.js'
+import { socketToPeers } from '../../src/shared/network/swarm-registries.js'
 import { getProfileKey } from '../../src/shared/spaces/profile.js'
-import { attachPeerCore, gateReplication, holdPeerCore, initReplicationGate, replicateOn, resetReplicationGate } from '../../src/shared/network/replication-gate.js'
+import { attachPeerCore, gateReplication, holdPeerCore, initReplicationGate, lendPeerCores, replicateOn, resetReplicationGate } from '../../src/shared/network/replication-gate.js'
 
 // Our side runs the gate on a real Noise socket; the remote is a plain corestore that replicates
 // everything, as any peer on the topic can. The remote needs nothing but a core key to ask for a
@@ -121,4 +122,42 @@ test('a socket that closed before admission is never attached', async (t) => {
 
   t.absent(replicateOn(ours), 'a closing socket is refused')
   t.absent(replicateOn({}), 'as is one the gate never saw')
+})
+
+test('cores lent to a gated socket are served for the hold and nothing else is', async (t) => {
+  await freshPeer(t)
+  const lent = getStore().get({ name: 'gate-lent', active: false })
+  const other = getStore().get({ name: 'gate-lent-other', active: false })
+  await Promise.all([lent.ready(), other.ready()])
+  await lent.append('first')
+  await other.append('other')
+  t.teardown(() => Promise.all([lent.close(), other.close()]))
+
+  const { ours, remote } = await connect(t)
+  const mirror = await mirrorOf(remote, lent.key)
+  const otherMirror = await mirrorOf(remote, other.key)
+  await settle()
+
+  await lendPeerCores(ours, [b4a.toString(lent.key, 'hex')], scaled(1500))
+  t.ok(await firstBlock(mirror, 5000), 'the remote reads the lent core')
+  t.is(await firstBlock(otherMirror, 1500), null, 'and no other core of ours')
+
+  await settle(2000)
+  t.ok(ours.destroyed, 'the unadmitted socket is closed when the hold ends')
+  await lent.append('second')
+  t.is(await mirror.get(1, { timeout: scaled(1500) }).catch(() => null), null, 'so nothing appended after it reaches the remote')
+})
+
+test('a socket admitted during the hold stays open', async (t) => {
+  await freshPeer(t)
+  const lent = getStore().get({ name: 'gate-lent-admitted', active: false })
+  await lent.ready()
+  t.teardown(() => lent.close())
+
+  const { ours } = await connect(t)
+  await lendPeerCores(ours, [b4a.toString(lent.key, 'hex')], scaled(500))
+  socketToPeers.set(ours, new Set())
+  t.teardown(() => socketToPeers.delete(ours))
+  await settle(1000)
+  t.absent(ours.destroyed, 'an admitted socket is left open')
 })

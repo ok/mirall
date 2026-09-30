@@ -8,6 +8,9 @@ import crypto from 'hypercore-crypto'
 import Hypercore from 'hypercore'
 import { HEX64 } from '../contract/invite-envelope.js'
 import { isEpoch } from '../shares/catalog-keys.js'
+import { isPersonKey } from '../contract/principals.js'
+
+/** @import { JsonValue } from '../contract/request-args.js' */
 
 export { clampDisplayName } from '../contract/identity-limits.js'
 
@@ -123,6 +126,23 @@ export function checkControlSender(peerInfo, msg) {
   if (msg.profileKey == null) return { ok: true, senderKey: null }
   if (!isHex64(msg.profileKey) || !verifyIdentityBinding(peerInfo, msg)) return { ok: false, reason: 'sender-unbound' }
   return { ok: true, senderKey: msg.profileKey }
+}
+
+// The longest approval chain a deny may name: bounds the cores a pending joiner reads to vet it.
+export const MAX_ROSTER_PATH = 16
+
+// The approval chain a membership:deny names from the creator to its sender, or null when it is not
+// one: the joiner reads only these cores, so each must be a distinct person key.
+/**
+ * @param {{ [field: string]: JsonValue }} msg @param {{ creatorKey: string | null, denierKey: string | null }} ends
+ * @returns {string[] | null}
+ */
+export function rosterPathOf(msg, { creatorKey, denierKey }) {
+  const path = msg.rosterPath
+  if (!Array.isArray(path) || path.length > MAX_ROSTER_PATH || !creatorKey) return null
+  if (path[0] !== creatorKey || path[path.length - 1] !== denierKey) return null
+  if (!path.every(isPersonKey) || new Set(path).size !== path.length) return null
+  return path
 }
 
 // One decision for the swarm onmessage choke point. Hex validation always applies. `bound` reports

@@ -413,16 +413,17 @@ function loadPeerEntries(profileKeyHex, prefix) {
 // `memberSeq`/`approvalSeqs` carry the log positions the fold compares to discount a vouch
 // authored after its author's own departure; both are null/empty for a peer that recorded its
 // departure by deleting the key, and the fold then skips that check.
-// Bounded like the other peer reads so an unreachable bee degrades to null, not a hang.
-export async function readMembershipRecord(profileKeyHex, spaceId) {
+// Bounded like the other peer reads so an unreachable bee degrades to null, not a hang. `sync: false`
+// answers from the blocks we already hold, without first waiting on a peer for the head.
+export async function readMembershipRecord(profileKeyHex, spaceId, { sync = true } = {}) {
   try {
-    return await withReadTimeout(loadMembershipRecord(profileKeyHex, spaceId), peerReadTimeoutMs(), null)
+    return await withReadTimeout(loadMembershipRecord(profileKeyHex, spaceId, sync), peerReadTimeoutMs(), null)
   } catch {
     return null
   }
 }
 
-function loadMembershipRecord(profileKeyHex, spaceId) {
+function loadMembershipRecord(profileKeyHex, spaceId, sync) {
   return withPeerBee(profileKeyHex, async (bee) => {
 
     const cap = await bee.get(CAP_MEMBERSHIP_MANIFEST)
@@ -442,7 +443,7 @@ function loadMembershipRecord(profileKeyHex, spaceId) {
       if (typeof entry.seq === 'number') approvalSeqs.set(joiner, entry.seq)
     }
     return { active, approvals, memberTs, memberSeq, approvalSeqs }
-  })
+  }, { sync })
 }
 
 // Pull a joiner's OWN profile core into our store while it is still connected — the approve path is

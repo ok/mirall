@@ -3,7 +3,7 @@ import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
 import {
   clampDisplayName, validSenderFrame, signNoiseBinding, verifyIdentityBinding, checkInboundSender,
-  leaveFrameBound, frameEpoch, checkControlSender,
+  leaveFrameBound, frameEpoch, checkControlSender, rosterPathOf, MAX_ROSTER_PATH,
 } from '../../src/shared/network/handshake-guard.js'
 import { boundSender as boundIdentity } from '../helpers/identity-binding.js'
 
@@ -196,4 +196,21 @@ test('checkControlSender proves the key a cancel or deny names on this socket', 
   t.alike(checkControlSender(other, { ...sender.fields }), { ok: false, reason: 'sender-unbound' }, 'a binding captured from another socket proves nothing')
   t.alike(checkControlSender(on, { ...sender.fields, profileKey: hex() }), { ok: false, reason: 'sender-unbound' }, 'nor does one for a different key')
   t.alike(checkControlSender(on, { ...sender.fields, profileKey: 'zz' }), { ok: false, reason: 'sender-unbound' }, 'a malformed key is refused')
+})
+
+test('rosterPathOf accepts only a bounded chain of person keys from the creator to the denier', (t) => {
+  const creatorKey = hex()
+  const denierKey = hex()
+  const mid = hex()
+  const facts = { creatorKey, denierKey }
+  t.alike(rosterPathOf({ rosterPath: [creatorKey, mid, denierKey] }, facts), [creatorKey, mid, denierKey], 'a chain that starts and ends right')
+  t.is(rosterPathOf({}, facts), null, 'no path')
+  t.is(rosterPathOf({ rosterPath: 'x' }, facts), null, 'not an array')
+  t.is(rosterPathOf({ rosterPath: [mid, denierKey] }, facts), null, 'not rooted at the creator')
+  t.is(rosterPathOf({ rosterPath: [creatorKey, mid] }, facts), null, 'not ending at the denier')
+  t.is(rosterPathOf({ rosterPath: [creatorKey, mid.toUpperCase(), denierKey] }, facts), null, 'a key in a second spelling')
+  t.is(rosterPathOf({ rosterPath: [creatorKey, mid, mid, denierKey] }, facts), null, 'a repeated key')
+  const long = [creatorKey, ...Array.from({ length: MAX_ROSTER_PATH - 1 }, () => hex()), denierKey]
+  t.is(rosterPathOf({ rosterPath: long }, facts), null, 'longer than the cap')
+  t.is(rosterPathOf({ rosterPath: [creatorKey, denierKey] }, { creatorKey: null, denierKey }), null, 'no creator to root it')
 })
