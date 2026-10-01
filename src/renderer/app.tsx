@@ -21,6 +21,7 @@ import * as whatsNew from './platform/whats-new.js'
 import OnboardingScreen from './screens/OnboardingScreen.js'
 import WorkerFaultScreen from './screens/WorkerFaultScreen.js'
 import IdentityLockedScreen from './screens/IdentityLockedScreen.js'
+import RestoreScreen from './screens/RestoreScreen.js'
 import ScreenRouter from './ScreenRouter.js'
 import TopNav from './components/layout/TopNav.js'
 import AppDialogs, { type AppDialog } from './components/modals/AppDialogs.js'
@@ -70,6 +71,8 @@ export default function App() {
   // read as "no profile yet" and open onboarding over the identity it holds.
   if (!identity.known) return <BootScreen label={t('boot.loading')} />
   if (identity.locked) return <IdentityLockedScreen code={identity.code} />
+  // A restored profile reads as "no profile yet" until it has caught up, and onboarding would write it.
+  if (identity.restore) return <RestoreScreen progress={identity.restore} restartFailed={identity.restartFailed} onRetryRestart={identity.retryRestart} />
   if (loading) return <BootScreen label={t('boot.loading')} />
   if (needsSetup) return <OnboardingScreen onComplete={saveProfile} />
 

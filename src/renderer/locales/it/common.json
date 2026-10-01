@@ -22,7 +22,8 @@
     "intro": "Iniziamo personalizzando il tuo spazio. Come dobbiamo chiamarti?",
     "displayName": "Nome visualizzato",
     "displayNamePlaceholder": "es. Mario Rossi",
-    "displayNameHelp": "È così che ti vedranno il tuo team e i tuoi amici."
+    "displayNameHelp": "È così che ti vedranno il tuo team e i tuoi amici.",
+    "restore": "Hai già una chiave di recupero? Ripristina la tua identità"
   },
   "topnav": {
     "feedback": "Invia feedback",
@@ -1312,6 +1313,23 @@
     "startFreshTitle": "Ricominciare da capo?",
     "startFreshBody": "Mirall sposta i dati bloccati in una cartella separata lì accanto e ricomincia con una nuova identità. I tuoi contatti non riconosceranno la nuova identità e i tuoi spazi non ci saranno.",
     "startFreshConfirm": "Metti da parte e ricomincia"
+  },
+  "restore": {
+    "title": "Ripristino del tuo profilo",
+    "body": "La tua identità è di nuovo su questo dispositivo. Mirall sta recuperando il tuo profilo dalle persone con cui condividi spazi, così nulla di ciò che modifichi qui entra in conflitto con ciò che hanno già.",
+    "statusWaiting": "In attesa che qualcuno con cui condividi uno spazio si colleghi…",
+    "statusReceiving": "Ricezione del tuo profilo…",
+    "statusChecking": "Verifica che il tuo profilo sia aggiornato…",
+    "statusDone": "Il tuo profilo è ripristinato. Apertura di Mirall…",
+    "progressLabel": "Profilo ricevuto",
+    "inviteLabel": "Codice di invito di uno dei tuoi spazi",
+    "inviteHelp": "Chiedi un codice di invito a qualcuno di uno spazio di cui fai parte. Rientri senza approvazione e il tuo profilo torna tramite quella persona.",
+    "inviteJoined": "Sei entrato. In attesa che un membro di quello spazio si colleghi.",
+    "inviteJoin": "Rientra con l'invito",
+    "startFresh": "Inizia invece una nuova identità",
+    "startFreshHint": "Questo ripristino viene messo da parte su questo dispositivo, non eliminato.",
+    "startFreshBody": "Mirall sposta l'identità ripristinata in una cartella separata e inizia con una nuova. I tuoi contatti non riconosceranno la nuova identità e i tuoi spazi non saranno su di essa.",
+    "restartFailed": "Mirall non è riuscito a riavviarsi per aprire il tuo profilo."
   },
   "recoveryBackup": {
     "title": "Salva la tua chiave di recupero",

@@ -48,7 +48,8 @@
     "intro": "Let's start by personalizing your space. How should we address you?",
     "displayName": "Display Name",
     "displayNamePlaceholder": "e.g. John Doe",
-    "displayNameHelp": "This is how your team and friends will see you."
+    "displayNameHelp": "This is how your team and friends will see you.",
+    "restore": "Already have a recovery key? Restore your identity"
   },
   "topnav": {
     "feedback": "Send Feedback",
@@ -1312,6 +1313,23 @@
     "startFreshTitle": "Start fresh?",
     "startFreshBody": "Mirall moves the locked data into a separate folder next to it and starts with a new identity. Your contacts will not recognize the new identity, and your spaces will not be on it.",
     "startFreshConfirm": "Set aside and start fresh"
+  },
+  "restore": {
+    "title": "Restoring your profile",
+    "body": "Your identity is back on this device. Mirall is getting your profile from the people you share spaces with, so nothing you change here can clash with what they already have.",
+    "statusWaiting": "Waiting for someone you share a space with to come online…",
+    "statusReceiving": "Receiving your profile…",
+    "statusChecking": "Making sure your profile is up to date…",
+    "statusDone": "Your profile is restored. Opening Mirall…",
+    "progressLabel": "Profile received",
+    "inviteLabel": "Invite code for one of your spaces",
+    "inviteHelp": "Ask anyone in a space you belong to for an invite code. You rejoin without approval, and your profile comes back through them.",
+    "inviteJoined": "Joined. Waiting for a member of that space to connect.",
+    "inviteJoin": "Rejoin with invite",
+    "startFresh": "Start a new identity instead",
+    "startFreshHint": "This restore is set aside on this device, not deleted.",
+    "startFreshBody": "Mirall moves the restored identity into a separate folder and starts with a new one. Your contacts will not recognize the new identity, and your spaces will not be on it.",
+    "restartFailed": "Mirall could not restart to open your profile."
   },
   "recoveryBackup": {
     "title": "Back up your recovery key",

@@ -38,6 +38,11 @@ file and its passphrase you can get your identity back if this device's
 keychain is reset or your data folder moves to another computer. It
 restores your identity, not your files, and we can't reset a lost
 passphrase.
+- **Restore your identity on a new device.** "Restore with a recovery key"
+on the welcome screen brings your identity back. Mirall then gets your
+profile from the people you share spaces with before you can change it, so
+your contacts keep recognizing you. If none of them is online, paste an
+invite code to one of your spaces.
 
 #### Changed
 

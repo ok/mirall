@@ -13,10 +13,10 @@ const read = (file) => readFileSync(path.join(SCREENS, file), 'utf8')
 // visible only as a shaved "g". A third screen writing its own <h1> is how that comes back.
 test('no screen declares its own page title', (t) => {
   // Heroes: centred, no back button, no actions cluster, at a size no other screen uses. The first
-  // two are the app's front doors; WorkerFaultScreen and IdentityLockedScreen are the pre-shell
-  // full-viewport states — they render above the boot gate with no shell around them, so there is no
-  // page for a PageHeader to sit at the top of and no entity for an EntityHeader to name.
-  const HEROES = new Set(['SpacesScreen.tsx', 'OnboardingScreen.tsx', 'WorkerFaultScreen.tsx', 'IdentityLockedScreen.tsx'])
+  // two are the app's front doors; WorkerFaultScreen, IdentityLockedScreen and RestoreScreen are the
+  // pre-shell full-viewport states — they render above the boot gate with no shell around them, so
+  // there is no page for a PageHeader to sit at the top of and no entity for an EntityHeader to name.
+  const HEROES = new Set(['SpacesScreen.tsx', 'OnboardingScreen.tsx', 'WorkerFaultScreen.tsx', 'IdentityLockedScreen.tsx', 'RestoreScreen.tsx'])
   // Recursive: the settings pages live in a subfolder, and a non-recursive walk would quietly
   // stop checking seven of them.
   const screenFiles = []

@@ -22,7 +22,8 @@
     "intro": "Lass uns deinen Raum einrichten. Wie möchtest du genannt werden?",
     "displayName": "Anzeigename",
     "displayNamePlaceholder": "z. B. Max Mustermann",
-    "displayNameHelp": "So sehen dich Team und Freunde."
+    "displayNameHelp": "So sehen dich Team und Freunde.",
+    "restore": "Schon einen Wiederherstellungsschlüssel? Identität wiederherstellen"
   },
   "topnav": {
     "feedback": "Feedback",
@@ -1312,6 +1313,23 @@
     "startFreshTitle": "Neu beginnen?",
     "startFreshBody": "Mirall verschiebt die gesperrten Daten in einen eigenen Ordner daneben und beginnt mit einer neuen Identität. Deine Kontakte erkennen die neue Identität nicht wieder, und deine Räume sind nicht darauf.",
     "startFreshConfirm": "Beiseitelegen und neu beginnen"
+  },
+  "restore": {
+    "title": "Dein Profil wird wiederhergestellt",
+    "body": "Deine Identität ist wieder auf diesem Gerät. Mirall holt dein Profil von den Personen, mit denen du Räume teilst, damit nichts, was du hier änderst, mit ihrem Stand kollidiert.",
+    "statusWaiting": "Warte, bis jemand aus einem deiner Räume online ist…",
+    "statusReceiving": "Dein Profil wird empfangen…",
+    "statusChecking": "Prüfe, ob dein Profil aktuell ist…",
+    "statusDone": "Dein Profil ist wiederhergestellt. Mirall wird geöffnet…",
+    "progressLabel": "Profil empfangen",
+    "inviteLabel": "Einladungscode für einen deiner Räume",
+    "inviteHelp": "Bitte jemanden aus einem deiner Räume um einen Einladungscode. Du trittst ohne Freigabe wieder bei, und dein Profil kommt über diese Person zurück.",
+    "inviteJoined": "Beigetreten. Warte, bis sich ein Mitglied dieses Raums verbindet.",
+    "inviteJoin": "Mit Einladung wieder beitreten",
+    "startFresh": "Stattdessen eine neue Identität beginnen",
+    "startFreshHint": "Die Wiederherstellung wird auf diesem Gerät beiseitegelegt, nicht gelöscht.",
+    "startFreshBody": "Mirall verschiebt die wiederhergestellte Identität in einen separaten Ordner und beginnt mit einer neuen. Deine Kontakte erkennen die neue Identität nicht, und deine Räume sind nicht darauf.",
+    "restartFailed": "Mirall konnte nicht neu starten, um dein Profil zu öffnen."
   },
   "recoveryBackup": {
     "title": "Wiederherstellungsschlüssel sichern",
