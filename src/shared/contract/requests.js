@@ -61,6 +61,7 @@ export const REQUESTS = Object.freeze({
     action: { type: ARG.string, max: ARG_MAX.name },
     prompt: { type: ARG.string, max: ARG_MAX.name },
   } },
+  'backup:reminders': { kind: 'command', args: { enabled: { type: ARG.boolean } } },
   'backup:restore': { kind: 'command', deadlineMs: 0, args: {
     // Absent: the recovery key the backup folder keeps.
     content: { type: ARG.string, max: ARG_MAX.recoveryFile, optional: true },

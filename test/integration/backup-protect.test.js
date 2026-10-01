@@ -79,8 +79,11 @@ test('setup writes the folder, the key it can open, and the first backup', async
   const d = dirs(t, 'setup')
   const folder = backupFolder(t)
   const { fake } = await start(t, d, { masterSecret: crypto.randomBytes(32) })
+  t.is((await fake.call('backup:status', {})).verdict, 'at-risk', 'nothing backed up yet')
 
   const status = await fake.call('backup:setup', { folder, passphrase: PASS })
+  t.is(status.verdict, 'protected')
+  t.ok(status.key.reminders)
   t.is(status.folder, folder)
   t.is(status.state, 'idle')
   t.ok(status.lastSuccessAt, 'the first backup ran')
@@ -274,4 +277,41 @@ test('a second "Not now" on the same showing counts once', async (t) => {
   await fake.call('backup:prompt', { prompt: 'offer', action: 'snooze' })
   const state = JSON.parse(fs.readFileSync(path.join(d.home, BACKUP_STATE_FILE), 'utf-8'))
   t.is(state.offer.dismissals, 1)
+})
+
+test('the passphrase reminder can be turned off and on, and the verdict follows the key', async (t) => {
+  const d = dirs(t, 'reminders')
+  const folder = backupFolder(t)
+  const masterSecret = crypto.randomBytes(32)
+  const first = await start(t, d, { masterSecret })
+  const setUp = await first.fake.call('backup:setup', { folder, passphrase: PASS })
+  t.absent((await first.fake.call('backup:reminders', { enabled: false })).key.reminders)
+  t.ok((await first.fake.call('backup:reminders', { enabled: true })).key.reminders)
+  await first.fake.call('backup:reminders', { enabled: false })
+  await first.root.close()
+
+  const state = JSON.parse(fs.readFileSync(path.join(d.home, BACKUP_STATE_FILE), 'utf-8'))
+  t.ok(state.check.optOut, 'the choice is kept')
+  fs.writeFileSync(path.join(d.home, BACKUP_STATE_FILE), JSON.stringify({ ...state, keyContent: null }))
+  const again = await start(t, d, { masterSecret, folder, repoId: setUp.repoId, profile: false })
+  const status = await again.fake.call('backup:status', {})
+  t.absent(status.key.reminders)
+  t.is(status.verdict, 'stopped', 'no key kept is a lapse')
+})
+
+test('after setup the verdict says why it is at risk: a new folder, then a folder that is gone', async (t) => {
+  const d = dirs(t, 'risk')
+  const folder = backupFolder(t)
+  const { fake } = await start(t, d, { masterSecret: crypto.randomBytes(32) })
+  await fake.call('backup:setup', { folder, passphrase: PASS })
+
+  const other = backupFolder(t)
+  const moved = await fake.call('backup:configure', { folder: other })
+  t.is(moved.verdict, 'at-risk')
+  t.is(moved.verdictReason, 'key-not-in-folder')
+
+  fs.rmSync(other, { recursive: true, force: true })
+  const failed = await fake.call('backup:run', {})
+  t.is(failed.state, 'error')
+  t.is(failed.verdictReason, 'failing', 'a failing backup is not shown as protected')
 })
