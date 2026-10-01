@@ -628,7 +628,7 @@
     "intro": "Voir et gérer l'utilisation des données Mirall sur cet appareil.",
     "downloadFolder": "Dossier de téléchargement",
     "downloadFolderDesc": "Emplacement où Mirall enregistre les fichiers téléchargés depuis les membres de votre espace.",
-    "appStorageDesc": "Espace utilisé par Mirall sur cet appareil pour partager et synchroniser vos fichiers et pour se mettre à jour. Il ne conserve jamais une seconde copie de vos fichiers. Mirall gère cet espace lui-même et fait le ménage dès qu’il le peut.",
+    "appStorageDesc": "Espace de stockage utilisé par Mirall sur cet appareil pour partager et synchroniser vos fichiers et pour se mettre à jour. Mirall gère cet espace lui-même et fait le ménage partout et dès qu’il le peut.",
     "sharingIndex": "Index des fichiers partagés",
     "sharingIndexDesc": "Cartes compactes des fichiers que vous partagez (jamais leur contenu).",
     "folderError": "Impossible de définir le dossier : {{error}}",

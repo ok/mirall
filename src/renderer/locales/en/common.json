@@ -660,7 +660,7 @@
     "appStorage": "App Storage",
     "showDetails": "Show details",
     "hideDetails": "Hide details",
-    "appStorageDesc": "Space Mirall uses on this device to share and sync your files and to update itself. It never keeps a second copy of your files. Mirall manages this space on its own and cleans up whatever it can.",
+    "appStorageDesc": "Storage space Mirall uses on this device to share and sync your files and to update itself. Mirall manages this space on its own and cleans up whatever and whenever it can.",
     "sharingIndex": "Shared-file index",
     "sharingIndexDesc": "Compact maps of the files you share (never the file contents).",
     "spaceDesc": "Your catalog {{own}} · members' catalogs {{members}}.",

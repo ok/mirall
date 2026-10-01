@@ -628,7 +628,7 @@
     "intro": "Datennutzung auf diesem Gerät anzeigen und verwalten.",
     "downloadFolder": "Download-Ordner",
     "downloadFolderDesc": "Hier speichert Mirall Dateien, die du von Mitgliedern deines Raums lädst.",
-    "appStorageDesc": "Speicher, den Mirall auf diesem Gerät zum Teilen und Synchronisieren deiner Dateien und für Updates nutzt. Es wird nie eine zweite Kopie deiner Dateien angelegt. Mirall verwaltet diesen Speicher selbst und räumt auf, wo es geht.",
+    "appStorageDesc": "Speicherplatz, den Mirall auf diesem Gerät zum Teilen und Synchronisieren deiner Dateien und für Updates nutzt. Mirall verwaltet diesen Speicher selbst und räumt auf, was und wann immer es kann.",
     "sharingIndex": "Freigabe-Index",
     "sharingIndexDesc": "Kompakte Verzeichnisse der von dir geteilten Dateien (nie die Dateiinhalte).",
     "folderError": "Ordner konnte nicht gesetzt werden: {{error}}",

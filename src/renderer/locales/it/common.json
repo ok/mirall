@@ -628,7 +628,7 @@
     "intro": "Visualizza e gestisci l'utilizzo dei dati di Mirall su questo dispositivo.",
     "downloadFolder": "Cartella download",
     "downloadFolderDesc": "Dove Mirall salva i file scaricati dai membri del tuo spazio.",
-    "appStorageDesc": "Spazio che Mirall usa su questo dispositivo per condividere e sincronizzare i tuoi file e per aggiornarsi. Non conserva mai una seconda copia dei tuoi file. Mirall gestisce questo spazio da sé e fa pulizia ovunque possibile.",
+    "appStorageDesc": "Spazio di archiviazione che Mirall usa su questo dispositivo per condividere e sincronizzare i tuoi file e per aggiornarsi. Mirall gestisce questo spazio da sé e fa pulizia ovunque e ogni volta che può.",
     "sharingIndex": "Indice dei file condivisi",
     "sharingIndexDesc": "Mappe compatte dei file che condividi (mai il contenuto).",
     "folderError": "Impossibile impostare la cartella: {{error}}",

@@ -26,7 +26,7 @@ export default async function s52({ runDir, bootstrap }) {
       const toggle = flatten(await A.snap()).find((n) => n.role === 'button' && n.name === 'Hide details')
       assert(toggle && toggle.states.includes('expanded'), 'the disclosure reports its expanded state')
       assert(await A.hasText('Space: Aurora'), 'the space has its own row, titled as a space')
-      assert(await A.hasText('cleans up whatever it can'), 'the card says once that Mirall cleans up on its own')
+      assert(await A.hasText('cleans up whatever and whenever it can'), 'the card says once that Mirall cleans up on its own')
       assert(!(await A.hasText('Freed when you leave the space')), 'rows say what they hold, not how they are freed')
       assert(await A.hasText('Download history'), 'the download-history row renders')
       assert(await A.hasText('Other'), 'the other row renders')
