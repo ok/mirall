@@ -45,8 +45,7 @@
     "recordingOff": "Enregistrement désactivé · {{kept}}",
     "backupRecoveryKey": "Sauvegarder votre clé de récupération",
     "backupRecoveryKeyDesc": "Enregistrez une clé chiffrée pour conserver votre identité si vous perdez cet appareil.",
-    "backupRecoveryKeyDescWeak": "Cet appareil n’a pas de trousseau système — une clé de récupération est votre vraie protection.",
-    "backupDesc": "Votre sauvegarde et la clé de récupération qui l’ouvre."
+    "backupRecoveryKeyDescWeak": "Cet appareil n’a pas de trousseau système — une clé de récupération est votre vraie protection."
   },
   "spaces": {
     "title": "Espaces",
@@ -537,11 +536,7 @@
     "activityLog": "Journal d'activité",
     "activityLogDesc": "Ce qui est enregistré, et pour combien de temps.",
     "backup": "Sauvegarde et récupération",
-    "backupDescOff": "Non configurée — protégez vos espaces",
-    "backupDescOn": "Activée · dernière sauvegarde {{when}}",
-    "backupDescPending": "Activée · première sauvegarde en attente",
-    "backupDescAttention": "Requiert votre attention",
-    "backupDescPaused": "En pause pendant la restauration de votre profil"
+    "backupDesc": "Dossier de sauvegarde, clé de récupération et restauration."
   },
   "appearanceSettings": {
     "title": "Apparence",
@@ -1012,7 +1007,8 @@
       "connectionProblem": "Problème de connexion",
       "networkDiagnostics": "Diagnostic",
       "networkAdvanced": "Détails avancés",
-      "backup": "Sauvegarde et récupération"
+      "backup": "Sauvegarde et récupération",
+      "protection": "Protection"
     }
   },
   "avatar": {
@@ -1395,7 +1391,7 @@
       "own-data-shrank": "moins de vos propres données"
     },
     "folderSubject": "dossier de sauvegarde",
-    "subtitle": "Récupérez tout si cet ordinateur tombe en panne ou est remplacé.",
+    "subtitle": "Où se trouve votre sauvegarde, votre clé de récupération et la restauration.",
     "offerTitle": "Protégez vos espaces",
     "offerBody": "Si cet ordinateur tombe en panne, est perdu ou remplacé, une sauvegarde restaure vos espaces, leurs listes de fichiers et votre identité auprès de vos contacts. Choisissez une fois un disque ou un dossier réseau — Mirall la tient à jour tout seul.",
     "setUp": "Configurer la sauvegarde",
@@ -1410,7 +1406,6 @@
     "scopeExcluded": "les fichiers eux-mêmes. Ils restent dans vos dossiers ; sauvegardez-les comme d’habitude.",
     "scopePrivateLead": "Privé :",
     "scopePrivate": "tout est chiffré. Seule votre phrase secrète l’ouvre — pas même nous.",
-    "protection": "Protection",
     "rowBackup": "Sauvegarde",
     "rowBackupOk": "Dernière sauvegarde {{when}}",
     "rowBackupNever": "Première sauvegarde en attente",
@@ -1419,8 +1414,8 @@
     "rowKeyOk": "Dans votre dossier de sauvegarde · confirmée {{when}}",
     "rowKeyNotInFolder": "Conservée sur cet ordinateur — Mirall la placera dans le dossier à la prochaine sauvegarde",
     "rowKeyMissing": "Manquante — créez une nouvelle clé de récupération",
-    "rowCopy": "Deuxième copie",
-    "rowCopyNone": "Recommandée — gardez-en une loin de cet ordinateur et du disque de sauvegarde",
+    "rowCopy": "Copie de votre clé de récupération",
+    "rowCopyNone": "Votre clé de récupération, c’est votre identité sur Mirall. Gardez-en une copie loin de cet ordinateur et du disque de sauvegarde — dans un gestionnaire de mots de passe ou sur une clé USB.",
     "rowCopyOk": "Enregistrée {{when}}",
     "saveCopy": "Enregistrer une copie…",
     "copySaved": "Copie de la clé de récupération enregistrée.",
@@ -1430,14 +1425,24 @@
     "turnOffBody": "Mirall arrête de sauvegarder. Les sauvegardes et la clé de récupération déjà dans le dossier y restent.",
     "turnOffConfirm": "Désactiver",
     "keyTitle": "Clé de récupération",
-    "keyDesc": "Ouvre votre sauvegarde et prouve que c’est bien vous sur un nouvel ordinateur. Protégée par votre phrase secrète.",
-    "checkKey": "Vérifier ma phrase secrète",
     "newKey": "Oubliée ? Créer une nouvelle clé",
     "makeKey": "Créer une clé de récupération",
     "staleToast": "Mirall n’a pas sauvegardé depuis plus de 10 jours. Vérifiez que le dossier de sauvegarde est disponible.",
     "open": "Ouvrir",
     "rowKeyUnconfirmed": "Dans votre dossier de sauvegarde · phrase secrète pas encore confirmée sur cet ordinateur",
-    "keyOnly": "Enregistrer seulement un fichier de clé"
+    "keyOnly": "Enregistrer seulement un fichier de clé",
+    "setUpTitle": "Configurer une sauvegarde",
+    "setUpBody": "Choisissez une fois un disque ou un dossier réseau. Mirall y garde une copie de vos espaces, de leurs listes de fichiers, de vos réglages et de votre clé de récupération, chiffrée avec une phrase secrète que vous seul connaissez.",
+    "passphraseTitle": "Phrase secrète",
+    "passphraseDesc": "Ouvre votre clé de récupération. La changer crée une nouvelle clé ; les copies enregistrées ailleurs gardent l’ancienne phrase.",
+    "changePassphrase": "Changer la phrase secrète…",
+    "remindersLabel": "Me rappeler de vérifier ma phrase secrète",
+    "remindersDesc": "Deux fois par an, Mirall vous demande de la saisir une fois — rien n’est envoyé.",
+    "restoreTitle": "Restaurer sur un nouvel ordinateur",
+    "restoreStep1": "Installez Mirall et ouvrez-le.",
+    "restoreStep2": "Choisissez « Déjà utilisé Mirall ? Restaurez votre compte ».",
+    "restoreStep3": "Choisissez votre dossier de sauvegarde et saisissez votre phrase secrète. Votre clé de récupération est dans le dossier.",
+    "restoreKeyOnly": "Pas de dossier de sauvegarde ? Votre fichier de clé seul ramène votre identité ; vos espaces reviennent grâce aux personnes avec qui vous les partagez."
   },
   "restoreBackup": {
     "title": "Restaurer votre compte",
@@ -1511,5 +1516,64 @@
     "fromBackupBody": "Tout revient : vos espaces, listes de fichiers et réglages. Recommandé.",
     "fromKey": "Je n’ai que mon fichier de clé de récupération",
     "fromKeyBody": "Vous redevenez vous-même, et vos espaces reviennent grâce aux personnes avec qui vous les partagez."
+  },
+  "protection": {
+    "title": "Protection",
+    "intro": "Comment votre identité et vos données sont protégées sur cet appareil.",
+    "identityTitle": "Votre identité",
+    "dataTitle": "Vos données",
+    "identityKey": "Clé d’identité sur cet ordinateur",
+    "checkPassphrase": "Vérifier la phrase secrète",
+    "keyNotBackedUp": "Pas encore dans une sauvegarde — si cet ordinateur est perdu, seul un fichier de clé enregistré par vous ramène votre identité.",
+    "copyLater": "Enregistrée dès que la sauvegarde est configurée.",
+    "dataNotBackedUp": "Non configurée — vos espaces, listes de fichiers et réglages ne sont que sur cet ordinateur.",
+    "folderOffline": "{{folder}} · non connecté",
+    "openSettings": "Réglages de sauvegarde et récupération",
+    "openSettingsDesc": "Où se trouve la sauvegarde, votre clé de récupération et comment restaurer.",
+    "openStatus": "État de la protection",
+    "openStatusDesc": "Voyez ce qui est protégé sur cet appareil en ce moment.",
+    "dot": {
+      "protected": "Protégé",
+      "at-risk": "À risque",
+      "stopped": "Sauvegarde arrêtée",
+      "paused": "En pause"
+    },
+    "summary": {
+      "line": "{{key}} · {{data}}",
+      "keyProtected": "Clé d’identité protégée",
+      "keyWeak": "Clé d’identité sans trousseau système",
+      "backedUp": "sauvegardé {{when}}",
+      "notBackedUp": "vos données ne sont pas sauvegardées",
+      "attention": "la sauvegarde requiert votre attention",
+      "paused": "sauvegardes en pause pendant la restauration de votre profil",
+      "keyDisabled": "Clé d’identité non protégée",
+      "stopped": "sauvegarde arrêtée",
+      "backedUpAlone": "Sauvegardé {{when}}",
+      "notBackedUpAlone": "Vos données ne sont pas sauvegardées",
+      "stoppedAlone": "Sauvegarde arrêtée",
+      "attentionAlone": "La sauvegarde requiert votre attention",
+      "pausedAlone": "Sauvegardes en pause pendant la restauration de votre profil"
+    },
+    "verdict": {
+      "protectedTitle": "Vous êtes protégé",
+      "protectedBody": "Clé de récupération dans votre sauvegarde, données sauvegardées {{when}}.",
+      "notSetUpTitle": "Vos données ne sont pas sauvegardées",
+      "notSetUpBody": "Configurez une sauvegarde une fois — vos espaces et votre clé de récupération, sur un autre disque ou dans un dossier réseau.",
+      "pausedTitle": "Restauration de votre profil",
+      "pausedBody": "Les sauvegardes reprendront dès que votre profil restauré sera à jour auprès des personnes avec qui vous partagez des espaces.",
+      "failingTitle": "Votre sauvegarde requiert votre attention",
+      "failingBody": "La dernière sauvegarde n’a pas abouti. Vérifiez que le dossier de sauvegarde est disponible, puis sauvegardez à nouveau.",
+      "firstBackupTitle": "Presque protégé",
+      "firstBackupBody": "La première sauvegarde n’est pas encore terminée.",
+      "keyNotInFolderTitle": "Presque protégé",
+      "keyNotInFolderBody": "Votre clé de récupération rejoindra le dossier de sauvegarde à la prochaine sauvegarde.",
+      "unconfirmedTitle": "Presque protégé",
+      "unconfirmedBody": "Confirmez une fois votre phrase secrète de récupération sur cet ordinateur.",
+      "staleTitle": "Votre sauvegarde est arrêtée",
+      "staleBody": "Rien n’a été sauvegardé depuis plus de 10 jours. Connectez le disque de sauvegarde, ou choisissez un autre dossier dans les réglages de sauvegarde et récupération.",
+      "noKeyTitle": "Votre sauvegarde n’a pas de clé de récupération",
+      "noKeyBody": "Sans elle, cette sauvegarde ne peut pas être restaurée sur un autre ordinateur. Créez une clé de récupération."
+    },
+    "copyAfterKey": "Enregistrée dès que vous créez une clé de récupération."
   }
 }

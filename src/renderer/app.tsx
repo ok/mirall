@@ -142,7 +142,7 @@ function AppShell({ nav, profile, onSaveProfile, deepLinks }: AppShellProps) {
       <DownloadFolderToastBridge onChangeFolder={() => nav.openStorageSettings(nav.currentScreen === 'space-view' ? 'space-view' : 'settings')} />
       <WorkerToastBridge />
       <JoinRequestToastBridge navigateToSpace={nav.navigateToSpace} />
-      <BackupToastBridge onOpen={() => nav.openBackupSettings('settings')} />
+      <BackupToastBridge onOpen={() => nav.setCurrentScreen('protection-status')} />
       <div className="min-h-screen bg-surface">
         <a
           href="#main-content"

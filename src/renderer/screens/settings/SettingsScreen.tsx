@@ -1,13 +1,12 @@
 // Settings hub: tile navigation into the general / appearance / notifications / network / storage /
-// backup / activity-log subscreens. The backup row's description is the backup's live state.
+// backup / activity-log subscreens.
 import { useTranslation } from 'react-i18next'
 import { useHasVerticalOverflow } from '../../hooks/useHasVerticalOverflow.js'
 import Icon from '../../components/primitives/Icon.js'
 import type { IconName } from '../../types/ui.js'
 import PageHeader from '../../components/layout/PageHeader.js'
 import type { Screen } from '../../shell/navigation.js'
-import { useBackupStatus } from '../../hooks/useBackupStatus.js'
-import { backupSummary } from '../../components/backup/backup-summary.js'
+import { isLocalBackupFeatureOn } from '../../platform/config-client.js'
 
 interface SettingsProps {
   onBack: () => void
@@ -17,7 +16,6 @@ interface SettingsProps {
 export default function Settings({ onBack, onNavigate }: SettingsProps) {
   const { t } = useTranslation()
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
-  const backup = useBackupStatus()
   const isMac = window.bridge.getPlatform() === 'darwin'
   const generalDesc = isMac ? t('settings.generalDescMac') : t('settings.generalDesc')
 
@@ -27,8 +25,8 @@ export default function Settings({ onBack, onNavigate }: SettingsProps) {
     { icon: 'notifications',   label: t('settings.notifications'), desc: t('settings.notificationsDesc'), bg: 'bg-icon-tile', fg: 'text-on-icon-tile', screen: 'notification-settings' },
     { icon: 'hub',             label: t('settings.network'),       desc: t('settings.networkDesc'),    bg: 'bg-icon-tile', fg: 'text-on-icon-tile', screen: 'network-settings' },
     { icon: 'database',        label: t('settings.storage'),       desc: t('settings.storageDesc'),    bg: 'bg-icon-tile', fg: 'text-on-icon-tile', screen: 'storage-settings' },
-    ...(backup?.enabled
-      ? [{ icon: 'shield' as const, label: t('settings.backup'), desc: backupSummary(backup, t), bg: 'bg-icon-tile', fg: 'text-on-icon-tile', screen: 'backup-settings' as const }]
+    ...(isLocalBackupFeatureOn()
+      ? [{ icon: 'shield' as const, label: t('settings.backup'), desc: t('settings.backupDesc'), bg: 'bg-icon-tile', fg: 'text-on-icon-tile', screen: 'backup-settings' as const }]
       : []),
     { icon: 'history',         label: t('settings.activityLog'),  desc: t('settings.activityLogDesc'), bg: 'bg-icon-tile', fg: 'text-on-icon-tile', screen: 'activity-log-settings' },
   ]

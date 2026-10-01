@@ -45,8 +45,7 @@
     "recordingOff": "Registrazione disattivata · {{kept}}",
     "backupRecoveryKey": "Salva la tua chiave di recupero",
     "backupRecoveryKeyDesc": "Salva una chiave cifrata per conservare la tua identità se perdi questo dispositivo.",
-    "backupRecoveryKeyDescWeak": "Questo dispositivo non ha un portachiavi di sistema: una chiave di recupero è la tua vera protezione.",
-    "backupDesc": "Il tuo backup e la chiave di recupero che lo apre."
+    "backupRecoveryKeyDescWeak": "Questo dispositivo non ha un portachiavi di sistema: una chiave di recupero è la tua vera protezione."
   },
   "spaces": {
     "title": "Spazi",
@@ -537,11 +536,7 @@
     "activityLog": "Registro attività",
     "activityLogDesc": "Cosa viene registrato e per quanto tempo.",
     "backup": "Backup e recupero",
-    "backupDescOff": "Non configurato — proteggi i tuoi spazi",
-    "backupDescOn": "Attivo · ultimo backup {{when}}",
-    "backupDescPending": "Attivo · primo backup in attesa",
-    "backupDescAttention": "Richiede attenzione",
-    "backupDescPaused": "In pausa durante il ripristino del profilo"
+    "backupDesc": "Cartella di backup, chiave di recupero e ripristino."
   },
   "appearanceSettings": {
     "title": "Aspetto",
@@ -1012,7 +1007,8 @@
       "connectionProblem": "Problema di connessione",
       "networkDiagnostics": "Diagnostica",
       "networkAdvanced": "Dettagli avanzati",
-      "backup": "Backup e recupero"
+      "backup": "Backup e recupero",
+      "protection": "Protezione"
     }
   },
   "avatar": {
@@ -1395,7 +1391,7 @@
       "own-data-shrank": "meno dati tuoi"
     },
     "folderSubject": "cartella di backup",
-    "subtitle": "Recupera tutto se questo computer si guasta o viene sostituito.",
+    "subtitle": "Dove si trova il backup, la chiave di recupero e il ripristino.",
     "offerTitle": "Proteggi i tuoi spazi",
     "offerBody": "Se questo computer si guasta, viene perso o sostituito, un backup riporta i tuoi spazi, i loro elenchi di file e la tua identità presso le persone con cui condividi. Scegli una volta un disco o una cartella di rete — Mirall lo tiene aggiornato da solo.",
     "setUp": "Configura backup",
@@ -1410,7 +1406,6 @@
     "scopeExcluded": "i file stessi. Restano nelle tue cartelle; fanne il backup come fai già.",
     "scopePrivateLead": "Privato:",
     "scopePrivate": "tutto è cifrato. Solo la tua passphrase lo apre — nemmeno noi possiamo.",
-    "protection": "Protezione",
     "rowBackup": "Backup",
     "rowBackupOk": "Ultimo backup {{when}}",
     "rowBackupNever": "Primo backup in attesa",
@@ -1419,8 +1414,8 @@
     "rowKeyOk": "Nella cartella di backup · confermata {{when}}",
     "rowKeyNotInFolder": "Conservata su questo computer — Mirall la mette nella cartella al prossimo backup",
     "rowKeyMissing": "Mancante — crea una nuova chiave di recupero",
-    "rowCopy": "Seconda copia",
-    "rowCopyNone": "Consigliata — conservane una lontano da questo computer e dal disco di backup",
+    "rowCopy": "Copia della chiave di recupero",
+    "rowCopyNone": "La chiave di recupero è la tua identità su Mirall. Conservane una copia lontano da questo computer e dal disco di backup — in un gestore di password o su una chiavetta USB.",
     "rowCopyOk": "Salvata {{when}}",
     "saveCopy": "Salva una copia…",
     "copySaved": "Copia della chiave di recupero salvata.",
@@ -1430,14 +1425,24 @@
     "turnOffBody": "Mirall smette di eseguire backup. I backup e la chiave di recupero già nella cartella restano lì.",
     "turnOffConfirm": "Disattiva",
     "keyTitle": "Chiave di recupero",
-    "keyDesc": "Apre il tuo backup e dimostra che sei tu su un nuovo computer. Protetta dalla tua passphrase.",
-    "checkKey": "Controlla la passphrase",
     "newKey": "Dimenticata? Crea una nuova chiave",
     "makeKey": "Crea una chiave di recupero",
     "staleToast": "Mirall non esegue un backup da oltre 10 giorni. Verifica che la cartella di backup sia disponibile.",
     "open": "Apri",
     "rowKeyUnconfirmed": "Nella cartella di backup · passphrase non ancora confermata su questo computer",
-    "keyOnly": "Salva solo un file della chiave"
+    "keyOnly": "Salva solo un file della chiave",
+    "setUpTitle": "Configura un backup",
+    "setUpBody": "Scegli una volta un disco o una cartella di rete. Mirall vi conserva una copia dei tuoi spazi, dei loro elenchi di file, delle impostazioni e della chiave di recupero, cifrata con una passphrase che conosci solo tu.",
+    "passphraseTitle": "Passphrase",
+    "passphraseDesc": "Apre la chiave di recupero. Cambiarla crea una nuova chiave; le copie salvate altrove mantengono la vecchia passphrase.",
+    "changePassphrase": "Cambia passphrase…",
+    "remindersLabel": "Ricordami di controllare la passphrase",
+    "remindersDesc": "Due volte all’anno Mirall ti chiede di digitarla una volta — non viene inviato nulla.",
+    "restoreTitle": "Ripristinare su un nuovo computer",
+    "restoreStep1": "Installa Mirall e aprilo.",
+    "restoreStep2": "Scegli «Hai già usato Mirall? Ripristina il tuo account».",
+    "restoreStep3": "Scegli la cartella di backup e inserisci la passphrase. La chiave di recupero è nella cartella.",
+    "restoreKeyOnly": "Nessuna cartella di backup? Il solo file della chiave riporta la tua identità; i tuoi spazi tornano dalle persone con cui li condividi."
   },
   "restoreBackup": {
     "title": "Ripristina il tuo account",
@@ -1511,5 +1516,64 @@
     "fromBackupBody": "Torna tutto: spazi, elenchi di file e impostazioni. Consigliato.",
     "fromKey": "Ho solo il file della chiave di recupero",
     "fromKeyBody": "Torni a essere tu, e i tuoi spazi tornano dalle persone con cui li condividi."
+  },
+  "protection": {
+    "title": "Protezione",
+    "intro": "Come sono protetti la tua identità e i tuoi dati su questo dispositivo.",
+    "identityTitle": "La tua identità",
+    "dataTitle": "I tuoi dati",
+    "identityKey": "Chiave di identità su questo computer",
+    "checkPassphrase": "Controlla passphrase",
+    "keyNotBackedUp": "Non ancora in un backup — se perdi questo computer, solo un file della chiave salvato da te riporta la tua identità.",
+    "copyLater": "Salvata quando il backup è configurato.",
+    "dataNotBackedUp": "Non configurato — spazi, elenchi di file e impostazioni sono solo su questo computer.",
+    "folderOffline": "{{folder}} · non collegata",
+    "openSettings": "Impostazioni di backup e recupero",
+    "openSettingsDesc": "Dove si trova il backup, la chiave di recupero e come ripristinare.",
+    "openStatus": "Stato della protezione",
+    "openStatusDesc": "Vedi cosa è protetto ora su questo dispositivo.",
+    "dot": {
+      "protected": "Protetto",
+      "at-risk": "A rischio",
+      "stopped": "Backup fermo",
+      "paused": "In pausa"
+    },
+    "summary": {
+      "line": "{{key}} · {{data}}",
+      "keyProtected": "Chiave di identità protetta",
+      "keyWeak": "Chiave di identità senza portachiavi di sistema",
+      "backedUp": "backup {{when}}",
+      "notBackedUp": "i tuoi dati non hanno un backup",
+      "attention": "il backup richiede attenzione",
+      "paused": "backup in pausa durante il ripristino del profilo",
+      "keyDisabled": "Chiave di identità non protetta",
+      "stopped": "backup fermo",
+      "backedUpAlone": "Backup {{when}}",
+      "notBackedUpAlone": "I tuoi dati non hanno un backup",
+      "stoppedAlone": "Backup fermo",
+      "attentionAlone": "Il backup richiede attenzione",
+      "pausedAlone": "Backup in pausa durante il ripristino del profilo"
+    },
+    "verdict": {
+      "protectedTitle": "Sei protetto",
+      "protectedBody": "Chiave di recupero nel backup, dati salvati {{when}}.",
+      "notSetUpTitle": "I tuoi dati non hanno un backup",
+      "notSetUpBody": "Configura un backup una volta — i tuoi spazi e la chiave di recupero, su un altro disco o in una cartella di rete.",
+      "pausedTitle": "Ripristino del profilo",
+      "pausedBody": "I backup riprenderanno quando il profilo ripristinato sarà allineato con le persone con cui condividi gli spazi.",
+      "failingTitle": "Il backup richiede attenzione",
+      "failingBody": "L’ultimo backup non è stato completato. Verifica che la cartella di backup sia disponibile, poi esegui di nuovo il backup.",
+      "firstBackupTitle": "Quasi protetto",
+      "firstBackupBody": "Il primo backup non è ancora completato.",
+      "keyNotInFolderTitle": "Quasi protetto",
+      "keyNotInFolderBody": "La chiave di recupero andrà nella cartella di backup con il prossimo backup.",
+      "unconfirmedTitle": "Quasi protetto",
+      "unconfirmedBody": "Conferma una volta la passphrase di recupero su questo computer.",
+      "staleTitle": "Il backup si è fermato",
+      "staleBody": "Nulla è stato salvato da oltre 10 giorni. Collega il disco di backup o scegli un’altra cartella nelle impostazioni di backup e recupero.",
+      "noKeyTitle": "Il backup non ha una chiave di recupero",
+      "noKeyBody": "Senza di essa questo backup non può essere ripristinato su un altro computer. Crea una chiave di recupero."
+    },
+    "copyAfterKey": "Salvata quando crei una chiave di recupero."
   }
 }

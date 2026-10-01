@@ -45,8 +45,7 @@
     "recordingOff": "Aufzeichnung ist aus · {{kept}}",
     "backupRecoveryKey": "Wiederherstellungsschlüssel sichern",
     "backupRecoveryKeyDesc": "Speichere einen verschlüsselten Schlüssel, damit du deine Identität behältst, wenn du dieses Gerät verlierst.",
-    "backupRecoveryKeyDescWeak": "Dieses Gerät hat keinen Systemschlüsselbund — ein Wiederherstellungsschlüssel ist dein eigentlicher Schutz.",
-    "backupDesc": "Dein Backup und der Wiederherstellungsschlüssel, der es öffnet."
+    "backupRecoveryKeyDescWeak": "Dieses Gerät hat keinen Systemschlüsselbund — ein Wiederherstellungsschlüssel ist dein eigentlicher Schutz."
   },
   "spaces": {
     "title": "Geteilte",
@@ -537,11 +536,7 @@
     "activityLog": "Aktivitätsprotokoll",
     "activityLogDesc": "Was aufgezeichnet wird und wie lange.",
     "backup": "Backup & Wiederherstellung",
-    "backupDescOff": "Nicht eingerichtet – schütze deine Spaces",
-    "backupDescOn": "An · letztes Backup {{when}}",
-    "backupDescPending": "An · erstes Backup ausstehend",
-    "backupDescAttention": "Braucht Aufmerksamkeit",
-    "backupDescPaused": "Pausiert, während dein Profil wiederhergestellt wird"
+    "backupDesc": "Backup-Ordner, Wiederherstellungsschlüssel und Wiederherstellen."
   },
   "appearanceSettings": {
     "title": "Darstellung",
@@ -1012,7 +1007,8 @@
       "connectionProblem": "Verbindungsproblem",
       "networkDiagnostics": "Diagnose",
       "networkAdvanced": "Erweiterte Details",
-      "backup": "Backup & Wiederherstellung"
+      "backup": "Backup & Wiederherstellung",
+      "protection": "Schutz"
     }
   },
   "avatar": {
@@ -1395,7 +1391,7 @@
       "own-data-shrank": "weniger eigene Daten"
     },
     "folderSubject": "Backup-Ordner",
-    "subtitle": "Hol dir alles zurück, wenn dieser Computer kaputtgeht oder ersetzt wird.",
+    "subtitle": "Wo dein Backup liegt, dein Wiederherstellungsschlüssel und das Wiederherstellen.",
     "offerTitle": "Schütze deine Spaces",
     "offerBody": "Wenn dieser Computer kaputtgeht, verloren geht oder ersetzt wird, holt ein Backup deine Spaces, ihre Dateilisten und deine Identität bei deinen Kontakten zurück. Wähle einmal ein Laufwerk oder einen Netzwerkordner – Mirall hält das Backup selbst aktuell.",
     "setUp": "Backup einrichten",
@@ -1410,7 +1406,6 @@
     "scopeExcluded": "die Dateien selbst. Sie bleiben in deinen Ordnern; sichere sie wie bisher.",
     "scopePrivateLead": "Privat:",
     "scopePrivate": "alles ist verschlüsselt. Nur deine Passphrase öffnet es – nicht einmal wir können das.",
-    "protection": "Schutz",
     "rowBackup": "Backup",
     "rowBackupOk": "Letztes Backup {{when}}",
     "rowBackupNever": "Erstes Backup ausstehend",
@@ -1419,8 +1414,8 @@
     "rowKeyOk": "In deinem Backup-Ordner · zuletzt bestätigt {{when}}",
     "rowKeyNotInFolder": "Auf diesem Computer – Mirall legt ihn beim nächsten Backup in den Ordner",
     "rowKeyMissing": "Fehlt – erstelle einen neuen Wiederherstellungsschlüssel",
-    "rowCopy": "Zweite Kopie",
-    "rowCopyNone": "Empfohlen – bewahre eine Kopie fern von diesem Computer und dem Backup-Laufwerk auf",
+    "rowCopy": "Kopie deines Wiederherstellungsschlüssels",
+    "rowCopyNone": "Dein Wiederherstellungsschlüssel ist deine Identität in Mirall. Bewahre eine Kopie fern von diesem Computer und dem Backup-Laufwerk auf – in einem Passwortmanager oder auf einem USB-Stick.",
     "rowCopyOk": "Gespeichert {{when}}",
     "saveCopy": "Kopie speichern…",
     "copySaved": "Kopie des Wiederherstellungsschlüssels gespeichert.",
@@ -1430,14 +1425,24 @@
     "turnOffBody": "Mirall hört auf zu sichern. Die Backups und der Wiederherstellungsschlüssel im Ordner bleiben erhalten.",
     "turnOffConfirm": "Ausschalten",
     "keyTitle": "Wiederherstellungsschlüssel",
-    "keyDesc": "Öffnet dein Backup und beweist auf einem neuen Computer, dass du es bist. Mit deiner Passphrase geschützt.",
-    "checkKey": "Passphrase prüfen",
     "newKey": "Vergessen? Neuen Schlüssel erstellen",
     "makeKey": "Wiederherstellungsschlüssel erstellen",
     "staleToast": "Mirall hat seit über 10 Tagen kein Backup gemacht. Prüfe, ob der Backup-Ordner verfügbar ist.",
     "open": "Öffnen",
     "rowKeyUnconfirmed": "In deinem Backup-Ordner · Passphrase auf diesem Computer noch nicht bestätigt",
-    "keyOnly": "Nur eine Schlüsseldatei speichern"
+    "keyOnly": "Nur eine Schlüsseldatei speichern",
+    "setUpTitle": "Backup einrichten",
+    "setUpBody": "Wähle einmal ein Laufwerk oder einen Netzwerkordner. Mirall legt dort eine Kopie deiner Spaces, ihrer Dateilisten, deiner Einstellungen und deines Wiederherstellungsschlüssels ab – verschlüsselt mit einer Passphrase, die nur du kennst.",
+    "passphraseTitle": "Passphrase",
+    "passphraseDesc": "Öffnet deinen Wiederherstellungsschlüssel. Eine Änderung erstellt einen neuen Schlüssel; anderswo gespeicherte Kopien behalten die alte Passphrase.",
+    "changePassphrase": "Passphrase ändern…",
+    "remindersLabel": "An die Passphrase-Prüfung erinnern",
+    "remindersDesc": "Zweimal im Jahr bittet Mirall dich, sie einmal einzugeben – nichts wird verschickt.",
+    "restoreTitle": "Wiederherstellen auf einem neuen Computer",
+    "restoreStep1": "Installiere Mirall und öffne es.",
+    "restoreStep2": "Wähle „Mirall schon genutzt? Konto wiederherstellen“.",
+    "restoreStep3": "Wähle deinen Backup-Ordner und gib deine Passphrase ein. Dein Wiederherstellungsschlüssel liegt im Ordner.",
+    "restoreKeyOnly": "Kein Backup-Ordner? Deine Schlüsseldatei allein bringt deine Identität zurück; deine Spaces kommen von den Personen zurück, mit denen du sie teilst."
   },
   "restoreBackup": {
     "title": "Konto wiederherstellen",
@@ -1511,5 +1516,64 @@
     "fromBackupBody": "Alles kommt zurück: deine Spaces, Dateilisten und Einstellungen. Empfohlen.",
     "fromKey": "Ich habe nur meine Schlüsseldatei",
     "fromKeyBody": "Du bist wieder du, und deine Spaces kommen von den Personen zurück, mit denen du sie teilst."
+  },
+  "protection": {
+    "title": "Schutz",
+    "intro": "Wie deine Identität und deine Daten auf diesem Gerät geschützt sind.",
+    "identityTitle": "Deine Identität",
+    "dataTitle": "Deine Daten",
+    "identityKey": "Identitätsschlüssel auf diesem Computer",
+    "checkPassphrase": "Passphrase prüfen",
+    "keyNotBackedUp": "Noch in keinem Backup – geht dieser Computer verloren, bringt nur eine selbst gespeicherte Schlüsseldatei deine Identität zurück.",
+    "copyLater": "Wird gespeichert, sobald das Backup eingerichtet ist.",
+    "dataNotBackedUp": "Nicht eingerichtet – deine Spaces, Dateilisten und Einstellungen liegen nur auf diesem Computer.",
+    "folderOffline": "{{folder}} · nicht verbunden",
+    "openSettings": "Einstellungen für Backup & Wiederherstellung",
+    "openSettingsDesc": "Wo das Backup liegt, dein Wiederherstellungsschlüssel und wie du wiederherstellst.",
+    "openStatus": "Schutzstatus",
+    "openStatusDesc": "Sieh, was auf diesem Gerät gerade geschützt ist.",
+    "dot": {
+      "protected": "Geschützt",
+      "at-risk": "Gefährdet",
+      "stopped": "Backup gestoppt",
+      "paused": "Pausiert"
+    },
+    "summary": {
+      "line": "{{key}} · {{data}}",
+      "keyProtected": "Identitätsschlüssel geschützt",
+      "keyWeak": "Identitätsschlüssel ohne System-Schlüsselbund",
+      "backedUp": "gesichert {{when}}",
+      "notBackedUp": "deine Daten sind nicht gesichert",
+      "attention": "Backup braucht Aufmerksamkeit",
+      "paused": "Backups pausiert, während dein Profil wiederhergestellt wird",
+      "keyDisabled": "Identitätsschlüssel ungeschützt",
+      "stopped": "Backup gestoppt",
+      "backedUpAlone": "Gesichert {{when}}",
+      "notBackedUpAlone": "Deine Daten sind nicht gesichert",
+      "stoppedAlone": "Backup gestoppt",
+      "attentionAlone": "Backup braucht Aufmerksamkeit",
+      "pausedAlone": "Backups pausiert, während dein Profil wiederhergestellt wird"
+    },
+    "verdict": {
+      "protectedTitle": "Du bist geschützt",
+      "protectedBody": "Wiederherstellungsschlüssel im Backup, Daten gesichert {{when}}.",
+      "notSetUpTitle": "Deine Daten sind nicht gesichert",
+      "notSetUpBody": "Richte einmal ein Backup ein – deine Spaces und dein Wiederherstellungsschlüssel, auf einem anderen Laufwerk oder in einem Netzwerkordner.",
+      "pausedTitle": "Dein Profil wird wiederhergestellt",
+      "pausedBody": "Backups laufen weiter, sobald dein wiederhergestelltes Profil mit den Personen abgeglichen ist, mit denen du Spaces teilst.",
+      "failingTitle": "Dein Backup braucht Aufmerksamkeit",
+      "failingBody": "Das letzte Backup wurde nicht fertig. Prüfe, ob der Backup-Ordner verfügbar ist, und sichere erneut.",
+      "firstBackupTitle": "Fast geschützt",
+      "firstBackupBody": "Das erste Backup ist noch nicht fertig.",
+      "keyNotInFolderTitle": "Fast geschützt",
+      "keyNotInFolderBody": "Dein Wiederherstellungsschlüssel kommt mit dem nächsten Backup in den Backup-Ordner.",
+      "unconfirmedTitle": "Fast geschützt",
+      "unconfirmedBody": "Bestätige deine Wiederherstellungs-Passphrase einmal auf diesem Computer.",
+      "staleTitle": "Dein Backup ist gestoppt",
+      "staleBody": "Seit über 10 Tagen wurde nichts gesichert. Verbinde das Backup-Laufwerk oder wähle in den Einstellungen für Backup & Wiederherstellung einen anderen Ordner.",
+      "noKeyTitle": "Deinem Backup fehlt der Wiederherstellungsschlüssel",
+      "noKeyBody": "Ohne ihn lässt sich dieses Backup auf keinem anderen Computer wiederherstellen. Erstelle einen Wiederherstellungsschlüssel."
+    },
+    "copyAfterKey": "Wird gespeichert, sobald du einen Wiederherstellungsschlüssel erstellst."
   }
 }

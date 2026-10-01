@@ -1,7 +1,8 @@
 // The grouped-row vocabulary the settings-style pages are built from: a tinted group, a leading
 // icon tile, and a row that navigates. A row that leads somewhere is a button with the label as its
-// accessible name; the tile and the chevron are decoration.
-import type { ReactNode } from 'react'
+// accessible name and its description (often a live state) as its accessible description; the tile
+// and the chevron are decoration.
+import { useId, type ReactNode } from 'react'
 import Icon from '../primitives/Icon.js'
 import type { IconName } from '../../types/ui.js'
 
@@ -20,15 +21,16 @@ interface RowBodyProps {
   leading: ReactNode
   title: string
   desc?: ReactNode
+  descId?: string
 }
 
-export function RowBody({ leading, title, desc }: RowBodyProps) {
+export function RowBody({ leading, title, desc, descId }: RowBodyProps) {
   return (
     <div className="flex items-center gap-4 min-w-0">
       {leading}
       <div className="min-w-0">
         <p className="font-semibold text-accent">{title}</p>
-        {desc && <p className="text-xs text-on-surface-variant">{desc}</p>}
+        {desc && <p id={descId} className="text-xs text-on-surface-variant">{desc}</p>}
       </div>
     </div>
   )
@@ -43,9 +45,10 @@ interface ActionRowProps {
 }
 
 export default function ActionRow({ label, desc, icon, leading, onClick }: ActionRowProps) {
+  const descId = useId()
   return (
-    <button type="button" onClick={onClick} aria-label={label} className={ROW}>
-      <RowBody leading={leading ?? (icon ? <Tile icon={icon} /> : null)} title={label} desc={desc} />
+    <button type="button" onClick={onClick} aria-label={label} aria-describedby={desc ? descId : undefined} className={ROW}>
+      <RowBody leading={leading ?? (icon ? <Tile icon={icon} /> : null)} title={label} desc={desc} descId={descId} />
       <Icon name="chevron_right" className="text-secondary shrink-0" />
     </button>
   )

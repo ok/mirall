@@ -45,8 +45,7 @@
     "recordingOff": "El registro está desactivado · {{kept}}",
     "backupRecoveryKey": "Guarda una copia de tu clave de recuperación",
     "backupRecoveryKeyDesc": "Guarda una clave cifrada para conservar tu identidad si pierdes este dispositivo.",
-    "backupRecoveryKeyDescWeak": "Este dispositivo no tiene llavero del sistema: una clave de recuperación es tu verdadera protección.",
-    "backupDesc": "Tu copia de seguridad y la clave de recuperación que la abre."
+    "backupRecoveryKeyDescWeak": "Este dispositivo no tiene llavero del sistema: una clave de recuperación es tu verdadera protección."
   },
   "spaces": {
     "title": "Espacios",
@@ -537,11 +536,7 @@
     "activityLog": "Registro de actividad",
     "activityLogDesc": "Qué se registra y durante cuánto tiempo.",
     "backup": "Copia y recuperación",
-    "backupDescOff": "Sin configurar — protege tus espacios",
-    "backupDescOn": "Activada · última copia {{when}}",
-    "backupDescPending": "Activada · primera copia pendiente",
-    "backupDescAttention": "Requiere atención",
-    "backupDescPaused": "En pausa mientras se restaura tu perfil"
+    "backupDesc": "Carpeta de copias, clave de recuperación y restauración."
   },
   "appearanceSettings": {
     "title": "Apariencia",
@@ -1012,7 +1007,8 @@
       "connectionProblem": "Problema de conexión",
       "networkDiagnostics": "Diagnóstico",
       "networkAdvanced": "Detalles avanzados",
-      "backup": "Copia y recuperación"
+      "backup": "Copia y recuperación",
+      "protection": "Protección"
     }
   },
   "avatar": {
@@ -1395,7 +1391,7 @@
       "own-data-shrank": "menos datos propios"
     },
     "folderSubject": "carpeta de copias",
-    "subtitle": "Recupéralo todo si este ordenador se estropea o se sustituye.",
+    "subtitle": "Dónde está tu copia, tu clave de recuperación y la restauración.",
     "offerTitle": "Protege tus espacios",
     "offerBody": "Si este ordenador se estropea, se pierde o se sustituye, una copia de seguridad recupera tus espacios, sus listas de archivos y tu identidad ante las personas con quienes compartes. Elige una vez un disco o una carpeta de red — Mirall la mantiene al día por sí solo.",
     "setUp": "Configurar copia",
@@ -1410,7 +1406,6 @@
     "scopeExcluded": "los archivos en sí. Se quedan en tus carpetas; haz copia de ellos como hasta ahora.",
     "scopePrivateLead": "Privado:",
     "scopePrivate": "todo está cifrado. Solo tu frase lo abre — ni siquiera nosotros podemos.",
-    "protection": "Protección",
     "rowBackup": "Copia de seguridad",
     "rowBackupOk": "Última copia {{when}}",
     "rowBackupNever": "Primera copia pendiente",
@@ -1419,8 +1414,8 @@
     "rowKeyOk": "En tu carpeta de copias · confirmada {{when}}",
     "rowKeyNotInFolder": "Guardada en este ordenador — Mirall la pondrá en la carpeta en la próxima copia",
     "rowKeyMissing": "Falta — crea una nueva clave de recuperación",
-    "rowCopy": "Segunda copia",
-    "rowCopyNone": "Recomendada — guarda una lejos de este ordenador y del disco de copias",
+    "rowCopy": "Copia de tu clave de recuperación",
+    "rowCopyNone": "Tu clave de recuperación es quién eres en Mirall. Guarda una copia lejos de este ordenador y del disco de copias — en un gestor de contraseñas o en un USB.",
     "rowCopyOk": "Guardada {{when}}",
     "saveCopy": "Guardar una copia…",
     "copySaved": "Copia de la clave de recuperación guardada.",
@@ -1430,14 +1425,24 @@
     "turnOffBody": "Mirall deja de hacer copias. Las copias y la clave de recuperación que ya están en la carpeta se quedan ahí.",
     "turnOffConfirm": "Desactivar",
     "keyTitle": "Clave de recuperación",
-    "keyDesc": "Abre tu copia y demuestra que eres tú en un ordenador nuevo. Protegida con tu frase.",
-    "checkKey": "Comprobar mi frase",
     "newKey": "¿La olvidaste? Crea una clave nueva",
     "makeKey": "Crear una clave de recuperación",
     "staleToast": "Mirall no ha hecho copia desde hace más de 10 días. Comprueba que la carpeta de copias esté disponible.",
     "open": "Abrir",
     "rowKeyUnconfirmed": "En tu carpeta de copias · frase aún no confirmada en este ordenador",
-    "keyOnly": "Guardar solo un archivo de clave"
+    "keyOnly": "Guardar solo un archivo de clave",
+    "setUpTitle": "Configurar una copia",
+    "setUpBody": "Elige una vez un disco o una carpeta de red. Mirall guarda allí una copia de tus espacios, sus listas de archivos, tus ajustes y tu clave de recuperación, cifrada con una frase que solo tú conoces.",
+    "passphraseTitle": "Frase",
+    "passphraseDesc": "Abre tu clave de recuperación. Cambiarla crea una clave nueva; las copias guardadas en otros sitios conservan la frase antigua.",
+    "changePassphrase": "Cambiar la frase…",
+    "remindersLabel": "Recordarme comprobar mi frase",
+    "remindersDesc": "Dos veces al año, Mirall te pide escribirla una vez — no se envía nada.",
+    "restoreTitle": "Restaurar en un ordenador nuevo",
+    "restoreStep1": "Instala Mirall y ábrelo.",
+    "restoreStep2": "Elige «¿Ya usaste Mirall? Restaura tu cuenta».",
+    "restoreStep3": "Elige tu carpeta de copias e introduce tu frase. Tu clave de recuperación está en la carpeta.",
+    "restoreKeyOnly": "¿Sin carpeta de copias? Tu archivo de clave basta para recuperar tu identidad; tus espacios vuelven a través de las personas con quienes los compartes."
   },
   "restoreBackup": {
     "title": "Restaurar tu cuenta",
@@ -1511,5 +1516,64 @@
     "fromBackupBody": "Vuelve todo: tus espacios, listas de archivos y ajustes. Recomendado.",
     "fromKey": "Solo tengo mi archivo de clave",
     "fromKeyBody": "Vuelves a ser tú, y tus espacios regresan a través de las personas con quienes los compartes."
+  },
+  "protection": {
+    "title": "Protección",
+    "intro": "Cómo se protegen tu identidad y tus datos en este dispositivo.",
+    "identityTitle": "Tu identidad",
+    "dataTitle": "Tus datos",
+    "identityKey": "Clave de identidad en este ordenador",
+    "checkPassphrase": "Comprobar la frase",
+    "keyNotBackedUp": "Aún no está en una copia — si pierdes este ordenador, solo un archivo de clave guardado por ti recupera tu identidad.",
+    "copyLater": "Se guarda cuando la copia esté configurada.",
+    "dataNotBackedUp": "Sin configurar — tus espacios, listas de archivos y ajustes solo están en este ordenador.",
+    "folderOffline": "{{folder}} · no conectado",
+    "openSettings": "Ajustes de copia y recuperación",
+    "openSettingsDesc": "Dónde está la copia, tu clave de recuperación y cómo restaurar.",
+    "openStatus": "Estado de la protección",
+    "openStatusDesc": "Mira qué está protegido ahora en este dispositivo.",
+    "dot": {
+      "protected": "Protegido",
+      "at-risk": "En riesgo",
+      "stopped": "Copia detenida",
+      "paused": "En pausa"
+    },
+    "summary": {
+      "line": "{{key}} · {{data}}",
+      "keyProtected": "Clave de identidad protegida",
+      "keyWeak": "Clave de identidad sin llavero del sistema",
+      "backedUp": "copia {{when}}",
+      "notBackedUp": "tus datos no tienen copia",
+      "attention": "la copia requiere atención",
+      "paused": "copias en pausa mientras se restaura tu perfil",
+      "keyDisabled": "Clave de identidad sin protección",
+      "stopped": "copia detenida",
+      "backedUpAlone": "Copia {{when}}",
+      "notBackedUpAlone": "Tus datos no tienen copia",
+      "stoppedAlone": "Copia detenida",
+      "attentionAlone": "La copia requiere atención",
+      "pausedAlone": "Copias en pausa mientras se restaura tu perfil"
+    },
+    "verdict": {
+      "protectedTitle": "Estás protegido",
+      "protectedBody": "Clave de recuperación en tu copia, datos copiados {{when}}.",
+      "notSetUpTitle": "Tus datos no tienen copia",
+      "notSetUpBody": "Configura una copia una vez — tus espacios y tu clave de recuperación, en otro disco o en una carpeta de red.",
+      "pausedTitle": "Restaurando tu perfil",
+      "pausedBody": "Las copias se reanudarán cuando tu perfil restaurado se haya puesto al día con las personas con quienes compartes espacios.",
+      "failingTitle": "Tu copia requiere atención",
+      "failingBody": "La última copia no terminó. Comprueba que la carpeta de copias esté disponible y vuelve a hacer la copia.",
+      "firstBackupTitle": "Casi protegido",
+      "firstBackupBody": "La primera copia aún no ha terminado.",
+      "keyNotInFolderTitle": "Casi protegido",
+      "keyNotInFolderBody": "Tu clave de recuperación irá a la carpeta de copias con la próxima copia.",
+      "unconfirmedTitle": "Casi protegido",
+      "unconfirmedBody": "Confirma una vez tu frase de recuperación en este ordenador.",
+      "staleTitle": "Tu copia se ha detenido",
+      "staleBody": "No se ha copiado nada en más de 10 días. Conecta el disco de copias o elige otra carpeta en los ajustes de copia y recuperación.",
+      "noKeyTitle": "Tu copia no tiene clave de recuperación",
+      "noKeyBody": "Sin ella, esta copia no se puede restaurar en otro ordenador. Crea una clave de recuperación."
+    },
+    "copyAfterKey": "Se guarda cuando creas una clave de recuperación."
   }
 }
