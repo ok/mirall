@@ -7,6 +7,8 @@
 // departure, so a throw there must keep the intent for the next boot rather than continue to the
 // forget. Steps 2-4 are best-effort, so one bad record cannot strand the others or the forget.
 /** @import { Logger } from '../../core/logger.js' */
+import { backupHint } from '../../storage/backup/backup-hints.js'
+import { URGENCY } from '../../storage/backup/schedule-rules.js'
 
 /** @internal */
 export const LEAVE_PHASES = ['clearOwnMembership', 'ownedMounts', 'shares', 'foreignMounts', 'forget']
@@ -35,4 +37,5 @@ export async function runLeaveTeardown(spaceId, steps, { log, onPhase = () => {}
 
   onPhase('forget')
   await steps.forget()
+  backupHint(URGENCY.URGENT)
 }

@@ -14,6 +14,8 @@ import { AppError } from './errors.js'
 import { CODES } from '../contract/errors.js'
 import { Subsystem } from './subsystem.js'
 import { isHeld, resetRestoreHold } from './restore-hold.js'
+import { backupHint } from '../storage/backup/backup-hints.js'
+import { URGENCY } from '../storage/backup/schedule-rules.js'
 
 const log = createLogger('store')
 
@@ -148,12 +150,21 @@ function rememberCoreName(core, name) {
   } catch { /* a core without ready() — skip naming */ }
 }
 
+// Every append to one of our own bees is a change worth backing up, except the two whose loss costs
+// nothing a restore needs: the activity log and maintenance timestamps.
+const UNHINTED_BEES = new Set(['audit-log', 'reclaim-meta'])
+
+function hintBackupOnAppend(core, name) {
+  if (!UNHINTED_BEES.has(name)) core.on('append', () => backupHint(URGENCY.NORMAL))
+}
+
 // A held bee opens read-only, so no caller can append to it until peers have confirmed it current.
 export function createBee(name, { encryptionKey = null } = {}) {
   const core = masterSecret
     ? store.get({ keyPair: deriveKeyPair(masterSecret, name), writable: !isHeld(name), ...(encryptionKey ? { encryptionKey } : {}) })
     : store.get({ name, ...(encryptionKey ? { encryptionKey } : {}) })
   rememberCoreName(core, name)
+  hintBackupOnAppend(core, name)
   return new Hyperbee(core, {
     keyEncoding: 'utf-8',
     valueEncoding: 'json',
@@ -211,7 +222,9 @@ function openLocalBee(core) {
 }
 
 export function createLocalBee(name) {
-  return openLocalBee(localBeeCore(name))
+  const core = localBeeCore(name)
+  hintBackupOnAppend(core, name)
+  return openLocalBee(core)
 }
 
 export function createLocalBeeScratch(name) {

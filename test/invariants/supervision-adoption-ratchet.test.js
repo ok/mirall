@@ -52,6 +52,7 @@ const UNSUPERVISED = {
   Sweeps: 'bounded periodic sweeps, each of which settles or throws',
   Supervisor: 'it is the supervisor, and it reports its own liveness through health()',
   RestoreCatchUp: 'one periodic tick that reads replication state and settles or throws; no pass held per key',
+  Backup: 'one run at a time, each bounded by its own I/O and settling into the status; no pass held per key',
 }
 
 // Spelled out rather than derived, and that is deliberate: boot.js starting a subsystem on the

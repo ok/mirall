@@ -95,6 +95,7 @@ const mainRequests = createMainRequestRouter({
   folderWatchers,
   looseFileWatchers,
   setDownloadRoots: (roots) => { workerDownloadRoots = roots },
+  rememberBackup: (backup) => config().set('backup', backup),
   sendToWorker,
   isDebug,
   isQuitting,
@@ -227,6 +228,10 @@ function getWorker(specifier) {
     // frozen placeholder, and it is the liveness signal that keeps a download parked on a
     // re-publish alive while a large source hashes. On by default; set false to revert.
     sharePrepareProgressEnabled: flags.sharePrepareProgress !== false,
+    // Staged: the local backup runs only once feature-flags.json turns it on.
+    localBackupEnabled: flags.localBackup === true,
+    backupFolder: config().get('backup.folder'),
+    backupRepoId: config().get('backup.repoId'),
     // Bulk content rides its own transport by default; feature-flags.json
     // can set separateContentPlane:false to revert to the single-plane overlay.
     separateContentPlane: flags.separateContentPlane !== false,
