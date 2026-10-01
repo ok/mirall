@@ -13,6 +13,17 @@ export const CHECK_EVERY_MS = 182 * DAY_MS
 export const CHECK_SNOOZE_MS = 7 * DAY_MS
 
 export const PROMPT = Object.freeze({ OFFER: 'offer', CHECK: 'check' })
+export const VERDICT = Object.freeze({ PROTECTED: 'protected', AT_RISK: 'at-risk', STOPPED: 'stopped' })
+// Why the verdict is what it is, so every screen says the same thing for the same cause.
+export const VERDICT_REASON = Object.freeze({
+  NOT_SET_UP: 'not-set-up',
+  FAILING: 'failing',
+  FIRST_BACKUP: 'first-backup',
+  KEY_NOT_IN_FOLDER: 'key-not-in-folder',
+  UNCONFIRMED: 'unconfirmed',
+  STALE: 'stale',
+  NO_KEY: 'no-key',
+})
 
 export function freshState() {
   return {
@@ -53,6 +64,31 @@ export function snoozed(state, prompt, now) {
 
 export function optedOut(state) {
   return { ...state, check: { ...state.check, optOut: true } }
+}
+
+// Turned back on after a check fell due while off, the next one waits as for a new key rather than
+// asking at once.
+export function remindersSet(state, on, now) {
+  const due = state.check.nextAt
+  const nextAt = on && key(state) && (due === null || due < now) ? now + CHECK_FIRST_MS : due
+  return { ...state, check: { ...state.check, optOut: !on, nextAt } }
+}
+
+const key = (state) => state.keyCreatedAt !== null
+
+// Stopped when protection has lapsed: no success for ten days, or no key kept. At risk while there is
+// no backup yet, the last run failed, the key is not in the folder, or its passphrase was never
+// confirmed here. A missing copy of the key never changes the verdict: it is advice, not a lapse.
+export function protectionVerdict({ setUp, stale, failing, state }) {
+  const at = (verdict, reason) => ({ verdict, reason })
+  if (!setUp) return at(VERDICT.AT_RISK, VERDICT_REASON.NOT_SET_UP)
+  if (!key(state)) return at(VERDICT.STOPPED, VERDICT_REASON.NO_KEY)
+  if (stale) return at(VERDICT.STOPPED, VERDICT_REASON.STALE)
+  if (failing) return at(VERDICT.AT_RISK, VERDICT_REASON.FAILING)
+  if (state.lastSuccessAt === null) return at(VERDICT.AT_RISK, VERDICT_REASON.FIRST_BACKUP)
+  if (!state.keyInFolder) return at(VERDICT.AT_RISK, VERDICT_REASON.KEY_NOT_IN_FOLDER)
+  if (state.keyCheckedAt === null) return at(VERDICT.AT_RISK, VERDICT_REASON.UNCONFIRMED)
+  return at(VERDICT.PROTECTED, null)
 }
 
 // Turning the backup off is a decision, not a postponement: it is not offered again.

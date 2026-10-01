@@ -29,7 +29,7 @@ import { nextRunAt, URGENCY } from '../shared/storage/backup/schedule-rules.js'
 import { loadBackupState, saveBackupState } from '../shared/storage/backup/backup-state.js'
 import { writeFolderKey, listFolderKeys } from '../shared/storage/backup/folder-key.js'
 import { readRecoveryHeader } from '../shared/contract/recovery-key.js'
-import { backupPrompt, snoozed, optedOut, turnedOff, folderChosen, keyForgotten, keyAdopted, keyWritten, keyChecked, isStale, PROMPT } from '../shared/storage/backup/prompt-rules.js'
+import { backupPrompt, protectionVerdict, remindersSet, snoozed, optedOut, turnedOff, folderChosen, keyForgotten, keyAdopted, keyWritten, keyChecked, isStale, PROMPT } from '../shared/storage/backup/prompt-rules.js'
 
 const BOOT_RUN_DELAY_MS = 2 * 60 * 1000
 const INTERVAL_MS = 60 * 60 * 1000
@@ -92,12 +92,16 @@ export class Backup extends Subsystem {
   async status() {
     const now = Date.now()
     const setUp = this.config.folder !== null
-    const { keyCreatedAt, keyInFolder, keyCheckedAt, secondCopyAt, lastSuccessAt, setupAt } = this.state
+    const { keyCreatedAt, keyInFolder, keyCheckedAt, secondCopyAt, lastSuccessAt, setupAt, check } = this.state
+    const stale = isStale({ now, setUp, lastSuccessAt, setupAt })
+    const { verdict, reason } = protectionVerdict({ setUp, stale, failing: this.progress.state === 'error', state: this.state })
     return {
       ...this.view(),
-      key: { createdAt: keyCreatedAt, inFolder: keyInFolder, checkedAt: keyCheckedAt, secondCopyAt },
+      key: { createdAt: keyCreatedAt, inFolder: keyInFolder, checkedAt: keyCheckedAt, secondCopyAt, reminders: !check.optOut },
       prompt: await this.duePrompt(now),
-      stale: isStale({ now, setUp, lastSuccessAt, setupAt }),
+      stale,
+      verdict,
+      verdictReason: reason,
     }
   }
 
@@ -277,6 +281,12 @@ export class Backup extends Subsystem {
 
   async keyCopied() {
     await this.persist({ ...this.state, secondCopyAt: Date.now() })
+    this.report({})
+    return this.status()
+  }
+
+  async setReminders(on) {
+    await this.persist(remindersSet(this.state, on, Date.now()))
     this.report({})
     return this.status()
   }

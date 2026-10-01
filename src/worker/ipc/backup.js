@@ -15,7 +15,7 @@ import { getBackupConfig } from '../../shared/core/runtime-config.js'
 /** @type {BackupStatus} */
 const OFF = Object.freeze({
   enabled: false, folder: null, repoId: null, state: 'off', lastSuccessAt: null, lastSnapshot: null, lastError: null, suspect: null,
-  key: Object.freeze({ createdAt: null, inFolder: false, checkedAt: null, secondCopyAt: null }), prompt: null, stale: false,
+  key: Object.freeze({ createdAt: null, inFolder: false, checkedAt: null, secondCopyAt: null, reminders: true }), prompt: null, stale: false, verdict: null, verdictReason: null,
 })
 
 /** @param {Backup | null} backup @param {boolean} paused @returns {Backup} */
@@ -79,6 +79,11 @@ export function registerBackup(ipc, { backup: current, paused: isPaused, openRec
   ipc.handle('backup:key-copied', async (_msg, ctx) => {
     requireHost(ctx.client, 'only the host may record a saved key')
     return live().keyCopied()
+  })
+
+  ipc.handle('backup:reminders', async ({ enabled }, ctx) => {
+    requireHost(ctx.client, 'only the host may change the passphrase reminders')
+    return live().setReminders(enabled)
   })
 
   ipc.handle('backup:prompt', async ({ prompt, action }, ctx) => {

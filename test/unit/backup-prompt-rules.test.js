@@ -1,6 +1,6 @@
 import test from 'brittle'
 import {
-  backupPrompt, snoozed, optedOut, turnedOff, folderChosen, keyWritten, keyChecked, keyAdopted, keyForgotten, isStale, freshState,
+  backupPrompt, protectionVerdict, remindersSet, VERDICT, VERDICT_REASON, snoozed, optedOut, turnedOff, folderChosen, keyWritten, keyChecked, keyAdopted, keyForgotten, isStale, freshState,
   PROMPT, DAY_MS, OFFER_MAX_DISMISSALS, CHECK_FIRST_MS, CHECK_EVERY_MS, CHECK_SNOOZE_MS, STALE_AFTER_MS,
 } from '../../src/shared/storage/backup/prompt-rules.js'
 
@@ -96,4 +96,28 @@ test('a key from another identity is forgotten, the opt-out is kept', (t) => {
   t.is(state.keyCheckedAt, null)
   t.is(state.check.nextAt, null)
   t.ok(state.check.optOut)
+})
+
+test('the verdict and its reason, cause by cause', (t) => {
+  const healthy = { ...keyChecked(keyWritten(folderChosen(freshState(), T0), T0, KEY), T0), lastSuccessAt: T0 }
+  const verdict = (state, { setUp = true, stale = false, failing = false } = {}) => protectionVerdict({ setUp, stale, failing, state })
+  t.alike(verdict(freshState(), { setUp: false }), { verdict: VERDICT.AT_RISK, reason: VERDICT_REASON.NOT_SET_UP })
+  t.alike(verdict(healthy), { verdict: VERDICT.PROTECTED, reason: null })
+  t.is(verdict({ ...healthy, secondCopyAt: null }).verdict, VERDICT.PROTECTED, 'a missing copy is advice, not a lapse')
+  t.alike(verdict(healthy, { failing: true }), { verdict: VERDICT.AT_RISK, reason: VERDICT_REASON.FAILING })
+  t.alike(verdict({ ...healthy, lastSuccessAt: null }), { verdict: VERDICT.AT_RISK, reason: VERDICT_REASON.FIRST_BACKUP })
+  t.alike(verdict({ ...healthy, keyInFolder: false }), { verdict: VERDICT.AT_RISK, reason: VERDICT_REASON.KEY_NOT_IN_FOLDER })
+  t.alike(verdict({ ...healthy, keyCheckedAt: null }), { verdict: VERDICT.AT_RISK, reason: VERDICT_REASON.UNCONFIRMED })
+  t.alike(verdict(healthy, { stale: true }), { verdict: VERDICT.STOPPED, reason: VERDICT_REASON.STALE })
+  t.alike(verdict({ ...healthy, keyCreatedAt: null, keyContent: null }), { verdict: VERDICT.STOPPED, reason: VERDICT_REASON.NO_KEY })
+})
+
+test('the passphrase reminder is a preference that can be turned back on', (t) => {
+  const due = keyWritten(folderChosen(freshState(), T0), T0, KEY)
+  const off = remindersSet(due, false, T0)
+  t.is(backupPrompt({ now: T0 + CHECK_FIRST_MS, setUp: true, eligible: true, state: off }), null)
+  const later = T0 + 400 * DAY_MS
+  const on = remindersSet(off, true, later)
+  t.is(backupPrompt({ now: later, setUp: true, eligible: true, state: on }), null, 'a check missed while off is not asked at once')
+  t.is(backupPrompt({ now: later + CHECK_FIRST_MS, setUp: true, eligible: true, state: on }), PROMPT.CHECK)
 })

@@ -488,15 +488,16 @@ export interface RecoveryExport {
 /** A recovery key adopted, or refused because this device holds another identity's data. */
 export type RecoveryImport = { ok: true } | { ok: false; mismatch: true }
 
-/** The recovery key the backup keeps: when it was made, whether the folder holds it, when its passphrase was last confirmed, and when a copy was last saved elsewhere. */
+/** The recovery key the backup keeps: when it was made, whether the folder holds it, when its passphrase was last confirmed, when a copy was last saved elsewhere, and whether the passphrase check is offered. */
 export interface BackupKeyStatus {
   createdAt: string | null
   inFolder: boolean
   checkedAt: number | null
   secondCopyAt: number | null
+  reminders: boolean
 }
 
-/** The local backup as this worker runs it; `enabled` is false when the feature is off, `paused` while a restore is catching up, `suspect` the reasons the latest snapshot looks like a loss, `prompt` the question due on the Spaces screen, `stale` no success for ten days. */
+/** The local backup as this worker runs it; `enabled` is false when the feature is off, `paused` while a restore is catching up, `suspect` the reasons the latest snapshot looks like a loss, `prompt` the question due on the Spaces screen, `stale` no success for ten days, `verdict` how protected this device is (null when off or paused). */
 export interface BackupStatus {
   enabled: boolean
   folder: string | null
@@ -509,6 +510,8 @@ export interface BackupStatus {
   key: BackupKeyStatus
   prompt: 'offer' | 'check' | null
   stale: boolean
+  verdict: 'protected' | 'at-risk' | 'stopped' | null
+  verdictReason: 'not-set-up' | 'failing' | 'first-backup' | 'key-not-in-folder' | 'unconfirmed' | 'stale' | 'no-key' | null
 }
 
 /** What a backup folder shows before any passphrase: a backup, the date of the key it keeps, and its newest snapshot's time. */
@@ -553,6 +556,7 @@ interface Responses {
   'backup:new-key': BackupStatus
   'backup:peek': BackupPeek
   'backup:prompt': BackupStatus
+  'backup:reminders': BackupStatus
   'backup:restore': BackupRestore
   'backup:run': BackupStatus
   'backup:setup': BackupStatus
