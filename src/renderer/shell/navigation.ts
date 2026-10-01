@@ -10,6 +10,7 @@ export interface BackTargets {
   preAccountScreen: 'spaces' | 'space-view'
   storageBackTarget: 'settings' | 'space-view'
   activityLogBackTarget: Screen
+  activityLogSettingsBackTarget: 'settings' | 'storage-settings'
 }
 
 const PARENT = {
@@ -28,7 +29,7 @@ const PARENT = {
   'network-diagnostics': 'network-status',
   'network-advanced': 'network-status',
   'activity-log': (t: BackTargets) => t.activityLogBackTarget,
-  'activity-log-settings': 'settings',
+  'activity-log-settings': (t: BackTargets) => t.activityLogSettingsBackTarget,
   'connection-problem': 'spaces',
 } as const
 

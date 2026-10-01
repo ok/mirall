@@ -420,12 +420,25 @@ export interface WorkerDiagnostics {
 }
 
 
+export interface SpaceStorageUsage {
+  spaceId: string
+  name: string
+  ownCatalogBytes: number
+  memberCatalogBytes: number
+}
+
+// otherBytes is whatever no category claims, so the parts sum to totalDiskUsage — except when the
+// estimates overshoot the total, where otherBytes is 0 and the parts exceed it. `spaces` is largest
+// first; a space whose record has no name yet carries ''.
 export interface StorageInfo {
   totalDiskUsage: number
   storagePath: string
   host: PathHost
+  spaces: SpaceStorageUsage[]
   indexBytes: number
-  dbBytes: number
+  activityLogBytes: number
+  downloadHistoryBytes: number
+  otherBytes: number
 }
 
 export interface SpaceStorageSummary { totalBytes: number, onDeviceBytes: number }

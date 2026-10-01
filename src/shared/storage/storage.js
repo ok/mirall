@@ -1,10 +1,15 @@
-// Storage accounting behind the Storage screen: measure the store's disk footprint (overlay index,
-// database remainder), plus the boot-time metadata sweep.
+// Storage accounting behind the Storage screen: the store's disk footprint, attributed per space
+// (own and member catalogs), to the shared-file index, the Activity Log and the download history,
+// with the unattributed rest as "other". Plus the boot-time metadata sweep.
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { createLogger } from '../core/logger.js'
-import { getStoragePath } from '../core/store.js'
+import { getStoragePath, getStore, localBeeDiscoveryKeys } from '../core/store.js'
+import { listSpaces } from '../spaces/space.js'
 import { purgeLeftovers } from './leftover.js'
+import { measureCoreBytes } from './core-bytes.js'
+import { spaceCatalogCores } from './space-catalog-cores.js'
+import { storageBreakdown } from './storage-breakdown.js'
 
 const log = createLogger('storage')
 
@@ -27,18 +32,51 @@ function getDirSize(dirPath) {
   return size
 }
 
+const ACTIVITY_LOG_BEES = ['audit-log']
+const DOWNLOAD_HISTORY_BEES = ['downloads-meta', 'pending-transfers']
+
+// A part that cannot be measured reports its fallback, and whatever it held falls to "other",
+// rather than blanking the whole screen.
+async function measured(label, fallback, fn) {
+  try {
+    return await fn()
+  } catch (err) {
+    log.warn('storage:', label, 'unmeasured -', err.message)
+    return fallback
+  }
+}
+
+async function localBeeDks(names) {
+  return (await Promise.all(names.map(localBeeDiscoveryKeys))).flat()
+}
+
+async function spaceCores(space) {
+  const none = { own: [], members: [] }
+  const cores = await measured('space ' + space.spaceId, none, () => spaceCatalogCores(space))
+  return { spaceId: space.spaceId, name: space.name || '', ...cores }
+}
+
+// The index's chunk maps are values large enough for the store to keep in blob files, outside any
+// range estimate, so the index is measured by its cores' logical length.
+async function overlayIndexBytes() {
+  const { getOverlayLocalByteLength } = await import('../transfer/overlay/overlay-instance.js')
+  return getOverlayLocalByteLength()
+}
+
 export async function getStorageInfo() {
   const totalDiskUsage = getDirSize(getStoragePath())
-  let indexBytes = 0
-  try {
-    const { getOverlayLocalByteLength } = await import('../transfer/overlay/overlay-instance.js')
-    indexBytes = await getOverlayLocalByteLength()
-  } catch (err) { log.warn('overlay index size failed:', err.message) }
+  const [spaces, indexBytes, activityLog, downloadHistory] = await Promise.all([
+    measured('spaces', [], async () => Promise.all((await listSpaces()).map(spaceCores))),
+    measured('shared-file index', 0, overlayIndexBytes),
+    measured('activity log', [], () => localBeeDks(ACTIVITY_LOG_BEES)),
+    measured('download history', [], () => localBeeDks(DOWNLOAD_HISTORY_BEES)),
+  ])
+  const attributed = new Set([...spaces.flatMap((s) => [...s.own, ...s.members]), ...activityLog, ...downloadHistory])
+  const coreBytes = await measured('core sizes', new Map(), () => measureCoreBytes(getStore(), attributed))
   return {
     totalDiskUsage,
     storagePath: getStoragePath(),
-    indexBytes,
-    dbBytes: Math.max(0, totalDiskUsage - indexBytes),
+    ...storageBreakdown({ totalDiskUsage, coreBytes, spaces, indexBytes, activityLog, downloadHistory }),
   }
 }
 

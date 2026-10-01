@@ -167,7 +167,12 @@ export default function ScreenRouter({ nav, profile, onSaveProfile, openDialog }
         />
       )
     case 'storage-settings':
-      return <StorageSettings onBack={() => nav.setCurrentScreen(nav.storageBackTarget)} />
+      return (
+        <StorageSettings
+          onBack={() => nav.setCurrentScreen(nav.storageBackTarget)}
+          onOpenActivityLogSettings={nav.openActivityLogSettings}
+        />
+      )
     case 'appearance-settings':
       return <AppearanceSettings onBack={() => nav.setCurrentScreen('settings')} />
     case 'notification-settings':
@@ -192,7 +197,7 @@ export default function ScreenRouter({ nav, profile, onSaveProfile, openDialog }
     case 'activity-log-settings':
       return (
         <ActivityLogSettings
-          onBack={() => nav.setCurrentScreen('settings')}
+          onBack={nav.goBack}
           onOpenLog={() => nav.openActivityLog()}
         />
       )

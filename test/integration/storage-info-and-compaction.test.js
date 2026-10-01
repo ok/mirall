@@ -27,8 +27,7 @@ test('getStorageInfo reports measured categories; compaction shrinks the index a
 
   const info = await getStorageInfo()
   t.ok(info.indexBytes > 0, 'the shared-file index is measured, not lumped into a residual')
-  t.is(typeof info.dbBytes, 'number', 'db bytes present')
-  t.absent('otherBytes' in info, 'the residual otherBytes field is gone')
+  t.absent('dbBytes' in info, 'no unexplained database residual')
 
   const before = await getStorageInfo()
   const overlay = getOverlay()

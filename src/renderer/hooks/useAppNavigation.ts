@@ -43,6 +43,9 @@ export function useAppNavigation(): AppNavigation {
   // The viewer hangs off Account, but the connectivity screens now cross-link into it too, so Back
   // has to return where the user came from rather than always to Account.
   const [activityLogBackTarget, setActivityLogBackTarget] = useState<Screen>('account')
+  // Storage links here from its Activity Log row, and Back returns to it; every other way in is
+  // under Settings.
+  const [activityLogSettingsBackTarget, setActivityLogSettingsBackTarget] = useState<'settings' | 'storage-settings'>('settings')
 
   const openSettings = useCallback(() => {
     setPreSettingsScreen((prev) => {
@@ -73,7 +76,10 @@ export function useAppNavigation(): AppNavigation {
     setActivityLogBackTarget(lateral ? 'account' : currentScreen)
     setCurrentScreen('activity-log')
   }, [currentScreen])
-  const openActivityLogSettings = useCallback(() => setCurrentScreen('activity-log-settings'), [])
+  const openActivityLogSettings = useCallback(() => {
+    setActivityLogSettingsBackTarget(currentScreen === 'storage-settings' ? 'storage-settings' : 'settings')
+    setCurrentScreen('activity-log-settings')
+  }, [currentScreen])
 
   const navigateToSpace = useCallback((spaceId: string) => {
     setSelectedSpaceId(spaceId)
@@ -97,12 +103,12 @@ export function useAppNavigation(): AppNavigation {
   // behave like a browser back button. 'spaces' is the root — nothing above it.
   const goBack = useCallback(() => {
     const parent = parentOf(currentScreen, {
-      preSettingsScreen, preAccountScreen, storageBackTarget, activityLogBackTarget,
+      preSettingsScreen, preAccountScreen, storageBackTarget, activityLogBackTarget, activityLogSettingsBackTarget,
     })
     if (!parent) return
     if (currentScreen === 'folder-view') setSelectedShareId(null)
     setCurrentScreen(parent)
-  }, [currentScreen, preSettingsScreen, preAccountScreen, storageBackTarget, activityLogBackTarget])
+  }, [currentScreen, preSettingsScreen, preAccountScreen, storageBackTarget, activityLogBackTarget, activityLogSettingsBackTarget])
 
   const goHome = useCallback(() => {
     setSelectedShareId(null)

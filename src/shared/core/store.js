@@ -203,14 +203,41 @@ export function createLocalBeeScratch(name) {
   return openLocalBee(localBeeCore(name, REWRITE_SCRATCH_SUFFIX))
 }
 
-// Whether a local bee's core, or its rewrite scratch, is on disk. Answered without opening, because
-// an open creates the core: a keyPair core's discovery key hashes the manifest corestore builds for
-// it, rebuilt here the same way.
+// Answered without opening, because an open creates the core: a keyPair core's discovery key hashes
+// the manifest corestore builds for it, rebuilt here the same way.
+function keyPairDiscoveryKey(name) {
+  const { publicKey } = deriveKeyPair(masterSecret, name)
+  return Hypercore.discoveryKey(Hypercore.key({ version: store.manifestVersion, signers: [{ publicKey }] }))
+}
+
+// Whether a local bee's core, or its rewrite scratch, is on disk.
 export function hasLocalBeeCore(name, { scratch = false } = {}) {
   if (!masterSecret) throw new Error('hasLocalBeeCore: needs the master secret')
-  const { publicKey } = deriveKeyPair(masterSecret, name + (scratch ? REWRITE_SCRATCH_SUFFIX : LOCAL_BEE_SUFFIX))
-  const key = Hypercore.key({ version: store.manifestVersion, signers: [{ publicKey }] })
-  return store.storage.hasCore(Hypercore.discoveryKey(key))
+  return store.storage.hasCore(keyPairDiscoveryKey(name + (scratch ? REWRITE_SCRATCH_SUFFIX : LOCAL_BEE_SUFFIX)))
+}
+
+// Whether the core a key names is on disk, answered without the open that would create it.
+export function hasCoreForKey(keyHex) {
+  return store.storage.hasCore(Hypercore.discoveryKey(b4a.from(keyHex, 'hex')))
+}
+
+// The discovery key of the core createBee opens for `name`, without opening it. Without the master
+// secret a core is named by alias, so a name never opened has none and resolves to null.
+export async function beeDiscoveryKeyHex(name) {
+  if (!masterSecret) {
+    const dk = await store.storage.getAlias({ name, namespace: store.ns })
+    return dk ? b4a.toString(dk, 'hex') : null
+  }
+  return b4a.toString(keyPairDiscoveryKey(name), 'hex')
+}
+
+// Every core a local bee's data can occupy: its '/v2' core, the boot rewrite's scratch copy, and
+// the plaintext core a pre-migration install kept under the bare name.
+export async function localBeeDiscoveryKeys(name) {
+  const plain = await beeDiscoveryKeyHex(name)
+  if (!masterSecret) return plain ? [plain] : []
+  const suffixed = [LOCAL_BEE_SUFFIX, REWRITE_SCRATCH_SUFFIX].map((suffix) => b4a.toString(keyPairDiscoveryKey(name + suffix), 'hex'))
+  return plain ? [...suffixed, plain] : suffixed
 }
 
 // Every session still open on the store, named where we opened it. What this returns as the store
