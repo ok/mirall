@@ -158,6 +158,9 @@ export async function boot(bootstrap, {
   /** @type {OverlayBackend | null} */
   let overlayBackend = null
   let supervisor = null
+  /** @type {Backup | null} */
+  let backup = null
+  let closing = false
 
   // The reverse of boot, defined BEFORE anything starts and handed to the caller at once. A
   // shutdown can arrive at any point during boot — the pipe closes when Electron main dies, and
@@ -179,6 +182,7 @@ export async function boot(bootstrap, {
     // runs, so a probe firing in between reads a healthy lifecycle and could re-arm work this
     // shutdown has already stopped. The lifecycle's reverse close order covers the timer, not a
     // probe already awaiting a recovery.
+    closing = true
     try { supervisor?.pause() } catch {}
     if (swarm) { try { broadcastDeparture() } catch {} }
     try { abortInFlightPublishes() } catch {}
@@ -326,13 +330,19 @@ export async function boot(bootstrap, {
         log.warn('leftover metadata cleanup failed:', err.message)
       }
     }
-    const restoreCatchUp = heldNames().length ? await life.start(new RestoreCatchUp('restore-catch-up', { profile: tier.profile })) : null
     // Not while anything is held: a held bee may be behind what peers hold, and backing it up would
-    // record that as the newest state.
-    const holding = heldNames().length > 0
-    const backup = isLocalBackupEnabled() && !holding
-      ? await life.start(new Backup('backup', { ipc, corestore: getStore, storagePath: bootstrap.storage, installId: tier.installId ?? 'unknown-install' }))
+    // record that as the newest state. The backup starts once the last hold is released, unless
+    // this boot is already shutting down.
+    const startBackup = async () => {
+      if (closing || backup) return
+      const started = await life.start(new Backup('backup', { ipc, corestore: getStore, storagePath: bootstrap.storage, installId: tier.installId ?? 'unknown-install' }))
+      if (closing) await started.close()
+      else backup = started
+    }
+    const restoreCatchUp = heldNames().length
+      ? await life.start(new RestoreCatchUp('restore-catch-up', { profile: tier.profile, onAllReleased: isLocalBackupEnabled() ? startBackup : null }))
       : null
+    if (isLocalBackupEnabled() && !heldNames().length) await startBackup()
 
     // After every subsystem it will supervise, so the lifecycle's reverse close order stops it
     // FIRST. It reads life.started; the durable tier is deliberately unsupervised — nothing there
@@ -340,8 +350,9 @@ export async function boot(bootstrap, {
     supervisor = await life.start(new Supervisor('supervision', { lifecycle: life }))
 
     return {
-      close, store, mounts, intents, ownedFolders, publishService, overlayBackend, restoreCatchUp, backup,
-      backupPaused: isLocalBackupEnabled() && holding,
+      close, store, mounts, intents, ownedFolders, publishService, overlayBackend, restoreCatchUp,
+      backup: () => backup,
+      backupPaused: () => isLocalBackupEnabled() && backup === null,
       applyRelayConfig: () => applyRelayConfig(log),
       health: () => [...(durable?.health() || []), ...life.health()],
       supervision: () => supervisor?.stats() ?? null,

@@ -20,27 +20,30 @@ function service(backup, paused) {
   return backup
 }
 
-/** @param {WorkerIpc} ipc @param {{ backup: Backup | null, paused: boolean }} deps */
-export function registerBackup(ipc, { backup, paused }) {
+// The backup can start after boot (when a restore's last hold is released), so each request asks
+// for the current one.
+/** @param {WorkerIpc} ipc @param {{ backup: () => Backup | null, paused: () => boolean }} deps */
+export function registerBackup(ipc, { backup: current, paused: isPaused }) {
   ipc.handle('backup:status', () => {
+    const backup = current()
     if (backup) return backup.view()
-    if (!paused) return OFF
+    if (!isPaused()) return OFF
     const { folder, repoId } = getBackupConfig()
     return { ...OFF, enabled: true, folder, repoId, state: 'paused' }
   })
 
   ipc.handle('backup:configure', async ({ folder }, ctx) => {
     requireHost(ctx.client, 'only the host may choose the backup folder')
-    return service(backup, paused).configure(folder)
+    return service(current(), isPaused()).configure(folder)
   })
 
   ipc.handle('backup:turn-off', async (_msg, ctx) => {
     requireHost(ctx.client, 'only the host may turn the backup off')
-    return service(backup, paused).configure(null)
+    return service(current(), isPaused()).configure(null)
   })
 
   ipc.handle('backup:run', async (_msg, ctx) => {
     requireHost(ctx.client, 'only the host may start a backup')
-    return service(backup, paused).run('manual')
+    return service(current(), isPaused()).run('manual')
   })
 }
