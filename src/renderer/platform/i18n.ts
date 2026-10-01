@@ -81,6 +81,11 @@ function showLanguage(code: string): void {
   document.documentElement.lang = code
 }
 
+// Shows the language config.json holds now, after main rewrote it outside a setter here.
+export function showStoredLocale(): void {
+  showLanguage(resolveInitialLocale())
+}
+
 let localeSeq = 0
 
 // Shown at once; a refused save puts back the language config.json still holds. Only the latest

@@ -11,6 +11,7 @@ import { Subsystem } from '../shared/core/subsystem.js'
 import { AppError } from '../shared/core/errors.js'
 import { CODES } from '../shared/contract/errors.js'
 import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../shared/contract/main-requests.js'
+import { BACKUP_SETTING_GROUPS } from '../shared/contract/backup-settings.js'
 import { backupWrapKey } from '../shared/core/store.js'
 import { getAppVersionLabel, getBackupConfig } from '../shared/core/runtime-config.js'
 import { FolderTarget } from '../shared/storage/backup/folder-target.js'
@@ -25,9 +26,6 @@ const INTERVAL_MS = 60 * 60 * 1000
 const PRUNE_EVERY_MS = 24 * 60 * 60 * 1000
 const QUIT_CUTOFF_MS = 700
 const CONFIG_FILE = 'config.json'
-// The settings worth restoring. Window placement, view state and the backup's own bookkeeping change
-// without anything the user would want back, and would make every run look changed.
-const BACKED_UP_SETTINGS = ['appearance', 'general', 'downloads', 'network', 'storage', 'notifications']
 
 const IDLE = Object.freeze({ lastSuccessAt: null, lastSnapshot: null, lastError: null, suspect: null })
 
@@ -199,7 +197,7 @@ export class Backup extends Subsystem {
       return null
     }
     const kept = {}
-    for (const key of BACKED_UP_SETTINGS) if (settings?.[key] !== undefined) kept[key] = settings[key]
+    for (const key of BACKUP_SETTING_GROUPS) if (settings?.[key] !== undefined) kept[key] = settings[key]
     return b4a.from(JSON.stringify(kept))
   }
 }

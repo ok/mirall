@@ -23,7 +23,8 @@
     "displayName": "Nombre visible",
     "displayNamePlaceholder": "p. ej. Juan Pérez",
     "displayNameHelp": "Así te verán tu equipo y tus amigos.",
-    "restore": "¿Ya tienes una clave de recuperación? Restaura tu identidad"
+    "restore": "¿Ya tienes una clave de recuperación? Restaura tu identidad",
+    "restoreBackup": "Restaurar desde una carpeta de copias"
   },
   "topnav": {
     "feedback": "Enviar comentarios",
@@ -178,7 +179,9 @@
   "pathField": {
     "browse": "Examinar…",
     "loading": "Cargando…",
-    "placeholder": "Selecciona una ubicación…"
+    "placeholder": "Selecciona una ubicación…",
+    "browseSubject": "Examinar… ({{subject}})",
+    "changeSubject": "Cambiar ({{subject}})"
   },
   "folder": {
     "fileCount_one": "{{count}} archivo",
@@ -1312,7 +1315,8 @@
     "startFreshHint": "Los datos bloqueados se apartan en este dispositivo, no se eliminan.",
     "startFreshTitle": "¿Empezar de cero?",
     "startFreshBody": "Mirall mueve los datos bloqueados a una carpeta aparte, junto a ellos, y empieza con una identidad nueva. Tus contactos no reconocerán la identidad nueva y tus espacios no estarán en ella.",
-    "startFreshConfirm": "Apartar y empezar de cero"
+    "startFreshConfirm": "Apartar y empezar de cero",
+    "restoreBackup": "Restaurar una copia de seguridad"
   },
   "restore": {
     "title": "Restaurando tu perfil",
@@ -1367,5 +1371,41 @@
     "mismatchTitle": "¿Reemplazar los datos de este dispositivo?",
     "mismatchBody": "Esta clave de recuperación pertenece a una identidad distinta de la de los datos de este dispositivo. Al restaurar, esos datos quedan ilegibles y no se puede deshacer.",
     "mismatchConfirm": "Reemplazar y restaurar"
+  },
+  "backup": {
+    "title": "Copia de seguridad",
+    "desc": "Mirall guarda una copia cifrada de tus espacios, listas de archivos y ajustes en una carpeta que elijas: otro disco o una carpeta de red. No copia los archivos que compartes; esos siguen en tus propias carpetas.",
+    "needsRecoveryKey": "Para restaurar una copia necesitas tu clave de recuperación. Si aún no la has guardado, hazlo primero en el perfil.",
+    "paused": "Las copias se reanudarán cuando tu perfil restaurado se haya puesto al día con las personas con quienes compartes espacios.",
+    "running": "Haciendo copia…",
+    "lastBackup": "Última copia {{when}}",
+    "never": "Aún sin copia",
+    "runNow": "Hacer copia ahora",
+    "turnOff": "Desactivar",
+    "suspectTitle": "Esta copia es más pequeña de lo habitual",
+    "suspectBody": "La última copia contiene bastante menos que la anterior ({{reasons}}). Si fue intencionado, no hay nada que hacer: las copias anteriores se conservan de todos modos.",
+    "reason": {
+      "profile-shrank": "un perfil más corto",
+      "spaces-halved": "menos espacios",
+      "cores-halved": "menos partes guardadas",
+      "own-data-shrank": "menos datos propios"
+    },
+    "folderSubject": "carpeta de copias"
+  },
+  "restoreBackup": {
+    "title": "Restaurar una copia de seguridad",
+    "introChoose": "Elige la carpeta con tu copia de Mirall y la clave de recuperación que la abre.",
+    "introPick": "Elige la copia que quieres restaurar. Normalmente la más reciente es la correcta.",
+    "folderLabel": "Carpeta de copias",
+    "showBackups": "Mostrar copias",
+    "listLabel": "Copias de seguridad",
+    "spaces_one": "{{count}} espacio",
+    "spaces_other": "{{count}} espacios",
+    "flagged": "más pequeña de lo habitual",
+    "none": "Esta carpeta aún no tiene ninguna copia para esta clave de recuperación.",
+    "caution": "Restaura solo si tu instalación anterior ya no existe: la misma identidad en dos dispositivos a la vez la estropea para tus contactos. Tras restaurar, Mirall obtiene primero tu perfil más reciente de ellos antes de que puedas cambiar nada.",
+    "restore": "Restaurar",
+    "opening": "Abriendo la copia…",
+    "restoring": "Restaurando la copia…"
   }
 }

@@ -23,7 +23,8 @@
     "displayName": "Anzeigename",
     "displayNamePlaceholder": "z. B. Max Mustermann",
     "displayNameHelp": "So sehen dich Team und Freunde.",
-    "restore": "Schon einen Wiederherstellungsschlüssel? Identität wiederherstellen"
+    "restore": "Schon einen Wiederherstellungsschlüssel? Identität wiederherstellen",
+    "restoreBackup": "Aus einem Backup-Ordner wiederherstellen"
   },
   "topnav": {
     "feedback": "Feedback",
@@ -178,7 +179,9 @@
   "pathField": {
     "browse": "Durchsuchen…",
     "loading": "Wird geladen…",
-    "placeholder": "Ort auswählen…"
+    "placeholder": "Ort auswählen…",
+    "browseSubject": "Durchsuchen… ({{subject}})",
+    "changeSubject": "Ändern ({{subject}})"
   },
   "folder": {
     "fileCount_one": "{{count}} Datei",
@@ -1312,7 +1315,8 @@
     "startFreshHint": "Die gesperrten Daten werden auf diesem Gerät beiseitegelegt, nicht gelöscht.",
     "startFreshTitle": "Neu beginnen?",
     "startFreshBody": "Mirall verschiebt die gesperrten Daten in einen eigenen Ordner daneben und beginnt mit einer neuen Identität. Deine Kontakte erkennen die neue Identität nicht wieder, und deine Räume sind nicht darauf.",
-    "startFreshConfirm": "Beiseitelegen und neu beginnen"
+    "startFreshConfirm": "Beiseitelegen und neu beginnen",
+    "restoreBackup": "Aus einem Backup wiederherstellen"
   },
   "restore": {
     "title": "Dein Profil wird wiederhergestellt",
@@ -1367,5 +1371,41 @@
     "mismatchTitle": "Daten auf diesem Gerät ersetzen?",
     "mismatchBody": "Dieser Wiederherstellungsschlüssel gehört zu einer anderen Identität als die Daten auf diesem Gerät. Beim Wiederherstellen werden diese Daten unlesbar, und das lässt sich nicht rückgängig machen.",
     "mismatchConfirm": "Ersetzen und wiederherstellen"
+  },
+  "backup": {
+    "title": "Backup",
+    "desc": "Mirall legt eine verschlüsselte Kopie deiner Spaces, Dateilisten und Einstellungen in einem Ordner deiner Wahl ab – auf einem anderen Laufwerk oder einer Netzwerkfreigabe. Die geteilten Dateien selbst werden nicht kopiert; sie bleiben in deinen eigenen Ordnern.",
+    "needsRecoveryKey": "Zum Wiederherstellen eines Backups brauchst du deinen Wiederherstellungsschlüssel. Falls du noch keinen gesichert hast, hole das zuerst im Profil nach.",
+    "paused": "Backups laufen weiter, sobald dein wiederhergestelltes Profil mit den Personen abgeglichen ist, mit denen du Spaces teilst.",
+    "running": "Backup läuft…",
+    "lastBackup": "Letztes Backup {{when}}",
+    "never": "Noch kein Backup",
+    "runNow": "Jetzt sichern",
+    "turnOff": "Ausschalten",
+    "suspectTitle": "Dieses Backup ist kleiner als sonst",
+    "suspectBody": "Das letzte Backup enthält deutlich weniger als das davor ({{reasons}}). War das Absicht, ist nichts zu tun – ältere Backups bleiben so oder so erhalten.",
+    "reason": {
+      "profile-shrank": "ein kürzeres Profil",
+      "spaces-halved": "weniger Spaces",
+      "cores-halved": "weniger gespeicherte Teile",
+      "own-data-shrank": "weniger eigene Daten"
+    },
+    "folderSubject": "Backup-Ordner"
+  },
+  "restoreBackup": {
+    "title": "Aus einem Backup wiederherstellen",
+    "introChoose": "Wähle den Ordner mit deinem Mirall-Backup und den Wiederherstellungsschlüssel, der es öffnet.",
+    "introPick": "Wähle das Backup, das wiederhergestellt werden soll. Meist ist das neueste richtig.",
+    "folderLabel": "Backup-Ordner",
+    "showBackups": "Backups anzeigen",
+    "listLabel": "Backups",
+    "spaces_one": "{{count}} Space",
+    "spaces_other": "{{count}} Spaces",
+    "flagged": "kleiner als sonst",
+    "none": "Dieser Ordner enthält noch kein Backup für diesen Wiederherstellungsschlüssel.",
+    "caution": "Stelle nur wieder her, wenn deine alte Installation nicht mehr existiert – dieselbe Identität auf zwei Geräten gleichzeitig macht sie für deine Kontakte unbrauchbar. Nach der Wiederherstellung holt Mirall zuerst dein neuestes Profil von ihnen, bevor du etwas ändern kannst.",
+    "restore": "Wiederherstellen",
+    "opening": "Backup wird geöffnet…",
+    "restoring": "Backup wird wiederhergestellt…"
   }
 }
