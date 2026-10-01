@@ -1,9 +1,9 @@
 // Owns the local profile and the needs-setup flag; listens for event:profile-needed and saves via profile:set.
 import { useCallback, useEffect, useState } from 'react'
-import { request, subscribe } from '../ipc/ipc.js'
+import { onResync, request, subscribe } from '../ipc/ipc.js'
 import { useQuery } from '../store/useQuery.js'
 import { setQueryData } from '../store/query-store.js'
-import { projectProfile } from '../model/profile-gate.js'
+import { projectProfile, profileNeededAfter } from '../model/profile-gate.js'
 import type { Profile } from '../types/types.js'
 
 // Scope-less deliberately: the profile changes only when this app writes it, and saveProfile pushes
@@ -17,14 +17,17 @@ export function useProfile() {
   // scope: it announces a state the read cannot report, because it fires before a read would.
   const [profileNeeded, setProfileNeeded] = useState(false)
 
-  useEffect(() => subscribe('event:profile-needed', () => setProfileNeeded(true)), [])
+  useEffect(() => subscribe('event:profile-needed', () => setProfileNeeded(profileNeededAfter('needed'))), [])
+  useEffect(() => onResync((reason) => {
+    if (reason === 'new-worker') setProfileNeeded(profileNeededAfter('new-worker'))
+  }), [])
 
   const saveProfile = useCallback(async ({ displayName, avatar }: { displayName: string; avatar: string | null }) => {
     const updated = await request('profile:set', { displayName, avatar })
     // Pushed, not refetched: the worker just told us the new record, and every other consumer of
     // this entry must see it in the same commit rather than one round trip later.
     setQueryData<Profile | null>('profile:get', {}, updated)
-    setProfileNeeded(false)
+    setProfileNeeded(profileNeededAfter('saved'))
     return updated
   }, [])
 

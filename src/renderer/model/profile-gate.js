@@ -46,3 +46,11 @@ export function projectProfile({ data, error, profileNeeded = false }) {
     loading: !profileNeeded && !settled,
   }
 }
+
+// The worker's "no profile yet" signal belongs to the worker that sent it. A new worker (a restore or a
+// set-aside restarts it under the same renderer) says it again on arrival if it still applies, so the
+// signal is dropped when one arrives, and when a profile is saved.
+/** @param {'needed' | 'new-worker' | 'saved'} signal @returns {boolean} */
+export function profileNeededAfter(signal) {
+  return signal === 'needed'
+}
