@@ -9,7 +9,6 @@ export interface BackTargets {
   preSettingsScreen: 'spaces' | 'space-view'
   preAccountScreen: 'spaces' | 'space-view'
   storageBackTarget: 'settings' | 'space-view'
-  backupBackTarget: 'settings' | 'account'
   activityLogBackTarget: Screen
   activityLogSettingsBackTarget: 'settings' | 'storage-settings'
 }
@@ -22,7 +21,8 @@ const PARENT = {
   settings: (t: BackTargets) => t.preSettingsScreen,
   account: (t: BackTargets) => t.preAccountScreen,
   'storage-settings': (t: BackTargets) => t.storageBackTarget,
-  'backup-settings': (t: BackTargets) => t.backupBackTarget,
+  'backup-settings': 'settings',
+  'protection-status': 'account',
   'appearance-settings': 'settings',
   'notification-settings': 'settings',
   'general-settings': 'settings',

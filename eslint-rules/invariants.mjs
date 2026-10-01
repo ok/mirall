@@ -467,6 +467,14 @@ export const promiseLintAllowlist = Object.freeze({
       'no-floating-promises OnboardingScreen > onKeyDown: void handleContinue()',
     ],
   },
+  'src/renderer/screens/ProtectionStatusScreen.tsx': {
+    why: 'runNow catches into the screen\'s inline error; the copy hook toasts its own failure.',
+    sites: [
+      'no-floating-promises ProtectionStatusScreen > fix: void runNow()',
+      'no-floating-promises ProtectionStatusScreen > onRunNow: void runNow()',
+      'no-floating-promises ProtectionStatusScreen > onSaveCopy: void copy.save()',
+    ],
+  },
   'src/renderer/screens/RestoreScreen.tsx': {
     why: 'join and startFresh catch into the screen\'s inline errors; the screen renders outside ToastProvider.',
     sites: [
@@ -496,12 +504,11 @@ export const promiseLintAllowlist = Object.freeze({
     ],
   },
   'src/renderer/screens/settings/BackupSettings.tsx': {
-    why: 'act and runNow catch into the screen\'s inline error, turnOff into its confirmation; the copy hook toasts its own failure.',
+    why: 'act catches into the screen\'s inline error, turnOff into its confirmation.',
     sites: [
+      'no-floating-promises BackupSettings > onChange: void act(() => setReminders(next))',
       'no-floating-promises BackupSettings > onChangeFolder: void act(changeFolder)',
       'no-floating-promises BackupSettings > onConfirm: void turnOff()',
-      'no-floating-promises BackupSettings > onRunNow: void runNow()',
-      'no-floating-promises BackupSettings > onSaveCopy: void copy.save()',
     ],
   },
   'src/renderer/screens/settings/NetworkSettings.tsx': {

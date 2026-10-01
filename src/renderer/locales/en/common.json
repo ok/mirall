@@ -38,7 +38,8 @@
       "connectionProblem": "Connection problem",
       "networkDiagnostics": "Diagnostics",
       "networkAdvanced": "Advanced details",
-      "backup": "Backup & recovery"
+      "backup": "Backup & recovery",
+      "protection": "Protection"
     }
   },
   "avatar": {
@@ -72,8 +73,7 @@
     "recordingOff": "Recording is off · {{kept}}",
     "backupRecoveryKey": "Back up your recovery key",
     "backupRecoveryKeyDesc": "Save an encrypted key so you can keep your identity if you lose this device.",
-    "backupRecoveryKeyDescWeak": "This device has no system keychain — a recovery key is your real protection.",
-    "backupDesc": "Your backup and the recovery key that opens it."
+    "backupRecoveryKeyDescWeak": "This device has no system keychain — a recovery key is your real protection."
   },
   "spaces": {
     "title": "Shared",
@@ -564,11 +564,7 @@
     "activityLog": "Activity Log",
     "activityLogDesc": "What gets recorded, and for how long.",
     "backup": "Backup & recovery",
-    "backupDescOff": "Not set up — protect your spaces",
-    "backupDescOn": "On · last backup {{when}}",
-    "backupDescPending": "On · first backup pending",
-    "backupDescAttention": "Needs attention",
-    "backupDescPaused": "Paused while your profile is restored"
+    "backupDesc": "Backup folder, recovery key, and restoring."
   },
   "appearanceSettings": {
     "title": "Appearance",
@@ -1395,7 +1391,7 @@
       "own-data-shrank": "less of your own data"
     },
     "folderSubject": "backup folder",
-    "subtitle": "Get everything back if this computer breaks or is replaced.",
+    "subtitle": "Where your backup lives, your recovery key, and restoring.",
     "offerTitle": "Protect your spaces",
     "offerBody": "If this computer breaks, is lost or replaced, a backup brings back your spaces, their file lists and who you are to the people you share with. Choose a drive or network folder once — Mirall keeps it up to date on its own.",
     "setUp": "Set up backup",
@@ -1410,7 +1406,6 @@
     "scopeExcluded": "the files themselves. They stay in your folders; back those up as you do today.",
     "scopePrivateLead": "Private:",
     "scopePrivate": "everything is encrypted. Only your passphrase opens it — not even we can.",
-    "protection": "Protection",
     "rowBackup": "Backup",
     "rowBackupOk": "Last backup {{when}}",
     "rowBackupNever": "First backup pending",
@@ -1419,8 +1414,8 @@
     "rowKeyOk": "In your backup folder · last confirmed {{when}}",
     "rowKeyNotInFolder": "Kept on this computer — Mirall puts it in the folder at the next backup",
     "rowKeyMissing": "Missing — make a new recovery key",
-    "rowCopy": "Second copy",
-    "rowCopyNone": "Recommended — keep one away from this computer and the backup drive",
+    "rowCopy": "Copy of your recovery key",
+    "rowCopyNone": "Your recovery key is who you are on Mirall. Keep one copy away from this computer and the backup drive — a password manager or a USB stick.",
     "rowCopyOk": "Saved {{when}}",
     "saveCopy": "Save a copy…",
     "copySaved": "Recovery key copy saved.",
@@ -1430,14 +1425,24 @@
     "turnOffBody": "Mirall stops backing up. The backups and the recovery key already in the folder stay there.",
     "turnOffConfirm": "Turn off",
     "keyTitle": "Recovery key",
-    "keyDesc": "Opens your backup and proves it's you on a new computer. Locked with your passphrase.",
-    "checkKey": "Check my passphrase",
     "newKey": "Forgot it? Make a new key",
     "makeKey": "Make a recovery key",
     "staleToast": "Mirall hasn't backed up in over 10 days. Check that the backup folder is available.",
     "open": "Open",
     "rowKeyUnconfirmed": "In your backup folder · passphrase not confirmed on this computer yet",
-    "keyOnly": "Only save a recovery key file"
+    "keyOnly": "Only save a recovery key file",
+    "setUpTitle": "Set up a backup",
+    "setUpBody": "Choose a drive or network folder once. Mirall keeps a copy of your spaces, their file lists, your settings and your recovery key there, encrypted with a passphrase only you know.",
+    "passphraseTitle": "Passphrase",
+    "passphraseDesc": "Opens your recovery key. Changing it makes a new key; copies you saved elsewhere keep the old passphrase.",
+    "changePassphrase": "Change passphrase…",
+    "remindersLabel": "Remind me to check my passphrase",
+    "remindersDesc": "Twice a year, Mirall asks you to type it once — nothing is sent anywhere.",
+    "restoreTitle": "Restoring on a new computer",
+    "restoreStep1": "Install Mirall and open it.",
+    "restoreStep2": "Choose “Already used Mirall? Restore your account”.",
+    "restoreStep3": "Pick your backup folder and enter your passphrase. Your recovery key is in the folder.",
+    "restoreKeyOnly": "No backup folder? Your recovery key file alone brings your identity back; your spaces return from the people you share them with."
   },
   "restoreBackup": {
     "title": "Restore your account",
@@ -1511,5 +1516,64 @@
     "fromBackupBody": "Everything comes back: your spaces, file lists and settings. Recommended.",
     "fromKey": "I only have my recovery key file",
     "fromKeyBody": "You're you again, and your spaces return from the people you share them with."
+  },
+  "protection": {
+    "title": "Protection",
+    "intro": "How your identity and your data are kept safe on this device.",
+    "identityTitle": "Your identity",
+    "dataTitle": "Your data",
+    "identityKey": "Identity key on this computer",
+    "checkPassphrase": "Check passphrase",
+    "keyNotBackedUp": "Not in a backup yet — if this computer is lost, only a recovery key file you saved yourself brings your identity back.",
+    "copyLater": "Saved once the backup is set up.",
+    "dataNotBackedUp": "Not set up — your spaces, file lists and settings are only on this computer.",
+    "folderOffline": "{{folder}} · not connected",
+    "openSettings": "Backup & recovery settings",
+    "openSettingsDesc": "Where the backup lives, your recovery key, and how to restore.",
+    "openStatus": "Protection status",
+    "openStatusDesc": "See what is protected on this device right now.",
+    "dot": {
+      "protected": "Protected",
+      "at-risk": "At risk",
+      "stopped": "Backup stopped",
+      "paused": "Paused"
+    },
+    "summary": {
+      "line": "{{key}} · {{data}}",
+      "keyProtected": "Identity key protected",
+      "keyWeak": "Identity key without a system keychain",
+      "backedUp": "backed up {{when}}",
+      "notBackedUp": "your data is not backed up",
+      "attention": "backup needs attention",
+      "paused": "backups paused while your profile is restored",
+      "keyDisabled": "Identity key unprotected",
+      "stopped": "backup stopped",
+      "backedUpAlone": "Backed up {{when}}",
+      "notBackedUpAlone": "Your data is not backed up",
+      "stoppedAlone": "Backup stopped",
+      "attentionAlone": "Backup needs attention",
+      "pausedAlone": "Backups paused while your profile is restored"
+    },
+    "verdict": {
+      "protectedTitle": "You're protected",
+      "protectedBody": "Recovery key in your backup, data backed up {{when}}.",
+      "notSetUpTitle": "Your data isn't backed up",
+      "notSetUpBody": "Set up a backup once — your spaces and your recovery key, kept on another drive or a network folder.",
+      "pausedTitle": "Restoring your profile",
+      "pausedBody": "Backups resume once your restored profile has caught up with the people you share spaces with.",
+      "failingTitle": "Your backup needs attention",
+      "failingBody": "The last backup didn't finish. Check that the backup folder is available, then back up again.",
+      "firstBackupTitle": "Almost protected",
+      "firstBackupBody": "The first backup hasn't finished yet.",
+      "keyNotInFolderTitle": "Almost protected",
+      "keyNotInFolderBody": "Your recovery key goes into the backup folder with the next backup.",
+      "unconfirmedTitle": "Almost protected",
+      "unconfirmedBody": "Confirm your recovery passphrase once on this computer.",
+      "staleTitle": "Your backup has stopped",
+      "staleBody": "Nothing has been backed up for over 10 days. Connect the backup drive, or choose another folder in Backup & recovery settings.",
+      "noKeyTitle": "Your backup has no recovery key",
+      "noKeyBody": "Without one, this backup cannot be restored on another computer. Make a recovery key."
+    },
+    "copyAfterKey": "Saved once you make a recovery key."
   }
 }

@@ -5,8 +5,8 @@ import { makeReport, waitFor } from '../assert.mjs'
 
 const PASS = 'a long enough passphrase'
 
-// Backup & recovery from Settings: set up in one dialog (folder, passphrase, result), then the status
-// shows each safeguard, the passphrase check confirms the key, and turning it off asks first.
+// Set up from Settings → Backup & recovery in one dialog; the status and its actions are then on
+// Profile → Protection, and the configuration (passphrase reminder, turning off) stays in Settings.
 export default async function s160({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const backupDir = path.join(runDir, 's160-backup')
@@ -20,7 +20,7 @@ export default async function s160({ runDir, bootstrap }) {
       await A.launch()
       await A.createSpaceOnly('Aurora')
       await A.gotoSettings('Backup & recovery')
-      await A.waitText('Get everything back if this computer breaks or is replaced.', 8000)
+      await A.waitText('Restoring on a new computer', 8000)
       await A.shot('s160-not-set-up', runDir)
     })
     await r.ok('setup takes a folder and a passphrase, and checks the key', async () => {
@@ -37,33 +37,52 @@ export default async function s160({ runDir, bootstrap }) {
       await A.click(turnOn)
       await A.waitText("You're protected", 120000)
       await A.waitText('Recovery key saved and checked', 8000)
-      await A.shot('s160-done', runDir)
       await A.click({ role: 'button', name: 'Done' })
     })
-    await r.ok('the status shows the backup and the key', async () => {
-      await A.waitText('Protection', 8000)
-      await A.waitText('Last backup', 60000)
+    await r.ok('Settings holds the configuration', async () => {
       for (const sel of [
-        { role: 'button', name: 'Back up now' },
-        { role: 'button', name: 'Save a copy…' },
-        { role: 'button', name: 'Check my passphrase' },
         { role: 'button', name: 'Change (backup folder)' },
+        { role: 'button', name: 'Change passphrase…' },
+        { role: 'switch', name: 'Remind me to check my passphrase' },
       ]) {
         if (!(await A.has(sel))) throw new Error(`missing ${sel.role} ${sel.name}`)
       }
+      await A.shot('s160-settings', runDir)
+    })
+    await r.ok('the passphrase reminder is a switch that holds its state', async () => {
+      const reminder = { role: 'switch', name: 'Remind me to check my passphrase' }
+      if (!(await A.isChecked(reminder))) throw new Error('reminders start on')
+      await A.click(reminder)
+      await waitFor(async () => !(await A.isChecked(reminder)), 8000, 'reminders off')
+      await A.click(reminder)
+      await waitFor(async () => A.isChecked(reminder), 8000, 'reminders on again')
+    })
+    await r.ok('Profile → Protection shows the status and its actions', async () => {
+      await A.openAccount()
+      await A.click({ role: 'button', name: 'Protection' })
+      await A.waitText("You're protected", 30000)
+      for (const sel of [
+        { role: 'button', name: 'Check passphrase' },
+        { role: 'button', name: 'Save a copy…' },
+        { role: 'button', name: 'Back up now' },
+      ]) {
+        if (!(await A.has(sel))) throw new Error(`missing ${sel.role} ${sel.name}`)
+      }
+      await A.waitText('Copy of your recovery key', 8000)
       await A.shot('s160-status', runDir)
     })
     await r.ok('the passphrase check confirms the key', async () => {
-      await A.click({ role: 'button', name: 'Check my passphrase' })
+      await A.click({ role: 'button', name: 'Check passphrase' })
       await A.setRaw({ role: 'textfield', name: 'Recovery passphrase' }, PASS)
       await A.click({ role: 'button', name: 'Check' })
       await A.waitText('Passphrase correct. Keep it safe.', 60000)
     })
     await r.ok('turning the backup off asks first, then offers setup again', async () => {
+      await A.click({ role: 'button', name: 'Backup & recovery settings' })
       await A.click({ role: 'button', name: 'Turn off backup' })
       await A.waitText('Turn off backup?', 8000)
       await A.click({ role: 'button', name: 'Turn off' })
-      await A.waitText('Set up backup', 15000)
+      await A.waitText('Set up a backup', 15000)
       if (!(await A.has({ role: 'button', name: 'Only save a recovery key file' }))) throw new Error('no key-only option')
     })
   } catch {}

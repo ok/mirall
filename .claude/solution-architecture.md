@@ -1623,12 +1623,18 @@ system keychain (`identityWeak` in the bootstrap frame); "Not now" holds 30, the
 at most, and turning the backup off ends it. The passphrase check comes 14 days after a key, then every
 182, with one week's grace per cycle and an opt-out. A backup with no success for 10 days is `stale`.
 
-**UI** (flag `localBackup`, which main also hands the renderer in the config snapshot): Settings →
-Backup & recovery (`BackupSettings.tsx`, after Storage) with the three safeguards, the folder and the
-key; the setup dialog (`BackupSetupModal.tsx`); the offer or check card on Spaces
-(`BackupPromptCard.tsx`); a warning toast when the backup goes stale (`BackupToastBridge.tsx`); and one
-"Restore your account" entry on onboarding and the locked screen (`RestoreAccount.tsx`) that asks
-whether the user has a backup folder or only a key file.
+**UI** (flag `localBackup`, which main also hands the renderer in the config snapshot) follows the
+app's split of status from configuration. Profile → This device has one **Protection** row (verdict dot
+and summary, `protection-summary.ts`) leading to **Protection status** (`ProtectionStatusScreen.tsx`,
+like Network status): a verdict (`verdict` in `backup:status`, `protectionVerdict` in
+`prompt-rules.js`), *Your identity* (identity key protection, the recovery key with Check passphrase,
+the copy of the recovery key with Save a copy) and *Your data* (last backup with Back up now, the
+folder, failures, a flagged backup). Settings → **Backup & recovery** (`BackupSettings.tsx`) holds the
+configuration: the folder, turning off, changing the passphrase (a new key), the passphrase reminder
+(`backup:reminders`), and how to restore. Each links to the other. The setup dialog
+(`BackupSetupModal.tsx`), the offer or check card on Spaces (`BackupPromptCard.tsx`), the stale toast
+(`BackupToastBridge.tsx`, opens the status) and one "Restore your account" entry on onboarding and the
+locked screen (`RestoreAccount.tsx`) complete it.
 
 ## 17. Glossary
 
