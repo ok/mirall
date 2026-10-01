@@ -41,6 +41,16 @@ function parseHeader(bytes) {
   return null
 }
 
+// What a folder shows without its key: whether a backup is there, and when the newest snapshot was
+// written — snapshot names carry their time in the clear, their content never.
+export async function peekRepo(target) {
+  if (!(await target.has(HEADER))) return { backup: false, lastBackupAt: null }
+  const newest = (await target.list(SNAPSHOTS)).filter((name) => SNAPSHOT_NAME.test(name)).sort().pop()
+  const stamp = newest?.slice(9, 25)
+  const lastBackupAt = stamp ? `${stamp.slice(0, 4)}-${stamp.slice(4, 6)}-${stamp.slice(6, 8)}T${stamp.slice(9, 11)}:${stamp.slice(11, 13)}:${stamp.slice(13, 15)}Z` : null
+  return { backup: true, lastBackupAt }
+}
+
 // A folder's repository for a device that has none remembered: the one already there when this
 // identity can open it (a first run that stopped part-way, a reinstall pointed at its own backup),
 // otherwise a new one.

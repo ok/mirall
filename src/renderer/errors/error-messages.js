@@ -6,6 +6,7 @@ export const ERROR_I18N_KEY_BY_CODE = {
   BACKUP_CORRUPT: 'backupCorrupt',
   BACKUP_FOREIGN_IDENTITY: 'backupForeignIdentity',
   BACKUP_FOREIGN_REPO: 'backupForeignRepo',
+  BACKUP_KEY_MISSING: 'backupKeyMissing',
   BACKUP_OTHER_DEVICE_WRITING: 'backupOtherDevice',
   BACKUP_TARGET_DENIED: 'backupTargetDenied',
   BACKUP_TARGET_FULL: 'backupTargetFull',

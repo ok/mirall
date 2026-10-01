@@ -9,6 +9,7 @@ import { setProfile } from '../../src/shared/spaces/profile.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { deleteSpaceRecord } from '../../src/shared/spaces/space.js'
 import { registerBackup } from '../../src/worker/ipc/backup.js'
+import { createPassphraseThrottle } from '../../src/shared/core/identity-recovery.js'
 import { writeRestoreHold, PROFILE_BEE } from '../../src/shared/core/restore-hold.js'
 import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../../src/shared/contract/main-requests.js'
 import { FolderTarget, REPO_DIR } from '../../src/shared/storage/backup/folder-target.js'
@@ -46,7 +47,7 @@ async function bootWith(t, { enabled = true, folder = null, repoId = null } = {}
   const masterSecret = crypto.randomBytes(32)
   const root = await boot(config, { ipc: fake.ipc, log: quiet, swarm: false, masterSecret, memberRegistry: offlineMemberRegistry })
   t.teardown(async () => { try { await root.close() } catch {} }, { order: 1 })
-  registerBackup(fake.ipc, { backup: root.backup, paused: root.backupPaused })
+  registerBackup(fake.ipc, { backup: root.backup, paused: root.backupPaused, openRecovery: createPassphraseThrottle() })
   await setProfile({ displayName: 'Backed' })
   return { ...d, root, fake, masterSecret }
 }
@@ -61,7 +62,7 @@ async function bootWithStorage(t, previous, { folder, repoId }) {
   const fake = createFakeIpc()
   const root = await boot(config, { ipc: fake.ipc, log: quiet, swarm: false, masterSecret: previous.masterSecret, memberRegistry: offlineMemberRegistry })
   t.teardown(async () => { try { await root.close() } catch {} }, { order: 1 })
-  registerBackup(fake.ipc, { backup: root.backup, paused: root.backupPaused })
+  registerBackup(fake.ipc, { backup: root.backup, paused: root.backupPaused, openRecovery: createPassphraseThrottle() })
   return { root, fake }
 }
 
@@ -236,7 +237,7 @@ test('while a restore is catching up, the backup reports itself paused', async (
   const fake = createFakeIpc()
   const root = await boot(config, { ipc: fake.ipc, log: quiet, swarm: false, masterSecret: crypto.randomBytes(32), memberRegistry: offlineMemberRegistry })
   t.teardown(async () => { try { await root.close() } catch {} }, { order: 1 })
-  registerBackup(fake.ipc, { backup: root.backup, paused: root.backupPaused })
+  registerBackup(fake.ipc, { backup: root.backup, paused: root.backupPaused, openRecovery: createPassphraseThrottle() })
   t.is(root.backup(), null)
   const status = await fake.call('backup:status', {})
   t.is(status.state, 'paused')

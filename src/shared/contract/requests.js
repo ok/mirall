@@ -46,18 +46,33 @@ export const ARG = Object.freeze({
 export const REQUESTS = Object.freeze({
   'audit:actors': { kind: 'query', args: {} },
   'backup:configure': { kind: 'command', args: { folder: { type: ARG.path, max: ARG_MAX.path } } },
+  'backup:check-key': { kind: 'command', deadlineMs: 0, args: { passphrase: { type: ARG.string, max: ARG_MAX.text } } },
   'backup:inspect': { kind: 'command', deadlineMs: 0, args: {
-    content: { type: ARG.string, max: ARG_MAX.recoveryFile },
+    // Absent: the recovery key the backup folder keeps.
+    content: { type: ARG.string, max: ARG_MAX.recoveryFile, optional: true },
     folder: { type: ARG.path, max: ARG_MAX.path },
     passphrase: { type: ARG.string, max: ARG_MAX.text },
   } },
+  'backup:key-copied': { kind: 'command', args: {} },
+  'backup:key-file': { kind: 'command', args: {} },
+  'backup:new-key': { kind: 'command', deadlineMs: 0, args: { passphrase: { type: ARG.string, max: ARG_MAX.text } } },
+  'backup:peek': { kind: 'command', args: { folder: { type: ARG.path, max: ARG_MAX.path } } },
+  'backup:prompt': { kind: 'command', args: {
+    action: { type: ARG.string, max: ARG_MAX.name },
+    prompt: { type: ARG.string, max: ARG_MAX.name },
+  } },
   'backup:restore': { kind: 'command', deadlineMs: 0, args: {
-    content: { type: ARG.string, max: ARG_MAX.recoveryFile },
+    // Absent: the recovery key the backup folder keeps.
+    content: { type: ARG.string, max: ARG_MAX.recoveryFile, optional: true },
     folder: { type: ARG.path, max: ARG_MAX.path },
     passphrase: { type: ARG.string, max: ARG_MAX.text },
     snapshot: { type: ARG.string, max: ARG_MAX.key },
   } },
   'backup:run': { kind: 'command', deadlineMs: 0, args: {} },
+  'backup:setup': { kind: 'command', deadlineMs: 0, args: {
+    folder: { type: ARG.path, max: ARG_MAX.path },
+    passphrase: { type: ARG.string, max: ARG_MAX.text },
+  } },
   'backup:status': { kind: 'query', args: {} },
   'backup:turn-off': { kind: 'command', args: {} },
   'audit:configure': { kind: 'command', args: {
