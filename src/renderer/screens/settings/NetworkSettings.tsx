@@ -12,6 +12,7 @@ import ActionRow, { ROW_GROUP } from '../../components/layout/ActionRow.js'
 import SectionHeading from '../../components/layout/SectionHeading.js'
 import RelaySettingsSection from './RelaySettingsSection.js'
 import SegmentedControl, { Segment } from '../../components/primitives/SegmentedControl.js'
+import Callout from '../../components/primitives/Callout.js'
 import { useMainQuery } from '../../store/useMainQuery.js'
 import type { BandwidthLimits } from '../../platform/global.js'
 
@@ -131,9 +132,9 @@ function LimitRow({
             className="w-full bg-surface-container-lowest border-none rounded-xl px-4 py-4 text-on-surface focus-ring transition-all text-lg tabular-nums"
           />
           {belowFloor ? (
-            <div id={helpId} role="status" className="rounded-xl bg-warning px-5 py-3 text-sm font-medium text-on-warning">
+            <Callout tone="warning" role="status" id={helpId}>
               {t('networkSettings.floorAdvisory', { min: MIN_KBPS })}
-            </div>
+            </Callout>
           ) : (
             <p id={helpId} className="text-xs text-on-surface-variant px-1">
               {parsed > 0

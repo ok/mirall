@@ -24,6 +24,8 @@ export const CASES = [
   { name: "avatars", title: "Mirall avatar recess harness" },
   // This one sweeps computed box-shadows in both themes.
   { name: "darkshadow", title: "Mirall dark-mode chrome shadow harness" },
+  // This one compares computed backgrounds against token probes in both themes.
+  { name: "callouts", title: "Mirall callout tone harness" },
   { name: "dropoverlay", title: "Mirall drop-overlay layout harness" },
   { name: "errorassoc", title: "Mirall dialog error-association harness" },
   { name: "failpaths", title: "Mirall action failure-path harness" },

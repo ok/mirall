@@ -63,9 +63,9 @@ most-used values:
 | `tertiary` | `#541116` | Deep rose — sparing high-emotion accents |
 | `surface` | `#fbf9f5` | App background (warm cream) |
 | `surface-container-lowest` | `#ffffff` | **File cards at rest (light)**; space cards; folder cards at rest (dark) — see folder/file note |
-| `surface-container-low` | `#f5f3ef` | Section/setting cards; **folder cards at rest (light)**; file cards at rest (dark) |
+| `surface-container-low` | `#f5f3ef` | Section/setting cards; **folder cards at rest (light)**; file cards at rest (dark); text fields; `note` callouts |
 | `surface-container` | `#efeeea` | |
-| `surface-container-high` | `#eae8e4` | Neutral chips, toggle track, icon tiles |
+| `surface-container-high` | `#eae8e4` | Neutral chips, toggle track, icon tiles. Never a content plate: in dark it is lighter than the panel |
 | `surface-control` / `-hover` | `#eae8e4` / `#dcdad6` | **Every filled neutral control** — secondary buttons, ActionMenu triggers, PathRow, filter chips (dark: `#434955` / `#4f5561`) |
 | `surface-container-highest` | `#e4e2de` | **Card hover lift** (folder & file rows); "remote" badge |
 | `progress-track` | `#d0cec9` | Progress-bar tracks, the peer-dropdown divider and every faceless avatar disc (initials, `+N`, the Activity Log actor) — see the note below |
@@ -83,7 +83,7 @@ most-used values:
 | `info` / `on-info` | `#d6e6f5` / `#1f4a78` | The blue "busy" state — transferring (downloading / verifying) or indexing (preparing / adding) |
 | `online` / `offline` | `#0d8b80` / `#a0a4ac` | Member presence |
 | `warning` / `on-warning` | `#fcd34d` / `#1b1c1a` | The yellow "needs attention" state — paused / folder missing on disk. **Solid chips only** |
-| `warning-container` / `on-warning-container` | `#fdefc6` / `#6d4c00` (dark: `#4e4229` / `#fbe3a4`) | The tinted warning *surface* — the read-only notice, the work strip's paused band |
+| `warning-container` / `on-warning-container` | `#fdefc6` / `#6d4c00` (dark: `#4e4229` / `#fbe3a4`) | The tinted warning *surface* — `warning` callouts, the work strip's paused band |
 | `error` | `#ba1a1a` | Hard error text/icon |
 | `error-container` / `on-error-container` | `#f6c8c4` / `#93000a` | Danger button rest, error toast/badge, destructive row hover |
 | `error-container-hover` | `#e8bab6` | Danger button hover (dark: `#7c3f43`) — see the hover-token table under Buttons |
@@ -523,6 +523,27 @@ picker, a `PathRow` whose action is a button), which points `aria-labelledby` ba
 The `text-error` sentence under the thing that failed, with `role="alert"` so it is announced when
 it appears. `size="sm"` under a field, `xs` in a dense row. `FileCard` is the one exception: its
 error rides inside the meta paragraph as a `<span>` so a failed row keeps its resting height.
+
+### Callout — `primitives/Callout.tsx`
+A boxed sentence inside content that the reader should not skim past: `rounded-xl p-4 flex
+items-start gap-3`, a 20px icon (`shrink-0 mt-0.5`), an optional bold title, a `text-sm
+leading-relaxed` body. Pick the tone by what the text says, not by how loud it should look:
+
+| Tone | Says | Surface | Icon / text | Default icon |
+|---|---|---|---|---|
+| `note` | context, or a caution about an action the reader is about to take | `surface-container-low` — the text-field gray | `text-secondary` / title `on-surface`, body `on-surface-variant` | `info` (`warning` for a caution) |
+| `warning` | a condition that holds right now and limits what the reader can do | `warning-container` | `on-warning-container` throughout | `warning` (a role icon such as `lock` where it reads better) |
+
+- A warning icon on the gray `note` reads "take care"; amber means "limited right now". Amber in a
+  dialog where nothing is wrong yet spends the colour that a real condition needs.
+- **Never** `surface-container-high` (lighter than the panel in dark, so the plate outshouts the
+  dialog) and **never** solid `warning` (chips only).
+- The icon is `aria-hidden`; the words carry the kind. `role="status"` only when the callout appears
+  in response to input (the below-floor limit, the relay-removal confirm); `id` when a field points
+  `aria-describedby` at it.
+- Callers: recovery-key backup ("Keep this safe"), invite notes, the connection-problem "still
+  works" line (`note`); mirror read-only, relay removal, the below-floor transfer limit (`warning`).
+- Not a callout: error boxes (`error-container`), toasts, the update banner, the folder work strip.
 
 ### Path field — `path/PathRow.tsx`
 **Every** filesystem path the user can act on, in a modal or on a settings screen, always the same

@@ -13,6 +13,7 @@ import ModalFooter from '../layout/ModalFooter.js'
 import TextField from '../primitives/TextField.js'
 import Button from '../primitives/Button.js'
 import Icon from '../primitives/Icon.js'
+import Callout from '../primitives/Callout.js'
 
 interface RecoveryBackupModalProps {
   isOpen: boolean
@@ -109,17 +110,13 @@ export default function RecoveryBackupModal({ isOpen, onClose, weakProtection }:
               <span><strong className="text-on-surface">{t('recoveryBackup.scopeExcludesLead')}</strong> {t('recoveryBackup.scopeExcludes')}</span>
             </li>
           </ul>
-          <div className="bg-surface-container-high rounded-xl p-5 flex gap-3">
-            <Icon name="warning" className="text-secondary shrink-0" />
-            <div>
-              <p className="font-bold text-on-surface">{t('recoveryBackup.warningsTitle')}</p>
-              <ul className="mt-2 text-sm text-on-surface-variant list-disc pl-4 space-y-1">
-                <li>{t('recoveryBackup.warningAccess')}</li>
-                <li>{t('recoveryBackup.warningLostPassphrase')}</li>
-                <li>{t('recoveryBackup.warningNotFiles')}</li>
-              </ul>
-            </div>
-          </div>
+          <Callout tone="note" icon="warning" title={t('recoveryBackup.warningsTitle')}>
+            <ul className="list-disc pl-4 space-y-1">
+              <li>{t('recoveryBackup.warningAccess')}</li>
+              <li>{t('recoveryBackup.warningLostPassphrase')}</li>
+              <li>{t('recoveryBackup.warningNotFiles')}</li>
+            </ul>
+          </Callout>
           <ModalFooter layout="split">
             <Button variant="secondary" size="lg" onClick={handleClose} disabled={saving}>
               {t('actions.cancel')}

@@ -23,6 +23,7 @@ export default async function s76({ runDir, bootstrap }) {
         await waitFor(async () => A.has({ name }), 8000, `expiry preset ${name} present`)
       }
       if (await A.has({ role: 'button', name: 'Copy' })) throw new Error('no link before Create')
+      if (!(await A.hasText('see and sync all files shared in this space'))) throw new Error('who-sees-what note missing')
       await A.shot('s76-configure', runDir)
     })
 
@@ -36,6 +37,7 @@ export default async function s76({ runDir, bootstrap }) {
       if (!link.startsWith('mirall://join/')) throw new Error(`expected app link, got: ${link}`)
       if (!(await A.hasText('Auto-approve'))) throw new Error('Auto-approve badge missing')
       if (!(await A.hasText('Expires'))) throw new Error('Expires badge missing')
+      if (!(await A.hasText('joins instantly until'))) throw new Error('auto-approve note missing')
       await A.shot('s76-created', runDir)
     })
 

@@ -4,7 +4,7 @@ import { Fragment, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import FieldLabel from '../primitives/FieldLabel.js'
 import Modal from '../primitives/Modal.js'
-import Icon from '../primitives/Icon.js'
+import Callout from '../primitives/Callout.js'
 import ModalHeader from '../primitives/ModalHeader.js'
 import Button from '../primitives/Button.js'
 import Toggle from '../primitives/Toggle.js'
@@ -114,10 +114,7 @@ export default function InviteModal({ isOpen, onClose, onCreate }: InviteModalPr
                 </div>
               </div>
 
-              <div className="flex items-start gap-3 bg-surface-container-low rounded-xl p-4">
-                <Icon name="info" size={20} className="text-secondary shrink-0" />
-                <p className="text-sm text-on-surface-variant font-medium">{t('invite.infoText')}</p>
-              </div>
+              <Callout tone="note">{t('invite.infoText')}</Callout>
 
               {error && (
                 <div className="rounded-xl bg-error-container/60 px-5 py-3 text-sm font-medium text-on-error-container" role="alert">
@@ -151,12 +148,9 @@ export default function InviteModal({ isOpen, onClose, onCreate }: InviteModalPr
                 </span>
               </div>
 
-              <div className="flex items-start gap-3 bg-surface-container-low rounded-xl p-4">
-                <Icon name="info" size={20} className="text-secondary shrink-0" />
-                <p className="text-sm text-on-surface-variant font-medium">
-                  {autoApprove ? t('invite.autoNote', { date: expiresLabel }) : t('invite.reviewNote', { date: expiresLabel })}
-                </p>
-              </div>
+              <Callout tone="note">
+                {autoApprove ? t('invite.autoNote', { date: expiresLabel }) : t('invite.reviewNote', { date: expiresLabel })}
+              </Callout>
 
               <div className="flex gap-3 pt-2">
                 <Button size="lg" variant="secondary" className="flex-1" onClick={() => setCode(null)}>{t('actions.change')}</Button>

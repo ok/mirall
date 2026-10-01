@@ -184,10 +184,9 @@ export default function AddRelayModal({ isOpen, replacing, onClose, onAdd }: Add
 function DecodedRelaySummary({ decoded }: { decoded: Decoded }) {
   const { t } = useTranslation()
   return (
-    // `surface-container-low` is the ramp step that pairs with a modal panel, which is
-    // `surface-container-lowest` — the same fill FIELD_SURFACE gives the name field two rows down,
-    // so card and field agree. The `-high` step this used to carry is the CONTROL surface, and in
-    // dark it is lighter than the panel: a quiet summary on the loudest plate in the dialog.
+    // `surface-container-low` is the ramp step that pairs with a modal panel (`-lowest`), and the
+    // fill FIELD_SURFACE gives the name field two rows down, so card and field agree. Never `-high`:
+    // it is the control surface, lighter than the panel in dark.
     <div className="rounded-xl bg-surface-container-low px-5 py-4 flex items-center gap-3">
       <Badge
         label={t(`networkSettings.relays.kind.${decoded.kind}`)}
