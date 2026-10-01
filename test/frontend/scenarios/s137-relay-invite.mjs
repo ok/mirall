@@ -113,6 +113,7 @@ export default async function s137({ runDir, bootstrap }) {
       await Relays.click({ name: 'Remove' })
       await Relays.waitText('Remove Family relay?', 8000)
       await Relays.waitText('new invite from whoever runs it', 8000)
+      await Relays.waitText('Removing it takes effect after Mirall reconnects.', 8000)
       await Relays.shot('s137-remove-confirm', runDir)
 
       await Relays.click({ name: 'Cancel' })

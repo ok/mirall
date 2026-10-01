@@ -48,6 +48,7 @@ export default async function s129({ runDir, bootstrap }) {
       await openMirrorModal()
       await waitFor(async () => B.hasText('3 files'), 30000, 'the owner line carries the counted files')
       assert(!(await B.hasText('0 files')), 'no fabricated measurement is shown')
+      assert(await B.hasText('Read-only. Files you edit here'), 'the read-only callout is shown')
       await B.shot('s129-first-open', runDir)
     })
 
