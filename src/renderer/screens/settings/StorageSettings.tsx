@@ -1,99 +1,26 @@
-// Storage settings: download-folder picker and the app-storage usage breakdown.
+// Storage settings: the download-folder picker and App Storage.
 import InlineError from '../../components/primitives/InlineError.js'
-import { useState, useCallback, type ReactNode } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { request } from '../../ipc/ipc.js'
-import { formatSize } from '../../format/utils.js'
 import { useHasVerticalOverflow } from '../../hooks/useHasVerticalOverflow.js'
 import { useQuery } from '../../store/useQuery.js'
 import { useMainQuery } from '../../store/useMainQuery.js'
 import { useDownloadRootStatus } from '../../hooks/useDownloadRootStatus.js'
-import CopyButton from '../../components/primitives/CopyButton.js'
-import FilePath from '../../components/path/FilePath.js'
-import Icon from '../../components/primitives/Icon.js'
-import TextButton from '../../components/primitives/TextButton.js'
+import AppStorageCard from '../../components/storage/AppStorageCard.js'
+import { useRunAction } from '../../hooks/useRunAction.js'
 import PathRow from '../../components/path/PathRow.js'
 import PageHeader from '../../components/layout/PageHeader.js'
 import SectionHeading from '../../components/layout/SectionHeading.js'
 import { useErrorText } from '../../hooks/useErrorText.js'
-import type { StorageInfo } from '../../types/types.js'
 
 // Module-level so the entry's scope list is one array, not a fresh literal per render.
-const STORAGE_SCOPES = [{ kind: 'files' }, { kind: 'shares' }, { kind: 'share-files' }]
+const STORAGE_SCOPES = [{ kind: 'files' }, { kind: 'shares' }, { kind: 'share-files' }, { kind: 'storage' }]
 
 interface StorageSettingsProps {
   onBack: () => void
   onOpenActivityLogSettings: () => void
-}
-
-function StorageTotal({ info }: { info: StorageInfo }) {
-  const label = formatSize(info.totalDiskUsage)
-  const number = label.split(' ')[0]
-  const unit = label.split(' ')[1] || 'B'
-  return (
-    <>
-      <div className="flex items-baseline gap-2 mb-3">
-        <span className="text-5xl font-headline font-extrabold text-accent tracking-tighter">{number}</span>
-        <span className="text-xl font-headline font-bold text-on-surface-variant/60">{unit}</span>
-      </div>
-      <div className="flex items-center gap-2">
-        <FilePath path={info.storagePath} className="flex-1 text-xs font-medium text-on-surface-variant" />
-        <CopyButton value={info.storagePath} className="opacity-0 group-hover/copy:opacity-100 focus:opacity-100 transition-opacity" />
-      </div>
-    </>
-  )
-}
-
-interface CategoryProps {
-  heading: string
-  desc: string
-  bytes: number
-  action?: ReactNode
-}
-
-function Category({ heading, desc, bytes, action }: CategoryProps) {
-  const { t } = useTranslation()
-  const size = formatSize(bytes)
-  return (
-    <li aria-label={t('storageSettings.rowLabel', { heading, size })} className="flex items-start justify-between gap-4">
-      <div className="min-w-0">
-        <p className="text-sm font-semibold text-on-surface-variant">{heading}</p>
-        <p className="text-xs text-on-surface-variant">{desc}</p>
-        {action && <div className="mt-1">{action}</div>}
-      </div>
-      <p className="text-sm font-semibold text-on-surface-variant shrink-0 tabular-nums">{size}</p>
-    </li>
-  )
-}
-
-interface StorageBreakdownProps {
-  info: StorageInfo
-  onOpenActivityLogSettings: () => void
-}
-
-function StorageBreakdown({ info, onOpenActivityLogSettings }: StorageBreakdownProps) {
-  const { t } = useTranslation()
-  return (
-    <ul className="space-y-4">
-      {info.spaces.map((space) => (
-        <Category
-          key={space.spaceId}
-          heading={space.name || t('storageSettings.unnamedSpace')}
-          desc={t('storageSettings.spaceDesc', { own: formatSize(space.ownCatalogBytes), members: formatSize(space.memberCatalogBytes) })}
-          bytes={space.ownCatalogBytes + space.memberCatalogBytes}
-        />
-      ))}
-      <Category heading={t('storageSettings.sharingIndex')} desc={t('storageSettings.sharingIndexDesc')} bytes={info.indexBytes} />
-      <Category
-        heading={t('storageSettings.activityLog')}
-        desc={t('storageSettings.activityLogDesc')}
-        bytes={info.activityLogBytes}
-        action={<TextButton onClick={onOpenActivityLogSettings}>{t('storageSettings.manageActivityLog')}</TextButton>}
-      />
-      <Category heading={t('storageSettings.downloadHistory')} desc={t('storageSettings.downloadHistoryDesc')} bytes={info.downloadHistoryBytes} />
-      <Category heading={t('storageSettings.other')} desc={t('storageSettings.otherDesc')} bytes={info.otherBytes} />
-    </ul>
-  )
+  onOpenSpace: (spaceId: string) => void
 }
 
 // Trailing separators and Unicode composition are the two ways the same folder reaches us
@@ -103,18 +30,25 @@ function samePath(a: string, b: string) {
   return strip(a) === strip(b)
 }
 
-export default function StorageSettings({ onBack, onOpenActivityLogSettings }: StorageSettingsProps) {
+export default function StorageSettings({ onBack, onOpenActivityLogSettings, onOpenSpace }: StorageSettingsProps) {
   const { t } = useTranslation()
   const errorText = useErrorText()
+  const runAction = useRunAction()
   const [folderError, setFolderError] = useState<string | null>(null)
-  const [detailsOpen, setDetailsOpen] = useState(false)
   const { unavailable: unavailableRoots, refresh: refreshRootStatus } = useDownloadRootStatus()
 
   // storage:info is a cross-space disk aggregate, so it watches the file, share and share-file
   // scopes without pinning a spaceId — a hint for any space matches (scopeMatches only compares an
-  // id the VIEW pins). The coalesce window matters here: an owned-folder scan pokes files-updated
-  // in bursts, and this read walks the store.
+  // id the VIEW pins) — and the storage scope a finished measurement pokes. The coalesce window
+  // matters here: an owned-folder scan pokes files-updated in bursts, and this read walks the store.
   const { data: info, loading } = useQuery('storage:info', {}, STORAGE_SCOPES, { coalesceMs: 750 })
+
+  // The categories are measured on a schedule; opening the screen measures them now, and the
+  // measurement's poke replaces the stored one on screen. It waits on any compaction in flight, so it
+  // has no deadline of its own.
+  useEffect(() => {
+    runAction(() => request('storage:measure', {}, 0))
+  }, [runAction])
 
   const { data: folderData, error: folderReadError, write: writeDownloadFolder } = useMainQuery('main:download-folder')
   // null until the read lands: the field says it is loading rather than offering a first pick for
@@ -122,8 +56,6 @@ export default function StorageSettings({ onBack, onOpenActivityLogSettings }: S
   // drops out of the loading state and offers the pick that would fix it.
   const downloadFolder = folderData ?? (folderReadError ? '' : null)
   const shownError = folderError ?? (folderReadError ? errorText(folderReadError) : null)
-
-  const toggleDetails = useCallback(() => setDetailsOpen((open) => !open), [])
 
   const handleBrowseFolder = useCallback(async () => {
     setFolderError(null)
@@ -200,31 +132,7 @@ export default function StorageSettings({ onBack, onOpenActivityLogSettings }: S
 
             <section>
               <SectionHeading>{t('storageSettings.appStorage')}</SectionHeading>
-              <div className="bg-surface-container-low rounded-xl">
-                <div className="group/copy p-6">
-                  <StorageTotal info={info} />
-                  <p className="text-sm text-on-surface-variant mt-3 leading-relaxed">{t('storageSettings.appStorageDesc')}</p>
-                </div>
-                {info.totalDiskUsage > 0 && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={toggleDetails}
-                      aria-expanded={detailsOpen}
-                      aria-controls="appstorage-breakdown"
-                      className="w-full px-6 py-4 flex items-center justify-between text-left border-t border-outline-variant/40 focus-ring"
-                    >
-                      <span className="text-sm font-semibold text-on-surface-variant">{detailsOpen ? t('storageSettings.hideDetails') : t('storageSettings.showDetails')}</span>
-                      <Icon name={detailsOpen ? 'expand_more' : 'chevron_right'} className="text-outline" />
-                    </button>
-                    {detailsOpen && (
-                      <div id="appstorage-breakdown" className="px-6 pb-6 pt-2">
-                        <StorageBreakdown info={info} onOpenActivityLogSettings={onOpenActivityLogSettings} />
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
+              <AppStorageCard info={info} onOpenActivityLogSettings={onOpenActivityLogSettings} onOpenSpace={onOpenSpace} />
             </section>
           </div>
         )}

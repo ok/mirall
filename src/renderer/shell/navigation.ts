@@ -4,7 +4,7 @@
 //
 // A string parent is fixed. A function reads the target the screen remembered on its way in —
 // Settings returns to the space it was opened from rather than always to the home screen, and the
-// activity log backs out to whichever screen cross-linked into it.
+// activity log and its settings back out to whichever screen cross-linked into them.
 export interface BackTargets {
   preSettingsScreen: 'spaces' | 'space-view'
   preAccountScreen: 'spaces' | 'space-view'

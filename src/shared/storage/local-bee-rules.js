@@ -18,6 +18,20 @@ export function rewriteDue({ coreBytes, liveBytes, overhead = 1 }) {
   return coreBytes - freshBytes >= REWRITE_MIN_HISTORY_BYTES && coreBytes >= REWRITE_HISTORY_RATIO * freshBytes
 }
 
+// "Free up" asks for a rewrite of any bee holding more history than this; the boot pass honours the
+// request under this bar instead of the automatic floor and ratio.
+export const REQUESTED_MIN_HISTORY_BYTES = 1000 * 1000
+
+export function requestedRewriteDue({ coreBytes, liveBytes, overhead = 1 }) {
+  if (liveBytes > REWRITE_MAX_LIVE_BYTES) return false
+  return coreBytes - liveBytes * overhead >= REQUESTED_MIN_HISTORY_BYTES
+}
+
+// What a fresh copy of a bee no rewrite has measured is taken to cost per live byte, for reporting
+// and for what "Free up" requests: Hyperbee's index can double a bee of small rows, and a
+// conservative guess requests no rewrite that cannot pay off. A measured bee uses its own overhead.
+export const UNMEASURED_OVERHEAD = 2
+
 // Past this much live data no verdict can be "due", so the scan can stop.
 export function liveScanLimit(coreBytes) {
   return Math.min(Math.floor(coreBytes / REWRITE_HISTORY_RATIO), REWRITE_MAX_LIVE_BYTES)
@@ -32,22 +46,26 @@ export function needsMeasure({ coreBytes, prior }) {
   return coreBytes < prior.coreBytes || coreBytes - prior.coreBytes >= REWRITE_MIN_HISTORY_BYTES
 }
 
-// A copy that would not free at least half the floor is abandoned: the bytes do not justify the
-// truncate.
-export function rewriteSaves({ fromBytes, toBytes }) {
-  return fromBytes - toBytes >= REWRITE_MIN_HISTORY_BYTES / 2
+// A copy that would not free at least `minBytes` (half the floor unless the rewrite was requested) is
+// abandoned: the bytes do not justify the truncate.
+export function rewriteSaves({ fromBytes, toBytes, minBytes = REWRITE_MIN_HISTORY_BYTES / 2 }) {
+  return fromBytes - toBytes >= minBytes
 }
 
 export function copyOverhead({ copyBytes, liveBytes }) {
   return Math.max(1, copyBytes / Math.max(1, liveBytes))
 }
 
-// The state file: the last verdict per bee, and the bee whose only complete copy is its scratch,
-// with the bee's fork before the truncate and the scratch's length. Anything else is dropped, and a
-// file that is not an object reads as empty.
+// The state file: the last verdict per bee, the bee whose only complete copy is its scratch (with the
+// bee's fork before the truncate and the scratch's length), and the bees a user asked to have
+// rewritten at the next boot. Anything else is dropped, and a file that is not an object reads as
+// empty.
 export function normalizeRewriteState(raw) {
-  const state = { v: 1, restoring: null, measured: {} }
+  const state = { v: 1, restoring: null, measured: {}, requested: [] }
   if (!isRecord(raw)) return state
+  if (Array.isArray(raw.requested)) {
+    state.requested = [...new Set(raw.requested.filter((name) => typeof name === 'string'))]
+  }
   const r = raw.restoring
   if (isRecord(r) && typeof r.name === 'string' && isCount(r.fork) && isCount(r.scratchLength)) {
     state.restoring = { name: r.name, fork: r.fork, scratchLength: r.scratchLength }

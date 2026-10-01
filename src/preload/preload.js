@@ -31,6 +31,8 @@ contextBridge.exposeInMainWorld('bridge', {
   getPathForFile: (file) => webUtils.getPathForFile(file),
 
   checkForUpdate: () => ipcRenderer.invoke('pear:checkForUpdate'),
+  getUpdateCacheInfo: () => ipcRenderer.invoke('updater:cache-info'),
+  pruneUpdateCache: () => ipcRenderer.invoke('updater:prune'),
   appVersion: () => ipcRenderer.invoke('pear:appVersion'),
   getChangelog: () => ipcRenderer.invoke('app:getChangelog'),
   getIdentityProtection: () => ipcRenderer.invoke('app:identityProtection'),

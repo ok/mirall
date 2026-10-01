@@ -17,6 +17,7 @@ import { registerWorkerProcess } from './ipc/worker-process.js'
 import { registerAudit } from './ipc/audit.js'
 import { registerNetwork } from './ipc/network.js'
 import { registerSettings } from './ipc/settings.js'
+import { registerStorage } from './ipc/storage.js'
 import { registerProfile } from './ipc/profile.js'
 import { registerFeedback } from './ipc/feedback.js'
 import { registerDiagnostics } from './ipc/diagnostics.js'
@@ -214,6 +215,7 @@ registerFiles(ipc, { log })
 // === IPC: feedback, storage & settings handlers ===
 
 registerSettings(ipc, { mounts, publishDownloadRoots })
+registerStorage(ipc)
 registerFeedback(ipc)
 registerNetwork(ipc, { applyRelayConfig })
 registerDiagnostics(ipc, { health, getRoot: () => root })

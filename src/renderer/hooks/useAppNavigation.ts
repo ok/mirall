@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import type { AuditFilters } from '../types/types.js'
 import { parentOf, type Screen } from '../shell/navigation.js'
@@ -79,6 +79,11 @@ export function useAppNavigation(): AppNavigation {
   const openActivityLogSettings = useCallback(() => {
     setActivityLogSettingsBackTarget(currentScreen === 'storage-settings' ? 'storage-settings' : 'settings')
     setCurrentScreen('activity-log-settings')
+  }, [currentScreen])
+  // The Settings list and the shortcut open the log's settings directly, so the Storage return holds
+  // only while the user stays between the two screens.
+  useEffect(() => {
+    if (currentScreen !== 'activity-log-settings' && currentScreen !== 'storage-settings') setActivityLogSettingsBackTarget('settings')
   }, [currentScreen])
 
   const navigateToSpace = useCallback((spaceId: string) => {

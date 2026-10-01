@@ -16,6 +16,7 @@ const { isMac, isWindows, isLinux } = require('which-runtime')
 const { isDebug } = require('./debug-gate.js')
 const { loadRedactLine } = require('./logging.js')
 const applyErrors = require('./apply-error.js')
+const updateCache = require('./update-cache.js')
 
 const pkg = require('../../package.json')
 const appName = pkg.productName || pkg.name
@@ -23,6 +24,19 @@ const version = pkg.version
 const upgrade = pkg.upgrade
 
 let pear = null
+// Update passes and prunes take turns: a prune never runs while a pass mirrors or prefetches.
+let cacheTurn = Promise.resolve()
+let passRunning = false
+
+function withCacheTurn(fn) {
+  const run = cacheTurn.catch(() => {}).then(fn)
+  cacheTurn = run
+  return run
+}
+
+function pruneInTurn(updater) {
+  return withCacheTurn(() => updateCache.pruneUpdateCache({ updater, prefix: appPrefix(), log: console }))
+}
 
 // Bound by the entry: the data directory is resolved after userData is redirected, and the
 // update-enabled flag comes from argv and the install kind. The reason names what turned updates
@@ -55,6 +69,11 @@ function getRuntimeName() {
   if (isWindows) return appName + '.msix'
   if (isLinux) return appName + '.AppImage'
   return appName
+}
+
+// Where this platform's build sits in the update drive, as the updater mirrors it.
+function appPrefix() {
+  return `/by-arch/${process.platform}-${process.arch}/app/${getRuntimeName()}`
 }
 
 function getPear() {
@@ -109,7 +128,18 @@ function getPear() {
     try { return await fn(...args) } finally { process.noAsar = prev }
   }
   const u = pear.updater
-  u._update = wrapWithNoAsar(u._update.bind(u))
+  const pass = wrapWithNoAsar(u._update.bind(u))
+  // Every pass is followed by a prune, whether the pass succeeded or not: the prune keeps the latest
+  // version only when it is whole on this device. A failed prune never fails the pass.
+  u._update = async () => {
+    passRunning = true
+    try {
+      await withCacheTurn(pass)
+    } finally {
+      passRunning = false
+      await pruneInTurn(u).catch((err) => console.error('update cache prune failed:', err))
+    }
+  }
   u._debouncedUpdate = debounceify(u._update)
   // fsx.swap (renameat2 RENAME_EXCHANGE) swaps directory entries, so the
   // user-visible AppImage ends up pointing at the staged inode and inherits
@@ -199,6 +229,19 @@ function registerUpdater() {
       if (isDebug()) console.error('app:getChangelog read failed:', err.message)
       return ''
     }
+  })
+
+  ipcMain.handle('updater:cache-info', async () => {
+    const p = getPear()
+    return updateCache.updateCacheInfo({ updater: p.updater, dataDir: getDataDir(), prefix: appPrefix() })
+  })
+
+  // Never starts a pass, and never waits on one: a pass in flight (a download can take minutes) ends
+  // in its own prune.
+  ipcMain.handle('updater:prune', async () => {
+    const p = getPear()
+    if (!p.updater || passRunning) return { clearedBlocks: 0 }
+    return pruneInTurn(p.updater)
   })
 
   ipcMain.handle('pear:checkForUpdate', async () => {

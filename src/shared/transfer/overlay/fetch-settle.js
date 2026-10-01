@@ -17,6 +17,7 @@ import { terminalFault } from './download-faults.js'
 import { CODES } from '../../contract/errors.js'
 import { markDownloaded, markVerified } from '../files.js'
 import { clearPending, updatePendingProgress } from '../pending-transfers.js'
+import { progressPersistDue } from '../progress-persist.js'
 import { recordTransferOutcome } from '../../audit/transfer-audit.js'
 import { memberWaits } from '../../network/share-wait.js'
 import { SHARE_WAIT_SOURCE } from '../share-wait-set.js'
@@ -46,6 +47,10 @@ export function createFetchSettle({
         contentHash: job.contentHash,
         onProgress: ({ bytes, total, speed, eta }) => {
           channel.emitProgress(job, { bytes, total, speed, eta })
+          job.lastBytes = bytes
+          const now = Date.now()
+          if (!progressPersistDue(job.progressPersistedAt ?? 0, now)) return
+          job.progressPersistedAt = now
           updatePendingProgress(job.spaceId, job.pendingKey, bytes).catch(() => {})
         },
         onVerify: (fraction) => channel.emitVerifying?.(job, fraction),
@@ -93,8 +98,11 @@ export function createFetchSettle({
         return
       case SETTLE.PAUSED:
         diag.finish(FETCH_OUTCOME.PAUSED)
-        channel.emitUpdated(job.spaceId)
+        // The slot is gone, so the row already reads as paused: its decoration ends before anything
+        // awaits, or a reader that saw the pause would see the transfer's events after it.
         channel.emitDecorationDone?.(job)
+        await flushProgress(job)
+        channel.emitUpdated(job.spaceId)
         return
       case SETTLE.STALLED:
         await settleStalled(job, diag)
@@ -105,6 +113,13 @@ export function createFetchSettle({
       default:
         await settleDone(job, diag)
     }
+  }
+
+  // Progress reaches the row throttled; a paused row's size and the stall retry's dry counter read
+  // the row, so the latest bytes land before either does.
+  async function flushProgress(job) {
+    if (job.lastBytes == null) return
+    await updatePendingProgress(job.spaceId, job.pendingKey, job.lastBytes).catch(() => {})
   }
 
   // The republish park's release: drop every trace of the OLD content (partial, journal, a
@@ -138,6 +153,7 @@ export function createFetchSettle({
   async function settleStalled(job, diag) {
     diag.finish(FETCH_OUTCOME.NO_HOLDER)
     log.debug('overlay fetch interrupted — holder gone or throttled:', job.relPath, 'at', job.prevBytes || 0, 'bytes')
+    await flushProgress(job)
     const retrying = await retries.schedule(job)
     channel.emitPaused?.(job, pauseReasonFor(job), { retrying })
     channel.emitUpdated(job.spaceId)

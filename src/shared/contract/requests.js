@@ -324,7 +324,9 @@ export const REQUESTS = Object.freeze({
     spaceId: { type: ARG.spaceId },
   } },
   'spaces:list': { kind: 'query', args: {} },
+  'storage:free-up': { kind: 'command', args: {} },
   'storage:info': { kind: 'query', args: {} },
+  'storage:measure': { kind: 'command', args: {} },
 })
 
 /** @internal the declaration-parity guard's list; production reads the table above it */

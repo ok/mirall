@@ -11,7 +11,7 @@ import { scaled } from '../helpers/timing.js'
 // reports it on the space's row: the owner as its own catalog, the peer as a member's. Only a real
 // run crosses the worker IPC on both.
 const partsSum = (info) => info.spaces.reduce((n, s) => n + s.ownCatalogBytes + s.memberCatalogBytes, 0)
-  + info.indexBytes + info.activityLogBytes + info.downloadHistoryBytes + info.otherBytes
+  + info.indexBytes + info.activityLogBytes + info.downloadHistoryBytes + info.historyBytes + info.otherBytes
 const rowOf = (info, spaceId) => info.spaces.find((s) => s.spaceId === spaceId)
 
 // Other is the remainder, so the parts meet the total exactly unless the estimates overshoot it.
@@ -45,6 +45,7 @@ test('storage breakdown: sharing and browsing a folder imports no file bytes', a
 
   const aAfter = await A.request('storage:info')
   assertSumsToTotal(t, aAfter, 'owner')
+  t.ok(aAfter.folderBytes >= aAfter.totalDiskUsage, 'the data folder holds the store')
   t.ok(rowOf(aAfter, spaceId).ownCatalogBytes > 0, 'the owner sees its catalog on the space row')
   t.ok(aAfter.totalDiskUsage - aBefore.totalDiskUsage < FILES / 2, 'the owner imported no file bytes')
 

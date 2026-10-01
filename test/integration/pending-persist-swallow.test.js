@@ -10,6 +10,7 @@ import { initDownloads, isDownloadedFile, markDownloaded } from '../../src/share
 import { CODES } from '../../src/shared/contract/errors.js'
 import { createOverlayDownloadEngine } from '../../src/shared/transfer/overlay/overlay-download.js'
 import { scaled } from '../helpers/bare-timing.js'
+import { waitFor } from '../helpers/bare-poll.js'
 
 // A write that encodes STATUS or INTENT may fail loudly, never silently. These pin the four
 // pending-row writes in the download engine plus the read-modify-write ordering that protects
@@ -265,4 +266,30 @@ test('the completed-row guard needs a claim that names the same content, not jus
 
   t.ok(await getPendingFor('space1', '/Photos/doc.bin'), 'the row survives — a hashless claim does not prove we hold this content')
   t.is(started.length, 1, 'and the download actually runs')
+})
+
+// Progress reaches the row at most every PROGRESS_PERSIST_MS; the stall retry's dry counter reads
+// the row, so a stall writes the latest bytes before the retry is scheduled.
+test('a stall persists the latest bytes before the retry reads them', async (t) => {
+  const ctx = await setup(t)
+  const events = []
+  const started = []
+  const engine = createOverlayDownloadEngine(channelFor(ctx, events, started))
+  let stall = null
+  getOverlay().fetchFile = async (_hash, opts) => {
+    started.push(opts.destPath)
+    opts.onProgress(1000)
+    await tick(300) // past the ticker's interval, inside the persist interval
+    opts.onProgress(5000)
+    await new Promise((resolve) => { stall = resolve })
+    return null // no holder: the engine settles it as a stall
+  }
+
+  await engine.start(makeJob(ctx))
+  await waitFor(() => stall, 3000, { label: 'the second progress tick' })
+  t.is((await getPendingFor('space1', '/Photos/doc.bin')).bytesTransferred, 1000, 'the second tick inside the interval is not written')
+
+  stall()
+  await tick()
+  t.is((await getPendingFor('space1', '/Photos/doc.bin')).bytesTransferred, 5000, 'the stall wrote the latest bytes')
 })

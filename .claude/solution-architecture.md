@@ -273,7 +273,22 @@ predates it. Every marker is settled before any new rewrite starts: an unmoved f
 truncate never landed and the bee is intact, otherwise the bee is refilled from its scratch, and a
 restore that cannot complete fails the boot. A bee under 20 MB is never scanned, a larger one is
 scanned again only after 20 MB of growth, a bee with more than 64 MB of live data is left alone,
-and the stored-bytes-per-live-byte overhead each copy measures is kept with the verdict.
+and the stored-bytes-per-live-byte overhead each copy measures is kept with the verdict. A user's
+"Free up" (below) lists bees in the state file's `requested`; the next boot rewrites each of those
+holding at least 1 MB of history, whatever the automatic floor and ratio, and clears the list.
+
+**Storage accounting** (`src/shared/storage/storage.js`, `storage-history.js`, `src/worker/ipc/storage.js`).
+`storage:info` walks the store and the data folder around it, and attributes the store per space,
+to the overlay index, the Activity Log and the download history from per-core on-disk estimates
+(`storage-breakdown.js`). Replaced records (stored minus live, per local bee) take a stream over every
+bee, so they are measured by `storage:measure` and the sweeps' 6-hourly tick, kept in `reclaim-meta`
+as `storage-history`, and read back on every `storage:info`; history of bees whose own row already
+carries it is not counted twice. The screen shows them inside Other. A measurement ends in `event:storage-updated`, a poke on the
+`storage` scope. `storage:free-up` compacts the index and requests the rewrite of every bee over the
+1 MB bar; the renderer then restarts the worker when any were requested. Main keeps its own half:
+every update pass ends in a prune of the update store (`src/main/update-cache.js`), which clears every
+blob block the latest version's files for this platform do not reference and compacts that store;
+`updater:cache-info` / `updater:prune` expose it.
 
 ### 3.1 Profile bee (`profile`) — replicated
 

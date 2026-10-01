@@ -1,7 +1,7 @@
 import test from 'brittle'
 import {
-  rewriteDue, needsMeasure, rewriteSaves, liveScanLimit, normalizeRewriteState, copyOverhead,
-  REWRITE_MIN_HISTORY_BYTES as FLOOR, REWRITE_MAX_LIVE_BYTES as MAX_LIVE,
+  rewriteDue, needsMeasure, rewriteSaves, liveScanLimit, normalizeRewriteState, copyOverhead, requestedRewriteDue,
+  REWRITE_MIN_HISTORY_BYTES as FLOOR, REWRITE_MAX_LIVE_BYTES as MAX_LIVE, REQUESTED_MIN_HISTORY_BYTES as REQUESTED,
 } from '../../src/shared/storage/local-bee-rules.js'
 
 test('the measured install is due; ordinary bees are not', (t) => {
@@ -57,7 +57,7 @@ test('a copy that frees less than half the floor is abandoned', (t) => {
 })
 
 test('the state file shape guard', (t) => {
-  const empty = { v: 1, restoring: null, measured: {} }
+  const empty = { v: 1, restoring: null, measured: {}, requested: [] }
   for (const raw of [null, undefined, 42, 'x', [], { measured: [] }, { restoring: 'mounts-meta' }, { restoring: { name: 'x', fork: -1, scratchLength: 1 } }]) {
     t.alike(normalizeRewriteState(raw), empty, JSON.stringify(raw) + ' reads as empty')
   }
@@ -81,5 +81,25 @@ test('the state file shape guard', (t) => {
       f: { coreBytes: 1, liveBytes: 2, overhead: 1, at: 0 },
       d: { coreBytes: 5, liveBytes: 4, overhead: 1, at: 0 },
     },
+    requested: [],
   })
+})
+
+test('the state file keeps each requested name once, and strings only', (t) => {
+  t.alike(normalizeRewriteState({ requested: ['mounts-meta', 7, 'mounts-meta', null, 'audit-log'] }).requested, ['mounts-meta', 'audit-log'])
+  t.alike(normalizeRewriteState({ requested: 'mounts-meta' }).requested, [], 'a non-list reads as none')
+})
+
+test('a requested rewrite frees anything over its bar, below the automatic floor', (t) => {
+  t.ok(requestedRewriteDue({ coreBytes: REQUESTED + 100, liveBytes: 100 }), 'exactly the bar')
+  t.absent(requestedRewriteDue({ coreBytes: REQUESTED + 99, liveBytes: 100 }), 'just under the bar')
+  t.ok(REQUESTED < FLOOR, 'the requested bar sits below the automatic floor')
+  t.ok(requestedRewriteDue({ coreBytes: 5e6, liveBytes: 4e6 }), 'no ratio applies to a request')
+  t.absent(requestedRewriteDue({ coreBytes: 10 * MAX_LIVE, liveBytes: MAX_LIVE + 1 }), 'too much live data to copy at boot')
+  t.absent(requestedRewriteDue({ coreBytes: 1.5e6, liveBytes: 0.5e6, overhead: 1.5 }), 'a fresh copy costs its overhead')
+})
+
+test('a requested copy is kept when it frees its own bar', (t) => {
+  t.ok(rewriteSaves({ fromBytes: 2e6, toBytes: 1e6, minBytes: REQUESTED }))
+  t.absent(rewriteSaves({ fromBytes: 2e6, toBytes: 1e6 }), 'the automatic bar would abandon it')
 })

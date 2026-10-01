@@ -189,6 +189,10 @@ export function getMaxFilesPerShare() {
   return read('maxFilesPerShare')
 }
 
+export function getFreeUpMinBytes() {
+  return read('freeUpMinBytes')
+}
+
 export function getServeChunkMapCacheBytes() {
   return read('serveChunkMapCacheBytes')
 }

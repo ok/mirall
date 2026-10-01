@@ -4,7 +4,7 @@ import path from 'bare-path'
 import { freshPeer } from '../helpers/store.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { looseHasOwn } from '../../src/shared/transfer/overlay/loose-publish.js'
-import { initDownloads, markDownloaded, getDownloadedPath, getOwnedSourcePath, isDownloadedFile, markVerified, getVerifiedHash, isVerifiedUnchanged, cleanupDownloadHistory, listDownloadClaimsForShare, listVerifiedForShare, listVerifiedRecordsForShare, pruneDownloadClaims, verdictForClaim, createDirProbe } from '../../src/shared/transfer/files.js'
+import { initDownloads, markDownloaded, markOwnedSource, getDownloadedPath, getOwnedSourcePath, isDownloadedFile, markVerified, getVerifiedHash, isVerifiedUnchanged, cleanupDownloadHistory, listDownloadClaimsForShare, listVerifiedForShare, listVerifiedRecordsForShare, pruneDownloadClaims, verdictForClaim, createDirProbe } from '../../src/shared/transfer/files.js'
 import { addFile, removeFile } from '../../src/shared/transfer/file-listing.js'
 import { resolveRevealTarget } from '../../src/shared/transfer/reveal.js'
 import { initPendingTransfers } from '../../src/shared/transfer/pending-transfers.js'
@@ -179,6 +179,17 @@ test('verified marker round-trips and is cleared on space cleanup', async (t) =>
 
   await cleanupDownloadHistory(spaceId)
   t.is(await getVerifiedHash(spaceId, key), null, 'cleared with the space download history')
+})
+
+test('REGRESSION (FIX-499-SRC): leaving a space drops its owned-source rows', async (t) => {
+  const { spaceId } = await setup(t)
+  await markOwnedSource(spaceId, '/a.txt', '/tmp/a.txt')
+  await markOwnedSource('other-space', '/b.txt', '/tmp/b.txt')
+
+  await cleanupDownloadHistory(spaceId)
+
+  t.is(await getOwnedSourcePath(spaceId, '/a.txt'), null, 'the left space loses its src: row')
+  t.is(await getOwnedSourcePath('other-space', '/b.txt'), '/tmp/b.txt', 'another space keeps its row')
 })
 
 // The landing path is the half of the record the key cannot carry: the key names the owner's

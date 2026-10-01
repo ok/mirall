@@ -1,5 +1,5 @@
 // @ts-check
-// Settings and storage. The download-folder setter is the one that carries a rule:
+// Settings. The download-folder setter is the one that carries a rule:
 // the global root is the effective root of every space that never overrode it.
 
 /** @import { WorkerIpc } from '../../shared/core/ipc.js' */
@@ -11,7 +11,6 @@ import {
   setBandwidthLimits,
 } from '../../shared/core/runtime-config.js'
 import { daemonPaths } from '../../shared/contract/paths.js'
-import { getStorageInfo } from '../../shared/storage/storage.js'
 import { validateDownloadFolderAgainstMounts } from '../../shared/folders/mount-validate.js'
 
 /**
@@ -28,8 +27,6 @@ export function registerSettings(ipc, { mounts, publishDownloadRoots }) {
     mounts.probeDownloadRoots()
     return daemonPaths({ unavailable: mounts.unavailableRoots })
   })
-
-  ipc.handle('storage:info', async () => daemonPaths(await getStorageInfo()))
 
   ipc.handle('settings:set-download-folder', async (msg) => {
     // Same mount-overlap rejection as a per-space folder: pointing the global root into a folder

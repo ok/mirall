@@ -32,6 +32,14 @@
      `surface-container-high`, so any ramp token it borrows goes invisible in one of those
      states. Pinned by test/invariants/progress-bar-contrast.test.js. */
   --color-progress-track: #d0cec9;
+  /* Categorical series, in a fixed order: one hue per category of a chart or meter. Stepped per
+     theme for its surface and checked for colour-blind separation; never reused for status. */
+  --color-chart-1: #2a78d6;
+  --color-chart-2: #eb6834;
+  --color-chart-3: #1baf7a;
+  --color-chart-4: #eda100;
+  --color-chart-5: #e87ba4;
+  --color-chart-6: #008300;
   --avatar-recess: rgb(0 0 0 / 0.36);
   --color-on-surface: #1b1c1a;
   --color-on-surface-variant: #4a454b;
@@ -78,6 +86,12 @@
   --color-surface-container-highest: #393f4a;
   --color-surface-container-lowest: #21252b;
   --color-progress-track: #4a5160;
+  --color-chart-1: #3987e5;
+  --color-chart-2: #d95926;
+  --color-chart-3: #199e70;
+  --color-chart-4: #c98500;
+  --color-chart-5: #d55181;
+  --color-chart-6: #008300;
   --avatar-recess: rgb(0 0 0 / 0.62);
   --color-on-surface: #fefaf3;
   --color-on-surface-variant: #ebe2d2;

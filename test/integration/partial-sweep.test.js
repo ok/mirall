@@ -2,7 +2,7 @@ import test from 'brittle'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { freshPeer } from '../helpers/store.js'
-import { initPendingTransfers, recordPending } from '../../src/shared/transfer/pending-transfers.js'
+import { initPendingTransfers, recordPending, forgetStaleFailures, getPendingFor, _pendingBeeForTests, FAILED_ROW_MAX_AGE_MS } from '../../src/shared/transfer/pending-transfers.js'
 import { cleanupOrphanedPartials } from '../../src/shared/transfer/partial-sweep.js'
 
 test('cleanupOrphanedPartials sweeps an orphan, keeps one referenced by a pending finalPath', async (t) => {
@@ -102,4 +102,35 @@ test('cleanupOrphanedPartials skips an unreadable root and still sweeps the rest
 
   t.is(res.failed, 1, 'the bad root is counted, not thrown')
   t.absent(fs.existsSync(orphan), 'a root listed after it is still swept')
+})
+
+// A failed row keeps its partial for the Failed list; past the age cap both go, while a newer
+// failure, an error-free row (possibly a pause) and a fault that clears on its own keep theirs.
+test('REGRESSION (FIX-499-PARTIAL): a failed download ages out with its partial', async (t) => {
+  const { downloads } = await freshPeer(t)
+  await initPendingTransfers()
+  const now = Date.now()
+  const day = 24 * 60 * 60 * 1000
+  const rows = {
+    '/old-failed.bin': { errorCode: 'TRANSFER_CHECKSUM', erroredAt: now - FAILED_ROW_MAX_AGE_MS - day },
+    '/new-failed.bin': { errorCode: 'TRANSFER_CHECKSUM', erroredAt: now - FAILED_ROW_MAX_AGE_MS + day },
+    '/old-paused.bin': { updatedAt: now - 3 * FAILED_ROW_MAX_AGE_MS },
+    '/old-unplugged.bin': { errorCode: 'TRANSFER_DEST_UNAVAILABLE', erroredAt: now - 3 * FAILED_ROW_MAX_AGE_MS },
+  }
+  for (const [filePath, extra] of Object.entries(rows)) {
+    const finalPath = path.join(downloads, filePath.slice(1))
+    fs.writeFileSync(finalPath + '.mirall.part', 'half')
+    await _pendingBeeForTests().put('s:' + filePath, { finalPath, ...extra })
+  }
+
+  t.is(await forgetStaleFailures(now), 1, 'one row aged out')
+  await cleanupOrphanedPartials(downloads)
+
+  t.is(await getPendingFor('s', '/old-failed.bin'), null, 'the old failure is forgotten')
+  t.absent(fs.existsSync(path.join(downloads, 'old-failed.bin.mirall.part')), 'and its partial reclaimed')
+  t.ok(await getPendingFor('s', '/new-failed.bin'), 'a newer failure stays')
+  t.ok(fs.existsSync(path.join(downloads, 'new-failed.bin.mirall.part')), 'with its partial')
+  t.ok(await getPendingFor('s', '/old-paused.bin'), 'an error-free row never ages out')
+  t.ok(fs.existsSync(path.join(downloads, 'old-paused.bin.mirall.part')), 'with its partial')
+  t.ok(await getPendingFor('s', '/old-unplugged.bin'), 'a fault that clears when the folder is back never ages out')
 })

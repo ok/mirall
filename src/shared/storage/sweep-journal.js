@@ -11,8 +11,9 @@
 //   A refused sweep carries its gaps and purged: 0; a sweep that ran carries purgedDks. Gaps are
 //   the scan's own, either way: a sweep with nothing to delete is allowed on a scan that may
 //   still have been incomplete, and journaling that as [] would report a clean scan.
-// Keys in `reclaim-meta`: purge/<at, 16 digits>-<seq, 4 digits> (this journal, chronological) and
-// overlay-index-compacted (worker/sweeps.js's last-compaction stamp).
+// Keys in `reclaim-meta`: purge/<at, 16 digits>-<seq, 4 digits> (this journal, chronological),
+// overlay-index-compacted (worker/sweeps.js's last-compaction stamp) and storage-history
+// (storage-history.js's last measurement).
 import { createLocalBee } from '../core/store.js'
 import { createLogger } from '../core/logger.js'
 import { prefixRange } from '../core/bee-keys.js'

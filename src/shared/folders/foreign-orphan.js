@@ -18,13 +18,13 @@ const log = createLogger('foreign-orphan')
 export async function maybeUnmountIfOwnerGone(mount) {
   if (await ownerLeftSpace(mount.spaceId, mount.ownerKey)) {
     log.info('owner left space — unmounting orphaned mirror', mount.shareId, '(files kept on disk)')
-    await unmountForeignFolder(mount.spaceId, mount.shareId)
+    await unmountForeignFolder(mount.spaceId, mount.shareId, { shareGone: true })
     return
   }
   const raw = await readPeerShareEntry(mount.ownerKey, mount.spaceId, mount.shareId)
   if (raw && raw.deletedAt) {
     log.info('owner removed share', mount.shareId, '— unmounting orphaned mirror (files kept on disk)')
-    await unmountForeignFolder(mount.spaceId, mount.shareId)
+    await unmountForeignFolder(mount.spaceId, mount.shareId, { shareGone: true })
   }
 }
 

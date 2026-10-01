@@ -1,14 +1,14 @@
 // RocksDB compaction — returning tombstoned blocks to the OS.
 //
-// core.clear() and a core purge only mark blocks deleted in the shared store; the bytes are not
-// reclaimed from disk until a compaction with blob GC runs. Leave-space, clear-peer-cache and the
-// reclaim sweep all depend on this to actually shrink on-disk usage.
+// core.clear(), core.truncate() and a core purge only mark blocks deleted in the shared store; the
+// bytes return to disk when a compaction with blob GC runs. Every reclaim path ends in compactStore().
 //
 // Every run is chained onto the last. Two overlapping compactions can strand a blob permanently:
 // a background pass that drops a swept block's delete tombstone before the blob-GC pass accounts
 // its garbage leaves an orphaned blob file no later compaction can reclaim.
 
 import { getStore } from '../core/store.js'
+import { FORCED_COMPACTION } from '../contract/compaction.js'
 import { createLogger } from '../core/logger.js'
 
 const log = createLogger('compaction')
@@ -27,28 +27,26 @@ function chainCompaction(opts, label) {
     const db = getStore()?.storage?.db
     if (!db) return
     const t0 = Date.now()
-    log.info('PROBE compaction start:', label)
+    log.info('compaction start:', label)
     try {
       await db.flush()
       await db.compactRange(null, null, opts)
     } finally {
-      log.info('PROBE compaction done:', label, 'in', Date.now() - t0, 'ms')
+      log.info('compaction done:', label, 'in', Date.now() - t0, 'ms')
     }
   })
   compactionTail = run
   return run
 }
 
-// Forced full-range blob-GC compaction — used only by the rare user-initiated reclaim paths
-// (leave-space, clear-cache, reclaim sweep). Always runs. `exclusive` blocks background
-// compactions for the duration, which is what closes the tombstone race described above.
+// Forced full-range blob-GC compaction. Always runs.
 export function compactStore() {
-  return chainCompaction({
-    exclusive: true,
-    blobGarbageCollectionPolicy: 1,
-    blobGarbageCollectionAgeCutoff: 1.0,
-    bottommostLevelCompaction: 2,
-  }, 'forced full-range')
+  return chainCompaction(FORCED_COMPACTION, 'forced full-range')
+}
+
+// Resolves once every compaction queued so far has finished, whatever its outcome.
+export function compactionIdle() {
+  return compactionTail.catch(() => {})
 }
 
 // Waits out an in-flight compaction, bounded. A compaction reads cores the durable tier closes

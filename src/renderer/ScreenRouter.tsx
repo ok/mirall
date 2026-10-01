@@ -171,6 +171,7 @@ export default function ScreenRouter({ nav, profile, onSaveProfile, openDialog }
         <StorageSettings
           onBack={() => nav.setCurrentScreen(nav.storageBackTarget)}
           onOpenActivityLogSettings={nav.openActivityLogSettings}
+          onOpenSpace={nav.navigateToSpace}
         />
       )
     case 'appearance-settings':

@@ -29,7 +29,7 @@ import {
 } from '../shared/spaces/leave-records.js'
 import { MemberViews } from '../shared/spaces/member-registry.js'
 import { DownloadsBee, cleanupDownloadHistory } from '../shared/transfer/files.js'
-import { PendingTransfersBee, clearPendingForSpace } from '../shared/transfer/pending-transfers.js'
+import { PendingTransfersBee, clearPendingForSpace, forgetStaleFailures } from '../shared/transfer/pending-transfers.js'
 import { abortInFlightPublishes } from '../shared/transfer/overlay/overlay-publish.js'
 import { ServeLedger } from '../shared/transfer/serve-ledger.js'
 import { sweepOrphanedJournals } from '../shared/transfer/overlay/overlay-journals.js'
@@ -399,6 +399,13 @@ async function backfillMembership(activeSpaces, log) {
 // Crash leftovers: partials, retired peer-cache cores, orphaned receive journals. All
 // best-effort — a failure here defers reclamation, it never blocks boot.
 async function sweepOrphans(log) {
+  // Before the partial sweep, so a forgotten row's partial goes in the same pass.
+  try {
+    const forgotten = await forgetStaleFailures()
+    if (forgotten) log.info('forgot', forgotten, 'failed downloads past their age cap')
+  } catch (err) {
+    log.warn('failed-download age-out failed:', err.message)
+  }
   try {
     // Sweep Downloads (loose/folder downloads) + every foreign mount dir (mirror fetches
     // write partials at the file's nested location), reclaiming crash-orphaned partials

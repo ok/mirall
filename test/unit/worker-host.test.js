@@ -110,6 +110,7 @@ test('REGRESSION (MIR-54: a packaged build took security flags from its environm
     MIRALL_LIST_FILES_CAP: '3',
     MIRALL_MAX_FILES_PER_SHARE: '3',
     MIRALL_DERIVE_DEBOUNCE_MS: '3',
+    MIRALL_FREE_UP_MIN_BYTES: '3',
     MIRALL_DOWNLOAD_FOLDER: '/tmp/mirall-elsewhere',
   })
   const packaged = load({ isPackaged: true })
@@ -120,6 +121,7 @@ test('REGRESSION (MIR-54: a packaged build took security flags from its environm
   t.absent(boot.listFilesCap, 'nor lift a cap')
   t.absent(boot.maxFilesPerShare, 'nor the share admission gate')
   t.absent(boot.deriveDebounceMs, 'nor retime the fold')
+  t.absent(boot.freeUpMinBytes, 'nor move the free-up threshold')
   t.not(boot.downloadFolder, '/tmp/mirall-elsewhere', 'nor redirect downloads')
 
   const dev = load()

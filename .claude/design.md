@@ -89,6 +89,22 @@ most-used values:
 | `error-container-hover` | `#e8bab6` | Danger button hover (dark: `#7c3f43`) — see the hover-token table under Buttons |
 | `icon-tile` / `on-icon-tile` | `#fec78a` / `#0a4742` | Reserved icon-tile pair (defined; most tiles render on `surface-container-high`) |
 
+### Categorical series — `chart-1` … `chart-6`
+
+One hue per category of a chart or meter, assigned in this fixed order and never cycled; never used
+for status. Each theme has its own step, checked against its card surface for colour-blind
+separation (worst adjacent ΔE 9.1 light / 8.4 dark). Several sit below 3:1 against the surface, so a
+series always carries a visible label beside its colour (the Storage rows do).
+
+| Token | Light | Dark |
+|---|---|---|
+| `chart-1` blue | `#2a78d6` | `#3987e5` |
+| `chart-2` orange | `#eb6834` | `#d95926` |
+| `chart-3` aqua | `#1baf7a` | `#199e70` |
+| `chart-4` yellow | `#eda100` | `#c98500` |
+| `chart-5` magenta | `#e87ba4` | `#d55181` |
+| `chart-6` green | `#008300` | `#008300` |
+
 ### Dark theme
 
 Dark mode is a complete second palette (`.dark` block) and **inverts the brand relationship**:
@@ -768,6 +784,20 @@ up (no stable rate yet). Indeterminate renders a 40%-wide `on-info` segment that
 up (`format.etaEstimating`, "Estimating…"), else the caller's `indeterminateText`
 (`format.progressUnknown` for a strip that has no rate to estimate from, as `FolderWorkStrip` does).
 Determinate mode keeps `aria-valuenow` + the width fill.
+
+### Storage meter and category rows — `components/storage/`
+`StorageMeter` is a full stacked bar, `h-2 rounded-full overflow-hidden flex gap-0.5`, with no track:
+every byte belongs to a category, so an empty-looking stretch would read as free space. Segments
+split the width by size (`flex-grow` = bytes, `basis-0`, never narrower than 3px), with a 2px gap of
+card surface between them. It is `role="img"` with one `aria-label` naming every category and its
+size; the segments are `aria-hidden`, so the rows stay the readable source. `StorageCategoryRow` is
+a list item named "heading, size", with a leading `w-2.5 h-2.5` dot in its segment's colour, a
+description of what the data is (how it is freed is said once, in the card's intro), an optional
+text action under it (Open, which goes to the space; Manage Activity Log) and the size on the right. A space's row is
+titled "Space: name". Categories take the `chart-1`…`chart-6` slots in meter order: spaces, index,
+Activity Log, download history, app updates, other (which also holds old versions of Mirall's own
+records). The "Free up" row keeps its
+status text in a polite live region and runs the shared `ProgressBar` while it works.
 
 ### Collapsible card — `primitives/CollapsibleCard.tsx`
 `bg-surface-container-low rounded-2xl p-8`; header is a disclosure button carrying the standard

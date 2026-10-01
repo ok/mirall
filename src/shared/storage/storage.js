@@ -1,6 +1,7 @@
-// Storage accounting behind the Storage screen: the store's disk footprint, attributed per space
-// (own and member catalogs), to the shared-file index, the Activity Log and the download history,
-// with the unattributed rest as "other". Plus the boot-time metadata sweep.
+// Storage accounting behind the Storage screen: the data folder and the store inside it, the store
+// attributed per space (own and member catalogs), to the shared-file index, the Activity Log, the
+// download history and replaced records, with the unattributed rest as "other". Plus the boot-time
+// metadata sweep.
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { createLogger } from '../core/logger.js'
@@ -10,30 +11,38 @@ import { purgeLeftovers } from './leftover.js'
 import { measureCoreBytes } from './core-bytes.js'
 import { spaceCatalogCores } from './space-catalog-cores.js'
 import { storageBreakdown } from './storage-breakdown.js'
+import { readHistory } from './storage-history.js'
+import { getFreeUpMinBytes } from '../core/runtime-config.js'
 
 const log = createLogger('storage')
 
-function getDirSize(dirPath) {
-  let size = 0
+// A symlink counts as itself and is never followed, and an entry that cannot be read is skipped
+// alone: the data folder holds Chromium's dangling Singleton* links. `skip` names entries of `dirPath`
+// itself to leave out.
+function getDirSize(dirPath, { skip = null } = {}) {
+  let entries
   try {
-    const entries = fs.readdirSync(dirPath)
-    for (const entry of entries) {
-      const full = path.join(dirPath, entry)
-      const stat = fs.statSync(full)
-      if (stat.isDirectory()) {
-        size += getDirSize(full)
-      } else {
-        size += stat.size
-      }
-    }
+    entries = fs.readdirSync(dirPath)
   } catch (err) {
-    log.warn('cannot stat:', dirPath, err.message)
+    log.warn('cannot read:', dirPath, err.message)
+    return 0
+  }
+  let size = 0
+  for (const entry of entries) {
+    if (skip?.includes(entry)) continue
+    const full = path.join(dirPath, entry)
+    try {
+      const stat = fs.lstatSync(full)
+      size += stat.isDirectory() ? getDirSize(full) : stat.size
+    } catch {}
   }
   return size
 }
 
 const ACTIVITY_LOG_BEES = ['audit-log']
 const DOWNLOAD_HISTORY_BEES = ['downloads-meta', 'pending-transfers']
+// Bees whose own row already carries their history in its estimate.
+const ROW_BEES = [...ACTIVITY_LOG_BEES, ...DOWNLOAD_HISTORY_BEES]
 
 // A part that cannot be measured reports its fallback, and whatever it held falls to "other",
 // rather than blanking the whole screen.
@@ -64,19 +73,29 @@ async function overlayIndexBytes() {
 }
 
 export async function getStorageInfo() {
-  const totalDiskUsage = getDirSize(getStoragePath())
-  const [spaces, indexBytes, activityLog, downloadHistory] = await Promise.all([
+  const storagePath = getStoragePath()
+  const folderPath = path.dirname(storagePath)
+  const totalDiskUsage = getDirSize(storagePath)
+  const [spaces, indexBytes, activityLog, downloadHistory, history] = await Promise.all([
     measured('spaces', [], async () => Promise.all((await listSpaces()).map(spaceCores))),
     measured('shared-file index', 0, overlayIndexBytes),
     measured('activity log', [], () => localBeeDks(ACTIVITY_LOG_BEES)),
     measured('download history', [], () => localBeeDks(DOWNLOAD_HISTORY_BEES)),
+    readHistory(),
   ])
+  const bees = history?.bees ?? []
+  const historyBytes = bees.filter((b) => !ROW_BEES.includes(b.name)).reduce((n, b) => n + b.historyBytes, 0)
   const attributed = new Set([...spaces.flatMap((s) => [...s.own, ...s.members]), ...activityLog, ...downloadHistory])
   const coreBytes = await measured('core sizes', new Map(), () => measureCoreBytes(getStore(), attributed))
   return {
     totalDiskUsage,
-    storagePath: getStoragePath(),
-    ...storageBreakdown({ totalDiskUsage, coreBytes, spaces, indexBytes, activityLog, downloadHistory }),
+    storagePath,
+    folderBytes: totalDiskUsage + getDirSize(folderPath, { skip: [path.basename(storagePath)] }),
+    folderPath,
+    historyMeasuredAt: history?.measuredAt ?? null,
+    reclaimableBytes: bees.filter((b) => b.rewritable).reduce((n, b) => n + b.historyBytes, 0),
+    freeUpMinBytes: getFreeUpMinBytes(),
+    ...storageBreakdown({ totalDiskUsage, coreBytes, spaces, indexBytes, activityLog, downloadHistory, historyBytes }),
   }
 }
 
