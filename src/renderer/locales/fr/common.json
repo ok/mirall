@@ -628,7 +628,7 @@
     "intro": "Voir et gérer l'utilisation des données Mirall sur cet appareil.",
     "downloadFolder": "Dossier de téléchargement",
     "downloadFolderDesc": "Emplacement où Mirall enregistre les fichiers téléchargés depuis les membres de votre espace.",
-    "appStorageDesc": "Espace utilisé par Mirall sur cet appareil pour partager et synchroniser vos fichiers. Il ne conserve jamais une seconde copie de vos fichiers.",
+    "appStorageDesc": "Espace utilisé par Mirall sur cet appareil pour partager et synchroniser vos fichiers et pour se mettre à jour. Il ne conserve jamais une seconde copie de vos fichiers.",
     "sharingIndex": "Index des fichiers partagés",
     "sharingIndexDesc": "Cartes compactes des fichiers que vous partagez (jamais leur contenu). Libérées automatiquement après que vous cessez de partager un fichier : le nettoyage s'exécute quelques minutes après le lancement, puis toutes les 6 heures.",
     "folderError": "Impossible de définir le dossier : {{error}}",
@@ -646,7 +646,30 @@
     "other": "Autre",
     "otherDesc": "Profils, réglages et données internes du moteur de stockage, y compris les données supprimées en attente de compactage. Libéré automatiquement.",
     "rowLabel": "{{heading}}, {{size}}",
-    "unnamedSpace": "Espace sans nom"
+    "unnamedSpace": "Espace sans nom",
+    "meterLabel": "Stockage par catégorie : {{list}}",
+    "spaces": "Espaces",
+    "leave": "Quitter…",
+    "leaveSpace": "Quitter {{name}}…",
+    "updates": "Mises à jour de l’application",
+    "history": "Enregistrements remplacés",
+    "freeUp": {
+      "title": "{{size}} peuvent être libérés",
+      "desc": "Anciennes mises à jour et enregistrements remplacés. Vos fichiers, espaces et membres ne sont pas touchés. Mirall redémarre brièvement son service en arrière-plan.",
+      "button": "Libérer {{size}}",
+      "running": "Libération de l’espace…",
+      "phase": {
+        "updates": "Suppression des anciennes mises à jour",
+        "records": "Nettoyage des enregistrements",
+        "restarting": "Redémarrage du service en arrière-plan",
+        "measuring": "Mesure"
+      },
+      "done": "{{size}} libérés",
+      "doneDesc": "Mirall utilise maintenant {{total}}."
+    },
+    "updatesDesc": "Mises à jour téléchargées par Mirall. Seule la version actuelle est conservée ; les précédentes sont supprimées après chaque recherche de mise à jour.",
+    "historyDesc": "Anciennes copies d’enregistrements que Mirall a mis à jour depuis. Rien de leur contenu n’est encore utilisé. Supprimées au démarrage de Mirall, dès que cela en vaut la peine.",
+    "historyMeasuring": "Anciennes copies d’enregistrements que Mirall a mis à jour depuis. Mesure en arrière-plan."
   },
   "aboutSettings": {
     "documentation": "Documentation",

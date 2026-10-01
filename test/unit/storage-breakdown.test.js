@@ -54,5 +54,13 @@ test('other never goes negative when the estimates overshoot the total', (t) => 
 
 test('an empty store reports empty rows', (t) => {
   const b = storageBreakdown({ totalDiskUsage: 0, coreBytes: new Map(), spaces: [], indexBytes: 0, activityLog: [], downloadHistory: [] })
-  t.alike(b, { spaces: [], indexBytes: 0, activityLogBytes: 0, downloadHistoryBytes: 0, otherBytes: 0 })
+  t.alike(b, { spaces: [], indexBytes: 0, activityLogBytes: 0, downloadHistoryBytes: 0, historyBytes: 0, otherBytes: 0 })
+})
+
+test('replaced records come out of other, and the parts still sum to the total', (t) => {
+  const plain = storageBreakdown(input())
+  const b = storageBreakdown(input({ historyBytes: 3000 }))
+  t.is(b.historyBytes, 3000)
+  t.is(b.otherBytes, plain.otherBytes - 3000)
+  t.is(storageBreakdown(input({ historyBytes: 50_000 })).otherBytes, 0, 'history larger than the remainder leaves other at 0')
 })

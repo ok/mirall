@@ -660,7 +660,7 @@
     "appStorage": "App Storage",
     "showDetails": "Show details",
     "hideDetails": "Hide details",
-    "appStorageDesc": "Space Mirall uses on this device to share and sync your files. It never keeps a second copy of your files.",
+    "appStorageDesc": "Space Mirall uses on this device to share and sync your files and to update itself. It never keeps a second copy of your files.",
     "sharingIndex": "Shared-file index",
     "sharingIndexDesc": "Compact maps of the files you share (never the file contents). Freed automatically after you stop sharing a file: cleanup runs a few minutes after launch, then every 6 hours.",
     "spaceDesc": "Your catalog {{own}} · members' catalogs {{members}}. Freed when you leave the space.",
@@ -672,7 +672,30 @@
     "other": "Other",
     "otherDesc": "Profiles, settings, and storage-engine overhead, including deleted data waiting to be compacted. Freed automatically.",
     "rowLabel": "{{heading}}, {{size}}",
-    "unnamedSpace": "Unnamed space"
+    "unnamedSpace": "Unnamed space",
+    "meterLabel": "Storage by category: {{list}}",
+    "spaces": "Spaces",
+    "leave": "Leave…",
+    "leaveSpace": "Leave {{name}}…",
+    "updates": "App updates",
+    "history": "Replaced records",
+    "freeUp": {
+      "title": "{{size}} can be freed",
+      "desc": "Old app updates and replaced records. Your files, spaces and members are not touched. Mirall briefly restarts its background service.",
+      "button": "Free up {{size}}",
+      "running": "Freeing up space…",
+      "phase": {
+        "updates": "Removing old app updates",
+        "records": "Tidying up records",
+        "restarting": "Restarting the background service",
+        "measuring": "Measuring"
+      },
+      "done": "Freed {{size}}",
+      "doneDesc": "Mirall now uses {{total}}."
+    },
+    "updatesDesc": "Updates Mirall downloaded. Only the current version is kept; older ones are removed after each update check.",
+    "historyDesc": "Earlier copies of records Mirall has since updated. Nothing in them is still in use. Removed when Mirall starts, once there is enough to be worth it.",
+    "historyMeasuring": "Earlier copies of records Mirall has since updated. Measured in the background."
   },
   "aboutSettings": {
     "documentation": "Documentation",

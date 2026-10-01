@@ -5,7 +5,7 @@ import {
   getPublishConcurrency, getDownloadConcurrency, getPeerFrameMaxBytes, getPeerCatalogCacheLimit,
   getPeerFrameLimits, getHandshakeRateLimit, getBandwidthLimits,
   getSupervisionRecoverBudgetMs, getReconcileStallWindowMs, getPublishStallWindowMs,
-  getConvergenceStallWindowMs, getAdmissionReadTimeoutMs, getRelayAuditDwellMs, _rulesForTests,
+  getConvergenceStallWindowMs, getAdmissionReadTimeoutMs, getRelayAuditDwellMs, getFreeUpMinBytes, _rulesForTests,
 } from '../../src/shared/core/runtime-config.js'
 
 // Every value a malformed override can take that is not a number: each must resolve to the key's
@@ -35,6 +35,8 @@ const RULED_KEYS = [
   // A dwell, not a deadline: 0 records a path the moment it is seen, which is a real override.
   ['relayAuditDwellMs', getRelayAuditDwellMs, 10_000,
     [[0, 0], [Infinity, 10_000], [1, 1], [500, 500]]],
+  ['freeUpMinBytes', getFreeUpMinBytes, 100_000_000,
+    [[0, 0], [Infinity, 100_000_000], [-1, 100_000_000], [1, 1]]],
 
   // Lane budgets whose 0 is a real override ("switch the lane off" / "no size bound").
   ['peerFrameMaxBytes', getPeerFrameMaxBytes, 65536,
@@ -204,6 +206,7 @@ const EXPECTED_RULES = {
   downloadConcurrency: { rule: 'intAtLeast', min: 0 },
   listFilesCap: { rule: 'capOrInfinity', min: undefined },
   maxFilesPerShare: { rule: 'capOrInfinity', min: undefined },
+  freeUpMinBytes: { rule: 'finiteAtLeast', min: 0 },
   serveChunkMapCacheBytes: { rule: 'boundedOrSentinel', min: undefined },
   downloadKBps: { rule: 'failOpen', min: undefined },
   uploadKBps: { rule: 'failOpen', min: undefined },
@@ -216,8 +219,8 @@ test('the rules table is exactly the declared set', (t) => {
 // The module header states these two counts. Asserting them is what keeps them from rotting.
 test('the ruled and unruled key counts are the ones the header claims', (t) => {
   const { ruled, defaultedKeys } = _rulesForTests()
-  t.is(defaultedKeys, 67, 'DEFAULTED keys')
-  t.is(Object.keys(ruled).length, 22, 'of which carry a validation rule')
+  t.is(defaultedKeys, 68, 'DEFAULTED keys')
+  t.is(Object.keys(ruled).length, 23, 'of which carry a validation rule')
   t.is(defaultedKeys - Object.keys(ruled).length, 45, 'the rest are read raw')
 })
 

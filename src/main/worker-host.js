@@ -162,6 +162,8 @@ function getWorker(specifier) {
   //                                       the refusal with a handful of files
   //     MIRALL_DERIVE_DEBOUNCE_MS         how long the membership fold trails a write, raised to
   //                                       hold a request on screen after a co-member settles it
+  //     MIRALL_FREE_UP_MIN_BYTES          reclaimable bytes that bring up Storage's "Free up",
+  //                                       lowered to reach it on a fresh profile
   //
   //   Behaviour levers, settable on a real install without a release
   //     MIRALL_FOREIGN_FULL_WALK_EVERY    1 = check every mirror in full, undoing the skip
@@ -212,6 +214,7 @@ function getWorker(specifier) {
     // handful of files; a bad value is caught by getMaxFilesPerShare's fail-safe.
     maxFilesPerShare: envNumber(envOverride('MIRALL_MAX_FILES_PER_SHARE')),
     deriveDebounceMs: envNumber(envOverride('MIRALL_DERIVE_DEBOUNCE_MS')),
+    freeUpMinBytes: envNumber(envOverride('MIRALL_FREE_UP_MIN_BYTES')),
     // Enforced unless feature-flags.json says false, so a missing or unreadable file keeps it on.
     handshakeIdentityBindingEnabled: flags.handshakeIdentityBinding !== false,
     // Staged: until feature-flags.json turns it on, a membership:cancel or membership:deny that names

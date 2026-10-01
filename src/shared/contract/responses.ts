@@ -429,17 +429,28 @@ export interface SpaceStorageUsage {
 
 // otherBytes is whatever no category claims, so the parts sum to totalDiskUsage — except when the
 // estimates overshoot the total, where otherBytes is 0 and the parts exceed it. `spaces` is largest
-// first; a space whose record has no name yet carries ''.
+// first; a space whose record has no name yet carries ''. `folderBytes` is the whole data folder
+// around the store: app updates, keys and caches included. historyBytes and reclaimableBytes come
+// from the last history measurement (historyMeasuredAt, null before the first one); reclaimableBytes
+// is what a "Free up" would have the next boot rewrite away.
 export interface StorageInfo {
   totalDiskUsage: number
   storagePath: string
+  folderBytes: number
+  folderPath: string
   host: PathHost
   spaces: SpaceStorageUsage[]
   indexBytes: number
   activityLogBytes: number
   downloadHistoryBytes: number
+  historyBytes: number
   otherBytes: number
+  historyMeasuredAt: number | null
+  reclaimableBytes: number
+  freeUpMinBytes: number
 }
+
+export interface FreeUpResult { restartRequired: boolean, requested: string[] }
 
 export interface SpaceStorageSummary { totalBytes: number, onDeviceBytes: number }
 export interface RootsStatus { unavailable: string[], host: PathHost }
@@ -540,7 +551,9 @@ interface Responses {
   'space:toggle-favorite': SpaceRecord | null
   'space:update': SpaceRecord | null
   'spaces:list': Space[]
+  'storage:free-up': FreeUpResult
   'storage:info': StorageInfo
+  'storage:measure': StorageInfo
 }
 
 // A mapped type over RequestName, not `keyof Responses`: a request added to REQUESTS with no entry

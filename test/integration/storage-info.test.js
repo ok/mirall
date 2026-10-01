@@ -13,7 +13,7 @@ import { addFile } from '../../src/shared/transfer/file-listing.js'
 import { getStorageInfo } from '../../src/shared/storage/storage.js'
 
 const partsSum = (info) => info.spaces.reduce((n, s) => n + s.ownCatalogBytes + s.memberCatalogBytes, 0)
-  + info.indexBytes + info.activityLogBytes + info.downloadHistoryBytes + info.otherBytes
+  + info.indexBytes + info.activityLogBytes + info.downloadHistoryBytes + info.historyBytes + info.otherBytes
 
 // Other is the remainder, so the parts meet the total exactly unless the estimates overshoot it.
 function assertSumsToTotal(t, info) {

@@ -32,6 +32,7 @@ const EVENTS = Object.freeze({
   SHARE_INDEX_PROGRESS: 'event:share-index-progress',
   SHARES_UPDATED: 'event:shares-updated',
   STATE: 'event:state',
+  STORAGE_UPDATED: 'event:storage-updated',
   TRANSFER_COMPLETE: 'event:transfer-complete',
   TRANSFER_ERROR: 'event:transfer-error',
   TRANSFER_PAUSED: 'event:transfer-paused',

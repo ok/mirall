@@ -34,7 +34,7 @@ const pathRow = read(path.join(RENDERER, 'components/path/PathRow.tsx'))
 const FILE_PATH_CALLERS = new Set([
   'components/path/PathRow.tsx',          // the path field itself
   'components/modals/ScanPreviewModal.tsx',  // rows of a file list, not a path the user re-picks
-  'screens/settings/StorageSettings.tsx',             // the app-storage location: display-only, with Copy
+  'components/storage/AppStorageCard.tsx',  // the data folder's location: display-only, with Copy
 ])
 
 test('FilePath is rendered only where a path field would be wrong', (t) => {

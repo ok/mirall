@@ -44,4 +44,8 @@ ipc.handle('ping', async (_msg, ctx) => { void ctx.client.id; return { pong: tru
 // @ts-expect-error the context carries the client, not its id
 ipc.handle('ping', async (_msg, ctx) => { const id: number = ctx.client; void id; return { pong: true, timestamp: 0 } })
 
+ipc.handle('storage:free-up', async () => ({ restartRequired: false, requested: [] }))
+// @ts-expect-error free-up reports whether a restart is needed
+ipc.handle('storage:free-up', async () => ({ requested: [] }))
+
 void [spaceId, spaceIdNumber]

@@ -1,5 +1,5 @@
-// The worker's periodic backstops: presence, invite expiry, overlay-index compaction (a boot
-// delay plus an interval) and audit prune. Each one is a missed-event catch-up, never the primary
+// The worker's periodic backstops: presence, invite expiry, overlay-index compaction followed by a
+// storage measurement (a boot delay plus an interval) and audit prune. Each one is a missed-event catch-up, never the primary
 // path: the live signals (watcher unlinks, invite expiry checks, the audit retention read) already
 // enforce the same thing, so a tick that fails or never runs only defers cleanup.
 import { Subsystem } from '../shared/core/subsystem.js'
@@ -8,6 +8,7 @@ import { listSpaces } from '../shared/spaces/space.js'
 import { createLocalBee } from '../shared/core/store.js'
 import { sweepExpiredInvites } from '../shared/spaces/profile.js'
 import { pruneAudit } from '../shared/audit/audit-reclaim.js'
+import { measureHistory } from '../shared/storage/storage-history.js'
 
 const PRESENCE_SWEEP_INTERVAL_MS = 60_000
 const INVITE_SWEEP_INTERVAL_MS = 60 * 60 * 1000
@@ -61,9 +62,14 @@ export class Sweeps extends Subsystem {
     }, INVITE_SWEEP_INTERVAL_MS)
     sweepAllExpiredInvites().catch((err) => log.debug('invite sweep failed:', err.message))
 
-    const compact = () => compactIndexIfDue().catch((err) => log.debug('overlay index compaction failed:', err.message))
-    this.timers.setTimeout(compact, INDEX_COMPACT_BOOT_DELAY_MS)
-    this.timers.setInterval(compact, INDEX_COMPACT_INTERVAL_MS)
+    // The measurement follows the compaction, so the Storage screen reads what the compaction left.
+    const maintain = async () => {
+      await compactIndexIfDue().catch((err) => log.debug('overlay index compaction failed:', err.message))
+      await measureHistory().catch((err) => log.debug('storage history measurement failed:', err.message))
+      this.deps.ipc?.emit('event:storage-updated', {})
+    }
+    this.timers.setTimeout(maintain, INDEX_COMPACT_BOOT_DELAY_MS)
+    this.timers.setInterval(maintain, INDEX_COMPACT_INTERVAL_MS)
 
     // The prune reads and writes the audit bee, so it runs only when that bee actually opened —
     // a failed AuditLog._open must not turn every daily tick into a rejection.

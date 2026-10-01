@@ -628,7 +628,7 @@
     "intro": "Visualizza e gestisci l'utilizzo dei dati di Mirall su questo dispositivo.",
     "downloadFolder": "Cartella download",
     "downloadFolderDesc": "Dove Mirall salva i file scaricati dai membri del tuo spazio.",
-    "appStorageDesc": "Spazio che Mirall usa su questo dispositivo per condividere e sincronizzare i tuoi file. Non conserva mai una seconda copia dei tuoi file.",
+    "appStorageDesc": "Spazio che Mirall usa su questo dispositivo per condividere e sincronizzare i tuoi file e per aggiornarsi. Non conserva mai una seconda copia dei tuoi file.",
     "sharingIndex": "Indice dei file condivisi",
     "sharingIndexDesc": "Mappe compatte dei file che condividi (mai il contenuto). Liberate automaticamente dopo che smetti di condividere un file: la pulizia viene eseguita pochi minuti dopo l'avvio, poi ogni 6 ore.",
     "folderError": "Impossibile impostare la cartella: {{error}}",
@@ -646,7 +646,30 @@
     "other": "Altro",
     "otherDesc": "Profili, impostazioni e dati interni del motore di archiviazione, inclusi i dati eliminati in attesa di compattazione. Liberato automaticamente.",
     "rowLabel": "{{heading}}, {{size}}",
-    "unnamedSpace": "Spazio senza nome"
+    "unnamedSpace": "Spazio senza nome",
+    "meterLabel": "Spazio per categoria: {{list}}",
+    "spaces": "Spazi",
+    "leave": "Esci…",
+    "leaveSpace": "Esci da {{name}}…",
+    "updates": "Aggiornamenti dell’app",
+    "history": "Record sostituiti",
+    "freeUp": {
+      "title": "{{size}} possono essere liberati",
+      "desc": "Vecchi aggiornamenti e record sostituiti. I tuoi file, spazi e membri non vengono toccati. Mirall riavvia brevemente il suo servizio in background.",
+      "button": "Libera {{size}}",
+      "running": "Liberazione dello spazio…",
+      "phase": {
+        "updates": "Rimozione dei vecchi aggiornamenti",
+        "records": "Pulizia dei record",
+        "restarting": "Riavvio del servizio in background",
+        "measuring": "Misurazione"
+      },
+      "done": "{{size}} liberati",
+      "doneDesc": "Mirall ora usa {{total}}."
+    },
+    "updatesDesc": "Aggiornamenti scaricati da Mirall. Viene conservata solo la versione attuale; le precedenti vengono rimosse dopo ogni controllo degli aggiornamenti.",
+    "historyDesc": "Copie precedenti di record che Mirall ha poi aggiornato. Nulla al loro interno è ancora in uso. Rimosse all’avvio di Mirall, quando ne vale la pena.",
+    "historyMeasuring": "Copie precedenti di record che Mirall ha poi aggiornato. Misurate in background."
   },
   "aboutSettings": {
     "documentation": "Documentazione",

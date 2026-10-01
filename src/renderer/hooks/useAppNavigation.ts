@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import type { AuditFilters } from '../types/types.js'
 import { parentOf, type Screen } from '../shell/navigation.js'
@@ -24,6 +24,7 @@ export interface AppNavigation {
   openStorageSettings: (from: 'settings' | 'space-view') => void
   openActivityLog: (preset?: Partial<AuditFilters> | null) => void
   openActivityLogSettings: () => void
+  forgetLeftSpace: (spaceId: string) => void
   goBack: () => void
   goHome: () => void
   resetToRoot: () => void
@@ -80,6 +81,23 @@ export function useAppNavigation(): AppNavigation {
     setActivityLogSettingsBackTarget(currentScreen === 'storage-settings' ? 'storage-settings' : 'settings')
     setCurrentScreen('activity-log-settings')
   }, [currentScreen])
+  // The Settings list and the shortcut open the log's settings directly, so the Storage return holds
+  // only while the user stays between the two screens.
+  useEffect(() => {
+    if (currentScreen !== 'activity-log-settings' && currentScreen !== 'storage-settings') setActivityLogSettingsBackTarget('settings')
+  }, [currentScreen])
+
+  // A space left from a screen that remembers it as the way back would hand Back a space that is
+  // gone; every remembered target falls back to the home screen instead.
+  const forgetLeftSpace = useCallback((spaceId: string) => {
+    if (selectedSpaceId !== spaceId) return
+    setSelectedSpaceId(null)
+    setSelectedShareId(null)
+    setStorageBackTarget((target) => (target === 'space-view' ? 'settings' : target))
+    setPreSettingsScreen((screen) => (screen === 'space-view' ? 'spaces' : screen))
+    setPreAccountScreen((screen) => (screen === 'space-view' ? 'spaces' : screen))
+    setActivityLogBackTarget((screen) => (screen === 'space-view' || screen === 'folder-view' ? 'account' : screen))
+  }, [selectedSpaceId])
 
   const navigateToSpace = useCallback((spaceId: string) => {
     setSelectedSpaceId(spaceId)
@@ -142,6 +160,7 @@ export function useAppNavigation(): AppNavigation {
     openStorageSettings,
     openActivityLog,
     openActivityLogSettings,
+    forgetLeftSpace,
     goBack,
     goHome,
     resetToRoot,

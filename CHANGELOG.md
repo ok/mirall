@@ -26,10 +26,12 @@ just the first one after Mirall starts.
 removing your relay, and turning it or "Prefer the relay for every
 connection" on or off, each leave one entry under Network. Entries name the
 relay by its label and a shortened key.
-- **See what each space takes up in App Storage.** Settings → Storage used
-to put most of Mirall's data under one "App database" line. It now lists
-each space, the Activity Log, download history and everything else
-separately, and says how each one is freed.
+- **See what takes up Mirall's storage.** Settings → Storage used to put
+most of Mirall's data under one "App database" line. It now counts the whole
+Mirall folder, app updates included, and lists each space, the shared-file
+index, the Activity Log, download history, app updates, replaced records and
+everything else separately. When enough can be freed, "Free up" clears it in
+one step.
 
 #### Changed
 
@@ -39,6 +41,12 @@ app-data folder Mirall reads it from.
 
 #### Fixed
 
+- **Old app updates no longer pile up.** Mirall kept every update it ever
+downloaded. It now keeps only the current one.
+- **Leaving a space, or the deletion of a share you mirror, clears its
+leftover records**, and downloads that failed more than 30 days ago for a
+reason that cannot clear on its own are forgotten along with their partial
+files.
 - **Mirall's window no longer goes blank on a list that only just needs
 scrolling.** A list right at that length could keep resizing itself until
 the window went blank.

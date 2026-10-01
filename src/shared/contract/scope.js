@@ -8,7 +8,8 @@
  *   | { kind: 'members', spaceId: string }
  *   | { kind: 'mirrors', spaceId: string, shareId?: string }
  *   | { kind: 'join-requests', spaceId: string }
- *   | { kind: 'audit' }} Scope
+ *   | { kind: 'audit' }
+ *   | { kind: 'storage' }} Scope
  */
 
 /** @typedef {{ kind: string, spaceId?: string, shareId?: string }} ScopePattern */
@@ -30,6 +31,8 @@ export const Scope = {
   // re-derives from the same refetch.
   /** @returns {Scope} */
   audit: () => ({ kind: 'audit' }),
+  /** @returns {Scope} */
+  storage: () => ({ kind: 'storage' }),
 }
 
 // A hint matches a view iff the kind is equal and every id field the VIEW pins is equal.

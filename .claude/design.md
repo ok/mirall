@@ -769,6 +769,18 @@ up (`format.etaEstimating`, "Estimating…"), else the caller's `indeterminateTe
 (`format.progressUnknown` for a strip that has no rate to estimate from, as `FolderWorkStrip` does).
 Determinate mode keeps `aria-valuenow` + the width fill.
 
+### Storage meter and category rows — `components/storage/`
+`StorageMeter` is a stacked bar on the progress track: `h-2 bg-progress-track rounded-full
+overflow-hidden flex gap-px`, one segment per non-empty category sized by its share of the total (or
+of the segments' sum, when that is larger), never narrower than 3px. It is `role="img"` with one
+`aria-label` naming every category and its size; the segments are `aria-hidden`, so the rows stay
+the readable source. `StorageCategoryRow` is a list item named "heading, size", with a leading
+`w-2.5 h-2.5` dot in its segment's colour, a description that says what frees it, an optional text
+action under it (Leave…, Manage Activity Log) and the size on the right. One token per category,
+shared by dot and segment: spaces `primary`, index `online`, Activity Log `outline`, download history
+`accent`, app updates `on-info`, replaced records `secondary`, other `outline-variant`. The "Free up"
+row keeps its status text in a polite live region and runs the shared `ProgressBar` while it works.
+
 ### Collapsible card — `primitives/CollapsibleCard.tsx`
 `bg-surface-container-low rounded-2xl p-8`; header is a disclosure button carrying the standard
 chevron (below), wrapped in a real `<h3>` — a card that folds must not drop out of the heading

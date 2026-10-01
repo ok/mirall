@@ -109,6 +109,9 @@ const DEFAULTED = {
   // every peer — a far worse failure than a truncated list. Growth surfaces a warning instead,
   // and the gate never fires on remount/relocate/reconcile. 0 / Infinity disables it.
   maxFilesPerShare: ruled(DEFAULT_SHARE_FILE_LIMIT, capOrInfinity),
+  // The Storage screen offers "Free up" only past this many reclaimable bytes: below it the
+  // automatic passes are enough, and a button for a few megabytes is noise. 0 always offers it.
+  freeUpMinBytes: ruled(100 * 1000 * 1000, finiteAtLeast, 0),
   // Upper bound on how long an approver waits to durably capture a joiner's own membership
   // record at approval time (the joiner is connected then; see captureJoinerMembership).
   // 0 disables the capture. Tests shrink it to exercise the timeout / disabled paths.
