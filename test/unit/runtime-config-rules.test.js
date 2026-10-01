@@ -35,8 +35,8 @@ const RULED_KEYS = [
   // A dwell, not a deadline: 0 records a path the moment it is seen, which is a real override.
   ['relayAuditDwellMs', getRelayAuditDwellMs, 10_000,
     [[0, 0], [Infinity, 10_000], [1, 1], [500, 500]]],
-  ['freeUpMinBytes', getFreeUpMinBytes, 100_000_000,
-    [[0, 0], [Infinity, 100_000_000], [-1, 100_000_000], [1, 1]]],
+  ['freeUpMinBytes', getFreeUpMinBytes, 20_000_000,
+    [[0, 0], [Infinity, 20_000_000], [-1, 20_000_000], [1, 1]]],
 
   // Lane budgets whose 0 is a real override ("switch the lane off" / "no size bound").
   ['peerFrameMaxBytes', getPeerFrameMaxBytes, 65536,

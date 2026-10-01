@@ -35,7 +35,7 @@ test('replaced records are measured, kept for the next read, and taken out of ot
   t.ok(info.reclaimableBytes >= mounts.historyBytes, 'and Free up counts it')
   t.ok(info.folderBytes >= info.totalDiskUsage, 'the data folder holds the store')
   t.is(info.folderPath, path.dirname(info.storagePath))
-  t.is(info.freeUpMinBytes, 100 * 1000 * 1000, 'the default free-up threshold')
+  t.is(info.freeUpMinBytes, 20 * 1000 * 1000, 'the default free-up threshold')
 })
 
 test('Free up asks the next boot to rewrite the bees over the bar', async (t) => {
