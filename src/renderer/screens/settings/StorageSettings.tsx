@@ -20,7 +20,7 @@ const STORAGE_SCOPES = [{ kind: 'files' }, { kind: 'shares' }, { kind: 'share-fi
 interface StorageSettingsProps {
   onBack: () => void
   onOpenActivityLogSettings: () => void
-  onLeftSpace: (spaceId: string) => void
+  onOpenSpace: (spaceId: string) => void
 }
 
 // Trailing separators and Unicode composition are the two ways the same folder reaches us
@@ -30,7 +30,7 @@ function samePath(a: string, b: string) {
   return strip(a) === strip(b)
 }
 
-export default function StorageSettings({ onBack, onOpenActivityLogSettings, onLeftSpace }: StorageSettingsProps) {
+export default function StorageSettings({ onBack, onOpenActivityLogSettings, onOpenSpace }: StorageSettingsProps) {
   const { t } = useTranslation()
   const errorText = useErrorText()
   const runAction = useRunAction()
@@ -132,7 +132,7 @@ export default function StorageSettings({ onBack, onOpenActivityLogSettings, onL
 
             <section>
               <SectionHeading>{t('storageSettings.appStorage')}</SectionHeading>
-              <AppStorageCard info={info} onOpenActivityLogSettings={onOpenActivityLogSettings} onLeftSpace={onLeftSpace} />
+              <AppStorageCard info={info} onOpenActivityLogSettings={onOpenActivityLogSettings} onOpenSpace={onOpenSpace} />
             </section>
           </div>
         )}

@@ -675,8 +675,6 @@
     "unnamedSpace": "Unnamed space",
     "meterLabel": "Storage by category: {{list}}",
     "spaces": "Spaces",
-    "leave": "Leave…",
-    "leaveSpace": "Leave {{name}}…",
     "updates": "App updates",
     "history": "Replaced records",
     "freeUp": {
@@ -695,7 +693,9 @@
     },
     "updatesDesc": "Updates Mirall downloaded.",
     "historyDesc": "Earlier copies of records Mirall has since updated.",
-    "spaceRow": "Space: {{name}}"
+    "spaceRow": "Space: {{name}}",
+    "open": "Open",
+    "openSpace": "Open {{name}}"
   },
   "aboutSettings": {
     "documentation": "Documentation",

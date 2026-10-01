@@ -2,9 +2,6 @@
 // row when enough can be freed, and the rows behind a disclosure, each saying what frees it.
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { request } from '../../ipc/ipc.js'
-import { useSpaces } from '../../hooks/useSpaces.js'
-import { useRunAction } from '../../hooks/useRunAction.js'
 import { useUpdateCacheInfo } from '../../hooks/useUpdateCacheInfo.js'
 import { useFreeUpSpace } from '../../hooks/useFreeUpSpace.js'
 import { formatSize } from '../../format/utils.js'
@@ -15,7 +12,6 @@ import CopyButton from '../primitives/CopyButton.js'
 import Icon from '../primitives/Icon.js'
 import TextButton from '../primitives/TextButton.js'
 import FilePath from '../path/FilePath.js'
-import LeaveSpaceModal from '../modals/LeaveSpaceModal.js'
 import StorageMeter from './StorageMeter.js'
 import StorageCategoryRow from './StorageCategoryRow.js'
 import FreeUpRow from './FreeUpRow.js'
@@ -35,7 +31,7 @@ const CATEGORY_COLOR: Record<StorageCategoryId, string> = {
 interface AppStorageCardProps {
   info: StorageInfo
   onOpenActivityLogSettings: () => void
-  onLeftSpace: (spaceId: string) => void
+  onOpenSpace: (spaceId: string) => void
 }
 
 function StorageTotal({ bytes, path }: { bytes: number; path: string }) {
@@ -54,14 +50,11 @@ function StorageTotal({ bytes, path }: { bytes: number; path: string }) {
   )
 }
 
-export default function AppStorageCard({ info, onOpenActivityLogSettings, onLeftSpace }: AppStorageCardProps) {
+export default function AppStorageCard({ info, onOpenActivityLogSettings, onOpenSpace }: AppStorageCardProps) {
   const { t } = useTranslation()
-  const runAction = useRunAction()
-  const { leaveSpace } = useSpaces()
   const { info: updates, refresh: refreshUpdates } = useUpdateCacheInfo()
   const freeUp = useFreeUpSpace(refreshUpdates)
   const [detailsOpen, setDetailsOpen] = useState(false)
-  const [leaving, setLeaving] = useState<SpaceStorageUsage | null>(null)
   const toggleDetails = useCallback(() => setDetailsOpen((open) => !open), [])
 
   const { total, spaces, categories, reclaimable, showFreeUp } = storageCategories(info, updates)
@@ -80,13 +73,6 @@ export default function AppStorageCard({ info, onOpenActivityLogSettings, onLeft
   const meterLabel = t('storageSettings.meterLabel', {
     list: categories.filter((c) => c.bytes > 0).map((c) => `${heading[c.id]} ${formatSize(c.bytes)}`).join(', '),
   })
-
-  // The leave's own pokes do not reach this screen's read, so the measurement is asked for.
-  const onLeft = useCallback((spaceId: string) => {
-    setLeaving(null)
-    onLeftSpace(spaceId)
-    runAction(() => request('storage:measure', {}, 0))
-  }, [onLeftSpace, runAction])
 
   return (
     <div className="bg-surface-container-low rounded-xl">
@@ -122,8 +108,8 @@ export default function AppStorageCard({ info, onOpenActivityLogSettings, onLeft
                 desc={t('storageSettings.spaceDesc', { own: formatSize(space.ownCatalogBytes), members: formatSize(space.memberCatalogBytes) })}
                 bytes={spaceBytes(space)}
                 action={(
-                  <TextButton onClick={() => setLeaving(space)} ariaLabel={t('storageSettings.leaveSpace', { name: spaceName(space) })}>
-                    {t('storageSettings.leave')}
+                  <TextButton onClick={() => onOpenSpace(space.spaceId)} ariaLabel={t('storageSettings.openSpace', { name: spaceName(space) })}>
+                    {t('storageSettings.open')}
                   </TextButton>
                 )}
               />
@@ -147,17 +133,6 @@ export default function AppStorageCard({ info, onOpenActivityLogSettings, onLeft
             <StorageCategoryRow color={CATEGORY_COLOR.other} heading={heading.other} desc={t('storageSettings.otherDesc')} bytes={bytesOf('other')} />
           </ul>
         </div>
-      )}
-      {/* Mounted per leave: the dialog stays busy after a success, expecting to unmount with it. */}
-      {leaving && (
-        <LeaveSpaceModal
-          key={leaving.spaceId}
-          isOpen
-          spaceName={spaceName(leaving)}
-          onClose={() => setLeaving(null)}
-          onLeave={() => leaveSpace(leaving.spaceId)}
-          onComplete={() => onLeft(leaving.spaceId)}
-        />
       )}
     </div>
   )

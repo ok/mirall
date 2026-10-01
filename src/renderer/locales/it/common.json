@@ -649,8 +649,6 @@
     "unnamedSpace": "Spazio senza nome",
     "meterLabel": "Spazio per categoria: {{list}}",
     "spaces": "Spazi",
-    "leave": "Esci…",
-    "leaveSpace": "Esci da {{name}}…",
     "updates": "Aggiornamenti dell’app",
     "history": "Record sostituiti",
     "freeUp": {
@@ -669,7 +667,9 @@
     },
     "updatesDesc": "Aggiornamenti scaricati da Mirall.",
     "historyDesc": "Copie precedenti di record che Mirall ha poi aggiornato.",
-    "spaceRow": "Spazio: {{name}}"
+    "spaceRow": "Spazio: {{name}}",
+    "open": "Apri",
+    "openSpace": "Apri {{name}}"
   },
   "aboutSettings": {
     "documentation": "Documentazione",

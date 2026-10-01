@@ -649,8 +649,6 @@
     "unnamedSpace": "Espacio sin nombre",
     "meterLabel": "Almacenamiento por categoría: {{list}}",
     "spaces": "Espacios",
-    "leave": "Salir…",
-    "leaveSpace": "Salir de {{name}}…",
     "updates": "Actualizaciones de la app",
     "history": "Registros reemplazados",
     "freeUp": {
@@ -669,7 +667,9 @@
     },
     "updatesDesc": "Actualizaciones que Mirall ha descargado.",
     "historyDesc": "Copias anteriores de registros que Mirall ya ha actualizado.",
-    "spaceRow": "Espacio: {{name}}"
+    "spaceRow": "Espacio: {{name}}",
+    "open": "Abrir",
+    "openSpace": "Abrir {{name}}"
   },
   "aboutSettings": {
     "documentation": "Documentación",
