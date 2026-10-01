@@ -81,14 +81,14 @@ test('a boot with no hold writes the profile as before', async (t) => {
 test('a hold file that cannot be read holds the profile', async (t) => {
   const { root, storage } = home(t)
   fs.writeFileSync(path.join(root, RESTORE_HOLD_FILE), '{ not json')
-  loadRestoreHold(storage)
+  await loadRestoreHold(storage)
   t.ok(isHeld(PROFILE_BEE))
 })
 
 test('releasing the last held bee removes the hold file', async (t) => {
   const { root, storage } = home(t)
   await writeRestoreHold(storage, [PROFILE_BEE, 'space-catalog-x-e1'])
-  loadRestoreHold(storage)
+  await loadRestoreHold(storage)
   await releaseHeld(PROFILE_BEE)
   t.ok(isHeld(PROFILE_BEE), 'this process still opened it read-only, so it still reads as held')
   t.alike(JSON.parse(fs.readFileSync(path.join(root, RESTORE_HOLD_FILE), 'utf-8')).held, ['space-catalog-x-e1'])

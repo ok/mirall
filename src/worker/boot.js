@@ -99,7 +99,7 @@ export async function bootDurable(bootstrap, { ipc, log, masterSecret = undefine
   setMasterSecret(provider
     ? await resolveMasterSecret({ store: getStore(), storagePath: bootstrap.storage, provider })
     : masterSecret)
-  loadRestoreHold(bootstrap.storage)
+  await loadRestoreHold(bootstrap.storage)
   const durableMigrations = await runMigrations('durable', { log })
   // Rewrites local bees in place, so it runs before anything holds one.
   const localBees = await maintainLocalBees({ log })

@@ -1,9 +1,8 @@
 // The own bees this device may read but not append to, because they were restored and peers may
 // hold a longer history of them (restore-hold-rules.js). Named by bee name and kept beside the store,
 // next to identity.enc: an adoption writes it while the store is empty or set aside, and a store with
-// no CORESTORE yet sweeps unknown top-level files into its database.
-import fs from 'bare-fs'
-import path from 'bare-path'
+// no CORESTORE yet sweeps unknown top-level files into its database. bare-fs and bare-path load
+// lazily, so the store, which reads the held set, stays loadable under plain Node.
 import b4a from 'b4a'
 import { writeFileAtomic } from './atomic-file.js'
 
@@ -14,7 +13,14 @@ let file = null
 let held = new Set()
 let released = new Set()
 
-const holdFile = (storagePath) => path.join(path.dirname(storagePath), RESTORE_HOLD_FILE)
+async function io() {
+  return { fs: (await import('bare-fs')).default, path: (await import('bare-path')).default }
+}
+
+async function holdFile(storagePath) {
+  const { path } = await io()
+  return path.join(path.dirname(storagePath), RESTORE_HOLD_FILE)
+}
 const encode = (names) => b4a.from(JSON.stringify({ v: 1, held: [...names] }))
 
 function parseHeld(bytes) {
@@ -27,8 +33,9 @@ function parseHeld(bytes) {
 
 // A file that cannot be read holds the profile: reading it as "nothing held" would open the core
 // for writes, which is the one outcome the hold exists to prevent.
-export function loadRestoreHold(storagePath) {
-  file = holdFile(storagePath)
+export async function loadRestoreHold(storagePath) {
+  const { fs } = await io()
+  file = await holdFile(storagePath)
   held = new Set()
   released = new Set()
   if (!fs.existsSync(file)) return
@@ -44,7 +51,7 @@ export function profileHeld() {
 }
 
 export async function writeRestoreHold(storagePath, names) {
-  await writeFileAtomic(holdFile(storagePath), encode(names))
+  await writeFileAtomic(await holdFile(storagePath), encode(names))
 }
 
 // A bee opened while held stays read-only for this process, so it keeps reading as held: only the file
@@ -54,7 +61,7 @@ export async function releaseHeld(name) {
   released.add(name)
   const rest = [...held].filter((n) => !released.has(n))
   if (rest.length) await writeFileAtomic(file, encode(rest))
-  else fs.rmSync(file, { force: true })
+  else (await io()).fs.rmSync(file, { force: true })
 }
 
 export function resetRestoreHold() {
