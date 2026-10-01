@@ -13,6 +13,7 @@ import { buildRecoveryFile } from './identity-recovery.js'
 import { AppError } from './errors.js'
 import { CODES } from '../contract/errors.js'
 import { Subsystem } from './subsystem.js'
+import { isHeld, resetRestoreHold } from './restore-hold.js'
 
 const log = createLogger('store')
 
@@ -142,9 +143,10 @@ function rememberCoreName(core, name) {
   } catch { /* a core without ready() — skip naming */ }
 }
 
+// A held bee opens read-only, so no caller can append to it until peers have confirmed it current.
 export function createBee(name, { encryptionKey = null } = {}) {
   const core = masterSecret
-    ? store.get({ keyPair: deriveKeyPair(masterSecret, name), ...(encryptionKey ? { encryptionKey } : {}) })
+    ? store.get({ keyPair: deriveKeyPair(masterSecret, name), writable: !isHeld(name), ...(encryptionKey ? { encryptionKey } : {}) })
     : store.get({ name, ...(encryptionKey ? { encryptionKey } : {}) })
   rememberCoreName(core, name)
   return new Hyperbee(core, {
@@ -299,6 +301,7 @@ export class Store extends Subsystem {
     // from it, which throws on undefined. It holds nothing open, and initStore() overwrites it.
     nameByDk.clear()
     setMasterSecret(null)
+    resetRestoreHold()
     await closing.close()
   }
 }

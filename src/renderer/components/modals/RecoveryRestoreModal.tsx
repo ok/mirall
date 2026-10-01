@@ -1,6 +1,6 @@
-// Adopting a recovery key on the locked screen: choose the file, enter its passphrase, and the worker
-// restarts into the identity it holds. Rendered outside the toast region, so every outcome is said
-// inside the dialog.
+// Adopting a recovery key on the locked screen or at onboarding: choose the file, enter its
+// passphrase, and the worker restarts into the identity it holds. Rendered outside the toast region,
+// so every outcome is said inside the dialog.
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { request } from '../../ipc/ipc.js'

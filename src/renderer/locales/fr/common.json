@@ -22,7 +22,8 @@
     "intro": "Commençons par personnaliser votre espace. Comment souhaitez-vous être appelé ?",
     "displayName": "Nom affiché",
     "displayNamePlaceholder": "p. ex. Jean Dupont",
-    "displayNameHelp": "C'est ainsi que votre équipe et vos amis vous verront."
+    "displayNameHelp": "C'est ainsi que votre équipe et vos amis vous verront.",
+    "restore": "Vous avez déjà une clé de récupération ? Restaurez votre identité"
   },
   "topnav": {
     "feedback": "Envoyer un commentaire",
@@ -1312,6 +1313,23 @@
     "startFreshTitle": "Repartir de zéro ?",
     "startFreshBody": "Mirall déplace les données verrouillées dans un dossier à part, juste à côté, et repart avec une nouvelle identité. Vos contacts ne reconnaîtront pas la nouvelle identité, et vos espaces n’y seront pas.",
     "startFreshConfirm": "Mettre de côté et repartir"
+  },
+  "restore": {
+    "title": "Restauration de votre profil",
+    "body": "Votre identité est de retour sur cet appareil. Mirall récupère votre profil auprès des personnes avec qui vous partagez des espaces, afin que rien de ce que vous modifiez ici n'entre en conflit avec ce qu'elles ont déjà.",
+    "statusWaiting": "En attente qu'une personne d'un de vos espaces se connecte…",
+    "statusReceiving": "Réception de votre profil…",
+    "statusChecking": "Vérification que votre profil est à jour…",
+    "statusDone": "Votre profil est restauré. Ouverture de Mirall…",
+    "progressLabel": "Profil reçu",
+    "inviteLabel": "Code d'invitation d'un de vos espaces",
+    "inviteHelp": "Demandez un code d'invitation à quelqu'un d'un espace dont vous faites partie. Vous le rejoignez sans approbation, et votre profil revient par cette personne.",
+    "inviteJoined": "Espace rejoint. En attente de la connexion d'un membre de cet espace.",
+    "inviteJoin": "Rejoindre avec l'invitation",
+    "startFresh": "Commencer plutôt une nouvelle identité",
+    "startFreshHint": "Cette restauration est mise de côté sur cet appareil, pas supprimée.",
+    "startFreshBody": "Mirall déplace l'identité restaurée dans un dossier séparé et commence avec une nouvelle. Vos contacts ne reconnaîtront pas la nouvelle identité, et vos espaces n'y seront pas.",
+    "restartFailed": "Mirall n'a pas pu redémarrer pour ouvrir votre profil."
   },
   "recoveryBackup": {
     "title": "Sauvegarder votre clé de récupération",

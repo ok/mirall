@@ -82,11 +82,12 @@ export async function launchPeer(t, { bootstrap, displayName = 'Peer', debug = f
     stderrChunks.push(d.toString())
     if (debug) process.stderr.write(d)
   })
-  if (debug) {
-    sidecar.stdout.on('data', (d) => process.stdout.write(d))
-  } else {
-    sidecar.stdout.resume()
-  }
+  // Stdout carries what dependencies print with console.log (hypercore reports a fork there).
+  const stdoutChunks = []
+  sidecar.stdout.on('data', (d) => {
+    stdoutChunks.push(d.toString())
+    if (debug) process.stdout.write(d)
+  })
 
   const pending = new Map()
   const events = createEventLog()
@@ -172,6 +173,7 @@ export async function launchPeer(t, { bootstrap, displayName = 'Peer', debug = f
     },
     // Everything the worker has written to stderr so far (logger warn/error).
     readStderr() { return stderrChunks.join('') },
+    readStdout() { return stdoutChunks.join('') },
     // Hard-disconnect: kills the worker subprocess (simulates going offline).
     kill() { die('killed'); try { sidecar.destroy() } catch {} },
     // Poll a request until `pred(result)` holds (for eventually-consistent state).

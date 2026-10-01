@@ -1,16 +1,17 @@
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { SECRET_FILE } from '../contract/secret-files.js'
+import { RESTORE_HOLD_FILE } from './restore-hold.js'
 
-// Moving a locked identity out of the way: the store and the envelopes that belong to it go into a
-// dated folder beside the store, so the next boot is a fresh install and nothing is deleted — a
-// recovery key found later still opens the set-aside copy. The store directory itself stays (the
+// Moving a locked identity out of the way: the store and the files that belong to it (its envelopes
+// and a restore's hold) go into a dated folder beside the store, so the next boot is a fresh install
+// and nothing is deleted — a recovery key found later still opens the set-aside copy. The store directory itself stays (the
 // data-dir tripwire guards it); only its entries move. The KEK and the relay seed stay wherever they
 // are: they belong to the device, the next identity is sealed under the same KEK, and the relay seed
 // belongs to no identity. All or nothing: a move that fails part-way is undone, so no folder ever
 // holds half an identity.
 const DEVICE_FILES = new Set([SECRET_FILE.KEK, SECRET_FILE.RELAY_TICKET])
-const IDENTITY_FILES = [SECRET_FILE.IDENTITY, SECRET_FILE.SPACE_KEYS]
+const IDENTITY_FILES = [SECRET_FILE.IDENTITY, SECRET_FILE.SPACE_KEYS, RESTORE_HOLD_FILE]
 
 function stamp(date) {
   return date.toISOString().replace(/\.\d+Z$/, '').replace(/:/g, '-')

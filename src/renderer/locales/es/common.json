@@ -22,7 +22,8 @@
     "intro": "Vamos a personalizar tu espacio. ¿Cómo te gustaría que te llamáramos?",
     "displayName": "Nombre visible",
     "displayNamePlaceholder": "p. ej. Juan Pérez",
-    "displayNameHelp": "Así te verán tu equipo y tus amigos."
+    "displayNameHelp": "Así te verán tu equipo y tus amigos.",
+    "restore": "¿Ya tienes una clave de recuperación? Restaura tu identidad"
   },
   "topnav": {
     "feedback": "Enviar comentarios",
@@ -1312,6 +1313,23 @@
     "startFreshTitle": "¿Empezar de cero?",
     "startFreshBody": "Mirall mueve los datos bloqueados a una carpeta aparte, junto a ellos, y empieza con una identidad nueva. Tus contactos no reconocerán la identidad nueva y tus espacios no estarán en ella.",
     "startFreshConfirm": "Apartar y empezar de cero"
+  },
+  "restore": {
+    "title": "Restaurando tu perfil",
+    "body": "Tu identidad vuelve a estar en este dispositivo. Mirall está obteniendo tu perfil de las personas con las que compartes espacios, para que nada de lo que cambies aquí choque con lo que ya tienen.",
+    "statusWaiting": "Esperando a que alguien con quien compartes un espacio se conecte…",
+    "statusReceiving": "Recibiendo tu perfil…",
+    "statusChecking": "Comprobando que tu perfil está al día…",
+    "statusDone": "Tu perfil está restaurado. Abriendo Mirall…",
+    "progressLabel": "Perfil recibido",
+    "inviteLabel": "Código de invitación de uno de tus espacios",
+    "inviteHelp": "Pide un código de invitación a alguien de un espacio al que perteneces. Vuelves a unirte sin aprobación y tu perfil regresa a través de esa persona.",
+    "inviteJoined": "Te has unido. Esperando a que se conecte un miembro de ese espacio.",
+    "inviteJoin": "Volver a unirse con la invitación",
+    "startFresh": "Empezar una identidad nueva",
+    "startFreshHint": "Esta restauración se aparta en este dispositivo, no se elimina.",
+    "startFreshBody": "Mirall mueve la identidad restaurada a una carpeta aparte y empieza con una nueva. Tus contactos no reconocerán la nueva identidad y tus espacios no estarán en ella.",
+    "restartFailed": "Mirall no pudo reiniciarse para abrir tu perfil."
   },
   "recoveryBackup": {
     "title": "Guarda una copia de tu clave de recuperación",

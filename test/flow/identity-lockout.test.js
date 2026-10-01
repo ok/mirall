@@ -53,7 +53,7 @@ test('REGRESSION (MIR-30: a KEK that cannot open identity.enc crash-looped the w
   await establish(t, bootstrap, home, 'Alice')
 
   const locked = await launchLocked(t, bootstrap, home)
-  t.alike(await locked.request('identity:status'), { locked: true, code: 'IDENTITY_UNLOCK_FAILED' }, 'the worker is up and says why')
+  t.alike(await locked.request('identity:status'), { locked: true, code: 'IDENTITY_UNLOCK_FAILED', restore: null }, 'the worker is up and says why')
   t.ok((await locked.request('ping')).pong, 'and answers')
   t.is(await codeOf(locked.request('profile:get')), 'NOT_FOUND', 'the data layer is not served while locked')
   t.is(await codeOf(locked.request('identity:export-recovery', { passphrase: PASS })), 'IDENTITY_UNLOCK_FAILED', 'nothing to export')
@@ -69,13 +69,18 @@ test('a recovery key restores the identity through a locked worker', { timeout: 
   const locked = await launchLocked(t, bootstrap, home, newKEK)
   t.is(await codeOf(locked.request('identity:import-recovery', { content: alice.content, passphrase: 'not the passphrase', replace: false })),
     'WRONG_PASSPHRASE')
-  t.alike(await locked.request('identity:status'), { locked: true, code: 'IDENTITY_UNLOCK_FAILED' }, 'still locked')
+  t.alike(await locked.request('identity:status'), { locked: true, code: 'IDENTITY_UNLOCK_FAILED', restore: null }, 'still locked')
   t.alike(await locked.request('identity:import-recovery', { content: alice.content, passphrase: PASS, replace: false }), { ok: true },
     'the store holds this identity, so no confirmation is needed')
   await stop(locked)
 
+  // Held even over its own data, which may be older than what peers hold; with no co-member anywhere
+  // nobody else can hold it, so the hold lifts at once and the next boot is a normal one.
+  const holding = await launchPeer(t, { bootstrap, displayName: 'Alice', ...home, flags: { identityKEK: newKEK }, setProfile: false })
+  await holding.until('identity:status', {}, (s) => s.restore?.released === true, { ms: 30000, every: 500 })
+  await stop(holding)
   const restored = await launchPeer(t, { bootstrap, displayName: 'Alice', ...home, flags: { identityKEK: newKEK }, setProfile: false })
-  t.alike(await restored.request('identity:status'), { locked: false, code: null })
+  t.alike(await restored.request('identity:status'), { locked: false, code: null, restore: null })
   const profile = await restored.request('profile:get')
   t.is(profile.personKey, alice.personKey, 'the same network identity')
   t.is(profile.displayName, 'Alice', 'over the same data')
@@ -98,7 +103,16 @@ test('a recovery key for another identity is refused unless the user replaces', 
   const setAside = fs.readdirSync(home.root).filter((n) => n.startsWith('app-storage.locked-'))
   t.is(setAside.length, 1, "Alice's data was set aside, not left for Bob's key to fail on")
   const asBob = await launchPeer(t, { bootstrap, displayName: 'Bob here', ...home, flags: { identityKEK: newKEK }, setProfile: false })
-  t.alike(await asBob.request('identity:status'), { locked: false, code: null }, 'the next boot opens')
+  const status = await asBob.request('identity:status')
+  t.is(status.locked, false, 'the next boot opens')
+  t.is(status.restore?.verdict, 'no-holder', "and holds Bob's profile until a peer holding it is reached")
+  t.is(await codeOf(asBob.request('profile:set', { displayName: 'Bob here' })), 'SESSION_NOT_WRITABLE', 'nothing writes it before then')
+
+  t.alike(await asBob.request('identity:set-aside'), { folder: null }, 'a restore can still be set aside')
+  await stop(asBob)
+  const fresh = await launchPeer(t, { bootstrap, displayName: 'Someone new', ...home, flags: { identityKEK: newKEK } })
+  t.alike(await fresh.request('identity:status'), { locked: false, code: null, restore: null })
+  t.not((await fresh.request('profile:get')).personKey, bob.personKey, 'a new identity')
 })
 
 test('starting fresh sets the locked data aside and boots a new identity', { timeout: scaled(180000) }, async (t) => {
@@ -115,7 +129,7 @@ test('starting fresh sets the locked data aside and boots a new identity', { tim
   t.ok(fs.existsSync(path.join(folder, 'CORESTORE')), 'and so did the store')
 
   const fresh = await launchPeer(t, { bootstrap, displayName: 'Alice again', ...home, flags: { identityKEK: newKEK } })
-  t.alike(await fresh.request('identity:status'), { locked: false, code: null })
+  t.alike(await fresh.request('identity:status'), { locked: false, code: null, restore: null })
   t.not((await fresh.request('profile:get')).personKey, alice.personKey, 'a new identity')
 })
 

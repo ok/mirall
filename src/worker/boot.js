@@ -21,7 +21,7 @@ import { runMigrations, stageCompacted } from '../shared/storage/migrations/inde
 import { maintainLocalBees } from '../shared/storage/local-bee-rewrite.js'
 import { SpaceKeysVault } from '../shared/spaces/space-keys.js'
 import { ProfileBee, markOwnMembership, ensureMembershipManifestCap } from '../shared/spaces/profile.js'
-import { SpacesBee, listSpaces, getSpace, isLegacySpace } from '../shared/spaces/space.js'
+import { SpacesBee, listSpaces, getSpace, isLegacySpace, mutateSpace } from '../shared/spaces/space.js'
 import { announceParticipation } from '../shared/spaces/participation.js'
 import { backfillCreatedBySelf, backfillSelfCreatedCreatorKey, flagUnverifiedJoinedCreators } from '../shared/spaces/creator-pin.js'
 import {
@@ -69,6 +69,8 @@ import { OverlayBackend } from '../shared/transfer/overlay/overlay-runtime.js'
 import { getInstallId } from '../shared/telemetry/install-id.js'
 import { MountsRuntime } from './mounts-runtime.js'
 import { Sweeps } from './sweeps.js'
+import { RestoreCatchUp } from './restore-catch-up.js'
+import { loadRestoreHold, profileHeld } from '../shared/core/restore-hold.js'
 
 // Apply the configured relay to BOTH swarms. Exported through the root because the
 // settings handler re-applies it at runtime.
@@ -97,11 +99,12 @@ export async function bootDurable(bootstrap, { ipc, log, masterSecret = undefine
   setMasterSecret(provider
     ? await resolveMasterSecret({ store: getStore(), storagePath: bootstrap.storage, provider })
     : masterSecret)
+  await loadRestoreHold(bootstrap.storage)
   const durableMigrations = await runMigrations('durable', { log })
   // Rewrites local bees in place, so it runs before anything holds one.
   const localBees = await maintainLocalBees({ log })
   await durable.start(new SpaceKeysVault('space-keys'))
-  await durable.start(new ProfileBee('profile'))
+  const profile = await durable.start(new ProfileBee('profile'))
   await durable.start(new SpacesBee('spaces'))
   await durable.start(new DownloadsBee('downloads'))
   await durable.start(new PendingTransfersBee('pending-transfers'))
@@ -120,7 +123,7 @@ export async function bootDurable(bootstrap, { ipc, log, masterSecret = undefine
   await durable.start(new ServeLedger('serve-ledger', { ipc }))
   await durable.start(new OwnCatalogs('own-catalogs'))
   await durable.start(new PeerCatalogs('peer-catalogs'))
-  return { durable, store, auditLog, durableMigrations, localBees, close: (opts) => durable.close(opts) }
+  return { durable, store, profile, auditLog, durableMigrations, localBees, close: (opts) => durable.close(opts) }
 }
 
 /**
@@ -206,9 +209,15 @@ export async function boot(bootstrap, {
 
     const tier = await bootDurable(bootstrap, { ipc, log, masterSecret, onTier: (d) => { durable = d } })
     const { store, auditLog, durableMigrations, localBees } = tier
-    await ensureMembershipManifestCap()
-    await ensureSharesCap()
-    await ensureFolderMirrorsCap()
+    // Restore mode: the profile was restored and peers may hold more of it, so every boot step that
+    // writes it waits for the next worker, and so does the leftover sweep, whose wanted set is read
+    // from the records this store has not caught up on yet.
+    const restoring = profileHeld()
+    if (!restoring) {
+      await ensureMembershipManifestCap()
+      await ensureSharesCap()
+      await ensureFolderMirrorsCap()
+    }
     // Ordered and positioned by the migration list, not by this call site: both of these must land
     // BEFORE the initial publish scans and before the overlay backend opens its index.
     const content = await runMigrations('content', { log })
@@ -245,8 +254,10 @@ export async function boot(bootstrap, {
     registerFolderIntents(intents)
 
     const knownSpaces = await listSpaces()
-    await resumeInterruptedLeaves(knownSpaces, log)
-    await intents.recover()
+    if (!restoring) {
+      await resumeInterruptedLeaves(knownSpaces, log)
+      await intents.recover()
+    }
     const activeSpaces = knownSpaces.filter((s) => !s.leaving)
     // Hydrated here, from the spaces that SURVIVED the interrupted-leave pass above, and off the
     // scan that pass already did. A space being left keeps no download root: hydrating it would
@@ -256,7 +267,7 @@ export async function boot(bootstrap, {
     // ipc.start() (which admits the first frame that could) only after boot() has returned.
     hydrateDownloadRoots(activeSpaces)
     publishDownloadRoots()
-    await backfillMembership(activeSpaces, log)
+    if (!restoring) await backfillMembership(activeSpaces, log)
 
     // Before the swarm: starting it wires the registry's collaborators, and a handshake that
     // landed while they were still the no-op defaults would read every peer as disconnected.
@@ -309,9 +320,12 @@ export async function boot(bootstrap, {
     // from (a sweep ahead of it would classify that core as stray and delete it), and
     // getOverlayLocalDiscoveryKeys returns [] while the overlay is down, which would leave the
     // index cores out of the wanted set.
-    try { await cleanupOrphanedData() } catch (err) {
-      log.warn('leftover metadata cleanup failed:', err.message)
+    if (!restoring) {
+      try { await cleanupOrphanedData() } catch (err) {
+        log.warn('leftover metadata cleanup failed:', err.message)
+      }
     }
+    const restoreCatchUp = restoring ? await life.start(new RestoreCatchUp('restore-catch-up', { profile: tier.profile })) : null
 
     // After every subsystem it will supervise, so the lifecycle's reverse close order stops it
     // FIRST. It reads life.started; the durable tier is deliberately unsupervised — nothing there
@@ -319,7 +333,7 @@ export async function boot(bootstrap, {
     supervisor = await life.start(new Supervisor('supervision', { lifecycle: life }))
 
     return {
-      close, store, mounts, intents, ownedFolders, publishService, overlayBackend,
+      close, store, mounts, intents, ownedFolders, publishService, overlayBackend, restoreCatchUp,
       applyRelayConfig: () => applyRelayConfig(log),
       health: () => [...(durable?.health() || []), ...life.health()],
       supervision: () => supervisor?.stats() ?? null,
@@ -366,7 +380,10 @@ async function resumeInterruptedLeaves(knownSpaces, log) {
 // Membership manifest backfill plus the one-time creator-key passes.
 async function backfillMembership(activeSpaces, log) {
   for (const space of activeSpaces) {
-    try { await markOwnMembership(space.spaceId) } catch (err) {
+    try {
+      await markOwnMembership(space.spaceId, { refresh: space.membershipRefresh === true })
+      if (space.membershipRefresh) await mutateSpace(space.spaceId, ({ membershipRefresh, ...rest }) => rest)
+    } catch (err) {
       log.warn('manifest backfill failed for space', space.spaceId, '-', err.message)
     }
     try { await announceParticipation(space.spaceId, space) } catch (err) {
