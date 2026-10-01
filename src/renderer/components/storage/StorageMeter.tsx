@@ -9,22 +9,20 @@ export interface StorageMeterSegment {
 
 interface StorageMeterProps {
   segments: StorageMeterSegment[]
-  total: number
   label: string
 }
 
-// Scaled to the larger of the total and the segments' sum: categories are logical sizes, and they can
-// outrun a folder measured at another moment.
-export default function StorageMeter({ segments, total, label }: StorageMeterProps) {
-  const scale = Math.max(total, segments.reduce((sum, segment) => sum + segment.bytes, 0))
+// Every byte belongs to a category, so the bar is full: segments split the width by size, and no
+// track shows through to read as free space.
+export default function StorageMeter({ segments, label }: StorageMeterProps) {
   return (
-    <div role="img" aria-label={label} className="mt-5 h-2 bg-progress-track rounded-full overflow-hidden flex gap-px">
+    <div role="img" aria-label={label} className="mt-5 h-2 rounded-full overflow-hidden flex gap-0.5">
       {segments.filter((segment) => segment.bytes > 0).map((segment) => (
         <div
           key={segment.id}
           aria-hidden="true"
-          className={`h-full min-w-[3px] ${segment.color}`}
-          style={{ width: `${scale > 0 ? (segment.bytes / scale) * 100 : 0}%` }}
+          className={`h-full basis-0 min-w-[3px] ${segment.color}`}
+          style={{ flexGrow: segment.bytes }}
         />
       ))}
     </div>

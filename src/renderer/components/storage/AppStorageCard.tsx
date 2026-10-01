@@ -20,15 +20,16 @@ import StorageMeter from './StorageMeter.js'
 import StorageCategoryRow from './StorageCategoryRow.js'
 import FreeUpRow from './FreeUpRow.js'
 
-// One token per category, shared by the meter segment and the row's dot.
+// One categorical slot per category, in meter order, shared by the segment and the row's dot. Other
+// takes a hue too: the meter is full, and a grey segment would read as free space.
 const CATEGORY_COLOR: Record<StorageCategoryId, string> = {
-  spaces: 'bg-primary',
-  index: 'bg-online',
-  'activity-log': 'bg-outline',
-  'download-history': 'bg-accent',
-  updates: 'bg-on-info',
-  history: 'bg-secondary',
-  other: 'bg-outline-variant',
+  spaces: 'bg-chart-1',
+  index: 'bg-chart-2',
+  'activity-log': 'bg-chart-3',
+  'download-history': 'bg-chart-4',
+  updates: 'bg-chart-5',
+  history: 'bg-chart-6',
+  other: 'bg-chart-7',
 }
 
 interface AppStorageCardProps {
@@ -94,7 +95,6 @@ export default function AppStorageCard({ info, onOpenActivityLogSettings, onLeft
         <p className="text-sm text-on-surface-variant mt-3 leading-relaxed">{t('storageSettings.appStorageDesc')}</p>
         <StorageMeter
           segments={categories.map((c) => ({ id: c.id, bytes: c.bytes, color: CATEGORY_COLOR[c.id] }))}
-          total={total}
           label={meterLabel}
         />
       </div>
@@ -118,7 +118,7 @@ export default function AppStorageCard({ info, onOpenActivityLogSettings, onLeft
               <StorageCategoryRow
                 key={space.spaceId}
                 color={CATEGORY_COLOR.spaces}
-                heading={spaceName(space)}
+                heading={space.name ? t('storageSettings.spaceRow', { name: space.name }) : t('storageSettings.unnamedSpace')}
                 desc={t('storageSettings.spaceDesc', { own: formatSize(space.ownCatalogBytes), members: formatSize(space.memberCatalogBytes) })}
                 bytes={spaceBytes(space)}
                 action={(
@@ -141,7 +141,7 @@ export default function AppStorageCard({ info, onOpenActivityLogSettings, onLeft
             <StorageCategoryRow
               color={CATEGORY_COLOR.history}
               heading={heading.history}
-              desc={info.historyMeasuredAt === null ? t('storageSettings.historyMeasuring') : t('storageSettings.historyDesc')}
+              desc={t('storageSettings.historyDesc')}
               bytes={bytesOf('history')}
             />
             <StorageCategoryRow color={CATEGORY_COLOR.other} heading={heading.other} desc={t('storageSettings.otherDesc')} bytes={bytesOf('other')} />
