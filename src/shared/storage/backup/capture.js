@@ -39,7 +39,7 @@ export async function captureCore(snap, core, prev, { maxPartBytes = DEFAULT_PAR
     treeHash: length > 0 ? await rootTreeHash(snap, length) : null,
   }
   const continues = !prev || prev.fork !== now.fork || prev.length === 0 || length < prev.length ||
-    (await rootTreeHash(snap, prev.length)) === prev.treeHash
+    (length === prev.length ? now.treeHash : await rootTreeHash(snap, prev.length)) === prev.treeHash
   const plan = deltaPlan(prev, now, { extends: continues })
   const parts = plan.kind === 'full' || plan.kind === 'delta'
     ? encodeParts({ dk: core.dk, fork: now.fork, from: plan.from, to: plan.to }, proofRecords(snap, plan.from, plan.to), maxPartBytes)
