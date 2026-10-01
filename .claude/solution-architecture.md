@@ -1589,6 +1589,18 @@ due one gets a short cutoff and writes nothing if it misses it. The folder and r
 `backup:status`, `backup:configure`, `backup:turn-off`, `backup:run`; a status change pokes
 `event:storage-updated`.
 
+**Restore.** Offered where a recovery key is: over a locked identity, or one nobody has used yet
+(`src/worker/ipc/backup-restore.js`); it always asks for the recovery key, since the backup holds no
+device-bound key. `backup:inspect` lists the snapshots the key opens; `backup:restore` rebuilds the
+chosen one into `app-storage.restoring` beside the store (`restore.js`: every core checked against its
+recorded length and tree hash), seals the identity into `identity-adopt.enc` and writes
+`restore-pending.json` last. The next worker, before its store opens, sets the current data aside and
+moves the staging store in with `CORESTORE` last (`identity-adopt.js`). The profile and the own catalogs
+come back **held**: `RestoreCatchUp` follows each one to the copies its space's members hold, releases
+a catalog writable as soon as it matches (or at once when the space has no other member), and ends
+restore mode when the profile matches. No backup runs while anything is held. Setting up a fresh
+profile, or adopting another key, drops a restore that has not reached a restart.
+
 ## 17. Glossary
 
 Holepunch stack terms (Bare, Hypercore/"core", Hyperbee/"bee", Hyperdrive, Corestore, Hyperswarm,

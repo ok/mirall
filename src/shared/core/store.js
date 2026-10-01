@@ -7,7 +7,7 @@ import Corestore from 'corestore'
 import Hyperbee from 'hyperbee'
 import Hypercore from 'hypercore'
 import b4a from 'b4a'
-import { deriveKeyPair, deriveParticipationKeyPair, deriveParticipationId, deriveContentKey } from './identity-keys.js'
+import { deriveKeyPair, deriveParticipationKeyPair, deriveParticipationId, deriveContentKey, deriveBackupWrapKey } from './identity-keys.js'
 import { createLogger } from './logger.js'
 import { buildRecoveryFile } from './identity-recovery.js'
 import { AppError } from './errors.js'
@@ -129,9 +129,8 @@ export function getSpaceKeysVaultKey() {
   return masterSecret ? deriveContentKey(masterSecret, 'space-keys-vault') : null
 }
 
-// Wraps a backup repository's key, so only this identity can open a backup it made.
 export function backupWrapKey() {
-  return masterSecret ? deriveContentKey(masterSecret, 'backup-repo-wrap/v1') : null
+  return masterSecret ? deriveBackupWrapKey(masterSecret) : null
 }
 
 // discoveryKey(hex) → friendly name, kept so the corruption inventory

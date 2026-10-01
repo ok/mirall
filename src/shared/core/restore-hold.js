@@ -46,6 +46,10 @@ export function isHeld(name) {
   return held.has(name)
 }
 
+export function heldNames() {
+  return [...held].filter((name) => !released.has(name))
+}
+
 export function profileHeld() {
   return held.has(PROFILE_BEE)
 }
@@ -54,11 +58,13 @@ export async function writeRestoreHold(storagePath, names) {
   await writeFileAtomic(await holdFile(storagePath), encode(names))
 }
 
-// A bee opened while held stays read-only for this process, so it keeps reading as held: only the file
-// the next worker loads changes.
+// The profile, opened while held, stays read-only for this process, and restore mode stays on until the
+// next worker: it keeps reading as held, and only the file changes. Any other bee is released here
+// too, so its next open is writable.
 export async function releaseHeld(name) {
   if (!file || !held.has(name) || released.has(name)) return
   released.add(name)
+  if (name !== PROFILE_BEE) held.delete(name)
   const rest = [...held].filter((n) => !released.has(n))
   if (rest.length) await writeFileAtomic(file, encode(rest))
   else (await io()).fs.rmSync(file, { force: true })

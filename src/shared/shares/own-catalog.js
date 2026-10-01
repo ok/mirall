@@ -67,6 +67,14 @@ export async function ownCatalog(spaceId) {
   return bee
 }
 
+// Drops the open session, so the next ownCatalog() opens the core again — writable once its restore
+// hold is released.
+export async function reopenOwnCatalog(spaceId) {
+  const bee = ownCatalogs.get(spaceId)
+  ownCatalogs.delete(spaceId)
+  await bee?.close()
+}
+
 export async function ownCatalogKeyHex(spaceId) {
   const bee = await ownCatalog(spaceId)
   return b4a.toString(bee.core.key, 'hex')

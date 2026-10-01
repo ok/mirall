@@ -500,6 +500,26 @@ export interface BackupStatus {
   suspect: string[] | null
 }
 
+/** A snapshot a recovery key can restore; `suspect` names why it looks like a loss. */
+export interface RestorableSnapshot {
+  name: string
+  createdAt: string
+  suspect: string[] | null
+  spaces: number | null
+  appVersion: string | null
+}
+
+/** The snapshots in a backup folder, newest first. */
+export interface BackupInspect {
+  snapshots: RestorableSnapshot[]
+}
+
+/** A restore staged for the next worker, and the settings it carried for main to merge. */
+export interface BackupRestore {
+  ok: true
+  settings: string | null
+}
+
 /** Where the data was moved; null when the move waits for the next worker, before the store opens. */
 export interface IdentitySetAside {
   folder: string | null
@@ -508,6 +528,8 @@ export interface IdentitySetAside {
 interface Responses {
   'audit:actors': AuditActorRef[]
   'backup:configure': BackupStatus
+  'backup:inspect': BackupInspect
+  'backup:restore': BackupRestore
   'backup:run': BackupStatus
   'backup:status': BackupStatus
   'backup:turn-off': BackupStatus

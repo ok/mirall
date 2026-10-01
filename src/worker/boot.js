@@ -71,7 +71,7 @@ import { MountsRuntime } from './mounts-runtime.js'
 import { Sweeps } from './sweeps.js'
 import { RestoreCatchUp } from './restore-catch-up.js'
 import { Backup } from './backup-service.js'
-import { loadRestoreHold, profileHeld } from '../shared/core/restore-hold.js'
+import { loadRestoreHold, profileHeld, heldNames } from '../shared/core/restore-hold.js'
 
 // Apply the configured relay to BOTH swarms. Exported through the root because the
 // settings handler re-applies it at runtime.
@@ -326,10 +326,11 @@ export async function boot(bootstrap, {
         log.warn('leftover metadata cleanup failed:', err.message)
       }
     }
-    const restoreCatchUp = restoring ? await life.start(new RestoreCatchUp('restore-catch-up', { profile: tier.profile })) : null
-    // Not while restoring: a held profile is behind what peers hold, and backing it up would record
-    // that as the newest state.
-    const backup = isLocalBackupEnabled() && !restoring
+    const restoreCatchUp = heldNames().length ? await life.start(new RestoreCatchUp('restore-catch-up', { profile: tier.profile })) : null
+    // Not while anything is held: a held bee may be behind what peers hold, and backing it up would
+    // record that as the newest state.
+    const holding = heldNames().length > 0
+    const backup = isLocalBackupEnabled() && !holding
       ? await life.start(new Backup('backup', { ipc, corestore: getStore, storagePath: bootstrap.storage, installId: tier.installId ?? 'unknown-install' }))
       : null
 
@@ -340,7 +341,7 @@ export async function boot(bootstrap, {
 
     return {
       close, store, mounts, intents, ownedFolders, publishService, overlayBackend, restoreCatchUp, backup,
-      backupPaused: isLocalBackupEnabled() && restoring,
+      backupPaused: isLocalBackupEnabled() && holding,
       applyRelayConfig: () => applyRelayConfig(log),
       health: () => [...(durable?.health() || []), ...life.health()],
       supervision: () => supervisor?.stats() ?? null,
