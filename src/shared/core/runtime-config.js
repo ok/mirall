@@ -125,6 +125,11 @@ export function isLocalBackupEnabled() {
   return config.localBackupEnabled
 }
 
+// This device keeps its identity key without an OS keychain, so a backup is its real protection.
+export function isIdentityWeak() {
+  return config.identityWeak
+}
+
 // The backup folder and repository this device uses, as main last saved them; null until set up.
 export function getBackupConfig() {
   return { folder: config.backupFolder, repoId: config.backupRepoId }

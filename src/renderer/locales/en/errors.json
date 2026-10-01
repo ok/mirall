@@ -56,5 +56,6 @@
   "backupOtherDevice": "Another computer is backing up into this folder. Use a separate folder for each computer.",
   "backupTargetDenied": "Mirall isn't allowed to write to the backup folder. Check its permissions.",
   "backupTargetFull": "The backup folder's drive is full.",
-  "backupTargetOffline": "The backup folder isn't available. Connect the drive or network share, then try again."
+  "backupTargetOffline": "The backup folder isn't available. Connect the drive or network share, then try again.",
+  "backupKeyMissing": "No recovery key was found for this backup."
 }

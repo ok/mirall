@@ -171,7 +171,7 @@ function config() {
 
 initUpdater({ getDataDir, updatesEnabled, updatesOffReason: offReason })
 initSettings({ config, installKind })
-initWorkerHost({ config, getPear, isDev, identityKEK: () => identityKEKHex })
+initWorkerHost({ config, getPear, isDev, identityKEK: () => identityKEKHex, identityWeak: () => identityProtection === 'weak' })
 initMenus({ revealWindow, targetWindow, zoomByDirection, appName, isDev })
 initWindow({
   config,

@@ -488,7 +488,15 @@ export interface RecoveryExport {
 /** A recovery key adopted, or refused because this device holds another identity's data. */
 export type RecoveryImport = { ok: true } | { ok: false; mismatch: true }
 
-/** The local backup as this worker runs it; `enabled` is false when the feature is off, `paused` while a restore is catching up, `suspect` the reasons the latest snapshot looks like a loss. */
+/** The recovery key the backup keeps: when it was made, whether the folder holds it, when its passphrase was last confirmed, and when a copy was last saved elsewhere. */
+export interface BackupKeyStatus {
+  createdAt: string | null
+  inFolder: boolean
+  checkedAt: number | null
+  secondCopyAt: number | null
+}
+
+/** The local backup as this worker runs it; `enabled` is false when the feature is off, `paused` while a restore is catching up, `suspect` the reasons the latest snapshot looks like a loss, `prompt` the question due on the Spaces screen, `stale` no success for ten days. */
 export interface BackupStatus {
   enabled: boolean
   folder: string | null
@@ -498,6 +506,16 @@ export interface BackupStatus {
   lastSnapshot: string | null
   lastError: string | null
   suspect: string[] | null
+  key: BackupKeyStatus
+  prompt: 'offer' | 'check' | null
+  stale: boolean
+}
+
+/** What a backup folder shows before any passphrase: a backup, the date of the key it keeps, and its newest snapshot's time. */
+export interface BackupPeek {
+  backup: boolean
+  keyCreatedAt: string | null
+  lastBackupAt: string | null
 }
 
 /** A snapshot a recovery key can restore; `suspect` names why it looks like a loss. */
@@ -527,10 +545,17 @@ export interface IdentitySetAside {
 
 interface Responses {
   'audit:actors': AuditActorRef[]
+  'backup:check-key': BackupStatus
   'backup:configure': BackupStatus
   'backup:inspect': BackupInspect
+  'backup:key-copied': BackupStatus
+  'backup:key-file': RecoveryExport
+  'backup:new-key': BackupStatus
+  'backup:peek': BackupPeek
+  'backup:prompt': BackupStatus
   'backup:restore': BackupRestore
   'backup:run': BackupStatus
+  'backup:setup': BackupStatus
   'backup:status': BackupStatus
   'backup:turn-off': BackupStatus
   'audit:configure': AuditConfig
