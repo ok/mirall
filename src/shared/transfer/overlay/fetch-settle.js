@@ -98,9 +98,11 @@ export function createFetchSettle({
         return
       case SETTLE.PAUSED:
         diag.finish(FETCH_OUTCOME.PAUSED)
+        // The slot is gone, so the row already reads as paused: its decoration ends before anything
+        // awaits, or a reader that saw the pause would see the transfer's events after it.
+        channel.emitDecorationDone?.(job)
         await flushProgress(job)
         channel.emitUpdated(job.spaceId)
-        channel.emitDecorationDone?.(job)
         return
       case SETTLE.STALLED:
         await settleStalled(job, diag)
