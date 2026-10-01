@@ -22,7 +22,7 @@ function findKek(dir, depth = 3) {
 
 // A reset keychain: kek.enc no longer decrypts, so the app opens on the locked screen — not the
 // fatal dialog, the fault screen or onboarding — and the recovery key saved earlier opens it again.
-export default async function s155({ runDir, bootstrap }) {
+export default async function s157({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 1 })

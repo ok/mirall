@@ -6,7 +6,7 @@ import { makeReport, waitFor } from '../assert.mjs'
 // Backing up the recovery key from the profile: the row is a named button beside the static
 // identity line, Save stays unavailable until a long enough passphrase is typed twice, and the saved
 // file is a sealed recovery key.
-export default async function s156({ runDir, bootstrap }) {
+export default async function s158({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 1 })
