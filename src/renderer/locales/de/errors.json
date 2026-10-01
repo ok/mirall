@@ -49,5 +49,6 @@
   "unexpected": "Etwas ist schiefgelaufen. Versuche es erneut — wenn es weiterhin auftritt, sende Feedback über die Einstellungen.",
   "approveBlockedDivergence": "Solange der Eigentümer-Konflikt ungelöst ist, sind Genehmigungen pausiert.",
   "wrongPassphrase": "Diese Passphrase passt nicht zu diesem Wiederherstellungsschlüssel. Prüfe sie und versuche es erneut.",
-  "recoveryFileInvalid": "Diese Datei ist kein Wiederherstellungsschlüssel, den diese Mirall-Version lesen kann."
+  "recoveryFileInvalid": "Diese Datei ist kein Wiederherstellungsschlüssel, den diese Mirall-Version lesen kann.",
+  "backupCorrupt": "Dieses Backup ist beschädigt und kann nicht wiederhergestellt werden. Versuch ein älteres Backup."
 }
