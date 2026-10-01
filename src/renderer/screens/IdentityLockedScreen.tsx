@@ -13,8 +13,7 @@ import Button from '../components/primitives/Button.js'
 import TextButton from '../components/primitives/TextButton.js'
 import InlineError from '../components/primitives/InlineError.js'
 import ConfirmDestructiveModal from '../components/modals/ConfirmDestructiveModal.js'
-import RecoveryRestoreModal from '../components/modals/RecoveryRestoreModal.js'
-import RestoreBackupModal from '../components/modals/RestoreBackupModal.js'
+import RestoreAccount from '../components/recovery/RestoreAccount.js'
 import { isLocalBackupFeatureOn } from '../platform/config-client.js'
 
 interface IdentityLockedScreenProps {
@@ -25,7 +24,6 @@ export default function IdentityLockedScreen({ code }: IdentityLockedScreenProps
   const { t } = useTranslation()
   const errorText = useErrorText()
   const [restoreOpen, setRestoreOpen] = useState(false)
-  const [backupOpen, setBackupOpen] = useState(false)
   const [confirmFresh, setConfirmFresh] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -63,13 +61,8 @@ export default function IdentityLockedScreen({ code }: IdentityLockedScreenProps
       >
         <div className="bg-surface-container-low rounded-2xl p-6 space-y-3">
           <Button size="lg" fullWidth icon="lock" onClick={() => setRestoreOpen(true)} ariaDisabled={busy}>
-            {t('identityLocked.restore')}
+            {t(isLocalBackupFeatureOn() ? 'identityLocked.restoreAccount' : 'identityLocked.restore')}
           </Button>
-          {isLocalBackupFeatureOn() && (
-            <Button size="lg" fullWidth variant="secondary" icon="history" onClick={() => setBackupOpen(true)} ariaDisabled={busy}>
-              {t('identityLocked.restoreBackup')}
-            </Button>
-          )}
           <Button size="lg" fullWidth variant="secondary" icon="refresh" onClick={() => void retry()} ariaDisabled={busy}>
             {t('identityLocked.retry')}
           </Button>
@@ -83,8 +76,7 @@ export default function IdentityLockedScreen({ code }: IdentityLockedScreenProps
         {error && !confirmFresh && <InlineError id="identity-locked-error" className="text-center">{error}</InlineError>}
       </PreShellHero>
 
-      <RecoveryRestoreModal isOpen={restoreOpen} onClose={() => setRestoreOpen(false)} onRestored={restartIntoIdentity} />
-      <RestoreBackupModal isOpen={backupOpen} onClose={() => setBackupOpen(false)} onRestored={restartIntoIdentity} />
+      <RestoreAccount isOpen={restoreOpen} onClose={() => setRestoreOpen(false)} onRestored={restartIntoIdentity} />
       <ConfirmDestructiveModal
         isOpen={confirmFresh}
         title={t('identityLocked.startFreshTitle')}

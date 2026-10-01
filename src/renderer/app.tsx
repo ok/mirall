@@ -34,6 +34,7 @@ import ConnectivityToastBridge from './components/toast/bridges/ConnectivityToas
 import WorkerToastBridge from './components/toast/bridges/WorkerToastBridge.js'
 import DownloadFolderToastBridge from './components/toast/bridges/DownloadFolderToastBridge.js'
 import JoinRequestToastBridge from './components/toast/bridges/JoinRequestToastBridge.js'
+import BackupToastBridge from './components/toast/bridges/BackupToastBridge.js'
 import type { Profile } from './types/types.js'
 
 function BootScreen({ label }: { label: string }) {
@@ -141,6 +142,7 @@ function AppShell({ nav, profile, onSaveProfile, deepLinks }: AppShellProps) {
       <DownloadFolderToastBridge onChangeFolder={() => nav.openStorageSettings(nav.currentScreen === 'space-view' ? 'space-view' : 'settings')} />
       <WorkerToastBridge />
       <JoinRequestToastBridge navigateToSpace={nav.navigateToSpace} />
+      <BackupToastBridge onOpen={() => nav.openBackupSettings('settings')} />
       <div className="min-h-screen bg-surface">
         <a
           href="#main-content"

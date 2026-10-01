@@ -9,6 +9,7 @@ export const SCREEN_TITLE_KEYS: Record<Screen, string> = {
   'settings': 'a11y.screens.settings',
   'account': 'a11y.screens.account',
   'storage-settings': 'a11y.screens.storage',
+  'backup-settings': 'a11y.screens.backup',
   'appearance-settings': 'a11y.screens.appearance',
   'notification-settings': 'a11y.screens.notifications',
   'general-settings': 'a11y.screens.general',

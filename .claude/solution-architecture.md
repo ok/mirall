@@ -1605,9 +1605,30 @@ profile, or adopting another key, drops a restore that has not reached a restart
 snapshot carried go back through main (`src/main/backup-settings.js`), each group through the config
 store's own setter, and the window adopts them at once.
 
-**UI** (flag `localBackup`, which main also hands the renderer in the config snapshot): a Backup card
-on Settings → Storage (`BackupCard.tsx`), and "Restore from a backup" on onboarding and the locked
-screen (`RestoreBackupModal.tsx`), sharing the recovery-key chooser with the key-only restore.
+**Recovery key in the folder.** Setup (`backup:setup`) takes the folder and a passphrase together:
+the recovery key is sealed under the passphrase, written to `Mirall Backup/keys/` (`folder-key.js`,
+write-once names, older keys removed after), opened back from there, and only then is the first backup
+run — a backup never exists without a key known to open it. A folder holding another identity's backup
+is refused before anything is written. The worker keeps the same sealed file in
+`backup-state.json` beside the store (with the last success, the key's dates and the prompt state;
+not `config.json`, none of it is a preference) and puts it back into the folder whenever a run finds it
+missing; a device with no record (a restored one) takes the folder's key when it is its own. A restore
+then needs only the folder and the passphrase (`backup:peek` shows the backup, its key's date and its
+newest snapshot's time before any passphrase; `backup:inspect`/`backup:restore` fall back to the
+folder's key). `backup:check-key` (through the shared passphrase throttle), `backup:new-key`,
+`backup:key-file`/`backup:key-copied` and `backup:prompt` serve the rest.
+
+**Prompts** (`prompt-rules.js`, pure): the offer goes to anyone with a space, or a device without a
+system keychain (`identityWeak` in the bootstrap frame); "Not now" holds 30, then 60 days, three times
+at most, and turning the backup off ends it. The passphrase check comes 14 days after a key, then every
+182, with one week's grace per cycle and an opt-out. A backup with no success for 10 days is `stale`.
+
+**UI** (flag `localBackup`, which main also hands the renderer in the config snapshot): Settings →
+Backup & recovery (`BackupSettings.tsx`, after Storage) with the three safeguards, the folder and the
+key; the setup dialog (`BackupSetupModal.tsx`); the offer or check card on Spaces
+(`BackupPromptCard.tsx`); a warning toast when the backup goes stale (`BackupToastBridge.tsx`); and one
+"Restore your account" entry on onboarding and the locked screen (`RestoreAccount.tsx`) that asks
+whether the user has a backup folder or only a key file.
 
 ## 17. Glossary
 

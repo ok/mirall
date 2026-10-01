@@ -7,6 +7,7 @@ import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import SpaceCard from '../components/cards/SpaceCard.js'
 import Button from '../components/primitives/Button.js'
 import DocsCard from '../components/cards/DocsCard.js'
+import BackupPromptCard from '../components/backup/BackupPromptCard.js'
 
 interface YourSpacesProps {
   onSelectSpace: (spaceId: string) => void
@@ -65,6 +66,8 @@ export default function YourSpaces({ onSelectSpace, onShowCreate, onShowJoin }: 
           </Button>
         </div>
       </div>
+
+      <BackupPromptCard />
 
       <div
         ref={listRef}

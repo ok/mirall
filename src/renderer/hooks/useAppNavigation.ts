@@ -11,6 +11,7 @@ export interface AppNavigation {
   preSettingsScreen: 'spaces' | 'space-view'
   preAccountScreen: 'spaces' | 'space-view'
   storageBackTarget: 'settings' | 'space-view'
+  backupBackTarget: 'settings' | 'account'
   activityLogPreset: Partial<AuditFilters> | null
   pendingSpaceAction: PendingSpaceAction | null
   setCurrentScreen: Dispatch<SetStateAction<Screen>>
@@ -22,6 +23,8 @@ export interface AppNavigation {
   openSettings: () => void
   openAccount: () => void
   openStorageSettings: (from: 'settings' | 'space-view') => void
+  openBackupSettings: (from: 'settings' | 'account') => void
+  openFromSettings: (screen: Screen) => void
   openActivityLog: (preset?: Partial<AuditFilters> | null) => void
   openActivityLogSettings: () => void
   goBack: () => void
@@ -34,6 +37,8 @@ export function useAppNavigation(): AppNavigation {
   const [preSettingsScreen, setPreSettingsScreen] = useState<'spaces' | 'space-view'>('spaces')
   const [preAccountScreen, setPreAccountScreen] = useState<'spaces' | 'space-view'>('spaces')
   const [storageBackTarget, setStorageBackTarget] = useState<'settings' | 'space-view'>('settings')
+  // Backup & recovery opens from Settings and from Profile's recovery-key row; Back returns there.
+  const [backupBackTarget, setBackupBackTarget] = useState<'settings' | 'account'>('settings')
   const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null)
   // The id, not the folder: the folder screen resolves it against the live listing, so a rename
   // or an unmount is reflected rather than patched back into a snapshot by hand.
@@ -67,6 +72,18 @@ export function useAppNavigation(): AppNavigation {
     setStorageBackTarget(from)
     setCurrentScreen('storage-settings')
   }, [])
+
+  const openBackupSettings = useCallback((from: 'settings' | 'account') => {
+    setBackupBackTarget(from)
+    setCurrentScreen('backup-settings')
+  }, [])
+
+  // A row on the Settings list: the screens that remember where they were opened from learn it here.
+  const openFromSettings = useCallback((screen: Screen) => {
+    if (screen === 'storage-settings') openStorageSettings('settings')
+    else if (screen === 'backup-settings') openBackupSettings('settings')
+    else setCurrentScreen(screen)
+  }, [openStorageSettings, openBackupSettings])
 
   const openActivityLog = useCallback((preset: Partial<AuditFilters> | null = null) => {
     setActivityLogPreset(preset)
@@ -108,12 +125,12 @@ export function useAppNavigation(): AppNavigation {
   // behave like a browser back button. 'spaces' is the root — nothing above it.
   const goBack = useCallback(() => {
     const parent = parentOf(currentScreen, {
-      preSettingsScreen, preAccountScreen, storageBackTarget, activityLogBackTarget, activityLogSettingsBackTarget,
+      preSettingsScreen, preAccountScreen, storageBackTarget, backupBackTarget, activityLogBackTarget, activityLogSettingsBackTarget,
     })
     if (!parent) return
     if (currentScreen === 'folder-view') setSelectedShareId(null)
     setCurrentScreen(parent)
-  }, [currentScreen, preSettingsScreen, preAccountScreen, storageBackTarget, activityLogBackTarget, activityLogSettingsBackTarget])
+  }, [currentScreen, preSettingsScreen, preAccountScreen, storageBackTarget, backupBackTarget, activityLogBackTarget, activityLogSettingsBackTarget])
 
   const goHome = useCallback(() => {
     setSelectedShareId(null)
@@ -134,6 +151,7 @@ export function useAppNavigation(): AppNavigation {
     preSettingsScreen,
     preAccountScreen,
     storageBackTarget,
+    backupBackTarget,
     activityLogPreset,
     pendingSpaceAction,
     setCurrentScreen,
@@ -145,6 +163,8 @@ export function useAppNavigation(): AppNavigation {
     openSettings,
     openAccount,
     openStorageSettings,
+    openBackupSettings,
+    openFromSettings,
     openActivityLog,
     openActivityLogSettings,
     goBack,

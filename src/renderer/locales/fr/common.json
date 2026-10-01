@@ -24,7 +24,7 @@
     "displayNamePlaceholder": "p. ex. Jean Dupont",
     "displayNameHelp": "C'est ainsi que votre équipe et vos amis vous verront.",
     "restore": "Vous avez déjà une clé de récupération ? Restaurez votre identité",
-    "restoreBackup": "Restaurer depuis un dossier de sauvegarde"
+    "restoreAccount": "Déjà utilisé Mirall ? Restaurez votre compte"
   },
   "topnav": {
     "feedback": "Envoyer un commentaire",
@@ -45,7 +45,8 @@
     "recordingOff": "Enregistrement désactivé · {{kept}}",
     "backupRecoveryKey": "Sauvegarder votre clé de récupération",
     "backupRecoveryKeyDesc": "Enregistrez une clé chiffrée pour conserver votre identité si vous perdez cet appareil.",
-    "backupRecoveryKeyDescWeak": "Cet appareil n’a pas de trousseau système — une clé de récupération est votre vraie protection."
+    "backupRecoveryKeyDescWeak": "Cet appareil n’a pas de trousseau système — une clé de récupération est votre vraie protection.",
+    "backupDesc": "Votre sauvegarde et la clé de récupération qui l’ouvre."
   },
   "spaces": {
     "title": "Espaces",
@@ -534,7 +535,13 @@
     "networkStatusDesc_one": "{{count}} pair connecté",
     "networkStatusDesc_other": "{{count}} pairs connectés",
     "activityLog": "Journal d'activité",
-    "activityLogDesc": "Ce qui est enregistré, et pour combien de temps."
+    "activityLogDesc": "Ce qui est enregistré, et pour combien de temps.",
+    "backup": "Sauvegarde et récupération",
+    "backupDescOff": "Non configurée — protégez vos espaces",
+    "backupDescOn": "Activée · dernière sauvegarde {{when}}",
+    "backupDescPending": "Activée · première sauvegarde en attente",
+    "backupDescAttention": "Requiert votre attention",
+    "backupDescPaused": "En pause pendant la restauration de votre profil"
   },
   "appearanceSettings": {
     "title": "Apparence",
@@ -1004,7 +1011,8 @@
       "networkSettings": "Paramètres réseau",
       "connectionProblem": "Problème de connexion",
       "networkDiagnostics": "Diagnostic",
-      "networkAdvanced": "Détails avancés"
+      "networkAdvanced": "Détails avancés",
+      "backup": "Sauvegarde et récupération"
     }
   },
   "avatar": {
@@ -1316,7 +1324,7 @@
     "startFreshTitle": "Repartir de zéro ?",
     "startFreshBody": "Mirall déplace les données verrouillées dans un dossier à part, juste à côté, et repart avec une nouvelle identité. Vos contacts ne reconnaîtront pas la nouvelle identité, et vos espaces n’y seront pas.",
     "startFreshConfirm": "Mettre de côté et repartir",
-    "restoreBackup": "Restaurer une sauvegarde"
+    "restoreAccount": "Restaurer votre compte"
   },
   "restore": {
     "title": "Restauration de votre profil",
@@ -1373,15 +1381,11 @@
     "mismatchConfirm": "Remplacer et restaurer"
   },
   "backup": {
-    "title": "Sauvegarde",
-    "desc": "Mirall conserve une copie chiffrée de vos espaces, listes de fichiers et réglages dans un dossier de votre choix — un autre disque ou un partage réseau. Les fichiers que vous partagez ne sont pas copiés ; ils restent dans vos propres dossiers.",
-    "needsRecoveryKey": "Restaurer une sauvegarde nécessite votre clé de récupération. Si vous ne l’avez pas encore enregistrée, faites-le d’abord dans le profil.",
+    "title": "Sauvegarde et récupération",
     "paused": "Les sauvegardes reprendront dès que votre profil restauré sera à jour auprès des personnes avec qui vous partagez des espaces.",
     "running": "Sauvegarde en cours…",
-    "lastBackup": "Dernière sauvegarde {{when}}",
-    "never": "Pas encore de sauvegarde",
     "runNow": "Sauvegarder maintenant",
-    "turnOff": "Désactiver",
+    "turnOff": "Désactiver la sauvegarde",
     "suspectTitle": "Cette sauvegarde est plus petite que d’habitude",
     "suspectBody": "La dernière sauvegarde contient nettement moins que la précédente ({{reasons}}). Si c’était voulu, rien à faire — les sauvegardes plus anciennes sont conservées dans tous les cas.",
     "reason": {
@@ -1390,11 +1394,54 @@
       "cores-halved": "moins d’éléments enregistrés",
       "own-data-shrank": "moins de vos propres données"
     },
-    "folderSubject": "dossier de sauvegarde"
+    "folderSubject": "dossier de sauvegarde",
+    "subtitle": "Récupérez tout si cet ordinateur tombe en panne ou est remplacé.",
+    "offerTitle": "Protégez vos espaces",
+    "offerBody": "Si cet ordinateur tombe en panne, est perdu ou remplacé, une sauvegarde restaure vos espaces, leurs listes de fichiers et votre identité auprès de vos contacts. Choisissez une fois un disque ou un dossier réseau — Mirall la tient à jour tout seul.",
+    "setUp": "Configurer la sauvegarde",
+    "notNow": "Pas maintenant",
+    "laterToast": "Vous pouvez configurer une sauvegarde à tout moment dans Réglages → Sauvegarde et récupération.",
+    "checkTitle": "Connaissez-vous encore votre phrase secrète de récupération ?",
+    "checkBody": "Une vérification rapide maintenant évite une mauvaise surprise plus tard. Cela prend dix secondes.",
+    "checkNow": "Vérifier",
+    "scopeIncludedLead": "Sauvegardé :",
+    "scopeIncluded": "vos espaces, leurs listes de fichiers, votre profil et vos réglages — et votre clé de récupération.",
+    "scopeExcludedLead": "Non sauvegardé :",
+    "scopeExcluded": "les fichiers eux-mêmes. Ils restent dans vos dossiers ; sauvegardez-les comme d’habitude.",
+    "scopePrivateLead": "Privé :",
+    "scopePrivate": "tout est chiffré. Seule votre phrase secrète l’ouvre — pas même nous.",
+    "protection": "Protection",
+    "rowBackup": "Sauvegarde",
+    "rowBackupOk": "Dernière sauvegarde {{when}}",
+    "rowBackupNever": "Première sauvegarde en attente",
+    "rowBackupStale": "Dernière sauvegarde {{when}} — il y a plus de 10 jours",
+    "rowKey": "Clé de récupération",
+    "rowKeyOk": "Dans votre dossier de sauvegarde · confirmée {{when}}",
+    "rowKeyNotInFolder": "Conservée sur cet ordinateur — Mirall la placera dans le dossier à la prochaine sauvegarde",
+    "rowKeyMissing": "Manquante — créez une nouvelle clé de récupération",
+    "rowCopy": "Deuxième copie",
+    "rowCopyNone": "Recommandée — gardez-en une loin de cet ordinateur et du disque de sauvegarde",
+    "rowCopyOk": "Enregistrée {{when}}",
+    "saveCopy": "Enregistrer une copie…",
+    "copySaved": "Copie de la clé de récupération enregistrée.",
+    "folderTitle": "Dossier de sauvegarde",
+    "folderDesc": "Mirall sauvegarde après chaque modification, toutes les heures et à la fermeture. Il garde les sauvegardes récentes et espace les plus anciennes.",
+    "turnOffTitle": "Désactiver la sauvegarde ?",
+    "turnOffBody": "Mirall arrête de sauvegarder. Les sauvegardes et la clé de récupération déjà dans le dossier y restent.",
+    "turnOffConfirm": "Désactiver",
+    "keyTitle": "Clé de récupération",
+    "keyDesc": "Ouvre votre sauvegarde et prouve que c’est bien vous sur un nouvel ordinateur. Protégée par votre phrase secrète.",
+    "checkKey": "Vérifier ma phrase secrète",
+    "newKey": "Oubliée ? Créer une nouvelle clé",
+    "makeKey": "Créer une clé de récupération",
+    "staleToast": "Mirall n’a pas sauvegardé depuis plus de 10 jours. Vérifiez que le dossier de sauvegarde est disponible.",
+    "open": "Ouvrir",
+    "rowKeyUnconfirmed": "Dans votre dossier de sauvegarde · phrase secrète pas encore confirmée sur cet ordinateur",
+    "keyOnly": "Enregistrer seulement un fichier de clé"
   },
   "restoreBackup": {
-    "title": "Restaurer une sauvegarde",
-    "introChoose": "Choisissez le dossier qui contient votre sauvegarde Mirall et la clé de récupération qui l’ouvre.",
+    "title": "Restaurer votre compte",
+    "introChoose": "Choisissez le dossier qui contient votre sauvegarde Mirall.",
     "introPick": "Choisissez la sauvegarde à restaurer. La plus récente est généralement la bonne.",
     "folderLabel": "Dossier de sauvegarde",
     "showBackups": "Afficher les sauvegardes",
@@ -1406,6 +1453,63 @@
     "caution": "Ne restaurez que si votre ancienne installation n’existe plus — la même identité sur deux appareils à la fois la rend inutilisable pour vos contacts. Après la restauration, Mirall récupère d’abord votre profil le plus récent auprès d’eux avant que vous puissiez modifier quoi que ce soit.",
     "restore": "Restaurer",
     "opening": "Ouverture de la sauvegarde…",
-    "restoring": "Restauration de la sauvegarde…"
+    "restoring": "Restauration de la sauvegarde…",
+    "found": "Sauvegarde et clé de récupération trouvées",
+    "foundBody": "Clé de récupération du {{date}} · dernière sauvegarde {{when}}",
+    "foundNoKey": "Sauvegarde trouvée",
+    "foundNoKeyBody": "Ce dossier ne contient pas de clé de récupération — choisissez votre fichier de clé ci-dessous.",
+    "noBackup": "Ce dossier ne contient aucune sauvegarde Mirall. Choisissez le dossier qui contient « Mirall Backup »."
+  },
+  "backupSetup": {
+    "title": "Protégez vos espaces",
+    "intro": "À configurer une seule fois. Mirall la tient à jour tout seul.",
+    "step": "Étape {{n}} sur {{total}}",
+    "whereLabel": "Où conserver la sauvegarde ?",
+    "whereHint": "Idéalement sur un autre disque ou dans un dossier réseau — pas sur le disque de cet ordinateur, c’est justement contre sa panne que vous vous protégez.",
+    "sameDiskTitle": "Même disque que cet ordinateur",
+    "sameDiskBody": "Ce dossier est sur le même disque que Mirall. Si le disque tombe en panne, vous perdez les deux. Choisissez un autre disque ou un dossier réseau si possible.",
+    "next": "Suivant",
+    "useAnyway": "L’utiliser quand même",
+    "keyTitle": "Votre clé de récupération",
+    "keyIntro": "Votre clé de récupération prouve que la sauvegarde est à vous et l’ouvre sur un nouvel ordinateur. Mirall la garde dans votre dossier de sauvegarde, protégée par une phrase secrète que vous seul connaissez.",
+    "passphraseHelp": "Au moins {{min}} caractères. Une courte phrase est facile à retenir et difficile à deviner.",
+    "keepSafeTitle": "Gardez votre phrase secrète en lieu sûr",
+    "keepSafeBody": "Mirall ne peut ni la réinitialiser ni la récupérer. Enregistrez-la dans votre gestionnaire de mots de passe, ou notez-la et gardez-la avec vos papiers importants.",
+    "turnOn": "Activer la sauvegarde",
+    "working": "Configuration de votre sauvegarde…",
+    "doneTitle": "Vous êtes protégé",
+    "doneBackup": "La sauvegarde est activée",
+    "doneBackupBody": "Première sauvegarde terminée · {{folder}}",
+    "doneBackupPending": "La première sauvegarde n’est pas encore terminée — Mirall continue d’essayer.",
+    "doneKey": "Clé de récupération enregistrée et vérifiée",
+    "doneKeyBody": "Mirall l’a ouverte avec votre phrase secrète — elle fonctionne.",
+    "copyTitle": "Une copie de plus, ailleurs",
+    "copyBody": "Si cet ordinateur et le disque de sauvegarde sont perdus ensemble, il vous faudra une autre copie de votre clé de récupération. Mettez-en une dans un gestionnaire de mots de passe, sur une clé USB ou dans le cloud — elle est inutile sans votre phrase secrète.",
+    "doneTitleAttention": "Presque terminé",
+    "doneBackupFailed": "La première sauvegarde n’a pas abouti"
+  },
+  "backupCheck": {
+    "title": "Vérifier votre phrase secrète",
+    "label": "Phrase secrète de récupération",
+    "body": "Mirall la vérifie sur cet ordinateur avec votre clé de récupération. Rien n’est envoyé.",
+    "check": "Vérifier",
+    "correct": "Phrase secrète correcte. Gardez-la en lieu sûr.",
+    "optOut": "Ne plus demander — elle est dans mon gestionnaire de mots de passe"
+  },
+  "backupNewKey": {
+    "title": "Créer une nouvelle clé de récupération",
+    "intro": "Choisissez une nouvelle phrase secrète. Mirall remplace la clé dans votre dossier de sauvegarde. Les copies enregistrées ailleurs s’ouvrent toujours avec l’ancienne phrase — supprimez-les.",
+    "make": "Créer la clé",
+    "working": "Création de votre nouvelle clé…",
+    "done": "Nouvelle clé de récupération enregistrée dans votre dossier de sauvegarde."
+  },
+  "restoreAccount": {
+    "title": "Restaurer votre compte",
+    "intro": "Vous avez déjà utilisé Mirall sur un autre ordinateur ? Récupérez-le ici.",
+    "listLabel": "Comment voulez-vous restaurer ?",
+    "fromBackup": "Depuis mon dossier de sauvegarde",
+    "fromBackupBody": "Tout revient : vos espaces, listes de fichiers et réglages. Recommandé.",
+    "fromKey": "Je n’ai que mon fichier de clé de récupération",
+    "fromKeyBody": "Vous redevenez vous-même, et vos espaces reviennent grâce aux personnes avec qui vous les partagez."
   }
 }

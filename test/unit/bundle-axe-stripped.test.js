@@ -41,12 +41,11 @@ test('REGRESSION (FIX-AXE-1): production bundle (__DEV__=false) strips axe-core'
   t.absent(out.includes('@axe-core'), 'no @axe-core module reference in prod bundle')
   t.absent(out.includes('color-contrast'), 'no axe-core rule ids in prod bundle')
   // A backstop for the two string checks above, not a size budget: axe-core adds ~616KB,
-  // so any inclusion blows past this by a wide margin. Sized to sit between the two real
-  // outcomes — prod ~1.00MB, dev ~1.62MB — because at 1_000_000 it sat ~200 bytes above the
-  // prod bundle and became a hard gate on UI copy: a patch bump to marked (+782 bytes) was
-  // enough to fail it. The five statically-bundled locales are still ~24% of the bundle;
-  // lazy-loading them is the real fix.
-  t.ok(out.length < 1_250_000, `prod bundle is small without axe-core (${out.length} bytes)`)
+  // so any inclusion blows past this by a wide margin. Sized to sit midway between the two real
+  // outcomes — prod ~1.29MB, dev ~1.90MB — because a bound just above the prod bundle becomes a
+  // hard gate on UI copy: a patch bump to marked (+782 bytes) once failed it. The five
+  // statically-bundled locales are still ~24% of the bundle; lazy-loading them is the real fix.
+  t.ok(out.length < 1_600_000, `prod bundle is small without axe-core (${out.length} bytes)`)
 })
 
 test('FIX-AXE-1 control: dev bundle (__DEV__=true) still ships axe-core', async (t) => {

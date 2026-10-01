@@ -167,7 +167,7 @@ function registerSettingsIpc({ createTray, destroyTray, applyAppMenuVisibility, 
 
   ipcMain.handle('share:browseFolder', (evt) => pickDirectory(evt))
 
-  registerBackupIpc({ ipcMain, config, pickDirectory, validateDownloadFolder })
+  registerBackupIpc({ ipcMain, config, pickDirectory, validateDownloadFolder, dataDir: () => app.getPath('userData') })
 }
 
 module.exports = { initSettings, registerSettingsIpc, readDownloadFolder, readBandwidth }
