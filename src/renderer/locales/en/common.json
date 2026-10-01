@@ -49,7 +49,8 @@
     "displayName": "Display Name",
     "displayNamePlaceholder": "e.g. John Doe",
     "displayNameHelp": "This is how your team and friends will see you.",
-    "restore": "Already have a recovery key? Restore your identity"
+    "restore": "Already have a recovery key? Restore your identity",
+    "restoreBackup": "Restore from a backup folder"
   },
   "topnav": {
     "feedback": "Send Feedback",
@@ -204,7 +205,9 @@
   "pathField": {
     "browse": "Browse…",
     "loading": "Loading…",
-    "placeholder": "Select location…"
+    "placeholder": "Select location…",
+    "browseSubject": "Browse… ({{subject}})",
+    "changeSubject": "Change ({{subject}})"
   },
   "folder": {
     "fileCount_one": "{{count}} file",
@@ -1312,7 +1315,8 @@
     "startFreshHint": "The locked data is set aside on this device, not deleted.",
     "startFreshTitle": "Start fresh?",
     "startFreshBody": "Mirall moves the locked data into a separate folder next to it and starts with a new identity. Your contacts will not recognize the new identity, and your spaces will not be on it.",
-    "startFreshConfirm": "Set aside and start fresh"
+    "startFreshConfirm": "Set aside and start fresh",
+    "restoreBackup": "Restore from a backup"
   },
   "restore": {
     "title": "Restoring your profile",
@@ -1367,5 +1371,41 @@
     "mismatchTitle": "Replace the data on this device?",
     "mismatchBody": "This recovery key is for a different identity than the data already on this device. Restoring leaves that data unreadable, and it can't be undone.",
     "mismatchConfirm": "Replace and restore"
+  },
+  "backup": {
+    "title": "Backup",
+    "desc": "Mirall keeps an encrypted copy of your spaces, file lists and settings in a folder you choose — another drive or a network share. It does not copy the files you share; those stay in your own folders.",
+    "needsRecoveryKey": "Restoring a backup needs your recovery key. If you have not saved one, do that first under Profile.",
+    "paused": "Backups resume once your restored profile has caught up with the people you share spaces with.",
+    "running": "Backing up…",
+    "lastBackup": "Last backup {{when}}",
+    "never": "Not backed up yet",
+    "runNow": "Back up now",
+    "turnOff": "Turn off",
+    "suspectTitle": "This backup looks smaller than usual",
+    "suspectBody": "The latest backup holds noticeably less than the one before it ({{reasons}}). If you did this on purpose, nothing to do — older backups are kept either way.",
+    "reason": {
+      "profile-shrank": "a shorter profile",
+      "spaces-halved": "fewer spaces",
+      "cores-halved": "fewer stored parts",
+      "own-data-shrank": "less of your own data"
+    },
+    "folderSubject": "backup folder"
+  },
+  "restoreBackup": {
+    "title": "Restore from a backup",
+    "introChoose": "Choose the folder that holds your Mirall backup, and the recovery key that opens it.",
+    "introPick": "Choose the backup to restore. The newest is usually right.",
+    "folderLabel": "Backup folder",
+    "showBackups": "Show backups",
+    "listLabel": "Backups",
+    "spaces_one": "{{count}} space",
+    "spaces_other": "{{count}} spaces",
+    "flagged": "smaller than usual",
+    "none": "This folder holds no backup for this recovery key yet.",
+    "caution": "Restore only when your old installation is gone — the same identity on two devices at once breaks it for the people you share with. After the restore, Mirall fetches your newest profile from them before you can change anything.",
+    "restore": "Restore",
+    "opening": "Opening the backup…",
+    "restoring": "Restoring the backup…"
   }
 }

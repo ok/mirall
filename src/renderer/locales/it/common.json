@@ -23,7 +23,8 @@
     "displayName": "Nome visualizzato",
     "displayNamePlaceholder": "es. Mario Rossi",
     "displayNameHelp": "È così che ti vedranno il tuo team e i tuoi amici.",
-    "restore": "Hai già una chiave di recupero? Ripristina la tua identità"
+    "restore": "Hai già una chiave di recupero? Ripristina la tua identità",
+    "restoreBackup": "Ripristina da una cartella di backup"
   },
   "topnav": {
     "feedback": "Invia feedback",
@@ -178,7 +179,9 @@
   "pathField": {
     "browse": "Sfoglia…",
     "loading": "Caricamento…",
-    "placeholder": "Seleziona posizione…"
+    "placeholder": "Seleziona posizione…",
+    "browseSubject": "Sfoglia… ({{subject}})",
+    "changeSubject": "Modifica ({{subject}})"
   },
   "folder": {
     "fileCount_one": "{{count}} file",
@@ -1312,7 +1315,8 @@
     "startFreshHint": "I dati bloccati vengono messi da parte su questo dispositivo, non eliminati.",
     "startFreshTitle": "Ricominciare da capo?",
     "startFreshBody": "Mirall sposta i dati bloccati in una cartella separata lì accanto e ricomincia con una nuova identità. I tuoi contatti non riconosceranno la nuova identità e i tuoi spazi non ci saranno.",
-    "startFreshConfirm": "Metti da parte e ricomincia"
+    "startFreshConfirm": "Metti da parte e ricomincia",
+    "restoreBackup": "Ripristina da un backup"
   },
   "restore": {
     "title": "Ripristino del tuo profilo",
@@ -1367,5 +1371,41 @@
     "mismatchTitle": "Sostituire i dati su questo dispositivo?",
     "mismatchBody": "Questa chiave di recupero appartiene a un’identità diversa da quella dei dati su questo dispositivo. Il ripristino rende illeggibili quei dati e non si può annullare.",
     "mismatchConfirm": "Sostituisci e ripristina"
+  },
+  "backup": {
+    "title": "Backup",
+    "desc": "Mirall conserva una copia cifrata dei tuoi spazi, degli elenchi di file e delle impostazioni in una cartella a tua scelta: un altro disco o una condivisione di rete. Non copia i file che condividi; quelli restano nelle tue cartelle.",
+    "needsRecoveryKey": "Per ripristinare un backup serve la tua chiave di recupero. Se non l’hai ancora salvata, fallo prima nel profilo.",
+    "paused": "I backup riprenderanno quando il profilo ripristinato sarà allineato con le persone con cui condividi gli spazi.",
+    "running": "Backup in corso…",
+    "lastBackup": "Ultimo backup {{when}}",
+    "never": "Nessun backup ancora",
+    "runNow": "Esegui backup ora",
+    "turnOff": "Disattiva",
+    "suspectTitle": "Questo backup è più piccolo del solito",
+    "suspectBody": "L’ultimo backup contiene molto meno del precedente ({{reasons}}). Se era voluto, non serve fare nulla: i backup precedenti vengono conservati comunque.",
+    "reason": {
+      "profile-shrank": "un profilo più corto",
+      "spaces-halved": "meno spazi",
+      "cores-halved": "meno parti salvate",
+      "own-data-shrank": "meno dati tuoi"
+    },
+    "folderSubject": "cartella di backup"
+  },
+  "restoreBackup": {
+    "title": "Ripristina da un backup",
+    "introChoose": "Scegli la cartella con il tuo backup di Mirall e la chiave di recupero che lo apre.",
+    "introPick": "Scegli il backup da ripristinare. Di solito il più recente è quello giusto.",
+    "folderLabel": "Cartella di backup",
+    "showBackups": "Mostra backup",
+    "listLabel": "Backup",
+    "spaces_one": "{{count}} spazio",
+    "spaces_other": "{{count}} spazi",
+    "flagged": "più piccolo del solito",
+    "none": "Questa cartella non contiene ancora backup per questa chiave di recupero.",
+    "caution": "Ripristina solo se la vecchia installazione non esiste più: la stessa identità su due dispositivi insieme la rende inutilizzabile per i tuoi contatti. Dopo il ripristino, Mirall recupera prima da loro il tuo profilo più recente, prima che tu possa modificare qualcosa.",
+    "restore": "Ripristina",
+    "opening": "Apertura del backup…",
+    "restoring": "Ripristino del backup…"
   }
 }

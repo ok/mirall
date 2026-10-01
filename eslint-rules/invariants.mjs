@@ -339,9 +339,9 @@ export const promiseLintAllowlist = Object.freeze({
     ],
   },
   'src/renderer/components/modals/RecoveryRestoreModal.tsx': {
-    why: 'chooseFile and restore catch into the modal\'s inline and field errors; the modal renders outside ToastProvider.',
+    why: 'keyFile.choose and restore catch into the modal\'s inline and field errors; the modal renders outside ToastProvider.',
     sites: [
-      'no-floating-promises RecoveryRestoreModal > onChoose: void chooseFile()',
+      'no-floating-promises RecoveryRestoreModal > onChoose: void keyFile.choose()',
       'no-floating-promises RecoveryRestoreModal > onClick: void restore(false)',
       'no-floating-promises RecoveryRestoreModal > onConfirm: void restore(false)',
       'no-floating-promises RecoveryRestoreModal > onConfirm: void restore(true)',
@@ -351,6 +351,17 @@ export const promiseLintAllowlist = Object.freeze({
     why: 'handleRemove catches and toasts.',
     sites: [
       'no-floating-promises RemoveFileModal > onConfirm: void handleRemove()',
+    ],
+  },
+  'src/renderer/components/modals/RestoreBackupModal.tsx': {
+    why: 'chooseFolder, keyFile.choose, showBackups and restore catch into the modal\'s inline and field errors; the modal renders outside ToastProvider.',
+    sites: [
+      'no-floating-promises RestoreBackupModal > onChooseFolder: void chooseFolder()',
+      'no-floating-promises RestoreBackupModal > onChooseKey: void keyFile.choose()',
+      'no-floating-promises RestoreBackupModal > onClick: void restore()',
+      'no-floating-promises RestoreBackupModal > onClick: void showBackups()',
+      'no-floating-promises RestoreBackupModal > onConfirm: void restore()',
+      'no-floating-promises RestoreBackupModal > onConfirm: void showBackups()',
     ],
   },
   'src/renderer/components/modals/ScanPreviewModal.tsx': {
@@ -364,6 +375,14 @@ export const promiseLintAllowlist = Object.freeze({
     why: 'document.fonts.ready never rejects; it only triggers a remeasure.',
     sites: [
       'no-floating-promises FilenameTitle > useLayoutEffect: document.fonts?.ready.then(() => { if (!cancelled) remeasure() })',
+    ],
+  },
+  'src/renderer/components/storage/BackupCard.tsx': {
+    why: 'act and runNow catch every action into the card\'s inline error.',
+    sites: [
+      'no-floating-promises BackupCard > onAction: void act(chooseFolder)',
+      'no-floating-promises BackupCard > onClick: void runNow()',
+      'no-floating-promises BackupCard > onClick: void act(turnOff)',
     ],
   },
   'src/renderer/hooks/useAuditLog.ts': {

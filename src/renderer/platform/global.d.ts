@@ -150,6 +150,8 @@ export interface MirallBridge {
   getBandwidth(): Promise<BandwidthLimits>
   setBandwidth(patch: BandwidthLimits): Promise<BandwidthLimits>
   browseShareFolder(): Promise<string | null>
+  browseBackupFolder(): Promise<string | null>
+  applyRestoredSettings(json: string): Promise<RendererConfig>
 
   notify(spec: NotificationSpec): Promise<NotificationShowResult>
   isWindowFocused(): Promise<boolean>

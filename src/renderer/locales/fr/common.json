@@ -23,7 +23,8 @@
     "displayName": "Nom affiché",
     "displayNamePlaceholder": "p. ex. Jean Dupont",
     "displayNameHelp": "C'est ainsi que votre équipe et vos amis vous verront.",
-    "restore": "Vous avez déjà une clé de récupération ? Restaurez votre identité"
+    "restore": "Vous avez déjà une clé de récupération ? Restaurez votre identité",
+    "restoreBackup": "Restaurer depuis un dossier de sauvegarde"
   },
   "topnav": {
     "feedback": "Envoyer un commentaire",
@@ -178,7 +179,9 @@
   "pathField": {
     "browse": "Parcourir…",
     "loading": "Chargement…",
-    "placeholder": "Choisir un emplacement…"
+    "placeholder": "Choisir un emplacement…",
+    "browseSubject": "Parcourir… ({{subject}})",
+    "changeSubject": "Modifier ({{subject}})"
   },
   "folder": {
     "fileCount_one": "{{count}} fichier",
@@ -1312,7 +1315,8 @@
     "startFreshHint": "Les données verrouillées sont mises de côté sur cet appareil, pas supprimées.",
     "startFreshTitle": "Repartir de zéro ?",
     "startFreshBody": "Mirall déplace les données verrouillées dans un dossier à part, juste à côté, et repart avec une nouvelle identité. Vos contacts ne reconnaîtront pas la nouvelle identité, et vos espaces n’y seront pas.",
-    "startFreshConfirm": "Mettre de côté et repartir"
+    "startFreshConfirm": "Mettre de côté et repartir",
+    "restoreBackup": "Restaurer une sauvegarde"
   },
   "restore": {
     "title": "Restauration de votre profil",
@@ -1367,5 +1371,41 @@
     "mismatchTitle": "Remplacer les données de cet appareil ?",
     "mismatchBody": "Cette clé de récupération appartient à une autre identité que les données de cet appareil. La restauration rend ces données illisibles, et c’est irréversible.",
     "mismatchConfirm": "Remplacer et restaurer"
+  },
+  "backup": {
+    "title": "Sauvegarde",
+    "desc": "Mirall conserve une copie chiffrée de vos espaces, listes de fichiers et réglages dans un dossier de votre choix — un autre disque ou un partage réseau. Les fichiers que vous partagez ne sont pas copiés ; ils restent dans vos propres dossiers.",
+    "needsRecoveryKey": "Restaurer une sauvegarde nécessite votre clé de récupération. Si vous ne l’avez pas encore enregistrée, faites-le d’abord dans le profil.",
+    "paused": "Les sauvegardes reprendront dès que votre profil restauré sera à jour auprès des personnes avec qui vous partagez des espaces.",
+    "running": "Sauvegarde en cours…",
+    "lastBackup": "Dernière sauvegarde {{when}}",
+    "never": "Pas encore de sauvegarde",
+    "runNow": "Sauvegarder maintenant",
+    "turnOff": "Désactiver",
+    "suspectTitle": "Cette sauvegarde est plus petite que d’habitude",
+    "suspectBody": "La dernière sauvegarde contient nettement moins que la précédente ({{reasons}}). Si c’était voulu, rien à faire — les sauvegardes plus anciennes sont conservées dans tous les cas.",
+    "reason": {
+      "profile-shrank": "un profil plus court",
+      "spaces-halved": "moins d’espaces",
+      "cores-halved": "moins d’éléments enregistrés",
+      "own-data-shrank": "moins de vos propres données"
+    },
+    "folderSubject": "dossier de sauvegarde"
+  },
+  "restoreBackup": {
+    "title": "Restaurer une sauvegarde",
+    "introChoose": "Choisissez le dossier qui contient votre sauvegarde Mirall et la clé de récupération qui l’ouvre.",
+    "introPick": "Choisissez la sauvegarde à restaurer. La plus récente est généralement la bonne.",
+    "folderLabel": "Dossier de sauvegarde",
+    "showBackups": "Afficher les sauvegardes",
+    "listLabel": "Sauvegardes",
+    "spaces_one": "{{count}} espace",
+    "spaces_other": "{{count}} espaces",
+    "flagged": "plus petite que d’habitude",
+    "none": "Ce dossier ne contient encore aucune sauvegarde pour cette clé de récupération.",
+    "caution": "Ne restaurez que si votre ancienne installation n’existe plus — la même identité sur deux appareils à la fois la rend inutilisable pour vos contacts. Après la restauration, Mirall récupère d’abord votre profil le plus récent auprès d’eux avant que vous puissiez modifier quoi que ce soit.",
+    "restore": "Restaurer",
+    "opening": "Ouverture de la sauvegarde…",
+    "restoring": "Restauration de la sauvegarde…"
   }
 }

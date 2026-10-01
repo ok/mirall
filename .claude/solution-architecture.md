@@ -1574,7 +1574,8 @@ identity can never write into the old backup), write-once objects sealed with XC
 padded to 4 KiB, one sealed manifest per snapshot named by sequence number, and a lease per writing
 install. The chosen folder is never created, so an unmounted share reads as offline. One run
 (`backup-run.js`) takes the lease, captures against the latest snapshot, adds the key vault and
-the user's preferences from `config.json`, and writes the snapshot last. Each snapshot records the
+the preferences that follow the user (`BACKUP_SETTING_GROUPS`: appearance, downloads, bandwidth caps,
+notifications) from `config.json`, and writes the snapshot last. Each snapshot records the
 store's vitals (`loss-check.js`); a drop against the last unflagged snapshot (profile shorter, spaces
 or cores halved, own data down by 30 %) flags it as **suspect**, until the drop has lasted a week and
 becomes the normal. Retention (`retention.js`, `prune.js`) always keeps the three newest unflagged
@@ -1583,7 +1584,8 @@ snapshots, so a burst of losses can never push the good ones out.
 `Backup` (the worker subsystem) runs two minutes after boot, hourly, and after changes: every append
 to an own bee (except the activity log and maintenance markers) is an everyday change, and a space
 created, joined or left or a new space key is urgent (`schedule-rules.js`). It does not start while
-the profile is held (restore mode); the status then reads `paused`. On quit a run in progress or a
+anything is held (restore mode, or a catalog still waiting for its space); the status then reads
+`paused`, and the backup starts in the same session once the last catalog is released. On quit a run in progress or a
 due one gets a short cutoff and writes nothing if it misses it. The folder and repository id live in `config.json` under `backup`
 (main is the writer; the worker asks through `MAIN_REQUEST.BACKUP_REMEMBER`). Requests:
 `backup:status`, `backup:configure`, `backup:turn-off`, `backup:run`; a status change pokes
@@ -1599,7 +1601,13 @@ moves the staging store in with `CORESTORE` last (`identity-adopt.js`). The prof
 come back **held**: `RestoreCatchUp` follows each one to the copies its space's members hold, releases
 a catalog writable as soon as it matches (or at once when the space has no other member), and ends
 restore mode when the profile matches. No backup runs while anything is held. Setting up a fresh
-profile, or adopting another key, drops a restore that has not reached a restart.
+profile, or adopting another key, drops a restore that has not reached a restart. The settings the
+snapshot carried go back through main (`src/main/backup-settings.js`), each group through the config
+store's own setter, and the window adopts them at once.
+
+**UI** (flag `localBackup`, which main also hands the renderer in the config snapshot): a Backup card
+on Settings → Storage (`BackupCard.tsx`), and "Restore from a backup" on onboarding and the locked
+screen (`RestoreBackupModal.tsx`), sharing the recovery-key chooser with the key-only restore.
 
 ## 17. Glossary
 

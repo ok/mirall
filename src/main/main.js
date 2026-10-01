@@ -9,6 +9,7 @@
 require('./asar-spawn.js').installAsarSpawnFix()
 const { app, BrowserWindow, dialog, ipcMain, protocol: electronProtocol } = require('electron')
 const { envOverride } = require('./env-overrides.js')
+const { rendererFeatures } = require('./feature-flags.js')
 const path = require('path')
 const fs = require('fs')
 const os = require('os')
@@ -163,7 +164,7 @@ let configStore = null
 // removes them (see config-store.js).
 function config() {
   if (!configStore) {
-    configStore = new ConfigStore(getDataDir()).load()
+    configStore = new ConfigStore(getDataDir(), { features: rendererFeatures(envOverride('MIRALL_FEATURE_FLAGS')) }).load()
   }
   return configStore
 }

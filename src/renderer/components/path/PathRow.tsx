@@ -13,6 +13,10 @@ interface PathRowProps {
   /** Omit for a display-only row — the field keeps its shape, the button is absent. */
   onAction?: () => void
   ariaDescribedBy?: string
+  /** What the path is, when one page shows several rows: the button's name says it after its label. */
+  subject?: string
+  /** The button stays focusable and announced, but does nothing while the owner is busy. */
+  actionDisabled?: boolean
   /** Forwarded to the button, for callers that must hand focus back to it. */
   actionRef?: Ref<HTMLButtonElement>
   /**
@@ -34,7 +38,7 @@ const FILL = {
 // either way; the button's presence says whether you can change it. The label follows the state,
 // not the caller: nothing picked is "Browse…", a path (or one still loading) is "Change". The
 // placeholder is muted TEXT, not `outline`: that token fails AA against every fill in both themes.
-export default function PathRow({ path, loading = false, onAction, ariaDescribedBy, actionRef, fill = 'low' }: PathRowProps) {
+export default function PathRow({ path, loading = false, onAction, ariaDescribedBy, subject, actionDisabled = false, actionRef, fill = 'low' }: PathRowProps) {
   const { t } = useTranslation()
   return (
     <div className="flex items-center gap-3">
@@ -51,9 +55,11 @@ export default function PathRow({ path, loading = false, onAction, ariaDescribed
         <button
           ref={actionRef}
           type="button"
-          onClick={onAction}
+          onClick={actionDisabled ? undefined : onAction}
+          aria-label={subject ? t(path || loading ? 'pathField.changeSubject' : 'pathField.browseSubject', { subject }) : undefined}
           aria-describedby={ariaDescribedBy}
-          className="shrink-0 bg-surface-control text-accent rounded-xl px-5 py-3.5 font-headline font-bold text-sm hover:bg-surface-control-hover active:scale-95 transition-all focus-ring"
+          aria-disabled={actionDisabled || undefined}
+          className="shrink-0 bg-surface-control text-accent rounded-xl px-5 py-3.5 font-headline font-bold text-sm hover:bg-surface-control-hover active:scale-95 transition-all focus-ring aria-disabled:opacity-50 aria-disabled:cursor-not-allowed"
         >
           {path || loading ? t('actions.change') : t('pathField.browse')}
         </button>

@@ -1,4 +1,4 @@
-// Storage settings: the download-folder picker and App Storage.
+// Storage settings: the download-folder picker, App Storage and, when the feature is on, the backup.
 import InlineError from '../../components/primitives/InlineError.js'
 import { useState, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -8,6 +8,7 @@ import { useQuery } from '../../store/useQuery.js'
 import { useMainQuery } from '../../store/useMainQuery.js'
 import { useDownloadRootStatus } from '../../hooks/useDownloadRootStatus.js'
 import AppStorageCard from '../../components/storage/AppStorageCard.js'
+import BackupCard from '../../components/storage/BackupCard.js'
 import { useRunAction } from '../../hooks/useRunAction.js'
 import PathRow from '../../components/path/PathRow.js'
 import PageHeader from '../../components/layout/PageHeader.js'
@@ -16,6 +17,8 @@ import { useErrorText } from '../../hooks/useErrorText.js'
 
 // Module-level so the entry's scope list is one array, not a fresh literal per render.
 const STORAGE_SCOPES = [{ kind: 'files' }, { kind: 'shares' }, { kind: 'share-files' }, { kind: 'storage' }]
+// The backup service pokes the storage scope whenever its status changes.
+const BACKUP_SCOPES = [{ kind: 'storage' }]
 
 interface StorageSettingsProps {
   onBack: () => void
@@ -42,6 +45,7 @@ export default function StorageSettings({ onBack, onOpenActivityLogSettings, onO
   // id the VIEW pins) — and the storage scope a finished measurement pokes. The coalesce window
   // matters here: an owned-folder scan pokes files-updated in bursts, and this read walks the store.
   const { data: info, loading } = useQuery('storage:info', {}, STORAGE_SCOPES, { coalesceMs: 750 })
+  const { data: backup } = useQuery('backup:status', {}, BACKUP_SCOPES)
 
   // The categories are measured on a schedule; opening the screen measures them now, and the
   // measurement's poke replaces the stored one on screen. It waits on any compaction in flight, so it
@@ -134,6 +138,13 @@ export default function StorageSettings({ onBack, onOpenActivityLogSettings, onO
               <SectionHeading>{t('storageSettings.appStorage')}</SectionHeading>
               <AppStorageCard info={info} onOpenActivityLogSettings={onOpenActivityLogSettings} onOpenSpace={onOpenSpace} />
             </section>
+
+            {backup?.enabled && (
+              <section>
+                <SectionHeading>{t('backup.title')}</SectionHeading>
+                <BackupCard status={backup} />
+              </section>
+            )}
           </div>
         )}
       </div>

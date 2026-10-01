@@ -64,6 +64,7 @@ class ConfigStore {
   constructor(dataDir, opts = {}) {
     this._dataDir = dataDir
     this._storageDir = opts.storageDir || path.join(dataDir, 'app-storage')
+    this._features = { ...(opts.features || {}) }
     this._file = path.join(dataDir, CONFIG_FILENAME)
     this._data = defaults()
     this._dirty = false
@@ -172,7 +173,7 @@ class ConfigStore {
         relayMode: d.network.relayMode,
         relay: d.network.relay ? { ...d.network.relay } : null,
       },
-      features: {},
+      features: { ...this._features },
     }
   }
 

@@ -51,10 +51,15 @@ function readFeatureFlags(overrideJson) {
   return flags
 }
 
+// The flags the renderer may observe, resolved once for the config store's snapshot.
+function rendererFeatures(overrideJson) {
+  return { localBackup: readFeatureFlags(overrideJson).localBackup === true }
+}
+
 // Test-only: drop the boot cache between cases.
 function _resetForTests() {
   cache = null
 }
 
 // test seam: _resetForTests is exported for tests only.
-module.exports = { primeFeatureFlags, readFeatureFlags, _resetForTests }
+module.exports = { primeFeatureFlags, readFeatureFlags, rendererFeatures, _resetForTests }
