@@ -31,7 +31,7 @@ export default async function s52({ runDir, bootstrap }) {
       assert(await A.hasText('Download history'), 'the download-history row renders')
       assert(await A.hasText('Other'), 'the other row renders')
       assert(await A.hasText('App updates'), 'the app-updates row renders')
-      assert(await A.hasText('Replaced records'), 'the replaced-records row renders')
+      assert(!(await A.hasText('Replaced records')), 'old record versions sit in other, not a row of their own')
       assert(await A.has({ contains: 'Storage by category:' }), 'the meter carries one label naming every category')
       assert(!(await A.hasText('App database')), 'the unexplained residual row is gone')
       await A.shot('s52-storage-breakdown', runDir)

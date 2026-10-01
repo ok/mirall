@@ -283,7 +283,7 @@ to the overlay index, the Activity Log and the download history from per-core on
 (`storage-breakdown.js`). Replaced records (stored minus live, per local bee) take a stream over every
 bee, so they are measured by `storage:measure` and the sweeps' 6-hourly tick, kept in `reclaim-meta`
 as `storage-history`, and read back on every `storage:info`; history of bees whose own row already
-carries it is not counted twice. A measurement ends in `event:storage-updated`, a poke on the
+carries it is not counted twice. The screen shows them inside Other. A measurement ends in `event:storage-updated`, a poke on the
 `storage` scope. `storage:free-up` compacts the index and requests the rewrite of every bee over the
 1 MB bar; the renderer then restarts the worker when any were requested. Main keeps its own half:
 every update pass ends in a prune of the update store (`src/main/update-cache.js`), which clears every

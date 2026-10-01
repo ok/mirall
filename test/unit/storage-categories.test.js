@@ -22,7 +22,7 @@ test('the measured install shows Free up, with one segment per category in the o
   t.alike(r.categories.map((x) => x.id), Object.values(STORAGE_CATEGORY))
   t.is(r.categories[0].bytes, 1.9e6, 'Spaces is their sum')
   t.is(r.categories[4].bytes, 2.0e9, 'app updates come from main')
-  t.is(r.categories[6].bytes, 53.1e6 + 5e6, 'other takes the store remainder and the rest of the folder')
+  t.is(r.categories[5].bytes, 53.1e6 + 625e6 + 5e6, 'other takes the store remainder, old record versions and the rest of the folder')
   t.is(r.reclaimable, 625e6 + 1.73e9)
   t.ok(r.showFreeUp)
 })
@@ -43,5 +43,5 @@ test('no info yet: nothing to show', (t) => {
 test('a folder read that lags the store never makes the total smaller than its parts', (t) => {
   const r = storageCategories(info({ totalDiskUsage: 100, folderBytes: 50 }), { bytes: 30, reclaimableBytes: 0 })
   t.is(r.total, 130)
-  t.is(r.categories[6].bytes, 0, 'nothing outside the store and the updates')
+  t.is(r.categories[5].bytes, 0, 'nothing outside the store and the updates')
 })

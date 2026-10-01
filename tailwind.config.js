@@ -32,7 +32,6 @@ module.exports = {
         'chart-4': 'var(--color-chart-4)',
         'chart-5': 'var(--color-chart-5)',
         'chart-6': 'var(--color-chart-6)',
-        'chart-7': 'var(--color-chart-7)',
         'on-surface': 'var(--color-on-surface)',
         'on-surface-variant': 'var(--color-on-surface-variant)',
         'on-background': 'var(--color-on-background)',

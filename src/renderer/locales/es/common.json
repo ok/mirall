@@ -644,16 +644,15 @@
     "downloadHistory": "Historial de descargas",
     "downloadHistoryDesc": "Registros de archivos descargados y transferencias pendientes.",
     "other": "Otros",
-    "otherDesc": "Perfiles, ajustes y datos internos del motor de almacenamiento, incluidos datos eliminados pendientes de compactar.",
+    "otherDesc": "Perfiles, ajustes, versiones anteriores de los registros internos de Mirall y datos internos del motor de almacenamiento, incluidos datos eliminados pendientes de compactar.",
     "rowLabel": "{{heading}}, {{size}}",
     "unnamedSpace": "Espacio sin nombre",
     "meterLabel": "Almacenamiento por categoría: {{list}}",
     "spaces": "Espacios",
     "updates": "Actualizaciones de la app",
-    "history": "Registros reemplazados",
     "freeUp": {
       "title": "Se pueden liberar {{size}}",
-      "desc": "Actualizaciones antiguas y registros reemplazados. Tus archivos, espacios y miembros no se tocan. Mirall reinicia brevemente su servicio en segundo plano.",
+      "desc": "Actualizaciones antiguas y versiones anteriores de los registros internos de Mirall. Tus archivos, espacios y miembros no se tocan. Mirall reinicia brevemente su servicio en segundo plano.",
       "button": "Liberar {{size}}",
       "running": "Liberando espacio…",
       "phase": {
@@ -666,7 +665,6 @@
       "doneDesc": "Mirall ahora usa {{total}}."
     },
     "updatesDesc": "Actualizaciones que Mirall ha descargado.",
-    "historyDesc": "Copias anteriores de registros que Mirall ya ha actualizado.",
     "spaceRow": "Espacio: {{name}}",
     "open": "Abrir",
     "openSpace": "Abrir {{name}}"

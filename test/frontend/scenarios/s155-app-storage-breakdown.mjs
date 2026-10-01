@@ -16,7 +16,7 @@ export default async function s155({ runDir, bootstrap }) {
       await A.createSpaceOnly('Aurora')
       await A.openManageStorage()
       await A.click({ role: 'button', name: 'Show details' })
-      await A.waitText('Replaced records', 10000)
+      await A.waitText('App updates', 10000)
     })
     await r.ok('nothing to free on a fresh profile', async () => {
       assert(!(await A.hasText('can be freed')), 'no Free up row')

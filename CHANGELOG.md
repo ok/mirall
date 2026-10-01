@@ -29,8 +29,8 @@ relay by its label and a shortened key.
 - **See what takes up Mirall's storage.** Settings → Storage used to put
 most of Mirall's data under one "App database" line. It now counts the whole
 Mirall folder, app updates included, and lists each space, the shared-file
-index, the Activity Log, download history, app updates, replaced records and
-everything else separately. When enough can be freed, "Free up" clears it in
+index, the Activity Log, download history, app updates and everything else
+separately. When enough can be freed, "Free up" clears it in
 one step.
 
 #### Changed

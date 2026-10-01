@@ -670,16 +670,15 @@
     "downloadHistory": "Download history",
     "downloadHistoryDesc": "Records of downloaded files and pending transfers.",
     "other": "Other",
-    "otherDesc": "Profiles, settings, and storage-engine overhead, including deleted data waiting to be compacted.",
+    "otherDesc": "Profiles, settings, older versions of Mirall's own records, and storage-engine overhead, including deleted data waiting to be compacted.",
     "rowLabel": "{{heading}}, {{size}}",
     "unnamedSpace": "Unnamed space",
     "meterLabel": "Storage by category: {{list}}",
     "spaces": "Spaces",
     "updates": "App updates",
-    "history": "Replaced records",
     "freeUp": {
       "title": "{{size}} can be freed",
-      "desc": "Old app updates and replaced records. Your files, spaces and members are not touched. Mirall briefly restarts its background service.",
+      "desc": "Old app updates and older versions of Mirall's own records. Your files, spaces and members are not touched. Mirall briefly restarts its background service.",
       "button": "Free up {{size}}",
       "running": "Freeing up space…",
       "phase": {
@@ -692,7 +691,6 @@
       "doneDesc": "Mirall now uses {{total}}."
     },
     "updatesDesc": "Updates Mirall downloaded.",
-    "historyDesc": "Earlier copies of records Mirall has since updated.",
     "spaceRow": "Space: {{name}}",
     "open": "Open",
     "openSpace": "Open {{name}}"

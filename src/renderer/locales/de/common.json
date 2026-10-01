@@ -644,16 +644,15 @@
     "downloadHistory": "Download-Verlauf",
     "downloadHistoryDesc": "Einträge zu geladenen Dateien und ausstehenden Übertragungen.",
     "other": "Sonstiges",
-    "otherDesc": "Profile, Einstellungen und Verwaltungsdaten der Speicher-Engine, einschließlich gelöschter Daten, die noch komprimiert werden.",
+    "otherDesc": "Profile, Einstellungen, ältere Versionen von Miralls eigenen Einträgen und Verwaltungsdaten der Speicher-Engine, einschließlich gelöschter Daten, die noch komprimiert werden.",
     "rowLabel": "{{heading}}, {{size}}",
     "unnamedSpace": "Unbenannter Raum",
     "meterLabel": "Speicher nach Kategorie: {{list}}",
     "spaces": "Räume",
     "updates": "App-Updates",
-    "history": "Ersetzte Einträge",
     "freeUp": {
       "title": "{{size}} können freigegeben werden",
-      "desc": "Alte App-Updates und ersetzte Einträge. Deine Dateien, Räume und Mitglieder bleiben unberührt. Mirall startet seinen Hintergrunddienst kurz neu.",
+      "desc": "Alte App-Updates und ältere Versionen von Miralls eigenen Einträgen. Deine Dateien, Räume und Mitglieder bleiben unberührt. Mirall startet seinen Hintergrunddienst kurz neu.",
       "button": "{{size}} freigeben",
       "running": "Speicher wird freigegeben…",
       "phase": {
@@ -666,7 +665,6 @@
       "doneDesc": "Mirall belegt jetzt {{total}}."
     },
     "updatesDesc": "Updates, die Mirall heruntergeladen hat.",
-    "historyDesc": "Frühere Kopien von Einträgen, die Mirall inzwischen aktualisiert hat.",
     "spaceRow": "Raum: {{name}}",
     "open": "Öffnen",
     "openSpace": "{{name}} öffnen"

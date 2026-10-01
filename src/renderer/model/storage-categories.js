@@ -10,7 +10,6 @@ export const STORAGE_CATEGORY = Object.freeze({
   ACTIVITY: 'activity-log',
   DOWNLOADS: 'download-history',
   UPDATES: 'updates',
-  HISTORY: 'history',
   OTHER: 'other',
 })
 /** @typedef {(typeof STORAGE_CATEGORY)[keyof typeof STORAGE_CATEGORY]} StorageCategoryId */
@@ -34,7 +33,8 @@ export function storageCategories(info, updates) {
   if (!info) return { total: 0, spaces: [], categories: [], reclaimable: 0, showFreeUp: false }
   const updateBytes = updates?.bytes ?? 0
   const total = Math.max(info.folderBytes, info.totalDiskUsage + updateBytes)
-  // Keys, settings, logs and the renderer's caches sit in the data folder beside the store.
+  // Keys, settings, logs and the renderer's caches sit in the data folder beside the store; old
+  // versions of Mirall's own records are counted with them, since no one acts on them by name.
   const outside = Math.max(0, total - info.totalDiskUsage - updateBytes)
   const categories = [
     { id: STORAGE_CATEGORY.SPACES, bytes: info.spaces.reduce((n, s) => n + spaceBytes(s), 0) },
@@ -42,8 +42,7 @@ export function storageCategories(info, updates) {
     { id: STORAGE_CATEGORY.ACTIVITY, bytes: info.activityLogBytes },
     { id: STORAGE_CATEGORY.DOWNLOADS, bytes: info.downloadHistoryBytes },
     { id: STORAGE_CATEGORY.UPDATES, bytes: updateBytes },
-    { id: STORAGE_CATEGORY.HISTORY, bytes: info.historyBytes },
-    { id: STORAGE_CATEGORY.OTHER, bytes: info.otherBytes + outside },
+    { id: STORAGE_CATEGORY.OTHER, bytes: info.otherBytes + info.historyBytes + outside },
   ]
   const reclaimable = info.reclaimableBytes + (updates?.reclaimableBytes ?? 0)
   return { total, spaces: info.spaces, categories, reclaimable, showFreeUp: reclaimable >= info.freeUpMinBytes }

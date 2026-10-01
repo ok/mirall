@@ -24,8 +24,7 @@ const CATEGORY_COLOR: Record<StorageCategoryId, string> = {
   'activity-log': 'bg-chart-3',
   'download-history': 'bg-chart-4',
   updates: 'bg-chart-5',
-  history: 'bg-chart-6',
-  other: 'bg-chart-7',
+  other: 'bg-chart-6',
 }
 
 interface AppStorageCardProps {
@@ -67,7 +66,6 @@ export default function AppStorageCard({ info, onOpenActivityLogSettings, onOpen
     'activity-log': t('storageSettings.activityLog'),
     'download-history': t('storageSettings.downloadHistory'),
     updates: t('storageSettings.updates'),
-    history: t('storageSettings.history'),
     other: t('storageSettings.other'),
   }
   const meterLabel = t('storageSettings.meterLabel', {
@@ -124,12 +122,6 @@ export default function AppStorageCard({ info, onOpenActivityLogSettings, onOpen
             />
             <StorageCategoryRow color={CATEGORY_COLOR['download-history']} heading={heading['download-history']} desc={t('storageSettings.downloadHistoryDesc')} bytes={bytesOf('download-history')} />
             <StorageCategoryRow color={CATEGORY_COLOR.updates} heading={heading.updates} desc={t('storageSettings.updatesDesc')} bytes={bytesOf('updates')} />
-            <StorageCategoryRow
-              color={CATEGORY_COLOR.history}
-              heading={heading.history}
-              desc={t('storageSettings.historyDesc')}
-              bytes={bytesOf('history')}
-            />
             <StorageCategoryRow color={CATEGORY_COLOR.other} heading={heading.other} desc={t('storageSettings.otherDesc')} bytes={bytesOf('other')} />
           </ul>
         </div>
