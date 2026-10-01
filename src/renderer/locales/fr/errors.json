@@ -50,5 +50,11 @@
   "approveBlockedDivergence": "Les approbations sont suspendues tant que le conflit d'identité du propriétaire n'est pas résolu.",
   "wrongPassphrase": "Cette phrase secrète ne correspond pas à cette clé de récupération. Vérifiez-la et réessayez.",
   "recoveryFileInvalid": "Ce fichier n’est pas une clé de récupération que cette version de Mirall peut lire.",
-  "backupCorrupt": "Cette sauvegarde est endommagée et ne peut pas être restaurée. Essayez une sauvegarde plus ancienne."
+  "backupCorrupt": "Cette sauvegarde est endommagée et ne peut pas être restaurée. Essayez une sauvegarde plus ancienne.",
+  "backupForeignIdentity": "Cette sauvegarde appartient à une autre identité. Restaurez-la avec la clé de récupération de cette identité, ou choisissez un autre dossier.",
+  "backupForeignRepo": "Ce dossier contient une autre sauvegarde Mirall que celle configurée ici. Choisissez à nouveau le dossier.",
+  "backupOtherDevice": "Un autre ordinateur sauvegarde dans ce dossier. Utilisez un dossier distinct pour chaque ordinateur.",
+  "backupTargetDenied": "Mirall n'est pas autorisé à écrire dans le dossier de sauvegarde. Vérifiez ses autorisations.",
+  "backupTargetFull": "Le disque du dossier de sauvegarde est plein.",
+  "backupTargetOffline": "Le dossier de sauvegarde n'est pas disponible. Connectez le disque ou le partage réseau, puis réessayez."
 }
