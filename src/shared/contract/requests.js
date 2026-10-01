@@ -46,6 +46,17 @@ export const ARG = Object.freeze({
 export const REQUESTS = Object.freeze({
   'audit:actors': { kind: 'query', args: {} },
   'backup:configure': { kind: 'command', args: { folder: { type: ARG.path, max: ARG_MAX.path } } },
+  'backup:inspect': { kind: 'command', deadlineMs: 0, args: {
+    content: { type: ARG.string, max: ARG_MAX.recoveryFile },
+    folder: { type: ARG.path, max: ARG_MAX.path },
+    passphrase: { type: ARG.string, max: ARG_MAX.text },
+  } },
+  'backup:restore': { kind: 'command', deadlineMs: 0, args: {
+    content: { type: ARG.string, max: ARG_MAX.recoveryFile },
+    folder: { type: ARG.path, max: ARG_MAX.path },
+    passphrase: { type: ARG.string, max: ARG_MAX.text },
+    snapshot: { type: ARG.string, max: ARG_MAX.key },
+  } },
   'backup:run': { kind: 'command', deadlineMs: 0, args: {} },
   'backup:status': { kind: 'query', args: {} },
   'backup:turn-off': { kind: 'command', args: {} },

@@ -9,7 +9,7 @@ import { broadcastProfileUpdate } from '../../shared/network/identity-frames.js'
 import { refreshAuditSelfName } from '../audit-refs.js'
 import { AppError, errorMessage } from '../../shared/core/errors.js'
 import { CODES } from '../../shared/contract/errors.js'
-import { cancelPendingAdoption } from '../../shared/core/identity-adopt.js'
+import { cancelPendingRestore } from '../../shared/core/identity-adopt.js'
 import { getStoragePath } from '../../shared/core/store.js'
 
 /** @param {WorkerIpc} ipc @param {{ log: Logger }} deps */
@@ -17,7 +17,7 @@ export function registerProfile(ipc, { log }) {
   ipc.handle('profile:get', async () => await getProfile())
   ipc.handle('profile:set', async (msg) => {
     await setProfile({ displayName: msg.displayName, avatar: msg.avatar })
-    cancelPendingAdoption(getStoragePath())
+    cancelPendingRestore(getStoragePath())
     // profile:set answers with the profile it wrote, or fails: never with null.
     const profile = await getProfile()
     if (!profile) throw new AppError(CODES.UNKNOWN, 'the profile could not be read back')

@@ -18,6 +18,7 @@ import { RESTORE_VERDICT } from '../../src/shared/contract/restore-verdict.js'
 import { offlineMemberRegistry } from '../helpers/store.js'
 import { createFakeIpc } from '../helpers/fake-ipc.js'
 import { tmpDir } from '../helpers/bare-tmp.js'
+import { createPassphraseThrottle } from '../../src/shared/core/identity-recovery.js'
 
 const quiet = { debug() {}, info() {}, warn() {}, error() {} }
 const KEK = b4a.toString(crypto.randomBytes(32), 'hex')
@@ -101,7 +102,7 @@ test('a key adopted on an unused identity waits for the next worker and comes ba
   const masterSecret = crypto.randomBytes(32)
   const { root, fake } = await bootRoot(t, config, { masterSecret })
   const content = await sealRecoveryKey(PASS, { createdAt: '2026-10-01T00:00:00Z' })
-  registerIdentity(fake.ipc, { storagePath: storage, identityKEK: KEK, log: quiet, lockedBy: null })
+  registerIdentity(fake.ipc, { storagePath: storage, identityKEK: KEK, log: quiet, lockedBy: null, openRecovery: createPassphraseThrottle() })
 
   t.alike(await fake.call('identity:import-recovery', { content, passphrase: PASS, replace: false }), { ok: true })
   t.ok(fs.existsSync(path.join(dataDir, ADOPT_FILE)), 'the adoption waits beside the store')
@@ -119,7 +120,7 @@ test('a key is not adopted over an identity in use', async (t) => {
   const { fake } = await bootRoot(t, config, { masterSecret: crypto.randomBytes(32) })
   await setProfile({ displayName: 'In use' })
   const content = await sealRecoveryKey(PASS, { createdAt: '2026-10-01T00:00:00Z' })
-  registerIdentity(fake.ipc, { storagePath: storage, identityKEK: KEK, log: quiet, lockedBy: null })
+  registerIdentity(fake.ipc, { storagePath: storage, identityKEK: KEK, log: quiet, lockedBy: null, openRecovery: createPassphraseThrottle() })
   t.is(await codeOf(fake.call('identity:import-recovery', { content, passphrase: PASS, replace: false })), 'NOT_AUTHORIZED')
 })
 
@@ -154,7 +155,7 @@ test('a key adopted over its own data on a locked device is held, and released a
   await first.root.close()
 
   const locked = createFakeIpc()
-  registerIdentity(locked.ipc, { storagePath: storage, identityKEK: KEK, log: quiet, lockedBy: 'IDENTITY_UNLOCK_FAILED' })
+  registerIdentity(locked.ipc, { storagePath: storage, identityKEK: KEK, log: quiet, lockedBy: 'IDENTITY_UNLOCK_FAILED', openRecovery: createPassphraseThrottle() })
   t.alike(await locked.call('identity:import-recovery', { content, passphrase: PASS, replace: false }), { ok: true })
   t.ok(fs.existsSync(path.join(dataDir, RESTORE_HOLD_FILE)), 'held even over its own data, which may be an older copy')
 
