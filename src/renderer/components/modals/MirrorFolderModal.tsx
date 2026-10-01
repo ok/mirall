@@ -3,7 +3,7 @@
 import InlineError from '../primitives/InlineError.js'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import Icon from '../primitives/Icon.js'
+import Callout from '../primitives/Callout.js'
 import Avatar from '../primitives/Avatar.js'
 import MountPathField from '../path/MountPathField.js'
 import FilenameTitle from '../primitives/FilenameTitle.js'
@@ -141,12 +141,9 @@ export default function MirrorFolderModal({
         onBrowse={() => { void wizard.browse() }}
       />
 
-      <div className="bg-warning-container rounded-xl p-3.5 flex items-start gap-3">
-        <Icon name="lock" size={18} className="text-on-warning-container shrink-0 mt-0.5" />
-        <p className="text-xs text-on-warning-container leading-relaxed">
-          {t('mirrorFolder.readOnlyWarning', { owner: ownerName })}
-        </p>
-      </div>
+      <Callout tone="warning" icon="lock">
+        {t('mirrorFolder.readOnlyWarning', { owner: ownerName })}
+      </Callout>
     </MountWizardStep>
   )
 }

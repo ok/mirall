@@ -5,7 +5,7 @@ import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import { useRunAction } from '../hooks/useRunAction.js'
 import { fixStepsFor } from '../model/connectivity.js'
 import Button from '../components/primitives/Button.js'
-import Icon from '../components/primitives/Icon.js'
+import Callout from '../components/primitives/Callout.js'
 import PageHeader from '../components/layout/PageHeader.js'
 
 interface Props {
@@ -145,19 +145,16 @@ export default function ConnectionProblemScreen({ onBack, onContinue, onShowDeta
               </span>
             </div>
 
-            <div className="rounded-xl bg-surface-container-lowest p-5 flex items-start gap-3">
-              <Icon name="info" size={20} className="shrink-0 text-on-surface-variant mt-0.5" />
-              <p className="text-sm text-on-surface-variant leading-relaxed">
-                {t(`connectionProblem.stillWorks.${tone}`)}
-                <button
-                  type="button"
-                  onClick={onContinue}
-                  className="font-bold text-accent underline underline-offset-2 ml-1 rounded-sm focus-ring"
-                >
-                  {t('connectionProblem.continueToSpaces')}
-                </button>
-              </p>
-            </div>
+            <Callout tone="note">
+              {t(`connectionProblem.stillWorks.${tone}`)}
+              <button
+                type="button"
+                onClick={onContinue}
+                className="font-bold text-accent underline underline-offset-2 ml-1 rounded-sm focus-ring"
+              >
+                {t('connectionProblem.continueToSpaces')}
+              </button>
+            </Callout>
           </div>
         )}
       </div>

@@ -14,6 +14,7 @@ import Badge from '../../components/primitives/Badge.js'
 import Button from '../../components/primitives/Button.js'
 import CopyButton from '../../components/primitives/CopyButton.js'
 import Icon from '../../components/primitives/Icon.js'
+import Callout from '../../components/primitives/Callout.js'
 import Toggle from '../../components/primitives/Toggle.js'
 import SectionHeading from '../../components/layout/SectionHeading.js'
 import ActionMenu from '../../components/primitives/ActionMenu.js'
@@ -345,9 +346,7 @@ function ConfirmRelayLossModal({ intent, name, onClose, onConfirm }: ConfirmRela
       onClose={onClose}
       onConfirm={onConfirm}
     >
-      <div role="status" className="rounded-xl bg-warning-container px-5 py-3">
-        <p className="text-sm text-on-warning-container">{t('networkSettings.relays.restartWarningRemove')}</p>
-      </div>
+      <Callout tone="warning" role="status">{t('networkSettings.relays.restartWarningRemove')}</Callout>
     </ConfirmDestructiveModal>
   )
 }
