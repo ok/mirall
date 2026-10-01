@@ -78,7 +78,7 @@ const remembered = (fake) => fake.events.filter((e) => e.type === MAIN_REQUEST_F
 
 test('with the feature off there is no service, and the status says so', async (t) => {
   const { root, fake } = await bootWith(t, { enabled: false })
-  t.is(root.backup, null)
+  t.is(root.backup(), null)
   t.is((await fake.call('backup:status', {})).enabled, false)
   t.is(await codeOf(fake.call('backup:run', {})), 'NOT_FOUND')
 })
@@ -95,12 +95,12 @@ test('a run writes a snapshot, reports it, and has main remember the new reposit
 
 test('a change worth backing up arms the next run', async (t) => {
   const { root } = await bootWith(t)
-  await root.backup.run('manual')
+  await root.backup().run('manual')
   await setProfile({ displayName: 'Changed' })
-  t.is(root.backup.dirty?.urgency, 'normal', 'an everyday change')
-  t.ok(root.backup.wake, 'and a run is scheduled')
+  t.is(root.backup().dirty?.urgency, 'normal', 'an everyday change')
+  t.ok(root.backup().wake, 'and a run is scheduled')
   await createSpace('Urgent')
-  t.is(root.backup.dirty?.urgency, 'urgent', 'a new space is urgent')
+  t.is(root.backup().dirty?.urgency, 'urgent', 'a new space is urgent')
 })
 
 test('the folder can never be inside the app data folder, and a new folder starts a new backup', async (t) => {
@@ -188,23 +188,23 @@ test('files a folder browser leaves in the backup do not stop pruning', async (t
 
 test('changes made while a run goes are kept for the next run; earlier ones are done', async (t) => {
   const { root } = await bootWith(t)
-  root.backup.note('urgent')
-  const run = root.backup.run('manual')
-  root.backup.note('normal')
+  root.backup().note('urgent')
+  const run = root.backup().run('manual')
+  root.backup().note('normal')
   await run
-  t.is(root.backup.dirty?.urgency, 'normal', 'only the change that came during the run is still due')
+  t.is(root.backup().dirty?.urgency, 'normal', 'only the change that came during the run is still due')
 })
 
 test('settings that are not preferences do not make a run look changed', async (t) => {
   const { root, home } = await bootWith(t)
   const configFile = path.join(home, 'config.json')
   fs.writeFileSync(configFile, JSON.stringify({ appearance: { theme: 'dark' }, window: { bounds: { x: 1 } } }))
-  await root.backup.run('manual')
+  await root.backup().run('manual')
   fs.writeFileSync(configFile, JSON.stringify({ appearance: { theme: 'dark' }, window: { bounds: { x: 200 } } }))
-  const again = await root.backup.run('manual')
+  const again = await root.backup().run('manual')
   t.ok(again.lastSnapshot)
   const before = again.lastSnapshot
-  t.is((await root.backup.run('manual')).lastSnapshot, before, 'moving the window wrote no snapshot')
+  t.is((await root.backup().run('manual')).lastSnapshot, before, 'moving the window wrote no snapshot')
 })
 
 test('after a restart the status shows the latest snapshot and its flag again', async (t) => {
@@ -237,7 +237,7 @@ test('while a restore is catching up, the backup reports itself paused', async (
   const root = await boot(config, { ipc: fake.ipc, log: quiet, swarm: false, masterSecret: crypto.randomBytes(32), memberRegistry: offlineMemberRegistry })
   t.teardown(async () => { try { await root.close() } catch {} }, { order: 1 })
   registerBackup(fake.ipc, { backup: root.backup, paused: root.backupPaused })
-  t.is(root.backup, null)
+  t.is(root.backup(), null)
   const status = await fake.call('backup:status', {})
   t.is(status.state, 'paused')
   t.is(status.enabled, true)
