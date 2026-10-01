@@ -10,10 +10,10 @@
 /** @import { IdentityLockCode } from '../../shared/contract/errors.js' */
 /** @import { RestoreProgress } from '../../shared/contract/responses.js' */
 import { requireHost } from '../../shared/core/client-trust.js'
-import { assertPassphrase, openRecoveryFile, wipeSecret } from '../../shared/core/identity-recovery.js'
+import { assertPassphrase, wipeSecret } from '../../shared/core/identity-recovery.js'
 import { sealMasterSecret, sealPendingAdoption, storageHoldsIdentity } from '../../shared/core/identity.js'
 import { setAsideLockedData } from '../../shared/core/identity-set-aside.js'
-import { requestSetAside } from '../../shared/core/identity-adopt.js'
+import { requestSetAside, cancelPendingRestore } from '../../shared/core/identity-adopt.js'
 import { writeRestoreHold, profileHeld, PROFILE_BEE } from '../../shared/core/restore-hold.js'
 import { getProfile } from '../../shared/spaces/profile.js'
 import { listSpaces } from '../../shared/spaces/space.js'
@@ -22,25 +22,17 @@ import { sealRecoveryKey } from '../../shared/core/store.js'
 import { AppError } from '../../shared/core/errors.js'
 import { CODES } from '../../shared/contract/errors.js'
 
-// Each wrong passphrase doubles the wait before the next attempt, to a ceiling. The Argon2 cost is
-// what stands against an attacker holding the file; this only slows guessing through the app.
-const RETRY_BASE_MS = 1000
-const RETRY_CEILING_MS = 30000
-/** @param {number} failures */
-const retryDelay = (failures) => (failures === 0 ? 0 : Math.min(RETRY_CEILING_MS, RETRY_BASE_MS * 2 ** (failures - 1)))
-
 // An identity nobody has used yet — no profile, no spaces — is all a fresh install holds, so a key
 // may replace it.
-async function isUnclaimed() {
+export async function isUnclaimed() {
   return !profileHeld() && (await getProfile()) === null && (await listSpaces()).length === 0
 }
 
 /**
  * @param {WorkerIpc} ipc
- * @param {{ storagePath: string, identityKEK: string | null | undefined, log: Logger, lockedBy: IdentityLockCode | null, restoreStatus?: () => RestoreProgress | null }} deps
+ * @param {{ storagePath: string, identityKEK: string | null | undefined, log: Logger, lockedBy: IdentityLockCode | null, openRecovery: (text: string, passphrase: string) => Promise<{ masterSecret: Uint8Array }>, restoreStatus?: () => RestoreProgress | null }} deps
  */
-export function registerIdentity(ipc, { storagePath, identityKEK, log, lockedBy, restoreStatus = () => null }) {
-  let failures = 0
+export function registerIdentity(ipc, { storagePath, identityKEK, log, lockedBy, openRecovery, restoreStatus = () => null }) {
 
   ipc.handle('identity:status', () => ({ locked: lockedBy !== null, code: lockedBy, restore: restoreStatus() }))
 
@@ -57,19 +49,11 @@ export function registerIdentity(ipc, { storagePath, identityKEK, log, lockedBy,
     // A key replaces a locked identity, or one nobody has used yet. Adopting it over an identity in use
     // would fork what peers hold of either.
     if (!lockedBy && !(await isUnclaimed())) throw new AppError(CODES.NOT_AUTHORIZED, 'a recovery key is adopted only over a locked or unused identity')
-    const wait = retryDelay(failures)
-    if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait))
-    let opened
-    try {
-      opened = await openRecoveryFile(content, passphrase)
-    } catch (err) {
-      if (err instanceof AppError && err.code === CODES.WRONG_PASSPHRASE) failures++
-      throw err
-    }
-    failures = 0
+    const opened = await openRecovery(content, passphrase)
     try {
       const provider = unlockProviderFor({ identityKEK })
       if (!lockedBy) {
+        cancelPendingRestore(storagePath)
         await sealPendingAdoption({ storagePath, provider, masterSecret: opened.masterSecret })
         log.info('identity: recovery key adopted; the next worker sets the unused identity aside and opens it')
         return /** @type {const} */ ({ ok: true })

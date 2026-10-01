@@ -100,8 +100,10 @@ export class Repository {
     return (await this.target.list(SNAPSHOTS)).filter((name) => SNAPSHOT_NAME.test(name)).sort().reverse()
   }
 
-  // The manifest, or null for one that does not open or does not describe a restorable snapshot.
+  // The manifest, or null for a name this repository never writes, or one that does not open or does not
+  // describe a restorable snapshot.
   async readSnapshot(name) {
+    if (!SNAPSHOT_NAME.test(name) || !(await this.target.has(`${SNAPSHOTS}/${name}`))) return null
     const plain = openBlob(this.keys.snapshot, await this.target.read(`${SNAPSHOTS}/${name}`), snapshotAd(name))
     if (!plain) return null
     let manifest
@@ -164,6 +166,12 @@ export class Repository {
       if (typeof lease?.lastRunAt === 'number' && now - lease.lastRunAt < LEASE_FRESH_MS) return lease
     }
     return null
+  }
+
+  // A restore is the old installation's end: its lease would otherwise keep the restored device from
+  // backing up into the same folder for a day.
+  async clearLeases() {
+    for (const file of await this.target.list(LEASES)) await this.target.remove(`${LEASES}/${file}`)
   }
 
   async writeLease(installId, now = Date.now()) {

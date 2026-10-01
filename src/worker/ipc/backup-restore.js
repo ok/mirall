@@ -1,0 +1,77 @@
+// @ts-check
+// Restoring from a backup folder: the snapshots the recovery key can open, and one of them staged to
+// replace this device's data when the worker restarts. Offered where a recovery key is — a locked
+// identity, or one nobody has used yet — and never over an identity in use. The old installation is
+// taken to be gone: its lease is cleared so this device can keep backing up into the same folder.
+
+/** @import { WorkerIpc } from '../../shared/core/ipc.js' */
+/** @import { Logger } from '../../shared/core/logger.js' */
+/** @import { IdentityLockCode } from '../../shared/contract/errors.js' */
+import { requireHost } from '../../shared/core/client-trust.js'
+import { wipeSecret } from '../../shared/core/identity-recovery.js'
+import { sealPendingAdoption } from '../../shared/core/identity.js'
+import { requestRestore, stagingPath, cancelPendingRestore } from '../../shared/core/identity-adopt.js'
+import { unlockProviderFor } from '../../shared/core/unlock-provider.js'
+import { isLocalBackupEnabled } from '../../shared/core/runtime-config.js'
+import { openBackup, listRestorable, stageRestore } from '../../shared/storage/backup/restore.js'
+import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../../shared/contract/main-requests.js'
+import { AppError } from '../../shared/core/errors.js'
+import { CODES } from '../../shared/contract/errors.js'
+import { isUnclaimed } from './identity.js'
+
+/**
+ * @param {WorkerIpc} ipc
+ * @param {{ storagePath: string, identityKEK: string | null | undefined, log: Logger, lockedBy: IdentityLockCode | null, openRecovery: (text: string, passphrase: string) => Promise<{ masterSecret: Uint8Array }> }} deps
+ */
+export function registerBackupRestore(ipc, { storagePath, identityKEK, log, lockedBy, openRecovery }) {
+  // One restore at a time: they share the staging folder.
+  let queue = Promise.resolve()
+
+  async function assertAllowed() {
+    if (!isLocalBackupEnabled()) throw new AppError(CODES.NOT_FOUND, 'the local backup is not enabled')
+    if (!lockedBy && !(await isUnclaimed())) throw new AppError(CODES.NOT_AUTHORIZED, 'a backup is restored only over a locked or unused identity')
+  }
+
+  /** @param {string} folder @param {string} snapshot @param {Uint8Array} masterSecret */
+  async function restore(folder, snapshot, masterSecret) {
+    cancelPendingRestore(storagePath)
+    const repo = await openBackup(folder, masterSecret)
+    const { hold, settings } = await stageRestore(repo, snapshot, stagingPath(storagePath))
+    await repo.clearLeases()
+    // Checked again: the staging can take long, and the identity may have been put to use meanwhile.
+    await assertAllowed()
+    await sealPendingAdoption({ storagePath, provider: unlockProviderFor({ identityKEK }), masterSecret })
+    await requestRestore(storagePath, { hold })
+    ipc.emit(MAIN_REQUEST_FRAME, { command: MAIN_REQUEST.BACKUP_REMEMBER, args: { folder, repoId: repo.repoId } })
+    log.info('backup: snapshot', snapshot, 'staged; the worker restarts to put it in place')
+    return settings
+  }
+
+  ipc.handle('backup:inspect', async ({ folder, content, passphrase }, ctx) => {
+    requireHost(ctx.client, 'only the host may read a backup')
+    await assertAllowed()
+    const { masterSecret } = await openRecovery(content, passphrase)
+    try {
+      return { snapshots: await listRestorable(await openBackup(folder, masterSecret)) }
+    } finally {
+      wipeSecret(masterSecret)
+    }
+  })
+
+  ipc.handle('backup:restore', async ({ folder, snapshot, content, passphrase }, ctx) => {
+    requireHost(ctx.client, 'only the host may restore a backup')
+    await assertAllowed()
+    const { masterSecret } = await openRecovery(content, passphrase)
+    const turn = queue.then(() => restore(folder, snapshot, masterSecret))
+    queue = turn.then(() => {}, () => {})
+    try {
+      return /** @type {const} */ ({ ok: true, settings: await turn })
+    } catch (err) {
+      // A restore that failed part-way leaves nothing for the next boot to apply.
+      cancelPendingRestore(storagePath)
+      throw err
+    } finally {
+      wipeSecret(masterSecret)
+    }
+  })
+}

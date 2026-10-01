@@ -21,6 +21,8 @@ import { registerStorage } from './ipc/storage.js'
 import { registerProfile } from './ipc/profile.js'
 import { registerIdentity } from './ipc/identity.js'
 import { registerBackup } from './ipc/backup.js'
+import { registerBackupRestore } from './ipc/backup-restore.js'
+import { createPassphraseThrottle } from '../shared/core/identity-recovery.js'
 import { applyPendingIdentityChange } from '../shared/core/identity-adopt.js'
 import { registerFeedback } from './ipc/feedback.js'
 import { registerDiagnostics } from './ipc/diagnostics.js'
@@ -173,6 +175,9 @@ armDataDirTripwire(bootstrap.storage)
 
 // Membership owns both halves of a knock — the live frame and the replicated fold — so it is
 // built before the root and hands back the two collaborators the root folds with.
+// One throttle for every request that opens a recovery file, locked worker or not.
+const openRecovery = createPassphraseThrottle()
+
 const { memberRegistry, handleMembershipControl, discardPendingSpace } =
   createMembership(ipc, { log, dropSpaceDownloadRoot })
 
@@ -183,7 +188,8 @@ const { memberRegistry, handleMembershipControl, discardPendingSpace } =
 async function serveLockedIdentity(code) {
   log.warn('identity locked, serving recovery only:', code)
   registerWorkerProcess(ipc, { stop: () => { safeShutdown('shutdown-request') } })
-  registerIdentity(ipc, { storagePath: bootstrap.storage, identityKEK: bootstrap.identityKEK, log, lockedBy: code })
+  registerIdentity(ipc, { storagePath: bootstrap.storage, identityKEK: bootstrap.identityKEK, log, lockedBy: code, openRecovery })
+  registerBackupRestore(ipc, { storagePath: bootstrap.storage, identityKEK: bootstrap.identityKEK, log, lockedBy: code, openRecovery })
   ipc.onClientAttach((client) => {
     ipc.emit('event:worker-ready', { epoch: ipc.epoch, head: ipc.head() }, { to: client })
   })
@@ -233,13 +239,14 @@ registerForeignFolders(ipc, { log, intents })
 
 registerProfile(ipc, { log })
 registerIdentity(ipc, {
-  storagePath: bootstrap.storage, identityKEK: bootstrap.identityKEK, log, lockedBy: null,
+  storagePath: bootstrap.storage, identityKEK: bootstrap.identityKEK, log, lockedBy: null, openRecovery,
   restoreStatus: () => root?.restoreCatchUp?.status() ?? null,
 })
 
 registerSpaces(ipc, { log, publishDownloadRoots })
 
 registerBackup(ipc, { backup: root.backup, paused: root.backupPaused })
+registerBackupRestore(ipc, { storagePath: bootstrap.storage, identityKEK: bootstrap.identityKEK, log, lockedBy: null, openRecovery })
 
 registerSpaceLeave(ipc, { log, mounts, overlayBackend, discardPendingSpace, dropSpaceDownloadRoot })
 
