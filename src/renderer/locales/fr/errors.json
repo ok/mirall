@@ -49,5 +49,6 @@
   "unexpected": "Une erreur s'est produite. Réessayez — si cela persiste, envoyez un commentaire depuis les Réglages.",
   "approveBlockedDivergence": "Les approbations sont suspendues tant que le conflit d'identité du propriétaire n'est pas résolu.",
   "wrongPassphrase": "Cette phrase secrète ne correspond pas à cette clé de récupération. Vérifiez-la et réessayez.",
-  "recoveryFileInvalid": "Ce fichier n’est pas une clé de récupération que cette version de Mirall peut lire."
+  "recoveryFileInvalid": "Ce fichier n’est pas une clé de récupération que cette version de Mirall peut lire.",
+  "backupCorrupt": "Cette sauvegarde est endommagée et ne peut pas être restaurée. Essayez une sauvegarde plus ancienne."
 }

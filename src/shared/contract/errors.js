@@ -2,6 +2,7 @@
 // spelling is wire-visible — the renderer branches on it — so none is ever renamed.
 export const CODES = Object.freeze({
   AVATAR_TOO_LARGE: 'AVATAR_TOO_LARGE',
+  BACKUP_CORRUPT: 'BACKUP_CORRUPT',
   CREATOR_DIVERGENCE_UNRESOLVED: 'CREATOR_DIVERGENCE_UNRESOLVED',
   DOWNLOAD_FAILED: 'DOWNLOAD_FAILED',
   INVALID_ARGUMENT: 'INVALID_ARGUMENT',  // raised by the router when a payload fails its declared shape

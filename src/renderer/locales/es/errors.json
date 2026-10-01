@@ -49,5 +49,6 @@
   "unexpected": "Algo ha ido mal. Inténtalo de nuevo — si sigue ocurriendo, envía tus comentarios desde Ajustes.",
   "approveBlockedDivergence": "Las aprobaciones están en pausa mientras el conflicto de identidad del propietario no se resuelva.",
   "wrongPassphrase": "Esa frase de contraseña no coincide con esta clave de recuperación. Revísala e inténtalo de nuevo.",
-  "recoveryFileInvalid": "Este archivo no es una clave de recuperación que esta versión de Mirall pueda leer."
+  "recoveryFileInvalid": "Este archivo no es una clave de recuperación que esta versión de Mirall pueda leer.",
+  "backupCorrupt": "Esta copia de seguridad está dañada y no se puede restaurar. Prueba con una más antigua."
 }

@@ -49,5 +49,6 @@
   "unexpected": "Something went wrong. Try again — if it keeps happening, send feedback from Settings.",
   "approveBlockedDivergence": "Approvals are paused while the owner identity conflict is unresolved.",
   "wrongPassphrase": "That passphrase didn't match this recovery key. Check it and try again.",
-  "recoveryFileInvalid": "This file isn't a recovery key this version of Mirall can read."
+  "recoveryFileInvalid": "This file isn't a recovery key this version of Mirall can read.",
+  "backupCorrupt": "This backup is damaged and can't be restored. Try an older backup."
 }
