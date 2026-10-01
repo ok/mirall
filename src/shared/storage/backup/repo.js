@@ -24,6 +24,8 @@ const objectPath = (id) => `${OBJECTS}/${id.slice(0, 2)}/${id}`
 const objectAd = (id) => `mb-obj|1|${id}`
 const snapshotAd = (name) => `mb-snap|1|${name}`
 const SNAPSHOT_NAME = /^\d{8}-\d{8}T\d{6}Z-[0-9a-f]{8}$/
+const PREFIX = /^[0-9a-f]{2}$/
+const OBJECT_ID = /^[0-9a-f]{64}$/
 
 function snapshotName(previous, now) {
   const seq = previous ? Number(previous.slice(0, 8)) + 1 : 1
@@ -117,6 +119,37 @@ export class Repository {
       if (manifest) return { name, manifest }
     }
     return null
+  }
+
+  // The newest snapshot that was not flagged as a loss.
+  async latestUnflagged() {
+    for (const name of await this.listSnapshots()) {
+      const manifest = await this.readSnapshot(name)
+      if (manifest && !manifest.suspect) return { name, manifest }
+    }
+    return null
+  }
+
+  deleteSnapshot(name) {
+    return this.target.remove(`${SNAPSHOTS}/${name}`)
+  }
+
+  // Only names this repository writes: a folder browser or a share leaves its own files around
+  // (.DS_Store, ._ metadata), and those are neither objects nor folders of them.
+  async objectIds() {
+    const ids = []
+    for (const prefix of (await this.target.list(OBJECTS)).filter((name) => PREFIX.test(name))) {
+      for (const id of await this.target.list(`${OBJECTS}/${prefix}`)) if (OBJECT_ID.test(id) && id.startsWith(prefix)) ids.push(id)
+    }
+    return ids
+  }
+
+  objectMtime(id) {
+    return this.target.mtime(objectPath(id))
+  }
+
+  deleteObject(id) {
+    return this.target.remove(objectPath(id))
   }
 
   async otherWriter(installId, now = Date.now()) {

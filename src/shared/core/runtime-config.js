@@ -121,6 +121,15 @@ export function getRelayAuditDwellMs() {
   return read('relayAuditDwellMs')
 }
 
+export function isLocalBackupEnabled() {
+  return config.localBackupEnabled
+}
+
+// The backup folder and repository this device uses, as main last saved them; null until set up.
+export function getBackupConfig() {
+  return { folder: config.backupFolder, repoId: config.backupRepoId }
+}
+
 export function getRestoreReleaseDwellMs() {
   return read('restoreReleaseDwellMs')
 }

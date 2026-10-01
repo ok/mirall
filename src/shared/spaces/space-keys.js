@@ -10,6 +10,8 @@ import { getSpaceKeysVaultKey, getStoragePath } from '../core/store.js'
 import { writeFileAtomic } from '../core/atomic-file.js'
 import { Subsystem } from '../core/subsystem.js'
 import { decodeVault, encodeVault, reservedSlots, setEntry, keyForEpoch } from './space-keys-codec.js'
+import { backupHint } from '../storage/backup/backup-hints.js'
+import { URGENCY } from '../storage/backup/schedule-rules.js'
 
 // bare-fs/bare-path are loaded lazily so importing this module never needs the Bare runtime
 // globals; only the vault's fs paths do, and those run in the worker.
@@ -72,6 +74,7 @@ export function listContentKeys() {
 export async function putContentKey(spaceId, sck, { epoch = 0 } = {}) {
   map.set(spaceId, setEntry(map.get(spaceId), epoch, b4a.from(sck), b4a.equals))
   await persist()
+  backupHint(URGENCY.URGENT)
 }
 
 async function persist() {

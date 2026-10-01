@@ -33,13 +33,13 @@ function isRuled(row) {
 
 // Paths / opaque strings; a falsy override means "unset". dhtBootstrap is a test lever (a local
 // testnet instead of the public DHT); production never sets it.
-const NULLABLE = ['storage', 'appVersion', 'downloadFolder', 'dhtBootstrap', 'upgradeKey']
+const NULLABLE = ['storage', 'appVersion', 'downloadFolder', 'dhtBootstrap', 'upgradeKey', 'backupFolder', 'backupRepoId']
 
 // Dev toggles and staged security enforcement, default-off. membershipControlBindingEnforced on
 // refuses a membership:cancel or membership:deny that names no sender. topicRefsEnforced on ignores a
 // space named by its bearer topic, and sends a space's identity, leave and cancel frames only to a
 // socket that named that space first.
-const BOOLEAN = ['dev', 'verbose', 'membershipControlBindingEnforced', 'topicRefsEnforced']
+const BOOLEAN = ['dev', 'verbose', 'membershipControlBindingEnforced', 'topicRefsEnforced', 'localBackupEnabled']
 
 // Flags that ship ENABLED, so an absent or partial bootstrap frame can never silently degrade the
 // app — only an explicit `false` disables one. separateContentPlane off reverts to control + content on one stream.

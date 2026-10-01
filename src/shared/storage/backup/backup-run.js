@@ -12,6 +12,8 @@ import { listCores } from './inventory.js'
 import { openCut, captureCore } from './capture.js'
 import { nextCoreEntry, MANIFEST_VERSION } from './manifest.js'
 import { openOrInitRepo, openRepo } from './repo.js'
+import { storeVitals, lossBaseline, lossVerdict } from './loss-check.js'
+import { listSpaces } from '../../spaces/space.js'
 
 function readVault(storagePath) {
   const file = resolveSecretFile(storagePath, SECRET_FILE.SPACE_KEYS, { join: path.join, dirname: path.dirname, exists: fs.existsSync })
@@ -22,14 +24,19 @@ async function putFile(repo, bytes) {
   return bytes ? (await repo.putPart(bytes)).id : null
 }
 
-async function captureAll(repo, store, prevByDk, { deadlineAt, now, maxPartBytes }) {
+const outOfTime = (stopAt, now) => {
+  const at = stopAt()
+  return at !== null && now() > at
+}
+
+async function captureAll(repo, store, prevByDk, { stopAt, now, maxPartBytes }) {
   const cores = await listCores(store)
   const cut = await openCut(store, cores)
   const entries = []
   const stats = { changed: false, parts: 0, bytes: 0 }
   try {
     for (let i = 0; i < cores.length; i++) {
-      if (deadlineAt !== null && now() > deadlineAt) throw new AppError(CODES.ECANCELLED, 'backup: ran out of time')
+      if (outOfTime(stopAt, now)) throw new AppError(CODES.ECANCELLED, 'backup: ran out of time')
       const prev = prevByDk.get(cores[i].dk) ?? null
       const { now: state, plan, parts } = await captureCore(cut.snaps[i], cores[i], prev, { maxPartBytes })
       if (plan.kind === 'skip') continue
@@ -67,25 +74,41 @@ function sameFiles(previous, files) {
   return previous?.manifest.files?.spaceKeys === files.spaceKeys && previous?.manifest.files?.config === files.config
 }
 
+function summary(snapshot) {
+  return snapshot ? { name: snapshot.name, createdAt: snapshot.manifest.createdAt, suspect: snapshot.manifest.suspect ?? null } : null
+}
+
+// The new snapshot, flagged when its vitals look like a loss against the last unflagged one.
+async function writeNext(repo, previous, body, { now }) {
+  const vitals = storeVitals(body.cores, (await listSpaces()).length)
+  const lastUnflagged = previous && !previous.manifest.suspect ? previous : await repo.latestUnflagged()
+  const suspect = lossVerdict(lossBaseline(lastUnflagged?.manifest ?? null, previous?.manifest ?? null, now()), vitals)
+  const manifest = { v: MANIFEST_VERSION, createdAt: new Date(now()).toISOString(), repoId: repo.repoId, parent: previous?.name ?? null, ...body, vitals, suspect }
+  const name = await repo.writeSnapshot(manifest, { previous: previous?.name ?? null, now: now() })
+  return { name, manifest }
+}
+
+// `stopAt` is read as the run goes, so a caller can bring the end forward while it runs; past it, the
+// run stops before writing a snapshot. The result names the latest snapshot whether or not this run
+// wrote one.
 export async function runBackup({
   store, storagePath, target, wrapKey, repoId, installId, appVersion, config = null,
-  now = Date.now, deadlineAt = null, maxPartBytes = undefined,
+  now = Date.now, stopAt = () => null, maxPartBytes = undefined,
 }) {
   const repo = await openForRun(target, { wrapKey, repoId, installId, now })
   const previous = await repo.latestSnapshot()
   const prevByDk = new Map((previous?.manifest.cores ?? []).map((core) => [core.dk, core]))
-  const { entries, stats } = await captureAll(repo, store, prevByDk, { deadlineAt, now, maxPartBytes })
+  const { entries, stats } = await captureAll(repo, store, prevByDk, { stopAt, now, maxPartBytes })
 
   const files = { spaceKeys: await putFile(repo, readVault(storagePath)), config: await putFile(repo, config) }
   const present = new Set(entries.map((entry) => entry.dk))
   const gone = [...prevByDk.keys()].filter((dk) => !present.has(dk))
-  const previousName = previous?.name ?? null
 
-  let snapshot = null
+  let written = null
   if (!previous || stats.changed || !sameFiles(previous, files) || gone.length > 0) {
-    const manifest = { v: MANIFEST_VERSION, createdAt: new Date(now()).toISOString(), appVersion, installId, repoId: repo.repoId, parent: previousName, cores: entries, files, gone }
-    snapshot = await repo.writeSnapshot(manifest, { previous: previousName, now: now() })
+    if (outOfTime(stopAt, now)) throw new AppError(CODES.ECANCELLED, 'backup: ran out of time')
+    written = await writeNext(repo, previous, { appVersion, installId, cores: entries, files, gone }, { now })
   }
   await repo.writeLease(installId, now())
-  return { repoId: repo.repoId, snapshot, parts: stats.parts, bytes: stats.bytes }
+  return { repoId: repo.repoId, snapshot: written?.name ?? null, latest: summary(written ?? previous), parts: stats.parts, bytes: stats.bytes }
 }

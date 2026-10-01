@@ -29,6 +29,7 @@ function defaults() {
     // a named "Unlimited" rather than a raw zero.
     network: { downloadKBps: 0, uploadKBps: 0, relayMode: 'off', relay: null, downloadConcurrency: 6 },
     storage: { cacheBudgetBytes: 0 },
+    backup: { folder: null, repoId: null },
     notifications: null,
     ui: { lastSeenVersion: null, feedbackEmail: '' },
   }

@@ -2,5 +2,6 @@
   "handshakeIdentityBinding": true,
   "membershipControlBinding": false,
   "sharePrepareProgress": true,
-  "topicRefs": false
+  "topicRefs": false,
+  "localBackup": false
 }
