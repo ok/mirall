@@ -1,5 +1,5 @@
-// Profile screen: display name and avatar; this device's connection, identity protection and
-// activity log; app version and resources.
+// Profile screen: display name and avatar; this device's connection, identity protection, recovery
+// key and activity log; app version and resources.
 import InlineError from '../components/primitives/InlineError.js'
 import { useState, useRef, useEffect, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -23,6 +23,7 @@ import CopyButton from '../components/primitives/CopyButton.js'
 import PageHeader from '../components/layout/PageHeader.js'
 import SectionHeading from '../components/layout/SectionHeading.js'
 import ActionRow, { ROW, ROW_GROUP, RowBody, Tile } from '../components/layout/ActionRow.js'
+import RecoveryBackupModal from '../components/modals/RecoveryBackupModal.js'
 
 interface AccountProps {
   profile: Profile | null
@@ -139,6 +140,7 @@ function DeviceGroup({ onOpenNetworkStatus, onOpenActivityLog }: Pick<AccountPro
   const { t } = useTranslation()
   const { state: connectivityState, status: networkStatus } = useConnectionStatus()
   const [identity, setIdentity] = useState<IdentityProtection | null>(null)
+  const [backupOpen, setBackupOpen] = useState(false)
   // Through the query store for the dedup and cache, with NO scopes: this is a summary line, not a
   // live counter, and the audit scope would repaint it on every recorded event. Scope-less still
   // re-reads on each mount. ActivityLogSettings reads the same two entries.
@@ -171,6 +173,14 @@ function DeviceGroup({ onOpenNetworkStatus, onOpenActivityLog }: Pick<AccountPro
             desc={t(IDENTITY_LINE[identity].key)}
           />
         )}
+        {identity && identity !== 'disabled' && (
+          <ActionRow
+            icon="lock"
+            label={t('account.backupRecoveryKey')}
+            desc={t(identity === 'weak' ? 'account.backupRecoveryKeyDescWeak' : 'account.backupRecoveryKeyDesc')}
+            onClick={() => setBackupOpen(true)}
+          />
+        )}
         <ActionRow
           icon="history"
           label={t('settings.activityLog')}
@@ -178,6 +188,7 @@ function DeviceGroup({ onOpenNetworkStatus, onOpenActivityLog }: Pick<AccountPro
           onClick={onOpenActivityLog}
         />
       </div>
+      <RecoveryBackupModal isOpen={backupOpen} onClose={() => setBackupOpen(false)} weakProtection={identity === 'weak'} />
     </section>
   )
 }

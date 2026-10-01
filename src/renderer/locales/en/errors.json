@@ -47,5 +47,7 @@
   "requestTimedOut": "Mirall took too long to answer. Try again in a moment.",
   "workerUnavailable": "Mirall's background service isn't available. Restart Mirall if this keeps happening.",
   "unexpected": "Something went wrong. Try again — if it keeps happening, send feedback from Settings.",
-  "approveBlockedDivergence": "Approvals are paused while the owner identity conflict is unresolved."
+  "approveBlockedDivergence": "Approvals are paused while the owner identity conflict is unresolved.",
+  "wrongPassphrase": "That passphrase didn't match this recovery key. Check it and try again.",
+  "recoveryFileInvalid": "This file isn't a recovery key this version of Mirall can read."
 }

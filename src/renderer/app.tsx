@@ -1,9 +1,10 @@
-// Root: the boot gate (loading → onboarding → shell), then the shell that composes providers,
+// Root: the boot gate (loading → locked identity → onboarding → shell), then the shell that composes providers,
 // bridges, global dialogs, commands and the screen router.
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useChannelFault } from './hooks/useChannelFault.js'
 import { useProfile } from './hooks/useProfile.js'
+import { useIdentityStatus } from './hooks/useIdentityStatus.js'
 import { useUpdates } from './hooks/useUpdates.js'
 import { useSpaces } from './hooks/useSpaces.js'
 import { useAppNavigation, type AppNavigation } from './hooks/useAppNavigation.js'
@@ -19,6 +20,7 @@ import { checkChangelogOnBoot } from './platform/changelog.js'
 import * as whatsNew from './platform/whats-new.js'
 import OnboardingScreen from './screens/OnboardingScreen.js'
 import WorkerFaultScreen from './screens/WorkerFaultScreen.js'
+import IdentityLockedScreen from './screens/IdentityLockedScreen.js'
 import ScreenRouter from './ScreenRouter.js'
 import TopNav from './components/layout/TopNav.js'
 import AppDialogs, { type AppDialog } from './components/modals/AppDialogs.js'
@@ -33,9 +35,19 @@ import DownloadFolderToastBridge from './components/toast/bridges/DownloadFolder
 import JoinRequestToastBridge from './components/toast/bridges/JoinRequestToastBridge.js'
 import type { Profile } from './types/types.js'
 
+function BootScreen({ label }: { label: string }) {
+  return (
+    <main className="min-h-screen bg-surface flex items-center justify-center">
+      <h1 className="sr-only">{label}</h1>
+      <p role="status" className="text-on-surface text-lg">{label}</p>
+    </main>
+  )
+}
+
 export default function App() {
   const { t } = useTranslation()
   const fault = useChannelFault()
+  const identity = useIdentityStatus()
   const { profile, needsSetup, loading, saveProfile } = useProfile()
   const { spaces } = useSpaces()
   const nav = useAppNavigation()
@@ -54,12 +66,11 @@ export default function App() {
   // read is indistinguishable from "no profile" (profile-gate.js) — which opens onboarding over an
   // identity that exists and can then be overwritten.
   if (fault) return <WorkerFaultScreen kind={fault} />
-  if (loading) return (
-    <main className="min-h-screen bg-surface flex items-center justify-center">
-      <h1 className="sr-only">{t('boot.loading')}</h1>
-      <p role="status" className="text-on-surface text-lg">{t('boot.loading')}</p>
-    </main>
-  )
+  // Above the profile gates for the same reason: a locked worker serves no profile, which would
+  // read as "no profile yet" and open onboarding over the identity it holds.
+  if (!identity.known) return <BootScreen label={t('boot.loading')} />
+  if (identity.locked) return <IdentityLockedScreen code={identity.code} />
+  if (loading) return <BootScreen label={t('boot.loading')} />
   if (needsSetup) return <OnboardingScreen onComplete={saveProfile} />
 
   return (

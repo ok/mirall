@@ -331,6 +331,22 @@ export const promiseLintAllowlist = Object.freeze({
       'no-floating-promises MirrorFolderModal > onNext: void wizard.next()',
     ],
   },
+  'src/renderer/components/modals/RecoveryBackupModal.tsx': {
+    why: 'handleSave catches into the modal\'s inline error.',
+    sites: [
+      'no-floating-promises RecoveryBackupModal > onClick: void handleSave()',
+      'no-floating-promises RecoveryBackupModal > onConfirm: void handleSave()',
+    ],
+  },
+  'src/renderer/components/modals/RecoveryRestoreModal.tsx': {
+    why: 'chooseFile and restore catch into the modal\'s inline and field errors; the modal renders outside ToastProvider.',
+    sites: [
+      'no-floating-promises RecoveryRestoreModal > onChoose: void chooseFile()',
+      'no-floating-promises RecoveryRestoreModal > onClick: void restore(false)',
+      'no-floating-promises RecoveryRestoreModal > onConfirm: void restore(false)',
+      'no-floating-promises RecoveryRestoreModal > onConfirm: void restore(true)',
+    ],
+  },
   'src/renderer/components/modals/RemoveFileModal.tsx': {
     why: 'handleRemove catches and toasts.',
     sites: [
@@ -387,6 +403,13 @@ export const promiseLintAllowlist = Object.freeze({
     sites: [
       'no-floating-promises FolderScreen > actions > onLocate: void locate(share)',
       'no-floating-promises FolderScreen > onLocate: void locate(share)',
+    ],
+  },
+  'src/renderer/screens/IdentityLockedScreen.tsx': {
+    why: 'run and startFresh catch into the screen\'s inline error; the screen renders outside ToastProvider.',
+    sites: [
+      'no-floating-promises IdentityLockedScreen > onClick: void retry()',
+      'no-floating-promises IdentityLockedScreen > onConfirm: void startFresh()',
     ],
   },
   'src/renderer/screens/NetworkDiagnosticsScreen.tsx': {

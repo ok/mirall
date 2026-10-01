@@ -1,12 +1,13 @@
 const electron = require('electron')
 const fs = require('fs')
 const path = require('path')
+const { SECRET_FILE, resolveSecretFile } = require('../shared/contract/secret-files.js')
 const sodium = require('sodium-native')
 
 // The member seed behind a private-relay ticket, at rest. It is a bearer credential — whoever holds
 // it can present that member identity at that relay — so it does not go in config.json, which is
 // plain text, lands in backups, and is the file a user copies when they move machines. It is
-// written under Electron safeStorage, beside kek.enc, mode 0600.
+// written under Electron safeStorage, mode 0600, in relay-ticket.enc (where: contract/secret-files.js).
 //
 // A sealed vault is also read: {v: 2, nonce, ciphertext}, XChaCha20-Poly1305 under a subkey of the
 // identity KEK, which a runtime without Electron can open. The writer stays on safeStorage until a
@@ -19,7 +20,7 @@ const SUBKEY_CONTEXT = Buffer.from('relaytkt')
 const SUBKEY_ID = 1
 const { crypto_aead_xchacha20poly1305_ietf_NPUBBYTES: NONCE_BYTES, crypto_aead_xchacha20poly1305_ietf_ABYTES: TAG_BYTES } = sodium
 
-const seedFile = (storagePath) => path.join(path.dirname(storagePath), 'relay-ticket.enc')
+const seedFile = (storagePath) => resolveSecretFile(storagePath, SECRET_FILE.RELAY_TICKET, { join: path.join, dirname: path.dirname, exists: fs.existsSync })
 
 // The KEK also wraps identity.enc; the vault gets its own subkey so no key serves two primitives.
 function sealingKey(kekHex) {

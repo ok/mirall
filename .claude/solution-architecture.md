@@ -1386,6 +1386,30 @@ envelope records the provider's name and every unlock checks it, so an envelope 
 fails with `IDENTITY_PROVIDER_MISMATCH` under another; a wrong KEK fails with `IDENTITY_UNLOCK_FAILED`.
 `os-keychain` is the only provider.
 
+**Where the envelopes live** (`src/shared/contract/secret-files.js`): readers look for `identity.enc`,
+`kek.enc`, `space-keys.enc` and `relay-ticket.enc` inside `app-storage/` first, then beside it; writers
+still create them beside it, because a build that finds no `identity.enc` where it looks mints a
+different identity over the existing data. The writers move only once every build sharing a store
+reads the inside location, and then only after `CORESTORE` exists — on a fresh store hypercore-storage
+sweeps unknown files in its directory into `db/`. Likewise `identity.enc` and `space-keys.enc` are
+read as v1 (secretbox) or v2 (XChaCha20-Poly1305 whose associated data authenticates the header,
+`mirall-identity|v|provider` and `mirall-space-keys|2`) and still written as v1. On Windows, main sets
+an owner-and-SYSTEM ACL on the user data folder (`src/main/storage-perms.js`); on POSIX,
+`app-storage/` is mode 0700.
+
+**Recovery key and locked boot.** A `.mirallkey` file (`src/shared/core/identity-recovery.js`) is the
+portable copy of the identity: a slot bundle (`master` = M; a reader ignores slots it does not know)
+sealed with XChaCha20-Poly1305 under an Argon2id key from the user's passphrase, the header bound
+into the associated data. The worker seals and opens it; main only moves the sealed text to and from a
+file the user picked (`src/main/recovery-file.js`). When the KEK cannot open `identity.enc`
+(`IDENTITY_LOCK_CODES`), the worker does not crash: `boot()` has already closed what it opened, and the
+entry serves only the process handlers and `src/worker/ipc/identity.js` — `identity:status`,
+`identity:import-recovery` and `identity:set-aside` — while the renderer shows the locked screen above
+its profile gates. Adopting a key rewrites `identity.enc` under this machine's KEK and the renderer
+restarts the worker into it. A key for another identity than the store holds needs the user's
+confirmation. Starting fresh moves the store's entries and its envelopes into
+`app-storage.locked-<stamp>/` beside it; nothing is deleted.
+
 The default provider is a random KEK stored as `kek.enc`, encrypted with Electron `safeStorage`
 (`src/main/identity-kek.js`). Main passes the worker the KEK, never M. **On Linux with no keyring,
 safeStorage falls back to `basic_text`**, so protection degrades to disk encryption rather than

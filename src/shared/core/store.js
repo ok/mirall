@@ -9,6 +9,9 @@ import Hypercore from 'hypercore'
 import b4a from 'b4a'
 import { deriveKeyPair, deriveParticipationKeyPair, deriveParticipationId, deriveContentKey } from './identity-keys.js'
 import { createLogger } from './logger.js'
+import { buildRecoveryFile } from './identity-recovery.js'
+import { AppError } from './errors.js'
+import { CODES } from '../contract/errors.js'
 import { Subsystem } from './subsystem.js'
 
 const log = createLogger('store')
@@ -81,6 +84,12 @@ export function setMasterSecret(buf) {
 
 export function hasMasterSecret() {
   return masterSecret !== null
+}
+
+// The recovery key is the one way M leaves this module, and it leaves sealed under the passphrase.
+export function sealRecoveryKey(passphrase, { createdAt }) {
+  if (!masterSecret) throw new AppError(CODES.IDENTITY_UNLOCK_FAILED, 'identity is locked')
+  return buildRecoveryFile({ master: masterSecret }, passphrase, { createdAt })
 }
 
 export function getStore() {
@@ -204,10 +213,18 @@ export function createLocalBeeScratch(name) {
 }
 
 // Answered without opening, because an open creates the core: a keyPair core's discovery key hashes
-// the manifest corestore builds for it, rebuilt here the same way.
+// the manifest `corestore` builds for it, rebuilt here the same way.
+function keyPairCoreDiscoveryKey(corestore, publicKey) {
+  return Hypercore.discoveryKey(Hypercore.key({ version: corestore.manifestVersion, signers: [{ publicKey }] }))
+}
+
 function keyPairDiscoveryKey(name) {
-  const { publicKey } = deriveKeyPair(masterSecret, name)
-  return Hypercore.discoveryKey(Hypercore.key({ version: store.manifestVersion, signers: [{ publicKey }] }))
+  return keyPairCoreDiscoveryKey(store, deriveKeyPair(masterSecret, name).publicKey)
+}
+
+// Whether a key pair's core is on disk in `corestore`, answered without opening it.
+export function hasKeyPairCore(corestore, publicKey) {
+  return corestore.storage.hasCore(keyPairCoreDiscoveryKey(corestore, publicKey))
 }
 
 // Whether a local bee's core, or its rewrite scratch, is on disk.
@@ -278,9 +295,8 @@ export class Store extends Subsystem {
     }
     const closing = store
     store = undefined
-    // storagePath is deliberately kept: seven call sites read it through getStoragePath() and two
-    // path.dirname() the result, which throws on undefined. It holds nothing open, and initStore()
-    // overwrites it.
+    // storagePath is deliberately kept: callers read it through getStoragePath() and build paths
+    // from it, which throws on undefined. It holds nothing open, and initStore() overwrites it.
     nameByDk.clear()
     setMasterSecret(null)
     await closing.close()

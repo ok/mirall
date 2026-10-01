@@ -3,7 +3,7 @@ import b4a from 'b4a'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { openStore, getStore, setMasterSecret, getSpaceKeysVaultKey } from '../../src/shared/core/store.js'
-import { wrap, unwrap } from '../../src/shared/core/identity-envelope.js'
+import { wrap, unwrap, seal } from '../../src/shared/core/identity-envelope.js'
 import {
   initSpaceKeys, putContentKey, getContentKeyForEpoch, listContentKeys,
 } from '../../src/shared/spaces/space-keys.js'
@@ -112,4 +112,37 @@ test('the reserved person slot survives a rewrite by a build that does not read 
   const after = readPlaintext(file)
   t.is(after.person, person, 'the slot is written back untouched')
   t.is(Object.keys(after.entries).length, 2, 'and the new key is there beside it')
+})
+
+function writeV2Envelope(file, plainObj, aad = 'mirall-space-keys|2') {
+  const { nonce, ciphertext } = seal(b4a.from(JSON.stringify(plainObj)), getSpaceKeysVaultKey(), b4a.from(aad))
+  fs.writeFileSync(file, JSON.stringify({ v: 2, nonce: b4a.toString(nonce, 'base64'), ciphertext: b4a.toString(ciphertext, 'base64') }))
+}
+
+test('a v2 outer envelope opens, and the next write is still v1', async (t) => {
+  const file = await bootStore(t, 'outer-v2')
+  writeV2Envelope(file, { v: 1, entries: { [SPACE]: 'aa'.repeat(32) } })
+  await initSpaceKeys()
+  t.alike(getContentKeyForEpoch(SPACE, 0), K('aa'))
+
+  await putContentKey('feedface00000000', K('cc'))
+  t.is(JSON.parse(b4a.toString(fs.readFileSync(file))).v, 1, 'every build that shares the store reads what is written')
+})
+
+test('a v2 outer envelope under another header does not open', async (t) => {
+  const file = await bootStore(t, 'outer-v2-aad')
+  writeV2Envelope(file, { v: 1, entries: { [SPACE]: 'aa'.repeat(32) } }, 'mirall-space-keys|3')
+  await t.exception(initSpaceKeys(), /unlock failed/)
+})
+
+test('space-keys.enc inside the store directory is read before the one beside it', async (t) => {
+  const beside = await bootStore(t, 'inside')
+  writeEnvelope(beside, { v: 1, entries: { [SPACE]: 'aa'.repeat(32) } })
+  const inside = path.join(path.dirname(beside), 'app-storage', 'space-keys.enc')
+  writeEnvelope(inside, { v: 1, entries: { [SPACE]: 'bb'.repeat(32) } })
+  await initSpaceKeys()
+  t.alike(getContentKeyForEpoch(SPACE, 0), K('bb'))
+
+  await putContentKey(SPACE, K('cc'))
+  t.alike(readPlaintext(inside).entries[SPACE], 'cc'.repeat(32), 'writes go where the vault was read from')
 })

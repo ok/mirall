@@ -3,9 +3,9 @@ import b4a from 'b4a'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import Corestore from 'corestore'
-import { resolveMasterSecret } from '../../src/shared/core/identity.js'
+import { resolveMasterSecret, sealMasterSecret, storeHoldsIdentity } from '../../src/shared/core/identity.js'
 import { osKeychainProvider } from '../../src/shared/core/unlock-provider.js'
-import { randomKEK, wrap } from '../../src/shared/core/identity-envelope.js'
+import { randomKEK, wrap, seal } from '../../src/shared/core/identity-envelope.js'
 import { deriveKeyPair, deriveParticipationKeyPair } from '../../src/shared/core/identity-keys.js'
 import { tmpDir } from '../helpers/bare-tmp.js'
 
@@ -110,7 +110,7 @@ async function sealedStore(t, label) {
   await store.close()
   const reopened = new Corestore(storagePath)
   t.teardown(() => reopened.close())
-  return { storagePath, kekHex, M, store: reopened }
+  return { root, storagePath, kekHex, M, store: reopened }
 }
 
 test('an envelope sealed by one provider refuses another, even with the same KEK', async (t) => {
@@ -135,5 +135,90 @@ test('a provider with no KEK to give fails with IDENTITY_NO_KEK', async (t) => {
     t.fail('resolved without a KEK')
   } catch (err) {
     t.is(err.code, 'IDENTITY_NO_KEK')
+  }
+})
+
+function writeV2(file, M, kekHex, { provider = 'os-keychain', aadProvider = provider, v = 2, aadV = v } = {}) {
+  const { nonce, ciphertext } = seal(M, b4a.from(kekHex, 'hex'), b4a.from(`mirall-identity|${aadV}|${aadProvider}`))
+  fs.writeFileSync(file, JSON.stringify({ v, provider, nonce: b4a.toString(nonce, 'base64'), ciphertext: b4a.toString(ciphertext, 'base64') }))
+}
+
+async function unlockCode(promise) {
+  try {
+    await promise
+    return null
+  } catch (err) {
+    return err.code
+  }
+}
+
+test('REGRESSION (MIR-36: the envelope header was unauthenticated) — a v2 envelope unlocks', async (t) => {
+  const { root, storagePath, kekHex, M, store } = await sealedStore(t, 'identity-v2')
+  writeV2(path.join(root, 'identity.enc'), M, kekHex)
+  t.alike(await resolveMasterSecret({ store, storagePath, provider: osKeychainProvider(kekHex) }), M)
+})
+
+test('a v2 envelope whose header was changed does not unlock', async (t) => {
+  const { root, storagePath, kekHex, M, store } = await sealedStore(t, 'identity-v2-tamper')
+  const file = path.join(root, 'identity.enc')
+  const provider = osKeychainProvider(kekHex)
+
+  writeV2(file, M, kekHex, { aadProvider: 'file' })
+  t.is(await unlockCode(resolveMasterSecret({ store, storagePath, provider })), 'IDENTITY_UNLOCK_FAILED', 'a provider name the tag does not cover')
+
+  writeV2(file, M, kekHex, { aadV: 3 })
+  t.is(await unlockCode(resolveMasterSecret({ store, storagePath, provider })), 'IDENTITY_UNLOCK_FAILED', 'a version the tag does not cover')
+})
+
+test('an envelope version this build does not know is refused', async (t) => {
+  const { root, storagePath, kekHex, M, store } = await sealedStore(t, 'identity-v9')
+  writeV2(path.join(root, 'identity.enc'), M, kekHex, { v: 9 })
+  t.is(await unlockCode(resolveMasterSecret({ store, storagePath, provider: osKeychainProvider(kekHex) })), 'IDENTITY_UNLOCK_FAILED')
+})
+
+test('identity.enc inside the store directory is read before the one beside it', async (t) => {
+  const { root, storagePath, kekHex, store } = await sealedStore(t, 'identity-inside')
+  const inside = b4a.from('77'.repeat(32), 'hex')
+  writeV2(path.join(storagePath, 'identity.enc'), inside, kekHex)
+  t.alike(await resolveMasterSecret({ store, storagePath, provider: osKeychainProvider(kekHex) }), inside)
+  t.ok(fs.existsSync(path.join(root, 'identity.enc')), 'the one beside it is left alone')
+})
+
+test('sealMasterSecret replaces the envelope where it is read from', async (t) => {
+  const { root, storagePath, kekHex, store } = await sealedStore(t, 'identity-reseal')
+  const provider = osKeychainProvider(kekHex)
+  const recovered = b4a.from('88'.repeat(32), 'hex')
+  await sealMasterSecret({ storagePath, provider, masterSecret: recovered })
+  t.alike(await resolveMasterSecret({ store, storagePath, provider }), recovered, 'the next unlock returns the adopted secret')
+  t.is(JSON.parse(b4a.toString(fs.readFileSync(path.join(root, 'identity.enc')))).v, 1, 'written in the format every build reads')
+  t.absent(fs.existsSync(path.join(root, 'identity.enc.tmp')), 'atomically')
+  t.absent(fs.existsSync(path.join(storagePath, 'identity.enc')), 'and beside the store')
+})
+
+test('storeHoldsIdentity tells a store written under M from one written under another key', async (t) => {
+  const root = tmpDir('identity-holds')
+  const storagePath = path.join(root, 'app-storage')
+  t.teardown(() => { try { fs.rmSync(root, { recursive: true, force: true }) } catch {} })
+  const store = new Corestore(storagePath)
+  t.teardown(() => store.close())
+  const M1 = b4a.from('91'.repeat(32), 'hex')
+  const M2 = b4a.from('92'.repeat(32), 'hex')
+
+  t.alike(await storeHoldsIdentity(store, M1), { hasCores: false, holdsProfile: false }, 'a fresh store holds nothing')
+
+  const profile = store.get({ keyPair: deriveKeyPair(M1, 'profile') })
+  await profile.append(b4a.from('x'))
+  t.alike(await storeHoldsIdentity(store, M1), { hasCores: true, holdsProfile: true })
+  t.alike(await storeHoldsIdentity(store, M2), { hasCores: true, holdsProfile: false })
+})
+
+test('an envelope that cannot even be parsed locks the identity instead of crashing', async (t) => {
+  const { root, storagePath, kekHex, store } = await sealedStore(t, 'identity-malformed')
+  const file = path.join(root, 'identity.enc')
+  const provider = osKeychainProvider(kekHex)
+  for (const [label, text] of [['empty', ''], ['null', 'null'], ['not JSON', '{'], ['no fields', '{"v":1,"provider":"os-keychain"}'],
+    ['a truncated ciphertext', JSON.stringify({ v: 1, provider: 'os-keychain', nonce: 'AAAA', ciphertext: 'AA==' })]]) {
+    fs.writeFileSync(file, text)
+    t.is(await unlockCode(resolveMasterSecret({ store, storagePath, provider })), 'IDENTITY_UNLOCK_FAILED', label)
   }
 })

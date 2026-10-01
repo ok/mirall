@@ -32,6 +32,12 @@ Mirall folder, app updates included, and lists each space, the shared-file
 index, the Activity Log, download history, app updates and everything else
 separately. When enough can be freed, "Free up" clears it in
 one step.
+- **Back up your identity with a recovery key.** Profile → "Back up your
+recovery key" saves a file sealed with a passphrase you choose. With the
+file and its passphrase you can get your identity back if this device's
+keychain is reset or your data folder moves to another computer. It
+restores your identity, not your files, and we can't reset a lost
+passphrase.
 
 #### Changed
 
@@ -41,6 +47,12 @@ app-data folder Mirall reads it from.
 
 #### Fixed
 
+- **Mirall no longer stops when your keychain can't open your identity.**
+After a keychain reset or a move to another computer, Mirall refused to
+start or ended on "background service stopped". It now opens a screen
+where you can restore from your recovery key, try again, or start fresh
+with a new identity. Starting fresh moves the old data aside; nothing is
+deleted.
 - **Old app updates no longer pile up.** Mirall kept every update it ever
 downloaded. It now keeps only the current one.
 - **Leaving a space, or the deletion of a share you mirror, clears its
@@ -87,6 +99,10 @@ member, and approving it spread the damage. Mirall now ignores such keys.
 them.** The sender of a file's piece list could keep sending more of it
 until Mirall ran out of memory. Mirall now refuses a list longer than the
 file needs and drops a peer that keeps trying.
+- **On Windows, your Mirall data folder is readable only by you.** Mirall
+now limits the folder that holds your identity and files to your Windows
+account, so other accounts on the computer, administrators included, no
+longer have access to it. This happens once, the next time Mirall starts.
 - **People outside a space can no longer fill your disk or restart your
 downloads through the file-transfer connection.** Someone who knew a space's
 network address could make Mirall store data nothing uses, discard a

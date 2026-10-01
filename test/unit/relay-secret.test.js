@@ -189,3 +189,14 @@ test('clearing a vault that was never written still succeeds', (t) => {
   // failure — removing a relay that has no seed must not look like an error.
   t.execution(() => clearRelaySeed(tmpStorage()))
 })
+
+test('a vault inside the store directory is read before the one beside it', (t) => {
+  const storage = tmpStorage()
+  fs.mkdirSync(storage)
+  const safeStorage = fakeSafeStorage()
+  const other = 'f50ded0ad862192ce2c8e2e977a471fa773352ae07c3ce9fe2ea28b648a16210'
+  writeRelaySeedHex(storage, SEED, { safeStorage })
+  fs.writeFileSync(path.join(storage, 'relay-ticket.enc'), _sealForTests(other, KEK))
+  t.is(seedFile(storage), path.join(storage, 'relay-ticket.enc'))
+  t.is(readRelaySeedHex(storage, KEK, { safeStorage }), other)
+})

@@ -9,8 +9,8 @@ function errorMessageOf(err) {
   return String(err)
 }
 
-/** @param {unknown} err */
-function errorCodeOf(err) {
+/** @param {unknown} err @returns {string | null} */
+export function errorCodeOf(err) {
   if (typeof err !== 'object' || err === null) return null
   return 'code' in err && typeof err.code === 'string' ? err.code : null
 }

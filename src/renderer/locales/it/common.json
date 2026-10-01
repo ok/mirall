@@ -40,7 +40,10 @@
     "identityTitle": "Protezione dell'identità",
     "upToDate": "Aggiornato.",
     "activityDesc": "Un resoconto di ciò che è accaduto nei tuoi spazi.",
-    "recordingOff": "Registrazione disattivata · {{kept}}"
+    "recordingOff": "Registrazione disattivata · {{kept}}",
+    "backupRecoveryKey": "Salva la tua chiave di recupero",
+    "backupRecoveryKeyDesc": "Salva una chiave cifrata per conservare la tua identità se perdi questo dispositivo.",
+    "backupRecoveryKeyDescWeak": "Questo dispositivo non ha un portachiavi di sistema: una chiave di recupero è la tua vera protezione."
   },
   "spaces": {
     "title": "Spazi",
@@ -1297,5 +1300,54 @@
     "protocolBody": "Alcune parti di Mirall sono state aggiornate e non corrispondono più. Chiudi completamente Mirall e riaprilo. Se il problema persiste, reinstalla l'ultima versione.",
     "budgetTitle": "Il servizio in background di Mirall si è arrestato",
     "budgetBody": "Si è arrestato più volte di seguito e non è stato riavviato. Chiudi completamente Mirall e riaprilo."
+  },
+  "identityLocked": {
+    "title": "La tua chiave d’identità è bloccata",
+    "body": "Non siamo riusciti a sbloccare la tua chiave d’identità su questo dispositivo: forse l’archivio sicuro è cambiato (un nuovo computer, un portachiavi reimpostato o un backup ripristinato). I tuoi dati sono al sicuro, ma restano bloccati finché non ripristini la chiave.",
+    "bodyProvider": "La tua chiave d’identità è stata bloccata con un metodo diverso da quello che l’app usa ora. I tuoi dati sono al sicuro, ma restano bloccati finché non ripristini la chiave.",
+    "restore": "Ripristina con la chiave di recupero",
+    "retry": "Riprova",
+    "startFresh": "Ricomincia con una nuova identità",
+    "startFreshHint": "I dati bloccati vengono messi da parte su questo dispositivo, non eliminati.",
+    "startFreshTitle": "Ricominciare da capo?",
+    "startFreshBody": "Mirall sposta i dati bloccati in una cartella separata lì accanto e ricomincia con una nuova identità. I tuoi contatti non riconosceranno la nuova identità e i tuoi spazi non ci saranno.",
+    "startFreshConfirm": "Metti da parte e ricomincia"
+  },
+  "recoveryBackup": {
+    "title": "Salva la tua chiave di recupero",
+    "intro": "Questa è la chiave principale della tua identità Mirall. Con questo file e la sua passphrase puoi tornare te stesso su un nuovo dispositivo, anche se il computer o il portachiavi non ci sono più.",
+    "weakDevice": "Questo dispositivo non ha un portachiavi di sistema, quindi questo backup è la tua vera protezione contro la perdita dell’identità.",
+    "passphraseLabel": "Scegli una passphrase",
+    "passphrasePlaceholder": "Almeno {{min}} caratteri",
+    "passphraseHelp": "Ti servirà questa passphrase per il ripristino. Non possiamo reimpostarla.",
+    "tooShort": "Usa almeno {{min}} caratteri.",
+    "confirmLabel": "Conferma la passphrase",
+    "confirmPlaceholder": "Reinserisci la passphrase",
+    "mismatch": "Le passphrase non corrispondono.",
+    "scopeRestoresLead": "Ripristina",
+    "scopeRestores": "la tua identità: i tuoi contatti ti riconoscono e possono invitarti di nuovo.",
+    "scopeExcludesLead": "Da sola non ripristina",
+    "scopeExcludes": "l’elenco dei tuoi spazi né i file negli spazi che altri hanno condiviso con te. Per quelli, conserva anche una copia della cartella dati di Mirall.",
+    "warningsTitle": "Conservala al sicuro",
+    "warningAccess": "Chiunque abbia questo file e la sua passphrase può usare la tua identità e leggere i tuoi file.",
+    "warningLostPassphrase": "Se perdi la passphrase, il file è inutilizzabile e non possiamo recuperarla.",
+    "warningNotFiles": "Questo salva la tua identità, non i tuoi file.",
+    "save": "Salva file di backup…",
+    "savedToast": "Chiave di recupero salvata nella posizione scelta."
+  },
+  "recoveryRestore": {
+    "title": "Ripristina con una chiave di recupero",
+    "introChoose": "Scegli il file della chiave di recupero che hai salvato, poi inserisci la sua passphrase.",
+    "introPassphrase": "Inserisci la passphrase di questa chiave di recupero.",
+    "chooseFile": "Scegli il file della chiave di recupero…",
+    "fileHint": "Chiave di recupero Mirall (.mirallkey)",
+    "createdAt": "Creata il {{date}}",
+    "passphraseLabel": "Passphrase",
+    "restore": "Ripristina identità",
+    "restarting": "Riavvio per caricare la tua identità…",
+    "notAKey": "Questo file non è una chiave di recupero Mirall.",
+    "mismatchTitle": "Sostituire i dati su questo dispositivo?",
+    "mismatchBody": "Questa chiave di recupero appartiene a un’identità diversa da quella dei dati su questo dispositivo. Il ripristino rende illeggibili quei dati e non si può annullare.",
+    "mismatchConfirm": "Sostituisci e ripristina"
   }
 }

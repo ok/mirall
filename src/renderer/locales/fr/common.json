@@ -40,7 +40,10 @@
     "identityTitle": "Protection de l'identité",
     "upToDate": "À jour.",
     "activityDesc": "Un relevé de ce qui s'est passé dans vos espaces.",
-    "recordingOff": "Enregistrement désactivé · {{kept}}"
+    "recordingOff": "Enregistrement désactivé · {{kept}}",
+    "backupRecoveryKey": "Sauvegarder votre clé de récupération",
+    "backupRecoveryKeyDesc": "Enregistrez une clé chiffrée pour conserver votre identité si vous perdez cet appareil.",
+    "backupRecoveryKeyDescWeak": "Cet appareil n’a pas de trousseau système — une clé de récupération est votre vraie protection."
   },
   "spaces": {
     "title": "Espaces",
@@ -1297,5 +1300,54 @@
     "protocolBody": "Certaines parties de Mirall ont été mises à jour et ne correspondent plus. Quittez complètement Mirall puis rouvrez-le. Si cela persiste, réinstallez la dernière version.",
     "budgetTitle": "Le service en arrière-plan de Mirall s'est arrêté",
     "budgetBody": "Il s'est arrêté plusieurs fois de suite et n'a pas redémarré. Quittez complètement Mirall puis rouvrez-le."
+  },
+  "identityLocked": {
+    "title": "Votre clé d’identité est verrouillée",
+    "body": "Nous n’avons pas pu déverrouiller votre clé d’identité sur cet appareil — votre stockage sécurisé a peut-être changé (un nouvel ordinateur, un trousseau réinitialisé ou une sauvegarde restaurée). Vos données sont en sécurité, mais elles restent verrouillées jusqu’à ce que vous restauriez votre clé.",
+    "bodyProvider": "Votre clé d’identité a été verrouillée avec une autre méthode que celle utilisée par l’application. Vos données sont en sécurité, mais elles restent verrouillées jusqu’à ce que vous restauriez votre clé.",
+    "restore": "Restaurer avec la clé de récupération",
+    "retry": "Réessayer",
+    "startFresh": "Repartir de zéro avec une nouvelle identité",
+    "startFreshHint": "Les données verrouillées sont mises de côté sur cet appareil, pas supprimées.",
+    "startFreshTitle": "Repartir de zéro ?",
+    "startFreshBody": "Mirall déplace les données verrouillées dans un dossier à part, juste à côté, et repart avec une nouvelle identité. Vos contacts ne reconnaîtront pas la nouvelle identité, et vos espaces n’y seront pas.",
+    "startFreshConfirm": "Mettre de côté et repartir"
+  },
+  "recoveryBackup": {
+    "title": "Sauvegarder votre clé de récupération",
+    "intro": "C’est la clé maîtresse de votre identité Mirall. Avec ce fichier et sa phrase secrète, vous pouvez retrouver votre identité sur un nouvel appareil — même si votre ordinateur ou votre trousseau a disparu.",
+    "weakDevice": "Cet appareil n’a pas de trousseau système : cette sauvegarde est votre vraie protection contre la perte de votre identité.",
+    "passphraseLabel": "Choisissez une phrase secrète",
+    "passphrasePlaceholder": "Au moins {{min}} caractères",
+    "passphraseHelp": "Vous aurez besoin de cette phrase secrète pour restaurer. Nous ne pouvons pas la réinitialiser.",
+    "tooShort": "Utilisez au moins {{min}} caractères.",
+    "confirmLabel": "Confirmez la phrase secrète",
+    "confirmPlaceholder": "Saisissez à nouveau la phrase secrète",
+    "mismatch": "Les phrases secrètes ne correspondent pas.",
+    "scopeRestoresLead": "Restaure",
+    "scopeRestores": "votre identité — vos contacts vous reconnaissent et peuvent vous réinviter.",
+    "scopeExcludesLead": "Ne restaure pas à lui seul",
+    "scopeExcludes": "votre liste d’espaces, ni les fichiers des espaces que d’autres ont partagés avec vous. Pour cela, gardez aussi une copie de votre dossier de données Mirall.",
+    "warningsTitle": "À garder en lieu sûr",
+    "warningAccess": "Quiconque possède ce fichier et sa phrase secrète peut utiliser votre identité et lire vos fichiers.",
+    "warningLostPassphrase": "Si vous perdez la phrase secrète, le fichier est inutilisable — et nous ne pouvons pas la récupérer.",
+    "warningNotFiles": "Cette sauvegarde concerne votre identité, pas vos fichiers.",
+    "save": "Enregistrer le fichier de sauvegarde…",
+    "savedToast": "Clé de récupération enregistrée à l’emplacement choisi."
+  },
+  "recoveryRestore": {
+    "title": "Restaurer avec une clé de récupération",
+    "introChoose": "Choisissez le fichier de clé de récupération enregistré, puis saisissez sa phrase secrète.",
+    "introPassphrase": "Saisissez la phrase secrète de cette clé de récupération.",
+    "chooseFile": "Choisir le fichier de clé de récupération…",
+    "fileHint": "Clé de récupération Mirall (.mirallkey)",
+    "createdAt": "Créée le {{date}}",
+    "passphraseLabel": "Phrase secrète",
+    "restore": "Restaurer l’identité",
+    "restarting": "Redémarrage pour charger votre identité…",
+    "notAKey": "Ce fichier n’est pas une clé de récupération Mirall.",
+    "mismatchTitle": "Remplacer les données de cet appareil ?",
+    "mismatchBody": "Cette clé de récupération appartient à une autre identité que les données de cet appareil. La restauration rend ces données illisibles, et c’est irréversible.",
+    "mismatchConfirm": "Remplacer et restaurer"
   }
 }

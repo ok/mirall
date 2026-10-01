@@ -61,7 +61,8 @@ un-scaled production window — scaling one of those moves it past the very edge
 composition root — `boot(config, { swarm: false })` — so a test drives the production wiring rather
 than a hand-rolled subset of it, and `root.close()` in teardown is the production stop. The store
 sits at `<peerDir>/app-storage`, mirroring production, because `identity.enc` and `space-keys.enc`
-are written to `dirname(storage)` and a flat tmpdir would share them between peers. The root's
+are created beside the store (`src/shared/contract/secret-files.js`) and a flat tmpdir would share
+them between peers. The root's
 teardown is registered with `{ order: 1 }`: brittle sorts teardowns and runs the default `order: 0`
 ones first, so a test's own teardown still has a live data layer. Use **`freshDurable`** (or
 `freshDurableWithIdentity`) when the test's subject is work `boot()` itself does — a content

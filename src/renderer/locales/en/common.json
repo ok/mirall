@@ -66,7 +66,10 @@
     "identityTitle": "Identity protection",
     "upToDate": "Up to date.",
     "activityDesc": "A record of what happened in your spaces.",
-    "recordingOff": "Recording is off · {{kept}}"
+    "recordingOff": "Recording is off · {{kept}}",
+    "backupRecoveryKey": "Back up your recovery key",
+    "backupRecoveryKeyDesc": "Save an encrypted key so you can keep your identity if you lose this device.",
+    "backupRecoveryKeyDescWeak": "This device has no system keychain — a recovery key is your real protection."
   },
   "spaces": {
     "title": "Shared",
@@ -1297,5 +1300,54 @@
     "protocolBody": "Parts of Mirall were updated and no longer match. Quit Mirall completely and open it again. If this keeps happening, reinstall the latest version.",
     "budgetTitle": "Mirall's background service stopped",
     "budgetBody": "It stopped several times in a row and was not restarted. Quit Mirall completely and open it again."
+  },
+  "identityLocked": {
+    "title": "Your identity key is locked",
+    "body": "We couldn't unlock your identity key on this device — your secure storage may have changed (a new computer, a reset keychain, or a restored backup). Your data is safe, but it stays locked until you restore your key.",
+    "bodyProvider": "Your identity key was locked with a different method than this app is using now. Your data is safe, but it stays locked until you restore your key.",
+    "restore": "Restore from recovery key",
+    "retry": "Try again",
+    "startFresh": "Start fresh and create a new identity",
+    "startFreshHint": "The locked data is set aside on this device, not deleted.",
+    "startFreshTitle": "Start fresh?",
+    "startFreshBody": "Mirall moves the locked data into a separate folder next to it and starts with a new identity. Your contacts will not recognize the new identity, and your spaces will not be on it.",
+    "startFreshConfirm": "Set aside and start fresh"
+  },
+  "recoveryBackup": {
+    "title": "Back up your recovery key",
+    "intro": "This is the master key to your Mirall identity. With this file and its passphrase, you can be yourself again on a new device — even if your computer or keychain is gone.",
+    "weakDevice": "This device has no system keychain, so this backup is your real protection against losing your identity.",
+    "passphraseLabel": "Choose a passphrase",
+    "passphrasePlaceholder": "At least {{min}} characters",
+    "passphraseHelp": "You'll need this passphrase to restore. We can't reset it.",
+    "tooShort": "Use at least {{min}} characters.",
+    "confirmLabel": "Confirm passphrase",
+    "confirmPlaceholder": "Re-enter passphrase",
+    "mismatch": "The passphrases don't match.",
+    "scopeRestoresLead": "Restores",
+    "scopeRestores": "your identity — your contacts still recognize you and can invite you back.",
+    "scopeExcludesLead": "Doesn't restore on its own",
+    "scopeExcludes": "your list of spaces, or files in spaces others shared with you. For those, also keep a copy of your Mirall data folder.",
+    "warningsTitle": "Keep this safe",
+    "warningAccess": "Anyone with this file and its passphrase can use your identity and read your files.",
+    "warningLostPassphrase": "If you lose the passphrase, the file can't be used — and we can't recover it.",
+    "warningNotFiles": "This backs up your identity, not your files.",
+    "save": "Save backup file…",
+    "savedToast": "Recovery key saved to your chosen location."
+  },
+  "recoveryRestore": {
+    "title": "Restore from a recovery key",
+    "introChoose": "Choose the recovery key file you saved earlier, then enter its passphrase.",
+    "introPassphrase": "Enter the passphrase for this recovery key.",
+    "chooseFile": "Choose recovery key file…",
+    "fileHint": "Mirall recovery key (.mirallkey)",
+    "createdAt": "Created {{date}}",
+    "passphraseLabel": "Passphrase",
+    "restore": "Restore identity",
+    "restarting": "Restarting to load your identity…",
+    "notAKey": "This file isn't a Mirall recovery key.",
+    "mismatchTitle": "Replace the data on this device?",
+    "mismatchBody": "This recovery key is for a different identity than the data already on this device. Restoring leaves that data unreadable, and it can't be undone.",
+    "mismatchConfirm": "Replace and restore"
   }
 }
