@@ -7,6 +7,7 @@ import SpaceScreen from './screens/SpaceScreen.js'
 import FolderScreen from './screens/FolderScreen.js'
 import Settings from './screens/settings/SettingsScreen.js'
 import StorageSettings from './screens/settings/StorageSettings.js'
+import BackupSettings from './screens/settings/BackupSettings.js'
 import NotificationSettings from './screens/settings/NotificationSettings.js'
 import AppearanceSettings from './screens/settings/AppearanceSettings.js'
 import GeneralSettings from './screens/settings/GeneralSettings.js'
@@ -64,6 +65,28 @@ function FolderViewRoute({ nav, profile, spaceId, shareId }: {
   )
 }
 
+// Preference screens with nothing to wire but Back, which walks the screen graph like every other back.
+const PREFERENCE_SCREENS = ['appearance-settings', 'notification-settings', 'general-settings', 'backup-settings'] as const
+
+type PreferenceScreen = (typeof PREFERENCE_SCREENS)[number]
+
+function isPreferenceScreen(screen: Screen): screen is PreferenceScreen {
+  return (PREFERENCE_SCREENS as readonly Screen[]).includes(screen)
+}
+
+function preferenceRoute(screen: PreferenceScreen, nav: AppNavigation) {
+  switch (screen) {
+    case 'appearance-settings':
+      return <AppearanceSettings onBack={nav.goBack} />
+    case 'notification-settings':
+      return <NotificationSettings onBack={nav.goBack} />
+    case 'general-settings':
+      return <GeneralSettings onBack={nav.goBack} />
+    case 'backup-settings':
+      return <BackupSettings onBack={nav.goBack} />
+  }
+}
+
 // Network status and the two screens below it. They share one rule — both children back out to
 // Network status, never to the screen it was opened from — so they route together.
 const NETWORK_SCREENS = ['network-status', 'network-diagnostics', 'network-advanced'] as const
@@ -98,6 +121,7 @@ export default function ScreenRouter({ nav, profile, onSaveProfile, openDialog }
   const { currentScreen, selectedSpaceId, selectedShareId } = nav
   const gate = useConnectionGate()
   if (isNetworkScreen(currentScreen)) return networkRoute(currentScreen, nav)
+  if (isPreferenceScreen(currentScreen)) return preferenceRoute(currentScreen, nav)
   switch (currentScreen) {
     case 'spaces':
       return gate.showConnectionProblem ? (
@@ -149,10 +173,7 @@ export default function ScreenRouter({ nav, profile, onSaveProfile, openDialog }
       return (
         <Settings
           onBack={() => nav.setCurrentScreen(nav.preSettingsScreen)}
-          onNavigate={(screen) => {
-            if (screen === 'storage-settings') nav.openStorageSettings('settings')
-            else nav.setCurrentScreen(screen)
-          }}
+          onNavigate={nav.openFromSettings}
         />
       )
     case 'account':
@@ -163,6 +184,7 @@ export default function ScreenRouter({ nav, profile, onSaveProfile, openDialog }
           onBack={() => nav.setCurrentScreen(nav.preAccountScreen)}
           onOpenNetworkStatus={() => nav.setCurrentScreen('network-status')}
           onOpenActivityLog={() => nav.openActivityLog()}
+          onOpenBackup={() => nav.openBackupSettings('account')}
           onFeedback={() => openDialog({ kind: 'feedback' })}
         />
       )
@@ -174,12 +196,6 @@ export default function ScreenRouter({ nav, profile, onSaveProfile, openDialog }
           onOpenSpace={nav.navigateToSpace}
         />
       )
-    case 'appearance-settings':
-      return <AppearanceSettings onBack={() => nav.setCurrentScreen('settings')} />
-    case 'notification-settings':
-      return <NotificationSettings onBack={() => nav.setCurrentScreen('settings')} />
-    case 'general-settings':
-      return <GeneralSettings onBack={() => nav.setCurrentScreen('settings')} />
     case 'network-settings':
       return (
         <NetworkSettings

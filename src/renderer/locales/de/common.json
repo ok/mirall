@@ -24,7 +24,7 @@
     "displayNamePlaceholder": "z. B. Max Mustermann",
     "displayNameHelp": "So sehen dich Team und Freunde.",
     "restore": "Schon einen Wiederherstellungsschlüssel? Identität wiederherstellen",
-    "restoreBackup": "Aus einem Backup-Ordner wiederherstellen"
+    "restoreAccount": "Mirall schon genutzt? Konto wiederherstellen"
   },
   "topnav": {
     "feedback": "Feedback",
@@ -45,7 +45,8 @@
     "recordingOff": "Aufzeichnung ist aus · {{kept}}",
     "backupRecoveryKey": "Wiederherstellungsschlüssel sichern",
     "backupRecoveryKeyDesc": "Speichere einen verschlüsselten Schlüssel, damit du deine Identität behältst, wenn du dieses Gerät verlierst.",
-    "backupRecoveryKeyDescWeak": "Dieses Gerät hat keinen Systemschlüsselbund — ein Wiederherstellungsschlüssel ist dein eigentlicher Schutz."
+    "backupRecoveryKeyDescWeak": "Dieses Gerät hat keinen Systemschlüsselbund — ein Wiederherstellungsschlüssel ist dein eigentlicher Schutz.",
+    "backupDesc": "Dein Backup und der Wiederherstellungsschlüssel, der es öffnet."
   },
   "spaces": {
     "title": "Geteilte",
@@ -534,7 +535,13 @@
     "networkStatusDesc_one": "{{count}} Peer verbunden",
     "networkStatusDesc_other": "{{count}} Peers verbunden",
     "activityLog": "Aktivitätsprotokoll",
-    "activityLogDesc": "Was aufgezeichnet wird und wie lange."
+    "activityLogDesc": "Was aufgezeichnet wird und wie lange.",
+    "backup": "Backup & Wiederherstellung",
+    "backupDescOff": "Nicht eingerichtet – schütze deine Spaces",
+    "backupDescOn": "An · letztes Backup {{when}}",
+    "backupDescPending": "An · erstes Backup ausstehend",
+    "backupDescAttention": "Braucht Aufmerksamkeit",
+    "backupDescPaused": "Pausiert, während dein Profil wiederhergestellt wird"
   },
   "appearanceSettings": {
     "title": "Darstellung",
@@ -1004,7 +1011,8 @@
       "networkSettings": "Netzwerkeinstellungen",
       "connectionProblem": "Verbindungsproblem",
       "networkDiagnostics": "Diagnose",
-      "networkAdvanced": "Erweiterte Details"
+      "networkAdvanced": "Erweiterte Details",
+      "backup": "Backup & Wiederherstellung"
     }
   },
   "avatar": {
@@ -1316,7 +1324,7 @@
     "startFreshTitle": "Neu beginnen?",
     "startFreshBody": "Mirall verschiebt die gesperrten Daten in einen eigenen Ordner daneben und beginnt mit einer neuen Identität. Deine Kontakte erkennen die neue Identität nicht wieder, und deine Räume sind nicht darauf.",
     "startFreshConfirm": "Beiseitelegen und neu beginnen",
-    "restoreBackup": "Aus einem Backup wiederherstellen"
+    "restoreAccount": "Konto wiederherstellen"
   },
   "restore": {
     "title": "Dein Profil wird wiederhergestellt",
@@ -1373,15 +1381,11 @@
     "mismatchConfirm": "Ersetzen und wiederherstellen"
   },
   "backup": {
-    "title": "Backup",
-    "desc": "Mirall legt eine verschlüsselte Kopie deiner Spaces, Dateilisten und Einstellungen in einem Ordner deiner Wahl ab – auf einem anderen Laufwerk oder einer Netzwerkfreigabe. Die geteilten Dateien selbst werden nicht kopiert; sie bleiben in deinen eigenen Ordnern.",
-    "needsRecoveryKey": "Zum Wiederherstellen eines Backups brauchst du deinen Wiederherstellungsschlüssel. Falls du noch keinen gesichert hast, hole das zuerst im Profil nach.",
+    "title": "Backup & Wiederherstellung",
     "paused": "Backups laufen weiter, sobald dein wiederhergestelltes Profil mit den Personen abgeglichen ist, mit denen du Spaces teilst.",
     "running": "Backup läuft…",
-    "lastBackup": "Letztes Backup {{when}}",
-    "never": "Noch kein Backup",
     "runNow": "Jetzt sichern",
-    "turnOff": "Ausschalten",
+    "turnOff": "Backup ausschalten",
     "suspectTitle": "Dieses Backup ist kleiner als sonst",
     "suspectBody": "Das letzte Backup enthält deutlich weniger als das davor ({{reasons}}). War das Absicht, ist nichts zu tun – ältere Backups bleiben so oder so erhalten.",
     "reason": {
@@ -1390,11 +1394,54 @@
       "cores-halved": "weniger gespeicherte Teile",
       "own-data-shrank": "weniger eigene Daten"
     },
-    "folderSubject": "Backup-Ordner"
+    "folderSubject": "Backup-Ordner",
+    "subtitle": "Hol dir alles zurück, wenn dieser Computer kaputtgeht oder ersetzt wird.",
+    "offerTitle": "Schütze deine Spaces",
+    "offerBody": "Wenn dieser Computer kaputtgeht, verloren geht oder ersetzt wird, holt ein Backup deine Spaces, ihre Dateilisten und deine Identität bei deinen Kontakten zurück. Wähle einmal ein Laufwerk oder einen Netzwerkordner – Mirall hält das Backup selbst aktuell.",
+    "setUp": "Backup einrichten",
+    "notNow": "Nicht jetzt",
+    "laterToast": "Du kannst ein Backup jederzeit unter Einstellungen → Backup & Wiederherstellung einrichten.",
+    "checkTitle": "Kennst du deine Wiederherstellungs-Passphrase noch?",
+    "checkBody": "Ein kurzer Test jetzt erspart später eine böse Überraschung. Er dauert zehn Sekunden.",
+    "checkNow": "Jetzt prüfen",
+    "scopeIncludedLead": "Gesichert:",
+    "scopeIncluded": "deine Spaces, ihre Dateilisten, dein Profil und deine Einstellungen – und dein Wiederherstellungsschlüssel.",
+    "scopeExcludedLead": "Nicht gesichert:",
+    "scopeExcluded": "die Dateien selbst. Sie bleiben in deinen Ordnern; sichere sie wie bisher.",
+    "scopePrivateLead": "Privat:",
+    "scopePrivate": "alles ist verschlüsselt. Nur deine Passphrase öffnet es – nicht einmal wir können das.",
+    "protection": "Schutz",
+    "rowBackup": "Backup",
+    "rowBackupOk": "Letztes Backup {{when}}",
+    "rowBackupNever": "Erstes Backup ausstehend",
+    "rowBackupStale": "Letztes Backup {{when}} – vor über 10 Tagen",
+    "rowKey": "Wiederherstellungsschlüssel",
+    "rowKeyOk": "In deinem Backup-Ordner · zuletzt bestätigt {{when}}",
+    "rowKeyNotInFolder": "Auf diesem Computer – Mirall legt ihn beim nächsten Backup in den Ordner",
+    "rowKeyMissing": "Fehlt – erstelle einen neuen Wiederherstellungsschlüssel",
+    "rowCopy": "Zweite Kopie",
+    "rowCopyNone": "Empfohlen – bewahre eine Kopie fern von diesem Computer und dem Backup-Laufwerk auf",
+    "rowCopyOk": "Gespeichert {{when}}",
+    "saveCopy": "Kopie speichern…",
+    "copySaved": "Kopie des Wiederherstellungsschlüssels gespeichert.",
+    "folderTitle": "Backup-Ordner",
+    "folderDesc": "Mirall sichert nach Änderungen, stündlich und beim Beenden. Neuere Backups bleiben erhalten, ältere werden ausgedünnt.",
+    "turnOffTitle": "Backup ausschalten?",
+    "turnOffBody": "Mirall hört auf zu sichern. Die Backups und der Wiederherstellungsschlüssel im Ordner bleiben erhalten.",
+    "turnOffConfirm": "Ausschalten",
+    "keyTitle": "Wiederherstellungsschlüssel",
+    "keyDesc": "Öffnet dein Backup und beweist auf einem neuen Computer, dass du es bist. Mit deiner Passphrase geschützt.",
+    "checkKey": "Passphrase prüfen",
+    "newKey": "Vergessen? Neuen Schlüssel erstellen",
+    "makeKey": "Wiederherstellungsschlüssel erstellen",
+    "staleToast": "Mirall hat seit über 10 Tagen kein Backup gemacht. Prüfe, ob der Backup-Ordner verfügbar ist.",
+    "open": "Öffnen",
+    "rowKeyUnconfirmed": "In deinem Backup-Ordner · Passphrase auf diesem Computer noch nicht bestätigt",
+    "keyOnly": "Nur eine Schlüsseldatei speichern"
   },
   "restoreBackup": {
-    "title": "Aus einem Backup wiederherstellen",
-    "introChoose": "Wähle den Ordner mit deinem Mirall-Backup und den Wiederherstellungsschlüssel, der es öffnet.",
+    "title": "Konto wiederherstellen",
+    "introChoose": "Wähle den Ordner mit deinem Mirall-Backup.",
     "introPick": "Wähle das Backup, das wiederhergestellt werden soll. Meist ist das neueste richtig.",
     "folderLabel": "Backup-Ordner",
     "showBackups": "Backups anzeigen",
@@ -1406,6 +1453,63 @@
     "caution": "Stelle nur wieder her, wenn deine alte Installation nicht mehr existiert – dieselbe Identität auf zwei Geräten gleichzeitig macht sie für deine Kontakte unbrauchbar. Nach der Wiederherstellung holt Mirall zuerst dein neuestes Profil von ihnen, bevor du etwas ändern kannst.",
     "restore": "Wiederherstellen",
     "opening": "Backup wird geöffnet…",
-    "restoring": "Backup wird wiederhergestellt…"
+    "restoring": "Backup wird wiederhergestellt…",
+    "found": "Backup und Wiederherstellungsschlüssel gefunden",
+    "foundBody": "Wiederherstellungsschlüssel vom {{date}} · letztes Backup {{when}}",
+    "foundNoKey": "Backup gefunden",
+    "foundNoKeyBody": "Dieser Ordner enthält keinen Wiederherstellungsschlüssel – wähle unten deine Schlüsseldatei.",
+    "noBackup": "Dieser Ordner enthält kein Mirall-Backup. Wähle den Ordner, in dem „Mirall Backup“ liegt."
+  },
+  "backupSetup": {
+    "title": "Schütze deine Spaces",
+    "intro": "Einmal einrichten. Mirall hält es selbst aktuell.",
+    "step": "Schritt {{n}} von {{total}}",
+    "whereLabel": "Wo soll das Backup liegen?",
+    "whereHint": "Am besten auf einem anderen Laufwerk oder in einem Netzwerkordner – nicht auf der eigenen Festplatte dieses Computers, denn vor deren Ausfall soll es schützen.",
+    "sameDiskTitle": "Gleiche Festplatte wie dieser Computer",
+    "sameDiskBody": "Dieser Ordner liegt auf derselben Festplatte wie Mirall. Fällt sie aus, ist beides verloren. Wähle wenn möglich ein anderes Laufwerk oder einen Netzwerkordner.",
+    "next": "Weiter",
+    "useAnyway": "Trotzdem verwenden",
+    "keyTitle": "Dein Wiederherstellungsschlüssel",
+    "keyIntro": "Dein Wiederherstellungsschlüssel beweist, dass das Backup dir gehört, und öffnet es auf einem neuen Computer. Mirall legt ihn in deinen Backup-Ordner, geschützt mit einer Passphrase, die nur du kennst.",
+    "passphraseHelp": "Mindestens {{min}} Zeichen. Ein kurzer Satz ist leicht zu merken und schwer zu erraten.",
+    "keepSafeTitle": "Bewahre deine Passphrase sicher auf",
+    "keepSafeBody": "Mirall kann sie weder zurücksetzen noch wiederherstellen. Speichere sie in deinem Passwortmanager oder schreib sie auf und bewahre sie bei deinen wichtigen Unterlagen auf.",
+    "turnOn": "Backup einschalten",
+    "working": "Backup wird eingerichtet…",
+    "doneTitle": "Du bist geschützt",
+    "doneBackup": "Backup ist an",
+    "doneBackupBody": "Erstes Backup fertig · {{folder}}",
+    "doneBackupPending": "Das erste Backup ist noch nicht fertig – Mirall versucht es weiter.",
+    "doneKey": "Wiederherstellungsschlüssel gespeichert und geprüft",
+    "doneKeyBody": "Mirall hat ihn mit deiner Passphrase geöffnet – er funktioniert.",
+    "copyTitle": "Noch eine Kopie, an einem anderen Ort",
+    "copyBody": "Gehen dieser Computer und das Backup-Laufwerk zusammen verloren, brauchst du eine weitere Kopie deines Wiederherstellungsschlüssels. Leg eine in einen Passwortmanager, auf einen USB-Stick oder in die Cloud – ohne deine Passphrase ist sie nutzlos.",
+    "doneTitleAttention": "Fast geschafft",
+    "doneBackupFailed": "Das erste Backup wurde nicht fertig"
+  },
+  "backupCheck": {
+    "title": "Passphrase prüfen",
+    "label": "Wiederherstellungs-Passphrase",
+    "body": "Mirall prüft sie auf diesem Computer gegen deinen Wiederherstellungsschlüssel. Nichts wird verschickt.",
+    "check": "Prüfen",
+    "correct": "Passphrase stimmt. Bewahre sie gut auf.",
+    "optOut": "Nicht mehr fragen – sie steht in meinem Passwortmanager"
+  },
+  "backupNewKey": {
+    "title": "Neuen Wiederherstellungsschlüssel erstellen",
+    "intro": "Wähle eine neue Passphrase. Mirall ersetzt den Schlüssel in deinem Backup-Ordner. Anderswo gespeicherte Kopien öffnen sich weiter mit der alten Passphrase – lösche sie.",
+    "make": "Neuen Schlüssel erstellen",
+    "working": "Neuer Schlüssel wird erstellt…",
+    "done": "Neuer Wiederherstellungsschlüssel im Backup-Ordner gespeichert."
+  },
+  "restoreAccount": {
+    "title": "Konto wiederherstellen",
+    "intro": "Mirall schon auf einem anderen Computer genutzt? Hol es hierher zurück.",
+    "listLabel": "Wie möchtest du wiederherstellen?",
+    "fromBackup": "Aus meinem Backup-Ordner",
+    "fromBackupBody": "Alles kommt zurück: deine Spaces, Dateilisten und Einstellungen. Empfohlen.",
+    "fromKey": "Ich habe nur meine Schlüsseldatei",
+    "fromKeyBody": "Du bist wieder du, und deine Spaces kommen von den Personen zurück, mit denen du sie teilst."
   }
 }

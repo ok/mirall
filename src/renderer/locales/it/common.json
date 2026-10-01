@@ -24,7 +24,7 @@
     "displayNamePlaceholder": "es. Mario Rossi",
     "displayNameHelp": "È così che ti vedranno il tuo team e i tuoi amici.",
     "restore": "Hai già una chiave di recupero? Ripristina la tua identità",
-    "restoreBackup": "Ripristina da una cartella di backup"
+    "restoreAccount": "Hai già usato Mirall? Ripristina il tuo account"
   },
   "topnav": {
     "feedback": "Invia feedback",
@@ -45,7 +45,8 @@
     "recordingOff": "Registrazione disattivata · {{kept}}",
     "backupRecoveryKey": "Salva la tua chiave di recupero",
     "backupRecoveryKeyDesc": "Salva una chiave cifrata per conservare la tua identità se perdi questo dispositivo.",
-    "backupRecoveryKeyDescWeak": "Questo dispositivo non ha un portachiavi di sistema: una chiave di recupero è la tua vera protezione."
+    "backupRecoveryKeyDescWeak": "Questo dispositivo non ha un portachiavi di sistema: una chiave di recupero è la tua vera protezione.",
+    "backupDesc": "Il tuo backup e la chiave di recupero che lo apre."
   },
   "spaces": {
     "title": "Spazi",
@@ -534,7 +535,13 @@
     "networkStatusDesc_one": "{{count}} peer connesso",
     "networkStatusDesc_other": "{{count}} peer connessi",
     "activityLog": "Registro attività",
-    "activityLogDesc": "Cosa viene registrato e per quanto tempo."
+    "activityLogDesc": "Cosa viene registrato e per quanto tempo.",
+    "backup": "Backup e recupero",
+    "backupDescOff": "Non configurato — proteggi i tuoi spazi",
+    "backupDescOn": "Attivo · ultimo backup {{when}}",
+    "backupDescPending": "Attivo · primo backup in attesa",
+    "backupDescAttention": "Richiede attenzione",
+    "backupDescPaused": "In pausa durante il ripristino del profilo"
   },
   "appearanceSettings": {
     "title": "Aspetto",
@@ -1004,7 +1011,8 @@
       "networkSettings": "Impostazioni di rete",
       "connectionProblem": "Problema di connessione",
       "networkDiagnostics": "Diagnostica",
-      "networkAdvanced": "Dettagli avanzati"
+      "networkAdvanced": "Dettagli avanzati",
+      "backup": "Backup e recupero"
     }
   },
   "avatar": {
@@ -1316,7 +1324,7 @@
     "startFreshTitle": "Ricominciare da capo?",
     "startFreshBody": "Mirall sposta i dati bloccati in una cartella separata lì accanto e ricomincia con una nuova identità. I tuoi contatti non riconosceranno la nuova identità e i tuoi spazi non ci saranno.",
     "startFreshConfirm": "Metti da parte e ricomincia",
-    "restoreBackup": "Ripristina da un backup"
+    "restoreAccount": "Ripristina il tuo account"
   },
   "restore": {
     "title": "Ripristino del tuo profilo",
@@ -1373,15 +1381,11 @@
     "mismatchConfirm": "Sostituisci e ripristina"
   },
   "backup": {
-    "title": "Backup",
-    "desc": "Mirall conserva una copia cifrata dei tuoi spazi, degli elenchi di file e delle impostazioni in una cartella a tua scelta: un altro disco o una condivisione di rete. Non copia i file che condividi; quelli restano nelle tue cartelle.",
-    "needsRecoveryKey": "Per ripristinare un backup serve la tua chiave di recupero. Se non l’hai ancora salvata, fallo prima nel profilo.",
+    "title": "Backup e recupero",
     "paused": "I backup riprenderanno quando il profilo ripristinato sarà allineato con le persone con cui condividi gli spazi.",
     "running": "Backup in corso…",
-    "lastBackup": "Ultimo backup {{when}}",
-    "never": "Nessun backup ancora",
     "runNow": "Esegui backup ora",
-    "turnOff": "Disattiva",
+    "turnOff": "Disattiva il backup",
     "suspectTitle": "Questo backup è più piccolo del solito",
     "suspectBody": "L’ultimo backup contiene molto meno del precedente ({{reasons}}). Se era voluto, non serve fare nulla: i backup precedenti vengono conservati comunque.",
     "reason": {
@@ -1390,11 +1394,54 @@
       "cores-halved": "meno parti salvate",
       "own-data-shrank": "meno dati tuoi"
     },
-    "folderSubject": "cartella di backup"
+    "folderSubject": "cartella di backup",
+    "subtitle": "Recupera tutto se questo computer si guasta o viene sostituito.",
+    "offerTitle": "Proteggi i tuoi spazi",
+    "offerBody": "Se questo computer si guasta, viene perso o sostituito, un backup riporta i tuoi spazi, i loro elenchi di file e la tua identità presso le persone con cui condividi. Scegli una volta un disco o una cartella di rete — Mirall lo tiene aggiornato da solo.",
+    "setUp": "Configura backup",
+    "notNow": "Non ora",
+    "laterToast": "Puoi configurare un backup in qualsiasi momento in Impostazioni → Backup e recupero.",
+    "checkTitle": "Ricordi ancora la tua passphrase di recupero?",
+    "checkBody": "Un controllo veloce ora evita una brutta sorpresa dopo. Ci vogliono dieci secondi.",
+    "checkNow": "Controlla",
+    "scopeIncludedLead": "Salvato:",
+    "scopeIncluded": "i tuoi spazi, i loro elenchi di file, il tuo profilo e le impostazioni — e la tua chiave di recupero.",
+    "scopeExcludedLead": "Non salvato:",
+    "scopeExcluded": "i file stessi. Restano nelle tue cartelle; fanne il backup come fai già.",
+    "scopePrivateLead": "Privato:",
+    "scopePrivate": "tutto è cifrato. Solo la tua passphrase lo apre — nemmeno noi possiamo.",
+    "protection": "Protezione",
+    "rowBackup": "Backup",
+    "rowBackupOk": "Ultimo backup {{when}}",
+    "rowBackupNever": "Primo backup in attesa",
+    "rowBackupStale": "Ultimo backup {{when}} — oltre 10 giorni fa",
+    "rowKey": "Chiave di recupero",
+    "rowKeyOk": "Nella cartella di backup · confermata {{when}}",
+    "rowKeyNotInFolder": "Conservata su questo computer — Mirall la mette nella cartella al prossimo backup",
+    "rowKeyMissing": "Mancante — crea una nuova chiave di recupero",
+    "rowCopy": "Seconda copia",
+    "rowCopyNone": "Consigliata — conservane una lontano da questo computer e dal disco di backup",
+    "rowCopyOk": "Salvata {{when}}",
+    "saveCopy": "Salva una copia…",
+    "copySaved": "Copia della chiave di recupero salvata.",
+    "folderTitle": "Cartella di backup",
+    "folderDesc": "Mirall esegue il backup dopo ogni modifica, ogni ora e alla chiusura. Conserva i backup recenti e dirada quelli più vecchi.",
+    "turnOffTitle": "Disattivare il backup?",
+    "turnOffBody": "Mirall smette di eseguire backup. I backup e la chiave di recupero già nella cartella restano lì.",
+    "turnOffConfirm": "Disattiva",
+    "keyTitle": "Chiave di recupero",
+    "keyDesc": "Apre il tuo backup e dimostra che sei tu su un nuovo computer. Protetta dalla tua passphrase.",
+    "checkKey": "Controlla la passphrase",
+    "newKey": "Dimenticata? Crea una nuova chiave",
+    "makeKey": "Crea una chiave di recupero",
+    "staleToast": "Mirall non esegue un backup da oltre 10 giorni. Verifica che la cartella di backup sia disponibile.",
+    "open": "Apri",
+    "rowKeyUnconfirmed": "Nella cartella di backup · passphrase non ancora confermata su questo computer",
+    "keyOnly": "Salva solo un file della chiave"
   },
   "restoreBackup": {
-    "title": "Ripristina da un backup",
-    "introChoose": "Scegli la cartella con il tuo backup di Mirall e la chiave di recupero che lo apre.",
+    "title": "Ripristina il tuo account",
+    "introChoose": "Scegli la cartella che contiene il tuo backup di Mirall.",
     "introPick": "Scegli il backup da ripristinare. Di solito il più recente è quello giusto.",
     "folderLabel": "Cartella di backup",
     "showBackups": "Mostra backup",
@@ -1406,6 +1453,63 @@
     "caution": "Ripristina solo se la vecchia installazione non esiste più: la stessa identità su due dispositivi insieme la rende inutilizzabile per i tuoi contatti. Dopo il ripristino, Mirall recupera prima da loro il tuo profilo più recente, prima che tu possa modificare qualcosa.",
     "restore": "Ripristina",
     "opening": "Apertura del backup…",
-    "restoring": "Ripristino del backup…"
+    "restoring": "Ripristino del backup…",
+    "found": "Backup e chiave di recupero trovati",
+    "foundBody": "Chiave di recupero del {{date}} · ultimo backup {{when}}",
+    "foundNoKey": "Backup trovato",
+    "foundNoKeyBody": "Questa cartella non contiene una chiave di recupero — scegli qui sotto il file della chiave.",
+    "noBackup": "Questa cartella non contiene un backup di Mirall. Scegli la cartella che contiene «Mirall Backup»."
+  },
+  "backupSetup": {
+    "title": "Proteggi i tuoi spazi",
+    "intro": "Configuralo una volta. Mirall lo tiene aggiornato da solo.",
+    "step": "Passo {{n}} di {{total}}",
+    "whereLabel": "Dove conservare il backup?",
+    "whereHint": "Meglio su un altro disco o in una cartella di rete — non sul disco di questo computer, che è proprio ciò da cui ti proteggi.",
+    "sameDiskTitle": "Stesso disco di questo computer",
+    "sameDiskBody": "Questa cartella è sullo stesso disco di Mirall. Se il disco si guasta, perdi entrambi. Se puoi, scegli un altro disco o una cartella di rete.",
+    "next": "Avanti",
+    "useAnyway": "Usala comunque",
+    "keyTitle": "La tua chiave di recupero",
+    "keyIntro": "La chiave di recupero dimostra che il backup è tuo e lo apre su un nuovo computer. Mirall la conserva nella cartella di backup, protetta da una passphrase che conosci solo tu.",
+    "passphraseHelp": "Almeno {{min}} caratteri. Una breve frase è facile da ricordare e difficile da indovinare.",
+    "keepSafeTitle": "Conserva bene la passphrase",
+    "keepSafeBody": "Mirall non può reimpostarla né recuperarla. Salvala nel tuo gestore di password, oppure scrivila e conservala con i tuoi documenti importanti.",
+    "turnOn": "Attiva il backup",
+    "working": "Configurazione del backup…",
+    "doneTitle": "Sei protetto",
+    "doneBackup": "Il backup è attivo",
+    "doneBackupBody": "Primo backup completato · {{folder}}",
+    "doneBackupPending": "Il primo backup non è ancora completato — Mirall continua a provare.",
+    "doneKey": "Chiave di recupero salvata e verificata",
+    "doneKeyBody": "Mirall l’ha aperta con la tua passphrase — funziona.",
+    "copyTitle": "Un’altra copia, altrove",
+    "copyBody": "Se perdi insieme questo computer e il disco di backup, ti servirà un’altra copia della chiave di recupero. Mettine una in un gestore di password, su una chiavetta USB o nel cloud — senza la tua passphrase è inutile.",
+    "doneTitleAttention": "Quasi fatto",
+    "doneBackupFailed": "Il primo backup non è stato completato"
+  },
+  "backupCheck": {
+    "title": "Controlla la passphrase",
+    "label": "Passphrase di recupero",
+    "body": "Mirall la verifica su questo computer con la tua chiave di recupero. Non viene inviato nulla.",
+    "check": "Controlla",
+    "correct": "Passphrase corretta. Conservala bene.",
+    "optOut": "Non chiedere più — è nel mio gestore di password"
+  },
+  "backupNewKey": {
+    "title": "Crea una nuova chiave di recupero",
+    "intro": "Scegli una nuova passphrase. Mirall sostituisce la chiave nella cartella di backup. Le copie salvate altrove si aprono ancora con la vecchia passphrase — eliminale.",
+    "make": "Crea nuova chiave",
+    "working": "Creazione della nuova chiave…",
+    "done": "Nuova chiave di recupero salvata nella cartella di backup."
+  },
+  "restoreAccount": {
+    "title": "Ripristina il tuo account",
+    "intro": "Hai già usato Mirall su un altro computer? Riportalo qui.",
+    "listLabel": "Come vuoi ripristinare?",
+    "fromBackup": "Dalla mia cartella di backup",
+    "fromBackupBody": "Torna tutto: spazi, elenchi di file e impostazioni. Consigliato.",
+    "fromKey": "Ho solo il file della chiave di recupero",
+    "fromKeyBody": "Torni a essere tu, e i tuoi spazi tornano dalle persone con cui li condividi."
   }
 }

@@ -24,6 +24,8 @@ import PageHeader from '../components/layout/PageHeader.js'
 import SectionHeading from '../components/layout/SectionHeading.js'
 import ActionRow, { ROW, ROW_GROUP, RowBody, Tile } from '../components/layout/ActionRow.js'
 import RecoveryBackupModal from '../components/modals/RecoveryBackupModal.js'
+import { isLocalBackupFeatureOn } from '../platform/config-client.js'
+import { useIdentityProtection } from '../hooks/useIdentityProtection.js'
 
 interface AccountProps {
   profile: Profile | null
@@ -31,6 +33,7 @@ interface AccountProps {
   onBack: () => void
   onOpenNetworkStatus: () => void
   onOpenActivityLog: () => void
+  onOpenBackup: () => void
   onFeedback: () => void
 }
 
@@ -136,20 +139,16 @@ function ProfileCard({ profile, onSave }: Pick<AccountProps, 'profile' | 'onSave
   )
 }
 
-function DeviceGroup({ onOpenNetworkStatus, onOpenActivityLog }: Pick<AccountProps, 'onOpenNetworkStatus' | 'onOpenActivityLog'>) {
+function DeviceGroup({ onOpenNetworkStatus, onOpenActivityLog, onOpenBackup }: Pick<AccountProps, 'onOpenNetworkStatus' | 'onOpenActivityLog' | 'onOpenBackup'>) {
   const { t } = useTranslation()
   const { state: connectivityState, status: networkStatus } = useConnectionStatus()
-  const [identity, setIdentity] = useState<IdentityProtection | null>(null)
+  const identity = useIdentityProtection()
   const [backupOpen, setBackupOpen] = useState(false)
   // Through the query store for the dedup and cache, with NO scopes: this is a summary line, not a
   // live counter, and the audit scope would repaint it on every recorded event. Scope-less still
   // re-reads on each mount. ActivityLogSettings reads the same two entries.
   const { data: auditConfig } = useQuery('audit:get-config', {}, null)
   const { data: auditStats } = useQuery('audit:stats', {}, null)
-
-  useEffect(() => {
-    window.bridge.getIdentityProtection().then(setIdentity).catch(() => {})
-  }, [])
 
   return (
     <section>
@@ -173,7 +172,10 @@ function DeviceGroup({ onOpenNetworkStatus, onOpenActivityLog }: Pick<AccountPro
             desc={t(IDENTITY_LINE[identity].key)}
           />
         )}
-        {identity && identity !== 'disabled' && (
+        {identity && identity !== 'disabled' && isLocalBackupFeatureOn() && (
+          <ActionRow icon="shield" label={t('settings.backup')} desc={t('account.backupDesc')} onClick={onOpenBackup} />
+        )}
+        {identity && identity !== 'disabled' && !isLocalBackupFeatureOn() && (
           <ActionRow
             icon="lock"
             label={t('account.backupRecoveryKey')}
@@ -269,7 +271,7 @@ function AppGroup({ onFeedback }: Pick<AccountProps, 'onFeedback'>) {
   )
 }
 
-export default function Account({ profile, onSave, onBack, onOpenNetworkStatus, onOpenActivityLog, onFeedback }: AccountProps) {
+export default function Account({ profile, onSave, onBack, onOpenNetworkStatus, onOpenActivityLog, onOpenBackup, onFeedback }: AccountProps) {
   const { t } = useTranslation()
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
 
@@ -289,7 +291,7 @@ export default function Account({ profile, onSave, onBack, onOpenNetworkStatus, 
           <section>
             <ProfileCard profile={profile} onSave={onSave} />
           </section>
-          <DeviceGroup onOpenNetworkStatus={onOpenNetworkStatus} onOpenActivityLog={onOpenActivityLog} />
+          <DeviceGroup onOpenNetworkStatus={onOpenNetworkStatus} onOpenActivityLog={onOpenActivityLog} onOpenBackup={onOpenBackup} />
           <AppGroup onFeedback={onFeedback} />
         </div>
       </div>
