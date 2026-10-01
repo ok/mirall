@@ -7,6 +7,7 @@
 export const MAIN_REQUEST_FRAME = 'main-request'
 
 export const MAIN_REQUEST = Object.freeze({
+  BACKUP_REMEMBER: 'backup:remember',
   DOWNLOADS_ROOTS: 'downloads:roots',
   FOREIGN_FOLDER_START_WATCHER: 'foreign-folder:start-watcher',
   FOREIGN_FOLDER_STOP_WATCHER: 'foreign-folder:stop-watcher',

@@ -45,6 +45,10 @@ export const ARG = Object.freeze({
 /** @satisfies {Record<string, RequestSpec>} */
 export const REQUESTS = Object.freeze({
   'audit:actors': { kind: 'query', args: {} },
+  'backup:configure': { kind: 'command', args: { folder: { type: ARG.path, max: ARG_MAX.path } } },
+  'backup:run': { kind: 'command', deadlineMs: 0, args: {} },
+  'backup:status': { kind: 'query', args: {} },
+  'backup:turn-off': { kind: 'command', args: {} },
   'audit:configure': { kind: 'command', args: {
     enabled: { type: ARG.boolean, optional: true },
     maxEntries: { type: ARG.number, optional: true },

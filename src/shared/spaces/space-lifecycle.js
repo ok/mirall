@@ -8,6 +8,8 @@ import crypto from 'hypercore-crypto'
 import b4a from 'b4a'
 import { hasMasterSecret, deriveSpaceContentKey } from '../core/store.js'
 import { profileHeld } from '../core/restore-hold.js'
+import { backupHint } from '../storage/backup/backup-hints.js'
+import { URGENCY } from '../storage/backup/schedule-rules.js'
 import { putContentKey } from './space-keys.js'
 import { markApproval, clearRequest, getLocalPublicKeyHex } from './profile.js'
 import { clearJoinRequest } from './join-requests.js'
@@ -51,6 +53,7 @@ export async function createSpace(name, icon = 'folder') {
   // The catalog name derives from the SAVED record, so the loose-catalog key is published only
   // after the put — publishing earlier forks a divergent core.
   await publishLooseCatalogKey(spaceId, space)
+  backupHint(URGENCY.URGENT)
 
   return { spaceId, ...space }
 }
@@ -120,7 +123,9 @@ export async function materializeSpace(spaceId, sck, { epoch = 0 } = {}) {
     await publishParticipationId(spaceId, space)
     await publishLooseCatalogKey(spaceId, space)
   }
-  return await mutateSpace(spaceId, (s) => ({ ...s, status: 'approved' }))
+  const approved = await mutateSpace(spaceId, (s) => ({ ...s, status: 'approved' }))
+  backupHint(URGENCY.URGENT)
+  return approved
 }
 
 export async function recordApproval(spaceId, joinerKey) {
