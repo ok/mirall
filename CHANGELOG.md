@@ -26,9 +26,27 @@ just the first one after Mirall starts.
 removing your relay, and turning it or "Prefer the relay for every
 connection" on or off, each leave one entry under Network. Entries name the
 relay by its label and a shortened key.
+- **See what each space takes up in App Storage.** Settings → Storage used
+to put most of Mirall's data under one "App database" line. It now lists
+each space, the Activity Log, download history and everything else
+separately, and says how each one is freed.
+
+#### Changed
+
+- **Mirall on Windows now needs Windows 10 version 1903 or later.** On
+version 1809, Windows kept Mirall's data in a private copy instead of the
+app-data folder Mirall reads it from.
 
 #### Fixed
 
+- **Mirall's window no longer goes blank on a list that only just needs
+scrolling.** A list right at that length could keep resizing itself until
+the window went blank.
+- **A mirrored folder no longer deletes files it didn't put there.** When
+the owner deleted a file, your mirror removed whatever sat at that path,
+even a file you had put there yourself. Mirall now removes only copies it
+can tell are untouched and keeps anything else. A mirror folder you delete
+is no longer recreated by the next download.
 - **App Storage no longer grows every time Mirall starts.** Mirall kept an
 internal log with an entry for every file you share and added to it on each
 start, though nothing ever read it. The log is removed once when you update,
@@ -40,6 +58,27 @@ what went wrong.
 
 #### Security
 
+- **People outside a space can no longer read your profile or your file
+lists.** Anyone who got hold of the keys to that data could download it from
+you over any connection. Mirall now sends it only to admitted members, and
+stops as soon as a member leaves.
+- **You can no longer mirror into a folder that starts programs or holds
+keys.** A mirror writes the owner's files into the folder you pick, so a
+startup folder or a hidden folder in your home folder, such as `~/.ssh`,
+let the owner place files that run when you log in or replace your keys.
+Mirall now refuses these folders. On macOS and Windows it also spots a
+folder that is already in use when its name differs only in upper or lower
+case.
+- **A download no longer writes through a link in its way.** If a link or a
+new file appeared where a download was being saved, Mirall followed the
+link or replaced the file. It now stops instead.
+- **A planted join request can no longer freeze a space's member list.** A
+request with a damaged key stopped the member list from updating for every
+member, and approving it spread the damage. Mirall now ignores such keys.
+- **A member can no longer exhaust Mirall's memory while you download from
+them.** The sender of a file's piece list could keep sending more of it
+until Mirall ran out of memory. Mirall now refuses a list longer than the
+file needs and drops a peer that keeps trying.
 - **People outside a space can no longer fill your disk or restart your
 downloads through the file-transfer connection.** Someone who knew a space's
 network address could make Mirall store data nothing uses, discard a
