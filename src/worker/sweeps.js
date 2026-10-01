@@ -9,6 +9,7 @@ import { createLocalBee } from '../shared/core/store.js'
 import { sweepExpiredInvites } from '../shared/spaces/profile.js'
 import { pruneAudit } from '../shared/audit/audit-reclaim.js'
 import { measureHistory } from '../shared/storage/storage-history.js'
+import { profileHeld } from '../shared/core/restore-hold.js'
 
 const PRESENCE_SWEEP_INTERVAL_MS = 60_000
 const INVITE_SWEEP_INTERVAL_MS = 60 * 60 * 1000
@@ -42,6 +43,7 @@ export async function compactIndexIfDue() {
 // Prune our own expired invite links (reusable-until-expiry records are never consumed).
 // Best-effort: enforcement is by timestamp regardless, so a missed run only defers cleanup.
 async function sweepAllExpiredInvites() {
+  if (profileHeld()) return
   for (const s of await listSpaces()) await sweepExpiredInvites(s.spaceId)
 }
 

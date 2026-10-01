@@ -465,6 +465,13 @@ it. Confirm with `npm ls` and probe from outside the repo.
 throws into protomux, destroying the socket. After parsing untrusted input, assert
 `!!v && typeof v === 'object' && !Array.isArray(v)`.
 
+**A restored own core is read-only until a peer confirms it current.** A writer that appends at a
+length a peer already holds signs a second history; hypercore freezes the core on both sides and
+pushes the conflict to every peer. Open it with `writable: false` (the key pair is still there for
+signing) and keep a live `download({ start: 0, end: -1 })` running until every holder's `remoteLength`
+is matched. A session opened by key alone is writable once the auth row holds the key pair, so the
+guard belongs on the opener every writer uses. Tell: `[hypercore] conflict detected` on stdout.
+
 ## Destructive and long-running work
 
 **A "not present" check that prunes its own record makes the state one-way.** Prune only when the

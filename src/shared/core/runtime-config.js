@@ -121,6 +121,10 @@ export function getRelayAuditDwellMs() {
   return read('relayAuditDwellMs')
 }
 
+export function getRestoreReleaseDwellMs() {
+  return read('restoreReleaseDwellMs')
+}
+
 export function getDeepReconcileEvery() {
   return read('deepReconcileEvery')
 }

@@ -11,12 +11,14 @@ import { encodeInvite, decodeInvite } from '../../shared/contract/invite-envelop
 import { getProfile, getLocalPublicKeyHex, markInvite, mintInviteId, markOwnMembership } from '../../shared/spaces/profile.js'
 import {
   getSpace,
+  mutateSpace,
   updateSpace,
   toggleFavorite,
   isLegacySpace,
   LEGACY_SPACE_MESSAGE,
 } from '../../shared/spaces/space.js'
 import { createSpace, joinSpace } from '../../shared/spaces/space-lifecycle.js'
+import { profileHeld } from '../../shared/core/restore-hold.js'
 import { clearPendingLeave } from '../../shared/spaces/leave-records.js'
 import { getConnectedPeers } from '../../shared/network/presence-leases.js'
 import { joinSpaceTopic } from '../../shared/network/space-topics.js'
@@ -109,7 +111,10 @@ export function registerSpaces(ipc, { log, publishDownloadRoots }) {
     log.info('joining space', decoded.v === 1 ? '(envelope)' : '(legacy)')
     const { inviteId, creator, owner, ownerName } = envelope ?? {}
     const space = await joinSpace(decoded.topic, name, msg.icon ?? undefined, { inviteId, creator, owner, ownerName })
-    await markOwnMembership(space.spaceId, { refresh: true })
+    // A restored profile records the membership once it has caught up: the next boot's backfill, which
+    // the flag tells to stamp it newer than any tombstone co-members hold.
+    if (profileHeld()) await mutateSpace(space.spaceId, (s) => ({ ...s, membershipRefresh: true }))
+    else await markOwnMembership(space.spaceId, { refresh: true })
     // A genuine rejoin supersedes any pending outbound leave: the fresh member/<S> record (strictly
     // newer ts) outranks the old tombstone on co-members, so retire the marker + its replay topic.
     // Guard on an ACTIVE marker (never touch the shared topic maps otherwise — re-pasting an invite

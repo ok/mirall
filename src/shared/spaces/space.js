@@ -105,7 +105,7 @@ export async function listSpaces() {
 
 /**
  * The stored record: the wire shape plus the fields only the worker keeps.
- * @typedef {SpaceRecord & { creatorKey?: string, creatorUnverified?: boolean, creatorDivergence?: boolean, leaving?: boolean, inviteOwner?: string }} StoredSpace
+ * @typedef {SpaceRecord & { creatorKey?: string, creatorUnverified?: boolean, creatorDivergence?: boolean, leaving?: boolean, inviteOwner?: string, membershipRefresh?: boolean }} StoredSpace
  */
 
 /** @param {string} spaceId @returns {Promise<StoredSpace | null>} */
@@ -148,6 +148,7 @@ export async function mutateMembers(spaceId, mutate) {
 // Read-modify-write of a space's non-member fields (e.g. status). Resolves to the record as stored
 // after the call — written, or unchanged when `mutate` returned an equal record — or null when the
 // space is gone or `mutate` declined.
+/** @param {string} spaceId @param {(space: StoredSpace) => StoredSpace | null} mutate @returns {Promise<StoredSpace | null>} */
 export async function mutateSpace(spaceId, mutate) {
   const out = await records.mutateWithOutcome(spaceKey(spaceId), mutate)
   return out ? { spaceId, ...out.value } : null

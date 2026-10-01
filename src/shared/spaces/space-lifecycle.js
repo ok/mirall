@@ -7,6 +7,7 @@
 import crypto from 'hypercore-crypto'
 import b4a from 'b4a'
 import { hasMasterSecret, deriveSpaceContentKey } from '../core/store.js'
+import { profileHeld } from '../core/restore-hold.js'
 import { putContentKey } from './space-keys.js'
 import { markApproval, clearRequest, getLocalPublicKeyHex } from './profile.js'
 import { clearJoinRequest } from './join-requests.js'
@@ -109,12 +110,16 @@ export async function joinSpace(topicHex, name = 'Unnamed Space', icon = 'folder
 // Store the granted key at the epoch the grant named, announce, then flip the space out of the
 // pending state. The epoch lands first because the announce publishes it from the record; the flip
 // lands last so a failed announce leaves the space pending, where the next grant retries it all.
+// A restored profile is read-only until it has caught up, and catching up needs this grant to
+// complete, so the announce is left to the next boot's participation backfill.
 export async function materializeSpace(spaceId, sck, { epoch = 0 } = {}) {
   await putContentKey(spaceId, sck, { epoch })
   const space = await mutateSpace(spaceId, (s) => ({ ...s, epoch }))
   if (!space) return null
-  await publishParticipationId(spaceId, space)
-  await publishLooseCatalogKey(spaceId, space)
+  if (!profileHeld()) {
+    await publishParticipationId(spaceId, space)
+    await publishLooseCatalogKey(spaceId, space)
+  }
   return await mutateSpace(spaceId, (s) => ({ ...s, status: 'approved' }))
 }
 
