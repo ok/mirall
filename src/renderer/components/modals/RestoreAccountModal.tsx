@@ -7,6 +7,7 @@ import ModalHeader from '../primitives/ModalHeader.js'
 import ModalFooter from '../layout/ModalFooter.js'
 import Button from '../primitives/Button.js'
 import Icon from '../primitives/Icon.js'
+import RadioCard from '../primitives/RadioCard.js'
 
 export type RestoreSource = 'backup' | 'key'
 
@@ -33,14 +34,7 @@ export default function RestoreAccountModal({ isOpen, onClose, onChoose }: Resto
         <div className="px-10 pb-10 space-y-6">
           <div role="radiogroup" aria-label={t('restoreAccount.listLabel')} className="space-y-3">
             {OPTIONS.map((option) => (
-              <label key={option.source} className={`flex items-start gap-4 bg-surface-container-low rounded-xl p-5 cursor-pointer${source === option.source ? ' ring-2 ring-secondary' : ''}`}>
-                <input
-                  type="radio"
-                  name="restore-account-source"
-                  checked={source === option.source}
-                  onChange={() => setSource(option.source)}
-                  className="accent-primary mt-1"
-                />
+              <RadioCard key={option.source} name="restore-account-source" checked={source === option.source} onSelect={() => setSource(option.source)}>
                 <span className="w-10 h-10 rounded-full bg-icon-tile flex items-center justify-center text-on-icon-tile shrink-0">
                   <Icon name={option.icon} />
                 </span>
@@ -48,7 +42,7 @@ export default function RestoreAccountModal({ isOpen, onClose, onChoose }: Resto
                   <span className="block font-headline font-bold text-accent">{t(option.title)}</span>
                   <span className="block text-sm text-on-surface-variant mt-1">{t(option.body)}</span>
                 </span>
-              </label>
+              </RadioCard>
             ))}
           </div>
           <ModalFooter layout="split">

@@ -22,6 +22,7 @@ import FieldLabel from '../primitives/FieldLabel.js'
 import Button from '../primitives/Button.js'
 import Callout from '../primitives/Callout.js'
 import PathRow from '../path/PathRow.js'
+import RadioCard from '../primitives/RadioCard.js'
 import RecoveryFileChoice from '../recovery/RecoveryFileChoice.js'
 
 interface RestoreBackupModalProps {
@@ -217,22 +218,12 @@ function SnapshotChoice({ snapshots, chosen, onChoose }: SnapshotChoiceProps) {
           snapshot.suspect ? t('restoreBackup.flagged') : null,
         ].filter((part) => part !== null)
         return (
-          <label key={snapshot.name} className={`flex items-center gap-4 bg-surface-container-low rounded-xl p-4 cursor-pointer${chosen === snapshot.name ? ' ring-2 ring-secondary' : ''}`}>
-            <input
-              ref={chosen === snapshot.name ? chosenRef : undefined}
-              type="radio"
-              name="restore-backup-snapshot"
-              checked={chosen === snapshot.name}
-              onChange={() => onChoose(snapshot.name)}
-              className="accent-primary"
-            />
+          <RadioCard key={snapshot.name} name="restore-backup-snapshot" checked={chosen === snapshot.name} onSelect={() => onChoose(snapshot.name)} inputRef={chosen === snapshot.name ? chosenRef : undefined}>
             <span className="min-w-0">
-              <span className="block font-bold text-on-surface">
-                {formatDateTime(snapshot.createdAt)}
-              </span>
+              <span className="block font-bold text-on-surface">{formatDateTime(snapshot.createdAt)}</span>
               {details.length > 0 && <span className="block text-sm text-on-surface-variant">{details.join(' · ')}</span>}
             </span>
-          </label>
+          </RadioCard>
         )
       })}
     </div>
