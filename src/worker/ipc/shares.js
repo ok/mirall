@@ -30,6 +30,7 @@ import { getOwnedMount, getForeignMount } from '../../shared/folders/mount-store
 import { record } from '../../shared/audit/audit-log.js'
 import { selfActor, targetRef } from '../../shared/audit/audit-record.js'
 import { spaceRefOf } from '../audit-refs.js'
+import { assertCatalogWritable, assertProfileWritable } from '../../shared/core/restore-guard.js'
 
 // The share record the space would see, with every refusal already made and nothing written down
 // yet. Split from the publish below because the composed create-and-mount has to record a durable
@@ -105,6 +106,7 @@ export function registerShares(ipc, { log, intents, mountOwnedShare }) {
   })
 
   ipc.handle('share:create', async (msg) => {
+    assertProfileWritable()
     const { share, space } = await prepareOwnedShare(msg.spaceId, msg.name)
     await publishOwnedShare(ipc, space, share)
     return share
@@ -120,6 +122,8 @@ export function registerShares(ipc, { log, intents, mountOwnedShare }) {
   //
   // Recorded first, cleared last; the next boot finishes whatever this did not.
   ipc.handle('share:create-and-mount', async (msg) => {
+    assertProfileWritable()
+    await assertCatalogWritable(msg.spaceId)
     // Both refusal paths run before the intent: a bad path or a name collision is a refusal, not a
     // half-done flow, and an intent recorded for work that never started is an orphan the boot pass
     // would act on. The admission gate (the file-count walk) stays inside the mount, i.e. after the
@@ -161,6 +165,7 @@ export function registerShares(ipc, { log, intents, mountOwnedShare }) {
   // write second copies, and in-flight partials could no longer be cancelled. So the immutable key
   // stays put and `displayName` carries what people read; the renderer resolves one from the other.
   ipc.handle('share:rename', async (msg) => {
+    assertProfileWritable()
     const space = await getSpace(msg.spaceId)
     if (!space) throw new AppError(CODES.SPACE_NOT_FOUND, 'Space not found')
     const displayName = (msg.name || '').trim()
@@ -192,6 +197,7 @@ export function registerShares(ipc, { log, intents, mountOwnedShare }) {
   })
 
   ipc.handle('share:delete', async (msg) => {
+    assertProfileWritable()
     const space = await getSpace(msg.spaceId)
     const share = (await readOwnShares(msg.spaceId)).find((s) => s.id === msg.shareId)
     await tombstoneShare(msg.spaceId, msg.shareId)

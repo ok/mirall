@@ -106,7 +106,7 @@ test('a recovery key for another identity is refused unless the user replaces', 
   const status = await asBob.request('identity:status')
   t.is(status.locked, false, 'the next boot opens')
   t.is(status.restore?.verdict, 'no-holder', "and holds Bob's profile until a peer holding it is reached")
-  t.is(await codeOf(asBob.request('profile:set', { displayName: 'Bob here' })), 'SESSION_NOT_WRITABLE', 'nothing writes it before then')
+  t.is(await codeOf(asBob.request('profile:set', { displayName: 'Bob here' })), 'RESTORE_HELD', 'nothing writes it before then')
 
   t.alike(await asBob.request('identity:set-aside'), { folder: null }, 'a restore can still be set aside')
   await stop(asBob)

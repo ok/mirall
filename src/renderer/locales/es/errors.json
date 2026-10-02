@@ -57,5 +57,6 @@
   "backupTargetDenied": "Mirall no tiene permiso para escribir en la carpeta de copias. Revisa sus permisos.",
   "backupTargetFull": "La unidad de la carpeta de copias está llena.",
   "backupTargetOffline": "La carpeta de copias no está disponible. Conecta la unidad o el recurso de red y vuelve a intentarlo.",
-  "backupKeyMissing": "No se encontró ninguna clave de recuperación para esta copia."
+  "backupKeyMissing": "No se encontró ninguna clave de recuperación para esta copia.",
+  "restoreHeld": "Disponible cuando Mirall haya comprobado con las personas con quienes compartes."
 }

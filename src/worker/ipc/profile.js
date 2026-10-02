@@ -11,11 +11,13 @@ import { AppError, errorMessage } from '../../shared/core/errors.js'
 import { CODES } from '../../shared/contract/errors.js'
 import { cancelPendingRestore } from '../../shared/core/identity-adopt.js'
 import { getStoragePath } from '../../shared/core/store.js'
+import { assertProfileWritable } from '../../shared/core/restore-guard.js'
 
 /** @param {WorkerIpc} ipc @param {{ log: Logger }} deps */
 export function registerProfile(ipc, { log }) {
   ipc.handle('profile:get', async () => await getProfile())
   ipc.handle('profile:set', async (msg) => {
+    assertProfileWritable()
     await setProfile({ displayName: msg.displayName, avatar: msg.avatar })
     cancelPendingRestore(getStoragePath())
     // profile:set answers with the profile it wrote, or fails: never with null.

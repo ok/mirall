@@ -19,6 +19,7 @@ import { record } from '../../shared/audit/audit-log.js'
 import { selfActor, targetRef } from '../../shared/audit/audit-record.js'
 import { TARGET_KIND } from '../../shared/contract/audit-kinds.js'
 import { spaceRefOf, shareNameOrNull } from '../audit-refs.js'
+import { assertProfileWritable } from '../../shared/core/restore-guard.js'
 
 /** @param {WorkerIpc} ipc @param {{ log: Logger, intents: WorkerRoot['intents'] }} deps */
 export function registerForeignFolders(ipc, { log, intents }) {
@@ -76,6 +77,7 @@ export function registerForeignFolders(ipc, { log, intents }) {
   })
 
   ipc.handle('foreign-folder:set-enabled', async (msg) => {
+    assertProfileWritable()
     return wire(await setForeignEnabled(msg.spaceId, msg.shareId, !!msg.enabled))
   })
 
@@ -101,6 +103,7 @@ export function registerForeignFolders(ipc, { log, intents }) {
   })
 
   ipc.handle('foreign-folder:unmount', async (msg) => {
+    assertProfileWritable()
     const mount = await getForeignMount(msg.spaceId, msg.shareId)
     // The unmount drops the mount record and the mirror record in two stores; a crash between them
     // leaves a mirror loop armed against a mount that is already gone.
