@@ -29,6 +29,7 @@ import RecoveryBackupModal from '../components/modals/RecoveryBackupModal.js'
 import { isLocalBackupFeatureOn } from '../platform/config-client.js'
 import { useIdentityProtection } from '../hooks/useIdentityProtection.js'
 import { useBackupStatus } from '../hooks/useBackupStatus.js'
+import { useRestoreHold } from '../hooks/useRestoreHold.js'
 import ProtectionDot from '../components/backup/ProtectionDot.js'
 import { IDENTITY_LINE, protectionLamp, protectionSummary } from '../model/protection-view.js'
 import { formatDateTime } from '../format/utils.js'
@@ -75,6 +76,8 @@ function ProfileCard({ profile, onSave }: Pick<AccountProps, 'profile' | 'onSave
   const { avatar, error: avatarError, onChange: handleAvatarChange } = useAvatarPicker(profile?.avatar || null)
   const [saving, setSaving] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  // A restored profile is read-only until the people it is shared with confirm it.
+  const held = !useRestoreHold().canWriteProfile
 
   const hasChanges = displayName !== profile?.displayName || avatar !== profile?.avatar
 
@@ -96,8 +99,10 @@ function ProfileCard({ profile, onSave }: Pick<AccountProps, 'profile' | 'onSave
       <div className="flex items-center gap-6">
         <button
           type="button"
-          onClick={() => fileRef.current?.click()}
+          onClick={() => { if (!held) fileRef.current?.click() }}
           aria-label={t('settings.changeAvatar')}
+          aria-disabled={held || undefined}
+          aria-describedby={held ? 'account-held-reason' : undefined}
           className="relative w-20 h-20 rounded-full bg-surface flex items-center justify-center cursor-pointer overflow-hidden shrink-0 p-0 border-0 focus-ring"
         >
           <Avatar src={avatar} size="xl" fallback="silhouette" decorative />
@@ -112,7 +117,8 @@ function ProfileCard({ profile, onSave }: Pick<AccountProps, 'profile' | 'onSave
             id="account-display-name"
             type="text"
             maxLength={NAME_MAX}
-            aria-describedby="account-display-name-count"
+            aria-describedby={held ? 'account-display-name-count account-held-reason' : 'account-display-name-count'}
+            readOnly={held}
             className="w-full bg-surface-container-lowest border-none rounded-xl px-4 py-3 text-on-surface placeholder:text-outline-variant focus-ring transition-all"
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
@@ -122,6 +128,7 @@ function ProfileCard({ profile, onSave }: Pick<AccountProps, 'profile' | 'onSave
           </p>
         </div>
       </div>
+      {held && <p id="account-held-reason" className="text-xs text-on-surface-variant">{t('restore.heldReason')}</p>}
       {avatarError && (
         <InlineError size="xs">{avatarError}</InlineError>
       )}

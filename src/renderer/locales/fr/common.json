@@ -1323,8 +1323,6 @@
     "restoreAccount": "Restaurer votre compte"
   },
   "restore": {
-    "title": "Restauration de votre profil",
-    "body": "Votre identité est de retour sur cet appareil. Mirall récupère votre profil auprès des personnes avec qui vous partagez des espaces, afin que rien de ce que vous modifiez ici n'entre en conflit avec ce qu'elles ont déjà.",
     "statusWaiting": "En attente qu'une personne d'un de vos espaces se connecte…",
     "statusReceiving": "Réception de votre profil…",
     "statusChecking": "Vérification que votre profil est à jour…",
@@ -1337,7 +1335,19 @@
     "startFresh": "Commencer plutôt une nouvelle identité",
     "startFreshHint": "Cette restauration est mise de côté sur cet appareil, pas supprimée.",
     "startFreshBody": "Mirall déplace l'identité restaurée dans un dossier séparé et commence avec une nouvelle. Vos contacts ne reconnaîtront pas la nouvelle identité, et vos espaces n'y seront pas.",
-    "restartFailed": "Mirall n'a pas pu redémarrer pour ouvrir votre profil."
+    "restartFailed": "Mirall n'a pas pu redémarrer pour ouvrir votre profil.",
+    "bannerWaiting": "En attente que l’une d’elles soit en ligne.",
+    "details": "Détails",
+    "heldReason": "Disponible dès que Mirall a vérifié auprès des personnes avec qui vous partagez.",
+    "sectionTitle": "Restauration",
+    "spacesChecking": "Espaces encore en cours de vérification",
+    "checkingSpaceTitle": "Vérification de « {{name}} »",
+    "checkingSpaceBody": "Mirall vérifie encore cet espace auprès de ses membres. Le partage ici attend jusque-là ; tout le reste est prêt.",
+    "released": "Votre profil est confirmé — vous pouvez de nouveau le modifier.",
+    "bannerBackupLead": "Vos données sont restaurées",
+    "bannerBackupDetail": "Mirall vérifie auprès des personnes avec qui vous partagez avant que vous puissiez modifier quoi que ce soit.",
+    "bannerKeyLead": "Votre identité est de retour",
+    "bannerKeyDetail": "Mirall récupère votre profil auprès des personnes avec qui vous partagez. D’ici là, vous pouvez consulter, pas modifier."
   },
   "recoveryBackup": {
     "title": "Sauvegarder votre clé de récupération",
@@ -1572,7 +1582,11 @@
       "staleTitle": "Votre sauvegarde est arrêtée",
       "staleBody": "Rien n’a été sauvegardé depuis plus de 10 jours. Connectez le disque de sauvegarde, ou choisissez un autre dossier dans les réglages de sauvegarde et récupération.",
       "noKeyTitle": "Votre sauvegarde n’a pas de clé de récupération",
-      "noKeyBody": "Sans elle, cette sauvegarde ne peut pas être restaurée sur un autre ordinateur. Créez une clé de récupération."
+      "noKeyBody": "Sans elle, cette sauvegarde ne peut pas être restaurée sur un autre ordinateur. Créez une clé de récupération.",
+      "restoringTitle": "Restauration",
+      "restoringBody": "Vos données sont restaurées. Les modifications attendent qu’une personne avec qui vous partagez confirme qu’il n’existe rien de plus récent — ainsi rien ne peut entrer en conflit.",
+      "restoringKeyTitle": "Restauration",
+      "restoringKeyBody": "Votre identité est de retour. Les modifications attendent qu’une personne avec qui vous partagez envoie votre profil — ainsi rien ne peut entrer en conflit."
     },
     "copyAfterKey": "Enregistrée dès que vous créez une clé de récupération."
   }

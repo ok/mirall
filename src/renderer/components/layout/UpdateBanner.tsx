@@ -1,5 +1,6 @@
 // Banner under the top nav shown when an update has been downloaded and will apply on next start.
-import { useRef, useLayoutEffect } from 'react'
+import { useRef } from 'react'
+import { useBannerHeight } from '../../hooks/useBannerHeight.js'
 import { useTranslation } from 'react-i18next'
 import type { UpdateInfo } from '../../types/types.js'
 import Icon from '../primitives/Icon.js'
@@ -13,27 +14,7 @@ export default function UpdateBanner({ update, onDismiss }: UpdateBannerProps) {
   const { t } = useTranslation()
   const ref = useRef<HTMLDivElement>(null)
 
-  // Publish the banner's live height as --banner-h on :root so the fixed nav's
-  // content offset (app.tsx <main>) and every screen's `100vh - navHeight`
-  // scroll area can grow by exactly this much — pushing content down instead of
-  // letting the banner overlay it. ResizeObserver keeps it correct if the text
-  // wraps on a narrow window. Reset to 0 whenever the banner isn't shown.
-  useLayoutEffect(() => {
-    const root = document.documentElement
-    const el = ref.current
-    if (!el) {
-      root.style.setProperty('--banner-h', '0px')
-      return
-    }
-    const apply = () => root.style.setProperty('--banner-h', `${el.offsetHeight}px`)
-    apply()
-    const ro = new ResizeObserver(apply)
-    ro.observe(el)
-    return () => {
-      ro.disconnect()
-      root.style.setProperty('--banner-h', '0px')
-    }
-  }, [update])
+  useBannerHeight(ref, update !== null)
 
   if (!update) return null
 

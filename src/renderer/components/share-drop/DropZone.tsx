@@ -1,5 +1,6 @@
 // Idle share target on a space screen: dashed drop area with a Browse menu for picking
-// files or a folder; fades out while a drag is active so DropOverlay can take over.
+// files or a folder; fades out while a drag is active so DropOverlay can take over. While a restore is
+// being confirmed it says why sharing waits, and its menu does nothing.
 import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import ActionMenu, { type ActionMenuItemConfig } from '../primitives/ActionMenu.js'
@@ -8,12 +9,14 @@ interface DropZoneProps {
   onFilesSelected: (files: File[]) => void
   onFolderSelected?: (folderPath: string) => void
   dragActive?: boolean
+  shareHeld?: boolean
 }
 
 export default function DropZone({
   onFilesSelected,
   onFolderSelected,
   dragActive = false,
+  shareHeld: held = false,
 }: DropZoneProps) {
   const { t } = useTranslation()
   const fileRef = useRef<HTMLInputElement>(null)
@@ -30,12 +33,14 @@ export default function DropZone({
       id: 'files',
       label: t('dropZone.files'),
       icon: 'draft',
+      disabled: held,
       onAction: () => fileRef.current?.click(),
     },
     {
       id: 'folder',
       label: t('dropZone.folder'),
       icon: 'folder',
+      disabled: held,
       onAction: () => {
         // '' means "no path chosen yet" — the handler opens the native picker. A real path here
         // would skip it and share that folder immediately.
@@ -47,16 +52,17 @@ export default function DropZone({
   return (
     <div
       role="group"
-      aria-label={t('dropZone.subtitle')}
+      aria-label={held ? t('restore.heldReason') : t('dropZone.subtitle')}
+      aria-disabled={held || undefined}
       className={`flex flex-col items-center justify-center p-6 border-2 border-dashed border-outline bg-surface-container-low rounded-2xl min-h-[10.5rem] transition-opacity duration-200 motion-reduce:transition-none ${
-        dragActive ? 'opacity-0 pointer-events-none' : 'opacity-100'
+        dragActive ? 'opacity-0 pointer-events-none' : held ? 'opacity-60' : 'opacity-100'
       }`}
     >
       <h3 className="text-lg font-headline font-bold text-accent mb-1 text-center">
         {t('dropZone.title')}
       </h3>
       <p className="text-xs text-on-surface-variant mb-4 text-center">
-        {t('dropZone.subtitle')}
+        {held ? t('restore.heldReason') : t('dropZone.subtitle')}
       </p>
       <ActionMenu label={t('dropZone.browse')} items={browseItems} />
       <input

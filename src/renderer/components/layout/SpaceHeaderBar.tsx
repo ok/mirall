@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { useHeldControl } from '../../hooks/useHeldControl.js'
 import Button from '../primitives/Button.js'
 import ActionMenu from '../primitives/ActionMenu.js'
 import EntityHeader from './EntityHeader.js'
@@ -13,6 +14,8 @@ interface SpaceHeaderActionsProps {
   onEdit: () => void
   onManageStorage: () => void
   onLeave: () => void
+  // While a restore is being confirmed, inviting and leaving wait (both write the profile).
+  writeHeld?: boolean
 }
 
 function SpaceHeaderActions({
@@ -25,8 +28,10 @@ function SpaceHeaderActions({
   onEdit,
   onManageStorage,
   onLeave,
+  writeHeld = false,
 }: SpaceHeaderActionsProps) {
   const { t } = useTranslation()
+  const held = useHeldControl(writeHeld)
   // Not a member yet — expose nothing member-only (invite/edit/storage), just a way to withdraw
   // the request.
   if (isPending) {
@@ -38,7 +43,7 @@ function SpaceHeaderActions({
   }
   return (
     <>
-      <Button icon="group_add" onClick={onInvite} disabled={isLegacy}>
+      <Button icon="group_add" onClick={held.guard(onInvite)} disabled={isLegacy} {...held.attrs}>
         {t('space.inviteShort')}
       </Button>
       <ActionMenu
@@ -69,6 +74,8 @@ function SpaceHeaderActions({
             label: t('space.leave'),
             icon: 'logout',
             variant: 'danger',
+            disabled: writeHeld,
+            hint: writeHeld ? held.reason : undefined,
             onAction: onLeave,
           },
         ]}

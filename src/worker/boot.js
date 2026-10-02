@@ -340,7 +340,12 @@ export async function boot(bootstrap, {
       else backup = started
     }
     const restoreCatchUp = heldNames().length
-      ? await life.start(new RestoreCatchUp('restore-catch-up', { profile: tier.profile, onAllReleased: isLocalBackupEnabled() ? startBackup : null }))
+      ? await life.start(new RestoreCatchUp('restore-catch-up', {
+        ipc,
+        profile: tier.profile,
+        onAllReleased: isLocalBackupEnabled() ? startBackup : null,
+        onCatalogReleased: (spaceId) => mounts.rescanSpace(spaceId),
+      }))
       : null
     if (isLocalBackupEnabled() && !heldNames().length) await startBackup()
 

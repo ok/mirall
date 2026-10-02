@@ -35,6 +35,8 @@ interface SpaceContentPaneProps {
   members: SpaceMember[]
   /** A space from before v1.7.0: it can be read and left, but nothing can be added to it. */
   isLegacy: boolean
+  // A held catalog (a restore being confirmed) cannot take new files yet.
+  shareHeld: boolean
   /** Both list sources in one shape; see spaceContentState.js for why emptiness needs both. */
   pane: Parameters<typeof showSpaceEmptyState>[0]
   shares: SharesProps['shares']
@@ -68,7 +70,7 @@ export default function SpaceContentPane(props: SpaceContentPaneProps) {
          `min-h-0` is what constrains the height; the drop overlay is inset from this same
          positioned ancestor, so its bounds are unchanged. */
       className="relative flex-1 min-h-0 grid grid-cols-1 min-[900px]:grid-cols-[1fr_300px] gap-8 pt-4 pb-8"
-      {...(isLegacy ? {} : drag.handlers)}
+      {...(isLegacy || props.shareHeld ? {} : drag.handlers)}
     >
       <div
         ref={filesRef}
@@ -116,6 +118,7 @@ export default function SpaceContentPane(props: SpaceContentPaneProps) {
               onFilesSelected={props.onFilesSelected}
               onFolderSelected={props.onShareFolderRequest}
               dragActive={drag.active}
+              shareHeld={props.shareHeld}
             />
           </div>
         )}

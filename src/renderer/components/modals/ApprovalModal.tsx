@@ -7,6 +7,8 @@ import Modal from '../primitives/Modal.js'
 import Avatar from '../primitives/Avatar.js'
 import Button from '../primitives/Button.js'
 import IconButton from '../primitives/IconButton.js'
+import { useRestoreHold } from '../../hooks/useRestoreHold.js'
+import { useHeldControl } from '../../hooks/useHeldControl.js'
 import ModalHeader from '../primitives/ModalHeader.js'
 
 interface ApprovalModalProps {
@@ -20,6 +22,7 @@ interface ApprovalModalProps {
 
 export default function ApprovalModal({ isOpen, requests, busyKeys, onApproveMany, onDeny, onClose }: ApprovalModalProps) {
   const { t } = useTranslation()
+  const held = useHeldControl(!useRestoreHold().canWriteProfile, 'approval-held-reason')
   const [selected, setSelected] = useState<Set<string>>(new Set())
 
   // Close once every request is resolved (approved or denied) so the dialog never
@@ -52,13 +55,14 @@ export default function ApprovalModal({ isOpen, requests, busyKeys, onApproveMan
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} onConfirm={selected.size > 0 ? approveSelected : undefined} ariaLabel={t('space.joinRequests')} panelClassName="glass-modal w-full max-w-xl rounded-3xl shadow-2xl shadow-black/30 overflow-hidden relative">
+    <Modal isOpen={isOpen} onClose={onClose} onConfirm={selected.size > 0 && !held.held ? approveSelected : undefined} ariaLabel={t('space.joinRequests')} panelClassName="glass-modal w-full max-w-xl rounded-3xl shadow-2xl shadow-black/30 overflow-hidden relative">
       <ModalHeader
         title={t('space.joinRequests')}
         description={t('space.joinRequestsDesc')}
         descriptionSize="sm"
         onClose={onClose}
       />
+      {held.held && <p id="approval-held-reason" className="px-10 pb-4 text-sm text-on-surface-variant">{held.reason}</p>}
       <ul className="px-10 pb-4 space-y-2 max-h-64 overflow-y-auto scrollbar-thin">
         {requests.map((r) => (
           <li key={r.publicKey} className="flex items-center gap-3 rounded-xl bg-surface-container-low p-3">
@@ -71,15 +75,15 @@ export default function ApprovalModal({ isOpen, requests, busyKeys, onApproveMan
             />
             <Avatar src={r.avatar} displayName={r.displayName} size="md" />
             <p className="flex-1 min-w-0 font-bold text-accent truncate">{r.displayName}</p>
-            <IconButton icon="close" disabled={busyKeys.has(r.publicKey)} onClick={() => onDeny(r.publicKey)} ariaLabel={t('member.denyNamed', { name: r.displayName })} iconClassName="text-secondary" />
+            <IconButton icon="close" disabled={busyKeys.has(r.publicKey) || held.held} onClick={() => onDeny(r.publicKey)} ariaLabel={t('member.denyNamed', { name: r.displayName })} iconClassName="text-secondary" />
           </li>
         ))}
       </ul>
       <ModalFooter layout="split" className="px-10 pb-10">
-        <Button size="lg" variant="secondary" onClick={approveAll}>
+        <Button size="lg" variant="secondary" onClick={held.guard(approveAll)} {...held.attrs}>
           {t('space.approveAll', { count: requests.length })}
         </Button>
-        <Button size="lg" variant="primary" disabled={selected.size === 0} onClick={approveSelected}>
+        <Button size="lg" variant="primary" disabled={selected.size === 0} onClick={held.guard(approveSelected)} {...held.attrs}>
           {t('space.approveSelected', { count: selected.size })}
         </Button>
       </ModalFooter>

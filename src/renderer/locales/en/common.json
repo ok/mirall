@@ -1323,8 +1323,6 @@
     "restoreAccount": "Restore your account"
   },
   "restore": {
-    "title": "Restoring your profile",
-    "body": "Your identity is back on this device. Mirall is getting your profile from the people you share spaces with, so nothing you change here can clash with what they already have.",
     "statusWaiting": "Waiting for someone you share a space with to come online…",
     "statusReceiving": "Receiving your profile…",
     "statusChecking": "Making sure your profile is up to date…",
@@ -1337,7 +1335,19 @@
     "startFresh": "Start a new identity instead",
     "startFreshHint": "This restore is set aside on this device, not deleted.",
     "startFreshBody": "Mirall moves the restored identity into a separate folder and starts with a new one. Your contacts will not recognize the new identity, and your spaces will not be on it.",
-    "restartFailed": "Mirall could not restart to open your profile."
+    "restartFailed": "Mirall could not restart to open your profile.",
+    "bannerWaiting": "Waiting for one of them to come online.",
+    "details": "Details",
+    "heldReason": "Available once Mirall has checked with the people you share with.",
+    "sectionTitle": "Restoring",
+    "spacesChecking": "Spaces still being checked",
+    "checkingSpaceTitle": "Checking “{{name}}”",
+    "checkingSpaceBody": "Mirall is still checking this space with its members. Sharing here waits until then; everything else is ready.",
+    "released": "Your profile is confirmed — you can change it again.",
+    "bannerBackupLead": "Your data is restored",
+    "bannerBackupDetail": "Mirall is checking with the people you share with before you can make changes.",
+    "bannerKeyLead": "Your identity is back",
+    "bannerKeyDetail": "Mirall is getting your profile from the people you share with. Until then you can look, not change."
   },
   "recoveryBackup": {
     "title": "Back up your recovery key",
@@ -1572,7 +1582,11 @@
       "staleTitle": "Your backup has stopped",
       "staleBody": "Nothing has been backed up for over 10 days. Connect the backup drive, or choose another folder in Backup & recovery settings.",
       "noKeyTitle": "Your backup has no recovery key",
-      "noKeyBody": "Without one, this backup cannot be restored on another computer. Make a recovery key."
+      "noKeyBody": "Without one, this backup cannot be restored on another computer. Make a recovery key.",
+      "restoringTitle": "Restoring",
+      "restoringBody": "Your data is restored. Changes wait until someone you share with confirms nothing newer exists — so nothing you change can clash.",
+      "restoringKeyTitle": "Restoring",
+      "restoringKeyBody": "Your identity is back. Changes wait until someone you share with sends your profile — so nothing you change can clash."
     },
     "copyAfterKey": "Saved once you make a recovery key."
   }

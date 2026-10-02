@@ -19,4 +19,7 @@ export const SPACES_SCOPES: ScopePattern[] = [{ kind: 'members' }, { kind: 'join
 
 // The per-space form, for the reads that DO take a spaceId. Both mount-status events are mapped to
 // the shares scope worker-side, so this is what carries a mount transition to a view.
+// What a restore is still confirming; the catch-up pokes it on every change.
+export const RESTORE_SCOPES: ScopePattern[] = [{ kind: 'restore' }]
+
 export const sharesScope = (spaceId: string): ScopePattern[] => [{ kind: 'shares', spaceId }]

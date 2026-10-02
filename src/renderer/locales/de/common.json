@@ -1323,8 +1323,6 @@
     "restoreAccount": "Konto wiederherstellen"
   },
   "restore": {
-    "title": "Dein Profil wird wiederhergestellt",
-    "body": "Deine Identität ist wieder auf diesem Gerät. Mirall holt dein Profil von den Personen, mit denen du Räume teilst, damit nichts, was du hier änderst, mit ihrem Stand kollidiert.",
     "statusWaiting": "Warte, bis jemand aus einem deiner Räume online ist…",
     "statusReceiving": "Dein Profil wird empfangen…",
     "statusChecking": "Prüfe, ob dein Profil aktuell ist…",
@@ -1337,7 +1335,19 @@
     "startFresh": "Stattdessen eine neue Identität beginnen",
     "startFreshHint": "Die Wiederherstellung wird auf diesem Gerät beiseitegelegt, nicht gelöscht.",
     "startFreshBody": "Mirall verschiebt die wiederhergestellte Identität in einen separaten Ordner und beginnt mit einer neuen. Deine Kontakte erkennen die neue Identität nicht, und deine Räume sind nicht darauf.",
-    "restartFailed": "Mirall konnte nicht neu starten, um dein Profil zu öffnen."
+    "restartFailed": "Mirall konnte nicht neu starten, um dein Profil zu öffnen.",
+    "bannerWaiting": "Es wird gewartet, bis eine von ihnen online ist.",
+    "details": "Details",
+    "heldReason": "Verfügbar, sobald Mirall sich mit den Personen abgestimmt hat, mit denen du teilst.",
+    "sectionTitle": "Wiederherstellung",
+    "spacesChecking": "Spaces, die noch geprüft werden",
+    "checkingSpaceTitle": "„{{name}}“ wird geprüft",
+    "checkingSpaceBody": "Mirall stimmt diesen Space noch mit seinen Mitgliedern ab. Teilen ist hier bis dahin nicht möglich; alles andere ist bereit.",
+    "released": "Dein Profil ist bestätigt – du kannst es wieder ändern.",
+    "bannerBackupLead": "Deine Daten sind wiederhergestellt",
+    "bannerBackupDetail": "Mirall stimmt sich mit den Personen ab, mit denen du teilst, bevor du etwas ändern kannst.",
+    "bannerKeyLead": "Deine Identität ist zurück",
+    "bannerKeyDetail": "Mirall holt dein Profil von den Personen, mit denen du teilst. Bis dahin kannst du schauen, aber nichts ändern."
   },
   "recoveryBackup": {
     "title": "Wiederherstellungsschlüssel sichern",
@@ -1572,7 +1582,11 @@
       "staleTitle": "Dein Backup ist gestoppt",
       "staleBody": "Seit über 10 Tagen wurde nichts gesichert. Verbinde das Backup-Laufwerk oder wähle in den Einstellungen für Backup & Wiederherstellung einen anderen Ordner.",
       "noKeyTitle": "Deinem Backup fehlt der Wiederherstellungsschlüssel",
-      "noKeyBody": "Ohne ihn lässt sich dieses Backup auf keinem anderen Computer wiederherstellen. Erstelle einen Wiederherstellungsschlüssel."
+      "noKeyBody": "Ohne ihn lässt sich dieses Backup auf keinem anderen Computer wiederherstellen. Erstelle einen Wiederherstellungsschlüssel.",
+      "restoringTitle": "Wiederherstellung",
+      "restoringBody": "Deine Daten sind wiederhergestellt. Änderungen warten, bis jemand, mit dem du teilst, bestätigt, dass es nichts Neueres gibt – so kann nichts kollidieren.",
+      "restoringKeyTitle": "Wiederherstellung",
+      "restoringKeyBody": "Deine Identität ist zurück. Änderungen warten, bis jemand, mit dem du teilst, dein Profil schickt – so kann nichts kollidieren."
     },
     "copyAfterKey": "Wird gespeichert, sobald du einen Wiederherstellungsschlüssel erstellst."
   }

@@ -472,11 +472,18 @@ export interface RestoreProgress {
   released: boolean
 }
 
-/** Whether this worker could open its identity; `code` names why not, `restore` that it is still catching up. */
+/** What a restore is still confirming: the profile's progress (null when this worker did not hold it), and the spaces whose own catalog is held. `source` is how the device was restored. */
+export interface RestoreStatus {
+  source: 'backup' | 'key'
+  profile: RestoreProgress | null
+  heldSpaceIds: string[]
+}
+
+/** Whether this worker could open its identity; `code` names why not, `restore` what a restore is still confirming. */
 export interface IdentityStatus {
   locked: boolean
   code: IdentityLockCode | null
-  restore: RestoreProgress | null
+  restore: RestoreStatus | null
 }
 
 /** A sealed recovery key, ready to save: the plaintext never leaves the worker. */
