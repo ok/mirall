@@ -70,8 +70,9 @@ const rendererRestrictedSyntax = (...drop) => [
 export default [
   // Both dist trees are generated bundles: assets/dist is the app's, test/frontend-layout/dist is
   // whatever the layout harnesses last built. Neither is source, and linting a 2MB bundle drowns the
-  // run in tens of thousands of findings.
-  { ignores: ['assets/dist/**', 'test/frontend-layout/dist/**', 'node_modules/**'] },
+  // run in tens of thousands of findings. test/frontend/.work is the FE harness's scratch: fixture
+  // files named *.js whose contents are not JavaScript, left behind after every run.
+  { ignores: ['assets/dist/**', 'test/frontend-layout/dist/**', 'test/frontend/.work/**', 'node_modules/**'] },
 
   // Renderer — sandboxed React UI. Accessibility rules stay ERRORS (the a11y gate); complexity
   // is advisory on top.
