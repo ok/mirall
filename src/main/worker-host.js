@@ -38,12 +38,14 @@ let config = null
 let getPear = null
 let isDev = false
 let identityKEK = () => null
+let identityWeak = () => false
 
 function initWorkerHost(d) {
   config = d.config
   getPear = d.getPear
   isDev = d.isDev
   identityKEK = d.identityKEK
+  identityWeak = d.identityWeak ?? (() => false)
 }
 
 function downloadRoots() { return workerDownloadRoots }
@@ -232,6 +234,8 @@ function getWorker(specifier) {
     localBackupEnabled: flags.localBackup === true,
     backupFolder: config().get('backup.folder'),
     backupRepoId: config().get('backup.repoId'),
+    // No OS keychain holds the identity key here, so the backup is offered on day one.
+    identityWeak: identityWeak(),
     // Bulk content rides its own transport by default; feature-flags.json
     // can set separateContentPlane:false to revert to the single-plane overlay.
     separateContentPlane: flags.separateContentPlane !== false,

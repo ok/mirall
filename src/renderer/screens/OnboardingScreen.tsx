@@ -10,7 +10,8 @@ import Avatar from '../components/primitives/Avatar.js'
 import Button from '../components/primitives/Button.js'
 import Logo from '../components/primitives/Logo.js'
 import TextButton from '../components/primitives/TextButton.js'
-import RecoveryRestoreModal from '../components/modals/RecoveryRestoreModal.js'
+import RestoreAccount from '../components/recovery/RestoreAccount.js'
+import { isLocalBackupFeatureOn } from '../platform/config-client.js'
 import { restartIntoIdentity } from '../hooks/useIdentityStatus.js'
 
 interface OnboardingProps {
@@ -134,14 +135,14 @@ export default function OnboardingScreen({ onComplete }: OnboardingProps) {
                 <InlineError id="onboarding-save-error" className="px-1">{saveError}</InlineError>
               )}
               <div className="text-center">
-                <TextButton onClick={() => setRestoreOpen(true)}>{t('onboarding.restore')}</TextButton>
+                <TextButton onClick={() => setRestoreOpen(true)}>{t(isLocalBackupFeatureOn() ? 'onboarding.restoreAccount' : 'onboarding.restore')}</TextButton>
               </div>
             </div>
           </div>
         </div>
       </main>
 
-      <RecoveryRestoreModal isOpen={restoreOpen} onClose={() => setRestoreOpen(false)} onRestored={restartIntoIdentity} />
+      <RestoreAccount isOpen={restoreOpen} onClose={() => setRestoreOpen(false)} onRestored={restartIntoIdentity} />
     </div>
   )
 }

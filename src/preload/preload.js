@@ -115,6 +115,8 @@ contextBridge.exposeInMainWorld('bridge', {
   setBandwidth: (patch) => ipcRenderer.invoke('bandwidth:set', patch),
 
   browseShareFolder: () => ipcRenderer.invoke('share:browseFolder'),
+  browseBackupFolder: () => ipcRenderer.invoke('backup:browse'),
+  applyRestoredSettings: (json) => ipcRenderer.invoke('backup:apply-settings', json),
   onZoomChanged: (listener) => {
     const wrap = (_evt, factor) => listener(factor)
     ipcRenderer.on('pear:event:zoom-changed', wrap)

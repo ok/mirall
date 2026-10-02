@@ -21,6 +21,8 @@ const PARENT = {
   settings: (t: BackTargets) => t.preSettingsScreen,
   account: (t: BackTargets) => t.preAccountScreen,
   'storage-settings': (t: BackTargets) => t.storageBackTarget,
+  'backup-settings': 'settings',
+  'protection-status': 'account',
   'appearance-settings': 'settings',
   'notification-settings': 'settings',
   'general-settings': 'settings',

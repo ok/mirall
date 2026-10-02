@@ -83,8 +83,8 @@ export const byteFormatterSingleOwnerRestrictions = ['KB', 'MB', 'GB', 'TB', 'Ki
 // UNMOUNT_ONLY: [] deps and one in-flight read, so nothing can supersede it — the only race is a
 // write after unmount, which React tolerates.
 export const unmountOnlyAsyncEffects = Object.freeze({
+  'src/renderer/hooks/useIdentityProtection.ts': { effects: 1, why: 'One [] -deps read of the identity-protection mode, which cannot change while the app runs.' },
   'src/renderer/hooks/useConnectionStatus.tsx': { effects: 1, why: 'The net.online probe has [] deps and one read; transitions arrive on onNetOnlineChange. (The other effect in this file carries a cleanup flag and is not exempt.)' },
-  'src/renderer/screens/AccountScreen.tsx': { effects: 1, why: 'One [] -deps read of the identity-protection mode, which cannot change while the screen is open.' },
 })
 
 // OUT_OF_ORDER must stay EMPTY: an effect that re-fires can have two reads in flight and the older
@@ -162,6 +162,12 @@ export const swallowedRejectionExemptions = Object.freeze({
       'cancelForeignPreview: request(\'foreign-folder:cancel-preview\', { previewId }).catch(() => undefined)',
     ],
   },
+  'src/renderer/hooks/useIdentityProtection.ts': {
+    why: 'A mount-time read of the identity-protection mode; on failure callers keep their neutral state.',
+    sites: [
+      'useIdentityProtection > useEffect: window.bridge.getIdentityProtection().then(setProtection).catch(() => {})',
+    ],
+  },
   'src/renderer/hooks/useIndexProgress.ts': {
     why: 'A seed read for the indexing notice; progress frames arrive by push and replace it.',
     sites: [
@@ -204,12 +210,6 @@ export const swallowedRejectionExemptions = Object.freeze({
     why: 'One-time migration of legacy localStorage keys; unreadable legacy data is simply left behind.',
     sites: [
       'migrateLegacyLocalStorage: try { const patch: RendererConfigPatch = {} const appearance: { theme?: ThemeMod',
-    ],
-  },
-  'src/renderer/screens/AccountScreen.tsx': {
-    why: 'A mount-time read of the identity-protection mode; on failure the row keeps its neutral state.',
-    sites: [
-      'DeviceGroup > useEffect: window.bridge.getIdentityProtection().then(setIdentity).catch(() => {})',
     ],
   },
   'src/renderer/screens/NetworkDiagnosticsScreen.tsx': {
@@ -262,6 +262,12 @@ export const promiseLintAllowlist = Object.freeze({
       'no-floating-promises ActivityFeed > onClick: void loadMore()',
     ],
   },
+  'src/renderer/components/backup/BackupPromptCard.tsx': {
+    why: 'notNow catches into an error toast.',
+    sites: [
+      'no-floating-promises BackupPromptCard > onClick: void notNow()',
+    ],
+  },
   'src/renderer/components/modals/AddFolderShareModal.tsx': {
     why: 'wizard.next toasts its own failure; browse is the native picker.',
     sites: [
@@ -275,6 +281,23 @@ export const promiseLintAllowlist = Object.freeze({
       'no-misused-promises AddRelayModal > onClick: {handleAdd}',
       'no-misused-promises AddRelayModal > onClick: {handleContinue}',
       'no-misused-promises AddRelayModal > onConfirm: {decoded ? handleAdd : handleContinue}',
+    ],
+  },
+  'src/renderer/components/modals/BackupSetupModal.tsx': {
+    why: 'chooseFolder and turnOn catch into the dialog\'s inline error; the copy hook toasts its own failure.',
+    sites: [
+      'no-floating-promises BackupSetupModal > confirm: void turnOn()',
+      'no-floating-promises BackupSetupModal > onAction: void chooseFolder()',
+      'no-floating-promises SetupDone > onClick: void copy.save()',
+      'no-floating-promises BackupSetupModal > onClick: void turnOn()',
+    ],
+  },
+  'src/renderer/components/modals/CheckKeyModal.tsx': {
+    why: 'check and optOut catch into the dialog\'s field and inline errors.',
+    sites: [
+      'no-floating-promises CheckKeyModal > onClick: void check()',
+      'no-floating-promises CheckKeyModal > onClick: void optOut()',
+      'no-floating-promises CheckKeyModal > onConfirm: void check()',
     ],
   },
   'src/renderer/components/modals/CreateSpaceModal.tsx': {
@@ -331,6 +354,13 @@ export const promiseLintAllowlist = Object.freeze({
       'no-floating-promises MirrorFolderModal > onNext: void wizard.next()',
     ],
   },
+  'src/renderer/components/modals/NewKeyModal.tsx': {
+    why: 'make catches into the dialog\'s inline error.',
+    sites: [
+      'no-floating-promises NewKeyModal > onClick: void make()',
+      'no-floating-promises NewKeyModal > onConfirm: void make()',
+    ],
+  },
   'src/renderer/components/modals/RecoveryBackupModal.tsx': {
     why: 'handleSave catches into the modal\'s inline error.',
     sites: [
@@ -339,9 +369,9 @@ export const promiseLintAllowlist = Object.freeze({
     ],
   },
   'src/renderer/components/modals/RecoveryRestoreModal.tsx': {
-    why: 'chooseFile and restore catch into the modal\'s inline and field errors; the modal renders outside ToastProvider.',
+    why: 'keyFile.choose and restore catch into the modal\'s inline and field errors; the modal renders outside ToastProvider.',
     sites: [
-      'no-floating-promises RecoveryRestoreModal > onChoose: void chooseFile()',
+      'no-floating-promises RecoveryRestoreModal > onChoose: void keyFile.choose()',
       'no-floating-promises RecoveryRestoreModal > onClick: void restore(false)',
       'no-floating-promises RecoveryRestoreModal > onConfirm: void restore(false)',
       'no-floating-promises RecoveryRestoreModal > onConfirm: void restore(true)',
@@ -351,6 +381,17 @@ export const promiseLintAllowlist = Object.freeze({
     why: 'handleRemove catches and toasts.',
     sites: [
       'no-floating-promises RemoveFileModal > onConfirm: void handleRemove()',
+    ],
+  },
+  'src/renderer/components/modals/RestoreBackupModal.tsx': {
+    why: 'chooseFolder, keyFile.choose, showBackups and restore catch into the modal\'s inline and field errors; the modal renders outside ToastProvider.',
+    sites: [
+      'no-floating-promises RestoreBackupModal > onChooseFolder: void chooseFolder()',
+      'no-floating-promises RestoreBackupModal > onChooseKey: void keyFile.choose()',
+      'no-floating-promises RestoreBackupModal > onClick: void restore()',
+      'no-floating-promises RestoreBackupModal > onClick: void showBackups()',
+      'no-floating-promises RestoreBackupModal > onConfirm: void restore()',
+      'no-floating-promises RestoreBackupModal > onConfirm: void showBackups()',
     ],
   },
   'src/renderer/components/modals/ScanPreviewModal.tsx': {
@@ -426,6 +467,14 @@ export const promiseLintAllowlist = Object.freeze({
       'no-floating-promises OnboardingScreen > onKeyDown: void handleContinue()',
     ],
   },
+  'src/renderer/screens/ProtectionStatusScreen.tsx': {
+    why: 'runNow catches into the screen\'s inline error; the copy hook toasts its own failure.',
+    sites: [
+      'no-floating-promises ProtectionStatusScreen > fix: void runNow()',
+      'no-floating-promises ProtectionStatusScreen > onRunNow: void runNow()',
+      'no-floating-promises ProtectionStatusScreen > onSaveCopy: void copy.save()',
+    ],
+  },
   'src/renderer/screens/RestoreScreen.tsx': {
     why: 'join and startFresh catch into the screen\'s inline errors; the screen renders outside ToastProvider.',
     sites: [
@@ -452,6 +501,14 @@ export const promiseLintAllowlist = Object.freeze({
     why: 'handleExport catches into the screen\'s status line.',
     sites: [
       'no-floating-promises ActivityLogSettings > onClick: void handleExport()',
+    ],
+  },
+  'src/renderer/screens/settings/BackupSettings.tsx': {
+    why: 'act catches into the screen\'s inline error, turnOff into its confirmation.',
+    sites: [
+      'no-floating-promises BackupSettings > onChange: void act(() => setReminders(next))',
+      'no-floating-promises BackupSettings > onChangeFolder: void act(changeFolder)',
+      'no-floating-promises BackupSettings > onConfirm: void turnOff()',
     ],
   },
   'src/renderer/screens/settings/NetworkSettings.tsx': {

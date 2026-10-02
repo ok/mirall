@@ -12,7 +12,7 @@ function lockedProfile(t) {
   fs.writeFileSync(path.join(storage, 'CORESTORE'), 'lock')
   fs.writeFileSync(path.join(storage, 'db', 'CURRENT'), 'rocks')
   fs.writeFileSync(path.join(storage, 'install-id'), 'abc')
-  for (const name of ['identity.enc', 'space-keys.enc', 'kek.enc', 'relay-ticket.enc', 'config.json']) {
+  for (const name of ['identity.enc', 'space-keys.enc', 'backup-state.json', 'kek.enc', 'relay-ticket.enc', 'config.json']) {
     fs.writeFileSync(path.join(root, name), name)
   }
   return { root, storage }
@@ -24,7 +24,7 @@ test('the locked store and the envelopes that belong to it move aside together',
 
   t.is(folder, path.join(root, 'app-storage.locked-2026-09-29T08-30-15'))
   t.alike(fs.readdirSync(storage), [], 'the store directory stays, empty, for a fresh install')
-  for (const moved of ['CORESTORE', 'install-id', path.join('db', 'CURRENT'), 'identity.enc', 'space-keys.enc']) {
+  for (const moved of ['CORESTORE', 'install-id', path.join('db', 'CURRENT'), 'identity.enc', 'space-keys.enc', 'backup-state.json']) {
     t.ok(fs.existsSync(path.join(folder, moved)), moved)
   }
   for (const kept of ['kek.enc', 'relay-ticket.enc', 'config.json']) {

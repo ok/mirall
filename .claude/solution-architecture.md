@@ -1574,7 +1574,8 @@ identity can never write into the old backup), write-once objects sealed with XC
 padded to 4 KiB, one sealed manifest per snapshot named by sequence number, and a lease per writing
 install. The chosen folder is never created, so an unmounted share reads as offline. One run
 (`backup-run.js`) takes the lease, captures against the latest snapshot, adds the key vault and
-the user's preferences from `config.json`, and writes the snapshot last. Each snapshot records the
+the preferences that follow the user (`BACKUP_SETTING_GROUPS`: appearance, downloads, bandwidth caps,
+notifications) from `config.json`, and writes the snapshot last. Each snapshot records the
 store's vitals (`loss-check.js`); a drop against the last unflagged snapshot (profile shorter, spaces
 or cores halved, own data down by 30 %) flags it as **suspect**, until the drop has lasted a week and
 becomes the normal. Retention (`retention.js`, `prune.js`) always keeps the three newest unflagged
@@ -1583,7 +1584,8 @@ snapshots, so a burst of losses can never push the good ones out.
 `Backup` (the worker subsystem) runs two minutes after boot, hourly, and after changes: every append
 to an own bee (except the activity log and maintenance markers) is an everyday change, and a space
 created, joined or left or a new space key is urgent (`schedule-rules.js`). It does not start while
-the profile is held (restore mode); the status then reads `paused`. On quit a run in progress or a
+anything is held (restore mode, or a catalog still waiting for its space); the status then reads
+`paused`, and the backup starts in the same session once the last catalog is released. On quit a run in progress or a
 due one gets a short cutoff and writes nothing if it misses it. The folder and repository id live in `config.json` under `backup`
 (main is the writer; the worker asks through `MAIN_REQUEST.BACKUP_REMEMBER`). Requests:
 `backup:status`, `backup:configure`, `backup:turn-off`, `backup:run`; a status change pokes
@@ -1599,7 +1601,40 @@ moves the staging store in with `CORESTORE` last (`identity-adopt.js`). The prof
 come back **held**: `RestoreCatchUp` follows each one to the copies its space's members hold, releases
 a catalog writable as soon as it matches (or at once when the space has no other member), and ends
 restore mode when the profile matches. No backup runs while anything is held. Setting up a fresh
-profile, or adopting another key, drops a restore that has not reached a restart.
+profile, or adopting another key, drops a restore that has not reached a restart. The settings the
+snapshot carried go back through main (`src/main/backup-settings.js`), each group through the config
+store's own setter, and the window adopts them at once.
+
+**Recovery key in the folder.** Setup (`backup:setup`) takes the folder and a passphrase together:
+the recovery key is sealed under the passphrase, written to `Mirall Backup/keys/` (`folder-key.js`,
+write-once names, older keys removed after), opened back from there, and only then is the first backup
+run — a backup never exists without a key known to open it. A folder holding another identity's backup
+is refused before anything is written. The worker keeps the same sealed file in
+`backup-state.json` beside the store (with the last success, the key's dates and the prompt state;
+not `config.json`, none of it is a preference) and puts it back into the folder whenever a run finds it
+missing; a device with no record (a restored one) takes the folder's key when it is its own. A restore
+then needs only the folder and the passphrase (`backup:peek` shows the backup, its key's date and its
+newest snapshot's time before any passphrase; `backup:inspect`/`backup:restore` fall back to the
+folder's key). `backup:check-key` (through the shared passphrase throttle), `backup:new-key`,
+`backup:key-file`/`backup:key-copied` and `backup:prompt` serve the rest.
+
+**Prompts** (`prompt-rules.js`, pure): the offer goes to anyone with a space, or a device without a
+system keychain (`identityWeak` in the bootstrap frame); "Not now" holds 30, then 60 days, three times
+at most, and turning the backup off ends it. The passphrase check comes 14 days after a key, then every
+182, with one week's grace per cycle and an opt-out. A backup with no success for 10 days is `stale`.
+
+**UI** (flag `localBackup`, which main also hands the renderer in the config snapshot) follows the
+app's split of status from configuration. Profile → This device has one **Protection** row (verdict dot
+and summary, `protection-summary.ts`) leading to **Protection status** (`ProtectionStatusScreen.tsx`,
+like Network status): a verdict (`verdict` in `backup:status`, `protectionVerdict` in
+`prompt-rules.js`), *Your identity* (identity key protection, the recovery key with Check passphrase,
+the copy of the recovery key with Save a copy) and *Your data* (last backup with Back up now, the
+folder, failures, a flagged backup). Settings → **Backup & recovery** (`BackupSettings.tsx`) holds the
+configuration: the folder, turning off, changing the passphrase (a new key), the passphrase reminder
+(`backup:reminders`), and how to restore. Each links to the other. The setup dialog
+(`BackupSetupModal.tsx`), the offer or check card on Spaces (`BackupPromptCard.tsx`), the stale toast
+(`BackupToastBridge.tsx`, opens the status) and one "Restore your account" entry on onboarding and the
+locked screen (`RestoreAccount.tsx`) complete it.
 
 ## 17. Glossary
 

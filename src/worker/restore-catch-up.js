@@ -4,7 +4,7 @@
 // catalog reopens writable at once. The profile stays read-only in this worker: restore mode skipped
 // every boot step that writes it, and the next, normal boot runs them in order.
 import { Subsystem } from '../shared/core/subsystem.js'
-import { releaseHeld, heldNames, PROFILE_BEE } from '../shared/core/restore-hold.js'
+import { releaseHeld, heldNames, profileHeld, PROFILE_BEE } from '../shared/core/restore-hold.js'
 import { releaseVerdict } from '../shared/core/restore-hold-rules.js'
 import { RESTORE_VERDICT } from '../shared/contract/restore-verdict.js'
 import { getRestoreReleaseDwellMs } from '../shared/core/runtime-config.js'
@@ -106,5 +106,7 @@ export class RestoreCatchUp extends Subsystem {
     if (isProfile) this.progress = { ...this.progress, released: true }
     else if (tracker.spaceId) await reopenOwnCatalog(tracker.spaceId)
     this.log.info('restored', isProfile ? 'profile' : `catalog of ${tracker.spaceId}`, 'matches its holders at length', core.length)
+    // A released profile keeps this process in restore mode until the next worker, which starts clean.
+    if (!heldNames().length && !profileHeld() && !this.stopping) await this.deps.onAllReleased?.()
   }
 }

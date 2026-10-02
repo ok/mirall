@@ -18,12 +18,20 @@ import { useOpenWhatsNew } from '../hooks/useOpenWhatsNew.js'
 import StatusDot from '../components/primitives/StatusDot.js'
 import Icon from '../components/primitives/Icon.js'
 import type { IconName } from '../types/ui.js'
+import type { TFunction } from 'i18next'
+import type { BackupStatus } from '../../shared/contract/responses.js'
 import Avatar from '../components/primitives/Avatar.js'
 import CopyButton from '../components/primitives/CopyButton.js'
 import PageHeader from '../components/layout/PageHeader.js'
 import SectionHeading from '../components/layout/SectionHeading.js'
 import ActionRow, { ROW, ROW_GROUP, RowBody, Tile } from '../components/layout/ActionRow.js'
 import RecoveryBackupModal from '../components/modals/RecoveryBackupModal.js'
+import { isLocalBackupFeatureOn } from '../platform/config-client.js'
+import { useIdentityProtection } from '../hooks/useIdentityProtection.js'
+import { useBackupStatus } from '../hooks/useBackupStatus.js'
+import ProtectionDot from '../components/backup/ProtectionDot.js'
+import { IDENTITY_LINE, protectionLamp, protectionSummary } from '../model/protection-view.js'
+import { formatDateTime } from '../format/utils.js'
 
 interface AccountProps {
   profile: Profile | null
@@ -31,13 +39,8 @@ interface AccountProps {
   onBack: () => void
   onOpenNetworkStatus: () => void
   onOpenActivityLog: () => void
+  onOpenProtection: () => void
   onFeedback: () => void
-}
-
-const IDENTITY_LINE: Record<IdentityProtection, { icon: IconName; key: string }> = {
-  protected: { icon: 'shield', key: 'settings.identityProtected' },
-  weak: { icon: 'info', key: 'settings.identityWeak' },
-  disabled: { icon: 'info', key: 'settings.identityDisabled' },
 }
 
 function LinkRow({ label, desc, icon, href }: { label: string; desc: ReactNode; icon: IconName; href: string }) {
@@ -136,20 +139,24 @@ function ProfileCard({ profile, onSave }: Pick<AccountProps, 'profile' | 'onSave
   )
 }
 
-function DeviceGroup({ onOpenNetworkStatus, onOpenActivityLog }: Pick<AccountProps, 'onOpenNetworkStatus' | 'onOpenActivityLog'>) {
+function summaryText(status: BackupStatus, identity: IdentityProtection | null, t: TFunction): string {
+  const { lead, data, at } = protectionSummary(status, identity)
+  const dataText = t(data, at === null ? {} : { when: formatDateTime(at) })
+  return lead ? t('protection.summary.line', { key: t(lead), data: dataText }) : dataText
+}
+
+function DeviceGroup({ onOpenNetworkStatus, onOpenActivityLog, onOpenProtection }: Pick<AccountProps, 'onOpenNetworkStatus' | 'onOpenActivityLog' | 'onOpenProtection'>) {
   const { t } = useTranslation()
   const { state: connectivityState, status: networkStatus } = useConnectionStatus()
-  const [identity, setIdentity] = useState<IdentityProtection | null>(null)
+  const identity = useIdentityProtection()
+  const backup = useBackupStatus()
+  const lamp = backup ? protectionLamp(backup) : null
   const [backupOpen, setBackupOpen] = useState(false)
   // Through the query store for the dedup and cache, with NO scopes: this is a summary line, not a
   // live counter, and the audit scope would repaint it on every recorded event. Scope-less still
   // re-reads on each mount. ActivityLogSettings reads the same two entries.
   const { data: auditConfig } = useQuery('audit:get-config', {}, null)
   const { data: auditStats } = useQuery('audit:stats', {}, null)
-
-  useEffect(() => {
-    window.bridge.getIdentityProtection().then(setIdentity).catch(() => {})
-  }, [])
 
   return (
     <section>
@@ -166,14 +173,27 @@ function DeviceGroup({ onOpenNetworkStatus, onOpenActivityLog }: Pick<AccountPro
           )}
           onClick={onOpenNetworkStatus}
         />
-        {identity && (
+        {isLocalBackupFeatureOn() && backup && (
+          <ActionRow
+            label={t('protection.title')}
+            desc={summaryText(backup, identity, t)}
+            leading={(
+              <span className="relative shrink-0">
+                <Tile icon="shield" />
+                {lamp && <ProtectionDot lamp={lamp} />}
+              </span>
+            )}
+            onClick={onOpenProtection}
+          />
+        )}
+        {identity && !isLocalBackupFeatureOn() && (
           <InfoRow
             icon={IDENTITY_LINE[identity].icon}
             label={t('account.identityTitle')}
             desc={t(IDENTITY_LINE[identity].key)}
           />
         )}
-        {identity && identity !== 'disabled' && (
+        {identity && identity !== 'disabled' && !isLocalBackupFeatureOn() && (
           <ActionRow
             icon="lock"
             label={t('account.backupRecoveryKey')}
@@ -269,7 +289,7 @@ function AppGroup({ onFeedback }: Pick<AccountProps, 'onFeedback'>) {
   )
 }
 
-export default function Account({ profile, onSave, onBack, onOpenNetworkStatus, onOpenActivityLog, onFeedback }: AccountProps) {
+export default function Account({ profile, onSave, onBack, onOpenNetworkStatus, onOpenActivityLog, onOpenProtection, onFeedback }: AccountProps) {
   const { t } = useTranslation()
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
 
@@ -289,7 +309,7 @@ export default function Account({ profile, onSave, onBack, onOpenNetworkStatus, 
           <section>
             <ProfileCard profile={profile} onSave={onSave} />
           </section>
-          <DeviceGroup onOpenNetworkStatus={onOpenNetworkStatus} onOpenActivityLog={onOpenActivityLog} />
+          <DeviceGroup onOpenNetworkStatus={onOpenNetworkStatus} onOpenActivityLog={onOpenActivityLog} onOpenProtection={onOpenProtection} />
           <AppGroup onFeedback={onFeedback} />
         </div>
       </div>
