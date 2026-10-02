@@ -37,3 +37,10 @@ test('a profile with data and no co-member anywhere has no other holder', (t) =>
 test('a local copy longer than every holder is caught up', (t) => {
   t.is(releaseVerdict(state({ localLength: 11, contiguousLength: 11 })), RESTORE_VERDICT.CAUGHT_UP)
 })
+
+// REGRESSION (FIX-EMPTY-CATALOG-HELD: a space's empty own catalog stayed held for good after a
+// backup restore once its last co-member left — "local data" was required to go solo).
+test('an empty catalog in a space with nobody else is released', (t) => {
+  t.is(releaseVerdict(state({ localLength: 0, contiguousLength: 0, holderLengths: [], firstHolderAt: null, coMembers: 0, emptyMayBeSolo: true })), RESTORE_VERDICT.CAUGHT_UP)
+  t.is(releaseVerdict(state({ localLength: 0, contiguousLength: 0, holderLengths: [], firstHolderAt: null, coMembers: 0 })), RESTORE_VERDICT.NO_HOLDER, 'a profile restored from a key alone still waits')
+})

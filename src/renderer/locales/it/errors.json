@@ -57,5 +57,6 @@
   "backupTargetDenied": "Mirall non può scrivere nella cartella di backup. Controlla i permessi.",
   "backupTargetFull": "L'unità della cartella di backup è piena.",
   "backupTargetOffline": "La cartella di backup non è disponibile. Collega l'unità o la condivisione di rete e riprova.",
-  "backupKeyMissing": "Non è stata trovata alcuna chiave di recupero per questo backup."
+  "backupKeyMissing": "Non è stata trovata alcuna chiave di recupero per questo backup.",
+  "restoreHeld": "Disponibile quando Mirall avrà verificato con le persone con cui condividi."
 }

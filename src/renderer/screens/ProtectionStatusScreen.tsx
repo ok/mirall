@@ -1,10 +1,12 @@
 // Protection: how this device keeps the identity and the data safe, and the actions that keep it so —
 // like Network status, a verdict first, then the facts in two groups, then the way to the settings.
-// Configuration (folder, passphrase, reminders) lives in Settings → Backup & recovery.
+// Configuration (folder, passphrase, reminders) lives in Settings → Backup & recovery. While a restore
+// is being confirmed it leads with the restore's details, which the top banner links to.
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { request } from '../ipc/ipc.js'
 import { useBackupStatus } from '../hooks/useBackupStatus.js'
+import { useRestoreHold } from '../hooks/useRestoreHold.js'
 import { useIdentityProtection } from '../hooks/useIdentityProtection.js'
 import { useSaveKeyCopy } from '../hooks/useSaveKeyCopy.js'
 import { useErrorText } from '../hooks/useErrorText.js'
@@ -20,6 +22,7 @@ import Button from '../components/primitives/Button.js'
 import Callout from '../components/primitives/Callout.js'
 import InlineError from '../components/primitives/InlineError.js'
 import StatusRow from '../components/backup/StatusRow.js'
+import RestoreProgress from '../components/backup/RestoreProgress.js'
 import BackupDialogs, { type BackupDialog } from '../components/backup/BackupDialogs.js'
 
 interface Props {
@@ -45,6 +48,7 @@ export default function ProtectionStatusScreen({ onBack, onOpenSettings }: Props
   const { t } = useTranslation()
   const errorText = useErrorText()
   const status = useBackupStatus()
+  const hold = useRestoreHold()
   const identity = useIdentityProtection()
   const copy = useSaveKeyCopy()
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
@@ -66,48 +70,40 @@ export default function ProtectionStatusScreen({ onBack, onOpenSettings }: Props
     else if (action) setDialog(action)
   }
 
-  const banner = status ? protectionBanner(status) : null
+  const restoring = hold.active || hold.heldSpaceIds.length > 0
+  const banner = restoring ? { lamp: 'paused' as const, key: hold.source === 'key' ? 'restoringKey' : 'restoring', fix: null } : status ? protectionBanner(status) : null
 
   return (
     <div ref={ref} className={`relative h-[calc(100vh-5.5rem-var(--banner-h,0px))] overflow-y-auto scrollbar-thin pb-8 mr-2 ${hasOverflow ? 'pr-4' : ''}`}>
       <div className="pt-8 px-8 max-w-2xl mx-auto">
         <PageHeader title={t('protection.title')} subtitle={t('protection.intro')} onBack={onBack} />
-        {status && banner && (
+        {banner && (
           <div className="space-y-10">
-            <section>
-              <div className="bg-surface-container-low rounded-xl p-6 flex items-center gap-5">
-                <span aria-hidden="true" className={`w-4 h-4 rounded-full shrink-0 ring-4 ${LAMP[banner.lamp]}`} />
-                <div role="status" aria-live="polite" className="flex-1 min-w-0">
-                  <p className="text-2xl font-headline font-bold text-accent">{t(`protection.verdict.${banner.key}Title`)}</p>
-                  <p className="text-sm text-on-surface-variant mt-1">
-                    {t(`protection.verdict.${banner.key}Body`, { when: status.lastSuccessAt ? formatDateTime(status.lastSuccessAt) : '' })}
-                  </p>
-                </div>
-                {banner.fix && (
-                  <Button onClick={() => fix(banner.fix)} ariaDisabled={banner.fix === 'run' && status.state === 'running'}>
-                    {t(FIX_LABEL[banner.fix])}
-                  </Button>
+            <VerdictBanner banner={banner} when={status?.lastSuccessAt ?? null} running={status?.state === 'running'} onFix={fix} />
+            {restoring && (
+              <section>
+                <SectionHeading>{t('restore.sectionTitle')}</SectionHeading>
+                <RestoreProgress hold={hold} />
+              </section>
+            )}
+            {status?.enabled && (
+              <section>
+                <SectionHeading>{t('protection.identityTitle')}</SectionHeading>
+                <IdentityRows status={status} identity={identity} onAction={(action) => setDialog(action)} onSaveCopy={() => void copy.save()} savingCopy={copy.saving} />
+              </section>
+            )}
+            {status?.enabled && banner.lamp !== 'paused' && (
+              <section>
+                <SectionHeading>{t('protection.dataTitle')}</SectionHeading>
+                <DataRows status={status} onRunNow={() => void runNow()} />
+                {status.state === 'error' && status.lastError && <InlineError className="mt-3">{errorText({ code: status.lastError })}</InlineError>}
+                {error && <InlineError className="mt-3">{error}</InlineError>}
+                {status.suspect && (
+                  <Callout tone="warning" title={t('backup.suspectTitle')} className="mt-4">
+                    {t('backup.suspectBody', { reasons: status.suspect.map((reason) => t(`backup.reason.${reason}`)).join(', ') })}
+                  </Callout>
                 )}
-              </div>
-            </section>
-            {banner.lamp !== 'paused' && (
-              <>
-                <section>
-                  <SectionHeading>{t('protection.identityTitle')}</SectionHeading>
-                  <IdentityRows status={status} identity={identity} onAction={(action) => setDialog(action)} onSaveCopy={() => void copy.save()} savingCopy={copy.saving} />
-                </section>
-                <section>
-                  <SectionHeading>{t('protection.dataTitle')}</SectionHeading>
-                  <DataRows status={status} onRunNow={() => void runNow()} />
-                  {status.state === 'error' && status.lastError && <InlineError className="mt-3">{errorText({ code: status.lastError })}</InlineError>}
-                  {error && <InlineError className="mt-3">{error}</InlineError>}
-                  {status.suspect && (
-                    <Callout tone="warning" title={t('backup.suspectTitle')} className="mt-4">
-                      {t('backup.suspectBody', { reasons: status.suspect.map((reason) => t(`backup.reason.${reason}`)).join(', ') })}
-                    </Callout>
-                  )}
-                </section>
-              </>
+              </section>
             )}
             <section>
               <div className={ROW_GROUP}>
@@ -119,6 +115,33 @@ export default function ProtectionStatusScreen({ onBack, onOpenSettings }: Props
       </div>
       <BackupDialogs open={dialog} onChange={setDialog} />
     </div>
+  )
+}
+
+interface VerdictBannerProps {
+  banner: { lamp: Lamp; key: string; fix: Fix }
+  when: number | null
+  running: boolean
+  onFix: (fix: Fix) => void
+}
+
+function VerdictBanner({ banner, when, running, onFix }: VerdictBannerProps) {
+  const { t } = useTranslation()
+  return (
+    <section>
+      <div className="bg-surface-container-low rounded-xl p-6 flex items-center gap-5">
+        <span aria-hidden="true" className={`w-4 h-4 rounded-full shrink-0 ring-4 ${LAMP[banner.lamp]}`} />
+        <div role="status" aria-live="polite" className="flex-1 min-w-0">
+          <p className="text-2xl font-headline font-bold text-accent">{t(`protection.verdict.${banner.key}Title`)}</p>
+          <p className="text-sm text-on-surface-variant mt-1">{t(`protection.verdict.${banner.key}Body`, { when: when ? formatDateTime(when) : '' })}</p>
+        </div>
+        {banner.fix && (
+          <Button onClick={() => onFix(banner.fix)} ariaDisabled={banner.fix === 'run' && running}>
+            {t(FIX_LABEL[banner.fix])}
+          </Button>
+        )}
+      </div>
+    </section>
   )
 }
 

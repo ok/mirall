@@ -2,6 +2,7 @@
 // action menu adapts to the share's role (owned, mirrored to disk, or browse-only).
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useRestoreHold } from '../../hooks/useRestoreHold.js'
 import type { ShareWithRole } from '../../hooks/useShares.js'
 import type { Profile, SpaceMember } from '../../types/types.js'
 import Icon from '../primitives/Icon.js'
@@ -82,12 +83,14 @@ function ShareCard({
     size: totalBytes != null ? formatSize(totalBytes) : '—',
   }, t)
 
+  // Deleting a share writes the profile, which a restore holds until it is confirmed.
+  const deleteHeld = !useRestoreHold().canWriteProfile
   const menuItems: ActionMenuItemConfig[] = (() => {
     const items: ActionMenuItemConfig[] = []
     if (share.role === 'mine') {
       if (sourceMissing && onLocate) items.push({ id: 'locate', label: t('share.locateFolder'), icon: 'folder_open', onAction: () => onLocate(share) })
       if (!sourceMissing && onOpenInFinder) items.push({ id: 'open-finder', label: t('share.openInFinder'), icon: 'folder_open', onAction: () => onOpenInFinder(share) })
-      if (onDelete) items.push({ id: 'delete', label: t('share.deleteFolder'), icon: 'delete', variant: 'danger', onAction: () => onDelete(share) })
+      if (onDelete) items.push({ id: 'delete', label: t('share.deleteFolder'), icon: 'delete', variant: 'danger', disabled: deleteHeld, hint: deleteHeld ? t('restore.heldReason') : undefined, onAction: () => onDelete(share) })
       return items
     }
     if (share.role === 'mirrored') {

@@ -27,6 +27,7 @@ interface ButtonProps {
   className?: string
   ariaLabel?: string
   ariaDescribedBy?: string
+  title?: string
   ref?: Ref<HTMLButtonElement>
 }
 
@@ -59,6 +60,7 @@ export default function Button({
   className,
   ariaLabel,
   ariaDescribedBy,
+  title,
   ref,
 }: ButtonProps) {
   const base = 'flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold transition-all active:scale-95 focus:outline-none focus-visible:ring-2 disabled:opacity-50 disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:cursor-not-allowed'
@@ -75,6 +77,7 @@ export default function Button({
       autoFocus={autoFocus}
       aria-label={ariaLabel}
       aria-describedby={ariaDescribedBy}
+      title={title}
       className={`${base} ${variantClasses[variant]} ${sizeClasses}${widthClass}${extra}`}
     >
       {icon && <Icon name={icon} filled={iconFilled} size={20} />}

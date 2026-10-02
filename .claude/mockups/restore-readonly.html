@@ -1,0 +1,616 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<!-- Mockup scaffold. Copy this file to .claude/mockups/<name>.html and replace the title, the
+     intro and the example state. The token block, tailwind.config and radii mirror
+     src/renderer/styles/tailwind.css and tailwind.config.js: when those change, change this file. -->
+<title>Restore, read-only — mockup</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet" />
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    darkMode: 'class',
+    theme: {
+      extend: {
+        colors: {
+          'accent': 'var(--color-accent)',
+          'icon-tile': 'var(--color-icon-tile)',
+          'on-icon-tile': 'var(--color-on-icon-tile)',
+          'success': 'var(--color-success)',
+          'on-success': 'var(--color-on-success)',
+          'info': 'var(--color-info)',
+          'on-info': 'var(--color-on-info)',
+          'online': 'var(--color-online)',
+          'offline': 'var(--color-offline)',
+          'primary': 'var(--color-primary)',
+          'on-primary': 'var(--color-on-primary)',
+          'secondary': 'var(--color-secondary)',
+          'secondary-container': 'var(--color-secondary-container)',
+          'on-secondary': 'var(--color-on-secondary)',
+          'on-secondary-container': 'var(--color-on-secondary-container)',
+          'surface': 'var(--color-surface)',
+          'surface-container': 'var(--color-surface-container)',
+          'surface-container-low': 'var(--color-surface-container-low)',
+          'surface-container-high': 'var(--color-surface-container-high)',
+          'surface-container-highest': 'var(--color-surface-container-highest)',
+          'surface-container-lowest': 'var(--color-surface-container-lowest)',
+          'progress-track': 'var(--color-progress-track)',
+          'on-surface': 'var(--color-on-surface)',
+          'on-surface-variant': 'var(--color-on-surface-variant)',
+          'on-background': 'var(--color-on-background)',
+          'background': 'var(--color-background)',
+          'outline': 'var(--color-outline)',
+          'outline-variant': 'var(--color-outline-variant)',
+          'error': 'var(--color-error)',
+          'error-container': 'var(--color-error-container)',
+          'error-container-hover': 'var(--color-error-container-hover)',
+          'on-error-container': 'var(--color-on-error-container)',
+          'warning': 'var(--color-warning)',
+          'on-warning': 'var(--color-on-warning)',
+          'primary-hover': 'var(--color-primary-hover)',
+          'surface-control': 'var(--color-surface-control)',
+          'surface-control-hover': 'var(--color-surface-control-hover)',
+          'warning-container': 'var(--color-warning-container)',
+          'on-warning-container': 'var(--color-on-warning-container)',
+        },
+        fontFamily: {
+          headline: ['Plus Jakarta Sans', 'sans-serif'],
+          body: ['Manrope', 'sans-serif'],
+          label: ['Manrope', 'sans-serif'],
+        },
+        borderRadius: {
+          DEFAULT: '0.25rem',
+          lg: '0.5rem',
+          xl: '0.75rem',
+          '2xl': '1.5rem',
+          '3xl': '2rem',
+          full: '9999px',
+        },
+      },
+    },
+  }
+</script>
+
+<style>
+  :root {
+    --color-icon-tile: #fec78a;
+    --color-on-icon-tile: #0a4742;
+    --color-success: #c1ecc4;
+    --color-on-success: #0c4d20;
+    --color-info: #d6e6f5;
+    --color-on-info: #1f4a78;
+    --color-online: #0d8b80;
+    --color-offline: #a0a4ac;
+    --color-accent: #33253b;
+    --color-primary: #42304a;
+    --color-primary-hover: #52405b;
+    --color-on-primary: #ffffff;
+    --color-secondary: #904d00;
+    --color-secondary-container: #fd9c42;
+    --color-on-secondary: #ffffff;
+    --color-on-secondary-container: #6b3800;
+    --color-surface: #fbf9f5;
+    --color-surface-container: #efeeea;
+    --color-surface-container-low: #f5f3ef;
+    --color-surface-container-high: #eae8e4;
+    --color-surface-control: #eae8e4;
+    --color-surface-control-hover: #dcdad6;
+    --color-surface-container-highest: #e4e2de;
+    --color-surface-container-lowest: #ffffff;
+    --color-progress-track: #d0cec9;
+    --avatar-recess: rgb(0 0 0 / 0.36);
+    --color-on-surface: #1b1c1a;
+    --color-on-surface-variant: #4a454b;
+    --color-on-background: #1b1c1a;
+    --color-background: #fbf9f5;
+    --color-outline: #7c757c;
+    --color-outline-variant: #ccc4cc;
+    --color-error: #ba1a1a;
+    --color-error-container: #f6c8c4;
+    --color-error-container-hover: #e8bab6;
+    --color-on-error-container: #93000a;
+    --color-warning: #fcd34d;
+    --color-on-warning: #1b1c1a;
+    --color-warning-container: #fdefc6;
+    --color-on-warning-container: #6d4c00;
+  }
+  .dark {
+    --color-icon-tile: #fec78a;
+    --color-on-icon-tile: #0a4742;
+    --color-success: #20492a;
+    --color-on-success: #8fd99b;
+    --color-info: #1f3a52;
+    --color-on-info: #9bc6e8;
+    --color-online: #5cc4b8;
+    --color-offline: #5b6270;
+    --color-accent: #fce8d2;
+    --color-primary: #fd9c42;
+    --color-primary-hover: #dd8837;
+    --color-on-primary: #282c34;
+    --color-secondary: #e4bf7a;
+    --color-secondary-container: #4a3e28;
+    --color-on-secondary: #282c34;
+    --color-on-secondary-container: #ecd09a;
+    --color-surface: #282c34;
+    --color-surface-container: #2e323a;
+    --color-surface-container-low: #2e3239;
+    --color-surface-container-high: #5c6068;
+    --color-surface-control: #434955;
+    --color-surface-control-hover: #4f5561;
+    --color-surface-container-highest: #393f4a;
+    --color-surface-container-lowest: #21252b;
+    --color-progress-track: #4a5160;
+    --avatar-recess: rgb(0 0 0 / 0.62);
+    --color-on-surface: #fefaf3;
+    --color-on-surface-variant: #ebe2d2;
+    --color-on-background: #fefaf3;
+    --color-background: #282c34;
+    --color-outline: #5b6270;
+    --color-outline-variant: #393f4a;
+    --color-error: #df6b75;
+    --color-error-container: #6f3338;
+    --color-error-container-hover: #7c3f43;
+    --color-on-error-container: #ffd2cf;
+    --color-warning: #fbbf24;
+    --color-on-warning: #1b1c1a;
+    --color-warning-container: #4e4229;
+    --color-on-warning-container: #fbe3a4;
+  }
+
+  /* App rules from tailwind.css that the CDN build cannot express. */
+  .font-headline { font-family: 'Plus Jakarta Sans', sans-serif; }
+  .focus-ring:focus { outline: none; }
+  .focus-ring:focus-visible { box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-secondary) 30%, transparent); }
+  .glass-modal { background: var(--color-surface-container-lowest); }
+  .avatar-recess { position: relative; }
+  .avatar-recess::after { content: ''; position: absolute; inset: 0; border-radius: 9999px; box-shadow: inset 0 1px 2px var(--avatar-recess); pointer-events: none; }
+
+  /* Mockup canvas (not app UI). */
+  body { font-family: 'Manrope', sans-serif; background: #d8d4cc; }
+  .dark body, body.dark { background: #15171c; }
+
+  /* Mirall window frame. The title bar is hidden (titleBarStyle 'hiddenInset'), so the macOS
+     traffic lights sit over the top-left of the app's own header. */
+  .device-frame {
+    position: relative;
+    background: var(--color-background);
+    border-radius: 16px;
+    box-shadow: 0 30px 80px rgba(15, 12, 20, 0.18), 0 8px 24px rgba(15, 12, 20, 0.12);
+    overflow: hidden;
+  }
+  .traffic-lights { position: absolute; top: 20px; left: 20px; z-index: 60; display: inline-flex; gap: 8px; }
+  .traffic-lights span { width: 12px; height: 12px; border-radius: 9999px; display: inline-block; }
+  .traffic-lights .r { background: #ff5f57; }
+  .traffic-lights .y { background: #febc2e; }
+  .traffic-lights .g { background: #28c840; }
+
+  /* Header glass: bg-surface-container-lowest/70 backdrop-blur-xl plus the ambient shadow, which
+     both headers drop in dark mode (dark:shadow-none). The CDN build cannot apply an opacity
+     modifier to a var() colour, hence the color-mix. */
+  .nav-glass {
+    background: color-mix(in srgb, var(--color-surface-container-lowest) 70%, transparent);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    box-shadow: 0 12px 40px rgba(74, 59, 82, 0.06);
+  }
+  .dark .nav-glass { box-shadow: none; }
+
+  /* Modal backdrop (CrystalBackdrop approximation). */
+  .modal-scrim { background: rgba(51, 37, 59, 0.30); }
+  .dark .modal-scrim { background: rgba(20, 22, 28, 0.55); }
+
+  /* Annotation chrome (not app UI, so literal colours are fine here). */
+  .badge { display: inline-flex; align-items: center; gap: 6px; border-radius: 9999px; padding: 3px 10px; font-size: 11px; font-weight: 800; letter-spacing: .01em; }
+  .badge-real { background: #d6e6f5; color: #1f4a78; }
+  .badge-proposed { background: #fce8d2; color: #6b3800; }
+  .badge-a11y { background: #ccebe6; color: #0d4d49; }
+  .anno-h { color: #33253b; }
+  .dark .anno-h { color: #f2ebe0; }
+  .anno { color: #4a454b; }
+  .anno code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; background: rgba(0,0,0,.05); padding: 1px 6px; border-radius: 6px; color: #4a454b; }
+  .dark .anno { color: #cfc8be; }
+  .dark .anno code { background: rgba(255,255,255,.08); color: #cfc8be; }
+</style>
+</head>
+
+<body class="min-h-screen pb-24">
+
+<!-- Title and theme toggle -->
+<div class="max-w-[1040px] mx-auto px-6 pt-10 pb-2 flex items-start justify-between gap-6">
+  <div class="anno">
+    <h1 class="anno-h font-headline font-extrabold text-2xl tracking-tight">Restore opens the app read-only — mockup</h1>
+    <p class="text-sm mt-1 max-w-2xl">After a restore (backup folder or recovery key) the app opens at once instead of the blocking Restore screen. Everything you can read is there; only changes wait until someone you share with confirms nothing newer exists (the #565 fork protection). Plan: <code>plan-restore-readonly-shell.md</code>. Recreates <code>TopNav</code> + <code>UpdateBanner</code> (banner slot), <code>SpacesScreen</code>, <code>SpaceHeaderBar</code>/<code>EntityHeader</code>, <code>ShareCard</code>, <code>DropZone</code>, <code>AccountScreen</code>, <code>RestoreScreen</code> (whose parts move to Protection status). Supersedes <code>restore-screen.html</code>. Baseline: <code>ok/feat-backup-5-ui @ f199ada6</code>.</p>
+  </div>
+  <button id="theme-toggle" type="button" aria-pressed="false"
+    class="shrink-0 rounded-xl border border-black/10 px-3 py-2 text-sm font-bold bg-white shadow-sm hover:shadow"
+    style="color:#33253b">Toggle dark</button>
+</div>
+
+<!-- Legend -->
+<div class="max-w-[1040px] mx-auto px-6 pt-4">
+  <div class="anno rounded-2xl p-5 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm" style="background:var(--color-surface-container-lowest)">
+    <span class="flex items-center gap-2"><span class="badge badge-real">Recreated from code</span> reproduced from the shipped <code>.tsx</code></span>
+    <span class="flex items-center gap-2"><span class="badge badge-proposed">Proposed new</span> built from existing primitives and <code>design.md</code> tokens</span>
+    <span class="flex items-center gap-2"><span class="badge badge-a11y">a11y</span> name / role / state intent</span>
+  </div>
+</div>
+
+
+<section class="max-w-[1040px] mx-auto px-6 pt-10">
+  <div class="anno rounded-2xl p-6 text-sm space-y-3" style="background:var(--color-surface-container-lowest)">
+    <h2 class="anno-h font-headline font-extrabold text-xl">What changes</h2>
+    <div class="grid md:grid-cols-2 gap-6">
+      <div><p class="font-bold">Today</p><p>After “Restore”, a full-screen <em>Restoring your profile</em> page until someone you share a space with comes online. Your spaces and files are already on the device but hidden.</p></div>
+      <div><p class="font-bold">Proposed</p><p>The app opens with everything visible. A banner explains the check. Actions that would change your profile or your shared files are disabled with that reason. The progress, “Rejoin with invite” and “Start a new identity” live on Protection status. When the check passes, the banner goes and everything is enabled — no restart screen.</p></div>
+    </div>
+    <p><strong>Still allowed during the check:</strong> browsing spaces, members and files; downloading; joining a space with an invite; settings; mirrors of others’ folders. <strong>Waits:</strong> creating spaces, inviting, approving or denying requests, leaving a space, sharing or removing files and folders, editing your name and picture.</p>
+  </div>
+</section>
+<section class="max-w-[1040px] mx-auto px-6 pt-16">
+  <div class="anno border-t border-black/10 dark:border-white/10 pt-8">
+    <p class="text-xs font-bold uppercase tracking-wide" style="color:var(--color-secondary)">Journey</p>
+    <h2 class="anno-h font-headline font-extrabold text-3xl tracking-tight mt-1">1 · The app opens, with a banner</h2>
+    <p class="text-sm mt-2 max-w-3xl">Right after restoring from a backup. The banner uses the update banner’s slot and anatomy; while a restore is checking it takes the slot.</p>
+  </div>
+</section>
+
+<section id="r1" class="max-w-[1040px] mx-auto px-6 pt-12">
+  <h2 class="anno-h font-headline font-extrabold text-xl">1a · Spaces — everything visible, Create Space waits</h2>
+  <div class="anno flex flex-wrap items-center gap-2 mt-2 mb-3 text-sm"><span class="badge badge-real">Recreated from code</span><span class="badge badge-proposed">Proposed new</span><span><code>SpacesScreen.tsx</code> as shipped; the banner is new (<code>UpdateBanner</code> anatomy: <code>bg-secondary-container</code>, icon, text, one pill action). “Create Space” is <code>aria-disabled</code> with the reason as its description (tooltip on hover/focus).</span></div>
+  <div class="device-frame max-w-[900px] mx-auto">
+    <span class="traffic-lights" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></span>
+      <!-- TopNav (src/renderer/components/layout/TopNav.tsx) -->
+      <nav class="absolute top-0 w-full z-50">
+        <div class="nav-glass">
+          <div class="flex items-center py-4 px-8 w-full max-w-7xl mx-auto relative">
+            <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <button type="button" aria-label="Home" title="Home" class="pointer-events-auto flex h-8 items-center text-black dark:text-white rounded-lg px-2 active:scale-95 transition-all focus-ring">
+                <svg viewBox="0 0 2835 844" class="h-5 w-auto" fill="currentColor" fill-rule="evenodd" clip-rule="evenodd" aria-hidden="true" focusable="false"><g transform="matrix(4.166667,0,0,4.166667,-356.081667,-1351.366667)"><path transform="matrix(1,0,0,1,251.3906,523.7084)" d="M0,-196.22L-62.292,-111.171L-126.424,-196.22L-165.931,-196.22L-165.931,0L-125.107,0L-125.107,-129.2L-65.846,-50.043L-60.578,-50.043L-1.317,-126.442L-1.317,0L39.507,0L39.507,-196.22L0,-196.22Z" /><rect transform="matrix(1,0,0,1,0,-155.911)" x="314.601" y="483.399" width="39.507" height="39.507" /><rect transform="matrix(1,0,0,1,0,53.215)" x="314.601" y="326.686" width="39.507" height="143.807" /><path transform="matrix(1,0,0,1,528.4458,424.5448)" d="M0,57.681C-2.725,62.512 -6.543,66.331 -11.457,69.138C-16.375,71.949 -22.083,73.352 -28.577,73.352C-33.495,73.352 -37.623,72.126 -40.956,69.665C-44.294,67.208 -45.96,63.784 -45.96,59.393C-45.96,54.652 -44.471,51.01 -41.483,48.463C-38.499,45.919 -34.199,44.117 -28.577,43.063L4.082,37.231L4.082,41.746C4.082,47.541 2.72,52.854 0,57.681M35.952,-18.305C30.857,-26.733 23.573,-33.227 14.091,-37.795C4.609,-42.359 -6.716,-44.643 -19.885,-44.643L-149.265,-44.643L-149.265,99.164L-109.758,99.164L-109.758,-10.404L-22.519,-10.404C-13.918,-10.404 -7.334,-8.206 -2.766,-3.819C0.584,-0.596 2.694,3.438 3.586,8.268L-35.689,14.618C-47.104,16.375 -56.627,19.359 -64.266,23.573C-71.904,27.787 -77.566,33.014 -81.254,39.244C-84.941,45.479 -86.785,52.636 -86.785,60.71C-86.785,69.315 -84.768,76.735 -80.727,82.966C-76.69,89.2 -70.895,93.987 -63.344,97.32C-55.796,100.653 -46.841,102.324 -36.479,102.324C-28.754,102.324 -21.729,101.312 -15.408,99.295C-9.087,97.279 -3.383,94.205 1.712,90.077C3.431,88.684 5.096,87.155 6.716,85.511L6.716,99.164L43.59,99.164L43.59,11.721C43.59,0.132 41.042,-9.877 35.952,-18.305" /><rect transform="matrix(1,0,0,1,0,-2.357)" x="598.477" y="326.685" width="39.507" height="199.381" /><rect transform="matrix(1,0,0,1,0,-2.357)" x="663.056" y="326.685" width="39.507" height="199.381" /><rect transform="matrix(1,0,0,1,0,157.259)" x="726.267" y="326.814" width="39.507" height="39.507" fill="#fd9c42" /></g></svg>
+              </button>
+            </div>
+            <div class="flex items-center gap-4 ml-auto">
+              <button type="button" class="flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold transition-all active:scale-95 focus-ring bg-surface-control text-on-surface-variant hover:bg-surface-control-hover px-5 py-2.5 text-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true"><path d="M479.98-367q14.02 0 23.52-9.48t9.5-23.5q0-14.02-9.48-23.52t-23.5-9.5q-14.02 0-23.52 9.48t-9.5 23.5q0 14.02 9.48 23.52t23.5 9.5ZM450-509h60v-251h-60v251ZM80-80v-740q0-24 18-42t42-18h680q24 0 42 18t18 42v520q0 24-18 42t-42 18H240L80-80Zm134-220h606v-520H140v600l74-80Zm-74 0v-520 520Z"/></svg>
+                Send Feedback
+              </button>
+              <button type="button" aria-label="Settings" class="w-10 h-10 shrink-0 flex items-center justify-center rounded-full hover:bg-surface-container-high active:scale-95 transition-all focus-ring">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 -960 960 960" fill="currentColor" class="text-accent" aria-hidden="true"><path d="m388-80-20-126q-19-7-40-19t-37-25l-118 54-93-164 108-79q-2-9-2.5-20.5T185-480q0-9 .5-20.5T188-521L80-600l93-164 118 54q16-13 37-25t40-18l20-127h184l20 126q19 7 40.5 18.5T669-710l118-54 93 164-108 77q2 10 2.5 21.5t.5 21.5q0 10-.5 21t-2.5 21l108 78-93 164-118-54q-16 13-36.5 25.5T592-206L572-80H388Zm92-270q54 0 92-38t38-92q0-54-38-92t-92-38q-54 0-92 38t-38 92q0 54 38 92t92 38Z"/></svg>
+              </button>
+              <!-- Avatar: md (36px), status ring. ok = surface-container-highest ring; connecting / offline swap in
+                   avatar-issue-pulse-warning / -error and the label "Profile — connection issue". -->
+              <button type="button" aria-label="Profile" title="Profile" class="w-10 h-10 rounded-full flex items-center justify-center hover:opacity-90 active:scale-95 transition-all focus-ring">
+                <div aria-hidden="true" class="avatar-recess rounded-full bg-progress-track flex items-center justify-center overflow-hidden" style="width:36px;height:36px;box-shadow:0 0 0 2px var(--color-surface-container-highest)">
+                  <span class="text-on-surface-variant font-bold" style="font-size:13px">AB</span>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      <div class="outline outline-2 outline-dashed outline-offset-2 rounded-xl" style="outline-color:#fd9c42"><div role="status" aria-live="polite" class="bg-secondary-container px-8 py-2 flex items-center justify-between gap-4"><div class="flex items-center gap-2 min-w-0"><svg viewBox="0 -960 960 960" width="16" height="16" fill="currentColor" aria-hidden="true" class="shrink-0 text-on-secondary-container"><path d="M480-120q-138 0-240.5-91.5T122-440h82q14 104 92.5 172T480-200q117 0 198.5-81.5T760-480q0-117-81.5-198.5T480-760q-69 0-129 32t-101 88h110v80H120v-240h80v94q51-64 124.5-99T480-840q75 0 140.5 28.5t114 77q48.5 48.5 77 114T840-480q0 75-28.5 140.5t-77 114q-48.5 48.5-114 77T480-120Zm112-192L440-464v-216h80v184l128 128-56 56Z"/></svg><span class="text-sm font-semibold text-on-secondary-container">Your data is restored<span class="ml-2 opacity-80">— Mirall is checking with the people you share with before you can make changes. Waiting for one of them to come online.</span></span></div><button class="bg-secondary text-on-secondary text-xs font-bold px-3 py-1 rounded shadow-lg shrink-0 focus-ring">Details</button></div></div></nav>
+    <div class="bg-surface font-body relative" style="height:700px; overflow:hidden">
+      <main class="pt-28"><div class="max-w-7xl mx-auto px-8">
+        <div class="pt-8 pb-4">
+          <h1 class="text-5xl md:text-6xl font-headline font-extrabold text-accent tracking-tight leading-tight mb-4">Shared <span class="text-transparent bg-clip-text bg-gradient-to-r from-accent to-secondary">Spaces</span></h1>
+          <p class="text-on-surface-variant text-lg max-w-2xl leading-relaxed">Create spaces to share files with your colleagues and peers.</p>
+          <div class="flex items-center gap-3 mt-6 mb-4">
+            <button aria-pressed="true" class="px-6 py-2.5 rounded-full font-medium bg-primary text-on-primary">All Spaces</button>
+            <button aria-pressed="false" class="px-6 py-2.5 rounded-full font-medium bg-surface-container-high text-on-surface-variant">Favorites</button>
+            <div class="flex-1"></div><span class="relative"><button type="button" aria-disabled="true" aria-describedby="held-reason" class="flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold bg-primary text-on-primary opacity-50 cursor-not-allowed px-5 py-2.5 text-sm focus-ring"><svg viewBox="0 -960 960 960" width="20" height="20" fill="currentColor" aria-hidden="true" class="shrink-0 "><path d="M453-280h60v-166h167v-60H513v-174h-60v174H280v60h173v166Zm27.27 200q-82.74 0-155.5-31.5Q252-143 197.5-197.5t-86-127.34Q80-397.68 80-480.5t31.5-155.66Q143-709 197.5-763t127.34-85.5Q397.68-880 480.5-880t155.66 31.5Q709-817 763-763t85.5 127Q880-563 880-480.27q0 82.74-31.5 155.5Q817-252 763-197.68q-54 54.31-127 86Q563-80 480.27-80Zm.23-60Q622-140 721-239.5t99-241Q820-622 721.19-721T480-820q-141 0-240.5 98.81T140-480q0 141 99.5 240.5t241 99.5Zm-.5-340Z"/></svg>Create Space</button><div id="held-reason" role="tooltip" class="absolute z-10 rounded-lg px-3 py-2 text-xs font-medium shadow-lg bg-inverse-surface text-inverse-on-surface max-w-[260px] right-0 top-12" style="background:var(--color-accent);color:var(--color-surface)">Available once Mirall has checked with the people you share with.</div></span><button type="button" class="flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold transition-all bg-primary text-on-primary shadow-lg shadow-primary/10 hover:bg-primary-hover px-5 py-2.5 text-sm focus-ring "><svg viewBox="0 -960 960 960" width="20" height="20" fill="currentColor" aria-hidden="true" class="shrink-0 "><path d="M474-486q26-32 38.5-66t12.5-79q0-45-12.5-79T474-776q76-17 133.5 23T665-631q0 82-57.5 122T474-486Zm216 326v-94q0-51-26-95t-90-74q173 22 236.5 64T874-254v94H690Zm110-289v-100H700v-60h100v-100h60v100h100v60H860v100h-60Zm-593-74q-42-42-42-108t42-108q42-42 108-42t108 42q42 42 42 108t-42 108q-42 42-108 42t-108-42ZM0-160v-94q0-35 18.5-63.5T68-360q72-32 128.5-46T315-420q62 0 118 14t128 46q31 14 50 42.5t19 63.5v94H0Zm315-381q39 0 64.5-25.5T405-631q0-39-25.5-64.5T315-721q-39 0-64.5 25.5T225-631q0 39 25.5 64.5T315-541ZM60-220h510v-34q0-16-8-30t-25-22q-69-32-117-43t-105-11q-57 0-104.5 11T92-306q-15 7-23.5 21.5T60-254v34Zm255-411Zm0 411Z"/></svg>Join Space</button>
+          </div>
+        </div>
+        <div class="space-y-4"><div class="bg-surface-container-lowest p-5 rounded-2xl flex items-center gap-6"><div class="w-16 h-16 rounded-xl bg-[#c66514] dark:bg-[#fdb461] flex items-center justify-center shrink-0 text-on-primary"><svg viewBox="0 -960 960 960" width="32" height="32" fill="currentColor" aria-hidden="true" class="shrink-0 "><path d="M480-80q-82 0-155-31.5t-127.5-86Q143-252 111.5-325T80-480q0-85 32-158t87.5-127q55.5-54 130-84.5T489-880q79 0 150 26.5T763.5-780q53.5 47 85 111.5T880-527q0 108-63 170.5T650-294h-75q-18 0-31 14t-13 31q0 27 14.5 46t14.5 44q0 38-21 58.5T480-80Zm0-400Zm-198 11q15-15 15-35t-15-35q-15-15-35-15t-35 15q-15 15-15 35t15 35q15 15 35 15t35-15Zm126-170q15-15 15-35t-15-35q-15-15-35-15t-35 15q-15 15-15 35t15 35q15 15 35 15t35-15Zm214 0q15-15 15-35t-15-35q-15-15-35-15t-35 15q-15 15-15 35t15 35q15 15 35 15t35-15Zm131 170q15-15 15-35t-15-35q-15-15-35-15t-35 15q-15 15-15 35t15 35q15 15 35 15t35-15ZM480-140q11 0 15.5-4.5T500-159q0-14-14.5-26T471-238q0-46 30-81t76-35h73q76 0 123-44.5T820-527q0-132-100-212.5T489-820q-146 0-247.5 98.5T140-480q0 141 99.5 240.5T480-140Z"/></svg></div><div class="flex-grow min-w-0"><h3 class="text-xl font-headline font-bold text-accent truncate pb-0.5 mb-1">Studio Files</h3><p class="text-on-surface-variant text-sm truncate">4 members · 128 files</p></div></div><div class="bg-surface-container-lowest p-5 rounded-2xl flex items-center gap-6"><div class="w-16 h-16 rounded-xl bg-[#6e2c46] dark:bg-[#c87b95] flex items-center justify-center shrink-0 text-on-primary"><svg viewBox="0 -960 960 960" width="32" height="32" fill="currentColor" aria-hidden="true" class="shrink-0 "><path d="M38-160v-94q0-35 18-63.5t50-42.5q73-32 131.5-46T358-420q62 0 120 14t131 46q32 14 50.5 42.5T678-254v94H38Zm700 0v-94q0-63-32-103.5T622-423q69 8 130 23.5t99 35.5q33 19 52 47t19 63v94H738ZM250-523q-42-42-42-108t42-108q42-42 108-42t108 42q42 42 42 108t-42 108q-42 42-108 42t-108-42Zm426 0q-42 42-108 42-11 0-24.5-1.5T519-488q24-25 36.5-61.5T568-631q0-45-12.5-79.5T519-774q11-3 24.5-5t24.5-2q66 0 108 42t42 108q0 66-42 108ZM98-220h520v-34q0-16-9.5-31T585-306q-72-32-121-43t-106-11q-57 0-106.5 11T130-306q-14 6-23 21t-9 31v34Zm324.5-346.5Q448-592 448-631t-25.5-64.5Q397-721 358-721t-64.5 25.5Q268-670 268-631t25.5 64.5Q319-541 358-541t64.5-25.5ZM358-220Zm0-411Z"/></svg></div><div class="flex-grow min-w-0"><h3 class="text-xl font-headline font-bold text-accent truncate pb-0.5 mb-1">Family</h3><p class="text-on-surface-variant text-sm truncate">3 members · 42 files</p></div></div></div>
+      </div></main>
+    </div>
+  </div>
+  <p class="anno text-sm mt-3"><span class="badge badge-a11y">a11y</span> Banner is <code>role="status"</code> (polite), not dismissible while it explains disabled controls. Disabled buttons stay focusable (<code>aria-disabled</code>) so the reason can be read.</p>
+</section>
+
+<section id="r2" class="max-w-[1040px] mx-auto px-6 pt-12">
+  <h2 class="anno-h font-headline font-extrabold text-xl">1b · Banner text as the check goes</h2>
+  <div class="anno flex flex-wrap items-center gap-2 mt-2 mb-3 text-sm"><span class="badge badge-proposed">Proposed new</span><span>Backup restore while nobody is online; once someone is found (named when a member is known); and a recovery-key restore, where the profile itself is still coming back.</span></div>
+<div class="space-y-3 bg-surface rounded-2xl p-6"><div class="outline outline-2 outline-dashed outline-offset-2 rounded-xl" style="outline-color:#fd9c42"><div role="status" aria-live="polite" class="bg-secondary-container px-8 py-2 flex items-center justify-between gap-4"><div class="flex items-center gap-2 min-w-0"><svg viewBox="0 -960 960 960" width="16" height="16" fill="currentColor" aria-hidden="true" class="shrink-0 text-on-secondary-container"><path d="M480-120q-138 0-240.5-91.5T122-440h82q14 104 92.5 172T480-200q117 0 198.5-81.5T760-480q0-117-81.5-198.5T480-760q-69 0-129 32t-101 88h110v80H120v-240h80v94q51-64 124.5-99T480-840q75 0 140.5 28.5t114 77q48.5 48.5 77 114T840-480q0 75-28.5 140.5t-77 114q-48.5 48.5-114 77T480-120Zm112-192L440-464v-216h80v184l128 128-56 56Z"/></svg><span class="text-sm font-semibold text-on-secondary-container">Your data is restored<span class="ml-2 opacity-80">— Mirall is checking with the people you share with before you can make changes. Waiting for one of them to come online.</span></span></div><button class="bg-secondary text-on-secondary text-xs font-bold px-3 py-1 rounded shadow-lg shrink-0 focus-ring">Details</button></div></div><div class="outline outline-2 outline-dashed outline-offset-2 rounded-xl" style="outline-color:#fd9c42"><div role="status" aria-live="polite" class="bg-secondary-container px-8 py-2 flex items-center justify-between gap-4"><div class="flex items-center gap-2 min-w-0"><svg viewBox="0 -960 960 960" width="16" height="16" fill="currentColor" aria-hidden="true" class="shrink-0 text-on-secondary-container"><path d="M480-120q-138 0-240.5-91.5T122-440h82q14 104 92.5 172T480-200q117 0 198.5-81.5T760-480q0-117-81.5-198.5T480-760q-69 0-129 32t-101 88h110v80H120v-240h80v94q51-64 124.5-99T480-840q75 0 140.5 28.5t114 77q48.5 48.5 77 114T840-480q0 75-28.5 140.5t-77 114q-48.5 48.5-114 77T480-120Zm112-192L440-464v-216h80v184l128 128-56 56Z"/></svg><span class="text-sm font-semibold text-on-secondary-container">Your data is restored<span class="ml-2 opacity-80">— checking with Sam, who shares “Studio Files” with you…</span></span></div><button class="bg-secondary text-on-secondary text-xs font-bold px-3 py-1 rounded shadow-lg shrink-0 focus-ring">Details</button></div></div><div class="outline outline-2 outline-dashed outline-offset-2 rounded-xl" style="outline-color:#fd9c42"><div role="status" aria-live="polite" class="bg-secondary-container px-8 py-2 flex items-center justify-between gap-4"><div class="flex items-center gap-2 min-w-0"><svg viewBox="0 -960 960 960" width="16" height="16" fill="currentColor" aria-hidden="true" class="shrink-0 text-on-secondary-container"><path d="M480-120q-138 0-240.5-91.5T122-440h82q14 104 92.5 172T480-200q117 0 198.5-81.5T760-480q0-117-81.5-198.5T480-760q-69 0-129 32t-101 88h110v80H120v-240h80v94q51-64 124.5-99T480-840q75 0 140.5 28.5t114 77q48.5 48.5 77 114T840-480q0 75-28.5 140.5t-77 114q-48.5 48.5-114 77T480-120Zm112-192L440-464v-216h80v184l128 128-56 56Z"/></svg><span class="text-sm font-semibold text-on-secondary-container">Your identity is back<span class="ml-2 opacity-80">— Mirall is getting your profile from the people you share with. Until then you can look, not change.</span></span></div><button class="bg-secondary text-on-secondary text-xs font-bold px-3 py-1 rounded shadow-lg shrink-0 focus-ring">Details</button></div></div></div>
+  <p class="anno text-sm mt-3"><span class="badge badge-a11y">a11y</span> One banner at a time; its text changes in place and is announced politely.</p>
+</section>
+
+<section class="max-w-[1040px] mx-auto px-6 pt-16">
+  <div class="anno border-t border-black/10 dark:border-white/10 pt-8">
+    <p class="text-xs font-bold uppercase tracking-wide" style="color:var(--color-secondary)">Journey</p>
+    <h2 class="anno-h font-headline font-extrabold text-3xl tracking-tight mt-1">2 · Inside a space</h2>
+    <p class="text-sm mt-2 max-w-3xl">Browsing and downloading work. Invite, Leave, and sharing wait — each says why where you would use it.</p>
+  </div>
+</section>
+
+<section id="s1" class="max-w-[1040px] mx-auto px-6 pt-12">
+  <h2 class="anno-h font-headline font-extrabold text-xl">2a · Space during the check</h2>
+  <div class="anno flex flex-wrap items-center gap-2 mt-2 mb-3 text-sm"><span class="badge badge-real">Recreated from code</span><span class="badge badge-proposed">Proposed new</span><span><code>SpaceHeaderBar</code> (Invite + More menu), <code>ShareCard</code>, <code>DropZone</code> as shipped; disabled states and the reason are new. Your own folder (“Q4 renders”) stays listed and downloadable for others — it is only not updated until the check passes.</span></div>
+  <div class="device-frame max-w-[900px] mx-auto">
+    <span class="traffic-lights" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></span>
+      <!-- TopNav (src/renderer/components/layout/TopNav.tsx) -->
+      <nav class="absolute top-0 w-full z-50">
+        <div class="nav-glass">
+          <div class="flex items-center py-4 px-8 w-full max-w-7xl mx-auto relative">
+            <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <button type="button" aria-label="Home" title="Home" class="pointer-events-auto flex h-8 items-center text-black dark:text-white rounded-lg px-2 active:scale-95 transition-all focus-ring">
+                <svg viewBox="0 0 2835 844" class="h-5 w-auto" fill="currentColor" fill-rule="evenodd" clip-rule="evenodd" aria-hidden="true" focusable="false"><g transform="matrix(4.166667,0,0,4.166667,-356.081667,-1351.366667)"><path transform="matrix(1,0,0,1,251.3906,523.7084)" d="M0,-196.22L-62.292,-111.171L-126.424,-196.22L-165.931,-196.22L-165.931,0L-125.107,0L-125.107,-129.2L-65.846,-50.043L-60.578,-50.043L-1.317,-126.442L-1.317,0L39.507,0L39.507,-196.22L0,-196.22Z" /><rect transform="matrix(1,0,0,1,0,-155.911)" x="314.601" y="483.399" width="39.507" height="39.507" /><rect transform="matrix(1,0,0,1,0,53.215)" x="314.601" y="326.686" width="39.507" height="143.807" /><path transform="matrix(1,0,0,1,528.4458,424.5448)" d="M0,57.681C-2.725,62.512 -6.543,66.331 -11.457,69.138C-16.375,71.949 -22.083,73.352 -28.577,73.352C-33.495,73.352 -37.623,72.126 -40.956,69.665C-44.294,67.208 -45.96,63.784 -45.96,59.393C-45.96,54.652 -44.471,51.01 -41.483,48.463C-38.499,45.919 -34.199,44.117 -28.577,43.063L4.082,37.231L4.082,41.746C4.082,47.541 2.72,52.854 0,57.681M35.952,-18.305C30.857,-26.733 23.573,-33.227 14.091,-37.795C4.609,-42.359 -6.716,-44.643 -19.885,-44.643L-149.265,-44.643L-149.265,99.164L-109.758,99.164L-109.758,-10.404L-22.519,-10.404C-13.918,-10.404 -7.334,-8.206 -2.766,-3.819C0.584,-0.596 2.694,3.438 3.586,8.268L-35.689,14.618C-47.104,16.375 -56.627,19.359 -64.266,23.573C-71.904,27.787 -77.566,33.014 -81.254,39.244C-84.941,45.479 -86.785,52.636 -86.785,60.71C-86.785,69.315 -84.768,76.735 -80.727,82.966C-76.69,89.2 -70.895,93.987 -63.344,97.32C-55.796,100.653 -46.841,102.324 -36.479,102.324C-28.754,102.324 -21.729,101.312 -15.408,99.295C-9.087,97.279 -3.383,94.205 1.712,90.077C3.431,88.684 5.096,87.155 6.716,85.511L6.716,99.164L43.59,99.164L43.59,11.721C43.59,0.132 41.042,-9.877 35.952,-18.305" /><rect transform="matrix(1,0,0,1,0,-2.357)" x="598.477" y="326.685" width="39.507" height="199.381" /><rect transform="matrix(1,0,0,1,0,-2.357)" x="663.056" y="326.685" width="39.507" height="199.381" /><rect transform="matrix(1,0,0,1,0,157.259)" x="726.267" y="326.814" width="39.507" height="39.507" fill="#fd9c42" /></g></svg>
+              </button>
+            </div>
+            <div class="flex items-center gap-4 ml-auto">
+              <button type="button" class="flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold transition-all active:scale-95 focus-ring bg-surface-control text-on-surface-variant hover:bg-surface-control-hover px-5 py-2.5 text-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true"><path d="M479.98-367q14.02 0 23.52-9.48t9.5-23.5q0-14.02-9.48-23.52t-23.5-9.5q-14.02 0-23.52 9.48t-9.5 23.5q0 14.02 9.48 23.52t23.5 9.5ZM450-509h60v-251h-60v251ZM80-80v-740q0-24 18-42t42-18h680q24 0 42 18t18 42v520q0 24-18 42t-42 18H240L80-80Zm134-220h606v-520H140v600l74-80Zm-74 0v-520 520Z"/></svg>
+                Send Feedback
+              </button>
+              <button type="button" aria-label="Settings" class="w-10 h-10 shrink-0 flex items-center justify-center rounded-full hover:bg-surface-container-high active:scale-95 transition-all focus-ring">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 -960 960 960" fill="currentColor" class="text-accent" aria-hidden="true"><path d="m388-80-20-126q-19-7-40-19t-37-25l-118 54-93-164 108-79q-2-9-2.5-20.5T185-480q0-9 .5-20.5T188-521L80-600l93-164 118 54q16-13 37-25t40-18l20-127h184l20 126q19 7 40.5 18.5T669-710l118-54 93 164-108 77q2 10 2.5 21.5t.5 21.5q0 10-.5 21t-2.5 21l108 78-93 164-118-54q-16 13-36.5 25.5T592-206L572-80H388Zm92-270q54 0 92-38t38-92q0-54-38-92t-92-38q-54 0-92 38t-38 92q0 54 38 92t92 38Z"/></svg>
+              </button>
+              <!-- Avatar: md (36px), status ring. ok = surface-container-highest ring; connecting / offline swap in
+                   avatar-issue-pulse-warning / -error and the label "Profile — connection issue". -->
+              <button type="button" aria-label="Profile" title="Profile" class="w-10 h-10 rounded-full flex items-center justify-center hover:opacity-90 active:scale-95 transition-all focus-ring">
+                <div aria-hidden="true" class="avatar-recess rounded-full bg-progress-track flex items-center justify-center overflow-hidden" style="width:36px;height:36px;box-shadow:0 0 0 2px var(--color-surface-container-highest)">
+                  <span class="text-on-surface-variant font-bold" style="font-size:13px">AB</span>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      <div class="outline outline-2 outline-dashed outline-offset-2 rounded-xl" style="outline-color:#fd9c42"><div role="status" aria-live="polite" class="bg-secondary-container px-8 py-2 flex items-center justify-between gap-4"><div class="flex items-center gap-2 min-w-0"><svg viewBox="0 -960 960 960" width="16" height="16" fill="currentColor" aria-hidden="true" class="shrink-0 text-on-secondary-container"><path d="M480-120q-138 0-240.5-91.5T122-440h82q14 104 92.5 172T480-200q117 0 198.5-81.5T760-480q0-117-81.5-198.5T480-760q-69 0-129 32t-101 88h110v80H120v-240h80v94q51-64 124.5-99T480-840q75 0 140.5 28.5t114 77q48.5 48.5 77 114T840-480q0 75-28.5 140.5t-77 114q-48.5 48.5-114 77T480-120Zm112-192L440-464v-216h80v184l128 128-56 56Z"/></svg><span class="text-sm font-semibold text-on-secondary-container">Your data is restored<span class="ml-2 opacity-80">— checking with Sam, who shares “Studio Files” with you…</span></span></div><button class="bg-secondary text-on-secondary text-xs font-bold px-3 py-1 rounded shadow-lg shrink-0 focus-ring">Details</button></div></div></nav>
+    <div class="bg-surface font-body relative" style="height:620px; overflow:hidden">
+      <main class="pt-28"><div class="max-w-7xl mx-auto px-8">
+  <div class="pt-8 pb-4 flex items-start gap-4"><button aria-label="Back" class="mt-1 w-10 h-10 rounded-full flex items-center justify-center text-secondary"><svg viewBox="0 -960 960 960" width="22" height="22" fill="currentColor" aria-hidden="true" class="shrink-0 "><path d="m274-450 248 248-42 42-320-320 320-320 42 42-248 248h526v60H274Z"/></svg></button>
+  <div class="min-w-0 flex-1"><h1 class="text-4xl font-headline font-extrabold text-accent tracking-tighter leading-tight">Studio Files</h1></div>
+  <div class="flex gap-3 mt-2 shrink-0 relative"><span class="relative"><button type="button" aria-disabled="true" aria-describedby="held-reason" class="flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold bg-primary text-on-primary opacity-50 cursor-not-allowed px-5 py-2.5 text-sm focus-ring"><svg viewBox="0 -960 960 960" width="20" height="20" fill="currentColor" aria-hidden="true" class="shrink-0 "><path d="M474-486q26-32 38.5-66t12.5-79q0-45-12.5-79T474-776q76-17 133.5 23T665-631q0 82-57.5 122T474-486Zm216 326v-94q0-51-26-95t-90-74q173 22 236.5 64T874-254v94H690Zm110-289v-100H700v-60h100v-100h60v100h100v60H860v100h-60Zm-593-74q-42-42-42-108t42-108q42-42 108-42t108 42q42 42 42 108t-42 108q-42 42-108 42t-108-42ZM0-160v-94q0-35 18.5-63.5T68-360q72-32 128.5-46T315-420q62 0 118 14t128 46q31 14 50 42.5t19 63.5v94H0Zm315-381q39 0 64.5-25.5T405-631q0-39-25.5-64.5T315-721q-39 0-64.5 25.5T225-631q0 39 25.5 64.5T315-541ZM60-220h510v-34q0-16-8-30t-25-22q-69-32-117-43t-105-11q-57 0-104.5 11T92-306q-15 7-23.5 21.5T60-254v34Zm255-411Zm0 411Z"/></svg>Invite</button></span><button class="w-11 h-11 rounded-xl bg-surface-control flex items-center justify-center text-on-surface-variant" aria-label="More" aria-expanded="true"><svg viewBox="0 -960 960 960" width="20" height="20" fill="currentColor" aria-hidden="true" class="shrink-0 "><path d="M479.86-160Q460-160 446-174.14t-14-34Q432-228 446.14-242t34-14Q500-256 514-241.86t14 34Q528-188 513.86-174t-34 14Zm0-272Q460-432 446-446.14t-14-34Q432-500 446.14-514t34-14Q500-528 514-513.86t14 34Q528-460 513.86-446t-34 14Zm0-272Q460-704 446-718.14t-14-34Q432-772 446.14-786t34-14Q500-800 514-785.86t14 34Q528-732 513.86-718t-34 14Z"/></svg></button><div class="absolute right-0 top-12 z-10 w-64 rounded-xl shadow-2xl bg-surface-container-lowest py-2" role="menu">
+<div role="menuitem" class="px-4 py-2.5 flex items-center gap-3 text-sm text-on-surface"><svg viewBox="0 -960 960 960" width="18" height="18" fill="currentColor" aria-hidden="true" class="shrink-0 text-secondary"><path d="m323-245 157-94 157 95-42-178 138-120-182-16-71-168-71 167-182 16 138 120-42 178Zm-90 125 65-281L80-590l288-25 112-265 112 265 288 25-218 189 65 281-247-149-247 149Zm247-355Z"/></svg>Add to Favorites</div>
+<div role="menuitem" class="px-4 py-2.5 flex items-center gap-3 text-sm text-on-surface"><svg viewBox="0 -960 960 960" width="18" height="18" fill="currentColor" aria-hidden="true" class="shrink-0 text-secondary"><path d="M180-180h44l472-471-44-44-472 471v44Zm-60 60v-128l575-574q8-8 19-12.5t23-4.5q11 0 22 4.5t20 12.5l44 44q9 9 13 20t4 22q0 11-4.5 22.5T823-694L248-120H120Zm659-617-41-41 41 41Zm-105 64-22-22 44 44-22-22Z"/></svg>Edit Space</div>
+<div role="menuitem" class="px-4 py-2.5 flex items-center gap-3 text-sm text-on-surface"><svg viewBox="0 -960 960 960" width="18" height="18" fill="currentColor" aria-hidden="true" class="shrink-0 text-secondary"><path d="M480-120q-151 0-255.5-46.5T120-280v-400q0-66 105.5-113T480-840q149 0 254.5 47T840-680v400q0 67-104.5 113.5T480-120Zm0-488q86 0 176.5-26.5T773-694q-27-32-117.5-59T480-780q-88 0-177 26t-117 60q28 35 116 60.5T480-608Zm-1 214q42 0 84-4.5t80.5-13.5q38.5-9 73.5-22t63-29v-155q-29 16-64 29t-74 22q-39 9-80 14t-83 5q-42 0-84-5t-80.5-14q-38.5-9-73-22T180-618v155q27 16 61 29t72.5 22q38.5 9 80.5 13.5t85 4.5Zm1 214q48 0 99-8.5t93.5-22.5q42.5-14 72-31t35.5-35v-125q-28 16-63 28.5T643.5-352q-38.5 9-80 13.5T479-334q-43 0-85-4.5T313.5-352q-38.5-9-72.5-21.5T180-402v126q5 17 34 34.5t72 31q43 13.5 94 22t100 8.5Z"/></svg>Manage Storage</div>
+<div role="menuitem" aria-disabled="true" class="px-4 py-2.5 flex items-start gap-3 text-sm text-error opacity-50"><svg viewBox="0 -960 960 960" width="18" height="18" fill="currentColor" aria-hidden="true" class="shrink-0 mt-0.5"><path d="M180-120q-24 0-42-18t-18-42v-600q0-24 18-42t42-18h299v60H180v600h299v60H180Zm486-185-43-43 102-102H360v-60h363L621-612l43-43 176 176-174 174Z"/></svg><span>Leave Space<span class="block text-xs text-on-surface-variant">Available once Mirall has checked with the people you share with.</span></span></div></div></div></div>
+  <div class="grid grid-cols-[1fr_280px] gap-8 pt-4">
+    <div class="space-y-4"><h2 class="text-xl font-headline font-bold text-accent">Folders Shared <span class="text-sm text-on-surface-variant font-medium">2 Folders</span></h2><div class="flex items-center p-5 bg-surface-container-low rounded-xl"><div class="flex items-center gap-4 min-w-0 flex-grow"><div class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0"><svg viewBox="0 -960 960 960" width="22" height="22" fill="currentColor" aria-hidden="true" class="shrink-0 text-accent"><path d="M140-160q-24 0-42-18.5T80-220v-520q0-23 18-41.5t42-18.5h281l60 60h339q23 0 41.5 18.5T880-680v460q0 23-18.5 41.5T820-160H140Zm0-60h680v-460H456l-60-60H140v520Zm0 0v-520 520Z"/></svg></div><div class="min-w-0"><p class="font-headline font-bold text-accent truncate">Brand assets</p><p class="text-sm text-on-surface-variant truncate">Sam · 214 files</p></div></div></div><div class="flex items-center p-5 bg-surface-container-low rounded-xl"><div class="flex items-center gap-4 min-w-0 flex-grow"><div class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0"><svg viewBox="0 -960 960 960" width="22" height="22" fill="currentColor" aria-hidden="true" class="shrink-0 text-accent"><path d="M140-160q-24 0-42-18.5T80-220v-520q0-23 18-41.5t42-18.5h281l60 60h339q23 0 41.5 18.5T880-680v460q0 23-18.5 41.5T820-160H140Zm0-60h680v-460H456l-60-60H140v520Zm0 0v-520 520Z"/></svg></div><div class="min-w-0"><p class="font-headline font-bold text-accent truncate">Q4 renders</p><p class="text-sm text-on-surface-variant truncate">You · 58 files</p></div></div></div></div>
+    <div class="space-y-4"><div role="group" aria-label="Drop files or folders here" aria-disabled="true" class="flex flex-col items-center justify-center p-6 border-2 border-dashed border-outline bg-surface-container-low rounded-2xl min-h-[10.5rem] opacity-60"><h3 class="text-lg font-headline font-bold text-accent mb-1 text-center">Drop to Share</h3><p class="text-xs text-on-surface-variant mb-3 text-center">Available once Mirall has checked with the people you share with.</p><button aria-disabled="true" class="bg-surface-control text-on-surface-variant rounded-xl px-4 py-2 text-sm font-bold opacity-60">Share…</button></div>
+    <div class="bg-surface-container-low rounded-xl p-4"><p class="font-headline font-bold text-accent mb-2">Members</p><p class="text-sm text-on-surface-variant">Sam (online) · You</p></div></div>
+  </div></div></main>
+    </div>
+  </div>
+  <p class="anno text-sm mt-3"><span class="badge badge-a11y">a11y</span> Menu item uses <code>aria-disabled</code> and carries the reason in its accessible description; the drop zone ignores drops and says why.</p>
+</section>
+
+<section id="s2" class="max-w-[1040px] mx-auto px-6 pt-12">
+  <h2 class="anno-h font-headline font-extrabold text-xl">2b · Profile confirmed, one space still being checked (backup restores)</h2>
+  <div class="anno flex flex-wrap items-center gap-2 mt-2 mb-3 text-sm"><span class="badge badge-proposed">Proposed new</span><span>Your profile is confirmed, so Invite and Leave are back; this space’s file list waits for its own members. The banner is gone; a <code>Callout</code> note says it in the space.</span></div>
+  <div class="device-frame max-w-[900px] mx-auto">
+    <span class="traffic-lights" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></span>
+      <!-- TopNav (src/renderer/components/layout/TopNav.tsx) -->
+      <nav class="absolute top-0 w-full z-50">
+        <div class="nav-glass">
+          <div class="flex items-center py-4 px-8 w-full max-w-7xl mx-auto relative">
+            <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <button type="button" aria-label="Home" title="Home" class="pointer-events-auto flex h-8 items-center text-black dark:text-white rounded-lg px-2 active:scale-95 transition-all focus-ring">
+                <svg viewBox="0 0 2835 844" class="h-5 w-auto" fill="currentColor" fill-rule="evenodd" clip-rule="evenodd" aria-hidden="true" focusable="false"><g transform="matrix(4.166667,0,0,4.166667,-356.081667,-1351.366667)"><path transform="matrix(1,0,0,1,251.3906,523.7084)" d="M0,-196.22L-62.292,-111.171L-126.424,-196.22L-165.931,-196.22L-165.931,0L-125.107,0L-125.107,-129.2L-65.846,-50.043L-60.578,-50.043L-1.317,-126.442L-1.317,0L39.507,0L39.507,-196.22L0,-196.22Z" /><rect transform="matrix(1,0,0,1,0,-155.911)" x="314.601" y="483.399" width="39.507" height="39.507" /><rect transform="matrix(1,0,0,1,0,53.215)" x="314.601" y="326.686" width="39.507" height="143.807" /><path transform="matrix(1,0,0,1,528.4458,424.5448)" d="M0,57.681C-2.725,62.512 -6.543,66.331 -11.457,69.138C-16.375,71.949 -22.083,73.352 -28.577,73.352C-33.495,73.352 -37.623,72.126 -40.956,69.665C-44.294,67.208 -45.96,63.784 -45.96,59.393C-45.96,54.652 -44.471,51.01 -41.483,48.463C-38.499,45.919 -34.199,44.117 -28.577,43.063L4.082,37.231L4.082,41.746C4.082,47.541 2.72,52.854 0,57.681M35.952,-18.305C30.857,-26.733 23.573,-33.227 14.091,-37.795C4.609,-42.359 -6.716,-44.643 -19.885,-44.643L-149.265,-44.643L-149.265,99.164L-109.758,99.164L-109.758,-10.404L-22.519,-10.404C-13.918,-10.404 -7.334,-8.206 -2.766,-3.819C0.584,-0.596 2.694,3.438 3.586,8.268L-35.689,14.618C-47.104,16.375 -56.627,19.359 -64.266,23.573C-71.904,27.787 -77.566,33.014 -81.254,39.244C-84.941,45.479 -86.785,52.636 -86.785,60.71C-86.785,69.315 -84.768,76.735 -80.727,82.966C-76.69,89.2 -70.895,93.987 -63.344,97.32C-55.796,100.653 -46.841,102.324 -36.479,102.324C-28.754,102.324 -21.729,101.312 -15.408,99.295C-9.087,97.279 -3.383,94.205 1.712,90.077C3.431,88.684 5.096,87.155 6.716,85.511L6.716,99.164L43.59,99.164L43.59,11.721C43.59,0.132 41.042,-9.877 35.952,-18.305" /><rect transform="matrix(1,0,0,1,0,-2.357)" x="598.477" y="326.685" width="39.507" height="199.381" /><rect transform="matrix(1,0,0,1,0,-2.357)" x="663.056" y="326.685" width="39.507" height="199.381" /><rect transform="matrix(1,0,0,1,0,157.259)" x="726.267" y="326.814" width="39.507" height="39.507" fill="#fd9c42" /></g></svg>
+              </button>
+            </div>
+            <div class="flex items-center gap-4 ml-auto">
+              <button type="button" class="flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold transition-all active:scale-95 focus-ring bg-surface-control text-on-surface-variant hover:bg-surface-control-hover px-5 py-2.5 text-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true"><path d="M479.98-367q14.02 0 23.52-9.48t9.5-23.5q0-14.02-9.48-23.52t-23.5-9.5q-14.02 0-23.52 9.48t-9.5 23.5q0 14.02 9.48 23.52t23.5 9.5ZM450-509h60v-251h-60v251ZM80-80v-740q0-24 18-42t42-18h680q24 0 42 18t18 42v520q0 24-18 42t-42 18H240L80-80Zm134-220h606v-520H140v600l74-80Zm-74 0v-520 520Z"/></svg>
+                Send Feedback
+              </button>
+              <button type="button" aria-label="Settings" class="w-10 h-10 shrink-0 flex items-center justify-center rounded-full hover:bg-surface-container-high active:scale-95 transition-all focus-ring">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 -960 960 960" fill="currentColor" class="text-accent" aria-hidden="true"><path d="m388-80-20-126q-19-7-40-19t-37-25l-118 54-93-164 108-79q-2-9-2.5-20.5T185-480q0-9 .5-20.5T188-521L80-600l93-164 118 54q16-13 37-25t40-18l20-127h184l20 126q19 7 40.5 18.5T669-710l118-54 93 164-108 77q2 10 2.5 21.5t.5 21.5q0 10-.5 21t-2.5 21l108 78-93 164-118-54q-16 13-36.5 25.5T592-206L572-80H388Zm92-270q54 0 92-38t38-92q0-54-38-92t-92-38q-54 0-92 38t-38 92q0 54 38 92t92 38Z"/></svg>
+              </button>
+              <!-- Avatar: md (36px), status ring. ok = surface-container-highest ring; connecting / offline swap in
+                   avatar-issue-pulse-warning / -error and the label "Profile — connection issue". -->
+              <button type="button" aria-label="Profile" title="Profile" class="w-10 h-10 rounded-full flex items-center justify-center hover:opacity-90 active:scale-95 transition-all focus-ring">
+                <div aria-hidden="true" class="avatar-recess rounded-full bg-progress-track flex items-center justify-center overflow-hidden" style="width:36px;height:36px;box-shadow:0 0 0 2px var(--color-surface-container-highest)">
+                  <span class="text-on-surface-variant font-bold" style="font-size:13px">AB</span>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      </nav>
+    <div class="bg-surface font-body relative" style="height:640px; overflow:hidden">
+      <main class="pt-28"><div class="max-w-7xl mx-auto px-8">
+  <div class="pt-8 pb-4 flex items-start gap-4"><button aria-label="Back" class="mt-1 w-10 h-10 rounded-full flex items-center justify-center text-secondary"><svg viewBox="0 -960 960 960" width="22" height="22" fill="currentColor" aria-hidden="true" class="shrink-0 "><path d="m274-450 248 248-42 42-320-320 320-320 42 42-248 248h526v60H274Z"/></svg></button>
+  <div class="min-w-0 flex-1"><h1 class="text-4xl font-headline font-extrabold text-accent tracking-tighter leading-tight">Studio Files</h1></div>
+  <div class="flex gap-3 mt-2 shrink-0 relative"><span class="relative"><button type="button" class="flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold transition-all bg-primary text-on-primary shadow-lg shadow-primary/10 hover:bg-primary-hover px-5 py-2.5 text-sm focus-ring "><svg viewBox="0 -960 960 960" width="20" height="20" fill="currentColor" aria-hidden="true" class="shrink-0 "><path d="M474-486q26-32 38.5-66t12.5-79q0-45-12.5-79T474-776q76-17 133.5 23T665-631q0 82-57.5 122T474-486Zm216 326v-94q0-51-26-95t-90-74q173 22 236.5 64T874-254v94H690Zm110-289v-100H700v-60h100v-100h60v100h100v60H860v100h-60Zm-593-74q-42-42-42-108t42-108q42-42 108-42t108 42q42 42 42 108t-42 108q-42 42-108 42t-108-42ZM0-160v-94q0-35 18.5-63.5T68-360q72-32 128.5-46T315-420q62 0 118 14t128 46q31 14 50 42.5t19 63.5v94H0Zm315-381q39 0 64.5-25.5T405-631q0-39-25.5-64.5T315-721q-39 0-64.5 25.5T225-631q0 39 25.5 64.5T315-541ZM60-220h510v-34q0-16-8-30t-25-22q-69-32-117-43t-105-11q-57 0-104.5 11T92-306q-15 7-23.5 21.5T60-254v34Zm255-411Zm0 411Z"/></svg>Invite</button></span><button class="w-11 h-11 rounded-xl bg-surface-control flex items-center justify-center text-on-surface-variant" aria-label="More" aria-expanded="true"><svg viewBox="0 -960 960 960" width="20" height="20" fill="currentColor" aria-hidden="true" class="shrink-0 "><path d="M479.86-160Q460-160 446-174.14t-14-34Q432-228 446.14-242t34-14Q500-256 514-241.86t14 34Q528-188 513.86-174t-34 14Zm0-272Q460-432 446-446.14t-14-34Q432-500 446.14-514t34-14Q500-528 514-513.86t14 34Q528-460 513.86-446t-34 14Zm0-272Q460-704 446-718.14t-14-34Q432-772 446.14-786t34-14Q500-800 514-785.86t14 34Q528-732 513.86-718t-34 14Z"/></svg></button></div></div>
+  <div class="mb-2"><div class="bg-surface-container-low rounded-xl p-4 flex items-start gap-3"><svg viewBox="0 -960 960 960" width="20" height="20" fill="currentColor" aria-hidden="true" class="shrink-0 text-secondary mt-0.5"><path d="M453-280h60v-240h-60v240Zm50.5-323.2q9.5-9.2 9.5-22.8 0-14.45-9.48-24.22-9.48-9.78-23.5-9.78t-23.52 9.78Q447-640.45 447-626q0 13.6 9.48 22.8 9.48 9.2 23.5 9.2t23.52-9.2ZM480.27-80q-82.74 0-155.5-31.5Q252-143 197.5-197.5t-86-127.34Q80-397.68 80-480.5t31.5-155.66Q143-709 197.5-763t127.34-85.5Q397.68-880 480.5-880t155.66 31.5Q709-817 763-763t85.5 127Q880-563 880-480.27q0 82.74-31.5 155.5Q817-252 763-197.68q-54 54.31-127 86Q563-80 480.27-80Zm.23-60Q622-140 721-239.5t99-241Q820-622 721.19-721T480-820q-141 0-240.5 98.81T140-480q0 141 99.5 240.5t241 99.5Zm-.5-340Z"/></svg><div class="min-w-0"><p class="font-bold text-on-surface">Checking “Studio Files”</p><div class="text-sm leading-relaxed text-on-surface-variant mt-1">Mirall is still checking this space with its members. Sharing here waits until then; everything else is ready.</div></div></div></div><div class="grid grid-cols-[1fr_280px] gap-8 pt-4">
+    <div class="space-y-4"><h2 class="text-xl font-headline font-bold text-accent">Folders Shared <span class="text-sm text-on-surface-variant font-medium">2 Folders</span></h2><div class="flex items-center p-5 bg-surface-container-low rounded-xl"><div class="flex items-center gap-4 min-w-0 flex-grow"><div class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0"><svg viewBox="0 -960 960 960" width="22" height="22" fill="currentColor" aria-hidden="true" class="shrink-0 text-accent"><path d="M140-160q-24 0-42-18.5T80-220v-520q0-23 18-41.5t42-18.5h281l60 60h339q23 0 41.5 18.5T880-680v460q0 23-18.5 41.5T820-160H140Zm0-60h680v-460H456l-60-60H140v520Zm0 0v-520 520Z"/></svg></div><div class="min-w-0"><p class="font-headline font-bold text-accent truncate">Brand assets</p><p class="text-sm text-on-surface-variant truncate">Sam · 214 files</p></div></div></div><div class="flex items-center p-5 bg-surface-container-low rounded-xl"><div class="flex items-center gap-4 min-w-0 flex-grow"><div class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0"><svg viewBox="0 -960 960 960" width="22" height="22" fill="currentColor" aria-hidden="true" class="shrink-0 text-accent"><path d="M140-160q-24 0-42-18.5T80-220v-520q0-23 18-41.5t42-18.5h281l60 60h339q23 0 41.5 18.5T880-680v460q0 23-18.5 41.5T820-160H140Zm0-60h680v-460H456l-60-60H140v520Zm0 0v-520 520Z"/></svg></div><div class="min-w-0"><p class="font-headline font-bold text-accent truncate">Q4 renders</p><p class="text-sm text-on-surface-variant truncate">You · 58 files</p></div></div></div></div>
+    <div class="space-y-4"><div role="group" aria-label="Drop files or folders here" aria-disabled="true" class="flex flex-col items-center justify-center p-6 border-2 border-dashed border-outline bg-surface-container-low rounded-2xl min-h-[10.5rem] opacity-60"><h3 class="text-lg font-headline font-bold text-accent mb-1 text-center">Drop to Share</h3><p class="text-xs text-on-surface-variant mb-3 text-center">Available once Mirall has checked with the people you share with.</p><button aria-disabled="true" class="bg-surface-control text-on-surface-variant rounded-xl px-4 py-2 text-sm font-bold opacity-60">Share…</button></div>
+    <div class="bg-surface-container-low rounded-xl p-4"><p class="font-headline font-bold text-accent mb-2">Members</p><p class="text-sm text-on-surface-variant">Sam (online) · You</p></div></div>
+  </div></div></main>
+    </div>
+  </div>
+  <p class="anno text-sm mt-3"><span class="badge badge-a11y">a11y</span> Per-space state, so a quiet space never holds up the others.</p>
+</section>
+
+<section class="max-w-[1040px] mx-auto px-6 pt-16">
+  <div class="anno border-t border-black/10 dark:border-white/10 pt-8">
+    <p class="text-xs font-bold uppercase tracking-wide" style="color:var(--color-secondary)">Journey</p>
+    <h2 class="anno-h font-headline font-extrabold text-3xl tracking-tight mt-1">3 · Details: Protection status during a restore</h2>
+    <p class="text-sm mt-2 max-w-3xl">The banner’s “Details” opens Protection status. The Restore screen’s parts — progress, rejoin with invite, start fresh — move here as a “Restoring” section.</p>
+  </div>
+</section>
+
+<section id="p1" class="max-w-[1040px] mx-auto px-6 pt-12">
+  <h2 class="anno-h font-headline font-extrabold text-xl">3a · Protection status while checking</h2>
+  <div class="anno flex flex-wrap items-center gap-2 mt-2 mb-3 text-sm"><span class="badge badge-real">Recreated from code</span><span class="badge badge-proposed">Proposed new</span><span>Progress line, invite field and start-fresh are the shipped <code>RestoreScreen.tsx</code> pieces with their copy; the per-space list is new. Verdict lamp neutral (“Restoring”).</span></div>
+  <div class="device-frame max-w-[900px] mx-auto">
+    <span class="traffic-lights" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></span>
+      <!-- TopNav (src/renderer/components/layout/TopNav.tsx) -->
+      <nav class="absolute top-0 w-full z-50">
+        <div class="nav-glass">
+          <div class="flex items-center py-4 px-8 w-full max-w-7xl mx-auto relative">
+            <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <button type="button" aria-label="Home" title="Home" class="pointer-events-auto flex h-8 items-center text-black dark:text-white rounded-lg px-2 active:scale-95 transition-all focus-ring">
+                <svg viewBox="0 0 2835 844" class="h-5 w-auto" fill="currentColor" fill-rule="evenodd" clip-rule="evenodd" aria-hidden="true" focusable="false"><g transform="matrix(4.166667,0,0,4.166667,-356.081667,-1351.366667)"><path transform="matrix(1,0,0,1,251.3906,523.7084)" d="M0,-196.22L-62.292,-111.171L-126.424,-196.22L-165.931,-196.22L-165.931,0L-125.107,0L-125.107,-129.2L-65.846,-50.043L-60.578,-50.043L-1.317,-126.442L-1.317,0L39.507,0L39.507,-196.22L0,-196.22Z" /><rect transform="matrix(1,0,0,1,0,-155.911)" x="314.601" y="483.399" width="39.507" height="39.507" /><rect transform="matrix(1,0,0,1,0,53.215)" x="314.601" y="326.686" width="39.507" height="143.807" /><path transform="matrix(1,0,0,1,528.4458,424.5448)" d="M0,57.681C-2.725,62.512 -6.543,66.331 -11.457,69.138C-16.375,71.949 -22.083,73.352 -28.577,73.352C-33.495,73.352 -37.623,72.126 -40.956,69.665C-44.294,67.208 -45.96,63.784 -45.96,59.393C-45.96,54.652 -44.471,51.01 -41.483,48.463C-38.499,45.919 -34.199,44.117 -28.577,43.063L4.082,37.231L4.082,41.746C4.082,47.541 2.72,52.854 0,57.681M35.952,-18.305C30.857,-26.733 23.573,-33.227 14.091,-37.795C4.609,-42.359 -6.716,-44.643 -19.885,-44.643L-149.265,-44.643L-149.265,99.164L-109.758,99.164L-109.758,-10.404L-22.519,-10.404C-13.918,-10.404 -7.334,-8.206 -2.766,-3.819C0.584,-0.596 2.694,3.438 3.586,8.268L-35.689,14.618C-47.104,16.375 -56.627,19.359 -64.266,23.573C-71.904,27.787 -77.566,33.014 -81.254,39.244C-84.941,45.479 -86.785,52.636 -86.785,60.71C-86.785,69.315 -84.768,76.735 -80.727,82.966C-76.69,89.2 -70.895,93.987 -63.344,97.32C-55.796,100.653 -46.841,102.324 -36.479,102.324C-28.754,102.324 -21.729,101.312 -15.408,99.295C-9.087,97.279 -3.383,94.205 1.712,90.077C3.431,88.684 5.096,87.155 6.716,85.511L6.716,99.164L43.59,99.164L43.59,11.721C43.59,0.132 41.042,-9.877 35.952,-18.305" /><rect transform="matrix(1,0,0,1,0,-2.357)" x="598.477" y="326.685" width="39.507" height="199.381" /><rect transform="matrix(1,0,0,1,0,-2.357)" x="663.056" y="326.685" width="39.507" height="199.381" /><rect transform="matrix(1,0,0,1,0,157.259)" x="726.267" y="326.814" width="39.507" height="39.507" fill="#fd9c42" /></g></svg>
+              </button>
+            </div>
+            <div class="flex items-center gap-4 ml-auto">
+              <button type="button" class="flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold transition-all active:scale-95 focus-ring bg-surface-control text-on-surface-variant hover:bg-surface-control-hover px-5 py-2.5 text-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true"><path d="M479.98-367q14.02 0 23.52-9.48t9.5-23.5q0-14.02-9.48-23.52t-23.5-9.5q-14.02 0-23.52 9.48t-9.5 23.5q0 14.02 9.48 23.52t23.5 9.5ZM450-509h60v-251h-60v251ZM80-80v-740q0-24 18-42t42-18h680q24 0 42 18t18 42v520q0 24-18 42t-42 18H240L80-80Zm134-220h606v-520H140v600l74-80Zm-74 0v-520 520Z"/></svg>
+                Send Feedback
+              </button>
+              <button type="button" aria-label="Settings" class="w-10 h-10 shrink-0 flex items-center justify-center rounded-full hover:bg-surface-container-high active:scale-95 transition-all focus-ring">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 -960 960 960" fill="currentColor" class="text-accent" aria-hidden="true"><path d="m388-80-20-126q-19-7-40-19t-37-25l-118 54-93-164 108-79q-2-9-2.5-20.5T185-480q0-9 .5-20.5T188-521L80-600l93-164 118 54q16-13 37-25t40-18l20-127h184l20 126q19 7 40.5 18.5T669-710l118-54 93 164-108 77q2 10 2.5 21.5t.5 21.5q0 10-.5 21t-2.5 21l108 78-93 164-118-54q-16 13-36.5 25.5T592-206L572-80H388Zm92-270q54 0 92-38t38-92q0-54-38-92t-92-38q-54 0-92 38t-38 92q0 54 38 92t92 38Z"/></svg>
+              </button>
+              <!-- Avatar: md (36px), status ring. ok = surface-container-highest ring; connecting / offline swap in
+                   avatar-issue-pulse-warning / -error and the label "Profile — connection issue". -->
+              <button type="button" aria-label="Profile" title="Profile" class="w-10 h-10 rounded-full flex items-center justify-center hover:opacity-90 active:scale-95 transition-all focus-ring">
+                <div aria-hidden="true" class="avatar-recess rounded-full bg-progress-track flex items-center justify-center overflow-hidden" style="width:36px;height:36px;box-shadow:0 0 0 2px var(--color-surface-container-highest)">
+                  <span class="text-on-surface-variant font-bold" style="font-size:13px">AB</span>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      </nav>
+    <div class="bg-surface font-body relative" style="height:1180px; overflow:hidden">
+      <main class="pt-20"><div class="pt-8 px-8 max-w-2xl mx-auto">
+        <div class="flex items-start gap-4 mb-8"><button aria-label="Back" class="mt-1 shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-secondary hover:bg-surface-container-high focus-ring"><svg viewBox="0 -960 960 960" width="22" height="22" fill="currentColor" aria-hidden="true" class="shrink-0 "><path d="m274-450 248 248-42 42-320-320 320-320 42 42-248 248h526v60H274Z"/></svg></button><div><h1 class="text-4xl font-headline font-extrabold text-accent tracking-tight">Protection</h1><p class="text-on-surface-variant text-lg leading-relaxed">How your identity and your data are kept safe on this device.</p></div></div>
+        <div class="space-y-10">
+<section><div class="bg-surface-container-low rounded-xl p-6 flex items-center gap-5"><span aria-hidden="true" class="w-4 h-4 rounded-full shrink-0 ring-4 bg-outline ring-outline/20"></span><div role="status" class="flex-1"><p class="text-2xl font-headline font-bold text-accent">Restoring</p><p class="text-sm text-on-surface-variant mt-1">Your data is restored. Changes wait until someone you share with confirms nothing newer exists — so nothing you change can clash.</p></div></div></section>
+<div class="outline outline-2 outline-dashed outline-offset-2 rounded-xl" style="outline-color:#fd9c42"><section><h2 class="text-xl font-headline font-bold text-accent mb-4">Restoring</h2><div class="bg-surface-container-low rounded-xl p-6 space-y-5">
+<div role="status" class="flex items-center gap-3"><svg viewBox="0 -960 960 960" width="22" height="22" fill="currentColor" aria-hidden="true" class="shrink-0 text-secondary"><path d="M480-160q-133 0-226.5-93.5T160-480q0-133 93.5-226.5T480-800q85 0 149 34.5T740-671v-129h60v254H546v-60h168q-38-60-97-97t-137-37q-109 0-184.5 75.5T220-480q0 109 75.5 184.5T480-220q83 0 152-47.5T728-393h62q-29 105-115 169t-195 64Z"/></svg><p class="font-bold text-on-surface">Waiting for someone you share a space with to come online…</p></div>
+<div><p class="text-sm font-semibold text-accent mb-2">Spaces still being checked</p><ul class="text-sm text-on-surface-variant space-y-1"><li>Studio Files — Sam, Lea</li><li>Family — Mum</li></ul></div>
+<div class="space-y-2"><label class="block font-headline text-sm font-bold text-accent px-1" for="inv">Invite code for one of your spaces</label><input id="inv" class="w-full bg-surface-container-lowest rounded-xl px-6 py-4" placeholder="Paste invite code here…"/><p class="text-xs text-on-surface-variant px-1">Ask anyone in a space you belong to for an invite code. You rejoin without approval, and your profile comes back through them.</p></div>
+<button type="button" class="flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold transition-all bg-primary text-on-primary shadow-lg shadow-primary/10 hover:bg-primary-hover px-5 py-2.5 text-sm focus-ring "><svg viewBox="0 -960 960 960" width="20" height="20" fill="currentColor" aria-hidden="true" class="shrink-0 "><path d="M474-486q26-32 38.5-66t12.5-79q0-45-12.5-79T474-776q76-17 133.5 23T665-631q0 82-57.5 122T474-486Zm216 326v-94q0-51-26-95t-90-74q173 22 236.5 64T874-254v94H690Zm110-289v-100H700v-60h100v-100h60v100h100v60H860v100h-60Zm-593-74q-42-42-42-108t42-108q42-42 108-42t108 42q42 42 42 108t-42 108q-42 42-108 42t-108-42ZM0-160v-94q0-35 18.5-63.5T68-360q72-32 128.5-46T315-420q62 0 118 14t128 46q31 14 50 42.5t19 63.5v94H0Zm315-381q39 0 64.5-25.5T405-631q0-39-25.5-64.5T315-721q-39 0-64.5 25.5T225-631q0 39 25.5 64.5T315-541ZM60-220h510v-34q0-16-8-30t-25-22q-69-32-117-43t-105-11q-57 0-104.5 11T92-306q-15 7-23.5 21.5T60-254v34Zm255-411Zm0 411Z"/></svg>Rejoin with invite</button>
+<div><button type="button" class="-m-1 p-1 shrink-0 rounded-lg text-sm font-bold text-secondary hover:underline focus-ring ">Start a new identity instead</button><p class="text-xs text-on-surface-variant mt-1">This restore is set aside on this device, not deleted.</p></div></div></section></div>
+<section><h2 class="text-xl font-headline font-bold text-accent mb-4">Your identity</h2><div class="bg-surface-container-low rounded-xl overflow-hidden"><div class="w-full text-left p-6 flex items-center justify-between gap-4 "><div class="flex items-center gap-4 min-w-0"><div class="w-10 h-10 rounded-full bg-success text-on-success flex items-center justify-center shrink-0"><svg viewBox="0 -960 960 960" width="20" height="20" fill="currentColor" aria-hidden="true" class="shrink-0 "><path d="m436-347 228-228-42-41-183 183-101-101-44 44 142 143Zm44 266q-140-35-230-162.5T160-523v-238l320-120 320 120v238q0 152-90 279.5T480-81Zm0-62q115-38 187.5-143.5T740-523v-196l-260-98-260 98v196q0 131 72.5 236.5T480-143Zm0-337Z"/></svg></div><div class="min-w-0"><p class="font-semibold text-accent">Identity key on this computer</p><p class="text-xs text-on-surface-variant">Protected by the system keychain.</p></div></div></div><div class="w-full text-left p-6 flex items-center justify-between gap-4 "><div class="flex items-center gap-4 min-w-0"><div class="w-10 h-10 rounded-full bg-success text-on-success flex items-center justify-center shrink-0"><svg viewBox="0 -960 960 960" width="20" height="20" fill="currentColor" aria-hidden="true" class="shrink-0 "><path d="m436-347 228-228-42-41-183 183-101-101-44 44 142 143Zm44 266q-140-35-230-162.5T160-523v-238l320-120 320 120v238q0 152-90 279.5T480-81Zm0-62q115-38 187.5-143.5T740-523v-196l-260-98-260 98v196q0 131 72.5 236.5T480-143Zm0-337Z"/></svg></div><div class="min-w-0"><p class="font-semibold text-accent">Recovery key</p><p class="text-xs text-on-surface-variant">In your backup folder</p></div></div></div></div></section></div></div></main>
+    </div>
+  </div>
+  <p class="anno text-sm mt-3"><span class="badge badge-a11y">a11y</span> Same semantics as on the Restore screen; the progress line is <code>role="status"</code>.</p>
+</section>
+
+<section id="p2" class="max-w-[1040px] mx-auto px-6 pt-12">
+  <h2 class="anno-h font-headline font-extrabold text-xl">3b · Profile during the check</h2>
+  <div class="anno flex flex-wrap items-center gap-2 mt-2 mb-3 text-sm"><span class="badge badge-real">Recreated from code</span><span class="badge badge-proposed">Proposed new</span><span>Name and picture are read-only with the reason; the Protection row shows the neutral “Restoring” dot and opens the details.</span></div>
+  <div class="device-frame max-w-[900px] mx-auto">
+    <span class="traffic-lights" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></span>
+      <!-- TopNav (src/renderer/components/layout/TopNav.tsx) -->
+      <nav class="absolute top-0 w-full z-50">
+        <div class="nav-glass">
+          <div class="flex items-center py-4 px-8 w-full max-w-7xl mx-auto relative">
+            <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <button type="button" aria-label="Home" title="Home" class="pointer-events-auto flex h-8 items-center text-black dark:text-white rounded-lg px-2 active:scale-95 transition-all focus-ring">
+                <svg viewBox="0 0 2835 844" class="h-5 w-auto" fill="currentColor" fill-rule="evenodd" clip-rule="evenodd" aria-hidden="true" focusable="false"><g transform="matrix(4.166667,0,0,4.166667,-356.081667,-1351.366667)"><path transform="matrix(1,0,0,1,251.3906,523.7084)" d="M0,-196.22L-62.292,-111.171L-126.424,-196.22L-165.931,-196.22L-165.931,0L-125.107,0L-125.107,-129.2L-65.846,-50.043L-60.578,-50.043L-1.317,-126.442L-1.317,0L39.507,0L39.507,-196.22L0,-196.22Z" /><rect transform="matrix(1,0,0,1,0,-155.911)" x="314.601" y="483.399" width="39.507" height="39.507" /><rect transform="matrix(1,0,0,1,0,53.215)" x="314.601" y="326.686" width="39.507" height="143.807" /><path transform="matrix(1,0,0,1,528.4458,424.5448)" d="M0,57.681C-2.725,62.512 -6.543,66.331 -11.457,69.138C-16.375,71.949 -22.083,73.352 -28.577,73.352C-33.495,73.352 -37.623,72.126 -40.956,69.665C-44.294,67.208 -45.96,63.784 -45.96,59.393C-45.96,54.652 -44.471,51.01 -41.483,48.463C-38.499,45.919 -34.199,44.117 -28.577,43.063L4.082,37.231L4.082,41.746C4.082,47.541 2.72,52.854 0,57.681M35.952,-18.305C30.857,-26.733 23.573,-33.227 14.091,-37.795C4.609,-42.359 -6.716,-44.643 -19.885,-44.643L-149.265,-44.643L-149.265,99.164L-109.758,99.164L-109.758,-10.404L-22.519,-10.404C-13.918,-10.404 -7.334,-8.206 -2.766,-3.819C0.584,-0.596 2.694,3.438 3.586,8.268L-35.689,14.618C-47.104,16.375 -56.627,19.359 -64.266,23.573C-71.904,27.787 -77.566,33.014 -81.254,39.244C-84.941,45.479 -86.785,52.636 -86.785,60.71C-86.785,69.315 -84.768,76.735 -80.727,82.966C-76.69,89.2 -70.895,93.987 -63.344,97.32C-55.796,100.653 -46.841,102.324 -36.479,102.324C-28.754,102.324 -21.729,101.312 -15.408,99.295C-9.087,97.279 -3.383,94.205 1.712,90.077C3.431,88.684 5.096,87.155 6.716,85.511L6.716,99.164L43.59,99.164L43.59,11.721C43.59,0.132 41.042,-9.877 35.952,-18.305" /><rect transform="matrix(1,0,0,1,0,-2.357)" x="598.477" y="326.685" width="39.507" height="199.381" /><rect transform="matrix(1,0,0,1,0,-2.357)" x="663.056" y="326.685" width="39.507" height="199.381" /><rect transform="matrix(1,0,0,1,0,157.259)" x="726.267" y="326.814" width="39.507" height="39.507" fill="#fd9c42" /></g></svg>
+              </button>
+            </div>
+            <div class="flex items-center gap-4 ml-auto">
+              <button type="button" class="flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold transition-all active:scale-95 focus-ring bg-surface-control text-on-surface-variant hover:bg-surface-control-hover px-5 py-2.5 text-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true"><path d="M479.98-367q14.02 0 23.52-9.48t9.5-23.5q0-14.02-9.48-23.52t-23.5-9.5q-14.02 0-23.52 9.48t-9.5 23.5q0 14.02 9.48 23.52t23.5 9.5ZM450-509h60v-251h-60v251ZM80-80v-740q0-24 18-42t42-18h680q24 0 42 18t18 42v520q0 24-18 42t-42 18H240L80-80Zm134-220h606v-520H140v600l74-80Zm-74 0v-520 520Z"/></svg>
+                Send Feedback
+              </button>
+              <button type="button" aria-label="Settings" class="w-10 h-10 shrink-0 flex items-center justify-center rounded-full hover:bg-surface-container-high active:scale-95 transition-all focus-ring">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 -960 960 960" fill="currentColor" class="text-accent" aria-hidden="true"><path d="m388-80-20-126q-19-7-40-19t-37-25l-118 54-93-164 108-79q-2-9-2.5-20.5T185-480q0-9 .5-20.5T188-521L80-600l93-164 118 54q16-13 37-25t40-18l20-127h184l20 126q19 7 40.5 18.5T669-710l118-54 93 164-108 77q2 10 2.5 21.5t.5 21.5q0 10-.5 21t-2.5 21l108 78-93 164-118-54q-16 13-36.5 25.5T592-206L572-80H388Zm92-270q54 0 92-38t38-92q0-54-38-92t-92-38q-54 0-92 38t-38 92q0 54 38 92t92 38Z"/></svg>
+              </button>
+              <!-- Avatar: md (36px), status ring. ok = surface-container-highest ring; connecting / offline swap in
+                   avatar-issue-pulse-warning / -error and the label "Profile — connection issue". -->
+              <button type="button" aria-label="Profile" title="Profile" class="w-10 h-10 rounded-full flex items-center justify-center hover:opacity-90 active:scale-95 transition-all focus-ring">
+                <div aria-hidden="true" class="avatar-recess rounded-full bg-progress-track flex items-center justify-center overflow-hidden" style="width:36px;height:36px;box-shadow:0 0 0 2px var(--color-surface-container-highest)">
+                  <span class="text-on-surface-variant font-bold" style="font-size:13px">AB</span>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      <div class="outline outline-2 outline-dashed outline-offset-2 rounded-xl" style="outline-color:#fd9c42"><div role="status" aria-live="polite" class="bg-secondary-container px-8 py-2 flex items-center justify-between gap-4"><div class="flex items-center gap-2 min-w-0"><svg viewBox="0 -960 960 960" width="16" height="16" fill="currentColor" aria-hidden="true" class="shrink-0 text-on-secondary-container"><path d="M480-120q-138 0-240.5-91.5T122-440h82q14 104 92.5 172T480-200q117 0 198.5-81.5T760-480q0-117-81.5-198.5T480-760q-69 0-129 32t-101 88h110v80H120v-240h80v94q51-64 124.5-99T480-840q75 0 140.5 28.5t114 77q48.5 48.5 77 114T840-480q0 75-28.5 140.5t-77 114q-48.5 48.5-114 77T480-120Zm112-192L440-464v-216h80v184l128 128-56 56Z"/></svg><span class="text-sm font-semibold text-on-secondary-container">Your data is restored<span class="ml-2 opacity-80">— Mirall is checking with the people you share with before you can make changes. Waiting for one of them to come online.</span></span></div><button class="bg-secondary text-on-secondary text-xs font-bold px-3 py-1 rounded shadow-lg shrink-0 focus-ring">Details</button></div></div></nav>
+    <div class="bg-surface font-body relative" style="height:700px; overflow:hidden">
+      <main class="pt-28"><div class="pt-8 px-8 max-w-2xl mx-auto">
+        <div class="flex items-start gap-4 mb-8"><button aria-label="Back" class="mt-1 shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-secondary hover:bg-surface-container-high focus-ring"><svg viewBox="0 -960 960 960" width="22" height="22" fill="currentColor" aria-hidden="true" class="shrink-0 "><path d="m274-450 248 248-42 42-320-320 320-320 42 42-248 248h526v60H274Z"/></svg></button><div><h1 class="text-4xl font-headline font-extrabold text-accent tracking-tight">Profile</h1><p class="text-on-surface-variant text-lg leading-relaxed">Your profile, this device, and app info.</p></div></div>
+        <div class="space-y-10">
+<section><div class="bg-surface-container-low rounded-xl p-6 space-y-3"><div class="flex items-center gap-6"><div class="w-20 h-20 rounded-full bg-surface flex items-center justify-center text-2xl font-bold text-accent opacity-60">JD</div><div class="flex-grow"><p class="text-sm font-semibold text-accent mb-2">Display Name</p><input aria-disabled="true" aria-describedby="held-reason" readonly value="Jordan" class="w-full bg-surface-container-lowest rounded-xl px-4 py-3 text-on-surface opacity-70"/></div></div><p id="held-reason" class="text-xs text-on-surface-variant">Available once Mirall has checked with the people you share with.</p></div></section>
+<section><h2 class="text-xl font-headline font-bold text-accent mb-4">This device</h2><div class="bg-surface-container-low rounded-xl overflow-hidden"><button class="w-full text-left p-6 flex items-center justify-between gap-4 hover:bg-surface-container-high/50 focus-ring"><div class="flex items-center gap-4 min-w-0"><span class="relative shrink-0"><div class="w-10 h-10 rounded-full bg-icon-tile flex items-center justify-center text-on-icon-tile"><svg viewBox="0 -960 960 960" width="20" height="20" fill="currentColor" aria-hidden="true" class="shrink-0 "><path d="M155-75q-35-35-35-85t35-85q35-35 85-35 14 0 26 3t23 8l57-71q-28-31-39-70t-5-78l-81-27q-17 25-43 40t-58 15q-50 0-85-35T0-580q0-50 35-85t85-35q50 0 85 35t35 85v8l81 28q20-36 53.5-61t75.5-32v-87q-39-11-64.5-42.5T360-840q0-50 35-85t85-35q50 0 85 35t35 85q0 42-26 73.5T510-724v87q42 7 75.5 32t53.5 61l81-28v-8q0-50 35-85t85-35q50 0 85 35t35 85q0 50-35 85t-85 35q-32 0-58.5-15T739-515l-81 27q6 39-5 77.5T614-340l57 70q11-5 23-7.5t26-2.5q50 0 85 35t35 85q0 50-35 85t-85 35q-50 0-85-35t-35-85q0-20 6.5-38.5T624-232l-57-71q-41 23-87.5 23T392-303l-56 71q11 15 17.5 33.5T360-160q0 50-35 85t-85 35q-50 0-85-35Zm-35-465q17 0 28.5-11.5T160-580q0-17-11.5-28.5T120-620q-17 0-28.5 11.5T80-580q0 17 11.5 28.5T120-540Zm148.5 408.5Q280-143 280-160t-11.5-28.5Q257-200 240-200t-28.5 11.5Q200-177 200-160t11.5 28.5Q223-120 240-120t28.5-11.5Zm240-680Q520-823 520-840t-11.5-28.5Q497-880 480-880t-28.5 11.5Q440-857 440-840t11.5 28.5Q463-800 480-800t28.5-11.5ZM480-360q42 0 71-29t29-71q0-42-29-71t-71-29q-42 0-71 29t-29 71q0 42 29 71t71 29Zm268.5 228.5Q760-143 760-160t-11.5-28.5Q737-200 720-200t-28.5 11.5Q680-177 680-160t11.5 28.5Q703-120 720-120t28.5-11.5Zm120-420Q880-563 880-580t-11.5-28.5Q857-620 840-620t-28.5 11.5Q800-597 800-580t11.5 28.5Q823-540 840-540t28.5-11.5ZM480-840ZM120-580Zm360 120Zm360-120ZM240-160Zm480 0Z"/></svg></div><span role="img" aria-label="Online" class="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-surface-container-low bg-online"></span></span><div class="min-w-0"><p class="font-semibold text-accent">Connection</p><p class="text-xs text-on-surface-variant">Online · 3 peers</p></div></div><svg viewBox="0 -960 960 960" width="22" height="22" fill="currentColor" aria-hidden="true" class="shrink-0 text-secondary"><path d="M530-481 332-679l43-43 241 241-241 241-43-43 198-198Z"/></svg></button><div class="outline outline-2 outline-dashed outline-offset-2 rounded-xl" style="outline-color:#fd9c42"><button class="w-full text-left p-6 flex items-center justify-between gap-4 hover:bg-surface-container-high/50 focus-ring"><div class="flex items-center gap-4 min-w-0"><span class="relative shrink-0"><div class="w-10 h-10 rounded-full bg-icon-tile flex items-center justify-center text-on-icon-tile"><svg viewBox="0 -960 960 960" width="20" height="20" fill="currentColor" aria-hidden="true" class="shrink-0 "><path d="M480-81q-140-35-230-162.5T160-523v-238l320-120 320 120v238q0 152-90 279.5T480-81Zm0-62q115-38 187.5-143.5T740-523v-196l-260-98-260 98v196q0 131 72.5 236.5T480-143Zm0-337Z"/></svg></div><span role="img" aria-label="Restoring" class="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-surface-container-low bg-outline"></span></span><div class="min-w-0"><p class="font-semibold text-accent">Protection</p><p class="text-xs text-on-surface-variant">Restoring · checking with the people you share with</p></div></div><svg viewBox="0 -960 960 960" width="22" height="22" fill="currentColor" aria-hidden="true" class="shrink-0 text-secondary"><path d="M530-481 332-679l43-43 241 241-241 241-43-43 198-198Z"/></svg></button></div><button class="w-full text-left p-6 flex items-center justify-between gap-4 hover:bg-surface-container-high/50 focus-ring"><div class="flex items-center gap-4 min-w-0"><div class="w-10 h-10 rounded-full bg-icon-tile text-on-icon-tile flex items-center justify-center shrink-0"><svg viewBox="0 -960 960 960" width="20" height="20" fill="currentColor" aria-hidden="true" class="shrink-0 "><path d="M480-120q-138 0-240.5-91.5T122-440h82q14 104 92.5 172T480-200q117 0 198.5-81.5T760-480q0-117-81.5-198.5T480-760q-69 0-129 32t-101 88h110v80H120v-240h80v94q51-64 124.5-99T480-840q75 0 140.5 28.5t114 77q48.5 48.5 77 114T840-480q0 75-28.5 140.5t-77 114q-48.5 48.5-114 77T480-120Zm112-192L440-464v-216h80v184l128 128-56 56Z"/></svg></div><div class="min-w-0"><p class="font-semibold text-accent">Activity Log</p><p class="text-xs text-on-surface-variant">A record of what happened in your spaces.</p></div></div><svg viewBox="0 -960 960 960" width="22" height="22" fill="currentColor" aria-hidden="true" class="shrink-0 text-secondary"><path d="M530-481 332-679l43-43 241 241-241 241-43-43 198-198Z"/></svg></button></div></section></div></div></main>
+    </div>
+  </div>
+  <p class="anno text-sm mt-3"><span class="badge badge-a11y">a11y</span> Read-only input, not removed, so the name is still readable.</p>
+</section>
+
+<section class="max-w-[1040px] mx-auto px-6 pt-16">
+  <div class="anno border-t border-black/10 dark:border-white/10 pt-8">
+    <p class="text-xs font-bold uppercase tracking-wide" style="color:var(--color-secondary)">Journey</p>
+    <h2 class="anno-h font-headline font-extrabold text-3xl tracking-tight mt-1">4 · The check passes</h2>
+    <p class="text-sm mt-2 max-w-3xl">Someone you share with comes online and confirms. The banner leaves, the controls come back, one success toast. The app may restart its background process to switch to normal mode — the window stays as it is.</p>
+  </div>
+</section>
+
+<section id="d1" class="max-w-[1040px] mx-auto px-6 pt-12">
+  <h2 class="anno-h font-headline font-extrabold text-xl">4a · Released</h2>
+  <div class="anno flex flex-wrap items-center gap-2 mt-2 mb-3 text-sm"><span class="badge badge-real">Recreated from code</span><span class="badge badge-proposed">Proposed new</span><span>Shipped success toast; the restart behind it is invisible (the shell stays mounted across a worker restart, as for relay changes).</span></div>
+  <div class="device-frame max-w-[900px] mx-auto">
+    <span class="traffic-lights" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></span>
+      <!-- TopNav (src/renderer/components/layout/TopNav.tsx) -->
+      <nav class="absolute top-0 w-full z-50">
+        <div class="nav-glass">
+          <div class="flex items-center py-4 px-8 w-full max-w-7xl mx-auto relative">
+            <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <button type="button" aria-label="Home" title="Home" class="pointer-events-auto flex h-8 items-center text-black dark:text-white rounded-lg px-2 active:scale-95 transition-all focus-ring">
+                <svg viewBox="0 0 2835 844" class="h-5 w-auto" fill="currentColor" fill-rule="evenodd" clip-rule="evenodd" aria-hidden="true" focusable="false"><g transform="matrix(4.166667,0,0,4.166667,-356.081667,-1351.366667)"><path transform="matrix(1,0,0,1,251.3906,523.7084)" d="M0,-196.22L-62.292,-111.171L-126.424,-196.22L-165.931,-196.22L-165.931,0L-125.107,0L-125.107,-129.2L-65.846,-50.043L-60.578,-50.043L-1.317,-126.442L-1.317,0L39.507,0L39.507,-196.22L0,-196.22Z" /><rect transform="matrix(1,0,0,1,0,-155.911)" x="314.601" y="483.399" width="39.507" height="39.507" /><rect transform="matrix(1,0,0,1,0,53.215)" x="314.601" y="326.686" width="39.507" height="143.807" /><path transform="matrix(1,0,0,1,528.4458,424.5448)" d="M0,57.681C-2.725,62.512 -6.543,66.331 -11.457,69.138C-16.375,71.949 -22.083,73.352 -28.577,73.352C-33.495,73.352 -37.623,72.126 -40.956,69.665C-44.294,67.208 -45.96,63.784 -45.96,59.393C-45.96,54.652 -44.471,51.01 -41.483,48.463C-38.499,45.919 -34.199,44.117 -28.577,43.063L4.082,37.231L4.082,41.746C4.082,47.541 2.72,52.854 0,57.681M35.952,-18.305C30.857,-26.733 23.573,-33.227 14.091,-37.795C4.609,-42.359 -6.716,-44.643 -19.885,-44.643L-149.265,-44.643L-149.265,99.164L-109.758,99.164L-109.758,-10.404L-22.519,-10.404C-13.918,-10.404 -7.334,-8.206 -2.766,-3.819C0.584,-0.596 2.694,3.438 3.586,8.268L-35.689,14.618C-47.104,16.375 -56.627,19.359 -64.266,23.573C-71.904,27.787 -77.566,33.014 -81.254,39.244C-84.941,45.479 -86.785,52.636 -86.785,60.71C-86.785,69.315 -84.768,76.735 -80.727,82.966C-76.69,89.2 -70.895,93.987 -63.344,97.32C-55.796,100.653 -46.841,102.324 -36.479,102.324C-28.754,102.324 -21.729,101.312 -15.408,99.295C-9.087,97.279 -3.383,94.205 1.712,90.077C3.431,88.684 5.096,87.155 6.716,85.511L6.716,99.164L43.59,99.164L43.59,11.721C43.59,0.132 41.042,-9.877 35.952,-18.305" /><rect transform="matrix(1,0,0,1,0,-2.357)" x="598.477" y="326.685" width="39.507" height="199.381" /><rect transform="matrix(1,0,0,1,0,-2.357)" x="663.056" y="326.685" width="39.507" height="199.381" /><rect transform="matrix(1,0,0,1,0,157.259)" x="726.267" y="326.814" width="39.507" height="39.507" fill="#fd9c42" /></g></svg>
+              </button>
+            </div>
+            <div class="flex items-center gap-4 ml-auto">
+              <button type="button" class="flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold transition-all active:scale-95 focus-ring bg-surface-control text-on-surface-variant hover:bg-surface-control-hover px-5 py-2.5 text-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true"><path d="M479.98-367q14.02 0 23.52-9.48t9.5-23.5q0-14.02-9.48-23.52t-23.5-9.5q-14.02 0-23.52 9.48t-9.5 23.5q0 14.02 9.48 23.52t23.5 9.5ZM450-509h60v-251h-60v251ZM80-80v-740q0-24 18-42t42-18h680q24 0 42 18t18 42v520q0 24-18 42t-42 18H240L80-80Zm134-220h606v-520H140v600l74-80Zm-74 0v-520 520Z"/></svg>
+                Send Feedback
+              </button>
+              <button type="button" aria-label="Settings" class="w-10 h-10 shrink-0 flex items-center justify-center rounded-full hover:bg-surface-container-high active:scale-95 transition-all focus-ring">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 -960 960 960" fill="currentColor" class="text-accent" aria-hidden="true"><path d="m388-80-20-126q-19-7-40-19t-37-25l-118 54-93-164 108-79q-2-9-2.5-20.5T185-480q0-9 .5-20.5T188-521L80-600l93-164 118 54q16-13 37-25t40-18l20-127h184l20 126q19 7 40.5 18.5T669-710l118-54 93 164-108 77q2 10 2.5 21.5t.5 21.5q0 10-.5 21t-2.5 21l108 78-93 164-118-54q-16 13-36.5 25.5T592-206L572-80H388Zm92-270q54 0 92-38t38-92q0-54-38-92t-92-38q-54 0-92 38t-38 92q0 54 38 92t92 38Z"/></svg>
+              </button>
+              <!-- Avatar: md (36px), status ring. ok = surface-container-highest ring; connecting / offline swap in
+                   avatar-issue-pulse-warning / -error and the label "Profile — connection issue". -->
+              <button type="button" aria-label="Profile" title="Profile" class="w-10 h-10 rounded-full flex items-center justify-center hover:opacity-90 active:scale-95 transition-all focus-ring">
+                <div aria-hidden="true" class="avatar-recess rounded-full bg-progress-track flex items-center justify-center overflow-hidden" style="width:36px;height:36px;box-shadow:0 0 0 2px var(--color-surface-container-highest)">
+                  <span class="text-on-surface-variant font-bold" style="font-size:13px">AB</span>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      </nav>
+    <div class="bg-surface font-body relative" style="height:640px; overflow:hidden">
+      <main class="pt-20"><div class="max-w-7xl mx-auto px-8">
+        <div class="pt-8 pb-4">
+          <h1 class="text-5xl md:text-6xl font-headline font-extrabold text-accent tracking-tight leading-tight mb-4">Shared <span class="text-transparent bg-clip-text bg-gradient-to-r from-accent to-secondary">Spaces</span></h1>
+          <p class="text-on-surface-variant text-lg max-w-2xl leading-relaxed">Create spaces to share files with your colleagues and peers.</p>
+          <div class="flex items-center gap-3 mt-6 mb-4">
+            <button aria-pressed="true" class="px-6 py-2.5 rounded-full font-medium bg-primary text-on-primary">All Spaces</button>
+            <button aria-pressed="false" class="px-6 py-2.5 rounded-full font-medium bg-surface-container-high text-on-surface-variant">Favorites</button>
+            <div class="flex-1"></div><button type="button" class="flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold transition-all bg-primary text-on-primary shadow-lg shadow-primary/10 hover:bg-primary-hover px-5 py-2.5 text-sm focus-ring "><svg viewBox="0 -960 960 960" width="20" height="20" fill="currentColor" aria-hidden="true" class="shrink-0 "><path d="M453-280h60v-166h167v-60H513v-174h-60v174H280v60h173v166Zm27.27 200q-82.74 0-155.5-31.5Q252-143 197.5-197.5t-86-127.34Q80-397.68 80-480.5t31.5-155.66Q143-709 197.5-763t127.34-85.5Q397.68-880 480.5-880t155.66 31.5Q709-817 763-763t85.5 127Q880-563 880-480.27q0 82.74-31.5 155.5Q817-252 763-197.68q-54 54.31-127 86Q563-80 480.27-80Zm.23-60Q622-140 721-239.5t99-241Q820-622 721.19-721T480-820q-141 0-240.5 98.81T140-480q0 141 99.5 240.5t241 99.5Zm-.5-340Z"/></svg>Create Space</button><button type="button" class="flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold transition-all bg-primary text-on-primary shadow-lg shadow-primary/10 hover:bg-primary-hover px-5 py-2.5 text-sm focus-ring "><svg viewBox="0 -960 960 960" width="20" height="20" fill="currentColor" aria-hidden="true" class="shrink-0 "><path d="M474-486q26-32 38.5-66t12.5-79q0-45-12.5-79T474-776q76-17 133.5 23T665-631q0 82-57.5 122T474-486Zm216 326v-94q0-51-26-95t-90-74q173 22 236.5 64T874-254v94H690Zm110-289v-100H700v-60h100v-100h60v100h100v60H860v100h-60Zm-593-74q-42-42-42-108t42-108q42-42 108-42t108 42q42 42 42 108t-42 108q-42 42-108 42t-108-42ZM0-160v-94q0-35 18.5-63.5T68-360q72-32 128.5-46T315-420q62 0 118 14t128 46q31 14 50 42.5t19 63.5v94H0Zm315-381q39 0 64.5-25.5T405-631q0-39-25.5-64.5T315-721q-39 0-64.5 25.5T225-631q0 39 25.5 64.5T315-541ZM60-220h510v-34q0-16-8-30t-25-22q-69-32-117-43t-105-11q-57 0-104.5 11T92-306q-15 7-23.5 21.5T60-254v34Zm255-411Zm0 411Z"/></svg>Join Space</button>
+          </div>
+        </div>
+        <div class="space-y-4"><div class="bg-surface-container-lowest p-5 rounded-2xl flex items-center gap-6"><div class="w-16 h-16 rounded-xl bg-[#c66514] dark:bg-[#fdb461] flex items-center justify-center shrink-0 text-on-primary"><svg viewBox="0 -960 960 960" width="32" height="32" fill="currentColor" aria-hidden="true" class="shrink-0 "><path d="M480-80q-82 0-155-31.5t-127.5-86Q143-252 111.5-325T80-480q0-85 32-158t87.5-127q55.5-54 130-84.5T489-880q79 0 150 26.5T763.5-780q53.5 47 85 111.5T880-527q0 108-63 170.5T650-294h-75q-18 0-31 14t-13 31q0 27 14.5 46t14.5 44q0 38-21 58.5T480-80Zm0-400Zm-198 11q15-15 15-35t-15-35q-15-15-35-15t-35 15q-15 15-15 35t15 35q15 15 35 15t35-15Zm126-170q15-15 15-35t-15-35q-15-15-35-15t-35 15q-15 15-15 35t15 35q15 15 35 15t35-15Zm214 0q15-15 15-35t-15-35q-15-15-35-15t-35 15q-15 15-15 35t15 35q15 15 35 15t35-15Zm131 170q15-15 15-35t-15-35q-15-15-35-15t-35 15q-15 15-15 35t15 35q15 15 35 15t35-15ZM480-140q11 0 15.5-4.5T500-159q0-14-14.5-26T471-238q0-46 30-81t76-35h73q76 0 123-44.5T820-527q0-132-100-212.5T489-820q-146 0-247.5 98.5T140-480q0 141 99.5 240.5T480-140Z"/></svg></div><div class="flex-grow min-w-0"><h3 class="text-xl font-headline font-bold text-accent truncate pb-0.5 mb-1">Studio Files</h3><p class="text-on-surface-variant text-sm truncate">4 members · 128 files</p></div></div><div class="bg-surface-container-lowest p-5 rounded-2xl flex items-center gap-6"><div class="w-16 h-16 rounded-xl bg-[#6e2c46] dark:bg-[#c87b95] flex items-center justify-center shrink-0 text-on-primary"><svg viewBox="0 -960 960 960" width="32" height="32" fill="currentColor" aria-hidden="true" class="shrink-0 "><path d="M38-160v-94q0-35 18-63.5t50-42.5q73-32 131.5-46T358-420q62 0 120 14t131 46q32 14 50.5 42.5T678-254v94H38Zm700 0v-94q0-63-32-103.5T622-423q69 8 130 23.5t99 35.5q33 19 52 47t19 63v94H738ZM250-523q-42-42-42-108t42-108q42-42 108-42t108 42q42 42 42 108t-42 108q-42 42-108 42t-108-42Zm426 0q-42 42-108 42-11 0-24.5-1.5T519-488q24-25 36.5-61.5T568-631q0-45-12.5-79.5T519-774q11-3 24.5-5t24.5-2q66 0 108 42t42 108q0 66-42 108ZM98-220h520v-34q0-16-9.5-31T585-306q-72-32-121-43t-106-11q-57 0-106.5 11T130-306q-14 6-23 21t-9 31v34Zm324.5-346.5Q448-592 448-631t-25.5-64.5Q397-721 358-721t-64.5 25.5Q268-670 268-631t25.5 64.5Q319-541 358-541t64.5-25.5ZM358-220Zm0-411Z"/></svg></div><div class="flex-grow min-w-0"><h3 class="text-xl font-headline font-bold text-accent truncate pb-0.5 mb-1">Family</h3><p class="text-on-surface-variant text-sm truncate">3 members · 42 files</p></div></div></div>
+      </div></main><div class="absolute bottom-6 left-0 right-0 flex justify-center"><div role="status" class="rounded-lg px-4 py-3 shadow-lg bg-success flex items-center gap-3"><svg viewBox="0 -960 960 960" width="20" height="20" fill="currentColor" aria-hidden="true" class="shrink-0 text-on-success"><path d="m421-298 283-283-46-45-237 237-120-120-45 45 165 166Zm59 218q-82 0-155-31.5t-127.5-86Q143-252 111.5-325T80-480q0-83 31.5-156t86-127Q252-817 325-848.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 82-31.5 155T763-197.5q-54 54.5-127 86T480-80Zm0-60q142 0 241-99.5T820-480q0-142-99-241t-241-99q-141 0-240.5 99T140-480q0 141 99.5 240.5T480-140Zm0-340Z"/></svg><p class="text-sm text-on-success font-medium">Restore confirmed — you can make changes again.</p></div></div>
+    </div>
+  </div>
+  <p class="anno text-sm mt-3"><span class="badge badge-a11y">a11y</span> Toast is <code>role="status"</code>; focus is not moved.</p>
+</section>
+
+<section class="max-w-[1040px] mx-auto px-6 pt-16">
+  <div class="anno rounded-2xl p-6 text-sm space-y-3" style="background:var(--color-surface-container-lowest)">
+    <h2 class="anno-h font-headline font-extrabold text-xl">Rules</h2>
+    <ul class="list-disc pl-5 space-y-1">
+      <li>Disabled = <code>aria-disabled</code> + one shared reason; never a request that fails. A race (the check state changed underneath) gets the same sentence as an error.</li>
+      <li>Leaving a space is blocked while your profile is unconfirmed: leaving every space would otherwise end the check without anyone confirming — the fork the check exists to prevent.</li>
+      <li>Join requests that arrive meanwhile are shown and answered once the check passes (approve/deny wait).</li>
+      <li>Files added to a shared folder meanwhile are published when that space is confirmed (the folder is rescanned).</li>
+    </ul>
+    <h2 class="anno-h font-headline font-extrabold text-xl">Rejected</h2>
+    <ul class="list-disc pl-5 space-y-1">
+      <li><strong>Keep the blocking screen</strong>: hides data that is already here, for a check that only concerns writes.</li>
+      <li><strong>Hide the disabled actions</strong>: people would hunt for them; a visible, explained wait is clearer.</li>
+      <li><strong>A modal on launch</strong>: the banner is enough and does not stop browsing.</li>
+    </ul>
+  </div>
+</section><script>
+  const toggle = document.getElementById('theme-toggle')
+  toggle.addEventListener('click', () => {
+    const dark = document.documentElement.classList.toggle('dark')
+    document.body.classList.toggle('dark', dark)
+    toggle.setAttribute('aria-pressed', String(dark))
+  })
+</script>
+
+</body>
+</html>

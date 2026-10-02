@@ -268,6 +268,14 @@ export const promiseLintAllowlist = Object.freeze({
       'no-floating-promises BackupPromptCard > onClick: void notNow()',
     ],
   },
+  'src/renderer/components/backup/RestoreProgress.tsx': {
+    why: 'join and startFresh catch into the section\'s inline errors.',
+    sites: [
+      'no-floating-promises RestoreProgress > onClick: void join()',
+      'no-floating-promises RestoreProgress > onConfirm: void startFresh()',
+      'no-floating-promises RestoreProgress > onKeyDown: void join()',
+    ],
+  },
   'src/renderer/components/modals/AddFolderShareModal.tsx': {
     why: 'wizard.next toasts its own failure; browse is the native picker.',
     sites: [
@@ -473,14 +481,6 @@ export const promiseLintAllowlist = Object.freeze({
       'no-floating-promises ProtectionStatusScreen > fix: void runNow()',
       'no-floating-promises ProtectionStatusScreen > onRunNow: void runNow()',
       'no-floating-promises ProtectionStatusScreen > onSaveCopy: void copy.save()',
-    ],
-  },
-  'src/renderer/screens/RestoreScreen.tsx': {
-    why: 'join and startFresh catch into the screen\'s inline errors; the screen renders outside ToastProvider.',
-    sites: [
-      'no-floating-promises RestoreScreen > onClick: void join()',
-      'no-floating-promises RestoreScreen > onConfirm: void startFresh()',
-      'no-floating-promises RestoreScreen > onKeyDown: void join()',
     ],
   },
   'src/renderer/screens/SpaceScreen.tsx': {

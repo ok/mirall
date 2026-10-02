@@ -57,5 +57,6 @@
   "backupTargetDenied": "Mirall n'est pas autorisé à écrire dans le dossier de sauvegarde. Vérifiez ses autorisations.",
   "backupTargetFull": "Le disque du dossier de sauvegarde est plein.",
   "backupTargetOffline": "Le dossier de sauvegarde n'est pas disponible. Connectez le disque ou le partage réseau, puis réessayez.",
-  "backupKeyMissing": "Aucune clé de récupération n’a été trouvée pour cette sauvegarde."
+  "backupKeyMissing": "Aucune clé de récupération n’a été trouvée pour cette sauvegarde.",
+  "restoreHeld": "Disponible dès que Mirall a vérifié auprès des personnes avec qui vous partagez."
 }
