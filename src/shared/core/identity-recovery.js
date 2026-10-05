@@ -96,6 +96,32 @@ function parseHeader(text) {
   return { file, salt, nonce, ciphertext: b4a.from(String(file.ciphertext), 'base64') }
 }
 
+// Opening a recovery file through the app: one at a time, and each wrong passphrase doubles the wait
+// before the next attempt, to a ceiling. One throttle serves every request that opens a recovery file,
+// so spreading guesses across them gains nothing. The Argon2 cost is what stands against an attacker
+// holding the file; this only slows guessing through the app.
+export function createPassphraseThrottle({ baseMs = 1000, ceilingMs = 30000 } = {}) {
+  let failures = 0
+  let queue = Promise.resolve()
+  async function attempt(text, passphrase) {
+    const wait = failures === 0 ? 0 : Math.min(ceilingMs, baseMs * 2 ** (failures - 1))
+    if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait))
+    try {
+      const opened = await openRecoveryFile(text, passphrase)
+      failures = 0
+      return opened
+    } catch (err) {
+      if (err?.code === CODES.WRONG_PASSPHRASE) failures++
+      throw err
+    }
+  }
+  return function openThrottled(text, passphrase) {
+    const turn = queue.then(() => attempt(text, passphrase))
+    queue = turn.catch(() => {})
+    return turn
+  }
+}
+
 export async function openRecoveryFile(text, passphrase) {
   const { file, salt, nonce, ciphertext } = parseHeader(text)
   const key = await stretch(passphrase, salt, file.kdf)

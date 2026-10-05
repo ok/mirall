@@ -47,6 +47,11 @@ export function deriveParticipationId(masterSecret, spaceId, driveSuffix) {
   return Hypercore.key(deriveParticipationKeyPair(masterSecret, spaceId, driveSuffix).publicKey)
 }
 
+// Wraps a backup repository's key, so only this identity can open a backup it made.
+export function deriveBackupWrapKey(masterSecret) {
+  return deriveContentKey(masterSecret, 'backup-repo-wrap/v1')
+}
+
 // 32-byte symmetric content key, domain-separated from the signing seeds above by a
 // distinct top-level namespace so a content key can never collide with a keypair seed.
 export function deriveContentKey(masterSecret, label) {
