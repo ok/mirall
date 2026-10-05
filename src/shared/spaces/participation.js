@@ -8,6 +8,7 @@ import { ownParticipationId } from '../core/store.js'
 import { markSpaceDriveKey, markSpaceLooseCatalogKey, markSpaceLooseCatalogKeyEnc } from './profile.js'
 import { ownLooseCatalogPublish } from '../shares/own-catalog.js'
 import { createLogger } from '../core/logger.js'
+import { profileHeld } from '../core/restore-hold.js'
 
 const log = createLogger('participation')
 
@@ -45,8 +46,9 @@ export async function publishParticipationId(spaceId, space) {
 
 // Tell co-members who derive us from records alone how to know us and read our content. Both writes
 // are idempotent, so boot and a rejoin repeat them for every space we participate in.
+// A restored profile is read-only until it has caught up; the next boot announces.
 export async function announceParticipation(spaceId, space) {
-  if (!isParticipating(space)) return
+  if (!isParticipating(space) || profileHeld()) return
   await publishParticipationId(spaceId, space)
   await publishLooseCatalogKey(spaceId, space)
 }

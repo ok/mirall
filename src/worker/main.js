@@ -20,6 +20,7 @@ import { registerSettings } from './ipc/settings.js'
 import { registerStorage } from './ipc/storage.js'
 import { registerProfile } from './ipc/profile.js'
 import { registerIdentity } from './ipc/identity.js'
+import { applyPendingIdentityChange } from '../shared/core/identity-adopt.js'
 import { registerFeedback } from './ipc/feedback.js'
 import { registerDiagnostics } from './ipc/diagnostics.js'
 import { registerFiles } from './ipc/files.js'
@@ -194,6 +195,7 @@ async function serveLockedIdentity(code) {
 // are passed in because they close over state that belongs here.
 let lockedBy = null
 try {
+  await applyPendingIdentityChange(bootstrap.storage)
   root = await boot(bootstrap, {
     ipc,
     log,
@@ -229,7 +231,10 @@ registerForeignFolders(ipc, { log, intents })
 // === IPC: profile & space handlers ===
 
 registerProfile(ipc, { log })
-registerIdentity(ipc, { storagePath: bootstrap.storage, identityKEK: bootstrap.identityKEK, log, lockedBy: null })
+registerIdentity(ipc, {
+  storagePath: bootstrap.storage, identityKEK: bootstrap.identityKEK, log, lockedBy: null,
+  restoreStatus: () => root?.restoreCatchUp?.status() ?? null,
+})
 
 registerSpaces(ipc, { log, publishDownloadRoots })
 

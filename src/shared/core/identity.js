@@ -9,6 +9,7 @@ import { openStore, hasKeyPairCore } from './store.js'
 import { AppError } from './errors.js'
 import { CODES } from '../contract/errors.js'
 import { SECRET_FILE, resolveSecretFile } from '../contract/secret-files.js'
+import { ADOPT_FILE } from './identity-adopt.js'
 
 const encFile = (storagePath) => resolveSecretFile(storagePath, SECRET_FILE.IDENTITY, { join: path.join, dirname: path.dirname, exists: fs.existsSync })
 
@@ -117,9 +118,19 @@ async function dropOldSeedBlocks(store) {
 // Replaces the envelope with M sealed under this machine's key: how a recovery key's identity is
 // adopted. Atomic, so a crash leaves the old envelope or the new one, never neither.
 export async function sealMasterSecret({ storagePath, provider, masterSecret }) {
+  await sealInto(encFile(storagePath), provider, masterSecret)
+}
+
+// The same envelope, for a key adopted while the store is open: the next worker moves it into place
+// before the store opens (identity-adopt.js).
+export async function sealPendingAdoption({ storagePath, provider, masterSecret }) {
+  await sealInto(path.join(path.dirname(storagePath), ADOPT_FILE), provider, masterSecret)
+}
+
+async function sealInto(file, provider, masterSecret) {
   const kek = await provider.getKEK()
   if (!kek) throw new AppError(CODES.IDENTITY_NO_KEK, 'identity: no unlock key available')
-  await writeFileAtomic(encFile(storagePath), envelopeBytes(masterSecret, kek, provider.name))
+  await writeFileAtomic(file, envelopeBytes(masterSecret, kek, provider.name))
 }
 
 // Whether a store already holds data, and whether that data is M's: the profile core is derived from

@@ -16,6 +16,7 @@ import type { FILE_STATUSES, SHARE_FILE_STATUSES, OWNED_MOUNT_STATUSES, FOREIGN_
 import type { CATEGORIES, OUTCOMES, ACTOR_TYPES, TARGET_KINDS } from './audit-kinds.js'
 import type { CANARY_STATES } from './reachability.js'
 import type { DENY_OUTCOMES } from './deny-outcome.js'
+import type { RESTORE_VERDICTS } from './restore-verdict.js'
 import type { MemberReach } from './member-reach.js'
 import type { RequestName } from './requests.js'
 import type { PathHost } from './paths.js'
@@ -461,10 +462,21 @@ export interface ResumeResult { epoch: string, head: number, gap: boolean, repla
 
 // ---- the map --------------------------------------------------------------
 
-/** Whether this worker could open its identity; `code` names why not. */
+export type RestoreVerdict = (typeof RESTORE_VERDICTS)[number]
+
+/** A restored profile catching up with the peers that hold it; `released` once writes may resume. */
+export interface RestoreProgress {
+  verdict: RestoreVerdict
+  length: number
+  target: number
+  released: boolean
+}
+
+/** Whether this worker could open its identity; `code` names why not, `restore` that it is still catching up. */
 export interface IdentityStatus {
   locked: boolean
   code: IdentityLockCode | null
+  restore: RestoreProgress | null
 }
 
 /** A sealed recovery key, ready to save: the plaintext never leaves the worker. */
@@ -476,9 +488,9 @@ export interface RecoveryExport {
 /** A recovery key adopted, or refused because this device holds another identity's data. */
 export type RecoveryImport = { ok: true } | { ok: false; mismatch: true }
 
-/** Where the locked data was moved. */
+/** Where the data was moved; null when the move waits for the next worker, before the store opens. */
 export interface IdentitySetAside {
-  folder: string
+  folder: string | null
 }
 
 interface Responses {

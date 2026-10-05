@@ -1410,6 +1410,25 @@ restarts the worker into it. A key for another identity than the store holds nee
 confirmation. Starting fresh moves the store's entries and its envelopes into
 `app-storage.locked-<stamp>/` beside it; nothing is deleted.
 
+**Restore hold.** A recovery key restores the identity, not the profile, and whatever copy of the
+profile this device has — none, or an older data folder — may be shorter than what peers hold under
+the same key: appending first would make every peer that sees both histories refuse the core for
+good. So every adoption writes
+`restore-hold.json` beside the store (`src/shared/core/restore-hold.js`), naming the bees that stay
+read-only; `createBee` opens a held bee with `writable: false`, so no caller can append to it. While
+the profile is held the worker boots in **restore mode** (`src/worker/boot.js`): the manifest caps, the
+interrupted-leave and intent recovery, the membership backfill and the leftover sweep are skipped, the
+network comes up as usual, and `RestoreCatchUp` (`src/worker/restore-catch-up.js`) downloads the
+profile and lifts the hold once every connected holder is matched and a dwell has passed, or at once
+when the device holds profile data and no space it knows has another member
+(`src/shared/core/restore-hold-rules.js`). The bee stays read-only in that worker; the next one opens
+it writable. A device with no spaces reaches a holder through an invite:
+the co-member regrants the space, and a grant and a join leave their profile writes to the next boot's
+backfill. `identity:status` carries the progress; the renderer shows `RestoreScreen` and restarts the
+worker into a normal boot once released. A key adopted at onboarding, or a restore set aside, cannot
+move files under the open store: the worker leaves `identity-adopt.enc` or `set-aside.pending` beside
+it, and the next worker applies them before the store opens (`src/shared/core/identity-adopt.js`).
+
 The default provider is a random KEK stored as `kek.enc`, encrypted with Electron `safeStorage`
 (`src/main/identity-kek.js`). Main passes the worker the KEK, never M. **On Linux with no keyring,
 safeStorage falls back to `basic_text`**, so protection degrades to disk encryption rather than

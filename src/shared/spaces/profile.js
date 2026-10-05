@@ -4,6 +4,7 @@
 // Also the bounded readers of PEERS' profile bees: every remote read is deadline-capped
 // so an offline or not-yet-replicated peer degrades to null/empty instead of hanging.
 import { createBee, storeEpoch } from '../core/store.js'
+import { PROFILE_BEE } from '../core/restore-hold.js'
 import { withReadTimeout, peerReadTimeoutMs, interactiveReadTimeoutMs } from '../core/with-timeout.js'
 
 import { getMembershipCaps, getCaptureMemberRecordMs } from '../core/runtime-config.js'
@@ -37,7 +38,7 @@ let profileStore = -1
 export async function initProfile() {
   if (profileBee && profileStore === storeEpoch() && !profileBee.core.closed) return
   profileStore = storeEpoch()
-  profileBee = createBee('profile')
+  profileBee = createBee(PROFILE_BEE)
   await profileBee.ready()
 }
 
@@ -75,6 +76,8 @@ export async function setProfile({ displayName, avatar }) {
 
 export class ProfileBee extends Subsystem {
   async _open() { await initProfile() }
+
+  get bee() { return profileBee }
 
   async _close() {
     const bee = profileBee

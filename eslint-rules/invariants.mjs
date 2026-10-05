@@ -426,6 +426,14 @@ export const promiseLintAllowlist = Object.freeze({
       'no-floating-promises OnboardingScreen > onKeyDown: void handleContinue()',
     ],
   },
+  'src/renderer/screens/RestoreScreen.tsx': {
+    why: 'join and startFresh catch into the screen\'s inline errors; the screen renders outside ToastProvider.',
+    sites: [
+      'no-floating-promises RestoreScreen > onClick: void join()',
+      'no-floating-promises RestoreScreen > onConfirm: void startFresh()',
+      'no-floating-promises RestoreScreen > onKeyDown: void join()',
+    ],
+  },
   'src/renderer/screens/SpaceScreen.tsx': {
     why: 'addFiles, approve, deny and approveMany toast their own failures; refresh goes through the store; locate as in FolderScreen.',
     sites: [

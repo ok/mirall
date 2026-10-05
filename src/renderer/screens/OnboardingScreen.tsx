@@ -9,6 +9,9 @@ import Icon from '../components/primitives/Icon.js'
 import Avatar from '../components/primitives/Avatar.js'
 import Button from '../components/primitives/Button.js'
 import Logo from '../components/primitives/Logo.js'
+import TextButton from '../components/primitives/TextButton.js'
+import RecoveryRestoreModal from '../components/modals/RecoveryRestoreModal.js'
+import { restartIntoIdentity } from '../hooks/useIdentityStatus.js'
 
 interface OnboardingProps {
   onComplete: (data: { displayName: string; avatar: string | null }) => Promise<unknown>
@@ -21,6 +24,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingProps) {
   const { avatar, error: avatarError, onChange: handleAvatarChange } = useAvatarPicker(null)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [restoreOpen, setRestoreOpen] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   // This screen renders before the toast region exists, so a refused save is said under the button
@@ -129,10 +133,15 @@ export default function OnboardingScreen({ onComplete }: OnboardingProps) {
               {saveError && (
                 <InlineError id="onboarding-save-error" className="px-1">{saveError}</InlineError>
               )}
+              <div className="text-center">
+                <TextButton onClick={() => setRestoreOpen(true)}>{t('onboarding.restore')}</TextButton>
+              </div>
             </div>
           </div>
         </div>
       </main>
+
+      <RecoveryRestoreModal isOpen={restoreOpen} onClose={() => setRestoreOpen(false)} onRestored={restartIntoIdentity} />
     </div>
   )
 }

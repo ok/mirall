@@ -82,6 +82,9 @@ const DEFAULTED = {
   // again once a relayed stretch ends. 0 records at once; Infinity would reach setTimeout, which
   // clamps it to about a millisecond.
   relayAuditDwellMs: ruled(10000, finiteAtLeast, 0),
+  // How long a restored profile stays read-only after it matched the first peer holding it, so a
+  // holder with a longer copy that connects a moment later still counts.
+  restoreReleaseDwellMs: ruled(20_000, finiteAtLeast, 0),
   // Read budget for the INTERACTIVE list fan-outs (files:list / share:list). Much shorter than
   // peerReadTimeoutMs so a not-yet-replicated member can't freeze the list — it returns the
   // locally-available rows now and self-heals: event:shares-updated / event:files-updated re-run
