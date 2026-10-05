@@ -34,13 +34,20 @@ export default function RestoreAccountModal({ isOpen, onClose, onChoose }: Resto
         <div className="px-10 pb-10 space-y-6">
           <div role="radiogroup" aria-label={t('restoreAccount.listLabel')} className="space-y-3">
             {OPTIONS.map((option) => (
-              <RadioCard key={option.source} name="restore-account-source" checked={source === option.source} onSelect={() => setSource(option.source)}>
+              <RadioCard
+                key={option.source}
+                name="restore-account-source"
+                checked={source === option.source}
+                onSelect={() => setSource(option.source)}
+                labelledBy={`restore-source-${option.source}-title`}
+                describedBy={`restore-source-${option.source}-body`}
+              >
                 <span className="w-10 h-10 rounded-full bg-icon-tile flex items-center justify-center text-on-icon-tile shrink-0">
                   <Icon name={option.icon} />
                 </span>
                 <span className="min-w-0">
-                  <span className="block font-headline font-bold text-accent">{t(option.title)}</span>
-                  <span className="block text-sm text-on-surface-variant mt-1">{t(option.body)}</span>
+                  <span id={`restore-source-${option.source}-title`} className="block font-headline font-bold text-accent">{t(option.title)}</span>
+                  <span id={`restore-source-${option.source}-body`} className="block text-sm text-on-surface-variant mt-1">{t(option.body)}</span>
                 </span>
               </RadioCard>
             ))}
