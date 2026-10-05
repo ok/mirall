@@ -49,5 +49,6 @@
   "unexpected": "Qualcosa è andato storto. Riprova — se continua, invia un feedback dalle Impostazioni.",
   "approveBlockedDivergence": "Le approvazioni sono sospese finché il conflitto sull'identità del proprietario non è risolto.",
   "wrongPassphrase": "Questa passphrase non corrisponde a questa chiave di recupero. Controllala e riprova.",
-  "recoveryFileInvalid": "Questo file non è una chiave di recupero che questa versione di Mirall può leggere."
+  "recoveryFileInvalid": "Questo file non è una chiave di recupero che questa versione di Mirall può leggere.",
+  "backupCorrupt": "Questo backup è danneggiato e non può essere ripristinato. Prova un backup precedente."
 }
