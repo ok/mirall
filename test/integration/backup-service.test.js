@@ -230,7 +230,7 @@ test('after a restart the status shows the latest snapshot and its flag again', 
 
 test('while a restore is catching up, the backup reports itself paused', async (t) => {
   const d = dirs(t)
-  await writeRestoreHold(d.storage, [PROFILE_BEE])
+  await writeRestoreHold(d.storage, [PROFILE_BEE], 'backup')
   const config = { storage: d.storage, appVersion: 't', dev: true, verbose: false, downloadFolder: d.downloads, localBackupEnabled: true, backupFolder: d.backupFolder, backupRepoId: null }
   setRuntimeConfig(config)
   setDownloadFolder(d.downloads)

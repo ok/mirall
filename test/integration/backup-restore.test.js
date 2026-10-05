@@ -124,7 +124,7 @@ test('a backup restores onto a new device: listed, staged, put in place, and hel
   await root.close()
 
   // A catalog still held on the next boot: the backup waits for it, then starts in the same session.
-  await writeRestoreHold(device.h.storage, [catalogName])
+  await writeRestoreHold(device.h.storage, [catalogName], 'backup')
   const later = await start(t, device.h)
   await waitFor(() => later.root.backup() !== null, 15000, { interval: 200, label: 'the backup starts once the last hold is released' })
   t.absent(isHeld(catalogName))

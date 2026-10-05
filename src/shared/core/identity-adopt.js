@@ -79,7 +79,7 @@ async function applyRestore(storagePath, request) {
     fs.renameSync(path.join(staging, CORESTORE), path.join(storagePath, CORESTORE))
   }
   if (fs.existsSync(staging)) fs.rmdirSync(staging)
-  await writeRestoreHold(storagePath, hold)
+  await writeRestoreHold(storagePath, hold, 'backup')
   const adopt = path.join(dataDir, ADOPT_FILE)
   if (fs.existsSync(adopt)) fs.renameSync(adopt, path.join(dataDir, SECRET_FILE.IDENTITY))
   fs.rmSync(request)
@@ -105,7 +105,7 @@ export async function applyPendingIdentityChange(storagePath) {
   }
   if (fs.existsSync(adopt)) {
     folder = setAsideIfHeld(storagePath) ?? folder
-    await writeRestoreHold(storagePath, [PROFILE_BEE])
+    await writeRestoreHold(storagePath, [PROFILE_BEE], 'key')
     fs.renameSync(adopt, path.join(dataDir, SECRET_FILE.IDENTITY))
   }
   return folder

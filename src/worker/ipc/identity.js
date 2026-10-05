@@ -68,7 +68,7 @@ export function registerIdentity(ipc, { storagePath, identityKEK, log, lockedBy,
       // Held even over this identity's own data: that copy may be older than what peers hold. Written
       // before the envelope, so a crash between the two leaves a hold that only delays writes, never
       // an adopted identity whose profile is free to be written.
-      await writeRestoreHold(storagePath, [PROFILE_BEE])
+      await writeRestoreHold(storagePath, [PROFILE_BEE], 'key')
       await sealMasterSecret({ storagePath, provider, masterSecret: opened.masterSecret })
       log.info('identity: recovery key adopted; the worker restarts to open it')
       return /** @type {const} */ ({ ok: true })

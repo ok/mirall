@@ -77,7 +77,7 @@ async function heldDevice(t, { whileAway = async () => {} } = {}) {
   await first.root.close()
   await whileAway(folder)
 
-  await writeRestoreHold(d.storage, [PROFILE_BEE, catalog])
+  await writeRestoreHold(d.storage, [PROFILE_BEE, catalog], 'backup')
   const { root, fake } = await start(t, d, masterSecret)
   registerProfile(fake.ipc, { log: quiet })
   registerSpaces(fake.ipc, { log: quiet, publishDownloadRoots: () => {} })

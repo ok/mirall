@@ -6,7 +6,7 @@
 // step that writes it, and the next, normal boot runs them in order. Every change is pushed
 // (event:restore-updated), so the app can show what is still being confirmed.
 import { Subsystem } from '../shared/core/subsystem.js'
-import { releaseHeld, heldNames, profileHeld, PROFILE_BEE } from '../shared/core/restore-hold.js'
+import { releaseHeld, heldNames, profileHeld, restoreSource, PROFILE_BEE } from '../shared/core/restore-hold.js'
 import { releaseVerdict } from '../shared/core/restore-hold-rules.js'
 import { RESTORE_VERDICT } from '../shared/contract/restore-verdict.js'
 import { getRestoreReleaseDwellMs } from '../shared/core/runtime-config.js'
@@ -43,8 +43,7 @@ export class RestoreCatchUp extends Subsystem {
     this.progress = this.trackers.some((t) => t.name === PROFILE_BEE)
       ? { verdict: RESTORE_VERDICT.NO_HOLDER, length: 0, target: 0, released: false }
       : null
-    // Only a backup brings own catalogs back; a recovery key restores the profile alone.
-    this.source = this.trackers.some((t) => t.owned) ? 'backup' : 'key'
+    this.source = restoreSource()
     this.timers.setInterval(() => {
       this.tick().catch((err) => this.log.warn('restore catch-up tick failed:', err.message))
     }, TICK_MS)
