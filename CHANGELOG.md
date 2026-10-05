@@ -81,6 +81,12 @@ is no longer recreated by the next download.
 internal log with an entry for every file you share and added to it on each
 start, though nothing ever read it. The log is removed once when you update,
 and the file index stops re-recording files it already knows.
+- **A finished download no longer starts over for no reason.** If part of
+the file read back short from disk while Mirall checked it, the check failed
+and the download began again from the start.
+- **No more "request denied" notice for a space you didn't ask to join.** A
+denial for a space you weren't waiting to join left a notice that stayed
+until you dismissed it.
 - **A download that can't be written now says why.** If the download folder
 was replaced by a file, or the disk reported a read or write error, the
 download kept retrying as if the sender were offline. It now stops and shows
