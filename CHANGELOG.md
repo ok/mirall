@@ -13,41 +13,45 @@ changes do not appear here.
 
 ### Unreleased
 
+Back up Mirall to a drive or network folder and restore your whole account
+on a new computer. Settings → Storage now shows what takes up the space, and
+a large set of security fixes stops people outside a space, and in some cases
+members, from reading your data, running programs on your computer or
+stalling your downloads.
+
 #### Added
 
-- **See when a member is reached through a relay.** The member list now reads
-"Online · via relay" instead of just "Online", so a slow transfer has a
-visible reason.
-- **See when a relay stops carrying someone.** The Activity Log now records
-when a member reached through a relay is connected directly again, and how
-long the relay carried them. Each relayed stretch gets its own entry, not
-just the first one after Mirall starts.
-- **Your relay changes are in the Activity Log.** Adding, replacing or
-removing your relay, and turning it or "Prefer the relay for every
-connection" on or off, each leave one entry under Network. Entries name the
-relay by its label and a shortened key.
-- **See what takes up Mirall's storage.** Settings → Storage used to put
-most of Mirall's data under one "App database" line. It now counts the whole
-Mirall folder, app updates included, and lists each space, the shared-file
-index, the Activity Log, download history, app updates and everything else
-separately. When enough can be freed, "Free up" clears it in
-one step.
 - **Back up Mirall to a drive or network folder.** Settings → Backup &
 recovery sets up an encrypted backup of your spaces, file lists, settings
 and recovery key in one step, protected by a passphrase you choose. It then
 runs on its own, and Mirall asks now and then whether you still know the
 passphrase. Profile → Protection shows whether your identity and your data
 are protected, and what to do if they aren't.
-- **Save just your recovery key.** If you don't want a backup, Settings →
-Backup & recovery can save only your recovery key: a file sealed with a
-passphrase you choose. It brings back your identity, not your files, and we
-can't reset a lost passphrase.
 - **Restore your account on a new computer.** "Already used Mirall? Restore
 your account" on the welcome screen brings everything back from your backup
 folder, or your identity alone from a recovery key file. Mirall opens right
 away. Until someone you share with confirms nothing newer exists, you can
 look around but not make changes, so nothing you change can clash. If none
 of them is online, paste an invite code to one of your spaces.
+- **See what takes up Mirall's storage.** Settings → Storage used to put
+most of Mirall's data under one "App database" line. It now counts the whole
+Mirall folder, app updates included, and lists each space, the shared-file
+index, the Activity Log, download history, app updates and everything else
+separately. When enough can be freed, "Free up" clears it in
+one step.
+- **Save just your recovery key.** If you don't want a backup, Settings →
+Backup & recovery can save only your recovery key: a file sealed with a
+passphrase you choose. It brings back your identity, not your files, and we
+can't reset a lost passphrase.
+- **See when a member is reached through a relay.** The member list now reads
+"Online · via relay" instead of just "Online", so a slow transfer has a
+visible reason.
+- **The Activity Log shows your relay at work.** It records when a member
+reached through a relay is connected directly again and how long the relay
+carried them, each relayed stretch on its own. Adding, replacing or removing
+your relay, and turning it or "Prefer the relay for every connection" on or
+off, each leave an entry under Network that names the relay by its label and
+a shortened key.
 
 #### Changed
 
@@ -57,47 +61,43 @@ app-data folder Mirall reads it from.
 
 #### Fixed
 
+- **A mirrored folder no longer deletes files it didn't put there.** When
+the owner deleted a file, your mirror removed whatever sat at that path,
+even a file you had put there yourself. Mirall now removes only copies it
+can tell are untouched and keeps anything else. A mirror folder you delete
+is no longer recreated by the next download.
 - **Mirall no longer stops when your keychain can't open your identity.**
 After a keychain reset or a move to another computer, Mirall refused to
 start or ended on "background service stopped". It now opens a screen
 where you can restore your account from a backup or a recovery key, try
 again, or start fresh with a new identity. Starting fresh moves the old
 data aside; nothing is deleted.
+- **Mirall's window no longer goes blank on a list that only just needs
+scrolling.** A list right at that length could keep resizing itself until
+the window went blank.
+- **A download that can't be written now says why.** If the download folder
+was replaced by a file, or the disk reported a read or write error, the
+download kept retrying as if the sender were offline. It now stops and shows
+what went wrong.
+- **A finished download no longer starts over for no reason.** If part of
+the file read back short from disk while Mirall checked it, the check failed
+and the download began again from the start.
+- **App Storage no longer grows every time Mirall starts.** Mirall kept an
+internal log with an entry for every file you share and added to it on each
+start, though nothing ever read it. The log is removed once when you update,
+and the file index stops re-recording files it already knows.
 - **Old app updates no longer pile up.** Mirall kept every update it ever
 downloaded. It now keeps only the current one.
 - **Leaving a space, or the deletion of a share you mirror, clears its
 leftover records**, and downloads that failed more than 30 days ago for a
 reason that cannot clear on its own are forgotten along with their partial
 files.
-- **Mirall's window no longer goes blank on a list that only just needs
-scrolling.** A list right at that length could keep resizing itself until
-the window went blank.
-- **A mirrored folder no longer deletes files it didn't put there.** When
-the owner deleted a file, your mirror removed whatever sat at that path,
-even a file you had put there yourself. Mirall now removes only copies it
-can tell are untouched and keeps anything else. A mirror folder you delete
-is no longer recreated by the next download.
-- **App Storage no longer grows every time Mirall starts.** Mirall kept an
-internal log with an entry for every file you share and added to it on each
-start, though nothing ever read it. The log is removed once when you update,
-and the file index stops re-recording files it already knows.
-- **A finished download no longer starts over for no reason.** If part of
-the file read back short from disk while Mirall checked it, the check failed
-and the download began again from the start.
 - **No more "request denied" notice for a space you didn't ask to join.** A
 denial for a space you weren't waiting to join left a notice that stayed
 until you dismissed it.
-- **A download that can't be written now says why.** If the download folder
-was replaced by a file, or the disk reported a read or write error, the
-download kept retrying as if the sender were offline. It now stops and shows
-what went wrong.
 
 #### Security
 
-- **People outside a space can no longer read your profile or your file
-lists.** Anyone who got hold of the keys to that data could download it from
-you over any connection. Mirall now sends it only to admitted members, and
-stops as soon as a member leaves.
 - **You can no longer mirror into a folder that starts programs or holds
 keys.** A mirror writes the owner's files into the folder you pick, so a
 startup folder or a hidden folder in your home folder, such as `~/.ssh`,
@@ -108,6 +108,19 @@ case.
 - **A download no longer writes through a link in its way.** If a link or a
 new file appeared where a download was being saved, Mirall followed the
 link or replaced the file. It now stops instead.
+- **People outside a space can no longer read your profile or your file
+lists.** Anyone who got hold of the keys to that data could download it from
+you over any connection. Mirall now sends it only to admitted members, and
+stops as soon as a member leaves.
+- **On Windows, your Mirall data folder is readable only by you.** Mirall
+now limits the folder that holds your identity and files to your Windows
+account, so other accounts on the computer can no longer open it. This
+happens once, the next time Mirall starts.
+- **People outside a space can no longer fill your disk or restart your
+downloads through the file-transfer connection.** Someone who knew a space's
+network address could make Mirall store data nothing uses, discard a
+download's progress so it started over, or get around your download speed
+limit. Mirall now ignores these messages.
 - **A planted join request can no longer freeze a space's member list.** A
 request with a damaged key stopped the member list from updating for every
 member, and approving it spread the damage. Mirall now ignores such keys.
@@ -115,15 +128,6 @@ member, and approving it spread the damage. Mirall now ignores such keys.
 them.** The sender of a file's piece list could keep sending more of it
 until Mirall ran out of memory. Mirall now refuses a list longer than the
 file needs and drops a peer that keeps trying.
-- **On Windows, your Mirall data folder is readable only by you.** Mirall
-now limits the folder that holds your identity and files to your Windows
-account, so other accounts on the computer, administrators included, no
-longer have access to it. This happens once, the next time Mirall starts.
-- **People outside a space can no longer fill your disk or restart your
-downloads through the file-transfer connection.** Someone who knew a space's
-network address could make Mirall store data nothing uses, discard a
-download's progress so it started over, or get around your download speed
-limit. Mirall now ignores these messages.
 - **A malformed message can no longer cut a device off.** A garbled message
 of a kind Mirall no longer uses closed the whole connection to that device,
 syncing included. Mirall now ignores such messages.
