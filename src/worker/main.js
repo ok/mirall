@@ -20,6 +20,7 @@ import { registerSettings } from './ipc/settings.js'
 import { registerStorage } from './ipc/storage.js'
 import { registerProfile } from './ipc/profile.js'
 import { registerIdentity } from './ipc/identity.js'
+import { registerBackup } from './ipc/backup.js'
 import { applyPendingIdentityChange } from '../shared/core/identity-adopt.js'
 import { registerFeedback } from './ipc/feedback.js'
 import { registerDiagnostics } from './ipc/diagnostics.js'
@@ -237,6 +238,8 @@ registerIdentity(ipc, {
 })
 
 registerSpaces(ipc, { log, publishDownloadRoots })
+
+registerBackup(ipc, { backup: root.backup, paused: root.backupPaused })
 
 registerSpaceLeave(ipc, { log, mounts, overlayBackend, discardPendingSpace, dropSpaceDownloadRoot })
 

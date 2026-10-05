@@ -134,6 +134,14 @@ export class FolderTarget {
     })
   }
 
+  remove(rel) {
+    return guard(() => fs.promises.rm(path.join(this.dir, rel), { force: true }))
+  }
+
+  mtime(rel) {
+    return guard(async () => (await fs.promises.stat(path.join(this.dir, rel))).mtimeMs)
+  }
+
   putOnce(rel, bytes) {
     return guard(async () => {
       const final = path.join(this.dir, rel)

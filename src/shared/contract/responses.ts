@@ -488,6 +488,18 @@ export interface RecoveryExport {
 /** A recovery key adopted, or refused because this device holds another identity's data. */
 export type RecoveryImport = { ok: true } | { ok: false; mismatch: true }
 
+/** The local backup as this worker runs it; `enabled` is false when the feature is off, `paused` while a restore is catching up, `suspect` the reasons the latest snapshot looks like a loss. */
+export interface BackupStatus {
+  enabled: boolean
+  folder: string | null
+  repoId: string | null
+  state: 'off' | 'paused' | 'idle' | 'running' | 'error'
+  lastSuccessAt: number | null
+  lastSnapshot: string | null
+  lastError: string | null
+  suspect: string[] | null
+}
+
 /** Where the data was moved; null when the move waits for the next worker, before the store opens. */
 export interface IdentitySetAside {
   folder: string | null
@@ -495,6 +507,10 @@ export interface IdentitySetAside {
 
 interface Responses {
   'audit:actors': AuditActorRef[]
+  'backup:configure': BackupStatus
+  'backup:run': BackupStatus
+  'backup:status': BackupStatus
+  'backup:turn-off': BackupStatus
   'audit:configure': AuditConfig
   'audit:export': AuditExport
   'audit:get-config': AuditConfig

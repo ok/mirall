@@ -1557,6 +1557,38 @@ and, optionally, one of the six rules in `runtime-config-rules.js`.
 
 ---
 
+## 16b. Local backup (`src/shared/storage/backup/`, `src/worker/backup-service.js`)
+
+Behind the `localBackup` feature flag (off by default). A backup is a **logical, per-core delta**,
+not a copy of the database files: `inventory.js` lists every core with its role (own bees by their
+M-derived discovery keys; the overlay index, rewrite scratch and plaintext predecessors are skipped),
+`capture.js` snapshots each core and exports its changed range as hypercore's own replication proofs
+(`core-proofs.js`, the one module that touches hypercore internals, pinned by a shape test). A restore
+applies them exactly like blocks from a peer, so a changed block or a gap is refused, encrypted cores
+stay ciphertext, and a core on a later fork is applied as a reorg. `manifest.js` keeps a chain of
+ranges per core and starts it over when the core no longer extends what was captured.
+
+The repository (`repo.js`) lives in a folder the user chose (`folder-target.js`): a header with the
+repository key wrapped under an M-derived key (only this identity opens it — a wiped app with a new
+identity can never write into the old backup), write-once objects sealed with XChaCha20-Poly1305 and
+padded to 4 KiB, one sealed manifest per snapshot named by sequence number, and a lease per writing
+install. The chosen folder is never created, so an unmounted share reads as offline. One run
+(`backup-run.js`) takes the lease, captures against the latest snapshot, adds the key vault and
+the user's preferences from `config.json`, and writes the snapshot last. Each snapshot records the
+store's vitals (`loss-check.js`); a drop against the last unflagged snapshot (profile shorter, spaces
+or cores halved, own data down by 30 %) flags it as **suspect**, until the drop has lasted a week and
+becomes the normal. Retention (`retention.js`, `prune.js`) always keeps the three newest unflagged
+snapshots, so a burst of losses can never push the good ones out.
+
+`Backup` (the worker subsystem) runs two minutes after boot, hourly, and after changes: every append
+to an own bee (except the activity log and maintenance markers) is an everyday change, and a space
+created, joined or left or a new space key is urgent (`schedule-rules.js`). It does not start while
+the profile is held (restore mode); the status then reads `paused`. On quit a run in progress or a
+due one gets a short cutoff and writes nothing if it misses it. The folder and repository id live in `config.json` under `backup`
+(main is the writer; the worker asks through `MAIN_REQUEST.BACKUP_REMEMBER`). Requests:
+`backup:status`, `backup:configure`, `backup:turn-off`, `backup:run`; a status change pokes
+`event:storage-updated`.
+
 ## 17. Glossary
 
 Holepunch stack terms (Bare, Hypercore/"core", Hyperbee/"bee", Hyperdrive, Corestore, Hyperswarm,

@@ -9,7 +9,7 @@
 // the process, which is exactly what lets a test call them twice.
 import { createLifecycle } from '../shared/core/subsystem.js'
 import { Supervisor } from '../shared/core/supervisor.js'
-import { getPeerPresenceDwellMs, getRelayAuditDwellMs, isSharePrepareProgressEnabled, getRelayConfig } from '../shared/core/runtime-config.js'
+import { getPeerPresenceDwellMs, getRelayAuditDwellMs, isSharePrepareProgressEnabled, getRelayConfig, isLocalBackupEnabled } from '../shared/core/runtime-config.js'
 import { hydrateDownloadRoots, listDownloadRoots } from '../shared/core/paths.js'
 import { IntentsBee, getIntentsBee } from '../shared/core/intents.js'
 import { createIntentLog } from '../shared/core/intents.js'
@@ -70,6 +70,7 @@ import { getInstallId } from '../shared/telemetry/install-id.js'
 import { MountsRuntime } from './mounts-runtime.js'
 import { Sweeps } from './sweeps.js'
 import { RestoreCatchUp } from './restore-catch-up.js'
+import { Backup } from './backup-service.js'
 import { loadRestoreHold, profileHeld } from '../shared/core/restore-hold.js'
 
 // Apply the configured relay to BOTH swarms. Exported through the root because the
@@ -123,7 +124,7 @@ export async function bootDurable(bootstrap, { ipc, log, masterSecret = undefine
   await durable.start(new ServeLedger('serve-ledger', { ipc }))
   await durable.start(new OwnCatalogs('own-catalogs'))
   await durable.start(new PeerCatalogs('peer-catalogs'))
-  return { durable, store, profile, auditLog, durableMigrations, localBees, close: (opts) => durable.close(opts) }
+  return { durable, store, profile, auditLog, installId, durableMigrations, localBees, close: (opts) => durable.close(opts) }
 }
 
 /**
@@ -326,6 +327,11 @@ export async function boot(bootstrap, {
       }
     }
     const restoreCatchUp = restoring ? await life.start(new RestoreCatchUp('restore-catch-up', { profile: tier.profile })) : null
+    // Not while restoring: a held profile is behind what peers hold, and backing it up would record
+    // that as the newest state.
+    const backup = isLocalBackupEnabled() && !restoring
+      ? await life.start(new Backup('backup', { ipc, corestore: getStore, storagePath: bootstrap.storage, installId: tier.installId ?? 'unknown-install' }))
+      : null
 
     // After every subsystem it will supervise, so the lifecycle's reverse close order stops it
     // FIRST. It reads life.started; the durable tier is deliberately unsupervised — nothing there
@@ -333,7 +339,8 @@ export async function boot(bootstrap, {
     supervisor = await life.start(new Supervisor('supervision', { lifecycle: life }))
 
     return {
-      close, store, mounts, intents, ownedFolders, publishService, overlayBackend, restoreCatchUp,
+      close, store, mounts, intents, ownedFolders, publishService, overlayBackend, restoreCatchUp, backup,
+      backupPaused: isLocalBackupEnabled() && restoring,
       applyRelayConfig: () => applyRelayConfig(log),
       health: () => [...(durable?.health() || []), ...life.health()],
       supervision: () => supervisor?.stats() ?? null,

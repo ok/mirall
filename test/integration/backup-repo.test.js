@@ -147,7 +147,7 @@ test('another computer writing to the same folder stops the run', async (t) => {
 test('a first run that stopped part-way is picked up by the next, not refused as another backup', async (t) => {
   const { storage } = await freshPeer(t)
   const target = new FolderTarget(folder(t))
-  t.is(await codeOf(runBackup({ ...runArgs(target, null, { deadlineAt: Date.now() - 1 }), storagePath: storage })), 'ECANCELLED')
+  t.is(await codeOf(runBackup({ ...runArgs(target, null, { stopAt: () => Date.now() - 1 }), storagePath: storage })), 'ECANCELLED')
   const retry = await runBackup({ ...runArgs(target, null), storagePath: storage })
   t.ok(retry.snapshot)
 })
@@ -174,7 +174,7 @@ test('a run out of time writes no snapshot and leaves the last one latest', asyn
   const target = new FolderTarget(folder(t))
   const first = await runBackup({ ...runArgs(target, null), storagePath: storage })
   await setProfile({ displayName: 'Late' })
-  t.is(await codeOf(runBackup({ ...runArgs(target, first.repoId, { deadlineAt: Date.now() - 1 }), storagePath: storage })), 'ECANCELLED')
+  t.is(await codeOf(runBackup({ ...runArgs(target, first.repoId, { stopAt: () => Date.now() - 1 }), storagePath: storage })), 'ECANCELLED')
   const repo = await openRepo(target, { wrapKey: backupWrapKey(), expectedRepoId: first.repoId })
   t.is((await repo.latestSnapshot()).name, first.snapshot)
 })
