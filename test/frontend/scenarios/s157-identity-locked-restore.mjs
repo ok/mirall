@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto'
 import path from 'node:path'
 import { Instance } from '../instance.mjs'
 import { makeReport, waitFor } from '../assert.mjs'
+import { saveRecoveryKeyOnly, chooseKeyRestore } from '../helpers.mjs'
 
 const PASS = 'a long enough passphrase'
 
@@ -33,12 +34,7 @@ export default async function s157({ runDir, bootstrap }) {
   try {
     await r.ok('back up the recovery key', async () => {
       await A.launch()
-      await A.openAccount()
-      await A.click({ role: 'button', name: 'Back up your recovery key' })
-      await A.setRaw({ role: 'textfield', name: 'Choose a passphrase' }, PASS)
-      await A.setRaw({ role: 'textfield', name: 'Confirm passphrase' }, PASS)
-      await A.nativeChoosePath(keyFile, { trigger: () => A.click({ role: 'button', name: 'Save backup file…' }) })
-      await A.waitText('Recovery key saved to your chosen location.', 30000)
+      await saveRecoveryKeyOnly(A, keyFile, PASS)
     })
     await r.ok('a keychain that cannot open kek.enc locks the identity instead of stopping the app', async () => {
       await A.quit()
@@ -47,14 +43,14 @@ export default async function s157({ runDir, bootstrap }) {
       writeFileSync(kek, randomBytes(64))
       await A.launch({ onboard: false })
       await A.waitText('Your identity key is locked', 45000)
-      for (const name of ['Restore from recovery key', 'Try again', 'Start fresh and create a new identity']) {
+      for (const name of ['Restore your account', 'Try again', 'Start fresh and create a new identity']) {
         if (!(await A.has({ role: 'button', name }))) throw new Error(`no button named ${name}`)
       }
       if (!readdirSync(path.dirname(kek)).some((n) => n.startsWith('kek.enc.unreadable-'))) throw new Error('the unreadable key was not kept')
       await A.shot('s157-locked', runDir)
     })
     await r.ok('a wrong passphrase is said under the field', async () => {
-      await A.click({ role: 'button', name: 'Restore from recovery key' })
+      await chooseKeyRestore(A, 'Restore your account')
       await A.nativeChoosePath(keyFile, { trigger: () => A.click({ role: 'button', name: 'Choose recovery key file…' }) })
       await A.waitText('Enter the passphrase for this recovery key.', 8000)
       await A.setRaw(passphrase, 'not the passphrase')

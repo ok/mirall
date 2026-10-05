@@ -86,7 +86,7 @@ export class Backup extends Subsystem {
   }
 
   view() {
-    return { enabled: true, folder: this.config.folder, repoId: this.config.repoId, ...this.progress }
+    return { folder: this.config.folder, repoId: this.config.repoId, ...this.progress }
   }
 
   async status() {

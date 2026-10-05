@@ -23,7 +23,6 @@
     "displayName": "Anzeigename",
     "displayNamePlaceholder": "z. B. Max Mustermann",
     "displayNameHelp": "So sehen dich Team und Freunde.",
-    "restore": "Schon einen Wiederherstellungsschlüssel? Identität wiederherstellen",
     "restoreAccount": "Mirall schon genutzt? Konto wiederherstellen"
   },
   "topnav": {
@@ -39,13 +38,9 @@
     "groupApp": "App",
     "connection": "Verbindung",
     "connectionDesc": "{{state}} · {{peers}}",
-    "identityTitle": "Identitätsschutz",
     "upToDate": "Aktuell.",
     "activityDesc": "Eine Aufzeichnung dessen, was in deinen Räumen passiert ist.",
-    "recordingOff": "Aufzeichnung ist aus · {{kept}}",
-    "backupRecoveryKey": "Wiederherstellungsschlüssel sichern",
-    "backupRecoveryKeyDesc": "Speichere einen verschlüsselten Schlüssel, damit du deine Identität behältst, wenn du dieses Gerät verlierst.",
-    "backupRecoveryKeyDescWeak": "Dieses Gerät hat keinen Systemschlüsselbund — ein Wiederherstellungsschlüssel ist dein eigentlicher Schutz."
+    "recordingOff": "Aufzeichnung ist aus · {{kept}}"
   },
   "spaces": {
     "title": "Geteilte",
@@ -1313,7 +1308,6 @@
     "title": "Dein Identitätsschlüssel ist gesperrt",
     "body": "Wir konnten deinen Identitätsschlüssel auf diesem Gerät nicht entsperren — vielleicht hat sich dein sicherer Speicher geändert (ein neuer Computer, ein zurückgesetzter Schlüsselbund oder ein wiederhergestelltes Backup). Deine Daten sind sicher, bleiben aber gesperrt, bis du deinen Schlüssel wiederherstellst.",
     "bodyProvider": "Dein Identitätsschlüssel wurde mit einer anderen Methode gesperrt, als diese App jetzt verwendet. Deine Daten sind sicher, bleiben aber gesperrt, bis du deinen Schlüssel wiederherstellst.",
-    "restore": "Mit Wiederherstellungsschlüssel wiederherstellen",
     "retry": "Erneut versuchen",
     "startFresh": "Neu beginnen und eine neue Identität erstellen",
     "startFreshHint": "Die gesperrten Daten werden auf diesem Gerät beiseitegelegt, nicht gelöscht.",

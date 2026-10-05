@@ -1,5 +1,5 @@
-// Profile screen: display name and avatar; this device's connection, identity protection, recovery
-// key and activity log; app version and resources.
+// Profile screen: display name and avatar; this device's connection, protection and activity log; app
+// version and resources.
 import InlineError from '../components/primitives/InlineError.js'
 import { useState, useRef, useEffect, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -25,13 +25,11 @@ import CopyButton from '../components/primitives/CopyButton.js'
 import PageHeader from '../components/layout/PageHeader.js'
 import SectionHeading from '../components/layout/SectionHeading.js'
 import ActionRow, { ROW, ROW_GROUP, RowBody, Tile } from '../components/layout/ActionRow.js'
-import RecoveryBackupModal from '../components/modals/RecoveryBackupModal.js'
-import { isLocalBackupFeatureOn } from '../platform/config-client.js'
 import { useIdentityProtection } from '../hooks/useIdentityProtection.js'
 import { useBackupStatus } from '../hooks/useBackupStatus.js'
 import { useRestoreHold } from '../hooks/useRestoreHold.js'
 import ProtectionDot from '../components/backup/ProtectionDot.js'
-import { IDENTITY_LINE, protectionLamp, protectionSummary } from '../model/protection-view.js'
+import { protectionLamp, protectionSummary } from '../model/protection-view.js'
 import { formatDateTime } from '../format/utils.js'
 
 interface AccountProps {
@@ -57,15 +55,6 @@ function LinkRow({ label, desc, icon, href }: { label: string; desc: ReactNode; 
       <RowBody leading={<Tile icon={icon} />} title={label} desc={desc} />
       <Icon name="open_in_new" className="text-secondary shrink-0" />
     </a>
-  )
-}
-
-// Information, not a control: no role, no focus stop, no chevron.
-function InfoRow({ label, desc, icon }: { label: string; desc: ReactNode; icon: IconName }) {
-  return (
-    <div className="w-full p-6 flex items-center justify-between">
-      <RowBody leading={<Tile icon={icon} />} title={label} desc={desc} />
-    </div>
   )
 }
 
@@ -158,7 +147,6 @@ function DeviceGroup({ onOpenNetworkStatus, onOpenActivityLog, onOpenProtection 
   const identity = useIdentityProtection()
   const backup = useBackupStatus()
   const lamp = backup ? protectionLamp(backup) : null
-  const [backupOpen, setBackupOpen] = useState(false)
   // Through the query store for the dedup and cache, with NO scopes: this is a summary line, not a
   // live counter, and the audit scope would repaint it on every recorded event. Scope-less still
   // re-reads on each mount. ActivityLogSettings reads the same two entries.
@@ -180,7 +168,7 @@ function DeviceGroup({ onOpenNetworkStatus, onOpenActivityLog, onOpenProtection 
           )}
           onClick={onOpenNetworkStatus}
         />
-        {isLocalBackupFeatureOn() && backup && (
+        {backup && (
           <ActionRow
             label={t('protection.title')}
             desc={summaryText(backup, identity, t)}
@@ -193,21 +181,6 @@ function DeviceGroup({ onOpenNetworkStatus, onOpenActivityLog, onOpenProtection 
             onClick={onOpenProtection}
           />
         )}
-        {identity && !isLocalBackupFeatureOn() && (
-          <InfoRow
-            icon={IDENTITY_LINE[identity].icon}
-            label={t('account.identityTitle')}
-            desc={t(IDENTITY_LINE[identity].key)}
-          />
-        )}
-        {identity && identity !== 'disabled' && !isLocalBackupFeatureOn() && (
-          <ActionRow
-            icon="lock"
-            label={t('account.backupRecoveryKey')}
-            desc={t(identity === 'weak' ? 'account.backupRecoveryKeyDescWeak' : 'account.backupRecoveryKeyDesc')}
-            onClick={() => setBackupOpen(true)}
-          />
-        )}
         <ActionRow
           icon="history"
           label={t('settings.activityLog')}
@@ -215,7 +188,6 @@ function DeviceGroup({ onOpenNetworkStatus, onOpenActivityLog, onOpenProtection 
           onClick={onOpenActivityLog}
         />
       </div>
-      <RecoveryBackupModal isOpen={backupOpen} onClose={() => setBackupOpen(false)} weakProtection={identity === 'weak'} />
     </section>
   )
 }

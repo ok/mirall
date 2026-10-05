@@ -7,7 +7,7 @@ import { makeReport, waitFor } from '../assert.mjs'
 export default async function s162({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
-  const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 1, flags: { localBackup: true } })
+  const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 1 })
 
   try {
     await r.ok('no offer before there is a space', async () => {

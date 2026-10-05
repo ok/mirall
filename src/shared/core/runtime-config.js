@@ -121,10 +121,6 @@ export function getRelayAuditDwellMs() {
   return read('relayAuditDwellMs')
 }
 
-export function isLocalBackupEnabled() {
-  return config.localBackupEnabled
-}
-
 // This device keeps its identity key without an OS keychain, so a backup is its real protection.
 export function isIdentityWeak() {
   return config.identityWeak

@@ -5,9 +5,9 @@ import path from 'path'
 import { applyRestoredSettings } from '../../src/main/backup-settings.js'
 import { ConfigStore } from '../../src/main/config-store.js'
 
-function freshStore(t, opts) {
+function freshStore(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mirall-backup-settings-'))
-  const store = new ConfigStore(dir, opts).load()
+  const store = new ConfigStore(dir).load()
   t.teardown(() => {
     store.flush()
     fs.rmSync(dir, { recursive: true, force: true })
@@ -72,11 +72,4 @@ test('anything that is not a settings object changes nothing', (t) => {
     t.is(store.get('appearance.theme'), 'system', json)
     t.is(store.get('network.downloadKBps'), 0, json)
   }
-})
-
-test('the renderer snapshot carries the flags it was built with', (t) => {
-  const store = freshStore(t, { features: { localBackup: true } })
-  t.alike(store.rendererSnapshot().features, { localBackup: true })
-  store.setRenderer({ ui: { lastSeenVersion: '1.0.0' } })
-  t.alike(store.rendererSnapshot().features, { localBackup: true }, 'a write does not drop it')
 })

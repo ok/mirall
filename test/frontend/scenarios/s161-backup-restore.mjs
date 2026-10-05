@@ -12,9 +12,8 @@ export default async function s161({ runDir, bootstrap }) {
   const backupDir = path.join(runDir, 's161-backup')
   mkdirSync(backupDir, { recursive: true })
   const r = makeReport()
-  const flags = { localBackup: true }
-  const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2, flags })
-  const B = new Instance({ name: 'NewDevice', bootstrap, slot: 1, total: 2, flags })
+  const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })
+  const B = new Instance({ name: 'NewDevice', bootstrap, slot: 1, total: 2 })
   const showBackups = { role: 'button', name: 'Show backups' }
   const passphrase = { role: 'textfield', name: 'Passphrase' }
 

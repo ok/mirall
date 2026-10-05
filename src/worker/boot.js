@@ -9,7 +9,7 @@
 // the process, which is exactly what lets a test call them twice.
 import { createLifecycle } from '../shared/core/subsystem.js'
 import { Supervisor } from '../shared/core/supervisor.js'
-import { getPeerPresenceDwellMs, getRelayAuditDwellMs, isSharePrepareProgressEnabled, getRelayConfig, isLocalBackupEnabled } from '../shared/core/runtime-config.js'
+import { getPeerPresenceDwellMs, getRelayAuditDwellMs, isSharePrepareProgressEnabled, getRelayConfig } from '../shared/core/runtime-config.js'
 import { hydrateDownloadRoots, listDownloadRoots } from '../shared/core/paths.js'
 import { IntentsBee, getIntentsBee } from '../shared/core/intents.js'
 import { createIntentLog } from '../shared/core/intents.js'
@@ -343,11 +343,11 @@ export async function boot(bootstrap, {
       ? await life.start(new RestoreCatchUp('restore-catch-up', {
         ipc,
         profile: tier.profile,
-        onAllReleased: isLocalBackupEnabled() ? startBackup : null,
+        onAllReleased: startBackup,
         onCatalogReleased: (spaceId) => mounts.rescanSpace(spaceId),
       }))
       : null
-    if (isLocalBackupEnabled() && !heldNames().length) await startBackup()
+    if (!heldNames().length) await startBackup()
 
     // After every subsystem it will supervise, so the lifecycle's reverse close order stops it
     // FIRST. It reads life.started; the durable tier is deliberately unsupervised — nothing there
@@ -357,7 +357,7 @@ export async function boot(bootstrap, {
     return {
       close, store, mounts, intents, ownedFolders, publishService, overlayBackend, restoreCatchUp,
       backup: () => backup,
-      backupPaused: () => isLocalBackupEnabled() && backup === null,
+      backupPaused: () => restoreCatchUp !== null && backup === null,
       applyRelayConfig: () => applyRelayConfig(log),
       health: () => [...(durable?.health() || []), ...life.health()],
       supervision: () => supervisor?.stats() ?? null,

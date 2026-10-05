@@ -35,11 +35,11 @@ function dirs(t) {
   return { home, storage, downloads, backupFolder }
 }
 
-async function bootWith(t, { enabled = true, folder = null, repoId = null } = {}) {
+async function bootWith(t, { configured = true, repoId = null } = {}) {
   const d = dirs(t)
   const config = {
     storage: d.storage, appVersion: '0.0.0-test', dev: true, verbose: false, downloadFolder: d.downloads,
-    localBackupEnabled: enabled, backupFolder: folder === undefined ? null : (folder ?? d.backupFolder), backupRepoId: repoId,
+    backupFolder: configured ? d.backupFolder : null, backupRepoId: repoId,
   }
   setRuntimeConfig(config)
   setDownloadFolder(d.downloads)
@@ -56,7 +56,7 @@ async function bootWith(t, { enabled = true, folder = null, repoId = null } = {}
 async function bootWithStorage(t, previous, { folder, repoId }) {
   const config = {
     storage: previous.storage, appVersion: '0.0.0-test', dev: true, verbose: false, downloadFolder: previous.downloads,
-    localBackupEnabled: true, backupFolder: folder, backupRepoId: repoId,
+    backupFolder: folder, backupRepoId: repoId,
   }
   setRuntimeConfig(config)
   const fake = createFakeIpc()
@@ -76,13 +76,6 @@ async function codeOf(promise) {
 }
 
 const remembered = (fake) => fake.events.filter((e) => e.type === MAIN_REQUEST_FRAME && e.payload.command === MAIN_REQUEST.BACKUP_REMEMBER).map((e) => e.payload.args)
-
-test('with the feature off there is no service, and the status says so', async (t) => {
-  const { root, fake } = await bootWith(t, { enabled: false })
-  t.is(root.backup(), null)
-  t.is((await fake.call('backup:status', {})).enabled, false)
-  t.is(await codeOf(fake.call('backup:run', {})), 'NOT_FOUND')
-})
 
 test('a run writes a snapshot, reports it, and has main remember the new repository', async (t) => {
   const { fake } = await bootWith(t)
@@ -143,7 +136,8 @@ test('losing spaces marks a snapshot suspect, and pruning keeps the healthy ones
 })
 
 test('pruning removes snapshots retention does not keep and the objects only they named', async (t) => {
-  const { storage, backupFolder } = await bootWith(t, { enabled: false })
+  // No folder configured, so the service never runs on its own beside the passes this test makes.
+  const { storage, backupFolder } = await bootWith(t, { configured: false })
   const target = new FolderTarget(backupFolder)
   const base = Date.now() - 10 * DAY
   let repoId = null
@@ -231,7 +225,7 @@ test('after a restart the status shows the latest snapshot and its flag again', 
 test('while a restore is catching up, the backup reports itself paused', async (t) => {
   const d = dirs(t)
   await writeRestoreHold(d.storage, [PROFILE_BEE], 'backup')
-  const config = { storage: d.storage, appVersion: 't', dev: true, verbose: false, downloadFolder: d.downloads, localBackupEnabled: true, backupFolder: d.backupFolder, backupRepoId: null }
+  const config = { storage: d.storage, appVersion: 't', dev: true, verbose: false, downloadFolder: d.downloads, backupFolder: d.backupFolder, backupRepoId: null }
   setRuntimeConfig(config)
   setDownloadFolder(d.downloads)
   const fake = createFakeIpc()
@@ -241,5 +235,4 @@ test('while a restore is catching up, the backup reports itself paused', async (
   t.is(root.backup(), null)
   const status = await fake.call('backup:status', {})
   t.is(status.state, 'paused')
-  t.is(status.enabled, true)
 })

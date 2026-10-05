@@ -23,7 +23,6 @@
     "displayName": "Nom affiché",
     "displayNamePlaceholder": "p. ex. Jean Dupont",
     "displayNameHelp": "C'est ainsi que votre équipe et vos amis vous verront.",
-    "restore": "Vous avez déjà une clé de récupération ? Restaurez votre identité",
     "restoreAccount": "Déjà utilisé Mirall ? Restaurez votre compte"
   },
   "topnav": {
@@ -39,13 +38,9 @@
     "groupApp": "Application",
     "connection": "Connexion",
     "connectionDesc": "{{state}} · {{peers}}",
-    "identityTitle": "Protection de l'identité",
     "upToDate": "À jour.",
     "activityDesc": "Un relevé de ce qui s'est passé dans vos espaces.",
-    "recordingOff": "Enregistrement désactivé · {{kept}}",
-    "backupRecoveryKey": "Sauvegarder votre clé de récupération",
-    "backupRecoveryKeyDesc": "Enregistrez une clé chiffrée pour conserver votre identité si vous perdez cet appareil.",
-    "backupRecoveryKeyDescWeak": "Cet appareil n’a pas de trousseau système — une clé de récupération est votre vraie protection."
+    "recordingOff": "Enregistrement désactivé · {{kept}}"
   },
   "spaces": {
     "title": "Espaces",
@@ -1313,7 +1308,6 @@
     "title": "Votre clé d’identité est verrouillée",
     "body": "Nous n’avons pas pu déverrouiller votre clé d’identité sur cet appareil — votre stockage sécurisé a peut-être changé (un nouvel ordinateur, un trousseau réinitialisé ou une sauvegarde restaurée). Vos données sont en sécurité, mais elles restent verrouillées jusqu’à ce que vous restauriez votre clé.",
     "bodyProvider": "Votre clé d’identité a été verrouillée avec une autre méthode que celle utilisée par l’application. Vos données sont en sécurité, mais elles restent verrouillées jusqu’à ce que vous restauriez votre clé.",
-    "restore": "Restaurer avec la clé de récupération",
     "retry": "Réessayer",
     "startFresh": "Repartir de zéro avec une nouvelle identité",
     "startFreshHint": "Les données verrouillées sont mises de côté sur cet appareil, pas supprimées.",

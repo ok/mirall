@@ -32,7 +32,7 @@ async function share(t, peer, spaceId, fileName, seed) {
 test('a device restored from a backup catches up from a co-member, then writes without forking', { timeout: scaled(420000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const backupFolder = mkTmpDir(t)
-  const backupFlags = { localBackupEnabled: true, backupFolder, restoreReleaseDwellMs: 1000 }
+  const backupFlags = { backupFolder, restoreReleaseDwellMs: 1000 }
   const alice = await launchPeer(t, { bootstrap, displayName: 'Alice', ...peerHome(t), flags: { identityKEK: kekHex(), ...backupFlags } })
   const carol = await launchPeer(t, { bootstrap, displayName: 'Carol', ...peerHome(t), flags: { identityKEK: kekHex() } })
   const spaceId = await connectInSpace(t, alice, carol)

@@ -1,8 +1,7 @@
 // @ts-check
 // The local backup's surface: its status, setting it up (the folder and the recovery key together),
-// the key it keeps, the prompts it raises, and a run on request. With the feature off there is no
-// service, and the status says so; while a restore is catching up the service waits, and the status
-// says that instead.
+// the key it keeps, the prompts it raises, and a run on request. While a restore is catching up the
+// service waits, and the status says so; before the service has started it reads as not set up.
 
 /** @import { WorkerIpc } from '../../shared/core/ipc.js' */
 /** @import { BackupStatus } from '../../shared/contract/responses.js' */
@@ -14,13 +13,13 @@ import { getBackupConfig } from '../../shared/core/runtime-config.js'
 
 /** @type {BackupStatus} */
 const OFF = Object.freeze({
-  enabled: false, folder: null, repoId: null, state: 'off', lastSuccessAt: null, lastSnapshot: null, lastError: null, suspect: null,
+  folder: null, repoId: null, state: 'off', lastSuccessAt: null, lastSnapshot: null, lastError: null, suspect: null,
   key: Object.freeze({ createdAt: null, inFolder: false, checkedAt: null, secondCopyAt: null, reminders: true }), prompt: null, stale: false, verdict: null, verdictReason: null,
 })
 
 /** @param {Backup | null} backup @param {boolean} paused @returns {Backup} */
 function service(backup, paused) {
-  if (!backup) throw new AppError(CODES.NOT_FOUND, paused ? 'the local backup waits for the restore to finish' : 'the local backup is not enabled')
+  if (!backup) throw new AppError(CODES.NOT_FOUND, paused ? 'the local backup waits for the restore to finish' : 'the local backup is not running')
   return backup
 }
 
@@ -38,7 +37,7 @@ export function registerBackup(ipc, { backup: current, paused: isPaused, openRec
     if (backup) return backup.status()
     if (!isPaused()) return OFF
     const { folder, repoId } = getBackupConfig()
-    return { ...OFF, enabled: true, folder, repoId, state: 'paused' }
+    return { ...OFF, folder, repoId, state: 'paused' }
   })
 
   ipc.handle('backup:configure', async ({ folder }, ctx) => {

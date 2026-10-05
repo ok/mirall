@@ -12,7 +12,7 @@ export default async function s160({ runDir, bootstrap }) {
   const backupDir = path.join(runDir, 's160-backup')
   mkdirSync(backupDir, { recursive: true })
   const r = makeReport()
-  const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 1, flags: { localBackup: true } })
+  const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 1 })
   const turnOn = { role: 'button', name: 'Turn on backup' }
 
   try {
@@ -51,11 +51,13 @@ export default async function s160({ runDir, bootstrap }) {
     })
     await r.ok('the passphrase reminder is a switch that holds its state', async () => {
       const reminder = { role: 'switch', name: 'Remind me to check my passphrase' }
-      if (!(await A.isChecked(reminder))) throw new Error('reminders start on')
+      // A switch reports its state as its AX value, "1" or "0".
+      const on = async () => String(await A.nodeValue(reminder)) === '1'
+      if (!(await on())) throw new Error(`reminders start on (value ${await A.nodeValue(reminder)})`)
       await A.click(reminder)
-      await waitFor(async () => !(await A.isChecked(reminder)), 8000, 'reminders off')
+      await waitFor(async () => !(await on()), 8000, 'reminders off')
       await A.click(reminder)
-      await waitFor(async () => A.isChecked(reminder), 8000, 'reminders on again')
+      await waitFor(on, 8000, 'reminders on again')
     })
     await r.ok('Profile → Protection shows the status and its actions', async () => {
       await A.openAccount()

@@ -230,8 +230,6 @@ function getWorker(specifier) {
     // frozen placeholder, and it is the liveness signal that keeps a download parked on a
     // re-publish alive while a large source hashes. On by default; set false to revert.
     sharePrepareProgressEnabled: flags.sharePrepareProgress !== false,
-    // Staged: the local backup runs only once feature-flags.json turns it on.
-    localBackupEnabled: flags.localBackup === true,
     backupFolder: config().get('backup.folder'),
     backupRepoId: config().get('backup.repoId'),
     // No OS keychain holds the identity key here, so the backup is offered on day one.

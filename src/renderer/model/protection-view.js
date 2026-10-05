@@ -8,11 +8,11 @@
 /** @typedef {'setup' | 'check' | 'new-key' | 'run' | null} Fix */
 /** @typedef {'ok' | 'attention' | 'tip' | 'off'} Health */
 
-/** @type {Record<IdentityProtection, { icon: 'shield' | 'info', key: string, health: Health }>} */
+/** @type {Record<IdentityProtection, { key: string, health: Health }>} */
 export const IDENTITY_LINE = {
-  protected: { icon: 'shield', key: 'settings.identityProtected', health: 'ok' },
-  weak: { icon: 'info', key: 'settings.identityWeak', health: 'attention' },
-  disabled: { icon: 'info', key: 'settings.identityDisabled', health: 'off' },
+  protected: { key: 'settings.identityProtected', health: 'ok' },
+  weak: { key: 'settings.identityWeak', health: 'attention' },
+  disabled: { key: 'settings.identityDisabled', health: 'off' },
 }
 
 /** @type {Record<NonNullable<BackupStatus['verdictReason']>, { key: string, fix: Fix }>} */

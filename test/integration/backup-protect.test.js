@@ -43,7 +43,7 @@ function backupFolder(t) {
 async function start(t, d, { masterSecret, folder = null, repoId = null, profile = true } = {}) {
   const config = {
     storage: d.storage, appVersion: '0.0.0-test', dev: true, verbose: false, downloadFolder: d.downloads, identityKEK: KEK,
-    localBackupEnabled: true, backupFolder: folder, backupRepoId: repoId,
+    backupFolder: folder, backupRepoId: repoId,
   }
   setRuntimeConfig(config)
   setDownloadFolder(d.downloads)

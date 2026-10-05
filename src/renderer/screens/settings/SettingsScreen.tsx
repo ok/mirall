@@ -6,7 +6,6 @@ import Icon from '../../components/primitives/Icon.js'
 import type { IconName } from '../../types/ui.js'
 import PageHeader from '../../components/layout/PageHeader.js'
 import type { Screen } from '../../shell/navigation.js'
-import { isLocalBackupFeatureOn } from '../../platform/config-client.js'
 
 interface SettingsProps {
   onBack: () => void
@@ -25,9 +24,7 @@ export default function Settings({ onBack, onNavigate }: SettingsProps) {
     { icon: 'notifications',   label: t('settings.notifications'), desc: t('settings.notificationsDesc'), bg: 'bg-icon-tile', fg: 'text-on-icon-tile', screen: 'notification-settings' },
     { icon: 'hub',             label: t('settings.network'),       desc: t('settings.networkDesc'),    bg: 'bg-icon-tile', fg: 'text-on-icon-tile', screen: 'network-settings' },
     { icon: 'database',        label: t('settings.storage'),       desc: t('settings.storageDesc'),    bg: 'bg-icon-tile', fg: 'text-on-icon-tile', screen: 'storage-settings' },
-    ...(isLocalBackupFeatureOn()
-      ? [{ icon: 'shield' as const, label: t('settings.backup'), desc: t('settings.backupDesc'), bg: 'bg-icon-tile', fg: 'text-on-icon-tile', screen: 'backup-settings' as const }]
-      : []),
+    { icon: 'shield',          label: t('settings.backup'),        desc: t('settings.backupDesc'),     bg: 'bg-icon-tile', fg: 'text-on-icon-tile', screen: 'backup-settings' },
     { icon: 'history',         label: t('settings.activityLog'),  desc: t('settings.activityLogDesc'), bg: 'bg-icon-tile', fg: 'text-on-icon-tile', screen: 'activity-log-settings' },
   ]
 

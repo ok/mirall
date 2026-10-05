@@ -2,8 +2,8 @@ import { mkdirSync } from 'node:fs'
 import { Instance } from '../instance.mjs'
 import { makeReport } from '../assert.mjs'
 
-// Profile page (was Account): the groups render, each row reaches its destination, the identity row
-// stays out of the interactive tree, and the Profile command lands here now that About's screen is gone.
+// Profile page (was Account): the groups render, each row reaches its destination, and the Profile
+// command lands here now that About's screen is gone.
 export default async function s108({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
@@ -37,14 +37,6 @@ export default async function s108({ runDir, bootstrap }) {
       await A.waitText('A record of what happened', 8000)
       await A.back()
       await A.waitText('This device', 8000)
-    })
-
-    // Information, not a control: readable but never a focus stop.
-    await r.ok('identity protection renders as static text', async () => {
-      await A.waitText('Identity protection', 8000)
-      if (await A.has({ role: 'button', name: 'Identity protection' })) {
-        throw new Error('identity row should not be a button')
-      }
     })
 
     await r.ok('the Profile command lands on the Profile page', async () => {

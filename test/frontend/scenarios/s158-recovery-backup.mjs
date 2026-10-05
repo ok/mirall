@@ -3,9 +3,9 @@ import path from 'node:path'
 import { Instance } from '../instance.mjs'
 import { makeReport, waitFor } from '../assert.mjs'
 
-// Backing up the recovery key from the profile: the row is a named button beside the static
-// identity line, Save stays unavailable until a long enough passphrase is typed twice, and the saved
-// file is a sealed recovery key.
+// Saving the recovery key on its own, from Settings → Backup & recovery before a backup is set up: Save
+// stays unavailable until a long enough passphrase is typed twice, and the saved file is a sealed
+// recovery key.
 export default async function s158({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
@@ -14,10 +14,10 @@ export default async function s158({ runDir, bootstrap }) {
   const save = { role: 'button', name: 'Save backup file…' }
 
   try {
-    await r.ok('the profile offers a recovery key backup', async () => {
+    await r.ok('Backup & recovery offers the recovery key on its own', async () => {
       await A.launch()
-      await A.openAccount()
-      await A.click({ role: 'button', name: 'Back up your recovery key' })
+      await A.gotoSettings('Backup & recovery')
+      await A.click({ role: 'button', name: 'Only save a recovery key file' })
       await A.waitText('Keep this safe', 8000)
       await A.shot('s158-backup-open', runDir)
     })

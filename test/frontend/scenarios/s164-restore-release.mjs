@@ -14,10 +14,9 @@ export default async function s164({ runDir, bootstrap }) {
   const backupDir = path.join(runDir, 's164-backup')
   mkdirSync(backupDir, { recursive: true })
   const r = makeReport()
-  const flags = { localBackup: true }
-  const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 3, flags })
-  const C = new Instance({ name: 'Carol', bootstrap, slot: 1, total: 3, flags })
-  const B = new Instance({ name: 'NewDevice', bootstrap, slot: 2, total: 3, flags })
+  const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 3 })
+  const C = new Instance({ name: 'Carol', bootstrap, slot: 1, total: 3 })
+  const B = new Instance({ name: 'NewDevice', bootstrap, slot: 2, total: 3 })
   const create = { role: 'button', name: 'Create Space' }
 
   try {
@@ -53,9 +52,9 @@ export default async function s164({ runDir, bootstrap }) {
       await waitFor(async () => B.isDisabled(create), 8000, 'Create Space held')
       await B.shot('s164-read-only', runDir)
     })
-    await r.ok('Details shows what is still being checked', async () => {
+    await r.ok('Details shows the restore and what it waits for', async () => {
       await B.click({ role: 'button', name: 'Details' })
-      await B.waitText('Spaces still being checked', 15000)
+      await B.waitText('Waiting for someone you share a space with to come online…', 15000)
       await B.shot('s164-details', runDir)
     })
     await r.ok('Carol comes online and the restore is confirmed', async () => {

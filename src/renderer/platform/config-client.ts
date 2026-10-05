@@ -46,9 +46,10 @@ export interface RendererConfig {
   // Bandwidth caps share this group; main owns them via its own setBandwidth path,
   // so they are readable here but never written through setConfig.
   network: { downloadKBps: number; uploadKBps: number; relayMode: RelayMode; relay: RelaySlot | null }
-  // Read-only: main fills it from feature-flags.json (rendererFeatures) and setRenderer has no
-  // counterpart, so the renderer can observe a flag but never write one.
-  features: { localBackup?: boolean }
+  // Read-only: main populates it from feature-flags.json and setRenderer has no
+  // counterpart, so the renderer can observe a flag but never write one. Empty since the
+  // relay flag retired; a new field is added here and to RENDERER_FEATURES together.
+  features: Record<string, boolean>
 }
 
 export interface RendererConfigPatch {
@@ -136,10 +137,6 @@ function migrateLegacyLocalStorage(): void {
 }
 
 migrateLegacyLocalStorage()
-
-export function isLocalBackupFeatureOn(): boolean {
-  return cache.features?.localBackup === true
-}
 
 // A restored backup's settings are written by main, which answers with its snapshot afterwards.
 export function adoptConfig(fresh: RendererConfig): void {

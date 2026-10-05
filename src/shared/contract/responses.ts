@@ -504,9 +504,8 @@ export interface BackupKeyStatus {
   reminders: boolean
 }
 
-/** The local backup as this worker runs it; `enabled` is false when the feature is off, `paused` while a restore is catching up, `suspect` the reasons the latest snapshot looks like a loss, `prompt` the question due on the Spaces screen, `stale` no success for ten days, `verdict` how protected this device is (null when off or paused). */
+/** The local backup as this worker runs it; `off` before a backup is set up, `paused` while a restore is catching up, `suspect` the reasons the latest snapshot looks like a loss, `prompt` the question due on the Spaces screen, `stale` no success for ten days, `verdict` how protected this device is (null when off or paused). */
 export interface BackupStatus {
-  enabled: boolean
   folder: string | null
   repoId: string | null
   state: 'off' | 'paused' | 'idle' | 'running' | 'error'

@@ -36,7 +36,7 @@ function home(t, label) {
 }
 
 async function start(t, h, { masterSecret = undefined } = {}) {
-  const config = { storage: h.storage, appVersion: 't', dev: true, verbose: false, downloadFolder: h.downloads, identityKEK: KEK, localBackupEnabled: true, restoreReleaseDwellMs: 0 }
+  const config = { storage: h.storage, appVersion: 't', dev: true, verbose: false, downloadFolder: h.downloads, identityKEK: KEK, restoreReleaseDwellMs: 0 }
   setRuntimeConfig(config)
   setDownloadFolder(h.downloads)
   const fake = createFakeIpc()

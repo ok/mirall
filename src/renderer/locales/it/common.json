@@ -23,7 +23,6 @@
     "displayName": "Nome visualizzato",
     "displayNamePlaceholder": "es. Mario Rossi",
     "displayNameHelp": "È così che ti vedranno il tuo team e i tuoi amici.",
-    "restore": "Hai già una chiave di recupero? Ripristina la tua identità",
     "restoreAccount": "Hai già usato Mirall? Ripristina il tuo account"
   },
   "topnav": {
@@ -39,13 +38,9 @@
     "groupApp": "App",
     "connection": "Connessione",
     "connectionDesc": "{{state}} · {{peers}}",
-    "identityTitle": "Protezione dell'identità",
     "upToDate": "Aggiornato.",
     "activityDesc": "Un resoconto di ciò che è accaduto nei tuoi spazi.",
-    "recordingOff": "Registrazione disattivata · {{kept}}",
-    "backupRecoveryKey": "Salva la tua chiave di recupero",
-    "backupRecoveryKeyDesc": "Salva una chiave cifrata per conservare la tua identità se perdi questo dispositivo.",
-    "backupRecoveryKeyDescWeak": "Questo dispositivo non ha un portachiavi di sistema: una chiave di recupero è la tua vera protezione."
+    "recordingOff": "Registrazione disattivata · {{kept}}"
   },
   "spaces": {
     "title": "Spazi",
@@ -1313,7 +1308,6 @@
     "title": "La tua chiave d’identità è bloccata",
     "body": "Non siamo riusciti a sbloccare la tua chiave d’identità su questo dispositivo: forse l’archivio sicuro è cambiato (un nuovo computer, un portachiavi reimpostato o un backup ripristinato). I tuoi dati sono al sicuro, ma restano bloccati finché non ripristini la chiave.",
     "bodyProvider": "La tua chiave d’identità è stata bloccata con un metodo diverso da quello che l’app usa ora. I tuoi dati sono al sicuro, ma restano bloccati finché non ripristini la chiave.",
-    "restore": "Ripristina con la chiave di recupero",
     "retry": "Riprova",
     "startFresh": "Ricomincia con una nuova identità",
     "startFreshHint": "I dati bloccati vengono messi da parte su questo dispositivo, non eliminati.",

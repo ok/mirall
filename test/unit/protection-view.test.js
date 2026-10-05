@@ -4,7 +4,7 @@ import { protectionBanner, protectionLamp, recoveryKeyRow, keyCopyRow, protectio
 const T = Date.UTC(2026, 9, 1)
 const KEY = { createdAt: '2026-10-01T00:00:00.000Z', inFolder: true, checkedAt: T, secondCopyAt: null, reminders: true }
 const BASE = {
-  enabled: true, folder: '/Volumes/Backup', repoId: 'r', state: 'idle', lastSuccessAt: T, lastSnapshot: 's', lastError: null,
+  folder: '/Volumes/Backup', repoId: 'r', state: 'idle', lastSuccessAt: T, lastSnapshot: 's', lastError: null,
   suspect: null, key: KEY, prompt: null, stale: false, verdict: 'protected', verdictReason: null,
 }
 const status = (patch) => ({ ...BASE, ...patch })
@@ -17,7 +17,7 @@ test('the banner names each cause and offers the one fix', (t) => {
   t.alike(protectionBanner(status({ verdict: 'stopped', verdictReason: 'stale' })), { lamp: 'stopped', key: 'stale', fix: 'run' })
   t.alike(protectionBanner(status({ verdict: 'stopped', verdictReason: 'no-key' })), { lamp: 'stopped', key: 'noKey', fix: 'new-key' })
   t.alike(protectionBanner(status({ state: 'paused', verdict: null })), { lamp: 'paused', key: 'paused', fix: null })
-  t.is(protectionBanner(status({ enabled: false, state: 'off', verdict: null })), null, 'nothing to say with the feature off')
+  t.is(protectionBanner(status({ state: 'off', verdict: null })), null, 'nothing to say with no service on this worker')
   t.is(protectionLamp(status({ state: 'paused', verdict: null })), 'paused')
 })
 

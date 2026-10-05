@@ -23,7 +23,6 @@
     "displayName": "Nombre visible",
     "displayNamePlaceholder": "p. ej. Juan Pérez",
     "displayNameHelp": "Así te verán tu equipo y tus amigos.",
-    "restore": "¿Ya tienes una clave de recuperación? Restaura tu identidad",
     "restoreAccount": "¿Ya usaste Mirall? Restaura tu cuenta"
   },
   "topnav": {
@@ -39,13 +38,9 @@
     "groupApp": "Aplicación",
     "connection": "Conexión",
     "connectionDesc": "{{state}} · {{peers}}",
-    "identityTitle": "Protección de identidad",
     "upToDate": "Actualizado.",
     "activityDesc": "Un registro de lo que ha ocurrido en tus espacios.",
-    "recordingOff": "El registro está desactivado · {{kept}}",
-    "backupRecoveryKey": "Guarda una copia de tu clave de recuperación",
-    "backupRecoveryKeyDesc": "Guarda una clave cifrada para conservar tu identidad si pierdes este dispositivo.",
-    "backupRecoveryKeyDescWeak": "Este dispositivo no tiene llavero del sistema: una clave de recuperación es tu verdadera protección."
+    "recordingOff": "El registro está desactivado · {{kept}}"
   },
   "spaces": {
     "title": "Espacios",
@@ -1313,7 +1308,6 @@
     "title": "Tu clave de identidad está bloqueada",
     "body": "No pudimos desbloquear tu clave de identidad en este dispositivo; puede que tu almacenamiento seguro haya cambiado (un ordenador nuevo, un llavero restablecido o una copia de seguridad restaurada). Tus datos están a salvo, pero seguirán bloqueados hasta que restaures tu clave.",
     "bodyProvider": "Tu clave de identidad se bloqueó con un método distinto del que usa ahora la aplicación. Tus datos están a salvo, pero seguirán bloqueados hasta que restaures tu clave.",
-    "restore": "Restaurar con la clave de recuperación",
     "retry": "Reintentar",
     "startFresh": "Empezar de cero con una identidad nueva",
     "startFreshHint": "Los datos bloqueados se apartan en este dispositivo, no se eliminan.",

@@ -86,13 +86,13 @@ export default function ProtectionStatusScreen({ onBack, onOpenSettings }: Props
                 <RestoreProgress hold={hold} />
               </section>
             )}
-            {status?.enabled && (
+            {status && (
               <section>
                 <SectionHeading>{t('protection.identityTitle')}</SectionHeading>
                 <IdentityRows status={status} identity={identity} onAction={(action) => setDialog(action)} onSaveCopy={() => void copy.save()} savingCopy={copy.saving} />
               </section>
             )}
-            {status?.enabled && banner.lamp !== 'paused' && (
+            {status && banner.lamp !== 'paused' && (
               <section>
                 <SectionHeading>{t('protection.dataTitle')}</SectionHeading>
                 <DataRows status={status} onRunNow={() => void runNow()} />

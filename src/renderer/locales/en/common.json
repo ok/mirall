@@ -51,7 +51,6 @@
     "displayName": "Display Name",
     "displayNamePlaceholder": "e.g. John Doe",
     "displayNameHelp": "This is how your team and friends will see you.",
-    "restore": "Already have a recovery key? Restore your identity",
     "restoreAccount": "Already used Mirall? Restore your account"
   },
   "topnav": {
@@ -67,13 +66,9 @@
     "groupApp": "App",
     "connection": "Connection",
     "connectionDesc": "{{state}} · {{peers}}",
-    "identityTitle": "Identity protection",
     "upToDate": "Up to date.",
     "activityDesc": "A record of what happened in your spaces.",
-    "recordingOff": "Recording is off · {{kept}}",
-    "backupRecoveryKey": "Back up your recovery key",
-    "backupRecoveryKeyDesc": "Save an encrypted key so you can keep your identity if you lose this device.",
-    "backupRecoveryKeyDescWeak": "This device has no system keychain — a recovery key is your real protection."
+    "recordingOff": "Recording is off · {{kept}}"
   },
   "spaces": {
     "title": "Shared",
@@ -1313,7 +1308,6 @@
     "title": "Your identity key is locked",
     "body": "We couldn't unlock your identity key on this device — your secure storage may have changed (a new computer, a reset keychain, or a restored backup). Your data is safe, but it stays locked until you restore your key.",
     "bodyProvider": "Your identity key was locked with a different method than this app is using now. Your data is safe, but it stays locked until you restore your key.",
-    "restore": "Restore from recovery key",
     "retry": "Try again",
     "startFresh": "Start fresh and create a new identity",
     "startFreshHint": "The locked data is set aside on this device, not deleted.",

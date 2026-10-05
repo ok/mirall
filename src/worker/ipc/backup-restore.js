@@ -13,7 +13,6 @@ import { wipeSecret } from '../../shared/core/identity-recovery.js'
 import { sealPendingAdoption } from '../../shared/core/identity.js'
 import { requestRestore, stagingPath, cancelPendingRestore } from '../../shared/core/identity-adopt.js'
 import { unlockProviderFor } from '../../shared/core/unlock-provider.js'
-import { isLocalBackupEnabled } from '../../shared/core/runtime-config.js'
 import { openBackup, listRestorable, stageRestore } from '../../shared/storage/backup/restore.js'
 import { FolderTarget } from '../../shared/storage/backup/folder-target.js'
 import { readFolderKey } from '../../shared/storage/backup/folder-key.js'
@@ -41,7 +40,6 @@ export function registerBackupRestore(ipc, { storagePath, identityKEK, log, lock
   let queue = Promise.resolve()
 
   async function assertAllowed() {
-    if (!isLocalBackupEnabled()) throw new AppError(CODES.NOT_FOUND, 'the local backup is not enabled')
     if (!lockedBy && !(await isUnclaimed())) throw new AppError(CODES.NOT_AUTHORIZED, 'a backup is restored only over a locked or unused identity')
   }
 
