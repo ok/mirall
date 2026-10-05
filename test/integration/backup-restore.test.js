@@ -112,7 +112,7 @@ test('a backup restores onto a new device: listed, staged, put in place, and hel
   const catalogName = catalogNameForSpace(original.spaceId, spaces[0])
   t.ok(isHeld(catalogName), 'and its own catalog is held')
 
-  await waitFor(() => root.restoreCatchUp.status()?.released, 15000, { interval: 200, label: 'a solo identity is released' })
+  await waitFor(() => root.restoreCatchUp.status()?.profile?.released, 15000, { interval: 200, label: 'a solo identity is released' })
   t.absent(isHeld(catalogName), 'a space with no other member releases its catalog')
   const catalog = await ownCatalog(original.spaceId)
   t.ok(catalog.core.writable, 'which reopens writable')

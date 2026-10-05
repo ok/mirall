@@ -54,14 +54,15 @@ test('a recovery key on an empty device catches its profile up from a co-member 
 
   const restoring = await launch()
   const held = await restoring.request('identity:status')
-  t.is(held.restore?.verdict, 'no-holder', 'restore mode, waiting for someone who holds the profile')
-  t.is(await codeOf(restoring.request('profile:set', { displayName: 'Too early' })), 'SESSION_NOT_WRITABLE',
-    'nothing writes the profile before it has caught up')
+  t.is(held.restore?.profile?.verdict, 'no-holder', 'restore mode, waiting for someone who holds the profile')
+  t.is(await codeOf(restoring.request('profile:set', { displayName: 'Too early' })), 'RESTORE_HELD',
+    'nothing writes the profile before it has caught up, and the refusal says why')
+  t.is(await codeOf(restoring.request('space:create', { name: 'Too early' })), 'RESTORE_HELD', 'nor creates a space in it')
 
   const inviteCode = await carol.request('space:invite', { spaceId, autoAdmit: true, expiresInMs: 2 * 60 * 60 * 1000 })
   await restoring.request('space:join', { inviteCode })
-  const released = await restoring.until('identity:status', {}, (s) => s.restore?.released === true, { ms: 150000, every: 500 })
-  t.ok(released.restore.length > 0, 'the profile arrived from Carol')
+  const released = await restoring.until('identity:status', {}, (s) => s.restore?.profile?.released === true, { ms: 150000, every: 500 })
+  t.ok(released.restore.profile.length > 0, 'the profile arrived from Carol')
   await stop(restoring)
 
   const back = await launch()

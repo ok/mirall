@@ -8,6 +8,8 @@ import SpaceCard from '../components/cards/SpaceCard.js'
 import Button from '../components/primitives/Button.js'
 import DocsCard from '../components/cards/DocsCard.js'
 import BackupPromptCard from '../components/backup/BackupPromptCard.js'
+import { useRestoreHold } from '../hooks/useRestoreHold.js'
+import { useHeldControl } from '../hooks/useHeldControl.js'
 
 interface YourSpacesProps {
   onSelectSpace: (spaceId: string) => void
@@ -17,6 +19,7 @@ interface YourSpacesProps {
 
 export default function YourSpaces({ onSelectSpace, onShowCreate, onShowJoin }: YourSpacesProps) {
   const { t } = useTranslation()
+  const createControl = useHeldControl(!useRestoreHold().canWriteProfile)
   const { spaces, loading } = useSpaces()
   const [filter, setFilter] = useState<'all' | 'favorites'>('all')
   const { ref: listRef, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
@@ -58,7 +61,7 @@ export default function YourSpaces({ onSelectSpace, onShowCreate, onShowJoin }: 
             </button>
           ))}
           <div className="flex-1" />
-          <Button icon="add_circle" onClick={onShowCreate}>
+          <Button icon="add_circle" onClick={createControl.guard(onShowCreate)} {...createControl.attrs}>
             {t('spaces.create')}
           </Button>
           <Button icon="group_add" onClick={onShowJoin}>

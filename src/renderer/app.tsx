@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useChannelFault } from './hooks/useChannelFault.js'
 import { useProfile } from './hooks/useProfile.js'
-import { useIdentityStatus } from './hooks/useIdentityStatus.js'
+import { useIdentityStatus, type IdentityStatusView } from './hooks/useIdentityStatus.js'
+import { restoreHoldView } from './model/restore-hold-view.js'
 import { useUpdates } from './hooks/useUpdates.js'
 import { useSpaces } from './hooks/useSpaces.js'
 import { useAppNavigation, type AppNavigation } from './hooks/useAppNavigation.js'
@@ -21,7 +22,8 @@ import * as whatsNew from './platform/whats-new.js'
 import OnboardingScreen from './screens/OnboardingScreen.js'
 import WorkerFaultScreen from './screens/WorkerFaultScreen.js'
 import IdentityLockedScreen from './screens/IdentityLockedScreen.js'
-import RestoreScreen from './screens/RestoreScreen.js'
+import RestoreBanner from './components/layout/RestoreBanner.js'
+import RestoreToastBridge from './components/toast/bridges/RestoreToastBridge.js'
 import ScreenRouter from './ScreenRouter.js'
 import TopNav from './components/layout/TopNav.js'
 import AppDialogs, { type AppDialog } from './components/modals/AppDialogs.js'
@@ -72,16 +74,16 @@ export default function App() {
   // read as "no profile yet" and open onboarding over the identity it holds.
   if (!identity.known) return <BootScreen label={t('boot.loading')} />
   if (identity.locked) return <IdentityLockedScreen code={identity.code} />
-  // A restored profile reads as "no profile yet" until it has caught up, and onboarding would write it.
-  if (identity.restore) return <RestoreScreen progress={identity.restore} restartFailed={identity.restartFailed} onRetryRestart={identity.retryRestart} />
   if (loading) return <BootScreen label={t('boot.loading')} />
-  if (needsSetup) return <OnboardingScreen onComplete={saveProfile} />
+  // A restored profile reads as "no profile yet" until it has caught up, and onboarding would write it:
+  // the app opens read-only instead.
+  if (needsSetup && !identity.restore?.profile) return <OnboardingScreen onComplete={saveProfile} />
 
   return (
     <ToastProvider>
       <ConnectionStatusProvider>
         <KeyboardProvider currentScreen={nav.currentScreen} selectedSpaceId={nav.selectedSpaceId}>
-          <AppShell nav={nav} profile={profile} onSaveProfile={saveProfile} deepLinks={deepLinks} />
+          <AppShell nav={nav} profile={profile} onSaveProfile={saveProfile} deepLinks={deepLinks} identity={identity} />
         </KeyboardProvider>
       </ConnectionStatusProvider>
     </ToastProvider>
@@ -93,10 +95,12 @@ interface AppShellProps {
   profile: Profile | null
   onSaveProfile: (data: { displayName: string; avatar: string | null }) => Promise<Profile>
   deepLinks: DeepLinkQueue
+  identity: IdentityStatusView
 }
 
-function AppShell({ nav, profile, onSaveProfile, deepLinks }: AppShellProps) {
+function AppShell({ nav, profile, onSaveProfile, deepLinks, identity }: AppShellProps) {
   const { t } = useTranslation()
+  const hold = restoreHoldView(identity.restore)
   const { spaces, loading: spacesLoading, createSpace, joinSpace, toggleFavorite } = useSpaces()
   const { update, dismissed, dismiss } = useUpdates()
   const [dialog, setDialog] = useState<AppDialog | null>(null)
@@ -143,6 +147,7 @@ function AppShell({ nav, profile, onSaveProfile, deepLinks }: AppShellProps) {
       <WorkerToastBridge />
       <JoinRequestToastBridge navigateToSpace={nav.navigateToSpace} />
       <BackupToastBridge onOpen={() => nav.setCurrentScreen('protection-status')} />
+      <RestoreToastBridge active={hold.active} />
       <div className="min-h-screen bg-surface">
         <a
           href="#main-content"
@@ -160,6 +165,14 @@ function AppShell({ nav, profile, onSaveProfile, deepLinks }: AppShellProps) {
           onFeedbackClick={() => setDialog({ kind: 'feedback' })}
           update={dismissed ? null : update}
           onDismissUpdate={dismiss}
+          restoreBanner={hold.active ? (
+            <RestoreBanner
+              hold={hold}
+              restartFailed={identity.restartFailed}
+              onRetryRestart={identity.retryRestart}
+              onDetails={() => nav.setCurrentScreen('protection-status')}
+            />
+          ) : undefined}
         />
         <AppDialogs
           dialog={dialog}

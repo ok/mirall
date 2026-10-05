@@ -47,6 +47,8 @@ import { topicField } from '../../shared/network/topic-refs.js'
 import { attachPeerCore, closeIfUnadmitted, lendPeerCores, replicateOn } from '../../shared/network/replication-gate.js'
 import { peerActorIn, spaceRefOf } from '../audit-refs.js'
 import b4a from 'b4a'
+import { assertProfileWritable } from '../../shared/core/restore-guard.js'
+import { profileHeld } from '../../shared/core/restore-hold.js'
 /** @import { WorkerIpc } from '../../shared/core/ipc.js' */
 /** @import { Logger } from '../../shared/core/logger.js' */
 /** @import { StoredSpace } from '../../shared/spaces/space.js' */
@@ -177,7 +179,8 @@ async function onJoinRequest(msg, ctx = {}) {
     sendMembershipDeny(profileKey, spaceId)
     return
   }
-  if (verdict === 'auto-approve') {
+  // Approving writes the profile, so a held one records the knock and answers it after the release.
+  if (verdict === 'auto-approve' && !profileHeld()) {
     await resolveJoinRequest(space, profileKey, 'approve')
     return
   }
@@ -197,7 +200,9 @@ async function onJoinRequest(msg, ctx = {}) {
   // against our leave stamp. Only the renderer emit is deduped: an unchanged heartbeat
   // keeps the banner quiet, and this sits strictly AFTER the replay branches above, so a
   // re-knock still replays a lost grant/deny.
-  await markRequest(spaceId, profileKey, { displayName, avatar, refresh: hadLeft })
+  // A held profile cannot take the receipt; the knock repeats on a heartbeat and the first one after the
+  // restore is confirmed writes it.
+  if (!profileHeld()) await markRequest(spaceId, profileKey, { displayName, avatar, refresh: hadLeft })
   if (changed || hadLeft) ipc.emit('event:member-join-request', { spaceId, publicKey: profileKey, displayName, avatar })
   // Every knock, not only a changed one: the audit dedupes itself, and a row the log did not take is
   // retried by the next heartbeat knock.
@@ -635,6 +640,7 @@ export function createMembership(ipcRef, deps) {
   dropSpaceDownloadRoot = deps.dropSpaceDownloadRoot
 
   ipc.handle('space:approve-member', async (msg) => {
+    assertProfileWritable()
     const space = await joinedSpace(msg.spaceId)
     const approved = await resolveJoinRequest(space, msg.publicKey, 'approve')
     if (approved) {
@@ -647,6 +653,7 @@ export function createMembership(ipcRef, deps) {
     return approved
   })
   ipc.handle('space:deny-member', async (msg) => {
+    assertProfileWritable()
     const space = await joinedSpace(msg.spaceId)
     const outcome = await decideDeny(space, msg.publicKey)
     if (outcome === DENY_OUTCOME.DENIED) {

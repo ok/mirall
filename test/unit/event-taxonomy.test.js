@@ -39,6 +39,7 @@ const TAXONOMY = {
   'event:owned-folder-mount-status': 'poke',
   'event:audit-updated': 'poke',
   'event:storage-updated': 'poke',
+  'event:restore-updated': 'poke',
   'event:decoration': 'decoration',
   'event:owned-folder-index-progress': 'decoration',
   'event:share-index-progress': 'decoration',

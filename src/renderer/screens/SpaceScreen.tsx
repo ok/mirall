@@ -19,6 +19,8 @@ import { useProfile } from '../hooks/useProfile.js'
 import { useDragShare } from '../hooks/useDragShare.js'
 import SpaceDialogs, { type SpaceDialog } from '../components/modals/SpaceDialogs.js'
 import JoinRequestCard from '../components/cards/JoinRequestCard.js'
+import SpaceCheckingNote from '../components/space/SpaceCheckingNote.js'
+import { useRestoreHold } from '../hooks/useRestoreHold.js'
 import HiddenFileInput from '../components/primitives/HiddenFileInput.js'
 import { useToast } from '../components/toast/ToastProvider.js'
 import SpaceHeaderBar from '../components/layout/SpaceHeaderBar.js'
@@ -45,6 +47,7 @@ interface SpaceViewProps {
 export default function SpaceScreen({ spaceId, pendingAction, onActionConsumed, onBack, onManageStorage, onOpenShare }: SpaceViewProps) {
   const { t } = useTranslation()
   const { profile } = useProfile()
+  const hold = useRestoreHold()
   const {
     files, loading, error, refresh, isSeeded, addFiles, downloadFile,
     unshareFile, cancelPublish, revealFile,
@@ -132,7 +135,9 @@ export default function SpaceScreen({ spaceId, pendingAction, onActionConsumed, 
         onEdit={() => setDialog({ kind: 'edit' })}
         onManageStorage={onManageStorage}
         onLeave={() => setDialog({ kind: 'leave' })}
+        writeHeld={!hold.canWriteProfile}
       />
+      <SpaceCheckingNote spaceId={spaceId} />
 
       {isLegacy && <SpaceAlert text={t('space.legacyWarning')} />}
       {space?.creatorDivergence && <SpaceAlert text={t('space.creatorDivergenceWarning')} />}
@@ -145,6 +150,7 @@ export default function SpaceScreen({ spaceId, pendingAction, onActionConsumed, 
             onApprove={handleApprove}
             onDeny={handleDeny}
             onReview={() => setDialog({ kind: 'approval' })}
+            writeHeld={!hold.canWriteProfile}
           />
         </div>
       )}
@@ -161,6 +167,7 @@ export default function SpaceScreen({ spaceId, pendingAction, onActionConsumed, 
           isLegacy={isLegacy}
           pane={pane}
           onFilesSelected={addFiles}
+          shareHeld={!hold.canShareIn(spaceId)}
           onShareFolderRequest={handleShareFolderRequest}
           drag={{ handlers: dragHandlers, active: dragActive, kind: dragKind, fileCount, folderName }}
           shares={shares}

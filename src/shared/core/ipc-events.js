@@ -33,6 +33,7 @@ const POKE_SCOPE = {
   'event:owned-folder-mount-status': (p) => (p.spaceId ? Scope.shares(p.spaceId) : null),
   'event:audit-updated': () => Scope.audit(),
   'event:storage-updated': () => Scope.storage(),
+  'event:restore-updated': () => Scope.restore(),
 }
 
 /** @internal */

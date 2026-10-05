@@ -3,6 +3,7 @@
 export const ERROR_I18N_KEY_BY_CODE = {
   WRONG_PASSPHRASE: 'wrongPassphrase',
   RECOVERY_FILE_INVALID: 'recoveryFileInvalid',
+  RESTORE_HELD: 'restoreHeld',
   BACKUP_CORRUPT: 'backupCorrupt',
   BACKUP_FOREIGN_IDENTITY: 'backupForeignIdentity',
   BACKUP_FOREIGN_REPO: 'backupForeignRepo',

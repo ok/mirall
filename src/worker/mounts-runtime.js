@@ -262,6 +262,15 @@ export class MountsRuntime extends Subsystem {
     })
   }
 
+  // Publishes what a held catalog dropped while a restore was being confirmed: every owned folder of
+  // the space takes its catch-up pass.
+  async rescanSpace(spaceId) {
+    for (const mount of await listOwnedMounts()) {
+      if (mount.spaceId !== spaceId || mount.indexPaused) continue
+      this.armCatchUpScan(spaceId, mount.shareId, mount)
+    }
+  }
+
   schedulePeriodicReconcile(spaceId, shareId, mountPath, ignore) {
     const key = ownedKey(spaceId, shareId)
     const existing = this.periodicTimers.get(key)

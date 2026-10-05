@@ -1323,8 +1323,6 @@
     "restoreAccount": "Restaurar tu cuenta"
   },
   "restore": {
-    "title": "Restaurando tu perfil",
-    "body": "Tu identidad vuelve a estar en este dispositivo. Mirall está obteniendo tu perfil de las personas con las que compartes espacios, para que nada de lo que cambies aquí choque con lo que ya tienen.",
     "statusWaiting": "Esperando a que alguien con quien compartes un espacio se conecte…",
     "statusReceiving": "Recibiendo tu perfil…",
     "statusChecking": "Comprobando que tu perfil está al día…",
@@ -1337,7 +1335,19 @@
     "startFresh": "Empezar una identidad nueva",
     "startFreshHint": "Esta restauración se aparta en este dispositivo, no se elimina.",
     "startFreshBody": "Mirall mueve la identidad restaurada a una carpeta aparte y empieza con una nueva. Tus contactos no reconocerán la nueva identidad y tus espacios no estarán en ella.",
-    "restartFailed": "Mirall no pudo reiniciarse para abrir tu perfil."
+    "restartFailed": "Mirall no pudo reiniciarse para abrir tu perfil.",
+    "bannerWaiting": "Esperando a que alguna se conecte.",
+    "details": "Detalles",
+    "heldReason": "Disponible cuando Mirall haya comprobado con las personas con quienes compartes.",
+    "sectionTitle": "Restaurando",
+    "spacesChecking": "Espacios que aún se están comprobando",
+    "checkingSpaceTitle": "Comprobando «{{name}}»",
+    "checkingSpaceBody": "Mirall aún está comprobando este espacio con sus miembros. Compartir aquí espera hasta entonces; todo lo demás está listo.",
+    "released": "Tu perfil está confirmado: ya puedes volver a cambiarlo.",
+    "bannerBackupLead": "Tus datos están restaurados",
+    "bannerBackupDetail": "Mirall está comprobando con las personas con quienes compartes antes de que puedas hacer cambios.",
+    "bannerKeyLead": "Tu identidad ha vuelto",
+    "bannerKeyDetail": "Mirall está obteniendo tu perfil de las personas con quienes compartes. Hasta entonces puedes mirar, no cambiar."
   },
   "recoveryBackup": {
     "title": "Guarda una copia de tu clave de recuperación",
@@ -1572,7 +1582,11 @@
       "staleTitle": "Tu copia se ha detenido",
       "staleBody": "No se ha copiado nada en más de 10 días. Conecta el disco de copias o elige otra carpeta en los ajustes de copia y recuperación.",
       "noKeyTitle": "Tu copia no tiene clave de recuperación",
-      "noKeyBody": "Sin ella, esta copia no se puede restaurar en otro ordenador. Crea una clave de recuperación."
+      "noKeyBody": "Sin ella, esta copia no se puede restaurar en otro ordenador. Crea una clave de recuperación.",
+      "restoringTitle": "Restaurando",
+      "restoringBody": "Tus datos están restaurados. Los cambios esperan a que alguien con quien compartes confirme que no hay nada más reciente, para que nada choque.",
+      "restoringKeyTitle": "Restaurando",
+      "restoringKeyBody": "Tu identidad ha vuelto. Los cambios esperan a que alguien con quien compartes envíe tu perfil, para que nada choque."
     },
     "copyAfterKey": "Se guarda cuando creas una clave de recuperación."
   }

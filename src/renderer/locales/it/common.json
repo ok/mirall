@@ -1323,8 +1323,6 @@
     "restoreAccount": "Ripristina il tuo account"
   },
   "restore": {
-    "title": "Ripristino del tuo profilo",
-    "body": "La tua identità è di nuovo su questo dispositivo. Mirall sta recuperando il tuo profilo dalle persone con cui condividi spazi, così nulla di ciò che modifichi qui entra in conflitto con ciò che hanno già.",
     "statusWaiting": "In attesa che qualcuno con cui condividi uno spazio si colleghi…",
     "statusReceiving": "Ricezione del tuo profilo…",
     "statusChecking": "Verifica che il tuo profilo sia aggiornato…",
@@ -1337,7 +1335,19 @@
     "startFresh": "Inizia invece una nuova identità",
     "startFreshHint": "Questo ripristino viene messo da parte su questo dispositivo, non eliminato.",
     "startFreshBody": "Mirall sposta l'identità ripristinata in una cartella separata e inizia con una nuova. I tuoi contatti non riconosceranno la nuova identità e i tuoi spazi non saranno su di essa.",
-    "restartFailed": "Mirall non è riuscito a riavviarsi per aprire il tuo profilo."
+    "restartFailed": "Mirall non è riuscito a riavviarsi per aprire il tuo profilo.",
+    "bannerWaiting": "In attesa che una di loro sia online.",
+    "details": "Dettagli",
+    "heldReason": "Disponibile quando Mirall avrà verificato con le persone con cui condividi.",
+    "sectionTitle": "Ripristino",
+    "spacesChecking": "Spazi ancora in verifica",
+    "checkingSpaceTitle": "Verifica di «{{name}}»",
+    "checkingSpaceBody": "Mirall sta ancora verificando questo spazio con i suoi membri. La condivisione qui attende fino ad allora; tutto il resto è pronto.",
+    "released": "Il tuo profilo è confermato: puoi di nuovo modificarlo.",
+    "bannerBackupLead": "I tuoi dati sono ripristinati",
+    "bannerBackupDetail": "Mirall sta verificando con le persone con cui condividi prima che tu possa apportare modifiche.",
+    "bannerKeyLead": "La tua identità è tornata",
+    "bannerKeyDetail": "Mirall sta recuperando il tuo profilo dalle persone con cui condividi. Fino ad allora puoi guardare, non modificare."
   },
   "recoveryBackup": {
     "title": "Salva la tua chiave di recupero",
@@ -1572,7 +1582,11 @@
       "staleTitle": "Il backup si è fermato",
       "staleBody": "Nulla è stato salvato da oltre 10 giorni. Collega il disco di backup o scegli un’altra cartella nelle impostazioni di backup e recupero.",
       "noKeyTitle": "Il backup non ha una chiave di recupero",
-      "noKeyBody": "Senza di essa questo backup non può essere ripristinato su un altro computer. Crea una chiave di recupero."
+      "noKeyBody": "Senza di essa questo backup non può essere ripristinato su un altro computer. Crea una chiave di recupero.",
+      "restoringTitle": "Ripristino",
+      "restoringBody": "I tuoi dati sono ripristinati. Le modifiche attendono che qualcuno con cui condividi confermi che non esiste nulla di più recente, così nulla può entrare in conflitto.",
+      "restoringKeyTitle": "Ripristino",
+      "restoringKeyBody": "La tua identità è tornata. Le modifiche attendono che qualcuno con cui condividi invii il tuo profilo, così nulla può entrare in conflitto."
     },
     "copyAfterKey": "Salvata quando crei una chiave di recupero."
   }
