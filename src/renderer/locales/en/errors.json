@@ -50,5 +50,11 @@
   "approveBlockedDivergence": "Approvals are paused while the owner identity conflict is unresolved.",
   "wrongPassphrase": "That passphrase didn't match this recovery key. Check it and try again.",
   "recoveryFileInvalid": "This file isn't a recovery key this version of Mirall can read.",
-  "backupCorrupt": "This backup is damaged and can't be restored. Try an older backup."
+  "backupCorrupt": "This backup is damaged and can't be restored. Try an older backup.",
+  "backupForeignIdentity": "This backup belongs to another identity. Restore it with that identity's recovery key, or choose another folder.",
+  "backupForeignRepo": "This folder holds a different Mirall backup than the one set up here. Choose the folder again.",
+  "backupOtherDevice": "Another computer is backing up into this folder. Use a separate folder for each computer.",
+  "backupTargetDenied": "Mirall isn't allowed to write to the backup folder. Check its permissions.",
+  "backupTargetFull": "The backup folder's drive is full.",
+  "backupTargetOffline": "The backup folder isn't available. Connect the drive or network share, then try again."
 }

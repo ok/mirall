@@ -127,6 +127,11 @@ export function getSpaceKeysVaultKey() {
   return masterSecret ? deriveContentKey(masterSecret, 'space-keys-vault') : null
 }
 
+// Wraps a backup repository's key, so only this identity can open a backup it made.
+export function backupWrapKey() {
+  return masterSecret ? deriveContentKey(masterSecret, 'backup-repo-wrap/v1') : null
+}
+
 // discoveryKey(hex) → friendly name, kept so the corruption inventory
 // (diagnoseStoreCores) can identify our own cores. corestore drops the alias from the
 // in-memory core, and a keyPair's discovery key is the hash of its derived manifest (not
