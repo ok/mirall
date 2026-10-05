@@ -1,4 +1,5 @@
-// Settings hub: tile navigation into the general / appearance / notifications / network / storage / activity-log subscreens.
+// Settings hub: tile navigation into the general / appearance / notifications / network / storage /
+// backup / activity-log subscreens.
 import { useTranslation } from 'react-i18next'
 import { useHasVerticalOverflow } from '../../hooks/useHasVerticalOverflow.js'
 import Icon from '../../components/primitives/Icon.js'
@@ -23,6 +24,7 @@ export default function Settings({ onBack, onNavigate }: SettingsProps) {
     { icon: 'notifications',   label: t('settings.notifications'), desc: t('settings.notificationsDesc'), bg: 'bg-icon-tile', fg: 'text-on-icon-tile', screen: 'notification-settings' },
     { icon: 'hub',             label: t('settings.network'),       desc: t('settings.networkDesc'),    bg: 'bg-icon-tile', fg: 'text-on-icon-tile', screen: 'network-settings' },
     { icon: 'database',        label: t('settings.storage'),       desc: t('settings.storageDesc'),    bg: 'bg-icon-tile', fg: 'text-on-icon-tile', screen: 'storage-settings' },
+    { icon: 'shield',          label: t('settings.backup'),        desc: t('settings.backupDesc'),     bg: 'bg-icon-tile', fg: 'text-on-icon-tile', screen: 'backup-settings' },
     { icon: 'history',         label: t('settings.activityLog'),  desc: t('settings.activityLogDesc'), bg: 'bg-icon-tile', fg: 'text-on-icon-tile', screen: 'activity-log-settings' },
   ]
 
@@ -47,6 +49,7 @@ export default function Settings({ onBack, onNavigate }: SettingsProps) {
                   type="button"
                   onClick={() => onNavigate(item.screen)}
                   aria-label={item.label}
+                  aria-describedby={`settings-row-${item.screen}`}
                   className="w-full text-left p-6 flex items-center justify-between hover:bg-surface-container-high/50 active:scale-[0.99] transition-all focus-ring cursor-pointer"
                 >
                   <div className="flex items-center gap-4">
@@ -55,7 +58,7 @@ export default function Settings({ onBack, onNavigate }: SettingsProps) {
                     </div>
                     <div>
                       <p className="font-semibold text-accent">{item.label}</p>
-                      <p className="text-xs text-on-surface-variant">{item.desc}</p>
+                      <p id={`settings-row-${item.screen}`} className="text-xs text-on-surface-variant">{item.desc}</p>
                     </div>
                   </div>
                   <Icon name="chevron_right" className="text-secondary" />

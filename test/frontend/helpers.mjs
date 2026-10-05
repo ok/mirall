@@ -48,3 +48,23 @@ export async function connectInSpace(A, B, { name = 'Aurora' } = {}) {
   await B.waitText('Drop to Share', 30000)
   return code
 }
+
+// Save the recovery key on its own, without a backup: Settings → Backup & recovery offers it until a
+// backup is set up.
+export async function saveRecoveryKeyOnly(A, file, passphrase) {
+  await A.gotoSettings('Backup & recovery')
+  await A.click({ role: 'button', name: 'Only save a recovery key file' })
+  await A.setRaw({ role: 'textfield', name: 'Choose a passphrase' }, passphrase)
+  await A.setRaw({ role: 'textfield', name: 'Confirm passphrase' }, passphrase)
+  await A.nativeChoosePath(file, { trigger: () => A.click({ role: 'button', name: 'Save backup file…' }) })
+  await A.waitText('Recovery key saved to your chosen location.', 30000)
+}
+
+// Open the restore from onboarding or the locked screen (`entry` is that button's name) and say that
+// only a recovery key file is at hand.
+export async function chooseKeyRestore(B, entry) {
+  await B.click({ role: 'button', name: entry })
+  await B.waitText('Already used Mirall on another computer?', 8000)
+  await B.click({ name: 'I only have my recovery key file' })
+  await B.click({ role: 'button', name: 'Next' })
+}

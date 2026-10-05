@@ -7,7 +7,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { useQuery } from '../store/useQuery.js'
 import { refetchQuery, setQueryData } from '../store/query-store.js'
 import { restartWorker } from '../ipc/ipc.js'
-import type { IdentityStatus, RestoreProgress } from '../../shared/contract/responses.js'
+import type { IdentityStatus, RestoreStatus } from '../../shared/contract/responses.js'
+import { RESTORE_SCOPES } from '../store/scopes.js'
 import type { IdentityLockCode } from '../../shared/contract/errors.js'
 
 const RETRY_MS = 1000
@@ -16,13 +17,13 @@ export interface IdentityStatusView {
   known: boolean
   locked: boolean
   code: IdentityLockCode | null
-  restore: RestoreProgress | null
+  restore: RestoreStatus | null
   restartFailed: boolean
   retryRestart: () => void
 }
 
 export function useIdentityStatus(): IdentityStatusView {
-  const { data, error } = useQuery('identity:status', {}, null)
+  const { data, error } = useQuery('identity:status', {}, RESTORE_SCOPES)
   const unanswered = data == null && error != null
 
   useEffect(() => {
@@ -33,10 +34,9 @@ export function useIdentityStatus(): IdentityStatusView {
     return () => clearTimeout(timer)
   }, [unanswered, error])
 
-  // A released restore restarts the worker into a normal boot. Not restartIntoIdentity: the restore
-  // screen stays up until the new worker answers, so a restart that fails is said there instead of
-  // being lost behind the boot screen.
-  const released = data?.restore?.released === true
+  // A released profile restarts the worker into a normal boot underneath the app, which stays as it is;
+  // a restart that fails is said in the restore banner, with a retry.
+  const released = data?.restore?.profile?.released === true
   const [restartFailed, setRestartFailed] = useState(false)
   const [restartAttempt, setRestartAttempt] = useState(0)
   useEffect(() => {

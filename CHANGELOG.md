@@ -32,17 +32,22 @@ Mirall folder, app updates included, and lists each space, the shared-file
 index, the Activity Log, download history, app updates and everything else
 separately. When enough can be freed, "Free up" clears it in
 one step.
-- **Back up your identity with a recovery key.** Profile → "Back up your
-recovery key" saves a file sealed with a passphrase you choose. With the
-file and its passphrase you can get your identity back if this device's
-keychain is reset or your data folder moves to another computer. It
-restores your identity, not your files, and we can't reset a lost
-passphrase.
-- **Restore your identity on a new device.** "Restore with a recovery key"
-on the welcome screen brings your identity back. Mirall then gets your
-profile from the people you share spaces with before you can change it, so
-your contacts keep recognizing you. If none of them is online, paste an
-invite code to one of your spaces.
+- **Back up Mirall to a drive or network folder.** Settings → Backup &
+recovery sets up an encrypted backup of your spaces, file lists, settings
+and recovery key in one step, protected by a passphrase you choose. It then
+runs on its own, and Mirall asks now and then whether you still know the
+passphrase. Profile → Protection shows whether your identity and your data
+are protected, and what to do if they aren't.
+- **Save just your recovery key.** If you don't want a backup, Settings →
+Backup & recovery can save only your recovery key: a file sealed with a
+passphrase you choose. It brings back your identity, not your files, and we
+can't reset a lost passphrase.
+- **Restore your account on a new computer.** "Already used Mirall? Restore
+your account" on the welcome screen brings everything back from your backup
+folder, or your identity alone from a recovery key file. Mirall opens right
+away. Until someone you share with confirms nothing newer exists, you can
+look around but not make changes, so nothing you change can clash. If none
+of them is online, paste an invite code to one of your spaces.
 
 #### Changed
 
@@ -55,9 +60,9 @@ app-data folder Mirall reads it from.
 - **Mirall no longer stops when your keychain can't open your identity.**
 After a keychain reset or a move to another computer, Mirall refused to
 start or ended on "background service stopped". It now opens a screen
-where you can restore from your recovery key, try again, or start fresh
-with a new identity. Starting fresh moves the old data aside; nothing is
-deleted.
+where you can restore your account from a backup or a recovery key, try
+again, or start fresh with a new identity. Starting fresh moves the old
+data aside; nothing is deleted.
 - **Old app updates no longer pile up.** Mirall kept every update it ever
 downloaded. It now keeps only the current one.
 - **Leaving a space, or the deletion of a share you mirror, clears its

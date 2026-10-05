@@ -1,5 +1,6 @@
 // Fixed top bar doubling as the window drag region: logo, feedback/settings/account
 // controls (the avatar ring reflects connection status), with the update banner beneath.
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import UpdateBanner from './UpdateBanner.js'
 import type { Profile, UpdateInfo } from '../../types/types.js'
@@ -17,9 +18,11 @@ interface TopNavProps {
   onFeedbackClick: () => void
   update: UpdateInfo | null
   onDismissUpdate: () => void
+  // Shown in the update banner's place while a restore is being confirmed.
+  restoreBanner?: ReactNode
 }
 
-export default function TopNav({ profile, onLogoClick, onSettingsClick, onAccountClick, onFeedbackClick, update, onDismissUpdate }: TopNavProps) {
+export default function TopNav({ profile, onLogoClick, onSettingsClick, onAccountClick, onFeedbackClick, update, onDismissUpdate, restoreBanner }: TopNavProps) {
   const { t } = useTranslation()
   const { state } = useConnectionStatus()
   const hasIssue = state === 'offline' || state === 'connecting' || state === 'limited'
@@ -64,7 +67,7 @@ export default function TopNav({ profile, onLogoClick, onSettingsClick, onAccoun
           </div>
         </div>
       </div>
-      <UpdateBanner update={update} onDismiss={onDismissUpdate} />
+      {restoreBanner ?? <UpdateBanner update={update} onDismiss={onDismissUpdate} />}
     </nav>
   )
 }

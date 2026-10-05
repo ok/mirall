@@ -19,7 +19,7 @@ test('REGRESSION (FIX-400-1): the shell gates on a channel fault before the prof
   // `if (loading) return <BootScreen` — the gate, not the bare `if (loading) return` guard inside
   // the changelog effect above it.
   t.ok(fault < appSrc.indexOf('if (loading) return <BootScreen'), 'and sits above the boot gate')
-  t.ok(fault < appSrc.indexOf('if (needsSetup) return'), 'and above onboarding')
+  t.ok(fault < appSrc.indexOf('if (needsSetup && !identity.restore?.profile) return'), 'and above onboarding')
 })
 
 // A locked worker serves no profile:get, and a failed read is "no profile" to projectProfile — the
@@ -29,7 +29,7 @@ test('the shell gates on a locked identity before the profile gates', (t) => {
   t.ok(locked !== -1, 'the lock gate exists')
   t.ok(appSrc.indexOf('if (fault) return') < locked, 'below the channel fault')
   t.ok(locked < appSrc.indexOf('if (loading) return <BootScreen'), 'above the boot gate')
-  t.ok(locked < appSrc.indexOf('if (needsSetup) return'), 'and above onboarding')
+  t.ok(locked < appSrc.indexOf('if (needsSetup && !identity.restore?.profile) return'), 'and above onboarding')
 })
 
 test('the channel raises a fault on both terminal exits', (t) => {

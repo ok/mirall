@@ -2,12 +2,13 @@ import { mkdirSync } from 'node:fs'
 import path from 'node:path'
 import { Instance } from '../instance.mjs'
 import { makeReport, waitFor } from '../assert.mjs'
+import { saveRecoveryKeyOnly, chooseKeyRestore } from '../helpers.mjs'
 
 const PASS = 'a long enough passphrase'
 
 // A recovery key restored on a fresh install: onboarding offers it, the key is adopted, and the app
-// opens on the Restore screen — never onboarding — because nobody holding the profile has sent it
-// back yet. Starting fresh from there is offered and can be cancelled.
+// opens read-only with a banner — never onboarding — because nobody holding the profile has sent it
+// back yet. The banner's details offer starting fresh, which asks first and can be cancelled.
 export default async function s159({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
@@ -20,28 +21,25 @@ export default async function s159({ runDir, bootstrap }) {
   try {
     await r.ok('back up the recovery key', async () => {
       await A.launch()
-      await A.openAccount()
-      await A.click({ role: 'button', name: 'Back up your recovery key' })
-      await A.setRaw({ role: 'textfield', name: 'Choose a passphrase' }, PASS)
-      await A.setRaw({ role: 'textfield', name: 'Confirm passphrase' }, PASS)
-      await A.nativeChoosePath(keyFile, { trigger: () => A.click({ role: 'button', name: 'Save backup file…' }) })
-      await A.waitText('Recovery key saved to your chosen location.', 30000)
+      await saveRecoveryKeyOnly(A, keyFile, PASS)
       await A.quit()
     })
     await r.ok('onboarding offers a restore with a recovery key', async () => {
       await B.launch({ onboard: false })
       await B.waitText('Welcome to Mirall', 45000)
-      if (!(await B.has({ role: 'button', name: 'Already have a recovery key? Restore your identity' }))) throw new Error('no restore link on onboarding')
+      if (!(await B.has({ role: 'button', name: 'Already used Mirall? Restore your account' }))) throw new Error('no restore link on onboarding')
       await B.shot('s159-onboarding', runDir)
     })
-    await r.ok('the adopted key opens the Restore screen, not onboarding', async () => {
-      await B.click({ role: 'button', name: 'Already have a recovery key? Restore your identity' })
+    await r.ok('the adopted key opens the app read-only, not onboarding', async () => {
+      await chooseKeyRestore(B, 'Already used Mirall? Restore your account')
       await B.nativeChoosePath(keyFile, { trigger: () => B.click({ role: 'button', name: 'Choose recovery key file…' }) })
       await B.waitText('Enter the passphrase for this recovery key.', 8000)
       await B.setRaw(passphrase, PASS)
       await waitFor(async () => !(await B.isDisabled(restore)), 8000, 'Restore available')
       await B.click(restore)
-      await B.waitText('Restoring your profile', 90000)
+      await B.waitText('Your identity is back', 90000)
+      if (!(await B.has({ role: 'button', name: 'Create Space' }))) throw new Error('the app shell is not showing')
+      await B.click({ role: 'button', name: 'Details' })
       await B.waitText('Waiting for someone you share a space with to come online…', 15000)
       for (const sel of [
         { role: 'textfield', name: 'Invite code for one of your spaces' },
@@ -59,7 +57,7 @@ export default async function s159({ runDir, bootstrap }) {
       await B.shot('s159-start-fresh', runDir)
       await B.click({ role: 'button', name: 'Cancel' })
       await waitFor(async () => !(await B.hasText('Start fresh?')), 8000, 'confirm closed')
-      await B.waitText('Restoring your profile', 8000)
+      await B.waitText('Waiting for someone you share a space with to come online…', 8000)
     })
   } catch {}
   return { pass: r.summary(), instances: [A, B] }

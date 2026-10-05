@@ -22,6 +22,7 @@ export interface AppNavigation {
   openSettings: () => void
   openAccount: () => void
   openStorageSettings: (from: 'settings' | 'space-view') => void
+  openFromSettings: (screen: Screen) => void
   openActivityLog: (preset?: Partial<AuditFilters> | null) => void
   openActivityLogSettings: () => void
   goBack: () => void
@@ -67,6 +68,12 @@ export function useAppNavigation(): AppNavigation {
     setStorageBackTarget(from)
     setCurrentScreen('storage-settings')
   }, [])
+
+  // A row on the Settings list: Storage remembers that it was opened from here.
+  const openFromSettings = useCallback((screen: Screen) => {
+    if (screen === 'storage-settings') openStorageSettings('settings')
+    else setCurrentScreen(screen)
+  }, [openStorageSettings])
 
   const openActivityLog = useCallback((preset: Partial<AuditFilters> | null = null) => {
     setActivityLogPreset(preset)
@@ -145,6 +152,7 @@ export function useAppNavigation(): AppNavigation {
     openSettings,
     openAccount,
     openStorageSettings,
+    openFromSettings,
     openActivityLog,
     openActivityLogSettings,
     goBack,

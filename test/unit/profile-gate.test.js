@@ -2,7 +2,7 @@ import test from 'brittle'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'
-import { projectProfile, profileSettled } from '../../src/renderer/model/profile-gate.js'
+import { projectProfile, profileSettled, profileNeededAfter } from '../../src/renderer/model/profile-gate.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(here, '..', '..')
@@ -96,4 +96,19 @@ test('REGRESSION (ADOPT-A5): the hook does not read the store loading flag', (t)
   t.ok(destructure, 'useProfile still reads the profile through the query store')
   t.absent(/\bloading\b/.test(destructure[1]),
     'and does not take `loading` off it — the shell gates its whole tree on that value')
+})
+
+// REGRESSION (FIX-RESTORE-ONBOARDING: a restored identity opened onboarding). The worker's "no profile
+// yet" signal latched for the renderer's lifetime; a restore restarts the worker under the same renderer,
+// the restored profile arrived, and the latch still said "needed". It now belongs to one worker.
+test('the "profile needed" signal is dropped when a new worker arrives or a profile is saved', (t) => {
+  t.ok(profileNeededAfter('needed'))
+  t.absent(profileNeededAfter('new-worker'), 'a new worker says it again on arrival if it still applies')
+  t.absent(profileNeededAfter('saved'))
+  t.absent(projectProfile({ data: PROFILE, error: null, profileNeeded: profileNeededAfter('new-worker') }).needsSetup, 'the restored profile is shown')
+})
+
+test('a fresh "profile needed" still wins over a stale profile from an earlier worker', (t) => {
+  const gate = projectProfile({ data: PROFILE, error: null, profileNeeded: true })
+  t.ok(gate.needsSetup, 'a set-aside identity opens onboarding even before the refetch lands')
 })

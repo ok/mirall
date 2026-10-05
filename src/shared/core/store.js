@@ -9,7 +9,7 @@ import Hypercore from 'hypercore'
 import b4a from 'b4a'
 import { deriveKeyPair, deriveParticipationKeyPair, deriveParticipationId, deriveContentKey, deriveBackupWrapKey } from './identity-keys.js'
 import { createLogger } from './logger.js'
-import { buildRecoveryFile } from './identity-recovery.js'
+import { buildRecoveryFile, identityPublicKeyHex } from './identity-recovery.js'
 import { AppError } from './errors.js'
 import { CODES } from '../contract/errors.js'
 import { Subsystem } from './subsystem.js'
@@ -87,6 +87,11 @@ export function setMasterSecret(buf) {
 
 export function hasMasterSecret() {
   return masterSecret !== null
+}
+
+// The identity a recovery key belongs to, as its file header names it; null while locked.
+export function ownRecoveryIdentity() {
+  return masterSecret ? identityPublicKeyHex(masterSecret) : null
 }
 
 // The recovery key is the one way M leaves this module, and it leaves sealed under the passphrase.

@@ -7,17 +7,29 @@
 /** @import { WorkerIpc } from '../../shared/core/ipc.js' */
 /** @import { Logger } from '../../shared/core/logger.js' */
 /** @import { IdentityLockCode } from '../../shared/contract/errors.js' */
+import fs from 'bare-fs'
 import { requireHost } from '../../shared/core/client-trust.js'
 import { wipeSecret } from '../../shared/core/identity-recovery.js'
 import { sealPendingAdoption } from '../../shared/core/identity.js'
 import { requestRestore, stagingPath, cancelPendingRestore } from '../../shared/core/identity-adopt.js'
 import { unlockProviderFor } from '../../shared/core/unlock-provider.js'
-import { isLocalBackupEnabled } from '../../shared/core/runtime-config.js'
 import { openBackup, listRestorable, stageRestore } from '../../shared/storage/backup/restore.js'
+import { FolderTarget } from '../../shared/storage/backup/folder-target.js'
+import { readFolderKey } from '../../shared/storage/backup/folder-key.js'
+import { peekRepo } from '../../shared/storage/backup/repo.js'
 import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../../shared/contract/main-requests.js'
 import { AppError } from '../../shared/core/errors.js'
 import { CODES } from '../../shared/contract/errors.js'
 import { isUnclaimed } from './identity.js'
+
+/** @param {string} folder */
+function isFolder(folder) {
+  try {
+    return fs.statSync(folder).isDirectory()
+  } catch {
+    return false
+  }
+}
 
 /**
  * @param {WorkerIpc} ipc
@@ -28,8 +40,18 @@ export function registerBackupRestore(ipc, { storagePath, identityKEK, log, lock
   let queue = Promise.resolve()
 
   async function assertAllowed() {
-    if (!isLocalBackupEnabled()) throw new AppError(CODES.NOT_FOUND, 'the local backup is not enabled')
     if (!lockedBy && !(await isUnclaimed())) throw new AppError(CODES.NOT_AUTHORIZED, 'a backup is restored only over a locked or unused identity')
+  }
+
+  // The key file the user chose, or else the one the backup folder keeps.
+  /** @param {string} folder @param {string | null | undefined} content @returns {Promise<string>} */
+  async function keyContent(folder, content) {
+    if (content) return content
+    const target = new FolderTarget(folder)
+    await target.ready()
+    const found = await readFolderKey(target)
+    if (!found) throw new AppError(CODES.BACKUP_KEY_MISSING, 'backup: this folder keeps no recovery key')
+    return found.content
   }
 
   /** @param {string} folder @param {string} snapshot @param {Uint8Array} masterSecret */
@@ -47,10 +69,25 @@ export function registerBackupRestore(ipc, { storagePath, identityKEK, log, lock
     return settings
   }
 
+  // Before any passphrase: is there a backup in this folder, does it keep a key, and how recent is it.
+  // A folder that exists but holds no backup says so instead of reading as offline.
+  ipc.handle('backup:peek', async ({ folder }, ctx) => {
+    requireHost(ctx.client, 'only the host may read a backup')
+    await assertAllowed()
+    const target = new FolderTarget(folder)
+    const { backup, lastBackupAt } = await peekRepo(target)
+    if (!backup) {
+      if (!isFolder(folder)) throw new AppError(CODES.BACKUP_TARGET_OFFLINE, 'backup folder: not a folder')
+      return { backup: false, keyCreatedAt: null, lastBackupAt: null }
+    }
+    const key = await readFolderKey(target)
+    return { backup: true, keyCreatedAt: key?.createdAt ?? null, lastBackupAt }
+  })
+
   ipc.handle('backup:inspect', async ({ folder, content, passphrase }, ctx) => {
     requireHost(ctx.client, 'only the host may read a backup')
     await assertAllowed()
-    const { masterSecret } = await openRecovery(content, passphrase)
+    const { masterSecret } = await openRecovery(await keyContent(folder, content), passphrase)
     try {
       return { snapshots: await listRestorable(await openBackup(folder, masterSecret)) }
     } finally {
@@ -61,7 +98,7 @@ export function registerBackupRestore(ipc, { storagePath, identityKEK, log, lock
   ipc.handle('backup:restore', async ({ folder, snapshot, content, passphrase }, ctx) => {
     requireHost(ctx.client, 'only the host may restore a backup')
     await assertAllowed()
-    const { masterSecret } = await openRecovery(content, passphrase)
+    const { masterSecret } = await openRecovery(await keyContent(folder, content), passphrase)
     const turn = queue.then(() => restore(folder, snapshot, masterSecret))
     queue = turn.then(() => {}, () => {})
     try {

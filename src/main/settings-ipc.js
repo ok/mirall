@@ -13,6 +13,7 @@ const { isMac, isLinux, isWindows } = require('which-runtime')
 const pkg = require('../../package.json')
 const { getPrefs, setPrefs } = require('./prefs.js')
 const { envOverride } = require('./env-overrides.js')
+const { registerBackupIpc } = require('./backup-settings.js')
 
 const appName = pkg.productName || pkg.name
 const version = pkg.version
@@ -165,6 +166,8 @@ function registerSettingsIpc({ createTray, destroyTray, applyAppMenuVisibility, 
   ))
 
   ipcMain.handle('share:browseFolder', (evt) => pickDirectory(evt))
+
+  registerBackupIpc({ ipcMain, config, pickDirectory, validateDownloadFolder, dataDir: () => app.getPath('userData') })
 }
 
 module.exports = { initSettings, registerSettingsIpc, readDownloadFolder, readBandwidth }

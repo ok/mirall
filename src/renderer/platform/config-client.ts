@@ -138,6 +138,11 @@ function migrateLegacyLocalStorage(): void {
 
 migrateLegacyLocalStorage()
 
+// A restored backup's settings are written by main, which answers with its snapshot afterwards.
+export function adoptConfig(fresh: RendererConfig): void {
+  Object.assign(cache, fresh)
+}
+
 export function getThemePref(): ThemeMode {
   return cache.appearance.theme
 }

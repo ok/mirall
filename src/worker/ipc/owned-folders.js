@@ -30,6 +30,7 @@ import {
 import { record } from '../../shared/audit/audit-log.js'
 import { selfActor, targetRef } from '../../shared/audit/audit-record.js'
 import { spaceRefOf } from '../audit-refs.js'
+import { assertCatalogWritable, assertProfileWritable } from '../../shared/core/restore-guard.js'
 
 /**
  * @param {WorkerIpc} ipc
@@ -54,6 +55,7 @@ export function registerOwnedFolders(ipc, { log, mounts, intents, mountOwnedShar
   })
 
   ipc.handle('owned-folder:mount', async (msg) => {
+    await assertCatalogWritable(msg.spaceId)
     const own = await readOwnShares(msg.spaceId)
     const share = own.find((s) => s.id === msg.shareId)
     if (!share) throw new AppError(CODES.SHARE_NOT_FOUND, 'Share not found')
@@ -78,6 +80,7 @@ export function registerOwnedFolders(ipc, { log, mounts, intents, mountOwnedShar
   })
 
   ipc.handle('owned-folder:resume-index', async (msg) => {
+    await assertCatalogWritable(msg.spaceId)
     return await mounts.resumeIndex(msg.spaceId, msg.shareId)
   })
 
@@ -86,6 +89,7 @@ export function registerOwnedFolders(ipc, { log, mounts, intents, mountOwnedShar
   // unchanged content at the new path and uploads nothing, so mirror peers see
   // no churn — this is why relocate beats delete-and-re-add for recovery.
   ipc.handle('owned-folder:relocate', async (msg) => {
+    await assertCatalogWritable(msg.spaceId)
     const mount = await getOwnedMount(msg.spaceId, msg.shareId)
     if (!mount) throw new AppError(CODES.MOUNT_NOT_ON_DEVICE, 'Mount not found')
 
@@ -152,6 +156,7 @@ export function registerOwnedFolders(ipc, { log, mounts, intents, mountOwnedShar
   })
 
   ipc.handle('owned-folder:delete', async (msg) => {
+    assertProfileWritable()
     const own = await readOwnShares(msg.spaceId)
     const share = own.find((s) => s.id === msg.shareId)
     // An unknown share warns but does not stop: the teardown below is idempotent, and a delete is

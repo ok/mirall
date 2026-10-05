@@ -77,7 +77,7 @@ test('a recovery key restores the identity through a locked worker', { timeout: 
   // Held even over its own data, which may be older than what peers hold; with no co-member anywhere
   // nobody else can hold it, so the hold lifts at once and the next boot is a normal one.
   const holding = await launchPeer(t, { bootstrap, displayName: 'Alice', ...home, flags: { identityKEK: newKEK }, setProfile: false })
-  await holding.until('identity:status', {}, (s) => s.restore?.released === true, { ms: 30000, every: 500 })
+  await holding.until('identity:status', {}, (s) => s.restore?.profile?.released === true, { ms: 30000, every: 500 })
   await stop(holding)
   const restored = await launchPeer(t, { bootstrap, displayName: 'Alice', ...home, flags: { identityKEK: newKEK }, setProfile: false })
   t.alike(await restored.request('identity:status'), { locked: false, code: null, restore: null })
@@ -105,8 +105,8 @@ test('a recovery key for another identity is refused unless the user replaces', 
   const asBob = await launchPeer(t, { bootstrap, displayName: 'Bob here', ...home, flags: { identityKEK: newKEK }, setProfile: false })
   const status = await asBob.request('identity:status')
   t.is(status.locked, false, 'the next boot opens')
-  t.is(status.restore?.verdict, 'no-holder', "and holds Bob's profile until a peer holding it is reached")
-  t.is(await codeOf(asBob.request('profile:set', { displayName: 'Bob here' })), 'SESSION_NOT_WRITABLE', 'nothing writes it before then')
+  t.is(status.restore?.profile?.verdict, 'no-holder', "and holds Bob's profile until a peer holding it is reached")
+  t.is(await codeOf(asBob.request('profile:set', { displayName: 'Bob here' })), 'RESTORE_HELD', 'nothing writes it before then')
 
   t.alike(await asBob.request('identity:set-aside'), { folder: null }, 'a restore can still be set aside')
   await stop(asBob)

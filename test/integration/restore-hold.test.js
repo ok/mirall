@@ -6,7 +6,7 @@ import crypto from 'hypercore-crypto'
 import { setRuntimeConfig, setDownloadFolder } from '../../src/shared/core/runtime-config.js'
 import { boot } from '../../src/worker/boot.js'
 import { getProfile, getProfileBee, setProfile, markOwnMembership, CAP_MEMBERSHIP_MANIFEST } from '../../src/shared/spaces/profile.js'
-import { loadRestoreHold, writeRestoreHold, releaseHeld, isHeld, resetRestoreHold, RESTORE_HOLD_FILE, PROFILE_BEE } from '../../src/shared/core/restore-hold.js'
+import { loadRestoreHold, writeRestoreHold, releaseHeld, isHeld, resetRestoreHold, restoreSource, RESTORE_HOLD_FILE, PROFILE_BEE } from '../../src/shared/core/restore-hold.js'
 import { applyPendingIdentityChange, requestSetAside, ADOPT_FILE } from '../../src/shared/core/identity-adopt.js'
 import { sealRecoveryKey } from '../../src/shared/core/store.js'
 import { registerIdentity } from '../../src/worker/ipc/identity.js'
@@ -57,7 +57,7 @@ async function codeOf(promise) {
 
 test('REGRESSION (MIR-30: the first boot after a key was adopted wrote block 0 of the profile)', async (t) => {
   const { storage, config } = home(t)
-  await writeRestoreHold(storage, [PROFILE_BEE])
+  await writeRestoreHold(storage, [PROFILE_BEE], 'key')
   const { root } = await bootRoot(t, config, { masterSecret: crypto.randomBytes(32) })
 
   const core = getProfileBee().core
@@ -67,8 +67,8 @@ test('REGRESSION (MIR-30: the first boot after a key was adopted wrote block 0 o
   t.is(await getProfile(), null)
   t.is(await codeOf(setProfile({ displayName: 'Too early' })), 'SESSION_NOT_WRITABLE', 'a profile write is refused')
   t.is(core.length, 0)
-  t.is(root.restoreCatchUp.status().verdict, RESTORE_VERDICT.NO_HOLDER, 'with nobody connected it waits')
-  t.absent(root.restoreCatchUp.status().released)
+  t.is(root.restoreCatchUp.status().profile.verdict, RESTORE_VERDICT.NO_HOLDER, 'with nobody connected it waits')
+  t.absent(root.restoreCatchUp.status().profile.released)
 })
 
 test('a boot with no hold writes the profile as before', async (t) => {
@@ -86,9 +86,23 @@ test('a hold file that cannot be read holds the profile', async (t) => {
   t.ok(isHeld(PROFILE_BEE))
 })
 
+// REGRESSION (FIX-RESTORE-SOURCE: a backup that brought back no catalog — nothing shared yet — was
+// reported as a key restore, because the source was guessed from the held catalogs).
+test('the hold says what was restored, whatever it holds, across a partial release', async (t) => {
+  const { storage } = home(t)
+  await writeRestoreHold(storage, [PROFILE_BEE, 'space-catalog-x-e1'], 'backup')
+  await loadRestoreHold(storage)
+  await releaseHeld('space-catalog-x-e1')
+  await loadRestoreHold(storage)
+  t.is(restoreSource(), 'backup', 'a backup that now holds the profile alone is still a backup')
+  await writeRestoreHold(storage, [PROFILE_BEE], 'key')
+  await loadRestoreHold(storage)
+  t.is(restoreSource(), 'key')
+})
+
 test('releasing the last held bee removes the hold file', async (t) => {
   const { root, storage } = home(t)
-  await writeRestoreHold(storage, [PROFILE_BEE, 'space-catalog-x-e1'])
+  await writeRestoreHold(storage, [PROFILE_BEE, 'space-catalog-x-e1'], 'backup')
   await loadRestoreHold(storage)
   await releaseHeld(PROFILE_BEE)
   t.ok(isHeld(PROFILE_BEE), 'this process still opened it read-only, so it still reads as held')
@@ -138,7 +152,7 @@ test('a restore set aside moves the store, the envelope and the hold', async (t)
   const { root: dataDir, storage } = home(t)
   fs.writeFileSync(path.join(storage, 'CORESTORE'), 'lock')
   fs.writeFileSync(path.join(dataDir, 'identity.enc'), 'restored')
-  await writeRestoreHold(storage, [PROFILE_BEE])
+  await writeRestoreHold(storage, [PROFILE_BEE], 'key')
   requestSetAside(storage)
   const folder = await applyPendingIdentityChange(storage)
   t.ok(folder)
@@ -161,7 +175,7 @@ test('a key adopted over its own data on a locked device is held, and released a
 
   const { root } = await bootRoot(t, config)
   t.ok(root.restoreCatchUp, 'restore mode')
-  await waitFor(() => root.restoreCatchUp.status().released, 10000, { interval: 200, label: 'release' })
+  await waitFor(() => root.restoreCatchUp.status().profile.released, 10000, { interval: 200, label: 'release' })
   t.absent(fs.existsSync(path.join(dataDir, RESTORE_HOLD_FILE)), 'nobody else can hold it, so the next boot opens it')
   t.absent(getProfileBee().core.writable, 'this worker keeps it read-only until it restarts')
 })

@@ -10,7 +10,7 @@ import { setProfile, getProfile, getProfileBee } from '../../src/shared/spaces/p
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { listSpaces } from '../../src/shared/spaces/space.js'
 import { advertise, ownCatalog, catalogNameForSpace } from '../../src/shared/shares/own-catalog.js'
-import { isHeld, PROFILE_BEE } from '../../src/shared/core/restore-hold.js'
+import { isHeld, writeRestoreHold, PROFILE_BEE } from '../../src/shared/core/restore-hold.js'
 import { applyPendingIdentityChange, stagingPath } from '../../src/shared/core/identity-adopt.js'
 import { registerBackupRestore } from '../../src/worker/ipc/backup-restore.js'
 import { registerProfile } from '../../src/worker/ipc/profile.js'
@@ -36,7 +36,7 @@ function home(t, label) {
 }
 
 async function start(t, h, { masterSecret = undefined } = {}) {
-  const config = { storage: h.storage, appVersion: 't', dev: true, verbose: false, downloadFolder: h.downloads, identityKEK: KEK, localBackupEnabled: true, restoreReleaseDwellMs: 0 }
+  const config = { storage: h.storage, appVersion: 't', dev: true, verbose: false, downloadFolder: h.downloads, identityKEK: KEK, restoreReleaseDwellMs: 0 }
   setRuntimeConfig(config)
   setDownloadFolder(h.downloads)
   const fake = createFakeIpc()
@@ -112,13 +112,23 @@ test('a backup restores onto a new device: listed, staged, put in place, and hel
   const catalogName = catalogNameForSpace(original.spaceId, spaces[0])
   t.ok(isHeld(catalogName), 'and its own catalog is held')
 
-  await waitFor(() => root.restoreCatchUp.status()?.released, 15000, { interval: 200, label: 'a solo identity is released' })
+  await waitFor(() => root.restoreCatchUp.status()?.profile?.released, 15000, { interval: 200, label: 'a solo identity is released' })
   t.absent(isHeld(catalogName), 'a space with no other member releases its catalog')
   const catalog = await ownCatalog(original.spaceId)
   t.ok(catalog.core.writable, 'which reopens writable')
   let found = false
   for await (const node of catalog.createReadStream()) if (node.key.includes('kept-file.txt')) found = true
   t.ok(found, 'with the shared file in it')
+  t.is(root.backup(), null, 'no backup while the profile is held')
+  t.ok(root.backupPaused(), 'which is reported as paused')
+  await root.close()
+
+  // A catalog still held on the next boot: the backup waits for it, then starts in the same session.
+  await writeRestoreHold(device.h.storage, [catalogName], 'backup')
+  const later = await start(t, device.h)
+  await waitFor(() => later.root.backup() !== null, 15000, { interval: 200, label: 'the backup starts once the last hold is released' })
+  t.absent(isHeld(catalogName))
+  t.absent(later.root.backupPaused(), 'and is no longer paused')
 })
 
 test('another identity cannot read the backup', async (t) => {

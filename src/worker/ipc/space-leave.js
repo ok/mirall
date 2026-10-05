@@ -31,6 +31,8 @@ import { disconnectPeersFromSpace, leaveSpaceTopic } from '../../shared/network/
 import { awaitLeaveAcks, hasPendingCancel, hasPendingLeave, isSpaceLeaving, joinPendingCancelTopic, joinPendingLeaveTopic, markSpaceLeaving, registerPendingCancel, registerPendingLeave, sendLeaveFrameToConnectedPeers, sendPendingCancelToConnected, takeLeaveAckedKeys, unmarkSpaceLeaving } from '../../shared/network/leave-protocol.js'
 import { compactStore } from '../../shared/storage/compaction.js'
 import { errorMessage } from '../../shared/core/errors.js'
+import { assertProfileWritable } from '../../shared/core/restore-guard.js'
+import { profileHeld } from '../../shared/core/restore-hold.js'
 
 // Persist a pending-leave marker BEFORE the record purge erases the topic, so the swarm can
 // re-announce the leave to members who were offline at leave time (and boot re-joins the topic)
@@ -137,6 +139,12 @@ export function registerSpaceLeave(ipc, { log, mounts, overlayBackend, discardPe
     // A pending space was never joined — take the lightweight cancel path instead of the teardown,
     // which assumes a materialized space.
     const pending = await getSpace(msg.spaceId)
+    // Leaving lowers the co-members a held profile waits for: leaving every space would release it with
+    // nobody having confirmed it. A pending request writes nothing to the profile and may be withdrawn.
+    if (pending && pending.status !== 'pending' && profileHeld()) {
+      unmarkSpaceLeaving(msg.spaceId)
+      assertProfileWritable()
+    }
     // Recorded up front, while the space record still exists: the teardown deletes it, and the row
     // must carry the name snapshot or it renders as raw hex forever afterwards.
     if (pending) {

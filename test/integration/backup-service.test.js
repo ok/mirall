@@ -9,6 +9,7 @@ import { setProfile } from '../../src/shared/spaces/profile.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { deleteSpaceRecord } from '../../src/shared/spaces/space.js'
 import { registerBackup } from '../../src/worker/ipc/backup.js'
+import { createPassphraseThrottle } from '../../src/shared/core/identity-recovery.js'
 import { writeRestoreHold, PROFILE_BEE } from '../../src/shared/core/restore-hold.js'
 import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../../src/shared/contract/main-requests.js'
 import { FolderTarget, REPO_DIR } from '../../src/shared/storage/backup/folder-target.js'
@@ -34,11 +35,11 @@ function dirs(t) {
   return { home, storage, downloads, backupFolder }
 }
 
-async function bootWith(t, { enabled = true, folder = null, repoId = null } = {}) {
+async function bootWith(t, { configured = true, repoId = null } = {}) {
   const d = dirs(t)
   const config = {
     storage: d.storage, appVersion: '0.0.0-test', dev: true, verbose: false, downloadFolder: d.downloads,
-    localBackupEnabled: enabled, backupFolder: folder === undefined ? null : (folder ?? d.backupFolder), backupRepoId: repoId,
+    backupFolder: configured ? d.backupFolder : null, backupRepoId: repoId,
   }
   setRuntimeConfig(config)
   setDownloadFolder(d.downloads)
@@ -46,7 +47,7 @@ async function bootWith(t, { enabled = true, folder = null, repoId = null } = {}
   const masterSecret = crypto.randomBytes(32)
   const root = await boot(config, { ipc: fake.ipc, log: quiet, swarm: false, masterSecret, memberRegistry: offlineMemberRegistry })
   t.teardown(async () => { try { await root.close() } catch {} }, { order: 1 })
-  registerBackup(fake.ipc, { backup: root.backup, paused: root.backupPaused })
+  registerBackup(fake.ipc, { backup: root.backup, paused: root.backupPaused, openRecovery: createPassphraseThrottle() })
   await setProfile({ displayName: 'Backed' })
   return { ...d, root, fake, masterSecret }
 }
@@ -55,13 +56,13 @@ async function bootWith(t, { enabled = true, folder = null, repoId = null } = {}
 async function bootWithStorage(t, previous, { folder, repoId }) {
   const config = {
     storage: previous.storage, appVersion: '0.0.0-test', dev: true, verbose: false, downloadFolder: previous.downloads,
-    localBackupEnabled: true, backupFolder: folder, backupRepoId: repoId,
+    backupFolder: folder, backupRepoId: repoId,
   }
   setRuntimeConfig(config)
   const fake = createFakeIpc()
   const root = await boot(config, { ipc: fake.ipc, log: quiet, swarm: false, masterSecret: previous.masterSecret, memberRegistry: offlineMemberRegistry })
   t.teardown(async () => { try { await root.close() } catch {} }, { order: 1 })
-  registerBackup(fake.ipc, { backup: root.backup, paused: root.backupPaused })
+  registerBackup(fake.ipc, { backup: root.backup, paused: root.backupPaused, openRecovery: createPassphraseThrottle() })
   return { root, fake }
 }
 
@@ -76,13 +77,6 @@ async function codeOf(promise) {
 
 const remembered = (fake) => fake.events.filter((e) => e.type === MAIN_REQUEST_FRAME && e.payload.command === MAIN_REQUEST.BACKUP_REMEMBER).map((e) => e.payload.args)
 
-test('with the feature off there is no service, and the status says so', async (t) => {
-  const { root, fake } = await bootWith(t, { enabled: false })
-  t.is(root.backup, null)
-  t.is((await fake.call('backup:status', {})).enabled, false)
-  t.is(await codeOf(fake.call('backup:run', {})), 'NOT_FOUND')
-})
-
 test('a run writes a snapshot, reports it, and has main remember the new repository', async (t) => {
   const { fake } = await bootWith(t)
   const status = await fake.call('backup:run', {})
@@ -95,12 +89,12 @@ test('a run writes a snapshot, reports it, and has main remember the new reposit
 
 test('a change worth backing up arms the next run', async (t) => {
   const { root } = await bootWith(t)
-  await root.backup.run('manual')
+  await root.backup().run('manual')
   await setProfile({ displayName: 'Changed' })
-  t.is(root.backup.dirty?.urgency, 'normal', 'an everyday change')
-  t.ok(root.backup.wake, 'and a run is scheduled')
+  t.is(root.backup().dirty?.urgency, 'normal', 'an everyday change')
+  t.ok(root.backup().wake, 'and a run is scheduled')
   await createSpace('Urgent')
-  t.is(root.backup.dirty?.urgency, 'urgent', 'a new space is urgent')
+  t.is(root.backup().dirty?.urgency, 'urgent', 'a new space is urgent')
 })
 
 test('the folder can never be inside the app data folder, and a new folder starts a new backup', async (t) => {
@@ -142,7 +136,8 @@ test('losing spaces marks a snapshot suspect, and pruning keeps the healthy ones
 })
 
 test('pruning removes snapshots retention does not keep and the objects only they named', async (t) => {
-  const { storage, backupFolder } = await bootWith(t, { enabled: false })
+  // No folder configured, so the service never runs on its own beside the passes this test makes.
+  const { storage, backupFolder } = await bootWith(t, { configured: false })
   const target = new FolderTarget(backupFolder)
   const base = Date.now() - 10 * DAY
   let repoId = null
@@ -188,23 +183,23 @@ test('files a folder browser leaves in the backup do not stop pruning', async (t
 
 test('changes made while a run goes are kept for the next run; earlier ones are done', async (t) => {
   const { root } = await bootWith(t)
-  root.backup.note('urgent')
-  const run = root.backup.run('manual')
-  root.backup.note('normal')
+  root.backup().note('urgent')
+  const run = root.backup().run('manual')
+  root.backup().note('normal')
   await run
-  t.is(root.backup.dirty?.urgency, 'normal', 'only the change that came during the run is still due')
+  t.is(root.backup().dirty?.urgency, 'normal', 'only the change that came during the run is still due')
 })
 
 test('settings that are not preferences do not make a run look changed', async (t) => {
   const { root, home } = await bootWith(t)
   const configFile = path.join(home, 'config.json')
   fs.writeFileSync(configFile, JSON.stringify({ appearance: { theme: 'dark' }, window: { bounds: { x: 1 } } }))
-  await root.backup.run('manual')
+  await root.backup().run('manual')
   fs.writeFileSync(configFile, JSON.stringify({ appearance: { theme: 'dark' }, window: { bounds: { x: 200 } } }))
-  const again = await root.backup.run('manual')
+  const again = await root.backup().run('manual')
   t.ok(again.lastSnapshot)
   const before = again.lastSnapshot
-  t.is((await root.backup.run('manual')).lastSnapshot, before, 'moving the window wrote no snapshot')
+  t.is((await root.backup().run('manual')).lastSnapshot, before, 'moving the window wrote no snapshot')
 })
 
 test('after a restart the status shows the latest snapshot and its flag again', async (t) => {
@@ -229,16 +224,15 @@ test('after a restart the status shows the latest snapshot and its flag again', 
 
 test('while a restore is catching up, the backup reports itself paused', async (t) => {
   const d = dirs(t)
-  await writeRestoreHold(d.storage, [PROFILE_BEE])
-  const config = { storage: d.storage, appVersion: 't', dev: true, verbose: false, downloadFolder: d.downloads, localBackupEnabled: true, backupFolder: d.backupFolder, backupRepoId: null }
+  await writeRestoreHold(d.storage, [PROFILE_BEE], 'backup')
+  const config = { storage: d.storage, appVersion: 't', dev: true, verbose: false, downloadFolder: d.downloads, backupFolder: d.backupFolder, backupRepoId: null }
   setRuntimeConfig(config)
   setDownloadFolder(d.downloads)
   const fake = createFakeIpc()
   const root = await boot(config, { ipc: fake.ipc, log: quiet, swarm: false, masterSecret: crypto.randomBytes(32), memberRegistry: offlineMemberRegistry })
   t.teardown(async () => { try { await root.close() } catch {} }, { order: 1 })
-  registerBackup(fake.ipc, { backup: root.backup, paused: root.backupPaused })
-  t.is(root.backup, null)
+  registerBackup(fake.ipc, { backup: root.backup, paused: root.backupPaused, openRecovery: createPassphraseThrottle() })
+  t.is(root.backup(), null)
   const status = await fake.call('backup:status', {})
   t.is(status.state, 'paused')
-  t.is(status.enabled, true)
 })

@@ -1,5 +1,5 @@
-// Profile screen: display name and avatar; this device's connection, identity protection, recovery
-// key and activity log; app version and resources.
+// Profile screen: display name and avatar; this device's connection, protection and activity log; app
+// version and resources.
 import InlineError from '../components/primitives/InlineError.js'
 import { useState, useRef, useEffect, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -18,12 +18,19 @@ import { useOpenWhatsNew } from '../hooks/useOpenWhatsNew.js'
 import StatusDot from '../components/primitives/StatusDot.js'
 import Icon from '../components/primitives/Icon.js'
 import type { IconName } from '../types/ui.js'
+import type { TFunction } from 'i18next'
+import type { BackupStatus } from '../../shared/contract/responses.js'
 import Avatar from '../components/primitives/Avatar.js'
 import CopyButton from '../components/primitives/CopyButton.js'
 import PageHeader from '../components/layout/PageHeader.js'
 import SectionHeading from '../components/layout/SectionHeading.js'
 import ActionRow, { ROW, ROW_GROUP, RowBody, Tile } from '../components/layout/ActionRow.js'
-import RecoveryBackupModal from '../components/modals/RecoveryBackupModal.js'
+import { useIdentityProtection } from '../hooks/useIdentityProtection.js'
+import { useBackupStatus } from '../hooks/useBackupStatus.js'
+import { useRestoreHold } from '../hooks/useRestoreHold.js'
+import ProtectionDot from '../components/backup/ProtectionDot.js'
+import { protectionLamp, protectionSummary } from '../model/protection-view.js'
+import { formatDateTime } from '../format/utils.js'
 
 interface AccountProps {
   profile: Profile | null
@@ -31,13 +38,8 @@ interface AccountProps {
   onBack: () => void
   onOpenNetworkStatus: () => void
   onOpenActivityLog: () => void
+  onOpenProtection: () => void
   onFeedback: () => void
-}
-
-const IDENTITY_LINE: Record<IdentityProtection, { icon: IconName; key: string }> = {
-  protected: { icon: 'shield', key: 'settings.identityProtected' },
-  weak: { icon: 'info', key: 'settings.identityWeak' },
-  disabled: { icon: 'info', key: 'settings.identityDisabled' },
 }
 
 function LinkRow({ label, desc, icon, href }: { label: string; desc: ReactNode; icon: IconName; href: string }) {
@@ -56,15 +58,6 @@ function LinkRow({ label, desc, icon, href }: { label: string; desc: ReactNode; 
   )
 }
 
-// Information, not a control: no role, no focus stop, no chevron.
-function InfoRow({ label, desc, icon }: { label: string; desc: ReactNode; icon: IconName }) {
-  return (
-    <div className="w-full p-6 flex items-center justify-between">
-      <RowBody leading={<Tile icon={icon} />} title={label} desc={desc} />
-    </div>
-  )
-}
-
 function ProfileCard({ profile, onSave }: Pick<AccountProps, 'profile' | 'onSave'>) {
   const { t } = useTranslation()
   const runAction = useRunAction()
@@ -72,6 +65,8 @@ function ProfileCard({ profile, onSave }: Pick<AccountProps, 'profile' | 'onSave
   const { avatar, error: avatarError, onChange: handleAvatarChange } = useAvatarPicker(profile?.avatar || null)
   const [saving, setSaving] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  // A restored profile is read-only until the people it is shared with confirm it.
+  const held = !useRestoreHold().canWriteProfile
 
   const hasChanges = displayName !== profile?.displayName || avatar !== profile?.avatar
 
@@ -93,8 +88,10 @@ function ProfileCard({ profile, onSave }: Pick<AccountProps, 'profile' | 'onSave
       <div className="flex items-center gap-6">
         <button
           type="button"
-          onClick={() => fileRef.current?.click()}
+          onClick={() => { if (!held) fileRef.current?.click() }}
           aria-label={t('settings.changeAvatar')}
+          aria-disabled={held || undefined}
+          aria-describedby={held ? 'account-held-reason' : undefined}
           className="relative w-20 h-20 rounded-full bg-surface flex items-center justify-center cursor-pointer overflow-hidden shrink-0 p-0 border-0 focus-ring"
         >
           <Avatar src={avatar} size="xl" fallback="silhouette" decorative />
@@ -109,7 +106,8 @@ function ProfileCard({ profile, onSave }: Pick<AccountProps, 'profile' | 'onSave
             id="account-display-name"
             type="text"
             maxLength={NAME_MAX}
-            aria-describedby="account-display-name-count"
+            aria-describedby={held ? 'account-display-name-count account-held-reason' : 'account-display-name-count'}
+            readOnly={held}
             className="w-full bg-surface-container-lowest border-none rounded-xl px-4 py-3 text-on-surface placeholder:text-outline-variant focus-ring transition-all"
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
@@ -119,6 +117,7 @@ function ProfileCard({ profile, onSave }: Pick<AccountProps, 'profile' | 'onSave
           </p>
         </div>
       </div>
+      {held && <p id="account-held-reason" className="text-xs text-on-surface-variant">{t('restore.heldReason')}</p>}
       {avatarError && (
         <InlineError size="xs">{avatarError}</InlineError>
       )}
@@ -136,20 +135,23 @@ function ProfileCard({ profile, onSave }: Pick<AccountProps, 'profile' | 'onSave
   )
 }
 
-function DeviceGroup({ onOpenNetworkStatus, onOpenActivityLog }: Pick<AccountProps, 'onOpenNetworkStatus' | 'onOpenActivityLog'>) {
+function summaryText(status: BackupStatus, identity: IdentityProtection | null, t: TFunction): string {
+  const { lead, data, at } = protectionSummary(status, identity)
+  const dataText = t(data, at === null ? {} : { when: formatDateTime(at) })
+  return lead ? t('protection.summary.line', { key: t(lead), data: dataText }) : dataText
+}
+
+function DeviceGroup({ onOpenNetworkStatus, onOpenActivityLog, onOpenProtection }: Pick<AccountProps, 'onOpenNetworkStatus' | 'onOpenActivityLog' | 'onOpenProtection'>) {
   const { t } = useTranslation()
   const { state: connectivityState, status: networkStatus } = useConnectionStatus()
-  const [identity, setIdentity] = useState<IdentityProtection | null>(null)
-  const [backupOpen, setBackupOpen] = useState(false)
+  const identity = useIdentityProtection()
+  const backup = useBackupStatus()
+  const lamp = backup ? protectionLamp(backup) : null
   // Through the query store for the dedup and cache, with NO scopes: this is a summary line, not a
   // live counter, and the audit scope would repaint it on every recorded event. Scope-less still
   // re-reads on each mount. ActivityLogSettings reads the same two entries.
   const { data: auditConfig } = useQuery('audit:get-config', {}, null)
   const { data: auditStats } = useQuery('audit:stats', {}, null)
-
-  useEffect(() => {
-    window.bridge.getIdentityProtection().then(setIdentity).catch(() => {})
-  }, [])
 
   return (
     <section>
@@ -166,19 +168,17 @@ function DeviceGroup({ onOpenNetworkStatus, onOpenActivityLog }: Pick<AccountPro
           )}
           onClick={onOpenNetworkStatus}
         />
-        {identity && (
-          <InfoRow
-            icon={IDENTITY_LINE[identity].icon}
-            label={t('account.identityTitle')}
-            desc={t(IDENTITY_LINE[identity].key)}
-          />
-        )}
-        {identity && identity !== 'disabled' && (
+        {backup && (
           <ActionRow
-            icon="lock"
-            label={t('account.backupRecoveryKey')}
-            desc={t(identity === 'weak' ? 'account.backupRecoveryKeyDescWeak' : 'account.backupRecoveryKeyDesc')}
-            onClick={() => setBackupOpen(true)}
+            label={t('protection.title')}
+            desc={summaryText(backup, identity, t)}
+            leading={(
+              <span className="relative shrink-0">
+                <Tile icon="shield" />
+                {lamp && <ProtectionDot lamp={lamp} />}
+              </span>
+            )}
+            onClick={onOpenProtection}
           />
         )}
         <ActionRow
@@ -188,7 +188,6 @@ function DeviceGroup({ onOpenNetworkStatus, onOpenActivityLog }: Pick<AccountPro
           onClick={onOpenActivityLog}
         />
       </div>
-      <RecoveryBackupModal isOpen={backupOpen} onClose={() => setBackupOpen(false)} weakProtection={identity === 'weak'} />
     </section>
   )
 }
@@ -269,7 +268,7 @@ function AppGroup({ onFeedback }: Pick<AccountProps, 'onFeedback'>) {
   )
 }
 
-export default function Account({ profile, onSave, onBack, onOpenNetworkStatus, onOpenActivityLog, onFeedback }: AccountProps) {
+export default function Account({ profile, onSave, onBack, onOpenNetworkStatus, onOpenActivityLog, onOpenProtection, onFeedback }: AccountProps) {
   const { t } = useTranslation()
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
 
@@ -289,7 +288,7 @@ export default function Account({ profile, onSave, onBack, onOpenNetworkStatus, 
           <section>
             <ProfileCard profile={profile} onSave={onSave} />
           </section>
-          <DeviceGroup onOpenNetworkStatus={onOpenNetworkStatus} onOpenActivityLog={onOpenActivityLog} />
+          <DeviceGroup onOpenNetworkStatus={onOpenNetworkStatus} onOpenActivityLog={onOpenActivityLog} onOpenProtection={onOpenProtection} />
           <AppGroup onFeedback={onFeedback} />
         </div>
       </div>

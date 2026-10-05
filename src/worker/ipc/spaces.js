@@ -41,6 +41,7 @@ import { spaceRefOf } from '../audit-refs.js'
 import { fullRoster, stripWorkerFields, slimSpaces } from '../space-projection.js'
 
 import { openMemberView } from '../../shared/spaces/member-registry.js'
+import { assertProfileWritable } from '../../shared/core/restore-guard.js'
 
 /** @param {WorkerIpc} ipc @param {{ log: Logger, publishDownloadRoots: () => void }} deps */
 export function registerSpaces(ipc, { log, publishDownloadRoots }) {
@@ -58,6 +59,7 @@ export function registerSpaces(ipc, { log, publishDownloadRoots }) {
     return mirrors.map((m) => ({ mirrorer: m.mirrorer, shareId: m.shareId, state: m.state, mountedAt: m.mountedAt }))
   })
   ipc.handle('space:create', async (msg) => {
+    assertProfileWritable()
     log.info('creating space:', msg.name)
     const space = await createSpace(msg.name, msg.icon ?? undefined)
     await markOwnMembership(space.spaceId, { refresh: true })
@@ -138,6 +140,7 @@ export function registerSpaces(ipc, { log, publishDownloadRoots }) {
     return space
   })
   ipc.handle('space:invite', async (msg) => {
+    assertProfileWritable()
     const space = await getSpace(msg.spaceId)
     // Throw rather than return null: a null resolves as success and the modal re-enables its button
     // with no code and no reason on screen.

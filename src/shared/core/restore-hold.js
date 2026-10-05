@@ -12,6 +12,7 @@ export const PROFILE_BEE = 'profile'
 let file = null
 let held = new Set()
 let released = new Set()
+let source = 'key'
 
 async function io() {
   return { fs: (await import('bare-fs')).default, path: (await import('bare-path')).default }
@@ -21,12 +22,16 @@ async function holdFile(storagePath) {
   const { path } = await io()
   return path.join(path.dirname(storagePath), RESTORE_HOLD_FILE)
 }
-const encode = (names) => b4a.from(JSON.stringify({ v: 1, held: [...names] }))
+// `source` says what the restore brought back: a backup folder restores data, a recovery key the
+// identity alone. A file without one was written by a key adoption.
+const encode = (names, from) => b4a.from(JSON.stringify({ v: 1, held: [...names], source: from }))
 
-function parseHeld(bytes) {
+function parseHold(bytes) {
   try {
     const parsed = JSON.parse(b4a.toString(bytes))
-    if (parsed?.v === 1 && Array.isArray(parsed.held) && parsed.held.every((n) => typeof n === 'string')) return parsed.held
+    if (parsed?.v === 1 && Array.isArray(parsed.held) && parsed.held.every((n) => typeof n === 'string')) {
+      return { held: parsed.held, source: parsed.source === 'backup' ? 'backup' : 'key' }
+    }
   } catch {}
   return null
 }
@@ -38,8 +43,11 @@ export async function loadRestoreHold(storagePath) {
   file = await holdFile(storagePath)
   held = new Set()
   released = new Set()
+  source = 'key'
   if (!fs.existsSync(file)) return
-  held = new Set(parseHeld(fs.readFileSync(file)) ?? [PROFILE_BEE])
+  const parsed = parseHold(fs.readFileSync(file))
+  held = new Set(parsed?.held ?? [PROFILE_BEE])
+  source = parsed?.source ?? 'key'
 }
 
 export function isHeld(name) {
@@ -54,8 +62,13 @@ export function profileHeld() {
   return held.has(PROFILE_BEE)
 }
 
-export async function writeRestoreHold(storagePath, names) {
-  await writeFileAtomic(await holdFile(storagePath), encode(names))
+export function restoreSource() {
+  return source
+}
+
+/** @param {string} storagePath @param {string[]} names @param {'backup' | 'key'} from */
+export async function writeRestoreHold(storagePath, names, from) {
+  await writeFileAtomic(await holdFile(storagePath), encode(names, from))
 }
 
 // The profile, opened while held, stays read-only for this process, and restore mode stays on until the
@@ -66,7 +79,7 @@ export async function releaseHeld(name) {
   released.add(name)
   if (name !== PROFILE_BEE) held.delete(name)
   const rest = [...held].filter((n) => !released.has(n))
-  if (rest.length) await writeFileAtomic(file, encode(rest))
+  if (rest.length) await writeFileAtomic(file, encode(rest, source))
   else (await io()).fs.rmSync(file, { force: true })
 }
 
@@ -74,4 +87,5 @@ export function resetRestoreHold() {
   file = null
   held = new Set()
   released = new Set()
+  source = 'key'
 }

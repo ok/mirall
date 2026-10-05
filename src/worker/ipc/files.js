@@ -26,6 +26,7 @@ import { record } from '../../shared/audit/audit-log.js'
 import { selfActor, targetRef } from '../../shared/audit/audit-record.js'
 import { TARGET_KIND } from '../../shared/contract/audit-kinds.js'
 import { spaceRefOf, fileNameOf } from '../audit-refs.js'
+import { assertCatalogWritable } from '../../shared/core/restore-guard.js'
 
 /** @param {WorkerIpc} ipc @param {{ log: Logger }} deps */
 export function registerFiles(ipc, { log }) {
@@ -58,6 +59,7 @@ export function registerFiles(ipc, { log }) {
     return await listFiles(msg.spaceId, space?.members || [], { space })
   })
   ipc.handle('files:remove', async (msg) => {
+    await assertCatalogWritable(msg.spaceId)
     await removeFile(msg.spaceId, msg.path)
     record('file.unshared', {
       actor: selfActor(),
@@ -72,6 +74,7 @@ export function registerFiles(ipc, { log }) {
     return { ok: true }
   })
   ipc.handle('files:add', async (msg) => {
+    await assertCatalogWritable(msg.spaceId)
     log.info('adding file:', msg.fileName, 'from', msg.filePath)
     await addFile(msg.spaceId, msg.filePath, msg.fileName)
     record('file.shared', {
@@ -117,6 +120,7 @@ export function registerFiles(ipc, { log }) {
     return { ok: true }
   })
   ipc.handle('files:cancel-publish', async (msg) => {
+    await assertCatalogWritable(msg.spaceId)
     await looseCancelPublish(msg.spaceId, msg.path)
     return { ok: true }
   })

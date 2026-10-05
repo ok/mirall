@@ -13,7 +13,7 @@ import Button from '../components/primitives/Button.js'
 import TextButton from '../components/primitives/TextButton.js'
 import InlineError from '../components/primitives/InlineError.js'
 import ConfirmDestructiveModal from '../components/modals/ConfirmDestructiveModal.js'
-import RecoveryRestoreModal from '../components/modals/RecoveryRestoreModal.js'
+import RestoreAccount from '../components/recovery/RestoreAccount.js'
 
 interface IdentityLockedScreenProps {
   code: IdentityLockCode | null
@@ -60,7 +60,7 @@ export default function IdentityLockedScreen({ code }: IdentityLockedScreenProps
       >
         <div className="bg-surface-container-low rounded-2xl p-6 space-y-3">
           <Button size="lg" fullWidth icon="lock" onClick={() => setRestoreOpen(true)} ariaDisabled={busy}>
-            {t('identityLocked.restore')}
+            {t('identityLocked.restoreAccount')}
           </Button>
           <Button size="lg" fullWidth variant="secondary" icon="refresh" onClick={() => void retry()} ariaDisabled={busy}>
             {t('identityLocked.retry')}
@@ -75,7 +75,7 @@ export default function IdentityLockedScreen({ code }: IdentityLockedScreenProps
         {error && !confirmFresh && <InlineError id="identity-locked-error" className="text-center">{error}</InlineError>}
       </PreShellHero>
 
-      <RecoveryRestoreModal isOpen={restoreOpen} onClose={() => setRestoreOpen(false)} onRestored={restartIntoIdentity} />
+      <RestoreAccount isOpen={restoreOpen} onClose={() => setRestoreOpen(false)} onRestored={restartIntoIdentity} />
       <ConfirmDestructiveModal
         isOpen={confirmFresh}
         title={t('identityLocked.startFreshTitle')}

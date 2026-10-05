@@ -245,7 +245,7 @@ registerIdentity(ipc, {
 
 registerSpaces(ipc, { log, publishDownloadRoots })
 
-registerBackup(ipc, { backup: root.backup, paused: root.backupPaused })
+registerBackup(ipc, { backup: root.backup, paused: root.backupPaused, openRecovery })
 registerBackupRestore(ipc, { storagePath: bootstrap.storage, identityKEK: bootstrap.identityKEK, log, lockedBy: null, openRecovery })
 
 registerSpaceLeave(ipc, { log, mounts, overlayBackend, discardPendingSpace, dropSpaceDownloadRoot })
