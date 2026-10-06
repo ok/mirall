@@ -1,5 +1,7 @@
 import test from 'brittle'
 import path from 'node:path'
+import { Readable } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 import { createRequire } from 'node:module'
 import Corestore from 'corestore'
 import Hyperdrive from 'hyperdrive'
@@ -20,9 +22,10 @@ const NAME = 'Mirall.AppImage'
 const PREFIX = `/by-arch/${host}/app/${NAME}`
 const PAYLOAD = 4 * 1024 * 1024
 
-async function publish(drive, version, fill) {
+async function publish(drive, version, fill, { dedup = false } = {}) {
   await drive.put('/package.json', Buffer.from(JSON.stringify({ version })))
-  await drive.put(PREFIX, Buffer.alloc(PAYLOAD, fill))
+  if (dedup) await pipeline(Readable.from([Buffer.alloc(PAYLOAD, fill)]), drive.createWriteStream(PREFIX, { dedup: true }))
+  else await drive.put(PREFIX, Buffer.alloc(PAYLOAD, fill))
   await drive.put(`/by-arch/other-arch/app/${NAME}`, Buffer.alloc(64 * 1024, fill))
 }
 
@@ -38,12 +41,12 @@ async function blocksOf(drive, name) {
   return [blob.blockOffset, blob.blockOffset + blob.blockLength]
 }
 
-async function stagedUpdater(t) {
+async function stagedUpdater(t, opts) {
   const seedStore = new Corestore(tmpDir('update-cache-seed', t))
   const seed = new Hyperdrive(seedStore)
   await seed.ready()
   t.teardown(async () => { await seed.close(); await seedStore.close() })
-  await publish(seed, '9.9.8', 1)
+  await publish(seed, '9.9.8', 1, opts)
 
   const dir = tmpDir('update-cache-stage', t)
   const store = new Corestore(path.join(dir, 'pear-runtime', 'corestore'))
@@ -60,8 +63,8 @@ async function stagedUpdater(t) {
   return { seed, dir, updater }
 }
 
-async function stageNext(seed, updater) {
-  await publish(seed, '9.9.9', 2)
+async function stageNext(seed, updater, opts) {
+  await publish(seed, '9.9.9', 2, opts)
   await waitFor(async () => { await updater.drive.update(); return updater.drive.core.length === seed.core.length }, 10000, { label: 'v2 seen' })
   await updater._debouncedUpdate()
   await waitFor(() => updater.nextVersion === '9.9.9', 10000, { label: 'v2 staged' })
@@ -92,6 +95,17 @@ test('a prune clears the older version and keeps the latest whole', { timeout: s
   t.ok(before - after > 3 * 1024 * 1024, 'the store shrank by ' + (before - after) + ' bytes')
 
   t.alike(await updateCache.pruneUpdateCache({ updater, prefix: PREFIX }), { clearedBlocks: 0 }, 'a second prune has nothing to clear')
+})
+
+test('REGRESSION (update cache estimate): a block-mapped latest version is not offered as reclaimable', { timeout: scaled(90000) }, async (t) => {
+  const { seed, dir, updater } = await stagedUpdater(t, { dedup: true })
+  await stageNext(seed, updater, { dedup: true })
+  t.ok((await seed.entry(PREFIX)).value.blob.blockMap, 'the payload is stored behind a block map')
+
+  const info = await updateCache.updateCacheInfo({ updater, dataDir: dir, prefix: PREFIX })
+  const store = await updateCache.dirSize(path.join(dir, 'pear-runtime', 'corestore'))
+  t.ok(info.reclaimableBytes > 3 * 1024 * 1024, 'about the older payload is reclaimable: ' + info.reclaimableBytes)
+  t.ok(info.reclaimableBytes < store - 3 * 1024 * 1024, 'the latest payload is not: ' + info.reclaimableBytes + ' of ' + store)
 })
 
 test('a version not fully on this device is left whole', { timeout: scaled(60000) }, async (t) => {

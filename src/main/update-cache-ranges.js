@@ -8,7 +8,7 @@ function keptRanges(blobs) {
   const ranges = []
   for (const blob of blobs) {
     if (blob.blockLength > 0) ranges.push([blob.blockOffset, blob.blockOffset + blob.blockLength])
-    for (const index of blob.mapBlocks || []) ranges.push([index, index + 1])
+    for (const { index } of blob.mapBlocks || []) ranges.push([index, index + 1])
   }
   ranges.sort((a, b) => a[0] - b[0])
   const merged = []
@@ -33,4 +33,23 @@ function clearableGaps(kept, length) {
   return gaps
 }
 
-module.exports = { keptRanges, clearableGaps }
+// The bytes those ranges hold. A block-mapped blob's byteLength is its map's, not its file's, so each
+// mapped block counts with its own size, once however many maps point at it, and not at all when it
+// sits inside a blob's own blocks.
+function keptBytes(blobs) {
+  const own = keptRanges(blobs.map((blob) => ({ ...blob, mapBlocks: [] })))
+  const ownBytes = new Map()
+  const mapped = new Map()
+  for (const blob of blobs) {
+    ownBytes.set(`${blob.blockOffset}:${blob.blockLength}`, blob.byteLength)
+    for (const block of blob.mapBlocks || []) mapped.set(block.index, block.byteLength)
+  }
+  let bytes = 0
+  for (const size of ownBytes.values()) bytes += size
+  for (const [index, size] of mapped) {
+    if (!own.some(([start, end]) => index >= start && index < end)) bytes += size
+  }
+  return bytes
+}
+
+module.exports = { keptRanges, clearableGaps, keptBytes }

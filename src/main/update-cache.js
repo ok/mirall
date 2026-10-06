@@ -7,7 +7,7 @@
 // No Electron here, so a Node test drives it against a real updater.
 const fs = require('fs')
 const path = require('path')
-const { keptRanges, clearableGaps } = require('./update-cache-ranges.js')
+const { keptRanges, clearableGaps, keptBytes } = require('./update-cache-ranges.js')
 const { FORCED_COMPACTION } = require('../shared/contract/compaction.js')
 
 const LOCAL = { wait: false }
@@ -41,7 +41,7 @@ async function latestBlobs(drive, blobs, prefix) {
       const blob = entry?.value?.blob
       if (!blob) continue
       if (!(await blobs.core.has(blob.blockOffset, blob.blockOffset + blob.blockLength))) return null
-      kept.push({ ...blob, mapBlocks: blob.blockMap ? (await blobs.getBlockMap(blob)).blocks.map((b) => b.index) : [] })
+      kept.push({ ...blob, mapBlocks: blob.blockMap ? (await blobs.getBlockMap(blob)).blocks : [] })
     }
     return kept.length > 1 ? kept : null
   } catch (err) {
@@ -109,8 +109,7 @@ async function updateCacheInfo({ updater, dataDir, prefix }) {
   if (!drive?.core.length) return { bytes, reclaimableBytes: 0 }
   const kept = await latestBlobs(drive, await drive.getBlobs(), prefix)
   if (!kept) return { bytes, reclaimableBytes: 0 }
-  const keptBytes = kept.reduce((sum, blob) => sum + blob.byteLength, 0)
-  return { bytes, reclaimableBytes: Math.max(0, await dirSize(path.join(root, 'corestore')) - keptBytes) }
+  return { bytes, reclaimableBytes: Math.max(0, await dirSize(path.join(root, 'corestore')) - keptBytes(kept)) }
 }
 
 module.exports = { pruneUpdateCache, updateCacheInfo, dirSize }
