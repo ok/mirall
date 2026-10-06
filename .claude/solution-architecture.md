@@ -287,7 +287,8 @@ carries it is not counted twice. The screen shows them inside Other. A measureme
 `storage` scope. `storage:free-up` compacts the index and requests the rewrite of every bee over the
 1 MB bar; the renderer then restarts the worker when any were requested. Main keeps its own half:
 every update pass ends in a prune of the update store (`src/main/update-cache.js`), which clears every
-blob block the latest version's files for this platform do not reference and compacts that store;
+blob block the latest version's files for this platform do not reference, clears every core outside
+the drive the updater follows (the drive of an earlier update link), and compacts that store;
 `updater:cache-info` / `updater:prune` expose it.
 
 ### 3.1 Profile bee (`profile`) — replicated
