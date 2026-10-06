@@ -60,7 +60,7 @@ async function stagedUpdater(t, opts) {
   await updater.ready()
   await updater._debouncedUpdate()
   await waitFor(() => updater.nextVersion === '9.9.8', 10000, { label: 'v1 staged' })
-  return { seed, dir, updater }
+  return { seed, store, dir, updater }
 }
 
 async function stageNext(seed, updater, opts) {
@@ -106,6 +106,24 @@ test('REGRESSION (update cache estimate): a block-mapped latest version is not o
   const store = await updateCache.dirSize(path.join(dir, 'pear-runtime', 'corestore'))
   t.ok(info.reclaimableBytes > 3 * 1024 * 1024, 'about the older payload is reclaimable: ' + info.reclaimableBytes)
   t.ok(info.reclaimableBytes < store - 3 * 1024 * 1024, 'the latest payload is not: ' + info.reclaimableBytes + ' of ' + store)
+})
+
+test('REGRESSION (update cache orphans): a prune clears every core outside the drive the updater follows', { timeout: scaled(90000) }, async (t) => {
+  const { store, dir, updater } = await stagedUpdater(t)
+  const earlier = store.get({ name: 'earlier-update-link' })
+  await earlier.append(Array.from({ length: 64 }, () => Buffer.alloc(64 * 1024, 3)))
+  const before = await updateCache.dirSize(path.join(dir, 'pear-runtime', 'corestore'))
+
+  const { clearedBlocks } = await updateCache.pruneUpdateCache({ updater, prefix: PREFIX })
+  t.is(clearedBlocks, 64, 'every block of the other core was cleared')
+  t.absent(await earlier.has(0), 'its first block is gone')
+  t.absent(await earlier.has(63), 'and its last')
+  await earlier.close()
+  const latest = updater.drive.checkout(updater.drive.core.length)
+  t.is((await latest.get(PREFIX)).byteLength, PAYLOAD, 'the latest payload reads whole')
+  await latest.close()
+  const after = await updateCache.dirSize(path.join(dir, 'pear-runtime', 'corestore'))
+  t.ok(before - after > 3 * 1024 * 1024, 'the store shrank by ' + (before - after) + ' bytes')
 })
 
 test('a version not fully on this device is left whole', { timeout: scaled(60000) }, async (t) => {

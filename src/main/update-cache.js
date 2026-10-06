@@ -1,6 +1,7 @@
 // The update cache: the pear-runtime store keeps every app version it ever fetched, and only the
 // latest is ever read again (the running app runs from disk, a staged update from pear-runtime/next).
-// A prune clears every blob block the latest version's files for this platform do not reference, then
+// A prune clears every blob block the latest version's files for this platform do not reference, and
+// every core outside the drive the updater follows (the drive of an earlier update link), then
 // compacts that store so the bytes leave the disk. Reads never wait on the network: a version whose
 // entries are not all local is left whole. Callers serialize a prune with the update passes.
 //
@@ -60,6 +61,24 @@ async function presentBlocks(core, start, end) {
   return present
 }
 
+async function clearOtherCores(store, keep) {
+  const kept = new Set(keep.map((core) => core.discoveryKey.toString('hex')))
+  let clearedBlocks = 0
+  for await (const discoveryKey of store.list()) {
+    if (kept.has(discoveryKey.toString('hex'))) continue
+    const core = store.get({ discoveryKey })
+    try {
+      await core.ready()
+      const present = await presentBlocks(core, 0, core.length)
+      if (present) await core.clear(0, core.length)
+      clearedBlocks += present
+    } finally {
+      await core.close()
+    }
+  }
+  return clearedBlocks
+}
+
 async function pruneUpdateCache({ updater, prefix, log = null }) {
   const drive = updater?.drive
   if (!drive?.core.length) return { clearedBlocks: 0 }
@@ -76,6 +95,7 @@ async function pruneUpdateCache({ updater, prefix, log = null }) {
     await blobs.core.clear(start, end)
     clearedBlocks += present
   }
+  clearedBlocks += await clearOtherCores(updater.store, [drive.core, blobs.core])
   if (clearedBlocks > 0) {
     await compactUpdateStore(updater.store)
     log?.info('update cache pruned', clearedBlocks, 'blocks')
