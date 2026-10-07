@@ -644,6 +644,11 @@ entry is a string, and versions must increase monotonically (`-beta.<run>`). Onl
 `{stage, provision}`. `pear touch` the seed drive on the seed VM first, or staging fails
 `SESSION_NOT_WRITABLE`.
 
+**A check in a workflow file does not bind whoever can push the ref.** A tag push or dispatch runs
+the workflow from that ref, so `if:` gates, `permissions:` and upload guards in it only stop honest
+mistakes. Put the boundary outside the repo: secrets in an environment with a reviewer and a ref
+policy, a tag ruleset, and a storage-side lock on what was released.
+
 **`UPGRADE_KEY_PROD` must equal the seed VM's `production.provision` key.** It's baked in at build
 time; rotate both together, then release.
 

@@ -2,6 +2,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+# shellcheck source=lib/fetch-verified.sh
+source "$ROOT/scripts/build/lib/fetch-verified.sh"
 PKG="$ROOT/package.json"
 [ -f "$PKG" ] || { echo "package.json not found in $ROOT" >&2; exit 1; }
 command -v jq >/dev/null 2>&1 || { echo "jq is required" >&2; exit 1; }
@@ -19,15 +21,13 @@ if [ -n "$ALT" ]; then
   echo "Found app-builder in node_modules: $ALT"
   APP_BUILDER="$ALT"
 else
-  APP_BUILDER_VERSION="${APP_BUILDER_VERSION:-4.2.0}"
+  # The version and its tarball's SHA-256 change together.
+  APP_BUILDER_VERSION="4.2.0"
+  APP_BUILDER_SHA256="87cefad579e5d025c0c8d2868c0b450dc4b66ab6261e935ed3ed4082365dddc6"
   echo "app-builder-bin not in node_modules. Fetching v${APP_BUILDER_VERSION} from npm registry..." >&2
   TMPDIR_ABB="$(mktemp -d)"
   TGZ="$TMPDIR_ABB/app-builder-bin.tgz"
-  URL="https://registry.npmjs.org/app-builder-bin/-/app-builder-bin-${APP_BUILDER_VERSION}.tgz"
-  if ! curl -fsSL "$URL" -o "$TGZ"; then
-    echo "Download failed: $URL" >&2
-    exit 1
-  fi
+  fetch_verified "https://registry.npmjs.org/app-builder-bin/-/app-builder-bin-${APP_BUILDER_VERSION}.tgz" "$APP_BUILDER_SHA256" "$TGZ"
   tar -xzf "$TGZ" -C "$TMPDIR_ABB"
   APP_BUILDER="$TMPDIR_ABB/package/linux/$ARCH/app-builder"
   if [ ! -f "$APP_BUILDER" ]; then
@@ -145,21 +145,34 @@ chmod +x "$ARCH_OUT"
 # Fedora 40+ no longer ship by default — the app fails to launch silently for
 # anyone who hasn't manually installed libfuse2t64. uruntime extracts the
 # squashfs payload to a temp dir on launch and execs from there, no FUSE.
-URUNTIME_VERSION="${URUNTIME_VERSION:-v0.5.7}"
+#
+# The runtime is the first code that runs on every launch, so each arch pins the
+# release asset's SHA-256 and the SHA-256 after the extract-and-run patch below,
+# which is the exact runtime shipped at the front of the AppImage. A version bump
+# changes all three values together.
+URUNTIME_VERSION="v0.5.7"
 case "$ARCH" in
-  x64)   URUNTIME_ARCH="x86_64"  ;;
-  arm64) URUNTIME_ARCH="aarch64" ;;
+  x64)
+    URUNTIME_ARCH="x86_64"
+    URUNTIME_SHA256="160ead2a2f114c8f0a56640e238eb6082f7785cc025696b5f293c1551637ad20"
+    URUNTIME_PATCHED_SHA256="9f2eadfe9c96d7b9c588632ed73f4d6b38f5dede7b5c6ab6826d2c631f366b6a"
+    ;;
+  arm64)
+    URUNTIME_ARCH="aarch64"
+    URUNTIME_SHA256="5a5a89cb637797fd08f35a9316ffaf1a03b894fd8d99b4545870a43026b540bd"
+    URUNTIME_PATCHED_SHA256="dc36962a9cd46faaa338bddd7322ee4241f72c66af2a005540a33ee64ed702a6"
+    ;;
   *) echo "Unsupported uruntime arch: $ARCH" >&2; exit 1 ;;
 esac
 
 URUNTIME_TMP="$(mktemp -d)"
 trap 'rm -rf "$URUNTIME_TMP"' EXIT
 URUNTIME="$URUNTIME_TMP/uruntime"
-URL="https://github.com/VHSgunzo/uruntime/releases/download/${URUNTIME_VERSION}/uruntime-appimage-squashfs-lite-${URUNTIME_ARCH}"
 echo "Downloading uruntime ${URUNTIME_VERSION} (${URUNTIME_ARCH})..."
-curl -fsSL --retry 3 "$URL" -o "$URUNTIME"
+fetch_verified "https://github.com/VHSgunzo/uruntime/releases/download/${URUNTIME_VERSION}/uruntime-appimage-squashfs-lite-${URUNTIME_ARCH}" "$URUNTIME_SHA256" "$URUNTIME"
 chmod +x "$URUNTIME"
 sed -i 's|URUNTIME_MOUNT=[0-9]|URUNTIME_MOUNT=0|' "$URUNTIME"
+verify_sha256 "$URUNTIME" "$URUNTIME_PATCHED_SHA256"
 
 # Read squashfs offset by parsing the ELF section header table of the stock
 # runtime that app-builder embedded. Avoids `--appimage-offset` (which would
