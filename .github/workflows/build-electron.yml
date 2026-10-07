@@ -1,8 +1,11 @@
 name: Build Electron
 
-# Runs automatically on a v* tag push; can also be dispatched manually from the
-# Actions tab (or `gh workflow run build-electron.yml`) to build a single channel
-# and platform.
+# Runs automatically on a v* tag push (the prod channel); can also be dispatched
+# manually from the Actions tab (or `gh workflow run build-electron.yml`) to build
+# a single dev or staging channel and platform. Prod is never dispatched.
+#
+# Values from expressions reach `run:` scripts only through `env:`, never pasted
+# into the script text, so a ref or input name cannot inject shell or JS.
 on:
   push:
     tags:
@@ -10,14 +13,13 @@ on:
   workflow_dispatch:
     inputs:
       channel:
-        description: 'Build channel'
+        description: 'Build channel (prod is built only from a v* tag push)'
         required: true
         default: 'dev'
         type: choice
         options:
           - dev
           - staging
-          - prod
       platform:
         description: 'Platform to build (all = full matrix)'
         required: true
@@ -31,8 +33,9 @@ on:
           - linux-arm64
           - win32-x64
 
+# Builds read the repo and write only to R2 and the run's artifacts.
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   resolve:
@@ -43,41 +46,65 @@ jobs:
       include: ${{ steps.matrix.outputs.include }}
     steps:
       - id: ch
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_CHANNEL: ${{ inputs.channel }}
         run: |
-          # The only triggers are `push: tags: v*` and `workflow_dispatch`, so these
-          # two arms are exhaustive. Reaching the fallback means a trigger was added
-          # without deciding its channel — fail loudly rather than guess.
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            CHANNEL="${{ inputs.channel }}"
-          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+          # Prod comes only from a v* tag push; a dispatch picks a non-prod channel.
+          # Reaching the fallback means a trigger was added without deciding its
+          # channel — fail loudly rather than guess.
+          if [ "$EVENT" = "push" ] && [ "$GITHUB_REF_TYPE" = "tag" ]; then
             CHANNEL="prod"
+          elif [ "$EVENT" = "workflow_dispatch" ]; then
+            case "$INPUT_CHANNEL" in
+              dev|staging) CHANNEL="$INPUT_CHANNEL" ;;
+              *)
+                echo "::error::Channel '$INPUT_CHANNEL' cannot be dispatched; prod is built only from a v* tag push."
+                exit 1
+                ;;
+            esac
           else
-            echo "::error::No channel for ref '$GITHUB_REF' (event ${{ github.event_name }}); add an arm here or dispatch manually."
+            echo "::error::No channel for ref '$GITHUB_REF' (event $EVENT); add an arm here or dispatch manually."
             exit 1
           fi
           echo "channel=$CHANNEL" >> "$GITHUB_OUTPUT"
           echo "Channel: $CHANNEL"
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The release-branch check below walks history and needs the branches.
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify tag format and release branch
+        if: github.ref_type == 'tag'
+        shell: bash
+        run: |
+          # A release tag names a documented version and sits on its
+          # release/<major>.<minor> branch, whose history cannot be rewritten.
+          TAG="$GITHUB_REF_NAME"
+          if ! [[ "$TAG" =~ ^v([0-9]+)\.([0-9]+)\.[0-9]+(-[a-z]+[0-9]+)?$ ]]; then
+            echo "::error::Tag '$TAG' is not v<MAJOR>.<MINOR>.<PATCH>[-<label><N>]"
+            exit 1
+          fi
+          LINE="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" "origin/release/$LINE"; then
+            echo "::error::$TAG ($GITHUB_SHA) is not on release/$LINE"
+            exit 1
+          fi
+          echo "$TAG is on release/$LINE"
       - id: ver
         env:
           CHANNEL: ${{ steps.ch.outputs.channel }}
         run: |
-          BASE=$(node -p "require('./package.json').version")
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            # Tagged release — version comes from the tag, channel was already
-            # forced to prod above.
-            V="${GITHUB_REF#refs/tags/v}"
-          elif [ "$CHANNEL" = "prod" ]; then
-            # workflow_dispatch with channel=prod (manual rebuild without
-            # cutting a new tag). Use base pkg.version as-is so the resulting
-            # bundle's version matches the operator's `release.sh prod $V` arg.
-            V="$BASE"
+          if [ "$CHANNEL" = "prod" ]; then
+            # Tagged release — the version comes from the tag.
+            V="${GITHUB_REF_NAME#v}"
           else
             # Non-prod channels: append a label + run number so each CI build
             # is unique and the channel is visible in the version string. The
             # staging channel ships publicly as the "beta" download (website
             # /preview), so it gets a `-beta.N` label; the channel id stays
             # `staging` everywhere else (R2 path, secrets, signing, seeder).
+            BASE=$(node -p "require('./package.json').version")
             case "$CHANNEL" in
               staging) LABEL="beta" ;;
               *)       LABEL="$CHANNEL" ;;
@@ -87,10 +114,10 @@ jobs:
           echo "version=$V" >> "$GITHUB_OUTPUT"
           echo "Version: $V"
       - name: Verify tag matches package.json
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: github.ref_type == 'tag'
         shell: bash
         run: |
-          TAG_V="${GITHUB_REF#refs/tags/v}"
+          TAG_V="${GITHUB_REF_NAME#v}"
           PKG_V=$(node -p "require('./package.json').version")
           if [ "$TAG_V" != "$PKG_V" ]; then
             echo "::error::Tag v$TAG_V does not match package.json version $PKG_V"
@@ -99,10 +126,10 @@ jobs:
           fi
           echo "Tag and package.json agree on $TAG_V"
       - name: Verify CHANGELOG.md has an entry for this tag
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: github.ref_type == 'tag'
         shell: bash
         run: |
-          TAG_V="${GITHUB_REF#refs/tags/v}"
+          TAG_V="${GITHUB_REF_NAME#v}"
           if [ ! -f CHANGELOG.md ]; then
             echo "::error::CHANGELOG.md is missing; add it with a '## v$TAG_V' entry."
             exit 1
@@ -119,6 +146,8 @@ jobs:
           fi
           echo "CHANGELOG.md top entry agrees with tag: v$TAG_V"
       - id: matrix
+        env:
+          FILTER: ${{ inputs.platform || 'all' }}
         run: |
           ALL='[
             {"os":"macos-latest","platform":"darwin","arch":"x64","archPath":"darwin-x64","ext":"dmg"},
@@ -127,17 +156,20 @@ jobs:
             {"os":"ubuntu-24.04-arm","platform":"linux","arch":"arm64","archPath":"linux-arm64","ext":"AppImage"},
             {"os":"windows-latest","platform":"win32","arch":"x64","archPath":"win32-x64","ext":"msix"}
           ]'
-          FILTER="${{ inputs.platform || 'all' }}"
           if [ "$FILTER" = "all" ]; then
             INCLUDE=$(echo "$ALL" | jq -c .)
           else
-            INCLUDE=$(echo "$ALL" | jq -c "[.[] | select(.archPath == \"$FILTER\")]")
+            INCLUDE=$(echo "$ALL" | jq -c --arg f "$FILTER" '[.[] | select(.archPath == $f)]')
           fi
           echo "include=$INCLUDE" >> "$GITHUB_OUTPUT"
           echo "Matrix: $INCLUDE"
 
   build:
     needs: resolve
+    # The signing and R2 secrets live only in these environments: `release`
+    # accepts v* tags, `beta` accepts main and release/*, and both wait for a
+    # reviewer before the job starts.
+    environment: ${{ needs.resolve.outputs.channel == 'prod' && 'release' || 'beta' }}
     strategy:
       fail-fast: false
       matrix:
@@ -145,33 +177,65 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: '24.20.0'
 
+      - name: Require release credentials
+        shell: bash
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+        run: |
+          # An environment missing a secret would otherwise build green: the
+          # upload would have nowhere to go and macOS signing would turn off.
+          MISSING=()
+          for NAME in R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_BUCKET R2_ENDPOINT; do
+            [ -n "${!NAME}" ] || MISSING+=("$NAME")
+          done
+          if [ "$PLATFORM" = "darwin" ]; then
+            for NAME in APPLE_SIGNING_IDENTITY APPLE_CERTIFICATE_P12; do
+              [ -n "${!NAME}" ] || MISSING+=("$NAME")
+            done
+          fi
+          if [ ${#MISSING[@]} -gt 0 ]; then
+            echo "::error::The build environment is missing: ${MISSING[*]}"
+            exit 1
+          fi
+
       - name: Patch package.json version
         shell: bash
+        env:
+          VERSION: ${{ needs.resolve.outputs.version }}
         run: |
-          V="${{ needs.resolve.outputs.version }}"
-          node -e "const p=require('./package.json');p.version='$V';require('fs').writeFileSync('./package.json',JSON.stringify(p,null,2)+'\n')"
+          node -e "const p=require('./package.json');p.version=process.env.VERSION;require('fs').writeFileSync('./package.json',JSON.stringify(p,null,2)+'\n')"
           grep '"version"' package.json | head -1
 
       - name: Resolve UPGRADE_KEY for channel
         shell: bash
         env:
+          CHANNEL: ${{ needs.resolve.outputs.channel }}
           UPGRADE_KEY_DEV: ${{ secrets.UPGRADE_KEY_DEV }}
           UPGRADE_KEY_STAGING: ${{ secrets.UPGRADE_KEY_STAGING }}
           UPGRADE_KEY_PROD: ${{ secrets.UPGRADE_KEY_PROD }}
         run: |
-          case "${{ needs.resolve.outputs.channel }}" in
+          case "$CHANNEL" in
             dev)     KEY="$UPGRADE_KEY_DEV" ;;
             staging) KEY="$UPGRADE_KEY_STAGING" ;;
             prod)    KEY="$UPGRADE_KEY_PROD" ;;
           esac
           if [ -z "$KEY" ]; then
-            echo "WARNING: UPGRADE_KEY for channel '${{ needs.resolve.outputs.channel }}' is empty"
+            echo "::error::UPGRADE_KEY for channel '$CHANNEL' is empty"
+            exit 1
           fi
           echo "UPGRADE_KEY=$KEY" >> "$GITHUB_ENV"
 
@@ -189,6 +253,7 @@ jobs:
       - name: Make (macOS)
         if: matrix.platform == 'darwin'
         env:
+          ARCH: ${{ matrix.arch }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
@@ -211,7 +276,7 @@ jobs:
             security find-identity -v -p codesigning "$KEYCHAIN"
             rm -f "$CERT"
           fi
-          npm run make:darwin -- --arch="${{ matrix.arch }}"
+          npm run make:darwin -- --arch="$ARCH"
 
       - name: Cleanup keychain (macOS)
         if: always() && matrix.platform == 'darwin'
@@ -231,11 +296,14 @@ jobs:
 
       - name: Check Electron fuses
         shell: bash
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          ARCH: ${{ matrix.arch }}
         run: |
-          case "${{ matrix.platform }}" in
-            darwin) APP="out/Mirall-darwin-${{ matrix.arch }}/Mirall.app" ;;
-            linux)  APP="out/Mirall-linux-${{ matrix.arch }}/Mirall" ;;
-            win32)  APP="out/Mirall-win32-${{ matrix.arch }}/Mirall.exe" ;;
+          case "$PLATFORM" in
+            darwin) APP="out/Mirall-darwin-$ARCH/Mirall.app" ;;
+            linux)  APP="out/Mirall-linux-$ARCH/Mirall" ;;
+            win32)  APP="out/Mirall-win32-$ARCH/Mirall.exe" ;;
           esac
           node scripts/ci/check-fuses.mjs "$APP"
 
@@ -266,7 +334,10 @@ jobs:
       - name: Verify deb (sandbox helper, layout, control)
         if: matrix.platform == 'linux'
         shell: bash
-        run: bash scripts/ci/check-deb.sh artifact/Mirall.deb "${{ matrix.arch }}" "${{ needs.resolve.outputs.version }}"
+        env:
+          ARCH: ${{ matrix.arch }}
+          VERSION: ${{ needs.resolve.outputs.version }}
+        run: bash scripts/ci/check-deb.sh artifact/Mirall.deb "$ARCH" "$VERSION"
 
       - name: Locate artifact (Windows)
         if: matrix.platform == 'win32'
@@ -291,29 +362,10 @@ jobs:
           PLATFORM: ${{ matrix.platform }}
         shell: bash
         run: |
-          if [ -z "${AWS_ACCESS_KEY_ID:-}" ]; then
-            echo "R2 credentials not set; skipping upload"
-            exit 0
-          fi
-          if ! command -v aws >/dev/null 2>&1; then
-            echo "aws CLI not found on this runner — installing minimal v2 bundle"
-            case "$PLATFORM" in
-              darwin)
-                curl -fsSL "https://awscli.amazonaws.com/AWSCLIV2.pkg" -o /tmp/awscliv2.pkg
-                sudo installer -pkg /tmp/awscliv2.pkg -target /
-                ;;
-              linux)
-                ARCH_DL=$(uname -m)
-                curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-${ARCH_DL}.zip" -o /tmp/awscliv2.zip
-                unzip -q /tmp/awscliv2.zip -d /tmp
-                sudo /tmp/aws/install
-                ;;
-              win32)
-                echo "Windows runner: aws should be preinstalled" >&2
-                exit 1
-                ;;
-            esac
-          fi
+          # Every hosted runner image ships the AWS CLI; a missing one is an image
+          # change to look at, not something to install unverified.
+          command -v aws >/dev/null 2>&1 || { echo "::error::aws CLI is missing from the runner image"; exit 1; }
+          aws --version
           if [ "$CHANNEL" = "prod" ]; then
             BASE="desktop/releases/v$VERSION"
           else
@@ -328,9 +380,9 @@ jobs:
           for FILE in artifact/Mirall.*; do
             EXT="${FILE##*.}"
             if [ "$PLATFORM" = "win32" ]; then
-              DEST="s3://$BUCKET/$BASE/$ARCH_PATH/unsigned/Mirall.$EXT"
+              KEY="$BASE/$ARCH_PATH/unsigned/Mirall.$EXT"
             else
-              DEST="s3://$BUCKET/$BASE/$ARCH_PATH/Mirall.$EXT"
+              KEY="$BASE/$ARCH_PATH/Mirall.$EXT"
             fi
             case "$EXT" in
               msix)     CT="application/msix" ;;
@@ -339,19 +391,32 @@ jobs:
               deb)      CT="application/vnd.debian.binary-package" ;;
               *)        echo "::error::no Content-Type mapping for .$EXT"; exit 1 ;;
             esac
-            echo "Uploading $FILE -> $DEST  (Content-Type: $CT)"
-            aws s3 cp "$FILE" "$DEST" --content-type "$CT"
-            OBSERVED=$(aws s3api head-object --bucket "$BUCKET" --key "${DEST#s3://$BUCKET/}" \
+            echo "Uploading $FILE -> $KEY  (Content-Type: $CT)"
+            if [ "$CHANNEL" = "prod" ]; then
+              # A released path is written once: the PUT succeeds only when the key does not
+              # exist yet, and the bucket's lock on desktop/releases/ refuses any overwrite as
+              # well. A version that needs new bytes ships as the next version.
+              if ! aws s3api put-object --bucket "$BUCKET" --key "$KEY" --body "$FILE" --content-type "$CT" --if-none-match '*' >/dev/null 2>"$RUNNER_TEMP/put.err"; then
+                cat "$RUNNER_TEMP/put.err" >&2
+                if grep -q -E 'PreconditionFailed|ObjectLockedByBucketPolicy' "$RUNNER_TEMP/put.err"; then
+                  echo "::error::$KEY already exists; a released version is never rebuilt — cut the next version."
+                fi
+                exit 1
+              fi
+            else
+              aws s3 cp "$FILE" "s3://$BUCKET/$KEY" --content-type "$CT"
+            fi
+            OBSERVED=$(aws s3api head-object --bucket "$BUCKET" --key "$KEY" \
                          --query 'ContentType' --output text)
             echo "observed=$OBSERVED expected=$CT"
             if [ "$OBSERVED" != "$CT" ]; then
-              echo "::error::Content-Type mismatch on ${DEST#s3://$BUCKET/}: '$OBSERVED' != '$CT'"
+              echo "::error::Content-Type mismatch on $KEY: '$OBSERVED' != '$CT'"
               exit 1
             fi
           done
 
       - name: Upload artifact (CI fallback)
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: mirall-${{ matrix.archPath }}
           path: artifact/
@@ -392,5 +457,9 @@ jobs:
             echo "$BASE/win32-x64/unsigned/Mirall.msix    # sign locally, upload to win32-x64/signed/"
             echo '```'
             echo ""
+            if [ "$CHANNEL" = "prod" ]; then
+              echo "Release artifacts are write-once: a failed row is recovered with *Re-run failed jobs*; anything else ships as the next version."
+              echo ""
+            fi
             echo "Next step (Windows): sign the MSIX out-of-band ($SIGN_ARGS; see .claude/build-process.md, Windows) and upload it to win32-x64/signed/"
           } >> "$GITHUB_STEP_SUMMARY"

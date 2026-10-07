@@ -9,7 +9,7 @@ runs:
   steps:
     # No checkout here: a local action is resolved from the workspace, so the caller must have
     # checked out before `uses: ./.github/actions/setup` can be found at all.
-    - uses: actions/setup-node@v6
+    - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
       with:
         # One pin for every job in this workflow; it was written four times here.
         # build-electron.yml keeps its own — it runs a different matrix and does not use this action.

@@ -22,7 +22,9 @@ if [ ! -f "$WF" ]; then
   exit 1
 fi
 
-if ! grep -q 'aws s3 cp .* --content-type' "$WF"; then
+# Both upload commands (channel copy and write-once release PUT) carry an explicit type.
+UPLOADS=$(grep -E 'aws s3 cp |aws s3api put-object ' "$WF" || true)
+if [ -z "$UPLOADS" ] || echo "$UPLOADS" | grep -v -q -- '--content-type'; then
   echo "ERROR: $WF uploads to R2 without --content-type." >&2
   echo "  fix: aws s3 cp \"\$FILE\" \"\$DEST\" --content-type \"\$CT\"" >&2
   fail=1
