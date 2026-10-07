@@ -34,7 +34,8 @@ a tag carries it.
 Each release line has a long-lived **`release/<major>.<minor>`** branch, and every `v*` tag sits on
 one. Release branches are never deleted — they record what each line shipped — and the
 `protect-main-release` ruleset blocks their deletion and any non-fast-forward push, as it does for
-`main`.
+`main`. The `protect-release-tags` ruleset lets only admins create a `v*` tag and nobody move or
+delete one.
 
 **Fixes go upstream first.** A fix merges to `main`, then is cherry-picked with `-x` onto the release
 branch through a `backport/<slug>` PR. Only a fix that no longer applies on `main` lands on the
@@ -96,21 +97,45 @@ Release branches get no automatic bumps; a security fix is backported by hand li
 
 The **beta** download (the `staging` release channel, a Pear Hyperdrive — see *Release channels &
 OTA* below) is a `workflow_dispatch` build: from `main` during normal development, and from the
-`release/x.y` branch while a minor stabilises. Channels are build flavors, not branches; any ref can
-be built for any channel.
+`release/x.y` branch while a minor stabilises. Channels are build flavors, not branches: `main` and
+any `release/*` branch can be built for `dev` or `staging`; `prod` is built only from a `v*` tag on
+its `release/<x.y>` branch.
 
 ## CI build — `.github/workflows/build-electron.yml`
 
 **Triggers**
 - **Tag push `v<version>`** → builds the `prod` channel; version comes from the tag.
-- **`workflow_dispatch`** → a maintainer picks `channel` (`dev` / `staging` / `prod`) and optionally
-  a single `platform`. Non-prod builds get a unique `<version>-<channel>.<run>` string so every
-  build is distinct.
+- **`workflow_dispatch`** → a maintainer picks `channel` (`dev` / `staging`) and optionally a single
+  `platform`. These builds get a unique `<version>-<channel>.<run>` string so every build is
+  distinct. `prod` is not a dispatch option: `gh workflow run build-electron.yml -f channel=prod`
+  is rejected before a run starts.
 
 **Pre-flight gates** (tag pushes) — the build refuses to start unless:
-1. the tag matches `package.json#version` (no "tagged but forgot to bump"), and
-2. the top `## v<version>` heading in `CHANGELOG.md` matches the tag (forces a release note into the
+1. the tag is `v<MAJOR>.<MINOR>.<PATCH>[-<label><N>]` and its commit is on `release/<MAJOR>.<MINOR>`,
+2. the tag matches `package.json#version` (no "tagged but forgot to bump"), and
+3. the top `## v<version>` heading in `CHANGELOG.md` matches the tag (forces a release note into the
    same commit).
+
+**Release integrity.** The workflow file runs from the ref being built, so whoever can push a ref
+can edit any check written in it; the boundary sits outside the repo files:
+- **Environments.** The build job runs in `release` (prod; deployable only from `v*` tags) or `beta`
+  (dev/staging; only from `main` and `release/*`). Each holds the Apple signing and R2 secrets and
+  has a required reviewer, so every build waits for an approval under *Review deployments* before
+  it starts. A branch with an edited workflow reaches neither environment. The `UPGRADE_KEY_*` values
+  stay repository secrets: they are public `pear://` links built into every installed app.
+- **Write-once releases.** A prod upload is a conditional PUT (`--if-none-match '*'`), and an R2
+  bucket lock (`released-artifacts`, prefix `desktop/releases/`, indefinite) refuses any overwrite
+  or delete of a released object. A released version is never rebuilt: a matrix row that failed
+  before its upload is recovered with *Re-run failed jobs* (never *Re-run all jobs*); anything
+  else ships as the next version. The signed MSIX is a new key under `win32-x64/signed/`, so the
+  lock allows it — once.
+- **Least privilege.** The workflow token is `contents: read`, checkouts do not persist it, and
+  expression values reach shell scripts only through `env:`.
+- **Pinned inputs.** Every action is pinned to a commit SHA with its version in a trailing comment;
+  Renovate's `helpers:pinGitHubActionDigestsToSemver` keeps both current. Build inputs fetched over
+  the network go through `scripts/build/lib/fetch-verified.sh`, which refuses a file whose SHA-256
+  differs from the pin next to its URL. `test/invariants/release-workflow-hardening.test.js` pins
+  all of the above.
 
 **Build matrix**
 
@@ -125,7 +150,7 @@ Each job: patch `package.json#version` → `npm ci` → fail if `package-lock.js
 `npm run make:<platform>`:
 
 - **macOS** — `electron-forge make`; `osxSign` + `osxNotarize` run during packaging (wired via env
-  in `forge.config.js`) using an Apple Developer ID cert stored in repo secrets.
+  in `forge.config.js`) using an Apple Developer ID cert stored in the build environment's secrets.
 - **Linux** — `electron-forge make` builds the `.deb` via `@electron-forge/maker-deb`
   (`chrome-sandbox` is recorded setuid root in the package, so the installed app runs with the
   Chromium sandbox on), then `scripts/build/build-app-image.sh` assembles the AppImage from the same
@@ -137,7 +162,13 @@ Each job: patch `package.json#version` → `npm ci` → fail if `package-lock.js
   root owns the install, the package manager owns updates). The AppImage cannot keep a setuid
   sandbox, so `resources/linux/AppRun` passes `--no-sandbox`, and it swaps its FUSE runtime for
   uruntime (`URUNTIME_VERSION` in the script) because current distros lack `libfuse2`. Both use
-  `~/.config/mirall/`; a deb install retires any per-user AppImage desktop entry.
+  `~/.config/mirall/`; a deb install retires any per-user AppImage desktop entry. uruntime runs
+  before Electron on every AppImage launch, so the script pins two SHA-256 values per arch: the
+  release asset (`URUNTIME_SHA256`, the asset's `digest` in
+  `gh api repos/VHSgunzo/uruntime/releases/tags/<v>`) and the runtime after its
+  `URUNTIME_MOUNT=0` patch (`URUNTIME_PATCHED_SHA256`, `sha256sum` of the patched file on Linux). A
+  bump changes the version and all four hashes in one commit; cross-check the patched hash against
+  the first bytes of the next built AppImage.
 - **Windows** — `electron-forge make` with `@electron-forge/maker-msix`. The `preMake` hook in
   `forge.config.js` rewrites the 4-part `Version` in `resources/win32/AppxManifest.xml`. CI produces
   the MSIX **unsigned**; it is signed out-of-band by a maintainer (the signing process is internal).
