@@ -185,6 +185,37 @@ test('REGRESSION (MIR-48: a co-member\'s deny was refused under enforcement)', {
   await coMemberDeny(t, enforcedFlags)
 })
 
+// Carol denies Bob while he is offline, and Alice, the inviter and creator, is gone before he
+// reconnects, so the only deny he can act on is the one Carol replays to his knock.
+test('REGRESSION (MIR-48: a co-member\'s replayed deny was refused under enforcement)', { timeout: scaled(360000) }, async (t) => {
+  const bootstrap = await localTestnet(t)
+  const A = await peer(t, bootstrap, 'Alice')
+  const C = await peer(t, bootstrap, 'Carol')
+  const bOpts = { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: enforcedFlags() }
+  let B = await launchPeer(t, bOpts)
+  const spaceId = await connectInSpaceWithApproval(t, A, C)
+  const bKey = (await B.request('profile:get')).personKey
+
+  const aSees = A.waitFor('event:member-join-request', (m) => m.spaceId === spaceId && m.publicKey === bKey, 120000)
+  await B.request('space:join', { inviteCode: await A.request('space:invite', { spaceId }) })
+  await aSees
+  await C.until('space:pending-requests', { spaceId }, (r) => r.some((x) => x.publicKey === bKey), { ms: 60000 })
+
+  const stop = async (p) => {
+    const pid = p.sidecar?._process?.pid
+    p.kill()
+    if (pid) await waitForWorkerExit(pid, 5000)
+  }
+  await stop(B)
+  t.alike(await C.request('space:deny-member', { spaceId, publicKey: bKey }), { outcome: 'denied' }, 'Carol denies Bob while he is offline')
+  await stop(A)
+
+  B = await launchPeer(t, bOpts)
+  await B.waitFor('event:membership-denied', (m) => m.spaceId === spaceId, 120000)
+  t.pass('Bob accepted the deny Carol replayed to his knock')
+  t.absent(await spaceOf(B, spaceId), 'and discarded the pending space')
+})
+
 // With the identity binding off, the wire accepts a profileKey in either case; approve and deny
 // accept only the lowercase spelling, so a knock under any other spelling must never be listed.
 test('REGRESSION (MIR-49: a knock under a non-canonical key is never listed)', { timeout: scaled(180000) }, async (t) => {
