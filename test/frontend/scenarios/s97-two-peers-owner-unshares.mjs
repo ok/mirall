@@ -35,7 +35,7 @@ export default async function s97({ runDir, bootstrap }) {
       await A.focus()
       await A.waitText('to join', 30000)
       await A.click({ role: 'button', contains: 'Review' })
-      await A.waitText('Requests to join', 10000)
+      await A.waitText('Requests to Join', 10000)
       await A.click({ role: 'button', contains: 'Approve all' })
       await B.waitText('Drop to Share', 40000)
       await C.waitText('Drop to Share', 40000)

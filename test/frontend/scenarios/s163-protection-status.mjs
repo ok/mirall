@@ -27,9 +27,9 @@ export default async function s163({ runDir, bootstrap }) {
       await A.click({ role: 'button', name: 'Cancel' })
     })
     await r.ok('status and settings lead to each other', async () => {
-      await A.click({ role: 'button', name: 'Backup & recovery settings' })
+      await A.click({ role: 'button', name: 'Backup & Recovery Settings' })
       await A.waitText('Restoring on a new computer', 8000)
-      await A.click({ role: 'button', name: 'Protection status' })
+      await A.click({ role: 'button', name: 'Protection Status' })
       await A.waitText("Your data isn't backed up", 8000)
     })
   } catch {}

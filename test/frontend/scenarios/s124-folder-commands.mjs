@@ -82,7 +82,7 @@ export default async function s124({ runDir, bootstrap }) {
     // one command flagged to stay out of the list — the palette's own opener — was listed inside it.
     await r.ok('REGRESSION: the palette does not list itself', async () => {
       await palette(A, 'command palette')
-      assert(!(await A.hasText('Open command palette')), 'the palette opener stays hidden')
+      assert(!(await A.hasText('Open Command Palette')), 'the palette opener stays hidden')
       assert(await A.hasText('No commands match'), 'and nothing else claims that query')
       await A.press('escape')
     })

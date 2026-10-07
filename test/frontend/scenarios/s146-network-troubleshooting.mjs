@@ -18,7 +18,7 @@ export default async function s146({ runDir, bootstrap }) {
 
     await r.ok('both troubleshooting rows are reachable by name, and nothing is expanded', async () => {
       await A.waitText('Troubleshooting', 8000)
-      for (const name of ['Diagnostics', 'Advanced details']) {
+      for (const name of ['Diagnostics', 'Advanced Details']) {
         if (!(await A.has({ role: 'button', name }))) throw new Error(`troubleshooting row missing: ${name}`)
       }
       if (await A.hasText('Routing-table size')) throw new Error('advanced rows are on Network status')
@@ -27,7 +27,7 @@ export default async function s146({ runDir, bootstrap }) {
     })
 
     await r.ok('Advanced details opens as a screen and backs out to Network status', async () => {
-      await A.click({ role: 'button', name: 'Advanced details' })
+      await A.click({ role: 'button', name: 'Advanced Details' })
       await A.waitText('The raw values behind your connection', 8000)
       for (const label of ['Connection', 'Address', 'NAT', 'Relaying', 'DHT', 'Connection test']) {
         if (!(await A.hasText(label))) throw new Error(`advanced section missing: ${label}`)
@@ -40,7 +40,7 @@ export default async function s146({ runDir, bootstrap }) {
     })
 
     await r.ok('the public key stays masked until it is revealed', async () => {
-      await A.click({ role: 'button', name: 'Advanced details' })
+      await A.click({ role: 'button', name: 'Advanced Details' })
       await A.waitText('Your public key', 8000)
       if (!(await A.has({ role: 'button', name: 'Reveal' }))) throw new Error('reveal button not reachable by name')
       await A.back()

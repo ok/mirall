@@ -18,7 +18,7 @@ export default async function s137({ runDir, bootstrap }) {
       await Relays.gotoSettings('Network')
       await Relays.waitText('A relay helps two devices connect', 8000)
       await Relays.click({ name: 'Add relay' })
-      await Relays.waitText('Add a relay', 8000)
+      await Relays.waitText('Add a Relay', 8000)
     })
 
     // A paste that lost its final character still decodes to the same 69 bytes and passes the
@@ -103,7 +103,7 @@ export default async function s137({ runDir, bootstrap }) {
       await Relays.shot('s137-replace-confirm', runDir)
 
       await Relays.click({ name: 'Cancel' })
-      if (await Relays.hasText('Add a relay')) throw new Error('cancelling still opened the add modal')
+      if (await Relays.hasText('Add a Relay')) throw new Error('cancelling still opened the add modal')
       await Relays.waitText('Family relay', 8000)
     })
 

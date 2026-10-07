@@ -31,14 +31,14 @@
       "appearance": "Appearance",
       "notifications": "Notifications",
       "general": "General",
-      "network": "Network status",
-      "activityLog": "Activity log",
-      "activityLogSettings": "Activity log settings",
-      "networkSettings": "Network settings",
-      "connectionProblem": "Connection problem",
+      "network": "Network Status",
+      "activityLog": "Activity Log",
+      "activityLogSettings": "Activity Log Settings",
+      "networkSettings": "Network Settings",
+      "connectionProblem": "Connection Problem",
       "networkDiagnostics": "Diagnostics",
-      "networkAdvanced": "Advanced details",
-      "backup": "Backup & recovery",
+      "networkAdvanced": "Advanced Details",
+      "backup": "Backup & Recovery",
       "protection": "Protection"
     }
   },
@@ -62,7 +62,7 @@
   "account": {
     "title": "Profile",
     "intro": "Your profile, this device, and app info.",
-    "groupDevice": "This device",
+    "groupDevice": "This Device",
     "groupApp": "App",
     "connection": "Connection",
     "connectionDesc": "{{state}} · {{peers}}",
@@ -129,7 +129,7 @@
     "nWantToJoin_other": "{{count}} people want to join",
     "reviewN_one": "Review {{count}} request",
     "reviewN_other": "Review {{count}} requests",
-    "joinRequests": "Requests to join",
+    "joinRequests": "Requests to Join",
     "joinRequestsDesc": "Approve people to give them access to this space.",
     "approveAll": "Approve all ({{count}})",
     "approveSelected": "Approve selected ({{count}})",
@@ -441,7 +441,7 @@
   "invite": {
     "title": "Invite to Space",
     "configureDesc": "Choose how people join and how long the link lasts, then create it.",
-    "readyTitle": "Invite link ready",
+    "readyTitle": "Invite Link Ready",
     "readyDesc": "Share this link with a colleague or peer to give them access.",
     "infoText": "When a colleague or peer joins with this link, they'll be able to see and sync all files shared in this space.",
     "create": "Create invite link",
@@ -558,7 +558,7 @@
     "networkStatusDesc_other": "{{count}} peers connected",
     "activityLog": "Activity Log",
     "activityLogDesc": "What gets recorded, and for how long.",
-    "backup": "Backup & recovery",
+    "backup": "Backup & Recovery",
     "backupDesc": "Backup folder, recovery key, and restoring."
   },
   "appearanceSettings": {
@@ -602,7 +602,7 @@
     }
   },
   "shortcuts": {
-    "title": "Keyboard shortcuts",
+    "title": "Keyboard Shortcuts",
     "intro": "Quickly navigate Mirall with the keyboard.",
     "groups": {
       "system": "System",
@@ -610,8 +610,8 @@
       "actions": "Actions",
       "space": "In a space"
     },
-    "openPalette": "Open command palette",
-    "showShortcuts": "Show keyboard shortcuts",
+    "openPalette": "Open Command Palette",
+    "showShortcuts": "Show Keyboard Shortcuts",
     "confirmDialog": "Confirm a dialog",
     "confirmDialogFromText": "Confirm from a text box",
     "dismissDialog": "Dismiss a dialog",
@@ -622,13 +622,13 @@
     "openSettings": "Open Settings",
     "openProfile": "Open Profile",
     "openActivityLog": "Open Activity Log",
-    "openStorageSettings": "Open Storage settings",
-    "openAppearanceSettings": "Open Appearance settings",
-    "openNotificationSettings": "Open Notification settings",
-    "openGeneralSettings": "Open General settings",
-    "openNetworkSettings": "Open Network settings",
-    "openActivityLogSettings": "Open Activity Log settings",
-    "openNetworkStatus": "Open Network status",
+    "openStorageSettings": "Open Storage Settings",
+    "openAppearanceSettings": "Open Appearance Settings",
+    "openNotificationSettings": "Open Notification Settings",
+    "openGeneralSettings": "Open General Settings",
+    "openNetworkSettings": "Open Network Settings",
+    "openActivityLogSettings": "Open Activity Log Settings",
+    "openNetworkStatus": "Open Network Status",
     "newSpace": "Create new space",
     "joinSpace": "Join space",
     "focusSearch": "Search activity",
@@ -646,12 +646,12 @@
     "folderResume": "Resume syncing {{name}}",
     "folderMirror": "Mirror {{name}} to disk",
     "folderEdit": "Edit folder {{name}}",
-    "whatsNew": "What's new",
-    "sendFeedback": "Send feedback",
+    "whatsNew": "What's New",
+    "sendFeedback": "Send Feedback",
     "openDocs": "Open documentation"
   },
   "palette": {
-    "title": "Command palette",
+    "title": "Command Palette",
     "placeholder": "Type a command or jump to a space…",
     "noResults": "No commands match"
   },
@@ -704,17 +704,17 @@
   "aboutSettings": {
     "documentation": "Documentation",
     "documentationDesc": "Guides and FAQ.",
-    "keyboardShortcuts": "Keyboard shortcuts",
+    "keyboardShortcuts": "Keyboard Shortcuts",
     "keyboardShortcutsDesc": "See every shortcut at a glance.",
     "sendFeedback": "Send Feedback",
     "sendFeedbackDesc": "Report a problem or share a suggestion.",
-    "whatsNew": "What's new",
+    "whatsNew": "What's New",
     "whatsNewDesc": "Recent changes in Mirall.",
     "whatsNewEmpty": "No release notes are available.",
     "updateReady": "v{{version}} is available — it will be installed the next time you quit and reopen Mirall."
   },
   "whatsNew": {
-    "title": "What's new",
+    "title": "What's New",
     "introUpdate": "Mirall's been busy — here's what changed.",
     "introAll": "Here's everything that's changed across Mirall's releases.",
     "gotIt": "Got it"
@@ -797,9 +797,9 @@
   "networkSettings": {
     "title": "Network",
     "intro": "Limits for uploads and downloads.",
-    "openStatus": "Open network status",
+    "openStatus": "Open Network Status",
     "openStatusDesc": "See how this device is connected right now.",
-    "transferLimits": "Transfer limits",
+    "transferLimits": "Transfer Limits",
     "limitsLoading": "Loading transfer limits…",
     "limitsUnavailable": "Couldn't read your transfer limits.",
     "limitSaveFailed": "Couldn't save that limit. The previous one is still in use.",
@@ -836,7 +836,7 @@
       "disabled": "Disabled",
       "statusFor": "{{name}}: {{status}}",
       "addAction": "Add relay",
-      "addTitle": "Add a relay",
+      "addTitle": "Add a Relay",
       "addDesc": "Paste a relay key, or an invite from whoever runs the relay. Your files stay encrypted end to end — the relay only forwards them.",
       "labelLabel": "Name (optional)",
       "labelPlaceholder": "e.g. Office relay",
@@ -849,7 +849,7 @@
       "inputLabel": "Relay key or invite",
       "inputPlaceholder": "Paste a key or a mirall://relay/… invite",
       "replace": "Replace",
-      "replaceTitle": "Replace this relay",
+      "replaceTitle": "Replace This Relay",
       "decodedKey": "Relay key {{key}}",
       "kindFor": "Relay type: {{kind}}",
       "privacyNote": "Whoever runs this relay can see when you are online and who you connect to — never what you send.",
@@ -880,9 +880,9 @@
     }
   },
   "networkStatus": {
-    "title": "Network status",
+    "title": "Network Status",
     "intro": "Connection details and diagnostics.",
-    "openSettings": "Network settings",
+    "openSettings": "Network Settings",
     "openSettingsDesc": "Transfer limits and relay.",
     "reconnect": "Reconnect",
     "reconnecting": "Reconnecting…",
@@ -906,7 +906,7 @@
     },
     "troubleshooting": "Troubleshooting",
     "advanced": {
-      "title": "Advanced details",
+      "title": "Advanced Details",
       "intro": "The raw values behind your connection."
     },
     "advancedHint": "Address, NAT, DHT, counters",
@@ -1047,7 +1047,7 @@
     },
     "actorSelf": "You",
     "actorSystem": "Mirall",
-    "logSettings": "Log settings",
+    "logSettings": "Log Settings",
     "logSettingsDesc": "Recording, retention, export and delete.",
     "emptyTitle": "Nothing recorded yet",
     "emptyDesc": "Activity in your spaces will show up here.",
@@ -1273,7 +1273,7 @@
     "logsDescription": "Turns on detailed logging, then asks you to reproduce the problem before saving.",
     "save": "Save diagnostics",
     "preview": "Preview what's included",
-    "previewTitle": "What's in the file",
+    "previewTitle": "What's in the File",
     "previewIntro": "Identifying details removed. This is exactly what will be saved.",
     "previewRegion": "Diagnostics file contents",
     "previewTruncated": "(truncated — the saved file contains everything)",
@@ -1344,7 +1344,7 @@
     "bannerKeyDetail": "Mirall is getting your profile from the people you share with. Until then you can look, not change."
   },
   "recoveryBackup": {
-    "title": "Back up your recovery key",
+    "title": "Back Up Your Recovery Key",
     "intro": "This is the master key to your Mirall identity. With this file and its passphrase, you can be yourself again on a new device — even if your computer or keychain is gone.",
     "weakDevice": "This device has no system keychain, so this backup is your real protection against losing your identity.",
     "passphraseLabel": "Choose a passphrase",
@@ -1366,7 +1366,7 @@
     "savedToast": "Recovery key saved to your chosen location."
   },
   "recoveryRestore": {
-    "title": "Restore from a recovery key",
+    "title": "Restore from a Recovery Key",
     "introChoose": "Choose the recovery key file you saved earlier, then enter its passphrase.",
     "introPassphrase": "Enter the passphrase for this recovery key.",
     "chooseFile": "Choose recovery key file…",
@@ -1381,7 +1381,7 @@
     "mismatchConfirm": "Replace and restore"
   },
   "backup": {
-    "title": "Backup & recovery",
+    "title": "Backup & Recovery",
     "paused": "Backups resume once your restored profile has caught up with the people you share spaces with.",
     "running": "Backing up…",
     "runNow": "Back up now",
@@ -1396,11 +1396,11 @@
     },
     "folderSubject": "backup folder",
     "subtitle": "Where your backup lives, your recovery key, and restoring.",
-    "offerTitle": "Protect your spaces",
+    "offerTitle": "Protect Your Spaces",
     "offerBody": "If this computer breaks, is lost or replaced, a backup brings back your spaces, their file lists and who you are to the people you share with. Choose a drive or network folder once — Mirall keeps it up to date on its own.",
     "setUp": "Set up backup",
     "notNow": "Not now",
-    "laterToast": "You can set up a backup anytime in Settings → Backup & recovery.",
+    "laterToast": "You can set up a backup anytime in Settings → Backup & Recovery.",
     "checkTitle": "Do you still know your recovery passphrase?",
     "checkBody": "A quick check now saves a bad surprise later. It takes ten seconds.",
     "checkNow": "Check now",
@@ -1423,19 +1423,19 @@
     "rowCopyOk": "Saved {{when}}",
     "saveCopy": "Save a copy…",
     "copySaved": "Recovery key copy saved.",
-    "folderTitle": "Backup folder",
+    "folderTitle": "Backup Folder",
     "folderDesc": "Mirall keeps the latest backup and a few older ones, from up to two months back. Everything in it is encrypted with your passphrase.",
     "turnOffTitle": "Turn off backup?",
     "turnOffBody": "Mirall stops backing up. The backups and the recovery key already in the folder stay there.",
     "turnOffConfirm": "Turn off",
-    "keyTitle": "Recovery key",
+    "keyTitle": "Recovery Key",
     "newKey": "Forgot it? Make a new key",
     "makeKey": "Make a recovery key",
     "staleToast": "Mirall hasn't backed up in over 10 days. Check that the backup folder is available.",
     "open": "Open",
     "rowKeyUnconfirmed": "In your backup folder · passphrase not confirmed on this computer yet",
     "keyOnly": "Only save a recovery key file",
-    "setUpTitle": "Set up a backup",
+    "setUpTitle": "Set Up a Backup",
     "setUpBody": "Choose a drive or network folder once. Mirall keeps a copy of your spaces, their file lists, your settings and your recovery key there, encrypted with a passphrase only you know.",
     "passphraseTitle": "Passphrase",
     "passphraseDesc": "Opens your recovery key. Changing it makes a new key; copies you saved elsewhere keep the old passphrase.",
@@ -1449,7 +1449,7 @@
     "restoreKeyOnly": "No backup folder? Your recovery key file alone brings your identity back; your spaces return from the people you share them with."
   },
   "restoreBackup": {
-    "title": "Restore your account",
+    "title": "Restore Your Account",
     "introChoose": "Choose the folder that holds your Mirall backup.",
     "introPick": "Choose the backup to restore. The newest is usually right.",
     "folderLabel": "Backup folder",
@@ -1474,7 +1474,7 @@
     "quoted": "“{{name}}”"
   },
   "backupSetup": {
-    "title": "Protect your spaces",
+    "title": "Protect Your Spaces",
     "intro": "Set this up once. Mirall keeps it up to date by itself.",
     "step": "Step {{n}} of {{total}}",
     "whereLabel": "Where should the backup live?",
@@ -1502,7 +1502,7 @@
     "doneBackupFailed": "The first backup didn't finish"
   },
   "backupCheck": {
-    "title": "Check your passphrase",
+    "title": "Check Your Passphrase",
     "label": "Recovery passphrase",
     "body": "Mirall checks it against your recovery key on this computer. Nothing is sent anywhere.",
     "check": "Check",
@@ -1510,14 +1510,14 @@
     "optOut": "Don't ask again — it's in my password manager"
   },
   "backupNewKey": {
-    "title": "Make a new recovery key",
+    "title": "Make a New Recovery Key",
     "intro": "Choose a new passphrase. Mirall replaces the key in your backup folder. Copies you saved elsewhere still open with the old passphrase — delete them.",
     "make": "Make new key",
     "working": "Making your new key…",
     "done": "New recovery key saved in your backup folder."
   },
   "restoreAccount": {
-    "title": "Restore your account",
+    "title": "Restore Your Account",
     "intro": "Already used Mirall on another computer? Bring it back here.",
     "listLabel": "How do you want to restore?",
     "fromBackup": "From my backup folder",
@@ -1528,17 +1528,17 @@
   "protection": {
     "title": "Protection",
     "intro": "How your identity and your data are kept safe on this device.",
-    "identityTitle": "Your identity",
-    "dataTitle": "Your data",
+    "identityTitle": "Your Identity",
+    "dataTitle": "Your Data",
     "identityKey": "Identity key on this computer",
     "checkPassphrase": "Check passphrase",
     "keyNotBackedUp": "Not in a backup yet — if this computer is lost, only a recovery key file you saved yourself brings your identity back.",
     "copyLater": "Saved once the backup is set up.",
     "dataNotBackedUp": "Not set up — your spaces, file lists and settings are only on this computer.",
     "folderOffline": "{{folder}} · not connected",
-    "openSettings": "Backup & recovery settings",
+    "openSettings": "Backup & Recovery Settings",
     "openSettingsDesc": "Where the backup lives, your recovery key, and how to restore.",
-    "openStatus": "Protection status",
+    "openStatus": "Protection Status",
     "openStatusDesc": "See what is protected on this device right now.",
     "dot": {
       "protected": "Protected",

@@ -51,7 +51,7 @@ export const withFlows = (Base) => class extends Base {
   async openNetworkStatus() {
     await this.openAccount()
     await this.click({ role: 'button', contains: 'Connection' })
-    await this.waitText('Network status', 8000)
+    await this.waitText('Network Status', 8000)
   }
 
   async openNetworkDiagnostics() {
@@ -62,7 +62,7 @@ export const withFlows = (Base) => class extends Base {
 
   async openNetworkAdvanced() {
     await this.openNetworkStatus()
-    await this.click({ role: 'button', name: 'Advanced details' })
+    await this.click({ role: 'button', name: 'Advanced Details' })
     await this.waitText('The raw values behind your connection', 8000)
   }
 

@@ -19,7 +19,7 @@ export default async function s160({ runDir, bootstrap }) {
     await r.ok('Settings offers Backup & recovery', async () => {
       await A.launch()
       await A.createSpaceOnly('Aurora')
-      await A.gotoSettings('Backup & recovery')
+      await A.gotoSettings('Backup & Recovery')
       await A.waitText('Restoring on a new computer', 8000)
       await A.shot('s160-not-set-up', runDir)
     })
@@ -80,11 +80,11 @@ export default async function s160({ runDir, bootstrap }) {
       await A.waitText('Passphrase correct. Keep it safe.', 60000)
     })
     await r.ok('turning the backup off asks first, then offers setup again', async () => {
-      await A.click({ role: 'button', name: 'Backup & recovery settings' })
+      await A.click({ role: 'button', name: 'Backup & Recovery Settings' })
       await A.click({ role: 'button', name: 'Turn off backup' })
       await A.waitText('Turn off backup?', 8000)
       await A.click({ role: 'button', name: 'Turn off' })
-      await A.waitText('Set up a backup', 15000)
+      await A.waitText('Set Up a Backup', 15000)
       if (!(await A.has({ role: 'button', name: 'Only save a recovery key file' }))) throw new Error('no key-only option')
     })
   } catch {}

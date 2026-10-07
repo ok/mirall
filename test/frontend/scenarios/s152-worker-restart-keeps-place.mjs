@@ -46,7 +46,7 @@ export default async function s152({ runDir, bootstrap }) {
 
     await r.ok('a private relay is configured, leaving the reconnect pending', async () => {
       await A.click({ name: 'Add relay' })
-      await A.waitText('Add a relay', 8000)
+      await A.waitText('Add a Relay', 8000)
       await A.type({ name: 'Relay key or invite' }, TICKET)
       await A.click({ name: 'Continue' })
       await A.waitText('Private relay', 8000)

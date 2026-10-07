@@ -471,14 +471,14 @@ async function probeWhatsNew(root: Root, kit: FailpathsKit): Promise<WhatsNewPro
   window.bridge.getChangelog = () => Promise.reject(new Error('changelog unreadable'))
   root.render(account('whats-new-fail'))
   await kit.sleep(300)
-  kit.buttonWithText("What's new")?.click()
+  kit.buttonWithText("What's New")?.click()
   await kit.sleep(300)
   const failAlert = kit.alertSays(GENERIC_TEXT)
 
   window.bridge.getChangelog = () => Promise.resolve('')
   root.render(account('whats-new-empty'))
   await kit.sleep(300)
-  kit.buttonWithText("What's new")?.click()
+  kit.buttonWithText("What's New")?.click()
   await kit.sleep(300)
   const emptyStatus = statusSays(WHATS_NEW_EMPTY_TEXT)
   window.bridge.getChangelog = realChangelog

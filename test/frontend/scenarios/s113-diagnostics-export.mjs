@@ -23,7 +23,7 @@ export default async function s113({ runDir, bootstrap }) {
 
     await r.ok('preview opens, shows the bundle, and closes', async () => {
       await A.click({ role: 'button', contains: "Preview what's included" })
-      await A.waitText("What's in the file", 15000)
+      await A.waitText("What's in the File", 15000)
       if (!(await A.hasText('"schema"'))) throw new Error('preview does not show the bundle JSON')
       await A.shot('s113-preview', runDir)
       await A.click({ role: 'button', name: 'Close' })
@@ -31,7 +31,7 @@ export default async function s113({ runDir, bootstrap }) {
 
     await r.ok('the redacted preview carries no public key', async () => {
       await A.click({ role: 'button', contains: "Preview what's included" })
-      await A.waitText("What's in the file", 15000)
+      await A.waitText("What's in the File", 15000)
       if (await A.hasText('"publicKey"')) {
         throw new Error('redacted preview exposed publicKey')
       }

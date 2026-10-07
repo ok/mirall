@@ -628,6 +628,11 @@ pure function, `primitives/modalKeys.ts`, unit-tested in `test/invariants/modal-
      body slot + this footer), which Add Folder and Mirror to Disk both render; their shared second
      step is `modals/ScanPreviewModal.tsx`, and the state machine behind both — validate, scan,
      commit — is `hooks/useMountWizard.ts`.
+- **Headings are Title Case** in English: screen titles, section headings, dialog titles that name
+  the dialog, and a screen's name wherever it is quoted ("Settings → Backup & Recovery", "Open
+  Network Status"). A heading that is a sentence — an empty state, a question, a status ("No spaces
+  yet", "Start fresh?", "Backup is on") — stays sentence case, as do row labels, buttons and body
+  text. Other locales follow their own language's rules.
 - **Destructive intent is carried only by the `danger` button** — titles and body text stay in
   normal `text-accent` / `text-on-surface-variant`.
 

@@ -47,10 +47,10 @@ export default async function s20({ runDir, bootstrap }) {
     // filtered out wholesale, so neither could ever be found by typing.
     await r.ok('the palette offers the system commands', async () => {
       await palette('feedback')
-      if (!(await A.hasText('Send feedback'))) throw new Error('Send feedback missing from the palette')
+      if (!(await A.hasText('Send Feedback'))) throw new Error('Send feedback missing from the palette')
       await A.press('escape')
       await palette("what's new")
-      if (!(await A.hasText("What's new"))) throw new Error("What's new missing from the palette")
+      if (!(await A.hasText("What's New"))) throw new Error("What's new missing from the palette")
       await A.press('escape')
       await A.shot('s20-palette-system', runDir)
     })

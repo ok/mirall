@@ -5,7 +5,7 @@
 export async function copyInvite(A) {
   await A.openInviteModal()
   await A.click({ role: 'button', name: 'Create invite link' })
-  await A.waitText('Invite link ready', 8000)
+  await A.waitText('Invite Link Ready', 8000)
   const raw = await A.copyFrom({ role: 'button', name: 'Copy' })
   await A.click({ role: 'button', name: 'Done' })
   return raw.replace(/^mirall:\/\/join\//, '')
@@ -52,7 +52,7 @@ export async function connectInSpace(A, B, { name = 'Aurora' } = {}) {
 // Save the recovery key on its own, without a backup: Settings → Backup & recovery offers it until a
 // backup is set up.
 export async function saveRecoveryKeyOnly(A, file, passphrase) {
-  await A.gotoSettings('Backup & recovery')
+  await A.gotoSettings('Backup & Recovery')
   await A.click({ role: 'button', name: 'Only save a recovery key file' })
   await A.setRaw({ role: 'textfield', name: 'Choose a passphrase' }, passphrase)
   await A.setRaw({ role: 'textfield', name: 'Confirm passphrase' }, passphrase)

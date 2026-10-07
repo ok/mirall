@@ -48,7 +48,7 @@ export default async function s74({ runDir, bootstrap }) {
       await A.focus()
       await A.waitText('to join', 30000)
       await A.click({ role: 'button', contains: 'Review' })
-      await A.waitText('Requests to join', 10000)
+      await A.waitText('Requests to Join', 10000)
       await A.click({ role: 'button', contains: 'Approve all' })
       for (const P of peers) await P.waitText('Drop to Share', 40000)
     })

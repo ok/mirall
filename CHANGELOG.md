@@ -22,7 +22,7 @@ stalling your downloads.
 #### Added
 
 - **Back up Mirall to a drive or network folder.** Settings → Backup &
-recovery sets up an encrypted backup of your spaces, file lists, settings
+Recovery sets up an encrypted backup of your spaces, file lists, settings
 and recovery key in one step, protected by a passphrase you choose. It then
 runs on its own, and Mirall asks now and then whether you still know the
 passphrase. Profile → Protection shows whether your identity and your data
@@ -42,7 +42,7 @@ index, the Activity Log, download history, app updates and everything else
 separately. When enough can be freed, "Free up" clears it in
 one step.
 - **Save just your recovery key.** If you don't want a backup, Settings →
-Backup & recovery can save only your recovery key: a file sealed with a
+Backup & Recovery can save only your recovery key: a file sealed with a
 passphrase you choose. It brings back your identity, not your files, and we
 can't reset a lost passphrase.
 - **See when a member is reached through a relay.** The member list now reads

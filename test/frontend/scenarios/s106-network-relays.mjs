@@ -21,7 +21,7 @@ export default async function s106({ runDir, bootstrap }) {
     await r.ok('the Relays section renders below Transfer limits', async () => {
       await Relays.launch()
       await Relays.gotoSettings('Network')
-      await Relays.waitText('Transfer limits', 8000)
+      await Relays.waitText('Transfer Limits', 8000)
       await Relays.waitText('A relay helps two devices connect', 8000)
       await Relays.shot('s106-section', runDir)
     })
@@ -41,7 +41,7 @@ export default async function s106({ runDir, bootstrap }) {
 
     await r.ok('a malformed input names the format, not a generic invalid', async () => {
       await Relays.click({ name: 'Add relay' })
-      await Relays.waitText('Add a relay', 8000)
+      await Relays.waitText('Add a Relay', 8000)
       await Relays.type({ name: 'Relay key or invite' }, 'not-a-relay-key')
       await Relays.click({ name: 'Continue' })
       await Relays.waitText('not a relay key or an invite', 8000)
@@ -148,7 +148,7 @@ export default async function s106({ runDir, bootstrap }) {
       await Relays.click({ name: 'Options for Test relay' })
       await settle()
       await Relays.click({ name: 'Replace' })
-      await Relays.waitText('Replace this relay', 8000)
+      await Relays.waitText('Replace This Relay', 8000)
       await Relays.type({ name: 'Relay key or invite' }, OTHER_KEY)
       await Relays.click({ name: 'Continue' })
       await Relays.waitText('Open relay', 8000)
