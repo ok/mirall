@@ -9,8 +9,9 @@ import { AppError } from '../../core/errors.js'
 import { CODES } from '../../contract/errors.js'
 import { newRepoKey, wrapRepoKey, unwrapRepoKey, repoSubkeys, objectId, sealBlob, openBlob } from './repo-crypto.js'
 import { validateManifest } from './manifest.js'
+import { REPO_HEADER } from './folder-target.js'
 
-const HEADER = 'mirall-backup.json'
+const HEADER = REPO_HEADER
 const FORMAT = 'mirall-backup'
 const HEADER_VERSION = 1
 const OBJECTS = 'objects'

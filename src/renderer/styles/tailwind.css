@@ -164,6 +164,13 @@ textarea,
   -webkit-user-select: text;
 }
 
+/* Nothing is dragged out of the app: an image (an avatar) or a link would otherwise be draggable by
+ * default, with nowhere to drop it. Files dropped in from the system are not affected. */
+img,
+a {
+  -webkit-user-drag: none;
+}
+
 /* Tailwind v4 preflight resets button cursor to `default` (arrow); switch
  * back to the pointing-hand for any enabled button or role="button" element.
  * Disabled buttons keep the not-allowed cursor. */

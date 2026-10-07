@@ -13,7 +13,7 @@ import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { deleteSpaceRecord } from '../../src/shared/spaces/space.js'
 import { advertise } from '../../src/shared/shares/own-catalog.js'
 import { FolderTarget, REPO_DIR } from '../../src/shared/storage/backup/folder-target.js'
-import { openOrInitRepo, openRepo } from '../../src/shared/storage/backup/repo.js'
+import { openOrInitRepo, openRepo, peekRepo } from '../../src/shared/storage/backup/repo.js'
 import { runBackup } from '../../src/shared/storage/backup/backup-run.js'
 import { decodePart } from '../../src/shared/storage/backup/segment-codec.js'
 import { applyRecord } from '../../src/shared/storage/backup/core-proofs.js'
@@ -174,6 +174,19 @@ test('a space left is recorded with the snapshot from before it', async (t) => {
   const manifest = await repo.readSnapshot(after.snapshot)
   t.alike(manifest.spaces.map((space) => space.name), ['Team'])
   t.alike(manifest.departures.map(({ before, spaces }) => ({ before, spaces })), [{ before: first.snapshot, spaces: ['Holiday'] }])
+})
+
+test('REGRESSION (restore refused the Mirall Backup folder itself): it reads as the folder that holds it', async (t) => {
+  const { storage } = await freshPeer(t)
+  const chosen = folder(t)
+  await runBackup({ ...runArgs(new FolderTarget(chosen), null), storagePath: storage })
+  const inner = path.join(chosen, REPO_DIR)
+  t.alike(await peekRepo(new FolderTarget(inner)), await peekRepo(new FolderTarget(chosen)), 'the same backup either way')
+  t.ok((await peekRepo(new FolderTarget(inner))).backup)
+
+  const named = path.join(folder(t, 'backup-named'), REPO_DIR)
+  fs.mkdirSync(named)
+  t.is(new FolderTarget(named).dir, path.join(named, REPO_DIR), 'an empty folder that is only named so keeps its backup inside it')
 })
 
 test('another computer writing to the same folder stops the run', async (t) => {
