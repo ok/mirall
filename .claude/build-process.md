@@ -34,8 +34,9 @@ a tag carries it.
 Each release line has a long-lived **`release/<major>.<minor>`** branch, and every `v*` tag sits on
 one. Release branches are never deleted — they record what each line shipped — and the
 `protect-main-release` ruleset blocks their deletion and any non-fast-forward push, as it does for
-`main`. The `protect-release-tags` ruleset lets only admins create a `v*` tag and nobody move or
-delete one.
+`main`. Two tag rulesets guard `v*` tags: `protect-release-tags` lets only admins create one, and
+`lock-release-tags` lets nobody move or delete one. They are separate because a ruleset's admin
+bypass covers every rule in it.
 
 **Fixes go upstream first.** A fix merges to `main`, then is cherry-picked with `-x` onto the release
 branch through a `backport/<slug>` PR. Only a fix that no longer applies on `main` lands on the
