@@ -70,6 +70,9 @@ export class Backup extends Subsystem {
     this.wake = null
     this.progress = { state: this.config.folder ? 'idle' : 'off', ...IDLE, lastSuccessAt: this.state.lastSuccessAt }
     initBackupHints((urgency) => this.note(urgency))
+    // A device that keeps no key — a restored one — takes its folder's key now rather than at its first
+    // run, so the verdict never asks for a passphrase the folder already holds.
+    if (this.config.folder && !this.state.keyContent) this.timers.setTimeout(() => void this.adoptFolderKey(this.config.folder), 0)
     this.timers.setTimeout(() => this.runSoon('boot'), this.deps.bootDelayMs ?? BOOT_RUN_DELAY_MS)
     this.timers.setInterval(() => this.runSoon('interval'), this.deps.intervalMs ?? INTERVAL_MS)
   }
@@ -203,6 +206,16 @@ export class Backup extends Subsystem {
       this.state = { ...this.state, keyInFolder: false }
       this.log.warn('backup: the recovery key could not be kept in the folder:', err.code || err.message)
     }
+  }
+
+  async adoptFolderKey(folder) {
+    await this.keepKeyInFolder(folder)
+    try {
+      await this.persist(this.state)
+    } catch (err) {
+      this.log.warn('backup: the adopted key could not be recorded:', err.code || err.message)
+    }
+    this.report({})
   }
 
   async syncFolderKey(target) {

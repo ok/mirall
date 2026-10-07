@@ -1,4 +1,5 @@
 import test from 'brittle'
+import { waitFor } from '../helpers/bare-poll.js'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import b4a from 'b4a'
@@ -160,7 +161,7 @@ test('the last success and the key survive a restart, and a deleted key is put b
   t.ok(ran.key.inFolder)
 })
 
-test('a device with no record takes the folder key of its own identity', async (t) => {
+test('REGRESSION (restored device asked for a passphrase): a device with no record takes the folder key of its own identity at start, before any run', async (t) => {
   const d = dirs(t, 'adopt')
   const folder = backupFolder(t)
   const masterSecret = crypto.randomBytes(32)
@@ -170,11 +171,11 @@ test('a device with no record takes the folder key of its own identity', async (
 
   fs.rmSync(path.join(d.home, BACKUP_STATE_FILE))
   const again = await start(t, d, { masterSecret, folder, repoId: setUp.repoId, profile: false })
-  t.is((await again.fake.call('backup:status', {})).key.createdAt, null)
-  await setProfile({ displayName: 'Restored' })
-  const ran = await again.fake.call('backup:run', {})
-  t.is(ran.key.createdAt, setUp.key.createdAt, 'the folder key is this identity\'s, so it is kept')
-  t.is(ran.key.checkedAt, null, 'not confirmed on this device yet')
+  await waitFor(async () => (await again.fake.call('backup:status', {})).key.createdAt === setUp.key.createdAt, 10000, { interval: 100, label: 'folder key adopted' })
+  const status = await again.fake.call('backup:status', {})
+  t.is(status.lastSuccessAt, null, 'no backup has run yet')
+  t.not(status.verdictReason, 'no-key', 'so the screen never asks for a passphrase the folder holds')
+  t.is(status.key.checkedAt, null, 'not confirmed on this device yet')
   t.ok((await again.fake.call('backup:check-key', { passphrase: PASS })).key.checkedAt)
 })
 
