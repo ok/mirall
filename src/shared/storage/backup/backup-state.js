@@ -21,7 +21,7 @@ function parse(parsed) {
   const base = freshState()
   if (!isObject(parsed) || parsed.v !== VERSION) return base
   const out = { ...base }
-  for (const key of ['setupAt', 'lastSuccessAt', 'keyCheckedAt', 'secondCopyAt']) if (isTime(parsed[key])) out[key] = parsed[key]
+  for (const key of ['setupAt', 'lastSuccessAt', 'keyCheckedAt']) if (isTime(parsed[key])) out[key] = parsed[key]
   const header = typeof parsed.keyContent === 'string' ? readRecoveryHeader(parsed.keyContent) : null
   if (header) {
     out.keyContent = parsed.keyContent

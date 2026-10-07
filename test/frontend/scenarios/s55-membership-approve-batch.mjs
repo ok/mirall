@@ -43,7 +43,7 @@ export default async function s55({ runDir, bootstrap }) {
       await waitFor(async () => A.has({ role: 'button', contains: 'Review' }), 15000, 'Review targetable')
       await A.shot('s55-banner', runDir)
       await A.click({ role: 'button', contains: 'Review' })
-      await A.waitText('Requests to join', 10000)
+      await A.waitText('Requests to Join', 10000)
       await A.shot('s55-modal', runDir)
     })
 
@@ -58,7 +58,7 @@ export default async function s55({ runDir, bootstrap }) {
       await A.focus()
       await A.waitText('to join', 15000)
       await A.click({ role: 'button', contains: 'Review' })
-      await A.waitText('Requests to join', 10000)
+      await A.waitText('Requests to Join', 10000)
       await A.click({ role: 'button', contains: 'Approve all' })
       await waitFor(async () => !(await C.hasText('Waiting to be let in')), 30000, 'Carol let in')
       await waitFor(async () => !(await D.hasText('Waiting to be let in')), 30000, 'Dan let in')

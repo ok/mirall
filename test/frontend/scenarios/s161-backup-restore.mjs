@@ -2,11 +2,12 @@ import { mkdirSync } from 'node:fs'
 import path from 'node:path'
 import { Instance } from '../instance.mjs'
 import { makeReport, waitFor } from '../assert.mjs'
+import { setUpBackup } from '../helpers.mjs'
 
 const PASS = 'a long enough passphrase'
 
-// A backup restored on a fresh install with nothing but the folder and the passphrase: the recovery key
-// is in the folder, the snapshots are listed, and the restored identity opens with its space.
+// A backup restored on a fresh install with nothing but the folder and the passphrase: the snapshots
+// are listed, and the restored identity opens with its space.
 export default async function s161({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const backupDir = path.join(runDir, 's161-backup')
@@ -23,37 +24,30 @@ export default async function s161({ runDir, bootstrap }) {
       await A.createSpaceOnly('Aurora')
       await A.click({ name: 'Home' })
       await A.click({ role: 'button', name: 'Set up backup' })
-      await A.nativeChoosePath(backupDir, { trigger: () => A.click({ role: 'button', name: 'Browse… (backup folder)' }) })
-      await A.click({ role: 'button', name: 'Use it anyway' })
-      await A.setRaw({ role: 'textfield', name: 'Choose a passphrase' }, PASS)
-      await A.setRaw({ role: 'textfield', name: 'Confirm passphrase' }, PASS)
-      await A.click({ role: 'button', name: 'Turn on backup' })
-      await A.waitText("You're protected", 120000)
-      await A.click({ role: 'button', name: 'Done' })
+      await setUpBackup(A, backupDir, PASS)
       await A.quit()
     })
-    await r.ok('onboarding offers one restore, starting from the backup folder', async () => {
+    await r.ok('onboarding offers one restore: from a backup folder', async () => {
       await B.launch({ onboard: false })
       await B.waitText('Welcome to Mirall', 45000)
       // A re-render first: the link must survive the renderer's first config write.
       await B.type({ role: 'textfield', name: 'Display Name' }, 'x')
-      await B.click({ role: 'button', name: 'Already used Mirall? Restore your account' })
-      await B.waitText('Already used Mirall on another computer?', 8000)
-      if (!(await B.has({ role: 'radiogroup', name: 'How do you want to restore?' }))) throw new Error('no restore choice')
+      await B.click({ role: 'button', name: 'Already used Mirall? Restore from a backup' })
+      await B.waitText('Choose the folder that holds your Mirall backup.', 8000)
       await B.shot('s161-choice', runDir)
-      await B.click({ role: 'button', name: 'Next' })
     })
-    await r.ok('the folder alone finds the key; the passphrase opens it', async () => {
+    await r.ok('the folder and its passphrase open the backup', async () => {
       await B.nativeChoosePath(backupDir, { trigger: () => B.click({ role: 'button', name: 'Browse… (backup folder)' }) })
-      await B.waitText('Found your backup and recovery key', 15000)
+      await B.waitText('Found your backup', 15000)
       await B.setRaw(passphrase, 'not the passphrase at all')
       await waitFor(async () => !(await B.isDisabled(showBackups)), 8000, 'Show backups available')
       await B.click(showBackups)
-      await B.waitText("That passphrase didn't match this recovery key.", 60000)
+      await B.waitText("That passphrase doesn't open this backup.", 60000)
       await B.setRaw(passphrase, PASS)
       await B.click(showBackups)
       await B.waitText('Choose the backup to restore.', 60000)
       if (!(await B.has({ role: 'radiogroup', name: 'Backups' }))) throw new Error('no backup list')
+      await B.waitText('Latest', 8000)
       await B.shot('s161-snapshots', runDir)
     })
     await r.ok('the restored identity opens with its space', async () => {

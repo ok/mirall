@@ -33,7 +33,6 @@ export function freshState() {
     keyCreatedAt: null,
     keyInFolder: false,
     keyCheckedAt: null,
-    secondCopyAt: null,
     offer: { dismissals: 0, nextAt: 0 },
     check: { nextAt: null, snoozed: false, optOut: false },
   }
@@ -103,7 +102,7 @@ export function folderChosen(state, now) {
 
 // A key this device holds no record of — another identity's, left by an identity change — is dropped.
 export function keyForgotten(state) {
-  return { ...state, keyContent: null, keyCreatedAt: null, keyInFolder: false, keyCheckedAt: null, secondCopyAt: null, check: { nextAt: null, snoozed: false, optOut: state.check.optOut } }
+  return { ...state, keyContent: null, keyCreatedAt: null, keyInFolder: false, keyCheckedAt: null, check: { nextAt: null, snoozed: false, optOut: state.check.optOut } }
 }
 
 // A key found in the folder (a restored device, or a newer one of this identity): never confirmed here,
@@ -115,7 +114,6 @@ export function keyAdopted(state, now, { content, createdAt }) {
     keyCreatedAt: createdAt,
     keyInFolder: true,
     keyCheckedAt: null,
-    secondCopyAt: null,
     check: { ...state.check, nextAt: now + CHECK_FIRST_MS, snoozed: false },
   }
 }
@@ -128,7 +126,6 @@ export function keyWritten(state, now, { content, createdAt }) {
     keyCreatedAt: createdAt,
     keyInFolder: true,
     keyCheckedAt: now,
-    secondCopyAt: null,
     check: { ...state.check, nextAt: now + CHECK_FIRST_MS, snoozed: false },
   }
 }

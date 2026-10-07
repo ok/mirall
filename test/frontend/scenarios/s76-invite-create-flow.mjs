@@ -32,7 +32,7 @@ export default async function s76({ runDir, bootstrap }) {
       await waitFor(async () => (await A.nodeValue(toggle)) === '1', 10000, 'toggle turns on')
       await A.click({ name: '2 weeks' })
       await A.click({ role: 'button', name: 'Create invite link' })
-      await A.waitText('Invite link ready', 10000)
+      await A.waitText('Invite Link Ready', 10000)
       const link = await A.copyFrom({ role: 'button', name: 'Copy' })
       if (!link.startsWith('mirall://join/')) throw new Error(`expected app link, got: ${link}`)
       if (!(await A.hasText('Auto-approve'))) throw new Error('Auto-approve badge missing')

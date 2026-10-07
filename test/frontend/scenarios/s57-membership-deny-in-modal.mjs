@@ -26,7 +26,7 @@ export default async function s57({ runDir, bootstrap }) {
       await A.waitText('to join', 30000)
       await waitFor(async () => A.has({ role: 'button', contains: 'Review' }), 15000, 'Review targetable')
       await A.click({ role: 'button', contains: 'Review' })
-      await A.waitText('Requests to join', 10000)
+      await A.waitText('Requests to Join', 10000)
       await waitFor(async () => A.has({ role: 'button', name: 'Deny Bob' }), 10000, 'Bob row present')
       await waitFor(async () => A.has({ role: 'button', name: 'Deny Carol' }), 10000, 'Carol row present')
     })

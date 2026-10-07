@@ -59,11 +59,11 @@ export default function ConfirmDestructiveModal({
         <div className="px-10 pb-10 space-y-6">
           <p id={bodyId} className="text-on-surface-variant font-medium">{body}</p>
           {children}
-          <ModalFooter layout="split">
-            <Button type="button" variant="secondary" autoFocus onClick={onClose} disabled={busy} className="h-14">
+          <ModalFooter>
+            <Button size="lg" type="button" variant="secondary" autoFocus onClick={onClose} disabled={busy}>
               {t('actions.cancel')}
             </Button>
-            <Button ref={confirmRef} type="button" variant="danger" onClick={onConfirm} disabled={busy} className="h-14">
+            <Button size="lg" ref={confirmRef} type="button" variant="danger" onClick={onConfirm} disabled={busy}>
               {confirmLabel}
             </Button>
           </ModalFooter>

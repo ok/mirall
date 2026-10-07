@@ -159,8 +159,8 @@ test('pruning removes snapshots retention does not keep and the objects only the
   const repo = await openRepo(target, { wrapKey: backupWrapKey(), expectedRepoId: repoId })
   const before = (await repo.objectIds()).length
   const pruned = await pruneRepo(repo)
-  t.is(pruned.snapshots, 3, 'six snapshots in one day bucket: the three newest stay')
-  t.alike((await repo.listSnapshots()).sort(), names.slice(3).sort())
+  t.is(pruned.snapshots, 5, 'six snapshots minutes apart, ten days ago: only the newest stays')
+  t.alike(await repo.listSnapshots(), names.slice(5))
   t.ok(pruned.objects > 0 && (await repo.objectIds()).length === before - pruned.objects)
   const { manifest } = await repo.latestSnapshot()
   for (const core of manifest.cores) for (const segment of core.segments) for (const id of segment.parts) await repo.readPart(id)

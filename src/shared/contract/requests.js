@@ -48,13 +48,9 @@ export const REQUESTS = Object.freeze({
   'backup:configure': { kind: 'command', args: { folder: { type: ARG.path, max: ARG_MAX.path } } },
   'backup:check-key': { kind: 'command', deadlineMs: 0, args: { passphrase: { type: ARG.string, max: ARG_MAX.text } } },
   'backup:inspect': { kind: 'command', deadlineMs: 0, args: {
-    // Absent: the recovery key the backup folder keeps.
-    content: { type: ARG.string, max: ARG_MAX.recoveryFile, optional: true },
     folder: { type: ARG.path, max: ARG_MAX.path },
     passphrase: { type: ARG.string, max: ARG_MAX.text },
   } },
-  'backup:key-copied': { kind: 'command', args: {} },
-  'backup:key-file': { kind: 'command', args: {} },
   'backup:new-key': { kind: 'command', deadlineMs: 0, args: { passphrase: { type: ARG.string, max: ARG_MAX.text } } },
   'backup:peek': { kind: 'command', args: { folder: { type: ARG.path, max: ARG_MAX.path } } },
   'backup:prompt': { kind: 'command', args: {
@@ -63,8 +59,6 @@ export const REQUESTS = Object.freeze({
   } },
   'backup:reminders': { kind: 'command', args: { enabled: { type: ARG.boolean } } },
   'backup:restore': { kind: 'command', deadlineMs: 0, args: {
-    // Absent: the recovery key the backup folder keeps.
-    content: { type: ARG.string, max: ARG_MAX.recoveryFile, optional: true },
     folder: { type: ARG.path, max: ARG_MAX.path },
     passphrase: { type: ARG.string, max: ARG_MAX.text },
     snapshot: { type: ARG.string, max: ARG_MAX.key },
@@ -195,13 +189,11 @@ export const REQUESTS = Object.freeze({
     mountPath: { type: ARG.path, max: ARG_MAX.path },
     shareId: { type: ARG.shareId, optional: true },
   } },
-  'identity:export-recovery': { kind: 'command', deadlineMs: 0, args: { passphrase: { type: ARG.string, max: ARG_MAX.text } } },
-  'identity:import-recovery': { kind: 'command', deadlineMs: 0, args: {
-    content: { type: ARG.string, max: ARG_MAX.recoveryFile },
-    passphrase: { type: ARG.string, max: ARG_MAX.text },
-    replace: { type: ARG.boolean },
-  } },
   'identity:set-aside': { kind: 'command', args: {} },
+  'identity:unlock-from-backup': { kind: 'command', deadlineMs: 0, args: {
+    folder: { type: ARG.path, max: ARG_MAX.path },
+    passphrase: { type: ARG.string, max: ARG_MAX.text },
+  } },
   'identity:status': { kind: 'query', args: {} },
   'members:online': { kind: 'query', args: { spaceId: { type: ARG.spaceId } } },
   'members:reach': { kind: 'query', args: { spaceId: { type: ARG.spaceId } } },

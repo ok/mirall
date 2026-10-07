@@ -6,7 +6,6 @@ import { useTranslation } from 'react-i18next'
 import { NAME_MAX } from '../format/utils.js'
 import { connectionDesc, activityDesc } from '../model/profile-rows.js'
 import type { Profile } from '../types/types.js'
-import type { IdentityProtection } from '../platform/global.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import { useQuery } from '../store/useQuery.js'
 import { useConnectionStatus } from '../hooks/useConnectionStatus.js'
@@ -25,11 +24,10 @@ import CopyButton from '../components/primitives/CopyButton.js'
 import PageHeader from '../components/layout/PageHeader.js'
 import SectionHeading from '../components/layout/SectionHeading.js'
 import ActionRow, { ROW, ROW_GROUP, RowBody, Tile } from '../components/layout/ActionRow.js'
-import { useIdentityProtection } from '../hooks/useIdentityProtection.js'
 import { useBackupStatus } from '../hooks/useBackupStatus.js'
 import { useRestoreHold } from '../hooks/useRestoreHold.js'
 import ProtectionDot from '../components/backup/ProtectionDot.js'
-import { protectionLamp, protectionSummary } from '../model/protection-view.js'
+import { protectionLamp, backupSummary } from '../model/protection-view.js'
 import { formatDateTime } from '../format/utils.js'
 
 interface AccountProps {
@@ -38,7 +36,7 @@ interface AccountProps {
   onBack: () => void
   onOpenNetworkStatus: () => void
   onOpenActivityLog: () => void
-  onOpenProtection: () => void
+  onOpenBackup: () => void
   onFeedback: () => void
 }
 
@@ -135,16 +133,14 @@ function ProfileCard({ profile, onSave }: Pick<AccountProps, 'profile' | 'onSave
   )
 }
 
-function summaryText(status: BackupStatus, identity: IdentityProtection | null, t: TFunction): string {
-  const { lead, data, at } = protectionSummary(status, identity)
-  const dataText = t(data, at === null ? {} : { when: formatDateTime(at) })
-  return lead ? t('protection.summary.line', { key: t(lead), data: dataText }) : dataText
+function summaryText(status: BackupStatus, t: TFunction): string {
+  const { key, at } = backupSummary(status)
+  return t(key, at === null ? {} : { when: formatDateTime(at) })
 }
 
-function DeviceGroup({ onOpenNetworkStatus, onOpenActivityLog, onOpenProtection }: Pick<AccountProps, 'onOpenNetworkStatus' | 'onOpenActivityLog' | 'onOpenProtection'>) {
+function DeviceGroup({ onOpenNetworkStatus, onOpenActivityLog, onOpenBackup }: Pick<AccountProps, 'onOpenNetworkStatus' | 'onOpenActivityLog' | 'onOpenBackup'>) {
   const { t } = useTranslation()
   const { state: connectivityState, status: networkStatus } = useConnectionStatus()
-  const identity = useIdentityProtection()
   const backup = useBackupStatus()
   const lamp = backup ? protectionLamp(backup) : null
   // Through the query store for the dedup and cache, with NO scopes: this is a summary line, not a
@@ -170,15 +166,15 @@ function DeviceGroup({ onOpenNetworkStatus, onOpenActivityLog, onOpenProtection 
         />
         {backup && (
           <ActionRow
-            label={t('protection.title')}
-            desc={summaryText(backup, identity, t)}
+            label={t('settings.backup')}
+            desc={summaryText(backup, t)}
             leading={(
               <span className="relative shrink-0">
                 <Tile icon="shield" />
                 {lamp && <ProtectionDot lamp={lamp} />}
               </span>
             )}
-            onClick={onOpenProtection}
+            onClick={onOpenBackup}
           />
         )}
         <ActionRow
@@ -268,7 +264,7 @@ function AppGroup({ onFeedback }: Pick<AccountProps, 'onFeedback'>) {
   )
 }
 
-export default function Account({ profile, onSave, onBack, onOpenNetworkStatus, onOpenActivityLog, onOpenProtection, onFeedback }: AccountProps) {
+export default function Account({ profile, onSave, onBack, onOpenNetworkStatus, onOpenActivityLog, onOpenBackup, onFeedback }: AccountProps) {
   const { t } = useTranslation()
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
 
@@ -288,7 +284,7 @@ export default function Account({ profile, onSave, onBack, onOpenNetworkStatus, 
           <section>
             <ProfileCard profile={profile} onSave={onSave} />
           </section>
-          <DeviceGroup onOpenNetworkStatus={onOpenNetworkStatus} onOpenActivityLog={onOpenActivityLog} onOpenProtection={onOpenProtection} />
+          <DeviceGroup onOpenNetworkStatus={onOpenNetworkStatus} onOpenActivityLog={onOpenActivityLog} onOpenBackup={onOpenBackup} />
           <AppGroup onFeedback={onFeedback} />
         </div>
       </div>

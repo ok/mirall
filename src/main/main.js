@@ -18,7 +18,6 @@ const { initPrefs, getPrefs } = require('./prefs.js')
 const { markQuitting } = require('./quit-state.js')
 const { preloadAsarCache, registerAppProtocol } = require('./app-protocol.js')
 const { registerRelaySlot } = require('./relay-slot.js')
-const { registerRecoveryFile } = require('./recovery-file.js')
 const { hardenStorageDirs } = require('./storage-perms.js')
 const { registerNetOnline, startNetOnlineWatch } = require('./net-online.js')
 const { parseDeepLink } = require('./deeplink')
@@ -236,7 +235,6 @@ registerWorkerHost()
 registerWindow()
 
 registerSettingsIpc({ createTray, destroyTray, applyAppMenuVisibility, targetWindow })
-registerRecoveryFile({ targetWindow })
 
 // The one quit teardown. Electron re-emits before-quit to every listener on every
 // app.quit(), so the update-apply step's deferral (preventDefault → apply → quit

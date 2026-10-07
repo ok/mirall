@@ -21,7 +21,7 @@ export default async function s14({ runDir, bootstrap }) {
     })
     await r.ok('A renames itself in Profile and saves', async () => {
       await A.openAccount()
-      await A.waitText('This device', 8000)
+      await A.waitText('This Device', 8000)
       if (!(await A.has({ role: 'image', name: 'Online' })) && !(await A.has({ role: 'image', name: 'Connecting…' }))) {
         throw new Error('the connection row carries no connectivity state badge')
       }

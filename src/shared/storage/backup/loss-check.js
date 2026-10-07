@@ -3,21 +3,22 @@
 // open it); this catches the quieter losses, cores purged or spaces dropped, by comparing against the
 // last snapshot that was not itself flagged, so a run of losses never becomes the new normal by
 // accident. A drop that lasts a week is accepted as the new normal: a space left on purpose stops
-// reading as a loss.
-const OWN_ROLES = new Set(['profile', 'local-bee', 'intents', 'own-catalog', 'own'])
+// reading as a loss. Local bees never count as own data: an Activity Log purge and a rewrite in place
+// shorten them on purpose.
+const OWN_ROLES = new Set(['profile', 'intents', 'own-catalog', 'own'])
 
 export const ACCEPT_AFTER_MS = 7 * 24 * 60 * 60 * 1000
 
 export function storeVitals(entries, spaceCount) {
   let profileLength = 0
-  let totalOwnLength = 0
+  let ownLength = 0
   let ownCatalogs = 0
   for (const entry of entries) {
     if (entry.role === 'profile') profileLength = entry.length
     if (entry.role === 'own-catalog') ownCatalogs++
-    if (OWN_ROLES.has(entry.role)) totalOwnLength += entry.length
+    if (OWN_ROLES.has(entry.role)) ownLength += entry.length
   }
-  return { spaces: spaceCount, ownCatalogs, cores: entries.length, profileLength, totalOwnLength }
+  return { spaces: spaceCount, ownCatalogs, cores: entries.length, profileLength, ownLength }
 }
 
 // What to compare a new snapshot with: the last unflagged one, or — once flagged snapshots have
@@ -34,6 +35,6 @@ export function lossVerdict(baseline, now) {
   if (now.profileLength < baseline.profileLength) reasons.push('profile-shrank')
   if (baseline.spaces >= 2 && now.spaces <= Math.floor(baseline.spaces / 2)) reasons.push('spaces-halved')
   if (baseline.cores >= 10 && now.cores < baseline.cores / 2) reasons.push('cores-halved')
-  if (baseline.totalOwnLength > 0 && now.totalOwnLength < baseline.totalOwnLength * 0.7) reasons.push('own-data-shrank')
+  if (baseline.ownLength > 0 && now.ownLength < baseline.ownLength * 0.7) reasons.push('own-data-shrank')
   return reasons.length ? { reasons } : null
 }

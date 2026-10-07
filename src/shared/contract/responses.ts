@@ -486,21 +486,11 @@ export interface IdentityStatus {
   restore: RestoreStatus | null
 }
 
-/** A sealed recovery key, ready to save: the plaintext never leaves the worker. */
-export interface RecoveryExport {
-  fileName: string
-  content: string
-}
-
-/** A recovery key adopted, or refused because this device holds another identity's data. */
-export type RecoveryImport = { ok: true } | { ok: false; mismatch: true }
-
-/** The recovery key the backup keeps: when it was made, whether the folder holds it, when its passphrase was last confirmed, when a copy was last saved elsewhere, and whether the passphrase check is offered. */
+/** The key the backup keeps: when it was made, whether the folder holds it, when its passphrase was last confirmed, and whether the passphrase check is offered. */
 export interface BackupKeyStatus {
   createdAt: string | null
   inFolder: boolean
   checkedAt: number | null
-  secondCopyAt: number | null
   reminders: boolean
 }
 
@@ -534,6 +524,8 @@ export interface RestorableSnapshot {
   suspect: string[] | null
   spaces: number | null
   appVersion: string | null
+  beforeLoss: boolean
+  beforeLeaving: string[] | null
 }
 
 /** The snapshots in a backup folder, newest first. */
@@ -557,8 +549,6 @@ interface Responses {
   'backup:check-key': BackupStatus
   'backup:configure': BackupStatus
   'backup:inspect': BackupInspect
-  'backup:key-copied': BackupStatus
-  'backup:key-file': RecoveryExport
   'backup:new-key': BackupStatus
   'backup:peek': BackupPeek
   'backup:prompt': BackupStatus
@@ -599,9 +589,8 @@ interface Responses {
   'foreign-folder:set-enabled': ForeignFolderMount
   'foreign-folder:unmount': Ack
   'foreign-folder:validate': MountValidationResult
-  'identity:export-recovery': RecoveryExport
-  'identity:import-recovery': RecoveryImport
   'identity:set-aside': IdentitySetAside
+  'identity:unlock-from-backup': { unlocked: boolean }
   'identity:status': IdentityStatus
   'members:online': string[]
   'members:reach': MembersReach

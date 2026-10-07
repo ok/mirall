@@ -73,11 +73,11 @@ export default function ScanPreviewModal({
           readOnlyWarning={readOnlyWarning}
         />
 
-        <ModalFooter layout="end">
-          <Button variant="secondary" onClick={onCancel} disabled={busy}>
+        <ModalFooter>
+          <Button size="lg" variant="secondary" onClick={onCancel} disabled={busy}>
             {t('actions.cancel')}
           </Button>
-          <Button onClick={handleConfirm} disabled={busy || overLimit}>
+          <Button size="lg" onClick={handleConfirm} disabled={busy || overLimit}>
             {primaryLabel}
           </Button>
         </ModalFooter>

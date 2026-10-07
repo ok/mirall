@@ -93,10 +93,6 @@ export interface DeepLinkJoin {
 export type DeepLinkPayload = DeepLinkJoin
 
 export type IdentityProtection = 'protected' | 'weak' | 'disabled'
-export type RecoveryFilePick =
-  | { ok: true; fileName: string; content: string }
-  | { ok: false; reason: 'cancelled' | 'too-large' }
-
 // The app-update store in the data folder: its size on disk, and about how much a prune would free.
 export interface UpdateCacheInfo {
   bytes: number
@@ -116,8 +112,6 @@ export interface MirallBridge {
   appVersion(): Promise<{ length: number; fork: number; semver: string | null }>
   getChangelog(): Promise<string>
   getIdentityProtection(): Promise<IdentityProtection>
-  saveRecoveryFile(file: { fileName: string; content: string }): Promise<{ saved: boolean }>
-  openRecoveryFile(): Promise<RecoveryFilePick>
   retryIdentityUnlock(): Promise<boolean>
   setVerbose(on?: boolean): Promise<boolean>
   getDiagnosticLogs(opts?: { redact?: boolean }): Promise<DiagnosticLogEntry[]>

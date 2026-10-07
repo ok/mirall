@@ -36,8 +36,6 @@ contextBridge.exposeInMainWorld('bridge', {
   appVersion: () => ipcRenderer.invoke('pear:appVersion'),
   getChangelog: () => ipcRenderer.invoke('app:getChangelog'),
   getIdentityProtection: () => ipcRenderer.invoke('app:identityProtection'),
-  saveRecoveryFile: (file) => ipcRenderer.invoke('recovery:save', file),
-  openRecoveryFile: () => ipcRenderer.invoke('recovery:open'),
   retryIdentityUnlock: () => ipcRenderer.invoke('identity:retry-unlock'),
   setVerbose: (on) => ipcRenderer.invoke('app:setVerbose', on),
   getDiagnosticLogs: (opts) => ipcRenderer.invoke('diagnostics:logs', opts),

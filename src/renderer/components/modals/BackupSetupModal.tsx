@@ -1,20 +1,18 @@
-// Setting up the backup in one sitting: where it lives, the passphrase for the recovery key it keeps,
-// and the result. The worker writes the key into the folder and opens it back with the passphrase
-// before the first backup, so a backup never exists without a key known to open it.
+// Setting up the backup in one sitting: where it lives, then the passphrase that opens it. The worker
+// seals the backup's key into the folder and opens it back with the passphrase before the first
+// backup, so a backup never exists that its passphrase cannot open. The outcome is a toast; the Backup
+// screen carries the first run from there.
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { request } from '../../ipc/ipc.js'
 import { useErrorText } from '../../hooks/useErrorText.js'
-import { useSaveKeyCopy } from '../../hooks/useSaveKeyCopy.js'
+import { useToast } from '../toast/ToastProvider.js'
 import { passphraseVerdict } from '../../model/recovery-passphrase.js'
-import type { BackupStatus } from '../../../shared/contract/responses.js'
-import type { IconName } from '../../types/ui.js'
 import Modal from '../primitives/Modal.js'
 import ModalHeader from '../primitives/ModalHeader.js'
 import ModalFooter from '../layout/ModalFooter.js'
 import Button from '../primitives/Button.js'
 import Callout from '../primitives/Callout.js'
-import Icon from '../primitives/Icon.js'
 import FieldLabel from '../primitives/FieldLabel.js'
 import PathRow from '../path/PathRow.js'
 import BackupScopeList from '../backup/BackupScopeList.js'
@@ -25,7 +23,7 @@ interface BackupSetupModalProps {
   onClose: () => void
 }
 
-type Step = 1 | 2 | 3
+type Step = 1 | 2
 
 interface Chosen {
   folder: string
@@ -35,24 +33,26 @@ interface Chosen {
 export default function BackupSetupModal({ isOpen, onClose }: BackupSetupModalProps) {
   const { t } = useTranslation()
   const errorText = useErrorText()
+  const toast = useToast()
   const [step, setStep] = useState<Step>(1)
   const [chosen, setChosen] = useState<Chosen | null>(null)
   const [passphrase, setPassphrase] = useState('')
   const [confirmation, setConfirmation] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [result, setResult] = useState<BackupStatus | null>(null)
   const verdict = passphraseVerdict(passphrase, confirmation)
 
-  function handleClose() {
-    if (busy) return
+  function reset() {
     setStep(1)
     setChosen(null)
     setPassphrase('')
     setConfirmation('')
     setError(null)
-    setResult(null)
     onClose()
+  }
+
+  function handleClose() {
+    if (!busy) reset()
   }
 
   async function chooseFolder() {
@@ -70,13 +70,13 @@ export default function BackupSetupModal({ isOpen, onClose }: BackupSetupModalPr
     setBusy(true)
     setError(null)
     try {
-      setResult(await request('backup:setup', { folder: chosen.folder, passphrase }, 0))
-      setPassphrase('')
-      setConfirmation('')
-      setStep(3)
+      const result = await request('backup:setup', { folder: chosen.folder, passphrase }, 0)
+      if (result.state === 'error') toast.error(t('backupSetup.doneFailed', { reason: errorText({ code: result.lastError ?? 'UNKNOWN' }) }))
+      else toast.success(t(result.lastSuccessAt ? 'backupSetup.doneOn' : 'backupSetup.doneRunning'))
+      setBusy(false)
+      reset()
     } catch (err) {
       setError(errorText(err))
-    } finally {
       setBusy(false)
     }
   }
@@ -84,19 +84,16 @@ export default function BackupSetupModal({ isOpen, onClose }: BackupSetupModalPr
   function confirm() {
     if (step === 1 && chosen) setStep(2)
     else if (step === 2) void turnOn()
-    else if (step === 3) handleClose()
   }
 
-  const firstRunFailed = result?.state === 'error'
-  const doneTitle = firstRunFailed ? 'backupSetup.doneTitleAttention' : 'backupSetup.doneTitle'
-  const title = t(step === 1 ? 'backupSetup.title' : step === 2 ? 'backupSetup.keyTitle' : doneTitle)
+  const title = t(step === 1 ? 'backupSetup.title' : 'backupSetup.passphraseTitle')
 
   return (
     <Modal isOpen={isOpen} onClose={handleClose} onConfirm={confirm} isDismissable={!busy} ariaLabel={title}>
       <>
         <ModalHeader title={title} description={step === 1 ? t('backupSetup.intro') : undefined} descriptionSize="sm" onClose={handleClose} closeDisabled={busy} />
         <div className="px-10 pb-10 space-y-6">
-          <p className="text-xs font-bold uppercase tracking-wide text-secondary">{t('backupSetup.step', { n: step, total: 3 })}</p>
+          <p className="text-xs font-bold uppercase tracking-wide text-secondary">{t('backupSetup.step', { n: step, total: 2 })}</p>
           {error && (
             <div className="rounded-xl bg-error-container/60 px-5 py-3 text-sm font-medium text-on-error-container" role="alert">
               {error}
@@ -113,7 +110,7 @@ export default function BackupSetupModal({ isOpen, onClose }: BackupSetupModalPr
               {chosen?.sameDisk && (
                 <Callout tone="warning" title={t('backupSetup.sameDiskTitle')}>{t('backupSetup.sameDiskBody')}</Callout>
               )}
-              <ModalFooter layout="split">
+              <ModalFooter>
                 <Button variant="secondary" size="lg" onClick={handleClose}>{t('actions.cancel')}</Button>
                 <Button size="lg" icon="arrow_forward" onClick={() => setStep(2)} disabled={!chosen}>
                   {chosen?.sameDisk ? t('backupSetup.useAnyway') : t('backupSetup.next')}
@@ -123,7 +120,7 @@ export default function BackupSetupModal({ isOpen, onClose }: BackupSetupModalPr
           )}
           {step === 2 && (
             <>
-              <p className="text-sm text-on-surface leading-relaxed">{t('backupSetup.keyIntro')}</p>
+              <p className="text-sm text-on-surface leading-relaxed">{t('backupSetup.passphraseIntro')}</p>
               <NewPassphraseFields
                 idPrefix="backup-setup"
                 passphrase={passphrase}
@@ -132,60 +129,16 @@ export default function BackupSetupModal({ isOpen, onClose }: BackupSetupModalPr
                 onPassphrase={setPassphrase}
                 onConfirmation={setConfirmation}
               />
-              <Callout tone="note" icon="warning" title={t('backupSetup.keepSafeTitle')}>{t('backupSetup.keepSafeBody')}</Callout>
+              <Callout tone="warning" title={t('backupSetup.keepSafeTitle')}>{t('backupSetup.keepSafeBody')}</Callout>
               {busy && <p role="status" className="text-sm text-on-surface-variant">{t('backupSetup.working')}</p>}
-              <ModalFooter layout="split">
+              <ModalFooter>
                 <Button variant="secondary" size="lg" onClick={() => { setStep(1); setError(null) }} disabled={busy}>{t('actions.back')}</Button>
                 <Button size="lg" icon="shield" onClick={() => void turnOn()} disabled={verdict !== 'ok'} ariaDisabled={busy}>{t('backupSetup.turnOn')}</Button>
               </ModalFooter>
             </>
           )}
-          {step === 3 && result && <SetupDone result={result} onDone={handleClose} />}
         </div>
       </>
     </Modal>
-  )
-}
-
-// The outcome: the backup's first run and the key, said as they are, and the second copy offered.
-function SetupDone({ result, onDone }: { result: BackupStatus; onDone: () => void }) {
-  const { t } = useTranslation()
-  const errorText = useErrorText()
-  const copy = useSaveKeyCopy()
-  return (
-    <>
-      <div className="space-y-3" role="status">
-        {result.state === 'error' ? (
-          <ResultRow icon="warning" title={t('backupSetup.doneBackupFailed')} body={errorText({ code: result.lastError ?? 'UNKNOWN' })} />
-        ) : (
-          <ResultRow
-            icon="check_circle"
-            title={t('backupSetup.doneBackup')}
-            body={result.lastSuccessAt ? t('backupSetup.doneBackupBody', { folder: result.folder ?? '' }) : t('backupSetup.doneBackupPending')}
-          />
-        )}
-        <ResultRow icon="verified_user" title={t('backupSetup.doneKey')} body={t('backupSetup.doneKeyBody')} />
-      </div>
-      <div className="rounded-xl p-5 bg-surface-container-low space-y-3">
-        <p className="font-headline font-bold text-accent">{t('backupSetup.copyTitle')}</p>
-        <p className="text-sm text-on-surface-variant leading-relaxed">{t('backupSetup.copyBody')}</p>
-        <Button variant="secondary" icon="download" onClick={() => void copy.save()} ariaDisabled={copy.saving}>{t('backup.saveCopy')}</Button>
-      </div>
-      <ModalFooter layout="end">
-        <Button size="lg" onClick={onDone}>{t('actions.done')}</Button>
-      </ModalFooter>
-    </>
-  )
-}
-
-function ResultRow({ icon, title, body }: { icon: IconName; title: string; body: string }) {
-  return (
-    <div className="bg-surface-container-low rounded-xl p-4 flex items-center gap-3">
-      <Icon name={icon} className="text-secondary" />
-      <div>
-        <p className="font-bold text-on-surface">{title}</p>
-        <p className="text-sm text-on-surface-variant">{body}</p>
-      </div>
-    </div>
   )
 }

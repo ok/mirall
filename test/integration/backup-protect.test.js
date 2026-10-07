@@ -90,7 +90,6 @@ test('setup writes the folder, the key it can open, and the first backup', async
   t.ok(status.key.createdAt)
   t.ok(status.key.inFolder)
   t.ok(status.key.checkedAt, 'the key was opened back with the passphrase')
-  t.is(status.key.secondCopyAt, null)
   t.is(status.prompt, null)
   t.absent(status.stale)
   t.is(keyFiles(folder).length, 1)
@@ -107,7 +106,7 @@ test('a short passphrase sets nothing up', async (t) => {
   t.absent(fs.existsSync(path.join(folder, REPO_DIR)))
 })
 
-test('the passphrase check, a new key, and a saved copy', async (t) => {
+test('the passphrase check and a new passphrase', async (t) => {
   const d = dirs(t, 'keys')
   const folder = backupFolder(t)
   const { fake } = await start(t, d, { masterSecret: crypto.randomBytes(32) })
@@ -117,16 +116,10 @@ test('the passphrase check, a new key, and a saved copy', async (t) => {
   const checked = await fake.call('backup:check-key', { passphrase: PASS })
   t.ok(checked.key.checkedAt >= first.key.checkedAt)
 
-  const file = await fake.call('backup:key-file', {})
-  t.is(file.content, readKey(folder), 'the copy is the key the folder keeps')
-  t.ok(file.fileName.endsWith('.mirallkey'))
-  t.ok((await fake.call('backup:key-copied', {})).key.secondCopyAt)
-
   const before = keyFiles(folder)[0]
-  const renewed = await fake.call('backup:new-key', { passphrase: 'a different long passphrase' })
+  await fake.call('backup:new-key', { passphrase: 'a different long passphrase' })
   t.is(keyFiles(folder).length, 1, 'the old key is gone from the folder')
   t.not(keyFiles(folder)[0], before)
-  t.is(renewed.key.secondCopyAt, null, 'copies kept elsewhere open with the old passphrase')
   t.is(await codeOf(fake.call('backup:check-key', { passphrase: PASS })), 'WRONG_PASSPHRASE')
   t.ok((await fake.call('backup:check-key', { passphrase: 'a different long passphrase' })).key.checkedAt)
 })
@@ -234,7 +227,7 @@ test('a key kept for another identity is dropped after an identity change', asyn
   const other = await start(t, d, { masterSecret: crypto.randomBytes(32), folder, repoId: setUp.repoId, profile: false })
   const status = await other.fake.call('backup:status', {})
   t.is(status.key.createdAt, null, 'the old identity\'s key is not this one\'s')
-  t.is(await codeOf(other.fake.call('backup:key-file', {})), 'BACKUP_KEY_MISSING')
+  t.is(await codeOf(other.fake.call('backup:check-key', { passphrase: PASS })), 'BACKUP_KEY_MISSING')
 })
 
 test('a folder keeping only another identity\'s key is refused, and the key stays', async (t) => {

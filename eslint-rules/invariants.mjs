@@ -292,11 +292,10 @@ export const promiseLintAllowlist = Object.freeze({
     ],
   },
   'src/renderer/components/modals/BackupSetupModal.tsx': {
-    why: 'chooseFolder and turnOn catch into the dialog\'s inline error; the copy hook toasts its own failure.',
+    why: 'chooseFolder and turnOn catch into the dialog\'s inline error.',
     sites: [
       'no-floating-promises BackupSetupModal > confirm: void turnOn()',
       'no-floating-promises BackupSetupModal > onAction: void chooseFolder()',
-      'no-floating-promises SetupDone > onClick: void copy.save()',
       'no-floating-promises BackupSetupModal > onClick: void turnOn()',
     ],
   },
@@ -369,22 +368,6 @@ export const promiseLintAllowlist = Object.freeze({
       'no-floating-promises NewKeyModal > onConfirm: void make()',
     ],
   },
-  'src/renderer/components/modals/RecoveryBackupModal.tsx': {
-    why: 'handleSave catches into the modal\'s inline error.',
-    sites: [
-      'no-floating-promises RecoveryBackupModal > onClick: void handleSave()',
-      'no-floating-promises RecoveryBackupModal > onConfirm: void handleSave()',
-    ],
-  },
-  'src/renderer/components/modals/RecoveryRestoreModal.tsx': {
-    why: 'keyFile.choose and restore catch into the modal\'s inline and field errors; the modal renders outside ToastProvider.',
-    sites: [
-      'no-floating-promises RecoveryRestoreModal > onChoose: void keyFile.choose()',
-      'no-floating-promises RecoveryRestoreModal > onClick: void restore(false)',
-      'no-floating-promises RecoveryRestoreModal > onConfirm: void restore(false)',
-      'no-floating-promises RecoveryRestoreModal > onConfirm: void restore(true)',
-    ],
-  },
   'src/renderer/components/modals/RemoveFileModal.tsx': {
     why: 'handleRemove catches and toasts.',
     sites: [
@@ -392,10 +375,9 @@ export const promiseLintAllowlist = Object.freeze({
     ],
   },
   'src/renderer/components/modals/RestoreBackupModal.tsx': {
-    why: 'chooseFolder, keyFile.choose, showBackups and restore catch into the modal\'s inline and field errors; the modal renders outside ToastProvider.',
+    why: 'chooseFolder, showBackups and restore catch into the modal\'s inline and field errors; the modal renders outside ToastProvider.',
     sites: [
       'no-floating-promises RestoreBackupModal > onChooseFolder: void chooseFolder()',
-      'no-floating-promises RestoreBackupModal > onChooseKey: void keyFile.choose()',
       'no-floating-promises RestoreBackupModal > onClick: void restore()',
       'no-floating-promises RestoreBackupModal > onClick: void showBackups()',
       'no-floating-promises RestoreBackupModal > onConfirm: void restore()',
@@ -475,14 +457,6 @@ export const promiseLintAllowlist = Object.freeze({
       'no-floating-promises OnboardingScreen > onKeyDown: void handleContinue()',
     ],
   },
-  'src/renderer/screens/ProtectionStatusScreen.tsx': {
-    why: 'runNow catches into the screen\'s inline error; the copy hook toasts its own failure.',
-    sites: [
-      'no-floating-promises ProtectionStatusScreen > fix: void runNow()',
-      'no-floating-promises ProtectionStatusScreen > onRunNow: void runNow()',
-      'no-floating-promises ProtectionStatusScreen > onSaveCopy: void copy.save()',
-    ],
-  },
   'src/renderer/screens/SpaceScreen.tsx': {
     why: 'addFiles, approve, deny and approveMany toast their own failures; refresh goes through the store; locate as in FolderScreen.',
     sites: [
@@ -504,11 +478,12 @@ export const promiseLintAllowlist = Object.freeze({
     ],
   },
   'src/renderer/screens/settings/BackupSettings.tsx': {
-    why: 'act catches into the screen\'s inline error, turnOff into its confirmation.',
+    why: 'act and runNow catch into the screen\'s inline error, turnOff into its confirmation.',
     sites: [
-      'no-floating-promises BackupSettings > onChange: void act(() => setReminders(next))',
-      'no-floating-promises BackupSettings > onChangeFolder: void act(changeFolder)',
+      'no-floating-promises BackupSettings > fix: void runNow()',
+      'no-floating-promises BackupSettings > onChange: void act(changeFolder)',
       'no-floating-promises BackupSettings > onConfirm: void turnOff()',
+      'no-floating-promises BackupSettings > onReminders: void act(() => setReminders(next))',
     ],
   },
   'src/renderer/screens/settings/NetworkSettings.tsx': {

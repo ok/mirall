@@ -8,7 +8,6 @@ import FolderScreen from './screens/FolderScreen.js'
 import Settings from './screens/settings/SettingsScreen.js'
 import StorageSettings from './screens/settings/StorageSettings.js'
 import BackupSettings from './screens/settings/BackupSettings.js'
-import ProtectionStatusScreen from './screens/ProtectionStatusScreen.js'
 import NotificationSettings from './screens/settings/NotificationSettings.js'
 import AppearanceSettings from './screens/settings/AppearanceSettings.js'
 import GeneralSettings from './screens/settings/GeneralSettings.js'
@@ -68,7 +67,7 @@ function FolderViewRoute({ nav, profile, spaceId, shareId }: {
 
 // Preference and status screens with nothing to wire but Back (which walks the screen graph) and their
 // fixed cross-links.
-const PREFERENCE_SCREENS = ['appearance-settings', 'notification-settings', 'general-settings', 'backup-settings', 'protection-status'] as const
+const PREFERENCE_SCREENS = ['appearance-settings', 'notification-settings', 'general-settings', 'backup-settings'] as const
 
 type PreferenceScreen = (typeof PREFERENCE_SCREENS)[number]
 
@@ -85,9 +84,7 @@ function preferenceRoute(screen: PreferenceScreen, nav: AppNavigation) {
     case 'general-settings':
       return <GeneralSettings onBack={nav.goBack} />
     case 'backup-settings':
-      return <BackupSettings onBack={nav.goBack} onOpenStatus={() => nav.setCurrentScreen('protection-status')} />
-    case 'protection-status':
-      return <ProtectionStatusScreen onBack={nav.goBack} onOpenSettings={() => nav.setCurrentScreen('backup-settings')} />
+      return <BackupSettings onBack={nav.goBack} />
   }
 }
 
@@ -188,7 +185,7 @@ export default function ScreenRouter({ nav, profile, onSaveProfile, openDialog }
           onBack={() => nav.setCurrentScreen(nav.preAccountScreen)}
           onOpenNetworkStatus={() => nav.setCurrentScreen('network-status')}
           onOpenActivityLog={() => nav.openActivityLog()}
-          onOpenProtection={() => nav.setCurrentScreen('protection-status')}
+          onOpenBackup={() => nav.setCurrentScreen('backup-settings')}
           onFeedback={() => openDialog({ kind: 'feedback' })}
         />
       )

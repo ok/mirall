@@ -146,7 +146,7 @@ function AppShell({ nav, profile, onSaveProfile, deepLinks, identity }: AppShell
       <DownloadFolderToastBridge onChangeFolder={() => nav.openStorageSettings(nav.currentScreen === 'space-view' ? 'space-view' : 'settings')} />
       <WorkerToastBridge />
       <JoinRequestToastBridge navigateToSpace={nav.navigateToSpace} />
-      <BackupToastBridge onOpen={() => nav.setCurrentScreen('protection-status')} />
+      <BackupToastBridge onOpen={() => nav.setCurrentScreen('backup-settings')} />
       <RestoreToastBridge active={hold.active} />
       <div className="min-h-screen bg-surface">
         <a
@@ -170,7 +170,7 @@ function AppShell({ nav, profile, onSaveProfile, deepLinks, identity }: AppShell
               hold={hold}
               restartFailed={identity.restartFailed}
               onRetryRestart={identity.retryRestart}
-              onDetails={() => nav.setCurrentScreen('protection-status')}
+              onDetails={() => nav.setCurrentScreen('backup-settings')}
             />
           ) : undefined}
         />

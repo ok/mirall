@@ -11,6 +11,7 @@ import Modal from '../primitives/Modal.js'
 import Icon from '../primitives/Icon.js'
 import ModalHeader from '../primitives/ModalHeader.js'
 import Button from '../primitives/Button.js'
+import ModalFooter from '../layout/ModalFooter.js'
 import { useErrorText } from '../../hooks/useErrorText.js'
 
 interface FeedbackModalProps {
@@ -181,15 +182,15 @@ export default function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
                   <p className="text-sm text-on-error-container font-medium">{error}</p>
                 </div>
               )}
-              <div className="flex gap-3">
-                <Button variant="secondary" size="lg" onClick={handleClose} className="flex-1">
+              <ModalFooter>
+                <Button variant="secondary" size="lg" onClick={handleClose}>
                   {t('actions.cancel')}
                 </Button>
-                <Button size="lg" onClick={handleSubmit} disabled={sending || !isValid} className="flex-1">
+                <Button size="lg" onClick={handleSubmit} disabled={sending || !isValid}>
                   {sending ? t('actions.sending') : t('actions.send')}
                   {!sending && <Icon name="send" size={20} />}
                 </Button>
-              </div>
+              </ModalFooter>
             </div>
           </>
         )}

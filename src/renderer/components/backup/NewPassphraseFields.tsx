@@ -19,25 +19,25 @@ export default function NewPassphraseFields({ idPrefix, passphrase, confirmation
     <>
       <TextField
         id={`${idPrefix}-passphrase`}
-        label={t('recoveryBackup.passphraseLabel')}
+        label={t('backupSetup.passphraseLabel')}
         type="password"
         autoComplete="new-password"
         autoFocus
-        placeholder={t('recoveryBackup.passphrasePlaceholder', { min: RECOVERY_PASSPHRASE_MIN })}
+        placeholder={t('backupSetup.passphrasePlaceholder', { min: RECOVERY_PASSPHRASE_MIN })}
         help={t('backupSetup.passphraseHelp', { min: RECOVERY_PASSPHRASE_MIN })}
         value={passphrase}
         onChange={onPassphrase}
-        error={verdict === 'too-short' && passphrase ? t('recoveryBackup.tooShort', { min: RECOVERY_PASSPHRASE_MIN }) : null}
+        error={verdict === 'too-short' && passphrase ? t('backupSetup.tooShort', { min: RECOVERY_PASSPHRASE_MIN }) : null}
       />
       <TextField
         id={`${idPrefix}-confirm`}
-        label={t('recoveryBackup.confirmLabel')}
+        label={t('backupSetup.confirmLabel')}
         type="password"
         autoComplete="new-password"
-        placeholder={t('recoveryBackup.confirmPlaceholder')}
+        placeholder={t('backupSetup.confirmPlaceholder')}
         value={confirmation}
         onChange={onConfirmation}
-        error={verdict === 'mismatch' && confirmation ? t('recoveryBackup.mismatch') : null}
+        error={verdict === 'mismatch' && confirmation ? t('backupSetup.mismatch') : null}
       />
     </>
   )

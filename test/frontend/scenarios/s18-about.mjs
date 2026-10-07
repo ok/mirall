@@ -30,7 +30,7 @@ export default async function s18({ runDir, bootstrap }) {
       if (await A.hasText('Peer-to-peer file sharing')) throw new Error('tagline should have been removed')
     })
     await r.ok("the What's New modal opens", async () => {
-      await A.click({ name: "What's new" })
+      await A.click({ name: "What's New" })
       await A.waitText('Got it', 8000)
       await A.click({ role: 'button', name: 'Got it' })
     })

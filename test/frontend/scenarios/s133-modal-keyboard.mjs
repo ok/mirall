@@ -46,7 +46,7 @@ export default async function s133({ runDir, bootstrap }) {
       // and Enter closed the dialog. The panel holds it now, and Enter means "create the link".
       await A.openInviteModal()
       await A.press('return')
-      await A.waitText('Invite link ready', 20000)
+      await A.waitText('Invite Link Ready', 20000)
       await A.shot('s133-invite-by-enter', runDir)
       await A.press('escape')
     })

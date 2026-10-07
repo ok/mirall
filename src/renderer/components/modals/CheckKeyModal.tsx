@@ -96,7 +96,7 @@ export default function CheckKeyModal({ isOpen, onClose, onForgot }: CheckKeyMod
             <TextButton onClick={() => { if (!busy) { finish(); onForgot() } }}>{t('backup.newKey')}</TextButton>
             <TextButton onClick={() => void optOut()}>{t('backupCheck.optOut')}</TextButton>
           </div>
-          <ModalFooter layout="split">
+          <ModalFooter>
             <Button variant="secondary" size="lg" onClick={handleClose} disabled={busy}>{t('actions.cancel')}</Button>
             <Button size="lg" onClick={() => void check()} disabled={!passphrase} ariaDisabled={busy}>{t('backupCheck.check')}</Button>
           </ModalFooter>

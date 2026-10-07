@@ -14,7 +14,7 @@ export default async function s105({ runDir, bootstrap }) {
     await r.ok('launch + open Network settings', async () => {
       await A.launch()
       await A.gotoSettings('Network')
-      await A.waitText('Transfer limits', 8000)
+      await A.waitText('Transfer Limits', 8000)
     })
 
     await r.ok('defaults to Unlimited in both directions', async () => {
@@ -26,7 +26,7 @@ export default async function s105({ runDir, bootstrap }) {
     // §7.0 — a settings screen answers "what did I choose", not "what is true now".
     await r.ok('carries no live network state', async () => {
       if (await A.hasText('peers connected')) throw new Error('peer count leaked onto the settings screen')
-      if (await A.has({ name: 'Network status' })) throw new Error('diagnostics link leaked onto the settings screen')
+      if (await A.has({ name: 'Network Status' })) throw new Error('diagnostics link leaked onto the settings screen')
     })
 
     await r.ok('selecting a preset marks it pressed', async () => {
@@ -72,7 +72,7 @@ export default async function s105({ runDir, bootstrap }) {
       await A.click({ name: 'Back' })
       await A.waitText('Manage your experience', 8000)
       await A.click({ name: 'Network' })
-      await A.waitText('Transfer limits', 8000)
+      await A.waitText('Transfer Limits', 8000)
       await waitFor(async () => (await A.nodeValue({ name: 'Download limit: 5 MB/s' })) === '1', 8000, '5 MB/s still pressed')
       await waitFor(async () => (await A.nodeValue({ name: 'Upload limit: custom' })) === '1', 8000, 'custom still pressed')
       await A.waitText('Upload limit in KB/s', 8000)
@@ -104,7 +104,7 @@ export default async function s105({ runDir, bootstrap }) {
       if ((await A.nodeValue({ name: 'Download limit: Unlimited' })) === '1') {
         throw new Error('the caps flashed back to Unlimited before the cached value painted')
       }
-      await A.waitText('Transfer limits', 8000)
+      await A.waitText('Transfer Limits', 8000)
       await A.shot('s105-cached-reopen', runDir)
     })
   } catch {}

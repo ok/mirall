@@ -5,7 +5,7 @@ import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
 import { setRuntimeConfig, setDownloadFolder } from '../../src/shared/core/runtime-config.js'
 import { boot } from '../../src/worker/boot.js'
-import { getStore, sealRecoveryKey, backupWrapKey } from '../../src/shared/core/store.js'
+import { getStore, sealRecoveryKey, backupWrapKey, ownRecoveryIdentity } from '../../src/shared/core/store.js'
 import { setProfile, getProfile, getProfileBee } from '../../src/shared/spaces/profile.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { listSpaces } from '../../src/shared/spaces/space.js'
@@ -16,6 +16,7 @@ import { registerBackupRestore } from '../../src/worker/ipc/backup-restore.js'
 import { registerProfile } from '../../src/worker/ipc/profile.js'
 import { FolderTarget, REPO_DIR } from '../../src/shared/storage/backup/folder-target.js'
 import { runBackup } from '../../src/shared/storage/backup/backup-run.js'
+import { writeFolderKey } from '../../src/shared/storage/backup/folder-key.js'
 import { offlineMemberRegistry } from '../helpers/store.js'
 import { createFakeIpc } from '../helpers/fake-ipc.js'
 import { tmpDir } from '../helpers/bare-tmp.js'
@@ -23,6 +24,7 @@ import { createPassphraseThrottle } from '../../src/shared/core/identity-recover
 import { waitFor } from '../helpers/bare-poll.js'
 
 const quiet = { debug() {}, info() {}, warn() {}, error() {} }
+const KEY_AT = '2026-10-01T00:00:00.000Z'
 const PASS = 'a long enough passphrase'
 const KEK = b4a.toString(crypto.randomBytes(32), 'hex')
 
@@ -63,10 +65,16 @@ async function backedUpDevice(t, folder) {
   await advertise(spaceId, 'share-1', 'kept-file.txt', { size: 4, mtime: 1, contentHash: null })
   fs.writeFileSync(path.join(h.root, 'config.json'), JSON.stringify({ appearance: { theme: 'dark' } }))
   const run = await runBackup({ store: getStore(), storagePath: h.storage, target: new FolderTarget(folder), wrapKey: backupWrapKey(), repoId: null, installId: 'old-install', appVersion: 't', config: b4a.from(JSON.stringify({ appearance: { theme: 'dark' } })) })
-  const content = await sealRecoveryKey(PASS, { createdAt: '2026-10-01T00:00:00Z' })
+  await keepKey(folder, await sealRecoveryKey(PASS, { createdAt: KEY_AT }), KEY_AT, ownRecoveryIdentity())
   const personKey = b4a.toString(getProfileBee().core.key, 'hex')
   await root.close()
-  return { spaceId, content, personKey, snapshot: run.snapshot }
+  return { spaceId, personKey, snapshot: run.snapshot }
+}
+
+async function keepKey(folder, content, createdAt, identityPub) {
+  const target = new FolderTarget(folder)
+  await target.ready()
+  await writeFolderKey(target, { content, createdAt, identityPub })
 }
 
 // A new device on onboarding: an unused identity whose worker offers the restore.
@@ -88,12 +96,12 @@ test('a backup restores onto a new device: listed, staged, put in place, and hel
   const original = await backedUpDevice(t, folder)
   const device = await newDevice(t)
 
-  const { snapshots } = await device.fake.call('backup:inspect', { folder, content: original.content, passphrase: PASS })
+  const { snapshots } = await device.fake.call('backup:inspect', { folder, passphrase: PASS })
   t.is(snapshots.length, 1)
   t.is(snapshots[0].name, original.snapshot)
   t.is(snapshots[0].spaces, 1)
 
-  const restored = await device.fake.call('backup:restore', { folder, snapshot: original.snapshot, content: original.content, passphrase: PASS })
+  const restored = await device.fake.call('backup:restore', { folder, snapshot: original.snapshot, passphrase: PASS })
   t.alike(restored, { ok: true, settings: JSON.stringify({ appearance: { theme: 'dark' } }) })
   t.ok(fs.existsSync(stagingPath(device.h.storage)))
   t.alike(fs.readdirSync(path.join(folder, REPO_DIR, 'leases')), [], 'the old installation no longer holds the folder')
@@ -135,8 +143,9 @@ test('another identity cannot read the backup', async (t) => {
   const folder = backupFolder(t)
   await backedUpDevice(t, folder)
   const device = await newDevice(t)
-  const otherKey = await sealRecoveryKey(PASS, { createdAt: '2026-10-01T00:00:00Z' })
-  t.is(await codeOf(device.fake.call('backup:inspect', { folder, content: otherKey, passphrase: PASS })), 'BACKUP_FOREIGN_IDENTITY')
+  const later = '2026-10-02T00:00:00.000Z'
+  await keepKey(folder, await sealRecoveryKey(PASS, { createdAt: later }), later, ownRecoveryIdentity())
+  t.is(await codeOf(device.fake.call('backup:inspect', { folder, passphrase: PASS })), 'BACKUP_FOREIGN_IDENTITY', 'a newer key in the folder that is not this backup\'s opens nothing')
 })
 
 test('a backup that does not rebuild is refused before anything is replaced', async (t) => {
@@ -146,7 +155,7 @@ test('a backup that does not rebuild is refused before anything is replaced', as
   const prefix = fs.readdirSync(objects)[0]
   fs.rmSync(path.join(objects, prefix, fs.readdirSync(path.join(objects, prefix))[0]))
   const device = await newDevice(t)
-  t.is(await codeOf(device.fake.call('backup:restore', { folder, snapshot: original.snapshot, content: original.content, passphrase: PASS })), 'BACKUP_CORRUPT')
+  t.is(await codeOf(device.fake.call('backup:restore', { folder, snapshot: original.snapshot, passphrase: PASS })), 'BACKUP_CORRUPT')
   t.absent(fs.existsSync(path.join(device.h.root, 'restore-pending.json')), 'nothing is waiting for the next boot')
 })
 
@@ -155,14 +164,14 @@ test('a restore is refused over an identity in use', async (t) => {
   const original = await backedUpDevice(t, folder)
   const device = await newDevice(t)
   await setProfile({ displayName: 'In use' })
-  t.is(await codeOf(device.fake.call('backup:restore', { folder, snapshot: original.snapshot, content: original.content, passphrase: PASS })), 'NOT_AUTHORIZED')
+  t.is(await codeOf(device.fake.call('backup:restore', { folder, snapshot: original.snapshot, passphrase: PASS })), 'NOT_AUTHORIZED')
 })
 
 test('a swap interrupted part-way is finished by the next boot', async (t) => {
   const folder = backupFolder(t)
   const original = await backedUpDevice(t, folder)
   const device = await newDevice(t)
-  await device.fake.call('backup:restore', { folder, snapshot: original.snapshot, content: original.content, passphrase: PASS })
+  await device.fake.call('backup:restore', { folder, snapshot: original.snapshot, passphrase: PASS })
   await device.root.close()
   const staging = stagingPath(device.h.storage)
   const { setAsideLockedData } = await import('../../src/shared/core/identity-set-aside.js')
@@ -183,7 +192,7 @@ test('setting up the fresh identity drops a restore that never reached a restart
   const original = await backedUpDevice(t, folder)
   const device = await newDevice(t)
   registerProfile(device.fake.ipc, { log: quiet })
-  await device.fake.call('backup:restore', { folder, snapshot: original.snapshot, content: original.content, passphrase: PASS })
+  await device.fake.call('backup:restore', { folder, snapshot: original.snapshot, passphrase: PASS })
   await device.fake.call('profile:set', { displayName: 'Kept the new one' })
   t.absent(fs.existsSync(path.join(device.h.root, 'restore-pending.json')))
   t.absent(fs.existsSync(stagingPath(device.h.storage)))
@@ -195,7 +204,7 @@ test('a restore request that cannot be read is dropped, and the device boots as 
   const folder = backupFolder(t)
   const original = await backedUpDevice(t, folder)
   const device = await newDevice(t)
-  await device.fake.call('backup:restore', { folder, snapshot: original.snapshot, content: original.content, passphrase: PASS })
+  await device.fake.call('backup:restore', { folder, snapshot: original.snapshot, passphrase: PASS })
   await device.root.close()
   fs.writeFileSync(path.join(device.h.root, 'restore-pending.json'), '{"hol')
   t.is(await applyPendingIdentityChange(device.h.storage), null)
@@ -205,7 +214,7 @@ test('a restore request that cannot be read is dropped, and the device boots as 
 
 test('a snapshot name the backup never wrote is refused as unreadable', async (t) => {
   const folder = backupFolder(t)
-  const original = await backedUpDevice(t, folder)
+  await backedUpDevice(t, folder)
   const device = await newDevice(t)
-  t.is(await codeOf(device.fake.call('backup:restore', { folder, snapshot: '../mirall-backup.json', content: original.content, passphrase: PASS })), 'BACKUP_CORRUPT')
+  t.is(await codeOf(device.fake.call('backup:restore', { folder, snapshot: '../mirall-backup.json', passphrase: PASS })), 'BACKUP_CORRUPT')
 })

@@ -1,3 +1,5 @@
+import { waitFor } from './assert.mjs'
+
 // Mint an invite from INSIDE a space. The modal now configures the link first (auto-approve off by
 // default, default expiry) and reveals it only after "Create invite link"; we then copy the
 // `mirall://join/<code>` app link and strip the prefix to the bare code. Caller must already be in
@@ -5,7 +7,7 @@
 export async function copyInvite(A) {
   await A.openInviteModal()
   await A.click({ role: 'button', name: 'Create invite link' })
-  await A.waitText('Invite link ready', 8000)
+  await A.waitText('Invite Link Ready', 8000)
   const raw = await A.copyFrom({ role: 'button', name: 'Copy' })
   await A.click({ role: 'button', name: 'Done' })
   return raw.replace(/^mirall:\/\/join\//, '')
@@ -49,22 +51,18 @@ export async function connectInSpace(A, B, { name = 'Aurora' } = {}) {
   return code
 }
 
-// Save the recovery key on its own, without a backup: Settings → Backup & recovery offers it until a
-// backup is set up.
-export async function saveRecoveryKeyOnly(A, file, passphrase) {
-  await A.gotoSettings('Backup & recovery')
-  await A.click({ role: 'button', name: 'Only save a recovery key file' })
+// Through the setup dialog, once it is open: a folder on this computer's disk (so the same-disk
+// warning is confirmed), then the passphrase twice. Setup ends in a toast.
+export async function setUpBackup(A, folder, passphrase) {
+  await A.waitText('Step 1 of 2', 8000)
+  await A.nativeChoosePath(folder, { trigger: () => A.click({ role: 'button', name: 'Browse… (backup folder)' }) })
+  await A.waitText('Same disk as this computer', 8000)
+  await A.click({ role: 'button', name: 'Use it anyway' })
+  await A.waitText('Step 2 of 2', 8000)
   await A.setRaw({ role: 'textfield', name: 'Choose a passphrase' }, passphrase)
   await A.setRaw({ role: 'textfield', name: 'Confirm passphrase' }, passphrase)
-  await A.nativeChoosePath(file, { trigger: () => A.click({ role: 'button', name: 'Save backup file…' }) })
-  await A.waitText('Recovery key saved to your chosen location.', 30000)
-}
-
-// Open the restore from onboarding or the locked screen (`entry` is that button's name) and say that
-// only a recovery key file is at hand.
-export async function chooseKeyRestore(B, entry) {
-  await B.click({ role: 'button', name: entry })
-  await B.waitText('Already used Mirall on another computer?', 8000)
-  await B.click({ name: 'I only have my recovery key file' })
-  await B.click({ role: 'button', name: 'Next' })
+  const turnOn = { role: 'button', name: 'Turn on backup' }
+  await waitFor(async () => !(await A.isDisabled(turnOn)), 8000, 'Turn on backup available')
+  await A.click(turnOn)
+  await A.waitText('Backup is on', 120000)
 }

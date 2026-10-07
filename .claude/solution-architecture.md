@@ -1398,21 +1398,23 @@ read as v1 (secretbox) or v2 (XChaCha20-Poly1305 whose associated data authentic
 an owner-and-SYSTEM ACL on the user data folder (`src/main/storage-perms.js`); on POSIX,
 `app-storage/` is mode 0700.
 
-**Recovery key and locked boot.** A `.mirallkey` file (`src/shared/core/identity-recovery.js`) is the
-portable copy of the identity: a slot bundle (`master` = M; a reader ignores slots it does not know)
-sealed with XChaCha20-Poly1305 under an Argon2id key from the user's passphrase, the header bound
-into the associated data. The worker seals and opens it; main only moves the sealed text to and from a
-file the user picked (`src/main/recovery-file.js`). When the KEK cannot open `identity.enc`
-(`IDENTITY_LOCK_CODES`), the worker does not crash: `boot()` has already closed what it opened, and the
-entry serves only the process handlers and `src/worker/ipc/identity.js` — `identity:status`,
-`identity:import-recovery` and `identity:set-aside` — while the renderer shows the locked screen above
-its profile gates. Adopting a key rewrites `identity.enc` under this machine's KEK and the renderer
-restarts the worker into it. A key for another identity than the store holds needs the user's
-confirmation. Starting fresh moves the store's entries and its envelopes into
-`app-storage.locked-<stamp>/` beside it; nothing is deleted.
+**The backup's key and locked boot.** The portable copy of the identity
+(`src/shared/core/identity-recovery.js`) is a slot bundle (`master` = M; a reader ignores slots it does
+not know) sealed with XChaCha20-Poly1305 under an Argon2id key from the user's passphrase, the header
+bound into the associated data. It lives only in the backup folder (below); the user never handles it
+as a file. When the KEK cannot open `identity.enc` (`IDENTITY_LOCK_CODES`), the worker does not crash:
+`boot()` has already closed what it opened, and the entry serves only the process handlers,
+`src/worker/ipc/identity.js` — `identity:status`, `identity:unlock-from-backup` and
+`identity:set-aside` — and the restore requests, while the renderer shows the locked screen above its
+profile gates. Its one action, restore from a backup, first tries the folder's key on the data in
+place (`identity:unlock-from-backup`): when the store holds this identity's profile the key is adopted,
+`identity.enc` is rewritten under this machine's KEK, the profile is held as after a restore, and the
+renderer restarts the worker into it — the local data stays, newer than any backup. Otherwise it
+restores a snapshot, which sets the local data aside. Starting fresh moves the store's entries and its
+envelopes into `app-storage.locked-<stamp>/` beside it; nothing is deleted.
 
-**Restore hold.** A recovery key restores the identity, not the profile, and whatever copy of the
-profile this device has — none, or an older data folder — may be shorter than what peers hold under
+**Restore hold.** An adopted key restores the identity, not the profile, and whatever copy of the
+profile this device has — a snapshot, or the data a locked device unlocked in place — may be shorter than what peers hold under
 the same key: appending first would make every peer that sees both histories refuse the core for
 good. So every adoption writes
 `restore-hold.json` beside the store (`src/shared/core/restore-hold.js`), naming the bees that stay
@@ -1576,11 +1578,18 @@ padded to 4 KiB, one sealed manifest per snapshot named by sequence number, and 
 install. The chosen folder is never created, so an unmounted share reads as offline. One run
 (`backup-run.js`) takes the lease, captures against the latest snapshot, adds the key vault and
 the preferences that follow the user (`BACKUP_SETTING_GROUPS`: appearance, downloads, bandwidth caps,
-notifications) from `config.json`, and writes the snapshot last. Each snapshot records the
-store's vitals (`loss-check.js`); a drop against the last unflagged snapshot (profile shorter, spaces
-or cores halved, own data down by 30 %) flags it as **suspect**, until the drop has lasted a week and
-becomes the normal. Retention (`retention.js`, `prune.js`) always keeps the three newest unflagged
-snapshots, so a burst of losses can never push the good ones out.
+notifications) from `config.json`, and writes the snapshot last. It plans every core before
+uploading anything, and writes a snapshot only when something besides bookkeeping changed
+(`snapshot-rules.js`: the activity log, download and transfer records, storage measurements and
+migration marks ride along in the next one; members' catalogs do bring one about). Each snapshot
+records its spaces, the spaces left within the last month with the snapshot from before
+(`departures`), and the store's vitals (`loss-check.js`); a drop against the last unflagged snapshot
+(profile shorter, spaces or cores halved, profile + intents + own catalogs down by 30 %; local bees
+never count, since a purge or rewrite shortens them on purpose) flags it as **suspect**, until the
+drop has lasted a week and becomes the normal. Retention (`retention.js`, `prune.js`) keeps the
+newest snapshot, the newest healthy one at least 0 / 1 / 2 days, 1 / 2 weeks and 1 / 2 months old,
+and for a month the first flagged snapshot of a loss with the last healthy one before it and the
+snapshot from before a space was left — about seven, each one a reason to pick it at restore.
 
 `Backup` (the worker subsystem) runs two minutes after boot, hourly, and after changes: every append
 to an own bee (except the activity log and maintenance markers) is an everyday change, and a space
@@ -1592,9 +1601,9 @@ due one gets a short cutoff and writes nothing if it misses it. The folder and r
 `backup:status`, `backup:configure`, `backup:turn-off`, `backup:run`; a status change pokes
 `event:storage-updated`.
 
-**Restore.** Offered where a recovery key is: over a locked identity, or one nobody has used yet
-(`src/worker/ipc/backup-restore.js`); it always asks for the recovery key, since the backup holds no
-device-bound key. `backup:inspect` lists the snapshots the key opens; `backup:restore` rebuilds the
+**Restore.** Offered over a locked identity, or one nobody has used yet
+(`src/worker/ipc/backup-restore.js`); it opens the key the backup folder keeps with the passphrase,
+since the backup holds no device-bound key. `backup:inspect` lists the snapshots the key opens; `backup:restore` rebuilds the
 chosen one into `app-storage.restoring` beside the store (`restore.js`: every core checked against its
 recorded length and tree hash), seals the identity into `identity-adopt.enc` and writes
 `restore-pending.json` last. The next worker, before its store opens, sets the current data aside and
@@ -1606,8 +1615,8 @@ profile, or adopting another key, drops a restore that has not reached a restart
 snapshot carried go back through main (`src/main/backup-settings.js`), each group through the config
 store's own setter, and the window adopts them at once.
 
-**Recovery key in the folder.** Setup (`backup:setup`) takes the folder and a passphrase together:
-the recovery key is sealed under the passphrase, written to `Mirall Backup/keys/` (`folder-key.js`,
+**The key in the folder.** Setup (`backup:setup`) takes the folder and a passphrase together:
+the backup's key is sealed under the passphrase, written to `Mirall Backup/keys/` (`folder-key.js`,
 write-once names, older keys removed after), opened back from there, and only then is the first backup
 run — a backup never exists without a key known to open it. A folder holding another identity's backup
 is refused before anything is written. The worker keeps the same sealed file in
@@ -1615,27 +1624,26 @@ is refused before anything is written. The worker keeps the same sealed file in
 not `config.json`, none of it is a preference) and puts it back into the folder whenever a run finds it
 missing; a device with no record (a restored one) takes the folder's key when it is its own. A restore
 then needs only the folder and the passphrase (`backup:peek` shows the backup, its key's date and its
-newest snapshot's time before any passphrase; `backup:inspect`/`backup:restore` fall back to the
-folder's key). `backup:check-key` (through the shared passphrase throttle), `backup:new-key`,
-`backup:key-file`/`backup:key-copied` and `backup:prompt` serve the rest.
+newest snapshot's time before any passphrase; `backup:inspect`/`backup:restore` open the folder's
+key, and a folder without one cannot be restored). `backup:check-key` (through the shared passphrase
+throttle), `backup:new-key` (a new passphrase seals a new key) and `backup:prompt` serve the rest.
 
 **Prompts** (`prompt-rules.js`, pure): the offer goes to anyone with a space, or a device without a
 system keychain (`identityWeak` in the bootstrap frame); "Not now" holds 30, then 60 days, three times
 at most, and turning the backup off ends it. The passphrase check comes 14 days after a key, then every
 182, with one week's grace per cycle and an opt-out. A backup with no success for 10 days is `stale`.
 
-**UI** (flag `localBackup`, which main also hands the renderer in the config snapshot) follows the
-app's split of status from configuration. Profile → This device has one **Protection** row (verdict dot
-and summary, `protection-summary.ts`) leading to **Protection status** (`ProtectionStatusScreen.tsx`,
-like Network status): a verdict (`verdict` in `backup:status`, `protectionVerdict` in
-`prompt-rules.js`), *Your identity* (identity key protection, the recovery key with Check passphrase,
-the copy of the recovery key with Save a copy) and *Your data* (last backup with Back up now, the
-folder, failures, a flagged backup). Settings → **Backup & recovery** (`BackupSettings.tsx`) holds the
-configuration: the folder, turning off, changing the passphrase (a new key), the passphrase reminder
-(`backup:reminders`), and how to restore. Each links to the other. The setup dialog
-(`BackupSetupModal.tsx`), the offer or check card on Spaces (`BackupPromptCard.tsx`), the stale toast
-(`BackupToastBridge.tsx`, opens the status) and one "Restore your account" entry on onboarding and the
-locked screen (`RestoreAccount.tsx`) complete it.
+**UI** (flag `localBackup`, which main also hands the renderer in the config snapshot) is one
+concept — the backup, opened with a passphrase — on one screen. Settings → **Backup**
+(`BackupSettings.tsx`) leads with the verdict and its one action (`VerdictBanner.tsx`; `verdict` in
+`backup:status`, `protectionVerdict` in `prompt-rules.js`, copy keys in `model/protection-view.js`),
+the restore's progress while one is held, failures and a flagged backup; below it the "Back up
+automatically" switch (on runs the setup, off asks first), the folder, and the passphrase (Check, the
+reminder `backup:reminders`, Change). Profile → This Device has one **Backup** row (verdict dot and
+summary) that opens it, as do the stale toast (`BackupToastBridge.tsx`) and the restore banner. The
+two-step setup dialog (`BackupSetupModal.tsx`: where, then the passphrase; the outcome is a toast),
+the offer or check card on Spaces (`BackupPromptCard.tsx`) and one restore dialog
+(`RestoreBackupModal.tsx`, opened from onboarding and the locked screen) complete it.
 
 ## 17. Glossary
 

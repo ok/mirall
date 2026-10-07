@@ -18,7 +18,7 @@ export default async function s108({ runDir, bootstrap }) {
     })
 
     await r.ok('the group labels render and the old section headings are gone', async () => {
-      await A.waitText('This device', 8000)
+      await A.waitText('This Device', 8000)
       await A.waitText('App', 8000)
       // "Security" was a section heading over a one-line card; its content is the identity row now.
       // Don't assert on "Activity" — the Activity Log row legitimately contains that word.
@@ -27,16 +27,16 @@ export default async function s108({ runDir, bootstrap }) {
 
     await r.ok('the Connection row reaches the diagnostics screen', async () => {
       await A.click({ role: 'button', name: 'Connection' })
-      await A.waitText('Network status', 8000)
+      await A.waitText('Network Status', 8000)
       await A.back()
-      await A.waitText('This device', 8000)
+      await A.waitText('This Device', 8000)
     })
 
     await r.ok('the Activity Log row reaches the log viewer', async () => {
       await A.click({ role: 'button', name: 'Activity Log' })
       await A.waitText('A record of what happened', 8000)
       await A.back()
-      await A.waitText('This device', 8000)
+      await A.waitText('This Device', 8000)
     })
 
     await r.ok('the Profile command lands on the Profile page', async () => {

@@ -21,15 +21,18 @@ stalling your downloads.
 
 #### Added
 
-- **Back up Mirall to a drive or network folder.** Settings → Backup &
-recovery sets up an encrypted backup of your spaces, file lists, settings
-and recovery key in one step, protected by a passphrase you choose. It then
-runs on its own, and Mirall asks now and then whether you still know the
-passphrase. Profile → Protection shows whether your identity and your data
-are protected, and what to do if they aren't.
-- **Restore your account on a new computer.** "Already used Mirall? Restore
-your account" on the welcome screen brings everything back from your backup
-folder, or your identity alone from a recovery key file. Mirall opens right
+- **Back up Mirall to a drive, a network folder or the cloud.** Settings →
+Backup sets up an encrypted backup of your spaces, file lists and settings
+in two steps: where it goes, and a passphrase only you know. It then runs on
+its own, and Mirall asks now and then whether you still know the
+passphrase. The same screen shows whether you're protected and what to do
+if you aren't.
+- **Restore from a backup on a new computer.** "Already used Mirall? Restore
+from a backup" on the welcome screen brings everything back from your backup
+folder with your passphrase. If this computer can no longer open its own
+data, the same backup unlocks it again. You pick from a
+handful of backups: the latest, and ones from a few days, weeks and months
+back, plus the one from before you left a space. Mirall opens right
 away. Until someone you share with confirms nothing newer exists, you can
 look around but not make changes, so nothing you change can clash. If none
 of them is online, paste an invite code to one of your spaces.
@@ -39,10 +42,6 @@ Mirall folder, app updates included, and lists each space, the shared-file
 index, the Activity Log, download history, app updates and everything else
 separately. When enough can be freed, "Free up" clears it in
 one step.
-- **Save just your recovery key.** If you don't want a backup, Settings →
-Backup & recovery can save only your recovery key: a file sealed with a
-passphrase you choose. It brings back your identity, not your files, and we
-can't reset a lost passphrase.
 - **See when a member is reached through a relay.** The member list now reads
 "Online · via relay" instead of just "Online", so a slow transfer has a
 visible reason.

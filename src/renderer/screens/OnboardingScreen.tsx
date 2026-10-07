@@ -10,7 +10,7 @@ import Avatar from '../components/primitives/Avatar.js'
 import Button from '../components/primitives/Button.js'
 import Logo from '../components/primitives/Logo.js'
 import TextButton from '../components/primitives/TextButton.js'
-import RestoreAccount from '../components/recovery/RestoreAccount.js'
+import RestoreBackupModal from '../components/modals/RestoreBackupModal.js'
 import { restartIntoIdentity } from '../hooks/useIdentityStatus.js'
 
 interface OnboardingProps {
@@ -141,7 +141,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingProps) {
         </div>
       </main>
 
-      <RestoreAccount isOpen={restoreOpen} onClose={() => setRestoreOpen(false)} onRestored={restartIntoIdentity} />
+      <RestoreBackupModal isOpen={restoreOpen} onClose={() => setRestoreOpen(false)} onRestored={restartIntoIdentity} />
     </div>
   )
 }

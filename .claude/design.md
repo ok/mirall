@@ -618,16 +618,23 @@ pure function, `primitives/modalKeys.ts`, unit-tested in `test/invariants/modal-
   `keyboard/CommandPalette.tsx` are the two `<Modal>` consumers with no header row. It takes either
   a `title` string or a `titleNode` (a `<FilenameTitle>`), an optional `description` in one of two
   sizes, and a close button that can be disabled or omitted. Body: `px-10 pb-10 space-y-{4–8}`.
-  Footer: **`components/layout/ModalFooter.tsx`**, in one of two layouts — `split` (`gap-4`, each
-  button half the width: a decision, where neither answer is the small one) or `end`
-  (`justify-end gap-3`: a step that continues rather than decides). Three shapes use them:
-  1. A single full-width `lg` button (no footer component).
-  2. **Confirm/destructive** — `split`, Cancel(`secondary`) + Action(`danger`), both `h-14`.
-  3. **Wizard step** — `end`, Cancel(`secondary`) + Action(`primary`) at default `sm` size, the
-     action carrying a trailing `arrow_forward`. Owned by **`modals/MountWizardStep.tsx`** (header +
-     body slot + this footer), which Add Folder and Mirror to Disk both render; their shared second
-     step is `modals/ScanPreviewModal.tsx`, and the state machine behind both — validate, scan,
-     commit — is `hooks/useMountWizard.ts`.
+  Footer: **`components/layout/ModalFooter.tsx`**, one layout for every dialog — `lg` buttons
+  (`h-14`) sharing the row equally (`gap-4`, each `flex-1`), the secondary answer first and the
+  primary last; a single button fills the row. The shapes it carries:
+  1. A single full-width `lg` button (Done, Join, Save).
+  2. **Confirm/destructive** — Cancel(`secondary`) + Action(`danger`).
+  3. **Wizard step** — Cancel(`secondary`) + Action(`primary`), the action carrying a trailing
+     `arrow_forward`. Owned by **`modals/MountWizardStep.tsx`** (header + body slot + this footer),
+     which Add Folder and Mirror to Disk both render; their shared second step is
+     `modals/ScanPreviewModal.tsx`, and the state machine behind both — validate, scan, commit — is
+     `hooks/useMountWizard.ts`.
+  A note that belongs with the buttons (the diagnostics file's size) sits above the footer, never
+  in it.
+- **Headings are Title Case** in English: screen titles, section headings, dialog titles that name
+  the dialog, and a screen's name wherever it is quoted ("Settings → Activity Log Settings", "Open
+  Network Status"). A heading that is a sentence — an empty state, a question, a status ("No spaces
+  yet", "Start fresh?", "Backup is on") — stays sentence case, as do row labels, buttons and body
+  text. Other locales follow their own language's rules.
 - **Destructive intent is carried only by the `danger` button** — titles and body text stay in
   normal `text-accent` / `text-on-surface-variant`.
 

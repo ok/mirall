@@ -28,7 +28,7 @@ export default async function s112({ runDir, bootstrap }) {
       if (await A.hasText('Randomised port mapping')) {
         throw new Error('advanced NAT rows are visible on Network status')
       }
-      await A.click({ role: 'button', name: 'Advanced details' })
+      await A.click({ role: 'button', name: 'Advanced Details' })
       await A.waitText('Randomised port mapping', 8000)
       await A.shot('s112-advanced', runDir)
     })

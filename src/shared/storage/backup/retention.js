@@ -1,36 +1,34 @@
-// Which snapshots a backup keeps. The three newest healthy ones always stay, whatever their age, and a
-// snapshot that looks like a loss never counts toward any bucket — so a burst of them after a wipe
-// can never push the last good snapshots out. Beyond that: the newest healthy snapshot per hour for
-// two days, per day for a month, per week for half a year, per month after that. Suspect snapshots
-// are kept a month as evidence.
-const HOUR = 60 * 60 * 1000
-const DAY = 24 * HOUR
-const WEEK = 7 * DAY
+// Which snapshots a backup keeps: few, each with a reason to pick it. The newest snapshot always stays,
+// so the next run has its base. Of the healthy ones: the newest, and the newest at least one and two
+// days, one and two weeks, and one and two months old; an older one goes once a newer one fills its
+// place. For RETENTION.pinFor after a loss appeared, its first flagged snapshot and the last healthy
+// one before it stay, and after a space was left, the snapshot from before.
+const DAY = 24 * 60 * 60 * 1000
 
-export const RETENTION = Object.freeze({ hourlyFor: 48 * HOUR, dailyFor: 30 * DAY, weeklyFor: 26 * WEEK, minHealthy: 3, suspectFor: 30 * DAY })
+export const RETENTION = Object.freeze({
+  ages: Object.freeze([0, DAY, 2 * DAY, 7 * DAY, 14 * DAY, 30 * DAY, 60 * DAY]),
+  pinFor: 30 * DAY,
+})
 
-function bucket(createdAt, now) {
-  const age = now - createdAt
-  if (age <= RETENTION.hourlyFor) return 'h' + Math.floor(createdAt / HOUR)
-  if (age <= RETENTION.dailyFor) return 'd' + Math.floor(createdAt / DAY)
-  if (age <= RETENTION.weeklyFor) return 'w' + Math.floor(createdAt / WEEK)
-  return 'm' + new Date(createdAt).toISOString().slice(0, 7)
-}
-
-// snapshots: { name, createdAt (ms), suspect } in any order.
-export function keepSet(snapshots, now) {
+// snapshots: { name, createdAt (ms), suspect } in any order; departures: the newest manifest's.
+export function keepSet(snapshots, now, departures = []) {
   const newestFirst = [...snapshots].sort((a, b) => b.createdAt - a.createdAt || (a.name < b.name ? 1 : -1))
+  const keep = new Set(newestFirst.slice(0, 1).map((s) => s.name))
   const healthy = newestFirst.filter((s) => !s.suspect)
-  const keep = new Set(healthy.slice(0, RETENTION.minHealthy).map((s) => s.name))
-  const seen = new Set()
-  for (const s of healthy) {
-    const b = bucket(s.createdAt, now)
-    if (!seen.has(b)) {
-      seen.add(b)
-      keep.add(s.name)
-    }
+  for (const age of RETENTION.ages) {
+    const kept = healthy.find((s) => now - s.createdAt >= age)
+    if (kept) keep.add(kept.name)
   }
-  for (const s of newestFirst) if (s.suspect && now - s.createdAt <= RETENTION.suspectFor) keep.add(s.name)
+  newestFirst.forEach((s, i) => {
+    const older = newestFirst.slice(i + 1)
+    if (!s.suspect || older[0]?.suspect || now - s.createdAt > RETENTION.pinFor) return
+    keep.add(s.name)
+    const before = older.find((o) => !o.suspect)
+    if (before) keep.add(before.name)
+  })
+  for (const departure of departures) {
+    if (now - Date.parse(departure.at) <= RETENTION.pinFor) keep.add(departure.before)
+  }
   return keep
 }
 

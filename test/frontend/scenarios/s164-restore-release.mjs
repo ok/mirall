@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs'
 import path from 'node:path'
 import { Instance } from '../instance.mjs'
-import { connectInSpace } from '../helpers.mjs'
+import { connectInSpace, setUpBackup } from '../helpers.mjs'
 import { makeReport, waitFor } from '../assert.mjs'
 
 const PASS = 'a long enough passphrase'
@@ -26,23 +26,16 @@ export default async function s164({ runDir, bootstrap }) {
       await connectInSpace(A, C)
       await A.click({ name: 'Home' })
       await A.click({ role: 'button', name: 'Set up backup' })
-      await A.nativeChoosePath(backupDir, { trigger: () => A.click({ role: 'button', name: 'Browse… (backup folder)' }) })
-      await A.click({ role: 'button', name: 'Use it anyway' })
-      await A.setRaw({ role: 'textfield', name: 'Choose a passphrase' }, PASS)
-      await A.setRaw({ role: 'textfield', name: 'Confirm passphrase' }, PASS)
-      await A.click({ role: 'button', name: 'Turn on backup' })
-      await A.waitText("You're protected", 120000)
-      await A.click({ role: 'button', name: 'Done' })
+      await setUpBackup(A, backupDir, PASS)
       await A.quit()
       await C.quit()
     })
     await r.ok('the restored app opens read-only while Carol is away', async () => {
       await B.launch({ onboard: false })
       await B.waitText('Welcome to Mirall', 45000)
-      await B.click({ role: 'button', name: 'Already used Mirall? Restore your account' })
-      await B.click({ role: 'button', name: 'Next' })
+      await B.click({ role: 'button', name: 'Already used Mirall? Restore from a backup' })
       await B.nativeChoosePath(backupDir, { trigger: () => B.click({ role: 'button', name: 'Browse… (backup folder)' }) })
-      await B.waitText('Found your backup and recovery key', 15000)
+      await B.waitText('Found your backup', 15000)
       await B.setRaw({ role: 'textfield', name: 'Passphrase' }, PASS)
       await B.click({ role: 'button', name: 'Show backups' })
       await B.waitText('Choose the backup to restore.', 60000)

@@ -32,14 +32,17 @@ async function codeOf(promise) {
   }
 }
 
-// Boot a named identity under KEK-A, take its recovery key, and stop it.
+// Boot a named identity under KEK-A, back it up — its key and one snapshot — and stop it.
 async function establish(t, bootstrap, home, displayName) {
   const identityKEK = kekHex()
-  const peer = await launchPeer(t, { bootstrap, displayName, ...home, flags: { identityKEK } })
+  const backupFolder = mkTmpDir(t)
+  const peer = await launchPeer(t, { bootstrap, displayName, ...home, flags: { identityKEK, backupFolder } })
   const personKey = (await peer.request('profile:get')).personKey
-  const { content } = await peer.request('identity:export-recovery', { passphrase: PASS })
+  await peer.request('backup:run', {})
+  await peer.request('backup:new-key', { passphrase: PASS })
+  const { lastSnapshot } = await peer.request('backup:run', {})
   await stop(peer)
-  return { personKey, content, identityKEK }
+  return { personKey, backupFolder, lastSnapshot, identityKEK }
 }
 
 // The same storage under a key that cannot open it, as after a keychain reset or a machine move.
@@ -56,22 +59,21 @@ test('REGRESSION (MIR-30: a KEK that cannot open identity.enc crash-looped the w
   t.alike(await locked.request('identity:status'), { locked: true, code: 'IDENTITY_UNLOCK_FAILED', restore: null }, 'the worker is up and says why')
   t.ok((await locked.request('ping')).pong, 'and answers')
   t.is(await codeOf(locked.request('profile:get')), 'NOT_FOUND', 'the data layer is not served while locked')
-  t.is(await codeOf(locked.request('identity:export-recovery', { passphrase: PASS })), 'IDENTITY_UNLOCK_FAILED', 'nothing to export')
   t.is(await codeOf(locked.request('identity:set-aside')), null, 'a locked worker accepts a set-aside')
 })
 
-test('a recovery key restores the identity through a locked worker', { timeout: scaled(180000) }, async (t) => {
+test('the backup\'s key unlocks the identity in place through a locked worker', { timeout: scaled(180000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const home = peerHome(t)
   const alice = await establish(t, bootstrap, home, 'Alice')
   const newKEK = kekHex()
 
   const locked = await launchLocked(t, bootstrap, home, newKEK)
-  t.is(await codeOf(locked.request('identity:import-recovery', { content: alice.content, passphrase: 'not the passphrase', replace: false })),
+  t.is(await codeOf(locked.request('identity:unlock-from-backup', { folder: alice.backupFolder, passphrase: 'not the passphrase' })),
     'WRONG_PASSPHRASE')
   t.alike(await locked.request('identity:status'), { locked: true, code: 'IDENTITY_UNLOCK_FAILED', restore: null }, 'still locked')
-  t.alike(await locked.request('identity:import-recovery', { content: alice.content, passphrase: PASS, replace: false }), { ok: true },
-    'the store holds this identity, so no confirmation is needed')
+  t.alike(await locked.request('identity:unlock-from-backup', { folder: alice.backupFolder, passphrase: PASS }), { unlocked: true },
+    'the store holds this identity, so its own data opens in place')
   await stop(locked)
 
   // Held even over its own data, which may be older than what peers hold; with no co-member anywhere
@@ -86,7 +88,7 @@ test('a recovery key restores the identity through a locked worker', { timeout: 
   t.is(profile.displayName, 'Alice', 'over the same data')
 })
 
-test('a recovery key for another identity is refused unless the user replaces', { timeout: scaled(180000) }, async (t) => {
+test('another identity\'s backup does not unlock the locked data; restoring it sets that data aside', { timeout: scaled(180000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const home = peerHome(t)
   await establish(t, bootstrap, home, 'Alice')
@@ -94,25 +96,18 @@ test('a recovery key for another identity is refused unless the user replaces', 
   const newKEK = kekHex()
 
   const locked = await launchLocked(t, bootstrap, home, newKEK)
-  t.alike(await locked.request('identity:import-recovery', { content: bob.content, passphrase: PASS, replace: false }),
-    { ok: false, mismatch: true })
+  t.alike(await locked.request('identity:unlock-from-backup', { folder: bob.backupFolder, passphrase: PASS }), { unlocked: false })
   t.ok(fs.existsSync(path.join(home.root, 'identity.enc')), 'the envelope is untouched')
-  t.alike(await locked.request('identity:import-recovery', { content: bob.content, passphrase: PASS, replace: true }), { ok: true })
+  const { snapshots } = await locked.request('backup:inspect', { folder: bob.backupFolder, passphrase: PASS })
+  t.is(snapshots[0].name, bob.lastSnapshot)
+  t.is((await locked.request('backup:restore', { folder: bob.backupFolder, snapshot: bob.lastSnapshot, passphrase: PASS })).ok, true)
   await stop(locked)
 
-  const setAside = fs.readdirSync(home.root).filter((n) => n.startsWith('app-storage.locked-'))
-  t.is(setAside.length, 1, "Alice's data was set aside, not left for Bob's key to fail on")
   const asBob = await launchPeer(t, { bootstrap, displayName: 'Bob here', ...home, flags: { identityKEK: newKEK }, setProfile: false })
-  const status = await asBob.request('identity:status')
-  t.is(status.locked, false, 'the next boot opens')
-  t.is(status.restore?.profile?.verdict, 'no-holder', "and holds Bob's profile until a peer holding it is reached")
-  t.is(await codeOf(asBob.request('profile:set', { displayName: 'Bob here' })), 'RESTORE_HELD', 'nothing writes it before then')
-
-  t.alike(await asBob.request('identity:set-aside'), { folder: null }, 'a restore can still be set aside')
-  await stop(asBob)
-  const fresh = await launchPeer(t, { bootstrap, displayName: 'Someone new', ...home, flags: { identityKEK: newKEK } })
-  t.alike(await fresh.request('identity:status'), { locked: false, code: null, restore: null })
-  t.not((await fresh.request('profile:get')).personKey, bob.personKey, 'a new identity')
+  const setAside = fs.readdirSync(home.root).filter((n) => n.startsWith('app-storage.locked-'))
+  t.is(setAside.length, 1, "Alice's data was set aside, not overwritten")
+  t.is((await asBob.request('identity:status')).locked, false, 'the next boot opens')
+  t.is((await asBob.request('profile:get')).personKey, bob.personKey, "as Bob, from Bob's backup")
 })
 
 test('starting fresh sets the locked data aside and boots a new identity', { timeout: scaled(180000) }, async (t) => {
@@ -133,11 +128,10 @@ test('starting fresh sets the locked data aside and boots a new identity', { tim
   t.not((await fresh.request('profile:get')).personKey, alice.personKey, 'a new identity')
 })
 
-test('a running identity never adopts a recovery key: that would fork it', { timeout: scaled(120000) }, async (t) => {
+test('a running identity is never unlocked with a backup: that would fork it', { timeout: scaled(120000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const home = peerHome(t)
   const peer = await launchPeer(t, { bootstrap, displayName: 'Alice', ...home, flags: { identityKEK: kekHex() } })
-  const { content } = await peer.request('identity:export-recovery', { passphrase: PASS })
-  t.is(await codeOf(peer.request('identity:import-recovery', { content, passphrase: PASS, replace: false })), 'NOT_AUTHORIZED')
+  t.is(await codeOf(peer.request('identity:unlock-from-backup', { folder: mkTmpDir(t), passphrase: PASS })), 'NOT_AUTHORIZED')
   t.is(await codeOf(peer.request('identity:set-aside')), 'NOT_AUTHORIZED')
 })

@@ -79,7 +79,7 @@ export default function ApprovalModal({ isOpen, requests, busyKeys, onApproveMan
           </li>
         ))}
       </ul>
-      <ModalFooter layout="split" className="px-10 pb-10">
+      <ModalFooter className="px-10 pb-10">
         <Button size="lg" variant="secondary" onClick={held.guard(approveAll)} {...held.attrs}>
           {t('space.approveAll', { count: requests.length })}
         </Button>

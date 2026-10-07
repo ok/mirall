@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 import Modal from '../primitives/Modal.js'
 import Button from '../primitives/Button.js'
 import ModalHeader from '../primitives/ModalHeader.js'
+import ModalFooter from '../layout/ModalFooter.js'
 import { formatSize } from '../../format/bytes.js'
 
 interface Props {
@@ -34,12 +35,12 @@ export default function DiagnosticsPreviewModal({ isOpen, text, byteLength, reda
         </pre>
       </div>
 
-      <div className="px-10 pb-10 flex items-center gap-3">
-        <Button onClick={onSave}>{t('diagnostics.saveFile')}</Button>
-        <Button variant="secondary" onClick={onClose}>{t('actions.close')}</Button>
-        <span className="ml-auto text-xs text-on-surface-variant">
-          {t('diagnostics.approxSize', { size: formatSize(byteLength) })}
-        </span>
+      <div className="px-10 pb-10 space-y-4">
+        <p className="text-xs text-on-surface-variant">{t('diagnostics.approxSize', { size: formatSize(byteLength) })}</p>
+        <ModalFooter>
+          <Button size="lg" variant="secondary" onClick={onClose}>{t('actions.close')}</Button>
+          <Button size="lg" onClick={onSave}>{t('diagnostics.saveFile')}</Button>
+        </ModalFooter>
       </div>
     </Modal>
   )

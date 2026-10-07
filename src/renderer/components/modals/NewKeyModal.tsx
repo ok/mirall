@@ -76,7 +76,7 @@ export default function NewKeyModal({ isOpen, onClose }: NewKeyModalProps) {
             onConfirmation={setConfirmation}
           />
           {busy && <p role="status" className="text-sm text-on-surface-variant">{t('backupNewKey.working')}</p>}
-          <ModalFooter layout="split">
+          <ModalFooter>
             <Button variant="secondary" size="lg" onClick={handleClose} disabled={busy}>{t('actions.cancel')}</Button>
             <Button size="lg" onClick={() => void make()} disabled={verdict !== 'ok'} ariaDisabled={busy}>{t('backupNewKey.make')}</Button>
           </ModalFooter>

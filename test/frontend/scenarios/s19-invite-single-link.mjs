@@ -22,7 +22,7 @@ export default async function s19({ runDir, bootstrap }) {
     })
     await r.ok('Create reveals a single mirall://join/ app link', async () => {
       await A.click({ role: 'button', name: 'Create invite link' })
-      await A.waitText('Invite link ready')
+      await A.waitText('Invite Link Ready')
       const link = await A.copyFrom({ role: 'button', name: 'Copy' })
       if (!link.startsWith('mirall://join/')) throw new Error(`expected app link, got: ${link}`)
       await A.shot('s19-applink', runDir)
