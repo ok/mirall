@@ -10,7 +10,7 @@ jobs:
   node:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup
       - name: Typecheck
         run: npm run typecheck
@@ -43,7 +43,7 @@ jobs:
     env:
       MIRALL_TEST_TIMEOUT_SCALE: '3'
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup
       - name: Flow tests (shard ${{ matrix.shard }}/6)
         run: |
@@ -74,7 +74,7 @@ jobs:
           exit $status
       - name: Upload flake report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: flake-report-${{ matrix.shard }}
           path: flake-report
@@ -90,17 +90,17 @@ jobs:
     if: always()
     steps:
       # flake-ledger only reads JSON reports; it needs no dependencies.
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup
         with:
           install: 'false'
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         continue-on-error: true
         with:
           pattern: flake-report-*
           path: flake-reports-flow
           merge-multiple: true
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         continue-on-error: true
         with:
           pattern: bare-flake-report-*
@@ -129,7 +129,7 @@ jobs:
     env:
       MIRALL_TEST_TIMEOUT_SCALE: '3'
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup
       - name: Ensure bare runtime on PATH
         run: |
@@ -150,7 +150,7 @@ jobs:
             --shard-label ${{ matrix.shard }} $files
       - name: Upload flake report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: bare-flake-report-${{ matrix.shard }}
           path: flake-report

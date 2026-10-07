@@ -22,7 +22,7 @@ jobs:
     env:
       SMOKE: s1 s2 s3 s9 s20 s116 s133
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup
       - name: Install agent-desktop
         run: npm install -g agent-desktop@0.9.4
@@ -43,7 +43,7 @@ jobs:
         run: node test/frontend/run.mjs ${SCENARIOS:-$SMOKE}
       - name: Upload evidence and instance logs
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: fe-macos-evidence
           path: |
