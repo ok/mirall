@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto'
 import path from 'node:path'
 import { Instance } from '../instance.mjs'
 import { makeReport, waitFor } from '../assert.mjs'
-import { saveRecoveryKeyOnly, chooseKeyRestore } from '../helpers.mjs'
+import { setUpBackup } from '../helpers.mjs'
 
 const PASS = 'a long enough passphrase'
 
@@ -22,47 +22,52 @@ function findKek(dir, depth = 3) {
 }
 
 // A reset keychain: kek.enc no longer decrypts, so the app opens on the locked screen — not the
-// fatal dialog, the fault screen or onboarding — and the recovery key saved earlier opens it again.
+// fatal dialog, the fault screen or onboarding — and the backup set up earlier opens it again, the
+// data unlocked in place.
 export default async function s157({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 1 })
-  const keyFile = path.join(runDir, 'alice.mirallkey')
+  const backupDir = path.join(runDir, 's157-backup')
+  mkdirSync(backupDir, { recursive: true })
   const passphrase = { role: 'textfield', name: 'Passphrase' }
-  const restore = { role: 'button', name: 'Restore identity' }
+  const showBackups = { role: 'button', name: 'Show backups' }
 
   try {
-    await r.ok('back up the recovery key', async () => {
+    await r.ok('set up a backup', async () => {
       await A.launch()
-      await saveRecoveryKeyOnly(A, keyFile, PASS)
+      await A.gotoSettings('Backup')
+      await A.click({ role: 'button', name: 'Set up backup' })
+      await setUpBackup(A, backupDir, PASS)
     })
-    await r.ok('a keychain that cannot open kek.enc locks the identity instead of stopping the app', async () => {
+    await r.ok('a keychain that cannot open kek.enc locks the data instead of stopping the app', async () => {
       await A.quit()
       const kek = findKek(A.store)
       if (!kek) throw new Error('kek.enc not found under the instance store')
       writeFileSync(kek, randomBytes(64))
       await A.launch({ onboard: false })
-      await A.waitText('Your identity key is locked', 45000)
-      for (const name of ['Restore your account', 'Try again', 'Start fresh and create a new identity']) {
+      await A.waitText("Mirall can't open your data", 45000)
+      for (const name of ['Restore from a backup', 'Try again', 'Start fresh and create a new identity']) {
         if (!(await A.has({ role: 'button', name }))) throw new Error(`no button named ${name}`)
       }
       if (!readdirSync(path.dirname(kek)).some((n) => n.startsWith('kek.enc.unreadable-'))) throw new Error('the unreadable key was not kept')
       await A.shot('s157-locked', runDir)
     })
     await r.ok('a wrong passphrase is said under the field', async () => {
-      await chooseKeyRestore(A, 'Restore your account')
-      await A.nativeChoosePath(keyFile, { trigger: () => A.click({ role: 'button', name: 'Choose recovery key file…' }) })
-      await A.waitText('Enter the passphrase for this recovery key.', 8000)
+      await A.click({ role: 'button', name: 'Restore from a backup' })
+      await A.nativeChoosePath(backupDir, { trigger: () => A.click({ role: 'button', name: 'Browse… (backup folder)' }) })
+      await A.waitText('Found your backup', 15000)
       await A.setRaw(passphrase, 'not the passphrase')
-      await A.click(restore)
-      await A.waitText("That passphrase didn't match this recovery key. Check it and try again.", 60000)
+      await waitFor(async () => !(await A.isDisabled(showBackups)), 8000, 'Show backups available')
+      await A.click(showBackups)
+      await A.waitText("That passphrase doesn't open this backup.", 60000)
       await A.shot('s157-wrong-passphrase', runDir)
     })
-    await r.ok('the right passphrase restores the identity', async () => {
+    await r.ok('the right passphrase unlocks the data in place', async () => {
       await A.setRaw(passphrase, PASS)
-      await waitFor(async () => !(await A.isDisabled(restore)), 8000, 'Restore available')
-      await A.click(restore)
-      await A.waitText('Create Space', 90000)
+      await A.click(showBackups)
+      await A.waitText('Your data is unlocked', 90000)
+      await A.waitText('Create Space', 30000)
       await A.shot('s157-restored', runDir)
     })
   } catch {}

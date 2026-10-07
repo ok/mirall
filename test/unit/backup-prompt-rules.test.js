@@ -57,10 +57,9 @@ test('opting out of the check, or having no key, silences it', (t) => {
   t.is(backupPrompt({ now: T0 + 400 * DAY_MS, setUp: true, eligible: true, state: keyless }), null)
 })
 
-test('a new key drops the second copy and starts the check over', (t) => {
-  const before = { ...keyChecked(keyWritten(freshState(), T0, { content: 'a', createdAt: 'a' }), T0 + DAY_MS), secondCopyAt: T0 + DAY_MS }
+test('a new key starts the check over', (t) => {
+  const before = keyChecked(keyWritten(freshState(), T0, { content: 'a', createdAt: 'a' }), T0 + DAY_MS)
   const after = keyWritten(before, T0 + 50 * DAY_MS, { content: 'b', createdAt: 'b' })
-  t.is(after.secondCopyAt, null)
   t.is(after.keyCreatedAt, 'b')
   t.is(after.keyContent, 'b')
   t.ok(after.keyInFolder)
@@ -82,9 +81,8 @@ test('a fresh setup is not stale on an older folder\'s last success', (t) => {
 })
 
 test('a key found in the folder is unconfirmed and gets its first check', (t) => {
-  const state = keyAdopted({ ...freshState(), secondCopyAt: T0 }, T0, KEY)
+  const state = keyAdopted(freshState(), T0, KEY)
   t.is(state.keyCheckedAt, null)
-  t.is(state.secondCopyAt, null)
   t.is(state.check.nextAt, T0 + CHECK_FIRST_MS)
   t.is(backupPrompt({ now: T0 + CHECK_FIRST_MS, setUp: true, eligible: true, state }), PROMPT.CHECK)
 })
@@ -103,7 +101,6 @@ test('the verdict and its reason, cause by cause', (t) => {
   const verdict = (state, { setUp = true, stale = false, failing = false } = {}) => protectionVerdict({ setUp, stale, failing, state })
   t.alike(verdict(freshState(), { setUp: false }), { verdict: VERDICT.AT_RISK, reason: VERDICT_REASON.NOT_SET_UP })
   t.alike(verdict(healthy), { verdict: VERDICT.PROTECTED, reason: null })
-  t.is(verdict({ ...healthy, secondCopyAt: null }).verdict, VERDICT.PROTECTED, 'a missing copy is advice, not a lapse')
   t.alike(verdict(healthy, { failing: true }), { verdict: VERDICT.AT_RISK, reason: VERDICT_REASON.FAILING })
   t.alike(verdict({ ...healthy, lastSuccessAt: null }), { verdict: VERDICT.AT_RISK, reason: VERDICT_REASON.FIRST_BACKUP })
   t.alike(verdict({ ...healthy, keyInFolder: false }), { verdict: VERDICT.AT_RISK, reason: VERDICT_REASON.KEY_NOT_IN_FOLDER })

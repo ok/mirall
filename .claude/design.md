@@ -631,7 +631,7 @@ pure function, `primitives/modalKeys.ts`, unit-tested in `test/invariants/modal-
   A note that belongs with the buttons (the diagnostics file's size) sits above the footer, never
   in it.
 - **Headings are Title Case** in English: screen titles, section headings, dialog titles that name
-  the dialog, and a screen's name wherever it is quoted ("Settings → Backup & Recovery", "Open
+  the dialog, and a screen's name wherever it is quoted ("Settings → Activity Log Settings", "Open
   Network Status"). A heading that is a sentence — an empty state, a question, a status ("No spaces
   yet", "Start fresh?", "Backup is on") — stays sentence case, as do row labels, buttons and body
   text. Other locales follow their own language's rules.

@@ -6,7 +6,7 @@ import { BACKUP_STATE_FILE } from '../storage/backup/backup-state.js'
 
 // Moving a locked identity out of the way: the store and the files that belong to it (its envelopes
 // a restore's hold, and the backup's record of its key) go into a dated folder beside the store, so the next boot is a fresh install
-// and nothing is deleted — a recovery key found later still opens the set-aside copy. The store directory itself stays (the
+// and nothing is deleted — the backup's key, found later, still opens the set-aside copy. The store directory itself stays (the
 // data-dir tripwire guards it); only its entries move. The KEK and the relay seed stay wherever they
 // are: they belong to the device, the next identity is sealed under the same KEK, and the relay seed
 // belongs to no identity. All or nothing: a move that fails part-way is undone, so no folder ever

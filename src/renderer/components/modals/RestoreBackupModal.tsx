@@ -1,7 +1,8 @@
 // Restoring from a backup folder on the locked screen or at onboarding: the folder, then the passphrase
-// of the recovery key it keeps (or a key file, for a folder that keeps none); then one of the snapshots
-// it holds. What the folder shows before any passphrase — a backup, its key's date, its newest backup's
-// time — confirms it is the right one. The settings the backup carried go to main, and the worker
+// that opens the key it keeps, then one of the snapshots it holds. What the folder shows before any
+// passphrase — a backup, its newest backup's time — confirms it is the right one; a folder without its
+// key cannot be opened at all. On a locked device the key first tries to open this device's own data in
+// place, which is newer than any backup; only data that is not this identity's goes to a snapshot. The settings the backup carried go to main, and the worker
 // restarts into the restored data, held until the people the user shares spaces with confirm it.
 // Rendered outside the toast region, so every outcome is said inside the dialog.
 import { useEffect, useRef, useState } from 'react'
@@ -9,10 +10,9 @@ import { useTranslation } from 'react-i18next'
 import { request } from '../../ipc/ipc.js'
 import { useErrorText } from '../../hooks/useErrorText.js'
 import { errorCodeOf } from '../../errors/error-text.js'
-import { useRecoveryFileChoice, type RecoveryFileChoiceState } from '../../hooks/useRecoveryFileChoice.js'
 import { adoptRestoredSettings } from '../../platform/restored-settings.js'
 import { snapshotLabel, type SnapshotLabel } from '../../model/snapshot-label.js'
-import { formatDate, formatDateTime } from '../../format/utils.js'
+import { formatDateTime } from '../../format/utils.js'
 import type { RestorableSnapshot, BackupPeek } from '../../../shared/contract/responses.js'
 import Icon from '../primitives/Icon.js'
 import Modal from '../primitives/Modal.js'
@@ -24,22 +24,21 @@ import Button from '../primitives/Button.js'
 import Callout from '../primitives/Callout.js'
 import PathRow from '../path/PathRow.js'
 import RadioCard from '../primitives/RadioCard.js'
-import RecoveryFileChoice from '../recovery/RecoveryFileChoice.js'
 
 interface RestoreBackupModalProps {
   isOpen: boolean
   onClose: () => void
-  // Called once the restore is staged: the caller restarts the worker into it.
+  // Called once the restore is staged or the data unlocked: the caller restarts the worker into it.
   onRestored: () => Promise<void>
+  locked?: boolean
 }
 
 // The newest snapshot the loss check did not flag: a flagged one is what the warning was about.
 const preferred = (snapshots: RestorableSnapshot[]) => (snapshots.find((s) => !s.suspect) ?? snapshots[0])?.name ?? null
 
-export default function RestoreBackupModal({ isOpen, onClose, onRestored }: RestoreBackupModalProps) {
+export default function RestoreBackupModal({ isOpen, onClose, onRestored, locked = false }: RestoreBackupModalProps) {
   const { t } = useTranslation()
   const errorText = useErrorText()
-  const keyFile = useRecoveryFileChoice()
   const [folder, setFolder] = useState<string | null>(null)
   const [peek, setPeek] = useState<BackupPeek | null>(null)
   const [passphrase, setPassphrase] = useState('')
@@ -50,12 +49,9 @@ export default function RestoreBackupModal({ isOpen, onClose, onRestored }: Rest
   const [fieldError, setFieldError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  // The folder's own key, or the key file chosen for a folder that keeps none — sent only then.
-  const keyReady = !!peek?.keyCreatedAt || !!keyFile.file
-  const content = peek?.keyCreatedAt ? undefined : keyFile.file?.content
+  const keyReady = !!peek?.keyCreatedAt
 
   function reset() {
-    keyFile.clear()
     setFolder(null)
     setPeek(null)
     setPassphrase('')
@@ -79,7 +75,6 @@ export default function RestoreBackupModal({ isOpen, onClose, onRestored }: Rest
       if (!picked) return
       setFolder(picked.folder)
       setPeek(null)
-      keyFile.clear()
       setPeek(await request('backup:peek', { folder: picked.folder }))
     } catch (err) {
       setError(errorText(err))
@@ -102,10 +97,18 @@ export default function RestoreBackupModal({ isOpen, onClose, onRestored }: Rest
     setFieldError(null)
     setError(null)
     try {
-      const result = await request('backup:inspect', { folder, content, passphrase }, 0)
+      if (locked && (await request('identity:unlock-from-backup', { folder, passphrase }, 0)).unlocked) {
+        setRestarting(true)
+        await onRestored()
+        reset()
+        onClose()
+        return
+      }
+      const result = await request('backup:inspect', { folder, passphrase }, 0)
       setSnapshots(result.snapshots)
       setChosen(preferred(result.snapshots))
     } catch (err) {
+      setRestarting(false)
       fail(errorCodeOf(err), errorText(err))
     } finally {
       setBusy(false)
@@ -117,7 +120,7 @@ export default function RestoreBackupModal({ isOpen, onClose, onRestored }: Rest
     setBusy(true)
     setError(null)
     try {
-      const { settings } = await request('backup:restore', { folder, snapshot: chosen, content, passphrase }, 0)
+      const { settings } = await request('backup:restore', { folder, snapshot: chosen, passphrase }, 0)
       if (settings) await adoptRestoredSettings(settings)
       setRestarting(true)
       await onRestored()
@@ -133,8 +136,8 @@ export default function RestoreBackupModal({ isOpen, onClose, onRestored }: Rest
 
   const title = t('restoreBackup.title')
   const ready = !!folder && keyReady && passphrase.length > 0
-  const shownError = error ?? keyFile.error
-  const progress = restarting ? t('recoveryRestore.restarting') : busy ? t(snapshots ? 'restoreBackup.restoring' : 'restoreBackup.opening') : null
+  const shownError = error
+  const progress = restarting ? t('restoreBackup.restarting') : busy ? t(snapshots ? 'restoreBackup.restoring' : 'restoreBackup.opening') : null
 
   return (
     <Modal
@@ -162,14 +165,11 @@ export default function RestoreBackupModal({ isOpen, onClose, onRestored }: Rest
             <SourceFields
               folder={folder}
               peek={peek}
-              keyFile={keyFile}
               passphrase={passphrase}
               fieldError={fieldError}
               busy={busy}
               onChooseFolder={() => void chooseFolder()}
-              onChooseKey={() => { setError(null); setFieldError(null); void keyFile.choose() }}
               onPassphrase={(v) => { setPassphrase(v); setFieldError(null) }}
-              onChangeKey={() => { keyFile.clear(); setPassphrase(''); setFieldError(null) }}
             />
           ) : (
             <>
@@ -245,21 +245,17 @@ function SnapshotChoice({ snapshots, chosen, onChoose }: SnapshotChoiceProps) {
 interface SourceFieldsProps {
   folder: string | null
   peek: BackupPeek | null
-  keyFile: RecoveryFileChoiceState
   passphrase: string
   fieldError: string | null
   busy: boolean
   onChooseFolder: () => void
-  onChooseKey: () => void
-  onChangeKey: () => void
   onPassphrase: (value: string) => void
 }
 
 // Where the backup is and what opens it. Nothing here can change while the dialog works on it.
-function SourceFields({ folder, peek, keyFile, passphrase, fieldError, busy, onChooseFolder, onChooseKey, onChangeKey, onPassphrase }: SourceFieldsProps) {
+function SourceFields({ folder, peek, passphrase, fieldError, busy, onChooseFolder, onPassphrase }: SourceFieldsProps) {
   const { t } = useTranslation()
   const keyInFolder = !!peek?.keyCreatedAt
-  const askPassphrase = keyInFolder || !!keyFile.file
   return (
     <>
       <div className="space-y-3">
@@ -272,24 +268,20 @@ function SourceFields({ folder, peek, keyFile, passphrase, fieldError, busy, onC
         />
       </div>
       {peek && !peek.backup && <Callout tone="warning">{t('restoreBackup.noBackup')}</Callout>}
-      {peek?.backup && (
+      {peek?.backup && !keyInFolder && <Callout tone="warning">{t('restoreBackup.noKey')}</Callout>}
+      {peek?.backup && keyInFolder && (
         <div className="bg-surface-container-low rounded-xl p-4 flex items-center gap-3" role="status">
-          <Icon name={keyInFolder ? 'verified_user' : 'info'} className="text-secondary" />
+          <Icon name="check_circle" className="text-secondary" />
           <div>
-            <p className="font-bold text-on-surface">{t(keyInFolder ? 'restoreBackup.found' : 'restoreBackup.foundNoKey')}</p>
-            <p className="text-sm text-on-surface-variant">
-              {keyInFolder && peek.keyCreatedAt
-                ? t('restoreBackup.foundBody', { date: formatDate(peek.keyCreatedAt), when: peek.lastBackupAt ? formatDateTime(peek.lastBackupAt) : '—' })
-                : t('restoreBackup.foundNoKeyBody')}
-            </p>
+            <p className="font-bold text-on-surface">{t('restoreBackup.found')}</p>
+            <p className="text-sm text-on-surface-variant">{t('restoreBackup.foundBody', { when: peek.lastBackupAt ? formatDateTime(peek.lastBackupAt) : '—' })}</p>
           </div>
         </div>
       )}
-      {peek?.backup && !keyInFolder && <RecoveryFileChoice file={keyFile.file} disabled={busy} onChoose={onChooseKey} onChange={onChangeKey} />}
-      {peek?.backup && askPassphrase && (
+      {peek?.backup && keyInFolder && (
         <TextField
           id="restore-backup-passphrase"
-          label={t('recoveryRestore.passphraseLabel')}
+          label={t('restoreBackup.passphraseLabel')}
           type="password"
           autoComplete="off"
           value={passphrase}

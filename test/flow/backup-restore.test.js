@@ -41,7 +41,8 @@ test('a device restored from a backup catches up from a co-member, then writes w
   await share(t, alice, spaceId, 'before.bin', 1)
   await waitForCatalogEntry(carol, spaceId, '/before.bin', { ms: 120000 })
 
-  const { content } = await alice.request('identity:export-recovery', { passphrase: PASS })
+  await alice.request('backup:run', {})
+  await alice.request('backup:new-key', { passphrase: PASS })
   const backedUp = await alice.request('backup:run', {})
   t.ok(backedUp.lastSnapshot, 'Alice backed up')
 
@@ -57,9 +58,9 @@ test('a device restored from a backup catches up from a co-member, then writes w
   const launch = () => launchPeer(t, { bootstrap, ...home, flags: { identityKEK: kek, ...backupFlags }, setProfile: false })
 
   const fresh = await launch()
-  const { snapshots } = await fresh.request('backup:inspect', { folder: backupFolder, content, passphrase: PASS })
+  const { snapshots } = await fresh.request('backup:inspect', { folder: backupFolder, passphrase: PASS })
   t.is(snapshots[0].name, backedUp.lastSnapshot)
-  t.is((await fresh.request('backup:restore', { folder: backupFolder, snapshot: snapshots[0].name, content, passphrase: PASS })).ok, true)
+  t.is((await fresh.request('backup:restore', { folder: backupFolder, snapshot: snapshots[0].name, passphrase: PASS })).ok, true)
   await stop(fresh)
 
   const restoring = await launch()

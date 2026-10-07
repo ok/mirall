@@ -139,8 +139,6 @@
     setDownloadFolder: asyncNoop,
     browseDownloadFolder: asyncNoop,
     browseShareFolder: asyncNoop,
-    saveRecoveryFile: async () => ({ saved: false }),
-    openRecoveryFile: async () => ({ ok: false, reason: 'cancelled' }),
     retryIdentityUnlock: async () => false,
     onZoomChanged: noop,
     notify: asyncNoop,

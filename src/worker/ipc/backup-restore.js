@@ -1,5 +1,5 @@
 // @ts-check
-// Restoring from a backup folder: the snapshots the recovery key can open, and one of them staged to
+// Restoring from a backup folder: the snapshots its key can open, and one of them staged to
 // replace this device's data when the worker restarts. Offered where a recovery key is — a locked
 // identity, or one nobody has used yet — and never over an identity in use. The old installation is
 // taken to be gone: its lease is cleared so this device can keep backing up into the same folder.
@@ -43,14 +43,12 @@ export function registerBackupRestore(ipc, { storagePath, identityKEK, log, lock
     if (!lockedBy && !(await isUnclaimed())) throw new AppError(CODES.NOT_AUTHORIZED, 'a backup is restored only over a locked or unused identity')
   }
 
-  // The key file the user chose, or else the one the backup folder keeps.
-  /** @param {string} folder @param {string | null | undefined} content @returns {Promise<string>} */
-  async function keyContent(folder, content) {
-    if (content) return content
+  /** @param {string} folder @returns {Promise<string>} */
+  async function keyContent(folder) {
     const target = new FolderTarget(folder)
     await target.ready()
     const found = await readFolderKey(target)
-    if (!found) throw new AppError(CODES.BACKUP_KEY_MISSING, 'backup: this folder keeps no recovery key')
+    if (!found) throw new AppError(CODES.BACKUP_KEY_MISSING, 'backup: this folder keeps no key')
     return found.content
   }
 
@@ -84,10 +82,10 @@ export function registerBackupRestore(ipc, { storagePath, identityKEK, log, lock
     return { backup: true, keyCreatedAt: key?.createdAt ?? null, lastBackupAt }
   })
 
-  ipc.handle('backup:inspect', async ({ folder, content, passphrase }, ctx) => {
+  ipc.handle('backup:inspect', async ({ folder, passphrase }, ctx) => {
     requireHost(ctx.client, 'only the host may read a backup')
     await assertAllowed()
-    const { masterSecret } = await openRecovery(await keyContent(folder, content), passphrase)
+    const { masterSecret } = await openRecovery(await keyContent(folder), passphrase)
     try {
       return { snapshots: await listRestorable(await openBackup(folder, masterSecret)) }
     } finally {
@@ -95,10 +93,10 @@ export function registerBackupRestore(ipc, { storagePath, identityKEK, log, lock
     }
   })
 
-  ipc.handle('backup:restore', async ({ folder, snapshot, content, passphrase }, ctx) => {
+  ipc.handle('backup:restore', async ({ folder, snapshot, passphrase }, ctx) => {
     requireHost(ctx.client, 'only the host may restore a backup')
     await assertAllowed()
-    const { masterSecret } = await openRecovery(await keyContent(folder, content), passphrase)
+    const { masterSecret } = await openRecovery(await keyContent(folder), passphrase)
     const turn = queue.then(() => restore(folder, snapshot, masterSecret))
     queue = turn.then(() => {}, () => {})
     try {

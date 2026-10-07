@@ -95,3 +95,22 @@ test('REGRESSION (FIX-PLURAL-SUFFIX): no t() call names a plural suffix in its k
   }
   t.alike(offenders, [], 'pass the base key and { count } instead of a _one/_other key')
 })
+
+// The other direction: a key the code names that no locale holds renders as its raw key. Literal t()
+// keys only — a template's family is checked above from the locale side.
+test('REGRESSION (backup cleanup: a dialog showed raw keys): every literal t() key exists in en', (t) => {
+  const en = {
+    common: JSON.parse(readFileSync(path.join(root, 'src', 'renderer', 'locales', 'en', 'common.json'), 'utf8')),
+    errors: JSON.parse(readFileSync(path.join(root, 'src', 'renderer', 'locales', 'en', 'errors.json'), 'utf8')),
+  }
+  const keys = new Set([...flatten(en.common), ...flatten(en.errors)].map((k) => k.replace(PLURAL, '')))
+  const missing = []
+  for (const file of SCAN.flatMap((d) => walk(path.join(root, d)))) {
+    const src = readFileSync(file, 'utf8')
+    for (const m of src.matchAll(/\bt\(\s*['"]([a-zA-Z][\w-]*(?:\.[\w-]+)+)['"]/g)) {
+      if (!keys.has(m[1])) missing.push(path.relative(root, file) + ': ' + m[1])
+    }
+  }
+  t.ok(keys.size > 1000, 'the locales were actually read')
+  t.alike(missing, [], 'add the key to all five locales, or name one that exists')
+})

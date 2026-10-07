@@ -92,12 +92,12 @@ export class Backup extends Subsystem {
   async status() {
     const now = Date.now()
     const setUp = this.config.folder !== null
-    const { keyCreatedAt, keyInFolder, keyCheckedAt, secondCopyAt, lastSuccessAt, setupAt, check } = this.state
+    const { keyCreatedAt, keyInFolder, keyCheckedAt, lastSuccessAt, setupAt, check } = this.state
     const stale = isStale({ now, setUp, lastSuccessAt, setupAt })
     const { verdict, reason } = protectionVerdict({ setUp, stale, failing: this.progress.state === 'error', state: this.state })
     return {
       ...this.view(),
-      key: { createdAt: keyCreatedAt, inFolder: keyInFolder, checkedAt: keyCheckedAt, secondCopyAt, reminders: !check.optOut },
+      key: { createdAt: keyCreatedAt, inFolder: keyInFolder, checkedAt: keyCheckedAt, reminders: !check.optOut },
       prompt: await this.duePrompt(now),
       stale,
       verdict,
@@ -262,25 +262,13 @@ export class Backup extends Subsystem {
     })
   }
 
-  // Through the shared throttle, like every other recovery-file open.
+  // Through the shared throttle, like every other open of a sealed key.
   async checkKey(passphrase, open) {
     const { keyContent } = this.state
     if (!keyContent) throw new AppError(CODES.BACKUP_KEY_MISSING, 'backup: no recovery key is kept')
     const opened = await open(keyContent, passphrase)
     wipeSecret(opened.masterSecret)
     await this.persist(keyChecked(this.state, Date.now()))
-    this.report({})
-    return this.status()
-  }
-
-  keyFile() {
-    const { keyContent, keyCreatedAt } = this.state
-    if (!keyContent || !keyCreatedAt) throw new AppError(CODES.BACKUP_KEY_MISSING, 'backup: no recovery key is kept')
-    return { fileName: `mirall-recovery-${keyCreatedAt.slice(0, 10)}.mirallkey`, content: keyContent }
-  }
-
-  async keyCopied() {
-    await this.persist({ ...this.state, secondCopyAt: Date.now() })
     this.report({})
     return this.status()
   }

@@ -24,7 +24,7 @@ export default async function s162({ runDir, bootstrap }) {
     })
     await r.ok('"Not now" hides it and says where it lives', async () => {
       await A.click({ role: 'button', name: 'Not now' })
-      await A.waitText('You can set up a backup anytime in Settings → Backup & Recovery.', 8000)
+      await A.waitText('You can set up a backup anytime in Settings → Backup.', 8000)
       await waitFor(async () => !(await A.has({ role: 'button', name: 'Set up backup' })), 8000, 'offer gone')
     })
   } catch {}

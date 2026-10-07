@@ -8,7 +8,9 @@ import { boot } from '../../src/worker/boot.js'
 import { getProfile, getProfileBee, setProfile, markOwnMembership, CAP_MEMBERSHIP_MANIFEST } from '../../src/shared/spaces/profile.js'
 import { loadRestoreHold, writeRestoreHold, releaseHeld, isHeld, resetRestoreHold, restoreSource, RESTORE_HOLD_FILE, PROFILE_BEE } from '../../src/shared/core/restore-hold.js'
 import { applyPendingIdentityChange, requestSetAside, ADOPT_FILE } from '../../src/shared/core/identity-adopt.js'
-import { sealRecoveryKey } from '../../src/shared/core/store.js'
+import { sealRecoveryKey, ownRecoveryIdentity } from '../../src/shared/core/store.js'
+import { FolderTarget } from '../../src/shared/storage/backup/folder-target.js'
+import { writeFolderKey } from '../../src/shared/storage/backup/folder-key.js'
 import { registerIdentity } from '../../src/worker/ipc/identity.js'
 import { registerProfile } from '../../src/worker/ipc/profile.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
@@ -18,11 +20,12 @@ import { RESTORE_VERDICT } from '../../src/shared/contract/restore-verdict.js'
 import { offlineMemberRegistry } from '../helpers/store.js'
 import { createFakeIpc } from '../helpers/fake-ipc.js'
 import { tmpDir } from '../helpers/bare-tmp.js'
-import { createPassphraseThrottle } from '../../src/shared/core/identity-recovery.js'
+import { createPassphraseThrottle, buildRecoveryFile, identityPublicKeyHex } from '../../src/shared/core/identity-recovery.js'
 
 const quiet = { debug() {}, info() {}, warn() {}, error() {} }
 const KEK = b4a.toString(crypto.randomBytes(32), 'hex')
 const PASS = 'a long enough passphrase'
+const KEY_AT = '2026-10-01T00:00:00.000Z'
 
 function home(t) {
   const root = tmpDir('restore-hold')
@@ -44,6 +47,18 @@ async function bootRoot(t, config, opts = {}) {
   const root = await boot(config, { ipc: fake.ipc, log: quiet, swarm: false, memberRegistry: offlineMemberRegistry, ...opts })
   t.teardown(async () => { try { await root.close() } catch {} }, { order: 1 })
   return { root, fake }
+}
+
+function backupFolder(t) {
+  const dir = tmpDir('restore-hold-backup')
+  t.teardown(() => { try { fs.rmSync(dir, { recursive: true, force: true }) } catch {} }, { order: 2 })
+  return dir
+}
+
+async function keepKey(folder, content, identityPub) {
+  const target = new FolderTarget(folder)
+  await target.ready({ create: true })
+  await writeFolderKey(target, { content, createdAt: KEY_AT, identityPub })
 }
 
 async function codeOf(promise) {
@@ -111,31 +126,12 @@ test('releasing the last held bee removes the hold file', async (t) => {
   t.absent(fs.existsSync(path.join(root, RESTORE_HOLD_FILE)))
 })
 
-test('a key adopted on an unused identity waits for the next worker and comes back held', async (t) => {
-  const { root: dataDir, storage, config } = home(t)
-  const masterSecret = crypto.randomBytes(32)
-  const { root, fake } = await bootRoot(t, config, { masterSecret })
-  const content = await sealRecoveryKey(PASS, { createdAt: '2026-10-01T00:00:00Z' })
-  registerIdentity(fake.ipc, { storagePath: storage, identityKEK: KEK, log: quiet, lockedBy: null, openRecovery: createPassphraseThrottle() })
-
-  t.alike(await fake.call('identity:import-recovery', { content, passphrase: PASS, replace: false }), { ok: true })
-  t.ok(fs.existsSync(path.join(dataDir, ADOPT_FILE)), 'the adoption waits beside the store')
-  await root.close()
-
-  await applyPendingIdentityChange(storage)
-  t.absent(fs.existsSync(path.join(dataDir, ADOPT_FILE)), 'the adoption is applied')
-  t.ok(fs.existsSync(path.join(dataDir, 'identity.enc')), 'as the identity envelope')
-  t.ok(fs.readdirSync(dataDir).some((n) => n.startsWith('app-storage.locked-')), 'the unused identity is set aside')
-  t.alike(JSON.parse(fs.readFileSync(path.join(dataDir, RESTORE_HOLD_FILE), 'utf-8')).held, [PROFILE_BEE])
-})
-
-test('a key is not adopted over an identity in use', async (t) => {
+test('a backup\'s key never unlocks an identity in use', async (t) => {
   const { storage, config } = home(t)
   const { fake } = await bootRoot(t, config, { masterSecret: crypto.randomBytes(32) })
   await setProfile({ displayName: 'In use' })
-  const content = await sealRecoveryKey(PASS, { createdAt: '2026-10-01T00:00:00Z' })
   registerIdentity(fake.ipc, { storagePath: storage, identityKEK: KEK, log: quiet, lockedBy: null, openRecovery: createPassphraseThrottle() })
-  t.is(await codeOf(fake.call('identity:import-recovery', { content, passphrase: PASS, replace: false })), 'NOT_AUTHORIZED')
+  t.is(await codeOf(fake.call('identity:unlock-from-backup', { folder: backupFolder(t), passphrase: PASS })), 'NOT_AUTHORIZED')
 })
 
 test('a pending adoption interrupted after the set-aside finishes on the next boot', async (t) => {
@@ -161,23 +157,41 @@ test('a restore set aside moves the store, the envelope and the hold', async (t)
   t.absent(fs.existsSync(path.join(dataDir, 'set-aside.pending')))
 })
 
-test('a key adopted over its own data on a locked device is held, and released at once with no co-member', async (t) => {
+test('the backup\'s key unlocks its own data in place on a locked device: held, and released at once with no co-member', async (t) => {
   const { root: dataDir, storage, config } = home(t)
   const first = await bootRoot(t, config)
   await setProfile({ displayName: 'Alone' })
-  const content = await sealRecoveryKey(PASS, { createdAt: '2026-10-01T00:00:00Z' })
+  const folder = backupFolder(t)
+  await keepKey(folder, await sealRecoveryKey(PASS, { createdAt: KEY_AT }), ownRecoveryIdentity())
   await first.root.close()
 
   const locked = createFakeIpc()
   registerIdentity(locked.ipc, { storagePath: storage, identityKEK: KEK, log: quiet, lockedBy: 'IDENTITY_UNLOCK_FAILED', openRecovery: createPassphraseThrottle() })
-  t.alike(await locked.call('identity:import-recovery', { content, passphrase: PASS, replace: false }), { ok: true })
+  t.is(await codeOf(locked.call('identity:unlock-from-backup', { folder, passphrase: 'not the passphrase' })), 'WRONG_PASSPHRASE')
+  t.alike(await locked.call('identity:unlock-from-backup', { folder, passphrase: PASS }), { unlocked: true })
   t.ok(fs.existsSync(path.join(dataDir, RESTORE_HOLD_FILE)), 'held even over its own data, which may be an older copy')
 
   const { root } = await bootRoot(t, config)
   t.ok(root.restoreCatchUp, 'restore mode')
+  t.is((await getProfile())?.displayName, 'Alone', 'the data stayed in place')
   await waitFor(() => root.restoreCatchUp.status().profile.released, 10000, { interval: 200, label: 'release' })
   t.absent(fs.existsSync(path.join(dataDir, RESTORE_HOLD_FILE)), 'nobody else can hold it, so the next boot opens it')
   t.absent(getProfileBee().core.writable, 'this worker keeps it read-only until it restarts')
+})
+
+test('another identity\'s backup leaves a locked device\'s data to a restore', async (t) => {
+  const { root: dataDir, storage, config } = home(t)
+  const first = await bootRoot(t, config)
+  await setProfile({ displayName: 'Mine' })
+  await first.root.close()
+  const other = crypto.randomBytes(32)
+  const folder = backupFolder(t)
+  await keepKey(folder, await buildRecoveryFile({ master: other }, PASS, { createdAt: KEY_AT }), identityPublicKeyHex(other))
+
+  const locked = createFakeIpc()
+  registerIdentity(locked.ipc, { storagePath: storage, identityKEK: KEK, log: quiet, lockedBy: 'IDENTITY_UNLOCK_FAILED', openRecovery: createPassphraseThrottle() })
+  t.alike(await locked.call('identity:unlock-from-backup', { folder, passphrase: PASS }), { unlocked: false })
+  t.absent(fs.existsSync(path.join(dataDir, RESTORE_HOLD_FILE)), 'nothing adopted')
 })
 
 test('a rejoin made while restoring stamps its membership on the first normal boot', async (t) => {
