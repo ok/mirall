@@ -12,6 +12,7 @@ import { AppError, classifyLocalIoFault, isLocalDestFault } from '../../core/err
 import { CODES } from '../../contract/errors.js'
 
 export const REPO_DIR = 'Mirall Backup'
+export const REPO_HEADER = 'mirall-backup.json'
 const TMP = 'tmp'
 const STALE_TMP_MS = 60 * 60 * 1000
 const NO_HARD_LINKS = new Set(['ENOTSUP', 'EOPNOTSUPP', 'ENOSYS', 'EXDEV', 'EMLINK'])
@@ -91,9 +92,12 @@ async function claim(tmp, final) {
 }
 
 export class FolderTarget {
+  // The backup folder itself, chosen instead of the folder that holds it, is read as that folder. Only
+  // when it holds a backup: a folder merely named so keeps its own backup inside it, as it always has.
   constructor(chosenFolder) {
-    this.chosen = chosenFolder
-    this.dir = path.join(chosenFolder, REPO_DIR)
+    const isRepo = path.basename(chosenFolder) === REPO_DIR && fs.existsSync(path.join(chosenFolder, REPO_HEADER))
+    this.chosen = isRepo ? path.dirname(chosenFolder) : chosenFolder
+    this.dir = path.join(this.chosen, REPO_DIR)
   }
 
   _tmpFile() {
