@@ -15,7 +15,8 @@ export async function pruneRepo(repo, { now = Date.now() } = {}) {
     else unreadable++
   }
   if (!readable.length) return { snapshots: 0, objects: 0 }
-  const keep = keepSet(readable, now)
+  const newest = readable.reduce((a, b) => (b.createdAt > a.createdAt ? b : a))
+  const keep = keepSet(readable, now, newest.manifest.departures ?? [])
   let snapshots = 0
   const referenced = new Set()
   let newestKept = 0

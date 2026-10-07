@@ -1386,8 +1386,8 @@
     "running": "Haciendo copia…",
     "runNow": "Hacer copia ahora",
     "turnOff": "Desactivar la copia",
-    "suspectTitle": "Esta copia es más pequeña de lo habitual",
-    "suspectBody": "La última copia contiene bastante menos que la anterior ({{reasons}}). Si fue intencionado, no hay nada que hacer: las copias anteriores se conservan de todos modos.",
+    "suspectTitle": "Se han perdido datos en este equipo",
+    "suspectBody": "La última copia contiene menos que la anterior ({{reasons}}). Si fue intencionado, no hay nada que hacer. La copia de antes se conserva un mes de todos modos.",
     "reason": {
       "profile-shrank": "un perfil más corto",
       "spaces-halved": "menos espacios",
@@ -1424,7 +1424,7 @@
     "saveCopy": "Guardar una copia…",
     "copySaved": "Copia de la clave de recuperación guardada.",
     "folderTitle": "Carpeta de copias",
-    "folderDesc": "Mirall hace copia tras cada cambio, cada hora y al salir. Conserva las copias recientes y va espaciando las antiguas.",
+    "folderDesc": "Mirall conserva la copia más reciente y algunas anteriores, de hasta dos meses atrás. Todo está cifrado con tu frase de contraseña.",
     "turnOffTitle": "¿Desactivar la copia?",
     "turnOffBody": "Mirall deja de hacer copias. Las copias y la clave de recuperación que ya están en la carpeta se quedan ahí.",
     "turnOffConfirm": "Desactivar",
@@ -1457,7 +1457,7 @@
     "listLabel": "Copias de seguridad",
     "spaces_one": "{{count}} espacio",
     "spaces_other": "{{count}} espacios",
-    "flagged": "más pequeña de lo habitual",
+    "flagged": "se perdieron datos en este equipo",
     "none": "Esta carpeta aún no tiene ninguna copia para esta clave de recuperación.",
     "caution": "Restaura solo si tu instalación anterior ya no existe: la misma identidad en dos dispositivos a la vez la estropea para tus contactos. Tras restaurar, Mirall obtiene primero tu perfil más reciente de ellos antes de que puedas cambiar nada.",
     "restore": "Restaurar",
@@ -1467,7 +1467,11 @@
     "foundBody": "Clave de recuperación del {{date}} · última copia {{when}}",
     "foundNoKey": "Copia encontrada",
     "foundNoKeyBody": "Esta carpeta no contiene ninguna clave de recuperación — elige abajo tu archivo de clave.",
-    "noBackup": "Esta carpeta no contiene ninguna copia de Mirall. Elige la carpeta que contiene «Mirall Backup»."
+    "noBackup": "Esta carpeta no contiene ninguna copia de Mirall. Elige la carpeta que contiene «Mirall Backup».",
+    "latest": "La más reciente",
+    "beforeLoss": "Antes de que se perdieran datos en este equipo",
+    "beforeLeaving": "Antes de que salieras de {{spaces}}",
+    "quoted": "«{{name}}»"
   },
   "backupSetup": {
     "title": "Protege tus espacios",

@@ -1386,8 +1386,8 @@
     "running": "Sauvegarde en cours…",
     "runNow": "Sauvegarder maintenant",
     "turnOff": "Désactiver la sauvegarde",
-    "suspectTitle": "Cette sauvegarde est plus petite que d’habitude",
-    "suspectBody": "La dernière sauvegarde contient nettement moins que la précédente ({{reasons}}). Si c’était voulu, rien à faire — les sauvegardes plus anciennes sont conservées dans tous les cas.",
+    "suspectTitle": "Des données ont disparu sur cet ordinateur",
+    "suspectBody": "La dernière sauvegarde contient moins que la précédente ({{reasons}}). Si c’était voulu, rien à faire. La sauvegarde d’avant est conservée un mois dans tous les cas.",
     "reason": {
       "profile-shrank": "un profil plus court",
       "spaces-halved": "moins d’espaces",
@@ -1424,7 +1424,7 @@
     "saveCopy": "Enregistrer une copie…",
     "copySaved": "Copie de la clé de récupération enregistrée.",
     "folderTitle": "Dossier de sauvegarde",
-    "folderDesc": "Mirall sauvegarde après chaque modification, toutes les heures et à la fermeture. Il garde les sauvegardes récentes et espace les plus anciennes.",
+    "folderDesc": "Mirall garde la dernière sauvegarde et quelques plus anciennes, sur deux mois au plus. Tout y est chiffré avec votre phrase secrète.",
     "turnOffTitle": "Désactiver la sauvegarde ?",
     "turnOffBody": "Mirall arrête de sauvegarder. Les sauvegardes et la clé de récupération déjà dans le dossier y restent.",
     "turnOffConfirm": "Désactiver",
@@ -1457,7 +1457,7 @@
     "listLabel": "Sauvegardes",
     "spaces_one": "{{count}} espace",
     "spaces_other": "{{count}} espaces",
-    "flagged": "plus petite que d’habitude",
+    "flagged": "des données ont disparu sur cet ordinateur",
     "none": "Ce dossier ne contient encore aucune sauvegarde pour cette clé de récupération.",
     "caution": "Ne restaurez que si votre ancienne installation n’existe plus — la même identité sur deux appareils à la fois la rend inutilisable pour vos contacts. Après la restauration, Mirall récupère d’abord votre profil le plus récent auprès d’eux avant que vous puissiez modifier quoi que ce soit.",
     "restore": "Restaurer",
@@ -1467,7 +1467,11 @@
     "foundBody": "Clé de récupération du {{date}} · dernière sauvegarde {{when}}",
     "foundNoKey": "Sauvegarde trouvée",
     "foundNoKeyBody": "Ce dossier ne contient pas de clé de récupération — choisissez votre fichier de clé ci-dessous.",
-    "noBackup": "Ce dossier ne contient aucune sauvegarde Mirall. Choisissez le dossier qui contient « Mirall Backup »."
+    "noBackup": "Ce dossier ne contient aucune sauvegarde Mirall. Choisissez le dossier qui contient « Mirall Backup ».",
+    "latest": "La plus récente",
+    "beforeLoss": "Avant la perte de données sur cet ordinateur",
+    "beforeLeaving": "Avant que vous quittiez {{spaces}}",
+    "quoted": "« {{name}} »"
   },
   "backupSetup": {
     "title": "Protégez vos espaces",

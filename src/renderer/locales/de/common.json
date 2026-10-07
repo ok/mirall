@@ -1386,8 +1386,8 @@
     "running": "Backup läuft…",
     "runNow": "Jetzt sichern",
     "turnOff": "Backup ausschalten",
-    "suspectTitle": "Dieses Backup ist kleiner als sonst",
-    "suspectBody": "Das letzte Backup enthält deutlich weniger als das davor ({{reasons}}). War das Absicht, ist nichts zu tun – ältere Backups bleiben so oder so erhalten.",
+    "suspectTitle": "Auf diesem Computer sind Daten verloren gegangen",
+    "suspectBody": "Das letzte Backup enthält weniger als das davor ({{reasons}}). War das Absicht, ist nichts zu tun. Das Backup von davor bleibt so oder so einen Monat erhalten.",
     "reason": {
       "profile-shrank": "ein kürzeres Profil",
       "spaces-halved": "weniger Spaces",
@@ -1424,7 +1424,7 @@
     "saveCopy": "Kopie speichern…",
     "copySaved": "Kopie des Wiederherstellungsschlüssels gespeichert.",
     "folderTitle": "Backup-Ordner",
-    "folderDesc": "Mirall sichert nach Änderungen, stündlich und beim Beenden. Neuere Backups bleiben erhalten, ältere werden ausgedünnt.",
+    "folderDesc": "Mirall behält das neueste Backup und einige ältere aus den letzten zwei Monaten. Alles darin ist mit deiner Passphrase verschlüsselt.",
     "turnOffTitle": "Backup ausschalten?",
     "turnOffBody": "Mirall hört auf zu sichern. Die Backups und der Wiederherstellungsschlüssel im Ordner bleiben erhalten.",
     "turnOffConfirm": "Ausschalten",
@@ -1457,7 +1457,7 @@
     "listLabel": "Backups",
     "spaces_one": "{{count}} Space",
     "spaces_other": "{{count}} Spaces",
-    "flagged": "kleiner als sonst",
+    "flagged": "auf diesem Computer gingen Daten verloren",
     "none": "Dieser Ordner enthält noch kein Backup für diesen Wiederherstellungsschlüssel.",
     "caution": "Stelle nur wieder her, wenn deine alte Installation nicht mehr existiert – dieselbe Identität auf zwei Geräten gleichzeitig macht sie für deine Kontakte unbrauchbar. Nach der Wiederherstellung holt Mirall zuerst dein neuestes Profil von ihnen, bevor du etwas ändern kannst.",
     "restore": "Wiederherstellen",
@@ -1467,7 +1467,11 @@
     "foundBody": "Wiederherstellungsschlüssel vom {{date}} · letztes Backup {{when}}",
     "foundNoKey": "Backup gefunden",
     "foundNoKeyBody": "Dieser Ordner enthält keinen Wiederherstellungsschlüssel – wähle unten deine Schlüsseldatei.",
-    "noBackup": "Dieser Ordner enthält kein Mirall-Backup. Wähle den Ordner, in dem „Mirall Backup“ liegt."
+    "noBackup": "Dieser Ordner enthält kein Mirall-Backup. Wähle den Ordner, in dem „Mirall Backup“ liegt.",
+    "latest": "Neuestes",
+    "beforeLoss": "Bevor auf diesem Computer Daten verloren gingen",
+    "beforeLeaving": "Bevor du {{spaces}} verlassen hast",
+    "quoted": "„{{name}}“"
   },
   "backupSetup": {
     "title": "Schütze deine Spaces",

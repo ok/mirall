@@ -1386,8 +1386,8 @@
     "running": "Backup in corso…",
     "runNow": "Esegui backup ora",
     "turnOff": "Disattiva il backup",
-    "suspectTitle": "Questo backup è più piccolo del solito",
-    "suspectBody": "L’ultimo backup contiene molto meno del precedente ({{reasons}}). Se era voluto, non serve fare nulla: i backup precedenti vengono conservati comunque.",
+    "suspectTitle": "Su questo computer sono andati persi dei dati",
+    "suspectBody": "L’ultimo backup contiene meno del precedente ({{reasons}}). Se era voluto, non serve fare nulla. Il backup di prima viene conservato comunque per un mese.",
     "reason": {
       "profile-shrank": "un profilo più corto",
       "spaces-halved": "meno spazi",
@@ -1424,7 +1424,7 @@
     "saveCopy": "Salva una copia…",
     "copySaved": "Copia della chiave di recupero salvata.",
     "folderTitle": "Cartella di backup",
-    "folderDesc": "Mirall esegue il backup dopo ogni modifica, ogni ora e alla chiusura. Conserva i backup recenti e dirada quelli più vecchi.",
+    "folderDesc": "Mirall conserva il backup più recente e alcuni precedenti, fino a due mesi prima. Tutto è cifrato con la tua passphrase.",
     "turnOffTitle": "Disattivare il backup?",
     "turnOffBody": "Mirall smette di eseguire backup. I backup e la chiave di recupero già nella cartella restano lì.",
     "turnOffConfirm": "Disattiva",
@@ -1457,7 +1457,7 @@
     "listLabel": "Backup",
     "spaces_one": "{{count}} spazio",
     "spaces_other": "{{count}} spazi",
-    "flagged": "più piccolo del solito",
+    "flagged": "dati persi su questo computer",
     "none": "Questa cartella non contiene ancora backup per questa chiave di recupero.",
     "caution": "Ripristina solo se la vecchia installazione non esiste più: la stessa identità su due dispositivi insieme la rende inutilizzabile per i tuoi contatti. Dopo il ripristino, Mirall recupera prima da loro il tuo profilo più recente, prima che tu possa modificare qualcosa.",
     "restore": "Ripristina",
@@ -1467,7 +1467,11 @@
     "foundBody": "Chiave di recupero del {{date}} · ultimo backup {{when}}",
     "foundNoKey": "Backup trovato",
     "foundNoKeyBody": "Questa cartella non contiene una chiave di recupero — scegli qui sotto il file della chiave.",
-    "noBackup": "Questa cartella non contiene un backup di Mirall. Scegli la cartella che contiene «Mirall Backup»."
+    "noBackup": "Questa cartella non contiene un backup di Mirall. Scegli la cartella che contiene «Mirall Backup».",
+    "latest": "Il più recente",
+    "beforeLoss": "Prima che andassero persi dati su questo computer",
+    "beforeLeaving": "Prima che uscissi da {{spaces}}",
+    "quoted": "«{{name}}»"
   },
   "backupSetup": {
     "title": "Proteggi i tuoi spazi",

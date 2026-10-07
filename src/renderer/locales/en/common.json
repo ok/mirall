@@ -1386,8 +1386,8 @@
     "running": "Backing up…",
     "runNow": "Back up now",
     "turnOff": "Turn off backup",
-    "suspectTitle": "This backup looks smaller than usual",
-    "suspectBody": "The latest backup holds noticeably less than the one before it ({{reasons}}). If you did this on purpose, nothing to do — older backups are kept either way.",
+    "suspectTitle": "Data went missing on this computer",
+    "suspectBody": "The latest backup holds less than the one before it ({{reasons}}). If you did this on purpose, there is nothing to do. The backup from before stays for a month either way.",
     "reason": {
       "profile-shrank": "a shorter profile",
       "spaces-halved": "fewer spaces",
@@ -1424,7 +1424,7 @@
     "saveCopy": "Save a copy…",
     "copySaved": "Recovery key copy saved.",
     "folderTitle": "Backup folder",
-    "folderDesc": "Mirall backs up after changes, every hour and when you quit. It keeps recent backups and thins out older ones.",
+    "folderDesc": "Mirall keeps the latest backup and a few older ones, from up to two months back. Everything in it is encrypted with your passphrase.",
     "turnOffTitle": "Turn off backup?",
     "turnOffBody": "Mirall stops backing up. The backups and the recovery key already in the folder stay there.",
     "turnOffConfirm": "Turn off",
@@ -1457,7 +1457,7 @@
     "listLabel": "Backups",
     "spaces_one": "{{count}} space",
     "spaces_other": "{{count}} spaces",
-    "flagged": "smaller than usual",
+    "flagged": "data went missing on this computer",
     "none": "This folder holds no backup for this recovery key yet.",
     "caution": "Restore only when your old installation is gone — the same identity on two devices at once breaks it for the people you share with. After the restore, Mirall fetches your newest profile from them before you can change anything.",
     "restore": "Restore",
@@ -1467,7 +1467,11 @@
     "foundBody": "Recovery key from {{date}} · last backup {{when}}",
     "foundNoKey": "Found your backup",
     "foundNoKeyBody": "This folder keeps no recovery key — choose your key file below.",
-    "noBackup": "This folder holds no Mirall backup. Choose the folder that contains “Mirall Backup”."
+    "noBackup": "This folder holds no Mirall backup. Choose the folder that contains “Mirall Backup”.",
+    "latest": "Latest",
+    "beforeLoss": "Before data went missing on this computer",
+    "beforeLeaving": "Before you left {{spaces}}",
+    "quoted": "“{{name}}”"
   },
   "backupSetup": {
     "title": "Protect your spaces",

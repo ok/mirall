@@ -6,34 +6,48 @@ const DAY = 24 * HOUR
 const NOW = Date.UTC(2026, 9, 1, 12)
 const snap = (name, ago, suspect = false) => ({ name, createdAt: NOW - ago, suspect })
 
-test('the three newest healthy snapshots stay, however old', (t) => {
-  const keep = keepSet([snap('a', 400 * DAY), snap('b', 401 * DAY), snap('c', 402 * DAY), snap('d', 403 * DAY)], NOW)
-  t.ok(keep.has('a') && keep.has('b') && keep.has('c'))
+test('a long hourly history thins to the newest and one per age step, seven at most', (t) => {
+  const hourly = Array.from({ length: 24 * 180 }, (_, i) => snap('s' + i, i * HOUR))
+  const keep = keepSet(hourly, NOW)
+  t.is(keep.size, RETENTION.ages.length)
+  t.alike([...keep].sort(), ['s0', 's24', 's48', 's168', 's336', 's720', 's1440'].sort(), 'newest, 1 and 2 days, 1 and 2 weeks, 1 and 2 months')
 })
 
-test('a burst of suspect snapshots after a wipe never pushes out the healthy ones', (t) => {
-  const suspect = Array.from({ length: 48 }, (_, i) => snap('s' + i, i * HOUR, true))
-  const healthy = [snap('h1', 49 * HOUR), snap('h2', 50 * HOUR), snap('h3', 51 * HOUR)]
-  const keep = keepSet([...suspect, ...healthy], NOW)
-  for (const s of healthy) t.ok(keep.has(s.name), s.name)
+test('an age step with nothing old enough keeps nothing extra, and one snapshot may fill several', (t) => {
+  t.alike([...keepSet([snap('a', HOUR), snap('b', 2 * HOUR)], NOW)], ['a'])
+  const keep = keepSet([snap('new', HOUR), snap('mid', 2 * HOUR), snap('old', 20 * DAY)], NOW)
+  t.alike([...keep].sort(), ['new', 'old'], 'the twenty-day-old snapshot is the newest at least 1 day, 2 days, 1 and 2 weeks old')
 })
 
-test('suspect snapshots are kept a month as evidence, then go', (t) => {
-  const keep = keepSet([snap('h', HOUR), snap('recent', 2 * DAY, true), snap('old', RETENTION.suspectFor + DAY, true)], NOW)
-  t.ok(keep.has('recent'))
-  t.absent(keep.has('old'))
+test('the newest snapshot stays even when it is flagged', (t) => {
+  const keep = keepSet([snap('flagged', HOUR, true), snap('healthy', 3 * HOUR)], NOW)
+  t.ok(keep.has('flagged'))
+  t.ok(keep.has('healthy'))
 })
 
-test('the newest per hour, day and week bucket is kept, the rest go', (t) => {
+test('a loss keeps its first flagged snapshot and the last healthy one before it, for a month', (t) => {
   const snaps = [
-    snap('h-new', 10 * 60 * 1000), snap('h-old', 20 * 60 * 1000),
-    snap('d-new', 5 * DAY), snap('d-old', 5 * DAY + 60 * 1000),
-    snap('w-new', 60 * DAY), snap('w-old', 60 * DAY + 60 * 1000),
-    snap('x', 3 * HOUR), snap('y', 4 * HOUR), snap('z', 5 * HOUR),
+    snap('f3', HOUR, true), snap('f2', 2 * HOUR, true), snap('f1', 3 * HOUR, true),
+    snap('before', 4 * HOUR), snap('older', 5 * HOUR),
   ]
   const keep = keepSet(snaps, NOW)
-  for (const name of ['h-new', 'd-new', 'w-new']) t.ok(keep.has(name), name)
-  for (const name of ['d-old', 'w-old']) t.absent(keep.has(name), name)
+  t.alike([...keep].sort(), ['before', 'f1', 'f3'].sort(), 'newest, first flagged, last healthy before it')
+  const later = keepSet(snaps, NOW + RETENTION.pinFor + 2 * DAY)
+  t.absent(later.has('f1'), 'a month on, the flagged snapshot goes')
+})
+
+test('a burst of flagged snapshots never pushes out the healthy ones', (t) => {
+  const flagged = Array.from({ length: 48 }, (_, i) => snap('f' + i, i * HOUR, true))
+  const keep = keepSet([...flagged, snap('h1', 49 * HOUR), snap('h2', 50 * HOUR)], NOW)
+  t.ok(keep.has('h1'), 'the last healthy one stays')
+  t.ok(keep.size <= 4, 'and the burst itself does not: ' + keep.size)
+})
+
+test('the snapshot from before a space was left stays for a month', (t) => {
+  const snaps = [snap('after', HOUR), snap('before', 2 * HOUR), snap('x', 3 * HOUR)]
+  const departures = [{ before: 'before', at: new Date(NOW - HOUR).toISOString(), spaces: ['Holiday'] }]
+  t.ok(keepSet(snaps, NOW, departures).has('before'))
+  t.absent(keepSet(snaps, NOW + RETENTION.pinFor + DAY, departures).has('before'))
 })
 
 test('every part and file a manifest names is referenced', (t) => {

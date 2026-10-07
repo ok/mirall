@@ -8,7 +8,9 @@ import { freshPeer } from '../helpers/store.js'
 import { tmpDir } from '../helpers/bare-tmp.js'
 import { getStore, backupWrapKey } from '../../src/shared/core/store.js'
 import { setProfile } from '../../src/shared/spaces/profile.js'
+import { initAuditLog, closeAuditLog, setAuditConfig, record, flushAudit } from '../../src/shared/audit/audit-log.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
+import { deleteSpaceRecord } from '../../src/shared/spaces/space.js'
 import { advertise } from '../../src/shared/shares/own-catalog.js'
 import { FolderTarget, REPO_DIR } from '../../src/shared/storage/backup/folder-target.js'
 import { openOrInitRepo, openRepo } from '../../src/shared/storage/backup/repo.js'
@@ -131,6 +133,47 @@ test('an unchanged run writes no snapshot; a change writes one on top of the las
   const repo = await openRepo(target, { wrapKey: backupWrapKey(), expectedRepoId: first.repoId })
   t.alike(await repo.listSnapshots(), [changed.snapshot, first.snapshot].sort().reverse())
   t.is((await repo.readSnapshot(changed.snapshot)).parent, first.snapshot)
+})
+
+test('REGRESSION (backup snapshots): Activity Log rows alone write no snapshot and upload nothing', async (t) => {
+  const { storage } = await freshPeer(t)
+  await initAuditLog({ installId: 'install-a' })
+  t.teardown(() => closeAuditLog(), { order: 0 })
+  await setAuditConfig({ enabled: true })
+  const target = new FolderTarget(folder(t))
+  const first = await runBackup({ ...runArgs(target, null), storagePath: storage })
+  const repo = await openRepo(target, { wrapKey: backupWrapKey(), expectedRepoId: first.repoId })
+  const objects = (await repo.objectIds()).length
+
+  record('member.joined', { actor: { type: 'peer', key: 'peer-anna', name: 'Anna' }, space: { id: 'sp1', name: 'Team' }, target: { kind: 'member', id: 'peer-anna', name: 'Anna' } })
+  await flushAudit()
+  const quiet = await runBackup({ ...runArgs(target, first.repoId), storagePath: storage })
+  t.is(quiet.snapshot, null, 'no snapshot')
+  t.is(quiet.parts, 0, 'nothing uploaded')
+  t.is((await repo.objectIds()).length, objects, 'no object left behind')
+
+  await setProfile({ displayName: 'Changed' })
+  const changed = await runBackup({ ...runArgs(target, first.repoId), storagePath: storage })
+  t.ok(changed.snapshot, 'a profile change writes one')
+  const cores = (await repo.readSnapshot(changed.snapshot)).cores
+  const before = (await repo.readSnapshot(first.snapshot)).cores
+  const audit = (list) => list.find((core) => core.name === 'audit-log')
+  t.ok(audit(cores).length > (audit(before)?.length ?? 0), 'and it carries the Activity Log rows')
+})
+
+test('a space left is recorded with the snapshot from before it', async (t) => {
+  const { storage } = await freshPeer(t)
+  await createSpace('Team')
+  const { spaceId } = await createSpace('Holiday')
+  const target = new FolderTarget(folder(t))
+  const first = await runBackup({ ...runArgs(target, null), storagePath: storage })
+  await deleteSpaceRecord(spaceId)
+  const after = await runBackup({ ...runArgs(target, first.repoId), storagePath: storage })
+  t.ok(after.snapshot)
+  const repo = await openRepo(target, { wrapKey: backupWrapKey(), expectedRepoId: first.repoId })
+  const manifest = await repo.readSnapshot(after.snapshot)
+  t.alike(manifest.spaces.map((space) => space.name), ['Team'])
+  t.alike(manifest.departures.map(({ before, spaces }) => ({ before, spaces })), [{ before: first.snapshot, spaces: ['Holiday'] }])
 })
 
 test('another computer writing to the same folder stops the run', async (t) => {

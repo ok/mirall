@@ -1576,11 +1576,18 @@ padded to 4 KiB, one sealed manifest per snapshot named by sequence number, and 
 install. The chosen folder is never created, so an unmounted share reads as offline. One run
 (`backup-run.js`) takes the lease, captures against the latest snapshot, adds the key vault and
 the preferences that follow the user (`BACKUP_SETTING_GROUPS`: appearance, downloads, bandwidth caps,
-notifications) from `config.json`, and writes the snapshot last. Each snapshot records the
-store's vitals (`loss-check.js`); a drop against the last unflagged snapshot (profile shorter, spaces
-or cores halved, own data down by 30 %) flags it as **suspect**, until the drop has lasted a week and
-becomes the normal. Retention (`retention.js`, `prune.js`) always keeps the three newest unflagged
-snapshots, so a burst of losses can never push the good ones out.
+notifications) from `config.json`, and writes the snapshot last. It plans every core before
+uploading anything, and writes a snapshot only when something besides bookkeeping changed
+(`snapshot-rules.js`: the activity log, download and transfer records, storage measurements and
+migration marks ride along in the next one; members' catalogs do bring one about). Each snapshot
+records its spaces, the spaces left within the last month with the snapshot from before
+(`departures`), and the store's vitals (`loss-check.js`); a drop against the last unflagged snapshot
+(profile shorter, spaces or cores halved, profile + intents + own catalogs down by 30 %; local bees
+never count, since a purge or rewrite shortens them on purpose) flags it as **suspect**, until the
+drop has lasted a week and becomes the normal. Retention (`retention.js`, `prune.js`) keeps the
+newest snapshot, the newest healthy one at least 0 / 1 / 2 days, 1 / 2 weeks and 1 / 2 months old,
+and for a month the first flagged snapshot of a loss with the last healthy one before it and the
+snapshot from before a space was left — about seven, each one a reason to pick it at restore.
 
 `Backup` (the worker subsystem) runs two minutes after boot, hourly, and after changes: every append
 to an own bee (except the activity log and maintenance markers) is an everyday change, and a space

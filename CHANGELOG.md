@@ -29,7 +29,9 @@ passphrase. Profile → Protection shows whether your identity and your data
 are protected, and what to do if they aren't.
 - **Restore your account on a new computer.** "Already used Mirall? Restore
 your account" on the welcome screen brings everything back from your backup
-folder, or your identity alone from a recovery key file. Mirall opens right
+folder, or your identity alone from a recovery key file. You pick from a
+handful of backups: the latest, and ones from a few days, weeks and months
+back, plus the one from before you left a space. Mirall opens right
 away. Until someone you share with confirms nothing newer exists, you can
 look around but not make changes, so nothing you change can clash. If none
 of them is online, paste an invite code to one of your spaces.

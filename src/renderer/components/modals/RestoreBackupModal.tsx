@@ -11,6 +11,7 @@ import { useErrorText } from '../../hooks/useErrorText.js'
 import { errorCodeOf } from '../../errors/error-text.js'
 import { useRecoveryFileChoice, type RecoveryFileChoiceState } from '../../hooks/useRecoveryFileChoice.js'
 import { adoptRestoredSettings } from '../../platform/restored-settings.js'
+import { snapshotLabel, type SnapshotLabel } from '../../model/snapshot-label.js'
 import { formatDate, formatDateTime } from '../../format/utils.js'
 import type { RestorableSnapshot, BackupPeek } from '../../../shared/contract/responses.js'
 import Icon from '../primitives/Icon.js'
@@ -203,25 +204,36 @@ interface SnapshotChoiceProps {
 }
 
 // The snapshots a backup folder holds for this key, newest first, as one radio group. Focus moves to
-// the chosen one when the list appears, since the button that showed it is gone. A flagged snapshot
-// says so in words beside its date.
+// the chosen one when the list appears, since the button that showed it is gone. Each says why it is
+// kept or how old it is; a flagged one says so in words beside its date.
 function SnapshotChoice({ snapshots, chosen, onChoose }: SnapshotChoiceProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const now = Date.now()
+  const relative = new Intl.RelativeTimeFormat(i18n.language, { numeric: 'auto' })
+  const list = new Intl.ListFormat(i18n.language, { type: 'conjunction' })
+  const title = (label: SnapshotLabel) => {
+    if (label.kind === 'latest') return t('restoreBackup.latest')
+    if (label.kind === 'before-loss') return t('restoreBackup.beforeLoss')
+    if (label.kind === 'before-leaving') return t('restoreBackup.beforeLeaving', { spaces: list.format(label.spaces.map((name) => t('restoreBackup.quoted', { name }))) })
+    const text = relative.format(-label.value, label.unit)
+    return text.charAt(0).toLocaleUpperCase(i18n.language) + text.slice(1)
+  }
   const chosenRef = useRef<HTMLInputElement>(null)
   useEffect(() => { chosenRef.current?.focus() }, [])
   if (snapshots.length === 0) return <p className="text-on-surface-variant">{t('restoreBackup.none')}</p>
   return (
     <div role="radiogroup" aria-label={t('restoreBackup.listLabel')} className="space-y-2 max-h-64 overflow-y-auto scrollbar-thin">
-      {snapshots.map((snapshot) => {
+      {snapshots.map((snapshot, index) => {
         const details = [
+          formatDateTime(snapshot.createdAt),
           snapshot.spaces === null ? null : t('restoreBackup.spaces', { count: snapshot.spaces }),
           snapshot.suspect ? t('restoreBackup.flagged') : null,
         ].filter((part) => part !== null)
         return (
           <RadioCard key={snapshot.name} name="restore-backup-snapshot" checked={chosen === snapshot.name} onSelect={() => onChoose(snapshot.name)} inputRef={chosen === snapshot.name ? chosenRef : undefined}>
             <span className="min-w-0">
-              <span className="block font-bold text-on-surface">{formatDateTime(snapshot.createdAt)}</span>
-              {details.length > 0 && <span className="block text-sm text-on-surface-variant">{details.join(' · ')}</span>}
+              <span className="block font-bold text-on-surface">{title(snapshotLabel(snapshot, index, now))}</span>
+              <span className="block text-sm text-on-surface-variant">{details.join(' · ')}</span>
             </span>
           </RadioCard>
         )

@@ -54,6 +54,7 @@ export default async function s161({ runDir, bootstrap }) {
       await B.click(showBackups)
       await B.waitText('Choose the backup to restore.', 60000)
       if (!(await B.has({ role: 'radiogroup', name: 'Backups' }))) throw new Error('no backup list')
+      await B.waitText('Latest', 8000)
       await B.shot('s161-snapshots', runDir)
     })
     await r.ok('the restored identity opens with its space', async () => {

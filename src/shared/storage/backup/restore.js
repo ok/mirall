@@ -25,14 +25,25 @@ export async function openBackup(folder, masterSecret) {
   return openRepo(target, { wrapKey: deriveBackupWrapKey(masterSecret) })
 }
 
+// Newest first. A healthy snapshot right before a flagged one is the state before the loss; the
+// newest manifest names the snapshots from before a space was left.
 export async function listRestorable(repo) {
-  const out = []
+  const manifests = []
   for (const name of await repo.listSnapshots()) {
     const manifest = await repo.readSnapshot(name)
-    if (!manifest) continue
-    out.push({ name, createdAt: manifest.createdAt, suspect: manifest.suspect?.reasons ?? null, spaces: manifest.vitals?.spaces ?? null, appVersion: manifest.appVersion ?? null })
+    if (manifest) manifests.push({ name, manifest })
   }
-  return out
+  const leaving = new Map()
+  for (const { before, spaces } of manifests[0]?.manifest.departures ?? []) leaving.set(before, [...(leaving.get(before) ?? []), ...spaces])
+  return manifests.map(({ name, manifest }, i) => ({
+    name,
+    createdAt: manifest.createdAt,
+    suspect: manifest.suspect?.reasons ?? null,
+    spaces: manifest.vitals?.spaces ?? null,
+    appVersion: manifest.appVersion ?? null,
+    beforeLoss: !manifest.suspect && !!manifests[i - 1]?.manifest.suspect,
+    beforeLeaving: leaving.get(name) ?? null,
+  }))
 }
 
 async function rebuildCore(repo, store, entry) {

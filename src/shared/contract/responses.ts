@@ -534,6 +534,8 @@ export interface RestorableSnapshot {
   suspect: string[] | null
   spaces: number | null
   appVersion: string | null
+  beforeLoss: boolean
+  beforeLeaving: string[] | null
 }
 
 /** The snapshots in a backup folder, newest first. */
