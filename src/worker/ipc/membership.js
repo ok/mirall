@@ -176,7 +176,7 @@ async function onJoinRequest(msg, ctx = {}) {
     isDenied: isDeniedJoiner(spaceId, profileKey) || await ownDenialStands(spaceId, profileKey),
   })
   if (verdict === 'deny-expired' || verdict === 'deny-replay') {
-    sendMembershipDeny(profileKey, spaceId)
+    await sendVettableDeny(space, profileKey)
     return
   }
   // Approving writes the profile, so a held one records the knock and answers it after the release.
@@ -532,7 +532,7 @@ async function resolveJoinRequest(space, joinerKey, outcome) {
 
 // A joiner vets a deny from anyone but its inviter or the creator against the roster, which it can
 // read only from us: lend it the approval chain from the creator to us, and name the chain in the
-// frame. The loan outlasts twice the joiner's serial read of that chain, since closing the socket
+// frame. A replayed deny lends it too; only the denied key's own knock triggers one. The loan outlasts twice the joiner's serial read of that chain, since closing the socket
 // ends it and a check cut short refuses the deny.
 /** @param {StoredSpace} space @param {string} joinerKey */
 async function sendVettableDeny(space, joinerKey) {
