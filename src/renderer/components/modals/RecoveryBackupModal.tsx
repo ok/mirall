@@ -117,7 +117,7 @@ export default function RecoveryBackupModal({ isOpen, onClose, weakProtection }:
               <li>{t('recoveryBackup.warningNotFiles')}</li>
             </ul>
           </Callout>
-          <ModalFooter layout="split">
+          <ModalFooter>
             <Button variant="secondary" size="lg" onClick={handleClose} disabled={saving}>
               {t('actions.cancel')}
             </Button>

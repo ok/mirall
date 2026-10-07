@@ -178,7 +178,7 @@ export default function RestoreBackupModal({ isOpen, onClose, onRestored }: Rest
             </>
           )}
           {progress && <p role="status" className="text-sm text-on-surface-variant">{progress}</p>}
-          <ModalFooter layout="split">
+          <ModalFooter>
             {snapshots ? (
               <>
                 <Button variant="secondary" size="lg" onClick={() => { setSnapshots(null); setError(null) }} disabled={busy}>{t('actions.back')}</Button>

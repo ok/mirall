@@ -52,7 +52,7 @@ export default function RestoreAccountModal({ isOpen, onClose, onChoose }: Resto
               </RadioCard>
             ))}
           </div>
-          <ModalFooter layout="split">
+          <ModalFooter>
             <Button variant="secondary" size="lg" onClick={onClose}>{t('actions.cancel')}</Button>
             <Button size="lg" icon="arrow_forward" onClick={() => onChoose(source)}>{t('backupSetup.next')}</Button>
           </ModalFooter>

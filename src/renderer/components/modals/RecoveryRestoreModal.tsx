@@ -121,7 +121,7 @@ export default function RecoveryRestoreModal({ isOpen, onClose, onRestored }: Re
               />
             )}
             {restarting && <p role="status" className="text-sm text-on-surface-variant">{t('recoveryRestore.restarting')}</p>}
-            <ModalFooter layout="split">
+            <ModalFooter>
               <Button variant="secondary" size="lg" onClick={handleClose} disabled={busy}>
                 {t('actions.cancel')}
               </Button>

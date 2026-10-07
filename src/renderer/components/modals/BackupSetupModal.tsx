@@ -113,7 +113,7 @@ export default function BackupSetupModal({ isOpen, onClose }: BackupSetupModalPr
               {chosen?.sameDisk && (
                 <Callout tone="warning" title={t('backupSetup.sameDiskTitle')}>{t('backupSetup.sameDiskBody')}</Callout>
               )}
-              <ModalFooter layout="split">
+              <ModalFooter>
                 <Button variant="secondary" size="lg" onClick={handleClose}>{t('actions.cancel')}</Button>
                 <Button size="lg" icon="arrow_forward" onClick={() => setStep(2)} disabled={!chosen}>
                   {chosen?.sameDisk ? t('backupSetup.useAnyway') : t('backupSetup.next')}
@@ -134,7 +134,7 @@ export default function BackupSetupModal({ isOpen, onClose }: BackupSetupModalPr
               />
               <Callout tone="note" icon="warning" title={t('backupSetup.keepSafeTitle')}>{t('backupSetup.keepSafeBody')}</Callout>
               {busy && <p role="status" className="text-sm text-on-surface-variant">{t('backupSetup.working')}</p>}
-              <ModalFooter layout="split">
+              <ModalFooter>
                 <Button variant="secondary" size="lg" onClick={() => { setStep(1); setError(null) }} disabled={busy}>{t('actions.back')}</Button>
                 <Button size="lg" icon="shield" onClick={() => void turnOn()} disabled={verdict !== 'ok'} ariaDisabled={busy}>{t('backupSetup.turnOn')}</Button>
               </ModalFooter>
@@ -171,7 +171,7 @@ function SetupDone({ result, onDone }: { result: BackupStatus; onDone: () => voi
         <p className="text-sm text-on-surface-variant leading-relaxed">{t('backupSetup.copyBody')}</p>
         <Button variant="secondary" icon="download" onClick={() => void copy.save()} ariaDisabled={copy.saving}>{t('backup.saveCopy')}</Button>
       </div>
-      <ModalFooter layout="end">
+      <ModalFooter>
         <Button size="lg" onClick={onDone}>{t('actions.done')}</Button>
       </ModalFooter>
     </>

@@ -52,11 +52,11 @@ export default function MountWizardStep({
       <div className="px-10 pb-10 space-y-6">
         {children}
 
-        <ModalFooter layout="end">
-          <Button variant="secondary" onClick={onClose}>
+        <ModalFooter>
+          <Button size="lg" variant="secondary" onClick={onClose}>
             {t('actions.cancel')}
           </Button>
-          <Button onClick={onNext} disabled={!ready}>
+          <Button size="lg" onClick={onNext} disabled={!ready}>
             {busy ? t('scanPreview.computing') : nextLabel}
             <Icon name="arrow_forward" size={16} />
           </Button>

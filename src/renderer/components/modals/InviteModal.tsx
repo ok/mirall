@@ -7,6 +7,7 @@ import Modal from '../primitives/Modal.js'
 import Callout from '../primitives/Callout.js'
 import ModalHeader from '../primitives/ModalHeader.js'
 import Button from '../primitives/Button.js'
+import ModalFooter from '../layout/ModalFooter.js'
 import Toggle from '../primitives/Toggle.js'
 import { useErrorText } from '../../hooks/useErrorText.js'
 import CopyButton from '../primitives/CopyButton.js'
@@ -152,10 +153,10 @@ export default function InviteModal({ isOpen, onClose, onCreate }: InviteModalPr
                 {autoApprove ? t('invite.autoNote', { date: expiresLabel }) : t('invite.reviewNote', { date: expiresLabel })}
               </Callout>
 
-              <div className="flex gap-3 pt-2">
-                <Button size="lg" variant="secondary" className="flex-1" onClick={() => setCode(null)}>{t('actions.change')}</Button>
-                <Button size="lg" className="flex-1" onClick={onClose}>{t('actions.done')}</Button>
-              </div>
+              <ModalFooter>
+                <Button size="lg" variant="secondary" onClick={() => setCode(null)}>{t('actions.change')}</Button>
+                <Button size="lg" onClick={onClose}>{t('actions.done')}</Button>
+              </ModalFooter>
             </Fragment>
           )}
         </div>

@@ -142,11 +142,11 @@ export default function AddRelayModal({ isOpen, replacing, onClose, onAdd }: Add
                 onChange={setLabel}
               />
 
-              <ModalFooter layout="end">
-                <Button variant="secondary" onClick={() => { setDecoded(null); setError(null) }}>
+              <ModalFooter>
+                <Button size="lg" variant="secondary" onClick={() => { setDecoded(null); setError(null) }}>
                   {t('actions.back')}
                 </Button>
-                <Button onClick={handleAdd} disabled={saving}>
+                <Button size="lg" onClick={handleAdd} disabled={saving}>
                   {t('networkSettings.relays.addAction')}
                 </Button>
               </ModalFooter>
@@ -164,11 +164,11 @@ export default function AddRelayModal({ isOpen, replacing, onClose, onAdd }: Add
                 value={input}
                 onChange={(v) => { setInput(v); setError(null) }}
               />
-              <ModalFooter layout="end">
-                <Button variant="secondary" onClick={handleClose}>
+              <ModalFooter>
+                <Button size="lg" variant="secondary" onClick={handleClose}>
                   {t('actions.cancel')}
                 </Button>
-                <Button onClick={handleContinue} disabled={checking || !input.trim()}>
+                <Button size="lg" onClick={handleContinue} disabled={checking || !input.trim()}>
                   {t('actions.continue')}
                   <Icon name="arrow_forward" size={16} />
                 </Button>
