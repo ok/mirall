@@ -35,7 +35,7 @@ function boundGranter({ creator } = {}) {
 
 test('checkGrantAssertion accepts a correctly-bound granter when enforced', (t) => {
   const { noise, granterKey, msg } = boundGranter()
-  const verdict = checkGrantAssertion({ publicKey: noise.publicKey }, msg, { enforceBinding: true })
+  const verdict = checkGrantAssertion({ publicKey: noise.publicKey }, msg)
   t.ok(verdict.ok)
   t.is(verdict.creator, msg.creator)
   t.is(verdict.granterKey, granterKey)
@@ -45,43 +45,31 @@ test('REGRESSION (MIR-26: forged creator in grant is rejected when bound)', (t) 
   const { msg } = boundGranter()
   // Attacker holds a different Noise key (Noise proves possession), but the binding signs the
   // victim granter's Noise key → the rebind to granterKey fails to verify on this connection.
-  const verdict = checkGrantAssertion({ publicKey: crypto.keyPair().publicKey }, msg, { enforceBinding: true })
+  const verdict = checkGrantAssertion({ publicKey: crypto.keyPair().publicKey }, msg)
   t.absent(verdict.ok)
   t.is(verdict.reason, 'granter-unbound')
 })
 
-test('checkGrantAssertion rejects a malformed creator regardless of enforcement', (t) => {
+test('checkGrantAssertion rejects a malformed creator', (t) => {
   const { noise, msg } = boundGranter()
   const bad = { ...msg, creator: 'not-hex' }
-  t.is(checkGrantAssertion({ publicKey: noise.publicKey }, bad, { enforceBinding: true }).reason, 'malformed-creator')
-  t.is(checkGrantAssertion({ publicKey: noise.publicKey }, bad, { enforceBinding: false }).reason, 'malformed-creator')
+  t.is(checkGrantAssertion({ publicKey: noise.publicKey }, bad).reason, 'malformed-creator')
 })
 
-test('checkGrantAssertion: a pre-MIR-26 granter (no granterKey) is lenient only when unenforced', (t) => {
+test('checkGrantAssertion: a granter that asserts no granterKey is refused', (t) => {
   const legacy = { type: 'membership:grant', spaceTopic: hex(), sck: hex(), creator: hex() }
-  t.is(checkGrantAssertion(null, legacy, { enforceBinding: true }).reason, 'no-granter')
-  const lenient = checkGrantAssertion(null, legacy, { enforceBinding: false })
-  t.ok(lenient.ok)
-  t.is(lenient.creator, legacy.creator)
-  t.is(lenient.granterKey, null)
-})
-
-test('checkGrantAssertion: capability phase admits without verifying the binding', (t) => {
-  const { noise, msg } = boundGranter()
-  const verdict = checkGrantAssertion({ publicKey: noise.publicKey }, msg, { enforceBinding: false })
-  t.ok(verdict.ok)
-  t.is(verdict.creator, msg.creator)
+  t.is(checkGrantAssertion(null, legacy).reason, 'no-granter')
 })
 
 test('checkGrantAssertion: null peerInfo is a trusted local replay', (t) => {
   const { msg } = boundGranter()
-  t.ok(checkGrantAssertion(null, msg, { enforceBinding: true }).ok)
+  t.ok(checkGrantAssertion(null, msg).ok)
 })
 
 test('checkGrantAssertion: a grant with no creator yields creator=null', (t) => {
   const { noise, msg } = boundGranter()
   delete msg.creator
-  const verdict = checkGrantAssertion({ publicKey: noise.publicKey }, msg, { enforceBinding: true })
+  const verdict = checkGrantAssertion({ publicKey: noise.publicKey }, msg)
   t.ok(verdict.ok)
   t.is(verdict.creator, null)
 })

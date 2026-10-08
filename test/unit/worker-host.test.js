@@ -72,17 +72,6 @@ function withEnv(t, vars) {
   })
 }
 
-test('REGRESSION (MIR-54: a failed flags read dropped the binding gate): the bootstrap enforces with no feature-flags.json', (t) => {
-  const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'mirall-noflags-'))
-  t.teardown(() => fs.rmSync(empty, { recursive: true, force: true }))
-  const realWarn = console.warn
-  console.warn = (...a) => { if (!String(a[0]).startsWith('[mirall] failed to read feature-flags.json')) realWarn(...a) }
-  t.teardown(() => { console.warn = realWarn })
-  const { host, worker } = load({ flagsRoot: empty })
-  host.getWorker(MAIN_WORKER_SPEC)
-  t.is(frames(worker)[1].handshakeIdentityBindingEnabled, true)
-})
-
 test('the membership control binding reaches the worker off unless feature-flags.json turns it on', (t) => {
   const off = load()
   off.host.getWorker(MAIN_WORKER_SPEC)
@@ -105,7 +94,7 @@ test('topic-ref enforcement reaches the worker off unless feature-flags.json tur
 
 test('REGRESSION (MIR-54: a packaged build took security flags from its environment): the MIRALL_* levers are ignored when packaged', (t) => {
   withEnv(t, {
-    MIRALL_FEATURE_FLAGS: JSON.stringify({ handshakeIdentityBinding: false }),
+    MIRALL_FEATURE_FLAGS: JSON.stringify({ membershipControlBinding: true }),
     MIRALL_DHT_BOOTSTRAP: JSON.stringify([{ host: '127.0.0.1', port: 1 }]),
     MIRALL_LIST_FILES_CAP: '3',
     MIRALL_MAX_FILES_PER_SHARE: '3',
@@ -116,7 +105,7 @@ test('REGRESSION (MIR-54: a packaged build took security flags from its environm
   const packaged = load({ isPackaged: true })
   packaged.host.getWorker(MAIN_WORKER_SPEC)
   const boot = frames(packaged.worker)[1]
-  t.is(boot.handshakeIdentityBindingEnabled, true, 'the environment cannot turn enforcement off')
+  t.is(boot.membershipControlBindingEnforced, false, 'the environment cannot change enforcement')
   t.absent(boot.dhtBootstrap, 'nor move the DHT')
   t.absent(boot.listFilesCap, 'nor lift a cap')
   t.absent(boot.maxFilesPerShare, 'nor the share admission gate')
@@ -127,7 +116,7 @@ test('REGRESSION (MIR-54: a packaged build took security flags from its environm
   const dev = load()
   dev.host.getWorker(MAIN_WORKER_SPEC)
   const devBoot = frames(dev.worker)[1]
-  t.is(devBoot.handshakeIdentityBindingEnabled, false, 'an unpackaged run still honours the override')
+  t.is(devBoot.membershipControlBindingEnforced, true, 'an unpackaged run still honours the override')
   t.is(devBoot.listFilesCap, 3, 'and the test levers')
   t.is(devBoot.downloadFolder, '/tmp/mirall-elsewhere')
 })

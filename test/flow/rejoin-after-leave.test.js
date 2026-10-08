@@ -17,7 +17,7 @@ import { scaled } from '../helpers/timing.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
-const v2flags = () => ({ identityKEK: kekHex(), handshakeIdentityBindingEnabled: true })
+const v2flags = () => ({ identityKEK: kekHex() })
 
 const memberKeys = async (peer, spaceId) => {
   const s = (await peer.request('spaces:list')).find((x) => x.spaceId === spaceId)
@@ -158,7 +158,7 @@ test('REGRESSION (FIX-2 guard): a transient reconnect (no leave) keeps membershi
   const bStorage = idStore(t)
   const bDownloads = mkTmpDir(t)
   // B is relaunched, so its KEK must stay fixed across boots — a fresh KEK can't unlock identity.enc.
-  const bBoot = { identityKEK: kekHex(), handshakeIdentityBindingEnabled: true }
+  const bBoot = { identityKEK: kekHex() }
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: bStorage, downloads: bDownloads, flags: bBoot })
   const { spaceId, bKey } = await createApprovedSpace(A, B)
@@ -193,7 +193,7 @@ test('REGRESSION (FIX-4): the mirrorer unmounts an orphaned foreign folder when 
   // mirror reads the owner's share record + catalog over peer bees (bounded by peerReadTimeoutMs),
   // and a 1s budget starves those reads on a slow CI runner so nothing materializes. The teardown
   // is driven by the replicated share tombstone, not a read timeout, so it stays prompt regardless.
-  const pollFlags = () => ({ identityKEK: kekHex(), handshakeIdentityBindingEnabled: true, foreignPollIntervalMs: 1500 })
+  const pollFlags = () => ({ identityKEK: kekHex(), foreignPollIntervalMs: 1500 })
   const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: pollFlags() })
   const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: pollFlags() })
   const { spaceId, bKey } = await createApprovedSpace(A, B)

@@ -17,7 +17,7 @@ import { CODES } from '../../shared/contract/errors.js'
 import { PEER_FRAME } from '../../shared/contract/peer-frames.js'
 import { isPersonKey } from '../../shared/contract/principals.js'
 import { AppError, errorMessage } from '../../shared/core/errors.js'
-import { getDeriveDebounceMs, getMembershipCaps, isHandshakeIdentityBindingEnabled, isMembershipControlBindingEnforced } from '../../shared/core/runtime-config.js'
+import { getDeriveDebounceMs, getMembershipCaps, isMembershipControlBindingEnforced } from '../../shared/core/runtime-config.js'
 import { peerReadTimeoutMs } from '../../shared/core/with-timeout.js'
 import { sanitizeAvatar } from '../../shared/contract/identity-limits.js'
 import { reconcileAssertedRoot } from '../../shared/spaces/creator-root.js'
@@ -277,8 +277,7 @@ async function onGrant(msg, ctx = {}) {
   // gate, an authorized member; verifying its identity binding (the signature tying its profile
   // key to this socket's Noise key) proves it really is the peer it claims to be. We pin
   // creatorKey from THIS authenticated assertion, not from the bearer invite.
-  const enforce = isHandshakeIdentityBindingEnabled()
-  const verdict = checkGrantAssertion(ctx.peerInfo, msg, { enforceBinding: enforce })
+  const verdict = checkGrantAssertion(ctx.peerInfo, msg)
   if (!verdict.ok) {
     log.warn('rejected membership:grant —', verdict.reason)
     return
@@ -295,11 +294,7 @@ async function onGrant(msg, ctx = {}) {
     log.warn('rejected membership:grant — granter is not the inviter, the creator or a member:', verdict.granterKey?.slice(0, 12))
     return
   }
-  // While binding enforcement is off the assertion is unverified, so we leave the provisional
-  // invite pin untouched; an assertion is adopted or refused only once it is authenticated
-  // (enforcement on).
-  const asserted = enforce ? verdict.creator : null
-  const { blocked, decision } = await reconcileGrantCreator(spaceId, space, asserted)
+  const { blocked, decision } = await reconcileGrantCreator(spaceId, space, verdict.creator)
   if (blocked) return
 
   // The SCK arrives sealed to our bound signer key; a plaintext sck field is refused as a
@@ -313,7 +308,7 @@ async function onGrant(msg, ctx = {}) {
 
   await materializeSpace(spaceId, sckBuf, { epoch })
   if (ctx.socket) replicateOn(ctx.socket)
-  if (asserted && (decision === 'adopt' || decision === 'confirm')) await pinCreatorKey(spaceId, asserted)
+  if (verdict.creator && (decision === 'adopt' || decision === 'confirm')) await pinCreatorKey(spaceId, verdict.creator)
   await broadcastProfileUpdate()
   await openMemberView(spaceId)
   // verdict.granterKey, not msg.profileKey: the grant frame (swarm.js sendMembershipGrant)

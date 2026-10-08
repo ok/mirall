@@ -41,7 +41,7 @@ function resetEnv(t) {
 test('REGRESSION (FIX: feature flags survive the OTA noAsar read window): the boot cache holds even after the file becomes unreadable', (t) => {
   _resetForTests()
   resetEnv(t)
-  const dir = tmpRootWith({ sharePrepareProgress: true, handshakeIdentityBinding: true })
+  const dir = tmpRootWith({ sharePrepareProgress: true, membershipControlBinding: true })
 
   // Boot read (before the noAsar window) succeeds and caches.
   primeFeatureFlags(dir)
@@ -52,7 +52,7 @@ test('REGRESSION (FIX: feature flags survive the OTA noAsar read window): the bo
 
   const flags = readFeatureFlags()
   t.is(flags.sharePrepareProgress, true, 'sharePrepareProgress stays true from the boot cache (would be undefined on a fresh racy read)')
-  t.is(flags.handshakeIdentityBinding, true, 'security-gate flag stays true — not silently disabled')
+  t.is(flags.membershipControlBinding, true, 'security-gate flag stays true — not silently disabled')
 })
 
 test('primeFeatureFlags parses the on-disk flags', (t) => {
@@ -88,10 +88,10 @@ test('invalid (non-object) JSON falls back to {} with a warning', (t) => {
 test('an override passed by the caller wins over the cached base', (t) => {
   _resetForTests()
   resetEnv(t)
-  primeFeatureFlags(tmpRootWith({ sharePrepareProgress: true, handshakeIdentityBinding: true }))
+  primeFeatureFlags(tmpRootWith({ sharePrepareProgress: true, membershipControlBinding: true }))
   const flags = readFeatureFlags(JSON.stringify({ sharePrepareProgress: false }))
   t.is(flags.sharePrepareProgress, false, 'override wins over cached value')
-  t.is(flags.handshakeIdentityBinding, true, 'un-overridden cached flag is preserved')
+  t.is(flags.membershipControlBinding, true, 'un-overridden cached flag is preserved')
 })
 
 test('a malformed override is ignored (with a warning), base preserved', (t) => {
@@ -106,9 +106,9 @@ test('a malformed override is ignored (with a warning), base preserved', (t) => 
 test('REGRESSION (MIR-54: MIRALL_FEATURE_FLAGS reached every build): the flags module never reads the environment', (t) => {
   _resetForTests()
   resetEnv(t)
-  primeFeatureFlags(tmpRootWith({ handshakeIdentityBinding: true }))
-  process.env.MIRALL_FEATURE_FLAGS = JSON.stringify({ handshakeIdentityBinding: false })
-  t.is(readFeatureFlags().handshakeIdentityBinding, true, 'the gate decides; the module only merges what it is given')
+  primeFeatureFlags(tmpRootWith({ membershipControlBinding: true }))
+  process.env.MIRALL_FEATURE_FLAGS = JSON.stringify({ membershipControlBinding: false })
+  t.is(readFeatureFlags().membershipControlBinding, true, 'the gate decides; the module only merges what it is given')
 })
 
 // Structural invariant — the behavioural tests above prove the cache works, but

@@ -1487,12 +1487,9 @@ the socket's Noise key; handshakes also cover the participation id (V2).
 and verifies the signature. The result: frames are attributable, and a third party can't impersonate
 a member or evict one.
 
-- **Enforcement fails closed.** `handshakeIdentityBindingEnabled` defaults on in runtime config and
-  in main's bootstrap, so a missing or unreadable `feature-flags.json` keeps it on; only an explicit
-  `false` in that file turns it off, and a packaged build ignores `MIRALL_FEATURE_FLAGS`
-  (`src/main/env-overrides.js`). With it off, unbound handshake and request frames are still
-  admitted, but a signer key for sealing a grant, and a pending requester's socket, are taken only
-  from a frame whose binding verified.
+- **Always enforced.** A frame whose binding does not verify is dropped at intake, and a
+  membership:grant is accepted only from a granter whose binding verifies; there is no flag to turn
+  it off. A locally replayed frame (no peer) is trusted and never bound.
 - Leave frames are always checked.
 - A membership deny or cancel that names no sender is still honoured until
   `membershipControlBindingEnforced` is on; one that names a sender always has its binding checked

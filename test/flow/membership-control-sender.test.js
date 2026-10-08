@@ -17,7 +17,7 @@ import { sealSck } from '../../src/shared/spaces/sck-seal.js'
 
 const hex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
-const enforcedFlags = () => ({ identityKEK: hex(), handshakeIdentityBindingEnabled: true, membershipControlBindingEnforced: true })
+const enforcedFlags = () => ({ identityKEK: hex(), membershipControlBindingEnforced: true })
 const peer = (t, bootstrap, displayName, flags = enforcedFlags()) =>
   launchPeer(t, { bootstrap, displayName, storage: idStore(t), downloads: mkTmpDir(t), flags })
 
@@ -145,7 +145,7 @@ test('REGRESSION (MIR-48: a stranger\'s deny discarded a pending joiner)', { tim
 })
 
 test('a deny that names no sender is still honoured while enforcement is off', { timeout: scaled(180000) }, async (t) => {
-  const { B, spaceId, deny } = await pendingJoiner(t, { identityKEK: hex(), handshakeIdentityBindingEnabled: true })
+  const { B, spaceId, deny } = await pendingJoiner(t, { identityKEK: hex() })
   const discarded = B.waitFor('event:membership-denied', (m) => m.spaceId === spaceId, 30000)
   deny({})
   await discarded
@@ -178,7 +178,7 @@ async function coMemberDeny(t, flags) {
 }
 
 test('a co-member\'s deny discards the joiner while enforcement is off', { timeout: scaled(300000) }, async (t) => {
-  await coMemberDeny(t, () => ({ identityKEK: hex(), handshakeIdentityBindingEnabled: true }))
+  await coMemberDeny(t, () => ({ identityKEK: hex() }))
 })
 
 test('REGRESSION (MIR-48: a co-member\'s deny was refused under enforcement)', { timeout: scaled(300000) }, async (t) => {
@@ -216,11 +216,11 @@ test('REGRESSION (MIR-48: a co-member\'s replayed deny was refused under enforce
   t.absent(await spaceOf(B, spaceId), 'and discarded the pending space')
 })
 
-// With the identity binding off, the wire accepts a profileKey in either case; approve and deny
-// accept only the lowercase spelling, so a knock under any other spelling must never be listed.
+// Approve and deny accept only the lowercase spelling of a profileKey, so a knock under any other
+// spelling must never be listed.
 test('REGRESSION (MIR-49: a knock under a non-canonical key is never listed)', { timeout: scaled(180000) }, async (t) => {
   const bootstrap = await localTestnet(t)
-  const A = await peer(t, bootstrap, 'Alice', { identityKEK: hex(), handshakeIdentityBindingEnabled: false })
+  const A = await peer(t, bootstrap, 'Alice', { identityKEK: hex() })
   const { spaceId } = await A.request('space:create', { name: 'Case' })
   const topic = decodeInvite(await A.request('space:invite', { spaceId })).topic
 

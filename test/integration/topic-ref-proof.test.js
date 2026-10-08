@@ -37,7 +37,7 @@ function connFor(noise) {
 }
 
 test('with topic refs enforced, a frame the identity gate refuses proves nothing and is not answered', async (t) => {
-  const { spaceId, topic } = await heldSpace(t, { topicRefsEnforced: true, handshakeIdentityBindingEnabled: true })
+  const { spaceId, topic } = await heldSpace(t, { topicRefsEnforced: true })
   const sender = boundSender()
   const { conn, sent } = connFor(sender.noise)
   const request = { type: 'membership:request', topicRef: deriveTopicRef(topic, sender.noise.publicKey), displayName: 'x' }

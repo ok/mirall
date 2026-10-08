@@ -21,7 +21,6 @@ test('a co-member admits a joiner approved by another member while the creator i
   const bootstrap = await localTestnet(t)
   const flags = () => ({
     identityKEK: kekHex(),
-    handshakeIdentityBindingEnabled: true,
   })
   const mk = (name) => launchPeer(t, { bootstrap, displayName: name, storage: idStore(t), downloads: mkTmpDir(t), flags: flags() })
   const A = await mk('Alice'); const B = await mk('Bob'); const C = await mk('Carol')

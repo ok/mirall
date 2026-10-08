@@ -20,7 +20,7 @@ import { signNoiseBinding } from '../../src/shared/network/handshake-guard.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
-const bindFlags = () => ({ identityKEK: kekHex(), handshakeIdentityBindingEnabled: true })
+const bindFlags = () => ({ identityKEK: kekHex() })
 
 async function topicFor(peer, spaceId) {
   return decodeInvite(await peer.request('space:invite', { spaceId })).topic

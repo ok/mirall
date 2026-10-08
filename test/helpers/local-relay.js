@@ -23,7 +23,7 @@ const kekHex = () => crypto.randomBytes(32).toString('hex')
 
 export const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
 
-export const flags = () => ({ identityKEK: kekHex(), handshakeIdentityBindingEnabled: true, relayAuditDwellMs: RELAY_AUDIT_DWELL_MS })
+export const flags = () => ({ identityKEK: kekHex(), relayAuditDwellMs: RELAY_AUDIT_DWELL_MS })
 
 export const relayFlags = (key) => ({
   ...flags(),

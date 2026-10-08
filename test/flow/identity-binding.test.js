@@ -12,12 +12,11 @@ import { mkTmpDir } from '../helpers/fixtures.js'
 import { scaled } from '../helpers/timing.js'
 import { decodeInvite } from '../../src/shared/contract/invite-envelope.js'
 import { signNoiseBinding } from '../../src/shared/network/handshake-guard.js'
-import { openSealedSck } from '../../src/shared/spaces/sck-seal.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
 // Identity mode + membership approval + binding ENFORCED.
-const bindFlags = () => ({ identityKEK: kekHex(), handshakeIdentityBindingEnabled: true })
+const bindFlags = () => ({ identityKEK: kekHex() })
 
 const memberKeys = async (peer, spaceId) => {
   const list = await peer.request('spaces:list')
@@ -136,52 +135,4 @@ test('REGRESSION (MIR-43: a bound stranger\'s leave frame cannot get a key of it
   t.pass('the knock reached the gate and landed as a review, not a re-grant')
   await t.exception(peer.waitFrame((m) => m.type === 'membership:grant', scaled(8000)), /no matching frame/, 'no SCK for the stranger\'s chosen key')
   t.absent(peer.frames.some((m) => m.type === 'leave-ack'), 'no leave-ack arrived late either')
-})
-
-// With enforcement forced off, a stranger on the topic that sends a membership:request naming a
-// pending joiner's profile key with its own signer key must not end up holding that joiner's SCK,
-// and the joiner must still be granted.
-test("REGRESSION (MIR-54: spoofed request captured a pending joiner's grant with enforcement off)", { timeout: scaled(220000) }, async (t) => {
-  const bootstrap = await localTestnet(t)
-  const offFlags = () => ({ identityKEK: kekHex(), handshakeIdentityBindingEnabled: false })
-  const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: offFlags() })
-  const C = await launchPeer(t, { bootstrap, displayName: 'Carol', storage: idStore(t), downloads: mkTmpDir(t), flags: offFlags() })
-
-  const space = await A.request('space:create', { name: 'Secure Space' })
-  const inviteCode = await A.request('space:invite', { spaceId: space.spaceId })
-  const topic = decodeInvite(inviteCode).topic
-  const aGotRequest = A.waitFor('event:member-join-request', (m) => m.spaceId === space.spaceId, 120000)
-  await C.request('space:join', { inviteCode })
-  const cKey = (await aGotRequest).publicKey
-
-  const atk = await rawPeer(t, { bootstrap, topicHex: topic })
-  await atk.waitConnected()
-  const atkSigner = hcrypto.keyPair()
-  const spoof = () => atk.send({
-    type: 'membership:request', profileKey: cKey, displayName: 'Carol', spaceTopic: topic,
-    signerKey: b4a.toString(atkSigner.publicKey, 'hex'),
-    signerNs: b4a.toString(hcrypto.randomBytes(32), 'hex'),
-    sig: b4a.toString(hcrypto.randomBytes(64), 'hex'),
-  })
-  // Keeps the spoof the most recent request A has seen while it approves: Carol's own re-sends
-  // would otherwise restore her entry between the spoof and the grant. Slow enough to stay under
-  // the identity lane's ban threshold.
-  const flood = setInterval(spoof, 500)
-  t.teardown(() => clearInterval(flood))
-  spoof()
-  await new Promise((r) => setTimeout(r, 1000))
-
-  const cGranted = C.waitFor('event:membership-granted', (m) => m.spaceId === space.spaceId, 120000)
-  const atkGrant = atk.waitFrame((m) => m.type === 'membership:grant', scaled(15000)).catch(() => null)
-  await A.request('space:approve-member', { spaceId: space.spaceId, publicKey: cKey })
-
-  await atkGrant
-  await new Promise((r) => setTimeout(r, 2000))
-  clearInterval(flood)
-  const grants = atk.frames.filter((m) => m.type === 'membership:grant')
-  const opened = grants.filter((g) => openSealedSck(b4a.from(g.sckSealed, 'hex'), atkSigner))
-  t.comment(`the attacker received ${grants.length} grant(s)`)
-  t.is(opened.length, 0, 'the attacker cannot open any grant it received')
-  await cGranted
-  t.pass('Carol received her grant')
 })
