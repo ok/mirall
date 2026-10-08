@@ -23,7 +23,7 @@ const memberKeys = async (peer, spaceId) =>
 
 test('REGRESSION (G6): an approver offline at leave time revokes on return; rejoin needs fresh approval', { timeout: scaled(300000) }, async (t) => {
   const bootstrap = await localTestnet(t)
-  const flags = () => ({ identityKEK: kekHex(), handshakeIdentityBindingEnabled: true })
+  const flags = () => ({ identityKEK: kekHex() })
   // A (the creator/approver) is relaunched, so its KEK + storage stay fixed across boots.
   const aStorage = idStore(t)
   const aDownloads = mkTmpDir(t)

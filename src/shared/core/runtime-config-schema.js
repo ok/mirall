@@ -46,8 +46,7 @@ const BOOLEAN = ['dev', 'verbose', 'membershipControlBindingEnforced', 'topicRef
 // sharePrepareProgress off removes both the "preparing NN%" decoration and the liveness signal that
 // keeps a download parked on a re-publish alive: a source that hashes for hours re-arms the
 // receiver's wait with every frame, so the wait bounds SILENCE rather than the hash.
-// handshakeIdentityBindingEnabled off admits identity frames whose binding does not verify.
-const DEFAULT_ON = ['separateContentPlane', 'sharePrepareProgressEnabled', 'handshakeIdentityBindingEnabled']
+const DEFAULT_ON = ['separateContentPlane', 'sharePrepareProgressEnabled']
 
 // Keys production never sets, each defaulting to "off"; tests set them for a deterministic
 // reproduction.

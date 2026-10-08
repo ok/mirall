@@ -145,14 +145,12 @@ export function rosterPathOf(msg, { creatorKey, denierKey }) {
   return path
 }
 
-// One decision for the swarm onmessage choke point. Hex validation always applies. `bound` reports
-// whether the identity binding verified, whatever the enforcement; enforceBinding decides only
-// whether an unbound frame is still admitted. peerInfo == null marks a locally-originated replay
-// (trusted, never bound).
-export function checkInboundSender(peerInfo, msg, { enforceBinding }) {
+// One decision for the swarm onmessage choke point: a well-formed frame whose identity binding
+// verifies. peerInfo == null marks a locally-originated replay (trusted, never bound).
+export function checkInboundSender(peerInfo, msg) {
   if (!validSenderFrame(msg)) return { ok: false, reason: 'malformed', bound: false }
   const bound = verifyIdentityBinding(peerInfo, msg)
-  if (enforceBinding && peerInfo != null && !bound) return { ok: false, reason: 'identity-unbound', bound }
+  if (peerInfo != null && !bound) return { ok: false, reason: 'identity-unbound', bound }
   return { ok: true, bound }
 }
 
@@ -233,14 +231,10 @@ export function createDualRateLimiter({ matched, unmatched, now = Date.now, topi
 // authorized member making that claim. Reuses the identity binding to prove the sender
 // controls granterKey on this connection (rebinding profileKey → granterKey), then checks the
 // asserted creator is well-formed. Returns { ok, creator, granterKey } | { ok:false, reason }.
-export function checkGrantAssertion(peerInfo, msg, { enforceBinding }) {
+export function checkGrantAssertion(peerInfo, msg) {
   if (typeof msg.creator === 'string' && !HEX64.test(msg.creator)) return { ok: false, reason: 'malformed-creator' }
   const creator = typeof msg.creator === 'string' ? msg.creator : null
-  if (typeof msg.granterKey !== 'string' || !HEX64.test(msg.granterKey)) {
-    // A granter on an older release asserts no granterKey — accept only when binding isn't enforced.
-    return enforceBinding ? { ok: false, reason: 'no-granter' } : { ok: true, creator, granterKey: null }
-  }
-  if (!enforceBinding) return { ok: true, creator, granterKey: msg.granterKey }
+  if (typeof msg.granterKey !== 'string' || !HEX64.test(msg.granterKey)) return { ok: false, reason: 'no-granter' }
   if (peerInfo == null) return { ok: true, creator, granterKey: msg.granterKey }  // local replay
   if (!verifyIdentityBinding(peerInfo, { ...msg, profileKey: msg.granterKey })) {
     return { ok: false, reason: 'granter-unbound' }

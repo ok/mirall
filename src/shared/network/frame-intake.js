@@ -8,7 +8,7 @@
 import b4a from 'b4a'
 import { createLogger } from '../core/logger.js'
 import { PEER_FRAME, IDENTITY_ASSERTING, MEMBERSHIP_CONTROL_FRAMES } from '../contract/peer-frames.js'
-import { getPeerFrameMaxBytes, getPeerFrameLimits, getHandshakeRateLimit, getConnectionCaps, isHandshakeIdentityBindingEnabled, getIdentityFrameDropWindow, isTopicRefsEnforced, getConvergenceConfig } from '../core/runtime-config.js'
+import { getPeerFrameMaxBytes, getPeerFrameLimits, getHandshakeRateLimit, getConnectionCaps, getIdentityFrameDropWindow, isTopicRefsEnforced, getConvergenceConfig } from '../core/runtime-config.js'
 import { checkInboundSender, createDualRateLimiter, createRateLimiter, validFrameShape } from './handshake-guard.js'
 import { handlePresenceFrame, handleShareIndexProgressFrame, handleSharePrepareProgressFrame } from './presence-broadcast.js'
 import { handleLeaveFrame, handleLeaveAckFrame, handleMembershipCancelAck, sendPendingCancelFrames, sendPendingLeaveFrames } from './leave-protocol.js'
@@ -195,7 +195,7 @@ function admitIdentityFrame(conn, msg, spaceId) {
     log.debug(msg.type, 'names no space of ours from', remoteKey + '...')
     return null
   }
-  const verdict = checkInboundSender(peerInfo, msg, { enforceBinding: isHandshakeIdentityBindingEnabled() })
+  const verdict = checkInboundSender(peerInfo, msg)
   if (!verdict.ok) {
     log.warn('rejected', msg.type, 'from', remoteKey + '... -', verdict.reason)
     return null

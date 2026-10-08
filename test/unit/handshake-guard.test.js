@@ -100,38 +100,29 @@ test('verifyIdentityBinding rejects malformed / missing binding fields', (t) => 
   t.absent(verifyIdentityBinding({}, msg))
 })
 
-test('checkInboundSender: malformed always rejected, regardless of enforcement', (t) => {
+test('checkInboundSender: a malformed frame is rejected', (t) => {
   const bad = { profileKey: 'nope', spaceTopic: hex() }
-  t.is(checkInboundSender({ publicKey: crypto.randomBytes(32) }, bad, { enforceBinding: true }).reason, 'malformed')
-  t.is(checkInboundSender({ publicKey: crypto.randomBytes(32) }, bad, { enforceBinding: false }).reason, 'malformed')
+  t.is(checkInboundSender({ publicKey: crypto.randomBytes(32) }, bad).reason, 'malformed')
 })
 
-test('checkInboundSender: binding only enforced when the flag is on', (t) => {
+test('checkInboundSender: a bound sender is admitted, an unbound one never is', (t) => {
   const { noise, msg } = boundSender()
   const peerInfo = { publicKey: noise.publicKey }
-  const spoof = { spaceTopic: msg.spaceTopic, profileKey: msg.profileKey }
+  const unsigned = { spaceTopic: msg.spaceTopic, profileKey: msg.profileKey }
+  const forged = { ...msg, signerKey: b4a.toString(crypto.keyPair().publicKey, 'hex'), sig: hex(64) }
 
-  t.ok(checkInboundSender(peerInfo, msg, { enforceBinding: true }).ok, 'bound sender admitted')
-  t.is(checkInboundSender(peerInfo, spoof, { enforceBinding: true }).reason, 'identity-unbound', 'unsigned rejected when enforced')
-  t.ok(checkInboundSender(peerInfo, spoof, { enforceBinding: false }).ok, 'unsigned admitted pre-saturation')
+  const admitted = checkInboundSender(peerInfo, msg)
+  t.ok(admitted.ok, 'bound sender admitted')
+  t.is(admitted.bound, true)
+  t.is(checkInboundSender(peerInfo, unsigned).reason, 'identity-unbound', 'unsigned rejected')
+  t.is(checkInboundSender(peerInfo, forged).reason, 'identity-unbound', 'a signer key that does not verify is rejected')
 })
 
-test('REGRESSION (MIR-54: an unverified signer key was recorded while enforcement was off): the verdict reports whether the binding verified', (t) => {
-  const { noise, msg } = boundSender()
-  const peerInfo = { publicKey: noise.publicKey }
-  const spoof = { ...msg, signerKey: b4a.toString(crypto.keyPair().publicKey, 'hex'), sig: hex(64) }
-
-  t.is(checkInboundSender(peerInfo, msg, { enforceBinding: false }).bound, true, 'a real binding is bound with enforcement off')
-  const off = checkInboundSender(peerInfo, spoof, { enforceBinding: false })
-  t.ok(off.ok, 'an unbound frame is still admitted with enforcement off')
-  t.is(off.bound, false, 'but it is not bound')
-  t.is(checkInboundSender(peerInfo, spoof, { enforceBinding: true }).reason, 'identity-unbound')
-  t.is(checkInboundSender(null, msg, { enforceBinding: true }).bound, false, 'a local replay is admitted, never bound')
-})
-
-test('checkInboundSender: null peerInfo is a trusted internal replay', (t) => {
+test('checkInboundSender: null peerInfo is a trusted internal replay, never bound', (t) => {
   const { msg } = boundSender()
-  t.ok(checkInboundSender(null, msg, { enforceBinding: true }).ok)
+  const replay = checkInboundSender(null, msg)
+  t.ok(replay.ok)
+  t.is(replay.bound, false)
 })
 
 // A leave frame carries no spaceTopic — only the sender's identity binding. leaveFrameBound is the

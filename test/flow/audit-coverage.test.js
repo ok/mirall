@@ -11,7 +11,7 @@ import { SCHEMA_VERSION } from '../../src/shared/audit/audit-record.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
-const flags = () => ({ identityKEK: kekHex(), handshakeIdentityBindingEnabled: true })
+const flags = () => ({ identityKEK: kekHex() })
 
 // What ONE realistic two-peer session must produce. This is the completeness half of the
 // guarantee: if a call site stops firing, the kind drops out and this fails.

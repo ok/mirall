@@ -16,7 +16,7 @@ import { deriveTopicRef } from '../../src/shared/network/handshake-guard.js'
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const hex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
-const bindFlags = () => ({ identityKEK: kekHex(), handshakeIdentityBindingEnabled: true })
+const bindFlags = () => ({ identityKEK: kekHex() })
 const spaceOf = async (peer, spaceId) => (await peer.request('spaces:list')).find((s) => s.spaceId === spaceId)
 const settles = (promise) => promise.then(() => true, () => false)
 

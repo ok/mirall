@@ -11,7 +11,7 @@ import { getSpace } from '../spaces/space.js'
 import { verifiedMembers, isVerifiedMember } from '../spaces/member-standing.js'
 import { recordJoinRequest } from '../spaces/join-requests.js'
 import { pinCreatorKey, markCreatorDivergence, clearCreatorDivergence } from '../spaces/creator-pin.js'
-import { isHandshakeIdentityBindingEnabled, getAdmissionReadTimeoutMs } from '../core/runtime-config.js'
+import { getAdmissionReadTimeoutMs } from '../core/runtime-config.js'
 import { reconcileAssertedRoot } from '../spaces/creator-root.js'
 import { snapshotCandidates } from '../spaces/invites.js'
 import { isLeft, openMemberView, closeMemberView, isApprovedJoiner } from '../spaces/member-registry.js'
@@ -144,7 +144,7 @@ export function createAdmissionGates({
     }
     // Confirm a provisional pin against the now-authenticated asserted root, or surface
     // divergence against a confirmed one.
-    if (space.creatorKey && typeof msg.creator === 'string' && isHandshakeIdentityBindingEnabled()) {
+    if (space.creatorKey && typeof msg.creator === 'string') {
       await crossCheckCreatorRoot(spaceId, space, msg.creator)
     }
     return true

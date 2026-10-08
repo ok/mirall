@@ -218,8 +218,6 @@ function getWorker(specifier) {
     maxFilesPerShare: envNumber(envOverride('MIRALL_MAX_FILES_PER_SHARE')),
     deriveDebounceMs: envNumber(envOverride('MIRALL_DERIVE_DEBOUNCE_MS')),
     freeUpMinBytes: envNumber(envOverride('MIRALL_FREE_UP_MIN_BYTES')),
-    // Enforced unless feature-flags.json says false, so a missing or unreadable file keeps it on.
-    handshakeIdentityBindingEnabled: flags.handshakeIdentityBinding !== false,
     // Staged: until feature-flags.json turns it on, a membership:cancel or membership:deny that names
     // no sender (a peer on an older release) is still honoured.
     membershipControlBindingEnforced: flags.membershipControlBinding === true,

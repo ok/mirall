@@ -93,10 +93,6 @@ export function getPublishOrder() {
   return config.publishOrder
 }
 
-export function isHandshakeIdentityBindingEnabled() {
-  return config.handshakeIdentityBindingEnabled
-}
-
 export function isMembershipControlBindingEnforced() {
   return config.membershipControlBindingEnforced
 }
