@@ -172,6 +172,10 @@ the test rather than loosen the rule.
 
 ## Static gates and what they miss
 
+**`tsc` does not see `test/frontend-layout/`, so a new required prop breaks harnesses silently.**
+Before landing one, typecheck the harnesses once with a throwaway tsconfig that extends the root
+and adds `test/frontend-layout/*.tsx`, then grep the output for the prop name; the rest is old noise.
+
 **`npm run build` does not run CI's lint step.** Before pushing, also run
 `check-comment-hygiene.sh`, `check-test-timing.sh` and `check-release-mime.sh`.
 
@@ -298,6 +302,11 @@ theme-flipping token (`surface-control`) on anything with interactive states, no
 restore; guard on a Tab keydown immediately preceding the focus. Reproduce only via a real tray menu
 click (`open -a` takes another path).
 
+**`not-sr-only` resets `white-space` to `normal`, so it undoes `truncate` on the same node.** A
+label made visible by `sr-only @min-[…]:not-sr-only` wraps word by word in a narrow lane. Keep the
+accessible name in one always-`sr-only` node and render the visible variants `aria-hidden` with
+plain `hidden`/`inline` breakpoints. Tell: a one-line control growing to four lines only in a real row.
+
 **An empty state answers the user's live question, not the product's best feature.** Lead with the
 constraint that contradicts what users bring from elsewhere; keep a differentiator only in its
 consequential form.
@@ -377,6 +386,10 @@ read the single liveness truth; the connection registry is for routing only.
 check each removed `event:*` still fires from a surviving path; polling flow tests won't notice.
 
 ## Data layer & hypercore
+
+**A downloader's reported `have` is cumulative and already counts what we served.** Never add it to
+the bytes this serve sent: completion is `max(served, have) >= total`, or a download counts as done
+at about half way (`serve-ledger.js`).
 
 **Two Corestores on one path conflict inside one process.** The lock is per open file description
 and released asynchronously. Open through `openStore()` (`core/store.js`), which retries; never let

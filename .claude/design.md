@@ -789,6 +789,25 @@ for what it lists — waiting, downloading, or both. The cluster yields width be
 waiter never shows the `Sending` pill and never feeds the aggregate bar. Layout pinned by
 `npm run test:layout:case -- waiting`.
 
+### Who has the file on the owner's row — `cards/RecipientsIndicator.tsx`
+Once a member holds the current version of a file we own, the resting row carries the same cluster
+anatomy as the waiting indicator, beside the status pill: up to three of the latest recipients as an
+`sm` avatar stack (`announce="group"`, named "Recently received by: <names>") with **no `+N` chip**,
+and a `text-[11px]` toggle reading "15 of 19 have it" — counted against the space's admitted members
+other than the owner (`model/file-recipients.js`). Nobody yet shows nothing, so a fresh share looks
+as it always did. Everyone shows "All 19 have it" behind a `check_circle` in `text-on-success`,
+without faces; with one other member it names them ("Bob has it"). The row sheds so the name keeps
+its width: the faces show only from 680px, the sentence gives way to "15/19" under 560px, and under
+520px the pill steps aside as it does beside a progress lane. The visible text never wraps; the
+toggle's name is the whole sentence in one `sr-only` node, the visible copies `aria-hidden`. Pinned
+by `npm run test:layout:case -- recipients`. While
+downloads run, the Sending lane keeps the row and adds "15 have it" as the first meta token to
+shed. The toggle opens `PeerDownloadDropdown`, which lists live downloads alone until someone holds
+the file and then everyone, under sticky `h4` group headings — Downloading, Have it (newest first),
+Not yet (online first; an earlier version is said so) — whose fill follows the row's hover. A settled
+row (`cards/RecipientRow.tsx`) keeps `PeerDownloadRow`'s anatomy, puts the time or state where the
+bar was, and reads as one sentence. The list grows to `max-h-80`, then scrolls.
+
 ### Folder screen bands — `screens/FolderScreen.tsx`
 Three slots, one rule: **tiles state, the header acts, the strip acts for now.**
 - **Header** — back · title · role line · one primary button + `More ▾`, the same pair for an owned
