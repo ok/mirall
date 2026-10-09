@@ -33,8 +33,8 @@ test('REGRESSION (FIX-3): ETA sheds after count, before speed (@min-[120px])', (
     'eta token gated at @min-[120px]/lane')
 })
 
-test('REGRESSION (FIX-4): aria-valuetext keeps pct + count + paused + speed + eta', (t) => {
-  t.ok(/progressValueText\(pct, activeLabel, pausedLabel, speed, eta\)/.test(indSrc),
+test('REGRESSION (FIX-4): aria-valuetext keeps pct + count + paused + speed + eta + have', (t) => {
+  t.ok(/progressValueText\(pct, activeLabel, pausedLabel, speed, eta, haveLabel\)/.test(indSrc),
     'valueText keeps every token regardless of visible compaction')
 })
 
