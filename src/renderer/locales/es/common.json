@@ -725,25 +725,6 @@
       "dev": "Desarrollo",
       "source": "Desarrollo"
     },
-    "details": "Detalles",
-    "field": {
-      "version": "Versión",
-      "channel": "Canal de publicación",
-      "installedOn": "Instalado en",
-      "updates": "Actualizaciones"
-    },
-    "channel": {
-      "release": "Estable",
-      "beta": "Beta: versiones tempranas para pruebas",
-      "dev": "Versión de desarrollo",
-      "source": "Compilado desde el código fuente"
-    },
-    "updatesMethod": {
-      "auto": "Automáticas, entre pares",
-      "packageManager": "Mediante tu gestor de paquetes",
-      "off": "Desactivadas"
-    },
-    "copyInfo": "Copiar información de la app",
     "groupProject": "Mirall",
     "website": "Sitio web",
     "support": "Soporte",

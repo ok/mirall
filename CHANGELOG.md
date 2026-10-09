@@ -56,10 +56,9 @@ a shortened key.
 
 - **About Mirall has its own page.** Profile → About Mirall shows whether
 Mirall is up to date, lets you check for an update, and — on macOS and
-Linux — restart into a downloaded one. It also lists the details a support
-request needs, the privacy policy, the legal notice and Mirall's license.
-The About row shows a green dot only once a check has actually confirmed
-you're on the latest version.
+Linux — restart into a downloaded one. It also links to the privacy
+policy, the legal notice and Mirall's license. The About row shows a green
+dot only once a check has actually confirmed you're on the latest version.
 - **Mirall on Windows now needs Windows 10 version 1903 or later.** On
 version 1809, Windows kept Mirall's data in a private copy instead of the
 app-data folder Mirall reads it from.

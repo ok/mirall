@@ -1,24 +1,19 @@
-// About Mirall: the running build and whether it is current, the details a support request needs,
-// and the project's links and legal pages.
+// About Mirall: the running build and whether it is current, and the project's links and legal pages.
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { UPDATE_STATE, UPDATES_OFF_REASON, type UpdateStatus } from '../../shared/contract/update-status.js'
-import { appInfoLine, archLabel, osLabel } from '../model/about-view.js'
+import type { UpdateStatus } from '../../shared/contract/update-status.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import { useUpdates } from '../hooks/useUpdates.js'
 import { useAppBuild } from '../hooks/useAppBuild.js'
 import { useOpenWhatsNew } from '../hooks/useOpenWhatsNew.js'
 import { useRunAction } from '../hooks/useRunAction.js'
-import { useClipboardCopy } from '../hooks/useClipboardCopy.js'
 import { checkForUpdate, restartToUpdate } from '../platform/updates.js'
 import PageHeader from '../components/layout/PageHeader.js'
 import SectionHeading from '../components/layout/SectionHeading.js'
 import ActionRow, { LinkRow, ROW_GROUP } from '../components/layout/ActionRow.js'
-import { Section, Field } from '../components/network/StatusRows.js'
 import UpdateVerdictBanner from '../components/about/UpdateVerdictBanner.js'
 import Logo from '../components/primitives/Logo.js'
 import Badge from '../components/primitives/Badge.js'
-import Button from '../components/primitives/Button.js'
 import CopyButton from '../components/primitives/CopyButton.js'
 
 const LINKS = {
@@ -41,7 +36,7 @@ function IdentityCard() {
   return (
     <section className="bg-surface-container-low rounded-xl p-6 flex items-center gap-6">
       <div className="flex-1 min-w-0">
-        <Logo className="h-16 w-auto text-accent" label="Mirall" />
+        <Logo className="h-20 w-auto text-accent" label="Mirall" />
         <p className="text-sm text-on-surface-variant mt-3">{t('about.tagline')}</p>
       </div>
       <div className="shrink-0 flex flex-col items-end gap-2">
@@ -84,33 +79,6 @@ function UpdatesSection({ status }: { status: UpdateStatus }) {
         onRestart={handleRestart}
       />
     </section>
-  )
-}
-
-function updatesMethodKey(status: UpdateStatus): string {
-  if (status.state !== UPDATE_STATE.OFF) return 'about.updatesMethod.auto'
-  return status.offReason === UPDATES_OFF_REASON.DEB_INSTALL ? 'about.updatesMethod.packageManager' : 'about.updatesMethod.off'
-}
-
-function DetailsSection({ status }: { status: UpdateStatus }) {
-  const { t } = useTranslation()
-  const build = useAppBuild()
-  const [system] = useState(() => window.bridge.getSystemInfo())
-  const { copied, copy } = useClipboardCopy()
-
-  return (
-    <Section title={t('about.details')}>
-      <Field label={t('about.field.version')} value={build.label} copyValue={build.label} />
-      <Field label={t('about.field.channel')} value={t(`about.channel.${build.channel}`)} />
-      <Field label={t('about.field.installedOn')} value={`${osLabel(system)} · ${archLabel(system)}`} />
-      <Field label={t('about.field.updates')} value={t(updatesMethodKey(status))} />
-      <div className="px-6 py-4 flex justify-center">
-        <Button variant="secondary" icon={copied ? 'check' : 'content_copy'} onClick={() => copy(appInfoLine(build.label, system))}>
-          {copied ? t('actions.copied') : t('about.copyInfo')}
-        </Button>
-        <span role="status" aria-live="polite" className="sr-only">{copied ? t('actions.copied') : ''}</span>
-      </div>
-    </Section>
   )
 }
 
@@ -160,7 +128,6 @@ export default function AboutScreen({ onBack }: AboutScreenProps) {
         <div className="space-y-10">
           <IdentityCard />
           <UpdatesSection status={status} />
-          <DetailsSection status={status} />
           <ProjectSection />
           <LegalSection />
           <footer className="text-center text-xs text-on-surface-variant space-y-1">

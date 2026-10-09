@@ -36,10 +36,6 @@ export default async function s18({ runDir, bootstrap }) {
       await A.waitText('Automatic updates are off', 8000)
       if (await A.has({ role: 'button', name: 'Check now' })) throw new Error('Check now offered with updates off')
     })
-    await r.ok('Copy app info names the build and the system', async () => {
-      const info = await A.copyFrom({ role: 'button', name: 'Copy app info' })
-      if (!/^Mirall v\d+\.\d+.* · .+ \(.+\)$/.test(info)) throw new Error(`unexpected app info: ${info}`)
-    })
     await r.ok("the What's New modal opens", async () => {
       await A.click({ role: 'button', name: "What's New" })
       await A.waitText('Got it', 8000)

@@ -5,7 +5,6 @@ import { UPDATE_STATE, UPDATES_OFF_REASON } from '../../shared/contract/update-s
 
 /**
  * @import { UpdateStatus } from '../../shared/contract/update-status.js'
- * @import { SystemInfo } from '../platform/global.js'
  * @typedef {'up-to-date' | 'ready' | 'neutral'} UpdateLamp
  * @typedef {'check' | 'restart' | null} UpdateAction
  * @typedef {'release' | 'beta' | 'dev' | 'source'} ReleaseChannel
@@ -51,30 +50,4 @@ export function releaseChannel(version, isDev) {
   if (/-dev\.\d+$/.test(version)) return 'dev'
   if (/-beta\.\d+$/.test(version)) return 'beta'
   return 'release'
-}
-
-/** @param {string} osVersion @returns {string} */
-function windowsName(osVersion) {
-  const build = Number(osVersion.split('.')[2])
-  return build >= 22000 ? 'Windows 11' : 'Windows 10'
-}
-
-/** @param {SystemInfo} info @returns {string} */
-export function osLabel(info) {
-  if (info.platform === 'darwin') return `macOS ${info.osVersion}`
-  if (info.platform === 'win32') return `${windowsName(info.osVersion)} (${info.osVersion})`
-  if (info.platform === 'linux') return `Linux ${info.osVersion}`
-  return `${info.platform} ${info.osVersion}`
-}
-
-/** @param {SystemInfo} info @returns {string} */
-export function archLabel(info) {
-  if (info.platform === 'darwin') return info.arch === 'arm64' ? 'Apple silicon' : 'Intel'
-  return info.arch
-}
-
-// One line a support request can carry: the exact build and the system it runs on.
-/** @param {string} version @param {SystemInfo} info @returns {string} */
-export function appInfoLine(version, info) {
-  return `Mirall ${version} · ${osLabel(info)} (${info.arch})`
 }
