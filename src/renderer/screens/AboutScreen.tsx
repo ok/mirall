@@ -34,19 +34,19 @@ function IdentityCard() {
   const { t } = useTranslation()
   const build = useAppBuild()
   return (
-    <section className="bg-surface-container-low rounded-xl p-6 flex items-center gap-6">
-      <div className="flex-1 min-w-0">
-        <Logo className="h-20 w-auto text-accent" label="Mirall" />
+    <section className="bg-surface-container-low rounded-xl p-6 flex items-end justify-between gap-6">
+      <div className="min-w-0">
+        <Logo className="h-16 w-auto text-accent" label="Mirall" />
         <p className="text-sm text-on-surface-variant mt-3">{t('about.tagline')}</p>
       </div>
       <div className="shrink-0 flex flex-col items-end gap-2">
-        <div className="flex items-center gap-2">
-          <p className="font-semibold text-accent">{build.label}</p>
-          <CopyButton value={`Mirall ${build.label}`} />
-        </div>
         {build.channel !== 'release' && (
           <Badge label={t(`about.badge.${build.channel}`)} classes="bg-secondary-container text-on-secondary-container" />
         )}
+        <div className="flex items-center gap-2">
+          <p className="text-sm text-on-surface-variant">{build.label}</p>
+          <CopyButton value={`Mirall ${build.label}`} />
+        </div>
       </div>
     </section>
   )
