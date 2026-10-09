@@ -68,7 +68,7 @@ most-used values:
 | `surface-container-high` | `#eae8e4` | Neutral chips, toggle track, icon tiles. Never a content plate: in dark it is lighter than the panel |
 | `surface-control` / `-hover` | `#eae8e4` / `#dcdad6` | **Every filled neutral control** — secondary buttons, ActionMenu triggers, PathRow, filter chips (dark: `#434955` / `#4f5561`) |
 | `surface-container-highest` | `#e4e2de` | **Card hover lift** (folder & file rows); "remote" badge |
-| `progress-track` | `#d0cec9` | Progress-bar tracks, the peer-dropdown divider and every faceless avatar disc (initials, `+N`, the Activity Log actor) — see the note below |
+| `progress-track` | `#d0cec9` | Progress-bar tracks and every faceless avatar disc (initials, `+N`, the Activity Log actor) — see the note below |
 | `on-surface` | `#1b1c1a` | Primary body text (near-black; **never** `#000`) |
 | `on-surface-variant` | `#4a454b` | Muted/secondary text |
 | `outline` | `#7c757c` | Badge border, dropzone idle border |
@@ -140,9 +140,7 @@ the track borrows therefore matches one of its own hosts in some state and the b
 vanishes — which is what shipped twice: first as `surface-container-high` (lost under the toggle
 hover), then as `surface-container-highest` (lost under the row hover). `progress-track` (`#d0cec9`
 / `#4a5160`) clears every host surface by at least 1.2:1 while keeping the `on-info` fill above 3:1
-against the track. The same reasoning applies to the `PeerDownloadDropdown` divider, which uses
-`divide-progress-track` because dark `outline-variant` is *also* `#393f4a`, and to every faceless
-avatar disc — the `+N` chip and the initials fallback both sat on `surface-container-highest`, the
+against the track. The same reasoning applies to every faceless avatar disc — the `+N` chip and the initials fallback both sat on `surface-container-highest`, the
 very token `SpaceCard` lifts to, so a member with no photo dissolved into the card under the cursor
 in both themes. A disc carrying a photo never showed it, which is why it survived this long. Pinned
 by `test/invariants/progress-bar-contrast.test.js`; never re-point a track at a
@@ -782,8 +780,8 @@ hash rides BESIDE the owner's indexing bar rather than replacing it: an `sm` ava
 through `--avatar-ring`) and a small `text-[11px] text-on-surface-variant` toggle reading "N
 waiting" with the standard chevron. The toggle is named by its visible text and carries
 `aria-expanded`; it opens the same `PeerDownloadDropdown` the sending indicator does, whose waiting
-rows show the name, avatar and presence dot with "Waiting for indexing" in place of the meta line
-and bar (an offline downloader's plain "Waiting" is a different state). The dropdown region is named
+pills show the avatar, presence dot and name with "Waiting for indexing" in place of the bar and
+percentage (an offline downloader's plain "Waiting" is a different state). The dropdown region is named
 for what it lists — waiting, downloading, or both. The cluster yields width before the hash bar:
 `shrink` down to a 72px floor with the count truncating, and a row under 440px sheds the stack. A
 waiter never shows the `Sending` pill and never feeds the aggregate bar. Layout pinned by
@@ -807,10 +805,25 @@ toggle's name is the whole sentence in one `sr-only` node, the visible copies `a
 by `npm run test:layout:case -- recipients`. While
 downloads run, the Sending lane keeps the row and adds "15 have it" as the first meta token to
 shed. The toggle opens `PeerDownloadDropdown`, which lists live downloads alone until someone holds
-the file and then everyone, under sticky `h4` group headings — Downloading, Have it (newest first),
-Not yet (online first; an earlier version is said so) — whose fill follows the row's hover. A settled
-row (`cards/RecipientRow.tsx`) keeps `PeerDownloadRow`'s anatomy, puts the time or state where the
-bar was, and reads as one sentence. The list grows to `max-h-80`, then scrolls.
+the file and then everyone, in groups — Downloading, Have it (newest first), Not yet (online first;
+an earlier version is said so). The list is a two-column grid (`grid-cols-[3rem_1fr]`): each group
+is one wrapping line of `h-7 rounded-full` pills, groups `gap-y-2` apart and never divided, and the gutter is the row's icon tile (`3rem`, then `gap-x-4`, with folder rows passing their
+leading-gutter indent) so each group's 16px status icon lines up with the file icon's right edge and its pills
+start under the file name. The icon stands in for a word — the
+`check_circle` in `text-on-success` for Have it, `download` in `text-on-info` for Downloading, and a
+drawn empty ring (`border-2 border-outline`) for Not yet. The icon is not the only cue: the group's
+`h4` carries its name as `sr-only` text and as the icon's `title`. A pill is an `xs` avatar with its
+presence dot, the name (the part that truncates) and the state — the time it arrived
+(`cards/RecipientRow.tsx`), a `w-12` bar and its percentage (`cards/PeerDownloadRow.tsx`), or the
+`history` icon for an earlier version — all in `text-on-surface-variant`, the toast body text;
+presence lives on the dot, never on the text colour. The pill is filled so it stands off the card in
+every state: `surface-container-high` at rest (and always in dark, where it clears the hover lift by
+1.68:1), swapping to `surface-container-lowest` under the card's light hover lift, where `high` would
+sit at 1.06:1; the presence dot's border swaps with it. Pinned by
+`test/invariants/progress-bar-contrast.test.js`. A pill's full state is its `title` and its sentence
+(`sr-only`, or the bar's `aria-valuetext` with the speed · ETA the pill leaves out). Before anyone
+holds the file the live pills stand alone, without a gutter. The list grows to `max-h-80`, then
+scrolls.
 
 ### Folder screen bands — `screens/FolderScreen.tsx`
 Three slots, one rule: **tiles state, the header acts, the strip acts for now.**

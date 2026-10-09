@@ -49,11 +49,16 @@ test('REGRESSION (FIX-1): on-info fill clears 3:1 vs track AND both hover lifts,
   }
 })
 
+// The peer dropdown's pill is a host the bar sits on, not the bar: its fill swaps under the card's
+// hover lift, and FIX-6 holds the track clear of it.
+const PILL_HOST = 'bg-surface-container-high group-hover:bg-surface-container-lowest'
+
 test('REGRESSION (FIX-2): hover-pill token is never a static progress bg', (t) => {
   const re = /bg-surface-container-high(?![a-z])/g
   for (const f of BARS) {
     const src = read(f)
     for (const m of src.matchAll(re)) {
+      if (src.startsWith(PILL_HOST, m.index)) continue
       const before = src.slice(Math.max(0, m.index - 6), m.index)
       t.ok(before.endsWith('hover:'), `${f}: bg-surface-container-high must be hover-only (saw "${before}…")`)
     }
@@ -132,8 +137,34 @@ test('REGRESSION (FIX-RIM): every faceless avatar disc is painted in the hover-p
   t.ok(/rounded-full bg-progress-track[^"]*avatar-recess/.test(feed), 'and is recessed like every other disc')
 })
 
-test('REGRESSION (FIX-7): peer-dropdown divider survives the card hover lift', (t) => {
+test('peer dropdown pills stand off the card at rest and under its hover lift, both themes', (t) => {
+  const PILL = `${PILL_HOST} dark:group-hover:bg-surface-container-high`
+  for (const f of ['src/renderer/components/cards/RecipientRow.tsx', 'src/renderer/components/cards/PeerDownloadRow.tsx']) {
+    t.ok(read(f).includes(PILL), `${f}: the pill swaps its fill with the card's hover lift`)
+  }
+  const light = tokensFor(':root')
+  const dark = tokensFor('.dark')
+  const states = [
+    ['light rest', light['color-surface-container-high'], light['color-surface-container-lowest'], light],
+    ['light hover', light['color-surface-container-lowest'], light['color-surface-container-highest'], light],
+    ['dark rest', dark['color-surface-container-high'], dark['color-surface-container-low'], dark],
+    ['dark hover', dark['color-surface-container-high'], dark['color-surface-container-highest'], dark],
+  ]
+  for (const [state, pill, card, k] of states) {
+    const off = contrast(pill, card)
+    const text = contrast(k['color-on-surface-variant'], pill)
+    t.ok(off >= TRACK_MIN, `${state}: pill vs card = ${off.toFixed(2)}:1`)
+    t.ok(text >= 4.5, `${state}: text vs pill = ${text.toFixed(2)}:1`)
+  }
+})
+
+test('peer dropdown pills carry presence on the dot, not the text', (t) => {
+  for (const f of ['src/renderer/components/cards/RecipientRow.tsx', 'src/renderer/components/cards/PeerDownloadRow.tsx']) {
+    t.absent(/text-(accent|outline)(?![\w-])/.test(read(f)), `${f}: no presence-tinted text`)
+  }
+})
+
+test('REGRESSION (FIX-7): peer dropdown has no divider to lose under the card hover lift', (t) => {
   const src = read('src/renderer/components/cards/PeerDownloadDropdown.tsx')
-  t.absent(src.includes('divide-outline-variant'), 'divider is not outline-variant (== the dark hover lift)')
-  t.ok(src.includes('divide-progress-track'), 'divider uses the hover-proof neutral token')
+  t.absent(/divide-/.test(src), 'rows are separated by spacing, not a divider')
 })
