@@ -29,6 +29,7 @@ const POKE_SCOPE = {
   'event:member-avatar-updated': (p) => (p.spaceId ? Scope.members(p.spaceId) : null),
   'event:member-join-request': (p) => (p.spaceId ? Scope.joinRequests(p.spaceId) : null),
   'event:join-requests-updated': (p) => (p.spaceId ? Scope.joinRequests(p.spaceId) : null),
+  'event:recipients-updated': (p) => (p.spaceId ? Scope.recipients(p.spaceId) : null),
   'event:foreign-folder-mount-status': (p) => (p.spaceId ? Scope.shares(p.spaceId) : null),
   'event:owned-folder-mount-status': (p) => (p.spaceId ? Scope.shares(p.spaceId) : null),
   'event:audit-updated': () => Scope.audit(),

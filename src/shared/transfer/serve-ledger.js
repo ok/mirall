@@ -6,15 +6,16 @@
 // (detailSubs), so no per-peer progress is pushed that nobody is looking at. It owns nothing the
 // backend needs, so it lives beside the backend rather than inside it.
 import { serveIndex } from './overlay/overlay-serve-index.js'
-import { recordResolved } from '../audit/audit-log.js'
 import { createSessionStore, sessionKey } from './serve-sessions.js'
-import { getConnectedMemberMeta } from '../network/swarm-registries.js'
-import { LOOSE_SHARE_ID } from './transfer-id.js'
+import { LOOSE_SHARE_ID, rendererPath } from './transfer-id.js'
 import { SHARE_WAIT_PER_OWNER } from './share-wait-set.js'
-import { getSpace } from '../spaces/space.js'
 import { Subsystem } from '../core/subsystem.js'
-import { TARGET_KIND } from '../contract/audit-kinds.js'
-import { peerActor, spaceRef, targetRef } from '../audit/audit-record.js'
+import { createLogger } from '../core/logger.js'
+import { peerMirrorsShare } from '../folders/mirror-records.js'
+import { getSpace } from '../spaces/space.js'
+import { noteFileRecipient } from './file-recipients.js'
+
+const log = createLogger('serve-ledger')
 
 let ipcRef = null
 let current = null
@@ -87,12 +88,6 @@ function removePeer(d, from) {
   return true
 }
 function pcKey(contentHash, from) { return contentHash + LEDGER_SEP + from }
-function rendererPath(shareId, relPath) { return shareId === LOOSE_SHARE_ID ? '/' + relPath : relPath }
-function baseName(relPath) {
-  if (typeof relPath !== 'string') return null
-  const i = relPath.lastIndexOf('/')
-  return i >= 0 ? relPath.slice(i + 1) : relPath
-}
 
 function emitBoth(key, force, now = Date.now()) {
   emitSummary(key, force, now)
@@ -114,33 +109,64 @@ function forEachServeEntry(contentHash, from, fn) {
   }
 }
 
-// One audit row per file served, not one per chunk or per reconnect. `from` is the requester's
-// profile key, already Noise-authenticated by the serve gate — that is what makes the row
-// attributable rather than a claim.
+// One session per (file, requester), folded across chunks and reconnects, so completion is judged
+// once per transfer. `from` is the requester's profile key, already Noise-authenticated by the serve
+// gate — that is what makes the recipient attributable rather than a claim.
 const serveSessions = createSessionStore()
 const SERVE_SESSION_MAX_IDLE_MS = 300000
+const MIRROR_CHECK_MS = 2000
+// Recipient notes still deciding whether the requester is a mirror, awaited by the close.
+const noting = new Set()
 
 function auditServeKey(contentHash, from) {
   return sessionKey(contentHash, from)
 }
 
-// Names are resolved at record time, not at serve start: they must be snapshotted into the row
-// (nothing is joined at render time), and the live handshake meta is the freshest source while
-// the peer is still connected — which it is, having just pulled the bytes.
-function recordServeSession(session) {
-  if (!session || session.bytes <= 0) return
-  const meta = session.meta || {}
-  recordResolved('serve.completed', async () => {
-    const space = await getSpace(meta.spaceId)
-    const live = getConnectedMemberMeta(meta.spaceId, meta.from)
-    const persisted = (space?.members || []).find((m) => m.publicKey === meta.from)
-    return {
-      actor: peerActor(meta.from ?? null, live?.displayName || persisted?.displayName || null),
-      space: spaceRef(meta.spaceId, space?.name ?? null),
-      target: targetRef(TARGET_KIND.FILE, meta.contentHash ?? null, meta.fileName ?? null),
-      subject: { bytes: session.bytes, total: session.total || null, durationMs: session.durationMs, path: meta.path ?? null },
-    }
-  }, { context: { space: meta.spaceId?.slice(0, 12) } })
+// The floor is the downloader's own cumulative figure, which already counts the bytes we served, so
+// it is never added to them: a session is complete when our bytes alone cover the file, or when the
+// downloader reports holding all of it. A partial or abandoned pull notes nobody.
+function isCompleteSession(session) {
+  return !!session && session.total > 0 && Math.max(session.bytes, session.floor || 0) >= session.total
+}
+
+function endIfComplete(key, session) {
+  if (isCompleteSession(session)) noteServedRecipient(serveSessions.end(key, { now: Date.now() }))
+}
+
+// The bytes name a file, not the row the requester asked for: one hash can be advertised in several
+// spaces or paths. Credit the one row the requester can reach, or nobody when that is still ambiguous.
+async function requestedRef(from, refs) {
+  if (refs.length === 1) return refs[0]
+  const reachable = []
+  for (const ref of refs) {
+    const space = await getSpace(ref.spaceId)
+    if (space?.members?.some((m) => m.publicKey === from)) reachable.push(ref)
+  }
+  return reachable.length === 1 ? reachable[0] : null
+}
+
+// Resolves whether the requester mirrors the share: true, false, or null when that is unknown. A
+// mirror's owner learns of its copy from the mirror record, once, so a mirror is never a recipient.
+function mirrorsShare(from, ref, closing) {
+  if (ref.shareId === LOOSE_SHARE_ID) return Promise.resolve(false)
+  // The peer read is not worth holding the shutdown for.
+  if (closing) return Promise.resolve(null)
+  return peerMirrorsShare(from, ref.spaceId, ref.shareId, MIRROR_CHECK_MS)
+}
+
+// The fallback for a downloader that never confirms its copy (share-received does). Anything it
+// cannot establish — which row, whether a mirror — notes nobody rather than guessing.
+function noteServedRecipient(session, { closing = false } = {}) {
+  if (!isCompleteSession(session)) return
+  const { from, contentHash, refs } = session.meta || {}
+  if (!from || !contentHash || !refs?.length) return
+  const size = session.total
+  const note = requestedRef(from, refs).then(async (ref) => {
+    if (!ref || (await mirrorsShare(from, ref, closing)) !== false) return
+    await noteFileRecipient({ spaceId: ref.spaceId, shareId: ref.shareId, relPath: ref.relPath, contentHash, personKey: from, size })
+  }).catch((err) => log.warn('served recipient not noted:', contentHash.slice(0, 12), '-', err.message))
+  noting.add(note)
+  note.finally(() => noting.delete(note))
 }
 
 export function onServeStart({ from, contentHash, total }) {
@@ -179,17 +205,10 @@ export function onServeStart({ from, contentHash, total }) {
   }
   // Resolve hash→keys once so the per-chunk path below never re-parses the serve index.
   hashKeys.set(contentHash, keys)
-  const first = refs[0]
   serveSessions.start(auditServeKey(contentHash, from), {
     now: Date.now(),
     total: total || 0,
-    meta: {
-      from,
-      contentHash,
-      spaceId: first.spaceId,
-      path: rendererPath(first.shareId, first.relPath),
-      fileName: baseName(first.relPath),
-    },
+    meta: { from, contentHash, refs: refs.map(({ spaceId, shareId, relPath }) => ({ spaceId, shareId, relPath })) },
   })
   // Apply a pause/stop that raced ahead of the serve-prep (it was stashed because
   // hashKeys wasn't populated yet).
@@ -239,6 +258,8 @@ export function onServeBaseline({ from, contentHash, have }) {
 }
 
 function applyBaseline(from, contentHash, have) {
+  const auditKey = auditServeKey(contentHash, from)
+  endIfComplete(auditKey, serveSessions.raiseFloor(auditKey, have))
   forEachServeEntry(contentHash, from, (entry, key, now) => {
     const capped = entry.total > 0 ? Math.min(have, entry.total) : have
     if (capped <= entry.bytes) return
@@ -272,22 +293,19 @@ export function onChunkServed({ from, contentHash, bytes }) {
     emitBoth(key, false, now)
   })
   // Tracked separately from the per-row entries above: those are cleared the moment a row
-  // completes, while the audit session must survive until the transfer is genuinely over.
+  // completes, while the session must survive until the transfer is genuinely over.
   //
   // Completion has to be detected HERE. The protocol emits onServeEnd only on channel close or
   // grant revocation — never on a successful transfer — and the idle sweep stops being scheduled
   // once the last live row is dropped, so neither the end callback nor the reaper would ever
-  // close a completed serve. Without this the owner records nothing when a peer downloads a file.
+  // close a completed serve.
   const auditKey = auditServeKey(contentHash, from)
-  const session = serveSessions.advance(auditKey, { now: Date.now(), delta: bytes })
-  if (session && session.total > 0 && session.bytes >= session.total) {
-    recordServeSession(serveSessions.end(auditKey, { now: Date.now() }))
-  }
+  endIfComplete(auditKey, serveSessions.advance(auditKey, { now: Date.now(), delta: bytes }))
 }
 
 export function onServeEnd({ from, contentHash }) {
   if (!from) return
-  recordServeSession(serveSessions.end(auditServeKey(contentHash, from), { now: Date.now() }))
+  noteServedRecipient(serveSessions.end(auditServeKey(contentHash, from), { now: Date.now() }))
   pendingControls.delete(pcKey(contentHash, from))
   pendingBaselines.delete(pcKey(contentHash, from))
   const keys = hashKeys.get(contentHash)
@@ -503,9 +521,8 @@ function runIdleSweep(now = Date.now()) {
     }
   }
   for (const [key, from] of stale) dropPeer(key, from)
-  // A peer that vanished without an end frame would otherwise pin its session forever; reaping
-  // still records what was actually served rather than discarding it.
-  for (const session of serveSessions.reap(now, SERVE_SESSION_MAX_IDLE_MS)) recordServeSession(session)
+  // A peer that vanished without an end frame would otherwise pin its session forever.
+  for (const session of serveSessions.reap(now, SERVE_SESSION_MAX_IDLE_MS)) noteServedRecipient(session)
   // Re-announce every still-live row (active AND paused): the renderer's soft-state TTL only
   // survives if summaries re-arrive without chunk traffic — a paused downloader otherwise
   // emits exactly one frame and is erased at the renderer TTL while this ledger keeps it for
@@ -556,11 +573,12 @@ export class ServeLedger extends Subsystem {
   }
 
   // Runs after the overlay teardown, which is what emits the serve-end events in the first place.
-  // End the sessions still open (a peer that never closed cleanly served real bytes too). The rows
-  // those produce are drained by the audit log's own close, which the boot root's start order runs
-  // next, while the spaces bee is still open.
+  // End the sessions still open: one that covered its file still notes its recipient. The notes
+  // are handed to the file recipients before this resolves, and their own close, which the boot
+  // root's start order runs next, drains the writes.
   async _close() {
-    for (const session of serveSessions.reap(Date.now(), 0)) recordServeSession(session)
+    for (const session of serveSessions.reap(Date.now(), 0)) noteServedRecipient(session, { closing: true })
+    await Promise.allSettled([...noting])
     resetServeLedger()
     ipcRef = null
     current = null

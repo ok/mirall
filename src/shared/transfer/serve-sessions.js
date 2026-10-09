@@ -46,6 +46,13 @@ export function createSessionStore({ joinWindowMs = DEFAULT_JOIN_WINDOW_MS } = {
     return session
   }
 
+  // What the requester already held when it resumed, by its own report: the bytes it will not ask for.
+  function raiseFloor(key, have) {
+    const session = open.get(key)
+    if (session && Number.isFinite(have) && have > (session.floor || 0)) session.floor = have
+    return session ?? null
+  }
+
   // Returns the finished session, or null when there was nothing open — callers must tolerate
   // an end without a start (a serve can be torn down before it ever produced bytes).
   function end(key, { now, bytes = null }) {
@@ -74,7 +81,7 @@ export function createSessionStore({ joinWindowMs = DEFAULT_JOIN_WINDOW_MS } = {
 
   function clear() { open.clear() }
 
-  return { start, progress, advance, end, reap, clear, size: () => open.size, has: (key) => open.has(key) }
+  return { start, progress, advance, raiseFloor, end, reap, clear, size: () => open.size, has: (key) => open.has(key) }
 }
 
 export function sessionKey(...parts) {

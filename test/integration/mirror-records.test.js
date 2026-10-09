@@ -5,6 +5,7 @@ import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { createBee } from '../../src/shared/core/store.js'
 import {
   publishMirror, ensureMirror, setMirrorState, tombstoneMirror, readOwnMirrors, readOwnMirror, readPeerMirrors, readPeerMirror,
+  peerMirrorsShare,
 } from '../../src/shared/folders/mirror-records.js'
 
 async function peerBee(name, records = [], { cap = true } = {}) {
@@ -99,6 +100,18 @@ test('readPeerMirrors / readPeerMirror are cap-gated: a bee without caps/folder-
   t.is(recs.length, 1, 'capped bee yields its records')
   t.is(recs[0].state, 'paused')
   t.is((await readPeerMirror(withCapKey, spaceId, 's1')).state, 'paused', 'point read returns the one share')
+})
+
+test('peerMirrorsShare tells a firm no apart from unknown', async (t) => {
+  await freshPeer(t)
+  const { spaceId } = await createSpace('Aurora')
+  const rec = { spaceId, state: 'synced', mountedAt: Date.now(), ts: Date.now() }
+  const key = await peerBee('peer-point', [{ ...rec, shareId: 'live' }, { ...rec, shareId: 'dead', unmirroredAt: Date.now() }])
+  t.is(await peerMirrorsShare(key, spaceId, 'live'), true)
+  t.is(await peerMirrorsShare(key, spaceId, 'dead'), false, 'a tombstone is not a mirror')
+  t.is(await peerMirrorsShare(key, spaceId, 'other'), false, 'no record is a firm no')
+  const noCapKey = await peerBee('peer-point-nocap', [{ ...rec, shareId: 'live' }], { cap: false })
+  t.is(await peerMirrorsShare(noCapKey, spaceId, 'live'), null, 'without the cap it is unknown')
 })
 
 test('readPeerMirrors / readPeerMirror exclude tombstoned records', async (t) => {

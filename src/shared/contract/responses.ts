@@ -117,6 +117,7 @@ export interface MirrorParticipant {
   shareId: string
   state: (typeof MIRROR_STATES)[number]
   mountedAt: number
+  updatedAt: number | null
 }
 
 type ShareType = 'owned-folder'
@@ -272,6 +273,9 @@ export interface AuditEntry {
   search: string
 }
 
+// The `event:activity` push: a notifiable row as it is recorded, without its place in the log.
+export type ActivityEvent = Pick<AuditEntry, 'kind' | 'ts' | 'actor' | 'space' | 'target' | 'subject'>
+
 export interface AuditPage {
   entries: AuditEntry[]
   nextCursor: number | null
@@ -374,6 +378,17 @@ export interface ServeSummary {
   pausedKeys: PersonKey[]
   // Members waiting on the file while we are still hashing it. Never in `peers`, never in the sums.
   waitingKeys: PersonKey[]
+}
+
+// A member confirmed to hold a verified copy of one of our files: the latest version they reported,
+// so a row whose hash differs from the file's current one is an earlier version. `path` is the path
+// the file's row is keyed by: '/'-rooted for a loose file, the share-relative path in a folder.
+export interface FileRecipient {
+  shareId: string
+  path: string
+  personKey: PersonKey
+  contentHash: string
+  ts: number
 }
 
 export interface ServeDetailPeer { personKey: PersonKey, bytes: number, total: number, paused: boolean, waiting: boolean }
@@ -620,6 +635,7 @@ interface Responses {
   // Not nullable, unlike profile:get: the handler re-reads what it has just written, so by the
   // time this answers there is a profile.
   'profile:set': Profile
+  'recipients:list': FileRecipient[]
   'serving:detail-subscribe': ServeDetailSnapshot
   'serving:detail-unsubscribe': Ack
   'serving:summary-list': ServeSummary[]

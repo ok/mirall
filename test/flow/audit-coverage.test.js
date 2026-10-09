@@ -33,6 +33,7 @@ const EXPECTED_KINDS = {
     'peer.share_created',
     'peer.share_deleted',
     'mirror.peer_mirrored',
+    'mirror.peer_synced',
     'mirror.peer_unmirrored',
     'member.left',
   ],
@@ -176,6 +177,8 @@ test('one realistic session produces every expected kind, and nothing else', { t
 
   await B.request('foreign-folder:mount', { spaceId, shareId: aShare.id, ownerKey: aKey, mountPath: mkTmpDir(t) })
   await A.until('audit:list', { limit: 200 }, (p) => kindsOf(p.entries).has('mirror.peer_mirrored'))
+  // The mirror's first complete copy, before the unmount: one file, so it lands within the wait.
+  await A.until('audit:list', { limit: 200 }, (p) => kindsOf(p.entries).has('mirror.peer_synced'))
   await B.request('foreign-folder:unmount', { spaceId, shareId: aShare.id })
   await A.until('audit:list', { limit: 200 }, (p) => kindsOf(p.entries).has('mirror.peer_unmirrored'))
 

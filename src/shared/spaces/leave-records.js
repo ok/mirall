@@ -10,6 +10,7 @@ import { getStore } from '../core/store.js'
 import { prefixRange } from '../core/bee-keys.js'
 import { createLogger } from '../core/logger.js'
 import { spacesMeta, mutateSpace, deleteSpaceRecord } from './space.js'
+import { clearFileRecipients } from '../transfer/file-recipients.js'
 
 const log = createLogger('leave-records')
 
@@ -104,6 +105,7 @@ export function markSpaceLeavingDurable(spaceId) {
 // the list.
 export async function forgetSpaceRecord(spaceId) {
   await clearAllLeftTombstones(spaceId)
+  await clearFileRecipients(spaceId)
   await deleteSpaceRecord(spaceId)
 }
 

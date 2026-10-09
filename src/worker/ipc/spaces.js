@@ -56,7 +56,7 @@ export function registerSpaces(ipc, { log, publishDownloadRoots }) {
     const mirrors = msg.shareId
       ? await listMirrorsForShare(msg.spaceId, msg.shareId)
       : await listMirrorsForSpace(msg.spaceId)
-    return mirrors.map((m) => ({ mirrorer: m.mirrorer, shareId: m.shareId, state: m.state, mountedAt: m.mountedAt }))
+    return mirrors.map((m) => ({ mirrorer: m.mirrorer, shareId: m.shareId, state: m.state, mountedAt: m.mountedAt, updatedAt: Number.isFinite(m.ts) ? m.ts : null }))
   })
   ipc.handle('space:create', async (msg) => {
     assertProfileWritable()

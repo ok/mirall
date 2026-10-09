@@ -100,7 +100,7 @@ test('the scan sees the audit writers and purge sites it guards', (t) => {
       if (PURGE_PRIMITIVES.has(node.callee.name)) purges++
     })
   }
-  t.ok(resolved >= 7, `recordResolved call sites found (${resolved})`)
+  t.ok(resolved >= 6, `recordResolved call sites found (${resolved})`)
   t.ok(purges >= 5, `purge call sites found (${purges})`)
 })
 

@@ -215,6 +215,10 @@ test('REGRESSION (FIX-3): the owner records a peer downloading their file', { ti
   t.is(served.target.name, 'movie.bin')
   t.is(served.subject.bytes, bytes.length, 'the full transfer size is recorded')
   t.is(served.tier, 'B')
+  t.is((await rows(A)).filter((e) => e.kind === 'serve.completed').length, 1, 'one download is one row, however it was confirmed')
+
+  const recipients = await A.request('recipients:list', { spaceId })
+  t.alike(recipients.map((r) => [r.path, r.personKey]), [['/movie.bin', bKey]], 'the owner knows who holds the file')
 
   // The other side of the same transfer, on the downloader. Recording is fire-and-forget
   // through the write chain, so wait for the row the same way A's side does — without this

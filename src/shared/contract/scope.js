@@ -8,6 +8,7 @@
  *   | { kind: 'members', spaceId: string }
  *   | { kind: 'mirrors', spaceId: string, shareId?: string }
  *   | { kind: 'join-requests', spaceId: string }
+ *   | { kind: 'recipients', spaceId: string }
  *   | { kind: 'audit' }
  *   | { kind: 'storage' }
  *   | { kind: 'restore' }} Scope
@@ -28,6 +29,8 @@ export const Scope = {
   mirrors: (spaceId, shareId) => ({ kind: 'mirrors', spaceId, shareId }),
   /** @param {string} spaceId @returns {Scope} */
   joinRequests: (spaceId) => ({ kind: 'join-requests', spaceId }),
+  /** @param {string} spaceId @returns {Scope} */
+  recipients: (spaceId) => ({ kind: 'recipients', spaceId }),
   // Not space-scoped: the viewer's default listing is cross-space, and its space filter
   // re-derives from the same refetch.
   /** @returns {Scope} */

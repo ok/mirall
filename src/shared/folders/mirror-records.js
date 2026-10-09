@@ -118,6 +118,16 @@ export async function readPeerMirror(profileKeyHex, spaceId, shareId, timeoutMs 
   }
 }
 
+// Whether a peer mirrors one share, or null when that is unknown — its bee unread in time, or the
+// cap not replicated yet. Unlike readPeerMirror, "no record" is a firm false here.
+export function peerMirrorsShare(profileKeyHex, spaceId, shareId, timeoutMs = peerReadTimeoutMs()) {
+  return withPeerBee(profileKeyHex, async (bee) => {
+    if (!(await bee.get(MIRRORS_CAP))?.value) return null
+    const entry = await bee.get(keyFor(spaceId, shareId))
+    return !!entry?.value && !entry.value.unmirroredAt
+  }, { timeoutMs, fallback: null })
+}
+
 // Cap-gated bounded read. withPeerBee owns the open, the head sync and the close.
 function withPeerMirrorBee(profileKeyHex, fn, opts) {
   return withPeerBee(profileKeyHex, async (bee) => {

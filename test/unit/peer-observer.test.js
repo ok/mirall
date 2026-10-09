@@ -8,7 +8,7 @@ const LOOSE = '__loose__'
 
 test('a share record is classified with its space and share ids', (t) => {
   t.alike(classifyProfileChange({ type: 'put', key: 'share/sp1/sh1', value: { name: 'Designs' } }),
-    { kind: 'share', spaceId: 'sp1', shareId: 'sh1', removed: false, name: 'Designs' })
+    { kind: 'share', spaceId: 'sp1', shareId: 'sh1', removed: false, name: 'Designs', state: null })
 })
 
 test('a tombstoned share reads as removed, whether by del or deletedAt', (t) => {

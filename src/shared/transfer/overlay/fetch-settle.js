@@ -20,6 +20,8 @@ import { clearPending, updatePendingProgress } from '../pending-transfers.js'
 import { progressPersistDue } from '../progress-persist.js'
 import { recordTransferOutcome } from '../../audit/transfer-audit.js'
 import { memberWaits } from '../../network/share-wait.js'
+import { announceShareReceived } from '../../network/share-received.js'
+import { LOOSE_SHARE_ID } from '../transfer-id.js'
 import { SHARE_WAIT_SOURCE } from '../share-wait-set.js'
 
 export function createFetchSettle({
@@ -195,6 +197,14 @@ export function createFetchSettle({
     }
     channel.emitUpdated(job.spaceId)
     recordTransferOutcome(job, 'ok', null)
+    if (job.ownerKey) {
+      announceShareReceived(job.ownerKey, {
+        spaceId: job.spaceId,
+        shareId: job.shareId ?? LOOSE_SHARE_ID,
+        relPath: job.relPath,
+        contentHash: job.contentHash,
+      })
+    }
     channel.emitComplete(job, job.finalPath)
   }
 

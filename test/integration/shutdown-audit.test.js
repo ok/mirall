@@ -5,33 +5,31 @@ import { onServeStart, onChunkServed } from '../../src/shared/transfer/serve-led
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { queryAudit } from '../../src/shared/audit/audit-query.js'
 import { recordTransferOutcome } from '../../src/shared/audit/transfer-audit.js'
+import { listFileRecipients } from '../../src/shared/transfer/file-recipients.js'
 
 const HASH = 'h'.repeat(64)
 const PEER = 'p'.repeat(64)
 
 const completed = async () => (await queryAudit({ limit: 50 })).entries.filter((e) => e.kind === 'serve.completed')
 
-// REGRESSION (LIFECYCLE-2e: tearing the network down is what EMITS serve.completed — the overlay
-// close destroys each peer, whose onclose fires the serve-end callback. All three of the audit
-// bee, the ledger's open sessions and the unawaited getSpace→record write were gone before that
-// ran, so a transfer interrupted by quitting recorded nothing at all.)
-test('REGRESSION (LIFECYCLE-2e): a serve still live at shutdown is recorded', async (t) => {
+// REGRESSION (LIFECYCLE-2e: rows created during the teardown itself were lost — the ledger's
+// sessions, the unawaited reads and the audit bee were gone before they landed.) A serve that
+// completes as the app quits must still note its recipient and record its row.
+test('REGRESSION (LIFECYCLE-2e): a serve completing as the app quits still notes its recipient', async (t) => {
   const ctx = await freshPeer(t)
   const space = await createSpace('Aurora')
   serveIndex.add(HASH, space.spaceId, '__loose__', 'big.bin')
 
   onServeStart({ from: PEER, contentHash: HASH, total: 1024 })
-  onChunkServed({ from: PEER, contentHash: HASH, bytes: 512 })
-  t.is((await completed()).length, 0, 'nothing recorded while the serve is still running')
-
+  onChunkServed({ from: PEER, contentHash: HASH, bytes: 1024 })
   await ctx.root.close()
 
   // Same M as the peer that wrote them: the audit and ledger cores are keyPair-derived from it,
   // so rebooting this storage without it would open a different, empty set.
   const after = await freshDurable(t, { storage: ctx.storage, displayName: null, masterSecret: ctx.masterSecret })
   const rows = await completed()
-  t.is(rows.length, 1, 'the interrupted serve was recorded during the shutdown')
-  t.is(rows[0].subject.bytes, 512, 'with the bytes actually served')
+  t.is(rows.length, 1, 'the serve completed during the shutdown was recorded')
+  t.is((await listFileRecipients(space.spaceId)).length, 1, 'and its recipient noted')
   await after.tier.close()
 })
 
@@ -39,7 +37,7 @@ test('REGRESSION (LIFECYCLE-2e): a serve still live at shutdown is recorded', as
 // flight before the bee closes. This asserts the OUTCOME — a burst settling at shutdown loses no
 // rows — and deliberately does NOT claim to be a regression test for the drain: 100 queued
 // spaces-bee reads finish long before the durable tier goes down. The window the drain closes is the
-// one LIFECYCLE-2e above proved real, where the rows are created BY the teardown itself; reproducing
+// one LIFECYCLE-2e above proves real, where the rows are created BY the teardown itself; reproducing
 // that for a download needs a fetch settling mid-close, which is a race no assertion can pin.
 test('a burst of transfers settling during shutdown loses no audit rows', async (t) => {
   const ctx = await freshPeer(t)

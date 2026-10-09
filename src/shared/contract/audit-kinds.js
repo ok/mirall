@@ -62,6 +62,8 @@ export const KINDS = Object.freeze({
   'peer.share_deleted': { category: CATEGORY.FOLDERS, tier: 'C' },
   'mirror.peer_mirrored': { category: CATEGORY.FOLDERS, tier: 'C' },
   'mirror.peer_unmirrored': { category: CATEGORY.FOLDERS, tier: 'C' },
+  // A mirror of OUR folder reaching a complete copy — one row per mirror, never one per file.
+  'mirror.peer_synced': { category: CATEGORY.FOLDERS, tier: 'C' },
   'security.serve_denied': { category: CATEGORY.SECURITY, tier: 'B' },
   'security.integrity_failure': { category: CATEGORY.SECURITY, tier: 'A' },
   'security.creator_divergence': { category: CATEGORY.SECURITY, tier: 'B' },
@@ -157,3 +159,16 @@ export function categoryOf(kind) {
 export function tierOf(kind) {
   return KINDS[kind].tier
 }
+
+// The kinds pushed to the renderer as `event:activity` the moment they are recorded, which is what
+// desktop notifications are raised from. Pushed even while recording is switched off: the log is a
+// history the user can disable, notifications are a separate preference.
+export const NOTIFIABLE_KIND = Object.freeze({
+  PEER_FILE_SHARED: 'peer.file_shared',
+  PEER_SHARE_CREATED: 'peer.share_created',
+  SERVE_COMPLETED: 'serve.completed',
+  MIRROR_PEER_SYNCED: 'mirror.peer_synced',
+  PEER_LOST: 'network.peer_lost',
+  PEER_BACK: 'network.peer_back',
+})
+export const NOTIFIABLE_KINDS = Object.freeze(Object.values(NOTIFIABLE_KIND))

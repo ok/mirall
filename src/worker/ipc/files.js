@@ -21,6 +21,7 @@ import { looseCancelPublish, handleLooseFsEvent } from '../../shared/transfer/ov
 import { folderPause, folderCancel } from '../../shared/transfer/overlay/folder-downloads.js'
 import { isLooseTransferId, transferIdParts } from '../../shared/transfer/transfer-id.js'
 import { subscribeServeDetail, unsubscribeServeDetail, dropServeDetailClient, listServeSummaries } from '../../shared/transfer/serve-ledger.js'
+import { listFileRecipients } from '../../shared/transfer/file-recipients.js'
 import { rescueStalledTransfers } from '../../shared/network/convergence-tick.js'
 import { record } from '../../shared/audit/audit-log.js'
 import { selfActor, targetRef } from '../../shared/audit/audit-record.js'
@@ -52,6 +53,8 @@ export function registerFiles(ipc, { log }) {
   // Registered here rather than in the ledger's own open(): the ledger takes a bare { emit } in two
   // integration files, and the handler layer is where the real router always is.
   ipc.onClientDisconnect((client) => dropServeDetailClient(client.id))
+
+  ipc.handle('recipients:list', async (msg) => (isSpaceLeaving(msg.spaceId) ? [] : listFileRecipients(msg.spaceId)))
 
   ipc.handle('files:list', async (msg) => {
     if (isSpaceLeaving(msg.spaceId)) return [] // teardown is purging the catalog — don't race it

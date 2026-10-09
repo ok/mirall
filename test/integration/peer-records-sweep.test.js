@@ -39,12 +39,12 @@ async function pendingChange(t) {
 
 // A space of ours holding a share of ours, and a baselined peer profile bee.
 async function mirroredShare(t) {
-  await freshPeer(t)
+  const ctx = await freshPeer(t)
   const { spaceId } = await createSpace('Mirrored')
   await publishShare(spaceId, { id: 'mine', name: 'Designs' })
   const bee = await peerBee(t, 'peer-mirror-fixture')
   await observePeerProfile(PEER, bee)
-  return { spaceId, bee, watermark: await getSeenVersion(BEE_ID) }
+  return { ctx, spaceId, bee, watermark: await getSeenVersion(BEE_ID) }
 }
 
 // Fails only the read of our own shares in one space, the one the mirror gate makes; every other
@@ -250,4 +250,40 @@ test('REGRESSION (FIX-445: a held row of a quiet peer was never retried)', async
   lift()
   t.ok(await until(async () => (await rowsOf('mirror.peer_mirrored')).length === 1, 5000), 'the retry fires on its own')
   t.is(await getSeenVersion(BEE_ID), bee.version, 'and advances the watermark')
+})
+
+test("a mirror of our folder reports its first complete copy once, and again only after an unmirror", async (t) => {
+  const { spaceId, bee } = await mirroredShare(t)
+  const key = `mirror/${spaceId}/mine`
+  const put = async (value) => {
+    await bee.put(key, { shareId: 'mine', mountedAt: 1, ...value })
+    await observePeerProfile(PEER, bee)
+    await flushAudit()
+  }
+
+  await put({ state: 'syncing' })
+  t.is((await rowsOf('mirror.peer_synced')).length, 0, 'a copy still syncing is not complete')
+  await put({ state: 'synced' })
+  t.is((await rowsOf('mirror.peer_synced')).length, 1)
+  await put({ state: 'syncing' })
+  await put({ state: 'synced' })
+  t.is((await rowsOf('mirror.peer_synced')).length, 1, 'catching up with a later change is routine')
+
+  await put({ state: 'synced', unmirroredAt: 2 })
+  await put({ state: 'synced' })
+  t.is((await rowsOf('mirror.peer_synced')).length, 2, 'a fresh mirror reports its first copy again')
+})
+
+// REGRESSION (NOTIFY-1: the subject's state was committed only when the log admitted the row, so a
+// row over its rate budget was notified again on every later re-put of the same record.)
+test('REGRESSION (NOTIFY-1): a rate-limited mirror copy is notified once', async (t) => {
+  const { ctx, spaceId, bee } = await mirroredShare(t)
+  for (let i = 0; i < 120; i++) record('mirror.peer_synced', {})
+  const pushed = () => ctx.fake.emitted('event:activity').filter((e) => e.payload.kind === 'mirror.peer_synced').length
+  const before = pushed()
+  for (const state of ['synced', 'syncing', 'synced']) {
+    await bee.put(`mirror/${spaceId}/mine`, { shareId: 'mine', mountedAt: 1, state })
+    await observePeerProfile(PEER, bee)
+  }
+  t.is(pushed() - before, 1, 'the log refused the row, and the notification still went out once')
 })

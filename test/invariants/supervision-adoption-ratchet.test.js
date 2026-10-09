@@ -59,7 +59,8 @@ const UNSUPERVISED = {
 // durable tier is the decision that exempts it, and moving one between tiers should break this.
 const DURABLE = [
   'Store', 'SpaceKeysVault', 'ProfileBee', 'SpacesBee', 'DownloadsBee', 'PendingTransfersBee',
-  'MountsBee', 'IntentsBee', 'AuditLog', 'ServeLedger', 'OwnCatalogs', 'PeerCatalogs',
+  'MountsBee', 'IntentsBee', 'AuditLog', 'ActivityFeed', 'FileRecipients', 'ServeLedger', 'OwnCatalogs',
+  'PeerCatalogs',
 ]
 
 test('every subsystem listed as supervised declares units and can recover one', (t) => {

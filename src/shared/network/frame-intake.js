@@ -15,6 +15,7 @@ import { handleLeaveFrame, handleLeaveAckFrame, handleMembershipCancelAck, sendP
 import { sendSingleHandshake } from './identity-frames.js'
 import { frameSpace, noteLegacyTopic, rememberUnheldTopic, noteSpaceProven } from './topic-refs.js'
 import { handleShareWaitFrame } from './share-wait.js'
+import { handleShareReceivedFrame } from './share-received.js'
 import { spaceTopics, boundSignerKeys, parkPendingRequester } from './swarm-registries.js'
 import { handleHandshake } from './handshake-apply.js'
 
@@ -229,6 +230,7 @@ const PEER_FRAME_HANDLERS = Object.freeze({
   [PEER_FRAME.SHARE_INDEX_PROGRESS]: ({ socket }, msg) => handleShareIndexProgressFrame(socket, msg),
   [PEER_FRAME.SHARE_PREPARE_PROGRESS]: ({ socket }, msg) => handleSharePrepareProgressFrame(socket, msg),
   [PEER_FRAME.SHARE_WAIT]: ({ socket }, msg) => handleShareWaitFrame(socket, msg),
+  [PEER_FRAME.SHARE_RECEIVED]: ({ socket }, msg) => handleShareReceivedFrame(socket, msg),
   // Answered in answerSpaceNamed, which sees every frame that names a space.
   [PEER_FRAME.SPACE_REF]: () => {},
   ...Object.fromEntries(MEMBERSHIP_CONTROL_FRAMES.map((type) => [type, toMembershipControl])),

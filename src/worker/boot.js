@@ -32,6 +32,7 @@ import { DownloadsBee, cleanupDownloadHistory } from '../shared/transfer/files.j
 import { PendingTransfersBee, clearPendingForSpace, forgetStaleFailures } from '../shared/transfer/pending-transfers.js'
 import { abortInFlightPublishes } from '../shared/transfer/overlay/overlay-publish.js'
 import { ServeLedger } from '../shared/transfer/serve-ledger.js'
+import { FileRecipients } from '../shared/transfer/file-recipients.js'
 import { sweepOrphanedJournals } from '../shared/transfer/overlay/overlay-journals.js'
 import { cleanupOrphanedPartials } from '../shared/transfer/partial-sweep.js'
 import { Swarm } from '../shared/network/swarm.js'
@@ -61,7 +62,7 @@ import { PublishService } from '../shared/folders/publish-service.js'
 import { ForeignMirrors } from '../shared/folders/foreign-folders.js'
 import { EchoGuardPurge } from '../shared/folders/echo-guard.js'
 import { cleanupOrphanedData } from '../shared/storage/storage.js'
-import { AuditLog } from '../shared/audit/audit-runtime.js'
+import { AuditLog, ActivityFeed } from '../shared/audit/audit-runtime.js'
 import { OwnCatalogs } from '../shared/shares/own-catalog.js'
 import { PeerCatalogs } from '../shared/shares/peer-catalog.js'
 import { PeerWatch } from '../shared/audit/peer-records-watch.js'
@@ -115,12 +116,16 @@ export async function bootDurable(bootstrap, { ipc, log, masterSecret = undefine
     log.warn('install id unavailable:', err.message)
     return null
   })
-  const auditLog = new AuditLog('audit', { ipc, installId, peerDwellMs: getPeerPresenceDwellMs(), relayDwellMs: getRelayAuditDwellMs() })
+  const auditLog = new AuditLog('audit', { installId })
   try { await durable.start(auditLog) } catch (err) {
     log.warn('audit log unavailable — events will not be recorded:', err.message)
   }
-  // After the audit log, so on the way out it closes first: the rows its close reaps are drained by
-  // the audit log's own close, while the spaces bee those rows read is still open.
+  // Started whether or not the log did, so its notifications do not hang on the log's bee.
+  await durable.start(new ActivityFeed('activity', { ipc, peerDwellMs: getPeerPresenceDwellMs(), relayDwellMs: getRelayAuditDwellMs() }))
+  // After the log and the feed, and the ledger after the recipients, so on the way out each closes
+  // before the one it writes into: the sessions the ledger's close reaps land as recipients, whose
+  // close drains them into the audit log and the feed while the spaces bee is still open.
+  await durable.start(new FileRecipients('file-recipients', { ipc }))
   await durable.start(new ServeLedger('serve-ledger', { ipc }))
   await durable.start(new OwnCatalogs('own-catalogs'))
   await durable.start(new PeerCatalogs('peer-catalogs'))
