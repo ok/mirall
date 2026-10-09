@@ -794,8 +794,12 @@ Once a member holds the current version of a file we own, the resting row carrie
 anatomy as the waiting indicator, beside the status pill: up to three of the latest recipients as an
 `sm` avatar stack (`announce="group"`, named "Recently received by: <names>") with **no `+N` chip**,
 and a `text-[11px]` toggle reading "15 of 19 have it" — counted against the space's admitted members
-other than the owner (`model/file-recipients.js`). Nobody yet shows nothing, so a fresh share looks
-as it always did. Everyone shows "All 19 have it" behind a `check_circle` in `text-on-success`,
+other than the owner (`model/file-recipients.js`). In a folder, a member who mirrors it is counted by
+the mirror alone (`withMirrors`): they have every file, at the mirror's last update, in any sync
+state — the record is one state for the whole folder, so a syncing or paused mirror still holds what
+it fetched, and a file it is fetching shows as a live download. Their one-by-one downloads count
+again once they stop mirroring.
+Nobody yet shows nothing, so a fresh share looks as it always did. Everyone shows "All 19 have it" behind a `check_circle` in `text-on-success`,
 without faces; with one other member it names them ("Bob has it"). The row sheds so the name keeps
 its width: the faces show only from 680px, the sentence gives way to "15/19" under 560px, and under
 520px the pill steps aside as it does beside a progress lane. The visible text never wraps; the
