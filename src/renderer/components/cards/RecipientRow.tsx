@@ -12,30 +12,31 @@ interface RecipientRowProps {
   earlier?: boolean
 }
 
-// One settled member in the expanded "who has it" list, at PeerDownloadRow's height and anatomy: the
-// state reads as one sentence to assistive tech, since there is no progress left to announce.
+// One settled member in the expanded "who has it" list, as a pill; its group's icon says whether they
+// hold the current version. The state reads as one sentence to assistive tech, since there is no
+// progress left to announce. The pill's fill stands off the card at rest and under its hover lift:
+// light has no one token that clears both, so it turns white while the card is lifted.
 export default function RecipientRow({ member, receivedAt, earlier }: RecipientRowProps) {
   const { t } = useTranslation()
   const name = member.displayName || t('member.unknown')
   const online = member.online !== false
   const when = receivedAt !== undefined ? formatWhen(receivedAt) : null
-  const meta = when ?? (earlier ? t('file.recipientEarlier') : t(online ? 'member.online' : 'member.offline'))
   const sentence = when
     ? t('file.recipientHasIt', { name, when })
     : earlier ? t('file.recipientEarlierSr', { name }) : t(online ? 'file.recipientMissingOnline' : 'file.recipientMissingOffline', { name })
 
   return (
-    <li className="h-12 flex items-center gap-3 px-1">
+    <li title={sentence} className="max-w-full h-7 inline-flex items-center gap-1.5 pl-1 pr-2.5 rounded-full bg-surface-container-high group-hover:bg-surface-container-lowest dark:group-hover:bg-surface-container-high transition-colors">
       <span className="sr-only">{sentence}</span>
-      <span aria-hidden="true" className={`min-w-0 ml-auto text-sm font-bold truncate ${online ? 'text-accent' : 'text-outline'}`}>{name}</span>
       <span aria-hidden="true" className="relative shrink-0">
-        <Avatar src={member.avatar} displayName={name} size="sm" />
-        <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-surface-container-lowest ${online ? 'bg-online' : 'bg-offline'}`} />
+        <Avatar src={member.avatar} displayName={name} size="xs" />
+        <span className={`absolute -bottom-px -right-px w-2 h-2 rounded-full border-[1.5px] border-surface-container-high group-hover:border-surface-container-lowest dark:group-hover:border-surface-container-high transition-colors ${online ? 'bg-online' : 'bg-offline'}`} />
       </span>
-      <span aria-hidden="true" className="w-1/2 shrink-0 flex items-center justify-end gap-1.5 text-[11px] leading-none text-on-surface-variant">
-        {when && <Icon name="check_circle" size={14} className="text-on-success shrink-0" />}
-        <span className="truncate">{meta}</span>
-      </span>
+      <span aria-hidden="true" className="min-w-0 text-xs font-semibold text-on-surface-variant truncate">{name}</span>
+      {when && (
+        <span aria-hidden="true" className="shrink-0 text-[11px] leading-none text-on-surface-variant tabular-nums">{when}</span>
+      )}
+      {earlier && !when && <Icon name="history" size={13} className="text-on-surface-variant shrink-0" />}
     </li>
   )
 }

@@ -348,7 +348,6 @@
     "groupDownloading": "Descargando",
     "groupHaveIt": "Lo tienen",
     "groupNotYet": "Todavía no",
-    "recipientEarlier": "Tiene una versión anterior",
     "recipientEarlierSr": "{{name}} tiene una versión anterior",
     "recipientHasIt": "{{name}} lo tiene, recibido {{when}}",
     "recipientMissingOnline": "{{name}} todavía no lo tiene, en línea",

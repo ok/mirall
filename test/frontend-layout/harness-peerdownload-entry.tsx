@@ -5,8 +5,9 @@
 //   - tokens shed lowest-priority first: the count word shows only on a wide (FolderScreen) lane,
 //     ETA sheds next, speed is always kept;
 //   - aria-valuetext still carries count · speed · ETA even where the visible line is compacted;
-//   - the per-peer row puts the name on the left and right-aligns the avatar + bar at ~half width,
-//     the name yields under pressure while speed · ETA stays whole, and a warmup row shows a "%".
+//   - the per-peer pill reads avatar, name, a fixed-width bar and the percentage; in a narrow list
+//     the name yields while the bar and the percentage stay whole, the pill never overflows, and
+//     aria-valuetext keeps the speed · ETA the pill leaves out.
 import './harness-bootstrap.js'
 import { createRoot } from 'react-dom/client'
 import i18n from '../../src/renderer/platform/i18n.js'
@@ -39,8 +40,8 @@ interface HarnessResults {
   rowLiveValueText: string
   rowLiveNameClipped: boolean
   rowLiveMetaClipped: boolean
-  rowLiveBarRatio: number
-  rowLiveBarRightGap: number
+  rowLiveBarWidth: number
+  rowLiveOverflow: number
   rowLiveNameAvatarGap: number
   rowWarmText: string
   rowOffText: string
@@ -55,8 +56,8 @@ declare global {
 // Decimal MB so the rendered labels stay clean under formatSize's 1000-based scaling
 // (5 MB/s, 50/100 MB) — the harness models a 5 MB/s stream, not 5 MiB/s.
 const MB = 1000 * 1000
-// A long name so the per-peer row is genuinely under width pressure: the name must
-// truncate while the speed · ETA stays whole.
+// A long name so the per-peer pill is genuinely under width pressure: the name must
+// truncate while the bar and the percentage stay whole.
 const alice: SpaceMember = { publicKey: 'k1', displayName: 'Alexandra Featherstonehaugh', online: true }
 const bob: SpaceMember = { publicKey: 'k2', displayName: 'Bob', online: false }
 // 50/100 MB at 5 MB/s → speed "5 MB/s", remaining 50 MB ÷ 5 MB/s = 10 → ETA "10s left", pct 50%.
@@ -79,8 +80,8 @@ createRoot(container).render(
         <PeerDownloadIndicator summary={summary} members={[alice]} haveCount={0} open={false} onToggle={() => {}} controlsId={`ind-${id}`} />
       </div>
     ))}
-    <div style={{ width: 320 }}>
-      <ul data-test="row-live">
+    <div style={{ width: 200 }}>
+      <ul data-test="row-live" className="flex flex-wrap">
         <PeerDownloadRow member={alice} bytes={50 * MB} total={100 * MB} avgSpeed={5 * MB} />
       </ul>
     </div>
@@ -132,8 +133,8 @@ const FAIL: HarnessResults = {
   rowLiveValueText: '',
   rowLiveNameClipped: false,
   rowLiveMetaClipped: true,
-  rowLiveBarRatio: 0,
-  rowLiveBarRightGap: 999,
+  rowLiveBarWidth: 0,
+  rowLiveOverflow: 999,
   rowLiveNameAvatarGap: 999,
   rowWarmText: '',
   rowOffText: '',
@@ -147,7 +148,7 @@ async function measure(): Promise<void> {
     await new Promise((r) => setTimeout(r, 40))
     const liveLi = el('[data-test="row-live"] li')
     const liveBar = el('[data-test="row-live"] [role="progressbar"]')
-    const liveName = el('[data-test="row-live"] .font-bold')
+    const liveName = el('[data-test="row-live"] .font-semibold')
     const liveAvatar = el('[data-test="row-live"] .relative')
     const liRect = liveLi?.getBoundingClientRect()
     const barRect = liveBar?.getBoundingClientRect()
@@ -174,11 +175,11 @@ async function measure(): Promise<void> {
       ariaTiny: valueText('[data-ind="tiny"]'),
       rowLiveText: textOf('[data-test="row-live"]'),
       rowLiveValueText: valueText('[data-test="row-live"]'),
-      rowLiveNameClipped: clipped(el('[data-test="row-live"] .font-bold')),
+      rowLiveNameClipped: clipped(el('[data-test="row-live"] .font-semibold')),
       rowLiveMetaClipped: clipped(el('[data-test="row-live"] .tabular-nums')),
-      rowLiveBarRatio: liRect && barRect && liRect.width > 0 ? barRect.width / liRect.width : 0,
-      rowLiveBarRightGap: liRect && barRect ? liRect.right - barRect.right : 999,
-      rowLiveNameAvatarGap: nameRect && avatarRect ? avatarRect.left - nameRect.right : 999,
+      rowLiveBarWidth: barRect?.width ?? 0,
+      rowLiveOverflow: liRect ? liRect.right - (liveLi?.parentElement?.getBoundingClientRect().right ?? 0) : 999,
+      rowLiveNameAvatarGap: nameRect && avatarRect ? nameRect.left - avatarRect.right : 999,
       rowWarmText: textOf('[data-test="row-warm"]'),
       rowOffText: textOf('[data-test="row-off"]'),
       pass: false,
@@ -206,18 +207,17 @@ async function measure(): Promise<void> {
       // aria-valuetext stays complete even where the visible line is compacted.
       results.ariaFile.includes('50%') && results.ariaFile.includes('downloading') && results.ariaFile.includes('10s left') &&
       results.ariaTiny.includes('downloading') && results.ariaTiny.includes('10s left') &&
-      // Per-peer row contract (unchanged): the name yields, the speed · ETA does not.
-      results.rowLiveText.includes('5 MB/s') &&
-      results.rowLiveText.includes('10s left') &&
+      // Per-peer pill contract: the name yields, the bar and the percentage do not, the pill stays
+      // inside its list, and aria-valuetext keeps the speed · ETA the pill leaves out.
+      results.rowLiveText.includes('50%') &&
+      results.rowLiveValueText.includes('5 MB/s') &&
       results.rowLiveValueText.includes('10s left') &&
       results.rowLiveNameClipped &&
       !results.rowLiveMetaClipped &&
-      results.rowLiveBarRightGap >= 0 &&
-      results.rowLiveBarRightGap < 8 &&
-      results.rowLiveBarRatio > 0.4 &&
-      results.rowLiveBarRatio < 0.6 &&
+      results.rowLiveOverflow <= 0 &&
+      results.rowLiveBarWidth === 48 &&
       results.rowLiveNameAvatarGap > 4 &&
-      results.rowLiveNameAvatarGap < 20 &&
+      results.rowLiveNameAvatarGap < 10 &&
       results.rowWarmText.includes('50%') &&
       results.rowOffText.includes('Waiting')
     window.__results = results

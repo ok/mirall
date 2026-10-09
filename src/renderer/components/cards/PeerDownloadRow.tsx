@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import type { SpaceMember } from '../../types/types.js'
 import { formatSpeed, etaFromRate, joinMeta, progressValueText } from '../../format/utils.js'
 import Avatar from '../primitives/Avatar.js'
@@ -13,6 +14,26 @@ interface PeerDownloadRowProps {
   waiting?: boolean
 }
 
+// The pill shows the percentage; the speed · ETA it shortens rides the tooltip and aria-valuetext.
+// Falls back to the percentage (never blank) before the speed sampler has warmed up. Offline and
+// paused take the same ladder in all three, so the visible text and aria-valuetext can't drift.
+interface PeerProgress {
+  online: boolean
+  paused: boolean
+  pct: number
+  speed: string | null
+  eta: string
+}
+
+function peerLabels(t: TFunction, { online, paused, pct, speed, eta }: PeerProgress) {
+  const held = !online ? t('file.waiting') : paused ? t('file.paused') : null
+  return {
+    meta: held ?? (joinMeta(speed, eta) || `${pct}%`),
+    short: held ?? `${pct}%`,
+    valueText: !online ? progressValueText(pct) : paused ? t('file.peerProgressPaused', { pct }) : progressValueText(pct, speed, eta),
+  }
+}
+
 export default function PeerDownloadRow({ member, bytes, total, avgSpeed, paused, waiting }: PeerDownloadRowProps) {
   const { t } = useTranslation()
   const name = member?.displayName || t('member.unknown')
@@ -21,30 +42,22 @@ export default function PeerDownloadRow({ member, bytes, total, avgSpeed, paused
   const pct = total > 0 ? Math.min(100, Math.round((bytes / total) * 100)) : 0
   const speed = active && avgSpeed > 0 ? formatSpeed(avgSpeed) : null
   const eta = active ? etaFromRate(bytes, total, avgSpeed) : ''
-  // Speed + ETA ride above the bar, right-aligned — same shape as the collapsed
-  // indicator and DownloadProgressLane. Falls back to the percentage (never blank)
-  // before the speed sampler has warmed up or once it decays to 0 on a stall.
-  const meta = !online ? t('file.waiting') : paused ? t('file.paused') : (joinMeta(speed, eta) || `${pct}%`)
-  // Mirror meta's online→paused ladder so the visible text and aria-valuetext can't
-  // drift; the name already rides the progressbar's aria-label, so it's omitted here.
-  const valueText = !online ? progressValueText(pct) : paused ? t('file.peerProgressPaused', { pct }) : progressValueText(pct, speed, eta)
+  const { meta, short, valueText } = peerLabels(t, { online, paused: paused === true, pct, speed, eta })
 
   return (
-    <li className="h-12 flex items-center gap-3 px-1">
-      {/* Everything clusters at the right edge: name, avatar, then the bar with its meta above. */}
-      <span className={`min-w-0 ml-auto text-sm font-bold truncate ${online ? 'text-accent' : 'text-outline'}`}>{name}</span>
+    <li title={waiting ? t('file.waitingForIndexing') : meta} className="max-w-full h-7 inline-flex items-center gap-1.5 pl-1 pr-2.5 rounded-full bg-surface-container-high group-hover:bg-surface-container-lowest dark:group-hover:bg-surface-container-high transition-colors">
       <span className="relative shrink-0">
-        <Avatar src={member?.avatar} displayName={name} size="sm" />
+        <Avatar src={member?.avatar} displayName={name} size="xs" />
         <span
           aria-hidden="true"
-          className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-surface-container-lowest ${online ? 'bg-online' : 'bg-offline'}`}
+          className={`absolute -bottom-px -right-px w-2 h-2 rounded-full border-[1.5px] border-surface-container-high group-hover:border-surface-container-lowest dark:group-hover:border-surface-container-high transition-colors ${online ? 'bg-online' : 'bg-offline'}`}
         />
       </span>
+      <span className="min-w-0 text-xs font-semibold text-on-surface-variant truncate">{name}</span>
       {waiting ? (
-        <span className="w-1/2 shrink-0 text-[11px] leading-none text-on-surface-variant text-right truncate">{t('file.waitingForIndexing')}</span>
+        <span className="shrink-0 text-[11px] leading-none text-on-surface-variant">{t('file.waitingForIndexing')}</span>
       ) : (
-        <span className="w-1/2 shrink-0 flex flex-col justify-center gap-1">
-          <span className="text-[11px] leading-none text-on-surface-variant tabular-nums text-right truncate">{meta}</span>
+        <>
           <span
             role="progressbar"
             aria-label={t('file.peerProgress', { name })}
@@ -52,14 +65,15 @@ export default function PeerDownloadRow({ member, bytes, total, avgSpeed, paused
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuetext={valueText}
-            className="block h-1.5 bg-progress-track rounded-full overflow-hidden"
+            className="w-12 shrink-0 block h-1.5 bg-progress-track rounded-full overflow-hidden"
           >
             <span
               className={`block h-full rounded-full transition-all motion-reduce:transition-none ${active ? 'bg-on-info' : 'bg-on-info/40'}`}
               style={{ width: `${pct}%` }}
             />
           </span>
-        </span>
+          <span className="shrink-0 text-[11px] leading-none text-on-surface-variant tabular-nums">{short}</span>
+        </>
       )}
     </li>
   )

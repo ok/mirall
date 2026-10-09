@@ -376,7 +376,6 @@
     "groupDownloading": "Downloading",
     "groupHaveIt": "Have it",
     "groupNotYet": "Not yet",
-    "recipientEarlier": "Has an earlier version",
     "recipientEarlierSr": "{{name}} has an earlier version",
     "recipientHasIt": "{{name}} has it, received {{when}}",
     "recipientMissingOnline": "{{name}} doesn't have it yet, online",

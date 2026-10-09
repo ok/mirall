@@ -169,7 +169,8 @@ function ShareFileRow({ file, decoration, seeded, isOwn, manualControls, spaceId
         </div>
       </div>
       {listable && showDownloaders && (
-        <div className="pb-2">
+        // The dropdown lines up with the icon tile, so it takes the leading gutter's indent too.
+        <div className={`pb-2${leadingGutter ? ' pl-9' : ''}`}>
           <PeerDownloadDropdown
             id={dropdownId}
             spaceId={spaceId}

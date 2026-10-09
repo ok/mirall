@@ -5,6 +5,7 @@ import { usePeerDownloadDetail } from '../../hooks/usePeerDownloadDetail.js'
 import { recipientGroups } from '../../model/file-recipients.js'
 import PeerDownloadRow from './PeerDownloadRow.js'
 import RecipientRow from './RecipientRow.js'
+import Icon from '../primitives/Icon.js'
 
 interface PeerDownloadDropdownProps {
   id: string
@@ -22,15 +23,23 @@ function fraction(p: { bytes: number; total: number }): number {
   return p.total > 0 ? p.bytes / p.total : 0
 }
 
-// The sticky heading's fill tracks the row's own, so it hides what scrolls under it in either state.
-function Group({ id, label, count, children }: { id: string; label: string; count: number; children: ReactNode }) {
+type GroupKind = 'live' | 'have' | 'missing'
+
+// A group is one wrapping line of pills behind a status icon: the check and the arrow are the ones the
+// row already uses for "has it" and "downloading"; not yet is an empty ring. The gutter is the row's
+// icon tile (w-12, then the row's gap-4), so the icon lines up with the file icon's right edge and the
+// pills start under the file name. The group's name is the heading's sr-only text and the icon's tooltip.
+function Group({ id, kind, label, children }: { id: string; kind: GroupKind; label: string; children: ReactNode }) {
   return (
-    <>
-      <h4 id={id} className="sticky top-0 z-10 px-1 pt-3 pb-1.5 text-xs font-bold uppercase tracking-wide text-secondary bg-surface-container-lowest dark:bg-surface-container-low group-hover:bg-surface-container-highest dark:group-hover:bg-surface-container-highest transition-colors">
-        {label} <span className="text-on-surface-variant font-semibold">{count}</span>
+    <div className="contents">
+      <h4 id={id} title={label} className="h-7 flex items-center justify-end">
+        <span className="sr-only">{label}</span>
+        {kind === 'have' && <Icon name="check_circle" size={16} className="text-on-success" />}
+        {kind === 'live' && <Icon name="download" size={16} className="text-on-info" />}
+        {kind === 'missing' && <span aria-hidden="true" className="w-3.5 h-3.5 rounded-full border-2 border-outline" />}
       </h4>
-      <ul aria-labelledby={id} className="flex flex-col divide-y divide-progress-track">{children}</ul>
-    </>
+      <ul aria-labelledby={id} className="flex flex-wrap gap-1.5">{children}</ul>
+    </div>
   )
 }
 
@@ -56,20 +65,20 @@ export default function PeerDownloadDropdown({ id, spaceId, path, members, recip
       : waitingCount === 0 ? t('file.downloadersList')
         : t('file.waitersAndDownloadersList')
     return (
-      <div id={id} role="region" aria-label={listLabel} tabIndex={0} className="mt-1 ml-16 mr-3 mb-1 max-h-60 overflow-y-auto scrollbar-thin rounded-lg focus-ring">
-        <ul className="flex flex-col divide-y divide-progress-track">{liveRows}</ul>
+      <div id={id} role="region" aria-label={listLabel} tabIndex={0} className="mt-1 mx-5 mb-1 pl-16 max-h-60 overflow-y-auto scrollbar-thin rounded-lg focus-ring">
+        <ul className="flex flex-wrap gap-1.5">{liveRows}</ul>
       </div>
     )
   }
 
   return (
-    <div id={id} role="region" aria-label={t('file.recipientsList')} tabIndex={0} className="relative mt-1 ml-16 mr-3 mb-1 max-h-80 overflow-y-auto scrollbar-thin rounded-lg focus-ring">
-      {live.length > 0 && <Group id={`${id}-live`} label={t('file.groupDownloading')} count={live.length}>{liveRows}</Group>}
-      <Group id={`${id}-have`} label={t('file.groupHaveIt')} count={haveIt.length}>
+    <div id={id} role="region" aria-label={t('file.recipientsList')} tabIndex={0} className="mt-1 mx-5 mb-1 max-h-80 overflow-y-auto scrollbar-thin rounded-lg focus-ring grid grid-cols-[3rem_1fr] gap-x-4 gap-y-2">
+      {live.length > 0 && <Group id={`${id}-live`} kind="live" label={t('file.groupDownloading')}>{liveRows}</Group>}
+      <Group id={`${id}-have`} kind="have" label={t('file.groupHaveIt')}>
         {haveIt.map((h) => <RecipientRow key={h.member.publicKey} member={h.member} receivedAt={h.ts} />)}
       </Group>
       {notYet.length > 0 && (
-        <Group id={`${id}-missing`} label={t('file.groupNotYet')} count={notYet.length}>
+        <Group id={`${id}-missing`} kind="missing" label={t('file.groupNotYet')}>
           {notYet.map((m) => <RecipientRow key={m.member.publicKey} member={m.member} earlier={m.earlier} />)}
         </Group>
       )}
