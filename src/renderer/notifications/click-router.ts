@@ -2,14 +2,14 @@
 import { useEffect } from 'react'
 import { PATH_HOST } from '../../shared/contract/paths.js'
 import { request } from '../ipc/ipc.js'
-import type { NotificationClickPayload } from '../platform/global.js'
+import type { TransferClickPayload } from '../platform/global.js'
 
 // A completed download is revealed by whoever owns the disk it landed on. A daemon path goes back
 // to the daemon — the same reveal every button in the app already uses — and is never handed to
 // this machine's shell, which would open nothing or, worse, a different file of the same name.
 // Anything that is not explicitly the client's is the daemon's: an untagged payload from an older
 // renderer still on screen must not reach the shell either.
-async function revealCompleted(payload: Extract<NotificationClickPayload, { spaceId: string }>): Promise<boolean> {
+async function revealCompleted(payload: TransferClickPayload): Promise<boolean> {
   if (payload.host === PATH_HOST.CLIENT) {
     if (!payload.localPath) return false
     const res = await window.bridge.showInFolder({ path: payload.localPath, host: payload.host })
@@ -42,10 +42,15 @@ export function useNotificationClickRouter(navigateToSpace: (spaceId: string) =>
             focusWindow()
           })
           return
-        case 'member-joined':
-        case 'member-left':
+        case 'presence':
+        case 'membership-denied':
           focusWindow()
           return
+        case 'join-request':
+        case 'membership-granted':
+        case 'new-shares':
+        case 'file-received':
+        case 'mirror-synced':
         case 'transfer-error':
         case 'transfer-paused':
           focusWindow()

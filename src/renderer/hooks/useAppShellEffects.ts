@@ -48,10 +48,11 @@ export function useAppShellEffects(spaces: Space[]) {
 
   useEffect(() => {
     return startNotifications({
-      getMemberName: (id, publicKey) => {
+      getMember: (id, publicKey) => {
         const space = spacesRef.current.find((s) => s.spaceId === id)
-        return space?.members.find((m) => m.publicKey === publicKey)?.displayName ?? null
+        return space?.members.find((m) => m.publicKey === publicKey) ?? null
       },
+      getSpaceName: (id) => spacesRef.current.find((s) => s.spaceId === id)?.name ?? '',
     })
   }, [])
 }

@@ -1,6 +1,6 @@
 // Synchronous facade over main's config.json (window.bridge get/setConfig): cached reads, patch writes, one-time localStorage migration.
 import type { ThemeMode } from './theme.js'
-import type { NotificationPrefs } from '../notifications/prefs.js'
+import type { NotificationPrefs } from '../notifications/prefs-shape.js'
 
 export type RelayMode = 'off' | 'auto' | 'always'
 
@@ -94,7 +94,7 @@ const logPersistFailure = (err: Error) => console.error('config write failed:', 
 
 // One-time fold of the pre-unification localStorage keys into config.json, then
 // clear them so subsequent boots read only from the unified store. Notification
-// prefs migrate in notifications/prefs.ts (it owns their coercion).
+// prefs migrate in notifications/prefs.ts (prefs-shape.js owns their coercion).
 function migrateLegacyLocalStorage(): void {
   try {
     const patch: RendererConfigPatch = {}

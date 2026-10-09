@@ -12,7 +12,7 @@ type CardProps = ComponentProps<typeof FileCard>
 
 type SpaceFilesPaneProps = Pick<CardProps,
   'onDownload' | 'onCancel' | 'onPause' | 'onReveal' | 'onUnshare'
-  | 'onCancelPublish' | 'members'
+  | 'onCancelPublish' | 'members' | 'spaceId'
 > & {
   files: FileEntry[]
   loading: boolean
@@ -21,6 +21,7 @@ type SpaceFilesPaneProps = Pick<CardProps,
   getDecoration: (path: string) => CardProps['decoration']
   isSeeded: (path: string) => boolean
   getDownloadSummary: (path: string) => CardProps['downloadSummary']
+  getRecipients: (path: string) => CardProps['recipients']
 }
 
 /**
@@ -32,7 +33,7 @@ type SpaceFilesPaneProps = Pick<CardProps,
  */
 export default function SpaceFilesPane(props: SpaceFilesPaneProps) {
   const { t } = useTranslation()
-  const { files, loading, error, onRetry, getDecoration, isSeeded, getDownloadSummary, ...card } = props
+  const { files, loading, error, onRetry, getDecoration, isSeeded, getDownloadSummary, getRecipients, ...card } = props
 
   if (loading) return <LoadingHeadline label={t('space.loadingFiles')} />
 
@@ -67,6 +68,7 @@ export default function SpaceFilesPane(props: SpaceFilesPaneProps) {
           decoration={getDecoration(file.path)}
           seeded={isSeeded(file.path)}
           downloadSummary={getDownloadSummary(file.path)}
+          recipients={getRecipients(file.path)}
           {...card}
         />
       ))}

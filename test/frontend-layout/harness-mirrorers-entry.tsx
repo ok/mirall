@@ -46,7 +46,7 @@ const { SPACE_ID, SHARE_ID, OWNER_PK } = window.__fake
 const KEYS = [OWNER_PK, 'peer-b-key', 'peer-c-key', 'peer-d-key', 'peer-e-key', 'peer-f-key', 'peer-g-key']
 const STATES = ['synced', 'syncing', 'paused', 'synced', 'synced', 'synced', 'synced'] as const
 window.__HARNESS_CFG = {
-  mirrors: KEYS.map((k, i): MirrorParticipant => ({ mirrorer: k, shareId: SHARE_ID, state: STATES[i], mountedAt: 0 })),
+  mirrors: KEYS.map((k, i): MirrorParticipant => ({ mirrorer: k, shareId: SHARE_ID, state: STATES[i], mountedAt: 0, updatedAt: null })),
 }
 const members: SpaceMember[] = KEYS.map((k, i) => ({ publicKey: k, displayName: 'Peer ' + i, online: true }))
 // A self key that mirrors nothing, so every row is a named peer rather than "You" — the stack cap

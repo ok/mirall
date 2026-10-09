@@ -8,6 +8,8 @@ import Icon from '../primitives/Icon.js'
 interface PeerDownloadIndicatorProps {
   summary: PeerDownloadSummary
   members: SpaceMember[]
+  /** Members already holding the current version, shown after the live tokens. */
+  haveCount: number
   open: boolean
   onToggle: () => void
   controlsId: string
@@ -20,23 +22,24 @@ interface MetaToken {
 }
 
 // Ordered tokens for the collapsed meta line. They shed lowest-priority first under width
-// pressure: the count word (the avatar stack already shows it) hides at the wide breakpoint,
-// then ETA, while speed is always kept. The count word stays visible when it is the only
-// token (all peers paused). Separators ride with the optional tokens around the always-on
-// speed so a hidden token never strands a dot.
-function metaTokens(countLabel: string, speed: string | null, eta: string): MetaToken[] {
+// pressure: who already has the file goes first, then the count word (the avatar stack already
+// shows it) at the wide breakpoint, then ETA, while speed is always kept. The count word stays
+// visible when it is the only token (all peers paused). Separators ride with the optional tokens
+// around the always-on speed so a hidden token never strands a dot.
+function metaTokens(countLabel: string, speed: string | null, eta: string, haveLabel: string): MetaToken[] {
   const hasRate = Boolean(speed || eta)
   const tokens: MetaToken[] = []
   if (countLabel) tokens.push({ key: 'count', text: countLabel + (hasRate ? ' · ' : ''), className: hasRate ? 'hidden @min-[200px]/lane:inline' : '' })
   if (speed) tokens.push({ key: 'speed', text: speed, className: 'tabular-nums' })
   if (eta) tokens.push({ key: 'eta', text: (speed ? ' · ' : '') + eta, className: 'tabular-nums hidden @min-[120px]/lane:inline' })
+  if (haveLabel) tokens.push({ key: 'have', text: (tokens.length ? ' · ' : '') + haveLabel, className: tokens.length ? 'hidden @min-[280px]/lane:inline' : '' })
   return tokens
 }
 
 // Collapsed, always-visible indicator on an owned file's row: an overlapping avatar
 // stack (up to three + "+N") and an aggregate progress bar. The whole thing is the
 // toggle button for the per-peer dropdown.
-export default function PeerDownloadIndicator({ summary, members, open, onToggle, controlsId }: PeerDownloadIndicatorProps) {
+export default function PeerDownloadIndicator({ summary, members, haveCount, open, onToggle, controlsId }: PeerDownloadIndicatorProps) {
   const { t } = useTranslation()
   const pausedSet = summary.pausedKeys.length ? new Set(summary.pausedKeys) : null
   const downloaders = peerFaces(summary.personKeys, members).map((face) => ({ ...face, paused: pausedSet?.has(face.key) ?? false }))
@@ -53,8 +56,9 @@ export default function PeerDownloadIndicator({ summary, members, open, onToggle
   const activeLabel = activeCount > 0 ? t('file.downloadersCount', { count: activeCount }) : null
   const pausedLabel = pausedCount > 0 ? t('file.downloadersPaused', { count: pausedCount }) : null
   const countLabel = joinMeta(activeLabel, pausedLabel)
-  const valueText = progressValueText(pct, activeLabel, pausedLabel, speed, eta)
-  const tokens = metaTokens(countLabel, speed, eta)
+  const haveLabel = haveCount > 0 ? t('file.recipientsCount', { count: haveCount }) : ''
+  const valueText = progressValueText(pct, activeLabel, pausedLabel, speed, eta, haveLabel)
+  const tokens = metaTokens(countLabel, speed, eta, haveLabel)
 
   // The row repaints under the cursor, so its hover state hands the facepile the fill the rings are
   // cut from — pinned to the resting surface they read as a dark rim the moment the row lifts.

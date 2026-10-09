@@ -76,7 +76,7 @@ createRoot(container).render(
   <div style={{ padding: 16 }}>
     {LANES.map(({ id, w }) => (
       <div key={id} data-ind={id} style={{ width: w, marginBottom: 8 }}>
-        <PeerDownloadIndicator summary={summary} members={[alice]} open={false} onToggle={() => {}} controlsId={`ind-${id}`} />
+        <PeerDownloadIndicator summary={summary} members={[alice]} haveCount={0} open={false} onToggle={() => {}} controlsId={`ind-${id}`} />
       </div>
     ))}
     <div style={{ width: 320 }}>
@@ -192,7 +192,7 @@ async function measure(): Promise<void> {
     deHost.style.width = '288px'
     document.body.appendChild(deHost)
     createRoot(deHost).render(
-      <PeerDownloadIndicator summary={summary} members={[alice]} open={false} onToggle={() => {}} controlsId="ind-de" />,
+      <PeerDownloadIndicator summary={summary} members={[alice]} haveCount={0} open={false} onToggle={() => {}} controlsId="ind-de" />,
     )
     await new Promise((r) => setTimeout(r, 80))
     results.clipDe = lineClipped('de')

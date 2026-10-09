@@ -1,11 +1,13 @@
 // A file row in a space's list: derives the action buttons from file status and swaps the
-// right-hand lane between publish/verify/download progress, the who-is-downloading indicator, and the status pill.
-import { memo, useState, useEffect, useId } from 'react'
+// right-hand lane between publish/verify/download progress, the who-is-downloading indicator, and the
+// status pill with who already has it.
+import { memo, useState, useEffect, useId, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { formatSize, getFileIcon, fileName } from '../../format/utils.js'
 import { errorCodeToI18nKey } from '../../errors/error-messages.js'
 import { deriveRowView } from '../../model/row-view.js'
-import type { FileEntry, SpaceMember, PeerDownloadSummary } from '../../types/types.js'
+import { recipientSummary } from '../../model/file-recipients.js'
+import type { FileEntry, SpaceMember, PeerDownloadSummary, FileRecipient } from '../../types/types.js'
 import type { Decoration } from '../../types/ui.js'
 import FileName from '../primitives/FileName.js'
 import RowLane from './RowLane.js'
@@ -24,8 +26,10 @@ interface FileCardProps {
   onReveal: (file: FileEntry) => void
   onUnshare: (file: FileEntry) => void
   onCancelPublish: (file: FileEntry) => void
+  spaceId: string
   members?: SpaceMember[]
   downloadSummary?: PeerDownloadSummary | null
+  recipients: FileRecipient[]
 }
 
 type ActionVariant = 'default' | 'danger'
@@ -155,22 +159,31 @@ function FileCard({
   onReveal,
   onUnshare,
   onCancelPublish,
+  spaceId,
   members,
   downloadSummary,
+  recipients,
 }: FileCardProps) {
   const { t } = useTranslation()
   const { t: tErr } = useTranslation('errors')
   const rowName = fileName(file.path)
   const view = deriveRowView(file, decoration, downloadSummary, { kind: 'loose', seeded })
 
-  // The dropdown is gated on the lane's own peer-list condition so it can't orphan when a
-  // competing progress branch wins the lane.
+  const isMine = file.status === 'mine'
+  const holders = useMemo(
+    () => (isMine ? recipientSummary({ recipients, contentHash: file.hash, members: members ?? [], ownerKey: file.owner.publicKey }) : null),
+    [isMine, recipients, file.hash, members, file.owner.publicKey],
+  )
+
+  // The dropdown is gated on whichever toggle the lane shows — the peer list, or the recipients on the
+  // resting lane — so it can't orphan when a competing progress branch wins the lane.
   const [showDownloaders, setShowDownloaders] = useState(false)
   const reactId = useId()
   const dropdownId = `peer-downloads-${reactId}`
+  const listable = view.peerListActive || (holders !== null && view.lane === 'rest')
   useEffect(() => {
-    if (!view.peerListActive) setShowDownloaders(false)
-  }, [view.peerListActive])
+    if (!listable) setShowDownloaders(false)
+  }, [listable])
 
   const { primary, secondary } = deriveActions(file, t, {
     onDownload,
@@ -218,6 +231,7 @@ function FileCard({
           kind="loose"
           members={members}
           downloadSummary={downloadSummary}
+          recipients={holders}
           showDownloaders={showDownloaders}
           onToggleDownloaders={() => setShowDownloaders((v) => !v)}
           dropdownId={dropdownId}
@@ -229,13 +243,16 @@ function FileCard({
           <ActionSlot action={primary} alwaysVisible={true} />
         </div>
       </div>
-      {view.peerListActive && showDownloaders && downloadSummary && (
+      {listable && showDownloaders && (
         <div className="pb-2">
           <PeerDownloadDropdown
             id={dropdownId}
-            spaceId={downloadSummary.spaceId}
+            spaceId={spaceId}
             path={file.path}
             members={members ?? []}
+            recipients={isMine ? recipients : []}
+            contentHash={file.hash}
+            ownerKey={file.owner.publicKey}
           />
         </div>
       )}

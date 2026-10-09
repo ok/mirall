@@ -135,6 +135,12 @@ function register(opts) {
 
   ipcMain.handle('notify:focus', () => { focusMainWindow() })
 
+  ipcMain.handle('notify:close', (_evt, id) => {
+    if (typeof id !== 'string' || !active.has(id)) return
+    try { active.get(id).close() } catch {}
+    active.delete(id)
+  })
+
   // Two gates, independent on purpose. The host tag says whose disk the path is on: anything but an
   // explicit 'client' is not ours to open, and a missing tag is refused rather than guessed —
   // pointing this at a daemon path either does nothing or opens a coincidentally-existing local

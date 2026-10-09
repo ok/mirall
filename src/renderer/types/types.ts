@@ -224,7 +224,7 @@ export interface AuditFilters {
 // The wire vocabulary moved to the contract — it is what a response carries, and a second client
 // generates from it. Re-exported here so the sites that import these names do not care.
 export type {
-  Profile, SpaceMember, JoinRequest, Space, FileStatus, FileEntry, MirrorParticipant, Share,
+  Profile, SpaceMember, JoinRequest, Space, FileStatus, FileEntry, MirrorParticipant, Share, FileRecipient,
   OwnedMountStatus, OwnedFolderMount, ForeignMountStatus, ForeignFolderMount,
   ShareFileStatus, MountValidationResult, ScanPreview,
   CanaryState, CanaryResult,

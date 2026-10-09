@@ -1,8 +1,8 @@
 // One file row in a folder share: transfer status/progress, per-file actions, and the
-// owner-side who-is-downloading indicator. Extracted from FolderScreen so the collapsible
-// tree and the flat list can share it.
+// owner-side who-is-downloading and who-has-it indicators. Extracted from FolderScreen so the
+// collapsible tree and the flat list can share it.
 import InlineError from '../primitives/InlineError.js'
-import { memo, useState, useId, useEffect } from 'react'
+import { memo, useState, useId, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import Icon from '../primitives/Icon.js'
 import IconButton from '../primitives/IconButton.js'
@@ -13,8 +13,9 @@ import { formatSize, getFileIcon } from '../../format/utils.js'
 import { errorCodeToI18nKey } from '../../errors/error-messages.js'
 import { fileRowAction } from '../../model/file-row-action.js'
 import { deriveRowView } from '../../model/row-view.js'
+import { recipientSummary } from '../../model/file-recipients.js'
 import type { Decoration } from '../../types/ui.js'
-import type { ShareFileEntry, SpaceMember, PeerDownloadSummary } from '../../types/types.js'
+import type { ShareFileEntry, SpaceMember, PeerDownloadSummary, FileRecipient } from '../../types/types.js'
 
 // test seam
 export interface ShareFileRowProps {
@@ -29,6 +30,8 @@ export interface ShareFileRowProps {
   spaceId: string
   members: SpaceMember[]
   downloadSummary: PeerDownloadSummary | null
+  recipients: FileRecipient[]
+  ownerKey: string
   onDownload: (relPath: string) => void
   onReveal: (relPath: string) => void
   onPause: (transferId: string) => void
@@ -97,7 +100,7 @@ function FileRowActions({ action, relPath, transferId, busyLabel, onDownload, on
   return <div className="w-10 h-10" />
 }
 
-function ShareFileRow({ file, decoration, seeded, isOwn, manualControls, spaceId, members, downloadSummary, onDownload, onReveal, onPause, onCancel, displayName, leadingGutter }: ShareFileRowProps) {
+function ShareFileRow({ file, decoration, seeded, isOwn, manualControls, spaceId, members, downloadSummary, recipients, ownerKey, onDownload, onReveal, onPause, onCancel, displayName, leadingGutter }: ShareFileRowProps) {
   const { t } = useTranslation()
   const { t: tErr } = useTranslation('errors')
   const rowName = displayName || file.relPath
@@ -108,14 +111,20 @@ function ShareFileRow({ file, decoration, seeded, isOwn, manualControls, spaceId
     ? t('status.publishing')
     : file.status === 'preparing' ? t('file.preparing') : t('file.syncing')
 
-  // The dropdown is gated on the lane's own peer-list condition, so it can't orphan when a
-  // competing progress branch wins.
+  const holders = useMemo(
+    () => (isOwn ? recipientSummary({ recipients, contentHash: file.hash, members, ownerKey }) : null),
+    [isOwn, recipients, file.hash, members, ownerKey],
+  )
+
+  // The dropdown is gated on whichever toggle the lane shows — the peer list, or the recipients on the
+  // resting lane — so it can't orphan when a competing progress branch wins the lane.
   const [showDownloaders, setShowDownloaders] = useState(false)
   const reactId = useId()
   const dropdownId = `peer-downloads-${reactId}`
+  const listable = view.peerListActive || (holders !== null && view.lane === 'rest')
   useEffect(() => {
-    if (!view.peerListActive) setShowDownloaders(false)
-  }, [view.peerListActive])
+    if (!listable) setShowDownloaders(false)
+  }, [listable])
 
   return (
     <div className="group @container/row bg-surface-container-lowest dark:bg-surface-container-low hover:bg-surface-container-highest dark:hover:bg-surface-container-highest rounded-xl transition-colors">
@@ -140,6 +149,7 @@ function ShareFileRow({ file, decoration, seeded, isOwn, manualControls, spaceId
           kind="share"
           members={members}
           downloadSummary={downloadSummary}
+          recipients={holders}
           showDownloaders={showDownloaders}
           onToggleDownloaders={() => setShowDownloaders((v) => !v)}
           dropdownId={dropdownId}
@@ -158,13 +168,16 @@ function ShareFileRow({ file, decoration, seeded, isOwn, manualControls, spaceId
           />
         </div>
       </div>
-      {view.peerListActive && showDownloaders && downloadSummary && (
+      {listable && showDownloaders && (
         <div className="pb-2">
           <PeerDownloadDropdown
             id={dropdownId}
             spaceId={spaceId}
             path={file.relPath}
             members={members}
+            recipients={isOwn ? recipients : []}
+            contentHash={file.hash}
+            ownerKey={ownerKey}
           />
         </div>
       )}
@@ -173,5 +186,5 @@ function ShareFileRow({ file, decoration, seeded, isOwn, manualControls, spaceId
 }
 
 // memo against the decoration heartbeat (src/renderer/hooks/README.md): `file` is identity-reconciled,
-// `members` memoized, decoration/downloadSummary per-path Map values, the five handlers stable.
+// `members` memoized, decoration/downloadSummary/recipients per-path Map values, the five handlers stable.
 export default memo(ShareFileRow)

@@ -116,6 +116,18 @@ export function formatDateTime(iso: string | number | Date): string {
   return new Intl.DateTimeFormat(i18n.language, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso))
 }
 
+const DAY_MS = 86_400_000
+
+// A moment in a short list of recent events: today and yesterday by name with the time, the date
+// alone beyond that.
+export function formatWhen(ts: number, now: number = Date.now()): string {
+  const midnight = (t: number) => { const d = new Date(t); return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() }
+  const days = Math.round((midnight(now) - midnight(ts)) / DAY_MS)
+  if (days > 1 || days < 0) return formatDate(ts)
+  const time = new Intl.DateTimeFormat(i18n.language, { timeStyle: 'short' }).format(new Date(ts))
+  return i18n.t('format.dayTime', { day: i18n.t(days === 0 ? 'activityLog.today' : 'activityLog.yesterday'), time })
+}
+
 export function fileName(path: string): string {
   return path.split('/').pop() || path
 }
