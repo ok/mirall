@@ -43,7 +43,7 @@ function StorageTotal({ bytes, path }: { bytes: number; path: string }) {
       </div>
       <div className="flex items-center gap-2">
         <FilePath path={path} className="flex-1 text-xs font-medium text-on-surface-variant" />
-        <CopyButton value={path} className="opacity-0 group-hover/copy:opacity-100 focus:opacity-100 transition-opacity" />
+        <CopyButton value={path} />
       </div>
     </>
   )
@@ -74,7 +74,7 @@ export default function AppStorageCard({ info, onOpenActivityLogSettings, onOpen
 
   return (
     <div className="bg-surface-container-low rounded-xl">
-      <div className="group/copy p-6">
+      <div className="p-6">
         <StorageTotal bytes={total} path={info.folderPath} />
         <p className="text-sm text-on-surface-variant mt-3 leading-relaxed">{t('storageSettings.appStorageDesc')}</p>
         <StorageMeter
