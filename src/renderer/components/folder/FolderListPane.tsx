@@ -13,7 +13,7 @@ import type { FileTreeNode, ShareFileEntry, SpaceMember } from '../../types/type
 type TreeProps = ComponentProps<typeof FolderTree>
 
 type FolderListPaneProps = Pick<TreeProps,
-  'isOwn' | 'manualControls' | 'spaceId' | 'members' | 'getDownloadSummary' | 'getDecoration'
+  'isOwn' | 'manualControls' | 'spaceId' | 'members' | 'getDownloadSummary' | 'getRecipients' | 'ownerKey' | 'getDecoration'
   | 'isSeeded' | 'onDownload' | 'onReveal' | 'onPause' | 'onCancel'
 > & {
   filter: string

@@ -5,6 +5,7 @@ import SpaceStorageCard from '../cards/SpaceStorageCard.js'
 import SpaceEmptyState from './SpaceEmptyState.js'
 import SpaceSharesSection from './SpaceSharesSection.js'
 import SpaceFilesPane from './SpaceFilesPane.js'
+import { useFileRecipients } from '../../hooks/useFileRecipients.js'
 import { useHasVerticalOverflow } from '../../hooks/useHasVerticalOverflow.js'
 import { showSpaceEmptyState, showSpaceLoading } from '../../model/space-content-state.js'
 import type { ComponentProps } from 'react'
@@ -61,6 +62,7 @@ interface SpaceContentPaneProps {
  */
 export default function SpaceContentPane(props: SpaceContentPaneProps) {
   const { spaceId, members, isLegacy, pane, shares, cardActions: a, listing, drag } = props
+  const getRecipients = useFileRecipients(spaceId)
   const { ref: filesRef, hasOverflow: filesOverflow } = useHasVerticalOverflow<HTMLDivElement>()
 
   return (
@@ -101,6 +103,8 @@ export default function SpaceContentPane(props: SpaceContentPaneProps) {
             />
             <SpaceFilesPane
               {...listing}
+              getRecipients={getRecipients}
+              spaceId={spaceId}
               members={members}
               loading={showSpaceLoading(pane)}
               onReveal={a.revealFile}

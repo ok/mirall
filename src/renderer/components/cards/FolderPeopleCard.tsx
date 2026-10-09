@@ -10,6 +10,7 @@ import TextButton from '../primitives/TextButton.js'
 import { useSpaceMirrors } from '../../hooks/useSpaceMirrors.js'
 import { useSpaceCardState } from '../../hooks/useSpaceCardState.js'
 import { mirrorStateLabelKey } from '../../model/mirror-state-label.js'
+import { formatWhen } from '../../format/utils.js'
 import type { MirrorParticipant, Profile, SpaceMember } from '../../types/types.js'
 
 const STACK_MAX = 5
@@ -21,6 +22,7 @@ interface Mirrorer {
   name: string
   avatar: string | null
   state: MirrorState
+  updatedAt: number | null
   online: boolean
 }
 
@@ -120,9 +122,14 @@ function FolderPeopleCard({
       name: isSelf ? t('member.you') : (member?.displayName || t('avatar.unknown')),
       avatar: (isSelf ? selfProfile?.avatar : member?.avatar) ?? null,
       state: m.state,
+      updatedAt: m.updatedAt,
       online: isSelf || member?.online !== false,
     }
   })
+  // A synced row says since when: the record's write time, which moves with each state change.
+  const rowLabel = (m: Mirrorer) => (m.state === 'synced' && m.updatedAt
+    ? t('folder.mirrorStateSyncedAt', { when: formatWhen(m.updatedAt) })
+    : stateLabel(m.state))
 
   // The ring colour alone can't distinguish synced (green) from paused (amber) for a colour-blind
   // viewer, so the stack pairs the facepile with a per-state count in text.
@@ -165,7 +172,7 @@ function FolderPeopleCard({
           </p>
           {asList ? (
             <div className="space-y-3">
-              {resolved.map((m) => <MirrorRow key={m.key} mirrorer={m} stateLabel={stateLabel(m.state)} />)}
+              {resolved.map((m) => <MirrorRow key={m.key} mirrorer={m} stateLabel={rowLabel(m)} />)}
             </div>
           ) : (
             <MirrorStack mirrorers={resolved} label={namesLabel} />

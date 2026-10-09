@@ -34,6 +34,8 @@ const noop = () => {}
 const base = {
   spaceId: 'space1',
   members: [],
+  getRecipients: () => [],
+  ownerKey: 'owner',
   getDownloadSummary: () => null,
   isSeeded: () => false,
   onDownload: noop,

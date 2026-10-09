@@ -1,5 +1,6 @@
 // The right-hand lane of a file row, for both row kinds: publish/verify/download/preparing
-// progress, the sender-side who-is-downloading indicator, or the resting status pill. Which one is
+// progress, the sender-side who-is-downloading indicator, or the resting status pill with who already
+// has the file. Which one is
 // decided by rowView.js; this renders it.
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -11,6 +12,8 @@ import VerifiedCheck from '../primitives/VerifiedCheck.js'
 import DownloadProgressLane from '../primitives/DownloadProgressLane.js'
 import PeerDownloadIndicator from './PeerDownloadIndicator.js'
 import PeerWaitingIndicator from './PeerWaitingIndicator.js'
+import RecipientsIndicator from './RecipientsIndicator.js'
+import type { RecipientSummary } from '../../model/file-recipients.js'
 
 interface RowLaneProps {
   view: RowView
@@ -21,12 +24,21 @@ interface RowLaneProps {
   kind: RowKind
   members?: SpaceMember[]
   downloadSummary?: PeerDownloadSummary | null
+  /** Who holds the current version of this file we own; null when nobody does. */
+  recipients?: RecipientSummary | null
   showDownloaders: boolean
   onToggleDownloaders: () => void
   dropdownId: string
 }
 
-export default function RowLane({ view, rowName, kind, members, downloadSummary, showDownloaders, onToggleDownloaders, dropdownId }: RowLaneProps) {
+export default function RowLane({ view, rowName, kind, members, downloadSummary, recipients, showDownloaders, onToggleDownloaders, dropdownId }: RowLaneProps) {
+  const rest = (
+    <RestLane
+      view={view}
+      rowName={rowName}
+      aside={recipients && <RecipientsIndicator summary={recipients} open={showDownloaders} onToggle={onToggleDownloaders} controlsId={dropdownId} />}
+    />
+  )
   switch (view.lane) {
     case 'publish':
       return (
@@ -55,15 +67,16 @@ export default function RowLane({ view, rowName, kind, members, downloadSummary,
         <IndicatorLane
           summary={downloadSummary}
           members={members ?? []}
+          haveCount={recipients?.count ?? 0}
           rowName={rowName}
           kind={kind}
           open={showDownloaders}
           onToggle={onToggleDownloaders}
           controlsId={dropdownId}
         />
-      ) : <RestLane view={view} rowName={rowName} />
+      ) : rest
     default:
-      return <RestLane view={view} rowName={rowName} />
+      return rest
   }
 }
 
@@ -156,9 +169,10 @@ function PreparingLane({ view, rowName }: { view: RowView; rowName: string }) {
   )
 }
 
-function IndicatorLane({ summary, members, rowName, kind, open, onToggle, controlsId }: {
+function IndicatorLane({ summary, members, haveCount, rowName, kind, open, onToggle, controlsId }: {
   summary: PeerDownloadSummary
   members: SpaceMember[]
+  haveCount: number
   rowName: string
   kind: RowKind
   open: boolean
@@ -176,6 +190,7 @@ function IndicatorLane({ summary, members, rowName, kind, open, onToggle, contro
         <PeerDownloadIndicator
           summary={summary}
           members={members}
+          haveCount={haveCount}
           open={open}
           onToggle={onToggle}
           controlsId={controlsId}
@@ -188,12 +203,17 @@ function IndicatorLane({ summary, members, rowName, kind, open, onToggle, contro
   )
 }
 
-function RestLane({ view, rowName }: { view: RowView; rowName: string }) {
+// Beside the recipients cluster the pill steps aside on a narrow row, as it does beside a progress
+// lane: the cluster already says the file is ours, and the name needs the width.
+function RestLane({ view, rowName, aside }: { view: RowView; rowName: string; aside?: ReactNode }) {
   const { t } = useTranslation()
   return (
-    <div className="shrink-0 ml-6 mr-3 flex items-center gap-2 self-center">
-      {view.showVerified && <VerifiedCheck label={t('file.verified')} />}
-      <StatusPill view={view} rowName={rowName} />
-    </div>
+    <>
+      {aside}
+      <div className={`shrink-0 ml-6 mr-3 items-center gap-2 self-center ${aside ? 'hidden @min-[520px]/row:flex' : 'flex'}`}>
+        {view.showVerified && <VerifiedCheck label={t('file.verified')} />}
+        <StatusPill view={view} rowName={rowName} />
+      </div>
+    </>
   )
 }

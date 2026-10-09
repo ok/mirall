@@ -62,5 +62,6 @@ export const CASES = [
   { name: "stickyheader", title: "Mirall space sticky-header harness" },
   { name: "truncation", title: "Mirall text-truncation harness" },
   { name: "waiting", title: "Mirall owner-row waiting-cluster harness" },
+  { name: "recipients", title: "Mirall owner-row recipients-cluster harness" },
   { name: "harness", title: "Mirall layout harness" },
 ]

@@ -5,11 +5,12 @@
 // What the folder IS lives in useFolderViewModel, what it acts on in useShareActions, and the file
 // half in FolderListPane. What is left here is the screen: which of those to show, and the two
 // dialogs whose open state is the screen's own.
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useShareFiles } from '../hooks/useShareFiles.js'
 import { useTransferControls } from '../hooks/useTransferControls.js'
 import { usePeerDownloads } from '../hooks/usePeerDownloads.js'
+import { useFileRecipients } from '../hooks/useFileRecipients.js'
 import { useMembers } from '../hooks/useMembers.js'
 import { useSpaces } from '../hooks/useSpaces.js'
 import { useProfile } from '../hooks/useProfile.js'
@@ -95,6 +96,8 @@ export default function FolderScreen({ spaceId, share, onBack, onMirror }: Folde
   const { profile } = useProfile()
   const { members } = useMembers(spaceId)
   const { getDownloadSummary } = usePeerDownloads(spaceId)
+  const recipientsOf = useFileRecipients(spaceId)
+  const getRecipients = useCallback((relPath: string) => recipientsOf(relPath, share.id), [recipientsOf, share.id])
   const { spaces } = useSpaces()
   const space = spaces.find((s) => s.spaceId === spaceId)
   const owner = members.find((m) => m.publicKey === share.owner) ?? null
@@ -203,6 +206,8 @@ export default function FolderScreen({ spaceId, share, onBack, onMirror }: Folde
           spaceId={spaceId}
           members={members}
           getDownloadSummary={getDownloadSummary}
+          getRecipients={getRecipients}
+          ownerKey={share.owner}
           getDecoration={getDecoration}
           isSeeded={isSeeded}
           onDownload={downloadFile}

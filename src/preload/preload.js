@@ -124,6 +124,7 @@ contextBridge.exposeInMainWorld('bridge', {
   notify: (spec) => ipcRenderer.invoke('notify:show', spec),
   isWindowFocused: () => ipcRenderer.invoke('notify:isWindowFocused'),
   focusWindow: () => ipcRenderer.invoke('notify:focus'),
+  closeNotification: (id) => ipcRenderer.invoke('notify:close', id),
   showInFolder: (target) => ipcRenderer.invoke('shell:showInFolder', target),
   onNotificationClick: (listener) => {
     const wrap = (_evt, data) => listener(data)

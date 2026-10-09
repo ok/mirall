@@ -1,33 +1,6 @@
-// Notification preference store: defaults + shape coercion over config-client, change listeners, one-time localStorage migration.
+// Notification preference store: reads and writes through config-client, coerced by prefs-shape.js, plus a one-time localStorage migration.
 import { getNotificationPrefs, setNotificationPrefs } from '../platform/config-client.js'
-
-export interface NotificationEventPrefs {
-  memberJoined: boolean
-  memberLeft: boolean
-  transferComplete: boolean
-  transferError: boolean
-  transferPaused: boolean
-}
-
-export interface NotificationPrefs {
-  enabled: boolean
-  sound: boolean
-  suppressWhenFocused: boolean
-  events: NotificationEventPrefs
-}
-
-const DEFAULT_PREFS: NotificationPrefs = {
-  enabled: true,
-  sound: true,
-  suppressWhenFocused: true,
-  events: {
-    memberJoined: true,
-    memberLeft: false,
-    transferComplete: true,
-    transferError: true,
-    transferPaused: false,
-  },
-}
+import { coercePrefs, type NotificationPrefs } from './prefs-shape.js'
 
 const LEGACY_STORAGE_KEY = 'mirall:notifications'
 
@@ -35,36 +8,11 @@ function migrateLegacy(): void {
   try {
     const raw = localStorage.getItem(LEGACY_STORAGE_KEY)
     if (raw === null) return
-    setNotificationPrefs(coercePrefs(JSON.parse(raw))).then(
+    setNotificationPrefs(coercePrefs(JSON.parse(raw) as object | null)).then(
       () => localStorage.removeItem(LEGACY_STORAGE_KEY),
       (err) => console.error('notification prefs migration failed:', err),
     )
   } catch {}
-}
-
-function isObject(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v)
-}
-
-function coerceBool(v: unknown, fallback: boolean): boolean {
-  return typeof v === 'boolean' ? v : fallback
-}
-
-function coercePrefs(raw: unknown): NotificationPrefs {
-  if (!isObject(raw)) return DEFAULT_PREFS
-  const eventsRaw = isObject(raw.events) ? raw.events : {}
-  return {
-    enabled: coerceBool(raw.enabled, DEFAULT_PREFS.enabled),
-    sound: coerceBool(raw.sound, DEFAULT_PREFS.sound),
-    suppressWhenFocused: coerceBool(raw.suppressWhenFocused, DEFAULT_PREFS.suppressWhenFocused),
-    events: {
-      memberJoined: coerceBool(eventsRaw.memberJoined, DEFAULT_PREFS.events.memberJoined),
-      memberLeft: coerceBool(eventsRaw.memberLeft, DEFAULT_PREFS.events.memberLeft),
-      transferComplete: coerceBool(eventsRaw.transferComplete, DEFAULT_PREFS.events.transferComplete),
-      transferError: coerceBool(eventsRaw.transferError, DEFAULT_PREFS.events.transferError),
-      transferPaused: coerceBool(eventsRaw.transferPaused, DEFAULT_PREFS.events.transferPaused),
-    },
-  }
 }
 
 export function getPrefs(): NotificationPrefs {

@@ -25,7 +25,7 @@ import ShareFileRow, { type ShareFileRowProps } from '../../src/renderer/compone
 import { reconcileFiles } from '../../src/renderer/model/share-files-reconcile.js'
 import { buildFileTree } from '../../src/renderer/model/file-tree.js'
 import type { Decoration } from '../../src/renderer/hooks/useDecorations.js'
-import type { FileTreeNode, ShareFileEntry, SpaceMember, PeerDownloadSummary } from '../../src/renderer/types/types.js'
+import type { FileTreeNode, ShareFileEntry, SpaceMember, PeerDownloadSummary, FileRecipient } from '../../src/renderer/types/types.js'
 
 interface HarnessResults {
   pass: boolean
@@ -74,6 +74,7 @@ const HANDLERS = {
   onCancel: noop,
 }
 const MEMBERS: SpaceMember[] = []
+const NO_RECIPIENTS: FileRecipient[] = []
 
 const renders: Record<string, number> = {}
 function snapshot(): Record<string, number> {
@@ -150,6 +151,8 @@ function Harness() {
       spaceId="s"
       members={MEMBERS}
       downloadSummary={summaries.get(file.relPath) ?? null}
+      recipients={NO_RECIPIENTS}
+      ownerKey="o"
       {...HANDLERS}
     />
   )), [files, summaries, decorations])

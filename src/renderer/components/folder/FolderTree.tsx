@@ -8,7 +8,9 @@ import ShareFileRow from '../cards/ShareFileRow.js'
 import { formatSize } from '../../format/utils.js'
 import { badgeStyle } from '../../model/status-badge.js'
 import type { Decoration } from '../../types/ui.js'
-import type { FileTreeNode, FileTreeFolderNode, SpaceMember, PeerDownloadSummary } from '../../types/types.js'
+import type { FileTreeNode, FileTreeFolderNode, SpaceMember, PeerDownloadSummary, FileRecipient } from '../../types/types.js'
+
+const NO_RECIPIENTS: FileRecipient[] = []
 
 interface FileRowCallbacks {
   isOwn: boolean
@@ -16,6 +18,8 @@ interface FileRowCallbacks {
   spaceId: string
   members: SpaceMember[]
   getDownloadSummary: (relPath: string) => PeerDownloadSummary | null
+  getRecipients: (relPath: string) => FileRecipient[]
+  ownerKey: string
   getDecoration: (relPath: string) => Decoration | null
   isSeeded: (relPath: string) => boolean
   onDownload: (relPath: string) => void
@@ -106,6 +110,8 @@ export default function FolderTree(props: FolderTreeProps) {
             spaceId={rest.spaceId}
             members={rest.members}
             downloadSummary={rest.isOwn ? rest.getDownloadSummary(node.entry.relPath) : null}
+            recipients={rest.isOwn ? rest.getRecipients(node.entry.relPath) : NO_RECIPIENTS}
+            ownerKey={rest.ownerKey}
             onDownload={rest.onDownload}
             onReveal={rest.onReveal}
             onPause={rest.onPause}

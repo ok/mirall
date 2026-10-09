@@ -54,6 +54,8 @@ const cardHandlers = {
   onReveal: noop,
   onUnshare: noop,
   onCancelPublish: noop,
+  spaceId: 'space1',
+  recipients: [],
 }
 
 const toastItems: ToastItem[] = [

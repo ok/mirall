@@ -1,4 +1,4 @@
-// Notification settings: master/sound/focus-suppression toggles and per-event enablement.
+// Notification settings: master/sound/focus-suppression toggles and per-event enablement, grouped by whom the event is about.
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useHasVerticalOverflow } from '../../hooks/useHasVerticalOverflow.js'
@@ -6,12 +6,14 @@ import { useRunAction } from '../../hooks/useRunAction.js'
 import PageHeader from '../../components/layout/PageHeader.js'
 import SectionHeading from '../../components/layout/SectionHeading.js'
 import Toggle from '../../components/primitives/Toggle.js'
-import {
-  getPrefs,
-  setPrefs,
-  type NotificationPrefs,
-  type NotificationEventPrefs,
-} from '../../notifications/prefs.js'
+import { getPrefs, setPrefs } from '../../notifications/prefs.js'
+import type { NotificationPrefs, NotificationEventPrefs } from '../../notifications/prefs-shape.js'
+
+interface EventRow {
+  key: keyof NotificationEventPrefs
+  label: string
+  desc: string
+}
 
 interface NotificationSettingsProps {
   onBack: () => void
@@ -48,12 +50,30 @@ export default function NotificationSettings({ onBack }: NotificationSettingsPro
   }
 
   const eventsDisabled = !prefs.enabled
-  const eventRows: Array<{ key: keyof NotificationEventPrefs; label: string; desc: string }> = [
-    { key: 'memberJoined', label: t('notificationSettings.eventMemberJoined'), desc: t('notificationSettings.eventMemberJoinedDesc') },
-    { key: 'memberLeft', label: t('notificationSettings.eventMemberLeft'), desc: t('notificationSettings.eventMemberLeftDesc') },
-    { key: 'transferComplete', label: t('notificationSettings.eventTransferComplete'), desc: t('notificationSettings.eventTransferCompleteDesc') },
-    { key: 'transferError', label: t('notificationSettings.eventTransferError'), desc: t('notificationSettings.eventTransferErrorDesc') },
-    { key: 'transferPaused', label: t('notificationSettings.eventTransferPaused'), desc: t('notificationSettings.eventTransferPausedDesc') },
+  const eventSections: Array<{ title: string; rows: EventRow[] }> = [
+    {
+      title: t('notificationSettings.sectionPeople'),
+      rows: [
+        { key: 'joinRequests', label: t('notificationSettings.eventJoinRequests'), desc: t('notificationSettings.eventJoinRequestsDesc') },
+        { key: 'presence', label: t('notificationSettings.eventPresence'), desc: t('notificationSettings.eventPresenceDesc') },
+      ],
+    },
+    {
+      title: t('notificationSettings.sectionSharedWithYou'),
+      rows: [{ key: 'newShares', label: t('notificationSettings.eventNewShares'), desc: t('notificationSettings.eventNewSharesDesc') }],
+    },
+    {
+      title: t('notificationSettings.sectionYourShares'),
+      rows: [{ key: 'fileReceived', label: t('notificationSettings.eventFileReceived'), desc: t('notificationSettings.eventFileReceivedDesc') }],
+    },
+    {
+      title: t('notificationSettings.sectionYourDownloads'),
+      rows: [
+        { key: 'transferComplete', label: t('notificationSettings.eventTransferComplete'), desc: t('notificationSettings.eventTransferCompleteDesc') },
+        { key: 'transferError', label: t('notificationSettings.eventTransferError'), desc: t('notificationSettings.eventTransferErrorDesc') },
+        { key: 'transferPaused', label: t('notificationSettings.eventTransferPaused'), desc: t('notificationSettings.eventTransferPausedDesc') },
+      ],
+    },
   ]
 
   return (
@@ -95,21 +115,23 @@ export default function NotificationSettings({ onBack }: NotificationSettingsPro
             </div>
           </section>
 
-          <section>
-            <SectionHeading>{t('notificationSettings.events')}</SectionHeading>
-            <div className="bg-surface-container-low rounded-xl overflow-hidden">
-              {eventRows.map((row) => (
-                <Toggle
-                  key={row.key}
-                  label={row.label}
-                  description={row.desc}
-                  checked={prefs.events[row.key]}
-                  disabled={eventsDisabled}
-                  onChange={(v) => setEvent(row.key, v)}
-                />
-              ))}
-            </div>
-          </section>
+          {eventSections.map((section) => (
+            <section key={section.title}>
+              <SectionHeading>{section.title}</SectionHeading>
+              <div className="bg-surface-container-low rounded-xl overflow-hidden">
+                {section.rows.map((r) => (
+                  <Toggle
+                    key={r.key}
+                    label={r.label}
+                    description={r.desc}
+                    checked={prefs.events[r.key]}
+                    disabled={eventsDisabled}
+                    onChange={(v) => setEvent(r.key, v)}
+                  />
+                ))}
+              </div>
+            </section>
+          ))}
         </div>
       </div>
     </div>
