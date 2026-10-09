@@ -17,6 +17,7 @@ const { isDebug } = require('./debug-gate.js')
 const { loadRedactLine } = require('./logging.js')
 const applyErrors = require('./apply-error.js')
 const updateCache = require('./update-cache.js')
+const { initialUpdateStatus, createUpdateStatus } = require('./update-status.js')
 
 const pkg = require('../../package.json')
 const appName = pkg.productName || pkg.name
@@ -27,6 +28,9 @@ let pear = null
 // Update passes and prunes take turns: a prune never runs while a pass mirrors or prefetches.
 let cacheTurn = Promise.resolve()
 let passRunning = false
+let manualCheck = false
+// How long a check the user asked for waits for a peer of the update drive before it runs anyway.
+const PEER_WAIT_MS = 15_000
 
 function withCacheTurn(fn) {
   const run = cacheTurn.catch(() => {}).then(fn)
@@ -44,11 +48,20 @@ function pruneInTurn(updater) {
 let getDataDir = null
 let updatesEnabled = false
 let updatesOffReason = null
+let updateStatus = createUpdateStatus(initialUpdateStatus({ offReason: null, canRestart: false }))
 
 function initUpdater(d) {
   getDataDir = d.getDataDir
   updatesEnabled = d.updatesEnabled
   updatesOffReason = d.updatesOffReason ?? null
+  updateStatus = createUpdateStatus(initialUpdateStatus({ offReason: updatesOffReason, canRestart: canRelaunchIntoUpdate() }))
+}
+
+// macOS swaps the bundle at quit and an AppImage is swapped in place, so a relaunch starts the new
+// build from the same path. An MSIX relaunched from its old package folder can start the version it
+// is replacing.
+function canRelaunchIntoUpdate() {
+  return app.isPackaged && (isMac || (isLinux && !!process.env.APPIMAGE))
 }
 
 function getAppPath() {
@@ -133,8 +146,15 @@ function getPear() {
   // version only when it is whole on this device. A failed prune never fails the pass.
   u._update = async () => {
     passRunning = true
+    updateStatus.dispatch({ type: 'pass-start' })
+    const manual = manualCheck
+    manualCheck = false
     try {
       await withCacheTurn(pass)
+      updateStatus.dispatch({ type: 'pass-end', reached: u.drive.core.peers.length > 0, manual })
+    } catch (err) {
+      updateStatus.dispatch({ type: 'pass-failed' })
+      throw err
     } finally {
       passRunning = false
       await pruneInTurn(u).catch((err) => console.error('update cache prune failed:', err))
@@ -168,6 +188,15 @@ function getPear() {
     swarm.on('connection', (connection) => store.replicate(connection))
     swarm.join(u.drive.core.discoveryKey, { client: true, server: false })
     u.on('error', (err) => console.error('pear updater error:', err))
+    u.on('updating', () => updateStatus.dispatch({ type: 'downloading' }))
+    u.on('updated', () => updateStatus.dispatch({ type: 'ready', version: u.nextVersion }))
+    // The boot pass usually runs before any peer is connected, so the first peer gets a pass of its
+    // own: that is the check that tells whether this build is current.
+    if (u.bundled) {
+      u.drive.core.once('peer-add', () => {
+        u._debouncedUpdate().catch((err) => console.error('update pass failed:', err))
+      })
+    }
   }
   // Windows: msix-manager.addPackage takes seconds and runs invisibly during
   // before-quit, racing the user's relaunch and silently failing if the .msix
@@ -193,6 +222,30 @@ function applyPendingUpdate() {
   if (!updatesEnabled) return null
   if (!pear?.updater?.updated || pear.updater.applied) return null
   return pear.updater.applyUpdate()
+}
+
+function waitForPeer(core, ms) {
+  if (core.peers.length > 0) return Promise.resolve()
+  return new Promise((resolve) => {
+    const done = () => {
+      clearTimeout(timer)
+      core.off('peer-add', done)
+      resolve()
+    }
+    const timer = setTimeout(done, ms)
+    core.on('peer-add', done)
+  })
+}
+
+async function runManualCheck(updater) {
+  manualCheck = true
+  updateStatus.dispatch({ type: 'pass-start' })
+  await waitForPeer(updater.drive.core, PEER_WAIT_MS)
+  await updater._debouncedUpdate()
+}
+
+function onUpdateStatus(listener) {
+  return updateStatus.subscribe(listener)
 }
 
 function registerUpdater() {
@@ -244,21 +297,25 @@ function registerUpdater() {
     return pruneInTurn(p.updater)
   })
 
-  ipcMain.handle('pear:checkForUpdate', async () => {
+  ipcMain.handle('pear:updateStatus', () => updateStatus.get())
+
+  // Returns once the check has started; how it ends arrives on the status stream.
+  ipcMain.handle('pear:checkForUpdate', () => {
     if (!updatesEnabled) return { triggered: false, reason: updatesOffReason ?? 'updates disabled' }
     const p = getPear()
     if (!p.updater) return { triggered: false, reason: 'updater disabled' }
-    try {
-      await p.updater._debouncedUpdate()
-      return {
-        triggered: true,
-        length: p.updater.drive.core.length,
-        fork: p.updater.drive.core.fork
-      }
-    } catch (err) {
-      return { triggered: false, error: err.message }
-    }
+    runManualCheck(p.updater).catch((err) => console.error('update check failed:', err))
+    return { triggered: true }
+  })
+
+  // The quit sequence applies a staged macOS update before the process exits, so the relaunched
+  // process starts the new bundle.
+  ipcMain.handle('app:relaunch', () => {
+    if (!updateStatus.get().canRestart) return false
+    app.relaunch(isLinux ? { execPath: process.env.APPIMAGE, args: process.argv.slice(1) } : undefined)
+    app.quit()
+    return true
   })
 }
 
-module.exports = { initUpdater, registerUpdater, getPear, getAppPath, applyPendingUpdate }
+module.exports = { initUpdater, registerUpdater, getPear, getAppPath, applyPendingUpdate, onUpdateStatus }

@@ -163,7 +163,7 @@ function AppShell({ nav, profile, onSaveProfile, deepLinks, identity }: AppShell
           onSettingsClick={nav.openSettings}
           onAccountClick={nav.openAccount}
           onFeedbackClick={() => setDialog({ kind: 'feedback' })}
-          update={dismissed ? null : update}
+          updateVersion={dismissed ? null : update}
           onDismissUpdate={dismiss}
           restoreBanner={hold.active ? (
             <RestoreBanner

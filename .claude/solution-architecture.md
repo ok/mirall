@@ -1293,14 +1293,25 @@ and the asar hash travel together.
 
 When the drive's `/package.json` version is greater than the running one, the updater mirrors this
 platform's bundle into `pear-runtime/next/<length>.<fork>` and emits `updating` and then `updated`.
-Main forwards both as `pear:event:updating` / `pear:event:updated` (`src/main/window.js`). At an
-*equal* version it only prefetches. The installed build must therefore equal the staged drive
+At an *equal* version it only prefetches. The installed build must therefore equal the staged drive
 version, or the banner loops on every launch (→ `build-process.md`).
 
-**Banner.** `src/renderer/platform/updates.ts` reacts to `updated`. A dev build reloads. A packaged
-build reads the staged version from **main** (`bridge.appVersion()`), because the worker's bootstrap
-fork/length can still be a stale `0/0`. The banner is passive ("applied on next start" plus
-Dismiss). There is no in-app relaunch.
+**Status.** Main owns one update status (`src/main/update-status.js`, vocabulary in
+`contract/update-status.js`): `idle | checking | downloading | ready | error | off`, plus the staged
+version, the time of the last confirmed check, the off reason and whether a relaunch can start the
+new build. The renderer reads it once (`pear:updateStatus`) and follows `pear:event:update-status`,
+which main sends to every window. A pass counts as a check only when the update drive had a peer:
+the boot pass usually runs before any peer connects, so the first `peer-add` runs a pass of its own.
+A background pass that reaches no peer changes nothing; a check the user started
+(`pear:checkForUpdate`, which returns at once and waits up to 15 s for a peer) reports `error`
+instead. `ready` survives later passes until a newer version starts downloading.
+
+**Banner and About.** `src/renderer/platform/updates.ts` keeps the status and the banner's dismissal
+(a different staged version clears it). The banner is passive ("applied on next start" plus Dismiss).
+About shows the verdict, Check now, and — on macOS and an AppImage — Restart now (`app:relaunch`:
+`app.relaunch()` then `app.quit()`, so the quit sequence still applies a macOS update first). An MSIX
+relaunched from its old package folder can start the old version, so Windows offers no restart. A
+source build reloads the renderer when a status turns `ready`.
 
 **Apply — no user action**, with timing per platform:
 

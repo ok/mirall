@@ -23,6 +23,7 @@ let refreshAppMenu = null
 let applyAppMenuVisibility = null
 let sendKeyboardCommand = null
 let getPear = null
+let onUpdateStatus = null
 let updatesEnabled = false
 let startHiddenFlag = false
 
@@ -32,6 +33,7 @@ function initWindow(d) {
   applyAppMenuVisibility = d.applyAppMenuVisibility
   sendKeyboardCommand = d.sendKeyboardCommand
   getPear = d.getPear
+  onUpdateStatus = d.onUpdateStatus
   updatesEnabled = d.updatesEnabled
   startHiddenFlag = d.startHiddenFlag
 }
@@ -306,17 +308,11 @@ async function createWindow() {
     maybeShowFirstHideNotice()
   })
 
-  if (updatesEnabled) {
-    const p = getPear()
-    const onUpdating = () => { if (!win.isDestroyed()) win.webContents.send('pear:event:updating') }
-    const onUpdated = () => { if (!win.isDestroyed()) win.webContents.send('pear:event:updated') }
-    p.updater.on('updating', onUpdating)
-    p.updater.on('updated', onUpdated)
-    win.on('closed', () => {
-      p.updater.removeListener('updating', onUpdating)
-      p.updater.removeListener('updated', onUpdated)
-    })
-  }
+  if (updatesEnabled) getPear()
+  const stopStatus = onUpdateStatus((status) => {
+    if (!win.isDestroyed()) win.webContents.send('pear:event:update-status', status)
+  })
+  win.on('closed', stopStatus)
 
   const devUrl = envOverride('PEAR_DEV_SERVER_URL')
   if (devUrl) {

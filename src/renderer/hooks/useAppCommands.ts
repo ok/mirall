@@ -33,6 +33,7 @@ const APP_COMMANDS: readonly AppCommandRow[] = [
   { id: 'shortcuts.show', labelKey: 'shortcuts.showShortcuts', group: 'system', run: (t) => t.openCheatsheet() },
   { id: 'settings.open', labelKey: 'shortcuts.openSettings', group: 'navigation', run: (t) => t.nav.openSettings() },
   { id: 'profile.open', labelKey: 'shortcuts.openProfile', group: 'navigation', run: (t) => t.nav.openAccount() },
+  { id: 'about.open', labelKey: 'shortcuts.openAbout', group: 'navigation', run: (t) => t.nav.setCurrentScreen('about') },
   { id: 'activity.open', labelKey: 'shortcuts.openActivityLog', group: 'navigation', run: (t) => t.nav.openActivityLog() },
   { id: 'activity.openSettings', labelKey: 'shortcuts.openActivityLogSettings', group: 'navigation', run: (t) => t.nav.setCurrentScreen('activity-log-settings') },
   { id: 'settings.storage', labelKey: 'shortcuts.openStorageSettings', group: 'navigation', run: (t) => t.nav.openStorageSettings('settings') },

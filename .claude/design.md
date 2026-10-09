@@ -694,7 +694,14 @@ two-tier rule in §2), `transition-colors`, **no border, no shadow**:
   Troubleshooting (Diagnostics, Advanced details). The label is the row's `aria-label`; the tile and
   chevron are decoration. On Account, the Connection row's tile (`hub`) carries the connectivity
   state as `StatusDot`, the same 12 px bottom-right dot MemberCard uses, so state is a mark on the
-  tile rather than a lamp in place of it.
+  tile rather than a lamp in place of it. Backup (`ProtectionDot`) and About (`about/UpdateDot`:
+  `bg-online` only after a confirmed check, `bg-secondary-container` for a staged update, no dot
+  otherwise) follow the same rule. `LinkRow` is the external twin: same anatomy, `open_in_new`
+  instead of the chevron, and "(opens in browser)" in its name.
+- **Verdict banners** — Backup, Network status and About open with one: `bg-surface-container-low
+  rounded-xl p-6`, a 16 px lamp with a `ring-4` halo (`aria-hidden`), a `text-2xl` headline and a
+  body inside `role="status" aria-live="polite"`, and at most one `Button` (secondary while all is
+  well, primary when it is the fix).
 - Lists rely on spacing + surface tiers, **not dividers** — the one exception is
   `screens/settings/StorageSettings.tsx` (`divide-y divide-surface-container-high/30`).
 
