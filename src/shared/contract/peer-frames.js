@@ -14,6 +14,8 @@
 //   share-prepare-progress  an owner's prepare progress for one share.
 //   share-wait              a member→owner notice that it is waiting on a file the owner is still
 //                           hashing: { spaceId, shareId, relPath, cancel? }.
+//   share-received          a member→owner notice that it holds a verified copy of one of the owner's
+//                           files: { spaceId, shareId, relPath, contentHash }.
 //   leave                   a member announcing it has left the space.
 //   leave-ack               the receipt that lets the leaver stop announcing.
 //   space-ref               a space named by reference and nothing else, sent in place of an identity
@@ -40,6 +42,7 @@ export const PEER_FRAME = Object.freeze({
   SHARE_INDEX_PROGRESS: 'share-index-progress',
   SHARE_PREPARE_PROGRESS: 'share-prepare-progress',
   SHARE_WAIT: 'share-wait',
+  SHARE_RECEIVED: 'share-received',
   SPACE_REF: 'space-ref',
 })
 

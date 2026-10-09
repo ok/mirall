@@ -4,6 +4,7 @@
 // test/unit/contract-declarations.test.js, which parses every emit site, every renderer
 // subscription and this list and asserts all three name the same set.
 const EVENTS = Object.freeze({
+  ACTIVITY: 'event:activity',
   AUDIT_UPDATED: 'event:audit-updated',
   AWARENESS: 'event:awareness',
   DECORATION: 'event:decoration',
@@ -27,6 +28,7 @@ const EVENTS = Object.freeze({
   OWNED_FOLDER_PREVIEW_PROGRESS: 'event:owned-folder-preview-progress',
   OWNED_FOLDER_SCAN_COMPLETED: 'event:owned-folder-scan-completed',
   PROFILE_NEEDED: 'event:profile-needed',
+  RECIPIENTS_UPDATED: 'event:recipients-updated',
   RECONCILE: 'event:reconcile',
   RESTORE_UPDATED: 'event:restore-updated',
   SHARE_FILES_UPDATED: 'event:share-files-updated',

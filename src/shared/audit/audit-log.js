@@ -11,6 +11,7 @@ import { DEFAULT_MAX_ENTRIES, DEFAULT_RETENTION_DAYS, normalizeConfig } from './
 import { createRateGuard } from './audit-rate-guard.js'
 import { CONFIG_KEY, evtKey, evtRange, indexKeyOf, seqOf } from './audit-keys.js'
 import { ACTOR_TYPE } from '../contract/audit-kinds.js'
+import { announceActivity } from './activity-feed.js'
 
 const log = createLogger('audit')
 
@@ -131,6 +132,7 @@ export function oldestSeq() {
 // write itself stays fire-and-forget, but callers that mirror "we recorded this" into
 // durable state need to know when nothing was recorded at all.
 export function record(kind, row = {}, context = null) {
+  announceActivity(kind, row)
   if (!bee || !config.enabled) return false
   if (kind !== SUPPRESSED_KIND && !rateGuard.admit(kind)) return false
   // The handle is captured HERE, not read again inside append: record() returning true is a

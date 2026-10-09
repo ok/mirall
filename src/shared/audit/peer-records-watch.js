@@ -13,10 +13,12 @@ import { readOwnShares } from '../shares/shares.js'
 import { createLogger, fields } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
 import { ownedScheduler } from '../core/timers.js'
-import { record } from './audit-log.js'
+import { record, getAuditConfig } from './audit-log.js'
+import { isAnnounced } from './activity-feed.js'
 import { getSeenVersion, setSeenVersion, getPeerSubjectState, setPeerSubjectState } from './audit-watch-state.js'
-import { classifyProfileChange, classifyCatalogChange, isTransition, readChangesSince, stateOf, subjectKey } from './peer-records-observer.js'
+import { classifyProfileChange, classifyCatalogChange, isTransition, readChangesSince, stateOf, subjectKey, STATE_ON, STATE_OFF } from './peer-records-observer.js'
 import { TARGET_KIND } from '../contract/audit-kinds.js'
+import { MIRROR_STATE } from '../contract/statuses.js'
 import { peerActor, spaceRef, targetRef } from './audit-record.js'
 
 const log = createLogger('peer-watch')
@@ -85,16 +87,22 @@ export class PeerWatch extends Subsystem {
 // A row is emitted only when the subject's state actually flips, and the previous state is read
 // from disk — a peer re-writes a mirror record on every sync-state change and again at their own
 // boot, so an in-memory guard would let either side's restart emit a duplicate.
-// Returns a commit thunk on a genuine transition, or null. The caller commits only after
-// record() reports the row was admitted: record() no-ops when the log is disabled or the
-// kind is rate-limited, and mirroring "recorded" for a row that never existed would
-// permanently suppress that subject's next standing-state row.
+// Returns a commit thunk on a genuine transition, or null. The caller commits only once the row was
+// reported (see reported()): mirroring "recorded" for a row that reached nobody would permanently
+// suppress that subject's next standing-state row.
 async function transitioned(kind, personKey, spaceId, id, removed) {
   const key = subjectKey(kind, personKey, spaceId, id)
   const next = stateOf(removed)
   const previous = await getPeerSubjectState(key)
   if (!isTransition(previous, next)) return null
   return () => setPeerSubjectState(key, next)
+}
+
+// Whether the row reached the user: written to the log, or pushed as a notification while the log was
+// off or the kind over its rate budget. Either way the subject's state is committed; otherwise every
+// later re-put of the same subject would report it again.
+function reported(kind, row) {
+  return record(kind, row) || !getAuditConfig().enabled || isAnnounced(kind)
 }
 
 // The row is already admitted, so a failed state write must not fail the node: a retry would record
@@ -121,26 +129,45 @@ async function applyProfileChange(personKey, change) {
   if (change.kind === 'share') {
     const commit = await transitioned('share', personKey, change.spaceId, change.shareId, change.removed)
     if (!commit) return
-    const written = record(change.removed ? 'peer.share_deleted' : 'peer.share_created', {
+    const done = reported(change.removed ? 'peer.share_deleted' : 'peer.share_created', {
       actor,
       space: ref,
       target: targetRef(TARGET_KIND.SHARE, change.shareId, change.name),
     })
-    if (written) await commitRecorded(commit)
+    if (done) await commitRecorded(commit)
     return
   }
 
   // A mirror of someone else's share tells us nothing about our own data.
   const own = (await readOwnShares(change.spaceId)).find((s) => s.id === change.shareId)
   if (!own) return
+  await applyMirrorSynced(personKey, change, actor, ref, own)
   const commit = await transitioned('mirror', personKey, change.spaceId, change.shareId, change.removed)
   if (!commit) return
-  const written = record(change.removed ? 'mirror.peer_unmirrored' : 'mirror.peer_mirrored', {
+  const done = reported(change.removed ? 'mirror.peer_unmirrored' : 'mirror.peer_mirrored', {
     actor,
     space: ref,
     target: targetRef(TARGET_KIND.SHARE, change.shareId, own.name ?? null),
   })
-  if (written) await commitRecorded(commit)
+  if (done) await commitRecorded(commit)
+}
+
+// A mirror's first complete copy, once: a mirror drops back to syncing on every change the owner
+// makes, and each return to synced is routine. Unmirroring re-arms it, so a fresh mirror reports again.
+async function applyMirrorSynced(personKey, change, actor, ref, own) {
+  const key = subjectKey('mirror-synced', personKey, change.spaceId, change.shareId)
+  const previous = await getPeerSubjectState(key)
+  if (change.removed) {
+    if (previous === STATE_ON) await setPeerSubjectState(key, STATE_OFF)
+    return
+  }
+  if (change.state !== MIRROR_STATE.SYNCED || previous === STATE_ON) return
+  const done = reported('mirror.peer_synced', {
+    actor,
+    space: ref,
+    target: targetRef(TARGET_KIND.SHARE, change.shareId, own.name ?? null),
+  })
+  if (done) await commitRecorded(() => setPeerSubjectState(key, STATE_ON))
 }
 
 async function applyCatalogChange(personKey, spaceId, change) {
@@ -150,12 +177,12 @@ async function applyCatalogChange(personKey, spaceId, change) {
   // record a second "shared" row — matching how our own side records files:add once.
   const commit = await transitioned('file', personKey, spaceId, change.relPath, change.removed)
   if (!commit) return
-  const written = record(change.removed ? 'peer.file_unshared' : 'peer.file_shared', {
+  const done = reported(change.removed ? 'peer.file_unshared' : 'peer.file_shared', {
     actor: peerActor(personKey, peerName(space, personKey)),
     space: spaceRef(space.spaceId, space.name),
     target: targetRef(TARGET_KIND.FILE, change.relPath, change.relPath),
   })
-  if (written) await commitRecorded(commit)
+  if (done) await commitRecorded(commit)
 }
 
 // One sweep of a peer bee: read what changed since our watermark, turn it into rows, advance the

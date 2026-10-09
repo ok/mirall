@@ -19,6 +19,7 @@ import { presence, setPresenceExpireHandler } from './presence-leases.js'
 import { sendSingleHandshake } from './identity-frames.js'
 import { scheduleStatusEmit } from './network-status.js'
 import { memberWaits } from './share-wait.js'
+import { flushShareReceived } from './share-received.js'
 import { clearWaitingFor } from '../transfer/serve-ledger.js'
 import { replicateOn } from './replication-gate.js'
 import { servePendingLeave } from './leave-protocol.js'
@@ -267,6 +268,7 @@ export async function handleHandshake(socket, msg, spaceId, { park = null, bound
   // After our handshake, so a peer that has already admitted us reads it; one that has not yet is
   // covered by ownerReconnected above.
   memberWaits.resend(personKey)
+  flushShareReceived(personKey)
 
   try {
     await persistHandshakeMember(spaceId, space, msg, existingMember)

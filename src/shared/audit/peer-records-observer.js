@@ -36,6 +36,7 @@ export function classifyProfileChange(node) {
       shareId: rest[1],
       removed: removedByDel || !!value?.[tombstoneField],
       name: value?.name || null,
+      state: typeof value?.state === 'string' ? value.state : null,
     }
   }
   return null
@@ -70,7 +71,6 @@ export function subjectKey(kind, personKey, spaceId, id) {
   return [kind, personKey, spaceId, id].join('|')
 }
 
-/** @internal */
 export const STATE_ON = 'on'
 export const STATE_OFF = 'off'
 

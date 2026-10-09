@@ -259,6 +259,7 @@ export const REQUESTS = Object.freeze({
     avatar: { type: ARG.string, optional: true },
     displayName: { type: ARG.string, max: ARG_MAX.name },
   } },
+  'recipients:list': { kind: 'query', args: { spaceId: { type: ARG.spaceId } } },
   'serving:detail-subscribe': { kind: 'command', args: { path: { type: ARG.path }, spaceId: { type: ARG.spaceId } } },
   'serving:detail-unsubscribe': { kind: 'command', args: { path: { type: ARG.path }, spaceId: { type: ARG.spaceId } } },
   'serving:summary-list': { kind: 'query', args: { spaceId: { type: ARG.spaceId } } },

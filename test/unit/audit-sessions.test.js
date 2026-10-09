@@ -99,3 +99,12 @@ test('clear drops every open session', (t) => {
   s.clear()
   t.is(s.size(), 0)
 })
+
+test('raiseFloor keeps the largest resume figure and ignores an unknown key', (t) => {
+  const store = createSessionStore()
+  store.start('k', { now: 0, total: 100 })
+  store.raiseFloor('k', 40)
+  store.raiseFloor('k', 10)
+  store.raiseFloor('missing', 50)
+  t.is(store.end('k', { now: 1 }).floor, 40)
+})
