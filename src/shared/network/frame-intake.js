@@ -15,7 +15,7 @@ import { handleLeaveFrame, handleLeaveAckFrame, handleMembershipCancelAck, sendP
 import { sendSingleHandshake } from './identity-frames.js'
 import { frameSpace, noteLegacyTopic, rememberUnheldTopic, noteSpaceProven } from './topic-refs.js'
 import { handleShareWaitFrame } from './share-wait.js'
-import { handleShareReceivedFrame } from './share-received.js'
+import { handleShareReceivedFrame, resetShareReceived } from './share-received.js'
 import { spaceTopics, boundSignerKeys, parkPendingRequester } from './swarm-registries.js'
 import { handleHandshake } from './handshake-apply.js'
 
@@ -261,4 +261,5 @@ export function resetFrameIntake() {
   rateLimiter?.clear()
   rateLimiter = null
   frameLimiter = null
+  resetShareReceived()
 }

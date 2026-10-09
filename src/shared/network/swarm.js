@@ -34,7 +34,6 @@ import { initConvergenceTick, resetConvergenceTick, startConvergenceTick, conver
 import { initConnectivity, resetConnectivity, attachSwarmWatchers, noteBooted } from './connectivity.js'
 import { scheduleStatusEmit } from './network-status.js'
 import { resetShareWait } from './share-wait.js'
-import { resetShareReceived } from './share-received.js'
 
 const log = createLogger('swarm')
 
@@ -126,7 +125,6 @@ async function destroySwarm() {
   resetDeferredAdmission()
   resetRelayInstall()
   resetShareWait()
-  resetShareReceived()
   ipcRef = null
   membershipControlHandler = null
   connectionAttachHook = null
