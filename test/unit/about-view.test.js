@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { updateVerdict, updateDot, updateSummaryKey, releaseChannel, osLabel, archLabel, appInfoLine } from '../../src/renderer/model/about-view.js'
+import { updateVerdict, updateDot, updateSummaryKey, releaseChannel } from '../../src/renderer/model/about-view.js'
 
 const BASE = { state: 'idle', nextVersion: null, lastCheckedAt: null, offReason: null, canRestart: true }
 const status = (patch) => ({ ...BASE, ...patch })
@@ -36,18 +36,4 @@ test('the channel comes from the baked version', (t) => {
   t.is(releaseChannel('1.12.0-beta.66', false), 'beta')
   t.is(releaseChannel('1.12.0-dev.4', false), 'dev')
   t.is(releaseChannel('1.12.0', true), 'source')
-})
-
-test('the system reads as the OS people know it by', (t) => {
-  t.is(osLabel({ platform: 'darwin', arch: 'arm64', osVersion: '26.0' }), 'macOS 26.0')
-  t.is(osLabel({ platform: 'win32', arch: 'x64', osVersion: '10.0.22631' }), 'Windows 11 (10.0.22631)')
-  t.is(osLabel({ platform: 'win32', arch: 'x64', osVersion: '10.0.19045' }), 'Windows 10 (10.0.19045)')
-  t.is(osLabel({ platform: 'linux', arch: 'x64', osVersion: '6.8.0' }), 'Linux 6.8.0')
-  t.is(archLabel({ platform: 'darwin', arch: 'arm64', osVersion: '26.0' }), 'Apple silicon')
-  t.is(archLabel({ platform: 'darwin', arch: 'x64', osVersion: '15.0' }), 'Intel')
-  t.is(archLabel({ platform: 'linux', arch: 'arm64', osVersion: '6.8.0' }), 'arm64')
-})
-
-test('the app-info line carries the build and the raw architecture', (t) => {
-  t.is(appInfoLine('v1.12.0-beta.66', { platform: 'darwin', arch: 'arm64', osVersion: '26.0' }), 'Mirall v1.12.0-beta.66 · macOS 26.0 (arm64)')
 })

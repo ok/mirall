@@ -28,7 +28,6 @@ contextBridge.exposeInMainWorld('bridge', {
   isDev: () => ipcRenderer.sendSync('app:isDev'),
   getLocale: () => ipcRenderer.sendSync('app:getLocale'),
   getPlatform: () => process.platform,
-  getSystemInfo: () => ({ platform: process.platform, arch: process.arch, osVersion: process.getSystemVersion() }),
   getPathForFile: (file) => webUtils.getPathForFile(file),
 
   checkForUpdate: () => ipcRenderer.invoke('pear:checkForUpdate'),

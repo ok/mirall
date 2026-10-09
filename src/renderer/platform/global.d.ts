@@ -22,12 +22,6 @@ export interface BandwidthLimits {
   uploadKBps: number
 }
 
-export interface SystemInfo {
-  platform: NodeJS.Platform
-  arch: string
-  osVersion: string
-}
-
 export type NotificationUrgency = 'normal' | 'critical' | 'low'
 
 export type NotificationClickPayload =
@@ -109,7 +103,6 @@ export interface MirallBridge {
   isDev(): boolean
   getLocale(): string
   getPlatform(): NodeJS.Platform
-  getSystemInfo(): SystemInfo
   getPathForFile(file: File): string
 
   checkForUpdate(): Promise<{ triggered: boolean; reason?: string }>

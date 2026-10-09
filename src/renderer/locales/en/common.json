@@ -753,25 +753,6 @@
       "dev": "Development",
       "source": "Development"
     },
-    "details": "Details",
-    "field": {
-      "version": "Version",
-      "channel": "Release channel",
-      "installedOn": "Installed on",
-      "updates": "Updates"
-    },
-    "channel": {
-      "release": "Release",
-      "beta": "Beta — early builds for testing",
-      "dev": "Development build",
-      "source": "Built from source"
-    },
-    "updatesMethod": {
-      "auto": "Automatic, peer-to-peer",
-      "packageManager": "Through your package manager",
-      "off": "Off"
-    },
-    "copyInfo": "Copy app info",
     "groupProject": "Mirall",
     "website": "Website",
     "support": "Support",
