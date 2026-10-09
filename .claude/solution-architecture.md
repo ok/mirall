@@ -160,8 +160,11 @@ Bootstrap:
    1. `Store` → identity unlock → `runMigrations('durable')` → `maintainLocalBees` → `SpaceKeysVault` → `ProfileBee` →
       `SpacesBee` → `DownloadsBee` → `PendingTransfersBee` → `MountsBee` → `IntentsBee`.
    2. `AuditLog`: writable before anything worth recording. A failed start loses rows, never boot.
-   3. `ServeLedger` next, so it closes just before the log, whose close drains the `serve.completed`
-      rows the ledger reaps.
+      Then `ActivityFeed` (the `event:activity` push and the connectivity watch), started whether
+      or not the log did, so notifications never depend on the log's bee.
+   3. `FileRecipients` → `ServeLedger`, so each closes before the one it writes into: the ledger's
+      close hands a serve that completes during teardown to the recipients, whose close drains the
+      write and its `serve.completed` row into the log.
    4. `OwnCatalogs` → `PeerCatalogs`.
 
    The **runtime** tier closes first:
@@ -336,6 +339,7 @@ session-level timeout so an abandoned read cannot pin the core. Budgets:
 | `space/<spaceId>` | space record (below) |
 | `left/<spaceId>/<memberKey>` | `{ leaveTs }` — a leave we observed; keeps the leaver subtracted from our fold across restarts until a strictly-later `member/` ts |
 | `pendingleave/<spaceId>` | `{ topic, ts, members }` — our leave not yet acked by any co-member; re-announced until one does, and our own core served to the listed roster over the replay (§6) |
+| `recipient/<spaceId>/<shareId>/<memberKey>/<relPath>` | `{ contentHash, ts }` — a member holding a verified copy of OUR file, at the latest version they reported (`src/shared/transfer/file-recipients.js`); cleared with the space |
 
 `spaceId` = first 16 hex chars of the 32-byte topic. The record always holds
 `name, icon, topic, created, members, driveSuffix, schemaVersion:2`; every other field is a
@@ -424,6 +428,15 @@ Mechanics are in §4.5, §7.2 and §7.6; these are the data-model invariants.
   in that space, and only for its own still-unhashed entry
   (`src/shared/network/share-wait-intake.js`). It is never persisted or audited; limits are in
   `src/shared/transfer/share-wait-set.js`.
+- **share-received** `{ profileKey, spaceId, shareId, relPath, contentHash }` is unicast by a member
+  whose download of the owner's file settled verified; an owner it cannot reach yet keeps it in a
+  bounded in-memory outbox flushed at the owner's next handshake. The owner accepts it only from an
+  authenticated sender in that space and only at the hash it currently advertises
+  (`src/shared/network/share-received-intake.js`). A serve whose bytes, on top of the downloader's
+  reported resume floor, cover the file notes the same recipient for a peer that never confirms;
+  a mirror's fetches are excluded, since the mirror record reports its completion once
+  (`mirror.peer_synced`). A first-time recipient is recorded as `serve.completed`; a partial pull
+  records nothing. Recipients are owner-only and never replicated.
 - **Download** (`src/shared/transfer/overlay/overlay-download.js`): observers see no file
   or a complete file, never a partial under the real name. The pending row is written before any
   byte moves. A name counts as taken if the file or its `.mirall.part` exists, so a download never
@@ -1236,6 +1249,9 @@ they belong to.
   never a status source.
 - `event:transfer-*` are notification signals. Status is always re-derived from `files:list` /
   `share:list-files`, and `transfer-paused.reason` is toast wording only.
+- `event:activity` pushes a row of a `NOTIFIABLE_KINDS` kind (`src/shared/contract/audit-kinds.js`)
+  as it is recorded, even while the log is off, rate-limited or failed to start; desktop notifications are raised from it,
+  never from the log. `event:recipients-updated` pokes the `recipients` scope.
 
 **Request semantics a caller would not guess.**
 
