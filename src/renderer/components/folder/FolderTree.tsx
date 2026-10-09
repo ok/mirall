@@ -18,7 +18,7 @@ interface FileRowCallbacks {
   spaceId: string
   members: SpaceMember[]
   getDownloadSummary: (relPath: string) => PeerDownloadSummary | null
-  getRecipients: (relPath: string) => FileRecipient[]
+  getRecipients: (relPath: string, contentHash: string) => FileRecipient[]
   ownerKey: string
   getDecoration: (relPath: string) => Decoration | null
   isSeeded: (relPath: string) => boolean
@@ -110,7 +110,7 @@ export default function FolderTree(props: FolderTreeProps) {
             spaceId={rest.spaceId}
             members={rest.members}
             downloadSummary={rest.isOwn ? rest.getDownloadSummary(node.entry.relPath) : null}
-            recipients={rest.isOwn ? rest.getRecipients(node.entry.relPath) : NO_RECIPIENTS}
+            recipients={rest.isOwn ? rest.getRecipients(node.entry.relPath, node.entry.hash) : NO_RECIPIENTS}
             ownerKey={rest.ownerKey}
             onDownload={rest.onDownload}
             onReveal={rest.onReveal}

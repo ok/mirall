@@ -2,7 +2,7 @@
 // grouped by what each member's state asks of the owner. Counted against the space's admitted members
 // other than the file's owner, so a member who joins later raises the total — they do not have it.
 // Plain JS so it unit-tests in the Node runner.
-/** @import { FileRecipient, SpaceMember } from '../../shared/contract/responses.js' */
+/** @import { FileRecipient, MirrorParticipant, SpaceMember } from '../../shared/contract/responses.js' */
 
 // How many recent recipients the collapsed row shows by face; the text carries the rest.
 export const RECENT_FACES = 3
@@ -67,6 +67,27 @@ export function recipientGroups({ recipients, contentHash, members, ownerKey, ac
     .sort((a, b) => Number(b.member.online === true) - Number(a.member.online === true)
       || (a.member.displayName || '').localeCompare(b.member.displayName || ''))
   return { haveIt, notYet }
+}
+
+/**
+ * One folder file's recipients with the folder's mirrors folded in. A member who mirrors the folder
+ * is counted by the mirror alone, as holding the version shared now at the mirror's last update —
+ * in every sync state: the record is one state for the whole folder, so a syncing or paused mirror
+ * still holds what it already fetched, and a file it is fetching now shows as a live download. The
+ * files they downloaded one by one count again once they stop mirroring. With no mirror the input
+ * is returned as is.
+ * @param {FileRecipient[]} recipients @param {MirrorParticipant[]} mirrors
+ * @param {string} path @param {string} contentHash
+ * @returns {FileRecipient[]}
+ */
+export function withMirrors(recipients, mirrors, path, contentHash) {
+  if (mirrors.length === 0) return recipients
+  const mirroring = new Set(mirrors.map((m) => m.mirrorer))
+  const rows = recipients.filter((r) => !mirroring.has(r.personKey))
+  for (const m of mirrors) {
+    rows.push({ shareId: m.shareId, path, personKey: m.mirrorer, contentHash, ts: m.updatedAt ?? m.mountedAt })
+  }
+  return rows
 }
 
 // A loose row is '/'-rooted and unique in the space; a folder row is its share-relative path, so

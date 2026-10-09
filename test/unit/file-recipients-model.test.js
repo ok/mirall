@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { recipientSummary, recipientGroups, indexRecipients, recipientKey } from '../../src/renderer/model/file-recipients.js'
+import { recipientSummary, recipientGroups, indexRecipients, recipientKey, withMirrors } from '../../src/renderer/model/file-recipients.js'
 
 const OWNER = 'owner'
 const HASH = 'current'
@@ -57,4 +57,33 @@ test('the index keeps the arrays of files whose recipients did not change', (t) 
   t.not(second, first)
   t.is(second.get(recipientKey('/a.pdf')), first.get(recipientKey('/a.pdf')), 'the untouched file keeps its array')
   t.alike(second.get(recipientKey('docs/b.pdf', 's1')), [b, c])
+})
+
+const mirror = (mirrorer, state, updatedAt = 9) => ({ mirrorer, shareId: 's', state, mountedAt: 1, updatedAt })
+
+test('REGRESSION (FIX-MIRROR: a mirrored folder showed only the files downloaded one by one)', (t) => {
+  const own = [row('ben', 1), row('mia', 2)]
+  const rows = withMirrors(own, [mirror('ben', 'synced', 7), mirror('lea', 'synced', 8)], '/report.pdf', HASH)
+  const s = recipientSummary({ recipients: rows, contentHash: HASH, members: MEMBERS, ownerKey: OWNER })
+  t.alike(s.holders.map((m) => m.publicKey), ['lea', 'ben', 'mia'], 'a synced mirror holds the file, at its sync time')
+  t.alike(rows.filter((r) => r.personKey === 'ben').map((r) => r.ts), [7], 'the mirror replaces their single download')
+})
+
+test('a syncing or paused mirror still has the files: the state is one for the whole folder', (t) => {
+  const rows = withMirrors([row('ben', 1)], [mirror('ben', 'syncing', 4), mirror('mia', 'paused', 6)], '/report.pdf', HASH)
+  t.alike(rows.map((r) => [r.personKey, r.ts]), [['ben', 4], ['mia', 6]])
+})
+
+test('without a mirror the single downloads stand, as the same array', (t) => {
+  const own = [row('ben', 1)]
+  t.is(withMirrors(own, [], '/report.pdf', HASH), own)
+  t.alike(withMirrors(own, [mirror('lea', 'syncing')], '/report.pdf', HASH).filter((r) => r.personKey === 'ben'), own,
+    'another member mirroring changes nothing for ben')
+})
+
+test('a mirror holds the version the owner shares now', (t) => {
+  const [r] = withMirrors([row('ben', 1, 'old')], [mirror('ben', 'synced', 5)], 'docs/report.pdf', HASH)
+  t.alike(r, { shareId: 's', path: 'docs/report.pdf', personKey: 'ben', contentHash: HASH, ts: 5 })
+  const [noTime] = withMirrors([], [mirror('ben', 'synced', null)], 'docs/report.pdf', HASH)
+  t.is(noTime.ts, 1, 'a record with no update time falls back to when the mirror was set up')
 })
