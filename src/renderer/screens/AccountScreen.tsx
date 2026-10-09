@@ -1,7 +1,7 @@
-// Profile screen: display name and avatar; this device's connection, protection and activity log; app
-// version and resources.
+// Profile screen: display name and avatar; this device's connection, protection and activity log; the
+// About row and help resources.
 import InlineError from '../components/primitives/InlineError.js'
-import { useState, useRef, useEffect, type ReactNode } from 'react'
+import { useState, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { NAME_MAX } from '../format/utils.js'
 import { connectionDesc, activityDesc } from '../model/profile-rows.js'
@@ -10,20 +10,21 @@ import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import { useQuery } from '../store/useQuery.js'
 import { useConnectionStatus } from '../hooks/useConnectionStatus.js'
 import { useUpdates } from '../hooks/useUpdates.js'
+import { useAppBuild } from '../hooks/useAppBuild.js'
 import { useKeyboard } from '../keyboard/KeyboardProvider.js'
 import { useRunAction } from '../hooks/useRunAction.js'
 import { useAvatarPicker } from '../hooks/useAvatarPicker.js'
-import { useOpenWhatsNew } from '../hooks/useOpenWhatsNew.js'
 import StatusDot from '../components/primitives/StatusDot.js'
 import Icon from '../components/primitives/Icon.js'
-import type { IconName } from '../types/ui.js'
 import type { TFunction } from 'i18next'
 import type { BackupStatus } from '../../shared/contract/responses.js'
+import { UPDATE_STATE, type UpdateStatus } from '../../shared/contract/update-status.js'
 import Avatar from '../components/primitives/Avatar.js'
-import CopyButton from '../components/primitives/CopyButton.js'
 import PageHeader from '../components/layout/PageHeader.js'
 import SectionHeading from '../components/layout/SectionHeading.js'
-import ActionRow, { ROW, ROW_GROUP, RowBody, Tile } from '../components/layout/ActionRow.js'
+import ActionRow, { LinkRow, ROW_GROUP, Tile } from '../components/layout/ActionRow.js'
+import UpdateDot from '../components/about/UpdateDot.js'
+import { updateDot, updateSummaryKey } from '../model/about-view.js'
 import { useBackupStatus } from '../hooks/useBackupStatus.js'
 import { useRestoreHold } from '../hooks/useRestoreHold.js'
 import ProtectionDot from '../components/backup/ProtectionDot.js'
@@ -37,23 +38,8 @@ interface AccountProps {
   onOpenNetworkStatus: () => void
   onOpenActivityLog: () => void
   onOpenBackup: () => void
+  onOpenAbout: () => void
   onFeedback: () => void
-}
-
-function LinkRow({ label, desc, icon, href }: { label: string; desc: ReactNode; icon: IconName; href: string }) {
-  const { t } = useTranslation()
-  return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      aria-label={`${label} (${t('a11y.opensExternal')})`}
-      className={ROW}
-    >
-      <RowBody leading={<Tile icon={icon} />} title={label} desc={desc} />
-      <Icon name="open_in_new" className="text-secondary shrink-0" />
-    </a>
-  )
 }
 
 function ProfileCard({ profile, onSave }: Pick<AccountProps, 'profile' | 'onSave'>) {
@@ -188,58 +174,35 @@ function DeviceGroup({ onOpenNetworkStatus, onOpenActivityLog, onOpenBackup }: P
   )
 }
 
-function AppGroup({ onFeedback }: Pick<AccountProps, 'onFeedback'>) {
+// A staged update names its own version; every other summary follows the running one.
+function aboutDesc(t: TFunction, label: string, status: UpdateStatus): string {
+  const key = updateSummaryKey(status)
+  if (!key) return label
+  if (status.state === UPDATE_STATE.READY) return t(key, { version: status.nextVersion })
+  return `${label} · ${t(key)}`
+}
+
+function AppGroup({ onOpenAbout, onFeedback }: Pick<AccountProps, 'onOpenAbout' | 'onFeedback'>) {
   const { t } = useTranslation()
   const { openCheatsheet } = useKeyboard()
-  const { update } = useUpdates()
-  const openWhatsNew = useOpenWhatsNew()
-  const [version, setVersion] = useState('')
-
-  useEffect(() => {
-    const sem = window.bridge.pkg().version || '0.0.0'
-    // The baked package.json version identifies the running build on every channel (`-beta.N` = CI
-    // run, bare semver = prod tag, `(dev)` = source). Do NOT append appVersion(): it reads the OTA
-    // drive head, not the installed build.
-    setVersion(window.bridge.isDev() ? `v${sem} (dev)` : `v${sem}`)
-  }, [])
-
-  // Permanent counterpart to the dismissable banner: while an update is staged this row always says
-  // which version is waiting, even after the banner is dismissed.
-  const pendingVersion = update
-    ? (update.version.semver ?? `${update.version.fork}.${update.version.length}`)
-    : null
+  const { status } = useUpdates()
+  const { label } = useAppBuild()
+  const dot = updateDot(status)
 
   return (
     <section>
       <SectionHeading>{t('account.groupApp')}</SectionHeading>
       <div className={ROW_GROUP}>
-        <div className="group/copy w-full p-6 flex items-center gap-4">
-          <Tile icon="info" />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <p className="font-semibold text-accent">Mirall {version || '...'}</p>
-              {version && (
-                <CopyButton
-                  value={`Mirall ${version}`}
-                  className="opacity-0 group-hover/copy:opacity-100 focus:opacity-100 transition-opacity"
-                />
-              )}
-            </div>
-            {pendingVersion ? (
-              <p className="text-xs text-secondary mt-1 flex items-center gap-1">
-                <Icon name="update" size={14} />
-                {t('aboutSettings.updateReady', { version: pendingVersion })}
-              </p>
-            ) : (
-              <p className="text-xs text-on-surface-variant">{t('account.upToDate')}</p>
-            )}
-          </div>
-        </div>
         <ActionRow
-          icon="auto_awesome"
-          label={t('aboutSettings.whatsNew')}
-          desc={t('aboutSettings.whatsNewDesc')}
-          onClick={openWhatsNew}
+          label={t('about.title')}
+          desc={aboutDesc(t, label, status)}
+          leading={(
+            <span className="relative shrink-0">
+              <Tile icon="info" />
+              {dot && <UpdateDot lamp={dot} />}
+            </span>
+          )}
+          onClick={onOpenAbout}
         />
         <ActionRow
           icon="keyboard"
@@ -264,7 +227,7 @@ function AppGroup({ onFeedback }: Pick<AccountProps, 'onFeedback'>) {
   )
 }
 
-export default function Account({ profile, onSave, onBack, onOpenNetworkStatus, onOpenActivityLog, onOpenBackup, onFeedback }: AccountProps) {
+export default function Account({ profile, onSave, onBack, onOpenNetworkStatus, onOpenActivityLog, onOpenBackup, onOpenAbout, onFeedback }: AccountProps) {
   const { t } = useTranslation()
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
 
@@ -285,7 +248,7 @@ export default function Account({ profile, onSave, onBack, onOpenNetworkStatus, 
             <ProfileCard profile={profile} onSave={onSave} />
           </section>
           <DeviceGroup onOpenNetworkStatus={onOpenNetworkStatus} onOpenActivityLog={onOpenActivityLog} onOpenBackup={onOpenBackup} />
-          <AppGroup onFeedback={onFeedback} />
+          <AppGroup onOpenAbout={onOpenAbout} onFeedback={onFeedback} />
         </div>
       </div>
     </div>

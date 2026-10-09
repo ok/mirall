@@ -79,11 +79,6 @@ export interface PreviewProgress {
   bytes: number
 }
 
-export interface UpdateInfo {
-  app: boolean
-  version: { fork: number; length: number; semver: string | null }
-}
-
 export type ConnectivityState = 'online' | 'limited' | 'connecting' | 'offline'
 
 interface NetworkStatusStats {

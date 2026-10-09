@@ -104,7 +104,8 @@
     getPathForFile: () => '',
     appVersion: asyncNoop,
     getChangelog: () => Promise.resolve([]),
-    onPearEvent: noop,
+    getUpdateStatus: () => Promise.resolve({ state: 'idle', nextVersion: null, lastCheckedAt: null, offReason: null, canRestart: false }),
+    onUpdateStatus: () => noop,
 
     startWorker: asyncNoop,
     restartWorker: asyncNoop,

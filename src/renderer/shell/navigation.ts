@@ -27,6 +27,7 @@ const PARENT = {
   'general-settings': 'settings',
   'network-settings': 'settings',
   'network-status': 'account',
+  about: 'account',
   'network-diagnostics': 'network-status',
   'network-advanced': 'network-status',
   'activity-log': (t: BackTargets) => t.activityLogBackTarget,

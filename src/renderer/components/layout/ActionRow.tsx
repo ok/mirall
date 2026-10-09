@@ -3,6 +3,7 @@
 // accessible name and its description (often a live state) as its accessible description; the tile
 // and the chevron are decoration.
 import { useId, type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import Icon from '../primitives/Icon.js'
 import type { IconName } from '../../types/ui.js'
 
@@ -51,5 +52,30 @@ export default function ActionRow({ label, desc, icon, leading, onClick }: Actio
       <RowBody leading={leading ?? (icon ? <Tile icon={icon} /> : null)} title={label} desc={desc} descId={descId} />
       <Icon name="chevron_right" className="text-secondary shrink-0" />
     </button>
+  )
+}
+
+interface LinkRowProps {
+  label: string
+  desc: ReactNode
+  icon: IconName
+  href: string
+}
+
+// A row that leaves the app: it opens in the browser, says so to assistive tech, and ends in
+// `open_in_new` instead of a chevron.
+export function LinkRow({ label, desc, icon, href }: LinkRowProps) {
+  const { t } = useTranslation()
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      aria-label={`${label} (${t('a11y.opensExternal')})`}
+      className={ROW}
+    >
+      <RowBody leading={<Tile icon={icon} />} title={label} desc={desc} />
+      <Icon name="open_in_new" className="text-secondary shrink-0" />
+    </a>
   )
 }

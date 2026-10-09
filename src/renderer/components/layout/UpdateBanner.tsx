@@ -2,25 +2,20 @@
 import { useRef } from 'react'
 import { useBannerHeight } from '../../hooks/useBannerHeight.js'
 import { useTranslation } from 'react-i18next'
-import type { UpdateInfo } from '../../types/types.js'
 import Icon from '../primitives/Icon.js'
 
 interface UpdateBannerProps {
-  update: UpdateInfo | null
+  version: string | null
   onDismiss: () => void
 }
 
-export default function UpdateBanner({ update, onDismiss }: UpdateBannerProps) {
+export default function UpdateBanner({ version, onDismiss }: UpdateBannerProps) {
   const { t } = useTranslation()
   const ref = useRef<HTMLDivElement>(null)
 
-  useBannerHeight(ref, update !== null)
+  useBannerHeight(ref, version !== null)
 
-  if (!update) return null
-
-  const version = update.version.semver
-    ? update.version.semver
-    : `${update.version.fork}.${update.version.length}`
+  if (!version) return null
 
   return (
     <div

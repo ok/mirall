@@ -28,9 +28,17 @@ contextBridge.exposeInMainWorld('bridge', {
   isDev: () => ipcRenderer.sendSync('app:isDev'),
   getLocale: () => ipcRenderer.sendSync('app:getLocale'),
   getPlatform: () => process.platform,
+  getSystemInfo: () => ({ platform: process.platform, arch: process.arch, osVersion: process.getSystemVersion() }),
   getPathForFile: (file) => webUtils.getPathForFile(file),
 
   checkForUpdate: () => ipcRenderer.invoke('pear:checkForUpdate'),
+  getUpdateStatus: () => ipcRenderer.invoke('pear:updateStatus'),
+  onUpdateStatus: (listener) => {
+    const wrap = (_evt, status) => listener(status)
+    ipcRenderer.on('pear:event:update-status', wrap)
+    return () => ipcRenderer.removeListener('pear:event:update-status', wrap)
+  },
+  relaunch: () => ipcRenderer.invoke('app:relaunch'),
   getUpdateCacheInfo: () => ipcRenderer.invoke('updater:cache-info'),
   pruneUpdateCache: () => ipcRenderer.invoke('updater:prune'),
   appVersion: () => ipcRenderer.invoke('pear:appVersion'),
@@ -51,13 +59,6 @@ contextBridge.exposeInMainWorld('bridge', {
     const wrap = (_evt, payload) => listener(payload)
     ipcRenderer.on('main:log', wrap)
     return () => ipcRenderer.removeListener('main:log', wrap)
-  },
-
-  onPearEvent: (name, listener) => {
-    const wrap = () => listener()
-    const channel = 'pear:event:' + name
-    ipcRenderer.on(channel, wrap)
-    return () => ipcRenderer.removeListener(channel, wrap)
   },
 
   startWorker: (specifier) => WORKER_SPECS.has(specifier)

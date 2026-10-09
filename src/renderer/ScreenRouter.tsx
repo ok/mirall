@@ -13,6 +13,7 @@ import AppearanceSettings from './screens/settings/AppearanceSettings.js'
 import GeneralSettings from './screens/settings/GeneralSettings.js'
 import NetworkSettings from './screens/settings/NetworkSettings.js'
 import NetworkStatusScreen from './screens/NetworkStatusScreen.js'
+import AboutScreen from './screens/AboutScreen.js'
 import NetworkDiagnosticsScreen from './screens/NetworkDiagnosticsScreen.js'
 import NetworkAdvancedScreen from './screens/NetworkAdvancedScreen.js'
 import Account from './screens/AccountScreen.js'
@@ -186,9 +187,12 @@ export default function ScreenRouter({ nav, profile, onSaveProfile, openDialog }
           onOpenNetworkStatus={() => nav.setCurrentScreen('network-status')}
           onOpenActivityLog={() => nav.openActivityLog()}
           onOpenBackup={() => nav.setCurrentScreen('backup-settings')}
+          onOpenAbout={() => nav.setCurrentScreen('about')}
           onFeedback={() => openDialog({ kind: 'feedback' })}
         />
       )
+    case 'about':
+      return <AboutScreen onBack={() => nav.setCurrentScreen('account')} />
     case 'storage-settings':
       return (
         <StorageSettings

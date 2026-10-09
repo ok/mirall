@@ -21,7 +21,7 @@ const { registerRelaySlot } = require('./relay-slot.js')
 const { hardenStorageDirs } = require('./storage-perms.js')
 const { registerNetOnline, startNetOnlineWatch } = require('./net-online.js')
 const { parseDeepLink } = require('./deeplink')
-const { initUpdater, registerUpdater, getPear, applyPendingUpdate } = require('./updater.js')
+const { initUpdater, registerUpdater, getPear, applyPendingUpdate, onUpdateStatus } = require('./updater.js')
 const {
   initWorkerHost,
   registerWorkerHost,
@@ -177,6 +177,7 @@ initWindow({
   applyAppMenuVisibility,
   sendKeyboardCommand,
   getPear,
+  onUpdateStatus,
   updatesEnabled,
   startHiddenFlag,
 })

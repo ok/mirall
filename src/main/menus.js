@@ -95,7 +95,7 @@ function buildAppMenu() {
     spaces: menuCtx.spaces,
     appName,
     handlers: {
-      openAbout: send('profile.open'),
+      openAbout: send('about.open'),
       openProfile: send('profile.open'),
       openActivityLog: send('activity.open'),
       openSpace: (spaceId) => sendKeyboardCommand(`space.open.${spaceId}`),

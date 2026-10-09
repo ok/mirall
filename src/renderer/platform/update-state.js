@@ -1,46 +1,41 @@
-// Pure, dependency-free state transitions for the in-app update notice. Kept as
-// plain JS (no React/window) so it is the single source of truth shared by the
-// renderer bundle (esbuild/tsc) and the brittle-node unit suite — same pattern
-// as sharePaths.js / fileTree.js.
-//
-// Two consumers read this state:
-//   - the dismissable banner (TopNav) shows while `update && !dismissed`
-//   - the About box shows a permanent notice while `update` is set, ignoring
-//     `dismissed` — so dismissing the banner never hides the fact that an
-//     update is staged.
+// The renderer's view of main's update status, plus the banner's dismissal. The banner shows while
+// an update is staged and not dismissed; About ignores the dismissal. A different staged version
+// clears it, so a newer update is announced again.
+import { UPDATE_STATE } from '../../shared/contract/update-status.js'
 
 /**
- * @typedef {{ fork: number, length: number, semver: string | null }} UpdateVersion
- * @typedef {{ app: boolean, version: UpdateVersion }} UpdateInfo
- * @typedef {{ update: UpdateInfo | null, dismissed: boolean }} UpdateState
+ * @import { UpdateStatus } from '../../shared/contract/update-status.js'
+ * @typedef {{ status: UpdateStatus, dismissed: boolean }} UpdateViewState
  */
 
-/** @type {UpdateState} */
-export const initialUpdateState = { update: null, dismissed: false }
-
-/**
- * Record a freshly-detected update. A genuinely different version (vs. the same
- * one re-announced on a later drive append) clears any prior dismissal so the
- * banner reappears; re-announcing the same version preserves the user's
- * dismissal so we don't nag on every append.
- * @param {UpdateState} prev
- * @param {UpdateVersion} version
- * @returns {UpdateState}
- */
-export function reduceDetectedUpdate(prev, version) {
-  const cur = prev.update && prev.update.version
-  const changed = !cur || cur.semver !== version.semver || cur.length !== version.length || cur.fork !== version.fork
-  return { update: { app: true, version }, dismissed: changed ? false : prev.dismissed }
+/** @type {UpdateViewState} */
+export const initialUpdateState = {
+  status: { state: UPDATE_STATE.IDLE, nextVersion: null, lastCheckedAt: null, offReason: null, canRestart: false },
+  dismissed: false,
 }
 
 /**
- * Mark the banner dismissed. Leaves `update` intact so the About notice stays.
- * Returns the same reference when already dismissed so callers can skip a
- * redundant re-render/emit.
- * @param {UpdateState} prev
- * @returns {UpdateState}
+ * @param {UpdateViewState} prev
+ * @param {UpdateStatus} status
+ * @returns {UpdateViewState}
+ */
+export function reduceStatus(prev, status) {
+  return { status, dismissed: status.nextVersion === prev.status.nextVersion ? prev.dismissed : false }
+}
+
+/**
+ * @param {UpdateViewState} prev
+ * @returns {UpdateViewState}
  */
 export function reduceDismissed(prev) {
   if (prev.dismissed) return prev
-  return { update: prev.update, dismissed: true }
+  return { status: prev.status, dismissed: true }
+}
+
+/**
+ * @param {UpdateStatus} status
+ * @returns {string | null}
+ */
+export function stagedVersion(status) {
+  return status.state === UPDATE_STATE.READY ? status.nextVersion : null
 }

@@ -38,7 +38,6 @@
     "groupApp": "App",
     "connection": "Connessione",
     "connectionDesc": "{{state}} · {{peers}}",
-    "upToDate": "Aggiornato.",
     "activityDesc": "Un resoconto di ciò che è accaduto nei tuoi spazi.",
     "recordingOff": "Registrazione disattivata · {{kept}}"
   },
@@ -617,7 +616,8 @@
     "folderEdit": "Modifica cartella {{name}}",
     "whatsNew": "Novità",
     "sendFeedback": "Invia feedback",
-    "openDocs": "Apri la documentazione"
+    "openDocs": "Apri la documentazione",
+    "openAbout": "Apri Informazioni su Mirall"
   },
   "palette": {
     "title": "Palette dei comandi",
@@ -679,8 +679,88 @@
     "sendFeedbackDesc": "Segnala un problema o condividi una proposta.",
     "whatsNew": "Novità",
     "whatsNewDesc": "Modifiche recenti in Mirall.",
-    "whatsNewEmpty": "Non sono disponibili note di rilascio.",
-    "updateReady": "v{{version}} è disponibile e verrà installata la prossima volta che chiudi e riapri Mirall."
+    "whatsNewEmpty": "Non sono disponibili note di rilascio."
+  },
+  "about": {
+    "title": "Informazioni su Mirall",
+    "intro": "Versione, aggiornamenti e chi realizza Mirall.",
+    "tagline": "Trasferimento sicuro di file di grandi dimensioni. Nessun cloud. Nessun account.",
+    "updates": "Aggiornamenti",
+    "verdict": {
+      "upToDateTitle": "Mirall è aggiornato",
+      "upToDateBody": "Controllato {{when}}. Le nuove versioni si scaricano in background e si installano alla prossima apertura di Mirall.",
+      "notCheckedTitle": "Non ancora controllato",
+      "notCheckedBody": "Mirall cerca una versione più recente non appena raggiunge la rete degli aggiornamenti.",
+      "checkingTitle": "Ricerca di aggiornamenti…",
+      "checkingBody": "Ricerca di una versione più recente di Mirall.",
+      "downloadingTitle": "Download di un aggiornamento",
+      "downloadingBody": "Mirall continua a funzionare durante il download.",
+      "readyTitle": "Aggiornamento pronto: v{{version}}",
+      "readyBody": "Verrà installato la prossima volta che chiudi e riapri Mirall.",
+      "errorTitle": "Impossibile cercare aggiornamenti",
+      "errorBody": "Mirall non è riuscito a raggiungere la rete degli aggiornamenti. Continua a cercare nuove versioni in background.",
+      "offDebTitle": "Aggiornato dal gestore di pacchetti",
+      "offDebBody": "Questa copia di Mirall è stata installata come pacchetto Debian. Gli aggiornamenti software del sistema la mantengono aggiornata.",
+      "offTitle": "Gli aggiornamenti automatici sono disattivati",
+      "offBody": "Questa build di Mirall non si aggiorna da sola."
+    },
+    "checkNow": "Controlla ora",
+    "checking": "Controllo…",
+    "tryAgain": "Riprova",
+    "restartNow": "Riavvia ora",
+    "restarting": "Riavvio…",
+    "summary": {
+      "upToDate": "Aggiornato",
+      "checking": "Ricerca di aggiornamenti…",
+      "downloading": "Download di un aggiornamento…",
+      "ready": "v{{version}} è pronta: riavvia Mirall per installarla",
+      "offDeb": "Aggiornato dal gestore di pacchetti"
+    },
+    "dot": {
+      "up-to-date": "Aggiornato",
+      "ready": "Aggiornamento pronto"
+    },
+    "badge": {
+      "beta": "Beta",
+      "dev": "Sviluppo",
+      "source": "Sviluppo"
+    },
+    "details": "Dettagli",
+    "field": {
+      "version": "Versione",
+      "channel": "Canale di rilascio",
+      "installedOn": "Installato su",
+      "updates": "Aggiornamenti"
+    },
+    "channel": {
+      "release": "Stabile",
+      "beta": "Beta: build preliminari per i test",
+      "dev": "Build di sviluppo",
+      "source": "Compilato dal codice sorgente"
+    },
+    "updatesMethod": {
+      "auto": "Automatici, peer-to-peer",
+      "packageManager": "Tramite il gestore di pacchetti",
+      "off": "Disattivati"
+    },
+    "copyInfo": "Copia info app",
+    "groupProject": "Mirall",
+    "website": "Sito web",
+    "support": "Assistenza",
+    "supportDesc": "Aiuto con problemi e domande.",
+    "source": "Codice sorgente",
+    "sourceDesc": "Mirall è open source su GitHub.",
+    "security": "Segnala un problema di sicurezza",
+    "securityDesc": "Come segnalare una vulnerabilità in modo riservato.",
+    "groupLegal": "Note legali",
+    "privacy": "Informativa sulla privacy",
+    "privacyDesc": "Cosa fa Mirall con i tuoi dati, e cosa non fa.",
+    "legalNotice": "Note legali",
+    "legalNoticeDesc": "Chi è responsabile di Mirall.",
+    "madeBy": "Realizzato da Oliver Kohl a Berlino.",
+    "copyright": "© {{year}} Zsapping Software · Distribuito con licenza GNU AGPL v3.",
+    "license": "Licenza di Mirall",
+    "licenseDesc": "GNU Affero General Public License v3."
   },
   "whatsNew": {
     "title": "Novità",
@@ -999,7 +1079,8 @@
       "connectionProblem": "Problema di connessione",
       "networkDiagnostics": "Diagnostica",
       "networkAdvanced": "Dettagli avanzati",
-      "backup": "Backup"
+      "backup": "Backup",
+      "about": "Informazioni su Mirall"
     }
   },
   "avatar": {

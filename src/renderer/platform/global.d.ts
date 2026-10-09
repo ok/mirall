@@ -1,5 +1,6 @@
 import type { RelayParseResult, RelaySetPayload, RelaySetResult, RendererConfig, RendererConfigPatch } from './config-client.js'
 import type { ApplyErrorReport, DiagnosticLogEntry } from '../types/types.js'
+import type { UpdateStatus } from '../../shared/contract/update-status.js'
 
 export interface PkgInfo {
   name: string
@@ -21,7 +22,11 @@ export interface BandwidthLimits {
   uploadKBps: number
 }
 
-export type PearEventName = 'updating' | 'updated'
+export interface SystemInfo {
+  platform: NodeJS.Platform
+  arch: string
+  osVersion: string
+}
 
 export type NotificationUrgency = 'normal' | 'critical' | 'low'
 
@@ -104,9 +109,13 @@ export interface MirallBridge {
   isDev(): boolean
   getLocale(): string
   getPlatform(): NodeJS.Platform
+  getSystemInfo(): SystemInfo
   getPathForFile(file: File): string
 
-  checkForUpdate(): Promise<{ triggered: boolean; length?: number; fork?: number; reason?: string; error?: string }>
+  checkForUpdate(): Promise<{ triggered: boolean; reason?: string }>
+  getUpdateStatus(): Promise<UpdateStatus>
+  onUpdateStatus(listener: (status: UpdateStatus) => void): () => void
+  relaunch(): Promise<boolean>
   getUpdateCacheInfo(): Promise<UpdateCacheInfo>
   pruneUpdateCache(): Promise<{ clearedBlocks: number }>
   appVersion(): Promise<{ length: number; fork: number; semver: string | null }>
@@ -119,7 +128,6 @@ export interface MirallBridge {
   getNetOnline(): Promise<boolean>
   onNetOnlineChange(listener: (online: boolean) => void): () => void
   onMainLog(listener: (entry: { level: 'log' | 'warn' | 'error'; text: string }) => void): () => void
-  onPearEvent(name: PearEventName, listener: () => void): () => void
 
   startWorker(specifier: string): Promise<boolean>
   restartWorker(specifier: string): Promise<boolean>

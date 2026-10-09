@@ -44,7 +44,7 @@ createRoot(document.getElementById('root') as HTMLElement).render(
       onSettingsClick={noop}
       onAccountClick={noop}
       onFeedbackClick={noop}
-      update={null}
+      updateVersion={null}
       onDismissUpdate={noop}
     />
   </ConnectionStatusProvider>,

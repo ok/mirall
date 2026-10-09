@@ -1,61 +1,37 @@
-import type { UpdateInfo } from '../types/types.js'
-import { initialUpdateState, reduceDetectedUpdate, reduceDismissed } from './update-state.js'
+import { UPDATE_STATE, type UpdateStatus } from '../../shared/contract/update-status.js'
+import { initialUpdateState, reduceDismissed, reduceStatus, type UpdateViewState } from './update-state.js'
 
-interface UpdateState {
-  update: UpdateInfo | null
-  dismissed: boolean
-}
+type Listener = (state: UpdateViewState) => void
 
-type Listener = (state: UpdateState) => void
-
-let state: UpdateState = initialUpdateState
+let state: UpdateViewState = initialUpdateState
+let pushed = false
 const listeners = new Set<Listener>()
 
 function emit(): void {
   for (const cb of listeners) cb(state)
 }
 
-interface VersionResponse {
-  fork?: number
-  length?: number
-  semver?: string | null
-}
-
-async function fetchVersion(): Promise<{ fork: number; length: number; semver: string | null }> {
-  // Read directly from main (pear.updater.drive) instead of going through the
-  // worker. The worker captures fork/length once at bootstrap, which can be
-  // 0/0 before any replication completes — the banner would render that stale
-  // snapshot as "v0.0". Main can read the live drive head and the staged
-  // package.json semver (what the banner actually shows) at any time.
-  try {
-    const res: VersionResponse = await window.bridge.appVersion()
-    return {
-      fork: typeof res.fork === 'number' ? res.fork : 0,
-      length: typeof res.length === 'number' ? res.length : 0,
-      semver: typeof res.semver === 'string' ? res.semver : null,
-    }
-  } catch {
-    return { fork: 0, length: 0, semver: null }
-  }
-}
-
-async function onUpdated(): Promise<void> {
-  if (window.bridge.isDev()) {
+function apply(status: UpdateStatus): void {
+  // A source build loads the renderer from disk, so a staged update is applied by reloading.
+  if (window.bridge.isDev() && status.state === UPDATE_STATE.READY && state.status.state !== UPDATE_STATE.READY) {
     location.reload()
     return
   }
-  const version = await fetchVersion()
-  state = reduceDetectedUpdate(state, version)
+  state = reduceStatus(state, status)
   emit()
 }
 
 if (typeof window !== 'undefined' && typeof window.bridge !== 'undefined') {
-  window.bridge.onPearEvent('updated', () => {
-    onUpdated().catch((err) => console.error('update check failed:', err))
+  window.bridge.onUpdateStatus((status) => {
+    pushed = true
+    apply(status)
   })
+  window.bridge.getUpdateStatus()
+    .then((status) => { if (!pushed) apply(status) })
+    .catch((err) => console.error('update status read failed:', err))
 }
 
-export function getUpdateState(): UpdateState {
+export function getUpdateState(): UpdateViewState {
   return state
 }
 
@@ -69,4 +45,12 @@ export function dismissUpdate(): void {
   if (next === state) return
   state = next
   emit()
+}
+
+export async function checkForUpdate(): Promise<void> {
+  await window.bridge.checkForUpdate()
+}
+
+export function restartToUpdate(): Promise<boolean> {
+  return window.bridge.relaunch()
 }
