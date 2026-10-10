@@ -96,6 +96,24 @@ test('rejects a cloud-sync location outright (both roles)', (t) => {
   t.is(codeOf(() => validateMountPathSync(cloud, 'foreign-folder', [])), CODES.MOUNT_FORBIDDEN_CLOUD_SYNC, 'rejected for mirrors too')
 })
 
+test('REGRESSION (FIX-612): a provider name inside an ordinary folder name is accepted (both roles)', (t) => {
+  const base = tmpDir('mv', t)
+  for (const name of [path.join('megan', 'projects'), 'sandbox', 'Inbox Scans', 'Xbox Clips']) {
+    const dir = path.join(base, name)
+    fs.mkdirSync(dir, { recursive: true })
+    for (const role of ['owned-folder', 'foreign-folder']) {
+      t.is(validateMountPathSync(dir, role, []).mountPath, dir, `${name} (${role})`)
+    }
+  }
+})
+
+test('a macOS File Provider folder is rejected as cloud sync, ahead of the ~/Library rule', (t) => {
+  if (os.platform() !== 'darwin') { t.pass('darwin-only path'); return }
+  const cloud = path.join(os.homedir(), 'Library', 'CloudStorage', 'Dropbox', 'x')
+  t.is(codeOf(() => validateMountPathSync(cloud, 'foreign-folder', [])), CODES.MOUNT_FORBIDDEN_CLOUD_SYNC)
+  t.is(codeOf(() => validateMountPath(cloud, 'owned-folder', {})), CODES.MOUNT_FORBIDDEN_CLOUD_SYNC)
+})
+
 test('an ordinary path carries no advisories', (t) => {
   const dir = tmpDir('mv', t)
   const r = validateMountPathSync(dir, 'owned-folder', [])

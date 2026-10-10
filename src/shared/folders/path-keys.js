@@ -254,11 +254,16 @@ function isAbsoluteFor(p, sep) {
   return sep === '\\' ? /^([a-zA-Z]:\\|\\\\)/.test(p) : p.startsWith('/')
 }
 
+// The name of the folder directly under home that holds `normalized`, or null outside home.
+function homeChildName(normalized, home, sep, fold) {
+  if (!home || !pathContains(home, normalized, sep, fold)) return null
+  return normalized.slice(home.length).split(sep).find(Boolean) ?? null
+}
+
 // Every dot-directory directly under home counts too: that is where shells and tools keep the
 // configuration they execute. Returns that directory, or null.
 function homeDotDir(normalized, home, sep, fold) {
-  if (!home || !pathContains(home, normalized, sep, fold)) return null
-  const top = normalized.slice(home.length).split(sep).find(Boolean)
+  const top = homeChildName(normalized, home, sep, fold)
   return top && top.startsWith('.') ? home + sep + top : null
 }
 
@@ -296,21 +301,57 @@ export function isWindowsReservedName(segment) {
   return WIN_RESERVED.has(segment.split('.')[0].toUpperCase())
 }
 
-const CLOUD_HINTS = ['dropbox', 'onedrive', 'google drive', 'icloud', 'box', 'nextcloud', 'mega', 'proton drive', 'pcloud']
+// The names cloud-sync clients give their root folder, matched against one whole path segment,
+// lower-cased: a provider's name inside a longer word (`megan`, `sandbox`) is not a root.
+const CLOUD_ROOT_NAMES = [
+  /^dropbox( \(.+\))?$/,
+  /^onedrive( - .+)?$/,
+  /^google drive$/,
+  /^icloud ?drive( \(archive\))?$/,
+  /^box sync$/,
+  /^megasync$/,
+  /^nextcloud\d*$/,
+  /^pcloud drive$/,
+  /^proton drive( .+)?$/,
+]
 
-// Returns the matched cloud-sync provider hint (lower-case) if the path looks like
-// it sits inside a cloud-sync folder, else null.
-export function cloudSyncHint(lowerPath) {
-  for (const hint of CLOUD_HINTS) {
-    if (lowerPath.includes(hint)) return hint
-  }
-  return null
+// Names too common to match anywhere: they count only as the folder directly under home, where
+// Box Drive and MEGA put their root.
+const CLOUD_HOME_NAMES = ['box', 'mega']
+
+// Variables the OneDrive client sets to its sync roots, wherever the user moved or renamed them.
+const CLOUD_ENV = { win32: ['OneDrive', 'OneDriveCommercial', 'OneDriveConsumer'] }
+
+// Google Drive for desktop mounts a drive whose top folder is `My Drive`.
+function isCloudRootSegment(segments, i) {
+  const name = segments[i].toLowerCase()
+  if (CLOUD_ROOT_NAMES.some((re) => re.test(name))) return true
+  return i === 1 && name === 'my drive' && /^[a-z]:$/i.test(segments[0])
 }
 
-// iCloud Drive and every app's iCloud container live under this macOS root, by names no provider
-// hint matches. Returns the root, or null.
-export function iCloudRootViolation(normalized, home, sep, fold = false) {
+// Returns the cloud-sync root `normalized` sits in (for the error message) or null. Run it after the
+// system-root rules: a provider's name inside a system folder is that folder's, not a sync root.
+export function cloudSyncRootViolation(normalized, { platform, home, sep, getEnv, fold = false }) {
+  for (const name of CLOUD_ENV[platform] || []) {
+    const root = getEnv(name)
+    if (root && isAbsoluteFor(root, sep) && pathContains(root, normalized, sep, fold)) return root
+  }
+  const segments = normalized.split(sep)
+  for (let i = 0; i < segments.length; i++) {
+    if (isCloudRootSegment(segments, i)) return segments.slice(0, i + 1).join(sep)
+  }
+  const top = homeChildName(normalized, home, sep, fold)
+  return top && CLOUD_HOME_NAMES.includes(top.toLowerCase()) ? home + sep + top : null
+}
+
+// macOS keeps iCloud Drive and every app's iCloud container under Mobile Documents, and every
+// File Provider client (Dropbox, OneDrive, Google Drive, Box…) under CloudStorage, by names no
+// provider rule matches. Returns the root, or null.
+export function appleCloudRootViolation(normalized, home, sep, fold = false) {
   if (!home) return null
-  const root = home + sep + 'Library' + sep + 'Mobile Documents'
-  return pathContains(root, normalized, sep, fold) ? root : null
+  for (const name of ['Mobile Documents', 'CloudStorage']) {
+    const root = home + sep + 'Library' + sep + name
+    if (pathContains(root, normalized, sep, fold)) return root
+  }
+  return null
 }

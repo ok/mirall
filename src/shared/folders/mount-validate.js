@@ -13,8 +13,8 @@ import { listDownloadRoots } from '../core/paths.js'
 import { listAllMounts } from './mount-store.js'
 import { createLogger } from '../core/logger.js'
 import {
-  systemRootViolation, personalRootViolation, userSystemRootViolation, iCloudRootViolation, isWindowsReservedName, pathsOverlap, cloudSyncHint,
-  mountOverlapViolation, pathContains,
+  systemRootViolation, personalRootViolation, userSystemRootViolation, appleCloudRootViolation, isWindowsReservedName, pathsOverlap,
+  cloudSyncRootViolation, mountOverlapViolation, pathContains,
 } from './path-keys.js'
 
 const log = createLogger('mount-validate')
@@ -55,9 +55,9 @@ function checkWindowsSegments(normalized, platform) {
   }
 }
 
-// Every rule about the path itself, shared by both validators. iCloud is checked before the
-// per-user system roots so iCloud Drive, which lives under ~/Library, is refused as cloud sync; the
-// provider hints are substring matches, so they run after them and never relabel a system folder.
+// Every rule about the path itself, shared by both validators. The macOS cloud roots are checked
+// before the per-user system roots so a folder in ~/Library/CloudStorage is refused as cloud sync,
+// not as a system folder; the provider names run after them and never relabel a system folder.
 function checkPathRules(normalized, platform) {
   const fold = caseInsensitive(platform)
   const sysRoot = systemRootViolation(normalized, platform, path.sep, fold)
@@ -73,16 +73,15 @@ function checkPathRules(normalized, platform) {
   const personalRoot = personalRootViolation(normalized, home, path.sep, fold)
   if (personalRoot) throw new AppError(CODES.MOUNT_FORBIDDEN_PERSONAL_ROOT, personalRoot)
 
-  if (platform === 'darwin' && iCloudRootViolation(normalized, home, path.sep, fold)) {
-    throw new AppError(CODES.MOUNT_FORBIDDEN_CLOUD_SYNC, normalized)
-  }
+  const appleCloudRoot = platform === 'darwin' && appleCloudRootViolation(normalized, home, path.sep, fold)
+  if (appleCloudRoot) throw new AppError(CODES.MOUNT_FORBIDDEN_CLOUD_SYNC, appleCloudRoot)
 
-  const userRoot = userSystemRootViolation(normalized, { platform, home, sep: path.sep, getEnv: os.getEnv, fold })
+  const roots = { platform, home, sep: path.sep, getEnv: os.getEnv, fold }
+  const userRoot = userSystemRootViolation(normalized, roots)
   if (userRoot) throw new AppError(CODES.MOUNT_FORBIDDEN_SYSTEM, userRoot)
 
-  if (cloudSyncHint(normalized.toLowerCase())) {
-    throw new AppError(CODES.MOUNT_FORBIDDEN_CLOUD_SYNC, normalized)
-  }
+  const cloudRoot = cloudSyncRootViolation(normalized, roots)
+  if (cloudRoot) throw new AppError(CODES.MOUNT_FORBIDDEN_CLOUD_SYNC, cloudRoot)
 
   checkWindowsSegments(normalized, platform)
 }

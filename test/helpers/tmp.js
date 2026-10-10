@@ -2,10 +2,8 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-// The Node twin of bare-tmp.js. Hex, never base36: a base36 name draws from [0-9a-z] and can spell
-// a cloud-sync hint substring like "box" or "mega", which mount-validate rejects with
-// MOUNT_FORBIDDEN_CLOUD_SYNC — a rare, unreproducible red unrelated to the behaviour under test.
-// test/unit/tmp-dir-suffix-hygiene.test.js pins both halves.
+// The Node twin of bare-tmp.js: the one spelling of a temp-dir name, with a hex random suffix.
+// test/unit/tmp-dir-suffix-hygiene.test.js pins it.
 
 // Separates two dirs made in the same millisecond, so no caller keeps its own counter.
 let seq = 0
