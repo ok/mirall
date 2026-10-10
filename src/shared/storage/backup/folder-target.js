@@ -2,17 +2,17 @@
 // written whole under a temporary name, synced, checked for size, and only then given its final name —
 // by a hard link, which fails rather than replacing a file already there, or, on a share that has no
 // hard links, by a rename after checking the name is free. A failed write leaves a stray temporary
-// file and nothing under a final name. The folder the user chose is never created here: a share that
-// is not mounted must read as offline, not as an empty folder on the local disk.
+// file and nothing under a final name. The folder the user chose is the backup itself and is never
+// created here: a share that is not mounted must read as offline, not as an empty folder on the local
+// disk.
 import fs from 'bare-fs'
 import path from 'bare-path'
 import crypto from 'hypercore-crypto'
 import b4a from 'b4a'
 import { AppError, classifyLocalIoFault, isLocalDestFault } from '../../core/errors.js'
 import { CODES } from '../../contract/errors.js'
+import { fitsNewBackup, holdsBackup } from '../../contract/backup-folder.js'
 
-export const REPO_DIR = 'Mirall Backup'
-export const REPO_HEADER = 'mirall-backup.json'
 const TMP = 'tmp'
 const STALE_TMP_MS = 60 * 60 * 1000
 const NO_HARD_LINKS = new Set(['ENOTSUP', 'EOPNOTSUPP', 'ENOSYS', 'EXDEV', 'EMLINK'])
@@ -92,25 +92,34 @@ async function claim(tmp, final) {
 }
 
 export class FolderTarget {
-  // The backup folder itself, chosen instead of the folder that holds it, is read as that folder. Only
-  // when it holds a backup: a folder merely named so keeps its own backup inside it, as it always has.
-  constructor(chosenFolder) {
-    const isRepo = path.basename(chosenFolder) === REPO_DIR && fs.existsSync(path.join(chosenFolder, REPO_HEADER))
-    this.chosen = isRepo ? path.dirname(chosenFolder) : chosenFolder
-    this.dir = path.join(this.chosen, REPO_DIR)
+  constructor(folder) {
+    this.dir = folder
   }
 
   _tmpFile() {
     return path.join(this.dir, TMP, b4a.toString(crypto.randomBytes(16), 'hex'))
   }
 
-  // The chosen folder must already exist; the repository folder inside it is created only when
-  // asked, which is the first setup. Temporary files a stopped run left behind are cleared.
+  async _names() {
+    if (!(await fs.promises.stat(this.dir)).isDirectory()) throw new AppError(CODES.BACKUP_TARGET_OFFLINE, 'backup folder: not a folder')
+    return fs.promises.readdir(this.dir)
+  }
+
+  // Whether a backup may start here, without writing anything.
+  check() {
+    return guard(async () => {
+      if (!fitsNewBackup(await this._names())) throw new AppError(CODES.BACKUP_TARGET_NOT_EMPTY, 'backup folder: holds other files')
+    })
+  }
+
+  // The folder must already exist. A backup is started in it only when asked, which is the first
+  // setup. Temporary files a stopped run left behind are cleared.
   async ready({ create = false, now = Date.now() } = {}) {
     await guard(async () => {
-      if (!(await fs.promises.stat(this.chosen)).isDirectory()) throw new AppError(CODES.BACKUP_TARGET_OFFLINE, 'backup folder: not a folder')
-      if (!create && !(await exists(this.dir))) throw new AppError(CODES.BACKUP_TARGET_OFFLINE, 'backup folder: no backup in this folder')
-      await makeDirs(this.chosen, `${REPO_DIR}/${TMP}`)
+      const names = await this._names()
+      if (create && !fitsNewBackup(names)) throw new AppError(CODES.BACKUP_TARGET_NOT_EMPTY, 'backup folder: holds other files')
+      if (!create && !holdsBackup(names)) throw new AppError(CODES.BACKUP_TARGET_OFFLINE, 'backup folder: no backup in this folder')
+      await makeDirs(this.dir, TMP)
       for (const name of await fs.promises.readdir(path.join(this.dir, TMP))) {
         const file = path.join(this.dir, TMP, name)
         const { mtimeMs } = await fs.promises.stat(file)

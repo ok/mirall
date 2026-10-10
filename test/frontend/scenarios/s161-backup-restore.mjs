@@ -33,7 +33,7 @@ export default async function s161({ runDir, bootstrap }) {
       // A re-render first: the link must survive the renderer's first config write.
       await B.type({ role: 'textfield', name: 'Display Name' }, 'x')
       await B.click({ role: 'button', name: 'Already used Mirall? Restore from a backup' })
-      await B.waitText('Choose the folder that holds your Mirall backup.', 8000)
+      await B.waitText('Choose your Mirall backup folder.', 8000)
       await B.shot('s161-choice', runDir)
     })
     await r.ok('the folder and its passphrase open the backup', async () => {

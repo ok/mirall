@@ -56,6 +56,7 @@
   "backupOtherDevice": "Un autre ordinateur sauvegarde dans ce dossier. Utilisez un dossier distinct pour chaque ordinateur.",
   "backupTargetDenied": "Mirall n'est pas autorisé à écrire dans le dossier de sauvegarde. Vérifiez ses autorisations.",
   "backupTargetFull": "Le disque du dossier de sauvegarde est plein.",
+  "backupTargetNotEmpty": "Ce dossier contient déjà d'autres fichiers. Choisissez un dossier vide pour votre sauvegarde, ou créez-en un.",
   "backupTargetOffline": "Le dossier de sauvegarde n'est pas disponible. Connectez le disque ou le partage réseau, puis réessayez.",
   "backupKeyMissing": "Cette sauvegarde ne peut pas être ouverte — son dossier est incomplet.",
   "restoreHeld": "Disponible dès que Mirall a vérifié auprès des personnes avec qui vous partagez."

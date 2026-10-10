@@ -11,7 +11,6 @@ import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { registerBackup } from '../../src/worker/ipc/backup.js'
 import { registerBackupRestore } from '../../src/worker/ipc/backup-restore.js'
 import { createPassphraseThrottle, openRecoveryFile } from '../../src/shared/core/identity-recovery.js'
-import { REPO_DIR } from '../../src/shared/storage/backup/folder-target.js'
 import { KEYS_DIR, writeFolderKey } from '../../src/shared/storage/backup/folder-key.js'
 import { FolderTarget } from '../../src/shared/storage/backup/folder-target.js'
 import { sealRecoveryKey, ownRecoveryIdentity } from '../../src/shared/core/store.js'
@@ -69,12 +68,12 @@ async function codeOf(promise) {
 
 const keyFiles = (folder) => {
   try {
-    return fs.readdirSync(path.join(folder, REPO_DIR, KEYS_DIR))
+    return fs.readdirSync(path.join(folder, KEYS_DIR))
   } catch {
     return []
   }
 }
-const readKey = (folder) => b4a.toString(fs.readFileSync(path.join(folder, REPO_DIR, KEYS_DIR, keyFiles(folder)[0])))
+const readKey = (folder) => b4a.toString(fs.readFileSync(path.join(folder, KEYS_DIR, keyFiles(folder)[0])))
 
 test('setup writes the folder, the key it can open, and the first backup', async (t) => {
   const d = dirs(t, 'setup')
@@ -104,7 +103,7 @@ test('a short passphrase sets nothing up', async (t) => {
   const { fake } = await start(t, d, { masterSecret: crypto.randomBytes(32) })
   t.is(await codeOf(fake.call('backup:setup', { folder, passphrase: 'short' })), 'INVALID_ARGUMENT')
   t.is((await fake.call('backup:status', {})).folder, null)
-  t.absent(fs.existsSync(path.join(folder, REPO_DIR)))
+  t.alike(fs.readdirSync(folder), [], 'nothing is written into the folder')
 })
 
 test('the passphrase check and a new passphrase', async (t) => {
@@ -149,7 +148,7 @@ test('the last success and the key survive a restart, and a deleted key is put b
   const setUp = await first.fake.call('backup:setup', { folder, passphrase: PASS })
   await first.root.close()
 
-  fs.rmSync(path.join(folder, REPO_DIR, KEYS_DIR), { recursive: true, force: true })
+  fs.rmSync(path.join(folder, KEYS_DIR), { recursive: true, force: true })
   const again = await start(t, d, { masterSecret, folder, repoId: setUp.repoId, profile: false })
   const status = await again.fake.call('backup:status', {})
   t.is(status.lastSuccessAt, setUp.lastSuccessAt, 'the last backup is still known')
@@ -196,7 +195,7 @@ test('a new device restores from the folder with only the passphrase', async (t)
   const { snapshots } = await device.fake.call('backup:inspect', { folder, passphrase: PASS })
   t.is(snapshots.length, 1)
 
-  fs.rmSync(path.join(folder, REPO_DIR, KEYS_DIR), { recursive: true, force: true })
+  fs.rmSync(path.join(folder, KEYS_DIR), { recursive: true, force: true })
   t.is((await device.fake.call('backup:peek', { folder })).keyCreatedAt, null)
   t.is(await codeOf(device.fake.call('backup:inspect', { folder, passphrase: PASS })), 'BACKUP_KEY_MISSING')
 
@@ -238,9 +237,9 @@ test('a folder keeping only another identity\'s key is refused, and the key stay
   await other.root.close()
 
   const folder = backupFolder(t)
-  fs.mkdirSync(path.join(folder, REPO_DIR, KEYS_DIR), { recursive: true })
+  fs.mkdirSync(path.join(folder, KEYS_DIR), { recursive: true })
   const name = keyFiles(theirs)[0]
-  fs.copyFileSync(path.join(theirs, REPO_DIR, KEYS_DIR, name), path.join(folder, REPO_DIR, KEYS_DIR, name))
+  fs.copyFileSync(path.join(theirs, KEYS_DIR, name), path.join(folder, KEYS_DIR, name))
 
   const mine = await start(t, dirs(t, 'keyonly-mine'), { masterSecret: crypto.randomBytes(32) })
   t.is(await codeOf(mine.fake.call('backup:setup', { folder, passphrase: PASS })), 'BACKUP_FOREIGN_IDENTITY')

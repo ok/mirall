@@ -12,7 +12,7 @@ import { initAuditLog, closeAuditLog, setAuditConfig, record, flushAudit } from 
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { deleteSpaceRecord } from '../../src/shared/spaces/space.js'
 import { advertise } from '../../src/shared/shares/own-catalog.js'
-import { FolderTarget, REPO_DIR } from '../../src/shared/storage/backup/folder-target.js'
+import { FolderTarget } from '../../src/shared/storage/backup/folder-target.js'
 import { openOrInitRepo, openRepo, peekRepo } from '../../src/shared/storage/backup/repo.js'
 import { runBackup } from '../../src/shared/storage/backup/backup-run.js'
 import { decodePart } from '../../src/shared/storage/backup/segment-codec.js'
@@ -69,10 +69,11 @@ test('a temporary folder someone removed is made again, and stale temporary file
   const chosen = folder(t)
   const target = new FolderTarget(chosen)
   await target.ready({ create: true })
-  fs.rmSync(path.join(chosen, REPO_DIR, 'tmp'), { recursive: true })
+  t.is(await target.putOnce('mirall-backup.json', b4a.from('{}')), 'written')
+  fs.rmSync(path.join(chosen, 'tmp'), { recursive: true })
   await target.ready()
   t.is(await target.putOnce('objects/cd/two', b4a.from('2')), 'written')
-  fs.writeFileSync(path.join(chosen, REPO_DIR, 'tmp', 'stray'), 'x')
+  fs.writeFileSync(path.join(chosen, 'tmp', 'stray'), 'x')
   await target.ready({ now: Date.now() + 2 * 60 * 60 * 1000 })
   t.alike(await target.list('tmp'), [])
 })
@@ -102,7 +103,7 @@ test('a repository opens only for its identity, its own id, and while its header
   t.is(await codeOf(openRepo(target, { wrapKey: backupWrapKey(), expectedRepoId: 'f'.repeat(32) })), 'BACKUP_FOREIGN_REPO')
   t.is((await openOrInitRepo(target, { wrapKey: backupWrapKey() })).repoId, repo.repoId, 'a device with no remembered id takes the backup already there')
   t.is(await codeOf(openOrInitRepo(target, { wrapKey: crypto.randomBytes(32) })), 'BACKUP_FOREIGN_IDENTITY', 'unless another identity made it')
-  fs.rmSync(path.join(chosen, REPO_DIR, 'mirall-backup.json'))
+  fs.rmSync(path.join(chosen, 'mirall-backup.json'))
   t.is(await codeOf(openRepo(target, { wrapKey: backupWrapKey(), expectedRepoId: repo.repoId })), 'BACKUP_TARGET_OFFLINE')
 })
 
@@ -116,9 +117,9 @@ test('a run writes sealed objects and a snapshot, and nothing readable', async (
   t.ok(first.repoId)
   t.ok(first.snapshot)
   t.ok(first.parts > 0)
-  const all = b4a.toString(b4a.concat(filesUnder(path.join(chosen, REPO_DIR)).map((f) => fs.readFileSync(f))))
+  const all = b4a.toString(b4a.concat(filesUnder(chosen).map((f) => fs.readFileSync(f))))
   for (const secret of ['Plaintext Name', 'Plaintext Space', 'plaintext-file', '"theme"']) t.absent(all.includes(secret), `"${secret}" is not on the target`)
-  t.ok(fs.existsSync(path.join(chosen, REPO_DIR, 'leases', 'install-a.json')))
+  t.ok(fs.existsSync(path.join(chosen, 'leases', 'install-a.json')))
 })
 
 test('an unchanged run writes no snapshot; a change writes one on top of the last', async (t) => {
@@ -176,17 +177,50 @@ test('a space left is recorded with the snapshot from before it', async (t) => {
   t.alike(manifest.departures.map(({ before, spaces }) => ({ before, spaces })), [{ before: first.snapshot, spaces: ['Holiday'] }])
 })
 
-test('REGRESSION (restore refused the Mirall Backup folder itself): it reads as the folder that holds it', async (t) => {
+test('the chosen folder is the backup: its files land in it, not in a folder inside it', async (t) => {
   const { storage } = await freshPeer(t)
   const chosen = folder(t)
+  const system = ['.DS_Store', 'Desktop.ini', 'System Volume Information', '$RECYCLE.BIN', 'Icon\r', '@eaDir']
+  for (const name of system) fs.mkdirSync(path.join(chosen, name))
   await runBackup({ ...runArgs(new FolderTarget(chosen), null), storagePath: storage })
-  const inner = path.join(chosen, REPO_DIR)
-  t.alike(await peekRepo(new FolderTarget(inner)), await peekRepo(new FolderTarget(chosen)), 'the same backup either way')
-  t.ok((await peekRepo(new FolderTarget(inner))).backup)
+  t.alike(fs.readdirSync(chosen).filter((name) => !system.includes(name)).sort(), ['leases', 'mirall-backup.json', 'objects', 'snapshots', 'tmp'],
+    'what the system, a drive root or a NAS leaves in a folder does not keep a backup out')
+  t.ok((await peekRepo(new FolderTarget(chosen))).backup)
+})
 
-  const named = path.join(folder(t, 'backup-named'), REPO_DIR)
-  fs.mkdirSync(named)
-  t.is(new FolderTarget(named).dir, path.join(named, REPO_DIR), 'an empty folder that is only named so keeps its backup inside it')
+test('a backup does not start in a folder that holds other files, and writes nothing there', async (t) => {
+  const { storage } = await freshPeer(t)
+  const chosen = folder(t)
+  fs.writeFileSync(path.join(chosen, 'notes.txt'), 'mine')
+  t.is(await codeOf(runBackup({ ...runArgs(new FolderTarget(chosen), null), storagePath: storage })), 'BACKUP_TARGET_NOT_EMPTY')
+  t.alike(fs.readdirSync(chosen), ['notes.txt'])
+})
+
+test('a folder of the user\'s own named like a backup\'s parts is not taken for one, and its files are left alone', async (t) => {
+  const chosen = folder(t)
+  fs.mkdirSync(path.join(chosen, 'tmp'))
+  fs.writeFileSync(path.join(chosen, 'tmp', 'old-draft.txt'), 'mine')
+  fs.utimesSync(path.join(chosen, 'tmp', 'old-draft.txt'), new Date(0), new Date(0))
+  const target = new FolderTarget(chosen)
+  t.is(await codeOf(target.check()), 'BACKUP_TARGET_NOT_EMPTY')
+  t.is(await codeOf(target.ready({ create: true })), 'BACKUP_TARGET_NOT_EMPTY')
+  t.is(await codeOf(target.ready()), 'BACKUP_TARGET_OFFLINE')
+  t.ok(fs.existsSync(path.join(chosen, 'tmp', 'old-draft.txt')), 'the old file in it is not swept')
+})
+
+test('a folder that already holds a backup is taken up again, and only a backup is read as one', async (t) => {
+  const { storage } = await freshPeer(t)
+  const chosen = folder(t)
+  const first = await runBackup({ ...runArgs(new FolderTarget(chosen), null), storagePath: storage })
+  fs.writeFileSync(path.join(chosen, 'mirall-backup (conflicted copy).json'), 'x')
+  t.is(await codeOf(new FolderTarget(chosen).check()), null, 'a stray file beside a backup does not refuse it')
+  await setProfile({ displayName: 'Again' })
+  const again = await runBackup({ ...runArgs(new FolderTarget(chosen), null), storagePath: storage })
+  t.is(again.repoId, first.repoId, 'a device with no remembered id continues the backup there')
+
+  const other = folder(t, 'backup-other')
+  fs.writeFileSync(path.join(other, 'notes.txt'), 'mine')
+  t.is(await codeOf(new FolderTarget(other).ready()), 'BACKUP_TARGET_OFFLINE', 'a folder of other files is not a backup')
 })
 
 test('another computer writing to the same folder stops the run', async (t) => {
@@ -222,7 +256,7 @@ test('a backup is never written without an identity to seal it', async (t) => {
   const { storage } = await freshPeer(t)
   const chosen = folder(t)
   t.is(await codeOf(runBackup({ ...runArgs(new FolderTarget(chosen), null, { wrapKey: null }), storagePath: storage })), 'IDENTITY_NO_KEK')
-  t.absent(fs.existsSync(path.join(chosen, REPO_DIR)), 'and nothing is created')
+  t.alike(fs.readdirSync(chosen), [], 'and nothing is created')
 })
 
 test('a run out of time writes no snapshot and leaves the last one latest', async (t) => {
