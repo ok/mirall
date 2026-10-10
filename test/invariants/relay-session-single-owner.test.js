@@ -57,3 +57,15 @@ test('the relay session is read through its subscription, never mirrored into co
     .map(rel)
   t.alike(unsubscribed, [], 'a reader that renders a flag follows it through subscribeRelaySession')
 })
+
+// REGRESSION (FIX-RELAYSESSION-2: the restart act went idle when main had swapped the worker, but the
+// pending identity clears only when the new worker greets us, so "Reconnecting…" fell back to
+// "Reconnect now" for that gap before the notice went away.)
+test('REGRESSION (FIX-RELAYSESSION-2: the restart act stays busy until the new worker clears the pending identity)', (t) => {
+  const src = read('src/renderer/hooks/useRelayApply.ts')
+  const restart = src.indexOf('await restartWorker()')
+  t.ok(restart > 0, 'the act restarts the worker for a pinned identity')
+  const settle = src.indexOf('await reconnectSettled()', restart)
+  t.ok(settle > restart, 'and waits for the new worker to clear the flag before it goes idle')
+  t.ok(src.indexOf('setBusy(false)', restart) > settle, 'busy ends only after that wait')
+})

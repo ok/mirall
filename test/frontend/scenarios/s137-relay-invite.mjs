@@ -83,7 +83,8 @@ export default async function s137({ runDir, bootstrap }) {
     // down, so the screen stays put; landing on the space list would be a regression.
     await r.ok('reconnecting applies the identity and the probe then runs', async () => {
       await Relays.click({ name: 'Reconnect now' })
-      await waitFor(async () => !(await Relays.has({ name: 'Reconnect now' })), 30000, 'the restart to apply')
+      // The notice, not the button: while the restart runs the button reads "Reconnecting…".
+      await waitFor(async () => !(await Relays.hasText('It takes effect when Mirall reconnects')), 30000, 'the restart to apply')
       await Relays.waitText('Family relay', 30000)
       if (await Relays.hasText('Shared Spaces')) throw new Error('the restart dropped the user on the space list')
       if (await Relays.has({ name: 'Reconnect now' })) throw new Error('still pending after the restart')

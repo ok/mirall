@@ -42,6 +42,18 @@ export function setReconnectPending(next: boolean): void {
   announce()
 }
 
+// Resolves once no relay identity is pending: at once if none is, else when a new worker clears it.
+export function reconnectSettled(): Promise<void> {
+  if (!pending) return Promise.resolve()
+  return new Promise((resolve) => {
+    const off = subscribeRelaySession(() => {
+      if (pending) return
+      off()
+      resolve()
+    })
+  })
+}
+
 export function isApplyArmed(): boolean {
   return applyArmed
 }
