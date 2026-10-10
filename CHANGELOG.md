@@ -37,8 +37,6 @@ license.
 - **See what takes up Mirall's storage.** Settings → Storage breaks it down
 by space, file index, Activity Log, downloads and app updates, and "Free
 up" clears what can go.
-- **See when a member is reached through a relay.** The member list reads
-"Online · via relay".
 - **The Activity Log shows your relay at work:** when a relayed member is
 connected directly again, and every change to your relay settings.
 
