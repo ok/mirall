@@ -28,6 +28,7 @@ type Step = 1 | 2
 interface Chosen {
   folder: string
   sameDisk: boolean
+  otherFiles: boolean
 }
 
 export default function BackupSetupModal({ isOpen, onClose }: BackupSetupModalProps) {
@@ -41,6 +42,8 @@ export default function BackupSetupModal({ isOpen, onClose }: BackupSetupModalPr
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const verdict = passphraseVerdict(passphrase, confirmation)
+  // A folder that holds other files cannot be used at all, so the same-disk choice does not arise.
+  const sameDisk = !!chosen?.sameDisk && !chosen.otherFiles
 
   function reset() {
     setStep(1)
@@ -82,7 +85,7 @@ export default function BackupSetupModal({ isOpen, onClose }: BackupSetupModalPr
   }
 
   function confirm() {
-    if (step === 1 && chosen) setStep(2)
+    if (step === 1 && chosen && !chosen.otherFiles) setStep(2)
     else if (step === 2) void turnOn()
   }
 
@@ -107,13 +110,14 @@ export default function BackupSetupModal({ isOpen, onClose }: BackupSetupModalPr
                 <PathRow path={chosen?.folder ?? null} onAction={() => void chooseFolder()} subject={t('backup.folderSubject')} ariaDescribedBy="backup-setup-folder-hint" />
                 <p id="backup-setup-folder-hint" className="text-xs text-on-surface-variant px-1">{t('backupSetup.whereHint')}</p>
               </div>
-              {chosen?.sameDisk && (
+              {chosen?.otherFiles && <Callout tone="warning" role="status" id="backup-setup-other-files">{errorText({ code: 'BACKUP_TARGET_NOT_EMPTY' })}</Callout>}
+              {sameDisk && (
                 <Callout tone="warning" title={t('backupSetup.sameDiskTitle')}>{t('backupSetup.sameDiskBody')}</Callout>
               )}
               <ModalFooter>
                 <Button variant="secondary" size="lg" onClick={handleClose}>{t('actions.cancel')}</Button>
-                <Button size="lg" icon="arrow_forward" onClick={() => setStep(2)} disabled={!chosen}>
-                  {chosen?.sameDisk ? t('backupSetup.useAnyway') : t('backupSetup.next')}
+                <Button size="lg" icon="arrow_forward" onClick={() => setStep(2)} disabled={!chosen || chosen.otherFiles} ariaDescribedBy={chosen?.otherFiles ? 'backup-setup-other-files' : undefined}>
+                  {sameDisk ? t('backupSetup.useAnyway') : t('backupSetup.next')}
                 </Button>
               </ModalFooter>
             </>
