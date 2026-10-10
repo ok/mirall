@@ -122,3 +122,36 @@ test('a real UPGRADE_KEY is still injected into the staged package.json', async 
   const staged = JSON.parse(await fs.readFile(path.join(dir, 'package.json'), 'utf8'))
   t.is(staged.upgrade, 'pear://test', 'release path unchanged')
 })
+
+// MIRALL_RIG_BUILD packages the local build mirall-docs-rig drives. It honours MIRALL_* variables,
+// so it may only exist without an OTA channel and unsigned.
+test('a rig build is marked in the staged package.json and gets no OTA channel', async (t) => {
+  const env = { UPGRADE_KEY: 'none', MIRALL_RIG_BUILD: '1' }
+  await t.execution(prePackage(env), 'pre-flight allows an unsigned keyless rig build')
+
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'mirall-forge-'))
+  t.teardown(() => fs.rm(dir, { recursive: true, force: true }))
+  await fs.writeFile(path.join(dir, 'package.json'), JSON.stringify({ name: 'mirall' }))
+
+  await afterCopy(env, dir)
+  const staged = JSON.parse(await fs.readFile(path.join(dir, 'package.json'), 'utf8'))
+  t.is(staged.rigBuild, true, 'rigBuild is injected')
+  t.absent('upgrade' in staged, 'no upgrade field is injected')
+})
+
+test('a rig build refuses an OTA channel or a signing identity', async (t) => {
+  const withKey = await failureOf({ UPGRADE_KEY: 'pear://test', MIRALL_RIG_BUILD: '1' })
+  t.ok(withKey && /MIRALL_RIG_BUILD/.test(withKey.message), 'a channel key fails the build')
+  const signed = await failureOf({ UPGRADE_KEY: 'none', MIRALL_RIG_BUILD: '1', APPLE_SIGNING_IDENTITY: SIGNING, ...CREDS })
+  t.ok(signed && /MIRALL_RIG_BUILD/.test(signed.message), 'a signing identity fails the build')
+})
+
+test('a release build carries no rigBuild marker', async (t) => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'mirall-forge-'))
+  t.teardown(() => fs.rm(dir, { recursive: true, force: true }))
+  await fs.writeFile(path.join(dir, 'package.json'), JSON.stringify({ name: 'mirall' }))
+
+  await afterCopy({ UPGRADE_KEY: 'pear://test' }, dir)
+  const staged = JSON.parse(await fs.readFile(path.join(dir, 'package.json'), 'utf8'))
+  t.absent('rigBuild' in staged)
+})

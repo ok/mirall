@@ -88,6 +88,13 @@ const isWindows = process.platform === 'win32'
 // key" at startup and the app never opens.
 const NO_UPGRADE = 'none'
 
+// MIRALL_RIG_BUILD=1 packages a local build for mirall-docs-rig, which configures the app through
+// MIRALL_* variables and drives it over --inspect. The build marks its bundled package.json
+// `rigBuild: true`, which src/main/env-overrides.js reads to honour those variables, and keeps the
+// inspect fuse on. It is never a release: prePackage refuses it with an OTA channel or a signing
+// identity, and scripts/ci/check-fuses.mjs fails any binary whose inspect fuse is on.
+const isRigBuild = () => process.env.MIRALL_RIG_BUILD === '1'
+
 // Forge / electron-packager takes a single `icon` base path and resolves the
 // extension per platform (.icns / .ico / .png). Each lives under its own
 // platform dir, so we pick the right base at config-load time. CI runs the
@@ -143,10 +150,10 @@ let packagerConfig = {
   // seals, so edits to buildPath/package.json land in the shipped app.asar.
   // UPGRADE_KEY=none skips the injection: the shipped package.json keeps no
   // `upgrade` field, so main.js takes its updater-less shim path and OTA is
-  // off by construction rather than by a launch flag.
+  // off by construction rather than by a launch flag. A rig build adds `rigBuild: true`.
   afterCopy: [
     (buildPath, _electronVersion, _platform, _arch, callback) => {
-      if (process.env.UPGRADE_KEY === NO_UPGRADE) return callback()
+      if (process.env.UPGRADE_KEY === NO_UPGRADE && !isRigBuild()) return callback()
       if (!process.env.UPGRADE_KEY) {
         return callback(new Error('UPGRADE_KEY env var unset in afterCopy — readPackageJson should have caught this earlier'))
       }
@@ -157,7 +164,8 @@ let packagerConfig = {
         // fresh inode, then write the modified copy.
         const pkgPath = path.join(buildPath, 'package.json')
         const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'))
-        pkg.upgrade = process.env.UPGRADE_KEY
+        if (process.env.UPGRADE_KEY !== NO_UPGRADE) pkg.upgrade = process.env.UPGRADE_KEY
+        if (isRigBuild()) pkg.rigBuild = true
         fs.unlinkSync(pkgPath)
         fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n')
         callback()
@@ -274,6 +282,14 @@ module.exports = {
           'In CI it is set by the "Resolve UPGRADE_KEY for channel" step in build-electron.yml. ' +
           'For local builds, set it explicitly: UPGRADE_KEY=pear://<key> npm run make:<platform>. ' +
           `To build without a Pear channel key: UPGRADE_KEY=${NO_UPGRADE} npm run make:<platform>`
+        )
+      }
+
+      if (isRigBuild() && (process.env.UPGRADE_KEY !== NO_UPGRADE || process.env.APPLE_SIGNING_IDENTITY)) {
+        throw new Error(
+          'MIRALL_RIG_BUILD=1 packages a local test build for mirall-docs-rig: it honours MIRALL_* ' +
+          'variables and --inspect, so it must never be released. Build it unsigned and without an ' +
+          `OTA channel: MIRALL_RIG_BUILD=1 UPGRADE_KEY=${NO_UPGRADE} npm run package`
         )
       }
 
@@ -426,13 +442,14 @@ module.exports = {
     // The packaged binary runs only as Mirall: never as a generic Node (ELECTRON_RUN_AS_NODE,
     // NODE_OPTIONS, --inspect), and only from its own app.asar, whose integrity is checked at
     // launch on macOS and Windows. scripts/ci/check-fuses.mjs asserts the result on every build.
+    // A rig build (isRigBuild above) keeps --inspect, which mirall-docs-rig drives it through.
     {
       name: '@electron-forge/plugin-fuses',
       config: {
         version: FuseVersion.V1,
         [FuseV1Options.RunAsNode]: false,
         [FuseV1Options.EnableNodeOptionsEnvironmentVariable]: false,
-        [FuseV1Options.EnableNodeCliInspectArguments]: false,
+        [FuseV1Options.EnableNodeCliInspectArguments]: isRigBuild(),
         [FuseV1Options.EnableEmbeddedAsarIntegrityValidation]: true,
         [FuseV1Options.OnlyLoadAppFromAsar]: true,
       },

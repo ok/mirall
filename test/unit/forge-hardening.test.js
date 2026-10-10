@@ -12,3 +12,12 @@ test('REGRESSION (MIR-54: the packaged binary could run as a generic Node): pack
   t.is(fuses?.config[FuseV1Options.EnableEmbeddedAsarIntegrityValidation], true)
   t.is(fuses?.config[FuseV1Options.OnlyLoadAppFromAsar], true)
 })
+
+test('a rig build keeps --inspect and nothing else', (t) => {
+  const fuses = loadConfig({ UPGRADE_KEY: 'none', MIRALL_RIG_BUILD: '1' }).plugins.find((p) => p.name === '@electron-forge/plugin-fuses')
+  t.is(fuses?.config[FuseV1Options.EnableNodeCliInspectArguments], true)
+  t.is(fuses?.config[FuseV1Options.RunAsNode], false)
+  t.is(fuses?.config[FuseV1Options.EnableNodeOptionsEnvironmentVariable], false)
+  t.is(fuses?.config[FuseV1Options.EnableEmbeddedAsarIntegrityValidation], true)
+  t.is(fuses?.config[FuseV1Options.OnlyLoadAppFromAsar], true)
+})
