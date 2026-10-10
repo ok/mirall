@@ -7,7 +7,7 @@ import {
   DEFAULT_IGNORE, shouldIgnore, shouldPruneDir,
   shouldHonorDeletions,
   splitFileName, nextFreeName, conflictCopyName,
-  systemRootViolation, personalRootViolation, userSystemRootViolation, iCloudRootViolation, isWindowsReservedName, cloudSyncHint,
+  systemRootViolation, personalRootViolation, userSystemRootViolation, appleCloudRootViolation, isWindowsReservedName, cloudSyncRootViolation,
 } from '../../src/shared/folders/path-keys.js'
 
 // These pure helpers are the platform-divergent backbone of every file/folder
@@ -563,20 +563,69 @@ test('isWindowsReservedName matches device names ignoring extension and case', (
 })
 
 // ── SEV-3 #8: cloud-sync detection (gates a hard mount rejection) ───────────────
-test('cloudSyncHint detects cloud-sync provider folders (lower-cased input)', (t) => {
-  t.is(cloudSyncHint('/users/me/dropbox/shared'), 'dropbox')
-  t.is(cloudSyncHint('c:\\users\\me\\onedrive\\docs'), 'onedrive')
-  t.is(cloudSyncHint('/users/me/library/mobile documents/icloud'), 'icloud')
-  t.is(cloudSyncHint('/users/me/projects/mirall'), null, 'an ordinary folder has no hint')
+const posix = { platform: 'darwin', home: '/Users/me', sep: '/', getEnv: noEnv, fold: true }
+const win = { platform: 'win32', home: 'C:\\Users\\me', sep: '\\', getEnv: noEnv, fold: true }
+
+test('REGRESSION (FIX-612): a provider name inside an ordinary word is not a cloud-sync root', (t) => {
+  const megan = { ...posix, home: '/Users/megan' }
+  t.is(cloudSyncRootViolation('/Users/megan/projects', megan), null, 'an account named megan')
+  t.is(cloudSyncRootViolation('/Users/omega/docs', { ...posix, home: '/Users/omega' }), null, 'an account named omega')
+  t.is(cloudSyncRootViolation('/Users/me/sandbox/x', posix), null, 'sandbox')
+  t.is(cloudSyncRootViolation('C:\\Users\\me\\Documents\\Inbox Scans', win), null, 'inbox')
+  t.is(cloudSyncRootViolation('/Users/me/Xbox Clips', posix), null, 'xbox')
 })
 
-test('iCloudRootViolation anchors iCloud Drive to ~/Library/Mobile Documents', (t) => {
+test('cloudSyncRootViolation matches each provider root as a whole path segment', (t) => {
+  const cases = [
+    ['/Users/me/Dropbox/shared', '/Users/me/Dropbox'],
+    ['/Volumes/Ext/Dropbox (Personal)/x', '/Volumes/Ext/Dropbox (Personal)'],
+    ['/Users/me/Dropbox (Acme Inc)/x', '/Users/me/Dropbox (Acme Inc)'],
+    ['/Users/me/Google Drive/x', '/Users/me/Google Drive'],
+    ['/Users/me/Box Sync/x', '/Users/me/Box Sync'],
+    ['/Users/me/Documents/MEGAsync/x', '/Users/me/Documents/MEGAsync'],
+    ['/home/me/Nextcloud/x', '/home/me/Nextcloud'],
+    ['/home/me/Nextcloud2/x', '/home/me/Nextcloud2'],
+    ['/Users/me/pCloud Drive/x', '/Users/me/pCloud Drive'],
+    ['/Users/me/Proton Drive/x', '/Users/me/Proton Drive'],
+    ['/Users/me/iCloud Drive (Archive)/x', '/Users/me/iCloud Drive (Archive)'],
+  ]
+  for (const [p, root] of cases) t.is(cloudSyncRootViolation(p, posix), root, p)
+  t.is(cloudSyncRootViolation('C:\\Users\\me\\OneDrive\\docs', win), 'C:\\Users\\me\\OneDrive')
+  t.is(cloudSyncRootViolation('C:\\Users\\me\\OneDrive - Contoso\\docs', win), 'C:\\Users\\me\\OneDrive - Contoso')
+  t.is(cloudSyncRootViolation('C:\\Users\\me\\iCloudDrive\\x', win), 'C:\\Users\\me\\iCloudDrive')
+  t.is(cloudSyncRootViolation('G:\\My Drive\\x', win), 'G:\\My Drive', 'Google Drive for desktop')
+  t.is(cloudSyncRootViolation('C:\\Users\\me\\My Drive\\x', win), null, '`My Drive` elsewhere is an ordinary folder')
+  t.is(cloudSyncRootViolation('/Users/me/projects/mirall', posix), null, 'an ordinary folder')
+})
+
+test('cloudSyncRootViolation counts Box and MEGA only directly under home', (t) => {
+  t.is(cloudSyncRootViolation('/Users/me/Box/x', posix), '/Users/me/Box', 'Box Drive')
+  t.is(cloudSyncRootViolation('C:\\Users\\me\\Box\\x', win), 'C:\\Users\\me\\Box', 'Box Drive on Windows')
+  t.is(cloudSyncRootViolation('/Users/me/mega/x', posix), '/Users/me/mega', 'MEGA, folded')
+  t.is(cloudSyncRootViolation('/Users/me/projects/box/x', posix), null, 'a project named box')
+  t.is(cloudSyncRootViolation('/Volumes/MEGA/x', posix), null, 'a volume named MEGA')
+  t.is(cloudSyncRootViolation('/Users/me/Box/x', { ...posix, home: '' }), null, 'no home → no home-only match')
+})
+
+test('cloudSyncRootViolation treats the OneDrive variables as roots on Windows', (t) => {
+  const env = { OneDriveCommercial: 'D:\\Sync\\Work Files', OneDrive: 'relative\\path' }
+  const withEnv = { ...win, getEnv: (name) => env[name] }
+  t.is(cloudSyncRootViolation('D:\\Sync\\Work Files\\x', withEnv), 'D:\\Sync\\Work Files', 'a renamed, relocated root')
+  t.is(cloudSyncRootViolation('d:\\sync\\work files\\x', withEnv), 'D:\\Sync\\Work Files', 'folds')
+  t.is(cloudSyncRootViolation('D:\\Sync\\Other\\x', withEnv), null, 'a sibling is not inside it')
+  t.is(cloudSyncRootViolation('D:\\Sync\\Work Files\\x', { ...withEnv, platform: 'linux', sep: '\\' }), null, 'Windows only')
+})
+
+test('appleCloudRootViolation anchors iCloud and File Provider roots under ~/Library', (t) => {
   const home = '/Users/me'
-  t.is(iCloudRootViolation('/Users/me/Library/Mobile Documents/com~apple~CloudDocs/x', home, '/'), '/Users/me/Library/Mobile Documents', 'iCloud Drive')
-  t.is(iCloudRootViolation('/Users/me/Library/Mobile Documents/iCloud~md~obsidian', home, '/'), '/Users/me/Library/Mobile Documents', 'an app container')
-  t.is(iCloudRootViolation('/users/me/library/mobile documents/x', home, '/', true), '/Users/me/Library/Mobile Documents', 'folds when asked')
-  t.is(iCloudRootViolation('/Users/me/Work/Mobile Documents Scanner', home, '/'), null, 'the phrase elsewhere is not iCloud')
-  t.is(iCloudRootViolation('/Users/me/Library/Mobile Documents', '', '/'), null, 'no home → no violation')
+  t.is(appleCloudRootViolation('/Users/me/Library/Mobile Documents/com~apple~CloudDocs/x', home, '/'), '/Users/me/Library/Mobile Documents', 'iCloud Drive')
+  t.is(appleCloudRootViolation('/Users/me/Library/Mobile Documents/iCloud~md~obsidian', home, '/'), '/Users/me/Library/Mobile Documents', 'an app container')
+  t.is(appleCloudRootViolation('/Users/me/Library/CloudStorage/Dropbox/x', home, '/'), '/Users/me/Library/CloudStorage', 'a File Provider client')
+  t.is(appleCloudRootViolation('/Users/me/Library/CloudStorage/GoogleDrive-me@example.com/x', home, '/'), '/Users/me/Library/CloudStorage', 'named by account')
+  t.is(appleCloudRootViolation('/users/me/library/mobile documents/x', home, '/', true), '/Users/me/Library/Mobile Documents', 'folds when asked')
+  t.is(appleCloudRootViolation('/Users/me/Work/Mobile Documents Scanner', home, '/'), null, 'the phrase elsewhere is not iCloud')
+  t.is(appleCloudRootViolation('/Users/me/Work/CloudStorage/x', home, '/'), null, 'CloudStorage elsewhere is not the root')
+  t.is(appleCloudRootViolation('/Users/me/Library/Mobile Documents', '', '/'), null, 'no home → no violation')
 })
 
 // ── MIR-06: materialize containment guard ──────────────────────────────────────

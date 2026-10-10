@@ -1,9 +1,6 @@
 // The Bare twin of the temp-dir maker in test/helpers/fixtures.js, for test/integration and the
-// Bare helpers. Hex, not base36, for the random suffix: base36 draws from [0-9a-z], so a name can
-// spell a cloud-sync hint substring like "box" or "mega", and mount-validate rejects such a path
-// with MOUNT_FORBIDDEN_CLOUD_SYNC — a rare, unreproducible red with no relation to the behavior
-// under test. Hex (0-9a-f) cannot form any of those hints, so the hazard is gone by construction.
-// test/unit/tmp-dir-suffix-hygiene.test.js pins both halves.
+// Bare helpers: the one spelling of a temp-dir name, with a hex random suffix.
+// test/unit/tmp-dir-suffix-hygiene.test.js pins it.
 import fs from 'bare-fs'
 import os from 'bare-os'
 import path from 'bare-path'
