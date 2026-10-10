@@ -1080,8 +1080,9 @@ tombstones the mirror row but leaves the files on disk.
 - system roots, and anything inside a per-user root the OS, a shell or a login manager runs from
   (`~/Library`, `/Applications`, `AppData`, Start Menu, `$XDG_CONFIG_HOME`, every dot-directory
   under home);
-- the app's storage dir, personal roots (home, Desktop…), cloud-sync roots (iCloud Drive included),
-  Windows reserved names, and non-writable paths;
+- the app's storage dir, personal roots (home, Desktop…), cloud-sync roots (a provider's root folder
+  as a whole path segment, the Windows OneDrive variables, and macOS `~/Library/Mobile Documents` and
+  `~/Library/CloudStorage`), Windows reserved names, and non-writable paths;
 - an overlap with **any** existing mount, except two owned folders at the exact same path;
 - nesting with **any** download root, in either direction. Downloads inside an owned folder would be
   republished, and mirrors mixed with downloads are indistinguishable. The download-folder validator
