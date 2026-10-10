@@ -1,15 +1,25 @@
 'use strict'
 
 // The backup's main-process side: the folder picker, which says whether the folder shares a disk with
-// Mirall's own data (the failure a backup is meant to survive), and putting back the settings a
-// restored backup carried. Main is config.json's only writer, so each group goes through the store's
-// own setter and is checked there; a download folder is kept only when it can be used on this device.
+// Mirall's own data (the failure a backup is meant to survive) and whether it holds files a backup may
+// not start beside, and putting back the settings a restored backup carried. Main is config.json's
+// only writer, so each group goes through the store's own setter and is checked there; a download
+// folder is kept only when it can be used on this device.
 const fs = require('fs')
 const { BACKUP_SETTING_GROUPS } = require('../shared/contract/backup-settings.js')
+const { fitsNewBackup } = require('../shared/contract/backup-folder.js')
 
 function sameDisk(a, b) {
   try {
     return fs.statSync(a).dev === fs.statSync(b).dev
+  } catch {
+    return false
+  }
+}
+
+async function otherFiles(folder) {
+  try {
+    return !fitsNewBackup(await fs.promises.readdir(folder))
   } catch {
     return false
   }
@@ -38,7 +48,7 @@ function applyRestoredSettings(json, { store, folderUsable }) {
 function registerBackupIpc({ ipcMain, config, pickDirectory, validateDownloadFolder, dataDir }) {
   ipcMain.handle('backup:browse', async (evt) => {
     const folder = await pickDirectory(evt, config().get('backup.folder') || undefined)
-    return folder ? { folder, sameDisk: sameDisk(folder, dataDir()) } : null
+    return folder ? { folder, sameDisk: sameDisk(folder, dataDir()), otherFiles: await otherFiles(folder) } : null
   })
 
   ipcMain.handle('backup:apply-settings', (_evt, json) => {

@@ -148,7 +148,7 @@ export interface MirallBridge {
   getBandwidth(): Promise<BandwidthLimits>
   setBandwidth(patch: BandwidthLimits): Promise<BandwidthLimits>
   browseShareFolder(): Promise<string | null>
-  browseBackupFolder(): Promise<{ folder: string; sameDisk: boolean } | null>
+  browseBackupFolder(): Promise<{ folder: string; sameDisk: boolean; otherFiles: boolean } | null>
   applyRestoredSettings(json: string): Promise<RendererConfig>
 
   notify(spec: NotificationSpec): Promise<NotificationShowResult>

@@ -1,4 +1,4 @@
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { Instance } from '../instance.mjs'
 import { makeReport, waitFor } from '../assert.mjs'
@@ -12,6 +12,9 @@ export default async function s160({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const backupDir = path.join(runDir, 's160-backup')
   mkdirSync(backupDir, { recursive: true })
+  const clutteredDir = path.join(runDir, 's160-cluttered')
+  mkdirSync(clutteredDir, { recursive: true })
+  writeFileSync(path.join(clutteredDir, 'notes.txt'), 'mine')
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 1 })
   const automatic = { role: 'switch', name: 'Back up automatically' }
@@ -24,6 +27,15 @@ export default async function s160({ runDir, bootstrap }) {
       await A.waitText("Your spaces aren't backed up", 8000)
       if (String(await A.nodeValue(automatic)) !== '0') throw new Error('the switch starts off')
       await A.shot('s160-not-set-up', runDir)
+    })
+    await r.ok('a folder that holds other files is refused at the first step', async () => {
+      await A.click({ role: 'button', name: 'Set up backup' })
+      await A.waitText('Step 1 of 2', 8000)
+      await A.nativeChoosePath(clutteredDir, { trigger: () => A.click({ role: 'button', name: 'Browse… (backup folder)' }) })
+      await A.waitText('This folder already holds other files', 8000)
+      if (!(await A.isDisabled({ role: 'button', name: 'Next' }))) throw new Error('Next is available for a folder of other files')
+      await A.shot('s160-other-files', runDir)
+      await A.click({ role: 'button', name: 'Cancel' })
     })
     await r.ok('setup takes a folder and a passphrase in two steps', async () => {
       await A.click({ role: 'button', name: 'Set up backup' })
