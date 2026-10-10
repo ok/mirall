@@ -64,17 +64,19 @@ export const withAx = (Base) => class extends Base {
         await new Promise((r) => setTimeout(r, 400 * (attempt + 1)))
       }
     }
-    try {
-      return await take()
-    } catch (e) {
-      // agent-desktop reassigns a window's AX id when the renderer repaints or reloads: the old id is
-      // gone (WINDOW_NOT_FOUND) or resolves to a husk that answers no AX query (ACTION_NOT_SUPPORTED),
-      // which polling can never clear. Re-resolve by pid and retry once; a real crash still fails.
-      if ((e.code !== 'WINDOW_NOT_FOUND' && e.code !== 'ACTION_NOT_SUPPORTED') || !this.pid) throw e
-      const match = (await mirallWindows()).find((w) => w.pid === this.pid)
-      if (!match || match.id === this.windowId) throw e
-      this.windowId = match.id
-      return take()
+    // agent-desktop reassigns a window's AX id when the renderer repaints or reloads: the old id is
+    // gone (WINDOW_NOT_FOUND) or resolves to a husk that answers no AX query (ACTION_NOT_SUPPORTED).
+    // Re-resolve by pid each pass. The lookup can also miss a window that keeps its id for a moment,
+    // so back off and ask again; a window that stays gone is a real crash and still fails.
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await take()
+      } catch (e) {
+        if ((e.code !== 'WINDOW_NOT_FOUND' && e.code !== 'ACTION_NOT_SUPPORTED') || !this.pid || attempt === 3) throw e
+        await new Promise((r) => setTimeout(r, 500 * (attempt + 1)))
+        const match = (await mirallWindows()).find((w) => w.pid === this.pid)
+        if (match) this.windowId = match.id
+      }
     }
   }
 
