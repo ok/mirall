@@ -14,7 +14,7 @@ import { isHeld, writeRestoreHold, PROFILE_BEE } from '../../src/shared/core/res
 import { applyPendingIdentityChange, stagingPath } from '../../src/shared/core/identity-adopt.js'
 import { registerBackupRestore } from '../../src/worker/ipc/backup-restore.js'
 import { registerProfile } from '../../src/worker/ipc/profile.js'
-import { FolderTarget, REPO_DIR } from '../../src/shared/storage/backup/folder-target.js'
+import { FolderTarget } from '../../src/shared/storage/backup/folder-target.js'
 import { runBackup } from '../../src/shared/storage/backup/backup-run.js'
 import { writeFolderKey } from '../../src/shared/storage/backup/folder-key.js'
 import { offlineMemberRegistry } from '../helpers/store.js'
@@ -104,7 +104,7 @@ test('a backup restores onto a new device: listed, staged, put in place, and hel
   const restored = await device.fake.call('backup:restore', { folder, snapshot: original.snapshot, passphrase: PASS })
   t.alike(restored, { ok: true, settings: JSON.stringify({ appearance: { theme: 'dark' } }) })
   t.ok(fs.existsSync(stagingPath(device.h.storage)))
-  t.alike(fs.readdirSync(path.join(folder, REPO_DIR, 'leases')), [], 'the old installation no longer holds the folder')
+  t.alike(fs.readdirSync(path.join(folder, 'leases')), [], 'the old installation no longer holds the folder')
   await device.root.close()
 
   const setAside = await applyPendingIdentityChange(device.h.storage)
@@ -151,7 +151,7 @@ test('another identity cannot read the backup', async (t) => {
 test('a backup that does not rebuild is refused before anything is replaced', async (t) => {
   const folder = backupFolder(t)
   const original = await backedUpDevice(t, folder)
-  const objects = path.join(folder, REPO_DIR, 'objects')
+  const objects = path.join(folder, 'objects')
   const prefix = fs.readdirSync(objects)[0]
   fs.rmSync(path.join(objects, prefix, fs.readdirSync(path.join(objects, prefix))[0]))
   const device = await newDevice(t)

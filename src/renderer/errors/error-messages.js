@@ -11,6 +11,7 @@ export const ERROR_I18N_KEY_BY_CODE = {
   BACKUP_OTHER_DEVICE_WRITING: 'backupOtherDevice',
   BACKUP_TARGET_DENIED: 'backupTargetDenied',
   BACKUP_TARGET_FULL: 'backupTargetFull',
+  BACKUP_TARGET_NOT_EMPTY: 'backupTargetNotEmpty',
   BACKUP_TARGET_OFFLINE: 'backupTargetOffline',
   TRANSFER_DISK_FULL: 'transferDiskFull',
   TRANSFER_PERMISSION: 'transferPermission',

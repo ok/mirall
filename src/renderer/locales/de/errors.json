@@ -56,6 +56,7 @@
   "backupOtherDevice": "Ein anderer Computer sichert in diesen Ordner. Verwende für jeden Computer einen eigenen Ordner.",
   "backupTargetDenied": "Mirall darf nicht in den Backup-Ordner schreiben. Prüf seine Berechtigungen.",
   "backupTargetFull": "Das Laufwerk des Backup-Ordners ist voll.",
+  "backupTargetNotEmpty": "Dieser Ordner enthält bereits andere Dateien. Wähle einen leeren Ordner für dein Backup oder leg einen neuen an.",
   "backupTargetOffline": "Der Backup-Ordner ist nicht verfügbar. Verbinde das Laufwerk oder die Netzwerkfreigabe und versuch es erneut.",
   "backupKeyMissing": "Dieses Backup lässt sich nicht öffnen – sein Ordner ist unvollständig.",
   "restoreHeld": "Verfügbar, sobald Mirall sich mit den Personen abgestimmt hat, mit denen du teilst."

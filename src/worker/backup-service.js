@@ -332,6 +332,7 @@ export class Backup extends Subsystem {
   async configure(folder) {
     if (folder !== null) this.assertFolder(folder)
     if (folder !== this.config.folder) {
+      if (folder !== null) await new FolderTarget(folder).check()
       this.remember({ folder, repoId: null })
       this.progress = { state: folder ? 'idle' : 'off', ...IDLE }
       if (folder) this.note(URGENCY.URGENT)

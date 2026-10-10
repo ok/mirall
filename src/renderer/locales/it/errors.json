@@ -56,6 +56,7 @@
   "backupOtherDevice": "Un altro computer sta facendo il backup in questa cartella. Usa una cartella diversa per ogni computer.",
   "backupTargetDenied": "Mirall non può scrivere nella cartella di backup. Controlla i permessi.",
   "backupTargetFull": "L'unità della cartella di backup è piena.",
+  "backupTargetNotEmpty": "Questa cartella contiene già altri file. Scegli una cartella vuota per il backup o creane una nuova.",
   "backupTargetOffline": "La cartella di backup non è disponibile. Collega l'unità o la condivisione di rete e riprova.",
   "backupKeyMissing": "Questo backup non si può aprire: la sua cartella è incompleta.",
   "restoreHeld": "Disponibile quando Mirall avrà verificato con le persone con cui condividi."

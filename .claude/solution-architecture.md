@@ -1595,11 +1595,16 @@ applies them exactly like blocks from a peer, so a changed block or a gap is ref
 stay ciphertext, and a core on a later fork is applied as a reorg. `manifest.js` keeps a chain of
 ranges per core and starts it over when the core no longer extends what was captured.
 
-The repository (`repo.js`) lives in a folder the user chose (`folder-target.js`): a header with the
+The repository (`repo.js`) is the folder the user chose (`folder-target.js`), with no folder of its
+own inside it: a header with the
 repository key wrapped under an M-derived key (only this identity opens it — a wiped app with a new
 identity can never write into the old backup), write-once objects sealed with XChaCha20-Poly1305 and
 padded to 4 KiB, one sealed manifest per snapshot named by sequence number, and a lease per writing
-install. The chosen folder is never created, so an unmounted share reads as offline. One run
+install. The chosen folder is never created, so an unmounted share reads as offline, and a backup
+starts only in a folder that already holds one (its header or `keys/`) or holds nothing besides
+what the system, a drive root or a sync client leaves there (`contract/backup-folder.js`). The
+main-process picker checks the same rule, so setup refuses such a folder at the first step; Settings
+→ Change refuses it in `configure` without writing to it. One run
 (`backup-run.js`) takes the lease, captures against the latest snapshot, adds the key vault and
 the preferences that follow the user (`BACKUP_SETTING_GROUPS`: appearance, downloads, bandwidth caps,
 notifications) from `config.json`, and writes the snapshot last. It plans every core before
@@ -1640,7 +1645,7 @@ snapshot carried go back through main (`src/main/backup-settings.js`), each grou
 store's own setter, and the window adopts them at once.
 
 **The key in the folder.** Setup (`backup:setup`) takes the folder and a passphrase together:
-the backup's key is sealed under the passphrase, written to `Mirall Backup/keys/` (`folder-key.js`,
+the backup's key is sealed under the passphrase, written to `keys/` in the folder (`folder-key.js`,
 write-once names, older keys removed after), opened back from there, and only then is the first backup
 run — a backup never exists without a key known to open it. A folder holding another identity's backup
 is refused before anything is written. The worker keeps the same sealed file in

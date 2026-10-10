@@ -5,8 +5,9 @@
 // name is the current key.
 import b4a from 'b4a'
 import { readRecoveryHeader } from '../../contract/recovery-key.js'
+import { BACKUP_KEYS_DIR } from '../../contract/backup-folder.js'
 
-export const KEYS_DIR = 'keys'
+export const KEYS_DIR = BACKUP_KEYS_DIR
 const KEY_NAME = /^recovery-\d{8}T\d{9}Z\.mirallkey$/
 
 const stampOf = (createdAt) => createdAt.replace(/[-:.]/g, '')

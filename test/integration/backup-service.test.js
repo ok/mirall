@@ -12,7 +12,7 @@ import { registerBackup } from '../../src/worker/ipc/backup.js'
 import { createPassphraseThrottle } from '../../src/shared/core/identity-recovery.js'
 import { writeRestoreHold, PROFILE_BEE } from '../../src/shared/core/restore-hold.js'
 import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../../src/shared/contract/main-requests.js'
-import { FolderTarget, REPO_DIR } from '../../src/shared/storage/backup/folder-target.js'
+import { FolderTarget } from '../../src/shared/storage/backup/folder-target.js'
 import { openRepo } from '../../src/shared/storage/backup/repo.js'
 import { runBackup } from '../../src/shared/storage/backup/backup-run.js'
 import { pruneRepo } from '../../src/shared/storage/backup/prune.js'
@@ -98,11 +98,17 @@ test('a change worth backing up arms the next run', async (t) => {
 })
 
 test('the folder can never be inside the app data folder, and a new folder starts a new backup', async (t) => {
-  const { fake, home } = await bootWith(t)
+  const { fake, home, backupFolder } = await bootWith(t)
   t.is(await codeOf(fake.call('backup:configure', { folder: path.join(home, 'inside') })), 'INVALID_ARGUMENT')
   const other = tmpDir('backup-service-other')
   t.teardown(() => { try { fs.rmSync(other, { recursive: true, force: true }) } catch {} }, { order: 2 })
+  fs.writeFileSync(path.join(other, 'notes.txt'), 'mine')
+  t.is(await codeOf(fake.call('backup:configure', { folder: other })), 'BACKUP_TARGET_NOT_EMPTY', 'a folder of other files is refused at once')
+  t.is((await fake.call('backup:status', {})).folder, backupFolder, 'and the backup stays where it was')
+  t.alike(fs.readdirSync(other), ['notes.txt'], 'and nothing is written into it')
+  fs.rmSync(path.join(other, 'notes.txt'))
   const status = await fake.call('backup:configure', { folder: other })
+  t.alike(fs.readdirSync(other), [], 'choosing a folder writes nothing until a run')
   t.is(status.folder, other)
   t.is(status.repoId, null)
   t.alike(remembered(fake).at(-1), { folder: other, repoId: null })
@@ -114,7 +120,7 @@ test('a change still unsaved at quit is backed up on the way out', async (t) => 
   await fake.call('backup:run', {})
   await setProfile({ displayName: 'At quit' })
   await root.close()
-  t.is(fs.readdirSync(path.join(backupFolder, REPO_DIR, 'snapshots')).length, 2, 'a second snapshot was written at close')
+  t.is(fs.readdirSync(path.join(backupFolder, 'snapshots')).length, 2, 'a second snapshot was written at close')
 })
 
 test('losing spaces marks a snapshot suspect, and pruning keeps the healthy ones', async (t) => {
@@ -153,7 +159,7 @@ test('pruning removes snapshots retention does not keep and the objects only the
     repoId = run.repoId
     names.push(run.snapshot)
   }
-  const objectsDir = path.join(backupFolder, REPO_DIR, 'objects')
+  const objectsDir = path.join(backupFolder, 'objects')
   const old = (Date.now() - 20 * DAY) / 1000
   for (const prefix of fs.readdirSync(objectsDir)) for (const id of fs.readdirSync(path.join(objectsDir, prefix))) fs.utimesSync(path.join(objectsDir, prefix, id), old, old)
   const repo = await openRepo(target, { wrapKey: backupWrapKey(), expectedRepoId: repoId })
@@ -171,7 +177,7 @@ test('pruning removes snapshots retention does not keep and the objects only the
 test('files a folder browser leaves in the backup do not stop pruning', async (t) => {
   const { fake, backupFolder } = await bootWith(t)
   const status = await fake.call('backup:run', {})
-  const objects = path.join(backupFolder, REPO_DIR, 'objects')
+  const objects = path.join(backupFolder, 'objects')
   fs.writeFileSync(path.join(objects, '.DS_Store'), 'x')
   const prefix = fs.readdirSync(objects).find((n) => /^[0-9a-f]{2}$/.test(n))
   fs.writeFileSync(path.join(objects, prefix, '._' + prefix), 'x')
