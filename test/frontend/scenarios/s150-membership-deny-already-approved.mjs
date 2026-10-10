@@ -1,4 +1,4 @@
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, readFileSync } from 'node:fs'
 import { Instance } from '../instance.mjs'
 import { createSpaceWithInvite, joinPending } from '../helpers.mjs'
 import { makeReport, assert, waitFor } from '../assert.mjs'
@@ -20,17 +20,21 @@ function rolesAbove(node, text, path = []) {
 }
 
 // A co-member's Deny can land on a joiner another member already let in: approval cannot be
-// revoked, so Bob must be told Carol keeps access, in a polite status toast that stays up. Bob's
-// membership fold waits HOLD_MS before its first run (MIRALL_DERIVE_DEBOUNCE_MS), so Carol's request
-// reaches him only live and stays on his screen after Alice approves her — the stale banner a real
-// user clicks — and Carol is offline, so she cannot join Bob's roster through a handshake first. The
-// steps assert they finished inside that window rather than trusting it. Local-only.
+// revoked, so Bob must be told Carol keeps access, in a polite status toast that stays up. Bob first
+// joins with the normal fold, which is what vouches for Alice: the inviter the invite names is only a
+// display entry until then, and Bob's Deny asks verified co-members alone. He then restarts with his
+// fold held for HOLD_MS (MIRALL_DERIVE_DEBOUNCE_MS), so Carol's request reaches him only live and
+// stays on his screen after Alice approves her — the stale banner a real user clicks — and Carol is
+// offline, so she cannot join Bob's roster through a handshake first. The steps assert they finished
+// inside that window rather than trusting it. Local-only.
 const HOLD_MS = 300000
+// Bob admits a handshake only from a member his fold (or the handshake it vouched for) verified.
+const ALICE_ADMITTED = /\[handshake-apply\] peer joined space: Alice /
 export default async function s150({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 3 })
-  const B = new Instance({ name: 'Bob', bootstrap, slot: 1, total: 3, env: { MIRALL_DERIVE_DEBOUNCE_MS: String(HOLD_MS) } })
+  const B = new Instance({ name: 'Bob', bootstrap, slot: 1, total: 3 })
   let bobUp = 0
   const C = new Instance({ name: 'Carol', bootstrap, slot: 2, total: 3 })
 
@@ -38,7 +42,6 @@ export default async function s150({ runDir, bootstrap }) {
     let code
     await r.ok('Alice creates a space; Bob joins and is approved', async () => {
       await A.launch()
-      bobUp = Date.now()
       await B.launch()
       await C.launch()
       code = await createSpaceWithInvite(A, { name: 'Approval' })
@@ -47,6 +50,17 @@ export default async function s150({ runDir, bootstrap }) {
       await A.waitText('wants to join', 30000)
       await A.click({ role: 'button', name: 'Approve Bob' })
       await waitFor(async () => !(await B.hasText('Waiting to be let in')), 30000, 'Bob admitted')
+      await waitFor(async () => ALICE_ADMITTED.test(readFileSync(B.logPath, 'utf8')), 30000, 'Bob admits Alice')
+    })
+
+    await r.ok('Bob restarts with his membership fold held', async () => {
+      await B.quit()
+      B.env.MIRALL_DERIVE_DEBOUNCE_MS = String(HOLD_MS)
+      bobUp = Date.now()
+      await B.launch({ onboard: false })
+      await B.waitText('Approval', 60000)
+      await B.click({ name: 'Open Approval' })
+      await B.waitText('Drop to Share', 30000)
     })
 
     await r.ok('Carol asks to join; Bob sees her request; Carol goes offline', async () => {
