@@ -7,7 +7,7 @@ import type { RelayApplyResult as WorkerRelayApplyResult } from '../../shared/co
 import { restartWorker } from '../ipc/ipc.js'
 import { relayApplyNotice, type RelayApplyNotice } from '../model/relay-apply.js'
 import type { RelayMode } from '../platform/config-client.js'
-import { isApplyArmed, setApplyArmed, subscribeRelaySession } from '../platform/relay-session.js'
+import { isApplyArmed, reconnectSettled, setApplyArmed, subscribeRelaySession } from '../platform/relay-session.js'
 import { useConnectionStatus } from './useConnectionStatus.js'
 import { useRelayReconnect } from './useRelayReconnect.js'
 import { useRunAction } from './useRunAction.js'
@@ -35,13 +35,19 @@ export function useRelayApply(mode: RelayMode, pendingIdentity: boolean): UseRel
   // One act for one notice: a pinned identity is fixed when the DHT node is built, so it takes a new
   // process, and everything else takes a reconnect. Neither disarms anything on the way out — the
   // reconnect clears the flag only when it happened, and the restart clears it through the new
-  // worker's greeting — so an act that resolves without doing anything leaves the notice up.
+  // worker's greeting — so an act that resolves without doing anything leaves the notice up. The
+  // restart resolves once main has swapped the process, before that greeting, so the act stays busy
+  // until the flag clears rather than offering the button again for the gap.
   const act = useCallback(() => {
     setBusy(true)
     run(async () => {
       try {
-        if (pendingIdentity) await restartWorker()
-        else await relayReconnect()
+        if (pendingIdentity) {
+          await restartWorker()
+          await reconnectSettled()
+        } else {
+          await relayReconnect()
+        }
       } finally {
         setBusy(false)
       }
