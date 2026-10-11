@@ -41,7 +41,7 @@ export default function TopNav({ profile, onLogoClick, onSettingsClick, onAccoun
               style={{ WebkitAppRegion: 'no-drag' }}
               className="pointer-events-auto flex h-8 items-center text-black dark:text-white rounded-lg px-2 active:scale-95 transition-all focus-ring"
             >
-              <Logo />
+              <Logo className="h-[26px] w-auto" />
             </button>
           </div>
           <div className="flex items-center gap-4 ml-auto" style={{ WebkitAppRegion: 'no-drag' }}>

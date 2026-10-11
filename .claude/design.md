@@ -945,7 +945,7 @@ lives in `src/renderer/model/file-icon.js`.
 
 ### Logo — `primitives/Logo.tsx`
 The Mirall wordmark, inline SVG (`viewBox="0 0 2835 844"`, so height drives width — default
-`h-5 w-auto`). Lettering is `currentColor`, so the caller sets the theme with a text colour
+`h-5 w-auto`; the top bar sets `h-[26px]`). Lettering is `currentColor`, so the caller sets the theme with a text colour
 (`text-black dark:text-white` in TopNav, `text-on-surface` in Onboarding) and one component covers
 both the black and white brand exports. The dot is a literal `#fd9c42`, **not**
 `secondary-container` — that token goes muted brown in dark, and the signature orange must not.
