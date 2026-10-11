@@ -1,7 +1,7 @@
 import { closeSync, mkdirSync, openSync, truncateSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { Instance } from '../instance.mjs'
-import { connectInSpace } from '../helpers.mjs'
+import { connectInSpace, joinPending } from '../helpers.mjs'
 import { makeReport, assert, waitFor } from '../assert.mjs'
 import { allText, flatten } from '../tree.mjs'
 import { workDir } from '../paths.mjs'
@@ -9,8 +9,8 @@ import { workDir } from '../paths.mjs'
 // While the owner is still hashing a file, a member whose mirror is waiting on it shows on the
 // owner's row: the hashing bar stays, and beside it an avatar stack naming the member plus a
 // "1 waiting" toggle. Expanded, the dropdown lists the member as "Waiting for indexing" — never the
-// offline-downloader "Waiting" — with no progress bar,
-// and the row never reads as sending. When the member pauses its mirror, the waiter leaves the
+// offline-downloader "Waiting" — with no progress bar, and a third member who neither waits nor
+// holds the file under "Not yet"; the row never reads as sending. When the member pauses its mirror, the waiter leaves the
 // owner's row at once while the hash is still running.
 //
 // The file is sparse: it costs no disk, but the owner hashes every byte of it, so the indexing
@@ -33,8 +33,9 @@ function subtree(node, pred) {
 export default async function s149({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
-  const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 2 })
-  const B = new Instance({ name: 'Bob', bootstrap, slot: 1, total: 2 })
+  const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 3 })
+  const B = new Instance({ name: 'Bob', bootstrap, slot: 1, total: 3 })
+  const C = new Instance({ name: 'Carol', bootstrap, slot: 2, total: 3 })
 
   const ownDir = path.join(workDir('own-'), 'Reports')
   const mirrorDir = workDir('mirror-')
@@ -42,13 +43,19 @@ export default async function s149({ runDir, bootstrap }) {
   writeFileSync(path.join(ownDir, 'q1.txt'), 'numbers')
 
   const WAITING = { role: 'button', name: '1 waiting' }
-  const LIST = 'People waiting for this file'
+  const LIST = 'People and this file'
 
   try {
-    await r.ok('A shares "Reports"; B mirrors it; A opens the folder', async () => {
+    await r.ok('A shares "Reports"; B mirrors it, C only joins; A opens the folder', async () => {
       await A.launch()
       await B.launch()
-      await connectInSpace(A, B, { name: 'Aurora' })
+      await C.launch()
+      const code = await connectInSpace(A, B, { name: 'Aurora' })
+      await joinPending(C, code)
+      await A.focus()
+      await A.waitText('wants to join', 30000)
+      await A.click({ role: 'button', name: `Approve ${C.name}` })
+      await C.waitText('Drop to Share', 30000)
       await A.addOwnedFolder(ownDir)
       await B.waitText('Reports', 60000)
       await B.mirrorShare(mirrorDir)
@@ -74,16 +81,19 @@ export default async function s149({ runDir, bootstrap }) {
       assert(await A.has({ name: 'Waiting for this file: Bob' }), 'the avatar stack names the waiting member')
     })
 
-    await r.ok('expanded, the dropdown lists Bob as Waiting for indexing with no progress bar', async () => {
+    await r.ok('expanded, the dropdown lists Bob as Waiting for indexing with no progress bar, and Carol as Not yet', async () => {
       await A.click(WAITING)
-      await waitFor(() => A.has({ name: LIST }), 10000, 'waiters dropdown')
+      await waitFor(() => A.has({ name: LIST }), 10000, 'recipients region')
       const tree = await A.snap()
       const toggle = flatten(tree).find((n) => n.role === 'button' && (n.name === '1 waiting' || n.description === '1 waiting'))
       assert(toggle && toggle.states.includes('expanded'), 'the toggle reports its expanded state')
       const region = subtree(tree, (n) => n.name === LIST || n.description === LIST)
-      assert(region, 'the dropdown region is named for the people waiting')
+      assert(region, 'the dropdown region is named')
       const regionText = allText(region)
       assert(regionText.includes('Bob'), 'Bob is named in the list')
+      // REGRESSION (FIX-1: not-yet members missing until someone holds the file)
+      assert(regionText.includes('Not yet'), 'the list has a Not yet group while nobody holds the file')
+      assert(regionText.includes("Carol doesn't have it yet"), 'Carol, who neither waits nor holds it, is listed')
       assert(regionText.includes('Waiting for indexing'), 'his row reads Waiting for indexing')
       assert(!flatten(region).some((n) => n.role === 'progressbar'), 'a waiting row has no progress bar')
       assert(!(await A.has({ role: 'progressbar', name: "Bob's download" })), 'nor anywhere on the row')
@@ -101,5 +111,5 @@ export default async function s149({ runDir, bootstrap }) {
       await A.shot('s149-A-cleared', runDir)
     })
   } catch {}
-  return { pass: r.summary(), instances: [A, B] }
+  return { pass: r.summary(), instances: [A, B, C] }
 }

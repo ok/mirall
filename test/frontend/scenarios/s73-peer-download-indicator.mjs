@@ -74,7 +74,7 @@ export default async function s73({ runDir, bootstrap }) {
           assert(await A.has({ role: 'progressbar' }), 'collapsed aggregate progress bar is AX-targetable')
           await A.shot('s73-A-indicator', runDir)
           await A.click(SHOW)
-          await waitFor(() => A.has({ name: 'People downloading this file' }), 6000, 'downloaders dropdown')
+          await waitFor(() => A.has({ name: 'People and this file' }), 6000, 'recipients region')
           assert(await A.hasText('Bob'), 'the downloading peer (Bob) is named in the expanded list')
           assert(await A.has({ role: 'progressbar', name: "Bob's download" }), 'per-peer progress bar for Bob')
           sawPeerRow = true

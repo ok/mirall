@@ -44,8 +44,8 @@ function Group({ id, kind, label, children }: { id: string; kind: GroupKind; lab
 }
 
 // Mounted only while the row is expanded, so its detail subscription (and the per-peer event stream)
-// exists only while someone is looking. Until a member holds the current version it lists the live
-// downloads alone; from then on it lists everyone, grouped by what the owner can do about each.
+// exists only while someone is looking. It lists every member, grouped by what the owner can do about
+// each; "Have it" is left out while nobody holds the current version.
 export default function PeerDownloadDropdown({ id, spaceId, path, members, recipients, contentHash, ownerKey }: PeerDownloadDropdownProps) {
   const { t } = useTranslation()
   const peers = usePeerDownloadDetail(spaceId, path)
@@ -57,26 +57,16 @@ export default function PeerDownloadDropdown({ id, spaceId, path, members, recip
     <PeerDownloadRow key={r.personKey} member={r.member} bytes={r.bytes} total={r.total} avgSpeed={r.avgSpeed} paused={r.paused} waiting={r.waiting} />
   ))
 
-  if (haveIt.length === 0) {
-    if (live.length === 0) return null
-    // The region is named for what it lists: members waiting on our hash, downloaders, or both.
-    const waitingCount = live.filter((r) => r.waiting).length
-    const listLabel = waitingCount === live.length ? t('file.waitersList')
-      : waitingCount === 0 ? t('file.downloadersList')
-        : t('file.waitersAndDownloadersList')
-    return (
-      <div id={id} role="region" aria-label={listLabel} tabIndex={0} className="mt-1 mx-5 mb-1 pl-16 max-h-60 overflow-y-auto scrollbar-thin rounded-lg focus-ring">
-        <ul className="flex flex-wrap gap-1.5">{liveRows}</ul>
-      </div>
-    )
-  }
+  if (live.length === 0 && haveIt.length === 0) return null
 
   return (
     <div id={id} role="region" aria-label={t('file.recipientsList')} tabIndex={0} className="mt-1 mx-5 mb-1 max-h-80 overflow-y-auto scrollbar-thin rounded-lg focus-ring grid grid-cols-[3rem_1fr] gap-x-4 gap-y-2">
       {live.length > 0 && <Group id={`${id}-live`} kind="live" label={t('file.groupDownloading')}>{liveRows}</Group>}
-      <Group id={`${id}-have`} kind="have" label={t('file.groupHaveIt')}>
-        {haveIt.map((h) => <RecipientRow key={h.member.publicKey} member={h.member} receivedAt={h.ts} />)}
-      </Group>
+      {haveIt.length > 0 && (
+        <Group id={`${id}-have`} kind="have" label={t('file.groupHaveIt')}>
+          {haveIt.map((h) => <RecipientRow key={h.member.publicKey} member={h.member} receivedAt={h.ts} />)}
+        </Group>
+      )}
       {notYet.length > 0 && (
         <Group id={`${id}-missing`} kind="missing" label={t('file.groupNotYet')}>
           {notYet.map((m) => <RecipientRow key={m.member.publicKey} member={m.member} earlier={m.earlier} />)}
