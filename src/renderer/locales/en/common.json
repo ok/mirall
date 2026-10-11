@@ -319,6 +319,8 @@
     "verifying": "Verifying…",
     "preparing": "Preparing…",
     "publishing": "Adding",
+    "queued": "Queued",
+    "queuedHint": "Waits for the files ahead of it to finish adding.",
     "pausedInterrupted": "Paused",
     "ownerOffline": "Owner offline",
     "failed": "Failed"

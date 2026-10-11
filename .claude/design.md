@@ -797,7 +797,9 @@ hash, and neither is a transfer — the folder roll-up counts them apart from do
 this disk since it was verified; the row prints what happens next as secondary text under the file
 name, `rowView.statusHintKey`), folder `missing`/`mount-point-gone`), 🔴 `bg-error-container`
 (`error` only), ⚪ `bg-surface-container-highest` (passive / not-here / **all folder roles** —
-`mine`/`browse`/`mirrored` — and `available`/`owner-offline`/`unavailable`). Roles carry meaning by
+`mine`/`browse`/`mirrored` — and `available`/`owner-offline`/`unavailable`, plus `queued` — an
+add waiting for a publish slot, "Queued", with `status.queuedHint` under the name; no bar until its
+hash starts and it turns `publishing`). Roles carry meaning by
 label, not color. The `*-fixed` ramps (`secondary-fixed`, `primary-fixed`) are no longer used by
 pills.
 

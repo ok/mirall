@@ -53,35 +53,39 @@ export function useFiles(spaceId: string) {
     await refetchQuery<FileEntry[]>('files:list', { spaceId }, filesScopes(spaceId)).catch(() => {})
   }, [spaceId])
 
+  // Every file goes to the worker at once: it admits them in order and lists the ones waiting for
+  // a publish slot as queued, so no file waits here for the one before it to be shared.
   async function addFiles(fileList: File[]) {
-    for (const file of fileList) {
-      const path = '/' + file.name
+    await Promise.all(fileList.map(addOne))
+  }
 
+  async function addOne(file: File) {
+    const path = '/' + file.name
+
+    setUploadingFiles(prev => {
+      const next = new Map(prev)
+      next.set(path, {
+        path,
+        size: file.size,
+        hash: 'pending:' + path,
+        owner: { displayName: 'You', publicKey: '' },
+        localBytes: 0,
+        isAvailable: true,
+        status: 'queued',
+      })
+      return next
+    })
+
+    try {
+      await addFileToSpace(spaceId, file)
+    } catch (err) {
+      toast.error(errorText(err, 'transferFailed'))
+    } finally {
       setUploadingFiles(prev => {
         const next = new Map(prev)
-        next.set(path, {
-          path,
-          size: file.size,
-          hash: 'pending:' + path,
-          owner: { displayName: 'You', publicKey: '' },
-          localBytes: 0,
-          isAvailable: true,
-          status: 'publishing',
-        })
+        next.delete(path)
         return next
       })
-
-      try {
-        await addFileToSpace(spaceId, file)
-      } catch (err) {
-        toast.error(errorText(err, 'transferFailed'))
-      } finally {
-        setUploadingFiles(prev => {
-          const next = new Map(prev)
-          next.delete(path)
-          return next
-        })
-      }
     }
   }
 

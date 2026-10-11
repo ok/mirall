@@ -79,13 +79,16 @@ export function registerFiles(ipc, { log }) {
   ipc.handle('files:add', async (msg) => {
     await assertCatalogWritable(msg.spaceId)
     log.info('adding file:', msg.fileName, 'from', msg.filePath)
-    await addFile(msg.spaceId, msg.filePath, msg.fileName)
-    record('file.shared', {
-      actor: selfActor(),
-      space: spaceRefOf(await getSpace(msg.spaceId)),
-      target: targetRef(TARGET_KIND.FILE, msg.fileName, msg.fileName),
-      subject: { size: msg.fileSize ?? null },
-    })
+    const added = await addFile(msg.spaceId, msg.filePath, msg.fileName)
+    // A file cancelled before it finished was never shared.
+    if (added?.outcome !== 'cancelled') {
+      record('file.shared', {
+        actor: selfActor(),
+        space: spaceRefOf(await getSpace(msg.spaceId)),
+        target: targetRef(TARGET_KIND.FILE, msg.fileName, msg.fileName),
+        subject: { size: msg.fileSize ?? null },
+      })
+    }
     ipc.emit('event:files-updated', { spaceId: msg.spaceId })
     return { ok: true }
   })

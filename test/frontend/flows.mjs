@@ -188,6 +188,15 @@ export const withFlows = (Base) => class extends Base {
     await this.nativeChoosePath(absPath, { trigger: () => this.press('cmd+u') })
   }
 
+  // Several loose files in one pick, as one multi-file drop hands them over. The native panel is
+  // driven by typing a single path, so foreground mode picks them one at a time; each pick reaches
+  // the worker without waiting on the others, which is what a test of the queue needs.
+
+  async addFiles(absPaths) {
+    if (background()) return this._stubChoosePath(absPaths, () => this.press('cmd+u'))
+    for (const absPath of absPaths) await this.addFile(absPath)
+  }
+
   // Shared tail of the AddFolder / MirrorFolder modals: wait for "Next: Preview"
   // to enable (validation is async — advisories are now non-blocking warning text,
   // nothing to acknowledge), advance to the ScanPreviewModal, and confirm.

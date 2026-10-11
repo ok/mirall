@@ -166,3 +166,10 @@ test('YELLOW: a copy edited on this device is amber, labelled apart from the syn
   }
   t.not(badgeStyle(shareFileStatusToBadge('modified', false)).classes, badgeStyle(shareFileStatusToBadge('synced', false)).classes)
 })
+
+test('NEUTRAL: a queued add is the neutral "Queued" chip, not the blue in-transfer one', (t) => {
+  const queued = badgeStyle(fileStatusToBadge('queued'))
+  t.is(queued.labelKey, 'status.queued')
+  t.ok(queued.classes.includes('bg-surface-container-highest'), 'nothing is moving yet')
+  t.absent(queued.classes.includes('animate-pulse'))
+})

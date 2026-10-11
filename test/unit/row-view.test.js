@@ -178,3 +178,10 @@ test('the peer list follows the sending indicator when there are no waiters', (t
   t.is(deriveRowView(file({ status: 'mine' }), null, summary).peerListActive, true)
   t.is(deriveRowView(file({ status: 'publishing' }), dec({ phase: 'publishing' }), summary).peerListActive, false)
 })
+
+test('a queued add rests with the "Queued" chip and says what it waits for', (t) => {
+  const v = deriveRowView(file({ status: 'queued', hash: '' }), null, null)
+  t.is(v.lane, 'rest', 'no progress bar before its hash starts')
+  t.is(v.badge.labelKey, 'status.queued')
+  t.is(v.statusHintKey, 'status.queuedHint')
+})

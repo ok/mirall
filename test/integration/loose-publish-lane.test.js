@@ -10,6 +10,7 @@ import { initPendingTransfers } from '../../src/shared/transfer/pending-transfer
 import { looseShareFile, looseCancelPublish, looseSourceFor, looseSources, handleLooseFsEvent, looseUnshareFile } from '../../src/shared/transfer/overlay/loose-publish.js'
 import { sweepOwnedPresence, rehydrateOwnedContent } from '../../src/shared/transfer/overlay/overlay-maintenance.js'
 import { LOOSE_SHARE_ID } from '../../src/shared/transfer/transfer-id.js'
+import { listFiles } from '../../src/shared/transfer/file-listing.js'
 import { initLooseIpc } from '../helpers/overlay-ipc.js'
 import { getPublishScheduler } from '../../src/shared/folders/publish-service.js'
 import { getOwnEntry, advertise } from '../../src/shared/shares/own-catalog.js'
@@ -273,4 +274,100 @@ test('REGRESSION (FIX-LOOSE-LINK-HEAL): a watcher change re-records a lost sourc
   t.is(await getOwnedSourcePath(ctx.spaceId, '/heal.txt'), abs, 'link healed from the event\'s path')
   const entry = await getOwnEntry(ctx.spaceId, LOOSE_SHARE_ID, 'heal.txt')
   t.is(entry?.size, fs.statSync(abs).size, 'and the new version is advertised')
+})
+
+// REGRESSION (FIX-LOOSE-QUEUED-ROWS: files added together were invisible until their hash
+// started, so a drop of several large files showed one row and silently queued the rest.)
+test('REGRESSION (FIX-LOOSE-QUEUED-ROWS): adds waiting for a slot are listed as queued', { timeout: scaled(60000) }, async (t) => {
+  const ctx = await setup(t, { concurrency: 1 })
+  const names = ['a.txt', 'b.txt', 'c.txt', 'd.txt']
+  const probe = slowHash(t, 800, { only: names })
+  const files = names.map((n) => writeSource(ctx, n, n.repeat(1024)))
+  const adds = Promise.all(files.map((abs, i) => looseShareFile(ctx.spaceId, abs, names[i])))
+  t.ok(await until(() => probe.calls.length === 2), 'precondition: the bulk slot and the express lane are held')
+
+  const rows = await listFiles(ctx.spaceId, [])
+  const row = (n) => rows.find((r) => r.path === '/' + n)
+  t.alike(names.map((n) => row(n)?.status), ['publishing', 'publishing', 'queued', 'queued'], 'the waiting adds are listed, as queued')
+  t.is(row('c.txt').size, 5 * 1024, 'a queued row carries the file size')
+  t.is(row('c.txt').owner.publicKey, row('a.txt').owner.publicKey, 'and is our own')
+
+  await adds
+  const done = await listFiles(ctx.spaceId, [])
+  t.alike(names.map((n) => done.find((r) => r.path === '/' + n)?.status), ['mine', 'mine', 'mine', 'mine'], 'all four end up shared')
+})
+
+// REGRESSION (FIX-LOOSE-QUEUED-MEMBERS: a queued add had no catalog entry until its hash started,
+// so members of the space did not see it while it waited, and boot, which walks entries, never
+// resumed one still queued at quit.) Entry plus link is the state boot's re-hash resumes from.
+test('REGRESSION (FIX-LOOSE-QUEUED-MEMBERS): a queued add is advertised at admission, unhashed', { timeout: scaled(60000) }, async (t) => {
+  const ctx = await setup(t, { concurrency: 1 })
+  const names = ['a.txt', 'b.txt', 'c.txt']
+  const probe = slowHash(t, 800, { only: names })
+  const files = names.map((n) => writeSource(ctx, n, n.repeat(1024)))
+  const adds = Promise.all(files.map((abs, i) => looseShareFile(ctx.spaceId, abs, names[i])))
+  t.ok(await until(() => probe.calls.length === 2), 'precondition: the bulk slot and the express lane are held')
+
+  const entry = await getOwnEntry(ctx.spaceId, LOOSE_SHARE_ID, 'c.txt')
+  t.ok(entry, 'the waiting add is in the catalog members read')
+  t.is(entry?.contentHash, null, 'unhashed, so members see it as preparing')
+  t.is(entry?.size, 5 * 1024)
+  t.is(await getOwnedSourcePath(ctx.spaceId, '/c.txt'), files[2], 'its source link is already durable')
+  const row = (await listFiles(ctx.spaceId, [])).find((r) => r.path === '/c.txt')
+  t.is(row?.status, 'queued', 'the owner still reads it as queued, not adding')
+
+  await adds
+  t.ok((await getOwnEntry(ctx.spaceId, LOOSE_SHARE_ID, 'c.txt'))?.contentHash, 'and it is hashed in its turn')
+})
+
+test('a queued add whose source is deleted before its turn leaves no entry and no link', { timeout: scaled(60000) }, async (t) => {
+  const ctx = await setup(t, { concurrency: 1 })
+  const names = ['a.txt', 'b.txt', 'gone.txt']
+  const probe = slowHash(t, 800, { only: ['a.txt', 'b.txt'] })
+  const files = names.map((n) => writeSource(ctx, n, n.repeat(1024)))
+  const adds = Promise.all(files.map((abs, i) => looseShareFile(ctx.spaceId, abs, names[i])))
+  t.ok(await until(() => probe.calls.length === 2), 'precondition: gone.txt waits behind both lanes')
+  fs.unlinkSync(files[2])
+
+  await adds
+  t.absent(probe.calls.includes('gone.txt'), 'never read')
+  t.absent(await getOwnEntry(ctx.spaceId, LOOSE_SHARE_ID, 'gone.txt'), 'no placeholder left for members')
+  t.is(await getOwnedSourcePath(ctx.spaceId, '/gone.txt'), null, 'no dangling source link')
+})
+
+test('a queued add whose hash fails leaves no entry and no link', { timeout: scaled(60000) }, async (t) => {
+  const ctx = await setup(t, { concurrency: 1 })
+  const names = ['a.txt', 'b.txt', 'bad.txt']
+  const probe = slowHash(t, 800, { only: ['a.txt', 'b.txt'] })
+  const overlay = getOverlay()
+  const slow = overlay.prepareForServe
+  overlay.prepareForServe = async (diskPath, opts) => {
+    if (path.basename(diskPath) === 'bad.txt') throw new Error('read failed')
+    return slow(diskPath, opts)
+  }
+  t.teardown(() => { overlay.prepareForServe = slow })
+  const files = names.map((n) => writeSource(ctx, n, n.repeat(1024)))
+  const adds = Promise.allSettled(files.map((abs, i) => looseShareFile(ctx.spaceId, abs, names[i])))
+  t.ok(await until(() => probe.calls.length === 2), 'precondition: bad.txt waits behind both lanes')
+  t.ok(await getOwnEntry(ctx.spaceId, LOOSE_SHARE_ID, 'bad.txt'), 'precondition: advertised while queued')
+
+  const outcomes = await adds
+  t.is(outcomes[2].status, 'rejected', 'the add reports the failure')
+  t.absent(await getOwnEntry(ctx.spaceId, LOOSE_SHARE_ID, 'bad.txt'), 'no placeholder left for members')
+  t.is(await getOwnedSourcePath(ctx.spaceId, '/bad.txt'), null, 'no dangling source link')
+})
+
+test('a queued add whose source link is gone by its turn fails and leaves no entry', { timeout: scaled(60000) }, async (t) => {
+  const ctx = await setup(t, { concurrency: 1 })
+  const names = ['a.txt', 'b.txt', 'lost.txt']
+  const probe = slowHash(t, 800, { only: ['a.txt', 'b.txt'] })
+  const files = names.map((n) => writeSource(ctx, n, n.repeat(1024)))
+  const adds = Promise.allSettled(files.map((abs, i) => looseShareFile(ctx.spaceId, abs, names[i])))
+  t.ok(await until(() => probe.calls.length === 2), 'precondition: lost.txt waits behind both lanes')
+  t.ok(await getOwnEntry(ctx.spaceId, LOOSE_SHARE_ID, 'lost.txt'), 'precondition: advertised while queued')
+  await clearOwnedSource(ctx.spaceId, '/lost.txt')
+
+  const outcomes = await adds
+  t.is(outcomes[2].reason?.code, 'FILE_SOURCE_MISSING', 'the add reports the missing link')
+  t.absent(await getOwnEntry(ctx.spaceId, LOOSE_SHARE_ID, 'lost.txt'), 'no placeholder left for members')
 })

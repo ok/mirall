@@ -62,6 +62,9 @@ scrolling.**
 if the sender were offline.
 - **A finished download no longer starts over** when the disk briefly
 returns too little data while Mirall checks the file.
+- **Sharing several files at once now lists all of them right away,** for
+you and for everyone in the space. Files waiting their turn show as "Queued"
+and are no longer lost if you quit before they start.
 - **App Storage no longer grows every time Mirall starts.** An unused
 internal log is removed once when you update.
 - **Old app updates no longer pile up.** Mirall keeps only the current one.

@@ -11,7 +11,7 @@
 // service's lane, never under the lock.
 import path from 'bare-path'
 import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../../contract/main-requests.js'
-import { getOwnEntry, listOwnShare, listOwnShareForDisplay } from '../../shares/own-catalog.js'
+import { advertise, getOwnEntry, listOwnShare, listOwnShareForDisplay } from '../../shares/own-catalog.js'
 import { nextFreeName } from '../../folders/path-keys.js'
 import { AppError } from '../../core/errors.js'
 import { CODES } from '../../contract/errors.js'
@@ -73,10 +73,11 @@ const withSpaceLock = createKeyedLock()
 // Pick the relPath for a new/changed share under the lock: an already-tracked source keeps its
 // name with NO catalog scan (the hot change-event path); a new source does ONE catalog pass
 // yielding the taken names (suffix-on-collision) and the count for the cap — including names
-// queued but not yet advertised, or two quick adds could both pass the cap.
+// queued but not yet advertised, or two quick adds could both pass the cap. `isNew` is a path
+// with no entry and no pending item, which admission advertises.
 async function resolveLooseName(spaceId, absPath, fileName) {
   const tracked = looseSourceFor(absPath, spaceId)
-  if (tracked) return tracked
+  if (tracked) return { relPath: tracked, isNew: false }
 
   const base = fileName || path.basename(absPath)
   const takenNames = new Set(getPublishScheduler().pendingRelPaths(spaceId, LOOSE_SHARE_ID))
@@ -93,27 +94,29 @@ async function resolveLooseName(spaceId, absPath, fileName) {
   if (isNew && takenNames.size >= MAX_LOOSE_FILES_PER_SPACE) {
     throw new AppError(CODES.LOOSE_FILE_LIMIT, `Limit of ${MAX_LOOSE_FILES_PER_SPACE} shared files per space reached`)
   }
-  return relPath
+  return { relPath, isNew }
 }
 
 // Resolves once the file is published (or its publish was cancelled), so files:add returns when
 // the file is really shared.
 export async function looseShareFile(spaceId, absPath, fileName) {
   const { relPath, ticket } = await withSpaceLock(spaceId, async () => {
-    const relPath = await resolveLooseName(spaceId, absPath, fileName)
-    return { relPath, ticket: await admitLoosePublish(spaceId, relPath, absPath, PRIORITY.INTERACTIVE) }
+    const { relPath, isNew } = await resolveLooseName(spaceId, absPath, fileName)
+    return { relPath, ticket: await admitLoosePublish(spaceId, relPath, absPath, PRIORITY.INTERACTIVE, { isNew }) }
   })
   return await settledWithTail(spaceId, relPath, ticket, absPath)
 }
 
-// Under the caller's lock: records the source link (durable BEFORE the hash, so a quit mid-hash
-// resumes at boot instead of stranding an "Adding" — and it is what the executor resolves the
-// path from), tracks the path, and enqueues, so the next admission already sees the name
-// pending. A re-publish re-records the link from the path in hand, healing one lost earlier.
-async function admitLoosePublish(spaceId, relPath, absPath, priority) {
+// Under the caller's lock: records the source link (durable BEFORE the entry, so a quit while
+// queued or mid-hash resumes at boot instead of stranding an "Adding" — and it is what the
+// executor resolves the path from), advertises a new path unhashed so members see it while it
+// waits for a slot, tracks the path, and enqueues, so the next admission already sees the name
+// pending. A re-publish keeps its prior entry and re-records the link, healing one lost earlier.
+async function admitLoosePublish(spaceId, relPath, absPath, priority, { isNew = false } = {}) {
   await markOwnedSource(spaceId, looseDrivePath(relPath), absPath)
   trackSource(absPath, spaceId, relPath)
   const { size, mtime } = statFacts(absPath)
+  if (isNew) await advertise(spaceId, LOOSE_SHARE_ID, relPath, { size, mtime, contentHash: null })
   return getPublishScheduler().enqueue({ spaceId, shareId: LOOSE_SHARE_ID, relPath, op: OP.PUBLISH, size, mtime, priority })
 }
 
@@ -130,12 +133,19 @@ async function enqueueLooseRetire(spaceId, relPath, priority) {
 // A cancel releases the caller at once while the executor still has to honour the abort and
 // revert; the caller resolves only once that tail has exited. A cancel is not a failure (the user
 // stopped it); a real error propagates — and so does a publish that found no source link, because
-// the file was NOT shared.
+// the file was NOT shared. Either one drops the unhashed entry admission advertised: a run that
+// never reached the hash has no revert of its own.
 async function settledWithTail(spaceId, relPath, ticket, absPath) {
   const outcome = await ticket.settled
   if (outcome.outcome === 'cancelled') {
     await ticket.exited
     await withSpaceLock(spaceId, () => clearOwnedSourceIfUnshared(spaceId, relPath, absPath, { unless: getPublishScheduler().isPending(spaceId, LOOSE_SHARE_ID, relPath) }))
+  }
+  if (outcome.outcome === 'failed' || outcome.result?.outcome === 'unlinked') {
+    await withSpaceLock(spaceId, async () => {
+      if (!getPublishScheduler().isPending(spaceId, LOOSE_SHARE_ID, relPath)) await revertUnhashedPlaceholder(spaceId, relPath)
+    }).catch((err) => log.debug('placeholder revert skipped:', relPath, '-', err.message))
+    filesUpdated(spaceId)
   }
   if (outcome.outcome === 'failed' && outcome.error) throw outcome.error
   if (outcome.result?.outcome === 'unlinked') {
@@ -204,10 +214,14 @@ registerPublishChannel('loose', {
   async afterPublish(item, { absPath }, { changed, contentHash }) {
     const { spaceId, relPath } = item
     if (!contentHash) {
-      // The source vanished mid-publish. publishContent already reverted its half-advertised
-      // entry, so this is a benign abort — the file is simply not shared.
-      await withSpaceLock(spaceId, () => clearOwnedSourceIfUnshared(spaceId, relPath, absPath, { unless: item.dirty }))
-      log.debug('loose publish aborted — source vanished mid-hash:', absPath)
+      // The source vanished: mid-hash, publishContent already reverted its entry; before the hash
+      // started, the unhashed entry admission advertised is reverted here. A benign abort — the
+      // file is simply not shared.
+      await withSpaceLock(spaceId, async () => {
+        if (!item.dirty) await revertUnhashedPlaceholder(spaceId, relPath)
+        await clearOwnedSourceIfUnshared(spaceId, relPath, absPath, { unless: item.dirty })
+      })
+      log.debug('loose publish aborted — source vanished:', absPath)
       filesUpdated(spaceId)
       return
     }
@@ -226,8 +240,8 @@ registerPublishChannel('loose', {
     await withSpaceLock(item.spaceId, () => unshareEntry(item.spaceId, item.relPath, absPath))
     filesUpdated(item.spaceId)
   },
-  // No recorded source → a crash inside the tiny advertise→link window, reverted by the rehydrate:
-  // not the sweep's to reclaim.
+  // No recorded source → an entry whose link was lost; the rehydrate reverts it if unhashed and
+  // keeps it if finished: not the sweep's to reclaim.
   async presentAt({ spaceId, relPath }) {
     const src = await getOwnedSourcePath(spaceId, looseDrivePath(relPath))
     return src ? fileStatPresent(src) : null
@@ -269,6 +283,11 @@ async function clearOwnedSourceIfUnshared(spaceId, relPath, absPath = null, { un
   } catch (err) {
     log.debug('post-failure source cleanup skipped:', err.message)
   }
+}
+
+async function revertUnhashedPlaceholder(spaceId, relPath) {
+  const entry = await getOwnEntry(spaceId, LOOSE_SHARE_ID, relPath)
+  if (entry && !entry.contentHash) await retireContent(spaceId, LOOSE_SHARE_ID, relPath)
 }
 
 async function unshareEntry(spaceId, relPath, src) {
@@ -316,6 +335,10 @@ export async function looseListOwn(spaceId) {
   // Display path: tolerate a corrupt catalog core as a partial listing (resolveLooseName
   // / sweeps keep listOwnShare and fail loud — they must not act on partial data).
   return await listOwnShareForDisplay(spaceId, LOOSE_SHARE_ID)
+}
+
+export function looseQueuedPaths(spaceId) {
+  return new Set(getPublishScheduler().queuedAddPaths(spaceId, LOOSE_SHARE_ID))
 }
 
 export async function looseHasOwn(spaceId, drivePath) {
