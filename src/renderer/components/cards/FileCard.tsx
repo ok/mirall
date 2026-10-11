@@ -135,7 +135,7 @@ function ActionSlot({
   // even the 3:1 non-text floor. Same pairing as the relay row's remove button.
   const hoverBg = isDanger
     ? 'hover:bg-error-container hover:text-on-error-container'
-    : 'hover:bg-surface-container-high'
+    : 'control-hover'
   const iconColor = isDanger ? 'text-error' : 'text-secondary'
   return (
     <button
@@ -202,7 +202,7 @@ function FileCard({
   const errorKey = errorCodeToI18nKey(file.errorCode)
 
   return (
-    <div className="group @container/row bg-surface-container-lowest dark:bg-surface-container-low hover:bg-surface-container-highest dark:hover:bg-surface-container-highest rounded-xl transition-colors">
+    <div className="group @container/row bg-surface-container-lowest dark:bg-surface-container-low hover:bg-surface-container-highest dark:hover:bg-surface-container-highest hover:[--control-hover:var(--lifted-control-hover)] rounded-xl transition-colors">
       <div className="flex items-center p-5">
         <div className="flex items-center gap-4 min-w-0 flex-grow">
           <div className="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">

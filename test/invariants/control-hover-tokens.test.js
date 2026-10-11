@@ -193,3 +193,49 @@ test('the chips hover to the same tokens as the Create/Join buttons beside them'
     t.ok(hover.test(button), `Button still pairs ${pair} with ${pair}-hover`)
   }
 })
+
+// REGRESSION (FIX-4: a control inside a file or share row hovered to `surface-container-high` while
+// the row under the same pointer lifted to `surface-container-highest` — 1.06:1 in light, a step
+// toward the page that nobody could see.) A control in a row is only ever hovered while the row is,
+// so the lifted row, not the page, is the surface it has to step off. The rows hand their controls
+// `--lifted-control-hover` — the fill the dropdown chips already took under the same lift.
+const LIFTING_ROWS = ['FileCard', 'ShareFileRow', 'ShareCard'].map((n) => `src/renderer/components/cards/${n}.tsx`)
+const ROW_CONTROLS = [
+  'primitives/IconButton.tsx',
+  'primitives/ActionMenu.tsx',
+  'cards/FileCard.tsx',
+  'cards/RecipientsIndicator.tsx',
+  'cards/PeerWaitingIndicator.tsx',
+  'cards/PeerDownloadIndicator.tsx',
+].map((p) => `src/renderer/components/${p}`)
+
+const liftedFill = (theme) => {
+  const start = css.indexOf(theme + ' {')
+  const block = css.slice(start, css.indexOf('\n}', start))
+  return block.match(/--lifted-control-hover:\s*var\(--(color-[\w-]+)\)/)?.[1]
+}
+
+test('REGRESSION (FIX-4): a control in a lifted row steps clear of the row, both themes', (t) => {
+  for (const theme of [':root', '.dark']) {
+    const k = tokensFor(theme)
+    const token = liftedFill(theme)
+    t.ok(token, `${theme}: --lifted-control-hover names a colour token`)
+    if (!token) continue
+    const step = Math.abs(lstar(k[token]) - lstar(k['color-surface-container-highest']))
+    t.ok(step >= 4.5, `${theme}: ${token} is ${step.toFixed(1)} L* off the lifted row`)
+  }
+})
+
+test('REGRESSION (FIX-4): lifting rows hand every control in them the lifted fill', (t) => {
+  t.ok(/@utility control-hover \{[^}]*var\(--control-hover, var\(--color-surface-container-high\)\)/.test(css),
+    'control-hover falls back to surface-container-high off a row')
+  for (const f of LIFTING_ROWS) {
+    t.ok(read(f).includes('hover:[--control-hover:var(--lifted-control-hover)]'), `${f}: the row hands down the lifted fill`)
+  }
+  for (const f of ROW_CONTROLS) {
+    const src = read(f)
+    t.ok(/[\s'"`]control-hover[\s'"`]/.test(src), `${f}: hovers through control-hover`)
+    t.absent(/hover:bg-surface-container-high(?![-\w])/.test(src), `${f}: no fixed surface-container-high hover`)
+  }
+  t.ok(read(ROW_CONTROLS[5]).includes('hover:[--avatar-ring:var(--control-hover'), 'the download toggle cuts its rings from its own fill')
+})

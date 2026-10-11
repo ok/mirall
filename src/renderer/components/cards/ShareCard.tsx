@@ -106,7 +106,7 @@ function ShareCard({
   })()
 
   return (
-    <div className="group relative isolate flex items-center p-5 bg-surface-container-low dark:bg-surface-container-lowest hover:bg-surface-container-highest dark:hover:bg-surface-container-highest rounded-xl transition-colors">
+    <div className="group relative isolate flex items-center p-5 bg-surface-container-low dark:bg-surface-container-lowest hover:bg-surface-container-highest dark:hover:bg-surface-container-highest hover:[--control-hover:var(--lifted-control-hover)] rounded-xl transition-colors">
       {/* Full-bleed navigation target so the whole card (incl. padding) opens the
           folder. `isolate` confines the action cluster's `z-10` to the card so it
           can't paint over the sticky section header; the content block is
