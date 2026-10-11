@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
-import { useLayoutEffect, useRef, useState } from 'react'
-import { middleTruncateToWidth } from '../../model/share-paths.js'
+import { useRef } from 'react'
+import useFittedName from '../../hooks/useFittedName.js'
 
 interface FilenameTitleProps {
   i18nKey: string
@@ -30,34 +30,7 @@ export default function FilenameTitle({ i18nKey, name }: FilenameTitleProps) {
   const { verb, lead, after } = peelTitle(t(i18nKey, { name: NAME_SLOT }))
   const hostRef = useRef<HTMLHeadingElement>(null)
   const nameRef = useRef<HTMLSpanElement>(null)
-  const [display, setDisplay] = useState(name)
-
-  useLayoutEffect(() => {
-    const host = hostRef.current
-    const nameEl = nameRef.current
-    if (!host || !nameEl) return
-    const ctx = document.createElement('canvas').getContext('2d')
-    if (!ctx) return
-
-    const remeasure = () => {
-      const cs = getComputedStyle(nameEl)
-      ctx.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`
-      // letterSpacing lets measureText account for `tracking-tight`; ignore if the
-      // engine doesn't support the canvas property.
-      try { (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = cs.letterSpacing } catch { /* older engines */ }
-      // The name gets a whole line, so its budget is the host width minus the
-      // quote + trailing punctuation that share that line.
-      const measure = (candidate: string) => ctx.measureText(lead + candidate + after).width
-      setDisplay(middleTruncateToWidth(name, host.clientWidth, measure))
-    }
-
-    remeasure()
-    const ro = new ResizeObserver(remeasure)
-    ro.observe(host)
-    let cancelled = false
-    document.fonts?.ready.then(() => { if (!cancelled) remeasure() })
-    return () => { cancelled = true; ro.disconnect() }
-  }, [i18nKey, name, lead, after])
+  const display = useFittedName(name, hostRef, nameRef, lead, after)
 
   return (
     <h1

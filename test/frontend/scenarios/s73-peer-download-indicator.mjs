@@ -43,8 +43,6 @@ export default async function s73({ runDir, bootstrap }) {
       await B.launch()
       await connectInSpace(A, B, { name: 'Aurora' })
       await A.addFile(srcFile)
-      // FileName splits the extension into its own span, so the AX text reads
-      // "payload .bin" — match the stem.
       await A.waitText('payload', 60000)
       await B.waitText('payload', 90000)
       // "Available" requires A's content hash to be advertised → A's publish (the

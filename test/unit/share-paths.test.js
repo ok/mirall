@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { basename, mountPathFromDrop, splitPathForDisplay, splitFilenameForDisplay, middleTruncateToWidth } from '../../src/renderer/model/share-paths.js'
+import { basename, mountPathFromDrop, splitPathForDisplay, middleTruncateToWidth } from '../../src/renderer/model/share-paths.js'
 
 // The drop zone derives the mount path from webUtils.getPathForFile(file), which
 // for a dropped FOLDER returns the folder's own absolute path. A regression
@@ -59,28 +59,7 @@ test('splitPathForDisplay returns a bare filename / root entry entirely as the t
 // The transfer-row filename pins the extension (tail) so it stays visible while
 // the stem ellipsizes — the filename analogue of splitPathForDisplay's tail.
 
-test('splitFilenameForDisplay pins the extension and ellipsizes the stem', (t) => {
-  t.alike(splitFilenameForDisplay('report_final_v2.pdf'), { head: 'report_final_v2', tail: '.pdf' })
-  t.alike(splitFilenameForDisplay('IMG_1234.JPG'), { head: 'IMG_1234', tail: '.JPG' })
-  // Multi-dot names pin only the final extension.
-  t.alike(splitFilenameForDisplay('archive.tar.gz'), { head: 'archive.tar', tail: '.gz' })
-  // A path is split at the last dot too: dirs + stem truncate, extension stays.
-  t.alike(splitFilenameForDisplay('Photos/Summer/beach.jpg'), { head: 'Photos/Summer/beach', tail: '.jpg' })
-})
-
-test('splitFilenameForDisplay falls back to end truncation when there is no usable extension', (t) => {
-  t.alike(splitFilenameForDisplay('README'), { head: 'README', tail: '' })
-  t.alike(splitFilenameForDisplay('.gitignore'), { head: '.gitignore', tail: '' })
-  t.alike(splitFilenameForDisplay('trailingdot.'), { head: 'trailingdot.', tail: '' })
-})
-
-test('splitFilenameForDisplay tolerates empty / non-string input', (t) => {
-  t.alike(splitFilenameForDisplay(''), { head: '', tail: '' })
-  t.alike(splitFilenameForDisplay(null), { head: '', tail: '' })
-  t.alike(splitFilenameForDisplay(undefined), { head: '', tail: '' })
-})
-
-// Middle truncation for the confirm-modal titles: a long name becomes a single
+// Middle truncation for every file and folder name: a long name becomes a single
 // `High.Plains.Dri…BluRay.mp4` string that keeps both ends AND the extension.
 // Tests use a monospace fake `measure` (1 unit per char) so widths are char
 // counts and the assertions are exact.
@@ -111,6 +90,28 @@ test('middleTruncateToWidth middle-truncates extensionless names too', (t) => {
   const out = middleTruncateToWidth(name, 15, mono)
   t.is(mono(out), 15)
   t.ok(out.includes('…') && out.startsWith('a-') , 'both the ellipsis and the head are present')
+})
+
+test('middleTruncateToWidth keeps the distinguishing end of a long stem, not just the extension', (t) => {
+  const name = 'XXX-X002_T001_0401XI_16384x8192_25fps_40_part01.mov'
+  const out = middleTruncateToWidth(name, 30, mono)
+  t.is(mono(out), 30)
+  t.ok(out.startsWith('XXX-X002_T001'), 'the beginning stays visible')
+  t.ok(out.endsWith('_part01.mov'), 'the part number before the extension stays visible')
+})
+
+test('middleTruncateToWidth keeps the most characters a proportional font allows', (t) => {
+  const wide = (s) => [...s].reduce((w, c) => w + (/[A-Z0-9_]/.test(c) ? 1.5 : 1), 0)
+  const name = 'Quarterly_REPORT_final_2026_Q3_reviewed_by_LEGAL_v12.pdf'
+  for (let budget = 8; budget < wide(name); budget += 0.5) {
+    const out = middleTruncateToWidth(name, budget, wide)
+    t.ok(wide(out) <= budget, `fits ${budget}`)
+    const shown = out.length - 1
+    if (shown >= name.length - 1) continue
+    const tail = Math.max(Math.ceil((shown + 1) / 2), 4)
+    const bigger = name.slice(0, shown + 1 - tail) + '…' + name.slice(name.length - tail)
+    t.ok(wide(bigger) > budget, `one more character would not fit ${budget}`)
+  }
 })
 
 test('middleTruncateToWidth degrades to a bare ellipsis when nothing fits', (t) => {

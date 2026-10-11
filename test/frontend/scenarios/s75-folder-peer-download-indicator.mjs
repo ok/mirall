@@ -52,8 +52,6 @@ export default async function s75({ runDir, bootstrap }) {
 
     await r.ok('B opens the folder; the file is Available', async () => {
       await B.openFolder('Vault')
-      // FileName splits the extension into its own span, so the AX text reads
-      // "payload .bin" — match the stem.
       await B.waitText('payload', 30000)
       await B.waitText('Available', 60000)
     })
