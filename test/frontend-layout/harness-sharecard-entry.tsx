@@ -120,9 +120,9 @@ async function run(): Promise<void> {
   if (!moreBtn) return publishError('More-actions button not found')
   if (!chevronBtn) return publishError('chevron (browse) button not found')
 
-  // content wrapper (sibling after the overlay) → icon wrapper (its first child) →
-  // owner avatar (the first absolutely-positioned descendant of the icon wrapper).
-  const iconWrapper = navBtn.nextElementSibling?.firstElementChild ?? null
+  // content wrapper (sibling after the overlay's titled wrapper) → icon wrapper (its first child)
+  // → owner avatar (the first absolutely-positioned descendant of the icon wrapper).
+  const iconWrapper = navBtn.parentElement?.nextElementSibling?.firstElementChild ?? null
   const avatarEl = iconWrapper?.querySelector('.absolute') ?? null
   if (!iconWrapper || !avatarEl) return publishError('icon wrapper / avatar not found')
 

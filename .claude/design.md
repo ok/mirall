@@ -580,14 +580,22 @@ shrinkable spans by `flex-shrink` does not work — once the first freezes at ze
 leaves the rest overflowing, which is how a long folder name ended up painted over the Browse
 button.
 
-**Names are middle-truncated, never cut at the end or before the extension.** Every file name, folder
-row and share card name goes through `primitives/FileName.tsx`, and a confirm-modal title through
-`FilenameTitle`; both measure against the real font (`hooks/useFittedName.ts`) and render one text
-node that keeps the beginning and at least half of the ending, extension included
-(`XXX-X002_T001…_01_part01.mov`). The full name is in an `sr-only` node, and the card's outer
-element (or its full-card button) carries it as the hover `title`, so the tooltip shows anywhere on
-the card, not only over the name; a file row inside a folder shows its path within the share.
-`npm run test:layout:case -- truncation` pins both.
+**Names are middle-truncated, never cut at the end or before the extension.** File, folder and
+share names on cards, folder rows and the Mirror to Disk owner line go through
+`primitives/FileName.tsx`, and a confirm-modal title through `FilenameTitle`; both measure against
+the real font (`hooks/useFittedName.ts`) and render one text node that keeps the beginning and at
+least half of the ending (`XXX-X002_T001…_01_part01.mov`). A file's extension (a short final dot
+segment with no spaces) stays whole; a dot earlier in a name is just text. Cuts fall on whole
+characters. `FileName` keeps an invisible full-length sizer so its intrinsic width is the whole
+name's — the row's lane never gains room from a cut.
+
+The full name is the hover `title`: on `FileName` itself, and on a wider `role="none"` block where
+the tooltip should cover more than the name — a file card's icon-and-name block, a folder row's
+button wrapper, a share card's nav-button wrapper. Never on a button that has an `aria-label` (it
+would become a duplicate description), and never on a block holding the lane, the actions or the
+download list (their controls would show the file name). A file row inside a folder shows its path
+within the share. `npm run test:layout:case -- truncation` pins the cards, `-- modaltitle` the
+dialog titles.
 
 - **The label follows the state, not the caller.** No path yet → `pathField.browse` ("Browse…"); a
   path in the field, **or one still loading** → `actions.change` ("Change"). Callers used to pass it

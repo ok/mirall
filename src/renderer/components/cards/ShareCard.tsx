@@ -113,13 +113,14 @@ function ShareCard({
           can't paint over the sticky section header; the content block is
           `pointer-events-none` so its positioned children (icon, avatar, badges)
           don't intercept clicks that should reach this overlay. */}
-      <button
-        type="button"
-        onClick={() => onOpen(share)}
-        aria-label={t('share.openFolder', { name: share.name })}
-        title={share.name}
-        className="absolute inset-0 rounded-xl cursor-pointer focus-ring"
-      />
+      <div role="none" title={share.name} className="absolute inset-0">
+        <button
+          type="button"
+          onClick={() => onOpen(share)}
+          aria-label={t('share.openFolder', { name: share.name })}
+          className="absolute inset-0 rounded-xl cursor-pointer focus-ring"
+        />
+      </div>
 
       <div className="flex items-center gap-4 min-w-0 flex-grow pointer-events-none">
         <div className="relative w-12 h-12 shrink-0">

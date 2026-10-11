@@ -4,6 +4,7 @@ import InlineError from '../primitives/InlineError.js'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import Callout from '../primitives/Callout.js'
+import FileName from '../primitives/FileName.js'
 import Avatar from '../primitives/Avatar.js'
 import MountPathField from '../path/MountPathField.js'
 import FilenameTitle from '../primitives/FilenameTitle.js'
@@ -41,7 +42,7 @@ function OwnerLine({ owner, ownerName, folderName, info, infoError }: OwnerLineP
     <div className="flex items-center gap-3 bg-surface-container rounded-xl p-3">
       <Avatar src={owner?.avatar} displayName={owner?.displayName} size="md" />
       <div className="min-w-0">
-        <p className="font-bold text-accent text-sm truncate">{folderName}</p>
+        <FileName name={folderName} className="font-bold text-accent text-sm" />
         {/* A failed read is said, not filled in: rendering the fallback totals would put a
             fabricated measurement of the folder in front of the person about to mirror it. */}
         {infoError ? (

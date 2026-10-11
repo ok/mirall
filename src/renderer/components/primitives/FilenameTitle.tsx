@@ -29,8 +29,7 @@ export default function FilenameTitle({ i18nKey, name }: FilenameTitleProps) {
   const { t } = useTranslation()
   const { verb, lead, after } = peelTitle(t(i18nKey, { name: NAME_SLOT }))
   const hostRef = useRef<HTMLHeadingElement>(null)
-  const nameRef = useRef<HTMLSpanElement>(null)
-  const display = useFittedName(name, hostRef, nameRef, lead, after)
+  const display = useFittedName(name, hostRef, lead, after)
 
   return (
     <h1
@@ -43,7 +42,7 @@ export default function FilenameTitle({ i18nKey, name }: FilenameTitleProps) {
       {verb && <span aria-hidden="true" className="whitespace-nowrap">{verb}</span>}
       <span aria-hidden="true" className="whitespace-nowrap min-w-0 max-w-full">
         {lead}
-        <span ref={nameRef} data-fit-name="">{display}</span>
+        <span data-fit-name="">{display}</span>
         {after}
       </span>
       <span className="sr-only">{t(i18nKey, { name })}</span>

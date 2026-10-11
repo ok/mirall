@@ -395,7 +395,7 @@ export const promiseLintAllowlist = Object.freeze({
   'src/renderer/hooks/useFittedName.ts': {
     why: 'document.fonts.ready never rejects; it only triggers a remeasure.',
     sites: [
-      'no-floating-promises useFittedName > useLayoutEffect: document.fonts?.ready.then(() => { if (!cancelled) remeasure() })',
+      'no-floating-promises useFittedName > useLayoutEffect: document.fonts.ready.then(() => { if (!cancelled) fit(host.getBoundingClientRect',
     ],
   },
   'src/renderer/hooks/usePendingSpaceAction.ts': {

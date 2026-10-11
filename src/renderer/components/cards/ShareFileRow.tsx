@@ -127,10 +127,10 @@ function ShareFileRow({ file, decoration, seeded, isOwn, manualControls, spaceId
   }, [listable])
 
   return (
-    <div title={file.relPath} className="group @container/row bg-surface-container-lowest dark:bg-surface-container-low hover:bg-surface-container-highest dark:hover:bg-surface-container-highest hover:[--control-hover:var(--lifted-control-hover)] rounded-xl transition-colors">
+    <div className="group @container/row bg-surface-container-lowest dark:bg-surface-container-low hover:bg-surface-container-highest dark:hover:bg-surface-container-highest hover:[--control-hover:var(--lifted-control-hover)] rounded-xl transition-colors">
       <div className="flex items-center p-5">
         {leadingGutter && <span className="w-5 shrink-0" aria-hidden="true" />}
-        <div className={`flex items-center gap-4 min-w-0 flex-grow${leadingGutter ? ' ml-4' : ''}`}>
+        <div role="none" title={file.relPath} className={`flex items-center gap-4 min-w-0 flex-grow${leadingGutter ? ' ml-4' : ''}`}>
           <div className="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
             <Icon name={getFileIcon(file.relPath)} className="text-accent" />
           </div>

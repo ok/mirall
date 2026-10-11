@@ -202,9 +202,9 @@ function FileCard({
   const errorKey = errorCodeToI18nKey(file.errorCode)
 
   return (
-    <div title={rowName} className="group @container/row bg-surface-container-lowest dark:bg-surface-container-low hover:bg-surface-container-highest dark:hover:bg-surface-container-highest hover:[--control-hover:var(--lifted-control-hover)] rounded-xl transition-colors">
+    <div className="group @container/row bg-surface-container-lowest dark:bg-surface-container-low hover:bg-surface-container-highest dark:hover:bg-surface-container-highest hover:[--control-hover:var(--lifted-control-hover)] rounded-xl transition-colors">
       <div className="flex items-center p-5">
-        <div className="flex items-center gap-4 min-w-0 flex-grow">
+        <div role="none" title={rowName} className="flex items-center gap-4 min-w-0 flex-grow">
           <div className="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
             <Icon name={getFileIcon(file.path)} className="text-accent" />
           </div>
