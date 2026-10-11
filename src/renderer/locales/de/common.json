@@ -291,6 +291,8 @@
     "verifying": "Wird geprüft…",
     "preparing": "Wird vorbereitet…",
     "publishing": "Wird geteilt",
+    "queued": "In Warteschlange",
+    "queuedHint": "Wartet, bis die Dateien davor fertig geteilt sind.",
     "pausedInterrupted": "Pausiert",
     "ownerOffline": "Quelle offline",
     "failed": "Fehler"

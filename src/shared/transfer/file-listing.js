@@ -30,7 +30,7 @@ import { peerMembersOf, readEachPeer } from '../spaces/member-fanout.js'
 import { dedupeFileRows } from './file-dedupe.js'
 import { markListIncomplete } from './list-deficits.js'
 import { beginListingRead, retainListingMemo, settleListingRead, takeListingMemo } from './listing-memo.js'
-import { looseHasOwn, looseListOwn, looseShareFile, looseUnshareFile } from './overlay/loose-publish.js'
+import { looseHasOwn, looseListOwn, looseQueuedPaths, looseShareFile, looseUnshareFile } from './overlay/loose-publish.js'
 import { looseCatalogVersion, looseListPeer, looseTransferActive } from './overlay/loose-downloads.js'
 import { listPendingForSpace } from './pending-transfers.js'
 import { isOwnerOnline } from '../network/presence-leases.js'
@@ -66,7 +66,7 @@ export async function addFile(spaceId, filePath, fileName) {
 
   await assertSharableSource(filePath)
 
-  await looseShareFile(spaceId, filePath, fileName || path.basename(filePath))
+  return await looseShareFile(spaceId, filePath, fileName || path.basename(filePath))
 }
 
 const NO_CLAIM = Object.freeze({ downloaded: false, prune: false })
@@ -84,14 +84,15 @@ const productionDeps = {
   catalogVersion: looseCatalogVersion,
 }
 
-function ownRow(e, localPublicKey) {
+// Unhashed → 'queued' while it waits for a publish slot, then 'publishing' (server-truth) so it
+// survives a navigate-away/remount, not just the optimistic client row.
+function ownRow(e, localPublicKey, queued) {
   const hashed = !!e.contentHash
-  // Still hashing → 'publishing' (server-truth) so it survives a navigate-away/remount, not just
-  // the optimistic client row.
+  const status = hashed ? FILE_STATUS.MINE : queued.has(e.relPath) ? FILE_STATUS.QUEUED : FILE_STATUS.PUBLISHING
   return {
     path: '/' + e.relPath, size: e.size, hash: e.contentHash || '', inPlace: true,
     owner: { displayName: 'You', publicKey: localPublicKey },
-    localBytes: hashed ? e.size : 0, isAvailable: true, status: hashed ? FILE_STATUS.MINE : FILE_STATUS.PUBLISHING,
+    localBytes: hashed ? e.size : 0, isAvailable: true, status,
   }
 }
 
@@ -173,7 +174,8 @@ async function readPeerEntries(spaceId, member, { budget, space, deps }) {
 // In-place loose files (own + each peer's) read from the loose catalog, one candidate row per
 // owner, so dedupeFileRows can merge them.
 async function collectLooseInPlace(spaceId, members, { localPublicKey, space, deps }) {
-  const out = (await looseListOwn(spaceId)).map((e) => ownRow(e, localPublicKey))
+  const queued = looseQueuedPaths(spaceId)
+  const out = (await looseListOwn(spaceId)).map((e) => ownRow(e, localPublicKey, queued))
   const peerMembers = peerMembersOf(members, localPublicKey, (m) => Boolean(readCatalogKey(m).keyHex))
   retainListingMemo(spaceId, new Set(peerMembers.map((m) => readCatalogKey(m).keyHex)))
   if (peerMembers.length === 0) return out

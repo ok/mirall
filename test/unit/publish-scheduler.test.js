@@ -478,6 +478,20 @@ test('pendingRelPaths lists queued and running paths for a share', async (t) => 
   await g.releaseAll()
 })
 
+test('queuedAddPaths lists only the publishes still waiting for a slot', async (t) => {
+  const g = gate()
+  const s = createPublishScheduler({ execute: g.execute, concurrency: () => 1 })
+  s.enqueue(spec('A', 'running', { size: 1 }))
+  s.enqueue(spec('A', 'waiting', { size: 42 }))
+  s.enqueue(spec('A', 'leaving', { op: OP.RETIRE }))
+  s.enqueue(spec('A', 'other', { shareId: 'else' }))
+  await sleep(5)
+  t.alike(g.started, ['A/running'], 'precondition: one slot, held')
+  t.alike(s.queuedAddPaths('A', 'sh'), ['waiting'], 'not the running item, not a retire')
+  t.alike(s.queuedAddPaths('B', 'sh'), [])
+  await g.releaseAll()
+})
+
 // REGRESSION (FIX-INDEX-START): the scheduler reported progress only from run()'s finally, so while
 // a multi-GB hash held a slot nobody had been told the item started — every consumer of statusFor()
 // went on describing a queue that had already moved on, for as long as the hash took.

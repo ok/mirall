@@ -210,6 +210,12 @@ export function createPublishQueue({ order = 'fifo' } = {}) {
       for (const item of byKey.values()) if (item.shareId === shareId) out.push(item.relPath)
       return out
     },
+    // Publish items still waiting for a slot; a running item is not one.
+    queuedAddPaths(shareId) {
+      const out = []
+      for (const item of byKey.values()) if (item.shareId === shareId && item.state === STATE.QUEUED && isAdd(item)) out.push(item.relPath)
+      return out
+    },
     pendingForShare(shareId) {
       const b = perShare.get(shareId)
       return b ? b.queued + b.running : 0

@@ -85,7 +85,8 @@ export function keyEvents({ key, modifiers }) {
 // The app window is the one that loaded the app:// bundle; the others are internal helpers.
 // Pickers never open natively: a folder or file pick (`dialog.showOpenDialog`), a save target
 // (`dialog.showSaveDialog`) and a page file pick (`<input type=file>`, intercepted over CDP) all wait
-// for the path the harness queues with armPick, in whichever order the two arrive.
+// for the path the harness queues with armPick, in whichever order the two arrive. An open pick takes
+// an array of paths too, as one multi-select does.
 function installHooks() {
   const { BrowserWindow, Menu, dialog } = process.mainModule.require('electron')
   const appWindow = () => BrowserWindow.getAllWindows()
@@ -125,7 +126,7 @@ function installHooks() {
   }
   dialog.showOpenDialog = () => new Promise((resolve) => openPicker((absPath) => {
     fe.picks++
-    resolve({ canceled: false, filePaths: [absPath] })
+    resolve({ canceled: false, filePaths: [].concat(absPath) })
   }))
   dialog.showSaveDialog = () => new Promise((resolve) => openPicker((absPath) => {
     fe.picks++
@@ -137,7 +138,7 @@ function installHooks() {
     wc.debugger.on('message', (_e, method, params) => {
       if (method !== 'Page.fileChooserOpened') return
       openPicker((absPath) => {
-        wc.debugger.sendCommand('DOM.setFileInputFiles', { files: [absPath], backendNodeId: params.backendNodeId })
+        wc.debugger.sendCommand('DOM.setFileInputFiles', { files: [].concat(absPath), backendNodeId: params.backendNodeId })
           .then(() => { fe.picks++ }, (err) => { fe.pickError = err.message })
       })
     })

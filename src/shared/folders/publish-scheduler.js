@@ -410,6 +410,7 @@ export function createPublishScheduler({
     evict: slots.evict,
     isPending(spaceId, shareId, relPath) { return !!queues.get(spaceId)?.isPending(shareId, relPath) },
     pendingRelPaths(spaceId, shareId) { return queues.get(spaceId)?.pendingRelPaths(shareId) ?? [] },
+    queuedAddPaths(spaceId, shareId) { return queues.get(spaceId)?.queuedAddPaths(shareId) ?? [] },
     isSpaceIdle(spaceId) { const q = queues.get(spaceId); return !q || isIdle(q) },
     statusFor(spaceId, shareId) { return describeShare(queues, running, slots, tallies, spaceId, shareId, order(), concurrency()) },
     // Resolves once every executor has returned (or after the bound); nothing starts after it.

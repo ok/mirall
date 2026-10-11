@@ -89,6 +89,7 @@ function deriveActions(
         },
         secondary: { icon: 'close', title: t('file.cancel'), onClick: () => handlers.onCancel(file.transferId ?? ''), variant: 'danger' },
       }
+    case 'queued':
     case 'publishing':
       return {
         primary: {

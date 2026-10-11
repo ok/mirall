@@ -3,8 +3,9 @@
 // no bee) so `test/unit` can drive it under plain Node.
 
 // Most-progressed first, so the group's winner is the copy the user can act on. `downloaded` and
-// `modified` tie — both are a copy on this disk — as do `downloading` and `publishing`, a peer fetch
-// and our own indexing being equally in flight; a tie keeps candidate order, which is member order.
+// `modified` tie — both are a copy on this disk — as do `downloading`, `publishing` and `queued`, a
+// peer fetch and our own add (indexing, or waiting for its slot) being equally in flight; a tie
+// keeps candidate order, which is member order.
 // Every FILE_STATUS member carries a rank: a status missing from this table makes the comparator
 // return NaN, and an inconsistent comparator leaves the group's winner unspecified.
 /** @internal */
@@ -15,6 +16,7 @@ export const STATUS_RANK = Object.freeze({
   verifying: 2,
   downloading: 3,
   publishing: 3,
+  queued: 3,
   'paused-interrupted': 4,
   'paused-offline': 5,
   remote: 6,

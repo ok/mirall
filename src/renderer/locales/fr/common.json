@@ -291,6 +291,8 @@
     "verifying": "Vérification…",
     "preparing": "Préparation…",
     "publishing": "Ajout en cours",
+    "queued": "En file d'attente",
+    "queuedHint": "Attend que les fichiers précédents aient fini d'être ajoutés.",
     "pausedInterrupted": "En pause",
     "ownerOffline": "Propriétaire hors ligne",
     "failed": "Échec"

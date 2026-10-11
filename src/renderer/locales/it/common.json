@@ -291,6 +291,8 @@
     "verifying": "Verifica…",
     "preparing": "In preparazione…",
     "publishing": "Aggiunta in corso",
+    "queued": "In coda",
+    "queuedHint": "Attende che finisca l'aggiunta dei file precedenti.",
     "pausedInterrupted": "Interrotto",
     "ownerOffline": "Proprietario offline",
     "failed": "Non riuscito"
