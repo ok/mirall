@@ -16,12 +16,14 @@ import ShareCard from '../../src/renderer/components/cards/ShareCard.js'
 import { buildFileTree } from '../../src/renderer/model/file-tree.js'
 import type { ShareWithRole } from '../../src/renderer/hooks/useShares.js'
 import type { FileEntry } from '../../src/renderer/types/types.js'
+import type { Decoration } from '../../src/renderer/types/ui.js'
 
 const LONG_PATH = '/Users/oliver/Music/Sets/Boiler Room Carl Cox in Ibiza, Aug 15, 2013 (DJ Mix)'
 const LONG_FILE = 'XXX-X002_T001_0401XI_16384x8192_25fps_40Mbps_ProRes4444_133pt2_01_part01.mov'
 const SHORT_FILE = 'notes.txt'
-const LONG_FOLDER = 'Boiler Room Carl Cox in Ibiza August 15 2013 DJ Mix Full Set Remastered Edition'
-const LONG_SHARE = 'Client Deliverables 2026 Autumn Campaign Final Masters Approved by Legal Q3'
+// Dots inside a folder or share name are text, not an extension: both must still split evenly.
+const LONG_FOLDER = 'Mr. Robot Season 1 Complete Collection Remastered Edition with Extras'
+const LONG_SHARE = '2026.10 Client Deliverables Autumn Campaign Final Masters Approved by Legal'
 
 interface NameResult {
   shown: string
@@ -41,6 +43,9 @@ interface HarnessResults {
   folder: NameResult
   nested: NameResult
   share: NameResult
+  laneTitle: string
+  shareActionTitle: string
+  laneIntrinsicShare: number
 }
 
 declare global {
@@ -52,15 +57,16 @@ const NESTED = `${LONG_FOLDER}/${LONG_FILE}`
 const folderTree = buildFileTree([
   { relPath: NESTED, size: 1024, hash: 'h', mtime: 0, status: 'synced' },
 ])
-const looseFile = (name: string): FileEntry => ({
+const looseFile = (name: string, status: FileEntry['status'] = 'remote'): FileEntry => ({
   path: '/shares/' + name,
-  size: 1024,
+  size: 4 * 1024 ** 3,
   hash: 'h-' + name,
   owner: { displayName: 'Oliver', publicKey: 'ownerkey' },
   localBytes: 0,
   isAvailable: true,
-  status: 'remote',
+  status,
 })
+const downloading: Decoration = { bytes: 30, total: 100, speed: 5e6, avgSpeed: 5e6, eta: 643 }
 const cardHandlers = {
   onDownload: noop, onCancel: noop, onPause: noop, onReveal: noop, onUnshare: noop, onCancelPublish: noop,
   spaceId: 'space1', recipients: [],
@@ -84,6 +90,9 @@ createRoot(document.getElementById('root') as HTMLElement).render(
     </div>
     <div data-test="file">
       <FileCard file={looseFile(LONG_FILE)} decoration={null} seeded={false} {...cardHandlers} />
+    </div>
+    <div data-test="lane">
+      <FileCard file={looseFile(LONG_FILE, 'downloading')} decoration={downloading} seeded={false} {...cardHandlers} />
     </div>
     <div data-test="short">
       <FileCard file={looseFile(SHORT_FILE)} decoration={null} seeded={false} {...cardHandlers} />
@@ -161,10 +170,30 @@ function nameIn(sel: string, full: string, cardSel: string): NameResult {
 // that holds more than the extension alone.
 function middleTruncated(r: NameResult, full: string): boolean {
   const [head = '', tail = ''] = r.shown.split('…')
-  const dot = full.lastIndexOf('.')
-  const ext = dot > 0 ? full.length - dot : 0
+  const ext = /.\.[^.\s]{1,8}$/.test(full) ? full.length - full.lastIndexOf('.') : 0
   return r.shown.includes('…') && head.length > 0 && full.startsWith(head)
     && tail.length >= head.length && tail.length > ext && full.endsWith(tail)
+}
+
+// The title found where a hit lands on `el`'s centre.
+function titleAt(el: Element | null): string {
+  if (!el) return 'missing'
+  const r = el.getBoundingClientRect()
+  return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)?.closest<HTMLElement>('[title]')?.title ?? ''
+}
+
+// The lane row's name at its natural (max-content) width, as a share of the full name's rendered
+// width. Flex shares a row's shortfall by that width, so it must be the whole name's (1.0): were it
+// the truncated text's, each cut would cede room to the lane and invite another cut.
+function laneIntrinsicShare(): number {
+  const host = document.querySelector('[data-test="lane"] span[title]') as HTMLElement
+  const cs = getComputedStyle(host)
+  const ctx = document.createElement('canvas').getContext('2d') as CanvasRenderingContext2D
+  ctx.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`
+  host.style.width = 'max-content'
+  const natural = host.getBoundingClientRect().width
+  host.style.width = ''
+  return Math.round((natural / ctx.measureText(LONG_FILE).width) * 100) / 100
 }
 
 const fits = (r: NameResult, full: string) => r.overflow <= 0 && r.cardTitle === full && r.accessible === full
@@ -187,6 +216,10 @@ function collect(): HarnessResults {
     folder: nameIn('folder', LONG_FOLDER, 'button'),
     nested: nameIn('folder', NESTED, '.group'),
     share: nameIn('share', LONG_SHARE, '.group'),
+    // Controls in a card keep their own tooltip or none — never the card's file name.
+    laneTitle: titleAt(document.querySelector('[data-test="lane"] [role="progressbar"]')),
+    shareActionTitle: titleAt(document.querySelector('[data-test="share"] button[aria-label="Browse Files"]')),
+    laneIntrinsicShare: laneIntrinsicShare(),
     pass: false,
   }
   results.pass =
@@ -197,19 +230,24 @@ function collect(): HarnessResults {
     fits(results.short, SHORT_FILE) && results.short.shown === SHORT_FILE &&
     fits(results.folder, LONG_FOLDER) && middleTruncated(results.folder, LONG_FOLDER) &&
     fits(results.nested, NESTED) && middleTruncated(results.nested, LONG_FILE) &&
-    fits(results.share, LONG_SHARE) && middleTruncated(results.share, LONG_SHARE)
+    fits(results.share, LONG_SHARE) && middleTruncated(results.share, LONG_SHARE) &&
+    results.laneTitle !== LONG_FILE && results.laneTitle !== 'missing' &&
+    results.shareActionTitle === 'Browse Files' &&
+    results.laneIntrinsicShare >= 0.98
   return results
 }
 
 const emptyName: NameResult = { shown: '', cardTitle: '', accessible: '', overflow: 0 }
 
-setTimeout(() => {
-  try {
-    window.__results = collect()
-  } catch (e) {
+// Names are fitted by measuring the real font, so results are read only once it has loaded.
+document.fonts.ready
+  .then(() => new Promise((r) => setTimeout(r, 300)))
+  .then(collect)
+  .then((results) => { window.__results = results })
+  .catch((e: unknown) => {
     window.__results = {
       pass: false, error: String(e), pathOverflow: 0, pathEndsWith: '', pathEllipsised: false,
       file: emptyName, short: emptyName, folder: emptyName, nested: emptyName, share: emptyName,
+      laneTitle: '', shareActionTitle: '', laneIntrinsicShare: 0,
     }
-  }
-}, 400)
+  })

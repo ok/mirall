@@ -48,41 +48,42 @@ function FolderBranch({ node, ...rest }: { node: FileTreeFolderNode } & FolderTr
   const metaText = meta.join(' · ')
   return (
     <div>
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls={groupId}
-        aria-label={node.name}
-        title={node.path}
-        onClick={() => rest.onToggle(node.path)}
-        className="w-full text-left group bg-surface-container-low dark:bg-surface-container-lowest hover:bg-surface-container-highest dark:hover:bg-surface-container-highest rounded-xl transition-colors flex items-center gap-4 p-5 focus-ring"
-      >
-        <Icon
-          name="chevron_right"
-          size={20}
-          className={`text-on-surface-variant shrink-0 transition-transform duration-200 motion-reduce:transition-none ${open ? 'rotate-90' : ''}`}
-        />
-        <span className="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
-          <Icon name="folder" className="text-secondary" />
-        </span>
-        <span className="min-w-0 flex-grow">
-          <FileName name={node.name} className="font-bold text-accent" />
-          <span className="text-xs text-on-surface-variant mt-0.5 block truncate">{metaText}</span>
-        </span>
-        {(downloading > 0 || preparing > 0) && (
-          <span className="flex items-center gap-1.5 self-center mr-1 shrink-0">
-            {downloading > 0 && (
-              <Badge label={t('folder.downloadingCount', { count: downloading })} classes={badgeStyle('downloading').classes} />
-            )}
-            {preparing > 0 && (
-              <Badge
-                label={t(rest.isOwn ? 'folder.addingCount' : 'folder.preparingCount', { count: preparing })}
-                classes={badgeStyle('preparing').classes}
-              />
-            )}
+      <div role="none" title={node.path}>
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={groupId}
+          aria-label={node.name}
+          onClick={() => rest.onToggle(node.path)}
+          className="w-full text-left group bg-surface-container-low dark:bg-surface-container-lowest hover:bg-surface-container-highest dark:hover:bg-surface-container-highest rounded-xl transition-colors flex items-center gap-4 p-5 focus-ring"
+        >
+          <Icon
+            name="chevron_right"
+            size={20}
+            className={`text-on-surface-variant shrink-0 transition-transform duration-200 motion-reduce:transition-none ${open ? 'rotate-90' : ''}`}
+          />
+          <span className="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">
+            <Icon name="folder" className="text-secondary" />
           </span>
-        )}
-      </button>
+          <span className="min-w-0 flex-grow">
+            <FileName name={node.path} displayName={node.name} className="font-bold text-accent" />
+            <span className="text-xs text-on-surface-variant mt-0.5 block truncate">{metaText}</span>
+          </span>
+          {(downloading > 0 || preparing > 0) && (
+            <span className="flex items-center gap-1.5 self-center mr-1 shrink-0">
+              {downloading > 0 && (
+                <Badge label={t('folder.downloadingCount', { count: downloading })} classes={badgeStyle('downloading').classes} />
+              )}
+              {preparing > 0 && (
+                <Badge
+                  label={t(rest.isOwn ? 'folder.addingCount' : 'folder.preparingCount', { count: preparing })}
+                  classes={badgeStyle('preparing').classes}
+                />
+              )}
+            </span>
+          )}
+        </button>
+      </div>
       {open && (
         <div id={groupId} role="group" aria-label={node.name} className="pl-6 mt-2 space-y-2">
           <FolderTree {...rest} nodes={node.children} />

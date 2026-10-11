@@ -3,18 +3,18 @@ import { middleTruncateToWidth } from '../model/share-paths.js'
 
 // A long file list mounts one of these per row, so every instance shares one canvas and one
 // ResizeObserver rather than allocating its own.
-let context: CanvasRenderingContext2D | null = null
-const onResize = new WeakMap<Element, () => void>()
+let context: CanvasRenderingContext2D | null | undefined
+const onResize = new WeakMap<Element, (width: number) => void>()
 let observer: ResizeObserver | null = null
 
 function measuringContext(): CanvasRenderingContext2D | null {
-  context ??= document.createElement('canvas').getContext('2d')
+  if (context === undefined) context = document.createElement('canvas').getContext('2d')
   return context
 }
 
-function observe(el: Element, callback: () => void): () => void {
+function observe(el: Element, callback: (width: number) => void): () => void {
   observer ??= new ResizeObserver((entries) => {
-    for (const entry of entries) onResize.get(entry.target)?.()
+    for (const entry of entries) onResize.get(entry.target)?.(entry.contentRect.width)
   })
   onResize.set(el, callback)
   observer.observe(el)
@@ -24,12 +24,11 @@ function observe(el: Element, callback: () => void): () => void {
   }
 }
 
-// Middle-truncates `name` to the width of `hostRef`, measured in the font of `textRef`. `lead` and
+// Middle-truncates `name` to the width of `hostRef`, measured in the host's font. `lead` and
 // `after` are text sharing the name's line, so they count against the same budget.
 export default function useFittedName(
   name: string,
   hostRef: RefObject<HTMLElement | null>,
-  textRef: RefObject<HTMLElement | null>,
   lead = '',
   after = '',
 ): string {
@@ -37,29 +36,36 @@ export default function useFittedName(
 
   useLayoutEffect(() => {
     const host = hostRef.current
-    const text = textRef.current
     const ctx = measuringContext()
-    if (!host || !text || !ctx) {
+    if (!host || !ctx) {
       setDisplay(name)
       return
     }
 
-    const remeasure = () => {
-      const cs = getComputedStyle(text)
-      const budget = host.getBoundingClientRect().width
-      ctx.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`
-      // The canvas rejects `normal`, which would keep the previous caller's spacing.
-      ctx.letterSpacing = cs.letterSpacing === 'normal' ? '0px' : cs.letterSpacing
+    const cs = getComputedStyle(host)
+    const font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`
+    // The canvas rejects `normal`, which would keep the previous caller's spacing.
+    const spacing = cs.letterSpacing === 'normal' ? '0px' : cs.letterSpacing
+    let fittedWidth = -1
+    const fit = (width: number, force = false) => {
+      if (width === fittedWidth && !force) return
+      fittedWidth = width
+      ctx.font = font
+      ctx.letterSpacing = spacing
       const measure = (candidate: string) => ctx.measureText(lead + candidate + after).width
-      setDisplay(middleTruncateToWidth(name, budget, measure))
+      // A pixel of slack: canvas and layout widths differ by fractions, and an overrun would let
+      // the host's own end ellipsis cut the extension off.
+      setDisplay(middleTruncateToWidth(name, width - 1, measure))
     }
 
-    remeasure()
-    const unobserve = observe(host, remeasure)
+    fit(host.getBoundingClientRect().width)
+    const unobserve = observe(host, fit)
     let cancelled = false
-    document.fonts?.ready.then(() => { if (!cancelled) remeasure() })
+    if (document.fonts && document.fonts.status !== 'loaded') {
+      document.fonts.ready.then(() => { if (!cancelled) fit(host.getBoundingClientRect().width, true) })
+    }
     return () => { cancelled = true; unobserve() }
-  }, [name, hostRef, textRef, lead, after])
+  }, [name, hostRef, lead, after])
 
   return display
 }
