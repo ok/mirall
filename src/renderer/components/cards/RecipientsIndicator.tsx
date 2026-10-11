@@ -41,7 +41,7 @@ export default function RecipientsIndicator({ summary, open, onToggle, controlsI
         onClick={onToggle}
         aria-expanded={open}
         aria-controls={open ? controlsId : undefined}
-        className="flex items-center gap-1 whitespace-nowrap rounded-lg py-1 pl-1.5 pr-0.5 text-[11px] leading-none text-on-surface-variant hover:bg-surface-container-high focus-ring"
+        className="flex items-center gap-1 whitespace-nowrap rounded-lg py-1 pl-1.5 pr-0.5 text-[11px] leading-none text-on-surface-variant control-hover focus-ring"
       >
         <span className="sr-only">{sentence}</span>
         {summary.everyone && <Icon name="check_circle" size={14} className="text-on-success shrink-0" />}

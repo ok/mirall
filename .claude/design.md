@@ -135,7 +135,7 @@ the contrast floor on these surfaces in dark).
 
 **`progress-track` sits outside the ramp on purpose.** A progress bar is painted inside a row that
 lifts to `surface-container-highest` on hover, inside the `PeerDownloadIndicator` toggle that lifts
-to `surface-container-high`, and inside modal panels on `surface-container-lowest`. Any ramp token
+to `surface-container-high` (white in light, under the row's lift), and inside modal panels on `surface-container-lowest`. Any ramp token
 the track borrows therefore matches one of its own hosts in some state and the bar's total length
 vanishes — which is what shipped twice: first as `surface-container-high` (lost under the toggle
 hover), then as `surface-container-highest` (lost under the row hover). `progress-track` (`#d0cec9`
@@ -347,6 +347,18 @@ is also what the app already did everywhere else: rows and cards lift to
 `surface-container-highest`, subtle icon triggers to `surface-container-high`, menu items to
 `surface-container-low` — all of them away from the page. The filled variants were the outliers.
 
+**Inside a row that lifts, the lifted row is the page.** A control in a file or share row is only
+ever hovered while the row is, so it steps off `surface-container-highest`, not off the background
+— and `surface-container-high` sits *lighter* than that in light mode, 1.06:1, which read as no
+hover at all. Transparent controls therefore hover through the `control-hover` utility, which
+paints `var(--control-hover, surface-container-high)`, and the lifting rows (`FileCard`,
+`ShareFileRow`, `ShareCard`) set `hover:[--control-hover:var(--lifted-control-hover)]` — the same
+host override as `--avatar-ring`. `--lifted-control-hover` flips per theme: `surface-container-lowest`
+in light (+10 L\* off the lifted row), `surface-container-high` in dark (+14) — the pair the dropdown
+pills already take under the same lift. Off a row nothing changes. Covers `IconButton`, the
+`ActionMenu` `subtle` trigger, the row's action slots and the three cluster toggles (download,
+waiting, recipients); pinned by `test/invariants/control-hover-tokens.test.js` (FIX-4).
+
 **How big the step has to be depends on how far the fill sits from the page**, because the page is
 what the eye is adapted to. Near it, a little goes a long way: the light neutral is felt at 4.9 L\*,
 the dark neutral and dark danger at ~5. Far from it, small differences compress and the same step
@@ -433,7 +445,8 @@ Still hand-rolled elsewhere: Activity Log's "Clear all" (`font-semibold`, its ow
 `primitives/DocsLink.tsx` (an anchor with leading/trailing glyphs, not this primitive).
 
 ### Icon button — `primitives/IconButton.tsx`
-`w-10 h-10 rounded-full hover:bg-surface-container-high`. Requires `ariaLabel`; icon defaults to
+`w-10 h-10 rounded-full control-hover` — `surface-container-high`, or the lifted fill inside a file
+or share row (see the hover rules under Buttons). Requires `ariaLabel`; icon defaults to
 `text-accent`.
 
 ### Toggle — `primitives/Toggle.tsx`
@@ -791,7 +804,7 @@ waiter never shows the `Sending` pill and never feeds the aggregate bar. Layout 
 Once a member holds the current version of a file we own, the resting row carries the same cluster
 anatomy as the waiting indicator, beside the status pill: up to three of the latest recipients as an
 `sm` avatar stack (`announce="group"`, named "Recently received by: <names>") with **no `+N` chip**,
-and a `text-[11px]` toggle reading "15 of 19 have it" — counted against the space's admitted members
+and a `text-[11px]` toggle reading "15 of 19 have it" (hovering through `control-hover`) — counted against the space's admitted members
 other than the owner (`model/file-recipients.js`). In a folder, a member who mirrors it is counted by
 the mirror alone (`withMirrors`): they have every file, at the mirror's last update, in any sync
 state — the record is one state for the whole folder, so a syncing or paused mirror still holds what

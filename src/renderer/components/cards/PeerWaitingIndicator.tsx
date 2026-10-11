@@ -38,7 +38,7 @@ export default function PeerWaitingIndicator({ waiterKeys, members, open, onTogg
         onClick={onToggle}
         aria-expanded={open}
         aria-controls={open ? controlsId : undefined}
-        className="min-w-0 flex items-center gap-0.5 rounded-lg py-1 pl-1.5 pr-0.5 text-[11px] leading-none text-on-surface-variant hover:bg-surface-container-high focus-ring"
+        className="min-w-0 flex items-center gap-0.5 rounded-lg py-1 pl-1.5 pr-0.5 text-[11px] leading-none text-on-surface-variant control-hover focus-ring"
       >
         <span className="truncate">{t('file.waitingCount', { count: waiters.length })}</span>
         <Icon

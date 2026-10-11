@@ -69,7 +69,7 @@ export default function PeerDownloadIndicator({ summary, members, haveCount, ope
       aria-expanded={open}
       aria-controls={open ? controlsId : undefined}
       aria-label={open ? t('file.hideDownloaders') : t('file.showDownloaders')}
-      className="w-full flex items-center gap-3 rounded-lg p-1 -m-1 hover:bg-surface-container-high hover:[--avatar-ring:var(--color-surface-container-high)] focus-ring"
+      className="w-full flex items-center gap-3 rounded-lg p-1 -m-1 control-hover hover:[--avatar-ring:var(--control-hover,var(--color-surface-container-high))] focus-ring"
     >
       {/* aria-valuetext on the bar carries every token regardless of what the line shows. */}
       <span className="@container/lane flex-grow min-w-0 flex flex-col gap-1.5">

@@ -87,7 +87,7 @@ test('FIX-5: indeterminate sweep uses --color-on-info', (t) => {
 
 // Every surface a progress bar can rest on. Bars live inside file/folder rows that lift to
 // `surface-container-highest` on hover, inside the peer-download toggle that lifts to
-// `surface-container-high`, and inside modal panels (`surface-container-lowest`). A track
+// `surface-container-high` (`-lowest` in light, under the row's lift), and inside modal panels (`surface-container-lowest`). A track
 // painted in any of those tokens goes invisible the moment its host adopts the same one.
 const HOST_SURFACES = [
   'color-surface-container-lowest',

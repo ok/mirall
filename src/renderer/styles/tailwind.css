@@ -26,6 +26,9 @@
   --color-surface-control-hover: #dcdad6;
   --color-surface-container-highest: #e4e2de;
   --color-surface-container-lowest: #ffffff;
+  /* The hover fill of a control inside a row that lifts to `surface-container-highest` (see
+     `control-hover`). White here: `container-high` is lighter than the lifted row by 1.06:1. */
+  --lifted-control-hover: var(--color-surface-container-lowest);
   /* Neutral groove for progress-bar tracks, the peer-dropdown divider and every faceless
      avatar disc. Deliberately outside the surface-container ramp: each of them sits inside a
      row that lifts to `surface-container-highest` on hover or a toggle that lifts to
@@ -85,6 +88,7 @@
   --color-surface-control-hover: #4f5561;
   --color-surface-container-highest: #393f4a;
   --color-surface-container-lowest: #21252b;
+  --lifted-control-hover: var(--color-surface-container-high);
   --color-progress-track: #4a5160;
   --color-chart-1: #3987e5;
   --color-chart-2: #d95926;
@@ -144,6 +148,15 @@ body {
    accumulated. Keyboard-only by design: focus-visible, so a pointer click leaves no ring. */
 @utility focus-ring {
   @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30;
+}
+
+/* The hover fill of a transparent control. A control is only hovered while the surface under it
+   is, so a host that repaints itself under the cursor hands down the fill that clears its new
+   colour as `--control-hover` — the lifting rows set it to `--lifted-control-hover`. */
+@utility control-hover {
+  &:hover {
+    background-color: var(--control-hover, var(--color-surface-container-high));
+  }
 }
 
 /* Mirall is an app, not a webpage — text in labels, headings, paths, names,
