@@ -29,6 +29,7 @@ components run unmodified. `harness-bootstrap.ts` gives every harness the query 
 | `test:layout:case -- spaceoverflow` | `run-spaceoverflow.mjs` | `<SpaceView>` with more rows than the pane | the document never scrolls |
 | `test:layout:case -- stickyheader` | `run-stickyheader.mjs` | `<SpaceView>` with both sections overflowing | pinned headers sit flush on the scrollport; the top control keeps ring room |
 | `test:layout:case -- focusring` | `run-focusring.mjs` | `<FolderView>` | every focusable control's ring is unclipped |
+| `test:layout:case -- rowfocus` | `run-rowfocus.mjs` | `<Settings>`, `<NotificationSettings>`, `<AppearanceSettings>`, an `ActionRow` group | a focused grouped row is tinted, its ring is inset and follows the group's corners where it meets the edge |
 | `test:layout:case -- truncation` | `run-truncation.mjs` | `<PathRow>` + `<FileName>` in a narrow field | exactly one run truncates; nothing overflows |
 | `test:layout:case -- waiting` | `run-waiting.mjs` | `<FileCard>` mid-hash with members waiting, three row widths | the waiting cluster yields before the hash bar; nothing overflows; only a narrow row sheds the stack |
 | `test:layout:case -- recipients` | `run-recipients.mjs` | `<FileCard>` + `<ShareFileRow>` with two of three members holding the file, four row widths | the cluster sheds before the name: no overflow, a one-line toggle, faces only when wide, "2/3" when narrow |

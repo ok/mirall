@@ -91,7 +91,7 @@ export default function NotificationSettings({ onBack }: NotificationSettingsPro
         <div className="space-y-10">
           <section>
             <SectionHeading>{t('notificationSettings.general')}</SectionHeading>
-            <div className="bg-surface-container-low rounded-xl overflow-hidden">
+            <div className="bg-surface-container-low row-group">
               <Toggle
                 label={t('notificationSettings.master')}
                 description={t('notificationSettings.masterDesc')}
@@ -118,7 +118,7 @@ export default function NotificationSettings({ onBack }: NotificationSettingsPro
           {eventSections.map((section) => (
             <section key={section.title}>
               <SectionHeading>{section.title}</SectionHeading>
-              <div className="bg-surface-container-low rounded-xl overflow-hidden">
+              <div className="bg-surface-container-low row-group">
                 {section.rows.map((r) => (
                   <Toggle
                     key={r.key}

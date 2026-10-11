@@ -22,7 +22,7 @@ export default function Toggle({ label, description, checked, disabled, onChange
       aria-describedby={description ? descId : undefined}
       disabled={disabled}
       onClick={() => onChange(!checked)}
-      className={`w-full p-6 flex items-center justify-between text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-secondary/30 ${
+      className={`w-full p-6 flex items-center justify-between text-left transition-colors row-focus ${
         disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-surface-container-high/50'
       }`}
     >

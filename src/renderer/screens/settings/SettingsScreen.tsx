@@ -5,6 +5,7 @@ import { useHasVerticalOverflow } from '../../hooks/useHasVerticalOverflow.js'
 import Icon from '../../components/primitives/Icon.js'
 import type { IconName } from '../../types/ui.js'
 import PageHeader from '../../components/layout/PageHeader.js'
+import { ROW } from '../../components/layout/ActionRow.js'
 import type { Screen } from '../../shell/navigation.js'
 
 interface SettingsProps {
@@ -42,7 +43,7 @@ export default function Settings({ onBack, onNavigate }: SettingsProps) {
 
         <div className="space-y-10">
           <section>
-            <div className="bg-surface-container-low rounded-xl overflow-hidden">
+            <div className="bg-surface-container-low row-group">
               {items.map((item) => (
                 <button
                   key={item.label}
@@ -50,7 +51,7 @@ export default function Settings({ onBack, onNavigate }: SettingsProps) {
                   onClick={() => onNavigate(item.screen)}
                   aria-label={item.label}
                   aria-describedby={`settings-row-${item.screen}`}
-                  className="w-full text-left p-6 flex items-center justify-between hover:bg-surface-container-high/50 active:scale-[0.99] transition-all focus-ring cursor-pointer"
+                  className={ROW}
                 >
                   <div className="flex items-center gap-4">
                     <div className={`w-10 h-10 rounded-full ${item.bg} flex items-center justify-center ${item.fg}`}>

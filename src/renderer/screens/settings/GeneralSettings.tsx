@@ -34,7 +34,7 @@ export default function GeneralSettings({ onBack }: GeneralSettingsProps) {
 
         <div className="space-y-10">
           <section>
-            <div className="bg-surface-container-low rounded-xl overflow-hidden">
+            <div className="bg-surface-container-low row-group">
               <Toggle
                 label={t(minimizeKey)}
                 description={t(minimizeDescKey)}

@@ -248,12 +248,17 @@ and `pb-1.5` to keep the 800-weight descenders out of the clip that `truncate` i
 - **Section pattern:** `<SectionHeading>` followed by a `bg-surface-container-low rounded-xl p-6`
   card. All settings sub-pages share this shell.
 - **Row-group pattern:** several short groups on one screen render as `<SectionHeading>` (the same
-  label every settings sub-page uses) above a `bg-surface-container-low rounded-xl overflow-hidden`
-  card of `p-6` rows — 40px icon tile, `font-semibold text-accent` label, `text-xs` description,
+  label every settings sub-page uses) above a `bg-surface-container-low row-group` card of `p-6`
+  rows — 40px icon tile, `font-semibold text-accent` label, `text-xs` description,
   trailing chevron, no dividers. Used by `screens/settings/SettingsScreen.tsx` (one unlabelled
   group) and `screens/AccountScreen.tsx`. A group the page title already names takes no heading —
   Account's profile card sits directly under the `<h1>`. The eyebrow label is **not** used for this
   job: it is for sub-labels inside a surface (shortcut groups, activity-log day headings).
+- **Row focus:** `row-group` (`styles/tailwind.css`) is `rounded-xl overflow-hidden` plus the card's
+  radius on its first and last child, so the row meeting an edge is rounded there. A row in it wears
+  `row-focus` instead of `focus-ring`: an inset `ring-secondary/30` the clip cannot cut, plus the
+  `bg-surface-container-high/50` hover fill. `ROW` (ActionRow), `Toggle` and the Appearance language
+  rows carry it. Pinned by `npm run test:layout:case -- rowfocus`.
 - **Sticky in-page headers:** `sticky top-0 z-10 bg-surface` for list titles.
 - **Responsive:** effectively one breakpoint — `min-[900px]:grid-cols-[1fr_300px] gap-8` (content +
   sidebar in `screens/SpaceScreen.tsx`, `screens/FolderScreen.tsx`), plus a couple of `md:` tweaks
@@ -453,7 +458,7 @@ or share row (see the hover rules under Buttons). Requires `ariaLabel`; icon def
 ### Toggle — `primitives/Toggle.tsx`
 Full-width `role="switch"` row, `p-6`, label + optional description on the left, a 48×28 pill track
 on the right (`bg-primary` on / `bg-surface-container-high` off) with a 20px translating thumb.
-Hover lifts to `bg-surface-container-high/50`.
+Hover lifts to `bg-surface-container-high/50`; focus wears `row-focus` (see the row-group pattern).
 
 **A control's supporting text belongs on the control**, in that `description` — not in a separate
 advisory block near it. A box that explains a switch two elements further down describes something
@@ -461,7 +466,7 @@ the reader has not reached yet, and if the box only appears once the switch is o
 decision already made.
 
 ### Settings section composition
-`SectionHeading` → **one** `bg-surface-container-low rounded-xl overflow-hidden` surface, and
+`SectionHeading` → **one** `bg-surface-container-low row-group` surface, and
 everything the section says or offers lives on it: intro prose (`px-6 pt-6 pb-5`), then the controls
 as rows, then the trailing note (`px-6 pt-5 pb-6 text-xs`). Rows own their padding — `p-6` for a
 `Toggle`, `px-6 py-5` for a row with a control on the right — and carry

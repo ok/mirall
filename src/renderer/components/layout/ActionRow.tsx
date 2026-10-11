@@ -7,8 +7,8 @@ import { useTranslation } from 'react-i18next'
 import Icon from '../primitives/Icon.js'
 import type { IconName } from '../../types/ui.js'
 
-export const ROW_GROUP = 'bg-surface-container-low rounded-xl overflow-hidden'
-export const ROW = 'w-full text-left p-6 flex items-center justify-between hover:bg-surface-container-high/50 active:scale-[0.99] transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-secondary/30 cursor-pointer'
+export const ROW_GROUP = 'bg-surface-container-low row-group'
+export const ROW = 'w-full text-left p-6 flex items-center justify-between hover:bg-surface-container-high/50 active:scale-[0.99] transition-all row-focus cursor-pointer'
 
 export function Tile({ icon }: { icon: IconName }) {
   return (

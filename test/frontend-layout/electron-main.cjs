@@ -9,6 +9,9 @@ const CONTENT_WIDTH = Number(process.env.HARNESS_W || 1280)
 const CONTENT_HEIGHT = Number(process.env.HARNESS_H || 800)
 const HARNESS_HTML = process.env.HARNESS_HTML || 'harness.html'
 const DEADLINE_MS = Number(process.env.HARNESS_DEADLINE_MS || 30000)
+// A hidden window never has page focus, so `:focus` and `:focus-visible` never match; a harness
+// that measures a focused control asks for Chromium's focus emulation instead.
+const EMULATE_FOCUS = process.env.HARNESS_FOCUS === '1'
 
 app.disableHardwareAcceleration()
 if (app.dock) app.dock.hide()
@@ -43,6 +46,11 @@ app.whenReady().then(async () => {
   win.webContents.on('render-process-gone', (_e, d) => fail('render-process-gone: ' + JSON.stringify(d)))
 
   await win.loadFile(path.join(__dirname, HARNESS_HTML))
+
+  if (EMULATE_FOCUS) {
+    win.webContents.debugger.attach()
+    await win.webContents.debugger.sendCommand('Emulation.setFocusEmulationEnabled', { enabled: true })
+  }
 
   const deadline = Date.now() + DEADLINE_MS
    

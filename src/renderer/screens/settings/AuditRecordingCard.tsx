@@ -24,7 +24,7 @@ export default function AuditRecordingCard({ config, onPatch, patching }: AuditR
   return (
     <section>
       <SectionHeading>{t('activityLogSettings.recording')}</SectionHeading>
-      <div className="bg-surface-container-low rounded-xl overflow-hidden">
+      <div className="bg-surface-container-low row-group">
         <div className="w-full p-6 flex items-center justify-between hover:bg-surface-container-high/50 transition-colors">
           <div className="pr-6">
             <p className="font-semibold text-accent">{t('activityLogSettings.recordActivity')}</p>

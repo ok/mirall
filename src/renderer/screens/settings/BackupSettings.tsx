@@ -103,7 +103,7 @@ export default function BackupSettings({ onBack }: BackupSettingsProps) {
             )}
             {status && <StatusNotes status={status} error={error} />}
             {configurable && (
-              <section className="bg-surface-container-low rounded-xl overflow-hidden">
+              <section className="bg-surface-container-low row-group">
                 <Toggle
                   label={t('backup.autoLabel')}
                   description={t('backup.autoDesc')}
@@ -201,7 +201,7 @@ function PassphraseSection({ status, busy, onDialog, onReminders }: PassphraseSe
   return (
     <section>
       <SectionHeading>{t('backup.passphraseSection')}</SectionHeading>
-      <div className="bg-surface-container-low rounded-xl overflow-hidden">
+      <div className="bg-surface-container-low row-group">
         <div className="p-6 flex items-center justify-between gap-4">
           <div className="min-w-0">
             <p className="font-semibold text-accent">{t('backup.passphraseRow')}</p>
