@@ -88,7 +88,7 @@ export default async function s74({ runDir, bootstrap }) {
             assert(await A.has({ role: 'progressbar' }), 'collapsed aggregate progress bar is AX-targetable')
             await A.shot('s74-A-indicator', runDir)
             await A.click(SHOW)
-            await waitFor(() => A.has({ name: 'People downloading this file' }), 8000, 'downloaders dropdown')
+            await waitFor(() => A.has({ name: 'People and this file' }), 8000, 'recipients region')
             opened = true
           }
           if (opened) {
