@@ -152,6 +152,26 @@ body {
   @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30;
 }
 
+/* A rounded card of full-width rows. It clips, so the rows meeting its top and bottom edge take its
+   corners — otherwise their square focus ring and fill are shaved by the rounded clip. */
+@utility row-group {
+  @apply rounded-xl overflow-hidden;
+  & > :first-child {
+    border-top-left-radius: inherit;
+    border-top-right-radius: inherit;
+  }
+  & > :last-child {
+    border-bottom-left-radius: inherit;
+    border-bottom-right-radius: inherit;
+  }
+}
+
+/* The focus indicator of a row inside a row-group: the ring sits inside the row, where the group's
+   clip cannot cut it, and the row takes its hover fill so focus reads as a highlighted row. */
+@utility row-focus {
+  @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-secondary/30 focus-visible:bg-surface-container-high/50;
+}
+
 /* The hover fill of a transparent control. A control is only hovered while the surface under it
    is, so a host that repaints itself under the cursor hands down the fill that clears its new
    colour as `--control-hover` — the lifting rows set it to `--lifted-control-hover`. */

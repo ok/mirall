@@ -131,7 +131,7 @@ export default function NetworkDiagnosticsScreen({ onBack }: Props) {
         <div className="bg-surface-container-low rounded-xl p-6 space-y-5">
           <p className="text-sm text-on-surface-variant leading-relaxed">{t('diagnostics.intro')}</p>
 
-          <div className="rounded-xl bg-surface-container-lowest overflow-hidden divide-y divide-surface-container-high/30">
+          <div className="row-group bg-surface-container-lowest divide-y divide-surface-container-high/30">
             <Toggle
               label={t('diagnostics.redactLabel')}
               description={t('diagnostics.redactDescription')}

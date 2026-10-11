@@ -98,7 +98,7 @@ export default function AppearanceSettings({ onBack }: AppearanceSettingsProps) 
           {showMenuBarToggle && (
             <section>
               <SectionHeading>{t('appearanceSettings.menuBar')}</SectionHeading>
-              <div className="bg-surface-container-low rounded-xl overflow-hidden">
+              <div className="bg-surface-container-low row-group">
                 <Toggle
                   label={t('appearanceSettings.menuBarAutoHide')}
                   description={t('appearanceSettings.menuBarAutoHideDesc')}
@@ -112,7 +112,7 @@ export default function AppearanceSettings({ onBack }: AppearanceSettingsProps) 
 
           <section>
             <SectionHeading>{t('appearanceSettings.language')}</SectionHeading>
-            <div className="bg-surface-container-low rounded-xl overflow-hidden">
+            <div className="bg-surface-container-low row-group">
               {SUPPORTED_LANGUAGES.map((lang) => {
                 const selected = lang.code === currentLang
                 return (
@@ -121,7 +121,7 @@ export default function AppearanceSettings({ onBack }: AppearanceSettingsProps) 
                     type="button"
                     onClick={() => runAction(() => setLocale(lang.code as SupportedLanguage))}
                     aria-pressed={selected}
-                    className={`w-full p-6 flex items-center justify-between transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-secondary/30 ${
+                    className={`w-full p-6 flex items-center justify-between transition-colors row-focus ${
                       selected ? 'bg-surface-container-high/60' : 'hover:bg-surface-container-high/50'
                     }`}
                   >

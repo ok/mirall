@@ -83,7 +83,7 @@ export default function InviteModal({ isOpen, onClose, onCreate }: InviteModalPr
               button DOM across steps and `transition-all` animates Create morphing into Change. */}
           {code === null ? (
             <Fragment key="configure">
-              <div className="bg-surface-container-low rounded-xl overflow-hidden">
+              <div className="bg-surface-container-low row-group">
                 <Toggle
                   label={t('invite.autoApprove')}
                   description={t('invite.autoApproveDesc')}

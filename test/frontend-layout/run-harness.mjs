@@ -9,7 +9,7 @@ import path from 'node:path'
 const HERE = import.meta.dirname
 const REPO = path.resolve(HERE, '../..')
 
-export async function runHarness({ html, height, width, deadlineMs } = {}) {
+export async function runHarness({ html, height, width, deadlineMs, focus } = {}) {
   if (!process.argv.slice(2).includes('--no-build')) {
     execFileSync('node', [path.join(HERE, 'build.mjs')], { cwd: REPO, stdio: 'inherit' })
   }
@@ -19,6 +19,7 @@ export async function runHarness({ html, height, width, deadlineMs } = {}) {
   if (height != null) env.HARNESS_H = String(height)
   if (width != null) env.HARNESS_W = String(width)
   if (deadlineMs != null) env.HARNESS_DEADLINE_MS = String(deadlineMs)
+  if (focus) env.HARNESS_FOCUS = '1'
   const out = await new Promise((resolve, reject) => {
     let buf = ''
     const proc = spawn(electron, [path.join(HERE, 'electron-main.cjs')], { cwd: REPO, env })

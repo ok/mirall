@@ -110,7 +110,7 @@ export default function ActivityFeed(props: ActivityFeedProps) {
           )}
         </div>
       ) : (
-        <div className="bg-surface-container-low rounded-xl overflow-hidden">
+        <div className="bg-surface-container-low row-group">
           {/* The list is its own scroll region rather than growing the page: a 90-day log
               would otherwise stretch the screen without limit as pages are appended. It
               also makes the day headings pin the way they are meant to — against the list,

@@ -171,7 +171,7 @@ export default function RelaySettingsSection() {
 
       {/* One surface: the section's prose and its trailing note live on it, above and below the
           rows, the way the transfer-limits section on this screen keeps its own note. */}
-      <div className="bg-surface-container-low rounded-xl overflow-hidden">
+      <div className="bg-surface-container-low row-group">
         <div className="px-6 pt-6 pb-5">
           <p className="text-sm text-on-surface-variant leading-relaxed">{t('networkSettings.relays.desc')}</p>
           <div className="mt-2">
