@@ -681,7 +681,9 @@
       "done": "{{size}} libérés",
       "doneDesc": "Mirall utilise maintenant {{total}}."
     },
-    "updatesDesc": "Mises à jour téléchargées par Mirall.",
+    "updatesDesc": "Mises à jour téléchargées pas encore installées et anciennes versions que Mirall supprime de lui-même.",
+    "installedVersion": "Version installée",
+    "installedVersionDesc": "Une copie de cette version de Mirall, conservée pour que la prochaine mise à jour ne télécharge que les changements.",
     "spaceRow": "Espace : {{name}}",
     "open": "Ouvrir",
     "openSpace": "Ouvrir {{name}}"

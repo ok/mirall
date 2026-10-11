@@ -35,8 +35,8 @@ from one person combined into one.
 a check for updates, and links to the privacy policy, legal notice and
 license.
 - **See what takes up Mirall's storage.** Settings → Storage breaks it down
-by space, file index, Activity Log, downloads and app updates, and "Free
-up" clears what can go.
+by space, file index, Activity Log, downloads, the installed version and app
+updates, and "Free up" clears what can go.
 - **The Activity Log shows your relay at work:** when a relayed member is
 connected directly again, and every change to your relay settings.
 

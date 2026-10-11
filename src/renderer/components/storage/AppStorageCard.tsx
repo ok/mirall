@@ -16,13 +16,15 @@ import StorageMeter from './StorageMeter.js'
 import StorageCategoryRow from './StorageCategoryRow.js'
 import FreeUpRow from './FreeUpRow.js'
 
-// One categorical slot per category, in meter order, shared by the segment and the row's dot. Other
-// takes a hue too: the meter is full, and a grey segment would read as free space.
+// One categorical slot per category, shared by the segment and the row's dot. A category keeps its
+// slot, so one added later takes the next free slot wherever it sits in the meter. Other takes a hue
+// too: the meter is full, and a grey segment would read as free space.
 const CATEGORY_COLOR: Record<StorageCategoryId, string> = {
   spaces: 'bg-chart-1',
   index: 'bg-chart-2',
   'activity-log': 'bg-chart-3',
   'download-history': 'bg-chart-4',
+  'installed-version': 'bg-chart-7',
   updates: 'bg-chart-5',
   other: 'bg-chart-6',
 }
@@ -65,6 +67,7 @@ export default function AppStorageCard({ info, onOpenActivityLogSettings, onOpen
     index: t('storageSettings.sharingIndex'),
     'activity-log': t('storageSettings.activityLog'),
     'download-history': t('storageSettings.downloadHistory'),
+    'installed-version': t('storageSettings.installedVersion'),
     updates: t('storageSettings.updates'),
     other: t('storageSettings.other'),
   }
@@ -121,6 +124,7 @@ export default function AppStorageCard({ info, onOpenActivityLogSettings, onOpen
               action={<TextButton onClick={onOpenActivityLogSettings}>{t('storageSettings.manageActivityLog')}</TextButton>}
             />
             <StorageCategoryRow color={CATEGORY_COLOR['download-history']} heading={heading['download-history']} desc={t('storageSettings.downloadHistoryDesc')} bytes={bytesOf('download-history')} />
+            <StorageCategoryRow color={CATEGORY_COLOR['installed-version']} heading={heading['installed-version']} desc={t('storageSettings.installedVersionDesc')} bytes={bytesOf('installed-version')} />
             <StorageCategoryRow color={CATEGORY_COLOR.updates} heading={heading.updates} desc={t('storageSettings.updatesDesc')} bytes={bytesOf('updates')} />
             <StorageCategoryRow color={CATEGORY_COLOR.other} heading={heading.other} desc={t('storageSettings.otherDesc')} bytes={bytesOf('other')} />
           </ul>

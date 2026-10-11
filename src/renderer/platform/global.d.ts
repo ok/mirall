@@ -95,9 +95,11 @@ export interface DeepLinkJoin {
 export type DeepLinkPayload = DeepLinkJoin
 
 export type IdentityProtection = 'protected' | 'weak' | 'disabled'
-// The app-update store in the data folder: its size on disk, and about how much a prune would free.
+// The app-update store in the data folder: its size on disk, the part that is a copy of the running
+// version, and about how much a prune would free.
 export interface UpdateCacheInfo {
   bytes: number
+  installedBytes: number
   reclaimableBytes: number
 }
 

@@ -681,7 +681,9 @@
       "done": "{{size}} freigegeben",
       "doneDesc": "Mirall belegt jetzt {{total}}."
     },
-    "updatesDesc": "Updates, die Mirall heruntergeladen hat.",
+    "updatesDesc": "Heruntergeladene, noch nicht installierte Updates und ältere Versionen, die Mirall selbst entfernt.",
+    "installedVersion": "Installierte Version",
+    "installedVersionDesc": "Eine Kopie dieser Mirall-Version, damit das nächste Update nur Änderungen herunterlädt.",
     "spaceRow": "Raum: {{name}}",
     "open": "Öffnen",
     "openSpace": "{{name}} öffnen"
