@@ -15,7 +15,8 @@ const require = createRequire(import.meta.url)
 const updateCache = require('../../src/main/update-cache.js')
 
 // The update cache keeps only the latest version: a prune clears the blocks no file of the latest
-// version for this platform references, and leaves that version whole. Under Node, as main runs it.
+// version for this platform references, and leaves that version whole. When the latest version is
+// the running one, its copy is reported as the installed version. Under Node, as main runs it.
 
 const host = `${process.platform}-${process.arch}`
 const NAME = 'Mirall.AppImage'
@@ -41,7 +42,7 @@ async function blocksOf(drive, name) {
   return [blob.blockOffset, blob.blockOffset + blob.blockLength]
 }
 
-async function stagedUpdater(t, opts) {
+async function seededUpdater(t, version, opts) {
   const seedStore = new Corestore(tmpDir('update-cache-seed', t))
   const seed = new Hyperdrive(seedStore)
   await seed.ready()
@@ -52,15 +53,20 @@ async function stagedUpdater(t, opts) {
   const store = new Corestore(path.join(dir, 'pear-runtime', 'corestore'))
   replicate(seedStore, store, t)
   const updater = new PearRuntimeUpdater({
-    dir, app: path.join(dir, NAME), bundled: true, updates: true, version: '0.0.1',
+    dir, app: path.join(dir, NAME), bundled: true, updates: true, version,
     upgrade: `pear://${hid.encode(seed.key)}`, name: NAME, store, delay: 0,
   })
   updater.on('error', (err) => t.fail(`updater error: ${err.message}`))
   t.teardown(async () => { await updater.close(); await store.close() })
   await updater.ready()
   await updater._debouncedUpdate()
-  await waitFor(() => updater.nextVersion === '9.9.8', 10000, { label: 'v1 staged' })
   return { seed, store, dir, updater }
+}
+
+async function stagedUpdater(t, opts) {
+  const staged = await seededUpdater(t, '0.0.1', opts)
+  await waitFor(() => staged.updater.nextVersion === '9.9.8', 10000, { label: 'v1 staged' })
+  return staged
 }
 
 async function stageNext(seed, updater, opts) {
@@ -80,6 +86,7 @@ test('a prune clears the older version and keeps the latest whole', { timeout: s
 
   const info = await updateCache.updateCacheInfo({ updater, dataDir: dir, prefix: PREFIX })
   t.ok(info.reclaimableBytes > 3 * 1024 * 1024, 'about the older payload is reclaimable: ' + info.reclaimableBytes)
+  t.is(info.installedBytes, 0, 'a staged update is not the installed version')
   const before = await updateCache.dirSize(path.join(dir, 'pear-runtime', 'corestore'))
 
   const { clearedBlocks } = await updateCache.pruneUpdateCache({ updater, prefix: PREFIX })
@@ -124,6 +131,16 @@ test('REGRESSION (update cache orphans): a prune clears every core outside the d
   await latest.close()
   const after = await updateCache.dirSize(path.join(dir, 'pear-runtime', 'corestore'))
   t.ok(before - after > 3 * 1024 * 1024, 'the store shrank by ' + (before - after) + ' bytes')
+})
+
+test('the running version\'s copy is the installed version, not an update', { timeout: scaled(60000) }, async (t) => {
+  const { dir, updater } = await seededUpdater(t, '9.9.8')
+  await waitFor(() => updater.prefetched, 10000, { label: 'running version prefetched' })
+
+  const info = await updateCache.updateCacheInfo({ updater, dataDir: dir, prefix: PREFIX })
+  t.ok(info.installedBytes >= PAYLOAD, 'the prefetched payload counts as installed: ' + info.installedBytes)
+  t.ok(info.installedBytes + info.reclaimableBytes <= info.bytes, 'the parts fit in the folder')
+  t.ok(info.reclaimableBytes < 1024 * 1024, 'next to nothing is reclaimable: ' + info.reclaimableBytes)
 })
 
 test('a version not fully on this device is left whole', { timeout: scaled(60000) }, async (t) => {

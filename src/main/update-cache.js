@@ -120,16 +120,24 @@ async function dirSize(dir) {
   return size
 }
 
-// The pear-runtime folder on disk, and about how much of its store a prune would free: the store less
-// what the latest version keeps for this platform.
+// The pear-runtime folder on disk, split into the copy of the running version (kept so the next update
+// fetches only what changed), and about how much of its store a prune would free: the store less what
+// the latest version keeps for this platform. A latest version other than the running one is an update.
 async function updateCacheInfo({ updater, dataDir, prefix }) {
   const root = path.join(dataDir, 'pear-runtime')
   const bytes = await dirSize(root)
   const drive = updater?.drive
-  if (!drive?.core.length) return { bytes, reclaimableBytes: 0 }
+  if (!drive?.core.length) return { bytes, installedBytes: 0, reclaimableBytes: 0 }
   const kept = await latestBlobs(drive, await drive.getBlobs(), prefix)
-  if (!kept) return { bytes, reclaimableBytes: 0 }
-  return { bytes, reclaimableBytes: Math.max(0, await dirSize(path.join(root, 'corestore')) - keptBytes(kept)) }
+  if (!kept) return { bytes, installedBytes: 0, reclaimableBytes: 0 }
+  const storeBytes = await dirSize(path.join(root, 'corestore'))
+  const latestBytes = Math.min(storeBytes, keptBytes(kept))
+  const manifest = JSON.parse(await drive.get('/package.json', LOCAL))
+  return {
+    bytes,
+    installedBytes: manifest.version === updater.version ? latestBytes : 0,
+    reclaimableBytes: storeBytes - latestBytes,
+  }
 }
 
 module.exports = { pruneUpdateCache, updateCacheInfo, dirSize }
