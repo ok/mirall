@@ -9,6 +9,7 @@ export const STORAGE_CATEGORY = Object.freeze({
   INDEX: 'index',
   ACTIVITY: 'activity-log',
   DOWNLOADS: 'download-history',
+  INSTALLED: 'installed-version',
   UPDATES: 'updates',
   OTHER: 'other',
 })
@@ -32,6 +33,7 @@ export const spaceBytes = (space) => space.ownCatalogBytes + space.memberCatalog
 export function storageCategories(info, updates) {
   if (!info) return { total: 0, spaces: [], categories: [], reclaimable: 0, showFreeUp: false }
   const updateBytes = updates?.bytes ?? 0
+  const installedBytes = Math.min(updateBytes, updates?.installedBytes ?? 0)
   const total = Math.max(info.folderBytes, info.totalDiskUsage + updateBytes)
   // Keys, settings, logs and the renderer's caches sit in the data folder beside the store; old
   // versions of Mirall's own records are counted with them, since no one acts on them by name.
@@ -41,7 +43,8 @@ export function storageCategories(info, updates) {
     { id: STORAGE_CATEGORY.INDEX, bytes: info.indexBytes },
     { id: STORAGE_CATEGORY.ACTIVITY, bytes: info.activityLogBytes },
     { id: STORAGE_CATEGORY.DOWNLOADS, bytes: info.downloadHistoryBytes },
-    { id: STORAGE_CATEGORY.UPDATES, bytes: updateBytes },
+    { id: STORAGE_CATEGORY.INSTALLED, bytes: installedBytes },
+    { id: STORAGE_CATEGORY.UPDATES, bytes: updateBytes - installedBytes },
     { id: STORAGE_CATEGORY.OTHER, bytes: info.otherBytes + info.historyBytes + outside },
   ]
   const reclaimable = info.reclaimableBytes + (updates?.reclaimableBytes ?? 0)

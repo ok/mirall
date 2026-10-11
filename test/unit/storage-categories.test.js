@@ -17,19 +17,20 @@ test('the measured install shows Free up, with one segment per category in the o
     ],
     indexBytes: 46.6e6, activityLogBytes: 2.4e6, downloadHistoryBytes: 1e6, historyBytes: 625e6, otherBytes: 53.1e6,
     historyMeasuredAt: 1, reclaimableBytes: 625e6,
-  }), { bytes: 2.0e9, reclaimableBytes: 1.73e9 })
+  }), { bytes: 2.0e9, installedBytes: 0.25e9, reclaimableBytes: 1.73e9 })
   t.is(r.total, 2.735e9, 'the whole data folder')
   t.alike(r.categories.map((x) => x.id), Object.values(STORAGE_CATEGORY))
   t.is(r.categories[0].bytes, 1.9e6, 'Spaces is their sum')
-  t.is(r.categories[4].bytes, 2.0e9, 'app updates come from main')
-  t.is(r.categories[5].bytes, 53.1e6 + 625e6 + 5e6, 'other takes the store remainder, old record versions and the rest of the folder')
+  t.is(r.categories[4].bytes, 0.25e9, 'the installed version is its own row')
+  t.is(r.categories[5].bytes, 1.75e9, 'app updates are the rest of the update store')
+  t.is(r.categories[6].bytes, 53.1e6 + 625e6 + 5e6, 'other takes the store remainder, old record versions and the rest of the folder')
   t.is(r.reclaimable, 625e6 + 1.73e9)
   t.ok(r.showFreeUp)
 })
 
 test('under the threshold there is no Free up; at it there is', (t) => {
-  t.absent(storageCategories(info({ reclaimableBytes: 60e6 }), { bytes: 0, reclaimableBytes: 39e6 }).showFreeUp)
-  t.ok(storageCategories(info({ reclaimableBytes: 60e6 }), { bytes: 0, reclaimableBytes: 40e6 }).showFreeUp)
+  t.absent(storageCategories(info({ reclaimableBytes: 60e6 }), { bytes: 0, installedBytes: 0, reclaimableBytes: 39e6 }).showFreeUp)
+  t.ok(storageCategories(info({ reclaimableBytes: 60e6 }), { bytes: 0, installedBytes: 0, reclaimableBytes: 40e6 }).showFreeUp)
 })
 
 test('a zero threshold always offers Free up', (t) => {
@@ -41,7 +42,21 @@ test('no info yet: nothing to show', (t) => {
 })
 
 test('a folder read that lags the store never makes the total smaller than its parts', (t) => {
-  const r = storageCategories(info({ totalDiskUsage: 100, folderBytes: 50 }), { bytes: 30, reclaimableBytes: 0 })
+  const r = storageCategories(info({ totalDiskUsage: 100, folderBytes: 50 }), { bytes: 30, installedBytes: 0, reclaimableBytes: 0 })
   t.is(r.total, 130)
-  t.is(r.categories[5].bytes, 0, 'nothing outside the store and the updates')
+  t.is(r.categories[6].bytes, 0, 'nothing outside the store and the updates')
+})
+
+test('right after an update is installed, the update store is the installed version and no app updates', (t) => {
+  const r = storageCategories(info({ totalDiskUsage: 10e6, folderBytes: 400e6 }), { bytes: 390e6, installedBytes: 390e6, reclaimableBytes: 0 })
+  const bytesOf = (id) => r.categories.find((c) => c.id === id)?.bytes
+  t.is(bytesOf(STORAGE_CATEGORY.INSTALLED), 390e6)
+  t.is(bytesOf(STORAGE_CATEGORY.UPDATES), 0)
+  t.is(r.total, 400e6, 'the total is unchanged')
+})
+
+test('an installed copy larger than the folder read never makes app updates negative', (t) => {
+  const r = storageCategories(info({ totalDiskUsage: 0, folderBytes: 0 }), { bytes: 100, installedBytes: 120, reclaimableBytes: 0 })
+  t.is(r.categories.find((c) => c.id === STORAGE_CATEGORY.UPDATES)?.bytes, 0)
+  t.is(r.categories.find((c) => c.id === STORAGE_CATEGORY.INSTALLED)?.bytes, 100)
 })

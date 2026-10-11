@@ -709,7 +709,9 @@
       "done": "Freed {{size}}",
       "doneDesc": "Mirall now uses {{total}}."
     },
-    "updatesDesc": "Updates Mirall downloaded.",
+    "updatesDesc": "Updates downloaded but not installed yet, and older versions Mirall removes on its own.",
+    "installedVersion": "Installed version",
+    "installedVersionDesc": "A copy of this version of Mirall, kept so the next update only downloads what changed.",
     "spaceRow": "Space: {{name}}",
     "open": "Open",
     "openSpace": "Open {{name}}"
