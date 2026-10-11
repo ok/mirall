@@ -56,14 +56,11 @@ test('splitPathForDisplay returns a bare filename / root entry entirely as the t
   t.alike(splitPathForDisplay(null), { head: '', tail: '' })
 })
 
-// The transfer-row filename pins the extension (tail) so it stays visible while
-// the stem ellipsizes — the filename analogue of splitPathForDisplay's tail.
-
 // Middle truncation for every file and folder name: a long name becomes a single
 // `High.Plains.Dri…BluRay.mp4` string that keeps both ends AND the extension.
-// Tests use a monospace fake `measure` (1 unit per char) so widths are char
-// counts and the assertions are exact.
-const mono = (s) => s.length
+// Tests use a monospace fake `measure` (1 unit per character) so widths are
+// character counts and the assertions are exact.
+const mono = (s) => [...new Intl.Segmenter().segment(s)].length
 
 test('middleTruncateToWidth returns a name that already fits unchanged', (t) => {
   t.is(middleTruncateToWidth('notes.txt', 20, mono), 'notes.txt')
@@ -79,10 +76,39 @@ test('middleTruncateToWidth keeps both ends and the extension when it truncates'
   t.ok(out.endsWith('.mp4'), 'the extension stays in the visible ending')
 })
 
-test('middleTruncateToWidth always keeps the whole extension in the tail', (t) => {
-  // Even a long extension is preserved whole; the head shrinks to make room.
-  const out = middleTruncateToWidth('logo.production', 8, mono)
-  t.ok(out.endsWith('.production') || out === '…', 'extension survives or degrades to just the ellipsis')
+test('middleTruncateToWidth keeps a whole short extension in the tail', (t) => {
+  const out = middleTruncateToWidth('quarterly-report-final.xlsx', 9, mono)
+  t.is(mono(out), 9)
+  t.ok(out.endsWith('.xlsx'), 'the extension stays whole even past half of what is shown')
+})
+
+test('REGRESSION (FIX-TRUNC-1: early dot collapsed to "…"): a dot inside a name is text, not an extension', (t) => {
+  for (const name of [
+    'Mr. Robot Season 1 Complete Collection Remastered',
+    '2026.10 Client Masters Final Delivery Approved',
+    'Release v1.5 Final Mix Masters',
+    'logo.production',
+  ]) {
+    const out = middleTruncateToWidth(name, 12, mono)
+    const [head, tail] = out.split('…')
+    t.is(mono(out), 12, `${name}: grown to the budget`)
+    t.ok(head.length > 0 && name.startsWith(head) && name.endsWith(tail), `${name}: both ends visible`)
+    t.ok(mono(tail) >= mono(head), `${name}: the ending is at least half`)
+  }
+})
+
+test('middleTruncateToWidth drops the extension rule when even the extension does not fit', (t) => {
+  const out = middleTruncateToWidth('abcdefghij.mp4', 5, mono)
+  t.is(out, 'ab…p4')
+})
+
+test('REGRESSION (FIX-TRUNC-2: emoji split into a lone surrogate): cuts fall on whole characters', (t) => {
+  const emoji = middleTruncateToWidth('😀😀😀😀😀😀😀😀😀😀😀😀.txt', 10, mono)
+  t.absent(/[\ud800-\udfff]/u.test(emoji.replace(/\p{Extended_Pictographic}/gu, '')), 'no lone surrogate')
+  t.ok(emoji.endsWith('😀.txt') && emoji.startsWith('😀'), emoji)
+  const nfd = middleTruncateToWidth('Re\u0301sume\u0301 Re\u0301sume\u0301 Re\u0301sume\u0301.pdf', 12, mono)
+  t.absent(nfd.includes('…\u0301'), 'an accent never hangs on the ellipsis')
+  t.ok(nfd.endsWith('e\u0301.pdf'), nfd)
 })
 
 test('middleTruncateToWidth middle-truncates extensionless names too', (t) => {
