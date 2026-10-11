@@ -46,24 +46,6 @@ export function splitPathForDisplay(p) {
 }
 
 /**
- * Split a filename into a `head` (stem) and a `tail` (extension, including the
- * dot) so it can be rendered with middle truncation: the stem ellipsizes while
- * the extension stays pinned and visible — the filename analogue of
- * `splitPathForDisplay`, which keeps the final path segment. A name with no
- * usable extension (no dot, a leading-dot dotfile like `.gitignore`, or a
- * trailing dot) returns the whole name as `head` so it end-truncates instead.
- * Multi-dot names pin only the final extension (`archive.tar.gz` → `.gz`).
- * @param {string} name
- * @returns {{ head: string, tail: string }}
- */
-export function splitFilenameForDisplay(name) {
-  if (!name || typeof name !== 'string') return { head: '', tail: '' }
-  const dot = name.lastIndexOf('.')
-  if (dot <= 0 || dot === name.length - 1) return { head: name, tail: '' }
-  return { head: name.slice(0, dot), tail: name.slice(dot) }
-}
-
-/**
  * Middle-truncate a filename to fit `maxWidth`, returning a single string like
  * `High.Plains.Dri…BluRay.mp4` — both the beginning and the end stay visible and
  * only the middle is replaced by an ellipsis. The trailing half always contains
@@ -87,17 +69,23 @@ export function middleTruncateToWidth(name, maxWidth, measure) {
   const ell = '…'
   const dot = name.lastIndexOf('.')
   const extLen = dot > 0 && dot < name.length - 1 ? name.length - dot : 0
-  // Try progressively fewer kept characters; the first (largest) candidate that
-  // fits wins. The tail keeps at least half of what's shown, and never less than
-  // the whole extension, so the ending is always a real filename ending.
-  for (let keep = name.length - 1; keep >= 2; keep--) {
+  // The tail keeps at least half of what's shown, and never less than the whole extension, so the
+  // ending is always a real filename ending. Each extra kept character widens the candidate, so
+  // the largest fitting `keep` is found by bisection.
+  /** @param {number} keep */
+  const candidate = (keep) => {
     const tail = Math.min(name.length - 1, Math.max(Math.ceil(keep / 2), extLen))
-    const head = keep - tail
-    if (head < 1 || head + tail > name.length) continue
-    const cand = name.slice(0, head) + ell + name.slice(name.length - tail)
-    if (measure(cand) <= maxWidth) return cand
+    return name.slice(0, keep - tail) + ell + name.slice(name.length - tail)
   }
-  return ell
+  let lo = Math.max(2, extLen + 1)
+  let hi = name.length - 1
+  if (lo > hi || measure(candidate(lo)) > maxWidth) return ell
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2)
+    if (measure(candidate(mid)) <= maxWidth) lo = mid
+    else hi = mid - 1
+  }
+  return candidate(lo)
 }
 
 // A legal share (folder) name: non-empty after trim, at most 255 chars, no path

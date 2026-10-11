@@ -44,6 +44,9 @@ connected directly again, and every change to your relay settings.
 
 - **Windows 10 version 1903 or later is now required.** On 1809, Windows
 kept Mirall's data in a private copy Mirall couldn't read.
+- **Long file and folder names keep their ending.** A name too long for
+its row is shortened in the middle, so the part that tells similar files
+apart stays visible instead of being cut just before the extension.
 
 #### Fixed
 

@@ -1,4 +1,5 @@
-import { splitFilenameForDisplay } from '../../model/share-paths.js'
+import { useRef } from 'react'
+import useFittedName from '../../hooks/useFittedName.js'
 
 interface FileNameProps {
   name: string
@@ -6,40 +7,18 @@ interface FileNameProps {
   className?: string
 }
 
-// Renders a filename with middle truncation that keeps the extension visible —
-// the stem ellipsizes while the trailing `.ext` stays pinned, so a long name
-// reads `report_fin….pdf` instead of losing its end. Same head/tail flex split as FilePath
-// (head truncates, tail is shrink-0); FilePath additionally pins only the last PIN characters
-// of a long tail and caps it at the container. Names with no usable extension
-// fall back to plain end truncation. Full name is in the title for hover + a11y.
-//
-// The two visible spans are `aria-hidden` and the full name is carried by a
-// single `sr-only` node, so assistive tech (and the AX-tree-driven frontend
-// suite) reads one contiguous `report_final.pdf` instead of the stem and
-// extension as two separate text runs.
+// A file or folder name, middle-truncated to its width so both the beginning and the ending stay
+// readable: `report_fin…_v2_final.pdf`. The card it sits in carries the full name as its hover
+// title. The visible text is `aria-hidden` and one `sr-only` node carries the full name, so
+// assistive tech (and the AX-tree-driven frontend suite) never reads the `…`-truncated form.
 export default function FileName({ name, displayName, className = '' }: FileNameProps) {
-  const shown = displayName ?? name
-  const { head, tail } = splitFilenameForDisplay(shown)
-  const srFull = displayName != null && displayName !== name ? name : null
-  if (!tail) {
-    return (
-      <span className={`block truncate ${className}`} title={name}>
-        {srFull ? (
-          <>
-            <span aria-hidden="true">{head || shown}</span>
-            <span className="sr-only">{srFull}</span>
-          </>
-        ) : (
-          head || shown
-        )}
-      </span>
-    )
-  }
+  const hostRef = useRef<HTMLSpanElement>(null)
+  const textRef = useRef<HTMLSpanElement>(null)
+  const display = useFittedName(displayName ?? name, hostRef, textRef)
   return (
-    <span className={`flex min-w-0 ${className}`} title={name}>
-      <span aria-hidden="true" className="truncate min-w-0">{head}</span>
-      <span aria-hidden="true" className="shrink-0 whitespace-pre">{tail}</span>
-      <span className="sr-only">{srFull ?? name}</span>
+    <span ref={hostRef} className={`block truncate ${className}`}>
+      <span ref={textRef} aria-hidden="true">{display}</span>
+      <span className="sr-only">{name}</span>
     </span>
   )
 }

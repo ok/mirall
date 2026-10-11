@@ -116,12 +116,6 @@ export const swallowedRejectionRestrictions = [
 // failure. Each site is keyed by its enclosing scopes and code (test/helpers/lint-site-key.js), and
 // the list is exact, so a new swallow in a listed file is caught as surely as one elsewhere.
 export const swallowedRejectionExemptions = Object.freeze({
-  'src/renderer/components/primitives/FilenameTitle.tsx': {
-    why: 'Feature detection of canvas letterSpacing, which older engines reject; not a promise at all.',
-    sites: [
-      'FilenameTitle > useLayoutEffect > remeasure: try { (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacin',
-    ],
-  },
   'src/renderer/components/toast/bridges/JoinRequestToastBridge.tsx': {
     why: 'A background re-read that only dismisses stale join-request toasts; failing leaves them up.',
     sites: [
@@ -391,17 +385,17 @@ export const promiseLintAllowlist = Object.freeze({
       'no-misused-promises ScanPreviewModal > onConfirm: {busy || overLimit ? undefined : handleConfirm}',
     ],
   },
-  'src/renderer/components/primitives/FilenameTitle.tsx': {
-    why: 'document.fonts.ready never rejects; it only triggers a remeasure.',
-    sites: [
-      'no-floating-promises FilenameTitle > useLayoutEffect: document.fonts?.ready.then(() => { if (!cancelled) remeasure() })',
-    ],
-  },
   'src/renderer/hooks/useAuditLog.ts': {
     why: 'reload catches into the hook\'s error state, which the log screen renders.',
     sites: [
       'no-floating-promises useAuditLog > useEffect > subscribe: void reload()',
       'no-floating-promises useAuditLog > useEffect: void reload()',
+    ],
+  },
+  'src/renderer/hooks/useFittedName.ts': {
+    why: 'document.fonts.ready never rejects; it only triggers a remeasure.',
+    sites: [
+      'no-floating-promises useFittedName > useLayoutEffect: document.fonts?.ready.then(() => { if (!cancelled) remeasure() })',
     ],
   },
   'src/renderer/hooks/usePendingSpaceAction.ts': {

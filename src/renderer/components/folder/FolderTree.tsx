@@ -4,6 +4,7 @@ import { useId } from 'react'
 import { useTranslation } from 'react-i18next'
 import Icon from '../primitives/Icon.js'
 import Badge from '../primitives/Badge.js'
+import FileName from '../primitives/FileName.js'
 import ShareFileRow from '../cards/ShareFileRow.js'
 import { formatSize } from '../../format/utils.js'
 import { badgeStyle } from '../../model/status-badge.js'
@@ -52,6 +53,7 @@ function FolderBranch({ node, ...rest }: { node: FileTreeFolderNode } & FolderTr
         aria-expanded={open}
         aria-controls={groupId}
         aria-label={node.name}
+        title={node.path}
         onClick={() => rest.onToggle(node.path)}
         className="w-full text-left group bg-surface-container-low dark:bg-surface-container-lowest hover:bg-surface-container-highest dark:hover:bg-surface-container-highest rounded-xl transition-colors flex items-center gap-4 p-5 focus-ring"
       >
@@ -64,7 +66,7 @@ function FolderBranch({ node, ...rest }: { node: FileTreeFolderNode } & FolderTr
           <Icon name="folder" className="text-secondary" />
         </span>
         <span className="min-w-0 flex-grow">
-          <span className="font-bold text-accent block truncate">{node.name}</span>
+          <FileName name={node.name} className="font-bold text-accent" />
           <span className="text-xs text-on-surface-variant mt-0.5 block truncate">{metaText}</span>
         </span>
         {(downloading > 0 || preparing > 0) && (

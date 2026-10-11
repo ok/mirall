@@ -9,6 +9,7 @@ import Icon from '../primitives/Icon.js'
 import IconButton from '../primitives/IconButton.js'
 import ActionMenu, { type ActionMenuItemConfig } from '../primitives/ActionMenu.js'
 import Badge from '../primitives/Badge.js'
+import FileName from '../primitives/FileName.js'
 import Avatar from '../primitives/Avatar.js'
 import { roleBadge } from '../../model/status-badge.js'
 import { isMountFault } from '../../../shared/contract/mount-fault.js'
@@ -116,6 +117,7 @@ function ShareCard({
         type="button"
         onClick={() => onOpen(share)}
         aria-label={t('share.openFolder', { name: share.name })}
+        title={share.name}
         className="absolute inset-0 rounded-xl cursor-pointer focus-ring"
       />
 
@@ -139,7 +141,7 @@ function ShareCard({
           )}
         </div>
         <div className="min-w-0 flex-grow">
-          <p className="font-bold text-accent truncate">{share.name}</p>
+          <FileName name={share.name} className="font-bold text-accent" />
           <p className="text-xs truncate mt-0.5 text-on-surface-variant">
             {sourceMissing ? t('share.mountPointGoneHint') : sizeLine}
           </p>

@@ -575,10 +575,19 @@ headline label and its `role="alert"` validation line. The label is a `<span>` w
 than a `<label>`, because the row's action is a button, not a form control — the association goes
 through `aria-describedby`.
 
-`FilePath` and `FileName` keep **exactly one flexible run** next to a pinned ending (the final
-segment, or a filename's extension): ranking two shrinkable spans by `flex-shrink` does not work —
-once the first freezes at zero width Chromium leaves the rest overflowing, which is how a long
-folder name ended up painted over the Browse button. `npm run test:layout:truncation` pins it.
+`FilePath` keeps **exactly one flexible run** next to its pinned final segment: ranking two
+shrinkable spans by `flex-shrink` does not work — once the first freezes at zero width Chromium
+leaves the rest overflowing, which is how a long folder name ended up painted over the Browse
+button.
+
+**Names are middle-truncated, never cut at the end or before the extension.** Every file name, folder
+row and share card name goes through `primitives/FileName.tsx`, and a confirm-modal title through
+`FilenameTitle`; both measure against the real font (`hooks/useFittedName.ts`) and render one text
+node that keeps the beginning and at least half of the ending, extension included
+(`XXX-X002_T001…_01_part01.mov`). The full name is in an `sr-only` node, and the card's outer
+element (or its full-card button) carries it as the hover `title`, so the tooltip shows anywhere on
+the card, not only over the name; a file row inside a folder shows its path within the share.
+`npm run test:layout:case -- truncation` pins both.
 
 - **The label follows the state, not the caller.** No path yet → `pathField.browse` ("Browse…"); a
   path in the field, **or one still loading** → `actions.change` ("Change"). Callers used to pass it
