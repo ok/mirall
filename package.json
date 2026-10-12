@@ -71,7 +71,7 @@
     "globals": "^17.13.0",
     "hyperdht": "~6.32.0",
     "hyperdrive": "13.3.4",
-    "i18next": "^26.4.2",
+    "i18next": "^26.4.3",
     "knip": "^6.39.0",
     "marked": "^18.0.14",
     "modern-screenshot": "^4.7.0",
