@@ -56,6 +56,10 @@ even your own file. A mirror folder you delete now stays deleted.
 - **Mirall no longer stops when your computer's secure storage can't open
 your identity.** You can restore from your backup, try again, or start
 fresh; the old data is set aside, not deleted.
+- **Mirall no longer mistakes ordinary folders for cloud-synced ones.** A
+folder whose path merely contained a word like "sandbox", "Inbox" or
+"Megan" was taken for a Box or Mega folder and couldn't be shared or
+mirrored.
 - **The window no longer goes blank on a list that only just needs
 scrolling.**
 - **A download that can't be written now says why** instead of retrying as
