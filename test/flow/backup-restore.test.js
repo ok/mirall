@@ -67,7 +67,8 @@ test('a device restored from a backup catches up from a co-member, then writes w
   const status = await restoring.request('identity:status')
   t.ok(status.restore, 'the restored device starts in restore mode')
   t.is((await restoring.request('profile:get')).displayName, 'Alice', 'with the profile as it was backed up')
-  await restoring.until('identity:status', {}, (s) => s.restore?.profile?.released === true, { ms: 180000, every: 500 })
+  // The profile and the space's catalog are released apart; a hold still on at stop carries into the next boot.
+  await restoring.until('identity:status', {}, (s) => s.restore?.profile?.released === true && s.restore.heldSpaceIds.length === 0, { ms: 180000, every: 500 })
   await stop(restoring)
 
   const back = await launch()
