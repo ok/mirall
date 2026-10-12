@@ -2,7 +2,7 @@ import test from 'brittle'
 import { releaseVerdict } from '../../src/shared/core/restore-hold-rules.js'
 import { RESTORE_VERDICT } from '../../src/shared/contract/restore-verdict.js'
 
-const state = (over = {}) => ({ localLength: 10, contiguousLength: 10, holderLengths: [10], firstHolderAt: 0, now: 30_000, dwellMs: 20_000, coMembers: 1, ...over })
+const state = (over = {}) => ({ localLength: 10, contiguousLength: 10, holderLengths: [10], firstHolderAt: 0, now: 30_000, dwellMs: 20_000, coMembers: 1, missingServable: true, ...over })
 
 test('a core no connected peer holds stays held', (t) => {
   t.is(releaseVerdict(state({ holderLengths: [], firstHolderAt: null })), RESTORE_VERDICT.NO_HOLDER)
@@ -21,6 +21,13 @@ test('the longest holder decides, not the first', (t) => {
 
 test('a matched length with blocks still missing is not caught up', (t) => {
   t.is(releaseVerdict(state({ contiguousLength: 7 })), RESTORE_VERDICT.DOWNLOADING)
+})
+
+test('REGRESSION (FIX: restore hold on a sparse holder) — a missing block no holder has does not hold the core', (t) => {
+  t.is(releaseVerdict(state({ contiguousLength: 7, missingServable: false, now: 19_999 })), RESTORE_VERDICT.DWELL)
+  t.is(releaseVerdict(state({ contiguousLength: 7, missingServable: false })), RESTORE_VERDICT.CAUGHT_UP)
+  t.is(releaseVerdict(state({ contiguousLength: 7, holderLengths: [12], missingServable: false })), RESTORE_VERDICT.BEHIND,
+    'a holder with a longer copy still keeps it held')
 })
 
 test('a caught-up core waits out the dwell after the first holder answered', (t) => {

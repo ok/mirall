@@ -26,6 +26,15 @@ function coMembers(spaces, self, spaceId) {
   return keys.size
 }
 
+// Whether a connected holder has a block this copy still lacks; only such a block is worth waiting for.
+// Peers are asked first, as their bitfields are in memory and the local check reads storage.
+async function missingServable(core) {
+  for (let i = core.contiguousLength; i < core.length; i++) {
+    if (core.peers.some((peer) => peer.remoteBitfield?.get(i)) && !(await core.has(i))) return true
+  }
+  return false
+}
+
 export class RestoreCatchUp extends Subsystem {
   constructor(name, deps) { super(name, deps); this.require('ipc', 'profile') }
 
@@ -112,6 +121,7 @@ export class RestoreCatchUp extends Subsystem {
       now: Date.now(),
       dwellMs: getRestoreReleaseDwellMs(),
       coMembers: members,
+      missingServable: await missingServable(core),
       emptyMayBeSolo: !isProfile,
     })
     if (isProfile) this.report({ verdict, length: core.contiguousLength, target: Math.max(core.length, ...holderLengths), released: false })
