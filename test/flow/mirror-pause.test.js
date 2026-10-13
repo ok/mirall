@@ -3,18 +3,12 @@ import fs from 'fs'
 import path from 'path'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpace } from '../helpers/peer.js'
-import { mkTmpDir, patternedBytes, mkStoreDir } from '../helpers/fixtures.js'
+import { mkTmpDir, patternedBytes, mkStoreDir, waitForSize } from '../helpers/fixtures.js'
 import { scaled } from '../helpers/timing.js'
 import { PARTIAL_SUFFIX as PARTIAL } from '../../src/shared/transfer/partial-suffix.js'
-import { waitFor } from '../helpers/poll.js'
 
 // A short foreign poll so resume re-fetches promptly instead of waiting the 30s production cadence.
 const MIRROR_FLAGS = { foreignPollIntervalMs: 1500 }
-
-async function waitForSize(file, want, ms = 60000) {
-  const reached = () => { try { return fs.statSync(file).size === want } catch { return false } }
-  await waitFor(reached, ms, { interval: 200, label: `${file} to reach ${want} bytes` })
-}
 
 // REGRESSION (FIX-128): pausing a mirror must abort the file the overlay mirror
 // is fetching right now, not just stop launching the next one. The owner shares a

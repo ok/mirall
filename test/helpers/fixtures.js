@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { scaled } from './timing.js'
 import { tmpPath } from './tmp.js'
+import { waitFor } from './poll.js'
 
 // Recursive on-disk byte total of a directory (shared by the store-growth/disk
 // assertions across flow tests).
@@ -60,4 +61,11 @@ export async function waitForFile(p, { present = true, ms = 90000, every = 500 }
     }
     await new Promise((r) => setTimeout(r, every))
   }
+}
+
+// Resolves once `file` is exactly `want` bytes. A file a mirror or download lands is renamed into
+// place whole, so reaching the size is the landing.
+export async function waitForSize(file, want, { ms = 60000, every = 200 } = {}) {
+  const reached = () => { try { return fs.statSync(file).size === want } catch { return false } }
+  await waitFor(reached, ms, { interval: every, label: `${file} to reach ${want} bytes` })
 }
