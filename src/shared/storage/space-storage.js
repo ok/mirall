@@ -30,7 +30,7 @@ async function shareContribution(spaceId, share, me) {
   const mount = await getForeignMount(spaceId, share.id)
   if (!mount?.enabled) {
     // Browse-only: the share counts toward what the space holds, nothing is materialized.
-    const { totalBytes } = await backend.listPeerWithMeta(spaceId, share, 0)
+    const { totalBytes } = await backend.listPeerWithMeta(spaceId, share, { limit: 0 })
     return { totalBytes, onDeviceBytes: 0 }
   }
   // Mirrored: a file counts on-device iff its verified-download record still matches
@@ -39,10 +39,13 @@ async function shareContribution(spaceId, share, me) {
   // the user deleted from the mirror keeps counting only until the sync loop re-lands it.
   const verified = await listVerifiedForShare(spaceId, share.id)
   let onDeviceBytes = 0
-  const { totalBytes } = await backend.listPeerWithMeta(spaceId, share, 0, (entry) => {
-    if (entry.contentHash && verified.get(entry.relPath) === entry.contentHash && Number.isFinite(entry.size)) {
-      onDeviceBytes += entry.size
-    }
+  const { totalBytes } = await backend.listPeerWithMeta(spaceId, share, {
+    limit: 0,
+    onEach: (entry) => {
+      if (entry.contentHash && verified.get(entry.relPath) === entry.contentHash && Number.isFinite(entry.size)) {
+        onDeviceBytes += entry.size
+      }
+    },
   })
   return { totalBytes, onDeviceBytes }
 }

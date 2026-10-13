@@ -58,11 +58,11 @@ function ensurePeerCatalogWatch(spaceId, share, keyHex, sck) {
 // true {total, totalBytes} (folder-info passes limit=0 to count only). `onEach` observes
 // every counted entry regardless of the cap — the space-storage summary sums a mirror's
 // verified bytes through it without retaining rows.
-export async function folderListPeerWithMeta(spaceId, share, limit = Infinity, onEach = null) {
-  const { keyHex, sck, readable } = await resolvePeerCatalog(spaceId, share)
+export async function folderListPeerWithMeta(spaceId, share, { limit = Infinity, onEach = null, timeoutMs, space } = {}) {
+  const { keyHex, sck, readable } = await resolvePeerCatalog(spaceId, share, { space })
   if (!readable) return { entries: [], complete: true, total: 0, totalBytes: 0 }
   ensurePeerCatalogWatch(spaceId, share, keyHex, sck)
-  return await collectPeerShare(keyHex, share.id, { sck, limit, onEach })
+  return await collectPeerShare(keyHex, share.id, { sck, limit, onEach, timeoutMs })
 }
 
 // On an owner-catalog append, re-resolve every active overlay-folder transfer from THIS

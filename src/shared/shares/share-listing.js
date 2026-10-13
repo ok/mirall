@@ -154,7 +154,7 @@ async function loadListingContext(spaceId, share, isOwn, deps) {
 async function readShareCatalog(spaceId, share, isOwn, backend, cap, signal) {
   let read
   try {
-    read = isOwn ? await backend.listOwn(spaceId, share.id, cap) : await backend.listPeerWithMeta(spaceId, share, cap)
+    read = isOwn ? await backend.listOwn(spaceId, share.id, cap) : await backend.listPeerWithMeta(spaceId, share, { limit: cap })
   } catch (err) {
     if (!isOwn && !signal?.aborted) markListIncomplete(spaceId)
     throw err
