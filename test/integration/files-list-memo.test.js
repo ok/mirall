@@ -90,6 +90,25 @@ test('the backstop reads a catalog every Nth listing whatever its version', asyn
   t.is(deps.reads.peer1pub, 3, 'listings 1, 4 and 7 read; the two between each are skips')
 })
 
+// REGRESSION (FIX-B3-MEMO-COMPLETE: a backstop re-read that stalled answered the memo's last
+// complete set but called the listing incomplete, so the still-loading note flickered on every
+// backstop listing over a slow link.)
+test('REGRESSION (FIX-B3-MEMO-COMPLETE): a stalled backstop read over a memoised set stays complete, and still flags the re-poke', async (t) => {
+  const ctx = await setup(t, { listFullReadEvery: 2 })
+  const stalls = new Set()
+  const deps = scriptedDeps({ versions: { peer1pub: 1 }, stalls })
+  const first = await listFiles(ctx.spaceId, [memberNo(1)], { deps })
+  t.is(first.complete, true, 'a full read')
+  await listFiles(ctx.spaceId, [memberNo(1)], { deps }) // a memo skip
+  stalls.add('peer1pub')
+  takeIncompleteListSpaces()
+  const backstop = await listFiles(ctx.spaceId, [memberNo(1)], { deps })
+  t.is(deps.reads.peer1pub, 2, 'the third listing is the backstop read')
+  t.alike(backstop.entries.map((e) => e.path), first.entries.map((e) => e.path), 'it answers the memo\'s set')
+  t.is(backstop.complete, true, 'rows from the last complete read are the whole set')
+  t.ok(takeIncompleteListSpaces().includes(ctx.spaceId), 'the stalled read still asks the tick to re-poke')
+})
+
 test('listFullReadEvery of 1 reads on every listing', async (t) => {
   const ctx = await setup(t, { listFullReadEvery: 1 })
   const deps = scriptedDeps({ versions: { peer1pub: 1 } })

@@ -156,9 +156,11 @@ async function prefetchLooseRowState(spaceId, peerEntries, deps) {
   return { verified, claims }
 }
 
-// One member's catalog, under the fan-out's budget, and whether the read stalled. A member whose read
-// fails contributes no rows instead of failing the listing, and counts as stalled. A catalog whose
-// version has not moved since its last complete read is served from the listing memo instead.
+// One member's catalog, under the fan-out's budget, and whether those rows may be short of the
+// whole set. A member whose read fails contributes no rows instead of failing the listing. A catalog
+// whose version has not moved since its last complete read is served from the listing memo instead,
+// and a backstop read that cannot finish answers that memo's set, which is whole by construction —
+// so `partial` is true only for a stalled or failed read that had no complete set to fall back on.
 async function readPeerEntries(spaceId, member, { budget, space, deps }) {
   const share = looseShareFor(member)
   const { keyHex } = readCatalogKey(share)
@@ -166,7 +168,7 @@ async function readPeerEntries(spaceId, member, { budget, space, deps }) {
   try {
     const version = await deps.catalogVersion(spaceId, share, { space })
     const memo = takeListingMemo(spaceId, keyHex, version, { fullReadEvery: getListFullReadEvery() })
-    if (memo.entries) return { entries: memo.entries, stalled: false }
+    if (memo.entries) return { entries: memo.entries, partial: false }
     log.debug('loose catalog read for', keyHex.slice(0, 16) + '...', '-', memo.reason)
     prior = beginListingRead(spaceId, keyHex, memo.reason)
     const read = await deps.listPeer(spaceId, share, { timeoutMs: budget, space })
@@ -174,14 +176,16 @@ async function readPeerEntries(spaceId, member, { budget, space, deps }) {
     // append unless the stream stays stalled; the deficit makes the convergence tick re-poke the
     // listing. A legitimately empty catalog is not stalled, so it is not re-poked forever.
     if (read.stalled) markListIncomplete(spaceId)
-    return { entries: settleListingRead(spaceId, keyHex, read, prior), stalled: Boolean(read.stalled) }
+    const entries = settleListingRead(spaceId, keyHex, read, prior)
+    return { entries, partial: Boolean(read.stalled) && entries !== prior?.entries }
   } catch (err) {
     // Flag the space the way a stalled read does: without this the convergence tick has no
     // reason to re-poke, so a member whose read threw would stay missing from the listing
     // until some unrelated listing poke arrived.
     markListIncomplete(spaceId)
     log.warn('loose catalog read failed for', member.publicKey.slice(0, 16) + '...', '-', err.message)
-    return { entries: settleListingRead(spaceId, keyHex, null, prior), stalled: true }
+    const entries = settleListingRead(spaceId, keyHex, null, prior)
+    return { entries, partial: entries !== prior?.entries }
   }
 }
 
@@ -217,7 +221,7 @@ async function collectLooseInPlace(spaceId, members, { localPublicKey, space, de
   if (prune.length) await deps.pruneDownloadClaims(spaceId, prune).catch((err) => log.debug('claim prune failed:', err.message))
   // An offline member's read always stalls and its rows already say so, so only a member who is
   // online holds the list open.
-  return { rows: out, complete: reads.every((read, i) => !read.stalled || !online[i]) }
+  return { rows: out, complete: reads.every((read, i) => !read.partial || !online[i]) }
 }
 
 // `space` is the caller's already-read record, so a listing costs one spaces-bee read, not two.
