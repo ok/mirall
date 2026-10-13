@@ -1,5 +1,5 @@
 // Text-truncation harness (LOCAL/dev-machine only — spawns a real Electron GUI process, like the
-// agent-desktop frontend suite). Mounts the REAL <PathRow>, file cards, a folder row with a file row
+// agent-desktop frontend suite). Mounts the REAL <PathRow>, loose file rows, a folder row with a file row
 // inside it and a share card in deliberately narrow fields and asserts the text never escapes them.
 //
 // A path keeps its final segment; a name is middle-truncated so both its beginning and the part
@@ -10,7 +10,7 @@ import './harness-bootstrap.js'
 import { createRoot } from 'react-dom/client'
 import '../../src/renderer/platform/i18n.js'
 import PathRow from '../../src/renderer/components/path/PathRow.js'
-import FileCard from '../../src/renderer/components/cards/FileCard.js'
+import FileRow from '../../src/renderer/components/cards/FileRow.js'
 import FolderTree from '../../src/renderer/components/folder/FolderTree.js'
 import ShareCard from '../../src/renderer/components/cards/ShareCard.js'
 import { buildFileTree } from '../../src/renderer/model/file-tree.js'
@@ -69,7 +69,7 @@ const looseFile = (name: string, status: FileEntry['status'] = 'remote'): FileEn
 const downloading: Decoration = { bytes: 30, total: 100, speed: 5e6, avgSpeed: 5e6, eta: 643 }
 const cardHandlers = {
   isOwn: false, onDownload: noop, onCancel: noop, onPause: noop, onReveal: noop, onUnshare: noop, onCancelPublish: noop,
-  spaceId: 'space1', recipients: [],
+  spaceId: 'space1', recipients: [], members: [], downloadSummary: null,
 }
 const share: ShareWithRole = {
   id: 'share1',
@@ -89,13 +89,13 @@ createRoot(document.getElementById('root') as HTMLElement).render(
       <PathRow path={LONG_PATH} onAction={noop} />
     </div>
     <div data-test="file">
-      <FileCard file={looseFile(LONG_FILE)} decoration={null} seeded={false} {...cardHandlers} />
+      <FileRow kind="loose" file={looseFile(LONG_FILE)} decoration={null} seeded={false} {...cardHandlers} />
     </div>
     <div data-test="lane">
-      <FileCard file={looseFile(LONG_FILE, 'downloading')} decoration={downloading} seeded={false} {...cardHandlers} />
+      <FileRow kind="loose" file={looseFile(LONG_FILE, 'downloading')} decoration={downloading} seeded={false} {...cardHandlers} />
     </div>
     <div data-test="short">
-      <FileCard file={looseFile(SHORT_FILE)} decoration={null} seeded={false} {...cardHandlers} />
+      <FileRow kind="loose" file={looseFile(SHORT_FILE)} decoration={null} seeded={false} {...cardHandlers} />
     </div>
     <div data-test="folder">
       <FolderTree

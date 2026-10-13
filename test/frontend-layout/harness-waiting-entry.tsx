@@ -1,12 +1,12 @@
 // Real-Chromium harness for the owner's row while members wait on its hash. Mounts the REAL
-// <FileCard> — publishing, with three members waiting — at a wide, a medium and a narrow row, and
+// loose <FileRow> — publishing, with three members waiting — at a wide, a medium and a narrow row, and
 // asserts the waiting cluster yields width before the hash bar does: nothing overflows the row,
 // the indexing bar keeps its width, the "N waiting" toggle stays inside the card, and only a narrow
 // row sheds the avatar stack.
 import './harness-bootstrap.js'
 import { createRoot } from 'react-dom/client'
 import '../../src/renderer/platform/i18n.js'
-import FileCard from '../../src/renderer/components/cards/FileCard.js'
+import FileRow from '../../src/renderer/components/cards/FileRow.js'
 import type { FileEntry, PeerDownloadSummary, SpaceMember } from '../../src/renderer/types/types.js'
 import type { Decoration } from '../../src/renderer/types/ui.js'
 
@@ -55,7 +55,7 @@ createRoot(document.getElementById('root') as HTMLElement).render(
   <div className="bg-surface p-8 space-y-4">
     {WIDTHS.map(({ id, w }) => (
       <div key={id} data-row={id} style={{ width: w }}>
-        <FileCard file={file} decoration={decoration} seeded={false} members={members} downloadSummary={summary} {...handlers} />
+        <FileRow kind="loose" file={file} decoration={decoration} seeded={false} members={members} downloadSummary={summary} {...handlers} />
       </div>
     ))}
   </div>,

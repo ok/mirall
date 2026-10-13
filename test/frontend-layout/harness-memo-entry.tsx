@@ -10,18 +10,18 @@
 //      walks FolderScreen runs over it (buildFileTree, then filterTree) do not re-run per frame.
 //      `treeBuilds` is the measurement: it must not move when a decoration lands.
 //
-// HOW THE COUNT IS HONEST. The counter cannot live inside the real ShareFileRow without editing
+// HOW THE COUNT IS HONEST. The counter cannot live inside the real FileRow without editing
 // it, and a plain unmemoized wrapper around it would count the WRAPPER's renders — which happen on
 // every parent render regardless of whether the memo bailed, so it would fail even against a
 // perfect implementation. Instead `Counted` is itself memo()'d with the DEFAULT shallow compare,
-// the same comparator the real `memo(ShareFileRow)` uses, and receives the same props. Its
+// the same comparator the real `memo(FileRow)` uses, and receives the same props. Its
 // bail-out condition is therefore identical to the real component's. `memoized()` below closes the
 // remaining gap by asserting the real export really is a memo with the default compare, so the two
 // checks together are equivalent to counting the real component.
 import { memo, useCallback, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import '../../src/renderer/platform/i18n.js'
-import ShareFileRow, { type ShareFileRowProps } from '../../src/renderer/components/cards/ShareFileRow.js'
+import FileRow, { type ShareFileRowProps } from '../../src/renderer/components/cards/FileRow.js'
 import { reconcileFiles } from '../../src/renderer/model/share-files-reconcile.js'
 import { buildFileTree } from '../../src/renderer/model/file-tree.js'
 import type { Decoration } from '../../src/renderer/hooks/useDecorations.js'
@@ -94,7 +94,7 @@ function countedTree(files: ShareFileRowData[]): FileTreeNode[] {
 
 const Counted = memo(function Counted(props: ShareFileRowProps) {
   renders[props.file.relPath] = (renders[props.file.relPath] ?? 0) + 1
-  return <ShareFileRow {...props} />
+  return <FileRow {...props} />
 })
 
 // The real export must be a memo with the DEFAULT compare — memo(fn) with no comparator. React
@@ -142,8 +142,10 @@ function Harness() {
 
   const rows = useMemo(() => files.map((file) => (
     <Counted
+      kind="share"
       key={file.relPath}
       file={file}
+      displayName={file.relPath}
       decoration={decorations.get(file.relPath) ?? null}
       seeded={false}
       isOwn={false}
@@ -195,7 +197,7 @@ async function run(): Promise<void> {
   await document.fonts.ready
   await sleep(100)
 
-  const isMemo = memoized(ShareFileRow)
+  const isMemo = memoized(FileRow)
   const mountCounts = snapshot()
   const mountedOnce = PATHS.every((p) => mountCounts[p] === 1)
 

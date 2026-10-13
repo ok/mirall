@@ -93,7 +93,7 @@ const EXPECTED_GROUPS: Array<Omit<GroupRead, 'labelled'>> = [
   { label: 'Not yet', names: ['Nina'] },
 ]
 
-// Representative lane widths: FolderScreen basis-72 (count word shown), FileCard basis-56 (count
+// Representative lane widths: a folder row basis-72 (count word shown), a loose row basis-56 (count
 // relies on avatars), the bumped 180px floor, and an ultra-narrow lane (speed only).
 const LANES: Array<{ id: string; w: number }> = [
   { id: 'folder', w: 288 },

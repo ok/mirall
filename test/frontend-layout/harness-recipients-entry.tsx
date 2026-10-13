@@ -1,5 +1,5 @@
-// Real-Chromium harness for who-has-the-file on the owner's resting row. Mounts the REAL <FileCard>
-// and the REAL <ShareFileRow> (a folder row, with its leading gutter) at four widths, two of three
+// Real-Chromium harness for who-has-the-file on the owner's resting row. Mounts the REAL <FileRow>
+// of both kinds (a loose row, and a folder row with its leading gutter) at four widths, two of three
 // members holding the file, and asserts the cluster sheds before the file name does: nothing
 // overflows, the toggle never wraps, the faces show only on a wide row, the sentence gives way to
 // "2/3" on a narrow one, and the name keeps a readable width. A further row opens its list and then
@@ -8,8 +8,7 @@ import './harness-bootstrap.js'
 import { useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import '../../src/renderer/platform/i18n.js'
-import FileCard from '../../src/renderer/components/cards/FileCard.js'
-import ShareFileRow from '../../src/renderer/components/cards/ShareFileRow.js'
+import FileRow from '../../src/renderer/components/cards/FileRow.js'
 import type { FileEntry, FileRecipient, FileStatus, ShareFileRow as ShareFileRowData, SpaceMember } from '../../src/renderer/types/types.js'
 
 interface RowMetrics {
@@ -57,16 +56,17 @@ const noop = () => {}
 function Row({ kind }: { kind: (typeof KINDS)[number] }) {
   if (kind === 'loose') {
     return (
-      <FileCard
-        file={loose} isOwn decoration={null} seeded={false} spaceId="s1" members={members} recipients={received(loose.path, '__loose__')}
+      <FileRow
+        kind="loose" file={loose} isOwn decoration={null} seeded={false} spaceId="s1" members={members} downloadSummary={null}
+        recipients={received(loose.path, '__loose__')}
         onDownload={noop} onCancel={noop} onPause={noop} onReveal={noop} onUnshare={noop} onCancelPublish={noop}
       />
     )
   }
   return (
-    <ShareFileRow
-      file={folderFile} decoration={null} seeded={false} isOwn manualControls={false} spaceId="s1" members={members}
-      downloadSummary={null} recipients={received(NAME, 'share1')} ownerKey={OWNER} leadingGutter
+    <FileRow
+      kind="share" file={folderFile} displayName={NAME} decoration={null} seeded={false} isOwn manualControls={false} spaceId="s1" members={members}
+      downloadSummary={null} recipients={received(NAME, 'share1')} ownerKey={OWNER}
       onDownload={noop} onReveal={noop} onPause={noop} onCancel={noop}
     />
   )
@@ -78,8 +78,8 @@ function OrphanRow() {
   const [status, setStatus] = useState<FileStatus>('synced')
   setOrphanStatus = setStatus
   return (
-    <ShareFileRow
-      file={{ ...folderFile, status }} decoration={null} seeded={false} isOwn manualControls={false} spaceId="s1" members={members}
+    <FileRow
+      kind="share" file={{ ...folderFile, status }} displayName={NAME} decoration={null} seeded={false} isOwn manualControls={false} spaceId="s1" members={members}
       downloadSummary={null} recipients={received(NAME, 'share1')} ownerKey={OWNER}
       onDownload={noop} onReveal={noop} onPause={noop} onCancel={noop}
     />

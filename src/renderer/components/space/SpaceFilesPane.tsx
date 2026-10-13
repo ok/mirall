@@ -1,18 +1,15 @@
 import { useTranslation } from 'react-i18next'
 import Icon from '../primitives/Icon.js'
-import FileCard from '../cards/FileCard.js'
+import FileRow, { type LooseFileRowProps } from '../cards/FileRow.js'
 import LoadingHeadline from '../primitives/LoadingHeadline.js'
 import Callout from '../primitives/Callout.js'
 import SpaceSection from './SpaceSection.js'
-import type { ComponentProps } from 'react'
 import type { FileEntry } from '../../types/types.js'
 import type { PersonKey } from '../../../shared/contract/principals.js'
 
-// The per-row callbacks and lookups are FileCard's contract, not this section's: forwarded
+// The per-row callbacks and lookups are FileRow's contract, not this section's: forwarded
 // untouched, so re-declaring them here would be a second copy to keep in step.
-type CardProps = ComponentProps<typeof FileCard>
-
-type SpaceFilesPaneProps = Pick<CardProps,
+type SpaceFilesPaneProps = Pick<LooseFileRowProps,
   'onDownload' | 'onCancel' | 'onPause' | 'onReveal' | 'onUnshare'
   | 'onCancelPublish' | 'members' | 'spaceId'
 > & {
@@ -24,10 +21,10 @@ type SpaceFilesPaneProps = Pick<CardProps,
   incomplete: boolean
   error: unknown
   onRetry: () => void
-  getDecoration: (path: string) => CardProps['decoration']
+  getDecoration: (path: string) => LooseFileRowProps['decoration']
   isSeeded: (path: string) => boolean
-  getDownloadSummary: (path: string) => CardProps['downloadSummary']
-  getRecipients: (path: string) => CardProps['recipients']
+  getDownloadSummary: (path: string) => LooseFileRowProps['downloadSummary']
+  getRecipients: (path: string) => LooseFileRowProps['recipients']
 }
 
 /**
@@ -40,7 +37,7 @@ type SpaceFilesPaneProps = Pick<CardProps,
  */
 export default function SpaceFilesPane(props: SpaceFilesPaneProps) {
   const { t } = useTranslation()
-  const { files, selfKey, loading, incomplete, error, onRetry, getDecoration, isSeeded, getDownloadSummary, getRecipients, ...card } = props
+  const { files, selfKey, loading, incomplete, error, onRetry, getDecoration, isSeeded, getDownloadSummary, getRecipients, ...row } = props
 
   if (loading) return <LoadingHeadline label={t('space.loadingFiles')} />
 
@@ -71,7 +68,8 @@ export default function SpaceFilesPane(props: SpaceFilesPaneProps) {
     <SpaceSection title={t('space.filesShared')} count={t('space.fileCount', { count: files.length })}>
       {note}
       {files.map((file) => (
-        <FileCard
+        <FileRow
+          kind="loose"
           key={`${file.owner.publicKey}-${file.path}`}
           file={file}
           isOwn={selfKey !== null && file.owner.publicKey === selfKey}
@@ -79,7 +77,7 @@ export default function SpaceFilesPane(props: SpaceFilesPaneProps) {
           seeded={isSeeded(file.path)}
           downloadSummary={getDownloadSummary(file.path)}
           recipients={getRecipients(file.path)}
-          {...card}
+          {...row}
         />
       ))}
     </SpaceSection>

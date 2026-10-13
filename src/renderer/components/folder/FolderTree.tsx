@@ -1,11 +1,11 @@
 // Recursive renderer for the collapsible FolderScreen tree: folders are disclosure
-// buttons (aria-expanded + aria-controls) over native ShareFileRow leaves.
+// buttons (aria-expanded + aria-controls) over FileRow leaves.
 import { useId } from 'react'
 import { useTranslation } from 'react-i18next'
 import Icon from '../primitives/Icon.js'
 import Badge from '../primitives/Badge.js'
 import FileName from '../primitives/FileName.js'
-import ShareFileRow from '../cards/ShareFileRow.js'
+import FileRow from '../cards/FileRow.js'
 import { formatSize } from '../../format/utils.js'
 import { badgeStyle } from '../../model/status-badge.js'
 import type { Decoration } from '../../types/ui.js'
@@ -101,13 +101,13 @@ export default function FolderTree(props: FolderTreeProps) {
         node.kind === 'folder' ? (
           <FolderBranch key={`folder:${node.path}`} node={node} {...props} />
         ) : (
-          <ShareFileRow
+          <FileRow
+            kind="share"
             key={`file:${node.path}`}
             file={node.entry}
             decoration={rest.getDecoration(node.entry.relPath)}
             seeded={rest.isSeeded(node.entry.relPath)}
             displayName={node.name}
-            leadingGutter
             isOwn={rest.isOwn}
             manualControls={rest.manualControls}
             spaceId={rest.spaceId}
