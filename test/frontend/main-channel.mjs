@@ -106,6 +106,15 @@ function installHooks() {
     const walk = (items) => items.flatMap((i) => [i, ...(i.submenu ? walk(i.submenu.items) : [])])
     return walk(Menu.getApplicationMenu()?.items ?? [])
   }
+  // A real menu click is a user gesture, and pages gate things on one (a file chooser opens only
+  // within a few seconds of it). Grant the page that activation before the item fires.
+  const clickItem = async (item) => {
+    if (!item || !item.enabled || !item.visible) return 'disabled'
+    const win = appWindow()
+    await win?.webContents.executeJavaScript('0', true)
+    item.click(undefined, win, win?.webContents)
+    return 'menu'
+  }
   const fe = {
     reapplyOnLoad: false,
     picks: 0,
@@ -162,15 +171,11 @@ function installHooks() {
     accelerators() {
       return menuItems().map((i) => i.accelerator).filter(Boolean)
     },
-    // A real key equivalent is a user gesture, and pages gate things on one (a file chooser opens
-    // only within a few seconds of it). Grant the page that activation before the item fires.
-    async clickMenu(accelerator) {
-      const item = menuItems().find((i) => i.accelerator === accelerator)
-      if (!item || !item.enabled || !item.visible) return 'disabled'
-      const win = appWindow()
-      await win?.webContents.executeJavaScript('0', true)
-      item.click(undefined, win, win?.webContents)
-      return 'menu'
+    clickMenu(accelerator) {
+      return clickItem(menuItems().find((i) => i.accelerator === accelerator))
+    },
+    clickMenuLabel(label) {
+      return clickItem(menuItems().find((i) => i.label === label))
     },
     // sendInputEvent only queues the events. Resolve after the page has rendered a frame past them,
     // so the handler's state change has landed before the harness's next step — a press that
@@ -277,6 +282,10 @@ export class MainChannel {
     })
     if (accelerator) return this.eval(`globalThis.__fe.clickMenu(${JSON.stringify(accelerator)})`)
     return this.eval(`globalThis.__fe.sendInput(${JSON.stringify(keyEvents(parsed))})`)
+  }
+
+  clickMenuLabel(label) {
+    return this.eval(`globalThis.__fe.clickMenuLabel(${JSON.stringify(label)})`)
   }
 
   // Pointer events at a screen point (the AX bounds space), translated into the window's content.
