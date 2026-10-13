@@ -8,8 +8,8 @@ import { workDir } from '../paths.mjs'
 
 // While the owner is still hashing a file, a member whose mirror is waiting on it shows on the
 // owner's row: the hashing bar stays, and beside it an avatar stack naming the member plus a
-// "1 waiting" toggle. Expanded, the dropdown lists the member as "Waiting for indexing" — never the
-// offline-downloader "Waiting" — with no progress bar, and a third member who neither waits nor
+// "1 waiting" toggle. Expanded, the dropdown lists the member under Waiting as "Waiting for indexing" —
+// never the offline-downloader "Waiting" — with no progress bar and no Downloading group, and a third member who neither waits nor
 // holds the file under "Not yet"; the row never reads as sending. When the member pauses its mirror, the waiter leaves the
 // owner's row at once while the hash is still running.
 //
@@ -28,6 +28,18 @@ function subtree(node, pred) {
     if (hit) return hit
   }
   return null
+}
+
+// Each heading's label, from the heading or, when its text is a child node, from that text.
+function headingsOf(region) {
+  const nodes = flatten(region)
+  return nodes.flatMap((n, i) => n.role === 'heading' ? [{ at: i, label: n.label || nodes[i + 1]?.label || '' }] : [])
+}
+
+// The group a name is listed under: the last heading before it in document order.
+function groupOf(region, who) {
+  const at = flatten(region).findIndex((n) => n.role !== 'heading' && n.label.includes(who))
+  return headingsOf(region).filter((h) => h.at < at).at(-1)?.label ?? null
 }
 
 export default async function s149({ runDir, bootstrap }) {
@@ -81,7 +93,7 @@ export default async function s149({ runDir, bootstrap }) {
       assert(await A.has({ name: 'Waiting for this file: Bob' }), 'the avatar stack names the waiting member')
     })
 
-    await r.ok('expanded, the dropdown lists Bob as Waiting for indexing with no progress bar, and Carol as Not yet', async () => {
+    await r.ok('expanded, the dropdown lists Bob under Waiting as Waiting for indexing with no progress bar, and Carol as Not yet', async () => {
       await A.click(WAITING)
       await waitFor(() => A.has({ name: LIST }), 10000, 'recipients region')
       const tree = await A.snap()
@@ -97,6 +109,10 @@ export default async function s149({ runDir, bootstrap }) {
       assert(regionText.includes('Waiting for indexing'), 'his row reads Waiting for indexing')
       assert(!flatten(region).some((n) => n.role === 'progressbar'), 'a waiting row has no progress bar')
       assert(!(await A.has({ role: 'progressbar', name: "Bob's download" })), 'nor anywhere on the row')
+      // REGRESSION (FIX-WAITING: members who only wait were listed under Downloading)
+      const headings = headingsOf(region).map((h) => h.label)
+      assert(groupOf(region, 'Bob') === 'Waiting', `Bob is listed under Waiting (headings: ${headings.join(', ')})`)
+      assert(!headings.includes('Downloading'), 'there is no Downloading group while nobody is moving')
       await A.shot('s149-A-waiters-list', runDir)
     })
 

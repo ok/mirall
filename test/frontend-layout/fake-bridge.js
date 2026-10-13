@@ -78,6 +78,7 @@
       case 'space:pending-requests': return (window.__HARNESS_CFG && window.__HARNESS_CFG.pendingRequests) || []
       case 'space:deny-member': return (window.__HARNESS_CFG && window.__HARNESS_CFG.denyReplies && window.__HARNESS_CFG.denyReplies.shift()) || { outcome: 'denied' }
       case 'foreign-folder:list-all': return []
+      case 'serving:detail-subscribe': return { peers: (window.__HARNESS_CFG && window.__HARNESS_CFG.detail) || [] }
       case 'owned-folder:list-all': return []
       default: return null
     }

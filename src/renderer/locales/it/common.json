@@ -345,6 +345,7 @@
     "recipientsCount_other": "{{count}} lo hanno",
     "recipientsList": "Persone e questo file",
     "groupDownloading": "In download",
+    "groupWaiting": "In attesa",
     "groupHaveIt": "Lo hanno",
     "groupNotYet": "Non ancora",
     "recipientEarlierSr": "{{name}} ha una versione precedente",

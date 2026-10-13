@@ -7,13 +7,16 @@
 //   - aria-valuetext still carries count · speed · ETA even where the visible line is compacted;
 //   - the per-peer pill reads avatar, name, a fixed-width bar and the percentage; in a narrow list
 //     the name yields while the bar and the percentage stay whole, the pill never overflows, and
-//     aria-valuetext keeps the speed · ETA the pill leaves out.
+//     aria-valuetext keeps the speed · ETA the pill leaves out;
+//   - the expanded list's groups come in order, each h4 labels its list, and a live peer sits under
+//     Downloading only while it moves or is paused; waiting for indexing or offline is Waiting.
 import './harness-bootstrap.js'
 import { createRoot } from 'react-dom/client'
 import i18n from '../../src/renderer/platform/i18n.js'
 import PeerDownloadIndicator from '../../src/renderer/components/cards/PeerDownloadIndicator.js'
 import PeerDownloadRow from '../../src/renderer/components/cards/PeerDownloadRow.js'
-import type { SpaceMember, PeerDownloadSummary } from '../../src/renderer/types/types.js'
+import PeerDownloadDropdown from '../../src/renderer/components/cards/PeerDownloadDropdown.js'
+import type { SpaceMember, PeerDownloadSummary, FileRecipient } from '../../src/renderer/types/types.js'
 
 interface LaneFlags {
   folder: boolean
@@ -45,6 +48,13 @@ interface HarnessResults {
   rowLiveNameAvatarGap: number
   rowWarmText: string
   rowOffText: string
+  groups: GroupRead[]
+}
+
+interface GroupRead {
+  label: string
+  labelled: boolean
+  names: string[]
 }
 
 declare global {
@@ -62,6 +72,26 @@ const alice: SpaceMember = { publicKey: 'k1', displayName: 'Alexandra Feathersto
 const bob: SpaceMember = { publicKey: 'k2', displayName: 'Bob', online: false }
 // 50/100 MB at 5 MB/s → speed "5 MB/s", remaining 50 MB ÷ 5 MB/s = 10 → ETA "10s left", pct 50%.
 const summary: PeerDownloadSummary = { spaceId: 's1', path: '/file.bin', personKeys: ['k1'], pausedKeys: [], waitingKeys: [], bytes: 50 * MB, total: 100 * MB, avgSpeed: 5 * MB }
+
+// The expanded list: the live peers come from the case's canned detail (cases.mjs), keyed as here.
+const person = (publicKey: string, displayName: string, online = true): SpaceMember => ({ publicKey, displayName, online })
+const LIST_MEMBERS: SpaceMember[] = [
+  person('owner', 'Owner'),
+  person('mo', 'Mo'),
+  person('pia', 'Pia'),
+  person('wes', 'Wes'),
+  person('otto', 'Otto', false),
+  person('opal', 'Opal', false),
+  person('hana', 'Hana'),
+  person('nina', 'Nina'),
+]
+const LIST_RECIPIENTS: FileRecipient[] = [{ shareId: '__loose__', path: '/file.bin', personKey: 'hana', contentHash: 'h1', ts: 1 }]
+const EXPECTED_GROUPS: Array<Omit<GroupRead, 'labelled'>> = [
+  { label: 'Downloading', names: ['Mo', 'Pia'] },
+  { label: 'Waiting', names: ['Otto', 'Opal', 'Wes'] },
+  { label: 'Have it', names: ['Hana'] },
+  { label: 'Not yet', names: ['Nina'] },
+]
 
 // Representative lane widths: FolderScreen basis-72 (count word shown), FileCard basis-56 (count
 // relies on avatars), the bumped 180px floor, and an ultra-narrow lane (speed only).
@@ -91,6 +121,9 @@ createRoot(container).render(
     <ul data-test="row-off">
       <PeerDownloadRow member={bob} bytes={30 * MB} total={100 * MB} avgSpeed={0} />
     </ul>
+    <div style={{ width: 480 }}>
+      <PeerDownloadDropdown id="list" spaceId="s1" path="/file.bin" members={LIST_MEMBERS} recipients={LIST_RECIPIENTS} contentHash="h1" ownerKey="owner" />
+    </div>
   </div>,
 )
 
@@ -113,6 +146,24 @@ function lineClipped(id: string): boolean {
 function tokenShown(id: string, token: string): boolean {
   const node = el(`[data-ind="${id}"] [data-token="${token}"]`)
   return node != null && node.offsetWidth > 0
+}
+
+// Each group as a reader meets it: the h4's text, whether its list is labelled by it, and the names
+// in that list.
+function readGroups(): GroupRead[] {
+  return [...document.querySelectorAll('#list h4')].map((h) => {
+    const list = document.querySelector(`#list ul[aria-labelledby="${h.id}"]`)
+    return {
+      label: h.textContent?.trim() ?? '',
+      labelled: list != null && h.id !== '',
+      names: [...(list?.querySelectorAll('li') ?? [])].map((li) => li.querySelector('.font-semibold')?.textContent?.trim() ?? ''),
+    }
+  })
+}
+
+function groupsMatch(groups: GroupRead[]): boolean {
+  return groups.length === EXPECTED_GROUPS.length &&
+    groups.every((g, i) => g.labelled && g.label === EXPECTED_GROUPS[i].label && g.names.join() === EXPECTED_GROUPS[i].names.join())
 }
 
 const FAIL: HarnessResults = {
@@ -138,6 +189,7 @@ const FAIL: HarnessResults = {
   rowLiveNameAvatarGap: 999,
   rowWarmText: '',
   rowOffText: '',
+  groups: [],
 }
 
 async function measure(): Promise<void> {
@@ -182,6 +234,7 @@ async function measure(): Promise<void> {
       rowLiveNameAvatarGap: nameRect && avatarRect ? nameRect.left - avatarRect.right : 999,
       rowWarmText: textOf('[data-test="row-warm"]'),
       rowOffText: textOf('[data-test="row-off"]'),
+      groups: readGroups(),
       pass: false,
     }
 
@@ -219,7 +272,10 @@ async function measure(): Promise<void> {
       results.rowLiveNameAvatarGap > 4 &&
       results.rowLiveNameAvatarGap < 10 &&
       results.rowWarmText.includes('50%') &&
-      results.rowOffText.includes('Waiting')
+      results.rowOffText.includes('Waiting') &&
+      // The expanded list: groups in order, each heading labelling its list, each peer where its
+      // row's own label puts it.
+      groupsMatch(results.groups)
     window.__results = results
   } catch (e) {
     window.__results = { ...FAIL, error: e instanceof Error ? e.message : String(e) }

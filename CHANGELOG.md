@@ -19,6 +19,9 @@ language. Search now matches the event and the words of its sentence, not
 only names.
 - **Files you add no longer jump around the list.** A new file appears
 right where it stays, instead of at the top until Mirall has listed it.
+- **Who has a file no longer lists waiting members as downloading.**
+Members who wait for you to finish indexing, or who are offline, now show
+under Waiting instead of Downloading.
 
 ## v1.12.0
 

@@ -57,6 +57,7 @@ export type IconName =
   | 'picture_as_pdf'
   | 'play_arrow'
   | 'refresh'
+  | 'schedule'
   | 'school'
   | 'science'
   | 'search'

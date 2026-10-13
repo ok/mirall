@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import type { SpaceMember } from '../../types/types.js'
 import { formatSpeed, etaFromRate, joinMeta, progressValueText } from '../../format/utils.js'
+import { peerOnline } from '../../model/file-recipients.js'
 import Avatar from '../primitives/Avatar.js'
 
 interface PeerDownloadRowProps {
@@ -37,7 +38,7 @@ function peerLabels(t: TFunction, { online, paused, pct, speed, eta }: PeerProgr
 export default function PeerDownloadRow({ member, bytes, total, avgSpeed, paused, waiting }: PeerDownloadRowProps) {
   const { t } = useTranslation()
   const name = member?.displayName || t('member.unknown')
-  const online = member != null && member.online !== false
+  const online = peerOnline(member)
   const active = online && !paused
   const pct = total > 0 ? Math.min(100, Math.round((bytes / total) * 100)) : 0
   const speed = active && avgSpeed > 0 ? formatSpeed(avgSpeed) : null

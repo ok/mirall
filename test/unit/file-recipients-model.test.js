@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { recipientSummary, recipientGroups, indexRecipients, recipientKey, withMirrors } from '../../src/renderer/model/file-recipients.js'
+import { recipientSummary, recipientGroups, liveGroups, peerOnline, indexRecipients, recipientKey, withMirrors } from '../../src/renderer/model/file-recipients.js'
 
 const OWNER = 'owner'
 const HASH = 'current'
@@ -42,6 +42,29 @@ test('groups split holders from the rest, leave live downloaders out, and list w
   t.alike(haveIt.map((h) => [h.member.publicKey, h.ts]), [['ben', 5]])
   t.alike(notYet.map((m) => [m.member.publicKey, m.earlier]), [['lea', false], ['jonas', true]],
     'mia is downloading, so she is in neither group; jonas is offline with an earlier version')
+})
+
+const live = (key, extra = {}) => ({ personKey: key, member: MEMBERS.find((m) => m.publicKey === key) ?? null, paused: false, waiting: false, ...extra })
+
+test('REGRESSION (FIX-WAITING: members who only wait were listed under Downloading)', (t) => {
+  const { downloading, waiting } = liveGroups([
+    live('ben'),
+    live('mia', { waiting: true }),
+    live('lea', { paused: true }),
+    live('jonas'),
+    live('jonas-paused', { member: member('jonas-paused', { online: false }), paused: true }),
+    live('gone'),
+  ])
+  t.alike(downloading.map((r) => r.personKey), ['ben', 'lea'], 'a paused peer keeps its partial and stays with the downloads')
+  t.alike(waiting.map((r) => r.personKey), ['mia', 'jonas', 'jonas-paused', 'gone'],
+    'waiting for indexing, offline, offline and paused, and an unknown member all read Waiting')
+})
+
+test('a member is online unless presence says otherwise; an unknown one is not', (t) => {
+  t.is(peerOnline(member('a')), true)
+  t.is(peerOnline(member('a', { online: undefined })), true)
+  t.is(peerOnline(member('a', { online: false })), false)
+  t.is(peerOnline(null), false)
 })
 
 test('the index keeps the arrays of files whose recipients did not change', (t) => {
