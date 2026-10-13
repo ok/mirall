@@ -15,6 +15,7 @@ import { TARGET_KIND } from '../../shared/contract/audit-kinds.js'
 import { getLocalPublicKeyHex, requireLocalPublicKeyHex } from '../../shared/spaces/profile.js'
 import { getSpace, getSpaceContentKey, isLegacySpace, LEGACY_SPACE_MESSAGE } from '../../shared/spaces/space.js'
 import { publishShare, tombstoneShare, readOwnShares, isValidShareName, generateShareId } from '../../shared/shares/shares.js'
+import { shareLabel } from '../../shared/shares/share-label.js'
 import { listSharesForSpace } from '../../shared/shares/share-registry.js'
 import { consumerFilePath, listOverlayShareFiles } from '../../shared/shares/share-listing.js'
 import { catalogKeyField } from '../../shared/shares/catalog-keys.js'
@@ -174,13 +175,12 @@ export function registerShares(ipc, { log, intents, mountOwnedShare }) {
     const own = await readOwnShares(msg.spaceId)
     const share = own.find((s) => s.id === msg.shareId)
     if (!share) throw new AppError(CODES.SHARE_NOT_FOUND, 'Share not found')
-    const labelOf = (/** @type {StoredShare} */ s) => s.displayName || s.name
-    if (labelOf(share) === displayName) return share
-    if (own.some((s) => s.id !== msg.shareId && labelOf(s) === displayName)) {
+    if (shareLabel(share) === displayName) return share
+    if (own.some((s) => s.id !== msg.shareId && shareLabel(s) === displayName)) {
       throw new AppError(CODES.SHARE_NAME_COLLISION, 'A folder with this name already exists in this space')
     }
 
-    const previousName = labelOf(share)
+    const previousName = shareLabel(share)
     // Renaming back to the on-disk name drops the override rather than storing a duplicate of it.
     const next = { ...share }
     if (displayName === share.name) delete next.displayName
