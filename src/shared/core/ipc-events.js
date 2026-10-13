@@ -18,10 +18,12 @@ import { createReplayRing } from './replay-ring.js'
 // mount.status the consumer re-derives, and the listings they re-read carry lastError, so the
 // transient paused-error state arrives with them — neither consumer needs a named subscription).
 const POKE_SCOPE = {
-  'event:files-updated': (p) => (p.spaceId ? Scope.files(p.spaceId) : null),
+  // A space-wide transition (presence, roster, download root): every listing in the space
+  // re-derives, so it is the share-axis wildcard whatever the payload carries.
+  'event:files-updated': (p) => (p.spaceId ? Scope.shareFiles(p.spaceId) : null),
   'event:shares-updated': (p) => (p.spaceId ? Scope.shares(p.spaceId) : null),
-  // shareId may be absent (a space-wide poke) — the hint is then a wildcard on the share
-  // axis and matches every share view in the space (scope-match contract).
+  // One listing changed — a folder share or the loose list (LOOSE_SHARE_ID). An absent shareId is
+  // the wildcard over every listing in the space (scope-match contract).
   'event:share-files-updated': (p) => (p.spaceId ? Scope.shareFiles(p.spaceId, p.shareId) : null),
   'event:members-updated': (p) => (p.spaceId ? Scope.members(p.spaceId) : null),
   'event:mirrors-updated': (p) => (p.spaceId ? Scope.mirrors(p.spaceId, p.shareId) : null),

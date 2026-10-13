@@ -71,13 +71,10 @@ export default function MirrorFolderModal({
   const { t } = useTranslation()
   const ownerName = owner?.displayName ?? '?'
 
-  // The folder's file count and byte total change when the owner's catalog does. Two scopes, the
-  // same pair useShareFiles lists: share-files carries our own changes to this share, but an
-  // append to a PEER's catalog — the only thing that moves these totals for a share we neither own
-  // nor mirror — surfaces as event:files-updated, i.e. the space-wide files scope
-  // (ensurePeerCatalogWatch).
+  // The folder's file count and byte total change when the owner's catalog does; the owner's append
+  // arrives pinned to this share, like our own changes to it.
   const infoScopes = useMemo(
-    () => [Scope.shareFiles(share.spaceId, share.id), Scope.files(share.spaceId)],
+    () => [Scope.shareFiles(share.spaceId, share.id)],
     [share.spaceId, share.id],
   )
   const { data: info, error: infoError } = useQuery(

@@ -26,9 +26,9 @@ test('REGRESSION: a peer\'s new share refreshes the other peer (event:shares-upd
 
   const bNotified = B.waitFor('event:shares-updated', (m) => m.spaceId === spaceId, 60000)
   // The FLAT file list hides a peer's folder-share contents via prefixes read from that peer's
-  // profile bee; the renderer's useFiles refreshes only on event:files-updated, so the profile-bee
-  // append must emit files-updated too — else the share's files leak into B's loose-file list until
-  // an unrelated files-updated fires.
+  // profile bee; no listing re-derives on shares-updated, so the profile-bee append must also emit
+  // the space-wide listing poke — else the share's files leak into B's loose-file list until an
+  // unrelated listing poke fires.
   const bFilesNotified = B.waitFor('event:files-updated', (m) => m.spaceId === spaceId, 60000)
   await A.request('share:create', { spaceId, name: 'Photos' })
   await bNotified

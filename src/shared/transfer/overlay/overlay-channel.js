@@ -1,8 +1,8 @@
 // The channel the download engine drives. One engine runs every share's downloads; what differs
 // between the loose pseudo-share and a folder share is the small set of facts below, selected by the
-// share id. Each is a persisted pending-row field, a wire event name or a renderer key, so none may
-// change without a migration or a renderer change. Every member the engine calls is derived from
-// them here, so a policy that holds for one kind holds for both by construction.
+// share id. Each is a persisted pending-row field or a renderer key, so none may change without a
+// migration or a renderer change. Every member the engine calls is derived from them here, so a
+// policy that holds for one kind holds for both by construction.
 //
 // Imports nothing from `bare-*`, so it loads under plain Node and unit-tests directly.
 import { daemonPaths } from '../../contract/paths.js'
@@ -14,7 +14,6 @@ import { isTerminalFault } from './fetch-policy.js'
 
 const LOOSE = Object.freeze({
   diagLabel: 'loose download',
-  updatedEvent: 'event:files-updated',
   // A loose row has no file list to surface an error inline in, so every code crosses the wire.
   surfaceAllErrors: true,
   decoKey: (job) => job.path,
@@ -26,7 +25,6 @@ const LOOSE = Object.freeze({
 
 const FOLDER = Object.freeze({
   diagLabel: 'overlay download',
-  updatedEvent: 'event:share-files-updated',
   // A folder row surfaces its error inline in the file list (Resume retries), so only the codes no
   // automatic retry can fix cross the wire as a toast + notification.
   surfaceAllErrors: false,
@@ -72,7 +70,12 @@ export function createOverlayChannel({ emit, resolvePendingRow }) {
     emitProgress: (job, p) => decoJob(job, { bytes: p.bytes, total: p.total, speed: p.speed, eta: p.eta }),
     emitVerifying: (job, fraction) => decoJob(job, { phase: 'verifying', verifyFraction: fraction, bytes: job.prevBytes || 0, total: job.size }),
     emitDecorationDone: (job) => decoJob(job, { done: true }),
-    emitUpdated: (spaceId, shareId) => emit(kindOf(shareId).updatedEvent, { spaceId }),
+    // A loose and a folder listing alike are named by their share id; one with none is refused like
+    // every other member, rather than widened to every listing in the space.
+    emitUpdated: (spaceId, shareId) => {
+      if (!shareId) throw new Error('download channel: no share id')
+      emit('event:share-files-updated', { spaceId, shareId })
+    },
 
     emitError: (job, errorCode) => {
       if (kindOf(job.shareId).surfaceAllErrors || isTerminalFault(errorCode)) {

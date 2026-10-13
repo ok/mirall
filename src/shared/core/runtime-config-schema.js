@@ -86,8 +86,8 @@ const DEFAULTED = {
   restoreReleaseDwellMs: ruled(20_000, finiteAtLeast, 0),
   // Read budget for the INTERACTIVE list fan-outs (files:list / share:list). Much shorter than
   // peerReadTimeoutMs so a not-yet-replicated member can't freeze the list — it returns the
-  // locally-available rows now and self-heals: event:shares-updated / event:files-updated re-run
-  // the listing once that peer's bee appends. The full peerReadTimeoutMs stays reserved for
+  // locally-available rows now and self-heals: event:shares-updated / the listing's poke re-run it
+  // once that peer's bee appends. The full peerReadTimeoutMs stays reserved for
   // correctness-critical reads (mirror / foreign-folder). A 0 override is honored.
   interactiveReadTimeoutMs: 1500,
   // One deadline for the whole approval gate, shared by every member read it runs in parallel.

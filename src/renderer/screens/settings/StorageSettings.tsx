@@ -15,7 +15,7 @@ import SectionHeading from '../../components/layout/SectionHeading.js'
 import { useErrorText } from '../../hooks/useErrorText.js'
 
 // Module-level so the entry's scope list is one array, not a fresh literal per render.
-const STORAGE_SCOPES = [{ kind: 'files' }, { kind: 'shares' }, { kind: 'share-files' }, { kind: 'storage' }]
+const STORAGE_SCOPES = [{ kind: 'shares' }, { kind: 'share-files' }, { kind: 'storage' }]
 
 interface StorageSettingsProps {
   onBack: () => void
@@ -37,10 +37,10 @@ export default function StorageSettings({ onBack, onOpenActivityLogSettings, onO
   const [folderError, setFolderError] = useState<string | null>(null)
   const { unavailable: unavailableRoots, refresh: refreshRootStatus } = useDownloadRootStatus()
 
-  // storage:info is a cross-space disk aggregate, so it watches the file, share and share-file
-  // scopes without pinning a spaceId — a hint for any space matches (scopeMatches only compares an
-  // id the VIEW pins) — and the storage scope a finished measurement pokes. The coalesce window
-  // matters here: an owned-folder scan pokes files-updated in bursts, and this read walks the store.
+  // storage:info is a cross-space disk aggregate, so it watches the share and listing scopes without
+  // pinning a spaceId — a hint for any space matches (scopeMatches only compares an id the VIEW
+  // pins) — and the storage scope a finished measurement pokes. The coalesce window matters here: an
+  // owned-folder scan pokes the listing scope in bursts, and this read walks the store.
   const { data: info, loading } = useQuery('storage:info', {}, STORAGE_SCOPES, { coalesceMs: 750 })
 
   // The categories are measured on a schedule; opening the screen measures them now, and the

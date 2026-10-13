@@ -32,10 +32,10 @@ export function useShareFiles(spaceId: string, ownerKey: string, shareId: string
   const { byKey: decorations } = useDecorations('transfer', spaceId, shareDecoKey(shareId, ''))
   const run = useRunAction()
 
-  // The share's own rows, plus the space's peer/presence transitions, which change row status
-  // without touching the catalog (README.md).
+  // The share's own listing; a space-wide transition (presence, roster), which changes row status
+  // without touching the catalog, reaches it as the wildcard (README.md).
   const scopes = useMemo(
-    () => [{ kind: 'share-files', spaceId, shareId }, { kind: 'files', spaceId }],
+    () => [{ kind: 'share-files', spaceId, shareId }],
     [spaceId, shareId],
   )
   const ready = Boolean(spaceId && shareId && ownerKey)

@@ -11,6 +11,9 @@ import { downloadChannel } from '../../src/shared/transfer/overlay/share-downloa
 import { scaled } from '../helpers/bare-timing.js'
 import { createFakeIpc } from '../helpers/fake-ipc.js'
 import { registerFiles } from '../../src/worker/ipc/files.js'
+import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
+import { advertise, getOwnEntry } from '../../src/shared/shares/own-catalog.js'
+import { LOOSE_SHARE_ID } from '../../src/shared/transfer/transfer-id.js'
 
 // REGRESSION (FIX-9: a download interrupted by a dropped connection never resumed).
 //
@@ -308,6 +311,22 @@ test('a cancel click that finds nothing re-derives the stale row on the right li
   t.alike(fake.emitted('event:share-files-updated').map((e) => e.payload), [{ spaceId: SPACE, shareId: 'folder1' }])
   t.alike(await fake.call('files:cancel-download', { transferId: SPACE + '|__loose__|gone.bin' }), { ok: true })
   t.alike(fake.emitted('event:files-updated').map((e) => e.payload), [{ spaceId: SPACE }])
+})
+
+// The remove handler's own poke names the loose list rather than every listing in the space. The
+// tombstone's catalog append separately fires the own-catalog hook's share-axis wildcard
+// (folder-publish.js), which this fake ipc is not wired to, so only the handler's emit is pinned.
+test('the unshare handler\'s own poke names the loose listing', async (t) => {
+  await setup(t)
+  const { spaceId } = await createSpace('Aurora')
+  await advertise(spaceId, LOOSE_SHARE_ID, 'note.txt', { size: 4, mtime: 1, contentHash: HASH })
+  const fake = createFakeIpc()
+  registerFiles(fake.ipc, { log: silentLog })
+
+  t.alike(await fake.call('files:remove', { spaceId, path: '/note.txt' }), { ok: true })
+  t.absent(await getOwnEntry(spaceId, LOOSE_SHARE_ID, 'note.txt'), 'the entry is unshared')
+  t.alike(fake.emitted('event:share-files-updated').map((e) => e.payload), [{ spaceId, shareId: LOOSE_SHARE_ID }])
+  t.is(fake.emitted('event:files-updated').length, 0, 'and not the space-wide name')
 })
 
 // The engine cannot observe whether the worker gates the cancel on a live slot, so pin it

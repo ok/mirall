@@ -7,9 +7,9 @@ import { Scope, scopeMatches } from '../../src/shared/contract/scope.js'
 const here = path.dirname(fileURLToPath(import.meta.url))
 
 test('scopeMatches: kind + space must agree', (t) => {
-  t.ok(scopeMatches(Scope.files('S1'), Scope.files('S1')))
-  t.absent(scopeMatches(Scope.files('S1'), Scope.files('S2')), 'different space does not match')
-  t.absent(scopeMatches(Scope.files('S1'), Scope.members('S1')), 'different kind does not match')
+  t.ok(scopeMatches(Scope.shares('S1'), Scope.shares('S1')))
+  t.absent(scopeMatches(Scope.shares('S1'), Scope.shares('S2')), 'different space does not match')
+  t.absent(scopeMatches(Scope.shares('S1'), Scope.members('S1')), 'different kind does not match')
 })
 
 test('scopeMatches: share-files compares shareId; a space-wide hint matches any share', (t) => {
@@ -20,14 +20,14 @@ test('scopeMatches: share-files compares shareId; a space-wide hint matches any 
 })
 
 test('scopeMatches: guards null/undefined inputs', (t) => {
-  t.absent(scopeMatches(null, Scope.files('S1')))
-  t.absent(scopeMatches(Scope.files('S1'), null))
+  t.absent(scopeMatches(null, Scope.shares('S1')))
+  t.absent(scopeMatches(Scope.shares('S1'), null))
 })
 
 test('scopeMatches: a spaceId-less members view (the spaces list) matches any members hint', (t) => {
   t.ok(scopeMatches(Scope.members('S1'), { kind: 'members' }))
   t.ok(scopeMatches(Scope.members('S2'), { kind: 'members' }))
-  t.absent(scopeMatches(Scope.files('S1'), { kind: 'members' }))
+  t.absent(scopeMatches(Scope.shares('S1'), { kind: 'members' }))
 })
 
 // The two used to be hand-mirrored implementations that had to agree, and this matrix is what

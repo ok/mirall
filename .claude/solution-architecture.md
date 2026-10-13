@@ -1258,6 +1258,10 @@ they belong to.
   `POKE_SCOPE` (`src/shared/core/ipc-events.js`) and fanned out as `event:reconcile { scope }`, a
   coalesced, level-triggered hint to refetch (§4.7). Both mount-status events map to the *shares*
   scope.
+- **Every file listing is one `share-files` scope.** `event:share-files-updated { spaceId, shareId }`
+  re-derives one listing (the loose list is `LOOSE_SHARE_ID`); `event:files-updated { spaceId }` is
+  the space-wide wildcard (presence, roster, a peer's profile-bee append, download root, a listing
+  deficit).
 - `event:decoration` is the **one** per-file progress channel, used for download and for owner-side
   publish/prepare (`phase`). Folder rows key by `shareDecoKey`
   (`src/shared/contract/decoration-key.js`) and loose rows by drive path. An entry is cleared only

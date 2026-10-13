@@ -50,7 +50,7 @@ const catalogWatchId = (shareId) => 'download:' + shareId
 function ensureCatalogWatch(spaceId, share, { keyHex, sck }) {
   if (!keyHex) return
   const watched = watchPeerCatalog(keyHex, catalogWatchId(share.id), (bee) => {
-    ipcRef?.emit('event:files-updated', { spaceId })
+    ipcRef?.emit('event:share-files-updated', { spaceId, shareId: share.id })
     // The append is a bare poke, so the audit observer diffs the catalog's own history.
     if (isLoose(share)) observePeerCatalog(share.owner, spaceId, keyHex, bee, LOOSE_SHARE_ID)
     else catalogChangeHook?.(spaceId)

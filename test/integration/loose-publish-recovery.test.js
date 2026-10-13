@@ -17,6 +17,10 @@ import { initLooseIpc, initOverlayIpc } from '../helpers/overlay-ipc.js'
 // advertise-time window is observable without racing the whole publish.
 const BIG = 32 * 1024 * 1024
 
+// The own loose list's poke. The share id is required: the own-catalog append hook announces every
+// loose append as a share-files wildcard too, and a type-only filter would fire on that instead.
+const loosePoke = (type, payload) => type === 'event:share-files-updated' && payload?.shareId === LOOSE_SHARE_ID
+
 async function setup(t, onEmit) {
   const ctx = await freshPeer(t)
   await initDownloads()
@@ -60,7 +64,7 @@ async function seedNullHashOrphan(ctx, name, abs) {
 test('REGRESSION (FIX-D1: the owned-source link is durable by advertise time)', async (t) => {
   let sawAdvertise = null
   const advertised = new Promise((resolve) => { sawAdvertise = resolve })
-  const ctx = await setup(t, (type) => { if (type === 'event:files-updated') sawAdvertise() })
+  const ctx = await setup(t, (type, payload) => { if (loosePoke(type, payload)) sawAdvertise() })
 
   const abs = writeBig(ctx, 'big.bin')
   const publishing = looseShareFile(ctx.spaceId, abs)
@@ -115,8 +119,8 @@ test('FIX-F1: boot LEAVES a finished entry that merely lost its source', async (
 
 test('cancel mid-hash tombstones the entry and clears the early source link', async (t) => {
   let cancelled = false
-  const ctx = await setup(t, (type) => {
-    if (type === 'event:files-updated' && !cancelled) {
+  const ctx = await setup(t, (type, payload) => {
+    if (loosePoke(type, payload) && !cancelled) {
       cancelled = true
       looseCancelPublish(ctx.spaceId, '/big2.bin')
     }
@@ -133,7 +137,7 @@ test('cancel mid-hash tombstones the entry and clears the early source link', as
 test('a failed re-publish keeps the prior entry AND its source link', async (t) => {
   let bigSeen = false
   const ctx = await setup(t, (type, payload) => {
-    if (type !== 'event:files-updated' || !bigSeen) return
+    if (!loosePoke(type, payload) || !bigSeen) return
     looseCancelPublish(ctx.spaceId, '/c.txt')
   })
 
@@ -159,7 +163,7 @@ test('a failed re-publish keeps the prior entry AND its source link', async (t) 
 test('REGRESSION (FIX-22: the presence sweep never tombstones a file whose publish is in flight)', async (t) => {
   let advertised = null
   const seen = new Promise((resolve) => { advertised = resolve })
-  const ctx = await setup(t, (type) => { if (type === 'event:files-updated') advertised() })
+  const ctx = await setup(t, (type, payload) => { if (loosePoke(type, payload)) advertised() })
 
   const abs = writeBig(ctx, 'live.bin')
   const publishing = looseShareFile(ctx.spaceId, abs)
@@ -193,11 +197,12 @@ test('REGRESSION (FIX-F2: cancel removes a restart-orphaned half-publish with no
 
 test('FIX-F2: cancel of a completed row is a no-op (null-hash guard)', async (t) => {
   let updates = 0
-  const ctx = await setup(t, (type) => { if (type === 'event:files-updated') updates += 1 })
+  const ctx = await setup(t, (type, payload) => { if (loosePoke(type, payload)) updates += 1 })
   const abs = path.join(ctx.tmpDir('src'), 'k.txt')
   fs.writeFileSync(abs, 'done')
   await looseShareFile(ctx.spaceId, abs)
   t.ok((await getOwnEntry(ctx.spaceId, LOOSE_SHARE_ID, 'k.txt'))?.contentHash, 'published')
+  t.ok(updates > 0, 'the publish announced itself, so the count below is not vacuous')
   updates = 0
 
   await looseCancelPublish(ctx.spaceId, '/k.txt')
@@ -234,8 +239,8 @@ test('FIX-F4: a healthy entry re-registers silently at boot (no phantom bar)', a
 
 test('FIX-F4: cancel aborts an in-flight boot resume', async (t) => {
   let resumeSeen = false
-  const ctx = await setup(t, (type) => {
-    if (type === 'event:files-updated' && !resumeSeen) {
+  const ctx = await setup(t, (type, payload) => {
+    if (loosePoke(type, payload) && !resumeSeen) {
       resumeSeen = true
       looseCancelPublish(ctx.spaceId, '/live-resume.bin')
     }

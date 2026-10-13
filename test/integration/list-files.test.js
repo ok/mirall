@@ -135,7 +135,7 @@ async function ghostCatalogMember(i) {
 
 // REGRESSION (FIX-127: files:list froze ~8s per un-replicated member) — the members are read
 // under the short interactiveReadTimeoutMs, in PARALLEL, so local files surface immediately and
-// the list self-heals via event:files-updated once a peer's catalog lands. The fixture carries a
+// the list self-heals via the loose listing's poke once a peer's catalog lands. The fixture carries a
 // looseCatalogKey because collectLooseInPlace filters members without one BEFORE any read: a
 // keyless ghost is never read, which made the original version of this test vacuous.
 test('REGRESSION (FIX-127): files:list bounds un-replicated members by the short interactive budget, in parallel', { timeout: scaled(15000) }, async (t) => {

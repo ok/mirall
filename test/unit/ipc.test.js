@@ -2,6 +2,7 @@ import test from 'brittle'
 import { EventEmitter } from 'events'
 import { IPC_PROTOCOL_VERSION } from '../../src/shared/contract/ipc-frames.js'
 import { createIPC, scopeForEvent, getRequestFailureCounters, resetRequestFailureCounters } from '../../src/shared/core/ipc.js'
+import { LOOSE_SHARE_ID } from '../../src/shared/contract/entry-ref.js'
 import { tagged } from '../helpers/capture-console.js'
 import { helloFrame, sayHello } from '../helpers/ipc-hello.js'
 import { setVerbose } from '../helpers/runtime-verbose.js'
@@ -320,8 +321,8 @@ test('emit logs events but skips the noisy *-progress streams', (t) => {
   // files-updated writes twice; the progress stream writes once and is not a POKE.
   const msgs = pipe.written.map((s) => JSON.parse(s))
   t.is(pipe.written.length, 3, 'files-updated → named event + reconcile hint; progress → once')
-  t.alike(msgs.find((m) => m.type === 'event:reconcile')?.scope, { kind: 'files', spaceId: 'x' },
-    'the POKE fans out a files reconcile hint')
+  t.alike(msgs.find((m) => m.type === 'event:reconcile')?.scope, { kind: 'share-files', spaceId: 'x' },
+    'the POKE fans out a listing wildcard reconcile hint')
 })
 
 // --- POKE_SCOPE: every reconcile-driven view's poke sources ---
@@ -330,7 +331,10 @@ test('emit logs events but skips the noisy *-progress streams', (t) => {
 // no Scope.members reconcile hint — a members view on the reconcile channel would never re-derive
 // on a join, leave, avatar change, or silent-death lease expiry; same gap for shares/share-files).
 test('REGRESSION (FIX-EDA-18): scopeForEvent maps every reconcile-driven poke source', (t) => {
-  t.alike(scopeForEvent('event:files-updated', { spaceId: 'S1' }), { kind: 'files', spaceId: 'S1' })
+  const spaceWide = scopeForEvent('event:files-updated', { spaceId: 'S1' })
+  t.is(spaceWide.kind, 'share-files', 'a space-wide poke reaches every listing')
+  t.is(spaceWide.spaceId, 'S1')
+  t.is(spaceWide.shareId ?? null, null)
   t.alike(scopeForEvent('event:shares-updated', { spaceId: 'S1' }), { kind: 'shares', spaceId: 'S1' })
   t.alike(scopeForEvent('event:share-files-updated', { spaceId: 'S1', shareId: 'A' }),
     { kind: 'share-files', spaceId: 'S1', shareId: 'A' })
@@ -350,6 +354,16 @@ test('scopeForEvent: a space-wide share-files poke is a wildcard on the share ax
   t.is(scope.kind, 'share-files')
   t.is(scope.spaceId, 'S1')
   t.is(scope.shareId ?? null, null, 'absent shareId stays absent — scope-match treats it as a wildcard')
+})
+
+test('scopeForEvent: a space-wide files poke is never narrowed to one listing', (t) => {
+  t.is(scopeForEvent('event:files-updated', { spaceId: 'S1', shareId: 'A' }).shareId ?? null, null,
+    'a stray shareId on the space-wide name is ignored')
+})
+
+test('scopeForEvent: the loose listing poke is pinned to the loose share id', (t) => {
+  t.alike(scopeForEvent('event:share-files-updated', { spaceId: 'S1', shareId: LOOSE_SHARE_ID }),
+    { kind: 'share-files', spaceId: 'S1', shareId: '__loose__' })
 })
 
 test('scopeForEvent: deliberately unmapped and malformed events fan no hint', (t) => {

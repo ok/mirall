@@ -13,7 +13,7 @@ import { revealFile } from '../../shared/transfer/reveal.js'
 import { overlayBackend } from '../../shared/transfer/overlay/index.js'
 import { cancelShareDownload, looseShareOfOwner, pauseShareDownload } from '../../shared/transfer/overlay/share-downloads.js'
 import { looseCancelPublish, handleLooseFsEvent } from '../../shared/transfer/overlay/loose-publish.js'
-import { isLooseTransferId, looseRelPath, transferIdParts } from '../../shared/transfer/transfer-id.js'
+import { LOOSE_SHARE_ID, isLooseTransferId, looseRelPath, transferIdParts } from '../../shared/transfer/transfer-id.js'
 import { subscribeServeDetail, unsubscribeServeDetail, dropServeDetailClient, listServeSummaries } from '../../shared/transfer/serve-ledger.js'
 import { listFileRecipients } from '../../shared/transfer/file-recipients.js'
 import { rescueStalledTransfers } from '../../shared/network/convergence-tick.js'
@@ -63,7 +63,9 @@ export function registerFiles(ipc, { log }) {
       space: spaceRefOf(await getSpace(msg.spaceId)),
       target: targetRef(TARGET_KIND.FILE, msg.path, fileNameOf(msg.path)),
     })
-    ipc.emit('event:files-updated', { spaceId: msg.spaceId })
+    // An own file's unshare announces itself; forgetting a peer's file's download record does not,
+    // and its row changes all the same.
+    ipc.emit('event:share-files-updated', { spaceId: msg.spaceId, shareId: LOOSE_SHARE_ID })
     return { ok: true }
   })
   ipc.handle('files:reveal', async (msg) => {
@@ -83,7 +85,9 @@ export function registerFiles(ipc, { log }) {
         subject: { size: msg.fileSize ?? null },
       })
     }
-    ipc.emit('event:files-updated', { spaceId: msg.spaceId })
+    // The publish announces an advertise and a changed or failed publish, not an unchanged re-add
+    // or a cancel while queued; the add ends on one poke whichever it was.
+    ipc.emit('event:share-files-updated', { spaceId: msg.spaceId, shareId: LOOSE_SHARE_ID })
     return { ok: true }
   })
   ipc.handle('files:download', async (msg) => {

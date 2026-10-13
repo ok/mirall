@@ -54,20 +54,14 @@ const keysOf = (row) => Object.keys(row).filter((k) => k !== 'updatedAt').sort()
 test('a started download writes the same row fields per kind as before', async (t) => {
   const ctx = await setup(t)
   const engine = createOverlayDownloadEngine({ ...downloadChannel, isOwnerOnline: () => false })
-  const updates = () => ({
-    loose: ctx.fake.emitted('event:files-updated').map((e) => e.payload),
-    folder: ctx.fake.emitted('event:share-files-updated').map((e) => e.payload),
-  })
+  const updates = () => ctx.fake.emitted('event:share-files-updated').map((e) => e.payload)
 
-  const before = updates()
+  const before = updates().length
   t.ok((await engine.start(jobFor(ctx, ctx.spaceId, LOOSE, 'a.bin', '/a.bin'))).queued, 'loose: queued while the owner is away')
-  const afterLoose = updates()
   t.ok((await engine.start(jobFor(ctx, ctx.spaceId, FOLDER, 'b.bin', '/Vault/b.bin'))).queued, 'folder: queued too')
-  const afterFolder = updates()
-  t.alike(afterLoose.loose.slice(before.loose.length), [{ spaceId: ctx.spaceId }], 'a loose start updates the loose listing')
-  t.is(afterLoose.folder.length, before.folder.length, 'and not a folder listing')
-  t.alike(afterFolder.folder.slice(afterLoose.folder.length), [{ spaceId: ctx.spaceId }], 'a folder start updates the folder listing')
-  t.is(afterFolder.loose.length, afterLoose.loose.length, 'and not the loose one')
+  t.alike(updates().slice(before), [{ spaceId: ctx.spaceId, shareId: LOOSE_SHARE_ID }, { spaceId: ctx.spaceId, shareId: 'sh1' }],
+    'each start updates its own listing, named by its share id')
+  t.is(ctx.fake.emitted('event:files-updated').length, 0, 'and neither pokes every listing in the space')
 
   const loose = await getPendingFor(ctx.spaceId, '/a.bin')
   t.alike(keysOf(loose), ['bytesTransferred', 'contentHash', 'finalPath', 'inPlace', 'ownerKey', 'relPath', 'shareId', 'sourceSeq', 'total'])
@@ -170,7 +164,9 @@ test('a click the catalog cannot answer keeps a loose intent row and nothing for
   const intent = await getPendingFor(ctx.spaceId, '/missing.bin')
   t.alike({ ...intent, updatedAt: undefined }, { inPlace: true, shareId: LOOSE_SHARE_ID, relPath: 'missing.bin', ownerKey: OWNER, total: 0, updatedAt: undefined },
     'the intent row has exactly the shape an earlier build wrote')
-  t.ok(ctx.fake.emitted('event:files-updated').some((e) => e.payload.spaceId === ctx.spaceId), 'and the loose listing is told')
+  t.ok(ctx.fake.emitted('event:share-files-updated').some((e) => e.payload.spaceId === ctx.spaceId && e.payload.shareId === LOOSE_SHARE_ID),
+    'and the loose listing is told')
+  t.is(ctx.fake.emitted('event:files-updated').length, 0, 'and no other listing')
 
   t.alike(await requestShareDownload(ctx.spaceId, folder, 'missing.bin'), { queued: true }, 'folder: queued')
   t.absent(await getPendingFor(ctx.spaceId, '/Vault/missing.bin'), 'with no row')
@@ -217,6 +213,27 @@ test('one descriptor reads each share from the owner\'s one catalog', async (t) 
   t.is(typeof await watchedCatalogVersion(ctx.spaceId, loose), 'number', 'the read armed the watch, so the version is live')
   t.alike(await listPeerWithMeta(ctx.spaceId, looseShareFor({ publicKey: OWNER })), { entries: [], complete: true, total: 0, totalBytes: 0 },
     'a keyless member reads as an empty, whole listing')
+})
+
+// The owner's catalog appends replicate in as the core's 'append'; the in-process own catalog fires
+// the same event on the session the watch holds, so this drives the real listener.
+test('a catalog append pokes each watching share\'s own listing, loose and folder alike', async (t) => {
+  const ctx = await setup(t)
+  const { keyHex, loose, folder } = await ownAsPeer(ctx)
+  stubEngine(t)
+  await listPeerWithMeta(ctx.spaceId, loose)
+  await listPeerWithMeta(ctx.spaceId, folder)
+  t.ok(isPeerCatalogWatched(keyHex, 'download:' + LOOSE_SHARE_ID) && isPeerCatalogWatched(keyHex, 'download:sh1'), 'both reads armed a watch')
+
+  const fromWatch = () => ctx.fake.emitted('event:share-files-updated')
+    .map((e) => e.payload).filter((p) => p.shareId !== undefined)
+  const before = fromWatch().length
+  await advertise(ctx.spaceId, 'sh1', 'new.bin', { size: 4, mtime: 1, contentHash: HASH })
+  // One advertise can append more than one block, and each block fires every listener.
+  const reached = () => [...new Set(fromWatch().slice(before).map((p) => p.spaceId + '|' + p.shareId))].sort()
+  t.ok(await until(() => reached().length >= 2, 2000), 'the append reached both listeners')
+  t.alike(reached(), [ctx.spaceId + '|' + LOOSE_SHARE_ID, ctx.spaceId + '|sh1'], 'each names its own share')
+  t.is(ctx.fake.emitted('event:files-updated').length, 0, 'and no listing is poked space-wide')
 })
 
 // === Rows resolved through the production resolve ===

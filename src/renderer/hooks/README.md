@@ -19,7 +19,9 @@ re-derives on — `useQuery(type, params, scopes)` — and `../store/reconcile.t
 `event:reconcile` subscription for the app, invalidating every entry whose scopes match. The worker
 decides which event maps to which scope: both mount-status events (owned and foreign) map to the
 SHARES scope, not mirrors; a members change also re-derives loose files, because a peer's catalog
-key commits post-handshake. A hook that lists a scope is trusting that mapping, not re-explaining
+key commits post-handshake. Every file listing is a `share-files` view, the loose list pinned to
+`LOOSE_SHARE_ID`; a space-wide transition is the wildcard on the share axis, so no listing lists a
+second scope for presence. A hook that lists a scope is trusting that mapping, not re-explaining
 it. Events that carry a whole value are PUSHED into the entry by `installPushBridges`
 (download-roots status, the spaces list); a hook reading such an entry passes `null` scopes and
 must not subscribe — two mounts would double-write. An entry keeps the scopes it was FIRST
