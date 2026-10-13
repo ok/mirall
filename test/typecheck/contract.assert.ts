@@ -91,7 +91,13 @@ const noLocalPath: ShareFileRow = { relPath: 'a', size: 1, hash: '', mtime: 0, s
 // @ts-expect-error a loose row has a modification time like a folder row
 const noMtime: FileEntry = { path: '/a', size: 1, hash: '', status: 'remote', localPath: null, owner: { displayName: 'A', publicKey: 'k' } }
 
-void [looseRow, shareRow, asContent, looseAvailable, looseBytes, noLocalPath, noMtime]
+const looseListing: RequestResponse['files:list'] = { entries: [looseRow], complete: true, total: 1, totalBytes: 1, truncated: false, fileLimit: null }
+// @ts-expect-error files:list answers the listing envelope, not a bare array
+const looseBare: RequestResponse['files:list'] = [looseRow]
+// @ts-expect-error truncation is always stated
+const noTruncated: RequestResponse['share:list-files'] = { entries: [], complete: true, total: 0, totalBytes: 0, fileLimit: null }
+
+void [looseRow, shareRow, asContent, looseAvailable, looseBytes, noLocalPath, noMtime, looseListing, looseBare, noTruncated]
 
 void [fileStatusSynced, fileStatusQueued, fileStatusMine] as unknown as NoShareFileStatus
 

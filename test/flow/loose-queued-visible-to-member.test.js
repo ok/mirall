@@ -13,7 +13,7 @@ const HOLD_SIZE = 8 * 1024 * 1024 * 1024
 const HOLDERS = ['hold-0.bin', 'hold-1.bin', 'hold-2.bin']
 const QUEUED = ['take-0.txt', 'take-1.txt', 'take-2.txt']
 
-const listOf = async (peer, spaceId) => (await peer.request('files:list', { spaceId }).catch(() => null)) || []
+const listOf = async (peer, spaceId) => (await peer.files(spaceId).catch(() => null)) || []
 const statusOf = (rows, name) => rows.find((r) => r.path === '/' + name)?.status
 
 function add(peer, spaceId, dir, name) {

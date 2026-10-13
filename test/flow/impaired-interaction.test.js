@@ -17,7 +17,7 @@ const v2flags = (netImpair) => ({ identityKEK: kekHex(), netImpair })
 const sleep = (ms) => new Promise((r) => setTimeout(r, scaled(ms)))
 
 async function seeRemote(B, spaceId, name) {
-  await B.until('files:list', { spaceId }, (f) => Array.isArray(f) && f.some((e) => e.path === '/' + name && e.status === 'remote'), { ms: 120000 })
+  await B.untilFiles(spaceId, (f) => f.some((e) => e.path === '/' + name && e.status === 'remote'), { ms: 120000 })
 }
 async function startAndFlow(B, spaceId, name, aKey) {
   const flowing = new Promise((resolve) => {
@@ -66,15 +66,15 @@ test('a manual pause and resume survive a flaky link (connection churn while pau
   await seeRemote(B, spaceId, 'churn.bin')
 
   await startAndFlow(B, spaceId, 'churn.bin', aKey)
-  const transferId = (await B.request('files:list', { spaceId })).find((e) => e.path === '/churn.bin')?.transferId
+  const transferId = (await B.files(spaceId)).find((e) => e.path === '/churn.bin')?.transferId
   await B.request('files:pause-download', { transferId })
-  await B.until('files:list', { spaceId }, (list) => { const e = list.find((x) => x.path === '/churn.bin'); return e && e.status === 'paused-interrupted' }, { ms: 60000 })
+  await B.untilFiles(spaceId, (list) => { const e = list.find((x) => x.path === '/churn.bin'); return e && e.status === 'paused-interrupted' }, { ms: 60000 })
 
   // Let the flaky link drop + reconnect several times while paused.
   let autoResumed = false
   B.on('event:transfer-complete', (m) => { if (m.path === '/churn.bin') autoResumed = true })
   await sleep(24000) // ~2-3 flap cycles
-  const row = (await B.request('files:list', { spaceId })).find((e) => e.path === '/churn.bin')
+  const row = (await B.files(spaceId)).find((e) => e.path === '/churn.bin')
   t.ok(row && (row.status === 'paused-interrupted' || row.status === 'paused-offline'), `manual pause survives the churn (status=${row?.status})`)
   t.absent(autoResumed, 'reconnect churn did not spuriously auto-resume the manual pause')
   t.absent(fs.existsSync(path.join(B.downloads, 'churn.bin')), 'the paused file did not complete on its own')

@@ -43,7 +43,7 @@ test('a download refused by a read-only folder lands once the folder is fixed, w
   const bytes = patternedBytes(1024 * 1024, 45)
   fs.writeFileSync(path.join(aSrc, 'doc.bin'), bytes)
   await A.request('files:add', { spaceId, filePath: path.join(aSrc, 'doc.bin'), fileName: 'doc.bin', fileSize: bytes.length })
-  await B.until('files:list', { spaceId }, (f) => Array.isArray(f) && f.some((e) => e.path === '/doc.bin' && e.status === 'remote'), { ms: 120000 })
+  await B.untilFiles(spaceId, (f) => f.some((e) => e.path === '/doc.bin' && e.status === 'remote'), { ms: 120000 })
 
   if (!makeReadOnly(bDownloads)) { t.comment('skipped: chmod does not make a folder read-only for this process (Windows or root)'); t.pass(); A.kill(); return }
 
@@ -57,7 +57,7 @@ test('a download refused by a read-only folder lands once the folder is fixed, w
   // resume fan-out), and those fire within moments of it. The folder is fixed only after they have
   // come and gone and left the row errored, so what lands it afterwards can only be the tick.
   await new Promise((r) => setTimeout(r, scaled(15000)))
-  const listed = (await B.request('files:list', { spaceId })).find((e) => e.path === '/doc.bin')
+  const listed = (await B.files(spaceId)).find((e) => e.path === '/doc.bin')
   t.is(listed?.status, 'error', 'precondition: the connection-driven re-drives have come and gone, and the row is still errored')
   t.is(listed?.errorCode, 'TRANSFER_PERMISSION', 'and still names the fault the user has to clear')
 

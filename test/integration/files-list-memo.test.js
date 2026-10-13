@@ -72,13 +72,13 @@ test('an unchanged catalog is served without a read; a moved one is read, alone'
 
   await listFiles(ctx.spaceId, members, { deps })
   t.is(deps.total(), 3, 'the first listing reads every member')
-  const warm = await listFiles(ctx.spaceId, members, { deps })
+  const warm = (await listFiles(ctx.spaceId, members, { deps })).entries
   await listFiles(ctx.spaceId, members, { deps })
   t.is(deps.total(), 3, 'two more listings read nothing')
   t.alike(warm.map((f) => f.path).sort(), ['/peer1pub-v1.bin', '/peer2pub-v1.bin', '/peer3pub-v1.bin'], 'and still list every member')
 
   versions.peer2pub = 2
-  const moved = await listFiles(ctx.spaceId, members, { deps })
+  const moved = (await listFiles(ctx.spaceId, members, { deps })).entries
   t.alike(deps.reads, { peer1pub: 1, peer2pub: 2, peer3pub: 1 }, 'only the appended catalog is read again')
   t.ok(moved.some((f) => f.path === '/peer2pub-v2.bin'), 'with its new entries')
 })
@@ -125,7 +125,7 @@ test('a read that throws is not memoised and flags the space', async (t) => {
   deps.catalogVersion = async () => 2
   deps.listPeer = async () => { deps.reads.peer1pub++; throw new Error('boom') }
   takeIncompleteListSpaces()
-  const files = await listFiles(ctx.spaceId, [memberNo(1)], { deps })
+  const files = (await listFiles(ctx.spaceId, [memberNo(1)], { deps })).entries
   t.is(files.length, 0, 'the failed member contributes no rows')
   t.ok(takeIncompleteListSpaces().includes(ctx.spaceId), 'flagged for the convergence re-poke')
   deps.catalogVersion = async () => 1
@@ -178,7 +178,7 @@ test('every local input to a row is live over memoised entries', async (t) => {
   await put('c.bin', 'hc')
   const presence = { online: true }
   const deps = realDeps(presence)
-  const row = async (p) => (await listFiles(ctx.spaceId, [member], { deps })).find((f) => f.path === p)
+  const row = async (p) => (await listFiles(ctx.spaceId, [member], { deps })).entries.find((f) => f.path === p)
 
   t.is((await row('/a.bin')).status, 'remote')
   t.is(deps.reads.n, 1)
@@ -218,7 +218,7 @@ test('an append after the listing moves the version past the memo and is read', 
   t.is(deps.reads.n, 1, 'converged')
 
   await put('late.bin', 'hl')
-  const files = await listFiles(ctx.spaceId, [member], { deps })
+  const files = (await listFiles(ctx.spaceId, [member], { deps })).entries
   t.is(deps.reads.n, 2, 'the appended catalog is read')
   t.alike(files.map((f) => f.path).sort(), ['/a.bin', '/late.bin'])
 })
@@ -247,14 +247,14 @@ test('a backstop read that stalls keeps listing the memoised entries', async (t)
   const ctx = await setup(t, { listFullReadEvery: 2 })
   const members = [memberNo(1)]
   const deps = scriptedDeps({ versions: { peer1pub: 1 } })
-  const first = await listFiles(ctx.spaceId, members, { deps })
+  const first = (await listFiles(ctx.spaceId, members, { deps })).entries
   await listFiles(ctx.spaceId, members, { deps })
   t.is(deps.reads.peer1pub, 1, 'one skip before the backstop comes due')
   deps.listPeer = async (spaceId, share) => {
     deps.reads[share.owner]++
     return { entries: [], complete: false, version: null }
   }
-  const backstop = await listFiles(ctx.spaceId, members, { deps })
+  const backstop = (await listFiles(ctx.spaceId, members, { deps })).entries
   t.is(deps.reads.peer1pub, 2, 'the backstop read ran')
   t.alike(backstop.map((f) => f.path), first.map((f) => f.path), 'and its stall did not empty the listing')
   await listFiles(ctx.spaceId, members, { deps })

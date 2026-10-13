@@ -37,8 +37,8 @@ test('loose download auto-restarts when the source changes mid-transfer',
     fs.writeFileSync(srcPath, original)
     await A.request('files:add', { spaceId, filePath: srcPath, fileName: 'big.bin', fileSize: original.length })
 
-    await B.until('files:list', { spaceId },
-      (f) => Array.isArray(f) && f.some((e) => e.path === '/big.bin' && e.status === 'remote'),
+    await B.untilFiles(spaceId,
+      (f) => f.some((e) => e.path === '/big.bin' && e.status === 'remote'),
       { ms: 60000 })
 
     // Track ordering: a transfer-complete for /big.bin BEFORE the supersede means the

@@ -37,7 +37,7 @@ test('a transitively-approved member sees the owner\'s files', { timeout: scaled
   const bGranted = B.waitFor('event:membership-granted', (m) => m.spaceId === S)
   await A.request('space:approve-member', { spaceId: S, publicKey: bKey })
   await bGranted
-  await B.until('files:list', { spaceId: S }, (l) => Array.isArray(l) && l.some((f) => f.path === '/movie.bin'), { ms: 60000, every: 500 })
+  await B.untilFiles(S, (l) => l.some((f) => f.path === '/movie.bin'), { ms: 60000, every: 500 })
 
   // B (co-member) approves C.
   const bSawC = B.waitFor('event:member-join-request', (m) => m.spaceId === S && m.publicKey === cKey)
@@ -48,6 +48,6 @@ test('a transitively-approved member sees the owner\'s files', { timeout: scaled
   await cGranted
 
   // The transitively-approved member must see the owner's file.
-  await C.until('files:list', { spaceId: S }, (l) => Array.isArray(l) && l.some((f) => f.path === '/movie.bin'), { ms: 90000, every: 1000 })
+  await C.untilFiles(S, (l) => l.some((f) => f.path === '/movie.bin'), { ms: 90000, every: 1000 })
   t.pass('C (approved by co-member B) sees the owner\'s file')
 })

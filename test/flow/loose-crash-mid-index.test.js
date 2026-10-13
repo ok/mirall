@@ -38,7 +38,7 @@ test('owner crash mid-index then restart: no permanent null-hash publishing zomb
     let caught = false
     const deadline = Date.now() + scaled(30000)
     while (Date.now() < deadline) {
-      const list = await A.request('files:list', { spaceId }).catch(() => null)
+      const list = await A.files(spaceId).catch(() => null)
       const row = Array.isArray(list) ? list.find((e) => e.path === '/archive.bin') : null
       if (row && row.status === 'publishing') { caught = true; break }
       if (row && row.status === 'synced') break // hash finished before we could catch it
@@ -52,16 +52,16 @@ test('owner crash mid-index then restart: no permanent null-hash publishing zomb
     A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: aStore, flags: aFlags })
     await sleep(15000)
 
-    let row = (await A.request('files:list', { spaceId })).find((e) => e.path === '/archive.bin')
+    let row = (await A.files(spaceId)).find((e) => e.path === '/archive.bin')
     t.comment(`post-restart owner row: ${row ? 'status=' + row.status : 'absent'}`)
     if (row && row.status === 'publishing') {
       // A boot re-hash may still be running — give it time to resolve to 'synced' or vanish.
       // If it stays 'publishing' past this window, that is the permanent zombie → this fails.
-      await A.until('files:list', { spaceId }, (list) => {
-        const e = Array.isArray(list) ? list.find((x) => x.path === '/archive.bin') : null
+      await A.untilFiles(spaceId, (list) => {
+        const e = list.find((x) => x.path === '/archive.bin')
         return !e || e.status === 'synced'
       }, { ms: 90000 })
-      row = (await A.request('files:list', { spaceId })).find((e) => e.path === '/archive.bin')
+      row = (await A.files(spaceId)).find((e) => e.path === '/archive.bin')
     }
     t.ok(!row || row.status === 'synced', 'owner entry is absent or fully shared — not a permanent publishing zombie')
 
@@ -71,12 +71,12 @@ test('owner crash mid-index then restart: no permanent null-hash publishing zomb
     // not a phantom that silently never arrived. (If the owner instead reverted, the peer drops it.)
     const ownerShared = !!row && row.status === 'synced'
     if (ownerShared) {
-      await B.until('files:list', { spaceId }, (list) => {
-        const e = Array.isArray(list) ? list.find((x) => x.path === '/archive.bin') : null
+      await B.untilFiles(spaceId, (list) => {
+        const e = list.find((x) => x.path === '/archive.bin')
         return !!e && e.status === 'remote'
       }, { ms: 60000 })
     }
-    const bRow = (await B.request('files:list', { spaceId })).find((e) => e.path === '/archive.bin')
+    const bRow = (await B.files(spaceId)).find((e) => e.path === '/archive.bin')
     t.comment(`post-restart peer row: ${bRow ? 'status=' + bRow.status : 'absent'}`)
     if (ownerShared) t.is(bRow?.status, 'remote', 'peer converged to the resumed share, not a stuck/absent phantom')
     else t.absent(bRow, 'peer dropped the reverted phantom')

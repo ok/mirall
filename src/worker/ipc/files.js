@@ -9,6 +9,7 @@ import { getSpace } from '../../shared/spaces/space.js'
 import { errorMessage } from '../../shared/core/errors.js'
 import { isSpaceLeaving } from '../../shared/network/leave-protocol.js'
 import { listFiles, removeFile, addFile } from '../../shared/transfer/file-listing.js'
+import { emptyListing } from '../../shared/transfer/listing-envelope.js'
 import { revealFile } from '../../shared/transfer/reveal.js'
 import { overlayBackend } from '../../shared/transfer/overlay/index.js'
 import { cancelShareDownload, looseShareOfOwner, pauseShareDownload } from '../../shared/transfer/overlay/share-downloads.js'
@@ -51,7 +52,7 @@ export function registerFiles(ipc, { log }) {
   ipc.handle('recipients:list', async (msg) => (isSpaceLeaving(msg.spaceId) ? [] : listFileRecipients(msg.spaceId)))
 
   ipc.handle('files:list', async (msg) => {
-    if (isSpaceLeaving(msg.spaceId)) return [] // teardown is purging the catalog — don't race it
+    if (isSpaceLeaving(msg.spaceId)) return emptyListing() // teardown is purging the catalog — don't race it
     const space = await getSpace(msg.spaceId)
     return await listFiles(msg.spaceId, space?.members || [], { space })
   })

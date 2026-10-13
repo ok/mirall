@@ -60,8 +60,8 @@ for (let m = 0; m < M; m++) {
 
 const timed = async () => {
   const t0 = Date.now()
-  const rows = await listFiles(spaceId, members)
-  return { ms: Date.now() - t0, rows: rows.length }
+  const { entries } = await listFiles(spaceId, members)
+  return { ms: Date.now() - t0, rows: entries.length }
 }
 
 async function warmRuns(listFullReadEvery) {

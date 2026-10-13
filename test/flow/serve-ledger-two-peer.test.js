@@ -21,7 +21,7 @@ async function shareAndSee(A, peers, spaceId, aSrc, name, seed, mb) {
   fs.writeFileSync(path.join(aSrc, name), bytes)
   await A.request('files:add', { spaceId, filePath: path.join(aSrc, name), fileName: name, fileSize: bytes.length })
   for (const P of peers) {
-    await P.until('files:list', { spaceId }, (f) => Array.isArray(f) && f.some((e) => e.path === '/' + name && e.status === 'remote'), { ms: 60000 })
+    await P.untilFiles(spaceId, (f) => f.some((e) => e.path === '/' + name && e.status === 'remote'), { ms: 60000 })
   }
   return bytes
 }
@@ -51,7 +51,7 @@ test('owner serve ledger: reflects a downloading peer, its pause, and clears on 
     await A.until('serving:summary-list', { spaceId }, (list) => { const s = summaryFor(list, '/feed.bin'); return !!s && s.peers.includes(bKey) }, { ms: 30000 })
     t.pass('owner ledger shows the downloading peer')
 
-    const transferId = (await B.request('files:list', { spaceId })).find((e) => e.path === '/feed.bin')?.transferId
+    const transferId = (await B.files(spaceId)).find((e) => e.path === '/feed.bin')?.transferId
     await B.request('files:pause-download', { transferId })
     await A.until('serving:summary-list', { spaceId }, (list) => { const s = summaryFor(list, '/feed.bin'); return !!s && s.pausedKeys.includes(bKey) }, { ms: 30000 })
     t.pass('owner ledger surfaces the peer as paused')
@@ -86,7 +86,7 @@ test('owner serve ledger: two peers download, one cancels → the canceller is d
     await A.until('serving:summary-list', { spaceId }, (list) => { const s = summaryFor(list, '/shared.bin'); return !!s && s.peers.includes(bKey) && s.peers.includes(cKey) }, { ms: 30000 })
     t.pass('owner ledger shows both downloaders')
 
-    const cTransfer = (await C.request('files:list', { spaceId })).find((e) => e.path === '/shared.bin')?.transferId
+    const cTransfer = (await C.files(spaceId)).find((e) => e.path === '/shared.bin')?.transferId
     await C.request('files:cancel-download', { transferId: cTransfer })
     await A.until('serving:summary-list', { spaceId }, (list) => { const s = summaryFor(list, '/shared.bin'); return !s || !s.peers.includes(cKey) }, { ms: 45000 })
     t.pass('owner ledger dropped the canceller')

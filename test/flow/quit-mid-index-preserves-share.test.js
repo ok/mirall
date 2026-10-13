@@ -30,8 +30,8 @@ test('graceful quit mid-index preserves the share: restart re-hashes to synced, 
     A.request('files:add', { spaceId, filePath: path.join(aSrc, 'archive.bin'), fileName: 'archive.bin', fileSize: bytes.length }).catch(() => {})
 
     // Quit WHILE the owner is mid-index (advertised null-hash → own status 'publishing').
-    await A.until('files:list', { spaceId },
-      (l) => Array.isArray(l) && l.find((e) => e.path === '/archive.bin')?.status === 'publishing',
+    await A.untilFiles(spaceId,
+      (l) => l.find((e) => e.path === '/archive.bin')?.status === 'publishing',
       { ms: 30000, every: 100 })
     const aPid = A.sidecar._process.pid
     await A.request('shutdown').catch(() => {})
@@ -42,8 +42,8 @@ test('graceful quit mid-index preserves the share: restart re-hashes to synced, 
 
     // Restart on the same store; boot rehydration must resume the null-hash entry to a real share.
     A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: aStore, flags: aFlags })
-    const row = await A.until('files:list', { spaceId },
-      (l) => Array.isArray(l) && l.find((e) => e.path === '/archive.bin')?.status === 'synced',
+    const row = await A.untilFiles(spaceId,
+      (l) => l.find((e) => e.path === '/archive.bin')?.status === 'synced',
       { ms: 120000, every: 500 })
     t.is(row.find((e) => e.path === '/archive.bin').status, 'synced',
       'graceful quit mid-index left the share intact — restart re-hashed it, not reverted')

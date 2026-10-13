@@ -42,7 +42,7 @@ test('own loose files are listed as "synced" (owner You)', async (t) => {
   fs.writeFileSync(src, 'loose content')
   await addFile(ctx.spaceId, src, 'loose.txt', 13, null)
 
-  const files = await listFiles(ctx.spaceId, [])
+  const files = (await listFiles(ctx.spaceId, [])).entries
   const loose = files.find((f) => f.path === '/loose.txt')
   t.ok(loose, 'loose file is listed')
   t.is(loose.status, 'synced', 'status is synced')
@@ -55,13 +55,29 @@ test('an own loose row carries its source as localPath; a removed source record 
   fs.writeFileSync(src, 'kept')
   await addFile(ctx.spaceId, src, 'kept.txt', 4, null)
 
-  let row = (await listFiles(ctx.spaceId, [])).find((f) => f.path === '/kept.txt')
+  let row = (await listFiles(ctx.spaceId, [])).entries.find((f) => f.path === '/kept.txt')
   t.is(row.localPath, src, 'the recorded source is where the bytes are')
   t.is(row.mtime, fs.statSync(src).mtimeMs, 'the row carries the catalog entry\'s mtime')
 
   await clearOwnedSource(ctx.spaceId, '/kept.txt')
-  row = (await listFiles(ctx.spaceId, [])).find((f) => f.path === '/kept.txt')
+  row = (await listFiles(ctx.spaceId, [])).entries.find((f) => f.path === '/kept.txt')
   t.is(row.localPath, null, 'no record, no path')
+})
+
+test('an own-only space answers the whole listing envelope', async (t) => {
+  const ctx = await setup(t)
+  const sizes = { 'one.txt': 3, 'two.txt': 5 }
+  for (const [name, size] of Object.entries(sizes)) {
+    const src = path.join(ctx.tmpDir('src'), name)
+    fs.writeFileSync(src, 'x'.repeat(size))
+    await addFile(ctx.spaceId, src, name, size, null)
+  }
+  const listing = await listFiles(ctx.spaceId, [])
+  t.is(listing.complete, true)
+  t.is(listing.total, 2)
+  t.is(listing.totalBytes, 8)
+  t.is(listing.truncated, false, 'a loose listing is never capped')
+  t.is(listing.fileLimit, null)
 })
 
 test('files inside an owned-folder share are excluded from the loose list', async (t) => {
@@ -77,7 +93,7 @@ test('files inside an owned-folder share are excluded from the loose list', asyn
   })
   await advertise(ctx.spaceId, shareId, 'inside.txt', { size: 21, mtime: 0, contentHash: 'h-inside' })
 
-  const paths = (await listFiles(ctx.spaceId, [])).map((f) => f.path)
+  const paths = (await listFiles(ctx.spaceId, [])).entries.map((f) => f.path)
   t.ok(paths.includes('/loose.txt'), 'the loose file is listed')
   t.absent(paths.some((p) => p.endsWith('/inside.txt')), 'a file inside an owned share is NOT a loose file')
 })
@@ -104,7 +120,7 @@ test('two files added at once are listed as two rows while both are still prepar
 
   try {
     let files = []
-    await until(async () => (files = await listFiles(ctx.spaceId, [])).length >= 2, 10000, { interval: 20, scale: false })
+    await until(async () => (files = (await listFiles(ctx.spaceId, [])).entries).length >= 2, 10000, { interval: 20, scale: false })
 
     t.alike(files.map((f) => f.path).sort(), ['/a.txt', '/b.txt'], 'both in-progress files are listed')
     for (const f of files) {
@@ -127,7 +143,7 @@ test('distinct loose files are each listed', async (t) => {
   await addFile(ctx.spaceId, path.join(dir, 'a.txt'), 'a.txt', 5, null)
   await addFile(ctx.spaceId, path.join(dir, 'b.txt'), 'b.txt', 5, null)
 
-  const paths = (await listFiles(ctx.spaceId, [])).map((f) => f.path).sort()
+  const paths = (await listFiles(ctx.spaceId, [])).entries.map((f) => f.path).sort()
   t.alike(paths, ['/a.txt', '/b.txt'], 'both distinct files listed')
 })
 
@@ -168,10 +184,12 @@ test('REGRESSION (FIX-127): files:list bounds un-replicated members by the short
   for (let i = 0; i < 3; i++) ghosts.push(await ghostCatalogMember(i))
 
   const t0 = Date.now()
-  const files = await listFiles(ctx.spaceId, ghosts)
+  const listing = await listFiles(ctx.spaceId, ghosts)
+  const files = listing.entries
   const dt = Date.now() - t0
 
   t.ok(takeIncompleteListSpaces().includes(ctx.spaceId), 'the ghosts were actually read (and stalled) — not filtered out')
+  t.is(listing.complete, true, 'offline ghosts do not hold the list open: their rows already say they are away')
   // Parallel under the 500ms budget ≈ 500ms; serial would be 3 × 500 = 1500ms; the peer budget
   // (if it leaked back in) would be 30s. < 1200ms proves BOTH: the short budget AND parallel reads.
   t.ok(dt < 1200, 'bounded + parallel (' + dt + 'ms), not serial 3× or the 30s peer budget')
@@ -197,7 +215,7 @@ test('REGRESSION (FIX-LIST-DEADLINE): six unreachable members cost one budget, n
   for (let i = 0; i < 6; i++) ghosts.push(await ghostCatalogMember(10 + i))
 
   const t0 = Date.now()
-  const files = await listFiles(ctx.spaceId, ghosts)
+  const files = (await listFiles(ctx.spaceId, ghosts)).entries
   const dt = Date.now() - t0
 
   t.ok(takeIncompleteListSpaces().includes(ctx.spaceId), 'every ghost was read and stalled')

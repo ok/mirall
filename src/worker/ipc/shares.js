@@ -32,6 +32,7 @@ import { record } from '../../shared/audit/audit-log.js'
 import { selfActor, targetRef } from '../../shared/audit/audit-record.js'
 import { spaceRefOf } from '../audit-refs.js'
 import { assertCatalogWritable, assertProfileWritable } from '../../shared/core/restore-guard.js'
+import { emptyListing } from '../../shared/transfer/listing-envelope.js'
 
 // The share record the space would see, with every refusal already made and nothing written down
 // yet. Split from the publish below because the composed create-and-mount has to record a durable
@@ -215,8 +216,8 @@ export function registerShares(ipc, { log, intents, mountOwnedShare }) {
     // A content mode this build cannot serve renders as unavailable. A
     // pre-encryption space lists empty for the same reason — its catalog cannot be opened, and the
     // renderer already explains why (space.legacyWarning) rather than surfacing a failed read.
-    if (!isServableShare(share)) return { entries: [], complete: true, total: 0, totalBytes: 0 }
-    if (isLegacySpace(await getSpace(msg.spaceId))) return { entries: [], complete: true, total: 0, totalBytes: 0 }
+    if (!isServableShare(share)) return emptyListing()
+    if (isLegacySpace(await getSpace(msg.spaceId))) return emptyListing()
     // The first handler to honour a cancellation, and the one the renderer's query store actually
     // cancels: a folder listing whose view has been superseded or navigated away from.
     return await listOverlayShareFiles(msg.spaceId, share, backend, undefined, { signal: ctx?.signal ?? null })

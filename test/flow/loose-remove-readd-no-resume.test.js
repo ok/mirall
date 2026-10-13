@@ -11,7 +11,7 @@ const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
 const v2flags = () => ({ identityKEK: kekHex() })
 const sha = (b) => crypto.createHash('sha256').update(b).digest('hex')
-const statusOf = (f, p) => (Array.isArray(f) ? f.find((e) => e.path === p)?.status : undefined)
+const statusOf = (f, p) => f.find((e) => e.path === p)?.status
 
 // REGRESSION (FIX-REMOVE-1): the owner REMOVES a loose file mid-download, then RE-ADDS the same
 // content. The receiver must NOT auto-resume — the deliberate removal terminates the intent
@@ -33,7 +33,7 @@ test('owner remove + re-add mid-download does NOT auto-resume; requires a manual
     const srcPath = path.join(aSrc, 'big.bin')
     fs.writeFileSync(srcPath, bytes)
     await A.request('files:add', { spaceId, filePath: srcPath, fileName: 'big.bin', fileSize: bytes.length })
-    await B.until('files:list', { spaceId }, (f) => statusOf(f, '/big.bin') === 'remote', { ms: 60000 })
+    await B.untilFiles(spaceId, (f) => statusOf(f, '/big.bin') === 'remote', { ms: 60000 })
 
     let removed = false
     let completedBeforeRemove = false
@@ -61,15 +61,15 @@ test('owner remove + re-add mid-download does NOT auto-resume; requires a manual
     t.is((await removedSignal).fileName, 'big.bin', 'worker emitted event:transfer-removed for the torn-down download')
 
     // B observes the removal: the file leaves B's listing (tombstone hides it).
-    await B.until('files:list', { spaceId }, (f) => !Array.isArray(f) || !f.some((e) => e.path === '/big.bin'), { ms: 60000 })
+    await B.untilFiles(spaceId, (f) => !f.some((e) => e.path === '/big.bin'), { ms: 60000 })
 
     // A re-adds the SAME content (human-paced: after B saw the removal → distinct appends).
     await A.request('files:add', { spaceId, filePath: srcPath, fileName: 'big.bin', fileSize: bytes.length })
 
     // The file returns for B as 'remote' — NOT downloading/paused/downloaded — and STAYS so.
-    await B.until('files:list', { spaceId }, (f) => statusOf(f, '/big.bin') === 'remote', { ms: 60000 })
+    await B.untilFiles(spaceId, (f) => statusOf(f, '/big.bin') === 'remote', { ms: 60000 })
     await new Promise((r) => setTimeout(r, scaled(8000))) // stability window: the buggy auto-resume would fire here
-    const stable = await B.request('files:list', { spaceId })
+    const stable = await B.files(spaceId)
     t.is(statusOf(stable, '/big.bin'), 'remote', 'file remains "remote" after re-add — intent terminated, no auto-resume')
     t.absent(autoCompleted, 'no auto-resume completion fired without a manual re-download')
 

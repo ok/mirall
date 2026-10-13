@@ -321,13 +321,24 @@ export type ApproveMemberResult = false | { granted: true, delivered: boolean }
 type DenyOutcome = (typeof DENY_OUTCOMES)[number]
 export type DenyMemberResult = { outcome: DenyOutcome }
 
-export interface ShareFileListing {
-  entries: ShareFileRow[]
+// What a file listing answers: the rows, and what the rows are short of. `complete` is false when
+// the rows are not the whole set — for a folder, a peer read that did not finish or found no
+// blocks; for loose files, a member who is online whose read did not finish. `truncated` is the
+// worker's fact, never inferred from `total` (an incomplete read makes `total` partial too).
+export interface ContentListing {
   complete: boolean
   total: number
   totalBytes: number
-  truncated?: boolean
-  fileLimit?: number | null
+  truncated: boolean
+  fileLimit: number | null
+}
+
+export interface LooseFileListing extends ContentListing {
+  entries: FileEntry[]
+}
+
+export interface ShareFileListing extends ContentListing {
+  entries: ShareFileRow[]
 }
 
 export interface FolderInfo { fileCount: number, totalBytes: number, blobsLength: number | null }
@@ -590,7 +601,7 @@ interface Responses {
   'files:cancel-download': Ack
   'files:cancel-publish': Ack
   'files:download': LooseDownloadResult
-  'files:list': FileEntry[]
+  'files:list': LooseFileListing
   'files:pause-download': Ack
   'files:remove': Ack
   'files:reveal': Ack

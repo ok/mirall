@@ -49,8 +49,8 @@ test('a download survives a link that flaps until hyperswarm gives up re-dialing
   const bytes = patternedBytes(32 * 1024 * 1024, 91)
   fs.writeFileSync(path.join(aSrc, 'churn.bin'), bytes)
   await A.request('files:add', { spaceId, filePath: path.join(aSrc, 'churn.bin'), fileName: 'churn.bin', fileSize: bytes.length })
-  await B.until('files:list', { spaceId },
-    (f) => Array.isArray(f) && f.some((e) => e.path === '/churn.bin' && e.status === 'remote'), { ms: 180000 })
+  await B.untilFiles(spaceId,
+    (f) => f.some((e) => e.path === '/churn.bin' && e.status === 'remote'), { ms: 180000 })
 
   let interruptions = 0
   B.on('event:transfer-paused', (m) => { if (m.path === '/churn.bin') interruptions++ })

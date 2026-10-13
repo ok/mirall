@@ -45,8 +45,8 @@ test('owner killed mid-rehash: the download parks instead of dying, and resumes 
     const srcPath = path.join(aSrc, 'big.bin')
     fs.writeFileSync(srcPath, original)
     await A.request('files:add', { spaceId, filePath: srcPath, fileName: 'big.bin', fileSize: original.length })
-    await B.until('files:list', { spaceId },
-      (f) => Array.isArray(f) && f.some((e) => e.path === '/big.bin' && e.status === 'remote'), { ms: 60000 })
+    await B.untilFiles(spaceId,
+      (f) => f.some((e) => e.path === '/big.bin' && e.status === 'remote'), { ms: 60000 })
 
     let sawError = null
     let removed = false
@@ -74,7 +74,7 @@ test('owner killed mid-rehash: the download parks instead of dying, and resumes 
 
     t.absent(sawError, 'no misleading transfer-error — the doomed old-hash fetch is expected to fail')
     t.absent(removed, 'the download intent is NOT torn down (the drop is the bug this fixes)')
-    const parked = await B.request('files:list', { spaceId })
+    const parked = await B.files(spaceId)
     t.absent(statusOf(parked, '/big.bin') === 'downloaded', 'nothing landed — the owner never finished publishing')
     t.ok(fs.existsSync(path.join(B.downloads, 'big.bin')) === false, 'no orphan final file')
 

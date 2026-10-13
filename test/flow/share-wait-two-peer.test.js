@@ -97,8 +97,8 @@ test('a loose download requested mid-hash waits on the owner, and a cancel clear
 
     const src = sparseFile(mkTmpDir(t), 'reel.bin', 3 * GB)
     A.request('files:add', { spaceId, filePath: src, fileName: 'reel.bin', fileSize: 3 * GB }).catch(() => {})
-    await B.until('files:list', { spaceId },
-      (l) => Array.isArray(l) && l.find((e) => e.path === '/reel.bin')?.status === 'preparing',
+    await B.untilFiles(spaceId,
+      (l) => l.find((e) => e.path === '/reel.bin')?.status === 'preparing',
       { ms: 60000, every: 100 })
 
     const res = await B.request('files:download', { spaceId, path: '/reel.bin', ownerKey: aKey })
@@ -141,8 +141,8 @@ test('a pending row re-driven on reconnect announces the wait, and converts when
 
     const src = sparseFile(mkTmpDir(t), 'reel.bin', 8 * GB)
     A.request('files:add', { spaceId, filePath: src, fileName: 'reel.bin', fileSize: 8 * GB }).catch(() => {})
-    await B.until('files:list', { spaceId },
-      (l) => Array.isArray(l) && l.find((e) => e.path === '/reel.bin')?.status === 'preparing',
+    await B.untilFiles(spaceId,
+      (l) => l.find((e) => e.path === '/reel.bin')?.status === 'preparing',
       { ms: 60000, every: 100 })
     await B.request('files:download', { spaceId, path: '/reel.bin', ownerKey: aKey })
     t.absent((await A.request('serving:summary-list', { spaceId })).some((s) => s.waitingKeys.includes(bKey)),
@@ -182,8 +182,8 @@ test('a waiting member that quits leaves the owner\'s waiting row at once',
 
     const src = sparseFile(mkTmpDir(t), 'reel.bin', 8 * GB)
     A.request('files:add', { spaceId, filePath: src, fileName: 'reel.bin', fileSize: 8 * GB }).catch(() => {})
-    await B.until('files:list', { spaceId },
-      (l) => Array.isArray(l) && l.find((e) => e.path === '/reel.bin')?.status === 'preparing',
+    await B.untilFiles(spaceId,
+      (l) => l.find((e) => e.path === '/reel.bin')?.status === 'preparing',
       { ms: 60000, every: 100 })
     await B.request('files:download', { spaceId, path: '/reel.bin', ownerKey: aKey })
     await waiting

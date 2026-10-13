@@ -7,6 +7,7 @@ import { pathFromMount } from '../../src/shared/folders/path-guard.js'
 import { consumerRowStatusFor, unhashedStatusFor } from '../../src/shared/transfer/transfer-status.js'
 import { transferIdFor } from '../../src/shared/transfer/transfer-id.js'
 import { tmpDir, tmpPath } from '../helpers/bare-tmp.js'
+import { getRuntimeConfig, setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 
 const SPACE = 'sp1'
 const SHARE = { id: 'sh1', name: 'Docs', owner: 'peer' }
@@ -490,4 +491,21 @@ test("REGRESSION (FIX-MIRROR-OFFLINE): a parked mirror fetch is not 'downloading
   deps.isOwnerOnline = () => true
   const back = await listOverlayShareFiles(SPACE, SHARE, backendFor(rows(1)), deps)
   t.is(back.entries[0].status, 'downloading', 'online: a real in-flight fetch still reads as one')
+})
+
+test('the folder envelope always states truncation: a capped listing names its cap, an uncapped one null', async (t) => {
+  const prior = getRuntimeConfig()
+  t.teardown(() => setRuntimeConfig(prior))
+  setRuntimeConfig({ ...prior, listFilesCap: 2 })
+  const capped = await listOverlayShareFiles(SPACE, SHARE, {
+    listOwn: async () => ({ entries: rows(2), total: 5, totalBytes: 50, complete: true }),
+    listPeerWithMeta: async () => ({ entries: rows(2), total: 5, totalBytes: 50, complete: true }),
+  }, countingDeps())
+  t.is(capped.truncated, true)
+  t.is(capped.fileLimit, 2)
+
+  setRuntimeConfig(prior)
+  const whole = await listOverlayShareFiles(SPACE, SHARE, backendFor(rows(3)), countingDeps())
+  t.is(whole.truncated, false)
+  t.is(whole.fileLimit, null)
 })

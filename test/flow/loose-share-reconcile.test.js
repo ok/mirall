@@ -26,7 +26,7 @@ test('a peer\'s loose share fans a loose-listing reconcile hint to the other pee
     const spaceId = await connectInSpaceWithApproval(t, A, B)
 
     // List once so B binds A's catalog (registers the peer-catalog append watch).
-    await B.request('files:list', { spaceId })
+    await B.files(spaceId)
 
     const src = path.join(mkTmpDir(t), 'report.txt')
     fs.writeFileSync(src, Buffer.alloc(4096, 7))

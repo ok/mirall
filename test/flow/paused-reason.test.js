@@ -31,8 +31,8 @@ test('FIX-REMOVE-1: an online owner removing mid-download terminates the transfe
     fs.writeFileSync(srcPath, bytes)
     await A.request('files:add', { spaceId, filePath: srcPath, fileName: 'big.bin', fileSize: bytes.length })
 
-    await B.until('files:list', { spaceId },
-      (f) => Array.isArray(f) && f.some((e) => e.path === '/big.bin' && e.status === 'remote'),
+    await B.untilFiles(spaceId,
+      (f) => f.some((e) => e.path === '/big.bin' && e.status === 'remote'),
       { ms: 60000 })
 
     const flowing = new Promise((resolve) => {
@@ -46,7 +46,7 @@ test('FIX-REMOVE-1: an online owner removing mid-download terminates the transfe
     await A.request('files:remove', { spaceId, path: '/big.bin' }) // owner stays online
 
     t.is((await removed).fileName, 'big.bin', 'the removal terminates the transfer (event:transfer-removed)')
-    const row = (await B.request('files:list', { spaceId })).find((e) => e.path === '/big.bin')
+    const row = (await B.files(spaceId)).find((e) => e.path === '/big.bin')
     t.ok(row == null || (row.status !== 'paused-interrupted' && row.status !== 'downloaded'),
       'the download did not linger as a resumable paused-interrupted row')
     t.absent(fs.existsSync(path.join(B.downloads, 'big.bin')), 'no full file landed')

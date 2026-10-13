@@ -29,7 +29,7 @@ test('a newly shared folder surfaces on a peer while a download is in flight ove
     const bytes = patternedBytes(48 * 1024 * 1024, 41)
     fs.writeFileSync(src, bytes)
     await A.request('files:add', { spaceId, filePath: src, fileName: 'big.bin', fileSize: bytes.length })
-    await B.until('files:list', { spaceId }, (f) => Array.isArray(f) && f.some((e) => e.path === '/big.bin' && e.status === 'remote'), { ms: 120000 })
+    await B.untilFiles(spaceId, (f) => f.some((e) => e.path === '/big.bin' && e.status === 'remote'), { ms: 120000 })
 
     let completed = false
     B.on('event:transfer-complete', (m) => { if (m.path === '/big.bin') completed = true })
@@ -59,7 +59,7 @@ test('a download completes byte-exact over the content plane', { timeout: scaled
   const bytes = patternedBytes(4 * 1024 * 1024, 23)
   fs.writeFileSync(src, bytes)
   await A.request('files:add', { spaceId, filePath: src, fileName: 'file.bin', fileSize: bytes.length })
-  await B.until('files:list', { spaceId }, (f) => Array.isArray(f) && f.some((e) => e.path === '/file.bin' && e.status === 'remote'), { ms: 60000 })
+  await B.untilFiles(spaceId, (f) => f.some((e) => e.path === '/file.bin' && e.status === 'remote'), { ms: 60000 })
 
   const done = B.waitFor('event:transfer-complete', (m) => m.path === '/file.bin', 90000)
   await B.request('files:download', { spaceId, path: '/file.bin', ownerKey: aKey })

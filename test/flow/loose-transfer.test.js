@@ -49,6 +49,6 @@ test('A shares a file, B sees and downloads it; bytes match end-to-end', { timeo
   t.ok(downloaded.equals(bytes), 'downloaded bytes match source exactly')
 
   // status flips to downloaded
-  const list2 = await B.request('files:list', { spaceId })
+  const list2 = await B.files(spaceId)
   t.is(list2.find((f) => f.path === '/photo.bin').status, 'downloaded')
 })

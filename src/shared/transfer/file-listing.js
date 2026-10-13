@@ -28,8 +28,9 @@ import { getSpace } from '../spaces/space.js'
 import { isParticipating } from '../spaces/participation.js'
 import { peerMembersOf, readEachPeer } from '../spaces/member-fanout.js'
 /** @import { StoredSpace } from '../spaces/space.js' */
-/** @import { FileEntry } from '../contract/responses.js' */
+/** @import { FileEntry, LooseFileListing } from '../contract/responses.js' */
 import { dedupeFileRows } from './file-dedupe.js'
+import { emptyListing, looseListing } from './listing-envelope.js'
 import { markListIncomplete } from './list-deficits.js'
 import { beginListingRead, retainListingMemo, settleListingRead, takeListingMemo } from './listing-memo.js'
 import { looseHasOwn, looseListOwn, looseQueuedPaths, looseShareFile, looseUnshareFile } from './overlay/loose-publish.js'
@@ -155,9 +156,9 @@ async function prefetchLooseRowState(spaceId, peerEntries, deps) {
   return { verified, claims }
 }
 
-// One member's catalog, under the fan-out's budget. A member whose read fails contributes no rows
-// instead of failing the listing. A catalog whose version has not moved since its last complete read
-// is served from the listing memo instead.
+// One member's catalog, under the fan-out's budget, and whether the read stalled. A member whose read
+// fails contributes no rows instead of failing the listing, and counts as stalled. A catalog whose
+// version has not moved since its last complete read is served from the listing memo instead.
 async function readPeerEntries(spaceId, member, { budget, space, deps }) {
   const share = looseShareFor(member)
   const { keyHex } = readCatalogKey(share)
@@ -165,7 +166,7 @@ async function readPeerEntries(spaceId, member, { budget, space, deps }) {
   try {
     const version = await deps.catalogVersion(spaceId, share, { space })
     const memo = takeListingMemo(spaceId, keyHex, version, { fullReadEvery: getListFullReadEvery() })
-    if (memo.entries) return memo.entries
+    if (memo.entries) return { entries: memo.entries, stalled: false }
     log.debug('loose catalog read for', keyHex.slice(0, 16) + '...', '-', memo.reason)
     prior = beginListingRead(spaceId, keyHex, memo.reason)
     const read = await deps.listPeer(spaceId, share, { timeoutMs: budget, space })
@@ -173,28 +174,30 @@ async function readPeerEntries(spaceId, member, { budget, space, deps }) {
     // append unless the stream stays stalled; the deficit makes the convergence tick re-poke the
     // listing. A legitimately empty catalog is not stalled, so it is not re-poked forever.
     if (read.stalled) markListIncomplete(spaceId)
-    return settleListingRead(spaceId, keyHex, read, prior)
+    return { entries: settleListingRead(spaceId, keyHex, read, prior), stalled: Boolean(read.stalled) }
   } catch (err) {
     // Flag the space the way a stalled read does: without this the convergence tick has no
     // reason to re-poke, so a member whose read threw would stay missing from the listing
     // until some unrelated listing poke arrived.
     markListIncomplete(spaceId)
     log.warn('loose catalog read failed for', member.publicKey.slice(0, 16) + '...', '-', err.message)
-    return settleListingRead(spaceId, keyHex, null, prior)
+    return { entries: settleListingRead(spaceId, keyHex, null, prior), stalled: true }
   }
 }
 
 // In-place loose files (own + each peer's) read from the loose catalog, one candidate row per
-// owner, so dedupeFileRows can merge them.
+// owner, so dedupeFileRows can merge them, and whether those rows are the whole set.
 async function collectLooseInPlace(spaceId, members, { localPublicKey, space, deps }) {
   const queued = looseQueuedPaths(spaceId)
   const [own, sources] = await Promise.all([looseListOwn(spaceId), deps.listOwnedSources(spaceId)])
   const out = own.map((e) => ownRow(e, localPublicKey, queued, sources))
   const peerMembers = peerMembersOf(members, localPublicKey, (m) => Boolean(readCatalogKey(m).keyHex))
   retainListingMemo(spaceId, new Set(peerMembers.map((m) => readCatalogKey(m).keyHex)))
-  if (peerMembers.length === 0) return out
+  if (peerMembers.length === 0) return { rows: out, complete: true }
   const pending = new Map((await deps.listPendingForSpace(spaceId)).map((p) => [p.filePath, p]))
-  const peerEntries = await readEachPeer(peerMembers, (member, budget) => readPeerEntries(spaceId, member, { budget, space, deps }))
+  const reads = await readEachPeer(peerMembers, (member, budget) => readPeerEntries(spaceId, member, { budget, space, deps }))
+  const peerEntries = reads.map((read) => read.entries)
+  const online = peerMembers.map((member) => deps.isOwnerOnline(member.publicKey))
   const { verified, claims } = await prefetchLooseRowState(spaceId, peerEntries, deps)
 
   const stale = new Map() // drivePath -> the verdict's reason
@@ -202,7 +205,7 @@ async function collectLooseInPlace(spaceId, members, { localPublicKey, space, de
   const dirProbe = createDirProbe()
   // Member order is the dedupe tie-break, so the fold must see candidates in this order.
   for (const [i, member] of peerMembers.entries()) {
-    const ctx = { deps, verified, claims, pending, stale, held, dirProbe, ownerOnline: deps.isOwnerOnline(member.publicKey) }
+    const ctx = { deps, verified, claims, pending, stale, held, dirProbe, ownerOnline: online[i] }
     for (const e of peerEntries[i]) out.push(peerRow(spaceId, member, e, ctx))
   }
   // A claim is keyed by name, not by owner: one member's replaced file must not prune the claim
@@ -212,18 +215,25 @@ async function collectLooseInPlace(spaceId, members, { localPublicKey, space, de
   // Awaited so a caller can observe the flush, caught so a failed cache cleanup never fails the
   // listing the rows are already built for.
   if (prune.length) await deps.pruneDownloadClaims(spaceId, prune).catch((err) => log.debug('claim prune failed:', err.message))
-  return out
+  // An offline member's read always stalls and its rows already say so, so only a member who is
+  // online holds the list open.
+  return { rows: out, complete: reads.every((read, i) => !read.stalled || !online[i]) }
 }
 
 // `space` is the caller's already-read record, so a listing costs one spaces-bee read, not two.
-/** @param {string} spaceId @param {object[]} members @param {{ space?: StoredSpace | null, deps?: typeof productionDeps }} [opts] */
+/**
+ * @param {string} spaceId @param {object[]} members
+ * @param {{ space?: StoredSpace | null, deps?: typeof productionDeps }} [opts]
+ * @returns {Promise<LooseFileListing>}
+ */
 export async function listFiles(spaceId, members, { space = null, deps = productionDeps } = {}) {
   const spaceRecord = space || await getSpace(spaceId)
-  if (!isParticipating(spaceRecord)) return []
+  if (!isParticipating(spaceRecord)) return emptyListing()
 
-  const files = dedupeFileRows(await collectLooseInPlace(spaceId, members, { localPublicKey: getLocalPublicKeyHex(), space: spaceRecord, deps }))
-  log.debug('listed', files.length, 'files in space', spaceId, '(' + members?.length, 'members)')
-  return files
+  const { rows, complete } = await collectLooseInPlace(spaceId, members, { localPublicKey: getLocalPublicKeyHex(), space: spaceRecord, deps })
+  const listing = looseListing(dedupeFileRows(rows), complete)
+  log.debug('listed', listing.total, 'files in space', spaceId, '(' + members?.length, 'members, complete:', complete + ')')
+  return listing
 }
 
 export async function removeFile(spaceId, filePath) {

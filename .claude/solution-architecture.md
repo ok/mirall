@@ -422,6 +422,11 @@ never sent.
 Rows collapse per content hash by `STATUS_RANK` (`src/shared/transfer/file-dedupe.js`); a hashless
 row keys on owner + path, so a shared name never merges two owners' files.
 
+`files:list` answers the same envelope as `share:list-files` (`ContentListing` in
+`src/shared/contract/responses.ts`). A loose listing is never truncated; it is incomplete when a
+member who is online could not be read in full, and every stalled read — online or not — marks the
+space for the convergence tick's re-poke (`src/shared/transfer/list-deficits.js`).
+
 #### Publish, share-wait, download
 
 Mechanics are in §4.5, §7.2 and §7.6; these are the data-model invariants.

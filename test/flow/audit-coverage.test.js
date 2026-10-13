@@ -137,14 +137,14 @@ test('one realistic session produces every expected kind, and nothing else', { t
   // --- loose files: A publishes, B downloads (serve on A, transfer on B) -------------------
   const bytes = patternedBytes(128 * 1024, 7)
   await A.request('files:add', { spaceId, filePath: writeTmpFile(bytes, t), fileName: 'shared.bin', fileSize: bytes.length })
-  await B.until('files:list', { spaceId }, (l) => l.some((f) => f.path === '/shared.bin'), { ms: 60000, every: 500 })
+  await B.untilFiles(spaceId, (l) => l.some((f) => f.path === '/shared.bin'), { ms: 60000, every: 500 })
   const dl = B.waitFor('event:transfer-complete', () => true, 90000)
   await B.request('files:download', { spaceId, ownerKey: aKey, path: '/shared.bin' })
   await dl
   await A.request('files:remove', { spaceId, path: '/shared.bin' })
 
   // --- B publishes a loose file, then removes it (peer.file_* on A) ------------------------
-  await A.request('files:list', { spaceId })          // registers the catalog watch + baseline
+  await A.files(spaceId)          // registers the catalog watch + baseline
   await new Promise((r) => setTimeout(r, 1500))
   const bBytes = patternedBytes(4096, 2)
   await B.request('files:add', { spaceId, filePath: writeTmpFile(bBytes, t), fileName: 'bobs.txt', fileSize: bBytes.length })

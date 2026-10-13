@@ -7,7 +7,7 @@ import { launchPeer, connectInSpaceWithApproval } from '../helpers/peer.js'
 import { mkTmpDir, patternedBytes } from '../helpers/fixtures.js'
 import { scaled } from '../helpers/timing.js'
 
-// B3 — while the owner indexes a loose file (contentHash still null), the peer's files:list
+// B3 — while the owner indexes a loose file (contentHash still null), the peer's file listing
 // row transitions through a pre-availability state and then settles to 'remote' once the hash
 // lands, and downloads cleanly. Existing tests `until(status==='remote')` and skip the
 // intermediate; this characterizes the pre-remote status the peer actually observes. FE s86.
@@ -35,7 +35,7 @@ test('peer observes a loose file settle from indexing to remote while the owner 
     let becameRemote = false
     const deadline = Date.now() + scaled(90000)
     while (Date.now() < deadline) {
-      const list = await B.request('files:list', { spaceId }).catch(() => null)
+      const list = await B.files(spaceId).catch(() => null)
       const row = Array.isArray(list) ? list.find((e) => e.path === '/reel.bin') : null
       if (row) {
         if (row.status === 'remote') { becameRemote = true; break }

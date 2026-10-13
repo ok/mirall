@@ -3,10 +3,11 @@
 // `handle` signature turns the directive itself into an error.
 import type { WorkerIpc } from '../../../src/shared/core/ipc.js'
 import type { RequestArgs } from '../../../src/shared/contract/request-args.js'
-import type { SpaceRecord } from '../../../src/shared/contract/responses.js'
+import type { LooseFileListing, SpaceRecord } from '../../../src/shared/contract/responses.js'
 
 declare const ipc: WorkerIpc
 declare const space: SpaceRecord
+declare const looseListing: LooseFileListing
 
 ipc.handle('files:remove', async () => ({ ok: true }))
 // @ts-expect-error an acknowledgement is { ok: true }, never false
@@ -15,6 +16,10 @@ ipc.handle('files:remove', async () => ({ ok: false }))
 ipc.handle('files:remove', async () => 'ok')
 // @ts-expect-error a handler that answers nothing breaks a row that promises something
 ipc.handle('files:remove', async () => {})
+
+ipc.handle('files:list', async () => looseListing)
+// @ts-expect-error files:list answers the listing envelope, not a bare array
+ipc.handle('files:list', async () => [])
 
 ipc.handle('spaces:list', async () => [])
 // @ts-expect-error spaces:list resolves with a list, not one space

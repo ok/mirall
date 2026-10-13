@@ -58,6 +58,6 @@ test('a pending row lingering after markDownloaded is masked by the downloaded s
   await markVerified(spaceId, LOOSE_SHARE_ID + '|report.pdf', 'h'.repeat(64))
 
   t.ok(await getPendingFor(spaceId, drivePath), 'the resume row lingers (crash window)')
-  const row = (await listFiles(spaceId, [owner])).find((f) => f.path === drivePath)
+  const row = (await listFiles(spaceId, [owner])).entries.find((f) => f.path === drivePath)
   t.is(row?.status, 'downloaded', 'status derives downloaded, not paused/error, while the stale row lingers')
 })
