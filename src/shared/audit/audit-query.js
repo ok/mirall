@@ -4,7 +4,7 @@
 import { auditBee, flushAudit, newestSeq, oldestSeq } from './audit-log.js'
 import { AGE_HYSTERESIS } from './audit-retention.js'
 import { BY_DEVICE, BY_SPACE, evtKey, evtRange, indexRange } from './audit-keys.js'
-import { SCHEMA_VERSION } from './audit-record.js'
+import { SCHEMA_VERSION, searchText } from './audit-record.js'
 /** @import { AuditEntry, AuditPage } from '../contract/responses.js' */
 
 // Rows walked per query call before returning a partial page. A filtered listing may have to
@@ -27,13 +27,13 @@ function buildFilters({ kinds, categories, actorKey, search, searchKinds, since,
   }
 }
 
-// The search is one test with two ways to pass: the row's stored names contain the term, or its
-// kind is one whose translated text contains it. Kind text is never stored, so the renderer, which
-// holds the translations, resolves the term to `searchKinds`. `kinds` is a separate strict filter
-// the search cannot widen.
+// The search is one test with two ways to pass: the names and paths the row shows contain the term,
+// or its kind is one whose translated text contains it. Kind text is never stored, so the renderer,
+// which holds the translations, resolves the term to `searchKinds`. `kinds` is a separate strict
+// filter the search cannot widen.
 function matchesSearch(rec, { needle, searchKindSet }) {
   if (!needle) return true
-  return (rec.search || '').includes(needle) || Boolean(searchKindSet?.has(rec.kind))
+  return searchText(rec).includes(needle) || Boolean(searchKindSet?.has(rec.kind))
 }
 
 // `since` is not checked here: the page walk applies it with hysteresis before matching.

@@ -17,6 +17,7 @@
 // real device key, and the bee's `by-device/` index is the no-space index, unrelated to either.
 import { isKnownKind, categoryOf, tierOf, ACTOR_TYPE, OUTCOME, OUTCOMES, TARGET_KINDS } from '../contract/audit-kinds.js'
 import { NAME_MAX } from '../contract/limits.js'
+import { shownSubject } from '../contract/audit-subject.js'
 
 export const SCHEMA_VERSION = 2
 
@@ -73,15 +74,16 @@ function normalizeTarget(target) {
   return { kind: target.kind, id: target.id || null, name: clampName(target.name) }
 }
 
-// Proper nouns only, deliberately language-independent. The kind is NOT included: the renderer
-// resolves a typed term against its translated kind text and passes the matches as `searchKinds`,
-// so search works in all five locales without storing localized text.
-function buildSearch(actor, space, target) {
-  return [actor?.name, space?.name, target?.name]
+// Proper nouns only, deliberately language-independent: the participant names, then the names and
+// paths the subject shows. The kind is NOT included: the renderer resolves a typed term against its
+// translated kind text and passes the matches as `searchKinds`, so search works in all five
+// locales without storing localized text. A query derives this from the row rather than reading
+// the stored `search`, so a row written by any version is found by everything it shows.
+export function searchText(rec) {
+  return [rec.actor?.name, rec.space?.name, rec.target?.name, ...Object.values(shownSubject(rec.kind, rec.subject))]
     .filter(Boolean)
     .join(' ')
     .toLowerCase()
-    .slice(0, SEARCH_MAX)
 }
 
 export function buildRecord({
@@ -103,7 +105,7 @@ export function buildRecord({
   const a = normalizeActor(actor)
   const s = normalizeSpace(space)
   const t = normalizeTarget(target)
-  return {
+  const rec = {
     v: SCHEMA_VERSION,
     seq,
     ts,
@@ -118,6 +120,6 @@ export function buildRecord({
     space: s,
     target: t,
     subject: subject && typeof subject === 'object' ? subject : null,
-    search: buildSearch(a, s, t),
   }
+  return { ...rec, search: searchText(rec).slice(0, SEARCH_MAX) }
 }

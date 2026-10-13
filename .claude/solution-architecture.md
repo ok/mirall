@@ -460,9 +460,12 @@ Grammar: `src/shared/audit/audit-keys.js`. `seq` is a monotonic local counter, n
 and zero-padded, so one reverse range scan is both the newest-first listing and the pagination
 cursor, and a clock jump cannot reorder rows. Rows snapshot the names they show, because nothing can
 be joined at render time: a left space's record is gone and a peer's name needs that peer online.
-The `search` blob excludes the kind, so stored text stays locale-neutral. The renderer resolves a
+A search matches the participant names and the subject's names and paths the row shows
+(`src/shared/contract/audit-subject.js`, read by both the query and the renderer). The query derives
+that text from the row, so rows of every version match alike; the stored `search` is a capped copy
+for the export. It excludes the kind, so stored text stays locale-neutral. The renderer resolves a
 typed term to the kinds whose translated label or sentence contains it and sends them as
-`searchKinds` beside `search`; a row passes the search when its names contain the term or its kind
+`searchKinds` beside `search`; a row passes the search when its text contains the term or its kind
 is listed. `kinds` is a separate strict filter the search cannot widen. Each kind carries an
 attribution tier (`src/shared/contract/audit-kinds.js`): A first-party, B authenticated peer action,
 C derived from a peer's replicated bee (authorship proven, time self-reported). No event class

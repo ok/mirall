@@ -7,6 +7,7 @@ import { formatDuration } from './connectivity.js'
 import { formatSize } from '../format/bytes.js'
 import { RELAY_MODES } from '../../shared/contract/relay-apply.js'
 import { RELAY_KINDS } from '../../shared/contract/relay-key.js'
+import { shownSubject } from '../../shared/contract/audit-subject.js'
 /** @import { AuditEntry, AuditFilters } from '../types/types.js' */
 
 /** @typedef {{ key: string | null, name: string | null }} ActorLabel */
@@ -224,14 +225,16 @@ function formatClock(ts) {
   return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
-/** @param {NonNullable<AuditEntry['subject']>} subject @returns {MetaPart[]} */
-function relayedMeta(subject) {
+/** @typedef {ReturnType<typeof shownSubject>} ShownSubject */
+
+/** @param {NonNullable<AuditEntry['subject']>} subject @param {ShownSubject} shown @returns {MetaPart[]} */
+function relayedMeta(subject, shown) {
   const plane = subject.plane === 'content' ? [{ key: 'activityLog.relay.plane.content' }] : []
   if (subject.via === 'own') {
-    const label = typeof subject.label === 'string' && subject.label ? subject.label : null
+    const label = shown.relayLabel
     return [...plane, label ? { key: 'activityLog.relay.ownLabelled', values: { label } } : { key: 'activityLog.relay.own' }]
   }
-  return [...plane, { key: 'activityLog.relay.providedBy', values: { name: typeof subject.provider === 'string' ? subject.provider : '' } }]
+  return [...plane, { key: 'activityLog.relay.providedBy', values: { name: shown.relayProvider ?? '' } }]
 }
 
 /** @param {NonNullable<AuditEntry['subject']>} subject @returns {MetaPart[]} */
@@ -260,34 +263,35 @@ function relayModeMeta(subject) {
     : []
 }
 
-/** @param {NonNullable<AuditEntry['subject']>} subject @returns {MetaPart[]} */
-function replacedRelayMeta(subject) {
-  const previous = [subject.previousLabel, subject.previous].find((v) => typeof v === 'string' && v)
-  return typeof previous === 'string' ? [{ key: 'activityLog.relay.previous', values: { previous } }] : []
+/** @param {ShownSubject} shown @returns {MetaPart[]} */
+function replacedRelayMeta(shown) {
+  const previous = shown.previousRelay
+  return previous ? [{ key: 'activityLog.relay.previous', values: { previous } }] : []
 }
 
 // The detail a kind adds after the generic fields. The relay settings rows read closed sets, like
 // DENIAL_REASONS: a relay kind or mode written by another version renders nothing rather than a raw
 // key. turned_off adds nothing, because its sentence already names the relay.
-/** @type {Readonly<Record<string, (subject: NonNullable<AuditEntry['subject']>) => MetaPart[]>>} */
+/** @type {Readonly<Record<string, (subject: NonNullable<AuditEntry['subject']>, shown: ShownSubject) => MetaPart[]>>} */
 const KIND_META = {
   'network.peer_relayed': relayedMeta,
   'network.peer_direct': relayedForMeta,
   'relay.added': (subject) => [...relayKindMeta(subject), ...relayModeMeta(subject)],
-  'relay.replaced': (subject) => [...relayKindMeta(subject), ...relayModeMeta(subject), ...replacedRelayMeta(subject)],
+  'relay.replaced': (subject, shown) => [...relayKindMeta(subject), ...relayModeMeta(subject), ...replacedRelayMeta(shown)],
   'relay.removed': relayKindMeta,
   'relay.turned_on': relayModeMeta,
   'relay.mode_changed': relayModeMeta,
 }
 
-/** @param {string} kind @param {NonNullable<AuditEntry['subject']>} subject @returns {MetaPart[]} */
-function kindMeta(kind, subject) {
-  return Object.hasOwn(KIND_META, kind) ? KIND_META[kind](subject) : []
+/** @param {string} kind @param {NonNullable<AuditEntry['subject']>} subject @param {ShownSubject} shown @returns {MetaPart[]} */
+function kindMeta(kind, subject, shown) {
+  return Object.hasOwn(KIND_META, kind) ? KIND_META[kind](subject, shown) : []
 }
 
 // The muted second line: space name first (the row's strongest context), then the kind's detail.
 // Returns STRUCTURED parts — `{ key, values }` for anything translatable, `{ text }` for a proper
-// noun or a formatted number — never a finished string: the component translates.
+// noun or a formatted number — never a finished string: the component translates. The subject's
+// names and paths come from shownSubject, which the search reads too.
 /** @param {AuditEntry} entry @param {string} [locale] @returns {MetaPart[]} */
 export function metaParts(entry, locale) {
   /** @type {MetaPart[]} */
@@ -295,9 +299,10 @@ export function metaParts(entry, locale) {
   if (entry.space?.name) parts.push({ text: entry.space.name })
   /** @type {NonNullable<AuditEntry['subject']>} */
   const subject = entry.subject || {}
+  const shown = shownSubject(entry.kind, subject)
   // Which folder a transferred file came from. A proper noun like the space name, so it is pushed
   // as text and needs no catalogue entry; null on a loose file, which renders no segment.
-  if (typeof subject.folder === 'string' && subject.folder) parts.push({ text: subject.folder })
+  if (shown.folder) parts.push({ text: shown.folder })
   const fileCount = finiteNumber(subject.fileCount)
   if (fileCount !== null) {
     const files = formatCount(fileCount, locale)
@@ -310,10 +315,10 @@ export function metaParts(entry, locale) {
     const size = formatBytes(bytes, locale)
     if (size) parts.push({ text: size })
   }
-  if (typeof subject.mountPath === 'string' && subject.mountPath) parts.push({ text: subject.mountPath })
-  if (typeof subject.to === 'string' && subject.to) parts.push({ text: subject.to })
+  if (shown.mountPath) parts.push({ text: shown.mountPath })
+  if (shown.to) parts.push({ text: shown.to })
 
-  parts.push(...kindMeta(entry.kind, subject))
+  parts.push(...kindMeta(entry.kind, subject, shown))
   if (entry.category === 'network') {
     if (typeof entry.code === 'string' && NETWORK_CAUSES.has(entry.code)) {
       parts.push({ key: 'activityLog.cause.' + entry.code })

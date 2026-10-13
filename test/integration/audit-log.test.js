@@ -132,6 +132,32 @@ test('REGRESSION (FIX-637: a search matching a kind label returned only rows who
     'kinds stays a strict filter that the search cannot widen')
 })
 
+test("REGRESSION (FIX-642: search missed the folder and path names on a row's second line)", async (t) => {
+  await boot(t)
+  record('transfer.completed', {
+    actor: { type: 'self', key: 'me', name: 'Me' },
+    space: { id: 'sp1', name: 'Design Team' },
+    target: { kind: 'file', id: 'q3.pdf', name: 'q3.pdf' },
+    subject: { bytes: 2048, folder: 'Quarterly Reports' },
+  })
+  record('mirror.created', {
+    actor: { type: 'self', key: 'me', name: 'Me' },
+    space: { id: 'sp1', name: 'Design Team' },
+    target: { kind: 'share', id: 'share-1', name: 'Plans' },
+    subject: { mountPath: '/Users/ada/Mirrors/Plans-2026' },
+  })
+  await flushAudit()
+
+  const kindsOf = async (search) => (await queryAudit({ search })).entries.map((e) => e.kind)
+  t.alike(await kindsOf('Quarterly Reports'), ['transfer.completed'], 'a download is found by the folder it came from')
+  t.alike(await kindsOf('plans-2026'), ['mirror.created'], 'a mirror is found by a segment of its path')
+
+  const bee = auditBee()
+  const written = (await bee.get(evtKey(0))).value
+  await bee.put(evtKey(0), { ...written, search: 'me design team q3.pdf' })
+  t.alike(await kindsOf('Quarterly Reports'), ['transfer.completed'], 'a row stored with names only is found by its folder too')
+})
+
 test('cursor pagination walks the whole log without repeats or gaps', async (t) => {
   await boot(t)
   for (let i = 0; i < 25; i++) member('member.joined', 'sp1', 'Design Team', 'peer' + i)
