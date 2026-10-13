@@ -1,4 +1,4 @@
-// The renderer round-trips this id (FileCard → files:pause-download), so its shape is a wire
+// The renderer round-trips this id (FileRow → files:pause-download), so its shape is a wire
 // contract: spaceId|shareId|relPath, with LOOSE_SHARE_ID for space-root loose files.
 import { LOOSE_SHARE_ID } from '../contract/entry-ref.js'
 export { LOOSE_SHARE_ID }

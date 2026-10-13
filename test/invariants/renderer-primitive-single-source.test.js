@@ -35,7 +35,7 @@ const RULES = [
     pattern: /role="alert"[^>]*\btext-error\b|\btext-error\b[^>]*role="alert"/,
     // The file row's error rides INSIDE the meta paragraph, so the row keeps its resting height.
     // InlineError renders a <p>, and a <p> inside a <p> is invalid markup.
-    exempt: ['components/cards/FileRow.tsx', 'components/cards/FileCard.tsx'],
+    exempt: ['components/cards/FileRow.tsx'],
   },
   {
     what: 'a field label',

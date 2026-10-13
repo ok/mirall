@@ -223,7 +223,7 @@ test('the chips hover to the same tokens as the Create/Join buttons beside them'
 // toward the page that nobody could see.) A control in a row is only ever hovered while the row is,
 // so the lifted row, not the page, is the surface it has to step off. The rows hand their controls
 // `--lifted-control-hover` — the fill the dropdown chips already took under the same lift.
-const LIFTING_ROWS = ['FileCard', 'ShareFileRow', 'ShareCard'].map((n) => `src/renderer/components/cards/${n}.tsx`)
+const LIFTING_ROWS = ['FileRow', 'ShareCard'].map((n) => `src/renderer/components/cards/${n}.tsx`)
 const ROW_CONTROLS = [
   'primitives/IconButton.tsx',
   'primitives/ActionMenu.tsx',

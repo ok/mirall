@@ -5,19 +5,16 @@ import { fileURLToPath } from 'url'
 const root = new URL('../../', import.meta.url)
 const read = (p) => readFileSync(fileURLToPath(new URL(p, root)), 'utf8')
 
-const ROW = 'src/renderer/components/cards/ShareFileRow.tsx'
-const CARD = 'src/renderer/components/cards/FileCard.tsx'
+const FILE_ROW = 'src/renderer/components/cards/FileRow.tsx'
 const LANE = 'src/renderer/components/cards/RowLane.tsx'
 
 // The two file-row kinds once decided their lane in two places, at two layers, with two precedence
 // orders — and drifted into three user-visible divergences. These pin the single source down.
-test('neither row component derives its own lane', (t) => {
-  for (const p of [ROW, CARD]) {
-    const src = read(p)
-    t.ok(/deriveRowView\(/.test(src), `${p} uses the shared view-model`)
-    t.absent(/showDownloadProgressBar|showIndexProgressBar|showPausedProgressBar/.test(src),
-      `${p} has no hand-rolled lane gate`)
-  }
+test('the file row does not derive its own lane', (t) => {
+  const src = read(FILE_ROW)
+  t.ok(/deriveRowView\(/.test(src), `${FILE_ROW} uses the shared view-model`)
+  t.absent(/showDownloadProgressBar|showIndexProgressBar|showPausedProgressBar/.test(src),
+    `${FILE_ROW} has no hand-rolled lane gate`)
 })
 
 test('REGRESSION (FIX-RV-1: every file-row badge carries an accessible name)', (t) => {
@@ -29,7 +26,7 @@ test('REGRESSION (FIX-RV-1: every file-row badge carries an accessible name)', (
   const labelled = lane.match(/srLabel=/g) ?? []
   t.ok(badges.length > 0, 'the lane renders badges')
   t.is(labelled.length, badges.length, 'every <Badge> in the lane is named')
-  for (const p of [ROW, CARD]) t.absent(/<Badge\b/.test(read(p)), `${p} renders no badge of its own`)
+  t.absent(/<Badge\b/.test(read(FILE_ROW)), `${FILE_ROW} renders no badge of its own`)
 })
 
 test('the decoration is matched to its row in exactly one place', (t) => {

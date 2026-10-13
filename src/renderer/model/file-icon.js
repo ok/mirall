@@ -1,8 +1,8 @@
 // Pure, dependency-free extension → icon mapping. Kept as plain JS (no i18n /
 // browser imports) so it is the single source of truth shared by the sandboxed
 // renderer bundle (esbuild/tsc) and the brittle-node unit suite — the same
-// pattern as sharePaths.js. Both the space view (FileCard) and the folder views
-// (FolderScreen) must derive a file's icon from here so content types render
+// pattern as sharePaths.js. Every file row (FileRow, on the space and folder
+// screens) derives a file's icon from here so content types render
 // consistently across the app.
 
 /**

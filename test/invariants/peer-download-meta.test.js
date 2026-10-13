@@ -7,8 +7,7 @@ const read = (p) => readFileSync(fileURLToPath(new URL(p, root)), 'utf8')
 
 const IND = 'src/renderer/components/cards/PeerDownloadIndicator.tsx'
 const ROW_LANE = 'src/renderer/components/cards/RowLane.tsx'
-const SHARE_FILE_ROW = 'src/renderer/components/cards/ShareFileRow.tsx'
-const FILE_CARD = 'src/renderer/components/cards/FileCard.tsx'
+const FILE_ROW = 'src/renderer/components/cards/FileRow.tsx'
 
 const indSrc = read(IND)
 const indFlat = indSrc.replace(/\n/g, ' ')
@@ -46,7 +45,5 @@ test('REGRESSION (FIX-5): lane floors bumped so speed·ETA always fits', (t) => 
   t.absent(lane.includes('min-w-[160px]'), 'no longer floors at 160px')
   t.absent(lane.includes('min-w-[120px]'), 'no longer floors at 120px')
   t.ok(lane.includes('basis-56') && lane.includes('basis-72'), 'both kinds keep their own basis')
-  for (const p of [SHARE_FILE_ROW, FILE_CARD]) {
-    t.absent(/min-w-\[\d+px\]|basis-\d/.test(read(p)), `${p} carries no lane width of its own`)
-  }
+  t.absent(/min-w-\[\d+px\]|basis-\d/.test(read(FILE_ROW)), `${FILE_ROW} carries no lane width of its own`)
 })
