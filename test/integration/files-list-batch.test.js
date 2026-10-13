@@ -20,6 +20,7 @@ import { listFiles } from '../../src/shared/transfer/file-listing.js'
 import { initPendingTransfers, listPendingForSpace } from '../../src/shared/transfer/pending-transfers.js'
 import { hasShareDownload, listPeerWithMeta, watchedCatalogVersion } from '../../src/shared/transfer/overlay/share-downloads.js'
 import { LOOSE_SHARE_ID } from '../../src/shared/transfer/transfer-id.js'
+import { advertise } from '../../src/shared/shares/own-catalog.js'
 
 // The loose listing takes its data-layer calls injected, so read COUNTS are assertable without
 // instrumenting a bee. The space itself is real: the listing reads the local drive and own catalog.
@@ -143,6 +144,19 @@ test('the loose listing is incomplete exactly when an online member\'s read stal
   const fromMemo = await listFiles(ctx.spaceId, [memberNo(2)], { deps: memoDeps })
   t.is(memoDeps.calls.listPeer, 1, 'the second listing is served from the memo')
   t.is(fromMemo.complete, true, 'a memo hit')
+})
+
+// REGRESSION (FIX-B3-SOURCES: the own-source scan had no error handling, so one unreadable
+// downloads-bee read rejected files:list and the storage summary along with it.)
+test('REGRESSION (FIX-B3-SOURCES): an unreadable source scan lists own rows without a localPath', async (t) => {
+  const ctx = await setup(t)
+  await advertise(ctx.spaceId, LOOSE_SHARE_ID, 'own.bin', { size: 4, mtime: 1, contentHash: 'h'.repeat(64) })
+  const deps = countingDeps({ entriesFor: () => [] })
+  deps.listOwnedSources = async () => { throw new Error('bee closed') }
+  const listing = await listFiles(ctx.spaceId, [], { deps })
+  const own = listing.entries.find((f) => f.path === '/own.bin')
+  t.ok(own, 'the listing still answers, own row included')
+  t.is(own.localPath, null, 'with no source to name')
 })
 
 test('member order is the dedupe tie-break', async (t) => {

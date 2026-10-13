@@ -193,8 +193,13 @@ async function readPeerEntries(spaceId, member, { budget, space, deps }) {
 // owner, so dedupeFileRows can merge them, and whether those rows are the whole set.
 async function collectLooseInPlace(spaceId, members, { localPublicKey, space, deps }) {
   const queued = looseQueuedPaths(spaceId)
-  const [own, sources] = await Promise.all([looseListOwn(spaceId), deps.listOwnedSources(spaceId)])
-  const out = own.map((e) => ownRow(e, localPublicKey, queued, sources))
+  // A source only names where an own file sits, so a scan that fails costs the path, never the listing.
+  const sources = deps.listOwnedSources(spaceId).catch((err) => {
+    log.warn('own sources unreadable, listing without paths:', err.message)
+    return new Map()
+  })
+  const [own, sourceMap] = await Promise.all([looseListOwn(spaceId), sources])
+  const out = own.map((e) => ownRow(e, localPublicKey, queued, sourceMap))
   const peerMembers = peerMembersOf(members, localPublicKey, (m) => Boolean(readCatalogKey(m).keyHex))
   retainListingMemo(spaceId, new Set(peerMembers.map((m) => readCatalogKey(m).keyHex)))
   if (peerMembers.length === 0) return { rows: out, complete: true }
