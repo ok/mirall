@@ -48,7 +48,7 @@ export function useFiles(spaceId: string) {
   const loading = data === undefined && fetching
   // From the answer, never from `loading`: a refetch re-raises `loading`, and the rows it would hide
   // the note behind are still on screen.
-  const incomplete = data !== undefined && !data.complete
+  const incomplete = data?.complete === false
   // The rows survive a failed read. The error is passed on as it arrived rather than as its
   // message: the screen renders its own generic block for it, and turning it into text is the
   // translator's job, not this hook's.

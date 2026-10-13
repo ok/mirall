@@ -14,13 +14,11 @@ import { overlayBackend as backend } from '../transfer/overlay/index.js'
 import { getForeignMount } from '../folders/mount-store.js'
 import { listVerifiedForShare } from '../transfer/files.js'
 import { listFiles } from '../transfer/file-listing.js'
-import { ON_DEVICE_STATUSES } from '../contract/statuses.js'
+import { isOnDeviceStatus } from '../contract/statuses.js'
 
 const log = createLogger('space-storage')
 
 const ZERO = { totalBytes: 0, onDeviceBytes: 0 }
-const ON_DEVICE = new Set(ON_DEVICE_STATUSES)
-
 async function shareContribution(spaceId, share, me) {
   if (!isServableShare(share)) return ZERO
   if (share.owner === me) {
@@ -77,6 +75,6 @@ export async function spaceStorageSummary(spaceId) {
   // loose semantics (dedupe by hash, disk-reverified "downloaded") can't drift.
   const loose = await listFiles(spaceId, space.members || [], { space })
   totalBytes += loose.totalBytes
-  for (const f of loose.entries) if (ON_DEVICE.has(f.status)) onDeviceBytes += f.size || 0
+  for (const f of loose.entries) if (isOnDeviceStatus(f.status)) onDeviceBytes += f.size || 0
   return { totalBytes, onDeviceBytes }
 }

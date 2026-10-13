@@ -27,7 +27,7 @@ const fileStatusQueued: FileStatus = 'queued'
 // @ts-expect-error 'mine' is a badge the renderer derives from ownership, not a status the worker sends
 const fileStatusMine: FileStatus = 'mine'
 // @ts-expect-error one status vocabulary serves both listings
-type NoShareFileStatus = import('../../src/shared/contract/responses.js').ShareFileStatus
+const shareFileStatus: import('../../src/shared/contract/responses.js').ShareFileStatus = 'synced'
 
 const ownedStatus: OwnedMountStatus = 'scanning'
 // @ts-expect-error mirror-only, not in the owned tuple
@@ -99,6 +99,6 @@ const noTruncated: RequestResponse['share:list-files'] = { entries: [], complete
 
 void [looseRow, shareRow, asContent, looseAvailable, looseBytes, noLocalPath, noMtime, looseListing, looseBare, noTruncated]
 
-void [fileStatusSynced, fileStatusQueued, fileStatusMine] as unknown as NoShareFileStatus
+void [fileStatusSynced, fileStatusQueued, fileStatusMine, shareFileStatus]
 
 void [request, requestTypo, event, eventTypo, fileStatus, fileStatusTypo, ownedStatus, ownedStatusIdle, invite, inviteV0, docs, docsTypo, publishOrder, publishOrderTypo, mainQuery, mainQueryTypo]

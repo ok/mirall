@@ -9,7 +9,7 @@
 //
 // Status is worker-derived; this only decorates. It never reads or writes IPC.
 
-import { ON_DEVICE_STATUSES } from '../../shared/contract/statuses.js'
+import { isOnDeviceStatus } from '../../shared/contract/statuses.js'
 import { badgeStyle, statusToBadge } from './status-badge.js'
 /** @import { Decoration } from '../types/ui.js' */
 /** @import { BadgeAppearance } from './status-badge.js' */
@@ -45,11 +45,6 @@ import { badgeStyle, statusToBadge } from './status-badge.js'
 
 /** @param {number} bytes @param {number} total */
 const pct = (bytes, total) => (total > 0 ? Math.min(100, Math.round((bytes / total) * 100)) : 0)
-
-// Gating showVerified on 'downloaded' alone would hide the check on every mirrored row, whose
-// terminal state is 'synced'.
-/** @type {Set<string>} */
-const ON_DEVICE = new Set(ON_DEVICE_STATUSES)
 
 // The stand-in frame for a row whose download was just requested and whose first real frame has not
 // arrived. Shaped exactly like a decoration — `eta: null` above all, which is what makes the bar
@@ -191,7 +186,8 @@ export function deriveRowView(row, decoration, downloadSummary, opts = {}) {
     publishPct: publishDecor ? pct(publishDecor.bytes, publishDecor.total) : 0,
     downloadPct: progress.progressBytes != null && progress.progressTotal ? pct(progress.progressBytes, progress.progressTotal) : 0,
     preparingPct: peerPreparingActive && preparingDecor ? pct(preparingDecor.bytes, preparingDecor.total) : 0,
-    showVerified: row.verified === true && ON_DEVICE.has(row.status),
+    // Any on-device status, not 'downloaded' alone: a mirrored row's terminal state is 'synced'.
+    showVerified: row.verified === true && isOnDeviceStatus(row.status),
     statusHintKey: statusHint(row, progress.displayStatus),
   }
 }

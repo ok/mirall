@@ -8,14 +8,11 @@
 // The percentage is dropped when the listing is truncated: past the cap the rows are a capped
 // sample, so bytes-on-device over bytes-total would be computed from a subset and read low.
 
-import { ON_DEVICE_STATUSES } from '../../shared/contract/statuses.js'
+import { isOnDeviceStatus } from '../../shared/contract/statuses.js'
 
 /** @import { ShareFileRow } from '../types/types.js' */
 
 /** @typedef {{ active: boolean, files: number, onDevice: number, bytesRemaining: number, pct: number | null, indeterminate: boolean }} MirrorSyncSummary */
-
-/** @type {Set<string>} */
-const ON_DEVICE = new Set(ON_DEVICE_STATUSES)
 
 /**
  * @param {ShareFileRow[]} files
@@ -36,7 +33,7 @@ export function deriveMirrorSync(files, opts = {}) {
   for (const file of files) {
     const size = Number.isFinite(file.size) ? file.size : 0
     totalBytes += size
-    if (ON_DEVICE.has(file.status)) {
+    if (isOnDeviceStatus(file.status)) {
       onDeviceBytes += size
       continue
     }

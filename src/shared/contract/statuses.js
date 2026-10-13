@@ -46,8 +46,15 @@ export const BADGE_STATUSES = Object.freeze(Object.values(BADGE_STATUS))
 /** @typedef {(typeof BADGE_STATUSES)[number]} BadgeStatus */
 
 // The file statuses that mean the bytes are on this disk. A caller asking "is it here?" asks this
-// rather than naming the members. MODIFIED is on the disk too: the bytes are local, they are just not the ones that were verified.
-export const ON_DEVICE_STATUSES = Object.freeze([FILE_STATUS.DOWNLOADED, FILE_STATUS.SYNCED, FILE_STATUS.MODIFIED])
+// rather than naming the members. MODIFIED is on the disk too: the bytes are local, they are just not
+// the ones that were verified.
+/** @type {ReadonlySet<string>} */
+const ON_DEVICE_STATUSES = new Set([FILE_STATUS.DOWNLOADED, FILE_STATUS.SYNCED, FILE_STATUS.MODIFIED])
+
+/** @param {string} status @returns {boolean} */
+export function isOnDeviceStatus(status) {
+  return ON_DEVICE_STATUSES.has(status)
+}
 
 // A mirror record's sync state, which is not a mount status: it is what the OWNER and every member
 // see about a mirror, replicated in the mirror record, while a mount status is local to the device

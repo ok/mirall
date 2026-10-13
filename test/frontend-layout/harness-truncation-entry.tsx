@@ -55,7 +55,7 @@ declare global {
 const noop = () => {}
 const NESTED = `${LONG_FOLDER}/${LONG_FILE}`
 const folderTree = buildFileTree([
-  { relPath: NESTED, size: 1024, hash: 'h', mtime: 0, status: 'synced' },
+  { relPath: NESTED, size: 1024, hash: 'h', mtime: 0, status: 'synced', localPath: null },
 ])
 const looseFile = (name: string, status: FileEntry['status'] = 'remote'): FileEntry => ({
   path: '/shares/' + name,
