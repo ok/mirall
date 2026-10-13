@@ -93,6 +93,12 @@ export const withFlows = (Base) => class extends Base {
     await this.click({ name: 'Back' })
   }
 
+  async clickMenuItem(label) {
+    if (!background()) throw new Error(`clicking the "${label}" menu item needs background mode`)
+    const how = await this.main.clickMenuLabel(label)
+    if (how !== 'menu') throw new Error(`menu item "${label}": ${how}`)
+  }
+
   // Drive a native NSOpenPanel (file or folder) belonging to THIS instance via Go-to-folder; it
   // surfaces as a window titled "Open" with our pid. `trigger` is fired HERE, not by the caller,
   // because it can be LOST: an accelerator goes to whichever process is frontmost, and the File-menu

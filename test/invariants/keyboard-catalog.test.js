@@ -59,6 +59,25 @@ test('every catalogue id is registered by a call site', (t) => {
   }
 })
 
+test('every command id the main process sends is registered in the renderer', (t) => {
+  // Menu items, the tray and window gestures reach the renderer as a bare id over
+  // 'keyboard:command'; an id nothing registers is dropped without an error.
+  const mainDir = join(root, 'src', 'main')
+  const main = readdirSync(mainDir, { recursive: true })
+    .filter((f) => typeof f === 'string' && f.endsWith('.js'))
+    .map((f) => readFileSync(join(mainDir, f), 'utf8'))
+    .join('\n')
+  const sent = [...main.matchAll(/(?<![.\w])(?:send|sendKeyboardCommand)\((?:'([^']+)'|`([^`$]+)(\$\{))/g)]
+    .map(([, literal, prefix, template]) => ({ id: literal ?? prefix, template }))
+  t.ok(sent.some(({ id }) => id === 'about.open'), 'the About menu item is among the sent ids')
+  t.ok(sent.some(({ template }) => template), 'the Go to Space template is among the sent ids')
+  const sources = rendererSources()
+  for (const { id, template } of sent) {
+    const registered = template ? `id: \`${id}\${` : `id: '${id}'`
+    t.ok(sources.includes(registered), `${id}${template ? '…' : ''} is registered somewhere in the renderer`)
+  }
+})
+
 test('documentation-only chords are documented but never dispatched', (t) => {
   // The dialog chords belong to the focused dialog (primitives/Modal.tsx). Registering one as a
   // command would fire it globally — from behind the dialog, or with no dialog open at all.

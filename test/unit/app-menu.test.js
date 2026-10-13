@@ -85,6 +85,16 @@ test('win32 / linux: no mac-only roles, About in Help', (t) => {
   }
 })
 
+test('clicking About Mirall calls the openAbout handler on every platform', (t) => {
+  for (const [platform, menu] of [['darwin', 'Mirall'], ['win32', 'help'], ['linux', 'help']]) {
+    let opened = 0
+    const handlers = { ...allHandlers, openAbout: () => { opened++ } }
+    const submenu = find(buildAppMenuTemplate({ ...baseOpts, platform, handlers }), menu).submenu
+    findInSubmenu(submenu, 'About Mirall').click()
+    t.is(opened, 1, `${platform}: About invoked openAbout once`)
+  }
+})
+
 test('Help submenu always carries the cross-platform items', (t) => {
   for (const platform of ['darwin', 'win32', 'linux']) {
     const tpl = buildAppMenuTemplate({ ...baseOpts, platform })

@@ -1,8 +1,9 @@
 import { mkdirSync } from 'node:fs'
 import { Instance } from '../instance.mjs'
 import { makeReport } from '../assert.mjs'
+import { background } from '../ax-support.mjs'
 
-// About Mirall: reached from the Profile page's App group, it shows the copyable version and the
+// About Mirall: reached from the native About menu item and the Profile page's App group, it shows the copyable version and the
 // update verdict, opens What's New, and links to Mirall's license. The harness runs with
 // --no-updates, so the verdict is the "off" one and offers no check.
 export default async function s18({ runDir, bootstrap }) {
@@ -14,6 +15,14 @@ export default async function s18({ runDir, bootstrap }) {
     await r.ok('launch', async () => {
       await A.launch()
     })
+    if (background()) {
+      await r.ok('the About Mirall menu item opens About', async () => {
+        if (await A.hasText('Version, updates, and who makes Mirall')) throw new Error('About already open')
+        await A.clickMenuItem('About Mirall')
+        await A.waitText('Version, updates, and who makes Mirall', 8000)
+        await A.back()
+      })
+    }
     await r.ok('Settings offers no About tile', async () => {
       await A.openSettings()
       await A.waitText('Activity Log', 8000)
