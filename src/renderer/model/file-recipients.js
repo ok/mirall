@@ -69,6 +69,24 @@ export function recipientGroups({ recipients, contentHash, members, ownerKey, ac
   return { haveIt, notYet }
 }
 
+/** @param {SpaceMember | null} member */
+export function peerOnline(member) {
+  return member != null && member.online !== false
+}
+
+/**
+ * The expanded list's live groups, each in input order. A peer is waiting when its row reads so: we are
+ * still hashing the file, or it is offline, paused or not. A paused peer still online keeps its
+ * partial and stays with the downloads.
+ * @template {{ member: SpaceMember | null, waiting: boolean }} T
+ * @param {T[]} rows
+ * @returns {{ downloading: T[], waiting: T[] }}
+ */
+export function liveGroups(rows) {
+  const isWaiting = (/** @type {T} */ r) => r.waiting || !peerOnline(r.member)
+  return { downloading: rows.filter((r) => !isWaiting(r)), waiting: rows.filter(isWaiting) }
+}
+
 /**
  * One folder file's recipients with the folder's mirrors folded in. A member who mirrors the folder
  * is counted by the mirror alone, as holding the version shared now at the mirror's last update —

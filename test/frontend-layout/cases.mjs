@@ -52,7 +52,19 @@ export const CASES = [
   // Production React, like the shipped app: the render loop this case guards against reached the
   // nested-update limit there, not in the development runtime the other cases bundle.
   { name: "overflowloop", title: "Mirall scroll-gutter render-loop harness", production: true },
-  { name: "peerdownload", title: "Mirall peer-download serve UI harness" },
+  {
+    name: "peerdownload",
+    title: "Mirall peer-download serve UI harness",
+    // One live peer per state for the expanded list: moving, paused, waiting for indexing, offline,
+    // and offline while paused. Presence comes from the members the entry passes in.
+    cfg: `      detail: [
+        { personKey: 'mo', bytes: 50, total: 100, paused: false, waiting: false },
+        { personKey: 'pia', bytes: 20, total: 100, paused: true, waiting: false },
+        { personKey: 'wes', bytes: 0, total: 0, paused: false, waiting: true },
+        { personKey: 'otto', bytes: 30, total: 100, paused: false, waiting: false },
+        { personKey: 'opal', bytes: 10, total: 100, paused: true, waiting: false },
+      ],`,
+  },
   { name: "progress", title: "Mirall progress-lane ARIA harness" },
   { name: "segments", title: "Mirall segmented-control harness" },
   { name: "sharecard", title: "Mirall ShareCard hit-area layout harness" },

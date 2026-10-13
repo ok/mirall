@@ -3,7 +3,9 @@
 // <PeerDownloadIndicator> at several lane widths + locales and the <PeerDownloadRow> in real
 // Chromium and asserts the collapsed meta never clips, the count word sheds first (shown only
 // on a wide folder lane), speed is always kept, ETA sheds next, the per-peer pill keeps its bar and
-// percentage whole with the name yielding, and the progressbar aria-valuetext stays complete.
+// percentage whole with the name yielding, and the progressbar aria-valuetext stays complete; the
+// expanded list's groups come in order (Downloading, Waiting, Have it, Not yet), each labelled by its
+// heading, with every live peer under the group its row's label names.
 //
 //   node test/frontend-layout/run-peerdownload.mjs            (builds, then runs)
 //   node test/frontend-layout/run-peerdownload.mjs --no-build (reuse existing bundle)
@@ -23,7 +25,8 @@ console.log(`per-peer bar    : ${out.rowLiveBarWidth.toFixed(0)}px wide, overflo
 console.log(`per-peer name   : ${out.rowLiveNameAvatarGap.toFixed(0)}px after the avatar (must be next to it, ~6px)`)
 console.log(`per-peer warmup : "${out.rowWarmText}"   (must show % fallback, not blank)`)
 console.log(`per-peer offline: "${out.rowOffText}"`)
+for (const g of out.groups) console.log(`group ${g.label.padEnd(12)}: ${g.names.join(', ')}${g.labelled ? '' : '  (list not labelled by its heading)'}`)
 
 const pass = out.pass === true
-console.log(`\n${pass ? 'ok  ' : 'FAIL'} meta un-clipped at every lane + locale; count word sheds first, speed always kept, aria-valuetext complete; per-peer row name yields`)
+console.log(`\n${pass ? 'ok  ' : 'FAIL'} meta un-clipped at every lane + locale; count word sheds first, speed always kept, aria-valuetext complete; per-peer row name yields; list groups in order, labelled, peers placed`)
 process.exit(pass ? 0 : 1)
