@@ -842,14 +842,15 @@ its width: the faces show only from 680px, the sentence gives way to "15/19" und
 toggle's name is the whole sentence in one `sr-only` node, the visible copies `aria-hidden`. Pinned
 by `npm run test:layout:case -- recipients`. While
 downloads run, the Sending lane keeps the row and adds "15 have it" as the first meta token to
-shed. The toggle opens `PeerDownloadDropdown`, which lists live downloads alone until someone holds
-the file and then everyone, in groups — Downloading, Have it (newest first), Not yet (online first;
-an earlier version is said so). The list is a two-column grid (`grid-cols-[3rem_1fr]`): each group
+shed. The toggle opens `PeerDownloadDropdown`, which lists everyone in groups — Downloading (moving
+or paused), Waiting (waiting for indexing, or offline), Have it (newest first), Not yet (online first;
+an earlier version is said so) — and leaves out a group with nobody in it. A live peer sits in the
+group its pill's own label names (`liveGroups` in `model/file-recipients.js`). The list is a two-column grid (`grid-cols-[3rem_1fr]`): each group
 is one wrapping line of `h-7 rounded-full` pills, groups `gap-y-2` apart and never divided, and the gutter is the row's icon tile (`3rem`, then `gap-x-4`, with folder rows passing their
 leading-gutter indent) so each group's 16px status icon lines up with the file icon's right edge and its pills
 start under the file name. The icon stands in for a word — the
-`check_circle` in `text-on-success` for Have it, `download` in `text-on-info` for Downloading, and a
-drawn empty ring (`border-2 border-outline`) for Not yet. The icon is not the only cue: the group's
+`check_circle` in `text-on-success` for Have it, `download` in `text-on-info` for Downloading,
+`schedule` in `text-on-surface-variant` for Waiting, and a drawn empty ring (`border-2 border-outline`) for Not yet. The icon is not the only cue: the group's
 `h4` carries its name as `sr-only` text and as the icon's `title`. A pill is an `xs` avatar with its
 presence dot, the name (the part that truncates) and the state — the time it arrived
 (`cards/RecipientRow.tsx`), a `w-12` bar and its percentage (`cards/PeerDownloadRow.tsx`), or the
