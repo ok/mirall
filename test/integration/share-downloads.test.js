@@ -3,7 +3,17 @@ import fs from 'bare-fs'
 import path from 'bare-path'
 import { freshPeer } from '../helpers/store.js'
 import { until } from '../helpers/bare-poll.js'
+import b4a from 'b4a'
+import crypto from 'hypercore-crypto'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
+import { upsertMember } from '../../src/shared/spaces/space.js'
+import { putContentKey } from '../../src/shared/spaces/space-keys.js'
+import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
+import { createBee } from '../../src/shared/core/store.js'
+import { getRuntimeConfig, setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
+import { fileKey } from '../../src/shared/shares/catalog-keys.js'
+import { isPeerCatalogWatched } from '../../src/shared/shares/peer-catalog.js'
+import { generateShareId, publishShare, tombstoneShare } from '../../src/shared/shares/shares.js'
 import { advertise, ownCatalogKeyHex } from '../../src/shared/shares/own-catalog.js'
 import { initPendingTransfers, recordPending, getPendingFor } from '../../src/shared/transfer/pending-transfers.js'
 import { createOverlayDownloadEngine } from '../../src/shared/transfer/overlay/overlay-download.js'
@@ -207,4 +217,104 @@ test('one descriptor reads each share from the owner\'s one catalog', async (t) 
   t.is(typeof await watchedCatalogVersion(ctx.spaceId, loose), 'number', 'the read armed the watch, so the version is live')
   t.alike(await listPeerWithMeta(ctx.spaceId, looseShareFor({ publicKey: OWNER })), { entries: [], complete: true, total: 0, totalBytes: 0 },
     'a keyless member reads as an empty, whole listing')
+})
+
+// === Rows resolved through the production resolve ===
+
+// A catalog encrypted under the space's key at epoch 2, which differs from the epoch-0 key: a
+// read under the wrong epoch opens it with the wrong key. Closed after writing, so the first open
+// the code under test makes is its own.
+async function epochTwoCatalog(spaceId, shareId, relPath) {
+  const sck = crypto.randomBytes(32)
+  await putContentKey(spaceId, sck, { epoch: 2 })
+  const bee = createBee('epoch-two-catalog-' + b4a.toString(crypto.randomBytes(8), 'hex'), { encryptionKey: sck })
+  await bee.ready()
+  await bee.put(fileKey(shareId, relPath), { size: 4, mtime: 1, contentHash: HASH })
+  const keyHex = b4a.toString(bee.core.key, 'hex')
+  await bee.close()
+  return keyHex
+}
+
+const oldFolderRow = (ctx, over) => ({
+  filePath: '/Vault/doc.bin', total: 4, inPlace: false, overlayShare: true, shareId: 'sh1', relPath: 'doc.bin',
+  ownerKey: OWNER, finalPath: path.join(ctx.tmpDir('dl'), 'doc.bin'), contentHash: HASH, sourceSeq: 1, bytesTransferred: 0, ...over,
+})
+
+test('REGRESSION (a folder download row stores the epoch of the catalog it read)', async (t) => {
+  const ctx = await setup(t)
+  const keyHex = await epochTwoCatalog(ctx.spaceId, 'sh1', 'doc.bin')
+  const share = { id: 'sh1', name: 'Vault', owner: OWNER, catalogKeyEnc: keyHex, catalogEpoch: 2 }
+
+  t.ok((await requestShareDownload(ctx.spaceId, share, 'doc.bin')).queued, 'queued while the owner is away, with its row written')
+  const row = await getPendingFor(ctx.spaceId, '/Vault/doc.bin')
+  t.is(row?.catalogKeyEnc, keyHex, 'the row carries the catalog key')
+  t.is(row?.catalogEpoch, 2, 'and the epoch whose key opens it, so a fallback resolve picks the right key')
+})
+
+test('REGRESSION (a folder row whose owner record is unreadable resolves through the key and epoch it carries)', async (t) => {
+  const ctx = await setup(t)
+  const config = getRuntimeConfig()
+  // absolute: the unknown owner's record read must give up quickly; the catalog itself is local.
+  setRuntimeConfig({ ...config, peerReadTimeoutMs: 500 })
+  t.teardown(() => setRuntimeConfig(config))
+  const keyHex = await epochTwoCatalog(ctx.spaceId, 'sh1', 'doc.bin')
+  const row = oldFolderRow(ctx, { catalogKeyEnc: keyHex, catalogEpoch: 2 })
+
+  const { job } = await downloadChannel.resolvePendingRow(ctx.spaceId, row)
+  t.is(job?.contentHash, HASH, 'the entry was read under the epoch-2 key')
+  t.is(job?.ownerKey, OWNER, 'owned by the row\'s owner')
+  t.is(job?.folderName, null, 'with no record to name the folder')
+  t.absent(isPeerCatalogWatched(keyHex, 'download:sh1'), 'and no append watch is armed from a row\'s own key')
+})
+
+test('a loose row an earlier build wrote resolves through its owner\'s roster entry', async (t) => {
+  const ctx = await setup(t)
+  const keyHex = await ownCatalogKeyHex(ctx.spaceId)
+  await upsertMember(ctx.spaceId, { publicKey: OWNER, looseCatalogKeyEnc: keyHex }, { verified: true })
+  await advertise(ctx.spaceId, LOOSE_SHARE_ID, 'a.bin', { size: 4, mtime: 1, contentHash: HASH })
+  const row = {
+    filePath: '/a.bin', total: 4, inPlace: true, shareId: LOOSE_SHARE_ID, relPath: 'a.bin', ownerKey: OWNER,
+    finalPath: path.join(ctx.tmpDir('dl'), 'a.bin'), contentHash: HASH, sourceSeq: 1, bytesTransferred: 0,
+  }
+
+  const { job } = await downloadChannel.resolvePendingRow(ctx.spaceId, row)
+  t.is(job?.transferId, looseTransferIdFor(ctx.spaceId, 'a.bin'), 'the loose transfer')
+  t.is(job?.pendingKey, '/a.bin', 'on the row\'s own key')
+  t.is(job?.contentHash, HASH)
+  t.is(job?.ownerKey, OWNER)
+  t.ok(isPeerCatalogWatched(keyHex, 'download:' + LOOSE_SHARE_ID), 'an auto-resumed loose row arms change detection')
+})
+
+async function publishedFolder(ctx) {
+  const share = {
+    id: generateShareId(), type: 'owned-folder', name: 'Vault', owner: getLocalPublicKeyHex(), contentMode: 'overlay',
+    catalogKeyEnc: await ownCatalogKeyHex(ctx.spaceId), catalogEpoch: 0, createdAt: Date.now(),
+  }
+  await publishShare(ctx.spaceId, share)
+  await advertise(ctx.spaceId, share.id, 'doc.bin', { size: 4, mtime: 1, contentHash: HASH })
+  return share
+}
+
+test('a folder row an earlier build wrote resolves through the owner\'s current record', async (t) => {
+  const ctx = await setup(t)
+  const share = await publishedFolder(ctx)
+  // A stale plaintext key on the row: only the current record can open the catalog.
+  const row = oldFolderRow(ctx, { shareId: share.id, ownerKey: share.owner, catalogKey: 'd'.repeat(64) })
+
+  const { job } = await downloadChannel.resolvePendingRow(ctx.spaceId, row)
+  t.is(job?.contentHash, HASH, 'read under the record\'s key, not the row\'s')
+  t.is(job?.folderName, 'Vault', 'named by the record')
+  t.is(job?.ownerKey, share.owner)
+  t.is(job?.catalogKeyEnc, share.catalogKeyEnc, 'and the job carries the record\'s key forward')
+  t.ok(isPeerCatalogWatched(share.catalogKeyEnc, 'download:' + share.id), 'a live record arms change detection')
+})
+
+test('a tombstoned share record resolves the row but arms no watch', async (t) => {
+  const ctx = await setup(t)
+  const share = await publishedFolder(ctx)
+  await tombstoneShare(ctx.spaceId, share.id)
+  const row = oldFolderRow(ctx, { shareId: share.id, ownerKey: share.owner, catalogKeyEnc: share.catalogKeyEnc, catalogEpoch: 0 })
+
+  await downloadChannel.resolvePendingRow(ctx.spaceId, row)
+  t.absent(isPeerCatalogWatched(share.catalogKeyEnc, 'download:' + share.id), 'a deleted share is not watched for changes')
 })
