@@ -11,6 +11,9 @@ import { workDir } from '../paths.mjs'
 // All of them are listed at once: the worker hashes a few at a time, the others read "Queued" with
 // a line saying what they wait for, and each turns "Adding" when its hash starts. Big files keep
 // the queued window open past the AX polls.
+// REGRESSION (FIX-639: rows not yet listed by the worker led the list, so the file being hashed sat
+// below the queued ones until the next listing.) Every frame lists our files in name order, the
+// ones still on their way included, with an already-shared file sorting between the new ones.
 export default async function s167({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
@@ -23,6 +26,15 @@ export default async function s167({ runDir, bootstrap }) {
     writeFileSync(abs, Buffer.alloc(512 * 1024 * 1024, 21 + i))
     return abs
   })
+  const earlier = 'take-03a.txt'
+  writeFileSync(path.join(dir, earlier), 'shared before the batch')
+  const listed = [...names, earlier].sort()
+  const disorders = []
+  const checkOrder = (text) => {
+    const seen = listed.filter((n) => text.includes(n))
+    const order = [...seen].sort((a, b) => text.indexOf(a) - text.indexOf(b))
+    if (order.join() !== seen.join()) disorders.push(order.join(' '))
+  }
 
   try {
     await r.ok('launch + create a space', async () => {
@@ -31,11 +43,17 @@ export default async function s167({ runDir, bootstrap }) {
       await A.waitText('Drop to Share', 30000)
     })
 
+    await r.ok('a file shared before the batch', async () => {
+      await A.addFile(path.join(dir, earlier))
+      await waitFor(() => A.has({ name: `${earlier}: Shared by you` }), 30000, 'the earlier file is shared')
+    })
+
     await r.ok('six files added together are all listed at once, the waiting ones as Queued', async () => {
       await A.addFiles(files)
       let text = ''
       await waitFor(async () => {
         try { text = allText(await A.snap()) } catch { return false }
+        checkOrder(text)
         return names.every((n) => text.includes(n)) && /queued/i.test(text)
       }, 60000, 'every file listed while some still wait')
       await A.shot('s167-A-queued', runDir)
@@ -48,8 +66,13 @@ export default async function s167({ runDir, bootstrap }) {
       await waitFor(async () => {
         let text
         try { text = allText(await A.snap()) } catch { return false }
+        checkOrder(text)
         return names.every((n) => text.includes(n)) && !/queued/i.test(text) && !/\badding\b/i.test(text)
       }, 180000, 'all six settle to Shared by you')
+    })
+
+    await r.ok('no frame lists the files out of name order', async () => {
+      assert(disorders.length === 0, `rows out of name order: ${disorders[0]}`)
     })
   } catch {}
   return { pass: r.summary(), instances: [A] }
