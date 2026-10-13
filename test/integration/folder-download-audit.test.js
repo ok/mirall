@@ -194,7 +194,6 @@ test('REGRESSION (FIX-D11-6): a channel that knows nothing about auditing still 
   const finalPath = path.join(ctx.tmpDir('dl'), 'third.bin')
   const bare = {
     diagLabel: 'third channel',
-    inPlace: false,
     isOwnerOnline: () => true,
     ownsPendingRow: (row) => row.thirdChannel === true,
     pendingExtra: () => ({ thirdChannel: true }),

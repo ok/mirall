@@ -20,7 +20,6 @@ export function createOverlayChannel(d) {
 
   return {
     diagLabel: d.diagLabel,
-    inPlace: d.inPlace,
     ownsPendingRow: d.ownsPendingRow,
     pendingExtra: d.pendingExtra,
     transferIdForRow: d.transferIdForRow,

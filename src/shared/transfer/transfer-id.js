@@ -3,9 +3,13 @@
 export const LOOSE_SHARE_ID = '__loose__'
 export const transferIdFor = (spaceId, shareId, relPath) => spaceId + '|' + shareId + '|' + relPath
 export const looseTransferIdFor = (spaceId, relPath) => transferIdFor(spaceId, LOOSE_SHARE_ID, relPath)
+// PERSISTED: a loose file's drive path keys its pending row and its download claim
+// (`<spaceId>:<drivePath>`); a different grammar orphans every row and claim already on disk.
+export const looseDrivePath = (relPath) => '/' + relPath
+export const looseRelPath = (drivePath) => drivePath.replace(/^\//, '')
 // The path the renderer names a file by: a loose file is rooted at '/', a folder file is the bare
 // relPath of its share.
-export const rendererPath = (shareId, relPath) => (shareId === LOOSE_SHARE_ID ? '/' + relPath : relPath)
+export const rendererPath = (shareId, relPath) => (shareId === LOOSE_SHARE_ID ? looseDrivePath(relPath) : relPath)
 // Which engine owns an id, decided from the id alone — a caller must not have to ask whether a
 // transfer is still live (it may have settled) to route a pause/resume to the right backend.
 export const isLooseTransferId = (transferId) =>

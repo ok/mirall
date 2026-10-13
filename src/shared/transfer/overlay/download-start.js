@@ -36,7 +36,7 @@ export function createStart({
   pauseReasonFor, recordTerminal, failTerminal, runFetch,
 }) {
   const pendingRowFor = (job) => ({
-    total: job.size, inPlace: channel.inPlace, ownerKey: job.ownerKey,
+    total: job.size, ownerKey: job.ownerKey,
     finalPath: job.finalPath, sourceSeq: job.sourceSeq, contentHash: job.contentHash,
     bytesTransferred: job.prevBytes || 0, ...channel.pendingExtra(job),
   })
@@ -67,7 +67,7 @@ export function createStart({
       // holds the slot from here, admitted or queued), emitProgress seeds the bar before the
       // first byte. Status derives from the registry slot, not from `fetching`.
       channel.emitProgress(job, { bytes: job.prevBytes || 0, total: job.size, speed: 0, eta: null })
-      channel.emitUpdated(job.spaceId)
+      channel.emitUpdated(job.spaceId, job.shareId)
       runFetch(slot, job)
         .catch((err) => log.warn('overlay download task failed after the fetch settled:', job.relPath, '-', err.message))
       return { transferId, finalPath: job.finalPath }
@@ -85,7 +85,7 @@ export function createStart({
   async function attachToHolder(job, holder) {
     await recordPending(job.spaceId, job.pendingKey, pendingRowFor(job))
     log.debug('overlay download attached to an in-flight', holder, 'fetch:', job.relPath)
-    channel.emitUpdated(job.spaceId)
+    channel.emitUpdated(job.spaceId, job.shareId)
     return { transferId: job.transferId, finalPath: job.finalPath }
   }
 
@@ -100,7 +100,7 @@ export function createStart({
     }
     if (reason === ABANDON.CANCELLED) return { queued: true }
     if (reason === ABANDON.OFFLINE) log.debug('overlay download queued — owner not present on the control plane:', job.relPath)
-    channel.emitUpdated(job.spaceId)
+    channel.emitUpdated(job.spaceId, job.shareId)
     return { queued: true }
   }
 

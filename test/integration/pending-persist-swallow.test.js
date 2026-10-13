@@ -49,7 +49,6 @@ function failPendingWrites(t, { put = () => false, del = () => false } = {}) {
 function channelFor(ctx, events, started, { hash = HASH_OLD, seq = 5 } = {}) {
   return {
     diagLabel: 'test download',
-    inPlace: false,
     isOwnerOnline: () => true,
     ownsPendingRow: (row) => row.overlayShare === true,
     pendingExtra: (job) => ({ overlayShare: true, shareId: job.shareId, relPath: job.relPath }),

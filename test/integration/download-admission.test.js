@@ -16,7 +16,6 @@ const hashFor = (n) => String(n % 10).repeat(64)
 function testChannel(over = {}) {
   return {
     diagLabel: 'test download',
-    inPlace: false,
     ownsPendingRow: (row) => row.overlayShare === true,
     pendingExtra: (job) => ({ overlayShare: true, shareId: job.shareId, relPath: job.relPath }),
     emitProgress: () => {}, emitError: () => {}, emitComplete: () => {}, emitCancelled: () => {},

@@ -16,7 +16,6 @@ import { createOverlayDownloadEngine } from '../../src/shared/transfer/overlay/o
 function testChannel(events) {
   return {
     diagLabel: 'test download',
-    inPlace: false,
     ownsPendingRow: (row) => row.overlayShare === true,
     pendingExtra: (job) => ({ overlayShare: true, shareId: job.shareId, relPath: job.relPath, catalogKey: job.catalogKey }),
     emitProgress: () => {},

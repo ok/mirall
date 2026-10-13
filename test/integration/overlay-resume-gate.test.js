@@ -33,7 +33,6 @@ const HASH = 'a'.repeat(64)
 function testChannel(events, over = {}) {
   return {
     diagLabel: 'test download',
-    inPlace: false,
     ownsPendingRow: (row) => row.overlayShare === true,
     pendingExtra: (job) => ({ overlayShare: true, shareId: job.shareId, relPath: job.relPath }),
     emitProgress: () => {},
@@ -267,7 +266,6 @@ test('REGRESSION (FIX-10: cancelling a settled loose download discards its parti
   const finalPath = path.join(ctx.tmpDir('dl'), 'loose.bin')
   const transferId = SPACE + '|__loose__|loose.bin'
   const channel = testChannel(events, {
-    inPlace: true,
     ownsPendingRow: (row) => row.inPlace === true && row.shareId === '__loose__',
     transferIdForRow: (spaceId, row) => spaceId + '|__loose__|' + row.relPath,
     isOwnerOnline: () => true,

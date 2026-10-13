@@ -13,13 +13,13 @@ import { createLogger } from '../../core/logger.js'
 import { markListIncomplete } from '../list-deficits.js'
 import { getPendingFor, recordPending } from '../pending-transfers.js'
 import { reuseDest } from '../download-dest.js'
-import { LOOSE_SHARE_ID, looseTransferIdFor } from '../transfer-id.js'
+import { LOOSE_SHARE_ID, looseDrivePath, looseRelPath, looseTransferIdFor } from '../transfer-id.js'
 import { memberWaits } from '../../network/share-wait.js'
 import { SHARE_WAIT_SOURCE } from '../share-wait-set.js'
 import { getOverlay } from './overlay-instance.js'
 import { createOverlayChannel } from './overlay-channel.js'
 import { cancelSpaceOn, reconcileActiveSlots } from './active-transfers.js'
-import { looseJob, looseRelPath, looseDrivePath } from './loose-job.js'
+import { downloadJob, looseShareFor } from './download-job.js'
 
 const log = createLogger('loose-downloads')
 const LOOSE_WATCH = 'loose'
@@ -85,7 +85,7 @@ function ensureLooseCatalogWatch(spaceId, member, keyHex, sck) {
 // restart job must NOT inherit the old row's prevBytes). The expected-hash guard makes
 // the supersede a no-op if the slot completed or was replaced during the awaits above.
 async function reconcileActiveLooseTransfers(spaceId, member) {
-  const { keyHex, sck, readable } = await resolvePeerCatalog(spaceId, member)
+  const { keyHex, sck, encrypted, epoch, readable } = await resolvePeerCatalog(spaceId, member)
   if (!readable) return
   await reconcileActiveSlots({
     engine: engine(),
@@ -94,7 +94,7 @@ async function reconcileActiveLooseTransfers(spaceId, member) {
     ownsSlot: (slot) => slot.ownerKey === member.publicKey,
     entryStateFor: (slot) => getPeerEntryState(keyHex, LOOSE_SHARE_ID, looseRelPath(slot.pendingKey), { sck }),
     buildJob: async (slot, state) => {
-      const job = await buildLooseJob({ spaceId, member, drivePath: slot.pendingKey, keyHex, sck, entry: state })
+      const job = await buildLooseJob({ spaceId, member, drivePath: slot.pendingKey, keyHex, sck, encrypted, epoch, entry: state })
       return job ? { ...job, prevBytes: 0 } : null
     },
   })
@@ -102,14 +102,14 @@ async function reconcileActiveLooseTransfers(spaceId, member) {
 
 // The destination is re-anchored when the recorded one no longer sits in the space's download
 // folder (the user re-pointed the space while this row was paused) — see reuseDest.
-async function buildLooseJob({ spaceId, member, drivePath, keyHex, sck, entry, pending }) {
+async function buildLooseJob({ spaceId, member, drivePath, keyHex, sck, encrypted, epoch, entry, pending }) {
   const relPath = looseRelPath(drivePath)
   entry = entry || await getPeerEntry(keyHex, LOOSE_SHARE_ID, relPath, { sck })
   if (!entry?.contentHash) return null
   pending = pending || await getPendingFor(spaceId, drivePath)
   const finalPath = reuseDest(pending?.finalPath, getDownloadDir(spaceId), path.basename(relPath))
-  return looseJob({
-    spaceId, ownerKey: member.publicKey, relPath, pendingKey: drivePath, entry,
+  return downloadJob({
+    spaceId, share: looseShareFor(member), relPath, pendingKey: drivePath, keyHex, encrypted, epoch, entry,
     finalPath, prevFinalPath: pending?.finalPath, prevBytes: pending?.bytesTransferred,
   })
 }
@@ -118,28 +118,27 @@ async function resolveLoosePendingRow(spaceId, row) {
   const space = await getSpace(spaceId)
   const member = verifiedMembers(space?.members).find((m) => m.publicKey === row.ownerKey)
   if (!member) return { removed: false, seq: undefined, job: null }
-  const { keyHex, sck, readable } = await resolvePeerCatalog(spaceId, member, { space })
+  const { keyHex, sck, encrypted, epoch, readable } = await resolvePeerCatalog(spaceId, member, { space })
   if (!readable) return { removed: false, seq: undefined, job: null }
   // An auto-resumed transfer needs change detection as much as a clicked one.
   ensureLooseCatalogWatch(spaceId, member, keyHex, sck)
   const state = await getPeerEntryState(keyHex, LOOSE_SHARE_ID, row.relPath, { sck })
   if (state?.removed) return { removed: true, seq: undefined, job: null }
   const job = state?.contentHash
-    ? await buildLooseJob({ spaceId, member, drivePath: looseDrivePath(row.relPath), keyHex, sck, entry: state, pending: row })
+    ? await buildLooseJob({ spaceId, member, drivePath: looseDrivePath(row.relPath), keyHex, sck, encrypted, epoch, entry: state, pending: row })
     : null
   return { removed: false, seq: state?.seq, job, awaitingHash: !!state && !state.contentHash }
 }
 
 export const looseChannel = createOverlayChannel({
   diagLabel: 'loose download',
-  inPlace: true,
   surfaceAllErrors: true,
   updatedEvent: 'event:files-updated',
   emit: (name, payload) => ipcRef?.emit(name, payload),
   decoKeyFor: (job) => job.path,
   decoKeyForRow: (_row, pendingKey) => pendingKey,
   ownsPendingRow: (row) => row.inPlace === true && row.shareId === LOOSE_SHARE_ID,
-  pendingExtra: (job) => ({ shareId: LOOSE_SHARE_ID, relPath: job.relPath }),
+  pendingExtra: (job) => ({ inPlace: true, shareId: LOOSE_SHARE_ID, relPath: job.relPath }),
   transferIdForRow: (spaceId, row) => looseTransferIdFor(spaceId, row.relPath),
   resolvePendingRow: resolveLoosePendingRow,
 })
@@ -152,10 +151,10 @@ export async function looseDownload(spaceId, member, drivePath) {
   // as well, but the guards below can return before we ever reach start().
   engine().clearPauseMarker(looseTransferIdFor(spaceId, relPath))
   if (!getOverlay() || !(member?.looseCatalogKey || member?.looseCatalogKeyEnc)) return { queued: true }
-  const { keyHex, sck, readable } = await resolvePeerCatalog(spaceId, member)
+  const { keyHex, sck, encrypted, epoch, readable } = await resolvePeerCatalog(spaceId, member)
   if (readable) ensureLooseCatalogWatch(spaceId, member, keyHex, sck)
   const entry = readable ? await getPeerEntry(keyHex, LOOSE_SHARE_ID, relPath, { sck }) : null
-  const job = entry ? await buildLooseJob({ spaceId, member, drivePath, keyHex, sck, entry }) : null
+  const job = entry ? await buildLooseJob({ spaceId, member, drivePath, keyHex, sck, encrypted, epoch, entry }) : null
   if (!job) {
     if (entry) memberWaits.wait(member.publicKey, looseTransferIdFor(spaceId, relPath), SHARE_WAIT_SOURCE.ROW)
     // The catalog entry is unreadable right now (owner offline, or the read budget expired under

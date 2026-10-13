@@ -44,7 +44,6 @@ async function firstEntry(ctx) {
 function testChannel(over = {}) {
   return {
     diagLabel: 'test download',
-    inPlace: false,
     ownsPendingRow: (row) => row.overlayShare === true,
     pendingExtra: (job) => ({ overlayShare: true, shareId: job.shareId, relPath: job.relPath }),
     emitProgress: () => {}, emitError: () => {}, emitComplete: () => {}, emitCancelled: () => {},

@@ -41,7 +41,6 @@ const HASH = 'b'.repeat(64)
 function testChannel(events, over = {}) {
   return {
     diagLabel: 'test download',
-    inPlace: false,
     ownsPendingRow: (row) => row.overlayShare === true,
     pendingExtra: (job) => ({ overlayShare: true, shareId: job.shareId, relPath: job.relPath }),
     emitProgress: () => {},
@@ -252,7 +251,7 @@ test('REGRESSION (local faults read as no holder): an engine ENOTDIR on a vanish
 test('REGRESSION (FIX-DLDIR-2: the folder-share channel emits transfer-error for a gone folder)', (t) => {
   const emitted = []
   const channel = createOverlayChannel({
-    diagLabel: 'test', inPlace: false, surfaceAllErrors: false, updatedEvent: 'event:share-files-updated',
+    diagLabel: 'test', surfaceAllErrors: false, updatedEvent: 'event:share-files-updated',
     emit: (name, payload) => emitted.push([name, payload]),
     decoKeyFor: (job) => job.relPath, decoKeyForRow: () => null,
   })

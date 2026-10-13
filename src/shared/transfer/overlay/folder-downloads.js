@@ -18,7 +18,7 @@ import { memberWaits } from '../../network/share-wait.js'
 import { SHARE_WAIT_SOURCE } from '../share-wait-set.js'
 import { getOverlay } from './overlay-instance.js'
 import { createOverlayChannel } from './overlay-channel.js'
-import { folderJob } from './folder-job.js'
+import { downloadJob, rowShareFor } from './download-job.js'
 import { cancelSpaceOn, reconcileActiveSlots } from './active-transfers.js'
 
 const log = createLogger('folder-downloads')
@@ -79,8 +79,8 @@ async function reconcileActiveFolderTransfers(spaceId, share) {
     log,
     ownsSlot: (slot) => slot.ownerKey === share.owner && slot.pendingKey.startsWith(prefix),
     entryStateFor: (slot) => getPeerEntryState(keyHex, share.id, relOf(slot), { sck }),
-    buildJob: (slot, state) => folderJob({
-      spaceId, share, shareId: share.id, ownerKey: share.owner, relPath: relOf(slot), pendingKey: slot.pendingKey,
+    buildJob: (slot, state) => downloadJob({
+      spaceId, share, relPath: relOf(slot), pendingKey: slot.pendingKey,
       keyHex, encrypted, epoch, entry: state, finalPath: slot.finalPath,
     }),
   })
@@ -91,8 +91,10 @@ async function resolveFolderPendingRow(spaceId, row) {
   // migrates its catalog to SCK encryption the catalog key changes (plaintext to encrypted)
   // and the plaintext core is purged, so a row-only resolve would open the dead core.
   // Fall back to the row when the descriptor is unreadable (owner offline).
-  const share = await readPeerShareEntry(row.ownerKey, spaceId, row.shareId)
-  const { keyHex, sck, encrypted, epoch, readable } = await resolvePeerCatalog(spaceId, share || row)
+  const record = await readPeerShareEntry(row.ownerKey, spaceId, row.shareId)
+  // A stored share record does not name its owner; the row it was read for does.
+  const share = record ? { ...record, owner: row.ownerKey } : rowShareFor(row)
+  const { keyHex, sck, encrypted, epoch, readable } = await resolvePeerCatalog(spaceId, share)
   if (!readable) return { removed: false, seq: undefined, job: null }
   const state = await getPeerEntryState(keyHex, row.shareId, row.relPath, { sck })
   if (state?.removed) return { removed: true, seq: undefined, job: null }
@@ -103,8 +105,8 @@ async function resolveFolderPendingRow(spaceId, row) {
   return {
     removed: false,
     seq: state.seq,
-    job: folderJob({
-      spaceId, share, shareId: row.shareId, ownerKey: row.ownerKey, relPath: row.relPath, pendingKey: row.filePath,
+    job: downloadJob({
+      spaceId, share, relPath: row.relPath, pendingKey: row.filePath,
       keyHex, encrypted, epoch, entry: state, finalPath, prevFinalPath: row.finalPath, prevBytes: row.bytesTransferred,
     }),
   }
@@ -115,7 +117,6 @@ async function resolveFolderPendingRow(spaceId, row) {
 // the worker-derived status, so a lingering entry after a missed `done` stays invisible.
 export const folderChannel = createOverlayChannel({
   diagLabel: 'overlay download',
-  inPlace: false,
   // A folder row surfaces its error inline in the file list (Resume retries), so only the codes no
   // automatic retry can fix cross the wire as a toast + notification.
   surfaceAllErrors: false,
@@ -124,7 +125,7 @@ export const folderChannel = createOverlayChannel({
   decoKeyFor: (job) => shareDecoKey(job.shareId, job.relPath),
   decoKeyForRow: (row) => (row?.shareId && row?.relPath ? shareDecoKey(row.shareId, row.relPath) : null),
   ownsPendingRow: (row) => row.overlayShare === true,
-  pendingExtra: (job) => ({ overlayShare: true, shareId: job.shareId, relPath: job.relPath, ...catalogKeyField(job.catalogKeyEnc || job.catalogKey, !!job.catalogKeyEnc, 'catalogKey', readCatalogEpoch(job)) }),
+  pendingExtra: (job) => ({ inPlace: false, overlayShare: true, shareId: job.shareId, relPath: job.relPath, ...catalogKeyField(job.catalogKeyEnc || job.catalogKey, !!job.catalogKeyEnc, 'catalogKey', readCatalogEpoch(job)) }),
   transferIdForRow: (spaceId, row) => transferIdFor(spaceId, row.shareId, row.relPath),
   resolvePendingRow: resolveFolderPendingRow,
 })
@@ -140,7 +141,7 @@ export async function folderRequestDownload(spaceId, share, relPath) {
   // early — a marker left set suppresses every later auto-resume for this row.
   engine().clearPauseMarker(transferIdFor(spaceId, share.id, relPath))
   if (!getOverlay()) return { queued: true }
-  const { keyHex, sck, encrypted, readable } = await resolvePeerCatalog(spaceId, share)
+  const { keyHex, sck, encrypted, epoch, readable } = await resolvePeerCatalog(spaceId, share)
   if (!readable) return { queued: true }
   const entry = await getPeerEntry(keyHex, share.id, relPath, { sck })
   if (!entry?.contentHash) {
@@ -152,9 +153,9 @@ export async function folderRequestDownload(spaceId, share, relPath) {
   const finalPath = reuseDest(prev?.finalPath, getDownloadDir(spaceId), path.basename(relPath))
   return engine().start({
     express: true,
-    ...folderJob({
-      spaceId, share, shareId: share.id, ownerKey: share.owner, relPath, pendingKey: drivePath,
-      keyHex, encrypted, entry, finalPath, prevFinalPath: prev?.finalPath, prevBytes: prev?.bytesTransferred,
+    ...downloadJob({
+      spaceId, share, relPath, pendingKey: drivePath,
+      keyHex, encrypted, epoch, entry, finalPath, prevFinalPath: prev?.finalPath, prevBytes: prev?.bytesTransferred,
     }),
   })
 }

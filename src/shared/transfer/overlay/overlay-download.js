@@ -28,6 +28,7 @@ import { createStart } from './download-start.js'
 import { createFetchSettle } from './fetch-settle.js'
 import { createReconcile } from './reconcile-scan.js'
 import { memberWaits } from '../../network/share-wait.js'
+import { transferIdParts } from '../transfer-id.js'
 import { faultAwaitsOwner, faultCleared } from './download-faults.js'
 
 const log = createLogger('overlay-download')
@@ -196,9 +197,8 @@ function abortFetch(slot, opts) {
   if (slot.fetching) getOverlay()?.cancelFetch(slot.contentHash, opts)
 }
 
-// job: { spaceId, pendingKey, path, relPath, transferId, contentHash, size, sourceSeq, ownerKey,
-//        verifyKey, finalPath, prevBytes, ...channel-specific } — built by folder-job.js and
-// loose-overlay.js.
+// job: { spaceId, pendingKey, path, relPath, shareId, transferId, contentHash, size, sourceSeq,
+//        ownerKey, verifyKey, finalPath, prevBytes, ... } — built by download-job.js.
 //
 // Three memories deliberately outlive the slot: pausedHashes (the user's pause), terminalCodes
 // (a terminal verdict whose durable write failed) and the stall retries (a retry in flight); the
@@ -254,7 +254,7 @@ export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentT
   function failTerminal(job, code) {
     recordTransferOutcome(job, 'error', code)
     channel.emitError(job, code)
-    channel.emitUpdated(job.spaceId)
+    channel.emitUpdated(job.spaceId, job.shareId)
   }
 
   // One timer per stalled transfer, cleared on pause, cancel, supersede and teardown. pokeResume
@@ -355,14 +355,14 @@ export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentT
       await clearPending(spaceId, pendingKey)
     } catch (err) {
       log.warn('could not clear the pending row on discard:', pendingKey, '-', err.message)
-      channel.emitUpdated(spaceId)
+      channel.emitUpdated(spaceId, transferIdParts(transferId)?.shareId)
       throw err
     }
     forgetIntent(transferId)
     const finalPath = pending?.finalPath
     if (finalPath) discardPartial(finalPath)
     channel.emitCancelled(spaceId, transferId, pendingKey, pending)
-    channel.emitUpdated(spaceId)
+    channel.emitUpdated(spaceId, transferIdParts(transferId)?.shareId)
     return pending
   }
 

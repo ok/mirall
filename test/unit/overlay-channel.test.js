@@ -17,7 +17,6 @@ function build(kind, emit) {
   const loose = kind === 'loose'
   return createOverlayChannel({
     diagLabel: loose ? 'loose download' : 'overlay download',
-    inPlace: loose,
     surfaceAllErrors: loose,
     updatedEvent: loose ? 'event:files-updated' : 'event:share-files-updated',
     emit,
