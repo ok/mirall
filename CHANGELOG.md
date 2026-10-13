@@ -13,6 +13,8 @@ changes do not appear here.
 
 #### Fixed
 
+- **A folder whose file list arrived only partly now fills in on its
+own.** It stayed incomplete until something else changed in the space.
 - **Search the Activity Log by what happened.** Typing an event such as
 "space created", "relay removed" or "downloaded" found nothing, in every
 language. Search now matches the event and the words of its sentence, not
