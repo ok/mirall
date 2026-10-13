@@ -73,7 +73,7 @@ test('loose reshare after unshare: the file can be added again and downloads cle
     // The peer sees it again and can download it.
     await B.until('files:list', { spaceId }, (f) => f.some((e) => e.path === rePath && e.status === 'remote'), { ms: 60000 })
     const done = B.waitFor('event:transfer-complete', (m) => m.path === rePath, 120000)
-    await B.request('files:download', { spaceId, path: rePath, inPlace: true, ownerKey: aKey })
+    await B.request('files:download', { spaceId, path: rePath, ownerKey: aKey })
     const completion = await done
     t.ok(fs.readFileSync(completion.localPath).equals(bytes), 're-shared file downloads byte-exact')
     A.kill()

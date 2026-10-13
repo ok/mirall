@@ -5,7 +5,7 @@ import b4a from 'b4a'
 import { freshPeer } from '../helpers/store.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { advertise } from '../../src/shared/shares/own-catalog.js'
-import { initDownloads } from '../../src/shared/transfer/files.js'
+import { clearOwnedSource, initDownloads } from '../../src/shared/transfer/files.js'
 import { addFile, listFiles } from '../../src/shared/transfer/file-listing.js'
 import { initPendingTransfers } from '../../src/shared/transfer/pending-transfers.js'
 import { publishShare, generateShareId } from '../../src/shared/shares/shares.js'
@@ -47,6 +47,21 @@ test('own loose files are listed as "synced" (owner You)', async (t) => {
   t.ok(loose, 'loose file is listed')
   t.is(loose.status, 'synced', 'status is synced')
   t.is(loose.owner.displayName, 'You', 'owner shown as You')
+})
+
+test('an own loose row carries its source as localPath; a removed source record reads null', async (t) => {
+  const ctx = await setup(t)
+  const src = path.join(ctx.tmpDir('src'), 'kept.txt')
+  fs.writeFileSync(src, 'kept')
+  await addFile(ctx.spaceId, src, 'kept.txt', 4, null)
+
+  let row = (await listFiles(ctx.spaceId, [])).find((f) => f.path === '/kept.txt')
+  t.is(row.localPath, src, 'the recorded source is where the bytes are')
+  t.is(row.mtime, fs.statSync(src).mtimeMs, 'the row carries the catalog entry\'s mtime')
+
+  await clearOwnedSource(ctx.spaceId, '/kept.txt')
+  row = (await listFiles(ctx.spaceId, [])).find((f) => f.path === '/kept.txt')
+  t.is(row.localPath, null, 'no record, no path')
 })
 
 test('files inside an owned-folder share are excluded from the loose list', async (t) => {

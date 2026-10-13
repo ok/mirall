@@ -88,8 +88,8 @@ const files: FileEntry[] = FILE_NAMES.map((name, i) => ({
   size: 8_200_000 + i,
   hash: String(i).repeat(64),
   owner: { displayName: 'You', publicKey: SELF_PK },
-  localBytes: 8_200_000 + i,
-  isAvailable: true,
+  mtime: 0,
+  localPath: '/Users/you/' + name,
   status: 'synced',
 }))
 window.__HARNESS_CFG = { shares, files }

@@ -33,7 +33,7 @@ test('loose download: pause mid-flight surfaces paused-interrupted; resume compl
     await A.request('files:add', { spaceId, filePath: srcPath, fileName: 'big.bin', fileSize: bytes.length })
 
     await B.until('files:list', { spaceId },
-      (f) => Array.isArray(f) && f.some((e) => e.path === '/big.bin' && e.inPlace && e.status === 'remote'),
+      (f) => Array.isArray(f) && f.some((e) => e.path === '/big.bin' && e.status === 'remote'),
       { ms: 60000 })
 
     // Capture the transferId from the first progress event; pause once real bytes flow.
@@ -44,7 +44,7 @@ test('loose download: pause mid-flight surfaces paused-interrupted; resume compl
         if (m.channel === 'transfer' && m.spaceId === spaceId && m.key === '/big.bin' && m.bytes > 0) resolve()
       })
     })
-    await B.request('files:download', { spaceId, path: '/big.bin', inPlace: true, ownerKey: aKey })
+    await B.request('files:download', { spaceId, path: '/big.bin', ownerKey: aKey })
     await flowing
 
     // #6: a files:list during the active download reports 'downloading' (server-derived single
@@ -72,7 +72,7 @@ test('loose download: pause mid-flight surfaces paused-interrupted; resume compl
 
     // Resume = the same files:download IPC the Resume button triggers.
     const done = B.waitFor('event:transfer-complete', (m) => m.path === '/big.bin', 120000)
-    await B.request('files:download', { spaceId, path: '/big.bin', inPlace: true, ownerKey: aKey })
+    await B.request('files:download', { spaceId, path: '/big.bin', ownerKey: aKey })
     const completion = await done
 
     const landed = fs.readFileSync(completion.localPath)
@@ -101,13 +101,13 @@ test('loose download auto-resumes when the owner returns (reconnect hook)',
     await A.request('files:add', { spaceId, filePath: srcPath, fileName: 'resume.bin', fileSize: bytes.length })
 
     await B.until('files:list', { spaceId },
-      (f) => Array.isArray(f) && f.some((e) => e.path === '/resume.bin' && e.inPlace && e.status === 'remote'),
+      (f) => Array.isArray(f) && f.some((e) => e.path === '/resume.bin' && e.status === 'remote'),
       { ms: 60000 })
 
     // Owner offline → the loose download queues (records a pending row carrying ownerKey).
     A.kill()
     await B.until('members:online', { spaceId }, (o) => !o.includes(aKey), { ms: 90000 })
-    const queued = await B.request('files:download', { spaceId, path: '/resume.bin', inPlace: true, ownerKey: aKey })
+    const queued = await B.request('files:download', { spaceId, path: '/resume.bin', ownerKey: aKey })
     t.ok(queued && queued.queued, 'loose download queued while owner offline')
 
     // Owner returns with the SAME storage (source still servable). On A's handshake,
@@ -135,13 +135,13 @@ test('REGRESSION (FIX-EDA-2: a manual pause survives an owner catalog re-append 
     fs.writeFileSync(srcPath, bytes)
     await A.request('files:add', { spaceId, filePath: srcPath, fileName: 'big.bin', fileSize: bytes.length })
     await B.until('files:list', { spaceId },
-      (f) => Array.isArray(f) && f.some((e) => e.path === '/big.bin' && e.inPlace && e.status === 'remote'),
+      (f) => Array.isArray(f) && f.some((e) => e.path === '/big.bin' && e.status === 'remote'),
       { ms: 60000 })
 
     const flowing = new Promise((resolve) => {
       B.on('event:decoration', (m) => { if (m.channel === 'transfer' && m.spaceId === spaceId && m.key === '/big.bin' && m.bytes > 0) resolve() })
     })
-    await B.request('files:download', { spaceId, path: '/big.bin', inPlace: true, ownerKey: aKey })
+    await B.request('files:download', { spaceId, path: '/big.bin', ownerKey: aKey })
     await flowing
     const transferId = (await B.request('files:list', { spaceId })).find((e) => e.path === '/big.bin')?.transferId
     await B.request('files:pause-download', { transferId })

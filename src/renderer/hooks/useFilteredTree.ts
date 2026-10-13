@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef, useDeferredValue } from 'react'
 import { useTreeExpansion } from './useTreeExpansion.js'
 import { buildFileTree, collectFolderPaths, topLevelFolderPaths } from '../model/file-tree.js'
 import { filterTree } from '../model/folder-filter.js'
-import type { FileTreeNode, ShareFileEntry } from '../types/types.js'
+import type { FileTreeNode, ShareFileRow } from '../types/types.js'
 
 /**
  * The folder tree a share's file list renders as: built, filtered, and expanded.
@@ -11,7 +11,7 @@ import type { FileTreeNode, ShareFileEntry } from '../types/types.js'
  * always toggles what it says it toggles. A filter reveals matches by writing THROUGH that store,
  * and snapshots what the user had open first, so clearing the filter puts it back.
  */
-export function useFilteredTree(shareId: string, files: readonly ShareFileEntry[]) {
+export function useFilteredTree(shareId: string, files: readonly ShareFileRow[]) {
   const [filter, setFilter] = useState('')
   const tree = useMemo<FileTreeNode[]>(() => buildFileTree(files), [files])
   const { expanded, isExpanded, toggle, expandAll, collapseAll, hasStored } = useTreeExpansion(shareId)

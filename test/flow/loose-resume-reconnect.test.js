@@ -40,7 +40,7 @@ test('manual pause survives an owner offline→online reconnect (no auto-resume)
     const flowing = new Promise((resolve) => {
       B.on('event:decoration', (m) => { if (m.channel === 'transfer' && m.spaceId === spaceId && m.key === '/held.bin' && m.bytes > 0) resolve() })
     })
-    await B.request('files:download', { spaceId, path: '/held.bin', inPlace: true, ownerKey: aKey })
+    await B.request('files:download', { spaceId, path: '/held.bin', ownerKey: aKey })
     await flowing
     const transferId = (await B.request('files:list', { spaceId })).find((e) => e.path === '/held.bin')?.transferId
     t.ok(transferId, 'transferId derived on the row')
@@ -69,7 +69,7 @@ test('manual pause survives an owner offline→online reconnect (no auto-resume)
 
     // A manual resume still drives it to completion.
     const done = B.waitFor('event:transfer-complete', (m) => m.path === '/held.bin', 120000)
-    await B.request('files:download', { spaceId, path: '/held.bin', inPlace: true, ownerKey: aKey })
+    await B.request('files:download', { spaceId, path: '/held.bin', ownerKey: aKey })
     const completion = await done
     t.ok(fs.readFileSync(completion.localPath).equals(bytes), 'manual resume completes byte-exact')
 

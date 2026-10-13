@@ -1,5 +1,5 @@
 import type {
-  FileStatus, CanaryState, CanaryResult, AuditCategory,
+  ShareFileRow, CanaryState, CanaryResult, AuditCategory,
 } from '../../shared/contract/responses.js'
 import type { BADGE_STATUSES } from '../../shared/contract/statuses.js'
 import type { VERDICTS, CAUSES, CONFIDENCES } from '../../shared/contract/reachability.js'
@@ -34,20 +34,6 @@ export type BadgeStatus = (typeof BADGE_STATUSES)[number]
 
 export type ShareRole = 'mine' | 'browse' | 'mirrored'
 
-export interface ShareFileEntry {
-  relPath: string
-  size: number
-  hash: string
-  mtime: number
-  status: FileStatus
-  localPath?: string
-  verified?: boolean
-  mirrored?: boolean
-  pendingBytes?: number
-  errorCode?: string
-  transferId?: string
-}
-
 export type FileTreeStatusCategory = 'on-device' | 'downloading' | 'preparing' | 'available' | 'paused' | 'error'
 
 export interface FileTreeFileNode {
@@ -55,7 +41,7 @@ export interface FileTreeFileNode {
   name: string
   path: string
   depth: number
-  entry: ShareFileEntry
+  entry: ShareFileRow
 }
 
 export interface FileTreeFolderNode {
@@ -224,7 +210,7 @@ export interface AuditFilters {
 // The wire vocabulary moved to the contract — it is what a response carries, and a second client
 // generates from it. Re-exported here so the sites that import these names do not care.
 export type {
-  Profile, SpaceMember, JoinRequest, Space, FileStatus, FileEntry, MirrorParticipant, Share, FileRecipient,
+  Profile, SpaceMember, JoinRequest, Space, FileStatus, ContentRow, FileEntry, ShareFileRow, MirrorParticipant, Share, FileRecipient,
   OwnedMountStatus, OwnedFolderMount, ForeignMountStatus, ForeignFolderMount,
   MountValidationResult, ScanPreview,
   CanaryState, CanaryResult,

@@ -3,7 +3,7 @@ import { dedupeFileRows, STATUS_RANK } from '../../src/shared/transfer/file-dedu
 import { FILE_STATUSES } from '../../src/shared/contract/statuses.js'
 
 const candidate = (over = {}) => ({
-  path: '/a.txt', size: 1, hash: 'h-a', inPlace: true, status: 'remote',
+  path: '/a.txt', size: 1, hash: 'h-a', mtime: 0, status: 'remote', localPath: null,
   owner: { displayName: 'Peer', publicKey: 'pk' }, ...over,
 })
 

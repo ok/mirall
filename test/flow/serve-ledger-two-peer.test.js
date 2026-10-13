@@ -29,7 +29,7 @@ async function startAndFlow(peer, spaceId, name, ownerKey) {
   const flowing = new Promise((resolve) => {
     peer.on('event:decoration', (m) => { if (m.channel === 'transfer' && m.spaceId === spaceId && m.key === '/' + name && m.bytes > 0) resolve() })
   })
-  await peer.request('files:download', { spaceId, path: '/' + name, inPlace: true, ownerKey })
+  await peer.request('files:download', { spaceId, path: '/' + name, ownerKey })
   await flowing
 }
 const summaryFor = (list, p) => (Array.isArray(list) ? list.find((s) => s.path === p) : null)
@@ -57,7 +57,7 @@ test('owner serve ledger: reflects a downloading peer, its pause, and clears on 
     t.pass('owner ledger surfaces the peer as paused')
 
     const done = B.waitFor('event:transfer-complete', (m) => m.path === '/feed.bin', 120000)
-    await B.request('files:download', { spaceId, path: '/feed.bin', inPlace: true, ownerKey: aKey }) // resume
+    await B.request('files:download', { spaceId, path: '/feed.bin', ownerKey: aKey }) // resume
     await done
     await A.until('serving:summary-list', { spaceId }, (list) => { const s = summaryFor(list, '/feed.bin'); return !s || !s.peers.includes(bKey) }, { ms: 45000 })
     t.pass('owner ledger clears the peer after completion')

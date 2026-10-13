@@ -10,7 +10,7 @@
 
 import { ON_DEVICE_STATUSES } from '../../shared/contract/statuses.js'
 
-/** @import { ShareFileEntry } from '../types/types.js' */
+/** @import { ShareFileRow } from '../types/types.js' */
 
 /** @typedef {{ active: boolean, files: number, onDevice: number, bytesRemaining: number, pct: number | null, indeterminate: boolean }} MirrorSyncSummary */
 
@@ -18,8 +18,8 @@ import { ON_DEVICE_STATUSES } from '../../shared/contract/statuses.js'
 const ON_DEVICE = new Set(ON_DEVICE_STATUSES)
 
 /**
- * @param {ShareFileEntry[]} files
- * @param {{ truncated?: boolean, enabled?: boolean, bytesOf?: (file: ShareFileEntry) => number }} [opts]
+ * @param {ShareFileRow[]} files
+ * @param {{ truncated?: boolean, enabled?: boolean, bytesOf?: (file: ShareFileRow) => number }} [opts]
  * @returns {MirrorSyncSummary}
  */
 export function deriveMirrorSync(files, opts = {}) {
@@ -28,7 +28,7 @@ export function deriveMirrorSync(files, opts = {}) {
   // How many bytes of a not-yet-complete file are already here. The live decoration when there is
   // one, the durable partial otherwise. Injected because the decoration no longer rides the row —
   // see rowView.js — and this module must not learn what a decoration is.
-  const bytesOf = opts.bytesOf ?? (/** @param {ShareFileEntry} file */ (file) => file.pendingBytes ?? 0)
+  const bytesOf = opts.bytesOf ?? (/** @param {ShareFileRow} file */ (file) => file.pendingBytes ?? 0)
   let pending = 0
   let bytesRemaining = 0
   let onDeviceBytes = 0

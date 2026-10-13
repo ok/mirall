@@ -34,14 +34,14 @@ test('seeder quitting mid-download surfaces paused-offline, then auto-resumes',
     await A.request('files:add', { spaceId, filePath: srcPath, fileName: 'big.bin', fileSize: bytes.length })
 
     await B.until('files:list', { spaceId },
-      (f) => Array.isArray(f) && f.some((e) => e.path === '/big.bin' && e.inPlace && e.status === 'remote'),
+      (f) => Array.isArray(f) && f.some((e) => e.path === '/big.bin' && e.status === 'remote'),
       { ms: 60000 })
 
     // Start the download; resolve once real bytes are flowing (genuinely mid-transfer).
     const flowing = new Promise((resolve) => {
       B.on('event:decoration', (m) => { if (m.channel === 'transfer' && m.spaceId === spaceId && m.key === '/big.bin' && m.bytes > 0) resolve() })
     })
-    await B.request('files:download', { spaceId, path: '/big.bin', inPlace: true, ownerKey: aKey })
+    await B.request('files:download', { spaceId, path: '/big.bin', ownerKey: aKey })
     await flowing
 
     // A quits — the only seeder goes away mid-download.

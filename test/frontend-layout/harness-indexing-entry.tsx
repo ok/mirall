@@ -9,7 +9,7 @@ import '../../src/renderer/platform/i18n.js'
 import FolderTree from '../../src/renderer/components/folder/FolderTree.js'
 import { buildFileTree } from '../../src/renderer/model/file-tree.js'
 import type { Decoration, DecorationPhase } from '../../src/renderer/hooks/useDecorations.js'
-import type { ShareFileEntry, FileTreeNode } from '../../src/renderer/types/types.js'
+import type { ShareFileRow, FileTreeNode } from '../../src/renderer/types/types.js'
 
 interface HarnessResults {
   pass: boolean
@@ -46,12 +46,13 @@ const base = {
   onToggle: noop,
 }
 
-function entry(relPath: string, status: ShareFileEntry['status']): ShareFileEntry {
+function entry(relPath: string, status: ShareFileRow['status']): ShareFileRow {
   return {
     relPath,
     size: 2 * 1024 ** 3,
     hash: status === 'preparing' || status === 'publishing' ? '' : 'hash-' + relPath,
     mtime: 0,
+    localPath: null,
     status,
   }
 }

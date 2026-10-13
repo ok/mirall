@@ -40,8 +40,8 @@ const file: FileEntry = {
   size: 32 * 1024 ** 3,
   hash: '',
   owner: { displayName: 'Oliver', publicKey: 'ownerkey' },
-  localBytes: 0,
-  isAvailable: true,
+  mtime: 0,
+  localPath: null,
   status: 'publishing',
 }
 const decoration: Decoration = { bytes: 30, total: 100, speed: 0, avgSpeed: 0, eta: 40, phase: 'publishing' }

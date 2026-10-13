@@ -48,7 +48,7 @@ test('owner remove + re-add mid-download does NOT auto-resume; requires a manual
     const flowing = new Promise((resolve) => {
       B.on('event:decoration', (m) => { if (m.channel === 'transfer' && m.spaceId === spaceId && m.key === '/big.bin' && m.bytes > 0) resolve() })
     })
-    await B.request('files:download', { spaceId, path: '/big.bin', inPlace: true, ownerKey: aKey })
+    await B.request('files:download', { spaceId, path: '/big.bin', ownerKey: aKey })
     await flowing
 
     // Arm the removal-signal listener BEFORE the remove so the worker's event:transfer-removed
@@ -76,7 +76,7 @@ test('owner remove + re-add mid-download does NOT auto-resume; requires a manual
     // A manual re-download works and lands the bytes.
     manualStarted = true
     const done = B.waitFor('event:transfer-complete', (m) => m.path === '/big.bin', 120000)
-    await B.request('files:download', { spaceId, path: '/big.bin', inPlace: true, ownerKey: aKey })
+    await B.request('files:download', { spaceId, path: '/big.bin', ownerKey: aKey })
     const completion = await done
     t.is(sha(fs.readFileSync(completion.localPath)), sha(bytes), 'manual re-download landed the content byte-exact')
 

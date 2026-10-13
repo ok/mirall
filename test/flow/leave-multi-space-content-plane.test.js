@@ -44,7 +44,7 @@ test('leaving one shared space does not disturb an in-flight transfer in another
     const flowing = new Promise((resolve) => {
       B.on('event:decoration', (m) => { if (m.channel === 'transfer' && m.spaceId === keptSpace && m.key === '/keep.bin' && m.bytes > 0) resolve() })
     })
-    await B.request('files:download', { spaceId: keptSpace, path: '/keep.bin', inPlace: true, ownerKey: aKey })
+    await B.request('files:download', { spaceId: keptSpace, path: '/keep.bin', ownerKey: aKey })
     await flowing
 
     await A.request('space:leave', { spaceId: leftSpace })

@@ -36,7 +36,7 @@ async function startFlowGetTransfer(B, spaceId, name, aKey) {
   const flowing = new Promise((resolve) => {
     B.on('event:decoration', (m) => { if (m.channel === 'transfer' && m.spaceId === spaceId && m.key === '/' + name && m.bytes > 0) resolve() })
   })
-  await B.request('files:download', { spaceId, path: '/' + name, inPlace: true, ownerKey: aKey })
+  await B.request('files:download', { spaceId, path: '/' + name, ownerKey: aKey })
   await flowing
   return (await B.request('files:list', { spaceId })).find((e) => e.path === '/' + name)?.transferId
 }
@@ -84,7 +84,7 @@ test('loose cancel then re-download: completes byte-exact with no stale partial'
     await B.until('files:list', { spaceId }, (list) => { const e = list.find((x) => x.path === '/retry.bin'); return e && e.status === 'remote' }, { ms: 30000 })
 
     const done = B.waitFor('event:transfer-complete', (m) => m.path === '/retry.bin', 120000)
-    await B.request('files:download', { spaceId, path: '/retry.bin', inPlace: true, ownerKey: aKey })
+    await B.request('files:download', { spaceId, path: '/retry.bin', ownerKey: aKey })
     const completion = await done
     t.ok(fs.readFileSync(completion.localPath).equals(bytes), 're-downloaded file is byte-exact')
     t.ok(!completion.localPath.endsWith('.mirall.part'), 'finalised, not a partial')

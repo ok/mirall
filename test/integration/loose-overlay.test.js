@@ -268,7 +268,7 @@ test('Item 1: a downloaded+verified peer loose file surfaces verified:true (fals
   row = (await listFiles(spaceB.spaceId, [member])).find((f) => f.path === '/v.bin')
   t.is(row.status, 'modified', 'a download whose size moved lists as modified')
   t.is(row.verified, false)
-  t.is(row.localBytes, 2048, 'its bytes still count as on the device')
+  t.is(row.localPath, landed, 'an edited download still sits where it landed')
 })
 
 // Item 2B: a peer loose entry still being hashed (contentHash:null) is now listed as
@@ -348,13 +348,13 @@ test('REGRESSION (FIX-2: a failure AFTER a successful publish does NOT revert th
   t.ok(serveIndex.has(entry.contentHash), 'and it stays servable')
 })
 
-test('A: a still-hashing own loose file is listed as publishing, then flips to mine', async (t) => {
+test('A: a still-hashing own loose file is listed as publishing, then flips to synced', async (t) => {
   const ctx = await setup(t)
   await advertise(ctx.spaceId, LOOSE_SHARE_ID, 'big.bin', { size: 4096, mtime: 1, contentHash: null })
   let row = (await listFiles(ctx.spaceId, [])).find((f) => f.path === '/big.bin')
   t.ok(row, 'still-indexing own file is listed (server-truth, survives remount)')
   t.is(row.status, 'publishing')
-  t.ok(row.inPlace, 'flagged in-place')
+  t.is(row.localPath, null, 'no source was recorded for an advertised-only entry')
 
   await advertise(ctx.spaceId, LOOSE_SHARE_ID, 'big.bin', { size: 4096, mtime: 1, contentHash: 'h'.repeat(64) })
   row = (await listFiles(ctx.spaceId, [])).find((f) => f.path === '/big.bin')
@@ -373,7 +373,7 @@ test('Item 2B: a still-hashing peer loose entry is listed and presence-gates to 
   // entry degrades to 'unavailable' rather than a stuck 'preparing'. The owner-online 'preparing'
   // case is covered by unhashedStatusFor's unit test + the loose-preparing flow test.
   t.is(row.status, 'unavailable')
-  t.ok(row.inPlace, 'flagged in-place')
+  t.is(row.localPath, null, 'nothing of a peer\'s unhashed file is on this device')
 })
 
 // Import cycles are asserted for the whole data layer in import-time.test.js; what is checked

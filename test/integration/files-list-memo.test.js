@@ -11,6 +11,7 @@ import {
   markDownloaded,
   markVerified,
   listLooseDownloadClaims,
+  listOwnedSources,
   listVerifiedRecordsForShare,
   pruneDownloadClaims,
   verdictForClaim,
@@ -57,6 +58,7 @@ function scriptedDeps({ versions, stalls = new Set() }) {
     verdictForClaim: () => ({ downloaded: false, prune: false, reason: 'no-claim', stat: null }),
     listVerifiedRecordsForShare: async () => new Map(),
     listLooseDownloadClaims: async () => new Map(),
+    listOwnedSources: async () => new Map(),
     pruneDownloadClaims: async () => 0,
     catalogVersion: async (spaceId, share) => versions[share.owner],
   }
@@ -161,6 +163,7 @@ function realDeps(presence) {
     verdictForClaim,
     listVerifiedRecordsForShare,
     listLooseDownloadClaims,
+    listOwnedSources,
     pruneDownloadClaims,
     catalogVersion: watchedCatalogVersion,
   }

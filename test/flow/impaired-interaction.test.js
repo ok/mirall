@@ -23,7 +23,7 @@ async function startAndFlow(B, spaceId, name, aKey) {
   const flowing = new Promise((resolve) => {
     B.on('event:decoration', (m) => { if (m.channel === 'transfer' && m.spaceId === spaceId && m.key === '/' + name && m.bytes > 0) resolve() })
   })
-  await B.request('files:download', { spaceId, path: '/' + name, inPlace: true, ownerKey: aKey })
+  await B.request('files:download', { spaceId, path: '/' + name, ownerKey: aKey })
   await flowing
 }
 
@@ -43,7 +43,7 @@ test('a transfer completes over a brutal link (high latency + periodic drops on 
 
   const started = Date.now()
   const done = B.waitFor('event:transfer-complete', (m) => m.path === '/brutal.bin', 300000)
-  await B.request('files:download', { spaceId, path: '/brutal.bin', inPlace: true, ownerKey: aKey })
+  await B.request('files:download', { spaceId, path: '/brutal.bin', ownerKey: aKey })
   const completion = await done
   t.comment(`brutal.bin: 16 MB completed in ${Date.now() - started}ms on the brutal link`)
   t.ok(fs.readFileSync(completion.localPath).equals(bytes), 'byte-exact over the brutal link')
@@ -81,7 +81,7 @@ test('a manual pause and resume survive a flaky link (connection churn while pau
 
   // A manual resume completes it despite the flaky link.
   const done = B.waitFor('event:transfer-complete', (m) => m.path === '/churn.bin', 180000)
-  await B.request('files:download', { spaceId, path: '/churn.bin', inPlace: true, ownerKey: aKey })
+  await B.request('files:download', { spaceId, path: '/churn.bin', ownerKey: aKey })
   const completion = await done
   t.ok(fs.readFileSync(completion.localPath).equals(bytes), 'manual resume completes byte-exact over the flaky link')
   A.kill()

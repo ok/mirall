@@ -21,7 +21,7 @@ async function startAndFlow(peer, spaceId, name, ownerKey) {
   const flowing = new Promise((resolve) => {
     peer.on('event:decoration', (m) => { if (m.channel === 'transfer' && m.spaceId === spaceId && m.key === '/' + name && m.bytes > 0) resolve() })
   })
-  await peer.request('files:download', { spaceId, path: '/' + name, inPlace: true, ownerKey })
+  await peer.request('files:download', { spaceId, path: '/' + name, ownerKey })
   await flowing
 }
 async function share(A, spaceId, dir, name, seed) {

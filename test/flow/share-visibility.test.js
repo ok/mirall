@@ -75,7 +75,7 @@ test('REGRESSION (HOL): a new share reaches a peer that is mid-download — no p
 
     const entry = await waitForCatalogEntry(B, spaceId, '/big.bin')
     const inFlight = B.waitFor('event:decoration', (m) => m.channel === 'transfer' && m.spaceId === spaceId && m.key === '/big.bin' && (m.bytes || 0) > 0, 60000)
-    const dl = B.request('files:download', { spaceId, path: entry.path, inPlace: true, ownerKey: entry.owner.publicKey })
+    const dl = B.request('files:download', { spaceId, path: entry.path, ownerKey: entry.owner.publicKey })
     dl.catch(() => {})
     const firstProgress = await inFlight
     t.ok(firstProgress.bytes < bytes.length, 'download is genuinely partial (mid-flight) when the share is created')

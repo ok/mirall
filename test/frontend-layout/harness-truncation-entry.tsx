@@ -62,8 +62,8 @@ const looseFile = (name: string, status: FileEntry['status'] = 'remote'): FileEn
   size: 4 * 1024 ** 3,
   hash: 'h-' + name,
   owner: { displayName: 'Oliver', publicKey: 'ownerkey' },
-  localBytes: 0,
-  isAvailable: true,
+  mtime: 0,
+  localPath: null,
   status,
 })
 const downloading: Decoration = { bytes: 30, total: 100, speed: 5e6, avgSpeed: 5e6, eta: 643 }

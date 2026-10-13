@@ -266,7 +266,7 @@ async function probeAudit(root: Root, kit: FailpathsKit): Promise<AuditProbe> {
 
 const LOOSE_FILE: FileEntry = {
   path: '/a.bin', size: 1, hash: 'h'.repeat(64), owner: { displayName: 'Vhinz', publicKey: 'owner' },
-  localBytes: 0, isAvailable: true, status: 'remote',
+  mtime: 0, localPath: null, status: 'remote',
 }
 
 const TRANSFER_FAILS = [

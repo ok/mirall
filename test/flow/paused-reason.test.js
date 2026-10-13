@@ -32,7 +32,7 @@ test('FIX-REMOVE-1: an online owner removing mid-download terminates the transfe
     await A.request('files:add', { spaceId, filePath: srcPath, fileName: 'big.bin', fileSize: bytes.length })
 
     await B.until('files:list', { spaceId },
-      (f) => Array.isArray(f) && f.some((e) => e.path === '/big.bin' && e.inPlace && e.status === 'remote'),
+      (f) => Array.isArray(f) && f.some((e) => e.path === '/big.bin' && e.status === 'remote'),
       { ms: 60000 })
 
     const flowing = new Promise((resolve) => {
@@ -40,7 +40,7 @@ test('FIX-REMOVE-1: an online owner removing mid-download terminates the transfe
     })
     // The removal is terminal → a 'removed' signal, NOT a lingering 'paused' event.
     const removed = B.waitFor('event:transfer-removed', (m) => m.path === '/big.bin', 120000)
-    await B.request('files:download', { spaceId, path: '/big.bin', inPlace: true, ownerKey: aKey })
+    await B.request('files:download', { spaceId, path: '/big.bin', ownerKey: aKey })
     await flowing
 
     await A.request('files:remove', { spaceId, path: '/big.bin' }) // owner stays online

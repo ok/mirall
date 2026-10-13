@@ -8,34 +8,29 @@ import { deriveFolderInfo } from './folder-info.js'
 // Kept as a pure fold so the never-blank rule is testable without React, and so the query store
 // never has to interpret a response: the store holds the raw answer, this turns a sequence of
 // answers into the list.
-/** @import { ShareFileEntry } from '../types/types.js' */
-/** @import { FolderInfo, ListResult } from './folder-info.js' */
+/** @import { ShareFileRow } from '../types/types.js' */
+/** @import { ShareFileListing } from '../../shared/contract/responses.js' */
+/** @import { FolderInfo } from './folder-info.js' */
 
-/**
- * @template E
- * @typedef {{ res: ListResult<E> | null, rows: ShareFileEntry[], info: FolderInfo | null }} Fold
- */
+/** @typedef {{ res: ShareFileListing | null, rows: ShareFileRow[], info: FolderInfo | null }} Fold */
 
 /** @typedef {Error & { code?: string }} ListingError */
-/** @typedef {{ rows: ShareFileEntry[], info: FolderInfo | null, error: ListingError | null, terminal: boolean }} ResolvedListing */
+/** @typedef {{ rows: ShareFileRow[], info: FolderInfo | null, error: ListingError | null, terminal: boolean }} ResolvedListing */
 
-/** @type {Fold<never>} */
+/** @type {Fold} */
 export const emptyFold = Object.freeze({ res: null, rows: [], info: null })
 
 /**
- * @template E
- * @param {Fold<E>} prev
- * @param {ListResult<E> | null} res
- * @param {(entry: E) => ShareFileEntry} toEntry
- * @returns {Fold<E>}
+ * @param {Fold} prev
+ * @param {ShareFileListing | null} res
+ * @returns {Fold}
  */
-export function foldListing(prev, res, toEntry) {
+export function foldListing(prev, res) {
   if (!res) return prev
   if (res === prev.res) return prev
-  const mapped = res.entries.map(toEntry)
   // reconcileFiles returns the PREVIOUS array reference when nothing moved, which is what lets
   // React skip the row subtree on a listing that did not change.
-  const rows = reconcileFiles(prev.rows, mapped, { complete: res.complete })
+  const rows = reconcileFiles(prev.rows, res.entries, { complete: res.complete })
   return { res, rows, info: deriveFolderInfo(res, rows) }
 }
 
@@ -50,8 +45,7 @@ export function foldListing(prev, res, toEntry) {
 const TERMINAL_CODES = new Set(['SHARE_NOT_FOUND', 'EOWNERSHIP'])
 
 /**
- * @template E
- * @param {Fold<E>} fold
+ * @param {Fold} fold
  * @param {ListingError | null} error
  * @returns {ResolvedListing}
  */

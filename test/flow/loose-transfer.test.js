@@ -41,7 +41,7 @@ test('A shares a file, B sees and downloads it; bytes match end-to-end', { timeo
 
   // B downloads it
   const done = B.waitFor('event:transfer-complete', (m) => m.path === '/photo.bin')
-  await B.request('files:download', { spaceId, path: entry.path, inPlace: true, ownerKey: entry.owner.publicKey })
+  await B.request('files:download', { spaceId, path: entry.path, ownerKey: entry.owner.publicKey })
   const completed = await done
 
   t.ok(!completed.localPath.endsWith('.mirall.part'), 'atomic-renamed to final path')

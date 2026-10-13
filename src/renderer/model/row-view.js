@@ -13,11 +13,11 @@ import { ON_DEVICE_STATUSES } from '../../shared/contract/statuses.js'
 import { badgeStyle, statusToBadge } from './status-badge.js'
 /** @import { Decoration } from '../types/ui.js' */
 /** @import { BadgeAppearance } from './status-badge.js' */
-/** @import { FileEntry, FileStatus, ShareFileEntry, PeerDownloadSummary } from '../types/types.js' */
+/** @import { FileEntry, FileStatus, ShareFileRow, PeerDownloadSummary } from '../types/types.js' */
 /** @import { PersonKey } from '../../shared/contract/principals.js' */
 
 /** @typedef {'publish' | 'verify' | 'download' | 'preparing' | 'indicator' | 'rest'} LaneName */
-/** @typedef {FileEntry | ShareFileEntry} Row */
+/** @typedef {FileEntry | ShareFileRow} Row */
 
 /**
  * @typedef {object} RowView

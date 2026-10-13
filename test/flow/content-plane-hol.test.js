@@ -37,7 +37,7 @@ test('a newly shared folder surfaces on a peer while a download is in flight ove
       const to = setTimeout(() => reject(new Error('download never started flowing')), scaled(90000))
       B.on('event:decoration', (m) => { if (m.channel === 'transfer' && m.key === '/big.bin' && m.bytes > 0 && !m.done) { clearTimeout(to); resolve() } })
     })
-    await B.request('files:download', { spaceId, path: '/big.bin', inPlace: true, ownerKey: aKey })
+    await B.request('files:download', { spaceId, path: '/big.bin', ownerKey: aKey })
     await flowing
 
     const fresh = await A.request('share:create', { spaceId, name: 'Fresh', contentMode: 'overlay' })
@@ -62,7 +62,7 @@ test('a download completes byte-exact over the content plane', { timeout: scaled
   await B.until('files:list', { spaceId }, (f) => Array.isArray(f) && f.some((e) => e.path === '/file.bin' && e.status === 'remote'), { ms: 60000 })
 
   const done = B.waitFor('event:transfer-complete', (m) => m.path === '/file.bin', 90000)
-  await B.request('files:download', { spaceId, path: '/file.bin', inPlace: true, ownerKey: aKey })
+  await B.request('files:download', { spaceId, path: '/file.bin', ownerKey: aKey })
   const completion = await done
   t.ok(fs.readFileSync(completion.localPath).equals(bytes), 'downloaded bytes match source over the content plane')
   t.ok(!completion.localPath.endsWith('.mirall.part'), 'finalised, not a partial')

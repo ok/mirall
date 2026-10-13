@@ -2,8 +2,8 @@ import test from 'brittle'
 import { deriveRowView, rowBytesOnDevice } from '../../src/renderer/model/row-view.js'
 
 const file = (o) => ({
-  path: '/s/f', size: 100, hash: 'h', owner: { displayName: 'O', publicKey: 'k' },
-  localBytes: 0, isAvailable: true, status: 'remote', ...o,
+  path: '/s/f', size: 100, hash: 'h', mtime: 0, localPath: null, owner: { displayName: 'O', publicKey: 'k' },
+  status: 'remote', ...o,
 })
 const dec = (o) => ({ bytes: 0, total: 100, speed: 0, avgSpeed: 0, eta: null, ...o })
 const summary = { spaceId: 's', path: '/s/f', personKeys: ['p1'], pausedKeys: [], bytes: 0, total: 0, avgSpeed: 0 }
@@ -66,7 +66,7 @@ test('publish percentage derives from the publish decoration', (t) => {
   t.is(v.publishPct, 25)
 })
 
-const shareRow = (o) => ({ relPath: 'a/b.txt', size: 100, hash: 'h', mtime: 0, status: 'remote', ...o })
+const shareRow = (o) => ({ relPath: 'a/b.txt', size: 100, hash: 'h', mtime: 0, status: 'remote', localPath: null, ...o })
 const view = (row, decoration, downloadSummary, opts) => deriveRowView(row, decoration, downloadSummary, opts)
 
 test('both kinds take the same lane for the same shape', (t) => {

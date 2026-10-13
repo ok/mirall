@@ -9,6 +9,7 @@ import {
   createDirProbe,
   forgetFileRecords,
   listLooseDownloadClaims,
+  listOwnedSources,
   listVerifiedRecordsForShare,
   pruneDownloadClaims,
   verdictForClaim,
@@ -27,6 +28,7 @@ import { getSpace } from '../spaces/space.js'
 import { isParticipating } from '../spaces/participation.js'
 import { peerMembersOf, readEachPeer } from '../spaces/member-fanout.js'
 /** @import { StoredSpace } from '../spaces/space.js' */
+/** @import { FileEntry } from '../contract/responses.js' */
 import { dedupeFileRows } from './file-dedupe.js'
 import { markListIncomplete } from './list-deficits.js'
 import { beginListingRead, retainListingMemo, settleListingRead, takeListingMemo } from './listing-memo.js'
@@ -35,7 +37,7 @@ import { hasShareDownload, listPeerWithMeta, watchedCatalogVersion } from './ove
 import { looseShareFor } from './overlay/download-job.js'
 import { listPendingForSpace } from './pending-transfers.js'
 import { isOwnerOnline } from '../network/presence-leases.js'
-import { LOOSE_SHARE_ID, looseTransferIdFor } from './transfer-id.js'
+import { LOOSE_SHARE_ID, looseDrivePath, looseTransferIdFor } from './transfer-id.js'
 import { consumerRowStatusFor } from './transfer-status.js'
 import fs from 'bare-fs'
 import path from 'bare-path'
@@ -81,20 +83,22 @@ const productionDeps = {
   verdictForClaim,
   listVerifiedRecordsForShare,
   listLooseDownloadClaims,
+  listOwnedSources,
   pruneDownloadClaims,
   catalogVersion: watchedCatalogVersion,
 }
 
 // Hashed → 'synced' (its bytes are the source on this disk); unhashed → 'queued' while it waits for a
 // publish slot, then 'publishing' (server-truth) so it survives a navigate-away/remount, not just the
-// optimistic client row.
-function ownRow(e, localPublicKey, queued) {
-  const hashed = !!e.contentHash
-  const status = hashed ? FILE_STATUS.SYNCED : queued.has(e.relPath) ? FILE_STATUS.QUEUED : FILE_STATUS.PUBLISHING
+// optimistic client row. Served in place: the bytes are wherever the user keeps the file.
+/** @returns {FileEntry} */
+function ownRow(e, localPublicKey, queued, sources) {
+  const drivePath = looseDrivePath(e.relPath)
+  const status = e.contentHash ? FILE_STATUS.SYNCED : queued.has(e.relPath) ? FILE_STATUS.QUEUED : FILE_STATUS.PUBLISHING
   return {
-    path: '/' + e.relPath, size: e.size, hash: e.contentHash || '', inPlace: true,
+    path: drivePath, size: e.size, hash: e.contentHash || '', mtime: e.mtime, status,
+    localPath: sources.get(drivePath) ?? null,
     owner: { displayName: 'You', publicKey: localPublicKey },
-    localBytes: hashed ? e.size : 0, isAvailable: true, status,
   }
 }
 
@@ -103,16 +107,18 @@ function ownRow(e, localPublicKey, queued) {
 // A claim and a live slot are keyed by name alone and only the content hash ties either to this
 // owner's file, so an unhashed entry reads neither; a pending row names its owner, so it counts only
 // for that owner's row.
+/** @returns {FileEntry} */
 function peerRow(spaceId, member, e, ctx) {
-  const drivePath = '/' + e.relPath
+  const drivePath = looseDrivePath(e.relPath)
   const hashed = Boolean(e.contentHash)
   const claim = ctx.claims.get(drivePath) || null
   const verdict = hashed ? ctx.deps.verdictForClaim(spaceId, drivePath, claim, e.contentHash, ctx.dirProbe) : NO_CLAIM
   if (verdict.prune) ctx.stale.set(drivePath, verdict.reason)
   if (verdict.downloaded) ctx.held.add(drivePath)
+  const localPath = verdict.downloaded ? claimedPathFor(drivePath, claim) : null
   const copyVerdict = verdict.downloaded
     ? verifiedCopyVerdict(ctx.verified.get(e.relPath) || null, verdict.stat ?? null, {
-      contentHash: e.contentHash, expectedSize: e.size, expectLocal: claimedPathFor(drivePath, claim),
+      contentHash: e.contentHash, expectedSize: e.size, expectLocal: localPath,
     })
     : null
   const pendingRow = ctx.pending.get(drivePath)
@@ -126,11 +132,9 @@ function peerRow(spaceId, member, e, ctx) {
     ownerOnline: ctx.ownerOnline,
   })
   return {
-    path: drivePath, size: e.size, hash: e.contentHash || '', inPlace: true,
+    path: drivePath, size: e.size, hash: e.contentHash || '', mtime: e.mtime, status: row.status, localPath,
     owner: { displayName: member.displayName, publicKey: member.publicKey },
-    localBytes: copyVerdict ? e.size : 0, isAvailable: ctx.ownerOnline,
-    status: row.status, verified: row.verified || false, pendingBytes: row.pendingBytes, errorCode: row.errorCode,
-    transferId,
+    verified: row.verified || false, pendingBytes: row.pendingBytes, errorCode: row.errorCode, transferId,
   }
 }
 
@@ -184,7 +188,8 @@ async function readPeerEntries(spaceId, member, { budget, space, deps }) {
 // owner, so dedupeFileRows can merge them.
 async function collectLooseInPlace(spaceId, members, { localPublicKey, space, deps }) {
   const queued = looseQueuedPaths(spaceId)
-  const out = (await looseListOwn(spaceId)).map((e) => ownRow(e, localPublicKey, queued))
+  const [own, sources] = await Promise.all([looseListOwn(spaceId), deps.listOwnedSources(spaceId)])
+  const out = own.map((e) => ownRow(e, localPublicKey, queued, sources))
   const peerMembers = peerMembersOf(members, localPublicKey, (m) => Boolean(readCatalogKey(m).keyHex))
   retainListingMemo(spaceId, new Set(peerMembers.map((m) => readCatalogKey(m).keyHex)))
   if (peerMembers.length === 0) return out

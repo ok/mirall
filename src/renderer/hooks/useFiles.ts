@@ -70,10 +70,10 @@ export function useFiles(spaceId: string) {
         path,
         size: file.size,
         hash: 'pending:' + path,
-        owner: { displayName: 'You', publicKey: '' },
-        localBytes: 0,
-        isAvailable: true,
+        mtime: file.lastModified,
         status: 'queued',
+        localPath: null,
+        owner: { displayName: 'You', publicKey: '' },
       })
       return next
     })

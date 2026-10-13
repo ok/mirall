@@ -10,7 +10,7 @@ import { createRoot } from 'react-dom/client'
 import '../../src/renderer/platform/i18n.js'
 import FileCard from '../../src/renderer/components/cards/FileCard.js'
 import ShareFileRow from '../../src/renderer/components/cards/ShareFileRow.js'
-import type { FileEntry, FileRecipient, FileStatus, ShareFileEntry, SpaceMember } from '../../src/renderer/types/types.js'
+import type { FileEntry, FileRecipient, FileStatus, ShareFileRow as ShareFileRowData, SpaceMember } from '../../src/renderer/types/types.js'
 
 interface RowMetrics {
   overflow: boolean
@@ -48,9 +48,9 @@ const members = [member(OWNER, 'Oliver'), member('k1', 'Alexandra Featherstoneha
 const NAME = 'GitHubDesktop-x64-3.5.0-arm64.zip'
 const loose: FileEntry = {
   path: '/' + NAME, size: 181.7 * 1024 ** 2, hash: HASH, owner: { displayName: 'Oliver', publicKey: OWNER },
-  localBytes: 0, isAvailable: true, status: 'synced',
+  mtime: 0, localPath: null, status: 'synced',
 }
-const folderFile: ShareFileEntry = { relPath: NAME, size: 181.7 * 1024 ** 2, hash: HASH, mtime: 0, status: 'synced' }
+const folderFile: ShareFileRowData = { relPath: NAME, size: 181.7 * 1024 ** 2, hash: HASH, mtime: 0, status: 'synced', localPath: null }
 const received = (path: string, shareId: string): FileRecipient[] => ['k1', 'k2'].map((k, i) => ({ shareId, path, personKey: k, contentHash: HASH, ts: i }))
 const noop = () => {}
 

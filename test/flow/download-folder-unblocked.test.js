@@ -50,7 +50,7 @@ test('a download refused by a read-only folder lands once the folder is fixed, w
   let ownerOfflinePauses = 0
   B.on('event:transfer-paused', (m) => { if (m.path === '/doc.bin' && m.reason === 'offline') ownerOfflinePauses++ })
   const refused = B.waitFor('event:transfer-error', (m) => m.path === '/doc.bin', 60000)
-  await B.request('files:download', { spaceId, path: '/doc.bin', inPlace: true, ownerKey: aKey })
+  await B.request('files:download', { spaceId, path: '/doc.bin', ownerKey: aKey })
   t.is((await refused).errorCode, 'TRANSFER_PERMISSION', 'precondition: the read-only folder refused the download')
 
   // The download attempt itself provokes connection-driven re-drives (the content-plane hello's

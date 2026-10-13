@@ -37,7 +37,7 @@ test('in-place loose file: owner shares with no drive copy; member fetches by co
 
     // Bob sees it in the flat list (from Alice's replicated loose catalog), marked in-place + remote.
     const listed = await B.until('files:list', { spaceId },
-      (f) => Array.isArray(f) && f.some((e) => e.path === '/big.bin' && e.inPlace && e.status === 'remote'),
+      (f) => Array.isArray(f) && f.some((e) => e.path === '/big.bin' && e.status === 'remote'),
       { ms: 60000 })
     const entry = listed.find((e) => e.path === '/big.bin')
     t.is(entry.size, bytes.length, 'catalog carries the size')
@@ -45,7 +45,7 @@ test('in-place loose file: owner shares with no drive copy; member fetches by co
 
     // Bob fetches by content hash straight from Alice; completion arrives via event.
     const done = B.waitFor('event:transfer-complete', (m) => m.path === '/big.bin', 60000)
-    const res = await B.request('files:download', { spaceId, path: '/big.bin', inPlace: true, ownerKey: aKey })
+    const res = await B.request('files:download', { spaceId, path: '/big.bin', ownerKey: aKey })
     t.ok(res?.transferId, 'in-place download returned a transferId (non-blocking)')
     const completed = await done
     t.ok(fs.readFileSync(completed.localPath).equals(bytes), 'downloaded bytes match the source')
@@ -85,7 +85,7 @@ test('in-place loose file is unavailable while the owner is offline',
     const files = await B.request('files:list', { spaceId })
     t.is(files.find((e) => e.path === '/note.txt')?.status, 'unavailable', 'unavailable with the owner offline')
 
-    const res = await B.request('files:download', { spaceId, path: '/note.txt', inPlace: true, ownerKey: aKey })
+    const res = await B.request('files:download', { spaceId, path: '/note.txt', ownerKey: aKey })
     t.ok(res && res.queued, 'download queues (no holder online), no hang')
   })
 

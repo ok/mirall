@@ -47,13 +47,14 @@ test('addFile (flag on) shares in place — a loose-catalog entry', async (t) =>
   t.ok(await getOwnEntry(ctx.spaceId, LOOSE_SHARE_ID, 'a.txt'), 'loose catalog entry created')
 })
 
-test('listFiles surfaces own in-place files as inPlace + mine', async (t) => {
+test('listFiles surfaces an own in-place file as synced, at its source', async (t) => {
   const ctx = await setup(t)
-  await addFile(ctx.spaceId, writeSource(ctx, 'a.txt', 'x'), 'a.txt', 1, ctx.fake.ipc)
+  const src = writeSource(ctx, 'a.txt', 'x')
+  await addFile(ctx.spaceId, src, 'a.txt', 1, ctx.fake.ipc)
   const files = await listFiles(ctx.spaceId, [])
   const row = files.find((f) => f.path === '/a.txt')
   t.ok(row, 'in-place file appears in the flat list')
-  t.ok(row.inPlace, 'row flagged inPlace')
+  t.is(row.localPath, src, 'its bytes are where the user keeps the file')
   t.is(row.status, 'synced', 'own in-place file is synced')
 })
 

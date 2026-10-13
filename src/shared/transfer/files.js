@@ -168,6 +168,17 @@ export async function listLooseDownloadClaims(spaceId, { keep = null } = {}) {
   return map
 }
 
+// Every own loose file's recorded source, by drive path: one range scan per listing instead of a
+// point read per row.
+export async function listOwnedSources(spaceId) {
+  const prefix = 'src:' + spaceId + ':'
+  const map = new Map()
+  for await (const node of downloadsBee.createReadStream(prefixRange(prefix))) {
+    if (node.value?.sourcePath) map.set(node.key.slice(prefix.length), node.value.sourcePath)
+  }
+  return map
+}
+
 // Drops a single file's claim AND its owned-source record — what a removal leaves behind on the
 // bee. Exported so the listing half can retire a file without reaching for the bee itself.
 export async function forgetFileRecords(spaceId, filePath) {

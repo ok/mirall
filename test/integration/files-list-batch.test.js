@@ -11,6 +11,7 @@ import {
   markVerified,
   getDownloadedPath,
   listLooseDownloadClaims,
+  listOwnedSources,
   listVerifiedRecordsForShare,
   pruneDownloadClaims,
   verdictForClaim,
@@ -49,6 +50,7 @@ function countingDeps({ entriesFor, claims = new Map(), verified = new Map(), ve
     },
     listVerifiedRecordsForShare: async () => { calls.verifiedScans++; return verified },
     listLooseDownloadClaims: async () => { calls.claimScans++; return claims },
+    listOwnedSources: async () => new Map(),
     pruneDownloadClaims: async (spaceId, drivePaths) => { calls.prunes.push(...drivePaths); return drivePaths.length },
     catalogVersion: async () => null,
   }
@@ -157,6 +159,7 @@ function productionDepsWith(overrides) {
     verdictForClaim,
     listVerifiedRecordsForShare,
     listLooseDownloadClaims,
+    listOwnedSources,
     pruneDownloadClaims,
     catalogVersion: watchedCatalogVersion,
     ...overrides,
@@ -233,7 +236,7 @@ test('an unhashed entry never takes another owner\'s same-named claim, transfer 
   const row = await oneRow(ctx, deps)
   t.is(deps.calls.verdicts, 0, 'the claim is not asked without a hash to tie it to this owner')
   t.is(row.status, 'unavailable')
-  t.is(row.localBytes, 0)
+  t.is(row.localPath, null, 'no copy of this owner\'s file is on the device')
 })
 
 test('an error row carries its code and no bytes; a downloading row carries its bytes and no stale code', async (t) => {

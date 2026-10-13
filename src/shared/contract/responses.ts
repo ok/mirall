@@ -93,20 +93,31 @@ export interface Space {
 
 export type FileStatus = (typeof FILE_STATUSES)[number]
 
-export interface FileEntry {
-  path: string
+// One file row, whichever listing built it. The leaf types add what identifies the row in its own
+// listing; everything a row says about the file is here. Every field a producer always sets is
+// required, and absence is `null`, so a second client generating from this file sees no tri-state.
+export interface ContentRow {
   size: number
+  // '' while the owner is still hashing.
   hash: string
-  owner: { displayName: string; publicKey: PersonKey }
-  localBytes: number
-  isAvailable: boolean
+  mtime: number
   status: FileStatus
-  pendingBytes?: number
-  sharedByCount?: number
-  errorCode?: string
-  inPlace?: boolean
+  // Where this file's bytes are on the worker's host: an own file's source or mount path, a
+  // consumer's verified copy; null when they are not on this device.
+  localPath: string | null
   verified?: boolean
+  pendingBytes?: number
+  errorCode?: string
+  // Absent on an own row: nothing is fetched.
   transferId?: string
+}
+
+// A files:list row. `path` is the drive path ('/' + name): the row's key, its decoration key and
+// what the files:* verbs take.
+export interface FileEntry extends ContentRow {
+  path: string
+  owner: { displayName: string; publicKey: PersonKey }
+  sharedByCount?: number
 }
 
 // Sender-side download indicator. Summary is the always-on aggregate (who + how
@@ -167,21 +178,11 @@ export interface ForeignFolderMount {
   lastError?: string | null
 }
 
-// The wire row, which is not quite the renderer's row: absence is `null` here and `undefined`
-// there, and share-files-fold projects between them.
-export interface ShareFileRow {
+// A share:list-files row.
+export interface ShareFileRow extends ContentRow {
   relPath: string
-  size: number
-  hash: string
-  mtime: number
-  status: FileStatus
-  localPath: string | null
-  verified?: boolean
   // Derived from an enabled mirror on this device, whose next pass restores the owner's version.
   mirrored?: boolean
-  pendingBytes?: number
-  errorCode?: string
-  transferId?: string
 }
 
 

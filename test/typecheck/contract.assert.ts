@@ -7,7 +7,7 @@ import type { DecodedInvite } from '../../src/shared/contract/invite-envelope.js
 import type { DocsTarget } from '../../src/renderer/shell/docs-links.js'
 import type { MainQueryName } from '../../src/renderer/store/main-queries.js'
 import type { PublishOrder } from '../../src/shared/contract/paths.js'
-import type { RequestResponse } from '../../src/shared/contract/responses.js'
+import type { ContentRow, FileEntry, RequestResponse, ShareFileRow } from '../../src/shared/contract/responses.js'
 import type { PathHost } from '../../src/shared/contract/paths.js'
 import type { MemberReach } from '../../src/shared/contract/member-reach.js'
 
@@ -78,6 +78,20 @@ const deniedTypo: RequestResponse['space:deny-member'] = { outcome: 'removed' }
 void [pathHost, pathHostTypo, spacesList, spacesListWrong, ackExtra, name, denied, deniedBool, deniedTypo] as unknown as NoSuchResponse
 
 void [reachRelayed, reachDirect, reachTypo]
+
+const looseRow: FileEntry = { path: '/a', size: 1, hash: '', mtime: 0, status: 'remote', localPath: null, owner: { displayName: 'A', publicKey: 'k' } }
+const shareRow: ShareFileRow = { relPath: 'a', size: 1, hash: '', mtime: 0, status: 'synced', localPath: '/m/a' }
+const asContent: ContentRow[] = [looseRow, shareRow]
+// @ts-expect-error presence is in the status; the wire row carries no isAvailable
+const looseAvailable: FileEntry = { path: '/a', size: 1, hash: '', mtime: 0, status: 'remote', localPath: null, owner: { displayName: 'A', publicKey: 'k' }, isAvailable: true }
+// @ts-expect-error bytes on disk are localPath now
+const looseBytes: FileEntry = { path: '/a', size: 1, hash: '', mtime: 0, status: 'remote', localPath: null, owner: { displayName: 'A', publicKey: 'k' }, localBytes: 0 }
+// @ts-expect-error localPath is always sent; absence is null
+const noLocalPath: ShareFileRow = { relPath: 'a', size: 1, hash: '', mtime: 0, status: 'remote' }
+// @ts-expect-error a loose row has a modification time like a folder row
+const noMtime: FileEntry = { path: '/a', size: 1, hash: '', status: 'remote', localPath: null, owner: { displayName: 'A', publicKey: 'k' } }
+
+void [looseRow, shareRow, asContent, looseAvailable, looseBytes, noLocalPath, noMtime]
 
 void [fileStatusSynced, fileStatusQueued, fileStatusMine] as unknown as NoShareFileStatus
 

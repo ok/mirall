@@ -49,7 +49,7 @@ test('peer observes a loose file settle from indexing to remote while the owner 
 
     // And it downloads cleanly once remote.
     const done = B.waitFor('event:transfer-complete', (m) => m.path === '/reel.bin', 120000)
-    await B.request('files:download', { spaceId, path: '/reel.bin', inPlace: true, ownerKey: aKey })
+    await B.request('files:download', { spaceId, path: '/reel.bin', ownerKey: aKey })
     const completion = await done
     t.ok(fs.readFileSync(completion.localPath).equals(bytes), 'downloads byte-exact after settling to remote')
     A.kill()

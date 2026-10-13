@@ -56,7 +56,7 @@ test('owner killed mid-rehash: the download parks instead of dying, and resumes 
     const flowing = new Promise((resolve) => {
       B.on('event:decoration', (m) => { if (m.channel === 'transfer' && m.spaceId === spaceId && m.key === '/big.bin' && m.bytes > 0) resolve() })
     })
-    await B.request('files:download', { spaceId, path: '/big.bin', inPlace: true, ownerKey: aKey })
+    await B.request('files:download', { spaceId, path: '/big.bin', ownerKey: aKey })
     await flowing
 
     // Re-publish a CHANGED source, then kill A the moment it starts hashing. The 'preparing'
