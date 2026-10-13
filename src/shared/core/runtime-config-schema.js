@@ -123,10 +123,10 @@ const DEFAULTED = {
   // 2 overlaps one file's reads with another's hashing, beyond that gains nothing. Infinity runs
   // every item at once; the scheduler clamps to >= 1.
   publishConcurrency: ruled(2, intAtLeastOrInfinity, 1),
-  // Concurrent overlay downloads across the WHOLE process — both engines and every mirror draw on
-  // one gate. A reconnect can have hundreds of pending rows and each running fetch owns a chunk
-  // scheduler, a watchdog, an fd and a progress ticker. 6 = two engines' former 3 each, now one
-  // gate that also counts the mirrors. 0 disables the gate, so an Infinity is malformed here.
+  // Concurrent overlay downloads across the WHOLE process — the download engine and every mirror
+  // draw on one gate. A reconnect can have hundreds of pending rows and each running fetch owns a
+  // chunk scheduler, a watchdog, an fd and a progress ticker. The gate counts user downloads and
+  // mirrors together. 0 disables the gate, so an Infinity is malformed here.
   downloadConcurrency: ruled(6, intAtLeast, 0),
   // Open peer catalogs kept cached. Each is a Hyperbee + Hypercore session with an append listener,
   // and every open core replicates to every socket. 0 = unbounded.

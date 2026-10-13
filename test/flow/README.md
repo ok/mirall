@@ -80,6 +80,11 @@ Most folder tests inject `event:owned-folder-fs-event` (`add` / `change` / `unli
 | `space-storage-summary.test.js` | The space-storage widget's two-peer contract: both peers agree on the space **total** (owner's folder + loose file) while on-device tracks what each peer holds — the owner everything, the consumer nothing until it mirrors the folder, then exactly the folder's bytes. |
 | `storage-observability.test.js` | Overlay serves from the source file and copies no bytes into the per-space drive: the per-space breakdown crossing the worker IPC reports zero drive content on both the owner and a browsing peer. |
 
+### J. Folder downloads (non-mirrored)
+| File | Scenario |
+|------|----------|
+| `folder-cancel-discard.test.js` | The folder twin of `loose-cancel-discard`: `files:cancel-download` on a folder file's transfer id mid-download discards the partial and returns the row to `remote`; a re-download afterwards completes byte-exact. Proves a folder id reaches the one download engine end to end. |
+
 **FIX index:** FIX-1 (leave-teardown), FIX-6 (foreign-sync + share-delete + offline-delete-guard), FIX-9 (remount-mirror), connectivity-gate (foreign-mirror + foreign-sync).
 
 ---

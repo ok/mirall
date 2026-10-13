@@ -1,25 +1,19 @@
 // @ts-check
 // The loose-file surface: what a space holds, what is being sent, and the download controls.
-// "Loose" files live in the space itself rather than in a shared folder, and their transfers run
-// on the overlay engine alongside folder content — which is why the download controls route on
-// the transfer id's shape.
+// "Loose" files live in the space itself rather than in a shared folder; their downloads run on the
+// one download engine as the loose share of their owner.
 
 /** @import { WorkerIpc } from '../../shared/core/ipc.js' */
 /** @import { Logger } from '../../shared/core/logger.js' */
 import { getSpace } from '../../shared/spaces/space.js'
-import { verifiedMembers } from '../../shared/spaces/member-standing.js'
 import { errorMessage } from '../../shared/core/errors.js'
 import { isSpaceLeaving } from '../../shared/network/leave-protocol.js'
 import { listFiles, removeFile, addFile } from '../../shared/transfer/file-listing.js'
 import { revealFile } from '../../shared/transfer/reveal.js'
-import {
-  looseDownload,
-  loosePause,
-  looseCancelTransfer,
-} from '../../shared/transfer/overlay/loose-downloads.js'
+import { overlayBackend } from '../../shared/transfer/overlay/index.js'
+import { cancelShareDownload, looseShareOfOwner, pauseShareDownload } from '../../shared/transfer/overlay/share-downloads.js'
 import { looseCancelPublish, handleLooseFsEvent } from '../../shared/transfer/overlay/loose-publish.js'
-import { folderPause, folderCancel } from '../../shared/transfer/overlay/folder-downloads.js'
-import { isLooseTransferId, transferIdParts } from '../../shared/transfer/transfer-id.js'
+import { isLooseTransferId, looseRelPath, transferIdParts } from '../../shared/transfer/transfer-id.js'
 import { subscribeServeDetail, unsubscribeServeDetail, dropServeDetailClient, listServeSummaries } from '../../shared/transfer/serve-ledger.js'
 import { listFileRecipients } from '../../shared/transfer/file-recipients.js'
 import { rescueStalledTransfers } from '../../shared/network/convergence-tick.js'
@@ -93,36 +87,35 @@ export function registerFiles(ipc, { log }) {
     return { ok: true }
   })
   ipc.handle('files:download', async (msg) => {
-    const space = await getSpace(msg.spaceId)
-    const member = verifiedMembers(space?.members).find((m) => m.publicKey === msg.ownerKey)
-    const res = await looseDownload(msg.spaceId, member, msg.path)
+    const { share } = await looseShareOfOwner(msg.spaceId, msg.ownerKey)
+    const res = await overlayBackend.requestDownload(msg.spaceId, share, looseRelPath(msg.path))
+    // Only a folder share is refused as mirrored or answered as already owned; a loose one never is.
+    if ('ok' in res) throw new Error('files:download: a loose download was answered as a folder share')
     // Couldn't start: the owner may simply be unreachable on the bulk plane. Don't make the user
     // wait for the next tick to find that out — the rescue throttles itself, so clicks stay cheap.
-    if (res?.queued) rescueStalledTransfers().catch((err) => log.debug('stalled-transfer rescue failed:', errorMessage(err)))
+    if ('queued' in res) rescueStalledTransfers().catch((err) => log.debug('stalled-transfer rescue failed:', errorMessage(err)))
     return res
   })
   ipc.handle('files:cancel-download', async (msg) => {
     const id = msg.transferId
     // One verb for "stop it and drop the partial", from a downloading row's Cancel and a paused or
-    // failed row's Discard alike. Routed on the id's shape, not on a live transfer: a settled row is
-    // resolved from its pending row, and a row with nothing left to stop is stale, so its listing
-    // is told to re-derive it.
-    const loose = isLooseTransferId(id)
-    const found = loose ? await looseCancelTransfer(id) : await folderCancel(id)
+    // failed row's Discard alike. A settled row is resolved from its pending row, and a row with
+    // nothing left to stop is stale, so its listing — named by the id's shape — is told to
+    // re-derive it.
+    const found = await cancelShareDownload(id)
     const parts = transferIdParts(id)
     if (!found && parts) {
-      if (loose) ipc.emit('event:files-updated', { spaceId: parts.spaceId })
+      if (isLooseTransferId(id)) ipc.emit('event:files-updated', { spaceId: parts.spaceId })
       else ipc.emit('event:share-files-updated', { spaceId: parts.spaceId, shareId: parts.shareId })
     }
     return { ok: true }
   })
   ipc.handle('files:pause-download', async (msg) => {
     const id = msg.transferId
-    // Route on the id's shape, not on a live transfer: a dropped connection can settle the fetch a
-    // moment before the click lands, and gating on has() would silently pause nothing — leaving the
-    // row to auto-resume on the next reconnect against the user's intent.
-    if (isLooseTransferId(id)) loosePause(id)
-    else folderPause(id)
+    // Not gated on a live transfer: a dropped connection can settle the fetch a moment before the
+    // click lands, and gating on has() would silently pause nothing — leaving the row to auto-resume
+    // on the next reconnect against the user's intent. The engine records the intent either way.
+    pauseShareDownload(id)
     return { ok: true }
   })
   ipc.handle('files:cancel-publish', async (msg) => {

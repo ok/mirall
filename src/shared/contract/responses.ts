@@ -338,7 +338,7 @@ export type LooseDownloadResult =
   | { queued: true }
   | { transferId: string, finalPath: string }
 
-/** A share read: already ours, mirrored by the folder engine, queued, or started. */
+/** A share read: already ours, refused because a mirror syncs it, queued, or started. */
 export type ShareDownloadResult =
   | { ok: true, alreadyOwned: true }
   | { ok: true, mirrored: true }

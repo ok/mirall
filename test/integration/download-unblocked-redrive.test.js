@@ -7,7 +7,7 @@ import { initDownloads } from '../../src/shared/transfer/files.js'
 import { CODES } from '../../src/shared/contract/errors.js'
 import { createOverlayDownloadEngine } from '../../src/shared/transfer/overlay/overlay-download.js'
 import { OverlayBackend } from '../../src/shared/transfer/overlay/overlay-runtime.js'
-import { setFolderEngine } from '../../src/shared/transfer/overlay/folder-downloads.js'
+import { setDownloadEngine } from '../../src/shared/transfer/overlay/share-downloads.js'
 import { initConvergenceTick, redriveUnblockedTransfers } from '../../src/shared/network/convergence-tick.js'
 import { scaled } from '../helpers/bare-timing.js'
 import { until } from '../helpers/bare-poll.js'
@@ -25,7 +25,7 @@ const settle = () => new Promise((r) => setTimeout(r, scaled(400)))
 const DEST_VERDICT_TTL_MS = 60_000
 
 // The tick's arm driven as the swarm wires it, against the real backend method: this engine stands
-// in as the backend's folder engine, so the backend's scan and resume are the production ones. The
+// in as the backend's download engine, so the backend's scan and resume are the production ones. The
 // engine's clock is the test's, so the kept folder verdict can be expired; the owner's presence is
 // the channel's word, as in production.
 async function armedTick(t, { channel = {}, engine: engineOpts = {}, dir: makeDir = (ctx) => readOnlyDir(t, ctx, 'dl-unblocked') } = {}) {
@@ -44,8 +44,8 @@ async function armedTick(t, { channel = {}, engine: engineOpts = {}, dir: makeDi
   const resumeForOwner = engine.resumeForOwner
   engine.resumeForOwner = (ownerKey, spaceId) => { resumes += 1; return resumeForOwner(ownerKey, spaceId) }
   const backend = new OverlayBackend('overlay-test', { ipc: ctx.fake.ipc, broadcastSharePrepare() {} })
-  backend.folderEngine = engine
-  setFolderEngine(engine)
+  backend.engine = engine
+  setDownloadEngine(engine)
   initConvergenceTick({
     log: silent,
     getStalledOwners: () => null,
@@ -54,7 +54,7 @@ async function armedTick(t, { channel = {}, engine: engineOpts = {}, dir: makeDi
     getIpc: () => null,
   })
   t.teardown(async () => {
-    setFolderEngine(null)
+    setDownloadEngine(null)
     initConvergenceTick({ log: silent, getStalledOwners: () => null, getRedriveUnblocked: () => null, getSwarm: () => null, getIpc: () => null })
     await teardownOverlay()
   })

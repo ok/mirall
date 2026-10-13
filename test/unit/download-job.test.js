@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { downloadJob, looseShareFor, pendingKeyFor, rowShareFor } from '../../src/shared/transfer/overlay/download-job.js'
+import { downloadJob, looseShareFor, pendingKeyFor, rowShareFor, slotOwnedBy } from '../../src/shared/transfer/overlay/download-job.js'
 import { catalogKeyField, readCatalogKey } from '../../src/shared/shares/catalog-keys.js'
 import { entryRef } from '../../src/shared/contract/entry-ref.js'
 import { LOOSE_SHARE_ID, looseTransferIdFor } from '../../src/shared/transfer/transfer-id.js'
@@ -110,4 +110,17 @@ test('a folder row with no readable record resolves through the key it carries',
 test('the pending key is the drive path for loose and the share-name path for a folder', (t) => {
   t.is(pendingKeyFor(looseShareFor(MEMBER), 'a.bin'), '/a.bin')
   t.is(pendingKeyFor(FOLDER, 'sub/a.bin'), '/Vault/sub/a.bin')
+})
+
+// One engine holds every share's slots, so an append on one share's catalog must not supersede
+// another share's slot of the same owner.
+test('an append reconciles only the slots of its own share and owner', (t) => {
+  const loose = looseShareFor(MEMBER)
+  const slot = (ownerKey, shareId) => ({ ownerKey, job: { shareId } })
+  t.ok(slotOwnedBy(FOLDER)(slot('OWNER', 'sh')), 'the share\'s own slot')
+  t.absent(slotOwnedBy(FOLDER)(slot('OWNER', LOOSE_SHARE_ID)), 'the same owner\'s loose slot')
+  t.absent(slotOwnedBy(loose)(slot('OWNER', 'sh')), 'the same owner\'s folder slot')
+  t.absent(slotOwnedBy(FOLDER)(slot('OTHER', 'sh')), 'another owner\'s slot of the same share id')
+  t.ok(slotOwnedBy(loose)(slot('OWNER', LOOSE_SHARE_ID)), 'the loose share\'s own slot')
+  t.absent(slotOwnedBy(FOLDER)({ ownerKey: 'OWNER' }), 'a slot without a job')
 })

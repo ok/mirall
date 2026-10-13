@@ -31,7 +31,8 @@ import { dedupeFileRows } from './file-dedupe.js'
 import { markListIncomplete } from './list-deficits.js'
 import { beginListingRead, retainListingMemo, settleListingRead, takeListingMemo } from './listing-memo.js'
 import { looseHasOwn, looseListOwn, looseQueuedPaths, looseShareFile, looseUnshareFile } from './overlay/loose-publish.js'
-import { looseCatalogVersion, looseListPeer, looseTransferActive } from './overlay/loose-downloads.js'
+import { hasShareDownload, listPeerWithMeta, watchedCatalogVersion } from './overlay/share-downloads.js'
+import { looseShareFor } from './overlay/download-job.js'
 import { listPendingForSpace } from './pending-transfers.js'
 import { isOwnerOnline } from '../network/presence-leases.js'
 import { LOOSE_SHARE_ID, looseTransferIdFor } from './transfer-id.js'
@@ -73,15 +74,15 @@ const NO_CLAIM = Object.freeze({ downloaded: false, prune: false })
 
 // What production passes for `deps`; a test passes doubles and counts them.
 const productionDeps = {
-  listPeer: looseListPeer,
+  listPeer: listPeerWithMeta,
   listPendingForSpace,
   isOwnerOnline,
-  transferActive: looseTransferActive,
+  hasTransfer: hasShareDownload,
   verdictForClaim,
   listVerifiedRecordsForShare,
   listLooseDownloadClaims,
   pruneDownloadClaims,
-  catalogVersion: looseCatalogVersion,
+  catalogVersion: watchedCatalogVersion,
 }
 
 // Unhashed → 'queued' while it waits for a publish slot, then 'publishing' (server-truth) so it
@@ -114,11 +115,12 @@ function peerRow(spaceId, member, e, ctx) {
     })
     : null
   const pendingRow = ctx.pending.get(drivePath)
+  const transferId = looseTransferIdFor(spaceId, e.relPath)
   const row = consumerRowStatusFor({
     copyVerdict,
     onDeviceStatus: FILE_STATUS.DOWNLOADED,
     hashed,
-    isActive: hashed && ctx.deps.transferActive(spaceId, e.relPath),
+    isActive: hashed && ctx.deps.hasTransfer(transferId),
     pendingRow: pendingRow?.ownerKey === member.publicKey ? pendingRow : undefined,
     ownerOnline: ctx.ownerOnline,
   })
@@ -127,7 +129,7 @@ function peerRow(spaceId, member, e, ctx) {
     owner: { displayName: member.displayName, publicKey: member.publicKey },
     localBytes: copyVerdict ? e.size : 0, isAvailable: ctx.ownerOnline,
     status: row.status, verified: row.verified || false, pendingBytes: row.pendingBytes, errorCode: row.errorCode,
-    transferId: looseTransferIdFor(spaceId, e.relPath),
+    transferId,
   }
 }
 
@@ -152,15 +154,21 @@ async function prefetchLooseRowState(spaceId, peerEntries, deps) {
 // instead of failing the listing. A catalog whose version has not moved since its last complete read
 // is served from the listing memo instead.
 async function readPeerEntries(spaceId, member, { budget, space, deps }) {
-  const { keyHex } = readCatalogKey(member)
+  const share = looseShareFor(member)
+  const { keyHex } = readCatalogKey(share)
   let prior = null
   try {
-    const version = await deps.catalogVersion(spaceId, member, { space })
+    const version = await deps.catalogVersion(spaceId, share, { space })
     const memo = takeListingMemo(spaceId, keyHex, version, { fullReadEvery: getListFullReadEvery() })
     if (memo.entries) return memo.entries
     log.debug('loose catalog read for', keyHex.slice(0, 16) + '...', '-', memo.reason)
     prior = beginListingRead(spaceId, keyHex, memo.reason)
-    return settleListingRead(spaceId, keyHex, await deps.listPeer(spaceId, member, { timeoutMs: budget, space }), prior)
+    const read = await deps.listPeer(spaceId, share, { timeoutMs: budget, space })
+    // A stalled read (head-sync failed or the traversal timed out) self-heals on the owner's next
+    // append unless the stream stays stalled; the deficit makes the convergence tick re-poke the
+    // listing. A legitimately empty catalog is not stalled, so it is not re-poked forever.
+    if (read.stalled) markListIncomplete(spaceId)
+    return settleListingRead(spaceId, keyHex, read, prior)
   } catch (err) {
     // Flag the space the way a stalled read does: without this the convergence tick has no
     // reason to re-poke, so a member whose read threw would stay missing from the listing

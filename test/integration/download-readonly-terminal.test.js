@@ -53,7 +53,7 @@ test('REGRESSION (FIX-379: a read-only download folder is not re-fetched on ever
   t.is(errorsIn(events).length, 1, 'and none re-raised the error')
   t.is((await getPendingFor(SPACE, job.pendingKey))?.errorCode, CODES.TRANSFER_PERMISSION, 'the row still says why')
 
-  // The user's Resume is the same two calls folderRequestDownload makes, and it outranks the verdict.
+  // The user's Resume is the same two calls requestShareDownload makes, and it outranks the verdict.
   engine.clearPauseMarker(job.transferId)
   await engine.start(job)
   await tick()

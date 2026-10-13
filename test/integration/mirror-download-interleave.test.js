@@ -17,10 +17,10 @@ import { transferIdFor } from '../../src/shared/transfer/transfer-id.js'
 import { initPendingTransfers, listPendingForSpace } from '../../src/shared/transfer/pending-transfers.js'
 import { until as pollUntil } from '../helpers/bare-poll.js'
 
-// REGRESSION: the mirror and the folder engine could both fetch one file and both write its
-// decoration key, so the mirror probed the FOLDER engine's registry defensively before every fetch
-// and again on every settle. That probe answered for one engine instance out of two and knew
-// nothing of a second mirror, which is why the two guards became one shared claim.
+// REGRESSION: the mirror and the download engine could both fetch one file and both write its
+// decoration key, so the mirror probed the engine's registry defensively before every fetch and
+// again on every settle. That probe answered for the engine alone and knew nothing of a second
+// mirror, which is why the two guards became one shared claim.
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
@@ -43,7 +43,7 @@ async function firstEntry(ctx) {
 
 function testChannel(over = {}) {
   return {
-    diagLabel: 'test download',
+    diagLabelFor: () => 'test download',
     ownsPendingRow: (row) => row.overlayShare === true,
     pendingExtra: (job) => ({ overlayShare: true, shareId: job.shareId, relPath: job.relPath }),
     emitProgress: () => {}, emitError: () => {}, emitComplete: () => {}, emitCancelled: () => {},
@@ -108,12 +108,12 @@ test('a start() against a held claim records the pending row and returns the liv
   t.ok(pending.some((row) => row.filePath === '/dl/copy.bin'), 'the intent is durable, so a later reconcile re-drives this destination')
 })
 
-// The deliberate third call site. share-listing asks "is the FOLDER engine fetching this" for a
+// The deliberate third call site. share-listing asks "is the download engine fetching this" for a
 // browse row, which is a different question from "is anyone fetching this" — and a browse listing
 // has no mirror by construction. Pinned so a later sweep does not finish the job.
-test('a browse listing still reads isActive from the folder engine', (t) => {
+test('a browse listing still reads isActive from the download engine', (t) => {
   const src = fs.readFileSync(new URL('../../src/shared/shares/share-listing.js', import.meta.url).pathname, 'utf8')
-  t.ok(/isActive: deps\.overlayHasTransfer\(transferIdFor\(/.test(src), 'the browse row still probes the engine directly')
+  t.ok(/isActive: deps\.hasTransfer\(transferIdFor\(/.test(src), 'the browse row still probes the engine directly')
   t.absent(/fetch-gate/.test(src), 'and does not ask the claim registry')
 })
 

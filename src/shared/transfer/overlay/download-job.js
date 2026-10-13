@@ -46,3 +46,7 @@ export function downloadJob({ spaceId, share, relPath, pendingKey, keyHex, encry
     finalPath, prevBytes: finalPath === prevFinalPath ? prevBytes || 0 : 0,
   }
 }
+
+// An active slot an append on `share`'s catalog can invalidate. The engine holds every share's
+// slots, and one owner's catalog carries all of that owner's shares in the space.
+export const slotOwnedBy = (share) => (slot) => slot.ownerKey === share.owner && slot.job?.shareId === share.id

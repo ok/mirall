@@ -1,6 +1,6 @@
 import test from 'brittle'
 import { setupSelfMirror } from '../helpers/owned.js'
-import { folderRequestDownload, setFolderEngine } from '../../src/shared/transfer/overlay/folder-downloads.js'
+import { requestShareDownload, setDownloadEngine } from '../../src/shared/transfer/overlay/share-downloads.js'
 import { setForeignEnabled } from '../../src/shared/folders/foreign-verbs.js'
 import { deleteForeignMount } from '../../src/shared/folders/mount-store.js'
 
@@ -10,11 +10,12 @@ import { deleteForeignMount } from '../../src/shared/folders/mount-store.js'
 
 function stubEngine(t) {
   const calls = { start: 0, clearPauseMarker: 0 }
-  setFolderEngine({
+  setDownloadEngine({
     start: async () => { calls.start++; return { transferId: 'stub' } },
     clearPauseMarker: () => { calls.clearPauseMarker++ },
+    reconcileOnAppend: async () => {},
   })
-  t.teardown(() => setFolderEngine(null))
+  t.teardown(() => setDownloadEngine(null))
   return calls
 }
 
@@ -22,7 +23,7 @@ test('REGRESSION (FIX-325): a manual download of a mirrored file is refused as a
   const ctx = await setupSelfMirror(t, { files: { 'doc.txt': 'data' } })
   const calls = stubEngine(t)
 
-  const res = await folderRequestDownload(ctx.spaceId, ctx.share, 'doc.txt')
+  const res = await requestShareDownload(ctx.spaceId, ctx.share, 'doc.txt')
   t.alike(res, { ok: true, mirrored: true }, 'answers with the mirrored no-op')
   t.is(calls.start, 0, 'the engine never starts a transfer')
   t.is(calls.clearPauseMarker, 0, 'the engine is not touched at all')
@@ -33,7 +34,7 @@ test('REGRESSION (FIX-325): a paused mirror still refuses a manual download', as
   const calls = stubEngine(t)
   await setForeignEnabled(ctx.spaceId, ctx.share.id, false)
 
-  const res = await folderRequestDownload(ctx.spaceId, ctx.share, 'doc.txt')
+  const res = await requestShareDownload(ctx.spaceId, ctx.share, 'doc.txt')
   t.alike(res, { ok: true, mirrored: true }, 'presence of the mount decides, not its enabled flag')
   t.is(calls.start, 0, 'the engine never starts a transfer')
 })
@@ -45,7 +46,7 @@ test('a share with no mirror mount still reaches the download path', async (t) =
 
   // A self-mirror has no real peer catalog behind it, so the manual path fails further down; what
   // matters here is that the guard let it through.
-  const res = await folderRequestDownload(ctx.spaceId, ctx.share, 'doc.txt').catch(() => null)
+  const res = await requestShareDownload(ctx.spaceId, ctx.share, 'doc.txt').catch(() => null)
   t.absent(res?.mirrored, 'not answered as mirrored')
   t.is(calls.clearPauseMarker, 1, 'the manual path runs')
 })

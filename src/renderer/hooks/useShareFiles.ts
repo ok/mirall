@@ -77,8 +77,8 @@ export function useShareFiles(spaceId: string, ownerKey: string, shareId: string
   const downloadFile = useCallback(
     (relPath: string) => run(async () => {
       const res = await request('share:read-file', { spaceId, ownerKey, shareId, relPath })
-      // The union is the point: a read that was already ours, mirrored by the folder engine, or
-      // queued behind it starts no transfer and seeds no bar.
+      // The union is the point: a read that was already ours, synced by a mirror, or queued behind
+      // the download engine starts no transfer and seeds no bar.
       if (!('transferId' in res)) return
       // Seed the progress bar; the row's status flips to 'downloading' from the worker's re-derive
       // (the engine emits share-files-updated on start), not a client override.

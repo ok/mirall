@@ -8,7 +8,7 @@ import { workDir } from '../paths.mjs'
 const sleep = (ms) => new Promise((res) => setTimeout(res, ms))
 
 // F2 — the owner LEAVES the space entirely while a peer is downloading. The space teardown
-// (looseCancelSpace / overlayCancelSpace) stops serving: the peer's transfer does not
+// (cancelSpaceDownloads / revokeServesForSpace) stops serving: the peer's transfer does not
 // complete (no full file lands) and the owner returns to the space list. 256 MB keeps the
 // peer mid-flight at the moment of leaving.
 export default async function s98({ runDir, bootstrap }) {

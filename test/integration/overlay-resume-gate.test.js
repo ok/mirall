@@ -7,6 +7,7 @@ import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/trans
 import { initPendingTransfers, recordPending, getPendingFor } from '../../src/shared/transfer/pending-transfers.js'
 import { initDownloads } from '../../src/shared/transfer/files.js'
 import { createOverlayDownloadEngine } from '../../src/shared/transfer/overlay/overlay-download.js'
+import { downloadChannel } from '../../src/shared/transfer/overlay/share-downloads.js'
 import { scaled } from '../helpers/bare-timing.js'
 import { createFakeIpc } from '../helpers/fake-ipc.js'
 import { registerFiles } from '../../src/worker/ipc/files.js'
@@ -32,7 +33,7 @@ const HASH = 'a'.repeat(64)
 
 function testChannel(events, over = {}) {
   return {
-    diagLabel: 'test download',
+    diagLabelFor: () => 'test download',
     ownsPendingRow: (row) => row.overlayShare === true,
     pendingExtra: (job) => ({ overlayShare: true, shareId: job.shareId, relPath: job.relPath }),
     emitProgress: () => {},
@@ -257,31 +258,34 @@ test('REGRESSION (FIX-10: a cancelled settled row does not resurrect on the next
   t.is(fetches, 0, 'the reconnect found nothing to resume — the cancel actually landed')
 })
 
-// The shared harness channel is folder-shaped. Loose downloads run on the SAME engine with a
-// different row filter + id scheme, and the fixed handler routes settled loose ids straight here.
+// One engine owns both kinds of row, so a settled id of either kind resolves from its pending row on
+// the production channel.
 test('REGRESSION (FIX-10: cancelling a settled loose download discards its partial and row too)', async (t) => {
   const ctx = await setup(t)
-  const events = []
+  const engine = createOverlayDownloadEngine({ ...downloadChannel, isOwnerOnline: () => true })
 
-  const finalPath = path.join(ctx.tmpDir('dl'), 'loose.bin')
-  const transferId = SPACE + '|__loose__|loose.bin'
-  const channel = testChannel(events, {
-    ownsPendingRow: (row) => row.inPlace === true && row.shareId === '__loose__',
-    transferIdForRow: (spaceId, row) => spaceId + '|__loose__|' + row.relPath,
-    isOwnerOnline: () => true,
-  })
-  const engine = createOverlayDownloadEngine(channel)
-
-  const partial = finalPath + '.mirall.part'
-  fs.writeFileSync(partial, 'half a download')
+  const looseFinal = path.join(ctx.tmpDir('dl'), 'loose.bin')
+  const looseId = SPACE + '|__loose__|loose.bin'
+  fs.writeFileSync(looseFinal + '.mirall.part', 'half a download')
   await recordPending(SPACE, '/loose.bin', {
-    total: 4096, inPlace: true, ownerKey: OWNER, finalPath,
+    total: 4096, inPlace: true, ownerKey: OWNER, finalPath: looseFinal,
     contentHash: HASH, bytesTransferred: 2048, shareId: '__loose__', relPath: 'loose.bin',
   })
+  const folderFinal = path.join(ctx.tmpDir('dl'), 'doc.bin')
+  fs.writeFileSync(folderFinal + '.mirall.part', 'half a download')
+  await recordPending(SPACE, '/Photos/doc.bin', {
+    total: 4096, inPlace: false, ownerKey: OWNER, finalPath: folderFinal,
+    contentHash: HASH, bytesTransferred: 2048, overlayShare: true, shareId: 'folder1', relPath: 'doc.bin', catalogKey: 'c'.repeat(64),
+  })
 
-  t.ok(await engine.cancel(transferId), 'cancel resolves the loose row with no live slot')
-  t.absent(fs.existsSync(partial), 'the partial is discarded')
-  t.absent(await getPendingFor(SPACE, '/loose.bin'), 'the pending row is cleared')
+  t.ok(await engine.cancel(looseId), 'cancel resolves the loose row with no live slot')
+  t.absent(fs.existsSync(looseFinal + '.mirall.part'), 'the loose partial is discarded')
+  t.absent(await getPendingFor(SPACE, '/loose.bin'), 'the loose pending row is cleared')
+  t.ok(await getPendingFor(SPACE, '/Photos/doc.bin'), 'the folder row is left alone')
+
+  t.ok(await engine.cancel(SPACE + '|folder1|doc.bin'), 'the same engine resolves the settled folder row')
+  t.absent(fs.existsSync(folderFinal + '.mirall.part'), 'the folder partial is discarded')
+  t.absent(await getPendingFor(SPACE, '/Photos/doc.bin'), 'the folder pending row is cleared')
 })
 
 test('cancel of an id with neither a slot nor a row is a clean no-op', async (t) => {
@@ -306,9 +310,9 @@ test('a cancel click that finds nothing re-derives the stale row on the right li
   t.alike(fake.emitted('event:files-updated').map((e) => e.payload), [{ spaceId: SPACE }])
 })
 
-// The engine cannot observe which gate the worker routes on, so pin it structurally the way the
-// FIX-9 hook wiring is pinned above.
-test('REGRESSION (FIX-10: the cancel handler routes on the id shape, not on a live slot)', (t) => {
+// The engine cannot observe whether the worker gates the cancel on a live slot, so pin it
+// structurally the way the FIX-9 hook wiring is pinned above.
+test('REGRESSION (FIX-10: the cancel handler reaches the engine whether or not a slot is live)', (t) => {
   const here = path.dirname(url.fileURLToPath(import.meta.url))
   const src = fs.readFileSync(path.join(here, '..', '..', 'src', 'worker', 'ipc', 'files.js'), 'utf8')
 
@@ -317,7 +321,6 @@ test('REGRESSION (FIX-10: the cancel handler routes on the id shape, not on a li
   t.ok(from > -1 && to > from, 'the cancel handler exists ahead of the pause handler')
 
   const handler = src.slice(from, to)
-  t.ok(handler.includes('isLooseTransferId('), 'cancel routes on the id shape')
-  t.absent(handler.includes('looseHasTransfer('), 'cancel does not gate on a live loose slot')
-  t.absent(handler.includes('overlayHasTransfer('), 'cancel does not gate on a live overlay slot')
+  t.ok(handler.includes('await cancelShareDownload(id)'), 'cancel hands every id to the engine')
+  t.absent(handler.includes('hasShareDownload('), 'cancel does not gate on a live slot')
 })

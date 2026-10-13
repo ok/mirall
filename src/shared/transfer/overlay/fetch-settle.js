@@ -21,7 +21,6 @@ import { progressPersistDue } from '../progress-persist.js'
 import { recordTransferOutcome } from '../../audit/transfer-audit.js'
 import { memberWaits } from '../../network/share-wait.js'
 import { announceShareReceived } from '../../network/share-received.js'
-import { LOOSE_SHARE_ID } from '../transfer-id.js'
 import { SHARE_WAIT_SOURCE } from '../share-wait-set.js'
 
 export function createFetchSettle({
@@ -43,7 +42,7 @@ export function createFetchSettle({
       // The overlay scheduler reports CUMULATIVE bytes already seeded with the resumed on-disk
       // bytes, so the ticker needs no resume offset.
       const { diag, callbacks } = makeFetchInstruments({
-        label: channel.diagLabel,
+        label: channel.diagLabelFor?.(job),
         relPath: job.relPath,
         size: job.size,
         contentHash: job.contentHash,
@@ -200,7 +199,7 @@ export function createFetchSettle({
     if (job.ownerKey) {
       announceShareReceived(job.ownerKey, {
         spaceId: job.spaceId,
-        shareId: job.shareId ?? LOOSE_SHARE_ID,
+        shareId: job.shareId,
         relPath: job.relPath,
         contentHash: job.contentHash,
       })

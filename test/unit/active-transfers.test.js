@@ -1,5 +1,7 @@
 import test from 'brittle'
 import { cancelSpaceOn, reconcileActiveSlots } from '../../src/shared/transfer/overlay/active-transfers.js'
+import { looseShareFor, slotOwnedBy } from '../../src/shared/transfer/overlay/download-job.js'
+import { LOOSE_SHARE_ID } from '../../src/shared/transfer/transfer-id.js'
 
 const quiet = { warn() {}, debug() {} }
 
@@ -90,4 +92,26 @@ test('slots of another space or another owner are skipped without a read', async
   })
   t.is(reads, 0)
   t.is(engine.calls.dropRemoved.length, 0)
+})
+
+// One engine holds both kinds' slots, and one owner's catalog append pokes every share it carries:
+// a folder append must supersede the folder slot only, never the same owner's loose slot.
+test('an append on one share supersedes only that share\'s slot of the owner', async (t) => {
+  const folder = { id: 'sh', name: 'Vault', owner: 'OWNER' }
+  const loose = looseShareFor({ publicKey: 'OWNER', looseCatalogKey: 'ab'.repeat(32) })
+  const slots = {
+    f1: slot({ ownerKey: 'OWNER', job: { shareId: 'sh', relPath: 'a.bin' } }),
+    l1: slot({ ownerKey: 'OWNER', pendingKey: '/a.bin', job: { shareId: LOOSE_SHARE_ID, relPath: 'a.bin' } }),
+  }
+  const republished = () => ({ contentHash: 'h2', seq: 4 })
+  for (const [share, expected] of [[folder, 'f1'], [loose, 'l1']]) {
+    const engine = fakeEngine(slots)
+    await reconcileActiveSlots({
+      engine, spaceId: 'S', log: quiet,
+      ownsSlot: slotOwnedBy(share),
+      entryStateFor: republished,
+      buildJob: async () => ({ job: true }),
+    })
+    t.alike(engine.calls.supersede.map(([id]) => id), [expected], `an append on ${share.id} supersedes ${expected} alone`)
+  }
 })

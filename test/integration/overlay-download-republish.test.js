@@ -24,7 +24,7 @@ const HASH_NEW = 'b'.repeat(64)
 
 function testChannel(events) {
   return {
-    diagLabel: 'test download',
+    diagLabelFor: () => 'test download',
     isOwnerOnline: () => true,
     ownsPendingRow: (row) => row.overlayShare === true,
     pendingExtra: (job) => ({ overlayShare: true, shareId: job.shareId, relPath: job.relPath }),

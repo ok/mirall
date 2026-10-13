@@ -5,15 +5,13 @@ import { freshPeer } from '../helpers/store.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { getOverlay } from '../../src/shared/transfer/overlay/overlay-instance.js'
 import { createOverlayDownloadEngine } from '../../src/shared/transfer/overlay/overlay-download.js'
-import { folderChannel } from '../../src/shared/transfer/overlay/folder-downloads.js'
-import { looseChannel } from '../../src/shared/transfer/overlay/loose-downloads.js'
+import { downloadChannel } from '../../src/shared/transfer/overlay/share-downloads.js'
 import { flushAudit } from '../../src/shared/audit/audit-log.js'
 import { queryAudit } from '../../src/shared/audit/audit-query.js'
 import { scaled } from '../helpers/bare-timing.js'
 
 // The audit row for a download is written by the ENGINE, so these drive the engine over the REAL
-// channels. A hand-written channel double would prove nothing here: the two hand-written channels
-// diverging is the defect.
+// channel, for both kinds. A hand-written channel double would prove nothing here.
 
 const OWNER = 'p'.repeat(64)
 
@@ -57,7 +55,7 @@ function folderJob(ctx, spaceId, over = {}) {
 async function setup(t, over = {}) {
   const ctx = await freshPeer(t)
   const space = await createSpace('Design Team')
-  const engine = createOverlayDownloadEngine({ ...folderChannel, isOwnerOnline: () => true })
+  const engine = createOverlayDownloadEngine({ ...downloadChannel, isOwnerOnline: () => true })
   return { ctx, space, engine, job: folderJob(ctx, space.spaceId, over) }
 }
 
@@ -70,8 +68,8 @@ function throwsWith(code, message) {
 }
 
 // REGRESSION (FIX-D11-1: a folder-share download produced no audit row at all. `record(` appeared
-// zero times in folder-downloads.js while the loose channel recorded from its own emitComplete, so
-// "You downloaded X" existed for a space-root file and for nothing inside a folder.)
+// zero times in the folder download wrapper while the loose channel recorded from its own
+// emitComplete, so "You downloaded X" existed for a space-root file and for nothing inside a folder.)
 test('REGRESSION (FIX-D11-1): a completed folder-share download records transfer.completed', async (t) => {
   const { engine, job } = await setup(t)
   fs.writeFileSync(job.finalPath, 'bytes')
@@ -160,11 +158,11 @@ test('a paused download records nothing — a pause is not an outcome', async (t
   t.is((await rows('security.integrity_failure')).length, 0)
 })
 
-// The recorder lives in the engine, not the loose channel. A second copy shows up here as two rows.
-test('a loose download still records exactly one row after the move', async (t) => {
+// The recorder lives in the engine, not the channel. A second copy shows up here as two rows.
+test('a loose download records exactly one row, naming the loose share', async (t) => {
   const ctx = await freshPeer(t)
   const space = await createSpace('Design Team')
-  const engine = createOverlayDownloadEngine({ ...looseChannel, isOwnerOnline: () => true })
+  const engine = createOverlayDownloadEngine({ ...downloadChannel, isOwnerOnline: () => true })
   const finalPath = path.join(ctx.tmpDir('dl'), 'notes.txt')
   const job = {
     spaceId: space.spaceId, pendingKey: '/notes.txt', path: '/notes.txt', relPath: 'notes.txt',
@@ -182,6 +180,7 @@ test('a loose download still records exactly one row after the move', async (t) 
   if (!found.length) return
   t.is(found[0].subject.folder, null, 'a loose file has no folder — the meta line must not invent one')
   t.is(found[0].subject.ownerKey, OWNER)
+  t.is(found[0].subject.shareId, '__loose__', 'the loose share, as the peer-records audit names it')
 })
 
 // REGRESSION (FIX-D11-6: the guard that was missing. audit-coverage.test.js asserts every KIND has
@@ -193,7 +192,7 @@ test('REGRESSION (FIX-D11-6): a channel that knows nothing about auditing still 
   const space = await createSpace('Design Team')
   const finalPath = path.join(ctx.tmpDir('dl'), 'third.bin')
   const bare = {
-    diagLabel: 'third channel',
+    diagLabelFor: () => 'third channel',
     isOwnerOnline: () => true,
     ownsPendingRow: (row) => row.thirdChannel === true,
     pendingExtra: () => ({ thirdChannel: true }),

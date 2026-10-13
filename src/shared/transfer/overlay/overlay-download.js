@@ -1,6 +1,6 @@
-// One overlay consumer download engine, shared by space-root loose files and (non-mirrored)
-// overlay folder shares. The two differ only in event names, transferId scheme, catalog lookup,
-// ownerKey, and pending-row key/marker — all injected via a `channel` (overlay-channel.js). The
+// One overlay consumer download engine for every share download — a loose file is the
+// LOOSE_SHARE_ID share of its owner. What differs per kind (event names, decoration keys, the
+// pending-row marker and its resolve) is injected through the `channel` (overlay-channel.js). The
 // engine owns: single-flight, real pause/resume (continue a partial), stop/cancel + discard, and
 // auto-resume on owner reconnect.
 //
@@ -379,7 +379,7 @@ export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentT
     if (typeof transferId !== 'string') return false
     const spaceId = transferId.split('|')[0]
     for (const row of await listPendingForSpace(spaceId)) {
-      if (!channel.ownsPendingRow(row)) continue // one bee, both engines: never discard the other's row
+      if (!channel.ownsPendingRow(row)) continue // the bee also holds rows this engine never wrote
       if (channel.transferIdForRow(spaceId, row) !== transferId) continue
       await cancelByKey(spaceId, row.filePath, transferId)
       return true

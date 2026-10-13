@@ -4,17 +4,19 @@ import path from 'bare-path'
 import { freshPeer } from '../helpers/store.js'
 import { recordPending, recordPendingError, listPendingOwnerKeys, listPendingOwnerSpaces } from '../../src/shared/transfer/pending-transfers.js'
 import { createOverlayDownloadEngine } from '../../src/shared/transfer/overlay/overlay-download.js'
-import { folderChannel } from '../../src/shared/transfer/overlay/folder-downloads.js'
-import { transferIdFor } from '../../src/shared/transfer/transfer-id.js'
+import { downloadChannel } from '../../src/shared/transfer/overlay/share-downloads.js'
+import { LOOSE_SHARE_ID, transferIdFor } from '../../src/shared/transfer/transfer-id.js'
 import { CODES } from '../../src/shared/contract/errors.js'
 
 const SPACE = 'space1'
 const SHARE = 'share1'
 
 // `refusedByPreflight` is how the engine records a verdict the preflight produced; false is the one
-// a failed write produced, which no destination reading clears.
-async function seed(ownerKey, finalPath, code, { space = SPACE, relPath = ownerKey, total = 0, refusedByPreflight = true } = {}) {
-  await recordPending(space, relPath, { ownerKey, finalPath, overlayShare: true, shareId: SHARE, relPath, bytesTransferred: 0, total })
+// a failed write produced, which no destination reading clears. A `loose` row has the loose shape, so
+// one engine judges both kinds.
+async function seed(ownerKey, finalPath, code, { space = SPACE, relPath = ownerKey, total = 0, refusedByPreflight = true, loose = false } = {}) {
+  const marker = loose ? { inPlace: true, shareId: LOOSE_SHARE_ID } : { overlayShare: true, shareId: SHARE }
+  await recordPending(space, relPath, { ownerKey, finalPath, ...marker, relPath, bytesTransferred: 0, total })
   if (code) await recordPendingError(space, relPath, code, { refusedByPreflight })
 }
 
@@ -46,11 +48,13 @@ test('the stalled-owner rescue skips rows only the user can unblock', async (t) 
   await seed('download-failed', path.join(writable, 'g.bin'), CODES.DOWNLOAD_FAILED)
   await seed('no-code', path.join(writable, 'h.bin'), null)
   await seed('paused', path.join(writable, 'i.bin'), null)
+  await seed('loose-perm-writable', path.join(writable, 'l.bin'), CODES.TRANSFER_PERMISSION, { loose: true })
+  await seed('loose-perm-read-only', path.join(readOnly, 'l2.bin'), CODES.TRANSFER_PERMISSION, { loose: true })
 
-  const engine = createOverlayDownloadEngine(folderChannel)
+  const engine = createOverlayDownloadEngine(downloadChannel)
   engine.pause(transferIdFor(SPACE, SHARE, 'paused'))
 
-  t.alike(await awaited(engine), ['checksum', 'disk-freed', 'download-failed', 'no-code', 'perm-writable'],
+  t.alike(await awaited(engine), ['checksum', 'disk-freed', 'download-failed', 'loose-perm-writable', 'no-code', 'perm-writable'],
     'the volume with room clears the row the preflight refused, and not the one the write refused')
 })
 
@@ -76,11 +80,14 @@ test('the tick re-drives the rows whose fault cleared, keyed by owner and space'
   await seed('perm-paused', path.join(writable, 'p.bin'), CODES.TRANSFER_PERMISSION)
   await seed('download-failed', path.join(writable, 'g.bin'), CODES.DOWNLOAD_FAILED)
   await seed('no-code', path.join(writable, 'h.bin'), null)
+  await seed('loose-perm', path.join(writable, 'l.bin'), CODES.TRANSFER_PERMISSION, { loose: true })
+  await seed('loose-perm-paused', path.join(writable, 'l2.bin'), CODES.TRANSFER_PERMISSION, { loose: true })
 
-  const engine = createOverlayDownloadEngine({ ...folderChannel, isOwnerOnline: () => true })
+  const engine = createOverlayDownloadEngine({ ...downloadChannel, isOwnerOnline: () => true })
   engine.pause(transferIdFor(SPACE, SHARE, 'perm-paused'))
+  engine.pause(transferIdFor(SPACE, LOOSE_SHARE_ID, 'loose-perm-paused'))
 
-  t.alike(await unblocked(engine), ['disk-freed@space1', 'perm-writable@space1', 'perm-writable@space2'],
+  t.alike(await unblocked(engine), ['disk-freed@space1', 'loose-perm@space1', 'perm-writable@space1', 'perm-writable@space2'],
     'a disk-full verdict the write produced is the user\'s to clear, however much room the volume reports')
   t.alike(await unblocked(engine), [], 'a cleared row is handed out once, not on every tick')
 })
@@ -91,7 +98,7 @@ test('the rescue reuses a folder verdict for a minute; the reconnect always prob
   let clock = 0
   let writable = false
   const probed = []
-  const engine = createOverlayDownloadEngine({ ...folderChannel, isOwnerOnline: () => true }, {
+  const engine = createOverlayDownloadEngine({ ...downloadChannel, isOwnerOnline: () => true }, {
     now: () => clock,
     dirAcceptsWrite: (dir) => { probed.push(dir); return writable },
   })
