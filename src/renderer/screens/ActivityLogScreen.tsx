@@ -21,7 +21,7 @@ export default function ActivityLog({ onBack, onOpenSettings, initialFilters }: 
   const { t } = useTranslation()
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
   const f = useActivityFilters(initialFilters)
-  const { entries, loading, loadingMore, error, hasMore, loadMore } = useAuditLog(f.filters, f.kinds)
+  const { entries, loading, loadingMore, error, hasMore, loadMore } = useAuditLog(f.filters, f.searchKinds)
   const groups = useMemo(() => groupByDay(entries), [entries])
 
   useRegisterCommand(

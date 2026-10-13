@@ -9,6 +9,15 @@ build-pipeline tweaks, and dependency bumps that don't change how the app
 behaves are intentionally omitted. Releases that contained only such
 changes do not appear here.
 
+## Unreleased
+
+#### Fixed
+
+- **Search the Activity Log by what happened.** Typing an event such as
+"space created", "relay removed" or "downloaded" found nothing, in every
+language. Search now matches the event and the words of its sentence, not
+only names.
+
 ## v1.12.0
 
 ### 2026-10-12

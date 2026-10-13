@@ -15,27 +15,37 @@ const PAGE_LIMIT = 50
 
 const EMPTY_STATS = { count: 0, oldestTs: null, newestTs: null, oldestSeq: null, newestSeq: null }
 
-function buildFilters({ kinds, categories, actorKey, search, since, until }) {
+function buildFilters({ kinds, categories, actorKey, search, searchKinds, since, until }) {
   return {
     kindSet: kinds?.length ? new Set(kinds) : null,
     catSet: categories?.length ? new Set(categories) : null,
     actorKey: actorKey || null,
     needle: search ? String(search).trim().toLowerCase() : null,
+    searchKindSet: searchKinds?.length ? new Set(searchKinds) : null,
     since,
     until,
   }
 }
 
+// The search is one test with two ways to pass: the row's stored names contain the term, or its
+// kind is one whose translated text contains it. Kind text is never stored, so the renderer, which
+// holds the translations, resolves the term to `searchKinds`. `kinds` is a separate strict filter
+// the search cannot widen.
+function matchesSearch(rec, { needle, searchKindSet }) {
+  if (!needle) return true
+  return (rec.search || '').includes(needle) || Boolean(searchKindSet?.has(rec.kind))
+}
+
 // `since` is not checked here: the page walk applies it with hysteresis before matching.
-function matches(rec, { kindSet, catSet, actorKey, needle, until }) {
+function matches(rec, filters) {
+  const { kindSet, catSet, actorKey, until } = filters
   if (until != null && rec.ts > until) return false
   if (kindSet && !kindSet.has(rec.kind)) return false
   // `category` is stamped at write time, so filtering never re-derives it from `kind` — a kind
   // retired in a later version must still filter correctly from an already-stored row.
   if (catSet && !catSet.has(rec.category)) return false
   if (actorKey && rec.actor?.key !== actorKey) return false
-  if (needle && !(rec.search || '').includes(needle)) return false
-  return true
+  return matchesSearch(rec, filters)
 }
 
 async function* fromIndex(bee, prefix, below) {
@@ -115,8 +125,8 @@ async function collectPage(rows, filters, limit) {
 // than a total (a filtered total would need a full scan).
 /**
  * @param {{ spaceId?: string | null, cursor?: number | null, limit?: number | null, kinds?: readonly string[] | null,
- *   categories?: readonly string[] | null, actorKey?: string | null, search?: string | null, since?: number | null,
- *   until?: number | null }} [query]
+ *   categories?: readonly string[] | null, actorKey?: string | null, search?: string | null,
+ *   searchKinds?: readonly string[] | null, since?: number | null, until?: number | null }} [query]
  * @returns {Promise<AuditPage>}
  */
 export async function queryAudit({ spaceId = null, cursor = null, limit = null, ...filterOpts } = {}) {
