@@ -17,6 +17,8 @@ changes do not appear here.
 "space created", "relay removed" or "downloaded" found nothing, in every
 language. Search now matches the event and the words of its sentence, not
 only names.
+- **Files you add no longer jump around the list.** A new file appears
+right where it stays, instead of at the top until Mirall has listed it.
 
 ## v1.12.0
 
