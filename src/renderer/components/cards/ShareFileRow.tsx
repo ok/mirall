@@ -5,13 +5,12 @@ import InlineError from '../primitives/InlineError.js'
 import { memo, useState, useId, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import Icon from '../primitives/Icon.js'
-import IconButton from '../primitives/IconButton.js'
+import ActionLane from './ActionLane.js'
 import PeerDownloadDropdown from './PeerDownloadDropdown.js'
 import RowLane from './RowLane.js'
 import FileName from '../primitives/FileName.js'
 import { formatSize, getFileIcon } from '../../format/utils.js'
 import { errorCodeToI18nKey } from '../../errors/error-messages.js'
-import { fileRowAction } from '../../model/file-row-action.js'
 import { deriveRowView } from '../../model/row-view.js'
 import { recipientSummary } from '../../model/file-recipients.js'
 import type { Decoration } from '../../types/ui.js'
@@ -40,76 +39,11 @@ export interface ShareFileRowProps {
   leadingGutter?: boolean
 }
 
-interface FileRowActionsProps {
-  action: string
-  relPath: string
-  transferId?: string
-  busyLabel: string
-  onDownload: (relPath: string) => void
-  onReveal: (relPath: string) => void
-  onPause: (transferId: string) => void
-  onCancel: (transferId: string) => void
-}
-
-function FileRowActions({ action, relPath, transferId, busyLabel, onDownload, onReveal, onPause, onCancel }: FileRowActionsProps) {
-  const { t } = useTranslation()
-  if (action === 'pause-cancel' && transferId) {
-    return (
-      <>
-        <IconButton icon="pause" iconSize={22} iconClassName="text-secondary" onClick={() => onPause(transferId)} ariaLabel={t('file.pause')} title={t('file.pause')} />
-        <IconButton icon="close" iconSize={22} iconClassName="text-error" onClick={() => onCancel(transferId)} ariaLabel={t('file.cancel')} title={t('file.cancel')} />
-      </>
-    )
-  }
-  if (action === 'resume-discard') {
-    return (
-      <>
-        <IconButton icon="play_arrow" iconSize={22} iconClassName="text-secondary" onClick={() => onDownload(relPath)} ariaLabel={t('file.resume')} title={t('file.resume')} />
-        {transferId && <IconButton icon="close" iconSize={22} iconClassName="text-error" onClick={() => onCancel(transferId)} ariaLabel={t('file.discardPartial')} title={t('file.discardPartial')} />}
-      </>
-    )
-  }
-  if (action === 'retry-discard') {
-    return (
-      <>
-        <IconButton icon="refresh" iconSize={22} iconClassName="text-secondary" onClick={() => onDownload(relPath)} ariaLabel={t('file.retry')} title={t('file.retry')} />
-        {transferId && <IconButton icon="close" iconSize={22} iconClassName="text-error" onClick={() => onCancel(transferId)} ariaLabel={t('file.dismiss')} title={t('file.dismiss')} />}
-      </>
-    )
-  }
-  if (action === 'discard') {
-    return transferId ? <IconButton icon="close" iconSize={22} iconClassName="text-error" onClick={() => onCancel(transferId)} ariaLabel={t('file.discardPartial')} title={t('file.discardPartial')} /> : null
-  }
-  if (action === 'reveal') {
-    return <IconButton icon="folder_open" iconSize={22} iconClassName="text-secondary" onClick={() => onReveal(relPath)} ariaLabel={t('file.revealInFolder')} title={t('file.revealInFolder')} />
-  }
-  if (action === 'download') {
-    return <IconButton icon="download" iconSize={22} iconClassName="text-secondary" onClick={() => onDownload(relPath)} ariaLabel={t('file.download')} title={t('file.download')} />
-  }
-  if (action === 'download-disabled') {
-    return <IconButton icon="download" iconSize={22} iconClassName="text-secondary" onClick={() => undefined} ariaLabel={t('file.downloadUnavailable')} title={t('file.downloadUnavailable')} disabled />
-  }
-  if (action === 'busy') {
-    return (
-      <span role="status" aria-live="polite" className="w-10 h-10 flex items-center justify-center">
-        <Icon name="update" className="text-on-surface-variant animate-pulse" />
-        <span className="sr-only">{busyLabel}</span>
-      </span>
-    )
-  }
-  return <div className="w-10 h-10" />
-}
-
 function ShareFileRow({ file, decoration, seeded, isOwn, manualControls, spaceId, members, downloadSummary, recipients, ownerKey, onDownload, onReveal, onPause, onCancel, displayName, leadingGutter }: ShareFileRowProps) {
   const { t } = useTranslation()
   const { t: tErr } = useTranslation('errors')
   const rowName = displayName || file.relPath
   const view = deriveRowView(file, decoration, downloadSummary, { isOwn, seeded })
-
-  const action = fileRowAction({ status: file.status, manualControls, hasTransferId: !!file.transferId })
-  const busyLabel = file.status === 'publishing'
-    ? t('status.publishing')
-    : file.status === 'preparing' ? t('file.preparing') : t('file.syncing')
 
   const holders = useMemo(
     () => (isOwn ? recipientSummary({ recipients, contentHash: file.hash, members, ownerKey }) : null),
@@ -154,19 +88,20 @@ function ShareFileRow({ file, decoration, seeded, isOwn, manualControls, spaceId
           onToggleDownloaders={() => setShowDownloaders((v) => !v)}
           dropdownId={dropdownId}
         />
-        {/* Right edge is actions only (FileCard's rule); the verified badge sits with the status pill above. */}
-        <div className="flex items-center gap-1 shrink-0">
-          <FileRowActions
-            action={action}
-            relPath={file.relPath}
-            transferId={file.transferId}
-            busyLabel={busyLabel}
-            onDownload={onDownload}
-            onReveal={onReveal}
-            onPause={onPause}
-            onCancel={onCancel}
-          />
-        </div>
+        <ActionLane
+          row={file}
+          context={{ isOwn, manualControls, ownerFileVerbs: false }}
+          verbs={{
+            download: () => onDownload(file.relPath),
+            reveal: () => onReveal(file.relPath),
+            pause: () => file.transferId && onPause(file.transferId),
+            cancel: () => file.transferId && onCancel(file.transferId),
+            resume: () => onDownload(file.relPath),
+            discard: () => file.transferId && onCancel(file.transferId),
+            retry: () => onDownload(file.relPath),
+            dismiss: () => file.transferId && onCancel(file.transferId),
+          }}
+        />
       </div>
       {listable && showDownloaders && (
         // The dropdown lines up with the icon tile, so it takes the leading gutter's indent too.

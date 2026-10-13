@@ -1,4 +1,4 @@
-// A file row in a space's list: derives the action buttons from file status and swaps the
+// A file row in a space's list: the action strip comes from ActionLane, and the row swaps the
 // right-hand lane between publish/verify/download progress, the who-is-downloading indicator, and the
 // status pill with who already has it.
 import { memo, useState, useEffect, useId, useMemo } from 'react'
@@ -13,7 +13,7 @@ import FileName from '../primitives/FileName.js'
 import RowLane from './RowLane.js'
 import PeerDownloadDropdown from './PeerDownloadDropdown.js'
 import Icon from '../primitives/Icon.js'
-import type { IconName } from '../../types/ui.js'
+import ActionLane from './ActionLane.js'
 
 interface FileCardProps {
   file: FileEntry
@@ -32,125 +32,6 @@ interface FileCardProps {
   members?: SpaceMember[]
   downloadSummary?: PeerDownloadSummary | null
   recipients: FileRecipient[]
-}
-
-type ActionVariant = 'default' | 'danger'
-
-interface ActionButton {
-  icon: IconName
-  title: string
-  onClick: () => void
-  variant?: ActionVariant
-}
-
-interface ActionPair {
-  primary: ActionButton | null
-  secondary: ActionButton | null
-}
-
-function deriveActions(
-  file: FileEntry,
-  isOwn: boolean,
-  t: (key: string) => string,
-  handlers: {
-    onDownload: (file: FileEntry) => void
-    onCancel: (transferId: string) => void
-    onPause: (transferId: string) => void
-    onReveal: (file: FileEntry) => void
-    onUnshare: (file: FileEntry) => void
-    onCancelPublish: (file: FileEntry) => void
-  }
-): ActionPair {
-  const { transferId } = file
-  const discard = (title: string): ActionButton | null => (transferId ? { icon: 'close', title, onClick: () => handlers.onCancel(transferId) } : null)
-  switch (file.status) {
-    case 'synced':
-      return {
-        primary: { icon: 'folder_open', title: t('file.revealInFolder'), onClick: () => handlers.onReveal(file) },
-        secondary: isOwn ? { icon: 'delete', title: t('file.unshare'), onClick: () => handlers.onUnshare(file), variant: 'danger' } : null,
-      }
-    case 'downloaded':
-    case 'modified':
-      return {
-        primary: { icon: 'folder_open', title: t('file.revealInFolder'), onClick: () => handlers.onReveal(file) },
-        secondary: null,
-      }
-    case 'remote':
-      return {
-        primary: { icon: 'download', title: t('file.download'), onClick: () => handlers.onDownload(file) },
-        secondary: null,
-      }
-    case 'preparing':
-      return { primary: null, secondary: null }
-    case 'verifying':
-    case 'downloading':
-      return {
-        primary: {
-          icon: 'pause',
-          title: t('file.pause'),
-          onClick: () => handlers.onPause(file.transferId ?? ''),
-        },
-        secondary: { icon: 'close', title: t('file.cancel'), onClick: () => handlers.onCancel(file.transferId ?? ''), variant: 'danger' },
-      }
-    case 'queued':
-    case 'publishing':
-      return {
-        primary: {
-          icon: 'close',
-          title: t('file.cancel'),
-          onClick: () => handlers.onCancelPublish(file),
-          variant: 'danger',
-        },
-        secondary: null,
-      }
-    case 'paused-interrupted':
-      return {
-        primary: { icon: 'play_arrow', title: t('file.resume'), onClick: () => handlers.onDownload(file) },
-        secondary: discard(t('file.discardPartial')),
-      }
-    case 'paused-offline':
-      return {
-        primary: discard(t('file.discardPartial')),
-        secondary: null,
-      }
-    case 'unavailable':
-      return { primary: null, secondary: null }
-    case 'error':
-      return {
-        primary: { icon: 'refresh', title: t('file.retry'), onClick: () => handlers.onDownload(file) },
-        secondary: discard(t('file.dismiss')),
-      }
-  }
-}
-
-function ActionSlot({
-  action,
-  alwaysVisible,
-}: {
-  action: ActionButton | null
-  alwaysVisible: boolean
-}) {
-  if (!action) return <div className="w-10 h-10" />
-  const isDanger = action.variant === 'danger'
-  const visibility = alwaysVisible
-    ? ''
-    : 'opacity-0 group-hover:opacity-100 focus:opacity-100'
-  // The error-container fill carries its own ink: `text-error` on it is 2.94:1 in dark, under
-  // even the 3:1 non-text floor. Same pairing as the relay row's remove button.
-  const hoverBg = isDanger
-    ? 'hover:bg-error-container hover:text-on-error-container'
-    : 'control-hover'
-  const iconColor = isDanger ? 'text-error' : 'text-secondary'
-  return (
-    <button
-      onClick={action.onClick}
-      title={action.title}
-      aria-label={action.title}
-      className={`w-10 h-10 flex items-center justify-center rounded-full ${hoverBg} active:scale-95 transition-all focus-ring ${visibility}`}
-    >
-      <Icon name={action.icon} size={22} className={iconColor} />
-    </button>
-  )
 }
 
 function FileCard({
@@ -188,15 +69,6 @@ function FileCard({
   useEffect(() => {
     if (!listable) setShowDownloaders(false)
   }, [listable])
-
-  const { primary, secondary } = deriveActions(file, isOwn, t, {
-    onDownload,
-    onCancel,
-    onPause,
-    onReveal,
-    onUnshare,
-    onCancelPublish,
-  })
 
   const sharedByLabel =
     file.sharedByCount && file.sharedByCount > 0
@@ -240,12 +112,22 @@ function FileCard({
           onToggleDownloaders={() => setShowDownloaders((v) => !v)}
           dropdownId={dropdownId}
         />
-        {/* Right edge is actions only; the two-slot strip keeps a constant width so
-          the status pills stay right-aligned across rows regardless of status. */}
-        <div className="flex items-center gap-1 shrink-0">
-          <ActionSlot action={secondary} alwaysVisible={false} />
-          <ActionSlot action={primary} alwaysVisible={true} />
-        </div>
+        <ActionLane
+          row={file}
+          context={{ isOwn, manualControls: true, ownerFileVerbs: true }}
+          verbs={{
+            download: () => onDownload(file),
+            reveal: () => onReveal(file),
+            unshare: () => onUnshare(file),
+            'cancel-publish': () => onCancelPublish(file),
+            pause: () => file.transferId && onPause(file.transferId),
+            cancel: () => file.transferId && onCancel(file.transferId),
+            resume: () => onDownload(file),
+            discard: () => file.transferId && onCancel(file.transferId),
+            retry: () => onDownload(file),
+            dismiss: () => file.transferId && onCancel(file.transferId),
+          }}
+        />
       </div>
       {listable && showDownloaders && (
         <div className="pb-2">

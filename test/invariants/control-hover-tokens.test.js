@@ -178,6 +178,30 @@ test('the error-container fill is never painted under text-error', (t) => {
   t.ok(checked >= 2, `all ${checked} error-container hovers were reached`)
 })
 
+// REGRESSION (FIX-B4-1: a destructive row control painted its icon text-error over the
+// error-container hover, 2.94:1 in dark). The `<svg>` paints `currentColor` from its own class, so
+// an ink on the icon outlives the button's hover ink. In a row, `text-error` is either an error
+// message (`role="alert"`) or IconButton's danger variant, where it sits on the button beside the
+// hover ink the icon then inherits.
+test('REGRESSION (FIX-B4-1): a row control never paints text-error on its icon', (t) => {
+  const cards = readdirSync(fileURLToPath(new URL('src/renderer/components/cards', root)))
+    .filter((n) => n.endsWith('.tsx')).map((n) => `src/renderer/components/cards/${n}`)
+  let checked = 0
+  for (const f of [...cards, 'src/renderer/components/primitives/IconButton.tsx']) {
+    const code = read(f).split('\n').map((l) => (/^\s*(\/\/|\*|\/\*|\{\/\*)/.test(l) ? '' : l)).join('\n')
+    for (const m of code.matchAll(/text-error(?![-\w])/g)) {
+      checked++
+      const before = code.slice(Math.max(0, m.index - 60), m.index)
+      const after = code.slice(m.index, m.index + 100)
+      const alert = /role="alert"[^>]*$/.test(before)
+      const danger = /hover:text-on-error-container/.test(after)
+      const line = code.slice(0, m.index).split('\n').length
+      t.ok(alert || danger, `${f}:${line}: text-error is an alert or the danger variant`)
+    }
+  }
+  t.ok(checked >= 1, `all ${checked} text-error inks in row controls were reached`)
+})
+
 // REGRESSION (FIX-1: the selected chip carried `bg-primary` with no hover class at all).
 test('REGRESSION (FIX-1): both spaces-filter chip states name a hover colour', (t) => {
   const start = chips.indexOf('aria-pressed={filter === f}')
@@ -203,7 +227,6 @@ const LIFTING_ROWS = ['FileCard', 'ShareFileRow', 'ShareCard'].map((n) => `src/r
 const ROW_CONTROLS = [
   'primitives/IconButton.tsx',
   'primitives/ActionMenu.tsx',
-  'cards/FileCard.tsx',
   'cards/RecipientsIndicator.tsx',
   'cards/PeerWaitingIndicator.tsx',
   'cards/PeerDownloadIndicator.tsx',
@@ -237,5 +260,5 @@ test('REGRESSION (FIX-4): lifting rows hand every control in them the lifted fil
     t.ok(/[\s'"`]control-hover[\s'"`]/.test(src), `${f}: hovers through control-hover`)
     t.absent(/hover:bg-surface-container-high(?![-\w])/.test(src), `${f}: no fixed surface-container-high hover`)
   }
-  t.ok(read(ROW_CONTROLS[5]).includes('hover:[--avatar-ring:var(--control-hover'), 'the download toggle cuts its rings from its own fill')
+  t.ok(read(ROW_CONTROLS.find((f) => f.endsWith('PeerDownloadIndicator.tsx'))).includes('hover:[--avatar-ring:var(--control-hover'), 'the download toggle cuts its rings from its own fill')
 })

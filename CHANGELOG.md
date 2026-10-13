@@ -16,6 +16,10 @@ changes do not appear here.
 - **The space file list says when it may be incomplete.** While the file
 list of a member who is online cannot be read yet, the list says more
 files may appear, instead of looking complete or empty.
+- **Files have the same buttons in a space as in a folder.** In each pair
+(Pause/Cancel, Resume/Discard, Retry/Dismiss) the red one shows on hover or
+focus, and space files now show when they are being prepared or their
+owner is offline.
 
 #### Fixed
 
