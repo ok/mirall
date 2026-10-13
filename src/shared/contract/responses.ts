@@ -12,7 +12,7 @@
 // type: a handler returning a value inferred as `any` from an untyped data-layer callee is not held
 // until that callee is typed. The map at the bottom is total over RequestName by construction, so a
 // request with no response cannot compile.
-import type { FILE_STATUSES, SHARE_FILE_STATUSES, OWNED_MOUNT_STATUSES, FOREIGN_MOUNT_STATUSES, MIRROR_STATES } from './statuses.js'
+import type { FILE_STATUSES, OWNED_MOUNT_STATUSES, FOREIGN_MOUNT_STATUSES, MIRROR_STATES } from './statuses.js'
 import type { CATEGORIES, OUTCOMES, ACTOR_TYPES, TARGET_KINDS } from './audit-kinds.js'
 import type { CANARY_STATES } from './reachability.js'
 import type { DENY_OUTCOMES } from './deny-outcome.js'
@@ -167,8 +167,6 @@ export interface ForeignFolderMount {
   lastError?: string | null
 }
 
-export type ShareFileStatus = (typeof SHARE_FILE_STATUSES)[number]
-
 // The wire row, which is not quite the renderer's row: absence is `null` here and `undefined`
 // there, and share-files-fold projects between them.
 export interface ShareFileRow {
@@ -176,7 +174,7 @@ export interface ShareFileRow {
   size: number
   hash: string
   mtime: number
-  status: ShareFileStatus
+  status: FileStatus
   localPath: string | null
   verified?: boolean
   // Derived from an enabled mirror on this device, whose next pass restores the owner's version.

@@ -358,7 +358,7 @@ test('A: a still-hashing own loose file is listed as publishing, then flips to m
 
   await advertise(ctx.spaceId, LOOSE_SHARE_ID, 'big.bin', { size: 4096, mtime: 1, contentHash: 'h'.repeat(64) })
   row = (await listFiles(ctx.spaceId, [])).find((f) => f.path === '/big.bin')
-  t.is(row.status, 'mine', 'once hashed it becomes an owned file')
+  t.is(row.status, 'synced', 'once hashed it becomes an owned file')
 })
 
 test('Item 2B: a still-hashing peer loose entry is listed and presence-gates to unavailable when the owner is offline', async (t) => {

@@ -54,7 +54,7 @@ test('listFiles surfaces own in-place files as inPlace + mine', async (t) => {
   const row = files.find((f) => f.path === '/a.txt')
   t.ok(row, 'in-place file appears in the flat list')
   t.ok(row.inPlace, 'row flagged inPlace')
-  t.is(row.status, 'mine', 'own in-place file is mine')
+  t.is(row.status, 'synced', 'own in-place file is synced')
 })
 
 test('removeFile routes an own in-place file to unshare (tombstone, no drive del)', async (t) => {

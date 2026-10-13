@@ -404,11 +404,14 @@ has none, which is how the send path picks `membership:request` over `handshake`
 `src/shared/transfer/file-listing.js` folds five signals into one row per file: own/peer catalog
 entries, the claim (re-verified against disk), the pending row, owner presence, and live engine
 state (pure rules in `src/shared/transfer/transfer-status.js`). Status is always re-derived by
-`files:list`, never pushed; progress is only `event:decoration`.
+`files:list`, never pushed; progress is only `event:decoration`. Both listings report from one
+vocabulary (`FILE_STATUS`); "Shared by you" is derived from ownership in the renderer's badge map,
+never sent.
 
 | Status | Signals |
 |---|---|
-| `mine` / `publishing` | own entry with / without a hash (+ active publish) |
+| `synced` / `publishing` | own entry with / without a hash (+ active publish) |
+| `queued` | own entry without a hash, waiting for a publish slot |
 | `preparing` | peer entry without a hash |
 | `downloaded` / `modified` | verified claim; `modified` = a verified record whose size (mirror: or mtime) no longer matches |
 | `downloading` / `verifying` | live engine / `event:decoration` phase |

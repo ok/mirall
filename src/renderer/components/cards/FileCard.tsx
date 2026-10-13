@@ -17,6 +17,8 @@ import type { IconName } from '../../types/ui.js'
 
 interface FileCardProps {
   file: FileEntry
+  /** The row is one of our own files: it reads "Shared by you" and offers unshare. */
+  isOwn: boolean
   decoration: Decoration | null
   /** The download was just requested and no decoration has arrived yet. */
   seeded: boolean
@@ -48,6 +50,7 @@ interface ActionPair {
 
 function deriveActions(
   file: FileEntry,
+  isOwn: boolean,
   t: (key: string) => string,
   handlers: {
     onDownload: (file: FileEntry) => void
@@ -61,10 +64,10 @@ function deriveActions(
   const { transferId } = file
   const discard = (title: string): ActionButton | null => (transferId ? { icon: 'close', title, onClick: () => handlers.onCancel(transferId) } : null)
   switch (file.status) {
-    case 'mine':
+    case 'synced':
       return {
         primary: { icon: 'folder_open', title: t('file.revealInFolder'), onClick: () => handlers.onReveal(file) },
-        secondary: { icon: 'delete', title: t('file.unshare'), onClick: () => handlers.onUnshare(file), variant: 'danger' },
+        secondary: isOwn ? { icon: 'delete', title: t('file.unshare'), onClick: () => handlers.onUnshare(file), variant: 'danger' } : null,
       }
     case 'downloaded':
     case 'modified':
@@ -152,6 +155,7 @@ function ActionSlot({
 
 function FileCard({
   file,
+  isOwn,
   decoration,
   seeded,
   onDownload,
@@ -168,12 +172,11 @@ function FileCard({
   const { t } = useTranslation()
   const { t: tErr } = useTranslation('errors')
   const rowName = fileName(file.path)
-  const view = deriveRowView(file, decoration, downloadSummary, { kind: 'loose', seeded })
+  const view = deriveRowView(file, decoration, downloadSummary, { isOwn, seeded })
 
-  const isMine = file.status === 'mine'
   const holders = useMemo(
-    () => (isMine ? recipientSummary({ recipients, contentHash: file.hash, members: members ?? [], ownerKey: file.owner.publicKey }) : null),
-    [isMine, recipients, file.hash, members, file.owner.publicKey],
+    () => (isOwn ? recipientSummary({ recipients, contentHash: file.hash, members: members ?? [], ownerKey: file.owner.publicKey }) : null),
+    [isOwn, recipients, file.hash, members, file.owner.publicKey],
   )
 
   // The dropdown is gated on whichever toggle the lane shows — the peer list, or the recipients on the
@@ -186,7 +189,7 @@ function FileCard({
     if (!listable) setShowDownloaders(false)
   }, [listable])
 
-  const { primary, secondary } = deriveActions(file, t, {
+  const { primary, secondary } = deriveActions(file, isOwn, t, {
     onDownload,
     onCancel,
     onPause,
@@ -251,7 +254,7 @@ function FileCard({
             spaceId={spaceId}
             path={file.path}
             members={members ?? []}
-            recipients={isMine ? recipients : []}
+            recipients={isOwn ? recipients : []}
             contentHash={file.hash}
             ownerKey={file.owner.publicKey}
           />

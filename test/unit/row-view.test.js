@@ -39,8 +39,8 @@ test('peer preparing paints only with a preparing decoration that has a total', 
 })
 
 test('sender indicator shows only when the row is otherwise at rest', (t) => {
-  t.is(deriveRowView(file({ status: 'mine' }), null, summary).lane, 'indicator')
-  t.is(deriveRowView(file({ status: 'mine' }), null, summary).indicatorActive, true)
+  t.is(deriveRowView(file({ status: 'synced' }), null, summary).lane, 'indicator')
+  t.is(deriveRowView(file({ status: 'synced' }), null, summary).indicatorActive, true)
   // a competing progress branch (our own download) takes precedence over the indicator
   const busy = deriveRowView(file({ status: 'downloading' }), dec({ bytes: 40, total: 100 }), summary)
   t.is(busy.lane, 'download')
@@ -54,10 +54,11 @@ test('paused rows render the partial from pendingBytes/size', (t) => {
   t.is(v.isDownloading, false)
 })
 
-test('verified badge only on a downloaded+verified file', (t) => {
+test('verified badge only on an on-device, verified file', (t) => {
   t.is(deriveRowView(file({ status: 'downloaded', verified: true }), null, null).showVerified, true)
   t.is(deriveRowView(file({ status: 'downloaded', verified: false }), null, null).showVerified, false)
-  t.is(deriveRowView(file({ status: 'mine', verified: true }), null, null).showVerified, false)
+  t.is(deriveRowView(file({ status: 'synced', verified: true }), null, null).showVerified, true, 'synced is on the device too')
+  t.is(deriveRowView(file({ status: 'remote', verified: true }), null, null).showVerified, false)
 })
 
 test('publish percentage derives from the publish decoration', (t) => {
@@ -70,21 +71,21 @@ const view = (row, decoration, downloadSummary, opts) => deriveRowView(row, deco
 
 test('both kinds take the same lane for the same shape', (t) => {
   const d = dec({ bytes: 40, total: 100, eta: 5 })
-  t.is(view(file({ status: 'downloading' }), d, null, { kind: 'loose' }).lane, 'download')
-  t.is(view(shareRow({ status: 'downloading' }), d, null, { kind: 'share' }).lane, 'download')
+  t.is(view(file({ status: 'downloading' }), d, null).lane, 'download')
+  t.is(view(shareRow({ status: 'downloading' }), d, null).lane, 'download')
 })
 
-test('kind selects only the badge table', (t) => {
-  // 'synced' is share-only and collapses to the `mine` pill on our own share.
-  t.is(view(shareRow({ status: 'synced' }), null, null, { kind: 'share', isOwn: true }).badge.labelKey, 'status.mine')
-  t.is(view(shareRow({ status: 'synced' }), null, null, { kind: 'share', isOwn: false }).badge.labelKey, 'status.downloaded')
-  t.is(view(file({ status: 'mine' }), null, null, { kind: 'loose' }).badge.labelKey, 'status.mine')
+test('isOwn turns a synced row into the "Shared by you" pill, for both kinds', (t) => {
+  t.is(view(shareRow({ status: 'synced' }), null, null, { isOwn: true }).badge.labelKey, 'status.mine')
+  t.is(view(shareRow({ status: 'synced' }), null, null, { isOwn: false }).badge.labelKey, 'status.downloaded')
+  t.is(view(file({ status: 'synced' }), null, null, { isOwn: true }).badge.labelKey, 'status.mine')
+  t.is(view(file({ status: 'synced' }), null, null).badge.labelKey, 'status.downloaded')
 })
 
 test('REGRESSION (FIX-RV-2: a publishing row shows a bar before its first frame, on BOTH kinds)', (t) => {
   // The share row gated this on a decoration and fell through to a bare pill; the loose row did not.
   for (const [kind, row] of [['loose', file({ status: 'publishing' })], ['share', shareRow({ status: 'publishing' })]]) {
-    const v = view(row, null, null, { kind })
+    const v = view(row, null, null)
     t.is(v.lane, 'publish', `${kind} takes the publish lane with no decoration`)
     t.is(v.publishDecor, null, `${kind} has nothing to measure, so the bar is indeterminate`)
   }
@@ -92,39 +93,39 @@ test('REGRESSION (FIX-RV-2: a publishing row shows a bar before its first frame,
 
 test('REGRESSION (FIX-RV-3: a just-requested download reports movement, on BOTH kinds)', (t) => {
   for (const [kind, mk] of [['loose', file], ['share', shareRow]]) {
-    const fresh = view(mk({ status: 'downloading', pendingBytes: 0, size: 100 }), null, null, { kind, seeded: true })
+    const fresh = view(mk({ status: 'downloading', pendingBytes: 0, size: 100 }), null, null, { seeded: true })
     t.is(fresh.displayStatus, 'preparing', `${kind}: nothing transferred yet reads as preparing`)
-    const resumed = view(mk({ status: 'downloading', pendingBytes: 40, size: 100 }), null, null, { kind, seeded: true })
+    const resumed = view(mk({ status: 'downloading', pendingBytes: 40, size: 100 }), null, null, { seeded: true })
     t.is(resumed.lane, 'download', `${kind}: a resumed partial paints immediately`)
     t.is(resumed.downloadPct, 40)
     // eta null is what makes the bar read "Estimating…" rather than freeze at a static value.
     t.is(resumed.downloadDecor.eta, null)
-    const peer = view(mk({ status: 'preparing', size: 100 }), null, null, { kind, seeded: true })
+    const peer = view(mk({ status: 'preparing', size: 100 }), null, null, { seeded: true })
     t.is(peer.lane, 'preparing', `${kind}: a seeded preparing row shows the owner's hash is pending`)
   }
 })
 
 test('a real frame outranks the seed', (t) => {
   const v = view(shareRow({ status: 'downloading', pendingBytes: 10, size: 100 }),
-    dec({ bytes: 70, total: 100, eta: 3 }), null, { kind: 'share', seeded: true })
+    dec({ bytes: 70, total: 100, eta: 3 }), null, { seeded: true })
   t.is(v.downloadPct, 70)
 })
 
 test('the seed never applies outside the transfer states', (t) => {
   for (const s of ['remote', 'unavailable', 'error', 'synced', 'downloaded', 'publishing']) {
-    t.is(view(shareRow({ status: s }), null, null, { kind: 'share', seeded: true }).downloadDecor, null, s)
+    t.is(view(shareRow({ status: s }), null, null, { seeded: true }).downloadDecor, null, s)
   }
 })
 
 test('a seeded row with no size has nothing to measure', (t) => {
-  const v = view(shareRow({ status: 'downloading', size: 0 }), null, null, { kind: 'share', seeded: true })
+  const v = view(shareRow({ status: 'downloading', size: 0 }), null, null, { seeded: true })
   t.is(v.downloadDecor, null)
   t.is(v.lane, 'rest')
 })
 
 test('verified check covers a mirror row, not just a downloaded one', (t) => {
-  t.is(view(shareRow({ status: 'synced', verified: true }), null, null, { kind: 'share' }).showVerified, true)
-  t.is(view(shareRow({ status: 'downloading', verified: true }), null, null, { kind: 'share' }).showVerified, false)
+  t.is(view(shareRow({ status: 'synced', verified: true }), null, null).showVerified, true)
+  t.is(view(shareRow({ status: 'downloading', verified: true }), null, null).showVerified, false)
 })
 
 // What a mirror counts as already here. The decoration key is shared across phases, so the rule
@@ -144,17 +145,17 @@ test('bytes-on-device counts a transfer frame, never a hash or a stale one', (t)
 })
 
 test('an edited copy wears the amber pill with an explanation, and never the verified check', (t) => {
-  const mirrored = view(shareRow({ status: 'modified', verified: false, mirrored: true }), null, null, { kind: 'share' })
+  const mirrored = view(shareRow({ status: 'modified', verified: false, mirrored: true }), null, null)
   t.is(mirrored.badge.labelKey, 'status.modified')
   t.is(mirrored.statusHintKey, 'status.modifiedMirrorHint', 'a row the worker derived from a live mirror says the next pass keeps the edit aside')
   t.is(mirrored.showVerified, false)
   t.is(mirrored.lane, 'rest')
 
-  const browsed = view(shareRow({ status: 'modified' }), null, null, { kind: 'share' })
+  const browsed = view(shareRow({ status: 'modified' }), null, null)
   t.is(browsed.statusHintKey, 'status.modifiedHint', 'a download is not moved aside, so it does not say so')
   t.is(deriveRowView(file({ status: 'modified' }), null, null).statusHintKey, 'status.modifiedHint', 'nor does a loose download')
 
-  t.is(view(shareRow({ status: 'synced', verified: true, mirrored: true }), null, null, { kind: 'share' }).statusHintKey, null, 'other states carry no hint')
+  t.is(view(shareRow({ status: 'synced', verified: true, mirrored: true }), null, null).statusHintKey, null, 'other states carry no hint')
 })
 
 const waitingOnly = { spaceId: 's', path: '/s/f', personKeys: [], pausedKeys: [], waitingKeys: ['w1'], bytes: 0, total: 0, avgSpeed: 0 }
@@ -168,14 +169,14 @@ test('waiters ride the publish lane beside our own hash bar and open the peer li
 })
 
 test('a waiter alone never raises the sending indicator on a row at rest', (t) => {
-  const v = deriveRowView(file({ status: 'mine' }), null, waitingOnly)
+  const v = deriveRowView(file({ status: 'synced' }), null, waitingOnly)
   t.is(v.lane, 'rest')
   t.alike(v.waiterKeys, [], 'waiters show only while we are hashing')
   t.is(v.peerListActive, false)
 })
 
 test('the peer list follows the sending indicator when there are no waiters', (t) => {
-  t.is(deriveRowView(file({ status: 'mine' }), null, summary).peerListActive, true)
+  t.is(deriveRowView(file({ status: 'synced' }), null, summary).peerListActive, true)
   t.is(deriveRowView(file({ status: 'publishing' }), dec({ phase: 'publishing' }), summary).peerListActive, false)
 })
 

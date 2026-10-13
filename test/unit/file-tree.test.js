@@ -43,7 +43,7 @@ test('folder aggregates roll up the whole subtree', (t) => {
   t.is(brand.statusCounts.downloading, 1)
 })
 
-test('statusCategory maps every ShareFileStatus member', (t) => {
+test('statusCategory maps every FileStatus member', (t) => {
   t.is(statusCategory('downloaded'), 'on-device')
   t.is(statusCategory('synced'), 'on-device')
   t.is(statusCategory('modified'), 'on-device', 'an edited copy is still on the device')
@@ -51,6 +51,7 @@ test('statusCategory maps every ShareFileStatus member', (t) => {
   t.is(statusCategory('verifying'), 'downloading')
   t.is(statusCategory('preparing'), 'preparing')
   t.is(statusCategory('publishing'), 'preparing')
+  t.is(statusCategory('queued'), 'preparing', 'an add waiting for its slot is not a transfer either')
   t.is(statusCategory('paused-interrupted'), 'paused')
   t.is(statusCategory('paused-offline'), 'paused')
   t.is(statusCategory('error'), 'error')

@@ -9,7 +9,7 @@ const sleep = (ms) => new Promise((res) => setTimeout(res, ms))
 
 // B1 — cancel a loose publish while it is still indexing ("Adding"). During the publishing
 // phase the owner's FileCard offers a single Cancel (files:cancel-publish) and NO Unshare
-// (Unshare only appears once the file is fully 'mine'), so Cancel IS the mid-index removal
+// (Unshare only appears once the file is fully 'synced'), so Cancel IS the mid-index removal
 // path. Using it removes the half-advertised entry: the row disappears for the owner and the
 // file never becomes a real share for the peer. 1 GB widens the hashing window; a tight loop
 // attempts the Cancel click every iteration so it lands the instant the publishing row

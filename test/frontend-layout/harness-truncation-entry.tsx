@@ -68,7 +68,7 @@ const looseFile = (name: string, status: FileEntry['status'] = 'remote'): FileEn
 })
 const downloading: Decoration = { bytes: 30, total: 100, speed: 5e6, avgSpeed: 5e6, eta: 643 }
 const cardHandlers = {
-  onDownload: noop, onCancel: noop, onPause: noop, onReveal: noop, onUnshare: noop, onCancelPublish: noop,
+  isOwn: false, onDownload: noop, onCancel: noop, onPause: noop, onReveal: noop, onUnshare: noop, onCancelPublish: noop,
   spaceId: 'space1', recipients: [],
 }
 const share: ShareWithRole = {

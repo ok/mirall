@@ -4,23 +4,20 @@
 // formatting stay in the component; this is branching + arithmetic only, so it is unit-tested in
 // plain Node.
 //
-// `kind` selects the badge table and nothing else: every branch below is shared, so a rule that
-// holds for one row holds for both by construction. That is the point of the module, not the line
-// count.
+// Every branch below is shared, so a rule that holds for one row holds for both by construction.
+// That is the point of the module, not the line count.
 //
 // Status is worker-derived; this only decorates. It never reads or writes IPC.
 
 import { ON_DEVICE_STATUSES } from '../../shared/contract/statuses.js'
-import { badgeStyle, fileStatusToBadge, shareFileStatusToBadge } from './status-badge.js'
+import { badgeStyle, statusToBadge } from './status-badge.js'
 /** @import { Decoration } from '../types/ui.js' */
 /** @import { BadgeAppearance } from './status-badge.js' */
-/** @import { FileEntry, FileStatus, ShareFileEntry, ShareFileStatus, PeerDownloadSummary } from '../types/types.js' */
+/** @import { FileEntry, FileStatus, ShareFileEntry, PeerDownloadSummary } from '../types/types.js' */
 /** @import { PersonKey } from '../../shared/contract/principals.js' */
 
 /** @typedef {'publish' | 'verify' | 'download' | 'preparing' | 'indicator' | 'rest'} LaneName */
-/** @typedef {'loose' | 'share'} RowKind */
 /** @typedef {FileEntry | ShareFileEntry} Row */
-/** @typedef {FileStatus | ShareFileStatus} RowStatus */
 
 /**
  * @typedef {object} RowView
@@ -29,7 +26,7 @@ import { badgeStyle, fileStatusToBadge, shareFileStatusToBadge } from './status-
  * @property {PersonKey[]} waiterKeys members waiting on our hash; only ever set on the publish lane
  * @property {boolean} peerListActive whether the row offers the per-peer dropdown
  * @property {BadgeAppearance} badge
- * @property {RowStatus} displayStatus
+ * @property {FileStatus} displayStatus
  * @property {boolean} isDownloading
  * @property {Decoration | null} downloadDecor
  * @property {Decoration | null} publishDecor
@@ -44,13 +41,13 @@ import { badgeStyle, fileStatusToBadge, shareFileStatusToBadge } from './status-
  * @property {string | null} statusHintKey
  */
 
-/** @typedef {{ kind?: RowKind, isOwn?: boolean, seeded?: boolean }} RowViewOptions */
+/** @typedef {{ isOwn?: boolean, seeded?: boolean }} RowViewOptions */
 
 /** @param {number} bytes @param {number} total */
 const pct = (bytes, total) => (total > 0 ? Math.min(100, Math.round((bytes / total) * 100)) : 0)
 
-// One showVerified rule serves both vocabularies: gating on 'downloaded' alone would hide the check
-// on every mirrored row, whose terminal state is 'synced'.
+// Gating showVerified on 'downloaded' alone would hide the check on every mirrored row, whose
+// terminal state is 'synced'.
 /** @type {Set<string>} */
 const ON_DEVICE = new Set(ON_DEVICE_STATUSES)
 
@@ -78,7 +75,7 @@ function seedFrame(row, seeded) {
 // What the status pill cannot say in two words. A queued add is waiting for the files ahead of it.
 // An edited copy of a live mirror is about to be moved aside by the next pass, which the user must
 // hear before it happens; any other copy stays edited.
-/** @param {Row} row @param {RowStatus} status @returns {string | null} */
+/** @param {Row} row @param {FileStatus} status @returns {string | null} */
 function statusHint(row, status) {
   if (status === 'queued') return 'status.queuedHint'
   if (status !== 'modified') return null
@@ -101,7 +98,7 @@ function deriveProgress(row, downloadDecor) {
   const isDownloading = row.status === 'downloading'
   const isVerifying = isDownloading && downloadDecor?.phase === 'verifying'
   const waiting = isDownloading && (downloadDecor?.bytes ?? 0) === 0
-  /** @type {RowStatus} */
+  /** @type {FileStatus} */
   const displayStatus = isVerifying ? 'verifying' : waiting ? 'preparing' : row.status
 
   const isPaused = row.status === 'paused-offline' || row.status === 'paused-interrupted'
@@ -164,7 +161,7 @@ export function rowBytesOnDevice(row, decoration) {
  * @returns {RowView}
  */
 export function deriveRowView(row, decoration, downloadSummary, opts = {}) {
-  const { kind = 'loose', isOwn = false, seeded = false } = opts
+  const { isOwn = false, seeded = false } = opts
   const frame = decoration ?? seedFrame(row, seeded)
   const { downloadDecor, publishDecor, preparingDecor } = pickDecorations(frame)
   const progress = deriveProgress(row, downloadDecor)
@@ -173,15 +170,9 @@ export function deriveRowView(row, decoration, downloadSummary, opts = {}) {
   // waiter never makes a row read as sending.
   const waiterKeys = lane === 'publish' ? downloadSummary?.waitingKeys ?? [] : []
 
-  // The two vocabularies are not interchangeable: FILE_STATUS has 'mine' and no 'synced';
-  // SHARE_FILE_STATUS has 'synced', which collapses to the 'mine' pill only for our own share.
   // Resolving the descriptor here — rather than passing a status to a badge component — is what
   // lets one lane component render both kinds.
-  const badge = badgeStyle(
-    kind === 'share'
-      ? shareFileStatusToBadge(/** @type {ShareFileStatus} */ (progress.displayStatus), isOwn)
-      : fileStatusToBadge(/** @type {FileStatus} */ (progress.displayStatus)),
-  )
+  const badge = badgeStyle(statusToBadge(progress.displayStatus, isOwn))
 
   return {
     lane,

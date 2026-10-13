@@ -48,6 +48,7 @@ function fileEntry(overrides: Partial<FileEntry>): FileEntry {
 
 const noop = () => {}
 const cardHandlers = {
+  isOwn: false,
   onDownload: noop,
   onCancel: noop,
   onPause: noop,

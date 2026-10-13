@@ -90,7 +90,7 @@ const files: FileEntry[] = FILE_NAMES.map((name, i) => ({
   owner: { displayName: 'You', publicKey: SELF_PK },
   localBytes: 8_200_000 + i,
   isAvailable: true,
-  status: 'mine',
+  status: 'synced',
 }))
 window.__HARNESS_CFG = { shares, files }
 

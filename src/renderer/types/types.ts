@@ -1,5 +1,5 @@
 import type {
-  ShareFileStatus, CanaryState, CanaryResult, AuditCategory,
+  FileStatus, CanaryState, CanaryResult, AuditCategory,
 } from '../../shared/contract/responses.js'
 import type { BADGE_STATUSES } from '../../shared/contract/statuses.js'
 import type { VERDICTS, CAUSES, CONFIDENCES } from '../../shared/contract/reachability.js'
@@ -39,7 +39,7 @@ export interface ShareFileEntry {
   size: number
   hash: string
   mtime: number
-  status: ShareFileStatus
+  status: FileStatus
   localPath?: string
   verified?: boolean
   mirrored?: boolean
@@ -226,7 +226,7 @@ export interface AuditFilters {
 export type {
   Profile, SpaceMember, JoinRequest, Space, FileStatus, FileEntry, MirrorParticipant, Share, FileRecipient,
   OwnedMountStatus, OwnedFolderMount, ForeignMountStatus, ForeignFolderMount,
-  ShareFileStatus, MountValidationResult, ScanPreview,
+  MountValidationResult, ScanPreview,
   CanaryState, CanaryResult,
   AuditCategory, AuditSpaceRef, AuditEntry, AuditPage, AuditConfig, AuditStats, AuditActorRef,
   StorageInfo, SpaceStorageUsage,

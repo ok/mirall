@@ -5,7 +5,7 @@
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { formatSize, formatSpeed, resolveEta } from '../../format/utils.js'
-import type { RowKind, RowView } from '../../model/row-view.js'
+import type { RowView } from '../../model/row-view.js'
 import type { SpaceMember, PeerDownloadSummary } from '../../types/types.js'
 import Badge from '../primitives/Badge.js'
 import VerifiedCheck from '../primitives/VerifiedCheck.js'
@@ -14,6 +14,8 @@ import PeerDownloadIndicator from './PeerDownloadIndicator.js'
 import PeerWaitingIndicator from './PeerWaitingIndicator.js'
 import RecipientsIndicator from './RecipientsIndicator.js'
 import type { RecipientSummary } from '../../model/file-recipients.js'
+
+type RowKind = 'loose' | 'share'
 
 interface RowLaneProps {
   view: RowView

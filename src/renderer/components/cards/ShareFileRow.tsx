@@ -104,7 +104,7 @@ function ShareFileRow({ file, decoration, seeded, isOwn, manualControls, spaceId
   const { t } = useTranslation()
   const { t: tErr } = useTranslation('errors')
   const rowName = displayName || file.relPath
-  const view = deriveRowView(file, decoration, downloadSummary, { kind: 'share', isOwn, seeded })
+  const view = deriveRowView(file, decoration, downloadSummary, { isOwn, seeded })
 
   const action = fileRowAction({ status: file.status, manualControls, hasTransferId: !!file.transferId })
   const busyLabel = file.status === 'publishing'

@@ -13,9 +13,9 @@ const v2flags = () => ({ identityKEK: kekHex() })
 
 // B2 revert-guard: a GRACEFUL quit mid-index aborts the in-flight hash but must NOT unshare the
 // file. The half-advertised null-hash entry + its owned-source link survive, so on restart boot
-// rehydration re-hashes it to a real share ('mine'). A broken guard would tombstone it on quit and
+// rehydration re-hashes it to a real share ('synced'). A broken guard would tombstone it on quit and
 // the file would vanish on restart.
-test('graceful quit mid-index preserves the share: restart re-hashes to mine, not reverted',
+test('graceful quit mid-index preserves the share: restart re-hashes to synced, not reverted',
   { timeout: scaled(240000) }, async (t) => {
     const bootstrap = await localTestnet(t)
     const aStore = idStore(t)
@@ -43,9 +43,9 @@ test('graceful quit mid-index preserves the share: restart re-hashes to mine, no
     // Restart on the same store; boot rehydration must resume the null-hash entry to a real share.
     A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: aStore, flags: aFlags })
     const row = await A.until('files:list', { spaceId },
-      (l) => Array.isArray(l) && l.find((e) => e.path === '/archive.bin')?.status === 'mine',
+      (l) => Array.isArray(l) && l.find((e) => e.path === '/archive.bin')?.status === 'synced',
       { ms: 120000, every: 500 })
-    t.is(row.find((e) => e.path === '/archive.bin').status, 'mine',
+    t.is(row.find((e) => e.path === '/archive.bin').status, 'synced',
       'graceful quit mid-index left the share intact — restart re-hashed it, not reverted')
 
     A.kill()

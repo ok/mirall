@@ -5,6 +5,7 @@ import LoadingHeadline from '../primitives/LoadingHeadline.js'
 import SpaceSection from './SpaceSection.js'
 import type { ComponentProps } from 'react'
 import type { FileEntry } from '../../types/types.js'
+import type { PersonKey } from '../../../shared/contract/principals.js'
 
 // The per-row callbacks and lookups are FileCard's contract, not this section's: forwarded
 // untouched, so re-declaring them here would be a second copy to keep in step.
@@ -15,6 +16,8 @@ type SpaceFilesPaneProps = Pick<CardProps,
   | 'onCancelPublish' | 'members' | 'spaceId'
 > & {
   files: FileEntry[]
+  /** Our own person key; a row whose owner it is reads as ours. Null until the profile lands. */
+  selfKey: PersonKey | null
   loading: boolean
   error: unknown
   onRetry: () => void
@@ -33,7 +36,7 @@ type SpaceFilesPaneProps = Pick<CardProps,
  */
 export default function SpaceFilesPane(props: SpaceFilesPaneProps) {
   const { t } = useTranslation()
-  const { files, loading, error, onRetry, getDecoration, isSeeded, getDownloadSummary, getRecipients, ...card } = props
+  const { files, selfKey, loading, error, onRetry, getDecoration, isSeeded, getDownloadSummary, getRecipients, ...card } = props
 
   if (loading) return <LoadingHeadline label={t('space.loadingFiles')} />
 
@@ -65,6 +68,7 @@ export default function SpaceFilesPane(props: SpaceFilesPaneProps) {
         <FileCard
           key={`${file.owner.publicKey}-${file.path}`}
           file={file}
+          isOwn={selfKey !== null && file.owner.publicKey === selfKey}
           decoration={getDecoration(file.path)}
           seeded={isSeeded(file.path)}
           downloadSummary={getDownloadSummary(file.path)}

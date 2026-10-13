@@ -66,8 +66,8 @@ test('loose reshare after unshare: the file can be added again and downloads cle
 
     // Re-add the same file; capture whatever path it re-shares under (tombstone must not block it).
     await A.request('files:add', { spaceId, filePath: src, fileName: 'cycle.bin', fileSize: bytes.length })
-    const reAdded = await A.until('files:list', { spaceId }, (list) => Array.isArray(list) && list.some((e) => e.path.includes('cycle') && e.status === 'mine'), { ms: 30000 })
-    const rePath = reAdded.find((e) => e.path.includes('cycle') && e.status === 'mine').path
+    const reAdded = await A.until('files:list', { spaceId }, (list) => Array.isArray(list) && list.some((e) => e.path.includes('cycle') && e.status === 'synced'), { ms: 30000 })
+    const rePath = reAdded.find((e) => e.path.includes('cycle') && e.status === 'synced').path
     t.comment(`re-shared under path: ${rePath}`)
 
     // The peer sees it again and can download it.

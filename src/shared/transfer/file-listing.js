@@ -85,11 +85,12 @@ const productionDeps = {
   catalogVersion: watchedCatalogVersion,
 }
 
-// Unhashed → 'queued' while it waits for a publish slot, then 'publishing' (server-truth) so it
-// survives a navigate-away/remount, not just the optimistic client row.
+// Hashed → 'synced' (its bytes are the source on this disk); unhashed → 'queued' while it waits for a
+// publish slot, then 'publishing' (server-truth) so it survives a navigate-away/remount, not just the
+// optimistic client row.
 function ownRow(e, localPublicKey, queued) {
   const hashed = !!e.contentHash
-  const status = hashed ? FILE_STATUS.MINE : queued.has(e.relPath) ? FILE_STATUS.QUEUED : FILE_STATUS.PUBLISHING
+  const status = hashed ? FILE_STATUS.SYNCED : queued.has(e.relPath) ? FILE_STATUS.QUEUED : FILE_STATUS.PUBLISHING
   return {
     path: '/' + e.relPath, size: e.size, hash: e.contentHash || '', inPlace: true,
     owner: { displayName: 'You', publicKey: localPublicKey },

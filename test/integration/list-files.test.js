@@ -21,7 +21,7 @@ import { until } from '../helpers/bare-poll.js'
 
 // listFiles is the source of truth for the space's loose-file list and each
 // file's status. The single-peer-observable guarantees: own files show as
-// 'mine' (owner "You"), and files that belong to an owned FOLDER share are
+// 'synced' (owner "You"), and files that belong to an owned FOLDER share are
 // excluded from the loose list (they're shown in the folder view instead — if
 // the exclusion broke, owned-folder contents would be double-listed as loose
 // files). Cross-peer hash-dedup / status-priority is a flow concern.
@@ -36,7 +36,7 @@ async function setup(t) {
   return { ...ctx, spaceId: space.spaceId }
 }
 
-test('own loose files are listed as "mine" (owner You)', async (t) => {
+test('own loose files are listed as "synced" (owner You)', async (t) => {
   const ctx = await setup(t)
   const src = path.join(ctx.tmpDir('src'), 'loose.txt')
   fs.writeFileSync(src, 'loose content')
@@ -45,7 +45,7 @@ test('own loose files are listed as "mine" (owner You)', async (t) => {
   const files = await listFiles(ctx.spaceId, [])
   const loose = files.find((f) => f.path === '/loose.txt')
   t.ok(loose, 'loose file is listed')
-  t.is(loose.status, 'mine', 'status is mine')
+  t.is(loose.status, 'synced', 'status is synced')
   t.is(loose.owner.displayName, 'You', 'owner shown as You')
 })
 

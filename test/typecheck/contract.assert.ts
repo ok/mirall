@@ -22,6 +22,12 @@ const eventTypo: EventName = 'event:reconciled'
 const fileStatus: FileStatus = 'downloaded'
 // @ts-expect-error not a file status
 const fileStatusTypo: FileStatus = 'not-a-status'
+const fileStatusSynced: FileStatus = 'synced'
+const fileStatusQueued: FileStatus = 'queued'
+// @ts-expect-error 'mine' is a badge the renderer derives from ownership, not a status the worker sends
+const fileStatusMine: FileStatus = 'mine'
+// @ts-expect-error one status vocabulary serves both listings
+type NoShareFileStatus = import('../../src/shared/contract/responses.js').ShareFileStatus
 
 const ownedStatus: OwnedMountStatus = 'scanning'
 // @ts-expect-error mirror-only, not in the owned tuple
@@ -72,5 +78,7 @@ const deniedTypo: RequestResponse['space:deny-member'] = { outcome: 'removed' }
 void [pathHost, pathHostTypo, spacesList, spacesListWrong, ackExtra, name, denied, deniedBool, deniedTypo] as unknown as NoSuchResponse
 
 void [reachRelayed, reachDirect, reachTypo]
+
+void [fileStatusSynced, fileStatusQueued, fileStatusMine] as unknown as NoShareFileStatus
 
 void [request, requestTypo, event, eventTypo, fileStatus, fileStatusTypo, ownedStatus, ownedStatusIdle, invite, inviteV0, docs, docsTypo, publishOrder, publishOrderTypo, mainQuery, mainQueryTypo]

@@ -104,6 +104,7 @@ export default function SpaceContentPane(props: SpaceContentPaneProps) {
             <SpaceFilesPane
               {...listing}
               getRecipients={getRecipients}
+              selfKey={props.selfProfile?.personKey ?? null}
               spaceId={spaceId}
               members={members}
               loading={showSpaceLoading(pane)}

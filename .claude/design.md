@@ -796,8 +796,9 @@ Pill: `rounded-full px-3 text-[10px] font-bold uppercase tracking-wider` and **a
 `border border-outline`** (a deliberate border). A file row's pill also carries `srLabel` —
 `"<filename>: <status>"` — because it sits apart from the name it describes and announces a bare
 state without it; `cards/RowLane.tsx` renders every one of them. `model/status-badge.js` maps
-file/share state onto a **fixed 5-token palette**, each token one fixed meaning: 🟢 `bg-success` (on
-your device — `mine` + `downloaded`/`synced`), 🔵 `bg-info` (busy — `downloading` / `verifying`
+every file status onto a **fixed 5-token palette**, each token one fixed meaning: 🟢 `bg-success` (on
+your device — `downloaded`/`synced`, and `synced` on your own file reads `mine`, "Shared by you",
+from `isOwn`), 🔵 `bg-info` (busy — `downloading` / `verifying`
 (`animate-pulse`) moving bytes, `preparing` (`animate-pulse`) / `publishing` indexing them;
 `publishing` is the OWNER hashing its own file ("Adding"), `preparing` a member waiting on that
 hash, and neither is a transfer — the folder roll-up counts them apart from downloads), 🟡

@@ -294,7 +294,7 @@ test('REGRESSION (FIX-LOOSE-QUEUED-ROWS): adds waiting for a slot are listed as 
 
   await adds
   const done = await listFiles(ctx.spaceId, [])
-  t.alike(names.map((n) => done.find((r) => r.path === '/' + n)?.status), ['mine', 'mine', 'mine', 'mine'], 'all four end up shared')
+  t.alike(names.map((n) => done.find((r) => r.path === '/' + n)?.status), ['synced', 'synced', 'synced', 'synced'], 'all four end up shared')
 })
 
 // REGRESSION (FIX-LOOSE-QUEUED-MEMBERS: a queued add had no catalog entry until its hash started,

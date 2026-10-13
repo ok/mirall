@@ -5,11 +5,11 @@
 
 // Coarse category for folder roll-up summaries. Anything unlisted — a new status included —
 // falls through to 'available', so a status that needs its own bucket must be added here.
-/** @import { FileTreeFileNode, FileTreeFolderNode, FileTreeNode, FileTreeStatusCategory, ShareFileEntry, ShareFileStatus } from '../types/types.js' */
+/** @import { FileTreeFileNode, FileTreeFolderNode, FileTreeNode, FileTreeStatusCategory, FileStatus, ShareFileEntry } from '../types/types.js' */
 
 /** @typedef {FileTreeFolderNode & { _folders: Map<string, BuildingFolder>, _files: FileTreeFileNode[] }} BuildingFolder */
 
-/** @internal @param {ShareFileStatus} status @returns {FileTreeStatusCategory} */
+/** @internal @param {FileStatus} status @returns {FileTreeStatusCategory} */
 export function statusCategory(status) {
   switch (status) {
     case 'downloaded':
@@ -23,6 +23,7 @@ export function statusCategory(status) {
     // are not transfers: rolled into 'downloading' they made a folder nobody was pulling from
     // report "N downloading".
     case 'preparing':
+    case 'queued':
     case 'publishing':
       return 'preparing'
     case 'paused-interrupted':
