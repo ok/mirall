@@ -2,10 +2,26 @@ import test from 'brittle'
 import {
   actorInitials, actorLabel, avatarKind, dayKey, denialReasonKey, formatBytes, formatCount,
   groupByDay, isSystemRow, metaParts, rowBadge, sentenceKey, sentenceValues,
-  splitSentence, sentinelValues, systemIcon, emptyStateFor, FIELD_SENTINEL, SENTENCE_FIELDS,
+  splitSentence, sentinelValues, systemIcon, emptyStateFor, searchKindsFor, FIELD_SENTINEL, SENTENCE_FIELDS,
 } from '../../src/renderer/model/audit-row.js'
+import { KINDS } from '../../src/shared/contract/audit-kinds.js'
 import { formatSize } from '../../src/renderer/format/bytes.js'
 import { formatDuration } from '../../src/renderer/model/connectivity.js'
+import i18next from 'i18next'
+import { readFileSync } from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+const localeDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../src/renderer/locales')
+const common = (lng) => JSON.parse(readFileSync(path.join(localeDir, lng, 'common.json'), 'utf8'))
+
+// A real i18next with the renderer's options, so key lookup and interpolation are the ones the
+// Activity Log runs.
+async function translatorFor(lng) {
+  const i18n = i18next.createInstance()
+  await i18n.init({ lng, defaultNS: 'common', resources: { [lng]: { common: common(lng) } }, interpolation: { escapeValue: false }, returnNull: false })
+  return i18n.t.bind(i18n)
+}
 
 const row = (over = {}) => ({
   v: 1, seq: 1, ts: Date.now(), tzOffset: 0,
@@ -401,4 +417,21 @@ test('a relay kind or mode from another version renders nothing', (t) => {
   t.alike(metaKeys(relayRow('relay.added', { relayKind: 'federated', mode: 'sometimes' })), [])
   t.alike(metaKeys(relayRow('relay.turned_on', { mode: 'off' })), [], 'off is never a detail')
   t.alike(metaKeys(relayRow('relay.replaced', { relayKind: 'open', previous: '', previousLabel: '' })), ['networkSettings.relays.kind.open'])
+})
+
+test('REGRESSION (FIX-637: a word from a row\'s sentence found nothing when its label lacked it)', async (t) => {
+  const kinds = Object.keys(KINDS)
+  const en = await translatorFor('en')
+  t.ok(searchKindsFor('downloaded', kinds, en).includes('transfer.completed'),
+    '"You downloaded …" is found by its sentence, though its label reads "download completed"')
+  t.ok(searchKindsFor('you created', kinds, en).includes('space.created'), 'a phrase spanning the sentence matches')
+  t.ok(searchKindsFor('space created', kinds, en).includes('space.created'), 'the label still matches')
+  t.ok(searchKindsFor('  SPACE Created ', kinds, en).includes('space.created'), 'the term is trimmed and case-folded')
+  t.absent(searchKindsFor('aurora', kinds, en).length, 'a name is not kind text: the stored names answer it')
+  t.is(searchKindsFor('   ', kinds, en), null, 'a blank term searches nothing')
+
+  const de = await translatorFor('de')
+  t.alike(searchKindsFor('zugelassen', kinds, de), ['membership.approved'], 'the term matches in the viewer\'s language')
+  const es = await translatorFor('es')
+  t.ok(searchKindsFor('creaste', kinds, es).includes('space.created'), 'a verb form only the sentence carries matches')
 })

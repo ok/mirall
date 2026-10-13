@@ -15,7 +15,7 @@ export function registerAudit(ipc) {
   ipc.handle('audit:list', async (msg) => await queryAudit({
     spaceId: msg.spaceId, cursor: msg.cursor, limit: msg.limit,
     kinds: msg.kinds, categories: msg.categories, actorKey: msg.actorKey,
-    search: msg.search, since: msg.since, until: msg.until,
+    search: msg.search, searchKinds: msg.searchKinds, since: msg.since, until: msg.until,
   }))
   ipc.handle('audit:spaces', async () => await auditSpaces())
   ipc.handle('audit:actors', async () => await auditActors())

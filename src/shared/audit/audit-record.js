@@ -74,8 +74,8 @@ function normalizeTarget(target) {
 }
 
 // Proper nouns only, deliberately language-independent. The kind is NOT included: the renderer
-// resolves a typed term against its translated kind labels and passes the matches as a `kinds`
-// filter, so search works in all five locales without storing localized text.
+// resolves a typed term against its translated kind text and passes the matches as `searchKinds`,
+// so search works in all five locales without storing localized text.
 function buildSearch(actor, space, target) {
   return [actor?.name, space?.name, target?.name]
     .filter(Boolean)

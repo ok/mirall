@@ -103,7 +103,33 @@ export function denialReasonKey(entry) {
 // unit — a sentence assembled from fragments cannot be reordered for other languages.
 /** @param {AuditEntry} entry */
 export function sentenceKey(entry) {
-  return 'activityLog.kind.' + entry.kind
+  return kindSentenceKey(entry.kind)
+}
+
+/** @param {string} kind */
+function kindSentenceKey(kind) {
+  return 'activityLog.kind.' + kind
+}
+
+/** @type {SentenceValues} */
+const NO_NAMES = { actor: '', space: '', target: '' }
+
+// The kinds a search term reaches through the words the viewer reads for them: the kind's label, or
+// its sentence with the names left out. A stored row holds names only, so this is how "approved"
+// or "zugelassen" finds a row; the worker passes a row whose names OR kind match. Null for a blank
+// term, which searches nothing.
+/**
+ * @param {string} term
+ * @param {readonly string[]} kinds
+ * @param {(key: string, values?: SentenceValues) => string} translate
+ * @returns {string[] | null}
+ */
+export function searchKindsFor(term, kinds, translate) {
+  const needle = term.trim().toLowerCase()
+  if (!needle) return null
+  const contains = (/** @type {string} */ text) => text.replace(/\s+/g, ' ').trim().toLowerCase().includes(needle)
+  return kinds.filter((kind) => contains(translate('activityLog.kindLabel.' + kind))
+    || contains(translate(kindSentenceKey(kind), NO_NAMES)))
 }
 
 // Interpolation values for that sentence. Names are already snapshots; the fallbacks keep a row

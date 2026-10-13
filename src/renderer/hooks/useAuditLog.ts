@@ -31,10 +31,10 @@ interface ReconcileMessage {
   scope?: { kind: string }
 }
 
-// `kinds` resolution happens in the caller: the renderer holds the translated kind labels, so a
-// term typed in any locale can be turned into a kind filter the worker understands. The stored
-// search blob is proper nouns only and stays locale-neutral.
-export function useAuditLog(filters: AuditFilters, kinds: string[] | null) {
+// `searchKinds` resolution happens in the caller: the renderer holds the translated kind text, so a
+// term typed in any locale can be turned into the kinds it names, which the worker accepts beside
+// the term. The stored search blob is proper nouns only and stays locale-neutral.
+export function useAuditLog(filters: AuditFilters, searchKinds: string[] | null) {
   const errorText = useErrorText()
   const [entries, setEntries] = useState<AuditEntry[]>([])
   const [cursor, setCursor] = useState<number | null>(null)
@@ -49,8 +49,8 @@ export function useAuditLog(filters: AuditFilters, kinds: string[] | null) {
     actorKey: filters.actorKey,
     search: filters.search.trim() || null,
     since: filters.sinceDays === null ? null : Date.now() - filters.sinceDays * 86400000,
-    kinds: kinds && kinds.length ? kinds : null,
-  }), [filters.spaceId, filters.categories, filters.actorKey, filters.search, filters.sinceDays, kinds])
+    searchKinds: searchKinds && searchKinds.length ? searchKinds : null,
+  }), [filters.spaceId, filters.categories, filters.actorKey, filters.search, filters.sinceDays, searchKinds])
 
   // Deliberately outside the query store: the list ACCUMULATES pages behind a cursor, and the store
   // holds one value per key with no way to append the next page to it. The runRef below is this

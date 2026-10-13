@@ -88,6 +88,7 @@ export const REQUESTS = Object.freeze({
     kinds: { type: ARG.array, optional: true },
     limit: { type: ARG.number, optional: true },
     search: { type: ARG.string, optional: true, max: ARG_MAX.text },
+    searchKinds: { type: ARG.array, optional: true },
     since: { type: ARG.number, optional: true },
     spaceId: { type: ARG.spaceId, optional: true },
     until: { type: ARG.number, optional: true },

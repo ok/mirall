@@ -111,6 +111,27 @@ test('kind, category, actor and free-text filters compose', async (t) => {
   t.is((await queryAudit({ search: 'approved' })).entries.length, 0, 'the kind is not searchable text')
 })
 
+test('REGRESSION (FIX-637: a search matching a kind label returned only rows whose names matched too)', async (t) => {
+  await boot(t)
+  record('membership.approved', {
+    actor: { type: 'self', key: 'me', name: 'Me' },
+    space: { id: 'sp1', name: 'Design Team' },
+    target: { kind: 'member', id: 'peer-Anna', name: 'Anna' },
+  })
+  member('member.joined', 'sp2', 'Approved Vendors', 'Ben')
+  member('member.left', 'sp1', 'Design Team', 'Clara')
+  await flushAudit()
+
+  const kindsOf = async (query) => (await queryAudit(query)).entries.map((e) => e.kind).sort()
+  t.alike(await kindsOf({ search: 'approved', searchKinds: ['membership.approved'] }), ['member.joined', 'membership.approved'],
+    'a row passes the search on its kind OR its names: the label match and the space-name match both return')
+  t.alike(await kindsOf({ search: 'zugelassen', searchKinds: ['membership.approved'] }), ['membership.approved'],
+    'a label-only match returns the row although no name contains the term')
+  t.alike(await kindsOf({ search: 'approved' }), ['member.joined'], 'without searchKinds the search reads names only')
+  t.alike(await kindsOf({ kinds: ['member.left'], search: 'approved', searchKinds: ['membership.approved'] }), [],
+    'kinds stays a strict filter that the search cannot widen')
+})
+
 test('cursor pagination walks the whole log without repeats or gaps', async (t) => {
   await boot(t)
   for (let i = 0; i < 25; i++) member('member.joined', 'sp1', 'Design Team', 'peer' + i)
