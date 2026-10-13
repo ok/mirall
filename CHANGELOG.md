@@ -15,8 +15,8 @@ changes do not appear here.
 
 - **Search the Activity Log by what happened.** Typing an event such as
 "space created", "relay removed" or "downloaded" found nothing, in every
-language. Search now matches the event and the words of its sentence, not
-only names.
+language. Search now matches the event, the words of its sentence and the
+folder, path or relay name shown under an entry, not only names.
 - **Files you add no longer jump around the list.** A new file appears
 right where it stays, instead of at the top until Mirall has listed it.
 - **Who has a file no longer lists waiting members as downloading.**
