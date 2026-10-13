@@ -1,17 +1,19 @@
-// One overlay fetch, instrumented. The mirror's materialize runs the whole thing (runOverlayFetch);
-// the download engine builds only the instruments (makeFetchInstruments) and keeps its own settle,
-// because its engine call resolves { ok, code } instead of throwing. What differs (where the bytes
-// go, what a settle means durably, who owns the row) stays with the caller.
+// One overlay fetch: the gate bracket both producers hold a slot through (runGatedFetch), and the
+// instruments around the engine call. The mirror's materialize runs the whole call
+// (runOverlayFetch); the download engine builds only the instruments (makeFetchInstruments) and
+// keeps its own settle, because its engine call resolves { ok, code } instead of throwing. What
+// differs (where the bytes go, what a settle means durably, who owns the row) stays with the caller.
 //
 // `attempted` is true once a chunk scheduler ran — i.e. onEnd fired — which is what separates "a
 // holder was asked and the transfer died" (a give-up worth a WARN) from "no holder was ever
 // reachable" (a benign retry-next-tick). It rides the error too, so a caller that catches can
 // still tell the two apart.
 //
-// Imports nothing that only loads under Bare, so test/unit drives the diag directly.
+// Imports nothing that only loads under Bare, so test/unit drives the diag and the bracket directly.
 import { makeProgressTicker } from '../progress-ticker.js'
 import { createLogger } from '../../core/logger.js'
 import { DELIBERATE_STOPS, FETCH_OUTCOME } from './fetch-outcome.js'
+import { acquireFetchSlot } from './fetch-gate.js'
 
 const log = createLogger('overlay-fetch')
 
@@ -73,6 +75,44 @@ export function makeFetchInstruments({ label, relPath, size = 0, contentHash = n
       onVerify,
       onEnd: diag.onEnd,
     },
+  }
+}
+
+// The gated half every producer runs: a slot on its lane, then a re-check of whatever the wait may
+// have changed (it is unbounded, and a drained gate resumes waiters with a no-op release), then the
+// producer's own fetch and settle while the slot is held. The bracket owns the slot, so it releases
+// it on every exit, a `wait` that throws included, and a throw from any hook reaches the caller
+// unchanged. Everything else (the claim, the in-flight marker, the abort and the fault policy) stays
+// with each producer, inside `holding`.
+/**
+ * @template T
+ * @param {{
+ *   express?: boolean,
+ *   owner?: string | null,
+ *   wait?: (acquire: () => Promise<() => void>) => Promise<() => void>,
+ *   recheck: () => string | null,
+ *   abandon: (reason: string) => T | Promise<T>,
+ *   holding: () => Promise<T>,
+ * }} task
+ * @returns {Promise<T>}
+ */
+export async function runGatedFetch({ express = false, owner = null, wait = (acquire) => acquire(), recheck, abandon, holding }) {
+  /** @type {Promise<() => void> | null} */
+  let slot = null
+  let release
+  try {
+    release = await wait(() => (slot = acquireFetchSlot({ express, owner })))
+  } catch (err) {
+    // Whenever the gate admits it: a wait can throw while the slot is still queued.
+    slot?.then((free) => free(), () => {})
+    throw err
+  }
+  try {
+    const reason = recheck()
+    if (reason) return await abandon(reason)
+    return await holding()
+  } finally {
+    release()
   }
 }
 
