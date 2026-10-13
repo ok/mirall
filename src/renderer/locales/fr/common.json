@@ -83,7 +83,7 @@
     "filesError": "Impossible de charger les fichiers",
     "filesErrorHint": "La liste des fichiers a mis trop de temps à charger. Cela peut arriver pendant la synchronisation des fichiers ou lorsqu'un pair est hors ligne.",
     "filesRetry": "Réessayer",
-    "listIncomplete": "Les fichiers de certains membres sont encore en cours de chargement ; d'autres peuvent apparaître.",
+    "listIncomplete": "Les listes de fichiers de certains membres ne peuvent pas encore être lues ; d'autres fichiers peuvent apparaître.",
     "emptyShareTitle": "Rien n'est encore partagé",
     "emptyShareSubtitle": "Glissez des fichiers ou des dossiers dans la zone à droite pour commencer à partager dans cet espace.",
     "emptyShareDocsTitle": "Ce qui se passe quand vous partagez",

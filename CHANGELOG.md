@@ -13,9 +13,9 @@ changes do not appear here.
 
 #### Changed
 
-- **The space file list says when it is still loading.** While a member
-who is online has not sent their file list yet, the list says more files
-may appear, instead of looking complete or empty.
+- **The space file list says when it may be incomplete.** While the file
+list of a member who is online cannot be read yet, the list says more
+files may appear, instead of looking complete or empty.
 
 #### Fixed
 

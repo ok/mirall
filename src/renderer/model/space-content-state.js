@@ -16,7 +16,7 @@ export function showSpaceEmptyState({ filesLoading, sharesLoading, filesError, f
   return fileCount === 0 && shareCount === 0
 }
 
-// The still-loading note answers the listing, never `loading` (which re-raises on every refetch),
+// The may-be-incomplete note answers the listing, never `loading` (which re-raises on every refetch),
 // and gives way to the retry card when a failed read left nothing to show.
 /** @param {SpacePaneState} state */
 export function showFilesIncomplete({ filesLoading, filesError, filesIncomplete, fileCount }) {
