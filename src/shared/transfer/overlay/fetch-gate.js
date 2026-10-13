@@ -55,7 +55,8 @@ export function resetFetchClaims() {
 
 // One gate for every overlay fetch in the process — the download engine and every mirror. The
 // limit bounds what an in-flight fetch owns (a chunk scheduler, a watchdog, an fd and a ticker),
-// and that cost is per fetch, not per producer.
+// and that cost is per fetch, not per producer. Every producer holds its slot through
+// runGatedFetch (fetch-run.js).
 //
 // Named fetch-gate rather than admission: src/shared/network/ already has admission-gates.js and
 // deferred-admission.js, and both are about admitting PEERS.
