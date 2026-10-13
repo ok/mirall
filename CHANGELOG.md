@@ -22,6 +22,9 @@ right where it stays, instead of at the top until Mirall has listed it.
 - **Who has a file no longer lists waiting members as downloading.**
 Members who wait for you to finish indexing, or who are offline, now show
 under Waiting instead of Downloading.
+- **The Activity Log names your folders.** Moving a folder logged "You moved
+the folder" with no name, and a renamed folder's entries showed its old
+name. Entries now use the name you see, and searching for it finds them.
 
 ## v1.12.0
 

@@ -11,6 +11,12 @@ test('a share record is classified with its space and share ids', (t) => {
     { kind: 'share', spaceId: 'sp1', shareId: 'sh1', removed: false, name: 'Designs', state: null })
 })
 
+test('a renamed share classifies with the name its owner gave it', (t) => {
+  t.is(classifyProfileChange({ type: 'put', key: 'share/sp1/sh1', value: { name: 'Vault', displayName: 'Archive' } }).name, 'Archive')
+  t.is(classifyProfileChange({ type: 'put', key: 'share/sp1/sh1', value: { name: 'Vault', displayName: 'Archive', deletedAt: 1 } }).name, 'Archive',
+    'a tombstone keeps the label, so the deletion row names the folder people knew')
+})
+
 test('a tombstoned share reads as removed, whether by del or deletedAt', (t) => {
   t.is(classifyProfileChange({ type: 'del', key: 'share/sp1/sh1', value: null }).removed, true)
   t.is(classifyProfileChange({ type: 'put', key: 'share/sp1/sh1', value: { name: 'X', deletedAt: 1 } }).removed, true,

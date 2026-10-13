@@ -204,7 +204,7 @@ export function registerShares(ipc, { log, intents, mountOwnedShare }) {
     record('share.deleted', {
       actor: selfActor(),
       space: spaceRefOf(space),
-      target: targetRef(TARGET_KIND.SHARE, msg.shareId, share?.name ?? null),
+      target: targetRef(TARGET_KIND.SHARE, msg.shareId, shareLabel(share)),
     })
     ipc.emit('event:shares-updated', { spaceId: msg.spaceId })
     return { ok: true }

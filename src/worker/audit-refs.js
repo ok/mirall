@@ -9,6 +9,7 @@ import { listSharesForSpace } from '../shared/shares/share-registry.js'
 import { getLocalPublicKeyHex } from '../shared/spaces/profile.js'
 import { setAuditIdentity } from '../shared/audit/audit-log.js'
 import { peerActor, spaceRef } from '../shared/audit/audit-record.js'
+import { shareLabel } from '../shared/shares/share-label.js'
 
 export function refreshAuditSelfName(displayName) {
   setAuditIdentity({ key: getLocalPublicKeyHex(), name: displayName })
@@ -37,7 +38,7 @@ export function fileNameOf(path) {
 export async function shareNameOrNull(spaceId, ownerKey, shareId) {
   try {
     const all = await listSharesForSpace(spaceId)
-    return all.find((s) => s.id === shareId && s.owner === ownerKey)?.name ?? null
+    return shareLabel(all.find((s) => s.id === shareId && s.owner === ownerKey))
   } catch {
     return null
   }
