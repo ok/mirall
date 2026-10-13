@@ -13,7 +13,7 @@ import { revealFile } from '../../shared/transfer/reveal.js'
 import { overlayBackend } from '../../shared/transfer/overlay/index.js'
 import { cancelShareDownload, looseShareOfOwner, pauseShareDownload } from '../../shared/transfer/overlay/share-downloads.js'
 import { looseCancelPublish, handleLooseFsEvent } from '../../shared/transfer/overlay/loose-publish.js'
-import { LOOSE_SHARE_ID, isLooseTransferId, looseRelPath, transferIdParts } from '../../shared/transfer/transfer-id.js'
+import { LOOSE_SHARE_ID, looseRelPath, transferIdParts } from '../../shared/transfer/transfer-id.js'
 import { subscribeServeDetail, unsubscribeServeDetail, dropServeDetailClient, listServeSummaries } from '../../shared/transfer/serve-ledger.js'
 import { listFileRecipients } from '../../shared/transfer/file-recipients.js'
 import { rescueStalledTransfers } from '../../shared/network/convergence-tick.js'
@@ -104,14 +104,10 @@ export function registerFiles(ipc, { log }) {
     const id = msg.transferId
     // One verb for "stop it and drop the partial", from a downloading row's Cancel and a paused or
     // failed row's Discard alike. A settled row is resolved from its pending row, and a row with
-    // nothing left to stop is stale, so its listing — named by the id's shape — is told to
-    // re-derive it.
+    // nothing left to stop is stale, so its own listing re-derives it.
     const found = await cancelShareDownload(id)
     const parts = transferIdParts(id)
-    if (!found && parts) {
-      if (isLooseTransferId(id)) ipc.emit('event:files-updated', { spaceId: parts.spaceId })
-      else ipc.emit('event:share-files-updated', { spaceId: parts.spaceId, shareId: parts.shareId })
-    }
+    if (!found && parts) ipc.emit('event:share-files-updated', { spaceId: parts.spaceId, shareId: parts.shareId })
     return { ok: true }
   })
   ipc.handle('files:pause-download', async (msg) => {

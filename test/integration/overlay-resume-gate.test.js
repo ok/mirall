@@ -301,16 +301,18 @@ test('cancel of an id with neither a slot nor a row is a clean no-op', async (t)
 })
 
 // The engine keeps a no-op silent; the click that found nothing is the handler's to answer, because
-// the row that offered it is stale and would otherwise keep its dead Discard.
-test('a cancel click that finds nothing re-derives the stale row on the right listing', async (t) => {
+// the row that offered it is stale and would otherwise keep its dead Discard. The id names its share,
+// so the poke reaches that one listing, loose or folder alike.
+test('a cancel click that finds nothing re-derives the stale row on its own listing', async (t) => {
   await setup(t)
   const fake = createFakeIpc()
   registerFiles(fake.ipc, { log: silentLog })
 
   t.alike(await fake.call('files:cancel-download', { transferId: SPACE + '|folder1|gone.bin' }), { ok: true })
-  t.alike(fake.emitted('event:share-files-updated').map((e) => e.payload), [{ spaceId: SPACE, shareId: 'folder1' }])
   t.alike(await fake.call('files:cancel-download', { transferId: SPACE + '|__loose__|gone.bin' }), { ok: true })
-  t.alike(fake.emitted('event:files-updated').map((e) => e.payload), [{ spaceId: SPACE }])
+  t.alike(fake.emitted('event:share-files-updated').map((e) => e.payload),
+    [{ spaceId: SPACE, shareId: 'folder1' }, { spaceId: SPACE, shareId: LOOSE_SHARE_ID }])
+  t.is(fake.emitted('event:files-updated').length, 0, 'never every listing in the space')
 })
 
 // The remove handler's own poke names the loose list rather than every listing in the space. The
@@ -341,5 +343,6 @@ test('REGRESSION (FIX-10: the cancel handler reaches the engine whether or not a
 
   const handler = src.slice(from, to)
   t.ok(handler.includes('await cancelShareDownload(id)'), 'cancel hands every id to the engine')
+  t.ok(handler.includes('transferIdParts(id)'), 'a stale row re-derives on the id\'s own share')
   t.absent(handler.includes('hasShareDownload('), 'cancel does not gate on a live slot')
 })
