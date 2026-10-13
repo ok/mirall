@@ -7,6 +7,7 @@
 // what keeps a deep hit reachable.
 
 import { collectFolderPaths, rollupNodes } from './file-tree.js'
+import { foldSearchText } from '../../shared/contract/text-fold.js'
 
 // Revealing every matched branch is "Expand all, on every keystroke", so it is gated on the size of
 // the result rather than on the length of the term: a term that matches almost everything (typing a
@@ -20,7 +21,7 @@ const REVEAL_MAX_MATCHES = 200
 
 /** @param {string} name @param {string} needle */
 function matches(name, needle) {
-  return name.toLowerCase().includes(needle)
+  return foldSearchText(name).includes(needle)
 }
 
 /** @param {FileTreeNode[]} nodes */
@@ -64,7 +65,7 @@ function filterNodes(nodes, needle, revealPaths) {
 // caller treats both the same way.
 /** @param {FileTreeNode[]} nodes @param {string} term @returns {FilteredTree} */
 export function filterTree(nodes, term) {
-  const needle = String(term || '').trim().toLowerCase()
+  const needle = foldSearchText(String(term || '').trim())
   if (!needle) return { nodes, matched: null, revealPaths: null }
   /** @type {Set<string>} */
   const revealPaths = new Set()

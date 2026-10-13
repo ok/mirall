@@ -52,6 +52,12 @@ test('the match is case-insensitive and looks at the segment, not the whole path
   t.is(filterTree(buildFileTree(FILES), 'Tune/01').matched, 0, 'the separator is not part of any name')
 })
 
+test('REGRESSION (FIX-643: a name stored decomposed was not found by its composed spelling)', (t) => {
+  const tree = buildFileTree([entry('Berichte/März.pdf'), entry('Müller.txt')])
+  t.is(filterTree(tree, 'märz').matched, 1, 'a composed term finds a name that arrived decomposed')
+  t.is(filterTree(tree, 'MÜLLER').matched, 1, 'a decomposed term finds a name that arrived composed')
+})
+
 test('no match returns an empty tree and a zero count', (t) => {
   const result = filterTree(buildFileTree(FILES), 'xyzzy')
   t.alike(result.nodes, [])
