@@ -2,13 +2,13 @@ import test from 'brittle'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'
-import { showSpaceEmptyState, showSpaceLoading } from '../../src/renderer/model/space-content-state.js'
+import { showFilesIncomplete, showSpaceEmptyState, showSpaceLoading } from '../../src/renderer/model/space-content-state.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const rendererDir = path.join(here, '..', '..', 'src', 'renderer')
 const read = (...p) => readFileSync(path.join(rendererDir, ...p), 'utf8')
 
-const settled = { filesLoading: false, sharesLoading: false, filesError: null, fileCount: 0, shareCount: 0 }
+const settled = { filesLoading: false, sharesLoading: false, filesError: null, filesIncomplete: false, fileCount: 0, shareCount: 0 }
 
 test('showSpaceEmptyState: a settled space with neither files nor folders is empty', (t) => {
   t.ok(showSpaceEmptyState(settled))
@@ -33,6 +33,19 @@ test('showSpaceEmptyState: a failed file listing is unknown, not empty', (t) => 
   // The files section owns that case with its own retry card; claiming "nothing shared yet"
   // over a listing that never arrived would be a lie.
   t.absent(showSpaceEmptyState({ ...settled, filesError: 'IPC timeout' }))
+})
+
+test('showSpaceEmptyState: a listing still waiting on a reachable member is unknown, not empty', (t) => {
+  t.absent(showSpaceEmptyState({ ...settled, filesIncomplete: true }))
+})
+
+test('showFilesIncomplete: the note follows the listing, over rows or none', (t) => {
+  t.absent(showFilesIncomplete(settled), 'a whole listing says nothing')
+  t.ok(showFilesIncomplete({ ...settled, filesIncomplete: true }), 'no rows yet: the note stands in for the empty state')
+  t.ok(showFilesIncomplete({ ...settled, filesIncomplete: true, fileCount: 2 }), 'rows so far: more may come')
+  t.absent(showFilesIncomplete({ ...settled, filesIncomplete: true, filesLoading: true }), 'the cold-load indicator speaks first')
+  t.absent(showFilesIncomplete({ ...settled, filesIncomplete: true, filesError: 'IPC timeout' }), 'the retry card owns a failed read with nothing shown')
+  t.ok(showFilesIncomplete({ ...settled, filesIncomplete: true, filesError: 'IPC timeout', fileCount: 1 }), 'rows kept through a failed refetch keep the note')
 })
 
 test('showSpaceLoading: files loading shows the indicator even under folder cards', (t) => {

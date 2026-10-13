@@ -111,6 +111,7 @@
     "filesError": "Couldn't load files",
     "filesErrorHint": "The file list took too long to load. This can happen while files are still syncing or a peer is offline.",
     "filesRetry": "Try again",
+    "listIncomplete": "Some members' files are still loading, so more may appear.",
     "emptyShareTitle": "Nothing shared yet",
     "emptyShareSubtitle": "Drag files or folders into the share area on the right to start sharing with this space.",
     "emptyShareDocsTitle": "What happens when you share",

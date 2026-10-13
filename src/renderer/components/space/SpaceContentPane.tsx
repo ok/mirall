@@ -7,7 +7,7 @@ import SpaceSharesSection from './SpaceSharesSection.js'
 import SpaceFilesPane from './SpaceFilesPane.js'
 import { useFileRecipients } from '../../hooks/useFileRecipients.js'
 import { useHasVerticalOverflow } from '../../hooks/useHasVerticalOverflow.js'
-import { showSpaceEmptyState, showSpaceLoading } from '../../model/space-content-state.js'
+import { showFilesIncomplete, showSpaceEmptyState, showSpaceLoading } from '../../model/space-content-state.js'
 import type { ComponentProps } from 'react'
 import type { SpaceMember } from '../../types/types.js'
 
@@ -108,6 +108,7 @@ export default function SpaceContentPane(props: SpaceContentPaneProps) {
               spaceId={spaceId}
               members={members}
               loading={showSpaceLoading(pane)}
+              incomplete={showFilesIncomplete(pane)}
               onReveal={a.revealFile}
               onUnshare={a.removeFile}
               onCancelPublish={a.cancelPublish}

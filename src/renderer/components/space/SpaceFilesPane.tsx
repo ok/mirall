@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 import Icon from '../primitives/Icon.js'
 import FileCard from '../cards/FileCard.js'
 import LoadingHeadline from '../primitives/LoadingHeadline.js'
+import Callout from '../primitives/Callout.js'
 import SpaceSection from './SpaceSection.js'
 import type { ComponentProps } from 'react'
 import type { FileEntry } from '../../types/types.js'
@@ -19,6 +20,8 @@ type SpaceFilesPaneProps = Pick<CardProps,
   /** Our own person key; a row whose owner it is reads as ours. Null until the profile lands. */
   selfKey: PersonKey | null
   loading: boolean
+  /** A reachable member's list has not been read in full yet, so more rows may arrive. */
+  incomplete: boolean
   error: unknown
   onRetry: () => void
   getDecoration: (path: string) => CardProps['decoration']
@@ -28,7 +31,8 @@ type SpaceFilesPaneProps = Pick<CardProps,
 }
 
 /**
- * The loose-file half of a space: still loading, unreadable, or a list.
+ * The loose-file half of a space: still loading, unreadable, or a list, with a note above it while
+ * a reachable member's files are still being read.
  *
  * The error branch is the only one with an action, because it is the only one the user can do
  * anything about — an empty list is not an error and renders nothing, since the screen's own
@@ -36,7 +40,7 @@ type SpaceFilesPaneProps = Pick<CardProps,
  */
 export default function SpaceFilesPane(props: SpaceFilesPaneProps) {
   const { t } = useTranslation()
-  const { files, selfKey, loading, error, onRetry, getDecoration, isSeeded, getDownloadSummary, getRecipients, ...card } = props
+  const { files, selfKey, loading, incomplete, error, onRetry, getDecoration, isSeeded, getDownloadSummary, getRecipients, ...card } = props
 
   if (loading) return <LoadingHeadline label={t('space.loadingFiles')} />
 
@@ -60,10 +64,12 @@ export default function SpaceFilesPane(props: SpaceFilesPaneProps) {
     )
   }
 
-  if (files.length === 0) return null
+  const note = incomplete ? <Callout tone="note">{t('space.listIncomplete')}</Callout> : null
+  if (files.length === 0) return note
 
   return (
     <SpaceSection title={t('space.filesShared')} count={t('space.fileCount', { count: files.length })}>
+      {note}
       {files.map((file) => (
         <FileCard
           key={`${file.owner.publicKey}-${file.path}`}

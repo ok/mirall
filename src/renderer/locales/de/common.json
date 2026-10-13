@@ -83,6 +83,7 @@
     "filesError": "Dateien konnten nicht geladen werden",
     "filesErrorHint": "Die Dateiliste hat zu lange zum Laden gebraucht. Das kann passieren, während Dateien noch synchronisiert werden oder ein Peer offline ist.",
     "filesRetry": "Erneut versuchen",
+    "listIncomplete": "Die Dateien einiger Mitglieder werden noch geladen – es können weitere erscheinen.",
     "emptyShareTitle": "Noch nichts geteilt",
     "emptyShareSubtitle": "Zieh Dateien oder Ordner in den Bereich rechts, um sie in diesem Raum zu teilen.",
     "emptyShareDocsTitle": "Was beim Teilen passiert",

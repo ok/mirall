@@ -11,6 +11,12 @@ changes do not appear here.
 
 ## Unreleased
 
+#### Changed
+
+- **The space file list says when it is still loading.** While a member
+who is online has not sent their file list yet, the list says more files
+may appear, instead of looking complete or empty.
+
 #### Fixed
 
 - **A folder whose file list arrived only partly now fills in on its
