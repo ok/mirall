@@ -466,10 +466,12 @@ that text from the row, so rows of every version match alike; the stored `search
 for the export. It excludes the kind, so stored text stays locale-neutral. The renderer resolves a
 typed term to the kinds whose translated label or sentence contains it and sends them as
 `searchKinds` beside `search`; a row passes the search when its text contains the term or its kind
-is listed. `kinds` is a separate strict filter the search cannot widen. Each kind carries an
-attribution tier (`src/shared/contract/audit-kinds.js`): A first-party, B authenticated peer action,
-C derived from a peer's replicated bee (authorship proven, time self-reported). No event class
-scales with file count; a per-kind token bucket collapses overflow into one `audit.suppressed` row.
+is listed. Both sides are folded by `foldSearchText` (`src/shared/contract/text-fold.js`: lowercase,
+then NFC), so a name Finder stored decomposed matches its composed spelling. `kinds` is a separate
+strict filter the search cannot widen. Each kind carries an attribution tier
+(`src/shared/contract/audit-kinds.js`): A first-party, B authenticated peer action, C derived from a
+peer's replicated bee (authorship proven, time self-reported). No event class scales with file count;
+a per-kind token bucket collapses overflow into one `audit.suppressed` row.
 The episode kinds are capped per person per day as well (`src/shared/audit/episode-cap.js`: absences
 in `presence-episodes.js`, relayed stretches in `relay-episodes.js`), with one marker on the
 transition into the cap.

@@ -158,6 +158,28 @@ test("REGRESSION (FIX-642: search missed the folder and path names on a row's se
   t.alike(await kindsOf('Quarterly Reports'), ['transfer.completed'], 'a row stored with names only is found by its folder too')
 })
 
+test('REGRESSION (FIX-643: a name stored decomposed was not found by its composed spelling)', async (t) => {
+  await boot(t)
+  const file = (id, name) => record('file.shared', {
+    actor: { type: 'self', key: 'me', name: 'Me' },
+    space: { id: 'sp1', name: 'Design Team' },
+    target: { kind: 'file', id, name },
+  })
+  file('f1', 'Bericht_Ma\u0308rz.pdf')
+  file('f2', 'M\u00fcller.txt')
+  file('f3', 'Gr\u00fc\u00dfe.txt')
+  await flushAudit()
+  const bee = auditBee()
+  const stored = (await bee.get(evtKey(2))).value
+  t.is(stored.target.id, 'f3')
+  await bee.put(evtKey(2), { ...stored, target: { ...stored.target, name: 'Gru\u0308\u00dfe.txt' } })
+
+  const targetsOf = async (search) => (await queryAudit({ search })).entries.map((e) => e.target.id)
+  t.alike(await targetsOf('m\u00e4rz'), ['f1'], 'a composed term finds a name that arrived decomposed')
+  t.alike(await targetsOf('MU\u0308LLER'), ['f2'], 'a decomposed term finds a name that arrived composed')
+  t.alike(await targetsOf('gr\u00fc\u00dfe'), ['f3'], 'a row whose name was stored decomposed is found without a backfill')
+})
+
 test('cursor pagination walks the whole log without repeats or gaps', async (t) => {
   await boot(t)
   for (let i = 0; i < 25; i++) member('member.joined', 'sp1', 'Design Team', 'peer' + i)

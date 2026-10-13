@@ -18,6 +18,7 @@
 import { isKnownKind, categoryOf, tierOf, ACTOR_TYPE, OUTCOME, OUTCOMES, TARGET_KINDS } from '../contract/audit-kinds.js'
 import { NAME_MAX } from '../contract/limits.js'
 import { shownSubject } from '../contract/audit-subject.js'
+import { foldSearchText } from '../contract/text-fold.js'
 
 export const SCHEMA_VERSION = 2
 
@@ -52,8 +53,10 @@ export function targetRef(kind, id, name) {
 const SEARCH_MAX = 300
 const CODE_MAX = 64
 
+// Composed before the clamp: a decomposed name is longer in code units, so clamping it first would
+// keep less of it than its composed spelling and could cut an accent off its letter.
 function clampName(value) {
-  return typeof value === 'string' && value ? value.slice(0, NAME_MAX) : null
+  return typeof value === 'string' && value ? value.normalize('NFC').slice(0, NAME_MAX) : null
 }
 
 function normalizeActor(actor) {
@@ -80,10 +83,11 @@ function normalizeTarget(target) {
 // locales without storing localized text. A query derives this from the row rather than reading
 // the stored `search`, so a row written by any version is found by everything it shows.
 export function searchText(rec) {
-  return [rec.actor?.name, rec.space?.name, rec.target?.name, ...Object.values(shownSubject(rec.kind, rec.subject))]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase()
+  return foldSearchText(
+    [rec.actor?.name, rec.space?.name, rec.target?.name, ...Object.values(shownSubject(rec.kind, rec.subject))]
+      .filter(Boolean)
+      .join(' '),
+  )
 }
 
 export function buildRecord({
