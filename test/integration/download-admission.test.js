@@ -209,6 +209,38 @@ test('draining the gate at shutdown does not start a fetch into a torn-down over
   t.is(fetchSlotStats().queued, 0, 'and nothing is left holding close() open')
 })
 
+// The case above cannot see the re-check: with the overlay gone the default fetch refuses on its
+// own, so a waiter that skipped the re-check looks the same as one that ran it. Here the overlay
+// probe and the fetch are the engine's injected ones, so only the re-check stands between a drained
+// waiter and the fetch.
+test('a drained waiter re-checks the overlay before it fetches', async (t) => {
+  const ctx = await setup(t, 1)
+  let overlayLive = true
+  const fetched = []
+  const parked = []
+  let updates = 0
+  const engine = createOverlayDownloadEngine(testChannel({ emitUpdated: () => { updates += 1 } }), {
+    hasOverlay: () => overlayLive,
+    fetchImpl: async (hash) => { fetched.push(hash); await new Promise((resolve) => parked.push(resolve)); return { ok: true } },
+  })
+
+  await engine.start(makeJob(ctx, 1))
+  t.ok(await until(() => fetched.length === 1), 'the first holds the slot')
+  await engine.start(makeJob(ctx, 2))
+  t.ok(await until(() => fetchSlotStats().queued === 1), 'the second is parked on the gate')
+
+  const before = updates
+  overlayLive = false
+  drainFetchSlots()
+  t.ok(await until(() => updates > before || fetched.length > 1), 'the drained waiter settled one way or the other')
+  t.is(fetched.length, 1, 'it abandoned instead of fetching')
+  t.is(fetchSlotStats().queued, 0, 'and nothing is left holding close() open')
+
+  // The first fetch settles here rather than against a closing data layer.
+  for (const resolve of parked.splice(0)) resolve()
+  t.ok(await until(() => fetchSlotStats().held === 0), 'the held fetch settled and freed its slot')
+})
+
 // The cap is the process's, not an engine instance's: an engine built per lifetime (or a second one
 // in a test) shares the one gate, so a configured cap is never multiplied by the instance count.
 test('the cap counts fetches across producers, not per engine', async (t) => {

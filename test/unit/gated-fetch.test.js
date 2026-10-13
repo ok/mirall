@@ -73,6 +73,26 @@ test('a throw from any hook reaches the caller unchanged and releases the slot',
   }
 })
 
+test('a wait that throws while its slot is still queued frees that slot once the gate admits it', async (t) => {
+  withCap(t, 1)
+  const hog = await acquireFetchSlot({})
+  const boom = new Error('wait failed')
+  const { seen, task } = recorder({ wait: async (acquire) => { acquire(); throw boom } })
+  let caught = null
+  try { await runGatedFetch(task) } catch (err) { caught = err }
+  t.is(caught, boom, 'the throw is the caller\'s rejection')
+  t.is(fetchSlotStats().queued, 1, 'precondition: the slot the wait asked for is still queued')
+  t.is(seen.rechecks, 0, 'and nothing past the wait ran')
+
+  hog()
+  await settle()
+  t.is(fetchSlotStats().held, 0, 'the queued slot was freed as soon as it was admitted')
+  let admitted = false
+  acquireFetchSlot({}).then((free) => { admitted = true; free() })
+  await settle()
+  t.ok(admitted, 'so the next acquire is admitted')
+})
+
 test('express passes through: a click runs past a held slot', async (t) => {
   withCap(t, 1)
   const hog = await acquireFetchSlot({})
