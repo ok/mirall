@@ -39,6 +39,18 @@ export function recordPending(spaceId, filePath, info) {
   return exclusive(key, () => bee.put(key, { ...info, updatedAt: Date.now() }))
 }
 
+// An intent row: written unless the key already holds a row with progress (bytes landed or a
+// content hash), which the reconcile resumes from where it stopped. Read and write share the key's
+// lock, so a progress write cannot land between them.
+export function recordPendingIntent(spaceId, filePath, info) {
+  const key = rowKey(spaceId, filePath)
+  return exclusive(key, async () => {
+    const cur = (await bee.get(key))?.value
+    if (cur?.bytesTransferred > 0 || cur?.contentHash) return
+    await bee.put(key, { ...info, updatedAt: Date.now() })
+  })
+}
+
 export function updatePendingProgress(spaceId, filePath, bytes) {
   const key = rowKey(spaceId, filePath)
   return exclusive(key, async () => {

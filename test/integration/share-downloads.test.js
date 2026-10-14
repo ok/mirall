@@ -233,6 +233,35 @@ test('a preparing loose entry keeps its intent row and arms the row share-wait a
   t.is(rowAtWait, true, 'armed only once the row had landed')
 })
 
+test('REGRESSION (FIX-667: a click the catalog cannot answer keeps a paused loose row\'s progress)', async (t) => {
+  const ctx = await setup(t)
+  // Encrypted at an epoch this peer holds no key for: the catalog is unreadable.
+  const loose = looseShareFor({ publicKey: OWNER, looseCatalogKeyEnc: KEY, looseCatalogEpoch: 7 })
+  const calls = stubEngine(t)
+  const paused = {
+    total: 8192, inPlace: true, ownerKey: OWNER, finalPath: path.join(ctx.tmpDir('dl'), 'a.bin'), contentHash: HASH, sourceSeq: 3,
+    bytesTransferred: 4096, shareId: LOOSE_SHARE_ID, relPath: 'a.bin',
+  }
+  await recordPending(ctx.spaceId, '/a.bin', paused)
+
+  t.alike(await requestShareDownload(ctx.spaceId, loose, 'a.bin'), { queued: true }, 'queued for the reconcile')
+  const row = await getPendingFor(ctx.spaceId, '/a.bin')
+  t.alike({ ...row, updatedAt: undefined }, { ...paused, updatedAt: undefined }, 'the paused row keeps its bytes, hash and destination')
+  t.ok(calls.clearPauseMarker.includes(looseTransferIdFor(ctx.spaceId, 'a.bin')), 'and its pause is retired, so the reconcile resumes it')
+})
+
+test('a click the catalog cannot answer replaces a loose row with no progress by an intent row', async (t) => {
+  const ctx = await setup(t)
+  const loose = looseShareFor({ publicKey: OWNER, looseCatalogKeyEnc: KEY, looseCatalogEpoch: 7 })
+  stubEngine(t)
+  await recordPending(ctx.spaceId, '/a.bin', { inPlace: true, shareId: LOOSE_SHARE_ID, relPath: 'a.bin', ownerKey: OWNER, total: 0, bytesTransferred: 0, errorCode: 'X' })
+
+  t.alike(await requestShareDownload(ctx.spaceId, loose, 'a.bin'), { queued: true })
+  const row = await getPendingFor(ctx.spaceId, '/a.bin')
+  t.alike({ ...row, updatedAt: undefined }, { inPlace: true, shareId: LOOSE_SHARE_ID, relPath: 'a.bin', ownerKey: OWNER, total: 0, updatedAt: undefined },
+    'a fresh intent row')
+})
+
 test('a hashed entry starts on the one engine for both kinds', async (t) => {
   const ctx = await setup(t)
   const { loose, folder } = await ownAsPeer(ctx)
