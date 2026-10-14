@@ -12,6 +12,7 @@ import { CODES } from '../../src/shared/contract/errors.js'
 import fs from 'bare-fs'
 import { capture } from '../helpers/capture-console.js'
 import { setVerbose } from '../helpers/runtime-verbose.js'
+import { diagEnds } from '../helpers/fetch-diag-lines.js'
 
 // REGRESSION (FIX-129): a disk-write failure during an overlay mirror fetch must
 // pause the mount with a surfaced status — same classification as the eager path —
@@ -180,14 +181,6 @@ test('a successful pass clears the reason with the status', async (t) => {
   t.is(mount.lastError, null, 'a stale reason would name the next fault that records none')
 })
 
-// The diag's own lines for the one entry, minus its opening ones: what is left is how it closed.
-// The diag exposes no readable state, so its log lines are the artifact.
-function diagEnds(lines) {
-  return [...lines.log, ...lines.warn]
-    .filter((l) => l.startsWith('[overlay-fetch]') && l.includes('big.bin'))
-    .filter((l) => !/ start: | scheduler end: /.test(l))
-}
-
 // REGRESSION (FIX-660: a rejection that paused the mount returned before closing the fetch's diag,
 // so its `start:` line was the only one in the log with no terminal line after it.)
 test('REGRESSION (FIX-660): a rejection that pauses the mount closes its fetch diag as paused', async (t) => {
@@ -198,7 +191,7 @@ test('REGRESSION (FIX-660): a rejection that pauses the mount closes its fetch d
   await runMaterializeTick(spaceId, shareId)
 
   t.is((await getForeignMount(spaceId, shareId)).status, 'paused-enospc', 'precondition: the rejection paused the mount')
-  const ends = diagEnds(lines)
+  const ends = diagEnds(lines, 'big.bin')
   t.is(ends.length, 1, 'the diag is settled once')
   t.ok(ends[0]?.includes('overlay mirror paused:'), 'as a deliberate stop: ' + ends[0])
 })

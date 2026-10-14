@@ -2,6 +2,7 @@ import test from 'brittle'
 import { freshPeer } from '../helpers/store.js'
 import { capture } from '../helpers/capture-console.js'
 import { setVerbose } from '../helpers/runtime-verbose.js'
+import { diagEnds } from '../helpers/fetch-diag-lines.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { publishShare, generateShareId } from '../../src/shared/shares/shares.js'
 import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
@@ -43,13 +44,6 @@ async function mirrorRejecting(t, fault) {
   return { spaceId, shareId }
 }
 
-// The diag's own lines for the one entry, minus its opening ones: what is left is how it closed.
-function diagEnds(lines) {
-  return [...lines.log, ...lines.warn]
-    .filter((l) => l.startsWith('[overlay-fetch]') && l.includes('big.bin'))
-    .filter((l) => !/ start: | scheduler end: /.test(l))
-}
-
 // REGRESSION (FIX-FETCH-ANNOTATE: the diag and the attempt flag were assigned onto the rejection
 // unguarded. ESM is always strict, so a frozen rejection made those assignments throw a TypeError
 // that REPLACED the real fault — a full disk then reached the mirror as a bug in the
@@ -70,7 +64,7 @@ test('REGRESSION (FIX-FETCH-DIAG): a frozen rejection still closes its diag as f
   setVerbose(t, true)
   const lines = capture(t, ['log', 'warn'])
   await runMaterializeTick(spaceId, shareId)
-  const ends = diagEnds(lines)
+  const ends = diagEnds(lines, 'big.bin')
   t.is(ends.length, 1, 'closed exactly once')
   t.ok(ends[0]?.includes('INCOMPLETE'), 'as a give-up: ' + ends[0])
 })
@@ -82,7 +76,7 @@ test('a cancelled fetch closes its diag as paused', async (t) => {
   setVerbose(t, true)
   const lines = capture(t, ['log', 'warn'])
   await runMaterializeTick(spaceId, shareId)
-  const ends = diagEnds(lines)
+  const ends = diagEnds(lines, 'big.bin')
   t.is(ends.length, 1, 'closed exactly once')
   t.ok(ends[0]?.includes('overlay mirror paused:'), 'as a deliberate stop: ' + ends[0])
   t.absent(lines.warn.some((l) => l.includes('INCOMPLETE')), 'with no give-up WARN')
