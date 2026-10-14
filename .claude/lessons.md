@@ -164,6 +164,10 @@ compare assert counts across platforms.
 **Never blanket-stub `console.*` in a brittle test.** The runner emits TAP through it. Capture by
 the code-under-test's own prefix and forward everything else.
 
+**`sidecar.end()` never reaches the worker's pipe.** bare-sidecar has no `_final`, so ending the
+Duplex closes nothing and the worker never sees its host go. To simulate a host that died, close the
+pipe itself: `peer.sidecar._ipc.destroy()`.
+
 **Adding a required member to an injected `deps` bundle breaks every test double.** If it's an
 internal helper (memo, cache, formatter) rather than a substitutable collaborator, call it directly
 and assert its effect through a dep already injected.
@@ -588,6 +592,19 @@ that peer. Capture via an explicit bounded `get`, falling back to
 **Decode NDJSON on the newline byte, never `buffer += chunk.toString()`.** A split multi-byte
 character decodes to U+FFFD on both halves and `JSON.parse` succeeds. `0x0A` never occurs inside
 UTF-8 sequences.
+
+**A bare-pipe server's `close()` waits for every accepted connection, and an accepted pipe is
+half-open by default.** A peer that ends its side leaves ours open, so `close` never calls back:
+destroy what you accepted first. The same default means a bare-pipe client sees `end` but no `close`
+when the server drops it; treat `end` as gone.
+
+**The worker's socket file is stale at almost every launch.** Quit SIGKILLs a worker still tearing
+down (main's `process.on('exit')` backstop), and only a clean `close`/`Bare.exit` unlinks the file. The
+listener's probe-and-unlink path is the normal path, not a crash path, so it must stay cheap and
+silent.
+
+**Bare has no `TextEncoder`.** A pure module the worker loads counts UTF-8 bytes by code point
+(`socket-path.js`), or takes `b4a`; a Node unit test passing proves nothing about Bare.
 
 **Relay attribution is visible only through `blind-relay`'s `Client.from` + `'pair'` event.**
 hyperdht discards it. Relayed is transient (udx `'remote-changed'` upgrades it), so compare
