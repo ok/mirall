@@ -15,7 +15,7 @@ import { getDownloadDir, isInsideDownloadDir } from '../../core/paths.js'
 import { getOverlay } from './overlay-instance.js'
 import { fetchSlotsDrained } from './fetch-gate.js'
 import { discardResumeJournal } from './overlay-journals.js'
-import { PARTIAL_SUFFIX, partialPathFor } from '../partial-suffix.js'
+import { partialPathFor } from '../partial-suffix.js'
 import { isOwnerOnline } from '../../network/presence-leases.js'
 import { clearPending, recordPendingError, getPendingFor, listPendingForSpace } from '../pending-transfers.js'
 import { createPausedHolders } from './paused-holders.js'
@@ -25,6 +25,7 @@ import { createStallRetry } from './stall-retry.js'
 import { createLogger } from '../../core/logger.js'
 import { isTerminalFault } from './fetch-policy.js'
 import { freeBytesFor } from '../free-space-probe.js'
+import { folderAcceptsWrite, folderWritable } from '../folder-write-probe.js'
 import { createStart } from './download-start.js'
 import { createFetchSettle } from './fetch-settle.js'
 import { createReconcile } from './reconcile-scan.js'
@@ -60,33 +61,6 @@ export async function fetchContentToFile(contentHash, { finalPath, by, ownerKey,
 // belongs — reads as unavailable.
 function defaultDirExists(dir) {
   try { return fs.statSync(dir).isDirectory() } catch { return false }
-}
-
-// Whether a file can be created in the folder. Only a refusal counts: any other failure is not
-// evidence the folder is read-only. The probe carries the partial suffix, so the boot sweep reclaims
-// one a crash left behind.
-function defaultDirWritable(dir) {
-  const probe = path.join(dir, '.mirall-write-probe' + PARTIAL_SUFFIX)
-  try {
-    fs.closeSync(fs.openSync(probe, 'wx'))
-    fs.unlinkSync(probe)
-    return true
-  } catch (err) {
-    return !['EACCES', 'EPERM', 'EROFS'].includes(err?.code)
-  }
-}
-
-// Whether a file can be created in the folder, believed only when one actually is: a folder that is
-// gone or unreadable has not been fixed.
-function defaultDirAcceptsWrite(dir) {
-  const probe = path.join(dir, '.mirall-write-probe' + PARTIAL_SUFFIX)
-  try {
-    fs.closeSync(fs.openSync(probe, 'w'))
-    fs.unlinkSync(probe)
-    return true
-  } catch {
-    return false
-  }
 }
 
 // The convergence tick asks about every pending row, and a permission row's reading is a real
@@ -209,7 +183,7 @@ function abortFetch(slot, opts) {
 //
 // `hasOverlay` asks whether the overlay takes fetches: present, and its gate not drained
 // (drainFetchSlots in fetch-gate.js).
-export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentToFile, hasOverlay = () => !!getOverlay() && !fetchSlotsDrained(), freeBytes = freeBytesFor, stallRetry = {}, dirExists = defaultDirExists, dirWritable = defaultDirWritable, dirAcceptsWrite = defaultDirAcceptsWrite, now = Date.now } = {}) {
+export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentToFile, hasOverlay = () => !!getOverlay() && !fetchSlotsDrained(), freeBytes = freeBytesFor, stallRetry = {}, dirExists = defaultDirExists, dirWritable = folderWritable, dirAcceptsWrite = folderAcceptsWrite, now = Date.now } = {}) {
   const registry = new Map() // transferId -> slot (download-start.js makeSlot)
   // The marker is the user's intent — it outranks every automatic resume — and its hash lets a
   // later discard still tell the holder we stopped.

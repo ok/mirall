@@ -35,11 +35,12 @@ import { PARTIAL_SUFFIX } from '../transfer/partial-suffix.js'
 import { pathFromMount } from './path-guard.js'
 import { transferIdFor } from '../transfer/transfer-id.js'
 import { memberWaits } from '../network/share-wait.js'
+import { announceShareReceived } from '../network/share-received.js'
 import { SHARE_WAIT_SOURCE } from '../transfer/share-wait-set.js'
 import { pauseMount, pauseMountForIoError } from './foreign-pause.js'
 import { emitMirrorEvent } from './mirror-signals.js'
 import { MIRROR_DELETE, classifyLocalCopy, mayDeleteMirrorCopy, mayOverwriteInPlace, mirrorKey } from './mirror-policy.js'
-import { STATUS_MOUNT_GONE, statusForFaultCode } from './mount-fault.js'
+import { STATUS_MOUNT_GONE, faultFromError, statusForFaultCode } from './mount-fault.js'
 import { conflictCopyName } from './path-keys.js'
 import { freeMirrorRel } from './mirror-state.js'
 import { mountRootAvailable } from './publish-service.js'
@@ -173,13 +174,17 @@ export async function mirrorDeleteDecision(mount, ownerKey, localRel, onDisk) {
 // ensureRemote/release handshake — the holder serves on demand, gated by the
 // serve ACL. A null contentHash means the owner is still hashing; retry next tick.
 // A local I/O failure pauses the mount via the shared pauseMountForIoError
-// classification (full disk / permission / vanished mount); anything else is a
-// logged fetch miss.
-async function handleOverlayMirrorFetchError(mount, share, entry, err, { diag, writer }) {
+// classification (full disk / permission / vanished mount); one it declines to pause for is
+// charged to the file; anything else is a logged fetch miss.
+async function handleOverlayMirrorFetchError(mount, share, entry, err, { diag, writer, dir }) {
   // Order matters: a local I/O fault pauses the mount and is NOT a peer act. Auditing it would
   // blame a holder for our own full disk. A pause is a deliberate stop, and its diag says so.
-  if (await pauseMountForIoError(mount, err, { writer })) { diag?.finish('paused'); return }
+  if (await pauseMountForIoError(mount, err, { writer, dir })) { diag?.finish('paused'); return }
   diag?.finish('failed')
+  if (faultFromError(err)) {
+    chargeLocalFault(mount, entry, 'overlay mirror fetch hit a local fault the folder does not confirm:', err)
+    return
+  }
   const code = err?.code === 'EHASHMISMATCH' ? CODES.TRANSFER_CHECKSUM : null
   if (!code) {
     log.debug('overlay mirror fetch failed:', entry.relPath, '-', err.message)
@@ -187,10 +192,10 @@ async function handleOverlayMirrorFetchError(mount, share, entry, err, { diag, w
   }
   log.warn('overlay mirror integrity failure — holder served bytes not matching the content hash:', entry.relPath)
   recordMirrorIntegrityFailure(mount, share, entry)
-  // Checksum is the only terminal fault reachable here — every local I/O fault was classified and
-  // paused above, and the engine's other terminal codes describe a destination this pass either
-  // preflights (mountCanTake) or pauses the mount for. Charged to a budget rather than blocked outright, so another holder can
-  // still serve the same content.
+  // Checksum is the only terminal fault reachable here — every local I/O fault was paused or
+  // charged above, and the engine's other terminal codes describe a destination this pass either
+  // preflights (mountCanTake) or pauses the mount for. Charged to a budget rather than blocked
+  // outright, so another holder can still serve the same content.
   if (!isTerminalFault(code)) return
   const key = mirrorKey(mount.spaceId, mount.shareId)
   const spent = attempts.fail(key, entry.relPath, entry.contentHash)
@@ -445,8 +450,10 @@ async function fetchOverlayEntry(mount, share, entry, { overlay, abs, verifyKey,
       onProgress: ({ bytes, speed, eta }) => emitMirrorEvent('event:decoration', {
         channel: 'transfer', spaceId: mount.spaceId, key: decoKey, bytes, total, speed, eta,
       }),
-      onVerify: (fraction) => emitMirrorEvent('event:decoration', {
-        channel: 'transfer', spaceId: mount.spaceId, key: decoKey, phase: 'verifying', verifyFraction: fraction, bytes: 0, total,
+      // The mirror keeps no byte count across fetches, so a resumed file's bar is the intact bytes
+      // the verify has recovered so far, which reach the resumed offset when it ends.
+      onVerify: (fraction, recovered = 0) => emitMirrorEvent('event:decoration', {
+        channel: 'transfer', spaceId: mount.spaceId, key: decoKey, phase: 'verifying', verifyFraction: fraction, bytes: recovered, total,
       }),
       onTick: () => loops.noteProgress(streamKey),
     }))
@@ -459,7 +466,7 @@ async function fetchOverlayEntry(mount, share, entry, { overlay, abs, verifyKey,
     // ECANCELLED is a deliberate pause/unmount abort (stopForeignLoop), not a
     // give-up: log it as a stop and keep whatever partial cancelFetch chose to keep.
     if (err?.code === 'ECANCELLED') { failed?.finish('paused'); return 'missing' }
-    await handleOverlayMirrorFetchError(mount, share, entry, err, { diag: failed, writer })
+    await handleOverlayMirrorFetchError(mount, share, entry, err, { diag: failed, writer, dir: path.dirname(abs) })
     return 'missing'
   } finally {
     dropRecord()
@@ -484,21 +491,37 @@ async function fetchOverlayEntry(mount, share, entry, { overlay, abs, verifyKey,
   }
   diag.finish('done')
   try {
-    return await finishLandedFetch(mount, entry, res, { abs, verifyKey, localRelPath })
+    return await finishLandedFetch(mount, entry, res, { abs, verifyKey, localRelPath, writer })
   } finally {
     emitMirrorEvent('event:share-files-updated', { spaceId: mount.spaceId, shareId: mount.shareId })
   }
+}
+
+// A local hit whose copy into the mount failed is settled like a fetch that failed writing: a
+// local I/O fault pauses the mount, and anything else is charged to the file's attempt budget, so a
+// copy that keeps failing stops being asked for.
+async function settleFailedCopy(mount, entry, err, { writer, dir }) {
+  if (await pauseMountForIoError(mount, err, { writer, dir })) return 'missing'
+  chargeLocalFault(mount, entry, 'overlay mirror local-copy failed:', err)
+  return 'missing'
+}
+
+// A local failure that did not pause the mount is about this file: it is charged to the file's
+// attempt budget, so a file that keeps failing stops being asked for while the rest carries on.
+function chargeLocalFault(mount, entry, what, err) {
+  log.warn(what, entry.relPath, '-', err?.message)
+  attempts.fail(mirrorKey(mount.spaceId, mount.shareId), entry.relPath, entry.contentHash)
 }
 
 // The transfer verified the content hash on landing — record it so the row can surface a
 // "verified" indicator without re-hashing. Stat the file we just landed, so the record
 // fingerprints the bytes the transfer proved; a stat we cannot take costs the record its
 // fingerprint, never its hash.
-async function finishLandedFetch(mount, entry, res, { abs, verifyKey, localRelPath }) {
+async function finishLandedFetch(mount, entry, res, { abs, verifyKey, localRelPath, writer }) {
   // a local hit returns the source path without writing abs — copy the bytes by
   // path (never buffering a possibly multi-GB file in memory).
   if (res.local && res.destPath !== abs) {
-    try { fs.copyFileSync(res.destPath, abs) } catch (err) { log.debug('overlay mirror local-copy failed:', entry.relPath, '-', err.message); return 'missing' }
+    try { fs.copyFileSync(res.destPath, abs) } catch (err) { return await settleFailedCopy(mount, entry, err, { writer, dir: path.dirname(abs) }) }
   }
   let landed = null
   try {
@@ -516,6 +539,12 @@ async function finishLandedFetch(mount, entry, res, { abs, verifyKey, localRelPa
     log.warn('could not record a landed mirror file — it stays until the next pass re-adopts it:', entry.relPath, '-', err.message)
   }
   attempts.succeed(mirrorKey(mount.spaceId, mount.shareId), entry.relPath, entry.contentHash)
+  // The owner counts a mirror among a file's holders exactly as it counts a download.
+  if (mount.ownerKey) {
+    announceShareReceived(mount.ownerKey, {
+      spaceId: mount.spaceId, shareId: mount.shareId, relPath: entry.relPath, contentHash: entry.contentHash,
+    })
+  }
   return 'present'
 }
 

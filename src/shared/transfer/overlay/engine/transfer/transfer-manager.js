@@ -66,7 +66,8 @@ export class TransferManager {
 
   // Start receiving a file. A same-size partial is resumed: the journal restores the received set
   // and hash snapshot in O(1); failing that, an async, yielding re-verify rebuilds them.
-  // opts.isCancelled aborts a long re-verify, opts.onVerifyProgress(0..1) reports it, and
+  // opts.isCancelled aborts a long re-verify, opts.onVerifyProgress(0..1, recoveredBytes) reports
+  // it with the intact bytes found so far, and
   // opts.parentMustExist refuses to recreate a folder the caller made and the user deleted since.
   async startReceive(targetPath, meta, opts = {}) {
     const isCancelled = opts.isCancelled || (() => false)

@@ -49,3 +49,43 @@ test('B mirrors A’s owned folder; files materialize to disk with matching byte
     (f) => f?.entries?.find((e) => e.relPath === 'pic.bin')?.status === 'synced', { ms: 30000 })
   t.is(listed.entries.find((e) => e.relPath === 'pic.bin').status, 'synced', 'mirrored file shows synced, not available')
 })
+
+// REGRESSION (FIX-664: a mirror landing never told the owner, so the owner's "who has this file"
+// list left out every member who received the folder by mirroring it. Told, the owner lists the
+// member quietly: the mirror's sync is its one audit row.)
+test('REGRESSION (FIX-664): the owner lists a member whose mirror landed the file', { timeout: scaled(90000) }, async (t) => {
+  const bootstrap = await localTestnet(t)
+  const A = await launchPeer(t, { bootstrap, displayName: 'Alice' })
+  const B = await launchPeer(t, { bootstrap, displayName: 'Bob' })
+  const spaceId = await connectInSpace(t, A, B)
+  const aKey = (await A.request('profile:get')).personKey
+  const bKey = (await B.request('profile:get')).personKey
+
+  const share = await A.request('share:create', { spaceId, name: 'Docs' })
+  const folder = mkTmpDir(t)
+  fs.writeFileSync(path.join(folder, 'a.txt'), 'alpha')
+  const scanDone = A.waitFor('event:owned-folder-scan-completed', (m) => m.shareId === share.id)
+  await A.request('owned-folder:mount', { spaceId, shareId: share.id, mountPath: folder })
+  await scanDone
+
+  await B.until('share:list', { spaceId }, (list) => list.some((s) => s.id === share.id))
+  const mirrorDir = mkTmpDir(t)
+  const active = B.waitFor('event:foreign-folder-mount-status',
+    (m) => m.shareId === share.id && m.status === 'active')
+  await B.request('foreign-folder:mount', { spaceId, shareId: share.id, ownerKey: aKey, mountPath: mirrorDir })
+  await active
+  t.is(fs.readFileSync(path.join(mirrorDir, 'a.txt'), 'utf8'), 'alpha', 'precondition: the mirror landed the file')
+
+  const holders = (rows) => rows.filter((r) => r.shareId === share.id).map((r) => [r.path, r.personKey])
+  const listed = await A.until('recipients:list', { spaceId }, (rows) => holders(rows).length > 0, { ms: 15000 })
+    .catch(() => [])
+  t.alike(holders(listed), [['a.txt', bKey]], 'the owner knows the mirroring member holds the file')
+
+  // A mirror's completion is audited once, as the mirror's sync, never as one serve per file.
+  const kinds = async () => (await A.request('audit:list', { limit: 200 })).entries.map((e) => e.kind)
+  await A.until('audit:list', { limit: 200 }, (p) => p.entries.some((e) => e.kind === 'mirror.peer_synced'))
+  await new Promise((resolve) => setTimeout(resolve, scaled(2000)))
+  const audited = await kinds()
+  t.is(audited.filter((k) => k === 'mirror.peer_synced').length, 1, 'the owner audits the mirror\'s sync once')
+  t.is(audited.filter((k) => k === 'serve.completed').length, 0, 'and no file of it as a served download')
+})

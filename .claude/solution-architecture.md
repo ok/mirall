@@ -453,9 +453,11 @@ Mechanics are in §4.5, §7.2 and §7.6; these are the data-model invariants.
   authenticated sender in that space and only at the hash it currently advertises
   (`src/shared/network/share-received-intake.js`). A serve whose bytes, on top of the downloader's
   reported resume floor, cover the file notes the same recipient for a peer that never confirms;
-  a mirror's fetches are excluded, since the mirror record reports its completion once
-  (`mirror.peer_synced`). A first-time recipient is recorded as `serve.completed`; a partial pull
-  records nothing. Recipients are owner-only and never replicated.
+  a mirror's fetches are excluded there. A mirror is a recipient per file through its own
+  share-received notices, which the owner notes quietly when the sender's mirror record says it
+  mirrors that share: its completion is audited once, as `mirror.peer_synced`. Any other
+  first-time recipient is recorded as `serve.completed`; a partial pull records nothing.
+  Recipients are owner-only and never replicated.
 - **Download** (`src/shared/transfer/overlay/overlay-download.js`): observers see no file
   or a complete file, never a partial under the real name. The pending row is written before any
   byte moves. A name counts as taken if the file or its `.mirall.part` exists, so a download never

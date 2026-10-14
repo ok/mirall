@@ -17,6 +17,17 @@ import fs from 'bare-fs'
 // Network-free: the overlay's fetchFile is stubbed to throw the fs error code that
 // (post-fix) now propagates out of the real fetch.
 
+// The honest test of a read-only folder: whether a write into it is refused.
+function writable(dir) {
+  try {
+    fs.writeFileSync(dir + '/.probe', 'x')
+    fs.unlinkSync(dir + '/.probe')
+    return true
+  } catch (err) {
+    return !['EACCES', 'EPERM', 'EROFS'].includes(err.code)
+  }
+}
+
 function statuses(ctx, shareId) {
   return ctx.fake.events
     .filter((e) => e.type === 'event:foreign-folder-mount-status' && e.payload?.shareId === shareId)
@@ -85,12 +96,42 @@ test('REGRESSION (MIR-50): a pause before the sibling landed persists no mapping
   t.is(fs.readFileSync(mountPath + '/big.bin', 'utf8'), 'the users own file', 'the user file is untouched')
 })
 
-test('REGRESSION (FIX-129): an EACCES overlay-mirror fetch pauses the mount (paused-error)', async (t) => {
-  const { spaceId, shareId } = await setupOverlayMirror(t, 'EACCES')
+// A folder that really refuses writes: the permission errno is believed only once a probe of the
+// folder agrees, so the folder is made read-only rather than the errno merely thrown. Where the
+// mode bits do not refuse a write (Windows, a root run) there is nothing to assert.
+test('REGRESSION (FIX-129): an EACCES overlay-mirror fetch into a read-only folder pauses the mount (paused-error)', async (t) => {
+  const { spaceId, shareId, mountPath } = await setupOverlayMirror(t, 'EACCES')
+  fs.chmodSync(mountPath, 0o500)
+  t.teardown(() => { try { fs.chmodSync(mountPath, 0o700) } catch {} }, { order: -1 })
+  if (writable(mountPath)) { t.comment('the mode bits do not refuse a write here'); t.pass('skipped'); return }
   await runMaterializeTick(spaceId, shareId)
   const mount = await getForeignMount(spaceId, shareId)
   t.is(mount.status, 'paused-error', 'mount paused with the generic error status')
   t.absent(mount.enabled, 'mount disabled')
+})
+
+// REGRESSION (FIX-663: the mirror paused the whole mount on a permission errno alone, so one file
+// another program held for a moment stopped a folder that takes writes fine.)
+test('REGRESSION (FIX-663): a permission errno into a writable folder retries the file instead of pausing', async (t) => {
+  const { spaceId, shareId, mountPath } = await setupOverlayMirror(t, 'EACCES')
+  const overlay = getOverlay()
+  const refuse = overlay.fetchFile
+  let calls = 0
+  overlay.fetchFile = async (hash, opts) => {
+    if (++calls === 1) return await refuse(hash, opts)
+    fs.writeFileSync(opts.destPath, 'ok')
+    return { destPath: opts.destPath }
+  }
+
+  await runMaterializeTick(spaceId, shareId)
+  const after = await getForeignMount(spaceId, shareId)
+  t.is(calls, 1, 'precondition: the first fetch was refused')
+  t.ok(after.enabled, 'the mount stays active')
+  t.absent(after.lastError, 'and records no permission fault')
+
+  await runMaterializeTick(spaceId, shareId)
+  t.is(calls, 2, 'the next tick asks for the file again')
+  t.ok(fs.existsSync(mountPath + '/big.bin'), 'and it lands')
 })
 
 // A pause carries a REASON the renderer can translate. It used to carry err.message, which reached

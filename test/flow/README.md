@@ -40,7 +40,7 @@ Most folder tests inject `event:owned-folder-fs-event` (`add` / `change` / `unli
 ### D. Foreign mirrors — materialization (peer side)
 | File | Scenario |
 |------|----------|
-| `foreign-mirror.test.js` | B mirrors A's owned folder; with the owner online the blobs **stream on demand** and land byte-exact on B's disk, no leftover partial (the connectivity-gate regression). |
+| `foreign-mirror.test.js` | B mirrors A's owned folder; with the owner online the blobs **stream on demand** and land byte-exact on B's disk, no leftover partial (the connectivity-gate regression); **REGRESSION (FIX-664)** the owner's `recipients:list` names the mirroring member for a file its mirror landed. |
 | `foreign-sync.test.js` | **REGRESSION (connectivity gate):** a mirror **defers** while the owner is offline + blob uncached, then materializes when the owner returns. **REGRESSION (FIX-6):** with the owner online, an owner-side **edit** and **delete** both propagate; a file B already had in the mirror dir is left untouched. |
 | `offline-delete-guard.test.js` | **CRIT-3 (FIX-6 negative, real flow):** once the owner goes offline, materialize ticks **never wipe** already-synced mirror files — the offline branch of `shouldHonorDeletions` proven across two workers (the dangerous data-loss path that was previously only faked in-process). |
 | `mirror-local-edit.test.js` | **CRIT-7:** a mirror is owner-authoritative — if the user edits a file inside their own mirror, the walk the mirror's watcher requests keeps the edit as a conflicted copy and **restores the owner's version** — with no owner activity, no listing and no backstop. |

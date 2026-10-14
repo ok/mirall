@@ -52,9 +52,9 @@ export function useDecorations(channel: string, spaceId: string, keyPrefix?: str
       phases.current.set(m.key, m.phase)
       const now = Date.now()
       if (m.phase === 'verifying') {
-        // Verify frames carry no fresh transfer bytes (the mirror path sends 0) — sampling them
-        // would make the first post-verify frame span [0 → resumed offset] and report an absurd
-        // speed. Reset the sampler so post-verify sampling starts clean.
+        // Verify frames carry bytes read back from disk, not bytes transferred — sampling them
+        // would count the resumed partial as download speed. Reset the sampler so post-verify
+        // sampling starts clean.
         samplers.current.delete(m.key)
         setByKey(prev => {
           const n = new Map(prev)

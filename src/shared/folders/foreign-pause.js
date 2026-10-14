@@ -8,7 +8,9 @@
 
 import fs from 'bare-fs'
 import { MIRROR_STATE } from '../contract/statuses.js'
+import { CODES } from '../contract/errors.js'
 import { classifyLocalIoFault } from '../core/errors.js'
+import { folderWritable } from '../transfer/folder-write-probe.js'
 import { faultFromError, STATUS_MOUNT_GONE, statusForFaultCode, isAutoPauseStatus } from './mount-fault.js'
 import { getForeignMount, mutateForeignMount } from './mount-store.js'
 import { mirrorKey } from './mirror-policy.js'
@@ -67,9 +69,13 @@ export async function pauseMount(mount, status, reason, { writer = null } = {}) 
 // Pause the mount for a local I/O failure (overlay materializeOverlayFile write path). Returns
 // true if it was a fault this classifies — the caller then stops; false leaves the error for
 // generic handling. The fault→status decision is shared with the owner side; stopping the loop is
-// ours, because a mirror's pause really does stop it.
-export async function pauseMountForIoError(mount, err, { writer }) {
+// ours, because a mirror's pause really does stop it. `dir` is the folder the failed write
+// targeted: a permission fault there is believed only when that folder refuses a write
+// (folder-write-probe.js), and a caller whose own failure was the folder refusing a create passes
+// none.
+export async function pauseMountForIoError(mount, err, { writer, dir = null }) {
   const fault = faultFromError(err)
+  if (fault?.code === CODES.TRANSFER_PERMISSION && dir && folderWritable(dir)) return false
   if (fault) { await pauseMount(mount, fault.status, fault.code, { writer }); return true }
   if (err?.code === 'ENOENT' && !fs.existsSync(mount.mountPath)) { await pauseMount(mount, STATUS_MOUNT_GONE, null, { writer }); return true }
   return false
