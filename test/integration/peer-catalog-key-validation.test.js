@@ -1,6 +1,6 @@
 import test from 'brittle'
 import { freshPeer } from '../helpers/store.js'
-import { collectPeerShare, getPeerEntry, watchPeerCatalog } from '../../src/shared/shares/peer-catalog.js'
+import { collectPeerShare, getPeerEntryState, watchPeerCatalog } from '../../src/shared/shares/peer-catalog.js'
 // REGRESSION (FIX-327): a peer catalog key is self-asserted by a peer (its handshake or its
 // profile bee), so it can be malformed or a non-hex type. A wrong-length/typed key threw
 // synchronously out of store.get (b4a.from → non-32-byte buffer → "ID must be 32-bytes long"),
@@ -21,7 +21,7 @@ test('REGRESSION (FIX-327): a malformed peer catalog key degrades to empty, neve
     const share = await collectPeerShare(key, '__loose__')
     t.is(share.complete, false, `collectPeerShare(${label}).complete === false`)
     t.alike(share.entries, [], `collectPeerShare(${label}).entries === []`)
-    t.is(await getPeerEntry(key, '__loose__', 'x.txt'), null, `getPeerEntry(${label}) → null`)
+    t.is(await getPeerEntryState(key, '__loose__', 'x.txt'), null, `getPeerEntryState(${label}) → null`)
     watchPeerCatalog(key, 'loose', () => {})
     t.pass(`watchPeerCatalog(${label}) did not throw`)
   }
