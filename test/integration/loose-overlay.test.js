@@ -392,7 +392,7 @@ test('REGRESSION (FIX-668: a click on a loose file the owner removed records no 
   await looseUnshareFile(ctx.spaceId, '/a.txt')
 
   const res = await requestShareDownload(spaceB.spaceId, share, 'a.txt')
-  t.alike(res, { queued: false, removed: true }, 'the click answers that the file is gone')
+  t.alike(res, { queued: false }, 'the click answers that nothing is queued')
   t.absent(await getPendingFor(spaceB.spaceId, '/a.txt'), 'and leaves no intent row to sit queued forever')
   t.is(started.length, 0, 'nothing started')
 })

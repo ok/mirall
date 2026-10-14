@@ -98,7 +98,7 @@ export function registerFiles(ipc, { log }) {
     if ('ok' in res) throw new Error('files:download: a loose download was answered as a folder share')
     // Couldn't start: the owner may simply be unreachable on the bulk plane. Don't make the user
     // wait for the next tick to find that out — the rescue throttles itself, so clicks stay cheap.
-    if ('queued' in res) rescueStalledTransfers().catch((err) => log.debug('stalled-transfer rescue failed:', errorMessage(err)))
+    if ('queued' in res && res.queued) rescueStalledTransfers().catch((err) => log.debug('stalled-transfer rescue failed:', errorMessage(err)))
     return res
   })
   ipc.handle('files:cancel-download', async (msg) => {
