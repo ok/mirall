@@ -4,7 +4,7 @@
 import { collectOwnShare } from '../../shares/own-catalog.js'
 import { peerCatalogVersion } from '../../shares/peer-catalog.js'
 import { folderPublishAdd, folderPublishDelete } from './folder-publish.js'
-import { folderListPeerWithMeta, folderRequestDownload } from './folder-downloads.js'
+import { listPeerWithMeta, requestShareDownload } from './share-downloads.js'
 import { sweepOwnedPresence } from './overlay-maintenance.js'
 
 export const overlayBackend = {
@@ -14,9 +14,9 @@ export const overlayBackend = {
   // limit=0 to count only). A corrupt catalog core degrades to a partial result instead of blanking
   // the share; mutating callers keep listOwnShare and fail loud.
   listOwn: collectOwnShare,
-  listPeerWithMeta: folderListPeerWithMeta,
+  listPeerWithMeta,
   // A cheap head probe, so a mirror tick skips the full walk when the owner's catalog is unchanged.
   catalogVersion: peerCatalogVersion,
-  requestDownload: folderRequestDownload,
+  requestDownload: requestShareDownload,
   sweepPresence: sweepOwnedPresence,
 }

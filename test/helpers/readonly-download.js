@@ -12,8 +12,7 @@ const HASH = 'c'.repeat(64)
 
 export function testChannel(events, job, { ownerOnline = () => true } = {}) {
   return {
-    diagLabel: 'test download',
-    inPlace: false,
+    diagLabelFor: () => 'test download',
     ownsPendingRow: (row) => row.overlayShare === true,
     pendingExtra: (j) => ({ overlayShare: true, shareId: j.shareId, relPath: j.relPath }),
     emitProgress: () => {},

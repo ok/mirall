@@ -17,7 +17,7 @@ import {
 } from '../../src/shared/transfer/files.js'
 import { listFiles } from '../../src/shared/transfer/file-listing.js'
 import { initPendingTransfers, listPendingForSpace, recordPending, recordPendingError } from '../../src/shared/transfer/pending-transfers.js'
-import { looseCatalogVersion, looseListPeer, looseTransferActive } from '../../src/shared/transfer/overlay/loose-downloads.js'
+import { hasShareDownload, listPeerWithMeta, watchedCatalogVersion } from '../../src/shared/transfer/overlay/share-downloads.js'
 import { dropPeerCatalog } from '../../src/shared/shares/peer-catalog.js'
 import { forgetListingMemo } from '../../src/shared/transfer/listing-memo.js'
 import { takeIncompleteListSpaces } from '../../src/shared/transfer/list-deficits.js'
@@ -37,26 +37,28 @@ async function setup(t, config = {}) {
 const memberNo = (i) => ({ publicKey: 'peer' + i + 'pub', displayName: 'P' + i, driveKey: 'dk' + i, looseCatalogKey: String(i).repeat(64) })
 
 // Every member's catalog sits at `versions[publicKey]`; listPeer reads it whole unless `stalls` names
-// the member, in which case the read comes back incomplete, as a stalled drain does.
+// the member, in which case the read comes back incomplete and stalled, as a stalled drain does. The
+// reader receives the member's loose share, so it is keyed by the share's owner.
 function scriptedDeps({ versions, stalls = new Set() }) {
   const reads = {}
   return {
     reads,
     total: () => Object.values(reads).reduce((a, b) => a + b, 0),
-    listPeer: async (spaceId, member) => {
-      reads[member.publicKey] = (reads[member.publicKey] || 0) + 1
-      const version = versions[member.publicKey]
-      const entries = [{ relPath: member.displayName + '-v' + version + '.bin', size: 1, contentHash: member.publicKey + version, mtime: 0 }]
-      return { entries, complete: !stalls.has(member.publicKey), version }
+    listPeer: async (spaceId, share) => {
+      reads[share.owner] = (reads[share.owner] || 0) + 1
+      const version = versions[share.owner]
+      const entries = [{ relPath: share.owner + '-v' + version + '.bin', size: 1, contentHash: share.owner + version, mtime: 0 }]
+      const stalled = stalls.has(share.owner)
+      return { entries, complete: !stalled, stalled, version }
     },
     listPendingForSpace: async () => [],
     isOwnerOnline: () => true,
-    transferActive: () => false,
+    hasTransfer: () => false,
     verdictForClaim: () => ({ downloaded: false, prune: false, reason: 'no-claim', stat: null }),
     listVerifiedRecordsForShare: async () => new Map(),
     listLooseDownloadClaims: async () => new Map(),
     pruneDownloadClaims: async () => 0,
-    catalogVersion: async (spaceId, member) => versions[member.publicKey],
+    catalogVersion: async (spaceId, share) => versions[share.owner],
   }
 }
 
@@ -71,12 +73,12 @@ test('an unchanged catalog is served without a read; a moved one is read, alone'
   const warm = await listFiles(ctx.spaceId, members, { deps })
   await listFiles(ctx.spaceId, members, { deps })
   t.is(deps.total(), 3, 'two more listings read nothing')
-  t.alike(warm.map((f) => f.path).sort(), ['/P1-v1.bin', '/P2-v1.bin', '/P3-v1.bin'], 'and still list every member')
+  t.alike(warm.map((f) => f.path).sort(), ['/peer1pub-v1.bin', '/peer2pub-v1.bin', '/peer3pub-v1.bin'], 'and still list every member')
 
   versions.peer2pub = 2
   const moved = await listFiles(ctx.spaceId, members, { deps })
   t.alike(deps.reads, { peer1pub: 1, peer2pub: 2, peer3pub: 1 }, 'only the appended catalog is read again')
-  t.ok(moved.some((f) => f.path === '/P2-v2.bin'), 'with its new entries')
+  t.ok(moved.some((f) => f.path === '/peer2pub-v2.bin'), 'with its new entries')
 })
 
 test('the backstop reads a catalog every Nth listing whatever its version', async (t) => {
@@ -98,8 +100,10 @@ test('an incomplete read is never memoised', async (t) => {
   const members = [memberNo(1), memberNo(2)]
   const deps = scriptedDeps({ versions: { peer1pub: 1, peer2pub: 1 }, stalls: new Set(['peer1pub']) })
   for (let i = 1; i <= 3; i++) {
+    takeIncompleteListSpaces()
     await listFiles(ctx.spaceId, members, { deps })
     t.is(deps.reads.peer1pub, i, `listing ${i} reads the stalled member again`)
+    t.ok(takeIncompleteListSpaces().includes(ctx.spaceId), `listing ${i} flags the space for the convergence re-poke`)
   }
   t.is(deps.reads.peer2pub, 1, 'the healthy member is served from the memo meanwhile')
 })
@@ -150,15 +154,15 @@ function realDeps(presence) {
   const reads = { n: 0 }
   return {
     reads,
-    listPeer: async (...args) => { reads.n++; return await looseListPeer(...args) },
+    listPeer: async (...args) => { reads.n++; return await listPeerWithMeta(...args) },
     listPendingForSpace,
     isOwnerOnline: () => presence.online,
-    transferActive: looseTransferActive,
+    hasTransfer: hasShareDownload,
     verdictForClaim,
     listVerifiedRecordsForShare,
     listLooseDownloadClaims,
     pruneDownloadClaims,
-    catalogVersion: looseCatalogVersion,
+    catalogVersion: watchedCatalogVersion,
   }
 }
 
@@ -243,8 +247,8 @@ test('a backstop read that stalls keeps listing the memoised entries', async (t)
   const first = await listFiles(ctx.spaceId, members, { deps })
   await listFiles(ctx.spaceId, members, { deps })
   t.is(deps.reads.peer1pub, 1, 'one skip before the backstop comes due')
-  deps.listPeer = async (spaceId, member) => {
-    deps.reads[member.publicKey]++
+  deps.listPeer = async (spaceId, share) => {
+    deps.reads[share.owner]++
     return { entries: [], complete: false, version: null }
   }
   const backstop = await listFiles(ctx.spaceId, members, { deps })

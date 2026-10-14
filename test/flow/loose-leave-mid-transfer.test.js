@@ -8,10 +8,10 @@ import { mkTmpDir, patternedBytes } from '../helpers/fixtures.js'
 import { scaled } from '../helpers/timing.js'
 
 // A peer LEAVES the space while a loose transfer is in flight. space:leave calls
-// looseCancelSpace/overlayCancelSpace (worker/main.js) to tear down serving/fetching before
-// the drive is purged; these prove that mid-transfer, over two real peers — untested until
-// now (the audit's F2/F3 gaps). The failure mode this guards: a late completion re-writing a
-// purged row, an orphaned partial-as-final, or a hung leave.
+// cancelSpaceDownloads/revokeServesForSpace (worker/ipc/space-leave.js) to tear down
+// serving/fetching before the drive is purged; these prove that mid-transfer, over two real
+// peers — untested until now (the audit's F2/F3 gaps). The failure mode this guards: a late
+// completion re-writing a purged row, an orphaned partial-as-final, or a hung leave.
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
 const v2flags = () => ({ identityKEK: kekHex() })

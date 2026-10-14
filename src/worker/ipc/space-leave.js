@@ -22,9 +22,8 @@ import { forgetSpaceRecord, markSpaceLeavingDurable, persistPendingLeave, purgeS
 import { runLeaveTeardown } from '../../shared/spaces/membership/leave-state.js'
 import { forgetUnreferencedPeerCores } from '../../shared/storage/leftover.js'
 import { purgeOwnRetiredDrive } from '../../shared/storage/retired-drive-cores.js'
-import { folderCancelSpace } from '../../shared/transfer/overlay/folder-downloads.js'
+import { cancelSpaceDownloads } from '../../shared/transfer/overlay/share-downloads.js'
 import { cleanupDownloadHistory } from '../../shared/transfer/files.js'
-import { looseCancelSpace } from '../../shared/transfer/overlay/loose-downloads.js'
 import { clearPendingForSpace } from '../../shared/transfer/pending-transfers.js'
 import { forgetListingMemo } from '../../shared/transfer/listing-memo.js'
 import { disconnectPeersFromSpace, leaveSpaceTopic } from '../../shared/network/space-topics.js'
@@ -224,11 +223,10 @@ export function registerSpaceLeave(ipc, { log, mounts, overlayBackend, discardPe
         dropSpaceDownloadRoot(msg.spaceId)
 
         // Cancel + discard any in-flight downloads for this space before the purges, so the
-        // overlay/loose engine stops fetching (no orphaned partial) and can't re-write the
+        // download engine stops fetching (no orphaned partial) and can't re-write the
         // download-history rows cleanupDownloadHistory/clearPendingForSpace purge below.
-        await folderCancelSpace(msg.spaceId)
-        await looseCancelSpace(msg.spaceId)
-        // ...and stop SERVING this space to everyone else. The cancels above only walk OUR OWN
+        await cancelSpaceDownloads(msg.spaceId)
+        // ...and stop SERVING this space to everyone else. The cancel above only walks OUR OWN
         // fetch slots — as the owner we have none, so without this a leave stops nothing on the
         // serving side and the content plane keeps streaming the space's bytes. Runs BEFORE the
         // purges: it needs serveIndex to still resolve hash → space.

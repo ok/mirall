@@ -21,11 +21,10 @@ import { OP, PRIORITY } from '../../folders/work-item.js'
 import { fileStatPresent, statFacts } from '../../folders/disk-presence.js'
 import { createLogger } from '../../core/logger.js'
 import { markOwnedSource, getOwnedSourcePath, clearOwnedSource } from '../files.js'
-import { LOOSE_SHARE_ID } from '../transfer-id.js'
+import { LOOSE_SHARE_ID, looseDrivePath, looseRelPath } from '../transfer-id.js'
 import { publishContent, retireContent } from './overlay-publish.js'
 import { makeServable } from './serve-registration.js'
 import { makePublishProgress } from './publish-progress.js'
-import { looseRelPath, looseDrivePath } from './loose-job.js'
 
 const log = createLogger('loose-publish')
 

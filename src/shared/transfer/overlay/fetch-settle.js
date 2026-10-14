@@ -21,7 +21,6 @@ import { progressPersistDue } from '../progress-persist.js'
 import { recordTransferOutcome } from '../../audit/transfer-audit.js'
 import { memberWaits } from '../../network/share-wait.js'
 import { announceShareReceived } from '../../network/share-received.js'
-import { LOOSE_SHARE_ID } from '../transfer-id.js'
 import { SHARE_WAIT_SOURCE } from '../share-wait-set.js'
 
 export function createFetchSettle({
@@ -43,7 +42,7 @@ export function createFetchSettle({
       // The overlay scheduler reports CUMULATIVE bytes already seeded with the resumed on-disk
       // bytes, so the ticker needs no resume offset.
       const { diag, callbacks } = makeFetchInstruments({
-        label: channel.diagLabel,
+        label: channel.diagLabelFor?.(job),
         relPath: job.relPath,
         size: job.size,
         contentHash: job.contentHash,
@@ -68,7 +67,7 @@ export function createFetchSettle({
     registry.delete(job.transferId)
     if (reason === ABANDON.RESTART) { restartAfterSupersede(slot.restartJob); return }
     if (reason === ABANDON.CANCELLED) return
-    channel.emitUpdated(job.spaceId)
+    channel.emitUpdated(job.spaceId, job.shareId)
   }
 
   async function settle(job, result, diag) {
@@ -104,7 +103,7 @@ export function createFetchSettle({
         // awaits, or a reader that saw the pause would see the transfer's events after it.
         channel.emitDecorationDone?.(job)
         await flushProgress(job)
-        channel.emitUpdated(job.spaceId)
+        channel.emitUpdated(job.spaceId, job.shareId)
         return
       case SETTLE.STALLED:
         await settleStalled(job, diag)
@@ -135,7 +134,7 @@ export function createFetchSettle({
     try { fs.unlinkSync(slot.finalPath) } catch {}
     updatePendingProgress(slot.spaceId, slot.pendingKey, 0).catch(() => {})
     channel.emitDecorationDone?.(slot.job)
-    channel.emitUpdated(slot.spaceId)
+    channel.emitUpdated(slot.spaceId, slot.job.shareId)
   }
 
   // A cancel raced the fetch to completion. cancelByKey already cleared the row and emitted, so
@@ -146,7 +145,7 @@ export function createFetchSettle({
     diag.finish(FETCH_OUTCOME.CANCELLED)
     try { fs.unlinkSync(job.finalPath) } catch {}
     discardPartial(job.finalPath)
-    channel.emitUpdated(job.spaceId)
+    channel.emitUpdated(job.spaceId, job.shareId)
   }
 
   // The holder went away or was throttled past the watchdog: keep the partial and the row so the
@@ -158,7 +157,7 @@ export function createFetchSettle({
     await flushProgress(job)
     const retrying = await retries.schedule(job)
     channel.emitPaused?.(job, pauseReasonFor(job), { retrying })
-    channel.emitUpdated(job.spaceId)
+    channel.emitUpdated(job.spaceId, job.shareId)
   }
 
   async function settleFailed(job, result, diag) {
@@ -195,12 +194,12 @@ export function createFetchSettle({
     } catch (err) {
       log.warn('could not clear the pending row of a completed download:', job.relPath, '-', err.message)
     }
-    channel.emitUpdated(job.spaceId)
+    channel.emitUpdated(job.spaceId, job.shareId)
     recordTransferOutcome(job, 'ok', null)
     if (job.ownerKey) {
       announceShareReceived(job.ownerKey, {
         spaceId: job.spaceId,
-        shareId: job.shareId ?? LOOSE_SHARE_ID,
+        shareId: job.shareId,
         relPath: job.relPath,
         contentHash: job.contentHash,
       })

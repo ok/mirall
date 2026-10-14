@@ -263,7 +263,7 @@ export function registerShares(ipc, { log, intents, mountOwnedShare }) {
     // folder (e.g. opened in MirrorFolderModal) can't rebuild the full array here and OOM.
     const { total, totalBytes } = isOwn
       ? await backend.listOwn(msg.spaceId, share.id, 0)
-      : await backend.listPeerWithMeta(msg.spaceId, share, 0)
+      : await backend.listPeerWithMeta(msg.spaceId, share, { limit: 0 })
     return { fileCount: total, totalBytes, blobsLength: null }
   })
 

@@ -10,7 +10,7 @@ import { MAIN_REQUEST, MAIN_REQUEST_FRAME } from '../contract/main-requests.js'
 import { getForeignPollIntervalMs } from '../core/runtime-config.js'
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
-import { setOverlayCatalogChangeHook } from '../transfer/overlay/folder-downloads.js'
+import { setOverlayCatalogChangeHook } from '../transfer/overlay/share-downloads.js'
 import { drainFetchSlots, FETCH_OWNER_MIRROR } from '../transfer/overlay/fetch-gate.js'
 import { mirrorVerdict } from './mirror-policy.js'
 import { createMirrorLoops } from './mirror-loop.js'
@@ -129,7 +129,7 @@ export class ForeignMirrors extends Subsystem {
   // The scoped drain comes first: a pass parked on the shared fetch gate cannot observe the
   // generation bump stopAllForeignLoops relies on, and would hold the 1500 ms tier budget open
   // until the 5000 ms settle timeout. Scoped to FETCH_OWNER_MIRROR because OverlayBackend closes
-  // AFTER us — an unscoped drain would release the two engines' backlog into an overlay that is
+  // AFTER us — an unscoped drain would release the download engine's backlog into an overlay that is
   // still live, and those tasks pass their own hasOverlay() guard.
   async _close() {
     unsubscribePeerOnline?.()

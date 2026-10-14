@@ -1,25 +1,19 @@
-// The overlay as one lifetime: the instance, the serve index, and the two download engines,
+// The overlay as one lifetime: the instance, the serve index, and the download engine,
 // constructed in _open rather than at module level so nothing here runs during import.
 //
 // Nothing in the package imports this file — only the boot root does — so wiring the modules
 // together here adds no edge to the import graph test/integration/import-time guards.
 import { Subsystem } from '../../core/subsystem.js'
 import { createOverlayDownloadEngine } from './overlay-download.js'
-import { resetFetchSlots, drainFetchSlots } from './fetch-gate.js'
-import { registerFetchOwner, resetFetchClaims } from './fetch-gate.js'
+import { drainFetchSlots, registerFetchOwner, resetFetchClaims, resetFetchSlots } from './fetch-gate.js'
 import { initOverlay, teardownOverlay, attachOverlay, revokeServesForSpace, bumpServeEpoch } from './overlay-instance.js'
 import { serveIndex } from './overlay-serve-index.js'
 import { rehydrateOwnedContent, resetOverlayMaintenance } from './overlay-maintenance.js'
 import { resetOverlayPublish } from './overlay-publish.js'
 import { initPublishProgress, resetPublishProgress } from './publish-progress.js'
 import { initFolderPublish, resetFolderPublish } from './folder-publish.js'
-import {
-  initFolderDownloads, resetFolderDownloads, folderChannel, setFolderEngine, resumeFolderForOwner,
-} from './folder-downloads.js'
 import { initLoosePublish, resetLoosePublish } from './loose-publish.js'
-import {
-  initLooseDownloads, resetLooseDownloads, looseChannel, setLooseEngine, resumeLooseForOwner,
-} from './loose-downloads.js'
+import { downloadChannel, initShareDownloads, resetShareDownloads, setDownloadEngine } from './share-downloads.js'
 import { listSpaces } from '../../spaces/space.js'
 import { listPendingOwnerKeys, listPendingOwnerSpaces } from '../pending-transfers.js'
 
@@ -31,41 +25,35 @@ export class OverlayBackend extends Subsystem {
     this.require('ipc', 'broadcastSharePrepare')
     this.resumePending = new Map()
     this.overlay = null
-    this.folderEngine = null
-    this.looseEngine = null
+    this.engine = null
   }
 
   async _open() {
     const { ipc } = this.deps
     initPublishProgress({ emit: (name, payload) => ipc.emit(name, payload), broadcast: this.deps.broadcastSharePrepare })
     initFolderPublish({ ipc })
-    initFolderDownloads({ ipc })
     initLoosePublish({ ipc })
-    initLooseDownloads({ ipc })
+    initShareDownloads({ ipc })
     // The instance comes first: the rehydrate below reaches makeServable and the loose re-publish,
     // and both fall through on a null getOverlay() — so a rehydrate that runs ahead of it silently
     // leaves a crash-interrupted entry unhashed and stuck on "Adding".
     this.overlay = await initOverlay()
-    // The gate is a module singleton, so unlike the engines it does not die with the previous
+    // The gate is a module singleton, so unlike the engine it does not die with the previous
     // lifetime: a slot whose release was lost would shrink the cap for every later open.
     resetFetchSlots()
-    this.folderEngine = createOverlayDownloadEngine(folderChannel)
-    this.looseEngine = createOverlayDownloadEngine(looseChannel)
-    setFolderEngine(this.folderEngine)
-    setLooseEngine(this.looseEngine)
-    // Registered as probes, not copied: each engine's registry already has exactly the lifetime of
-    // its fetch. This is what lets the mirror ask "is ANYONE fetching this" instead of asking the
-    // folder engine alone, which is the wrong question for a loose row.
+    this.engine = createOverlayDownloadEngine(downloadChannel)
+    setDownloadEngine(this.engine)
+    // Registered as a probe, not copied: the engine's registry already has exactly the lifetime of
+    // its fetch. This is what lets the mirror ask "is ANYONE fetching this".
     resetFetchClaims()
-    registerFetchOwner('folder', (transferId) => this.folderEngine.has(transferId))
-    registerFetchOwner('loose', (transferId) => this.looseEngine.has(transferId))
+    registerFetchOwner('download', (transferId) => this.engine.has(transferId))
     // Backgrounded: re-registering every owned file walks and chunk-maps each one.
     rehydrateOwnedContent().catch((err) => this.log.debug('rehydrate failed:', err.message))
   }
 
   // Destroys the protocol — and only the protocol — while the sockets its frames travel on are
   // still up, so the peer teardown fires its serve-end callbacks and an interrupted transfer is
-  // still recorded. The index, the engines and the instance stay alive for the subsystems that
+  // still recorded. The index, the engine and the instance stay alive for the subsystems that
   // close after the swarms: a publish still settling in PublishService._close needs them.
   // Idempotent, and called by whichever swarm closes first.
   detach() {
@@ -81,20 +69,17 @@ export class OverlayBackend extends Subsystem {
     drainFetchSlots()
     await teardownOverlay()
     this.overlay = null
-    setFolderEngine(null)
-    setLooseEngine(null)
-    // Before the engines are dropped: the probes close over them.
+    setDownloadEngine(null)
+    // Before the engine is dropped: the probe closes over it.
     resetFetchClaims()
-    this.folderEngine = null
-    this.looseEngine = null
+    this.engine = null
     serveIndex.reset()
     resetFolderPublish()
-    resetFolderDownloads()
     resetOverlayPublish()
     resetOverlayMaintenance()
     resetPublishProgress()
     resetLoosePublish()
-    resetLooseDownloads()
+    resetShareDownloads()
   }
 
   attach(mux, socket) {
@@ -106,25 +91,25 @@ export class OverlayBackend extends Subsystem {
     bumpServeEpoch()
   }
 
+  // One pass re-drives that owner's rows of every share, loose and folder.
   resumeForOwner(ownerKey, spaceId) {
-    resumeLooseForOwner(ownerKey, spaceId).catch((err) => this.log.debug('loose auto-resume failed:', err.message))
-    resumeFolderForOwner(ownerKey, spaceId).catch((err) => this.log.debug('overlay folder auto-resume failed:', err.message))
+    this.engine?.resumeForOwner(ownerKey, spaceId).catch((err) => this.log.debug('download auto-resume failed:', err.message))
   }
 
   // The owners the convergence tick's stalled-owner rescue reaches for: one scan of the pending
-  // rows, each judged by the engine that owns it.
+  // rows, each judged by the engine.
   awaitedOwnerKeys() {
-    const engines = [this.folderEngine, this.looseEngine].filter(Boolean)
-    return listPendingOwnerKeys({ keep: (row) => engines.some((engine) => engine.awaitsOwner(row)) })
+    const engine = this.engine
+    return listPendingOwnerKeys({ keep: (row) => !!engine?.awaitsOwner(row) })
   }
 
   // The rows the user unblocked since the last tick — a download folder that takes writes again —
-  // re-driven through the reconcile a reconnect runs, once per (owner, space). Each engine hands a
+  // re-driven through the reconcile a reconnect runs, once per (owner, space). The engine hands a
   // row out once per clear and only while its owner is present. `beat` is the tick's liveness.
   async redriveUnblocked({ beat = () => {} } = {}) {
     if (this.stopping) return
-    const engines = [this.folderEngine, this.looseEngine].filter(Boolean)
-    const keep = (row) => { beat(); return engines.some((engine) => engine.takeUnblocked(row)) }
+    const engine = this.engine
+    const keep = (row) => { beat(); return !!engine?.takeUnblocked(row) }
     for (const { ownerKey, spaceId } of await listPendingOwnerSpaces({ keep })) {
       this.log.info('download folder writable again — re-driving downloads in', spaceId, 'from', ownerKey.slice(0, 8))
       this.resumeForOwner(ownerKey, spaceId)

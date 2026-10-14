@@ -17,7 +17,7 @@ import {
 } from '../../src/shared/transfer/files.js'
 import { listFiles } from '../../src/shared/transfer/file-listing.js'
 import { initPendingTransfers, listPendingForSpace } from '../../src/shared/transfer/pending-transfers.js'
-import { looseCatalogVersion, looseListPeer, looseTransferActive } from '../../src/shared/transfer/overlay/loose-downloads.js'
+import { hasShareDownload, listPeerWithMeta, watchedCatalogVersion } from '../../src/shared/transfer/overlay/share-downloads.js'
 import { LOOSE_SHARE_ID } from '../../src/shared/transfer/transfer-id.js'
 
 // The loose listing takes its data-layer calls injected, so read COUNTS are assertable without
@@ -33,15 +33,16 @@ async function setup(t) {
 const memberNo = (i) => ({ publicKey: 'peer' + i + 'pub', displayName: 'P' + i, driveKey: 'dk' + i, looseCatalogKey: String(i).repeat(64) })
 const rows = (tag, n) => Array.from({ length: n }, (_, j) => ({ relPath: `${tag}-${j}.bin`, size: 10, contentHash: `${tag}h${j}`, mtime: 0 }))
 
-// catalogVersion answers null, so no member is ever served from the listing memo here.
+// catalogVersion answers null, so no member is ever served from the listing memo here. The catalog
+// reader receives each member's loose share, so `entriesFor` is keyed by its owner.
 function countingDeps({ entriesFor, claims = new Map(), verified = new Map(), verdict = null } = {}) {
   const calls = { listPeer: 0, claimScans: 0, verifiedScans: 0, verdicts: 0, prunes: [] }
   return {
     calls,
-    listPeer: async (spaceId, member) => { calls.listPeer++; return { entries: entriesFor(member), complete: true, version: 1 } },
+    listPeer: async (spaceId, share) => { calls.listPeer++; return { entries: entriesFor(share), complete: true, version: 1 } },
     listPendingForSpace: async () => [],
     isOwnerOnline: () => true,
-    transferActive: () => false,
+    hasTransfer: () => false,
     verdictForClaim: (spaceId, drivePath, rec) => {
       calls.verdicts++
       return verdict ? verdict(drivePath, rec) : { downloaded: false, prune: false, reason: rec ? null : 'no-claim', stat: null }
@@ -57,7 +58,7 @@ test('reads do not scale with rows: two range scans regardless of listing size',
   const ctx = await setup(t)
   const members = [memberNo(1), memberNo(2), memberNo(3)]
   for (const n of [1, 200, 2000]) {
-    const deps = countingDeps({ entriesFor: (m) => rows(m.publicKey + n, n) })
+    const deps = countingDeps({ entriesFor: (s) => rows(s.owner + n, n) })
     const files = await listFiles(ctx.spaceId, members, { deps })
     t.is(files.length, 3 * n, `${n} rows per member rendered`)
     t.is(deps.calls.claimScans, 1, `${n} rows: exactly ONE claim scan`)
@@ -100,7 +101,7 @@ test('REGRESSION (FIX-SHARED-NAME-CLAIM): a claim another row reads as downloade
   const shared = (hash) => [{ relPath: 'same.bin', size: 10, contentHash: hash, mtime: 0 }]
   const claims = new Map([['/same.bin', { localPath: '/dl/same.bin', hash: 'B' }]])
   const deps = countingDeps({
-    entriesFor: (m) => shared(m.publicKey === 'peer1pub' ? 'A' : 'B'),
+    entriesFor: (s) => shared(s.owner === 'peer1pub' ? 'A' : 'B'),
     claims,
   })
   deps.verdictForClaim = (spaceId, drivePath, rec, hash) => {
@@ -149,15 +150,15 @@ async function localCatalogMember(ctx, names) {
 
 function productionDepsWith(overrides) {
   return {
-    listPeer: looseListPeer,
+    listPeer: listPeerWithMeta,
     listPendingForSpace,
     isOwnerOnline: () => true,
-    transferActive: looseTransferActive,
+    hasTransfer: hasShareDownload,
     verdictForClaim,
     listVerifiedRecordsForShare,
     listLooseDownloadClaims,
     pruneDownloadClaims,
-    catalogVersion: looseCatalogVersion,
+    catalogVersion: watchedCatalogVersion,
     ...overrides,
   }
 }
@@ -226,7 +227,7 @@ test('an unhashed entry never takes another owner\'s same-named claim, transfer 
     entriesFor: () => [{ relPath: 'r-0.bin', size: 10, contentHash: null, mtime: 0 }],
     verdict: () => ({ downloaded: true, prune: false, reason: null, stat: null }),
   })
-  deps.transferActive = () => true
+  deps.hasTransfer = () => true
   deps.isOwnerOnline = () => false
   deps.listPendingForSpace = async () => [{ filePath: '/r-0.bin', ownerKey: 'someone-else', bytesTransferred: 4096 }]
   const row = await oneRow(ctx, deps)
@@ -240,7 +241,7 @@ test('an error row carries its code and no bytes; a downloading row carries its 
   const withPending = (pendingRow, active) => {
     const deps = countingDeps({ entriesFor: () => rows('r', 1) })
     deps.listPendingForSpace = async () => [{ filePath: '/r-0.bin', ownerKey: 'peer1pub', ...pendingRow }]
-    deps.transferActive = () => active
+    deps.hasTransfer = () => active
     return deps
   }
   const error = await oneRow(ctx, withPending({ errorCode: 'EHASHMISMATCH', bytesTransferred: 10 }, false))

@@ -92,7 +92,7 @@ export function createStallRetry({ registry, pausedHashes, ownerOnline, channel,
   function settleRetryAsPaused(job) {
     cancelStallRetry(job.transferId)
     channel.emitPaused?.(job, pauseReasonFor(job))
-    channel.emitUpdated(job.spaceId)
+    channel.emitUpdated(job.spaceId, job.shareId)
   }
 
   // test seam: the retry records, so a test can assert the dry counter and that a pause cleared it

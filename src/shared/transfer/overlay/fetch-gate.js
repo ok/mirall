@@ -1,7 +1,7 @@
 import { createSemaphore } from '../../core/concurrency.js'
 import { getDownloadConcurrency } from '../../core/runtime-config.js'
-// Who is fetching a given transferId right now, across every producer — an engine's registry
-// answers only for its own instance. An engine is registered as a PROBE rather than copied into a
+// Who is fetching a given transferId right now, across every producer — the engine's registry
+// answers for its own fetches only. The engine is registered as a PROBE rather than copied into a
 // second map: its registry already has exactly the lifetime of its fetch. Only a producer with no
 // registry of its own — the mirror — holds a claim here, so there is one place that adds and one
 // that removes, plus dropFetchClaim for a pass abandoned rather than finished.
@@ -47,13 +47,13 @@ export function dropFetchClaim(transferId) {
 
 // Module state outlives the subsystem that fills it, so a leaked claim would block one transferId
 // for the life of the worker. Cleared with the rest of the overlay's per-lifetime state; the probes
-// go with it, since they close over engines this lifetime is about to drop.
+// go with it, since they close over the engine this lifetime is about to drop.
 export function resetFetchClaims() {
   held.clear()
   probes.clear()
 }
 
-// One gate for every overlay fetch in the process — both download engines and every mirror. The
+// One gate for every overlay fetch in the process — the download engine and every mirror. The
 // limit bounds what an in-flight fetch owns (a chunk scheduler, a watchdog, an fd and a ticker),
 // and that cost is per fetch, not per producer.
 //
@@ -61,11 +61,10 @@ export function resetFetchClaims() {
 // deferred-admission.js, and both are about admitting PEERS.
 
 // The mirror's waiter tag. ForeignMirrors closes before OverlayBackend, so its close must release
-// its own parked passes WITHOUT releasing the engines' backlog into a still-live overlay.
+// its own parked passes WITHOUT releasing the engine's backlog into a still-live overlay.
 export const FETCH_OWNER_MIRROR = 'mirror'
 
-// expressLanes: 2, not createSemaphore's default of 1. Two engines each carried one lane, so a
-// single shared gate would halve how many user-initiated fetches can jump a backlog.
+// Two user-initiated fetches may jump a backlog at once (createSemaphore's default is one).
 const build = () => createSemaphore({ limit: () => getDownloadConcurrency(), expressLanes: 2 })
 let gate = build()
 
@@ -75,7 +74,7 @@ export const drainFetchSlots = (owner) => gate.drain(owner)
 export const fetchSlotStats = () => gate.stats()
 
 // A per-instance semaphore died with the engine that owned it; a module singleton does not.
-// OverlayBackend builds fresh engines on every _open, so a slot whose release was lost would
+// OverlayBackend builds a fresh engine on every _open, so a slot whose release was lost would
 // shrink the cap for the life of the worker, across every later open.
 export function resetFetchSlots() {
   gate = build()

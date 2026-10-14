@@ -15,7 +15,7 @@ import { initDownloads, markDownloaded, markVerified, getOwnedSourcePath } from 
 import { listFiles } from '../../src/shared/transfer/file-listing.js'
 import { initPendingTransfers, recordPending, getPendingFor } from '../../src/shared/transfer/pending-transfers.js'
 import { looseShareFile, looseUnshareFile, looseListOwn, looseCancelPublish, handleLooseFsEvent, MAX_LOOSE_FILES_PER_SPACE, looseSources } from '../../src/shared/transfer/overlay/loose-publish.js'
-import { looseCancelTransfer } from '../../src/shared/transfer/overlay/loose-downloads.js'
+import { cancelShareDownload } from '../../src/shared/transfer/overlay/share-downloads.js'
 import { rehydrateOwnedContent, sweepOwnedPresence } from '../../src/shared/transfer/overlay/overlay-maintenance.js'
 import { LOOSE_SHARE_ID, looseTransferIdFor } from '../../src/shared/transfer/transfer-id.js'
 import { initLooseIpc } from '../helpers/overlay-ipc.js'
@@ -220,7 +220,7 @@ test('a discard by transfer id resolves a settled row from its pending row: remo
   t.ok(await getPendingFor(ctx.spaceId, '/big.bin'), 'precondition: pending row exists')
   t.ok(fs.existsSync(partialPath), 'precondition: partial on disk')
 
-  t.ok(await looseCancelTransfer(looseTransferIdFor(ctx.spaceId, 'big.bin')), 'the id resolved a row')
+  t.ok(await cancelShareDownload(looseTransferIdFor(ctx.spaceId, 'big.bin')), 'the id resolved a row')
 
   t.absent(await getPendingFor(ctx.spaceId, '/big.bin'), 'pending row cleared')
   t.absent(fs.existsSync(partialPath), 'visible partial removed')

@@ -111,7 +111,7 @@ test('loose download auto-resumes when the owner returns (reconnect hook)',
     t.ok(queued && queued.queued, 'loose download queued while owner offline')
 
     // Owner returns with the SAME storage (source still servable). On A's handshake,
-    // B's reconnect hook (resumeLooseForOwner) re-triggers the download with NO manual click.
+    // B's reconnect hook (OverlayBackend.resumeForOwner) re-triggers the download with NO manual click.
     const done = B.waitFor('event:transfer-complete', (m) => m.path === '/resume.bin', 120000)
     A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: aStore, flags: aFlags })
     const completed = await done

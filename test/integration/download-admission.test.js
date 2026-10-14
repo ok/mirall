@@ -15,8 +15,7 @@ const hashFor = (n) => String(n % 10).repeat(64)
 
 function testChannel(over = {}) {
   return {
-    diagLabel: 'test download',
-    inPlace: false,
+    diagLabelFor: () => 'test download',
     ownsPendingRow: (row) => row.overlayShare === true,
     pendingExtra: (job) => ({ overlayShare: true, shareId: job.shareId, relPath: job.relPath }),
     emitProgress: () => {}, emitError: () => {}, emitComplete: () => {}, emitCancelled: () => {},
@@ -210,23 +209,22 @@ test('draining the gate at shutdown does not start a fetch into a torn-down over
   t.is(fetchSlotStats().queued, 0, 'and nothing is left holding close() open')
 })
 
-// The cap used to be built inside createOverlayDownloadEngine, so the two engines the overlay
-// backend constructs each got their own — a configured 3 was really 6, and no test could see it
-// because every case built one engine.
+// The cap is the process's, not an engine instance's: an engine built per lifetime (or a second one
+// in a test) shares the one gate, so a configured cap is never multiplied by the instance count.
 test('the cap counts fetches across producers, not per engine', async (t) => {
   const ctx = await setup(t, 2)
-  const folder = createOverlayDownloadEngine(testChannel())
-  const loose = createOverlayDownloadEngine(testChannel())
+  const first = createOverlayDownloadEngine(testChannel())
+  const second = createOverlayDownloadEngine(testChannel())
   const fetches = barrierFetch()
 
-  await folder.start(makeJob(ctx, 1))
-  await loose.start(makeJob(ctx, 2))
-  t.ok(await until(() => fetches.started.length === 2), 'both engines got a slot')
+  await first.start(makeJob(ctx, 1))
+  await second.start(makeJob(ctx, 2))
+  t.ok(await until(() => fetches.started.length === 2), 'both instances got a slot')
 
-  await loose.start(makeJob(ctx, 3))
+  await second.start(makeJob(ctx, 3))
   t.ok(await until(() => fetchSlotStats().queued === 1), 'the third is parked on the shared gate')
   await settle()
-  t.is(fetches.peak, 2, 'two fetches at once across BOTH engines, not two each')
+  t.is(fetches.peak, 2, 'two fetches at once across BOTH instances, not two each')
 
   for (let i = 0; i < 20 && fetches.started.length < 3; i++) { fetches.releaseAll(); await settle() }
   // A lower bound, not an equality: releasing a barrier settles the fetch, and a settle may re-drive
@@ -240,9 +238,9 @@ test('the cap counts fetches across producers, not per engine', async (t) => {
 
 // Hazard 1, both halves. ForeignMirrors closes BEFORE OverlayBackend (boot.js starts the overlay
 // first), so a mirror parked on the shared gate has to be released by its own close — but an
-// unscoped drain would release the engines' backlog into an overlay that is still live, and those
+// unscoped drain would release the engine's backlog into an overlay that is still live, and those
 // tasks pass their own hasOverlay() guard and start real fetches during shutdown.
-test('draining the mirror at close does not release the engines into a live overlay', async (t) => {
+test('draining the mirror at close does not release the engine into a live overlay', async (t) => {
   const ctx = await setup(t, 1)
   const engine = createOverlayDownloadEngine(testChannel())
   const fetches = barrierFetch()

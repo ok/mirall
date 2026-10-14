@@ -169,8 +169,8 @@ Bootstrap:
 
    The **runtime** tier closes first:
    5. Manifest caps and `runMigrations('content')`, before any publish scan or overlay index open.
-      Then `MountsRuntime` is constructed without side effects, then `OverlayBackend` (engines built
-      per lifetime, never at import), `PublishService`, `OwnedFolders`, `ForeignMirrors`,
+      Then `MountsRuntime` is constructed without side effects, then `OverlayBackend` (the download
+      engine built per lifetime, never at import), `PublishService`, `OwnedFolders`, `ForeignMirrors`,
       `EchoGuardPurge`, `PeerWatch`.
    6. Interrupted-leave resume → `intents.recover()` → download-root hydration → membership
       backfill. This comes after every reconciler registers and before the swarm, so a topic join
@@ -378,7 +378,10 @@ restores it). Download roots resolve per-space override → global root → OS d
 
 `pending-transfers` rows are keyed `<spaceId>:<filePath>`, one per in-flight or interrupted
 download; field sets are built in `src/shared/transfer/overlay/download-start.js`
-(`pendingRowFor`) and the channels' `pendingExtra`. `finalPath` is the collision-avoided landing
+(`pendingRowFor`) and the channel's per-kind `pendingExtra`
+(`src/shared/transfer/overlay/overlay-channel.js`): a loose row carries `inPlace: true` +
+`shareId: '__loose__'`, a folder row `overlayShare: true` + its catalog key. Those fields are what a
+build owns a row by; none is ever renamed. `finalPath` is the collision-avoided landing
 path from which `<finalPath>.mirall.part` and the resume journal derive; `bytesTransferred` lets the
 UI show `paused-*` / `error` and partial progress without a live transfer. Every write to one row
 goes through a per-key lock (`createKeyedLock`), including the leave purge, so a progress tick can
@@ -703,14 +706,13 @@ Recovery is **level-triggered**: reconnects (a handshake or `content-hello`), ca
 the convergence tick re-drive durable pending rows. The one exception is a holder that stalls
 without disconnecting, which produces no level change. For that case the engine retries on its own,
 with 3 s doubling backoff, and parks after `STALL_RETRY_DRY_LIMIT = 3` attempts that bank no new
-bytes. While a retry is pending, the paused event still fires with `retrying`. On the folder channel
-that event is the terminal decoration frame, and the flag only suppresses the loose channel's OS
-notification.
+bytes. While a retry is pending, the paused event still fires with `retrying`; the decoration frame
+terminates and the OS notification is withheld.
 
 | Case | Rule |
 |---|---|
 | Owner offline mid-fetch | Not terminal. The partial and row are kept; status derives `paused-offline` / `paused-interrupted` |
-| Owner reconnects | `resumeLooseForOwner` + `resumeFolderForOwner` re-drive that owner's rows. Active, user-paused and still-terminal rows are skipped. The destination is the space's *current* folder |
+| Owner reconnects | `OverlayBackend.resumeForOwner` re-drives that owner's rows of every share, loose and folder, in one pass. Active, user-paused and still-terminal rows are skipped. The destination is the space's *current* folder |
 | Republish | The superseded in-flight hash is cancelled and re-fetched |
 | `EHASHMISMATCH` → `TRANSFER_CHECKSUM` | Terminal, because the same holder fails the same way. Only the user's Retry or a republish re-attempts it |
 | `TRANSFER_PERMISSION` (errno **and** a refused probe write) | Terminal until the folder accepts a write. The same errno on a writable folder is the retryable `DOWNLOAD_FAILED` |
@@ -1136,6 +1138,14 @@ user's **real file on disk**, never a Hyperdrive blob store.
 'overlay'` only. A share in any other mode (absent, the `eager`/`deferred` modes older releases wrote,
 or an unknown one) renders as unavailable and is never routed; `test/unit/content-mode.test.js` locks
 this.
+
+**Downloads.** Every consumer download runs on one engine
+(`src/shared/transfer/overlay/overlay-download.js`) through one wrapper
+(`src/shared/transfer/overlay/share-downloads.js`). A loose file is the `LOOSE_SHARE_ID` share of
+its owner, a descriptor built from the member record at call time
+(`src/shared/transfer/overlay/download-job.js`, `looseShareFor`) and never stored. Per kind: the
+loose audit observer and offline-intent row; the folder mirrored-share refusal, the mirror's append
+trigger and the catalog key on the pending row.
 
 **Channel versioning.** The channel handshake announces `{version, capabilities}`. A peer that sends
 nothing is version 1 with no capabilities, so a capability-gated behaviour is simply off against it.

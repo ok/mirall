@@ -48,8 +48,7 @@ function failPendingWrites(t, { put = () => false, del = () => false } = {}) {
 // re-drive a row. `started` collects every fetch the engine actually begins.
 function channelFor(ctx, events, started, { hash = HASH_OLD, seq = 5 } = {}) {
   return {
-    diagLabel: 'test download',
-    inPlace: false,
+    diagLabelFor: () => 'test download',
     isOwnerOnline: () => true,
     ownsPendingRow: (row) => row.overlayShare === true,
     pendingExtra: (job) => ({ overlayShare: true, shareId: job.shareId, relPath: job.relPath }),

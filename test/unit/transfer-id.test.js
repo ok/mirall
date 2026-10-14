@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { LOOSE_SHARE_ID, transferIdFor, looseTransferIdFor, isLooseTransferId } from '../../src/shared/transfer/transfer-id.js'
+import { LOOSE_SHARE_ID, transferIdFor, looseTransferIdFor, isLooseTransferId, looseDrivePath, looseRelPath } from '../../src/shared/transfer/transfer-id.js'
 
 // The renderer round-trips this id, so the separator and field order are a wire contract: a change
 // here silently re-routes every pause/resume the UI sends back.
@@ -29,4 +29,11 @@ test('a pipe in the path does not move the share field', (t) => {
   const id = transferIdFor('space1', 'share1', 'odd|name.txt')
   t.is(id.split('|')[1], 'share1')
   t.absent(isLooseTransferId(id))
+})
+
+// PERSISTED: the drive path keys a loose file's pending row and its download claim.
+test('the drive path and the relPath round-trip', (t) => {
+  t.is(looseDrivePath('sub/a.bin'), '/sub/a.bin')
+  t.is(looseRelPath('/sub/a.bin'), 'sub/a.bin')
+  t.is(looseRelPath('sub/a.bin'), 'sub/a.bin', 'a bare relPath stays')
 })

@@ -15,8 +15,7 @@ import { createOverlayDownloadEngine } from '../../src/shared/transfer/overlay/o
 // (so reconnect can auto-resume), and discard clears the partial + pending row.
 function testChannel(events) {
   return {
-    diagLabel: 'test download',
-    inPlace: false,
+    diagLabelFor: () => 'test download',
     ownsPendingRow: (row) => row.overlayShare === true,
     pendingExtra: (job) => ({ overlayShare: true, shareId: job.shareId, relPath: job.relPath, catalogKey: job.catalogKey }),
     emitProgress: () => {},

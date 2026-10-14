@@ -15,7 +15,7 @@ import { getLocalPublicKeyHex } from '../spaces/profile.js'
 import { foreignFetchActive } from '../folders/mirror-fetch.js'
 import { requestMirrorWalk } from '../folders/foreign-verbs.js'
 import { localRelOf } from '../folders/mirror-state.js'
-import { folderHasTransfer } from '../transfer/overlay/folder-downloads.js'
+import { hasShareDownload } from '../transfer/overlay/share-downloads.js'
 import { markListIncomplete } from '../transfer/list-deficits.js'
 import {
   claimedPathFor,
@@ -44,7 +44,7 @@ const productionDeps = {
   getLocalPublicKeyHex,
   foreignFetchActive,
   requestMirrorWalk,
-  overlayHasTransfer: folderHasTransfer,
+  hasTransfer: hasShareDownload,
   claimedPathFor,
   verdictForClaim,
   listVerifiedRecordsForShare,
@@ -110,7 +110,7 @@ function overlayConsumerRow(spaceId, share, entry, { ownerOnline, foreignMount, 
     copyVerdict: verdict.downloaded ? copyVerdict(verdict.stat ?? null, localPath, false) : null,
     onDeviceStatus: SHARE_FILE_STATUS.DOWNLOADED,
     hashed,
-    isActive: deps.overlayHasTransfer(transferIdFor(spaceId, share.id, entry.relPath)),
+    isActive: deps.hasTransfer(transferIdFor(spaceId, share.id, entry.relPath)),
     pendingRow: pendingRow?.shareId === share.id ? pendingRow : undefined,
     ownerOnline,
   })
@@ -154,7 +154,7 @@ async function loadListingContext(spaceId, share, isOwn, deps) {
 async function readShareCatalog(spaceId, share, isOwn, backend, cap, signal) {
   let read
   try {
-    read = isOwn ? await backend.listOwn(spaceId, share.id, cap) : await backend.listPeerWithMeta(spaceId, share, cap)
+    read = isOwn ? await backend.listOwn(spaceId, share.id, cap) : await backend.listPeerWithMeta(spaceId, share, { limit: cap })
   } catch (err) {
     if (!isOwn && !signal?.aborted) markListIncomplete(spaceId)
     throw err
