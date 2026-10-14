@@ -190,7 +190,9 @@ test('a supersede restart at limit 1 does not deadlock on its own slot', async (
   await settle()
 })
 
-test('draining the gate at shutdown does not start a fetch into a torn-down overlay', async (t) => {
+// Staged in the order OverlayBackend._close runs it: the drain first, so a parked waiter abandons
+// before overlay.close() waits on it, while the overlay is still present and closing.
+test('REGRESSION (FIX-670: a waiter drained at shutdown fetched into the closing overlay)', async (t) => {
   const ctx = await setup(t, 1)
   const engine = createOverlayDownloadEngine(testChannel())
   const fetches = barrierFetch()
@@ -200,8 +202,8 @@ test('draining the gate at shutdown does not start a fetch into a torn-down over
   await engine.start(makeJob(ctx, 2))
   t.ok(await until(() => fetchSlotStats().queued === 1), 'the second is parked on the gate')
 
-  await teardownOverlay()
   drainFetchSlots()
+  await teardownOverlay()
   // A negative assertion, so it needs a real pause: the released waiter must NOT reach a fetch.
   await sleep(300)
 

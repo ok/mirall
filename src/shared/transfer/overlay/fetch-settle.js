@@ -32,8 +32,8 @@ export function createFetchSettle({
     return runGatedFetch({
       express: !!job.express,
       // Every reason the pre-fetch guard checked, plus the overlay itself: drainFetchSlots()
-      // releases parked waiters so close() is not held open, and they must not then fetch into a
-      // torn-down overlay.
+      // releases parked waiters so close() is not held open, and they must not then fetch into the
+      // overlay the shutdown is closing.
       recheck: () => abandonReason(slot, { ownerOnline, hasOverlay }),
       abandon: (reason) => abandon(slot, job, reason),
       holding: () => fetchAndSettle(slot, job),

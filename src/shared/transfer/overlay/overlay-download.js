@@ -13,6 +13,7 @@ import fs from 'bare-fs'
 import path from 'bare-path'
 import { getDownloadDir, isInsideDownloadDir } from '../../core/paths.js'
 import { getOverlay } from './overlay-instance.js'
+import { fetchSlotsDrained } from './fetch-gate.js'
 import { discardResumeJournal } from './overlay-journals.js'
 import { PARTIAL_SUFFIX, partialPathFor } from '../partial-suffix.js'
 import { isOwnerOnline } from '../../network/presence-leases.js'
@@ -204,7 +205,10 @@ function abortFetch(slot, opts) {
 // (a terminal verdict whose durable write failed) and the stall retries (a retry in flight); the
 // fourth is the durable pending row. The durable-write policy is not uniform — the table is in
 // solution-architecture.md under pause / resume transfers.
-export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentToFile, hasOverlay = () => !!getOverlay(), freeBytes = freeBytesFor, stallRetry = {}, dirExists = defaultDirExists, dirWritable = defaultDirWritable, dirAcceptsWrite = defaultDirAcceptsWrite, now = Date.now } = {}) {
+//
+// `hasOverlay` asks whether the overlay takes fetches: present, and its gate not drained for the
+// shutdown that tears it down next.
+export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentToFile, hasOverlay = () => !!getOverlay() && !fetchSlotsDrained(), freeBytes = freeBytesFor, stallRetry = {}, dirExists = defaultDirExists, dirWritable = defaultDirWritable, dirAcceptsWrite = defaultDirAcceptsWrite, now = Date.now } = {}) {
   const registry = new Map() // transferId -> slot (download-start.js makeSlot)
   // The marker is the user's intent — it outranks every automatic resume — and its hash lets a
   // later discard still tell the holder we stopped.
