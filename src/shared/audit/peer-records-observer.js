@@ -7,6 +7,7 @@
 //      sync-state change and at the peer's boot), so a row is emitted only when the subject's state
 //      flips, and the last recorded state is stored — an in-memory guard emits a duplicate on either
 //      side's restart.
+import { shareLabel } from '../shares/share-label.js'
 
 // The two record families do NOT share a tombstone field: a share is retired with `deletedAt`
 // (shares.js) and a mirror with `unmirroredAt` (mirror-records.js). Reading the wrong one is
@@ -35,7 +36,7 @@ export function classifyProfileChange(node) {
       spaceId: rest[0],
       shareId: rest[1],
       removed: removedByDel || !!value?.[tombstoneField],
-      name: value?.name || null,
+      name: shareLabel(value),
       state: typeof value?.state === 'string' ? value.state : null,
     }
   }

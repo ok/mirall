@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { folderJob, folderLabel } from '../../src/shared/transfer/overlay/folder-job.js'
+import { folderJob } from '../../src/shared/transfer/overlay/folder-job.js'
 import { catalogKeyField } from '../../src/shared/shares/catalog-keys.js'
 import { entryRef } from '../../src/shared/contract/entry-ref.js'
 
@@ -35,10 +35,9 @@ test('a missing size or seq degrades to what the engine expects', (t) => {
   t.is(job.sourceSeq, undefined)
 })
 
-test('the folder label prefers the display name and survives an unreadable descriptor', (t) => {
-  t.is(folderLabel({ name: 'Vault', displayName: 'My Vault' }), 'My Vault')
-  t.is(folderLabel({ name: 'Vault' }), 'Vault')
-  t.is(folderLabel(null), null)
+test('the job names the folder by its label and survives an unreadable descriptor', (t) => {
+  t.is(folderJob(base).folderName, 'My Vault')
+  t.is(folderJob({ ...base, share: { ...base.share, displayName: undefined } }).folderName, 'Vault')
   t.is(folderJob({ ...base, share: null }).folderName, null)
 })
 

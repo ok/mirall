@@ -10,6 +10,7 @@
 //     third party's activity.
 import { getSpace } from '../spaces/space.js'
 import { readOwnShares } from '../shares/shares.js'
+import { shareLabel } from '../shares/share-label.js'
 import { createLogger, fields } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
 import { ownedScheduler } from '../core/timers.js'
@@ -147,7 +148,7 @@ async function applyProfileChange(personKey, change) {
   const done = reported(change.removed ? 'mirror.peer_unmirrored' : 'mirror.peer_mirrored', {
     actor,
     space: ref,
-    target: targetRef(TARGET_KIND.SHARE, change.shareId, own.name ?? null),
+    target: targetRef(TARGET_KIND.SHARE, change.shareId, shareLabel(own)),
   })
   if (done) await commitRecorded(commit)
 }
@@ -165,7 +166,7 @@ async function applyMirrorSynced(personKey, change, actor, ref, own) {
   const done = reported('mirror.peer_synced', {
     actor,
     space: ref,
-    target: targetRef(TARGET_KIND.SHARE, change.shareId, own.name ?? null),
+    target: targetRef(TARGET_KIND.SHARE, change.shareId, shareLabel(own)),
   })
   if (done) await commitRecorded(() => setPeerSubjectState(key, STATE_ON))
 }

@@ -19,6 +19,7 @@ import { createOwnedMount } from '../shared/folders/mount-store.js'
 import { record } from '../shared/audit/audit-log.js'
 import { selfActor, targetRef } from '../shared/audit/audit-record.js'
 import { spaceRefOf } from './audit-refs.js'
+import { shareLabel } from '../shared/shares/share-label.js'
 /** @import { WorkerIpc } from '../shared/core/ipc.js' */
 /** @import { MountsRuntime } from './mounts-runtime.js' */
 /** @import { Share, MountValidationResult, OwnedMountResult } from '../shared/contract/responses.js' */
@@ -74,7 +75,7 @@ export function createOwnedMounter({ ipc, mounts }) {
         record('share.mounted', {
           actor: selfActor(),
           space: spaceRefOf(await getSpace(spaceId)),
-          target: targetRef(TARGET_KIND.SHARE, shareId, share?.name ?? null),
+          target: targetRef(TARGET_KIND.SHARE, shareId, shareLabel(share)),
           subject: { fileCount: result?.totalOnDisk ?? null, uploaded: result?.uploaded ?? null, mountPath },
         })
         mounts.schedulePeriodicReconcile(spaceId, shareId, mountPath, ignore)

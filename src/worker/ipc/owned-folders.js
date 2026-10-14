@@ -15,6 +15,7 @@ import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../../shared/contract/main-req
 import { TARGET_KIND } from '../../shared/contract/audit-kinds.js'
 import { getSpace } from '../../shared/spaces/space.js'
 import { readOwnShares, tombstoneShare } from '../../shared/shares/shares.js'
+import { shareLabel } from '../../shared/shares/share-label.js'
 import { validateMountPath } from '../../shared/folders/mount-validate.js'
 import { getIndexStatus, stopOwnedFolder } from '../../shared/folders/owned-folders.js'
 import { runPublishPass } from '../../shared/folders/owned-pass.js'
@@ -92,6 +93,7 @@ export function registerOwnedFolders(ipc, { log, mounts, intents, mountOwnedShar
     await assertCatalogWritable(msg.spaceId)
     const mount = await getOwnedMount(msg.spaceId, msg.shareId)
     if (!mount) throw new AppError(CODES.MOUNT_NOT_ON_DEVICE, 'Mount not found')
+    const share = (await readOwnShares(msg.spaceId)).find((s) => s.id === msg.shareId)
 
     const { mountPath, advisories } = await validateMountPath(msg.mountPath, 'owned-folder', { shareId: msg.shareId })
 
@@ -149,7 +151,7 @@ export function registerOwnedFolders(ipc, { log, mounts, intents, mountOwnedShar
     record('share.relocated', {
       actor: selfActor(),
       space: spaceRefOf(await getSpace(msg.spaceId)),
-      target: targetRef(TARGET_KIND.SHARE, msg.shareId, null),
+      target: targetRef(TARGET_KIND.SHARE, msg.shareId, shareLabel(share)),
       subject: { from: previousMountPath, to: mountPath },
     })
     return { mount: wire(mount), advisories }
@@ -182,7 +184,7 @@ export function registerOwnedFolders(ipc, { log, mounts, intents, mountOwnedShar
     record('share.deleted', {
       actor: selfActor(),
       space: spaceRefOf(await getSpace(msg.spaceId)),
-      target: targetRef(TARGET_KIND.SHARE, msg.shareId, share?.name ?? null),
+      target: targetRef(TARGET_KIND.SHARE, msg.shareId, shareLabel(share)),
     })
     ipc.emit('event:shares-updated', { spaceId: msg.spaceId })
     ipc.emit('event:share-files-updated', { spaceId: msg.spaceId, shareId: msg.shareId })

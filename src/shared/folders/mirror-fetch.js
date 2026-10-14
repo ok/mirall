@@ -43,6 +43,7 @@ import { STATUS_MOUNT_GONE, statusForFaultCode } from './mount-fault.js'
 import { conflictCopyName } from './path-keys.js'
 import { freeMirrorRel } from './mirror-state.js'
 import { mountRootAvailable } from './publish-service.js'
+import { shareLabel } from '../shares/share-label.js'
 
 const log = createLogger('mirror-fetch')
 
@@ -98,7 +99,7 @@ export function recordMirrorIntegrityFailure(mount, share, entry) {
       subject: {
         bytes: entry.size ?? null,
         ownerKey: mount.ownerKey ?? null,
-        folder: share?.displayName || share?.name || null,
+        folder: shareLabel(share),
         shareId: mount.shareId ?? null,
       },
       outcome: OUTCOME.ERROR,

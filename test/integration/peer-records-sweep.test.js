@@ -274,6 +274,20 @@ test("a mirror of our folder reports its first complete copy once, and again onl
   t.is((await rowsOf('mirror.peer_synced')).length, 2, 'a fresh mirror reports its first copy again')
 })
 
+test('rows about a renamed folder name it the way its owner renamed it', async (t) => {
+  const { spaceId, bee } = await mirroredShare(t)
+  await publishShare(spaceId, { id: 'mine', name: 'Designs', displayName: 'Brand' })
+  await bee.put(`mirror/${spaceId}/mine`, { shareId: 'mine', mountedAt: 1, state: 'synced' })
+  await bee.put(`share/${spaceId}/theirs`, { name: 'Vault', displayName: 'Archive' })
+  await observePeerProfile(PEER, bee)
+  await flushAudit()
+
+  const names = async (kind) => (await rowsOf(kind)).map((e) => e.target.name)
+  t.alike(await names('mirror.peer_mirrored'), ['Brand'], 'a peer mirroring our renamed folder')
+  t.alike(await names('mirror.peer_synced'), ['Brand'], 'and completing its copy')
+  t.alike(await names('peer.share_created'), ['Archive'], 'a peer sharing a folder it renamed')
+})
+
 // REGRESSION (NOTIFY-1: the subject's state was committed only when the log admitted the row, so a
 // row over its rate budget was notified again on every later re-put of the same record.)
 test('REGRESSION (NOTIFY-1): a rate-limited mirror copy is notified once', async (t) => {
