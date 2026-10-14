@@ -6,11 +6,16 @@ test('an empty tally is a well-formed result for either direction', (t) => {
   const up = createPreviewTally().result('add-owned-folder', 'upload')
   t.alike(
     { ...up, perFile: up.perFile.length },
-    { flow: 'add-owned-folder', toUpload: 0, toDownload: 0, conflicts: 0, totalBytes: 0, perFile: 0, perFileOmitted: false },
+    { flow: 'add-owned-folder', toUpload: 0, toDownload: 0, conflicts: 0, totalBytes: 0, perFile: 0, perFileOmitted: false, complete: true },
   )
   const down = createPreviewTally().result('mount-foreign-folder', 'download')
   t.is(down.toDownload, 0)
   t.is(down.toUpload, 0, 'the unused direction is always 0, never undefined')
+})
+
+test('a result is complete unless the caller says its listing was partial', (t) => {
+  t.is(createPreviewTally().result('add-owned-folder', 'upload').complete, true, 'a disk walk is whole')
+  t.is(createPreviewTally().result('mount-foreign-folder', 'download', { complete: false }).complete, false, 'a partial listing wins')
 })
 
 test('direction routes the one count onto the right field', (t) => {

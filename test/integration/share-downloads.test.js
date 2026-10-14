@@ -211,7 +211,7 @@ test('one descriptor reads each share from the owner\'s one catalog', async (t) 
   t.alike(folderRead.entries.map((e) => e.relPath), ['b.bin'], 'the folder share lists its own')
   t.ok(looseRead.complete, 'a whole read')
   t.is(typeof await watchedCatalogVersion(ctx.spaceId, loose), 'number', 'the read armed the watch, so the version is live')
-  t.alike(await listPeerWithMeta(ctx.spaceId, looseShareFor({ publicKey: OWNER })), { entries: [], complete: true, total: 0, totalBytes: 0 },
+  t.alike(await listPeerWithMeta(ctx.spaceId, looseShareFor({ publicKey: OWNER })), { entries: [], complete: true, stalled: false, total: 0, totalBytes: 0 },
     'a keyless member reads as an empty, whole listing')
 })
 

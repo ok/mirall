@@ -17,12 +17,11 @@ import { getSpace, getSpaceContentKey, isLegacySpace, LEGACY_SPACE_MESSAGE } fro
 import { publishShare, tombstoneShare, readOwnShares, isValidShareName, generateShareId } from '../../shared/shares/shares.js'
 import { shareLabel } from '../../shared/shares/share-label.js'
 import { listSharesForSpace } from '../../shared/shares/share-registry.js'
-import { consumerFilePath, listOverlayShareFiles } from '../../shared/shares/share-listing.js'
+import { consumerFilePath, listOverlayShareFiles, readShareCatalog } from '../../shared/shares/share-listing.js'
 import { catalogKeyField } from '../../shared/shares/catalog-keys.js'
 import { ownCatalogPublish } from '../../shared/shares/own-catalog.js'
 import { isServableShare } from '../../shared/transfer/content-mode.js'
 import { overlayBackend as backend } from '../../shared/transfer/overlay/index.js'
-import { markListIncomplete } from '../../shared/transfer/list-deficits.js'
 import { revealLocalPath } from '../../shared/transfer/reveal.js'
 import { pathFromMount } from '../../shared/folders/path-guard.js'
 import { isSpaceLeaving } from '../../shared/network/leave-protocol.js'
@@ -256,21 +255,16 @@ export function registerShares(ipc, { log, intents, mountOwnedShare }) {
     return { ok: true }
   })
 
-  ipc.handle('share:folder-info', async (msg) => {
+  ipc.handle('share:folder-info', async (msg, ctx) => {
     const share = await loadShareDescriptor(msg.spaceId, msg.ownerKey, msg.shareId)
     if (!isServableShare(share)) return { fileCount: 0, totalBytes: 0, blobsLength: null, complete: true }
     // overlay: counts come from the catalog (no drive blobs)
     const isOwn = share.owner === getLocalPublicKeyHex()
     // limit=0 → count + sum the catalog in one pass WITHOUT retaining any rows, so a 150k-file
     // folder (e.g. opened in MirrorFolderModal) can't rebuild the full array here and OOM.
-    if (isOwn) {
-      const { total, totalBytes } = await backend.listOwn(msg.spaceId, share.id, 0)
-      return { fileCount: total, totalBytes, blobsLength: null, complete: true }
-    }
-    // A stalled peer read counted part of the folder: say so, and have the convergence tick re-poke it.
-    const { total, totalBytes, stalled } = await backend.listPeerWithMeta(msg.spaceId, share, { limit: 0 })
-    if (stalled) markListIncomplete(msg.spaceId)
-    return { fileCount: total, totalBytes, blobsLength: null, complete: !stalled }
+    // A stalled peer read counted part of the folder, and says so.
+    const read = await readShareCatalog({ spaceId: msg.spaceId, share, isOwn, backend, limit: 0, signal: ctx?.signal ?? null })
+    return { fileCount: read.total, totalBytes: read.totalBytes, blobsLength: null, complete: !read.stalled }
   })
 
   // Space-wide storage for the space view's storage widget: one aggregate across

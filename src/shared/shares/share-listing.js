@@ -150,11 +150,17 @@ async function loadListingContext(spaceId, share, isOwn, deps) {
   }
 }
 
-// A peer read that stalled or threw flags the space as a list deficit (list-deficits.js).
-async function readShareCatalog(spaceId, share, isOwn, backend, cap, signal) {
+// One share's catalog read for an interactive reader. A peer read that stalled or threw flags the
+// space as a list deficit (list-deficits.js), so the convergence tick re-pokes it; a cancelled read
+// flags nothing. `onEach` observes every counted peer entry regardless of `limit`.
+/**
+ * @param {{ spaceId: string, share: StoredShare, isOwn: boolean, backend: typeof import('../transfer/overlay/index.js').overlayBackend, limit?: number, onEach?: ((entry: { relPath: string, size: number, contentHash: string | null }) => void) | null, signal?: CancellationSignal | null }} opts
+ */
+export async function readShareCatalog({ spaceId, share, isOwn, backend, limit = Infinity, onEach = null, signal = null }) {
   let read
   try {
-    read = isOwn ? await backend.listOwn(spaceId, share.id, cap) : await backend.listPeerWithMeta(spaceId, share, { limit: cap })
+    // A local read never waits on a peer, so it is never stalled.
+    read = isOwn ? { ...await backend.listOwn(spaceId, share.id, limit), stalled: false } : await backend.listPeerWithMeta(spaceId, share, { limit, onEach })
   } catch (err) {
     if (!isOwn && !signal?.aborted) markListIncomplete(spaceId)
     throw err
@@ -183,7 +189,7 @@ export async function listOverlayShareFiles(spaceId, share, backend, deps = prod
   // always consistent with the rows (total >= entries.length). The rich display rows below are
   // built only for the capped entries.
   const cap = getListFilesCap()
-  const { entries, total, totalBytes, complete = true } = await readShareCatalog(spaceId, share, isOwn, backend, cap, signal)
+  const { entries, total, totalBytes, complete = true } = await readShareCatalog({ spaceId, share, isOwn, backend, limit: cap, signal })
   const { ownerOnline, ownedMount, foreignMount, pending } = await loadListingContext(spaceId, share, isOwn, deps)
   const { verified, claims } = await prefetchRowState(spaceId, share, entries, { isOwn, foreignMount, deps })
   // The last point an abort can land: everything below is synchronous until the prune.

@@ -1,6 +1,6 @@
 // The space-wide storage summary behind the space view's storage widget: ONE
-// {totalBytes, onDeviceBytes} across every folder share (owned, mirrored,
-// browse-only) plus the loose files. Totals ride the existing count-only
+// {totalBytes, onDeviceBytes, complete} across every folder share (owned,
+// mirrored, browse-only) plus the loose files. Totals ride the existing count-only
 // (limit=0) catalog drains, so a 150k-file share never materialises a row
 // array here; on-device bytes are exact for owned content and derived from the
 // verified-download registry for mirrors (the bulk form of the per-row listing
@@ -16,29 +16,31 @@ import { listVerifiedForShare } from '../transfer/files.js'
 import { listFiles } from '../transfer/file-listing.js'
 import { isOnDeviceStatus } from '../contract/statuses.js'
 import { markListIncomplete } from '../transfer/list-deficits.js'
+import { readShareCatalog } from '../shares/share-listing.js'
+import { isOwnerOnline } from '../network/presence-leases.js'
 
 const log = createLogger('space-storage')
 
 const ZERO = { totalBytes: 0, onDeviceBytes: 0, complete: true }
 
-// A stalled peer read counted part of the share: the contribution is a floor, and the space is
-// flagged for the convergence tick to re-poke.
-function peerContribution(spaceId, { totalBytes, stalled }, onDeviceBytes) {
-  if (stalled) markListIncomplete(spaceId)
-  return { totalBytes, onDeviceBytes, complete: !stalled }
-}
+// A peer share whose read stalled or threw counts part of the share, and the space is flagged for
+// the convergence tick either way (readShareCatalog). The summary calls itself incomplete only
+// while that owner is online, the loose listing's rule: an offline owner's read always stalls, and
+// the note would otherwise stay up for as long as anyone is away.
+const peerComplete = (share, failed) => !failed || !isOwnerOnline(share.owner)
 
 async function shareContribution(spaceId, share, me) {
   if (!isServableShare(share)) return ZERO
   if (share.owner === me) {
     // An owned folder serves in place — its bytes are on this device by definition.
-    const { totalBytes } = await backend.listOwn(spaceId, share.id, 0)
+    const { totalBytes } = await readShareCatalog({ spaceId, share, isOwn: true, backend, limit: 0 })
     return { totalBytes, onDeviceBytes: totalBytes, complete: true }
   }
   const mount = await getForeignMount(spaceId, share.id)
   if (!mount?.enabled) {
     // Browse-only: the share counts toward what the space holds, nothing is materialized.
-    return peerContribution(spaceId, await backend.listPeerWithMeta(spaceId, share, { limit: 0 }), 0)
+    const { totalBytes, stalled } = await readShareCatalog({ spaceId, share, isOwn: false, backend, limit: 0 })
+    return { totalBytes, onDeviceBytes: 0, complete: peerComplete(share, stalled) }
   }
   // Mirrored: a file counts on-device iff its verified-download record still matches
   // the owner's advertised hash, joined in bulk during the one count-only drain with no
@@ -46,7 +48,11 @@ async function shareContribution(spaceId, share, me) {
   // the user deleted from the mirror keeps counting only until the sync loop re-lands it.
   const verified = await listVerifiedForShare(spaceId, share.id)
   let onDeviceBytes = 0
-  const read = await backend.listPeerWithMeta(spaceId, share, {
+  const { totalBytes, stalled } = await readShareCatalog({
+    spaceId,
+    share,
+    isOwn: false,
+    backend,
     limit: 0,
     onEach: (entry) => {
       if (entry.contentHash && verified.get(entry.relPath) === entry.contentHash && Number.isFinite(entry.size)) {
@@ -54,7 +60,7 @@ async function shareContribution(spaceId, share, me) {
       }
     },
   })
-  return peerContribution(spaceId, read, onDeviceBytes)
+  return { totalBytes, onDeviceBytes, complete: peerComplete(share, stalled) }
 }
 
 export async function spaceStorageSummary(spaceId) {
@@ -70,7 +76,9 @@ export async function spaceStorageSummary(spaceId) {
       return await shareContribution(spaceId, share, me)
     } catch (err) {
       log.warn('storage summary skipped share', share.id, '-', err.message)
-      return { ...ZERO, complete: false }
+      if (share.owner === me) return { ...ZERO, complete: false }
+      markListIncomplete(spaceId)
+      return { ...ZERO, complete: peerComplete(share, true) }
     }
   }))
   let totalBytes = 0

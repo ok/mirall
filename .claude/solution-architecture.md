@@ -427,6 +427,13 @@ row keys on owner + path, so a shared name never merges two owners' files.
 member who is online could not be read in full, and every stalled read — online or not — marks the
 space for the convergence tick's re-poke (`src/shared/transfer/list-deficits.js`).
 
+The three readers of a peer catalog that are not listings, `share:folder-info`, the mirror's mount
+preview and `space:storage-summary`, read it through `readShareCatalog`
+(`src/shared/shares/share-listing.js`), so a stalled or failed peer read marks the space the same
+way, and each answers `complete`. Folder info and the preview are incomplete on any stalled read:
+the reader is about to mirror, and a floor matters even while the owner is away. The storage
+summary follows the loose rule: only an owner who is online makes it incomplete.
+
 #### Publish, share-wait, download
 
 Mechanics are in §4.5, §7.2 and §7.6; these are the data-model invariants.

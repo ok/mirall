@@ -222,8 +222,9 @@ export interface ScanPreview {
   fileLimit?: number
   overFileLimit?: boolean
   listingAdvisory?: boolean
-  // False when the mirror's read of the owner's catalog could not finish: the counts cover part of
-  // the folder. Always true for a local disk walk.
+  // False when the mirror's read of the owner's catalog could not finish, or the owner's share record
+  // could not be read: the counts cover part of the folder. Owner presence is not consulted, as for
+  // FolderInfo. Always true for a local disk walk.
   complete: boolean
 }
 
@@ -344,7 +345,9 @@ export interface ShareFileListing extends ContentListing {
   entries: ShareFileRow[]
 }
 
-// `complete` is false when the owner's catalog read could not finish: the counts are a floor.
+// `complete` is false when the owner's catalog read could not finish: the counts are a floor. Owner
+// presence is deliberately not consulted: the reader is about to mirror, and a floor matters even
+// while the owner is away.
 export interface FolderInfo { fileCount: number, totalBytes: number, blobsLength: number | null, complete: boolean }
 
 /** A loose download: queued behind the engine, or started with a landing path. */
@@ -483,7 +486,9 @@ export interface StorageInfo {
 
 export interface FreeUpResult { restartRequired: boolean, requested: string[] }
 
-// `complete` is false when a peer share's read could not finish or a share was skipped: the totals are a floor.
+// `complete` is false when an own share was skipped, or when the read of a share whose owner is
+// online could not finish: the totals are a floor. An offline owner's read always stalls, so it does
+// not count, the same rule as the loose listing's `complete`.
 export interface SpaceStorageSummary { totalBytes: number, onDeviceBytes: number, complete: boolean }
 export interface RootsStatus { unavailable: string[], host: PathHost }
 export interface VerboseState { verbose: boolean }
