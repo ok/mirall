@@ -7,7 +7,7 @@ import { workDir } from '../paths.mjs'
 
 const sleep = (ms) => new Promise((res) => setTimeout(res, ms))
 
-// A1 — the LOOSE FileCard download exposes the same Pause/Resume controls the
+// A1 — the LOOSE FileRow download exposes the same Pause/Resume controls the
 // folder-view row does (s48), on a different surface: the space-root list, not a
 // FolderScreen — its own a11y guarantee per row. 256 MB widens the mid-flight window
 // so we usually catch the running/paused controls; loopback can still finish inside

@@ -101,7 +101,7 @@ One row per file in `scenarios/`; the id is the `run.mjs` argument (`node test/f
 | s71 | `s71-loose-source-change-restart.mjs` | The source changes on the sender mid-download → the receiver is told, restarts on the new content and ends verified. |
 | s73 | `s73-peer-download-indicator.mjs` | The owner's row shows who is downloading (expander + per-peer list) while a peer pulls, and clears when the file lands. |
 | s74 | `s74-peer-download-multi.mjs` | Three peers pull one file: the owner's multi-peer indicator and dropdown; clears when all three land. |
-| s82 | `s82-loose-download-pause.mjs` | The loose FileCard exposes Pause / Resume mid-flight; the file lands "On your device". |
+| s82 | `s82-loose-download-pause.mjs` | The loose file row exposes Pause / Resume mid-flight; the file lands "On your device". |
 | s83 | `s83-loose-download-cancel.mjs` | Cancel a loose download mid-flight: the row reverts to Available, no partial lands. |
 | s84 | `s84-loose-download-discard-partial.mjs` | Pause, then Discard Partial from the paused row: back to Available, partial removed. |
 | s85 | `s85-cancel-publish-indexing.mjs` | Cancel a loose publish while still "Adding": the file never becomes a share for the peer. |

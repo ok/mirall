@@ -1,5 +1,5 @@
 // Recipients-cluster layout test (LOCAL/dev-machine only — spawns a real Electron GUI process).
-// Mounts the real <FileCard> and <ShareFileRow> with two of three members holding the file at four
+// Mounts the real loose and folder <FileRow> with two of three members holding the file at four
 // row widths and asserts the cluster sheds before the name: no overflow, a one-line toggle, faces
 // only when wide, "2/3" when narrow, and the name keeps its width; an open list closes when a
 // publish takes the lane.

@@ -5,7 +5,7 @@ import { connectInSpace } from '../helpers.mjs'
 import { makeReport, waitFor } from '../assert.mjs'
 import { workDir } from '../paths.mjs'
 
-// Unshare a loose file via the FileCard "Unshare from Space" action and the
+// Unshare a loose file via the loose FileRow "Unshare from Space" action and the
 // RemoveFileModal confirm; the tombstone removes it for the owner and propagates
 // to the peer.
 export default async function s11({ runDir, bootstrap }) {

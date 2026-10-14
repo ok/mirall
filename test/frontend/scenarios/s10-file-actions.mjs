@@ -5,7 +5,7 @@ import { connectInSpace } from '../helpers.mjs'
 import { makeReport, waitFor } from '../assert.mjs'
 import { workDir } from '../paths.mjs'
 
-// Per-file actions on a loose file (FileCard in the space view): a peer downloads
+// Per-file actions on a loose file (the loose FileRow in the space view): a peer downloads
 // it to completion and then has a Reveal affordance. The Download / Reveal
 // controls are icon-only and must carry accessible names. Pause/resume/retry are
 // transfer-timing dependent and covered at the flow/integration layers (the

@@ -6,7 +6,7 @@ import { makeReport, waitFor, assert } from '../assert.mjs'
 import { flatten } from '../tree.mjs'
 import { workDir } from '../paths.mjs'
 
-// Loose files on the space route (FileCard): a downloaded+verified file and a
+// Loose files on the space route (loose FileRow): a downloaded+verified file and a
 // still-remote file coexist in the list. The "verified" badge is information, so
 // it sits just left of the status pill, leaving the row's right edge for actions;
 // the action cluster stays a constant-width two-slot strip so the status pills

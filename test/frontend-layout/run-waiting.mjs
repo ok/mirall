@@ -1,5 +1,5 @@
 // Waiting-cluster layout test (LOCAL/dev-machine only — spawns a real Electron GUI process).
-// Mounts the real <FileCard> mid-hash with members waiting at three row widths and asserts the
+// Mounts the real loose <FileRow> mid-hash with members waiting at three row widths and asserts the
 // cluster yields before the hash bar: no overflow, the bar keeps its width, the toggle stays in the
 // card, and only the narrow row sheds the avatar stack.
 //

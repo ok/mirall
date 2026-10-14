@@ -76,6 +76,9 @@ export type IconName =
   | 'warning'
   | 'work'
 
+// Which list a file row sits in: a loose file on the space screen, or a file in a folder share.
+export type RowKind = 'loose' | 'share'
+
 export type DecorationPhase = 'verifying' | 'preparing' | 'publishing'
 
 export interface Decoration {

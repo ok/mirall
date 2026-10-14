@@ -33,9 +33,9 @@ const RULES = [
     use: '<InlineError>',
     owner: 'components/primitives/InlineError.tsx',
     pattern: /role="alert"[^>]*\btext-error\b|\btext-error\b[^>]*role="alert"/,
-    // The file card's error rides INSIDE the meta paragraph, so the row keeps its resting height.
+    // The file row's error rides INSIDE the meta paragraph, so the row keeps its resting height.
     // InlineError renders a <p>, and a <p> inside a <p> is invalid markup.
-    exempt: ['components/cards/FileCard.tsx'],
+    exempt: ['components/cards/FileRow.tsx'],
   },
   {
     what: 'a field label',

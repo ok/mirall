@@ -125,7 +125,7 @@ light values in dark. Every status token has a dark variant. `--color-background
 **Folder vs file card surfaces (two-tier — the folder is the darker card in both themes).** Folder
 cards — folder shares (`ShareCard`) and folder-tree rows (`FolderTree`) — rest on
 `surface-container-low` in light (`#f5f3ef`) and `surface-container-lowest` in dark (`#21252b`).
-File cards — `FileCard`, `ShareFileRow` — rest on `surface-container-lowest` in light (`#ffffff`)
+File rows — `FileRow`, on the space and folder screens — rest on `surface-container-lowest` in light (`#ffffff`)
 and `surface-container-low` in dark (`#2e3239`). So the folder is always the darker surface and the
 file the lighter one, in both themes (in dark: folder darker than the background, file lighter).
 Both lift to `surface-container-highest` on hover — a single, clearly-visible step that never
@@ -357,12 +357,13 @@ is also what the app already did everywhere else: rows and cards lift to
 ever hovered while the row is, so it steps off `surface-container-highest`, not off the background
 — and `surface-container-high` sits *lighter* than that in light mode, 1.06:1, which read as no
 hover at all. Transparent controls therefore hover through the `control-hover` utility, which
-paints `var(--control-hover, surface-container-high)`, and the lifting rows (`FileCard`,
-`ShareFileRow`, `ShareCard`) set `hover:[--control-hover:var(--lifted-control-hover)]` — the same
+paints `var(--control-hover, surface-container-high)`, and the lifting rows (`FileRow`,
+`ShareCard`) set `hover:[--control-hover:var(--lifted-control-hover)]` — the same
 host override as `--avatar-ring`. `--lifted-control-hover` flips per theme: `surface-container-lowest`
 in light (+10 L\* off the lifted row), `surface-container-high` in dark (+14) — the pair the dropdown
-pills already take under the same lift. Off a row nothing changes. Covers `IconButton`, the
-`ActionMenu` `subtle` trigger, the row's action slots and the three cluster toggles (download,
+pills already take under the same lift. Off a row nothing changes. Covers `IconButton` (and so every
+non-destructive file-row action; a destructive one is the `danger` variant and hovers to
+`bg-error-container`), the `ActionMenu` `subtle` trigger and the three cluster toggles (download,
 waiting, recipients); pinned by `test/invariants/control-hover-tokens.test.js` (FIX-4).
 
 **How big the step has to be depends on how far the fill sits from the page**, because the page is
@@ -452,8 +453,12 @@ Still hand-rolled elsewhere: Activity Log's "Clear all" (`font-semibold`, its ow
 
 ### Icon button — `primitives/IconButton.tsx`
 `w-10 h-10 rounded-full control-hover` — `surface-container-high`, or the lifted fill inside a file
-or share row (see the hover rules under Buttons). Requires `ariaLabel`; icon defaults to
-`text-accent`.
+or share row (see the hover rules under Buttons). Requires `ariaLabel`. The icon paints
+`iconClassName`, `text-accent` unless given (file-row actions pass `text-secondary`).
+`variant="danger"` is a destructive control: `text-error` on the button, hovering to
+`bg-error-container text-on-error-container`; the icon drops any `text-*` ink and inherits —
+`error` on `error-container` is under 3:1 in dark (pinned by `control-hover-tokens.test.js`,
+FIX-B4-1).
 
 ### Toggle — `primitives/Toggle.tsx`
 Full-width `role="switch"` row, `p-6`, label + optional description on the left, a 48×28 pill track
@@ -538,7 +543,7 @@ picker, a `PathRow` whose action is a button), which points `aria-labelledby` ba
 
 ### Inline error — `primitives/InlineError.tsx`
 The `text-error` sentence under the thing that failed, with `role="alert"` so it is announced when
-it appears. `size="sm"` under a field, `xs` in a dense row. `FileCard` is the one exception: its
+it appears. `size="sm"` under a field, `xs` in a dense row. `FileRow` is the one exception: its
 error rides inside the meta paragraph as a `<span>` so a failed row keeps its resting height.
 
 ### Callout — `primitives/Callout.tsx`
@@ -711,14 +716,26 @@ see `cards/JoinRequestCard.tsx`, which despite its name is a card, not a banner.
 
 ### Cards — `components/cards/`
 Folder rows (`ShareCard`, `folder/FolderTree`) rest on
-`bg-surface-container-low dark:bg-surface-container-lowest`; file rows (`FileCard`, `ShareFileRow`)
+`bg-surface-container-low dark:bg-surface-container-lowest`; file rows (`FileRow`)
 on `bg-surface-container-lowest dark:bg-surface-container-low`; `SpaceCard` on
 `bg-surface-container-lowest`. All lift to `hover:bg-surface-container-highest` in both themes (the
 two-tier rule in §2), `transition-colors`, **no border, no shadow**:
 - **SpaceCard** — `p-5 rounded-2xl`; flat-color icon tile (`gradientForSpaceId`) + an `AvatarStack`.
-- **ShareCard / FileCard** — `rounded-xl`, row layout, action buttons revealed on hover
-  (`opacity-0 group-hover:opacity-100`). FileCard uses a container query (`@container/row`) to drop
-  the status badge when narrow.
+- **ShareCard** — `rounded-xl`, row layout, action buttons revealed on hover
+  (`opacity-0 group-hover:opacity-100`).
+- **FileRow** — one component for a file on the space screen (`kind="loose"`) and in a folder's
+  tree (`kind="share"`): `rounded-xl p-5`, icon tile, name, one meta line (size; a loose file adds
+  "Shared by …"; a failed row's `role="alert"` error rides the line so the row keeps its height),
+  `RowLane`, then `ActionLane`. A folder row adds a leading gutter and indents its dropdown to match.
+  `@container/row` lets the lane shed the status badge when narrow.
+- **ActionLane** — a file row's right edge, two `IconButton` slots at a constant width so the pills
+  line up down a list. Which button sits where is `model/file-row-action.js`'s one table for both
+  screens: the primary (right) always shows; the secondary (left, the destructive half of a pair —
+  Cancel, Discard Partial, Dismiss, Unshare) shows on row hover or keyboard focus
+  (`opacity-0 group-hover:opacity-100 focus:opacity-100`) and stays in the Tab order. Destructive
+  controls are the `danger` variant; an empty slot is a `w-10 h-10` spacer; a busy row shows a
+  pulsing `update` icon as `role="status"` with an `sr-only` label; an offline owner's file shows a
+  disabled Download named "Owner offline — download unavailable".
 - **MemberCard** — `flex items-center justify-between`, no hover lift; presence is a 12 px
   `bg-online` / `bg-offline` dot overlaid on the avatar's bottom-right corner
   (`border-2 border-surface-container-low` to cut it out of the image), not `Avatar`'s status ring.
