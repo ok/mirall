@@ -5,6 +5,7 @@ import {
   splitSentence, sentinelValues, systemIcon, emptyStateFor, searchKindsFor, FIELD_SENTINEL, SENTENCE_FIELDS,
 } from '../../src/renderer/model/audit-row.js'
 import { KINDS } from '../../src/shared/contract/audit-kinds.js'
+import { buildRecord, searchText } from '../../src/shared/audit/audit-record.js'
 import { formatSize } from '../../src/renderer/format/bytes.js'
 import { formatDuration } from '../../src/renderer/model/connectivity.js'
 import i18next from 'i18next'
@@ -434,4 +435,31 @@ test('REGRESSION (FIX-637: a word from a row\'s sentence found nothing when its 
   t.alike(searchKindsFor('zugelassen', kinds, de), ['membership.approved'], 'the term matches in the viewer\'s language')
   const es = await translatorFor('es')
   t.ok(searchKindsFor('creaste', kinds, es).includes('space.created'), 'a verb form only the sentence carries matches')
+})
+
+// The meta line and the search read the subject through one function. This holds the meta line to
+// it: every name or path it shows is in the row's search text. Real rows carry sizes and counts,
+// which are formatted figures, not names.
+test("every name or path on the second line is in the row's search", (t) => {
+  const rows = [
+    { kind: 'transfer.completed', space: { id: 'sp1', name: 'Design Team' }, subject: { folder: 'Quarterly Reports', bytes: 2048, ownerKey: 'o', shareId: 's' } },
+    { kind: 'security.integrity_failure', subject: { folder: 'Plans', bytes: 10 } },
+    { kind: 'share.mounted', subject: { mountPath: '/Users/Ada/Plans', fileCount: 3, uploaded: 1 } },
+    { kind: 'mirror.relocated', subject: { mountPath: '/Users/Ada/New', previousMountPath: '/Users/Ada/Old' } },
+    { kind: 'share.relocated', subject: { from: '/a/Old', to: '/b/New' } },
+    { kind: 'network.peer_relayed', subject: { via: 'own', label: 'Home Box', plane: 'content' } },
+    { kind: 'network.peer_relayed', subject: { via: 'adopted', provider: 'Cleo' } },
+    { kind: 'relay.replaced', subject: { relayKind: 'open', previous: 'abcd1234…ef5678', previousLabel: 'Old Box', mode: 'auto' } },
+    { kind: 'relay.replaced', subject: { relayKind: 'open', previous: 'abcd1234…ef5678', previousLabel: null } },
+  ]
+  for (const [seq, fields] of rows.entries()) {
+    const rec = buildRecord({ seq, ts: Date.now(), ...fields })
+    const figures = new Set([formatBytes(Number(fields.subject.bytes))])
+    const shown = metaParts(rec).flatMap((part) => (part.text !== undefined
+      ? [part.text]
+      : ['label', 'name', 'previous'].map((k) => part.values?.[k]).filter((v) => typeof v === 'string' && v)))
+      .filter((text) => !figures.has(text))
+    t.ok(shown.length > 0, fields.kind + ' shows a name or path')
+    for (const text of shown) t.ok(searchText(rec).includes(text.toLowerCase()), fields.kind + ' finds "' + text + '"')
+  }
 })

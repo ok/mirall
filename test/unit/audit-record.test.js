@@ -1,6 +1,7 @@
 import test from 'brittle'
-import { buildRecord, SCHEMA_VERSION, selfActor, peerActor, systemActor, spaceRef, targetRef } from '../../src/shared/audit/audit-record.js'
+import { buildRecord, searchText, SCHEMA_VERSION, selfActor, peerActor, systemActor, spaceRef, targetRef } from '../../src/shared/audit/audit-record.js'
 import { KINDS, OUTCOME, OUTCOMES, TARGET_KIND } from '../../src/shared/contract/audit-kinds.js'
+import { NAME_MAX } from '../../src/shared/contract/limits.js'
 
 const base = { seq: 1, ts: 1754236800000, kind: 'space.created' }
 
@@ -128,4 +129,56 @@ test('a record built entirely from the builders round-trips', (t) => {
   t.alike(rec.space, { id: 's1', name: 'Space' })
   t.alike(rec.target, { kind: 'member', id: 'key1', name: 'Ada' })
   t.is(rec.search, 'ada space ada', 'every builder name reaches the search index')
+})
+
+const searchOf = (kind, subject) => searchText(buildRecord({ ...base, kind, subject }))
+
+test("REGRESSION (FIX-642: search missed the names and paths on a row's second line)", (t) => {
+  const download = buildRecord({
+    ...base,
+    kind: 'transfer.completed',
+    actor: selfActor('me', 'Me'),
+    space: spaceRef('sp1', 'Design Team'),
+    target: targetRef(TARGET_KIND.FILE, 'q3.pdf', 'q3.pdf'),
+    subject: { folder: 'Quarterly Reports', bytes: 2048 },
+  })
+  t.is(searchText(download), 'me design team q3.pdf quarterly reports', 'the folder a file came from follows the names')
+  t.is(download.search, searchText(download), 'the stored copy is the same text')
+  t.ok(searchOf('mirror.created', { mountPath: '/Users/Ada/Mirrors/Plans' }).includes('/users/ada/mirrors/plans'), "a mirror's local path")
+  t.ok(searchOf('share.relocated', { from: '/old/Spot', to: '/new/Spot' }).includes('/new/spot'), 'where a folder was moved to')
+  t.ok(searchOf('network.peer_relayed', { via: 'own', label: 'Home Box' }).includes('home box'), "your relay's label")
+  t.ok(searchOf('network.peer_relayed', { via: 'adopted', provider: 'Cleo' }).includes('cleo'), 'who provides the relay')
+  t.ok(searchOf('relay.replaced', { previous: 'abcd1234…ef5678', previousLabel: 'Old Box' }).includes('old box'), 'the replaced relay by label')
+  t.ok(searchOf('relay.replaced', { previous: 'abcd1234…ef5678', previousLabel: null }).includes('abcd1234…ef5678'),
+    'the replaced relay by masked key when it had no label')
+  t.ok(searchOf('relay.replaced', { previous: 'abcd1234…ef5678', previousLabel: 7 }).includes('abcd1234…ef5678'),
+    'a label that is not text falls back to the masked key, as the row does')
+})
+
+test('search leaves out the subject fields a row does not show', (t) => {
+  const moved = searchOf('share.relocated', { from: '/old/Spot', to: '/new/Spot', ownerKey: 'ownerkey' })
+  t.absent(moved.includes('/old/spot'), 'the old location is not on the row')
+  t.absent(moved.includes('ownerkey'))
+  t.absent(searchOf('relay.replaced', { previous: 'abcd1234…ef5678', previousLabel: 'Old Box' }).includes('abcd1234'),
+    'the masked key is not shown while the relay had a label')
+  t.is(searchOf('network.peer_relayed', { via: 'adopted', label: 'Hidden', provider: 'Cleo' }), 'cleo', 'a label shows only on your own relay')
+  t.is(searchOf('network.peer_relayed', { via: 'own', provider: 'Hidden' }), '', 'a provider shows only on an adopted relay')
+  t.is(searchOf('transfer.completed', { label: 'Hidden', previous: 'Hidden' }), '', 'relay names show only on relay rows')
+  t.is(searchOf('transfer.completed', { folder: 42, mountPath: ['x'] }), '', 'a non-string subject field is no text')
+})
+
+test('a long folder name is found whole, and the stored copy is cut at its cap', (t) => {
+  const name = (c) => c.repeat(NAME_MAX)
+  const folder = 'Annual Planning '.repeat(8) + 'Final'
+  const rec = buildRecord({
+    ...base,
+    kind: 'transfer.completed',
+    actor: selfActor('me', name('a')),
+    space: spaceRef('sp1', name('s')),
+    target: targetRef(TARGET_KIND.FILE, 'f', name('t')),
+    subject: { folder, mountPath: '/' + 'p'.repeat(5000) },
+  })
+  t.ok(searchText(rec).includes(folder.toLowerCase()), 'the search reads the folder as the row shows it')
+  t.ok(searchText(rec).endsWith('p'.repeat(5000)), 'and the whole path')
+  t.is(rec.search, searchText(rec).slice(0, 300), 'the stored copy is the same text, capped')
 })
