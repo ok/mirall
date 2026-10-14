@@ -4,7 +4,7 @@
 // the offline-intent row for a loose file; the mirrored-share refusal and the mirror's append trigger
 // for a folder.
 import path from 'bare-path'
-import { collectPeerShare, getPeerEntry, getPeerEntryState, isPeerCatalogWatched, peerCatalogVersion, resolvePeerCatalog, watchPeerCatalog } from '../../shares/peer-catalog.js'
+import { collectPeerShare, getPeerEntryState, isPeerCatalogWatched, peerCatalogVersion, resolvePeerCatalog, watchPeerCatalog } from '../../shares/peer-catalog.js'
 import { readCatalogKey } from '../../shares/catalog-keys.js'
 import { readPeerShareEntry } from '../../shares/shares.js'
 import { observePeerCatalog } from '../../audit/peer-records-watch.js'
@@ -176,7 +176,7 @@ async function recordLooseIntent(spaceId, share, relPath, entry) {
 /**
  * The user's download click, and its manual resume. A mirrored share syncs itself, paused or not,
  * so it is refused before the engine is touched: a second copy in the downloads folder would also
- * overwrite the mirror's verified record for the path.
+ * overwrite the mirror's verified record for the path. A file the owner removed queues nothing.
  * @returns {Promise<import('../../contract/responses.js').ShareDownloadResult>}
  */
 export async function requestShareDownload(spaceId, share, relPath) {
@@ -187,7 +187,10 @@ export async function requestShareDownload(spaceId, share, relPath) {
   if (!getOverlay() || !readCatalogKey(share).keyHex) return { queued: true }
   const cat = await resolvePeerCatalog(spaceId, share)
   if (cat.readable) ensureCatalogWatch(spaceId, share, cat)
-  const entry = cat.readable ? await getPeerEntry(cat.keyHex, share.id, relPath, { sck: cat.sck }) : null
+  // Only a tombstone answers "removed": a null entry may be an owner offline or replication lag,
+  // which the intent row below waits out.
+  const entry = cat.readable ? await getPeerEntryState(cat.keyHex, share.id, relPath, { sck: cat.sck }) : null
+  if (entry?.removed) return { queued: false, removed: true }
   if (entry?.contentHash) {
     const job = await jobFor({ spaceId, share, relPath, pendingKey: pendingKeyFor(share, relPath), cat, entry })
     // Express: a click never queues behind a reconnect backlog.

@@ -343,18 +343,18 @@ export interface ShareFileListing extends ContentListing {
 
 export interface FolderInfo { fileCount: number, totalBytes: number, blobsLength: number | null }
 
-/** A loose download: queued behind the engine, dropped (its intent could not be kept), or started with a landing path. */
+/** A loose download: queued behind the engine, dropped (removed by its owner, or its intent could not be kept), or started with a landing path. */
 export type LooseDownloadResult =
   | { queued: true }
-  | { queued: false }
+  | { queued: false, removed?: true }
   | { transferId: string, finalPath: string }
 
-/** A share read: already ours, refused because a mirror syncs it, queued, dropped, or started. */
+/** A share read: already ours, refused because a mirror syncs it, queued, dropped (removed by its owner, or its intent could not be kept), or started. */
 export type ShareDownloadResult =
   | { ok: true, alreadyOwned: true }
   | { ok: true, mirrored: true }
   | { queued: true }
-  | { queued: false }
+  | { queued: false, removed?: true }
   | { transferId: string, finalPath: string }
 
 export interface OwnedMountResult { mount: OwnedFolderMount, advisories: MountValidationAdvisory[] }
