@@ -70,7 +70,7 @@ function ensureCatalogWatch(spaceId, share, { keyHex, sck }) {
 // version a complete read saw. `onEach` observes every counted entry regardless of the cap.
 export async function listPeerWithMeta(spaceId, share, { limit = Infinity, onEach = null, timeoutMs, space } = {}) {
   const cat = await resolvePeerCatalog(spaceId, share, { space })
-  if (!cat.readable) return { entries: [], complete: true, total: 0, totalBytes: 0 }
+  if (!cat.readable) return { entries: [], complete: true, stalled: false, total: 0, totalBytes: 0 }
   ensureCatalogWatch(spaceId, share, cat)
   return await collectPeerShare(cat.keyHex, share.id, { sck: cat.sck, limit, onEach, timeoutMs })
 }

@@ -30,6 +30,7 @@ export function createPreviewTally() {
         totalBytes,
         perFile: detailed ? candidates : [],
         perFileOmitted: !detailed,
+        complete: true,
         ...extra,
       }
     },

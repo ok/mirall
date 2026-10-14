@@ -222,6 +222,9 @@ export interface ScanPreview {
   fileLimit?: number
   overFileLimit?: boolean
   listingAdvisory?: boolean
+  // False when the mirror's read of the owner's catalog could not finish: the counts cover part of
+  // the folder. Always true for a local disk walk.
+  complete: boolean
 }
 
 export type CanaryState = (typeof CANARY_STATES)[number]
@@ -341,7 +344,8 @@ export interface ShareFileListing extends ContentListing {
   entries: ShareFileRow[]
 }
 
-export interface FolderInfo { fileCount: number, totalBytes: number, blobsLength: number | null }
+// `complete` is false when the owner's catalog read could not finish: the counts are a floor.
+export interface FolderInfo { fileCount: number, totalBytes: number, blobsLength: number | null, complete: boolean }
 
 /** A loose download: queued behind the engine, or started with a landing path. */
 export type LooseDownloadResult =
@@ -479,7 +483,8 @@ export interface StorageInfo {
 
 export interface FreeUpResult { restartRequired: boolean, requested: string[] }
 
-export interface SpaceStorageSummary { totalBytes: number, onDeviceBytes: number }
+// `complete` is false when a peer share's read could not finish or a share was skipped: the totals are a floor.
+export interface SpaceStorageSummary { totalBytes: number, onDeviceBytes: number, complete: boolean }
 export interface RootsStatus { unavailable: string[], host: PathHost }
 export interface VerboseState { verbose: boolean }
 export interface PingResult { pong: true, timestamp: number }

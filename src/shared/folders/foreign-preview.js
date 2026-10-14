@@ -16,6 +16,8 @@ import { createLogger } from '../core/logger.js'
 import { mapLimit } from '../core/concurrency.js'
 import { AbortError, countDiskFiles } from './walk-disk.js'
 import { loadShareForForeignMount } from './foreign-shares.js'
+import { markListIncomplete } from '../transfer/list-deficits.js'
+import { getLocalPublicKeyHex } from '../spaces/profile.js'
 /** @import { PreviewOptions } from './owned-preview.js' */
 /** @import { ScanPreview } from '../contract/responses.js' */
 
@@ -25,15 +27,19 @@ const FOREIGN_PREVIEW_CONCURRENCY = 8
 const PREVIEW_PROGRESS_EVERY = 16
 
 // Resolve the peer share and enumerate its files from the overlay catalog.
-// Returns null when the share isn't visible or this build cannot serve it.
+// Returns null when the share isn't visible or this build cannot serve it. A stalled read of a
+// peer's catalog lists part of the folder: `complete` says so, and the space is flagged for the
+// convergence tick to re-poke.
 async function loadForeignListing(spaceId, ownerKey, shareId) {
   const share = await loadShareForForeignMount({ spaceId, ownerKey, shareId })
   if (!share || !isServableShare(share)) return null
-  const { entries } = await overlayBackend.listPeerWithMeta(spaceId, share)
-  return dropUnsafeEntries(
+  const { entries, stalled } = await overlayBackend.listPeerWithMeta(spaceId, share)
+  if (stalled && share.owner !== getLocalPublicKeyHex()) markListIncomplete(spaceId)
+  const safe = dropUnsafeEntries(
     entries.map((e) => ({ relPath: e.relPath, size: e.size, hash: e.contentHash })),
     (rel) => log.warn('refusing a peer file path that escapes the mount folder — skipping this entry (the owner drive may be malicious or corrupted):', rel),
   )
+  return { entries: safe, complete: !stalled }
 }
 
 // Outcome of one remote entry vs the destination: absent -> download (no conflict); present but
@@ -83,7 +89,7 @@ export async function previewMaterializeScan(spaceId, ownerKey, shareId, mountPa
 
   // Local count (disk) and remote listing (network) are independent — overlap them.
   emit('enumerating', 0, 0)
-  const [existingAtDestination, entries] = await Promise.all([
+  const [existingAtDestination, listing] = await Promise.all([
     // Caught, not propagated: a preview of an unreadable destination reports zero rather than
     // failing the dialog the user is standing in front of.
     countDiskFiles(mountPath, DEFAULT_IGNORE).catch(() => 0),
@@ -93,7 +99,7 @@ export async function previewMaterializeScan(spaceId, ownerKey, shareId, mountPa
 
   // A preview that could not read the listing must not advise about its size: totalFiles 0 here
   // means "unknown", not "small".
-  if (!entries) {
+  if (!listing) {
     return createPreviewTally().result('mount-foreign-folder', 'download', {
       existingAtDestination,
       totalFiles: 0,
@@ -103,6 +109,7 @@ export async function previewMaterializeScan(spaceId, ownerKey, shareId, mountPa
     })
   }
 
+  const { entries, complete } = listing
   let scanned = 0
   const results = await mapLimit(entries, FOREIGN_PREVIEW_CONCURRENCY, async (entry) => {
     checkAborted()
@@ -128,5 +135,6 @@ export async function previewMaterializeScan(spaceId, ownerKey, shareId, mountPa
     fileLimit: getListFilesCap(),
     overFileLimit: false,
     listingAdvisory: listingWillTruncate(entries.length),
+    complete,
   })
 }
