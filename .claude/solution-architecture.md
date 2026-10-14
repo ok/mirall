@@ -222,8 +222,7 @@ its record. An unknown kind is left untouched, so a downgrade cannot eat a newer
 **Bounds** (runtime-config levers; `0` disables). `downloadConcurrency` (6) gates fetches through a
 FIFO semaphore with express lanes for user clicks, so a reconnect backlog cannot start a scheduler
 per pending row. The download engine and the mirror both hold their slot through one bracket,
-`runGatedFetch` in `src/shared/transfer/overlay/fetch-run.js`, and ask the overlay through one vendor call there,
-`callVendor`, which never throws. `peerFrameBurst` and `peerFrameMaxBytes` meter and cap **every** peer frame before
+`runGatedFetch` in `src/shared/transfer/overlay/fetch-run.js`. `peerFrameBurst` and `peerFrameMaxBytes` meter and cap **every** peer frame before
 decode. `peerCatalogCacheLimit` (64) is a refcounted LRU; watchers and reads pin entries, because
 eviction closes live handles.
 
@@ -1154,6 +1153,10 @@ user's **real file on disk**, never a Hyperdrive blob store.
   string code that is not a transient write code (`engine/local-faults.js`); it resolves `null`
   iff no holder answered or the fetch ended on an uncoded peer/transport outcome; otherwise it
   resolves the result.
+- **One vendor call**: the download engine and the mirror both ask `fetchFile` through `callVendor`
+  (`src/shared/transfer/overlay/fetch-run.js`), inside the fetch slot `runGatedFetch` holds. It
+  never throws: it returns `{ res, err, attempted, diag }`, with the rejection itself as `err`. The
+  diag comes back open and each producer closes it with its own verdict.
 
 `isServableShare(share)` (`src/shared/transfer/content-mode.js`) is true for `contentMode ===
 'overlay'` only. A share in any other mode (absent, the `eager`/`deferred` modes older releases wrote,

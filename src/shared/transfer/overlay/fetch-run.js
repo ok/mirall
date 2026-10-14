@@ -115,21 +115,29 @@ export async function runGatedFetch({ express = false, owner = null, wait = (acq
 
 // The vendor call both producers make inside their `holding`. It never throws: a rejection comes
 // back as `err`, the very value the vendor rejected with, so a frozen or primitive fault reaches the
-// caller's fault policy unchanged. The diag comes back open on every path, because which outcome
-// closes it is the caller's verdict. Every option but the instruments' own is the vendor's, passed
-// through as given.
+// caller's fault policy unchanged; a nullish rejection reads as no result. The diag comes back open
+// on every path, because which outcome closes it is the caller's verdict. Every option but the
+// instruments' own is the vendor's, passed through as given.
 /**
- * @param {{ fetchFile: (contentHash: string, opts: object) => Promise<unknown> }} vendor
+ * @template R
+ * @param {{ fetchFile: (contentHash: string, opts: object) => Promise<R> }} vendor
  * @param {string} contentHash
  * @param {{
  *   label?: string,
  *   relPath: string,
  *   size?: number,
+ *   ownerKey?: string,
+ *   destPath?: string,
+ *   finalPath?: string,
+ *   parentMustExist?: boolean,
  *   onProgress?: (progress: { bytes: number, total: number, speed: number, eta: number | null }) => void,
  *   onVerify?: (fraction: number, recovered?: number) => void,
  *   onTick?: () => void,
- *   [vendorOption: string]: unknown,
  * }} opts
+ * @returns {Promise<{ res: R | null, err: Error | null, attempted: boolean, diag: ReturnType<typeof makeFetchDiag> }>}
+ *   `res` is what the vendor resolved with, or null when it rejected; `err` is the rejection value
+ *   itself (typed Error, though a vendor may reject with a primitive), or null when it resolved;
+ *   `attempted` is whether a chunk scheduler ran; `diag` is open for the caller to close.
  */
 export async function callVendor(vendor, contentHash, { label, relPath, onProgress, onVerify, onTick, ...request }) {
   let attempted = false
