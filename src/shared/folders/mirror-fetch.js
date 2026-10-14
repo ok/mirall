@@ -35,6 +35,7 @@ import { PARTIAL_SUFFIX } from '../transfer/partial-suffix.js'
 import { pathFromMount } from './path-guard.js'
 import { transferIdFor } from '../transfer/transfer-id.js'
 import { memberWaits } from '../network/share-wait.js'
+import { announceShareReceived } from '../network/share-received.js'
 import { SHARE_WAIT_SOURCE } from '../transfer/share-wait-set.js'
 import { pauseMount, pauseMountForIoError } from './foreign-pause.js'
 import { emitMirrorEvent } from './mirror-signals.js'
@@ -526,6 +527,12 @@ async function finishLandedFetch(mount, entry, res, { abs, verifyKey, localRelPa
     log.warn('could not record a landed mirror file — it stays until the next pass re-adopts it:', entry.relPath, '-', err.message)
   }
   attempts.succeed(mirrorKey(mount.spaceId, mount.shareId), entry.relPath, entry.contentHash)
+  // The owner counts a mirror among a file's holders exactly as it counts a download.
+  if (mount.ownerKey) {
+    announceShareReceived(mount.ownerKey, {
+      spaceId: mount.spaceId, shareId: mount.shareId, relPath: entry.relPath, contentHash: entry.contentHash,
+    })
+  }
   return 'present'
 }
 
