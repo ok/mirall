@@ -4,6 +4,7 @@
 import type { ComponentType, ReactNode } from 'react'
 import type { Root } from 'react-dom/client'
 import Account from '../../src/renderer/screens/AccountScreen.js'
+import AboutScreen from '../../src/renderer/screens/AboutScreen.js'
 import OnboardingScreen from '../../src/renderer/screens/OnboardingScreen.js'
 import ActivityLogSettings from '../../src/renderer/screens/settings/ActivityLogSettings.js'
 import NetworkSettings from '../../src/renderer/screens/settings/NetworkSettings.js'
@@ -462,21 +463,17 @@ async function probeReconnect(root: Root, kit: FailpathsKit): Promise<ReconnectP
 async function probeWhatsNew(root: Root, kit: FailpathsKit): Promise<WhatsNewProbe> {
   const { Shell } = kit
   const before = kit.unhandled()
-  const account = (key: string) => (
-    <Shell key={key}>
-      <Account profile={kit.profile} onSave={() => Promise.resolve()} onBack={noop} onOpenNetworkStatus={noop} onOpenActivityLog={noop} onFeedback={noop} />
-    </Shell>
-  )
+  const about = (key: string) => <Shell key={key}><AboutScreen onBack={noop} /></Shell>
   const realChangelog = window.bridge.getChangelog
   window.bridge.getChangelog = () => Promise.reject(new Error('changelog unreadable'))
-  root.render(account('whats-new-fail'))
+  root.render(about('whats-new-fail'))
   await kit.sleep(300)
   kit.buttonWithText("What's New")?.click()
   await kit.sleep(300)
   const failAlert = kit.alertSays(GENERIC_TEXT)
 
   window.bridge.getChangelog = () => Promise.resolve('')
-  root.render(account('whats-new-empty'))
+  root.render(about('whats-new-empty'))
   await kit.sleep(300)
   kit.buttonWithText("What's New")?.click()
   await kit.sleep(300)
