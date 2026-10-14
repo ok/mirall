@@ -66,8 +66,6 @@ export class OverlayBackend extends Subsystem {
     // Before the teardown: a download parked on the fetch gate would otherwise hold its task past
     // the stop deadline waiting for a slot nobody will release. Unscoped — every producer is done
     // by now, ForeignMirrors having already released its own waiters when it closed ahead of us.
-    // The drain also marks the gate drained, which is what the released waiters re-check: the
-    // overlay is still present until the teardown below has closed it.
     drainFetchSlots()
     await teardownOverlay()
     this.overlay = null

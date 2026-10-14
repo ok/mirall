@@ -128,9 +128,9 @@ export class ForeignMirrors extends Subsystem {
   // later open inherits markers for fetches belonging to a previous lifetime.
   // The scoped drain comes first: a pass parked on the shared fetch gate cannot observe the
   // generation bump stopAllForeignLoops relies on, and would hold the 1500 ms tier budget open
-  // until the 5000 ms settle timeout. Scoped to FETCH_OWNER_MIRROR because OverlayBackend closes
-  // AFTER us — an unscoped drain would release the download engine's backlog into an overlay that is
-  // still live, and those tasks pass their own hasOverlay() guard.
+  // until the 5000 ms settle timeout. Scoped because the unscoped drain is OverlayBackend's
+  // shutdown: it marks the gate drained, which stops the download engine taking fetches, and the
+  // overlay is still live after us.
   async _close() {
     unsubscribePeerOnline?.()
     unsubscribePeerOnline = null

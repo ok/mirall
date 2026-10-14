@@ -206,8 +206,8 @@ function abortFetch(slot, opts) {
 // fourth is the durable pending row. The durable-write policy is not uniform — the table is in
 // solution-architecture.md under pause / resume transfers.
 //
-// `hasOverlay` asks whether the overlay takes fetches: present, and its gate not drained for the
-// shutdown that tears it down next.
+// `hasOverlay` asks whether the overlay takes fetches: present, and its gate not drained
+// (drainFetchSlots in fetch-gate.js).
 export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentToFile, hasOverlay = () => !!getOverlay() && !fetchSlotsDrained(), freeBytes = freeBytesFor, stallRetry = {}, dirExists = defaultDirExists, dirWritable = defaultDirWritable, dirAcceptsWrite = defaultDirAcceptsWrite, now = Date.now } = {}) {
   const registry = new Map() // transferId -> slot (download-start.js makeSlot)
   // The marker is the user's intent — it outranks every automatic resume — and its hash lets a

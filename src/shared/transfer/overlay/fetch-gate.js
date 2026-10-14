@@ -72,9 +72,10 @@ let gate = build()
 
 export const acquireFetchSlot = (opts) => gate.slots.acquire(opts)
 
-// An unscoped drain is the overlay's shutdown: it runs before the teardown, so a released waiter
-// resumes while the overlay is still present and closing, and must read fetchSlotsDrained() to
-// know it may not fetch. A scoped drain closes one producer and leaves the gate open to the rest.
+// An unscoped drain is the shutdown of every producer still on the gate: it marks the gate drained
+// for the rest of this lifetime, and a producer whose instance outlives the drain reads
+// fetchSlotsDrained() to stop taking fetches. A scoped drain closes one producer and leaves the
+// gate open to the rest.
 export function drainFetchSlots(owner) {
   if (owner == null) gate.drained = true
   gate.slots.drain(owner)

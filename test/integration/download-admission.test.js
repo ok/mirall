@@ -190,8 +190,8 @@ test('a supersede restart at limit 1 does not deadlock on its own slot', async (
   await settle()
 })
 
-// Staged in the order OverlayBackend._close runs it: the drain first, so a parked waiter abandons
-// before overlay.close() waits on it, while the overlay is still present and closing.
+// Staged in the order OverlayBackend._close runs it: the drain, then the teardown, so the released
+// waiter re-checks while the overlay is still present.
 test('REGRESSION (FIX-670: a waiter drained at shutdown fetched into the closing overlay)', async (t) => {
   const ctx = await setup(t, 1)
   const engine = createOverlayDownloadEngine(testChannel())
@@ -211,10 +211,8 @@ test('REGRESSION (FIX-670: a waiter drained at shutdown fetched into the closing
   t.is(fetchSlotStats().queued, 0, 'and nothing is left holding close() open')
 })
 
-// The case above cannot see the re-check: with the overlay gone the default fetch refuses on its
-// own, so a waiter that skipped the re-check looks the same as one that ran it. Here the overlay
-// probe and the fetch are the engine's injected ones, so only the re-check stands between a drained
-// waiter and the fetch.
+// The re-check reads the engine's injected overlay probe, not only its default: here the probe and
+// the fetch are both injected, so only that probe stands between a drained waiter and the fetch.
 test('a drained waiter re-checks the overlay before it fetches', async (t) => {
   const ctx = await setup(t, 1)
   let overlayLive = true
@@ -271,9 +269,9 @@ test('the cap counts fetches across producers, not per engine', async (t) => {
 })
 
 // Hazard 1, both halves. ForeignMirrors closes BEFORE OverlayBackend (boot.js starts the overlay
-// first), so a mirror parked on the shared gate has to be released by its own close — but an
-// unscoped drain would release the engine's backlog into an overlay that is still live, and those
-// tasks pass their own hasOverlay() guard and start real fetches during shutdown.
+// first), so a mirror parked on the shared gate has to be released by its own close. Its drain is
+// scoped because the unscoped drain is OverlayBackend's shutdown: it marks the gate drained, which
+// stops the download engine taking fetches, and the overlay is still live after the mirror closes.
 test('draining the mirror at close does not release the engine into a live overlay', async (t) => {
   const ctx = await setup(t, 1)
   const engine = createOverlayDownloadEngine(testChannel())

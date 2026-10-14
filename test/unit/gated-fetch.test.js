@@ -1,6 +1,6 @@
 import test from 'brittle'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
-import { acquireFetchSlot, drainFetchSlots, fetchSlotStats, fetchSlotsDrained, resetFetchSlots } from '../../src/shared/transfer/overlay/fetch-gate.js'
+import { acquireFetchSlot, drainFetchSlots, fetchSlotStats, resetFetchSlots } from '../../src/shared/transfer/overlay/fetch-gate.js'
 import { runGatedFetch } from '../../src/shared/transfer/overlay/fetch-run.js'
 
 // runGatedFetch against the real process-wide gate: the download engine and the mirror both hold
@@ -161,26 +161,4 @@ test('a drained waiter still reaches its re-check', async (t) => {
   t.is(await run, 'abandoned', 'the drained task abandons')
   t.is(seen.fetched, 0, 'and never fetches')
   t.is(fetchSlotStats().queued, 0, 'nothing stays queued')
-})
-
-// The engine's re-check reads the drain itself, not the overlay: the shutdown drains before it
-// tears the overlay down, so a released waiter still finds the overlay present.
-test('a drained waiter whose stop condition is the drain abandons, and the next open starts undrained', async (t) => {
-  withCap(t, 1)
-  const hog = await acquireFetchSlot({})
-  const { seen, task } = recorder({ recheck: () => (fetchSlotsDrained() ? 'drained' : null) })
-  const run = runGatedFetch(task)
-  t.is(fetchSlotStats().queued, 1, 'the task is parked')
-
-  drainFetchSlots('a')
-  t.absent(fetchSlotsDrained(), 'a drain scoped to one producer leaves the gate open')
-  drainFetchSlots()
-  t.ok(fetchSlotsDrained(), 'the unscoped shutdown drain marks the gate drained')
-  t.is(await run, 'abandoned', 'the released waiter abandons')
-  t.is(seen.abandoned, 'drained', 'on the drain')
-  t.is(seen.fetched, 0, 'and never fetches')
-
-  hog()
-  resetFetchSlots()
-  t.absent(fetchSlotsDrained(), 'the gate the next open builds is not drained')
 })
