@@ -174,9 +174,9 @@ re-diffable against upstream while it was tracked. Categories:
 
 9. **§4.8 — cancellable-before-scheduler + same-hash join (`protocol-v2.js`).** `fetchContent`
    has an up-front window (the caller's peer-wait) where no `ChunkScheduler` exists yet, so a
-   `cancelContent` in that window was a no-op. `OverlayProtocolV2` now keeps a `_cancelPending`
-   set: `cancelContent` records the `content:<hash>` when no scheduler exists, and `fetchContent`
-   cancels the scheduler the instant it creates one (→ `ECANCELLED`). `fetchContent` also DEDUPS
+   `cancelContent` in that window was a no-op. `FetchSession` now keeps `_cancelPending`, a
+   per-hash map of caller keys: `cancelContent` records the caller when it has no fetch of that
+   hash yet, and that caller's `fetchContent` is cancelled the instant it arrives (→ `ECANCELLED`). `fetchContent` also DEDUPS
    by content hash: a concurrent fetch of the same hash JOINS the in-flight one (`sched.shared`)
    and copies the verified bytes to its own `destPath` instead of rejecting `already fetching`;
    a joiner whose leader was cancelled re-issues its own fetch. Fetch and cancel carry the

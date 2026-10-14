@@ -183,7 +183,11 @@ export class HyperOverlayV2 extends ReadyResource {
     const localDisk = this._contentHashPaths.get(contentHash)
     if (localDisk) {
       const v = await verifyOnDisk(localDisk, contentHash)
-      if (v.ok) return { destPath: localDisk, local: true, size: v.size }
+      // No fetch will run, so a cancel recorded during the verify must not cancel the next one.
+      if (v.ok) {
+        this._protocol.clearCancelPending(contentHash, opts.by ?? null)
+        return { destPath: localDisk, local: true, size: v.size }
+      }
     }
     const peers = await this._awaitHolders(opts.ownerKey, opts.peerWaitMs || HOLDER_WAIT_MS)
     // No fetch will run, so a cancel recorded during the wait must not cancel the next one.

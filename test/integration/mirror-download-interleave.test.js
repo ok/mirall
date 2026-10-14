@@ -326,6 +326,7 @@ test('REGRESSION (FIX-665: a mirror pause leaves a download of the same content 
   runMaterializeTick(ctx.spaceId, ctx.share.id).catch(() => {})
   t.ok(await until(() => vendor.calls.length === 2), 'the mirror asked for the same content')
   t.is(vendor.fetches.size, 1, 'and joined the engine\'s fetch rather than starting its own')
+  t.is(vendor.fetches.get(entry.contentHash)?.joiners.size, 1, 'as a joiner, not a pending cancel')
 
   stopForeignLoop(ctx.spaceId, ctx.share.id)
   await sleep(50)
@@ -336,4 +337,47 @@ test('REGRESSION (FIX-665: a mirror pause leaves a download of the same content 
   t.alike(completed, [transferId])
   t.is(fs.existsSync(finalPath) ? fs.readFileSync(finalPath, 'utf8') : null, bytes, 'with the bytes at its destination')
   t.absent(fs.existsSync(path.join(ctx.mirrorPath, entry.relPath)), 'and the paused mirror took no copy')
+})
+
+// The reverse direction: the leader's own pause stops the shared fetch, and the joined mirror
+// re-issues its fetch to its own destination rather than losing the file.
+test('an engine pause leaves the mirror that joined it to land its own copy', async (t) => {
+  const bytes = 'hello mirror'
+  const ctx = await mirrorCtx(t, { files: { 'note.txt': bytes } })
+  const entry = await firstEntry(ctx)
+  const vendor = barrierVendor(t, getOverlay(), bytes)
+
+  const completed = []
+  const ended = []
+  const engine = createOverlayDownloadEngine(testChannel({
+    emitComplete: (job) => completed.push(job.transferId),
+    emitDecorationDone: (job) => ended.push(job.transferId),
+  }))
+  const finalPath = path.join(ctx.tmpDir('dl'), 'copy.txt')
+  const transferId = transferIdFor(ctx.spaceId, 'loose', entry.relPath)
+  await engine.start({
+    spaceId: ctx.spaceId, pendingKey: '/dl/copy.txt', path: '/dl/copy.txt', relPath: entry.relPath,
+    shareId: 'loose', transferId, contentHash: entry.contentHash, size: entry.size,
+    ownerKey: ctx.share.owner, verifyKey: 'loose|' + entry.relPath, finalPath,
+  })
+  t.ok(await until(() => vendor.fetches.size === 1), 'the engine leads the fetch')
+  const lead = vendor.fetches.get(entry.contentHash)?.sched
+
+  await startForeignLoop(ctx.mount)
+  t.teardown(() => stopForeignLoop(ctx.spaceId, ctx.share.id, { discardPartial: true }))
+  runMaterializeTick(ctx.spaceId, ctx.share.id).catch(() => {})
+  t.ok(await until(() => vendor.fetches.get(entry.contentHash)?.joiners.size === 1), 'the mirror joined it')
+
+  engine.pause(transferId)
+  t.ok(await until(() => !engine.has(transferId) && ended.includes(transferId)), 'the engine settled its pause')
+  const own = vendor.fetches.get(entry.contentHash)?.sched
+  t.ok(own && own !== lead, 'the mirror re-issued a fetch of its own')
+  t.is(own?.destPath, path.join(ctx.mirrorPath, entry.relPath), 'into its own destination')
+
+  vendor.land(entry.contentHash)
+  const mirrored = path.join(ctx.mirrorPath, entry.relPath)
+  t.ok(await until(() => fs.existsSync(mirrored), 3000), 'the mirror landed the file')
+  t.is(fs.readFileSync(mirrored, 'utf8'), bytes)
+  t.alike(completed, [], 'and the paused download did not complete')
+  t.absent(fs.existsSync(finalPath), 'nor reach its destination')
 })

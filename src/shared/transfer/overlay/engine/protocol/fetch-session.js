@@ -112,8 +112,11 @@ export class FetchSession {
     return true
   }
 
-  // Tell holders we stopped pulling a hash whose local fetch is already gone.
-  sendStop(contentHash) { this._sendControl(contentHash, CONTROL_STOPPED) }
+  // Tell holders we stopped pulling a hash whose local fetch is already gone. While any caller still
+  // fetches it, the holders are serving that fetch, so nothing goes out.
+  sendStop(contentHash) {
+    if (!this._handles.has(contentHash)) this._sendControl(contentHash, CONTROL_STOPPED)
+  }
 
   // Our on-disk bytes for a hash we are fetching, so holders' bars show our true progress.
   sendProgress(contentHash, have) { this._sendToAsked('transferProgress', { contentHash, have }) }
