@@ -48,8 +48,11 @@ export default async function s148({ runDir, bootstrap }) {
     })
     await r.ok('a same-size local edit reads "Edited locally", unverified, with Reveal', async () => {
       await A.quit()
-      writeFileSync(mirrored, edited)
+      // The mirror pass reads the owner's presence lease, which outlives a quit until B's socket to A
+      // drops; an edit made before B sees A offline is moved aside by a pass whose re-fetch then fails.
       await B.openFolder('Ledger')
+      await B.waitText('Alice is offline', 60000)
+      writeFileSync(mirrored, edited)
       await B.waitText('Edited locally', 20000)
       assert(!(await B.has({ contains: 'content hash matches' })), 'the verified check is gone')
       assert(await B.hasText('conflicted copy'), 'the row says what the next sync does, as text a screen reader reaches in order')
