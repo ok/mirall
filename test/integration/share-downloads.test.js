@@ -15,7 +15,8 @@ import { fileKey } from '../../src/shared/shares/catalog-keys.js'
 import { isPeerCatalogWatched } from '../../src/shared/shares/peer-catalog.js'
 import { generateShareId, publishShare, tombstoneShare } from '../../src/shared/shares/shares.js'
 import { advertise, ownCatalogKeyHex } from '../../src/shared/shares/own-catalog.js'
-import { initPendingTransfers, recordPending, getPendingFor } from '../../src/shared/transfer/pending-transfers.js'
+import { initPendingTransfers, recordPending, getPendingFor, _pendingBeeForTests } from '../../src/shared/transfer/pending-transfers.js'
+import { memberWaits } from '../../src/shared/network/share-wait.js'
 import { createOverlayDownloadEngine } from '../../src/shared/transfer/overlay/overlay-download.js'
 import {
   cancelShareDownload, downloadChannel, listPeerWithMeta, requestShareDownload, setDownloadEngine, watchedCatalogVersion,
@@ -175,6 +176,61 @@ test('a click the catalog cannot answer keeps a loose intent row and nothing for
   t.absent(await getPendingFor(ctx.spaceId, '/x.bin'), 'with no row')
   t.ok(calls.clearPauseMarker.includes(looseTransferIdFor(ctx.spaceId, 'x.bin')), 'but the pause marker is still retired')
   t.is(calls.start, 0, 'nothing started')
+})
+
+// Records every share-wait registered while the test runs, still registering it. `onWait` sees
+// each call as it happens.
+function spyWaits(t, onWait = () => {}) {
+  const calls = []
+  const realWait = memberWaits.wait
+  memberWaits.wait = (...args) => { calls.push(args); onWait(); return realWait(...args) }
+  t.teardown(() => { memberWaits.wait = realWait; memberWaits.clear() })
+  return calls
+}
+
+test('REGRESSION (FIX-669: a loose intent whose row write fails arms no share-wait and is not queued)', async (t) => {
+  const ctx = await setup(t)
+  const { loose } = await ownAsPeer(ctx)
+  await advertise(ctx.spaceId, LOOSE_SHARE_ID, 'prep.bin', { size: 4, mtime: 1, contentHash: null })
+  stubEngine(t)
+  const waits = spyWaits(t)
+  const bee = _pendingBeeForTests()
+  const realPut = bee.put.bind(bee)
+  let refused = 0
+  bee.put = (key, value, opts) => {
+    if (key.endsWith(':/prep.bin')) { refused++; return Promise.reject(new Error('EIO: injected put failure')) }
+    return realPut(key, value, opts)
+  }
+  t.teardown(() => { bee.put = realPut })
+
+  const res = await requestShareDownload(ctx.spaceId, loose, 'prep.bin')
+  t.is(refused, 1, 'the click reached the intent write')
+  t.absent(await getPendingFor(ctx.spaceId, '/prep.bin'), 'no row was written')
+  t.alike(res, { queued: false }, 'the click is not reported as queued')
+  t.is(waits.length, 0, 'and no share-wait is armed for a row that does not exist')
+})
+
+test('a preparing loose entry keeps its intent row and arms the row share-wait after it', async (t) => {
+  const ctx = await setup(t)
+  const { loose } = await ownAsPeer(ctx)
+  await advertise(ctx.spaceId, LOOSE_SHARE_ID, 'prep.bin', { size: 4, mtime: 1, contentHash: null })
+  stubEngine(t)
+  let rowAtWait = 'unseen'
+  const waits = spyWaits(t, () => { rowAtWait = written })
+  const bee = _pendingBeeForTests()
+  const realPut = bee.put.bind(bee)
+  let written = false
+  bee.put = async (key, value, opts) => {
+    const res = await realPut(key, value, opts)
+    if (key.endsWith(':/prep.bin')) written = true
+    return res
+  }
+  t.teardown(() => { bee.put = realPut })
+
+  t.alike(await requestShareDownload(ctx.spaceId, loose, 'prep.bin'), { queued: true })
+  t.ok(await getPendingFor(ctx.spaceId, '/prep.bin'), 'the intent row is written')
+  t.alike(waits.map((w) => w.slice(1)), [[looseTransferIdFor(ctx.spaceId, 'prep.bin'), 'row']], 'one row share-wait')
+  t.is(rowAtWait, true, 'armed only once the row had landed')
 })
 
 test('a hashed entry starts on the one engine for both kinds', async (t) => {

@@ -158,12 +158,17 @@ export const downloadChannel = createOverlayChannel({ emit: (name, payload) => i
 
 // A loose click the catalog cannot answer yet (owner offline, a read budget spent under reconnect
 // churn) is kept as a durable intent row, so the reconnect reconcile owns the retry; with no row
-// nothing would retry and the click is lost.
+// nothing would retry and the click is lost. The share-wait re-drives the row, so it is armed only
+// once the row landed, and a click whose row failed is not reported as queued.
 async function recordLooseIntent(spaceId, share, relPath, entry) {
+  try {
+    // PERSISTED: the intent row's fields are what the channel's loose ownsRow and the resolve read.
+    await recordPending(spaceId, looseDrivePath(relPath), { inPlace: true, shareId: LOOSE_SHARE_ID, relPath, ownerKey: share.owner, total: 0 })
+  } catch (err) {
+    log.warn('loose download click dropped, its intent row failed:', relPath, err.message)
+    return { queued: false }
+  }
   if (entry) memberWaits.wait(share.owner, transferIdFor(spaceId, LOOSE_SHARE_ID, relPath), SHARE_WAIT_SOURCE.ROW)
-  // PERSISTED: the intent row's fields are what the channel's loose ownsRow and the resolve read.
-  await recordPending(spaceId, looseDrivePath(relPath), { inPlace: true, shareId: LOOSE_SHARE_ID, relPath, ownerKey: share.owner, total: 0 })
-    .catch((err) => log.debug('loose intent row failed:', relPath, err.message))
   downloadChannel.emitUpdated(spaceId, LOOSE_SHARE_ID)
   return { queued: true }
 }
