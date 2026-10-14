@@ -2,7 +2,9 @@
 // holding the latest version that member reported. Owner-only and never replicated — no other member
 // can observe a transfer between two peers. A member is noted when they confirm a verified download
 // (share-received) or, for a peer that never confirms, when our own serve covered the whole file.
-// A first-time row is recorded as serve.completed, which is also what raises the notification.
+// A first-time row is recorded as serve.completed, which is also what raises the notification —
+// unless the note is quiet: a mirror is a recipient per file, and its completion is audited once,
+// as mirror.peer_synced.
 import { spacesMeta, getSpace } from '../spaces/space.js'
 import { prefixRange } from '../core/bee-keys.js'
 import { createLogger } from '../core/logger.js'
@@ -44,6 +46,7 @@ async function writeRecipient(key, note) {
   if (prev?.value?.contentHash === note.contentHash) return false
   await spacesMeta().put(key, { contentHash: note.contentHash, ts: Date.now() })
   ipc?.emit('event:recipients-updated', { spaceId: note.spaceId })
+  if (note.quiet) return true
   const space = await getSpace(note.spaceId)
   const member = (space?.members || []).find((m) => m.publicKey === note.personKey)
   record('serve.completed', {
@@ -56,7 +59,7 @@ async function writeRecipient(key, note) {
 }
 
 /**
- * @param {{ spaceId: string, shareId: string, relPath: string, contentHash: string, personKey: string, size?: number | null }} note
+ * @param {{ spaceId: string, shareId: string, relPath: string, contentHash: string, personKey: string, size?: number | null, quiet?: boolean }} note
  * @returns {Promise<boolean>} whether this was a version the member did not hold yet
  */
 export function noteFileRecipient(note) {

@@ -7,12 +7,13 @@ const STRANGER = 's'.repeat(64)
 const HASH = 'h'.repeat(64)
 const SOCKET = {}
 
-function rig(entries = { 'share1:report.pdf': { relPath: 'report.pdf', size: 2048, contentHash: HASH } }) {
+function rig(entries = { 'share1:report.pdf': { relPath: 'report.pdf', size: 2048, contentHash: HASH } }, { mirrors = async () => false } = {}) {
   const noted = []
   const intake = createShareReceivedIntake({
     authorizedOn: (socket, key) => socket === SOCKET && key === MEMBER,
     inSpace: (key, spaceId) => key === MEMBER && spaceId === 'space1',
     ownEntry: async (spaceId, shareId, relPath) => entries[shareId + ':' + relPath] ?? null,
+    mirrors,
     noteRecipient: async (note) => { noted.push(note) },
   })
   return { intake, noted }
@@ -23,7 +24,17 @@ const frame = (o = {}) => ({ type: 'share-received', profileKey: MEMBER, spaceId
 test('a member confirming the current version of one of our files is noted', async (t) => {
   const { intake, noted } = rig()
   t.is(await intake.handle(SOCKET, frame()), V.RECORDED)
-  t.alike(noted, [{ spaceId: 'space1', shareId: 'share1', relPath: 'report.pdf', contentHash: HASH, personKey: MEMBER, size: 2048 }])
+  t.alike(noted, [{ spaceId: 'space1', shareId: 'share1', relPath: 'report.pdf', contentHash: HASH, personKey: MEMBER, size: 2048, quiet: false }])
+})
+
+test('a member that mirrors the share is noted quietly; an unknown answer is not', async (t) => {
+  const asked = []
+  const answers = [true, null]
+  const { intake, noted } = rig(undefined, { mirrors: async (...args) => { asked.push(args); return answers.shift() } })
+  t.is(await intake.handle(SOCKET, frame()), V.RECORDED)
+  t.is(await intake.handle(SOCKET, frame()), V.RECORDED)
+  t.alike(asked[0], [MEMBER, 'space1', 'share1'], 'the sender is asked about the share it names')
+  t.alike(noted.map((n) => n.quiet), [true, false])
 })
 
 test('a notice claiming someone else, or a space the sender is not in, notes nobody', async (t) => {
@@ -47,6 +58,7 @@ test('unbounded or missing strings are refused before the catalog is read', asyn
     authorizedOn: () => true,
     inSpace: () => true,
     ownEntry: async () => { reads++; return null },
+    mirrors: async () => false,
     noteRecipient: async () => {},
   })
   t.is(await intake.handle(SOCKET, frame({ relPath: 'x'.repeat(ARG_MAX.path + 1) })), V.MALFORMED)

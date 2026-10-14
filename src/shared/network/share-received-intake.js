@@ -2,7 +2,9 @@
 // member's claim, so it lands only when the sender is authenticated on this socket and in the space
 // it names, the strings are bounded, and the file is one of OURS at exactly the hash claimed — a
 // member cannot list itself against a file we do not share or a version we no longer advertise.
-// Pure: every collaborator is injected.
+// A member that mirrors the share is noted quietly: its mirror's sync is the one audit row its
+// copy gets, so no landing of it is audited as a served download. Only a firm "mirrors" is quiet;
+// an unknown answer is audited like any download. Pure: every collaborator is injected.
 import { ARG_MAX } from '../contract/limits.js'
 
 const bounded = (s, max) => typeof s === 'string' && s.length > 0 && s.length <= max
@@ -16,7 +18,7 @@ export const SHARE_RECEIVED_VERDICT = Object.freeze({
   STALE: 'stale',
 })
 
-export function createShareReceivedIntake({ authorizedOn, inSpace, ownEntry, noteRecipient }) {
+export function createShareReceivedIntake({ authorizedOn, inSpace, ownEntry, mirrors, noteRecipient }) {
   async function handle(socket, msg) {
     const { profileKey, spaceId, shareId, relPath, contentHash } = msg
     if (typeof profileKey !== 'string' || !authorizedOn(socket, profileKey)) return SHARE_RECEIVED_VERDICT.UNAUTHORIZED
@@ -28,7 +30,8 @@ export function createShareReceivedIntake({ authorizedOn, inSpace, ownEntry, not
     try { entry = await ownEntry(spaceId, shareId, relPath) } catch { entry = null }
     if (!entry) return SHARE_RECEIVED_VERDICT.NOT_OURS
     if (entry.contentHash !== contentHash) return SHARE_RECEIVED_VERDICT.STALE
-    await noteRecipient({ spaceId, shareId, relPath, contentHash, personKey: profileKey, size: entry.size ?? null })
+    const quiet = (await mirrors(profileKey, spaceId, shareId).catch(() => null)) === true
+    await noteRecipient({ spaceId, shareId, relPath, contentHash, personKey: profileKey, size: entry.size ?? null, quiet })
     return SHARE_RECEIVED_VERDICT.RECORDED
   }
 

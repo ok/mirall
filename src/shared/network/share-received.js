@@ -9,12 +9,15 @@ import { getProfileKey } from '../spaces/profile.js'
 import { getOwnEntry } from '../shares/own-catalog.js'
 import { createLogger } from '../core/logger.js'
 import { noteFileRecipient } from '../transfer/file-recipients.js'
+import { peerMirrorsShare } from '../folders/mirror-records.js'
 import { connectedPeers, safeSend, authorizedOn } from './swarm-registries.js'
 import { createShareReceivedIntake, SHARE_RECEIVED_VERDICT } from './share-received-intake.js'
 
 const log = createLogger('share-received')
 
 const OUTBOX_PER_OWNER = 200
+// How long a notice waits on the sender's mirror record before it is audited as a download.
+const MIRROR_CHECK_MS = 2000
 // ownerKey → Map<spaceId\0shareId\0relPath, payload>; a newer copy of the same file replaces the older.
 const outbox = new Map()
 
@@ -52,6 +55,7 @@ const intake = createShareReceivedIntake({
   authorizedOn,
   inSpace: (profileKey, spaceId) => !!connectedPeers.get(profileKey)?.spaces.has(spaceId),
   ownEntry: getOwnEntry,
+  mirrors: (profileKey, spaceId, shareId) => peerMirrorsShare(profileKey, spaceId, shareId, MIRROR_CHECK_MS),
   noteRecipient: noteFileRecipient,
 })
 

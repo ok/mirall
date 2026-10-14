@@ -146,7 +146,8 @@ async function requestedRef(from, refs) {
 }
 
 // Resolves whether the requester mirrors the share: true, false, or null when that is unknown. A
-// mirror's owner learns of its copy from the mirror record, once, so a mirror is never a recipient.
+// mirror confirms each landed file itself (share-received, noted quietly) and its completion is
+// audited once as mirror.peer_synced, so a serve to a mirror notes nobody here.
 function mirrorsShare(from, ref, closing) {
   if (ref.shareId === LOOSE_SHARE_ID) return Promise.resolve(false)
   // The peer read is not worth holding the shutdown for.
