@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { readFileSync } from 'fs'
+import { readFileSync, readdirSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'
 
@@ -83,6 +83,24 @@ test('both producers preflight free space through one rule', (t) => {
   t.absent(/FREE_SPACE_HEADROOM\s*=/.test(ENGINE_ALL), 'the headroom is declared once, not here')
 })
 
+// One bracket, so a gate rule lands once. A structural fact, scanned with comments stripped so a
+// commented-out call cannot satisfy it: what the bracket guarantees is pinned by
+// test/unit/gated-fetch and by both producers' suites.
+const code = (src) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+const BRACKET = 'shared/transfer/overlay/fetch-run.js'
+
+test('every producer holds its fetch slot through the one bracket', (t) => {
+  t.ok(/acquireFetchSlot\(\{ express, owner \}\)/.test(code(read(BRACKET))), 'the bracket takes the slot')
+  t.ok(/return runGatedFetch\(\{/.test(code(read('shared/transfer/overlay/fetch-settle.js'))), 'the engine fetches through it')
+  t.ok(/return await runGatedFetch\(\{/.test(code(read(MIRROR))), 'the mirror fetches through it')
+  const srcRoot = path.resolve(here, '../../src')
+  const takers = readdirSync(srcRoot, { recursive: true })
+    .map((f) => f.split(path.sep).join('/'))
+    .filter((f) => /\.(js|mjs|cjs|ts|tsx)$/.test(f) && f !== BRACKET)
+    .filter((f) => /acquireFetchSlot\(/.test(code(read(f))))
+  t.alike(takers, [], 'no other module takes a slot')
+})
+
 // One edge, one dispatcher. The offline fix left two hooks fired back to back for the same event
 // because there was no shared one to join; that is the shape this forbids.
 test('the peer-online edge has one dispatcher, not one hook per producer', (t) => {
@@ -97,6 +115,7 @@ for (const f of [
   'shared/transfer/overlay/fetch-policy.js',
   'shared/transfer/free-space.js',
   'shared/folders/mirror-policy.js',
+  'shared/transfer/overlay/fetch-run.js',
 ]) {
   test(`${f} imports no bare-* module`, (t) => {
     t.absent(/from '(bare-[a-z]+)'/.test(read(f)), 'stays unit-testable under Node')

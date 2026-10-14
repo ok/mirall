@@ -24,8 +24,8 @@ import { AppError } from '../core/errors.js'
 import { getForeignPollIntervalMs } from '../core/runtime-config.js'
 import { claimFetch, dropFetchClaim, fetchClaimedBy } from '../transfer/overlay/fetch-gate.js'
 import { classifyMiss, isTerminalFault } from '../transfer/overlay/fetch-policy.js'
-import { runOverlayFetch } from '../transfer/overlay/fetch-run.js'
-import { FETCH_OWNER_MIRROR, acquireFetchSlot } from '../transfer/overlay/fetch-gate.js'
+import { runGatedFetch, runOverlayFetch } from '../transfer/overlay/fetch-run.js'
+import { FETCH_OWNER_MIRROR } from '../transfer/overlay/fetch-gate.js'
 import { overlayHashFile } from '../transfer/overlay/overlay-hash.js'
 import { getVerifiedHash, getVerifiedRecord, isVerifiedUnchanged, markVerified } from '../transfer/files.js'
 import { fingerprintMatches } from '../transfer/verified-copy.js'
@@ -315,12 +315,32 @@ export async function materializeOverlayFile(mount, share, entry, opts = {}) {
   // Below the claim check on purpose: charging a file the download engine already owns against our
   // own free space would refuse it over bytes that engine has already reserved.
   if (!(await mountCanTake(mount, entry, abs, { probe: opts.probe || createMountProbe(mount), writer }))) return 'blocked'
-  const releaseSlot = await acquireMirrorSlot(streamKey)
-  try {
-    return await fetchOverlayEntry(mount, share, entry, { abs, verifyKey, localRelPath, streamKey, writer, diskHash, localExists: !!onDisk || unreadable })
-  } finally {
-    releaseSlot()
-  }
+  // Never express: a background materialize must not outrank a click. Tagged so the mirror's close
+  // drains only its own parked passes. The slot is taken BEFORE the in-flight record, because
+  // cancelInflightFetch reads that record: a stop landing while parked would otherwise ask the
+  // engine to cancel a fetch that never started, and tell the holder we paused a transfer we never
+  // began.
+  let overlay = null
+  return await runGatedFetch({
+    owner: FETCH_OWNER_MIRROR,
+    wait: (acquire) => beating(streamKey, acquire),
+    // The stop the catalog walk tests at every entry, and the overlay, which can be torn down while
+    // a pass is parked; the fetch uses the overlay read here. Deliberately NOT the owner's
+    // reachability, unlike the download engine past its own slot wait: this is reached from
+    // materializeCatalogFile, which callers drive one entry at a time against mounts whose owner is
+    // unreachable by construction. The window it would close — the owner leaving while this entry
+    // is parked on the shared slot — is already bounded, because the fetch then returns 'no-peers'
+    // and ends the whole pass. One peer wait, once, not a spin.
+    recheck: () => {
+      if (writer.stopped()) return 'stopped'
+      overlay = getOverlay()
+      return overlay ? null : 'no-overlay'
+    },
+    abandon: () => 'missing',
+    holding: () => fetchOverlayEntry(mount, share, entry, {
+      overlay, abs, verifyKey, localRelPath, streamKey, writer, diskHash, localExists: !!onDisk || unreadable,
+    }),
+  })
 }
 
 // Heartbeat across a wait of unbounded length: a pass waiting on it is in flight as far as
@@ -339,14 +359,6 @@ async function beating(streamKey, work) {
   }
 }
 
-// Never express: a background materialize must not outrank a click. Taken BEFORE the in-flight
-// record, because cancelInflightFetch reads that record — a stop landing while parked would ask the
-// engine to cancel a fetch that never started, and tell the holder we paused a transfer we
-// never began.
-function acquireMirrorSlot(streamKey) {
-  return beating(streamKey, () => acquireFetchSlot({ express: false, owner: FETCH_OWNER_MIRROR }))
-}
-
 // One level at a time rather than bare-fs's recursive mkdir, which reports a refused create as the
 // ENOENT of its follow-up stat: that would hide a permission or full-disk fault from the
 // classification. The mount root itself is the caller's to have checked.
@@ -360,19 +372,10 @@ async function mkdirUnderMount(mountPath, localRelPath) {
   }
 }
 
-// The gated half of a materialize: everything past the slot owns a chunk scheduler, a watchdog,
-// an fd and a ticker.
-async function fetchOverlayEntry(mount, share, entry, { abs, verifyKey, localRelPath, streamKey, writer, diskHash = null, localExists = false }) {
-  // The wait for a slot is unbounded, so re-check the stop the catalog walk tests at every entry.
-  if (writer.stopped()) return 'missing'
-  // Deliberately NOT re-checking reachability here, unlike the download engine past its own slot
-  // wait: this function is reached from materializeCatalogFile, which callers drive one entry at a
-  // time against mounts whose owner is unreachable by construction. The window it would close — the
-  // owner leaving while this entry is parked on the shared slot — is already bounded, because the
-  // fetch then returns 'no-peers' and ends the whole pass. One peer wait, once, not a spin.
-  // Read AFTER the wait, not before it: the overlay can be torn down while a pass is parked.
-  const overlay = getOverlay()
-  if (!overlay) return 'missing'
+// The gated half of a materialize, run holding the slot: everything past it owns a chunk
+// scheduler, a watchdog, an fd and a ticker. `overlay` is the one the re-check past the slot wait
+// found live.
+async function fetchOverlayEntry(mount, share, entry, { overlay, abs, verifyKey, localRelPath, streamKey, writer, diskHash = null, localExists = false }) {
   // The same local I/O classification the fetch below gets: a folder we cannot create is a full
   // disk, a permission fault or a vanished mount, and pauses the mount like one.
   try { await mkdirUnderMount(mount.mountPath, localRelPath) } catch (err) {
@@ -393,8 +396,8 @@ async function fetchOverlayEntry(mount, share, entry, { abs, verifyKey, localRel
   // Everything from here is inside the try, so no throw between the claim and the fetch can leak it.
   try {
     // Move a local edit aside before the fetch renames over it — here, past the gate, rather than
-    // in the caller: every early-out above (a claim the engine holds, a stop landing during the
-    // unbounded slot wait, the overlay torn down) would otherwise have moved the user's file and
+    // in the caller: every early-out before it (a stop landing during the unbounded slot wait, the
+    // overlay torn down, a claim the engine holds) would otherwise have moved the user's file and
     // then not replaced it, leaving the canonical path empty until a later tick.
     if (localExists) {
       try { await preserveLocalEdit(mount, entry, verifyKey, diskHash, abs, localRelPath) } catch { return 'missing' }

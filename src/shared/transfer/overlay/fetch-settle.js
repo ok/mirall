@@ -1,7 +1,8 @@
 // The gated half of a download: past the fetch gate a transfer owns a chunk scheduler, a watchdog,
 // an fd and a ticker, which is what the limit exists to bound — and that cost is per fetch, not per
-// producer, which is why the gate is process-wide (fetch-gate.js). The engine has already reserved
-// the registry slot synchronously, so a queued job reads as active while this waits.
+// producer, which is why the gate is process-wide (fetch-gate.js). The slot is held through
+// fetch-run.js#runGatedFetch; the re-check and the body are the engine's. The engine has already
+// reserved the registry slot synchronously, so a queued job reads as active while this waits.
 //
 // A finished fetch is settled by reading the LIVE slot: a pause, cancel, supersede or republish may
 // have landed while the bytes were in flight, and settle-verdict.js ranks those against the result.
@@ -9,8 +10,7 @@
 // test/integration/download-completion-ordering.
 import fs from 'bare-fs'
 import path from 'bare-path'
-import { acquireFetchSlot } from './fetch-gate.js'
-import { makeFetchInstruments } from './fetch-run.js'
+import { makeFetchInstruments, runGatedFetch } from './fetch-run.js'
 import { FETCH_OUTCOME } from './fetch-outcome.js'
 import { SETTLE, ABANDON, settleVerdict, abandonReason } from './settle-verdict.js'
 import { terminalFault } from './download-faults.js'
@@ -28,39 +28,41 @@ export function createFetchSettle({
   fetchImpl, hasOverlay, ownerOnline, destProbeFor, discardPartial, pauseReasonFor,
   recordTerminal, failTerminal, restartAfterSupersede,
 }) {
-  async function run(slot, job) {
-    const releaseSlot = await acquireFetchSlot({ express: !!job.express })
-    try {
-      // The wait above is unbounded, so every reason the pre-fetch guard checked is re-checked —
-      // plus the overlay itself: drainFetchSlots() releases parked waiters so close() is not held
-      // open, and they must not then fetch into a torn-down overlay.
-      const reason = abandonReason(slot, { ownerOnline, hasOverlay })
-      if (reason) { abandon(slot, job, reason); return }
-      // Set past the gate so it keeps meaning "a fetch is in flight in the engine", which is
-      // what gates every abortFetch.
-      slot.fetching = true
-      // The overlay scheduler reports CUMULATIVE bytes already seeded with the resumed on-disk
-      // bytes, so the ticker needs no resume offset.
-      const { diag, callbacks } = makeFetchInstruments({
-        label: channel.diagLabelFor?.(job),
-        relPath: job.relPath,
-        size: job.size,
-        contentHash: job.contentHash,
-        onProgress: ({ bytes, total, speed, eta }) => {
-          channel.emitProgress(job, { bytes, total, speed, eta })
-          job.lastBytes = bytes
-          const now = Date.now()
-          if (!progressPersistDue(job.progressPersistedAt ?? 0, now)) return
-          job.progressPersistedAt = now
-          updatePendingProgress(job.spaceId, job.pendingKey, bytes).catch(() => {})
-        },
-        onVerify: (fraction) => channel.emitVerifying?.(job, fraction),
-      })
-      const result = await fetchImpl(job.contentHash, { finalPath: job.finalPath, ownerKey: job.ownerKey, size: job.size, ...callbacks })
-      await settle(job, result, diag)
-    } finally {
-      releaseSlot()
-    }
+  function run(slot, job) {
+    return runGatedFetch({
+      express: !!job.express,
+      // Every reason the pre-fetch guard checked, plus the overlay itself: drainFetchSlots()
+      // releases parked waiters so close() is not held open, and they must not then fetch into a
+      // torn-down overlay.
+      recheck: () => abandonReason(slot, { ownerOnline, hasOverlay }),
+      abandon: (reason) => abandon(slot, job, reason),
+      holding: () => fetchAndSettle(slot, job),
+    })
+  }
+
+  async function fetchAndSettle(slot, job) {
+    // Set past the gate so it keeps meaning "a fetch is in flight in the engine", which is what
+    // gates every abortFetch.
+    slot.fetching = true
+    // The overlay scheduler reports CUMULATIVE bytes already seeded with the resumed on-disk
+    // bytes, so the ticker needs no resume offset.
+    const { diag, callbacks } = makeFetchInstruments({
+      label: channel.diagLabelFor?.(job),
+      relPath: job.relPath,
+      size: job.size,
+      contentHash: job.contentHash,
+      onProgress: ({ bytes, total, speed, eta }) => {
+        channel.emitProgress(job, { bytes, total, speed, eta })
+        job.lastBytes = bytes
+        const now = Date.now()
+        if (!progressPersistDue(job.progressPersistedAt ?? 0, now)) return
+        job.progressPersistedAt = now
+        updatePendingProgress(job.spaceId, job.pendingKey, bytes).catch(() => {})
+      },
+      onVerify: (fraction) => channel.emitVerifying?.(job, fraction),
+    })
+    const result = await fetchImpl(job.contentHash, { finalPath: job.finalPath, ownerKey: job.ownerKey, size: job.size, ...callbacks })
+    await settle(job, result, diag)
   }
 
   function abandon(slot, job, reason) {

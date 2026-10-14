@@ -84,6 +84,8 @@ Never start a second run while one is going: every run wipes `test/frontend/.wor
 **A test that cannot fail is worse than none — when a red-first test goes green too easily, print
 what it observed.** Assert the fixture reached the guarded path (a side effect, a call count) before
 asserting the bound; a moved data path filters the old fixture out before the code under test runs.
+Delete a guard once and watch its test go red: if it stays green, a later step refuses the same
+condition, so drive it through an injected seam that step does not read.
 
 **A "no such frame arrives" assertion is only as good as the waiter behind it.** A helper that
 drains every waiter on each incoming frame drops a waiter at the first non-matching frame, so

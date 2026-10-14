@@ -221,7 +221,8 @@ its record. An unknown kind is left untouched, so a downgrade cannot eat a newer
 
 **Bounds** (runtime-config levers; `0` disables). `downloadConcurrency` (6) gates fetches through a
 FIFO semaphore with express lanes for user clicks, so a reconnect backlog cannot start a scheduler
-per pending row. `peerFrameBurst` and `peerFrameMaxBytes` meter and cap **every** peer frame before
+per pending row. The download engine and the mirror both hold their slot through one bracket,
+`runGatedFetch` in `src/shared/transfer/overlay/fetch-run.js`. `peerFrameBurst` and `peerFrameMaxBytes` meter and cap **every** peer frame before
 decode. `peerCatalogCacheLimit` (64) is a refcounted LRU; watchers and reads pin entries, because
 eviction closes live handles.
 

@@ -11,9 +11,10 @@ import { materializeCatalogFile, runMaterializeTick } from '../../src/shared/fol
 import {
   claimFetch, fetchClaimedBy, registerFetchOwner, resetFetchClaims,
 } from '../../src/shared/transfer/overlay/fetch-gate.js'
-import { resetFetchSlots, fetchSlotStats, acquireFetchSlot, FETCH_OWNER_MIRROR } from '../../src/shared/transfer/overlay/fetch-gate.js'
+import { resetFetchSlots, fetchSlotStats, acquireFetchSlot, drainFetchSlots, FETCH_OWNER_MIRROR } from '../../src/shared/transfer/overlay/fetch-gate.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { transferIdFor } from '../../src/shared/transfer/transfer-id.js'
+import { shareDecoKey } from '../../src/shared/contract/decoration-key.js'
 import { initPendingTransfers, listPendingForSpace } from '../../src/shared/transfer/pending-transfers.js'
 import { until as pollUntil } from '../helpers/bare-poll.js'
 
@@ -144,6 +145,67 @@ test('the mirror releases its claim and its slot on every exit path', async (t) 
   t.is(fetchClaimedBy(transferIdFor(ctx.spaceId, ctx.share.id, entries[1].relPath)), null, 'claim released after a throw')
 
   overlay.fetchFile = realFetch
+})
+
+// The vendor's own throws are settled inside the fetch, so the case above never makes the gated half
+// itself reject. A renderer channel that throws on the terminal decoration frame does: that frame is
+// sent from the fetch's own cleanup, after the claim was taken and the vendor asked, and the slot
+// and the claim must still come free.
+test('a fault that escapes the fetch still releases the slot and the claim', async (t) => {
+  const ctx = await mirrorCtx(t)
+  const entry = await firstEntry(ctx)
+  const overlay = getOverlay()
+  const realFetch = overlay.fetchFile
+  let fetches = 0
+  overlay.fetchFile = async () => { fetches += 1; return null }
+  t.teardown(() => { overlay.fetchFile = realFetch })
+  const closed = new Error('the renderer channel is closed')
+  const key = shareDecoKey(ctx.share.id, entry.relPath)
+  const stopThrowing = ctx.fake.onEmit((frame) => {
+    if (frame.type === 'event:decoration' && frame.payload?.key === key && frame.payload.done === true) throw closed
+  })
+  t.teardown(stopThrowing)
+
+  let thrown = null
+  try { await materializeCatalogFile(ctx.mount, ctx.share, entry) } catch (err) { thrown = err }
+  t.is(thrown, closed, 'precondition: the fault left the gated half as a rejection')
+  t.is(fetches, 1, 'after the vendor was asked under the claim')
+  t.is(fetchSlotStats().held, 0, 'the slot was released')
+  t.is(fetchClaimedBy(transferIdFor(ctx.spaceId, ctx.share.id, entry.relPath)), null, 'and no claim was left behind')
+})
+
+// ForeignMirrors' close drains only the mirror's waiters, then stops every loop in the same turn. A
+// parked pass must be among the drained ones, and must resume into its stop rather than a fetch.
+test('closing the mirror resumes its parked pass into the stop, not into a fetch', async (t) => {
+  const ctx = await mirrorCtx(t)
+  const entry = await firstEntry(ctx)
+  setRuntimeConfig({ ...getRuntimeConfig(), downloadConcurrency: 1 })
+  const overlay = getOverlay()
+  const realFetch = overlay.fetchFile
+  let fetches = 0
+  overlay.fetchFile = async () => { fetches += 1; return null }
+  t.teardown(() => { overlay.fetchFile = realFetch })
+
+  const hog = await acquireFetchSlot({})
+  t.teardown(() => hog())
+  // Settled either way, so a pass that rejects fails the assertions below rather than the process.
+  let settled = null
+  materializeCatalogFile(ctx.mount, ctx.share, entry).then((value) => { settled = { value } }, (err) => { settled = { err } })
+  t.ok(await until(() => fetchSlotStats().queued === 1), 'the pass is parked behind the hogged slot')
+
+  const from = ctx.fake.events.length
+  drainFetchSlots(FETCH_OWNER_MIRROR)
+  stopForeignLoop(ctx.spaceId, ctx.share.id)
+  t.ok(await until(() => settled !== null, 2000), 'the drain released the mirror\'s pass')
+  t.is(settled?.err, undefined, 'without a rejection')
+  t.is(settled?.value, 'missing', 'and it ended on the stop')
+  t.is(fetches, 0, 'and asked no holder')
+  // Observed at the re-check itself: a pass that got past it starts the row's transfer, and its
+  // cleanup clears that row, even when the fetch fails before reaching a holder.
+  const key = shareDecoKey(ctx.share.id, entry.relPath)
+  const frames = ctx.fake.events.slice(from).filter((e) => e.type === 'event:decoration' && e.payload?.key === key)
+  t.is(frames.length, 0, 'the row never started a transfer')
+  t.is(fetchSlotStats().queued, 0, 'nothing is left parked')
 })
 
 // Hazard 3. A pass parked on the gate is 'in flight' as far as pass-liveness is concerned, and the
