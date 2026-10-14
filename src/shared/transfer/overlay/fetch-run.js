@@ -130,6 +130,7 @@ export async function runGatedFetch({ express = false, owner = null, wait = (acq
  *   destPath?: string,
  *   finalPath?: string,
  *   parentMustExist?: boolean,
+ *   by?: string,
  *   onProgress?: (progress: { bytes: number, total: number, speed: number, eta: number | null }) => void,
  *   onVerify?: (fraction: number, recovered?: number) => void,
  *   onTick?: () => void,
