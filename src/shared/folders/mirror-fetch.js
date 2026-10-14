@@ -63,7 +63,8 @@ const mirrorGen = (key) => loops.generationOf(key)
 
 // The file the mirror is fetching right now (one per mirrorKey — the catalog materialize is
 // strictly sequential): contentHash so stopForeignLoop can abort the in-flight overlay
-// download, relPath so foreignFetchActive can identify the row.
+// download, relPath so foreignFetchActive can identify the row. `issued` is set once the vendor
+// was asked for it; before that the row is not downloading and a stop has nothing to cancel.
 const activeOverlayFetches = new Map()
 // The paused-stop markers this mount left with holders, so a later unmount can still tell them we
 // stopped rather than leaving their "who is downloading" row paused until the 5-min sweep.
@@ -71,7 +72,8 @@ const pausedHolders = createPausedHolders({ notifyStopped: (hash) => getOverlay(
 // Is the mirror loop actively fetching THIS row? Consulted by the worker's share:list-files
 // derivation so a materializing mirror row reports 'downloading'.
 export function foreignFetchActive(spaceId, shareId, relPath) {
-  return activeOverlayFetches.get(mirrorKey(spaceId, shareId))?.relPath === relPath
+  const inflight = activeOverlayFetches.get(mirrorKey(spaceId, shareId))
+  return !!inflight?.issued && inflight.relPath === relPath
 }
 
 const integritySeen = createIntegritySeen({
@@ -376,9 +378,28 @@ async function mkdirUnderMount(mountPath, localRelPath) {
 // scheduler, a watchdog, an fd and a ticker. `overlay` is the one the re-check past the slot wait
 // found live.
 async function fetchOverlayEntry(mount, share, entry, { overlay, abs, verifyKey, localRelPath, streamKey, writer, diskHash = null, localExists = false }) {
+  const transferId = transferIdFor(mount.spaceId, mount.shareId, entry.relPath)
+  // Recorded before the first await past the re-check, so a stop landing while the folder is made
+  // or a local edit is moved aside finds it. The stop drops it, which is the pass's cue to ask no
+  // holder; until `issued`, the vendor has nothing to cancel and is not asked to.
+  const inflight = { contentHash: entry.contentHash, relPath: entry.relPath, transferId, issued: false }
+  activeOverlayFetches.set(streamKey, inflight)
+  const stopped = () => activeOverlayFetches.get(streamKey) !== inflight
+  /** @type {(() => void) | null} */
+  let releaseClaim = null
+  // The fetch has settled once its record and claim are gone, and that happens BEFORE any fault
+  // policy runs: a pause stops the loop, whose stop path cancels whatever fetch the record names.
+  // A record still set would have it cancel a fetch that already ended, which the vendor keeps as
+  // a cancel for the next fetch of the same hash, and tell its holder we paused it.
+  const settle = () => {
+    if (!stopped()) activeOverlayFetches.delete(streamKey)
+    releaseClaim?.()
+    releaseClaim = null
+  }
   // The same local I/O classification the fetch below gets: a folder we cannot create is a full
   // disk, a permission fault or a vanished mount, and pauses the mount like one.
   try { await mkdirUnderMount(mount.mountPath, localRelPath) } catch (err) {
+    settle()
     if (await pauseMountForIoError(mount, err, { writer })) return 'missing'
     throw err
   }
@@ -386,21 +407,13 @@ async function fetchOverlayEntry(mount, share, entry, { overlay, abs, verifyKey,
   const total = entry.size || 0
   const decoKey = shareDecoKey(mount.shareId, entry.relPath)
   // Taken past the gate, not before it: holding it while queued would make the engine attach to a
-  // fetch that has not started. Whoever holds it owns the decoration key until they release.
-  const transferId = transferIdFor(mount.spaceId, mount.shareId, entry.relPath)
-  const releaseClaim = claimFetch(transferId, FETCH_OWNER_MIRROR)
-  if (!releaseClaim) return 'missing'
+  // fetch that has not started. Whoever holds it owns the decoration key until they release. Not
+  // taken at all once a stop has dropped the record.
+  releaseClaim = stopped() ? null : claimFetch(transferId, FETCH_OWNER_MIRROR)
+  if (!releaseClaim) { settle(); return 'missing' }
   let res
   let attempted = false
   let diag = null
-  // The fetch has settled once its record and claim are gone, and that happens BEFORE any fault
-  // policy runs: a pause stops the loop, whose stop path cancels whatever fetch the record names.
-  // A record still set would have it cancel a fetch that already ended, which the vendor keeps as
-  // a cancel for the next fetch of the same hash, and tell its holder we paused it.
-  const settle = () => {
-    activeOverlayFetches.delete(streamKey)
-    releaseClaim()
-  }
   // Everything from here is inside the try, so no throw between the claim and the fetch can leak it.
   try {
     // Move a local edit aside before the fetch renames over it — here, past the gate, rather than
@@ -410,7 +423,8 @@ async function fetchOverlayEntry(mount, share, entry, { overlay, abs, verifyKey,
     if (localExists) {
       try { await preserveLocalEdit(mount, entry, verifyKey, diskHash, abs, localRelPath) } catch { return 'missing' }
     }
-    activeOverlayFetches.set(streamKey, { contentHash: entry.contentHash, relPath: entry.relPath, transferId })
+    if (stopped()) return 'missing'
+    inflight.issued = true
     pausedHolders.supersede(streamKey)
     // The row just flipped to 'downloading' (foreignFetchActive) — poke the list re-derive.
     emitMirrorEvent('event:share-files-updated', { spaceId: mount.spaceId, shareId: mount.shareId })
@@ -510,12 +524,16 @@ async function finishLandedFetch(mount, entry, res, { abs, verifyKey, localRelPa
 export function cancelInflightFetch(key, discardPartial) {
   const inflight = activeOverlayFetches.get(key)
   if (inflight) {
-    try { getOverlay()?.cancelFetch(inflight.contentHash, { discardPartial, by: inflight.transferId }) } catch {}
     activeOverlayFetches.delete(key)
     // A cancelled pass may never settle at all — a wedged fetch is exactly what restartForeignLoop
     // exists to recover — so the claim cannot wait for its finally, or the restart is refused by
-    // the dead claim of the pass it just gave up on.
+    // the dead claim of the pass it just gave up on. A pass stopped before its claim has none.
     dropFetchClaim(inflight.transferId)
+  }
+  // A fetch not yet issued asked neither the vendor nor a holder: the pass sees its record gone and
+  // never asks. Cancelling it in the vendor would cancel the next fetch of the hash instead.
+  if (inflight?.issued) {
+    try { getOverlay()?.cancelFetch(inflight.contentHash, { discardPartial, by: inflight.transferId }) } catch {}
     if (discardPartial) pausedHolders.supersede(key)
     else pausedHolders.remember(key, inflight.contentHash)
   } else if (discardPartial) {

@@ -344,3 +344,41 @@ test('REGRESSION (FIX-661): a fetch that pauses the mount on a disk fault leaves
   t.is(read(path.join(ctx.mirrorPath, 'a.txt')), 'alpha', 'and the retry landed instead of being cancelled')
   t.ok(c.pending.size === 0 && !c.calls.some((call) => call.hash === hash), 'no cancel is left waiting for that hash')
 })
+
+// REGRESSION (FIX-666: the in-flight record a stop cancels by was written only after the awaits past
+// the slot re-check, so a stop landing while the pass made a folder or moved a local edit aside
+// found nothing to cancel, and the pass then asked a holder for the file under a stopped mount.)
+test('REGRESSION (FIX-666): a stop that lands while a local edit is moved aside asks no holder', async (t) => {
+  const { ctx } = await mirror(t, { 'a.txt': 'owner' })
+  const { spaceId } = ctx
+  const shareId = ctx.share.id
+  await runMaterializeTick(spaceId, shareId)
+  const landed = path.join(ctx.mirrorPath, 'a.txt')
+  t.is(read(landed), 'owner', 'precondition: the mirror delivered the owner\'s file')
+
+  fs.writeFileSync(landed, 'user edit')
+  requestMirrorWalk(spaceId, shareId)
+  const v = vendor(t)
+  const c = vendorCancel(t, v, v.real)
+  // Hold the move-aside of the edit, which the pass makes holding its slot, before the fetch.
+  const rename = fs.promises.rename
+  let release = () => {}
+  const held = new Promise((resolve) => { release = resolve })
+  let movingAside = false
+  fs.promises.rename = async (from, to) => {
+    if (from === landed) { movingAside = true; await held }
+    return await rename.call(fs.promises, from, to)
+  }
+  t.teardown(() => { fs.promises.rename = rename })
+  const pass = runMaterializeTick(spaceId, shareId)
+  await waitFor(() => movingAside, 5000, { interval: 10, label: 'the pass to move the edit aside' })
+
+  stopForeignLoop(spaceId, shareId)
+  release()
+  await pass
+
+  t.is(v.calls, 0, 'no holder was asked once the stop landed')
+  t.alike(c.calls, [], 'and the vendor holds no cancel for a fetch it was never asked for')
+  t.is(fetchClaimedBy(transferIdFor(spaceId, shareId, 'a.txt')), null, 'no claim was left behind')
+  t.is(fetchSlotStats().held, 0, 'and the slot was released')
+})
