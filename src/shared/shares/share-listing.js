@@ -16,6 +16,7 @@ import { foreignFetchActive } from '../folders/mirror-fetch.js'
 import { requestMirrorWalk } from '../folders/foreign-verbs.js'
 import { localRelOf } from '../folders/mirror-state.js'
 import { folderHasTransfer } from '../transfer/overlay/folder-downloads.js'
+import { markListIncomplete } from '../transfer/list-deficits.js'
 import {
   claimedPathFor,
   getDownloadedPath,
@@ -149,6 +150,20 @@ async function loadListingContext(spaceId, share, isOwn, deps) {
   }
 }
 
+// A peer read that stalled or threw flags the space as a list deficit (list-deficits.js).
+async function readShareCatalog(spaceId, share, isOwn, backend, cap, signal) {
+  let read
+  try {
+    read = isOwn ? await backend.listOwn(spaceId, share.id, cap) : await backend.listPeerWithMeta(spaceId, share, cap)
+  } catch (err) {
+    if (!isOwn && !signal?.aborted) markListIncomplete(spaceId)
+    throw err
+  }
+  throwIfAborted(signal)
+  if (!isOwn && read.stalled) markListIncomplete(spaceId)
+  return read
+}
+
 // `signal` is the router's cancellation token. The checkpoints sit at the await boundaries, not in
 // the row loop: that loop is synchronous, so `aborted` cannot change mid-pass. The one that pays is
 // the catalog read above it, network-bound for a peer share and carrying its own timeout.
@@ -168,10 +183,7 @@ export async function listOverlayShareFiles(spaceId, share, backend, deps = prod
   // always consistent with the rows (total >= entries.length). The rich display rows below are
   // built only for the capped entries.
   const cap = getListFilesCap()
-  const { entries, total, totalBytes, complete = true } = isOwn
-    ? await backend.listOwn(spaceId, share.id, cap)
-    : await backend.listPeerWithMeta(spaceId, share, cap)
-  throwIfAborted(signal)
+  const { entries, total, totalBytes, complete = true } = await readShareCatalog(spaceId, share, isOwn, backend, cap, signal)
   const { ownerOnline, ownedMount, foreignMount, pending } = await loadListingContext(spaceId, share, isOwn, deps)
   const { verified, claims } = await prefetchRowState(spaceId, share, entries, { isOwn, foreignMount, deps })
   // The last point an abort can land: everything below is synchronous until the prune.
