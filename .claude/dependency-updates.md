@@ -178,6 +178,13 @@ the production Bare with no visible change to `bare` in `package.json`. The rele
 the committed lock, so that bump happens in the PR that changes the lock and nowhere else: review
 the `bare-sidecar` diff on every lockfile-only PR, and smoke-test the worker whenever it moves.
 
+**`bare-pipe` has a floor of 4.4.0, and its own prebuild is the one the worker loads.** The worker's
+socket needs `ownerOnly` and `remoteCredentials()`, which arrived in 4.4.0. Bare resolves an addon to
+the module's own `prebuilds/<host>/` before any copy linked into `bare-sidecar`, so bumping
+`bare-pipe` needs no sidecar rebuild, and every `bare-*` package that depends on it must dedupe to
+one copy (`npm ls bare-pipe`). `test/integration/listener.test.js` fails on a tree without the two
+APIs. `fd-lock` (the profile lock) is declared for the same reason: it was only transitive.
+
 ## hyperdrive — a dev dependency, pinned
 
 No `src` module imports `hyperdrive` (`test/invariants/no-space-drive.test.js`). Production gets it
