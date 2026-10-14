@@ -300,26 +300,30 @@ test('a local hit is copied to the mirror path and recorded as verified', async 
 
 // -- The stop path: what a pause asks the vendor to cancel.
 
-// The vendor's cancel, as the engine models it: a cancel for a fetch in flight rejects it
-// ECANCELLED, and a cancel for a hash with no fetch in flight is remembered and consumed by the next
-// fetch of that hash, which then rejects ECANCELLED (fetch-session.js). Every call is recorded. It
-// wraps the counting `vendor`, whose fetch then runs `through` unless a cancel was waiting for it.
+// The vendor's cancel, as the engine models it: a cancel reaches only the fetch of the caller it
+// names (`by`). One for that caller's fetch in flight rejects it ECANCELLED; one with no fetch of
+// that caller in flight is remembered and consumed by the same caller's next fetch of the hash,
+// which then rejects ECANCELLED (fetch-session.js). Every call is recorded. It wraps the counting
+// `vendor`, whose fetch then runs `through` unless a cancel was waiting for it.
 function vendorCancel(t, v, through) {
   const overlay = getOverlay()
   const prev = overlay.cancelFetch
   const c = { calls: [], live: new Map(), pending: new Set() }
   const cancelled = () => Object.assign(new Error('cancelled'), { code: 'ECANCELLED' })
+  const callerKey = (hash, opts) => hash + '|' + (opts?.by ?? null)
   overlay.cancelFetch = (hash, opts) => {
     c.calls.push({ hash, opts })
-    const live = c.live.get(hash)
+    const key = callerKey(hash, opts)
+    const live = c.live.get(key)
     if (live) live(cancelled())
-    else c.pending.add(hash)
+    else c.pending.add(key)
     return true
   }
   v.inner = async (hash, opts) => {
-    if (c.pending.delete(hash)) throw cancelled()
-    const stop = new Promise((_resolve, reject) => c.live.set(hash, reject))
-    try { return await Promise.race([through(hash, opts), stop]) } finally { c.live.delete(hash) }
+    const key = callerKey(hash, opts)
+    if (c.pending.delete(key)) throw cancelled()
+    const stop = new Promise((_resolve, reject) => c.live.set(key, reject))
+    try { return await Promise.race([through(hash, opts), stop]) } finally { c.live.delete(key) }
   }
   t.teardown(() => { overlay.cancelFetch = prev }, { order: -1 })
   return c
@@ -327,8 +331,8 @@ function vendorCancel(t, v, through) {
 
 // REGRESSION (FIX-661: a fetch that rejected with a local I/O fault paused the mount while its
 // in-flight record was still set, so the pause's stop path asked the vendor to cancel a fetch that
-// had already settled. The vendor kept that as a cancel for the next fetch of the hash, and the
-// first retry after the resume was cancelled.)
+// had already settled. The vendor kept that as a cancel for the mirror's next fetch of the hash,
+// and the first retry after the resume was cancelled.)
 test('REGRESSION (FIX-661): a fetch that pauses the mount on a disk fault leaves no cancel for the retry', async (t) => {
   const { ctx, byPath } = await mirror(t, { 'a.txt': 'alpha' })
   const { spaceId } = ctx

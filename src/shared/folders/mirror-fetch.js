@@ -68,7 +68,8 @@ const mirrorGen = (key) => loops.generationOf(key)
 // The record is written before the first await past the slot re-check, so a stop landing while
 // the pass makes a folder or moves a local edit aside finds it. `issued` turns true when the vendor
 // is asked. Before that the row is not downloading, and a stop only drops the record, which tells
-// the pass to ask no holder: cancelling in the vendor would cancel the next fetch of the hash.
+// the pass to ask no holder: cancelling in the vendor would cancel this caller's next fetch of
+// the hash.
 const activeOverlayFetches = new Map()
 // The paused-stop markers this mount left with holders, so a later unmount can still tell them we
 // stopped rather than leaving their "who is downloading" row paused until the 5-min sweep.
@@ -390,7 +391,8 @@ async function fetchOverlayEntry(mount, share, entry, { overlay, abs, verifyKey,
   const halted = () => stopped() || writer.stopped()
   // Runs BEFORE any fault policy: a pause stops the loop, whose stop path cancels whatever fetch
   // the record names. A record still set would have it cancel a fetch that already ended, which the
-  // vendor keeps as a cancel for the next fetch of the same hash, and tell its holder we paused it.
+  // vendor keeps as a cancel for this caller's next fetch of the hash, and tell its holder we
+  // paused it.
   // The claim is not part of it and stays held until the settle below.
   const dropRecord = () => {
     if (!stopped()) activeOverlayFetches.delete(streamKey)
