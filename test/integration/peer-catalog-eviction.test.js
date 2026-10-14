@@ -2,7 +2,7 @@ import test from 'brittle'
 import crypto from 'hypercore-crypto'
 import { freshPeer } from '../helpers/store.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
-import { getPeerEntry, getPeerEntryState, watchPeerCatalog, dropPeerCatalog, peerCatalogCacheStats } from '../../src/shared/shares/peer-catalog.js'
+import { getPeerEntryState, watchPeerCatalog, dropPeerCatalog, peerCatalogCacheStats } from '../../src/shared/shares/peer-catalog.js'
 const keyFor = (n) => crypto.keyPair(Buffer.alloc(32, n)).publicKey.toString('hex')
 
 async function withLimit(t, limit, fn) {
@@ -15,7 +15,7 @@ async function withLimit(t, limit, fn) {
 // Opening a peer catalog is what caches it; a read on a key we hold no data for still opens the
 // core, which is exactly the cost being bounded.
 async function touch(keyHex) {
-  await getPeerEntry(keyHex, 'share1', 'file.bin').catch(() => null)
+  await getPeerEntryState(keyHex, 'share1', 'file.bin').catch(() => null)
 }
 
 test('the peer catalog cache is bounded', async (t) => {

@@ -15,7 +15,8 @@ import { initDownloads, markDownloaded, markVerified, getOwnedSourcePath } from 
 import { listFiles } from '../../src/shared/transfer/file-listing.js'
 import { initPendingTransfers, recordPending, getPendingFor } from '../../src/shared/transfer/pending-transfers.js'
 import { looseShareFile, looseUnshareFile, looseListOwn, looseCancelPublish, handleLooseFsEvent, MAX_LOOSE_FILES_PER_SPACE, looseSources } from '../../src/shared/transfer/overlay/loose-publish.js'
-import { cancelShareDownload } from '../../src/shared/transfer/overlay/share-downloads.js'
+import { cancelShareDownload, listPeerWithMeta, requestShareDownload, setDownloadEngine } from '../../src/shared/transfer/overlay/share-downloads.js'
+import { looseShareFor } from '../../src/shared/transfer/overlay/download-job.js'
 import { rehydrateOwnedContent, sweepOwnedPresence } from '../../src/shared/transfer/overlay/overlay-maintenance.js'
 import { LOOSE_SHARE_ID, looseTransferIdFor } from '../../src/shared/transfer/transfer-id.js'
 import { initLooseIpc } from '../helpers/overlay-ipc.js'
@@ -374,6 +375,26 @@ test('Item 2B: a still-hashing peer loose entry is listed and presence-gates to 
   // case is covered by unhashedStatusFor's unit test + the loose-preparing flow test.
   t.is(row.status, 'unavailable')
   t.is(row.localPath, null, 'nothing of a peer\'s unhashed file is on this device')
+})
+
+test('REGRESSION (FIX-668: a click on a loose file the owner removed records no intent row)', async (t) => {
+  const ctx = await setup(t)
+  const abs = writeSource(ctx, 'a.txt', 'data')
+  await looseShareFile(ctx.spaceId, abs, 'a.txt')
+  const share = looseShareFor({ publicKey: 'peerpub', displayName: 'Peer', looseCatalogKeyEnc: await ownCatalogKeyHex(ctx.spaceId) })
+  const spaceB = await consumerSpace(ctx, 'Borealis')
+  const started = []
+  setDownloadEngine({ start: async (job) => { started.push(job); return { queued: true } }, clearPauseMarker: () => {}, reconcileOnAppend: async () => {} })
+  t.teardown(() => setDownloadEngine(null))
+
+  const read = await listPeerWithMeta(spaceB.spaceId, share)
+  t.alike(read.entries.map((e) => e.relPath), ['a.txt'], 'the member read the file from the owner\'s catalog')
+  await looseUnshareFile(ctx.spaceId, '/a.txt')
+
+  const res = await requestShareDownload(spaceB.spaceId, share, 'a.txt')
+  t.alike(res, { queued: false }, 'the click answers that nothing is queued')
+  t.absent(await getPendingFor(spaceB.spaceId, '/a.txt'), 'and leaves no intent row to sit queued forever')
+  t.is(started.length, 0, 'nothing started')
 })
 
 // Import cycles are asserted for the whole data layer in import-time.test.js; what is checked

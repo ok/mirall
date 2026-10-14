@@ -3,7 +3,7 @@ import b4a from 'b4a'
 import { freshPeer } from '../helpers/store.js'
 import { createBee } from '../../src/shared/core/store.js'
 import { fileKey } from '../../src/shared/shares/catalog-keys.js'
-import { getPeerEntryState, getPeerEntry } from '../../src/shared/shares/peer-catalog.js'
+import { getPeerEntryState } from '../../src/shared/shares/peer-catalog.js'
 import { isRepublished } from '../../src/shared/transfer/supersede-decision.js'
 
 // The seq the remove+re-add teardown (FIX-REMOVE-1) keys on: a Hyperbee re-write of a key lands
@@ -37,7 +37,4 @@ test('catalog entry seq bumps on re-write, is stable across other keys, and surf
   const s3 = await getPeerEntryState(keyHex, '__loose__', 'x.bin')
   t.is(s3.seq, s2.seq, "a different key's write leaves our entry's seq unchanged (no false re-publish)")
   t.absent(isRepublished(s3.seq, s2.seq), 'no re-publish detected from an unrelated write')
-
-  const legacy = await getPeerEntry(keyHex, '__loose__', 'x.bin')
-  t.is(legacy.seq, s2.seq, 'getPeerEntry also carries seq')
 })

@@ -39,6 +39,28 @@ export function recordPending(spaceId, filePath, info) {
   return exclusive(key, () => bee.put(key, { ...info, updatedAt: Date.now() }))
 }
 
+function withoutError(row) {
+  const out = { ...row }
+  delete out.errorCode
+  delete out.erroredAt
+  delete out.refusedByPreflight
+  return out
+}
+
+// The user's click as a durable intent row. A row the same owner's transfer already advanced (bytes
+// landed or a content hash) is kept, so the reconcile resumes it from where it stopped, with its
+// error cleared, since the click is the user's retry. A loose key is the path alone, so another
+// owner's row under it is replaced. Read and write share the key's lock, so a progress write cannot
+// land between them.
+export function recordPendingIntent(spaceId, filePath, info) {
+  const key = rowKey(spaceId, filePath)
+  return exclusive(key, async () => {
+    const cur = (await bee.get(key))?.value
+    const keep = cur?.ownerKey === info.ownerKey && (cur.bytesTransferred > 0 || !!cur.contentHash)
+    await bee.put(key, { ...(keep ? withoutError(cur) : info), updatedAt: Date.now() })
+  })
+}
+
 export function updatePendingProgress(spaceId, filePath, bytes) {
   const key = rowKey(spaceId, filePath)
   return exclusive(key, async () => {

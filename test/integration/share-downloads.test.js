@@ -14,8 +14,10 @@ import { getRuntimeConfig, setRuntimeConfig } from '../../src/shared/core/runtim
 import { fileKey } from '../../src/shared/shares/catalog-keys.js'
 import { isPeerCatalogWatched } from '../../src/shared/shares/peer-catalog.js'
 import { generateShareId, publishShare, tombstoneShare } from '../../src/shared/shares/shares.js'
-import { advertise, ownCatalogKeyHex } from '../../src/shared/shares/own-catalog.js'
-import { initPendingTransfers, recordPending, getPendingFor } from '../../src/shared/transfer/pending-transfers.js'
+import { advertise, ownCatalogKeyHex, tombstone } from '../../src/shared/shares/own-catalog.js'
+import { CODES } from '../../src/shared/contract/errors.js'
+import { initPendingTransfers, recordPending, recordPendingError, getPendingFor, _pendingBeeForTests } from '../../src/shared/transfer/pending-transfers.js'
+import { memberWaits } from '../../src/shared/network/share-wait.js'
 import { createOverlayDownloadEngine } from '../../src/shared/transfer/overlay/overlay-download.js'
 import {
   cancelShareDownload, downloadChannel, listPeerWithMeta, requestShareDownload, setDownloadEngine, watchedCatalogVersion,
@@ -175,6 +177,164 @@ test('a click the catalog cannot answer keeps a loose intent row and nothing for
   t.absent(await getPendingFor(ctx.spaceId, '/x.bin'), 'with no row')
   t.ok(calls.clearPauseMarker.includes(looseTransferIdFor(ctx.spaceId, 'x.bin')), 'but the pause marker is still retired')
   t.is(calls.start, 0, 'nothing started')
+})
+
+// Records every share-wait registered while the test runs, still registering it. `onWait` sees
+// each call as it happens.
+function spyWaits(t, onWait = () => {}) {
+  const calls = []
+  const realWait = memberWaits.wait
+  memberWaits.wait = (...args) => { calls.push(args); onWait(); return realWait(...args) }
+  t.teardown(() => { memberWaits.wait = realWait; memberWaits.clear() })
+  return calls
+}
+
+test('REGRESSION (FIX-669: a loose intent whose row write fails arms no share-wait and is not queued)', async (t) => {
+  const ctx = await setup(t)
+  const { loose } = await ownAsPeer(ctx)
+  await advertise(ctx.spaceId, LOOSE_SHARE_ID, 'prep.bin', { size: 4, mtime: 1, contentHash: null })
+  stubEngine(t)
+  const waits = spyWaits(t)
+  const bee = _pendingBeeForTests()
+  const realPut = bee.put.bind(bee)
+  let refused = 0
+  bee.put = (key, value, opts) => {
+    if (key.endsWith(':/prep.bin')) { refused++; return Promise.reject(new Error('EIO: injected put failure')) }
+    return realPut(key, value, opts)
+  }
+  t.teardown(() => { bee.put = realPut })
+
+  const res = await requestShareDownload(ctx.spaceId, loose, 'prep.bin')
+  t.is(refused, 1, 'the click reached the intent write')
+  t.absent(await getPendingFor(ctx.spaceId, '/prep.bin'), 'no row was written')
+  t.alike(res, { queued: false }, 'the click is not reported as queued')
+  t.is(waits.length, 0, 'and no share-wait is armed for a row that does not exist')
+})
+
+test('REGRESSION (FIX-669: a click whose pending store is closed arms no share-wait and is not queued)', async (t) => {
+  const ctx = await setup(t)
+  const { loose } = await ownAsPeer(ctx)
+  await advertise(ctx.spaceId, LOOSE_SHARE_ID, 'prep.bin', { size: 4, mtime: 1, contentHash: null })
+  stubEngine(t)
+  const waits = spyWaits(t)
+  await _pendingBeeForTests().close()
+
+  t.alike(await requestShareDownload(ctx.spaceId, loose, 'prep.bin'), { queued: false }, 'the click is not reported as queued')
+  t.is(waits.length, 0, 'and no share-wait is armed')
+})
+
+test('a preparing loose entry keeps its intent row and arms the row share-wait after it', async (t) => {
+  const ctx = await setup(t)
+  const { loose } = await ownAsPeer(ctx)
+  await advertise(ctx.spaceId, LOOSE_SHARE_ID, 'prep.bin', { size: 4, mtime: 1, contentHash: null })
+  stubEngine(t)
+  let rowAtWait = 'unseen'
+  const waits = spyWaits(t, () => { rowAtWait = written })
+  const bee = _pendingBeeForTests()
+  const realPut = bee.put.bind(bee)
+  let written = false
+  bee.put = async (key, value, opts) => {
+    const res = await realPut(key, value, opts)
+    if (key.endsWith(':/prep.bin')) written = true
+    return res
+  }
+  t.teardown(() => { bee.put = realPut })
+
+  t.alike(await requestShareDownload(ctx.spaceId, loose, 'prep.bin'), { queued: true })
+  t.ok(await getPendingFor(ctx.spaceId, '/prep.bin'), 'the intent row is written')
+  t.alike(waits.map((w) => w.slice(1)), [[looseTransferIdFor(ctx.spaceId, 'prep.bin'), 'row']], 'one row share-wait')
+  t.is(rowAtWait, true, 'armed only once the row had landed')
+})
+
+test('REGRESSION (FIX-667: a click the catalog cannot answer keeps a paused loose row\'s progress)', async (t) => {
+  const ctx = await setup(t)
+  // Encrypted at an epoch this peer holds no key for: the catalog is unreadable.
+  const loose = looseShareFor({ publicKey: OWNER, looseCatalogKeyEnc: KEY, looseCatalogEpoch: 7 })
+  const calls = stubEngine(t)
+  const paused = {
+    total: 8192, inPlace: true, ownerKey: OWNER, finalPath: path.join(ctx.tmpDir('dl'), 'a.bin'), contentHash: HASH, sourceSeq: 3,
+    bytesTransferred: 4096, shareId: LOOSE_SHARE_ID, relPath: 'a.bin',
+  }
+  await recordPending(ctx.spaceId, '/a.bin', paused)
+
+  t.alike(await requestShareDownload(ctx.spaceId, loose, 'a.bin'), { queued: true }, 'queued for the reconcile')
+  const row = await getPendingFor(ctx.spaceId, '/a.bin')
+  t.alike({ ...row, updatedAt: undefined }, { ...paused, updatedAt: undefined }, 'the paused row keeps its bytes, hash and destination')
+  t.ok(calls.clearPauseMarker.includes(looseTransferIdFor(ctx.spaceId, 'a.bin')), 'and the click retired its pause marker')
+})
+
+const UNREADABLE = (ownerKey) => looseShareFor({ publicKey: ownerKey, looseCatalogKeyEnc: KEY, looseCatalogEpoch: 7 })
+const progressRow = (ctx, over) => ({
+  total: 8192, inPlace: true, ownerKey: OWNER, finalPath: path.join(ctx.tmpDir('dl'), 'a.bin'), contentHash: HASH, sourceSeq: 3,
+  bytesTransferred: 4096, shareId: LOOSE_SHARE_ID, relPath: 'a.bin', ...over,
+})
+const withoutStamp = (row) => ({ ...row, updatedAt: undefined })
+
+test('a click the catalog cannot answer keeps a row with either half of progress', async (t) => {
+  const ctx = await setup(t)
+  stubEngine(t)
+  // The row start() writes when it parks with the owner offline: a hash, no bytes yet.
+  const parked = progressRow(ctx, { bytesTransferred: 0 })
+  await recordPending(ctx.spaceId, '/a.bin', parked)
+  await requestShareDownload(ctx.spaceId, UNREADABLE(OWNER), 'a.bin')
+  t.alike(withoutStamp(await getPendingFor(ctx.spaceId, '/a.bin')), withoutStamp(parked), 'a row with a hash and no bytes is kept')
+
+  const bytesOnly = progressRow(ctx, { relPath: 'b.bin', contentHash: undefined })
+  delete bytesOnly.contentHash
+  await recordPending(ctx.spaceId, '/b.bin', bytesOnly)
+  await requestShareDownload(ctx.spaceId, UNREADABLE(OWNER), 'b.bin')
+  t.alike(withoutStamp(await getPendingFor(ctx.spaceId, '/b.bin')), withoutStamp(bytesOnly), 'a row with bytes and no hash is kept')
+})
+
+test('REGRESSION (FIX-667: a click on another owner\'s file of the same name writes that owner\'s intent row)', async (t) => {
+  const ctx = await setup(t)
+  stubEngine(t)
+  const CAROL = 'd'.repeat(64)
+  await recordPending(ctx.spaceId, '/a.bin', progressRow(ctx))
+
+  t.alike(await requestShareDownload(ctx.spaceId, UNREADABLE(CAROL), 'a.bin'), { queued: true })
+  t.alike(withoutStamp(await getPendingFor(ctx.spaceId, '/a.bin')),
+    { inPlace: true, shareId: LOOSE_SHARE_ID, relPath: 'a.bin', ownerKey: CAROL, total: 0, updatedAt: undefined },
+    'the row is Carol\'s intent, so her reconnect re-drives the click')
+})
+
+test('REGRESSION (FIX-667: a click on a failed row with progress clears its error and keeps its progress)', async (t) => {
+  const ctx = await setup(t)
+  stubEngine(t)
+  const failed = progressRow(ctx)
+  await recordPending(ctx.spaceId, '/a.bin', failed)
+  await recordPendingError(ctx.spaceId, '/a.bin', CODES.TRANSFER_CHECKSUM, { refusedByPreflight: false })
+  t.is((await getPendingFor(ctx.spaceId, '/a.bin')).errorCode, CODES.TRANSFER_CHECKSUM, 'the row starts failed')
+
+  t.alike(await requestShareDownload(ctx.spaceId, UNREADABLE(OWNER), 'a.bin'), { queued: true })
+  t.alike(withoutStamp(await getPendingFor(ctx.spaceId, '/a.bin')), withoutStamp(failed),
+    'the user\'s click clears the durable error, so the reconnect scan re-drives the row from its progress')
+})
+
+test('a click on a folder file the owner removed answers removed', async (t) => {
+  const ctx = await setup(t)
+  const { folder } = await ownAsPeer(ctx)
+  await advertise(ctx.spaceId, 'sh1', 'gone.bin', { size: 4, mtime: 1, contentHash: HASH })
+  await tombstone(ctx.spaceId, 'sh1', 'gone.bin')
+  const calls = stubEngine(t)
+  const waits = spyWaits(t)
+
+  t.alike(await requestShareDownload(ctx.spaceId, folder, 'gone.bin'), { queued: false })
+  t.absent(await getPendingFor(ctx.spaceId, '/Vault/gone.bin'), 'with no row')
+  t.is(waits.length, 0, 'and no share-wait')
+  t.is(calls.start, 0, 'nothing started')
+})
+
+test('a click the catalog cannot answer replaces a loose row with no progress by an intent row', async (t) => {
+  const ctx = await setup(t)
+  const loose = looseShareFor({ publicKey: OWNER, looseCatalogKeyEnc: KEY, looseCatalogEpoch: 7 })
+  stubEngine(t)
+  await recordPending(ctx.spaceId, '/a.bin', { inPlace: true, shareId: LOOSE_SHARE_ID, relPath: 'a.bin', ownerKey: OWNER, total: 0, bytesTransferred: 0, errorCode: 'X' })
+
+  t.alike(await requestShareDownload(ctx.spaceId, loose, 'a.bin'), { queued: true })
+  const row = await getPendingFor(ctx.spaceId, '/a.bin')
+  t.alike({ ...row, updatedAt: undefined }, { inPlace: true, shareId: LOOSE_SHARE_ID, relPath: 'a.bin', ownerKey: OWNER, total: 0, updatedAt: undefined },
+    'a fresh intent row')
 })
 
 test('a hashed entry starts on the one engine for both kinds', async (t) => {

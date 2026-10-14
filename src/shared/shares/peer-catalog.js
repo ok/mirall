@@ -211,11 +211,6 @@ export async function getPeerEntryState(catalogKeyHex, shareId, relPath, { sck =
   }
 }
 
-export async function getPeerEntry(catalogKeyHex, shareId, relPath, opts = {}) {
-  const state = await getPeerEntryState(catalogKeyHex, shareId, relPath, opts)
-  return state && !state.removed ? { ...catalogEntry(relPath, state), seq: state.seq } : null
-}
-
 /** @internal */
 export function peerCatalogCacheStats() {
   return { size: peerCatalogs.size(), keys: peerCatalogs.keys(), refsOf: (k) => peerCatalogs.refsOf(k) }

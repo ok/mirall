@@ -4,7 +4,7 @@
 // the offline-intent row for a loose file; the mirrored-share refusal and the mirror's append trigger
 // for a folder.
 import path from 'bare-path'
-import { collectPeerShare, getPeerEntry, getPeerEntryState, isPeerCatalogWatched, peerCatalogVersion, resolvePeerCatalog, watchPeerCatalog } from '../../shares/peer-catalog.js'
+import { collectPeerShare, getPeerEntryState, isPeerCatalogWatched, peerCatalogVersion, resolvePeerCatalog, watchPeerCatalog } from '../../shares/peer-catalog.js'
 import { readCatalogKey } from '../../shares/catalog-keys.js'
 import { readPeerShareEntry } from '../../shares/shares.js'
 import { observePeerCatalog } from '../../audit/peer-records-watch.js'
@@ -13,7 +13,7 @@ import { getSpace } from '../../spaces/space.js'
 import { verifiedMembers } from '../../spaces/member-standing.js'
 import { getForeignMount } from '../../folders/mount-store.js'
 import { createLogger } from '../../core/logger.js'
-import { getPendingFor, recordPending } from '../pending-transfers.js'
+import { getPendingFor, recordPendingIntent } from '../pending-transfers.js'
 import { reuseDest } from '../download-dest.js'
 import { LOOSE_SHARE_ID, looseDrivePath, transferIdFor } from '../transfer-id.js'
 import { memberWaits } from '../../network/share-wait.js'
@@ -158,12 +158,18 @@ export const downloadChannel = createOverlayChannel({ emit: (name, payload) => i
 
 // A loose click the catalog cannot answer yet (owner offline, a read budget spent under reconnect
 // churn) is kept as a durable intent row, so the reconnect reconcile owns the retry; with no row
-// nothing would retry and the click is lost.
+// nothing would retry and the click is lost; recordPendingIntent states which existing row it keeps.
+// The share-wait re-drives the row, so it is armed only once the row landed, and a click whose row
+// failed is not reported as queued.
 async function recordLooseIntent(spaceId, share, relPath, entry) {
+  try {
+    // PERSISTED: the intent row's fields are what the channel's loose ownsRow and the resolve read.
+    await recordPendingIntent(spaceId, looseDrivePath(relPath), { inPlace: true, shareId: LOOSE_SHARE_ID, relPath, ownerKey: share.owner, total: 0 })
+  } catch (err) {
+    log.warn('loose download click dropped, its intent row failed:', relPath, err.message)
+    return { queued: false }
+  }
   if (entry) memberWaits.wait(share.owner, transferIdFor(spaceId, LOOSE_SHARE_ID, relPath), SHARE_WAIT_SOURCE.ROW)
-  // PERSISTED: the intent row's fields are what the channel's loose ownsRow and the resolve read.
-  await recordPending(spaceId, looseDrivePath(relPath), { inPlace: true, shareId: LOOSE_SHARE_ID, relPath, ownerKey: share.owner, total: 0 })
-    .catch((err) => log.debug('loose intent row failed:', relPath, err.message))
   downloadChannel.emitUpdated(spaceId, LOOSE_SHARE_ID)
   return { queued: true }
 }
@@ -171,7 +177,7 @@ async function recordLooseIntent(spaceId, share, relPath, entry) {
 /**
  * The user's download click, and its manual resume. A mirrored share syncs itself, paused or not,
  * so it is refused before the engine is touched: a second copy in the downloads folder would also
- * overwrite the mirror's verified record for the path.
+ * overwrite the mirror's verified record for the path. A file the owner removed queues nothing.
  * @returns {Promise<import('../../contract/responses.js').ShareDownloadResult>}
  */
 export async function requestShareDownload(spaceId, share, relPath) {
@@ -182,7 +188,10 @@ export async function requestShareDownload(spaceId, share, relPath) {
   if (!getOverlay() || !readCatalogKey(share).keyHex) return { queued: true }
   const cat = await resolvePeerCatalog(spaceId, share)
   if (cat.readable) ensureCatalogWatch(spaceId, share, cat)
-  const entry = cat.readable ? await getPeerEntry(cat.keyHex, share.id, relPath, { sck: cat.sck }) : null
+  // Only a tombstone means the owner removed the file: a null entry may be an offline owner or
+  // replication lag, so a loose click still records its intent row for it.
+  const entry = cat.readable ? await getPeerEntryState(cat.keyHex, share.id, relPath, { sck: cat.sck }) : null
+  if (entry?.removed) return { queued: false }
   if (entry?.contentHash) {
     const job = await jobFor({ spaceId, share, relPath, pendingKey: pendingKeyFor(share, relPath), cat, entry })
     // Express: a click never queues behind a reconnect backlog.
