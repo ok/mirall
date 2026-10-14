@@ -101,6 +101,30 @@ test('every producer holds its fetch slot through the one bracket', (t) => {
   t.alike(takers, [], 'no other module takes a slot')
 })
 
+// One vendor call, so both producers ask the overlay the same way and get the same { res, err,
+// attempted, diag } back: neither asks it directly, and nothing else in src does either.
+const ENGINE_FETCH = 'shared/transfer/overlay/fetch-settle.js'
+const ENGINE_VENDOR = ENGINE // fetchContentToFile: the engine's default vendor, handed to callVendor
+const VENDOR_ITSELF = 'shared/transfer/overlay/engine/'
+
+test('every producer asks the vendor through the one call', (t) => {
+  t.ok(/await vendor\.fetchFile\(contentHash, \{/.test(code(read(BRACKET))), 'the one call asks the vendor')
+  for (const [label, f] of [['the engine', ENGINE_FETCH], ['the mirror', MIRROR]]) {
+    const src = code(read(f))
+    t.ok(/import \{[^}]*\bcallVendor\b[^}]*\} from '[^']*\/fetch-run\.js'/.test(src), `${label} imports the one call`)
+    t.ok(/= await callVendor\(/.test(src), `${label} makes it`)
+    t.absent(/\.fetchFile\(/.test(src), `${label} does not ask the overlay itself`)
+  }
+  t.absent(/fetchImpl\(/.test(code(read(ENGINE_FETCH))), 'the engine hands its fetch to the call rather than calling it')
+  const srcRoot = path.resolve(here, '../../src')
+  const askers = readdirSync(srcRoot, { recursive: true })
+    .map((f) => f.split(path.sep).join('/'))
+    .filter((f) => /\.(js|mjs|cjs|ts|tsx)$/.test(f) && !f.startsWith(VENDOR_ITSELF))
+    .filter((f) => /\.fetchFile\(/.test(code(read(f))))
+    .sort()
+  t.alike(askers, [ENGINE_VENDOR, BRACKET].sort(), 'only the one call and the engine\'s default vendor ask the overlay')
+})
+
 // One edge, one dispatcher. The offline fix left two hooks fired back to back for the same event
 // because there was no shared one to join; that is the shape this forbids.
 test('the peer-online edge has one dispatcher, not one hook per producer', (t) => {
