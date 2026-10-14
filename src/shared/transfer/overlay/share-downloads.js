@@ -158,9 +158,9 @@ export const downloadChannel = createOverlayChannel({ emit: (name, payload) => i
 
 // A loose click the catalog cannot answer yet (owner offline, a read budget spent under reconnect
 // churn) is kept as a durable intent row, so the reconnect reconcile owns the retry; with no row
-// nothing would retry and the click is lost. A row that already holds progress is kept, so a paused
-// download resumes rather than restarting. The share-wait re-drives the row, so it is armed only
-// once the row landed, and a click whose row failed is not reported as queued.
+// nothing would retry and the click is lost; recordPendingIntent states which existing row it keeps.
+// The share-wait re-drives the row, so it is armed only once the row landed, and a click whose row
+// failed is not reported as queued.
 async function recordLooseIntent(spaceId, share, relPath, entry) {
   try {
     // PERSISTED: the intent row's fields are what the channel's loose ownsRow and the resolve read.
@@ -188,10 +188,10 @@ export async function requestShareDownload(spaceId, share, relPath) {
   if (!getOverlay() || !readCatalogKey(share).keyHex) return { queued: true }
   const cat = await resolvePeerCatalog(spaceId, share)
   if (cat.readable) ensureCatalogWatch(spaceId, share, cat)
-  // Only a tombstone answers "removed": a null entry may be an owner offline or replication lag,
-  // which the intent row below waits out.
+  // Only a tombstone means the owner removed the file: a null entry may be an offline owner or
+  // replication lag, so a loose click still records its intent row for it.
   const entry = cat.readable ? await getPeerEntryState(cat.keyHex, share.id, relPath, { sck: cat.sck }) : null
-  if (entry?.removed) return { queued: false, removed: true }
+  if (entry?.removed) return { queued: false }
   if (entry?.contentHash) {
     const job = await jobFor({ spaceId, share, relPath, pendingKey: pendingKeyFor(share, relPath), cat, entry })
     // Express: a click never queues behind a reconnect backlog.
