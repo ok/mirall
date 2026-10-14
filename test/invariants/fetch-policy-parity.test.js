@@ -101,6 +101,42 @@ test('every producer holds its fetch slot through the one bracket', (t) => {
   t.alike(takers, [], 'no other module takes a slot')
 })
 
+// One vendor call, so both producers ask the overlay the same way and get the same { res, err,
+// attempted, diag } back. Outside the vendor itself, only that call and the engine's default
+// vendor, fetchContentToFile (handed to it as `fetchImpl`), ask the overlay at all, once each.
+const ENGINE_FETCH = 'shared/transfer/overlay/fetch-settle.js'
+const VENDOR_ITSELF = 'shared/transfer/overlay/engine/'
+const asks = (src) => (src.match(/\.fetchFile\(/g) || []).length
+
+test('every producer asks the vendor through the one call', (t) => {
+  const bracket = code(read(BRACKET))
+  t.ok(/await vendor\.fetchFile\(contentHash, \{/.test(bracket), 'the one call asks the vendor')
+  t.is(asks(bracket), 1, 'once')
+  for (const [label, f] of [['the engine', ENGINE_FETCH], ['the mirror', MIRROR]]) {
+    const src = code(read(f))
+    t.ok(/import \{[^}]*\bcallVendor\b[^}]*\} from '[^']*\/fetch-run\.js'/.test(src), `${label} imports the one call`)
+    t.ok(/= await callVendor\(/.test(src), `${label} makes it`)
+    t.is(asks(src), 0, `${label} does not ask the overlay itself`)
+  }
+  t.absent(/fetchImpl\(/.test(code(read(ENGINE_FETCH))), 'the engine hands its fetch to the call rather than calling it')
+
+  const engine = code(read(ENGINE))
+  const start = engine.indexOf('export async function fetchContentToFile(')
+  t.ok(start >= 0, 'the engine\'s default vendor is where this scan looks')
+  const end = engine.indexOf('\n}\n', start)
+  t.ok(end > start, 'and its end is found')
+  t.is(asks(engine), 1, 'the engine root asks the overlay once')
+  t.is(asks(engine.slice(start, end)), 1, 'and that one ask is the default vendor\'s')
+
+  const srcRoot = path.resolve(here, '../../src')
+  const askers = readdirSync(srcRoot, { recursive: true })
+    .map((f) => f.split(path.sep).join('/'))
+    .filter((f) => /\.(js|mjs|cjs|ts|tsx)$/.test(f) && !f.startsWith(VENDOR_ITSELF))
+    .filter((f) => asks(code(read(f))) > 0)
+    .sort()
+  t.alike(askers, [ENGINE, BRACKET].sort(), 'no other module asks the overlay')
+})
+
 // One edge, one dispatcher. The offline fix left two hooks fired back to back for the same event
 // because there was no shared one to join; that is the shape this forbids.
 test('the peer-online edge has one dispatcher, not one hook per producer', (t) => {

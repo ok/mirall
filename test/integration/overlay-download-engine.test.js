@@ -8,6 +8,8 @@ import { initDownloads, isDownloadedFile } from '../../src/shared/transfer/files
 import { getOverlay } from '../../src/shared/transfer/overlay/overlay-instance.js'
 import { CODES } from '../../src/shared/contract/errors.js'
 import { createOverlayDownloadEngine } from '../../src/shared/transfer/overlay/overlay-download.js'
+import { createFetchSettle } from '../../src/shared/transfer/overlay/fetch-settle.js'
+import { fetchSlotStats } from '../../src/shared/transfer/overlay/fetch-gate.js'
 
 // The shared overlay consumer engine (used by both loose + folder). The success/
 // pause/resume paths need a peer to serve bytes (flow-tested in CI); here we cover
@@ -894,4 +896,31 @@ test('REGRESSION (MIR-46: the fetch is told the owner and the catalog size)', as
   await engine.cancelByKey(job.spaceId, job.pendingKey, job.transferId)
   resolveFetch?.(null)
   await tick()
+})
+
+// The engine's fetch resolves every outcome as { ok, code }, so one that rejects is a bug in it: the
+// rejection reaches run()'s caller as itself, nothing is settled on its behalf, and the slot is
+// still released.
+test('a rejecting engine fetch rejects run() with the same object and frees its slot', async (t) => {
+  const ctx = await setup(t)
+  const bug = new Error('fetch implementation bug')
+  const registry = new Map()
+  const settle = createFetchSettle({
+    registry, terminalCodes: new Map(), retries: { cancel: () => {}, schedule: async () => false },
+    channel: testChannel([]), log: { debug: () => {}, warn: () => {} },
+    fetchImpl: async () => { throw bug },
+    hasOverlay: () => true, ownerOnline: () => true, destProbeFor: () => null, discardPartial: () => {},
+    pauseReasonFor: () => null, recordTerminal: async () => { t.fail('no terminal is recorded') },
+    failTerminal: () => { t.fail('no terminal fault is raised') }, restartAfterSupersede: () => {},
+  })
+  const job = makeJob(ctx)
+  const slot = { job, ownerKey: job.ownerKey }
+  registry.set(job.transferId, slot)
+  const held = fetchSlotStats().held
+
+  const got = await settle.run(slot, job).then(() => null, (err) => err)
+  t.is(got, bug, 'the very rejection reaches the caller')
+  t.ok(slot.fetching, 'precondition: the fetch was issued past the gate')
+  t.ok(registry.has(job.transferId), 'nothing settled the slot on its behalf')
+  t.is(fetchSlotStats().held, held, 'and the fetch slot is released')
 })

@@ -1153,6 +1153,10 @@ user's **real file on disk**, never a Hyperdrive blob store.
   string code that is not a transient write code (`engine/local-faults.js`); it resolves `null`
   iff no holder answered or the fetch ended on an uncoded peer/transport outcome; otherwise it
   resolves the result.
+- **One vendor call**: the download engine and the mirror both ask `fetchFile` through `callVendor`
+  (`src/shared/transfer/overlay/fetch-run.js`), inside the fetch slot `runGatedFetch` holds. It
+  never throws: it returns `{ res, err, attempted, diag }`, with the rejection itself as `err`. The
+  diag comes back open and each producer closes it with its own verdict.
 
 `isServableShare(share)` (`src/shared/transfer/content-mode.js`) is true for `contentMode ===
 'overlay'` only. A share in any other mode (absent, the `eager`/`deferred` modes older releases wrote,

@@ -10,6 +10,9 @@ import { initOverlay, teardownOverlay, getOverlay } from '../../src/shared/trans
 import { overlayBackend } from '../../src/shared/transfer/overlay/index.js'
 import { CODES } from '../../src/shared/contract/errors.js'
 import fs from 'bare-fs'
+import { capture } from '../helpers/capture-console.js'
+import { setVerbose } from '../helpers/runtime-verbose.js'
+import { diagEnds } from '../helpers/fetch-diag-lines.js'
 
 // REGRESSION (FIX-129): a disk-write failure during an overlay mirror fetch must
 // pause the mount with a surfaced status — same classification as the eager path —
@@ -178,32 +181,17 @@ test('a successful pass clears the reason with the status', async (t) => {
   t.is(mount.lastError, null, 'a stale reason would name the next fault that records none')
 })
 
-// The rejection is the only way the mirror reaches the diag its fetch opened (fetch-run.js hangs it
-// on `err.diag`), so the fault is built with an accessor that records every outcome it is settled
-// with.
-function settledDiagFault(code) {
-  const outcomes = []
-  let diag = null
-  const err = Object.assign(new Error('disk error'), { code })
-  Object.defineProperty(err, 'diag', {
-    get: () => diag,
-    set: (d) => {
-      diag = { ...d, finish: (outcome) => { outcomes.push(outcome); d.finish(outcome) } }
-    },
-  })
-  return { err, outcomes }
-}
-
 // REGRESSION (FIX-660: a rejection that paused the mount returned before closing the fetch's diag,
 // so its `start:` line was the only one in the log with no terminal line after it.)
 test('REGRESSION (FIX-660): a rejection that pauses the mount closes its fetch diag as paused', async (t) => {
   const { spaceId, shareId } = await setupOverlayMirror(t, 'ENOSPC')
-  const { err, outcomes } = settledDiagFault('ENOSPC')
-  getOverlay().fetchFile = async () => { throw err }
+  setVerbose(t, true)
+  const lines = capture(t, ['log', 'warn'])
 
   await runMaterializeTick(spaceId, shareId)
 
   t.is((await getForeignMount(spaceId, shareId)).status, 'paused-enospc', 'precondition: the rejection paused the mount')
-  t.ok(err.diag, 'precondition: the fetch hung its diag on the rejection')
-  t.alike(outcomes, ['paused'], 'the diag is settled once, as a deliberate stop')
+  const ends = diagEnds(lines, 'big.bin')
+  t.is(ends.length, 1, 'the diag is settled once')
+  t.ok(ends[0]?.includes('overlay mirror paused:'), 'as a deliberate stop: ' + ends[0])
 })

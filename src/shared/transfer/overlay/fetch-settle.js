@@ -10,7 +10,7 @@
 // test/integration/download-completion-ordering.
 import fs from 'bare-fs'
 import path from 'bare-path'
-import { makeFetchInstruments, runGatedFetch } from './fetch-run.js'
+import { callVendor, runGatedFetch } from './fetch-run.js'
 import { FETCH_OUTCOME } from './fetch-outcome.js'
 import { SETTLE, ABANDON, settleVerdict, abandonReason } from './settle-verdict.js'
 import { terminalFault } from './download-faults.js'
@@ -28,6 +28,9 @@ export function createFetchSettle({
   fetchImpl, hasOverlay, ownerOnline, destProbeFor, discardPartial, pauseReasonFor,
   recordTerminal, failTerminal, restartAfterSupersede,
 }) {
+  // The engine's vendor is its injectable fetch, which resolves every outcome as { ok, code }.
+  const vendor = { fetchFile: fetchImpl }
+
   function run(slot, job) {
     return runGatedFetch({
       express: !!job.express,
@@ -45,11 +48,13 @@ export function createFetchSettle({
     slot.fetching = true
     // The overlay scheduler reports CUMULATIVE bytes already seeded with the resumed on-disk
     // bytes, so the ticker needs no resume offset.
-    const { diag, callbacks } = makeFetchInstruments({
+    const { res: result, err, diag } = await callVendor(vendor, job.contentHash, {
       label: channel.diagLabelFor?.(job),
       relPath: job.relPath,
+      finalPath: job.finalPath,
+      by: job.transferId,
+      ownerKey: job.ownerKey,
       size: job.size,
-      contentHash: job.contentHash,
       onProgress: ({ bytes, total, speed, eta }) => {
         channel.emitProgress(job, { bytes, total, speed, eta })
         job.lastBytes = bytes
@@ -60,7 +65,8 @@ export function createFetchSettle({
       },
       onVerify: (fraction) => channel.emitVerifying?.(job, fraction),
     })
-    const result = await fetchImpl(job.contentHash, { finalPath: job.finalPath, by: job.transferId, ownerKey: job.ownerKey, size: job.size, ...callbacks })
+    // A fetch that rejects instead of resolving its outcome is a bug in it, and reaches the caller.
+    if (err) throw err
     await settle(job, result, diag)
   }
 
