@@ -40,7 +40,7 @@ import { SHARE_WAIT_SOURCE } from '../transfer/share-wait-set.js'
 import { pauseMount, pauseMountForIoError } from './foreign-pause.js'
 import { emitMirrorEvent } from './mirror-signals.js'
 import { MIRROR_DELETE, classifyLocalCopy, mayDeleteMirrorCopy, mayOverwriteInPlace, mirrorKey } from './mirror-policy.js'
-import { STATUS_MOUNT_GONE, statusForFaultCode } from './mount-fault.js'
+import { STATUS_MOUNT_GONE, faultFromError, statusForFaultCode } from './mount-fault.js'
 import { conflictCopyName } from './path-keys.js'
 import { freeMirrorRel } from './mirror-state.js'
 import { mountRootAvailable } from './publish-service.js'
@@ -174,13 +174,17 @@ export async function mirrorDeleteDecision(mount, ownerKey, localRel, onDisk) {
 // ensureRemote/release handshake — the holder serves on demand, gated by the
 // serve ACL. A null contentHash means the owner is still hashing; retry next tick.
 // A local I/O failure pauses the mount via the shared pauseMountForIoError
-// classification (full disk / permission / vanished mount); anything else is a
-// logged fetch miss.
+// classification (full disk / permission / vanished mount); one it declines to pause for is
+// charged to the file; anything else is a logged fetch miss.
 async function handleOverlayMirrorFetchError(mount, share, entry, err, { diag, writer, dir }) {
   // Order matters: a local I/O fault pauses the mount and is NOT a peer act. Auditing it would
   // blame a holder for our own full disk. A pause is a deliberate stop, and its diag says so.
   if (await pauseMountForIoError(mount, err, { writer, dir })) { diag?.finish('paused'); return }
   diag?.finish('failed')
+  if (faultFromError(err)) {
+    chargeLocalFault(mount, entry, 'overlay mirror fetch hit a local fault the folder does not confirm:', err)
+    return
+  }
   const code = err?.code === 'EHASHMISMATCH' ? CODES.TRANSFER_CHECKSUM : null
   if (!code) {
     log.debug('overlay mirror fetch failed:', entry.relPath, '-', err.message)
@@ -188,10 +192,10 @@ async function handleOverlayMirrorFetchError(mount, share, entry, err, { diag, w
   }
   log.warn('overlay mirror integrity failure — holder served bytes not matching the content hash:', entry.relPath)
   recordMirrorIntegrityFailure(mount, share, entry)
-  // Checksum is the only terminal fault reachable here — every local I/O fault was classified and
-  // paused above, and the engine's other terminal codes describe a destination this pass either
-  // preflights (mountCanTake) or pauses the mount for. Charged to a budget rather than blocked outright, so another holder can
-  // still serve the same content.
+  // Checksum is the only terminal fault reachable here — every local I/O fault was paused or
+  // charged above, and the engine's other terminal codes describe a destination this pass either
+  // preflights (mountCanTake) or pauses the mount for. Charged to a budget rather than blocked
+  // outright, so another holder can still serve the same content.
   if (!isTerminalFault(code)) return
   const key = mirrorKey(mount.spaceId, mount.shareId)
   const spent = attempts.fail(key, entry.relPath, entry.contentHash)
@@ -498,9 +502,15 @@ async function fetchOverlayEntry(mount, share, entry, { overlay, abs, verifyKey,
 // copy that keeps failing stops being asked for.
 async function settleFailedCopy(mount, entry, err, { writer, dir }) {
   if (await pauseMountForIoError(mount, err, { writer, dir })) return 'missing'
-  log.warn('overlay mirror local-copy failed:', entry.relPath, '-', err.message)
-  attempts.fail(mirrorKey(mount.spaceId, mount.shareId), entry.relPath, entry.contentHash)
+  chargeLocalFault(mount, entry, 'overlay mirror local-copy failed:', err)
   return 'missing'
+}
+
+// A local failure that did not pause the mount is about this file: it is charged to the file's
+// attempt budget, so a file that keeps failing stops being asked for while the rest carries on.
+function chargeLocalFault(mount, entry, what, err) {
+  log.warn(what, entry.relPath, '-', err?.message)
+  attempts.fail(mirrorKey(mount.spaceId, mount.shareId), entry.relPath, entry.contentHash)
 }
 
 // The transfer verified the content hash on landing — record it so the row can surface a

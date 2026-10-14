@@ -365,6 +365,22 @@ test('REGRESSION (FIX-659): a local hit that keeps failing its copy stops after 
   t.is((await stored(ctx)).enabled, true, 'a fault this does not classify pauses nothing')
 })
 
+// REGRESSION (FIX-663: a permission errno the folder probe did not confirm was neither a pause nor
+// charged, so a file another program kept holding was asked for again on every tick, silently.)
+test('REGRESSION (FIX-663): a permission fault the writable folder does not confirm stops after the attempt budget', async (t) => {
+  const { ctx, byPath } = await mirror(t, { 'a.txt': 'alpha' })
+  const v = vendor(t)
+  v.inner = async () => { throw Object.assign(new Error('operation not permitted'), { code: 'EPERM' }) }
+  const outcomes = []
+  for (let i = 0; i < 5; i++) outcomes.push(await materializeCatalogFile(ctx.mount, ctx.share, byPath['a.txt']))
+
+  t.is(v.calls, 3, 'each refusal was charged, so the mirror stopped asking after its budget')
+  t.alike(outcomes, ['missing', 'missing', 'missing', 'blocked', 'blocked'])
+  const mount = await stored(ctx)
+  t.is(mount.enabled, true, 'the folder takes writes, so the mount stays active')
+  t.absent(isAutoPauseStatus(mount.status), `and records no mount fault (status ${mount.status})`)
+})
+
 // -- The stop path: what a pause asks the vendor to cancel.
 
 // The vendor's cancel, as the engine models it: a cancel reaches only the fetch of the caller it
