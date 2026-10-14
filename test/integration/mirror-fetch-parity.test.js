@@ -1,13 +1,14 @@
 import test from 'brittle'
 import fs from 'bare-fs'
 import path from 'bare-path'
+import Hyperbee from 'hyperbee'
 import { setupSelfMirror } from '../helpers/owned.js'
 import { waitFor } from '../helpers/bare-poll.js'
 import { getOverlay } from '../../src/shared/transfer/overlay/overlay-instance.js'
 import { overlayBackend } from '../../src/shared/transfer/overlay/index.js'
 import { acquireFetchSlot, fetchClaimedBy, fetchSlotStats } from '../../src/shared/transfer/overlay/fetch-gate.js'
 import { materializeCatalogFile, runMaterializeTick, setMirrorReachability } from '../../src/shared/folders/mirror-pass.js'
-import { requestMirrorWalk, setForeignEnabled, stopForeignLoop } from '../../src/shared/folders/foreign-verbs.js'
+import { requestMirrorWalk, setForeignEnabled, stopForeignLoop, unmountForeignFolder } from '../../src/shared/folders/foreign-verbs.js'
 import { getForeignMount } from '../../src/shared/folders/mount-store.js'
 import { getRuntimeConfig, setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { STATUS_MOUNT_GONE, isAutoPauseStatus } from '../../src/shared/contract/mount-fault.js'
@@ -18,6 +19,8 @@ import { PARTIAL_SUFFIX } from '../../src/shared/transfer/partial-suffix.js'
 import { transferIdFor } from '../../src/shared/transfer/transfer-id.js'
 import { overlayHashFile } from '../../src/shared/transfer/overlay/overlay-hash.js'
 import { runPublishPass } from '../../src/shared/folders/owned-pass.js'
+import { listOverlayShareFiles } from '../../src/shared/shares/share-listing.js'
+import { presence } from '../../src/shared/network/presence-leases.js'
 
 // What a mirror does between "this entry should be on disk" and "it is". Every case enters through
 // runMaterializeTick or materializeCatalogFile (with its `probe`, `synced` and `hashOf` options) and
@@ -297,23 +300,26 @@ test('a local hit is copied to the mirror path and recorded as verified', async 
 
 // -- The stop path: what a pause asks the vendor to cancel.
 
-// The vendor's cancel, as the engine models it: a cancel for a hash with no fetch in flight is
-// remembered and consumed by the next fetch of that hash, which then rejects ECANCELLED
-// (fetch-session.js). Every call is recorded. It wraps the counting `vendor`, whose fetch then runs
-// `through` unless a cancel was waiting for it.
+// The vendor's cancel, as the engine models it: a cancel for a fetch in flight rejects it
+// ECANCELLED, and a cancel for a hash with no fetch in flight is remembered and consumed by the next
+// fetch of that hash, which then rejects ECANCELLED (fetch-session.js). Every call is recorded. It
+// wraps the counting `vendor`, whose fetch then runs `through` unless a cancel was waiting for it.
 function vendorCancel(t, v, through) {
   const overlay = getOverlay()
   const prev = overlay.cancelFetch
-  const c = { calls: [], live: new Set(), pending: new Set() }
+  const c = { calls: [], live: new Map(), pending: new Set() }
+  const cancelled = () => Object.assign(new Error('cancelled'), { code: 'ECANCELLED' })
   overlay.cancelFetch = (hash, opts) => {
     c.calls.push({ hash, opts })
-    if (!c.live.has(hash)) c.pending.add(hash)
+    const live = c.live.get(hash)
+    if (live) live(cancelled())
+    else c.pending.add(hash)
     return true
   }
   v.inner = async (hash, opts) => {
-    if (c.pending.delete(hash)) throw Object.assign(new Error('cancelled'), { code: 'ECANCELLED' })
-    c.live.add(hash)
-    try { return await through(hash, opts) } finally { c.live.delete(hash) }
+    if (c.pending.delete(hash)) throw cancelled()
+    const stop = new Promise((_resolve, reject) => c.live.set(hash, reject))
+    try { return await Promise.race([through(hash, opts), stop]) } finally { c.live.delete(hash) }
   }
   t.teardown(() => { overlay.cancelFetch = prev }, { order: -1 })
   return c
@@ -345,40 +351,147 @@ test('REGRESSION (FIX-661): a fetch that pauses the mount on a disk fault leaves
   t.ok(c.pending.size === 0 && !c.calls.some((call) => call.hash === hash), 'no cancel is left waiting for that hash')
 })
 
+// A promise the test resolves, and whether anything is waiting on it yet.
+function hold() {
+  const h = { waiting: false, release: () => {} }
+  h.promise = new Promise((resolve) => { h.release = resolve })
+  return h
+}
+
+// Holds the read of a.txt's verified record that the pass makes holding its fetch slot: the
+// local-edit check's ancestor read, the one await between the slot and the move-aside. The read the
+// pass makes before queueing for the slot passes through.
+function holdAncestorRead(t, h) {
+  const get = Hyperbee.prototype.get
+  Hyperbee.prototype.get = async function (key, ...rest) {
+    if (typeof key === 'string' && key.startsWith('verified:') && key.endsWith('a.txt') && fetchSlotStats().held === 1) {
+      h.waiting = true
+      await h.promise
+    }
+    return await get.call(this, key, ...rest)
+  }
+  t.teardown(() => { Hyperbee.prototype.get = get })
+}
+
+// A self-mirror lists as its owner; under another owner key, online, it takes the consumer branch
+// that reads whether the mirror is fetching the row.
+async function mirrorRowStatus(t, ctx, relPath) {
+  const peer = 'f'.repeat(64)
+  presence.mark(peer, ctx.spaceId)
+  t.teardown(() => presence.clear(peer))
+  const res = await listOverlayShareFiles(ctx.spaceId, { ...ctx.share, owner: peer }, overlayBackend)
+  return res.entries.find((e) => e.relPath === relPath)?.status
+}
+
+// A mirror whose user has edited the delivered a.txt, with a walk requested so the next pass moves
+// the edit aside before fetching the owner's version.
+async function editedMirror(t) {
+  const { ctx } = await mirror(t, { 'a.txt': 'owner' })
+  await runMaterializeTick(ctx.spaceId, ctx.share.id)
+  const landed = path.join(ctx.mirrorPath, 'a.txt')
+  t.is(read(landed), 'owner', 'precondition: the mirror delivered the owner\'s file')
+  fs.writeFileSync(landed, 'user edit')
+  requestMirrorWalk(ctx.spaceId, ctx.share.id)
+  return { ctx, landed }
+}
+
 // REGRESSION (FIX-666: the in-flight record a stop cancels by was written only after the awaits past
 // the slot re-check, so a stop landing while the pass made a folder or moved a local edit aside
 // found nothing to cancel, and the pass then asked a holder for the file under a stopped mount.)
-test('REGRESSION (FIX-666): a stop that lands while a local edit is moved aside asks no holder', async (t) => {
-  const { ctx } = await mirror(t, { 'a.txt': 'owner' })
+test('REGRESSION (FIX-666): a stop that lands before a local edit is moved aside asks no holder and keeps the edit', async (t) => {
+  const { ctx, landed } = await editedMirror(t)
   const { spaceId } = ctx
   const shareId = ctx.share.id
-  await runMaterializeTick(spaceId, shareId)
-  const landed = path.join(ctx.mirrorPath, 'a.txt')
-  t.is(read(landed), 'owner', 'precondition: the mirror delivered the owner\'s file')
-
-  fs.writeFileSync(landed, 'user edit')
-  requestMirrorWalk(spaceId, shareId)
   const v = vendor(t)
   const c = vendorCancel(t, v, v.real)
-  // Hold the move-aside of the edit, which the pass makes holding its slot, before the fetch.
-  const rename = fs.promises.rename
-  let release = () => {}
-  const held = new Promise((resolve) => { release = resolve })
-  let movingAside = false
-  fs.promises.rename = async (from, to) => {
-    if (from === landed) { movingAside = true; await held }
-    return await rename.call(fs.promises, from, to)
-  }
-  t.teardown(() => { fs.promises.rename = rename })
+  const h = hold()
+  holdAncestorRead(t, h)
   const pass = runMaterializeTick(spaceId, shareId)
-  await waitFor(() => movingAside, 5000, { interval: 10, label: 'the pass to move the edit aside' })
+  await waitFor(() => h.waiting, 5000, { interval: 10, label: 'the pass to read the edit\'s ancestor' })
 
   stopForeignLoop(spaceId, shareId)
-  release()
+  h.release()
   await pass
 
   t.is(v.calls, 0, 'no holder was asked once the stop landed')
   t.alike(c.calls, [], 'and the vendor holds no cancel for a fetch it was never asked for')
+  t.is(read(landed), 'user edit', 'the edit is where the user left it')
+  t.alike(fs.readdirSync(ctx.mirrorPath), ['a.txt'], 'and was not moved aside into a conflict copy')
   t.is(fetchClaimedBy(transferIdFor(spaceId, shareId, 'a.txt')), null, 'no claim was left behind')
   t.is(fetchSlotStats().held, 0, 'and the slot was released')
+})
+
+// A stop that lands once the move is under way cannot undo it: the edit is kept as the conflict
+// copy, and the owner's version lands at the natural name on the pass after the resume.
+test('a stop that lands while a local edit is being moved aside lets the move finish and asks no holder', async (t) => {
+  const { ctx, landed } = await editedMirror(t)
+  const { spaceId } = ctx
+  const shareId = ctx.share.id
+  const v = vendor(t)
+  const h = hold()
+  const rename = fs.promises.rename
+  fs.promises.rename = async (from, to) => {
+    if (from === landed) { h.waiting = true; await h.promise }
+    return await rename.call(fs.promises, from, to)
+  }
+  t.teardown(() => { fs.promises.rename = rename })
+  const pass = runMaterializeTick(spaceId, shareId)
+  await waitFor(() => h.waiting, 5000, { interval: 10, label: 'the pass to move the edit aside' })
+
+  stopForeignLoop(spaceId, shareId)
+  h.release()
+  await pass
+
+  t.is(v.calls, 0, 'no holder was asked once the stop landed')
+  const names = fs.readdirSync(ctx.mirrorPath)
+  t.absent(names.includes('a.txt'), 'the natural name waits for the next pass')
+  t.is(names.length, 1, 'and the edit is the one file left')
+  t.is(read(path.join(ctx.mirrorPath, names[0])), 'user edit', 'kept as the conflict copy')
+})
+
+// An unmount before the vendor is asked tells the holder a paused fetch left showing us paused that
+// we stopped, and asks the vendor to cancel nothing.
+test('an unmount that lands before the vendor call cancels nothing and tells the paused holder we stopped', async (t) => {
+  const { ctx, byPath } = await mirror(t, { 'sub/a.txt': 'alpha' })
+  const { spaceId } = ctx
+  const shareId = ctx.share.id
+  const hash = byPath['sub/a.txt'].contentHash
+  const overlay = getOverlay()
+  const notified = []
+  const notify = overlay.notifyTransferStopped
+  overlay.notifyTransferStopped = (h) => { notified.push(h); return true }
+  t.teardown(() => { overlay.notifyTransferStopped = notify })
+  const v = vendor(t)
+  const c = vendorCancel(t, v, () => new Promise(() => {}))
+
+  // A fetch the holder is serving, paused: the holder is left showing us paused.
+  const first = runMaterializeTick(spaceId, shareId)
+  await waitFor(() => v.calls === 1, 5000, { interval: 10, label: 'the first fetch to reach the vendor' })
+  await setForeignEnabled(spaceId, shareId, false)
+  await first
+  t.is(c.calls.length, 1, 'precondition: the pause cancelled the fetch the vendor was running')
+
+  // The resume's pass is held making the file's folder, before it asks the vendor.
+  const h = hold()
+  const sub = path.join(ctx.mirrorPath, 'sub')
+  const mkdir = fs.promises.mkdir
+  fs.promises.mkdir = async (dir, ...rest) => {
+    if (dir === sub) { h.waiting = true; await h.promise }
+    return await mkdir.call(fs.promises, dir, ...rest)
+  }
+  t.teardown(() => { fs.promises.mkdir = mkdir })
+  await setForeignEnabled(spaceId, shareId, true)
+  await waitFor(() => h.waiting, 5000, { interval: 10, label: 'the resumed pass to make the folder' })
+  const row = await mirrorRowStatus(t, ctx, 'sub/a.txt')
+  t.ok(row, 'precondition: the row is listed')
+  t.not(row, 'downloading', `a fetch no holder was asked for is not listed as downloading (${row})`)
+
+  const gone = unmountForeignFolder(spaceId, shareId)
+  h.release()
+  await gone
+  await waitFor(() => fetchSlotStats().held === 0, 5000, { interval: 10, label: 'the resumed pass to end' })
+
+  t.is(v.calls, 1, 'the resumed pass asked no holder')
+  t.is(c.calls.length, 1, 'and the unmount asked the vendor to cancel nothing')
+  t.alike(notified, [hash], 'the holder the pause left showing us paused is told we stopped')
 })
