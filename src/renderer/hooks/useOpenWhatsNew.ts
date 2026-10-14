@@ -5,8 +5,8 @@ import { useRunAction } from './useRunAction.js'
 import { loadAllEntries } from '../platform/changelog.js'
 import * as whatsNew from '../platform/whats-new.js'
 
-// Every release's notes, from the Account row and from the command palette. A changelog with no
-// entries says so rather than opening nothing.
+// Every release's notes, from the About screen's row and from the command palette. A changelog with
+// no entries says so rather than opening nothing.
 export function useOpenWhatsNew(): () => void {
   const { t } = useTranslation()
   const toast = useToast()
