@@ -58,6 +58,23 @@ test('closeProtocol drops the protocol but leaves the index serving', async (t) 
   t.is(o.protocol, null, 'a post-close write does not resurrect the protocol')
 })
 
+// The pending-cancel bookkeeping lives on the protocol, so it goes with it: a caller that cancelled
+// before the close still gets its local hit, and a remote miss answers null rather than throwing.
+test('a fetch after closeProtocol still resolves, with a cancel pending for its caller', async (t) => {
+  const o = await overlay(t, 'cp-pending')
+  const local = fileOnDisk('cp-pending-local')
+  await o.registerFile(local.diskPath, { contentHash: local.contentHash, size: local.size })
+  t.absent(await o.cancelFetch(local.contentHash, { by: 'engine' }), 'precondition: the cancel was recorded, not applied')
+
+  o.closeProtocol()
+  const hit = await o.fetchFile(local.contentHash, { by: 'engine' })
+  t.is(hit?.destPath, local.diskPath, 'the local hit resolves')
+
+  const remote = fileOnDisk('cp-pending-remote')
+  t.is(await o.fetchFile(remote.contentHash, { by: 'engine', destPath: path.join(tmpDir('cp-dest'), 'f.bin'), peerWaitMs: 1 }), null,
+    'and a fetch with no protocol to ask finds no holder')
+})
+
 test('closeProtocol is idempotent and close() still completes after it', async (t) => {
   const o = await overlay(t, 'cp-idem')
   o.closeProtocol()

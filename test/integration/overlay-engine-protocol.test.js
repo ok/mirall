@@ -4,6 +4,7 @@ import os from 'bare-os'
 import path from 'bare-path'
 import Protomux from 'protomux'
 import { makeProtocol } from '../helpers/overlay-engine.js'
+import { HyperOverlayV2 } from '../../src/shared/transfer/overlay/engine/overlay-v2.js'
 import { makeDuplex } from './overlay-link-helpers.js'
 
 // The protocol's fetchContent owns the per-contentHash scheduler: the cancel-before-
@@ -80,6 +81,74 @@ test('#2: a joiner re-issues its own fetch when the leader was cancelled', async
   // The joiner's ECANCELLED handler re-issues, creating a fresh scheduler for the same hash.
   await new Promise((r) => setTimeout(r, 20))
   t.is(proto.fetches.size, 1, 'a fresh scheduler exists for the re-issued joiner (leader\'s was removed)')
+})
+
+test('a joiner\'s cancel ends only its own await, and the leader runs on to completion', async (t) => {
+  const dropped = []
+  const proto = makeProtocol(fakeTransfer({ cancel: (p) => dropped.push(p), pause: (p) => dropped.push(p) }))
+  const dir = tmp()
+  const a = path.join(dir, 'a'); const b = path.join(dir, 'b')
+  fs.writeFileSync(a, 'shared bytes')
+  const p = asker()
+  const leader = proto.fetchContent('mno', [p], { destPath: a, by: 'engine', timeout: 200 })
+  leader.catch(() => {})
+  const joiner = proto.fetchContent('mno', [p], { destPath: b, by: 'mirror', timeout: 200 })
+  const leaderSched = proto.fetches.get('mno').sched
+
+  t.ok(await proto.cancelContent('mno', { by: 'mirror', discardPartial: true }), 'the cancel hit the joiner')
+  await t.exception(joiner, /cancelled/, 'the joiner rejects ECANCELLED')
+  t.is(proto.fetches.get('mno')?.sched, leaderSched, 'the leader\'s scheduler is untouched')
+  t.alike(dropped, [], 'and its partial was neither discarded nor paused')
+
+  proto.fetches.onChunkHashes(p, { path: 'content:mno', chunks: [] })
+  await leader
+  t.absent(fs.existsSync(b), 'the dropped joiner took no copy')
+})
+
+test('a cancel before its caller\'s fetch arrives skips another caller\'s fetch of that hash', async (t) => {
+  const proto = makeProtocol(fakeTransfer())
+  const dir = tmp()
+  t.absent(await proto.cancelContent('pqr', { by: 'mirror' }), 'nothing in flight: the intent is recorded')
+  let otherSettled = false
+  const other = proto.fetchContent('pqr', [asker()], { destPath: path.join(dir, 'a'), by: 'engine', timeout: 200 })
+  other.then(() => { otherSettled = true }, () => { otherSettled = true })
+  await new Promise((r) => setTimeout(r, 0))
+  t.absent(otherSettled, 'the other caller\'s fetch is running, not cancelled at creation')
+  await t.exception(proto.fetchContent('pqr', [], { destPath: path.join(dir, 'b'), by: 'mirror', timeout: 200 }), /cancelled/,
+    'the cancelling caller\'s own fetch honours it, as a joiner too')
+  await new Promise((r) => setTimeout(r, 0))
+  t.absent(otherSettled, 'and the other caller\'s fetch is still in flight')
+})
+
+test('a stop for a hash another caller still fetches tells no holder', (t) => {
+  const proto = makeProtocol(fakeTransfer())
+  const sent = []
+  const peer = { msgs: { transferControl: { send: (m) => sent.push(m) }, contentRequest: { send() {} } }, authorizedServe: new Map(), askedFor: new Set() }
+  proto.channel.adoptForTests({}, peer)
+  proto.fetchContent('stu', [peer], { destPath: path.join(tmp(), 'a'), by: 'engine', timeout: 200 }).catch(() => {})
+  t.ok(peer.askedFor.has('stu'), 'precondition: the holder was asked for the live fetch')
+  proto.sendStopControl('stu')
+  t.alike(sent, [], 'no STOPPED while the fetch is live')
+  t.ok(peer.askedFor.has('stu'), 'and the holder is still marked as asked')
+})
+
+test('a local hit clears its caller\'s pending cancel', async (t) => {
+  const proto = makeProtocol(fakeTransfer())
+  const dir = tmp()
+  const src = path.join(dir, 'src')
+  fs.writeFileSync(src, 'local bytes')
+  const p = asker()
+  const overlay = { _ensure: async () => {}, _contentHashPaths: new Map(), _awaitHolders: async () => [p], _protocol: proto }
+  const { contentHash } = await HyperOverlayV2.prototype.registerFile.call(overlay, src)
+  t.absent(await proto.cancelContent(contentHash, { by: 'engine' }), 'a cancel with no fetch yet is recorded')
+  const hit = await HyperOverlayV2.prototype.fetchFile.call(overlay, contentHash, { by: 'engine', destPath: path.join(dir, 'a') })
+  t.ok(hit?.local, 'the fetch was served from the local copy')
+
+  overlay._contentHashPaths.clear()
+  const remote = HyperOverlayV2.prototype.fetchFile.call(overlay, contentHash, { by: 'engine', destPath: path.join(dir, 'b'), timeout: 200 })
+  remote.catch(() => {})
+  await new Promise((r) => setTimeout(r, 0))
+  t.ok(proto.fetches.get(contentHash), 'the next remote fetch by that caller runs instead of being cancelled')
 })
 
 test('a joiner re-issues its own fetch when the leader failed on its own destination', async (t) => {

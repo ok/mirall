@@ -38,12 +38,12 @@ const log = createLogger('overlay-download')
 // copy, integrity-verified during the transfer. A local hit returns the source path → copy it to
 // finalPath so the download is real. Returns { ok:true } | { ok:false, code, cause? } (EHASHMISMATCH
 // or an error message, cause = the underlying Error for classification) | { ok:false } (no holder).
-export async function fetchContentToFile(contentHash, { finalPath, ownerKey, size, onProgress, onVerify, onEnd }) {
+export async function fetchContentToFile(contentHash, { finalPath, by, ownerKey, size, onProgress, onVerify, onEnd }) {
   const overlay = getOverlay()
   if (!overlay) return { ok: false }
   let res
   try {
-    res = await overlay.fetchFile(contentHash, { destPath: finalPath, ownerKey, size, onProgress, onVerify, onEnd })
+    res = await overlay.fetchFile(contentHash, { destPath: finalPath, by, ownerKey, size, onProgress, onVerify, onEnd })
   } catch (err) {
     if (err?.code === 'EHASHMISMATCH') return { ok: false, code: 'EHASHMISMATCH' }
     if (err?.code === 'ECANCELLED') return { ok: false, code: 'ECANCELLED' }
@@ -193,9 +193,10 @@ function discardPartial(finalPath) {
   discardResumeJournal(finalPath)
 }
 
-// The one place an abort reaches the engine, and only once a fetch is in flight there.
+// The one place an abort reaches the engine, and only once a fetch is in flight there. It names the
+// download's transferId, so a mirror fetching the same bytes keeps its own fetch.
 function abortFetch(slot, opts) {
-  if (slot.fetching) getOverlay()?.cancelFetch(slot.contentHash, opts)
+  if (slot.fetching) getOverlay()?.cancelFetch(slot.contentHash, { ...opts, by: slot.job.transferId })
 }
 
 // job: { spaceId, pendingKey, path, relPath, shareId, transferId, contentHash, size, sourceSeq,

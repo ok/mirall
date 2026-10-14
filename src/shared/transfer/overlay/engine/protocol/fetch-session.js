@@ -4,21 +4,33 @@
 // lists the changes and carries the full license notice.
 
 // The multi-source fetches this device runs, one per content hash. A same-hash fetch joins the one
-// in flight; a cancel that arrives before the scheduler exists is honoured when it is created;
-// control and progress frames go only to the holders we asked; chunk lists, chunks and keep-alives
-// are taken only from a peer the hash's scheduler awaits them from.
+// in flight; a cancel stops only its own caller's interest, and one that arrives before that
+// caller's fetch is honoured when the fetch arrives; control and progress frames go only to the
+// holders we asked; chunk lists, chunks and keep-alives are taken only from a peer the hash's
+// scheduler awaits them from.
 
 import fs from 'bare-fs'
 import { ChunkScheduler } from '../scheduler/scheduler.js'
-import { isDestinationFault } from '../local-faults.js'
+import { codedError, isDestinationFault } from '../local-faults.js'
 import { contentHashOf, contentPath } from '../content-path.js'
 import { CONTROL_PAUSED, CONTROL_STOPPED } from '../wire/messages.js'
 import { peerRxBytes } from './transport-probe.js'
 
 /**
- * One fetch in flight. `done` settles AFTER the registry entry is removed, so a joiner that
- * re-issues on its rejection starts a fresh fetch.
- * @typedef {{ sched: ChunkScheduler, done: Promise<{ chunksPerPeer: Map<object, number>, peerCount: number, size: number }> }} FetchHandle
+ * A caller's identity, `opts.by` on fetch and cancel: a cancel reaches only the fetch of the caller
+ * that names the same key. Callers that pass none share the null key.
+ * @typedef {string | null} CallerKey
+ */
+
+/**
+ * A caller awaiting another caller's fetch. `drop` rejects its own await and nothing else.
+ * @typedef {{ by: CallerKey, drop: (err: Error) => void }} Joiner
+ */
+
+/**
+ * One fetch in flight, led by caller `by` into its own destination. `done` settles AFTER the
+ * registry entry is removed, so a joiner that re-issues on its rejection starts a fresh fetch.
+ * @typedef {{ sched: ChunkScheduler, by: CallerKey, joiners: Set<Joiner>, done: Promise<{ chunksPerPeer: Map<object, number>, peerCount: number, size: number }> }} FetchHandle
  */
 
 export class FetchSession {
@@ -32,14 +44,20 @@ export class FetchSession {
     this._localProfileKey = localProfileKey
     /** @type {Map<string, FetchHandle>} */
     this._handles = new Map()
-    // Hashes cancelled before their scheduler existed (the caller's peer-wait window).
-    this._cancelPending = new Set()
+    // Per hash, the callers that cancelled before their fetch arrived (their peer-wait window).
+    /** @type {Map<string, Set<CallerKey>>} */
+    this._cancelPending = new Map()
   }
 
-  // Fetch a file by content hash from every given peer in parallel into opts.destPath.
+  // Fetch a file by content hash from every given peer in parallel into opts.destPath, on behalf of
+  // caller opts.by.
   fetch(contentHash, peers, opts = {}) {
+    const by = opts.by ?? null
     const inflight = this._handles.get(contentHash)
-    if (inflight) return this._join(inflight, contentHash, peers, opts)
+    if (inflight) {
+      if (this._takePendingCancel(contentHash, by)) return Promise.reject(codedError('fetch cancelled', 'ECANCELLED'))
+      return this._join(inflight, contentHash, peers, opts)
+    }
     const synthPath = contentPath(contentHash)
     const sched = new ChunkScheduler({
       path: synthPath,
@@ -61,13 +79,13 @@ export class FetchSession {
       peerBytes: peerRxBytes,
     })
     /** @type {FetchHandle} */
-    const handle = { sched, done: sched.promise().finally(() => this._handles.delete(contentHash)) }
+    const handle = { sched, by, joiners: new Set(), done: sched.promise().finally(() => this._handles.delete(contentHash)) }
     this._handles.set(contentHash, handle)
     // A finished or failed fetch has no holder left to tell about it; a paused or cancelled one
     // keeps them until its STOPPED goes out.
     const forgetAsked = () => { for (const peer of peers) peer.askedFor.delete(contentHash) }
     handle.done.then(forgetAsked, (err) => { if (err?.code !== 'ECANCELLED') forgetAsked() })
-    if (this._cancelPending.delete(contentHash)) { sched.cancel(); return handle.done }
+    if (this._takePendingCancel(contentHash, by)) { sched.cancel(); return handle.done }
     for (const peer of peers) {
       // Noted before asking, so losing the peer before its chunk list arrives fails the fetch fast.
       sched.noteRequested(peer)
@@ -76,13 +94,16 @@ export class FetchSession {
     return handle.done
   }
 
-  // Stop a fetch. discardPartial unlinks the partial (cancel); otherwise it is kept for resume
-  // (pause). Holders hear about it first, so their indicator reacts now; signal:false suppresses
-  // that (a supersede is a restart, not a user stop). Without a scheduler the fetch never asked
-  // anyone, so only the intent is recorded.
-  async cancel(contentHash, { discardPartial = false, signal = true } = {}) {
+  // Stop caller `by`'s fetch. The leader's cancel stops the scheduler: discardPartial unlinks the
+  // partial (cancel); otherwise it is kept for resume (pause). Holders hear about it first, so their
+  // indicator reacts now; signal:false suppresses that (a supersede is a restart, not a user stop).
+  // Its joiners then re-issue their own fetch, since the partial belongs to the leader's
+  // destination. A joiner's cancel only ends its own await: the leader keeps fetching, and the
+  // joiner has no partial or holder of its own to tell. A caller with no fetch here yet never asked
+  // anyone, so only its intent is recorded.
+  async cancel(contentHash, { by = null, discardPartial = false, signal = true } = {}) {
     const handle = this._handles.get(contentHash)
-    if (!handle) { this._cancelPending.add(contentHash); return false }
+    if (handle?.by !== by) return this._dropJoiner(handle, contentHash, by)
     if (signal) this._sendControl(contentHash, discardPartial ? CONTROL_STOPPED : CONTROL_PAUSED)
     // Stop accepting chunks first, so the pause's hash drain converges on a stable frontier.
     handle.sched.cancel()
@@ -91,15 +112,18 @@ export class FetchSession {
     return true
   }
 
-  // Tell holders we stopped pulling a hash whose local fetch is already gone.
-  sendStop(contentHash) { this._sendControl(contentHash, CONTROL_STOPPED) }
+  // Tell holders we stopped pulling a hash whose local fetch is already gone. While any caller still
+  // fetches it, the holders are serving that fetch, so nothing goes out.
+  sendStop(contentHash) {
+    if (!this._handles.has(contentHash)) this._sendControl(contentHash, CONTROL_STOPPED)
+  }
 
   // Our on-disk bytes for a hash we are fetching, so holders' bars show our true progress.
   sendProgress(contentHash, have) { this._sendToAsked('transferProgress', { contentHash, have }) }
 
   // A fetch abandoned before it ever asked (no holder connected): its pre-scheduler cancel must not
   // cancel the next fetch of the same content.
-  clearCancelPending(contentHash) { this._cancelPending.delete(contentHash) }
+  clearCancelPending(contentHash, by = null) { this._takePendingCancel(contentHash, by) }
 
   // A map is taken only from a peer its scheduler asked, and checked before a page is buffered. A
   // refused page also discards what the peer buffered for the path: those pages answered a fetch
@@ -152,23 +176,51 @@ export class FetchSession {
 
   /** @internal */
   adoptForTests(contentHash, sched) {
-    this._handles.set(contentHash, { sched, done: new Promise(() => {}) })
+    this._handles.set(contentHash, { sched, by: null, joiners: new Set(), done: new Promise(() => {}) })
   }
 
   // A concurrent fetch of the same bytes awaits the verified file and copies it to its own
   // destination. If the leader was cancelled or failed on its own destination, it re-issues its
-  // own fetch.
+  // own fetch. A joiner dropped by its own cancel does neither.
   _join(inflight, contentHash, peers, opts) {
-    return inflight.done.then(
+    /** @type {Joiner} */
+    const joiner = { by: opts.by ?? null, drop: () => {} }
+    const dropped = new Promise((_resolve, reject) => { joiner.drop = reject })
+    inflight.joiners.add(joiner)
+    const shared = inflight.done.then(
       (res) => {
+        if (!inflight.joiners.delete(joiner)) return res
         if (opts.destPath && opts.destPath !== inflight.sched.destPath) fs.copyFileSync(inflight.sched.destPath, opts.destPath)
         return res
       },
       (err) => {
+        if (!inflight.joiners.delete(joiner)) throw err
         if (err?.code === 'ECANCELLED' || isDestinationFault(err)) return this.fetch(contentHash, peers, opts)
         throw err
       },
     )
+    return Promise.race([dropped, shared])
+  }
+
+  // A cancel from a caller that is not leading: a joiner stops awaiting; a caller whose fetch has
+  // not arrived yet has its cancel recorded for when it does.
+  _dropJoiner(handle, contentHash, by) {
+    const joiner = handle && [...handle.joiners].find((j) => j.by === by)
+    if (!joiner) {
+      const callers = this._cancelPending.get(contentHash) ?? new Set()
+      this._cancelPending.set(contentHash, callers.add(by))
+      return false
+    }
+    handle.joiners.delete(joiner)
+    joiner.drop(codedError('fetch cancelled', 'ECANCELLED'))
+    return true
+  }
+
+  _takePendingCancel(contentHash, by) {
+    const callers = this._cancelPending.get(contentHash)
+    if (!callers?.delete(by)) return false
+    if (callers.size === 0) this._cancelPending.delete(contentHash)
+    return true
   }
 
   _ask(peer, contentHash) {

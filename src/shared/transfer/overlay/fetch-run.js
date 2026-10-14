@@ -117,7 +117,7 @@ export async function runGatedFetch({ express = false, owner = null, wait = (acq
 }
 
 export async function runOverlayFetch(overlay, contentHash, {
-  label, relPath, size = 0, ownerKey, destPath, parentMustExist = false, onProgress, onVerify, onTick,
+  label, relPath, size = 0, ownerKey, destPath, parentMustExist = false, by = null, onProgress, onVerify, onTick,
 }) {
   let attempted = false
   const { diag, callbacks } = makeFetchInstruments({ label, relPath, size, contentHash, onProgress, onVerify, onTick })
@@ -125,6 +125,7 @@ export async function runOverlayFetch(overlay, contentHash, {
     const res = await overlay.fetchFile(contentHash, {
       destPath,
       parentMustExist,
+      by,
       ownerKey,
       size,
       ...callbacks,
