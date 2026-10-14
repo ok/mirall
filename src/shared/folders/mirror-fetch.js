@@ -24,7 +24,7 @@ import { AppError } from '../core/errors.js'
 import { getForeignPollIntervalMs } from '../core/runtime-config.js'
 import { claimFetch, dropFetchClaim, fetchClaimedBy } from '../transfer/overlay/fetch-gate.js'
 import { classifyMiss, isTerminalFault } from '../transfer/overlay/fetch-policy.js'
-import { runGatedFetch, runOverlayFetch } from '../transfer/overlay/fetch-run.js'
+import { callVendor, runGatedFetch } from '../transfer/overlay/fetch-run.js'
 import { FETCH_OWNER_MIRROR } from '../transfer/overlay/fetch-gate.js'
 import { overlayHashFile } from '../transfer/overlay/overlay-hash.js'
 import { getVerifiedHash, getVerifiedRecord, isVerifiedUnchanged, markVerified } from '../transfer/files.js'
@@ -179,8 +179,8 @@ export async function mirrorDeleteDecision(mount, ownerKey, localRel, onDisk) {
 async function handleOverlayMirrorFetchError(mount, share, entry, err, { diag, writer, dir }) {
   // Order matters: a local I/O fault pauses the mount and is NOT a peer act. Auditing it would
   // blame a holder for our own full disk. A pause is a deliberate stop, and its diag says so.
-  if (await pauseMountForIoError(mount, err, { writer, dir })) { diag?.finish('paused'); return }
-  diag?.finish('failed')
+  if (await pauseMountForIoError(mount, err, { writer, dir })) { diag.finish('paused'); return }
+  diag.finish('failed')
   if (faultFromError(err)) {
     chargeLocalFault(mount, entry, 'overlay mirror fetch hit a local fault the folder does not confirm:', err)
     return
@@ -417,10 +417,11 @@ async function fetchOverlayEntry(mount, share, entry, { overlay, abs, verifyKey,
   // taken at all by a pass that was stopped.
   const releaseClaim = halted() ? null : claimFetch(transferId, FETCH_OWNER_MIRROR)
   if (!releaseClaim) { dropRecord(); return 'missing' }
-  let res
+  let res = null
   let attempted = false
   let diag = null
-  // Everything from here is inside the try, so no throw between the claim and the fetch can leak it.
+  // Everything from here is inside the try, so no throw between the claim and the fetch can leak it,
+  // and a failed fetch is settled before the finally releases the claim.
   try {
     // Move a local edit aside before the fetch renames over it — here, past the gate, rather than
     // in the caller: every early-out before it (a stop landing during the unbounded slot wait, the
@@ -436,7 +437,8 @@ async function fetchOverlayEntry(mount, share, entry, { overlay, abs, verifyKey,
     // The row just flipped to 'downloading' (foreignFetchActive) — poke the list re-derive.
     emitMirrorEvent('event:share-files-updated', { spaceId: mount.spaceId, shareId: mount.shareId })
     // The overlay scheduler reports CUMULATIVE bytes; the ticker diffs them into speed/ETA.
-    ;({ res, attempted, diag } = await runOverlayFetch(overlay, entry.contentHash, {
+    let err
+    ;({ res, err, attempted, diag } = await callVendor(overlay, entry.contentHash, {
       label: 'overlay mirror',
       relPath: entry.relPath,
       size: total,
@@ -457,17 +459,14 @@ async function fetchOverlayEntry(mount, share, entry, { overlay, abs, verifyKey,
       }),
       onTick: () => loops.noteProgress(streamKey),
     }))
-  } catch (err) {
-    dropRecord()
-    // The diag rides the rejection, and annotating a rejection is best-effort (runOverlayFetch says
-    // why) — so it can be absent. Dereferencing it blind would replace a real fault, an ENOSPC that
-    // must pause the mount included, with a TypeError out of this handler.
-    const failed = err?.diag ?? null
-    // ECANCELLED is a deliberate pause/unmount abort (stopForeignLoop), not a
-    // give-up: log it as a stop and keep whatever partial cancelFetch chose to keep.
-    if (err?.code === 'ECANCELLED') { failed?.finish('paused'); return 'missing' }
-    await handleOverlayMirrorFetchError(mount, share, entry, err, { diag: failed, writer, dir: path.dirname(abs) })
-    return 'missing'
+    if (err) {
+      dropRecord()
+      // ECANCELLED is a deliberate pause/unmount abort (stopForeignLoop), not a
+      // give-up: log it as a stop and keep whatever partial cancelFetch chose to keep.
+      if (err.code === 'ECANCELLED') { diag.finish('paused'); return 'missing' }
+      await handleOverlayMirrorFetchError(mount, share, entry, err, { diag, writer, dir: path.dirname(abs) })
+      return 'missing'
+    }
   } finally {
     dropRecord()
     releaseClaim()

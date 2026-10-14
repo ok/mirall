@@ -1,13 +1,10 @@
 // One overlay fetch: the gate bracket both producers hold a slot through (runGatedFetch), and the
-// instruments around the engine call. The mirror's materialize runs the whole call
-// (runOverlayFetch); the download engine builds only the instruments (makeFetchInstruments) and
-// keeps its own settle, because its engine call resolves { ok, code } instead of throwing. What
-// differs (where the bytes go, what a settle means durably, who owns the row) stays with the caller.
+// one vendor call both make while holding it (callVendor). What differs (where the bytes go, what a
+// settle means durably, who owns the row, which outcome closes the diag) stays with the caller.
 //
 // `attempted` is true once a chunk scheduler ran — i.e. onEnd fired — which is what separates "a
 // holder was asked and the transfer died" (a give-up worth a WARN) from "no holder was ever
-// reachable" (a benign retry-next-tick). It rides the error too, so a caller that catches can
-// still tell the two apart.
+// reachable" (a benign retry-next-tick).
 //
 // Imports nothing that only loads under Bare, so test/unit drives the diag and the bracket directly.
 import { makeProgressTicker } from '../progress-ticker.js'
@@ -63,9 +60,9 @@ export function makeFetchDiag(label, relPath, total, contentHash) {
   }
 }
 
-// The ticker, the diag, and the three callbacks that wire them together — everything either
-// consumer builds AROUND the engine call.
-export function makeFetchInstruments({ label, relPath, size = 0, contentHash = null, onProgress, onVerify, onTick }) {
+// The ticker, the diag, and the three callbacks that wire them together: everything built around
+// the vendor call.
+function makeFetchInstruments({ label, relPath, size = 0, contentHash = null, onProgress, onVerify, onTick }) {
   const ticker = makeProgressTicker(size, onProgress)
   const diag = makeFetchDiag(label, relPath, size, contentHash)
   return {
@@ -116,35 +113,35 @@ export async function runGatedFetch({ express = false, owner = null, wait = (acq
   }
 }
 
-export async function runOverlayFetch(overlay, contentHash, {
-  label, relPath, size = 0, ownerKey, destPath, parentMustExist = false, by = null, onProgress, onVerify, onTick,
-}) {
+// The vendor call both producers make inside their `holding`. It never throws: a rejection comes
+// back as `err`, the very value the vendor rejected with, so a frozen or primitive fault reaches the
+// caller's fault policy unchanged. The diag comes back open on every path, because which outcome
+// closes it is the caller's verdict. Every option but the instruments' own is the vendor's, passed
+// through as given.
+/**
+ * @param {{ fetchFile: (contentHash: string, opts: object) => Promise<unknown> }} vendor
+ * @param {string} contentHash
+ * @param {{
+ *   label?: string,
+ *   relPath: string,
+ *   size?: number,
+ *   onProgress?: (progress: { bytes: number, total: number, speed: number, eta: number | null }) => void,
+ *   onVerify?: (fraction: number, recovered?: number) => void,
+ *   onTick?: () => void,
+ *   [vendorOption: string]: unknown,
+ * }} opts
+ */
+export async function callVendor(vendor, contentHash, { label, relPath, onProgress, onVerify, onTick, ...request }) {
   let attempted = false
-  const { diag, callbacks } = makeFetchInstruments({ label, relPath, size, contentHash, onProgress, onVerify, onTick })
+  const { diag, callbacks } = makeFetchInstruments({ label, relPath, size: request.size, contentHash, onProgress, onVerify, onTick })
   try {
-    const res = await overlay.fetchFile(contentHash, {
-      destPath,
-      parentMustExist,
-      by,
-      ownerKey,
-      size,
+    const res = await vendor.fetchFile(contentHash, {
+      ...request,
       ...callbacks,
       onEnd: (info) => { attempted = true; callbacks.onEnd(info) },
     })
-    return { res, attempted, diag }
+    return { res, err: null, attempted, diag }
   } catch (err) {
-    // Best-effort: a frozen or primitive rejection makes these assignments throw, and that
-    // TypeError would REPLACE the real fault (an ENOSPC that must pause the mount). The annotation
-    // is a convenience; the fault is not.
-    let annotated = false
-    try {
-      err.attempted = attempted
-      err.diag = diag
-      annotated = true
-    } catch { log.debug('could not annotate a fetch rejection:', label, relPath) }
-    // Callers reach the diag only through `err.diag`, so an annotation that could not land would
-    // strand it and the `start:` line would never get its terminal `INCOMPLETE`. Close it here.
-    if (!annotated) diag.finish('failed')
-    throw err
+    return { res: null, err, attempted, diag }
   }
 }
