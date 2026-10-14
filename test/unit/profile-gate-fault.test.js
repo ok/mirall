@@ -32,9 +32,11 @@ test('the shell gates on a locked identity before the profile gates', (t) => {
   t.ok(locked < appSrc.indexOf('if (needsSetup && !identity.restore?.profile) return'), 'and above onboarding')
 })
 
-test('the channel raises a fault on both terminal exits', (t) => {
-  const give = ipcSrc.slice(ipcSrc.indexOf('const { respawn, delayMs, terminal }'))
-  t.ok(/raiseChannelFault\(terminal === 'protocol' \? 'protocol' : 'budget'\)/.test(give),
+test('the channel raises a fault on every terminal exit', (t) => {
+  const at = ipcSrc.indexOf('const { respawn, delayMs, terminal }')
+  t.ok(at >= 0, 'the respawn decision is where it is looked for')
+  const give = ipcSrc.slice(at)
+  t.ok(/raiseChannelFault\(terminal \?\? 'budget'\)/.test(give),
     'a refused respawn raises the fault, whichever reason it had')
   t.ok(give.indexOf('raiseChannelFault') < give.indexOf('return'),
     'and raises it before the early return')

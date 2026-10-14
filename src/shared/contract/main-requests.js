@@ -15,6 +15,7 @@ export const MAIN_REQUEST = Object.freeze({
   LOOSE_FILE_UNWATCH: 'loose-file:unwatch',
   OWNED_FOLDER_START_WATCHER: 'owned-folder:start-watcher',
   OWNED_FOLDER_STOP_WATCHER: 'owned-folder:stop-watcher',
+  SOCKET_LISTENING: 'socket:listening',
 })
 
 /** @internal the declaration-parity guard's list */

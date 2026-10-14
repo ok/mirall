@@ -47,7 +47,7 @@ export function scopeForEvent(type, payload = {}) {
 
 const TARGETED = new Set(TARGETED_EVENTS)
 
-export function createEventPlane({ clients, log, epoch, replay }) {
+export function createEventPlane({ clients, log, epoch, replay, host = () => null }) {
   // Every pushed frame is numbered, so a client that was away can say where it got to. One counter
   // for the whole router: a per-client one would make "seq 40" name two different frames, which is
   // the same ambiguity caller-minted request ids carry.
@@ -66,11 +66,10 @@ export function createEventPlane({ clients, log, epoch, replay }) {
   // spelling would hide every targeted event from "is every declared event emitted somewhere".
   /** @param {string} type @param {object} [payload] @param {{ to?: Client | number | null }} [opts] */
   function emit(type, payload = {}, { to = null } = {}) {
-    // Not an event: main consumes this off the same pipe and no subscribing client ever sees it, so
-    // it takes no ordinal and is never replayed.
+    // Not an event: a command for the host, the process that spawned this worker, written to its
+    // pipe alone. It takes no ordinal and is never replayed.
     if (type === MAIN_REQUEST_FRAME) {
-      const line = JSON.stringify({ type, ...payload }) + '\n'
-      for (const client of clients.all()) client.write(line)
+      host()?.write(JSON.stringify({ type, ...payload }) + '\n')
       return
     }
     if (TARGETED.has(type) && to == null) {

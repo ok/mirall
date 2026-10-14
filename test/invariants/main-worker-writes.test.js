@@ -24,10 +24,11 @@ test('the worker frame shape is spelled in exactly one place', (t) => {
     'and it lives in sendToWorker, the writer that owns it')
 })
 
-test('only the renderer byte relay writes to a worker directly', (t) => {
-  // The relay is the one legitimate exception: the renderer has already serialised its own NDJSON
-  // envelope, so there is no frame object to hand over.
-  const getWorker = code.slice(code.indexOf('function getWorker'), code.indexOf('\nfunction ', code.indexOf('function getWorker') + 1))
-  const rawWrites = getWorker.match(/worker\.write\(/g) ?? []
-  t.is(rawWrites.length, 1, 'exactly one direct worker.write() is left')
+test('no window writes to the spawn pipe', (t) => {
+  // Windows reach the worker over their own socket connections; the spawn pipe carries main's frames
+  // only, and every one of those goes through sendToWorker.
+  const start = code.indexOf('function getWorker')
+  t.ok(start >= 0, 'getWorker is where it is looked for')
+  const getWorker = code.slice(start, code.indexOf('\nfunction ', start + 1))
+  t.is((getWorker.match(/worker\.write\(/g) ?? []).length, 0, 'no direct worker.write() is left')
 })

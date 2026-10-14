@@ -1,4 +1,9 @@
-// The Bare worker host: spawning one, framing what goes down its pipe, and reaping it.
+// The Bare worker host: spawning one, framing what goes down its spawn pipe, and reaping it.
+//
+// The spawn pipe is main's own: the hello, the bootstrap, shutdown and watcher events go down it,
+// and the worker's commands to main come back on it. Windows do not use it — each reaches the
+// worker over its own socket connection (window-connections.js), opened once the worker has said
+// where it listens.
 //
 // Exactly one function writes to a worker pipe. A lost watcher event is survivable; a lost
 // bootstrap is not, so the spawn path treats a failed bootstrap write as a failed spawn rather
@@ -15,6 +20,7 @@ const { createFailureGate } = require('./worker-bus-failure.js')
 const { createWorkerRestart } = require('./lifecycle.js')
 const { entrypointFor } = require('./worker-entrypoints.js')
 const { createWorkerFrameReader } = require('./ipc-frame.js')
+const { createWindowConnections } = require('./window-connections.js')
 const { envJson } = require('./env-json.js')
 const { envOverride } = require('./env-overrides.js')
 const { readFeatureFlags } = require('./feature-flags.js')
@@ -22,6 +28,7 @@ const { isVerbose } = require('./debug-gate.js')
 const relaySecret = require('./relay-secret.js')
 const { readDownloadFolder, readBandwidth } = require('./settings-ipc.js')
 const { MAIN_REQUEST_FRAME } = require('../shared/contract/main-requests.js')
+const { WORKER_SPECS } = require('../shared/contract/workers.js')
 const { FRAME, IPC_PROTOCOL_VERSION, IPC_PROTOCOL_MIN_SUPPORTED } = require('../shared/contract/ipc-frames.js')
 
 const pkg = require('../../package.json')
@@ -31,6 +38,32 @@ const upgrade = pkg.upgrade
 const envNumber = (raw) => (raw ? Number(raw) : undefined)
 
 const workers = new Map()
+const windowConnections = createWindowConnections()
+
+// A worker that has not said where it listens by now never will: it is wedged, and the window's
+// respawn path deals with a spawn that did not come up.
+const LISTENING_TIMEOUT_MS = 30000
+
+// Where each live worker listens, settled by its socket:listening command and rejected by its exit.
+const listening = new WeakMap()
+
+function deferred() {
+  let resolve
+  let reject
+  const promise = new Promise((res, rej) => { resolve = res; reject = rej })
+  promise.catch(() => {})
+  return { promise, resolve, reject }
+}
+
+function socketPathOf(worker) {
+  const announced = listening.get(worker)
+  if (!announced) return Promise.reject(new Error('worker is gone'))
+  let timer
+  const timeout = new Promise((_resolve, reject) => {
+    timer = setTimeout(() => reject(new Error('worker did not open its socket')), LISTENING_TIMEOUT_MS)
+  })
+  return Promise.race([announced.promise, timeout]).finally(() => clearTimeout(timer))
+}
 
 // Bound by the entry. identityKEK is a getter, not a value: it is resolved inside whenReady, after
 // this module is required but before the first spawn, and the bootstrap frame reads it then.
@@ -98,6 +131,7 @@ const mainRequests = createMainRequestRouter({
   looseFileWatchers,
   setDownloadRoots: (roots) => { workerDownloadRoots = roots },
   rememberBackup: (backup) => config().set('backup', backup),
+  onSocketListening: (worker, socketPath) => listening.get(worker)?.resolve(socketPath),
   sendToWorker,
   isDebug,
   isQuitting,
@@ -141,10 +175,7 @@ function getWorker(specifier) {
   worker.on('error', (err) => {
     if (isDebug()) console.error('worker stream error (shutdown race):', err.message)
   })
-  // A previous worker for this specifier may have left a no-op handler
-  // registered on exit (see the worker.once('exit', ...) below). Clear it
-  // before re-registering, otherwise ipcMain.handle throws.
-  try { ipcMain.removeHandler('pear:worker:writeIPC:' + specifier) } catch {}
+  listening.set(worker, deferred())
 
   // Every environment hook main reads. All are unset in a normal run.
   //
@@ -185,7 +216,7 @@ function getWorker(specifier) {
   // bootstrap that follows carries the secrets, and stays Electron's alone.
   //
   // No cursor: main parses no worker frames beyond its own control frames, so it has read nothing
-  // to resume from. The renderer resumes on its own greeting.
+  // to resume from. Each window resumes on its own connection's greeting.
   const hello = {
     type: FRAME.HELLO,
     protocolVersion: IPC_PROTOCOL_VERSION,
@@ -263,30 +294,8 @@ function getWorker(specifier) {
     throw new Error('worker handshake write failed')
   }
 
-  // Raw bytes rather than a frame, so this is the one write that cannot go through sendToWorker:
-  // the renderer has already serialised its own NDJSON envelope.
-  let relayFailureReported = false
-  const writeHandler = (_evt, data) => {
-    try {
-      worker.write(Buffer.from(data))
-    } catch (err) {
-      // Worker may have closed its socket before the renderer's last message arrived. Outside a quit
-      // that is a request the renderer is still waiting on, and nothing else reports that it never
-      // left. Once per worker, for the same reason as sendToWorker.
-      reportBusFailure(err,
-        (text) => ['worker write failed:', text],
-        (text) => {
-          if (relayFailureReported) return
-          relayFailureReported = true
-          console.warn('worker write failed:', text, '- further failures for this worker are not logged')
-        })
-    }
-  }
-  ipcMain.handle('pear:worker:writeIPC:' + specifier, writeHandler)
-
   const frames = createWorkerFrameReader()
   worker.on('data', (data) => {
-    sendToAll('pear:worker:ipc:' + specifier, data)
     // Only worker→main control frames ('main-request') are parsed here; the reader has already
     // dropped anything too large to be one, before decoding it (see ipc-frame.js).
     for (const line of frames.push(data)) {
@@ -326,15 +335,12 @@ function getWorker(specifier) {
     if (stdoutTail) logRing.push('worker', 'log', stdoutTail)
     const stderrTail = stderrDecoder.end()
     if (stderrTail) logRing.push('worker', 'error', stderrTail)
-    // Replace the writeHandler with a no-op instead of removing it. Late
-    // renderer messages (common during shutdown) would otherwise hit
-    // "No handler registered" and surface as Uncaught Promise rejections.
-    try { ipcMain.removeHandler('pear:worker:writeIPC:' + specifier) } catch {}
-    try { ipcMain.handle('pear:worker:writeIPC:' + specifier, () => undefined) } catch {}
+    listening.get(worker)?.reject(new Error('worker exited before it opened its socket'))
+    listening.delete(worker)
     // The roots came from this worker and describe the spaces it had open. Keeping them past its
     // death leaves shell:showInFolder authorising paths nothing is serving any more.
     workerDownloadRoots = []
-    sendToAll('pear:worker:exit:' + specifier, code)
+    windowConnections.workerExited(worker, code)
     workers.delete(specifier)
   })
 
@@ -362,11 +368,22 @@ const restartWorker = createWorkerRestart({
   isQuitting,
 })
 
+// Spawns the worker if none is running, then opens this window's own connection to it. Resolves
+// once the window can write; a worker that dies first rejects, after its exit reached the window.
+async function startWorkerFor(sender, specifier) {
+  const worker = getWorker(specifier)
+  windowConnections.claim(sender, specifier, worker)
+  await windowConnections.open(sender.id, await socketPathOf(worker))
+  return true
+}
+
 function registerWorkerHost() {
-  ipcMain.handle('pear:startWorker', (_evt, specifier) => {
-    getWorker(specifier)
-    return true
-  })
+  ipcMain.handle('pear:startWorker', (evt, specifier) => startWorkerFor(evt.sender, specifier))
+  // False when this window has no connection: the renderer fails the request at once rather than
+  // waiting out its timeout.
+  for (const specifier of WORKER_SPECS) {
+    ipcMain.handle('pear:worker:writeIPC:' + specifier, (evt, data) => windowConnections.write(evt.sender.id, data))
+  }
   ipcMain.handle('pear:restartWorker', (_evt, specifier) => restartWorker(specifier))
 }
 

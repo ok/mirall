@@ -1403,7 +1403,9 @@
     "protocolTitle": "Mirall doit être redémarré",
     "protocolBody": "Certaines parties de Mirall ont été mises à jour et ne correspondent plus. Quittez complètement Mirall puis rouvrez-le. Si cela persiste, réinstallez la dernière version.",
     "budgetTitle": "Le service en arrière-plan de Mirall s'est arrêté",
-    "budgetBody": "Il s'est arrêté plusieurs fois de suite et n'a pas redémarré. Quittez complètement Mirall puis rouvrez-le."
+    "budgetBody": "Il s'est arrêté plusieurs fois de suite et n'a pas redémarré. Quittez complètement Mirall puis rouvrez-le.",
+    "alreadyRunningTitle": "Mirall est déjà ouvert",
+    "alreadyRunningBody": "Une autre copie de Mirall utilise les mêmes données. Quittez l'autre copie, puis quittez celle-ci et rouvrez-la."
   },
   "identityLocked": {
     "title": "Mirall ne peut pas ouvrir vos données",

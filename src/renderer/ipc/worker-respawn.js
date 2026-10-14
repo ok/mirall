@@ -3,8 +3,11 @@
 // (recordReady): a boot loop accumulates to the cap, boot-work-die earns a fresh budget.
 // WORKER_EXIT_UNSTABLE keeps a SEPARATE budget of 3 per 10 min that recordReady never clears (an
 // unstable worker HAS reached ready, every time); only quiet time clears it.
-// WORKER_EXIT_PROTOCOL_MISMATCH spends no budget at all: it is terminal on the first exit.
-import { WORKER_EXIT_UNSTABLE, WORKER_EXIT_PROTOCOL_MISMATCH } from '../../shared/contract/exit-codes.js'
+// WORKER_EXIT_PROTOCOL_MISMATCH and WORKER_EXIT_ALREADY_RUNNING spend no budget at all: each is
+// terminal on the first exit.
+import {
+  WORKER_EXIT_UNSTABLE, WORKER_EXIT_PROTOCOL_MISMATCH, WORKER_EXIT_ALREADY_RUNNING,
+} from '../../shared/contract/exit-codes.js'
 
 /**
  * @param {{ maxRetries?: number, baseDelayMs?: number, maxDelayMs?: number, maxUnstable?: number, unstableWindowMs?: number, now?: () => number }} [opts]
@@ -20,11 +23,13 @@ export function makeRespawnPolicy({
   return {
     // Call on each worker exit, with the exit code. Returns { respawn, delayMs } and, when it
     // refuses, which terminal state the channel is in.
-    /** @param {number | null} code @returns {{ respawn: boolean, delayMs: number, terminal?: 'protocol' | 'budget' }} */
+    /** @param {number | null} code @returns {{ respawn: boolean, delayMs: number, terminal?: 'protocol' | 'budget' | 'already-running' }} */
     onExit(code) {
       // Terminal by construction: the next generation would read the same bootstrap frame and
       // refuse it again, draining the budget to learn nothing.
       if (code === WORKER_EXIT_PROTOCOL_MISMATCH) return { respawn: false, delayMs: 0, terminal: 'protocol' }
+      // So is another worker holding this profile: it is still there when the next one starts.
+      if (code === WORKER_EXIT_ALREADY_RUNNING) return { respawn: false, delayMs: 0, terminal: 'already-running' }
       if (code === WORKER_EXIT_UNSTABLE) {
         const t = now()
         // A generation that ran clean for longer than the window means the previous unstable exit

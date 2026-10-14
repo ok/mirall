@@ -2,12 +2,11 @@
 // process: the client is detached — its in-flight work aborted, its registries dropped — and only
 // then is the separate question asked, whether there is any point in staying up.
 //
-// That separation is the change. The answer today is still "stop", and deliberately so: until the
-// worker listens on a socket there is no way for a new client to arrive, so a worker with none is
-// an unreachable orphan holding the store lock, and an orphan breaks the next launch. Pipe close is
-// also the only guard against a main process that died hard — process.on('exit') does not run on a
-// SIGKILL. A daemon that can accept clients passes canAcceptClients and lingers instead, and that
-// is a one-boolean change rather than an edit to the disconnect path.
+// A worker that cannot outlive its host stops when the host's pipe closes, whatever other clients
+// are still attached: they reach it through the host, and the host just went. Pipe close is also the
+// only guard against a main process that died hard — process.on('exit') does not run on a SIGKILL.
+// A daemon that can accept clients of its own passes canAcceptClients, counts them, and lingers
+// once they are gone.
 
 /**
  * @param {{ clients: number, bootComplete: boolean, canAcceptClients: boolean }} state
@@ -29,7 +28,7 @@ export function bindConnectionLifecycle({ pipe, ipc, client, isBootComplete, can
     gone = true
     ipc.detach(client, reason)
     const verdict = afterLastClient({
-      clients: ipc.clientCount(),
+      clients: canAcceptClients ? ipc.clientCount() : 0,
       bootComplete: isBootComplete(),
       canAcceptClients,
     })

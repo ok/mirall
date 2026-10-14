@@ -5,7 +5,8 @@ import {
   getPublishConcurrency, getDownloadConcurrency, getPeerFrameMaxBytes, getPeerCatalogCacheLimit,
   getPeerFrameLimits, getHandshakeRateLimit, getBandwidthLimits,
   getSupervisionRecoverBudgetMs, getReconcileStallWindowMs, getPublishStallWindowMs,
-  getConvergenceStallWindowMs, getAdmissionReadTimeoutMs, getRelayAuditDwellMs, getRestoreReleaseDwellMs, getFreeUpMinBytes, _rulesForTests,
+  getConvergenceStallWindowMs, getAdmissionReadTimeoutMs, getRelayAuditDwellMs, getRestoreReleaseDwellMs, getFreeUpMinBytes,
+  getIpcKeepaliveMs, getIpcKeepaliveGraceMs, _rulesForTests,
 } from '../../src/shared/core/runtime-config.js'
 
 // Every value a malformed override can take that is not a number: each must resolve to the key's
@@ -32,6 +33,11 @@ const RULED_KEYS = [
     [[0, 300_000], [Infinity, 300_000], [1, 1], [1234, 1234]]],
   ['admissionReadTimeoutMs', getAdmissionReadTimeoutMs, 4000,
     [[0, 4000], [Infinity, 4000], [1, 1], [1500, 1500]]],
+  // 0 would probe and reap every socket client on every tick.
+  ['ipcKeepaliveMs', getIpcKeepaliveMs, 30_000,
+    [[0, 30_000], [Infinity, 30_000], [1, 1], [200, 200]]],
+  ['ipcKeepaliveGraceMs', getIpcKeepaliveGraceMs, 10_000,
+    [[0, 10_000], [Infinity, 10_000], [1, 1], [200, 200]]],
   // A dwell, not a deadline: 0 records a path the moment it is seen, which is a real override.
   ['relayAuditDwellMs', getRelayAuditDwellMs, 10_000,
     [[0, 0], [Infinity, 10_000], [1, 1], [500, 500]]],
@@ -191,6 +197,8 @@ test('a pinned identity waiting on a restart is held beside the saved slot', (t)
 const EXPECTED_RULES = {
   supervisionRecoverBudgetMs: { rule: 'finiteAtLeast', min: 1 },
   admissionReadTimeoutMs: { rule: 'finiteAtLeast', min: 1 },
+  ipcKeepaliveMs: { rule: 'finiteAtLeast', min: 1 },
+  ipcKeepaliveGraceMs: { rule: 'finiteAtLeast', min: 1 },
   relayAuditDwellMs: { rule: 'finiteAtLeast', min: 0 },
   restoreReleaseDwellMs: { rule: 'finiteAtLeast', min: 0 },
   reconcileStallWindowMs: { rule: 'finiteAtLeast', min: 1 },
@@ -222,8 +230,8 @@ test('the rules table is exactly the declared set', (t) => {
 // The module header states these two counts. Asserting them is what keeps them from rotting.
 test('the ruled and unruled key counts are the ones the header claims', (t) => {
   const { ruled, defaultedKeys } = _rulesForTests()
-  t.is(defaultedKeys, 69, 'DEFAULTED keys')
-  t.is(Object.keys(ruled).length, 24, 'of which carry a validation rule')
+  t.is(defaultedKeys, 71, 'DEFAULTED keys')
+  t.is(Object.keys(ruled).length, 26, 'of which carry a validation rule')
   t.is(defaultedKeys - Object.keys(ruled).length, 45, 'the rest are read raw')
 })
 

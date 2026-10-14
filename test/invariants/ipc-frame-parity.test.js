@@ -18,9 +18,10 @@ const read = (rel) => readFileSync(path.join(root, rel), 'utf8')
 test('every declared control frame has a branch in the router, and every branch a declaration', (t) => {
   const src = read('src/shared/core/ipc.js')
   const branched = [...src.matchAll(/msg\.type === FRAME\.([A-Z_]+)/g)].map((m) => FRAME[m[1]])
-  // RESPONSE and HELLO_ACK are written, never read: the worker sends them and no client frame
-  // carries either name inbound.
-  const expected = CONTROL_FRAMES.filter((f) => f !== FRAME.RESPONSE && f !== FRAME.HELLO_ACK)
+  // RESPONSE, HELLO_ACK and KEEPALIVE are written, never read: the worker sends them and no client
+  // frame carries any of those names inbound.
+  const written = [FRAME.RESPONSE, FRAME.HELLO_ACK, FRAME.KEEPALIVE]
+  const expected = CONTROL_FRAMES.filter((f) => !written.includes(f))
   t.alike([...new Set(branched)].sort(), [...expected].sort())
 })
 

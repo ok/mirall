@@ -43,7 +43,7 @@ const keyPart = (value) => (typeof value === 'string' ? value : typeof value)
 // A mirror's watcher is keyed by its mount pair; an owned share's by its id alone.
 const mirrorWatchKey = (args) => args.spaceId + ':' + args.shareId
 
-function createMainRequestRouter({ folderWatchers, looseFileWatchers, setDownloadRoots, rememberBackup, sendToWorker, isDebug, isQuitting, now = Date.now }) {
+function createMainRequestRouter({ folderWatchers, looseFileWatchers, setDownloadRoots, rememberBackup, onSocketListening, sendToWorker, isDebug, isQuitting, now = Date.now }) {
   const reportBusFailure = createFailureGate({ isDebug, isQuitting })
   // Null-prototype, because `command` comes off the worker pipe: with a plain object literal
   // `handlers['toString']` finds Object.prototype's method and the frame resolves as though it had
@@ -107,6 +107,12 @@ function createMainRequestRouter({ folderWatchers, looseFileWatchers, setDownloa
 
     [MAIN_REQUEST.FOREIGN_FOLDER_STOP_WATCHER]: async (args) => {
       folderWatchers.stopWatcher(mirrorWatchKey(args))
+    },
+
+    // Where this worker accepts its windows. Main never derives the path itself.
+    [MAIN_REQUEST.SOCKET_LISTENING]: async (args, worker) => {
+      if (typeof args?.path !== 'string' || args.path.length === 0) throw new Error('no socket path')
+      onSocketListening(worker, args.path)
     },
   })
 

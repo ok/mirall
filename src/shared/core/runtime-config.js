@@ -139,6 +139,14 @@ export function getDeriveDebounceMs() {
   return read('deriveDebounceMs')
 }
 
+export function getIpcKeepaliveMs() {
+  return read('ipcKeepaliveMs')
+}
+
+export function getIpcKeepaliveGraceMs() {
+  return read('ipcKeepaliveGraceMs')
+}
+
 export function getForeignPollIntervalMs() {
   return read('foreignPollIntervalMs')
 }

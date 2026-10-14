@@ -8,6 +8,8 @@ import { seedFile, _sealForTests } from '../../src/main/relay-secret.js'
 import path from 'path'
 import fs from 'fs'
 import os from 'os'
+import net from 'net'
+import { EventEmitter } from 'events'
 import { fileURLToPath } from 'url'
 
 const REPO = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
@@ -234,4 +236,75 @@ test('stopWorkers still reaches every worker', (t) => {
   host.getWorker('/src/worker/main.js')
   host.stopWorkers()
   t.is(frames(worker).filter((f) => f.type === 'shutdown').length, 1)
+})
+
+function fakeSender(id) {
+  const ee = new EventEmitter()
+  ee.id = id
+  ee.sent = []
+  ee.isDestroyed = () => false
+  ee.send = (channel, payload) => { ee.sent.push([channel, payload]) }
+  return ee
+}
+
+function socketServer(t) {
+  const dir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'wh-')), 'run')
+  fs.mkdirSync(dir, { mode: 0o700 })
+  t.teardown(() => fs.rmSync(path.dirname(dir), { recursive: true, force: true }))
+  const socketPath = path.join(dir, 's.sock')
+  const peers = []
+  const server = net.createServer((sock) => { sock.received = []; sock.on('data', (d) => sock.received.push(String(d))); peers.push(sock) })
+  t.teardown(() => new Promise((resolve) => { for (const p of peers) p.destroy(); server.close(resolve) }))
+  return new Promise((resolve) => server.listen(socketPath, () => resolve({ socketPath, peers })))
+}
+
+const until = async (fn) => { for (let i = 0; i < 200 && !fn(); i++) await new Promise((r) => setTimeout(r, 5)) }
+
+test('a window starts the worker, waits for its socket, and talks to it over its own connection', async (t) => {
+  const { socketPath, peers } = await socketServer(t)
+  const { host, worker, electron } = load()
+  host.registerWorkerHost()
+  const sender = fakeSender(7)
+  let started = false
+  const starting = electron.ipcMain.handlers.get('pear:startWorker')({ sender }, MAIN_WORKER_SPEC).then((v) => { started = v })
+
+  await new Promise((r) => setTimeout(r, 20))
+  t.absent(started, 'not before the worker said where it listens')
+  worker.emit('data', Buffer.from(JSON.stringify({ type: 'main-request', command: 'socket:listening', args: { path: socketPath } }) + '\n'))
+  await starting
+  t.is(started, true)
+  await until(() => peers.length === 1)
+  t.is(peers.length, 1, 'one connection for the window')
+
+  peers[0].write('{"type":"event:x"}\n')
+  await until(() => sender.sent.length > 0)
+  t.alike(sender.sent.map(([c, d]) => [c, String(d)]), [['pear:worker:ipc:' + MAIN_WORKER_SPEC, '{"type":"event:x"}\n']])
+
+  const write = electron.ipcMain.handlers.get('pear:worker:writeIPC:' + MAIN_WORKER_SPEC)
+  t.is(write({ sender }, Buffer.from('{"id":1,"type":"ping"}\n')), true)
+  await until(() => peers[0].received.length > 0)
+  t.alike(peers[0].received, ['{"id":1,"type":"ping"}\n'])
+  t.is(write({ sender: fakeSender(8) }, Buffer.from('x')), false, 'another window has no connection of its own yet')
+
+  worker.emit('exit', 70)
+  t.alike(sender.sent.filter(([c]) => c.startsWith('pear:worker:exit:')).map(([, code]) => code), [70])
+})
+
+test('a worker that exits before it listens fails the start, after the window heard the code', async (t) => {
+  const { host, worker, electron } = load()
+  host.registerWorkerHost()
+  const sender = fakeSender(7)
+  const starting = electron.ipcMain.handlers.get('pear:startWorker')({ sender }, MAIN_WORKER_SPEC)
+  worker.emit('exit', 73)
+  await t.exception(starting)
+  t.alike(sender.sent.map(([c, code]) => [c, code]), [['pear:worker:exit:' + MAIN_WORKER_SPEC, 73]])
+})
+
+test('nothing the worker writes on the spawn pipe reaches a window', (t) => {
+  const { host, worker, electron } = load()
+  host.getWorker(MAIN_WORKER_SPEC)
+  const view = { isDestroyed: () => false, sent: [], send(c, p) { this.sent.push([c, p]) } }
+  electron.webContents.list.push(view)
+  worker.emit('data', Buffer.from('{"type":"event:state"}\n'))
+  t.alike(view.sent, [])
 })

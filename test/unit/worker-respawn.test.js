@@ -1,6 +1,8 @@
 import test from 'brittle'
 import { exitDisposition, makeRespawnPolicy } from '../../src/renderer/ipc/worker-respawn.js'
-import { WORKER_EXIT_UNSTABLE, WORKER_EXIT_PROTOCOL_MISMATCH } from '../../src/shared/contract/exit-codes.js'
+import {
+  WORKER_EXIT_UNSTABLE, WORKER_EXIT_PROTOCOL_MISMATCH, WORKER_EXIT_ALREADY_RUNNING, WORKER_EXIT_LISTEN_FAILED,
+} from '../../src/shared/contract/exit-codes.js'
 
 // REGRESSION (FIX-140): a worker that dies (crash / OOM on a very large folder) must be
 // respawned instead of leaving the app permanently dead — but a worker that re-crashes ON BOOT
@@ -93,6 +95,18 @@ test('a protocol-mismatch exit is terminal and spends no budget', (t) => {
   t.is(first.terminal, 'protocol')
   // The ordinary budget is untouched: a later crash still gets its full first delay.
   t.alike(p.onExit(0), { respawn: true, delayMs: 500 })
+})
+
+test('a worker refused for another holding the profile is terminal and spends no budget', (t) => {
+  const p = makeRespawnPolicy()
+  t.alike(p.onExit(WORKER_EXIT_ALREADY_RUNNING), { respawn: false, delayMs: 0, terminal: 'already-running' })
+  t.alike(p.onExit(0), { respawn: true, delayMs: 500 })
+})
+
+test('a worker that could not open its socket is retried under the ordinary budget', (t) => {
+  const p = makeRespawnPolicy({ maxRetries: 1 })
+  t.alike(p.onExit(WORKER_EXIT_LISTEN_FAILED), { respawn: true, delayMs: 500 })
+  t.is(p.onExit(WORKER_EXIT_LISTEN_FAILED).terminal, 'budget')
 })
 
 test('a refusal for any other reason reports the budget as the terminal state', (t) => {

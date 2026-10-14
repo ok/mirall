@@ -84,6 +84,7 @@ function stubDeps({ debug = false, quitting = false } = {}) {
         removeLooseWatch: (...a) => calls.push(['removeLooseWatch', ...a]),
       },
       setDownloadRoots: (roots) => calls.push(['setDownloadRoots', roots]),
+      onSocketListening: (worker, socketPath) => calls.push(['onSocketListening', worker, socketPath]),
       sendToWorker: (_worker, frame) => calls.push(['sendToWorker', frame]),
     },
   }
@@ -131,6 +132,21 @@ test('a known command still reaches its handler', async (t) => {
   await router.dispatch(MAIN_REQUEST.OWNED_FOLDER_STOP_WATCHER, { shareId: 's1' })
 
   t.alike(calls.map((c) => c[0]), ['startWatcher', 'stopWatcher'])
+})
+
+test('the worker\'s socket path reaches main with the worker that announced it, and only a path does', async (t) => {
+  const warnings = muteWarn(t)
+  const { calls, deps } = stubDeps()
+  const router = createMainRequestRouter(deps)
+  const worker = {}
+
+  await router.dispatch(MAIN_REQUEST.SOCKET_LISTENING, { path: '/data/run/daemon.sock' }, worker)
+  t.alike(calls, [['onSocketListening', worker, '/data/run/daemon.sock']])
+
+  await router.dispatch(MAIN_REQUEST.SOCKET_LISTENING, { path: 7 }, worker)
+  await router.dispatch(MAIN_REQUEST.SOCKET_LISTENING, {}, worker)
+  t.is(calls.length, 1, 'nothing else is taken for a path')
+  t.ok(warnings.some((l) => l.includes(MAIN_REQUEST.SOCKET_LISTENING)), 'and the refusal is warned')
 })
 
 // One registry serves both kinds, so the two keys must differ for the same share, and each kind's

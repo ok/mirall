@@ -1,7 +1,7 @@
 import type { RequestName } from '../../shared/contract/requests.js'
 import type { RequestResponse } from '../../shared/contract/responses.js'
 import type { EventName } from '../../shared/contract/events.js'
-import { FRAME } from '../../shared/contract/ipc-frames.js'
+import { FRAME, IPC_PROTOCOL_VERSION, IPC_PROTOCOL_MIN_SUPPORTED } from '../../shared/contract/ipc-frames.js'
 import { MAIN_WORKER_SPEC } from '../../shared/contract/workers.js'
 import { CODES } from '../../shared/contract/errors.js'
 import { createEventCursor } from '../../shared/contract/event-cursor.js'
@@ -13,8 +13,8 @@ import { resyncQueries } from '../store/query-store.js'
 // the same way. { type: 'cancel', id } is a control frame rather than a request, so it cannot queue
 // behind the request it cancels. Any other line carrying a string `type` is an event, fanned out to
 // subscribe()'s listeners — except event:worker-ready, which the channel consumes itself and which
-// arrives once per worker CONNECTION: main holds one across renderers, so a window that comes up
-// over a running worker never sees it.
+// arrives once per CONNECTION. Main opens one connection to the worker's socket per window, and this
+// window introduces itself on it with a hello before anything else.
 //
 // subscribe() takes a declared EventName and allows any number of listeners per name. They are called
 // synchronously, each inside its own try: a throwing subscriber must not starve the listeners after
@@ -82,7 +82,7 @@ const resyncHooks = new Set<(reason: ResyncReason) => void>()
 // rather than only as a rejection code because the app shell has to gate on it BEFORE the profile
 // gate: a failed profile:get reads as "no profile" and opens onboarding over an identity that
 // exists (profile-gate.js).
-export type ChannelFault = 'protocol' | 'budget'
+export type ChannelFault = 'protocol' | 'budget' | 'already-running'
 let channelFault: ChannelFault | null = null
 const faultListeners = new Set<() => void>()
 
@@ -189,6 +189,11 @@ function handleLine(line: string): void {
 
   if (typeof msg.type !== 'string') return
 
+  if (msg.type === FRAME.KEEPALIVE) {
+    sendLine(JSON.stringify({ type: FRAME.KEEPALIVE_ACK }) + '\n').catch(() => undefined)
+    return
+  }
+
   // Before the worker-ready test: the greeting carries an ordinal of its own, and the cursor has to
   // see every numbered frame in the order the pipe delivered them.
   cursor.observe(msg)
@@ -206,8 +211,8 @@ function handleLine(line: string): void {
       // into a pipe with nothing behind it.
       if (greeted !== workerGeneration) return
       console.warn('[ipc] catch-up failed, resyncing', err)
-      // A greeting is emitted per connection and main connects once per worker, so a greeting we
-      // could not settle is still a process this client has told nothing.
+      // A greeting is emitted per connection, so a greeting we could not settle is still a process
+      // this client has told nothing.
       resync('new-worker')
       markReady()
     })
@@ -233,9 +238,9 @@ function failAllPending(reason: string, code: string): void {
 }
 
 // Bind the worker IPC/lifecycle handlers exactly ONCE for the app's lifetime. They
-// listen on the per-specifier channels, which main re-broadcasts for whatever worker
-// currently backs the specifier — so a single set of listeners keeps working across a
-// respawn. (Re-binding on every spawn would stack duplicate ipcRenderer listeners.)
+// listen on the per-specifier channels, which carry whichever connection main holds
+// for this window — so a single set of listeners keeps working across a respawn.
+// (Re-binding on every spawn would stack duplicate ipcRenderer listeners.)
 function bindHandlers(): void {
   if (handlersBound) return
   handlersBound = true
@@ -295,8 +300,9 @@ export async function restartWorker(): Promise<void> {
   try {
     const replaced = await window.bridge.restartWorker(WORKER_SPEC)
     if (!replaced) return // the app is quitting; there is no next worker to wait for
-    workerStarted = true
-    probeWorkerReady()
+    // The old connection went with the old worker; this window opens its own to the new one.
+    workerStarted = false
+    await spawnWorker()
   } catch (err) {
     // Main could not finish it. Whatever state the worker is in, the crash path knows how to
     // recover from "no worker" — leaving the app wedged behind a failed restart is the worse end.
@@ -308,6 +314,12 @@ export async function restartWorker(): Promise<void> {
   }
 }
 
+const TERMINAL_REASON: Record<ChannelFault, string> = {
+  protocol: 'worker refused the connection: protocol version mismatch',
+  budget: 'worker exited repeatedly; not respawning — reload the app to recover',
+  'already-running': 'another worker already serves this profile; not respawning',
+}
+
 // Single gate governing every (re)spawn after the first boot. Honors the policy's backoff and
 // give-up so a crash-loop can't spin forever, and wakes parked request()s on each transition.
 function scheduleRespawn(exitCode: number): void {
@@ -317,10 +329,8 @@ function scheduleRespawn(exitCode: number): void {
   if (!respawn) {
     permanentlyDown = true
     armReady() // wake parked requests so they throw fast instead of hanging
-    raiseChannelFault(terminal === 'protocol' ? 'protocol' : 'budget')
-    console.error(terminal === 'protocol'
-      ? 'worker refused the connection: protocol version mismatch'
-      : 'worker exited repeatedly; not respawning — reload the app to recover')
+    raiseChannelFault(terminal ?? 'budget')
+    console.error(TERMINAL_REASON[terminal ?? 'budget'])
     return
   }
   respawnScheduled = true
@@ -345,6 +355,7 @@ async function spawnWorker(): Promise<void> {
   workerStarted = true
   try {
     await window.bridge.startWorker(WORKER_SPEC)
+    await sendLine(JSON.stringify(helloFrame()) + '\n')
   } catch (err) {
     // A spawn that never produced a worker emits no exit event, so feed it through the same
     // policy gate rather than latching workerStarted=true forever (which would wedge the app).
@@ -356,11 +367,8 @@ async function spawnWorker(): Promise<void> {
   probeWorkerReady()
 }
 
-// `event:worker-ready` is emitted once per worker CONNECTION, and main holds that connection across
-// renderers: a window that comes up over a worker already running — a reload, or re-opening from
-// the tray or the dock — never sees the greeting. Ping the worker directly: a successful pong
-// proves it is reachable, which is the same liveness guarantee the greeting was conveying. On a
-// clean boot, whichever signal arrives first flips workerReady; the other is a no-op.
+// Readiness has two signals: the greeting this connection receives, and the pong to a ping sent
+// right after the hello. Whichever arrives first flips workerReady; the other is a no-op.
 //
 // The pong also tells the cursor it is LIVE on a stream it has no coordinates for, which is what
 // separates this window from one that has never been connected: the next greeting it sees is a
@@ -377,8 +385,7 @@ function probeWorkerReady(): void {
     resolve: () => { clearTimeout(reap); cursor.connected(); markReady() },
     reject: () => { clearTimeout(reap) },
   })
-  const envelope = JSON.stringify({ id, type: 'ping' }) + '\n'
-  window.bridge.writeWorkerIPC(WORKER_SPEC, encoder.encode(envelope)).catch(() => {
+  sendLine(JSON.stringify({ id, type: 'ping' }) + '\n').catch(() => {
     clearTimeout(reap)
     pending.delete(id)
   })
@@ -392,6 +399,22 @@ if (typeof window !== 'undefined') {
   window.addEventListener('beforeunload', markShuttingDown)
   window.addEventListener('pagehide', markShuttingDown)
   ensureWorker().catch((err) => console.error('worker start failed:', err))
+}
+
+// Main answers false when this window has no connection to the worker: the line went nowhere.
+async function sendLine(line: string): Promise<void> {
+  const sent = await window.bridge.writeWorkerIPC(WORKER_SPEC, encoder.encode(line))
+  if (sent === false) throw new Error('no worker connection')
+}
+
+function helloFrame(): Record<string, string | number | Record<string, string>> {
+  return {
+    type: FRAME.HELLO,
+    protocolVersion: IPC_PROTOCOL_VERSION,
+    protocolMin: IPC_PROTOCOL_MIN_SUPPORTED,
+    protocolMax: IPC_PROTOCOL_VERSION,
+    client: { kind: 'electron-window', name: 'mirall', version: window.bridge.pkg().version },
+  }
 }
 
 // Every rejection this module raises itself carries a code: errorTextFor keys on `.code`, and one
@@ -448,8 +471,7 @@ function dispatch<K extends RequestName>(
     // front of an operation whose whole purpose is to stop waiting. A late response finds no
     // pending entry and is dropped by handleLine.
     const tellWorkerToStop = (): void => {
-      const frame = JSON.stringify({ type: FRAME.CANCEL, id }) + '\n'
-      void window.bridge.writeWorkerIPC(WORKER_SPEC, encoder.encode(frame)).catch(() => undefined)
+      sendLine(JSON.stringify({ type: FRAME.CANCEL, id }) + '\n').catch(() => undefined)
     }
 
     const timer = timeout > 0
@@ -494,8 +516,7 @@ function dispatch<K extends RequestName>(
 
     signal?.addEventListener('abort', onAbort, { once: true })
 
-    const envelope = JSON.stringify({ id, type, ...payload }) + '\n'
-    window.bridge.writeWorkerIPC(WORKER_SPEC, encoder.encode(envelope)).catch((err) => {
+    sendLine(JSON.stringify({ id, type, ...payload }) + '\n').catch((err) => {
       pending.delete(id)
       if (timer) clearTimeout(timer)
       detach()

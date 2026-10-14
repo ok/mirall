@@ -1403,7 +1403,9 @@
     "protocolTitle": "Mirall muss neu gestartet werden",
     "protocolBody": "Teile von Mirall wurden aktualisiert und passen nicht mehr zusammen. Beende Mirall vollständig und öffne es erneut. Wenn das weiterhin auftritt, installiere die neueste Version neu.",
     "budgetTitle": "Der Hintergrunddienst von Mirall wurde beendet",
-    "budgetBody": "Er wurde mehrmals hintereinander beendet und nicht neu gestartet. Beende Mirall vollständig und öffne es erneut."
+    "budgetBody": "Er wurde mehrmals hintereinander beendet und nicht neu gestartet. Beende Mirall vollständig und öffne es erneut.",
+    "alreadyRunningTitle": "Mirall läuft bereits",
+    "alreadyRunningBody": "Eine andere Mirall-Instanz verwendet dieselben Daten. Beende die andere Instanz, danach beende diese und öffne sie erneut."
   },
   "identityLocked": {
     "title": "Mirall kann deine Daten nicht öffnen",

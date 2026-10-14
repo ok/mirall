@@ -2,6 +2,7 @@ import test from 'brittle'
 import { EventEmitter } from 'bare-events'
 import { createIPC } from '../../src/shared/core/ipc.js'
 import { helloFrame, sayHello } from '../helpers/ipc-hello.js'
+import { IPC_PROTOCOL_VERSION } from '../../src/shared/contract/ipc-frames.js'
 
 // The handshake against a real router and real pipes: what a client is told on arrival, what it is
 // replayed before it is told, and what happens to one that never introduces itself.
@@ -25,7 +26,7 @@ test('an accepted hello is greeted with the stream it may resume from', async (t
   a.send(helloFrame())
   const ack = a.ack()
   t.ok(ack.ok)
-  t.is(ack.protocolVersion, 2)
+  t.is(ack.protocolVersion, IPC_PROTOCOL_VERSION)
   t.is(ack.trust, 'host', 'the spawn pipe is the host by construction')
   t.is(ack.epoch, 'e1')
   t.is(ack.head, ipc.head())

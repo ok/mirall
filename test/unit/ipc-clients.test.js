@@ -249,3 +249,40 @@ test('a client that is not the spawn pipe cannot stop the worker', async (t) => 
   await tick()
   t.alike(wires[0].frames().at(-1).data, { ok: true }, 'while the spawn pipe still may')
 })
+
+// REGRESSION (FIX-510-2: detach only marked a client closed. Its pipe stayed bound to the reader, so
+// a reaped client's later frames were still parsed and dispatched as work nobody could receive.)
+test('REGRESSION (FIX-510-2): a detached client\'s frames are not work', async (t) => {
+  let calls = 0
+  const { ipc, wires, clients } = router({ handlers: { ping: () => { calls++; return 'pong' } } })
+  ipc.detach(clients[1], 'test')
+  wires[1].feed({ id: 1, type: 'ping' })
+  await tick()
+  t.is(calls, 0, 'nothing was dispatched')
+  t.is(wires[1].of('response').length, 0)
+})
+
+// REGRESSION (FIX-510-3: a main-request was written to every client, so a socket client read the
+// worker's commands to main — watcher paths, download roots, the socket path itself.)
+test('REGRESSION (FIX-510-3): a main-request reaches the host alone', (t) => {
+  const { ipc, wires } = router()
+  ipc.emit('main-request', { command: 'downloads:roots', args: { roots: ['/r'] } })
+  t.is(wires[0].of('main-request').length, 1, 'the host, which spawned the worker, gets it')
+  t.is(wires[1].of('main-request').length, 0, 'a second client does not')
+})
+
+test('any frame is a sign of life, and a keepalive ack is nothing more', async (t) => {
+  let now = 1000
+  const wires = [fakePipe(), fakePipe()]
+  const ipc = createIPC(wires[0], { requests: TEST_REQUESTS, now: () => now })
+  const client = ipc.attach(wires[1])
+  sayHello(wires[1])
+  client.probeSentAt = 900
+  now = 5000
+  wires[1].feed({ type: 'keepalive-ack' })
+  t.is(client.lastSeenAt, 5000)
+  t.is(client.probeSentAt, null)
+  await tick()
+  t.is(wires[1].frames().length, 0, 'it is not answered, even before the router goes live')
+  t.is(ipc.queueDepth(), 0, 'nor queued as a request')
+})
