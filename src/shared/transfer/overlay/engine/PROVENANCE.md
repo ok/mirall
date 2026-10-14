@@ -288,8 +288,9 @@ re-diffable against upstream while it was tracked. Categories:
     back to `_recoverPartialAsync`, an async, yielding (`fs.read` + a `setTimeout(0)` every
     `VERIFY_YIELD_EVERY` chunks) re-verify that never blocks the loop and reports a 0..1 scan
     fraction via `opts.onVerifyProgress` (throttled to ≤101 integer-percent emits, surfaced as a
-    "Verifying…" status), with the intact bytes recovered so far as its second argument. The whole-file digest is maintained by a single-flight **background hash
-    pump** (`_advanceHash`/`_drainHash`): the contiguous run is fed to the hasher via async `fs.read`
+    "Verifying…" status), with the intact bytes recovered so far as its second argument. The
+    whole-file digest is maintained by a single-flight **background hash pump**
+    (`_advanceHash`/`_drainHash`): the contiguous run is fed to the hasher via async `fs.read`
     that yields, so a gap filling after a low-frontier resume can never block the loop the way the
     old synchronous `_advanceHash` did. `finalize` is `async` — it drains the pump, then reads the
     incremental digest with **no** trailing whole-file re-read. `pause` is `async` too: it drains the

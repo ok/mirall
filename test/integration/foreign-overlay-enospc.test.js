@@ -17,6 +17,17 @@ import fs from 'bare-fs'
 // Network-free: the overlay's fetchFile is stubbed to throw the fs error code that
 // (post-fix) now propagates out of the real fetch.
 
+// The honest test of a read-only folder: whether a write into it is refused.
+function writable(dir) {
+  try {
+    fs.writeFileSync(dir + '/.probe', 'x')
+    fs.unlinkSync(dir + '/.probe')
+    return true
+  } catch (err) {
+    return !['EACCES', 'EPERM', 'EROFS'].includes(err.code)
+  }
+}
+
 function statuses(ctx, shareId) {
   return ctx.fake.events
     .filter((e) => e.type === 'event:foreign-folder-mount-status' && e.payload?.shareId === shareId)
@@ -86,11 +97,13 @@ test('REGRESSION (MIR-50): a pause before the sibling landed persists no mapping
 })
 
 // A folder that really refuses writes: the permission errno is believed only once a probe of the
-// folder agrees, so the folder is made read-only rather than the errno merely thrown.
-test('REGRESSION (FIX-129): an EACCES overlay-mirror fetch into a read-only folder pauses the mount (paused-error)', { skip: Bare.platform === 'win32' }, async (t) => {
+// folder agrees, so the folder is made read-only rather than the errno merely thrown. Where the
+// mode bits do not refuse a write (Windows, a root run) there is nothing to assert.
+test('REGRESSION (FIX-129): an EACCES overlay-mirror fetch into a read-only folder pauses the mount (paused-error)', async (t) => {
   const { spaceId, shareId, mountPath } = await setupOverlayMirror(t, 'EACCES')
   fs.chmodSync(mountPath, 0o500)
-  t.teardown(() => fs.chmodSync(mountPath, 0o700), { order: -1 })
+  t.teardown(() => { try { fs.chmodSync(mountPath, 0o700) } catch {} }, { order: -1 })
+  if (writable(mountPath)) { t.comment('the mode bits do not refuse a write here'); t.pass('skipped'); return }
   await runMaterializeTick(spaceId, shareId)
   const mount = await getForeignMount(spaceId, shareId)
   t.is(mount.status, 'paused-error', 'mount paused with the generic error status')
