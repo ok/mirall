@@ -185,18 +185,18 @@ export class HyperOverlayV2 extends ReadyResource {
       const v = await verifyOnDisk(localDisk, contentHash)
       // No fetch will run, so a cancel recorded during the verify must not cancel the next one.
       if (v.ok) {
-        this._protocol.clearCancelPending(contentHash, opts.by ?? null)
+        this._protocol?.clearCancelPending(contentHash, opts.by ?? null)
         return { destPath: localDisk, local: true, size: v.size }
       }
     }
     const peers = await this._awaitHolders(opts.ownerKey, opts.peerWaitMs || HOLDER_WAIT_MS)
     // No fetch will run, so a cancel recorded during the wait must not cancel the next one.
     if (peers.length === 0) {
-      this._protocol.clearCancelPending(contentHash, opts.by ?? null)
+      this._protocol?.clearCancelPending(contentHash, opts.by ?? null)
       return null
     }
     if (!opts.destPath) {
-      this._protocol.clearCancelPending(contentHash, opts.by ?? null)
+      this._protocol?.clearCancelPending(contentHash, opts.by ?? null)
       throw new TypeError('fetchFile: destPath is required for a remote fetch')
     }
     let result
@@ -225,8 +225,10 @@ export class HyperOverlayV2 extends ReadyResource {
     return this._fetchPeers(ownerKey)
   }
 
-  // The peers a fetch may ask. A throwing authorizer denies, like serveAuthorizer.
+  // The peers a fetch may ask: none once closeProtocol dropped the protocol. A throwing authorizer
+  // denies, like serveAuthorizer.
   _fetchPeers(ownerKey) {
+    if (!this._protocol) return []
     const peers = [...this._protocol.peers()]
     if (!this._holderAuthorizer) return peers
     return peers.filter((peer) => {
