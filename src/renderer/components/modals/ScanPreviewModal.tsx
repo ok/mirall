@@ -186,7 +186,7 @@ function ScanPreviewBody({ preview, loading, progress, readOnlyWarning }: ScanPr
       )}
 
       {preview.complete === false && (
-        <Callout tone="note">{t('space.countsIncomplete')}</Callout>
+        <Callout tone="note">{t('mirrorFolder.countsIncomplete')}</Callout>
       )}
 
       {readOnlyWarning && (

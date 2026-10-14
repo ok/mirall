@@ -23,6 +23,10 @@ owner is offline.
 
 #### Fixed
 
+- **Folder sizes and storage totals say when they may be too low.** When a
+member's file list could not be read yet, the Mirror to Disk dialog, its
+preview and the space storage card now say so instead of showing a partial
+count as final, and Mirall retries the read on its own.
 - **A folder whose file list arrived only partly now fills in on its
 own.** It stayed incomplete until something else changed in the space.
 - **Search the Activity Log by what happened.** Typing an event such as

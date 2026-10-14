@@ -152,6 +152,7 @@
     "next": "Avanti: anteprima",
     "create": "Avvia la replica",
     "creating": "Avvio in corso…",
+    "countsIncomplete": "Non è ancora possibile leggere per intero l'elenco dei file di questa cartella: questi numeri potrebbero essere inferiori al reale.",
     "infoUnavailable": "Impossibile leggere il contenuto di questa cartella dal proprietario."
   },
   "deleteFolder": {

@@ -152,6 +152,7 @@
     "next": "Siguiente: vista previa",
     "create": "Empezar a replicar",
     "creating": "Empezando…",
+    "countsIncomplete": "Aún no se puede leer completa la lista de archivos de esta carpeta; estas cifras pueden ser más bajas de lo real.",
     "infoUnavailable": "No se pudo leer el contenido de esta carpeta desde su propietario."
   },
   "deleteFolder": {

@@ -152,6 +152,7 @@
     "next": "Suivant : aperçu",
     "create": "Démarrer le miroir",
     "creating": "Démarrage…",
+    "countsIncomplete": "La liste des fichiers de ce dossier ne peut pas encore être lue en entier ; ces chiffres peuvent être sous-estimés.",
     "infoUnavailable": "Impossible de lire le contenu de ce dossier auprès de son propriétaire."
   },
   "deleteFolder": {

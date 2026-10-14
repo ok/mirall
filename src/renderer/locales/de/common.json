@@ -152,6 +152,7 @@
     "next": "Weiter: Vorschau",
     "create": "Spiegelung starten",
     "creating": "Starte…",
+    "countsIncomplete": "Die Dateiliste dieses Ordners kann noch nicht vollständig gelesen werden – diese Zahlen können zu niedrig sein.",
     "infoUnavailable": "Der Inhalt dieses Ordners konnte nicht vom Besitzer gelesen werden."
   },
   "deleteFolder": {

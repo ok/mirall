@@ -180,6 +180,7 @@
     "next": "Next: Preview",
     "create": "Start Mirroring",
     "creating": "Starting…",
+    "countsIncomplete": "This folder's file list can't be read in full yet, so these numbers may be too low.",
     "infoUnavailable": "Couldn't read this folder's contents from its owner."
   },
   "deleteFolder": {

@@ -132,7 +132,7 @@ export default function MirrorFolderModal({
 
       {/* A partial read is a floor, not the folder's size. */}
       {!infoError && info?.complete === false && (
-        <Callout tone="note">{t('space.countsIncomplete')}</Callout>
+        <Callout tone="note">{t('mirrorFolder.countsIncomplete')}</Callout>
       )}
 
       <MountPathField
