@@ -3,6 +3,8 @@ import { readFileSync, readdirSync, statSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'
 import { Scope, scopeMatches } from '../../src/shared/contract/scope.js'
+import { LOOSE_SHARE_ID } from '../../src/shared/contract/entry-ref.js'
+import { scopeForEvent } from '../../src/shared/core/ipc.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const hookSrc = (name) => readFileSync(path.join(here, '..', '..', 'src', 'renderer', 'hooks', name), 'utf8')
@@ -16,7 +18,7 @@ const subscribes = (src, eventName) => new RegExp(`subscribe(<[^>]*>)?\\(\\s*'${
 // main-log-forwarding.test.js pattern).
 test('reconcile-driven hooks subscribe the reconcile channel, not the named poke events', (t) => {
   const banned = {
-    'useFiles.ts': ['event:files-updated'],
+    'useFiles.ts': ['event:files-updated', 'event:share-files-updated'],
     'useShareFiles.ts': ['event:share-files-updated', 'event:files-updated', 'event:share-file-progress'],
     'useMembers.ts': ['event:members-updated', 'event:member-left', 'event:member-avatar-updated',
       'event:member-join-request', 'event:join-requests-updated'],
@@ -56,33 +58,46 @@ test('reconcile-driven hooks subscribe the reconcile channel, not the named poke
 
 const rendererSrc = (...parts) => readFileSync(path.join(here, '..', '..', 'src', 'renderer', ...parts), 'utf8')
 
-// REGRESSION (FIX-PEER-INFO-SCOPE: a view of a PEER's catalog pinned only the share-files scope.
-// For a share this app neither owns nor mirrors, nothing local emits event:share-files-updated —
-// the owner's append reaches us through ensurePeerCatalogWatch, which emits event:files-updated,
-// i.e. the space-wide files scope. scopeMatches requires equal kinds, so the share-files-only view
-// was never invalidated and its cached totals were frozen for the app session.)
-test('REGRESSION (FIX-PEER-INFO-SCOPE): a peer-catalog view lists the files scope too', (t) => {
+// REGRESSION (FIX-PEER-INFO-SCOPE: a view of a PEER's catalog was never invalidated by the owner's
+// append, so its cached totals froze for the app session.) Every file listing is one share-files
+// view now — the loose list pinned to LOOSE_SHARE_ID — so no view may list a second scope kind for
+// the same listing; the reach table below proves the owner's append arrives on the share's own one.
+test('REGRESSION (FIX-PEER-INFO-SCOPE): every file listing pins one share-files scope', (t) => {
   const views = {
     'components/modals/MirrorFolderModal.tsx': 'share:folder-info',
     'hooks/useShareFiles.ts': 'share:list-files',
+    'hooks/useFiles.ts': 'files:list',
+    'hooks/useSpaceStorage.ts': 'space:storage-summary',
+    'screens/settings/StorageSettings.tsx': 'storage:info',
   }
   for (const [file, request] of Object.entries(views)) {
     const src = rendererSrc(...file.split('/'))
     t.ok(src.includes(request), `${file} still reads ${request}`)
-    const shareScoped = /Scope\.shareFiles\(|kind: 'share-files'/.test(src)
-    const spaceScoped = /Scope\.files\(|kind: 'files'/.test(src)
-    t.ok(shareScoped, `${file} pins the share-files scope`)
-    t.ok(spaceScoped, `${file} ALSO pins the space files scope — a peer append arrives on that one`)
+    t.ok(/Scope\.shareFiles\(|kind: 'share-files'/.test(src), `${file} pins the share-files scope`)
+    t.absent(/Scope\.files\(|kind: 'files'/.test(src), `${file} lists no retired files scope`)
   }
+  t.ok(/kind: 'share-files', spaceId, shareId: LOOSE_SHARE_ID/.test(rendererSrc('hooks', 'useFiles.ts')),
+    'the loose list is the LOOSE_SHARE_ID listing')
+  t.absent('files' in Scope, 'the files scope kind is gone')
 })
 
-// The reason both are needed, asserted directly rather than left to the comment above.
-test('a files hint cannot invalidate a share-files view', (t) => {
-  t.absent(
-    scopeMatches(Scope.files('sp1'), Scope.shareFiles('sp1', 'sh1')),
-    'kinds must be equal — a space-wide files poke never reaches a share-files view',
-  )
-  t.ok(scopeMatches(Scope.files('sp1'), Scope.files('sp1')), 'while it does reach a files view')
+// Which listing each poke reaches, through the real mapping and matcher.
+test('a listing poke reaches its own listing; the space-wide poke reaches every listing', (t) => {
+  const folderView = Scope.shareFiles('S', 'sh')
+  const looseView = Scope.shareFiles('S', LOOSE_SHARE_ID)
+  const reach = (type, payload) => {
+    const hint = scopeForEvent(type, payload)
+    return { folder: scopeMatches(hint, folderView), loose: scopeMatches(hint, looseView) }
+  }
+  t.alike(reach('event:files-updated', { spaceId: 'S' }), { folder: true, loose: true }, 'space-wide → both')
+  t.alike(reach('event:share-files-updated', { spaceId: 'S', shareId: 'sh' }), { folder: true, loose: false },
+    'a folder append (the owner\'s, through the catalog watch) → that folder only')
+  t.alike(reach('event:share-files-updated', { spaceId: 'S', shareId: LOOSE_SHARE_ID }), { folder: false, loose: true },
+    'a loose poke → the loose list only')
+  t.alike(reach('event:share-files-updated', { spaceId: 'S' }), { folder: true, loose: true },
+    'the own-catalog wildcard → both')
+  t.alike(reach('event:share-files-updated', { spaceId: 'S2', shareId: 'sh' }), { folder: false, loose: false },
+    'another space → neither')
 })
 
 // Every renderer file that WRITES the query store, with the reason it may. The rule this ratchets

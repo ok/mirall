@@ -65,6 +65,7 @@ export const CASES = [
         { personKey: 'opal', bytes: 10, total: 100, paused: true, waiting: false },
       ],`,
   },
+  { name: "pokescope", title: "Mirall listing poke-scope harness" },
   { name: "progress", title: "Mirall progress-lane ARIA harness" },
   { name: "segments", title: "Mirall segmented-control harness" },
   { name: "sharecard", title: "Mirall ShareCard hit-area layout harness" },

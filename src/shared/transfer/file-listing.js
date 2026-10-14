@@ -172,7 +172,7 @@ async function readPeerEntries(spaceId, member, { budget, space, deps }) {
   } catch (err) {
     // Flag the space the way a stalled read does: without this the convergence tick has no
     // reason to re-poke, so a member whose read threw would stay missing from the listing
-    // until some unrelated files-updated arrived.
+    // until some unrelated listing poke arrived.
     markListIncomplete(spaceId)
     log.warn('loose catalog read failed for', member.publicKey.slice(0, 16) + '...', '-', err.message)
     return settleListingRead(spaceId, keyHex, null, prior)

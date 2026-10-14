@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url'
 import path from 'path'
 import { scopeForEvent } from '../../src/shared/core/ipc.js'
 import { EVENT_NAMES } from '../../src/shared/contract/events.js'
+import { emitSites } from '../helpers/emit-sites.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const SRC = path.join(here, '..', '..', 'src')
@@ -100,6 +101,38 @@ test('no non-poke event accidentally fans a reconcile hint', (t) => {
     if (bucket === 'poke') continue
     t.is(scopeForEvent(event, { spaceId: 'S', shareId: 'X' }), null, `${event} does not fan a reconcile hint`)
   }
+})
+
+// event:files-updated re-derives every listing in the space, so only a transition that moves every
+// listing may emit it; a poke about one listing (loose or folder) names its share on
+// event:share-files-updated. A new file here is a reviewed decision, not a drive-by.
+// Listed by directory, so the paths do not read as imports to the network-module invariants.
+const SPACE_WIDE_LISTING_EMITTERS = Object.entries({
+  'shared/network': ['convergence-tick', 'deferred-admission', 'handshake-apply', 'leave-protocol', 'presence-broadcast'],
+  'worker/ipc': ['membership', 'spaces'],
+}).flatMap(([dir, names]) => names.map((name) => `${dir}/${name}.js`)).sort()
+
+test('only space-wide transitions emit event:files-updated', (t) => {
+  const emitters = walk(SRC)
+    .filter((file) => emitSites(readFileSync(file, 'utf8'), file).has('event:files-updated'))
+    .map((file) => path.relative(SRC, file).split(path.sep).join('/'))
+    .sort()
+  t.alike(emitters, SPACE_WIDE_LISTING_EMITTERS,
+    'a listing-specific poke names its share on event:share-files-updated; files-updated re-derives every listing in the space')
+})
+
+// emitSites resolves only a static first argument to a call named `emit`, so an emit through the
+// EVENTS constant or a wrapper (emitMirrorEvent) is invisible above. This backstop is textual: any
+// file that spells the name at all, quoted or as the constant, is one of the emitters, the
+// contract that declares it, or the map that scopes it.
+test('no file outside the space-wide emitters spells event:files-updated', (t) => {
+  const allowed = new Set([...SPACE_WIDE_LISTING_EMITTERS, 'shared/contract/events.js', 'shared/core/ipc-events.js'])
+  const spelled = /['"`]event:files-updated['"`]|\bFILES_UPDATED\b/
+  const outside = walk(SRC)
+    .filter((file) => spelled.test(readFileSync(file, 'utf8')))
+    .map((file) => path.relative(SRC, file).split(path.sep).join('/'))
+    .filter((rel) => !allowed.has(rel))
+  t.alike(outside, [], 'a wrapped or constant-named files-updated emit is still a space-wide poke, and needs the allowlist')
 })
 
 // REGRESSION: the creator-divergence CLEAR transition emitted nothing, so an open view kept the

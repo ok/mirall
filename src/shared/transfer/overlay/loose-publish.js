@@ -58,7 +58,8 @@ export function resetLoosePublish() {
   looseSources.clear()
 }
 
-const filesUpdated = (spaceId) => ipcRef?.emit('event:files-updated', { spaceId })
+// The own loose list's poke; LOOSE_SHARE_ID keeps it off every folder view in the space.
+const filesUpdated = (spaceId) => ipcRef?.emit('event:share-files-updated', { spaceId, shareId: LOOSE_SHARE_ID })
 
 function armWatch(spaceId, absPath) {
   ipcRef?.emit(MAIN_REQUEST_FRAME, { command: MAIN_REQUEST.LOOSE_FILE_WATCH, args: { spaceId, absPath } })

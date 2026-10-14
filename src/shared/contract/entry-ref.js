@@ -4,6 +4,11 @@
 //
 // A space-root loose file has no share, so it takes LOOSE_SHARE_ID in that position — which is why
 // the loose form is this function rather than a second grammar.
+
+// The share id a space-root loose file takes wherever a share id is required: an entry ref, a
+// transfer id, a listing's scope. PERSISTED (verified records, pending rows, transfer ids).
+export const LOOSE_SHARE_ID = '__loose__'
+
 export const ENTRY_SEP = '|'
 
 /** @param {string} shareId @param {string} relPath */

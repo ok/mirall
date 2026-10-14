@@ -9,12 +9,14 @@ import { useToast } from '../components/toast/ToastProvider.js'
 import { useErrorText } from './useErrorText.js'
 import { useRunAction } from './useRunAction.js'
 import type { FileEntry } from '../types/types.js'
+import { LOOSE_SHARE_ID } from '../../shared/contract/entry-ref.js'
 
 const EMPTY: FileEntry[] = []
 
-// Files AND members: a members change can newly reveal a peer's loose files (README.md).
+// The loose list is the LOOSE_SHARE_ID listing; members too, because a members change can newly
+// reveal a peer's loose files (README.md).
 function filesScopes(spaceId: string) {
-  return [{ kind: 'files', spaceId }, { kind: 'members', spaceId }]
+  return [{ kind: 'share-files', spaceId, shareId: LOOSE_SHARE_ID }, { kind: 'members', spaceId }]
 }
 
 export function useFiles(spaceId: string) {
@@ -30,8 +32,8 @@ export function useFiles(spaceId: string) {
   // in for: a real frame outranks it, and it is inert on any status but the two transfer ones.
   const [seeded, setSeeded] = useState<ReadonlySet<string>>(new Set())
 
-  // One leading + one trailing files:list per 750 ms window: a publish emits one files hint per
-  // catalog append and a handshake emits a members poke AND a files hint, neither of which should
+  // One leading + one trailing files:list per 750 ms window: a publish emits one listing hint per
+  // catalog append and a handshake emits a members poke AND a listing hint, neither of which should
   // become concurrent full fan-outs.
   const { data, error: queryError, loading: fetching } = useQuery(
     'files:list',

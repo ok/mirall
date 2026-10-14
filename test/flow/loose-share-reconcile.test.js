@@ -10,13 +10,15 @@ import { scaled } from '../helpers/timing.js'
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
 const v2flags = () => ({ identityKEK: kekHex() })
-const scopeIs = (kind, spaceId) => (m) => !!m.scope && m.scope.kind === kind && m.scope.spaceId === spaceId
+// The loose list is the '__loose__' share-files listing; a wildcard would also reach it, but this pins
+// that the peer's loose catalog watch names it.
+const looseListing = (spaceId) => (m) => m.scope?.kind === 'share-files' && m.scope.spaceId === spaceId && m.scope.shareId === '__loose__'
 
-// A loose file shared AFTER connect must fan a files-scoped reconcile hint to the peer so a
-// level-triggered files view re-derives and surfaces it — the worker-side fan-out the s4/s10/s71
+// A loose file shared AFTER connect must fan a loose-listing reconcile hint to the peer so a
+// level-triggered loose list re-derives and surfaces it — the worker-side fan-out the s4/s10/s71
 // "stuck on Nothing shared yet" visibility rides on. reconcile-hints covers members/shares
 // transitions but not a peer's loose share.
-test('a peer\'s loose share fans a files-scoped reconcile hint to the other peer',
+test('a peer\'s loose share fans a loose-listing reconcile hint to the other peer',
   { timeout: scaled(120000) }, async (t) => {
     const bootstrap = await localTestnet(t)
     const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
@@ -29,10 +31,10 @@ test('a peer\'s loose share fans a files-scoped reconcile hint to the other peer
     const src = path.join(mkTmpDir(t), 'report.txt')
     fs.writeFileSync(src, Buffer.alloc(4096, 7))
 
-    const sawFilesHint = B.waitFor('event:reconcile', scopeIs('files', spaceId), 60000)
+    const sawFilesHint = B.waitFor('event:reconcile', looseListing(spaceId), 60000)
     await A.request('files:add', { spaceId, filePath: src, fileName: 'report.txt', fileSize: 4096 })
     await sawFilesHint
-    t.pass('B received a files-scoped reconcile hint for A\'s loose share')
+    t.pass('B received a loose-listing reconcile hint for A\'s loose share')
 
     const entry = await waitForCatalogEntry(B, spaceId, '/report.txt')
     t.ok(entry, 'B lists the loose file A shared after connect')

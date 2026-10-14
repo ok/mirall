@@ -1,6 +1,7 @@
 // The renderer round-trips this id (FileCard → files:pause-download), so its shape is a wire
 // contract: spaceId|shareId|relPath, with LOOSE_SHARE_ID for space-root loose files.
-export const LOOSE_SHARE_ID = '__loose__'
+import { LOOSE_SHARE_ID } from '../contract/entry-ref.js'
+export { LOOSE_SHARE_ID }
 export const transferIdFor = (spaceId, shareId, relPath) => spaceId + '|' + shareId + '|' + relPath
 export const looseTransferIdFor = (spaceId, relPath) => transferIdFor(spaceId, LOOSE_SHARE_ID, relPath)
 // PERSISTED: a loose file's drive path keys its pending row and its download claim
@@ -10,10 +11,6 @@ export const looseRelPath = (drivePath) => drivePath.replace(/^\//, '')
 // The path the renderer names a file by: a loose file is rooted at '/', a folder file is the bare
 // relPath of its share.
 export const rendererPath = (shareId, relPath) => (shareId === LOOSE_SHARE_ID ? looseDrivePath(relPath) : relPath)
-// Whether an id names a loose file, decided from the id alone — a caller must not have to ask
-// whether the transfer is still live (it may have settled) to pick which listing to refresh.
-export const isLooseTransferId = (transferId) =>
-  typeof transferId === 'string' && transferId.split('|')[1] === LOOSE_SHARE_ID
 // The inverse of transferIdFor. A relPath may itself contain '|', so everything past the second
 // separator is the path.
 export function transferIdParts(transferId) {

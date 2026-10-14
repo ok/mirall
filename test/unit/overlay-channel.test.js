@@ -115,13 +115,17 @@ test('a cancel with no row emits on the loose pending key and nothing for a fold
   t.is(r.out[0][1].key, 'sh:a.bin', 'a folder row names its share key')
 })
 
-// The event names and their `{ spaceId }` payload are a renderer contract, per kind.
-test('the updated event is named by the share id and carries only the space', (t) => {
+// One event for both kinds; the share id in the payload is what keeps a loose poke off every folder
+// view and a folder poke off the loose list.
+test('the updated event names the listing by its share id, for both kinds', (t) => {
   const r = recorder()
   const channel = build(r.emit)
   channel.emitUpdated('S', LOOSE_SHARE_ID)
   channel.emitUpdated('S', 'sh')
-  t.alike(r.out, [['event:files-updated', { spaceId: 'S' }], ['event:share-files-updated', { spaceId: 'S' }]])
+  t.alike(r.out, [
+    ['event:share-files-updated', { spaceId: 'S', shareId: '__loose__' }],
+    ['event:share-files-updated', { spaceId: 'S', shareId: 'sh' }],
+  ])
 })
 
 test('the superseded and removed events name the file, not the path', (t) => {

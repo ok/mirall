@@ -310,7 +310,7 @@ export async function connectInSpaceWithApproval(t, A, B, name = 'Secure Space')
 // Wait until a peer's space catalog (files:list) contains `filePath`, returning
 // the matched entry. Distinct from fixtures.js `waitForFile`, which polls the
 // filesystem for a materialized mirror file — this polls the in-app catalog.
-// `event:files-updated` can fire before a peer's freshly published entry is
+// A listing poke can fire before a peer's freshly published entry is
 // actually readable from the replicated drive, and files:list no longer blocks
 // on replication (it bounds each peer-drive read under a budget), so polling —
 // not a single list after one event — is the reliable wait.

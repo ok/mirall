@@ -9,10 +9,10 @@ interface SpaceStorageSummary {
   onDeviceBytes: number
 }
 
-// Loose files, folder-share files (wildcard) and share add/remove/mirror all move the total (README.md).
+// Every listing (wildcard: the loose list and each folder share) and share add/remove/mirror move
+// the total (README.md).
 function storageScopes(spaceId: string) {
   return [
-    { kind: 'files', spaceId },
     { kind: 'shares', spaceId },
     { kind: 'share-files', spaceId },
   ]

@@ -15,6 +15,7 @@ components run unmodified. `harness-bootstrap.ts` gives every harness the query 
 | `test:layout:case -- callouts` | `run-callouts.mjs` | `<Callout>` in both tones beside a `<TextField>`, light + dark | a note sits on the field gray, a warning on the amber container, never on the `-high` plate |
 | `test:layout:case -- dropoverlay` | `run-dropoverlay.mjs` | the full-bleed Drop-to-Share overlay | covers the pane edge to edge at the shipped inset |
 | `test:layout:case -- sharecard` | `run-sharecard.mjs` | `<ShareCard>` | the whole card is the hit area; actions stay inside it |
+| `test:layout:case -- pokescope` | `run-pokescope.mjs` | `useFiles`, two `useShareFiles` and `useSpaceStorage` on one space under the real query store | a loose hint re-reads the loose list and the total; a folder hint that folder and the total; the space-wide hint every listing; another space or the retired `files` kind nothing |
 | `test:layout:case -- progress` | `run-progress.mjs` | progress lanes | ARIA valuenow/valuetext follow the lane's mode |
 | `test:layout:case -- peerdownload` | `run-peerdownload.mjs` | `<PeerDownloadIndicator>` + `<PeerDownloadRow>` at lane width | meta un-clipped; bar right-aligned; name yields before `speed · ETA`; % fallback during warmup |
 | `test:layout:case -- avatars` | `run-avatars.mjs` | the `Avatar` matrix + member row, top bar, Activity Log, first-run picker | every avatar-shaped disc is recessed; the presence dot stays on its corner |

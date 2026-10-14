@@ -2,8 +2,7 @@
 // hints whose Scope matches its own. One declaration for all three runtimes.
 
 /**
- * @typedef {{ kind: 'files', spaceId: string }
- *   | { kind: 'shares', spaceId: string }
+ * @typedef {{ kind: 'shares', spaceId: string }
  *   | { kind: 'share-files', spaceId: string, shareId?: string }
  *   | { kind: 'members', spaceId: string }
  *   | { kind: 'mirrors', spaceId: string, shareId?: string }
@@ -18,9 +17,8 @@
 
 export const Scope = {
   /** @param {string} spaceId @returns {Scope} */
-  files: (spaceId) => ({ kind: 'files', spaceId }),
-  /** @param {string} spaceId @returns {Scope} */
   shares: (spaceId) => ({ kind: 'shares', spaceId }),
+  // shareId absent: every listing in the space. The loose list is LOOSE_SHARE_ID.
   /** @param {string} spaceId @param {string} [shareId] @returns {Scope} */
   shareFiles: (spaceId, shareId) => ({ kind: 'share-files', spaceId, shareId }),
   /** @param {string} spaceId @returns {Scope} */

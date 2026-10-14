@@ -96,7 +96,11 @@ function observeReads(t) {
   return reads
 }
 
-const filesUpdated = (ctx) => ctx.fake.events.filter((e) => e.type === 'event:files-updated' && e.payload?.spaceId === ctx.spaceId).length
+// Every poke that reaches this share's listing: the space-wide name, a share-files wildcard, or a
+// share-files poke naming this share.
+const listingPokes = (ctx, shareId) => ctx.fake.events.filter((e) => e.payload?.spaceId === ctx.spaceId && (
+  e.type === 'event:files-updated' ||
+  (e.type === 'event:share-files-updated' && (e.payload.shareId == null || e.payload.shareId === shareId)))).length
 
 test('REGRESSION (FIX-4A: a folder listing whose drain stalled after its head synced was never re-poked)', { timeout: scaled(30000) }, async (t) => {
   const ctx = await setup(t)
@@ -112,7 +116,7 @@ test('REGRESSION (FIX-4A: a folder listing whose drain stalled after its head sy
   t.is(partial.complete, false, 'and the listing reports itself incomplete')
   t.alike(takeIncompleteListSpaces(), [ctx.spaceId], 'the stalled read flags the space for the tick to re-poke')
 
-  const framesBefore = filesUpdated(ctx)
+  const framesBefore = listingPokes(ctx, share.id)
   releaseBlocks()
   let healed = null
   t.ok(await waitFor(async () => {
@@ -121,7 +125,7 @@ test('REGRESSION (FIX-4A: a folder listing whose drain stalled after its head sy
   }, scaled(10000)), 'with the blocks reachable, a re-read finishes')
   t.is(healed.complete, true, 'and the listing is complete')
   t.is(healed.entries.length, 2, 'with every row')
-  t.is(filesUpdated(ctx), framesBefore, 'the blocks arriving fired no files-updated: only the tick re-pokes this listing')
+  t.is(listingPokes(ctx, share.id), framesBefore, 'the blocks arriving poked no listing: only the tick re-pokes this one')
   takeIncompleteListSpaces()
   await listOverlayShareFiles(ctx.spaceId, share, overlayBackend)
   t.is(reads.at(-1)?.stalled, false, 'the next read finishes too')
@@ -130,7 +134,7 @@ test('REGRESSION (FIX-4A: a folder listing whose drain stalled after its head sy
   // Positive control for the frame count above: an owner append on the same catalog does reach
   // the folder watch, so the count could not have held for want of wiring.
   await append({ relPath: 'c.bin', size: 4, contentHash: 'hc' })
-  t.ok(await waitFor(() => filesUpdated(ctx) > framesBefore, scaled(5000)), 'an owner append on the same catalog does fire files-updated')
+  t.ok(await waitFor(() => listingPokes(ctx, share.id) > framesBefore, scaled(5000)), 'an owner append on the same catalog does poke this listing')
 })
 
 test("the mirror pass's stalled read of the same catalog never flags the space", { timeout: scaled(30000) }, async (t) => {

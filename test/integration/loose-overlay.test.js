@@ -326,16 +326,17 @@ test('REGRESSION (FIX-2: a non-cancel publish failure reverts the half-advertise
 test('REGRESSION (FIX-2: a failure AFTER a successful publish does NOT revert the live entry)', async (t) => {
   // Guards the FIX-2 revert against over-reach: once publishContent has materialized the
   // real hash and made the file servable, a later throw (e.g. markOwnedSource / the final
-  // emit) must NOT tombstone or downgrade the healthy entry. Inject by failing the SECOND
-  // files-updated emit — the first fires on advertise (still publishing), the second fires
-  // only after the publish has fully succeeded.
+  // emit) must NOT tombstone or downgrade the healthy entry. Inject by failing the second
+  // loose-list poke — the first fires on advertise (still publishing), the second fires only
+  // after the publish has fully succeeded. The share id keeps the own-catalog wildcard out of
+  // the count.
   const ctx = await setup(t)
   const abs = writeSource(ctx, 'ok.bin', 'x'.repeat(2048))
 
   let updates = 0
   const realEmit = ctx.fake.ipc.emit
   ctx.fake.ipc.emit = (type, payload) => {
-    if (type === 'event:files-updated' && ++updates === 2) throw new Error('post-publish boom')
+    if (type === 'event:share-files-updated' && payload?.shareId === LOOSE_SHARE_ID && ++updates === 2) throw new Error('post-publish boom')
     return realEmit(type, payload)
   }
   t.teardown(() => { ctx.fake.ipc.emit = realEmit })

@@ -116,11 +116,10 @@ export function readmitConnectedMembers(spaceId, keys) {
 // A peer's profile bee appended (it holds their `share/<space>/*` records), so refresh the
 // share list for every space we share with them. Coarse by design — any bee change pokes
 // the list — but cheap, and it's the renderer's only signal that a peer added/removed a share.
-// We poke the FILE list too: files:list hides a peer's folder-share contents using prefixes read
-// from this same profile bee, but the renderer's useFiles refreshes only on event:files-updated
-// (the profile-bee append fires shares-updated, not files-updated). Without this a peer's
-// newly-shared — or slow-to-replicate — folder would leak its files into the flat loose-file list
-// until some unrelated files-updated happened to fire.
+// The listings are poked too, space-wide: the loose list hides a peer's folder-share contents using
+// prefixes read from this same profile bee, and no listing re-derives on shares-updated. Without it
+// a peer's newly shared (or slow-to-replicate) folder leaks its files into the loose list until an
+// unrelated listing poke; an open folder view whose record changed re-reads on the same poke.
 export async function emitPeerSharesUpdated(profileKeyHex) {
   if (!getIpc()) return
   for (const space of await listSpaces()) {
