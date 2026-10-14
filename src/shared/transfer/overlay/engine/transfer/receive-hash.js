@@ -71,6 +71,8 @@ async function readBack(state, i) {
 
 // Rebuild the received set from a same-size partial: async reads, a yield every
 // VERIFY_YIELD_EVERY chunks, and the contiguous prefix fed into the hasher inline (one pass).
+// Each report carries the fraction scanned and the intact bytes recovered so far, so the last one
+// names the offset the fetch resumes from.
 export async function recoverPartial(partialPath, meta, isCancelled, onVerifyProgress) {
   const received = new Set()
   const hasher = meta.contentHash ? createStreamingHasher({ size: meta.size }) : null
@@ -79,7 +81,8 @@ export async function recoverPartial(partialPath, meta, isCancelled, onVerifyPro
   const maxLen = meta.chunks.reduce((m, c) => (c.length > m ? c.length : m), 0)
   const buf = Buffer.allocUnsafe(maxLen)
   let lastPct = -1
-  onVerifyProgress?.(0)
+  let recovered = 0
+  onVerifyProgress?.(0, 0)
   const fd = await openTracked(partialPath, 'r')
   try {
     for (let i = 0; i < total; i++) {
@@ -90,17 +93,18 @@ export async function recoverPartial(partialPath, meta, isCancelled, onVerifyPro
       const view = buf.subarray(0, ci.length)
       if (n === ci.length && hashChunk(view) === ci.hash) {
         received.add(i)
+        recovered += ci.length
         if (hasher && i === hashFrontier) { hasher.update(view); hashFrontier++ }
       }
       if ((i & (VERIFY_YIELD_EVERY - 1)) === VERIFY_YIELD_EVERY - 1) {
         const pct = Math.floor(((i + 1) / total) * 100)
-        if (pct !== lastPct) { lastPct = pct; onVerifyProgress?.(pct / 100) }
+        if (pct !== lastPct) { lastPct = pct; onVerifyProgress?.(pct / 100, recovered) }
         await yieldToLoop()
       }
     }
   } finally {
     await closeTracked(fd)
   }
-  onVerifyProgress?.(1)
+  onVerifyProgress?.(1, recovered)
   return { received, hasher, hashFrontier }
 }

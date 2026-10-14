@@ -582,6 +582,37 @@ test('REGRESSION (FIX-A): _recoverPartialAsync reports a 0..1 verify fraction', 
   await index.close()
 })
 
+// REGRESSION (FIX-662: the verify callback carried only a fraction, so a consumer with no persisted
+// byte count, the mirror, reported 0 bytes for a resumed file while it was verified.)
+test('REGRESSION (FIX-662): a journal-less resume reports the intact bytes it has recovered with each fraction', async (t) => {
+  const { index, transfer, journalDir } = await setup()
+  const senderPath = writeTestFile(tmpDir('sender'), 'bytes.bin', crypto.randomBytes(256 * 1024))
+  const prepared = await transfer.prepareFile(senderPath)
+  t.ok(prepared.chunks.length >= 4, `precondition: several chunks (${prepared.chunks.length})`)
+  const targetPath = path.join(tmpDir('receiver'), 'bytes.bin')
+  await transfer.startReceive(targetPath, { size: prepared.size, chunks: prepared.chunks, contentHash: prepared.contentHash })
+  // Every chunk but the last two lands, so the resumed offset is neither 0 nor the whole file.
+  const kept = prepared.chunks.length - 2
+  for (let i = 0; i < kept; i++) {
+    const c = prepared.chunks[i]
+    transfer.writeChunk(targetPath, i, readAt(senderPath, c.offset, c.length))
+  }
+  await transfer.pause(targetPath)
+  wipeJournals(journalDir)
+  const seen = []
+  const st = await transfer.startReceive(targetPath, { size: prepared.size, chunks: prepared.chunks, contentHash: prepared.contentHash }, {
+    onVerifyProgress: (fraction, bytes) => seen.push({ fraction, bytes }),
+  })
+  const intact = prepared.chunks.slice(0, kept).reduce((n, c) => n + c.length, 0)
+  t.is(st.received.size, kept, 'precondition: the resume recovered the chunks that landed')
+  t.is(seen[0].bytes, 0, 'the first report has recovered nothing yet')
+  t.is(seen.at(-1).fraction, 1)
+  t.is(seen.at(-1).bytes, intact, 'the last report carries the intact bytes, the resumed offset')
+  for (let i = 1; i < seen.length; i++) t.ok(seen[i].bytes >= seen[i - 1].bytes, 'never decreasing')
+  transfer.cancel(targetPath)
+  await index.close()
+})
+
 test('FIX-C: journal resume does NOT report a verify fraction (O(1), no scan)', async (t) => {
   const { index, transfer } = await setup()
   const senderPath = writeTestFile(tmpDir('sender'), 'nofrac.bin', crypto.randomBytes(256 * 1024))

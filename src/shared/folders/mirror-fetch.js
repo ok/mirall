@@ -446,8 +446,10 @@ async function fetchOverlayEntry(mount, share, entry, { overlay, abs, verifyKey,
       onProgress: ({ bytes, speed, eta }) => emitMirrorEvent('event:decoration', {
         channel: 'transfer', spaceId: mount.spaceId, key: decoKey, bytes, total, speed, eta,
       }),
-      onVerify: (fraction) => emitMirrorEvent('event:decoration', {
-        channel: 'transfer', spaceId: mount.spaceId, key: decoKey, phase: 'verifying', verifyFraction: fraction, bytes: 0, total,
+      // The mirror keeps no byte count across fetches, so a resumed file's bar is the intact bytes
+      // the verify has recovered so far, which reach the resumed offset when it ends.
+      onVerify: (fraction, recovered = 0) => emitMirrorEvent('event:decoration', {
+        channel: 'transfer', spaceId: mount.spaceId, key: decoKey, phase: 'verifying', verifyFraction: fraction, bytes: recovered, total,
       }),
       onTick: () => loops.noteProgress(streamKey),
     }))

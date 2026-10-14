@@ -275,6 +275,29 @@ test('every way a fetch ends clears its row\'s transfer decoration', async (t) =
   t.is(v.calls, 4, 'every entry reached the vendor')
 })
 
+// REGRESSION (FIX-662: the mirror's verify frame said 0 bytes whatever the partial held, so the bar of
+// a resumed file dropped to nothing while it was verified.) The engine reports the intact bytes it
+// has recovered with each fraction (overlay-engine-transfer.test.js pins that half); this pins that
+// the mirror's frame carries them.
+test('REGRESSION (FIX-662): the mirror\'s verify frame carries the bytes the verify has recovered', async (t) => {
+  const { ctx, byPath } = await mirror(t, { 'a.txt': 'alpha' })
+  const v = vendor(t)
+  const reports = [[0, 0], [0.5, 3], [1, 5]]
+  v.inner = async (hash, opts) => {
+    for (const [fraction, bytes] of reports) opts.onVerify?.(fraction, bytes)
+    return await v.real(hash, opts)
+  }
+  const from = ctx.fake.events.length
+
+  t.is(await materializeCatalogFile(ctx.mount, ctx.share, byPath['a.txt']), 'present')
+
+  const key = shareDecoKey(ctx.share.id, 'a.txt')
+  const verifying = ctx.fake.events.slice(from)
+    .filter((e) => e.type === 'event:decoration' && e.payload?.key === key && e.payload.phase === 'verifying')
+  t.alike(verifying.map((f) => [f.payload.verifyFraction, f.payload.bytes]), reports, 'each frame carries its report\'s bytes')
+  t.ok(verifying.every((f) => f.payload.total === byPath['a.txt'].size), 'against the catalog size')
+})
+
 test('a local hit is copied to the mirror path and recorded as verified', async (t) => {
   const { ctx, byPath } = await mirror(t, { 'a.txt': 'alpha' })
   const entry = byPath['a.txt']

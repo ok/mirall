@@ -27,11 +27,11 @@ const DEFAULT_REPORT_INTERVAL = 1000
 
 export class ChunkScheduler {
   // opts: path ('content:<hash>'), destPath, transfer (TransferManager), sendNeed(peer, indices),
-  // cap (per-holder inflight), timeout (idle ms), onProgress(received, total), onVerify(fraction),
-  // onBaseline(have), onEnd(report), contentHash (verified incrementally), size (the catalog size
-  // the map must describe), parentMustExist (handed to startReceive), limiter (the download cap),
-  // peerBytes(peer) (transport RX counter), keepAliveMaxSilence, minLivenessBytes,
-  // abandonSlackBytes, reportInterval.
+  // cap (per-holder inflight), timeout (idle ms), onProgress(received, total),
+  // onVerify(fraction, recoveredBytes), onBaseline(have), onEnd(report), contentHash (verified
+  // incrementally), size (the catalog size the map must describe), parentMustExist (handed to
+  // startReceive), limiter (the download cap), peerBytes(peer) (transport RX counter),
+  // keepAliveMaxSilence, minLivenessBytes, abandonSlackBytes, reportInterval.
   constructor(opts) {
     this.path = opts.path
     this.destPath = opts.destPath
