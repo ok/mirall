@@ -14,6 +14,21 @@ const args = process.argv.slice(2)
 if (args.includes('--foreground')) process.env.FE_MODE = 'foreground'
 const foreground = process.env.FE_MODE === 'foreground'
 
+// Background mode's other promise: the windows stay behind the user's. The app orders a test window
+// above the bottom-most foreign window, so at most one of the user's windows is ever below it; more
+// means it was raised (showInactive alone does that on macOS, and the active app still stays on top).
+async function raisedMirallWindows(instances) {
+  const live = instances.filter((i) => i.main)
+  const orders = await Promise.all(live.map((i) => i.main.windowOrder().catch(() => null)))
+  const ids = orders.find(Boolean)?.ids ?? []
+  const owns = new Set(orders.map((o) => o?.own).filter(Boolean))
+  const foreignBelow = (own) => {
+    const at = ids.indexOf(own)
+    return at < 0 ? 0 : ids.slice(at + 1).filter((id) => !owns.has(id)).length
+  }
+  return live.filter((_, k) => foreignBelow(orders[k]?.own) > 1).map((i) => i.name)
+}
+
 // Fail fast on an environment that can't drive the UI, instead of letting every
 // scenario stall for 90s on "Mirall window never appeared" / STALE_REF.
 //
@@ -98,6 +113,8 @@ const slugByKey = Object.fromEntries(SCENARIOS.map((s) => [s.key, s.slug]))
       if (!foreground) {
         const stolen = await focusedMirallWindows().catch(() => [])
         if (stolen.length) crash = `${crash ? crash + '; ' : ''}harness left a Mirall window focused (${stolen.join(', ')})`
+        const raised = await raisedMirallWindows(instances).catch(() => [])
+        if (raised.length) crash = `${crash ? crash + '; ' : ''}harness left a Mirall window above the user's windows (${raised.join(', ')})`
       }
       const secs = Math.round((Date.now() - started) / 100) / 10
       // Collect this scenario's per-step report(s) so the final summary can name

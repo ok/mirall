@@ -88,7 +88,7 @@ export function keyEvents({ key, modifiers }) {
 // for the path the harness queues with armPick, in whichever order the two arrive. An open pick takes
 // an array of paths too, as one multi-select does.
 function installHooks() {
-  const { BrowserWindow, Menu, dialog } = process.mainModule.require('electron')
+  const { BrowserWindow, Menu, dialog, desktopCapturer } = process.mainModule.require('electron')
   const appWindow = () => BrowserWindow.getAllWindows()
     .find((w) => !w.isDestroyed() && w.webContents.getURL().startsWith('app://'))
   // The window is shown before its page loads, so it is not yet the app:// window when the harness
@@ -199,6 +199,11 @@ function installHooks() {
       const b = appWindow()?.getContentBounds()
       return b ? { x: b.x, y: b.y } : null
     },
+    // Every on-screen window, front to back, and which one is this instance's.
+    async windowOrder() {
+      const sources = await desktopCapturer.getSources({ types: ['window'], thumbnailSize: { width: 0, height: 0 }, fetchWindowIcons: false })
+      return { own: appWindow()?.getMediaSourceId() ?? null, ids: sources.map((s) => s.id) }
+    },
     armPick(absPath) {
       if (fe.waiting) {
         const fulfil = fe.waiting
@@ -300,6 +305,10 @@ export class MainChannel {
 
   pageState() {
     return this.eval('globalThis.__fe.pageState()')
+  }
+
+  windowOrder() {
+    return this.eval('globalThis.__fe.windowOrder()')
   }
 
   // Move the synthetic pointer to the content's top-left corner, off every element, so the element

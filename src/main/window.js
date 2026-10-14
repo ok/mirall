@@ -5,7 +5,7 @@
 // rather than living on the window object.
 
 const path = require('path')
-const { app, BrowserWindow, ipcMain, nativeTheme, screen, shell } = require('electron')
+const { app, BrowserWindow, desktopCapturer, ipcMain, nativeTheme, screen, shell } = require('electron')
 const { isMac } = require('which-runtime')
 const { usableBounds } = require('./window-bounds.js')
 const { matchWindowShortcut } = require('./window-shortcuts.js')
@@ -174,6 +174,17 @@ function applyHarnessWindowHooks(winOpts) {
   return true
 }
 
+// showInactive orders the window in front of every other app's windows (it is orderFrontRegardless
+// on macOS), so an inactive window still covers the user's work. Moving it above the bottom-most
+// on-screen window puts it behind all of them; the capturer lists windows front to back.
+async function showBehindOthers(win) {
+  win.showInactive()
+  const own = win.getMediaSourceId()
+  const sources = await desktopCapturer.getSources({ types: ['window'], thumbnailSize: { width: 0, height: 0 }, fetchWindowIcons: false })
+  const bottom = sources.filter((s) => s.id !== own).at(-1)
+  if (bottom) win.moveAbove(bottom.id)
+}
+
 async function createWindow() {
   // Required here, not at module scope: the contract package is ESM, and requiring it while the
   // entry's own CJS load is still in flight trips Node's require(esm) race guard. By the time a
@@ -214,7 +225,7 @@ async function createWindow() {
   }
   const showInactive = applyHarnessWindowHooks(winOpts)
   const win = new BrowserWindow(winOpts)
-  if (showInactive) win.showInactive()
+  if (showInactive) showBehindOthers(win).catch((err) => console.error('showBehindOthers failed:', err))
   applyAppMenuVisibility(win)
 
   win.webContents.setWindowOpenHandler(({ url }) => {
