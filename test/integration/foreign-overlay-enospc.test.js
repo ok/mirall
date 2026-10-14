@@ -85,12 +85,40 @@ test('REGRESSION (MIR-50): a pause before the sibling landed persists no mapping
   t.is(fs.readFileSync(mountPath + '/big.bin', 'utf8'), 'the users own file', 'the user file is untouched')
 })
 
-test('REGRESSION (FIX-129): an EACCES overlay-mirror fetch pauses the mount (paused-error)', async (t) => {
-  const { spaceId, shareId } = await setupOverlayMirror(t, 'EACCES')
+// A folder that really refuses writes: the permission errno is believed only once a probe of the
+// folder agrees, so the folder is made read-only rather than the errno merely thrown.
+test('REGRESSION (FIX-129): an EACCES overlay-mirror fetch into a read-only folder pauses the mount (paused-error)', { skip: Bare.platform === 'win32' }, async (t) => {
+  const { spaceId, shareId, mountPath } = await setupOverlayMirror(t, 'EACCES')
+  fs.chmodSync(mountPath, 0o500)
+  t.teardown(() => fs.chmodSync(mountPath, 0o700), { order: -1 })
   await runMaterializeTick(spaceId, shareId)
   const mount = await getForeignMount(spaceId, shareId)
   t.is(mount.status, 'paused-error', 'mount paused with the generic error status')
   t.absent(mount.enabled, 'mount disabled')
+})
+
+// REGRESSION (FIX-663: the mirror paused the whole mount on a permission errno alone, so one file
+// another program held for a moment stopped a folder that takes writes fine.)
+test('REGRESSION (FIX-663): a permission errno into a writable folder retries the file instead of pausing', async (t) => {
+  const { spaceId, shareId, mountPath } = await setupOverlayMirror(t, 'EACCES')
+  const overlay = getOverlay()
+  const refuse = overlay.fetchFile
+  let calls = 0
+  overlay.fetchFile = async (hash, opts) => {
+    if (++calls === 1) return await refuse(hash, opts)
+    fs.writeFileSync(opts.destPath, 'ok')
+    return { destPath: opts.destPath }
+  }
+
+  await runMaterializeTick(spaceId, shareId)
+  const after = await getForeignMount(spaceId, shareId)
+  t.is(calls, 1, 'precondition: the first fetch was refused')
+  t.ok(after.enabled, 'the mount stays active')
+  t.absent(after.lastError, 'and records no permission fault')
+
+  await runMaterializeTick(spaceId, shareId)
+  t.is(calls, 2, 'the next tick asks for the file again')
+  t.ok(fs.existsSync(mountPath + '/big.bin'), 'and it lands')
 })
 
 // A pause carries a REASON the renderer can translate. It used to carry err.message, which reached

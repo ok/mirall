@@ -175,10 +175,10 @@ export async function mirrorDeleteDecision(mount, ownerKey, localRel, onDisk) {
 // A local I/O failure pauses the mount via the shared pauseMountForIoError
 // classification (full disk / permission / vanished mount); anything else is a
 // logged fetch miss.
-async function handleOverlayMirrorFetchError(mount, share, entry, err, { diag, writer }) {
+async function handleOverlayMirrorFetchError(mount, share, entry, err, { diag, writer, dir }) {
   // Order matters: a local I/O fault pauses the mount and is NOT a peer act. Auditing it would
   // blame a holder for our own full disk. A pause is a deliberate stop, and its diag says so.
-  if (await pauseMountForIoError(mount, err, { writer })) { diag?.finish('paused'); return }
+  if (await pauseMountForIoError(mount, err, { writer, dir })) { diag?.finish('paused'); return }
   diag?.finish('failed')
   const code = err?.code === 'EHASHMISMATCH' ? CODES.TRANSFER_CHECKSUM : null
   if (!code) {
@@ -459,7 +459,7 @@ async function fetchOverlayEntry(mount, share, entry, { overlay, abs, verifyKey,
     // ECANCELLED is a deliberate pause/unmount abort (stopForeignLoop), not a
     // give-up: log it as a stop and keep whatever partial cancelFetch chose to keep.
     if (err?.code === 'ECANCELLED') { failed?.finish('paused'); return 'missing' }
-    await handleOverlayMirrorFetchError(mount, share, entry, err, { diag: failed, writer })
+    await handleOverlayMirrorFetchError(mount, share, entry, err, { diag: failed, writer, dir: path.dirname(abs) })
     return 'missing'
   } finally {
     dropRecord()
@@ -493,8 +493,8 @@ async function fetchOverlayEntry(mount, share, entry, { overlay, abs, verifyKey,
 // A local hit whose copy into the mount failed is settled like a fetch that failed writing: a
 // local I/O fault pauses the mount, and anything else is charged to the file's attempt budget, so a
 // copy that keeps failing stops being asked for.
-async function settleFailedCopy(mount, entry, err, { writer }) {
-  if (await pauseMountForIoError(mount, err, { writer })) return 'missing'
+async function settleFailedCopy(mount, entry, err, { writer, dir }) {
+  if (await pauseMountForIoError(mount, err, { writer, dir })) return 'missing'
   log.warn('overlay mirror local-copy failed:', entry.relPath, '-', err.message)
   attempts.fail(mirrorKey(mount.spaceId, mount.shareId), entry.relPath, entry.contentHash)
   return 'missing'
@@ -508,7 +508,7 @@ async function finishLandedFetch(mount, entry, res, { abs, verifyKey, localRelPa
   // a local hit returns the source path without writing abs — copy the bytes by
   // path (never buffering a possibly multi-GB file in memory).
   if (res.local && res.destPath !== abs) {
-    try { fs.copyFileSync(res.destPath, abs) } catch (err) { return await settleFailedCopy(mount, entry, err, { writer }) }
+    try { fs.copyFileSync(res.destPath, abs) } catch (err) { return await settleFailedCopy(mount, entry, err, { writer, dir: path.dirname(abs) }) }
   }
   let landed = null
   try {
