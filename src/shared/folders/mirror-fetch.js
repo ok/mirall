@@ -168,8 +168,8 @@ export async function mirrorDeleteDecision(mount, ownerKey, localRel, onDisk) {
 // logged fetch miss.
 async function handleOverlayMirrorFetchError(mount, share, entry, err, { diag, writer }) {
   // Order matters: a local I/O fault pauses the mount and is NOT a peer act. Auditing it would
-  // blame a holder for our own full disk.
-  if (await pauseMountForIoError(mount, err, { writer })) return
+  // blame a holder for our own full disk. A pause is a deliberate stop, and its diag says so.
+  if (await pauseMountForIoError(mount, err, { writer })) { diag?.finish('paused'); return }
   diag?.finish('failed')
   const code = err?.code === 'EHASHMISMATCH' ? CODES.TRANSFER_CHECKSUM : null
   if (!code) {
