@@ -39,7 +39,7 @@ export const ABANDON = Object.freeze({
 
 // Why a reserved slot must not fetch, asked after every await between the reservation and the
 // engine call. `hasOverlay` is optional: the pre-fetch guard in start() never asked it, the
-// post-gate guard does (a drained gate releases waiters into a torn-down overlay).
+// post-gate guard does (see drainFetchSlots in fetch-gate.js).
 export function abandonReason(slot, { ownerOnline, hasOverlay = null }) {
   if (slot.cancelled) return slot.restartJob ? ABANDON.RESTART : ABANDON.CANCELLED
   if (slot.paused) return ABANDON.PAUSED

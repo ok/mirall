@@ -1,6 +1,6 @@
 import test from 'brittle'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
-import { acquireFetchSlot, drainFetchSlots, fetchSlotStats, resetFetchSlots, FETCH_OWNER_MIRROR } from '../../src/shared/transfer/overlay/fetch-gate.js'
+import { acquireFetchSlot, drainFetchSlots, fetchSlotStats, fetchSlotsDrained, resetFetchSlots, FETCH_OWNER_MIRROR } from '../../src/shared/transfer/overlay/fetch-gate.js'
 import * as reimported from '../../src/shared/transfer/overlay/fetch-gate.js'
 
 function withCap(t, cap) {
@@ -61,4 +61,23 @@ test('the cap is read from the runtime config per acquire', async (t) => {
   const releases = await Promise.all([acquireFetchSlot({}), acquireFetchSlot({}), acquireFetchSlot({})])
   t.is(fetchSlotStats().queued, 0, 'a cap of zero admits everything')
   for (const rel of releases) rel()
+})
+
+// OverlayBackend drains before it tears the overlay down, so a waiter the drain releases still
+// finds the overlay present: the drained mark is what tells the engine it may not fetch.
+test('only the unscoped drain marks the gate drained, and the next lifetime starts undrained', async (t) => {
+  withCap(t, 1)
+  const held = await acquireFetchSlot({})
+  const parked = acquireFetchSlot({})
+
+  drainFetchSlots(FETCH_OWNER_MIRROR)
+  t.absent(fetchSlotsDrained(), 'a drain scoped to one producer leaves the gate open')
+  drainFetchSlots()
+  t.ok(fetchSlotsDrained(), 'the unscoped drain marks it drained')
+  await parked
+  t.is(fetchSlotStats().queued, 0, 'and released the parked waiter')
+
+  held()
+  resetFetchSlots()
+  t.absent(fetchSlotsDrained(), 'the gate the next open builds is not drained')
 })

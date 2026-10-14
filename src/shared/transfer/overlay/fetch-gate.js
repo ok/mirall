@@ -66,13 +66,24 @@ export function resetFetchClaims() {
 export const FETCH_OWNER_MIRROR = 'mirror'
 
 // Two user-initiated fetches may jump a backlog at once (createSemaphore's default is one).
-const build = () => createSemaphore({ limit: () => getDownloadConcurrency(), expressLanes: 2 })
+// `drained` lives on the gate, so the fresh gate every open builds starts undrained.
+const build = () => ({ slots: createSemaphore({ limit: () => getDownloadConcurrency(), expressLanes: 2 }), drained: false })
 let gate = build()
 
-export const acquireFetchSlot = (opts) => gate.acquire(opts)
-export const drainFetchSlots = (owner) => gate.drain(owner)
+export const acquireFetchSlot = (opts) => gate.slots.acquire(opts)
+
+// An unscoped drain is the shutdown of every producer still on the gate: it marks the gate drained
+// for the rest of this lifetime, and a producer whose instance outlives the drain reads
+// fetchSlotsDrained() to stop taking fetches. A scoped drain closes one producer and leaves the
+// gate open to the rest.
+export function drainFetchSlots(owner) {
+  if (owner == null) gate.drained = true
+  gate.slots.drain(owner)
+}
+
+export const fetchSlotsDrained = () => gate.drained
 /** @internal */
-export const fetchSlotStats = () => gate.stats()
+export const fetchSlotStats = () => gate.slots.stats()
 
 // A per-instance semaphore died with the engine that owned it; a module singleton does not.
 // OverlayBackend builds a fresh engine on every _open, so a slot whose release was lost would
