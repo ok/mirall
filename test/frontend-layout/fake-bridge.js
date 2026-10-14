@@ -110,7 +110,7 @@
     getPlatform: () => 'darwin',
     getPathForFile: () => '',
     appVersion: asyncNoop,
-    getChangelog: () => Promise.resolve([]),
+    getChangelog: () => Promise.resolve(''),
     getUpdateStatus: () => Promise.resolve({ state: 'idle', nextVersion: null, lastCheckedAt: null, offReason: null, canRestart: false }),
     onUpdateStatus: () => noop,
 

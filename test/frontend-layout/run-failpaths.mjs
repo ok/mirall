@@ -21,5 +21,6 @@ console.log(`unhandled    : ${out.unhandled} escaped promise rejection(s)`)
 if (out.error) console.log(`error: ${out.error}`)
 
 const pass = out.pass === true
-console.log(`\n${pass ? 'ok  ' : 'FAIL'} every failed action leaves its control usable, claims nothing, and says why`)
+const failed = out.failed?.length ? ` — failed: ${out.failed.join(', ')}` : ''
+console.log(`\n${pass ? 'ok  ' : 'FAIL'} every failed action leaves its control usable, claims nothing, and says why${failed}`)
 process.exit(pass ? 0 : 1)

@@ -4,6 +4,7 @@
 import type { ComponentType, ReactNode } from 'react'
 import type { Root } from 'react-dom/client'
 import Account from '../../src/renderer/screens/AccountScreen.js'
+import AboutScreen from '../../src/renderer/screens/AboutScreen.js'
 import OnboardingScreen from '../../src/renderer/screens/OnboardingScreen.js'
 import ActivityLogSettings from '../../src/renderer/screens/settings/ActivityLogSettings.js'
 import NetworkSettings from '../../src/renderer/screens/settings/NetworkSettings.js'
@@ -462,21 +463,17 @@ async function probeReconnect(root: Root, kit: FailpathsKit): Promise<ReconnectP
 async function probeWhatsNew(root: Root, kit: FailpathsKit): Promise<WhatsNewProbe> {
   const { Shell } = kit
   const before = kit.unhandled()
-  const account = (key: string) => (
-    <Shell key={key}>
-      <Account profile={kit.profile} onSave={() => Promise.resolve()} onBack={noop} onOpenNetworkStatus={noop} onOpenActivityLog={noop} onFeedback={noop} />
-    </Shell>
-  )
+  const about = (key: string) => <Shell key={key}><AboutScreen onBack={noop} /></Shell>
   const realChangelog = window.bridge.getChangelog
   window.bridge.getChangelog = () => Promise.reject(new Error('changelog unreadable'))
-  root.render(account('whats-new-fail'))
+  root.render(about('whats-new-fail'))
   await kit.sleep(300)
   kit.buttonWithText("What's New")?.click()
   await kit.sleep(300)
   const failAlert = kit.alertSays(GENERIC_TEXT)
 
   window.bridge.getChangelog = () => Promise.resolve('')
-  root.render(account('whats-new-empty'))
+  root.render(about('whats-new-empty'))
   await kit.sleep(300)
   kit.buttonWithText("What's New")?.click()
   await kit.sleep(300)
@@ -563,22 +560,27 @@ export async function runDroppedProbes(root: Root, kit: FailpathsKit): Promise<D
 
 const busyOk = (b: BusyControl) => b.focusable && b.busy && b.keptFocus
 
-export function droppedOk(r: DroppedResults): boolean {
+// The names of the probes whose verdict is false, so a failing run says which probe broke.
+export const failingNames = (verdicts: Record<string, boolean>): string[] =>
+  Object.entries(verdicts).filter(([, ok]) => !ok).map(([name]) => name)
+
+export function droppedFailures(r: DroppedResults): string[] {
   const { avatar, onboarding, audit, transfers, relay, reconnect, whatsNew, bandwidth } = r
-  return (
-    avatar.account && avatar.onboarding && avatar.staleSuccessIgnored && avatar.staleFailureIgnored && avatar.successClearsError &&
-    onboarding.alert && onboarding.describedBy && onboarding.keptFocus && onboarding.usable &&
-    onboarding.busyWhileSaving && onboarding.callsWhileSaving === 1 &&
-    audit.toggleChecked === 'true' && audit.toggleAlert && audit.retentionKept && audit.retentionAlert &&
-    audit.busyWhilePatching && audit.sentWhilePatching === 1 && audit.usableAfter &&
-    TRANSFER_ACTS.every((act) => transfers.reported[act] && transfers.logged[act]) &&
-    Object.values(transfers.transferFallback).every(Boolean) &&
-    relay.applyAlert && relay.applyStillArmed && relay.throttleAlert && relay.throttleStillArmed && busyOk(relay.applyBusy) &&
-    relay.restartAlert && relay.modeAlert && relay.alwaysAlert && relay.removeAlert &&
-    reconnect.alert && reconnect.stillArmed && reconnect.throttleAlert && reconnect.throttleStillArmed && busyOk(reconnect.busy) &&
-    whatsNew.failAlert && whatsNew.emptyStatus &&
-    bandwidth.statusRegionBeforeFailure && bandwidth.statusRegionHoldsNote && bandwidth.workerRejectNoteIsStatus && !bandwidth.workerRejectNoteIsAlert && !bandwidth.workerRejectSaysSaveFailed &&
-    bandwidth.persistRejectSaysSaveFailed && bandwidth.persistRejectAskedWorker === 0 &&
-    bandwidth.presetsBusyWhileApplying && bandwidth.appliesWhileApplying === 1
-  )
+  return failingNames({
+    avatar: avatar.account && avatar.onboarding && avatar.staleSuccessIgnored && avatar.staleFailureIgnored && avatar.successClearsError,
+    onboarding: onboarding.alert && onboarding.describedBy && onboarding.keptFocus && onboarding.usable &&
+      onboarding.busyWhileSaving && onboarding.callsWhileSaving === 1,
+    audit: audit.toggleChecked === 'true' && audit.toggleAlert && audit.retentionKept && audit.retentionAlert &&
+      audit.busyWhilePatching && audit.sentWhilePatching === 1 && audit.usableAfter,
+    transfers: TRANSFER_ACTS.every((act) => transfers.reported[act] && transfers.logged[act]) &&
+      Object.values(transfers.transferFallback).every(Boolean),
+    relay: relay.applyAlert && relay.applyStillArmed && relay.throttleAlert && relay.throttleStillArmed && busyOk(relay.applyBusy) &&
+      relay.restartAlert && relay.modeAlert && relay.alwaysAlert && relay.removeAlert,
+    reconnect: reconnect.alert && reconnect.stillArmed && reconnect.throttleAlert && reconnect.throttleStillArmed && busyOk(reconnect.busy),
+    whatsNew: whatsNew.failAlert && whatsNew.emptyStatus,
+    bandwidth: bandwidth.statusRegionBeforeFailure && bandwidth.statusRegionHoldsNote && bandwidth.workerRejectNoteIsStatus &&
+      !bandwidth.workerRejectNoteIsAlert && !bandwidth.workerRejectSaysSaveFailed &&
+      bandwidth.persistRejectSaysSaveFailed && bandwidth.persistRejectAskedWorker === 0 &&
+      bandwidth.presetsBusyWhileApplying && bandwidth.appliesWhileApplying === 1,
+  })
 }
