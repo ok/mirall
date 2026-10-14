@@ -19,7 +19,7 @@ import { setRelay, type RelaySlot } from '../../src/renderer/platform/config-cli
 import { resetMainStore } from '../../src/renderer/store/main-store.js'
 import type { AppNavigation } from '../../src/renderer/hooks/useAppNavigation.js'
 import type { Space } from '../../src/renderer/types/types.js'
-import { OFFLINE_STATUS, type FailpathsKit } from './failpaths-dropped.js'
+import { OFFLINE_STATUS, failingNames, type FailpathsKit } from './failpaths-dropped.js'
 
 export interface GuardResults {
   deleteShare: { alert: boolean; closed: number }
@@ -262,14 +262,16 @@ export async function runGuardProbes(root: Root, kit: FailpathsKit): Promise<Gua
   return { deleteShare, folderDelete, checkAgain, prefs, zoom, favorite, relayTest, configWrites, escaped: kit.unhandled() - before }
 }
 
-export function guardOk(r: GuardResults): boolean {
-  return (
-    r.deleteShare.alert && r.deleteShare.closed === 0 &&
-    r.folderDelete.alert && r.folderDelete.stillOpen && !r.folderDelete.wentBack &&
-    r.checkAgain.alert &&
-    r.prefs.minimizeAlert && r.prefs.loginAlert && r.prefs.menuBarAlert &&
-    r.zoom.alert && r.favorite.alert && r.relayTest.alert &&
-    Object.values(r.configWrites).every(Boolean) &&
-    r.escaped === 0
-  )
+export function guardFailures(r: GuardResults): string[] {
+  return failingNames({
+    deleteShare: r.deleteShare.alert && r.deleteShare.closed === 0,
+    folderDelete: r.folderDelete.alert && r.folderDelete.stillOpen && !r.folderDelete.wentBack,
+    checkAgain: r.checkAgain.alert,
+    prefs: r.prefs.minimizeAlert && r.prefs.loginAlert && r.prefs.menuBarAlert,
+    zoom: r.zoom.alert,
+    favorite: r.favorite.alert,
+    relayTest: r.relayTest.alert,
+    configWrites: Object.values(r.configWrites).every(Boolean),
+    escaped: r.escaped === 0,
+  })
 }

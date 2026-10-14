@@ -16,8 +16,8 @@ import NetworkDiagnosticsScreen from '../../src/renderer/screens/NetworkDiagnost
 import CopyButton from '../../src/renderer/components/primitives/CopyButton.js'
 import InviteModal from '../../src/renderer/components/modals/InviteModal.js'
 import type { Profile } from '../../src/renderer/types/types.js'
-import { runDroppedProbes, droppedOk, type DroppedResults, type FailpathsKit, type Json, type WorkerAnswer } from './failpaths-dropped.js'
-import { runGuardProbes, guardOk, type GuardResults } from './failpaths-guard.js'
+import { runDroppedProbes, droppedFailures, failingNames, type DroppedResults, type FailpathsKit, type Json, type WorkerAnswer } from './failpaths-dropped.js'
+import { runGuardProbes, guardFailures, type GuardResults } from './failpaths-guard.js'
 
 interface ErrorFrame {
   id: number
@@ -39,6 +39,7 @@ interface OverlapProbe { alert: boolean; copiedAfterStaleResolve: boolean }
 
 interface HarnessResults {
   pass: boolean
+  failed: string[]
   error: string | null
   save: SaveProbe | null
   purge: PurgeProbe | null
@@ -346,17 +347,22 @@ async function run(root: Root): Promise<HarnessResults> {
   const guard = await runGuardProbes(root, kit)
 
   const { rejectOn, rejectOff, unmountInFlight } = verbose
-  const pass =
-    save.label.includes('Save Changes') && !save.disabled && save.keptFocus && save.alert &&
-    purge.dialogOpen && purge.confirmEnabled && purge.focusOnConfirm && !purge.claimsDone && purge.alert &&
-    rejectOn.checked === 'false' && !rejectOn.claimsOn && rejectOn.mainWrites.length === 0 && rejectOn.alert &&
-    rejectOff.checked === 'true' && rejectOff.mainWrites.length === 0 && rejectOff.alert &&
-    !unmountInFlight.mainWrites.includes(true) &&
-    copyOk(copy) && copyOk(invite) &&
-    overlap.alert && !overlap.copiedAfterStaleResolve &&
-    droppedOk(dropped) && guardOk(guard) &&
-    unhandledRejections === 0
-  return { pass, error: null, save, purge, verbose, copy, invite, overlap, dropped, guard, unhandled: unhandledRejections }
+  const failed = [
+    ...failingNames({
+      'profile save': save.label.includes('Save Changes') && !save.disabled && save.keptFocus && save.alert,
+      'log purge': purge.dialogOpen && purge.confirmEnabled && purge.focusOnConfirm && !purge.claimsDone && purge.alert,
+      verbose: rejectOn.checked === 'false' && !rejectOn.claimsOn && rejectOn.mainWrites.length === 0 && rejectOn.alert &&
+        rejectOff.checked === 'true' && rejectOff.mainWrites.length === 0 && rejectOff.alert &&
+        !unmountInFlight.mainWrites.includes(true),
+      'copy button': copyOk(copy),
+      'invite copy': copyOk(invite),
+      'copy overlap': overlap.alert && !overlap.copiedAfterStaleResolve,
+    }),
+    ...droppedFailures(dropped),
+    ...guardFailures(guard),
+    ...failingNames({ unhandled: unhandledRejections === 0 }),
+  ]
+  return { pass: failed.length === 0, failed, error: null, save, purge, verbose, copy, invite, overlap, dropped, guard, unhandled: unhandledRejections }
 }
 
 const root = createRoot(document.getElementById('root') as HTMLElement)
@@ -365,6 +371,6 @@ run(root).then(
     window.__results = results
   },
   (e: Error) => {
-    window.__results = { pass: false, error: String(e), save: null, purge: null, verbose: null, copy: null, invite: null, overlap: null, dropped: null, guard: null, unhandled: unhandledRejections }
+    window.__results = { pass: false, failed: [], error: String(e), save: null, purge: null, verbose: null, copy: null, invite: null, overlap: null, dropped: null, guard: null, unhandled: unhandledRejections }
   },
 )
