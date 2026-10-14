@@ -55,6 +55,28 @@ test('search blob is lowercased proper nouns only — never the kind', (t) => {
   t.absent(rec.search.includes('approved'), 'the kind stays out so search is locale-neutral')
 })
 
+test('REGRESSION (FIX-643: the search blob kept a name in whatever Unicode form it arrived in)', (t) => {
+  const decomposed = buildRecord({
+    ...base,
+    space: { id: 'sp1', name: 'Bu\u0308ro' },
+    target: { kind: 'file', id: 'f1', name: 'Bericht_Ma\u0308rz.pdf' },
+  })
+  t.is(decomposed.search, 'b\u00fcro bericht_m\u00e4rz.pdf')
+  const composed = buildRecord({
+    ...base,
+    space: { id: 'sp1', name: 'B\u00fcro' },
+    target: { kind: 'file', id: 'f1', name: 'Bericht_M\u00e4rz.pdf' },
+  })
+  t.is(composed.search, decomposed.search, 'both spellings store the same text')
+})
+
+test('REGRESSION (FIX-643: clamping a decomposed name cut it shorter and could drop its accent)', (t) => {
+  const stem = 'x'.repeat(NAME_MAX - 1)
+  const rec = buildRecord({ ...base, target: { kind: 'file', id: 'f1', name: stem + 'ä' } })
+  t.is(rec.target.name, stem + 'ä', 'the name is composed before it is clamped')
+  t.is(rec.search, stem + 'ä')
+})
+
 test('search blob tolerates missing participants', (t) => {
   const rec = buildRecord({ ...base, space: { id: 'sp1', name: 'Solo' } })
   t.is(rec.search, 'solo')

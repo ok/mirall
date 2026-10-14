@@ -5,6 +5,7 @@ import { auditBee, flushAudit, newestSeq, oldestSeq } from './audit-log.js'
 import { AGE_HYSTERESIS } from './audit-retention.js'
 import { BY_DEVICE, BY_SPACE, evtKey, evtRange, indexRange } from './audit-keys.js'
 import { SCHEMA_VERSION, searchText } from './audit-record.js'
+import { foldSearchText } from '../contract/text-fold.js'
 /** @import { AuditEntry, AuditPage } from '../contract/responses.js' */
 
 // Rows walked per query call before returning a partial page. A filtered listing may have to
@@ -20,7 +21,7 @@ function buildFilters({ kinds, categories, actorKey, search, searchKinds, since,
     kindSet: kinds?.length ? new Set(kinds) : null,
     catSet: categories?.length ? new Set(categories) : null,
     actorKey: actorKey || null,
-    needle: search ? String(search).trim().toLowerCase() : null,
+    needle: search ? foldSearchText(String(search).trim()) : null,
     searchKindSet: searchKinds?.length ? new Set(searchKinds) : null,
     since,
     until,

@@ -19,6 +19,9 @@ own.** It stayed incomplete until something else changed in the space.
 "space created", "relay removed" or "downloaded" found nothing, in every
 language. Search now matches the event, the words of its sentence and the
 folder, path or relay name shown under an entry, not only names.
+- **Find names with accents.** Searching the Activity Log or a folder's
+file list for a name such as "März" missed files and folders named in
+Finder, which stores accented letters differently. Both spellings now match.
 - **Files you add no longer jump around the list.** A new file appears
 right where it stays, instead of at the top until Mirall has listed it.
 - **Who has a file no longer lists waiting members as downloading.**

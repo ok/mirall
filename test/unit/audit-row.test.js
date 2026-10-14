@@ -463,3 +463,11 @@ test("every name or path on the second line is in the row's search", (t) => {
     for (const text of shown) t.ok(searchText(rec).includes(text.toLowerCase()), fields.kind + ' finds "' + text + '"')
   }
 })
+
+test('REGRESSION (FIX-643: a decomposed term missed a kind whose translated label is composed)', async (t) => {
+  const kinds = Object.keys(KINDS)
+  const de = await translatorFor('de')
+  const composed = searchKindsFor('gel\u00f6scht', kinds, de)
+  t.ok(composed.includes('share.deleted'))
+  t.alike(searchKindsFor('Gelo\u0308scht', kinds, de), composed, 'the decomposed spelling reaches the same kinds')
+})

@@ -8,6 +8,7 @@ import { formatSize } from '../format/bytes.js'
 import { RELAY_MODES } from '../../shared/contract/relay-apply.js'
 import { RELAY_KINDS } from '../../shared/contract/relay-key.js'
 import { shownSubject } from '../../shared/contract/audit-subject.js'
+import { foldSearchText } from '../../shared/contract/text-fold.js'
 /** @import { AuditEntry, AuditFilters } from '../types/types.js' */
 
 /** @typedef {{ key: string | null, name: string | null }} ActorLabel */
@@ -126,9 +127,9 @@ const NO_NAMES = { actor: '', space: '', target: '' }
  * @returns {string[] | null}
  */
 export function searchKindsFor(term, kinds, translate) {
-  const needle = term.trim().toLowerCase()
+  const needle = foldSearchText(term.trim())
   if (!needle) return null
-  const contains = (/** @type {string} */ text) => text.replace(/\s+/g, ' ').trim().toLowerCase().includes(needle)
+  const contains = (/** @type {string} */ text) => foldSearchText(text.replace(/\s+/g, ' ').trim()).includes(needle)
   return kinds.filter((kind) => contains(translate('activityLog.kindLabel.' + kind))
     || contains(translate(kindSentenceKey(kind), NO_NAMES)))
 }
