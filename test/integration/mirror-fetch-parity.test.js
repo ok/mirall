@@ -298,6 +298,50 @@ test('a local hit is copied to the mirror path and recorded as verified', async 
   t.is(v.calls, 1, 'and asks no one')
 })
 
+// A local hit whose copy into the mount throws `code`: the engine answers with the path it holds the
+// bytes at, and the copy from there fails as a full or broken disk would.
+function failingLocalHit(t, ctx, v, entry, code) {
+  const spooled = path.join(ctx.tmpDir('spool'), 'blob')
+  fs.writeFileSync(spooled, 'alpha')
+  v.inner = async () => ({ destPath: spooled, local: true, size: entry.size })
+  const copy = fs.copyFileSync
+  fs.copyFileSync = (from, to, ...rest) => {
+    if (from === spooled) throw Object.assign(new Error('copy failed'), { code })
+    return copy.call(fs, from, to, ...rest)
+  }
+  t.teardown(() => { fs.copyFileSync = copy })
+}
+
+// REGRESSION (FIX-659: a local hit whose copy into the mount failed was reported missing at debug
+// level, so a full disk neither paused the mount nor charged the file, and every tick asked again.)
+test('REGRESSION (FIX-659): a local hit that cannot be copied for a full disk pauses the mount', async (t) => {
+  const { ctx, byPath } = await mirror(t, { 'a.txt': 'alpha' })
+  const v = vendor(t)
+  failingLocalHit(t, ctx, v, byPath['a.txt'], 'ENOSPC')
+
+  t.is(await materializeCatalogFile(ctx.mount, ctx.share, byPath['a.txt']), 'missing')
+  await runMaterializeTick(ctx.spaceId, ctx.share.id)
+
+  const mount = await stored(ctx)
+  t.is(mount.enabled, false, 'the mount is paused')
+  t.is(mount.status, 'paused-enospc', 'with the full-disk status')
+  t.is(mount.lastError, CODES.TRANSFER_DISK_FULL)
+  t.is(v.calls, 1, 'and the paused mount asks no one again')
+  t.absent(fs.existsSync(path.join(ctx.mirrorPath, 'a.txt')), 'nothing landed')
+})
+
+test('REGRESSION (FIX-659): a local hit that keeps failing its copy stops after the attempt budget', async (t) => {
+  const { ctx, byPath } = await mirror(t, { 'a.txt': 'alpha' })
+  const v = vendor(t)
+  failingLocalHit(t, ctx, v, byPath['a.txt'], 'EIO')
+  const outcomes = []
+  for (let i = 0; i < 5; i++) outcomes.push(await materializeCatalogFile(ctx.mount, ctx.share, byPath['a.txt']))
+
+  t.is(v.calls, 3, 'each failed copy was charged, so the mirror stopped asking after its budget')
+  t.alike(outcomes, ['missing', 'missing', 'missing', 'blocked', 'blocked'])
+  t.is((await stored(ctx)).enabled, true, 'a fault this does not classify pauses nothing')
+})
+
 // -- The stop path: what a pause asks the vendor to cancel.
 
 // The vendor's cancel, as the engine models it: a cancel reaches only the fetch of the caller it
