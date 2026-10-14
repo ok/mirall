@@ -199,7 +199,7 @@ test('REGRESSION (FIX-3): the owner records a peer downloading their file', { ti
   const spaceId = await connectInSpaceWithApproval(t, A, B)
   const bytes = patternedBytes(256 * 1024, 9)
   await A.request('files:add', { spaceId, filePath: writeTmpFile(bytes, t), fileName: 'movie.bin', fileSize: bytes.length })
-  await B.until('files:list', { spaceId }, (l) => l.some((f) => f.path === '/movie.bin'), { ms: 60000, every: 500 })
+  await B.untilFiles(spaceId, (l) => l.some((f) => f.path === '/movie.bin'), { ms: 60000, every: 500 })
 
   const aKey = (await A.request('profile:get')).personKey
   const bKey = (await B.request('profile:get')).personKey
@@ -242,12 +242,12 @@ test('a peer publishing a file into a shared space is recorded', { timeout: scal
 
   // The UI lists a space when you open it, which registers the catalog watch and baselines it.
   // Do the same before Bob acts, so this exercises steady state rather than first contact.
-  await A.request('files:list', { spaceId })
+  await A.files(spaceId)
   await new Promise((resolve) => setTimeout(resolve, 1500))
 
   const bytes = patternedBytes(4096, 3)
   await B.request('files:add', { spaceId, filePath: writeTmpFile(bytes, t), fileName: 'notes.txt', fileSize: bytes.length })
-  await A.until('files:list', { spaceId }, (l) => l.some((f) => f.path === '/notes.txt'), { ms: 60000, every: 500 })
+  await A.untilFiles(spaceId, (l) => l.some((f) => f.path === '/notes.txt'), { ms: 60000, every: 500 })
 
   await A.until('audit:list', { limit: 200 }, (page) => kindsOf(page.entries).includes('peer.file_shared'))
   const shared = find(await rows(A), 'peer.file_shared')

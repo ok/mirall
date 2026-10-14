@@ -209,6 +209,10 @@ function getWorker(specifier) {
     // the runtime-config default). Lets the frontend suite exercise the truncation banner
     // with a handful of files; a bad value is caught by getListFilesCap's fail-safe.
     listFilesCap: envNumber(envOverride('MIRALL_LIST_FILES_CAP')),
+    // Stops every peer catalog drain after this many entries and reports it unfinished, so the
+    // frontend suite can hold a reachable member's file list incomplete. Read raw by the drain,
+    // where only a positive count truncates.
+    testTruncatePeerDrainAfter: envNumber(envOverride('MIRALL_TEST_TRUNCATE_PEER_DRAIN_AFTER')),
     // The mirror-walk skip's rollback lever: 1 restores the pre-skip cadence without a release.
     foreignFullWalkEvery: envNumber(process.env.MIRALL_FOREIGN_FULL_WALK_EVERY),
     // The files:list memo's rollback lever, the same way: 1 re-reads every catalog on every listing.

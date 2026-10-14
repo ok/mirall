@@ -6,7 +6,7 @@ import LoadingHeadline from '../primitives/LoadingHeadline.js'
 import { useHasVerticalOverflow } from '../../hooks/useHasVerticalOverflow.js'
 import { useErrorText } from '../../hooks/useErrorText.js'
 import type { ComponentProps } from 'react'
-import type { FileTreeNode, ShareFileEntry, SpaceMember } from '../../types/types.js'
+import type { FileTreeNode, ShareFileRow, SpaceMember } from '../../types/types.js'
 
 // The row callbacks and member list are FolderTree's contract, not this pane's: it forwards them
 // untouched, so re-declaring them here would be a second copy to keep in step.
@@ -29,7 +29,7 @@ type FolderListPaneProps = Pick<TreeProps,
   toggle: (path: string) => void
   loading: boolean
   error: unknown
-  files: readonly ShareFileEntry[]
+  files: readonly ShareFileRow[]
   sourceMissing: boolean
   owner: SpaceMember | null | undefined
 }

@@ -7,7 +7,7 @@ import type { DecodedInvite } from '../../src/shared/contract/invite-envelope.js
 import type { DocsTarget } from '../../src/renderer/shell/docs-links.js'
 import type { MainQueryName } from '../../src/renderer/store/main-queries.js'
 import type { PublishOrder } from '../../src/shared/contract/paths.js'
-import type { RequestResponse } from '../../src/shared/contract/responses.js'
+import type { ContentRow, FileEntry, RequestResponse, ShareFileRow } from '../../src/shared/contract/responses.js'
 import type { PathHost } from '../../src/shared/contract/paths.js'
 import type { MemberReach } from '../../src/shared/contract/member-reach.js'
 
@@ -22,6 +22,12 @@ const eventTypo: EventName = 'event:reconciled'
 const fileStatus: FileStatus = 'downloaded'
 // @ts-expect-error not a file status
 const fileStatusTypo: FileStatus = 'not-a-status'
+const fileStatusSynced: FileStatus = 'synced'
+const fileStatusQueued: FileStatus = 'queued'
+// @ts-expect-error 'mine' is a badge the renderer derives from ownership, not a status the worker sends
+const fileStatusMine: FileStatus = 'mine'
+// @ts-expect-error one status vocabulary serves both listings
+const shareFileStatus: import('../../src/shared/contract/responses.js').ShareFileStatus = 'synced'
 
 const ownedStatus: OwnedMountStatus = 'scanning'
 // @ts-expect-error mirror-only, not in the owned tuple
@@ -72,5 +78,27 @@ const deniedTypo: RequestResponse['space:deny-member'] = { outcome: 'removed' }
 void [pathHost, pathHostTypo, spacesList, spacesListWrong, ackExtra, name, denied, deniedBool, deniedTypo] as unknown as NoSuchResponse
 
 void [reachRelayed, reachDirect, reachTypo]
+
+const looseRow: FileEntry = { path: '/a', size: 1, hash: '', mtime: 0, status: 'remote', localPath: null, owner: { displayName: 'A', publicKey: 'k' } }
+const shareRow: ShareFileRow = { relPath: 'a', size: 1, hash: '', mtime: 0, status: 'synced', localPath: '/m/a' }
+const asContent: ContentRow[] = [looseRow, shareRow]
+// @ts-expect-error presence is in the status; the wire row carries no isAvailable
+const looseAvailable: FileEntry = { path: '/a', size: 1, hash: '', mtime: 0, status: 'remote', localPath: null, owner: { displayName: 'A', publicKey: 'k' }, isAvailable: true }
+// @ts-expect-error bytes on disk are localPath now
+const looseBytes: FileEntry = { path: '/a', size: 1, hash: '', mtime: 0, status: 'remote', localPath: null, owner: { displayName: 'A', publicKey: 'k' }, localBytes: 0 }
+// @ts-expect-error localPath is always sent; absence is null
+const noLocalPath: ShareFileRow = { relPath: 'a', size: 1, hash: '', mtime: 0, status: 'remote' }
+// @ts-expect-error a loose row has a modification time like a folder row
+const noMtime: FileEntry = { path: '/a', size: 1, hash: '', status: 'remote', localPath: null, owner: { displayName: 'A', publicKey: 'k' } }
+
+const looseListing: RequestResponse['files:list'] = { entries: [looseRow], complete: true, total: 1, totalBytes: 1, truncated: false, fileLimit: null }
+// @ts-expect-error files:list answers the listing envelope, not a bare array
+const looseBare: RequestResponse['files:list'] = [looseRow]
+// @ts-expect-error truncation is always stated
+const noTruncated: RequestResponse['share:list-files'] = { entries: [], complete: true, total: 0, totalBytes: 0, fileLimit: null }
+
+void [looseRow, shareRow, asContent, looseAvailable, looseBytes, noLocalPath, noMtime, looseListing, looseBare, noTruncated]
+
+void [fileStatusSynced, fileStatusQueued, fileStatusMine, shareFileStatus]
 
 void [request, requestTypo, event, eventTypo, fileStatus, fileStatusTypo, ownedStatus, ownedStatusIdle, invite, inviteV0, docs, docsTypo, publishOrder, publishOrderTypo, mainQuery, mainQueryTypo]

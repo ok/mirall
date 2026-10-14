@@ -10,8 +10,8 @@ const sleep = (ms) => new Promise((res) => setTimeout(res, ms))
 // A2 — the LOOSE FileCard twin of s49: cancel a loose download mid-flight. The row
 // reverts to "Available" + Download and the partial never lands at the destination.
 // Same IPC (files:cancel-download), different surface (space-root card vs FolderScreen),
-// separate a11y guarantee. Loose downloads are inPlace, so the row's secondary Cancel
-// is offered while running (unlike a folder-mirror row). 256 MB gives a comfortable
+// separate a11y guarantee. A loose download is fetched by hand, so the row's secondary
+// Cancel is offered while running (unlike a folder-mirror row). 256 MB gives a comfortable
 // mid-flight window so the Cancel control is caught.
 export default async function s83({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })

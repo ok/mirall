@@ -33,8 +33,8 @@ test('leaving one shared space does not disturb an in-flight transfer in another
     const bytes = patternedBytes(32 * 1024 * 1024, 71)
     fs.writeFileSync(path.join(aSrc, 'keep.bin'), bytes)
     await A.request('files:add', { spaceId: keptSpace, filePath: path.join(aSrc, 'keep.bin'), fileName: 'keep.bin', fileSize: bytes.length })
-    await B.until('files:list', { spaceId: keptSpace },
-      (f) => Array.isArray(f) && f.some((e) => e.path === '/keep.bin' && e.status === 'remote'), { ms: 60000 })
+    await B.untilFiles(keptSpace,
+      (f) => f.some((e) => e.path === '/keep.bin' && e.status === 'remote'), { ms: 60000 })
 
     let sawError = null
     B.on('event:transfer-error', (m) => { if (m.path === '/keep.bin') sawError = m.errorCode })
@@ -44,7 +44,7 @@ test('leaving one shared space does not disturb an in-flight transfer in another
     const flowing = new Promise((resolve) => {
       B.on('event:decoration', (m) => { if (m.channel === 'transfer' && m.spaceId === keptSpace && m.key === '/keep.bin' && m.bytes > 0) resolve() })
     })
-    await B.request('files:download', { spaceId: keptSpace, path: '/keep.bin', inPlace: true, ownerKey: aKey })
+    await B.request('files:download', { spaceId: keptSpace, path: '/keep.bin', ownerKey: aKey })
     await flowing
 
     await A.request('space:leave', { spaceId: leftSpace })

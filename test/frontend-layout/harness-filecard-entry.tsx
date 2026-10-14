@@ -39,8 +39,8 @@ function fileEntry(overrides: Partial<FileEntry>): FileEntry {
     size: 629.7 * 1024 ** 3,
     hash: 'hash1',
     owner: { displayName: 'Oliver', publicKey: 'ownerkey' },
-    localBytes: 0,
-    isAvailable: true,
+    mtime: 0,
+    localPath: null,
     status: 'remote',
     ...overrides,
   }
@@ -48,6 +48,7 @@ function fileEntry(overrides: Partial<FileEntry>): FileEntry {
 
 const noop = () => {}
 const cardHandlers = {
+  isOwn: false,
   onDownload: noop,
   onCancel: noop,
   onPause: noop,

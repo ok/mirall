@@ -286,15 +286,15 @@ test('REGRESSION (FIX-LOOSE-QUEUED-ROWS): adds waiting for a slot are listed as 
   const adds = Promise.all(files.map((abs, i) => looseShareFile(ctx.spaceId, abs, names[i])))
   t.ok(await until(() => probe.calls.length === 2), 'precondition: the bulk slot and the express lane are held')
 
-  const rows = await listFiles(ctx.spaceId, [])
+  const rows = (await listFiles(ctx.spaceId, [])).entries
   const row = (n) => rows.find((r) => r.path === '/' + n)
   t.alike(names.map((n) => row(n)?.status), ['publishing', 'publishing', 'queued', 'queued'], 'the waiting adds are listed, as queued')
   t.is(row('c.txt').size, 5 * 1024, 'a queued row carries the file size')
   t.is(row('c.txt').owner.publicKey, row('a.txt').owner.publicKey, 'and is our own')
 
   await adds
-  const done = await listFiles(ctx.spaceId, [])
-  t.alike(names.map((n) => done.find((r) => r.path === '/' + n)?.status), ['mine', 'mine', 'mine', 'mine'], 'all four end up shared')
+  const done = (await listFiles(ctx.spaceId, [])).entries
+  t.alike(names.map((n) => done.find((r) => r.path === '/' + n)?.status), ['synced', 'synced', 'synced', 'synced'], 'all four end up shared')
 })
 
 // REGRESSION (FIX-LOOSE-QUEUED-MEMBERS: a queued add had no catalog entry until its hash started,
@@ -313,7 +313,7 @@ test('REGRESSION (FIX-LOOSE-QUEUED-MEMBERS): a queued add is advertised at admis
   t.is(entry?.contentHash, null, 'unhashed, so members see it as preparing')
   t.is(entry?.size, 5 * 1024)
   t.is(await getOwnedSourcePath(ctx.spaceId, '/c.txt'), files[2], 'its source link is already durable')
-  const row = (await listFiles(ctx.spaceId, [])).find((r) => r.path === '/c.txt')
+  const row = (await listFiles(ctx.spaceId, [])).entries.find((r) => r.path === '/c.txt')
   t.is(row?.status, 'queued', 'the owner still reads it as queued, not adding')
 
   await adds

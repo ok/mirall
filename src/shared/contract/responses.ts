@@ -12,7 +12,7 @@
 // type: a handler returning a value inferred as `any` from an untyped data-layer callee is not held
 // until that callee is typed. The map at the bottom is total over RequestName by construction, so a
 // request with no response cannot compile.
-import type { FILE_STATUSES, SHARE_FILE_STATUSES, OWNED_MOUNT_STATUSES, FOREIGN_MOUNT_STATUSES, MIRROR_STATES } from './statuses.js'
+import type { FILE_STATUSES, OWNED_MOUNT_STATUSES, FOREIGN_MOUNT_STATUSES, MIRROR_STATES } from './statuses.js'
 import type { CATEGORIES, OUTCOMES, ACTOR_TYPES, TARGET_KINDS } from './audit-kinds.js'
 import type { CANARY_STATES } from './reachability.js'
 import type { DENY_OUTCOMES } from './deny-outcome.js'
@@ -93,20 +93,31 @@ export interface Space {
 
 export type FileStatus = (typeof FILE_STATUSES)[number]
 
-export interface FileEntry {
-  path: string
+// One file row, whichever listing built it. The leaf types add what identifies the row in its own
+// listing; everything a row says about the file is here. Every field a producer always sets is
+// required, and absence is `null`, so a second client generating from this file sees no tri-state.
+export interface ContentRow {
   size: number
+  // '' while the owner is still hashing.
   hash: string
-  owner: { displayName: string; publicKey: PersonKey }
-  localBytes: number
-  isAvailable: boolean
+  mtime: number
   status: FileStatus
-  pendingBytes?: number
-  sharedByCount?: number
-  errorCode?: string
-  inPlace?: boolean
+  // Where this file's bytes are on the worker's host: an own file's source or mount path, a
+  // consumer's verified copy; null when they are not on this device.
+  localPath: string | null
   verified?: boolean
+  pendingBytes?: number
+  errorCode?: string
+  // Absent on an own row: nothing is fetched.
   transferId?: string
+}
+
+// A files:list row. `path` is the drive path ('/' + name): the row's key, its decoration key and
+// what the files:* verbs take.
+export interface FileEntry extends ContentRow {
+  path: string
+  owner: { displayName: string; publicKey: PersonKey }
+  sharedByCount?: number
 }
 
 // Sender-side download indicator. Summary is the always-on aggregate (who + how
@@ -167,23 +178,11 @@ export interface ForeignFolderMount {
   lastError?: string | null
 }
 
-export type ShareFileStatus = (typeof SHARE_FILE_STATUSES)[number]
-
-// The wire row, which is not quite the renderer's row: absence is `null` here and `undefined`
-// there, and share-files-fold projects between them.
-export interface ShareFileRow {
+// A share:list-files row.
+export interface ShareFileRow extends ContentRow {
   relPath: string
-  size: number
-  hash: string
-  mtime: number
-  status: ShareFileStatus
-  localPath: string | null
-  verified?: boolean
   // Derived from an enabled mirror on this device, whose next pass restores the owner's version.
   mirrored?: boolean
-  pendingBytes?: number
-  errorCode?: string
-  transferId?: string
 }
 
 
@@ -322,13 +321,24 @@ export type ApproveMemberResult = false | { granted: true, delivered: boolean }
 type DenyOutcome = (typeof DENY_OUTCOMES)[number]
 export type DenyMemberResult = { outcome: DenyOutcome }
 
-export interface ShareFileListing {
-  entries: ShareFileRow[]
+// What a file listing answers: the rows, and what the rows are short of. `complete` is false when
+// the rows are not the whole set — for a folder, a peer read that did not finish or found no
+// blocks; for loose files, a member who is online whose read did not finish. `truncated` is the
+// worker's fact, never inferred from `total` (an incomplete read makes `total` partial too).
+export interface ContentListing {
   complete: boolean
   total: number
   totalBytes: number
-  truncated?: boolean
-  fileLimit?: number | null
+  truncated: boolean
+  fileLimit: number | null
+}
+
+export interface LooseFileListing extends ContentListing {
+  entries: FileEntry[]
+}
+
+export interface ShareFileListing extends ContentListing {
+  entries: ShareFileRow[]
 }
 
 export interface FolderInfo { fileCount: number, totalBytes: number, blobsLength: number | null }
@@ -591,7 +601,7 @@ interface Responses {
   'files:cancel-download': Ack
   'files:cancel-publish': Ack
   'files:download': LooseDownloadResult
-  'files:list': FileEntry[]
+  'files:list': LooseFileListing
   'files:pause-download': Ack
   'files:remove': Ack
   'files:reveal': Ack

@@ -83,6 +83,7 @@
     "filesError": "No se pudieron cargar los archivos",
     "filesErrorHint": "La lista de archivos tardó demasiado en cargarse. Esto puede ocurrir mientras los archivos aún se sincronizan o un par está desconectado.",
     "filesRetry": "Reintentar",
+    "listIncomplete": "Aún no se pueden leer las listas de archivos de algunos miembros; pueden aparecer más archivos.",
     "emptyShareTitle": "Aún no hay nada compartido",
     "emptyShareSubtitle": "Arrastra archivos o carpetas al área de la derecha para empezar a compartir en este espacio.",
     "emptyShareDocsTitle": "Qué ocurre cuando compartes",

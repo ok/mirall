@@ -5,10 +5,11 @@
 //
 // Until then a pending row sits where the server will list it, so it does not move when its server
 // row replaces it. The listing leads with our own files in catalog key order (UTF-8 bytes, which is
-// code-point order) and follows with peer-only files; only our own rows carry these statuses.
+// code-point order) and follows with peer-only files; only our own rows carry these statuses in a
+// loose listing.
 /** @import { FileEntry } from '../types/types.js' */
 
-const OWN_STATUSES = new Set(['mine', 'publishing', 'queued'])
+const OWN_STATUSES = new Set(['synced', 'publishing', 'queued'])
 
 /** @param {string} a @param {string} b */
 function codePointBefore(a, b) {

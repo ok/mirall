@@ -8,7 +8,7 @@ End-to-end **user-flow** tests: real worker subprocesses (the actual `src/worker
 
 ### Harness (`test/helpers/`)
 - **`localTestnet(t)`** — a hermetic `hyperdht` bootstrap; no real network.
-- **`launchPeer(t, { bootstrap, displayName, storage, downloads })`** — boots a real worker as a `bare-sidecar` subprocess, sets a profile, returns a handle with `request(type, args)`, `waitFor(event, pred, ms)`, `until(type, args, pred, opts)`, `kill()`, plus `.downloads` / `.storage` dirs. Auto-teardown.
+- **`launchPeer(t, { bootstrap, displayName, storage, downloads })`** — boots a real worker as a `bare-sidecar` subprocess, sets a profile, returns a handle with `request(type, args)`, `waitFor(event, pred, ms)`, `until(type, args, pred, opts)`, `files(spaceId)`, `untilFiles(spaceId, pred, opts)`, `kill()`, plus `.downloads` / `.storage` dirs. Auto-teardown. Read `files:list` through `peer.files` / `peer.untilFiles`, which hand over the listing's rows (the envelope invariant enforces it).
 - **`connectInSpace(t, A, B, name?)`** — creates a space on A, joins it on B, awaits mutual membership; returns the deterministic `spaceId`.
 - **`addPeerToSpace(owner, joiner, spaceId)`** — adds a further peer to an existing space (3+-peer flows); awaits mutual member-joined with `owner`.
 - **`mkTmpDir` / `writeTmpFile` / `patternedBytes` / `waitForFile`** (`fixtures.js`) — temp dirs, deterministic byte payloads for byte-exact assertions, and a poll-until-present/absent helper for files a mirror materializes asynchronously.

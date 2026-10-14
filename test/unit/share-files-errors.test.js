@@ -1,11 +1,11 @@
 import test from 'brittle'
 import { foldListing, emptyFold, resolveListing } from '../../src/renderer/model/share-files-fold.js'
 
-const toEntry = (e) => ({ relPath: e.relPath, size: 1, hash: 'h', mtime: 1, status: 'remote' })
-const res = (paths) => ({ entries: paths.map((relPath) => ({ relPath })), complete: true })
+const row = (relPath) => ({ relPath, size: 1, hash: 'h', mtime: 1, status: 'remote', localPath: null })
+const res = (paths) => ({ entries: paths.map(row), complete: true })
 const err = (message, code) => Object.assign(new Error(message), code ? { code } : {})
 
-const seeded = () => foldListing(emptyFold, res(['a', 'b']), toEntry)
+const seeded = () => foldListing(emptyFold, res(['a', 'b']))
 
 test('no error passes the rows through untouched', (t) => {
   const fold = seeded()

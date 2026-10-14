@@ -1,8 +1,8 @@
-// Status → badge lookup tables: every transfer status the worker reports maps
-// to a badge style (Tailwind classes) plus an i18n label key, for both loose
-// file rows and share/folder rows, and share role badges (mine / browse /
-// mirrored). Pure data + lookups so the mapping is unit-testable.
-/** @import { BadgeStatus, FileStatus, ShareFileStatus, ShareRole } from '../types/types.js' */
+// Status → badge lookup tables: every file status the worker reports maps to a badge style
+// (Tailwind classes) plus an i18n label key, for both file-row kinds, and share role badges (mine /
+// browse / mirrored). Pure data + lookups so the mapping is unit-testable.
+import { FILE_STATUS } from '../../shared/contract/statuses.js'
+/** @import { BadgeStatus, FileStatus, ShareRole } from '../types/types.js' */
 /** @typedef {{ classes: string, labelKey: string }} BadgeAppearance */
 
 /** @type {Readonly<Record<BadgeStatus, BadgeAppearance>>} */
@@ -23,28 +23,12 @@ const STYLES = {
 }
 
 /** @type {Readonly<Record<FileStatus, BadgeStatus>>} */
-const FILE_STATUS_TO_BADGE = {
-  mine: 'mine',
-  downloaded: 'on-device',
-  modified: 'modified',
+const STATUS_TO_BADGE = {
   remote: 'available',
   preparing: 'preparing',
   downloading: 'downloading',
   verifying: 'verifying',
   queued: 'queued',
-  publishing: 'publishing',
-  'paused-interrupted': 'paused',
-  'paused-offline': 'owner-offline',
-  unavailable: 'unavailable',
-  error: 'error',
-}
-
-/** @type {Readonly<Record<ShareFileStatus, BadgeStatus>>} */
-const SHARE_FILE_STATUS_TO_BADGE = {
-  remote: 'available',
-  preparing: 'preparing',
-  downloading: 'downloading',
-  verifying: 'verifying',
   publishing: 'publishing',
   downloaded: 'on-device',
   synced: 'on-device',
@@ -62,15 +46,11 @@ const ROLE_STYLES = {
   mirrored: { classes: 'bg-surface-container-highest text-accent', labelKey: 'share.badgeMirrored' },
 }
 
-/** @param {FileStatus} status */
-export function fileStatusToBadge(status) {
-  return FILE_STATUS_TO_BADGE[status]
-}
-
-/** @param {ShareFileStatus} status @param {boolean} isOwn @returns {BadgeStatus} */
-export function shareFileStatusToBadge(status, isOwn) {
-  if (isOwn && status === 'synced') return 'mine'
-  return SHARE_FILE_STATUS_TO_BADGE[status]
+// A synced copy is on this disk whoever owns it; the pill says whose it is, which the status does not.
+/** @param {FileStatus} status @param {boolean} isOwn @returns {BadgeStatus} */
+export function statusToBadge(status, isOwn) {
+  if (isOwn && status === FILE_STATUS.SYNCED) return 'mine'
+  return STATUS_TO_BADGE[status]
 }
 
 /** @param {BadgeStatus} badgeStatus */

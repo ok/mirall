@@ -114,7 +114,7 @@ test('while a restore is confirmed, every write is refused up front and changes 
   const file = path.join(folder, 'loose.txt')
   fs.writeFileSync(file, 'loose')
   t.is(await codeOf(fake.call('files:add', { spaceId, filePath: file, fileName: 'loose.txt' })), 'RESTORE_HELD', 'sharing into the held space waits')
-  t.ok(Array.isArray(await fake.call('files:list', { spaceId })), 'reading the space works')
+  t.ok(Array.isArray((await fake.call('files:list', { spaceId })).entries), 'reading the space works')
   await fake.call('space:update', { spaceId, name: 'Renamed locally' })
   t.is((await getSpace(spaceId)).name, 'Renamed locally', 'what writes nothing replicated still works')
 })

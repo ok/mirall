@@ -10,6 +10,7 @@ import { useErrorText } from './useErrorText.js'
 import { useRunAction } from './useRunAction.js'
 import type { FileEntry } from '../types/types.js'
 import { LOOSE_SHARE_ID } from '../../shared/contract/entry-ref.js'
+import type { LooseFileListing } from '../../shared/contract/responses.js'
 
 const EMPTY: FileEntry[] = []
 
@@ -42,9 +43,12 @@ export function useFiles(spaceId: string) {
     { coalesceMs: 750, enabled: Boolean(spaceId) },
   )
 
-  const files = data ?? EMPTY
+  const files = data?.entries ?? EMPTY
   // Cold only (README.md).
   const loading = data === undefined && fetching
+  // From the answer, never from `loading`: a refetch re-raises `loading`, and the rows it would hide
+  // the note behind are still on screen.
+  const incomplete = data?.complete === false
   // The rows survive a failed read. The error is passed on as it arrived rather than as its
   // message: the screen renders its own generic block for it, and turning it into text is the
   // translator's job, not this hook's.
@@ -52,7 +56,7 @@ export function useFiles(spaceId: string) {
 
   const refresh = useCallback(async () => {
     if (!spaceId) return
-    await refetchQuery<FileEntry[]>('files:list', { spaceId }, filesScopes(spaceId)).catch(() => {})
+    await refetchQuery<LooseFileListing>('files:list', { spaceId }, filesScopes(spaceId)).catch(() => {})
   }, [spaceId])
 
   // Every file goes to the worker at once: it admits them in order and lists the ones waiting for
@@ -70,10 +74,10 @@ export function useFiles(spaceId: string) {
         path,
         size: file.size,
         hash: 'pending:' + path,
-        owner: { displayName: 'You', publicKey: '' },
-        localBytes: 0,
-        isAvailable: true,
+        mtime: file.lastModified,
         status: 'queued',
+        localPath: null,
+        owner: { displayName: 'You', publicKey: '' },
       })
       return next
     })
@@ -120,6 +124,7 @@ export function useFiles(spaceId: string) {
 
   return {
     files: allFiles,
+    incomplete,
     loading,
     error,
     isSeeded,

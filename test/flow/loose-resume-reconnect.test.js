@@ -33,20 +33,20 @@ test('manual pause survives an owner offline→online reconnect (no auto-resume)
     const bytes = patternedBytes(8 * 1024 * 1024, 47)
     fs.writeFileSync(path.join(aSrc, 'held.bin'), bytes)
     await A.request('files:add', { spaceId, filePath: path.join(aSrc, 'held.bin'), fileName: 'held.bin', fileSize: bytes.length })
-    await B.until('files:list', { spaceId },
-      (f) => Array.isArray(f) && f.some((e) => e.path === '/held.bin' && e.status === 'remote'), { ms: 60000 })
+    await B.untilFiles(spaceId,
+      (f) => f.some((e) => e.path === '/held.bin' && e.status === 'remote'), { ms: 60000 })
 
     // Start, prove mid-flight, then MANUALLY pause.
     const flowing = new Promise((resolve) => {
       B.on('event:decoration', (m) => { if (m.channel === 'transfer' && m.spaceId === spaceId && m.key === '/held.bin' && m.bytes > 0) resolve() })
     })
-    await B.request('files:download', { spaceId, path: '/held.bin', inPlace: true, ownerKey: aKey })
+    await B.request('files:download', { spaceId, path: '/held.bin', ownerKey: aKey })
     await flowing
-    const transferId = (await B.request('files:list', { spaceId })).find((e) => e.path === '/held.bin')?.transferId
+    const transferId = (await B.files(spaceId)).find((e) => e.path === '/held.bin')?.transferId
     t.ok(transferId, 'transferId derived on the row')
     await B.request('files:pause-download', { transferId })
-    await B.until('files:list', { spaceId },
-      (list) => { const e = Array.isArray(list) ? list.find((x) => x.path === '/held.bin') : null; return !!e && e.status === 'paused-interrupted' },
+    await B.untilFiles(spaceId,
+      (list) => { const e = list.find((x) => x.path === '/held.bin'); return !!e && e.status === 'paused-interrupted' },
       { ms: 60000 })
 
     // Owner goes offline; B genuinely registers the outage.
@@ -61,7 +61,7 @@ test('manual pause survives an owner offline→online reconnect (no auto-resume)
     await B.until('members:online', { spaceId }, (o) => o.includes(aKey), { ms: 90000 })
     await sleep(8000) // give the reconnect hook ample time to (wrongly) auto-resume
 
-    const row = (await B.request('files:list', { spaceId })).find((e) => e.path === '/held.bin')
+    const row = (await B.files(spaceId)).find((e) => e.path === '/held.bin')
     t.ok(row && (row.status === 'paused-interrupted' || row.status === 'paused-offline'),
       `manual pause survives the owner reconnect (row status=${row?.status})`)
     t.absent(autoResumed, 'no auto-resume progress/completion after the owner reconnects')
@@ -69,7 +69,7 @@ test('manual pause survives an owner offline→online reconnect (no auto-resume)
 
     // A manual resume still drives it to completion.
     const done = B.waitFor('event:transfer-complete', (m) => m.path === '/held.bin', 120000)
-    await B.request('files:download', { spaceId, path: '/held.bin', inPlace: true, ownerKey: aKey })
+    await B.request('files:download', { spaceId, path: '/held.bin', ownerKey: aKey })
     const completion = await done
     t.ok(fs.readFileSync(completion.localPath).equals(bytes), 'manual resume completes byte-exact')
 

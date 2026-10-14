@@ -27,8 +27,8 @@ test('a live peer’s loose catalog survives the boot sweep', { timeout: scaled(
   const src = path.join(mkTmpDir(t), 'note.bin')
   fs.writeFileSync(src, patternedBytes(32 * 1024, 5))
   await A.request('files:add', { spaceId, filePath: src, fileName: 'note.bin', fileSize: 32 * 1024 })
-  await B.until('files:list', { spaceId },
-    (f) => Array.isArray(f) && f.some((e) => e.path === '/note.bin'), { ms: 60000 })
+  await B.untilFiles(spaceId,
+    (f) => f.some((e) => e.path === '/note.bin'), { ms: 60000 })
 
   // Alice goes away, so nothing can re-replicate the catalog after the restart: if the sweep
   // deleted it, the listing is simply gone.
@@ -41,7 +41,7 @@ test('a live peer’s loose catalog survives the boot sweep', { timeout: scaled(
   if (bPid) await waitForWorkerExit(bPid, 8000)
 
   B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: bStore, downloads: mkTmpDir(t), flags: bFlags })
-  const after = await B.request('files:list', { spaceId })
+  const after = await B.files(spaceId)
   t.ok(after.some((e) => e.path === '/note.bin'), 'the peer’s loose file is still listed after the boot sweep')
 
   B.kill()

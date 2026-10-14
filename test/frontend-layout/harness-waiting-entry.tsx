@@ -40,8 +40,8 @@ const file: FileEntry = {
   size: 32 * 1024 ** 3,
   hash: '',
   owner: { displayName: 'Oliver', publicKey: 'ownerkey' },
-  localBytes: 0,
-  isAvailable: true,
+  mtime: 0,
+  localPath: null,
   status: 'publishing',
 }
 const decoration: Decoration = { bytes: 30, total: 100, speed: 0, avgSpeed: 0, eta: 40, phase: 'publishing' }
@@ -49,7 +49,7 @@ const summary: PeerDownloadSummary = {
   spaceId: 's1', path: file.path, personKeys: [], pausedKeys: [], waitingKeys: ['k1', 'k2', 'k3'], bytes: 0, total: 0, avgSpeed: 0,
 }
 const noop = () => {}
-const handlers = { onDownload: noop, onCancel: noop, onPause: noop, onReveal: noop, onUnshare: noop, onCancelPublish: noop, spaceId: 'space1', recipients: [] }
+const handlers = { isOwn: true, onDownload: noop, onCancel: noop, onPause: noop, onReveal: noop, onUnshare: noop, onCancelPublish: noop, spaceId: 'space1', recipients: [] }
 
 createRoot(document.getElementById('root') as HTMLElement).render(
   <div className="bg-surface p-8 space-y-4">

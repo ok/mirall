@@ -9,24 +9,6 @@ import { foldListing, emptyFold, resolveListing, type Fold } from '../model/shar
 import { shareDecoKey } from '../../shared/contract/decoration-key.js'
 import { useDecorations } from './useDecorations.js'
 import { useRunAction } from './useRunAction.js'
-import type { ShareFileEntry } from '../types/types.js'
-import type { ShareFileRow } from '../../shared/contract/responses.js'
-
-function toEntry(e: ShareFileRow): ShareFileEntry {
-  return {
-    relPath: e.relPath,
-    size: e.size,
-    hash: e.hash,
-    mtime: e.mtime,
-    status: e.status,
-    localPath: e.localPath ?? undefined,
-    verified: e.verified,
-    mirrored: e.mirrored,
-    pendingBytes: e.pendingBytes,
-    errorCode: e.errorCode,
-    transferId: e.transferId,
-  }
-}
 
 export function useShareFiles(spaceId: string, ownerKey: string, shareId: string) {
   const { byKey: decorations } = useDecorations('transfer', spaceId, shareDecoKey(shareId, ''))
@@ -51,13 +33,13 @@ export function useShareFiles(spaceId: string, ownerKey: string, shareId: string
   // The fold across responses, advanced DURING RENDER: reconcileFiles needs the previous reconciled
   // list, which the store does not hold. State updated conditionally in render is React's documented
   // carry; an effect would be derived-state-in-effect, and a memo has no memory of its own output.
-  const [fold, setFold] = useState<Fold<ShareFileRow>>(emptyFold)
+  const [fold, setFold] = useState<Fold>(emptyFold)
   // Paths whose download was just requested. An override rather than a write into the list: seeded
   // into the rows it would be dropped by the next refetch, and the seed exists only to cover the
   // gap before the first decoration frame arrives.
   const [seeded, setSeeded] = useState<ReadonlySet<string>>(new Set())
 
-  if (data && data !== fold.res) setFold(foldListing(fold, data, toEntry))
+  if (data && data !== fold.res) setFold(foldListing(fold, data))
 
   const { rows: files, info, error } = resolveListing(fold, queryError as (Error & { code?: string }) | null)
   // Cold only (README.md).

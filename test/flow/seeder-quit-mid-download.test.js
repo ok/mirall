@@ -33,15 +33,15 @@ test('seeder quitting mid-download surfaces paused-offline, then auto-resumes',
     fs.writeFileSync(srcPath, bytes)
     await A.request('files:add', { spaceId, filePath: srcPath, fileName: 'big.bin', fileSize: bytes.length })
 
-    await B.until('files:list', { spaceId },
-      (f) => Array.isArray(f) && f.some((e) => e.path === '/big.bin' && e.inPlace && e.status === 'remote'),
+    await B.untilFiles(spaceId,
+      (f) => f.some((e) => e.path === '/big.bin' && e.status === 'remote'),
       { ms: 60000 })
 
     // Start the download; resolve once real bytes are flowing (genuinely mid-transfer).
     const flowing = new Promise((resolve) => {
       B.on('event:decoration', (m) => { if (m.channel === 'transfer' && m.spaceId === spaceId && m.key === '/big.bin' && m.bytes > 0) resolve() })
     })
-    await B.request('files:download', { spaceId, path: '/big.bin', inPlace: true, ownerKey: aKey })
+    await B.request('files:download', { spaceId, path: '/big.bin', ownerKey: aKey })
     await flowing
 
     // A quits — the only seeder goes away mid-download.
@@ -50,8 +50,8 @@ test('seeder quitting mid-download surfaces paused-offline, then auto-resumes',
 
     // THE REGRESSION ASSERTION: the row settles at paused-offline, never 'error'. On the
     // bug this poll never resolves (status is stuck 'error') → red.
-    const settled = await B.until('files:list', { spaceId },
-      (l) => Array.isArray(l) && l.find((e) => e.path === '/big.bin')?.status === 'paused-offline',
+    const settled = await B.untilFiles(spaceId,
+      (l) => l.find((e) => e.path === '/big.bin')?.status === 'paused-offline',
       { ms: 90000 })
     const row = settled.find((e) => e.path === '/big.bin')
     t.is(row.status, 'paused-offline', 'owner-offline state, not a failure')

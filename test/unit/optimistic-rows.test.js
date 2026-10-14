@@ -1,7 +1,7 @@
 import test from 'brittle'
 import { mergeOptimistic } from '../../src/renderer/model/optimistic-rows.js'
 
-const row = (path, status = 'mine') => ({ path, status })
+const row = (path, status = 'synced') => ({ path, status })
 const paths = (rows) => rows.map((r) => r.path)
 
 test('an optimistic row shows while the server does not know the path', (t) => {

@@ -55,20 +55,20 @@ declare global {
 const noop = () => {}
 const NESTED = `${LONG_FOLDER}/${LONG_FILE}`
 const folderTree = buildFileTree([
-  { relPath: NESTED, size: 1024, hash: 'h', mtime: 0, status: 'synced' },
+  { relPath: NESTED, size: 1024, hash: 'h', mtime: 0, status: 'synced', localPath: null },
 ])
 const looseFile = (name: string, status: FileEntry['status'] = 'remote'): FileEntry => ({
   path: '/shares/' + name,
   size: 4 * 1024 ** 3,
   hash: 'h-' + name,
   owner: { displayName: 'Oliver', publicKey: 'ownerkey' },
-  localBytes: 0,
-  isAvailable: true,
+  mtime: 0,
+  localPath: null,
   status,
 })
 const downloading: Decoration = { bytes: 30, total: 100, speed: 5e6, avgSpeed: 5e6, eta: 643 }
 const cardHandlers = {
-  onDownload: noop, onCancel: noop, onPause: noop, onReveal: noop, onUnshare: noop, onCancelPublish: noop,
+  isOwn: false, onDownload: noop, onCancel: noop, onPause: noop, onReveal: noop, onUnshare: noop, onCancelPublish: noop,
   spaceId: 'space1', recipients: [],
 }
 const share: ShareWithRole = {

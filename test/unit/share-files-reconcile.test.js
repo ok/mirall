@@ -1,7 +1,7 @@
 import test from 'brittle'
 import { reconcileFiles } from '../../src/renderer/model/share-files-reconcile.js'
 
-const row = (relPath, extra = {}) => ({ relPath, size: 1, hash: 'h', mtime: 0, status: 'remote', ...extra })
+const row = (relPath, extra = {}) => ({ relPath, size: 1, hash: 'h', mtime: 0, status: 'remote', localPath: null, ...extra })
 
 // REGRESSION (FIX-130: a peer-catalog read can transiently return empty/partial while the owner
 // indexes a large folder; a whole-list replace then blanked or shrank the view. The worker tags
@@ -82,11 +82,11 @@ test('a complete read still applies removals, additions and content updates', (t
   t.alike(trailing.map((f) => f.relPath), ['a.txt'], 'a trailing removal applies')
 })
 
-// REGRESSION (FIX-R04-7: sameRow compared five fields; toEntry produces four MORE that the row
+// REGRESSION (FIX-R04-7: sameRow compared five fields; a row carries four MORE that it
 // renders — verified (the check), errorCode (a role="alert" line), transferId (what pause/cancel
 // act on) and pendingBytes (the paused byte count). A row changing only one of them was "unchanged",
 // so it kept its previous object AND its previous values, and the update was dropped for good.)
-test('REGRESSION (FIX-R04-7): every field toEntry produces counts as a change', (t) => {
+test('REGRESSION (FIX-R04-7): every row field counts as a change', (t) => {
   const fields = {
     size: 2,
     hash: 'h2',
@@ -94,11 +94,12 @@ test('REGRESSION (FIX-R04-7): every field toEntry produces counts as a change', 
     status: 'downloading',
     localPath: '/tmp/a.txt',
     verified: true,
+    mirrored: true,
     pendingBytes: 512,
     errorCode: 'EPEER',
     transferId: 'tx-2',
   }
-  const base = { relPath: 'a.txt', size: 1, hash: 'h', mtime: 0, status: 'remote' }
+  const base = { relPath: 'a.txt', size: 1, hash: 'h', mtime: 0, status: 'remote', localPath: null }
 
   for (const [field, value] of Object.entries(fields)) {
     const prev = [{ ...base }]
@@ -114,8 +115,8 @@ test('REGRESSION (FIX-R04-7): every field toEntry produces counts as a change', 
   }
 })
 
-// 'publishing' joined SHARE_FILE_STATUS with the indexing-vs-downloading split; it is a value in
-// the `status` field sameRow already compares, and must move a row like any other status.
+// 'publishing' is a value in the `status` field sameRow already compares, and must move a row like
+// any other status.
 test('a publishing→downloading transition is a change', (t) => {
   const prev = [row('a.txt', { status: 'publishing' })]
   const out = reconcileFiles(prev, [row('a.txt', { status: 'downloading' })], { complete: true })

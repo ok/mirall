@@ -49,7 +49,7 @@ export default function SpaceScreen({ spaceId, pendingAction, onActionConsumed, 
   const { profile } = useProfile()
   const hold = useRestoreHold()
   const {
-    files, loading, error, refresh, isSeeded, addFiles, downloadFile,
+    files, incomplete, loading, error, refresh, isSeeded, addFiles, downloadFile,
     unshareFile, cancelPublish, revealFile,
   } = useFiles(spaceId)
   const { getDecoration } = useDecorations('transfer', spaceId, '/')
@@ -83,7 +83,7 @@ export default function SpaceScreen({ spaceId, pendingAction, onActionConsumed, 
   }
 
   // Both list sources feed one pane; see spaceContentState.js for why emptiness needs both.
-  const pane = { filesLoading: loading, sharesLoading, filesError: error, fileCount: files.length, shareCount: shares.length }
+  const pane = { filesLoading: loading, sharesLoading, filesError: error, filesIncomplete: incomplete, fileCount: files.length, shareCount: shares.length }
 
   const { busy, approve: handleApprove, deny: handleDeny, approveMany: handleApproveMany } = useMembershipRequests({ spaceId, requests, approveMember, denyMember })
   const runAction = useRunAction()

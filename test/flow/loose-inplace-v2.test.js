@@ -38,21 +38,21 @@ test('REGRESSION (FIX-326): v2 loose file — pending joiner cannot list; approv
   // Pending B (no SCK) cannot decrypt the encrypted loose catalog. The post-approval convergence
   // below proves the pipeline works, so this emptiness is the SCK gate, not lag.
   await new Promise((r) => setTimeout(r, scaled(4000)))
-  const pre = await B.request('files:list', { spaceId: space.spaceId })
-  t.absent((Array.isArray(pre) ? pre : []).some((e) => e.path === '/secret.txt'),
+  const pre = await B.files(space.spaceId)
+  t.absent(pre.some((e) => e.path === '/secret.txt'),
     'pending joiner cannot list the encrypted loose file')
 
   const bGranted = B.waitFor('event:membership-granted', (m) => m.spaceId === space.spaceId)
   await A.request('space:approve-member', { spaceId: space.spaceId, publicKey: bKey })
   await bGranted
 
-  const listed = await B.until('files:list', { spaceId: space.spaceId },
-    (f) => Array.isArray(f) && f.some((e) => e.path === '/secret.txt' && e.inPlace),
+  const listed = await B.untilFiles(space.spaceId,
+    (f) => f.some((e) => e.path === '/secret.txt'),
     { ms: 60000 })
   t.ok(listed.find((e) => e.path === '/secret.txt')?.hash, 'approved member lists the encrypted loose file')
 
   const done = B.waitFor('event:transfer-complete', (m) => m.path === '/secret.txt', 60000)
-  await B.request('files:download', { spaceId: space.spaceId, path: '/secret.txt', inPlace: true, ownerKey: aKey })
+  await B.request('files:download', { spaceId: space.spaceId, path: '/secret.txt', ownerKey: aKey })
   const completed = await done
   t.ok(fs.readFileSync(completed.localPath).equals(bytes), 'approved member downloads matching bytes')
 })

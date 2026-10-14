@@ -55,10 +55,16 @@
   // Tracks the request vocabulary in src/shared/contract/requests.js: a request with no case here
   // resolves null, which the screen renders as an empty state rather than an error — so a harness
   // missing a route fails as a wrong layout assertion instead of as a missing route.
+  // Both file listings answer one envelope (ContentListing in the contract).
+  function listing(entries) {
+    const totalBytes = entries.reduce((sum, row) => sum + (row.size || 0), 0)
+    return { entries, complete: true, total: entries.length, totalBytes, truncated: false, fileLimit: null }
+  }
+
   function route(type, payload) {
     switch (type) {
       case 'ping': return { ok: true }
-      case 'share:list-files': return { entries: files, complete: true }
+      case 'share:list-files': return listing(files)
       case 'share:folder-info': return folderInfo()
       case 'spaces:list': return (window.__HARNESS_CFG && window.__HARNESS_CFG.spaces) || [space]
       case 'space:members': return members
@@ -72,7 +78,7 @@
       // FolderScreen scenario never calls these, so the empties are inert there.
       // A harness that wants a populated space screen seeds these two through __HARNESS_CFG;
       // the scenarios that only need the shell keep the empty listings.
-      case 'files:list': return (window.__HARNESS_CFG && window.__HARNESS_CFG.files) || []
+      case 'files:list': return listing((window.__HARNESS_CFG && window.__HARNESS_CFG.files) || [])
       case 'share:list': return (window.__HARNESS_CFG && window.__HARNESS_CFG.shares) || []
       case 'space:storage-summary': return { totalBytes: folderInfo().totalBytes, onDeviceBytes: 0 }
       case 'space:pending-requests': return (window.__HARNESS_CFG && window.__HARNESS_CFG.pendingRequests) || []

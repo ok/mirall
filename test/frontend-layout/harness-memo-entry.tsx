@@ -25,7 +25,7 @@ import ShareFileRow, { type ShareFileRowProps } from '../../src/renderer/compone
 import { reconcileFiles } from '../../src/renderer/model/share-files-reconcile.js'
 import { buildFileTree } from '../../src/renderer/model/file-tree.js'
 import type { Decoration } from '../../src/renderer/hooks/useDecorations.js'
-import type { FileTreeNode, ShareFileEntry, SpaceMember, PeerDownloadSummary, FileRecipient } from '../../src/renderer/types/types.js'
+import type { FileTreeNode, ShareFileRow as ShareFileRowData, SpaceMember, PeerDownloadSummary, FileRecipient } from '../../src/renderer/types/types.js'
 
 interface HarnessResults {
   pass: boolean
@@ -53,13 +53,13 @@ declare global {
 
 const PATHS = ['a.txt', 'b.txt', 'c.txt', 'd.txt']
 
-function entry(relPath: string, extra: Partial<ShareFileEntry> = {}): ShareFileEntry {
-  return { relPath, size: 1024, hash: 'h-' + relPath, mtime: 0, status: 'remote', ...extra }
+function entry(relPath: string, extra: Partial<ShareFileRowData> = {}): ShareFileRowData {
+  return { relPath, size: 1024, hash: 'h-' + relPath, mtime: 0, status: 'remote', localPath: null, ...extra }
 }
 
-// A fresh listing straight off the wire: every row is a NEW object, exactly as toEntry produces
+// A fresh listing straight off the wire: every row is a NEW object, exactly as the worker sends
 // them. Whether the rows keep their identity is reconcileFiles' job, which is the point.
-function freshListing(changed: string | null): ShareFileEntry[] {
+function freshListing(changed: string | null): ShareFileRowData[] {
   return PATHS.map((p) => entry(p, changed === p ? { size: 2048 } : {}))
 }
 
@@ -87,7 +87,7 @@ function snapshot(): Record<string, number> {
 // business driving — but that means it measures the SHAPE, not the hook. If useFilteredTree ever
 // drops a dep, this still passes. The hook's own deps are pinned in test/invariants/folder-memo-deps.
 let treeBuilds = 0
-function countedTree(files: ShareFileEntry[]): FileTreeNode[] {
+function countedTree(files: ShareFileRowData[]): FileTreeNode[] {
   treeBuilds++
   return buildFileTree(files)
 }
@@ -107,7 +107,7 @@ function memoized(component: unknown): boolean {
 function Harness() {
   // Stands in for useDecorations' heartbeat: state on the SCREEN, re-rendering it every tick.
   const [, setTick] = useState(0)
-  const [files, setFiles] = useState<ShareFileEntry[]>(() => freshListing(null))
+  const [files, setFiles] = useState<ShareFileRowData[]>(() => freshListing(null))
   const [summaries, setSummaries] = useState<Map<string, PeerDownloadSummary>>(() => new Map())
   const [decorations, setDecorations] = useState<Map<string, Decoration>>(() => new Map())
 

@@ -3,7 +3,7 @@ import { dedupeFileRows, STATUS_RANK } from '../../src/shared/transfer/file-dedu
 import { FILE_STATUSES } from '../../src/shared/contract/statuses.js'
 
 const candidate = (over = {}) => ({
-  path: '/a.txt', size: 1, hash: 'h-a', inPlace: true, status: 'remote',
+  path: '/a.txt', size: 1, hash: 'h-a', mtime: 0, status: 'remote', localPath: null,
   owner: { displayName: 'Peer', publicKey: 'pk' }, ...over,
 })
 
@@ -11,6 +11,16 @@ test('every file status has a rank and every rank names a file status', (t) => {
   const ranked = Object.keys(STATUS_RANK).sort()
   t.alike(ranked, [...FILE_STATUSES].sort(), 'the rank table and FILE_STATUSES name the same statuses')
   for (const status of FILE_STATUSES) t.is(typeof STATUS_RANK[status], 'number', status + ' has a numeric rank')
+})
+
+test('an own synced file wins its group over a peer\'s downloaded copy', (t) => {
+  const rows = dedupeFileRows([
+    candidate({ status: 'downloaded', owner: { displayName: 'B', publicKey: 'b' } }),
+    candidate({ status: 'synced', owner: { displayName: 'You', publicKey: 'me' } }),
+  ])
+  t.is(rows.length, 1)
+  t.is(rows[0].owner.publicKey, 'me', 'our own row is the group\'s row')
+  t.is(rows[0].sharedByCount, 1)
 })
 
 test('the same content held by several peers folds into one row with a sharedByCount', (t) => {

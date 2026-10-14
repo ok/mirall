@@ -1,15 +1,15 @@
-// Turns the flat ShareFileEntry[] list from useShareFiles into a nested folder/file
+// Turns the flat ShareFileRow[] list from useShareFiles into a nested folder/file
 // tree for the collapsible FolderScreen. Plain JS (no React, no bare-*/node imports) so
 // the same source feeds the esbuild renderer bundle AND the brittle-node unit suite,
 // which imports .js from src/renderer directly. Node shapes are typed in types.ts.
 
 // Coarse category for folder roll-up summaries. Anything unlisted — a new status included —
 // falls through to 'available', so a status that needs its own bucket must be added here.
-/** @import { FileTreeFileNode, FileTreeFolderNode, FileTreeNode, FileTreeStatusCategory, ShareFileEntry, ShareFileStatus } from '../types/types.js' */
+/** @import { FileTreeFileNode, FileTreeFolderNode, FileTreeNode, FileTreeStatusCategory, FileStatus, ShareFileRow } from '../types/types.js' */
 
 /** @typedef {FileTreeFolderNode & { _folders: Map<string, BuildingFolder>, _files: FileTreeFileNode[] }} BuildingFolder */
 
-/** @internal @param {ShareFileStatus} status @returns {FileTreeStatusCategory} */
+/** @internal @param {FileStatus} status @returns {FileTreeStatusCategory} */
 export function statusCategory(status) {
   switch (status) {
     case 'downloaded':
@@ -23,6 +23,7 @@ export function statusCategory(status) {
     // are not transfers: rolled into 'downloading' they made a folder nobody was pulling from
     // report "N downloading".
     case 'preparing':
+    case 'queued':
     case 'publishing':
       return 'preparing'
     case 'paused-interrupted':
@@ -94,7 +95,7 @@ function finalize(folder) {
 
 // Build a nested tree from a flat entry list. Folders sort before files; both
 // alphanumeric + case-insensitive. Entries with an empty/invalid relPath are skipped.
-/** @param {readonly ShareFileEntry[] | null | undefined} files @returns {FileTreeNode[]} */
+/** @param {readonly ShareFileRow[] | null | undefined} files @returns {FileTreeNode[]} */
 export function buildFileTree(files) {
   const root = makeFolder('', '', -1)
   for (const entry of files ?? []) {

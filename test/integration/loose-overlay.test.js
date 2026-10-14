@@ -245,30 +245,30 @@ test('Item 1: a downloaded+verified peer loose file surfaces verified:true (fals
   fs.writeFileSync(landed, fs.readFileSync(abs))
   await markDownloaded(spaceB.spaceId, '/v.bin', landed, { hash: entry.contentHash })
 
-  let row = (await listFiles(spaceB.spaceId, [member])).find((f) => f.path === '/v.bin')
+  let row = (await listFiles(spaceB.spaceId, [member])).entries.find((f) => f.path === '/v.bin')
   t.is(row?.status, 'downloaded', 'present on device')
   t.is(row.verified, false, 'no verified record → verified:false')
 
   await markVerified(spaceB.spaceId, LOOSE_SHARE_ID + '|v.bin', entry.contentHash, { local: path.join(dir, 'elsewhere.bin'), stat: fs.statSync(landed) })
-  row = (await listFiles(spaceB.spaceId, [member])).find((f) => f.path === '/v.bin')
+  row = (await listFiles(spaceB.spaceId, [member])).entries.find((f) => f.path === '/v.bin')
   t.is(row.verified, false, 'a record for another landing path vouches for nothing')
 
   await markVerified(spaceB.spaceId, LOOSE_SHARE_ID + '|v.bin', entry.contentHash, { local: landed, stat: fs.statSync(landed) })
-  row = (await listFiles(spaceB.spaceId, [member])).find((f) => f.path === '/v.bin')
+  row = (await listFiles(spaceB.spaceId, [member])).entries.find((f) => f.path === '/v.bin')
   t.is(row.verified, true, 'verified record for the landed file matches the content hash → verified:true')
 
   fs.writeFileSync(landed, 'y'.repeat(2048))
   const future = new Date(Date.now() + 60000)
   fs.utimesSync(landed, future, future)
-  row = (await listFiles(spaceB.spaceId, [member])).find((f) => f.path === '/v.bin')
+  row = (await listFiles(spaceB.spaceId, [member])).entries.find((f) => f.path === '/v.bin')
   t.is(row.status, 'downloaded', 'a same-size write stays on the device: nothing re-hashes a download')
   t.is(row.verified, false, 'but is no longer vouched for')
 
   fs.writeFileSync(landed, 'y'.repeat(2049))
-  row = (await listFiles(spaceB.spaceId, [member])).find((f) => f.path === '/v.bin')
+  row = (await listFiles(spaceB.spaceId, [member])).entries.find((f) => f.path === '/v.bin')
   t.is(row.status, 'modified', 'a download whose size moved lists as modified')
   t.is(row.verified, false)
-  t.is(row.localBytes, 2048, 'its bytes still count as on the device')
+  t.is(row.localPath, landed, 'an edited download still sits where it landed')
 })
 
 // Item 2B: a peer loose entry still being hashed (contentHash:null) is now listed as
@@ -348,17 +348,17 @@ test('REGRESSION (FIX-2: a failure AFTER a successful publish does NOT revert th
   t.ok(serveIndex.has(entry.contentHash), 'and it stays servable')
 })
 
-test('A: a still-hashing own loose file is listed as publishing, then flips to mine', async (t) => {
+test('A: a still-hashing own loose file is listed as publishing, then flips to synced', async (t) => {
   const ctx = await setup(t)
   await advertise(ctx.spaceId, LOOSE_SHARE_ID, 'big.bin', { size: 4096, mtime: 1, contentHash: null })
-  let row = (await listFiles(ctx.spaceId, [])).find((f) => f.path === '/big.bin')
+  let row = (await listFiles(ctx.spaceId, [])).entries.find((f) => f.path === '/big.bin')
   t.ok(row, 'still-indexing own file is listed (server-truth, survives remount)')
   t.is(row.status, 'publishing')
-  t.ok(row.inPlace, 'flagged in-place')
+  t.is(row.localPath, null, 'no source was recorded for an advertised-only entry')
 
   await advertise(ctx.spaceId, LOOSE_SHARE_ID, 'big.bin', { size: 4096, mtime: 1, contentHash: 'h'.repeat(64) })
-  row = (await listFiles(ctx.spaceId, [])).find((f) => f.path === '/big.bin')
-  t.is(row.status, 'mine', 'once hashed it becomes an owned file')
+  row = (await listFiles(ctx.spaceId, [])).entries.find((f) => f.path === '/big.bin')
+  t.is(row.status, 'synced', 'once hashed it becomes an owned file')
 })
 
 test('Item 2B: a still-hashing peer loose entry is listed and presence-gates to unavailable when the owner is offline', async (t) => {
@@ -367,13 +367,13 @@ test('Item 2B: a still-hashing peer loose entry is listed and presence-gates to 
   const member = { publicKey: 'peerpub', displayName: 'Peer', looseCatalogKeyEnc: await ownCatalogKeyHex(ctx.spaceId) }
 
   const spaceB = await consumerSpace(ctx, 'Borealis')
-  const row = (await listFiles(spaceB.spaceId, [member])).find((f) => f.path === '/p.bin')
+  const row = (await listFiles(spaceB.spaceId, [member])).entries.find((f) => f.path === '/p.bin')
   t.ok(row, 'null-hash peer file is listed (was hidden before)')
   // Presence-gated (#372): with no in-process presence the owner reads offline, so a still-hashing
   // entry degrades to 'unavailable' rather than a stuck 'preparing'. The owner-online 'preparing'
   // case is covered by unhashedStatusFor's unit test + the loose-preparing flow test.
   t.is(row.status, 'unavailable')
-  t.ok(row.inPlace, 'flagged in-place')
+  t.is(row.localPath, null, 'nothing of a peer\'s unhashed file is on this device')
 })
 
 // Import cycles are asserted for the whole data layer in import-time.test.js; what is checked

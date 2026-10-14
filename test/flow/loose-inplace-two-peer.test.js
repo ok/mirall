@@ -36,8 +36,8 @@ test('in-place loose file: owner shares with no drive copy; member fetches by co
     t.ok(before.totalDiskUsage - baseline.totalDiskUsage < bytes.length / 2, 'no import — served in place')
 
     // Bob sees it in the flat list (from Alice's replicated loose catalog), marked in-place + remote.
-    const listed = await B.until('files:list', { spaceId },
-      (f) => Array.isArray(f) && f.some((e) => e.path === '/big.bin' && e.inPlace && e.status === 'remote'),
+    const listed = await B.untilFiles(spaceId,
+      (f) => f.some((e) => e.path === '/big.bin' && e.status === 'remote'),
       { ms: 60000 })
     const entry = listed.find((e) => e.path === '/big.bin')
     t.is(entry.size, bytes.length, 'catalog carries the size')
@@ -45,15 +45,15 @@ test('in-place loose file: owner shares with no drive copy; member fetches by co
 
     // Bob fetches by content hash straight from Alice; completion arrives via event.
     const done = B.waitFor('event:transfer-complete', (m) => m.path === '/big.bin', 60000)
-    const res = await B.request('files:download', { spaceId, path: '/big.bin', inPlace: true, ownerKey: aKey })
+    const res = await B.request('files:download', { spaceId, path: '/big.bin', ownerKey: aKey })
     t.ok(res?.transferId, 'in-place download returned a transferId (non-blocking)')
     const completed = await done
     t.ok(fs.readFileSync(completed.localPath).equals(bytes), 'downloaded bytes match the source')
 
     // Bob's row now shows downloaded + verified (the overlay checked the whole-file
     // hash byte-for-byte during the transfer).
-    const bobList = await B.until('files:list', { spaceId },
-      (f) => Array.isArray(f) && f.some((e) => e.path === '/big.bin' && e.status === 'downloaded'),
+    const bobList = await B.untilFiles(spaceId,
+      (f) => f.some((e) => e.path === '/big.bin' && e.status === 'downloaded'),
       { ms: 30000 })
     t.is(bobList.find((e) => e.path === '/big.bin')?.verified, true, 'downloaded loose file shows the verified badge')
 
@@ -75,17 +75,17 @@ test('in-place loose file is unavailable while the owner is offline',
     fs.writeFileSync(srcPath, bytes)
     await A.request('files:add', { spaceId, filePath: srcPath, fileName: 'note.txt', fileSize: bytes.length })
 
-    await B.until('files:list', { spaceId },
-      (f) => Array.isArray(f) && f.some((e) => e.path === '/note.txt' && e.status === 'remote'),
+    await B.untilFiles(spaceId,
+      (f) => f.some((e) => e.path === '/note.txt' && e.status === 'remote'),
       { ms: 60000 })
 
     A.kill()
     await B.until('members:online', { spaceId }, (o) => !o.includes(aKey), { ms: 90000 })
 
-    const files = await B.request('files:list', { spaceId })
+    const files = await B.files(spaceId)
     t.is(files.find((e) => e.path === '/note.txt')?.status, 'unavailable', 'unavailable with the owner offline')
 
-    const res = await B.request('files:download', { spaceId, path: '/note.txt', inPlace: true, ownerKey: aKey })
+    const res = await B.request('files:download', { spaceId, path: '/note.txt', ownerKey: aKey })
     t.ok(res && res.queued, 'download queues (no holder online), no hang')
   })
 
@@ -108,12 +108,12 @@ test('files an owner publishes on returning are all listed, with the listing bac
       await A.request('files:add', { spaceId, filePath: path.join(src, name), fileName: name, fileSize: name.length })
     }
     await add('first.txt')
-    await B.until('files:list', { spaceId },
-      (f) => Array.isArray(f) && f.some((e) => e.path === '/first.txt' && e.status === 'remote'), { ms: 60000 })
+    await B.untilFiles(spaceId,
+      (f) => f.some((e) => e.path === '/first.txt' && e.status === 'remote'), { ms: 60000 })
 
     A.kill()
     await B.until('members:online', { spaceId }, (o) => !o.includes(aKey), { ms: 90000 })
-    const away = await B.request('files:list', { spaceId })
+    const away = await B.files(spaceId)
     t.is(away.find((e) => e.path === '/first.txt')?.status, 'unavailable', 'the memoised row follows presence')
 
     A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: aStore, downloads: mkTmpDir(t), flags: aFlags })
@@ -121,8 +121,8 @@ test('files an owner publishes on returning are all listed, with the listing bac
     for (const name of burst) await add(name)
 
     const expected = ['/first.txt', ...burst.map((n) => '/' + n)].sort()
-    const listed = await B.until('files:list', { spaceId },
-      (f) => Array.isArray(f) && expected.every((p) => f.some((e) => e.path === p && e.status === 'remote')), { ms: 90000 })
+    const listed = await B.untilFiles(spaceId,
+      (f) => expected.every((p) => f.some((e) => e.path === p && e.status === 'remote')), { ms: 90000 })
     t.alike(listed.map((e) => e.path).sort(), expected, 'every file, and nothing else')
     A.kill()
   })

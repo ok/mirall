@@ -28,7 +28,7 @@ import {
   pruneDownloadClaims,
 } from '../transfer/files.js'
 import { COPY_VERDICT, verifiedCopyVerdict } from '../transfer/verified-copy.js'
-import { SHARE_FILE_STATUS } from '../contract/statuses.js'
+import { FILE_STATUS } from '../contract/statuses.js'
 /** @import { CancellationSignal } from '../core/cancellation.js' */
 /** @import { StoredShare } from './shares.js' */
 /** @import { ShareFileListing } from '../contract/responses.js' */
@@ -84,7 +84,7 @@ function overlayConsumerRow(spaceId, share, entry, { ownerOnline, foreignMount, 
     const onDevice = verdict !== COPY_VERDICT.UNPROVEN || stat?.size === entry.size
     const row = consumerRowStatusFor({
       copyVerdict: onDevice ? verdict : null,
-      onDeviceStatus: SHARE_FILE_STATUS.SYNCED,
+      onDeviceStatus: FILE_STATUS.SYNCED,
       hashed,
       // Gated on reachability, like the strip and the folder tile: a fetch parked on the overlay's
       // peer wait pulls nothing, and a downloading row with no bytes paints as "Preparing…" beside a
@@ -108,7 +108,7 @@ function overlayConsumerRow(spaceId, share, entry, { ownerOnline, foreignMount, 
   const pendingRow = pending?.get(drivePath)
   const row = consumerRowStatusFor({
     copyVerdict: verdict.downloaded ? copyVerdict(verdict.stat ?? null, localPath, false) : null,
-    onDeviceStatus: SHARE_FILE_STATUS.DOWNLOADED,
+    onDeviceStatus: FILE_STATUS.DOWNLOADED,
     hashed,
     isActive: deps.hasTransfer(transferIdFor(spaceId, share.id, entry.relPath)),
     pendingRow: pendingRow?.shareId === share.id ? pendingRow : undefined,
@@ -133,7 +133,7 @@ async function prefetchRowState(spaceId, share, entries, { isOwn, foreignMount, 
 
 function ownerRow(entry, ownedMount) {
   return {
-    status: entry.contentHash ? SHARE_FILE_STATUS.SYNCED : SHARE_FILE_STATUS.PUBLISHING,
+    status: entry.contentHash ? FILE_STATUS.SYNCED : FILE_STATUS.PUBLISHING,
     localPath: ownedMount ? pathFromMount(ownedMount.mountPath, entry.relPath) : null,
   }
 }

@@ -29,8 +29,8 @@ test('loose file caught mid-index degrades preparing→unavailable when owner qu
     A.request('files:add', { spaceId, filePath: src, fileName: 'reel.bin', fileSize: bytes.length }).catch(() => {})
 
     // Catch the preparing window (the null-hash entry replicates to B before the hash lands).
-    await B.until('files:list', { spaceId },
-      (l) => Array.isArray(l) && l.find((e) => e.path === '/reel.bin')?.status === 'preparing',
+    await B.untilFiles(spaceId,
+      (l) => l.find((e) => e.path === '/reel.bin')?.status === 'preparing',
       { ms: 60000, every: 100 })
 
     // Owner quits mid-index — the graceful {type:'shutdown'} the Electron main sends.
@@ -39,8 +39,8 @@ test('loose file caught mid-index degrades preparing→unavailable when owner qu
 
     // The mid-index file must NOT stay preparing — it degrades to unavailable like every other
     // file from an offline owner.
-    const settled = await B.until('files:list', { spaceId },
-      (l) => Array.isArray(l) && l.find((e) => e.path === '/reel.bin')?.status === 'unavailable',
+    const settled = await B.untilFiles(spaceId,
+      (l) => l.find((e) => e.path === '/reel.bin')?.status === 'unavailable',
       { ms: 30000, every: 200 })
     t.is(settled.find((e) => e.path === '/reel.bin').status, 'unavailable',
       'mid-index file is unavailable while owner offline, not stuck preparing')

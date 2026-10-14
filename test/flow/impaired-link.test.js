@@ -22,10 +22,10 @@ async function shareSeeDownload(t, A, B, spaceId, aKey, aSrc, name, mb, seed) {
   const bytes = patternedBytes(mb * 1024 * 1024, seed)
   fs.writeFileSync(path.join(aSrc, name), bytes)
   await A.request('files:add', { spaceId, filePath: path.join(aSrc, name), fileName: name, fileSize: bytes.length })
-  await B.until('files:list', { spaceId }, (f) => Array.isArray(f) && f.some((e) => e.path === '/' + name && e.status === 'remote'), { ms: 120000 })
+  await B.untilFiles(spaceId, (f) => f.some((e) => e.path === '/' + name && e.status === 'remote'), { ms: 120000 })
   const started = Date.now()
   const done = B.waitFor('event:transfer-complete', (m) => m.path === '/' + name, 240000)
-  await B.request('files:download', { spaceId, path: '/' + name, inPlace: true, ownerKey: aKey })
+  await B.request('files:download', { spaceId, path: '/' + name, ownerKey: aKey })
   const completion = await done
   t.comment(`${name}: ${mb} MB transferred in ${Date.now() - started}ms under the impaired link`)
   t.ok(fs.readFileSync(completion.localPath).equals(bytes), `${name}: byte-exact over the impaired link`)

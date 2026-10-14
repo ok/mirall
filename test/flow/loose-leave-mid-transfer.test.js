@@ -21,7 +21,7 @@ async function startAndFlow(peer, spaceId, name, ownerKey) {
   const flowing = new Promise((resolve) => {
     peer.on('event:decoration', (m) => { if (m.channel === 'transfer' && m.spaceId === spaceId && m.key === '/' + name && m.bytes > 0) resolve() })
   })
-  await peer.request('files:download', { spaceId, path: '/' + name, inPlace: true, ownerKey })
+  await peer.request('files:download', { spaceId, path: '/' + name, ownerKey })
   await flowing
 }
 async function share(A, spaceId, dir, name, seed) {
@@ -30,8 +30,8 @@ async function share(A, spaceId, dir, name, seed) {
   await A.request('files:add', { spaceId, filePath: path.join(dir, name), fileName: name, fileSize: bytes.length })
 }
 async function seeRemote(peer, spaceId, name) {
-  await peer.until('files:list', { spaceId },
-    (f) => Array.isArray(f) && f.some((e) => e.path === '/' + name && e.status === 'remote'), { ms: 60000 })
+  await peer.untilFiles(spaceId,
+    (f) => f.some((e) => e.path === '/' + name && e.status === 'remote'), { ms: 60000 })
 }
 
 // F2 — the OWNER leaves the space while a peer is downloading.

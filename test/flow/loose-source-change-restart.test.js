@@ -37,8 +37,8 @@ test('loose download auto-restarts when the source changes mid-transfer',
     fs.writeFileSync(srcPath, original)
     await A.request('files:add', { spaceId, filePath: srcPath, fileName: 'big.bin', fileSize: original.length })
 
-    await B.until('files:list', { spaceId },
-      (f) => Array.isArray(f) && f.some((e) => e.path === '/big.bin' && e.inPlace && e.status === 'remote'),
+    await B.untilFiles(spaceId,
+      (f) => f.some((e) => e.path === '/big.bin' && e.status === 'remote'),
       { ms: 60000 })
 
     // Track ordering: a transfer-complete for /big.bin BEFORE the supersede means the
@@ -57,7 +57,7 @@ test('loose download auto-restarts when the source changes mid-transfer',
     })
     const supersededEvt = B.waitFor('event:transfer-superseded', (m) => m.path === '/big.bin', 120000)
     const done = B.waitFor('event:transfer-complete', (m) => m.path === '/big.bin' && superseded, 180000)
-    await B.request('files:download', { spaceId, path: '/big.bin', inPlace: true, ownerKey: aKey })
+    await B.request('files:download', { spaceId, path: '/big.bin', ownerKey: aKey })
     await flowing
 
     // Change the source on A (different size + content → new contentHash) and re-publish.

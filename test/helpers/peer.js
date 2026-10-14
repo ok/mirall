@@ -28,6 +28,11 @@ function kekFor(storage) {
 
 const tmp = (label) => tmpDir(`mirall-peer-${label}`)
 
+function listingEntries(listing) {
+  if (!listing || !Array.isArray(listing.entries)) throw new Error('files:list did not answer a listing envelope: ' + summarize(listing))
+  return listing.entries
+}
+
 // Poll until OS process `pid` is gone (signal 0 = existence probe; ESRCH ⇒ dead).
 // Used to assert a worker subprocess actually exits — a worker that survives is
 // the same orphan-at-100%-CPU bug we guard against in production.
@@ -201,6 +206,16 @@ export async function launchPeer(t, { bootstrap, displayName = 'Peer', debug = f
         await new Promise((r) => setTimeout(r, every))
       }
     },
+    // files:list answers a listing envelope; flow tests read its rows through these two, which
+    // throw on any other shape, so a predicate never runs against the envelope by mistake.
+    async files(spaceId) {
+      return listingEntries(await peer.request('files:list', { spaceId }))
+    },
+    // Polls files:list until `pred(rows)` holds, and returns those rows.
+    async untilFiles(spaceId, pred, opts) {
+      const listing = await peer.until('files:list', { spaceId }, (res) => pred(listingEntries(res)), opts)
+      return listing.entries
+    },
   }
 
   // Boot: attach listeners (above) are live, introduce ourselves, send the bootstrap line, await
@@ -315,12 +330,8 @@ export async function connectInSpaceWithApproval(t, A, B, name = 'Secure Space')
 // on replication (it bounds each peer-drive read under a budget), so polling —
 // not a single list after one event — is the reliable wait.
 export async function waitForCatalogEntry(peer, spaceId, filePath, { ms = 60000, every = 250 } = {}) {
-  let entry
-  await peer.until('files:list', { spaceId }, (list) => {
-    entry = list.find((f) => f.path === filePath)
-    return !!entry
-  }, { ms, every })
-  return entry
+  const rows = await peer.untilFiles(spaceId, (list) => list.some((f) => f.path === filePath), { ms, every })
+  return rows.find((f) => f.path === filePath)
 }
 
 // Add a further peer to an existing space (for 3+-peer flows). `owner` is the peer

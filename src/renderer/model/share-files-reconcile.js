@@ -8,29 +8,40 @@
 // reference when nothing moved. Identity matters as much as content: an unchanged row keeps its
 // PREVIOUS object so a memoized row can skip it — see adoptIdentity.
 
-// Every field toEntry (useShareFiles.ts) puts on a row EXCEPT relPath (the merge key). This list is
-// the contract: an unchanged row keeps its old object AND its old values, so a field added to
-// toEntry but not here paints stale until some listed field moves. Live transfer progress is
-// deliberately absent from the row entirely — it reaches the row per path from the decoration
-// channel, so a frame never touches the row object and this comparison never sees one.
-/** @import { ShareFileEntry } from '../types/types.js' */
+/** @import { ShareFileRow } from '../types/types.js' */
 
-/** @param {ShareFileEntry} a @param {ShareFileEntry} b */
+// Every row field except the merge key. Typed total over `ShareFileRow`, so a new field fails `tsc`
+// until it is compared here; an unchanged row keeps its old object AND values, so a field missing
+// here would paint stale. Live transfer progress is not a row field — it reaches the row per path
+// from the decoration channel, so a frame never touches the row object.
+/** @type {Readonly<Record<Exclude<keyof ShareFileRow, 'relPath'>, true>>} */
+const COMPARED = {
+  size: true,
+  hash: true,
+  mtime: true,
+  status: true,
+  localPath: true,
+  verified: true,
+  mirrored: true,
+  pendingBytes: true,
+  errorCode: true,
+  transferId: true,
+}
+const KEYS = /** @type {(keyof typeof COMPARED)[]} */ (Object.keys(COMPARED))
+
+/** @param {ShareFileRow} a @param {ShareFileRow} b */
 function sameRow(a, b) {
-  return a.size === b.size && a.hash === b.hash && a.mtime === b.mtime &&
-    a.status === b.status && a.localPath === b.localPath &&
-    a.verified === b.verified && a.mirrored === b.mirrored && a.pendingBytes === b.pendingBytes &&
-    a.errorCode === b.errorCode && a.transferId === b.transferId
+  return KEYS.every((k) => a[k] === b[k])
 }
 
-/** @param {ShareFileEntry[]} prev @param {ShareFileEntry[]} next @param {{ complete: boolean }} opts */
+/** @param {ShareFileRow[]} prev @param {ShareFileRow[]} next @param {{ complete: boolean }} opts */
 export function reconcileFiles(prev, next, { complete }) {
   // A complete read is authoritative for CONTENT — adds, updates and removals all apply. It is not
   // a reason to hand every unchanged row a new object identity: doing so defeats React.memo on the
   // row, which is the whole point of reconciling rather than replacing.
   if (complete) return adoptIdentity(prev, next)
   if (next.length === 0) return prev
-  /** @type {ShareFileEntry[]} */
+  /** @type {ShareFileRow[]} */
   const out = []
   let i = 0
   let j = 0
@@ -66,10 +77,10 @@ export function reconcileFiles(prev, next, { complete }) {
 // Safe under a violated sort order: `out` is built entirely from `next`, one slot per entry, so
 // the RESULT ALWAYS HAS EXACTLY next's CONTENT. An unsorted input only costs identity adoption
 // (rows fall through to the fresh object), never correctness.
-/** @param {ShareFileEntry[]} prev @param {ShareFileEntry[]} next */
+/** @param {ShareFileRow[]} prev @param {ShareFileRow[]} next */
 function adoptIdentity(prev, next) {
   if (prev.length === 0) return next
-  /** @type {ShareFileEntry[]} */
+  /** @type {ShareFileRow[]} */
   const out = new Array(next.length)
   let i = 0
   let changed = false

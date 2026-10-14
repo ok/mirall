@@ -15,11 +15,11 @@ import { fileRowAction } from '../../model/file-row-action.js'
 import { deriveRowView } from '../../model/row-view.js'
 import { recipientSummary } from '../../model/file-recipients.js'
 import type { Decoration } from '../../types/ui.js'
-import type { ShareFileEntry, SpaceMember, PeerDownloadSummary, FileRecipient } from '../../types/types.js'
+import type { ShareFileRow as ShareFileRowData, SpaceMember, PeerDownloadSummary, FileRecipient } from '../../types/types.js'
 
 // test seam
 export interface ShareFileRowProps {
-  file: ShareFileEntry
+  file: ShareFileRowData
   /** This row's live transfer frame, looked up by useShareFiles. Two scalar props rather than one
       object: an object literal would be a fresh identity every render and defeat the memo below. */
   decoration: Decoration | null
@@ -104,7 +104,7 @@ function ShareFileRow({ file, decoration, seeded, isOwn, manualControls, spaceId
   const { t } = useTranslation()
   const { t: tErr } = useTranslation('errors')
   const rowName = displayName || file.relPath
-  const view = deriveRowView(file, decoration, downloadSummary, { kind: 'share', isOwn, seeded })
+  const view = deriveRowView(file, decoration, downloadSummary, { isOwn, seeded })
 
   const action = fileRowAction({ status: file.status, manualControls, hasTransferId: !!file.transferId })
   const busyLabel = file.status === 'publishing'

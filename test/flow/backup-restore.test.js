@@ -81,7 +81,7 @@ test('a device restored from a backup catches up from a co-member, then writes w
   await back.request('profile:set', { displayName: 'Alice, restored' })
   await carol.until('space:members', { spaceId }, (r) => Array.isArray(r) && r.some((m) => m.publicKey === aliceKey && m.displayName === 'Alice, restored'), { ms: 120000, every: 1000 })
 
-  await back.until('files:list', { spaceId }, (list) => list.some((f) => f.path === '/after.bin'), { ms: 180000, every: 1000 })
+  await back.untilFiles(spaceId, (list) => list.some((f) => f.path === '/after.bin'), { ms: 180000, every: 1000 })
   t.pass('the file shared after the backup is in the restored catalog, caught up from Carol')
   await share(t, back, spaceId, 'restored.bin', 3)
   await waitForCatalogEntry(carol, spaceId, '/restored.bin', { ms: 180000 })

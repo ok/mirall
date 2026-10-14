@@ -141,7 +141,7 @@ export const swallowedRejectionExemptions = Object.freeze({
   'src/renderer/hooks/useFiles.ts': {
     why: 'Retry of the file list through the query store, which renders the read error itself.',
     sites: [
-      'useFiles > refresh > useCallback: refetchQuery<FileEntry[]>(\'files:list\', { spaceId }, filesScopes(spaceId)).catch',
+      'useFiles > refresh > useCallback: refetchQuery<LooseFileListing>(\'files:list\', { spaceId }, filesScopes(spaceId)).',
     ],
   },
   'src/renderer/hooks/useFolderMount.ts': {

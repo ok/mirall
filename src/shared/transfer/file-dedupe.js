@@ -2,15 +2,16 @@
 // file, the most-progressed copy winning and the rest counted as `sharedByCount`. Pure (no drive,
 // no bee) so `test/unit` can drive it under plain Node.
 
-// Most-progressed first, so the group's winner is the copy the user can act on. `downloaded` and
-// `modified` tie — both are a copy on this disk — as do `downloading`, `publishing` and `queued`, a
-// peer fetch and our own add (indexing, or waiting for its slot) being equally in flight; a tie
-// keeps candidate order, which is member order.
+// Most-progressed first, so the group's winner is the copy the user can act on. An own file wins its
+// group: only own rows are `synced` in a loose listing, so a peer's copy never outranks ours.
+// `downloaded` and `modified` tie — both are a copy on this disk — as do `downloading`, `publishing`
+// and `queued`, a peer fetch and our own add (indexing, or waiting for its slot) being equally in
+// flight; a tie keeps candidate order, which is member order.
 // Every FILE_STATUS member carries a rank: a status missing from this table makes the comparator
 // return NaN, and an inconsistent comparator leaves the group's winner unspecified.
 /** @internal */
 export const STATUS_RANK = Object.freeze({
-  mine: 0,
+  synced: 0,
   downloaded: 1,
   modified: 1,
   verifying: 2,

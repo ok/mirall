@@ -57,7 +57,7 @@ test('the renderer derives its status unions instead of re-listing them', (t) =>
     readFileSync(path.join(dir, '..', '..', 'renderer', 'types', 'types.ts'), 'utf8'),
     readFileSync(path.join(dir, 'responses.ts'), 'utf8'),
   ].join('\n')
-  for (const [type, konst] of [['FileStatus', 'FILE_STATUSES'], ['BadgeStatus', 'BADGE_STATUSES'], ['ShareFileStatus', 'SHARE_FILE_STATUSES'], ['AuditCategory', 'CATEGORIES'], ['ReachabilityVerdict', 'VERDICTS'], ['ReachabilityCause', 'CAUSES'], ['CanaryState', 'CANARY_STATES']]) {
+  for (const [type, konst] of [['FileStatus', 'FILE_STATUSES'], ['BadgeStatus', 'BADGE_STATUSES'], ['AuditCategory', 'CATEGORIES'], ['ReachabilityVerdict', 'VERDICTS'], ['ReachabilityCause', 'CAUSES'], ['CanaryState', 'CANARY_STATES']]) {
     t.ok(new RegExp(`export type ${type} = \\(typeof ${konst}\\)\\[number\\]`).test(declared),
       `${type} is derived from the contract`)
   }

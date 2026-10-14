@@ -47,14 +47,15 @@ test('addFile (flag on) shares in place — a loose-catalog entry', async (t) =>
   t.ok(await getOwnEntry(ctx.spaceId, LOOSE_SHARE_ID, 'a.txt'), 'loose catalog entry created')
 })
 
-test('listFiles surfaces own in-place files as inPlace + mine', async (t) => {
+test('listFiles surfaces an own in-place file as synced, at its source', async (t) => {
   const ctx = await setup(t)
-  await addFile(ctx.spaceId, writeSource(ctx, 'a.txt', 'x'), 'a.txt', 1, ctx.fake.ipc)
-  const files = await listFiles(ctx.spaceId, [])
+  const src = writeSource(ctx, 'a.txt', 'x')
+  await addFile(ctx.spaceId, src, 'a.txt', 1, ctx.fake.ipc)
+  const files = (await listFiles(ctx.spaceId, [])).entries
   const row = files.find((f) => f.path === '/a.txt')
   t.ok(row, 'in-place file appears in the flat list')
-  t.ok(row.inPlace, 'row flagged inPlace')
-  t.is(row.status, 'mine', 'own in-place file is mine')
+  t.is(row.localPath, src, 'its bytes are where the user keeps the file')
+  t.is(row.status, 'synced', 'own in-place file is synced')
 })
 
 test('removeFile routes an own in-place file to unshare (tombstone, no drive del)', async (t) => {
@@ -64,7 +65,7 @@ test('removeFile routes an own in-place file to unshare (tombstone, no drive del
 
   await removeFile(ctx.spaceId, '/a.txt')
   t.absent(await getOwnEntry(ctx.spaceId, LOOSE_SHARE_ID, 'a.txt'), 'in-place entry tombstoned via removeFile')
-  t.absent(await listFiles(ctx.spaceId, []).then((f) => f.find((x) => x.path === '/a.txt')), 'no longer listed')
+  t.absent(await listFiles(ctx.spaceId, []).then((l) => l.entries.find((x) => x.path === '/a.txt')), 'no longer listed')
 })
 
 test('addFile enforces the per-space cap and surfaces LOOSE_FILE_LIMIT', async (t) => {

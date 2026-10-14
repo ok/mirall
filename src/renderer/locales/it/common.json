@@ -83,6 +83,7 @@
     "filesError": "Impossibile caricare i file",
     "filesErrorHint": "L'elenco dei file ha impiegato troppo tempo a caricarsi. Può succedere mentre i file sono ancora in sincronizzazione o un peer è offline.",
     "filesRetry": "Riprova",
+    "listIncomplete": "Non è ancora possibile leggere gli elenchi di file di alcuni membri: potrebbero comparire altri file.",
     "emptyShareTitle": "Niente di condiviso ancora",
     "emptyShareSubtitle": "Trascina file o cartelle nell'area a destra per iniziare a condividerli in questo spazio.",
     "emptyShareDocsTitle": "Cosa succede quando condividi",

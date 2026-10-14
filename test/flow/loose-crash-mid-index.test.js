@@ -10,7 +10,7 @@ import { scaled } from '../helpers/timing.js'
 // B4 — the owner crashes (hard subprocess kill) WHILE indexing a loose file (contentHash
 // still null), then restarts on the same store. The loose-publish restart path (GH#356): the
 // entry must not be left as a permanent null-hash "publishing" zombie — on reboot it either
-// re-hashes to a real share ('mine') or is cleanly absent. A stuck 'publishing' row after
+// re-hashes to a real share ('synced') or is cleanly absent. A stuck 'publishing' row after
 // the settle window fails this test (that IS the zombie). Untested at the flow layer before now.
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
@@ -38,10 +38,10 @@ test('owner crash mid-index then restart: no permanent null-hash publishing zomb
     let caught = false
     const deadline = Date.now() + scaled(30000)
     while (Date.now() < deadline) {
-      const list = await A.request('files:list', { spaceId }).catch(() => null)
+      const list = await A.files(spaceId).catch(() => null)
       const row = Array.isArray(list) ? list.find((e) => e.path === '/archive.bin') : null
       if (row && row.status === 'publishing') { caught = true; break }
-      if (row && row.status === 'mine') break // hash finished before we could catch it
+      if (row && row.status === 'synced') break // hash finished before we could catch it
       await sleep(200)
     }
     t.comment(`caught owner mid-index (publishing): ${caught}`)
@@ -52,31 +52,31 @@ test('owner crash mid-index then restart: no permanent null-hash publishing zomb
     A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: aStore, flags: aFlags })
     await sleep(15000)
 
-    let row = (await A.request('files:list', { spaceId })).find((e) => e.path === '/archive.bin')
+    let row = (await A.files(spaceId)).find((e) => e.path === '/archive.bin')
     t.comment(`post-restart owner row: ${row ? 'status=' + row.status : 'absent'}`)
     if (row && row.status === 'publishing') {
-      // A boot re-hash may still be running — give it time to resolve to 'mine' or vanish.
+      // A boot re-hash may still be running — give it time to resolve to 'synced' or vanish.
       // If it stays 'publishing' past this window, that is the permanent zombie → this fails.
-      await A.until('files:list', { spaceId }, (list) => {
-        const e = Array.isArray(list) ? list.find((x) => x.path === '/archive.bin') : null
-        return !e || e.status === 'mine'
+      await A.untilFiles(spaceId, (list) => {
+        const e = list.find((x) => x.path === '/archive.bin')
+        return !e || e.status === 'synced'
       }, { ms: 90000 })
-      row = (await A.request('files:list', { spaceId })).find((e) => e.path === '/archive.bin')
+      row = (await A.files(spaceId)).find((e) => e.path === '/archive.bin')
     }
-    t.ok(!row || row.status === 'mine', 'owner entry is absent or fully shared — not a permanent publishing zombie')
+    t.ok(!row || row.status === 'synced', 'owner entry is absent or fully shared — not a permanent publishing zombie')
 
     // Non-vacuous peer convergence: an absent row from never-having-replicated must NOT pass. The
-    // owner deterministically resumes to 'mine' here (its source was recorded at advertise time), so
+    // owner deterministically resumes to 'synced' here (its source was recorded at advertise time), so
     // the peer must converge to the file being available ('remote') — not a stuck 'preparing', and
     // not a phantom that silently never arrived. (If the owner instead reverted, the peer drops it.)
-    const ownerShared = !!row && row.status === 'mine'
+    const ownerShared = !!row && row.status === 'synced'
     if (ownerShared) {
-      await B.until('files:list', { spaceId }, (list) => {
-        const e = Array.isArray(list) ? list.find((x) => x.path === '/archive.bin') : null
+      await B.untilFiles(spaceId, (list) => {
+        const e = list.find((x) => x.path === '/archive.bin')
         return !!e && e.status === 'remote'
       }, { ms: 60000 })
     }
-    const bRow = (await B.request('files:list', { spaceId })).find((e) => e.path === '/archive.bin')
+    const bRow = (await B.files(spaceId)).find((e) => e.path === '/archive.bin')
     t.comment(`post-restart peer row: ${bRow ? 'status=' + bRow.status : 'absent'}`)
     if (ownerShared) t.is(bRow?.status, 'remote', 'peer converged to the resumed share, not a stuck/absent phantom')
     else t.absent(bRow, 'peer dropped the reverted phantom')
