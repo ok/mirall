@@ -7,7 +7,7 @@ import { getOverlay } from '../../src/shared/transfer/overlay/overlay-instance.j
 import { overlayBackend } from '../../src/shared/transfer/overlay/index.js'
 import { acquireFetchSlot, fetchClaimedBy, fetchSlotStats } from '../../src/shared/transfer/overlay/fetch-gate.js'
 import { materializeCatalogFile, runMaterializeTick, setMirrorReachability } from '../../src/shared/folders/mirror-pass.js'
-import { requestMirrorWalk, stopForeignLoop } from '../../src/shared/folders/foreign-verbs.js'
+import { requestMirrorWalk, setForeignEnabled, stopForeignLoop } from '../../src/shared/folders/foreign-verbs.js'
 import { getForeignMount } from '../../src/shared/folders/mount-store.js'
 import { getRuntimeConfig, setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { STATUS_MOUNT_GONE, isAutoPauseStatus } from '../../src/shared/contract/mount-fault.js'
@@ -293,4 +293,54 @@ test('a local hit is copied to the mirror path and recorded as verified', async 
   t.is(await materializeCatalogFile(ctx.mount, ctx.share, entry, { synced: new Set(['a.txt']), hashOf }), 'present')
   t.is(hashes, 0, 'the copy was recorded, so the next pass trusts it without re-reading it')
   t.is(v.calls, 1, 'and asks no one')
+})
+
+// -- The stop path: what a pause asks the vendor to cancel.
+
+// The vendor's cancel, as the engine models it: a cancel for a hash with no fetch in flight is
+// remembered and consumed by the next fetch of that hash, which then rejects ECANCELLED
+// (fetch-session.js). Every call is recorded. It wraps the counting `vendor`, whose fetch then runs
+// `through` unless a cancel was waiting for it.
+function vendorCancel(t, v, through) {
+  const overlay = getOverlay()
+  const prev = overlay.cancelFetch
+  const c = { calls: [], live: new Set(), pending: new Set() }
+  overlay.cancelFetch = (hash, opts) => {
+    c.calls.push({ hash, opts })
+    if (!c.live.has(hash)) c.pending.add(hash)
+    return true
+  }
+  v.inner = async (hash, opts) => {
+    if (c.pending.delete(hash)) throw Object.assign(new Error('cancelled'), { code: 'ECANCELLED' })
+    c.live.add(hash)
+    try { return await through(hash, opts) } finally { c.live.delete(hash) }
+  }
+  t.teardown(() => { overlay.cancelFetch = prev }, { order: -1 })
+  return c
+}
+
+// REGRESSION (FIX-661: a fetch that rejected with a local I/O fault paused the mount while its
+// in-flight record was still set, so the pause's stop path asked the vendor to cancel a fetch that
+// had already settled. The vendor kept that as a cancel for the next fetch of the hash, and the
+// first retry after the resume was cancelled.)
+test('REGRESSION (FIX-661): a fetch that pauses the mount on a disk fault leaves no cancel for the retry', async (t) => {
+  const { ctx, byPath } = await mirror(t, { 'a.txt': 'alpha' })
+  const { spaceId } = ctx
+  const shareId = ctx.share.id
+  const hash = byPath['a.txt'].contentHash
+  const v = vendor(t)
+  const c = vendorCancel(t, v, async (h, opts) => (v.calls === 1
+    ? Promise.reject(Object.assign(new Error('no space left on device'), { code: 'ENOSPC' }))
+    : await v.real(h, opts)))
+
+  await runMaterializeTick(spaceId, shareId)
+  t.is((await stored(ctx)).status, 'paused-enospc', 'precondition: the first fetch paused the mount')
+  t.alike(c.calls.map((call) => call.hash), [], 'the pause asked the vendor to cancel nothing')
+
+  await setForeignEnabled(spaceId, shareId, true)
+  await runMaterializeTick(spaceId, shareId)
+
+  t.is(v.calls, 2, 'the resume retried the file once')
+  t.is(read(path.join(ctx.mirrorPath, 'a.txt')), 'alpha', 'and the retry landed instead of being cancelled')
+  t.ok(c.pending.size === 0 && !c.calls.some((call) => call.hash === hash), 'no cancel is left waiting for that hash')
 })

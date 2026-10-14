@@ -393,6 +393,14 @@ async function fetchOverlayEntry(mount, share, entry, { overlay, abs, verifyKey,
   let res
   let attempted = false
   let diag = null
+  // The fetch has settled once its record and claim are gone, and that happens BEFORE any fault
+  // policy runs: a pause stops the loop, whose stop path cancels whatever fetch the record names.
+  // A record still set would have it cancel a fetch that already ended, which the vendor keeps as
+  // a cancel for the next fetch of the same hash, and tell its holder we paused it.
+  const settle = () => {
+    activeOverlayFetches.delete(streamKey)
+    releaseClaim()
+  }
   // Everything from here is inside the try, so no throw between the claim and the fetch can leak it.
   try {
     // Move a local edit aside before the fetch renames over it — here, past the gate, rather than
@@ -427,6 +435,7 @@ async function fetchOverlayEntry(mount, share, entry, { overlay, abs, verifyKey,
       onTick: () => loops.noteProgress(streamKey),
     }))
   } catch (err) {
+    settle()
     // The diag rides the rejection, and annotating a rejection is best-effort (runOverlayFetch says
     // why) — so it can be absent. Dereferencing it blind would replace a real fault, an ENOSPC that
     // must pause the mount included, with a TypeError out of this handler.
@@ -437,8 +446,7 @@ async function fetchOverlayEntry(mount, share, entry, { overlay, abs, verifyKey,
     await handleOverlayMirrorFetchError(mount, share, entry, err, { diag: failed, writer })
     return 'missing'
   } finally {
-    activeOverlayFetches.delete(streamKey)
-    releaseClaim()
+    settle()
     // Every settle (done/miss/error/pause) re-derives the row off the now-cleared fetch slot and
     // terminally clears the row's decoration. No probe: the claim above means no other producer
     // could have taken the key while we held it, so the decoration is ours to clear. A landing
