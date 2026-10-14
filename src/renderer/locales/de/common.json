@@ -84,6 +84,7 @@
     "filesErrorHint": "Die Dateiliste hat zu lange zum Laden gebraucht. Das kann passieren, während Dateien noch synchronisiert werden oder ein Peer offline ist.",
     "filesRetry": "Erneut versuchen",
     "listIncomplete": "Die Dateilisten einiger Mitglieder können noch nicht gelesen werden – es können weitere Dateien erscheinen.",
+    "countsIncomplete": "Einige Dateilisten können noch nicht gelesen werden – diese Zahlen können zu niedrig sein.",
     "emptyShareTitle": "Noch nichts geteilt",
     "emptyShareSubtitle": "Zieh Dateien oder Ordner in den Bereich rechts, um sie in diesem Raum zu teilen.",
     "emptyShareDocsTitle": "Was beim Teilen passiert",
@@ -151,6 +152,7 @@
     "next": "Weiter: Vorschau",
     "create": "Spiegelung starten",
     "creating": "Starte…",
+    "countsIncomplete": "Die Dateiliste dieses Ordners kann noch nicht vollständig gelesen werden – diese Zahlen können zu niedrig sein.",
     "infoUnavailable": "Der Inhalt dieses Ordners konnte nicht vom Besitzer gelesen werden."
   },
   "deleteFolder": {

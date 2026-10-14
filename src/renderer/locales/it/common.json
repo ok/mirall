@@ -84,6 +84,7 @@
     "filesErrorHint": "L'elenco dei file ha impiegato troppo tempo a caricarsi. Può succedere mentre i file sono ancora in sincronizzazione o un peer è offline.",
     "filesRetry": "Riprova",
     "listIncomplete": "Non è ancora possibile leggere gli elenchi di file di alcuni membri: potrebbero comparire altri file.",
+    "countsIncomplete": "Non è ancora possibile leggere alcuni elenchi di file: questi numeri potrebbero essere inferiori al reale.",
     "emptyShareTitle": "Niente di condiviso ancora",
     "emptyShareSubtitle": "Trascina file o cartelle nell'area a destra per iniziare a condividerli in questo spazio.",
     "emptyShareDocsTitle": "Cosa succede quando condividi",
@@ -151,6 +152,7 @@
     "next": "Avanti: anteprima",
     "create": "Avvia la replica",
     "creating": "Avvio in corso…",
+    "countsIncomplete": "Non è ancora possibile leggere per intero l'elenco dei file di questa cartella: questi numeri potrebbero essere inferiori al reale.",
     "infoUnavailable": "Impossibile leggere il contenuto di questa cartella dal proprietario."
   },
   "deleteFolder": {

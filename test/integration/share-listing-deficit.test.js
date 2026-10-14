@@ -21,6 +21,11 @@ import { listOverlayShareFiles } from '../../src/shared/shares/share-listing.js'
 import { createForeignMount } from '../../src/shared/folders/mount-store.js'
 import { initialMaterializeScan } from '../../src/shared/folders/mirror-pass.js'
 import { initOverlayIpc } from '../helpers/overlay-ipc.js'
+import { createFakeIpc } from '../helpers/fake-ipc.js'
+import { registerShares } from '../../src/worker/ipc/shares.js'
+import { previewMaterializeScan } from '../../src/shared/folders/foreign-preview.js'
+import { spaceStorageSummary } from '../../src/shared/storage/space-storage.js'
+import { presence, resetPresenceLeases } from '../../src/shared/network/presence-leases.js'
 
 // A folder listing whose peer read stalled or threw flags the space for the convergence tick. The
 // case that needs it: the owner's catalog head has synced, so its `append` has already fired, but
@@ -137,6 +142,62 @@ test('REGRESSION (FIX-4A: a folder listing whose drain stalled after its head sy
   t.ok(await waitFor(() => listingPokes(ctx, share.id) > framesBefore, scaled(5000)), 'an owner append on the same catalog does poke this listing')
 })
 
+const markOnline = (t, ownerKey, spaceId) => {
+  presence.mark(ownerKey, spaceId)
+  t.teardown(() => resetPresenceLeases())
+}
+
+// The three readers that are not listings: the mirror dialog's folder info, the mount preview and
+// the storage summary. The drain lever stops every peer drain after one row, so each read is a
+// real partial one: a non-zero undercount, which is what a card would show as fact.
+test('REGRESSION (FIX-671: folder info, the mount preview and the storage summary ignored a stalled peer read)', { timeout: scaled(30000) }, async (t) => {
+  const ctx = await setup(t)
+  const { share, ownerKey, releaseBlocks } = await seedHeadOnlyShare(t, ctx.spaceId, [
+    { relPath: 'a.bin', size: 4, contentHash: 'ha' },
+    { relPath: 'b.bin', size: 4, contentHash: 'hb' },
+  ])
+  releaseBlocks()
+  const reads = observeReads(t)
+  t.ok(await waitFor(async () => {
+    await overlayBackend.listPeerWithMeta(ctx.spaceId, share, { limit: 0 })
+    return reads.at(-1)?.stalled === false
+  }, scaled(10000)), 'precondition: with the blocks here, a whole read finishes')
+  const fake = createFakeIpc()
+  registerShares(fake.ipc, { log: { debug() {}, info() {}, warn() {}, error() {} }, intents: null, mountOwnedShare: async () => {} })
+  const req = { spaceId: ctx.spaceId, ownerKey, shareId: share.id }
+
+  setRuntimeConfig({ ...getRuntimeConfig(), testTruncatePeerDrainAfter: 1 })
+  takeIncompleteListSpaces()
+  const info = await fake.call('share:folder-info', req)
+  t.is(reads.at(-1)?.stalled, true, 'the folder-info read really stalled')
+  t.is(info.fileCount, 1, 'and counted only part of the folder')
+  t.is(info.complete, false, 'folder info says its count is partial')
+  t.alike(takeIncompleteListSpaces(), [ctx.spaceId], 'folder info flags the space for the tick to re-poke')
+
+  const preview = await previewMaterializeScan(ctx.spaceId, ownerKey, share.id, ctx.tmpDir('mirror'))
+  t.is(reads.at(-1)?.stalled, true, 'the preview read really stalled')
+  t.is(preview.complete, false, 'the preview says it is partial')
+  t.alike(takeIncompleteListSpaces(), [ctx.spaceId], 'the preview flags the space')
+
+  const offline = await spaceStorageSummary(ctx.spaceId)
+  t.is(reads.at(-1)?.stalled, true, 'the storage read really stalled')
+  t.is(offline.complete, true, 'with the owner offline the storage summary stays silent, as the file list does')
+  t.alike(takeIncompleteListSpaces(), [ctx.spaceId], 'but still flags the space')
+  markOnline(t, ownerKey, ctx.spaceId)
+  const summary = await spaceStorageSummary(ctx.spaceId)
+  t.is(summary.complete, false, 'with the owner online the storage summary says its total is partial')
+  t.alike(takeIncompleteListSpaces(), [ctx.spaceId], 'the storage summary flags the space')
+
+  setRuntimeConfig({ ...getRuntimeConfig(), testTruncatePeerDrainAfter: 0 })
+  const whole = await fake.call('share:folder-info', req)
+  t.is(reads.at(-1)?.stalled, false, 'with the lever off the read finishes')
+  t.is(whole.fileCount, 2, 'counts the whole folder')
+  t.is(whole.complete, true, 'and says so')
+  t.is((await previewMaterializeScan(ctx.spaceId, ownerKey, share.id, ctx.tmpDir('mirror2'))).complete, true, 'a whole preview is complete')
+  t.is((await spaceStorageSummary(ctx.spaceId)).complete, true, 'a whole storage summary is complete')
+  t.alike(takeIncompleteListSpaces(), [], 'whole reads flag nothing, so the tick stops re-poking')
+})
+
 test("the mirror pass's stalled read of the same catalog never flags the space", { timeout: scaled(30000) }, async (t) => {
   const ctx = await setup(t)
   const { share, ownerKey } = await seedHeadOnlyShare(t, ctx.spaceId, [{ relPath: 'a.bin', size: 4, contentHash: 'ha' }])
@@ -152,6 +213,28 @@ test("the mirror pass's stalled read of the same catalog never flags the space",
   t.is(reads.length, 1, 'the mirror pass read the catalog')
   t.is(reads[0].stalled, true, 'and that read stalled')
   t.alike(takeIncompleteListSpaces(), [], 'the mirror pass flags nothing: it would re-poke the listing on every pass')
+})
+
+test('REGRESSION (FIX-671: a storage summary that skipped a peer share it could not read reported a whole total)', { timeout: scaled(30000) }, async (t) => {
+  const ctx = await setup(t)
+  const { share, ownerKey, releaseBlocks } = await seedHeadOnlyShare(t, ctx.spaceId, [{ relPath: 'a.bin', size: 4, contentHash: 'ha' }])
+  releaseBlocks()
+  markOnline(t, ownerKey, ctx.spaceId)
+  const inner = overlayBackend.listPeerWithMeta
+  let thrown = 0
+  overlayBackend.listPeerWithMeta = async (spaceId, s, opts) => {
+    if (s.id !== share.id) return inner(spaceId, s, opts)
+    thrown += 1
+    throw new Error('catalog read failed')
+  }
+  t.teardown(() => { overlayBackend.listPeerWithMeta = inner }, { order: -1 })
+  takeIncompleteListSpaces()
+
+  const summary = await spaceStorageSummary(ctx.spaceId)
+  t.is(thrown, 1, 'the share read threw')
+  t.is(summary.totalBytes, 0, 'the share was skipped')
+  t.is(summary.complete, false, 'so the total is a floor, and says so')
+  t.alike(takeIncompleteListSpaces(), [ctx.spaceId], 'and the space is flagged for the tick to retry')
 })
 
 // Wiring only: a thrown catalog read is not cheaply reproducible against a real store, so the

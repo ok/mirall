@@ -17,7 +17,7 @@ import { getSpace, getSpaceContentKey, isLegacySpace, LEGACY_SPACE_MESSAGE } fro
 import { publishShare, tombstoneShare, readOwnShares, isValidShareName, generateShareId } from '../../shared/shares/shares.js'
 import { shareLabel } from '../../shared/shares/share-label.js'
 import { listSharesForSpace } from '../../shared/shares/share-registry.js'
-import { consumerFilePath, listOverlayShareFiles } from '../../shared/shares/share-listing.js'
+import { consumerFilePath, listOverlayShareFiles, readShareCatalog } from '../../shared/shares/share-listing.js'
 import { catalogKeyField } from '../../shared/shares/catalog-keys.js'
 import { ownCatalogPublish } from '../../shared/shares/own-catalog.js'
 import { isServableShare } from '../../shared/transfer/content-mode.js'
@@ -255,23 +255,22 @@ export function registerShares(ipc, { log, intents, mountOwnedShare }) {
     return { ok: true }
   })
 
-  ipc.handle('share:folder-info', async (msg) => {
+  ipc.handle('share:folder-info', async (msg, ctx) => {
     const share = await loadShareDescriptor(msg.spaceId, msg.ownerKey, msg.shareId)
-    if (!isServableShare(share)) return { fileCount: 0, totalBytes: 0, blobsLength: null }
+    if (!isServableShare(share)) return { fileCount: 0, totalBytes: 0, blobsLength: null, complete: true }
     // overlay: counts come from the catalog (no drive blobs)
     const isOwn = share.owner === getLocalPublicKeyHex()
     // limit=0 → count + sum the catalog in one pass WITHOUT retaining any rows, so a 150k-file
     // folder (e.g. opened in MirrorFolderModal) can't rebuild the full array here and OOM.
-    const { total, totalBytes } = isOwn
-      ? await backend.listOwn(msg.spaceId, share.id, 0)
-      : await backend.listPeerWithMeta(msg.spaceId, share, { limit: 0 })
-    return { fileCount: total, totalBytes, blobsLength: null }
+    // A stalled peer read counted part of the folder, and says so.
+    const read = await readShareCatalog({ spaceId: msg.spaceId, share, isOwn, backend, limit: 0, signal: ctx?.signal ?? null })
+    return { fileCount: read.total, totalBytes: read.totalBytes, blobsLength: null, complete: !read.stalled }
   })
 
   // Space-wide storage for the space view's storage widget: one aggregate across
   // every folder share plus the loose files (src/shared/storage/space-storage.js).
   ipc.handle('space:storage-summary', async (msg) => {
-    if (isSpaceLeaving(msg.spaceId)) return { totalBytes: 0, onDeviceBytes: 0 } // teardown is closing cores — don't race it
+    if (isSpaceLeaving(msg.spaceId)) return { totalBytes: 0, onDeviceBytes: 0, complete: true } // teardown is closing cores — don't race it
     return await spaceStorageSummary(msg.spaceId)
   })
 

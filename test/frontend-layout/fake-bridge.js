@@ -49,7 +49,7 @@
 
   function folderInfo() {
     const totalBytes = files.reduce((a, f) => a + f.size, 0)
-    return { fileCount: files.length, totalBytes, blobsLength: null }
+    return { fileCount: files.length, totalBytes, blobsLength: null, complete: true }
   }
 
   // Tracks the request vocabulary in src/shared/contract/requests.js: a request with no case here
@@ -80,7 +80,7 @@
       // the scenarios that only need the shell keep the empty listings.
       case 'files:list': return listing((window.__HARNESS_CFG && window.__HARNESS_CFG.files) || [])
       case 'share:list': return (window.__HARNESS_CFG && window.__HARNESS_CFG.shares) || []
-      case 'space:storage-summary': return { totalBytes: folderInfo().totalBytes, onDeviceBytes: 0 }
+      case 'space:storage-summary': return { totalBytes: folderInfo().totalBytes, onDeviceBytes: 0, complete: true }
       case 'space:pending-requests': return (window.__HARNESS_CFG && window.__HARNESS_CFG.pendingRequests) || []
       case 'space:deny-member': return (window.__HARNESS_CFG && window.__HARNESS_CFG.denyReplies && window.__HARNESS_CFG.denyReplies.shift()) || { outcome: 'denied' }
       case 'foreign-folder:list-all': return []

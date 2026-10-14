@@ -564,8 +564,13 @@ leading-relaxed` body. Pick the tone by what the text says, not by how loud it s
   in response to input (the below-floor limit, the relay-removal confirm); `id` when a field points
   `aria-describedby` at it.
 - Callers: recovery-key backup ("Keep this safe"), invite notes, the connection-problem "still
-  works" line, the space file list's may-be-incomplete line (`note`); mirror read-only, relay removal, the below-floor transfer limit (`warning`).
-- Not a callout: error boxes (`error-container`), toasts, the update banner, the folder work strip.
+  works" line, the space file list's may-be-incomplete line, the partial-count line in the mirror
+  dialog and the mount preview (`note`); mirror read-only, relay removal, the below-floor transfer
+  limit (`warning`).
+- Not a callout: error boxes (`error-container`), toasts, the update banner, the folder work strip,
+  and any note inside a `surface-container-low` card. The `note` plate is that same token, so it
+  would vanish into the card (the `fill="lowest"` problem under Path field); the storage card's
+  partial-total line is a plain `text-sm text-on-surface-variant` sentence instead.
 
 ### Path field — `path/PathRow.tsx`
 **Every** filesystem path the user can act on, in a modal or on a settings screen, always the same

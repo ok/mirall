@@ -142,7 +142,7 @@ test('summary spans share kinds: owned + mirrored + loose in one number', async 
 test('an unknown space yields zeros instead of throwing', async (t) => {
   await setup(t)
   const s = await spaceStorageSummary('no-such-space')
-  t.alike(s, { totalBytes: 0, onDeviceBytes: 0 })
+  t.alike(s, { totalBytes: 0, onDeviceBytes: 0, complete: true })
 })
 
 test('listVerifiedForShare isolates its share prefix', async (t) => {

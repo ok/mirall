@@ -84,6 +84,7 @@
     "filesErrorHint": "La liste des fichiers a mis trop de temps à charger. Cela peut arriver pendant la synchronisation des fichiers ou lorsqu'un pair est hors ligne.",
     "filesRetry": "Réessayer",
     "listIncomplete": "Les listes de fichiers de certains membres ne peuvent pas encore être lues ; d'autres fichiers peuvent apparaître.",
+    "countsIncomplete": "Certaines listes de fichiers ne peuvent pas encore être lues ; ces chiffres peuvent être sous-estimés.",
     "emptyShareTitle": "Rien n'est encore partagé",
     "emptyShareSubtitle": "Glissez des fichiers ou des dossiers dans la zone à droite pour commencer à partager dans cet espace.",
     "emptyShareDocsTitle": "Ce qui se passe quand vous partagez",
@@ -151,6 +152,7 @@
     "next": "Suivant : aperçu",
     "create": "Démarrer le miroir",
     "creating": "Démarrage…",
+    "countsIncomplete": "La liste des fichiers de ce dossier ne peut pas encore être lue en entier ; ces chiffres peuvent être sous-estimés.",
     "infoUnavailable": "Impossible de lire le contenu de ce dossier auprès de son propriétaire."
   },
   "deleteFolder": {
