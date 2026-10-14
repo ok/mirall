@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import ModalFooter from '../layout/ModalFooter.js'
 import Modal from '../primitives/Modal.js'
 import Icon from '../primitives/Icon.js'
+import Callout from '../primitives/Callout.js'
 import ModalHeader from '../primitives/ModalHeader.js'
 import Button from '../primitives/Button.js'
 import ProgressBar from '../primitives/ProgressBar.js'
@@ -182,6 +183,10 @@ function ScanPreviewBody({ preview, loading, progress, readOnlyWarning }: ScanPr
           title={t('scanPreview.listingCapped', { total: preview.totalFiles ?? 0, limit: preview.fileLimit ?? 0 })}
           detail={t('scanPreview.listingCappedDetail', { limit: preview.fileLimit ?? 0 })}
         />
+      )}
+
+      {preview.complete === false && (
+        <Callout tone="note">{t('space.countsIncomplete')}</Callout>
       )}
 
       {readOnlyWarning && (

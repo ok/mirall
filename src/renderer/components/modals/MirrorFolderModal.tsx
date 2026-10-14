@@ -17,6 +17,7 @@ import type { ShareWithRole } from '../../hooks/useShares.js'
 import { formatSize } from '../../format/utils.js'
 import { useQuery } from '../../store/useQuery.js'
 import { Scope } from '../../../shared/contract/scope.js'
+import type { FolderInfo } from '../../../shared/contract/responses.js'
 
 interface MirrorFolderModalProps {
   isOpen: boolean
@@ -25,8 +26,6 @@ interface MirrorFolderModalProps {
   onClose: () => void
   onMounted: () => void
 }
-
-interface FolderInfo { fileCount: number; totalBytes: number; blobsLength: number | null }
 
 interface OwnerLineProps {
   owner: SpaceMember | null
@@ -130,6 +129,11 @@ export default function MirrorFolderModal({
         info={info}
         infoError={infoError}
       />
+
+      {/* A partial read is a floor, not the folder's size. */}
+      {!infoError && info?.complete === false && (
+        <Callout tone="note">{t('space.countsIncomplete')}</Callout>
+      )}
 
       <MountPathField
         id="mirror-folder-path-label"

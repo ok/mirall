@@ -3,11 +3,7 @@
 // because it is per-view tuning — a large index emits one hint per catalog append, which must not
 // become a per-append full re-drain.
 import { useQuery } from '../store/useQuery.js'
-
-interface SpaceStorageSummary {
-  totalBytes: number
-  onDeviceBytes: number
-}
+import type { SpaceStorageSummary } from '../../shared/contract/responses.js'
 
 // Every listing (wildcard: the loose list and each folder share) and share add/remove/mirror move
 // the total (README.md).

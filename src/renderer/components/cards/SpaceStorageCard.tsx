@@ -29,6 +29,10 @@ export default function SpaceStorageCard({ spaceId }: StorageIndicatorProps) {
       <div className="mt-2 text-sm font-medium text-on-surface-variant">
         {t('storageIndicator.sizeOnDevice', { size: formatSize(summary?.onDeviceBytes ?? 0) })}
       </div>
+      {/* A plain line, not a Callout: a note's plate is this card's own surface and would not show. */}
+      {summary?.complete === false && (
+        <p className="mt-2 text-sm text-on-surface-variant">{t('space.countsIncomplete')}</p>
+      )}
     </div>
   )
 }
