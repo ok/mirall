@@ -61,7 +61,7 @@ export function createFetchSettle({
       },
       onVerify: (fraction) => channel.emitVerifying?.(job, fraction),
     })
-    const result = await fetchImpl(job.contentHash, { finalPath: job.finalPath, ownerKey: job.ownerKey, size: job.size, ...callbacks })
+    const result = await fetchImpl(job.contentHash, { finalPath: job.finalPath, by: job.transferId, ownerKey: job.ownerKey, size: job.size, ...callbacks })
     await settle(job, result, diag)
   }
 

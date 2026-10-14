@@ -172,9 +172,10 @@ export class HyperOverlayV2 extends ReadyResource {
   }
 
   // Fetch a file by content hash: from the local copy when it verifies, else from every connected
-  // holder in parallel into opts.destPath (required for a remote fetch). opts: ownerKey (handed to
-  // holderAuthorizer), size (the size the map must describe), parentMustExist (the receive never
-  // creates destPath's folder), timeout (idle), peerWaitMs, onProgress, onVerify, onEnd. Resolves
+  // holder in parallel into opts.destPath (required for a remote fetch). opts: by (the caller's key,
+  // which its cancelFetch names), ownerKey (handed to holderAuthorizer), size (the size the map
+  // must describe), parentMustExist (the receive never creates destPath's folder), timeout (idle),
+  // peerWaitMs, onProgress, onVerify, onEnd. Resolves
   // { destPath, local, size }, or null when no holder answered; rejects with every coded local
   // fault (local-faults.js).
   async fetchFile(contentHash, opts = {}) {
@@ -187,17 +188,18 @@ export class HyperOverlayV2 extends ReadyResource {
     const peers = await this._awaitHolders(opts.ownerKey, opts.peerWaitMs || HOLDER_WAIT_MS)
     // No fetch will run, so a cancel recorded during the wait must not cancel the next one.
     if (peers.length === 0) {
-      this._protocol.clearCancelPending(contentHash)
+      this._protocol.clearCancelPending(contentHash, opts.by ?? null)
       return null
     }
     if (!opts.destPath) {
-      this._protocol.clearCancelPending(contentHash)
+      this._protocol.clearCancelPending(contentHash, opts.by ?? null)
       throw new TypeError('fetchFile: destPath is required for a remote fetch')
     }
     let result
     try {
       result = await this._protocol.fetchContent(contentHash, peers, {
         destPath: opts.destPath,
+        by: opts.by ?? null,
         size: opts.size,
         parentMustExist: opts.parentMustExist,
         timeout: opts.timeout,
@@ -228,8 +230,9 @@ export class HyperOverlayV2 extends ReadyResource {
     })
   }
 
-  // Stop an in-flight fetch. discardPartial unlinks the partial (cancel); otherwise it is kept for
-  // resume (pause). The pending fetchFile rejects with ECANCELLED.
+  // Stop caller opts.by's in-flight fetch; another caller's fetch of the same content runs on.
+  // discardPartial unlinks the partial (cancel); otherwise it is kept for resume (pause). That
+  // caller's pending fetchFile rejects with ECANCELLED.
   cancelFetch(contentHash, opts = {}) {
     return this._protocol ? this._protocol.cancelContent(contentHash, opts) : false
   }

@@ -82,6 +82,39 @@ test('#2: a joiner re-issues its own fetch when the leader was cancelled', async
   t.is(proto.fetches.size, 1, 'a fresh scheduler exists for the re-issued joiner (leader\'s was removed)')
 })
 
+test('a joiner\'s cancel ends only its own await, and the leader runs on to completion', async (t) => {
+  const dropped = []
+  const proto = makeProtocol(fakeTransfer({ cancel: (p) => dropped.push(p), pause: (p) => dropped.push(p) }))
+  const dir = tmp()
+  const a = path.join(dir, 'a'); const b = path.join(dir, 'b')
+  fs.writeFileSync(a, 'shared bytes')
+  const p = asker()
+  const leader = proto.fetchContent('mno', [p], { destPath: a, by: 'engine', timeout: 200 })
+  const joiner = proto.fetchContent('mno', [p], { destPath: b, by: 'mirror', timeout: 200 })
+  const leaderSched = proto.fetches.get('mno').sched
+
+  t.ok(await proto.cancelContent('mno', { by: 'mirror', discardPartial: true }), 'the cancel hit the joiner')
+  await t.exception(joiner, /cancelled/, 'the joiner rejects ECANCELLED')
+  t.is(proto.fetches.get('mno')?.sched, leaderSched, 'the leader\'s scheduler is untouched')
+  t.alike(dropped, [], 'and its partial was neither discarded nor paused')
+
+  proto.fetches.onChunkHashes(p, { path: 'content:mno', chunks: [] })
+  await leader
+  t.absent(fs.existsSync(b), 'the dropped joiner took no copy')
+})
+
+test('a cancel before its caller\'s fetch arrives skips another caller\'s fetch of that hash', async (t) => {
+  const proto = makeProtocol(fakeTransfer())
+  const dir = tmp()
+  t.absent(await proto.cancelContent('pqr', { by: 'mirror' }), 'nothing in flight: the intent is recorded')
+  const other = proto.fetchContent('pqr', [], { destPath: path.join(dir, 'a'), by: 'engine', timeout: 200 })
+  other.catch(() => {})
+  t.ok(proto.fetches.get('pqr'), 'the other caller\'s fetch started')
+  await t.exception(proto.fetchContent('pqr', [], { destPath: path.join(dir, 'b'), by: 'mirror' }), /cancelled/,
+    'the cancelling caller\'s own fetch honours it, as a joiner too')
+  t.ok(proto.fetches.get('pqr'), 'and the other caller\'s fetch is still in flight')
+})
+
 test('a joiner re-issues its own fetch when the leader failed on its own destination', async (t) => {
   const notADir = () => { throw Object.assign(new Error('not a directory'), { code: 'ENOTDIR' }) }
   const proto = makeProtocol(fakeTransfer({ startReceive: notADir }))

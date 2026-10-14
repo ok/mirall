@@ -416,6 +416,8 @@ async function fetchOverlayEntry(mount, share, entry, { overlay, abs, verifyKey,
       // mkdirUnderMount made the parent: a parent gone by the time the receive starts is a mount
       // root the user deleted, which the receive must not recreate.
       parentMustExist: true,
+      // Its cancel then reaches this fetch alone, never a download of the same bytes it joined.
+      by: transferId,
       onProgress: ({ bytes, speed, eta }) => emitMirrorEvent('event:decoration', {
         channel: 'transfer', spaceId: mount.spaceId, key: decoKey, bytes, total, speed, eta,
       }),
@@ -500,7 +502,7 @@ async function finishLandedFetch(mount, entry, res, { abs, verifyKey, localRelPa
 export function cancelInflightFetch(key, discardPartial) {
   const inflight = activeOverlayFetches.get(key)
   if (inflight) {
-    try { getOverlay()?.cancelFetch(inflight.contentHash, { discardPartial }) } catch {}
+    try { getOverlay()?.cancelFetch(inflight.contentHash, { discardPartial, by: inflight.transferId }) } catch {}
     activeOverlayFetches.delete(key)
     // A cancelled pass may never settle at all — a wedged fetch is exactly what restartForeignLoop
     // exists to recover — so the claim cannot wait for its finally, or the restart is refused by

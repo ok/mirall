@@ -75,7 +75,7 @@ export class OverlayProtocolV2 {
   fetchContent(contentHash, peers, opts) { return this.fetches.fetch(contentHash, peers, opts) }
   cancelContent(contentHash, opts) { return this.fetches.cancel(contentHash, opts) }
   sendStopControl(contentHash) { this.fetches.sendStop(contentHash) }
-  clearCancelPending(contentHash) { this.fetches.clearCancelPending(contentHash) }
+  clearCancelPending(contentHash, by) { this.fetches.clearCancelPending(contentHash, by) }
   revokeServes(predicate) { return this.grants.revoke(predicate) }
   bumpServeEpoch() { this.grants.bumpEpoch() }
 

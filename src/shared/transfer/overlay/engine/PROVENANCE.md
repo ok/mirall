@@ -179,7 +179,10 @@ re-diffable against upstream while it was tracked. Categories:
    cancels the scheduler the instant it creates one (→ `ECANCELLED`). `fetchContent` also DEDUPS
    by content hash: a concurrent fetch of the same hash JOINS the in-flight one (`sched.shared`)
    and copies the verified bytes to its own `destPath` instead of rejecting `already fetching`;
-   a joiner whose leader was cancelled re-issues its own fetch. (`prepareForServe` also passes
+   a joiner whose leader was cancelled re-issues its own fetch. Fetch and cancel carry the
+   caller's key (`opts.by`): a cancel reaches only that caller, so a joiner's cancel ends its own
+   await while the leader runs on, and a pending cancel waits for that caller's fetch alone.
+   In-process bookkeeping only; no wire change. (`prepareForServe` also passes
    `byHashOnly` to `prepareFile` — see §4.7 — so the publish pass persists ONLY the
    content-addressed chunk map, not dead path-keyed state under the throwaway `/mir-prep` key.)
 

@@ -17,6 +17,9 @@ import { transferIdFor } from '../../src/shared/transfer/transfer-id.js'
 import { shareDecoKey } from '../../src/shared/contract/decoration-key.js'
 import { initPendingTransfers, listPendingForSpace } from '../../src/shared/transfer/pending-transfers.js'
 import { until as pollUntil } from '../helpers/bare-poll.js'
+import { HyperOverlayV2 } from '../../src/shared/transfer/overlay/engine/overlay-v2.js'
+import { contentPath } from '../../src/shared/transfer/overlay/engine/content-path.js'
+import { makeProtocol } from '../helpers/overlay-engine.js'
 
 // REGRESSION: the mirror and the download engine could both fetch one file and both write its
 // decoration key, so the mirror probed the engine's registry defensively before every fetch and
@@ -267,4 +270,70 @@ test('a restart drops the abandoned pass claim so the mount can be recovered', a
 
   await restartForeignLoop(ctx.spaceId, ctx.share.id)
   t.ok(await until(() => fetches === 2), 'the restarted pass fetched instead of yielding to the zombie')
+})
+
+// The overlay's own fetchFile and cancelFetch over a real FetchSession, with one in-memory holder
+// and a receive that lands only when the test calls land(): both producers can be held inside one
+// single-flight fetch of the same content.
+function barrierVendor(t, overlay, bytes) {
+  const holder = { id: 'holder', askedFor: new Set(), msgs: { contentRequest: { send() {} }, chunkNeed: { send() {} } } }
+  const transfer = {
+    startReceive: () => ({ received: new Set([0]) }),
+    writeChunk: () => ({ ok: true }),
+    finalize: (destPath) => { fs.writeFileSync(destPath, bytes); return { ok: true } },
+    cancel() {},
+    pause() {},
+  }
+  const proto = makeProtocol(transfer)
+  const vendor = { _ensure: async () => {}, _contentHashPaths: new Map(), _awaitHolders: async () => [holder], _protocol: proto }
+  const calls = []
+  const real = { fetchFile: overlay.fetchFile, cancelFetch: overlay.cancelFetch }
+  overlay.fetchFile = (hash, opts) => { calls.push(opts.destPath); return HyperOverlayV2.prototype.fetchFile.call(vendor, hash, opts) }
+  overlay.cancelFetch = (hash, opts) => HyperOverlayV2.prototype.cancelFetch.call(vendor, hash, opts)
+  t.teardown(() => {
+    for (const hash of [...proto.fetches._handles.keys()]) proto.fetches.get(hash)?.sched.cancel()
+    Object.assign(overlay, real)
+  })
+  return {
+    calls,
+    fetches: proto.fetches,
+    land: (hash) => proto.fetches.onChunkHashes(holder, { path: contentPath(hash), chunks: [{ hash: 'h', length: bytes.length }] }),
+  }
+}
+
+test('REGRESSION (FIX-665: a mirror pause leaves a download of the same content running)', async (t) => {
+  const bytes = 'hello mirror'
+  const ctx = await mirrorCtx(t, { files: { 'note.txt': bytes } })
+  const entry = await firstEntry(ctx)
+  const vendor = barrierVendor(t, getOverlay(), bytes)
+
+  // The engine leads: a download of the same bytes from another share (a loose copy of the file).
+  const completed = []
+  const engine = createOverlayDownloadEngine(testChannel({ emitComplete: (job) => completed.push(job.transferId) }))
+  const finalPath = path.join(ctx.tmpDir('dl'), 'copy.txt')
+  const transferId = transferIdFor(ctx.spaceId, 'loose', entry.relPath)
+  await engine.start({
+    spaceId: ctx.spaceId, pendingKey: '/dl/copy.txt', path: '/dl/copy.txt', relPath: entry.relPath,
+    shareId: 'loose', transferId, contentHash: entry.contentHash, size: entry.size,
+    ownerKey: ctx.share.owner, verifyKey: 'loose|' + entry.relPath, finalPath,
+  })
+  t.ok(await until(() => vendor.fetches.size === 1), 'the engine leads the fetch')
+  const lead = vendor.fetches.get(entry.contentHash)?.sched
+
+  // The mirror of a folder holding the same file joins it.
+  await startForeignLoop(ctx.mount)
+  t.teardown(() => stopForeignLoop(ctx.spaceId, ctx.share.id, { discardPartial: true }))
+  runMaterializeTick(ctx.spaceId, ctx.share.id).catch(() => {})
+  t.ok(await until(() => vendor.calls.length === 2), 'the mirror asked for the same content')
+  t.is(vendor.fetches.size, 1, 'and joined the engine\'s fetch rather than starting its own')
+
+  stopForeignLoop(ctx.spaceId, ctx.share.id)
+  await sleep(50)
+  t.is(vendor.fetches.get(entry.contentHash)?.sched, lead, 'the mirror\'s pause left the engine\'s fetch in flight')
+
+  vendor.land(entry.contentHash)
+  t.ok(await until(() => completed.length === 1, 3000), 'the engine\'s download completed')
+  t.alike(completed, [transferId])
+  t.is(fs.existsSync(finalPath) ? fs.readFileSync(finalPath, 'utf8') : null, bytes, 'with the bytes at its destination')
+  t.absent(fs.existsSync(path.join(ctx.mirrorPath, entry.relPath)), 'and the paused mirror took no copy')
 })
