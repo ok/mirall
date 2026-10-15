@@ -99,16 +99,40 @@ function b64urlDecode(s) {
   return utf8Decode(bytes)
 }
 
+// The web form of a join link: the Console's landing page at <base>/space#<code> hands the
+// fragment to the app as mirall://join/<code>, verbatim. The base is a full URL (host, or host
+// plus path) so a self-hosted Console works; the code rides in the fragment and never reaches a
+// server, a log or a link preview.
+export const WEB_LINK_KIND = 'space'
+export const DEFAULT_WEB_LINK_BASE = 'https://link.mirall.app'
+
+/** @param {string} baseUrl @param {string} code */
+export function toWebInviteLink(baseUrl, code) {
+  return `${baseUrl.replace(/\/+$/, '')}/${WEB_LINK_KIND}#${code}`
+}
+
+/** @param {URL} url */
+function isWebJoinLink(url) {
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return false
+  return url.pathname.replace(/\/+$/, '').split('/').pop() === WEB_LINK_KIND
+}
+
 // Reduce a value to the bare invite code. A mirall://join deep link (path form
-// mirall://join/<code> or query form mirall://join?code=<code>) is peeled down to
-// <code>; anything else passes through trimmed and unchanged, so a pasted link
-// resolves to the same code as clicking it.
+// mirall://join/<code> or query form mirall://join?code=<code>) and the web form
+// (https://<base>/space#<code>) are peeled down to <code>; anything else passes
+// through trimmed and unchanged, so a pasted link resolves to the same code as
+// clicking it.
 /** @param {string} input */
 export function extractInviteCode(input) {
   if (typeof input !== 'string') return ''
   const trimmed = input.trim()
   let url
   try { url = new URL(trimmed) } catch { return trimmed } // not a URL → raw code
+  if (isWebJoinLink(url)) {
+    let fragment = url.hash.slice(1).trim()
+    try { fragment = decodeURIComponent(fragment) } catch {}
+    return fragment
+  }
   if (url.protocol !== 'mirall:' || url.hostname !== 'join') return trimmed
   // Trailing slashes too: a link that round-tripped through a browser or chat
   // client can come back as mirall://join/<code>/, and neither hex nor base64url
