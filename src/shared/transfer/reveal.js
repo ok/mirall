@@ -1,20 +1,19 @@
-// Showing a file in the OS file manager.
+// Where a file or folder is on this device, for the client to show in its file manager.
 //
 // A download and a share resolve to different places on disk: a downloaded file sits at its claim
 // path, while a file WE shared is still wherever the user keeps it, which markOwnedSource recorded
-// at share time. Both answers are a local path, so the two resolutions converge before the reveal.
+// at share time. Both answers are a local path, and both are the WORKER's: a headless daemon has no
+// display to open a file manager on, so the opening happens wherever the request came from, against
+// the path answered here and tagged as the daemon's.
 
 import path from 'bare-path'
-import { spawn } from 'bare-subprocess'
+import fs from 'bare-fs'
 import { getDownloadDir } from '../core/paths.js'
-import { revealExitIsFailure } from './reveal-exit.js'
 import { getDownloadedPath, getOwnedSourcePath } from './files.js'
 import { createLogger } from '../core/logger.js'
-
 import { CODES } from '../contract/errors.js'
+import { daemonPaths } from '../contract/paths.js'
 import { AppError } from '../core/errors.js'
-import fs from 'bare-fs'
-import os from 'bare-os'
 
 const log = createLogger('reveal')
 
@@ -31,45 +30,27 @@ export async function resolveRevealTarget(spaceId, filePath) {
 }
 
 export async function revealFile(spaceId, filePath) {
-  return revealLocalPath(await resolveRevealTarget(spaceId, filePath))
+  return revealTarget(await resolveRevealTarget(spaceId, filePath))
 }
 
 // missingCode is the caller's, because the same walk backs revealing a file and revealing a folder
-// and "This file isn't on this device yet." is the wrong sentence for a folder.
-/** @param {string} target @param {string} [missingCode] */
-export function revealLocalPath(target, missingCode = CODES.FILE_NOT_ON_DEVICE) {
-  const platform = os.platform()
+// and "This file isn't on this device yet." is the wrong sentence for a folder. requireSelf is the
+// folder case: a missing file is shown by its folder, but a missing folder has no stand-in the
+// client may open — its parent lies outside every root the client is allowed.
+/** @param {string} target @param {{ missingCode?: string, requireSelf?: boolean }} [opts] */
+export function revealTarget(target, { missingCode = CODES.FILE_NOT_ON_DEVICE, requireSelf = false } = {}) {
   const exists = fs.existsSync(target)
-  const folder = path.dirname(target)
-
-  log.info('reveal requested:', target, '(platform:', platform + ', exists:', exists + ')')
-
-  if (!exists && !fs.existsSync(folder)) {
+  log.info('reveal target:', target, '(exists:', exists + ')')
+  if (!exists && (requireSelf || !isDirectory(path.dirname(target)))) {
     throw new AppError(missingCode, 'Reveal target is not on this device')
   }
+  return daemonPaths({ path: target, exists })
+}
 
-  const opts = { stdio: 'ignore', detached: true }
-  let child
+function isDirectory(p) {
   try {
-    if (platform === 'darwin') {
-      child = exists
-        ? spawn('open', ['-R', target], opts)
-        : spawn('open', [folder], opts)
-    } else if (platform === 'win32') {
-      child = exists
-        ? spawn('explorer.exe', ['/select,', target], opts)
-        : spawn('explorer.exe', [folder], opts)
-    } else {
-      child = spawn('xdg-open', [folder], opts)
-    }
-  } catch (err) {
-    log.error('reveal spawn threw:', err.message)
-    throw new AppError(CODES.UNKNOWN, 'Could not reveal file')
+    return fs.statSync(p).isDirectory()
+  } catch {
+    return false
   }
-
-  child.on('error', (err) => log.error('reveal subprocess error:', err.message))
-  child.on('exit', (code) => {
-    if (revealExitIsFailure(platform, code)) log.warn('reveal exited with code:', code)
-  })
-  child.unref()
 }

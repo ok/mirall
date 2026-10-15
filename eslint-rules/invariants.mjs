@@ -515,7 +515,6 @@ export const pureTransferModules = [
   'partial-suffix',
   'pending-transfers',
   'progress-ticker',
-  'reveal-exit',
   'serve-ledger',
   'supersede-decision',
   'transfer-id',

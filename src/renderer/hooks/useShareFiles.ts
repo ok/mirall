@@ -4,6 +4,7 @@
 // and hands out the per-row decoration lookups the rows derive their lane from.
 import { useState, useCallback, useMemo } from 'react'
 import { request } from '../ipc/ipc.js'
+import { revealOnClient } from '../platform/reveal-client.js'
 import { useQuery } from '../store/useQuery.js'
 import { foldListing, emptyFold, resolveListing, type Fold } from '../model/share-files-fold.js'
 import { shareDecoKey } from '../../shared/contract/decoration-key.js'
@@ -70,7 +71,7 @@ export function useShareFiles(spaceId: string, ownerKey: string, shareId: string
   )
 
   const revealFile = useCallback(
-    (relPath: string) => run(() => request('share:reveal-file', { spaceId, ownerKey, shareId, relPath })),
+    (relPath: string) => run(async () => revealOnClient(await request('share:reveal-file', { spaceId, ownerKey, shareId, relPath }))),
     [run, spaceId, ownerKey, shareId]
   )
 

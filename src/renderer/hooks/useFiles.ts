@@ -2,6 +2,7 @@
 // shows before the worker has indexed the file.
 import { useState, useCallback, useMemo } from 'react'
 import { request, addFileToSpace } from '../ipc/ipc.js'
+import { revealOnClient } from '../platform/reveal-client.js'
 import { useQuery } from '../store/useQuery.js'
 import { refetchQuery } from '../store/query-store.js'
 import { mergeOptimistic } from '../model/optimistic-rows.js'
@@ -112,7 +113,7 @@ export function useFiles(spaceId: string) {
   }, [spaceId])
 
   const revealFile = useCallback(async (path: string) => {
-    await request('files:reveal', { spaceId, path })
+    await revealOnClient(await request('files:reveal', { spaceId, path }))
   }, [spaceId])
 
   const allFiles = useMemo(

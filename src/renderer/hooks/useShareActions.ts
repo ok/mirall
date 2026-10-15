@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { request } from '../ipc/ipc.js'
+import { revealOnClient } from '../platform/reveal-client.js'
 import { useToast } from '../components/toast/ToastProvider.js'
 import { useRunAction } from './useRunAction.js'
 import type { ShareWithRole } from './useShares.js'
@@ -33,7 +34,7 @@ export function useShareActions({
   const shareId = share.id
 
   const revealFolder = useCallback(
-    () => run(() => request('share:reveal-folder', { spaceId, ownerKey: share.owner, shareId })),
+    () => run(async () => revealOnClient(await request('share:reveal-folder', { spaceId, ownerKey: share.owner, shareId }))),
     [run, spaceId, share.owner, shareId],
   )
 

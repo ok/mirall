@@ -56,7 +56,7 @@ const isAckLiteral = (node) =>
 
 test('every request typed Ack returns exactly { ok: true }', (t) => {
   const acks = ackRows()
-  t.ok(acks.size >= 20, `${acks.size} rows are typed Ack`)
+  t.ok(acks.size >= 18, `${acks.size} rows are typed Ack`)
 
   const wrong = []
   const seen = new Set()

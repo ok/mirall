@@ -22,7 +22,7 @@ import { catalogKeyField } from '../../shared/shares/catalog-keys.js'
 import { ownCatalogPublish } from '../../shared/shares/own-catalog.js'
 import { isServableShare } from '../../shared/transfer/content-mode.js'
 import { overlayBackend as backend } from '../../shared/transfer/overlay/index.js'
-import { revealLocalPath } from '../../shared/transfer/reveal.js'
+import { revealTarget } from '../../shared/transfer/reveal.js'
 import { pathFromMount } from '../../shared/folders/path-guard.js'
 import { isSpaceLeaving } from '../../shared/network/leave-protocol.js'
 import { spaceStorageSummary } from '../../shared/storage/space-storage.js'
@@ -236,8 +236,7 @@ export function registerShares(ipc, { log, intents, mountOwnedShare }) {
       if (!foreignMount) throw new AppError(CODES.MOUNT_NOT_ON_DEVICE, 'Mirror not mounted')
       target = foreignMount.mountPath
     }
-    revealLocalPath(target, CODES.MOUNT_NOT_ON_DEVICE)
-    return { ok: true }
+    return revealTarget(target, { missingCode: CODES.MOUNT_NOT_ON_DEVICE, requireSelf: true })
   })
 
   ipc.handle('share:reveal-file', async (msg) => {
@@ -251,8 +250,7 @@ export function registerShares(ipc, { log, intents, mountOwnedShare }) {
     } else {
       target = await consumerFilePath(msg.spaceId, share, msg.relPath)
     }
-    revealLocalPath(target)
-    return { ok: true }
+    return revealTarget(target)
   })
 
   ipc.handle('share:folder-info', async (msg, ctx) => {

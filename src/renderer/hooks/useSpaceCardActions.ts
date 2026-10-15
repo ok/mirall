@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 import { request } from '../ipc/ipc.js'
+import { revealOnClient } from '../platform/reveal-client.js'
 import { setForeignMountEnabled, unmountForeignMount } from './useForeignMount.js'
 import { useRunAction } from './useRunAction.js'
 import type { FileEntry } from '../types/types.js'
@@ -30,7 +31,7 @@ export function useSpaceCardActions({ spaceId, openDialog, revealFile, cancelPub
     openShare: useCallback((share: ShareWithRole) => { onOpenShare?.(share) }, [onOpenShare]),
 
     openInFinder: useCallback((share: ShareWithRole) => {
-      runAction(() => request('share:reveal-folder', { spaceId, ownerKey: share.owner, shareId: share.id }))
+      runAction(async () => revealOnClient(await request('share:reveal-folder', { spaceId, ownerKey: share.owner, shareId: share.id })))
     }, [spaceId, runAction]),
 
     deleteShare: useCallback((share: ShareWithRole) => { openDialog({ kind: 'delete-share', share }) }, [openDialog]),

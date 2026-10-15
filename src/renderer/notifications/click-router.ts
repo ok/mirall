@@ -2,22 +2,22 @@
 import { useEffect } from 'react'
 import { PATH_HOST } from '../../shared/contract/paths.js'
 import { request } from '../ipc/ipc.js'
+import { revealOnClient } from '../platform/reveal-client.js'
 import type { TransferClickPayload } from '../platform/global.js'
 
-// A completed download is revealed by whoever owns the disk it landed on. A daemon path goes back
-// to the daemon — the same reveal every button in the app already uses — and is never handed to
-// this machine's shell, which would open nothing or, worse, a different file of the same name.
-// Anything that is not explicitly the client's is the daemon's: an untagged payload from an older
-// renderer still on screen must not reach the shell either.
+// A completed download is revealed by whoever owns the disk it landed on. A client path goes to
+// this machine's shell as it is. A daemon path goes back to the daemon first — the same reveal
+// every button in the app uses — and only the path the worker answers reaches the shell gate, so
+// an untagged payload from an older renderer still on screen is never handed over as the client's.
 async function revealCompleted(payload: TransferClickPayload): Promise<boolean> {
   if (payload.host === PATH_HOST.CLIENT) {
     if (!payload.localPath) return false
-    const res = await window.bridge.showInFolder({ path: payload.localPath, host: payload.host })
+    const res = await window.bridge.showInFolder({ path: payload.localPath, exists: true, host: payload.host })
     return res?.ok === true
   }
   if (!payload.path) return false
   try {
-    await request('files:reveal', { spaceId: payload.spaceId, path: payload.path })
+    await revealOnClient(await request('files:reveal', { spaceId: payload.spaceId, path: payload.path }))
     return true
   } catch {
     return false
