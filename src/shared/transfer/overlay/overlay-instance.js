@@ -16,11 +16,10 @@ import { getStore, hasMasterSecret, overlayIndexEncryptionKey } from '../../core
 import { PARTIAL_SUFFIX } from '../partial-suffix.js'
 import b4a from 'b4a'
 import { getLocalPublicKeyHex } from '../../spaces/profile.js'
-import { authorizedOn } from '../../network/swarm-registries.js'
 import { isApprovedMember } from '../../network/handshake-apply.js'
 import { contentSenderAuthorizedOnSocket } from '../../network/content-swarm.js'
 import { createRateLimiter } from '../../network/handshake-guard.js'
-import { getOverlayServeLimit, isSeparateContentPlaneEnabled, getBandwidthLimits, getServeChunkMapCacheBytes } from '../../core/runtime-config.js'
+import { getOverlayServeLimit, getBandwidthLimits, getServeChunkMapCacheBytes } from '../../core/runtime-config.js'
 import { createBandwidthLimiter } from '../bandwidth-limiter.js'
 import { createChunkMapCache } from '../chunk-map-cache.js'
 import { createLogger } from '../../core/logger.js'
@@ -83,9 +82,9 @@ export async function initOverlay() {
     log.warn(`${dir} cap ${requested} B/s is below the ${effective} B/s floor — using the floor`)
   uploadLimiter = createBandwidthLimiter(() => getBandwidthLimits().upload, { onClamp: warnClamped('upload') })
   downloadLimiter = createBandwidthLimiter(() => getBandwidthLimits().download, { onClamp: warnClamped('download') })
-  // With the content plane on, the overlay channel rides the content connection, so serve
-  // authorization keys on that socket's content-hello; otherwise on the control handshake.
-  const socketAuthorized = isSeparateContentPlaneEnabled() ? contentSenderAuthorizedOnSocket : authorizedOn
+  // The overlay channel rides the content connection, so serve authorization keys on that
+  // socket's content-hello.
+  const socketAuthorized = contentSenderAuthorizedOnSocket
   // A denial must stay observationally identical to "I don't hold it" TO THE REQUESTER, so
   // membership cannot be probed. Recording it locally does not weaken that — the audit log never
   // goes on the wire — and a refused content request is exactly the "unauthorized access attempt"

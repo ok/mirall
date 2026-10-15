@@ -9,7 +9,7 @@ import { scaled } from '../helpers/timing.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
-const flags = (o = {}) => ({ sharePrepareProgressEnabled: true, identityKEK: kekHex(), ...o })
+const flags = () => ({ identityKEK: kekHex() })
 
 // Sparse, so it costs no disk to write, while the owner still hashes every byte of it — which is
 // what holds the waiting window open long enough to observe.
@@ -117,15 +117,16 @@ test('a loose download requested mid-hash waits on the owner, and a cancel clear
   })
 
 // The auto-resume path: a pending row whose owner is still hashing re-announces the wait from
-// the reconcile, with nothing in memory. The member's first request is made with sending off, so
-// the waiter the owner shows can only have come from the relaunched member's reconnect re-drive.
+// the reconcile, with nothing in memory. The owner drops a member's wait when it disconnects, so
+// once the member is killed and the owner shows no waiter, the waiter it shows next can only have
+// come from the relaunched member's reconnect re-drive.
 test('a pending row re-driven on reconnect announces the wait, and converts when the hash lands',
   { timeout: scaled(300000) }, async (t) => {
     const bootstrap = await localTestnet(t)
     const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), flags: flags() })
     const bStore = idStore(t)
     const bDownloads = mkTmpDir(t)
-    const bFlags = flags({ sharePrepareProgressEnabled: false })
+    const bFlags = flags()
     const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: bStore, downloads: bDownloads, flags: bFlags })
     const spaceId = await connectInSpaceWithApproval(t, A, B)
     const aKey = (await A.request('profile:get')).personKey
@@ -136,20 +137,24 @@ test('a pending row re-driven on reconnect announces the wait, and converts when
     const hashed = A.waitFor('event:decoration',
       (m) => m.channel === 'transfer' && m.key === '/reel.bin' && m.done === true, 240000)
       .then(() => { order.push('hashed') })
-    const waiting = A.waitFor('event:awareness', (m) => isHere(m) && m.waitingKeys?.includes(bKey), 180000)
-      .then((m) => { order.push('waiting'); return m })
-
     const src = sparseFile(mkTmpDir(t), 'reel.bin', 8 * GB)
     A.request('files:add', { spaceId, filePath: src, fileName: 'reel.bin', fileSize: 8 * GB }).catch(() => {})
     await B.untilFiles(spaceId,
       (l) => l.find((e) => e.path === '/reel.bin')?.status === 'preparing',
       { ms: 60000, every: 100 })
+    const firstWait = A.waitFor('event:awareness', (m) => isHere(m) && m.waitingKeys?.includes(bKey), 180000)
     await B.request('files:download', { spaceId, path: '/reel.bin', ownerKey: aKey })
-    t.absent((await A.request('serving:summary-list', { spaceId })).some((s) => s.waitingKeys.includes(bKey)),
-      'precondition: with sending off, the click told the owner nothing')
+    await firstWait
 
+    const dropped = A.waitFor('event:awareness', (m) => isHere(m) && !(m.waitingKeys ?? []).includes(bKey), 60000)
     B.kill()
-    const B2 = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: bStore, downloads: bDownloads, flags: { ...bFlags, sharePrepareProgressEnabled: true } })
+    await dropped
+    t.absent((await A.request('serving:summary-list', { spaceId })).some((s) => s.waitingKeys.includes(bKey)),
+      'precondition: the disconnect dropped the wait the click had sent')
+
+    const waiting = A.waitFor('event:awareness', (m) => isHere(m) && m.waitingKeys?.includes(bKey), 180000)
+      .then((m) => { order.push('waiting'); return m })
+    const B2 = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: bStore, downloads: bDownloads, flags: bFlags })
     await waiting
     t.pass('the relaunched member re-announced the wait from its pending row')
 

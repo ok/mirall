@@ -6,8 +6,6 @@ import { launchPeer, connectInSpace } from '../helpers/peer.js'
 import { mkTmpDir, patternedBytes, mkStoreDir } from '../helpers/fixtures.js'
 import { scaled } from '../helpers/timing.js'
 
-const FLAGS = { sharePrepareProgressEnabled: true }
-
 // While the owner is still hashing a freshly-added file (advertised with contentHash:null),
 // it broadcasts live indexing progress to connected members over the handshake channel. The
 // receiver re-surfaces it as a preparing decoration so a waiting peer sees a determinate bar +
@@ -16,8 +14,8 @@ const FLAGS = { sharePrepareProgressEnabled: true }
 test('owner broadcasts indexing progress; receiver sees a preparing decoration while the file is still hashing',
   { timeout: scaled(150000) }, async (t) => {
     const bootstrap = await localTestnet(t)
-    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags: FLAGS })
-    const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags: FLAGS })
+    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t) })
+    const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t) })
     const spaceId = await connectInSpace(t, A, B)
 
     const share = await A.request('share:create', { spaceId, name: 'Vault', contentMode: 'overlay' })
@@ -37,34 +35,6 @@ test('owner broadcasts indexing progress; receiver sees a preparing decoration w
     t.ok(ev.eta === null || typeof ev.eta === 'number', 'carries an eta (null while still estimating)')
   })
 
-// The broadcast is gated by the feature flag on the owner: with it off, no frame crosses the
-// wire and a waiting peer falls back to the plain "Preparing…" → "remote" catalog transition.
-test('owner with the flag off never broadcasts prepare-progress',
-  { timeout: scaled(150000) }, async (t) => {
-    const bootstrap = await localTestnet(t)
-    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags: { sharePrepareProgressEnabled: false } })
-    const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags: { sharePrepareProgressEnabled: true } })
-    const spaceId = await connectInSpace(t, A, B)
-    const aKey = (await A.request('profile:get')).personKey
-
-    const share = await A.request('share:create', { spaceId, name: 'Vault', contentMode: 'overlay' })
-
-    let prepareSeen = 0
-    B.on('event:decoration', (m) => { if (m.channel === 'transfer' && m.phase === 'preparing' && typeof m.key === 'string' && m.key.startsWith(share.id + ':')) prepareSeen++ })
-
-    const folder = mkTmpDir(t)
-    fs.writeFileSync(path.join(folder, 'big.bin'), patternedBytes(4 * 1024 * 1024, 7))
-    await A.request('owned-folder:mount', { spaceId, shareId: share.id, mountPath: folder })
-
-    // Wait until the file is fully published (catalog flips to remote) — by then any prepare
-    // frames would have been sent. None should have, with the owner's flag off.
-    await B.until('share:list-files', { spaceId, ownerKey: aKey, shareId: share.id },
-      (f) => Array.isArray(f?.entries) && f.entries.some((e) => e.relPath === 'big.bin' && e.status === 'remote'),
-      { ms: 60000 })
-
-    t.is(prepareSeen, 0, 'no prepare-progress reached the receiver while the owner flag was off')
-  })
-
 // REGRESSION (FIX-PREP2 + FIX-PREP5): the owner's own indexing row rode the CONSUMER's token
 // ('preparing'), so the person adding the file was told the same thing as the person waiting on
 // them — and the bar raised on that waiting member was never taken down, because the terminal
@@ -72,8 +42,8 @@ test('owner with the flag off never broadcasts prepare-progress',
 test('the owner indexes as publishing, the member as preparing, and the member gets a terminal frame',
   { timeout: scaled(180000) }, async (t) => {
     const bootstrap = await localTestnet(t)
-    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags: FLAGS })
-    const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags: FLAGS })
+    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t) })
+    const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t) })
     const spaceId = await connectInSpace(t, A, B)
     const aKey = (await A.request('profile:get')).personKey
 

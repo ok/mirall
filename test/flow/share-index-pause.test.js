@@ -6,8 +6,6 @@ import { launchPeer, connectInSpace } from '../helpers/peer.js'
 import { mkTmpDir, patternedBytes, mkStoreDir } from '../helpers/fixtures.js'
 import { scaled } from '../helpers/timing.js'
 
-const FLAGS = { sharePrepareProgressEnabled: true }
-
 // Pausing an owner's index has a member-visible effect no single-peer test can see: emptying the
 // queue pokes progress, which goes out over the handshake channel as a zero frame. Without it the
 // member's "Alice is adding N files" notice describes work that stopped minutes ago, and nothing
@@ -15,8 +13,8 @@ const FLAGS = { sharePrepareProgressEnabled: true }
 test('a member is told when the owner pauses, so its scan notice cannot stick',
   { timeout: scaled(150000) }, async (t) => {
     const bootstrap = await localTestnet(t)
-    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t), flags: FLAGS })
-    const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t), flags: FLAGS })
+    const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: mkStoreDir(t) })
+    const B = await launchPeer(t, { bootstrap, displayName: 'Bob', downloads: mkTmpDir(t) })
     const spaceId = await connectInSpace(t, A, B)
     const aKey = (await A.request('profile:get')).personKey
 

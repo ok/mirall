@@ -6,12 +6,11 @@ const MEMBER = 'm'.repeat(64)
 const STRANGER = 's'.repeat(64)
 const SOCKET = {}
 
-function rig({ entries = {}, cap = Infinity, busy = false, enabled = true } = {}) {
+function rig({ entries = {}, cap = Infinity, busy = false } = {}) {
   const marked = []
   const cleared = []
   let release = null
   const intake = createShareWaitIntake({
-    enabled: () => enabled,
     authorizedOn: (socket, key) => socket === SOCKET && key === MEMBER,
     inSpace: (key, spaceId) => key === MEMBER && spaceId === 'space1',
     ownEntry: async (spaceId, shareId, relPath) => {
@@ -101,13 +100,6 @@ test('cancel clears without a catalog read, and wins over a wait still reading',
   open()
   t.is(await pending, V.SUPERSEDED, 'the earlier wait does not resurrect the row')
   t.is(marked.length, 0)
-})
-
-test('with our own prepare-progress switch off, every notice is dropped', async (t) => {
-  const { intake, marked, cleared } = rig({ entries: unhashed, enabled: false })
-  t.is(await intake.handle(SOCKET, frame()), V.DISABLED)
-  t.is(await intake.handle(SOCKET, frame({ cancel: true })), V.DISABLED)
-  t.is(marked.length + cleared.length, 0)
 })
 
 test('a row that is a live serve of another share under the same path is reported busy', async (t) => {

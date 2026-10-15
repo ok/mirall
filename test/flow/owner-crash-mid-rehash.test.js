@@ -25,9 +25,7 @@ import { scaled } from '../helpers/timing.js'
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
 const sha = (b) => crypto.createHash('sha256').update(b).digest('hex')
-const flags = (kek) => ({
-  sharePrepareProgressEnabled: true, identityKEK: kek,
-})
+const flags = (kek) => ({ identityKEK: kek })
 const statusOf = (list, p) => list.find((e) => e.path === p)?.status
 
 test('owner killed mid-rehash: the download parks instead of dying, and resumes when the owner returns',

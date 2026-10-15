@@ -12,7 +12,6 @@ const bounded = (s, max) => typeof s === 'string' && s.length > 0 && s.length <=
 export const SHARE_WAIT_VERDICT = Object.freeze({
   MARKED: 'marked',
   CLEARED: 'cleared',
-  DISABLED: 'disabled',
   UNAUTHORIZED: 'unauthorized',
   NOT_IN_SPACE: 'not-in-space',
   MALFORMED: 'malformed',
@@ -25,7 +24,7 @@ export const SHARE_WAIT_VERDICT = Object.freeze({
 
 // markWaiting answers 'marked', 'capped' (the peer is at its cap) or 'busy' (the row is a live
 // serve of another share's file under the same path).
-export function createShareWaitIntake({ enabled = () => true, authorizedOn, inSpace, ownEntry, markWaiting, clearWaiting }) {
+export function createShareWaitIntake({ authorizedOn, inSpace, ownEntry, markWaiting, clearWaiting }) {
   // The catalog read makes a notice async while a cancel is not, so a cancel landing during that
   // read must win: the latest frame per (sender, file) is the only one allowed to apply.
   const latest = new Map()
@@ -33,7 +32,6 @@ export function createShareWaitIntake({ enabled = () => true, authorizedOn, inSp
 
   async function handle(socket, msg) {
     const { profileKey, spaceId, shareId, relPath } = msg
-    if (!enabled()) return SHARE_WAIT_VERDICT.DISABLED
     if (typeof profileKey !== 'string' || !authorizedOn(socket, profileKey)) return SHARE_WAIT_VERDICT.UNAUTHORIZED
     if (typeof spaceId !== 'string' || !inSpace(profileKey, spaceId)) return SHARE_WAIT_VERDICT.NOT_IN_SPACE
     if (!bounded(shareId, ARG_MAX.key) || !bounded(relPath, ARG_MAX.path)) return SHARE_WAIT_VERDICT.MALFORMED

@@ -101,14 +101,6 @@ export function isTopicRefsEnforced() {
   return config.topicRefsEnforced
 }
 
-export function isSharePrepareProgressEnabled() {
-  return config.sharePrepareProgressEnabled
-}
-
-export function isSeparateContentPlaneEnabled() {
-  return config.separateContentPlane
-}
-
 export function getPeerPresenceDwellMs() {
   return read('peerPresenceDwellMs')
 }
