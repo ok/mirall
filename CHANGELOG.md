@@ -9,26 +9,59 @@ build-pipeline tweaks, and dependency bumps that don't change how the app
 behaves are intentionally omitted. Releases that contained only such
 changes do not appear here.
 
-## Unreleased
+## v1.13.0
+
+### 2026-10-15
+
+Invite people with a link that works in a browser, and a set of mirror
+fixes: a stopped mirror keeps your edits, a full disk pauses it instead of
+retrying forever, and a paused mirror no longer cancels your own download.
+
+#### Added
+
+- **Invite with a web link.** The invite dialog can hand out a link that
+opens in a browser. People who don't have Mirall yet are offered the
+download first, then join the space; the Join dialog accepts the link
+pasted from any site.
 
 #### Changed
 
 - **The space file list says when it may be incomplete.** While the file
 list of a member who is online cannot be read yet, the list says more
 files may appear, instead of looking complete or empty.
-- **Files have the same buttons in a space as in a folder.** In each pair
-(Pause/Cancel, Resume/Discard, Retry/Dismiss) the red one shows on hover or
-focus, and space files now show when they are being prepared or their
-owner is offline.
+- **Space files say when their owner is offline or still preparing them.**
 
 #### Fixed
 
+- **Turning off a mirror no longer loses an edit you made in it.** If you
+stopped the mirror while Mirall was setting a local edit aside, only the
+conflict copy survived. The edit now stays in place.
+- **Two Mirall installs can no longer use the same data at once.** Opening
+a second build, such as a beta beside the regular one, used to work on the
+same files as the first. It now says "Mirall is already running" and asks
+you to quit the other copy.
+- **A full disk pauses a mirror instead of retrying forever.** A file that
+could not be written into the mirror was tried again every few seconds
+without pausing the mirror or telling you. It now pauses like any other
+disk problem and resumes cleanly once there is space.
+- **One file another program holds no longer pauses the whole mirror.**
+Mirall now retries that file while the rest of the folder still takes
+writes, instead of pausing the mirror for a permission error.
+- **A download no longer starts over when its owner is offline.** Clicking
+a partly downloaded file while its owner was away reset it to nothing
+instead of resuming where it stopped.
+- **Pausing a mirror no longer cancels a download of the same file.** A
+file you downloaded by hand was cancelled when a mirror that wanted the
+same content paused.
 - **Folder sizes and storage totals say when they may be too low.** When a
 member's file list could not be read yet, the Mirror to Disk dialog, its
 preview and the space storage card now say so instead of showing a partial
 count as final, and Mirall retries the read on its own.
 - **A folder whose file list arrived only partly now fills in on its
 own.** It stayed incomplete until something else changed in the space.
+- **Members who mirror a folder now count as having its files.** The list
+of who has a shared file left out everyone who received it through a
+mirror rather than a download.
 - **Search the Activity Log by what happened.** Typing an event such as
 "space created", "relay removed" or "downloaded" found nothing, in every
 language. Search now matches the event, the words of its sentence and the
@@ -36,14 +69,16 @@ folder, path or relay name shown under an entry, not only names.
 - **Find names with accents.** Searching the Activity Log or a folder's
 file list for a name such as "März" missed files and folders named in
 Finder, which stores accented letters differently. Both spellings now match.
-- **Files you add no longer jump around the list.** A new file appears
-right where it stays, instead of at the top until Mirall has listed it.
 - **Who has a file no longer lists waiting members as downloading.**
 Members who wait for you to finish indexing, or who are offline, now show
 under Waiting instead of Downloading.
+- **Files you add no longer jump around the list.** A new file appears
+right where it stays, instead of at the top until Mirall has listed it.
 - **The Activity Log names your folders.** Moving a folder logged "You moved
 the folder" with no name, and a renamed folder's entries showed its old
 name. Entries now use the name you see, and searching for it finds them.
+- **A folder's storage total no longer drops a file while it is verified.**
+The bytes on device of a resumed mirror file read as zero during the check.
 
 ## v1.12.0
 
