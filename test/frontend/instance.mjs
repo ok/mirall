@@ -55,9 +55,15 @@ class InstanceBase {
     // Electron directly, not `npx electron-forge start` (whose start step builds nothing here) — the
     // wrapper costs seconds per launch. `--inspect=0` goes after the app's own flags, which its argv
     // parser reads from position 2; it opens the main-process channel background mode drives.
+    // Background: AppKit's window-state restorer runs at every launch and, once done, makes the
+    // window it finds key — on macOS 27 that activates the app, so the inactive window would take
+    // the user's focus whenever the restorer finishes after the window appears. The argument-domain
+    // default switches the restorer off for this process only; the app's argv parser ignores it.
+    const launchArgs = ['.', '--no-updates', '--storage', this.store, '--inspect=0']
+    if (background() && process.platform === 'darwin') launchArgs.push('-ApplePersistenceIgnoreState', 'YES')
     this.proc = spawn(
       path.join(REPO, 'node_modules/.bin/electron'),
-      ['.', '--no-updates', '--storage', this.store, '--inspect=0'],
+      launchArgs,
       { cwd: REPO, env, detached: true, stdio: ['ignore', logFd, logFd] },
     )
     // The child dup'd its own copy of the log fd; close ours so 82 sequential

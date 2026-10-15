@@ -344,6 +344,15 @@ cannot tell dev instances apart (all are "Electron"). Keys go through the main-p
 rendered frame before the next step, and give Return/Space their `char` event — a focused button
 activates on keypress, not keyDown.
 
+**An inactive Electron window still activates the app on macOS 27 unless AppKit's state restorer
+is off.** The restorer runs at every launch even with no saved state and, when it finishes after
+the window was shown, makes that window key; the window server answers that with an activation,
+with no `activate`/`focus` call anywhere in the process. The tell is `did-become-active` firing
+~50–90 ms after `showInactive` in only some launches (the ones the restorer loses the race in).
+The fix is the launch argument `-ApplePersistenceIgnoreState YES`, which AppKit reads into the
+process's argument-domain defaults; a swizzle on `makeKeyWindow` with `callStackSymbols` is
+what exposes the caller.
+
 **A click that did not throw is not a click that landed.** agent-desktop 0.9 runs one delivery
 and reports `delivered_unverified` when it cannot read the effect, and an AX press on a node React
 replaces mid-press (a row re-rendering on every progress tick) does nothing. Confirm by the effect
