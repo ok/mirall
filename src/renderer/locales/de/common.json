@@ -452,7 +452,7 @@
     "autoApprove": "Automatisch annehmen",
     "autoApproveDesc": "Jeder mit diesem Einladungslink tritt sofort bei, ohne Freigabe.",
     "webLink": "Weblink",
-    "webLinkDesc": "Link, der sich im Browser öffnet und ohne installiertes Mirall den Download anbietet."
+    "webLinkDesc": "Bietet die Installation von Mirall an, wenn es noch fehlt."
   },
   "feedback": {
     "titleSent": "Feedback gesendet!",

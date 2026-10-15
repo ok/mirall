@@ -452,7 +452,7 @@
     "autoApprove": "Aprobar automáticamente",
     "autoApproveDesc": "Cualquiera con esta invitación se une al instante, sin aprobación.",
     "webLink": "Enlace web",
-    "webLinkDesc": "Comparte un enlace que se abre en el navegador y ofrece la descarga a quienes no tienen Mirall."
+    "webLinkDesc": "Ofrece instalar Mirall a quienes aún no lo tienen."
   },
   "feedback": {
     "titleSent": "¡Comentarios enviados!",

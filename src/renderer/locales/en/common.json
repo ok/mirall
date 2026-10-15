@@ -480,7 +480,7 @@
     "autoApprove": "Auto-approve",
     "autoApproveDesc": "Anyone with this invite joins instantly, without approval.",
     "webLink": "Web link",
-    "webLinkDesc": "Share a link that opens in a browser and offers the download to people without Mirall."
+    "webLinkDesc": "Offers to install Mirall to people who don't have it yet."
   },
   "feedback": {
     "titleSent": "Feedback sent!",
