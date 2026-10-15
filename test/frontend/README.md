@@ -90,6 +90,8 @@ One row per file in `scenarios/`; the id is the `run.mjs` argument (`node test/f
 | s52 | `s52-storage-other.mjs` | Storage Settings' app-storage disclosure is AX-targetable (`role=button`, name, `aria-expanded`) and expands into the measured breakdown. |
 | s107 | `s107-space-download-folder.mjs` | Per-space download folder: switching moves nothing, a copy outside the new folder reads as not-downloaded, switching back restores it; changes apply on Save; Settings' folder is the modal's default. |
 | s109 | `s109-download-folder-gone.mjs` | A vanished download folder: the failure names the folder (never "Transfer failed"), a sticky toast offers a way out, Storage Settings marks it unavailable, choosing a working folder clears both and the download succeeds. |
+| s172 | `s172-settings-survive-worker-restart.mjs` | The download folder and a transfer cap are the worker's own: a replaced worker and a relaunched app both show what was chosen. |
+| s173 | `s173-settings-imported-from-config.mjs` | Upgrade path: the worker's first boot imports the folder and caps from an older `config.json` into `settings.json`; main drops the moved groups on its next load. |
 
 ### F. Loose file sharing & transfers
 | ID | File | Covers |

@@ -22,4 +22,7 @@ export const SPACES_SCOPES: ScopePattern[] = [{ kind: 'members' }, { kind: 'join
 // What a restore is still confirming; the catch-up pokes it on every change.
 export const RESTORE_SCOPES: ScopePattern[] = [{ kind: 'restore' }]
 
+// The worker's settings; every write pokes it, from this window or another client.
+export const SETTINGS_SCOPES: ScopePattern[] = [{ kind: 'settings' }]
+
 export const sharesScope = (spaceId: string): ScopePattern[] => [{ kind: 'shares', spaceId }]

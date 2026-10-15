@@ -902,7 +902,6 @@
     "limitsLoading": "Loading transfer limits…",
     "limitsUnavailable": "Couldn't read your transfer limits.",
     "limitSaveFailed": "Couldn't save that limit. The previous one is still in use.",
-    "limitAppliesAfterRestart": "Saved. The new limit takes effect after Mirall restarts.",
     "download": "Download",
     "upload": "Upload",
     "unlimited": "Unlimited",

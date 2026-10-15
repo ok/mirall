@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { request } from '../../ipc/ipc.js'
 import { useHasVerticalOverflow } from '../../hooks/useHasVerticalOverflow.js'
 import { useQuery } from '../../store/useQuery.js'
-import { useMainQuery } from '../../store/useMainQuery.js'
+import { useSettings } from '../../hooks/useSettings.js'
 import { useDownloadRootStatus } from '../../hooks/useDownloadRootStatus.js'
 import AppStorageCard from '../../components/storage/AppStorageCard.js'
 import { useRunAction } from '../../hooks/useRunAction.js'
@@ -50,38 +50,35 @@ export default function StorageSettings({ onBack, onOpenActivityLogSettings, onO
     runAction(() => request('storage:measure', {}, 0))
   }, [runAction])
 
-  const { data: folderData, error: folderReadError, write: writeDownloadFolder } = useMainQuery('main:download-folder')
+  const { data: settings, error: folderReadError } = useSettings()
   // null until the read lands: the field says it is loading rather than offering a first pick for
   // a folder that always exists. A read that FAILED is a known-empty folder instead, so the row
   // drops out of the loading state and offers the pick that would fix it.
-  const downloadFolder = folderData ?? (folderReadError ? '' : null)
+  const downloadFolder = settings?.downloads.folder ?? (folderReadError ? '' : null)
   const shownError = folderError ?? (folderReadError ? errorText(folderReadError) : null)
 
   const handleBrowseFolder = useCallback(async () => {
     setFolderError(null)
     try {
-      const picked = await window.bridge.browseDownloadFolder()
+      const picked = await window.bridge.browseDownloadFolder(downloadFolder || undefined)
       if (!picked) return
-      // The WORKER validates first: only it can see the owned/mirrored folders a download
-      // root must not overlap. Persisting in main first would leave a rejected folder in the
-      // config, and the next launch would spawn the worker on it with nothing left to check it.
+      // The worker validates and persists in one step: only it can see the owned/mirrored folders
+      // a download root must not overlap, and its reply pokes every window's settings query, so
+      // the Edit Space modal's global-default fallback follows without a copy of its own.
       await request('settings:set-download-folder', { folder: picked })
-      // Through the store, not into local state: the Edit Space modal reads the same fact for its
-      // global-default fallback and would otherwise keep a copy that disagrees until it remounts.
-      await writeDownloadFolder(picked)
       // The picker only accepts a folder that validated, so the warning below is stale the
       // moment this resolves — re-probe rather than leaving it up until the next 60s tick.
       await refreshRootStatus()
     } catch (err) {
       setFolderError(errorText(err))
     }
-  }, [refreshRootStatus, errorText, writeDownloadFolder])
+  }, [refreshRootStatus, errorText, downloadFolder])
 
   // This screen shows the GLOBAL root; `unavailableRoots` also carries per-space overrides, so
-  // match rather than test for a non-empty list. The two strings reach us by different routes —
-  // main stores the path the picker returned, the worker stores its own resolved + NFC-normalized
-  // copy — so compare them normalized instead of raw, or a folder with an umlaut in its name
-  // silently fails to match and the warning never shows.
+  // match rather than test for a non-empty list. The folder and the unavailable roots are both
+  // the worker's, but one is the stored string and the other its resolved + NFC-normalized copy,
+  // so compare them normalized instead of raw, or a folder with an umlaut in its name silently
+  // fails to match and the warning never shows.
   // Not yet read is not "unavailable": the warning stays down until there is a folder to test.
   const knownFolder = downloadFolder ?? ''
   const folderUnavailable = knownFolder.length > 0

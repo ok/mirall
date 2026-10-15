@@ -13,7 +13,7 @@ import SectionHeading from '../../components/layout/SectionHeading.js'
 import RelaySettingsSection from './RelaySettingsSection.js'
 import SegmentedControl, { Segment } from '../../components/primitives/SegmentedControl.js'
 import Callout from '../../components/primitives/Callout.js'
-import { useMainQuery } from '../../store/useMainQuery.js'
+import { useSettings } from '../../hooks/useSettings.js'
 import type { BandwidthLimits } from '../../platform/global.js'
 
 interface NetworkSettingsProps {
@@ -154,12 +154,15 @@ export default function NetworkSettings({ onBack, onOpenStatus }: NetworkSetting
   // 0 is a MEANINGFUL cap here (Unlimited), so there is no safe default to render before the read
   // lands: a placeholder would be a positive claim about the user's configuration made from no
   // data. undefined until settled, and the section shows its loading line instead.
-  const { data: limits, error: readError, write: writeBandwidth } = useMainQuery('main:bandwidth')
+  const { data: settings, error: readError } = useSettings()
+  const limits: BandwidthLimits | undefined = settings
+    ? { downloadKBps: settings.network.downloadKBps, uploadKBps: settings.network.uploadKBps }
+    : undefined
   // Which rows show the number input. Derived from the stored value on load, then owned by
   // the user: picking Custom must not discard the cap they already have — so it seeds once, off
   // the first settled value, rather than tracking it.
   const [custom, setCustom] = useState<Record<Direction, boolean>>({ download: false, upload: false })
-  const [applyOutcome, setApplyOutcome] = useState<'save-failed' | 'restart' | null>(null)
+  const [applyOutcome, setApplyOutcome] = useState<'save-failed' | null>(null)
   const [applying, setApplying] = useState(false)
   const applySeq = useRef(0)
   const seeded = useRef(false)
@@ -173,33 +176,22 @@ export default function NetworkSettings({ onBack, onOpenStatus }: NetworkSetting
     })
   }, [limits])
 
-  // Persisted first, then applied: the worker boots from the persisted cap, so a refused apply means
-  // the cap is saved and takes effect after a restart, and a refused save means nothing changed. The
-  // store publishes `next` optimistically, replaces it with what main actually stored (main clamps a
-  // below-floor value), and restores the previous cap if the save fails — so the screen cannot end
-  // up showing a cap that was never persisted. Only the latest apply reports its outcome.
+  // The worker persists the cap and applies it in one request, and its reply pokes the settings
+  // query, so the rows show what is stored: a refused write leaves the previous cap in place and
+  // on screen. Only the latest apply reports its outcome.
   const apply = useCallback(async (next: BandwidthLimits) => {
     const seq = ++applySeq.current
     const latest = () => seq === applySeq.current
     setApplyOutcome(null)
     setApplying(true)
     try {
-      let persisted: BandwidthLimits
-      try {
-        persisted = await writeBandwidth(next)
-      } catch {
-        if (latest()) setApplyOutcome('save-failed')
-        return
-      }
-      try {
-        await request('settings:set-bandwidth', { ...persisted })
-      } catch {
-        if (latest()) setApplyOutcome('restart')
-      }
+      await request('settings:set-bandwidth', { ...next })
+    } catch {
+      if (latest()) setApplyOutcome('save-failed')
     } finally {
       if (latest()) setApplying(false)
     }
-  }, [writeBandwidth])
+  }, [])
 
   const rowProps = (direction: Direction, current: BandwidthLimits) => {
     const key = direction === 'download' ? 'downloadKBps' : 'uploadKBps'
@@ -240,15 +232,6 @@ export default function NetworkSettings({ onBack, onOpenStatus }: NetworkSetting
                   {applyOutcome === 'save-failed' && (
                     <InlineError>{t('networkSettings.limitSaveFailed')}</InlineError>
                   )}
-                  {/* Always mounted, so the note is announced: a live region added together with its
-                      text is not read out. Out of the flow while it has nothing to say. */}
-                  <p
-                    id="bandwidth-apply-status"
-                    role="status"
-                    className={applyOutcome === 'restart' ? 'text-sm text-on-surface-variant' : 'sr-only'}
-                  >
-                    {applyOutcome === 'restart' ? t('networkSettings.limitAppliesAfterRestart') : ''}
-                  </p>
                 </>
               ) : readError ? (
                 <InlineError>{t('networkSettings.limitsUnavailable')}</InlineError>

@@ -115,7 +115,7 @@ export default function BackupSettings({ onBack }: BackupSettingsProps) {
             )}
             {configurable && setUp && (
               <>
-                <FolderSection status={status} busy={busy} onChange={() => void act(changeFolder)} />
+                <FolderSection status={status} busy={busy} onChange={() => void act(() => changeFolder(status.folder ?? undefined))} />
                 <PassphraseSection status={status} busy={busy} onDialog={setDialog} onReminders={(next) => void act(() => setReminders(next))} />
               </>
             )}
@@ -138,8 +138,8 @@ export default function BackupSettings({ onBack }: BackupSettingsProps) {
   )
 }
 
-async function changeFolder() {
-  const picked = await window.bridge.browseBackupFolder()
+async function changeFolder(current?: string) {
+  const picked = await window.bridge.browseBackupFolder(current)
   if (picked) await request('backup:configure', { folder: picked.folder })
 }
 

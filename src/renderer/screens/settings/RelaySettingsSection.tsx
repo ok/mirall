@@ -4,10 +4,12 @@
 // Relays section of Settings ▸ Network. One slot, taking either a bare relay key (open
 // relay) or an invite ticket (private relay).
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useSettings } from '../../hooks/useSettings.js'
 import { useTranslation } from 'react-i18next'
 import ConfirmDestructiveModal from '../../components/modals/ConfirmDestructiveModal.js'
 import { request } from '../../ipc/ipc.js'
-import { getRelay, getRelayMode, setRelay, type RelayMode, type RelayParseErrorCode, type RelaySlot } from '../../platform/config-client.js'
+import { writeRelaySeed, type RelayMode, type RelayParseErrorCode, type RelaySlot } from '../../platform/config-client.js'
+import type { RelayApplyResult as WorkerRelayApplyResult } from '../../../shared/contract/responses.js'
 import { truncateRelayKey } from '../../../shared/contract/relay-key.js'
 import { isReconnectPending, setReconnectPending, subscribeRelaySession } from '../../platform/relay-session.js'
 import Badge from '../../components/primitives/Badge.js'
@@ -23,7 +25,7 @@ import AddRelayModal from '../../components/modals/AddRelayModal.js'
 import AdoptedRelayNote from '../../components/network/AdoptedRelayNote.js'
 import RelayApplyNotice from '../../components/network/RelayApplyNotice.js'
 import { useConnectionStatus } from '../../hooks/useConnectionStatus.js'
-import { useRelayApply, type RelayApplyResult } from '../../hooks/useRelayApply.js'
+import { useRelayApply } from '../../hooks/useRelayApply.js'
 import { useRunAction } from '../../hooks/useRunAction.js'
 import { peersRelayingWhileOff, relayKindClasses } from '../../model/relay-groups.js'
 
@@ -35,11 +37,21 @@ function statusOf(relay: RelaySlot, testing: boolean, active: boolean) {
   return { key: 'unreachable', classes: 'bg-error-container text-on-error-container' }
 }
 
+// The slot is the worker's, and a change goes to it in two steps: the member seed to main's vault
+// first (a pasted ticket, or a clear), then the slot to the worker, which persists and applies it.
+// A crash between the two leaves a seed the slot does not name, which the next write replaces.
+interface SlotChange {
+  mode?: RelayMode
+  relay?: { input: string; label: string } | null
+  lastTest?: { at: number; ok: boolean }
+}
+
 export default function RelaySettingsSection() {
   const { t } = useTranslation()
   const runAction = useRunAction()
-  const [mode, setMode] = useState<RelayMode>(getRelayMode)
-  const [relay, setSlot] = useState<RelaySlot | null>(getRelay)
+  const { data: settings } = useSettings()
+  const [mode, setMode] = useState<RelayMode>('off')
+  const [relay, setSlot] = useState<RelaySlot | null>(null)
   const [testing, setTesting] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
   // Both acts erase the member seed, and neither is recoverable without a new invite, so both
@@ -67,29 +79,35 @@ export default function RelaySettingsSection() {
     setSlot(next.relay)
   }, [])
 
-  // Persist first, then tell the worker: a crash between the two leaves the durable config correct
-  // and the worker re-reads it from the boot frame on respawn. A change of PINNED identity cannot be
-  // applied live (dht.defaultKeyPair is fixed when the node is built) and waits for a reconnect the
-  // user asks for; until then the probe honestly reports Unreachable, because the worker really is
-  // still presenting its old identity.
-  const commit = useCallback(async (payload: Parameters<typeof setRelay>[0]) => {
-    const result = await setRelay(payload)
-    if (!result.ok) return result
-    // The worker hears of a saved change even when the section is gone: it installs the relay and
-    // records the change from what it is told, and main's save has already happened.
-    if (alive.current) adopt({ relayMode: result.network.relayMode, relay: result.network.relay })
-    if (result.identityChanged) setReconnectPending(true)
-    // The saved slot always goes through, so the worker knows what was saved. While a pinned
-    // identity waits on the restart the worker installs no private relay, and a reconnect cannot
-    // apply one: it would be churn on connections the user is about to lose to the restart anyway.
+  // The stored slot, as the worker holds it; its reply to every write pokes the query, so a change
+  // made elsewhere lands here too.
+  useEffect(() => {
+    if (settings) adopt(settings.network)
+  }, [settings, adopt])
+
+  // A change of PINNED identity cannot be applied live (dht.defaultKeyPair is fixed when the node
+  // is built) and waits for a restart the user asks for; until then the probe honestly reports
+  // Unreachable, because the worker really is still presenting its old identity. While that
+  // restart is pending the worker installs no private relay, and a reconnect cannot apply one.
+  const commit = useCallback(async (change: SlotChange): Promise<{ ok: true } | { ok: false; code: RelayParseErrorCode }> => {
+    let slot: { publicKey: string; kind: 'open' | 'private'; label: string } | null | undefined
+    if (change.relay !== undefined) {
+      const seed = await writeRelaySeed({ relay: change.relay && { input: change.relay.input } })
+      if (!seed.ok) return seed
+      slot = change.relay && seed.kind && seed.publicKey ? { publicKey: seed.publicKey, kind: seed.kind, label: change.relay.label } : null
+    }
     const applied = await request('network:set-relay', {
-      mode: result.network.relayMode,
-      relay: result.network.relay,
+      ...(change.mode !== undefined ? { mode: change.mode } : {}),
+      ...(slot !== undefined ? { relay: slot } : {}),
+      ...(change.lastTest !== undefined ? { lastTest: change.lastTest } : {}),
       deferApply: isReconnectPending(),
-    }) as RelayApplyResult | null
+    }) as WorkerRelayApplyResult | null
+    if (!applied) return { ok: false, code: 'save-failed' }
+    if (alive.current) adopt({ relayMode: applied.network.relayMode, relay: applied.network.relay })
+    if (applied.identityChanged) setReconnectPending(true)
     // What the worker DID, not what it found: a change it applied itself needs no notice.
     if (alive.current) arm(applied)
-    return result
+    return { ok: true }
   }, [adopt, arm])
 
   const handleTest = useCallback(() => runAction(async () => {
@@ -179,7 +197,9 @@ export default function RelaySettingsSection() {
           </div>
         </div>
 
-        {relay ? (
+        {/* Nothing is offered until the stored slot is known: an Add on a placeholder would replace
+            a private relay without the confirmation its seed loss deserves. */}
+        {!settings ? null : relay ? (
           <>
             <ModeToggles mode={mode} onMode={handleModeToggle} onAlways={handleAlwaysToggle} />
             <RelayRow

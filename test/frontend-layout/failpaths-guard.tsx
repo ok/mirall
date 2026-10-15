@@ -15,7 +15,8 @@ import NotificationSettings from '../../src/renderer/screens/settings/Notificati
 import i18n from '../../src/renderer/platform/i18n.js'
 import ConnectionProblemScreen from '../../src/renderer/screens/ConnectionProblemScreen.js'
 import type { ShareWithRole } from '../../src/renderer/hooks/useShares.js'
-import { setRelay, type RelaySlot } from '../../src/renderer/platform/config-client.js'
+import type { RelaySlot } from '../../src/renderer/platform/config-client.js'
+import { refetchQuery } from '../../src/renderer/store/query-store.js'
 import { resetMainStore } from '../../src/renderer/store/main-store.js'
 import type { AppNavigation } from '../../src/renderer/hooks/useAppNavigation.js'
 import type { Space } from '../../src/renderer/types/types.js'
@@ -176,22 +177,21 @@ const SLOT: RelaySlot = { publicKey: 'r'.repeat(64), kind: 'open', label: 'Test 
 // answers; recording its verdict is the write that fails.
 async function probeRelayTest(root: Root, kit: FailpathsKit): Promise<GuardResults['relayTest']> {
   const { Shell } = kit
-  const realSetRelay = window.bridge.setRelay
-  window.bridge.setRelay = () => Promise.resolve({ ok: true, network: { downloadKBps: 0, uploadKBps: 0, relayMode: 'auto', relay: SLOT }, identityChanged: false })
-  await setRelay({ mode: 'auto' })
+  kit.answer('settings:get', { data: { downloads: { folder: '/tmp', isDefault: true }, network: { downloadKBps: 0, uploadKBps: 0, relayMode: 'auto', relay: { ...SLOT } } } })
+  await refetchQuery('settings:get', {}, null).catch(() => undefined)
   kit.answer('network:test-relay', { data: { ok: true } })
   root.render(<Shell key="guard-relay-test"><RelaySettingsSection /></Shell>)
   await kit.sleep(300)
-  window.bridge.setRelay = () => Promise.reject(new Error('the relay vault is locked'))
+  kit.answer('network:set-relay', 'fail')
   document.querySelector<HTMLButtonElement>('button[aria-label="Options for Test relay"]')?.click()
   await kit.sleep(200)
   Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).find((i) => i.textContent?.trim() === 'Test')?.click()
   await kit.sleep(400)
-  const alert = kit.alertSays(GENERIC_TEXT)
+  const alert = kit.alertSays(kit.unavailableText)
   kit.answer('network:test-relay', null)
-  window.bridge.setRelay = () => Promise.resolve({ ok: true, network: { downloadKBps: 0, uploadKBps: 0, relayMode: 'off', relay: null }, identityChanged: false })
-  await setRelay({ mode: 'off' })
-  window.bridge.setRelay = realSetRelay
+  kit.answer('network:set-relay', null)
+  kit.answer('settings:get', null)
+  await refetchQuery('settings:get', {}, null).catch(() => undefined)
   return { alert }
 }
 

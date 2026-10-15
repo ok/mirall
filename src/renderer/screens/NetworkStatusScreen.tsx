@@ -5,7 +5,8 @@ import type { TFunction } from 'i18next'
 import { reachableState, formatDuration } from '../model/connectivity.js'
 import { relayApplyNotice } from '../model/relay-apply.js'
 import { relayState, relayedPeopleCount } from '../model/relay-groups.js'
-import { getRelayMode } from '../platform/config-client.js'
+import { useSettings } from '../hooks/useSettings.js'
+import type { RelayMode } from '../../shared/contract/relay-apply.js'
 import { isApplyArmed, isReconnectPending, subscribeRelaySession } from '../platform/relay-session.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import { useConnectionStatus } from '../hooks/useConnectionStatus.js'
@@ -108,11 +109,12 @@ function buildSuggestions(status: NetworkStatusScreen | null, browserOnline: boo
 
 interface SummaryProps {
   status: NetworkStatusScreen | null
+  relayMode: RelayMode
   now: number
   onShowHistory: () => void
 }
 
-function ConnectionSummary({ status, now, onShowHistory }: SummaryProps) {
+function ConnectionSummary({ status, relayMode, now, onShowHistory }: SummaryProps) {
   const { t } = useTranslation()
   if (!status) return null
   const verdict = status.reachability?.verdict ?? 'unknown'
@@ -134,7 +136,7 @@ function ConnectionSummary({ status, now, onShowHistory }: SummaryProps) {
           connected: status.peerReach?.connected ?? 0,
         })}
       />
-      <Field label={t('networkStatus.summary.relay')} value={relaySummaryValue(status, t)} />
+      <Field label={t('networkStatus.summary.relay')} value={relaySummaryValue(status, relayMode, t)} />
       <Field
         label={t('networkStatus.summary.runningFor')}
         value={status.bootedAt > 0 ? formatDuration(now - status.bootedAt) : DASH}
@@ -146,8 +148,8 @@ function ConnectionSummary({ status, now, onShowHistory }: SummaryProps) {
   )
 }
 
-function relaySummaryValue(status: NetworkStatusScreen, t: TFunction): string {
-  const state = relayState(getRelayMode(), status.relay)
+function relaySummaryValue(status: NetworkStatusScreen, mode: RelayMode, t: TFunction): string {
+  const state = relayState(mode, status.relay)
   if (state !== 'used') return t(`networkStatus.summary.relayValue.${state}`)
   const relayed = relayedPeopleCount(status.relay)
   return t('networkStatus.summary.relayValue.used', { relayed, total: Math.max(relayed, status.peerReach.connected) })
@@ -183,6 +185,8 @@ export default function NetworkStatusScreen({ onBack, onShowHistory, onOpenSetti
   const pendingIdentity = useSyncExternalStore(subscribeRelaySession, isReconnectPending, isReconnectPending)
   const browserOnline = typeof navigator !== 'undefined' ? navigator.onLine : true
   const now = Date.now()
+  const { data: settings } = useSettings()
+  const relayMode = settings?.network.relayMode ?? 'off'
 
   function handleReconnect() {
     if (reconnecting || reconnectThrottled) return
@@ -203,7 +207,7 @@ export default function NetworkStatusScreen({ onBack, onShowHistory, onOpenSetti
   // in Settings. Both read the same rule; the restart case is Settings' to offer, since that is where
   // the invite that needs it was pasted.
   const applyNotice = relayApplyNotice({
-    mode: getRelayMode(),
+    mode: relayMode,
     relay: status?.relay ?? null,
     armed,
     pendingIdentity,
@@ -232,7 +236,7 @@ export default function NetworkStatusScreen({ onBack, onShowHistory, onOpenSetti
 
           <SuggestionsList lines={suggestions} />
 
-          <ConnectionSummary status={status} now={now} onShowHistory={onShowHistory} />
+          <ConnectionSummary status={status} relayMode={relayMode} now={now} onShowHistory={onShowHistory} />
 
           {applyNotice && applyNotice !== 'restart' && (
             <RelayApplyNotice notice={applyNotice} busy={reconnecting} onAct={handleReconnect} />
