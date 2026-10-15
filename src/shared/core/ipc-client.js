@@ -11,9 +11,9 @@ import { TRUST } from '../contract/ipc-frames.js'
 /**
  * @param {number} id
  * @param {ClientPipe} pipe
- * @param {{ trust?: (typeof TRUST)[keyof typeof TRUST], attachedAt?: number }} [opts]
+ * @param {{ trust?: (typeof TRUST)[keyof typeof TRUST], attachedAt?: number, seenAt?: number }} [opts]
  */
-export function createClient(id, pipe, { trust = TRUST.PEER, attachedAt = 0 } = {}) {
+export function createClient(id, pipe, { trust = TRUST.PEER, attachedAt = 0, seenAt = 0 } = {}) {
   let closed = false
   return {
     id,
@@ -22,8 +22,9 @@ export function createClient(id, pipe, { trust = TRUST.PEER, attachedAt = 0 } = 
     // the sequence monotonic across a catch-up.
     attachedAt,
     // Who is on the other end, decided by the worker from the transport this client arrived on and
-    // never read off a frame — a claim is not a credential. 'host' is the process that spawned us
-    // (main, relaying its renderer): the only kind that may stop or restart the worker. The default
+    // never read off a frame — a claim is not a credential. 'host' is the owning user: the process
+    // that spawned us, and a window that reached our owner-only socket. Only the host may stop or
+    // restart the worker. The default
     // is the lesser authority, so an attach that forgets to say what it is cannot grant itself more.
     trust,
     // What the client said it is, once its hello was accepted. Null until then, and the router
@@ -31,6 +32,11 @@ export function createClient(id, pipe, { trust = TRUST.PEER, attachedAt = 0 } = 
     /** @type {{ kind: ClientKind, name: string, version: string } | null} */
     hello: null,
     inFlight: new Map(),
+    // When the client last sent anything, and when it was asked whether it is still there: the two
+    // facts ipc-liveness.js decides on.
+    lastSeenAt: seenAt,
+    /** @type {number | null} */
+    probeSentAt: null,
     get closed() { return closed },
     // Never throws: a handler whose client left mid-request still runs to completion and answers,
     // and that answer has nowhere to go. Dropped here rather than surfacing as a write error inside
@@ -58,7 +64,7 @@ export function createClient(id, pipe, { trust = TRUST.PEER, attachedAt = 0 } = 
 // reading a client's frames, and abandoning the work it left behind.
 // `headAt` reports where the frame sequence has reached, so an arriving client can be stamped with
 // it. Injected rather than imported: the event plane owns the counter, and it owns this set.
-export function createClientRegistry({ bindReader, onRemoved, log, headAt = () => 0 }) {
+export function createClientRegistry({ bindReader, onRemoved, log, headAt = () => 0, now = Date.now }) {
   const clients = new Map()
   const disconnectHooks = new Set()
   let nextId = 1
@@ -77,7 +83,7 @@ export function createClientRegistry({ bindReader, onRemoved, log, headAt = () =
 
   return {
     attach(pipe, opts) {
-      const client = createClient(nextId++, pipe, { ...opts, attachedAt: headAt() })
+      const client = createClient(nextId++, pipe, { ...opts, attachedAt: headAt(), seenAt: now() })
       clients.set(client.id, client)
       bindReader(client)
       // Only once the router is live: before then there is nothing true to say yet, and goLive()

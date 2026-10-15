@@ -9,6 +9,7 @@ import { createEventPlane, scopeForEvent } from './ipc-events.js'
 import { createClientRegistry } from './ipc-client.js'
 import { createDispatcher } from './ipc-dispatch.js'
 import { createDeadlineWatch } from './ipc-deadlines.js'
+import { createLivenessWatch } from './ipc-liveness.js'
 import { createHandshake } from './ipc-handshake.js'
 import { AppError } from './errors.js'
 import { CODES } from '../contract/errors.js'
@@ -98,6 +99,7 @@ export function createIPC(pipe, {
       return abortClient(client, reason || 'client disconnected')
     },
     log,
+    now,
   })
   // Pre-start frames, each with the client that sent it. The owner is not decoration: ids are
   // caller-minted and every caller starts at 1, so a cancel arriving during boot would otherwise
@@ -116,6 +118,8 @@ export function createIPC(pipe, {
       },
     })
     client.onData((chunk) => {
+      client.lastSeenAt = now()
+      client.probeSentAt = null
       for (const line of reader.push(chunk)) {
         try { readFrame(client, JSON.parse(line)) } catch (err) {
           // A malformed frame is recoverable — skip the line and keep reading
@@ -128,6 +132,8 @@ export function createIPC(pipe, {
   }
 
   function readFrame(client, msg) {
+    // A detached client's pipe can still deliver what was already in flight; none of it is work.
+    if (client.closed) return
     // First, and before the `ready` test: a client must be able to introduce itself during a slow
     // boot, and nothing else it sends is honoured until it has.
     if (msg && msg.type === FRAME.HELLO) {
@@ -149,6 +155,8 @@ export function createIPC(pipe, {
       respond(msg && msg.id, null, 'hello first', CODES.NOT_AUTHORIZED, null, client)
       return
     }
+    // Its arrival already counted as a sign of life in the reader; there is nothing else to do.
+    if (msg && msg.type === FRAME.KEEPALIVE_ACK) return
     // Before the `ready` test on purpose: a cancel dispatched through the queue would be
     // processed AFTER the request it cancels, so a slow boot — the one moment cancelling is
     // most useful — is the one moment it would not work.
@@ -232,7 +240,7 @@ export function createIPC(pipe, {
     client.write(JSON.stringify(msg) + '\n')
   }
 
-  const events = createEventPlane({ clients, log, epoch, replay })
+  const events = createEventPlane({ clients, log, epoch, replay, host: () => primary })
   const { emit, resume } = events
   const handshake = createHandshake({ log, events, clients, isPrimary: (client) => client === primary })
 
@@ -242,6 +250,12 @@ export function createIPC(pipe, {
   }
 
   const { sweepDeadlines, inFlightAges } = createDeadlineWatch({ clients, log, now })
+  const sweepLiveness = createLivenessWatch({
+    clients,
+    isExempt: (client) => client === primary,
+    detach: (client, reason) => clients.detach(client, reason),
+    now,
+  })
 
   function start() {
     ready = true
@@ -255,7 +269,7 @@ export function createIPC(pipe, {
   const primary = pipe ? clients.attach(pipe, { trust: TRUST.HOST }) : null
 
   return {
-    handle, emit, respond, start, cancel, abortAll, sweepDeadlines, inFlightAges, resume,
+    handle, emit, respond, start, cancel, abortAll, sweepDeadlines, sweepLiveness, inFlightAges, resume,
     epoch: events.epoch,
     head: events.head,
     attach: (p, opts) => clients.attach(p, opts),

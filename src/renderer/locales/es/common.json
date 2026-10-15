@@ -1403,7 +1403,9 @@
     "protocolTitle": "Mirall necesita reiniciarse",
     "protocolBody": "Algunas partes de Mirall se actualizaron y ya no coinciden. Cierra Mirall por completo y vuelve a abrirlo. Si sigue ocurriendo, reinstala la última versión.",
     "budgetTitle": "El servicio en segundo plano de Mirall se detuvo",
-    "budgetBody": "Se detuvo varias veces seguidas y no se reinició. Cierra Mirall por completo y vuelve a abrirlo."
+    "budgetBody": "Se detuvo varias veces seguidas y no se reinició. Cierra Mirall por completo y vuelve a abrirlo.",
+    "alreadyRunningTitle": "Mirall ya se está ejecutando",
+    "alreadyRunningBody": "Otra copia de Mirall está usando los mismos datos. Cierra la otra copia; después cierra esta y vuelve a abrirla."
   },
   "identityLocked": {
     "title": "Mirall no puede abrir tus datos",

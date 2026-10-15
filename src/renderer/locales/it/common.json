@@ -1403,7 +1403,9 @@
     "protocolTitle": "Mirall deve essere riavviato",
     "protocolBody": "Alcune parti di Mirall sono state aggiornate e non corrispondono più. Chiudi completamente Mirall e riaprilo. Se il problema persiste, reinstalla l'ultima versione.",
     "budgetTitle": "Il servizio in background di Mirall si è arrestato",
-    "budgetBody": "Si è arrestato più volte di seguito e non è stato riavviato. Chiudi completamente Mirall e riaprilo."
+    "budgetBody": "Si è arrestato più volte di seguito e non è stato riavviato. Chiudi completamente Mirall e riaprilo.",
+    "alreadyRunningTitle": "Mirall è già in esecuzione",
+    "alreadyRunningBody": "Un'altra copia di Mirall sta usando gli stessi dati. Chiudi l'altra copia, poi chiudi questa e riaprila."
   },
   "identityLocked": {
     "title": "Mirall non riesce ad aprire i tuoi dati",

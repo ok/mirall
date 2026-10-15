@@ -48,8 +48,10 @@ range deletes.
 
 **Main** owns lifecycle, window, OS integration, the OTA updater and the filesystem watchers. The
 **renderer** is sandboxed and reaches main only through `window.bridge`. The **worker** (Bare child
-process) owns all P2P, storage and transfer logic. Main relays NDJSON between renderer and worker
-and parses only its own control frames.
+process) owns all P2P, storage and transfer logic. The worker listens on a local socket that admits
+only the owning user; main opens one connection to it per window and moves that window's bytes
+unparsed, so each window is a client of its own. The spawn pipe is main's: it carries the hello,
+the bootstrap, shutdown and watcher events down, and the worker's main-request frames up.
 
 ```
 ┌─────────────────────────────┐ window.bridge ┌───────────────────────────┐
@@ -57,10 +59,11 @@ and parses only its own control frames.
 │  pear-runtime: OTA only,    │               │  app:// origin, sandboxed │
 │   own corestore + swarm     │               └───────────────────────────┘
 │  worker host · config.json  │                            ▲ pear:worker:ipc/
-│  file watchers              │                            │ stdout/exit
+│  file watchers              │                            │ stdout/exit (ipc: one
+│                             │                            │ socket connection per window)
 └─────────────────────────────┘                            │
    │ hello, bootstrap,    ▲ main-request frames            │
-   ▼ fs events, relayed   │ (watch, download roots)        │
+   ▼ fs events, shutdown  │ (watch, roots, socket path)    │
 ┌───────────────────────────────────────────┐              │
 │ WORKER  src/worker/main.js + boot.js      │ ─────────────┘
 │  Corestore: profile bee, encrypted local  │
@@ -96,6 +99,15 @@ and parses only its own control frames.
   from `safeStorage` (`src/main/identity-kek.js`). Without secure storage, main refuses to start
   rather than write an unprotected identity, and a bootstrap without a KEK fails the worker's boot
   with `IDENTITY_NO_KEK` before the store opens.
+- **Window connections.** `src/main/window-connections.js`. `pear:startWorker` spawns the worker if
+  needed, waits for its `socket:listening` main-request (main never derives the path), checks that
+  the socket's directory is private to this user (Unix), and opens the calling window's own
+  connection; a reload replaces it. `pear:worker:writeIPC` answers `false` for a window with no
+  connection, so the renderer fails that request at once. A window hears exactly one
+  `pear:worker:exit` per worker it started: the process's exit code, or `0` when its socket closed
+  while the process lived (after a 1 s grace in which the exit code may still arrive). Windows has
+  no client-side owner check: main connects only to a pipe its own child bound as the first
+  instance under an owner-only DACL.
 - **Environment levers.** Main reads `PEAR_DEV_SERVER_URL` and the `MIRALL_*` test and debug
   hooks only through `src/main/env-overrides.js`, which returns nothing on a packaged build. The
   two release rollback levers and the AppImage runtime's variables are the listed exceptions
@@ -155,6 +167,16 @@ Bootstrap:
 3. `await ipc.bootstrapPromise`. An unsupported protocol version exits with
    `WORKER_EXIT_PROTOCOL_MISMATCH`, which the renderer does not respawn. Then
    `setRuntimeConfig(bootstrap)`.
+   Then the listener (`src/worker/listener.js`), before anything touches the store: the profile
+   lock `<dataDir>/run/daemon.lock` (fd-lock), then `listen({ ownerOnly: true })` on
+   `<dataDir>/run/daemon.sock` (a temp-root fallback past `sun_path`, `\\.\pipe\mirall-<hash>` on
+   Windows; `src/shared/core/socket-path.js`). `run/` sits beside the store, never in it: an
+   identity set-aside moves every entry of the store directory. A socket file nobody answers on is
+   unlinked and bound once more. A held lock or a live listener exits `WORKER_EXIT_ALREADY_RUNNING`
+   (73, terminal: the renderer shows that Mirall is already running); any other failure exits
+   `WORKER_EXIT_LISTEN_FAILED` (74, retried). Admission is bare-pipe's `ownerOnly` plus
+   `src/shared/core/peer-admission.js`, and an admitted connection attaches as `TRUST.HOST`: it is
+   the owning user. The path goes to main as the `socket:listening` main-request.
 4. `boot()` starts two tiers *(cited as `§2 boot step N`)*. The **durable** tier holds every
    Corestore-session handle plus the recorders the teardown writes through, and closes **last**:
    1. `Store` → identity unlock → `runMigrations('durable')` → `maintainLocalBees` → `SpaceKeysVault` → `ProfileBee` →
@@ -202,7 +224,10 @@ Bootstrap:
    `event:profile-needed`, computed per client so a reloaded renderer still receives them.
 
 **Shutdown.** A closed pipe detaches the client. `src/worker/connection-lifecycle.js` then stops the
-worker, because a worker with no client is an orphan holding the store lock. A `shutdown` request
+worker when the closed pipe is the spawn pipe, whatever socket clients remain, because those reach
+it through the host that just went. A socket client that stays silent through a `keepalive` and its
+grace (30 s + 10 s, `src/shared/core/ipc-liveness.js`, on the health tick) is detached, which
+aborts its in-flight work and closes its socket. A `shutdown` request
 does the same. `safeShutdown` keeps the first reason's exit code, aborts in-flight requests, and
 runs `root.close()` under a 4 s hard deadline. `close()` pauses the supervisor, broadcasts departure
 and halts publishing before anything closes (the departure datagram must leave UDX before sockets
@@ -1244,15 +1269,15 @@ there. The rules:
 
 ### Renderer ↔ Worker (NDJSON)
 
-Newline-delimited JSON over the worker's stdio pipe, relayed by main. The vocabulary is the
-contract:
+Newline-delimited JSON over each window's own connection to the worker's socket, which main
+bridges without reading. The vocabulary is the contract:
 
 | File | Owns |
 |---|---|
 | `src/shared/contract/requests.js` | Every request row: name, `kind` (`query` = read-only, retry-safe; `command` = may mutate), `args` (drives the router's validator), and optional `deadlineMs` |
 | `src/shared/contract/responses.ts` | The response type per request |
 | `src/shared/contract/events.js` | Every event name, `TARGETED_EVENTS`, `isEphemeralEvent` |
-| `src/shared/contract/ipc-frames.js` | The non-request frames: `hello`/`hello-ack`, `bootstrap`, `response`, `cancel`, `CLIENT_KINDS`, `TRUST`, and `IPC_PROTOCOL_VERSION` (the wire's own version, bumped by hand in the change that alters a frame) |
+| `src/shared/contract/ipc-frames.js` | The non-request frames: `hello`/`hello-ack`, `bootstrap`, `response`, `cancel`, `keepalive`/`keepalive-ack`, `CLIENT_KINDS`, `TRUST`, and `IPC_PROTOCOL_VERSION` (the wire's own version, bumped by hand in the change that alters a frame) |
 
 The rules for adding to the contract:
 
@@ -1268,7 +1293,8 @@ The rules for adding to the contract:
   `events.js` name the same set of events.
 
 **Connection and replay.** A client sends `hello` (wire version, kind, cursor) and nothing else is
-honoured until `hello-ack`. A version outside `IPC_PROTOCOL_MIN_SUPPORTED` is refused
+honoured until `hello-ack`; a window says `electron-window`. Only the spawn pipe may send
+`bootstrap`, and main-request frames go to it alone. A version outside `IPC_PROTOCOL_MIN_SUPPORTED` is refused
 (`src/shared/contract/hello.js`). Each event carries a `seq` within a per-process `epoch`
 (`src/shared/contract/event-cursor.js`). A reconnecting client resumes through `events:resume`, or
 learns it must resync, and `event:worker-ready { epoch, head }` tells a client where the stream

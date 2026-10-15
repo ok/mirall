@@ -11,12 +11,16 @@
 // queued behind the request it cancels during boot, which is precisely when it matters most.
 // `hello` is here for the same reason and one more: it decides whether the rest of the wire is
 // spoken at all, so it cannot be a row in a table the handshake has not yet authorised.
+// `keepalive` is the worker asking a quiet socket client whether it is still there; any frame back
+// answers it, and `keepalive-ack` is the one a client sends when it has nothing else to say.
 export const FRAME = Object.freeze({
   HELLO: 'hello',
   HELLO_ACK: 'hello-ack',
   BOOTSTRAP: 'bootstrap',
   RESPONSE: 'response',
   CANCEL: 'cancel',
+  KEEPALIVE: 'keepalive',
+  KEEPALIVE_ACK: 'keepalive-ack',
 })
 
 /** @internal the cancellation guard's list */
@@ -25,7 +29,7 @@ export const CONTROL_FRAMES = Object.freeze(Object.values(FRAME))
 // What a client says it is. Self-declared and therefore a claim, not a credential: it names the
 // program on the other end so a log and a support bundle can say which one. A kind outside this
 // tuple is refused rather than logged as a curiosity.
-export const CLIENT_KINDS = Object.freeze(['electron-main', 'cli', 'mcp', 'test'])
+export const CLIENT_KINDS = Object.freeze(['electron-main', 'electron-window', 'cli', 'mcp', 'test'])
 
 // What a client may do, assigned by the worker from the transport it arrived on and never read off
 // a frame — a claim is not a credential. Stopping the worker ends every client's session, so it is
@@ -42,5 +46,5 @@ export const TRUST = Object.freeze({ HOST: 'host', PEER: 'peer' })
 //
 // MIN_SUPPORTED is the oldest peer this build still speaks to. Widening the window is a decision
 // with a compatibility shim behind it; narrowing it is what a breaking change does.
-export const IPC_PROTOCOL_VERSION = 2
-export const IPC_PROTOCOL_MIN_SUPPORTED = 2
+export const IPC_PROTOCOL_VERSION = 3
+export const IPC_PROTOCOL_MIN_SUPPORTED = 3

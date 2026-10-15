@@ -1,5 +1,5 @@
-// The worker's exit codes. Main relays the code verbatim and workerRespawn.js is the only reader,
-// so this is the sole channel saying WHY a generation ended. Distinct from a kill (an OOM
+// The worker's exit codes. Main relays the code verbatim and the renderer's worker-respawn.js is the
+// only reader, so this is the sole channel saying WHY a generation ended. Distinct from a kill (an OOM
 // mid-operation, which earns a fresh respawn budget): a worker that reached ready and then tripped
 // the unstable threshold must not — a budget that resets on every ready is no bound.
 export const WORKER_EXIT_UNSTABLE = 70
@@ -12,3 +12,11 @@ export const WORKER_EXIT_PROTOCOL_MISMATCH = 71
 // The last client went away and nothing can connect a new one. Distinct from a clean stop so a log
 // reader — and the respawn policy — can tell "the host asked us to stop" from "the host vanished".
 export const WORKER_EXIT_ORPHANED = 72
+
+// Another worker already holds this profile's daemon lock, or a foreign process holds its socket.
+// A respawn would meet the same holder, so the renderer stops and says so instead of retrying.
+export const WORKER_EXIT_ALREADY_RUNNING = 73
+
+// The worker could not open its socket, so no window can reach it. Retried under the ordinary
+// budget: the cause (a full disk, a permission fault on the run directory) may clear.
+export const WORKER_EXIT_LISTEN_FAILED = 74

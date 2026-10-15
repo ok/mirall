@@ -30,12 +30,10 @@ const IDLE_DROP_MS = 30000
 // than IDLE_DROP_MS (a deliberate pause should stay visible) but bounded, so a dead
 // connection that never fired onclose can't leak the avatar forever.
 const PAUSED_DROP_MS = 300000
-// Backstop for a subscription no disconnect will ever reclaim. Two cases: a client that holds its
-// pipe open but stops reading, and — the one that actually happens today — a renderer reload, which
-// never sends the unsubscribe and does NOT detach its client, because main keeps one pipe per
-// worker across reloads. A sub with no download entry for this long goes dormant so the sweep timer
-// can't re-arm forever. A dropdown legitimately open on a file that quiet is already showing the
-// empty set; reopening it re-subscribes.
+// Backstop for a subscription no disconnect will ever reclaim: a client that holds its connection
+// open but never sends the unsubscribe. A sub with no download entry for this long goes dormant so
+// the sweep timer can't re-arm forever. A dropdown legitimately open on a file that quiet is
+// already showing the empty set; reopening it re-subscribes.
 const DETAIL_SUB_QUIET_MS = 300000
 
 // `bytes` is DISPLAY-progress = max(bytes we served, the downloader's reported have) — a

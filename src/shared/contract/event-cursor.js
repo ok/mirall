@@ -2,9 +2,8 @@
 // is numbered per worker PROCESS: an epoch names the generation and a seq the frame within it, so a
 // cursor is only meaningful against the epoch that issued it.
 //
-// Pure and import-free, because three runtimes hold one: the renderer instantiates it today (it is
-// the only process that parses every worker frame), main takes it over when the byte relay goes,
-// and the CLI ports it.
+// Pure and import-free, because every client of the worker holds one: each window keeps its own over
+// its own connection, and the CLI ports it.
 
 /** @typedef {{ epoch: string | null, since: number }} Cursor */
 /** @typedef {{ epoch: string, head: number }} StreamCoordinates */

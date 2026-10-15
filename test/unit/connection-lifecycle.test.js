@@ -69,8 +69,17 @@ test('the orphan guard fires before boot even for a worker that could accept cli
     'nothing will ever send the bootstrap frame it is waiting for')
 })
 
-test('a second client keeps the worker up', (t) => {
-  const { pipe, calls } = harness({ clientsAfter: 1 })
+// REGRESSION (FIX-510-1: the host's pipe closing left a worker with socket clients running. Those
+// clients reach the worker through the host, so a worker bound to its host outlived the only process
+// that could stop it.)
+test('REGRESSION (FIX-510-1): the host going stops a worker bound to it, whoever else is attached', (t) => {
+  const { pipe, calls } = harness({ clientsAfter: 2 })
+  pipe.emit('close')
+  t.alike(calls, [['detach', 1, 'ipc-close'], ['stop', 'ipc-close']])
+})
+
+test('a worker that can accept clients stays up while others are attached', (t) => {
+  const { pipe, calls } = harness({ canAcceptClients: true, clientsAfter: 1 })
   pipe.emit('close')
   t.alike(calls, [['detach', 1, 'ipc-close']])
 })

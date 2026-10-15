@@ -32,8 +32,9 @@ test('REGRESSION (FIX-IPCCODE-1): a request with no worker behind it carries the
     'in-flight requests killed by a worker exit are coded')
   t.ok(/throw codedError\('Worker is unavailable \(respawn limit reached\)', CODES\.WORKER_UNAVAILABLE\)/.test(src),
     'and so is the fail-fast after the respawn policy gives up')
-  const write = src.slice(src.indexOf('window.bridge.writeWorkerIPC(WORKER_SPEC, encoder.encode(envelope))'))
-  t.ok(/CODES\.WORKER_UNAVAILABLE/.test(write), 'and a failed write to a worker that never spawned')
+  const at = src.indexOf('sendLine(JSON.stringify({ id, type, ...payload })')
+  t.ok(at >= 0, 'the request write is where it is looked for')
+  t.ok(/CODES\.WORKER_UNAVAILABLE/.test(src.slice(at, at + 800)), 'and a failed write to a worker that never spawned')
 })
 
 test('both codes are declared in the contract', (t) => {

@@ -1,6 +1,7 @@
 import Sidecar from 'bare-sidecar'
 import crypto from 'crypto'
 import fs from 'fs'
+import net from 'net'
 import path from 'path'
 import { scaled, summarize, tail, TIMING } from './timing.js'
 import { tmpDir } from './tmp.js'
@@ -27,6 +28,57 @@ function kekFor(storage) {
 }
 
 const tmp = (label) => tmpDir(`mirall-peer-${label}`)
+
+// Which wire a peer's requests and events travel. 'pipe' is the spawn pipe the worker was started
+// on; 'socket' is a connection to the worker's own socket, the way a window reaches it, with the
+// spawn pipe left to the host's frames.
+const DEFAULT_TRANSPORT = process.env.MIRALL_TEST_IPC_TRANSPORT === 'socket' ? 'socket' : 'pipe'
+
+function helloLine(name) {
+  return JSON.stringify({
+    type: 'hello',
+    protocolVersion: IPC_PROTOCOL_VERSION,
+    protocolMin: IPC_PROTOCOL_MIN_SUPPORTED,
+    protocolMax: IPC_PROTOCOL_VERSION,
+    client: { kind: 'test', name, version: '0.0.0-test' },
+  }) + '\n'
+}
+
+function frameLines(onFrame) {
+  let buf = ''
+  return (chunk) => {
+    buf += chunk.toString()
+    let nl
+    while ((nl = buf.indexOf('\n')) !== -1) {
+      const line = buf.slice(0, nl)
+      buf = buf.slice(nl + 1)
+      if (!line.trim()) continue
+      let msg
+      try { msg = JSON.parse(line) } catch { continue }
+      onFrame(msg)
+    }
+  }
+}
+
+// A worker started on `storage` and given its handshake, and nothing else: for a test about what a
+// worker does when it cannot have the profile. Resolves with the code it exits with.
+export function spawnBareWorker(t, { storage, downloads = tmp('dl'), flags = {} }) {
+  const sidecar = new Sidecar(WORKER_ENTRY)
+  installExitBackstop()
+  const child = sidecar._process
+  if (child) liveChildren.add(child)
+  sidecar.stdout.on('data', () => {})
+  sidecar.stderr.on('data', () => {})
+  sidecar.on('error', () => {})
+  const exited = new Promise((resolve) => sidecar.once('exit', (code) => { liveChildren.delete(child); resolve(code) }))
+  t.teardown(() => { try { sidecar.destroy() } catch {} })
+  sidecar.write(helloLine('flow-harness'))
+  sidecar.write(JSON.stringify({
+    type: 'bootstrap', storage, appVersion: '0.0.0-test', dev: true, verbose: false, downloadFolder: downloads,
+    identityKEK: kekFor(storage), ...flags,
+  }) + '\n')
+  return { sidecar, exited }
+}
 
 function listingEntries(listing) {
   if (!listing || !Array.isArray(listing.entries)) throw new Error('files:list did not answer a listing envelope: ' + summarize(listing))
@@ -59,7 +111,7 @@ function installExitBackstop() {
 
 // `bootSettleMs` holds the boot window open past profile:set, so a test can make an edge the
 // worker consumes right after boot land inside the window on any machine.
-export async function launchPeer(t, { bootstrap, displayName = 'Peer', debug = false, storage, downloads, flags = {}, bootSettleMs = 0, setProfile = true } = {}) {
+export async function launchPeer(t, { bootstrap, displayName = 'Peer', debug = false, storage, downloads, flags = {}, bootSettleMs = 0, setProfile = true, transport = DEFAULT_TRANSPORT } = {}) {
   // When storage/downloads are passed in, the caller owns their lifetime (used
   // to relaunch a peer with the same identity + drive after an offline window).
   const ownsDirs = !storage
@@ -97,8 +149,8 @@ export async function launchPeer(t, { bootstrap, displayName = 'Peer', debug = f
   const pending = new Map()
   const events = createEventLog()
   let id = 0
-  let buf = ''
   let alive = true
+  let wire = transport === 'pipe' ? sidecar : null
 
   function die(reason) {
     if (!alive) return
@@ -113,29 +165,40 @@ export async function launchPeer(t, { bootstrap, displayName = 'Peer', debug = f
 
   let lastSeq = 0
   let lastEpoch = null
-  sidecar.on('data', (chunk) => {
-    buf += chunk.toString()
-    let nl
-    while ((nl = buf.indexOf('\n')) !== -1) {
-      const line = buf.slice(0, nl)
-      buf = buf.slice(nl + 1)
-      if (!line.trim()) continue
-      let msg
-      try { msg = JSON.parse(line) } catch { continue }
-      // Where this peer has read to. A client that cannot reload — a CLI, an MCP bridge — has no
-      // other way back after a dropped connection, so the harness tracks the cursor one would.
-      if (typeof msg.seq === 'number') lastSeq = msg.seq
-      if (msg.type === 'event:worker-ready' && typeof msg.epoch === 'string') lastEpoch = msg.epoch
-      if (msg.type === 'response' && pending.has(msg.id)) {
-        const { resolve, reject } = pending.get(msg.id)
-        pending.delete(msg.id)
-        if (msg.error) reject(Object.assign(new Error(msg.error), { code: msg.code }))
-        else resolve(msg.data)
-      } else if (typeof msg.type === 'string' && msg.type.startsWith('event:')) {
-        events.deliver(msg)
-      }
+  function onFrame(msg) {
+    // Where this peer has read to. A client that cannot reload — a CLI, an MCP bridge — has no
+    // other way back after a dropped connection, so the harness tracks the cursor one would.
+    if (typeof msg.seq === 'number') lastSeq = msg.seq
+    if (msg.type === 'event:worker-ready' && typeof msg.epoch === 'string') lastEpoch = msg.epoch
+    if (msg.type === 'response' && pending.has(msg.id)) {
+      const { resolve, reject } = pending.get(msg.id)
+      pending.delete(msg.id)
+      if (msg.error) reject(Object.assign(new Error(msg.error), { code: msg.code }))
+      else resolve(msg.data)
+    } else if (typeof msg.type === 'string' && msg.type.startsWith('event:')) {
+      events.deliver(msg)
     }
-  })
+  }
+
+  let socketPath = null
+  function openSocket(announced) {
+    socketPath = announced
+    if (transport !== 'socket' || wire) return
+    const socket = net.connect(announced)
+    socket.on('data', frameLines((msg) => {
+      if (msg.type === 'keepalive') { socket.write('{"type":"keepalive-ack"}\n'); return }
+      onFrame(msg)
+    }))
+    socket.on('error', () => {})
+    socket.on('close', () => die('socket closed'))
+    socket.write(helloLine('flow-harness'))
+    wire = socket
+  }
+
+  sidecar.on('data', frameLines((msg) => {
+    if (msg.type === 'main-request' && msg.command === 'socket:listening') openSocket(msg.args.path)
+    else if (transport === 'pipe') onFrame(msg)
+  }))
 
   const peer = {
     // The coordinates a resuming client sends back: the stream it was reading, and how far.
@@ -143,12 +206,16 @@ export async function launchPeer(t, { bootstrap, displayName = 'Peer', debug = f
     storage,
     downloads,
     sidecar,
+    transport,
+    // Where the worker said it listens, once it has.
+    socketPath: () => socketPath,
     request(type, args = {}) {
       if (!alive) return Promise.reject(new Error('peer not available (killed)'))
+      if (!wire) return Promise.reject(new Error('peer not available (no socket yet)'))
       return new Promise((resolve, reject) => {
         const mid = 'r' + (id++)
         pending.set(mid, { resolve, reject })
-        sidecar.write(JSON.stringify({ id: mid, type, ...args }) + '\n')
+        wire.write(JSON.stringify({ id: mid, type, ...args }) + '\n')
       })
     },
     on(type, cb) { return events.on(type, cb) },
@@ -222,13 +289,7 @@ export async function launchPeer(t, { bootstrap, displayName = 'Peer', debug = f
   // ready. The worker refuses every frame from a client that has not said what it is and on which
   // wire, so the harness is a third writer of the hello.
   const ready = peer.waitFor('event:worker-ready')
-  sidecar.write(JSON.stringify({
-    type: 'hello',
-    protocolVersion: IPC_PROTOCOL_VERSION,
-    protocolMin: IPC_PROTOCOL_MIN_SUPPORTED,
-    protocolMax: IPC_PROTOCOL_VERSION,
-    client: { kind: 'test', name: 'flow-harness', version: '0.0.0-test' },
-  }) + '\n')
+  sidecar.write(helloLine('flow-harness'))
   sidecar.write(JSON.stringify({
     type: 'bootstrap',
     storage,

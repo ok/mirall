@@ -5,6 +5,12 @@ import type { ChannelFault } from '../ipc/ipc.js'
 // The worker is terminally unreachable. Nothing on this screen can fix that, so it offers no action
 // that pretends to — and it renders ABOVE the boot gate, because the alternative is onboarding
 // opening over an identity the app simply cannot read.
+const COPY = {
+  protocol: { title: 'workerFault.protocolTitle', body: 'workerFault.protocolBody' },
+  budget: { title: 'workerFault.budgetTitle', body: 'workerFault.budgetBody' },
+  'already-running': { title: 'workerFault.alreadyRunningTitle', body: 'workerFault.alreadyRunningBody' },
+} as const satisfies Record<ChannelFault, { title: string, body: string }>
+
 export default function WorkerFaultScreen({ kind }: { kind: ChannelFault }) {
   const { t } = useTranslation()
   const headingRef = useRef<HTMLHeadingElement>(null)
@@ -21,10 +27,10 @@ export default function WorkerFaultScreen({ kind }: { kind: ChannelFault }) {
           tabIndex={-1}
           className="text-4xl font-headline font-extrabold text-accent tracking-tight focus:outline-none"
         >
-          {t(kind === 'protocol' ? 'workerFault.protocolTitle' : 'workerFault.budgetTitle')}
+          {t(COPY[kind].title)}
         </h1>
         <p className="mt-4 text-lg text-on-surface-variant leading-relaxed">
-          {t(kind === 'protocol' ? 'workerFault.protocolBody' : 'workerFault.budgetBody')}
+          {t(COPY[kind].body)}
         </p>
       </div>
     </main>

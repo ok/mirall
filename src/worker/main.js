@@ -36,15 +36,19 @@ import { createMembership } from './ipc/membership.js'
 import { slimSpaces } from './space-projection.js'
 import { createOwnedMounter } from './owned-mount.js'
 import {
-  setRuntimeConfig,
+  setRuntimeConfig, getIpcKeepaliveMs, getIpcKeepaliveGraceMs,
 } from '../shared/core/runtime-config.js'
 import { forgetSpaceDownloadRoot, listDownloadRoots } from '../shared/core/paths.js'
 import { daemonPaths } from '../shared/contract/paths.js'
 import { createLogger } from '../shared/core/logger.js'
 import { installCrashBackstop } from '../shared/core/crash-backstop.js'
-import { WORKER_EXIT_UNSTABLE, WORKER_EXIT_PROTOCOL_MISMATCH, WORKER_EXIT_ORPHANED } from '../shared/contract/exit-codes.js'
+import {
+  WORKER_EXIT_UNSTABLE, WORKER_EXIT_PROTOCOL_MISMATCH, WORKER_EXIT_ORPHANED, WORKER_EXIT_ALREADY_RUNNING,
+  WORKER_EXIT_LISTEN_FAILED,
+} from '../shared/contract/exit-codes.js'
 import { IDENTITY_LOCK_CODES } from '../shared/contract/errors.js'
 import { bindConnectionLifecycle } from './connection-lifecycle.js'
+import { startListener } from './listener.js'
 import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../shared/contract/main-requests.js'
 import {
   getProfile,
@@ -63,9 +67,14 @@ const log = createLogger('worklet')
 // Started next to ipc.start() rather than here: before the router goes live the loop is busy with
 // boot I/O by design, and sampling that would report a wedge that is really just a large library
 // being opened.
-// The worker's one periodic loop, so it carries the router's deadline sweep too — a second timer
-// for that would be the parallel mechanism the supervisor already argues against.
-const health = createHealthMonitor({ onTick: () => ipc.sweepDeadlines() })
+// The worker's one periodic loop, so it carries the router's deadline and liveness sweeps too — a
+// second timer for those would be the parallel mechanism the supervisor already argues against.
+const health = createHealthMonitor({
+  onTick: () => {
+    ipc.sweepDeadlines()
+    ipc.sweepLiveness({ keepaliveMs: getIpcKeepaliveMs(), graceMs: getIpcKeepaliveGraceMs() })
+  },
+})
 
 // Main authorizes "reveal in folder" against these, and cannot read the space records
 // that hold the per-space overrides, so the set is pushed to it on every change.
@@ -94,6 +103,7 @@ installCrashBackstop(log, {
 })
 
 let root = null
+let listener = null
 let bootComplete = false
 let shuttingDown = false
 // How the renderer tells one death from another: an unstable exit and a refused protocol want
@@ -125,6 +135,8 @@ async function safeShutdown(reason, code = 0) {
   // the reverse of its start order — lives in the composition root. `root` is null until boot()
   // returns, which is what lets the pipe-close hooks below fire at any point during startup.
   try { await root?.close() } catch (err) { log.warn('shutdown: close failed:', err.message) }
+  // Last, so a window learns the worker is gone together with the code it exits with.
+  try { await listener?.close() } catch (err) { log.warn('shutdown: listener close failed:', err.message) }
   log.info('shutdown complete')
   Bare.exit(exitCode)
 }
@@ -133,9 +145,8 @@ async function safeShutdown(reason, code = 0) {
 // we are parked on ipc.bootstrapPromise; without this the worker would sit at that await forever as
 // an idle orphan. safeShutdown's teardown steps all no-op safely when called before init.
 //
-// A closed pipe now disconnects a CLIENT and then asks separately whether to stay up. The answer is
-// still "stop" — see connection-lifecycle.js for why it has to be, until the worker can accept a
-// connection of its own.
+// A closed pipe disconnects a CLIENT and then asks separately whether to stay up. The answer is
+// "stop" — see connection-lifecycle.js for why it has to be while the worker lives with its host.
 bindConnectionLifecycle({
   pipe: Bare.IPC,
   ipc,
@@ -166,6 +177,18 @@ setRuntimeConfig(bootstrap)
 // knows which directory to protect. Armed here, before boot() opens the Corestore, so every
 // migration and purge the data layer runs is already covered. See src/worker/dir-tripwire.js.
 armDataDirTripwire(bootstrap.storage)
+
+// Before anything touches the store: the profile lock taken here is what keeps a second worker away
+// from it, and a locked-identity worker serves its recovery screen over this socket too.
+{
+  const listened = await startListener({ ipc, storage: bootstrap.storage, log })
+  if (listened.verdict !== 'listening') {
+    await safeShutdown('listener ' + listened.verdict + ': ' + listened.reason,
+      listened.verdict === 'already-running' ? WORKER_EXIT_ALREADY_RUNNING : WORKER_EXIT_LISTEN_FAILED)
+    await new Promise(() => {})
+  }
+  listener = listened
+}
 
 // === Boot: the composition root constructs and starts the data layer ===
 //

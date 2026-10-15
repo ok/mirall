@@ -1403,7 +1403,9 @@
     "protocolTitle": "Mirall needs to be restarted",
     "protocolBody": "Parts of Mirall were updated and no longer match. Quit Mirall completely and open it again. If this keeps happening, reinstall the latest version.",
     "budgetTitle": "Mirall's background service stopped",
-    "budgetBody": "It stopped several times in a row and was not restarted. Quit Mirall completely and open it again."
+    "budgetBody": "It stopped several times in a row and was not restarted. Quit Mirall completely and open it again.",
+    "alreadyRunningTitle": "Mirall is already running",
+    "alreadyRunningBody": "Another copy of Mirall is using the same data. Quit the other copy, then quit this one and open it again."
   },
   "identityLocked": {
     "title": "Mirall can't open your data",

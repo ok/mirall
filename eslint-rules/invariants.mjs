@@ -189,9 +189,10 @@ export const swallowedRejectionExemptions = Object.freeze({
     ],
   },
   'src/renderer/ipc/ipc.ts': {
-    why: 'Tells the worker to stop a request nobody waits for any more; a late answer is dropped anyway.',
+    why: 'Fire-and-forget control frames: a cancel for a request nobody waits for any more, and a keepalive answer whose loss the worker already treats as silence.',
     sites: [
-      'dispatch > tellWorkerToStop: window.bridge.writeWorkerIPC(WORKER_SPEC, encoder.encode(frame)).catch(() => und',
+      'dispatch > tellWorkerToStop: sendLine(JSON.stringify({ type: FRAME.CANCEL, id }) + \'\\n\').catch(() => undefine',
+      'handleLine: sendLine(JSON.stringify({ type: FRAME.KEEPALIVE_ACK }) + \'\\n\').catch(() => undef',
     ],
   },
   'src/renderer/notifications/prefs.ts': {

@@ -216,6 +216,10 @@ const DEFAULTED = {
   // matches the cadence the mirror probe ran at, so the two-consecutive-bad rule still acts about
   // two minutes into a stall. Tests shrink it.
   supervisionProbeIntervalMs: 60_000,
+  // How long a socket client may stay silent before the worker asks whether it is still there, and
+  // how long it then has to answer before it is detached. Tests shrink both.
+  ipcKeepaliveMs: ruled(30_000, finiteAtLeast, 1),
+  ipcKeepaliveGraceMs: ruled(10_000, finiteAtLeast, 1),
   // Deadlines, where both DEFAULTED sentinels invert: 0 makes stallVerdict condemn every pass the
   // instant it starts, so the supervisor evicts every healthy publish and abandons every healthy
   // scan; Infinity reaches setTimeout, which clamps it to about a millisecond, so "no timeout"

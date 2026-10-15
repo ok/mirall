@@ -14,7 +14,7 @@ const src = readFileSync(path.join(here, '..', '..', 'src', 'renderer', 'ipc', '
 test('request() takes a signal and turns an abort into a cancel frame', (t) => {
   t.ok(/opts:\s*RequestOptions/.test(src), 'the option is typed, not a loose bag')
   t.ok(src.includes('FRAME.CANCEL'), 'the abort writes the contract control frame')
-  t.ok(/void window\.bridge\.writeWorkerIPC\(WORKER_SPEC, encoder\.encode\(frame\)\)/.test(src),
+  t.ok(/^\s+sendLine\(JSON\.stringify\(\{ type: FRAME\.CANCEL, id \}\) \+ '\\n'\)\.catch\(\(\) => undefined\)$/m.test(src),
     'fire-and-forget: the local rejection does not wait for an ack it has no use for')
 })
 
