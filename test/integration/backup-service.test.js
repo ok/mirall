@@ -11,7 +11,7 @@ import { deleteSpaceRecord } from '../../src/shared/spaces/space.js'
 import { registerBackup } from '../../src/worker/ipc/backup.js'
 import { createPassphraseThrottle } from '../../src/shared/core/identity-recovery.js'
 import { writeRestoreHold, PROFILE_BEE } from '../../src/shared/core/restore-hold.js'
-import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../../src/shared/contract/main-requests.js'
+import { loadSettings } from '../../src/shared/core/settings-store.js'
 import { FolderTarget } from '../../src/shared/storage/backup/folder-target.js'
 import { openRepo } from '../../src/shared/storage/backup/repo.js'
 import { runBackup } from '../../src/shared/storage/backup/backup-run.js'
@@ -41,6 +41,7 @@ async function bootWith(t, { configured = true, repoId = null } = {}) {
     storage: d.storage, appVersion: '0.0.0-test', dev: true, verbose: false, downloadFolder: d.downloads,
     backupFolder: configured ? d.backupFolder : null, backupRepoId: repoId,
   }
+  await loadSettings(d.storage)
   setRuntimeConfig(config)
   setDownloadFolder(d.downloads)
   const fake = createFakeIpc()
@@ -58,6 +59,7 @@ async function bootWithStorage(t, previous, { folder, repoId }) {
     storage: previous.storage, appVersion: '0.0.0-test', dev: true, verbose: false, downloadFolder: previous.downloads,
     backupFolder: folder, backupRepoId: repoId,
   }
+  await loadSettings(previous.storage)
   setRuntimeConfig(config)
   const fake = createFakeIpc()
   const root = await boot(config, { ipc: fake.ipc, log: quiet, swarm: false, masterSecret: previous.masterSecret, memberRegistry: offlineMemberRegistry })
@@ -75,15 +77,16 @@ async function codeOf(promise) {
   }
 }
 
-const remembered = (fake) => fake.events.filter((e) => e.type === MAIN_REQUEST_FRAME && e.payload.command === MAIN_REQUEST.BACKUP_REMEMBER).map((e) => e.payload.args)
+const remembered = (d) => JSON.parse(fs.readFileSync(path.join(d.home, 'settings.json'), 'utf-8')).backup
 
-test('a run writes a snapshot, reports it, and has main remember the new repository', async (t) => {
-  const { fake } = await bootWith(t)
+test('a run writes a snapshot, reports it, and remembers the new repository', async (t) => {
+  const d = await bootWith(t)
+  const { fake } = d
   const status = await fake.call('backup:run', {})
   t.is(status.state, 'idle')
   t.ok(status.lastSnapshot)
   t.ok(status.repoId)
-  t.alike(remembered(fake).at(-1), { folder: status.folder, repoId: status.repoId })
+  t.alike(remembered(d), { folder: status.folder, repoId: status.repoId })
   t.ok(fake.emitted('event:storage-updated').length > 0, 'the Storage screen is told')
 })
 
@@ -98,7 +101,8 @@ test('a change worth backing up arms the next run', async (t) => {
 })
 
 test('the folder can never be inside the app data folder, and a new folder starts a new backup', async (t) => {
-  const { fake, home, backupFolder } = await bootWith(t)
+  const d = await bootWith(t)
+  const { fake, home, backupFolder } = d
   t.is(await codeOf(fake.call('backup:configure', { folder: path.join(home, 'inside') })), 'INVALID_ARGUMENT')
   const other = tmpDir('backup-service-other')
   t.teardown(() => { try { fs.rmSync(other, { recursive: true, force: true }) } catch {} }, { order: 2 })
@@ -111,7 +115,7 @@ test('the folder can never be inside the app data folder, and a new folder start
   t.alike(fs.readdirSync(other), [], 'choosing a folder writes nothing until a run')
   t.is(status.folder, other)
   t.is(status.repoId, null)
-  t.alike(remembered(fake).at(-1), { folder: other, repoId: null })
+  t.alike(remembered(d), { folder: other, repoId: null })
   t.is((await fake.call('backup:turn-off', {})).state, 'off')
 })
 

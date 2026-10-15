@@ -16,6 +16,12 @@ import { snapshotRelayedConnections } from '../../shared/network/relayed-connect
 import { transfersMoving } from '../../shared/transfer/transfer-activity.js'
 import { record } from '../../shared/audit/audit-log.js'
 import { relayConfigRow } from '../../shared/audit/relay-config-change.js'
+import { getSettings, updateSettings } from '../../shared/core/settings-store.js'
+import { normalizeRelayMode, sanitizeRelay, sanitizeLastTest } from '../../shared/network/relay-slot.js'
+import { Scope } from '../../shared/contract/scope.js'
+import { settingsView } from './settings.js'
+import { AppError } from '../../shared/core/errors.js'
+import { CODES } from '../../shared/contract/errors.js'
 
 /** @param {WorkerIpc} ipc @param {{ applyRelayConfig: WorkerRoot['applyRelayConfig'] }} deps */
 export function registerNetwork(ipc, { applyRelayConfig }) {
@@ -30,25 +36,41 @@ export function registerNetwork(ipc, { applyRelayConfig }) {
   // installs no private relay until it has. Only that restart clears it: a renderer reloaded in the
   // meantime has forgotten, but this node still presents the old identity.
   //
-  // `relay` is the slot as main saved it, and the renderer sends this only after main's save
-  // succeeded, so the Activity Log row diffed here records a saved change and never a refused one.
+  // The slot is persisted here, after sanitizing, and before it is applied: the Activity Log row
+  // diffed below records a saved change and never a refused one. An omitted mode or relay keeps the
+  // stored one, a null relay clears it, and lastTest patches the stored slot with a probe verdict.
+  // Only a pinned identity coming or going needs the DHT node rebuilt, which the renderer does by
+  // restarting the worker once the seed vault and this slot agree.
   ipc.handle('network:set-relay', async (msg) => {
+    if (msg.mode === undefined && msg.relay === undefined && msg.lastTest === undefined) {
+      throw new AppError(CODES.INVALID_ARGUMENT, 'network:set-relay: nothing to change')
+    }
     const before = getRelayConfig()
+    const stored = getSettings().network
+    const mode = msg.mode === undefined ? stored.relayMode : normalizeRelayMode(msg.mode)
+    let relay = msg.relay === undefined ? stored.relay : sanitizeRelay(msg.relay)
+    // A slot that does not decode is refused, never stored as "no relay": the stored slot and the
+    // vaulted seed stay as they were.
+    if (msg.relay && relay === null) throw new AppError(CODES.INVALID_ARGUMENT, 'network:set-relay: not a relay key')
+    if (relay && msg.lastTest !== undefined) relay = { ...relay, lastTest: sanitizeLastTest(msg.lastTest) }
+    await updateSettings((s) => { s.network.relayMode = mode; s.network.relay = relay; return s })
     const identityPending = before.identityPending || msg.deferApply === true
-    setRelayConfig(msg.mode, msg.relay ?? null, { identityPending })
+    setRelayConfig(mode, relay, { identityPending })
     const applied = applyRelayConfig()
-    // The mode as stored, not as sent: an unknown word is stored as 'off', and both the row and the
-    // verdict have to describe the mode the swarm is now running.
     const after = getRelayConfig()
     const change = relayConfigRow(before, after)
     if (change) record(change.kind, change.row)
     // A connection's `replaced` flag follows the slot, and no connection event reports a slot change.
     scheduleStatusEmit()
+    ipc.emit('event:reconcile', { scope: Scope.settings() })
+    // Only a slot write can pin or unpin an identity; a mode change or a probe verdict never does.
+    const identityChanged = msg.relay !== undefined && (before.relay?.kind === 'private' || relay?.kind === 'private')
+    const verdict = { ok: /** @type {const} */ (true), ...applied, identityChanged, network: settingsView().network }
     const mismatch = relayMismatch(after.mode, snapshotRelayedConnections())
-    if (!mismatch || identityPending) return { ok: true, ...applied, mismatch, reconnected: false }
-    if (await transfersMoving()) return { ok: true, ...applied, mismatch, reconnected: false }
+    if (!mismatch || identityPending) return { ...verdict, mismatch, reconnected: false }
+    if (await transfersMoving()) return { ...verdict, mismatch, reconnected: false }
     const res = await reconnectAll()
-    return { ok: true, ...applied, mismatch, reconnected: res.ok === true }
+    return { ...verdict, mismatch, reconnected: res.ok === true }
   })
 
   ipc.handle('network:test-relay', async (msg) => await testRelayReachable(msg?.publicKey))

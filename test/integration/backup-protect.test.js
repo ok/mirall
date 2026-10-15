@@ -5,6 +5,7 @@ import path from 'bare-path'
 import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
 import { setRuntimeConfig, setDownloadFolder } from '../../src/shared/core/runtime-config.js'
+import { loadSettings } from '../../src/shared/core/settings-store.js'
 import { boot } from '../../src/worker/boot.js'
 import { setProfile } from '../../src/shared/spaces/profile.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
@@ -45,6 +46,7 @@ async function start(t, d, { masterSecret, folder = null, repoId = null, profile
     storage: d.storage, appVersion: '0.0.0-test', dev: true, verbose: false, downloadFolder: d.downloads, identityKEK: KEK,
     backupFolder: folder, backupRepoId: repoId,
   }
+  await loadSettings(config.storage)
   setRuntimeConfig(config)
   setDownloadFolder(d.downloads)
   const fake = createFakeIpc()

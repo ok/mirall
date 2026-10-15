@@ -8,6 +8,7 @@
 
 export const RELAY_MODES = Object.freeze(/** @type {const} */ (['off', 'auto', 'always']))
 /** @typedef {(typeof RELAY_MODES)[number]} RelayMode */
+/** @typedef {{ publicKey: string, kind: 'open' | 'private', label: string, enabled: boolean, lastTest: { at: number, ok: boolean } | null }} RelaySlot */
 /** @typedef {{ via: 'own' | 'adopted', supplied: boolean, relayMode: RelayMode, replaced: boolean }} RelayConnectionFacts */
 /** @typedef {{ connections: readonly RelayConnectionFacts[], direct: { control: number, content: number } }} RelayFacts */
 /** @typedef {'stale-relayed' | 'stale-direct' | 'replaced-relay' | null} RelayMismatch */

@@ -4,6 +4,7 @@ import path from 'bare-path'
 import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
 import { setRuntimeConfig, setDownloadFolder } from '../../src/shared/core/runtime-config.js'
+import { loadSettings } from '../../src/shared/core/settings-store.js'
 import { boot } from '../../src/worker/boot.js'
 import { getStore, sealRecoveryKey, backupWrapKey, ownRecoveryIdentity } from '../../src/shared/core/store.js'
 import { setProfile, getProfile, getProfileBee } from '../../src/shared/spaces/profile.js'
@@ -39,6 +40,7 @@ function home(t, label) {
 
 async function start(t, h, { masterSecret = undefined } = {}) {
   const config = { storage: h.storage, appVersion: 't', dev: true, verbose: false, downloadFolder: h.downloads, identityKEK: KEK, restoreReleaseDwellMs: 0 }
+  await loadSettings(config.storage)
   setRuntimeConfig(config)
   setDownloadFolder(h.downloads)
   const fake = createFakeIpc()
@@ -57,14 +59,17 @@ async function codeOf(promise) {
 }
 
 // A device with a profile, a space with a shared file, backed up into `folder`, then closed.
+// The settings the backup carries: main's appearance group and the worker's caps, plus a download
+// folder that does not exist on the restoring device.
+const CARRIED = JSON.stringify({ appearance: { theme: 'dark' }, network: { downloadKBps: 333, uploadKBps: 0 }, downloads: { folder: '/Volumes/Gone/Downloads' } })
+
 async function backedUpDevice(t, folder) {
   const h = home(t, 'restore-src')
   const { root } = await start(t, h, { masterSecret: crypto.randomBytes(32) })
   await setProfile({ displayName: 'Original' })
   const { spaceId } = await createSpace('Restored Space')
   await advertise(spaceId, 'share-1', 'kept-file.txt', { size: 4, mtime: 1, contentHash: null })
-  fs.writeFileSync(path.join(h.root, 'config.json'), JSON.stringify({ appearance: { theme: 'dark' } }))
-  const run = await runBackup({ store: getStore(), storagePath: h.storage, target: new FolderTarget(folder), wrapKey: backupWrapKey(), repoId: null, installId: 'old-install', appVersion: 't', config: b4a.from(JSON.stringify({ appearance: { theme: 'dark' } })) })
+  const run = await runBackup({ store: getStore(), storagePath: h.storage, target: new FolderTarget(folder), wrapKey: backupWrapKey(), repoId: null, installId: 'old-install', appVersion: 't', config: b4a.from(CARRIED) })
   await keepKey(folder, await sealRecoveryKey(PASS, { createdAt: KEY_AT }), KEY_AT, ownRecoveryIdentity())
   const personKey = b4a.toString(getProfileBee().core.key, 'hex')
   await root.close()
@@ -102,7 +107,12 @@ test('a backup restores onto a new device: listed, staged, put in place, and hel
   t.is(snapshots[0].spaces, 1)
 
   const restored = await device.fake.call('backup:restore', { folder, snapshot: original.snapshot, passphrase: PASS })
-  t.alike(restored, { ok: true, settings: JSON.stringify({ appearance: { theme: 'dark' } }) })
+  t.alike(restored, { ok: true, settings: CARRIED }, 'the carried settings go back to the renderer for main\'s groups')
+  const own = JSON.parse(fs.readFileSync(path.join(device.h.root, 'settings.json'), 'utf-8'))
+  t.is(own.network.downloadKBps, 333, 'the caps are the worker\'s and land in its settings at once')
+  t.is(own.downloads.folder, null, 'a folder that cannot be used here is not kept')
+  t.is(own.backup.folder, folder, 'the restored backup is remembered')
+  t.is(typeof own.backup.repoId, 'string')
   t.ok(fs.existsSync(stagingPath(device.h.storage)))
   t.alike(fs.readdirSync(path.join(folder, 'leases')), [], 'the old installation no longer holds the folder')
   await device.root.close()

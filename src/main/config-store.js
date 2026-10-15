@@ -1,18 +1,20 @@
-// Unified persistent app config: one config.json in the Electron userData dir.
-// Main is the only writer — the renderer reads a snapshot synchronously at boot
-// and sends patches over IPC. Writes are debounced and atomic (temp file +
-// fsync + rename), so a crash never leaves a truncated config behind.
+// The host's persistent config: one config.json in the Electron userData dir, holding the
+// preferences main and the renderer act on. Main is the only writer — the renderer reads a
+// snapshot synchronously at boot and sends patches over IPC. Writes are debounced and atomic
+// (temp file + fsync + rename), so a crash never leaves a truncated config behind. The settings
+// the data layer acts on live in the worker's own settings.json beside this file.
 const fs = require('fs')
 const path = require('path')
-const { normalizeRelayMode, sanitizeRelay } = require('./relay-keys.js')
+const { SETTINGS_FILE, MOVED_GROUPS } = require('../shared/contract/settings-file.js')
 
 const CONFIG_FILENAME = 'config.json'
 const CONFIG_VERSION = 1
 const PERSIST_DEBOUNCE_MS = 250
 
-// Older releases wrote each setting to its own file (these five main-process
-// files plus the worker's cache-budget file). The first load folds them into
-// config.json once and deletes them.
+// Older releases wrote each setting to its own file (these five main-process files plus the
+// worker's cache-budget file). The first load folds them into config.json once and deletes them.
+// The download folder lands in the `downloads` group the worker imports from here on its first
+// boot; the cache budget has no reader left and is only cleaned up.
 const LEGACY_MAIN_FILES = ['zoom.json', 'window-bounds.json', 'theme.json', 'app-prefs.json', 'download-settings.json']
 const LEGACY_CACHE_FILE = 'ondemand-cache.json'
 
@@ -22,14 +24,6 @@ function defaults() {
     window: { bounds: null, zoom: 1 },
     appearance: { theme: 'system', locale: null },
     general: { minimizeToTray: true, openAtLogin: false, firstHideNoticeShown: false, appMenuAutoHide: false },
-    downloads: { folder: null },
-    // Shared group: bandwidth caps and relay configuration both live here.
-    // downloadConcurrency has no UI on purpose — it is an operator lever and the rollback path
-    // for the shared fetch gate. 0 disables the cap entirely, so a UI would have to offer it as
-    // a named "Unlimited" rather than a raw zero.
-    network: { downloadKBps: 0, uploadKBps: 0, relayMode: 'off', relay: null, downloadConcurrency: 6 },
-    storage: { cacheBudgetBytes: 0 },
-    backup: { folder: null, repoId: null },
     notifications: null,
     ui: { lastSeenVersion: null, feedbackEmail: '' },
   }
@@ -84,22 +78,20 @@ class ConfigStore {
     return this
   }
 
-  // A config.json can be hand-edited or written by a build with different validation,
-  // so the network block is re-sanitized on every load rather than trusted.
+  // The groups the worker now owns stay in this file, unread, until the worker has written its own
+  // settings.json beside it; then they are dropped. Scheduled rather than written here, and only
+  // when there is something to drop: load() does not otherwise persist, and rewriting the file on
+  // every boot to change nothing is worse than a dead group one more launch.
   _migrate(data) {
     data.version = CONFIG_VERSION
-    // Only the relay fields are re-derived — the bandwidth caps sharing this group
-    // must survive untouched. Rebuilding the whole block would silently reset them
-    // on every load.
-    if (!isPlainObject(data.network)) data.network = defaults().network
-    data.network.relayMode = normalizeRelayMode(data.network.relayMode)
-    data.network.relay = sanitizeRelay(data.network.relay)
-    // Drops the pre-single-slot `relays` key, which mergeDefaults would otherwise keep forever.
-    // Never folded — no shipped build could write a relay into it. Scheduled rather than written
-    // here, and only when there is something to drop: load() does not otherwise persist, and
-    // rewriting the file on every boot to change nothing is worse than a dead key one more launch.
-    if ('relays' in data.network) {
-      delete data.network.relays
+    if (!fs.existsSync(path.join(this._dataDir, SETTINGS_FILE))) return data
+    for (const group of MOVED_GROUPS) {
+      if (!(group in data)) continue
+      delete data[group]
+      this._schedule()
+    }
+    if ('storage' in data) {
+      delete data.storage
       this._schedule()
     }
     return data
@@ -125,9 +117,7 @@ class ConfigStore {
       }
     }
     const dl = readJson(path.join(this._dataDir, 'download-settings.json'))
-    if (dl && typeof dl.folder === 'string' && dl.folder.length > 0) data.downloads.folder = dl.folder
-    const cache = readJson(path.join(this._storageDir, LEGACY_CACHE_FILE))
-    if (cache && typeof cache.bytes === 'number') data.storage.cacheBudgetBytes = cache.bytes
+    if (dl && typeof dl.folder === 'string' && dl.folder.length > 0) data.downloads = { folder: dl.folder }
     return data
   }
 
@@ -158,43 +148,13 @@ class ConfigStore {
     this._schedule()
   }
 
-  // `features` is read-only by construction: it has no counterpart in setRenderer, so
-  // the renderer can observe a flag but never write one.
   rendererSnapshot() {
     const d = this._data
     return {
       appearance: { theme: d.appearance.theme, locale: d.appearance.locale },
       notifications: d.notifications,
       ui: { lastSeenVersion: d.ui.lastSeenVersion, feedbackEmail: d.ui.feedbackEmail },
-      network: {
-        downloadKBps: d.network.downloadKBps,
-        uploadKBps: d.network.uploadKBps,
-        relayMode: d.network.relayMode,
-        relay: d.network.relay ? { ...d.network.relay } : null,
-      },
-      features: {},
     }
-  }
-
-  // Non-negative finite KB/s only; 0 means unlimited. Anything else leaves the stored
-  // value untouched rather than persisting a cap the worker would reject anyway.
-  setBandwidth(patch) {
-    if (!isPlainObject(patch)) return this._data.network
-    for (const key of ['downloadKBps', 'uploadKBps']) {
-      const next = patch[key]
-      if (typeof next === 'number' && Number.isFinite(next) && next >= 0) {
-        this._data.network[key] = Math.floor(next)
-      }
-    }
-    this._schedule()
-    return this._data.network
-  }
-
-  setRelay(mode, relay) {
-    this._data.network.relayMode = normalizeRelayMode(mode)
-    this._data.network.relay = sanitizeRelay(relay)
-    this._schedule()
-    return this.rendererSnapshot().network
   }
 
   setRenderer(patch) {
@@ -212,10 +172,6 @@ class ConfigStore {
       if (typeof lastSeenVersion === 'string') this._data.ui.lastSeenVersion = lastSeenVersion
       if (typeof feedbackEmail === 'string') this._data.ui.feedbackEmail = feedbackEmail
     }
-    // The relay slot is deliberately absent: setting it also writes a secret to the
-    // safeStorage vault and can require the worker to come back up, neither of which a
-    // fire-and-forget patch can express. It has its own IPC (relay:set), and that is the
-    // only path that changes it.
     this._schedule()
   }
 

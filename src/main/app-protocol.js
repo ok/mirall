@@ -9,7 +9,6 @@ const path = require('path')
 const fs = require('fs')
 const { isWindows } = require('which-runtime')
 const { preloadEntrypoints } = require('./worker-entrypoints.js')
-const { primeFeatureFlags } = require('./feature-flags.js')
 
 const APP_PROTOCOL_MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -55,10 +54,6 @@ function preloadAsarCache({ repoRoot = path.join(__dirname, '..', '..') } = {}) 
     }
   }
   walk(uiRoot)
-
-  // feature-flags.json is asar-internal too: read + cache it here, before getPear opens the
-  // noAsar window, or a flag read in that window silently disables every flag.
-  primeFeatureFlags(repoRoot)
 
   // pear-runtime-updater.applyUpdate lazily require()s msix-manager on win32 — inside the noAsar
   // window wrapWithNoAsar opens, where the resolution fails MODULE_NOT_FOUND and OTA never applies.

@@ -1,7 +1,6 @@
-// Resolves download destinations. Two roots are in play: the GLOBAL root (the OS
-// downloads folder, or the user's override in Storage Settings) injected by Electron
-// main at worker spawn, and an optional PER-SPACE override stored on the local space
-// record. The per-space map is hydrated by the caller from listSpaces() so this module
+// Resolves download destinations. Two roots are in play: the GLOBAL root (the user's folder from
+// settings.json, else the host's downloads folder from the bootstrap, else ~/Downloads), and an
+// optional PER-SPACE override stored on the local space record. The per-space map is hydrated by the caller from listSpaces() so this module
 // never reads the bee itself and core/ takes no dependency on spaces/ (its one cross-folder
 // import is folders/path-keys.js, for pathContains).
 import os from 'bare-os'
@@ -17,7 +16,8 @@ function foldCase() {
 }
 
 export function getGlobalDownloadDir() {
-  return getRuntimeConfig().downloadFolder || path.join(os.homedir(), 'Downloads')
+  const { downloadFolder, defaultDownloadFolder } = getRuntimeConfig()
+  return downloadFolder || defaultDownloadFolder || path.join(os.homedir(), 'Downloads')
 }
 
 // Callers that genuinely want the global root must call getGlobalDownloadDir()

@@ -476,7 +476,7 @@ export const promiseLintAllowlist = Object.freeze({
     why: 'act and runNow catch into the screen\'s inline error, turnOff into its confirmation.',
     sites: [
       'no-floating-promises BackupSettings > fix: void runNow()',
-      'no-floating-promises BackupSettings > onChange: void act(changeFolder)',
+      'no-floating-promises BackupSettings > onChange: void act(() => changeFolder(status.folder ?? undefined))',
       'no-floating-promises BackupSettings > onConfirm: void turnOff()',
       'no-floating-promises BackupSettings > onReminders: void act(() => setReminders(next))',
     ],

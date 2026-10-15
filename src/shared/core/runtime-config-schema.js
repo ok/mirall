@@ -32,7 +32,7 @@ function isRuled(row) {
 
 // Paths / opaque strings; a falsy override means "unset". dhtBootstrap is a test lever (a local
 // testnet instead of the public DHT); production never sets it.
-const NULLABLE = ['storage', 'appVersion', 'downloadFolder', 'dhtBootstrap', 'upgradeKey', 'backupFolder', 'backupRepoId']
+const NULLABLE = ['storage', 'appVersion', 'downloadFolder', 'defaultDownloadFolder', 'dhtBootstrap', 'upgradeKey', 'backupFolder', 'backupRepoId']
 
 // Dev toggles and staged security enforcement, default-off. membershipControlBindingEnforced on
 // refuses a membership:cancel or membership:deny that names no sender. topicRefsEnforced on ignores a

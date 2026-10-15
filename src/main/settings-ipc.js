@@ -1,5 +1,5 @@
-// Settings the renderer writes: the download folder, the bandwidth caps, the general preferences
-// and the two directory pickers.
+// Settings the renderer writes to main: the general preferences and the directory pickers. The
+// download folder and the bandwidth caps are the worker's (settings:* requests).
 //
 // prefs:set is the one handler that reaches outside its own domain — three of the four preferences
 // have an immediate effect on the tray or the app menu — so those actions are injected rather than
@@ -12,7 +12,6 @@ const { app, ipcMain, dialog, BrowserWindow } = require('electron')
 const { isMac, isLinux, isWindows } = require('which-runtime')
 const pkg = require('../../package.json')
 const { getPrefs, setPrefs } = require('./prefs.js')
-const { envOverride } = require('./env-overrides.js')
 const { registerBackupIpc } = require('./backup-settings.js')
 
 const appName = pkg.productName || pkg.name
@@ -71,66 +70,7 @@ function writeLinuxAutostart(enabled) {
   fs.writeFileSync(file, lines.join('\n'))
 }
 
-function getDefaultDownloadFolder() {
-  return app.getPath('downloads')
-}
-
-function readDownloadFolder() {
-  const override = envOverride('MIRALL_DOWNLOAD_FOLDER')
-  if (override) return override
-  const folder = config().get('downloads.folder')
-  if (typeof folder === 'string' && folder.length > 0) return folder
-  return getDefaultDownloadFolder()
-}
-
-function readBandwidth() {
-  const network = config().get('network')
-  return {
-    downloadKBps: network?.downloadKBps ?? 0,
-    uploadKBps: network?.uploadKBps ?? 0,
-  }
-}
-
-function writeDownloadFolder(folder) {
-  config().set('downloads.folder', folder)
-}
-
-function validateDownloadFolder(folder) {
-  if (typeof folder !== 'string' || folder.length === 0) {
-    throw new Error('Path is empty')
-  }
-  if (!path.isAbsolute(folder)) {
-    throw new Error('Path must be absolute')
-  }
-  let stat
-  try { stat = fs.statSync(folder) } catch {
-    throw new Error('Folder does not exist')
-  }
-  if (!stat.isDirectory()) throw new Error('Path is not a directory')
-  const probe = path.join(folder, '.mirall-write-test')
-  try {
-    fs.writeFileSync(probe, '')
-    fs.unlinkSync(probe)
-  } catch {
-    throw new Error('Folder is not writable')
-  }
-}
-
-// === Worker spawn + renderer⇄worker IPC relay ===
-
 function registerSettingsIpc({ createTray, destroyTray, applyAppMenuVisibility, targetWindow }) {
-  ipcMain.handle('downloads:get', () => readDownloadFolder())
-
-  ipcMain.handle('downloads:set', (_evt, folder) => {
-    validateDownloadFolder(folder)
-    writeDownloadFolder(folder)
-    return folder
-  })
-
-  ipcMain.handle('bandwidth:get', () => readBandwidth())
-
-  ipcMain.handle('bandwidth:set', (_evt, patch) => config().setBandwidth(patch))
-
   ipcMain.handle('prefs:get', () => getPrefs())
 
   ipcMain.handle('prefs:set', (_evt, partial) => {
@@ -160,14 +100,11 @@ function registerSettingsIpc({ createTray, destroyTray, applyAppMenuVisibility, 
     return result.filePaths[0]
   }
 
-  ipcMain.handle('downloads:browse', (evt, defaultPath) => pickDirectory(
-    evt,
-    typeof defaultPath === 'string' && defaultPath.length > 0 ? defaultPath : readDownloadFolder(),
-  ))
+  ipcMain.handle('downloads:browse', (evt, defaultPath) => pickDirectory(evt, defaultPath))
 
   ipcMain.handle('share:browseFolder', (evt) => pickDirectory(evt))
 
-  registerBackupIpc({ ipcMain, config, pickDirectory, validateDownloadFolder, dataDir: () => app.getPath('userData') })
+  registerBackupIpc({ ipcMain, config, pickDirectory, dataDir: () => app.getPath('userData') })
 }
 
-module.exports = { initSettings, registerSettingsIpc, readDownloadFolder, readBandwidth }
+module.exports = { initSettings, registerSettingsIpc }

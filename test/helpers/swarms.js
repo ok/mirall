@@ -3,12 +3,16 @@
 import { localTestnet } from './testnet.js'
 import { createFakeIpc } from './fake-ipc.js'
 import { stubOverlayBackend } from './overlay-stub.js'
+import path from 'bare-path'
 import { setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
+import { loadSettings } from '../../src/shared/core/settings-store.js'
+import { tmpDir } from './bare-tmp.js'
 import { Swarm } from '../../src/shared/network/swarm.js'
 import { ContentSwarm } from '../../src/shared/network/content-swarm.js'
 
 export async function bootSwarms(t, { relayMode = 'off', relay = null, relaySeedHex = null } = {}) {
   const bootstrap = await localTestnet(t)
+  await loadSettings(path.join(tmpDir('swarms', t), 'app-storage'))
   setRuntimeConfig({ storage: null, dhtBootstrap: bootstrap, relayMode, relay })
   const fake = createFakeIpc()
   const ipc = fake.ipc
