@@ -478,7 +478,9 @@
     "autoNote": "Anyone who opens this link joins instantly until {{date}}. After that the link stops working.",
     "reviewNote": "People who open this link before {{date}} ask to join — you approve each one.",
     "autoApprove": "Auto-approve",
-    "autoApproveDesc": "Anyone with this invite joins instantly, without approval."
+    "autoApproveDesc": "Anyone with this invite joins instantly, without approval.",
+    "webLink": "Web link",
+    "webLinkDesc": "Offers to install Mirall to people who don't have it yet."
   },
   "feedback": {
     "titleSent": "Feedback sent!",

@@ -7,7 +7,8 @@ import { makeReport, waitFor } from '../assert.mjs'
 // Join dialog and have it accepted. Verifies the visible strip: after the field
 // is set to a full deep link it shows only the code, and the stripped code is
 // usable (Join enabled). A valid v0 hex code wrapped in the link the Invite modal
-// would mint (mirall://join/<code>) — no peer required for the strip assertion.
+// would mint (mirall://join/<code>), then the web form (https://…/space#<code>) — no peer required
+// for the strip assertion.
 export default async function s64({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
@@ -16,6 +17,7 @@ export default async function s64({ runDir, bootstrap }) {
   const CODE = 'a'.repeat(8) + 'b'.repeat(8) + 'c'.repeat(8) + 'd'.repeat(8) +
                'e'.repeat(8) + 'f'.repeat(8) + '0'.repeat(8) + '1'.repeat(8)
   const LINK = `mirall://join/${CODE}`
+  const WEB_LINK = `https://link.mirall.app/space#${CODE}`
   const field = { role: 'textfield', name: 'Invite Code' }
 
   try {
@@ -41,6 +43,15 @@ export default async function s64({ runDir, bootstrap }) {
         'Join enabled once the link is stripped to a code',
       )
       if (await A.hasText('invalid invite')) throw new Error('invalid-invite error shown for a stripped link')
+    })
+    await r.ok('pasting a web link strips it to the bare invite code too', async () => {
+      await A.setRaw(field, WEB_LINK)
+      await waitFor(
+        async () => (await A.nodeValue(field)) === CODE,
+        8000,
+        'field strips the https://…/space# link to the bare code',
+      )
+      await A.shot('s64-web-stripped', runDir)
     })
   } catch {}
   return { pass: r.summary(), instances: [A] }

@@ -10,10 +10,11 @@ const RELAY_KEY = 'yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy'
 test('the defaults carry every group with its version', (t) => {
   const d = defaultSettings()
   t.is(d.version, SETTINGS_VERSION)
-  t.alike(Object.keys(d).sort(), ['backup', 'downloads', 'network', 'version'])
+  t.alike(Object.keys(d).sort(), ['backup', 'downloads', 'links', 'network', 'version'])
   t.alike(d.network, { downloadKBps: 0, uploadKBps: 0, relayMode: 'off', relay: null, downloadConcurrency: 6 })
   t.alike(d.downloads, { folder: null })
   t.alike(d.backup, { folder: null, repoId: null })
+  t.alike(d.links, { baseUrl: 'https://link.mirall.app' })
 })
 
 test('coerceSettings yields the default for every field a broken file loses', (t) => {
@@ -72,7 +73,8 @@ test('importFromConfig takes exactly the moved groups and leaves the rest unread
   t.is(s.network.relay.publicKey, RELAY_KEY)
   t.is(s.network.downloadConcurrency, 4, 'the operator lever survives the import')
   t.alike(s.backup, { folder: '/tmp/b', repoId: 'r' })
-  t.alike(Object.keys(s).sort(), ['backup', 'downloads', 'network', 'version'], 'nothing of main\'s comes along')
+  t.alike(Object.keys(s).sort(), ['backup', 'downloads', 'links', 'network', 'version'], 'nothing of main\'s comes along')
+  t.is(s.links.baseUrl, 'https://link.mirall.app', 'the links base is the worker\'s own, never read from config.json')
   t.alike(importFromConfig({ version: 1, appearance: { theme: 'dark' } }, deps), defaultSettings(), 'a config without the groups imports defaults')
   t.alike(importFromConfig(null, deps), defaultSettings(), 'no config at all imports defaults')
 })

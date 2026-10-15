@@ -2,7 +2,7 @@ import test from 'brittle'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 import path from 'path'
-import { decodeInvite, encodeInvite, extractInviteCode, NAME_MAX } from '../../src/shared/contract/invite-envelope.js'
+import { decodeInvite, encodeInvite, extractInviteCode, toWebInviteLink, DEFAULT_WEB_LINK_BASE, NAME_MAX } from '../../src/shared/contract/invite-envelope.js'
 import * as contract from '../../src/shared/contract/invite-envelope.js'
 
 const HEX = 'a'.repeat(64)
@@ -295,6 +295,34 @@ test('extractInviteCode decodes a percent-encoded code in a link', (t) => {
 test('extractInviteCode trims whitespace around a link', (t) => {
   const env = encodeInvite({ topic: HEX })
   t.is(extractInviteCode(`  mirall://join/${env}\n`), env)
+})
+
+// --- the web form: <base>/space#<code> ---
+
+test('toWebInviteLink puts the code in the fragment under /space', (t) => {
+  const env = encodeInvite({ topic: HEX, name: 'Acme' })
+  t.is(toWebInviteLink(DEFAULT_WEB_LINK_BASE, env), `https://link.mirall.app/space#${env}`)
+  t.is(toWebInviteLink('https://console.example/link/', env), `https://console.example/link/space#${env}`)
+})
+
+test('extractInviteCode peels the web form on any host, with or without a path', (t) => {
+  const env = encodeInvite({ topic: HEX, name: 'Acme' })
+  t.is(extractInviteCode(`https://link.mirall.app/space#${env}`), env)
+  t.is(extractInviteCode(`https://console-staging.mirall.app/link/space#${env}`), env)
+  t.is(extractInviteCode(`https://console.example/link/space/#${env}`), env)
+  t.is(extractInviteCode(toWebInviteLink('http://localhost:5173/link', HEX_DASHED)), HEX_DASHED)
+})
+
+test('extractInviteCode decodes a percent-encoded fragment and yields nothing for an empty one', (t) => {
+  const env = encodeInvite({ topic: HEX, name: 'Acme' })
+  t.is(extractInviteCode(`https://link.mirall.app/space#${encodeURIComponent(env)}`), env)
+  t.is(extractInviteCode('https://link.mirall.app/space'), '')
+  t.is(extractInviteCode('https://link.mirall.app/space#'), '')
+})
+
+test('extractInviteCode leaves other https links alone', (t) => {
+  t.is(extractInviteCode('https://mirall.app/download#x'), 'https://mirall.app/download#x')
+  t.is(extractInviteCode('https://link.mirall.app/relay#abc'), 'https://link.mirall.app/relay#abc')
 })
 
 // REGRESSION (FIX-DEEPLINK-ARGV-1: pasting an invite link that came back from a

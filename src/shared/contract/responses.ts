@@ -431,6 +431,7 @@ export interface NetworkSettings { downloadKBps: number, uploadKBps: number, rel
 export interface WorkerSettings {
   downloads: { folder: string, isDefault: boolean }
   network: NetworkSettings
+  links: { baseUrl: string }
 }
 
 export interface RelayApplyResult {

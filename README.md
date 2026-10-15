@@ -125,7 +125,9 @@ The full design — process model, data model, security model, glossary — is d
 ## Using Mirall
 
 1. **First launch** — pick a display name (and optionally an avatar).
-2. **Create a space** — name it, pick an icon, and share the invite code or `mirall://` link.
+2. **Create a space** — name it, pick an icon, and share the invite code or `mirall://` link. A
+   web link opens the invite from a browser and offers the download; to host those on your own
+   domain, see [`docs/web-links/`](docs/web-links/README.md).
 3. **Approve** — when someone joins, you (or any member) approve them; approval is what makes
    the space's contents readable to them.
 4. **Share** — drop files into the space, or add a whole folder as a share. Members download
@@ -195,6 +197,7 @@ accessibility bar.
 | `src/shared/` | The worker's data layer: stores, spaces, transfers, folder sync |
 | `test/` | Unit, integration, two-peer flow, and frontend suites |
 | `scripts/` | Build and maintenance scripts |
+| `docs/web-links/` | Self-hostable web link page: `https://…/space#<code>` opens `mirall://join/<code>` |
 | `.github/workflows/` | CI: tests and multi-platform release builds |
 
 ## Contributing
