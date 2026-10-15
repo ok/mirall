@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import { relayGroups, peopleLabel, relayKindClasses, type RelayGroup } from '../../model/relay-groups.js'
 import { formatDuration } from '../../model/connectivity.js'
-import { getRelay } from '../../platform/config-client.js'
+import { useSettings } from '../../hooks/useSettings.js'
 import Badge from '../primitives/Badge.js'
 import { Section, Field, MaskedField } from './StatusRows.js'
 import type { NetworkStatusScreen } from '../../types/types.js'
@@ -31,7 +31,8 @@ interface RelayGroupRowsProps {
 
 function RelayGroupRows({ group, now }: RelayGroupRowsProps) {
   const { t } = useTranslation()
-  const badge = relayBadge(group, t)
+  const { data: settings } = useSettings()
+  const badge = relayBadge(group, settings?.network.relay?.kind ?? 'open', t)
   const single = group.people.length === 1 ? group.people[0] : null
   const since = single ? ` · ${t('networkStatus.relayed.since', { duration: formatDuration(now - single.since) })}` : ''
   return (
@@ -47,9 +48,9 @@ function RelayGroupRows({ group, now }: RelayGroupRowsProps) {
   )
 }
 
-function relayBadge(group: RelayGroup, t: TFunction): { label: string; classes: string; srLabel: string } {
+function relayBadge(group: RelayGroup, ownKind: 'open' | 'private', t: TFunction): { label: string; classes: string; srLabel: string } {
   if (group.via === 'own') {
-    const kind = getRelay()?.kind ?? 'open'
+    const kind = ownKind
     const label = t(`networkSettings.relays.kind.${kind}`)
     return { label, classes: relayKindClasses(kind), srLabel: t('networkStatus.relayed.badgeOwn', { kind: label }) }
   }

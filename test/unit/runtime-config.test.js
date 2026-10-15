@@ -128,25 +128,6 @@ test('resource caps coerce overrides, including the 0 / Infinity escape hatches'
   t.is(getHandshakeRateLimit().matched.burst, 8, 'rate limit normalised back to default')
 })
 
-// The always-on defaults: each ships enabled and only an explicit `false` reverts it, so an
-// absent/partial bootstrap can never silently disable them. sharePrepareProgress drives the
-// receiver's "preparing NN%" decoration while an owner (re-)hashes a shared file.
-test('the content plane and prepare-progress default ON; explicit false reverts', (t) => {
-  setRuntimeConfig({})
-  const on = getRuntimeConfig()
-  t.ok(on.separateContentPlane, 'content plane on by default')
-  t.ok(on.sharePrepareProgressEnabled, 'share-prepare progress on by default')
-
-  setRuntimeConfig({ sharePrepareProgressEnabled: false, separateContentPlane: false })
-  const off = getRuntimeConfig()
-  t.absent(off.sharePrepareProgressEnabled, 'an explicit false reverts prepare-progress')
-  t.absent(off.separateContentPlane, 'an explicit false reverts the content plane')
-
-  setRuntimeConfig({ sharePrepareProgressEnabled: undefined })
-  t.ok(getRuntimeConfig().sharePrepareProgressEnabled, 'an absent flag stays ON — only false disables')
-  setRuntimeConfig({})
-})
-
 test('membership control binding is staged: off until a bootstrap turns it on', (t) => {
   setRuntimeConfig({})
   t.absent(isMembershipControlBindingEnforced(), 'an empty bootstrap still honours frames that name no sender')

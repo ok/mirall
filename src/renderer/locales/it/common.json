@@ -874,7 +874,6 @@
     "limitsLoading": "Caricamento dei limiti di trasferimento…",
     "limitsUnavailable": "Impossibile leggere i tuoi limiti di trasferimento.",
     "limitSaveFailed": "Impossibile salvare questo limite. Resta attivo quello precedente.",
-    "limitAppliesAfterRestart": "Salvato. Il nuovo limite sarà attivo al riavvio di Mirall.",
     "download": "Download",
     "upload": "Caricamento",
     "unlimited": "Nessun limite",

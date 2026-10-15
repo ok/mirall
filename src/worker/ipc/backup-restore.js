@@ -17,7 +17,9 @@ import { openBackup, listRestorable, stageRestore } from '../../shared/storage/b
 import { FolderTarget } from '../../shared/storage/backup/folder-target.js'
 import { readFolderKey } from '../../shared/storage/backup/folder-key.js'
 import { peekRepo } from '../../shared/storage/backup/repo.js'
-import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../../shared/contract/main-requests.js'
+import { updateSettings } from '../../shared/core/settings-store.js'
+import { probeDownloadFolder } from '../../shared/folders/mount-validate.js'
+import { applyRestoredSettings } from '../../shared/core/settings-rules.js'
 import { AppError } from '../../shared/core/errors.js'
 import { CODES } from '../../shared/contract/errors.js'
 import { isUnclaimed } from './identity.js'
@@ -52,6 +54,16 @@ export function registerBackupRestore(ipc, { storagePath, identityKEK, log, lock
     return found.content
   }
 
+  /** @param {string} folder */
+  function folderUsable(folder) {
+    try {
+      probeDownloadFolder(folder)
+      return true
+    } catch {
+      return false
+    }
+  }
+
   /** @param {string} folder @param {string} snapshot @param {Uint8Array} masterSecret */
   async function restore(folder, snapshot, masterSecret) {
     cancelPendingRestore(storagePath)
@@ -61,8 +73,10 @@ export function registerBackupRestore(ipc, { storagePath, identityKEK, log, lock
     // Checked again: the staging can take long, and the identity may have been put to use meanwhile.
     await assertAllowed()
     await sealPendingAdoption({ storagePath, provider: unlockProviderFor({ identityKEK }), masterSecret })
+    // Before the restore request: a settings write that fails then fails the restore before anything
+    // is staged for the next boot, instead of after.
+    await updateSettings((s) => ({ ...applyRestoredSettings(s, settings, { folderUsable }), backup: { folder, repoId: repo.repoId } }))
     await requestRestore(storagePath, { hold })
-    ipc.emit(MAIN_REQUEST_FRAME, { command: MAIN_REQUEST.BACKUP_REMEMBER, args: { folder, repoId: repo.repoId } })
     log.info('backup: snapshot', snapshot, 'staged; the worker restarts to put it in place')
     return settings
   }

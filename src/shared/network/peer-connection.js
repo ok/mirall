@@ -21,12 +21,7 @@ import { gateReplication, initReplicationGate, resetReplicationGate } from './re
 
 const log = createLogger('peer-connection')
 
-// Lets a content backend bind extra protocol channels on the same mux (overlay's
-// hyper-overlay/v2). Null when the separate content plane carries that channel instead.
-let getAttachHook = () => null
-
-export function initPeerConnection(deps) {
-  getAttachHook = deps.getAttachHook
+export function initPeerConnection() {
   initReplicationGate({ getStore })
 }
 
@@ -93,10 +88,6 @@ export function acceptConnection(socket, peerInfo) {
   // closes over it and cannot run before channel.open() below.
   const conn = { socket, peerInfo, remoteKey, msgHandler, noiseHex }
 
-  // Synchronous + before channel.open(). Overlay's serve gate denies any request until the
-  // handshake authenticates the sender on this socket, so binding here (pre-auth) is safe.
-  try { getAttachHook()?.(mux, socket) } catch (err) { log.warn('connection attach hook failed:', err.message) }
-
   channel.open()
   socketMsgHandlers.set(socket, msgHandler)
   // Re-announce any pending outbound leave on the fresh connection: the co-member may be exactly
@@ -122,7 +113,6 @@ export function acceptConnection(socket, peerInfo) {
 }
 
 export function resetPeerConnection() {
-  getAttachHook = () => null
   resetReplicationGate()
   corruptionDiagnosed = false
 }

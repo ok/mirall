@@ -101,14 +101,6 @@ export function isTopicRefsEnforced() {
   return config.topicRefsEnforced
 }
 
-export function isSharePrepareProgressEnabled() {
-  return config.sharePrepareProgressEnabled
-}
-
-export function isSeparateContentPlaneEnabled() {
-  return config.separateContentPlane
-}
-
 export function getPeerPresenceDwellMs() {
   return read('peerPresenceDwellMs')
 }
@@ -122,9 +114,13 @@ export function isIdentityWeak() {
   return config.identityWeak
 }
 
-// The backup folder and repository this device uses, as main last saved them; null until set up.
+// The backup folder and repository this device uses, as last saved; null until set up.
 export function getBackupConfig() {
   return { folder: config.backupFolder, repoId: config.backupRepoId }
+}
+
+export function setBackupConfig({ folder, repoId }) {
+  patch({ backupFolder: folder, backupRepoId: repoId })
 }
 
 export function getRestoreReleaseDwellMs() {

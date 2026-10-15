@@ -92,9 +92,10 @@ the bootstrap, shutdown and watcher events down, and the worker's main-request f
   never deletes the record on read.
 - **Worker spawn.** `src/main/worker-host.js` spawns only allowlisted specifiers
   (`src/shared/contract/workers.js`), then writes `hello` (IPC protocol version) and `bootstrap`.
-  The bootstrap is the worker's whole starting state (storage, version, upgrade key, prefs, relay
-  config, feature flags, test overrides) and carries the only two secrets main passes, `identityKEK`
-  and `relaySeed`; runtime config never stores them. A failed write of either frame destroys the
+  The bootstrap carries what only the host knows — storage, version, upgrade key, the OS downloads
+  folder, the `MIRALL_*` test levers — and the only two secrets main passes, `identityKEK` and
+  `relaySeed`; runtime config never stores them. No preference and no feature flag rides it
+  (`test/invariants/bootstrap-allowlist.test.js`): the worker owns both (see "Settings" below). A failed write of either frame destroys the
   worker and fails the spawn, because the worker never asks for its bootstrap again. The KEK comes
   from `safeStorage` (`src/main/identity-kek.js`). Without secure storage, main refuses to start
   rather than write an unprotected identity, and a bootstrap without a KEK fails the worker's boot
@@ -114,9 +115,20 @@ the bootstrap, shutdown and watcher events down, and the worker's main-request f
   (`test/invariants/main-env-reads.test.js`).
 - **Window.** It loads `app://-/index.html`, a privileged scheme, so origin and CSP `'self'` survive
   a reload, with `sandbox` and `contextIsolation` on.
-- **Config.** `config.json` holds preferences only. `src/main/config-store.js` is its only writer
-  (debounced atomic writes, merge-over-defaults). The renderer reads a sync snapshot and adopts the
-  sanitized snapshot main returns from each patch.
+- **Config.** `config.json` holds the host's preferences only — window, appearance, general,
+  notifications, `ui`. `src/main/config-store.js` is its only writer (debounced atomic writes,
+  merge-over-defaults). The renderer reads a sync snapshot and adopts the sanitized snapshot main
+  returns from each patch.
+- **Settings.** `settings.json`, beside `config.json`, holds what the data layer acts on — the
+  download folder, the bandwidth caps, the relay slot, `downloadConcurrency` (file-only, no UI) and
+  the backup folder and repository id. The worker is its only writer
+  (`src/shared/core/settings-store.js`, write-through, atomic); main never reads it. The first
+  worker boot without it imports the moved groups from `config.json`, and main drops them from
+  `config.json` on a later load once `settings.json` exists (`contract/settings-file.js`). Feature
+  flags are read by the worker from `feature-flags.json` at its package root (unpacked beside it
+  in a packaged build); `MIRALL_FEATURE_FLAGS` reaches it as the bootstrap's `featureFlags`
+  override. Precedence: bootstrap > `settings.json` > `feature-flags.json` > schema default
+  (`src/shared/core/runtime-config-sources.js`).
 - **Quit order** (`src/main/lifecycle.js`, one run per process): mark quitting → stop watchers →
   flush config (watchers can dirty it) → stop workers (shutdown frame, SIGTERM 3 s, SIGKILL 5 s) →
   apply update, the only step that may defer the quit. A failing step never skips later ones.
@@ -165,8 +177,9 @@ Bootstrap:
 1. `createIPC(Bare.IPC)`.
 2. `installCrashBackstop` **before the first `await`** (it escalates only once boot completes).
 3. `await ipc.bootstrapPromise`. An unsupported protocol version exits with
-   `WORKER_EXIT_PROTOCOL_MISMATCH`, which the renderer does not respawn. Then
-   `setRuntimeConfig(bootstrap)`.
+   `WORKER_EXIT_PROTOCOL_MISMATCH`, which the renderer does not respawn. Then the feature flags
+   and `settings.json` are read and the runtime config assembled from the three
+   (`assembleRuntimeConfig`).
    Then the listener (`src/worker/listener.js`), before anything touches the store: the profile
    lock `<dataDir>/run/daemon.lock` (fd-lock), then `listen({ ownerOnly: true })` on
    `<dataDir>/run/daemon.sock` (a temp-root fallback past `sun_path`, `\\.\pipe\mirall-<hash>` on
@@ -1259,10 +1272,12 @@ there. The rules:
 - Every subscription returns its own unsubscribe.
 - `startWorker` / `restartWorker` accept only the specifiers in the worker-entrypoint allowlist, and
   main enforces the same list.
-- **Main is the sole writer of `config.json`.** The renderer caches the snapshot
-  (`src/renderer/platform/config-client.ts`). Settings that the worker also needs, such as bandwidth
-  caps and the download folder, are written to main first. The renderer then forwards the stored
-  value to the worker (`settings:set-bandwidth`, `settings:set-download-folder`).
+- **Main is the sole writer of `config.json`, the worker of `settings.json`.** The renderer caches
+  main's snapshot (`src/renderer/platform/config-client.ts`) and reads the worker's settings through
+  `settings:get` (`hooks/useSettings.ts`), which every write (`settings:set-bandwidth`,
+  `settings:set-download-folder`, `network:set-relay`) pokes through the `settings` reconcile scope.
+  A relay change writes the member seed to main's vault first (`relay:set`), then the slot to the
+  worker.
 - `showInFolder({ host, path })` is an authorization check (`src/main/notifications.js`). Anything
   but `host: 'client'` is refused. The path is resolved *before* the containment test and must lie
   under the home dir or a download root the worker published.
@@ -1696,8 +1711,10 @@ to an own bee (except the activity log and maintenance markers) is an everyday c
 created, joined or left or a new space key is urgent (`schedule-rules.js`). It does not start while
 anything is held (restore mode, or a catalog still waiting for its space); the status then reads
 `paused`, and the backup starts in the same session once the last catalog is released. On quit a run in progress or a
-due one gets a short cutoff and writes nothing if it misses it. The folder and repository id live in `config.json` under `backup`
-(main is the writer; the worker asks through `MAIN_REQUEST.BACKUP_REMEMBER`). Requests:
+due one gets a short cutoff and writes nothing if it misses it. The folder and repository id live in the worker's `settings.json` under `backup`.
+A restore puts the carried `downloads` and `network` caps back into `settings.json` itself (never
+the relay) and hands the json to the renderer, which gives main its `appearance` and
+`notifications` groups (`backup:apply-settings`). Requests:
 `backup:status`, `backup:configure`, `backup:turn-off`, `backup:run`; a status change pokes
 `event:storage-updated`.
 

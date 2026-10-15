@@ -1,4 +1,6 @@
 import test from 'brittle'
+import path from 'bare-path'
+import { loadSettings } from '../../src/shared/core/settings-store.js'
 import fs from 'bare-fs'
 import crypto from 'hypercore-crypto'
 import { openStore, setMasterSecret } from '../../src/shared/core/store.js'
@@ -31,6 +33,7 @@ async function boot(t) {
   await initAuditLog({ installId: 'install-under-test' })
   await setAuditConfig({ enabled: true, retentionDays: 90, maxEntries: 200000 })
   await purgeAudit()
+  await loadSettings(path.join(tmpDir('relay-audit-home'), 'app-storage'))
   setRuntimeConfig({ relayMode: 'off', relay: null })
   const applied = []
   const fake = createFakeIpc()

@@ -132,8 +132,9 @@ let packagerConfig = {
   // need dlopen, which also can't read from asar.
   asar: {
     // unpack matches file basenames (matchBase: true) — covers any native
-    // binary anywhere in the tree we may have missed.
-    unpack: '*.{node,bare}',
+    // binary anywhere in the tree we may have missed. feature-flags.json is
+    // read by the Bare worker from its package root, which is the unpacked tree.
+    unpack: '{*.{node,bare},feature-flags.json}',
     // unpackDir matches directory paths relative to the package root.
     // src/worker + src/shared must be unpacked because Bare requires them
     // from the real filesystem. node_modules must be unpacked because Bare
@@ -221,7 +222,7 @@ let packagerConfig = {
     /^\/resources\/linux\/icons($|\/)/,
     // Standalone subprojects and dev-only top-level entries — never loaded by
     // the app at runtime. cloudflare-worker ships its own 286 MB node_modules
-    // otherwise. feature-flags.json IS read at runtime, so it stays.
+    // otherwise. feature-flags.json IS read at runtime (by the worker), so it stays.
     /^\/worktrees($|\/)/,
     /^\/eslint\.config\.[cm]?js$/,
     /^\/renovate\.json$/,

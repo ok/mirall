@@ -14,11 +14,11 @@ import path from 'bare-path'
 import { Subsystem } from '../shared/core/subsystem.js'
 import { AppError } from '../shared/core/errors.js'
 import { CODES } from '../shared/contract/errors.js'
-import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../shared/contract/main-requests.js'
 import { BACKUP_SETTING_GROUPS } from '../shared/contract/backup-settings.js'
 import { backupWrapKey, sealRecoveryKey, ownRecoveryIdentity } from '../shared/core/store.js'
 import { assertPassphrase, openRecoveryFile, wipeSecret } from '../shared/core/identity-recovery.js'
-import { getAppVersionLabel, getBackupConfig, isIdentityWeak } from '../shared/core/runtime-config.js'
+import { getAppVersionLabel, getBackupConfig, setBackupConfig, isIdentityWeak } from '../shared/core/runtime-config.js'
+import { getSettings, updateSettings } from '../shared/core/settings-store.js'
 import { listSpaces } from '../shared/spaces/space.js'
 import { FolderTarget } from '../shared/storage/backup/folder-target.js'
 import { runBackup } from '../shared/storage/backup/backup-run.js'
@@ -175,7 +175,7 @@ export class Backup extends Subsystem {
       })
       this.lastRunAt = Date.now()
       if (this.config.folder !== folder) return
-      if (result.repoId !== repoId) this.remember({ folder, repoId: result.repoId })
+      if (result.repoId !== repoId) await this.remember({ folder, repoId: result.repoId })
       await this.keepKeyInFolder(folder)
       await this.persist({ ...this.state, lastSuccessAt: this.lastRunAt })
       this.report({
@@ -333,7 +333,7 @@ export class Backup extends Subsystem {
     if (folder !== null) this.assertFolder(folder)
     if (folder !== this.config.folder) {
       if (folder !== null) await new FolderTarget(folder).check()
-      this.remember({ folder, repoId: null })
+      await this.remember({ folder, repoId: null })
       this.progress = { state: folder ? 'idle' : 'off', ...IDLE }
       if (folder) this.note(URGENCY.URGENT)
       await this.persist(folder ? { ...folderChosen(this.state, Date.now()), keyInFolder: false } : turnedOff(this.state))
@@ -342,9 +342,10 @@ export class Backup extends Subsystem {
     return this.status()
   }
 
-  remember(config) {
+  async remember(config) {
+    await updateSettings((s) => { s.backup = { folder: config.folder, repoId: config.repoId }; return s })
     this.config = config
-    this.deps.ipc.emit(MAIN_REQUEST_FRAME, { command: MAIN_REQUEST.BACKUP_REMEMBER, args: config })
+    setBackupConfig(config)
   }
 
   report(patch) {
@@ -352,15 +353,21 @@ export class Backup extends Subsystem {
     this.deps.ipc.emit('event:storage-updated', {})
   }
 
+  // The groups that follow the user: main's config.json holds appearance and notifications, the
+  // worker's own settings hold downloads and network.
   settingsBytes() {
-    let settings
+    let hostSettings
     try {
-      settings = JSON.parse(fs.readFileSync(path.join(path.dirname(this.deps.storagePath), CONFIG_FILE), 'utf-8'))
+      hostSettings = JSON.parse(fs.readFileSync(path.join(path.dirname(this.deps.storagePath), CONFIG_FILE), 'utf-8'))
     } catch {
-      return null
+      hostSettings = {}
     }
+    const own = getSettings()
     const kept = {}
-    for (const key of BACKUP_SETTING_GROUPS) if (settings?.[key] !== undefined) kept[key] = settings[key]
+    for (const key of BACKUP_SETTING_GROUPS) {
+      const value = key in own ? own[key] : hostSettings?.[key]
+      if (value !== undefined) kept[key] = value
+    }
     return b4a.from(JSON.stringify(kept))
   }
 }

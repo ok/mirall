@@ -874,7 +874,6 @@
     "limitsLoading": "Übertragungslimits werden geladen…",
     "limitsUnavailable": "Deine Übertragungslimits konnten nicht gelesen werden.",
     "limitSaveFailed": "Das Limit konnte nicht gespeichert werden. Es gilt weiterhin das vorherige.",
-    "limitAppliesAfterRestart": "Gespeichert. Das neue Limit gilt nach einem Neustart von Mirall.",
     "download": "Download",
     "upload": "Upload",
     "unlimited": "Unbegrenzt",

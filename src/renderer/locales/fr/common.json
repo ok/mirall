@@ -874,7 +874,6 @@
     "limitsLoading": "Chargement des limites de transfert…",
     "limitsUnavailable": "Impossible de lire vos limites de transfert.",
     "limitSaveFailed": "Impossible d'enregistrer cette limite. La précédente reste appliquée.",
-    "limitAppliesAfterRestart": "Enregistré. La nouvelle limite s'appliquera au redémarrage de Mirall.",
     "download": "Téléchargement",
     "upload": "Envoi",
     "unlimited": "Illimité",

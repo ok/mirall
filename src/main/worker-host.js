@@ -9,7 +9,7 @@
 // bootstrap is not, so the spawn path treats a failed bootstrap write as a failed spawn rather
 // than caching a worker nothing can talk to.
 
-const { ipcMain } = require('electron')
+const { app, ipcMain } = require('electron')
 const { StringDecoder } = require('string_decoder')
 const { logRing } = require('./log-ring.js')
 const { isDebug } = require('./debug-gate.js')
@@ -23,10 +23,8 @@ const { createWorkerFrameReader } = require('./ipc-frame.js')
 const { createWindowConnections } = require('./window-connections.js')
 const { envJson } = require('./env-json.js')
 const { envOverride } = require('./env-overrides.js')
-const { readFeatureFlags } = require('./feature-flags.js')
 const { isVerbose } = require('./debug-gate.js')
 const relaySecret = require('./relay-secret.js')
-const { readDownloadFolder, readBandwidth } = require('./settings-ipc.js')
 const { MAIN_REQUEST_FRAME } = require('../shared/contract/main-requests.js')
 const { WORKER_SPECS } = require('../shared/contract/workers.js')
 const { FRAME, IPC_PROTOCOL_VERSION, IPC_PROTOCOL_MIN_SUPPORTED } = require('../shared/contract/ipc-frames.js')
@@ -67,14 +65,12 @@ function socketPathOf(worker) {
 
 // Bound by the entry. identityKEK is a getter, not a value: it is resolved inside whenReady, after
 // this module is required but before the first spawn, and the bootstrap frame reads it then.
-let config = null
 let getPear = null
 let isDev = false
 let identityKEK = () => null
 let identityWeak = () => false
 
 function initWorkerHost(d) {
-  config = d.config
   getPear = d.getPear
   isDev = d.isDev
   identityKEK = d.identityKEK
@@ -130,7 +126,6 @@ const mainRequests = createMainRequestRouter({
   folderWatchers,
   looseFileWatchers,
   setDownloadRoots: (roots) => { workerDownloadRoots = roots },
-  rememberBackup: (backup) => config().set('backup', backup),
   onSocketListening: (worker, socketPath) => listening.get(worker)?.resolve(socketPath),
   sendToWorker,
   isDebug,
@@ -203,12 +198,13 @@ function getWorker(specifier) {
   //     MIRALL_FOREIGN_FULL_WALK_EVERY    1 = check every mirror in full, undoing the skip
   //     MIRALL_LIST_FULL_READ_EVERY       1 = re-read every catalog on every listing
   //
-  // The worker's whole starting state: it is sent once, before any request, and the worker never
-  // asks main for these again. Three sources are mixed here on purpose — the packaged app (storage,
-  // version, upgrade key), the user's stored preferences, and the MIRALL_* test overrides, each of
-  // which is undefined unless its variable is set so JSON drops it and the worker's own default
-  // stands. shared/core/runtime-config.js is what reads the result, and is the authority on what
-  // each field means once it lands.
+  // The worker's starting state from the host: it is sent once, before any request, and the worker
+  // never asks main for these again. Host facts (storage, version, upgrade key, the OS downloads
+  // folder), the two secrets, and the MIRALL_* test overrides, each of which is undefined unless
+  // its variable is set so JSON drops it and the worker's own default stands. No preference and no
+  // feature flag rides here: the worker reads its settings.json and feature-flags.json itself, and
+  // bootstrap-allowlist.test.js pins the key set. shared/core/runtime-config.js is what reads the
+  // result, and is the authority on what each field means once it lands.
   // The introduction, sent before the bootstrap and on the same pipe: it carries the wire version
   // the worker checks before it reads any other field, and it is what makes the handshake something
   // a client that is not this process can also complete. min/max are inert while both equal the
@@ -225,7 +221,6 @@ function getWorker(specifier) {
     client: { kind: 'electron-main', name: 'mirall', version },
   }
 
-  const flags = readFeatureFlags(envOverride('MIRALL_FEATURE_FLAGS'))
   const bootstrap = {
     type: FRAME.BOOTSTRAP,
     storage: p.storage,
@@ -233,8 +228,12 @@ function getWorker(specifier) {
     upgradeKey: upgrade || null,
     dev: isDev,
     verbose: isVerbose(),
-    downloadFolder: readDownloadFolder(),
-    ...readBandwidth(),
+    defaultDownloadFolder: app.getPath('downloads'),
+    // A session override for the frontend harness; the stored folder is the worker's own.
+    downloadFolder: envOverride('MIRALL_DOWNLOAD_FOLDER') || undefined,
+    // Merged by the worker over feature-flags.json, so a dev run or the frontend suite can turn a
+    // flag without a build.
+    featureFlags: envJson('MIRALL_FEATURE_FLAGS', envOverride('MIRALL_FEATURE_FLAGS')) || undefined,
     dhtBootstrap: envJson('MIRALL_DHT_BOOTSTRAP', envOverride('MIRALL_DHT_BOOTSTRAP')),
     // Test/debug override for the share:list-files row cap (undefined → omitted by JSON →
     // the runtime-config default). Lets the frontend suite exercise the truncation banner
@@ -253,40 +252,16 @@ function getWorker(specifier) {
     maxFilesPerShare: envNumber(envOverride('MIRALL_MAX_FILES_PER_SHARE')),
     deriveDebounceMs: envNumber(envOverride('MIRALL_DERIVE_DEBOUNCE_MS')),
     freeUpMinBytes: envNumber(envOverride('MIRALL_FREE_UP_MIN_BYTES')),
-    // Staged: until feature-flags.json turns it on, a membership:cancel or membership:deny that names
-    // no sender (a peer on an older release) is still honoured.
-    membershipControlBindingEnforced: flags.membershipControlBinding === true,
-    // Staged: off until feature-flags.json turns it on, because a peer on a release that cannot read a
-    // topic reference is cut off once it is on.
-    topicRefsEnforced: flags.topicRefs === true,
-    // Hashing progress for a file being (re-)published: members see "preparing 34%" instead of a
-    // frozen placeholder, and it is the liveness signal that keeps a download parked on a
-    // re-publish alive while a large source hashes. On by default; set false to revert.
-    sharePrepareProgressEnabled: flags.sharePrepareProgress !== false,
-    backupFolder: config().get('backup.folder'),
-    backupRepoId: config().get('backup.repoId'),
     // No OS keychain holds the identity key here, so the backup is offered on day one.
     identityWeak: identityWeak(),
-    // Bulk content rides its own transport by default; feature-flags.json
-    // can set separateContentPlane:false to revert to the single-plane overlay.
-    separateContentPlane: flags.separateContentPlane !== false,
-    // Relay config rides the boot frame unconditionally: it is inert when relayMode is
-    // 'off' (relayFunctionFor returns null, so swarm.relayThrough is never installed),
-    // which is the shipped default.
-    relayMode: config().get('network.relayMode'),
-    relay: config().get('network.relay'),
     // The one secret in this frame besides identityKEK, and it travels the same way: read
     // at spawn, consumed in boot.js, never stored in runtime config.
     relaySeed: relaySecret.readRelaySeedHex(p.storage, identityKEK()),
-    // Read at spawn only. getDownloadConcurrency() re-reads it per acquire, so a live push would
-    // take effect without a restart — but there is no setter by design, so a change means editing
-    // config.json and restarting.
-    downloadConcurrency: config().get('network.downloadConcurrency'),
     identityKEK: identityKEK(),
   }
   // Neither frame's loss can be absorbed: without the hello the worker refuses everything that
-  // follows, and without the bootstrap it has no storage path, no identity KEK and no feature
-  // flags, and it never asks again. Caching such a worker would leave `pear:startWorker` reporting
+  // follows, and without the bootstrap it has no storage path and no identity KEK, and it never
+  // asks again. Caching such a worker would leave `pear:startWorker` reporting
   // success while every later renderer request hangs against a process that can never answer, so it
   // is torn down and the failure is raised — the next startWorker then spawns a fresh one.
   if (!sendToWorker(worker, hello) || !sendToWorker(worker, bootstrap)) {

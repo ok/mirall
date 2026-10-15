@@ -5,13 +5,12 @@ import {
 } from './runtime-config-rules.js'
 
 // Every runtime-config key, its default and (where it carries one) its validation rule. The live
-// state and each setRuntimeConfig(next) call derive from these tables through buildConfig. The four
+// state and each setRuntimeConfig(next) call derive from these tables through buildConfig. The three
 // coercion groups are kept distinct because their falsy-handling differs and must not drift:
 //  NULLABLE — `next || null`: any falsy override (including '') collapses to null.
 //  BOOLEAN — `!!next`: a strict boolean, default false.
 //  DEFAULTED — `next ?? default`: nullish-only fallback, so a 0 / Infinity override is honored
 //  (the "disable this cap" escape hatch).
-//  DEFAULT_ON — `next?.x !== false`: only an explicit false disables.
 
 const DEFAULT_PUBLISH_ORDER = 'smallest-first'
 
@@ -33,20 +32,13 @@ function isRuled(row) {
 
 // Paths / opaque strings; a falsy override means "unset". dhtBootstrap is a test lever (a local
 // testnet instead of the public DHT); production never sets it.
-const NULLABLE = ['storage', 'appVersion', 'downloadFolder', 'dhtBootstrap', 'upgradeKey', 'backupFolder', 'backupRepoId']
+const NULLABLE = ['storage', 'appVersion', 'downloadFolder', 'defaultDownloadFolder', 'dhtBootstrap', 'upgradeKey', 'backupFolder', 'backupRepoId']
 
 // Dev toggles and staged security enforcement, default-off. membershipControlBindingEnforced on
 // refuses a membership:cancel or membership:deny that names no sender. topicRefsEnforced on ignores a
 // space named by its bearer topic, and sends a space's identity, leave and cancel frames only to a
 // socket that named that space first.
 const BOOLEAN = ['dev', 'verbose', 'membershipControlBindingEnforced', 'topicRefsEnforced', 'identityWeak']
-
-// Flags that ship ENABLED, so an absent or partial bootstrap frame can never silently degrade the
-// app — only an explicit `false` disables one. separateContentPlane off reverts to control + content on one stream.
-// sharePrepareProgress off removes both the "preparing NN%" decoration and the liveness signal that
-// keeps a download parked on a re-publish alive: a source that hashes for hours re-arms the
-// receiver's wait with every frame, so the wait bounds SILENCE rather than the hash.
-const DEFAULT_ON = ['separateContentPlane', 'sharePrepareProgressEnabled']
 
 // Keys production never sets, each defaulting to "off"; tests set them for a deterministic
 // reproduction.
@@ -315,7 +307,6 @@ export function buildConfig(next) {
   for (const k of NULLABLE) out[k] = next?.[k] || null
   for (const k of BOOLEAN) out[k] = !!next?.[k]
   for (const k of tabledKeys()) out[k] = next?.[k] ?? defaultOf(k)
-  for (const k of DEFAULT_ON) out[k] = next?.[k] !== false
   out.relayMode = coerceRelayMode(next?.relayMode)
   out.relay = coerceRelaySlot(next?.relay)
   // No boot frame carries it: a fresh worker booted from the stored identity has nothing pending.

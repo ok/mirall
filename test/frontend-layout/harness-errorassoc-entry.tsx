@@ -16,10 +16,10 @@ import MountPathField from '../../src/renderer/components/path/MountPathField.js
 import CreateSpaceModal from '../../src/renderer/components/modals/CreateSpaceModal.js'
 import type { Space } from '../../src/renderer/types/types.js'
 
-// The download-folder read fails for the whole page, so the space dialog carries BOTH a folder
-// error and a name error at once — the case where pointing the name field at "the error" would
-// name the wrong control.
-window.bridge.getDownloadFolder = () => Promise.reject(new Error('no default folder'))
+// The settings read (which carries the default download folder) fails for the whole page, so the
+// space dialog carries BOTH a folder error and a name error at once — the case where pointing the
+// name field at "the error" would name the wrong control.
+window.__HARNESS_CFG = { ...(window.__HARNESS_CFG ?? {}), failTypes: ['settings:get'] }
 window.bridge.browseShareFolder = () => Promise.resolve('/tmp/relocated')
 
 const SPACE: Space = {
@@ -58,7 +58,7 @@ interface HarnessResults {
 }
 
 declare global {
-  interface Window { __results: HarnessResults }
+  interface Window { __results: HarnessResults; __HARNESS_CFG?: { failTypes?: string[] } }
 }
 
 let unhandledRejections = 0

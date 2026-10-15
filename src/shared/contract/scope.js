@@ -10,7 +10,8 @@
  *   | { kind: 'recipients', spaceId: string }
  *   | { kind: 'audit' }
  *   | { kind: 'storage' }
- *   | { kind: 'restore' }} Scope
+ *   | { kind: 'restore' }
+ *   | { kind: 'settings' }} Scope
  */
 
 /** @typedef {{ kind: string, spaceId?: string, shareId?: string }} ScopePattern */
@@ -37,6 +38,8 @@ export const Scope = {
   storage: () => ({ kind: 'storage' }),
   /** @returns {Scope} */
   restore: () => ({ kind: 'restore' }),
+  /** @returns {Scope} */
+  settings: () => ({ kind: 'settings' }),
 }
 
 // A hint matches a view iff the kind is equal and every id field the VIEW pins is equal.

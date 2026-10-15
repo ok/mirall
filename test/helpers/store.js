@@ -2,6 +2,7 @@ import fs from 'bare-fs'
 import path from 'bare-path'
 import crypto from 'hypercore-crypto'
 import { setRuntimeConfig, setDownloadFolder } from '../../src/shared/core/runtime-config.js'
+import { loadSettings } from '../../src/shared/core/settings-store.js'
 import { setProfile } from '../../src/shared/spaces/profile.js'
 import { boot, bootDurable } from '../../src/worker/boot.js'
 import { createFakeIpc } from './fake-ipc.js'
@@ -26,12 +27,13 @@ export const offlineMemberRegistry = {
 // Production layout: the store sits at <peerDir>/app-storage, so identity.enc and space-keys.enc —
 // which the worker writes to dirname(storage) — land in THIS peer's directory rather than in a
 // tmpdir shared with every other peer of every other test.
-function peerDirs(t) {
+async function peerDirs(t) {
   const home = tmpDir('mirall-test-peer')
   const storage = path.join(home, 'app-storage')
   fs.mkdirSync(storage, { recursive: true })
   const downloads = tmpDir('mirall-test-dl')
   const config = { storage, appVersion: '0.0.0-test', dev: true, verbose: false, downloadFolder: downloads }
+  await loadSettings(storage)
   setRuntimeConfig(config)
   setDownloadFolder(downloads)
   t.teardown(() => {
@@ -50,7 +52,7 @@ export async function freshPeer(t, { displayName = 'Tester' } = {}) {
 }
 
 async function bootPeer(t, { displayName, masterSecret }) {
-  const { config, storage, downloads } = peerDirs(t)
+  const { config, storage, downloads } = await peerDirs(t)
   const fake = createFakeIpc()
   const root = await boot(config, { ipc: fake.ipc, log: quiet, swarm: false, masterSecret, memberRegistry: offlineMemberRegistry })
   await setProfile({ displayName })
@@ -82,7 +84,7 @@ export async function freshDurable(t, { displayName = 'Tester', masterSecret = n
     setDownloadFolder(downloads)
     dirs = { config, storage, downloads }
   } else {
-    dirs = peerDirs(t)
+    dirs = await peerDirs(t)
   }
   const fake = createFakeIpc()
   const tier = await bootDurable(dirs.config, { ipc: fake.ipc, log: quiet, masterSecret })

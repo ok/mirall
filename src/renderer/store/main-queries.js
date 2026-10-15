@@ -6,10 +6,10 @@
 // `read` and `write` are the bridge accessors. `push` names the bridge subscription that reports a
 // change main made on its own; a fact with no push changes ONLY when this app writes it, which is
 // what makes write-through sufficient.
-/** @import { AppPrefs, BandwidthLimits, MirallBridge } from '../platform/global.js' */
+/** @import { AppPrefs, MirallBridge } from '../platform/global.js' */
 
 /**
- * @typedef {{ 'main:prefs': AppPrefs, 'main:download-folder': string, 'main:bandwidth': BandwidthLimits, 'main:zoom': number }} MainQueryValue
+ * @typedef {{ 'main:prefs': AppPrefs, 'main:zoom': number }} MainQueryValue
  * @typedef {keyof MainQueryValue} MainQueryName
  */
 
@@ -23,8 +23,6 @@
 /** @type {Readonly<{ [K in MainQueryName]: MainQuerySpec<K> }>} */
 export const MAIN_QUERIES = Object.freeze({
   'main:prefs': { read: (b) => b.getPrefs(), write: (b, v) => b.setPrefs(v), push: null },
-  'main:download-folder': { read: (b) => b.getDownloadFolder(), write: (b, v) => b.setDownloadFolder(v), push: null },
-  'main:bandwidth': { read: (b) => b.getBandwidth(), write: (b, v) => b.setBandwidth(v), push: null },
   'main:zoom': { read: (b) => b.getZoom(), write: (b, v) => b.setZoom(v), push: 'onZoomChanged' },
 })
 

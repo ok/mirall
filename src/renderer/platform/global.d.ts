@@ -144,13 +144,9 @@ export interface MirallBridge {
 
   setTheme(mode: 'light' | 'dark' | 'system'): Promise<boolean>
 
-  getDownloadFolder(): Promise<string>
-  setDownloadFolder(folder: string): Promise<string>
   browseDownloadFolder(defaultPath?: string): Promise<string | null>
-  getBandwidth(): Promise<BandwidthLimits>
-  setBandwidth(patch: BandwidthLimits): Promise<BandwidthLimits>
   browseShareFolder(): Promise<string | null>
-  browseBackupFolder(): Promise<{ folder: string; sameDisk: boolean; otherFiles: boolean } | null>
+  browseBackupFolder(defaultPath?: string): Promise<{ folder: string; sameDisk: boolean; otherFiles: boolean } | null>
   applyRestoredSettings(json: string): Promise<RendererConfig>
 
   notify(spec: NotificationSpec): Promise<NotificationShowResult>

@@ -21,3 +21,9 @@ test('a rig build keeps --inspect and nothing else', (t) => {
   t.is(fuses?.config[FuseV1Options.EnableEmbeddedAsarIntegrityValidation], true)
   t.is(fuses?.config[FuseV1Options.OnlyLoadAppFromAsar], true)
 })
+
+test('the worker can read feature-flags.json from the unpacked tree', (t) => {
+  const asar = loadConfig().packagerConfig.asar
+  t.ok(/feature-flags\.json/.test(asar.unpack), 'the file is unpacked beside the worker, which cannot read the asar')
+  t.ok(/src\/worker/.test(asar.unpackDir), 'and so is the worker')
+})

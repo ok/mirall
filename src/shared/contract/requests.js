@@ -203,9 +203,12 @@ export const REQUESTS = Object.freeze({
   'network:online-hint': { kind: 'command', args: { online: { type: ARG.boolean, optional: true } } },
   'network:probe-canary': { kind: 'command', args: { force: { type: ARG.boolean, optional: true } } },
   'network:reconnect': { kind: 'command', args: {} },
+  // A partial update of the stored slot: an omitted mode or relay keeps the stored one, a null relay
+  // clears it, and lastTest patches the stored slot with a probe verdict.
   'network:set-relay': { kind: 'command', args: {
     deferApply: { type: ARG.boolean, optional: true },
-    mode: { type: ARG.string, max: ARG_MAX.name },
+    lastTest: { type: ARG.object, optional: true },
+    mode: { type: ARG.string, optional: true, max: ARG_MAX.name },
     relay: { type: ARG.object, optional: true },
   } },
   'network:status:get': { kind: 'query', args: {} },
@@ -265,6 +268,7 @@ export const REQUESTS = Object.freeze({
   'serving:detail-unsubscribe': { kind: 'command', args: { path: { type: ARG.path }, spaceId: { type: ARG.spaceId } } },
   'serving:summary-list': { kind: 'query', args: { spaceId: { type: ARG.spaceId } } },
   'setVerbose': { kind: 'command', args: { verbose: { type: ARG.boolean } } },
+  'settings:get': { kind: 'query', args: {} },
   'settings:set-bandwidth': { kind: 'command', args: {
     downloadKBps: { type: ARG.number, optional: true },
     uploadKBps: { type: ARG.number, optional: true },

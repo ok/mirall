@@ -19,6 +19,7 @@ import type { DENY_OUTCOMES } from './deny-outcome.js'
 import type { RESTORE_VERDICTS } from './restore-verdict.js'
 import type { MemberReach } from './member-reach.js'
 import type { RequestName } from './requests.js'
+import type { RelayMode } from './relay-apply.js'
 import type { PathHost } from './paths.js'
 import type { PersonKey, PrincipalRef } from './principals.js'
 import type { IdentityLockCode } from './errors.js'
@@ -416,12 +417,30 @@ export interface ServeDetailSnapshot { peers: ServeDetailPeer[] }
 export interface AuditExport { version: number, exportedAt: number, entries: AuditEntry[] }
 export interface AuditPurgeResult { purged: number }
 
+export interface RelaySlot {
+  publicKey: string
+  kind: 'open' | 'private'
+  label: string
+  enabled: boolean
+  lastTest: { at: number, ok: boolean } | null
+}
+
+export interface NetworkSettings { downloadKBps: number, uploadKBps: number, relayMode: RelayMode, relay: RelaySlot | null }
+
+/** The effective settings: the download folder is the stored one, or the host's default when isDefault. */
+export interface WorkerSettings {
+  downloads: { folder: string, isDefault: boolean }
+  network: NetworkSettings
+}
+
 export interface RelayApplyResult {
   ok: true
   applied: number
   reason?: string
   mismatch: 'stale-relayed' | 'stale-direct' | 'replaced-relay' | null
   reconnected: boolean
+  identityChanged: boolean
+  network: NetworkSettings
 }
 
 export interface RelayTestResult { ok: boolean, reason?: string }
@@ -662,8 +681,9 @@ interface Responses {
   'serving:detail-unsubscribe': Ack
   'serving:summary-list': ServeSummary[]
   'setVerbose': VerboseState
-  'settings:set-bandwidth': Ack
-  'settings:set-download-folder': Ack
+  'settings:get': WorkerSettings
+  'settings:set-bandwidth': WorkerSettings
+  'settings:set-download-folder': WorkerSettings
   'share:create': Share
   'share:create-and-mount': ShareAndMountResult
   'share:delete': Ack

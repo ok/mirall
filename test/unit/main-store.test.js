@@ -19,10 +19,6 @@ function fakeBridge() {
     pushListeners,
     getPrefs: () => defer('getPrefs'),
     setPrefs: (v) => defer('setPrefs:' + JSON.stringify(v)),
-    getDownloadFolder: () => defer('getDownloadFolder'),
-    setDownloadFolder: (v) => defer('setDownloadFolder:' + v),
-    getBandwidth: () => defer('getBandwidth'),
-    setBandwidth: (v) => defer('setBandwidth:' + JSON.stringify(v)),
     getZoom: () => defer('getZoom'),
     setZoom: (v) => defer('setZoom:' + v),
     onZoomChanged: (fn) => { pushListeners.push(fn); return () => {} },
@@ -39,9 +35,10 @@ function setup(t) {
   return bridge
 }
 
-const FOLDER = 'main:download-folder'
-const CAPS = 'main:bandwidth'
-const UNLIMITED = { downloadKBps: 0, uploadKBps: 0 }
+// Two facts with two value shapes: a scalar (zoom) and a record (prefs).
+const FOLDER = 'main:zoom'
+const CAPS = 'main:prefs'
+const UNLIMITED = { minimizeToTray: true, openAtLogin: false }
 
 test('concurrent reads of one fact issue a single bridge call', async (t) => {
   const bridge = setup(t)
@@ -51,10 +48,10 @@ test('concurrent reads of one fact issue a single bridge call', async (t) => {
   const c = fetchMain(FOLDER)
   t.is(bridge.calls.length, 1, 'three consumers, one call')
 
-  bridge.settle(0, '/Users/me/Downloads')
-  t.is(await a, '/Users/me/Downloads', 'the first caller resolves')
-  t.is(await b, '/Users/me/Downloads', 'so does the second')
-  t.is(await c, '/Users/me/Downloads', 'and the third')
+  bridge.settle(0, 1.25)
+  t.is(await a, 1.25, 'the first caller resolves')
+  t.is(await b, 1.25, 'so does the second')
+  t.is(await c, 1.25, 'and the third')
   t.is(bridge.calls.length, 1, 'still one call')
 })
 
@@ -62,10 +59,10 @@ test('a settled fact is served from cache without a second call', async (t) => {
   const bridge = setup(t)
 
   const first = fetchMain(FOLDER)
-  bridge.settle(0, '/Users/me/Downloads')
+  bridge.settle(0, 1.25)
   await first
 
-  t.is(await fetchMain(FOLDER), '/Users/me/Downloads', 'served from cache')
+  t.is(await fetchMain(FOLDER), 1.25, 'served from cache')
   t.is(bridge.calls.length, 1, 'no second read')
 })
 
@@ -81,8 +78,8 @@ test('a rejection reaches every joined caller and the entry retries afterwards',
 
   const retry = fetchMain(FOLDER)
   t.is(bridge.calls.length, 2, 'a later mount retries rather than being stuck on the dead promise')
-  bridge.settle(1, '/Users/me/Downloads')
-  t.is(await retry, '/Users/me/Downloads')
+  bridge.settle(1, 1.25)
+  t.is(await retry, 1.25)
 })
 
 test('an unfetched entry reports loading, not empty', (t) => {
@@ -97,7 +94,7 @@ test('a settled entry stops reporting loading, including a failed one', async (t
   const bridge = setup(t)
 
   const ok = fetchMain(FOLDER)
-  bridge.settle(0, '/Users/me/Downloads')
+  bridge.settle(0, 1.25)
   await ok
   t.absent(peekMain(FOLDER).loading, 'a resolved read settles')
 
@@ -114,7 +111,7 @@ test('the snapshot is a stable reference between changes and a new one after', a
   t.is(peekMain(FOLDER), cold, 'stable while cold — useSyncExternalStore compares by identity')
 
   const load = fetchMain(FOLDER)
-  bridge.settle(0, '/Users/me/Downloads')
+  bridge.settle(0, 1.25)
   await load
 
   const warm = peekMain(FOLDER)
@@ -122,8 +119,8 @@ test('the snapshot is a stable reference between changes and a new one after', a
   t.is(peekMain(FOLDER), warm, 'and stable again afterwards')
 })
 
-// REGRESSION (FIX-R04-2-D3: a rejected setBandwidth left the screen showing a cap main never
-// stored — the optimistic paint was never undone.)
+// REGRESSION (FIX-R04-2-D3: a rejected write left the screen showing a value main never stored —
+// the optimistic paint was never undone.)
 test('REGRESSION (FIX-R04-2-D3): a failed write restores the previous value', async (t) => {
   const bridge = setup(t)
 
@@ -131,12 +128,12 @@ test('REGRESSION (FIX-R04-2-D3): a failed write restores the previous value', as
   bridge.settle(0, UNLIMITED)
   await load
 
-  const write = writeMain(CAPS, { downloadKBps: 512, uploadKBps: 0 })
-  t.alike(peekMain(CAPS).data, { downloadKBps: 512, uploadKBps: 0 }, 'painted optimistically')
+  const write = writeMain(CAPS, { minimizeToTray: false, openAtLogin: false })
+  t.alike(peekMain(CAPS).data, { minimizeToTray: false, openAtLogin: false }, 'painted optimistically')
 
   bridge.fail(1, new Error('main refused'))
   await t.exception(write, 'the rejection reaches the caller')
-  t.alike(peekMain(CAPS).data, UNLIMITED, 'and the displayed cap is back to what main actually has')
+  t.alike(peekMain(CAPS).data, UNLIMITED, 'and the displayed value is back to what main actually has')
   t.is(peekMain(CAPS).error, null, 'the rejection went to the caller, not onto the entry')
 })
 
@@ -148,27 +145,27 @@ test('REGRESSION (FIX-446: an older write settling last overwrote a newer one): 
   bridge.settle(0, UNLIMITED)
   await load
 
-  const older = writeMain(CAPS, { downloadKBps: 512, uploadKBps: 0 })
-  const newer = writeMain(CAPS, { downloadKBps: 1024, uploadKBps: 0 })
-  bridge.settle(2, { downloadKBps: 1024, uploadKBps: 0 })
+  const older = writeMain(CAPS, { minimizeToTray: false, openAtLogin: false })
+  const newer = writeMain(CAPS, { minimizeToTray: true, openAtLogin: true })
+  bridge.settle(2, { minimizeToTray: true, openAtLogin: true })
   await newer
   bridge.fail(1, new Error('main refused'))
-  t.alike(await older, { downloadKBps: 1024, uploadKBps: 0 }, 'a superseded failure resolves with the newer value: the newer write owns the outcome')
-  t.alike(peekMain(CAPS).data, { downloadKBps: 1024, uploadKBps: 0 }, 'a late failure does not roll back over the newer value')
+  t.alike(await older, { minimizeToTray: true, openAtLogin: true }, 'a superseded failure resolves with the newer value: the newer write owns the outcome')
+  t.alike(peekMain(CAPS).data, { minimizeToTray: true, openAtLogin: true }, 'a late failure does not roll back over the newer value')
 
-  const again = writeMain(CAPS, { downloadKBps: 2048, uploadKBps: 0 })
-  const latest = writeMain(CAPS, { downloadKBps: 4096, uploadKBps: 0 })
-  bridge.settle(4, { downloadKBps: 4096, uploadKBps: 0 })
+  const again = writeMain(CAPS, { minimizeToTray: false, openAtLogin: true })
+  const latest = writeMain(CAPS, { minimizeToTray: true, openAtLogin: false })
+  bridge.settle(4, { minimizeToTray: true, openAtLogin: false })
   await latest
-  bridge.settle(3, { downloadKBps: 2048, uploadKBps: 0 })
+  bridge.settle(3, { minimizeToTray: false, openAtLogin: true })
   await again
-  t.alike(peekMain(CAPS).data, { downloadKBps: 4096, uploadKBps: 0 }, 'a late success does not publish over the newer value')
+  t.alike(peekMain(CAPS).data, { minimizeToTray: true, openAtLogin: false }, 'a late success does not publish over the newer value')
 })
 
 // REGRESSION (FIX-WRITE-ERROR-STICKY: a failed write recorded its error on the shared entry, and
-// fetchMain answers a cached entry without clearing it — so nothing ever did. One refused
-// setBandwidth made NetworkSettings show "couldn't save" on every later visit, and a refused
-// setDownloadFolder made EditSpaceModal render an alert for a read of its own that had succeeded.)
+// fetchMain answers a cached entry without clearing it — so nothing ever did. One refused write
+// made a settings screen show "couldn't save" on every later visit, and a refused write of one
+// fact made another screen render an alert for a read of its own that had succeeded.)
 // REGRESSION (FIX-446: a toggle flipped twice reported the first write's failure as a toast although
 // the second write had already replaced it and succeeded.)
 test('REGRESSION (FIX-446: a superseded write reported its failure): a write superseded by a push does not reject', async (t) => {
@@ -177,11 +174,11 @@ test('REGRESSION (FIX-446: a superseded write reported its failure): a write sup
   bridge.settle(0, UNLIMITED)
   await load
 
-  const write = writeMain(CAPS, { downloadKBps: 512, uploadKBps: 0 })
-  setMainData(CAPS, { downloadKBps: 256, uploadKBps: 0 })
+  const write = writeMain(CAPS, { minimizeToTray: false, openAtLogin: false })
+  setMainData(CAPS, { minimizeToTray: false, openAtLogin: false })
   bridge.fail(1, new Error('main refused'))
-  t.alike(await write, { downloadKBps: 256, uploadKBps: 0 }, 'resolves with the value that superseded it')
-  t.alike(peekMain(CAPS).data, { downloadKBps: 256, uploadKBps: 0 }, 'and the pushed value stays')
+  t.alike(await write, { minimizeToTray: false, openAtLogin: false }, 'resolves with the value that superseded it')
+  t.alike(peekMain(CAPS).data, { minimizeToTray: false, openAtLogin: false }, 'and the pushed value stays')
 })
 
 test('REGRESSION (FIX-WRITE-ERROR-STICKY): a failed write leaves no error for the next reader', async (t) => {
@@ -191,7 +188,7 @@ test('REGRESSION (FIX-WRITE-ERROR-STICKY): a failed write leaves no error for th
   bridge.settle(0, UNLIMITED)
   await load
 
-  const write = writeMain(CAPS, { downloadKBps: 512, uploadKBps: 0 })
+  const write = writeMain(CAPS, { minimizeToTray: false, openAtLogin: false })
   bridge.fail(1, new Error('main refused'))
   await t.exception(write)
 
@@ -213,40 +210,40 @@ test('an entry never carries data and an error at once', async (t) => {
   t.is(peekMain(FOLDER).data, undefined, 'and has no value to show alongside it')
 
   const retry = fetchMain(FOLDER)
-  bridge.settle(1, '/Users/me/Downloads')
+  bridge.settle(1, 1.25)
   await retry
   t.is(peekMain(FOLDER).error, null, 'a later success clears it')
-  t.is(peekMain(FOLDER).data, '/Users/me/Downloads')
+  t.is(peekMain(FOLDER).data, 1.25)
 })
 
 // The seam prefs needs: display the merge, send the patch.
 test('writeMain sends `payload` when it differs from the optimistic value', async (t) => {
   const bridge = setup(t)
 
-  const write = writeMain(FOLDER, '/Users/me/Merged', { payload: '/Users/me/Patch' })
-  t.is(peekMain(FOLDER).data, '/Users/me/Merged', 'the optimistic paint uses the value')
-  t.ok(bridge.calls.includes('setDownloadFolder:/Users/me/Patch'), 'while main is sent the payload')
+  const write = writeMain(FOLDER, 1.5, { payload: 1.1 })
+  t.is(peekMain(FOLDER).data, 1.5, 'the optimistic paint uses the value')
+  t.ok(bridge.calls.includes('setZoom:1.1'), 'while main is sent the payload')
 
-  bridge.settle(0, '/Users/me/FromMain')
-  t.is(await write, '/Users/me/FromMain')
-  t.is(peekMain(FOLDER).data, '/Users/me/FromMain', "and main's answer replaces both")
+  bridge.settle(0, 1.75)
+  t.is(await write, 1.75)
+  t.is(peekMain(FOLDER).data, 1.75, "and main's answer replaces both")
 })
 
 test('payload defaults to the value for a whole-value replace', async (t) => {
   const bridge = setup(t)
-  const write = writeMain(FOLDER, '/Users/me/Plain')
-  t.ok(bridge.calls.includes('setDownloadFolder:/Users/me/Plain'))
-  bridge.settle(0, '/Users/me/Plain')
+  const write = writeMain(FOLDER, 2)
+  t.ok(bridge.calls.includes('setZoom:2'))
+  bridge.settle(0, 2)
   await write
 })
 
 test('a successful write publishes what main stored, not what was asked for', async (t) => {
   const bridge = setup(t)
 
-  const write = writeMain(CAPS, { downloadKBps: 12, uploadKBps: 0 })
-  bridge.settle(0, { downloadKBps: 32, uploadKBps: 0 })
-  t.alike(await write, { downloadKBps: 32, uploadKBps: 0 }, 'the clamped value comes back')
-  t.alike(peekMain(CAPS).data, { downloadKBps: 32, uploadKBps: 0 }, 'and it is what the entry holds')
+  const write = writeMain(CAPS, { minimizeToTray: true, openAtLogin: true })
+  bridge.settle(0, { minimizeToTray: false, openAtLogin: true })
+  t.alike(await write, { minimizeToTray: false, openAtLogin: true }, 'what main stored comes back')
+  t.alike(peekMain(CAPS).data, { minimizeToTray: false, openAtLogin: true }, 'and it is what the entry holds')
 })
 
 test('a write publishes optimistically before it resolves', async (t) => {
@@ -254,10 +251,10 @@ test('a write publishes optimistically before it resolves', async (t) => {
   const seen = []
   subscribeMain(CAPS, () => { seen.push(peekMain(CAPS).data) })
 
-  const write = writeMain(CAPS, { downloadKBps: 512, uploadKBps: 0 })
-  t.alike(seen, [{ downloadKBps: 512, uploadKBps: 0 }], 'the subscriber saw it before the bridge settled')
+  const write = writeMain(CAPS, { minimizeToTray: false, openAtLogin: false })
+  t.alike(seen, [{ minimizeToTray: false, openAtLogin: false }], 'the subscriber saw it before the bridge settled')
 
-  bridge.settle(0, { downloadKBps: 512, uploadKBps: 0 })
+  bridge.settle(0, { minimizeToTray: false, openAtLogin: false })
   await write
   t.is(seen.length, 2, 'and again when main confirmed')
 })
@@ -281,7 +278,7 @@ test('a write that lands during a read wins over the read', async (t) => {
   bridge.settle(1, '/Users/me/Elsewhere')
   await write
 
-  bridge.settle(0, '/Users/me/Downloads')
+  bridge.settle(0, 1.25)
   await read
   t.is(peekMain(FOLDER).data, '/Users/me/Elsewhere', 'the stale read cannot overwrite the write')
 })
@@ -302,7 +299,7 @@ test('subscribers are notified on settle and stop after unsubscribe', async (t) 
   const off = subscribeMain(FOLDER, () => { notified++ })
 
   const load = fetchMain(FOLDER)
-  bridge.settle(0, '/Users/me/Downloads')
+  bridge.settle(0, 1.25)
   await load
   t.ok(notified > 0, 'the settle reached the subscriber')
 

@@ -11,7 +11,7 @@
 import DHT from 'hyperdht'
 import Hyperswarm from 'hyperswarm'
 import b4a from 'b4a'
-import { getRuntimeConfig, getConnectionCaps, isSeparateContentPlaneEnabled } from '../core/runtime-config.js'
+import { getRuntimeConfig, getConnectionCaps } from '../core/runtime-config.js'
 import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
 import { clearListDeficits } from '../transfer/list-deficits.js'
@@ -42,7 +42,6 @@ let ipcRef = null
 // Filled from the subsystem's constructor deps in _open, cleared in _close. Read through accessors
 // so a collaborator wired once still sees the current value across a restart.
 let membershipControlHandler = null
-let connectionAttachHook = null
 let overlayReconnectHook = null
 let overlayRedriveHook = null
 let stalledOwnersHook = null
@@ -57,7 +56,7 @@ function wireCollaborators() {
     getIpc: () => ipcRef,
     onOwnerReconnect: (ownerKey, spaceId) => overlayReconnectHook?.(ownerKey, spaceId),
   })
-  initPeerConnection({ getAttachHook: () => connectionAttachHook })
+  initPeerConnection()
   initSpaceTopics({ getSwarm: () => swarm })
   initPresenceBroadcast({ presence, membersPoke, log, getSwarm: () => swarm, getIpc: () => ipcRef })
   initDeferredAdmission({
@@ -127,7 +126,6 @@ async function destroySwarm() {
   resetShareWait()
   ipcRef = null
   membershipControlHandler = null
-  connectionAttachHook = null
   overlayReconnectHook = null
   overlayRedriveHook = null
   revokeServesForSpaceHook = null
@@ -157,12 +155,6 @@ export class Swarm extends Subsystem {
     ipcRef = this.deps.ipc
     membershipControlHandler = this.deps.membershipControl
     stalledOwnersHook = this.deps.stalledOwners
-    // Exclusive with the content plane: when it is on, the overlay channel rides the content
-    // socket and the serve gate authorizes against that socket's hello. Binding here as well
-    // would land content requests on a socket the gate cannot authenticate.
-    if (!isSeparateContentPlaneEnabled()) {
-      connectionAttachHook = (mux, socket) => this.deps.overlayBackend.attach(mux, socket)
-    }
     overlayReconnectHook = (ownerKey, spaceId) => this.deps.overlayBackend.resumeForOwner(ownerKey, spaceId)
     overlayRedriveHook = (opts) => this.deps.overlayBackend.redriveUnblocked(opts)
     revokeServesForSpaceHook = (spaceId, profileKey) => this.deps.overlayBackend.revokeServesForSpace(spaceId, profileKey)

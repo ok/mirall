@@ -11,7 +11,7 @@ import Icon from '../primitives/Icon.js'
 import ModalHeader from '../primitives/ModalHeader.js'
 import Button from '../primitives/Button.js'
 import { useErrorText } from '../../hooks/useErrorText.js'
-import { useMainQuery } from '../../store/useMainQuery.js'
+import { useDownloadFolder } from '../../hooks/useSettings.js'
 
 interface EditSpaceModalProps {
   space: Space
@@ -42,7 +42,7 @@ export default function EditSpaceModal({ space, onSave, onClose }: EditSpaceModa
   const [folderError, setFolderError] = useState<string | null>(null)
   const browseRef = useRef<HTMLButtonElement>(null)
 
-  const { data: defaultFolder, error: defaultError } = useMainQuery('main:download-folder')
+  const { folder: defaultFolder, error: defaultError } = useDownloadFolder()
   // null until the read lands. A space always resolves to SOME folder — its own override or the
   // global default — so an unresolved read is a path still loading, not the absence of one. A read
   // that FAILED resolves to "no default available" instead, or the field would sit on its skeleton.

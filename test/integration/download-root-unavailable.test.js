@@ -12,8 +12,7 @@ import { scaled } from '../helpers/bare-timing.js'
 import Protomux from 'protomux'
 import { makeDuplex } from './overlay-link-helpers.js'
 import { attachOverlay } from '../../src/shared/transfer/overlay/overlay-instance.js'
-import { socketToPeers } from '../../src/shared/network/swarm-registries.js'
-import { getRuntimeConfig, setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
+import { _authorizeContentPeerForTests } from '../../src/shared/network/content-swarm.js'
 
 // REGRESSION (FIX-DLDIR-2: a download folder that had been deleted, ejected, or replaced by a
 // file produced no message the user could act on).
@@ -194,17 +193,12 @@ test('a local-fs failure with the folder still present keeps its own classificat
 })
 
 // The owner, reachable the way the app reaches one: an overlay channel attached through
-// attachOverlay on a socket the handshake registry says carries the owner. The overlay is rebuilt
-// with the control plane carrying content, so that registry is the one its holder gate reads.
-async function reachableOwner(t) {
-  const saved = getRuntimeConfig()
-  await teardownOverlay()
-  setRuntimeConfig({ ...saved, separateContentPlane: false })
-  await initOverlay()
+// attachOverlay on a content socket whose content-hello authenticated the owner, which is the
+// registry the holder gate reads.
+async function reachableOwner() {
   const [socket] = makeDuplex()
-  socketToPeers.set(socket, new Set([OWNER]))
+  _authorizeContentPeerForTests(socket, OWNER)
   attachOverlay(Protomux.from(socket), socket)
-  t.teardown(() => { socketToPeers.delete(socket); setRuntimeConfig(saved) })
   return getOverlay()
 }
 
@@ -219,7 +213,7 @@ test('REGRESSION (local faults read as no holder): an engine ENOTDIR on a vanish
   const engine = createOverlayDownloadEngine(testChannel(events, {
     resolvePendingRow: async () => ({ removed: false, seq: undefined, job }),
   }))
-  const overlay = await reachableOwner(t)
+  const overlay = await reachableOwner()
   let fetches = 0
   overlay.protocol.fetchContent = async () => {
     fetches++

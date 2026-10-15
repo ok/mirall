@@ -9,7 +9,7 @@
 // the process, which is exactly what lets a test call them twice.
 import { createLifecycle } from '../shared/core/subsystem.js'
 import { Supervisor } from '../shared/core/supervisor.js'
-import { getPeerPresenceDwellMs, getRelayAuditDwellMs, isSharePrepareProgressEnabled, getRelayConfig } from '../shared/core/runtime-config.js'
+import { getPeerPresenceDwellMs, getRelayAuditDwellMs, getRelayConfig } from '../shared/core/runtime-config.js'
 import { hydrateDownloadRoots, listDownloadRoots } from '../shared/core/paths.js'
 import { IntentsBee, getIntentsBee } from '../shared/core/intents.js'
 import { createIntentLog } from '../shared/core/intents.js'
@@ -240,18 +240,14 @@ export async function boot(bootstrap, {
     // the overlay channel attached would silently never get one.
     overlayBackend = await life.start(new OverlayBackend('overlay', {
       ipc,
-      broadcastSharePrepare: (spaceId, p) => {
-        if (isSharePrepareProgressEnabled()) broadcastSharePrepareProgress(spaceId, p)
-      },
+      broadcastSharePrepare: broadcastSharePrepareProgress,
     }))
     publishService = await life.start(new PublishService('publish'))
     const ownedFolders = await life.start(new OwnedFolders('owned-folders', {
       ipc,
       publishService,
       settleScan: (promise, spaceId, shareId) => mounts.settleScanStatus(promise, spaceId, shareId),
-      broadcastIndex: (spaceId, p) => {
-        if (isSharePrepareProgressEnabled()) broadcastShareIndexProgress(spaceId, p)
-      },
+      broadcastIndex: broadcastShareIndexProgress,
     }))
     await life.start(new ForeignMirrors('foreign-mirrors', { ipc }))
     await life.start(new EchoGuardPurge('echo-guard'))

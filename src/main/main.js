@@ -50,7 +50,6 @@ const {
 const {
   initSettings,
   registerSettingsIpc,
-  readDownloadFolder,
 } = require('./settings-ipc.js')
 const { createQuitSequence } = require('./lifecycle.js')
 
@@ -169,7 +168,7 @@ function config() {
 
 initUpdater({ getDataDir, updatesEnabled, updatesOffReason: offReason })
 initSettings({ config, installKind })
-initWorkerHost({ config, getPear, isDev, identityKEK: () => identityKEKHex, identityWeak: () => identityProtection === 'weak' })
+initWorkerHost({ getPear, isDev, identityKEK: () => identityKEKHex, identityWeak: () => identityProtection === 'weak' })
 initMenus({ revealWindow, targetWindow, zoomByDirection, appName, isDev })
 initWindow({
   config,
@@ -200,7 +199,7 @@ ipcMain.on('config:get', (evt) => { evt.returnValue = config().rendererSnapshot(
 // length), so the renderer must adopt what was stored rather than its optimistic copy.
 ipcMain.handle('config:set', (_evt, patch) => { config().setRenderer(patch); return config().rendererSnapshot() })
 
-registerRelaySlot({ config, getPear })
+registerRelaySlot({ getPear })
 registerNetOnline()
 
 registerUpdater()
@@ -323,7 +322,7 @@ if (!lock) {
     startNetOnlineWatch()
     require('./notifications').register({
       revealWindow,
-      downloadRoots: () => [readDownloadFolder(), ...downloadRoots()],
+      downloadRoots: () => downloadRoots(),
     })
 
     // Harden identity at rest before the worker can spawn (pear:startWorker only

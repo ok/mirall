@@ -34,21 +34,14 @@ function stubWorker() {
   return w
 }
 
-// The gate and the flags module are reloaded with the host, so no test inherits another's
-// packaging or flags cache.
-function load({ worker = stubWorker(), config = {}, flags = {}, isPackaged = false, flagsRoot = null, storage = '/tmp/mirall-test' } = {}) {
+// The gate is reloaded with the host, so no test inherits another's packaging.
+function load({ worker = stubWorker(), config = {}, flags = {}, isPackaged = false, storage = '/tmp/mirall-test' } = {}) {
   const { electron, modules } = loadWithFakeElectron(
-    ['src/main/env-overrides.js', 'src/main/feature-flags.js', 'src/main/settings-ipc.js', 'src/main/worker-host.js'],
-    { app: { isPackaged } },
+    ['src/main/env-overrides.js', 'src/main/settings-ipc.js', 'src/main/worker-host.js'],
+    { app: { isPackaged, getPath: () => '/tmp/mirall-test-downloads' } },
   )
-  const [, featureFlags, settings, host] = modules
-  if (flagsRoot) featureFlags.primeFeatureFlags(flagsRoot)
-  const store = {
-    get: (k) => config[k],
-    set: () => {},
-    getBandwidth: () => ({ downloadKBps: 0, uploadKBps: 0 }),
-    setBandwidth: () => {},
-  }
+  const [, settings, host] = modules
+  const store = { get: (k) => config[k], set: () => {} }
   settings.initSettings({ config: () => store })
   host.initWorkerHost({
     config: () => store,
@@ -74,24 +67,24 @@ function withEnv(t, vars) {
   })
 }
 
-test('the membership control binding reaches the worker off unless feature-flags.json turns it on', (t) => {
-  const off = load()
-  off.host.getWorker(MAIN_WORKER_SPEC)
-  t.is(frames(off.worker)[1].membershipControlBindingEnforced, false)
-  withEnv(t, { MIRALL_FEATURE_FLAGS: JSON.stringify({ membershipControlBinding: true }) })
-  const on = load()
-  on.host.getWorker(MAIN_WORKER_SPEC)
-  t.is(frames(on.worker)[1].membershipControlBindingEnforced, true)
-})
-
-test('topic-ref enforcement reaches the worker off unless feature-flags.json turns it on', (t) => {
-  const off = load()
-  off.host.getWorker(MAIN_WORKER_SPEC)
-  t.is(frames(off.worker)[1].topicRefsEnforced, false)
+test('a flag override rides the bootstrap as an object the worker merges over feature-flags.json', (t) => {
+  const plain = load()
+  plain.host.getWorker(MAIN_WORKER_SPEC)
+  t.absent('featureFlags' in frames(plain.worker)[1], 'absent when nothing overrides')
   withEnv(t, { MIRALL_FEATURE_FLAGS: JSON.stringify({ topicRefs: true }) })
   const on = load()
   on.host.getWorker(MAIN_WORKER_SPEC)
-  t.is(frames(on.worker)[1].topicRefsEnforced, true)
+  t.alike(frames(on.worker)[1].featureFlags, { topicRefs: true })
+})
+
+test('the bootstrap carries host facts and levers, never a preference or a flag', (t) => {
+  const { host, worker } = load({ config: { 'network.downloadConcurrency': 7, 'downloads.folder': '/elsewhere' } })
+  host.getWorker(MAIN_WORKER_SPEC)
+  const boot = frames(worker)[1]
+  t.is(boot.defaultDownloadFolder, '/tmp/mirall-test-downloads', 'the OS downloads folder is a host fact')
+  for (const key of ['downloadFolder', 'downloadKBps', 'uploadKBps', 'relayMode', 'relay', 'downloadConcurrency', 'backupFolder', 'backupRepoId', 'membershipControlBindingEnforced', 'topicRefsEnforced']) {
+    t.absent(key in boot, key + ' is the worker\'s own')
+  }
 })
 
 test('REGRESSION (MIR-54: a packaged build took security flags from its environment): the MIRALL_* levers are ignored when packaged', (t) => {
@@ -107,7 +100,7 @@ test('REGRESSION (MIR-54: a packaged build took security flags from its environm
   const packaged = load({ isPackaged: true })
   packaged.host.getWorker(MAIN_WORKER_SPEC)
   const boot = frames(packaged.worker)[1]
-  t.is(boot.membershipControlBindingEnforced, false, 'the environment cannot change enforcement')
+  t.absent(boot.featureFlags, 'the environment cannot change enforcement')
   t.absent(boot.dhtBootstrap, 'nor move the DHT')
   t.absent(boot.listFilesCap, 'nor lift a cap')
   t.absent(boot.maxFilesPerShare, 'nor the share admission gate')
@@ -118,7 +111,7 @@ test('REGRESSION (MIR-54: a packaged build took security flags from its environm
   const dev = load()
   dev.host.getWorker(MAIN_WORKER_SPEC)
   const devBoot = frames(dev.worker)[1]
-  t.is(devBoot.membershipControlBindingEnforced, true, 'an unpackaged run still honours the override')
+  t.alike(devBoot.featureFlags, { membershipControlBinding: true }, 'an unpackaged run still honours the override')
   t.is(devBoot.listFilesCap, 3, 'and the test levers')
   t.is(devBoot.downloadFolder, '/tmp/mirall-elsewhere')
 })
@@ -176,12 +169,6 @@ test('REGRESSION (FIX-ENVJSON-1): a malformed DHT knob does not take the spawn w
   const { host, worker } = load()
   t.execution(() => host.getWorker(MAIN_WORKER_SPEC), 'the knob is read through envJson, which swallows and warns')
   t.absent(frames(worker)[1].dhtBootstrap, 'and the field is simply absent from the bootstrap')
-})
-
-test('the bootstrap frame carries the configured download concurrency', (t) => {
-  const { host, worker } = load({ config: { 'network.downloadConcurrency': 7 } })
-  host.getWorker(MAIN_WORKER_SPEC)
-  t.is(frames(worker)[1].downloadConcurrency, 7, 'the knob is wired at both ends')
 })
 
 test('the identity KEK is read at spawn time, not at require time', (t) => {

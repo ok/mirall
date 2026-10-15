@@ -147,10 +147,16 @@ export async function validateDownloadFolderAgainstMounts(folder) {
   return normalized
 }
 
+// The folder on its own, with no mount check: what a restored backup's download folder has to
+// pass to be kept on this device.
+export function probeDownloadFolder(folder) {
+  const normalized = normalizePath(checkDownloadFolderShape(folder))
+  if (!writeProbe(normalized)) throw new AppError(CODES.DOWNLOAD_FOLDER_INVALID, 'Folder is not writable')
+  return normalized
+}
+
 // Everything about the path itself, with no side effect on disk — so the callers that also
-// have rejections to run can order the probe last. A hand-kept twin of the main-process
-// validateDownloadFolder (src/main/settings-ipc.js) that pre-screens the folder picker; no test
-// compares the two bodies — change both.
+// have rejections to run can order the probe last.
 function checkDownloadFolderShape(folder) {
   if (typeof folder !== 'string' || folder.length === 0) {
     throw new AppError(CODES.DOWNLOAD_FOLDER_INVALID, 'Path is empty')

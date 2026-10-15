@@ -86,6 +86,7 @@
       case 'foreign-folder:list-all': return []
       case 'serving:detail-subscribe': return { peers: (window.__HARNESS_CFG && window.__HARNESS_CFG.detail) || [] }
       case 'owned-folder:list-all': return []
+      case 'settings:get': return { downloads: { folder: '/tmp', isDefault: true }, network: { downloadKBps: 0, uploadKBps: 0, relayMode: 'off', relay: null } }
       default: return null
     }
   }
@@ -127,8 +128,11 @@
         let env
         try { env = JSON.parse(line) } catch { continue }
         const { id, type, ...payload } = env
-        const send = () => reply({ id, data: route(type, payload) })
         const cfg = window.__HARNESS_CFG
+        // A harness may fail a request type for the whole page, the way a worker refusal reaches it.
+        const send = () => reply(cfg && Array.isArray(cfg.failTypes) && cfg.failTypes.includes(type)
+          ? { id, error: 'worker refused ' + type }
+          : { id, data: route(type, payload) })
         const delayMs = cfg && cfg.rpcDelayMs && Array.isArray(cfg.delayTypes) && cfg.delayTypes.includes(type) ? cfg.rpcDelayMs : 0
         // Reply on a microtask, like a real async worker round-trip; a harness may delay a
         // specific request type so a transient in-flight UI state is observable.
@@ -143,8 +147,6 @@
     getZoom: () => Promise.resolve(1),
     setZoom: asyncNoop,
     setTheme: asyncNoop,
-    getDownloadFolder: () => Promise.resolve('/tmp'),
-    setDownloadFolder: asyncNoop,
     browseDownloadFolder: asyncNoop,
     browseShareFolder: asyncNoop,
     retryIdentityUnlock: async () => false,

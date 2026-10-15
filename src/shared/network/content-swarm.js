@@ -12,7 +12,7 @@ import Protomux from 'protomux'
 import c from 'compact-encoding'
 import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
-import { getConnectionCaps, getHandshakeRateLimit, isSeparateContentPlaneEnabled } from '../core/runtime-config.js'
+import { getConnectionCaps, getHandshakeRateLimit } from '../core/runtime-config.js'
 import { getIdentitySigner, getProfileKey } from '../spaces/profile.js'
 import { signNoiseBinding, verifyIdentityBinding, createRateLimiter } from './handshake-guard.js'
 import { applyNetImpairment } from './net-impair.js'
@@ -50,6 +50,11 @@ export function getContentSwarm() { return contentSwarm }
 
 export function contentSenderAuthorizedOnSocket(socket, profileKeyHex) {
   return contentPeerSockets.authorized(socket, profileKeyHex)
+}
+
+/** @internal */
+export function _authorizeContentPeerForTests(socket, profileKeyHex) {
+  contentPeerSockets.add(socket, profileKeyHex)
 }
 
 function getContentBinding() {
@@ -231,7 +236,6 @@ export class ContentSwarm extends Subsystem {
   constructor(name, deps) { super(name, deps); this.require('swarm', 'overlayBackend') }
 
   async _open() {
-    if (!isSeparateContentPlaneEnabled()) return
     contentAttachHook = (mux, socket) => this.deps.overlayBackend.attach(mux, socket)
     contentResumeHook = (ownerKey) => this.deps.overlayBackend.resumeForOwnerAllSpaces(ownerKey)
     contentBoundHook = this.deps.onPeerBound ?? null

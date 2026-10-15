@@ -14,8 +14,8 @@ import { useTransferControls } from '../../src/renderer/hooks/useTransferControl
 import { useShareFiles } from '../../src/renderer/hooks/useShareFiles.js'
 import { useFiles } from '../../src/renderer/hooks/useFiles.js'
 import { isApplyArmed, setApplyArmed, setReconnectPending } from '../../src/renderer/platform/relay-session.js'
-import { setRelay, type RelaySlot } from '../../src/renderer/platform/config-client.js'
-import { resetMainStore } from '../../src/renderer/store/main-store.js'
+import type { RelaySlot } from '../../src/renderer/platform/config-client.js'
+import { refetchQuery } from '../../src/renderer/store/query-store.js'
 import type { FileEntry, Profile } from '../../src/renderer/types/types.js'
 
 export type Json = string | number | boolean | null | Json[] | { [key: string]: Json }
@@ -51,9 +51,7 @@ interface RelayProbe {
 interface ReconnectProbe { alert: boolean; stillArmed: boolean; throttleAlert: boolean; throttleStillArmed: boolean; busy: BusyControl; escaped: number }
 interface WhatsNewProbe { failAlert: boolean; emptyStatus: boolean; escaped: number }
 interface BandwidthProbe {
-  statusRegionBeforeFailure: boolean; statusRegionHoldsNote: boolean
-  workerRejectNoteIsStatus: boolean; workerRejectNoteIsAlert: boolean; workerRejectSaysSaveFailed: boolean
-  persistRejectSaysSaveFailed: boolean; persistRejectAskedWorker: number
+  rejectSaysSaveFailed: boolean; rejectIsAlert: boolean; capStaysOnReject: boolean
   presetsBusyWhileApplying: boolean; appliesWhileApplying: number; escaped: number
 }
 
@@ -71,7 +69,6 @@ export interface DroppedResults {
 const AVATAR_UNREADABLE_TEXT = "Couldn't read that image"
 const GENERIC_TEXT = 'Something went wrong'
 const WHATS_NEW_EMPTY_TEXT = 'No release notes'
-const RESTART_TEXT = 'takes effect after Mirall restarts'
 const SAVE_FAILED_TEXT = "Couldn't save that limit"
 const RECONNECT_NOW = 'Reconnect now'
 const RECONNECTING = 'Reconnecting'
@@ -341,11 +338,14 @@ async function busyWhileHeld(kit: FailpathsKit, find: () => HTMLButtonElement | 
 
 const SLOT: RelaySlot = { publicKey: 'r'.repeat(64), kind: 'open', label: 'Test relay', enabled: true, lastTest: { at: 1, ok: true } }
 
-// Seeds the section's boot snapshot through the same setter the screen uses.
-async function seedRelay(relay: RelaySlot | null): Promise<void> {
+// Seeds the worker's settings the section reads, and re-reads them so the entry is current.
+function settingsWith(relay: RelaySlot | null, kit: FailpathsKit): void {
   const relayMode = relay ? 'auto' : 'off'
-  window.bridge.setRelay = () => Promise.resolve({ ok: true, network: { downloadKBps: 0, uploadKBps: 0, relayMode, relay }, identityChanged: false })
-  await setRelay({ mode: relayMode })
+  kit.answer('settings:get', { data: { downloads: { folder: '/tmp', isDefault: true }, network: { downloadKBps: 0, uploadKBps: 0, relayMode, relay: relay as Json } } })
+}
+async function seedRelay(relay: RelaySlot | null, kit: FailpathsKit): Promise<void> {
+  settingsWith(relay, kit)
+  await refetchQuery('settings:get', {}, null).catch(() => undefined)
 }
 
 const switchLabelled = (text: string) =>
@@ -353,15 +353,18 @@ const switchLabelled = (text: string) =>
     document.getElementById(sw.getAttribute('aria-labelledby') ?? '')?.textContent?.includes(text),
   ) ?? null
 
-async function relayCommitFails(root: Root, kit: FailpathsKit, key: string, act: () => Promise<void>): Promise<boolean> {
+// A mode change goes to the worker alone; a removal clears the seed in main's vault first.
+async function relayCommitFails(root: Root, kit: FailpathsKit, key: string, fail: 'worker' | 'vault', act: () => Promise<void>): Promise<boolean> {
   const { Shell } = kit
   root.render(<Shell key={key}><RelaySettingsSection /></Shell>)
   await kit.sleep(300)
-  window.bridge.setRelay = () => Promise.reject(new Error('the relay vault is locked'))
+  if (fail === 'worker') kit.answer('network:set-relay', 'fail')
+  else window.bridge.setRelay = () => Promise.reject(new Error('the relay vault is locked'))
   await act()
   await kit.sleep(300)
-  const said = kit.alertSays(GENERIC_TEXT)
-  await seedRelay(SLOT)
+  const said = kit.alertSays(fail === 'worker' ? kit.unavailableText : GENERIC_TEXT)
+  kit.answer('network:set-relay', null)
+  await seedRelay(SLOT, kit)
   return said
 }
 
@@ -405,15 +408,16 @@ async function probeRelay(root: Root, kit: FailpathsKit): Promise<RelayProbe> {
   kit.answer('network:reconnect', null)
   kit.answer('network:status:get', null)
 
-  await seedRelay(SLOT)
-  const modeAlert = await relayCommitFails(root, kit, 'relay-mode', async () => { switchLabelled('Use a relay')?.click() })
-  const alwaysAlert = await relayCommitFails(root, kit, 'relay-always', async () => { switchLabelled('Prefer the relay')?.click() })
-  const removeAlert = await relayCommitFails(root, kit, 'relay-remove', async () => {
+  await seedRelay(SLOT, kit)
+  const modeAlert = await relayCommitFails(root, kit, 'relay-mode', 'worker', async () => { switchLabelled('Use a relay')?.click() })
+  const alwaysAlert = await relayCommitFails(root, kit, 'relay-always', 'worker', async () => { switchLabelled('Prefer the relay')?.click() })
+  const removeAlert = await relayCommitFails(root, kit, 'relay-remove', 'vault', async () => {
     document.querySelector<HTMLButtonElement>('button[aria-label="Options for Test relay"]')?.click()
     await kit.sleep(200)
     Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).find((i) => i.textContent?.includes('Remove'))?.click()
   })
-  await seedRelay(null)
+  await seedRelay(null, kit)
+  kit.answer('settings:get', null)
   window.bridge.setRelay = realSetRelay
   return { applyAlert, applyStillArmed, throttleAlert, throttleStillArmed, applyBusy, restartAlert, modeAlert, alwaysAlert, removeAlert, escaped: kit.unhandled() - before }
 }
@@ -486,38 +490,20 @@ const presetButton = (rate: string) => document.querySelector<HTMLButtonElement>
 const noteIs = (role: 'status' | 'alert', text: string) =>
   Array.from(document.querySelectorAll(`[role="${role}"]`)).some((n) => n.textContent?.includes(text))
 
-// Persist first, then the worker: the worker boots from the persisted value, so a worker refusal
-// means "saved, applies after a restart" — a note, not an alarm — and a persist refusal means
-// nothing changed anywhere.
+// The worker persists and applies a cap in one request, so its refusal means nothing changed:
+// an alarm, and the rows stay on the cap that is stored.
 async function probeBandwidth(root: Root, kit: FailpathsKit): Promise<BandwidthProbe> {
   const { Shell } = kit
   const before = kit.unhandled()
-  const realGet = window.bridge.getBandwidth
-  const realSet = window.bridge.setBandwidth
-  window.bridge.getBandwidth = () => Promise.resolve({ downloadKBps: 0, uploadKBps: 0 })
-  window.bridge.setBandwidth = (v) => Promise.resolve(v)
   kit.answer('settings:set-bandwidth', 'fail')
   root.render(<Shell key="bandwidth-worker"><NetworkSettings onBack={noop} onOpenStatus={noop} /></Shell>)
   await kit.sleep(400)
-  const region = document.getElementById('bandwidth-apply-status')
-  const statusRegionBeforeFailure = region?.getAttribute('role') === 'status' && region.textContent === ''
   presetButton('1 MB/s')?.click()
   await kit.sleep(300)
-  const statusRegionHoldsNote = !!region?.isConnected && region.textContent?.includes(RESTART_TEXT) === true
-  const workerRejectNoteIsStatus = noteIs('status', RESTART_TEXT)
-  const workerRejectNoteIsAlert = noteIs('alert', RESTART_TEXT)
-  const workerRejectSaysSaveFailed = kit.alertSays(SAVE_FAILED_TEXT)
+  const rejectSaysSaveFailed = kit.alertSays(SAVE_FAILED_TEXT)
+  const rejectIsAlert = noteIs('alert', SAVE_FAILED_TEXT)
+  const capStaysOnReject = presetButton('Unlimited')?.getAttribute('aria-pressed') === 'true'
 
-  window.bridge.setBandwidth = () => Promise.reject(new Error('config.json is not writable'))
-  root.render(<Shell key="bandwidth-persist"><NetworkSettings onBack={noop} onOpenStatus={noop} /></Shell>)
-  await kit.sleep(400)
-  const askedBefore = kit.asked('settings:set-bandwidth')
-  presetButton('5 MB/s')?.click()
-  await kit.sleep(300)
-  const persistRejectSaysSaveFailed = kit.alertSays(SAVE_FAILED_TEXT)
-  const persistRejectAskedWorker = kit.asked('settings:set-bandwidth') - askedBefore
-
-  window.bridge.setBandwidth = (v) => Promise.resolve(v)
   kit.answer('settings:set-bandwidth', 'hold')
   root.render(<Shell key="bandwidth-busy"><NetworkSettings onBack={noop} onOpenStatus={noop} /></Shell>)
   await kit.sleep(400)
@@ -534,15 +520,7 @@ async function probeBandwidth(root: Root, kit: FailpathsKit): Promise<BandwidthP
   kit.answer('settings:set-bandwidth', null)
   root.render(<div key="bandwidth-done" />)
   await kit.sleep(50)
-  window.bridge.getBandwidth = realGet
-  window.bridge.setBandwidth = realSet
-  resetMainStore()
-  return {
-    statusRegionBeforeFailure, statusRegionHoldsNote,
-    workerRejectNoteIsStatus, workerRejectNoteIsAlert, workerRejectSaysSaveFailed,
-    persistRejectSaysSaveFailed, persistRejectAskedWorker,
-    presetsBusyWhileApplying, appliesWhileApplying, escaped: kit.unhandled() - before,
-  }
+  return { rejectSaysSaveFailed, rejectIsAlert, capStaysOnReject, presetsBusyWhileApplying, appliesWhileApplying, escaped: kit.unhandled() - before }
 }
 
 export async function runDroppedProbes(root: Root, kit: FailpathsKit): Promise<DroppedResults> {
@@ -578,9 +556,7 @@ export function droppedFailures(r: DroppedResults): string[] {
       relay.restartAlert && relay.modeAlert && relay.alwaysAlert && relay.removeAlert,
     reconnect: reconnect.alert && reconnect.stillArmed && reconnect.throttleAlert && reconnect.throttleStillArmed && busyOk(reconnect.busy),
     whatsNew: whatsNew.failAlert && whatsNew.emptyStatus,
-    bandwidth: bandwidth.statusRegionBeforeFailure && bandwidth.statusRegionHoldsNote && bandwidth.workerRejectNoteIsStatus &&
-      !bandwidth.workerRejectNoteIsAlert && !bandwidth.workerRejectSaysSaveFailed &&
-      bandwidth.persistRejectSaysSaveFailed && bandwidth.persistRejectAskedWorker === 0 &&
+    bandwidth: bandwidth.rejectSaysSaveFailed && bandwidth.rejectIsAlert && bandwidth.capStaysOnReject &&
       bandwidth.presetsBusyWhileApplying && bandwidth.appliesWhileApplying === 1,
   })
 }

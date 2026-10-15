@@ -105,15 +105,10 @@ contextBridge.exposeInMainWorld('bridge', {
 
   setTheme: (mode) => ipcRenderer.invoke('theme:set', mode),
 
-  getDownloadFolder: () => ipcRenderer.invoke('downloads:get'),
-  setDownloadFolder: (folder) => ipcRenderer.invoke('downloads:set', folder),
   browseDownloadFolder: (defaultPath) => ipcRenderer.invoke('downloads:browse', defaultPath),
 
-  getBandwidth: () => ipcRenderer.invoke('bandwidth:get'),
-  setBandwidth: (patch) => ipcRenderer.invoke('bandwidth:set', patch),
-
   browseShareFolder: () => ipcRenderer.invoke('share:browseFolder'),
-  browseBackupFolder: () => ipcRenderer.invoke('backup:browse'),
+  browseBackupFolder: (defaultPath) => ipcRenderer.invoke('backup:browse', defaultPath),
   applyRestoredSettings: (json) => ipcRenderer.invoke('backup:apply-settings', json),
   onZoomChanged: (listener) => {
     const wrap = (_evt, factor) => listener(factor)

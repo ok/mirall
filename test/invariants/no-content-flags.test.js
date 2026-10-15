@@ -10,7 +10,7 @@ const SCANNED = ['src', 'scripts', 'test']
 const ALLOWED = new Set(['test/unit/runtime-config.test.js', 'test/invariants/no-content-flags.test.js'])
 // The runtime-config keys and accessors, the feature-flags.json keys as main or a harness would
 // spell them, and the probe that reported them.
-const RETIRED = /\b(overlayEnabled|inPlaceFilesEnabled|isOverlayEnabled|isInPlaceFilesEnabled|inPlaceFiles)\b|\boverlay\s*:\s*(true|false)\b|readFeatureFlags\([^)]*\)\.overlay\b|\bflags\.overlay\b|features:get|\b(localBackupEnabled|isLocalBackupEnabled|isLocalBackupFeatureOn)\b|\blocalBackup\s*:\s*(true|false)\b|\bflags\.localBackup\b/
+const RETIRED = /\b(overlayEnabled|inPlaceFilesEnabled|isOverlayEnabled|isInPlaceFilesEnabled|inPlaceFiles)\b|\boverlay\s*:\s*(true|false)\b|readFeatureFlags\([^)]*\)\.overlay\b|\bflags\.overlay\b|features:get|\b(localBackupEnabled|isLocalBackupEnabled|isLocalBackupFeatureOn)\b|\blocalBackup\s*:\s*(true|false)\b|\bflags\.localBackup\b|\b(sharePrepareProgressEnabled|separateContentPlane|isSharePrepareProgressEnabled|isSeparateContentPlaneEnabled)\b|\bsharePrepareProgress\s*:\s*(true|false)\b|\bflags\.sharePrepareProgress\b/
 
 function sources(dir, out = []) {
   for (const name of readdirSync(dir)) {
@@ -35,4 +35,6 @@ test('the shipped feature-flags.json carries no content flag', (t) => {
   const flags = JSON.parse(readFileSync(path.join(ROOT, 'feature-flags.json'), 'utf8'))
   t.absent('overlay' in flags, 'no overlay key')
   t.absent('inPlaceFiles' in flags, 'no inPlaceFiles key')
+  t.absent('sharePrepareProgress' in flags, 'no sharePrepareProgress key')
+  t.absent('separateContentPlane' in flags, 'no separateContentPlane key')
 })

@@ -23,21 +23,22 @@ test('fresh install writes config.json with defaults', (t) => {
   t.is(store.get('appearance.theme'), 'system')
   t.is(store.get('window.zoom'), 1)
   t.is(store.get('general.minimizeToTray'), true)
-  t.is(store.get('storage.cacheBudgetBytes'), 0)
   const onDisk = readConfig(dir)
   t.is(onDisk.version, CONFIG_VERSION)
   t.is(onDisk.appearance.theme, 'system')
+  t.alike(Object.keys(onDisk).sort(), ['appearance', 'general', 'notifications', 'ui', 'version', 'window'],
+    'the worker\'s groups are not written here')
 })
 
 test('migrates the five main files plus the cache file, then deletes them', (t) => {
   const dir = tmpDir()
   const storageDir = path.join(dir, 'app-storage')
+  writeJson(path.join(dir, 'download-settings.json'), { folder: '/tmp/dl' })
+  writeJson(path.join(storageDir, 'ondemand-cache.json'), { bytes: 2147483648 })
   writeJson(path.join(dir, 'zoom.json'), { factor: 1.25 })
   writeJson(path.join(dir, 'window-bounds.json'), { x: 10, y: 20, width: 800, height: 600 })
   writeJson(path.join(dir, 'theme.json'), { mode: 'dark' })
   writeJson(path.join(dir, 'app-prefs.json'), { minimizeToTray: false, openAtLogin: true, firstHideNoticeShown: true, appMenuAutoHide: true })
-  writeJson(path.join(dir, 'download-settings.json'), { folder: '/tmp/dl' })
-  writeJson(path.join(storageDir, 'ondemand-cache.json'), { bytes: 2147483648 })
 
   const store = new ConfigStore(dir).load()
   t.is(store.get('window.zoom'), 1.25)
@@ -46,8 +47,9 @@ test('migrates the five main files plus the cache file, then deletes them', (t) 
   t.is(store.get('general.minimizeToTray'), false)
   t.is(store.get('general.openAtLogin'), true)
   t.is(store.get('general.appMenuAutoHide'), true)
-  t.is(store.get('downloads.folder'), '/tmp/dl')
-  t.is(store.get('storage.cacheBudgetBytes'), 2147483648)
+
+  t.alike(readConfig(dir).downloads, { folder: '/tmp/dl' }, 'the download folder is written where the worker imports it from')
+  t.absent('storage' in readConfig(dir), 'the cache budget has no reader left')
 
   for (const name of ['zoom.json', 'window-bounds.json', 'theme.json', 'app-prefs.json', 'download-settings.json']) {
     t.absent(fs.existsSync(path.join(dir, name)), name + ' deleted')
@@ -62,7 +64,6 @@ test('partial legacy: present values imported, missing fall back to defaults', (
   const store = new ConfigStore(dir).load()
   t.is(store.get('appearance.theme'), 'light')
   t.is(store.get('window.zoom'), 1, 'missing zoom defaults')
-  t.is(store.get('downloads.folder'), null, 'missing download folder defaults')
 })
 
 test('migration is idempotent and config.json wins over reintroduced legacy files', (t) => {
@@ -89,23 +90,23 @@ test('merge-on-read self-heals a config missing a newer section', (t) => {
   writeJson(path.join(dir, 'config.json'), { version: 1, appearance: { theme: 'dark' } })
   const store = new ConfigStore(dir).load()
   t.is(store.get('appearance.theme'), 'dark', 'stored value preserved')
-  t.is(store.get('storage.cacheBudgetBytes'), 0, 'missing section gets default')
   t.is(store.get('general.minimizeToTray'), true, 'missing section gets default')
+  t.is(store.get('ui.feedbackEmail'), '', 'missing section gets default')
 })
 
 test('get/set dot-path round-trips and persists atomically', (t) => {
   const dir = tmpDir()
   const store = new ConfigStore(dir).load()
   store.set('window.bounds', { x: 1, y: 2, width: 300, height: 400 })
-  store.set('storage.cacheBudgetBytes', 536870912)
+  store.set('ui.lastSeenVersion', '1.2.3')
   store.flush()
   const onDisk = readConfig(dir)
   t.alike(onDisk.window.bounds, { x: 1, y: 2, width: 300, height: 400 })
-  t.is(onDisk.storage.cacheBudgetBytes, 536870912)
+  t.is(onDisk.ui.lastSeenVersion, '1.2.3')
   t.absent(fs.existsSync(path.join(dir, 'config.json.tmp')), 'no temp file left behind')
 
   const reloaded = new ConfigStore(dir).load()
-  t.is(reloaded.get('storage.cacheBudgetBytes'), 536870912)
+  t.is(reloaded.get('ui.lastSeenVersion'), '1.2.3')
 })
 
 test('rendererSnapshot exposes only renderer-facing config', (t) => {
@@ -113,7 +114,7 @@ test('rendererSnapshot exposes only renderer-facing config', (t) => {
   const store = new ConfigStore(dir).load()
   store.set('appearance.locale', 'de')
   const snap = store.rendererSnapshot()
-  t.alike(Object.keys(snap).sort(), ['appearance', 'features', 'network', 'notifications', 'ui'])
+  t.alike(Object.keys(snap).sort(), ['appearance', 'notifications', 'ui'])
   t.is(snap.appearance.theme, 'system')
   t.is(snap.appearance.locale, 'de')
   t.is(snap.ui.feedbackEmail, '')
@@ -138,238 +139,56 @@ test('setRenderer applies valid patches and rejects bad values', (t) => {
   t.is(store.get('notifications'), null)
 })
 
-test('network defaults to unlimited and self-heals onto a config written before it existed', (t) => {
+// === the groups that moved to the worker's settings.json ===
+
+const MOVED = {
+  downloads: { folder: '/tmp/dl' },
+  network: { downloadKBps: 500, uploadKBps: 128, relayMode: 'auto', relay: null, downloadConcurrency: 4 },
+  backup: { folder: '/tmp/backup', repoId: 'r1' },
+  storage: { cacheBudgetBytes: 1 },
+}
+
+test('the moved groups are kept, unread, until the worker has written settings.json', (t) => {
   const dir = tmpDir()
-  const store = new ConfigStore(dir).load()
-  t.is(store.get('network.downloadKBps'), 0, 'download unlimited by default')
-  t.is(store.get('network.uploadKBps'), 0, 'upload unlimited by default')
-
-  // A config.json from a build that predates the network group must gain it via
-  // mergeDefaults, without losing what that build did set.
-  writeJson(path.join(dir, 'config.json'), { version: CONFIG_VERSION, appearance: { theme: 'dark' } })
-  const reopened = new ConfigStore(dir).load()
-  t.is(reopened.get('network.downloadKBps'), 0, 'missing group filled with defaults')
-  t.is(reopened.get('appearance.theme'), 'dark', 'existing values preserved')
-})
-
-// The operator lever for the shared overlay fetch gate. It has no setter and no renderer surface,
-// so the only things that can break it are a missing default and a load that drops a hand-set
-// value — both of which this pins.
-test('the download concurrency default is carried, self-heals and survives a rewrite', (t) => {
-  const dir = tmpDir()
-  t.is(new ConfigStore(dir).load().get('network.downloadConcurrency'), 6, 'fresh config gets the default')
-
-  writeJson(path.join(dir, 'config.json'), { version: CONFIG_VERSION, network: { downloadKBps: 500 } })
-  const healed = new ConfigStore(dir).load()
-  t.is(healed.get('network.downloadConcurrency'), 6, 'a config written before the key existed gains it')
-  t.is(healed.get('network.downloadKBps'), 500, 'and keeps what that build did set')
-
-  // _migrate re-derives only the relay fields; a hand-set cap must not be reset on the next load,
-  // and the rollback value (0 = unlimited) must survive exactly, not be coerced to the default.
-  const store = new ConfigStore(dir).load()
-  store.set('network.downloadConcurrency', 0)
-  store.flush()
-  t.is(new ConfigStore(dir).load().get('network.downloadConcurrency'), 0, 'a hand-set 0 survives reload')
-})
-
-test('the download concurrency stays out of the renderer snapshot', (t) => {
-  const snap = new ConfigStore(tmpDir()).load().rendererSnapshot()
-  t.absent('downloadConcurrency' in snap.network, 'no UI by design — exposing it would need an "Unlimited" label for 0')
-})
-
-test('setBandwidth stores non-negative integers and ignores anything else', (t) => {
-  const dir = tmpDir()
-  const store = new ConfigStore(dir).load()
-
-  store.setBandwidth({ downloadKBps: 5120, uploadKBps: 1024 })
-  t.is(store.get('network.downloadKBps'), 5120)
-  t.is(store.get('network.uploadKBps'), 1024)
-
-  store.setBandwidth({ downloadKBps: 512.7 })
-  t.is(store.get('network.downloadKBps'), 512, 'floored to a whole KB/s')
-
-  for (const bad of [-1, NaN, Infinity, '900', null, {}]) {
-    store.setBandwidth({ downloadKBps: bad })
-    t.is(store.get('network.downloadKBps'), 512, `rejects ${String(bad)}`)
-  }
-
-  store.setBandwidth({ uploadKBps: 0 })
-  t.is(store.get('network.uploadKBps'), 0, '0 is valid — it means unlimited')
-
-  store.setBandwidth(null)
-  t.is(store.get('network.downloadKBps'), 512, 'a non-object patch is a no-op')
-})
-
-test('network survives a persist/reload round-trip', (t) => {
-  const dir = tmpDir()
-  const store = new ConfigStore(dir).load()
-  store.setBandwidth({ downloadKBps: 2048, uploadKBps: 256 })
-  store.flush()
-  // Bandwidth, relay and the fetch-gate cap share the `network` group, so the persisted block
-  // carries all three.
-  t.alike(readConfig(dir).network, { downloadKBps: 2048, uploadKBps: 256, relayMode: 'off', relay: null, downloadConcurrency: 6 })
-  const reopened = new ConfigStore(dir).load()
-  t.is(reopened.get('network.downloadKBps'), 2048)
-  t.is(reopened.get('network.uploadKBps'), 256)
-})
-
-// === network / relay block ===
-
-const RELAY_KEY = 'yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy'
-const OTHER_KEY = 'usdgj55ym13jkwz7nyrn4tf9yog5ocqhgbzpmiapfunqoj398xqo'
-
-test('network defaults appear on a config.json written before relays existed', (t) => {
-  const dir = tmpDir()
-  writeJson(path.join(dir, 'config.json'), { version: CONFIG_VERSION, appearance: { theme: 'dark' } })
-  const store = new ConfigStore(dir).load()
-  t.is(store.get('appearance.theme'), 'dark', 'existing values are preserved')
-  t.is(store.get('network.relayMode'), 'off')
-  t.is(store.get('network.relay'), null)
-})
-
-test('the renderer snapshot exposes network and a read-only features group', (t) => {
-  const store = new ConfigStore(tmpDir()).load()
-  const snap = store.rendererSnapshot()
-  t.is(snap.network.relayMode, 'off', 'relays are off until the user configures one')
-  t.is(snap.network.relay, null)
-  t.alike(snap.features, {}, 'the group survives with no flags in it')
-})
-
-// Not a migration — the relay UI has never been reachable in a shipped build, so no
-// config.json in the wild holds a relay to lose. This asserts only that the dead `relays: []`
-// every existing file carries is dropped rather than outliving the feature, and that the
-// bandwidth caps sharing the group are untouched by the delete.
-test('the dead relays array is dropped, and nothing else in the group moves', (t) => {
-  const dir = tmpDir()
-  writeJson(path.join(dir, 'config.json'), {
-    version: CONFIG_VERSION,
-    network: { downloadKBps: 500, uploadKBps: 128, relayMode: 'off', relays: [], downloadConcurrency: 4 },
-  })
+  const file = path.join(dir, 'config.json')
+  writeJson(file, { version: CONFIG_VERSION, appearance: { theme: 'dark' }, ...MOVED })
+  const before = fs.statSync(file).mtimeMs
   const store = new ConfigStore(dir).load()
   store.flush()
-
-  t.is(store.get('network.relay'), null)
-  t.absent('relays' in readConfig(dir).network, 'mergeDefaults would otherwise keep it forever')
-  t.is(store.get('network.downloadKBps'), 500)
-  t.is(store.get('network.uploadKBps'), 128)
-  t.is(store.get('network.downloadConcurrency'), 4, 'the rollback lever survives the delete')
-  t.is(readConfig(dir).version, CONFIG_VERSION, 'no version bump — nothing was migrated')
+  t.is(fs.statSync(file).mtimeMs, before, 'nothing to drop yet, so the file is not rewritten')
+  t.alike(readConfig(dir).downloads, MOVED.downloads, 'the worker still has to import this')
+  t.alike(readConfig(dir).network, MOVED.network)
+  t.alike(readConfig(dir).backup, MOVED.backup)
+  t.is(store.get('appearance.theme'), 'dark')
 })
 
-// A dev build with the flag forced on could have written rows. Nobody in the wild has them,
-// so they are dropped without ceremony — the point is that a stale array cannot crash the
-// load or leak into the snapshot.
-test('a hand-written relays array is discarded, not folded', (t) => {
+test('the moved groups are dropped once settings.json exists beside config.json', (t) => {
   const dir = tmpDir()
-  writeJson(path.join(dir, 'config.json'), {
-    version: CONFIG_VERSION,
-    network: { relayMode: 'auto', relays: [{ id: 'a', label: 'Home', publicKey: RELAY_KEY, enabled: true }] },
-  })
+  writeJson(path.join(dir, 'config.json'), { version: CONFIG_VERSION, appearance: { theme: 'dark' }, ...MOVED })
+  writeJson(path.join(dir, 'settings.json'), { version: 1 })
   const store = new ConfigStore(dir).load()
-  t.is(store.get('network.relay'), null, 'no fold, no inherited slot')
-  t.is(store.get('network.relayMode'), 'auto', 'the mode is not a relay row and is left alone')
-  t.absent('relays' in store.rendererSnapshot().network)
+  store.flush()
+  const onDisk = readConfig(dir)
+  for (const group of Object.keys(MOVED)) t.absent(group in onDisk, group + ' dropped')
+  t.is(onDisk.appearance.theme, 'dark', 'the host\'s groups are untouched')
+  t.is(store.get('downloads.folder'), undefined, 'and not readable either')
 })
 
 test('a config with nothing to clean is not rewritten on load', (t) => {
   const dir = tmpDir()
   const file = path.join(dir, 'config.json')
-  writeJson(file, { version: CONFIG_VERSION, network: { downloadKBps: 1, relayMode: 'off', relay: null } })
+  writeJson(file, { version: CONFIG_VERSION, appearance: { theme: 'dark' } })
+  writeJson(path.join(dir, 'settings.json'), { version: 1 })
   const before = fs.statSync(file).mtimeMs
   new ConfigStore(dir).load().flush()
   t.is(fs.statSync(file).mtimeMs, before, 'rewriting every boot to change nothing is worse than waiting')
 })
 
-test('setRenderer cannot write the relay slot', (t) => {
-  const dir = tmpDir()
-  const store = new ConfigStore(dir).load()
-  store.setRelay('auto', { publicKey: RELAY_KEY, kind: 'open', label: 'kept', enabled: true, lastTest: null })
-
-  store.setRenderer({ network: { relay: { publicKey: OTHER_KEY }, relayMode: 'always' } })
-  t.is(store.get('network.relay').publicKey, RELAY_KEY, 'the slot has its own IPC — it also writes a secret')
-  t.is(store.get('network.relay').label, 'kept')
-  t.is(store.get('network.relayMode'), 'auto')
-})
-
-test('setRelay validates the key, the kind and the mode', (t) => {
-  const store = new ConfigStore(tmpDir()).load()
-
-  store.setRelay('nonsense', { publicKey: RELAY_KEY })
-  t.is(store.get('network.relayMode'), 'off', 'an unknown mode degrades to off')
-
-  store.setRelay('always', { publicKey: 'not-a-key' })
-  t.is(store.get('network.relay'), null, 'an undecodable key never reaches relayThrough')
-  t.is(store.get('network.relayMode'), 'always')
-
-  const network = store.setRelay('auto', { publicKey: RELAY_KEY, kind: 'private', label: 'club' })
-  t.is(network.relay.kind, 'private')
-  t.is(network.relay.label, 'club')
-  t.is(network.relay.enabled, true)
-  t.is(network.relayMode, 'auto', 'the post-write snapshot is what the renderer adopts')
-
-  store.setRelay('auto', null)
-  t.is(store.get('network.relay'), null, 'removal clears the slot')
-})
-
-test('the renderer snapshot never carries a ticket or a seed', (t) => {
-  const store = new ConfigStore(tmpDir()).load()
-  store.setRelay('auto', { publicKey: RELAY_KEY, kind: 'private', label: 'club', enabled: true, lastTest: null })
-  const snap = JSON.stringify(store.rendererSnapshot())
-  t.absent(snap.includes('seed'), 'the member seed lives in relay-ticket.enc, not here')
-  t.absent(snap.includes('ticket'))
-  t.alike(Object.keys(store.rendererSnapshot().network.relay).sort(),
-    ['enabled', 'kind', 'label', 'lastTest', 'publicKey'])
-})
-
-test('a hand-edited relay slot is re-sanitized on load', (t) => {
-  const dir = tmpDir()
-  writeJson(path.join(dir, 'config.json'), {
-    version: CONFIG_VERSION,
-    network: { relayMode: 'sideways', relay: { publicKey: 'garbage', kind: 'private' } },
-  })
-  const store = new ConfigStore(dir).load()
-  t.is(store.get('network.relayMode'), 'off')
-  t.is(store.get('network.relay'), null)
-})
-
-// config.json now sits beside a member identity: the slot names the relay a person belongs to.
-// It also already held the download folder and the feedback email, so 0600 is right regardless.
+// config.json holds the feedback email and sits beside a member identity, so 0600 is right.
 test('config.json is written owner-only', (t) => {
   const dir = tmpDir()
   const store = new ConfigStore(dir).load()
-  store.setRelay('auto', { publicKey: RELAY_KEY })
+  store.set('ui.feedbackEmail', 'a@b.c')
   store.flush()
   t.is(fs.statSync(path.join(dir, 'config.json')).mode & 0o777, 0o600)
-})
-
-// Bandwidth caps and relay config share the `network` group. Each writer must leave
-// the other's fields alone — rebuilding the whole block on load silently reset the
-// user's transfer limits on every app start.
-test('relay and bandwidth coexist in the network group', (t) => {
-  const dir = tmpDir()
-  writeJson(path.join(dir, 'config.json'), {
-    version: CONFIG_VERSION,
-    network: { downloadKBps: 4096, uploadKBps: 512, relayMode: 'auto', relay: { publicKey: RELAY_KEY, kind: 'open' } },
-  })
-
-  const store = new ConfigStore(dir).load()
-  t.is(store.get('network.downloadKBps'), 4096, 'load preserves the bandwidth caps')
-  t.is(store.get('network.uploadKBps'), 512)
-  t.is(store.get('network.relayMode'), 'auto')
-
-  store.setRelay('always', null)
-  t.is(store.get('network.downloadKBps'), 4096, 'a relay write does not clear the caps')
-  t.is(store.get('network.uploadKBps'), 512)
-
-  store.setBandwidth({ downloadKBps: 1024 })
-  t.is(store.get('network.relayMode'), 'always', 'a bandwidth write does not clear the relay config')
-
-  store.flush()
-  const reopened = new ConfigStore(dir).load()
-  t.is(reopened.get('network.downloadKBps'), 1024, 'both survive a reload together')
-  t.is(reopened.get('network.relayMode'), 'always')
-
-  const snap = reopened.rendererSnapshot().network
-  t.alike(Object.keys(snap).sort(), ['downloadKBps', 'relay', 'relayMode', 'uploadKBps'],
-    'the snapshot carries the whole group, not just one writer half')
 })

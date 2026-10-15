@@ -10,6 +10,7 @@
 // in ./boot.js, whose returned `root.close()` is the whole stop sequence. ipc.start() runs after
 // every handler is registered, so no frame is dispatched before its handler exists.
 
+import path from 'bare-path'
 import { createIPC } from '../shared/core/ipc.js'
 import { createHealthMonitor } from '../shared/core/health.js'
 import { registerSpaceLeave } from './ipc/space-leave.js'
@@ -39,6 +40,9 @@ import {
   setRuntimeConfig, getIpcKeepaliveMs, getIpcKeepaliveGraceMs,
 } from '../shared/core/runtime-config.js'
 import { forgetSpaceDownloadRoot, listDownloadRoots } from '../shared/core/paths.js'
+import { loadSettings, getSettings } from '../shared/core/settings-store.js'
+import { loadFeatureFlags } from '../shared/core/feature-flags.js'
+import { assembleRuntimeConfig } from '../shared/core/runtime-config-sources.js'
 import { daemonPaths } from '../shared/contract/paths.js'
 import { createLogger } from '../shared/core/logger.js'
 import { installCrashBackstop } from '../shared/core/crash-backstop.js'
@@ -171,7 +175,14 @@ try {
   await safeShutdown('protocol-mismatch: ' + err.message, WORKER_EXIT_PROTOCOL_MISMATCH)
   await new Promise(() => {})
 }
-setRuntimeConfig(bootstrap)
+// The package root is two levels up from this entry — the repo in dev, app.asar.unpacked when
+// packaged — and feature-flags.json sits there. The settings file is the worker's own and is read
+// before anything else needs a preference; a first boot imports it from main's config.json.
+const flags = loadFeatureFlags(path.resolve(path.dirname(Bare.argv[1]), '..', '..'), { override: bootstrap.featureFlags, log })
+const settingsLoad = await loadSettings(bootstrap.storage)
+if (settingsLoad.imported) log.info('settings: imported from config.json')
+if (!settingsLoad.persisted) log.warn('settings: running on defaults, settings.json could not be', settingsLoad.broken ? 'read: ' + settingsLoad.broken : 'written')
+setRuntimeConfig(assembleRuntimeConfig({ bootstrap, settings: getSettings(), flags }))
 
 // DIAGNOSTIC — the bootstrap frame carries the storage path, which is the first moment the worker
 // knows which directory to protect. Armed here, before boot() opens the Corestore, so every
