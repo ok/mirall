@@ -40,6 +40,16 @@ function isZ32(value) {
   return true
 }
 
+// The web form of the ticket link, https://<any host>/<any path>/relay#<ticket>, is read by its
+// last path segment and its fragment; the host is never checked.
+function webTicketPayload(lowered) {
+  if (!lowered.startsWith('https://') && !lowered.startsWith('http://')) return null
+  let url
+  try { url = new URL(lowered) } catch { return null }
+  if (url.pathname.replace(/\/+$/, '').split('/').pop() !== 'relay') return null
+  return url.hash.slice(1)
+}
+
 function checksum(body) {
   return crypto.hash(body).subarray(0, CHECKSUM_BYTES)
 }
@@ -92,10 +102,12 @@ export function parseRelayInput(input) {
   // PDFs, and a payload carrying a newline would otherwise fail the alphabet check and be
   // reported as unrecognisable rather than as the mangled invite it is.
   const lowered = trimmed.toLowerCase().replace(/\s+/g, '')
-  const stripped = lowered.startsWith(TICKET_PREFIX) ? lowered.slice(TICKET_PREFIX.length) : lowered
+  const fromWeb = webTicketPayload(lowered)
+  const linked = fromWeb !== null || lowered.startsWith(TICKET_PREFIX)
+  const stripped = fromWeb ?? (linked ? lowered.slice(TICKET_PREFIX.length) : lowered)
   const payload = stripped.replace(/\/+$/, '')
   if (payload.length !== TICKET_CHARS) {
-    const meantAnInvite = lowered.startsWith(TICKET_PREFIX) || (payload.length > LONGEST_KEY_CHARS && isZ32(payload))
+    const meantAnInvite = linked || (payload.length > LONGEST_KEY_CHARS && isZ32(payload))
     return { ok: false, code: meantAnInvite ? 'incomplete-invite' : 'invalid-format' }
   }
 
