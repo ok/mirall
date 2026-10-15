@@ -157,9 +157,26 @@ test('REGRESSION (FIX-EPIPE-1): a stream error racing worker death is consumed',
 test('REGRESSION (FIX-ROOTS-1): a dead worker stops authorising reveals', (t) => {
   const { host, worker } = load()
   host.getWorker(MAIN_WORKER_SPEC)
-  t.alike(host.downloadRoots(), [], 'no roots before the worker reports any')
+  t.alike(host.revealRoots(), [], 'no roots before the worker reports any')
   worker.emit('exit')
-  t.alike(host.downloadRoots(), [], 'and none after it dies')
+  t.alike(host.revealRoots(), [], 'and none after it dies')
+})
+
+// The shell gate admits a daemon path only on this fact, and it is a fact about the worker THIS
+// window claimed: a window on a daemon main did not spawn is vouched for by nothing.
+test('a window’s worker is known local exactly while the one it claimed is one this process spawned', async (t) => {
+  const { socketPath } = await socketServer(t)
+  const { host, worker, electron } = load()
+  host.registerWorkerHost()
+  const sender = fakeSender(7)
+  t.absent(host.workerIsLocal(sender.id), 'nothing claimed, nothing vouched for')
+  const starting = electron.ipcMain.handlers.get('pear:startWorker')({ sender }, MAIN_WORKER_SPEC)
+  worker.emit('data', Buffer.from(JSON.stringify({ type: 'main-request', command: 'socket:listening', args: { path: socketPath } }) + '\n'))
+  await starting
+  t.ok(host.workerIsLocal(sender.id), 'the window’s worker is one this process spawned')
+  t.absent(host.workerIsLocal(8), 'another window has claimed nothing')
+  worker.emit('exit')
+  t.absent(host.workerIsLocal(sender.id), 'and its death withdraws the fact')
 })
 
 test('REGRESSION (FIX-ENVJSON-1): a malformed DHT knob does not take the spawn with it', (t) => {

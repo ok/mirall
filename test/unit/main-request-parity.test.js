@@ -83,7 +83,7 @@ function stubDeps({ debug = false, quitting = false } = {}) {
         addLooseWatch: (...a) => calls.push(['addLooseWatch', ...a]),
         removeLooseWatch: (...a) => calls.push(['removeLooseWatch', ...a]),
       },
-      setDownloadRoots: (roots) => calls.push(['setDownloadRoots', roots]),
+      setRevealRoots: (roots) => calls.push(['setRevealRoots', roots]),
       onSocketListening: (worker, socketPath) => calls.push(['onSocketListening', worker, socketPath]),
       sendToWorker: (_worker, frame) => calls.push(['sendToWorker', frame]),
     },
@@ -272,7 +272,7 @@ const failure = (code) => Object.assign(new Error('nope'), { code })
 
 function failingRouter(flags, fail, now) {
   const { deps } = stubDeps(flags)
-  deps.setDownloadRoots = () => { throw fail() }
+  deps.setRevealRoots = () => { throw fail() }
   return createMainRequestRouter({ ...deps, ...(now && { now }) })
 }
 
@@ -282,16 +282,16 @@ test('a repeated failure with the same code is warned once a window; a new code 
   let code = 'EACCES'
   const router = failingRouter({}, () => failure(code), () => clock)
 
-  for (let i = 0; i < 50; i++) await router.dispatch(MAIN_REQUEST.DOWNLOADS_ROOTS, {})
+  for (let i = 0; i < 50; i++) await router.dispatch(MAIN_REQUEST.REVEAL_ROOTS, {})
   t.is(failedLines(warnings).length, 1, 'fifty identical failures, one line')
 
   code = 'EMFILE'
-  await router.dispatch(MAIN_REQUEST.DOWNLOADS_ROOTS, {})
+  await router.dispatch(MAIN_REQUEST.REVEAL_ROOTS, {})
   t.is(failedLines(warnings).length, 2, 'a different code is a different failure')
 
   code = 'EACCES'
   clock += 600000
-  await router.dispatch(MAIN_REQUEST.DOWNLOADS_ROOTS, {})
+  await router.dispatch(MAIN_REQUEST.REVEAL_ROOTS, {})
   t.is(failedLines(warnings).length, 3, 'the same failure is said again once the window has passed')
 })
 
@@ -299,7 +299,7 @@ test('distinct failure codes are capped, and the cap is reported once a window',
   const warnings = muteWarn(t)
   let i = 0
   const router = failingRouter({}, () => failure('E' + i++), () => 0)
-  for (let n = 0; n < 40; n++) await router.dispatch(MAIN_REQUEST.DOWNLOADS_ROOTS, {})
+  for (let n = 0; n < 40; n++) await router.dispatch(MAIN_REQUEST.REVEAL_ROOTS, {})
   t.is(failedLines(warnings).length, 16, 'bounded')
   t.is(warnings.filter((l) => l.includes('too many distinct failures')).length, 1, 'the cap says so once')
 })
@@ -307,13 +307,13 @@ test('distinct failure codes are capped, and the cap is reported once a window',
 test('dispatch never rejects: a handler that throws, rejects, or throws a non-Error', async (t) => {
   const warnings = muteWarn(t)
   const { deps } = stubDeps()
-  deps.setDownloadRoots = () => { throw failure('ESYNC') }
+  deps.setRevealRoots = () => { throw failure('ESYNC') }
   deps.folderWatchers.startWatcher = async () => { throw failure('EASYNC') }
   deps.looseFileWatchers.removeLooseWatch = () => { throw undefined }
   deps.looseFileWatchers.addLooseWatch = () => { throw 'boom' }
   const router = createMainRequestRouter(deps)
 
-  await t.execution(router.dispatch(MAIN_REQUEST.DOWNLOADS_ROOTS, {}), 'sync throw')
+  await t.execution(router.dispatch(MAIN_REQUEST.REVEAL_ROOTS, {}), 'sync throw')
   await t.execution(router.dispatch(MAIN_REQUEST.OWNED_FOLDER_START_WATCHER, { shareId: 's1', mountPath: '/tmp/x' }), 'async rejection')
   await t.execution(router.dispatch(MAIN_REQUEST.LOOSE_FILE_UNWATCH, {}), 'a throw with no error object')
   await t.execution(router.dispatch(MAIN_REQUEST.LOOSE_FILE_WATCH, {}), 'a thrown string')
@@ -342,7 +342,7 @@ test('a command that is not a string is refused as unknown, not thrown', async (
 test('in debug every failure is logged, repeats included, and none is rate-limited', async (t) => {
   const lines = capture(t, ['warn', 'error'])
   const router = failingRouter({ debug: true }, () => failure('EACCES'))
-  for (let i = 0; i < 3; i++) await router.dispatch(MAIN_REQUEST.DOWNLOADS_ROOTS, {})
+  for (let i = 0; i < 3; i++) await router.dispatch(MAIN_REQUEST.REVEAL_ROOTS, {})
   for (let i = 0; i < 3; i++) await router.dispatch('no-such-command', {})
   t.is(lines.error.filter((l) => l.includes('[main-request] failed') && l.includes('nope')).length, 3)
   t.is(lines.error.filter((l) => l.includes('unknown command') && l.includes('no-such-command')).length, 3)
@@ -352,7 +352,7 @@ test('in debug every failure is logged, repeats included, and none is rate-limit
 test('during a quit a failure and an unknown command are silent', async (t) => {
   const lines = capture(t, ['warn', 'error'])
   const router = failingRouter({ quitting: true }, () => failure('EACCES'))
-  await router.dispatch(MAIN_REQUEST.DOWNLOADS_ROOTS, {})
+  await router.dispatch(MAIN_REQUEST.REVEAL_ROOTS, {})
   await router.dispatch('no-such-command', {})
   t.alike(lines, { warn: [], error: [] })
 })
@@ -360,7 +360,7 @@ test('during a quit a failure and an unknown command are silent', async (t) => {
 test('debug outranks a quit: a failure racing teardown is still logged in debug', async (t) => {
   const lines = capture(t, ['warn', 'error'])
   const router = failingRouter({ debug: true, quitting: true }, () => failure('EACCES'))
-  await router.dispatch(MAIN_REQUEST.DOWNLOADS_ROOTS, {})
+  await router.dispatch(MAIN_REQUEST.REVEAL_ROOTS, {})
   t.is(lines.error.length, 1)
   t.is(lines.warn.length, 0)
 })

@@ -28,7 +28,8 @@ const {
   stopWorkers,
   stopFolderWatchers,
   stopLooseWatchers,
-  downloadRoots,
+  revealRoots,
+  workerIsLocal,
 } = require('./worker-host.js')
 const {
   initWindow,
@@ -322,7 +323,8 @@ if (!lock) {
     startNetOnlineWatch()
     require('./notifications').register({
       revealWindow,
-      downloadRoots: () => downloadRoots(),
+      revealRoots: () => revealRoots(),
+      workerIsLocal,
     })
 
     // Harden identity at rest before the worker can spawn (pear:startWorker only

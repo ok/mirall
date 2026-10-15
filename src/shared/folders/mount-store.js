@@ -33,6 +33,25 @@ const records = createRecordWriter({ bee: () => bee, log })
 
 const mutateOwned = (spaceId, shareId, apply) => records.mutate(ownedKey(spaceId, shareId), apply)
 
+// Fired after a write that can change which disk paths are mounts: a create, a delete, or a write
+// that moved mountPath. Not after every mutate — the mirror pass patches a record per synced file,
+// and a roots publish per patch is the cost this condition avoids.
+let onMountRootsChanged = () => {}
+/** @param {() => void} fn */
+export function setMountRootsListener(fn) { onMountRootsChanged = fn }
+
+// A mutate that announces when the value it wrote has a different mountPath from the one it read.
+function mutateTrackingMove(key, apply) {
+  let moved = false
+  const result = records.mutate(key, (m) => {
+    const next = apply(m)
+    if (next && next.mountPath !== m.mountPath) moved = true
+    return next
+  })
+  result.then(() => { if (moved) onMountRootsChanged() }, () => {})
+  return result
+}
+
 /** @internal production opens the mounts bee through this file's own _open() */
 export async function initMounts() {
   if (bee && beeStore === storeEpoch() && !bee.core.closed) return
@@ -54,6 +73,7 @@ function foreignKey(spaceId, shareId) {
 // through mutate(), which refuses a missing record.
 export async function createOwnedMount(mount) {
   await records.put(ownedKey(mount.spaceId, mount.shareId), mount)
+  onMountRootsChanged()
 }
 
 export async function getOwnedMount(spaceId, shareId) {
@@ -63,6 +83,7 @@ export async function getOwnedMount(spaceId, shareId) {
 
 export async function deleteOwnedMount(spaceId, shareId) {
   await records.del(ownedKey(spaceId, shareId))
+  onMountRootsChanged()
 }
 
 // `status` is derived from the two facts beside it, never assigned: the three setters below name a
@@ -105,7 +126,7 @@ export function patchOwnedMount(spaceId, shareId, patch) {
         `mount ${field} is derived — use setOwnedActivity, setOwnedFault or setOwnedIndexPaused`)
     }
   }
-  return mutateOwned(spaceId, shareId, (m) => ({ ...m, ...patch }))
+  return mutateTrackingMove(ownedKey(spaceId, shareId), (m) => ({ ...m, ...patch }))
 }
 
 // Stamp lastScanCompletedAt from the record as it is NOW, never from a whole mount object captured
@@ -126,12 +147,15 @@ export async function listOwnedMounts() {
 // The first write of a mirror record. See createOwnedMount.
 export async function createForeignMount(mount) {
   await records.put(foreignKey(mount.spaceId, mount.shareId), mount)
+  onMountRootsChanged()
 }
 
 // The first write of a mirror record for a fresh mount, which must never replace one that exists:
 // resolves the existing record, or null once `mount` is stored.
-export function insertForeignMount(mount) {
-  return records.insert(foreignKey(mount.spaceId, mount.shareId), mount)
+export async function insertForeignMount(mount) {
+  const existing = await records.insert(foreignKey(mount.spaceId, mount.shareId), mount)
+  if (!existing) onMountRootsChanged()
+  return existing
 }
 
 // Derive a mirror record's next value from the record as it is NOW, never from a whole object a
@@ -139,7 +163,7 @@ export function insertForeignMount(mount) {
 // hours-long pass, so writing it back would clobber a pause / status / enabled flag persisted
 // meanwhile. Resolves to the record written, or null when the record is gone or `apply` declined.
 export function mutateForeignMount(spaceId, shareId, apply) {
-  return records.mutate(foreignKey(spaceId, shareId), apply)
+  return mutateTrackingMove(foreignKey(spaceId, shareId), apply)
 }
 
 export function patchForeignMount(spaceId, shareId, patch) {
@@ -153,6 +177,7 @@ export async function getForeignMount(spaceId, shareId) {
 
 export async function deleteForeignMount(spaceId, shareId) {
   await records.del(foreignKey(spaceId, shareId))
+  onMountRootsChanged()
 }
 
 export async function listForeignMounts() {

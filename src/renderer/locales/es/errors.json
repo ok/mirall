@@ -36,6 +36,7 @@
   "mountNotOnDevice": "Esta carpeta aún no está configurada en este dispositivo.",
   "sourceFolderMissing": "Mirall no encuentra esta carpeta en el disco. Localízala y vuelve a intentarlo.",
   "fileNotOnDevice": "Este archivo aún no está en este dispositivo.",
+  "revealRefused": "Esta ubicación no se puede abrir desde aquí.",
   "fileSourceMissing": "Mirall perdió el rastro de este archivo en el disco, así que ya no se comparte.",
   "shareModeUnsupported": "Esta carpeta se compartió de una forma que esta versión de Mirall no puede abrir.",
   "spaceIndexUnavailable": "Este espacio aún no está listo. Inténtalo de nuevo en un momento.",

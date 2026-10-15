@@ -43,14 +43,14 @@ const keyPart = (value) => (typeof value === 'string' ? value : typeof value)
 // A mirror's watcher is keyed by its mount pair; an owned share's by its id alone.
 const mirrorWatchKey = (args) => args.spaceId + ':' + args.shareId
 
-function createMainRequestRouter({ folderWatchers, looseFileWatchers, setDownloadRoots, onSocketListening, sendToWorker, isDebug, isQuitting, now = Date.now }) {
+function createMainRequestRouter({ folderWatchers, looseFileWatchers, setRevealRoots, onSocketListening, sendToWorker, isDebug, isQuitting, now = Date.now }) {
   const reportBusFailure = createFailureGate({ isDebug, isQuitting })
   // Null-prototype, because `command` comes off the worker pipe: with a plain object literal
   // `handlers['toString']` finds Object.prototype's method and the frame resolves as though it had
   // been routed — the silent success this bus exists to remove.
   const handlers = Object.assign(Object.create(null), {
-    [MAIN_REQUEST.DOWNLOADS_ROOTS]: async (args) => {
-      setDownloadRoots(Array.isArray(args?.roots)
+    [MAIN_REQUEST.REVEAL_ROOTS]: async (args) => {
+      setRevealRoots(Array.isArray(args?.roots)
         ? args.roots.filter((r) => typeof r === 'string' && r.length > 0).map((r) => path.resolve(r))
         : [])
     },

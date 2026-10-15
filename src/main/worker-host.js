@@ -77,7 +77,18 @@ function initWorkerHost(d) {
   identityWeak = d.identityWeak ?? (() => false)
 }
 
-function downloadRoots() { return workerDownloadRoots }
+function revealRoots() { return workerRevealRoots }
+
+// Whether the worker a window talks to runs on this machine. Every worker in `workers` was spawned
+// by this process and announced a socket under its own userData, so a live spawned worker is local.
+// Vouched per window, for the worker that window claimed: a daemon a window reaches without this
+// process having spawned it is not in the map and is not vouched for.
+function workerIsLocal(senderId) {
+  const worker = windowConnections.workerOf(senderId)
+  if (!worker) return false
+  for (const spawned of workers.values()) if (spawned === worker) return true
+  return false
+}
 
 // The watchers live in main because Bare has no recursive watch, and they feed the worker through
 // this module — so the quit sequence reaches them here. They stay two steps: the sequence records
@@ -85,9 +96,9 @@ function downloadRoots() { return workerDownloadRoots }
 function stopFolderWatchers() { folderWatchers.stopAllWatchers() }
 function stopLooseWatchers() { looseFileWatchers.stopLooseWatchers() }
 
-// Per-space download roots, pushed by the worker (it owns the space records). Main
-// needs them to authorize "reveal in folder" for files outside the home directory.
-let workerDownloadRoots = []
+// Download roots and mount paths, pushed by the worker (it owns the space and mount records). Main
+// needs them to authorize "reveal in folder" for paths outside the home directory.
+let workerRevealRoots = []
 
 // === Worker frame writer + the worker→main request router ===
 
@@ -125,7 +136,7 @@ function sendToWorker(worker, frame) {
 const mainRequests = createMainRequestRouter({
   folderWatchers,
   looseFileWatchers,
-  setDownloadRoots: (roots) => { workerDownloadRoots = roots },
+  setRevealRoots: (roots) => { workerRevealRoots = roots },
   onSocketListening: (worker, socketPath) => listening.get(worker)?.resolve(socketPath),
   sendToWorker,
   isDebug,
@@ -314,7 +325,7 @@ function getWorker(specifier) {
     listening.delete(worker)
     // The roots came from this worker and describe the spaces it had open. Keeping them past its
     // death leaves shell:showInFolder authorising paths nothing is serving any more.
-    workerDownloadRoots = []
+    workerRevealRoots = []
     windowConnections.workerExited(worker, code)
     workers.delete(specifier)
   })
@@ -370,7 +381,8 @@ module.exports = {
   stopWorkers,
   restartWorker,
   sendToWorker,
-  downloadRoots,
+  revealRoots,
+  workerIsLocal,
   stopFolderWatchers,
   stopLooseWatchers,
 }

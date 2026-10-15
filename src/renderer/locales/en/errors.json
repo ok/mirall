@@ -36,6 +36,7 @@
   "mountNotOnDevice": "This folder isn't set up on this device yet.",
   "sourceFolderMissing": "Mirall can't find this folder on disk. Locate it, then try again.",
   "fileNotOnDevice": "This file isn't on this device yet.",
+  "revealRefused": "This location can't be opened from here.",
   "fileSourceMissing": "Mirall lost track of this file on disk, so it isn't shared any more.",
   "shareModeUnsupported": "This folder was shared in a way this version of Mirall can't open.",
   "spaceIndexUnavailable": "This space isn't ready yet. Try again in a moment.",

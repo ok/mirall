@@ -2,6 +2,7 @@ import test from 'brittle'
 import { EventEmitter } from 'events'
 import { createIPC } from '../../src/shared/core/ipc.js'
 import { IPC_PROTOCOL_VERSION } from '../../src/shared/contract/ipc-frames.js'
+import { MAIN_REQUEST } from '../../src/shared/contract/main-requests.js'
 import { sayHello } from '../helpers/ipc-hello.js'
 import { requireHost } from '../../src/shared/core/client-trust.js'
 
@@ -266,7 +267,7 @@ test('REGRESSION (FIX-510-2): a detached client\'s frames are not work', async (
 // worker's commands to main — watcher paths, download roots, the socket path itself.)
 test('REGRESSION (FIX-510-3): a main-request reaches the host alone', (t) => {
   const { ipc, wires } = router()
-  ipc.emit('main-request', { command: 'downloads:roots', args: { roots: ['/r'] } })
+  ipc.emit('main-request', { command: MAIN_REQUEST.REVEAL_ROOTS, args: { roots: ['/r'] } })
   t.is(wires[0].of('main-request').length, 1, 'the host, which spawned the worker, gets it')
   t.is(wires[1].of('main-request').length, 0, 'a second client does not')
 })

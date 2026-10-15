@@ -24,7 +24,7 @@ function seed(personKey, socket, spaceId) {
 
 function setup(t) {
   const fake = createFakeIpc()
-  registerSpaces(fake.ipc, { log: console, publishDownloadRoots: () => {} })
+  registerSpaces(fake.ipc, { log: console, publishRevealRoots: () => {} })
   installRelayObserver({ Client: Stub })
   initRelayedConnections({ ownRelay: () => ({ key: OWN, label: null, live: true }), onChange: () => {} })
   t.teardown(() => { resetRegistries(); resetRelayedConnections(); resetRelayObserver() })

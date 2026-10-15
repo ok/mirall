@@ -1,15 +1,20 @@
 // Native notification host for the renderer: the notify:* IPC channels map to
 // Electron's Notification, with per-id replacement (a re-shown id closes its
 // predecessor), click routing back to the renderer, and a "show in folder"
-// shell helper restricted to the user's home plus the configured download roots.
+// shell helper restricted to the user's home plus the roots the worker pushes.
 const { Notification, BrowserWindow, ipcMain, nativeImage, shell } = require('electron')
 const path = require('node:path')
 const os = require('node:os')
 const crypto = require('node:crypto')
+const fs = require('node:fs')
+const { CODES } = require('../shared/contract/errors.js')
+const { PATH_HOST } = require('../shared/contract/paths.js')
 
 const active = new Map()
 let revealWindowFn = null
-let downloadRootsFn = () => []
+let revealRootsFn = () => []
+let workerIsLocalFn = () => false
+const refused = () => ({ ok: false, code: CODES.REVEAL_REFUSED })
 
 // Windows caps a toast notification's Tag (the `id` option) and Group (the
 // `groupId` option) at 64 UTF-16 code units, and Electron's Notification
@@ -72,7 +77,7 @@ const pathKeys = import('../shared/folders/path-keys.js').catch((err) => {
 const FOLD_CASE = process.platform === 'win32'
 
 // The renderer supplies this path and it ends at a shell call, so this is an authorization
-// check: keep it a bounded allowlist of the user's home plus the configured download roots.
+// check: keep it a bounded allowlist of the user's home plus the roots the worker pushed.
 // Resolve BEFORE comparing, or `<root>/../../etc/passwd` passes a prefix test.
 async function isRevealable(fullPath, roots) {
   if (typeof fullPath !== 'string' || fullPath.length === 0) return false
@@ -89,7 +94,8 @@ async function isRevealable(fullPath, roots) {
 
 function register(opts) {
   if (opts && typeof opts.revealWindow === 'function') revealWindowFn = opts.revealWindow
-  if (opts && typeof opts.downloadRoots === 'function') downloadRootsFn = opts.downloadRoots
+  if (opts && typeof opts.revealRoots === 'function') revealRootsFn = opts.revealRoots
+  if (opts && typeof opts.workerIsLocal === 'function') workerIsLocalFn = opts.workerIsLocal
 
   ipcMain.handle('notify:show', (_evt, spec) => {
     if (!spec || typeof spec !== 'object') return { shown: false }
@@ -141,18 +147,39 @@ function register(opts) {
     active.delete(id)
   })
 
-  // Two gates, independent on purpose. The host tag says whose disk the path is on: anything but an
-  // explicit 'client' is not ours to open, and a missing tag is refused rather than guessed —
-  // pointing this at a daemon path either does nothing or opens a coincidentally-existing local
-  // file of the same name. isRevealable is unchanged and still bounds what a client path may reach.
-  ipcMain.handle('shell:showInFolder', async (_evt, target) => {
-    if (target?.host !== 'client') return { ok: false }
+  // Two gates, independent on purpose. The host tag says whose disk the path is on: the client's
+  // is ours; the daemon's is ours only while the worker this window talks to is one this process
+  // spawned, which is the one fact main has about where it runs. A missing tag is refused rather
+  // than guessed — pointing this at a remote daemon's path either does nothing or opens a
+  // coincidentally-existing local file of the same name. isRevealable then bounds what any admitted
+  // path may reach, and it bounds the path the shell actually receives: a missing file is shown by
+  // its folder, so the folder is what is checked. What is on disk is main's own reading, never the
+  // caller's word, and the shell is only ever asked to SHOW a path, never to open one.
+  ipcMain.handle('shell:showInFolder', async (evt, target) => {
+    if (!hostIsOurs(target?.host, evt?.sender?.id)) return refused()
     const fullPath = target.path
-    if (typeof fullPath !== 'string' || fullPath.length === 0) return { ok: false }
-    if (!await isRevealable(fullPath, downloadRootsFn())) return { ok: false }
-    shell.showItemInFolder(path.resolve(fullPath))
+    if (typeof fullPath !== 'string' || fullPath.length === 0) return refused()
+    const resolved = path.resolve(fullPath)
+    const shown = fs.existsSync(resolved) ? resolved : path.dirname(resolved)
+    if (!isDirectoryOrFile(shown)) return refused()
+    if (!await isRevealable(shown, revealRootsFn())) return refused()
+    shell.showItemInFolder(shown)
     return { ok: true }
   })
+}
+
+function hostIsOurs(host, senderId) {
+  if (host === PATH_HOST.CLIENT) return true
+  return host === PATH_HOST.DAEMON && workerIsLocalFn(senderId)
+}
+
+function isDirectoryOrFile(p) {
+  try {
+    const st = fs.statSync(p)
+    return st.isDirectory() || st.isFile()
+  } catch {
+    return false
+  }
 }
 
 // test seam: toastSafeId and isRevealable are exported for tests only.
