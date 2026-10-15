@@ -450,7 +450,9 @@
     "autoNote": "Chiunque apra questo link entra subito fino al {{date}}. Dopo, il link smette di funzionare.",
     "reviewNote": "Chi apre questo link prima del {{date}} chiede di entrare; approvi ognuno.",
     "autoApprove": "Approva automaticamente",
-    "autoApproveDesc": "Chiunque abbia questo invito si unisce immediatamente, senza approvazione."
+    "autoApproveDesc": "Chiunque abbia questo invito si unisce immediatamente, senza approvazione.",
+    "webLink": "Link web",
+    "webLinkDesc": "Condividi un link che si apre nel browser e offre il download a chi non ha Mirall."
   },
   "feedback": {
     "titleSent": "Feedback inviato!",

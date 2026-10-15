@@ -450,7 +450,9 @@
     "autoNote": "Cualquiera que abra este enlace se une al instante hasta el {{date}}. Después, el enlace deja de funcionar.",
     "reviewNote": "Quienes abran este enlace antes del {{date}} solicitan unirse; tú apruebas cada uno.",
     "autoApprove": "Aprobar automáticamente",
-    "autoApproveDesc": "Cualquiera con esta invitación se une al instante, sin aprobación."
+    "autoApproveDesc": "Cualquiera con esta invitación se une al instante, sin aprobación.",
+    "webLink": "Enlace web",
+    "webLinkDesc": "Comparte un enlace que se abre en el navegador y ofrece la descarga a quienes no tienen Mirall."
   },
   "feedback": {
     "titleSent": "¡Comentarios enviados!",

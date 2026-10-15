@@ -4,12 +4,14 @@ import { makeReport, waitFor } from '../assert.mjs'
 
 // The invite create-flow: configure (auto-approve toggle off by default + three expiry presets, no
 // link yet) → Create → the link + setting badges, with Change returning to configure preserving the
-// choices. Exercises the new InviteModal end to end through the AX tree.
+// choices, and the Web link toggle swapping the app link for the Console's web form.
+// Exercises the InviteModal end to end through the AX tree.
 export default async function s76({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 1 })
   const toggle = { name: 'Auto-approve' }
+  const webToggle = { name: 'Web link' }
 
   try {
     await r.ok('configure step: toggle off by default, presets present, no link yet', async () => {
@@ -18,6 +20,8 @@ export default async function s76({ runDir, bootstrap }) {
       await A.openInviteModal()
       await waitFor(async () => A.has(toggle), 10000, 'Auto-approve toggle present')
       if (await A.nodeValue(toggle) !== '0') throw new Error('Auto-approve must default to off')
+      await waitFor(async () => A.has(webToggle), 8000, 'Web link toggle present')
+      if (await A.nodeValue(webToggle) !== '0') throw new Error('Web link must default to off')
       // Expiry presets are aria-pressed segmented pills — target by name only (role:button doesn't match them).
       for (const name of ['2 hours', '2 days', '2 weeks']) {
         await waitFor(async () => A.has({ name }), 8000, `expiry preset ${name} present`)
@@ -45,6 +49,17 @@ export default async function s76({ runDir, bootstrap }) {
       await A.click({ role: 'button', name: 'Change' })
       await waitFor(async () => A.has(toggle), 8000, 'back on configure')
       if (await A.nodeValue(toggle) !== '1') throw new Error('auto-approve choice not preserved across Change')
+    })
+
+    await r.ok('Web link on: Create yields the Console web form with the code in the fragment', async () => {
+      await A.click(webToggle)
+      await waitFor(async () => (await A.nodeValue(webToggle)) === '1', 10000, 'web link toggle turns on')
+      await A.click({ role: 'button', name: 'Create invite link' })
+      await A.waitText('Invite Link Ready', 10000)
+      const link = await A.copyFrom({ role: 'button', name: 'Copy' })
+      if (!link.startsWith('https://link.mirall.app/space#')) throw new Error(`expected web link, got: ${link}`)
+      if (link.endsWith('#')) throw new Error('web link carries no code')
+      await A.shot('s76-weblink', runDir)
     })
   } catch {}
 

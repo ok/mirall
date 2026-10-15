@@ -1,5 +1,5 @@
-// Creates a space invite (optional auto-approve and expiry) and presents the
-// resulting mirall://join link for copying.
+// Creates a space invite (optional auto-approve and expiry) and presents the resulting link for
+// copying: the mirall://join app link, or the web form that opens in a browser first.
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import FieldLabel from '../primitives/FieldLabel.js'
@@ -11,6 +11,8 @@ import ModalFooter from '../layout/ModalFooter.js'
 import Toggle from '../primitives/Toggle.js'
 import { useErrorText } from '../../hooks/useErrorText.js'
 import CopyButton from '../primitives/CopyButton.js'
+import { useSettings } from '../../hooks/useSettings.js'
+import { DEFAULT_WEB_LINK_BASE, toWebInviteLink } from '../../../shared/contract/invite-envelope.js'
 
 const EXPIRY = [
   { id: '2h', labelKey: 'invite.expiry.2h', ms: 2 * 60 * 60 * 1000 },
@@ -31,7 +33,9 @@ const BADGE_BASE = 'inline-flex items-center leading-none px-3 pt-[7px] pb-[5px]
 export default function InviteModal({ isOpen, onClose, onCreate }: InviteModalProps) {
   const { t, i18n } = useTranslation()
   const errorText = useErrorText()
+  const { data: settings } = useSettings()
   const [autoApprove, setAutoApprove] = useState(false)
+  const [webLink, setWebLink] = useState(false)
   const [expiry, setExpiry] = useState<ExpiryId>('2h')
   const [code, setCode] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
@@ -39,10 +43,11 @@ export default function InviteModal({ isOpen, onClose, onCreate }: InviteModalPr
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!isOpen) { setAutoApprove(false); setExpiry('2h'); setCode(null); setCreating(false); setError(null) }
+    if (!isOpen) { setAutoApprove(false); setWebLink(false); setExpiry('2h'); setCode(null); setCreating(false); setError(null) }
   }, [isOpen])
 
   const chosen = EXPIRY.find((e) => e.id === expiry) ?? EXPIRY[0]
+  const link = code === null ? null : webLink ? toWebInviteLink(settings?.links.baseUrl ?? DEFAULT_WEB_LINK_BASE, code) : `mirall://join/${code}`
   const expiresLabel = new Date(Date.now() + chosen.ms).toLocaleDateString(i18n.language, { weekday: 'short', day: 'numeric', month: 'short' })
 
   // space:invite rejects a pending membership, a pre-encryption space and an unknown space; the
@@ -81,7 +86,7 @@ export default function InviteModal({ isOpen, onClose, onCreate }: InviteModalPr
         <div className="px-10 pb-10 space-y-5">
           {/* The two steps are keyed so the swap remounts cleanly — unkeyed, React reuses the
               button DOM across steps and `transition-all` animates Create morphing into Change. */}
-          {code === null ? (
+          {link === null ? (
             <Fragment key="configure">
               <div className="bg-surface-container-low row-group">
                 <Toggle
@@ -89,6 +94,12 @@ export default function InviteModal({ isOpen, onClose, onCreate }: InviteModalPr
                   description={t('invite.autoApproveDesc')}
                   checked={autoApprove}
                   onChange={setAutoApprove}
+                />
+                <Toggle
+                  label={t('invite.webLink')}
+                  description={t('invite.webLinkDesc')}
+                  checked={webLink}
+                  onChange={setWebLink}
                 />
               </div>
 
@@ -132,9 +143,9 @@ export default function InviteModal({ isOpen, onClose, onCreate }: InviteModalPr
           ) : (
             <Fragment key="ready">
               <div className="flex items-center gap-2 bg-surface-container-low rounded-xl p-2 pl-5">
-                <span className="text-on-surface-variant font-medium text-sm truncate flex-grow font-mono">{`mirall://join/${code}`}</span>
+                <span className="text-on-surface-variant font-medium text-sm truncate flex-grow font-mono">{link}</span>
                 <CopyButton
-                  value={`mirall://join/${code}`}
+                  value={link}
                   showLabel
                   className="ml-auto flex items-center gap-2 bg-surface-container-lowest text-accent text-xs font-bold px-4 py-2.5 rounded-lg active:scale-95 transition-all shadow-sm shrink-0 focus-ring"
                 />

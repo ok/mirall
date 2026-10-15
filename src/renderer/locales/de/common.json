@@ -450,7 +450,9 @@
     "autoNote": "Wer diesen Link öffnet, tritt sofort bei – bis {{date}}. Danach funktioniert der Link nicht mehr.",
     "reviewNote": "Wer diesen Link vor {{date}} öffnet, stellt eine Beitrittsanfrage – du gibst jede einzeln frei.",
     "autoApprove": "Automatisch annehmen",
-    "autoApproveDesc": "Jeder mit diesem Einladungslink tritt sofort bei, ohne Freigabe."
+    "autoApproveDesc": "Jeder mit diesem Einladungslink tritt sofort bei, ohne Freigabe.",
+    "webLink": "Weblink",
+    "webLinkDesc": "Link, der sich im Browser öffnet und ohne installiertes Mirall den Download anbietet."
   },
   "feedback": {
     "titleSent": "Feedback gesendet!",
