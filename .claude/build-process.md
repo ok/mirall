@@ -102,6 +102,33 @@ OTA* below) is a `workflow_dispatch` build: from `main` during normal developmen
 any `release/*` branch can be built for `dev` or `staging`; `prod` is built only from a `v*` tag on
 its `release/<x.y>` branch.
 
+## Changelog — `CHANGELOG.md`
+
+`CHANGELOG.md` is for users scanning a release: it says **what changed and why, never how**. How
+a feature works, its setup steps, options and rows belong in the docs.
+
+**Entry shape.** A bold headline states the *what*; at most one or two sentences of *why* or who
+it affects follow. An entry is **at most four lines** wrapped at 76 columns. The release summary
+paragraph under the date heading is also at most four lines.
+
+**Buckets**, and only these four:
+- **Added** — a new capability. A new screen with new functions is Added even when it also takes
+  over something from elsewhere (About Mirall took the version info in 1.12).
+- **Changed** — an existing behavior or requirement now differs.
+- **Fixed** — wrong behavior is now right.
+- **Security** — someone could do something they should not have been able to.
+
+**Order.** Added and Changed by user value, Fixed and Security by severity, highest first:
+irreversible data loss and code execution, then an app that cannot start or be used, then silent
+failures, then wasted disk or time, cosmetic last. Slot a new entry by rank, never append.
+
+**Stays out:** the background engine or worker (users have only ever had one package; name the
+visible symptom or drop it), flag-gated work while the flag is off, fixes to something new in the
+same release, build, CI, dependencies and tests, and anything already in a shipped section.
+
+**Released sections are frozen.** Only the top `## Unreleased` section is edited. Where a
+backported fix's entry goes while a patch is pending is in *Branches & releases* above.
+
 ## CI build — `.github/workflows/build-electron.yml`
 
 **Triggers**

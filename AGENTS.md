@@ -173,7 +173,8 @@ State explicitly which mode was picked and why at the start of the task.
   deps.
 - `.claude/build-process.md` — how a release flows from a tag push to an installed user: CI build →
   R2 → seed-VM `pear stage`/`provision` → client OTA swap, plus the `dev`/`staging`/`prod` channel
-  model.
+  model. Its *Changelog* section is the rule for every `CHANGELOG.md` entry: what and why, never
+  how, at most four lines.
 - `.claude/lessons.md` — running log of hard-won, non-obvious lessons from real debugging and
   implementation: gotchas, root causes, and the fixes that actually worked, so the same mistakes
   aren't repeated.
