@@ -23,10 +23,11 @@ function validCap(value) {
 }
 
 export function settingsView() {
-  const { downloads, network } = getSettings()
+  const { downloads, network, links } = getSettings()
   return {
     downloads: { folder: getGlobalDownloadDir(), isDefault: downloads.folder === null },
     network: { downloadKBps: network.downloadKBps, uploadKBps: network.uploadKBps, relayMode: network.relayMode, relay: network.relay },
+    links: { baseUrl: links.baseUrl },
   }
 }
 

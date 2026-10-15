@@ -1,7 +1,9 @@
 // Parses mirall:// deep links into actions for the renderer. Only
 // mirall://join/<invite-code> (or ?code=) is recognized; the invite must
 // decode as a valid envelope, so arbitrary OS-delivered URLs can't inject
-// anything beyond a well-formed join request.
+// anything beyond a well-formed join request. The https web form of a link
+// (docs/web-links/) is never claimed by the app: its page hands the payload
+// here as mirall://join/<code>, and a pasted one is peeled by extractInviteCode.
 
 // src/shared/contract/invite-envelope.js is ESM; src/main is CJS. Load it once via
 // dynamic import at module evaluation time. parseDeepLink awaits readiness,

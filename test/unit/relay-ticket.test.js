@@ -26,7 +26,7 @@ test('the pinned vector encodes exactly', (t) => {
 })
 
 test('a ticket parses to the relay key and the member seed', (t) => {
-  for (const form of [PAYLOAD, TICKET_PREFIX + PAYLOAD, `  ${TICKET_PREFIX}${PAYLOAD}  `, PAYLOAD.toUpperCase(), `${TICKET_PREFIX}${PAYLOAD}/`]) {
+  for (const form of [PAYLOAD, TICKET_PREFIX + PAYLOAD, `  ${TICKET_PREFIX}${PAYLOAD}  `, PAYLOAD.toUpperCase(), `${TICKET_PREFIX}${PAYLOAD}/`, `https://link.mirall.app/relay#${PAYLOAD}`, `https://console.example/link/relay/#${PAYLOAD.toUpperCase()}`]) {
     const res = parseRelayInput(form)
     t.is(res.ok, true, 'accepted')
     t.is(res.kind, 'private')
@@ -54,7 +54,7 @@ test('a one-character truncation is rejected by length, not by the checksum', (t
 // the useful one. Telling someone who pasted 110 of 111 characters that this "is not a relay
 // key or an invite" wastes the only chance we get to say "copy the whole thing".
 test('a mangled invite is told to copy the whole thing, not that it is unrecognisable', (t) => {
-  for (const input of [PAYLOAD.slice(0, 110), PAYLOAD + 'y', TICKET_PREFIX + PAYLOAD.slice(0, 110), TICKET_PREFIX + 'nope']) {
+  for (const input of [PAYLOAD.slice(0, 110), PAYLOAD + 'y', TICKET_PREFIX + PAYLOAD.slice(0, 110), TICKET_PREFIX + 'nope', `https://link.mirall.app/relay#${PAYLOAD.slice(0, 110)}`]) {
     t.is(parseRelayInput(input).code, 'incomplete-invite', input.slice(0, 24))
   }
   for (const input of ['not-a-relay-key', 'ws://relay.example.com:8080', '', 'hello world']) {
