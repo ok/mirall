@@ -80,7 +80,7 @@ async function heldDevice(t, { whileAway = async () => {} } = {}) {
   await writeRestoreHold(d.storage, [PROFILE_BEE, catalog], 'backup')
   const { root, fake } = await start(t, d, masterSecret)
   registerProfile(fake.ipc, { log: quiet })
-  registerSpaces(fake.ipc, { log: quiet, publishDownloadRoots: () => {} })
+  registerSpaces(fake.ipc, { log: quiet, publishRevealRoots: () => {} })
   const mountOwnedShare = createOwnedMounter({ ipc: fake.ipc, mounts: root.mounts })
   registerShares(fake.ipc, { log: quiet, intents: root.intents, mountOwnedShare })
   registerOwnedFolders(fake.ipc, { log: quiet, mounts: root.mounts, intents: root.intents, mountOwnedShare })

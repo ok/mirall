@@ -2,7 +2,7 @@ import test from 'brittle'
 import { EventEmitter } from 'events'
 import { createIPC } from '../../src/shared/core/ipc.js'
 import { EPHEMERAL_EVENTS, TARGETED_EVENTS, isEphemeralEvent } from '../../src/shared/contract/events.js'
-import { MAIN_REQUEST_FRAME } from '../../src/shared/contract/main-requests.js'
+import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../../src/shared/contract/main-requests.js'
 import { sayHello } from '../helpers/ipc-hello.js'
 
 const REQUESTS = Object.freeze({ 'ping': { kind: 'query', args: {} } })
@@ -54,7 +54,7 @@ test('the hint bus rides the same counter', async (t) => {
 
 test('a main-request frame carries no ordinal and consumes none', (t) => {
   const { ipc, wires } = router()
-  ipc.emit(MAIN_REQUEST_FRAME, { command: 'downloads:roots', args: { roots: [] } })
+  ipc.emit(MAIN_REQUEST_FRAME, { command: MAIN_REQUEST.REVEAL_ROOTS, args: { roots: [] } })
   ipc.emit('event:network-status', {})
   const [mainFrame, event] = wires[0].frames()
   t.absent('seq' in mainFrame, 'main consumes this off the same pipe; no client subscribes to it')

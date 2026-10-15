@@ -153,7 +153,7 @@ export interface MirallBridge {
   isWindowFocused(): Promise<boolean>
   focusWindow(): Promise<void>
   closeNotification(id: string): Promise<void>
-  showInFolder(target: { path: string; host: PathHost }): Promise<{ ok: boolean }>
+  showInFolder(target: { path: string; exists?: boolean; host: PathHost }): Promise<{ ok: boolean; code?: string }>
   onNotificationClick(listener: (event: NotificationClickEvent) => void): () => void
 
   getPrefs(): Promise<AppPrefs>

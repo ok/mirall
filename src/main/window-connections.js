@@ -105,6 +105,11 @@ function createWindowConnections({
     return true
   }
 
+  function workerOf(senderId) {
+    const entry = windows.get(senderId)
+    return entry && !entry.exited ? entry.worker : null
+  }
+
   function workerExited(worker, code) {
     for (const entry of windows.values()) {
       if (entry.worker !== worker) continue
@@ -113,7 +118,7 @@ function createWindowConnections({
     }
   }
 
-  return { claim, open, write, workerExited }
+  return { claim, open, write, workerOf, workerExited }
 }
 
 module.exports = { createWindowConnections, assertPrivateSocketDir }

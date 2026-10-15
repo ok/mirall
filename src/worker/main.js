@@ -40,6 +40,8 @@ import {
   setRuntimeConfig, getIpcKeepaliveMs, getIpcKeepaliveGraceMs,
 } from '../shared/core/runtime-config.js'
 import { forgetSpaceDownloadRoot, listDownloadRoots } from '../shared/core/paths.js'
+import { listRevealRoots } from '../shared/folders/reveal-roots.js'
+import { setMountRootsListener } from '../shared/folders/mount-store.js'
 import { loadSettings, getSettings } from '../shared/core/settings-store.js'
 import { loadFeatureFlags } from '../shared/core/feature-flags.js'
 import { assembleRuntimeConfig } from '../shared/core/runtime-config-sources.js'
@@ -80,18 +82,32 @@ const health = createHealthMonitor({
   },
 })
 
-// Main authorizes "reveal in folder" against these, and cannot read the space records
-// that hold the per-space overrides, so the set is pushed to it on every change.
-function publishDownloadRoots() {
-  ipc.emit(MAIN_REQUEST_FRAME, { command: MAIN_REQUEST.DOWNLOADS_ROOTS, args: daemonPaths({ roots: listDownloadRoots() }) })
+// Main authorizes "reveal in folder" against these — download roots and mount paths — and cannot
+// read the space or mount records that hold them, so the set is pushed to it on every change.
+// Main's copy is last-frame-wins, so one listing is in flight at a time and a change that lands
+// during it runs one more afterwards: a burst of mount deletes costs one scan, and no frame can
+// overtake a newer one. A listing that fails still publishes the download roots, so a narrowing is
+// never lost. Callers hand this on as a `() => void`.
+let revealRootsListing = null
+let revealRootsDirty = false
+function publishRevealRoots() {
+  if (revealRootsListing) { revealRootsDirty = true; return }
+  revealRootsListing = listRevealRoots()
+    .catch((err) => { log.warn('reveal roots listing failed, publishing download roots only:', err.message); return listDownloadRoots() })
+    .then((roots) => {
+      ipc.emit(MAIN_REQUEST_FRAME, { command: MAIN_REQUEST.REVEAL_ROOTS, args: daemonPaths({ roots }) })
+      revealRootsListing = null
+      if (revealRootsDirty) { revealRootsDirty = false; publishRevealRoots() }
+    })
 }
+setMountRootsListener(publishRevealRoots)
 
 // Dropping a root is a NARROWING of that allowlist, so it has to be published like any other
 // change: main's copy is push-only, and a forget that never republishes leaves it authorizing
 // reveals under a departed space's folder for the rest of the process lifetime.
 function dropSpaceDownloadRoot(spaceId) {
   forgetSpaceDownloadRoot(spaceId)
-  publishDownloadRoots()
+  publishRevealRoots()
 }
 
 // === Crash safety & shutdown ===
@@ -232,7 +248,7 @@ async function serveLockedIdentity(code) {
   await new Promise(() => {})
 }
 
-// The root constructs everything it needs; the membership collaborators and publishDownloadRoots
+// The root constructs everything it needs; the membership collaborators and publishRevealRoots
 // are passed in because they close over state that belongs here.
 let lockedBy = null
 try {
@@ -241,7 +257,7 @@ try {
     ipc,
     log,
     membershipControl: handleMembershipControl,
-    publishDownloadRoots,
+    publishRevealRoots,
     memberRegistry,
     // Publishes a closable handle before the root finishes starting, so a pipe close or a quit
     // during boot still announces departure and drops what came up. The full root replaces it on
@@ -277,7 +293,7 @@ registerIdentity(ipc, {
   restoreStatus: () => root?.restoreCatchUp?.status() ?? null,
 })
 
-registerSpaces(ipc, { log, publishDownloadRoots })
+registerSpaces(ipc, { log, publishRevealRoots })
 
 registerBackup(ipc, { backup: root.backup, paused: root.backupPaused, openRecovery })
 registerBackupRestore(ipc, { storagePath: bootstrap.storage, identityKEK: bootstrap.identityKEK, log, lockedBy: null, openRecovery })
@@ -290,7 +306,7 @@ registerFiles(ipc, { log })
 
 // === IPC: feedback, storage & settings handlers ===
 
-registerSettings(ipc, { mounts, publishDownloadRoots })
+registerSettings(ipc, { mounts, publishRevealRoots })
 registerStorage(ipc)
 registerFeedback(ipc)
 registerNetwork(ipc, { applyRelayConfig })

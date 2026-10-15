@@ -137,8 +137,9 @@ the bootstrap, shutdown and watcher events down, and the worker's main-request f
   decodes. Links queue until the renderer calls `deeplink:flush`. Linux desktop-entry handling:
   `src/main/xdg-integration.js`, §5.2.
 - **Reveal allowlist** — the only app state main holds. `shell:showInFolder` accepts home, the
-  configured download folder, and the per-space roots the worker pushes (`downloads:roots`). The
-  pushed roots are dropped when that worker exits.
+  configured download folder, and the roots the worker pushes (`reveal:roots`): its download roots
+  and every owned or mirrored mount path, republished when a mount is created, deleted or moved.
+  The pushed roots are dropped when that worker exits.
 - **Watchers.** The worker requests them over the main-request bus (commands named in
   `src/shared/contract/main-requests.js`). `src/main/watch-host.js` is the sole owner of the
   watcher package (`chokidar4bare`). Options are per instance, so it keeps a native and a lazy
@@ -1278,9 +1279,15 @@ there. The rules:
   `settings:set-download-folder`, `network:set-relay`) pokes through the `settings` reconcile scope.
   A relay change writes the member seed to main's vault first (`relay:set`), then the slot to the
   worker.
-- `showInFolder({ host, path })` is an authorization check (`src/main/notifications.js`). Anything
-  but `host: 'client'` is refused. The path is resolved *before* the containment test and must lie
-  under the home dir or a download root the worker published.
+- `showInFolder({ host, path, exists })` is an authorization check (`src/main/notifications.js`).
+  `host: 'client'` is the client's own; `host: 'daemon'` is admitted only while the worker the
+  calling window claimed is one this process spawned (`workerIsLocal(senderId)`); anything else is
+  refused with `REVEAL_REFUSED`. The path is resolved *before* the containment test and must lie
+  under the home dir or a root the worker published. What is on disk is main's own stat, never the
+  caller's `exists`: a path that is there is shown, a path that is not is shown by its folder if that
+  is a directory, and the path checked is the one the shell receives. The gate only ever shows
+  (`showItemInFolder`), never opens. The worker's three reveal requests answer a `RevealTarget` and
+  open nothing; `src/renderer/platform/reveal-client.js` carries the answer to this gate.
 
 ### Renderer ↔ Worker (NDJSON)
 

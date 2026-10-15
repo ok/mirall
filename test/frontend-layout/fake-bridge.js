@@ -154,7 +154,7 @@
     notify: asyncNoop,
     isWindowFocused: () => Promise.resolve(true),
     focusWindow: asyncNoop,
-    showInFolder: asyncNoop,
+    showInFolder: () => Promise.resolve({ ok: true }),
     onNotificationClick: noop,
     getPrefs: () => Promise.resolve({}),
     setPrefs: asyncNoop,

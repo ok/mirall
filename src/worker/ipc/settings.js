@@ -33,9 +33,9 @@ export function settingsView() {
 
 /**
  * @param {WorkerIpc} ipc
- * @param {{ mounts: WorkerRoot['mounts'], publishDownloadRoots: () => void }} deps
+ * @param {{ mounts: WorkerRoot['mounts'], publishRevealRoots: () => void }} deps
  */
-export function registerSettings(ipc, { mounts, publishDownloadRoots }) {
+export function registerSettings(ipc, { mounts, publishRevealRoots }) {
   const verbose = createVerbosePolicy({ apply: setVerbose })
   ipc.onClientDisconnect((client) => verbose.release(client.id))
   const poke = () => ipc.emit('event:reconcile', { scope: Scope.settings() })
@@ -56,7 +56,7 @@ export function registerSettings(ipc, { mounts, publishDownloadRoots }) {
     const folder = msg?.folder ? await validateDownloadFolderAgainstMounts(msg.folder) : null
     await updateSettings((s) => { s.downloads.folder = folder; return s })
     setDownloadFolder(folder)
-    publishDownloadRoots()
+    publishRevealRoots()
     poke()
     return settingsView()
   })

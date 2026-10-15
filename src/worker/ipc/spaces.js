@@ -43,8 +43,8 @@ import { fullRoster, stripWorkerFields, slimSpaces } from '../space-projection.j
 import { openMemberView } from '../../shared/spaces/member-registry.js'
 import { assertProfileWritable } from '../../shared/core/restore-guard.js'
 
-/** @param {WorkerIpc} ipc @param {{ log: Logger, publishDownloadRoots: () => void }} deps */
-export function registerSpaces(ipc, { log, publishDownloadRoots }) {
+/** @param {WorkerIpc} ipc @param {{ log: Logger, publishRevealRoots: () => void }} deps */
+export function registerSpaces(ipc, { log, publishRevealRoots }) {
   ipc.handle('spaces:list', async () => slimSpaces(await getProfile()))
 
   ipc.handle('space:members', async (msg) => {
@@ -222,7 +222,7 @@ export function registerSpaces(ipc, { log, publishDownloadRoots }) {
     if (updated) {
       if (downloadFolder !== undefined) {
         setSpaceDownloadRoot(msg.spaceId, downloadFolder)
-        publishDownloadRoots()
+        publishRevealRoots()
         // Every row's downloaded status derives from the root, so re-derive the file views.
         ipc.emit('event:files-updated', { spaceId: msg.spaceId })
       }

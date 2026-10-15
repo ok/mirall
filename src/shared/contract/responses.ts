@@ -513,6 +513,10 @@ export interface FreeUpResult { restartRequired: boolean, requested: string[] }
 // not count, the same rule as the loose listing's `complete`.
 export interface SpaceStorageSummary { totalBytes: number, onDeviceBytes: number, complete: boolean }
 export interface RootsStatus { unavailable: string[], host: PathHost }
+
+// Where a reveal lands on the worker's disk. `exists: false` means the file is not there but its
+// folder is, and the client shows the folder; a target with neither is an error, never an answer.
+export interface RevealTarget { path: string, exists: boolean, host: PathHost }
 export interface VerboseState { verbose: boolean }
 export interface PingResult { pong: true, timestamp: number }
 export interface ResumeResult { epoch: string, head: number, gap: boolean, replayed: number }
@@ -636,7 +640,7 @@ interface Responses {
   'files:list': LooseFileListing
   'files:pause-download': Ack
   'files:remove': Ack
-  'files:reveal': Ack
+  'files:reveal': RevealTarget
   'foreign-folder:cancel-preview': Ack
   'foreign-folder:get': ForeignFolderMount | null
   'foreign-folder:list-all': ForeignFolderMount[]
@@ -693,8 +697,8 @@ interface Responses {
   'share:list-files': ShareFileListing
   'share:read-file': ShareDownloadResult
   'share:rename': Share
-  'share:reveal-file': Ack
-  'share:reveal-folder': Ack
+  'share:reveal-file': RevealTarget
+  'share:reveal-folder': RevealTarget
   'shutdown': Ack
   'space:approve-member': ApproveMemberResult
   'space:create': SpaceRecord

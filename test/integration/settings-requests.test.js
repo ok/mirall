@@ -11,7 +11,7 @@ import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 async function setup(t) {
   const peer = await freshPeer(t)
   let published = 0
-  registerSettings(peer.fake.ipc, { mounts: peer.root.mounts, publishDownloadRoots: () => { published++ } })
+  registerSettings(peer.fake.ipc, { mounts: peer.root.mounts, publishRevealRoots: () => { published++ } })
   const file = path.join(path.dirname(peer.storage), 'settings.json')
   const stored = () => JSON.parse(fs.readFileSync(file, 'utf-8'))
   const pokes = () => peer.fake.emitted('event:reconcile').filter((e) => e.payload?.scope?.kind === 'settings').length

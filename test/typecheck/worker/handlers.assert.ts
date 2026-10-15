@@ -49,6 +49,12 @@ ipc.handle('ping', async (_msg, ctx) => { void ctx.client.id; return { pong: tru
 // @ts-expect-error the context carries the client, not its id
 ipc.handle('ping', async (_msg, ctx) => { const id: number = ctx.client; void id; return { pong: true, timestamp: 0 } })
 
+ipc.handle('files:reveal', async () => ({ path: '/a', exists: true, host: 'daemon' as const }))
+// @ts-expect-error a reveal answers where the file is, not an acknowledgement
+ipc.handle('files:reveal', async () => ({ ok: true }))
+// @ts-expect-error a reveal always says whether the target is there
+ipc.handle('share:reveal-folder', async () => ({ path: '/a', host: 'daemon' as const }))
+
 ipc.handle('storage:free-up', async () => ({ restartRequired: false, requested: [] }))
 // @ts-expect-error free-up reports whether a restart is needed
 ipc.handle('storage:free-up', async () => ({ requested: [] }))

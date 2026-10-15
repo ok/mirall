@@ -19,7 +19,7 @@ test('setVerbose is per client, and a disconnect releases that client’s claim'
   setVerbose(t, false)
 
   const fake = createFakeIpc()
-  registerSettings(fake.ipc, { mounts: mountsStub, publishDownloadRoots: () => {} })
+  registerSettings(fake.ipc, { mounts: mountsStub, publishRevealRoots: () => {} })
 
   t.alike(await fake.call('setVerbose', { verbose: true }, { client: CLIENT_A }), { verbose: true })
   t.is(getRuntimeConfig().verbose, true, 'the runtime config followed')
@@ -36,7 +36,7 @@ test('a worker booted verbose is left alone until a client says otherwise', asyn
   setVerbose(t, true)
 
   const fake = createFakeIpc()
-  registerSettings(fake.ipc, { mounts: mountsStub, publishDownloadRoots: () => {} })
+  registerSettings(fake.ipc, { mounts: mountsStub, publishRevealRoots: () => {} })
   fake.disconnect(CLIENT_A)
   t.is(getRuntimeConfig().verbose, true, 'nothing was claimed, so nothing is released')
 })
@@ -49,7 +49,7 @@ test('REGRESSION (FIX-403-1): a client can switch off a worker that booted verbo
   setVerbose(t, true)
 
   const fake = createFakeIpc()
-  registerSettings(fake.ipc, { mounts: mountsStub, publishDownloadRoots: () => {} })
+  registerSettings(fake.ipc, { mounts: mountsStub, publishRevealRoots: () => {} })
 
   t.alike(await fake.call('setVerbose', { verbose: false }, { client: CLIENT_A }), { verbose: false },
     'the toggle reports what it achieved')

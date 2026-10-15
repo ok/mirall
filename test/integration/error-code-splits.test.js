@@ -4,7 +4,7 @@ import { freshPeer } from '../helpers/store.js'
 import { CODES } from '../../src/shared/contract/errors.js'
 import { relocateForeignFolder, setForeignEnabled } from '../../src/shared/folders/foreign-verbs.js'
 import { addFile } from '../../src/shared/transfer/file-listing.js'
-import { revealLocalPath } from '../../src/shared/transfer/reveal.js'
+import { revealTarget } from '../../src/shared/transfer/reveal.js'
 
 // REGRESSION (FIX-CODES-2). These handler paths all threw NOT_FOUND — one code shared by 27 sites
 // carrying 13 distinct meanings, which the renderer mapped to a single sentence ("Choose a folder
@@ -29,7 +29,7 @@ test('a mirror verb on a mount that is not here reports MOUNT_NOT_ON_DEVICE', as
 test('revealing a file that is not on disk reports FILE_NOT_ON_DEVICE', async (t) => {
   await freshPeer(t)
   const missing = path.join('/tmp', 'no-such-dir-' + Date.now(), 'file.txt')
-  t.is(await codeOf(() => revealLocalPath(missing)), CODES.FILE_NOT_ON_DEVICE)
+  t.is(await codeOf(() => revealTarget(missing)), CODES.FILE_NOT_ON_DEVICE)
 })
 
 // REGRESSION (FIX-REVEAL-FOLDER-1: share:reveal-folder shares this walk with share:reveal-file, so a
@@ -37,8 +37,8 @@ test('revealing a file that is not on disk reports FILE_NOT_ON_DEVICE', async (t
 test('the caller chooses what a missing reveal target means', async (t) => {
   await freshPeer(t)
   const missing = path.join('/tmp', 'no-such-dir-' + Date.now(), 'folder')
-  t.is(await codeOf(() => revealLocalPath(missing, CODES.MOUNT_NOT_ON_DEVICE)), CODES.MOUNT_NOT_ON_DEVICE)
-  t.is(await codeOf(() => revealLocalPath(missing)), CODES.FILE_NOT_ON_DEVICE, 'the file wording stays the default')
+  t.is(await codeOf(() => revealTarget(missing, { missingCode: CODES.MOUNT_NOT_ON_DEVICE })), CODES.MOUNT_NOT_ON_DEVICE)
+  t.is(await codeOf(() => revealTarget(missing)), CODES.FILE_NOT_ON_DEVICE, 'the file wording stays the default')
 })
 
 test('adding a file to a space with no drive reports DRIVE_NOT_FOUND', async (t) => {

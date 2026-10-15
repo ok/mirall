@@ -140,7 +140,7 @@ export async function bootDurable(bootstrap, { ipc, log, masterSecret = undefine
  * @param deps.log         the entry's logger, used for the boot narration.
  * @param deps.membershipControl   the entry's membership-control handler (it needs the handler
  *                                 closure's state, so it is passed in rather than moved here).
- * @param deps.publishDownloadRoots  pushes the reveal allowlist to Electron main.
+ * @param deps.publishRevealRoots  pushes the reveal allowlist to Electron main.
  * @param deps.memberRegistry  the entry's member-registry collaborators (`memberRegistry` in
  *                         worker/main.js), spread into the MemberViews subsystem's deps.
  * @param deps.swarm       false skips the swarm, the content swarm and topic joins — how the
@@ -154,7 +154,7 @@ export async function bootDurable(bootstrap, { ipc, log, masterSecret = undefine
 /** @typedef {Awaited<ReturnType<typeof boot>>} WorkerRoot */
 
 export async function boot(bootstrap, {
-  ipc, log, membershipControl = null, publishDownloadRoots = () => {}, memberRegistry = {},
+  ipc, log, membershipControl = null, publishRevealRoots = () => {}, memberRegistry = {},
   swarm = true, onPartialRoot = null, masterSecret = undefined,
 } = {}) {
   const life = createLifecycle({ log })
@@ -272,7 +272,7 @@ export async function boot(bootstrap, {
     // Safe this late — nothing between store init and here reads a download root, and main.js calls
     // ipc.start() (which admits the first frame that could) only after boot() has returned.
     hydrateDownloadRoots(activeSpaces)
-    publishDownloadRoots()
+    publishRevealRoots()
     if (!restoring) await backfillMembership(activeSpaces, log)
 
     // Before the swarm: starting it wires the registry's collaborators, and a handshake that

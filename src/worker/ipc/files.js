@@ -69,10 +69,7 @@ export function registerFiles(ipc, { log }) {
     ipc.emit('event:share-files-updated', { spaceId: msg.spaceId, shareId: LOOSE_SHARE_ID })
     return { ok: true }
   })
-  ipc.handle('files:reveal', async (msg) => {
-    await revealFile(msg.spaceId, msg.path)
-    return { ok: true }
-  })
+  ipc.handle('files:reveal', async (msg) => revealFile(msg.spaceId, msg.path))
   ipc.handle('files:add', async (msg) => {
     await assertCatalogWritable(msg.spaceId)
     log.info('adding file:', msg.fileName, 'from', msg.filePath)

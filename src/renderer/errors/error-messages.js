@@ -44,6 +44,7 @@ export const ERROR_I18N_KEY_BY_CODE = {
   MOUNT_INSIDE_SELF: 'mountInsideSelf',
   MOUNT_NOT_WRITABLE: 'mountNotWritable',
   MOUNT_NOT_ON_DEVICE: 'mountNotOnDevice',
+  REVEAL_REFUSED: 'revealRefused',
   DOWNLOAD_FOLDER_OVERLAPS_MOUNT: 'downloadFolderOverlapsMount',
   DOWNLOAD_FOLDER_INVALID: 'downloadFolderInvalid',
   SOURCE_FOLDER_MISSING: 'sourceFolderMissing',

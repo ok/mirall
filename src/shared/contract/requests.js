@@ -152,7 +152,7 @@ export const REQUESTS = Object.freeze({
   'files:list': { kind: 'query', args: { spaceId: { type: ARG.spaceId } } },
   'files:pause-download': { kind: 'command', args: { transferId: { type: ARG.string } } },
   'files:remove': { kind: 'command', args: { path: { type: ARG.path }, spaceId: { type: ARG.spaceId } } },
-  'files:reveal': { kind: 'command', args: { path: { type: ARG.path }, spaceId: { type: ARG.spaceId } } },
+  'files:reveal': { kind: 'query', args: { path: { type: ARG.path }, spaceId: { type: ARG.spaceId } } },
   'foreign-folder:cancel-preview': { kind: 'command', args: { previewId: { type: ARG.string } } },
   'foreign-folder:get': { kind: 'query', args: {
     shareId: { type: ARG.shareId },
@@ -310,13 +310,13 @@ export const REQUESTS = Object.freeze({
     shareId: { type: ARG.shareId },
     spaceId: { type: ARG.spaceId },
   } },
-  'share:reveal-file': { kind: 'command', args: {
+  'share:reveal-file': { kind: 'query', args: {
     ownerKey: { type: ARG.string, max: ARG_MAX.key },
     relPath: { type: ARG.path, max: ARG_MAX.path },
     shareId: { type: ARG.shareId },
     spaceId: { type: ARG.spaceId },
   } },
-  'share:reveal-folder': { kind: 'command', args: {
+  'share:reveal-folder': { kind: 'query', args: {
     ownerKey: { type: ARG.string, max: ARG_MAX.key },
     shareId: { type: ARG.shareId },
     spaceId: { type: ARG.spaceId },

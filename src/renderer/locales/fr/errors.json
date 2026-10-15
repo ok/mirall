@@ -36,6 +36,7 @@
   "mountNotOnDevice": "Ce dossier n'est pas encore configuré sur cet appareil.",
   "sourceFolderMissing": "Mirall ne trouve pas ce dossier sur le disque. Localisez-le, puis réessayez.",
   "fileNotOnDevice": "Ce fichier n'est pas encore sur cet appareil.",
+  "revealRefused": "Cet emplacement ne peut pas être ouvert d'ici.",
   "fileSourceMissing": "Mirall a perdu la trace de ce fichier sur le disque ; il n'est donc plus partagé.",
   "shareModeUnsupported": "Ce dossier a été partagé d'une manière que cette version de Mirall ne peut pas ouvrir.",
   "spaceIndexUnavailable": "Cet espace n'est pas encore prêt. Réessayez dans un instant.",

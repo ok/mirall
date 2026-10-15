@@ -36,6 +36,7 @@
   "mountNotOnDevice": "Dieser Ordner ist auf diesem Gerät noch nicht eingerichtet.",
   "sourceFolderMissing": "Mirall findet diesen Ordner nicht auf der Festplatte. Suche ihn und versuche es erneut.",
   "fileNotOnDevice": "Diese Datei ist noch nicht auf diesem Gerät.",
+  "revealRefused": "Dieser Ort kann von hier aus nicht geöffnet werden.",
   "fileSourceMissing": "Mirall hat diese Datei auf der Festplatte verloren, sie wird daher nicht mehr geteilt.",
   "shareModeUnsupported": "Dieser Ordner wurde auf eine Art geteilt, die diese Mirall-Version nicht öffnen kann.",
   "spaceIndexUnavailable": "Dieser Space ist noch nicht bereit. Versuche es gleich noch einmal.",
