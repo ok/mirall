@@ -369,7 +369,7 @@ Copy these rather than inventing a parallel mechanism.
 - **Data that leaves the device is built by an allow-list.** `network/support-bundle.js` names every
   section it emits and shortens keys under `redact`; an unnamed key is dropped. A new section is
   spelled out there, never spread in.
-- **Renderer config is read through `platform/config-client.ts` getters**, a boot snapshot every
+- **Host config is read through `platform/config-client.ts` getters**, a boot snapshot every
   setter keeps current. A screen calls the getter; it does not subscribe to config.
 - **A frontend scenario registers itself by filename.** `test/frontend/scenarios/sNN-<slug>.mjs` is
   picked up by `scenarios/index.mjs`; there is no list to edit.

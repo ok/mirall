@@ -627,6 +627,12 @@ leaves only.
 levers pass only through `src/main/env-overrides.js` (closed when `app.isPackaged`) and the fuses
 disable the inspector. Automation that needs the hooks drives an unpackaged build.
 
+**A file the Bare worker reads at runtime must be unpacked from the asar.** Bare has no asar
+support, so a `fs.readFileSync` of a path inside `app.asar` fails and whatever the file gated runs
+on defaults. The worker finds its package root as `dirname(Bare.argv[1])/../..`, which is
+`app.asar.unpacked/` when packaged; add the file's basename to forge's asar `unpack` pattern and
+pin it in `forge-hardening.test.js`.
+
 **Preallocating with `ftruncate` is sparse on APFS/ext4 and real on NTFS.** Preflight with
 `statfsSync` and pause on ENOSPC; never retry on a full disk.
 
