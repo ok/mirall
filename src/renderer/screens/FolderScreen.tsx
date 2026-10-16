@@ -219,7 +219,7 @@ export default function FolderScreen({ spaceId, share, onBack, onMirror }: Folde
   })
 
   return (
-    <div className="max-w-7xl mx-auto px-8 flex flex-col h-[calc(100vh-5rem-var(--banner-h,0px))]">
+    <div className="max-w-(--breakpoint-2xl) mx-auto px-8 flex flex-col h-[calc(100vh-5rem-var(--banner-h,0px))]">
       <EntityHeader
         name={share.name}
         onBack={onBack}
@@ -258,7 +258,7 @@ export default function FolderScreen({ spaceId, share, onBack, onMirror }: Folde
           so any clipper flush against a focusable control shaves the ring off. `min-h-0` constrains
           the height; `min-w-0` keeps the automatic minimum size `overflow-hidden` was providing, so
           a long file name cannot stretch the 1fr track. Rings paint into the gutter and column gap. */}
-      <div className="flex-1 min-h-0 grid grid-cols-1 min-[900px]:grid-cols-[1fr_300px] gap-8 pb-8">
+      <div className="flex-1 min-h-0 grid grid-cols-[1fr_300px] gap-8 pb-8">
         <FolderListPane
           {...tree}
           filterableTotal={filterableTotal}

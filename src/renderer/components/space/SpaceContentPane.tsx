@@ -84,7 +84,7 @@ export default function SpaceContentPane(props: SpaceContentPaneProps) {
          `focus-visible:ring-2` paints outside the card, and the cards sit flush against this box.
          `min-h-0` is what constrains the height; the drop overlay is inset from this same
          positioned ancestor, so its bounds are unchanged. */
-      className="relative flex-1 min-h-0 grid grid-cols-1 min-[900px]:grid-cols-[1fr_300px] gap-8 pt-4 pb-8"
+      className="relative flex-1 min-h-0 grid grid-cols-[1fr_300px] gap-8 pt-4 pb-8"
       {...(isLegacy || props.shareHeld ? {} : drag.handlers)}
     >
       <div className="flex flex-col min-w-0 min-h-0">

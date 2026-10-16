@@ -33,7 +33,7 @@ export default function YourSpaces({ onSelectSpace, onShowCreate, onShowJoin }: 
     : sortedSpaces
 
   return (
-    <div className="max-w-7xl mx-auto px-8 flex flex-col h-[calc(100vh-5rem-var(--banner-h,0px))] pb-8">
+    <div className="max-w-(--breakpoint-2xl) mx-auto px-8 flex flex-col h-[calc(100vh-5rem-var(--banner-h,0px))] pb-8">
       <div className="pt-8 pb-4 shrink-0">
         <h1 className="text-5xl md:text-6xl font-headline font-extrabold text-accent tracking-tight leading-tight mb-4">
           {t('spaces.title')}{' '}

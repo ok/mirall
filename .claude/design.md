@@ -222,8 +222,9 @@ and `pb-1.5` to keep the 800-weight descenders out of the clip that `truncate` i
 
 - **Page shell.** Screens are a fixed-height scroll container with a centered inner column:
   `h-[calc(100vh-5.5rem-var(--banner-h,0px))] overflow-y-auto scrollbar-thin pb-8`, inner
-  `pt-8 px-8 max-w-2xl mx-auto` (settings/account) or `max-w-7xl mx-auto px-8` (spaces list, space,
-  folder views).
+  `pt-8 px-8 max-w-2xl mx-auto` (settings/account) or `max-w-(--breakpoint-2xl) mx-auto px-8`
+  (1536 px: spaces list, space, folder views, the top nav). The window is never narrower than
+  `MIN_WINDOW_WIDTH` (1024 px, `contract/limits.js`).
 - **`--banner-h`** is a live CSS variable published by `UpdateBanner` via a ResizeObserver
   (`components/layout/UpdateBanner.tsx`); every screen subtracts it so content shifts when the
   update banner appears/disappears.
@@ -260,9 +261,10 @@ and `pb-1.5` to keep the 800-weight descenders out of the clip that `truncate` i
   `bg-surface-container-high/50` hover fill. `ROW` (ActionRow), `Toggle` and the Appearance language
   rows carry it. Pinned by `npm run test:layout:case -- rowfocus`.
 - **Sticky in-page headers:** `sticky top-0 z-10 bg-surface` for list titles.
-- **Responsive:** effectively one breakpoint — `min-[900px]:grid-cols-[1fr_300px] gap-8` (content +
-  sidebar in `screens/SpaceScreen.tsx`, `screens/FolderScreen.tsx`), plus a couple of `md:` tweaks
-  on onboarding. No `sm`/`lg`/`xl` grid system.
+- **Responsive:** no grid breakpoints. The content + sidebar split, `grid-cols-[1fr_300px] gap-8`
+  (`screens/FolderScreen.tsx`, `space/SpaceContentPane.tsx`), always applies, since the window's
+  minimum width already holds it; onboarding keeps a couple of `md:` tweaks. No `sm`/`lg`/`xl`
+  grid system.
 
 ---
 

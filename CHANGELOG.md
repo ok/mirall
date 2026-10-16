@@ -37,6 +37,9 @@ files may appear, instead of looking complete or empty.
 - **Space files say when their owner is offline or still preparing them.**
 - **A download waiting for its turn says Waiting.** Only a few downloads run
 at once; the rest read Waiting instead of Downloading until a slot frees.
+- **Spaces and folders use more of a wide window.** The content now grows
+to 1536 pixels, and the window can't be made narrower than 1024, so a
+folder or space always keeps its side panel beside the file list.
 
 #### Fixed
 

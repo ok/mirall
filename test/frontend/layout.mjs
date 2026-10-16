@@ -21,18 +21,17 @@ function screen() {
 // Split the screen into `cols` equal columns and center each instance's window
 // within its column, both horizontally and vertically. Windows stay fully
 // on-screen (off-screen windows yield an empty AX tree in Chromium).
-// The four numbers are the app's own layout thresholds, not display maths: 920 is the narrowest
-// column a Mirall window can occupy and still lay out at desktop width (below it, columns collapse
-// and the scenarios stop finding what they target), 900/1200 bound the window so it neither drops
-// to the narrow layout nor stretches past the point the app stops filling it, and 1040 keeps the
-// whole window on a laptop screen. A scenario failing to find an element on a small display is
+// The four numbers are the app's own layout thresholds, not display maths: 1072 is the narrowest
+// column that holds the narrowest window (MIN_WINDOW_WIDTH) with its gaps, 1024/1200 bound the
+// window so it is never asked below the minimum main enforces nor stretched past the point the
+// tiles stop fitting, and 1040 keeps the whole window on a laptop screen. A scenario failing to find an element on a small display is
 // usually one of these, not the assertion.
 export function tile(slot, total = 2) {
   const { w, h } = screen()
   const gap = 24
-  const cols = Math.max(1, Math.min(total, Math.floor(w / 920)))
+  const cols = Math.max(1, Math.min(total, Math.floor(w / 1072)))
   const colW = Math.floor(w / cols)
-  const width = Math.max(900, Math.min(1200, colW - gap * 2))
+  const width = Math.max(1024, Math.min(1200, colW - gap * 2))
   const height = Math.min(1040, h - gap * 2)
   if (slot < cols) {
     const col = slot
