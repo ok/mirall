@@ -53,6 +53,9 @@ instead of resuming where it stopped.
 - **Pausing a mirror no longer cancels a download of the same file.** A
 file you downloaded by hand was cancelled when a mirror that wanted the
 same content paused.
+- **The next download starts as soon as one finishes.** A large file stood
+at 100% for a few seconds after its last byte arrived, and queued downloads
+waited for it. Downloads from a busy sender also run faster.
 - **Folder sizes and storage totals say when they may be too low.** When a
 member's file list could not be read yet, the Mirror to Disk dialog, its
 preview and the space storage card now say so instead of showing a partial

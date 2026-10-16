@@ -94,6 +94,41 @@ test('REGRESSION (FIX-1): seeder parks on backpressure and resumes on drain (no 
   t.pass('serve loop completed')
 })
 
+// REGRESSION: a later chunkNeed was served while an earlier one was parked on backpressure. A
+// downloader asks for a window of chunks once, then one chunk per arrival; those single-chunk loops
+// kept the stream full, so the window's tail was served last and the receiver's in-order hash
+// stalled on it until the whole file had arrived.
+const map4 = () => [...map3(), { hash: 'd', offset: 12, length: 4 }]
+
+test('REGRESSION: chunk requests from one peer are served in the order they were asked', async (t) => {
+  const proto = servingProtocol(map4(), Buffer.alloc(16, 7))
+  const { peer, sent, drain } = backpressuredPeer()
+  await grant(proto, peer)
+
+  const first = proto.serve.onChunkNeed(peer, { path: 'content:abc', indices: [0, 1, 2] })
+  await tick()
+  t.alike(sent.map((m) => m.index), [0], 'the window started, then parked on backpressure')
+  const second = proto.serve.onChunkNeed(peer, { path: 'content:abc', indices: [3] })
+  await tick()
+  t.alike(sent.map((m) => m.index), [0], 'the later request waits behind the parked one')
+  for (let i = 0; i < 3; i++) { drain(); await tick() }
+  await Promise.all([first, second])
+  t.alike(sent.map((m) => m.index), [0, 1, 2, 3], 'every chunk went out in request order')
+})
+
+test('a request that finds the stream backpressured waits for it to drain before its first chunk', async (t) => {
+  const proto = servingProtocol(map3(), Buffer.alloc(12, 7))
+  const { peer, sent, drain } = backpressuredPeer()
+  await grant(proto, peer)
+  await proto.serve.onChunkNeed(peer, { path: 'content:abc', indices: [0] })
+  t.is(sent.length, 1, 'a single chunk on a drained stream goes at once and fills it')
+  const next = proto.serve.onChunkNeed(peer, { path: 'content:abc', indices: [1] })
+  await tick()
+  t.is(sent.length, 1, 'the next request does not pile onto the full stream')
+  drain(); await next
+  t.is(sent.length, 2, 'it is sent once the stream drains')
+})
+
 test('FIX-1: a drained stream sends the whole batch in one pass (fast-path unchanged)', async (t) => {
   const proto = servingProtocol(map3(), Buffer.alloc(12, 7))
   const sent = []
@@ -398,9 +433,11 @@ test('REGRESSION (FIX-BW9): revoking a serve grant mid-park stops the keep-alive
 // instead of liveness (is it moving?). The wait now re-arms while the peer's transport is still
 // putting bytes out.
 
-// A peer that never drains, whose TX counter is whatever `tx()` says.
+// A peer whose stream fills on the first chunk and never drains, whose TX counter is whatever
+// `tx()` says.
 function transmittingPeer(tx) {
   const sent = []
+  let drained = true
   const ls = { drain: [], close: [] }
   const stream = {
     rawStream: { get bytesTransmitted() { return tx() } },
@@ -410,9 +447,9 @@ function transmittingPeer(tx) {
   }
   const peer = {
     mux: { stream },
-    channel: { closed: false, drained: false },
+    channel: { closed: false, get drained() { return drained } },
     authorizedServe: new Map(),
-    msgs: { chunkData: { send(m) { sent.push(m); return false } } },
+    msgs: { chunkData: { send(m) { sent.push(m); drained = false; return false } } },
   }
   return { peer, sent, close() { peer.channel.closed = true; stream.emit('close') } }
 }

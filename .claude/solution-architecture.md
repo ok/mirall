@@ -1186,6 +1186,11 @@ user's **real file on disk**, never a Hyperdrive blob store.
   visible `<name>.mirall.part` and is atomically renamed, so observers see only a missing or a
   complete file. Serving passes the §16 authorization gates, and **a denial looks the same as "I
   don't hold it"**.
+- **Serve order**: a holder runs one peer's chunk requests one at a time, in the order they
+  arrived, and every chunk waits for a backpressured stream to drain before it is sent
+  (`engine/protocol/serve-session.js`). The receiver's whole-file hash advances only in chunk
+  order, so a chunk served out of turn leaves everything after it to be read back and hashed once
+  the last byte is in, while the download still holds its fetch slot.
 - **Resume**: an app-private receive journal (chunk bitmap + streaming-hash snapshot, in
   `journals/`) lets an interrupted download continue without re-verifying from scratch.
 - **Fault contract**: `fetchFile` rejects with the original error iff it carries a non-empty
