@@ -84,6 +84,7 @@ most-used values:
 | `online` / `offline` | `#0d8b80` / `#a0a4ac` | Member presence |
 | `warning` / `on-warning` | `#fcd34d` / `#1b1c1a` | The yellow "needs attention" state — paused / folder missing on disk. **Solid chips only** |
 | `warning-container` / `on-warning-container` | `#fdefc6` / `#6d4c00` (dark: `#4e4229` / `#fbe3a4`) | The tinted warning *surface* — `warning` callouts, the work strip's paused band |
+| `info-container` / `on-info-container` | `#c9ddf1` / `#0f355c` (dark: `#2b4f70` / `#e1eefa`) | The tinted busy *surface* — the work strip's working band, the batch strip |
 | `error` | `#ba1a1a` (dark: `#ec9199`) | Hard error text/icon. The dark value is the darkest that clears 4.5:1 on every ground error text is painted on, including a file row's `-highest` hover lift |
 | `error-container` / `on-error-container` | `#f6c8c4` / `#93000a` | Danger button rest, error toast/badge, destructive row hover |
 | `error-container-hover` | `#e8bab6` | Danger button hover (dark: `#7c3f43`) — see the hover-token table under Buttons |
@@ -166,8 +167,14 @@ mode, below the 3:1 floor for non-text contrast. The container pair is 7.79:1 da
 Note this is why "make it lighter" is not the fix on its own: in light mode the readable direction
 is *darker*, and only a token pair can say that.
 
-`info` still carries a `bg-info/20` tint against `on-surface`. It reads acceptably, but it is the
-same drift and wants the same treatment when someone next touches it.
+`info` had the same drift: a `bg-info/20` tint that sat **1.03:1** off the page in dark (1.04:1
+light), so the work strip's working band and the batch strip all but vanished. It now has its pair,
+`info-container` / `on-info-container`: 1.64:1 off the page in dark, 1.32:1 in light, text 7.3:1 and
+9.0:1. The strip's button stays the standard secondary button, as on the paused band: it separates
+by hue, and its label carries the contrast. A progress lane on that strip cannot use the shared
+track (it sits near 1:1 on the blue), so `DownloadProgressLane host="info-container"` paints its
+fill in `on-info-container` and its track in the same at 28%; pinned by
+`progress-bar-contrast.test.js` (FIX-STRIP).
 
 ### Adding a new semantic token (two edits, not one)
 
@@ -500,7 +507,7 @@ announced from one always-mounted polite region, which also announces the end of
 
 ### Batch strip — `batch/BatchProgressStrip.tsx`
 One strip for a batch the user started, in the folder band (after the derived strips) or the
-space's pinned slot above its list: the info tone (`bg-info/20 text-on-surface`), a pulsing
+space's pinned slot above its list: the info tone (`bg-info-container text-on-info-container`), a pulsing
 `download` icon, "Downloading N files · M done · S left", a `DownloadProgressLane` named "Batch
 download progress", and `Cancel All` (secondary). Not a live region: its counts change twice a
 second, so `batch/BatchAnnouncement.tsx`, an always-mounted polite region of its own beside the
@@ -970,7 +977,7 @@ Three slots, one rule: **tiles state, the header acts, the strip acts for now.**
   and a mirrored folder (browse has the primary alone). No owner avatar: the People tile names them.
 - **Work strip** (`folder/FolderWorkStrip.tsx`) — a full-width band *outside* the scroll pane,
   present only while the folder is working, paused or broken, so its height returns to the file pane
-  when it clears. One tone per condition (`bg-info/20` busy, `bg-warning-container` paused — the
+  when it clears. One tone per condition (`bg-info-container` busy, `bg-warning-container` paused — the
   container pair, per §2 — `bg-error-container` broken, `bg-surface-container-low` informational)
   and at most one verb.
 - **Controls row** (`listing/ListControlsRow.tsx`, shared with the space screen) — pinned directly
@@ -986,7 +993,8 @@ Three slots, one rule: **tiles state, the header acts, the strip acts for now.**
 `h-1.5 bg-progress-track rounded-full` track, `bg-on-info` fill,
 `transition-all motion-reduce:transition-none`, `role="progressbar"` (no `aria-live` — frequent
 updates would spam screen readers). Every bar — this primitive, `DownloadProgressLane`,
-`PeerDownloadIndicator` and `PeerDownloadRow` — shares that track/fill pair.
+`PeerDownloadIndicator` and `PeerDownloadRow` — shares that track/fill pair, except a lane on the
+info strip (`host="info-container"`), which takes the strip's own foreground for both (§2).
 
 The transfer-row variant — `primitives/DownloadProgressLane.tsx` — adds a meta line (speed · ETA,
 ETA alone, or downloaded-so-far) and an **indeterminate** mode used while the ETA is still warming

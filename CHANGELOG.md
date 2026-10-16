@@ -91,6 +91,10 @@ shown while restoring a backup is visible again.
 - **You can see where keyboard focus is.** The outline around the control
 you reach with Tab was faint almost everywhere; it is now clearly visible,
 also on banner buttons and on a chosen option.
+- **Progress strips stand out from the page.** The blue strip above a
+folder that is syncing or adding files, and above a running batch
+download, all but blended into the page; it now reads clearly in light and
+dark mode.
 - **Files you add no longer jump around the list.** A new file appears
 right where it stays, instead of at the top until Mirall has listed it.
 - **The Activity Log names your folders.** Moving a folder logged "You moved

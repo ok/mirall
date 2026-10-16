@@ -62,6 +62,8 @@
   --color-on-warning: #1b1c1a;
   --color-warning-container: #fdefc6;
   --color-on-warning-container: #6d4c00;
+  --color-info-container: #c9ddf1;
+  --color-on-info-container: #0f355c;
 }
 
 .dark {
@@ -115,6 +117,8 @@
   --color-on-warning: #1b1c1a;
   --color-warning-container: #4e4229;
   --color-on-warning-container: #fbe3a4;
+  --color-info-container: #2b4f70;
+  --color-on-info-container: #e1eefa;
 }
 
 @font-face {
@@ -336,7 +340,8 @@ input[type='search']::-webkit-search-decoration {
   height: 100%;
   width: 40%;
   border-radius: 9999px;
-  background: var(--color-on-info);
+  /* A lane on a tinted strip names its own fill; everywhere else it is on-info. */
+  background: var(--lane-fill, var(--color-on-info));
   animation: progress-indeterminate-sweep 1.4s ease-in-out infinite;
   will-change: transform;
 }

@@ -19,11 +19,11 @@ export default function BatchProgressStrip({ progress, onCancelAll }: BatchProgr
   if (progress.done > 0) parts.push(t('batch.progressDone', { count: progress.done }))
   parts.push(t('batch.progressLeft', { size: formatSize(progress.bytesLeft) }))
   return (
-    <div className="flex items-center gap-3 px-4 py-2 rounded-lg text-sm bg-info/20 text-on-surface">
-      <Icon name="download" size={16} className="shrink-0 text-on-info animate-pulse" />
+    <div className="flex items-center gap-3 px-4 py-2 rounded-lg text-sm bg-info-container text-on-info-container">
+      <Icon name="download" size={16} className="shrink-0 animate-pulse" />
       <span className="flex-1 min-w-0 truncate">{parts.join(' · ')}</span>
       <span className="basis-40 shrink-0">
-        <DownloadProgressLane value={progress.pct} label={t('batch.progressLabel')} showPct />
+        <DownloadProgressLane value={progress.pct} label={t('batch.progressLabel')} showPct host="info-container" />
       </span>
       <Button variant="secondary" onClick={onCancelAll}>{t('batch.cancelAll')}</Button>
     </div>

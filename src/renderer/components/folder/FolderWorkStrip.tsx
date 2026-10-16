@@ -18,14 +18,14 @@ interface FolderWorkStripProps {
 const TONE: Record<StripTone, string> = {
   error: 'bg-error-container text-on-error-container',
   warning: 'bg-warning-container text-on-warning-container',
-  info: 'bg-info/20 text-on-surface',
+  info: 'bg-info-container text-on-info-container',
   neutral: 'bg-surface-container-low text-on-surface-variant',
 }
 
 const ICON_TONE: Record<StripTone, string> = {
   error: '',
   warning: '',
-  info: 'text-on-info animate-pulse',
+  info: 'animate-pulse',
   neutral: '',
 }
 
@@ -131,6 +131,7 @@ export default function FolderWorkStrip({ strip, ownerName, onAction }: FolderWo
             indeterminateText={t('format.progressUnknown')}
             indeterminate={indeterminate}
             showPct={!indeterminate}
+            host={strip.tone === 'info' ? 'info-container' : 'surface'}
           />
         </span>
       )}

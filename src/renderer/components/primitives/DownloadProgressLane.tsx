@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 import { progressValueText } from '../../format/utils.js'
 
 interface DownloadProgressLaneProps {
@@ -12,6 +13,22 @@ interface DownloadProgressLaneProps {
       otherwise expose neither valuenow nor valuetext, leaving a screen reader nothing to read. */
   indeterminateText?: string
   showPct?: boolean
+  /** What the lane is painted on. The shared track and fill are tuned against the surface ramp and
+      vanish on the info strip, so there the lane takes the strip's own foreground for both. */
+  host?: LaneHost
+}
+
+type LaneHost = 'surface' | 'info-container'
+
+// Written out in full so Tailwind sees every class.
+const LANE_TONE: Record<LaneHost, { meta: string, track: string, fill: string, sweep?: CSSProperties }> = {
+  surface: { meta: 'text-on-surface-variant', track: 'bg-progress-track', fill: 'bg-on-info' },
+  'info-container': {
+    meta: 'text-on-info-container',
+    track: 'bg-on-info-container/28',
+    fill: 'bg-on-info-container',
+    sweep: { '--lane-fill': 'var(--color-on-info-container)' } as CSSProperties,
+  },
 }
 
 // Meta shows speed + ETA while downloading, ETA alone while indexing, downloaded-so-far when
@@ -21,7 +38,8 @@ interface DownloadProgressLaneProps {
 // instead. While indeterminate the bar runs an indeterminate sweep and drops aria-valuenow per
 // the ARIA progressbar contract, so the valuetext falls back to `indeterminateText` for a caller
 // that shows no ETA at all. Animation respects reduced motion.
-export default function DownloadProgressLane({ value, label, speed, eta, bytes, indeterminate, indeterminateText, showPct }: DownloadProgressLaneProps) {
+export default function DownloadProgressLane({ value, label, speed, eta, bytes, indeterminate, indeterminateText, showPct, host = 'surface' }: DownloadProgressLaneProps) {
+  const tone = LANE_TONE[host]
   const pct = Math.min(100, Math.max(0, Math.round(value) || 0))
   const speedTok = speed || undefined
   const etaTok = eta || undefined
@@ -32,7 +50,7 @@ export default function DownloadProgressLane({ value, label, speed, eta, bytes, 
   const valueText = progressValueText(pct, speedTok, etaTok, bytesTok)
   return (
     <div className="@container/lane w-full flex flex-col justify-center gap-1.5">
-      <p className="text-[11px] leading-none text-on-surface-variant text-right truncate min-h-[11px]">
+      <p className={`text-[11px] leading-none ${tone.meta} text-right truncate min-h-[11px]`}>
         {speedTok != null && (
           <span className="hidden @min-[150px]/lane:inline">{speedTok}{etaTok != null ? ' · ' : ''}</span>
         )}
@@ -47,13 +65,14 @@ export default function DownloadProgressLane({ value, label, speed, eta, bytes, 
         aria-valuemax={100}
         aria-valuenow={indeterminate ? undefined : pct}
         aria-valuetext={indeterminate ? (etaTok ?? indeterminateText) : valueText}
-        className="relative h-1.5 w-full bg-progress-track rounded-full overflow-hidden"
+        className={`relative h-1.5 w-full ${tone.track} rounded-full overflow-hidden`}
+        style={tone.sweep}
       >
         {indeterminate ? (
           <div className="progress-indeterminate" />
         ) : (
           <div
-            className="h-full bg-on-info rounded-full transition-all motion-reduce:transition-none"
+            className={`h-full ${tone.fill} rounded-full transition-all motion-reduce:transition-none`}
             style={{ width: `${pct}%` }}
           />
         )}
