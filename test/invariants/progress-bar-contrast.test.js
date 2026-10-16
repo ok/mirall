@@ -168,3 +168,36 @@ test('REGRESSION (FIX-7): peer dropdown has no divider to lose under the card ho
   const src = read('src/renderer/components/cards/PeerDownloadDropdown.tsx')
   t.absent(/divide-/.test(src), 'rows are separated by spacing, not a divider')
 })
+
+// The info strip (a working folder, a running batch) is a host the shared track cannot clear: it
+// sits near 1:1 on the strip's blue in both themes. A lane there paints its fill and its track from
+// the strip's own foreground, the track at 28%, and the strip's text takes the same foreground.
+const STRIP_TRACK_ALPHA = 0.28
+const blend = (fg, bg, a) => '#' + [0, 2, 4].map((i) => {
+  const f = parseInt(fg.slice(1 + i, 3 + i), 16), b = parseInt(bg.slice(1 + i, 3 + i), 16)
+  return Math.round(f * a + b * (1 - a)).toString(16).padStart(2, '0')
+}).join('')
+
+test('REGRESSION (FIX-STRIP): the info strip stands off the page and its lane reads on it, both themes', (t) => {
+  for (const theme of [':root', '.dark']) {
+    const k = tokensFor(theme)
+    const strip = k['color-info-container'], fg = k['color-on-info-container']
+    t.ok(strip && fg, `${theme}: the info-container pair is defined`)
+    if (!strip || !fg) continue
+    const track = blend(fg, strip, STRIP_TRACK_ALPHA)
+    t.ok(contrast(fg, strip) >= 4.5, `${theme}: strip text = ${contrast(fg, strip).toFixed(2)}:1`)
+    t.ok(contrast(fg, track) >= 3.0, `${theme}: fill vs strip track = ${contrast(fg, track).toFixed(2)}:1`)
+    t.ok(contrast(track, strip) >= TRACK_MIN, `${theme}: strip track vs strip = ${contrast(track, strip).toFixed(2)}:1`)
+    t.ok(contrast(strip, k['color-surface']) >= TRACK_MIN, `${theme}: strip vs page = ${contrast(strip, k['color-surface']).toFixed(2)}:1`)
+  }
+  const lane = read('src/renderer/components/primitives/DownloadProgressLane.tsx')
+  t.ok(lane.includes(`bg-on-info-container/${Math.round(STRIP_TRACK_ALPHA * 100)}`), 'the lane paints the strip track at the measured alpha')
+  t.ok(lane.includes("'--lane-fill': 'var(--color-on-info-container)'"), 'the indeterminate sweep takes the strip foreground')
+  t.ok(classBlock('progress-indeterminate').includes('var(--lane-fill, var(--color-on-info))'), 'the sweep reads the lane fill, on-info by default')
+  for (const f of ['src/renderer/components/batch/BatchProgressStrip.tsx', 'src/renderer/components/folder/FolderWorkStrip.tsx']) {
+    const src = read(f)
+    t.ok(src.includes('bg-info-container text-on-info-container'), `${f}: the strip is the container pair`)
+    t.absent(src.includes('bg-info/20'), `${f}: no alpha tint left`)
+    t.ok(src.includes("'info-container'") || src.includes('host="info-container"'), `${f}: its lane is told it sits on the strip`)
+  }
+})

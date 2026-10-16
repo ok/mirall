@@ -50,6 +50,8 @@ module.exports = {
         'surface-control-hover': 'var(--color-surface-control-hover)',
         'warning-container': 'var(--color-warning-container)',
         'on-warning-container': 'var(--color-on-warning-container)',
+        'info-container': 'var(--color-info-container)',
+        'on-info-container': 'var(--color-on-info-container)',
       },
       fontFamily: {
         headline: ['Plus Jakarta Sans', 'sans-serif'],
