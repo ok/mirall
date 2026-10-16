@@ -11,7 +11,7 @@ changes do not appear here.
 
 ## v1.13.0
 
-### 2026-10-15
+### Unreleased
 
 Invite people with a link that works in a browser, and a set of mirror
 fixes: a stopped mirror keeps your edits, a full disk pauses it instead of
