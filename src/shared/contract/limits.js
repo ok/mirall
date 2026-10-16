@@ -37,7 +37,7 @@ export const DHT_FAILURE_MS = 45000
 // The window cannot be made smaller than this. Main enforces it on the BrowserWindow and the
 // renderer refuses to persist bounds below it, so a divergence would save a size that main then
 // silently refuses to restore.
-export const MIN_WINDOW_WIDTH = 900
+export const MIN_WINDOW_WIDTH = 1024
 export const MIN_WINDOW_HEIGHT = 870
 
 // A batch never asks for more files than a share may hold: the admission gate and the display

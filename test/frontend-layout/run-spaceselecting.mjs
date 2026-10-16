@@ -1,5 +1,5 @@
 // Space selection-column test (LOCAL/dev-machine only — spawns a real Electron GUI process).
-// Mounts the real <SpaceScreen> with folders and loose files at 900px, opens the column through
+// Mounts the real <SpaceScreen> with folders and loose files at 1024px, opens the column through
 // the top box, and asserts one x for every box, the folder section gone, the Files Shared header
 // still pinned flush on the scrollport, and no document overflow.
 //
@@ -7,7 +7,7 @@
 //   node test/frontend-layout/run-spaceselecting.mjs --no-build (reuse existing bundle)
 import { runHarness } from './run-harness.mjs'
 
-const out = await runHarness({ html: 'harness-spaceselecting.html', width: 900, height: 870 })
+const out = await runHarness({ html: 'harness-spaceselecting.html', width: 1024, height: 870 })
 
 console.log('\n──────── Space selection-column harness ────────')
 console.log(`selecting    : ${out.boxes} boxes at x = [${(out.boxLefts || []).join(', ')}] → ${out.oneX ? 'one x' : 'SCATTERED'}`)

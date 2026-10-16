@@ -8,7 +8,7 @@
 import { runHarness } from './run-harness.mjs'
 
 let pass = true
-for (const width of [900, 1400]) {
+for (const width of [1024, 1536]) {
   const out = await runHarness({ html: 'harness-folderselecting.html', width, height: 900 })
   process.argv.push('--no-build')
   console.log(`\n──────── Folder selection-column harness @ ${width}px ────────`)

@@ -115,7 +115,7 @@ export default function SpaceScreen({ spaceId, pendingAction, onActionConsumed, 
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-8 flex flex-col h-[calc(100vh-5rem-var(--banner-h,0px))]">
+    <div className="max-w-(--breakpoint-2xl) mx-auto px-8 flex flex-col h-[calc(100vh-5rem-var(--banner-h,0px))]">
       <HiddenFileInput ref={fileInputRef} onFiles={addFiles} />
       <SpaceHeaderBar
         spaceName={space?.name || t('space.fallbackName')}
