@@ -1191,6 +1191,9 @@ user's **real file on disk**, never a Hyperdrive blob store.
   (`engine/protocol/serve-session.js`). The receiver's whole-file hash advances only in chunk
   order, so a chunk served out of turn leaves everything after it to be read back and hashed once
   the last byte is in, while the download still holds its fetch slot.
+- **Finalize**: whatever the hash has not covered when the last byte arrives is read back and
+  hashed before the rename. A backlog worth seeing (32 MiB or more) reports as verifying progress
+  through the fetch's `onVerify`, so the row reads "Verifying…" rather than standing at 100%.
 - **Resume**: an app-private receive journal (chunk bitmap + streaming-hash snapshot, in
   `journals/`) lets an interrupted download continue without re-verifying from scratch.
 - **Fault contract**: `fetchFile` rejects with the original error iff it carries a non-empty

@@ -612,3 +612,22 @@ test('MIR-52: maxMapEntries is the tier bound for a known size, null without one
   t.is(unknown.maxMapEntries(), null, 'no known size, no derived bound')
   for (const s of [known, big, unknown]) s.cancel()
 })
+
+// The hash catch-up at finalize reports through the fetch's own onVerify, so the row reads
+// Verifying rather than a frozen 100%.
+test('finalize hands the fetch\'s onVerify to the transfer, so a hash catch-up is reported', async (t) => {
+  const verifies = []
+  const transfer = {
+    startReceive() { return { received: new Set([0, 1, 2]) } },
+    writeChunk() { return { ok: true } },
+    finalize(_dest, opts) { opts?.onVerify?.(0.25); opts?.onVerify?.(1); return { ok: true } },
+  }
+  const sched = new ChunkScheduler({
+    path: 'content:verify', destPath: '/tmp/verify', transfer, sendNeed() {}, timeout: 1000,
+    onVerify: (fraction) => verifies.push(fraction),
+  })
+  const done = sched.promise()
+  await answer(sched, peer, chunkList(3))
+  await done
+  t.alike(verifies, [0.25, 1], 'the catch-up progress reached the fetch')
+})

@@ -340,10 +340,10 @@ export class ChunkScheduler {
     if (this._finalizing || this._done) return
     this._finalizing = true
     this._reportHave(Date.now())
-    // The digest drain can outlast the idle window.
+    // The digest drain can outlast the idle window; it reports through onVerify.
     this.liveness.clear()
     let fin
-    try { fin = await this._transfer.finalize(this.destPath) } catch (err) { return this._fail(err) }
+    try { fin = await this._transfer.finalize(this.destPath, { onVerify: this._onVerify }) } catch (err) { return this._fail(err) }
     if (!fin.ok) {
       const err = new Error('finalize failed: ' + fin.error)
       if (fin.code) Object.assign(err, { code: fin.code })

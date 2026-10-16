@@ -24,11 +24,23 @@ export function advanceHash(state) {
   p.catch(() => {}).then(() => { if (state.advancePromise === p) state.advancePromise = null })
 }
 
-// Run the pump to quiescence.
-export async function settleHash(state) {
+// How much of the file the whole-file hash covers, 0..1.
+export function hashedFraction(state) {
+  if (state.hashFrontier >= state.chunks.length) return 1
+  return state.size > 0 ? state.chunks[state.hashFrontier].offset / state.size : 1
+}
+
+// Run the pump to quiescence. `onProgress` hears the hashed fraction at each of the pump's yields,
+// for a caller that has to wait the catch-up out.
+export async function settleHash(state, onProgress = null) {
   if (!state.hasher) return
-  advanceHash(state)
-  while (state.advancePromise) { try { await state.advancePromise } catch {} }
+  state.onDrainYield = onProgress ? () => onProgress(hashedFraction(state)) : null
+  try {
+    advanceHash(state)
+    while (state.advancePromise) { try { await state.advancePromise } catch {} }
+  } finally {
+    state.onDrainYield = null
+  }
 }
 
 async function drainHash(state) {
@@ -42,7 +54,11 @@ async function drainHash(state) {
       state.hasher.update(buf)
       state.hashFrontier++
       sinceYield += buf.length
-      if (sinceYield >= DRAIN_YIELD_BYTES) { sinceYield = 0; await yieldToLoop() }
+      if (sinceYield >= DRAIN_YIELD_BYTES) {
+        sinceYield = 0
+        await yieldToLoop()
+        state.onDrainYield?.()
+      }
     }
   } finally {
     state.draining = false

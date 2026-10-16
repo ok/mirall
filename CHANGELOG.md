@@ -56,6 +56,9 @@ same content paused.
 - **The next download starts as soon as one finishes.** A large file stood
 at 100% for a few seconds after its last byte arrived, and queued downloads
 waited for it. Downloads from a busy sender also run faster.
+- **A download checking its file says Verifying.** When a finished file
+still needs checking, its row shows "Verifying" with progress instead of a
+bar frozen at 100%.
 - **Folder sizes and storage totals say when they may be too low.** When a
 member's file list could not be read yet, the Mirror to Disk dialog, its
 preview and the space storage card now say so instead of showing a partial
