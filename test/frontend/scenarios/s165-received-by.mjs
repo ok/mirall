@@ -33,7 +33,7 @@ export default async function s165({ runDir, bootstrap }) {
     })
 
     await r.ok('Bob downloads it; A row then reads "Bob has it"', async () => {
-      await B.click({ role: 'button', name: 'Download', last: true })
+      await B.downloadRow({ last: true })
       await waitFor(() => existsSync(path.join(B.downloadFolder, 'report.bin')), 120000, 'Bob received report.bin')
       await waitFor(() => A.has(HAVE), 60000, 'owner row shows who has the file')
       await A.shot('s165-A-collapsed', runDir)

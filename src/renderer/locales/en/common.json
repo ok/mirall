@@ -321,6 +321,7 @@
     "modifiedHint": "Changed on this device since it was downloaded and verified.",
     "remote": "Available",
     "unavailable": "Not available",
+    "detached": "Drive not connected",
     "downloading": "Downloading",
     "verifying": "Verifying…",
     "preparing": "Preparing…",
@@ -337,7 +338,9 @@
     "revealInFolder": "Reveal in Folder",
     "verified": "Verified — content hash matches",
     "unshare": "Unshare from Space",
-    "download": "Download",
+    "downloadTo": "Download to…",
+    "inFolder": "In {{path}}",
+    "savedTo": "Saved to {{path}}",
     "downloadUnavailable": "Owner offline — download unavailable",
     "pause": "Pause Download",
     "cancel": "Cancel",
@@ -428,10 +431,8 @@
   "editSpace": {
     "title": "Edit Space",
     "desc": "Update the name, icon and download folder for this space.",
-    "downloadFolder": "Download Folder",
-    "downloadFolderDesc": "Where files you download from this space are saved. Files already downloaded elsewhere are not moved.",
-    "usingDefault": "Using the default download folder.",
-    "useDefault": "Use default folder",
+    "downloadFolder": "Downloads go to",
+    "downloadFolderDesc": "Where files you download from this space are saved. Files already downloaded stay where they are.",
     "folderError": "Could not set folder: {{error}}",
     "saveError": "Could not save changes: {{error}}"
   },
@@ -549,9 +550,18 @@
     "dismiss": "Dismiss"
   },
   "downloadFolder": {
-    "unavailableToast": "Download folder unavailable. Mirall can't reach {{path}} — downloads will fail until you reconnect it or choose another folder.",
-    "changeFolder": "Change folder",
-    "restoredToast": "Download folder is available again"
+    "restoredToast": "Download folder is available again",
+    "unavailableSpace": "{{space}} downloads to {{folder}}, which is not connected. Its downloads wait until you reconnect it or choose another folder.",
+    "chooseAnother": "Choose another folder"
+  },
+  "downloadTo": {
+    "heading": "Download to",
+    "choose": "Choose Folder…",
+    "offlinePath": "{{path}} · drive not connected",
+    "offlineStrip": "{{folder}}: drive not connected",
+    "buttonAria": "Downloads go to {{folder}}, change",
+    "buttonOffline": "{{folder}} · not connected",
+    "changed": "Downloads from {{space}} now go to {{folder}}"
   },
   "storageIndicator": {
     "title": "Space Storage",
@@ -682,10 +692,10 @@
   "storageSettings": {
     "title": "Storage",
     "intro": "View and manage Mirall data usage on this device.",
-    "downloadFolder": "Download Folder",
-    "downloadFolderDesc": "Where Mirall saves files downloaded from your space members.",
+    "downloadFolder": "Download Folder for New Spaces",
+    "downloadFolderDesc": "Spaces you create or join start downloading here. Each space then keeps its own folder; changing this one does not change them.",
     "folderError": "Could not set folder: {{error}}",
-    "folderUnavailable": "This folder is currently unavailable. It may have been moved, deleted, or is on a disconnected drive — downloads will fail until you reconnect it or choose another folder.",
+    "folderUnavailable": "This folder is currently unavailable. It may have been moved, deleted, or is on a disconnected drive — a new space starts downloading here, so choose another folder or reconnect it.",
     "calculating": "Calculating storage...",
     "appStorage": "App Storage",
     "showDetails": "Show details",
@@ -1627,7 +1637,6 @@
     "hidden_other": "{{count}} hidden by the filter",
     "deselectHidden": "Deselect hidden",
     "download": "Download {{count}}",
-    "cancel": "Cancel {{count}}",
     "unshare": "Unshare {{count}}",
     "done": "Done",
     "ended": "Selection ended",
@@ -1644,7 +1653,10 @@
     "progressAnnounce": "Batch download started",
     "progressEnded": "Batch download finished",
     "failed_one": "{{count}} file could not start",
-    "failed_other": "{{count}} files could not start"
+    "failed_other": "{{count}} files could not start",
+    "toFolder": "to {{folder}}",
+    "moreDownload": "More download options",
+    "downloadGroup": "Download"
   },
   "unshareFiles": {
     "title_one": "Unshare {{count}} file?",

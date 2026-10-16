@@ -57,7 +57,7 @@ export default async function s73({ runDir, bootstrap }) {
     })
 
     await r.ok('B downloads; A surfaces the downloader indicator + per-peer list when the race allows', async () => {
-      await B.click({ role: 'button', name: 'Download' })
+      await B.downloadRow()
       await A.focus()
 
       const deadline = Date.now() + 25000

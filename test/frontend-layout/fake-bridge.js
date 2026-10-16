@@ -40,7 +40,7 @@
   // legacy banner and hides the drop zone, i.e. not the screen users see.
   const space = {
     spaceId: SPACE_ID, name: 'Aurora', icon: 'folder', topic: 't'.repeat(64),
-    created: '2026-01-01', members, favorite: false, schemaVersion: 2,
+    created: '2026-01-01', members, favorite: false, schemaVersion: 2, downloadFolder: '/Users/you/Downloads',
   }
   const foreignMount = {
     spaceId: SPACE_ID, shareId: SHARE_ID, mountPath: '/tmp/mirror', enabled: true,
@@ -87,7 +87,14 @@
       case 'foreign-folder:list-all': return []
       case 'serving:detail-subscribe': return { peers: (window.__HARNESS_CFG && window.__HARNESS_CFG.detail) || [] }
       case 'owned-folder:list-all': return []
-      case 'settings:get': return { downloads: { folder: '/tmp', isDefault: true }, network: { downloadKBps: 0, uploadKBps: 0, relayMode: 'off', relay: null } }
+      // A fresh answer each time, as the worker's re-probe sends one.
+      case 'downloads:roots-status': return { unavailable: [...((window.__HARNESS_CFG && window.__HARNESS_CFG.unavailable) || [])] }
+      case 'settings:get': return {
+        downloads: { folder: '/Users/you/Downloads', isDefault: true, recent: ['/Users/you/Downloads', '/Users/you/Projects/Handover'] },
+        network: { downloadKBps: 0, uploadKBps: 0, relayMode: 'off', relay: null },
+        links: { baseUrl: 'https://mirall.app' },
+        hostPaths: { home: '/Users/you', sep: '/', caseFolds: true },
+      }
       default: return null
     }
   }
@@ -98,9 +105,11 @@
     ipcCb(enc.encode(JSON.stringify(obj) + '\n'))
   }
 
-  // Expose a driver surface to the harness entry.
+  // Expose a driver surface to the harness entry. `__fakeRequests` counts each request type the
+  // page has sent, for a harness that asserts what a screen asks the worker.
   window.__fake = { SPACE_ID, SHARE_ID, OWNER_PK, SELF_PK, files, members }
   window.__fakeEmit = (eventObj) => reply(eventObj)
+  window.__fakeRequests = {}
 
   const noop = () => {}
   const asyncNoop = () => Promise.resolve()
@@ -129,6 +138,7 @@
         let env
         try { env = JSON.parse(line) } catch { continue }
         const { id, type, ...payload } = env
+        window.__fakeRequests[type] = (window.__fakeRequests[type] || 0) + 1
         const cfg = window.__HARNESS_CFG
         // A harness may fail a request type for the whole page, the way a worker refusal reaches it.
         const send = () => reply(cfg && Array.isArray(cfg.failTypes) && cfg.failTypes.includes(type)

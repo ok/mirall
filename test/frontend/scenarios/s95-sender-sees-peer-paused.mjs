@@ -42,7 +42,7 @@ export default async function s95({ runDir, bootstrap }) {
     })
 
     await r.ok('B downloads then pauses; A reflects the paused peer when the race allows', async () => {
-      await B.click({ role: 'button', name: 'Download', last: true })
+      await B.downloadRow({ last: true })
       await A.focus()
       const dl = Date.now() + 25000
       while (Date.now() < dl) {

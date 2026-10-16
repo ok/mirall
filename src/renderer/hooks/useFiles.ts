@@ -101,8 +101,8 @@ export function useFiles(spaceId: string) {
   }, [])
 
   // Stable identities: props of memoized rows (README.md).
-  const downloadFile = useCallback((file: FileEntry) => run(async () => {
-    const res = await request('files:download', { spaceId, path: file.path, ownerKey: file.owner.publicKey })
+  const downloadFile = useCallback((file: FileEntry, destDir?: string) => run(async () => {
+    const res = await request('files:download', { spaceId, path: file.path, ownerKey: file.owner.publicKey, destDir })
     // A queued click started nothing — the owner is unreachable and the intent is recorded for the
     // reconnect machinery — so there is no transfer to report movement for.
     if ('transferId' in res) markSeeded([file.path])

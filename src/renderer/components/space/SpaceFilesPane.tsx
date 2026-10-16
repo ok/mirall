@@ -12,7 +12,7 @@ import { looseSelectKey, type LooseSelection } from '../../hooks/useSpaceBatch.j
 // The per-row callbacks and lookups are FileRow's contract, not this section's: forwarded
 // untouched, so re-declaring them here would be a second copy to keep in step.
 type SpaceFilesPaneProps = Pick<LooseFileRowProps,
-  'onDownload' | 'onCancel' | 'onPause' | 'onReveal' | 'onUnshare'
+  'onDownload' | 'downloadTo' | 'onCancel' | 'onPause' | 'onReveal' | 'onUnshare'
   | 'onCancelPublish' | 'members' | 'spaceId'
 > & {
   files: FileEntry[]

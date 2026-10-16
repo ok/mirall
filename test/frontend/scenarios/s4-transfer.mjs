@@ -33,7 +33,7 @@ export default async function s4({ runDir, bootstrap }) {
     await r.ok('FIX-3: pre-existing download is not overwritten', async () => {
       // Seed a same-named file in B's download folder, then download.
       writeFileSync(path.join(B.downloadFolder, 'report.txt'), 'ORIGINAL')
-      await B.click({ role: 'button', name: 'Download' })
+      await B.downloadRow()
       await waitFor(() => existsSync(path.join(B.downloadFolder, 'report (1).txt')), 60000, 'report (1).txt')
       assert(readFileSync(path.join(B.downloadFolder, 'report.txt'), 'utf8') === 'ORIGINAL', 'original was overwritten')
       assert(readFileSync(path.join(B.downloadFolder, 'report (1).txt'), 'utf8') === 'SHARED', 'shared copy missing/wrong')

@@ -40,7 +40,7 @@ export default async function s82({ runDir, bootstrap }) {
     })
 
     await r.ok('B downloads; the pause/resume round-trip runs when the race allows', async () => {
-      await B.click({ role: 'button', name: 'Download', last: true })
+      await B.downloadRow({ last: true })
 
       // Best-effort: catch the running row's Pause control. Bail when Pause shows OR
       // the transfer already finished (fast loopback). Not finding Pause is a lost

@@ -12,7 +12,9 @@ import { useBatchSelection } from './useBatchSelection.js'
 import { useSelectionKeys } from './useSelectionKeys.js'
 import { useTransferControls } from './useTransferControls.js'
 import { batchIsRecent, batchScope, clearDownloadBatch, startDownloadBatch, useDownloadBatch } from './useDownloadBatch.js'
-import { skippedToast, useRetireBatch } from './useFolderBatch.js'
+import { useRetireBatch } from './useFolderBatch.js'
+import { downloadToToastId, type DownloadTo } from './useDownloadTo.js'
+import { batchToastText } from '../model/batch-toast.js'
 import { summarize, type Gesture } from '../model/batch-selection.js'
 import { batchVerbsFor, isBatchSelectable } from '../model/file-row-action.js'
 import { deriveBatchProgress, type BatchProgress } from '../model/batch-progress.js'
@@ -22,6 +24,7 @@ import type { ShareWithRole } from './useShares.js'
 import type { SelectAllBox } from '../components/listing/ListControlsRow.js'
 import type { SelectionBarSummary } from '../components/batch/SelectionBar.js'
 import type { PersonKey } from '../../shared/contract/principals.js'
+import type { BatchDownloadResult } from '../../shared/contract/responses.js'
 import type { FileEntry } from '../types/types.js'
 import type { Decoration } from '../types/ui.js'
 
@@ -37,6 +40,7 @@ interface SpaceBatchArgs {
   selfKey: PersonKey | null
   getDecoration: (path: string) => Decoration | null
   markSeeded: (paths: readonly string[]) => void
+  downloadTo: DownloadTo
 }
 
 /** What a loose row needs to draw its box. */
@@ -61,15 +65,15 @@ export interface SpaceBatch {
   summary: SelectionBarSummary
   matchingCount: number
   unshareable: FileEntry[]
-  downloadSelected: () => void
-  cancelSelected: () => void
+  /** No folder: the space's, as the strip's main half names it. */
+  downloadSelected: (folder?: string) => void
   deselectHidden: () => void
   end: () => void
   progress: BatchProgress | null
   cancelAll: () => void
 }
 
-export function useSpaceBatch({ spaceId, files, shares, selfKey, getDecoration, markSeeded }: SpaceBatchArgs): SpaceBatch {
+export function useSpaceBatch({ spaceId, files, shares, selfKey, getDecoration, markSeeded, downloadTo }: SpaceBatchArgs): SpaceBatch {
   const { t } = useTranslation()
   const toast = useToast()
   const run = useRunAction()
@@ -107,26 +111,27 @@ export function useSpaceBatch({ spaceId, files, shares, selfKey, getDecoration, 
   }), [files, sel.selected, shown, verbsOf])
   const summary: SelectionBarSummary = {
     count: full.count, bytes: full.bytes, hidden: full.hidden, onDevice: full.onDevice,
-    download: full.download.length, cancel: full.cancel.length, unshare: full.unshare.length,
+    download: full.download.length, unshare: full.unshare.length,
   }
 
   // One request per owner, one after the other: a loose transfer is named by its path alone, so
   // two owners' same-named files share one transfer identity, and a second request sent while the
   // first runs would attach to it instead of starting its own. The strip and the seeds cover only
   // the owners whose batch started something.
-  const downloadSelected = useCallback(() => run(async () => {
+  const { current, movedText } = downloadTo
+  const downloadSelected = useCallback((folder?: string) => run(async () => {
     const byOwner = new Map<string, FileEntry[]>()
     for (const f of full.download) byOwner.set(f.owner.publicKey, [...(byOwner.get(f.owner.publicKey) ?? []), f])
+    const destDir = folder ?? current?.path
     const started: FileEntry[] = []
-    const skipped: string[] = []
+    const results: BatchDownloadResult[] = []
     let failure: Error | null = null
     for (const [ownerKey, owned] of byOwner) {
       try {
-        const res = await request('files:download-many', { spaceId, ownerKey, paths: owned.map((f) => f.path) })
+        const res = await request('files:download-many', { spaceId, ownerKey, paths: owned.map((f) => f.path), destDir })
         if ('mirrored' in res) continue
         if (res.started > 0) started.push(...owned)
-        const note = skippedToast(res, t)
-        if (note) skipped.push(note)
+        results.push(res)
       } catch (err) {
         failure = err instanceof Error ? err : new Error(String(err))
       }
@@ -136,14 +141,10 @@ export function useSpaceBatch({ spaceId, files, shares, selfKey, getDecoration, 
       markSeeded(started.map((f) => f.path))
     }
     end()
-    if (skipped.length) toast.info(skipped.join(' · '))
+    const text = batchToastText({ results, moved: destDir ? movedText(destDir) : null, t })
+    if (text) toast.info(text, { id: downloadToToastId(spaceId) })
     if (failure) throw failure
-  }, 'transferFailed'), [run, full.download, spaceId, scopeKey, markSeeded, end, t, toast])
-
-  const cancelSelected = useCallback(() => {
-    cancelMany(full.cancel.flatMap((f) => (f.transferId ? [f.transferId] : [])))
-    end()
-  }, [cancelMany, full.cancel, end])
+  }, 'transferFailed'), [run, full.download, current, movedText, spaceId, scopeKey, markSeeded, end, t, toast])
 
   const batch = useDownloadBatch(scopeKey)
   const recent = batch !== null && batchIsRecent(batch)
@@ -177,7 +178,6 @@ export function useSpaceBatch({ spaceId, files, shares, selfKey, getDecoration, 
     matchingCount: matching.size,
     unshareable: full.unshare,
     downloadSelected,
-    cancelSelected,
     deselectHidden: sel.deselectHidden,
     end,
     progress,

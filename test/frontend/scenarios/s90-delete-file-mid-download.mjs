@@ -22,7 +22,7 @@ export default async function s90({ runDir, bootstrap }) {
   const target = path.join(ownDir, 'big.bin')
   writeFileSync(target, Buffer.alloc(256 * 1024 * 1024, 17))
   writeFileSync(path.join(ownDir, 'keep.txt'), 'i survive')
-  const landed = path.join(B.downloadFolder, 'big.bin')
+  const landed = path.join(B.downloadFolder, 'Docs', 'big.bin')
 
   try {
     await r.ok('A shares "Docs"; B opens it and starts downloading big.bin', async () => {
@@ -33,7 +33,7 @@ export default async function s90({ runDir, bootstrap }) {
       await B.waitText('Docs', 60000)
       await B.openFolder('Docs')
       await B.waitText('big.bin', 20000)
-      await B.click({ role: 'button', name: 'Download' })
+      await B.downloadRow()
 
       let mid = false
       const dl = Date.now() + 20000

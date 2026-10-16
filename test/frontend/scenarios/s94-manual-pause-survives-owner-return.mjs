@@ -33,7 +33,7 @@ export default async function s94({ runDir, bootstrap }) {
       await A.addFile(big)
       await B.waitText('held', 90000)
       await B.waitText('Available', 90000)
-      await B.click({ role: 'button', name: 'Download', last: true })
+      await B.downloadRow({ last: true })
 
       let sawPause = false
       const dl = Date.now() + 20000

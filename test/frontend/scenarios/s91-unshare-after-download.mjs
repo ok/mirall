@@ -32,7 +32,7 @@ export default async function s91({ runDir, bootstrap }) {
       await A.addFile(big)
       await B.waitText('keeper', 90000)
       await B.waitText('Available', 90000)
-      await B.click({ role: 'button', name: 'Download', last: true })
+      await B.downloadRow({ last: true })
       await waitFor(() => existsSync(landed), 120000, 'keeper.bin landed')
       await B.waitText('On your device', 30000)
     })

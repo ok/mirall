@@ -9,10 +9,12 @@
 /** @typedef {'toggle' | 'toggle-mod' | 'range'} Gesture */
 /** @typedef {{ mode: boolean, selected: ReadonlySet<string>, anchor: string | null }} SelectionState */
 /** @typedef {{ order: readonly string[], filesUnder: (path: string) => readonly string[], matching: ReadonlySet<string> }} SelectionContext */
-/** @typedef {{ download: boolean, cancel: boolean, unshare: boolean, onDevice: boolean }} BatchVerbs */
+// `inProgress` is a row with a transfer under way: selectable, so a row that starts while ticked
+// keeps its box, but no strip verb acts on it; its own row cancels it.
+/** @typedef {{ download: boolean, inProgress: boolean, unshare: boolean, onDevice: boolean }} BatchVerbs */
 /**
  * @template T
- * @typedef {{ count: number, bytes: number, hidden: number, onDevice: number, download: T[], cancel: T[], unshare: T[] }} SelectionSummary
+ * @typedef {{ count: number, bytes: number, hidden: number, onDevice: number, download: T[], unshare: T[] }} SelectionSummary
  */
 
 /** @type {ReadonlySet<string>} */
@@ -188,7 +190,7 @@ export function keepMatching(selected, matching) {
  */
 export function summarize({ rows, keyOf, sizeOf, selected, shown, verbsOf }) {
   /** @type {SelectionSummary<T>} */
-  const out = { count: 0, bytes: 0, hidden: 0, onDevice: 0, download: [], cancel: [], unshare: [] }
+  const out = { count: 0, bytes: 0, hidden: 0, onDevice: 0, download: [], unshare: [] }
   for (const row of rows) {
     const key = keyOf(row)
     if (!selected.has(key)) continue
@@ -197,7 +199,6 @@ export function summarize({ rows, keyOf, sizeOf, selected, shown, verbsOf }) {
     if (!shown.has(key)) out.hidden += 1
     const v = verbsOf(row)
     if (v.download) out.download.push(row)
-    if (v.cancel) out.cancel.push(row)
     if (v.unshare) out.unshare.push(row)
     if (v.onDevice) out.onDevice += 1
   }

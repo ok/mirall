@@ -59,7 +59,7 @@ export default async function s177({ runDir, bootstrap }) {
       await B.openFolder('Handover')
       await B.waitText('Floorplan-final.pdf', 30000)
       // The first Download button belongs to the first file row, Contracts/Agreement-2026.pdf.
-      await B.modifierClick({ role: 'button', name: 'Download' }, ['meta'], ROW_BODY)
+      await B.modifierClick({ role: 'combobox', name: 'Download to…' }, ['meta'], ROW_BODY)
       await B.waitText('1 selected', 20000)
       await assertBox(B, { role: 'checkbox', name: 'Select Agreement-2026.pdf' }, 'on', 'that row is ticked')
       await B.shot('s177-mod-click', runDir)
@@ -69,7 +69,7 @@ export default async function s177({ runDir, bootstrap }) {
       // The last Download button is Handover-notes.md, the last row; raw/ sits collapsed in between.
       // With the column open that row sits below the fold, so it is scrolled to before the click.
       await B.main.scrollIntoView('[data-select-key="Handover-notes.md"]')
-      await B.modifierClick({ role: 'button', name: 'Download', last: true }, ['shift'], ROW_BODY)
+      await B.modifierClick({ role: 'combobox', name: 'Download to…', last: true }, ['shift'], ROW_BODY)
       await B.waitText('8 selected', 20000)
       await assertBox(B, { role: 'checkbox', name: 'Select all files in raw' }, 'on', 'the collapsed folder\'s files are in the range')
       await B.shot('s177-shift-range', runDir)

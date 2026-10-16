@@ -54,8 +54,8 @@ export default async function s96({ runDir, bootstrap }) {
     })
 
     await r.ok('both download; Carol cancels; Bob completes; A clears the indicator', async () => {
-      await B.focus(); await B.click({ role: 'button', name: 'Download', last: true })
-      await C.focus(); await C.click({ role: 'button', name: 'Download', last: true })
+      await B.focus(); await B.downloadRow({ last: true })
+      await C.focus(); await C.downloadRow({ last: true })
 
       // Best-effort: catch Carol mid-flight and cancel her pull.
       await C.focus()

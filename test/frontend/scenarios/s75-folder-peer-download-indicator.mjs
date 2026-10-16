@@ -32,7 +32,7 @@ export default async function s75({ runDir, bootstrap }) {
   // 256 MB widens the serve window so the owner-side indicator usually renders
   // before the transfer completes (matches s73/s48 sizing).
   writeFileSync(path.join(ownDir, 'payload.bin'), Buffer.alloc(256 * 1024 * 1024, 9))
-  const landed = path.join(B.downloadFolder, 'payload.bin')
+  const landed = path.join(B.downloadFolder, 'Vault', 'payload.bin')
   const SHOW = { role: 'button', name: 'Show who is downloading' }
 
   let sawIndicator = false
@@ -64,7 +64,7 @@ export default async function s75({ runDir, bootstrap }) {
     })
 
     await r.ok('B downloads; A (in the folder) surfaces the downloader indicator + per-peer list when the race allows', async () => {
-      await B.click({ role: 'button', name: 'Download' })
+      await B.downloadRow()
       await A.focus()
 
       const deadline = Date.now() + 25000

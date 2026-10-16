@@ -48,7 +48,7 @@ export default async function s86({ runDir, bootstrap }) {
     })
 
     await r.ok('B downloads it to completion', async () => {
-      await B.click({ role: 'button', name: 'Download', last: true })
+      await B.downloadRow({ last: true })
       await waitFor(() => existsSync(landed), 120000, 'reel.bin landed on B')
       await B.waitText('On your device', 30000)
       await B.shot('s86-B-downloaded', runDir)

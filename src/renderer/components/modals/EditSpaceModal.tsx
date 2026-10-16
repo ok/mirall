@@ -1,7 +1,7 @@
 import TextField from '../primitives/TextField.js'
 import FieldLabel from '../primitives/FieldLabel.js'
 import InlineError from '../primitives/InlineError.js'
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Space } from '../../types/types.js'
 import IconPicker from '../primitives/IconPicker.js'
@@ -11,11 +11,10 @@ import Icon from '../primitives/Icon.js'
 import ModalHeader from '../primitives/ModalHeader.js'
 import Button from '../primitives/Button.js'
 import { useErrorText } from '../../hooks/useErrorText.js'
-import { useDownloadFolder } from '../../hooks/useSettings.js'
 
 interface EditSpaceModalProps {
   space: Space
-  onSave: (spaceId: string, name: string, icon: string, downloadFolder?: string | null) => Promise<Space>
+  onSave: (spaceId: string, name: string, icon: string, downloadFolder?: string) => Promise<Space>
   onClose: () => void
 }
 
@@ -34,45 +33,22 @@ export default function EditSpaceModal({ space, onSave, onClose }: EditSpaceModa
   const [name, setName] = useState(space.name)
   const [icon, setIcon] = useState(space.icon)
   const [saving, setSaving] = useState(false)
-  // undefined = untouched, null = reset to the global default, string = new override.
-  const [folderEdit, setFolderEdit] = useState<string | null | undefined>(undefined)
+  // The folder picked here, until Save; undefined while the space's own stands.
+  const [folderEdit, setFolderEdit] = useState<string | undefined>(undefined)
   // Two errors, two homes: a screen reader must not be told the name field is at fault for a
-  // folder the app could not resolve, so each is associated with the control it belongs to.
+  // folder the app could not use, so each is associated with the control it belongs to.
   const [nameError, setNameError] = useState<string | null>(null)
   const [folderError, setFolderError] = useState<string | null>(null)
-  const browseRef = useRef<HTMLButtonElement>(null)
 
-  const { folder: defaultFolder, error: defaultError } = useDownloadFolder()
-  // null until the read lands. A space always resolves to SOME folder — its own override or the
-  // global default — so an unresolved read is a path still loading, not the absence of one. A read
-  // that FAILED resolves to "no default available" instead, or the field would sit on its skeleton.
-  const globalDefault = defaultFolder ?? (defaultError ? '' : null)
-  const shownFolderError = folderError ?? (defaultError ? errorText(defaultError) : null)
-
-  // Only the fallback to the global default can be pending; a picked folder or the space's own
-  // override is already in hand.
-  const ownFolder = folderEdit === undefined ? space.downloadFolder : folderEdit
-  const awaitingDefault = !ownFolder && globalDefault === null
-  const effectiveFolder = ownFolder ?? globalDefault ?? ''
-  const isOverridden = folderEdit === undefined ? !!space.downloadFolder : folderEdit !== null
-
+  const folder = folderEdit ?? space.downloadFolder
   const hasChanges = name.trim() !== space.name || icon !== space.icon || folderEdit !== undefined
   const isValid = name.trim().length >= 2
 
   const handleBrowse = useCallback(async () => {
     setFolderError(null)
-    const picked = await window.bridge.browseDownloadFolder(effectiveFolder || undefined)
+    const picked = await window.bridge.browseDownloadFolder(folder)
     if (picked) setFolderEdit(picked)
-  }, [effectiveFolder])
-
-  // Clicking this unmounts it, which would drop keyboard focus to the document. Hand focus
-  // back to the control the user is most likely to want next, and let the status paragraph
-  // below (a live region) announce what changed.
-  const handleUseDefault = useCallback(() => {
-    setFolderError(null)
-    setFolderEdit(null)
-    browseRef.current?.focus()
-  }, [])
+  }, [folder])
 
   async function handleSave() {
     if (!isValid || !hasChanges || saving) return
@@ -128,31 +104,13 @@ export default function EditSpaceModal({ space, onSave, onClose }: EditSpaceModa
             {/* The same row Add Folder, Mirror to Disk, Edit Folder and Storage settings show — a
                 path is a path, whichever door you came through. */}
             <PathRow
-              path={effectiveFolder || null}
-              loading={awaitingDefault}
+              path={folder}
               onAction={handleBrowse}
-              ariaDescribedBy={`edit-space-folder-label edit-space-folder-desc${shownFolderError ? ' edit-space-folder-error' : ''}`}
-              actionRef={browseRef}
+              ariaDescribedBy={`edit-space-folder-label edit-space-folder-desc${folderError ? ' edit-space-folder-error' : ''}`}
             />
-            {shownFolderError && (
-              <InlineError id="edit-space-folder-error" className="px-1">{shownFolderError}</InlineError>
+            {folderError && (
+              <InlineError id="edit-space-folder-error" className="px-1">{folderError}</InlineError>
             )}
-            <div className="flex items-center min-h-5">
-              {isOverridden && (
-                <button
-                  type="button"
-                  onClick={handleUseDefault}
-                  className="text-xs text-secondary underline px-1 focus-ring rounded"
-                >
-                  {t('editSpace.useDefault')}
-                </button>
-              )}
-              {/* Always mounted, so switching back to the default is announced — a live region
-                  added at the same moment as its text is not read out. */}
-              <p role="status" aria-live="polite" className="text-xs text-on-surface-variant px-1">
-                {isOverridden ? '' : t('editSpace.usingDefault')}
-              </p>
-            </div>
           </div>
 
           <div className="pt-4">

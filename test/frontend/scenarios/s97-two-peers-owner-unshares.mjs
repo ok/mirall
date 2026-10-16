@@ -48,8 +48,8 @@ export default async function s97({ runDir, bootstrap }) {
       for (const P of [B, C]) { await P.focus(); await P.waitText('group', 90000); await P.waitText('Available', 90000) }
       // Kick off both downloads back-to-back, then only a short settle — no per-peer
       // "Downloading" wait — so both are still mid-flight when A unshares.
-      await B.focus(); await B.click({ role: 'button', name: 'Download', last: true })
-      await C.focus(); await C.click({ role: 'button', name: 'Download', last: true })
+      await B.focus(); await B.downloadRow({ last: true })
+      await C.focus(); await C.downloadRow({ last: true })
       await sleep(2500)
     })
 

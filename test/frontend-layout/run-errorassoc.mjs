@@ -15,6 +15,8 @@ const line = (label, probe) =>
 console.log('\n──────── Dialog error-association harness ────────')
 console.log(line('space name', out.spaceName))
 console.log(line('space path', out.spaceFolder))
+console.log(line('space name²', out.folderSpaceName))
+console.log(line('space path²', out.folderSpaceFolder))
 console.log(line('folder name', out.folderName))
 console.log(line('folder path', out.folderPath))
 console.log(line('mirror name', out.mirrorName))

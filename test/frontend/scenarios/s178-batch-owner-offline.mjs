@@ -38,12 +38,12 @@ export default async function s178({ runDir, bootstrap }) {
       await waitFor(() => B.has({ role: 'checkbox', name: 'Select all 2 files' }), 20000, 'the top box counts the offline files')
       await B.click({ role: 'checkbox', name: 'Select all 2 files' })
       await B.waitText('2 selected', 20000)
-      assert(await B.has({ role: 'button', name: 'Download 2' }), 'Download counts both offline files')
+      assert(await B.has({ role: 'button', name: `Download 2 to ${path.basename(B.downloadFolder)}` }), 'Download counts both offline files')
       await B.shot('s178-selected-offline', runDir)
     })
 
     await r.ok('the request is kept: a toast says so and the rows wait on the owner', async () => {
-      await B.click({ role: 'button', name: 'Download 2' })
+      await B.downloadSelected(2)
       await B.waitText('will download once their owner is online', 20000)
       await B.waitText('Owner offline', 30000)
       assert(!(await B.hasText('Downloading 2 files')), 'no progress strip for files that did not start')

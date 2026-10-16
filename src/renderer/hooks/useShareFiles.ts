@@ -63,8 +63,8 @@ export function useShareFiles(spaceId: string, ownerKey: string, shareId: string
 
   // Pause and cancel are useTransferControls', shared with the space screen.
   const downloadFile = useCallback(
-    (relPath: string) => run(async () => {
-      const res = await request('share:read-file', { spaceId, ownerKey, shareId, relPath })
+    (relPath: string, destDir?: string) => run(async () => {
+      const res = await request('share:read-file', { spaceId, ownerKey, shareId, relPath, destDir })
       // The union is the point: a read that was already ours, synced by a mirror, or queued behind
       // the download engine starts no transfer and seeds no bar.
       if (!('transferId' in res)) return

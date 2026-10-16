@@ -10,13 +10,16 @@ import ListControlsRow from '../listing/ListControlsRow.js'
 import SelectionBar from '../batch/SelectionBar.js'
 import BatchProgressStrip from '../batch/BatchProgressStrip.js'
 import BatchAnnouncement from '../batch/BatchAnnouncement.js'
+import DownloadsToButton from '../listing/DownloadsToButton.js'
 import { useFileRecipients } from '../../hooks/useFileRecipients.js'
 import { useHasVerticalOverflow } from '../../hooks/useHasVerticalOverflow.js'
 import { useRowPointerSelect } from '../../hooks/useRowPointerSelect.js'
 import { showFilesIncomplete, showSpaceEmptyState, showSpaceLoading } from '../../model/space-content-state.js'
+import { downloadsToShown } from '../../model/download-folders.js'
 import type { ComponentProps } from 'react'
 import type { SpaceMember } from '../../types/types.js'
 import type { SpaceBatch } from '../../hooks/useSpaceBatch.js'
+import type { DownloadTo } from '../../hooks/useDownloadTo.js'
 
 type SharesProps = ComponentProps<typeof SpaceSharesSection>
 type FilesProps = ComponentProps<typeof SpaceFilesPane>
@@ -49,6 +52,9 @@ interface SpaceContentPaneProps {
   pane: Parameters<typeof showSpaceEmptyState>[0]
   /** The filter and the batch selection over the loose files; its lists are the filtered ones. */
   batch: SpaceBatch
+  downloadTo: DownloadTo
+  /** The space lists a file another member shares, so something here can be downloaded. */
+  downloadable: boolean
   selfProfile: SharesProps['selfProfile']
   onLocate: SharesProps['onLocate']
   cardActions: CardActions
@@ -71,7 +77,7 @@ interface SpaceContentPaneProps {
  */
 export default function SpaceContentPane(props: SpaceContentPaneProps) {
   const { t } = useTranslation()
-  const { spaceId, members, isLegacy, pane, batch, cardActions: a, listing, drag } = props
+  const { spaceId, members, isLegacy, pane, batch, downloadTo, cardActions: a, listing, drag } = props
   const getRecipients = useFileRecipients(spaceId)
   const { ref: filesRef, hasOverflow: filesOverflow } = useHasVerticalOverflow<HTMLDivElement>()
   useRowPointerSelect(filesRef, batch.selection.select)
@@ -99,6 +105,9 @@ export default function SpaceContentPane(props: SpaceContentPaneProps) {
             filterLabel={t('space.filterLabel')}
             selectAll={batch.selectAll}
             showExpand={false}
+            trailing={downloadsToShown({ downloadable: props.downloadable, selecting: batch.selecting, offline: downloadTo.current?.offline === true })
+              ? <DownloadsToButton downloadTo={downloadTo} />
+              : null}
           />
         )}
         {/* The pinned slot above the list: a running batch's strip, then the selection's own. */}
@@ -112,8 +121,8 @@ export default function SpaceContentPane(props: SpaceContentPaneProps) {
           selecting={batch.selecting}
           summary={batch.summary}
           matchingCount={batch.matchingCount}
+          downloadTo={downloadTo}
           onDownload={batch.downloadSelected}
-          onCancel={batch.cancelSelected}
           onUnshare={props.onUnshareSelected}
           onDeselectHidden={batch.deselectHidden}
           onDone={batch.end}
@@ -161,6 +170,7 @@ export default function SpaceContentPane(props: SpaceContentPaneProps) {
               )}
               <SpaceFilesPane
                 {...listing}
+                downloadTo={downloadTo}
                 files={batch.files}
                 selection={batch.selection}
                 getRecipients={getRecipients}

@@ -156,20 +156,20 @@ test('selectAllMatching and keepMatching', (t) => {
 
 test('summarize: counts, hidden, buckets from verbsOf, the byte sum, and a key whose row left the listing', (t) => {
   const rows = [row('a', 'remote', 5), row('b', 'downloading', 7), row('c', 'downloaded', 9), row('d', 'synced', 1)]
-  const verbsOf = (r) => ({ download: r.status === 'remote', cancel: r.status === 'downloading', unshare: r.status === 'synced', onDevice: r.status === 'downloaded' })
+  const verbsOf = (r) => ({ download: r.status === 'remote', inProgress: r.status === 'downloading', unshare: r.status === 'synced', onDevice: r.status === 'downloaded' })
   const s = summarize({ rows, keyOf: (r) => r.relPath, sizeOf: (r) => r.size, selected: new Set(['a', 'b', 'c', 'd', 'ghost']), shown: new Set(['a', 'b']), verbsOf })
   t.is(s.count, 4, 'the ghost key counts for nothing')
   t.is(s.bytes, 22)
   t.is(s.hidden, 2)
   t.is(s.onDevice, 1)
   t.alike(s.download.map((r) => r.relPath), ['a'])
-  t.alike(s.cancel.map((r) => r.relPath), ['b'])
   t.alike(s.unshare.map((r) => r.relPath), ['d'])
+  t.alike(Object.keys(s).sort(), ['bytes', 'count', 'download', 'hidden', 'onDevice', 'unshare'], 'a row under way counts, and no verb acts on it')
 })
 
 test('a key carrying the owner separates two owners\' same-named loose files', (t) => {
   const rows = [{ key: 'o1:/Brief.pdf', size: 1 }, { key: 'o2:/Brief.pdf', size: 2 }]
-  const s = summarize({ rows, keyOf: (r) => r.key, sizeOf: (r) => r.size, selected: new Set(['o2:/Brief.pdf']), shown: new Set(), verbsOf: () => ({ download: true, cancel: false, unshare: false, onDevice: false }) })
+  const s = summarize({ rows, keyOf: (r) => r.key, sizeOf: (r) => r.size, selected: new Set(['o2:/Brief.pdf']), shown: new Set(), verbsOf: () => ({ download: true, inProgress: false, unshare: false, onDevice: false }) })
   t.is(s.count, 1)
   t.is(s.bytes, 2)
 })

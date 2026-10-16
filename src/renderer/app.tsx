@@ -35,6 +35,7 @@ import { ConnectionStatusProvider } from './hooks/useConnectionStatus.js'
 import ConnectivityToastBridge from './components/toast/bridges/ConnectivityToastBridge.js'
 import WorkerToastBridge from './components/toast/bridges/WorkerToastBridge.js'
 import DownloadFolderToastBridge from './components/toast/bridges/DownloadFolderToastBridge.js'
+import DownloadToToastBridge from './components/toast/bridges/DownloadToToastBridge.js'
 import JoinRequestToastBridge from './components/toast/bridges/JoinRequestToastBridge.js'
 import BackupToastBridge from './components/toast/bridges/BackupToastBridge.js'
 import type { Profile } from './types/types.js'
@@ -143,7 +144,8 @@ function AppShell({ nav, profile, onSaveProfile, deepLinks, identity }: AppShell
   return (
     <>
       <ConnectivityToastBridge onShowDetails={() => nav.setCurrentScreen('network-status')} onShowHelp={() => nav.setCurrentScreen('connection-problem')} />
-      <DownloadFolderToastBridge onChangeFolder={() => nav.openStorageSettings(nav.currentScreen === 'space-view' ? 'space-view' : 'settings')} />
+      <DownloadFolderToastBridge spaces={spaces} onOpenSpace={nav.navigateToSpace} />
+      <DownloadToToastBridge spaces={spaces} />
       <WorkerToastBridge />
       <JoinRequestToastBridge navigateToSpace={nav.navigateToSpace} />
       <BackupToastBridge onOpen={() => nav.setCurrentScreen('backup-settings')} />

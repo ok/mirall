@@ -15,6 +15,9 @@ interface ButtonProps {
   size?: 'sm' | 'lg'
   variant?: ButtonVariant
   fullWidth?: boolean
+  // The main half of a split button: square right corners and no press shrink, so it and its
+  // chevron press as one shape.
+  splitStart?: boolean
   disabled?: boolean
   // Unavailable for a moment (a save in flight) without leaving the tab order: a native `disabled`
   // on the focused button drops focus to the document. The click handler owns the re-entry guard.
@@ -52,6 +55,7 @@ export default function Button({
   size = 'sm',
   variant = 'primary',
   fullWidth,
+  splitStart,
   disabled,
   ariaDisabled,
   autoFocus,
@@ -63,7 +67,8 @@ export default function Button({
   title,
   ref,
 }: ButtonProps) {
-  const base = 'flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold transition-all active:scale-95 focus:outline-none focus-visible:ring-2 disabled:opacity-50 disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:cursor-not-allowed'
+  const press = splitStart ? 'rounded-r-none' : 'active:scale-95'
+  const base = `flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold transition-all ${press} focus:outline-none focus-visible:ring-2 disabled:opacity-50 disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:cursor-not-allowed`
   const sizeClasses = size === 'lg' ? 'h-14 px-5 text-lg' : 'px-5 py-2.5 text-sm'
   const widthClass = fullWidth ? ' w-full' : ''
   const extra = className ? ` ${className}` : ''

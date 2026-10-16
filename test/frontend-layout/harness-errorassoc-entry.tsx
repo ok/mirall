@@ -16,11 +16,10 @@ import MountPathField from '../../src/renderer/components/path/MountPathField.js
 import CreateSpaceModal from '../../src/renderer/components/modals/CreateSpaceModal.js'
 import type { Space } from '../../src/renderer/types/types.js'
 
-// The settings read (which carries the default download folder) fails for the whole page, so the
-// space dialog carries BOTH a folder error and a name error at once — the case where pointing the
-// name field at "the error" would name the wrong control.
-window.__HARNESS_CFG = { ...(window.__HARNESS_CFG ?? {}), failTypes: ['settings:get'] }
+// The space dialog fails once on its name and once on its folder: each error must land on its own
+// control and never on the other, the case where pointing at "the error" names the wrong control.
 window.bridge.browseShareFolder = () => Promise.resolve('/tmp/relocated')
+window.bridge.browseDownloadFolder = () => Promise.resolve('/tmp/elsewhere')
 
 const SPACE: Space = {
   spaceId: 'space1',
@@ -31,6 +30,7 @@ const SPACE: Space = {
   members: [],
   favorite: false,
   schemaVersion: 2,
+  downloadFolder: '/tmp/downloads',
 }
 
 interface FieldProbe {
@@ -44,6 +44,8 @@ interface HarnessResults {
   error: string | null
   spaceName: FieldProbe
   spaceFolder: FieldProbe
+  folderSpaceName: FieldProbe
+  folderSpaceFolder: FieldProbe
   folderName: FieldProbe
   folderPath: FieldProbe
   mirrorName: FieldProbe
@@ -58,7 +60,7 @@ interface HarnessResults {
 }
 
 declare global {
-  interface Window { __results: HarnessResults; __HARNESS_CFG?: { failTypes?: string[] } }
+  interface Window { __results: HarnessResults }
 }
 
 let unhandledRejections = 0
@@ -105,6 +107,7 @@ function labelledButton(text: string): HTMLButtonElement | null {
 // A mapped code, so the save failure reads as its own sentence rather than the generic one the
 // folder read falls back to — the two must stay distinguishable from the field they hang off.
 const rejects = () => Promise.reject(Object.assign(new Error('boom'), { code: 'SHARE_NAME_COLLISION' }))
+const rejectsFolder = () => Promise.reject(Object.assign(new Error('overlaps'), { code: 'DOWNLOAD_FOLDER_OVERLAPS_MOUNT' }))
 // The create path fails for a reason that is nobody's typing: the worker cannot service the
 // request. It still has to reach the person who pressed the button.
 const rejectsUnavailable = () => Promise.reject(Object.assign(new Error('worker is still starting'), { code: 'WORKER_UNAVAILABLE' }))
@@ -116,6 +119,8 @@ async function run(root: Root): Promise<HarnessResults> {
     error: null,
     spaceName: MISSING,
     spaceFolder: MISSING,
+    folderSpaceName: MISSING,
+    folderSpaceFolder: MISSING,
     folderName: MISSING,
     folderPath: MISSING,
     mirrorName: MISSING,
@@ -133,8 +138,17 @@ async function run(root: Root): Promise<HarnessResults> {
   saveButton()?.click()
   await sleep(300)
   results.spaceName = probe(document.getElementById('edit-space-name'))
-  // With the read failed there is no path to show, so the row offers a first pick.
-  results.spaceFolder = probe(pathButton('Browse…'))
+  // Every space has a folder, so the row offers a re-pick.
+  results.spaceFolder = probe(pathButton('Change'))
+
+  root.render(<EditSpaceModal key="folder" space={SPACE} onSave={rejectsFolder} onClose={noop} />)
+  await sleep(300)
+  pathButton('Change')?.click()
+  await sleep(200)
+  saveButton()?.click()
+  await sleep(300)
+  results.folderSpaceName = probe(document.getElementById('edit-space-name'))
+  results.folderSpaceFolder = probe(pathButton('Change'))
 
   root.render(
     <EditFolderModal
@@ -201,8 +215,12 @@ async function run(root: Root): Promise<HarnessResults> {
     results.spaceName.describedBy.includes('Could not save changes') &&
     results.spaceName.describedBy.includes('already uses that name') &&
     !results.spaceName.describedBy.includes('Something went wrong') &&
-    results.spaceFolder.describedBy.includes('Download Folder') &&
-    results.spaceFolder.describedBy.includes('Something went wrong') &&
+    results.spaceFolder.describedBy.includes('Downloads go to') &&
+    !results.spaceFolder.describedBy.includes('Could not') &&
+    !results.folderSpaceName.invalid &&
+    !results.folderSpaceName.describedBy.includes('Could not') &&
+    results.folderSpaceFolder.describedBy.includes('Downloads go to') &&
+    results.folderSpaceFolder.describedBy.includes('Could not set folder') &&
     results.folderName.invalid &&
     results.folderName.describedBy.includes('rename this folder') &&
     !results.folderName.describedBy.includes('change the location') &&
@@ -228,6 +246,8 @@ run(root).then(
       error: String(e),
       spaceName: MISSING,
       spaceFolder: MISSING,
+      folderSpaceName: MISSING,
+      folderSpaceFolder: MISSING,
       folderName: MISSING,
       folderPath: MISSING,
       mirrorName: MISSING,

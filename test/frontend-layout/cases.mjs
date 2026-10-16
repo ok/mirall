@@ -31,12 +31,14 @@ export const CASES = [
   // This one composites the busy strips' painted colours onto a canvas in both themes.
   { name: "infostrip", title: "Mirall info strip contrast harness" },
   { name: "dropoverlay", title: "Mirall drop-overlay layout harness" },
+  { name: "actionmenu", title: "Mirall single-choice action-menu harness" },
   { name: "errorassoc", title: "Mirall dialog error-association harness" },
   { name: "failpaths", title: "Mirall action failure-path harness" },
   { name: "filecard", title: "Mirall file-row error-state / toast-width layout harness" },
   // This one measures painted colour in both themes, and scans the stylesheet for the hover fill.
   { name: "facepile", title: "Mirall facepile ring harness" },
   { name: "focusring", title: "Mirall focus-ring clearance harness" },
+  { name: "lanefocus", title: "Mirall row action-swap focus harness" },
   { name: "folderselecting", title: "Mirall folder selection-column layout harness" },
   { name: "spaceselecting", title: "Mirall space selection-column layout harness" },
   { name: "rowfocus", title: "Mirall grouped-row focus harness" },

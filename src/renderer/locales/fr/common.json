@@ -293,6 +293,7 @@
     "modifiedHint": "Modifié sur cet appareil depuis son téléchargement et sa vérification.",
     "remote": "Disponible",
     "unavailable": "Indisponible",
+    "detached": "Disque non connecté",
     "downloading": "Téléchargement",
     "verifying": "Vérification…",
     "preparing": "Préparation…",
@@ -309,7 +310,9 @@
     "revealInFolder": "Afficher dans le dossier",
     "verified": "Vérifié – l'empreinte du contenu correspond",
     "unshare": "Ne plus partager dans l'espace",
-    "download": "Télécharger",
+    "downloadTo": "Télécharger dans…",
+    "inFolder": "Dans {{path}}",
+    "savedTo": "Enregistré dans {{path}}",
     "downloadUnavailable": "Propriétaire hors ligne — téléchargement indisponible",
     "pause": "Suspendre le téléchargement",
     "cancel": "Annuler",
@@ -400,10 +403,8 @@
   "editSpace": {
     "title": "Modifier l'espace",
     "desc": "Modifiez le nom, l'icône et le dossier de téléchargement de cet espace.",
-    "downloadFolder": "Dossier de téléchargement",
-    "downloadFolderDesc": "Emplacement où sont enregistrés les fichiers que vous téléchargez depuis cet espace. Les fichiers déjà téléchargés ailleurs ne sont pas déplacés.",
-    "usingDefault": "Le dossier de téléchargement par défaut est utilisé.",
-    "useDefault": "Utiliser le dossier par défaut",
+    "downloadFolder": "Les téléchargements vont dans",
+    "downloadFolderDesc": "Emplacement où sont enregistrés les fichiers que vous téléchargez depuis cet espace. Les fichiers déjà téléchargés restent où ils sont.",
     "folderError": "Impossible de définir le dossier : {{error}}",
     "saveError": "Impossible d'enregistrer les modifications : {{error}}"
   },
@@ -521,9 +522,18 @@
     "dismiss": "Ignorer"
   },
   "downloadFolder": {
-    "unavailableToast": "Dossier de téléchargement indisponible. Mirall ne peut pas accéder à {{path}} — les téléchargements échoueront tant qu'il n'est pas reconnecté ou qu'un autre dossier n'est pas choisi.",
-    "changeFolder": "Changer de dossier",
-    "restoredToast": "Le dossier de téléchargement est de nouveau disponible"
+    "restoredToast": "Le dossier de téléchargement est de nouveau disponible",
+    "unavailableSpace": "{{space}} télécharge dans {{folder}}, qui n’est pas connecté. Ses téléchargements attendent que vous le reconnectiez ou choisissiez un autre dossier.",
+    "chooseAnother": "Choisir un autre dossier"
+  },
+  "downloadTo": {
+    "heading": "Télécharger dans",
+    "choose": "Choisir un dossier…",
+    "offlinePath": "{{path}} · disque non connecté",
+    "offlineStrip": "{{folder}} : disque non connecté",
+    "buttonAria": "Les téléchargements vont dans {{folder}}, modifier",
+    "buttonOffline": "{{folder}} · non connecté",
+    "changed": "Les téléchargements de {{space}} vont désormais dans {{folder}}"
   },
   "storageIndicator": {
     "title": "Stockage de l'espace",
@@ -654,13 +664,13 @@
   "storageSettings": {
     "title": "Stockage",
     "intro": "Voir et gérer l'utilisation des données Mirall sur cet appareil.",
-    "downloadFolder": "Dossier de téléchargement",
-    "downloadFolderDesc": "Emplacement où Mirall enregistre les fichiers téléchargés depuis les membres de votre espace.",
+    "downloadFolder": "Dossier de téléchargement des nouveaux espaces",
+    "downloadFolderDesc": "Les espaces que vous créez ou rejoignez commencent à télécharger ici. Chaque espace garde ensuite son propre dossier ; modifier celui-ci ne les change pas.",
     "appStorageDesc": "Espace de stockage utilisé par Mirall sur cet appareil pour partager et synchroniser vos fichiers et pour se mettre à jour. Mirall gère cet espace lui-même et fait le ménage partout et dès qu’il le peut.",
     "sharingIndex": "Index des fichiers partagés",
     "sharingIndexDesc": "Cartes compactes des fichiers que vous partagez (jamais leur contenu).",
     "folderError": "Impossible de définir le dossier : {{error}}",
-    "folderUnavailable": "Ce dossier est actuellement indisponible. Il a peut-être été déplacé ou supprimé, ou il se trouve sur un disque déconnecté — les téléchargements échoueront tant qu'il n'est pas reconnecté ou qu'un autre dossier n'est pas choisi.",
+    "folderUnavailable": "Ce dossier est actuellement indisponible. Il a peut-être été déplacé ou supprimé, ou il se trouve sur un disque déconnecté — les nouveaux espaces téléchargent ici, choisissez donc un autre dossier ou reconnectez-le.",
     "calculating": "Calcul du stockage…",
     "appStorage": "Stockage de l'application",
     "showDetails": "Afficher les détails",
@@ -1627,7 +1637,6 @@
     "hidden_other": "{{count}} masqués par le filtre",
     "deselectHidden": "Désélectionner les masqués",
     "download": "Télécharger {{count}}",
-    "cancel": "Annuler {{count}}",
     "unshare": "Ne plus partager {{count}}",
     "done": "Terminé",
     "ended": "Sélection terminée",
@@ -1644,7 +1653,10 @@
     "progressAnnounce": "Téléchargement groupé démarré",
     "progressEnded": "Téléchargement groupé terminé",
     "failed_one": "{{count}} fichier n’a pas pu démarrer",
-    "failed_other": "{{count}} fichiers n’ont pas pu démarrer"
+    "failed_other": "{{count}} fichiers n’ont pas pu démarrer",
+    "toFolder": "dans {{folder}}",
+    "moreDownload": "Autres options de téléchargement",
+    "downloadGroup": "Télécharger"
   },
   "unshareFiles": {
     "title_one": "Ne plus partager {{count}} fichier ?",

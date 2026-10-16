@@ -15,11 +15,11 @@ import { collectTreeKeys, summarize, visibleOrder } from '../model/batch-selecti
 import { batchVerbsFor, isBatchSelectable } from '../model/file-row-action.js'
 import { deriveBatchProgress, type BatchProgress } from '../model/batch-progress.js'
 import { rowBytesOnDevice } from '../model/row-view.js'
+import { batchToastText } from '../model/batch-toast.js'
+import { downloadToToastId, type DownloadTo } from './useDownloadTo.js'
 import type { TreeSelection } from '../components/folder/FolderTree.js'
 import type { SelectAllBox } from '../components/listing/ListControlsRow.js'
 import type { SelectionBarSummary } from '../components/batch/SelectionBar.js'
-import type { TFunction } from 'i18next'
-import type { BatchDownloadResult } from '../../shared/contract/responses.js'
 import type { FileTreeNode, ShareFileRow } from '../types/types.js'
 import type { Decoration } from '../types/ui.js'
 
@@ -35,6 +35,7 @@ interface FolderBatchArgs {
   tree: { visibleTree: FileTreeNode[], isExpanded: (path: string) => boolean, deferredFilter: string }
   getDecoration: (relPath: string) => Decoration | null
   markSeeded: (relPaths: readonly string[]) => void
+  downloadTo: DownloadTo
 }
 
 export interface FolderBatch {
@@ -43,22 +44,12 @@ export interface FolderBatch {
   selecting: boolean
   summary: SelectionBarSummary
   matchingCount: number
-  downloadSelected: () => void
-  cancelSelected: () => void
+  /** No folder: the space's, as the strip's main half names it. */
+  downloadSelected: (folder?: string) => void
   deselectHidden: () => void
   end: () => void
   progress: BatchProgress | null
   cancelAll: () => void
-}
-
-/** The toast for the files a batch could not start; none when every file started or was here. */
-export function skippedToast(res: BatchDownloadResult, t: TFunction): string | null {
-  if ('mirrored' in res) return null
-  const parts = []
-  if (res.waitingOnOwner > 0) parts.push(t('batch.waitingOnOwner', { count: res.waitingOnOwner }))
-  if (res.removed > 0) parts.push(t('batch.removedUpstream', { count: res.removed }))
-  if (res.failed > 0) parts.push(t('batch.failed', { count: res.failed }))
-  return parts.length ? parts.join(' · ') : null
 }
 
 /** A batch whose rows all settled is retired once its start window has passed. */
@@ -68,7 +59,7 @@ export function useRetireBatch(scopeKey: string, batch: DownloadBatch | null, pr
   }, [scopeKey, batch, progress])
 }
 
-export function useFolderBatch({ spaceId, share, offered, files, tree, getDecoration, markSeeded }: FolderBatchArgs): FolderBatch {
+export function useFolderBatch({ spaceId, share, offered, files, tree, getDecoration, markSeeded, downloadTo }: FolderBatchArgs): FolderBatch {
   const { id: shareId, owner: ownerKey } = share
   const { visibleTree, isExpanded } = tree
   const filtering = tree.deferredFilter.trim().length > 0
@@ -103,26 +94,23 @@ export function useFolderBatch({ spaceId, share, offered, files, tree, getDecora
   }), [files, sel.selected, shown, verbsOf])
   const summary: SelectionBarSummary = {
     count: full.count, bytes: full.bytes, hidden: full.hidden, onDevice: full.onDevice,
-    download: full.download.length, cancel: full.cancel.length, unshare: 0,
+    download: full.download.length, unshare: 0,
   }
 
-  const downloadSelected = useCallback(() => run(async () => {
+  const { current, movedText } = downloadTo
+  const downloadSelected = useCallback((folder?: string) => run(async () => {
     const relPaths = full.download.map((f) => f.relPath)
-    const res = await request('share:read-files', { spaceId, ownerKey, shareId, relPaths })
+    const destDir = folder ?? current?.path
+    const res = await request('share:read-files', { spaceId, ownerKey, shareId, relPaths, destDir })
     if ('mirrored' in res) return
     if (res.started > 0) {
       startDownloadBatch(scopeKey, relPaths)
       markSeeded(relPaths)
     }
-    const skipped = skippedToast(res, t)
-    if (skipped) toast.info(skipped)
+    const text = batchToastText({ results: [res], moved: destDir ? movedText(destDir) : null, t })
+    if (text) toast.info(text, { id: downloadToToastId(spaceId) })
     end()
-  }, 'transferFailed'), [run, full.download, spaceId, ownerKey, shareId, scopeKey, markSeeded, t, toast, end])
-
-  const cancelSelected = useCallback(() => {
-    cancelMany(full.cancel.flatMap((f) => (f.transferId ? [f.transferId] : [])))
-    end()
-  }, [cancelMany, full.cancel, end])
+  }, 'transferFailed'), [run, full.download, current, movedText, spaceId, ownerKey, shareId, scopeKey, markSeeded, t, toast, end])
 
   const batch = useDownloadBatch(scopeKey)
   const recent = batch !== null && batchIsRecent(batch)
@@ -152,7 +140,6 @@ export function useFolderBatch({ spaceId, share, offered, files, tree, getDecora
     summary,
     matchingCount: matching.size,
     downloadSelected,
-    cancelSelected,
     deselectHidden: sel.deselectHidden,
     end,
     progress,

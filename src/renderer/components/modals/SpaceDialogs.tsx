@@ -75,7 +75,7 @@ export default function SpaceDialogs({
   onApproveMany: (keys: string[]) => void
   onDeny: (publicKey: string) => void
   onCreateInvite: (opts: { autoApprove: boolean; expiresInMs: number }) => Promise<string>
-  onSaveSpace: (spaceId: string, name: string, icon: string, downloadFolder?: string | null) => Promise<Space>
+  onSaveSpace: (spaceId: string, name: string, icon: string, downloadFolder?: string) => Promise<Space>
   onLeave: () => Promise<void>
   onLeft: () => void
   onRemoveFile: () => Promise<void>

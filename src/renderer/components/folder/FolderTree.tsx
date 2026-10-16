@@ -8,6 +8,7 @@ import Icon from '../primitives/Icon.js'
 import Badge from '../primitives/Badge.js'
 import FileName from '../primitives/FileName.js'
 import FileRow from '../cards/FileRow.js'
+import type { DownloadTo } from '../../hooks/useDownloadTo.js'
 import SelectBox from '../batch/SelectBox.js'
 import { formatSize } from '../../format/utils.js'
 import { badgeStyle } from '../../model/status-badge.js'
@@ -41,7 +42,8 @@ interface FileRowCallbacks {
   ownerKey: string
   getDecoration: (relPath: string) => Decoration | null
   isSeeded: (relPath: string) => boolean
-  onDownload: (relPath: string) => void
+  onDownload: (relPath: string, folder?: string) => void
+  downloadTo?: DownloadTo
   onReveal: (relPath: string) => void
   onPause: (transferId: string) => void
   onCancel: (transferId: string) => void
@@ -152,6 +154,7 @@ export default function FolderTree(props: FolderTreeProps) {
             recipients={rest.isOwn ? rest.getRecipients(node.entry.relPath, node.entry.hash) : NO_RECIPIENTS}
             ownerKey={rest.ownerKey}
             onDownload={rest.onDownload}
+            downloadTo={rest.downloadTo}
             onReveal={rest.onReveal}
             onPause={rest.onPause}
             onCancel={rest.onCancel}
