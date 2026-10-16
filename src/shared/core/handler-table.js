@@ -61,7 +61,19 @@ export function validateArgs(shape, msg) {
     if (rule.max != null && typeof value === 'string' && value.length > rule.max) {
       return `${field} exceeds ${rule.max} characters`
     }
+    if (Array.isArray(value)) {
+      const badList = checkList(rule, value, field)
+      if (badList) return badList
+    }
   }
+  return null
+}
+
+// Count and element length of an array, so a batch can be bounded at the boundary like a string.
+function checkList(rule, value, field) {
+  if (rule.minItems != null && value.length < rule.minItems) return `${field} needs at least ${rule.minItems} items`
+  if (rule.maxItems != null && value.length > rule.maxItems) return `${field} exceeds ${rule.maxItems} items`
+  if (rule.itemMax != null && value.some((item) => item.length > rule.itemMax)) return `${field} has an item over ${rule.itemMax} characters`
   return null
 }
 

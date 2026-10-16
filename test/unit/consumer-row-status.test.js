@@ -144,3 +144,18 @@ test('REGRESSION (FIX-LOOSE-OFFLINE-PARTIAL): a null-hash row with partial bytes
 test('consumerRowStatusFor: the defaults leave the rungs below on-device unchanged', (t) => {
   t.alike(consumerRowStatusFor({ hashed: true, isActive: false, pendingRow: null, ownerOnline: true }), { status: 'remote' })
 })
+
+test('an active transfer parked behind the gate reads waiting, not downloading', (t) => {
+  const row = { bytesTransferred: 512, finalPath: '/dl/a.txt' }
+  t.alike(
+    consumerRowStatusFor({ hashed: true, isActive: true, isWaiting: true, pendingRow: row, ownerOnline: true }),
+    { status: 'waiting', pendingBytes: 512 },
+  )
+  t.is(consumerRowStatusFor({ hashed: true, isActive: true, pendingRow: row, ownerOnline: true }).status, 'downloading',
+    'without the flag an active slot is downloading')
+})
+
+test('a copy on this device outranks a waiting slot', (t) => {
+  const row = consumerRowStatusFor({ copyVerdict: COPY_VERDICT.VERIFIED, hashed: true, isActive: true, isWaiting: true, pendingRow: null, ownerOnline: true })
+  t.is(row.status, 'downloaded')
+})

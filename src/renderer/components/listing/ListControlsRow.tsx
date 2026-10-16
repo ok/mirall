@@ -1,30 +1,44 @@
-// The listing's own controls, pinned directly above the first file row and outside the scroll pane.
+// The listing's own controls, pinned directly above the first row and outside the scroll pane.
 // It never moves and never disappears — a strip appearing above it must not take the filter with
-// it, which is also what keeps focus alive when a scan starts under the user's hands.
+// it, which is also what keeps focus alive when a scan starts under the user's hands. The top box,
+// when offered, heads the selection column: its first tick opens the column with every matching
+// file selected, after that it is an ordinary select-all.
 import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import Icon from '../primitives/Icon.js'
 import Button from '../primitives/Button.js'
+import Checkbox from '../primitives/Checkbox.js'
+import type { TriState } from '../../model/batch-selection.js'
 
-interface FolderControlsRowProps {
+export interface SelectAllBox {
+  state: TriState
+  label: string
+  onToggle: () => void
+}
+
+interface ListControlsRowProps {
   value: string
   onChange: (value: string) => void
   matched: number | null
   total: number
-  expandLabel: string
-  onToggleExpand: () => void
+  filterLabel: string
+  selectAll?: SelectAllBox | null
+  expandLabel?: string
+  onToggleExpand?: () => void
   showExpand: boolean
 }
 
-export default function FolderControlsRow({
+export default function ListControlsRow({
   value,
   onChange,
   matched,
   total,
+  filterLabel,
+  selectAll,
   expandLabel,
   onToggleExpand,
   showExpand,
-}: FolderControlsRowProps) {
+}: ListControlsRowProps) {
   const { t } = useTranslation()
   const inputRef = useRef<HTMLInputElement>(null)
   const filtering = value.trim().length > 0
@@ -36,6 +50,14 @@ export default function FolderControlsRow({
 
   return (
     <div className="flex items-center gap-3 mb-3 shrink-0">
+      {selectAll && (
+        <Checkbox
+          checked={selectAll.state === 'on' ? true : selectAll.state === 'mixed' ? 'mixed' : false}
+          label={selectAll.label}
+          title={selectAll.label}
+          onChange={selectAll.onToggle}
+        />
+      )}
       <div className="relative flex-1 min-w-0">
         <span className="absolute left-4 top-1/2 -translate-y-1/2 text-outline pointer-events-none">
           <Icon name="search" size={18} />
@@ -43,15 +65,15 @@ export default function FolderControlsRow({
         <input
           ref={inputRef}
           type="search"
-          aria-label={t('folder.filterLabel')}
+          aria-label={filterLabel}
           placeholder={t('folder.filterPlaceholder')}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           className={`w-full bg-surface-container-lowest dark:bg-surface-container-low border-none rounded-xl pl-11 py-2.5 text-sm text-on-surface placeholder:text-on-surface-variant/70 focus-ring ${filtering ? 'pr-28' : 'pr-4'}`}
         />
-        {/* The count rides inside the field so the row keeps exactly two controls at every width.
-            Announced from its own polite region rather than the rows, which would re-read the
-            whole listing on every keystroke. */}
+        {/* The count rides inside the field so the row's controls never wrap. Announced from its
+            own polite region rather than the rows, which would re-read the whole listing on every
+            keystroke. */}
         <span
           role="status"
           aria-live="polite"
@@ -71,7 +93,7 @@ export default function FolderControlsRow({
           </button>
         )}
       </div>
-      {showExpand && (
+      {showExpand && onToggleExpand && (
         <Button variant="secondary" onClick={onToggleExpand} className="shrink-0">
           {expandLabel}
         </Button>

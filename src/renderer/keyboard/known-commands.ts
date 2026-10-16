@@ -43,6 +43,8 @@ export const KEYBOARD_SHORTCUTS: ReadonlyArray<KnownCommand> = [
   { id: 'space.new',        labelKey: 'shortcuts.newSpace',        group: 'actions',    accelerator: 'mod+n' },
   { id: 'space.join',       labelKey: 'shortcuts.joinSpace',       group: 'actions',    accelerator: 'mod+j' },
   { id: 'search.focus',     labelKey: 'shortcuts.focusSearch',     group: 'actions',    accelerator: 'mod+f' },
+  // Inside a text field the chord keeps selecting text: the keyboard layer never dispatches it there.
+  { id: 'selection.selectAll', labelKey: 'shortcuts.selectAll',    group: 'actions',    accelerator: 'mod+a' },
   { id: 'space.addFiles',   labelKey: 'shortcuts.addFiles',        group: 'space',      accelerator: 'mod+u' },
   { id: 'space.addFolder',  labelKey: 'shortcuts.addFolder',       group: 'space',      accelerator: 'mod+shift+u' },
 ]

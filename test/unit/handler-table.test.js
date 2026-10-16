@@ -115,3 +115,20 @@ test('every optional field is optional because its handler says so', (t) => {
     t.absent(optional.includes(name), `${name} is required — the handler reads it unguarded`)
   }
 })
+
+test('validateArgs bounds an array by count and element length when the row asks', (t) => {
+  const shape = { paths: { type: ARG.array, minItems: 1, maxItems: 3, itemMax: 4 } }
+  t.is(validateArgs(shape, { paths: ['a', 'bb'] }), null)
+  t.is(validateArgs(shape, { paths: [] }), 'paths needs at least 1 items')
+  t.is(validateArgs(shape, { paths: ['a', 'b', 'c', 'd'] }), 'paths exceeds 3 items')
+  t.is(validateArgs(shape, { paths: ['toolong'] }), 'paths has an item over 4 characters')
+  t.is(validateArgs({ paths: { type: ARG.array } }, { paths: [] }), null, 'a plain array row has no bounds')
+})
+
+test('the batch rows bound their lists', (t) => {
+  for (const [name, field] of [['share:read-files', 'relPaths'], ['files:download-many', 'paths']]) {
+    const rule = REQUESTS[name].args[field]
+    t.is(rule.minItems, 1, name + ' refuses an empty batch')
+    t.ok(rule.maxItems > 0 && rule.itemMax > 0, name + ' bounds the count and the element length')
+  }
+})

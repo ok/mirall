@@ -131,11 +131,29 @@ export const withAx = (Base) => class extends Base {
 
   // Background mode's stand-in for a physical pointer: synthetic events at the element's centre,
   // delivered to this window only, so the real cursor never moves.
-  async _pointer(ref, types) {
+  async _pointer(ref, types, modifiers = [], dx = 0) {
     const { data } = await this.ad(['get', ref, '--property', 'bounds'])
     const b = data.value
     if (!b) throw Object.assign(new Error(`${this.name}: ${ref} has no bounds`), { code: 'ACTION_FAILED' })
-    return this.main.mouse(b.x + b.width / 2, b.y + b.height / 2, types)
+    return this.main.mouse(b.x + b.width / 2 + dx, b.y + b.height / 2, types, modifiers)
+  }
+
+  // A click with modifier keys held ('shift', 'meta', 'control'), as a user's shift-click or
+  // command-click. `dx` shifts the point from the element's centre, so a row body with no control
+  // of its own can be hit by way of a control in that row. Background mode only: a modified click
+  // needs the synthetic pointer.
+  modifierClick(sel, modifiers, { dx = 0 } = {}) {
+    return withRetry(async () => {
+      const ref = await this._ref(sel)
+      if (!background()) throw Object.assign(new Error(`${this.name}: modifierClick needs background mode`), { code: 'ACTION_FAILED' })
+      return this._pointer(ref, ['mouseMove', 'mouseDown', 'mouseUp'], modifiers, dx)
+    })
+  }
+
+  // A chord delivered to the page as keys, never as a menu click; see MainChannel.pressKeys.
+  async pressKeys(combo) {
+    if (!background()) return this.press(combo)
+    return this.main.pressKeys(combo)
   }
 
   // Move the OS cursor onto an element (real mouseenter/mouseleave to the DOM).

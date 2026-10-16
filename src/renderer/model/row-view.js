@@ -67,12 +67,13 @@ function seedFrame(row, seeded) {
   }
 }
 
-// What the status pill cannot say in two words. A queued add is waiting for the files ahead of it.
-// An edited copy of a live mirror is about to be moved aside by the next pass, which the user must
-// hear before it happens; any other copy stays edited.
+// What the status pill cannot say in two words. A queued add is waiting for the files ahead of it;
+// a waiting download for a transfer slot. An edited copy of a live mirror is about to be moved
+// aside by the next pass, which the user must hear before it happens; any other copy stays edited.
 /** @param {Row} row @param {FileStatus} status @returns {string | null} */
 function statusHint(row, status) {
   if (status === 'queued') return 'status.queuedHint'
+  if (status === 'waiting') return 'status.waitingHint'
   if (status !== 'modified') return null
   return 'mirrored' in row && row.mirrored ? 'status.modifiedMirrorHint' : 'status.modifiedHint'
 }

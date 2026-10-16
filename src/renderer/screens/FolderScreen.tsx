@@ -5,7 +5,7 @@
 // What the folder IS lives in useFolderViewModel, what it acts on in useShareActions, and the file
 // half in FolderListPane. What is left here is the screen: which of those to show, and the two
 // dialogs whose open state is the screen's own.
-import { useState } from 'react'
+import { useState, type ComponentProps } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useShareFiles } from '../hooks/useShareFiles.js'
 import { useTransferControls } from '../hooks/useTransferControls.js'
@@ -29,6 +29,8 @@ import FolderSidebar from '../components/folder/FolderSidebar.js'
 import { setForeignMountEnabled, unmountForeignMount, useForeignMount } from '../hooks/useForeignMount.js'
 import { useFolderCommands } from '../hooks/useFolderCommands.js'
 import { useLocateShare } from '../hooks/useLocateShare.js'
+import { useFolderBatch, type FolderBatch } from '../hooks/useFolderBatch.js'
+import SelectionBar from '../components/batch/SelectionBar.js'
 import type { ShareWithRole } from '../hooks/useShares.js'
 import type { ShareRole } from '../types/types.js'
 
@@ -81,6 +83,68 @@ function FolderHeaderActions({ role, sourceMissing, onMirror, onLocate, onReveal
   )
 }
 
+// Null on a folder that offers no selection, so the band and the pane keep their resting shape.
+function FolderSelectionBar({ batch }: { batch: FolderBatch }) {
+  if (!batch.selection) return null
+  return (
+    <SelectionBar
+      selecting={batch.selecting}
+      summary={batch.summary}
+      matchingCount={batch.matchingCount}
+      onDownload={batch.downloadSelected}
+      onCancel={batch.cancelSelected}
+      onDeselectHidden={batch.deselectHidden}
+      onDone={batch.end}
+    />
+  )
+}
+
+interface FolderDialogsProps {
+  showDelete: boolean
+  showEdit: boolean
+  share: ShareWithRole
+  spaceName: string
+  isYou: boolean
+  sourceMissing: boolean
+  ownerName: string
+  mountPath: string | null
+  onCloseDelete: () => void
+  onCloseEdit: () => void
+  onDelete: () => Promise<void>
+  onRename: ComponentProps<typeof EditFolderModal>['onRename']
+  onRelocate: ComponentProps<typeof EditFolderModal>['onRelocate']
+}
+
+// The two dialogs whose open state is the screen's own.
+function FolderDialogs({ showDelete, showEdit, share, spaceName, isYou, sourceMissing, ownerName, mountPath, onCloseDelete, onCloseEdit, onDelete, onRename, onRelocate }: FolderDialogsProps) {
+  return (
+    <>
+      <DeleteFolderShareModal
+        isOpen={showDelete}
+        folderName={share.name}
+        spaceName={spaceName}
+        onClose={onCloseDelete}
+        onDelete={async () => {
+          await onDelete()
+          onCloseDelete()
+        }}
+      />
+      {showEdit && (
+        <EditFolderModal
+          isOwner={isYou}
+          canRelocate={!isYou || sourceMissing}
+          name={share.name}
+          ownerName={ownerName}
+          mountPath={mountPath}
+          onRename={onRename}
+          onRelocate={onRelocate}
+          onClose={onCloseEdit}
+        />
+      )}
+    </>
+  )
+}
+
 interface FolderViewProps {
   spaceId: string
   /** Resolved from the live listing by the router, so it is current rather than a snapshot of the
@@ -103,7 +167,7 @@ export default function FolderScreen({ spaceId, share, onBack, onMirror }: Folde
   const isYou = share.role === 'mine'
   const {
     files, info, loading, error,
-    getDecoration, isSeeded,
+    getDecoration, isSeeded, markSeeded,
     downloadFile, revealFile,
   } = useShareFiles(spaceId, share.owner, share.id)
   const { cancelDownload, pauseDownload } = useTransferControls()
@@ -115,6 +179,7 @@ export default function FolderScreen({ spaceId, share, onBack, onMirror }: Folde
   const [showDelete, setShowDelete] = useState(false)
   const [showEdit, setShowEdit] = useState(false)
   const tree = useFilteredTree(share.id, files)
+  const batch = useFolderBatch({ spaceId, share, offered: share.role === 'browse', files, tree, getDecoration, markSeeded })
 
   const {
     foreignEnabled, manualControls, ownedPaused, ownedPath, sourceMissing, ownerName,
@@ -185,6 +250,8 @@ export default function FolderScreen({ spaceId, share, onBack, onMirror }: Folde
         ownerName={ownerName}
         onAction={onStripAction}
         workAnnouncement={workAnnouncement}
+        batch={batch.progress}
+        onCancelBatch={batch.cancelAll}
       />
 
       {/* No `overflow-hidden` on either box: a `focus-visible:ring-2` paints OUTSIDE the border box,
@@ -213,6 +280,9 @@ export default function FolderScreen({ spaceId, share, onBack, onMirror }: Folde
           onReveal={revealFile}
           onPause={pauseDownload}
           onCancel={cancelDownload}
+          selection={batch.selection}
+          selectAll={batch.selectAll}
+          bar={<FolderSelectionBar batch={batch} />}
         />
 
         <FolderSidebar
@@ -228,30 +298,21 @@ export default function FolderScreen({ spaceId, share, onBack, onMirror }: Folde
         />
       </div>
 
-      <DeleteFolderShareModal
-        isOpen={showDelete}
-        folderName={share.name}
+      <FolderDialogs
+        showDelete={showDelete}
+        showEdit={showEdit}
+        share={share}
         spaceName={space?.name || ''}
-        onClose={() => setShowDelete(false)}
-        onDelete={async () => {
-          await deleteShare()
-          setShowDelete(false)
-        }}
+        isYou={isYou}
+        sourceMissing={sourceMissing}
+        ownerName={ownerName}
+        mountPath={isYou ? ownedPath : (foreignMount?.mountPath ?? null)}
+        onCloseDelete={() => setShowDelete(false)}
+        onCloseEdit={() => setShowEdit(false)}
+        onDelete={deleteShare}
+        onRename={rename}
+        onRelocate={relocateTo}
       />
-
-      {showEdit && (
-        <EditFolderModal
-          isOwner={isYou}
-          canRelocate={!isYou || sourceMissing}
-          name={share.name}
-          ownerName={ownerName}
-          mountPath={isYou ? ownedPath : (foreignMount?.mountPath ?? null)}
-          onRename={rename}
-          onRelocate={relocateTo}
-          onClose={() => setShowEdit(false)}
-        />
-      )}
-
     </div>
   )
 }

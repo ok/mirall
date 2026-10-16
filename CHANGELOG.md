@@ -19,10 +19,15 @@ retrying forever, and a paused mirror no longer cancels your own download.
 
 #### Added
 
+- **Select several files and act on them together.** In a folder you browse
+and on a space's file list, tick files and download, cancel or unshare them
+at once. A folder's files keep their folders under your download folder.
 - **Invite with a web link.** The invite dialog can hand out a link that
 opens in a browser. People who don't have Mirall yet are offered the
 download first, then join the space; the Join dialog accepts the link
 pasted from any site.
+- **Filter a space's files.** The space screen gained the folder screen's
+filter field, so a file can be found by name among folders and loose files.
 
 #### Changed
 
@@ -30,6 +35,8 @@ pasted from any site.
 list of a member who is online cannot be read yet, the list says more
 files may appear, instead of looking complete or empty.
 - **Space files say when their owner is offline or still preparing them.**
+- **A download waiting for its turn says Waiting.** Only a few downloads run
+at once; the rest read Waiting instead of Downloading until a slot frees.
 
 #### Fixed
 

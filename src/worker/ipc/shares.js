@@ -22,6 +22,7 @@ import { catalogKeyField } from '../../shared/shares/catalog-keys.js'
 import { ownCatalogPublish } from '../../shared/shares/own-catalog.js'
 import { isServableShare } from '../../shared/transfer/content-mode.js'
 import { overlayBackend as backend } from '../../shared/transfer/overlay/index.js'
+import { LAYOUT } from '../../shared/transfer/overlay/download-job.js'
 import { revealTarget } from '../../shared/transfer/reveal.js'
 import { pathFromMount } from '../../shared/folders/path-guard.js'
 import { isSpaceLeaving } from '../../shared/network/leave-protocol.js'
@@ -279,5 +280,13 @@ export function registerShares(ipc, { log, intents, mountOwnedShare }) {
     // overlay: request the file via the backend (catalog/overlay), not a drive
     if (isOwn) return { ok: true, alreadyOwned: true }
     return await backend.requestDownload(msg.spaceId, share, msg.relPath)
+  })
+
+  // Own files are already on this device and have nothing to download.
+  ipc.handle('share:read-files', async (msg) => {
+    const share = await loadShareDescriptor(msg.spaceId, msg.ownerKey, msg.shareId)
+    if (!isServableShare(share)) throw new AppError(CODES.SHARE_MODE_UNSUPPORTED, 'Share uses an unsupported content mode')
+    if (share.owner === getLocalPublicKeyHex()) throw new AppError(CODES.INVALID_ARGUMENT, 'share:read-files: own folder')
+    return await backend.requestDownloads(msg.spaceId, share, msg.relPaths, { layout: LAYOUT.TREE })
   })
 }

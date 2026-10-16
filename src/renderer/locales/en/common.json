@@ -142,7 +142,10 @@
     "waitingDocsTitle": "Why am I waiting?",
     "waitingDocsBody": "An invite carries the address of the space, never the key to it. Someone already inside hands that over — so a member has to be online and reachable before you can be let in. Auto-approve removes the decision, not the hand-over.",
     "legacyBadge": "Unsupported",
-    "legacyWarning": "This space was created by a much older version of Mirall and can no longer be used. Create a new space and share your folders into that one."
+    "legacyWarning": "This space was created by a much older version of Mirall and can no longer be used. Create a new space and share your folders into that one.",
+    "filterLabel": "Filter files in this space",
+    "filterEmptyHint_one": "Try fewer characters, or clear the filter to see the {{count}} file in this space.",
+    "filterEmptyHint_other": "Try fewer characters, or clear the filter to see all {{count}} files."
   },
   "scanPreview": {
     "computing": "Computing preview…",
@@ -326,7 +329,9 @@
     "queuedHint": "Waits for the files ahead of it to finish adding.",
     "pausedInterrupted": "Paused",
     "ownerOffline": "Owner offline",
-    "failed": "Failed"
+    "failed": "Failed",
+    "waiting": "Waiting",
+    "waitingHint": "Starts when a download ahead of it finishes."
   },
   "file": {
     "revealInFolder": "Reveal in Folder",
@@ -666,7 +671,8 @@
     "whatsNew": "What's New",
     "sendFeedback": "Send Feedback",
     "openDocs": "Open documentation",
-    "openAbout": "Open About Mirall"
+    "openAbout": "Open About Mirall",
+    "selectAll": "Select all files"
   },
   "palette": {
     "title": "Command Palette",
@@ -1603,5 +1609,53 @@
       "restoringTitle": "Restoring",
       "restoringBody": "Your data is restored. Changes wait until someone you share with confirms nothing newer exists — so nothing you change can clash."
     }
+  },
+  "batch": {
+    "selectAll_one": "Select {{count}} file",
+    "selectAll_other": "Select all {{count}} files",
+    "selectAllMatching_one": "Select {{count}} matching file",
+    "selectAllMatching_other": "Select all {{count}} matching files",
+    "selectFolder": "Select all files in {{name}}",
+    "selectedCount_one": "{{count}} selected",
+    "selectedCount_other": "{{count}} selected",
+    "nothingSelected": "Nothing selected",
+    "nothingHint_one": "tick files below, or the box above for {{count}}",
+    "nothingHint_other": "tick files below, or the box above for all {{count}}",
+    "onDevice_one": "{{count}} already on your device",
+    "onDevice_other": "{{count}} already on your device",
+    "hidden_one": "{{count}} hidden by the filter",
+    "hidden_other": "{{count}} hidden by the filter",
+    "deselectHidden": "Deselect hidden",
+    "download": "Download {{count}}",
+    "cancel": "Cancel {{count}}",
+    "unshare": "Unshare {{count}}",
+    "done": "Done",
+    "ended": "Selection ended",
+    "progress_one": "Downloading {{count}} file",
+    "progress_other": "Downloading {{count}} files",
+    "progressDone": "{{count}} done",
+    "progressLeft": "{{size}} left",
+    "progressLabel": "Batch download progress",
+    "cancelAll": "Cancel All",
+    "waitingOnOwner_one": "{{count}} file will download once its owner is online",
+    "waitingOnOwner_other": "{{count}} files will download once their owner is online",
+    "removedUpstream_one": "{{count}} file was removed by its owner",
+    "removedUpstream_other": "{{count}} files were removed by their owner",
+    "progressAnnounce": "Batch download started",
+    "progressEnded": "Batch download finished",
+    "failed_one": "{{count}} file could not start",
+    "failed_other": "{{count}} files could not start"
+  },
+  "unshareFiles": {
+    "title_one": "Unshare {{count}} file?",
+    "title_other": "Unshare {{count}} files?",
+    "body_one": "This file will be removed from the space. Members who already downloaded it will keep their copy.",
+    "body_other": "These files will be removed from the space. Members who already downloaded them will keep their copy.",
+    "action_one": "Unshare {{count}} File",
+    "action_other": "Unshare {{count}} Files",
+    "removing": "Unsharing…",
+    "done_one": "{{count}} file unshared",
+    "done_other": "{{count}} files unshared",
+    "partial": "Unshared {{done}} of {{total}} — {{failed}} failed"
   }
 }

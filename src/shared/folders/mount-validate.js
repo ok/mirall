@@ -39,7 +39,7 @@ function rejectIfOverlapsAnyMount(normalized, role, mounts, ctx) {
 // Shared by both validators so their rules can't drift apart: reject Windows
 // reserved device names, illegal path characters, and trailing space/dot in any
 // segment.
-function checkWindowsSegments(normalized, platform) {
+export function checkWindowsSegments(normalized, platform) {
   if (platform !== 'win32') return
   for (const seg of normalized.split(path.sep)) {
     if (!seg) continue

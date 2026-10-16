@@ -12,6 +12,7 @@ import { listFiles, removeFile, addFile } from '../../shared/transfer/file-listi
 import { emptyListing } from '../../shared/transfer/listing-envelope.js'
 import { revealFile } from '../../shared/transfer/reveal.js'
 import { overlayBackend } from '../../shared/transfer/overlay/index.js'
+import { LAYOUT } from '../../shared/transfer/overlay/download-job.js'
 import { cancelShareDownload, looseShareOfOwner, pauseShareDownload } from '../../shared/transfer/overlay/share-downloads.js'
 import { looseCancelPublish, handleLooseFsEvent } from '../../shared/transfer/overlay/loose-publish.js'
 import { LOOSE_SHARE_ID, looseRelPath, transferIdParts } from '../../shared/transfer/transfer-id.js'
@@ -96,6 +97,12 @@ export function registerFiles(ipc, { log }) {
     // Couldn't start: the owner may simply be unreachable on the bulk plane. Don't make the user
     // wait for the next tick to find that out — the rescue throttles itself, so clicks stay cheap.
     if ('queued' in res && res.queued) rescueStalledTransfers().catch((err) => log.debug('stalled-transfer rescue failed:', errorMessage(err)))
+    return res
+  })
+  ipc.handle('files:download-many', async (msg) => {
+    const { share } = await looseShareOfOwner(msg.spaceId, msg.ownerKey)
+    const res = await overlayBackend.requestDownloads(msg.spaceId, share, msg.paths.map(looseRelPath), { layout: LAYOUT.FLAT })
+    if ('waitingOnOwner' in res && res.waitingOnOwner > 0) rescueStalledTransfers().catch((err) => log.debug('stalled-transfer rescue failed:', errorMessage(err)))
     return res
   })
   ipc.handle('files:cancel-download', async (msg) => {

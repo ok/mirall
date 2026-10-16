@@ -4,7 +4,7 @@
 import { collectOwnShare } from '../../shares/own-catalog.js'
 import { peerCatalogVersion } from '../../shares/peer-catalog.js'
 import { folderPublishAdd, folderPublishDelete } from './folder-publish.js'
-import { listPeerWithMeta, requestShareDownload } from './share-downloads.js'
+import { listPeerWithMeta, requestShareDownload, requestShareDownloads } from './share-downloads.js'
 import { sweepOwnedPresence } from './overlay-maintenance.js'
 
 export const overlayBackend = {
@@ -18,5 +18,6 @@ export const overlayBackend = {
   // A cheap head probe, so a mirror tick skips the full walk when the owner's catalog is unchanged.
   catalogVersion: peerCatalogVersion,
   requestDownload: requestShareDownload,
+  requestDownloads: requestShareDownloads,
   sweepPresence: sweepOwnedPresence,
 }

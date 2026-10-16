@@ -114,7 +114,10 @@
     "waitingDocsTitle": "Pourquoi cette attente ?",
     "waitingDocsBody": "Une invitation contient l'adresse de l'espace, jamais sa clé. C'est un appareil déjà membre qui la transmet : un membre doit donc être en ligne et joignable avant que vous puissiez entrer. L'approbation automatique supprime la décision, pas la transmission.",
     "legacyBadge": "Non pris en charge",
-    "legacyWarning": "Cet espace a été créé avec une version bien plus ancienne de Mirall et ne peut plus être utilisé. Créez un nouvel espace et partagez-y vos dossiers."
+    "legacyWarning": "Cet espace a été créé avec une version bien plus ancienne de Mirall et ne peut plus être utilisé. Créez un nouvel espace et partagez-y vos dossiers.",
+    "filterLabel": "Filtrer les fichiers de cet espace",
+    "filterEmptyHint_one": "Essayez moins de caractères, ou effacez le filtre pour voir le {{count}} fichier de cet espace.",
+    "filterEmptyHint_other": "Essayez moins de caractères, ou effacez le filtre pour voir les {{count}} fichiers."
   },
   "scanPreview": {
     "computing": "Calcul de l'aperçu…",
@@ -298,7 +301,9 @@
     "queuedHint": "Attend que les fichiers précédents aient fini d'être ajoutés.",
     "pausedInterrupted": "En pause",
     "ownerOffline": "Propriétaire hors ligne",
-    "failed": "Échec"
+    "failed": "Échec",
+    "waiting": "En attente",
+    "waitingHint": "Démarre quand un téléchargement précédent se termine."
   },
   "file": {
     "revealInFolder": "Afficher dans le dossier",
@@ -638,7 +643,8 @@
     "whatsNew": "Quoi de neuf",
     "sendFeedback": "Envoyer un commentaire",
     "openDocs": "Ouvrir la documentation",
-    "openAbout": "Ouvrir À propos de Mirall"
+    "openAbout": "Ouvrir À propos de Mirall",
+    "selectAll": "Sélectionner tous les fichiers"
   },
   "palette": {
     "title": "Palette de commandes",
@@ -1603,5 +1609,53 @@
       "restoringTitle": "Restauration",
       "restoringBody": "Vos données sont restaurées. Les modifications attendent qu’une personne avec qui vous partagez confirme qu’il n’existe rien de plus récent — ainsi rien ne peut entrer en conflit."
     }
+  },
+  "batch": {
+    "selectAll_one": "Sélectionner {{count}} fichier",
+    "selectAll_other": "Sélectionner les {{count}} fichiers",
+    "selectAllMatching_one": "Sélectionner {{count}} fichier correspondant",
+    "selectAllMatching_other": "Sélectionner les {{count}} fichiers correspondants",
+    "selectFolder": "Sélectionner tous les fichiers de {{name}}",
+    "selectedCount_one": "{{count}} sélectionné",
+    "selectedCount_other": "{{count}} sélectionnés",
+    "nothingSelected": "Aucune sélection",
+    "nothingHint_one": "cochez des fichiers ci-dessous, ou la case ci-dessus pour {{count}}",
+    "nothingHint_other": "cochez des fichiers ci-dessous, ou la case ci-dessus pour les {{count}}",
+    "onDevice_one": "{{count}} déjà sur votre appareil",
+    "onDevice_other": "{{count}} déjà sur votre appareil",
+    "hidden_one": "{{count}} masqué par le filtre",
+    "hidden_other": "{{count}} masqués par le filtre",
+    "deselectHidden": "Désélectionner les masqués",
+    "download": "Télécharger {{count}}",
+    "cancel": "Annuler {{count}}",
+    "unshare": "Ne plus partager {{count}}",
+    "done": "Terminé",
+    "ended": "Sélection terminée",
+    "progress_one": "Téléchargement de {{count}} fichier",
+    "progress_other": "Téléchargement de {{count}} fichiers",
+    "progressDone": "{{count}} terminé",
+    "progressLeft": "{{size}} restants",
+    "progressLabel": "Progression du téléchargement groupé",
+    "cancelAll": "Tout annuler",
+    "waitingOnOwner_one": "{{count}} fichier sera téléchargé dès que son propriétaire sera en ligne",
+    "waitingOnOwner_other": "{{count}} fichiers seront téléchargés dès que leur propriétaire sera en ligne",
+    "removedUpstream_one": "{{count}} fichier a été supprimé par son propriétaire",
+    "removedUpstream_other": "{{count}} fichiers ont été supprimés par leur propriétaire",
+    "progressAnnounce": "Téléchargement groupé démarré",
+    "progressEnded": "Téléchargement groupé terminé",
+    "failed_one": "{{count}} fichier n’a pas pu démarrer",
+    "failed_other": "{{count}} fichiers n’ont pas pu démarrer"
+  },
+  "unshareFiles": {
+    "title_one": "Ne plus partager {{count}} fichier ?",
+    "title_other": "Ne plus partager {{count}} fichiers ?",
+    "body_one": "Ce fichier sera retiré de l'espace. Les membres qui l'ont déjà téléchargé conserveront leur copie.",
+    "body_other": "Ces fichiers seront retirés de l'espace. Les membres qui les ont déjà téléchargés conserveront leur copie.",
+    "action_one": "Ne plus partager {{count}} fichier",
+    "action_other": "Ne plus partager {{count}} fichiers",
+    "removing": "Retrait…",
+    "done_one": "{{count}} fichier n'est plus partagé",
+    "done_other": "{{count}} fichiers ne sont plus partagés",
+    "partial": "{{done}} sur {{total}} retirés — {{failed}} en échec"
   }
 }

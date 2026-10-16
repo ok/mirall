@@ -167,3 +167,31 @@ test('releasing twice does not double-decrement', async (t) => {
   a()
   t.is(sem.stats().held, 1, 'only the first release counted')
 })
+
+test('onQueued fires only for a waiter that was parked', async (t) => {
+  const sem = createSemaphore({ limit: 1, expressLanes: 0 })
+  let queued = 0
+  const first = await sem.acquire({ onQueued: () => { queued += 1 } })
+  t.is(queued, 0, 'a waiter admitted at once is never reported as queued')
+  const second = sem.acquire({ onQueued: () => { queued += 1 } })
+  t.is(queued, 1, 'a parked waiter is reported synchronously')
+  first()
+  const release = await second
+  t.is(queued, 1, 'admission does not report again')
+  release()
+})
+
+test('a bulk acquire beyond the cap parks while an express acquire still runs', async (t) => {
+  const sem = createSemaphore({ limit: 1, expressLanes: 1 })
+  const held = await sem.acquire()
+  let bulkQueued = false
+  let expressQueued = false
+  const bulk = sem.acquire({ onQueued: () => { bulkQueued = true } })
+  const express = await sem.acquire({ express: true, onQueued: () => { expressQueued = true } })
+  t.ok(bulkQueued, 'the bulk waiter parked behind the cap')
+  t.absent(expressQueued, 'the express lane admitted the click at once')
+  express()
+  held()
+  const release = await bulk
+  release()
+})

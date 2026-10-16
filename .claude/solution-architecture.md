@@ -423,7 +423,13 @@ download; field sets are built in `src/shared/transfer/overlay/download-start.js
 `shareId: '__loose__'`, a folder row `overlayShare: true` + its catalog key. Those fields are what a
 build owns a row by; none is ever renamed. `finalPath` is the collision-avoided landing
 path from which `<finalPath>.mirall.part` and the resume journal derive; `bytesTransferred` lets the
-UI show `paused-*` / `error` and partial progress without a live transfer. Every write to one row
+UI show `paused-*` / `error` and partial progress without a live transfer. `layout: 'tree'` marks a
+row of a folder batch (`share:read-files`), whose file lands under
+`<download folder>/<folder name>/<relPath>` (`download-dest.js`); a row without it lands flat by
+base name, which is every click and every loose file. A resume keeps the layout the row began
+with, a tree row's preflight probes the download root rather than the folder it creates below it,
+and a forgotten tree row's partial is discarded with the row (`partial-sweep.js`
+`discardRowPartials`), since the boot sweep reads roots shallowly. Every write to one row
 goes through a per-key lock (`createKeyedLock`), including the leave purge, so a progress tick can
 neither strip an error verdict nor resurrect a row for a left space. Rows clear on completion,
 cancel/discard and leave.
@@ -770,6 +776,7 @@ terminates and the OS notification is withheld.
 
 | Case | Rule |
 |---|---|
+| Parked behind the fetch gate | The engine holds the slot but no fetch runs; the listing reads `waiting` (`transferPhase`), and the gate's admission re-derives it as `downloading`. A click takes the express lane; a batch (`share:read-files`, `files:download-many`) takes the bulk lane, so `downloadConcurrency` bounds it and the rest wait |
 | Owner offline mid-fetch | Not terminal. The partial and row are kept; status derives `paused-offline` / `paused-interrupted` |
 | Owner reconnects | `OverlayBackend.resumeForOwner` re-drives that owner's rows of every share, loose and folder, in one pass. Active, user-paused and still-terminal rows are skipped. The destination is the space's *current* folder |
 | Republish | The superseded in-flight hash is cancelled and re-fetched |
@@ -1316,7 +1323,10 @@ The rules for adding to the contract:
 - `kind` decides deadline enforcement (`src/shared/contract/request-deadlines.js`). A query's worker
   deadline (default 30 s) *aborts*. A command's deadline only *warns*, because aborting mid-write
   makes the half-states that durable intents exist to prevent. `deadlineMs: 0` means deliberately
-  unbounded, for uploads, previews, exports and `share:read-file`. The renderer's own give-up
+  unbounded, for uploads, previews, exports, `share:read-file` and the two batch downloads
+  (`share:read-files`, `files:download-many`), which write one pending row per file before they
+  answer with per-file counts (`BatchDownloadResult`). An array argument is bounded by `minItems`,
+  `maxItems` and `itemMax` the way a string is by `max`; a batch's cap is the share file limit. The renderer's own give-up
   timeout (`src/renderer/ipc/ipc.ts`) is a separate bound. A caller that gives up sends `cancel`,
   which is a control frame so it is not queued behind the request it cancels.
 - `test/unit/event-taxonomy.test.js` checks that the emit sites, the renderer subscriptions and

@@ -2,18 +2,21 @@
 // intents that landed during that write, refuse what the destination cannot take, then hand the
 // slot to the fetch task. The supersede restart lives here too, because it is a start whose
 // outcome must be resolved for the UI.
+import fs from 'bare-fs'
 import path from 'bare-path'
 import { recordPending } from '../pending-transfers.js'
 import { fetchClaimedBy } from './fetch-gate.js'
 import { abandonReason, ABANDON } from './settle-verdict.js'
 import { preflightFault } from './download-faults.js'
+import { LAYOUT } from './download-job.js'
 import { CODES } from '../../contract/errors.js'
 import { memberWaits } from '../../network/share-wait.js'
 
 // A download's slot IS its registry entry: start() reserves it before any await, so a duplicate
 // trigger cannot open a second fetch on the same hash; the fetch task holds it; settling deletes
 // it. `fetching` means a fetch is in flight in the engine — it gates every abort, so an
-// abort only reaches the engine once there is something to abort.
+// abort only reaches the engine once there is something to abort. `waiting` means the slot is
+// parked behind the fetch gate, which the listing reads as the Waiting status.
 export function makeSlot(job) {
   return {
     job,
@@ -25,6 +28,7 @@ export function makeSlot(job) {
     sourceSeq: job.sourceSeq,
     paused: false,
     cancelled: false,
+    waiting: false,
     fetching: false,
     republishing: false,
     restartJob: null,
@@ -35,10 +39,12 @@ export function createStart({
   registry, pausedHashes, channel, log, hasOverlay, ownerOnline, destProbeFor,
   pauseReasonFor, recordTerminal, failTerminal, runFetch,
 }) {
+  // PERSISTED: `layout` is written only for a TREE job; a flat row carries no layout field.
   const pendingRowFor = (job) => ({
     total: job.size, ownerKey: job.ownerKey,
     finalPath: job.finalPath, sourceSeq: job.sourceSeq, contentHash: job.contentHash,
     bytesTransferred: job.prevBytes || 0, ...channel.pendingExtra(job),
+    ...(job.layout === LAYOUT.TREE ? { layout: LAYOUT.TREE } : {}),
   })
 
   async function start(job) {
@@ -61,8 +67,11 @@ export function createStart({
       await recordPending(job.spaceId, job.pendingKey, pendingRowFor(job))
       const reason = abandonReason(slot, { ownerOnline })
       if (reason) return bailBeforeFetch(slot, job, reason)
+      // A TREE job's probe asks about the download root; its own folders are created under it once
+      // the root is known to exist, so a deleted root is refused rather than recreated.
       const fault = preflightFault(job.size, destProbeFor(job))
       if (fault) return refuse(job, fault)
+      if (job.layout === LAYOUT.TREE) await fs.promises.mkdir(path.dirname(job.finalPath), { recursive: true })
       // Flip the row to 'downloading' immediately: emitUpdated re-derives the list (the engine
       // holds the slot from here, admitted or queued), emitProgress seeds the bar before the
       // first byte. Status derives from the registry slot, not from `fetching`.
@@ -110,7 +119,7 @@ export function createStart({
     else log.warn('overlay download refused — download folder unavailable:', path.dirname(job.finalPath))
     await recordTerminal(job, code, { refusedByPreflight: true })
     failTerminal(job, code)
-    return { queued: true }
+    return { queued: true, refused: true }
   }
 
   // Resolve a supersede restart's outcome so the UI never sticks on "restarting": a fetch that

@@ -149,13 +149,15 @@ export async function listPendingOwnerSpaces({ keep }) {
 
 // Leave-time purge. The deletes run through the SAME per-key chain as every single-row write,
 // so a recordPending/updatePendingProgress already queued for one of these rows cannot land
-// after the purge and resurrect a row for a space the user just left.
+// after the purge and resurrect a row for a space the user just left. Resolves with the rows it
+// deleted: a row is the only record of where its partial sits.
 export async function clearPendingForSpace(spaceId) {
-  const keys = []
+  const rows = []
   for await (const entry of bee.createReadStream(prefixRange(spaceId + ':'))) {
-    keys.push(entry.key)
+    rows.push({ key: entry.key, ...entry.value })
   }
-  await Promise.all(keys.map((key) => exclusive(key, () => bee.del(key))))
+  await Promise.all(rows.map(({ key }) => exclusive(key, () => bee.del(key))))
+  return rows
 }
 
 export const FAILED_ROW_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000
@@ -163,15 +165,16 @@ export const FAILED_ROW_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000
 // A failed row untouched past the cap is forgotten, so the partial sweep that runs after it reclaims
 // the partial. A row without an error may be a pause, which is not durable, and a fault the user can
 // clear (a folder unplugged, a full disk) resumes on its own once cleared; neither ages out.
+// Resolves with the rows it deleted.
 export async function forgetStaleFailures(now = Date.now()) {
   const stale = []
   for await (const { key, value } of bee.createReadStream()) {
     const failedAt = value?.erroredAt ?? value?.updatedAt ?? now
     if (!value?.errorCode || isUserBlockedFault(value.errorCode)) continue
-    if (now - failedAt > FAILED_ROW_MAX_AGE_MS) stale.push(key)
+    if (now - failedAt > FAILED_ROW_MAX_AGE_MS) stale.push({ key, ...value })
   }
-  await Promise.all(stale.map((key) => exclusive(key, () => bee.del(key))))
-  return stale.length
+  await Promise.all(stale.map(({ key }) => exclusive(key, () => bee.del(key))))
+  return stale
 }
 
 export class PendingTransfersBee extends Subsystem {

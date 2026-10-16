@@ -90,7 +90,7 @@ const code = (src) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/
 const BRACKET = 'shared/transfer/overlay/fetch-run.js'
 
 test('every producer holds its fetch slot through the one bracket', (t) => {
-  t.ok(/acquireFetchSlot\(\{ express, owner \}\)/.test(code(read(BRACKET))), 'the bracket takes the slot')
+  t.ok(/acquireFetchSlot\(\{ express, owner, onQueued \}\)/.test(code(read(BRACKET))), 'the bracket takes the slot')
   t.ok(/return runGatedFetch\(\{/.test(code(read('shared/transfer/overlay/fetch-settle.js'))), 'the engine fetches through it')
   t.ok(/return await runGatedFetch\(\{/.test(code(read(MIRROR))), 'the mirror fetches through it')
   const srcRoot = path.resolve(here, '../../src')

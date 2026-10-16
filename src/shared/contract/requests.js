@@ -20,10 +20,11 @@
 //
 // personKey is the one format-checked type (see isPersonKey). ownerKey stays a plain string: it can
 // legitimately be '', so a format assertion there would reject traffic the app already sends.
-import { ARG_MAX } from './limits.js'
+import { ARG_MAX, BATCH_MAX_ITEMS } from './limits.js'
 
 /** @typedef {'string' | 'number' | 'boolean' | 'array' | 'object' | 'spaceId' | 'shareId' | 'path' | 'personKey'} ArgType */
-/** @typedef {{ type: ArgType, optional?: boolean, max?: number }} ArgRule */
+// `minItems`, `maxItems` and `itemMax` bound an array the way `max` bounds a string.
+/** @typedef {{ type: ArgType, optional?: boolean, max?: number, minItems?: number, maxItems?: number, itemMax?: number }} ArgRule */
 // `deadlineMs` is optional and read by contract/request-deadlines.js: a row that omits it takes its
 // kind's default, and 0 means the request is deliberately unbounded.
 /** @typedef {{ kind: 'query' | 'command', args: Record<string, ArgRule>, deadlineMs?: number }} RequestSpec */
@@ -147,6 +148,13 @@ export const REQUESTS = Object.freeze({
   'files:download': { kind: 'command', args: {
     ownerKey: { type: ARG.string, max: ARG_MAX.key },
     path: { type: ARG.path, max: ARG_MAX.path },
+    spaceId: { type: ARG.spaceId },
+  } },
+  // A batch of one member's loose files. Lands flat, like a single loose download; writes a
+  // pending row per file before it returns, so it has no deadline.
+  'files:download-many': { kind: 'command', deadlineMs: 0, args: {
+    ownerKey: { type: ARG.string, max: ARG_MAX.key },
+    paths: { type: ARG.array, minItems: 1, maxItems: BATCH_MAX_ITEMS, itemMax: ARG_MAX.path },
     spaceId: { type: ARG.spaceId },
   } },
   'files:list': { kind: 'query', args: { spaceId: { type: ARG.spaceId } } },
@@ -307,6 +315,15 @@ export const REQUESTS = Object.freeze({
   'share:read-file': { kind: 'query', deadlineMs: 0, args: {
     ownerKey: { type: ARG.string, max: ARG_MAX.key },
     relPath: { type: ARG.path, max: ARG_MAX.path },
+    shareId: { type: ARG.shareId },
+    spaceId: { type: ARG.spaceId },
+  } },
+  // A batch from a browse folder. Keeps the folder's structure under <download folder>/<folder
+  // name>/. Writes a pending row per file before it returns, like share:read-file, so it has no
+  // deadline.
+  'share:read-files': { kind: 'command', deadlineMs: 0, args: {
+    ownerKey: { type: ARG.string, max: ARG_MAX.key },
+    relPaths: { type: ARG.array, minItems: 1, maxItems: BATCH_MAX_ITEMS, itemMax: ARG_MAX.path },
     shareId: { type: ARG.shareId },
     spaceId: { type: ARG.spaceId },
   } },

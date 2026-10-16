@@ -27,7 +27,7 @@ test('a folder job carries every field the engine and its audit row read', (t) =
     transferId: 'S|sh|sub/a.bin',
     contentHash: 'h1', size: 42, sourceSeq: 7,
     ownerKey: 'OWNER', verifyKey: entryRef('sh', 'sub/a.bin'),
-    finalPath: '/dl/sub/a.bin', prevBytes: 0,
+    finalPath: '/dl/sub/a.bin', destRoot: null, layout: 'flat', prevBytes: 0,
   })
 })
 
@@ -40,7 +40,7 @@ test('a loose job is the same job on the loose share, with no folder to name', (
     transferId: looseTransferIdFor('S', 'a.bin'),
     contentHash: 'h1', size: 42, sourceSeq: 7,
     ownerKey: 'OWNER', verifyKey: entryRef(LOOSE_SHARE_ID, 'a.bin'),
-    finalPath: '/dl/a.bin', prevBytes: 0,
+    finalPath: '/dl/a.bin', destRoot: null, layout: 'flat', prevBytes: 0,
   })
 })
 

@@ -1,0 +1,31 @@
+// One strip for a batch the user started, in the info tone of the folder's working strip. Not a
+// live region: its counts change about twice a second, so the start and end are announced by the
+// screen from a count-free sentence instead.
+import { useTranslation } from 'react-i18next'
+import Icon from '../primitives/Icon.js'
+import Button from '../primitives/Button.js'
+import DownloadProgressLane from '../primitives/DownloadProgressLane.js'
+import { formatSize } from '../../format/utils.js'
+import type { BatchProgress } from '../../model/batch-progress.js'
+
+interface BatchProgressStripProps {
+  progress: BatchProgress
+  onCancelAll: () => void
+}
+
+export default function BatchProgressStrip({ progress, onCancelAll }: BatchProgressStripProps) {
+  const { t } = useTranslation()
+  const parts = [t('batch.progress', { count: progress.files })]
+  if (progress.done > 0) parts.push(t('batch.progressDone', { count: progress.done }))
+  parts.push(t('batch.progressLeft', { size: formatSize(progress.bytesLeft) }))
+  return (
+    <div className="flex items-center gap-3 px-4 py-2 rounded-lg text-sm bg-info/20 text-on-surface">
+      <Icon name="download" size={16} className="shrink-0 text-on-info animate-pulse" />
+      <span className="flex-1 min-w-0 truncate">{parts.join(' · ')}</span>
+      <span className="basis-40 shrink-0">
+        <DownloadProgressLane value={progress.pct} label={t('batch.progressLabel')} showPct />
+      </span>
+      <Button variant="secondary" onClick={onCancelAll}>{t('batch.cancelAll')}</Button>
+    </div>
+  )
+}

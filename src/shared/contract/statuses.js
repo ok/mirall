@@ -6,11 +6,13 @@
 // A file row's status, for a loose file and a folder file alike. `synced` is a copy kept on this disk
 // by its share — the owner's own file, or a mirror's — and `downloaded` one the user fetched. Whose
 // file it is travels beside the status, so "Shared by you" is a badge, never a status. `queued` is an
-// own add waiting for a publish slot.
+// own add waiting for a publish slot; `waiting` is a download this device asked for, held behind
+// the concurrency limit until a slot frees.
 export const FILE_STATUS = Object.freeze({
   REMOTE: 'remote',
   PREPARING: 'preparing',
   DOWNLOADING: 'downloading',
+  WAITING: 'waiting',
   VERIFYING: 'verifying',
   QUEUED: 'queued',
   PUBLISHING: 'publishing',
@@ -29,6 +31,7 @@ export const BADGE_STATUS = Object.freeze({
   MODIFIED: 'modified',
   AVAILABLE: 'available',
   DOWNLOADING: 'downloading',
+  WAITING: 'waiting',
   VERIFYING: 'verifying',
   PREPARING: 'preparing',
   QUEUED: 'queued',

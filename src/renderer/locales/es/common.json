@@ -114,7 +114,10 @@
     "waitingDocsTitle": "¿Por qué estoy esperando?",
     "waitingDocsBody": "Una invitación lleva la dirección del espacio, nunca su clave. Esa la entrega alguien que ya está dentro, así que un miembro tiene que estar en línea y accesible antes de que puedan dejarte entrar. La aprobación automática elimina la decisión, no la entrega.",
     "legacyBadge": "No compatible",
-    "legacyWarning": "Este espacio se creó con una versión mucho más antigua de Mirall y ya no se puede usar. Crea un espacio nuevo y comparte tus carpetas en ese."
+    "legacyWarning": "Este espacio se creó con una versión mucho más antigua de Mirall y ya no se puede usar. Crea un espacio nuevo y comparte tus carpetas en ese.",
+    "filterLabel": "Filtrar archivos de este espacio",
+    "filterEmptyHint_one": "Prueba con menos caracteres o borra el filtro para ver el {{count}} archivo de este espacio.",
+    "filterEmptyHint_other": "Prueba con menos caracteres o borra el filtro para ver los {{count}} archivos."
   },
   "scanPreview": {
     "computing": "Calculando vista previa…",
@@ -298,7 +301,9 @@
     "queuedHint": "Espera a que terminen de añadirse los archivos anteriores.",
     "pausedInterrupted": "Pausado",
     "ownerOffline": "Propietario desconectado",
-    "failed": "Falló"
+    "failed": "Falló",
+    "waiting": "En espera",
+    "waitingHint": "Empieza cuando termine una descarga anterior."
   },
   "file": {
     "revealInFolder": "Mostrar en la carpeta",
@@ -638,7 +643,8 @@
     "whatsNew": "Novedades",
     "sendFeedback": "Enviar comentarios",
     "openDocs": "Abrir la documentación",
-    "openAbout": "Abrir Acerca de Mirall"
+    "openAbout": "Abrir Acerca de Mirall",
+    "selectAll": "Seleccionar todos los archivos"
   },
   "palette": {
     "title": "Paleta de comandos",
@@ -1603,5 +1609,53 @@
       "restoringTitle": "Restaurando",
       "restoringBody": "Tus datos están restaurados. Los cambios esperan a que alguien con quien compartes confirme que no hay nada más reciente, para que nada choque."
     }
+  },
+  "batch": {
+    "selectAll_one": "Seleccionar {{count}} archivo",
+    "selectAll_other": "Seleccionar los {{count}} archivos",
+    "selectAllMatching_one": "Seleccionar {{count}} archivo coincidente",
+    "selectAllMatching_other": "Seleccionar los {{count}} archivos coincidentes",
+    "selectFolder": "Seleccionar todos los archivos de {{name}}",
+    "selectedCount_one": "{{count}} seleccionado",
+    "selectedCount_other": "{{count}} seleccionados",
+    "nothingSelected": "Nada seleccionado",
+    "nothingHint_one": "marca archivos abajo, o la casilla de arriba para {{count}}",
+    "nothingHint_other": "marca archivos abajo, o la casilla de arriba para los {{count}}",
+    "onDevice_one": "{{count}} ya en tu dispositivo",
+    "onDevice_other": "{{count}} ya en tu dispositivo",
+    "hidden_one": "{{count}} oculto por el filtro",
+    "hidden_other": "{{count}} ocultos por el filtro",
+    "deselectHidden": "Deseleccionar ocultos",
+    "download": "Descargar {{count}}",
+    "cancel": "Cancelar {{count}}",
+    "unshare": "Dejar de compartir {{count}}",
+    "done": "Listo",
+    "ended": "Selección finalizada",
+    "progress_one": "Descargando {{count}} archivo",
+    "progress_other": "Descargando {{count}} archivos",
+    "progressDone": "{{count}} listo",
+    "progressLeft": "Quedan {{size}}",
+    "progressLabel": "Progreso de la descarga en lote",
+    "cancelAll": "Cancelar todo",
+    "waitingOnOwner_one": "{{count}} archivo se descargará cuando su propietario esté en línea",
+    "waitingOnOwner_other": "{{count}} archivos se descargarán cuando su propietario esté en línea",
+    "removedUpstream_one": "{{count}} archivo fue eliminado por su propietario",
+    "removedUpstream_other": "{{count}} archivos fueron eliminados por su propietario",
+    "progressAnnounce": "Descarga en lote iniciada",
+    "progressEnded": "Descarga en lote finalizada",
+    "failed_one": "{{count}} archivo no pudo iniciarse",
+    "failed_other": "{{count}} archivos no pudieron iniciarse"
+  },
+  "unshareFiles": {
+    "title_one": "¿Dejar de compartir {{count}} archivo?",
+    "title_other": "¿Dejar de compartir {{count}} archivos?",
+    "body_one": "Este archivo se quitará del espacio. Los miembros que ya lo descargaron conservarán su copia.",
+    "body_other": "Estos archivos se quitarán del espacio. Los miembros que ya los descargaron conservarán su copia.",
+    "action_one": "Dejar de compartir {{count}} archivo",
+    "action_other": "Dejar de compartir {{count}} archivos",
+    "removing": "Quitando…",
+    "done_one": "{{count}} archivo dejó de compartirse",
+    "done_other": "{{count}} archivos dejaron de compartirse",
+    "partial": "{{done}} de {{total}} quitados — {{failed}} fallaron"
   }
 }

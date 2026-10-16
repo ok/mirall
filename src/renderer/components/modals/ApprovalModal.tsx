@@ -6,6 +6,7 @@ import type { JoinRequest } from '../../types/types.js'
 import Modal from '../primitives/Modal.js'
 import Avatar from '../primitives/Avatar.js'
 import Button from '../primitives/Button.js'
+import Checkbox from '../primitives/Checkbox.js'
 import IconButton from '../primitives/IconButton.js'
 import { useRestoreHold } from '../../hooks/useRestoreHold.js'
 import { useHeldControl } from '../../hooks/useHeldControl.js'
@@ -66,12 +67,11 @@ export default function ApprovalModal({ isOpen, requests, busyKeys, onApproveMan
       <ul className="px-10 pb-4 space-y-2 max-h-64 overflow-y-auto scrollbar-thin">
         {requests.map((r) => (
           <li key={r.publicKey} className="flex items-center gap-3 rounded-xl bg-surface-container-low p-3">
-            <input
-              type="checkbox"
+            <Checkbox
+              size="sm"
               checked={selected.has(r.publicKey)}
               onChange={() => toggle(r.publicKey)}
-              aria-label={t('space.selectNamed', { name: r.displayName })}
-              className="w-5 h-5 accent-primary"
+              label={t('space.selectNamed', { name: r.displayName })}
             />
             <Avatar src={r.avatar} displayName={r.displayName} size="md" />
             <p className="flex-1 min-w-0 font-bold text-accent truncate">{r.displayName}</p>

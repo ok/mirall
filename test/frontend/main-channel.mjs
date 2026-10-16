@@ -199,6 +199,15 @@ function installHooks() {
       const b = appWindow()?.getContentBounds()
       return b ? { x: b.x, y: b.y } : null
     },
+    // Bring the element a CSS selector names to the middle of its scroll pane, so a pointer event
+    // aimed at its AX bounds lands on it rather than on whatever covers that point off screen.
+    async scrollIntoView(selector) {
+      const win = appWindow()
+      if (!win) return false
+      return win.webContents.executeJavaScript(
+        `(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (!el) return false; el.scrollIntoView({ block: 'center' }); return new Promise((r) => requestAnimationFrame(() => r(true))) })()`,
+      )
+    },
     // Every on-screen window, front to back, and which one is this instance's.
     async windowOrder() {
       const sources = await desktopCapturer.getSources({ types: ['window'], thumbnailSize: { width: 0, height: 0 }, fetchWindowIcons: false })
@@ -294,17 +303,28 @@ export class MainChannel {
   }
 
   // Pointer events at a screen point (the AX bounds space), translated into the window's content.
-  async mouse(screenX, screenY, types) {
+  // `modifiers` ride on every event, in Electron's input-event vocabulary ('shift', 'meta', ...).
+  async mouse(screenX, screenY, types, modifiers = []) {
     const origin = await this.eval('globalThis.__fe.contentOrigin()')
     if (!origin) throw new Error('no app window for pointer input')
     const x = Math.round(screenX - origin.x)
     const y = Math.round(screenY - origin.y)
-    const events = types.map((type) => ({ type, x, y, button: 'left', clickCount: 1 }))
+    const events = types.map((type) => ({ type, x, y, button: 'left', clickCount: 1, modifiers }))
     return this.eval(`globalThis.__fe.sendInput(${JSON.stringify(events)})`)
+  }
+
+  // A chord sent to the page as key events even when a menu item claims it: for a chord the page
+  // answers itself ahead of the menu, which the menu click would never exercise.
+  pressKeys(combo) {
+    return this.eval(`globalThis.__fe.sendInput(${JSON.stringify(keyEvents(parseCombo(combo)))})`)
   }
 
   pageState() {
     return this.eval('globalThis.__fe.pageState()')
+  }
+
+  scrollIntoView(selector) {
+    return this.eval(`globalThis.__fe.scrollIntoView(${JSON.stringify(selector)})`)
   }
 
   windowOrder() {

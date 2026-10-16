@@ -34,7 +34,7 @@ import { emptyListing, looseListing } from './listing-envelope.js'
 import { markListIncomplete } from './list-deficits.js'
 import { beginListingRead, retainListingMemo, settleListingRead, takeListingMemo } from './listing-memo.js'
 import { looseHasOwn, looseListOwn, looseQueuedPaths, looseShareFile, looseUnshareFile } from './overlay/loose-publish.js'
-import { hasShareDownload, listPeerWithMeta, watchedCatalogVersion } from './overlay/share-downloads.js'
+import { listPeerWithMeta, shareDownloadPhase, watchedCatalogVersion } from './overlay/share-downloads.js'
 import { looseShareFor } from './overlay/download-job.js'
 import { listPendingForSpace } from './pending-transfers.js'
 import { isOwnerOnline } from '../network/presence-leases.js'
@@ -80,7 +80,7 @@ const productionDeps = {
   listPeer: listPeerWithMeta,
   listPendingForSpace,
   isOwnerOnline,
-  hasTransfer: hasShareDownload,
+  transferPhase: shareDownloadPhase,
   verdictForClaim,
   listVerifiedRecordsForShare,
   listLooseDownloadClaims,
@@ -124,11 +124,13 @@ function peerRow(spaceId, member, e, ctx) {
     : null
   const pendingRow = ctx.pending.get(drivePath)
   const transferId = looseTransferIdFor(spaceId, e.relPath)
+  const phase = hashed ? ctx.deps.transferPhase(transferId) : null
   const row = consumerRowStatusFor({
     copyVerdict,
     onDeviceStatus: FILE_STATUS.DOWNLOADED,
     hashed,
-    isActive: hashed && ctx.deps.hasTransfer(transferId),
+    isActive: phase !== null,
+    isWaiting: phase === 'waiting',
     pendingRow: pendingRow?.ownerKey === member.publicKey ? pendingRow : undefined,
     ownerOnline: ctx.ownerOnline,
   })

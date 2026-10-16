@@ -17,6 +17,7 @@ export function statusCategory(status) {
     case 'modified':
       return 'on-device'
     case 'downloading':
+    case 'waiting':
     case 'verifying':
       return 'downloading'
     // The owner indexing a file ('publishing') and a member waiting on that index ('preparing')

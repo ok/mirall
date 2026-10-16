@@ -3,6 +3,7 @@ import InviteModal from './InviteModal.js'
 import LeaveSpaceModal from './LeaveSpaceModal.js'
 import EditSpaceModal from './EditSpaceModal.js'
 import RemoveFileModal from './RemoveFileModal.js'
+import UnshareFilesModal from './UnshareFilesModal.js'
 import AddFolderShareModal from './AddFolderShareModal.js'
 import DeleteFolderShareModal from './DeleteFolderShareModal.js'
 import MirrorFolderModal from './MirrorFolderModal.js'
@@ -19,16 +20,48 @@ export type SpaceDialog =
   | { kind: 'leave' }
   | { kind: 'edit' }
   | { kind: 'remove-file'; file: FileEntry }
+  | { kind: 'unshare-files'; files: FileEntry[] }
   | { kind: 'add-folder'; path: string }
   | { kind: 'delete-share'; share: ShareWithRole }
   | { kind: 'mirror-share'; share: ShareWithRole }
+
+const NO_FILES: FileEntry[] = []
+
+interface FileDialogsProps {
+  dialog: SpaceDialog | null
+  spaceId: string
+  onClose: () => void
+  onRemoveFile: () => Promise<void>
+  onUnsharedFiles: () => void
+}
+
+// The two dialogs about loose files: one file's removal, and a selection's.
+function FileDialogs({ dialog, spaceId, onClose, onRemoveFile, onUnsharedFiles }: FileDialogsProps) {
+  return (
+    <>
+      <RemoveFileModal
+        isOpen={dialog?.kind === 'remove-file'}
+        filePath={dialog?.kind === 'remove-file' ? dialog.file.path : ''}
+        onClose={onClose}
+        onRemove={onRemoveFile}
+      />
+      <UnshareFilesModal
+        isOpen={dialog?.kind === 'unshare-files'}
+        spaceId={spaceId}
+        files={dialog?.kind === 'unshare-files' ? dialog.files : NO_FILES}
+        onClose={onClose}
+        onDone={() => { onClose(); onUnsharedFiles() }}
+      />
+    </>
+  )
+}
 
 // Every dialog the space screen can show, in one place: which one is on screen is the `dialog`
 // union's job, and this reads it. It lives apart from the screen because the screen's own body is
 // about the content behind them.
 export default function SpaceDialogs({
   dialog, onClose, space, spaceId, spaceName, requests, busyKeys, members, existingShareNames,
-  onApproveMany, onDeny, onCreateInvite, onSaveSpace, onLeave, onLeft, onRemoveFile,
+  onApproveMany, onDeny, onCreateInvite, onSaveSpace, onLeave, onLeft, onRemoveFile, onUnsharedFiles,
 }: {
   dialog: SpaceDialog | null
   onClose: () => void
@@ -46,6 +79,7 @@ export default function SpaceDialogs({
   onLeave: () => Promise<void>
   onLeft: () => void
   onRemoveFile: () => Promise<void>
+  onUnsharedFiles: () => void
 }) {
   return (
     <>
@@ -76,12 +110,7 @@ export default function SpaceDialogs({
           onClose={onClose}
         />
       )}
-      <RemoveFileModal
-        isOpen={dialog?.kind === 'remove-file'}
-        filePath={dialog?.kind === 'remove-file' ? dialog.file.path : ''}
-        onClose={onClose}
-        onRemove={onRemoveFile}
-      />
+      <FileDialogs dialog={dialog} spaceId={spaceId} onClose={onClose} onRemoveFile={onRemoveFile} onUnsharedFiles={onUnsharedFiles} />
       <AddFolderShareModal
         isOpen={dialog?.kind === 'add-folder'}
         spaceId={spaceId}

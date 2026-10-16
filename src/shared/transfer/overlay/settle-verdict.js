@@ -35,12 +35,16 @@ export const ABANDON = Object.freeze({
   PAUSED: 'paused',
   NO_OVERLAY: 'no-overlay',
   OFFLINE: 'offline',
+  // The registry no longer holds this slot: a pause, a cancel or a republish released it while it
+  // was parked, and whatever holds the id now is another attempt's. Nothing to settle.
+  STALE: 'stale',
 })
 
 // Why a reserved slot must not fetch, asked after every await between the reservation and the
 // engine call. `hasOverlay` is optional: the pre-fetch guard in start() never asked it, the
 // post-gate guard does (see drainFetchSlots in fetch-gate.js).
-export function abandonReason(slot, { ownerOnline, hasOverlay = null }) {
+export function abandonReason(slot, { ownerOnline, hasOverlay = null, live = null }) {
+  if (live && !live()) return ABANDON.STALE
   if (slot.cancelled) return slot.restartJob ? ABANDON.RESTART : ABANDON.CANCELLED
   if (slot.paused) return ABANDON.PAUSED
   if (hasOverlay && !hasOverlay()) return ABANDON.NO_OVERLAY

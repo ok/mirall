@@ -33,6 +33,8 @@ export const CASES = [
   // This one measures painted colour in both themes, and scans the stylesheet for the hover fill.
   { name: "facepile", title: "Mirall facepile ring harness" },
   { name: "focusring", title: "Mirall focus-ring clearance harness" },
+  { name: "folderselecting", title: "Mirall folder selection-column layout harness" },
+  { name: "spaceselecting", title: "Mirall space selection-column layout harness" },
   { name: "rowfocus", title: "Mirall grouped-row focus harness" },
   { name: "indexing", title: "Mirall indexing-labels harness" },
   // This one scans the stylesheet rather than rendering against it.

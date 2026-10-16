@@ -22,6 +22,16 @@ import { recordTransferOutcome } from '../../audit/transfer-audit.js'
 import { memberWaits } from '../../network/share-wait.js'
 import { announceShareReceived } from '../../network/share-received.js'
 import { SHARE_WAIT_SOURCE } from '../share-wait-set.js'
+import { LAYOUT } from './download-job.js'
+
+// A user-blocked fault is a WARN that names the folder; anything else is the generic debug line.
+function logFailure(log, job, result, code) {
+  if (code === CODES.TRANSFER_CHECKSUM) log.warn('overlay integrity failure — holder served bytes that do not match the content hash:', job.relPath)
+  else if (code === CODES.TRANSFER_DISK_FULL) log.warn('overlay fetch failed — disk full:', job.relPath)
+  else if (code === CODES.TRANSFER_DEST_UNAVAILABLE) log.warn('overlay fetch failed — download folder unavailable:', path.dirname(job.finalPath))
+  else if (code === CODES.TRANSFER_PERMISSION) log.warn('overlay fetch failed — download folder not writable:', path.dirname(job.finalPath))
+  else log.debug('overlay fetch failed:', job.relPath, '-', result.code)
+}
 
 export function createFetchSettle({
   registry, terminalCodes, retries, channel, log,
@@ -34,9 +44,12 @@ export function createFetchSettle({
   function run(slot, job) {
     return runGatedFetch({
       express: !!job.express,
+      // A parked job reads Waiting; admission flips it back. Both edges re-derive the listing, so
+      // the row never waits for a heartbeat to change.
+      onQueued: () => { slot.waiting = true; channel.emitUpdated(job.spaceId, job.shareId) },
       // Every reason the pre-fetch guard checked, plus the overlay itself, which a drained gate
       // also answers (drainFetchSlots in fetch-gate.js).
-      recheck: () => abandonReason(slot, { ownerOnline, hasOverlay }),
+      recheck: () => abandonReason(slot, { ownerOnline, hasOverlay, live: () => registry.get(job.transferId) === slot }),
       abandon: (reason) => abandon(slot, job, reason),
       holding: () => fetchAndSettle(slot, job),
     })
@@ -46,6 +59,7 @@ export function createFetchSettle({
     // Set past the gate so it keeps meaning "a fetch is in flight in the engine", which is what
     // gates every abortFetch.
     slot.fetching = true
+    if (slot.waiting) { slot.waiting = false; channel.emitUpdated(job.spaceId, job.shareId) }
     // The overlay scheduler reports CUMULATIVE bytes already seeded with the resumed on-disk
     // bytes, so the ticker needs no resume offset.
     const { res: result, err, diag } = await callVendor(vendor, job.contentHash, {
@@ -55,6 +69,9 @@ export function createFetchSettle({
       by: job.transferId,
       ownerKey: job.ownerKey,
       size: job.size,
+      // A tree job's folder was created under the root at start; a drive pulled mid-batch then
+      // fails the file instead of recreating the mount point on the boot disk.
+      parentMustExist: job.layout === LAYOUT.TREE,
       onProgress: ({ bytes, total, speed, eta }) => {
         channel.emitProgress(job, { bytes, total, speed, eta })
         job.lastBytes = bytes
@@ -67,19 +84,24 @@ export function createFetchSettle({
     })
     // A fetch that rejects instead of resolving its outcome is a bug in it, and reaches the caller.
     if (err) throw err
-    await settle(job, result, diag)
+    await settle(slot, job, result, diag)
+  }
+
+  // Only this slot's own registry entry is ever released: a slot released while parked may have
+  // been replaced by a newer attempt under the same id, which is that attempt's to settle.
+  function release(slot) {
+    if (registry.get(slot.job.transferId) === slot) registry.delete(slot.job.transferId)
   }
 
   function abandon(slot, job, reason) {
-    registry.delete(job.transferId)
+    if (reason === ABANDON.STALE) return
+    release(slot)
     if (reason === ABANDON.RESTART) { restartAfterSupersede(slot.restartJob); return }
-    if (reason === ABANDON.CANCELLED) return
     channel.emitUpdated(job.spaceId, job.shareId)
   }
 
-  async function settle(job, result, diag) {
+  async function settle(slot, job, result, diag) {
     const { transferId } = job
-    const slot = registry.get(transferId)
     const verdict = settleVerdict(slot, result)
     if (verdict === SETTLE.PARK) {
       diag.finish(FETCH_OUTCOME.AWAITING_REPUBLISH)
@@ -87,7 +109,7 @@ export function createFetchSettle({
       releasePark(transferId, slot)
       return
     }
-    registry.delete(transferId)
+    release(slot)
     // Only a code-less stall keeps its retry history; every other outcome ends the intent this
     // record belongs to.
     if (result.ok || result.code) retries.cancel(transferId)
@@ -135,7 +157,7 @@ export function createFetchSettle({
   // derives 'preparing' and the materialized-hash append restarts it. The owner is re-hashing, so
   // from here we are waiting on it.
   function releasePark(transferId, slot) {
-    registry.delete(transferId)
+    release(slot)
     memberWaits.wait(slot.ownerKey, transferId, SHARE_WAIT_SOURCE.ROW)
     discardPartial(slot.finalPath)
     try { fs.unlinkSync(slot.finalPath) } catch {}
@@ -170,11 +192,7 @@ export function createFetchSettle({
   async function settleFailed(job, result, diag) {
     diag.finish(FETCH_OUTCOME.FAILED)
     const code = terminalFault(result, destProbeFor(job))
-    if (code === CODES.TRANSFER_CHECKSUM) log.warn('overlay integrity failure — holder served bytes that do not match the content hash:', job.relPath)
-    else if (code === CODES.TRANSFER_DISK_FULL) log.warn('overlay fetch failed — disk full:', job.relPath)
-    else if (code === CODES.TRANSFER_DEST_UNAVAILABLE) log.warn('overlay fetch failed — download folder unavailable:', path.dirname(job.finalPath))
-    else if (code === CODES.TRANSFER_PERMISSION) log.warn('overlay fetch failed — download folder not writable:', path.dirname(job.finalPath))
-    else log.debug('overlay fetch failed:', job.relPath, '-', result.code)
+    logFailure(log, job, result, code)
     await recordTerminal(job, code)
     failTerminal(job, code)
   }

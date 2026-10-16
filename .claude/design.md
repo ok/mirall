@@ -460,6 +460,46 @@ or share row (see the hover rules under Buttons). Requires `ariaLabel`. The icon
 `error` on `error-container` is under 3:1 in dark (pinned by `control-hover-tokens.test.js`,
 FIX-B4-1).
 
+### Checkbox — `primitives/Checkbox.tsx`
+The app's one checkbox: a 20 px `rounded` box drawn over an `sr-only` native input, inside a round
+hit area that hovers through `control-hover` like an `IconButton` (`md` 40 px for a row control and
+the top box, `sm` 32 px for a dialog row). Unchecked it is `border-2 border-on-surface-variant`,
+not `border-outline`: outline measures about 2.3:1 on a dark file row, under the 3:1 non-text
+floor. Checked or mixed it is `bg-primary` with an `on-primary` check or dash; `mixed` sets the
+input's `indeterminate` flag, which reaches the AX tree as a mixed state. The focus ring is drawn on
+the box (`peer-focus-visible:ring-2 ring-secondary/30`). `showLabel` renders the name beside the
+box as the label's own text (the Feedback dialog); otherwise the name is the input's `aria-label`
+(the approval list, every selection box). The change handler is backed by the click, so it carries
+the shift key a range needs.
+
+### Selection column — `batch/SelectBox.tsx`, `listing/ListControlsRow.tsx`, `batch/SelectionBar.tsx`
+At rest a listing that offers selection shows one extra control: the top box ahead of the filter in
+the controls row. Its first tick opens the column with every matching file selected; after that it
+is an ordinary tri-state select-all. While the column is open the scroll pane's left padding grows
+from `pl-1` to `pl-14` (the box's 40 px plus the row gap of 12 px, `SELECTION_GUTTER`), so every
+row slides right and its `SelectBox` sits in the gutter at one x whatever the tree depth
+(`left: -(52 + depth × 24)`, each `FolderTree` level being `pl-6`). A folder row's box is a sibling
+of its disclosure button, never inside it. A selected row keeps the lift fill
+(`bg-surface-container-highest`), so the state is not carried by the box alone. A row with no
+batch verb and no copy on this device draws no box. An offline owner's file is the one row whose
+batch verb outruns its own button: its Download is disabled on the row, but it takes part in a
+batch Download, which keeps the request until the owner is back and says so in a toast. The selection strip under the controls row is
+`FolderWorkStrip`'s anatomy in the neutral tone (`bg-surface-container-low text-on-surface-variant`,
+`pl-4 pr-1 py-1.5 rounded-lg`), inset `ml-13` (52 px, the top box and the row gap) so it starts
+where the filter field and the shifted rows start: the count, the size, how many are already on the device and how
+many the filter hides, then "Deselect hidden", `Cancel N` (secondary), `Unshare N` (danger, space
+only), `Download N` (primary) and `Done`. A verb with nothing to act on is not shown. The count is
+announced from one always-mounted polite region, which also announces the end of a selection.
+
+### Batch strip — `batch/BatchProgressStrip.tsx`
+One strip for a batch the user started, in the folder band (after the derived strips) or the
+space's pinned slot above its list: the info tone (`bg-info/20 text-on-surface`), a pulsing
+`download` icon, "Downloading N files · M done · S left", a `DownloadProgressLane` named "Batch
+download progress", and `Cancel All` (secondary). Not a live region: its counts change twice a
+second, so `batch/BatchAnnouncement.tsx`, an always-mounted polite region of its own beside the
+strip, says "Batch download started" once and "Batch download finished" once. The strip clears
+itself once nothing in the batch is moving.
+
 ### Toggle — `primitives/Toggle.tsx`
 Full-width `role="switch"` row, `p-6`, label + optional description on the left, a 48×28 pill track
 on the right (`bg-primary` on / `bg-surface-container-high` off) with a 20px translating thumb.
@@ -822,6 +862,8 @@ every file status onto a **fixed 5-token palette**, each token one fixed meaning
 your device — `downloaded`/`synced`, and `synced` on your own file reads `mine`, "Shared by you",
 from `isOwn`), 🔵 `bg-info` (busy — `downloading` / `verifying`
 (`animate-pulse`) moving bytes, `preparing` (`animate-pulse`) / `publishing` indexing them;
+`waiting` is NOT busy: a download the engine holds parked behind its concurrency limit wears the
+passive pill, "Waiting", with `status.waitingHint` under the name and no bar;
 `publishing` is the OWNER hashing its own file ("Adding"), `preparing` a member waiting on that
 hash, and neither is a transfer — the folder roll-up counts them apart from downloads), 🟡
 `bg-warning` (needs attention — `paused-interrupted`, `modified` "Edited locally" (a copy changed on
@@ -896,8 +938,10 @@ Three slots, one rule: **tiles state, the header acts, the strip acts for now.**
   when it clears. One tone per condition (`bg-info/20` busy, `bg-warning-container` paused — the
   container pair, per §2 — `bg-error-container` broken, `bg-surface-container-low` informational)
   and at most one verb.
-- **Controls row** (`folder/FolderControlsRow.tsx`) — pinned directly above the first file row and
-  never scrolling with it: the filter field (count and clear *inside* the field) plus Expand all.
+- **Controls row** (`listing/ListControlsRow.tsx`, shared with the space screen) — pinned directly
+  above the first file row and never scrolling with it: the top selection box on a browse folder,
+  the filter field (count and clear *inside* the field) plus Expand all. The selection strip sits
+  under it, the batch strip rides in the band above.
 - **Tiles** — `cards/FolderPeopleCard.tsx` (owner + `Mirroring · N`, the section absent at zero) and
   `cards/FolderStatsCard.tsx` (size, file count, and a status pill top-right drawn from the same
   five-token `model/status-badge.js` palette the file rows use). Neither carries an action — the
@@ -1006,8 +1050,12 @@ lettering at 80% over the dark bar is a grey logo. Pinned by `npm run test:layou
 - Global `@media (prefers-reduced-motion: reduce)` neutralizes all animations/transitions
   (`tailwind.css`).
 - Universal visible focus ring (see §7).
-- Keyframes: `avatar-issue-pulse` (2.4s) and `progress-indeterminate-sweep` (1.4s; the warmup sweep
-  on `DownloadProgressLane`, reduced to a static 40%-opacity fill under `prefers-reduced-motion`).
+- Keyframes: `avatar-issue-pulse` (2.4s), `progress-indeterminate-sweep` (1.4s; the warmup sweep
+  on `DownloadProgressLane`, reduced to a static 40%-opacity fill under `prefers-reduced-motion`)
+  and `select-box-in` (200ms fade of the selection column's boxes).
+- Selection column: the rows slide 52 px right through a `padding-left` transition, 200ms
+  `cubic-bezier(.2,0,0,1)`, and back when the column closes; the boxes fade in over 200ms. Both are
+  off under reduced motion.
 - Standardized thin scrollbar (`.scrollbar-thin`), resolving against `color-scheme`.
 - Accessibility is CI/locally gated — see `.claude/testing.md`. Every control must be reachable and
   identifiable by name/role/state.

@@ -142,6 +142,7 @@ function stubEngine(t) {
     start: async () => { calls.start++; return { transferId: 'stub', finalPath: '/x' } },
     clearPauseMarker: (id) => { calls.clearPauseMarker.push(id) },
     reconcileOnAppend: async () => {},
+    activeDests: () => [],
   })
   t.teardown(() => setDownloadEngine(null))
   return calls
@@ -347,6 +348,7 @@ test('a hashed entry starts on the one engine for both kinds', async (t) => {
     start: async (job) => { started.push(job); return { transferId: job.transferId, finalPath: job.finalPath } },
     clearPauseMarker: () => {},
     reconcileOnAppend: async () => {},
+    activeDests: () => [],
   })
   t.teardown(() => setDownloadEngine(null))
 
