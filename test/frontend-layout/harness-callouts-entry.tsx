@@ -9,6 +9,7 @@ import { createRoot } from 'react-dom/client'
 import '../../src/renderer/platform/i18n.js'
 import Callout from '../../src/renderer/components/primitives/Callout.js'
 import TextField from '../../src/renderer/components/primitives/TextField.js'
+import { FieldGround } from '../../src/renderer/components/primitives/FieldGround.js'
 
 interface ThemeResult {
   theme: 'light' | 'dark'
@@ -36,7 +37,10 @@ const noop = () => {}
 
 createRoot(document.getElementById('root') as HTMLElement).render(
   <div className="glass-modal w-full max-w-xl p-10 space-y-6">
-    <TextField id="callout-field" label="Field" value="" onChange={noop} />
+    {/* The ground Modal gives the fields in its panel. */}
+    <FieldGround fill="low">
+      <TextField id="callout-field" label="Field" value="" onChange={noop} />
+    </FieldGround>
     <div data-probe="note"><Callout tone="note" icon="warning" title="Keep this safe">Body</Callout></div>
     <div data-probe="warning"><Callout tone="warning" role="status">Body</Callout></div>
     <div data-probe="warning-container" className="bg-warning-container h-4" />

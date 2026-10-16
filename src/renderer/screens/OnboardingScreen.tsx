@@ -1,5 +1,6 @@
 // First-run screen: create the local profile (display name + optional avatar).
 import InlineError from '../components/primitives/InlineError.js'
+import TextField from '../components/primitives/TextField.js'
 import { useState, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { NAME_MAX } from '../format/utils.js'
@@ -96,23 +97,18 @@ export default function OnboardingScreen({ onComplete }: OnboardingProps) {
             )}
 
             <div className="space-y-2">
-              <label className="block text-sm font-semibold text-accent px-1" htmlFor="display-name">
-                {t('onboarding.displayName')}
-              </label>
-              <input
+              <TextField
                 id="display-name"
+                label={t('onboarding.displayName')}
                 type="text"
                 maxLength={NAME_MAX}
-                aria-describedby="display-name-count"
-                className="w-full bg-surface-container-lowest border-none rounded-xl px-4 py-4 text-on-surface placeholder:text-outline-variant focus-ring transition-all text-lg"
                 placeholder={t('onboarding.displayNamePlaceholder')}
                 value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
+                onChange={setDisplayName}
                 onKeyDown={(e) => { if (e.key === 'Enter') void handleContinue() }}
+                help={t('onboarding.displayNameHelp')}
+                describedBy="display-name-count"
               />
-              <p className="text-xs text-on-surface-variant px-1">
-                {t('onboarding.displayNameHelp')}
-              </p>
               <p id="display-name-count" className="text-xs text-on-surface-variant px-1" aria-live="polite">
                 {t('settings.displayNameCount', { count: displayName.length, max: NAME_MAX })}
               </p>

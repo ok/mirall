@@ -14,6 +14,12 @@ export default async function s22({ runDir, bootstrap }) {
       await A.launch({ onboard: false })
       await A.waitText('Welcome to Mirall', 45000)
     })
+    // The AX tree carries no aria-describedby, so the help line's link to the field is pinned by the
+    // `fields` layout harness; here the field is named by its label and the help line is shown.
+    await r.ok('the name field is named by its label, with its help line', async () => {
+      if (!(await A.has({ role: 'textfield', name: 'Display Name' }))) throw new Error('no textfield named "Display Name"')
+      await A.waitText('This is how your team and friends will see you.', 8000)
+    })
     await r.ok('a whitespace-only name keeps Continue disabled', async () => {
       await A.type({ role: 'textfield' }, '   ')
       await waitFor(async () => A.isDisabled({ role: 'button', name: 'Continue' }), 8000, 'Continue disabled')

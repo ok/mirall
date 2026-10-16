@@ -84,7 +84,7 @@ most-used values:
 | `online` / `offline` | `#0d8b80` / `#a0a4ac` | Member presence |
 | `warning` / `on-warning` | `#fcd34d` / `#1b1c1a` | The yellow "needs attention" state — paused / folder missing on disk. **Solid chips only** |
 | `warning-container` / `on-warning-container` | `#fdefc6` / `#6d4c00` (dark: `#4e4229` / `#fbe3a4`) | The tinted warning *surface* — `warning` callouts, the work strip's paused band |
-| `error` | `#ba1a1a` | Hard error text/icon |
+| `error` | `#ba1a1a` (dark: `#ec9199`) | Hard error text/icon. The dark value is the darkest that clears 4.5:1 on every ground error text is painted on, including a file row's `-highest` hover lift |
 | `error-container` / `on-error-container` | `#f6c8c4` / `#93000a` | Danger button rest, error toast/badge, destructive row hover |
 | `error-container-hover` | `#e8bab6` | Danger button hover (dark: `#7c3f43`) — see the hover-token table under Buttons |
 | `icon-tile` / `on-icon-tile` | `#fec78a` / `#0a4742` | Reserved icon-tile pair (defined; most tiles render on `surface-container-high`) |
@@ -256,7 +256,7 @@ and `pb-1.5` to keep the 800-weight descenders out of the clip that `truncate` i
   job: it is for sub-labels inside a surface (shortcut groups, activity-log day headings).
 - **Row focus:** `row-group` (`styles/tailwind.css`) is `rounded-xl overflow-hidden` plus the card's
   radius on its first and last child, so the row meeting an edge is rounded there. A row in it wears
-  `row-focus` instead of `focus-ring`: an inset `ring-secondary/30` the clip cannot cut, plus the
+  `row-focus` instead of `focus-ring`: an inset `ring-secondary` the clip cannot cut, plus the
   `bg-surface-container-high/50` hover fill. `ROW` (ActionRow), `Toggle` and the Appearance language
   rows carry it. Pinned by `npm run test:layout:case -- rowfocus`.
 - **Sticky in-page headers:** `sticky top-0 z-10 bg-surface` for list titles.
@@ -312,9 +312,16 @@ above at `rounded-3xl` (2rem).
 
 Most components live under `src/renderer/components/` (`keyboard/` is a sibling). Every interactive
 control uses the universal focus ring — the **`focus-ring` utility**, declared once in
-`styles/tailwind.css` as `focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30`
-(danger uses `ring-error/30`, still spelled out) — and `active:scale-95` press feedback unless
-noted.
+`styles/tailwind.css` as `focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary`
+(danger uses an opaque `ring-error`, still spelled out) — and `active:scale-95` press feedback
+unless noted. The ring is opaque: only full `secondary` clears 3:1 on every control ground in both
+themes (light ≥ 5.00, dark ≥ 3.62), pinned by `test/invariants/field-contrast.test.js`.
+- **A ring is never the colour of the control it surrounds.** A `bg-secondary` button on a
+  `secondary-container` banner (`UpdateBanner`, `RestoreBanner`) wears `focus-ring-on-secondary`:
+  the banner's text colour, held off the button by a 2px gap of banner.
+- **`RadioCard` separates focus from selection by shape.** Selection is the 2px ring on the card's
+  edge; focus is a 2px outline inset 6px within it. Both are opaque `secondary`, and a focused
+  selected card shows both.
 
 The ring is painted **outside** the border box, so it needs 2px of clearance inside every clipping
 ancestor — a scroll pane or an `overflow-hidden` wrapper sitting flush against a control shaves it
@@ -467,7 +474,7 @@ the top box, `sm` 32 px for a dialog row). Unchecked it is `border-2 border-on-s
 not `border-outline`: outline measures about 2.3:1 on a dark file row, under the 3:1 non-text
 floor. Checked or mixed it is `bg-primary` with an `on-primary` check or dash; `mixed` sets the
 input's `indeterminate` flag, which reaches the AX tree as a mixed state. The focus ring is drawn on
-the box (`peer-focus-visible:ring-2 ring-secondary/30`). `showLabel` renders the name beside the
+the box (`peer-focus-visible:ring-2 ring-secondary`). `showLabel` renders the name beside the
 box as the label's own text (the Feedback dialog); otherwise the name is the input's `aria-label`
 (the approval list, every selection box). The change handler is backed by the click, so it carries
 the shift key a range needs.
@@ -502,8 +509,16 @@ itself once nothing in the batch is moving.
 
 ### Toggle — `primitives/Toggle.tsx`
 Full-width `role="switch"` row, `p-6`, label + optional description on the left, a 48×28 pill track
-on the right (`bg-primary` on / `bg-surface-container-high` off) with a 20px translating thumb.
-Hover lifts to `bg-surface-container-high/50`; focus wears `row-focus` (see the row-group pattern).
+on the right with a 16px translating knob. Hover lifts to `bg-surface-container-high/50`; focus
+wears `row-focus` (see the row-group pattern).
+
+- **On** is a `primary` track with an `on-primary` knob. **Off** is a 2px `on-surface-variant`
+  outline and an `on-surface-variant` knob, with no fill — the same rule `Checkbox` applies to its
+  unchecked box. A fill would have to clear 3:1 against the card, and no surface tier does.
+- The pill is `ToggleSwitch`, exported for the one switch that cannot be a full-width row: the
+  Activity Log recording switch (`AuditRecordingCard`) sits beside the retention segments and keeps
+  its own `<button role="switch">`, because it uses `aria-disabled` to keep focus through its write
+  and `Toggle` uses `disabled`. It paints with `ToggleSwitch`; there is no second track.
 
 **A control's supporting text belongs on the control**, in that `description` — not in a separate
 advisory block near it. A box that explains a switch two elements further down describes something
@@ -566,15 +581,36 @@ width (and, being `visibility: hidden`, stays out of the accessibility tree).
 ### Text field — `primitives/TextField.tsx`
 Label, input, help line and error message as one control. It owns the association a hand-rolled
 field keeps getting wrong: `aria-invalid` when it fails, and an `aria-describedby` that resolves to
-its help text and its error together. The surface is `FIELD_SURFACE` —
-`bg-surface-container-low border-none rounded-xl px-6 py-4` with the `focus-ring` (a **ring**, not a
-border) — exported so a `<textarea>` is the same box with a height (`FeedbackModal`).
+its help text and its error together. The surface is `fieldSurface(fill)` —
+`border-none rounded-xl px-6 py-4 text-accent font-medium` with the `focus-ring` (a **ring**, not a
+border) — exported so a `<textarea>` is the same box with a height (`FeedbackModal`) and the Command
+Palette's combobox the same box with no label.
+- **The fill follows the ground, never the caller** (`primitives/FieldGround.tsx`): a field in a
+  modal panel (`-lowest`) is filled `-low`, because `Modal` wraps its contents in
+  `<FieldGround fill="low">`; every field outside a modal sits on a `-low` card and takes the default,
+  `-lowest`. `TextField`, `SearchField` and `PathRow` read it with `useFieldFill()`.
+  `fieldSurface(fill)` takes it explicitly, since its callers render the `Modal` themselves.
+- **The placeholder is `FIELD_PLACEHOLDER`** (`on-surface-variant/85`): the lowest step that clears
+  4.5:1 on every field fill in both themes. Never a border token (`outline`, `outline-variant`).
+- **Fields have no boundary, by design** (§1, depth through tiers, not lines): a field's edge against
+  its host is 1.1–1.2:1. The label identifies it; for a search field, the glyph and placeholder.
 - `error` renders an `InlineError` and marks the field invalid; `help` stays put beneath it, because
   the two say different things. `invalid` + `describedBy` are for a field whose failure is reported
   elsewhere on the form (`JoinSpaceModal`: one message under both boxes).
-- `mono` for a pasted key or invite code.
-- The two settings-screen fields (`screens/AccountScreen.tsx`, `screens/OnboardingScreen.tsx`) sit
-  on `surface-container-lowest` with their own padding and are **not** TextFields.
+- `mono` for a pasted key or invite code; `tabular` for a number edited in place (the Network
+  transfer limit).
+- Account, Onboarding and the Network transfer limit are `TextField`s on `-low` cards.
+- Pinned by `test/invariants/field-contrast.test.js` (the arithmetic) and
+  `npm run test:layout:case -- fields` (the painted colours).
+
+### Search field — `primitives/SearchField.tsx`
+A search glyph inset on the left (`text-on-surface-variant`), `pl-11`, `text-sm`, an `on-surface`
+value and `FIELD_PLACEHOLDER`, named by `aria-label`; the glyph and placeholder stand in for a label.
+Its fill follows the ground like every field: `-lowest` on the Activity Log's `-low` card and on the
+screen background under the list filter, where it is as far off the page as `-low` would be
+(1.05 light, 1.10 dark) and, unlike `-low`, never the fill of the dark file rows beneath it.
+`compact` is the list filter's `py-2.5` (`ListControlsRow`). `endInset` keeps the text clear of overlays the caller
+places at the right end (the filter's count and clear button).
 
 ### Field label — `primitives/FieldLabel.tsx`
 `font-headline text-sm font-bold text-accent px-1`, and the element is the point: `htmlFor` renders
@@ -609,7 +645,7 @@ leading-relaxed` body. Pick the tone by what the text says, not by how loud it s
   limit (`warning`).
 - Not a callout: error boxes (`error-container`), toasts, the update banner, the folder work strip,
   and any note inside a `surface-container-low` card. The `note` plate is that same token, so it
-  would vanish into the card (the `fill="lowest"` problem under Path field); the storage card's
+  would vanish into the card (the field-fill problem under Text field); the storage card's
   partial-total line is a plain `text-sm text-on-surface-variant` sentence instead.
 
 ### Path field — `path/PathRow.tsx`
@@ -656,14 +692,13 @@ dialog titles.
   not arrived, not the absence of one. Conflating them offered a first pick for a folder that
   already exists and flipped the button label when the read landed. The field says
   `pathField.loading` and the button already reads "Change".
-- **The placeholder is `text-on-surface-variant`, never `text-outline`.** `outline` is the
+- **The empty-state text is `text-on-surface-variant` italic, never `text-outline`.** It is a span,
+  not an input placeholder, so it takes full opacity rather than `FIELD_PLACEHOLDER`. `outline` is the
   badge/dropzone *border* token; as the field's only content it measures 2.63:1 (light) and 1.90:1
   (dark) at 70% opacity, well under the 4.5:1 AA floor. The muted-text token clears it in both
   themes (8.4–12:1), and italic is what still reads it as a hint.
-- **`fill` picks the ramp step**, because the ground differs: `low` (default) sits on a modal panel,
-  which is `surface-container-lowest`. A settings card is itself `surface-container-low` — same
-  token, same hex in both themes — so a row inside one passes `fill="lowest"` or the field
-  disappears into the card. Same relationship `NetworkSettings`' number input already has.
+- **The fill follows the ground**, the same `FieldGround` rule as Text field: `-low` in a modal
+  panel, `-lowest` on a settings card, which is itself `-low` and would swallow a `-low` field.
 - **Omit `onAction` for a display-only row** — the field stays and the **absent button** is what
   says the path is fixed. That is how Edit Folder shows a healthy owned source, which must not be
   re-pointed outside the Locate flow.

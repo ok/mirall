@@ -6,6 +6,7 @@
 import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import Icon from '../primitives/Icon.js'
+import SearchField from '../primitives/SearchField.js'
 import Button from '../primitives/Button.js'
 import Checkbox from '../primitives/Checkbox.js'
 import type { TriState } from '../../model/batch-selection.js'
@@ -58,19 +59,16 @@ export default function ListControlsRow({
           onChange={selectAll.onToggle}
         />
       )}
-      <div className="relative flex-1 min-w-0">
-        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-outline pointer-events-none">
-          <Icon name="search" size={18} />
-        </span>
-        <input
-          ref={inputRef}
-          type="search"
-          aria-label={filterLabel}
-          placeholder={t('folder.filterPlaceholder')}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className={`w-full bg-surface-container-lowest dark:bg-surface-container-low border-none rounded-xl pl-11 py-2.5 text-sm text-on-surface placeholder:text-on-surface-variant/70 focus-ring ${filtering ? 'pr-28' : 'pr-4'}`}
-        />
+      <SearchField
+        inputRef={inputRef}
+        label={filterLabel}
+        placeholder={t('folder.filterPlaceholder')}
+        value={value}
+        onChange={onChange}
+        compact
+        endInset={filtering}
+        className="flex-1 min-w-0"
+      >
         {/* The count rides inside the field so the row's controls never wrap. Announced from its
             own polite region rather than the rows, which would re-read the whole listing on every
             keystroke. */}
@@ -92,7 +90,7 @@ export default function ListControlsRow({
             <Icon name="close" size={14} />
           </button>
         )}
-      </div>
+      </SearchField>
       {showExpand && onToggleExpand && (
         <Button variant="secondary" onClick={onToggleExpand} className="shrink-0">
           {expandLabel}

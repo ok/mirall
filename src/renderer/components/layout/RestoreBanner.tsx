@@ -35,7 +35,7 @@ export default function RestoreBanner({ hold, restartFailed, onRetryRestart, onD
       <button
         type="button"
         onClick={restartFailed ? onRetryRestart : onDetails}
-        className="bg-secondary text-on-secondary text-xs font-bold px-3 py-1 rounded shadow-lg hover:opacity-90 active:scale-95 transition-all focus-ring shrink-0"
+        className="bg-secondary text-on-secondary text-xs font-bold px-3 py-1 rounded shadow-lg hover:opacity-90 active:scale-95 transition-all focus-ring-on-secondary shrink-0"
       >
         {restartFailed ? t('identityLocked.retry') : t('restore.details')}
       </button>

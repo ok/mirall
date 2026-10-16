@@ -32,7 +32,7 @@ export default function Checkbox({ checked, label, onChange, size = 'md', showLa
   const box = (
     <span
       aria-hidden="true"
-      className={`w-5 h-5 rounded flex items-center justify-center transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-secondary/30 ${filled ? 'bg-primary text-on-primary' : 'border-2 border-on-surface-variant'}`}
+      className={`w-5 h-5 rounded flex items-center justify-center transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-secondary ${filled ? 'bg-primary text-on-primary' : 'border-2 border-on-surface-variant'}`}
     >
       {checked === true && <Icon name="check" size={16} />}
       {checked === 'mixed' && <span className="block w-2.5 h-0.5 rounded-full bg-on-primary" />}

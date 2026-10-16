@@ -26,7 +26,8 @@ const RULES = [
     what: 'the focus ring',
     use: 'the `focus-ring` utility',
     owner: 'styles/tailwind.css',
-    pattern: /focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary\/30/,
+    // Any opacity: a hand-rolled copy of the old translucent ring is still the ring.
+    pattern: /focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/,
   },
   {
     what: 'an inline error',
@@ -45,9 +46,35 @@ const RULES = [
   },
   {
     what: 'a field surface',
-    use: '<TextField>, or the FIELD_SURFACE it exports',
+    use: '<TextField>, or the fieldSurface() it exports',
     owner: 'components/primitives/TextField.tsx',
-    pattern: /bg-surface-container-low border-none focus-ring rounded-xl px-6 py-4/,
+    // The fill is a separate token, so the shape is matched without it.
+    pattern: /border-none focus-ring rounded-xl px-6 py-4/,
+  },
+  {
+    what: 'a field placeholder colour',
+    use: 'the FIELD_PLACEHOLDER that TextField exports',
+    owner: 'components/primitives/TextField.tsx',
+    pattern: /placeholder:text-/,
+  },
+  {
+    what: 'a field label element',
+    use: '<FieldLabel htmlFor>',
+    owner: 'components/primitives/FieldLabel.tsx',
+    // A <label> that names a control by id. Checkbox wraps its input instead, with no htmlFor.
+    pattern: /<label[^>]*htmlFor=/,
+  },
+  {
+    what: 'a search field',
+    use: '<SearchField>',
+    owner: 'components/primitives/SearchField.tsx',
+    pattern: /type="search"/,
+  },
+  {
+    what: 'a switch track',
+    use: 'the ToggleSwitch that Toggle exports',
+    owner: 'components/primitives/Toggle.tsx',
+    pattern: /w-12 h-7 rounded-full/,
   },
   {
     what: 'an avatar stack',

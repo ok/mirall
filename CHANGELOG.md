@@ -85,6 +85,12 @@ Finder, which stores accented letters differently. Both spellings now match.
 - **Who has a file no longer lists waiting members as downloading.**
 Members who wait for you to finish indexing, or who are offline, now show
 under Waiting instead of Downloading.
+- **Easier-to-read forms.** Placeholder text, switches that are off and
+error messages in dark mode now stand out clearly, and the invite field
+shown while restoring a backup is visible again.
+- **You can see where keyboard focus is.** The outline around the control
+you reach with Tab was faint almost everywhere; it is now clearly visible,
+also on banner buttons and on a chosen option.
 - **Files you add no longer jump around the list.** A new file appears
 right where it stays, instead of at the top until Mirall has listed it.
 - **The Activity Log names your folders.** Moving a folder logged "You moved

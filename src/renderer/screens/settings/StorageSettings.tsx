@@ -106,14 +106,12 @@ export default function StorageSettings({ onBack, onOpenActivityLogSettings, onO
               <div className="bg-surface-container-low rounded-xl p-6">
                 <p id="storage-download-folder-desc" className="text-sm text-on-surface-variant mb-3">{t('storageSettings.downloadFolderDesc')}</p>
                 {/* The same row Add Folder, Mirror to Disk, Edit Folder and Edit Space show — a path
-                  is a path, whichever screen you are on. `lowest` because this card is itself
-                  `surface-container-low`, which the field's default fill would vanish into. */}
+                  is a path, whichever screen you are on. */}
                 <PathRow
                   path={downloadFolder || null}
                   loading={downloadFolder === null}
                   onAction={handleBrowseFolder}
                   ariaDescribedBy="storage-download-folder-desc"
-                  fill="lowest"
                 />
                 {/* A rejected pick leaves BOTH true — the old folder is still unavailable and the
                   new one was refused. Order matters for a screen reader: the rejection is what

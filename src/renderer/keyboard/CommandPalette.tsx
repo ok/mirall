@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import Modal from '../components/primitives/Modal.js'
+import { fieldSurface } from '../components/primitives/TextField.js'
 import { useKeyboard } from './KeyboardProvider.js'
 import AcceleratorLabel from './AcceleratorLabel.js'
 import type { Command } from './registry.js'
@@ -87,7 +88,7 @@ export default function CommandPalette() {
           aria-controls="command-palette-listbox"
           aria-activedescendant={ranked[active]?.id}
           aria-autocomplete="list"
-          className="w-full bg-surface-container-low border-none rounded-xl px-5 py-4 text-accent font-medium placeholder:text-outline/50 focus-ring transition-all"
+          className={fieldSurface('low')}
         />
         <ul ref={listRef} id="command-palette-listbox" role="listbox" className="mt-4 max-h-80 overflow-y-auto scrollbar-thin">
           {ranked.length === 0 && (

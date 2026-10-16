@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import Icon from '../primitives/Icon.js'
+import SearchField from '../primitives/SearchField.js'
 import SegmentedControl, { Segment } from '../primitives/SegmentedControl.js'
 import ActionMenu, { type ActionMenuItemConfig } from '../primitives/ActionMenu.js'
 import { AUDIT_CATEGORIES } from '../../hooks/useAuditLog.js'
@@ -62,20 +63,13 @@ export default function ActivityFilterBar(props: ActivityFilterBarProps) {
   return (
     <section>
       <div className="bg-surface-container-low rounded-xl p-6 space-y-4">
-        <div className="relative">
-          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-outline pointer-events-none">
-            <Icon name="search" size={18} />
-          </span>
-          <input
-            ref={searchRef}
-            type="search"
-            aria-label={t('activityLog.searchLabel')}
-            placeholder={t('activityLog.searchPlaceholder')}
-            value={filters.search}
-            onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))}
-            className="w-full bg-surface-container-lowest border-none rounded-xl pl-11 pr-4 py-4 text-sm text-on-surface placeholder:text-on-surface-variant/70 focus-ring"
-          />
-        </div>
+        <SearchField
+          inputRef={searchRef}
+          label={t('activityLog.searchLabel')}
+          placeholder={t('activityLog.searchPlaceholder')}
+          value={filters.search}
+          onChange={(search) => setFilters((prev) => ({ ...prev, search }))}
+        />
 
         <div className="flex flex-wrap items-center gap-2">
           <ActionMenu

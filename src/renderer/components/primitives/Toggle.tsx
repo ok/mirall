@@ -35,17 +35,21 @@ export default function Toggle({ label, description, checked, disabled, onChange
   )
 }
 
-function ToggleSwitch({ checked }: { checked: boolean }) {
+// The switch itself. Exported for the one control that cannot be a full-width row: the Activity Log
+// recording switch keeps focus while its write is in flight, which a disabled row button cannot.
+// Off is drawn by an outline and a knob in on-surface-variant, not by a fill: the fill would have to
+// clear 3:1 against the card, and no surface tier does.
+export function ToggleSwitch({ checked }: { checked: boolean }) {
   return (
     <span
-      className={`shrink-0 inline-flex items-center w-12 h-7 rounded-full p-1 transition-colors ${
-        checked ? 'bg-primary' : 'bg-surface-container-high'
+      className={`shrink-0 inline-flex items-center w-12 h-7 rounded-full p-1 border-2 transition-colors ${
+        checked ? 'bg-primary border-primary' : 'border-on-surface-variant'
       }`}
       aria-hidden="true"
     >
       <span
-        className={`w-5 h-5 rounded-full bg-on-primary transition-transform ${
-          checked ? 'translate-x-5' : 'translate-x-0'
+        className={`w-4 h-4 rounded-full transition-transform ${
+          checked ? 'bg-on-primary translate-x-5' : 'bg-on-surface-variant translate-x-0'
         }`}
       />
     </span>

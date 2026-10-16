@@ -26,6 +26,8 @@ export const CASES = [
   { name: "darkshadow", title: "Mirall dark-mode chrome shadow harness" },
   // This one compares computed backgrounds against token probes in both themes.
   { name: "callouts", title: "Mirall callout tone harness" },
+  // This one composites computed colours onto a canvas and measures contrast in both themes.
+  { name: "fields", title: "Mirall field contrast harness" },
   { name: "dropoverlay", title: "Mirall drop-overlay layout harness" },
   { name: "errorassoc", title: "Mirall dialog error-association harness" },
   { name: "failpaths", title: "Mirall action failure-path harness" },
