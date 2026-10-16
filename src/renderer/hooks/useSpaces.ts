@@ -7,6 +7,7 @@ import { SPACES_SCOPES } from '../store/scopes.js'
 import { pruneRosterCache } from './useSpaceMembers.js'
 import { pruneMirrorCache } from './useSpaceMirrors.js'
 import { pruneSpaceCardState } from './useSpaceCardState.js'
+import { pruneDownloadBatches } from './useDownloadBatch.js'
 import { pruneShareCache } from './useShares.js'
 import type { Space } from '../types/types.js'
 
@@ -32,6 +33,7 @@ export function useSpaces() {
     pruneRosterCache(ids)
     pruneMirrorCache(ids)
     pruneSpaceCardState(ids)
+    pruneDownloadBatches(ids)
     pruneShareCache(ids)
     // Per-space entries are dropped with the space, or re-joining the same id paints stale rows.
     pruneSpaceScopedQueries(ids)

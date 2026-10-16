@@ -1,4 +1,5 @@
 import { PUBLISH_ORDERS } from '../contract/paths.js'
+import { BATCH_MAX_ITEMS } from '../contract/limits.js'
 /** @import { RelayMode } from '../contract/relay-apply.js' */
 import {
   finiteAtLeast, intAtLeast, intAtLeastOrInfinity, capOrInfinity, boundedOrSentinel, failOpen,
@@ -15,8 +16,9 @@ import {
 const DEFAULT_PUBLISH_ORDER = 'smallest-first'
 
 // The admission gate and the display ceiling are ONE number, not two that happen to match: a folder
-// the gate ADMITS must always render in full. See listFilesCap / maxFilesPerShare below.
-const DEFAULT_SHARE_FILE_LIMIT = 5000
+// the gate ADMITS must always render in full. See listFilesCap / maxFilesPerShare below. The same
+// number bounds a batch download request, which can never name more files than a share holds.
+const DEFAULT_SHARE_FILE_LIMIT = BATCH_MAX_ITEMS
 
 // A DEFAULTED row that a getter validates on read. Most rows carry no rule and are read raw —
 // including every connection, membership and sweep cap and the burst and threshold of every

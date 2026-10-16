@@ -3,25 +3,32 @@
 // LOOSE_SHARE_ID share of its owner (download-job.js). What stays per kind: the audit observer and
 // the offline-intent row for a loose file; the mirrored-share refusal and the mirror's append trigger
 // for a folder.
+import os from 'bare-os'
 import path from 'bare-path'
 import { collectPeerShare, getPeerEntryState, isPeerCatalogWatched, peerCatalogVersion, resolvePeerCatalog, watchPeerCatalog } from '../../shares/peer-catalog.js'
 import { readCatalogKey } from '../../shares/catalog-keys.js'
 import { readPeerShareEntry } from '../../shares/shares.js'
 import { observePeerCatalog } from '../../audit/peer-records-watch.js'
 import { getDownloadDir } from '../../core/paths.js'
+import { AppError } from '../../core/errors.js'
+import { CODES } from '../../contract/errors.js'
 import { getSpace } from '../../spaces/space.js'
 import { verifiedMembers } from '../../spaces/member-standing.js'
 import { getForeignMount } from '../../folders/mount-store.js'
+import { relKeyEscapes } from '../../folders/path-keys.js'
+import { checkWindowsSegments } from '../../folders/mount-validate.js'
 import { createLogger } from '../../core/logger.js'
 import { getPendingFor, recordPendingIntent } from '../pending-transfers.js'
-import { reuseDest } from '../download-dest.js'
+import { pinnedDest, resolveDest, partialAllocatedBytes } from '../download-dest.js'
+import { hasDownloadedCopy } from '../files.js'
 import { LOOSE_SHARE_ID, looseDrivePath, transferIdFor } from '../transfer-id.js'
 import { memberWaits } from '../../network/share-wait.js'
 import { SHARE_WAIT_SOURCE } from '../share-wait-set.js'
 import { getOverlay } from './overlay-instance.js'
 import { createOverlayChannel } from './overlay-channel.js'
 import { cancelSpaceOn, reconcileActiveSlots } from './active-transfers.js'
-import { downloadJob, looseShareFor, pendingKeyFor, rowShareFor, slotOwnedBy } from './download-job.js'
+import { preflightFault } from './download-faults.js'
+import { LAYOUT, downloadJob, looseShareFor, pendingKeyFor, rowShareFor, slotOwnedBy } from './download-job.js'
 
 const log = createLogger('share-downloads')
 const UNRESOLVED = Object.freeze({ removed: false, seq: undefined, job: null })
@@ -43,6 +50,11 @@ function engine() {
 }
 
 const isLoose = (share) => share.id === LOOSE_SHARE_ID
+
+// The destinations every live slot holds, read at resolve time: a name a running transfer is
+// writing is taken whether or not its partial exists yet. A job's resolve and its start() are
+// synchronous once its row is read, so nothing can resolve the same name in between.
+const liveDests = () => ({ has: (abs) => engine().activeDests().includes(abs) })
 // One owner's catalog carries every share of that owner in the space, so each share registers its
 // own listener on it (watchPeerCatalog fans one append out to all of them).
 const catalogWatchId = (shareId) => 'download:' + shareId
@@ -98,18 +110,43 @@ async function reconcileActiveTransfers(spaceId, share) {
     buildJob: (slot, state) => downloadJob({
       spaceId, share, relPath: slot.job.relPath, pendingKey: slot.pendingKey,
       keyHex, encrypted, epoch, entry: state, finalPath: slot.finalPath,
+      destRoot: slot.job.destRoot, layout: slot.job.layout,
     }),
   })
 }
 
+// The folder a TREE download lands in under the download root: the share's name as one segment. A
+// name that would escape, or is not a legal folder name here, is refused rather than flattened: a
+// flattened batch would scatter and collide silently.
+function assertTreeName(share) {
+  if (relKeyEscapes(share.name) || share.name.includes('/')) throw new AppError(CODES.EPATH, 'unsafe folder name: ' + share.name)
+}
+
+function treeRel(share, relPath) {
+  assertTreeName(share)
+  const rel = share.name + '/' + relPath
+  checkWindowsSegments(rel.split('/').join(path.sep), os.platform())
+  return rel
+}
+
+function destRel(share, relPath, layout) {
+  return layout === LAYOUT.TREE ? treeRel(share, relPath) : path.basename(relPath)
+}
+
 // The destination is re-anchored when the recorded one no longer sits in the space's download
-// folder (the user re-pointed it while the row was paused) — see reuseDest.
-async function jobFor({ spaceId, share, relPath, pendingKey, cat, entry, pending }) {
+// folder (the user re-pointed it while the row was paused) — see reuseDest. A resume keeps the
+// layout the row began with, so a tree download re-driven by a reconcile lands in its folder.
+async function jobFor({ spaceId, share, relPath, pendingKey, cat, entry, pending, layout = LAYOUT.FLAT }) {
   pending = pending ?? await getPendingFor(spaceId, pendingKey)
-  const finalPath = reuseDest(pending?.finalPath, getDownloadDir(spaceId), path.basename(relPath))
+  const kept = pending?.layout === LAYOUT.TREE ? LAYOUT.TREE : layout
+  const destRoot = getDownloadDir(spaceId)
+  const reserved = liveDests()
+  // The pin first: a resumed tree row keeps its destination even when its share record is no
+  // longer readable, and only a fresh resolve needs the share's name.
+  const finalPath = pinnedDest(pending?.finalPath, destRoot, reserved) ?? resolveDest(destRoot, destRel(share, relPath, kept), reserved)
   return downloadJob({
     spaceId, share, relPath, pendingKey, keyHex: cat.keyHex, encrypted: cat.encrypted, epoch: cat.epoch, entry,
-    finalPath, prevFinalPath: pending?.finalPath, prevBytes: pending?.bytesTransferred,
+    finalPath, destRoot, layout: kept, prevFinalPath: pending?.finalPath, prevBytes: pending?.bytesTransferred,
   })
 }
 
@@ -174,6 +211,31 @@ async function recordLooseIntent(spaceId, share, relPath, entry) {
   return { queued: true }
 }
 
+async function openCatalog(spaceId, share) {
+  const cat = await resolvePeerCatalog(spaceId, share)
+  if (cat.readable) ensureCatalogWatch(spaceId, share, cat)
+  return cat
+}
+
+// The answer for one file of a click or a batch, whose pause marker the caller has already
+// retired. `express` is a click's lane; a
+// batch takes the bulk lane so the concurrency limit holds and the rest read Waiting. Only a
+// tombstone means the owner removed the file: a null entry may be an offline owner or replication
+// lag, so a loose click still records its intent row for it. A batch hands over the entry it
+// already read; a click reads it here.
+async function downloadOne(spaceId, share, cat, relPath, { express, layout, entry = undefined }) {
+  const transferId = transferIdFor(spaceId, share.id, relPath)
+  if (entry === undefined) entry = cat.readable ? await getPeerEntryState(cat.keyHex, share.id, relPath, { sck: cat.sck }) : null
+  if (entry?.removed) return { queued: false }
+  if (entry?.contentHash) {
+    const job = await jobFor({ spaceId, share, relPath, pendingKey: pendingKeyFor(share, relPath), cat, entry, layout })
+    return engine().start({ ...job, express })
+  }
+  if (isLoose(share)) return await recordLooseIntent(spaceId, share, relPath, entry)
+  if (entry) memberWaits.wait(share.owner, transferId, SHARE_WAIT_SOURCE.CLICK)
+  return { queued: true }
+}
+
 /**
  * The user's download click, and its manual resume. A mirrored share syncs itself, paused or not,
  * so it is refused before the engine is touched: a second copy in the downloads folder would also
@@ -182,29 +244,96 @@ async function recordLooseIntent(spaceId, share, relPath, entry) {
  */
 export async function requestShareDownload(spaceId, share, relPath) {
   if (!isLoose(share) && await getForeignMount(spaceId, share.id)) return { ok: true, mirrored: true }
-  const transferId = transferIdFor(spaceId, share.id, relPath)
-  // Retired before any guard can return: a marker left set suppresses every later auto-resume.
-  engine().clearPauseMarker(transferId)
+  // Retired before any guard or read can fail: a marker left set suppresses every later auto-resume.
+  engine().clearPauseMarker(transferIdFor(spaceId, share.id, relPath))
   if (!getOverlay() || !readCatalogKey(share).keyHex) return { queued: true }
-  const cat = await resolvePeerCatalog(spaceId, share)
-  if (cat.readable) ensureCatalogWatch(spaceId, share, cat)
-  // Only a tombstone means the owner removed the file: a null entry may be an offline owner or
-  // replication lag, so a loose click still records its intent row for it.
-  const entry = cat.readable ? await getPeerEntryState(cat.keyHex, share.id, relPath, { sck: cat.sck }) : null
-  if (entry?.removed) return { queued: false }
-  if (entry?.contentHash) {
-    const job = await jobFor({ spaceId, share, relPath, pendingKey: pendingKeyFor(share, relPath), cat, entry })
-    // Express: a click never queues behind a reconnect backlog.
-    return engine().start({ ...job, express: true })
+  const cat = await openCatalog(spaceId, share)
+  return await downloadOne(spaceId, share, cat, relPath, { express: true, layout: LAYOUT.FLAT })
+}
+
+// A batch asks for all its bytes at once, through the same preflight each file runs: each file's
+// own preflight sees only itself, so N files that each fit can still fill the disk together, and
+// the batch is refused before its first file. The root probe holds no partial, so nothing is
+// credited here; what a resumed row's partial already holds was subtracted from `needBytes`.
+function assertBatchFits(spaceId, needBytes) {
+  const root = getDownloadDir(spaceId)
+  const dest = engine().destProbe(root)
+  const code = preflightFault(needBytes, dest)
+  if (code) throw new AppError(code, 'batch refused: ' + code, { needBytes, freeBytes: dest.freeBytes(), root })
+}
+
+// A start that was refused by its own preflight, or that could not be built at all, is a failure
+// the user can act on from the row; a queued one waits on its owner.
+function tally(counts, res) {
+  if ('transferId' in res) counts.started += 1
+  else if ('failed' in res || res.refused) counts.failed += 1
+  else if (res.queued) counts.waitingOnOwner += 1
+  else counts.removed += 1
+}
+
+// One file of a batch. A throw here is that file's failure, never the batch's: the files ahead of
+// it have started and the ones behind it still can.
+async function downloadBatchFile(spaceId, share, cat, relPath, entry, layout) {
+  try {
+    return await downloadOne(spaceId, share, cat, relPath, { express: false, layout, entry })
+  } catch (err) {
+    log.warn('batch file could not start:', relPath, '-', err.message)
+    return { failed: true }
   }
-  if (isLoose(share)) return await recordLooseIntent(spaceId, share, relPath, entry)
-  if (entry) memberWaits.wait(share.owner, transferId, SHARE_WAIT_SOURCE.CLICK)
-  return { queued: true }
+}
+
+// The files a batch still has to fetch, with the bytes they need. A file is already here when a
+// copy of ITS content is on the device: the claim is keyed by name, so the hash is what tells one
+// owner's file from another's under the same name, and the check prunes nothing. A row that
+// resumes a partial needs only what its partial does not already hold.
+async function batchWanted(spaceId, share, cat, relPaths, counts) {
+  const wanted = []
+  let needBytes = 0
+  for (const relPath of relPaths) {
+    const pendingKey = pendingKeyFor(share, relPath)
+    const entry = cat.readable ? await getPeerEntryState(cat.keyHex, share.id, relPath, { sck: cat.sck }) : null
+    if (entry?.contentHash && await hasDownloadedCopy(spaceId, pendingKey, entry.contentHash)) {
+      counts.alreadyHere += 1
+      continue
+    }
+    wanted.push({ relPath, entry })
+    const pending = await getPendingFor(spaceId, pendingKey)
+    const allocated = pending?.finalPath ? partialAllocatedBytes(pending.finalPath) : 0
+    needBytes += Math.max(0, (entry?.size || 0) - allocated)
+  }
+  return { wanted, needBytes }
+}
+
+/**
+ * A batch download: every file the user selected, in one request. Paths that escape are refused
+ * as a whole (a peer's catalog never names one). Files already here are skipped; the rest start on
+ * the bulk lane. Free space is checked for the whole batch before the first file starts.
+ * @returns {Promise<import('../../contract/responses.js').BatchDownloadResult>}
+ */
+export async function requestShareDownloads(spaceId, share, relPaths, { layout }) {
+  if (!isLoose(share) && await getForeignMount(spaceId, share.id)) return { mirrored: true }
+  if (relPaths.some(relKeyEscapes)) throw new AppError(CODES.EPATH, 'batch download: unsafe path')
+  if (layout === LAYOUT.TREE) assertTreeName(share)
+  const counts = { started: 0, alreadyHere: 0, waitingOnOwner: 0, removed: 0, failed: 0 }
+  const unique = [...new Set(relPaths)]
+  // Every marker first: a batch refused or failed below must not leave a row suppressed.
+  for (const relPath of unique) engine().clearPauseMarker(transferIdFor(spaceId, share.id, relPath))
+  if (!getOverlay() || !readCatalogKey(share).keyHex) {
+    counts.waitingOnOwner = unique.length
+    if (isLoose(share)) for (const relPath of unique) await recordLooseIntent(spaceId, share, relPath, null)
+    return counts
+  }
+  const cat = await openCatalog(spaceId, share)
+  const { wanted, needBytes } = await batchWanted(spaceId, share, cat, unique, counts)
+  if (cat.readable) assertBatchFits(spaceId, needBytes)
+  for (const { relPath, entry } of wanted) tally(counts, await downloadBatchFile(spaceId, share, cat, relPath, entry, layout))
+  return counts
 }
 
 export const pauseShareDownload = (transferId) => engine().pause(transferId)
 export const cancelShareDownload = (transferId) => engine().cancel(transferId)
-export const hasShareDownload = (transferId) => engine().has(transferId)
+/** @returns {'waiting' | 'active' | null} */
+export const shareDownloadPhase = (transferId) => engine().phase(transferId)
 export async function cancelSpaceDownloads(spaceId) {
   await cancelSpaceOn(engine(), spaceId, log)
 }

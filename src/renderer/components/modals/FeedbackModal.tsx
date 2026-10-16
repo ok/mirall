@@ -11,6 +11,7 @@ import Modal from '../primitives/Modal.js'
 import Icon from '../primitives/Icon.js'
 import ModalHeader from '../primitives/ModalHeader.js'
 import Button from '../primitives/Button.js'
+import Checkbox from '../primitives/Checkbox.js'
 import ModalFooter from '../layout/ModalFooter.js'
 import { useErrorText } from '../../hooks/useErrorText.js'
 
@@ -167,15 +168,13 @@ export default function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
                 value={email}
                 onChange={setEmail}
               />
-              <label className="flex items-center gap-3 cursor-pointer px-1">
-                <input
-                  type="checkbox"
-                  checked={includeScreenshot}
-                  onChange={(e) => setIncludeScreenshot(e.target.checked)}
-                  className="w-4 h-4 shrink-0 rounded accent-primary cursor-pointer"
-                />
-                <span className="text-sm text-on-surface-variant font-medium">{t('feedback.screenshotLabel')}</span>
-              </label>
+              <Checkbox
+                size="sm"
+                showLabel
+                checked={includeScreenshot}
+                onChange={(next) => setIncludeScreenshot(next)}
+                label={t('feedback.screenshotLabel')}
+              />
               {error && (
                 <div role="alert" className="flex items-start gap-3 bg-error-container/30 rounded-xl p-4">
                   <Icon name="error" size={20} className="text-error" />

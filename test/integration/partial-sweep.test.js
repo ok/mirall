@@ -3,7 +3,7 @@ import fs from 'bare-fs'
 import path from 'bare-path'
 import { freshPeer } from '../helpers/store.js'
 import { initPendingTransfers, recordPending, forgetStaleFailures, getPendingFor, _pendingBeeForTests, FAILED_ROW_MAX_AGE_MS } from '../../src/shared/transfer/pending-transfers.js'
-import { cleanupOrphanedPartials } from '../../src/shared/transfer/partial-sweep.js'
+import { cleanupOrphanedPartials, discardRowPartials } from '../../src/shared/transfer/partial-sweep.js'
 
 test('cleanupOrphanedPartials sweeps an orphan, keeps one referenced by a pending finalPath', async (t) => {
   const { downloads } = await freshPeer(t)
@@ -123,7 +123,9 @@ test('REGRESSION (FIX-499-PARTIAL): a failed download ages out with its partial'
     await _pendingBeeForTests().put('s:' + filePath, { finalPath, ...extra })
   }
 
-  t.is(await forgetStaleFailures(now), 1, 'one row aged out')
+  const forgotten = await forgetStaleFailures(now)
+  t.is(forgotten.length, 1, 'one row aged out')
+  t.is(forgotten[0].finalPath, path.join(downloads, 'old-failed.bin'), 'the forgotten row names where its partial sits')
   await cleanupOrphanedPartials(downloads)
 
   t.is(await getPendingFor('s', '/old-failed.bin'), null, 'the old failure is forgotten')
@@ -133,4 +135,27 @@ test('REGRESSION (FIX-499-PARTIAL): a failed download ages out with its partial'
   t.ok(await getPendingFor('s', '/old-paused.bin'), 'an error-free row never ages out')
   t.ok(fs.existsSync(path.join(downloads, 'old-paused.bin.mirall.part')), 'with its partial')
   t.ok(await getPendingFor('s', '/old-unplugged.bin'), 'a fault that clears when the folder is back never ages out')
+})
+
+// A TREE download's partial sits below the root, where the shallow root sweep never looks; a
+// forgotten row is the only record of it, so it goes with the row.
+test('discardRowPartials unlinks a forgotten tree row\'s nested partial and leaves a flat one to the root sweep', async (t) => {
+  const { downloads } = await freshPeer(t)
+  const nested = path.join(downloads, 'Handover', 'sub', 'a.txt')
+  const flat = path.join(downloads, 'b.txt')
+  fs.mkdirSync(path.dirname(nested), { recursive: true })
+  fs.writeFileSync(nested + '.mirall.part', 'half')
+  fs.writeFileSync(flat + '.mirall.part', 'half')
+
+  const discarded = await discardRowPartials([{ finalPath: nested, layout: 'tree' }, { finalPath: flat }, { finalPath: null }], [downloads])
+
+  t.is(discarded, 1, 'only the nested partial is the row\'s to discard')
+  t.absent(fs.existsSync(nested + '.mirall.part'), 'the nested partial is gone')
+  t.ok(fs.existsSync(flat + '.mirall.part'), 'a partial in a root is left to the root sweep')
+})
+
+test('discardRowPartials tolerates a partial that is already gone', async (t) => {
+  const { downloads } = await freshPeer(t)
+  const discarded = await discardRowPartials([{ finalPath: path.join(downloads, 'Batch', 'gone.txt') }], downloads)
+  t.is(discarded, 0)
 })

@@ -86,6 +86,7 @@ function makeFetchInstruments({ label, relPath, size = 0, contentHash = null, on
  * @param {{
  *   express?: boolean,
  *   owner?: string | null,
+ *   onQueued?: (() => void) | null,
  *   wait?: (acquire: () => Promise<() => void>) => Promise<() => void>,
  *   recheck: () => string | null,
  *   abandon: (reason: string) => T | Promise<T>,
@@ -93,12 +94,12 @@ function makeFetchInstruments({ label, relPath, size = 0, contentHash = null, on
  * }} task
  * @returns {Promise<T>}
  */
-export async function runGatedFetch({ express = false, owner = null, wait = (acquire) => acquire(), recheck, abandon, holding }) {
+export async function runGatedFetch({ express = false, owner = null, onQueued = null, wait = (acquire) => acquire(), recheck, abandon, holding }) {
   /** @type {Promise<() => void> | null} */
   let slot = null
   let release
   try {
-    release = await wait(() => (slot = acquireFetchSlot({ express, owner })))
+    release = await wait(() => (slot = acquireFetchSlot({ express, owner, onQueued })))
   } catch (err) {
     // Whenever the gate admits it: a wait can throw while the slot is still queued.
     slot?.then((free) => free(), () => {})

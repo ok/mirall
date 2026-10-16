@@ -18,7 +18,7 @@ import {
 } from '../../src/shared/transfer/files.js'
 import { listFiles } from '../../src/shared/transfer/file-listing.js'
 import { initPendingTransfers, listPendingForSpace, recordPending, recordPendingError } from '../../src/shared/transfer/pending-transfers.js'
-import { hasShareDownload, listPeerWithMeta, watchedCatalogVersion } from '../../src/shared/transfer/overlay/share-downloads.js'
+import { shareDownloadPhase, listPeerWithMeta, watchedCatalogVersion } from '../../src/shared/transfer/overlay/share-downloads.js'
 import { dropPeerCatalog } from '../../src/shared/shares/peer-catalog.js'
 import { forgetListingMemo } from '../../src/shared/transfer/listing-memo.js'
 import { takeIncompleteListSpaces } from '../../src/shared/transfer/list-deficits.js'
@@ -54,7 +54,7 @@ function scriptedDeps({ versions, stalls = new Set() }) {
     },
     listPendingForSpace: async () => [],
     isOwnerOnline: () => true,
-    hasTransfer: () => false,
+    transferPhase: () => null,
     verdictForClaim: () => ({ downloaded: false, prune: false, reason: 'no-claim', stat: null }),
     listVerifiedRecordsForShare: async () => new Map(),
     listLooseDownloadClaims: async () => new Map(),
@@ -178,7 +178,7 @@ function realDeps(presence) {
     listPeer: async (...args) => { reads.n++; return await listPeerWithMeta(...args) },
     listPendingForSpace,
     isOwnerOnline: () => presence.online,
-    hasTransfer: hasShareDownload,
+    transferPhase: shareDownloadPhase,
     verdictForClaim,
     listVerifiedRecordsForShare,
     listLooseDownloadClaims,

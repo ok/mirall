@@ -384,7 +384,7 @@ test('REGRESSION (FIX-668: a click on a loose file the owner removed records no 
   const share = looseShareFor({ publicKey: 'peerpub', displayName: 'Peer', looseCatalogKeyEnc: await ownCatalogKeyHex(ctx.spaceId) })
   const spaceB = await consumerSpace(ctx, 'Borealis')
   const started = []
-  setDownloadEngine({ start: async (job) => { started.push(job); return { queued: true } }, clearPauseMarker: () => {}, reconcileOnAppend: async () => {} })
+  setDownloadEngine({ start: async (job) => { started.push(job); return { queued: true } }, clearPauseMarker: () => {}, reconcileOnAppend: async () => {}, activeDests: () => [] })
   t.teardown(() => setDownloadEngine(null))
 
   const read = await listPeerWithMeta(spaceB.spaceId, share)

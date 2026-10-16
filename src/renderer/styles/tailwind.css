@@ -300,6 +300,17 @@ input[type='search']::-webkit-search-decoration {
   animation: avatar-issue-pulse 2.4s ease-in-out infinite;
 }
 
+/* The selection column's boxes fade in as the rows slide aside (SelectBox); the slide itself is a
+   padding transition on the scroll pane. Both are neutralised by the reduced-motion rule above. */
+@keyframes select-box-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 /* Indeterminate progress sweep — shown during the ETA warmup before a stable rate exists. A
    40%-wide segment slides across the track via `transform` (compositor-only, no per-frame
    layout/paint), per design.md's motion rules. */

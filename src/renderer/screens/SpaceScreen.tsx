@@ -33,6 +33,7 @@ import { useMembershipRequests } from '../hooks/useMembershipRequests.js'
 import { useSpaceCardActions } from '../hooks/useSpaceCardActions.js'
 import { usePendingSpaceAction } from '../hooks/usePendingSpaceAction.js'
 import { useLocateShare } from '../hooks/useLocateShare.js'
+import { useSpaceBatch } from '../hooks/useSpaceBatch.js'
 
 interface SpaceViewProps {
   spaceId: string
@@ -49,7 +50,7 @@ export default function SpaceScreen({ spaceId, pendingAction, onActionConsumed, 
   const { profile } = useProfile()
   const hold = useRestoreHold()
   const {
-    files, incomplete, loading, error, refresh, isSeeded, addFiles, downloadFile,
+    files, incomplete, loading, error, refresh, isSeeded, markSeeded, addFiles, downloadFile,
     unshareFile, cancelPublish, revealFile,
   } = useFiles(spaceId)
   const { getDecoration } = useDecorations('transfer', spaceId, '/')
@@ -62,7 +63,9 @@ export default function SpaceScreen({ spaceId, pendingAction, onActionConsumed, 
   // Created before v1.7.0, when every space became encrypted. No upgrade path exists, and the
   // data layer now assumes v2 throughout — so say so rather than let it half-work.
   const isLegacy = !!space && space.schemaVersion !== 2
-  const { shares, loading: sharesLoading } = useShares(spaceId, profile?.personKey ?? null)
+  const selfKey = profile?.personKey ?? null
+  const { shares, loading: sharesLoading } = useShares(spaceId, selfKey)
+  const batch = useSpaceBatch({ spaceId, files, shares, selfKey, getDecoration, markSeeded })
   const toast = useToast()
   const { locate } = useLocateShare(spaceId)
   const [dialog, setDialog] = useState<SpaceDialog | null>(null)
@@ -103,17 +106,8 @@ export default function SpaceScreen({ spaceId, pendingAction, onActionConsumed, 
     setDialog({ kind: 'invite' })
   }
 
-  function handleCancelRequest() {
-    runAction(async () => {
-      await leaveSpace(spaceId)
-      onBack()
-    })
-  }
-
-  async function handleLeave() {
-    await leaveSpace(spaceId)
-  }
-
+  const handleCancelRequest = () => runAction(async () => { await leaveSpace(spaceId); onBack() })
+  const handleLeave = () => leaveSpace(spaceId)
   async function handleUnshareFile() {
     if (dialog?.kind !== 'remove-file') return
     await unshareFile(dialog.file.path)
@@ -170,12 +164,12 @@ export default function SpaceScreen({ spaceId, pendingAction, onActionConsumed, 
           shareHeld={!hold.canShareIn(spaceId)}
           onShareFolderRequest={handleShareFolderRequest}
           drag={{ handlers: dragHandlers, active: dragActive, kind: dragKind, fileCount, folderName }}
-          shares={shares}
+          batch={batch}
           selfProfile={profile}
           onLocate={locate}
           cardActions={cardActions}
+          onUnshareSelected={() => setDialog({ kind: 'unshare-files', files: batch.unshareable })}
           listing={{
-            files,
             error,
             onRetry: () => { void refresh() },
             getDecoration,
@@ -205,6 +199,7 @@ export default function SpaceScreen({ spaceId, pendingAction, onActionConsumed, 
         onLeave={handleLeave}
         onLeft={onBack}
         onRemoveFile={handleUnshareFile}
+        onUnsharedFiles={batch.end}
       />
     </div>
   )

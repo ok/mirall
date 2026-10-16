@@ -18,7 +18,7 @@ import { createLocalBee, storeEpoch } from '../core/store.js'
 import fs from 'bare-fs'
 import path from 'bare-path'
 
-import { getGlobalDownloadDir, getSpaceDownloadOverride, isInsideDownloadDir } from '../core/paths.js'
+import { getDownloadDir, getGlobalDownloadDir, getSpaceDownloadOverride, isInsideDownloadDir } from '../core/paths.js'
 
 import { claimVerdict } from './download-claim.js'
 import { fingerprintMatches } from './verified-copy.js'
@@ -260,8 +260,8 @@ export function statOrNull(absPath) {
 // The probe only runs for a claim whose FILE is missing, so on a healthy volume it never runs at
 // all. The case it exists for is the opposite one: a detached or unreachable volume, where every
 // row misses and every miss is a blocking probe against a dead mount — a capped listing would pay
-// thousands of them for a question with one answer. Downloads are flat, so those thousands of
-// claims resolve into a handful of directories at most.
+// thousands of them for a question with one answer. A claim below a download root asks about the
+// root, so those thousands of claims resolve into a handful of directories at most.
 //
 // The memo lives exactly one listing: callers create a probe per pass and drop it, so a volume that
 // comes back is seen by the next listing. Within one pass a single answer is also the CORRECT one —
@@ -297,12 +297,22 @@ export function verdictForClaim(spaceId, filePath, rec, currentHash = null, dirP
   const verdict = claimVerdict({
     rec,
     exists: stat !== null,
-    dirExists: stat !== null || dirProbe(path.dirname(onDisk)),
+    dirExists: stat !== null || dirProbe(volumeDirFor(spaceId, onDisk)),
     currentHash,
     pinned,
     insidePinned: pinned ? isInsideDownloadDir(onDisk, pinned) : true,
   })
   return { ...verdict, stat }
+}
+
+// The folder whose absence means the VOLUME is gone rather than the copy. For a copy below a
+// download root that is the root: a user who deletes a whole batch folder deleted copies, and the
+// volume is fine. A copy elsewhere answers for its own folder.
+function volumeDirFor(spaceId, onDisk) {
+  for (const root of [getDownloadDir(spaceId), getGlobalDownloadDir()]) {
+    if (isInsideDownloadDir(onDisk, root)) return root
+  }
+  return path.dirname(onDisk)
 }
 
 // The point-read form: one claim, read and acted on. Built on the same verdict as the batched
@@ -326,6 +336,17 @@ async function verifyOnDevice(spaceId, filePath, currentHash = null) {
 
 export async function isDownloadedFile(spaceId, filePath, currentHash = null) {
   return await verifyOnDevice(spaceId, filePath, currentHash)
+}
+
+// Whether a copy of exactly this content is on the device, with no side effect: the claim is keyed
+// by name, which two owners' files can share, so a listing that still holds the claim for one
+// owner's file must not lose it to a check made on behalf of the other's.
+export async function hasDownloadedCopy(spaceId, filePath, contentHash) {
+  if (!contentHash) return false
+  const node = await downloadsBee.get(spaceId + ':' + filePath)
+  const rec = node?.value
+  if (!rec || rec.hash !== contentHash) return false
+  return statOrNull(claimedPathFor(filePath, rec)) !== null
 }
 
 // Strict form for callers that DROP work when the answer is yes (the resume scan's

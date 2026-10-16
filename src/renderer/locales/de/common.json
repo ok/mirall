@@ -114,7 +114,10 @@
     "waitingDocsTitle": "Warum warte ich?",
     "waitingDocsBody": "Eine Einladung enthält die Adresse des Raums, nie den Schlüssel dazu. Den übergibt jemand, der schon drin ist — deshalb muss ein Mitglied online und erreichbar sein, bevor du hineinkommst. Automatische Freigabe nimmt die Entscheidung ab, nicht die Übergabe.",
     "legacyBadge": "Nicht unterstützt",
-    "legacyWarning": "Dieser Raum wurde mit einer viel älteren Version von Mirall erstellt und kann nicht mehr verwendet werden. Erstelle einen neuen Raum und teile deine Ordner dort erneut."
+    "legacyWarning": "Dieser Raum wurde mit einer viel älteren Version von Mirall erstellt und kann nicht mehr verwendet werden. Erstelle einen neuen Raum und teile deine Ordner dort erneut.",
+    "filterLabel": "Dateien in diesem Space filtern",
+    "filterEmptyHint_one": "Versuche weniger Zeichen oder leere den Filter, um die {{count}} Datei in diesem Space zu sehen.",
+    "filterEmptyHint_other": "Versuche weniger Zeichen oder leere den Filter, um alle {{count}} Dateien zu sehen."
   },
   "scanPreview": {
     "computing": "Vorschau wird berechnet…",
@@ -298,7 +301,9 @@
     "queuedHint": "Wartet, bis die Dateien davor fertig geteilt sind.",
     "pausedInterrupted": "Pausiert",
     "ownerOffline": "Quelle offline",
-    "failed": "Fehler"
+    "failed": "Fehler",
+    "waiting": "Wartet",
+    "waitingHint": "Startet, sobald ein Download davor fertig ist."
   },
   "file": {
     "revealInFolder": "Im Ordner anzeigen",
@@ -638,7 +643,8 @@
     "whatsNew": "Was ist neu",
     "sendFeedback": "Feedback senden",
     "openDocs": "Dokumentation öffnen",
-    "openAbout": "Über Mirall öffnen"
+    "openAbout": "Über Mirall öffnen",
+    "selectAll": "Alle Dateien auswählen"
   },
   "palette": {
     "title": "Befehlspalette",
@@ -1603,5 +1609,53 @@
       "restoringTitle": "Wiederherstellung",
       "restoringBody": "Deine Daten sind wiederhergestellt. Änderungen warten, bis jemand, mit dem du teilst, bestätigt, dass es nichts Neueres gibt – so kann nichts kollidieren."
     }
+  },
+  "batch": {
+    "selectAll_one": "{{count}} Datei auswählen",
+    "selectAll_other": "Alle {{count}} Dateien auswählen",
+    "selectAllMatching_one": "{{count}} passende Datei auswählen",
+    "selectAllMatching_other": "Alle {{count}} passenden Dateien auswählen",
+    "selectFolder": "Alle Dateien in {{name}} auswählen",
+    "selectedCount_one": "{{count}} ausgewählt",
+    "selectedCount_other": "{{count}} ausgewählt",
+    "nothingSelected": "Nichts ausgewählt",
+    "nothingHint_one": "Dateien unten anhaken, oder das Kästchen oben für {{count}}",
+    "nothingHint_other": "Dateien unten anhaken, oder das Kästchen oben für alle {{count}}",
+    "onDevice_one": "{{count}} bereits auf deinem Gerät",
+    "onDevice_other": "{{count}} bereits auf deinem Gerät",
+    "hidden_one": "{{count}} durch den Filter ausgeblendet",
+    "hidden_other": "{{count}} durch den Filter ausgeblendet",
+    "deselectHidden": "Ausgeblendete abwählen",
+    "download": "{{count}} herunterladen",
+    "cancel": "{{count}} abbrechen",
+    "unshare": "{{count}} nicht mehr teilen",
+    "done": "Fertig",
+    "ended": "Auswahl beendet",
+    "progress_one": "{{count}} Datei wird heruntergeladen",
+    "progress_other": "{{count}} Dateien werden heruntergeladen",
+    "progressDone": "{{count}} fertig",
+    "progressLeft": "{{size}} verbleibend",
+    "progressLabel": "Fortschritt des Sammel-Downloads",
+    "cancelAll": "Alle abbrechen",
+    "waitingOnOwner_one": "{{count}} Datei wird heruntergeladen, sobald ihr Besitzer online ist",
+    "waitingOnOwner_other": "{{count}} Dateien werden heruntergeladen, sobald ihr Besitzer online ist",
+    "removedUpstream_one": "{{count}} Datei wurde vom Besitzer entfernt",
+    "removedUpstream_other": "{{count}} Dateien wurden vom Besitzer entfernt",
+    "progressAnnounce": "Sammel-Download gestartet",
+    "progressEnded": "Sammel-Download beendet",
+    "failed_one": "{{count}} Datei konnte nicht starten",
+    "failed_other": "{{count}} Dateien konnten nicht starten"
+  },
+  "unshareFiles": {
+    "title_one": "{{count}} Datei nicht mehr teilen?",
+    "title_other": "{{count}} Dateien nicht mehr teilen?",
+    "body_one": "Diese Datei wird aus dem Raum entfernt. Mitglieder, die sie bereits heruntergeladen haben, behalten ihre Kopie.",
+    "body_other": "Diese Dateien werden aus dem Raum entfernt. Mitglieder, die sie bereits heruntergeladen haben, behalten ihre Kopie.",
+    "action_one": "{{count}} Datei nicht mehr teilen",
+    "action_other": "{{count}} Dateien nicht mehr teilen",
+    "removing": "Wird entfernt…",
+    "done_one": "{{count}} Datei nicht mehr geteilt",
+    "done_other": "{{count}} Dateien nicht mehr geteilt",
+    "partial": "{{done}} von {{total}} nicht mehr geteilt — {{failed}} fehlgeschlagen"
   }
 }

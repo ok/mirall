@@ -31,11 +31,18 @@ export function rowShareFor(row) {
 export const pendingKeyFor = (share, relPath) =>
   share.id === LOOSE_SHARE_ID ? looseDrivePath(relPath) : '/' + share.name + '/' + relPath
 
+// How a download lands under the space's download folder. FLAT keeps the base name (a click, every
+// loose file); TREE keeps the folder: <folder name>/<relPath>. PERSISTED on the pending row, so a
+// resume lands where the download began.
+export const LAYOUT = Object.freeze({ FLAT: 'flat', TREE: 'tree' })
+
 // `folderName` is carried on the job so the audit row can name the folder without a join — a row
 // outlives the share it describes. Null for a loose file (its descriptor has no name) and for a row
 // whose record is unreadable. `prevBytes` resumes a partial only while the destination is the one the
-// row recorded; a row re-anchored to a re-pointed download folder starts from zero.
-export function downloadJob({ spaceId, share, relPath, pendingKey, keyHex, encrypted, epoch = 0, entry, finalPath, prevFinalPath, prevBytes }) {
+// row recorded; a row re-anchored to a re-pointed download folder starts from zero. `destRoot` is
+// the download folder the destination was resolved under, which a TREE job's preflight probes
+// instead of the folder it creates below it.
+export function downloadJob({ spaceId, share, relPath, pendingKey, keyHex, encrypted, epoch = 0, entry, finalPath, destRoot = null, layout = LAYOUT.FLAT, prevFinalPath, prevBytes }) {
   return {
     spaceId, pendingKey, path: pendingKey, relPath, shareId: share.id,
     ...catalogKeyField(keyHex, encrypted, 'catalogKey', epoch),
@@ -43,7 +50,7 @@ export function downloadJob({ spaceId, share, relPath, pendingKey, keyHex, encry
     transferId: transferIdFor(spaceId, share.id, relPath),
     contentHash: entry.contentHash, size: entry.size || 0, sourceSeq: entry.seq,
     ownerKey: share.owner, verifyKey: entryRef(share.id, relPath),
-    finalPath, prevBytes: finalPath === prevFinalPath ? prevBytes || 0 : 0,
+    finalPath, destRoot, layout, prevBytes: finalPath === prevFinalPath ? prevBytes || 0 : 0,
   }
 }
 

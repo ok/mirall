@@ -34,7 +34,7 @@ import { abortInFlightPublishes } from '../shared/transfer/overlay/overlay-publi
 import { ServeLedger } from '../shared/transfer/serve-ledger.js'
 import { FileRecipients } from '../shared/transfer/file-recipients.js'
 import { sweepOrphanedJournals } from '../shared/transfer/overlay/overlay-journals.js'
-import { cleanupOrphanedPartials } from '../shared/transfer/partial-sweep.js'
+import { cleanupOrphanedPartials, discardRowPartials } from '../shared/transfer/partial-sweep.js'
 import { Swarm } from '../shared/network/swarm.js'
 import { joinSpaceTopic } from '../shared/network/space-topics.js'
 import {
@@ -391,7 +391,7 @@ async function resumeInterruptedLeaves(knownSpaces, log) {
       // (the sweeps cover cores, not bee rows). Best-effort — the leave itself is already durable.
       try {
         await cleanupDownloadHistory(space.spaceId)
-        await clearPendingForSpace(space.spaceId)
+        await discardRowPartials(await clearPendingForSpace(space.spaceId), listDownloadRoots())
       } catch (err) {
         log.warn('interrupted-leave transfer-row cleanup failed:', space.spaceId, '-', err.message)
       }
@@ -441,10 +441,14 @@ async function backfillMembership(activeSpaces, log) {
 // Crash leftovers: partials, retired peer-cache cores, orphaned receive journals. All
 // best-effort — a failure here defers reclamation, it never blocks boot.
 async function sweepOrphans(log) {
-  // Before the partial sweep, so a forgotten row's partial goes in the same pass.
+  // Before the partial sweep, so a forgotten row's partial goes in the same pass. A nested partial
+  // is reachable only through its row, so it goes with the row here.
   try {
     const forgotten = await forgetStaleFailures()
-    if (forgotten) log.info('forgot', forgotten, 'failed downloads past their age cap')
+    if (forgotten.length) {
+      log.info('forgot', forgotten.length, 'failed downloads past their age cap')
+      await discardRowPartials(forgotten, listDownloadRoots())
+    }
   } catch (err) {
     log.warn('failed-download age-out failed:', err.message)
   }

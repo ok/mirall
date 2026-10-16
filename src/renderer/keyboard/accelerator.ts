@@ -67,7 +67,9 @@ export function shouldIgnore(e: KeyboardEvent, allowList: ReadonlyArray<string>)
   const target = e.target
   if (!(target instanceof HTMLElement)) return false
   const tag = target.tagName
-  const inEditable = tag === 'INPUT' || tag === 'TEXTAREA' || target.isContentEditable
+  // A checkbox, radio or button input takes no text, so a chord on it is the app's, not the field's.
+  const textInput = target instanceof HTMLInputElement && !['checkbox', 'radio', 'button', 'submit', 'range', 'file', 'color'].includes(target.type)
+  const inEditable = textInput || tag === 'TEXTAREA' || target.isContentEditable
   if (!inEditable) return false
   return !allowList.some((spec) => matchAccelerator(e, spec))
 }

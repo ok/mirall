@@ -17,7 +17,7 @@ function countingDeps() {
     getForeignMount: async () => { calls.mountReads++; return null },
     listPendingForSpace: async () => [],
     foreignFetchActive: () => false,
-    hasTransfer: () => false,
+    transferPhase: () => null,
     claimedPathFor: (drivePath, rec) => rec?.localPath || '/downloads/' + drivePath.split('/').pop(),
     listDownloadClaimsForShare: async () => { calls.claimScans++; return new Map() },
     listVerifiedRecordsForShare: async () => { calls.verifiedScans++; return new Map() },

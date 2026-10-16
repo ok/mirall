@@ -1,11 +1,12 @@
 import { useTranslation } from 'react-i18next'
 import Icon from '../primitives/Icon.js'
 import FolderTree from './FolderTree.js'
-import FolderControlsRow from './FolderControlsRow.js'
+import ListControlsRow, { type SelectAllBox } from '../listing/ListControlsRow.js'
 import LoadingHeadline from '../primitives/LoadingHeadline.js'
 import { useHasVerticalOverflow } from '../../hooks/useHasVerticalOverflow.js'
 import { useErrorText } from '../../hooks/useErrorText.js'
-import type { ComponentProps } from 'react'
+import { useRowPointerSelect } from '../../hooks/useRowPointerSelect.js'
+import type { ComponentProps, ReactNode } from 'react'
 import type { FileTreeNode, ShareFileRow, SpaceMember } from '../../types/types.js'
 
 // The row callbacks and member list are FolderTree's contract, not this pane's: it forwards them
@@ -14,7 +15,7 @@ type TreeProps = ComponentProps<typeof FolderTree>
 
 type FolderListPaneProps = Pick<TreeProps,
   'isOwn' | 'manualControls' | 'spaceId' | 'members' | 'getDownloadSummary' | 'getRecipients' | 'ownerKey' | 'getDecoration'
-  | 'isSeeded' | 'onDownload' | 'onReveal' | 'onPause' | 'onCancel'
+  | 'isSeeded' | 'onDownload' | 'onReveal' | 'onPause' | 'onCancel' | 'selection'
 > & {
   filter: string
   setFilter: (next: string) => void
@@ -32,7 +33,15 @@ type FolderListPaneProps = Pick<TreeProps,
   files: readonly ShareFileRow[]
   sourceMissing: boolean
   owner: SpaceMember | null | undefined
+  /** The top box, on a listing that offers selection. */
+  selectAll: SelectAllBox | null
+  /** The selection strip, rendered between the controls row and the list. */
+  bar: ReactNode
 }
+
+/** The gutter the rows slide into while the column is open: the box's 40px plus the row gap. */
+const PANE_AT_REST = 'pl-1'
+const PANE_SELECTING = 'pl-14'
 
 /**
  * The file half of a folder screen: the controls row and the scroll pane under it.
@@ -48,24 +57,32 @@ export default function FolderListPane(props: FolderListPaneProps) {
   const {
     filter, setFilter, deferredFilter, matched, filterableTotal, anyExpanded, allFolderPaths,
     toggleAll, visibleTree, isExpanded, toggle, loading, error, files, sourceMissing, owner,
+    selectAll, bar, selection,
     ...tree
   } = props
+  const selecting = selection?.mode === true
+  useRowPointerSelect(filesRef, selection ? selection.select : null)
 
   return (
     <div className="flex flex-col min-w-0 min-h-0">
-      <FolderControlsRow
+      <ListControlsRow
         value={filter}
         onChange={setFilter}
         matched={matched}
         total={filterableTotal}
+        filterLabel={t('folder.filterLabel')}
+        selectAll={selectAll}
         expandLabel={anyExpanded ? t('folder.collapseAll') : t('folder.expandAll')}
         onToggleExpand={toggleAll}
         showExpand={allFolderPaths.length > 0}
       />
-      {/* Scroll-pane rules: see SpaceScreen's pane. `pt-1` is allowed here — no sticky header. */}
+      {bar}
+      {/* Scroll-pane rules: see SpaceScreen's pane. `pt-1` is allowed here — no sticky header. The
+          padding transition is the slide that opens the column; React keeps the node, so it plays
+          both ways, and the global reduced-motion rule zeroes it. */}
       <div
         ref={filesRef}
-        className={`relative flex-1 overflow-y-auto scrollbar-thin min-h-0 -mx-1 -mt-1 pl-1 pt-1 pb-4${filesOverflow ? ' pr-4' : ' pr-1'}`}
+        className={`relative flex-1 overflow-y-auto scrollbar-thin min-h-0 -mx-1 -mt-1 pt-1 pb-4 transition-[padding-left] duration-200 ease-[cubic-bezier(.2,0,0,1)] ${selecting ? PANE_SELECTING : PANE_AT_REST}${filesOverflow ? ' pr-4' : ' pr-1'}`}
       >
         {loading ? (
           <LoadingHeadline label={t('folder.loading')} />
@@ -105,6 +122,7 @@ export default function FolderListPane(props: FolderListPaneProps) {
           <div className="space-y-2">
             <FolderTree
               {...tree}
+              selection={selection}
               nodes={visibleTree}
               isExpanded={isExpanded}
               onToggle={toggle}

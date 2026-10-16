@@ -57,12 +57,44 @@ function manualActions(status, hasTransfer) {
     case 'unavailable': return pair(A.downloadUnavailable)
     case 'preparing': return pair(busy('file.preparing'))
     case 'downloading':
+    case 'waiting':
     case 'verifying': return hasTransfer ? pair(A.pause, A.cancel) : pair(busy('file.syncing'))
     case 'paused-interrupted': return pair(A.resume, ifTransfer(A.discard))
     case 'paused-offline': return pair(ifTransfer(A.discard))
     case 'error': return pair(A.retry, ifTransfer(A.dismiss))
     default: return pair(null)
   }
+}
+
+const DOWNLOAD_IDS = new Set(['download', 'download-unavailable', 'resume', 'retry'])
+const CANCEL_IDS = new Set(['cancel', 'discard'])
+
+/** @typedef {import('./batch-selection.js').BatchVerbs} BatchVerbs */
+
+/**
+ * The batch verbs a row takes part in: the row's own enabled buttons, so a selection never acts on
+ * a row its own buttons would not. The one addition is an offline owner's file, whose Download is
+ * disabled on the row: a batch still asks for it, and the request is kept until the owner is back.
+ * Dismiss (an error row's close) is not Cancel.
+ * @param {{ status: FileStatus, transferId?: string }} row @param {RowActionContext} ctx @returns {BatchVerbs}
+ */
+export function batchVerbsFor(row, ctx) {
+  const { primary, secondary } = fileRowActions(row, ctx)
+  /** @type {RowActionId[]} */
+  const ids = []
+  for (const a of [primary, secondary]) if (a && (!a.disabled || a.id === 'download-unavailable')) ids.push(a.id)
+  return {
+    download: ids.some((id) => DOWNLOAD_IDS.has(id)),
+    cancel: ids.some((id) => CANCEL_IDS.has(id)),
+    unshare: ids.includes('unshare'),
+    onDevice: isOnDeviceStatus(row.status) && !ctx.isOwn,
+  }
+}
+
+/** A row a selection can hold: one a batch verb reaches, or a copy already on this device. */
+/** @param {BatchVerbs} verbs */
+export function isBatchSelectable(verbs) {
+  return verbs.download || verbs.cancel || verbs.unshare || verbs.onDevice
 }
 
 /** @param {FileStatus} status @returns {RowActions} */

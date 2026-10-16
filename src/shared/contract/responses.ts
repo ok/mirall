@@ -353,7 +353,7 @@ export interface FolderInfo { fileCount: number, totalBytes: number, blobsLength
 
 /** A loose download: queued behind the engine, dropped (removed by its owner, or its intent could not be kept), or started with a landing path. */
 export type LooseDownloadResult =
-  | { queued: true }
+  | { queued: true, refused?: true }
   | { queued: false }
   | { transferId: string, finalPath: string }
 
@@ -361,9 +361,18 @@ export type LooseDownloadResult =
 export type ShareDownloadResult =
   | { ok: true, alreadyOwned: true }
   | { ok: true, mirrored: true }
-  | { queued: true }
+  | { queued: true, refused?: true }
   | { queued: false }
   | { transferId: string, finalPath: string }
+
+/**
+ * A batch download: refused whole because a mirror syncs the folder, or counted per file —
+ * started on the bulk lane, already on this device, waiting for an unreachable owner, removed by
+ * its owner, or failed to start (refused by its own preflight, or a destination it cannot take).
+ */
+export type BatchDownloadResult =
+  | { mirrored: true }
+  | { started: number, alreadyHere: number, waitingOnOwner: number, removed: number, failed: number }
 
 export interface OwnedMountResult { mount: OwnedFolderMount, advisories: MountValidationAdvisory[] }
 export interface ForeignMountResult { mount: ForeignFolderMount, advisories: MountValidationAdvisory[] }
@@ -637,6 +646,7 @@ interface Responses {
   'files:cancel-download': Ack
   'files:cancel-publish': Ack
   'files:download': LooseDownloadResult
+  'files:download-many': BatchDownloadResult
   'files:list': LooseFileListing
   'files:pause-download': Ack
   'files:remove': Ack
@@ -696,6 +706,7 @@ interface Responses {
   'share:list': Share[]
   'share:list-files': ShareFileListing
   'share:read-file': ShareDownloadResult
+  'share:read-files': BatchDownloadResult
   'share:rename': Share
   'share:reveal-file': RevealTarget
   'share:reveal-folder': RevealTarget

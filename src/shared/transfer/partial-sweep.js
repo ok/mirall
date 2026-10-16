@@ -37,7 +37,8 @@ export async function cleanupOrphanedPartials(downloadsDirs, mountDirs = []) {
     }
   }
 
-  // Download roots: partials land flat (basename), so a shallow read suffices. Every root is
+  // Download roots: a FLAT partial sits in a root, so a shallow read suffices; a TREE partial is
+  // discarded with its row (discardRowPartials). Every root is
   // walked independently: an unreadable one (ejected volume, EACCES after a permission change,
   // a path that is now a file) is logged and skipped, NEVER rethrown — a throw here would
   // abandon both the remaining roots and the foreign-mount sweep below, and the single
@@ -67,6 +68,27 @@ export async function cleanupOrphanedPartials(downloadsDirs, mountDirs = []) {
   }
 
   return { rootsScanned: distinctRoots.size, swept, failed }
+}
+
+// A TREE download's partial sits below its root, where the boot sweep's shallow read never looks.
+// The row that referenced it is the only record of where it is, so it is discarded with the row:
+// the caller hands over the rows it just deleted. A partial in a root itself is the root sweep's.
+// Accepted residual: a crash between the row delete and the unlink leaves one orphan partial in a
+// batch folder.
+export async function discardRowPartials(rows, roots) {
+  const rootSet = new Set(typeof roots === 'string' ? [roots] : roots || [])
+  let discarded = 0
+  for (const row of rows) {
+    if (typeof row.finalPath !== 'string' || rootSet.has(path.dirname(row.finalPath))) continue
+    try {
+      await fs.promises.unlink(row.finalPath + PARTIAL_SUFFIX)
+      discarded += 1
+      log.info('discarded a forgotten row\'s partial:', row.finalPath)
+    } catch (err) {
+      if (err.code !== 'ENOENT') log.warn('partial discard failed:', row.finalPath, err.message)
+    }
+  }
+  return discarded
 }
 
 // Best-effort recursive collect of partial files under `dir`. Metadata-only

@@ -16,6 +16,7 @@ export const STATUS_RANK = Object.freeze({
   modified: 1,
   verifying: 2,
   downloading: 3,
+  waiting: 3,
   publishing: 3,
   queued: 3,
   'paused-interrupted': 4,

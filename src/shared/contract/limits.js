@@ -40,6 +40,10 @@ export const DHT_FAILURE_MS = 45000
 export const MIN_WINDOW_WIDTH = 900
 export const MIN_WINDOW_HEIGHT = 870
 
+// A batch never asks for more files than a share may hold: the admission gate and the display
+// ceiling read this same number as the share file limit, so there is one source.
+export const BATCH_MAX_ITEMS = 5000
+
 // Boundary caps on request strings. NOT the domain limits: NAME_MAX truncates a display name to 80
 // deep in the data layer, and that stays there, because truncating and refusing are different
 // behaviours with different consequences for the user. These sit far above any domain rule and

@@ -92,13 +92,15 @@ export function createSemaphore({ limit, expressLanes = 1 } = {}) {
   return {
     // `owner` tags the waiter so a drain can be scoped to one producer. One gate can be shared by
     // subsystems that close at different times, and releasing all of them at the first close would
-    // start work the later ones are still guarding.
-    acquire({ express = false, owner = null } = {}) {
+    // start work the later ones are still guarding. `onQueued` fires only for a parked waiter, so
+    // a caller can show the wait without a timer.
+    acquire({ express = false, owner = null, onQueued = null } = {}) {
       const w = { express, owner, released: false, resolve: null }
       if (roomFor(express)) return Promise.resolve(admit(w))
       return new Promise((resolve) => {
         w.resolve = resolve
         waiters.push(w)
+        onQueued?.()
       })
     },
     stats: () => ({ held, queued: waiters.length, express: expressHeld }),

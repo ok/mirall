@@ -1,6 +1,8 @@
 // One file in a list: a loose file on the space screen, or a file in a folder share's tree. The tile,
 // the lane and the action strip are one; what differs by kind is the row's identity, the owner line a
-// loose file carries, the tree's leading gutter, and whether the owner may withdraw one file.
+// loose file carries, the tree's leading gutter, and whether the owner may withdraw one file. On a
+// listing that offers selection the row names itself for the delegated row-body click, and while
+// the column is open it draws its box in that column.
 import { memo, useState, useEffect, useId, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
@@ -15,6 +17,14 @@ import Icon from '../primitives/Icon.js'
 import RowLane from './RowLane.js'
 import ActionLane, { type ActionLaneProps } from './ActionLane.js'
 import PeerDownloadDropdown from './PeerDownloadDropdown.js'
+import SelectBox from '../batch/SelectBox.js'
+
+/** The row's box while the column is open: where it sits, whether it is ticked, and its name. */
+export interface RowSelectionBox {
+  depth: number
+  selected: boolean
+  label: string
+}
 
 interface FileRowShared {
   /** This row's live transfer frame. */
@@ -29,6 +39,11 @@ interface FileRowShared {
   recipients: FileRecipient[]
   onPause: (transferId: string) => void
   onCancel: (transferId: string) => void
+  /** Set when the listing offers selection: the key a row-body click selects by. */
+  selectKey?: string
+  /** The box in the selection column; null while the column is closed. */
+  selection?: RowSelectionBox | null
+  onSelect?: (key: string, shift: boolean) => void
 }
 
 export interface LooseFileRowProps extends FileRowShared {
@@ -127,10 +142,14 @@ function FileRowMeta({ size, owner, error }: FileRowMetaProps) {
   )
 }
 
+// A selected row keeps the lift fill, so the state is not carried by the box alone.
+const RESTING = 'bg-surface-container-lowest dark:bg-surface-container-low hover:bg-surface-container-highest dark:hover:bg-surface-container-highest hover:[--control-hover:var(--lifted-control-hover)]'
+const SELECTED = 'bg-surface-container-highest [--control-hover:var(--lifted-control-hover)]'
+
 function FileRow(props: FileRowProps) {
   const { t } = useTranslation()
   const { t: tErr } = useTranslation('errors')
-  const { kind, file, decoration, seeded, isOwn, spaceId, members, downloadSummary, recipients } = props
+  const { kind, file, decoration, seeded, isOwn, spaceId, members, downloadSummary, recipients, selectKey, selection, onSelect } = props
   const id = rowIdentity(props)
   const view = deriveRowView(file, decoration, downloadSummary, { isOwn, seeded })
 
@@ -151,9 +170,22 @@ function FileRow(props: FileRowProps) {
 
   const tree = kind === 'share'
   const error = file.status === 'error' ? tErr(errorCodeToI18nKey(file.errorCode)) : null
+  const selected = selection?.selected === true
 
   return (
-    <div className="group @container/row bg-surface-container-lowest dark:bg-surface-container-low hover:bg-surface-container-highest dark:hover:bg-surface-container-highest hover:[--control-hover:var(--lifted-control-hover)] rounded-xl transition-colors">
+    <div
+      className={`group @container/row relative rounded-xl transition-colors ${selected ? SELECTED : RESTING}`}
+      data-select-key={selectKey}
+      data-selected={selected || undefined}
+    >
+      {selection && selectKey && onSelect && (
+        <SelectBox
+          depth={selection.depth}
+          checked={selection.selected}
+          label={selection.label}
+          onChange={(_next, shift) => onSelect(selectKey, shift)}
+        />
+      )}
       <div className="flex items-center p-5">
         {tree && <span className="w-5 shrink-0" aria-hidden="true" />}
         <div role="none" title={id.name} className={`flex items-center gap-4 min-w-0 flex-grow${tree ? ' ml-4' : ''}`}>
@@ -197,7 +229,27 @@ function FileRow(props: FileRowProps) {
   )
 }
 
+type PropBag = Record<string, string | number | boolean | object | null | undefined>
+
+function sameBox(a: RowSelectionBox | null | undefined, b: RowSelectionBox | null | undefined): boolean {
+  if (a === b) return true
+  if (!a || !b) return false
+  return a.depth === b.depth && a.selected === b.selected && a.label === b.label
+}
+
 // memo against the decoration heartbeat (src/renderer/hooks/README.md): every prop is identity-stable
 // — `file` reconciled, `members` memoized, decoration/downloadSummary/recipients per-path Map values,
-// the handlers stable — and the action lane's props are built inside, never passed in.
-export default memo(FileRow)
+// the handlers stable — and the action lane's props are built inside, never passed in. The box is
+// the one prop rebuilt per render, so it is compared by its fields.
+function sameProps(prev: FileRowProps, next: FileRowProps): boolean {
+  const a = prev as object as PropBag
+  const b = next as object as PropBag
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)])
+  for (const key of keys) {
+    if (key === 'selection') continue
+    if (a[key] !== b[key]) return false
+  }
+  return sameBox(prev.selection, next.selection)
+}
+
+export default memo(FileRow, sameProps)

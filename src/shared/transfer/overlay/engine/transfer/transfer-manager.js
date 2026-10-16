@@ -15,7 +15,7 @@ import { codedError } from '../local-faults.js'
 import { openSyncTracked, closeSyncTracked } from './fd-accounting.js'
 import { openChunkSource, readChunkAt, closeChunkSource } from './serve-reads.js'
 import { prepareForServe } from './prepare.js'
-import { advanceHash, settleHash, recoverPartial } from './receive-hash.js'
+import { advanceHash, settleHash, recoverPartial, hashedFraction } from './receive-hash.js'
 import { JOURNAL_FLUSH_EVERY, journalPathFor, bitmapOf, loadJournal, flushJournal, flushJournalSync, cleanupOrphanedJournals } from './journal.js'
 
 // The standalone default for an embedder that injects nothing. The host injects its own suffix
@@ -25,6 +25,9 @@ export const PARTIAL_SUFFIX = '.overlay-partial'
 // A bounded stash of just-received verified chunks per transfer, so the hash pump feeds from
 // memory instead of reading the bytes back off disk.
 const MEM_STASH_BYTES_DEFAULT = 16 * 1024 * 1024
+// The hash backlog at finalize worth showing as verifying: below it the catch-up takes a few
+// milliseconds, and a verifying phase would only flicker.
+const VERIFY_REPORT_MIN_BYTES = 32 * 1024 * 1024
 
 function isDirectory(dir) {
   try { return fs.statSync(dir).isDirectory() } catch { return false }
@@ -160,13 +163,20 @@ export class TransferManager {
   // matches. On a mismatch the corrupt partial goes, so a retry starts clean. The target must still
   // be what it was when the receive began: a file that appeared or was replaced meanwhile is not
   // ours to overwrite, so the partial and journal go with the name.
-  async finalize(targetPath) {
+  //
+  // Every byte can be in before the hash has covered it, and the catch-up reads the rest back from
+  // disk. opts.onVerify(0..1) reports it when there is enough left to be seen waiting on.
+  async finalize(targetPath, opts = {}) {
     const state = this._active.get(targetPath)
     if (!state) return { ok: false, error: 'no active transfer' }
     if (state.received.size !== state.total) {
       return { ok: false, error: `incomplete: ${state.received.size}/${state.total} chunks` }
     }
-    await settleHash(state)
+    const behind = (1 - hashedFraction(state)) * state.size
+    const report = opts.onVerify && state.hasher && behind >= VERIFY_REPORT_MIN_BYTES ? opts.onVerify : null
+    report?.(hashedFraction(state))
+    await settleHash(state, report)
+    report?.(1)
     if (state.contentHash) {
       const actual = state.hashFrontier === state.chunks.length ? state.hasher.digest() : null
       if (actual !== state.contentHash) {

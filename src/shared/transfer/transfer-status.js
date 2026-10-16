@@ -41,10 +41,13 @@ export function unhashedStatusFor(ownerOnline) {
 // cannot resolve until they return, and 'unavailable' would strip the partial's Discard and leave
 // the bytes on disk unmanageable. While the owner is reachable the wait wins either way — the
 // materialized-hash append restarts the download, and the stale partial goes with it.
-export function consumerRowStatusFor({ copyVerdict = null, onDeviceStatus = FILE_STATUS.DOWNLOADED, hashed, isActive, pendingRow, ownerOnline }) {
+//
+// `isWaiting` is a transfer the engine holds parked behind its concurrency limit: active, so every
+// paused and error rule yields to it, but not moving, so it reads Waiting rather than Downloading.
+export function consumerRowStatusFor({ copyVerdict = null, onDeviceStatus = FILE_STATUS.DOWNLOADED, hashed, isActive, isWaiting = false, pendingRow, ownerOnline }) {
   if (copyVerdict === COPY_VERDICT.MODIFIED) return { status: FILE_STATUS.MODIFIED, verified: false }
   if (copyVerdict) return { status: onDeviceStatus, verified: copyVerdict === COPY_VERDICT.VERIFIED }
-  if (isActive) return { status: FILE_STATUS.DOWNLOADING, pendingBytes: pendingRow?.bytesTransferred || 0 }
+  if (isActive) return { status: isWaiting ? FILE_STATUS.WAITING : FILE_STATUS.DOWNLOADING, pendingBytes: pendingRow?.bytesTransferred || 0 }
   const partial = pendingRow?.bytesTransferred > 0
   if (!hashed && (ownerOnline || !partial)) return { status: unhashedStatusFor(ownerOnline) }
   if (pendingRow?.errorCode) return { status: FILE_STATUS.ERROR, errorCode: pendingRow.errorCode }

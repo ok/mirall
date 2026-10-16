@@ -344,5 +344,5 @@ test('REGRESSION (FIX-10: the cancel handler reaches the engine whether or not a
   const handler = src.slice(from, to)
   t.ok(handler.includes('await cancelShareDownload(id)'), 'cancel hands every id to the engine')
   t.ok(handler.includes('transferIdParts(id)'), 'a stale row re-derives on the id\'s own share')
-  t.absent(handler.includes('hasShareDownload('), 'cancel does not gate on a live slot')
+  t.absent(handler.includes('shareDownloadPhase('), 'cancel does not gate on a live slot')
 })

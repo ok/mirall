@@ -55,6 +55,11 @@ export function useShareFiles(spaceId: string, ownerKey: string, shareId: string
     [decorations, shareId],
   )
   const isSeeded = useCallback((relPath: string) => seeded.has(relPath), [seeded])
+  // Seeds the progress bar; the row's status flips to 'downloading' from the worker's re-derive
+  // (the engine emits share-files-updated on start), not a client override.
+  const markSeeded = useCallback((relPaths: readonly string[]) => {
+    setSeeded((prev) => { const next = new Set(prev); for (const relPath of relPaths) next.add(relPath); return next })
+  }, [])
 
   // Pause and cancel are useTransferControls', shared with the space screen.
   const downloadFile = useCallback(
@@ -63,11 +68,9 @@ export function useShareFiles(spaceId: string, ownerKey: string, shareId: string
       // The union is the point: a read that was already ours, synced by a mirror, or queued behind
       // the download engine starts no transfer and seeds no bar.
       if (!('transferId' in res)) return
-      // Seed the progress bar; the row's status flips to 'downloading' from the worker's re-derive
-      // (the engine emits share-files-updated on start), not a client override.
-      setSeeded((prev) => { const next = new Set(prev); next.add(relPath); return next })
+      markSeeded([relPath])
     }),
-    [run, spaceId, ownerKey, shareId]
+    [run, spaceId, ownerKey, shareId, markSeeded]
   )
 
   const revealFile = useCallback(
@@ -75,5 +78,5 @@ export function useShareFiles(spaceId: string, ownerKey: string, shareId: string
     [run, spaceId, ownerKey, shareId]
   )
 
-  return { files, info, loading, error, getDecoration, isSeeded, downloadFile, revealFile }
+  return { files, info, loading, error, getDecoration, isSeeded, markSeeded, downloadFile, revealFile }
 }

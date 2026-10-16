@@ -18,7 +18,7 @@ import {
 } from '../../src/shared/transfer/files.js'
 import { listFiles } from '../../src/shared/transfer/file-listing.js'
 import { initPendingTransfers, listPendingForSpace } from '../../src/shared/transfer/pending-transfers.js'
-import { hasShareDownload, listPeerWithMeta, watchedCatalogVersion } from '../../src/shared/transfer/overlay/share-downloads.js'
+import { shareDownloadPhase, listPeerWithMeta, watchedCatalogVersion } from '../../src/shared/transfer/overlay/share-downloads.js'
 import { LOOSE_SHARE_ID } from '../../src/shared/transfer/transfer-id.js'
 import { advertise } from '../../src/shared/shares/own-catalog.js'
 
@@ -44,7 +44,7 @@ function countingDeps({ entriesFor, claims = new Map(), verified = new Map(), ve
     listPeer: async (spaceId, share) => { calls.listPeer++; return { entries: entriesFor(share), complete: true, version: 1 } },
     listPendingForSpace: async () => [],
     isOwnerOnline: () => true,
-    hasTransfer: () => false,
+    transferPhase: () => null,
     verdictForClaim: (spaceId, drivePath, rec) => {
       calls.verdicts++
       return verdict ? verdict(drivePath, rec) : { downloaded: false, prune: false, reason: rec ? null : 'no-claim', stat: null }
@@ -196,7 +196,7 @@ function productionDepsWith(overrides) {
     listPeer: listPeerWithMeta,
     listPendingForSpace,
     isOwnerOnline: () => true,
-    hasTransfer: hasShareDownload,
+    transferPhase: shareDownloadPhase,
     verdictForClaim,
     listVerifiedRecordsForShare,
     listLooseDownloadClaims,
@@ -271,7 +271,7 @@ test('an unhashed entry never takes another owner\'s same-named claim, transfer 
     entriesFor: () => [{ relPath: 'r-0.bin', size: 10, contentHash: null, mtime: 0 }],
     verdict: () => ({ downloaded: true, prune: false, reason: null, stat: null }),
   })
-  deps.hasTransfer = () => true
+  deps.transferPhase = () => 'active'
   deps.isOwnerOnline = () => false
   deps.listPendingForSpace = async () => [{ filePath: '/r-0.bin', ownerKey: 'someone-else', bytesTransferred: 4096 }]
   const row = await oneRow(ctx, deps)
@@ -285,7 +285,7 @@ test('an error row carries its code and no bytes; a downloading row carries its 
   const withPending = (pendingRow, active) => {
     const deps = countingDeps({ entriesFor: () => rows('r', 1) })
     deps.listPendingForSpace = async () => [{ filePath: '/r-0.bin', ownerKey: 'peer1pub', ...pendingRow }]
-    deps.hasTransfer = () => active
+    deps.transferPhase = () => (active ? 'active' : null)
     return deps
   }
   const error = await oneRow(ctx, withPending({ errorCode: 'EHASHMISMATCH', bytesTransferred: 10 }, false))

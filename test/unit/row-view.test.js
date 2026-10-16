@@ -186,3 +186,12 @@ test('a queued add rests with the "Queued" chip and says what it waits for', (t)
   t.is(v.badge.labelKey, 'status.queued')
   t.is(v.statusHintKey, 'status.queuedHint')
 })
+
+test('a waiting row keeps the rest lane: no seeded bar for a parked job, and a hint under the name', (t) => {
+  const v = deriveRowView(file({ status: 'waiting' }), null, null, { seeded: true })
+  t.is(v.lane, 'rest')
+  t.is(v.displayStatus, 'waiting')
+  t.is(v.downloadDecor, null, 'a seed frame is never built for a parked job')
+  t.is(v.statusHintKey, 'status.waitingHint')
+  t.is(v.badge.labelKey, 'status.waiting')
+})

@@ -16,6 +16,7 @@ import { getOverlay } from './overlay-instance.js'
 import { fetchSlotsDrained } from './fetch-gate.js'
 import { discardResumeJournal } from './overlay-journals.js'
 import { partialPathFor } from '../partial-suffix.js'
+import { partialAllocatedBytes } from '../download-dest.js'
 import { isOwnerOnline } from '../../network/presence-leases.js'
 import { clearPending, recordPendingError, getPendingFor, listPendingForSpace } from '../pending-transfers.js'
 import { createPausedHolders } from './paused-holders.js'
@@ -32,6 +33,7 @@ import { createReconcile } from './reconcile-scan.js'
 import { memberWaits } from '../../network/share-wait.js'
 import { transferIdParts } from '../transfer-id.js'
 import { faultAwaitsOwner, faultCleared } from './download-faults.js'
+import { LAYOUT } from './download-job.js'
 
 const log = createLogger('overlay-download')
 
@@ -39,12 +41,12 @@ const log = createLogger('overlay-download')
 // copy, integrity-verified during the transfer. A local hit returns the source path → copy it to
 // finalPath so the download is real. Returns { ok:true } | { ok:false, code, cause? } (EHASHMISMATCH
 // or an error message, cause = the underlying Error for classification) | { ok:false } (no holder).
-export async function fetchContentToFile(contentHash, { finalPath, by, ownerKey, size, onProgress, onVerify, onEnd }) {
+export async function fetchContentToFile(contentHash, { finalPath, by, ownerKey, size, parentMustExist, onProgress, onVerify, onEnd }) {
   const overlay = getOverlay()
   if (!overlay) return { ok: false }
   let res
   try {
-    res = await overlay.fetchFile(contentHash, { destPath: finalPath, by, ownerKey, size, onProgress, onVerify, onEnd })
+    res = await overlay.fetchFile(contentHash, { destPath: finalPath, by, ownerKey, size, parentMustExist, onProgress, onVerify, onEnd })
   } catch (err) {
     if (err?.code === 'EHASHMISMATCH') return { ok: false, code: 'EHASHMISMATCH' }
     if (err?.code === 'ECANCELLED') return { ok: false, code: 'ECANCELLED' }
@@ -71,15 +73,17 @@ const DEST_VERDICT_TTL_MS = 60_000
 // Where a re-driven row would actually be written. The reconcile re-anchors a pin that sits outside
 // the space's download folder (reuseDest), so a fault is judged against the folder the next attempt
 // uses rather than the one the download first targeted. A re-anchored row gives up the partial it
-// left behind, so it has nothing allocated.
+// left behind, so it has nothing allocated. A TREE row is judged against the root, which is what
+// its start probes: its own folder is created under the root on the attempt.
 /**
- * @param {{ spaceId: string, finalPath?: string }} row
+ * @param {{ spaceId: string, finalPath?: string, layout?: string }} row
  * @returns {{ dir: string, partialFor: string | null }}
  */
 function rowDest(row) {
   const localDir = getDownloadDir(row.spaceId)
   const pinned = !!row.finalPath && isInsideDownloadDir(row.finalPath, localDir)
-  return { dir: pinned ? path.dirname(row.finalPath) : localDir, partialFor: pinned ? row.finalPath : null }
+  const dir = pinned && row.layout !== LAYOUT.TREE ? path.dirname(row.finalPath) : localDir
+  return { dir, partialFor: pinned ? row.finalPath : null }
 }
 
 // What a pending row's verdict is judged as. `size` is null for a row that carries no byte count:
@@ -156,8 +160,21 @@ function createOwnerWait({ channel, registry, pausedHashes, terminalCodes, owner
   return { awaitsOwner, takeUnblocked, faultCleared: (code, row) => faultCleared(rowFault(row, code), freshProbe(row)) }
 }
 
-function partialAllocatedBytes(finalPath) {
-  try { return fs.statSync(partialPathFor(finalPath)).blocks * 512 || 0 } catch { return 0 }
+// One shape for every destination question, so the preflight that refuses a download and the rule
+// that says its fault cleared ask the same things of the same folder. `read` lets a caller answer
+// from a kept verdict; without one each call is a fresh syscall.
+/**
+ * @param {{ dirExists: (dir: string) => boolean, dirWritable: (dir: string) => boolean, dirAcceptsWrite: (dir: string) => boolean, freeBytes: (dir: string) => number }} probes
+ * @returns {(dir: string, partialFor: string | null, read?: (field: string, probe: () => boolean | number) => boolean | number) => import('./download-faults.js').DestProbe}
+ */
+function destProbeFactory({ dirExists, dirWritable, dirAcceptsWrite, freeBytes }) {
+  return (dir, partialFor, read = (_field, probe) => probe()) => ({
+    dirExists: () => !!read('exists', () => dirExists(dir)),
+    dirWritable: () => !!read('writable', () => dirWritable(dir)),
+    dirAcceptsWrite: () => !!read('acceptsWrite', () => dirAcceptsWrite(dir)),
+    freeBytes: () => Number(read('freeBytes', () => freeBytes(dir))),
+    allocatedBytes: () => (partialFor ? partialAllocatedBytes(partialFor) : 0),
+  })
 }
 
 // Remove a partial + its app-private journal by destination path, independent of whether the
@@ -165,6 +182,15 @@ function partialAllocatedBytes(finalPath) {
 function discardPartial(finalPath) {
   try { fs.unlinkSync(partialPathFor(finalPath)) } catch {}
   discardResumeJournal(finalPath)
+}
+
+// A slot parked behind the gate has no fetch to abort, and the gate may hold it for as long as
+// the files ahead of it take. Its entry goes at once, so the row re-derives from the pause or
+// cancel now; the waiter finds the slot stale when the gate admits it and abandons quietly.
+function releaseParkedSlot(registry, channel, slot) {
+  if (!slot.waiting || registry.get(slot.job.transferId) !== slot) return
+  registry.delete(slot.job.transferId)
+  channel.emitUpdated(slot.spaceId, slot.job.shareId)
 }
 
 // The one place an abort reaches the engine, and only once a fetch is in flight there. It names the
@@ -197,23 +223,9 @@ export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentT
 
   const ownerOnline = (pk) => (channel.isOwnerOnline ?? isOwnerOnline)(pk)
   const pauseReasonFor = (job) => ownerPauseReason(ownerOnline(job.ownerKey))
-  // One shape for every destination question, so the preflight that refuses a download and the rule
-  // that says its fault cleared ask the same things of the same folder. `read` lets a caller answer
-  // from a kept verdict; without one each call is a fresh syscall.
-  /**
-   * @param {string} dir
-   * @param {string | null} partialFor
-   * @param {(field: string, probe: () => boolean | number) => boolean | number} [read]
-   * @returns {import('./download-faults.js').DestProbe}
-   */
-  const makeDestProbe = (dir, partialFor, read = (_field, probe) => probe()) => ({
-    dirExists: () => !!read('exists', () => dirExists(dir)),
-    dirWritable: () => !!read('writable', () => dirWritable(dir)),
-    dirAcceptsWrite: () => !!read('acceptsWrite', () => dirAcceptsWrite(dir)),
-    freeBytes: () => Number(read('freeBytes', () => freeBytes(dir))),
-    allocatedBytes: () => (partialFor ? partialAllocatedBytes(partialFor) : 0),
-  })
-  const destProbeFor = (job) => makeDestProbe(path.dirname(job.finalPath), job.finalPath)
+  const makeDestProbe = destProbeFactory({ dirExists, dirWritable, dirAcceptsWrite, freeBytes })
+  // A TREE job is probed at its root: the folders below it are the job's own to create.
+  const destProbeFor = (job) => makeDestProbe(job.layout === LAYOUT.TREE && job.destRoot ? job.destRoot : path.dirname(job.finalPath), job.finalPath)
 
   // Never throws: the caller still emits the error (the transfer DID fail); the warn adds that the
   // failure is not durable. Only the codes isTerminalFault names are remembered — anything else
@@ -301,6 +313,7 @@ export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentT
     slot.paused = true
     pausedHashes.remember(transferId, slot.contentHash) // so a later discard can signal STOPPED
     abortFetch(slot, { discardPartial: false })
+    releaseParkedSlot(registry, channel, slot)
     return true
   }
 
@@ -322,6 +335,7 @@ export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentT
     if (slot) {
       slot.cancelled = true
       abortFetch(slot, { discardPartial: true })
+      releaseParkedSlot(registry, channel, slot)
     } else {
       // The slot is gone but the holder still shows us paused: tell it we stopped.
       pausedHashes.notify(transferId)
@@ -402,6 +416,13 @@ export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentT
     supersede,
     releaseForRepublish,
     has: (transferId) => registry.has(transferId),
+    // Null for no slot; a held slot is either parked behind the gate or fetching.
+    phase: (transferId) => { const slot = registry.get(transferId); return !slot ? null : slot.waiting ? 'waiting' : 'active' },
+    // Every destination a slot holds, for a batch that must not resolve a name a sibling batch
+    // already took.
+    activeDests: () => [...registry.values()].map((slot) => slot.finalPath),
+    // The destination questions about a folder, for a batch judged before any job exists.
+    destProbe: (dir) => makeDestProbe(dir, null),
     awaitsOwner: ownerWait.awaitsOwner,
     takeUnblocked: ownerWait.takeUnblocked,
     activeSlots: () => registry.entries(),

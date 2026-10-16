@@ -165,3 +165,9 @@ test('NEUTRAL: a queued add is the neutral "Queued" chip, not the blue in-transf
   t.ok(queued.classes.includes('bg-surface-container-highest'), 'nothing is moving yet')
   t.absent(queued.classes.includes('animate-pulse'))
 })
+
+test('WAITING: a parked download wears the passive pill and names its own label', (t) => {
+  const waiting = badgeStyle(statusToBadge('waiting', false))
+  t.is(waiting.labelKey, 'status.waiting')
+  t.ok(waiting.classes.includes('bg-surface-container-highest'), 'passive, not the busy blue: nothing is moving')
+})

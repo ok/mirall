@@ -31,9 +31,17 @@ const rendererSources = (dir = 'src/renderer') => {
 }
 const sources = rendererSources().map((p) => ({ rel: p.slice('src/renderer/'.length), src: read(p) }))
 
-test('only ActionLane imports the action table', (t) => {
+// The batch hooks read the verbs DERIVED from the table (batchVerbsFor), never the table itself, so
+// a selection can act exactly where a row's own button would.
+const BATCH_HOOKS = ['hooks/useFolderBatch.ts', 'hooks/useSpaceBatch.ts']
+
+test('only ActionLane and the batch hooks import the action table, and only ActionLane reads it', (t) => {
   const importers = sources.filter((f) => /from '[./]*\/?model\/file-row-action\.js'|from '\.\/file-row-action\.js'/.test(f.src)).map((f) => f.rel)
-  t.alike(importers, [LANE])
+  t.alike(importers.sort(), [LANE, ...BATCH_HOOKS].sort())
+  for (const hook of BATCH_HOOKS) {
+    const src = sources.find((f) => f.rel === hook)?.src ?? ''
+    t.absent(/fileRowActions\(/.test(src), `${hook} reads batchVerbsFor, not the table`)
+  }
 })
 
 test('only FileRow mounts ActionLane', (t) => {

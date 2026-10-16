@@ -14,6 +14,7 @@ function stubEngine(t) {
     start: async () => { calls.start++; return { transferId: 'stub' } },
     clearPauseMarker: () => { calls.clearPauseMarker++ },
     reconcileOnAppend: async () => {},
+    activeDests: () => [],
   })
   t.teardown(() => setDownloadEngine(null))
   return calls

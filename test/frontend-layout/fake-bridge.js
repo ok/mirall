@@ -64,7 +64,8 @@
   function route(type, payload) {
     switch (type) {
       case 'ping': return { ok: true }
-      case 'share:list-files': return listing(files)
+      // A harness that needs its own tree seeds `shareFiles`; the default is the album above.
+      case 'share:list-files': return listing((window.__HARNESS_CFG && window.__HARNESS_CFG.shareFiles) || files)
       case 'share:folder-info': return folderInfo()
       case 'spaces:list': return (window.__HARNESS_CFG && window.__HARNESS_CFG.spaces) || [space]
       case 'space:members': return members

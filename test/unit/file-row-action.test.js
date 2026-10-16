@@ -1,6 +1,6 @@
 import test from 'brittle'
 import { readFileSync } from 'fs'
-import { fileRowActions } from '../../src/renderer/model/file-row-action.js'
+import { fileRowActions, batchVerbsFor, isBatchSelectable } from '../../src/renderer/model/file-row-action.js'
 import { FILE_STATUSES } from '../../src/shared/contract/statuses.js'
 
 const LOOSE = { manualControls: true, ownerFileVerbs: true }
@@ -42,6 +42,12 @@ test('owner preparing indicator (#193) is preserved as a passive busy state', (t
   t.alike(ids(indexing), [null, 'busy'], "the owner's own indexing folder row is busy, not actionable")
   t.is(indexing.primary.labelKey, 'status.publishing')
   t.alike(ids(browse('publishing', { own: true })), [null, 'busy'], 'a folder file has no per-file cancel-publish')
+})
+
+test('waiting behaves like downloading in a browse folder: Pause plus Cancel, and nothing on a mirror', (t) => {
+  t.alike(ids(browse('waiting', { transfer: true })), ['cancel', 'pause'], 'a parked download can be paused or cancelled')
+  t.alike(ids(browse('waiting')), [null, 'busy'])
+  t.alike(ids(mirror('waiting', { transfer: true })), [null, null])
 })
 
 test('verifying behaves like downloading — pause/cancel when controllable, busy otherwise', (t) => {
@@ -88,6 +94,8 @@ const EXPECTED = {
   preparing: { loose: [null, 'busy'], browse: [null, 'busy'], mirror: [null, 'busy'] },
   downloading: { loose: ['cancel', 'pause'], browse: ['cancel', 'pause'], mirror: [null, 'busy'] },
   verifying: { loose: ['cancel', 'pause'], browse: ['cancel', 'pause'], mirror: [null, 'busy'] },
+  // A mirror's fetch is never parked behind its own producer, so a mirror row never reads waiting.
+  waiting: { loose: ['cancel', 'pause'], browse: ['cancel', 'pause'], mirror: [null, null] },
   queued: { loose: [null, 'cancel-publish'], browse: [null, 'busy'], mirror: [null, 'busy'] },
   publishing: { loose: [null, 'cancel-publish'], browse: [null, 'busy'], mirror: [null, 'busy'] },
   downloaded: { loose: [null, 'reveal'], browse: [null, 'reveal'], mirror: [null, 'reveal'] },
@@ -194,4 +202,50 @@ test('REGRESSION (FIX-B4-0: the loose Discard Partial and Dismiss were neutral w
     t.is(run(ctx)('paused-offline', { transfer: true }).primary.tone, 'danger', `${kind} lone Discard Partial`)
     t.is(run(ctx)('error', { transfer: true }).secondary.tone, 'danger', `${kind} Dismiss`)
   }
+})
+
+// A batch verb exists exactly where the row's own enabled button does.
+const VERBS = {
+  remote: { loose: 'download', browse: 'download', mirror: null },
+  error: { loose: 'download', browse: 'download', mirror: null },
+  'paused-interrupted': { loose: 'download+cancel', browse: 'download+cancel', mirror: null },
+  'paused-offline': { loose: 'cancel', browse: 'cancel', mirror: null },
+  downloading: { loose: 'cancel', browse: 'cancel', mirror: null },
+  waiting: { loose: 'cancel', browse: 'cancel', mirror: null },
+  verifying: { loose: 'cancel', browse: 'cancel', mirror: null },
+  unavailable: { loose: 'download', browse: 'download', mirror: null },
+  preparing: { loose: null, browse: null, mirror: null },
+  queued: { loose: null, browse: null, mirror: null },
+  publishing: { loose: null, browse: null, mirror: null },
+  downloaded: { loose: 'onDevice', browse: 'onDevice', mirror: 'onDevice' },
+  modified: { loose: 'onDevice', browse: 'onDevice', mirror: 'onDevice' },
+  synced: { loose: 'onDevice', browse: 'onDevice', mirror: 'onDevice' },
+}
+const verbWord = (v) => [v.download && 'download', v.cancel && 'cancel', v.unshare && 'unshare', v.onDevice && 'onDevice'].filter(Boolean).join('+') || null
+
+test('batchVerbsFor: the table over every status and row kind, for a peer row with a transfer', (t) => {
+  t.alike(Object.keys(VERBS).sort(), [...FILE_STATUSES].sort(), 'the table covers every file status')
+  for (const status of FILE_STATUSES) {
+    for (const [kind, ctx] of Object.entries(KINDS)) {
+      const verbs = batchVerbsFor({ status, transferId: 't1' }, { ...ctx, isOwn: false })
+      t.is(verbWord(verbs), VERBS[status][kind], `${status} on a ${kind} row`)
+    }
+  }
+})
+
+test('batchVerbsFor: an offline owner\'s file joins a batch download though its own button is disabled', (t) => {
+  const row = { status: 'unavailable' }
+  t.ok(fileRowActions(row, { ...BROWSE, isOwn: false }).primary.disabled, 'precondition: the row\'s Download is disabled')
+  t.is(verbWord(batchVerbsFor(row, { ...BROWSE, isOwn: false })), 'download', 'a browse folder file')
+  t.is(verbWord(batchVerbsFor(row, { ...LOOSE, isOwn: false })), 'download', 'a loose file')
+  t.ok(isBatchSelectable(batchVerbsFor(row, { ...BROWSE, isOwn: false })), 'so it has a box')
+})
+
+test('batchVerbsFor: own files, a row without a transfer, and an error row\'s dismiss', (t) => {
+  t.is(verbWord(batchVerbsFor({ status: 'synced' }, { ...LOOSE, isOwn: true })), 'unshare', 'an own loose file can be unshared and is not "on your device"')
+  t.is(verbWord(batchVerbsFor({ status: 'synced' }, { ...BROWSE, isOwn: true })), null, 'an own folder file has no batch verb')
+  t.is(verbWord(batchVerbsFor({ status: 'downloading' }, { ...BROWSE, isOwn: false })), null, 'a busy row without a transfer takes part in nothing')
+  t.is(verbWord(batchVerbsFor({ status: 'error' }, { ...BROWSE, isOwn: false })), 'download', 'dismiss is not cancel')
+  t.ok(isBatchSelectable({ download: false, cancel: false, unshare: false, onDevice: true }))
+  t.absent(isBatchSelectable({ download: false, cancel: false, unshare: false, onDevice: false }))
 })

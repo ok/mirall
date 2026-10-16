@@ -96,13 +96,17 @@ export function useFiles(spaceId: string) {
     }
   }
 
+  const markSeeded = useCallback((paths: readonly string[]) => {
+    setSeeded((prev) => { const next = new Set(prev); for (const path of paths) next.add(path); return next })
+  }, [])
+
   // Stable identities: props of memoized rows (README.md).
   const downloadFile = useCallback((file: FileEntry) => run(async () => {
     const res = await request('files:download', { spaceId, path: file.path, ownerKey: file.owner.publicKey })
     // A queued click started nothing — the owner is unreachable and the intent is recorded for the
     // reconnect machinery — so there is no transfer to report movement for.
-    if ('transferId' in res) setSeeded((prev) => { const next = new Set(prev); next.add(file.path); return next })
-  }, 'transferFailed'), [run, spaceId])
+    if ('transferId' in res) markSeeded([file.path])
+  }, 'transferFailed'), [run, spaceId, markSeeded])
 
   const unshareFile = useCallback(async (path: string) => {
     await request('files:remove', { spaceId, path })
@@ -129,6 +133,7 @@ export function useFiles(spaceId: string) {
     loading,
     error,
     isSeeded,
+    markSeeded,
     addFiles,
     downloadFile,
     unshareFile,

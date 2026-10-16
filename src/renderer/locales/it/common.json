@@ -114,7 +114,10 @@
     "waitingDocsTitle": "Perché sto aspettando?",
     "waitingDocsBody": "Un invito contiene l'indirizzo dello spazio, mai la sua chiave. A consegnarla è un dispositivo già membro: perciò un membro deve essere online e raggiungibile prima che tu possa entrare. L'approvazione automatica elimina la decisione, non la consegna.",
     "legacyBadge": "Non supportato",
-    "legacyWarning": "Questo spazio è stato creato con una versione molto più vecchia di Mirall e non può più essere usato. Crea un nuovo spazio e condividi lì le tue cartelle."
+    "legacyWarning": "Questo spazio è stato creato con una versione molto più vecchia di Mirall e non può più essere usato. Crea un nuovo spazio e condividi lì le tue cartelle.",
+    "filterLabel": "Filtra i file in questo spazio",
+    "filterEmptyHint_one": "Prova con meno caratteri, oppure cancella il filtro per vedere il {{count}} file in questo spazio.",
+    "filterEmptyHint_other": "Prova con meno caratteri, oppure cancella il filtro per vedere tutti i {{count}} file."
   },
   "scanPreview": {
     "computing": "Calcolo dell'anteprima…",
@@ -298,7 +301,9 @@
     "queuedHint": "Attende che finisca l'aggiunta dei file precedenti.",
     "pausedInterrupted": "Interrotto",
     "ownerOffline": "Proprietario offline",
-    "failed": "Non riuscito"
+    "failed": "Non riuscito",
+    "waiting": "In attesa",
+    "waitingHint": "Parte quando termina un download precedente."
   },
   "file": {
     "revealInFolder": "Mostra nella cartella",
@@ -638,7 +643,8 @@
     "whatsNew": "Novità",
     "sendFeedback": "Invia feedback",
     "openDocs": "Apri la documentazione",
-    "openAbout": "Apri Informazioni su Mirall"
+    "openAbout": "Apri Informazioni su Mirall",
+    "selectAll": "Seleziona tutti i file"
   },
   "palette": {
     "title": "Palette dei comandi",
@@ -1603,5 +1609,53 @@
       "restoringTitle": "Ripristino",
       "restoringBody": "I tuoi dati sono ripristinati. Le modifiche attendono che qualcuno con cui condividi confermi che non esiste nulla di più recente, così nulla può entrare in conflitto."
     }
+  },
+  "batch": {
+    "selectAll_one": "Seleziona {{count}} file",
+    "selectAll_other": "Seleziona tutti i {{count}} file",
+    "selectAllMatching_one": "Seleziona {{count}} file corrispondente",
+    "selectAllMatching_other": "Seleziona tutti i {{count}} file corrispondenti",
+    "selectFolder": "Seleziona tutti i file in {{name}}",
+    "selectedCount_one": "{{count}} selezionato",
+    "selectedCount_other": "{{count}} selezionati",
+    "nothingSelected": "Nessuna selezione",
+    "nothingHint_one": "spunta i file qui sotto, o la casella in alto per {{count}}",
+    "nothingHint_other": "spunta i file qui sotto, o la casella in alto per tutti i {{count}}",
+    "onDevice_one": "{{count}} già sul tuo dispositivo",
+    "onDevice_other": "{{count}} già sul tuo dispositivo",
+    "hidden_one": "{{count}} nascosto dal filtro",
+    "hidden_other": "{{count}} nascosti dal filtro",
+    "deselectHidden": "Deseleziona i nascosti",
+    "download": "Scarica {{count}}",
+    "cancel": "Annulla {{count}}",
+    "unshare": "Rimuovi {{count}} dallo spazio",
+    "done": "Fatto",
+    "ended": "Selezione terminata",
+    "progress_one": "Download di {{count}} file",
+    "progress_other": "Download di {{count}} file",
+    "progressDone": "{{count}} completato",
+    "progressLeft": "{{size}} rimanenti",
+    "progressLabel": "Avanzamento del download multiplo",
+    "cancelAll": "Annulla tutto",
+    "waitingOnOwner_one": "{{count}} file verrà scaricato quando il proprietario sarà online",
+    "waitingOnOwner_other": "{{count}} file verranno scaricati quando il proprietario sarà online",
+    "removedUpstream_one": "{{count}} file è stato rimosso dal proprietario",
+    "removedUpstream_other": "{{count}} file sono stati rimossi dal proprietario",
+    "progressAnnounce": "Download multiplo avviato",
+    "progressEnded": "Download multiplo terminato",
+    "failed_one": "{{count}} file non è stato avviato",
+    "failed_other": "{{count}} file non sono stati avviati"
+  },
+  "unshareFiles": {
+    "title_one": "Rimuovere {{count}} file dallo spazio?",
+    "title_other": "Rimuovere {{count}} file dallo spazio?",
+    "body_one": "Questo file verrà rimosso dallo spazio. I membri che lo hanno già scaricato manterranno la propria copia.",
+    "body_other": "Questi file verranno rimossi dallo spazio. I membri che li hanno già scaricati manterranno la propria copia.",
+    "action_one": "Rimuovi {{count}} file",
+    "action_other": "Rimuovi {{count}} file",
+    "removing": "Rimozione…",
+    "done_one": "{{count}} file rimosso",
+    "done_other": "{{count}} file rimossi",
+    "partial": "Rimossi {{done}} di {{total}} — {{failed}} non riusciti"
   }
 }

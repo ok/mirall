@@ -97,6 +97,7 @@ One row per file in `scenarios/`; the id is the `run.mjs` argument (`node test/f
 | ID | File | Covers |
 |----|------|--------|
 | s4 | `s4-transfer.mjs` | Share a loose file; peer sees it; a download does not overwrite a pre-existing file (`report (1).txt`). |
+| s176 | `s176-batch-space.mjs` | The space's filter and batch: the filter narrows the loose files and says by how much, the top box hides Folders Shared and offers Download and Unshare counts, Unshare confirms in an alert dialog and reports a toast, a single-file batch shows the pinned strip and Cancel All clears it, switching spaces drops the selection. |
 | s10 | `s10-file-actions.mjs` | Peer downloads a loose file to completion; "Reveal in Folder" appears. |
 | s11 | `s11-remove-file.mjs` | Owner unshares via RemoveFileModal → removal propagates to the peer. |
 | s69 | `s69-loose-file-verified-row.mjs` | A downloaded+verified row and a still-remote row coexist; the verified badge sits left of the status pill with the action on the right. |
@@ -142,6 +143,10 @@ One row per file in `scenarios/`; the id is the `run.mjs` argument (`node test/f
 | s119 | `s119-folder-indexing-labels.mjs` | Dropped files are indexed, not transferred: the owner reads "Adding", the member "Preparing…", neither says downloading; both settle once indexed. |
 | s120 | `s120-folder-index-summary.mjs` | A batch dropped in is announced on both screens including the files still queued; the notice clears when the scan drains; an owner that quits takes its notice with it. |
 | s121 | `s121-index-pause-resume.mjs` | The index notice offers Pause; a paused folder says so and offers Resume; the pause is durable across a restart. |
+| s174 | `s174-batch-select-folder.mjs` | The browse folder's selection column: the top box opens it with every matching file ticked, a row box unticks one (top box reads mixed), the filter scopes select-all and names hidden rows, Deselect hidden, Esc ends it with an announcement, folder boxes read mixed. |
+| s175 | `s175-batch-download-folder.mjs` | Download N from a browse folder: the column closes, a batch strip with a named progressbar appears, rows read Waiting behind a one-slot gate, same-named files land in their own folders, Cancel All clears the strip and the partials, a second batch completes to On your device. |
+| s178 | `s178-batch-owner-offline.mjs` | A browse folder whose owner is offline: select-all takes the Not available files, Download N keeps the request with a toast and Owner offline rows, and the files land in their folder when the owner returns. |
+| s177 | `s177-batch-modifiers.mjs` | The pointer and keyboard accelerators: a command-click at rest opens the column with that row, a shift-click selects the range across a collapsed folder, a command-click on a folder row selects its files without expanding it, select-all selects everything or the filter's text depending on focus. |
 | s122 | `s122-folder-filter.mjs` | The pinned controls row: the filter narrows the list and says by how much, no match keeps the tiles, clearing restores the expansion. |
 | s123 | `s123-edit-folder.mjs` | Edit Folder from More: a healthy folder shows its location without offering to re-point it; saving a new name renames on screen and reopening shows it. |
 | s124 | `s124-folder-commands.mjs` | The folder's acts are in the command palette only while it is open, Pause swings to Resume, the palette never lists itself, a browsed folder offers the mirror act instead. |

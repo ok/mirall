@@ -5,8 +5,13 @@
 
 // Serving a granted hash. A content request is admitted through the serve gate, resolved to a disk
 // path and answered with the paged chunk map; each chunkNeed then runs the chunk loop: read,
-// re-check the grant, pay the upload cap (with keep-alives), send, wait for drain, re-check again.
-// A deny is silent at every step, indistinguishable from "not held".
+// re-check the grant, pay the upload cap (with keep-alives), wait for room on the stream, send,
+// re-check again. A deny is silent at every step, indistinguishable from "not held".
+//
+// One peer's chunk loops run one at a time, in the order their requests arrived. A downloader asks
+// for a window of chunks once and then for one chunk per arrival; served concurrently, those
+// single-chunk loops keep the shared stream full, the window's parked tail goes out last, and the
+// receiver's in-order whole-file hash stalls on it until the transfer ends.
 
 import fs from 'bare-fs'
 import { selectTier } from '../chunker.js'
@@ -37,6 +42,9 @@ export class ServeSession {
     this._onServeProgress = onServeProgress || null
     // The disk path each granted hash is served from, set when a request is granted.
     this._served = new Map()
+    // Per peer, the tail of its chunk loops: the next request starts once the one before it ends.
+    /** @type {WeakMap<object, Promise<void>>} */
+    this._loops = new WeakMap()
   }
 
   async onContentRequest(peer, msg) {
@@ -71,18 +79,25 @@ export class ServeSession {
 
   // Bytes are served ONLY for a synthetic path this peer was granted, so a peer cannot pull bytes
   // by sending chunkNeed without passing the serve gate.
-  async onChunkNeed(peer, msg) {
+  onChunkNeed(peer, msg) {
+    const prev = this._loops.get(peer) ?? Promise.resolve()
+    const run = prev.then(() => this._chunkLoop(peer, msg))
+    const tail = run.catch(() => {})
+    this._loops.set(peer, tail)
+    tail.then(() => { if (this._loops.get(peer) === tail) this._loops.delete(peer) })
+    return run
+  }
+
+  async _chunkLoop(peer, msg) {
     if (!(await this._grants.stillAuthorized(peer, msg.path))) return
     const hash = contentHashOf(msg.path)
     const diskPath = hash && this._served.get(hash)
     if (!diskPath) return
     const chunkMap = await this._fileIndex.getChunkMapByHash(hash)
     if (!chunkMap) return
-    for (let i = 0; i < msg.indices.length; i++) {
-      const index = msg.indices[i]
+    for (const index of msg.indices) {
       if (index >= chunkMap.length) continue
-      const more = i < msg.indices.length - 1
-      if (!(await this._serveOne(peer, msg.path, index, chunkMap[index], diskPath, more))) return
+      if (!(await this._serveOne(peer, msg.path, index, chunkMap[index], diskPath))) return
     }
   }
 
@@ -138,22 +153,23 @@ export class ServeSession {
   // One chunk. Each wait (the read, the cap, the drain) is a revocation window, so the grant is
   // re-checked after it, and after the read BEFORE the cap is charged: a revoked chunk is never
   // paid for. Returns false when the loop must stop.
-  async _serveOne(peer, synthPath, index, chunk, diskPath, more) {
+  //
+  // chunkData, the control channel and the replication carrying a freshly shared folder all share
+  // one Noise stream. A chunk waits for a backpressured stream to drain before it is sent, whichever
+  // loop sent the bytes that filled it, or a peer mid-download never sees a new share.
+  async _serveOne(peer, synthPath, index, chunk, diskPath) {
+    if (peer.channel && peer.channel.drained === false) {
+      if (!(await this._drain.wait(peer))) return false
+      if (!(await this._grants.stillAuthorized(peer, synthPath))) return false
+    }
     const data = await this._fds.read(peer, diskPath, chunk)
     if (peer.channel?.closed) return false
     if (!data) return true
     if (!(await this._grants.stillAuthorized(peer, synthPath))) return false
     if (!(await this._pay(peer, synthPath, index, data.length))) return false
-    const flushed = peer.msgs.chunkData.send({ path: synthPath, index, data })
+    peer.msgs.chunkData.send({ path: synthPath, index, data })
     if (this._onChunkServe) {
       try { this._onChunkServe({ path: synthPath, index, bytes: data.length, peer, from: this._grants.fromOf(peer, contentHashOf(synthPath)).from }) } catch {}
-    }
-    // chunkData, the control channel and the replication carrying a freshly shared folder all
-    // share one Noise stream. On backpressure stop producing content until it drains, or a peer
-    // mid-download never sees a new share.
-    if (flushed === false && more) {
-      if (!(await this._drain.wait(peer))) return false
-      if (!(await this._grants.stillAuthorized(peer, synthPath))) return false
     }
     return true
   }

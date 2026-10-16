@@ -15,7 +15,7 @@ import { getLocalPublicKeyHex } from '../spaces/profile.js'
 import { foreignFetchActive } from '../folders/mirror-fetch.js'
 import { requestMirrorWalk } from '../folders/foreign-verbs.js'
 import { localRelOf } from '../folders/mirror-state.js'
-import { hasShareDownload } from '../transfer/overlay/share-downloads.js'
+import { shareDownloadPhase } from '../transfer/overlay/share-downloads.js'
 import { markListIncomplete } from '../transfer/list-deficits.js'
 import {
   claimedPathFor,
@@ -44,7 +44,7 @@ const productionDeps = {
   getLocalPublicKeyHex,
   foreignFetchActive,
   requestMirrorWalk,
-  hasTransfer: hasShareDownload,
+  transferPhase: shareDownloadPhase,
   claimedPathFor,
   verdictForClaim,
   listVerifiedRecordsForShare,
@@ -106,11 +106,15 @@ function overlayConsumerRow(spaceId, share, entry, { ownerOnline, foreignMount, 
   const localPath = verdict.downloaded ? deps.claimedPathFor(drivePath, claim) : null
   // Keyed by the share's NAME, which two owners can share: the row counts only for the share it names.
   const pendingRow = pending?.get(drivePath)
+  // A browse row asks the download engine, whose slot is either parked or fetching; a mirror's
+  // fetch (above) is never parked behind its own producer, so it keeps reading as syncing.
+  const phase = deps.transferPhase(transferIdFor(spaceId, share.id, entry.relPath))
   const row = consumerRowStatusFor({
     copyVerdict: verdict.downloaded ? copyVerdict(verdict.stat ?? null, localPath, false) : null,
     onDeviceStatus: FILE_STATUS.DOWNLOADED,
     hashed,
-    isActive: deps.hasTransfer(transferIdFor(spaceId, share.id, entry.relPath)),
+    isActive: phase !== null,
+    isWaiting: phase === 'waiting',
     pendingRow: pendingRow?.shareId === share.id ? pendingRow : undefined,
     ownerOnline,
   })

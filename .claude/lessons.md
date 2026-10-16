@@ -612,6 +612,10 @@ down (main's `process.on('exit')` backstop), and only a clean `close`/`Bare.exit
 listener's probe-and-unlink path is the normal path, not a crash path, so it must stay cheap and
 silent.
 
+**Bare has no `process`.** Worker code reads the platform from `bare-os` (`os.platform()`), never
+`process.platform`; the lint globals admit the name, a Node unit test runs it fine, and the first
+flow test dies with `ReferenceError: process is not defined` inside the worker.
+
 **Bare has no `TextEncoder`.** A pure module the worker loads counts UTF-8 bytes by code point
 (`socket-path.js`), or takes `b4a`; a Node unit test passing proves nothing about Bare.
 
