@@ -5,6 +5,7 @@ import { subscribeServeDetail, unsubscribeServeDetail } from '../../src/shared/t
 import { getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { setVerbose } from '../helpers/runtime-verbose.js'
 import { createFakeIpc } from '../helpers/fake-ipc.js'
+import { createFolderChooser } from '../../src/worker/download-folder-push.js'
 
 // The policies are unit-tested; this is the wiring between them and the router, which nothing else
 // covers and the type system cannot check. An earlier draft of the verbose baseline was exactly a
@@ -58,7 +59,7 @@ test('REGRESSION (FIX-403-1): a client can switch off a worker that booted verbo
 
 test('the serving handlers thread the asking client, and a disconnect drops its column', async (t) => {
   const fake = createFakeIpc()
-  registerFiles(fake.ipc, { log: silentLog })
+  registerFiles(fake.ipc, { log: silentLog, chooseFolder: createFolderChooser({ ipc: fake.ipc, publishRevealRoots: () => {} }) })
 
   await fake.call('serving:detail-subscribe', { spaceId: 's1', path: '/a.bin' }, { client: CLIENT_A })
   await fake.call('serving:detail-subscribe', { spaceId: 's1', path: '/a.bin' }, { client: CLIENT_B })

@@ -9,7 +9,7 @@ import { MOUNT_STATUS, MIRROR_STATE } from '../shared/contract/statuses.js'
 import fs from 'bare-fs'
 import { Subsystem } from '../shared/core/subsystem.js'
 import { getDeepReconcileEvery } from '../shared/core/runtime-config.js'
-import { listDownloadRoots } from '../shared/core/paths.js'
+import { listOfferedDownloadFolders } from '../shared/core/paths.js'
 import { AppError } from '../shared/core/errors.js'
 import { CODES } from '../shared/contract/errors.js'
 import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../shared/contract/main-requests.js'
@@ -32,8 +32,9 @@ function rootAvailable(root) {
   try { return fs.statSync(root).isDirectory() } catch { return false }
 }
 
+// The folders a download can be sent to: each space's, the one new spaces start in, the recent ones.
 function readUnavailableRoots() {
-  return listDownloadRoots().filter((root) => !rootAvailable(root))
+  return listOfferedDownloadFolders().filter((root) => !rootAvailable(root))
 }
 
 function sameRootSet(a, b) {
@@ -405,7 +406,7 @@ export class MountsRuntime extends Subsystem {
 
   // === Download-root availability ===
   //
-  // Every root counts, not just the global one — a per-space override can vanish on its own.
+  // Every folder a download can be sent to counts: any of them can vanish on its own.
   // Level-triggered probe, edge-triggered emit: the event fires only when the set changes, so an
   // unchanged set is not re-broadcast every minute. The renderer gets its INITIAL state from
   // downloads:roots-status rather than waiting up to a full interval for the first transition.

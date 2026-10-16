@@ -63,8 +63,7 @@ export default function StorageSettings({ onBack, onOpenActivityLogSettings, onO
       const picked = await window.bridge.browseDownloadFolder(downloadFolder || undefined)
       if (!picked) return
       // The worker validates and persists in one step: only it can see the owned/mirrored folders
-      // a download root must not overlap, and its reply pokes every window's settings query, so
-      // the Edit Space modal's global-default fallback follows without a copy of its own.
+      // a download folder must not overlap, and its reply pokes every window's settings query.
       await request('settings:set-download-folder', { folder: picked })
       // The picker only accepts a folder that validated, so the warning below is stale the
       // moment this resolves — re-probe rather than leaving it up until the next 60s tick.
@@ -74,8 +73,8 @@ export default function StorageSettings({ onBack, onOpenActivityLogSettings, onO
     }
   }, [refreshRootStatus, errorText, downloadFolder])
 
-  // This screen shows the GLOBAL root; `unavailableRoots` also carries per-space overrides, so
-  // match rather than test for a non-empty list. The folder and the unavailable roots are both
+  // This screen shows the folder new spaces start in; `unavailableRoots` also carries every space's
+  // folder and the recent ones, so match rather than test for a non-empty list. The folder and the unavailable roots are both
   // the worker's, but one is the stored string and the other its resolved + NFC-normalized copy,
   // so compare them normalized instead of raw, or a folder with an umlaut in its name silently
   // fails to match and the warning never shows.

@@ -11,6 +11,7 @@ import { preflightFault } from './download-faults.js'
 import { LAYOUT } from './download-job.js'
 import { CODES } from '../../contract/errors.js'
 import { memberWaits } from '../../network/share-wait.js'
+import { noteLandedFolders } from '../../core/paths.js'
 
 // A download's slot IS its registry entry: start() reserves it before any await, so a duplicate
 // trigger cannot open a second fetch on the same hash; the fetch task holds it; settling deletes
@@ -40,9 +41,10 @@ export function createStart({
   pauseReasonFor, recordTerminal, failTerminal, runFetch,
 }) {
   // PERSISTED: `layout` is written only for a TREE job; a flat row carries no layout field.
+  // `destDir` is the download folder the row lands under, which a resume keeps.
   const pendingRowFor = (job) => ({
     total: job.size, ownerKey: job.ownerKey,
-    finalPath: job.finalPath, sourceSeq: job.sourceSeq, contentHash: job.contentHash,
+    finalPath: job.finalPath, destDir: job.destRoot, sourceSeq: job.sourceSeq, contentHash: job.contentHash,
     bytesTransferred: job.prevBytes || 0, ...channel.pendingExtra(job),
     ...(job.layout === LAYOUT.TREE ? { layout: LAYOUT.TREE } : {}),
   })
@@ -65,6 +67,7 @@ export function createStart({
       // entry from changed content. recordPending OVERWRITES the row, so the resumed byte count is
       // carried through explicitly: a start() that then bails would otherwise zero it.
       await recordPending(job.spaceId, job.pendingKey, pendingRowFor(job))
+      noteLandedFolders([job.destRoot])
       const reason = abandonReason(slot, { ownerOnline })
       if (reason) return bailBeforeFetch(slot, job, reason)
       // A TREE job's probe asks about the download root; its own folders are created under it once

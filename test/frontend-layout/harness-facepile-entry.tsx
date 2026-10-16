@@ -89,6 +89,7 @@ const SPACE: Space = {
   icon: 'hub',
   topic: pk(7),
   created: new Date('2026-01-02T10:00:00Z').toISOString(),
+  downloadFolder: '/Users/you/Downloads',
   // A count above the three-face cap, so the +N disc renders next to the faces. The faces
   // themselves come from the fake bridge's `space:members` roster; no avatar images, since the
   // initials fallback is the same disc wearing the same ring.

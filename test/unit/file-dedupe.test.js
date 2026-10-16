@@ -1,6 +1,7 @@
 import test from 'brittle'
 import { dedupeFileRows, STATUS_RANK } from '../../src/shared/transfer/file-dedupe.js'
 import { FILE_STATUSES } from '../../src/shared/contract/statuses.js'
+import { consumerRowStatusFor } from '../../src/shared/transfer/transfer-status.js'
 
 const candidate = (over = {}) => ({
   path: '/a.txt', size: 1, hash: 'h-a', mtime: 0, status: 'remote', localPath: null,
@@ -75,4 +76,19 @@ test('a verifying copy outranks one still downloading', (t) => {
 
   t.is(dedupeFileRows([downloading, verifying])[0].status, 'verifying')
   t.is(dedupeFileRows([verifying, downloading])[0].status, 'verifying')
+})
+
+// REGRESSION (FIX-DLTO-R9: an offline owner's row whose claim sat on a missing drive outranked an
+// online owner's copy of the same content, so the group's row offered nothing that could run.)
+test('REGRESSION (FIX-DLTO-R9: an online owner\'s copy wins over an offline owner\'s detached claim)', (t) => {
+  const offline = consumerRowStatusFor({ hashed: true, isActive: false, pendingRow: null, ownerOnline: false, detached: true })
+  const online = consumerRowStatusFor({ hashed: true, isActive: false, pendingRow: null, ownerOnline: true })
+  const rows = [
+    candidate({ path: '/Report.pdf', status: offline.status, owner: { displayName: 'Alice', publicKey: 'alice' } }),
+    candidate({ path: '/Report-final.pdf', status: online.status, owner: { displayName: 'Bob', publicKey: 'bob' } }),
+  ]
+  const [winner] = dedupeFileRows(rows)
+  t.is(winner.owner.publicKey, 'bob', 'the copy that can be downloaded now is the group\'s row')
+  t.is(winner.status, 'remote')
+  t.is(winner.sharedByCount, 1)
 })

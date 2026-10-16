@@ -34,6 +34,7 @@ import { useSpaceCardActions } from '../hooks/useSpaceCardActions.js'
 import { usePendingSpaceAction } from '../hooks/usePendingSpaceAction.js'
 import { useLocateShare } from '../hooks/useLocateShare.js'
 import { useSpaceBatch } from '../hooks/useSpaceBatch.js'
+import { useDownloadTo } from '../hooks/useDownloadTo.js'
 
 interface SpaceViewProps {
   spaceId: string
@@ -65,7 +66,8 @@ export default function SpaceScreen({ spaceId, pendingAction, onActionConsumed, 
   const isLegacy = !!space && space.schemaVersion !== 2
   const selfKey = profile?.personKey ?? null
   const { shares, loading: sharesLoading } = useShares(spaceId, selfKey)
-  const batch = useSpaceBatch({ spaceId, files, shares, selfKey, getDecoration, markSeeded })
+  const downloadTo = useDownloadTo(space)
+  const batch = useSpaceBatch({ spaceId, files, shares, selfKey, getDecoration, markSeeded, downloadTo })
   const toast = useToast()
   const { locate } = useLocateShare(spaceId)
   const [dialog, setDialog] = useState<SpaceDialog | null>(null)
@@ -165,6 +167,8 @@ export default function SpaceScreen({ spaceId, pendingAction, onActionConsumed, 
           onShareFolderRequest={handleShareFolderRequest}
           drag={{ handlers: dragHandlers, active: dragActive, kind: dragKind, fileCount, folderName }}
           batch={batch}
+          downloadTo={downloadTo}
+          downloadable={files.some((f) => f.owner.publicKey !== selfKey)}
           selfProfile={profile}
           onLocate={locate}
           cardActions={cardActions}

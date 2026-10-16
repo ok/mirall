@@ -35,12 +35,12 @@ export function makeJob(dir) {
     spaceId: SPACE, pendingKey: '/Photos/doc.bin', path: '/Photos/doc.bin', relPath: 'doc.bin',
     shareId: 'folder1', transferId: SPACE + '|folder1|doc.bin',
     contentHash: HASH, size: 11, ownerKey: OWNER, verifyKey: 'folder1|doc.bin',
-    finalPath: path.join(dir, 'doc.bin'),
+    finalPath: path.join(dir, 'doc.bin'), destRoot: dir,
   }
 }
 
-// A folder this process cannot write, INSIDE the space's download root — where a production
-// finalPath's folder always sits, so the re-anchor rule leaves the row pinned to it. Null where the
+// A folder this process cannot write, INSIDE the space's download root, which the job names as its
+// own folder, so a re-pointed space leaves the row in it. Null where the
 // mode bits do not make it read-only: Windows ignores a directory's mode and root bypasses it. The
 // probe write is the honest test of both.
 export function readOnlyDir(t, ctx, name) {

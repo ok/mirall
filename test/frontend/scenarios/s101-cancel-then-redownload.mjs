@@ -36,7 +36,7 @@ export default async function s101({ runDir, bootstrap }) {
     })
 
     await r.ok('B downloads then cancels mid-flight', async () => {
-      await B.click({ role: 'button', name: 'Download', last: true })
+      await B.downloadRow({ last: true })
       const dl = Date.now() + 20000
       while (Date.now() < dl) {
         if (await B.has({ role: 'button', name: 'Cancel' })) { sawCancel = true; break }
@@ -59,7 +59,7 @@ export default async function s101({ runDir, bootstrap }) {
         return
       }
       await B.waitText('Available', 30000)
-      await B.click({ role: 'button', name: 'Download', last: true })
+      await B.downloadRow({ last: true })
       await waitFor(() => existsSync(landed), 180000, 'retry.bin lands on re-download')
       await B.waitText('On your device', 30000)
       assert(statSync(landed).size === size, 're-downloaded file is full-size (no stale partial)')

@@ -87,7 +87,7 @@ export function useSpaces() {
     await refresh()
   }
 
-  async function updateSpace(spaceId: string, name: string, icon: string, downloadFolder?: string | null) {
+  async function updateSpace(spaceId: string, name: string, icon: string, downloadFolder?: string) {
     const space = await request('space:update', {
       spaceId,
       name,

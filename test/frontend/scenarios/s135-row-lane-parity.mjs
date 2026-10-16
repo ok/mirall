@@ -36,7 +36,7 @@ export default async function s135({ runDir, bootstrap }) {
 
   const INDEXING = { role: 'progressbar', name: 'Indexing progress' }
   const looseLanded = path.join(B.downloadFolder, 'reel.bin')
-  const shareLanded = path.join(B.downloadFolder, 'payload.bin')
+  const shareLanded = path.join(B.downloadFolder, 'Vault', 'payload.bin')
 
   let sawLooseSending = false
   let sawShareSending = false
@@ -78,7 +78,7 @@ export default async function s135({ runDir, bootstrap }) {
       // row's pill — or the "available" inside "Unavailable" — answers for this one. The badge's
       // own accessible name is the handle, which is the thing this change gives every row.
       await waitFor(() => B.has({ name: 'reel.bin: Available' }), 90000, 'loose row at rest')
-      await B.click({ role: 'button', name: 'Download', last: true })
+      await B.downloadRow({ last: true })
       // The deterministic half of D3: the row must leave the resting "Available" pill on the
       // click, not once bytes arrive.
       await waitFor(async () => !(await B.has({ name: 'reel.bin: Available' })), 20000, 'loose row leaves Available')
@@ -102,7 +102,7 @@ export default async function s135({ runDir, bootstrap }) {
       // this folder holds only it and the marker file it was created with. The row-scoped wait
       // below is the check — a click that lands on the wrong row fails there rather than quietly
       // downloading the wrong file.
-      await B.click({ role: 'button', name: 'Download' })
+      await B.downloadRow()
       await waitFor(async () => !(await B.has({ name: 'payload.bin: Available' })), 20000, 'folder row leaves Available')
       await A.focus()
       await A.openFolder('Vault')

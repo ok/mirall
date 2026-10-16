@@ -9,23 +9,35 @@
 //   3. a live transfer frame reaches ONE row without touching the listing array, so the two O(n)
 //      walks FolderScreen runs over it (buildFileTree, then filterTree) do not re-run per frame.
 //      `treeBuilds` is the measurement: it must not move when a decoration lands.
+//   4. the space's Download-to state (the real useDownloadTo) keeps its identity when ANOTHER
+//      space's folder changes, so no row moves; a change of this space's folder reaches every row.
+//   5. it keeps its identity, too, when the worker answers settings or the folders' reachability
+//      again with the same values — fresh objects off the wire, as a remount or a resync reads them
+//      (REGRESSION (FIX-DLTO-R28: every such answer re-rendered every row).
 //
 // HOW THE COUNT IS HONEST. The counter cannot live inside the real FileRow without editing
 // it, and a plain unmemoized wrapper around it would count the WRAPPER's renders — which happen on
 // every parent render regardless of whether the memo bailed, so it would fail even against a
 // perfect implementation. Instead `Counted` is itself memo()'d with the DEFAULT shallow compare,
-// the same comparator the real `memo(FileRow)` uses, and receives the same props. Its
-// bail-out condition is therefore identical to the real component's. `memoized()` below closes the
-// remaining gap by asserting the real export really is a memo with the default compare, so the two
-// checks together are equivalent to counting the real component.
+// which matches the real `memo(FileRow, sameProps)` for every prop this harness passes (sameProps is
+// shallow except for the selection box, which no row here carries). `memoized()` below closes the
+// remaining gap by asserting the real export is a memo whose comparator bails on identical props
+// and re-renders on any changed one, so the two checks together are equivalent to counting the
+// real component.
+import './harness-bootstrap.js'
 import { memo, useCallback, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import '../../src/renderer/platform/i18n.js'
 import FileRow, { type ShareFileRowProps } from '../../src/renderer/components/cards/FileRow.js'
+import { ToastProvider } from '../../src/renderer/components/toast/ToastProvider.js'
+import { useDownloadTo } from '../../src/renderer/hooks/useDownloadTo.js'
+import { useSettings } from '../../src/renderer/hooks/useSettings.js'
 import { reconcileFiles } from '../../src/renderer/model/share-files-reconcile.js'
+import { refetchQuery } from '../../src/renderer/store/query-store.js'
+import { SETTINGS_SCOPES } from '../../src/renderer/store/scopes.js'
 import { buildFileTree } from '../../src/renderer/model/file-tree.js'
-import type { Decoration } from '../../src/renderer/hooks/useDecorations.js'
-import type { FileTreeNode, ShareFileRow as ShareFileRowData, SpaceMember, PeerDownloadSummary, FileRecipient } from '../../src/renderer/types/types.js'
+import type { Decoration } from '../../src/renderer/types/ui.js'
+import type { FileTreeNode, ShareFileRow as ShareFileRowData, SpaceMember, PeerDownloadSummary, FileRecipient, Space } from '../../src/renderer/types/types.js'
 
 interface HarnessResults {
   pass: boolean
@@ -39,6 +51,10 @@ interface HarnessResults {
   afterOneDecoration: Record<string, number>
   treeBuildsBeforeDecoration: number
   treeBuildsAfterDecoration: number
+  afterOtherSpaceFolder: Record<string, number>
+  afterOwnSpaceFolder: Record<string, number>
+  afterEqualSettings: Record<string, number>
+  afterEqualRoots: Record<string, number>
 }
 
 declare global {
@@ -48,6 +64,7 @@ declare global {
     __setSummary: (relPath: string) => void
     __refetch: (changed: string | null) => void
     __decorate: (relPath: string) => void
+    __moveFolder: (spaceId: string) => void
   }
 }
 
@@ -76,6 +93,10 @@ const HANDLERS = {
 const MEMBERS: SpaceMember[] = []
 const NO_RECIPIENTS: FileRecipient[] = []
 
+const space = (spaceId: string, downloadFolder: string): Space => ({
+  spaceId, name: spaceId, icon: 'folder', topic: 't'.repeat(64), created: '2026-01-01', members: [], favorite: false, schemaVersion: 2, downloadFolder,
+})
+
 const renders: Record<string, number> = {}
 function snapshot(): Record<string, number> {
   return { ...renders }
@@ -97,11 +118,19 @@ const Counted = memo(function Counted(props: ShareFileRowProps) {
   return <FileRow {...props} />
 })
 
-// The real export must be a memo with the DEFAULT compare — memo(fn) with no comparator. React
-// stores the comparator as `compare`, null when it was omitted.
+// The real export must be a memo whose comparator bails on identical props and re-renders on any
+// changed one, which is what the default shallow compare Counted uses does. React stores the
+// comparator as `compare`, null when it was omitted.
+type Compare = (a: object, b: object) => boolean
 function memoized(component: unknown): boolean {
-  const c = component as { $$typeof?: symbol; compare?: unknown } | null
-  return !!c && c.$$typeof === Symbol.for('react.memo') && (c.compare === null || c.compare === undefined)
+  const c = component as { $$typeof?: symbol; compare?: Compare | null } | null
+  if (!c || c.$$typeof !== Symbol.for('react.memo')) return false
+  if (!c.compare) return true
+  const props = { file: entry('a.txt'), decoration: null, downloadTo: {}, onDownload: noop }
+  return c.compare(props, { ...props }) &&
+    !c.compare(props, { ...props, file: entry('a.txt') }) &&
+    !c.compare(props, { ...props, downloadTo: {} }) &&
+    !c.compare(props, { ...props, onDownload: () => {} })
 }
 
 function Harness() {
@@ -110,6 +139,14 @@ function Harness() {
   const [files, setFiles] = useState<ShareFileRowData[]>(() => freshListing(null))
   const [summaries, setSummaries] = useState<Map<string, PeerDownloadSummary>>(() => new Map())
   const [decorations, setDecorations] = useState<Map<string, Decoration>>(() => new Map())
+  // The spaces list as a refetch hands it over: every space a new object, whichever one changed.
+  const [spaces, setSpaces] = useState<Space[]>(() => [space('s', '/Users/you/Downloads'), space('other', '/Users/you/Other')])
+  const downloadTo = useDownloadTo(spaces.find((sp) => sp.spaceId === 's'))
+  const { data: settings } = useSettings()
+
+  window.__moveFolder = useCallback((spaceId: string) => {
+    setSpaces((prev) => prev.map((sp) => ({ ...sp, downloadFolder: sp.spaceId === spaceId ? sp.downloadFolder + '-moved' : sp.downloadFolder })))
+  }, [])
 
   window.__tick = useCallback(() => { setTick((t) => t + 1) }, [])
 
@@ -155,15 +192,18 @@ function Harness() {
       downloadSummary={summaries.get(file.relPath) ?? null}
       recipients={NO_RECIPIENTS}
       ownerKey="o"
+      downloadTo={downloadTo}
       {...HANDLERS}
     />
-  )), [files, summaries, decorations])
+  )), [files, summaries, decorations, downloadTo])
 
-  return <div id="rows-host" data-tree-nodes={tree.length} className="max-w-3xl">{rows}</div>
+  // The rows mount once the settings are in, as the screens' do behind their own loading states:
+  // the host's path rules arrive with them.
+  return <div id="rows-host" data-tree-nodes={tree.length} className="max-w-3xl">{settings ? rows : null}</div>
 }
 
 createRoot(document.getElementById('root') as HTMLElement).render(
-  <div className="bg-surface p-8"><Harness /></div>,
+  <div className="bg-surface p-8"><ToastProvider><Harness /></ToastProvider></div>,
 )
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
@@ -181,6 +221,10 @@ function publishError(error: string): void {
     afterOneDecoration: {},
     treeBuildsBeforeDecoration: -1,
     treeBuildsAfterDecoration: -1,
+    afterOtherSpaceFolder: {},
+    afterOwnSpaceFolder: {},
+    afterEqualSettings: {},
+    afterEqualRoots: {},
   }
 }
 
@@ -238,9 +282,31 @@ async function run(): Promise<void> {
   const oneDecorationScoped = delta(afterOneRowChanged, afterOneDecoration).join(',') === 'a.txt'
   const treeQuiet = treeBuildsAfterDecoration === treeBuildsBeforeDecoration
 
+  // 6. Another space's download folder changes: this space's Download-to state keeps its identity,
+  //    so no row moves. Then this space's own folder changes, which every row must see.
+  window.__moveFolder('other')
+  await sleep(100)
+  const afterOtherSpaceFolder = snapshot()
+  const otherFolderQuiet = delta(afterOneDecoration, afterOtherSpaceFolder).length === 0
+  window.__moveFolder('s')
+  await sleep(100)
+  const afterOwnSpaceFolder = snapshot()
+  const ownFolderReachesRows = delta(afterOtherSpaceFolder, afterOwnSpaceFolder).length === PATHS.length
+
+  // 7. The same settings, then the same reachability, answered again as fresh objects: no row moves.
+  await refetchQuery('settings:get', {}, SETTINGS_SCOPES)
+  await sleep(100)
+  const afterEqualSettings = snapshot()
+  const equalSettingsQuiet = delta(afterOwnSpaceFolder, afterEqualSettings).length === 0
+  await refetchQuery('downloads:roots-status', {}, null)
+  await sleep(100)
+  const afterEqualRoots = snapshot()
+  const equalRootsQuiet = delta(afterEqualSettings, afterEqualRoots).length === 0
+
   window.__results = {
     pass: isMemo && mountedOnce && idleTickQuiet && oneSummaryScoped && unchangedRefetchQuiet &&
-      oneRowScoped && oneDecorationScoped && treeQuiet,
+      oneRowScoped && oneDecorationScoped && treeQuiet && otherFolderQuiet && ownFolderReachesRows &&
+      equalSettingsQuiet && equalRootsQuiet,
     error: null,
     isMemo,
     mountCounts,
@@ -251,6 +317,10 @@ async function run(): Promise<void> {
     afterOneDecoration,
     treeBuildsBeforeDecoration,
     treeBuildsAfterDecoration,
+    afterOtherSpaceFolder,
+    afterOwnSpaceFolder,
+    afterEqualSettings,
+    afterEqualRoots,
   }
 }
 

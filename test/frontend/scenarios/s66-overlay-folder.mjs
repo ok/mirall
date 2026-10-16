@@ -45,8 +45,8 @@ export default async function s66({ runDir, bootstrap }) {
       assert(await B.hasText('Available'), 'overlay file not shown as available')
     })
     await r.ok('B downloads in place → fetched by content hash, bytes land', async () => {
-      await B.click({ role: 'button', name: 'Download' })
-      const landed = path.join(B.downloadFolder, 'report.txt')
+      await B.downloadRow()
+      const landed = path.join(B.downloadFolder, 'InPlace', 'report.txt')
       await waitFor(() => existsSync(landed), 90000, 'report.txt fetched via overlay')
       assert(readFileSync(landed, 'utf8') === 'overlay contents in place', 'overlay bytes match the source')
       await B.waitText('On your device', 20000)

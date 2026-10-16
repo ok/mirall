@@ -100,7 +100,12 @@ function registerSettingsIpc({ createTray, destroyTray, applyAppMenuVisibility, 
     return result.filePaths[0]
   }
 
-  ipcMain.handle('downloads:browse', (evt, defaultPath) => pickDirectory(evt, defaultPath))
+  // The picker answers a name as its volume stores it, often decomposed on macOS, where the worker
+  // keeps download folders composed (NFC): the renderer would compare two spellings of one folder.
+  ipcMain.handle('downloads:browse', async (evt, defaultPath) => {
+    const folder = await pickDirectory(evt, defaultPath)
+    return folder && isMac ? folder.normalize('NFC') : folder
+  })
 
   ipcMain.handle('share:browseFolder', (evt) => pickDirectory(evt))
 

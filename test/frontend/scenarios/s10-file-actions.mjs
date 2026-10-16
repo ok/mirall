@@ -31,7 +31,7 @@ export default async function s10({ runDir, bootstrap }) {
       await B.waitText('Available', 60000)
     })
     await r.ok('B downloads the file to completion', async () => {
-      await B.click({ role: 'button', name: 'Download', last: true })
+      await B.downloadRow({ last: true })
       await B.waitText('On your device', 60000)
       await B.shot('s10-B-downloaded', runDir)
     })

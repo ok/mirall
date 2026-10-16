@@ -53,6 +53,7 @@ test('every path the user can re-pick goes through PathRow', (t) => {
     ['hooks/usePendingSpaceAction.ts', 'drag-drop / Add folder hand the picked path straight to a modal'],
     ['hooks/useLocateShare.ts', 'Locate re-points the folder and reports it in a toast; there is no field'],
     ['hooks/useMountWizard.ts', 'a hook renders nothing; its callers show the path, asserted below'],
+    ['hooks/useDownloadTo.ts', 'the Download-to menu names the folder in its items and its buttons; there is no field'],
   ])
   const pickers = files.filter((f) => /window\.bridge\.browse(DownloadFolder|ShareFolder)\(/.test(f.src))
   t.ok(pickers.length > 0, 'the picker calls were found at all')
@@ -101,20 +102,16 @@ test('the path field placeholder is muted TEXT, not a border colour', (t) => {
 test('a path still loading is a third state, not an absent path', (t) => {
   t.ok(/loading \? t\('pathField\.loading'\)/.test(pathRow), 'the field says it is loading')
   t.ok(/loading\?: boolean/.test(pathRow), 'and the state is declared, not inferred from an empty string')
-  for (const rel of ['screens/settings/StorageSettings.tsx', 'components/modals/EditSpaceModal.tsx']) {
-    const src = files.find((f) => f.rel === rel).src
-    t.ok(/<PathRow[^>]*loading=/s.test(src), `${rel} resolves its folder asynchronously and must say so`)
-  }
+  const storage = files.find((f) => f.rel === 'screens/settings/StorageSettings.tsx').src
+  t.ok(/<PathRow[^>]*loading=/s.test(storage), 'Storage resolves its folder asynchronously and must say so')
 })
 
-// Both reads fell back to a folder that always exists, so a swallowed failure left the row
-// describing a state that would never end.
+// The read falls back to a folder that always exists, so a swallowed failure would leave the row
+// describing a state that never ends.
 test('a failed download-folder read is surfaced, never swallowed', (t) => {
-  for (const rel of ['screens/settings/StorageSettings.tsx', 'components/modals/EditSpaceModal.tsx']) {
-    const src = files.find((f) => f.rel === rel).src
-    const read = src.slice(src.indexOf('window.bridge.getDownloadFolder()'))
-    t.absent(/^\s*\.catch\(\(\) => \{\}\)/m.test(read.slice(0, 600)), `${rel} must not swallow the read`)
-  }
+  const storage = files.find((f) => f.rel === 'screens/settings/StorageSettings.tsx').src
+  t.ok(/error: folderReadError\b/.test(storage), 'Storage reads the settings error')
+  t.ok(/errorText\(folderReadError\)/.test(storage), 'and shows it')
 })
 
 test('a path field on a settings screen is filled a step below its card', (t) => {

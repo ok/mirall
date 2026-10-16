@@ -3,121 +3,126 @@ import os from 'bare-os'
 import path from 'bare-path'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import {
-  getDownloadDir, getGlobalDownloadDir, hydrateDownloadRoots,
-  setSpaceDownloadRoot, forgetSpaceDownloadRoot, listDownloadRoots, isInsideDownloadDir,
-  getSpaceDownloadOverride,
+  getDownloadDir, getNewSpaceDownloadDir, hydrateDownloadRoots,
+  setSpaceDownloadRoot, forgetSpaceDownloadRoot, isInsideDownloadDir, isSameFolder,
+  listCurrentDownloadFolders, listOfferedDownloadFolders, listDownloadRoots,
+  setRecentDownloadFolders, noteLandedFolders, setLandedFolders, setDownloadRootsListener, hostFoldsCase,
 } from '../../src/shared/core/paths.js'
 
-// A space with no override inherits the global root, so an existing install sees no
-// state change on upgrade. Overrides live in an in-memory map hydrated from the space
-// records at boot — paths.js never reads the bee itself.
+// Each space downloads into its own folder, mirrored here from the space records; the app folder
+// only seeds new spaces. paths.js never reads the bee itself.
 
-const GLOBAL = path.join(os.tmpdir(), 'mirall-dl-global')
+const SEED = path.join(os.tmpdir(), 'mirall-dl-seed')
 const A = path.join(os.tmpdir(), 'mirall-dl-a')
 const B = path.join(os.tmpdir(), 'mirall-dl-b')
+const R = path.join(os.tmpdir(), 'mirall-dl-recent')
+const L = path.join(os.tmpdir(), 'mirall-dl-landed')
 
-function withGlobal(t) {
+function withSeed(t) {
   const prev = getRuntimeConfig()
-  setRuntimeConfig({ ...prev, downloadFolder: GLOBAL })
-  t.teardown(() => { setRuntimeConfig(prev); hydrateDownloadRoots([]) })
+  setRuntimeConfig({ ...prev, downloadFolder: SEED })
+  hydrateDownloadRoots([])
+  setRecentDownloadFolders([])
+  setLandedFolders([])
+  t.teardown(() => {
+    setDownloadRootsListener(null)
+    setRuntimeConfig(prev)
+    hydrateDownloadRoots([])
+    setRecentDownloadFolders([])
+    setLandedFolders([])
+  })
 }
 
-test('an unset space inherits the global root', (t) => {
-  withGlobal(t)
-  hydrateDownloadRoots([])
-  t.is(getDownloadDir('space1'), GLOBAL)
-  t.is(getGlobalDownloadDir(), GLOBAL)
-})
-
-test('an override applies only to its own space', (t) => {
-  withGlobal(t)
-  hydrateDownloadRoots([])
+test('a space answers its own folder, and a sibling is unaffected', (t) => {
+  withSeed(t)
   setSpaceDownloadRoot('space1', A)
   t.is(getDownloadDir('space1'), A)
-  t.is(getDownloadDir('space2'), GLOBAL, 'a sibling space is unaffected')
-  t.is(getGlobalDownloadDir(), GLOBAL, 'the global root itself never moves')
+  t.is(getDownloadDir('space2'), SEED, 'a space with no folder yet answers the seed')
+  t.is(getNewSpaceDownloadDir(), SEED, 'the seed itself never moves')
 })
 
-test('clearing an override reverts the space to the global root', (t) => {
-  withGlobal(t)
-  hydrateDownloadRoots([])
+test('a changed app folder moves no space that has a folder', (t) => {
+  withSeed(t)
   setSpaceDownloadRoot('space1', A)
-  setSpaceDownloadRoot('space1', null)
-  t.is(getDownloadDir('space1'), GLOBAL)
+  setRuntimeConfig({ ...getRuntimeConfig(), downloadFolder: B })
+  t.is(getDownloadDir('space1'), A)
+  t.is(getNewSpaceDownloadDir(), B)
+})
+
+test('a forgotten or emptied space answers the seed, never null', (t) => {
+  withSeed(t)
   setSpaceDownloadRoot('space1', A)
   forgetSpaceDownloadRoot('space1')
-  t.is(getDownloadDir('space1'), GLOBAL, 'forget behaves like a clear')
-})
-
-test('an empty-string override is treated as unset', (t) => {
-  withGlobal(t)
-  hydrateDownloadRoots([])
+  t.is(getDownloadDir('space1'), SEED)
   setSpaceDownloadRoot('space1', '')
-  t.is(getDownloadDir('space1'), GLOBAL)
+  t.is(getDownloadDir('space1'), SEED)
+  t.is(getDownloadDir(undefined), SEED)
+  t.is(getDownloadDir(null), SEED)
 })
 
-test('hydrate replaces the whole map rather than merging into it', (t) => {
-  withGlobal(t)
+test('hydrate replaces the whole map and skips records with no folder', (t) => {
+  withSeed(t)
   hydrateDownloadRoots([{ spaceId: 'space1', downloadFolder: A }])
-  t.is(getDownloadDir('space1'), A)
-  hydrateDownloadRoots([{ spaceId: 'space2', downloadFolder: B }])
-  t.is(getDownloadDir('space1'), GLOBAL, 'the earlier override is gone')
+  hydrateDownloadRoots([{ spaceId: 'space2', downloadFolder: B }, { spaceId: 'space3' }, { spaceId: 'space4', downloadFolder: '' }])
+  t.is(getDownloadDir('space1'), SEED, 'the earlier folder is gone')
   t.is(getDownloadDir('space2'), B)
+  t.is(getDownloadDir('space3'), SEED)
+  t.is(getDownloadDir('space4'), SEED)
 })
 
-test('hydrate ignores records with no usable override', (t) => {
-  withGlobal(t)
-  hydrateDownloadRoots([
-    { spaceId: 'space1' },
-    { spaceId: 'space2', downloadFolder: null },
-    { spaceId: 'space3', downloadFolder: '' },
-    { spaceId: 'space4', downloadFolder: A },
-  ])
-  t.is(getDownloadDir('space1'), GLOBAL)
-  t.is(getDownloadDir('space2'), GLOBAL)
-  t.is(getDownloadDir('space3'), GLOBAL)
-  t.is(getDownloadDir('space4'), A)
-})
-
-test('a missing spaceId resolves to the global root', (t) => {
-  withGlobal(t)
-  hydrateDownloadRoots([{ spaceId: 'space1', downloadFolder: A }])
-  t.is(getDownloadDir(undefined), GLOBAL)
-  t.is(getDownloadDir(null), GLOBAL)
-})
-
-// The boot partial sweep and mount validation both iterate this, so a duplicate would
-// make them do redundant work and a missing global would leave partials unswept.
-test('listDownloadRoots is the deduplicated union including the global root', (t) => {
-  withGlobal(t)
+test('the current folders are the seed and every space\'s folder, once each', (t) => {
+  withSeed(t)
   hydrateDownloadRoots([
     { spaceId: 'space1', downloadFolder: A },
     { spaceId: 'space2', downloadFolder: A },
     { spaceId: 'space3', downloadFolder: B },
   ])
-  const roots = listDownloadRoots()
-  t.is(roots.length, 3, 'global + two distinct overrides')
-  t.ok(roots.includes(GLOBAL))
-  t.ok(roots.includes(A))
-  t.ok(roots.includes(B))
+  setRecentDownloadFolders([R])
+  noteLandedFolders([L])
+  t.alike(listCurrentDownloadFolders(), [SEED, A, B], 'neither a recent nor a landed folder is current')
 })
 
-test('listDownloadRoots is just the global root when nothing is overridden', (t) => {
-  withGlobal(t)
-  hydrateDownloadRoots([])
-  t.alike(listDownloadRoots(), [GLOBAL])
-})
-
-// Download claims scope on the OVERRIDE, never the effective root — the difference between
-// "this space keeps its files here" and "this space follows the app default".
-test('getSpaceDownloadOverride reports only an explicit override', (t) => {
-  withGlobal(t)
+test('the offered folders add the recent ones, once each', (t) => {
+  withSeed(t)
   hydrateDownloadRoots([{ spaceId: 'space1', downloadFolder: A }])
-  t.is(getSpaceDownloadOverride('space1'), A)
-  t.is(getSpaceDownloadOverride('space2'), null, 'a space on the global root has no override')
-  t.is(getSpaceDownloadOverride(undefined), null)
-  setSpaceDownloadRoot('space1', null)
-  t.is(getSpaceDownloadOverride('space1'), null, 'cleared is the same as never set')
+  setRecentDownloadFolders([A, R, SEED])
+  noteLandedFolders([L])
+  t.alike(listOfferedDownloadFolders(), [SEED, A, R], 'a landed folder is not offered')
+})
+
+test('the download roots add every landed folder, once each', (t) => {
+  withSeed(t)
+  hydrateDownloadRoots([{ spaceId: 'space1', downloadFolder: A }])
+  setRecentDownloadFolders([R])
+  noteLandedFolders([L, A, L])
+  t.alike(listDownloadRoots(), [SEED, A, R, L])
+})
+
+test('noting landed folders notifies once per call, and only when a folder is new', (t) => {
+  withSeed(t)
+  let calls = 0
+  setDownloadRootsListener(() => { calls++ })
+  noteLandedFolders([L, A])
+  t.is(calls, 1, 'two new folders, one notification')
+  noteLandedFolders([L])
+  t.is(calls, 1, 'a known folder is silent')
+  noteLandedFolders([null, '', undefined])
+  t.is(calls, 1, 'nothing usable is silent')
+  noteLandedFolders([B])
+  t.is(calls, 2)
+})
+
+test('setting the landed folders replaces them, and always notifies', (t) => {
+  withSeed(t)
+  let calls = 0
+  setDownloadRootsListener(() => { calls++ })
+  noteLandedFolders([L, A])
+  setLandedFolders([B, null, ''])
+  t.alike(listDownloadRoots(), [SEED, B], 'only the folders set now')
+  t.is(calls, 2)
+  setLandedFolders([])
+  t.alike(listDownloadRoots(), [SEED], 'an empty set drops them all')
+  t.is(calls, 3, 'a set that shrinks is a change too')
 })
 
 test('isInsideDownloadDir matches self and descendants, not a name-prefix sibling', (t) => {
@@ -126,4 +131,19 @@ test('isInsideDownloadDir matches self and descendants, not a name-prefix siblin
   t.ok(isInsideDownloadDir(path.join(A, 'sub', 'f.txt'), A), 'nested')
   t.absent(isInsideDownloadDir(path.join(A + 'x', 'f.txt'), A), 'name-prefix sibling')
   t.absent(isInsideDownloadDir(path.join(B, 'f.txt'), A), 'a different root')
+})
+
+test('isSameFolder ignores a trailing separator and is not a containment test', (t) => {
+  t.ok(isSameFolder(A, A + path.sep))
+  t.absent(isSameFolder(A, path.join(A, 'sub')))
+  t.absent(isSameFolder(A, ''))
+})
+
+// One case-fold rule for the host: every comparison here, mount validation and the paths a client
+// is sent (the settings view's `caseFolds`) all read hostFoldsCase.
+test('folder comparisons fold case exactly when the host does', (t) => {
+  const folds = hostFoldsCase()
+  t.is(folds, os.platform() === 'darwin' || os.platform() === 'win32', 'macOS and Windows fold, other hosts do not')
+  t.is(isSameFolder(A, A.toUpperCase()), folds)
+  t.is(isInsideDownloadDir(path.join(A, 'f.txt').toUpperCase(), A), folds)
 })

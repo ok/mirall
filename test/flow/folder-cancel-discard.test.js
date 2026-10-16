@@ -75,5 +75,6 @@ test('folder cancel then re-download: completes byte-exact with no stale partial
     const completion = await done
     t.ok(fs.readFileSync(completion.localPath).equals(ctx.bytes), 're-downloaded file is byte-exact')
     t.ok(!completion.localPath.endsWith('.mirall.part'), 'finalised, not a partial')
+    t.is(completion.localPath, path.join(ctx.B.downloads, 'Vault', 'retry.bin'), 'under its folder\'s name')
     A.kill()
   })

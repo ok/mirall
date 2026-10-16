@@ -18,7 +18,7 @@ const sleep = (ms) => new Promise((res) => setTimeout(res, ms))
 // is dropped with its own 8 s "removed by the owner" toast. Five files, so the pre-fix stack is
 // certain to push the declined toast out; every row clearing is what proves the burst ran. B's
 // downloads are capped at 1 MB/s so every row is still in flight when the files go. The files arrive
-// one at a time because every row's button is named "Download": a started row stops offering it, so
+// one at a time because every row's Download is named "Download to…": a started row stops offering it, so
 // exactly one is ever targetable.
 export default async function s147({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
@@ -72,10 +72,10 @@ export default async function s147({ runDir, bootstrap }) {
       for (const [i, name] of FILES.entries()) {
         if (i > 0) addFile(name)
         await waitFor(() => rowShown(name), 60000, `${name} listed`)
-        await waitFor(async () => B.has({ role: 'button', name: 'Download' }), 60000, `${name} downloadable`)
-        await B.click({ role: 'button', name: 'Download' })
+        await waitFor(async () => B.has({ role: 'combobox', name: 'Download to…' }), 60000, `${name} downloadable`)
+        await B.downloadRow()
       }
-      await waitFor(async () => !(await B.has({ role: 'button', name: 'Download' })), 30000, 'every row started')
+      await waitFor(async () => !(await B.has({ role: 'combobox', name: 'Download to…' })), 30000, 'every row started')
       assert(await B.hasText('declined'), 'precondition: the declined toast is still up before the burst')
     })
 

@@ -9,7 +9,7 @@ import { isOnDeviceStatus } from '../../shared/contract/statuses.js'
 
 /** @typedef {'reveal' | 'unshare' | 'download' | 'download-unavailable' | 'pause' | 'cancel' | 'cancel-publish' | 'resume' | 'discard' | 'retry' | 'dismiss' | 'busy'} RowActionId */
 /** @typedef {'default' | 'danger'} RowActionTone */
-/** @typedef {{ id: RowActionId, icon: IconName, labelKey: string, tone: RowActionTone, disabled?: true }} RowAction */
+/** @typedef {{ id: RowActionId, icon: IconName, labelKey: string, tone: RowActionTone, disabled?: true, menu?: true }} RowAction */
 /** @typedef {{ primary: RowAction | null, secondary: RowAction | null }} RowActions */
 /** @typedef {{ isOwn: boolean, manualControls: boolean, ownerFileVerbs: boolean }} RowActionContext */
 
@@ -19,7 +19,8 @@ const act = (id, icon, labelKey, tone = 'default') => Object.freeze({ id, icon, 
 const A = Object.freeze({
   reveal: act('reveal', 'folder_open', 'file.revealInFolder'),
   unshare: act('unshare', 'delete', 'file.unshare', 'danger'),
-  download: act('download', 'download', 'file.download'),
+  // Opens the Download-to menu: picking a folder downloads there.
+  download: /** @type {RowAction} */ (Object.freeze({ ...act('download', 'download', 'file.downloadTo'), menu: true })),
   downloadUnavailable: /** @type {RowAction} */ (Object.freeze({ ...act('download-unavailable', 'download', 'file.downloadUnavailable'), disabled: true })),
   pause: act('pause', 'pause', 'file.pause'),
   cancel: act('cancel', 'close', 'file.cancel', 'danger'),
@@ -53,7 +54,8 @@ function manualActions(status, hasTransfer) {
   /** @param {RowAction} a */
   const ifTransfer = (a) => (hasTransfer ? a : null)
   switch (status) {
-    case 'remote': return pair(A.download)
+    case 'remote':
+    case 'detached': return pair(A.download)
     case 'unavailable': return pair(A.downloadUnavailable)
     case 'preparing': return pair(busy('file.preparing'))
     case 'downloading':
@@ -67,7 +69,7 @@ function manualActions(status, hasTransfer) {
 }
 
 const DOWNLOAD_IDS = new Set(['download', 'download-unavailable', 'resume', 'retry'])
-const CANCEL_IDS = new Set(['cancel', 'discard'])
+const IN_PROGRESS_IDS = new Set(['cancel', 'discard'])
 
 /** @typedef {import('./batch-selection.js').BatchVerbs} BatchVerbs */
 
@@ -75,7 +77,7 @@ const CANCEL_IDS = new Set(['cancel', 'discard'])
  * The batch verbs a row takes part in: the row's own enabled buttons, so a selection never acts on
  * a row its own buttons would not. The one addition is an offline owner's file, whose Download is
  * disabled on the row: a batch still asks for it, and the request is kept until the owner is back.
- * Dismiss (an error row's close) is not Cancel.
+ * Dismiss (an error row's close) does not mark a row in progress.
  * @param {{ status: FileStatus, transferId?: string }} row @param {RowActionContext} ctx @returns {BatchVerbs}
  */
 export function batchVerbsFor(row, ctx) {
@@ -85,7 +87,7 @@ export function batchVerbsFor(row, ctx) {
   for (const a of [primary, secondary]) if (a && (!a.disabled || a.id === 'download-unavailable')) ids.push(a.id)
   return {
     download: ids.some((id) => DOWNLOAD_IDS.has(id)),
-    cancel: ids.some((id) => CANCEL_IDS.has(id)),
+    inProgress: ids.some((id) => IN_PROGRESS_IDS.has(id)),
     unshare: ids.includes('unshare'),
     onDevice: isOnDeviceStatus(row.status) && !ctx.isOwn,
   }
@@ -94,7 +96,7 @@ export function batchVerbsFor(row, ctx) {
 /** A row a selection can hold: one a batch verb reaches, or a copy already on this device. */
 /** @param {BatchVerbs} verbs */
 export function isBatchSelectable(verbs) {
-  return verbs.download || verbs.cancel || verbs.unshare || verbs.onDevice
+  return verbs.download || verbs.inProgress || verbs.unshare || verbs.onDevice
 }
 
 /** @param {FileStatus} status @returns {RowActions} */

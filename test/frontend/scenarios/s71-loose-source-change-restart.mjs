@@ -34,7 +34,7 @@ export default async function s71({ runDir, bootstrap }) {
       await A.waitText('movie.bin', 20000)
       await B.waitText('movie.bin', 60000)
       await B.waitText('Available', 60000)
-      await B.click({ role: 'button', name: 'Download', last: true })
+      await B.downloadRow({ last: true })
       await B.waitText('Downloading', 60000)
     })
     await r.ok('the source changes mid-download → B ends verified on the NEW content', async () => {

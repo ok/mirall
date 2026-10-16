@@ -7,7 +7,7 @@ import type { DecodedInvite } from '../../src/shared/contract/invite-envelope.js
 import type { DocsTarget } from '../../src/renderer/shell/docs-links.js'
 import type { MainQueryName } from '../../src/renderer/store/main-queries.js'
 import type { PublishOrder } from '../../src/shared/contract/paths.js'
-import type { ContentRow, FileEntry, RequestResponse, ShareFileRow } from '../../src/shared/contract/responses.js'
+import type { ContentRow, FileEntry, RequestResponse, ShareFileRow, Space, WorkerSettings } from '../../src/shared/contract/responses.js'
 import type { PathHost } from '../../src/shared/contract/paths.js'
 import type { MemberReach } from '../../src/shared/contract/member-reach.js'
 
@@ -98,6 +98,23 @@ const looseBare: RequestResponse['files:list'] = [looseRow]
 const noTruncated: RequestResponse['share:list-files'] = { entries: [], complete: true, total: 0, totalBytes: 0, fileLimit: null }
 
 void [looseRow, shareRow, asContent, looseAvailable, looseBytes, noLocalPath, noMtime, looseListing, looseBare, noTruncated]
+
+const withFolder: Space = { spaceId: 's', name: 'S', icon: 'folder', topic: 't', created: '', members: [], downloadFolder: '/dl' }
+// @ts-expect-error every space has a download folder
+const noFolder: Space = { spaceId: 's', name: 'S', icon: 'folder', topic: 't', created: '', members: [] }
+// @ts-expect-error the settings view always carries the recent folders
+const noRecent: WorkerSettings['downloads'] = { folder: '/dl', isDefault: true }
+
+void [withFolder, noFolder, noRecent]
+
+const movedBatch: RequestResponse['share:read-files'] = { started: 1, alreadyHere: 0, waitingOnOwner: 0, removed: 0, failed: 0, folderChanged: true }
+const movedClick: RequestResponse['files:download'] = { transferId: 't', finalPath: '/dl/a', folderChanged: true }
+// @ts-expect-error a folder that did not move is said by leaving folderChanged out
+const unmovedBatch: RequestResponse['files:download-many'] = { started: 1, alreadyHere: 0, waitingOnOwner: 0, removed: 0, failed: 0, folderChanged: false }
+declare const anyBatch: RequestResponse['share:read-files']
+const batchMoved: true | undefined = anyBatch.folderChanged
+
+void [movedBatch, movedClick, unmovedBatch, batchMoved]
 
 void [fileStatusSynced, fileStatusQueued, fileStatusMine, shareFileStatus]
 

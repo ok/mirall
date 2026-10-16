@@ -24,7 +24,10 @@ key commits post-handshake. Every file listing is a `share-files` view, the loos
 second scope for presence. A hook that lists a scope is trusting that mapping, not re-explaining
 it. Events that carry a whole value are PUSHED into the entry by `installPushBridges`
 (download-roots status, the spaces list); a hook reading such an entry passes `null` scopes and
-must not subscribe — two mounts would double-write. An entry keeps the scopes it was FIRST
+must not subscribe — two mounts would double-write. A view that only watches such an entry while an
+always-mounted owner reads it (DownloadFolderToastBridge reads download-roots status) passes
+`passive`: it is notified of every value and never reads, so mounting a screen costs the worker
+nothing. An entry keeps the scopes it was FIRST
 registered with, so shared scope constants live in `../store/scopes.ts`. Decoration events
 (progress frames, index progress) carry no scope and are subscribed by name, for per-consumer
 local state only.

@@ -14,6 +14,7 @@ import { putContentKey } from './space-keys.js'
 import { markApproval, clearRequest, getLocalPublicKeyHex } from './profile.js'
 import { clearJoinRequest } from './join-requests.js'
 import { UNKNOWN_DISPLAY_NAME } from '../contract/limits.js'
+import { getNewSpaceDownloadDir } from '../core/paths.js'
 import {
   getSpace,
   putSpaceRecord,
@@ -46,6 +47,7 @@ export async function createSpace(name, icon = 'folder') {
     // creatorKey is the root of the membership OR-Set (conflict-free add/remove set)
     // fold. I created this space, so I am its root — stamp myself.
     creatorKey: getLocalPublicKeyHex(),
+    downloadFolder: getNewSpaceDownloadDir(),
   }
   // Before the record: a failed profile write then leaves no half-created space behind.
   await publishParticipationId(spaceId, space)
@@ -97,6 +99,7 @@ export async function joinSpace(topicHex, name = 'Unnamed Space', icon = 'folder
     schemaVersion: 2,
     epoch: 0,
     status: /** @type {'pending'} */ ('pending'),
+    downloadFolder: getNewSpaceDownloadDir(),
     ...(inviteId ? { inviteId } : {}),
     // The invite's creator (envelope `c`) is an UNAUTHENTICATED bearer hint —
     // pre-seed it so the waiting view isn't empty, but mark it provisional. onGrant

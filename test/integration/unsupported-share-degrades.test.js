@@ -6,6 +6,7 @@ import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { publishShare, generateShareId } from '../../src/shared/shares/shares.js'
 import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
 import { advertise } from '../../src/shared/shares/own-catalog.js'
+import { createFolderChooser } from '../../src/worker/download-folder-push.js'
 
 const silentLog = { debug() {}, info() {}, warn() {}, error() {} }
 
@@ -22,7 +23,7 @@ for (const contentMode of ['eager', 'future-mode', undefined]) {
     await publishShare(spaceId, share)
     await advertise(spaceId, share.id, 'a.bin', { size: 4, mtime: 1, contentHash: 'ab'.repeat(32) })
     const fake = createFakeIpc()
-    registerShares(fake.ipc, { log: silentLog, intents: null, mountOwnedShare: async () => {} })
+    registerShares(fake.ipc, { log: silentLog, intents: null, mountOwnedShare: async () => {}, chooseFolder: createFolderChooser({ ipc: fake.ipc, publishRevealRoots: () => {} }) })
     const req = { spaceId, ownerKey, shareId: share.id }
 
     const files = await fake.call('share:list-files', req)

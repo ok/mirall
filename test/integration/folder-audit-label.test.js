@@ -11,6 +11,7 @@ import { createOwnedMounter } from '../../src/worker/owned-mount.js'
 import { shareNameOrNull } from '../../src/worker/audit-refs.js'
 import { registerShares } from '../../src/worker/ipc/shares.js'
 import { registerOwnedFolders } from '../../src/worker/ipc/owned-folders.js'
+import { createFolderChooser } from '../../src/worker/download-folder-push.js'
 
 const quiet = { debug() {}, info() {}, warn() {}, error() {} }
 
@@ -18,7 +19,7 @@ async function ownedShareWithHandlers(t) {
   const ctx = await setupOwnedShare(t, { name: 'Vault', files: { 'a.txt': 'x' } })
   const { fake, root } = ctx
   const mountOwnedShare = createOwnedMounter({ ipc: fake.ipc, mounts: root.mounts })
-  registerShares(fake.ipc, { log: quiet, intents: root.intents, mountOwnedShare })
+  registerShares(fake.ipc, { log: quiet, intents: root.intents, mountOwnedShare, chooseFolder: createFolderChooser({ ipc: fake.ipc, publishRevealRoots: () => {} }) })
   registerOwnedFolders(fake.ipc, { log: quiet, mounts: root.mounts, intents: root.intents, mountOwnedShare })
   return ctx
 }

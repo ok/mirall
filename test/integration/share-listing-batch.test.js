@@ -8,6 +8,7 @@ import { consumerRowStatusFor, unhashedStatusFor } from '../../src/shared/transf
 import { transferIdFor } from '../../src/shared/transfer/transfer-id.js'
 import { tmpDir, tmpPath } from '../helpers/bare-tmp.js'
 import { getRuntimeConfig, setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
+import { verdictForClaim } from '../../src/shared/transfer/files.js'
 
 const SPACE = 'sp1'
 const SHARE = { id: 'sh1', name: 'Docs', owner: 'peer' }
@@ -179,12 +180,11 @@ test('each listing gets a fresh probe, so a remounted volume is seen on the next
 const LANDED = '<landed>'
 const CLAIMS = {
   none: null,
-  current: { rec: { localPath: LANDED, hash: 'h1' }, exists: true, dirExists: true, pinned: null, insidePinned: true },
-  hashless: { rec: { localPath: LANDED }, exists: true, dirExists: true, pinned: null, insidePinned: true },
-  'stale-hash': { rec: { localPath: '/dl/f.txt', hash: 'hOLD' }, exists: true, dirExists: true, pinned: null, insidePinned: true },
-  gone: { rec: { localPath: '/dl/f.txt', hash: 'h1' }, exists: false, dirExists: true, pinned: null, insidePinned: true },
-  detached: { rec: { localPath: '/vol/f.txt', hash: 'h1' }, exists: false, dirExists: false, pinned: null, insidePinned: true },
-  outside: { rec: { localPath: '/other/f.txt', hash: 'h1' }, exists: true, dirExists: true, pinned: '/dl', insidePinned: false },
+  current: { rec: { localPath: LANDED, hash: 'h1' }, exists: true, volumePresent: true },
+  hashless: { rec: { localPath: LANDED }, exists: true, volumePresent: true },
+  'stale-hash': { rec: { localPath: '/dl/f.txt', hash: 'hOLD' }, exists: true, volumePresent: true },
+  gone: { rec: { localPath: '/dl/f.txt', hash: 'h1' }, exists: false, volumePresent: true },
+  detached: { rec: { localPath: '/vol/f.txt', hash: 'h1' }, exists: false, volumePresent: false },
 }
 // The verified record for the row, described against the file the row points at: `match` is the
 // record that file's landing wrote, `edited` the same record after a local write moved its mtime,
@@ -267,9 +267,8 @@ function baselineRow(w, mountPath, rec, landed) {
   const world = claimWorld(w, landed)
   let downloaded = false
   if (world) {
-    if (!world.exists) out.pruned = world.dirExists
+    if (!world.exists) out.pruned = world.volumePresent
     else if (world.rec.hash && entry.contentHash && world.rec.hash !== entry.contentHash) out.pruned = true
-    else if (world.pinned && !world.insidePinned) downloaded = false
     else downloaded = true
   }
   if (downloaded) {
@@ -277,13 +276,18 @@ function baselineRow(w, mountPath, rec, landed) {
     const reading = copyReading(rec, statOrNull(localPath), entry.contentHash, entry.size, localPath, false)
     return { ...out, row: onDevice('downloaded', localPath, reading) }
   }
+  // A claim kept for a volume that is away is this row's copy only when it names this row's content;
+  // then the row names where the copy is, and says so once no transfer, pause or error outranks it
+  // and the owner could serve a fresh one.
+  const away = !!world && !world.exists && !world.volumePresent && Boolean(entry.contentHash) && world.rec.hash === entry.contentHash
   const row = consumerRowStatusFor({
     hashed: Boolean(entry.contentHash),
     isActive: w.active,
     pendingRow: w.pending === 'foreign' ? undefined : PENDING[w.pending],
     ownerOnline: w.ownerOnline,
+    detached: away,
   })
-  return { ...out, row: { ...row, localPath: null } }
+  return { ...out, row: { ...row, localPath: away ? claimedPathFor(drivePath, world.rec) : null } }
 }
 
 function statOrNull(absPath) {
@@ -331,7 +335,7 @@ function worldDeps(w, mountPath, rec, landed) {
     listDownloadClaimsForShare: async () => { reads.claims++; return world ? new Map([[drivePath, world.rec]]) : new Map() },
     listVerifiedRecordsForShare: async () => { reads.verified++; return rec ? new Map([['f.txt', rec]]) : new Map() },
     verdictForClaim: (spaceId, filePath, claim, currentHash) => (claim
-      ? { ...claimVerdict({ rec: claim, currentHash, exists: world.exists, dirExists: world.dirExists, pinned: world.pinned, insidePinned: world.insidePinned }), stat: statOrNull(claimedPathFor(filePath, claim)) }
+      ? { ...claimVerdict({ rec: claim, currentHash, exists: world.exists, volumePresent: world.volumePresent }), stat: statOrNull(claimedPathFor(filePath, claim)) }
       : claimVerdict({ rec: null })),
     pruneDownloadClaims: async (spaceId, drivePaths) => { pruned.push(...drivePaths); return drivePaths.length },
   }
@@ -508,4 +512,27 @@ test('the folder envelope always states truncation: a capped listing names its c
   const whole = await listOverlayShareFiles(SPACE, SHARE, backendFor(rows(3)), countingDeps())
   t.is(whole.truncated, false)
   t.is(whole.fileLimit, null)
+})
+
+// REGRESSION (FIX-DLTO-R9: claims are keyed by the share's NAME, so owner B's "Photos" read the
+// claim of owner A's same-named share on an unplugged drive as "Drive not connected", though
+// nothing of B's was ever downloaded.)
+test('REGRESSION (FIX-DLTO-R9: another owner\'s same-named share does not read a claim on a missing drive as its copy)', async (t) => {
+  const away = tmpPath('mirall-ejected-usb') // never created: the drive is unplugged
+  const claim = { localPath: path.join(away, 'Photos', 'x.jpg'), hash: 'hA', destDir: away }
+  const deps = countingDeps({ claims: new Map([['/Photos/x.jpg', claim]]) })
+  deps.verdictForClaim = verdictForClaim
+  const photos = (hash) => backendFor([{ relPath: 'x.jpg', size: 10, contentHash: hash, mtime: 0 }])
+
+  const [a] = (await listOverlayShareFiles(SPACE, { id: 'shA', name: 'Photos', owner: 'ownerA' }, photos('hA'), deps)).entries
+  const [b] = (await listOverlayShareFiles(SPACE, { id: 'shB', name: 'Photos', owner: 'ownerB' }, photos('hB'), deps)).entries
+  t.is(a.status, 'detached', 'A\'s file: its copy is on the drive that is away')
+  t.is(a.localPath, claim.localPath)
+  t.is(b.status, 'remote', 'B\'s file was never downloaded')
+  t.is(b.localPath, null, 'and names no copy')
+  t.alike(deps.calls.prunes, [], 'the claim is kept either way')
+
+  deps.isOwnerOnline = () => false
+  const [offline] = (await listOverlayShareFiles(SPACE, { id: 'shA', name: 'Photos', owner: 'ownerA' }, photos('hA'), deps)).entries
+  t.is(offline.status, 'unavailable', 'with A offline nothing can fetch A\'s file')
 })

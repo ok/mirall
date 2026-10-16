@@ -22,7 +22,7 @@ export default async function s143({ runDir, bootstrap }) {
   mkdirSync(ownDir, { recursive: true })
   writeFileSync(path.join(ownDir, 'q1.txt'), 'numbers')
 
-  const downloadButton = async () => findNode(await B.snap(), { role: 'button', name: 'Download' })
+  const downloadButton = async () => findNode(await B.snap(), { role: 'combobox', name: 'Download to…' })
 
   try {
     await r.ok('A shares "Reports"; B browses it and sees a Download control', async () => {

@@ -19,9 +19,12 @@ retrying forever, and a paused mirror no longer cancels your own download.
 
 #### Added
 
+- **Choose where downloads go.** Each space keeps its own download folder,
+named next to the filter. Every Download button offers your recent folders
+and the folder picker, and the folder you pick becomes the space's.
 - **Select several files and act on them together.** In a folder you browse
-and on a space's file list, tick files and download, cancel or unshare them
-at once. A folder's files keep their folders under your download folder.
+and on a space's file list, tick files and download or unshare them at
+once. A folder's files keep their folders under your download folder.
 - **Invite with a web link.** The invite dialog can hand out a link that
 opens in a browser. People who don't have Mirall yet are offered the
 download first, then join the space; the Join dialog accepts the link
@@ -31,6 +34,12 @@ filter field, so a file can be found by name among folders and loose files.
 
 #### Changed
 
+- **Settings → Storage sets the download folder for new spaces.** Spaces you
+already have keep their own folder when you change it.
+- **A file downloaded from a shared folder keeps its subfolders**, as a
+batch download does.
+- **A downloaded file on a drive that isn't connected says so** instead of
+reading Available, and can be downloaded again elsewhere.
 - **The space file list says when it may be incomplete.** While the file
 list of a member who is online cannot be read yet, the list says more
 files may appear, instead of looking complete or empty.

@@ -293,6 +293,7 @@
     "modifiedHint": "Auf diesem Gerät geändert, seit die Datei heruntergeladen und geprüft wurde.",
     "remote": "Verfügbar",
     "unavailable": "Nicht verfügbar",
+    "detached": "Laufwerk nicht verbunden",
     "downloading": "Lädt…",
     "verifying": "Wird geprüft…",
     "preparing": "Wird vorbereitet…",
@@ -309,7 +310,9 @@
     "revealInFolder": "Im Ordner anzeigen",
     "verified": "Verifiziert – Inhalts-Hash stimmt überein",
     "unshare": "Nicht mehr teilen",
-    "download": "Herunterladen",
+    "downloadTo": "Herunterladen nach …",
+    "inFolder": "In {{path}}",
+    "savedTo": "Gespeichert in {{path}}",
     "downloadUnavailable": "Besitzer offline – Download nicht möglich",
     "pause": "Download pausieren",
     "cancel": "Abbrechen",
@@ -400,10 +403,8 @@
   "editSpace": {
     "title": "Raum bearbeiten",
     "desc": "Aktualisiere Name, Symbol und Download-Ordner für diesen Raum.",
-    "downloadFolder": "Download-Ordner",
-    "downloadFolderDesc": "Hier werden Dateien gespeichert, die du aus diesem Raum lädst. Bereits anderswo geladene Dateien werden nicht verschoben.",
-    "usingDefault": "Der Standard-Download-Ordner wird verwendet.",
-    "useDefault": "Standardordner verwenden",
+    "downloadFolder": "Downloads landen in",
+    "downloadFolderDesc": "Hier werden Dateien gespeichert, die du aus diesem Raum lädst. Bereits geladene Dateien bleiben, wo sie sind.",
     "folderError": "Ordner konnte nicht gesetzt werden: {{error}}",
     "saveError": "Änderungen konnten nicht gespeichert werden: {{error}}"
   },
@@ -521,9 +522,18 @@
     "dismiss": "Ausblenden"
   },
   "downloadFolder": {
-    "unavailableToast": "Download-Ordner nicht verfügbar. Mirall kann {{path}} nicht erreichen – Downloads schlagen fehl, bis der Ordner wieder verfügbar ist oder ein anderer gewählt wird.",
-    "changeFolder": "Ordner ändern",
-    "restoredToast": "Download-Ordner ist wieder verfügbar"
+    "restoredToast": "Download-Ordner ist wieder verfügbar",
+    "unavailableSpace": "{{space}} lädt nach {{folder}}, aber das Laufwerk ist nicht verbunden. Die Downloads warten, bis du es wieder verbindest oder einen anderen Ordner wählst.",
+    "chooseAnother": "Anderen Ordner wählen"
+  },
+  "downloadTo": {
+    "heading": "Herunterladen nach",
+    "choose": "Ordner wählen …",
+    "offlinePath": "{{path}} · Laufwerk nicht verbunden",
+    "offlineStrip": "{{folder}}: Laufwerk nicht verbunden",
+    "buttonAria": "Downloads landen in {{folder}}, ändern",
+    "buttonOffline": "{{folder}} · nicht verbunden",
+    "changed": "Downloads aus {{space}} landen jetzt in {{folder}}"
   },
   "storageIndicator": {
     "title": "Speicher im Raum",
@@ -654,13 +664,13 @@
   "storageSettings": {
     "title": "Speicher",
     "intro": "Datennutzung auf diesem Gerät anzeigen und verwalten.",
-    "downloadFolder": "Download-Ordner",
-    "downloadFolderDesc": "Hier speichert Mirall Dateien, die du von Mitgliedern deines Raums lädst.",
+    "downloadFolder": "Download-Ordner für neue Räume",
+    "downloadFolderDesc": "Räume, die du erstellst oder denen du beitrittst, laden zuerst hierhin. Danach behält jeder Raum seinen eigenen Ordner; eine Änderung hier ändert sie nicht.",
     "appStorageDesc": "Speicherplatz, den Mirall auf diesem Gerät zum Teilen und Synchronisieren deiner Dateien und für Updates nutzt. Mirall verwaltet diesen Speicher selbst und räumt auf, was und wann immer es kann.",
     "sharingIndex": "Freigabe-Index",
     "sharingIndexDesc": "Kompakte Verzeichnisse der von dir geteilten Dateien (nie die Dateiinhalte).",
     "folderError": "Ordner konnte nicht gesetzt werden: {{error}}",
-    "folderUnavailable": "Dieser Ordner ist derzeit nicht verfügbar. Er wurde möglicherweise verschoben oder gelöscht, oder er liegt auf einem getrennten Laufwerk – Downloads schlagen fehl, bis der Ordner wieder verfügbar ist oder ein anderer gewählt wird.",
+    "folderUnavailable": "Dieser Ordner ist derzeit nicht verfügbar. Er wurde möglicherweise verschoben oder gelöscht, oder er liegt auf einem getrennten Laufwerk – neue Räume laden hierhin, wähle also einen anderen Ordner oder verbinde das Laufwerk wieder.",
     "calculating": "Berechne Speicher…",
     "appStorage": "App-Speicher",
     "showDetails": "Details anzeigen",
@@ -1627,7 +1637,6 @@
     "hidden_other": "{{count}} durch den Filter ausgeblendet",
     "deselectHidden": "Ausgeblendete abwählen",
     "download": "{{count}} herunterladen",
-    "cancel": "{{count}} abbrechen",
     "unshare": "{{count}} nicht mehr teilen",
     "done": "Fertig",
     "ended": "Auswahl beendet",
@@ -1644,7 +1653,10 @@
     "progressAnnounce": "Sammel-Download gestartet",
     "progressEnded": "Sammel-Download beendet",
     "failed_one": "{{count}} Datei konnte nicht starten",
-    "failed_other": "{{count}} Dateien konnten nicht starten"
+    "failed_other": "{{count}} Dateien konnten nicht starten",
+    "toFolder": "nach {{folder}}",
+    "moreDownload": "Weitere Download-Optionen",
+    "downloadGroup": "Herunterladen"
   },
   "unshareFiles": {
     "title_one": "{{count}} Datei nicht mehr teilen?",

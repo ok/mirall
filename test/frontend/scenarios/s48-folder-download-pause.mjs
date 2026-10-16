@@ -42,7 +42,7 @@ export default async function s48({ runDir, bootstrap }) {
     })
 
     await r.ok('B downloads; pause/resume controls are exercised when the race allows', async () => {
-      await B.click({ role: 'button', name: 'Download' })
+      await B.downloadRow()
 
       // Best-effort: catch the running row's controls. Bail when Pause appears OR
       // the transfer already finished (fast loopback). Not finding Pause is not a
@@ -81,7 +81,7 @@ export default async function s48({ runDir, bootstrap }) {
     })
 
     await r.ok('the file lands at "On your device"', async () => {
-      const landed = path.join(B.downloadFolder, 'big.bin')
+      const landed = path.join(B.downloadFolder, 'Bulky', 'big.bin')
       await waitFor(() => existsSync(landed), 90000, 'big.bin landed')
       await B.waitText('On your device', 30000)
       await B.shot('s48-B-downloaded', runDir)

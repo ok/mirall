@@ -8,14 +8,15 @@
 //                              a member holding a verified copy of our file: { contentHash, ts }
 //
 // A space record is written whole by createSpace and joinSpace and patched through mutateSpace
-// thereafter. Seven fields are always present — name, icon, topic, created, members, driveSuffix,
-// schemaVersion. The rest are latches, each owned by one writer: `status: 'pending'` until the
+// thereafter. Eight fields are always present — name, icon, topic, created, members, driveSuffix,
+// schemaVersion and downloadFolder (seeded at creation, backfilled at boot for older records,
+// changed through download-folder-choice.js). The rest are latches, each owned by one writer: `status: 'pending'` until the
 // grant arrives, `epoch` (the SCK epoch this peer holds; absent reads as 0), `createdBySelf`,
 // `sckDerivable` and `creatorKey` stamped at creation (creatorKey may instead be pre-seeded from
 // an invite and marked `creatorUnverified` until onGrant pins it), `inviteId` and `inviteOwner`
 // (the inviter it names, a hint the grant check reads) from the invite we joined through, `leaving`
 // while a leave runs, `left`/`joined`/`updated` as timestamps,
-// `favorite` and `downloadFolder` as user choices, and `creatorDivergence`, `creatorMigrated` and
+// `favorite` as a user choice, and `creatorDivergence`, `creatorMigrated` and
 // `legacyWarning` as diagnoses a later pass records. A member entry flagged `unverified` is display
 // only (member-standing.js).
 import { createLocalBee, storeEpoch, deriveSpaceContentKey } from '../core/store.js'
@@ -215,31 +216,34 @@ export function removeMember(spaceId, publicKey) {
   })
 }
 
-// A partial update: an absent name or icon leaves the stored one alone. `downloadFolder` is
-// tri-state: undefined leaves the override untouched, null clears it (the space falls back to the
-// global download root), a string sets it. Routed through mutateSpace so it serializes against
-// concurrent member writes.
+// A partial update: an absent name or icon leaves the stored one alone. Routed through mutateSpace
+// so it serializes against concurrent member writes.
 /**
  * @param {string} spaceId
  * @param {string | null | undefined} name
  * @param {string | null | undefined} icon
- * @param {{ downloadFolder?: string | null }} [opts]
  * @returns {Promise<StoredSpace | null>}
  */
-export function updateSpace(spaceId, name, icon, { downloadFolder } = {}) {
+export function updateSpace(spaceId, name, icon) {
   return mutateSpace(spaceId, (space) => {
     if (name != null) space.name = name
     if (icon != null) space.icon = icon
-    if (downloadFolder !== undefined) {
-      if (downloadFolder === null) delete space.downloadFolder
-      else space.downloadFolder = downloadFolder
-    }
     return space
   })
 }
 
-// Serialized with updateSpace via mutateSpace: a raw get/put would write back a record read BEFORE a
-// concurrent space:update landed, silently dropping the download folder the user just chose.
+// The folder this space downloads into. download-folder-choice.js is the one caller that changes
+// it; creation and boot's backfill seed it.
+/** @param {string} spaceId @param {string} folder @returns {Promise<StoredSpace | null>} */
+export function setSpaceDownloadFolder(spaceId, folder) {
+  return mutateSpace(spaceId, (space) => {
+    space.downloadFolder = folder
+    return space
+  })
+}
+
+// Serialized with the other writers via mutateSpace: a raw get/put would write back a record read
+// BEFORE a concurrent write landed, silently dropping the download folder the user just chose.
 /** @param {string} spaceId @returns {Promise<StoredSpace | null>} */
 export function toggleFavorite(spaceId) {
   return mutateSpace(spaceId, (space) => {

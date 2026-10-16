@@ -16,7 +16,7 @@ const MODEL = 'model/file-row-action.js'
 const LANE = 'components/cards/ActionLane.tsx'
 const ROW = 'components/cards/FileRow.tsx'
 const ACTION_KEYS = [
-  'file.revealInFolder', 'file.unshare', 'file.download', 'file.downloadUnavailable', 'file.pause',
+  'file.revealInFolder', 'file.unshare', 'file.downloadTo', 'file.downloadUnavailable', 'file.pause',
   'file.cancel', 'file.resume', 'file.discardPartial', 'file.retry', 'file.dismiss',
 ]
 

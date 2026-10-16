@@ -2,19 +2,23 @@ import test from 'brittle'
 import fs from 'bare-fs'
 import { freshPeer } from '../helpers/store.js'
 import { initOverlay, teardownOverlay } from '../../src/shared/transfer/overlay/overlay-instance.js'
-import { initPendingTransfers, getPendingFor } from '../../src/shared/transfer/pending-transfers.js'
+import { initPendingTransfers, getPendingFor, updatePendingProgress } from '../../src/shared/transfer/pending-transfers.js'
 import { initDownloads } from '../../src/shared/transfer/files.js'
 import { CODES } from '../../src/shared/contract/errors.js'
 import { createOverlayDownloadEngine } from '../../src/shared/transfer/overlay/overlay-download.js'
 import { OverlayBackend } from '../../src/shared/transfer/overlay/overlay-runtime.js'
-import { setDownloadEngine } from '../../src/shared/transfer/overlay/share-downloads.js'
+import { downloadChannel, requestShareDownload, setDownloadEngine } from '../../src/shared/transfer/overlay/share-downloads.js'
+import { looseShareFor } from '../../src/shared/transfer/overlay/download-job.js'
+import { LOOSE_SHARE_ID } from '../../src/shared/transfer/transfer-id.js'
+import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
+import { upsertMember } from '../../src/shared/spaces/space.js'
+import { advertise, ownCatalogKeyHex } from '../../src/shared/shares/own-catalog.js'
 import { initConvergenceTick, redriveUnblockedTransfers } from '../../src/shared/network/convergence-tick.js'
 import { scaled } from '../helpers/bare-timing.js'
 import { until } from '../helpers/bare-poll.js'
 import path from 'bare-path'
-import { reuseDest } from '../../src/shared/transfer/download-dest.js'
-import { getDownloadDir, setSpaceDownloadRoot, forgetSpaceDownloadRoot } from '../../src/shared/core/paths.js'
-import { SPACE, testChannel, makeJob, readOnlyDir, writableDir, writingHolder, enospcHolder, errorsIn } from '../helpers/readonly-download.js'
+import { setSpaceDownloadRoot, forgetSpaceDownloadRoot } from '../../src/shared/core/paths.js'
+import { SPACE, OWNER, testChannel, makeJob, readOnlyDir, writableDir, writingHolder, enospcHolder, errorsIn } from '../helpers/readonly-download.js'
 
 // The convergence tick's re-drive of a download whose folder the user fixed while the owner stayed
 // connected — the case neither the reconnect nor a catalog append ever reaches.
@@ -62,6 +66,109 @@ async function armedTick(t, { channel = {}, engine: engineOpts = {}, dir: makeDi
 }
 
 const skipped = (t) => { t.comment('skipped: chmod does not make a folder read-only for this process (Windows or root)'); t.pass() }
+
+const MEMBER = 'b'.repeat(64)
+const DOC_HASH = 'd'.repeat(64)
+
+// The tick against the production resolve: the click is the real download path and the re-drive
+// resolves the row through the real channel, so the folder a row lands in is jobFor's answer rather
+// than a copy of its rule. The member's loose catalog is this peer's own, read as a peer's; its file
+// is 11 bytes, what writingHolder writes. The space downloads into `folder(ctx)`.
+async function realTick(t, { folder: makeFolder, engine: engineOpts = {} }) {
+  const ctx = await freshPeer(t)
+  await initDownloads()
+  await initPendingTransfers()
+  await initOverlay()
+  const { spaceId } = await createSpace('Aurora')
+  const member = { publicKey: MEMBER, looseCatalogKeyEnc: await ownCatalogKeyHex(spaceId) }
+  await upsertMember(spaceId, member, { verified: true })
+  await advertise(spaceId, LOOSE_SHARE_ID, 'doc.bin', { size: 11, mtime: 1, contentHash: DOC_HASH })
+  const folder = makeFolder(ctx)
+  setSpaceDownloadRoot(spaceId, folder)
+  const seen = []
+  const clock = { now: 0 }
+  const owner = { online: true }
+  const engine = createOverlayDownloadEngine({ ...downloadChannel, isOwnerOnline: () => owner.online }, { now: () => clock.now, ...engineOpts })
+  let resumes = 0
+  const resumeForOwner = engine.resumeForOwner
+  engine.resumeForOwner = (ownerKey, sid) => { resumes += 1; return resumeForOwner(ownerKey, sid) }
+  const backend = new OverlayBackend('overlay-test', { ipc: ctx.fake.ipc, broadcastSharePrepare() {} })
+  backend.engine = engine
+  setDownloadEngine(engine)
+  initConvergenceTick({
+    log: silent,
+    getStalledOwners: () => null,
+    getRedriveUnblocked: () => (opts) => backend.redriveUnblocked(opts),
+    getSwarm: () => ({}),
+    getIpc: () => null,
+  })
+  t.teardown(async () => {
+    setDownloadEngine(null)
+    forgetSpaceDownloadRoot(spaceId)
+    initConvergenceTick({ log: silent, getStalledOwners: () => null, getRedriveUnblocked: () => null, getSwarm: () => null, getIpc: () => null })
+    await teardownOverlay()
+  })
+  return {
+    ctx, spaceId, folder, seen, clock, owner, engine,
+    click: () => requestShareDownload(spaceId, looseShareFor(member), 'doc.bin'),
+    row: () => getPendingFor(spaceId, '/doc.bin'),
+    resumed: () => resumes,
+  }
+}
+
+// Each beat asks about every pending row twice (the stalled-owner rescue and the re-drive). A row's
+// folder is read only when its fault is judged by it, and then from the kept readings, so a folder
+// costs at most one stat a minute however many rows land in it.
+test('REGRESSION (FIX-DLTO-R27: the tick stats the folder of every pending row on every beat)', async (t) => {
+  const ctx = await freshPeer(t)
+  setSpaceDownloadRoot(SPACE, writableDir(ctx, 'dl-space'))
+  t.teardown(() => forgetSpaceDownloadRoot(SPACE))
+  const own = writableDir(ctx, 'dl-own')
+  const clock = { now: 0 }
+  let stats = 0
+  const engine = createOverlayDownloadEngine(testChannel([], null, { ownerOnline: () => false }), {
+    now: () => clock.now,
+    dirExists: (dir) => { stats += 1; return fs.existsSync(dir) },
+  })
+  const rows = (extra) => Array.from({ length: 200 }, (_, i) => ({
+    spaceId: SPACE, filePath: '/Photos/f' + i + '.jpg', relPath: 'f' + i + '.jpg', overlayShare: true, shareId: 'folder1',
+    ownerKey: OWNER, total: 1000, finalPath: path.join(own, 'Photos', 'f' + i + '.jpg'), destDir: own, layout: 'tree', ...extra,
+  }))
+  const beat = (list) => {
+    stats = 0
+    for (const row of list) { engine.takeUnblocked(row); engine.awaitsOwner(row) }
+    return stats
+  }
+
+  t.is(beat(rows({ bytesTransferred: 10 })), 0, 'rows waiting on their owner read no folder')
+  const blocked = rows({ bytesTransferred: 10, errorCode: CODES.TRANSFER_DEST_UNAVAILABLE, refusedByPreflight: true })
+  t.is(beat(blocked), 1, 'rows whose fault is judged by their folder read it once between them')
+  t.is(beat(blocked), 0, 'and not again within the minute')
+  clock.now += DEST_VERDICT_TTL_MS
+  t.is(beat(blocked), 1, 'once more when the kept reading expires')
+})
+
+// A refusal before the first byte leaves nothing in the row's own folder, and that folder is the one
+// that refused it: the row follows the space, so the tick judges the space's current folder.
+test('REGRESSION (FIX-DLTO-R11: a download refused before its first byte is judged against the full folder it left)', async (t) => {
+  let full = ''
+  const f = await realTick(t, {
+    folder: (ctx) => (full = writableDir(ctx, 'dl-full')),
+    engine: { freeBytes: (dir) => (dir === full ? 0 : 10 * 1024 ** 3) },
+  })
+  writingHolder(f.seen)
+  await f.click()
+  t.is((await f.row())?.errorCode, CODES.TRANSFER_DISK_FULL, 'precondition: refused as a full disk')
+  t.is(f.seen.length, 0, 'precondition: before any fetch')
+
+  const roomy = writableDir(f.ctx, 'dl-roomy')
+  setSpaceDownloadRoot(f.spaceId, roomy)
+  f.clock.now += DEST_VERDICT_TTL_MS + 1
+  await redriveUnblockedTransfers()
+  t.ok(await until(async () => !(await f.row()), 2000), 'the tick judged the space\'s folder, which has room, and re-drove the row')
+  t.is(path.dirname(f.seen[0] ?? ''), roomy, 'into that folder')
+  t.alike(fs.readdirSync(full), [], 'and nothing landed in the full one')
+})
 
 async function refusedOnce(t, f) {
   writingHolder(f.seen)
@@ -211,32 +318,46 @@ test('REGRESSION (FIX-473: a download folder that comes back is not retried unti
 })
 
 test('REGRESSION (FIX-473: a space re-pointed at a new download folder never re-drives its blocked rows)', async (t) => {
-  let f = null
-  f = await armedTick(t, {
-    channel: {
-      // resolveFolderPendingRow's rule: a pin that no longer sits in the space's download folder is
-      // re-anchored to the current one.
-      resolvePendingRow: async (spaceId, row) => ({
-        removed: false,
-        seq: undefined,
-        job: { ...f.job, finalPath: reuseDest(row.finalPath, getDownloadDir(spaceId), 'doc.bin') },
-      }),
-    },
-  })
-  if (!f.dir) return skipped(t)
-  await refusedOnce(t, f)
+  let gone = ''
+  const f = await realTick(t, { folder: (ctx) => (gone = path.join(ctx.downloads, 'ejected')) })
+  writingHolder(f.seen)
+  await f.click()
+  t.is((await f.row())?.errorCode, CODES.TRANSFER_DEST_UNAVAILABLE, 'precondition: the row\'s own folder is gone')
 
   const moved = writableDir(f.ctx, 'dl-moved')
-  setSpaceDownloadRoot(SPACE, moved)
-  t.teardown(() => forgetSpaceDownloadRoot(SPACE))
+  setSpaceDownloadRoot(f.spaceId, moved)
   f.clock.now += DEST_VERDICT_TTL_MS + 1
 
   await redriveUnblockedTransfers()
-  t.ok(await until(async () => !(await getPendingFor(SPACE, f.job.pendingKey)), 2000),
-    'the re-pointed space re-drove the row while the original folder stayed read-only')
-  t.is(f.seen.length, 2, 'with one more fetch')
-  t.is(path.dirname(f.seen[1] ?? ''), moved, 'into the folder the user just chose, not the broken one')
-  t.absent(fs.existsSync(path.join(f.dir, 'doc.bin')), 'and nothing landed in the original folder')
+  t.ok(await until(async () => !(await f.row()), 2000), 'the re-pointed space re-drove the row whose own folder cannot be reached')
+  t.is(f.seen.length, 1, 'with one fetch')
+  t.is(path.dirname(f.seen[0] ?? ''), moved, 'into the folder the user just chose')
+  t.absent(fs.existsSync(gone), 'and the missing folder was not recreated')
+})
+
+// A row whose bytes are already in its own folder keeps it, here one the user made read-only after
+// the download began.
+test('a re-pointed space leaves a started row in its own folder while that folder is there', async (t) => {
+  const f = await realTick(t, { folder: (ctx) => readOnlyDir(t, ctx, 'dl-unblocked') })
+  if (!f.folder) return skipped(t)
+  writingHolder(f.seen)
+  await f.click()
+  t.ok(await until(async () => (await f.row())?.errorCode === CODES.TRANSFER_PERMISSION, 2000), 'precondition: the folder refused the download')
+  await updatePendingProgress(f.spaceId, '/doc.bin', 4)
+
+  const moved = writableDir(f.ctx, 'dl-moved')
+  setSpaceDownloadRoot(f.spaceId, moved)
+  f.clock.now += DEST_VERDICT_TTL_MS + 1
+  await redriveUnblockedTransfers()
+  await settle()
+  t.is(f.seen.length, 1, 'the row is judged against its own folder, which still refuses writes')
+
+  fs.chmodSync(f.folder, 0o755)
+  f.clock.now += DEST_VERDICT_TTL_MS + 1
+  await redriveUnblockedTransfers()
+  t.ok(await until(async () => !(await f.row()), 2000), 'the fixed folder re-drove the row')
+  t.is(path.dirname(f.seen[1] ?? ''), f.folder, 'into its own folder')
+  t.alike(fs.readdirSync(moved), [], 'nothing landed in the space\'s new folder')
 })
 
 // A volume that reports room and refuses the write anyway — inode exhaustion, or free space it

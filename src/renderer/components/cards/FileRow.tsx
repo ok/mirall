@@ -12,6 +12,7 @@ import { deriveRowView } from '../../model/row-view.js'
 import { recipientSummary } from '../../model/file-recipients.js'
 import type { FileEntry, ShareFileRow, SpaceMember, PeerDownloadSummary, FileRecipient } from '../../types/types.js'
 import type { Decoration } from '../../types/ui.js'
+import type { DownloadTo } from '../../hooks/useDownloadTo.js'
 import FileName from '../primitives/FileName.js'
 import Icon from '../primitives/Icon.js'
 import RowLane from './RowLane.js'
@@ -39,6 +40,8 @@ interface FileRowShared {
   recipients: FileRecipient[]
   onPause: (transferId: string) => void
   onCancel: (transferId: string) => void
+  /** The space's Download-to state: the menu a row's Download opens, and where a copy is. */
+  downloadTo?: DownloadTo
   /** Set when the listing offers selection: the key a row-body click selects by. */
   selectKey?: string
   /** The box in the selection column; null while the column is closed. */
@@ -49,7 +52,8 @@ interface FileRowShared {
 export interface LooseFileRowProps extends FileRowShared {
   kind: 'loose'
   file: FileEntry
-  onDownload: (file: FileEntry) => void
+  /** No folder: the row's own, or the space's when it has none. */
+  onDownload: (file: FileEntry, folder?: string) => void
   onReveal: (file: FileEntry) => void
   onUnshare: (file: FileEntry) => void
   onCancelPublish: (file: FileEntry) => void
@@ -63,7 +67,8 @@ export interface ShareFileRowProps extends FileRowShared {
   /** False on a mirrored folder, whose rows sync themselves. */
   manualControls: boolean
   ownerKey: string
-  onDownload: (relPath: string) => void
+  /** No folder: the row's own, or the space's when it has none. */
+  onDownload: (relPath: string, folder?: string) => void
   onReveal: (relPath: string) => void
 }
 
@@ -88,9 +93,14 @@ function rowIdentity(props: FileRowProps): RowIdentity {
 }
 
 // The table offers pause, cancel, discard and dismiss only on a row with a transfer, so the
-// transfer verbs need no fallback of their own.
+// transfer verbs need no fallback of their own. Resume and Retry name no folder: a file under way
+// keeps its own. A pick of the space's own folder names none either, so the download takes the
+// space's folder and, when that is unreachable, waits on it instead of being refused as a new choice.
 function actionLane(props: FileRowProps): ActionLaneProps {
   const { isOwn } = props
+  const downloadMenu = props.downloadTo?.menu
+  const current = props.downloadTo?.current?.path
+  const chosen = (folder?: string) => (folder === current ? undefined : folder)
   const { transferId } = props.file
   const stop = () => { if (transferId) props.onCancel(transferId) }
   const transfer = { pause: () => { if (transferId) props.onPause(transferId) }, cancel: stop, discard: stop, dismiss: stop }
@@ -99,16 +109,18 @@ function actionLane(props: FileRowProps): ActionLaneProps {
     const fetch = () => onDownload(file)
     return {
       row: file,
+      downloadMenu,
       context: { isOwn, manualControls: true, ownerFileVerbs: true },
-      verbs: { ...transfer, download: fetch, resume: fetch, retry: fetch, reveal: () => onReveal(file), unshare: () => onUnshare(file), 'cancel-publish': () => onCancelPublish(file) },
+      verbs: { ...transfer, download: (folder) => onDownload(file, chosen(folder)), resume: fetch, retry: fetch, reveal: () => onReveal(file), unshare: () => onUnshare(file), 'cancel-publish': () => onCancelPublish(file) },
     }
   }
   const { file, manualControls, onDownload, onReveal } = props
   const fetch = () => onDownload(file.relPath)
   return {
     row: file,
+    downloadMenu,
     context: { isOwn, manualControls, ownerFileVerbs: false },
-    verbs: { ...transfer, download: fetch, resume: fetch, retry: fetch, reveal: () => onReveal(file.relPath) },
+    verbs: { ...transfer, download: (folder) => onDownload(file.relPath, chosen(folder)), resume: fetch, retry: fetch, reveal: () => onReveal(file.relPath) },
   }
 }
 
@@ -123,15 +135,16 @@ function ownerLine(props: FileRowProps, t: TFunction): string | null {
 interface FileRowMetaProps {
   size: number
   owner: string | null
+  place: string | null
   error: string | null
 }
 
 // The error rides the meta line rather than a line of its own, so a failed row keeps its resting
 // height. The line truncates; the alert holds the whole message as one node either way.
-function FileRowMeta({ size, owner, error }: FileRowMetaProps) {
+function FileRowMeta({ size, owner, place, error }: FileRowMetaProps) {
   return (
     <p className="text-xs text-on-surface-variant mt-0.5 truncate">
-      {owner ? `${formatSize(size)} • ${owner}` : formatSize(size)}
+      {[formatSize(size), owner, place].filter(Boolean).join(' • ')}
       {error && (
         <>
           {' • '}
@@ -194,7 +207,7 @@ function FileRow(props: FileRowProps) {
           </div>
           <div className="min-w-0 flex-grow">
             <FileName name={id.name} displayName={id.shownName} className="font-bold text-accent" />
-            <FileRowMeta size={file.size} owner={ownerLine(props, t)} error={error} />
+            <FileRowMeta size={file.size} owner={ownerLine(props, t)} place={isOwn ? null : props.downloadTo?.rowPlace(file) ?? null} error={error} />
             {view.statusHintKey && <p className="text-xs text-on-surface-variant mt-1">{t(view.statusHintKey)}</p>}
           </div>
         </div>

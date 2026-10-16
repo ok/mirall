@@ -20,7 +20,7 @@ export default async function s89({ runDir, bootstrap }) {
   const ownDir = path.join(workDir('own-'), 'Vault')
   mkdirSync(ownDir, { recursive: true })
   writeFileSync(path.join(ownDir, 'big.bin'), Buffer.alloc(512 * 1024 * 1024, 11))
-  const landed = path.join(B.downloadFolder, 'big.bin')
+  const landed = path.join(B.downloadFolder, 'Vault', 'big.bin')
 
   try {
     await r.ok('A shares "Vault"; B opens it and starts downloading big.bin', async () => {
@@ -31,7 +31,7 @@ export default async function s89({ runDir, bootstrap }) {
       await B.waitText('Vault', 60000)
       await B.openFolder('Vault')
       await B.waitText('big.bin', 20000)
-      await B.click({ role: 'button', name: 'Download' })
+      await B.downloadRow()
 
       let mid = false
       const dl = Date.now() + 20000

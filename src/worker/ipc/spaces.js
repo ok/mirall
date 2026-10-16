@@ -4,6 +4,7 @@
 
 /** @import { WorkerIpc } from '../../shared/core/ipc.js' */
 /** @import { Logger } from '../../shared/core/logger.js' */
+/** @import { FolderChooser } from '../download-folder-push.js' */
 import { AppError } from '../../shared/core/errors.js'
 import { CODES } from '../../shared/contract/errors.js'
 import { TARGET_KIND } from '../../shared/contract/audit-kinds.js'
@@ -34,7 +35,6 @@ import {
 } from '../../shared/network/leave-protocol.js'
 import { listMirrorsForShare, listMirrorsForSpace } from '../../shared/folders/mirror-registry.js'
 import { setSpaceDownloadRoot } from '../../shared/core/paths.js'
-import { validateDownloadFolderAgainstMounts } from '../../shared/folders/mount-validate.js'
 import { record } from '../../shared/audit/audit-log.js'
 import { selfActor, targetRef } from '../../shared/audit/audit-record.js'
 import { spaceRefOf } from '../audit-refs.js'
@@ -43,8 +43,8 @@ import { fullRoster, stripWorkerFields, slimSpaces } from '../space-projection.j
 import { openMemberView } from '../../shared/spaces/member-registry.js'
 import { assertProfileWritable } from '../../shared/core/restore-guard.js'
 
-/** @param {WorkerIpc} ipc @param {{ log: Logger, publishRevealRoots: () => void }} deps */
-export function registerSpaces(ipc, { log, publishRevealRoots }) {
+/** @param {WorkerIpc} ipc @param {{ log: Logger, chooseFolder: FolderChooser }} deps */
+export function registerSpaces(ipc, { log, chooseFolder }) {
   ipc.handle('spaces:list', async () => slimSpaces(await getProfile()))
 
   ipc.handle('space:members', async (msg) => {
@@ -62,6 +62,7 @@ export function registerSpaces(ipc, { log, publishRevealRoots }) {
     assertProfileWritable()
     log.info('creating space:', msg.name)
     const space = await createSpace(msg.name, msg.icon ?? undefined)
+    setSpaceDownloadRoot(space.spaceId, space.downloadFolder)
     await markOwnMembership(space.spaceId, { refresh: true })
     await joinSpaceTopic(space.spaceId)
     await openMemberView(space.spaceId)   // the creator's own space derives its membership too
@@ -113,6 +114,7 @@ export function registerSpaces(ipc, { log, publishRevealRoots }) {
     log.info('joining space', decoded.v === 1 ? '(envelope)' : '(legacy)')
     const { inviteId, creator, owner, ownerName } = envelope ?? {}
     const space = await joinSpace(decoded.topic, name, msg.icon ?? undefined, { inviteId, creator, owner, ownerName })
+    setSpaceDownloadRoot(space.spaceId, space.downloadFolder)
     // A restored profile records the membership once it has caught up: the next boot's backfill, which
     // the flag tells to stamp it newer than any tombstone co-members hold.
     if (profileHeld()) await mutateSpace(space.spaceId, (s) => ({ ...s, membershipRefresh: true }))
@@ -207,25 +209,16 @@ export function registerSpaces(ipc, { log, publishRevealRoots }) {
     members: memberReach(socketsPerMember(msg.spaceId), isRelayedSocket),
   }))
 
+  // The folder is checked before anything is written and committed after the rename, so the move
+  // every client hears already carries the new name. A folder pick alone renames nothing.
   ipc.handle('space:update', async (msg) => {
     const space = await getSpace(msg.spaceId)
     if (space?.status === 'pending') return null
     log.info('updating space:', msg.spaceId)
-    // Tri-state: absent leaves the override alone, null clears it, a string is validated.
-    let downloadFolder
-    if (msg.downloadFolder !== undefined) {
-      downloadFolder = msg.downloadFolder === null
-        ? null
-        : await validateDownloadFolderAgainstMounts(msg.downloadFolder)
-    }
-    const updated = await updateSpace(msg.spaceId, msg.name, msg.icon, { downloadFolder })
-    if (updated) {
-      if (downloadFolder !== undefined) {
-        setSpaceDownloadRoot(msg.spaceId, downloadFolder)
-        publishRevealRoots()
-        // Every row's downloaded status derives from the root, so re-derive the file views.
-        ipc.emit('event:files-updated', { spaceId: msg.spaceId })
-      }
+    const folder = await chooseFolder.validate(msg.downloadFolder)
+    const updated = await updateSpace(msg.spaceId, msg.name, msg.icon)
+    if (!updated) return null
+    if (updated.name !== space?.name || updated.icon !== space?.icon) {
       record('space.updated', {
         actor: selfActor(),
         space: spaceRefOf(updated),
@@ -233,7 +226,9 @@ export function registerSpaces(ipc, { log, publishRevealRoots }) {
         subject: { previousName: space?.name ?? null },
       })
     }
-    return updated
+    if (!folder) return updated
+    const { spaceChanged } = await chooseFolder.commit(msg.spaceId, folder)
+    return spaceChanged ? { ...updated, downloadFolder: folder } : updated
   })
   ipc.handle('space:toggle-favorite', async (msg) => {
     return await toggleFavorite(msg.spaceId)

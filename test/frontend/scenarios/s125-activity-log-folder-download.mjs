@@ -40,8 +40,8 @@ export default async function s125({ runDir, bootstrap }) {
       await B.focus()
       await B.openFolder('Brand Assets')
       await B.waitText('logo.txt', 20000)
-      await B.click({ role: 'button', name: 'Download' })
-      await waitFor(() => existsSync(path.join(B.downloadFolder, 'logo.txt')), 60000, 'logo.txt downloaded')
+      await B.downloadRow()
+      await waitFor(() => existsSync(path.join(B.downloadFolder, 'Brand Assets', 'logo.txt')), 60000, 'logo.txt downloaded')
       await B.waitText('On your device', 20000)
     })
 

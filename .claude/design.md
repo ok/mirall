@@ -503,9 +503,20 @@ batch Download, which keeps the request until the owner is back and says so in a
 `FolderWorkStrip`'s anatomy in the neutral tone (`bg-surface-container-low text-on-surface-variant`,
 `pl-4 pr-1 py-1.5 rounded-lg`), inset `ml-13` (52 px, the top box and the row gap) so it starts
 where the filter field and the shifted rows start: the count, the size, how many are already on the device and how
-many the filter hides, then "Deselect hidden", `Cancel N` (secondary), `Unshare N` (danger, space
-only), `Download N` (primary) and `Done`. A verb with nothing to act on is not shown. The count is
+many the filter hides, then "Deselect hidden", `Unshare N` (danger, space only), the Download split
+button and `Done`. There is no Cancel: a file under way is cancelled from its row, a running batch
+from the batch strip's Cancel All. A verb with nothing to act on is not shown. The count is
 announced from one always-mounted polite region, which also announces the end of a selection.
+
+**Split Download** (`SplitDownload` in `SelectionBar.tsx`, a `role="group"` named "Download"): the
+main half is a primary `Button` with `splitStart` (right corners squared) and `pr-4`, reading `Download N` and, in
+`font-medium opacity-80 truncate max-w-[11rem]`, "to <folder>"; its accessible name is that visible
+text, "Download N to <folder>" (a voice-control user says what they see), and its tooltip the
+folder's path. The chevron half is an `ActionMenu` `split-end` trigger. When the space's folder is
+on a drive that is not connected, the main half is `aria-disabled` (it keeps focus and its name) and
+the sentence adds "<folder>: drive not connected"; a click on it re-probes the drive (a re-plugged
+one enables it at once), and the chevron's menu still works. Each half highlights on its own on hover, but neither shrinks on
+press (`active:scale-95` is left out of both), so the pair presses as one shape.
 
 ### Batch strip — `batch/BatchProgressStrip.tsx`
 One strip for a batch the user started, in the folder band (after the derived strips) or the
@@ -556,17 +567,38 @@ statement about the setting, never a reason to strip the only way to change it.
 
 ### Dropdown button — `primitives/ActionMenu.tsx`
 The one dropdown primitive; react-aria `useMenuTrigger` with a portalled popup that tracks the
-trigger on scroll/resize. Three trigger variants, and a labelled trigger always carries a trailing
+trigger on scroll/resize. Four trigger variants, and a labelled trigger always carries a trailing
 `keyboard_arrow_down` that rotates 180° when open:
 - **`primary`** (default) — the labelled `bg-primary` key action ("More" in Space/Folder View).
-- **`subtle`** — the icon-only `w-10 h-10 rounded-full` three-dot trigger (`ShareCard`).
-- **`neutral`** — the labelled trigger wearing the **secondary-button** tokens
-  (`bg-surface-container-high` → `hover:bg-surface-container-highest`, dark inverts one tier,
-  `text-on-surface-variant`). For a row of sibling menus where none is the screen's main action —
-  the Activity Log filter bar. Three `primary` triggers side by side would read as three CTAs.
+- **`subtle`** — the icon-only `w-10 h-10 rounded-full` trigger: the three-dot menu (`ShareCard`)
+  and a file row's Download ("Download to…").
+- **`neutral`** — the labelled trigger wearing the **secondary-button** tokens (`surface-control` →
+  `surface-control-hover`, `text-on-surface-variant`). For a row of sibling menus where none is the
+  screen's main action — the Activity Log filter bar — and the controls row's Downloads-to button.
+  Three `primary` triggers side by side would read as three CTAs. `triggerTone="warning"` swaps the
+  fill for `bg-warning-container text-on-warning-container` (a folder whose drive is not
+  connected), and `maxWidthClass` truncates the label inside a bounded trigger.
+- **`split-end`** — the chevron-only half of a split button: `bg-primary rounded-l-none px-2.5`
+  with the `split-divider` utility, a 1 px hairline in `on-primary` at 28 % that reads in both themes;
+  it does not shrink on press, like the `splitStart` Button it pairs with.
 
-Menu items may omit `icon`; a fixed-size blank keeps labels aligned, which is how a single-choice
-menu marks only the selected row with `check`.
+Menu items may omit `icon`; a fixed-size blank keeps labels aligned. An item may carry a second line
+(`description`, `text-xs text-on-surface-variant`, linked as the item's description) and a rule above
+it (`separatorBefore`; a `danger` item always gets one). A popup may open with a `heading`
+(`text-xs font-bold uppercase tracking-wide text-secondary`, not focusable). An item that carries
+`checked` is a choice: it renders as `menuitemradio` with `aria-checked`, the chosen one marked by its
+`check` icon; an item without it (an action such as "Choose Folder…") stays a `menuitem`. The menu
+keeps no selection of its own — picking any item is an action. `onOpen` runs when the popup opens.
+
+**The Download-to menu** (`hooks/useDownloadTo.ts` `menu(onPick)` builds it — heading, width and
+items — for every surface): heading "Download to", the space's folder first and checked, then every
+other recent folder (`folder` icon), each with its path (home as `~`) on the second line; a folder
+whose drive is not connected stays in place, disabled, with "· drive not connected", and opening the
+menu then re-probes the drives; then a rule and "Choose Folder…" (`folder_open`), which opens the
+system picker at the current folder. The popup is `min-w-[17rem] max-w-[22rem]`. A row's Download,
+the split button's chevron and the controls-row button all open it; a pick from the first two
+downloads there and makes the folder the space's, a pick from the controls row only changes the
+folder.
 
 ### Segmented control — `primitives/SegmentedControl.tsx`
 A pill `bg-surface-container-high p-1 rounded-full` of `aria-pressed` `<Segment>` buttons (no
@@ -696,9 +728,9 @@ dialog titles.
   path in the field, **or one still loading** → `actions.change` ("Change"). Callers used to pass it
   and had picked four different strings for the one action. There is no override: the one that
   replaced those four was forbidden to every caller by the same test that introduced it.
-- **`loading` is a third state, not an empty path.** A download folder always resolves to something
-  — a space's override, else the global default — so a read still in flight is a path whose text has
-  not arrived, not the absence of one. Conflating them offered a first pick for a folder that
+- **`loading` is a third state, not an empty path.** The folder for new spaces always resolves to
+  something — the stored one, else the host's downloads folder — so a read still in flight is a path
+  whose text has not arrived, not the absence of one. Conflating them offered a first pick for a folder that
   already exists and flipped the button label when the read landed. The field says
   `pathField.loading` and the button already reads "Change".
 - **The empty-state text is `text-on-surface-variant` italic, never `text-outline`.** It is a span,
@@ -794,7 +826,19 @@ fixes it, and a `success` toast on recovery. Drive it from a renderless *bridge*
 watches the state and emits transitions — `toast/bridges/ConnectivityToastBridge.tsx` and
 `toast/bridges/DownloadFolderToastBridge.tsx` are the two worked examples; copy their shape rather
 than inventing a surface. Toasting only on a **transition** is what lets a dismissed toast stay
-dismissed while the fault persists.
+dismissed while the fault persists. The download-folder one names the first joined space whose
+folder cannot be reached (`model/download-folder-toast.js` decides), and its action ("Choose another
+folder") opens that space, whose controls row then shows the Downloads-to button in the warning tone.
+When no space uses that folder any more while it is still gone (the space moved off it, or was
+left), the toast is dismissed; "available again" shows only when the folder actually came back.
+
+**A space's download folder changing is one info toast**, "Downloads from <space> now go to
+<folder>", from `toast/bridges/DownloadToToastBridge.tsx` whatever changed it, keyed per space. A
+batch toasts only what it has to add — its counts ("2 already on your device") — and leads them
+with the same sentence only when the worker reports the folder moved (`folderChanged`,
+`model/batch-toast.js`), under the same id, so it replaces the bridge's toast rather than stacking;
+a batch with nothing to add, or whose every request was refused, says nothing. A download into the
+folder the space already uses raises none.
 
 The **top-nav banner slot is reserved for `UpdateBanner`** — an informational notice that cannot
 resolve itself (the update is staged until the app restarts) and so needs manual dismissal. It is
@@ -814,7 +858,10 @@ two-tier rule in §2), `transition-colors`, **no border, no shadow**:
   (`opacity-0 group-hover:opacity-100`).
 - **FileRow** — one component for a file on the space screen (`kind="loose"`) and in a folder's
   tree (`kind="share"`): `rounded-xl p-5`, icon tile, name, one meta line (size; a loose file adds
-  "Shared by …"; a failed row's `role="alert"` error rides the line so the row keeps its height),
+  "Shared by …"; a copy downloaded outside the space's folder adds "In <folder>", this file's copy on
+  a drive that is not connected "Saved to <folder>" (a drive root reads as the menu names it, `E:\`;
+  nothing is said before the worker's path rules arrive); a failed row's `role="alert"` error rides
+  the line so the row keeps its height),
   `RowLane`, then `ActionLane`. A folder row adds a leading gutter and indents its dropdown to match.
   `@container/row` lets the lane shed the status badge when narrow.
 - **ActionLane** — a file row's right edge, two `IconButton` slots at a constant width so the pills
@@ -824,7 +871,13 @@ two-tier rule in §2), `transition-colors`, **no border, no shadow**:
   (`opacity-0 group-hover:opacity-100 focus:opacity-100`) and stays in the Tab order. Destructive
   controls are the `danger` variant; an empty slot is a `w-10 h-10` spacer; a busy row shows a
   pulsing `update` icon as `role="status"` with an `sr-only` label; an offline owner's file shows a
-  disabled Download named "Owner offline — download unavailable".
+  disabled Download named "Owner offline — download unavailable". Download itself ("Download to…",
+  on an Available row and on a Drive not connected one) opens the Download-to menu; Resume acts at
+  once into the row's own folder, Retry into the space's current folder for a row that failed before
+  its first byte. When a status change swaps the primary control (the menu trigger for Pause, Discard
+  back to Download), keyboard focus moves to the new control instead of falling to the page
+  (`hooks/useKeepFocus.ts`); the lane itself is focusable (`tabIndex={-1}`, `focus-ring`) as the
+  last resort.
 - **MemberCard** — `flex items-center justify-between`, no hover lift; presence is a 12 px
   `bg-online` / `bg-offline` dot overlaid on the avatar's bottom-right corner
   (`border-2 border-surface-container-low` to cut it out of the image), not `Avatar`'s status ring.
@@ -984,8 +1037,16 @@ Three slots, one rule: **tiles state, the header acts, the strip acts for now.**
   and at most one verb.
 - **Controls row** (`listing/ListControlsRow.tsx`, shared with the space screen) — pinned directly
   above the first file row and never scrolling with it: the top selection box on a browse folder,
-  the filter field (count and clear *inside* the field) plus Expand all. The selection strip sits
-  under it, the batch strip rides in the band above.
+  the filter field (count and clear *inside* the field), the Downloads-to button, then Expand all.
+  The Downloads-to button (`listing/DownloadsToButton.tsx`, a `neutral` `ActionMenu` bounded to
+  `max-w-[16rem]`) names the space's folder with a `download` icon; with the drive not connected it
+  turns `warning` and reads "<folder> · not connected" (its accessible name contains that text). It
+  shows where something can be downloaded (a browse folder, a space with another member's file) and,
+  on the space screen, while the space's folder is not connected (`model/download-folders.js`
+  `downloadsToShown`); it steps back while selecting, when the split button names the folder, and
+  focus it held then moves to the row's first control (the top box) rather than the page. The
+  selection strip sits under the row, the batch strip
+  rides in the band above.
 - **Tiles** — `cards/FolderPeopleCard.tsx` (owner + `Mirroring · N`, the section absent at zero) and
   `cards/FolderStatsCard.tsx` (size, file count, and a status pill top-right drawn from the same
   five-token `model/status-badge.js` palette the file rows use). Neither carries an action — the

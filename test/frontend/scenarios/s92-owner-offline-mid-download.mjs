@@ -30,7 +30,7 @@ export default async function s92({ runDir, bootstrap }) {
       await A.addFile(big)
       await B.waitText('stream', 90000)
       await B.waitText('Available', 90000)
-      await B.click({ role: 'button', name: 'Download', last: true })
+      await B.downloadRow({ last: true })
       await B.waitText('Downloading', 60000)
     })
 

@@ -1,5 +1,5 @@
 import { ad, withRetry } from './agent.mjs'
-import { findNode } from './tree.mjs'
+import { findNode, flatten } from './tree.mjs'
 import { POLL_MS, PANEL_TRIES, PANEL_WAIT_MS, background, electronWindows } from './ax-support.mjs'
 
 // The app-flow half of Instance: onboarding, navigation and the mount/share verbs. Knows Mirall's
@@ -188,6 +188,64 @@ export const withFlows = (Base) => class extends Base {
     throw new Error(`${this.name}: no picker answered for ${absPath} (pickers opened this launch: ${opened})`)
   }
 
+  // A Download-to menu — a row's Download, the selection strip's chevron, the controls row's
+  // "Downloads to" — opens with its heading, one item per folder (the space's own first, checked)
+  // and Choose Folder…. agent-desktop reports the radio items as role "menuitem", the checked one
+  // with value "1" and the rest "0", a disabled one with the "disabled" state; an item is named by
+  // its folder's name alone, its path is a statictext beside it.
+
+  async openDownloadMenu(trigger) {
+    await this.click(trigger)
+    await this.waitText('Choose Folder…', 10000)
+  }
+
+  async downloadMenuItems() {
+    return flatten(await this.snap({ interactive: true })).filter((n) => n.role === 'menuitem')
+  }
+
+  // In a menu `trigger` opened: the folder named `folder`, a new one picked through Choose Folder…
+  // (`path`, re-opening the menu when a lost pick closed it), or else the space's own.
+
+  async pickDownloadFolder(trigger, { folder = null, path: pick = null } = {}) {
+    if (pick) {
+      const choose = { role: 'menuitem', name: 'Choose Folder…' }
+      return this.nativeChoosePath(pick, {
+        trigger: async () => {
+          if (!(await this.has(choose))) await this.openDownloadMenu(trigger)
+          await this.click(choose)
+        },
+      })
+    }
+    await this.click(folder ? { role: 'menuitem', name: folder } : { role: 'menuitem' })
+  }
+
+  // A row's Download opens the Download-to menu; the pick downloads the file there.
+
+  async downloadRow(sel = {}, choice = {}) {
+    const trigger = { role: 'combobox', name: 'Download to…', ...sel }
+    await this.openDownloadMenu(trigger)
+    await this.pickDownloadFolder(trigger, choice)
+  }
+
+  // The controls row's "Downloads to" changes the space's folder and downloads nothing. `from` is
+  // the button's exact name when the scenario knows it (it carries the folder and its state).
+
+  async setDownloadsTo({ from = null, ...choice } = {}) {
+    const trigger = from ? { name: from } : { role: 'combobox', contains: 'Downloads go to' }
+    await this.openDownloadMenu(trigger)
+    await this.pickDownloadFolder(trigger, choice)
+  }
+
+  // The selection strip's split button: the main half ("Download 3 to <folder>") downloads into the
+  // space's folder, the chevron's menu into another one.
+
+  async downloadSelected(count, choice = null) {
+    if (!choice) return this.click({ role: 'button', contains: `Download ${count} to ` })
+    const trigger = { name: 'More download options' }
+    await this.openDownloadMenu(trigger)
+    await this.pickDownloadFolder(trigger, choice)
+  }
+
   // Add a loose file (mod+u opens the file picker) and pick it via the panel.
 
   async addFile(absPath) {
@@ -335,7 +393,7 @@ export const withFlows = (Base) => class extends Base {
     await this.click({ name: 'More' })
     await new Promise((r) => setTimeout(r, POLL_MS))
     await this.click({ name: 'Manage Storage' })
-    await this.waitText('Download Folder', 10000)
+    await this.waitText('Download Folder for New Spaces', 10000)
   }
 
   // Leave the current space via the More menu → Leave Space → confirm.

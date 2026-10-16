@@ -72,7 +72,7 @@ export default async function s74({ runDir, bootstrap }) {
 
     await r.ok('all three download; A shows the multi-peer indicator + dropdown when the race allows', async () => {
       // Kick off all three downloads close together so they overlap on the owner.
-      for (const P of peers) { await P.focus(); await P.click({ role: 'button', name: 'Download' }) }
+      for (const P of peers) { await P.focus(); await P.downloadRow() }
       await A.focus()
 
       // Everything after detection is best-effort: fast loopback downloads can clear the transient

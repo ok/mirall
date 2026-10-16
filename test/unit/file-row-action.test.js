@@ -105,6 +105,7 @@ const EXPECTED = {
   'paused-interrupted': { loose: ['discard', 'resume'], browse: ['discard', 'resume'], mirror: [null, null] },
   'paused-offline': { loose: [null, 'discard'], browse: [null, 'discard'], mirror: [null, null] },
   error: { loose: ['dismiss', 'retry'], browse: ['dismiss', 'retry'], mirror: [null, null] },
+  detached: { loose: [null, 'download'], browse: [null, 'download'], mirror: [null, null] },
 }
 
 test('the table: every file status, for an own row with a transfer, on each kind of row', (t) => {
@@ -154,7 +155,7 @@ test('REGRESSION (FIX-B4-2: an own add could not be cancelled while the profile 
 const SPEC = {
   reveal: { labelKey: 'file.revealInFolder', icon: 'folder_open', tone: 'default' },
   unshare: { labelKey: 'file.unshare', icon: 'delete', tone: 'danger' },
-  download: { labelKey: 'file.download', icon: 'download', tone: 'default' },
+  download: { labelKey: 'file.downloadTo', icon: 'download', tone: 'default' },
   'download-unavailable': { labelKey: 'file.downloadUnavailable', icon: 'download', tone: 'default' },
   pause: { labelKey: 'file.pause', icon: 'pause', tone: 'default' },
   cancel: { labelKey: 'file.cancel', icon: 'close', tone: 'danger' },
@@ -180,6 +181,21 @@ test('every action carries its own name, icon and tone', (t) => {
     }
   }
   t.alike([...seen].sort(), [...Object.keys(SPEC), 'busy'].sort(), 'every action id is reached')
+})
+
+test('Download opens the Download-to menu; Resume and Retry act at once', (t) => {
+  for (const c of product()) {
+    for (const a of both(c.actions)) {
+      if (a.id === 'download') t.is(a.menu, true, `${c.status}/${c.kind}: download opens the menu`)
+      else t.absent(a.menu, `${c.status}/${c.kind}: ${a.id} acts at once`)
+    }
+  }
+})
+
+test('a copy on a drive that is not connected offers Download, so it can be fetched elsewhere', (t) => {
+  t.alike(ids(browse('detached')), [null, 'download'])
+  t.alike(ids(loose('detached')), [null, 'download'])
+  t.alike(ids(mirror('detached')), [null, null], 'a mirror syncs itself')
 })
 
 test('a self-syncing row offers nothing but Reveal or a busy status', (t) => {
@@ -208,11 +224,11 @@ test('REGRESSION (FIX-B4-0: the loose Discard Partial and Dismiss were neutral w
 const VERBS = {
   remote: { loose: 'download', browse: 'download', mirror: null },
   error: { loose: 'download', browse: 'download', mirror: null },
-  'paused-interrupted': { loose: 'download+cancel', browse: 'download+cancel', mirror: null },
-  'paused-offline': { loose: 'cancel', browse: 'cancel', mirror: null },
-  downloading: { loose: 'cancel', browse: 'cancel', mirror: null },
-  waiting: { loose: 'cancel', browse: 'cancel', mirror: null },
-  verifying: { loose: 'cancel', browse: 'cancel', mirror: null },
+  'paused-interrupted': { loose: 'download+inProgress', browse: 'download+inProgress', mirror: null },
+  'paused-offline': { loose: 'inProgress', browse: 'inProgress', mirror: null },
+  downloading: { loose: 'inProgress', browse: 'inProgress', mirror: null },
+  waiting: { loose: 'inProgress', browse: 'inProgress', mirror: null },
+  verifying: { loose: 'inProgress', browse: 'inProgress', mirror: null },
   unavailable: { loose: 'download', browse: 'download', mirror: null },
   preparing: { loose: null, browse: null, mirror: null },
   queued: { loose: null, browse: null, mirror: null },
@@ -220,8 +236,9 @@ const VERBS = {
   downloaded: { loose: 'onDevice', browse: 'onDevice', mirror: 'onDevice' },
   modified: { loose: 'onDevice', browse: 'onDevice', mirror: 'onDevice' },
   synced: { loose: 'onDevice', browse: 'onDevice', mirror: 'onDevice' },
+  detached: { loose: 'download', browse: 'download', mirror: null },
 }
-const verbWord = (v) => [v.download && 'download', v.cancel && 'cancel', v.unshare && 'unshare', v.onDevice && 'onDevice'].filter(Boolean).join('+') || null
+const verbWord = (v) => [v.download && 'download', v.inProgress && 'inProgress', v.unshare && 'unshare', v.onDevice && 'onDevice'].filter(Boolean).join('+') || null
 
 test('batchVerbsFor: the table over every status and row kind, for a peer row with a transfer', (t) => {
   t.alike(Object.keys(VERBS).sort(), [...FILE_STATUSES].sort(), 'the table covers every file status')
@@ -245,7 +262,8 @@ test('batchVerbsFor: own files, a row without a transfer, and an error row\'s di
   t.is(verbWord(batchVerbsFor({ status: 'synced' }, { ...LOOSE, isOwn: true })), 'unshare', 'an own loose file can be unshared and is not "on your device"')
   t.is(verbWord(batchVerbsFor({ status: 'synced' }, { ...BROWSE, isOwn: true })), null, 'an own folder file has no batch verb')
   t.is(verbWord(batchVerbsFor({ status: 'downloading' }, { ...BROWSE, isOwn: false })), null, 'a busy row without a transfer takes part in nothing')
-  t.is(verbWord(batchVerbsFor({ status: 'error' }, { ...BROWSE, isOwn: false })), 'download', 'dismiss is not cancel')
-  t.ok(isBatchSelectable({ download: false, cancel: false, unshare: false, onDevice: true }))
-  t.absent(isBatchSelectable({ download: false, cancel: false, unshare: false, onDevice: false }))
+  t.is(verbWord(batchVerbsFor({ status: 'error' }, { ...BROWSE, isOwn: false })), 'download', 'dismiss does not mark a row in progress')
+  t.ok(isBatchSelectable({ download: false, inProgress: false, unshare: false, onDevice: true }))
+  t.ok(isBatchSelectable({ download: false, inProgress: true, unshare: false, onDevice: false }), 'a row under way keeps its box')
+  t.absent(isBatchSelectable({ download: false, inProgress: false, unshare: false, onDevice: false }))
 })

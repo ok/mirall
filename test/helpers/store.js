@@ -67,6 +67,20 @@ async function bootPeer(t, { displayName, masterSecret }) {
   return { storage, downloads, fake, tmpDir, root, masterSecret }
 }
 
+// The same storage booted again, as a relaunch does: the running root closes first, and the new one
+// is torn down like freshPeer's. For a test whose subject is what boot() does with what the last
+// run left behind.
+export async function rebootPeer(t, peer) {
+  await peer.root.close()
+  const config = { storage: peer.storage, appVersion: '0.0.0-test', dev: true, verbose: false, downloadFolder: peer.downloads }
+  const fake = createFakeIpc()
+  const root = await boot(config, { ipc: fake.ipc, log: quiet, swarm: false, masterSecret: peer.masterSecret, memberRegistry: offlineMemberRegistry })
+  t.teardown(async () => {
+    try { await root.close() } catch (err) { console.warn('[test] root.close failed:', err.message) }
+  }, { order: 1 })
+  return { ...peer, fake, root }
+}
+
 // The durable tier alone, for a test whose subject is what boot() does AFTER it — a content
 // migration, the manifest caps — which must not already have run.
 export async function freshDurableWithIdentity(t, opts = {}) {

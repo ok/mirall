@@ -26,6 +26,7 @@ import { registerShares } from '../../src/worker/ipc/shares.js'
 import { previewMaterializeScan } from '../../src/shared/folders/foreign-preview.js'
 import { spaceStorageSummary } from '../../src/shared/storage/space-storage.js'
 import { presence, resetPresenceLeases } from '../../src/shared/network/presence-leases.js'
+import { createFolderChooser } from '../../src/worker/download-folder-push.js'
 
 // A folder listing whose peer read stalled or threw flags the space for the convergence tick. The
 // case that needs it: the owner's catalog head has synced, so its `append` has already fired, but
@@ -163,7 +164,7 @@ test('REGRESSION (FIX-671: folder info, the mount preview and the storage summar
     return reads.at(-1)?.stalled === false
   }, scaled(10000)), 'precondition: with the blocks here, a whole read finishes')
   const fake = createFakeIpc()
-  registerShares(fake.ipc, { log: { debug() {}, info() {}, warn() {}, error() {} }, intents: null, mountOwnedShare: async () => {} })
+  registerShares(fake.ipc, { log: { debug() {}, info() {}, warn() {}, error() {} }, intents: null, mountOwnedShare: async () => {}, chooseFolder: createFolderChooser({ ipc: fake.ipc, publishRevealRoots: () => {} }) })
   const req = { spaceId: ctx.spaceId, ownerKey, shareId: share.id }
 
   setRuntimeConfig({ ...getRuntimeConfig(), testTruncatePeerDrainAfter: 1 })

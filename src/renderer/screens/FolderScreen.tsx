@@ -31,6 +31,7 @@ import { useFolderCommands } from '../hooks/useFolderCommands.js'
 import { useLocateShare } from '../hooks/useLocateShare.js'
 import { useFolderBatch, type FolderBatch } from '../hooks/useFolderBatch.js'
 import SelectionBar from '../components/batch/SelectionBar.js'
+import { useDownloadTo, type DownloadTo } from '../hooks/useDownloadTo.js'
 import type { ShareWithRole } from '../hooks/useShares.js'
 import type { ShareRole } from '../types/types.js'
 
@@ -84,15 +85,15 @@ function FolderHeaderActions({ role, sourceMissing, onMirror, onLocate, onReveal
 }
 
 // Null on a folder that offers no selection, so the band and the pane keep their resting shape.
-function FolderSelectionBar({ batch }: { batch: FolderBatch }) {
+function FolderSelectionBar({ batch, downloadTo }: { batch: FolderBatch, downloadTo: DownloadTo }) {
   if (!batch.selection) return null
   return (
     <SelectionBar
       selecting={batch.selecting}
       summary={batch.summary}
       matchingCount={batch.matchingCount}
+      downloadTo={downloadTo}
       onDownload={batch.downloadSelected}
-      onCancel={batch.cancelSelected}
       onDeselectHidden={batch.deselectHidden}
       onDone={batch.end}
     />
@@ -179,7 +180,8 @@ export default function FolderScreen({ spaceId, share, onBack, onMirror }: Folde
   const [showDelete, setShowDelete] = useState(false)
   const [showEdit, setShowEdit] = useState(false)
   const tree = useFilteredTree(share.id, files)
-  const batch = useFolderBatch({ spaceId, share, offered: share.role === 'browse', files, tree, getDecoration, markSeeded })
+  const downloadTo = useDownloadTo(space)
+  const batch = useFolderBatch({ spaceId, share, offered: share.role === 'browse', files, tree, getDecoration, markSeeded, downloadTo })
 
   const {
     foreignEnabled, manualControls, ownedPaused, ownedPath, sourceMissing, ownerName,
@@ -277,12 +279,13 @@ export default function FolderScreen({ spaceId, share, onBack, onMirror }: Folde
           getDecoration={getDecoration}
           isSeeded={isSeeded}
           onDownload={downloadFile}
+          downloadTo={downloadTo}
           onReveal={revealFile}
           onPause={pauseDownload}
           onCancel={cancelDownload}
           selection={batch.selection}
           selectAll={batch.selectAll}
-          bar={<FolderSelectionBar batch={batch} />}
+          bar={<FolderSelectionBar batch={batch} downloadTo={downloadTo} />}
         />
 
         <FolderSidebar

@@ -26,7 +26,6 @@ import { cancelSpaceDownloads } from '../../shared/transfer/overlay/share-downlo
 import { cleanupDownloadHistory } from '../../shared/transfer/files.js'
 import { clearPendingForSpace } from '../../shared/transfer/pending-transfers.js'
 import { discardRowPartials } from '../../shared/transfer/partial-sweep.js'
-import { listDownloadRoots } from '../../shared/core/paths.js'
 import { forgetListingMemo } from '../../shared/transfer/listing-memo.js'
 import { disconnectPeersFromSpace, leaveSpaceTopic } from '../../shared/network/space-topics.js'
 import { awaitLeaveAcks, hasPendingCancel, hasPendingLeave, isSpaceLeaving, joinPendingCancelTopic, joinPendingLeaveTopic, markSpaceLeaving, registerPendingCancel, registerPendingLeave, sendLeaveFrameToConnectedPeers, sendPendingCancelToConnected, takeLeaveAckedKeys, unmarkSpaceLeaving } from '../../shared/network/leave-protocol.js'
@@ -241,7 +240,7 @@ export function registerSpaceLeave(ipc, { log, mounts, overlayBackend, discardPe
 
         tracker.phase = 'purge-local'
         await cleanupDownloadHistory(msg.spaceId)
-        await discardRowPartials(await clearPendingForSpace(msg.spaceId), listDownloadRoots())
+        await discardRowPartials(await clearPendingForSpace(msg.spaceId), { live: overlay.engine?.activeDests() ?? [] })
         forgetListingMemo(msg.spaceId)
         try { await purgeOwnCatalog(msg.spaceId, space) } catch (err) {
           log.warn('leave: own catalog purge failed:', errorMessage(err))

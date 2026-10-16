@@ -89,7 +89,8 @@ export interface Space {
   pendingCount?: number
   memberCount?: number
   creatorDivergence?: boolean
-  downloadFolder?: string
+  /** The folder this space downloads into on this device; every space has one. */
+  downloadFolder: string
 }
 
 export type FileStatus = (typeof FILE_STATUSES)[number]
@@ -104,7 +105,8 @@ export interface ContentRow {
   mtime: number
   status: FileStatus
   // Where this file's bytes are on the worker's host: an own file's source or mount path, a
-  // consumer's verified copy; null when they are not on this device.
+  // consumer's verified copy, or a copy on a drive that is not connected (status 'detached'); null
+  // when there are none.
   localPath: string | null
   verified?: boolean
   pendingBytes?: number
@@ -316,7 +318,7 @@ export interface SpaceRecord {
   created: string
   members: SpaceMember[]
   schemaVersion?: number
-  downloadFolder?: string
+  downloadFolder: string
   status?: 'pending' | 'approved'
 }
 
@@ -351,28 +353,34 @@ export interface ShareFileListing extends ContentListing {
 // while the owner is away.
 export interface FolderInfo { fileCount: number, totalBytes: number, blobsLength: number | null, complete: boolean }
 
+/** Present when the download named a folder and that folder became the space's. A request that throws moved nothing. */
+interface FolderChange { folderChanged?: true }
+
 /** A loose download: queued behind the engine, dropped (removed by its owner, or its intent could not be kept), or started with a landing path. */
-export type LooseDownloadResult =
+export type LooseDownloadResult = FolderChange & (
   | { queued: true, refused?: true }
   | { queued: false }
   | { transferId: string, finalPath: string }
+)
 
 /** A share read: already ours, refused because a mirror syncs it, queued, dropped (removed by its owner, or its intent could not be kept), or started. */
-export type ShareDownloadResult =
+export type ShareDownloadResult = FolderChange & (
   | { ok: true, alreadyOwned: true }
   | { ok: true, mirrored: true }
   | { queued: true, refused?: true }
   | { queued: false }
   | { transferId: string, finalPath: string }
+)
 
 /**
  * A batch download: refused whole because a mirror syncs the folder, or counted per file —
  * started on the bulk lane, already on this device, waiting for an unreachable owner, removed by
  * its owner, or failed to start (refused by its own preflight, or a destination it cannot take).
  */
-export type BatchDownloadResult =
+export type BatchDownloadResult = FolderChange & (
   | { mirrored: true }
   | { started: number, alreadyHere: number, waitingOnOwner: number, removed: number, failed: number }
+)
 
 export interface OwnedMountResult { mount: OwnedFolderMount, advisories: MountValidationAdvisory[] }
 export interface ForeignMountResult { mount: ForeignFolderMount, advisories: MountValidationAdvisory[] }
@@ -436,11 +444,16 @@ export interface RelaySlot {
 
 export interface NetworkSettings { downloadKBps: number, uploadKBps: number, relayMode: RelayMode, relay: RelaySlot | null }
 
-/** The effective settings: the download folder is the stored one, or the host's default when isDefault. */
+/**
+ * `downloads.folder` seeds spaces created or joined from now on (the stored one, or the host's
+ * default when isDefault); `recent` is this device's last download folders, newest first.
+ */
 export interface WorkerSettings {
-  downloads: { folder: string, isDefault: boolean }
+  downloads: { folder: string, isDefault: boolean, recent: string[] }
   network: NetworkSettings
   links: { baseUrl: string }
+  /** How the worker's host writes a path: every path in a response is the worker's. */
+  hostPaths: { home: string, sep: string, caseFolds: boolean }
 }
 
 export interface RelayApplyResult {

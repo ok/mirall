@@ -9,6 +9,7 @@
 /** @import { OwnedMounter } from '../owned-mount.js' */
 /** @import { StoredShare } from '../../shared/shares/shares.js' */
 /** @import { StoredSpace } from '../../shared/spaces/space.js' */
+/** @import { FolderChooser } from '../download-folder-push.js' */
 import { AppError, errorMessage } from '../../shared/core/errors.js'
 import { CODES } from '../../shared/contract/errors.js'
 import { TARGET_KIND } from '../../shared/contract/audit-kinds.js'
@@ -22,7 +23,6 @@ import { catalogKeyField } from '../../shared/shares/catalog-keys.js'
 import { ownCatalogPublish } from '../../shared/shares/own-catalog.js'
 import { isServableShare } from '../../shared/transfer/content-mode.js'
 import { overlayBackend as backend } from '../../shared/transfer/overlay/index.js'
-import { LAYOUT } from '../../shared/transfer/overlay/download-job.js'
 import { revealTarget } from '../../shared/transfer/reveal.js'
 import { pathFromMount } from '../../shared/folders/path-guard.js'
 import { isSpaceLeaving } from '../../shared/network/leave-protocol.js'
@@ -101,9 +101,9 @@ async function loadShareDescriptor(spaceId, ownerKey, shareId) {
 
 /**
  * @param {WorkerIpc} ipc
- * @param {{ log: Logger, intents: WorkerRoot['intents'], mountOwnedShare: OwnedMounter }} deps
+ * @param {{ log: Logger, intents: WorkerRoot['intents'], mountOwnedShare: OwnedMounter, chooseFolder: FolderChooser }} deps
  */
-export function registerShares(ipc, { log, intents, mountOwnedShare }) {
+export function registerShares(ipc, { log, intents, mountOwnedShare, chooseFolder }) {
   ipc.handle('share:list', async (msg) => {
     return await listSharesForSpace(msg.spaceId)
   })
@@ -273,13 +273,16 @@ export function registerShares(ipc, { log, intents, mountOwnedShare }) {
     return await spaceStorageSummary(msg.spaceId)
   })
 
+  // Both reads leave a mirrored folder to the backend, which answers it before writing anything.
   ipc.handle('share:read-file', async (msg) => {
     const share = await loadShareDescriptor(msg.spaceId, msg.ownerKey, msg.shareId)
     const isOwn = share.owner === getLocalPublicKeyHex()
     if (!isServableShare(share)) throw new AppError(CODES.SHARE_MODE_UNSUPPORTED, 'Share uses an unsupported content mode')
     // overlay: request the file via the backend (catalog/overlay), not a drive
     if (isOwn) return { ok: true, alreadyOwned: true }
-    return await backend.requestDownload(msg.spaceId, share, msg.relPath)
+    const destDir = await chooseFolder.validate(msg.destDir)
+    const res = await backend.requestDownload(msg.spaceId, share, msg.relPath, { destDir })
+    return await chooseFolder.commitDownload(msg.spaceId, destDir, res)
   })
 
   // Own files are already on this device and have nothing to download.
@@ -287,6 +290,8 @@ export function registerShares(ipc, { log, intents, mountOwnedShare }) {
     const share = await loadShareDescriptor(msg.spaceId, msg.ownerKey, msg.shareId)
     if (!isServableShare(share)) throw new AppError(CODES.SHARE_MODE_UNSUPPORTED, 'Share uses an unsupported content mode')
     if (share.owner === getLocalPublicKeyHex()) throw new AppError(CODES.INVALID_ARGUMENT, 'share:read-files: own folder')
-    return await backend.requestDownloads(msg.spaceId, share, msg.relPaths, { layout: LAYOUT.TREE })
+    const destDir = await chooseFolder.validate(msg.destDir)
+    const res = await backend.requestDownloads(msg.spaceId, share, msg.relPaths, { destDir })
+    return await chooseFolder.commitDownload(msg.spaceId, destDir, res)
   })
 }

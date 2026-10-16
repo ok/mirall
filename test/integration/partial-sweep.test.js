@@ -1,7 +1,11 @@
 import test from 'brittle'
 import fs from 'bare-fs'
 import path from 'bare-path'
-import { freshPeer } from '../helpers/store.js'
+import { freshPeer, rebootPeer } from '../helpers/store.js'
+import { until } from '../helpers/bare-poll.js'
+import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
+import { initDownloads, markDownloaded } from '../../src/shared/transfer/files.js'
+import { listCurrentDownloadFolders, listDownloadRoots } from '../../src/shared/core/paths.js'
 import { initPendingTransfers, recordPending, forgetStaleFailures, getPendingFor, _pendingBeeForTests, FAILED_ROW_MAX_AGE_MS } from '../../src/shared/transfer/pending-transfers.js'
 import { cleanupOrphanedPartials, discardRowPartials } from '../../src/shared/transfer/partial-sweep.js'
 
@@ -137,25 +141,91 @@ test('REGRESSION (FIX-499-PARTIAL): a failed download ages out with its partial'
   t.ok(await getPendingFor('s', '/old-unplugged.bin'), 'a fault that clears when the folder is back never ages out')
 })
 
-// A TREE download's partial sits below the root, where the shallow root sweep never looks; a
-// forgotten row is the only record of it, so it goes with the row.
-test('discardRowPartials unlinks a forgotten tree row\'s nested partial and leaves a flat one to the root sweep', async (t) => {
+// A forgotten row is the only record of where its partial is — a TREE partial sits below the root,
+// where the shallow root sweep never looks — so the partial goes with the row, flat or nested,
+// unless a remaining row or a live transfer still holds the same path.
+test('discardRowPartials unlinks each forgotten row\'s partial unless another row or a live transfer holds it', async (t) => {
   const { downloads } = await freshPeer(t)
+  await initPendingTransfers()
   const nested = path.join(downloads, 'Handover', 'sub', 'a.txt')
   const flat = path.join(downloads, 'b.txt')
+  const named = path.join(downloads, 'c.txt')
+  const live = path.join(downloads, 'd.txt')
   fs.mkdirSync(path.dirname(nested), { recursive: true })
-  fs.writeFileSync(nested + '.mirall.part', 'half')
-  fs.writeFileSync(flat + '.mirall.part', 'half')
+  for (const finalPath of [nested, flat, named, live]) fs.writeFileSync(finalPath + '.mirall.part', 'half')
+  await recordPending('other', '/c.txt', { finalPath: named, inPlace: true })
 
-  const discarded = await discardRowPartials([{ finalPath: nested, layout: 'tree' }, { finalPath: flat }, { finalPath: null }], [downloads])
+  const rows = [{ finalPath: nested, layout: 'tree' }, { finalPath: flat }, { finalPath: named }, { finalPath: live }, { finalPath: null }]
+  const discarded = await discardRowPartials(rows, { live: [live] })
 
-  t.is(discarded, 1, 'only the nested partial is the row\'s to discard')
+  t.is(discarded, 2)
   t.absent(fs.existsSync(nested + '.mirall.part'), 'the nested partial is gone')
-  t.ok(fs.existsSync(flat + '.mirall.part'), 'a partial in a root is left to the root sweep')
+  t.absent(fs.existsSync(flat + '.mirall.part'), 'and so is the flat one')
+  t.ok(fs.existsSync(named + '.mirall.part'), 'a partial a remaining row names is kept')
+  t.ok(fs.existsSync(live + '.mirall.part'), 'and so is one a live transfer holds')
 })
 
 test('discardRowPartials tolerates a partial that is already gone', async (t) => {
   const { downloads } = await freshPeer(t)
-  const discarded = await discardRowPartials([{ finalPath: path.join(downloads, 'Batch', 'gone.txt') }], downloads)
+  const discarded = await discardRowPartials([{ finalPath: path.join(downloads, 'Batch', 'gone.txt') }])
   t.is(discarded, 0)
+})
+
+// A download may land in any folder, so the boot sweep reads every folder a pending row or a claim
+// names, not only the ones downloads go to next.
+test('the boot sweep reaches a folder only a download landed in, and keeps a partial its row still names', async (t) => {
+  const ctx = await freshPeer(t)
+  await initPendingTransfers()
+  await initDownloads()
+  const rowFolder = ctx.tmpDir('dl-row')
+  const claimFolder = ctx.tmpDir('dl-claim')
+  const keptFinal = path.join(rowFolder, 'keep.bin')
+  const kept = keptFinal + '.mirall.part'
+  const rowOrphan = path.join(rowFolder, 'orphan.bin.mirall.part')
+  const claimOrphan = path.join(claimFolder, 'orphan.bin.mirall.part')
+  for (const f of [kept, rowOrphan, claimOrphan]) fs.writeFileSync(f, 'half')
+  await recordPending('s', '/keep.bin', { finalPath: keptFinal, destDir: rowFolder, inPlace: true })
+  fs.writeFileSync(path.join(claimFolder, 'done.bin'), 'whole')
+  const space = await createSpace('Aurora')
+  await markDownloaded(space.spaceId, '/done.bin', path.join(claimFolder, 'done.bin'), { hash: 'h', destDir: claimFolder })
+
+  await rebootPeer(t, ctx)
+
+  t.absent(listCurrentDownloadFolders().includes(rowFolder), 'precondition: no download goes to the row\'s folder next')
+  t.ok(listDownloadRoots().includes(rowFolder) && listDownloadRoots().includes(claimFolder), 'both folders are download roots after boot')
+  t.ok(fs.existsSync(kept), 'the partial a row names survives')
+  t.absent(fs.existsSync(rowOrphan), 'an orphan beside it is swept')
+  t.absent(fs.existsSync(claimOrphan), 'and so is one in a folder only a claim names')
+})
+
+// REGRESSION (FIX-DLTO-R31: the boot sweep read the download roots one after another with no bound,
+// before the topic joins — and the roots now include every recent and landed folder — so one root
+// on a network mount that stopped answering held the whole boot.)
+test('REGRESSION (FIX-DLTO-R31: a download root that does not answer is skipped, and the rest are swept)', async (t) => {
+  const { downloads, tmpDir } = await freshPeer(t)
+  await initPendingTransfers()
+  const hanging = tmpDir('dl-hanging')
+  const untouched = path.join(hanging, 'k.bin.mirall.part')
+  const orphan = path.join(downloads, 'o.bin.mirall.part')
+  for (const f of [untouched, orphan]) fs.writeFileSync(f, 'half')
+  const readdir = (dir) => (dir === hanging ? new Promise(() => {}) : fs.promises.readdir(dir))
+
+  const res = await cleanupOrphanedPartials([hanging, downloads], [], { readdir, readTimeoutMs: 100 })
+
+  t.is(res.failed, 1, 'the root that did not answer is counted, not waited for')
+  t.ok(fs.existsSync(untouched), 'and nothing in it is touched')
+  t.absent(fs.existsSync(orphan), 'the root after it is still swept')
+})
+
+test('the download roots are read at once, not one after another', async (t) => {
+  await freshPeer(t)
+  await initPendingTransfers()
+  const started = []
+  const answers = []
+  const readdir = (dir) => { started.push(dir); return new Promise((resolve) => answers.push(() => resolve([]))) }
+
+  const sweep = cleanupOrphanedPartials(['/a', '/b', '/c'], [], { readdir, readTimeoutMs: 60000 })
+  t.ok(await until(() => started.length === 3, 5000), 'every root is asked before any has answered')
+  for (const answer of answers) answer()
+  t.is((await sweep).rootsScanned, 3)
 })

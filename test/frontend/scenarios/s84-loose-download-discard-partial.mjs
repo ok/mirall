@@ -38,7 +38,7 @@ export default async function s84({ runDir, bootstrap }) {
     })
 
     await r.ok('B downloads, pauses, then discards the partial → reverts to Available', async () => {
-      await B.click({ role: 'button', name: 'Download', last: true })
+      await B.downloadRow({ last: true })
 
       let sawPause = false
       const dl = Date.now() + 20000
@@ -66,7 +66,7 @@ export default async function s84({ runDir, bootstrap }) {
       const rev = Date.now() + 15000
       let back = false
       while (Date.now() < rev) {
-        if (await B.has({ role: 'button', name: 'Download' }) && await B.hasText('Available')) { back = true; break }
+        if (await B.has({ role: 'combobox', name: 'Download to…' }) && await B.hasText('Available')) { back = true; break }
         await sleep(200)
       }
       assert(back, 'row reverts to Available + Download after discarding the partial')

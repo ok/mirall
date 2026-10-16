@@ -2,8 +2,12 @@
 // GUI process). Mounts the REAL <SpaceScreen> with folder cards and loose files, opens the column
 // through the real top box, and asserts: every box sits at one x; the sticky "Files Shared"
 // header still pins flush on the scrollport while the rows sit in the gutter; the document never
-// scrolls.
+// scrolls. Another member's files are listed, so at rest the controls row carries "Downloads to"
+// right of the filter, its name containing its visible label in both of its states (the space's
+// folder fine, and on a drive that is not connected); while selecting it is gone, and the strip's
+// split Download button's two halves share Done's height and baseline, with no Cancel beside them.
 import './harness-bootstrap.js'
+import { controlsGeometry, splitGeometry, type ControlsGeometry, type SplitGeometry } from './download-to-geometry.js'
 import { createRoot } from 'react-dom/client'
 import '../../src/renderer/platform/i18n.js'
 import { ToastProvider } from '../../src/renderer/components/toast/ToastProvider.js'
@@ -23,12 +27,18 @@ interface Results {
   barLeft: number
   filterLeft: number
   barAligned: boolean
+  downloadsTo: ControlsGeometry | null
+  /** The same button with the space's folder reported not connected. */
+  downloadsToOffline: ControlsGeometry | null
+  downloadsToHiddenSelecting: boolean
+  split: SplitGeometry | null
   error: string | null
 }
 
 declare global {
   interface Window {
     __fake: { SPACE_ID: string; OWNER_PK: string; SELF_PK: string }
+    __fakeEmit: (frame: { type: string; unavailable: string[] }) => void
     __HARNESS_CFG?: { shares?: Share[]; files?: FileEntry[] }
     __results: Results
   }
@@ -86,7 +96,7 @@ const documentOverflows = () =>
   document.documentElement.scrollHeight > document.documentElement.clientHeight + 1
 
 function publish(partial: Partial<Results> & { pass: boolean; error: string | null }) {
-  window.__results = { boxes: 0, boxLefts: [], oneX: false, foldersHidden: false, headerGap: -1, headerPinned: false, overflow: false, barLeft: -1, filterLeft: -2, barAligned: false, ...partial }
+  window.__results = { boxes: 0, boxLefts: [], oneX: false, foldersHidden: false, headerGap: -1, headerPinned: false, overflow: false, barLeft: -1, filterLeft: -2, barAligned: false, downloadsTo: null, downloadsToOffline: null, downloadsToHiddenSelecting: false, split: null, ...partial }
 }
 
 async function run() {
@@ -96,6 +106,12 @@ async function run() {
   const scroller = pane()
   if (!scroller) return publish({ pass: false, error: 'scroll pane not found' })
 
+  const downloadsTo = controlsGeometry()
+  window.__fakeEmit({ type: 'event:download-roots-status', unavailable: ['/Users/you/Downloads'] })
+  await sleep(150)
+  const downloadsToOffline = controlsGeometry()
+  window.__fakeEmit({ type: 'event:download-roots-status', unavailable: [] })
+  await sleep(150)
   const topBox = Array.from(document.querySelectorAll<HTMLInputElement>('input[type=checkbox]')).find((i) => (i.getAttribute('aria-label') ?? '').startsWith('Select all'))
   if (!topBox) return publish({ pass: false, error: 'top box not found' })
   topBox.click()
@@ -106,6 +122,8 @@ async function run() {
   const oneX = lefts.length > 0 && Math.max(...lefts) - Math.min(...lefts) <= 0.5
   const foldersHidden = !Array.from(document.querySelectorAll('h2')).some((h) => h.textContent === 'Folders Shared')
   const bar = barAlignment()
+  const downloadsToHiddenSelecting = !controlsGeometry().found
+  const split = splitGeometry()
 
   scroller.scrollTop = 200
   await sleep(150)
@@ -116,8 +134,11 @@ async function run() {
   const overflow = documentOverflows()
 
   publish({
-    boxes: boxes.length, boxLefts: lefts, oneX, foldersHidden, headerGap, headerPinned, overflow, ...bar,
-    pass: boxes.length === NAMES.length && oneX && foldersHidden && headerPinned && !overflow && bar.barAligned,
+    boxes: boxes.length, boxLefts: lefts, oneX, foldersHidden, headerGap, headerPinned, overflow, ...bar, downloadsTo, downloadsToOffline, downloadsToHiddenSelecting, split,
+    pass: boxes.length === NAMES.length && oneX && foldersHidden && headerPinned && !overflow && bar.barAligned
+      && downloadsTo.found && downloadsTo.between && downloadsTo.labelInName && downloadsToHiddenSelecting
+      && downloadsToOffline.found && downloadsToOffline.visible.includes('not connected') && downloadsToOffline.labelInName
+      && split.found && split.aligned && split.joined && split.pressFlat && !split.cancelShown && split.labelInName,
     error: null,
   })
 }

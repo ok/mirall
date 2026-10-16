@@ -46,7 +46,7 @@ export default async function s50({ runDir, bootstrap }) {
       // stable state with no auto-download race.
       writeFileSync(path.join(ownDir, 'b.txt'), 'second')
       await B.waitText('b.txt', 30000)
-      assert(!(await B.has({ role: 'button', name: 'Download' })), 'a mirrored remote file has NO Download button')
+      assert(!(await B.has({ role: 'combobox', name: 'Download to…' })), 'a mirrored remote file has NO Download button')
       await B.shot('s50-B-no-download', runDir)
     })
 
@@ -54,7 +54,7 @@ export default async function s50({ runDir, bootstrap }) {
       await B.resumeMirror()
       await waitFor(() => existsSync(path.join(mirrorDir, 'b.txt')), 60000, 'b.txt synced after resume')
       await B.waitText('b.txt', 20000)
-      assert(!(await B.has({ role: 'button', name: 'Download' })), 'no Download after sync either')
+      assert(!(await B.has({ role: 'combobox', name: 'Download to…' })), 'no Download after sync either')
       await B.shot('s50-B-synced', runDir)
     })
   } catch {}

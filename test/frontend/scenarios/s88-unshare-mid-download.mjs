@@ -36,7 +36,7 @@ export default async function s88({ runDir, bootstrap }) {
       await A.waitText('payload', 60000)
       await B.waitText('payload', 90000)
       await B.waitText('Available', 90000)
-      await B.click({ role: 'button', name: 'Download', last: true })
+      await B.downloadRow({ last: true })
       await B.waitText('Downloading', 60000)
     })
 

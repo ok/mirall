@@ -38,7 +38,7 @@ export default async function s83({ runDir, bootstrap }) {
     })
 
     await r.ok('B downloads then cancels; row reverts to Available, no partial lands', async () => {
-      await B.click({ role: 'button', name: 'Download', last: true })
+      await B.downloadRow({ last: true })
 
       const dl = Date.now() + 20000
       while (Date.now() < dl) {
@@ -56,7 +56,7 @@ export default async function s83({ runDir, bootstrap }) {
       const rev = Date.now() + 20000
       let back = false
       while (Date.now() < rev) {
-        if (await B.has({ role: 'button', name: 'Download' }) && await B.hasText('Available')) { back = true; break }
+        if (await B.has({ role: 'combobox', name: 'Download to…' }) && await B.hasText('Available')) { back = true; break }
         await sleep(200)
       }
       assert(back, 'row shows Available + Download after cancel')

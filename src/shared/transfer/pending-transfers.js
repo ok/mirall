@@ -8,6 +8,7 @@ import { createLogger } from '../core/logger.js'
 import { Subsystem } from '../core/subsystem.js'
 import { prefixRange } from '../core/bee-keys.js'
 import { isUserBlockedFault } from './overlay/fetch-policy.js'
+import { keepsOwnFolder } from './overlay/download-job.js'
 
 const log = createLogger('pending-transfers')
 
@@ -47,17 +48,23 @@ function withoutError(row) {
   return out
 }
 
+// A kept row is the user's retry: its error goes, and it takes the click's folder unless it keeps its
+// own (keepsOwnFolder, judged on the row as it stood).
+function keptIntent(cur, info, folderAsked) {
+  return keepsOwnFolder(cur, folderAsked) ? withoutError(cur) : { ...withoutError(cur), destDir: info.destDir }
+}
+
 // The user's click as a durable intent row. A row the same owner's transfer already advanced (bytes
-// landed or a content hash) is kept, so the reconcile resumes it from where it stopped, with its
-// error cleared, since the click is the user's retry. A loose key is the path alone, so another
+// landed or a content hash) is kept, so the reconcile resumes it from where it stopped (keptIntent);
+// `folderAsked` says the click named `info.destDir`. A loose key is the path alone, so another
 // owner's row under it is replaced. Read and write share the key's lock, so a progress write cannot
 // land between them.
-export function recordPendingIntent(spaceId, filePath, info) {
+export function recordPendingIntent(spaceId, filePath, info, { folderAsked = false } = {}) {
   const key = rowKey(spaceId, filePath)
   return exclusive(key, async () => {
     const cur = (await bee.get(key))?.value
     const keep = cur?.ownerKey === info.ownerKey && (cur.bytesTransferred > 0 || !!cur.contentHash)
-    await bee.put(key, { ...(keep ? withoutError(cur) : info), updatedAt: Date.now() })
+    await bee.put(key, { ...(keep ? keptIntent(cur, info, folderAsked) : info), updatedAt: Date.now() })
   })
 }
 

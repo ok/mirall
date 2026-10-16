@@ -191,6 +191,12 @@ body {
   }
 }
 
+/* The seam of a split button: a hairline in the fill's own ink, so it reads on the primary fill in
+   both themes. */
+@utility split-divider {
+  box-shadow: inset 1px 0 0 color-mix(in srgb, var(--color-on-primary) 28%, transparent);
+}
+
 /* Mirall is an app, not a webpage — text in labels, headings, paths, names,
  * and metadata is not user-selectable. Where copy is genuinely useful (e.g.
  * the storage path or the version string for support), the UI surfaces an

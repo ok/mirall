@@ -88,16 +88,17 @@ One row per file in `scenarios/`; the id is the `run.mjs` argument (`node test/f
 | s15 | `s15-appearance.mjs` | Zoom-level pressed state persists across leaving and returning; language switch (Deutsch ↔ English) re-renders. |
 | s16 | `s16-general-notifications.mjs` | Launch-at-login switch and play-sound switch round-trip. |
 | s52 | `s52-storage-other.mjs` | Storage Settings' app-storage disclosure is AX-targetable (`role=button`, name, `aria-expanded`) and expands into the measured breakdown. |
-| s107 | `s107-space-download-folder.mjs` | Per-space download folder: switching moves nothing, a copy outside the new folder reads as not-downloaded, switching back restores it; changes apply on Save; Settings' folder is the modal's default. |
-| s109 | `s109-download-folder-gone.mjs` | A vanished download folder: the failure names the folder (never "Transfer failed"), a sticky toast offers a way out, Storage Settings marks it unavailable, choosing a working folder clears both and the download succeeds. |
+| s107 | `s107-space-download-folder.mjs` | Edit Space's "Downloads go to": no default to fall back to, closing discards a pick, Save says so in one toast and moves the controls-row button; the earlier copy stays on the device ("In ~/…"), a new download lands in the new folder. |
+| s109 | `s109-download-folder-gone.mjs` | A vanished download folder: the failure names the folder (never "Transfer failed"), a sticky toast names the space and offers "Choose another folder", which opens the space; the Downloads to button reads not connected; choosing a folder there clears the toast and the download lands in the new folder. |
 | s172 | `s172-settings-survive-worker-restart.mjs` | The download folder and a transfer cap are the worker's own: a replaced worker and a relaunched app both show what was chosen. |
 | s173 | `s173-settings-imported-from-config.mjs` | Upgrade path: the worker's first boot imports the folder and caps from an older `config.json` into `settings.json`; main drops the moved groups on its next load. |
+| s183 | `s183-download-folder-new-spaces.mjs` | Settings → Storage's "Download Folder for New Spaces": a space created after a change starts there; an existing space keeps its folder. |
 
 ### F. Loose file sharing & transfers
 | ID | File | Covers |
 |----|------|--------|
 | s4 | `s4-transfer.mjs` | Share a loose file; peer sees it; a download does not overwrite a pre-existing file (`report (1).txt`). |
-| s176 | `s176-batch-space.mjs` | The space's filter and batch: the filter narrows the loose files and says by how much, the top box hides Folders Shared and offers Download and Unshare counts, Unshare confirms in an alert dialog and reports a toast, a single-file batch shows the pinned strip and Cancel All clears it, switching spaces drops the selection. |
+| s176 | `s176-batch-space.mjs` | The space's filter and batch: the filter narrows the loose files and says by how much, the top box hides Folders Shared and offers Download (naming the folder) and Unshare counts, Unshare confirms in an alert dialog and reports a toast, a single-file batch shows the pinned strip and Cancel All clears it, switching spaces drops the selection. |
 | s10 | `s10-file-actions.mjs` | Peer downloads a loose file to completion; "Reveal in Folder" appears. |
 | s11 | `s11-remove-file.mjs` | Owner unshares via RemoveFileModal → removal propagates to the peer. |
 | s69 | `s69-loose-file-verified-row.mjs` | A downloaded+verified row and a still-remote row coexist; the verified badge sits left of the status pill with the action on the right. |
@@ -147,6 +148,11 @@ One row per file in `scenarios/`; the id is the `run.mjs` argument (`node test/f
 | s175 | `s175-batch-download-folder.mjs` | Download N from a browse folder: the column closes, a batch strip with a named progressbar appears, rows read Waiting behind a one-slot gate, same-named files land in their own folders, Cancel All clears the strip and the partials, a second batch completes to On your device. |
 | s178 | `s178-batch-owner-offline.mjs` | A browse folder whose owner is offline: select-all takes the Not available files, Download N keeps the request with a toast and Owner offline rows, and the files land in their folder when the owner returns. |
 | s177 | `s177-batch-modifiers.mjs` | The pointer and keyboard accelerators: a command-click at rest opens the column with that row, a shift-click selects the range across a collapsed folder, a command-click on a folder row selects its files without expanding it, select-all selects everything or the filter's text depending on focus. |
+| s179 | `s179-download-to-row.mjs` | A row's Download opens the Download-to menu: heading, the space's folder checked with its path, Choose Folder…; Esc downloads nothing; a pick lands in `<folder>/<share>/<path>`, becomes the space's folder with one toast and moves the controls-row button; a download into the current folder says nothing; the menu keeps the last three folders. |
+| s180 | `s180-download-to-batch.mjs` | The strip's split button: "Download 3" to the space's folder (named), no Cancel N, the controls-row button hides; the chevron's menu sends the batch to another folder with its subfolders, and the button follows. |
+| s181 | `s181-download-to-controls.mjs` | The controls row's Downloads to: on the space screen with another member's file and on a browse folder; a pick changes the folder and downloads nothing; hidden while selecting; absent on an own folder and a mirrored one. |
+| s182 | `s182-download-to-offline.mjs` | The space's folder unplugged: the button reads not connected, the row menu shows it disabled, the strip's main half is inert with the folder named in the sentence, a toast names the space and opens it; another folder unblocks the waiting download. |
+| s184 | `s184-drive-not-connected-row.mjs` | A copy outside the space's folder reads "In ~/…"; with its folder gone the row reads Drive not connected with "Saved to …" and offers Download to…; a fresh copy replaces the claim; a recent-only folder raises no toast. |
 | s122 | `s122-folder-filter.mjs` | The pinned controls row: the filter narrows the list and says by how much, no match keeps the tiles, clearing restores the expansion. |
 | s123 | `s123-edit-folder.mjs` | Edit Folder from More: a healthy folder shows its location without offering to re-point it; saving a new name renames on screen and reopening shows it. |
 | s124 | `s124-folder-commands.mjs` | The folder's acts are in the command palette only while it is open, Pause swings to Resume, the palette never lists itself, a browsed folder offers the mirror act instead. |
@@ -191,7 +197,7 @@ These drive the real *filesystem → watcher → publish → replicate → mater
 | s33 | `s33-copy-file.mjs` | Owner duplicates a file (same content, new path) → both copies publish and materialize. |
 | s34 | `s34-nested-initial-share.mjs` | Initial share of a realistic nested tree → the whole tree replicates and materializes at the right depths. |
 | s35 | `s35-live-folder-refresh.mjs` | Peer has the FolderView open → an owner add/remove appears/disappears live, without re-navigating. |
-| s36 | `s36-browse-download-subfolder.mjs` | Browse-only peer downloads a file from a subfolder on demand → lands in the global download folder. |
+| s36 | `s36-browse-download-subfolder.mjs` | Browse-only peer downloads a file from a subfolder on demand → lands in `<download folder>/<folder>/<subfolders>`. |
 | s37 | `s37-large-file.mjs` | A 12 MiB file mirrors **byte-exact** (full content compare, not just size). |
 | s38 | `s38-multiple-folders.mjs` | Two owned folders coexist in one space; a mirror of one keeps syncing independently after the second is shared. |
 | s39 | `s39-ignored-junk.mjs` | `.DS_Store` / `*.mirall.part` in an owned folder are never published to the peer. |

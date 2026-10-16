@@ -41,7 +41,7 @@ export default async function s175({ runDir, bootstrap }) {
       await waitFor(() => B.has({ role: 'checkbox', name: 'Select all 4 files' }), 60000, 'all four files listed')
       await B.click({ role: 'checkbox', name: 'Select all 4 files' })
       await B.waitText('4 selected', 20000)
-      await B.click({ role: 'button', name: 'Download 4' })
+      await B.downloadSelected(4)
       await waitFor(async () => !(await B.has({ role: 'checkbox', name: 'Select a.txt' })), 20000, 'the column closed')
     })
 
@@ -64,9 +64,9 @@ export default async function s175({ runDir, bootstrap }) {
     await r.ok('a second batch lands same-named files in their own folders and clears its strip', async () => {
       await B.click({ role: 'checkbox', name: 'Select all 4 files' })
       await B.waitText('selected', 20000)
-      await waitFor(async () => (await B.has({ role: 'button', name: 'Download 4' })) || (await B.has({ role: 'button', name: 'Download 3' })), 20000, 'the download verb is offered')
-      const verb = (await B.has({ role: 'button', name: 'Download 4' })) ? 'Download 4' : 'Download 3'
-      await B.click({ role: 'button', name: verb })
+      const offered = (n) => B.has({ role: 'button', contains: `Download ${n} to ${path.basename(B.downloadFolder)}` })
+      await waitFor(async () => (await offered(4)) || (await offered(3)), 20000, 'the download verb is offered')
+      await B.downloadSelected((await offered(4)) ? 4 : 3)
       await waitFor(() => ['big/one.bin', 'big/two.bin', 'small/a.txt', 'a.txt'].every((rel) => existsSync(landed(...rel.split('/')))), 180000, 'every file landed')
       assert(readFileSync(landed('small', 'a.txt'), 'utf8') === 'the one in small', 'the nested copy is the nested file')
       assert(readFileSync(landed('a.txt'), 'utf8') === 'the one at the root', 'the root copy is the root file')

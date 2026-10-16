@@ -21,6 +21,7 @@ const STYLES = {
   'owner-offline': { classes: 'bg-surface-container-highest text-accent', labelKey: 'status.ownerOffline' },
   unavailable: { classes: 'bg-surface-container-highest text-accent', labelKey: 'status.unavailable' },
   error: { classes: 'bg-error-container text-accent', labelKey: 'status.failed' },
+  detached: { classes: 'bg-surface-container-highest text-accent', labelKey: 'status.detached' },
 }
 
 /** @type {Readonly<Record<FileStatus, BadgeStatus>>} */
@@ -39,6 +40,7 @@ const STATUS_TO_BADGE = {
   'paused-interrupted': 'paused',
   'paused-offline': 'owner-offline',
   error: 'error',
+  detached: 'detached',
 }
 
 /** @type {Readonly<Record<ShareRole, BadgeAppearance>>} */

@@ -4,7 +4,7 @@ import { defaultSettings, coerceSettings } from '../../src/shared/core/settings-
 import { sanitizeRelay } from '../../src/shared/network/relay-slot.js'
 import { setRuntimeConfig, getRuntimeConfig, getBandwidthLimits, getRelayConfig, isMembershipControlBindingEnforced } from '../../src/shared/core/runtime-config.js'
 
-const deps = { sanitizeRelay }
+const deps = { sanitizeRelay, recentLimit: 3 }
 
 test('the two staged flags map off by default and only true turns one on', (t) => {
   t.alike(flagsToRuntimeConfig({}), { membershipControlBindingEnforced: false, topicRefsEnforced: false })

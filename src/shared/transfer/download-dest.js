@@ -37,24 +37,16 @@ export function resolveDest(root, rel, reserved = NO_RESERVED) {
 }
 
 // The destination for a transfer that may already have a pinned one. A pending row records
-// `finalPath` at start, and that pin outlives a download-folder change — so a paused transfer
-// resumed after the user re-pointed the space would complete into the OLD folder, land outside
-// the space's scope, and report as never downloaded (inviting a full re-download alongside it).
-// Reuse the pin only while it still sits inside `root`; otherwise re-resolve. The bytes
-// already in the old folder's partial are given up — the boot sweep reclaims them — which is
-// the cost of honouring the folder the user just chose. A pin a file now sits at is re-resolved
-// too: the receive only refuses to replace a file that appears during it, so a retry into the pin
-// would take that file as its starting point and write over it.
-// A pin another live transfer holds is not reusable either: two shares can carry one name, so a
-// row keyed by that name may belong to a different owner's file that is being written now.
+// `finalPath` at start, and the pin is reused while it sits under the folder the row lands in now
+// (landingRoot): a row that moved to another folder re-resolves there and gives up the bytes in the
+// old partial, which the boot sweep reclaims. A pin a file now sits at is re-resolved too: the
+// receive only refuses to replace a file that appears during it, so a retry into the pin would take
+// that file as its starting point and write over it. A pin another live transfer holds is not
+// reusable either: two shares can carry one name, so a row keyed by that name may belong to a
+// different owner's file that is being written now.
 /** @param {string | null | undefined} prevFinalPath @param {string} root @param {Reserved} [reserved] @returns {string | null} */
 export function pinnedDest(prevFinalPath, root, reserved = NO_RESERVED) {
   if (!prevFinalPath || !isInsideDownloadDir(prevFinalPath, root)) return null
   if (fs.existsSync(prevFinalPath) || reserved.has(prevFinalPath)) return null
   return prevFinalPath
-}
-
-/** @param {string | null | undefined} prevFinalPath @param {string} root @param {string} rel @param {Reserved} [reserved] */
-export function reuseDest(prevFinalPath, root, rel, reserved = NO_RESERVED) {
-  return pinnedDest(prevFinalPath, root, reserved) ?? resolveDest(root, rel, reserved)
 }

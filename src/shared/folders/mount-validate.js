@@ -1,16 +1,17 @@
 // Mount-target validation: refuses dangerous mount paths — system folders (machine-wide and
 // per-user), the app's own storage, personal roots (~, Desktop, …), cloud-sync folders, Windows
-// reserved names, overlaps with existing mounts, and any overlap with a download
-// root — then probes writability. The async and sync variants apply the same rules;
-// both also return non-blocking advisories to surface to the user.
+// reserved names, overlaps with existing mounts, and any overlap with a folder downloads land
+// in — then probes writability. The sync variant applies the same rules over what it is handed
+// (see validateMountPathSync); both also return non-blocking advisories to surface to the user.
 import fs from 'bare-fs'
 import path from 'bare-path'
 import os from 'bare-os'
 import { AppError } from '../core/errors.js'
 import { CODES } from '../contract/errors.js'
 import { getStoragePath } from '../core/store.js'
-import { listDownloadRoots } from '../core/paths.js'
+import { hostFoldsCase, listCurrentDownloadFolders, normalizeFolderPath } from '../core/paths.js'
 import { listAllMounts } from './mount-store.js'
+import { listPending } from '../transfer/pending-transfers.js'
 import { createLogger } from '../core/logger.js'
 import {
   systemRootViolation, personalRootViolation, userSystemRootViolation, appleCloudRootViolation, isWindowsReservedName, pathsOverlap,
@@ -19,19 +20,8 @@ import {
 
 const log = createLogger('mount-validate')
 
-function normalizePath(absPath) {
-  const resolved = path.resolve(absPath)
-  return os.platform() === 'darwin' ? resolved.normalize('NFC') : resolved
-}
-
-// Case-folding filesystems where a hand-typed `~/documents` resolves to the same
-// folder as `~/Documents` — so personal-root equality must compare case-insensitively.
-function caseInsensitive(platform) {
-  return platform === 'darwin' || platform === 'win32'
-}
-
 function rejectIfOverlapsAnyMount(normalized, role, mounts, ctx) {
-  const fold = caseInsensitive(os.platform())
+  const fold = hostFoldsCase()
   const hit = mountOverlapViolation(normalized, role, mounts, { sep: path.sep, fold, shareId: ctx.shareId ?? null })
   if (hit) throw new AppError(CODES.MOUNT_OVERLAPS, hit)
 }
@@ -59,7 +49,7 @@ export function checkWindowsSegments(normalized, platform) {
 // before the per-user system roots so a folder in ~/Library/CloudStorage is refused as cloud sync,
 // not as a system folder; the provider names run after them and never relabel a system folder.
 function checkPathRules(normalized, platform) {
-  const fold = caseInsensitive(platform)
+  const fold = hostFoldsCase()
   const sysRoot = systemRootViolation(normalized, platform, path.sep, fold)
   if (sysRoot) throw new AppError(CODES.MOUNT_FORBIDDEN_SYSTEM, sysRoot)
 
@@ -69,7 +59,7 @@ function checkPathRules(normalized, platform) {
   }
 
   const rawHome = os.homedir()
-  const home = rawHome ? normalizePath(rawHome) : ''
+  const home = rawHome ? normalizeFolderPath(rawHome) : ''
   const personalRoot = personalRootViolation(normalized, home, path.sep, fold)
   if (personalRoot) throw new AppError(CODES.MOUNT_FORBIDDEN_PERSONAL_ROOT, personalRoot)
 
@@ -108,17 +98,19 @@ function writeProbe(dir) {
   }
 }
 
-// A mount and a download root must never overlap, in either direction and for either role:
+// A mount and a download folder must never overlap, in either direction and for either role:
 // downloads landing inside an OWNED folder are picked up by its watcher and published to
-// peers, and a mirrored tree intermixed with flat downloads (either nesting) leaves the user
-// unable to tell their own downloads from peer content. Every root counts, not just the
-// global one. The mirror image of this rule lives in validateDownloadFolderAgainstMounts — both
-// orders of the same two operations have to be refused, or the hazard is simply reachable
-// by doing them the other way round.
-function rejectIfOverlapsAnyDownloadRoot(normalized, role) {
+// peers, and a mirrored tree intermixed with downloads (either nesting) leaves the user
+// unable to tell their own downloads from peer content. Every folder a download lands in counts:
+// each space's, the one new spaces start in, and the folder each pending download keeps — a row
+// resumes where it started after its space has moved on, and into that folder again should it be
+// recreated. A folder that only holds finished copies may be shared. The mirror image of this rule
+// lives in validateDownloadFolderAgainstMounts — both orders of the same two operations have to
+// be refused, or the hazard is simply reachable by doing them the other way round.
+function rejectIfOverlapsAnyDownloadFolder(normalized, role, folders) {
   if (role !== 'foreign-folder' && role !== 'owned-folder') return
-  const fold = caseInsensitive(os.platform())
-  for (const dl of listDownloadRoots()) {
+  const fold = hostFoldsCase()
+  for (const dl of folders) {
     if (pathContains(dl, normalized, path.sep, fold)) {
       throw new AppError(CODES.MOUNT_INSIDE_DOWNLOADS, dl)
     }
@@ -128,14 +120,22 @@ function rejectIfOverlapsAnyDownloadRoot(normalized, role) {
   }
 }
 
+async function downloadLandingFolders() {
+  const folders = new Set(listCurrentDownloadFolders())
+  for (const row of await listPending()) {
+    if (typeof row.destDir === 'string' && row.destDir) folders.add(row.destDir)
+  }
+  return [...folders]
+}
+
 // The download-folder side of the same invariant. Two spaces sharing one download folder is
 // the default state and stays allowed. Every rejection runs BEFORE the write probe: probing
 // first would create (and, on a failure between the rename and the unlink, strand) a file
 // inside the very shared folder the next line refuses — and a watcher on an owned share would
 // publish that probe to every peer.
 export async function validateDownloadFolderAgainstMounts(folder) {
-  const normalized = normalizePath(checkDownloadFolderShape(folder))
-  const fold = caseInsensitive(os.platform())
+  const normalized = normalizeFolderPath(checkDownloadFolderShape(folder))
+  const fold = hostFoldsCase()
   for (const mount of await listAllMounts()) {
     if (pathsOverlap(normalized, mount.mountPath, path.sep, fold)) {
       throw new AppError(CODES.DOWNLOAD_FOLDER_OVERLAPS_MOUNT, mount.mountPath)
@@ -150,7 +150,7 @@ export async function validateDownloadFolderAgainstMounts(folder) {
 // The folder on its own, with no mount check: what a restored backup's download folder has to
 // pass to be kept on this device.
 export function probeDownloadFolder(folder) {
-  const normalized = normalizePath(checkDownloadFolderShape(folder))
+  const normalized = normalizeFolderPath(checkDownloadFolderShape(folder))
   if (!writeProbe(normalized)) throw new AppError(CODES.DOWNLOAD_FOLDER_INVALID, 'Folder is not writable')
   return normalized
 }
@@ -217,7 +217,7 @@ export function validateMountPath(absPath, role, ctx = {}) {
   if (typeof absPath !== 'string' || absPath.length === 0) {
     throw new AppError(CODES.MOUNT_PATH_MISSING, 'No path provided')
   }
-  const normalized = normalizePath(absPath)
+  const normalized = normalizeFolderPath(absPath)
   checkPathRules(normalized, os.platform())
 
   return validateOverlapAndWrite(normalized, role, ctx)
@@ -226,7 +226,7 @@ export function validateMountPath(absPath, role, ctx = {}) {
 async function validateOverlapAndWrite(normalized, role, ctx) {
   rejectIfOverlapsAnyMount(normalized, role, await listAllMounts(), ctx)
 
-  rejectIfOverlapsAnyDownloadRoot(normalized, role)
+  rejectIfOverlapsAnyDownloadFolder(normalized, role, await downloadLandingFolders())
 
   if (!writeProbe(normalized)) {
     throw new AppError(CODES.MOUNT_NOT_WRITABLE, normalized)
@@ -235,17 +235,19 @@ async function validateOverlapAndWrite(normalized, role, ctx) {
   return { mountPath: normalized, advisories: collectAdvisories(normalized) }
 }
 
+// The same rules with the reads injected or skipped: it is handed the mounts, and it reads no
+// pending row, so it guards the folders downloads go to next but not the ones pending rows keep.
 /** @internal */
 export function validateMountPathSync(absPath, role, existingMounts, ctx = {}) {
   if (typeof absPath !== 'string' || absPath.length === 0) {
     throw new AppError(CODES.MOUNT_PATH_MISSING, 'No path provided')
   }
-  const normalized = normalizePath(absPath)
+  const normalized = normalizeFolderPath(absPath)
   checkPathRules(normalized, os.platform())
 
   rejectIfOverlapsAnyMount(normalized, role, existingMounts, ctx)
 
-  rejectIfOverlapsAnyDownloadRoot(normalized, role)
+  rejectIfOverlapsAnyDownloadFolder(normalized, role, listCurrentDownloadFolders())
 
   if (!writeProbe(normalized)) {
     throw new AppError(CODES.MOUNT_NOT_WRITABLE, normalized)

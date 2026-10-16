@@ -6,8 +6,8 @@ import { makeReport, assert, waitFor } from '../assert.mjs'
 import { workDir } from '../paths.mjs'
 
 // P1 / G11 — a browse-only peer (no mirror) downloads a single file that lives
-// in a subfolder, on demand, to the global download folder. The flat case is
-// covered by s10; nesting exercises the nested drive-path → download path.
+// in a subfolder, on demand, into the space's download folder, where it keeps its
+// folder's name and its subfolders: <downloadFolder>/Archive/reports/2024/q4.txt.
 export default async function s36({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
@@ -34,8 +34,8 @@ export default async function s36({ runDir, bootstrap }) {
       assert(await B.hasText('Available'), 'nested file shown as available to download')
     })
     await r.ok('B downloads the nested file → it lands in the download folder', async () => {
-      await B.click({ role: 'button', name: 'Download' })
-      const landed = path.join(B.downloadFolder, 'q4.txt')
+      await B.downloadRow()
+      const landed = path.join(B.downloadFolder, 'Archive', 'reports', '2024', 'q4.txt')
       await waitFor(() => existsSync(landed), 60000, 'q4.txt downloaded')
       assert(readFileSync(landed, 'utf8') === 'quarterly numbers', 'downloaded bytes match')
       await B.waitText('On your device', 20000)

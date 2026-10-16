@@ -65,6 +65,7 @@ test('overlay folder: pause mid-flight surfaces paused-interrupted; resume compl
     const hash = (b) => crypto.createHash('sha256').update(b).digest('hex')
     t.is(hash(landed), hash(bytes), 'resumed overlay folder download landed byte-exact')
     t.is(b4a.byteLength(landed), bytes.length, 'final size matches the source')
+    t.is(completion.localPath, path.join(B.downloads, 'Vault', 'big.bin'), 'a single folder file lands under its folder\'s name')
 
     A.kill()
   })

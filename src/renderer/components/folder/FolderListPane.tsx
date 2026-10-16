@@ -6,7 +6,10 @@ import LoadingHeadline from '../primitives/LoadingHeadline.js'
 import { useHasVerticalOverflow } from '../../hooks/useHasVerticalOverflow.js'
 import { useErrorText } from '../../hooks/useErrorText.js'
 import { useRowPointerSelect } from '../../hooks/useRowPointerSelect.js'
+import DownloadsToButton from '../listing/DownloadsToButton.js'
+import { downloadsToShown } from '../../model/download-folders.js'
 import type { ComponentProps, ReactNode } from 'react'
+import type { DownloadTo } from '../../hooks/useDownloadTo.js'
 import type { FileTreeNode, ShareFileRow, SpaceMember } from '../../types/types.js'
 
 // The row callbacks and member list are FolderTree's contract, not this pane's: it forwards them
@@ -37,6 +40,8 @@ type FolderListPaneProps = Pick<TreeProps,
   selectAll: SelectAllBox | null
   /** The selection strip, rendered between the controls row and the list. */
   bar: ReactNode
+  /** The space's Download-to state: the rows' menu, and the controls row's Downloads to. */
+  downloadTo: DownloadTo
 }
 
 /** The gutter the rows slide into while the column is open: the box's 40px plus the row gap. */
@@ -57,10 +62,12 @@ export default function FolderListPane(props: FolderListPaneProps) {
   const {
     filter, setFilter, deferredFilter, matched, filterableTotal, anyExpanded, allFolderPaths,
     toggleAll, visibleTree, isExpanded, toggle, loading, error, files, sourceMissing, owner,
-    selectAll, bar, selection,
+    selectAll, bar, selection, downloadTo,
     ...tree
   } = props
   const selecting = selection?.mode === true
+  // Only a browse folder offers selection, and only its rows download.
+  const showDownloadsTo = downloadsToShown({ downloadable: selection !== null, selecting })
   useRowPointerSelect(filesRef, selection ? selection.select : null)
 
   return (
@@ -75,6 +82,7 @@ export default function FolderListPane(props: FolderListPaneProps) {
         expandLabel={anyExpanded ? t('folder.collapseAll') : t('folder.expandAll')}
         onToggleExpand={toggleAll}
         showExpand={allFolderPaths.length > 0}
+        trailing={showDownloadsTo ? <DownloadsToButton downloadTo={downloadTo} /> : null}
       />
       {bar}
       {/* Scroll-pane rules: see SpaceScreen's pane. `pt-1` is allowed here — no sticky header. The
@@ -122,6 +130,7 @@ export default function FolderListPane(props: FolderListPaneProps) {
           <div className="space-y-2">
             <FolderTree
               {...tree}
+              downloadTo={downloadTo}
               selection={selection}
               nodes={visibleTree}
               isExpanded={isExpanded}

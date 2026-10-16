@@ -5,6 +5,7 @@
 
 /** @import { WorkerIpc } from '../../shared/core/ipc.js' */
 /** @import { Logger } from '../../shared/core/logger.js' */
+/** @import { FolderChooser } from '../download-folder-push.js' */
 import { getSpace } from '../../shared/spaces/space.js'
 import { errorMessage } from '../../shared/core/errors.js'
 import { isSpaceLeaving } from '../../shared/network/leave-protocol.js'
@@ -12,7 +13,6 @@ import { listFiles, removeFile, addFile } from '../../shared/transfer/file-listi
 import { emptyListing } from '../../shared/transfer/listing-envelope.js'
 import { revealFile } from '../../shared/transfer/reveal.js'
 import { overlayBackend } from '../../shared/transfer/overlay/index.js'
-import { LAYOUT } from '../../shared/transfer/overlay/download-job.js'
 import { cancelShareDownload, looseShareOfOwner, pauseShareDownload } from '../../shared/transfer/overlay/share-downloads.js'
 import { looseCancelPublish, handleLooseFsEvent } from '../../shared/transfer/overlay/loose-publish.js'
 import { LOOSE_SHARE_ID, looseRelPath, transferIdParts } from '../../shared/transfer/transfer-id.js'
@@ -25,8 +25,8 @@ import { TARGET_KIND } from '../../shared/contract/audit-kinds.js'
 import { spaceRefOf, fileNameOf } from '../audit-refs.js'
 import { assertCatalogWritable } from '../../shared/core/restore-guard.js'
 
-/** @param {WorkerIpc} ipc @param {{ log: Logger }} deps */
-export function registerFiles(ipc, { log }) {
+/** @param {WorkerIpc} ipc @param {{ log: Logger, chooseFolder: FolderChooser }} deps */
+export function registerFiles(ipc, { log, chooseFolder }) {
   ipc.handle('event:loose-file-fs-event', async (msg) => {
     try {
       await handleLooseFsEvent({ spaceId: msg.spaceId, absPath: msg.absPath, action: msg.action })
@@ -91,19 +91,21 @@ export function registerFiles(ipc, { log }) {
   })
   ipc.handle('files:download', async (msg) => {
     const { share } = await looseShareOfOwner(msg.spaceId, msg.ownerKey)
-    const res = await overlayBackend.requestDownload(msg.spaceId, share, looseRelPath(msg.path))
+    const destDir = await chooseFolder.validate(msg.destDir)
+    const res = await overlayBackend.requestDownload(msg.spaceId, share, looseRelPath(msg.path), { destDir })
     // Only a folder share is refused as mirrored or answered as already owned; a loose one never is.
     if ('ok' in res) throw new Error('files:download: a loose download was answered as a folder share')
     // Couldn't start: the owner may simply be unreachable on the bulk plane. Don't make the user
     // wait for the next tick to find that out — the rescue throttles itself, so clicks stay cheap.
     if ('queued' in res && res.queued) rescueStalledTransfers().catch((err) => log.debug('stalled-transfer rescue failed:', errorMessage(err)))
-    return res
+    return await chooseFolder.commitDownload(msg.spaceId, destDir, res)
   })
   ipc.handle('files:download-many', async (msg) => {
     const { share } = await looseShareOfOwner(msg.spaceId, msg.ownerKey)
-    const res = await overlayBackend.requestDownloads(msg.spaceId, share, msg.paths.map(looseRelPath), { layout: LAYOUT.FLAT })
+    const destDir = await chooseFolder.validate(msg.destDir)
+    const res = await overlayBackend.requestDownloads(msg.spaceId, share, msg.paths.map(looseRelPath), { destDir })
     if ('waitingOnOwner' in res && res.waitingOnOwner > 0) rescueStalledTransfers().catch((err) => log.debug('stalled-transfer rescue failed:', errorMessage(err)))
-    return res
+    return await chooseFolder.commitDownload(msg.spaceId, destDir, res)
   })
   ipc.handle('files:cancel-download', async (msg) => {
     const id = msg.transferId

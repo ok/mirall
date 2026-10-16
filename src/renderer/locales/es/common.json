@@ -293,6 +293,7 @@
     "modifiedHint": "Modificado en este dispositivo desde que se descargó y verificó.",
     "remote": "Disponible",
     "unavailable": "No disponible",
+    "detached": "Unidad no conectada",
     "downloading": "Descargando",
     "verifying": "Verificando…",
     "preparing": "Preparando…",
@@ -309,7 +310,9 @@
     "revealInFolder": "Mostrar en la carpeta",
     "verified": "Verificado: el hash del contenido coincide",
     "unshare": "Dejar de compartir en el espacio",
-    "download": "Descargar",
+    "downloadTo": "Descargar en…",
+    "inFolder": "En {{path}}",
+    "savedTo": "Guardado en {{path}}",
     "downloadUnavailable": "Propietario sin conexión — descarga no disponible",
     "pause": "Pausar descarga",
     "cancel": "Cancelar",
@@ -400,10 +403,8 @@
   "editSpace": {
     "title": "Editar espacio",
     "desc": "Actualiza el nombre, el icono y la carpeta de descargas de este espacio.",
-    "downloadFolder": "Carpeta de descargas",
-    "downloadFolderDesc": "Dónde se guardan los archivos que descargas de este espacio. Los archivos ya descargados en otra ubicación no se mueven.",
-    "usingDefault": "Se usa la carpeta de descargas predeterminada.",
-    "useDefault": "Usar carpeta predeterminada",
+    "downloadFolder": "Las descargas van a",
+    "downloadFolderDesc": "Dónde se guardan los archivos que descargas de este espacio. Los archivos ya descargados se quedan donde están.",
     "folderError": "No se pudo establecer la carpeta: {{error}}",
     "saveError": "No se pudieron guardar los cambios: {{error}}"
   },
@@ -521,9 +522,18 @@
     "dismiss": "Descartar"
   },
   "downloadFolder": {
-    "unavailableToast": "Carpeta de descargas no disponible. Mirall no puede acceder a {{path}}: las descargas fallarán hasta que vuelvas a conectarla o elijas otra carpeta.",
-    "changeFolder": "Cambiar carpeta",
-    "restoredToast": "La carpeta de descargas vuelve a estar disponible"
+    "restoredToast": "La carpeta de descargas vuelve a estar disponible",
+    "unavailableSpace": "{{space}} descarga en {{folder}}, que no está conectada. Sus descargas esperan hasta que vuelvas a conectarla o elijas otra carpeta.",
+    "chooseAnother": "Elegir otra carpeta"
+  },
+  "downloadTo": {
+    "heading": "Descargar en",
+    "choose": "Elegir carpeta…",
+    "offlinePath": "{{path}} · unidad no conectada",
+    "offlineStrip": "{{folder}}: unidad no conectada",
+    "buttonAria": "Las descargas van a {{folder}}, cambiar",
+    "buttonOffline": "{{folder}} · no conectada",
+    "changed": "Las descargas de {{space}} ahora van a {{folder}}"
   },
   "storageIndicator": {
     "title": "Almacenamiento del espacio",
@@ -654,13 +664,13 @@
   "storageSettings": {
     "title": "Almacenamiento",
     "intro": "Consulta y gestiona el uso de datos de Mirall en este dispositivo.",
-    "downloadFolder": "Carpeta de descargas",
-    "downloadFolderDesc": "Dónde guarda Mirall los archivos descargados de los miembros de tu espacio.",
+    "downloadFolder": "Carpeta de descargas para espacios nuevos",
+    "downloadFolderDesc": "Los espacios que creas o a los que te unes empiezan a descargar aquí. Después cada espacio conserva su propia carpeta; cambiar esta no los cambia.",
     "appStorageDesc": "Espacio de almacenamiento que Mirall usa en este dispositivo para compartir y sincronizar tus archivos y para actualizarse. Mirall gestiona este espacio por sí mismo y lo limpia siempre y donde puede.",
     "sharingIndex": "Índice de archivos compartidos",
     "sharingIndexDesc": "Mapas compactos de los archivos que compartes (nunca su contenido).",
     "folderError": "No se pudo establecer la carpeta: {{error}}",
-    "folderUnavailable": "Esta carpeta no está disponible en este momento. Puede que se haya movido o eliminado, o que esté en una unidad desconectada: las descargas fallarán hasta que vuelvas a conectarla o elijas otra carpeta.",
+    "folderUnavailable": "Esta carpeta no está disponible en este momento. Puede que se haya movido o eliminado, o que esté en una unidad desconectada: los espacios nuevos descargan aquí, así que elige otra carpeta o vuelve a conectarla.",
     "calculating": "Calculando almacenamiento…",
     "appStorage": "Almacenamiento de la app",
     "showDetails": "Mostrar detalles",
@@ -1627,7 +1637,6 @@
     "hidden_other": "{{count}} ocultos por el filtro",
     "deselectHidden": "Deseleccionar ocultos",
     "download": "Descargar {{count}}",
-    "cancel": "Cancelar {{count}}",
     "unshare": "Dejar de compartir {{count}}",
     "done": "Listo",
     "ended": "Selección finalizada",
@@ -1644,7 +1653,10 @@
     "progressAnnounce": "Descarga en lote iniciada",
     "progressEnded": "Descarga en lote finalizada",
     "failed_one": "{{count}} archivo no pudo iniciarse",
-    "failed_other": "{{count}} archivos no pudieron iniciarse"
+    "failed_other": "{{count}} archivos no pudieron iniciarse",
+    "toFolder": "en {{folder}}",
+    "moreDownload": "Más opciones de descarga",
+    "downloadGroup": "Descargar"
   },
   "unshareFiles": {
     "title_one": "¿Dejar de compartir {{count}} archivo?",

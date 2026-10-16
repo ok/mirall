@@ -293,6 +293,7 @@
     "modifiedHint": "Modificato su questo dispositivo dopo il download e la verifica.",
     "remote": "Disponibile",
     "unavailable": "Non disponibile",
+    "detached": "Unità non collegata",
     "downloading": "Download in corso",
     "verifying": "Verifica…",
     "preparing": "In preparazione…",
@@ -309,7 +310,9 @@
     "revealInFolder": "Mostra nella cartella",
     "verified": "Verificato: l'hash del contenuto corrisponde",
     "unshare": "Rimuovi dallo spazio",
-    "download": "Scarica",
+    "downloadTo": "Scarica in…",
+    "inFolder": "In {{path}}",
+    "savedTo": "Salvato in {{path}}",
     "downloadUnavailable": "Proprietario offline — download non disponibile",
     "pause": "Sospendi download",
     "cancel": "Annulla",
@@ -400,10 +403,8 @@
   "editSpace": {
     "title": "Modifica spazio",
     "desc": "Aggiorna il nome, l'icona e la cartella di download di questo spazio.",
-    "downloadFolder": "Cartella download",
-    "downloadFolderDesc": "Dove vengono salvati i file che scarichi da questo spazio. I file già scaricati altrove non vengono spostati.",
-    "usingDefault": "Viene usata la cartella di download predefinita.",
-    "useDefault": "Usa cartella predefinita",
+    "downloadFolder": "I download vanno in",
+    "downloadFolderDesc": "Dove vengono salvati i file che scarichi da questo spazio. I file già scaricati restano dove sono.",
     "folderError": "Impossibile impostare la cartella: {{error}}",
     "saveError": "Impossibile salvare le modifiche: {{error}}"
   },
@@ -521,9 +522,18 @@
     "dismiss": "Ignora"
   },
   "downloadFolder": {
-    "unavailableToast": "Cartella di download non disponibile. Mirall non riesce a raggiungere {{path}}: i download falliranno finché non la ricolleghi o non scegli un'altra cartella.",
-    "changeFolder": "Cambia cartella",
-    "restoredToast": "La cartella di download è di nuovo disponibile"
+    "restoredToast": "La cartella di download è di nuovo disponibile",
+    "unavailableSpace": "{{space}} scarica in {{folder}}, che non è collegata. I suoi download attendono finché non la ricolleghi o non scegli un’altra cartella.",
+    "chooseAnother": "Scegli un’altra cartella"
+  },
+  "downloadTo": {
+    "heading": "Scarica in",
+    "choose": "Scegli cartella…",
+    "offlinePath": "{{path}} · unità non collegata",
+    "offlineStrip": "{{folder}}: unità non collegata",
+    "buttonAria": "I download vanno in {{folder}}, cambia",
+    "buttonOffline": "{{folder}} · non collegata",
+    "changed": "I download da {{space}} ora vanno in {{folder}}"
   },
   "storageIndicator": {
     "title": "Archiviazione dello spazio",
@@ -654,13 +664,13 @@
   "storageSettings": {
     "title": "Archiviazione",
     "intro": "Visualizza e gestisci l'utilizzo dei dati di Mirall su questo dispositivo.",
-    "downloadFolder": "Cartella download",
-    "downloadFolderDesc": "Dove Mirall salva i file scaricati dai membri del tuo spazio.",
+    "downloadFolder": "Cartella download per i nuovi spazi",
+    "downloadFolderDesc": "Gli spazi che crei o a cui ti unisci iniziano a scaricare qui. Poi ogni spazio mantiene la propria cartella; cambiare questa non li modifica.",
     "appStorageDesc": "Spazio di archiviazione che Mirall usa su questo dispositivo per condividere e sincronizzare i tuoi file e per aggiornarsi. Mirall gestisce questo spazio da sé e fa pulizia ovunque e ogni volta che può.",
     "sharingIndex": "Indice dei file condivisi",
     "sharingIndexDesc": "Mappe compatte dei file che condividi (mai il contenuto).",
     "folderError": "Impossibile impostare la cartella: {{error}}",
-    "folderUnavailable": "Questa cartella non è al momento disponibile. Potrebbe essere stata spostata o eliminata, oppure si trova su un'unità scollegata: i download falliranno finché non la ricolleghi o non scegli un'altra cartella.",
+    "folderUnavailable": "Questa cartella non è al momento disponibile. Potrebbe essere stata spostata o eliminata, oppure si trova su un’unità scollegata: i nuovi spazi scaricano qui, quindi scegli un’altra cartella o ricollegala.",
     "calculating": "Calcolo dell'archiviazione…",
     "appStorage": "Spazio dell'app",
     "showDetails": "Mostra dettagli",
@@ -1627,7 +1637,6 @@
     "hidden_other": "{{count}} nascosti dal filtro",
     "deselectHidden": "Deseleziona i nascosti",
     "download": "Scarica {{count}}",
-    "cancel": "Annulla {{count}}",
     "unshare": "Rimuovi {{count}} dallo spazio",
     "done": "Fatto",
     "ended": "Selezione terminata",
@@ -1644,7 +1653,10 @@
     "progressAnnounce": "Download multiplo avviato",
     "progressEnded": "Download multiplo terminato",
     "failed_one": "{{count}} file non è stato avviato",
-    "failed_other": "{{count}} file non sono stati avviati"
+    "failed_other": "{{count}} file non sono stati avviati",
+    "toFolder": "in {{folder}}",
+    "moreDownload": "Altre opzioni di download",
+    "downloadGroup": "Scarica"
   },
   "unshareFiles": {
     "title_one": "Rimuovere {{count}} file dallo spazio?",

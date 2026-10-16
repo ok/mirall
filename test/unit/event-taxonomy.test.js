@@ -109,7 +109,7 @@ test('no non-poke event accidentally fans a reconcile hint', (t) => {
 // Listed by directory, so the paths do not read as imports to the network-module invariants.
 const SPACE_WIDE_LISTING_EMITTERS = Object.entries({
   'shared/network': ['convergence-tick', 'deferred-admission', 'handshake-apply', 'leave-protocol', 'presence-broadcast'],
-  'worker/ipc': ['membership', 'spaces'],
+  'worker/ipc': ['membership'],
 }).flatMap(([dir, names]) => names.map((name) => `${dir}/${name}.js`)).sort()
 
 test('only space-wide transitions emit event:files-updated', (t) => {

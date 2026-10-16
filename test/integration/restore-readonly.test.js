@@ -26,6 +26,7 @@ import { offlineMemberRegistry } from '../helpers/store.js'
 import { createFakeIpc } from '../helpers/fake-ipc.js'
 import { tmpDir } from '../helpers/bare-tmp.js'
 import { waitFor } from '../helpers/bare-poll.js'
+import { createFolderChooser } from '../../src/worker/download-folder-push.js'
 
 const quiet = { debug() {}, info() {}, warn() {}, error() {} }
 const CAROL = 'c'.repeat(64)
@@ -72,7 +73,7 @@ async function heldDevice(t, { whileAway = async () => {} } = {}) {
   const catalog = catalogNameForSpace(spaceId, await getSpace(spaceId))
   const folder = path.join(d.home, 'Docs')
   fs.mkdirSync(folder, { recursive: true })
-  registerShares(first.fake.ipc, { log: quiet, intents: first.root.intents, mountOwnedShare: createOwnedMounter({ ipc: first.fake.ipc, mounts: first.root.mounts }) })
+  registerShares(first.fake.ipc, { log: quiet, intents: first.root.intents, mountOwnedShare: createOwnedMounter({ ipc: first.fake.ipc, mounts: first.root.mounts }), chooseFolder: createFolderChooser({ ipc: first.fake.ipc, publishRevealRoots: () => {} }) })
   const { share } = await first.fake.call('share:create-and-mount', { spaceId, name: 'Docs', mountPath: folder })
   await first.root.close()
   await whileAway(folder)
@@ -80,12 +81,12 @@ async function heldDevice(t, { whileAway = async () => {} } = {}) {
   await writeRestoreHold(d.storage, [PROFILE_BEE, catalog], 'backup')
   const { root, fake } = await start(t, d, masterSecret)
   registerProfile(fake.ipc, { log: quiet })
-  registerSpaces(fake.ipc, { log: quiet, publishRevealRoots: () => {} })
+  registerSpaces(fake.ipc, { log: quiet, chooseFolder: createFolderChooser({ ipc: fake.ipc, publishRevealRoots: () => {} }) })
   const mountOwnedShare = createOwnedMounter({ ipc: fake.ipc, mounts: root.mounts })
-  registerShares(fake.ipc, { log: quiet, intents: root.intents, mountOwnedShare })
+  registerShares(fake.ipc, { log: quiet, intents: root.intents, mountOwnedShare, chooseFolder: createFolderChooser({ ipc: fake.ipc, publishRevealRoots: () => {} }) })
   registerOwnedFolders(fake.ipc, { log: quiet, mounts: root.mounts, intents: root.intents, mountOwnedShare })
   registerForeignFolders(fake.ipc, { log: quiet, intents: root.intents })
-  registerFiles(fake.ipc, { log: quiet })
+  registerFiles(fake.ipc, { log: quiet, chooseFolder: createFolderChooser({ ipc: fake.ipc, publishRevealRoots: () => {} }) })
   createMembership(fake.ipc, { log: quiet, dropSpaceDownloadRoot: () => {} })
   registerSpaceLeave(fake.ipc, { log: quiet, mounts: root.mounts, overlayBackend: root.overlayBackend, discardPendingSpace: async () => {}, dropSpaceDownloadRoot: () => {} })
   registerIdentity(fake.ipc, { storagePath: d.storage, identityKEK: null, log: quiet, lockedBy: null, openRecovery: createPassphraseThrottle(), restoreStatus: () => root.restoreCatchUp?.status() ?? null })

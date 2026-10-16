@@ -32,7 +32,7 @@ export default async function s102({ runDir, bootstrap }) {
       await A.waitText('clip.bin', 20000)
       await B.waitText('clip.bin', 60000)
       await B.waitText('Available', 90000)
-      await B.click({ role: 'button', name: 'Download', last: true })
+      await B.downloadRow({ last: true })
       await B.waitText('Downloading', 60000)
     })
 
@@ -53,10 +53,10 @@ export default async function s102({ runDir, bootstrap }) {
       await A.waitText('clip.bin', 20000)
       await B.waitText('clip.bin', 60000)
       await B.waitText('Available', 90000) // back to remote — a fresh manual download is required
-      assert(await B.has({ role: 'button', name: 'Download' }), 'the Download control is offered again (manual re-trigger)')
+      assert(await B.has({ role: 'combobox', name: 'Download to…' }), 'the Download control is offered again (manual re-trigger)')
       await sleep(5000) // the buggy auto-resume would flip this to Downloading / On your device
       assert(!(await B.hasText('On your device')), 'the file did not auto-download after the re-add')
-      assert(await B.has({ role: 'button', name: 'Download' }), 'still offered a manual Download, not resuming')
+      assert(await B.has({ role: 'combobox', name: 'Download to…' }), 'still offered a manual Download, not resuming')
       await B.shot('s102-B-remote-after-readd', runDir)
     })
   } catch {}

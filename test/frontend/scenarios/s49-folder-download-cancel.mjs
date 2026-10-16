@@ -34,7 +34,7 @@ export default async function s49({ runDir, bootstrap }) {
     })
 
     await r.ok('B clicks Download then Cancel; row reverts to Available', async () => {
-      await B.click({ role: 'button', name: 'Download' })
+      await B.downloadRow()
 
       const deadline = Date.now() + 15000
       while (Date.now() < deadline) {
@@ -56,7 +56,7 @@ export default async function s49({ runDir, bootstrap }) {
       const reverted = Date.now() + 15000
       let backToAvailable = false
       while (Date.now() < reverted) {
-        if (await B.has({ role: 'button', name: 'Download' }) && await B.hasText('Available')) {
+        if (await B.has({ role: 'combobox', name: 'Download to…' }) && await B.hasText('Available')) {
           backToAvailable = true
           break
         }
@@ -66,7 +66,7 @@ export default async function s49({ runDir, bootstrap }) {
       await B.shot('s49-B-cancelled', runDir)
 
       // Nothing landed.
-      const landed = path.join(B.downloadFolder, 'lump.bin')
+      const landed = path.join(B.downloadFolder, 'Junkyard', 'lump.bin')
       assert(!existsSync(landed), 'no file landed at the destination after cancel')
     })
   } catch {}

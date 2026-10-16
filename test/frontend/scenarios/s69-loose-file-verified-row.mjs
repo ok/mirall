@@ -36,7 +36,7 @@ export default async function s69({ runDir, bootstrap }) {
     await r.ok('A shares the first loose file; B downloads it (verified badge appears)', async () => {
       await A.addFile(f1)
       await B.waitText('report.txt', 60000)
-      await B.click({ role: 'button', name: 'Download', last: true })
+      await B.downloadRow({ last: true })
       await B.waitText('On your device', 60000)
       await waitFor(() => B.has({ contains: 'content hash matches' }), 30000,
         'verified badge rendered + accessibly named on the downloaded row')
@@ -49,7 +49,7 @@ export default async function s69({ runDir, bootstrap }) {
     await r.ok('both rows keep their controls: verified + Reveal on the downloaded row, Download on the remote row', async () => {
       await waitFor(() => B.has({ contains: 'content hash matches' }), 10000, 'verified badge still reachable')
       await waitFor(() => B.has({ role: 'button', name: 'Reveal in Folder' }), 10000, 'reveal on the downloaded row')
-      await waitFor(() => B.has({ role: 'button', name: 'Download' }), 10000, 'download still on the remote row')
+      await waitFor(() => B.has({ role: 'combobox', name: 'Download to…' }), 10000, 'download still on the remote row')
       await B.shot('s69-B-mixed-rows', runDir)
     })
     await r.ok('layout: verified badge is left of the status pill, with the action on the right', async () => {

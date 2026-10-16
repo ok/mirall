@@ -28,7 +28,7 @@ import { getOverlay } from './overlay-instance.js'
 import { createOverlayChannel } from './overlay-channel.js'
 import { cancelSpaceOn, reconcileActiveSlots } from './active-transfers.js'
 import { preflightFault } from './download-faults.js'
-import { LAYOUT, downloadJob, looseShareFor, pendingKeyFor, rowShareFor, slotOwnedBy } from './download-job.js'
+import { LAYOUT, downloadJob, landingRoot, layoutFor, looseShareFor, pendingKeyFor, rowShareFor, slotOwnedBy } from './download-job.js'
 
 const log = createLogger('share-downloads')
 const UNRESOLVED = Object.freeze({ removed: false, seq: undefined, job: null })
@@ -50,6 +50,10 @@ function engine() {
 }
 
 const isLoose = (share) => share.id === LOOSE_SHARE_ID
+
+// The engine's folder probe, which the convergence tick also judges a row's folder by, so a row's
+// landing and its verdict read one answer.
+const dirExists = (dir) => engine().destProbe(dir).dirExists()
 
 // The destinations every live slot holds, read at resolve time: a name a running transfer is
 // writing is taken whether or not its partial exists yet. A job's resolve and its start() are
@@ -116,8 +120,8 @@ async function reconcileActiveTransfers(spaceId, share) {
 }
 
 // The folder a TREE download lands in under the download root: the share's name as one segment. A
-// name that would escape, or is not a legal folder name here, is refused rather than flattened: a
-// flattened batch would scatter and collide silently.
+// name that would escape, or a path that is not legal here, is refused rather than flattened: a
+// flattened batch would scatter and collide silently. A click decides its layout first (clickLayout).
 function assertTreeName(share) {
   if (relKeyEscapes(share.name) || share.name.includes('/')) throw new AppError(CODES.EPATH, 'unsafe folder name: ' + share.name)
 }
@@ -133,13 +137,29 @@ function destRel(share, relPath, layout) {
   return layout === LAYOUT.TREE ? treeRel(share, relPath) : path.basename(relPath)
 }
 
-// The destination is re-anchored when the recorded one no longer sits in the space's download
-// folder (the user re-pointed it while the row was paused) — see reuseDest. A resume keeps the
-// layout the row began with, so a tree download re-driven by a reconcile lands in its folder.
-async function jobFor({ spaceId, share, relPath, pendingKey, cat, entry, pending, layout = LAYOUT.FLAT }) {
+// A click on one file of a folder keeps its place in the folder where this host can hold that path.
+// Where it cannot (a folder or subfolder name Windows reserves or forbids, a share name no host can
+// use as a folder), the file lands flat by its own name and its row records no tree: one file cannot
+// scatter. A batch has no such fallback (destRel refuses the file).
+function clickLayout(share, relPath) {
+  const layout = layoutFor(share)
+  if (layout !== LAYOUT.TREE) return layout
+  try {
+    treeRel(share, relPath)
+    return LAYOUT.TREE
+  } catch (err) {
+    if (err?.code === CODES.EPATH || err?.code === CODES.MOUNT_FORBIDDEN_WIN_RESERVED) return LAYOUT.FLAT
+    throw err
+  }
+}
+
+// The folder comes from landingRoot; the recorded destination is kept while it sits in that folder.
+// A resume keeps the layout the row began with, so a tree download re-driven by a reconcile lands in
+// its folder.
+async function jobFor({ spaceId, share, relPath, pendingKey, cat, entry, pending, layout, destDir }) {
   pending = pending ?? await getPendingFor(spaceId, pendingKey)
   const kept = pending?.layout === LAYOUT.TREE ? LAYOUT.TREE : layout
-  const destRoot = getDownloadDir(spaceId)
+  const destRoot = landingRoot({ row: pending, asked: destDir, spaceFolder: getDownloadDir(spaceId), dirExists })
   const reserved = liveDests()
   // The pin first: a resumed tree row keeps its destination even when its share record is no
   // longer readable, and only a fresh resolve needs the share's name.
@@ -187,7 +207,8 @@ async function resolvePendingRow(spaceId, row) {
   const state = await getPeerEntryState(cat.keyHex, row.shareId, row.relPath, { sck: cat.sck })
   if (state?.removed) return { removed: true, seq: undefined, job: null }
   if (!state?.contentHash) return { removed: false, seq: state?.seq, job: null, awaitingHash: !!state }
-  const job = await jobFor({ spaceId, share: found.share, relPath: row.relPath, pendingKey: row.filePath, cat, entry: state, pending: row })
+  // The row's own layout: a row that carries none was written flat.
+  const job = await jobFor({ spaceId, share: found.share, relPath: row.relPath, pendingKey: row.filePath, cat, entry: state, pending: row, layout: LAYOUT.FLAT })
   return { removed: false, seq: state.seq, job }
 }
 
@@ -198,10 +219,11 @@ export const downloadChannel = createOverlayChannel({ emit: (name, payload) => i
 // nothing would retry and the click is lost; recordPendingIntent states which existing row it keeps.
 // The share-wait re-drives the row, so it is armed only once the row landed, and a click whose row
 // failed is not reported as queued.
-async function recordLooseIntent(spaceId, share, relPath, entry) {
+async function recordLooseIntent({ spaceId, share, relPath, entry, destDir }) {
   try {
     // PERSISTED: the intent row's fields are what the channel's loose ownsRow and the resolve read.
-    await recordPendingIntent(spaceId, looseDrivePath(relPath), { inPlace: true, shareId: LOOSE_SHARE_ID, relPath, ownerKey: share.owner, total: 0 })
+    const intent = { inPlace: true, shareId: LOOSE_SHARE_ID, relPath, ownerKey: share.owner, total: 0, destDir: destDir || getDownloadDir(spaceId) }
+    await recordPendingIntent(spaceId, looseDrivePath(relPath), intent, { folderAsked: !!destDir })
   } catch (err) {
     log.warn('loose download click dropped, its intent row failed:', relPath, err.message)
     return { queued: false }
@@ -223,15 +245,16 @@ async function openCatalog(spaceId, share) {
 // tombstone means the owner removed the file: a null entry may be an offline owner or replication
 // lag, so a loose click still records its intent row for it. A batch hands over the entry it
 // already read; a click reads it here.
-async function downloadOne(spaceId, share, cat, relPath, { express, layout, entry = undefined }) {
+async function downloadOne(spaceId, share, cat, relPath, { express, destDir, entry = undefined }) {
   const transferId = transferIdFor(spaceId, share.id, relPath)
   if (entry === undefined) entry = cat.readable ? await getPeerEntryState(cat.keyHex, share.id, relPath, { sck: cat.sck }) : null
   if (entry?.removed) return { queued: false }
   if (entry?.contentHash) {
-    const job = await jobFor({ spaceId, share, relPath, pendingKey: pendingKeyFor(share, relPath), cat, entry, layout })
+    const layout = express ? clickLayout(share, relPath) : layoutFor(share)
+    const job = await jobFor({ spaceId, share, relPath, pendingKey: pendingKeyFor(share, relPath), cat, entry, layout, destDir })
     return engine().start({ ...job, express })
   }
-  if (isLoose(share)) return await recordLooseIntent(spaceId, share, relPath, entry)
+  if (isLoose(share)) return await recordLooseIntent({ spaceId, share, relPath, entry, destDir })
   if (entry) memberWaits.wait(share.owner, transferId, SHARE_WAIT_SOURCE.CLICK)
   return { queued: true }
 }
@@ -240,23 +263,29 @@ async function downloadOne(spaceId, share, cat, relPath, { express, layout, entr
  * The user's download click, and its manual resume. A mirrored share syncs itself, paused or not,
  * so it is refused before the engine is touched: a second copy in the downloads folder would also
  * overwrite the mirror's verified record for the path. A file the owner removed queues nothing.
+ * `destDir` is the folder the click names, already validated; absent, see landingRoot.
+ * @param {string} spaceId
+ * @param {import('./download-job.js').DownloadShare} share
+ * @param {string} relPath
+ * @param {{ destDir?: string }} [opts]
  * @returns {Promise<import('../../contract/responses.js').ShareDownloadResult>}
  */
-export async function requestShareDownload(spaceId, share, relPath) {
+export async function requestShareDownload(spaceId, share, relPath, { destDir } = {}) {
   if (!isLoose(share) && await getForeignMount(spaceId, share.id)) return { ok: true, mirrored: true }
   // Retired before any guard or read can fail: a marker left set suppresses every later auto-resume.
   engine().clearPauseMarker(transferIdFor(spaceId, share.id, relPath))
   if (!getOverlay() || !readCatalogKey(share).keyHex) return { queued: true }
   const cat = await openCatalog(spaceId, share)
-  return await downloadOne(spaceId, share, cat, relPath, { express: true, layout: LAYOUT.FLAT })
+  return await downloadOne(spaceId, share, cat, relPath, { express: true, destDir })
 }
 
 // A batch asks for all its bytes at once, through the same preflight each file runs: each file's
 // own preflight sees only itself, so N files that each fit can still fill the disk together, and
 // the batch is refused before its first file. The root probe holds no partial, so nothing is
-// credited here; what a resumed row's partial already holds was subtracted from `needBytes`.
-function assertBatchFits(spaceId, needBytes) {
-  const root = getDownloadDir(spaceId)
+// credited here; what a resumed row's partial already holds was subtracted from `needBytes`. A
+// resumed row keeps its own folder, which may be on another volume than `root`: the batch can then
+// be refused when it would fit, never the reverse.
+function assertBatchFits(root, needBytes) {
   const dest = engine().destProbe(root)
   const code = preflightFault(needBytes, dest)
   if (code) throw new AppError(code, 'batch refused: ' + code, { needBytes, freeBytes: dest.freeBytes(), root })
@@ -273,9 +302,9 @@ function tally(counts, res) {
 
 // One file of a batch. A throw here is that file's failure, never the batch's: the files ahead of
 // it have started and the ones behind it still can.
-async function downloadBatchFile(spaceId, share, cat, relPath, entry, layout) {
+async function downloadBatchFile(spaceId, share, cat, relPath, entry, destDir) {
   try {
-    return await downloadOne(spaceId, share, cat, relPath, { express: false, layout, entry })
+    return await downloadOne(spaceId, share, cat, relPath, { express: false, destDir, entry })
   } catch (err) {
     log.warn('batch file could not start:', relPath, '-', err.message)
     return { failed: true }
@@ -308,25 +337,29 @@ async function batchWanted(spaceId, share, cat, relPaths, counts) {
  * A batch download: every file the user selected, in one request. Paths that escape are refused
  * as a whole (a peer's catalog never names one). Files already here are skipped; the rest start on
  * the bulk lane. Free space is checked for the whole batch before the first file starts.
+ * @param {string} spaceId
+ * @param {import('./download-job.js').DownloadShare} share
+ * @param {readonly string[]} relPaths
+ * @param {{ destDir?: string }} [opts]
  * @returns {Promise<import('../../contract/responses.js').BatchDownloadResult>}
  */
-export async function requestShareDownloads(spaceId, share, relPaths, { layout }) {
+export async function requestShareDownloads(spaceId, share, relPaths, { destDir } = {}) {
   if (!isLoose(share) && await getForeignMount(spaceId, share.id)) return { mirrored: true }
   if (relPaths.some(relKeyEscapes)) throw new AppError(CODES.EPATH, 'batch download: unsafe path')
-  if (layout === LAYOUT.TREE) assertTreeName(share)
+  if (!isLoose(share)) assertTreeName(share)
   const counts = { started: 0, alreadyHere: 0, waitingOnOwner: 0, removed: 0, failed: 0 }
   const unique = [...new Set(relPaths)]
   // Every marker first: a batch refused or failed below must not leave a row suppressed.
   for (const relPath of unique) engine().clearPauseMarker(transferIdFor(spaceId, share.id, relPath))
   if (!getOverlay() || !readCatalogKey(share).keyHex) {
     counts.waitingOnOwner = unique.length
-    if (isLoose(share)) for (const relPath of unique) await recordLooseIntent(spaceId, share, relPath, null)
+    if (isLoose(share)) for (const relPath of unique) await recordLooseIntent({ spaceId, share, relPath, entry: null, destDir })
     return counts
   }
   const cat = await openCatalog(spaceId, share)
   const { wanted, needBytes } = await batchWanted(spaceId, share, cat, unique, counts)
-  if (cat.readable) assertBatchFits(spaceId, needBytes)
-  for (const { relPath, entry } of wanted) tally(counts, await downloadBatchFile(spaceId, share, cat, relPath, entry, layout))
+  if (cat.readable) assertBatchFits(destDir || getDownloadDir(spaceId), needBytes)
+  for (const { relPath, entry } of wanted) tally(counts, await downloadBatchFile(spaceId, share, cat, relPath, entry, destDir))
   return counts
 }
 
