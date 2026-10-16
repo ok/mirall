@@ -102,3 +102,36 @@ test('every switch is drawn by ToggleSwitch', (t) => {
   const audit = read('src/renderer/screens/settings/AuditRecordingCard.tsx')
   t.ok(/<ToggleSwitch\b/.test(audit), 'the Activity Log recording switch renders ToggleSwitch')
 })
+
+test('REGRESSION (FOCUS-1): the focus ring clears 3:1 on every control ground, both themes', (t) => {
+  const util = css.slice(css.indexOf('@utility focus-ring'), css.indexOf('}', css.indexOf('@utility focus-ring')))
+  t.absent(/ring-secondary\/\d+/.test(util), 'the ring is opaque')
+  for (const [sel, theme] of THEMES) {
+    const k = tokensFor(sel)
+    for (const g of ['surface', 'surface-container-low', 'surface-container-lowest', 'surface-container-high',
+      'surface-container-highest', 'surface-control']) {
+      const c = contrast(k.secondary, k[g])
+      t.ok(c >= 3, `${theme}: focus ring on ${g} = ${c.toFixed(2)}:1`)
+    }
+    // A danger button sits on a modal panel, a settings card or the screen.
+    for (const g of ['surface', 'surface-container-low', 'surface-container-lowest']) {
+      const c = contrast(k.error, k[g])
+      t.ok(c >= 3, `${theme}: danger focus ring on ${g} = ${c.toFixed(2)}:1`)
+    }
+    const banner = contrast(k['on-secondary-container'], k['secondary-container'])
+    t.ok(banner >= 3, `${theme}: banner focus ring on the banner = ${banner.toFixed(2)}:1`)
+  }
+})
+
+test('REGRESSION (FOCUS-2): no focus ring is drawn in the colour of the control it surrounds', (t) => {
+  t.ok(/focus-visible:ring-error(?![\w/])/.test(read('src/renderer/components/primitives/Button.tsx')), 'the danger ring is opaque')
+  t.ok(/focus-ring-on-secondary \{[^}]*ring-on-secondary-container[^}]*ring-offset-secondary-container/.test(css),
+    'the banner ring is the banner text colour, offset by the banner')
+  for (const f of ['layout/UpdateBanner.tsx', 'layout/RestoreBanner.tsx']) {
+    const src = read(`src/renderer/components/${f}`)
+    t.absent(/className="[^"]*\bbg-secondary\s[^"]*\bfocus-ring(?![\w-])/.test(src), `${f}: a bg-secondary button does not wear the secondary ring`)
+  }
+  const radio = read('src/renderer/components/primitives/RadioCard.tsx')
+  t.ok(/has-\[:focus-visible\]:outline-secondary/.test(radio) && /has-\[:focus-visible\]:outline-offset-\[-\d+px\]/.test(radio),
+    'a focused radio card is outlined inside its edge, so focus never looks like selection')
+})

@@ -58,7 +58,7 @@ export default function WhatsNewModal() {
           tabIndex={0}
           role="region"
           aria-label={t('whatsNew.title')}
-          className={`px-10 pb-6 space-y-8 overflow-y-auto scrollbar-thin focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-secondary/30${hasOverflow ? ' pr-6' : ''}`}
+          className={`px-10 pb-6 space-y-8 overflow-y-auto scrollbar-thin focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-secondary${hasOverflow ? ' pr-6' : ''}`}
         >
           {rendered.map((e) => (
             <section key={e.version}>

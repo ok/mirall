@@ -26,7 +26,8 @@ const RULES = [
     what: 'the focus ring',
     use: 'the `focus-ring` utility',
     owner: 'styles/tailwind.css',
-    pattern: /focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary\/30/,
+    // Any opacity: a hand-rolled copy of the old translucent ring is still the ring.
+    pattern: /focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/,
   },
   {
     what: 'an inline error',

@@ -149,7 +149,13 @@ body {
    that spells it out itself is one that can drift from the rest — 64 copies of this string had
    accumulated. Keyboard-only by design: focus-visible, so a pointer click leaves no ring. */
 @utility focus-ring {
-  @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30;
+  @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary;
+}
+
+/* For a `bg-secondary` control on a `secondary-container` banner, where a `secondary` ring would be
+   the button's own colour: the banner's text colour, held off the button by a gap of banner. */
+@utility focus-ring-on-secondary {
+  @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-on-secondary-container focus-visible:ring-offset-2 focus-visible:ring-offset-secondary-container;
 }
 
 /* A rounded card of full-width rows. It clips, so the rows meeting its top and bottom edge take its
@@ -169,7 +175,7 @@ body {
 /* The focus indicator of a row inside a row-group: the ring sits inside the row, where the group's
    clip cannot cut it, and the row takes its hover fill so focus reads as a highlighted row. */
 @utility row-focus {
-  @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-secondary/30 focus-visible:bg-surface-container-high/50;
+  @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-secondary focus-visible:bg-surface-container-high/50;
 }
 
 /* The hover fill of a transparent control. A control is only hovered while the surface under it

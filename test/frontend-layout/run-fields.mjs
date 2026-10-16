@@ -1,13 +1,14 @@
 // Field contrast — LOCAL/dev only, spawns a real Electron GUI process. Mounts real fields, the
 // restore card, the list filter and both switch states, and asserts in light and dark that every
-// placeholder and error clears 4.5:1, every field stands apart from its card, and every switch
-// clears 3:1.
+// placeholder and error clears 4.5:1, every field stands apart from its card, every switch clears
+// 3:1, and a focused field wears a ring that clears 3:1. Runs with focus emulation, without which a
+// hidden window never matches :focus-visible.
 //
 //   node test/frontend-layout/run-fields.mjs            (builds, then runs)
 //   node test/frontend-layout/run-fields.mjs --no-build (reuse existing bundle)
 import { runHarness } from './run-harness.mjs'
 
-const out = await runHarness({ html: 'harness-fields.html', height: 1400 })
+const out = await runHarness({ html: 'harness-fields.html', height: 1400, focus: true })
 
 console.log('\n──────── field contrast harness ────────')
 for (const m of out.themes) {

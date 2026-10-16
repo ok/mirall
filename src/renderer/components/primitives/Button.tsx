@@ -40,9 +40,9 @@ interface ButtonProps {
 // action, in-page or in a modal: it rests in the soft error-container fill and hovers to a deeper
 // shade of the same red rather than jumping to a neutral color.
 const variantClasses: Record<ButtonVariant, string> = {
-  primary: 'bg-primary text-on-primary shadow-lg shadow-primary/10 hover:bg-primary-hover focus-visible:ring-secondary/30',
-  secondary: 'bg-surface-control text-on-surface-variant hover:bg-surface-control-hover focus-visible:ring-secondary/30',
-  danger: 'bg-error-container text-on-error-container hover:bg-error-container-hover focus-visible:ring-error/30',
+  primary: 'bg-primary text-on-primary shadow-lg shadow-primary/10 hover:bg-primary-hover focus-visible:ring-secondary',
+  secondary: 'bg-surface-control text-on-surface-variant hover:bg-surface-control-hover focus-visible:ring-secondary',
+  danger: 'bg-error-container text-on-error-container hover:bg-error-container-hover focus-visible:ring-error',
 }
 
 export default function Button({

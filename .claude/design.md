@@ -256,7 +256,7 @@ and `pb-1.5` to keep the 800-weight descenders out of the clip that `truncate` i
   job: it is for sub-labels inside a surface (shortcut groups, activity-log day headings).
 - **Row focus:** `row-group` (`styles/tailwind.css`) is `rounded-xl overflow-hidden` plus the card's
   radius on its first and last child, so the row meeting an edge is rounded there. A row in it wears
-  `row-focus` instead of `focus-ring`: an inset `ring-secondary/30` the clip cannot cut, plus the
+  `row-focus` instead of `focus-ring`: an inset `ring-secondary` the clip cannot cut, plus the
   `bg-surface-container-high/50` hover fill. `ROW` (ActionRow), `Toggle` and the Appearance language
   rows carry it. Pinned by `npm run test:layout:case -- rowfocus`.
 - **Sticky in-page headers:** `sticky top-0 z-10 bg-surface` for list titles.
@@ -312,9 +312,16 @@ above at `rounded-3xl` (2rem).
 
 Most components live under `src/renderer/components/` (`keyboard/` is a sibling). Every interactive
 control uses the universal focus ring — the **`focus-ring` utility**, declared once in
-`styles/tailwind.css` as `focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/30`
-(danger uses `ring-error/30`, still spelled out) — and `active:scale-95` press feedback unless
-noted.
+`styles/tailwind.css` as `focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary`
+(danger uses an opaque `ring-error`, still spelled out) — and `active:scale-95` press feedback
+unless noted. The ring is opaque: only full `secondary` clears 3:1 on every control ground in both
+themes (light ≥ 5.00, dark ≥ 3.62), pinned by `test/invariants/field-contrast.test.js`.
+- **A ring is never the colour of the control it surrounds.** A `bg-secondary` button on a
+  `secondary-container` banner (`UpdateBanner`, `RestoreBanner`) wears `focus-ring-on-secondary`:
+  the banner's text colour, held off the button by a 2px gap of banner.
+- **`RadioCard` separates focus from selection by shape.** Selection is the 2px ring on the card's
+  edge; focus is a 2px outline inset 6px within it. Both are opaque `secondary`, and a focused
+  selected card shows both.
 
 The ring is painted **outside** the border box, so it needs 2px of clearance inside every clipping
 ancestor — a scroll pane or an `overflow-hidden` wrapper sitting flush against a control shaves it
@@ -467,7 +474,7 @@ the top box, `sm` 32 px for a dialog row). Unchecked it is `border-2 border-on-s
 not `border-outline`: outline measures about 2.3:1 on a dark file row, under the 3:1 non-text
 floor. Checked or mixed it is `bg-primary` with an `on-primary` check or dash; `mixed` sets the
 input's `indeterminate` flag, which reaches the AX tree as a mixed state. The focus ring is drawn on
-the box (`peer-focus-visible:ring-2 ring-secondary/30`). `showLabel` renders the name beside the
+the box (`peer-focus-visible:ring-2 ring-secondary`). `showLabel` renders the name beside the
 box as the label's own text (the Feedback dialog); otherwise the name is the input's `aria-label`
 (the approval list, every selection box). The change handler is backed by the click, so it carries
 the shift key a range needs.

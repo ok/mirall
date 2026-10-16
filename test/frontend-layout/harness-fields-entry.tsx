@@ -63,7 +63,8 @@ const resolves = () => Promise.resolve()
 
 createRoot(document.getElementById('root') as HTMLElement).render(
   <div className="bg-surface p-6 space-y-6">
-    {/* A modal panel and the ground Modal gives its fields. */}
+    {/* A modal panel and the ground Modal gives its fields. Not a real <Modal>: its focus trap would
+        pull focus back out of every field below, and those are focused to measure their rings. */}
     <div data-probe="panel" className="glass-modal w-full max-w-xl p-10 space-y-6">
       <FieldGround fill="low">
         <div data-probe="modal-field">
@@ -174,6 +175,29 @@ function description(el: Element): string {
   return ids.map((id) => document.getElementById(id)?.textContent ?? `<missing #${id}>`).join(' ')
 }
 
+// The 2px focus ring's colour, from the box-shadow list the ring utility writes.
+function ringColor(el: Element): string | null {
+  return /((?:rgba?|oklab|oklch|color)\([^)]*\)) 0px 0px 0px 2px/.exec(getComputedStyle(el).boxShadow)?.[1] ?? null
+}
+
+async function focusRings(theme: 'light' | 'dark', failures: string[], ratios: Record<string, number>): Promise<void> {
+  for (const id of ['modal-field', 'card-field', 'account-display-name', 'display-name']) {
+    const el = q(`#${id}`) as HTMLInputElement
+    el.focus()
+    await sleep(250)
+    const ring = ringColor(el)
+    const ground = el.parentElement as Element
+    if (!ring) {
+      failures.push(`${theme}: #${id} shows no focus ring when focused (box-shadow ${getComputedStyle(el).boxShadow})`)
+      continue
+    }
+    const c = contrast(over(ring, ground), bg(ground))
+    ratios[`#${id} focus ring`] = Number(c.toFixed(2))
+    if (c < 3) failures.push(`${theme}: #${id} focus ring = ${c.toFixed(2)}:1 (< 3)`)
+    el.blur()
+  }
+}
+
 function within(inner: Element, outer: Element): boolean {
   const a = inner.getBoundingClientRect()
   const b = outer.getBoundingClientRect()
@@ -236,7 +260,9 @@ async function run(): Promise<void> {
     document.documentElement.classList.toggle('dark', theme === 'dark')
     // The fields carry `transition-all`: measured too early they read a blend of the two themes.
     await sleep(600)
-    themes.push(measure(theme, failures))
+    const m = measure(theme, failures)
+    await focusRings(theme, failures, m.ratios)
+    themes.push(m)
   }
   document.documentElement.classList.remove('dark')
 
