@@ -120,9 +120,14 @@ the bootstrap, shutdown and watcher events down, and the worker's main-request f
   merge-over-defaults). The renderer reads a sync snapshot and adopts the sanitized snapshot main
   returns from each patch.
 - **Settings.** `settings.json`, beside `config.json`, holds what the data layer acts on — the
-  download folder, the bandwidth caps, the relay slot, `downloadConcurrency` (file-only, no UI) and
-  the backup folder and repository id. The worker is its only writer
-  (`src/shared/core/settings-store.js`, write-through, atomic); main never reads it. The first
+  download folder new spaces start in, this device's recent download folders (`downloads.recent`,
+  as many as the `recentDownloadFolders` runtime-config row allows), the bandwidth caps, the relay
+  slot, `downloadConcurrency` (file-only, no UI) and the backup folder and repository id. The worker is its only writer
+  (`src/shared/core/settings-store.js`, write-through, atomic); main never reads it. A
+  `settings.json` that exists but cannot be read is kept, and the worker runs on defaults until a
+  change the user makes replaces it; the recent folders are this device's bookkeeping, held in
+  memory only while the file is broken. The recent list's configured length applies from boot's
+  hydrate, which runs after the runtime config is set. The first
   worker boot without it imports the moved groups from `config.json`, and main drops them from
   `config.json` on a later load once `settings.json` exists (`contract/settings-file.js`). Feature
   flags are read by the worker from `feature-flags.json` at its package root (unpacked beside it
@@ -136,9 +141,10 @@ the bootstrap, shutdown and watcher events down, and the worker's main-request f
   `dispatchDeepLink`. `src/main/deeplink.js` accepts only a `mirall://join/<code>` whose invite
   decodes. Links queue until the renderer calls `deeplink:flush`. Linux desktop-entry handling:
   `src/main/xdg-integration.js`, §5.2.
-- **Reveal allowlist** — the only app state main holds. `shell:showInFolder` accepts home, the
-  configured download folder, and the roots the worker pushes (`reveal:roots`): its download roots
-  and every owned or mirrored mount path, republished when a mount is created, deleted or moved.
+- **Reveal allowlist** — the only app state main holds. `shell:showInFolder` accepts home and the
+  roots the worker pushes (`reveal:roots`): every folder that holds a download or a partial (each
+  space's folder, the folder for new spaces, the recent folders, and every folder a pending row or
+  a claim names) and every owned or mirrored mount path, republished when one of them is added.
   The pushed roots are dropped when that worker exits.
 - **Watchers.** The worker requests them over the main-request bus (commands named in
   `src/shared/contract/main-requests.js`). `src/main/watch-host.js` is the sole owner of the
@@ -382,9 +388,21 @@ session-level timeout so an abandoned read cannot pin the core. Budgets:
 | `recipient/<spaceId>/<shareId>/<memberKey>/<relPath>` | `{ contentHash, ts }` — a member holding a verified copy of OUR file, at the latest version they reported (`src/shared/transfer/file-recipients.js`); cleared with the space |
 
 `spaceId` = first 16 hex chars of the 32-byte topic. The record always holds
-`name, icon, topic, created, members, driveSuffix, schemaVersion:2`; every other field is a
-single-writer latch listed in the header of `src/shared/spaces/space.js` (e.g. `status:'pending'`
-until the grant, `epoch`, `leaving`, `downloadFolder`). `schemaVersion !== 2` is a legacy space and
+`name, icon, topic, created, members, driveSuffix, schemaVersion:2, downloadFolder`; every other
+field is a single-writer latch listed in the header of `src/shared/spaces/space.js` (e.g.
+`status:'pending'` until the grant, `epoch`, `leaving`). `downloadFolder` is where this space's
+downloads go: seeded from the app's folder for new spaces when the record is created or joined,
+backfilled at boot for older records (the seed in its normalized spelling, NFC on macOS), and
+changed only through `src/shared/transfer/download-folder-choice.js` behind
+`src/worker/download-folder-push.js` (any download that names a folder, the controls-row button,
+Edit Space). A named folder is validated first and committed only once the request is accepted, so
+a refused or mirrored request changes nothing; a download result whose folder became the space's
+carries `folderChanged: true`. A pick that changes nothing writes nothing, a failed write of the
+recent list is logged and fails nothing, and every change is announced (`event:state`, the settings
+reconcile, the reveal roots). A folder named for a space that no longer exists installs nothing
+(`SPACE_NOT_FOUND`). `space:update` validates, then renames, then commits the folder, so the pushed
+spaces list carries the new name, and it records `space.updated` only for a name or icon change.
+Nothing falls back to the app's folder while a space has one. `schemaVersion !== 2` is a legacy space and
 is refused. `members` holds the *other* members, each with `publicKey`, `displayName`, `avatar`,
 optional `looseCatalogKeyEnc` + `looseCatalogEpoch` (or plaintext `looseCatalogKey` from a
 pre-encryption peer) and optional `status`. Every record write goes through one per-space promise
@@ -402,16 +420,24 @@ resurface.
 
 | Key | Value |
 |---|---|
-| `<spaceId>:<filePath>` | claim `{ downloadedAt, localPath, hash }` — `localPath` is the real landed path |
+| `<spaceId>:<filePath>` | claim `{ downloadedAt, localPath, hash, destDir, destDev }` — `localPath` is the real landed path, `destDir` the download folder it landed under, `destDev` that folder's device id at settle |
 | `verified:<spaceId>:<shareId>\|<relPath>` | `{ hash, at, local, mtime, ino }` — `local` is mount-relative for a mirror, absolute for a download; `mtime`+`ino` fingerprint the exact file the hash was proven on (`src/shared/transfer/verified-copy.js`) |
 | `src:<spaceId>:<filePath>` | `{ sourcePath, addedAt }` — where a file we own lives |
 
 A claim is a hint and the disk is the truth, re-checked on every listing in the order fixed by
-`src/shared/transfer/download-claim.js`: file and its folder both gone ⇒ a detached volume, report
-not-downloaded but **keep** the claim; file gone, folder present ⇒ prune; content hash moved
-upstream ⇒ prune; outside the space's *pinned* download folder ⇒ not-downloaded, keep (re-pinning
-restores it). Download roots resolve per-space override → global root → OS downloads
-(`src/shared/core/paths.js`). A leave clears the claim and `verified:` rows
+`src/shared/transfer/download-claim.js`: file gone and its volume gone ⇒ report not-downloaded but
+**keep** the claim; file gone, volume present ⇒ prune; content hash moved upstream ⇒ prune. The
+volume is present when the claim's `destDir` exists, or when the nearest existing parent of a
+missing `destDir` sits on the claim's `destDev` (the folder itself was deleted or moved, so the copy
+reads Available); a claim without `destDev` keeps a missing folder as an absent volume. A listed row
+reads `detached` ("Drive not connected", and where it was saved) only when the kept claim names
+that row's content (claims are keyed by name across owners, so the hashes must match) and its owner
+is online (`isDetachedCopy`, `transfer-status.js`). A copy counts wherever it was downloaded to.
+`src/shared/core/paths.js` answers each space's folder and three lists: the folders downloads go to
+next (mount overlap), the folders the Download-to menu offers (the drive probe), and every folder
+that holds a download (reveal, the boot sweep), the last rebuilt at each boot from the pending
+rows' `destDir` and the active spaces' claims (one `prefixRange` scan per space; a claim from
+before claims named their folder adds its copy's folder). A leave clears the claim and `verified:` rows
 (`cleanupDownloadHistory`); `src:` rows are not cleared.
 
 ### 3.4 Pending-transfers bee (`pending-transfers`) — local
@@ -423,13 +449,22 @@ download; field sets are built in `src/shared/transfer/overlay/download-start.js
 `shareId: '__loose__'`, a folder row `overlayShare: true` + its catalog key. Those fields are what a
 build owns a row by; none is ever renamed. `finalPath` is the collision-avoided landing
 path from which `<finalPath>.mirall.part` and the resume journal derive; `bytesTransferred` lets the
-UI show `paused-*` / `error` and partial progress without a live transfer. `layout: 'tree'` marks a
-row of a folder batch (`share:read-files`), whose file lands under
-`<download folder>/<folder name>/<relPath>` (`download-dest.js`); a row without it lands flat by
-base name, which is every click and every loose file. A resume keeps the layout the row began
-with, a tree row's preflight probes the download root rather than the folder it creates below it,
-and a forgotten tree row's partial is discarded with the row (`partial-sweep.js`
-`discardRowPartials`), since the boot sweep reads roots shallowly. Every write to one row
+UI show `paused-*` / `error` and partial progress without a live transfer. `destDir` is the download
+folder the row lands under: a row with bytes keeps it while it can be reached and otherwise adopts
+the space's folder; a row without bytes keeps it only while it waits (no folder named, no error) —
+a request that names a folder moves it there, and a row that failed before its first byte follows
+the space's current folder, so Retry acts there (`keepsOwnFolder` and `landingRoot`,
+`download-job.js`; an intent row a click keeps follows the same rule). The convergence tick reads a
+row's folder only for a fault that depends on the destination, at most once per folder per 60 s.
+`layout: 'tree'` marks a folder file, which lands under `<destDir>/<folder name>/<relPath>`; a row
+without it lands flat by base name, which is every loose file, a folder row written before folder
+files kept their subfolders, and a click whose tree path this host cannot hold (a segment Windows
+refuses); a batch refuses such a file. A resume keeps the layout the row began with, a tree row's
+preflight probes the download folder rather than the folder it creates below it, and a deleted
+row's partial, flat or tree, goes with the row unless a remaining row or a live slot holds that path
+(`partial-sweep.js` `discardRowPartials`). The boot sweep reads each root shallowly, all roots at
+once, each read bounded at 5 s. A republish restart discards the old path's partial only when no
+live slot holds it. Every write to one row
 goes through a per-key lock (`createKeyedLock`), including the leave purge, so a progress tick can
 neither strip an error verdict nor resurrect a row for a left space. Rows clear on completion,
 cancel/discard and leave.
@@ -1158,7 +1193,9 @@ tombstones the mirror row but leaves the files on disk.
   as a whole path segment, the Windows OneDrive variables, and macOS `~/Library/Mobile Documents` and
   `~/Library/CloudStorage`), Windows reserved names, and non-writable paths;
 - an overlap with **any** existing mount, except two owned folders at the exact same path;
-- nesting with **any** download root, in either direction. Downloads inside an owned folder would be
+- nesting with **any** folder a download goes to next (each space's, the one new spaces start in,
+  and every folder a pending row still lands in), in either direction. A folder that only holds
+  finished copies may be shared. Downloads inside an owned folder would be
   republished, and mirrors mixed with downloads are indistinguishable. The download-folder validator
   runs the reverse check.
 
@@ -1169,7 +1206,8 @@ unit-tests under Node.
 ### 7.5 Mount lifecycle & the probe loop
 
 `MountsRuntime` (`src/worker/mounts-runtime.js`, §2 boot step 9) resumes both mount kinds from
-`mounts-meta` and arms a 60 s probe over every mount path and download root. A missing path flips
+`mounts-meta` and arms a 60 s probe over every mount path and every download folder the Download-to
+menu offers. A missing path flips
 the share to `mount-point-gone` and stops its watcher or loop. A returning path restarts it. A
 returning *owned* path goes back to `scanning` (a paused index stays paused), and the scan's
 outcome, not the probe, writes the next status.
@@ -1325,7 +1363,9 @@ The rules for adding to the contract:
   makes the half-states that durable intents exist to prevent. `deadlineMs: 0` means deliberately
   unbounded, for uploads, previews, exports, `share:read-file` and the two batch downloads
   (`share:read-files`, `files:download-many`), which write one pending row per file before they
-  answer with per-file counts (`BatchDownloadResult`). An array argument is bounded by `minItems`,
+  answer with per-file counts (`BatchDownloadResult`). The four download requests take an optional
+  `destDir`; their results carry `folderChanged: true` when that folder became the space's, which is
+  how a batch knows the move it reports is real. An array argument is bounded by `minItems`,
   `maxItems` and `itemMax` the way a string is by `max`; a batch's cap is the share file limit. The renderer's own give-up
   timeout (`src/renderer/ipc/ipc.ts`) is a separate bound. A caller that gives up sends `cancel`,
   which is a control frame so it is not queued behind the request it cancels.
@@ -1379,13 +1419,16 @@ and each is bound to React through `useSyncExternalStore` rather than a `useStat
 could disagree with the store.
 
 - **`query-store.js`** (the worker contract, via
-  `useQuery(type, params, scopes, { enabled, coalesceMs })`). It has one entry per
+  `useQuery(type, params, scopes, { enabled, coalesceMs, passive })`). It has one entry per
   `[type, sorted params]` and owns fetching, dedup, caching and scope invalidation. An invalidation
   bumps `seq`, aborts the read in flight (`cancel`), keeps the cached value, and refetches only
   subscribed entries. The store does **not** interpret responses. The never-blank merge and the
   terminal-vs-transient error policy are per-view decisions and stay in the hooks. `enabled: false`
-  means the ids are not ready: the hook neither fetches nor subscribes. An entry keeps the scopes it
-  was first registered with.
+  means the ids are not ready: the hook neither fetches nor subscribes. `passive: true` subscribes
+  without fetching, for an entry another always-mounted reader keeps fresh — `downloads:roots-status`
+  is fetched by `DownloadFolderToastBridge` (which also owns the failed-download counter) and Storage
+  settings, and every Download-to surface reads it passively. An entry keeps the scopes it was first
+  registered with.
 - **`main-store.js`** (Electron main facts, catalogued in `main-queries.js`, via `useMainQuery`). It
   is deliberately separate. `useQuery` is typed to the worker's `RequestName`, and a main fact
   changes only when this app writes it or main pushes it, neither of which is a reconcile hint. It
@@ -1737,8 +1780,8 @@ created, joined or left or a new space key is urgent (`schedule-rules.js`). It d
 anything is held (restore mode, or a catalog still waiting for its space); the status then reads
 `paused`, and the backup starts in the same session once the last catalog is released. On quit a run in progress or a
 due one gets a short cutoff and writes nothing if it misses it. The folder and repository id live in the worker's `settings.json` under `backup`.
-A restore puts the carried `downloads` and `network` caps back into `settings.json` itself (never
-the relay) and hands the json to the renderer, which gives main its `appearance` and
+A restore puts the carried `downloads` folder and `network` caps back into `settings.json` itself
+(never the relay, nor the recent download folders: paths on the device that made the backup) and hands the json to the renderer, which gives main its `appearance` and
 `notifications` groups (`backup:apply-settings`). Requests:
 `backup:status`, `backup:configure`, `backup:turn-off`, `backup:run`; a status change pokes
 `event:storage-updated`.

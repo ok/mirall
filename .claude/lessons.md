@@ -500,6 +500,20 @@ signing) and keep a live `download({ start: 0, end: -1 })` running until every h
 is matched. A session opened by key alone is writable once the auth row holds the key pair, so the
 guard belongs on the opener every writer uses. Tell: `[hypercore] conflict detected` on stdout.
 
+**An unprompted write to `settings.json` must not run while the loaded file is broken.** The store
+keeps a file it cannot read or parse on disk and runs on defaults until a change the user makes
+replaces it; any boot step or bookkeeping write (a seed, a recent list) would instead overwrite it
+with defaults and lose every setting. Tell: a "seed when empty" rule — the defaults are empty. Fix:
+bookkeeping goes through `updateSettings(mutate, { keepBroken: true })` (memory only while broken),
+and the test boots a trailing-comma file and a `chmod 000` file and compares bytes.
+
+**When one setting becomes per-record and can change while work is in flight, re-audit every guard
+that reads "where it goes next" for "where it already is".** Mount overlap, leave cleanup, the
+partial sweep, the volume probe and the reveal roots each read the current folders; once a pending
+row or a claim keeps its own folder, each silently stops covering it. Tell: a list named for the
+current setting feeding a guard about things that already exist. Fix: guard against the records
+themselves (pending rows' `destDir`, claims' folders), not the setting.
+
 ## Destructive and long-running work
 
 **A "not present" check that prunes its own record makes the state one-way.** Prune only when the
