@@ -28,6 +28,7 @@ const RETIRED = [
   '_resetContentBackendOverlay',
   '_resetLooseOverlay',
   'clearPublishAbort',
+  '_resetLandedFoldersForTests',
 ]
 
 test('REGRESSION (LIFECYCLE-2d): the storage-layer reset seams are gone from src/', (t) => {

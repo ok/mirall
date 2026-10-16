@@ -1,10 +1,11 @@
 import test from 'brittle'
 import {
   SETTINGS_VERSION, defaultSettings, coerceSettings, importFromConfig, settingsToRuntimeConfig, applyRestoredSettings,
+  withRecentFolder,
 } from '../../src/shared/core/settings-rules.js'
 import { sanitizeRelay } from '../../src/shared/network/relay-slot.js'
 
-const deps = { sanitizeRelay }
+const deps = { sanitizeRelay, recentLimit: 3 }
 const RELAY_KEY = 'yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy'
 
 test('the defaults carry every group with its version', (t) => {
@@ -12,7 +13,7 @@ test('the defaults carry every group with its version', (t) => {
   t.is(d.version, SETTINGS_VERSION)
   t.alike(Object.keys(d).sort(), ['backup', 'downloads', 'links', 'network', 'version'])
   t.alike(d.network, { downloadKBps: 0, uploadKBps: 0, relayMode: 'off', relay: null, downloadConcurrency: 6 })
-  t.alike(d.downloads, { folder: null })
+  t.alike(d.downloads, { folder: null, recent: [] })
   t.alike(d.backup, { folder: null, repoId: null })
   t.alike(d.links, { baseUrl: 'https://link.mirall.app' })
 })
@@ -45,12 +46,35 @@ test('coerceSettings keeps what is valid, including the 0 that means unlimited',
     backup: { folder: '/tmp/b', repoId: 'r1' },
   }, deps)
   t.is(s.downloads.folder, '/tmp/dl')
+  t.alike(s.downloads.recent, [], 'a file from before the recent list has none')
   t.is(s.network.downloadKBps, 2048)
   t.is(s.network.uploadKBps, 0)
   t.is(s.network.relayMode, 'auto')
   t.alike(s.network.relay, { publicKey: RELAY_KEY, kind: 'private', label: 'club', enabled: true, lastTest: null })
   t.is(s.network.downloadConcurrency, 0, '0 disables the gate and survives')
   t.alike(s.backup, { folder: '/tmp/b', repoId: 'r1' })
+})
+
+test('coerceSettings keeps the recent folders absolute, each once, newest first, at most the limit', (t) => {
+  const recent = ['/a', 'relative', '/b', '/a', 7, 'C:\\Users\\me\\Downloads', '/c', '/d']
+  t.alike(coerceSettings({ downloads: { recent } }, deps).downloads.recent, ['/a', '/b', 'C:\\Users\\me\\Downloads'])
+  t.alike(coerceSettings({ downloads: { recent } }, { ...deps, recentLimit: 1 }).downloads.recent, ['/a'], 'the limit is the app\'s')
+  t.alike(coerceSettings({ downloads: { recent: '/a' } }, deps).downloads.recent, [], 'a list that is not one is empty')
+})
+
+test('withRecentFolder puts the folder first and drops the oldest past the limit', (t) => {
+  const exact = { limit: 3, same: (a, b) => a === b }
+  t.alike(withRecentFolder([], '/a', exact), ['/a'])
+  t.alike(withRecentFolder(['/a', '/b'], '/c', exact), ['/c', '/a', '/b'], 'a new folder goes first')
+  t.alike(withRecentFolder(['/a', '/b', '/c'], '/c', exact), ['/c', '/a', '/b'], 'a known folder moves to the front, once')
+  t.alike(withRecentFolder(['/a', '/b', '/c'], '/d', exact), ['/d', '/a', '/b'], 'a fourth folder drops the oldest')
+})
+
+test('withRecentFolder compares folders the way the host does', (t) => {
+  const folded = { limit: 3, same: (a, b) => a.toLowerCase() === b.toLowerCase() }
+  const exact = { limit: 3, same: (a, b) => a === b }
+  t.alike(withRecentFolder(['/Users/me/DL', '/b'], '/users/me/dl', folded), ['/users/me/dl', '/b'], 'one folder on a folding host')
+  t.alike(withRecentFolder(['/home/me/DL', '/b'], '/home/me/dl', exact), ['/home/me/dl', '/home/me/DL', '/b'], 'two folders where case counts')
 })
 
 test('importFromConfig takes exactly the moved groups and leaves the rest unread', (t) => {
@@ -92,11 +116,12 @@ test('settingsToRuntimeConfig names every projected key and nothing else', (t) =
 
 test('applyRestoredSettings takes the caps and a usable folder, never the relay', (t) => {
   const current = coerceSettings({
+    downloads: { recent: ['/here/dl'] },
     network: { relayMode: 'auto', relay: { publicKey: RELAY_KEY, kind: 'private' }, downloadConcurrency: 3 },
   }, deps)
   const json = JSON.stringify({
     appearance: { theme: 'dark' },
-    downloads: { folder: '/Volumes/Old/Downloads' },
+    downloads: { folder: '/Volumes/Old/Downloads', recent: ['/Volumes/Old/Other'] },
     network: { downloadKBps: 500, uploadKBps: 'x', relayMode: 'off', relay: null, downloadConcurrency: 9 },
   })
   const kept = applyRestoredSettings(current, json, { folderUsable: () => true })
@@ -106,6 +131,7 @@ test('applyRestoredSettings takes the caps and a usable folder, never the relay'
   t.is(kept.network.relay.publicKey, RELAY_KEY)
   t.is(kept.network.downloadConcurrency, 3, 'and so does the operator lever')
   t.is(kept.downloads.folder, '/Volumes/Old/Downloads')
+  t.alike(kept.downloads.recent, ['/here/dl'], 'the recent folders are this device\'s')
   t.is(kept.backup, current.backup, 'the backup bookkeeping is untouched')
 
   const refused = applyRestoredSettings(current, json, { folderUsable: () => false })

@@ -7,7 +7,9 @@
 // by its share — the owner's own file, or a mirror's — and `downloaded` one the user fetched. Whose
 // file it is travels beside the status, so "Shared by you" is a badge, never a status. `queued` is an
 // own add waiting for a publish slot; `waiting` is a download this device asked for, held behind
-// the concurrency limit until a slot frees.
+// the concurrency limit until a slot frees. `detached` is this file's downloaded copy on a drive
+// that is not connected, while its owner is online: its claim is kept, and the file can be
+// downloaded again elsewhere.
 export const FILE_STATUS = Object.freeze({
   REMOTE: 'remote',
   PREPARING: 'preparing',
@@ -23,6 +25,7 @@ export const FILE_STATUS = Object.freeze({
   PAUSED_INTERRUPTED: 'paused-interrupted',
   PAUSED_OFFLINE: 'paused-offline',
   ERROR: 'error',
+  DETACHED: 'detached',
 })
 
 export const BADGE_STATUS = Object.freeze({
@@ -40,6 +43,7 @@ export const BADGE_STATUS = Object.freeze({
   OWNER_OFFLINE: 'owner-offline',
   UNAVAILABLE: 'unavailable',
   ERROR: 'error',
+  DETACHED: 'detached',
 })
 
 export const FILE_STATUSES = Object.freeze(Object.values(FILE_STATUS))

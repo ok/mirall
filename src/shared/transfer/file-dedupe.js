@@ -21,10 +21,11 @@ export const STATUS_RANK = Object.freeze({
   queued: 3,
   'paused-interrupted': 4,
   'paused-offline': 5,
-  remote: 6,
-  preparing: 7,
-  unavailable: 8,
-  error: 9,
+  detached: 6,
+  remote: 7,
+  preparing: 8,
+  unavailable: 9,
+  error: 10,
 })
 
 // Content hash identifies a file across owners, but a row whose owner is still hashing carries no

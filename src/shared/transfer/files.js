@@ -18,7 +18,7 @@ import { createLocalBee, storeEpoch } from '../core/store.js'
 import fs from 'bare-fs'
 import path from 'bare-path'
 
-import { getDownloadDir, getGlobalDownloadDir, getSpaceDownloadOverride, isInsideDownloadDir } from '../core/paths.js'
+import { getDownloadDir, getNewSpaceDownloadDir, isInsideDownloadDir } from '../core/paths.js'
 
 import { claimVerdict } from './download-claim.js'
 import { fingerprintMatches } from './verified-copy.js'
@@ -45,11 +45,15 @@ export async function markDownloaded(spaceId, filePath, localPath = null, meta =
   // Persist the ACTUAL landed path — a collision-avoiding download may not live
   // at <Downloads>/<basename>, so reveal/status must use this, not a recomputed
   // basename. Also record the content `hash` so the claim can tell a
-  // still-current copy from a stale one after the owner replaces the file.
+  // still-current copy from a stale one after the owner replaces the file, and the
+  // folder it was downloaded into (`destDir`) with that folder's device (`destDev`),
+  // which together answer for its volume.
   await downloadsBee.put(spaceId + ':' + filePath, {
     downloadedAt: Date.now(),
     localPath,
     hash: meta.hash || null,
+    destDir: meta.destDir || null,
+    destDev: typeof meta.destDev === 'number' ? meta.destDev : null,
   })
   log.info('marked as downloaded:', filePath, 'in space', spaceId)
 }
@@ -255,7 +259,36 @@ export function statOrNull(absPath) {
   try { return fs.statSync(absPath) } catch { return null }
 }
 
-// Answers "does this folder exist?" once per folder instead of once per claim.
+// The device of the nearest folder at or above `dir` that exists, or null when none does: a drive
+// letter that is gone has no parent to answer for it.
+function nearestDevice(dir) {
+  for (let at = dir; ; at = path.dirname(at)) {
+    const stat = statOrNull(at)
+    if (stat) return stat.dev
+    if (path.dirname(at) === at) return null
+  }
+}
+
+// Whether the volume a copy's folder was on is still here. A folder that exists answers yes. A
+// missing one answers by the device its claim recorded: the nearest folder above it that still
+// exists is on that device when the folder was moved or deleted on a present volume, and on another
+// device when the volume itself is gone. Without a recorded device the two cannot be told apart, and
+// a missing folder answers as a missing volume.
+function volumeProbe(exists, deviceOf) {
+  return (dir, dev = null) => exists(dir) || (dev !== null && deviceOf(dir) === dev)
+}
+
+const volumePresent = volumeProbe(fs.existsSync, nearestDevice)
+
+function memoised(fn) {
+  const seen = new Map()
+  return (dir) => {
+    if (!seen.has(dir)) seen.set(dir, fn(dir))
+    return seen.get(dir)
+  }
+}
+
+// Answers the volume question once per folder instead of once per claim.
 //
 // The probe only runs for a claim whose FILE is missing, so on a healthy volume it never runs at
 // all. The case it exists for is the opposite one: a detached or unreachable volume, where every
@@ -265,54 +298,48 @@ export function statOrNull(absPath) {
 //
 // The memo lives exactly one listing: callers create a probe per pass and drop it, so a volume that
 // comes back is seen by the next listing. Within one pass a single answer is also the CORRECT one —
-// the row loop is synchronous and the listing already renders one consistent snapshot.
-export function createDirProbe() {
-  const seen = new Map()
-  return (dir) => {
-    let present = seen.get(dir)
-    if (present === undefined) {
-      present = fs.existsSync(dir)
-      seen.set(dir, present)
-    }
-    return present
-  }
+// the row loop is synchronous and the listing already renders one consistent snapshot. `deviceOf`
+// is the device lookup, injectable so a test can stand in for a volume it cannot unplug.
+export function createDirProbe({ deviceOf = nearestDevice } = {}) {
+  return volumeProbe(memoised(fs.existsSync), memoised(deviceOf))
 }
 
-// "Downloaded / on your device" must reflect bytes ACTUALLY present on disk, and — for a
-// space that pins its own download folder — inside that folder. The downloads-meta record
-// is only a hint; the file is the truth.
+// "Downloaded / on your device" must reflect bytes ACTUALLY present on disk, wherever they were
+// downloaded to. The downloads-meta record is only a hint; the file is the truth.
 //
 // The filesystem + config half of that decision; download-claim.js holds the rule and the order.
 // Synchronous: every fact it needs is a stat or an in-memory config read, so a batched listing can
-// call it per row without the loop yielding. `dirExists` is resolved ONLY when the file is missing,
-// so the common case still costs one stat, which rides the verdict as `stat` for a caller that
-// fingerprints the same file. A caller looping over many claims passes a `dirProbe` from
-// createDirProbe so the folder question is asked once per folder, not once per row; the default
+// call it per row without the loop yielding. The volume is asked about ONLY when the file is
+// missing, so the common case still costs one stat, which rides the verdict as `stat` for a caller
+// that fingerprints the same file. A caller looping over many claims passes a `dirProbe` from
+// createDirProbe so the volume question is asked once per folder, not once per row; the default
 // keeps the single-claim callers on a plain probe.
-export function verdictForClaim(spaceId, filePath, rec, currentHash = null, dirProbe = fs.existsSync) {
+export function verdictForClaim(spaceId, filePath, rec, currentHash = null, dirProbe = volumePresent) {
   if (!rec) return claimVerdict({ rec: null })
   const onDisk = claimedPathFor(filePath, rec)
   const stat = statOrNull(onDisk)
-  const pinned = getSpaceDownloadOverride(spaceId)
+  const volume = volumeOf(spaceId, onDisk, rec)
   const verdict = claimVerdict({
     rec,
     exists: stat !== null,
-    dirExists: stat !== null || dirProbe(volumeDirFor(spaceId, onDisk)),
+    volumePresent: stat !== null || dirProbe(volume.dir, volume.dev),
     currentHash,
-    pinned,
-    insidePinned: pinned ? isInsideDownloadDir(onDisk, pinned) : true,
   })
   return { ...verdict, stat }
 }
 
-// The folder whose absence means the VOLUME is gone rather than the copy. For a copy below a
-// download root that is the root: a user who deletes a whole batch folder deleted copies, and the
-// volume is fine. A copy elsewhere answers for its own folder.
-function volumeDirFor(spaceId, onDisk) {
-  for (const root of [getDownloadDir(spaceId), getGlobalDownloadDir()]) {
-    if (isInsideDownloadDir(onDisk, root)) return root
+// The folder whose absence means the VOLUME may be gone rather than the copy: the folder the copy
+// was downloaded into, with the device the claim recorded for it, so a deleted batch subfolder under
+// a present folder prunes and an unplugged drive keeps. A claim that does not name its folder asks
+// the space's and the app's, then its own, and has no device to tell a deletion from a drive.
+function volumeOf(spaceId, onDisk, rec) {
+  if (typeof rec?.destDir === 'string' && rec.destDir) {
+    return { dir: rec.destDir, dev: typeof rec.destDev === 'number' ? rec.destDev : null }
   }
-  return path.dirname(onDisk)
+  for (const root of [getDownloadDir(spaceId), getNewSpaceDownloadDir()]) {
+    if (isInsideDownloadDir(onDisk, root)) return { dir: root, dev: null }
+  }
+  return { dir: path.dirname(onDisk), dev: null }
 }
 
 // The point-read form: one claim, read and acted on. Built on the same verdict as the batched
@@ -328,8 +355,6 @@ async function verifyOnDevice(spaceId, filePath, currentHash = null) {
     log.info('reset on-device claim (' + verdict.reason + '):', filePath)
   } else if (verdict.reason === 'volume-unavailable') {
     log.debug('claim folder unavailable, keeping claim:', filePath)
-  } else if (verdict.reason === 'outside-space-folder') {
-    log.debug('claim outside the space download folder:', filePath)
   }
   return verdict.downloaded
 }
@@ -380,10 +405,30 @@ export async function clearOwnedSource(spaceId, filePath) {
 
 // Where a claim's file lives. `localPath` is authoritative — a collision-avoiding
 // download may not sit at <root>/<basename>. Rows written before localPath existed have
-// no recorded path; those can only ever have landed under the GLOBAL root, since
-// per-space roots did not exist when they were written.
+// no recorded path; those can only ever have landed under the app's folder, since
+// per-space folders did not exist when they were written.
 export function claimedPathFor(filePath, rec) {
-  return rec?.localPath || path.join(getGlobalDownloadDir(), path.basename(filePath))
+  return rec?.localPath || path.join(getNewSpaceDownloadDir(), path.basename(filePath))
+}
+
+// Every folder the claims of these spaces name: the folder a copy was downloaded into, or the one it
+// sits in for a claim from before claims named their folder. One range scan per space, so the
+// verified and source namespaces are never read.
+/** @param {Iterable<string>} spaceIds @returns {Promise<string[]>} */
+export async function listClaimFolders(spaceIds) {
+  const folders = new Set()
+  for (const spaceId of spaceIds) {
+    for await (const { value } of downloadsBee.createReadStream(prefixRange(spaceId + ':'))) {
+      const folder = claimFolder(value)
+      if (folder) folders.add(folder)
+    }
+  }
+  return [...folders]
+}
+
+function claimFolder(rec) {
+  if (typeof rec?.destDir === 'string' && rec.destDir) return rec.destDir
+  return typeof rec?.localPath === 'string' && rec.localPath ? path.dirname(rec.localPath) : null
 }
 
 export async function cleanupDownloadHistory(spaceId) {

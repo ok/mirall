@@ -11,6 +11,7 @@ import { putContentKey } from '../../src/shared/spaces/space-keys.js'
 import { getLocalPublicKeyHex } from '../../src/shared/spaces/profile.js'
 import { createBee } from '../../src/shared/core/store.js'
 import { getRuntimeConfig, setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
+import { getDownloadDir, setSpaceDownloadRoot, forgetSpaceDownloadRoot } from '../../src/shared/core/paths.js'
 import { fileKey } from '../../src/shared/shares/catalog-keys.js'
 import { isPeerCatalogWatched } from '../../src/shared/shares/peer-catalog.js'
 import { generateShareId, publishShare, tombstoneShare } from '../../src/shared/shares/shares.js'
@@ -20,7 +21,7 @@ import { initPendingTransfers, recordPending, recordPendingError, getPendingFor,
 import { memberWaits } from '../../src/shared/network/share-wait.js'
 import { createOverlayDownloadEngine } from '../../src/shared/transfer/overlay/overlay-download.js'
 import {
-  cancelShareDownload, downloadChannel, listPeerWithMeta, requestShareDownload, setDownloadEngine, watchedCatalogVersion,
+  cancelShareDownload, downloadChannel, listPeerWithMeta, requestShareDownload, requestShareDownloads, setDownloadEngine, watchedCatalogVersion,
 } from '../../src/shared/transfer/overlay/share-downloads.js'
 import { downloadJob, looseShareFor } from '../../src/shared/transfer/overlay/download-job.js'
 import { LOOSE_SHARE_ID, looseTransferIdFor, transferIdFor } from '../../src/shared/transfer/transfer-id.js'
@@ -43,9 +44,10 @@ async function setup(t) {
 }
 
 function jobFor(ctx, spaceId, share, relPath, pendingKey) {
+  const destRoot = ctx.tmpDir('dl')
   return downloadJob({
     spaceId, share, relPath, pendingKey, keyHex: KEY, encrypted: true, epoch: 0,
-    entry: { contentHash: HASH, size: 4096, seq: 3 }, finalPath: path.join(ctx.tmpDir('dl'), relPath),
+    entry: { contentHash: HASH, size: 4096, seq: 3 }, finalPath: path.join(destRoot, relPath), destRoot,
   })
 }
 
@@ -66,12 +68,12 @@ test('a started download writes the same row fields per kind as before', async (
   t.is(ctx.fake.emitted('event:files-updated').length, 0, 'and neither pokes every listing in the space')
 
   const loose = await getPendingFor(ctx.spaceId, '/a.bin')
-  t.alike(keysOf(loose), ['bytesTransferred', 'contentHash', 'finalPath', 'inPlace', 'ownerKey', 'relPath', 'shareId', 'sourceSeq', 'total'])
+  t.alike(keysOf(loose), ['bytesTransferred', 'contentHash', 'destDir', 'finalPath', 'inPlace', 'ownerKey', 'relPath', 'shareId', 'sourceSeq', 'total'])
   t.is(loose.inPlace, true)
   t.is(loose.shareId, LOOSE_SHARE_ID)
 
   const folder = await getPendingFor(ctx.spaceId, '/Vault/b.bin')
-  t.alike(keysOf(folder), ['bytesTransferred', 'catalogEpoch', 'catalogKeyEnc', 'contentHash', 'finalPath', 'inPlace', 'overlayShare', 'ownerKey', 'relPath', 'shareId', 'sourceSeq', 'total'])
+  t.alike(keysOf(folder), ['bytesTransferred', 'catalogEpoch', 'catalogKeyEnc', 'contentHash', 'destDir', 'finalPath', 'inPlace', 'overlayShare', 'ownerKey', 'relPath', 'shareId', 'sourceSeq', 'total'])
   t.is(folder.inPlace, false)
   t.is(folder.overlayShare, true)
   t.is(folder.catalogKeyEnc, KEY)
@@ -165,8 +167,8 @@ test('a click the catalog cannot answer keeps a loose intent row and nothing for
 
   t.alike(await requestShareDownload(ctx.spaceId, loose, 'missing.bin'), { queued: true }, 'loose: queued')
   const intent = await getPendingFor(ctx.spaceId, '/missing.bin')
-  t.alike({ ...intent, updatedAt: undefined }, { inPlace: true, shareId: LOOSE_SHARE_ID, relPath: 'missing.bin', ownerKey: OWNER, total: 0, updatedAt: undefined },
-    'the intent row has exactly the shape an earlier build wrote')
+  t.alike({ ...intent, updatedAt: undefined }, { inPlace: true, shareId: LOOSE_SHARE_ID, relPath: 'missing.bin', ownerKey: OWNER, total: 0, destDir: getDownloadDir(ctx.spaceId), updatedAt: undefined },
+    'the intent row has the shape an earlier build wrote, plus the folder it lands in')
   t.ok(ctx.fake.emitted('event:share-files-updated').some((e) => e.payload.spaceId === ctx.spaceId && e.payload.shareId === LOOSE_SHARE_ID),
     'and the loose listing is told')
   t.is(ctx.fake.emitted('event:files-updated').length, 0, 'and no other listing')
@@ -295,7 +297,7 @@ test('REGRESSION (FIX-667: a click on another owner\'s file of the same name wri
 
   t.alike(await requestShareDownload(ctx.spaceId, UNREADABLE(CAROL), 'a.bin'), { queued: true })
   t.alike(withoutStamp(await getPendingFor(ctx.spaceId, '/a.bin')),
-    { inPlace: true, shareId: LOOSE_SHARE_ID, relPath: 'a.bin', ownerKey: CAROL, total: 0, updatedAt: undefined },
+    { inPlace: true, shareId: LOOSE_SHARE_ID, relPath: 'a.bin', ownerKey: CAROL, total: 0, destDir: getDownloadDir(ctx.spaceId), updatedAt: undefined },
     'the row is Carol\'s intent, so her reconnect re-drives the click')
 })
 
@@ -310,6 +312,71 @@ test('REGRESSION (FIX-667: a click on a failed row with progress clears its erro
   t.alike(await requestShareDownload(ctx.spaceId, UNREADABLE(OWNER), 'a.bin'), { queued: true })
   t.alike(withoutStamp(await getPendingFor(ctx.spaceId, '/a.bin')), withoutStamp(failed),
     'the user\'s click clears the durable error, so the reconnect scan re-drives the row from its progress')
+})
+
+// A member whose loose catalog this peer reads and the real engine with the owner away: the first
+// click parks a row in `old` with the file's hash and no bytes, as start() leaves it.
+async function parkedIntent(t) {
+  const ctx = await setup(t)
+  const member = { publicKey: OWNER, looseCatalogKeyEnc: await ownCatalogKeyHex(ctx.spaceId) }
+  await upsertMember(ctx.spaceId, member, { verified: true })
+  const loose = looseShareFor(member)
+  const old = ctx.tmpDir('dl-old')
+  setSpaceDownloadRoot(ctx.spaceId, old)
+  setDownloadEngine(createOverlayDownloadEngine({ ...downloadChannel, isOwnerOnline: () => false }))
+  t.teardown(() => { setDownloadEngine(null); forgetSpaceDownloadRoot(ctx.spaceId); memberWaits.clear() })
+  await advertise(ctx.spaceId, LOOSE_SHARE_ID, 'a.bin', { size: 4, mtime: 1, contentHash: HASH })
+  await requestShareDownload(ctx.spaceId, loose, 'a.bin')
+  const parked = await getPendingFor(ctx.spaceId, '/a.bin')
+  t.ok(parked?.contentHash && parked.destDir === old && !parked.bytesTransferred, 'precondition: a parked row in the old folder')
+  // The owner re-publishes: the entry has no hash until the new one materializes.
+  await advertise(ctx.spaceId, LOOSE_SHARE_ID, 'a.bin', { size: 5, mtime: 2, contentHash: null })
+  return { ctx, loose, old, asked: ctx.tmpDir('dl-asked') }
+}
+
+// The re-drive once the owner's new hash lands, through the production resolve.
+async function redriveJob(ctx) {
+  await advertise(ctx.spaceId, LOOSE_SHARE_ID, 'a.bin', { size: 5, mtime: 2, contentHash: 'b'.repeat(64) })
+  const row = await getPendingFor(ctx.spaceId, '/a.bin')
+  return (await downloadChannel.resolvePendingRow(ctx.spaceId, { filePath: '/a.bin', ...row })).job
+}
+
+test('REGRESSION (FIX-DLTO-R10: a click that names a folder leaves a parked row in its old folder)', async (t) => {
+  const s = await parkedIntent(t)
+  t.alike(await requestShareDownload(s.ctx.spaceId, s.loose, 'a.bin', { destDir: s.asked }), { queued: true })
+  t.is((await getPendingFor(s.ctx.spaceId, '/a.bin')).destDir, s.asked, 'a row with no bytes takes the folder the click names')
+  const job = await redriveJob(s.ctx)
+  t.is(job?.destRoot, s.asked, 'and the re-drive lands there')
+  t.is(job?.finalPath, path.join(s.asked, 'a.bin'))
+})
+
+test('REGRESSION (FIX-DLTO-R10: a batch that names a folder leaves a parked row in its old folder)', async (t) => {
+  const s = await parkedIntent(t)
+  t.is((await requestShareDownloads(s.ctx.spaceId, s.loose, ['a.bin'], { destDir: s.asked })).waitingOnOwner, 1)
+  t.is((await getPendingFor(s.ctx.spaceId, '/a.bin')).destDir, s.asked, 'a row with no bytes takes the batch\'s folder')
+})
+
+test('REGRESSION (FIX-DLTO-R10: a batch of an owner with no catalog key leaves a parked row in its old folder)', async (t) => {
+  const s = await parkedIntent(t)
+  t.is((await requestShareDownloads(s.ctx.spaceId, looseShareFor({ publicKey: OWNER }), ['a.bin'], { destDir: s.asked })).waitingOnOwner, 1)
+  t.is((await getPendingFor(s.ctx.spaceId, '/a.bin')).destDir, s.asked, 'a row with no bytes takes the batch\'s folder')
+})
+
+test('a click that names no folder leaves a parked row where it waits', async (t) => {
+  const s = await parkedIntent(t)
+  setSpaceDownloadRoot(s.ctx.spaceId, s.asked)
+  await requestShareDownload(s.ctx.spaceId, s.loose, 'a.bin')
+  t.is((await getPendingFor(s.ctx.spaceId, '/a.bin')).destDir, s.old, 'a waiting row keeps its folder')
+})
+
+test('REGRESSION (FIX-DLTO-R11: a Retry the catalog cannot answer leaves a row refused before its first byte in the folder that refused it)', async (t) => {
+  const s = await parkedIntent(t)
+  await recordPendingError(s.ctx.spaceId, '/a.bin', CODES.TRANSFER_DISK_FULL, { refusedByPreflight: true })
+  setSpaceDownloadRoot(s.ctx.spaceId, s.asked)
+  await requestShareDownload(s.ctx.spaceId, s.loose, 'a.bin')
+  const row = await getPendingFor(s.ctx.spaceId, '/a.bin')
+  t.absent(row.errorCode, 'precondition: the click cleared the error')
+  t.is(row.destDir, s.asked, 'the row takes the space\'s current folder, where Retry acts')
 })
 
 test('a click on a folder file the owner removed answers removed', async (t) => {
@@ -334,7 +401,7 @@ test('a click the catalog cannot answer replaces a loose row with no progress by
 
   t.alike(await requestShareDownload(ctx.spaceId, loose, 'a.bin'), { queued: true })
   const row = await getPendingFor(ctx.spaceId, '/a.bin')
-  t.alike({ ...row, updatedAt: undefined }, { inPlace: true, shareId: LOOSE_SHARE_ID, relPath: 'a.bin', ownerKey: OWNER, total: 0, updatedAt: undefined },
+  t.alike({ ...row, updatedAt: undefined }, { inPlace: true, shareId: LOOSE_SHARE_ID, relPath: 'a.bin', ownerKey: OWNER, total: 0, destDir: getDownloadDir(ctx.spaceId), updatedAt: undefined },
     'a fresh intent row')
 })
 

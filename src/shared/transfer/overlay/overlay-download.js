@@ -33,7 +33,7 @@ import { createReconcile } from './reconcile-scan.js'
 import { memberWaits } from '../../network/share-wait.js'
 import { transferIdParts } from '../transfer-id.js'
 import { faultAwaitsOwner, faultCleared } from './download-faults.js'
-import { LAYOUT } from './download-job.js'
+import { LAYOUT, landingRoot } from './download-job.js'
 
 const log = createLogger('overlay-download')
 
@@ -70,17 +70,17 @@ function defaultDirExists(dir) {
 // point at it.
 const DEST_VERDICT_TTL_MS = 60_000
 
-// Where a re-driven row would actually be written. The reconcile re-anchors a pin that sits outside
-// the space's download folder (reuseDest), so a fault is judged against the folder the next attempt
-// uses rather than the one the download first targeted. A re-anchored row gives up the partial it
-// left behind, so it has nothing allocated. A TREE row is judged against the root, which is what
-// its start probes: its own folder is created under the root on the attempt.
+// Where a re-driven row would actually be written: its own folder, or the space's while its own
+// cannot be reached (landingRoot), so a fault is judged against the folder the next attempt uses. A
+// row that moved gives up the partial it left behind, so it has nothing allocated. A TREE row is
+// judged against the root, which is what its start probes: its own folder is created under the
+// root on the attempt.
 /**
- * @param {{ spaceId: string, finalPath?: string, layout?: string }} row
+ * @param {{ spaceId: string, finalPath?: string, layout?: string, destDir?: string, bytesTransferred?: number }} row
  * @returns {{ dir: string, partialFor: string | null }}
  */
-function rowDest(row) {
-  const localDir = getDownloadDir(row.spaceId)
+function rowDest(row, dirExists) {
+  const localDir = landingRoot({ row, spaceFolder: getDownloadDir(row.spaceId), dirExists })
   const pinned = !!row.finalPath && isInsideDownloadDir(row.finalPath, localDir)
   const dir = pinned && row.layout !== LAYOUT.TREE ? path.dirname(row.finalPath) : localDir
   return { dir, partialFor: pinned ? row.finalPath : null }
@@ -107,7 +107,7 @@ function rowFault(row, code) {
 // still reach the row. The owner gate is the one start() reads, so a re-drive cannot rewrite the
 // row only to park it as owner-offline. The reconcile's own faultCleared reads the destination
 // afresh.
-function createOwnerWait({ channel, registry, pausedHashes, terminalCodes, ownerOnline, makeDestProbe, now }) {
+function createOwnerWait({ channel, registry, pausedHashes, terminalCodes, ownerOnline, makeDestProbe, dirExists, now }) {
   // dir -> { at, exists?, writable?, acceptsWrite?, freeBytes? }. The raw readings, not a verdict:
   // two rows on one folder need different amounts of room, so a cached "it is full" would answer
   // the second row with the first row's size. Each field is filled only when a code asks for it.
@@ -129,8 +129,29 @@ function createOwnerWait({ channel, registry, pausedHashes, terminalCodes, owner
       return (kept[field] = probe())
     }
   }
-  const keptProbe = (row) => { const { dir, partialFor } = rowDest(row); return makeDestProbe(dir, partialFor, keptReader(dir)) }
-  const freshProbe = (row) => { const { dir, partialFor } = rowDest(row); return makeDestProbe(dir, partialFor, freshReader(dir)) }
+  // A row's probe finds its folder on the first reading a rule takes, so a code no rule judges by
+  // the destination reads nothing. The tick's probe also takes whether the row's own folder exists
+  // from the kept readings, so one folder is stat'ed at most once per TTL however many rows land in it.
+  function rowProbe(row, exists, readerFor) {
+    let probe = null
+    const at = () => {
+      if (!probe) {
+        const { dir, partialFor } = rowDest(row, exists)
+        probe = makeDestProbe(dir, partialFor, readerFor(dir))
+      }
+      return probe
+    }
+    return {
+      dirExists: () => at().dirExists(),
+      dirWritable: () => at().dirWritable(),
+      dirAcceptsWrite: () => at().dirAcceptsWrite(),
+      freeBytes: () => at().freeBytes(),
+      allocatedBytes: () => at().allocatedBytes(),
+    }
+  }
+  const keptExists = (dir) => !!keptReader(dir)('exists', () => dirExists(dir))
+  const keptProbe = (row) => rowProbe(row, keptExists, keptReader)
+  const freshProbe = (row) => rowProbe(row, dirExists, freshReader)
   function faultOf(row) {
     if (!channel.ownsPendingRow(row)) return null
     const transferId = channel.transferIdForRow(row.spaceId, row)
@@ -211,6 +232,9 @@ function abortFetch(slot, opts) {
 // (drainFetchSlots in fetch-gate.js).
 export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentToFile, hasOverlay = () => !!getOverlay() && !fetchSlotsDrained(), freeBytes = freeBytesFor, stallRetry = {}, dirExists = defaultDirExists, dirWritable = folderWritable, dirAcceptsWrite = folderAcceptsWrite, now = Date.now } = {}) {
   const registry = new Map() // transferId -> slot (download-start.js makeSlot)
+  // Every destination a slot holds: a name a running transfer writes is taken whether or not its
+  // partial exists yet.
+  const activeDests = () => [...registry.values()].map((slot) => slot.finalPath)
   // The marker is the user's intent — it outranks every automatic resume — and its hash lets a
   // later discard still tell the holder we stopped.
   const pausedHashes = createPausedHolders({ notifyStopped: (hash) => getOverlay()?.notifyTransferStopped(hash) })
@@ -280,9 +304,9 @@ export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentT
     registry, pausedHashes, channel, log, hasOverlay, ownerOnline, destProbeFor,
     pauseReasonFor, recordTerminal, failTerminal, runFetch: settle.run,
   })
-  const ownerWait = createOwnerWait({ channel, registry, pausedHashes, terminalCodes, ownerOnline, makeDestProbe, now })
+  const ownerWait = createOwnerWait({ channel, registry, pausedHashes, terminalCodes, ownerOnline, makeDestProbe, dirExists, now })
   const reconcile = createReconcile({
-    registry, pausedHashes, terminalCodes, retries, channel, log, hasOverlay, start: starter.start, cancelByKey, discardPartial, faultCleared: ownerWait.faultCleared,
+    registry, pausedHashes, terminalCodes, retries, channel, log, hasOverlay, start: starter.start, cancelByKey, discardPartial, activeDests, faultCleared: ownerWait.faultCleared,
   })
 
   // The owner re-published this source (advertise with a null hash → hash → setMaterializedHash)
@@ -418,9 +442,8 @@ export function createOverlayDownloadEngine(channel, { fetchImpl = fetchContentT
     has: (transferId) => registry.has(transferId),
     // Null for no slot; a held slot is either parked behind the gate or fetching.
     phase: (transferId) => { const slot = registry.get(transferId); return !slot ? null : slot.waiting ? 'waiting' : 'active' },
-    // Every destination a slot holds, for a batch that must not resolve a name a sibling batch
-    // already took.
-    activeDests: () => [...registry.values()].map((slot) => slot.finalPath),
+    // For a batch that must not resolve a name a sibling batch already took.
+    activeDests,
     // The destination questions about a folder, for a batch judged before any job exists.
     destProbe: (dir) => makeDestProbe(dir, null),
     awaitsOwner: ownerWait.awaitsOwner,

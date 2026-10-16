@@ -9,7 +9,7 @@ export const SETTINGS_VERSION = 1
 
 /**
  * @typedef {{ version: number,
- *   downloads: { folder: string | null },
+ *   downloads: { folder: string | null, recent: string[] },
  *   network: { downloadKBps: number, uploadKBps: number, relayMode: RelayMode, relay: RelaySlot | null, downloadConcurrency: number },
  *   backup: { folder: string | null, repoId: string | null },
  *   links: { baseUrl: string } }} Settings
@@ -19,7 +19,7 @@ export const SETTINGS_VERSION = 1
 export function defaultSettings() {
   return {
     version: SETTINGS_VERSION,
-    downloads: { folder: null },
+    downloads: { folder: null, recent: [] },
     // downloadConcurrency has no setter and no UI on purpose: it is an operator lever and the
     // rollback path for the shared fetch gate. 0 disables the gate entirely.
     network: { downloadKBps: 0, uploadKBps: 0, relayMode: 'off', relay: null, downloadConcurrency: 6 },
@@ -32,6 +32,21 @@ export function defaultSettings() {
 const isPlainObject = (v) => typeof v === 'object' && v !== null && !Array.isArray(v)
 const nonEmptyString = (v) => (typeof v === 'string' && v.length > 0 ? v : null)
 const countAtLeastZero = (v, fallback) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.floor(v) : fallback)
+const isAbsolutePath = (v) => typeof v === 'string' && (/^[\\/]/.test(v) || /^[A-Za-z]:[\\/]/.test(v))
+
+// This device's download folders, newest first: absolute paths, each once, at most `limit`.
+/** @param {unknown} v @param {number} limit @returns {string[]} */
+function recentFolders(v, limit) {
+  if (!Array.isArray(v)) return []
+  return [...new Set(v.filter(isAbsolutePath))].slice(0, limit)
+}
+
+// A folder just used moves to the front; the oldest past `limit` drops out. `same` compares two
+// paths the way the host does.
+/** @param {string[]} recent @param {string} folder @param {{ limit: number, same: (a: string, b: string) => boolean }} opts */
+export function withRecentFolder(recent, folder, { limit, same }) {
+  return [folder, ...recent.filter((p) => !same(p, folder))].slice(0, limit)
+}
 
 // A link base is an https URL with nothing after the path: a query or fragment would collide with
 // the code the link carries in its fragment.
@@ -46,9 +61,10 @@ function linkBaseOrDefault(v, fallback) {
 
 // Every field is re-derived from the parsed input against the defaults: a hand-edited or truncated
 // file yields the default for the field it broke, never a value the worker would refuse.
-// `sanitizeRelay` is injected because it decodes the key, which the contract package cannot do.
-/** @param {unknown} raw @param {{ sanitizeRelay: (entry: unknown) => RelaySlot | null }} deps @returns {Settings} */
-export function coerceSettings(raw, { sanitizeRelay }) {
+// `sanitizeRelay` is injected because it decodes the key, which the contract package cannot do;
+// `recentLimit` is the app's configured length of the recent-folder list.
+/** @param {unknown} raw @param {{ sanitizeRelay: (entry: unknown) => RelaySlot | null, recentLimit: number }} deps @returns {Settings} */
+export function coerceSettings(raw, { sanitizeRelay, recentLimit }) {
   const d = defaultSettings()
   const src = isPlainObject(raw) ? raw : {}
   const downloads = isPlainObject(src.downloads) ? src.downloads : {}
@@ -57,7 +73,7 @@ export function coerceSettings(raw, { sanitizeRelay }) {
   const links = isPlainObject(src.links) ? src.links : {}
   return {
     version: SETTINGS_VERSION,
-    downloads: { folder: nonEmptyString(downloads.folder) },
+    downloads: { folder: nonEmptyString(downloads.folder), recent: recentFolders(downloads.recent, recentLimit) },
     network: {
       downloadKBps: countAtLeastZero(network.downloadKBps, d.network.downloadKBps),
       uploadKBps: countAtLeastZero(network.uploadKBps, d.network.uploadKBps),
@@ -79,7 +95,7 @@ export function importFromConfig(configJson, deps) {
 
 // What a restored backup's settings json changes in the current settings: the bandwidth caps, the
 // download folder only when it can be used on this device, never the relay (its seed is bound to
-// the device that made the backup).
+// the device that made the backup) and never the recent folders (paths on that device).
 export function applyRestoredSettings(current, json, { folderUsable }) {
   let parsed
   try {

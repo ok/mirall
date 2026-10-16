@@ -4,7 +4,7 @@ import path from 'bare-path'
 import { freshPeer } from '../helpers/store.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { looseHasOwn } from '../../src/shared/transfer/overlay/loose-publish.js'
-import { initDownloads, markDownloaded, markOwnedSource, getDownloadedPath, getOwnedSourcePath, isDownloadedFile, markVerified, getVerifiedHash, isVerifiedUnchanged, cleanupDownloadHistory, listDownloadClaimsForShare, listVerifiedForShare, listVerifiedRecordsForShare, pruneDownloadClaims, verdictForClaim, createDirProbe } from '../../src/shared/transfer/files.js'
+import { initDownloads, markDownloaded, markOwnedSource, getDownloadedPath, getOwnedSourcePath, isDownloadedFile, markVerified, getVerifiedHash, isVerifiedUnchanged, cleanupDownloadHistory, listDownloadClaimsForShare, listVerifiedForShare, listVerifiedRecordsForShare, pruneDownloadClaims, verdictForClaim, createDirProbe, listClaimFolders } from '../../src/shared/transfer/files.js'
 import { addFile, removeFile } from '../../src/shared/transfer/file-listing.js'
 import { resolveRevealTarget } from '../../src/shared/transfer/reveal.js'
 import { initPendingTransfers } from '../../src/shared/transfer/pending-transfers.js'
@@ -289,6 +289,23 @@ test('listDownloadClaimsForShare scans one share and never a sibling', async (t)
 
   const other = await listDownloadClaimsForShare('other-space', 'Docs')
   t.is(other.size, 0, 'the scan is scoped to the space as well as the share')
+})
+
+test('a claim records the folder it was downloaded into, and the folders are listed once each', async (t) => {
+  const { spaceId, tmpDir } = await setup(t)
+  const chosen = tmpDir('dl-chosen')
+  fs.mkdirSync(path.join(chosen, 'Docs'), { recursive: true })
+  for (const name of ['a.txt', 'b.txt']) {
+    const landed = path.join(chosen, 'Docs', name)
+    fs.writeFileSync(landed, 'bytes')
+    await markDownloaded(spaceId, '/Docs/' + name, landed, { hash: 'h', destDir: chosen })
+  }
+  await markDownloaded(spaceId, '/Docs/legacy.txt', path.join(chosen, 'legacy.txt'), { hash: 'h' })
+
+  const claims = await listDownloadClaimsForShare(spaceId, 'Docs')
+  t.is(claims.get('/Docs/a.txt').destDir, chosen)
+  t.is(claims.get('/Docs/legacy.txt').destDir, null, 'a claim that names no folder stores none')
+  t.alike(await listClaimFolders([spaceId]), [chosen], 'a legacy claim answers for the folder its copy sits in')
 })
 
 test('the keep filter bounds retention without narrowing the scan', async (t) => {

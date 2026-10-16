@@ -2,7 +2,7 @@ import test from 'brittle'
 import { coerceSettings, defaultSettings } from '../../src/shared/core/settings-rules.js'
 import { DEFAULT_WEB_LINK_BASE } from '../../src/shared/contract/invite-envelope.js'
 
-const deps = { sanitizeRelay: () => null }
+const deps = { sanitizeRelay: () => null, recentLimit: 3 }
 const base = (baseUrl) => coerceSettings({ links: { baseUrl } }, deps).links.baseUrl
 
 test('the link base defaults to the Mirall links host', (t) => {

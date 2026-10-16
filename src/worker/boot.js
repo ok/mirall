@@ -10,7 +10,7 @@
 import { createLifecycle } from '../shared/core/subsystem.js'
 import { Supervisor } from '../shared/core/supervisor.js'
 import { getPeerPresenceDwellMs, getRelayAuditDwellMs, getRelayConfig } from '../shared/core/runtime-config.js'
-import { hydrateDownloadRoots, listDownloadRoots } from '../shared/core/paths.js'
+import { getNewSpaceDownloadDir, hydrateDownloadRoots, listDownloadRoots, setLandedFolders } from '../shared/core/paths.js'
 import { IntentsBee, getIntentsBee } from '../shared/core/intents.js'
 import { createIntentLog } from '../shared/core/intents.js'
 import { registerFolderIntents } from '../shared/folders/folder-intents.js'
@@ -28,8 +28,9 @@ import {
   resumeInterruptedLeave, persistPendingLeave, clearPendingLeave, listPendingLeaves,
 } from '../shared/spaces/leave-records.js'
 import { MemberViews } from '../shared/spaces/member-registry.js'
-import { DownloadsBee, cleanupDownloadHistory } from '../shared/transfer/files.js'
-import { PendingTransfersBee, clearPendingForSpace, forgetStaleFailures } from '../shared/transfer/pending-transfers.js'
+import { DownloadsBee, cleanupDownloadHistory, listClaimFolders } from '../shared/transfer/files.js'
+import { PendingTransfersBee, clearPendingForSpace, forgetStaleFailures, listPending } from '../shared/transfer/pending-transfers.js'
+import { backfillSpaceFolders, hydrateRecentDownloadFolders } from '../shared/transfer/download-folder-choice.js'
 import { abortInFlightPublishes } from '../shared/transfer/overlay/overlay-publish.js'
 import { ServeLedger } from '../shared/transfer/serve-ledger.js'
 import { FileRecipients } from '../shared/transfer/file-recipients.js'
@@ -271,6 +272,7 @@ export async function boot(bootstrap, {
     // whole session (the resume path purges the record without going through space:leave's forget).
     // Safe this late — nothing between store init and here reads a download root, and main.js calls
     // ipc.start() (which admits the first frame that could) only after boot() has returned.
+    await settleSpaceFolders(activeSpaces, log)
     hydrateDownloadRoots(activeSpaces)
     publishRevealRoots()
     if (!restoring) await backfillMembership(activeSpaces, log)
@@ -305,7 +307,7 @@ export async function boot(bootstrap, {
       compactStore().catch((err) => log.warn('post-migration compaction failed:', err.message))
     }
 
-    await sweepOrphans(log)
+    await sweepOrphans(activeSpaces, log)
 
     if (swarm) {
       for (const space of activeSpaces) {
@@ -391,7 +393,7 @@ async function resumeInterruptedLeaves(knownSpaces, log) {
       // (the sweeps cover cores, not bee rows). Best-effort — the leave itself is already durable.
       try {
         await cleanupDownloadHistory(space.spaceId)
-        await discardRowPartials(await clearPendingForSpace(space.spaceId), listDownloadRoots())
+        await discardRowPartials(await clearPendingForSpace(space.spaceId))
       } catch (err) {
         log.warn('interrupted-leave transfer-row cleanup failed:', space.spaceId, '-', err.message)
       }
@@ -399,6 +401,35 @@ async function resumeInterruptedLeaves(knownSpaces, log) {
     } catch (err) {
       log.warn('resume interrupted leave failed:', space.spaceId, '-', err.message)
     }
+  }
+}
+
+// Every space downloads into its own folder; a record from before that gets the app folder, and the
+// recent list starts from the folders in use. The two steps fail apart: a failed backfill leaves
+// that space answering the app folder (getDownloadDir), never a missing one, and the recent list is
+// hydrated either way.
+/** @internal the steps are injectable so a test can fail one */
+export async function settleSpaceFolders(activeSpaces, log, { backfill = backfillSpaceFolders, hydrateRecent = hydrateRecentDownloadFolders } = {}) {
+  const seed = getNewSpaceDownloadDir()
+  try {
+    await backfill(activeSpaces, seed)
+  } catch (err) {
+    log.warn('space download-folder backfill failed:', err.message)
+  }
+  try {
+    await hydrateRecent(activeSpaces, seed)
+  } catch (err) {
+    log.warn('recent download folders could not be hydrated:', err.message)
+  }
+}
+
+// The folders that hold a download or a partial, so Reveal and the sweep below reach them.
+async function hydrateLandedFolders(activeSpaces, log) {
+  try {
+    const rows = await listPending()
+    setLandedFolders([...rows.map((row) => row.destDir), ...await listClaimFolders(activeSpaces.map((s) => s.spaceId))])
+  } catch (err) {
+    log.warn('landed download folders could not be read:', err.message)
   }
 }
 
@@ -440,14 +471,15 @@ async function backfillMembership(activeSpaces, log) {
 
 // Crash leftovers: partials, retired peer-cache cores, orphaned receive journals. All
 // best-effort — a failure here defers reclamation, it never blocks boot.
-async function sweepOrphans(log) {
-  // Before the partial sweep, so a forgotten row's partial goes in the same pass. A nested partial
-  // is reachable only through its row, so it goes with the row here.
+async function sweepOrphans(activeSpaces, log) {
+  await hydrateLandedFolders(activeSpaces, log)
+  // Before the partial sweep, so a forgotten row's partial goes in the same pass: it goes with its
+  // row (discardRowPartials), whichever folder it sits in.
   try {
     const forgotten = await forgetStaleFailures()
     if (forgotten.length) {
       log.info('forgot', forgotten.length, 'failed downloads past their age cap')
-      await discardRowPartials(forgotten, listDownloadRoots())
+      await discardRowPartials(forgotten)
     }
   } catch (err) {
     log.warn('failed-download age-out failed:', err.message)

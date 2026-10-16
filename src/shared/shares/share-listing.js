@@ -28,6 +28,7 @@ import {
   pruneDownloadClaims,
 } from '../transfer/files.js'
 import { COPY_VERDICT, verifiedCopyVerdict } from '../transfer/verified-copy.js'
+import { isDetachedCopy } from '../transfer/download-claim.js'
 import { FILE_STATUS } from '../contract/statuses.js'
 /** @import { CancellationSignal } from '../core/cancellation.js' */
 /** @import { StoredShare } from './shares.js' */
@@ -103,7 +104,8 @@ function overlayConsumerRow(spaceId, share, entry, { ownerOnline, foreignMount, 
   // Collected, never acted on here: a del is a write, and taking a write turn per stale row is the
   // cost this batching exists to remove. The listing flushes them once, after the rows.
   if (verdict.prune) prune.push(drivePath)
-  const localPath = verdict.downloaded ? deps.claimedPathFor(drivePath, claim) : null
+  const detached = isDetachedCopy(verdict, claim, entry.contentHash)
+  const localPath = verdict.downloaded || detached ? deps.claimedPathFor(drivePath, claim) : null
   // Keyed by the share's NAME, which two owners can share: the row counts only for the share it names.
   const pendingRow = pending?.get(drivePath)
   // A browse row asks the download engine, whose slot is either parked or fetching; a mirror's
@@ -117,6 +119,7 @@ function overlayConsumerRow(spaceId, share, entry, { ownerOnline, foreignMount, 
     isWaiting: phase === 'waiting',
     pendingRow: pendingRow?.shareId === share.id ? pendingRow : undefined,
     ownerOnline,
+    detached,
   })
   return { ...row, localPath }
 }

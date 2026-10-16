@@ -35,11 +35,12 @@ import { registerShares } from './ipc/shares.js'
 import { registerSpaces } from './ipc/spaces.js'
 import { createMembership } from './ipc/membership.js'
 import { slimSpaces } from './space-projection.js'
+import { createFolderChooser } from './download-folder-push.js'
 import { createOwnedMounter } from './owned-mount.js'
 import {
   setRuntimeConfig, getIpcKeepaliveMs, getIpcKeepaliveGraceMs,
 } from '../shared/core/runtime-config.js'
-import { forgetSpaceDownloadRoot, listDownloadRoots } from '../shared/core/paths.js'
+import { forgetSpaceDownloadRoot, listDownloadRoots, setDownloadRootsListener } from '../shared/core/paths.js'
 import { listRevealRoots } from '../shared/folders/reveal-roots.js'
 import { setMountRootsListener } from '../shared/folders/mount-store.js'
 import { loadSettings, getSettings } from '../shared/core/settings-store.js'
@@ -101,6 +102,8 @@ function publishRevealRoots() {
     })
 }
 setMountRootsListener(publishRevealRoots)
+setDownloadRootsListener(publishRevealRoots)
+const chooseFolder = createFolderChooser({ ipc, publishRevealRoots })
 
 // Dropping a root is a NARROWING of that allowlist, so it has to be published like any other
 // change: main's copy is push-only, and a forget that never republishes leaves it authorizing
@@ -277,7 +280,7 @@ registerWorkerProcess(ipc, { stop: () => { safeShutdown('shutdown-request') } })
 
 // === IPC: folder-share handlers (shares, owned & foreign mounts) ===
 
-registerShares(ipc, { log, intents, mountOwnedShare })
+registerShares(ipc, { log, intents, mountOwnedShare, chooseFolder })
 
 registerFolderPreview(ipc)
 
@@ -293,7 +296,7 @@ registerIdentity(ipc, {
   restoreStatus: () => root?.restoreCatchUp?.status() ?? null,
 })
 
-registerSpaces(ipc, { log, publishRevealRoots })
+registerSpaces(ipc, { log, chooseFolder })
 
 registerBackup(ipc, { backup: root.backup, paused: root.backupPaused, openRecovery })
 registerBackupRestore(ipc, { storagePath: bootstrap.storage, identityKEK: bootstrap.identityKEK, log, lockedBy: null, openRecovery })
@@ -302,7 +305,7 @@ registerSpaceLeave(ipc, { log, mounts, overlayBackend, discardPendingSpace, drop
 
 // === IPC: presence, file & transfer handlers ===
 
-registerFiles(ipc, { log })
+registerFiles(ipc, { log, chooseFolder })
 
 // === IPC: feedback, storage & settings handlers ===
 

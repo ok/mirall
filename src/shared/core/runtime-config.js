@@ -207,6 +207,10 @@ export function getFreeUpMinBytes() {
   return read('freeUpMinBytes')
 }
 
+export function getRecentDownloadFolderLimit() {
+  return read('recentDownloadFolders')
+}
+
 export function getServeChunkMapCacheBytes() {
   return read('serveChunkMapCacheBytes')
 }

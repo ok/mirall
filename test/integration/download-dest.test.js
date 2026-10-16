@@ -2,7 +2,7 @@ import test from 'brittle'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { freshPeer } from '../helpers/store.js'
-import { resolveDest, reuseDest } from '../../src/shared/transfer/download-dest.js'
+import { pinnedDest, resolveDest } from '../../src/shared/transfer/download-dest.js'
 
 // A destination is resolved from a path relative to the download root: a bare name lands in the
 // root exactly as it always has, a path with folders lands below it, and only the leaf ever takes
@@ -44,11 +44,11 @@ test('a path that escapes the root is refused', async (t) => {
   }
 })
 
-test('reuseDest keeps a nested pin inside the root and re-resolves one outside it under the same relative path', async (t) => {
+test('a nested pin inside the root is kept, and one outside it re-resolves under the same relative path', async (t) => {
   const { downloads, tmpDir } = await freshPeer(t)
   const nested = path.join(downloads, 'Folder', 'sub', 'a.txt')
-  t.is(reuseDest(nested, downloads, 'Folder/sub/a.txt'), nested, 'a pin inside the root is kept')
+  t.is(pinnedDest(nested, downloads), nested, 'a pin inside the root is kept')
 
   const moved = tmpDir('dl-moved')
-  t.is(reuseDest(nested, moved, 'Folder/sub/a.txt'), path.join(moved, 'Folder', 'sub', 'a.txt'), 'a pin outside the new root lands under the same folders, not flat')
+  t.is(pinnedDest(nested, moved) ?? resolveDest(moved, 'Folder/sub/a.txt'), path.join(moved, 'Folder', 'sub', 'a.txt'), 'a pin outside the new root lands under the same folders, not flat')
 })

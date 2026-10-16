@@ -4,7 +4,8 @@ import path from 'bare-path'
 import { freshPeer } from '../helpers/store.js'
 import { initOverlay, teardownOverlay } from '../../src/shared/transfer/overlay/overlay-instance.js'
 import { initPendingTransfers, getPendingFor } from '../../src/shared/transfer/pending-transfers.js'
-import { initDownloads } from '../../src/shared/transfer/files.js'
+import { initDownloads, listDownloadClaimsForShare } from '../../src/shared/transfer/files.js'
+import { getDownloadDir, listDownloadRoots } from '../../src/shared/core/paths.js'
 import { createOverlayDownloadEngine } from '../../src/shared/transfer/overlay/overlay-download.js'
 import { resetFetchSlots } from '../../src/shared/transfer/overlay/fetch-gate.js'
 import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
@@ -141,20 +142,24 @@ test('cancelling a parked job clears its row and leaves no partial', async (t) =
   t.is(fetch.calls.length, 1)
 })
 
-test('a tree job creates its folder under the root and lands below it', async (t) => {
+test('a tree job creates its folder under its own root, not the space\'s, and lands below it', async (t) => {
   const ctx = await setup(t)
   const fetch = heldFetch()
   const engine = createOverlayDownloadEngine(testChannel([]), { fetchImpl: fetch.fetchImpl })
   const root = ctx.tmpDir('dl')
+  t.not(root, getDownloadDir(SPACE), 'precondition: the job names a folder other than the space\'s')
   const job = makeJob(ctx, 'a.bin', { finalPath: path.join(root, 'Vault', 'sub', 'a.bin'), destRoot: root, layout: LAYOUT.TREE })
   await engine.start({ ...job, express: false })
   await tick()
   t.ok(fs.existsSync(path.join(root, 'Vault', 'sub')), 'the folder exists before the fetch')
   const row = await getPendingFor(SPACE, job.pendingKey)
   t.is(row.layout, 'tree', 'the layout is persisted on the row')
+  t.is(row.destDir, root, 'and so is the folder it lands under')
+  t.ok(listDownloadRoots().includes(root), 'which Reveal and the sweep reach from the start')
   fetch.release()
   await tick()
   t.ok(fs.existsSync(job.finalPath), 'the file landed in its folder')
+  t.is((await listDownloadClaimsForShare(SPACE, 'Photos')).get(job.pendingKey)?.destDir, root, 'and the claim names it')
 })
 
 test('a tree job whose root is gone is refused rather than recreated', async (t) => {

@@ -18,7 +18,7 @@ import { makeSingleFlightScan } from './single-flight-scan.js'
 import { memberWaits } from '../../network/share-wait.js'
 import { SHARE_WAIT_SOURCE } from '../share-wait-set.js'
 
-export function createReconcile({ registry, pausedHashes, terminalCodes, retries, channel, log, hasOverlay, start, cancelByKey, discardPartial, faultCleared }) {
+export function createReconcile({ registry, pausedHashes, terminalCodes, retries, channel, log, hasOverlay, start, cancelByKey, discardPartial, activeDests, faultCleared }) {
   async function runReconcile(ownerKey, spaceId, deep) {
     if (!hasOverlay()) return
     for (const row of await listPendingForSpace(spaceId)) {
@@ -63,9 +63,13 @@ export function createReconcile({ registry, pausedHashes, terminalCodes, retries
   // bytes, which can never verify against the new hash — reset to zero and re-point the row at
   // the new version so any resume starts clean. A prior terminal errorCode belonged to the old
   // content, so it goes too; a manual pause is the user's intent and stays — the cleared row
-  // resumes on the new content when they hit Resume, not automatically.
+  // resumes on the new content when they hit Resume, not automatically. A row that re-resolved to
+  // another path leaves its old partial behind with nothing referencing it, so that one goes too —
+  // unless a live slot holds that path: a pin is refused exactly when another transfer is writing
+  // there (pinnedDest), and the partial is that transfer's.
   async function restartOnRepublished(spaceId, row, job, transferId) {
     discardPartial(job.finalPath)
+    if (row.finalPath && row.finalPath !== job.finalPath && !activeDests().includes(row.finalPath)) discardPartial(row.finalPath)
     retries.cancel(transferId)
     const { errorCode: _priorCode, erroredAt: _priorAt, refusedByPreflight: _priorRefusal, ...cleanRow } = row
     try {

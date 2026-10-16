@@ -14,6 +14,7 @@ import {
   pruneDownloadClaims,
   verdictForClaim,
 } from './files.js'
+import { isDetachedCopy } from './download-claim.js'
 import { verifiedCopyVerdict } from './verified-copy.js'
 import { FILE_STATUS } from '../contract/statuses.js'
 import { createLogger } from '../core/logger.js'
@@ -116,7 +117,8 @@ function peerRow(spaceId, member, e, ctx) {
   const verdict = hashed ? ctx.deps.verdictForClaim(spaceId, drivePath, claim, e.contentHash, ctx.dirProbe) : NO_CLAIM
   if (verdict.prune) ctx.stale.set(drivePath, verdict.reason)
   if (verdict.downloaded) ctx.held.add(drivePath)
-  const localPath = verdict.downloaded ? claimedPathFor(drivePath, claim) : null
+  const detached = isDetachedCopy(verdict, claim, e.contentHash)
+  const localPath = verdict.downloaded || detached ? claimedPathFor(drivePath, claim) : null
   const copyVerdict = verdict.downloaded
     ? verifiedCopyVerdict(ctx.verified.get(e.relPath) || null, verdict.stat ?? null, {
       contentHash: e.contentHash, expectedSize: e.size, expectLocal: localPath,
@@ -133,6 +135,7 @@ function peerRow(spaceId, member, e, ctx) {
     isWaiting: phase === 'waiting',
     pendingRow: pendingRow?.ownerKey === member.publicKey ? pendingRow : undefined,
     ownerOnline: ctx.ownerOnline,
+    detached,
   })
   return {
     path: drivePath, size: e.size, hash: e.contentHash || '', mtime: e.mtime, status: row.status, localPath,

@@ -14,6 +14,7 @@ import { registerFiles } from '../../src/worker/ipc/files.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { advertise, getOwnEntry } from '../../src/shared/shares/own-catalog.js'
 import { LOOSE_SHARE_ID } from '../../src/shared/transfer/transfer-id.js'
+import { createFolderChooser } from '../../src/worker/download-folder-push.js'
 
 // REGRESSION (FIX-9: a download interrupted by a dropped connection never resumed).
 //
@@ -306,7 +307,7 @@ test('cancel of an id with neither a slot nor a row is a clean no-op', async (t)
 test('a cancel click that finds nothing re-derives the stale row on its own listing', async (t) => {
   await setup(t)
   const fake = createFakeIpc()
-  registerFiles(fake.ipc, { log: silentLog })
+  registerFiles(fake.ipc, { log: silentLog, chooseFolder: createFolderChooser({ ipc: fake.ipc, publishRevealRoots: () => {} }) })
 
   t.alike(await fake.call('files:cancel-download', { transferId: SPACE + '|folder1|gone.bin' }), { ok: true })
   t.alike(await fake.call('files:cancel-download', { transferId: SPACE + '|__loose__|gone.bin' }), { ok: true })
@@ -323,7 +324,7 @@ test('the unshare handler\'s own poke names the loose listing', async (t) => {
   const { spaceId } = await createSpace('Aurora')
   await advertise(spaceId, LOOSE_SHARE_ID, 'note.txt', { size: 4, mtime: 1, contentHash: HASH })
   const fake = createFakeIpc()
-  registerFiles(fake.ipc, { log: silentLog })
+  registerFiles(fake.ipc, { log: silentLog, chooseFolder: createFolderChooser({ ipc: fake.ipc, publishRevealRoots: () => {} }) })
 
   t.alike(await fake.call('files:remove', { spaceId, path: '/note.txt' }), { ok: true })
   t.absent(await getOwnEntry(spaceId, LOOSE_SHARE_ID, 'note.txt'), 'the entry is unshared')

@@ -8,6 +8,14 @@ import { initDownloads, isDownloadedFile } from '../../src/shared/transfer/files
 import { getOverlay } from '../../src/shared/transfer/overlay/overlay-instance.js'
 import { CODES } from '../../src/shared/contract/errors.js'
 import { createOverlayDownloadEngine } from '../../src/shared/transfer/overlay/overlay-download.js'
+import { downloadChannel, requestShareDownload, setDownloadEngine } from '../../src/shared/transfer/overlay/share-downloads.js'
+import { looseShareFor } from '../../src/shared/transfer/overlay/download-job.js'
+import { LOOSE_SHARE_ID } from '../../src/shared/transfer/transfer-id.js'
+import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
+import { upsertMember } from '../../src/shared/spaces/space.js'
+import { advertise, ownCatalogKeyHex } from '../../src/shared/shares/own-catalog.js'
+import { until } from '../helpers/bare-poll.js'
+import { setSpaceDownloadRoot, forgetSpaceDownloadRoot } from '../../src/shared/core/paths.js'
 import { createFetchSettle } from '../../src/shared/transfer/overlay/fetch-settle.js'
 import { fetchSlotStats } from '../../src/shared/transfer/overlay/fetch-gate.js'
 
@@ -790,42 +798,46 @@ test('FIX-BW9: a retry follows the row to a new content hash instead of replayin
   t.is(after.contentHash, 'f'.repeat(64), 'and the row was never rewritten back to the old hash')
 })
 
-// The same staleness applies to the destination: resolvePendingRow re-anchors it against the
-// space's current download folder (reuseDest), which a replayed job bypassed entirely — so a
-// folder changed during the backoff resumed into the old one.
-test('FIX-BW9: a retry re-anchors the destination the row resolves to', async (t) => {
+// The same staleness applies to the destination: the retry resolves the row through the production
+// resolve, which decides the folder it lands in (landingRoot), where a replayed job bypassed it. The
+// file is a loose member's, read from this peer's own catalog as a peer's.
+async function retryAcrossRepoint(t, { dropOwnFolder }) {
   const ctx = await setup(t)
-  const events = []
-  const moved = path.join(ctx.tmpDir('dl2'), 'doc.bin')
-  const channel = {
-    ...retryChannel(events),
-    resolvePendingRow: async (spaceId, row) => ({
-      removed: false,
-      seq: row.sourceSeq,
-      job: {
-        spaceId, pendingKey: row.filePath, path: row.filePath, relPath: row.relPath, shareId: row.shareId,
-        transferId: spaceId + '|folder1|' + row.relPath, contentHash: row.contentHash, size: 4096,
-        sourceSeq: row.sourceSeq, ownerKey: row.ownerKey, verifyKey: 'folder1|' + row.relPath,
-        finalPath: moved, prevBytes: 0,      // what reuseDest returns after a folder change
-      },
-    }),
-  }
+  const { spaceId } = await createSpace('Aurora')
+  const member = { publicKey: 'b'.repeat(64), looseCatalogKeyEnc: await ownCatalogKeyHex(spaceId) }
+  await upsertMember(spaceId, member, { verified: true })
+  await advertise(spaceId, LOOSE_SHARE_ID, 'doc.bin', { size: 4096, mtime: 1, contentHash: 'h'.repeat(64) })
+  const own = ctx.tmpDir('dl-own')
+  const spaceFolder = ctx.tmpDir('dl-space')
+  setSpaceDownloadRoot(spaceId, own)
   const dests = []
   let settle = null
-  const engine = createOverlayDownloadEngine(channel, {
+  const engine = createOverlayDownloadEngine({ ...downloadChannel, isOwnerOnline: () => true }, {
     fetchImpl: (_h, opts) => { dests.push(opts.finalPath); return new Promise((r) => { settle = r }) },
     freeBytes: () => Number.MAX_SAFE_INTEGER,
     stallRetry: { baseMs: 150, maxMs: 150, dryLimit: 3 },
   })
+  setDownloadEngine(engine)
+  t.teardown(() => { setDownloadEngine(null); forgetSpaceDownloadRoot(spaceId) })
 
-  const job = makeJob(ctx)
-  await engine.start(job)
+  await requestShareDownload(spaceId, looseShareFor(member), 'doc.bin')
+  t.ok(await until(() => dests.length === 1, 2000), 'precondition: the first fetch began')
+  setSpaceDownloadRoot(spaceId, spaceFolder)
+  if (dropOwnFolder) fs.rmSync(own, { recursive: true, force: true })
   settle({ ok: false })
-  await tick()
-  await new Promise((r) => setTimeout(r, 700))
+  t.ok(await until(() => dests.length === 2, 2000), 'precondition: the stall was retried')
+  t.is(dests[0], path.join(own, 'doc.bin'), 'precondition: the first fetch used the original destination')
+  return { first: dests[0], last: dests[1], spaceFolder }
+}
 
-  t.is(dests[0], job.finalPath, 'precondition: the first fetch used the original destination')
-  t.is(dests[dests.length - 1], moved, 'the retry landed in the re-anchored folder, not the stale one')
+test('FIX-BW9: a retry keeps the row\'s own folder after the space is re-pointed', async (t) => {
+  const { first, last } = await retryAcrossRepoint(t, { dropOwnFolder: false })
+  t.is(last, first, 'the retry resumed where the row was headed')
+})
+
+test('FIX-BW9: a retry whose own folder is gone lands in the space\'s folder', async (t) => {
+  const { last, spaceFolder } = await retryAcrossRepoint(t, { dropOwnFolder: true })
+  t.is(last, path.join(spaceFolder, 'doc.bin'), 'the retry followed the space, not the vanished folder')
 })
 
 // Giving up must still settle the row. On the folder channel emitPaused IS the terminal

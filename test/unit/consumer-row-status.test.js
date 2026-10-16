@@ -159,3 +159,14 @@ test('a copy on this device outranks a waiting slot', (t) => {
   const row = consumerRowStatusFor({ copyVerdict: COPY_VERDICT.VERIFIED, hashed: true, isActive: true, isWaiting: true, pendingRow: null, ownerOnline: true })
   t.is(row.status, 'downloaded')
 })
+
+// REGRESSION (FIX-DLTO-R9: a kept claim on a drive that is not connected read "Drive not
+// connected" and offered Download for an owner who was offline, so nothing could fetch it.)
+test('REGRESSION (FIX-DLTO-R9: detached only while the owner is online)', (t) => {
+  const base = { hashed: true, isActive: false, pendingRow: null, detached: true }
+  t.alike(consumerRowStatusFor({ ...base, ownerOnline: true }), { status: 'detached' })
+  t.alike(consumerRowStatusFor({ ...base, ownerOnline: false }), { status: 'unavailable' },
+    'an offline owner\'s file reads Not available, whatever this device once held of it')
+  t.alike(consumerRowStatusFor({ ...base, ownerOnline: false, pendingRow: { bytesTransferred: 9 } }), { status: 'paused-offline', pendingBytes: 9 },
+    'a partial still outranks it')
+})

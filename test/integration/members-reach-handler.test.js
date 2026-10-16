@@ -8,6 +8,7 @@ import { installRelayObserver, resetRelayObserver } from '../../src/shared/netwo
 import {
   initRelayedConnections, resetRelayedConnections, trackConnection,
 } from '../../src/shared/network/relayed-connections.js'
+import { createFolderChooser } from '../../src/worker/download-folder-push.js'
 
 const SPACE = 's'.repeat(64)
 const OTHER_SPACE = 'f'.repeat(64)
@@ -24,7 +25,7 @@ function seed(personKey, socket, spaceId) {
 
 function setup(t) {
   const fake = createFakeIpc()
-  registerSpaces(fake.ipc, { log: console, publishRevealRoots: () => {} })
+  registerSpaces(fake.ipc, { log: console, chooseFolder: createFolderChooser({ ipc: fake.ipc, publishRevealRoots: () => {} }) })
   installRelayObserver({ Client: Stub })
   initRelayedConnections({ ownRelay: () => ({ key: OWN, label: null, live: true }), onChange: () => {} })
   t.teardown(() => { resetRegistries(); resetRelayedConnections(); resetRelayObserver() })

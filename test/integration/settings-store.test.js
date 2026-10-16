@@ -35,7 +35,7 @@ test('a first boot imports the moved groups from config.json and leaves it byte-
   t.is(s.network.downloadConcurrency, 2)
   t.alike(s.backup, { folder: '/tmp/b', repoId: 'r' })
   t.is(fs.readFileSync(path.join(h.root, 'config.json'), 'utf-8'), config, 'main\'s file is never written by the worker')
-  t.alike(read(h.file).downloads, { folder: '/tmp/dl' })
+  t.alike(read(h.file).downloads, { folder: '/tmp/dl', recent: [] })
 })
 
 test('a later boot reads the file and imports nothing', async (t) => {
@@ -93,6 +93,28 @@ test('a settings.json that exists but cannot be read is never replaced by an imp
   t.absent(dir.persisted, 'a directory in the way is reported the same way')
   t.ok(dir.broken)
   fs.rmdirSync(h.file)
+})
+
+test('bookkeeping never replaces a broken file; the user\'s next change does, and carries it', async (t) => {
+  const h = home(t)
+  fs.writeFileSync(h.file, '{"version":1,"network":{"uploadKBps":12,}}')
+  const before = fs.readFileSync(h.file, 'utf-8')
+  await loadSettings(h.storage)
+  await updateSettings((s) => { s.downloads.recent = ['/tmp/a']; return s }, { keepBroken: true })
+  t.alike(getSettings().downloads.recent, ['/tmp/a'], 'the change is held in memory')
+  t.is(fs.readFileSync(h.file, 'utf-8'), before, 'and the user\'s file is left to repair')
+
+  await updateSettings((s) => { s.network.uploadKBps = 64; return s })
+  t.alike(read(h.file).downloads.recent, ['/tmp/a'], 'a change the user makes replaces the file, bookkeeping included')
+  await updateSettings((s) => { s.downloads.recent = ['/tmp/b', '/tmp/a']; return s }, { keepBroken: true })
+  t.alike(read(h.file).downloads.recent, ['/tmp/b', '/tmp/a'], 'and bookkeeping is written through from then on')
+})
+
+test('bookkeeping on a sound file is written like any change', async (t) => {
+  const h = home(t)
+  await loadSettings(h.storage)
+  await updateSettings((s) => { s.downloads.recent = ['/tmp/a']; return s }, { keepBroken: true })
+  t.alike(read(h.file).downloads.recent, ['/tmp/a'])
 })
 
 test('overlapping updates are serialized, so neither change is lost', async (t) => {

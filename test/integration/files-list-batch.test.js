@@ -239,7 +239,8 @@ test('REGRESSION (FIX-CLAIM-ORDER): a claim whose download folder is gone is kep
   const deps = productionDepsWith({ pruneDownloadClaims: async (spaceId, drivePaths) => { prunes.push(...drivePaths); return drivePaths.length } })
 
   const row = (await listFiles(ctx.spaceId, [member], { deps })).entries.find((f) => f.path === '/v.bin')
-  t.is(row.status, 'remote', 'not on the device while the volume is away')
+  t.is(row.status, 'detached', 'not on the device while the volume is away, and says so')
+  t.is(row.localPath, detached, 'the row names where the copy is')
   t.alike(prunes, [], 'nothing pruned')
   t.is(await getDownloadedPath(ctx.spaceId, '/v.bin'), detached, 'the claim survives for the volume to come back to')
 })
@@ -298,4 +299,36 @@ test('an error row carries its code and no bytes; a downloading row carries its 
   const activeOverError = await oneRow(ctx, withPending({ errorCode: 'X' }, true))
   t.is(activeOverError.status, 'downloading')
   t.is(activeOverError.errorCode, undefined)
+})
+
+// REGRESSION (FIX-DLTO-R9: a claim is keyed by name, so member B's different notes.txt read
+// "Drive not connected · Saved to …" from member A's copy on an unplugged drive, though B's file
+// was never downloaded; and A's row kept offering Download while A was offline.)
+test('REGRESSION (FIX-DLTO-R9: only the content a claim names reads as its copy on a missing drive)', async (t) => {
+  const ctx = await setup(t)
+  const away = path.join(ctx.tmpDir('vol'), 'ejected-usb', 'Mirall') // never created: the drive is unplugged
+  const copy = path.join(away, 'notes.txt')
+  await markDownloaded(ctx.spaceId, '/notes.txt', copy, { hash: 'hA', destDir: away })
+  const prunes = []
+  const deps = productionDepsWith({
+    listPeer: async (spaceId, share) => ({ entries: [{ relPath: 'notes.txt', size: 10, contentHash: share.owner === 'peer1pub' ? 'hA' : 'hB', mtime: 0 }], complete: true, version: 1 }),
+    catalogVersion: async () => null,
+    transferPhase: () => null,
+    pruneDownloadClaims: async (spaceId, drivePaths) => { prunes.push(...drivePaths); return drivePaths.length },
+  })
+  const listed = async () => (await listFiles(ctx.spaceId, [memberNo(1), memberNo(2)], { deps })).entries
+
+  let files = await listed()
+  const a = files.find((f) => f.hash === 'hA')
+  const b = files.find((f) => f.hash === 'hB')
+  t.is(a.status, 'detached', 'A\'s file: its copy is on the drive that is away')
+  t.is(a.localPath, copy, 'and the row says where')
+  t.is(b.status, 'remote', 'B\'s same-named file was never downloaded')
+  t.is(b.localPath, null, 'and names no copy')
+  t.alike(prunes, [], 'the claim is kept for the drive to come back to')
+
+  deps.isOwnerOnline = (key) => key !== 'peer1pub'
+  files = await listed()
+  t.is(files.find((f) => f.hash === 'hA').status, 'unavailable', 'with A offline nothing can fetch A\'s file')
+  t.is(await getDownloadedPath(ctx.spaceId, '/notes.txt'), copy, 'and the claim still survives')
 })

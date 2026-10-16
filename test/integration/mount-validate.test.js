@@ -4,8 +4,11 @@ import os from 'bare-os'
 import path from 'bare-path'
 import { validateMountPathSync, validateMountPath, validateDownloadFolderAgainstMounts } from '../../src/shared/folders/mount-validate.js'
 import { setDownloadFolder, setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
-import { setSpaceDownloadRoot, hydrateDownloadRoots } from '../../src/shared/core/paths.js'
+import { setSpaceDownloadRoot, hydrateDownloadRoots, setRecentDownloadFolders, noteLandedFolders, setLandedFolders } from '../../src/shared/core/paths.js'
 import { createOwnedMount, deleteOwnedMount, initMounts } from '../../src/shared/folders/mount-store.js'
+import { recordPending } from '../../src/shared/transfer/pending-transfers.js'
+import { markDownloaded } from '../../src/shared/transfer/files.js'
+import { LOOSE_SHARE_ID } from '../../src/shared/transfer/transfer-id.js'
 import { freshPeer } from '../helpers/store.js'
 import { CODES } from '../../src/shared/contract/errors.js'
 import { tmpDir } from '../helpers/bare-tmp.js'
@@ -246,6 +249,23 @@ test('rejects a foreign mount inside a per-space download root', (t) => {
     'a per-space root is guarded exactly like the global one')
 })
 
+// A folder a download went to once and no space downloads into any more may be shared: only the
+// folders downloads go to next are guarded.
+test('a mount over a recent or landed folder that no space downloads into is allowed', (t) => {
+  const current = tmpDir('mv', t)
+  const recent = tmpDir('mv', t)
+  const landed = tmpDir('mv', t)
+  setDownloadFolder(current)
+  hydrateDownloadRoots([])
+  setRecentDownloadFolders([recent])
+  noteLandedFolders([landed])
+  t.teardown(() => { setDownloadFolder(null); setRecentDownloadFolders([]); setLandedFolders([]) })
+
+  t.is(codeOf(() => validateMountPathSync(recent, 'owned-folder', [])), null, 'a recent folder')
+  t.is(codeOf(() => validateMountPathSync(landed, 'foreign-folder', [])), null, 'a landed folder')
+  t.is(codeOf(() => validateMountPathSync(current, 'owned-folder', [])), CODES.MOUNT_INSIDE_DOWNLOADS, 'the current folder still is not')
+})
+
 // A download folder overlapping a mount is unsafe both ways: downloads landing inside an
 // OWNED folder get auto-published by its watcher, and a mirror inside a download folder
 // intermixes a mirrored tree with flat downloads.
@@ -319,4 +339,42 @@ test('validateDownloadFolderAgainstMounts allows a folder already used by anothe
 
   const ok = await validateDownloadFolderAgainstMounts(dir)
   t.is(ok, dir, 'sharing one download folder across spaces is the default state, never an overlap')
+})
+
+// REGRESSION (FIX-DLTO-R3: a pending download keeps landing in the folder it started in after its
+// space moves on to another one, and only the folders downloads go to next were guarded — so that
+// folder, or its parent, could be shared or mirrored, and the file the row then wrote was published.)
+test('REGRESSION (FIX-DLTO-R3: a folder a pending download still lands in cannot be mounted)', async (t) => {
+  await freshPeer(t)
+  const base = tmpDir('mv', t)
+  const started = path.join(base, 'In')
+  const intent = tmpDir('mv', t)
+  const now = tmpDir('mv', t)
+  const finished = tmpDir('mv', t)
+  fs.mkdirSync(started, { recursive: true })
+  await recordPending('s', '/big.bin', { finalPath: path.join(started, 'big.bin'), destDir: started, bytesTransferred: 4096, inPlace: true, shareId: LOOSE_SHARE_ID, relPath: 'big.bin', ownerKey: 'o' })
+  await recordPending('s', '/next.bin', { destDir: intent, bytesTransferred: 0, inPlace: true, shareId: LOOSE_SHARE_ID, relPath: 'next.bin', ownerKey: 'o' })
+  fs.writeFileSync(path.join(finished, 'done.bin'), 'whole')
+  await markDownloaded('s', '/done.bin', path.join(finished, 'done.bin'), { hash: 'h', destDir: finished })
+  noteLandedFolders([started, intent, finished])
+  hydrateDownloadRoots([{ spaceId: 's', downloadFolder: now }])
+  t.teardown(() => hydrateDownloadRoots([]))
+
+  t.is(await asyncCodeOf(validateMountPath(started, 'owned-folder')), CODES.MOUNT_INSIDE_DOWNLOADS, 'the folder a started row lands in')
+  t.is(await asyncCodeOf(validateMountPath(base, 'owned-folder')), CODES.MOUNT_CONTAINS_DOWNLOADS, 'and its parent')
+  t.is(await asyncCodeOf(validateMountPath(started, 'foreign-folder')), CODES.MOUNT_INSIDE_DOWNLOADS, 'for a mirror too')
+  t.is(await asyncCodeOf(validateMountPath(intent, 'owned-folder')), CODES.MOUNT_INSIDE_DOWNLOADS, 'a row that has not started yet lands there too')
+  t.is(await asyncCodeOf(validateMountPath(now, 'owned-folder')), CODES.MOUNT_INSIDE_DOWNLOADS, 'the space\'s folder is guarded as before')
+  t.is((await validateMountPath(finished, 'owned-folder')).mountPath, finished, 'a folder that only holds finished copies may be shared')
+})
+
+// A row whose folder is gone resumes into it again once it is recreated, so the folder it names
+// stays guarded while the row exists.
+test('a folder a pending download names stays guarded while it is missing', async (t) => {
+  await freshPeer(t)
+  const base = tmpDir('mv', t)
+  const gone = path.join(base, 'In')
+  await recordPending('s', '/big.bin', { finalPath: path.join(gone, 'big.bin'), destDir: gone, bytesTransferred: 4096, inPlace: true, shareId: LOOSE_SHARE_ID, relPath: 'big.bin', ownerKey: 'o' })
+  t.absent(fs.existsSync(gone), 'precondition: the folder is not there')
+  t.is(await asyncCodeOf(validateMountPath(base, 'owned-folder')), CODES.MOUNT_CONTAINS_DOWNLOADS)
 })

@@ -15,7 +15,7 @@ import { FETCH_OUTCOME } from './fetch-outcome.js'
 import { SETTLE, ABANDON, settleVerdict, abandonReason } from './settle-verdict.js'
 import { terminalFault } from './download-faults.js'
 import { CODES } from '../../contract/errors.js'
-import { markDownloaded, markVerified } from '../files.js'
+import { markDownloaded, markVerified, statOrNull } from '../files.js'
 import { clearPending, updatePendingProgress } from '../pending-transfers.js'
 import { progressPersistDue } from '../progress-persist.js'
 import { recordTransferOutcome } from '../../audit/transfer-audit.js'
@@ -204,7 +204,7 @@ export function createFetchSettle({
   async function settleDone(job, diag) {
     diag.finish(FETCH_OUTCOME.DONE)
     terminalCodes.delete(job.transferId)
-    await markDownloaded(job.spaceId, job.pendingKey, job.finalPath, { hash: job.contentHash })
+    await markDownloaded(job.spaceId, job.pendingKey, job.finalPath, { hash: job.contentHash, destDir: job.destRoot, destDev: job.destRoot && statOrNull(job.destRoot)?.dev })
     // The verified record fingerprints the bytes the transfer proved rather than whatever sits at
     // the path later; a stat we cannot take costs the record its fingerprint, never its hash.
     let landed = null

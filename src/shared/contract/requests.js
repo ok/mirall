@@ -43,6 +43,13 @@ export const ARG = Object.freeze({
   personKey: 'personKey',
 })
 
+// Where a download lands. Absent: a file under way, and one still waiting on its owner, keep their
+// own folder while it can be reached; everything else lands in the space's current folder — a new
+// file, a Retry of one that failed before its first byte, one whose folder is gone. Present: it is
+// validated, and once the request is accepted it becomes the space's current folder and the newest
+// recent folder; every file that has not started lands there, and a file under way keeps its own.
+const DEST_DIR = Object.freeze({ type: ARG.path, optional: true, max: ARG_MAX.path })
+
 /** @satisfies {Record<string, RequestSpec>} */
 export const REQUESTS = Object.freeze({
   'audit:actors': { kind: 'query', args: {} },
@@ -146,6 +153,7 @@ export const REQUESTS = Object.freeze({
   'files:cancel-download': { kind: 'command', args: { transferId: { type: ARG.string } } },
   'files:cancel-publish': { kind: 'command', args: { path: { type: ARG.path }, spaceId: { type: ARG.spaceId } } },
   'files:download': { kind: 'command', args: {
+    destDir: DEST_DIR,
     ownerKey: { type: ARG.string, max: ARG_MAX.key },
     path: { type: ARG.path, max: ARG_MAX.path },
     spaceId: { type: ARG.spaceId },
@@ -153,6 +161,7 @@ export const REQUESTS = Object.freeze({
   // A batch of one member's loose files. Lands flat, like a single loose download; writes a
   // pending row per file before it returns, so it has no deadline.
   'files:download-many': { kind: 'command', deadlineMs: 0, args: {
+    destDir: DEST_DIR,
     ownerKey: { type: ARG.string, max: ARG_MAX.key },
     paths: { type: ARG.array, minItems: 1, maxItems: BATCH_MAX_ITEMS, itemMax: ARG_MAX.path },
     spaceId: { type: ARG.spaceId },
@@ -312,16 +321,18 @@ export const REQUESTS = Object.freeze({
   // A query by row, but it writes a durable pending row and reserves a transfer slot before it
   // returns, so the "a query is retry-safe, abort it" rule does not hold for this one. Opted out
   // rather than reclassified: `kind` is wire vocabulary other things read.
+  // A folder's file keeps its place in that folder: <download folder>/<folder name>/<relPath>.
   'share:read-file': { kind: 'query', deadlineMs: 0, args: {
+    destDir: DEST_DIR,
     ownerKey: { type: ARG.string, max: ARG_MAX.key },
     relPath: { type: ARG.path, max: ARG_MAX.path },
     shareId: { type: ARG.shareId },
     spaceId: { type: ARG.spaceId },
   } },
-  // A batch from a browse folder. Keeps the folder's structure under <download folder>/<folder
-  // name>/. Writes a pending row per file before it returns, like share:read-file, so it has no
-  // deadline.
+  // A batch from a browse folder, landing like share:read-file. Writes a pending row per file
+  // before it returns, so it has no deadline.
   'share:read-files': { kind: 'command', deadlineMs: 0, args: {
+    destDir: DEST_DIR,
     ownerKey: { type: ARG.string, max: ARG_MAX.key },
     relPaths: { type: ARG.array, minItems: 1, maxItems: BATCH_MAX_ITEMS, itemMax: ARG_MAX.path },
     shareId: { type: ARG.shareId },
@@ -371,6 +382,8 @@ export const REQUESTS = Object.freeze({
   'space:pending-requests': { kind: 'query', args: { spaceId: { type: ARG.spaceId } } },
   'space:storage-summary': { kind: 'query', args: { spaceId: { type: ARG.spaceId } } },
   'space:toggle-favorite': { kind: 'command', args: { spaceId: { type: ARG.spaceId } } },
+  // A partial update: an absent field is left as it is. A download folder is validated and becomes
+  // the space's folder and the newest recent folder.
   'space:update': { kind: 'command', args: {
     downloadFolder: { type: ARG.path, optional: true, max: ARG_MAX.path },
     icon: { type: ARG.string, optional: true, max: ARG_MAX.name },

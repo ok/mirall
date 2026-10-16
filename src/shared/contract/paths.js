@@ -29,6 +29,50 @@ export function pathContains(parent, child, sep, fold = false) {
   return c.startsWith(root.endsWith(sep) ? root : root + sep)
 }
 
+/** @param {string} p @param {string} sep */
+function trimTrailingSep(p, sep) {
+  let out = p
+  while (out.length > 1 && out.endsWith(sep) && !out.endsWith(':' + sep)) out = out.slice(0, -1)
+  return out
+}
+
+// Two spellings of one folder: a trailing separator is ignored, and case only where the host folds it.
+/** @param {string} a @param {string} b @param {string} sep @param {boolean} [fold] */
+export function pathEquals(a, b, sep, fold = false) {
+  if (!a || !b) return false
+  const x = trimTrailingSep(a, sep)
+  const y = trimTrailingSep(b, sep)
+  return fold ? x.toLowerCase() === y.toLowerCase() : x === y
+}
+
+// A folder's own name: its last segment, or the path itself for a filesystem root.
+/** @param {string} p @param {string} sep */
+export function lastSegment(p, sep) {
+  const trimmed = trimTrailingSep(p, sep)
+  const at = trimmed.lastIndexOf(sep)
+  const name = at < 0 ? trimmed : trimmed.slice(at + 1)
+  return name || trimmed
+}
+
+// The folder an absolute path sits in. A filesystem root ("/", "E:\") is its own folder, as
+// lastSegment names it: the separator right after a root belongs to the root.
+/** @param {string} p @param {string} sep */
+export function parentFolder(p, sep) {
+  const trimmed = trimTrailingSep(p, sep)
+  const at = trimmed.lastIndexOf(sep)
+  if (at < 0) return trimmed
+  const head = trimmed.slice(0, at)
+  return head === '' || head.endsWith(':') ? trimmed.slice(0, at + 1) : head
+}
+
+// A path as a person reads it: the home folder written as ~, and only for a path inside it.
+/** @param {string} p @param {string} home @param {string} sep @param {boolean} [fold] */
+export function shortenHome(p, home, sep, fold = false) {
+  if (!home || !pathContains(home, p, sep, fold)) return p
+  const root = trimTrailingSep(home, sep)
+  return '~' + p.slice(root.length)
+}
+
 // Whose filesystem a path on the wire belongs to. Every path-carrying payload the worker sends says
 // so, because "an absolute path" stops meaning "a path I can open" the moment the backend runs
 // somewhere else — and a client that guesses opens a coincidentally-existing local file of the same

@@ -1,10 +1,12 @@
 // @ts-check
 // Settings. The worker is the only writer of settings.json: every setter writes the file first,
-// then patches the live config, then pokes every client to re-read. The download-folder setter
-// carries a rule: the global root is the effective root of every space that never overrode it.
+// then patches the live config, then pokes every client to re-read. The app's download folder seeds
+// spaces created or joined from now on; no download reads it, and changing it moves no space.
 
 /** @import { WorkerIpc } from '../../shared/core/ipc.js' */
 /** @import { WorkerRoot } from '../boot.js' */
+import os from 'bare-os'
+import path from 'bare-path'
 import { createVerbosePolicy } from '../../shared/core/verbose-policy.js'
 import {
   setVerbose,
@@ -12,7 +14,7 @@ import {
   setBandwidthLimits,
 } from '../../shared/core/runtime-config.js'
 import { getSettings, updateSettings } from '../../shared/core/settings-store.js'
-import { getGlobalDownloadDir } from '../../shared/core/paths.js'
+import { getNewSpaceDownloadDir, hostFoldsCase } from '../../shared/core/paths.js'
 import { daemonPaths } from '../../shared/contract/paths.js'
 import { Scope } from '../../shared/contract/scope.js'
 import { validateDownloadFolderAgainstMounts } from '../../shared/folders/mount-validate.js'
@@ -22,12 +24,18 @@ function validCap(value) {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? Math.floor(value) : null
 }
 
+// How this host writes a path, so a client can show and compare the paths it is sent.
+function hostPaths() {
+  return { home: os.homedir(), sep: path.sep, caseFolds: hostFoldsCase() }
+}
+
 export function settingsView() {
   const { downloads, network, links } = getSettings()
   return {
-    downloads: { folder: getGlobalDownloadDir(), isDefault: downloads.folder === null },
+    downloads: { folder: getNewSpaceDownloadDir(), isDefault: downloads.folder === null, recent: [...downloads.recent] },
     network: { downloadKBps: network.downloadKBps, uploadKBps: network.uploadKBps, relayMode: network.relayMode, relay: network.relay },
     links: { baseUrl: links.baseUrl },
+    hostPaths: hostPaths(),
   }
 }
 
@@ -49,9 +57,8 @@ export function registerSettings(ipc, { mounts, publishRevealRoots }) {
 
   ipc.handle('settings:get', async () => settingsView())
 
-  // An omitted folder returns to the host's default. Same mount-overlap rejection as a per-space
-  // folder: pointing the global root into a folder the user shares or mirrors publishes their
-  // downloads to peers just as surely.
+  // An omitted folder returns to the host's default. Same mount-overlap rejection as a space's
+  // folder: a space seeded with a folder the user shares or mirrors would publish its downloads.
   ipc.handle('settings:set-download-folder', async (msg) => {
     const folder = msg?.folder ? await validateDownloadFolderAgainstMounts(msg.folder) : null
     await updateSettings((s) => { s.downloads.folder = folder; return s })

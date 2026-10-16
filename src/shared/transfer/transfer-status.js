@@ -44,7 +44,9 @@ export function unhashedStatusFor(ownerOnline) {
 //
 // `isWaiting` is a transfer the engine holds parked behind its concurrency limit: active, so every
 // paused and error rule yields to it, but not moving, so it reads Waiting rather than Downloading.
-export function consumerRowStatusFor({ copyVerdict = null, onDeviceStatus = FILE_STATUS.DOWNLOADED, hashed, isActive, isWaiting = false, pendingRow, ownerOnline }) {
+// `detached` is this file's copy kept on a drive that is not connected: below every transfer rule,
+// since a download started elsewhere is what the user is doing about it (restingStatusFor).
+export function consumerRowStatusFor({ copyVerdict = null, onDeviceStatus = FILE_STATUS.DOWNLOADED, hashed, isActive, isWaiting = false, pendingRow, ownerOnline, detached = false }) {
   if (copyVerdict === COPY_VERDICT.MODIFIED) return { status: FILE_STATUS.MODIFIED, verified: false }
   if (copyVerdict) return { status: onDeviceStatus, verified: copyVerdict === COPY_VERDICT.VERIFIED }
   if (isActive) return { status: isWaiting ? FILE_STATUS.WAITING : FILE_STATUS.DOWNLOADING, pendingBytes: pendingRow?.bytesTransferred || 0 }
@@ -53,5 +55,13 @@ export function consumerRowStatusFor({ copyVerdict = null, onDeviceStatus = FILE
   if (pendingRow?.errorCode) return { status: FILE_STATUS.ERROR, errorCode: pendingRow.errorCode }
   const paused = pausedStatusFor({ pendingRow, isActive, ownerOnline })
   if (paused) return { status: paused.status, pendingBytes: paused.pendingBytes }
-  return { status: ownerOnline ? FILE_STATUS.REMOTE : FILE_STATUS.UNAVAILABLE }
+  return { status: restingStatusFor(ownerOnline, detached) }
+}
+
+// A file nothing is moving: Available from an owner who is online, and Drive not connected above
+// that while this device's copy sits on a drive that is away. Both offer a fresh download, which
+// an offline owner cannot serve, so every file of theirs reads Not available.
+function restingStatusFor(ownerOnline, detached) {
+  if (!ownerOnline) return FILE_STATUS.UNAVAILABLE
+  return detached ? FILE_STATUS.DETACHED : FILE_STATUS.REMOTE
 }
