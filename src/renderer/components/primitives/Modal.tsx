@@ -8,6 +8,7 @@
 import { forwardRef, useEffect, useRef, type ForwardedRef, type KeyboardEvent, type ReactNode } from 'react'
 import { useDialog, FocusScope } from 'react-aria'
 import ModalBackdrop from './ModalBackdrop.js'
+import { FieldGround } from './FieldGround.js'
 import { isMac } from '../../keyboard/accelerator.js'
 import { describeModalKeyEvent, modalKeyAction } from './modalKeys.js'
 import { useModalPresence } from './modalPresence.js'
@@ -116,7 +117,7 @@ function ModalContents({
           ref={contentRef}
           className={`${panelClassName ?? DEFAULT_PANEL} focus:outline-none`}
         >
-          {children}
+          <FieldGround fill="low">{children}</FieldGround>
         </div>
       </FocusScope>
     </div>

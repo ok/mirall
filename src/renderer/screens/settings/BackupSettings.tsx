@@ -179,7 +179,6 @@ function FolderSection({ status, busy, onChange }: { status: BackupStatus; busy:
           subject={t('backup.folderSubject')}
           actionDisabled={busy}
           ariaDescribedBy="backup-folder-desc"
-          fill="lowest"
         />
         <p className="text-xs text-on-surface-variant px-1">{offline ? t('backup.folderOffline') : t('backup.folderHint')}</p>
       </div>

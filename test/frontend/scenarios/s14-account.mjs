@@ -42,6 +42,11 @@ export default async function s14({ runDir, bootstrap }) {
       await A.waitText('80/80', 8000)
       await A.shot('s14-A-name-counter', runDir)
     })
+    // The AX tree carries no aria-describedby, so the count's link to the field is pinned by the
+    // `fields` layout harness; here the field must still be named by its own label.
+    await r.ok('the display name field is named by its label', async () => {
+      if (!(await A.has({ role: 'textfield', name: 'Display Name' }))) throw new Error('no textfield named "Display Name"')
+    })
   } catch {}
   return { pass: r.summary(), instances: [A, B] }
 }

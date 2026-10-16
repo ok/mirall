@@ -1,6 +1,7 @@
 // Profile screen: display name and avatar; this device's connection, protection and activity log; the
 // About row and help resources.
 import InlineError from '../components/primitives/InlineError.js'
+import TextField from '../components/primitives/TextField.js'
 import { useState, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { NAME_MAX } from '../format/utils.js'
@@ -85,20 +86,17 @@ function ProfileCard({ profile, onSave }: Pick<AccountProps, 'profile' | 'onSave
         </button>
         <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
         <div className="flex-grow">
-          <label htmlFor="account-display-name" className="block text-sm font-semibold text-accent mb-2">{t('settings.displayName')}</label>
-          <input
+          <TextField
             id="account-display-name"
+            label={t('settings.displayName')}
             type="text"
             maxLength={NAME_MAX}
-            aria-describedby={held ? 'account-display-name-count account-held-reason' : 'account-display-name-count'}
             readOnly={held}
-            className="w-full bg-surface-container-lowest border-none rounded-xl px-4 py-3 text-on-surface placeholder:text-outline-variant focus-ring transition-all"
             value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
+            onChange={setDisplayName}
+            help={<span aria-live="polite">{t('settings.displayNameCount', { count: displayName.length, max: NAME_MAX })}</span>}
+            describedBy={held ? 'account-held-reason' : undefined}
           />
-          <p id="account-display-name-count" className="mt-1 text-xs text-on-surface-variant" aria-live="polite">
-            {t('settings.displayNameCount', { count: displayName.length, max: NAME_MAX })}
-          </p>
         </div>
       </div>
       {held && <p id="account-held-reason" className="text-xs text-on-surface-variant">{t('restore.heldReason')}</p>}

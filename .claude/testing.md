@@ -214,6 +214,9 @@ Hard-won rules for `test/frontend/scenarios/*.mjs` that otherwise silently pass:
   `click({name:'<control>'})`. When an AX-name lookup "isn't there," dump `allText(await snap())` to
   see what actually rendered before theorizing about gates — the control may have been removed
   outright rather than gated off.
+- **The AX tree carries no `aria-describedby`.** agent-desktop's `description` is the aria-label or
+  title, so a field's link to its help, count or error text cannot be asserted from a scenario.
+  Assert it in a layout harness, which reads the DOM (`fields`, `errorassoc`).
 - **Split visible text breaks `waitText`** — expose the full string as one `sr-only` node (see §2).
   Run `test:fe` for any change to how user-visible text renders: typecheck/lint/unit all pass while
   the live AX behavior is broken.

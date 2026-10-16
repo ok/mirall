@@ -118,29 +118,23 @@ test('a failed download-folder read is surfaced, never swallowed', (t) => {
 })
 
 test('a path field on a settings screen is filled a step below its card', (t) => {
-  // The field's default fill IS the settings-card fill — the same token, so the same hex in both
-  // themes — and a field filled with its own background is an invisible field. Modals are safe
-  // (the panel is `surface-container-lowest`); a settings card is not, so a row inside one takes
-  // `fill="lowest"`. This is the same relationship NetworkSettings' number input already has.
-  const CARD_FILL = 'bg-surface-container-low'
-  t.ok(pathRow.includes(`low: '${CARD_FILL}'`), "PathRow's default fill is the settings-card token")
+  // A settings card is `surface-container-low`, and a field filled with its own background is an
+  // invisible field. The fill follows the ground rather than a prop a caller can forget: outside a
+  // modal the default is `-lowest`, and Modal hands its panel's fields `-low`.
+  const ground = read(path.join(RENDERER, 'components/primitives/FieldGround.tsx'))
+  t.ok(/createContext<FieldFill>\('lowest'\)/.test(ground), 'outside a modal the field fill is -lowest')
+  t.ok(/useFieldFill\(\)/.test(pathRow), 'PathRow reads its fill from the ground')
   for (const f of files) {
     if (!f.rel.startsWith('screens/')) continue
-    // Match the opening tag itself. Slicing to the next `/>` bounded the tag by a delimiter that
-    // need not belong to it, and every way that went wrong went wrong SILENTLY, in the direction
-    // of a green tick: a PathRow written `<PathRow ...>` rather than self-closed ran on to the
-    // next element's `/>` and borrowed its attributes, so a row with no fill at all passed on a
-    // sibling's. With no `/>` after it anywhere, indexOf returned -1 and slice(i, -1) swallowed
-    // the rest of the file, which passes on any `fill="lowest"` further down — and inverts to a
-    // false failure only in the one case where the file ends on the token and -1 truncates it.
+    // Match the opening tag itself, never a slice to the next `/>`, which can borrow a sibling's
+    // attributes.
     for (const m of f.src.matchAll(/<PathRow\b[^>]*>/g)) {
-      t.ok(/fill="lowest"/.test(m[0]),
-        `${f.rel} renders a PathRow inside a settings card and must pass fill="lowest"`)
+      t.absent(/\bfill=/.test(m[0]), `${f.rel} renders a PathRow and must leave its fill to the ground`)
     }
   }
 })
 
-// The `fill` prop is only worth anything while the two ramp steps it chooses between stay
+// The ground-derived fill is only worth anything while the two ramp steps it chooses between stay
 // visibly apart. They are adjacent tokens and the gap is small by design, so a future palette
 // nudge could quietly close it — and the failure is silent: a field that renders as a flat
 // rectangle of its own background, which is exactly what converting Storage settings would have

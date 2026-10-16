@@ -1,7 +1,7 @@
 // Network settings: content-plane transfer caps. Settings only — live connection status lives on
 // the network status screen, which this one cross-links to.
 import InlineError from '../../components/primitives/InlineError.js'
-import FieldLabel from '../../components/primitives/FieldLabel.js'
+import TextField from '../../components/primitives/TextField.js'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { request } from '../../ipc/ipc.js'
@@ -111,25 +111,23 @@ function LimitRow({
 
       {custom && (
         <div className="mt-4 space-y-2">
-          <FieldLabel htmlFor={inputId} className="block">
-            {t(`networkSettings.${direction}CustomLabel`)}
-          </FieldLabel>
-          <input
+          <TextField
             id={inputId}
+            label={t(`networkSettings.${direction}CustomLabel`)}
             type="number"
+            tabular
             inputMode="numeric"
             min={0}
             step={1}
             value={draft}
-            aria-describedby={helpId}
-            onChange={(e) => setDraft(e.target.value)}
+            onChange={setDraft}
+            describedBy={helpId}
             onFocus={() => setFocused(true)}
             onBlur={() => { setFocused(false); commit() }}
             // Enter confirms without blurring, so the field would keep showing the
             // pre-clamp draft while a clamped value was already stored — show what was
             // actually committed.
             onKeyDown={(e) => { if (e.key === 'Enter') setDraft(String(commit())) }}
-            className="w-full bg-surface-container-lowest border-none rounded-xl px-4 py-4 text-on-surface focus-ring transition-all text-lg tabular-nums"
           />
           {belowFloor ? (
             <Callout tone="warning" role="status" id={helpId}>

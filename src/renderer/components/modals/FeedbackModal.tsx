@@ -1,7 +1,7 @@
 // Feedback form submitted through the worker; optionally attaches a screenshot
 // of the app, hiding itself during capture.
 import FieldLabel from '../primitives/FieldLabel.js'
-import TextField, { FIELD_SURFACE } from '../primitives/TextField.js'
+import TextField, { fieldSurface } from '../primitives/TextField.js'
 import { useState, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { domToPng } from 'modern-screenshot'
@@ -148,7 +148,7 @@ export default function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
                   id="feedback-message"
                   autoFocus
                   maxLength={COMMENT_MAX_LENGTH}
-                  className={`${FIELD_SURFACE} h-32 resize-none`}
+                  className={`${fieldSurface('low')} h-32 resize-none`}
                   placeholder={t('feedback.messagePlaceholder')}
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
