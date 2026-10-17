@@ -18,7 +18,6 @@ import ActionRow from '../../components/layout/ActionRow.js'
 import PathRow from '../../components/path/PathRow.js'
 import Button from '../../components/primitives/Button.js'
 import Toggle from '../../components/primitives/Toggle.js'
-import Callout from '../../components/primitives/Callout.js'
 import InlineError from '../../components/primitives/InlineError.js'
 import ConfirmDestructiveModal from '../../components/modals/ConfirmDestructiveModal.js'
 import VerdictBanner from '../../components/backup/VerdictBanner.js'
@@ -148,19 +147,13 @@ async function setReminders(enabled: boolean) {
 }
 
 function StatusNotes({ status, error }: { status: BackupStatus; error: string | null }) {
-  const { t } = useTranslation()
   const errorText = useErrorText()
   const failure = status.state === 'error' && status.lastError ? errorText({ code: status.lastError }) : null
-  if (!failure && !error && !status.suspect) return null
+  if (!failure && !error) return null
   return (
     <div className="space-y-3">
       {failure && <InlineError>{failure}</InlineError>}
       {error && <InlineError>{error}</InlineError>}
-      {status.suspect && (
-        <Callout tone="warning" title={t('backup.suspectTitle')}>
-          {t('backup.suspectBody', { reasons: status.suspect.map((reason) => t(`backup.reason.${reason}`)).join(', ') })}
-        </Callout>
-      )}
     </div>
   )
 }
