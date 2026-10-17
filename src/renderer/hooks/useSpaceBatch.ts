@@ -10,14 +10,13 @@ import { useToast } from '../components/toast/ToastProvider.js'
 import { useRunAction } from './useRunAction.js'
 import { useBatchSelection } from './useBatchSelection.js'
 import { useSelectionKeys } from './useSelectionKeys.js'
-import { useTransferControls } from './useTransferControls.js'
-import { batchIsRecent, batchScope, clearDownloadBatch, startDownloadBatch, useDownloadBatch } from './useDownloadBatch.js'
-import { useRetireBatch } from './useFolderBatch.js'
+import { batchIsRecent, batchScope, startDownloadBatch, useDownloadBatch } from './useDownloadBatch.js'
+import { useCancelAll, useRetireBatch } from './useFolderBatch.js'
 import { downloadToToastId, type DownloadTo } from './useDownloadTo.js'
 import { batchToastText } from '../model/batch-toast.js'
 import { summarize, type Gesture } from '../model/batch-selection.js'
 import { batchVerbsFor, isBatchSelectable } from '../model/file-row-action.js'
-import { deriveBatchProgress, type BatchProgress } from '../model/batch-progress.js'
+import { deriveDownloadProgress, type BatchProgress } from '../model/batch-progress.js'
 import { filterSpace } from '../model/space-filter.js'
 import { rowBytesOnDevice } from '../model/row-view.js'
 import type { ShareWithRole } from './useShares.js'
@@ -77,7 +76,6 @@ export function useSpaceBatch({ spaceId, files, shares, selfKey, getDecoration, 
   const { t } = useTranslation()
   const toast = useToast()
   const run = useRunAction()
-  const { cancelMany } = useTransferControls()
   const scopeKey = batchScope(spaceId, null)
 
   const [filter, setFilter] = useState('')
@@ -89,7 +87,6 @@ export function useSpaceBatch({ spaceId, files, shares, selfKey, getDecoration, 
     (row: FileEntry) => batchVerbsFor(row, { isOwn: selfKey !== null && row.owner.publicKey === selfKey, manualControls: true, ownerFileVerbs: true }),
     [selfKey],
   )
-  const rowsByKey = useMemo(() => new Map(files.map((f) => [looseSelectKey(f), f])), [files])
   // Selectable rows in the rendered order; a row with no batch verb and no copy here has no box.
   const selectableAll = useMemo(() => new Set(files.filter((f) => isBatchSelectable(verbsOf(f))).map(looseSelectKey)), [files, verbsOf])
   const shown = useMemo(() => new Set(view.files.map(looseSelectKey)), [view.files])
@@ -148,17 +145,15 @@ export function useSpaceBatch({ spaceId, files, shares, selfKey, getDecoration, 
 
   const batch = useDownloadBatch(scopeKey)
   const recent = batch !== null && batchIsRecent(batch)
-  const progress = useMemo(
-    () => (batch ? deriveBatchProgress(batch.keys, rowsByKey, (row) => rowBytesOnDevice(row, getDecoration(row.path)), { recent }) : null),
-    [batch, rowsByKey, getDecoration, recent],
-  )
+  const progress = useMemo(() => deriveDownloadProgress({
+    rows: files,
+    keyOf: looseSelectKey,
+    bytesOf: (row) => rowBytesOnDevice(row, getDecoration(row.path)),
+    batchKeys: batch?.keys,
+    recent,
+  }), [files, getDecoration, batch, recent])
   useRetireBatch(scopeKey, batch, progress)
-  const cancelAll = useCallback(() => {
-    if (!batch) return
-    const ids = batch.keys.flatMap((key) => { const row = rowsByKey.get(key); return row?.transferId ? [row.transferId] : [] })
-    cancelMany(ids)
-    clearDownloadBatch(scopeKey)
-  }, [batch, rowsByKey, cancelMany, scopeKey])
+  const cancelAll = useCancelAll(scopeKey, progress)
 
   return {
     filter,

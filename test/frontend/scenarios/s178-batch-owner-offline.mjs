@@ -7,8 +7,8 @@ import { workDir } from '../paths.mjs'
 
 // A browse folder whose owner is offline: every file reads Not available and its own Download is
 // disabled, yet select-all takes all of them and the strip offers Download N. The request is kept:
-// a toast says the files will come once the owner is back, the rows read Owner offline, and the
-// files land when the owner returns.
+// a toast says the files will come once the owner is back, the rows read Owner offline, the strip
+// says they are paused and Cancel All can still stop them, and the files land when the owner returns.
 const NAMES = ['brief.pdf', 'notes.txt']
 
 export default async function s178({ runDir, bootstrap }) {
@@ -42,11 +42,13 @@ export default async function s178({ runDir, bootstrap }) {
       await B.shot('s178-selected-offline', runDir)
     })
 
-    await r.ok('the request is kept: a toast says so and the rows wait on the owner', async () => {
+    await r.ok('the request is kept: a toast says so, the rows wait on the owner, the strip offers Cancel All', async () => {
       await B.downloadSelected(2)
       await B.waitText('will download once their owner is online', 20000)
       await B.waitText('Owner offline', 30000)
-      assert(!(await B.hasText('Downloading 2 files')), 'no progress strip for files that did not start')
+      await B.waitText('2 downloads paused', 20000)
+      assert(!(await B.hasText('Downloading 2 files')), 'the strip does not claim a download while nothing moves')
+      assert(await B.has({ role: 'button', name: 'Cancel All' }), 'paused downloads can still be cancelled together')
       await B.shot('s178-kept', runDir)
     })
 

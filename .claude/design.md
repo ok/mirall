@@ -519,13 +519,18 @@ one enables it at once), and the chevron's menu still works. Each half highlight
 press (`active:scale-95` is left out of both), so the pair presses as one shape.
 
 ### Batch strip — `batch/BatchProgressStrip.tsx`
-One strip for a batch the user started, in the folder band (after the derived strips) or the
-space's pinned slot above its list: the info tone (`bg-info-container text-on-info-container`), a pulsing
-`download` icon, "Downloading N files · M done · S left", a `DownloadProgressLane` named "Batch
-download progress", and `Cancel All` (secondary). Not a live region: its counts change twice a
-second, so `batch/BatchAnnouncement.tsx`, an always-mounted polite region of its own beside the
-strip, says "Batch download started" once and "Batch download finished" once. The strip clears
-itself once nothing in the batch is moving.
+One strip for the downloads under way in a listing (a browse folder, or the space's loose files),
+in the folder band (after the derived strips) or the space's pinned slot above its list: the info
+tone (`bg-info-container text-on-info-container`), a `download` icon that pulses while something
+moves, "Downloading N files · M done · S left" ("N downloads paused" when every one is paused), a
+`DownloadProgressLane` named "Batch download progress", and `Cancel All` (secondary), which cancels
+every download the strip counts. It is derived from the rows (`model/batch-progress.js`), not from
+what was clicked: it shows whenever two or more files are downloading, waiting, verifying or
+paused, or for any batch the user started here, so it survives a restart, an owner going offline,
+and files started one click at a time. A batch adds its finished files ("M done") while it runs.
+Not a live region: its counts change twice a second, so `batch/BatchAnnouncement.tsx`, an
+always-mounted polite region of its own beside the strip, says "Batch download started" once and
+"Batch download finished" once.
 
 ### Toggle — `primitives/Toggle.tsx`
 Full-width `role="switch"` row, `p-6`, label + optional description on the left, a 48×28 pill track

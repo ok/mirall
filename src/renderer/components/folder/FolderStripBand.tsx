@@ -12,7 +12,7 @@ interface FolderStripBandProps {
   ownerName: string
   onAction: ComponentProps<typeof FolderWorkStrip>['onAction']
   workAnnouncement: string
-  /** A batch the user started: its strip goes after the derived strips. */
+  /** The downloads under way in this folder: their strip goes after the derived strips. */
   batch: BatchProgress | null
   onCancelBatch: () => void
 }

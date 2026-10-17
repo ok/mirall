@@ -13,7 +13,7 @@ import { useTransferControls } from './useTransferControls.js'
 import { batchIsRecent, batchScope, clearDownloadBatch, startDownloadBatch, useDownloadBatch, type DownloadBatch } from './useDownloadBatch.js'
 import { collectTreeKeys, summarize, visibleOrder } from '../model/batch-selection.js'
 import { batchVerbsFor, isBatchSelectable } from '../model/file-row-action.js'
-import { deriveBatchProgress, type BatchProgress } from '../model/batch-progress.js'
+import { deriveDownloadProgress, type BatchProgress } from '../model/batch-progress.js'
 import { rowBytesOnDevice } from '../model/row-view.js'
 import { batchToastText } from '../model/batch-toast.js'
 import { downloadToToastId, type DownloadTo } from './useDownloadTo.js'
@@ -52,11 +52,20 @@ export interface FolderBatch {
   cancelAll: () => void
 }
 
-/** A batch whose rows all settled is retired once its start window has passed. */
+/** A batch none of whose files is under way any more is retired once its start window has passed. */
 export function useRetireBatch(scopeKey: string, batch: DownloadBatch | null, progress: BatchProgress | null): void {
   useEffect(() => {
-    if (batch && progress === null && !batchIsRecent(batch)) clearDownloadBatch(scopeKey)
+    if (batch && !progress?.batchLive && !batchIsRecent(batch)) clearDownloadBatch(scopeKey)
   }, [scopeKey, batch, progress])
+}
+
+/** Cancel All stops every download the strip counts, and forgets the batch. */
+export function useCancelAll(scopeKey: string, progress: BatchProgress | null): () => void {
+  const { cancelMany } = useTransferControls()
+  return useCallback(() => {
+    if (progress) cancelMany(progress.transferIds)
+    clearDownloadBatch(scopeKey)
+  }, [progress, cancelMany, scopeKey])
 }
 
 export function useFolderBatch({ spaceId, share, offered, files, tree, getDecoration, markSeeded, downloadTo }: FolderBatchArgs): FolderBatch {
@@ -66,7 +75,6 @@ export function useFolderBatch({ spaceId, share, offered, files, tree, getDecora
   const { t } = useTranslation()
   const toast = useToast()
   const run = useRunAction()
-  const { cancelMany } = useTransferControls()
   const scopeKey = batchScope(spaceId, shareId)
 
   const rowsByKey = useMemo(() => new Map(files.map((f) => [f.relPath, f])), [files])
@@ -114,17 +122,16 @@ export function useFolderBatch({ spaceId, share, offered, files, tree, getDecora
 
   const batch = useDownloadBatch(scopeKey)
   const recent = batch !== null && batchIsRecent(batch)
-  const progress = useMemo(
-    () => (batch ? deriveBatchProgress(batch.keys, rowsByKey, (row) => rowBytesOnDevice(row, getDecoration(row.relPath)), { recent }) : null),
-    [batch, rowsByKey, getDecoration, recent],
-  )
+  // Only a browse folder downloads by hand: a mirror's own sync is not the user's to cancel here.
+  const progress = useMemo(() => (offered ? deriveDownloadProgress({
+    rows: files,
+    keyOf: (row) => row.relPath,
+    bytesOf: (row) => rowBytesOnDevice(row, getDecoration(row.relPath)),
+    batchKeys: batch?.keys,
+    recent,
+  }) : null), [offered, files, getDecoration, batch, recent])
   useRetireBatch(scopeKey, batch, progress)
-  const cancelAll = useCallback(() => {
-    if (!batch) return
-    const ids = batch.keys.flatMap((key) => { const row = rowsByKey.get(key); return row?.transferId ? [row.transferId] : [] })
-    cancelMany(ids)
-    clearDownloadBatch(scopeKey)
-  }, [batch, rowsByKey, cancelMany, scopeKey])
+  const cancelAll = useCancelAll(scopeKey, progress)
 
   // No top box over nothing: a listing with no selectable file has no column to open.
   const selectAll = offered && matching.size > 0 ? {
