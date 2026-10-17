@@ -13,9 +13,10 @@ import { listCores } from './inventory.js'
 import { openCut, captureCore } from './capture.js'
 import { nextCoreEntry, MANIFEST_VERSION } from './manifest.js'
 import { openOrInitRepo, openRepo } from './repo.js'
-import { storeVitals, lossBaseline, lossVerdict } from './loss-check.js'
+import { storeVitals, lossBaselineManifest, lossVerdict, explainedLoss, adjustBaseline } from './loss-check.js'
 import { snapshotDue, nextDepartures } from './snapshot-rules.js'
 import { listSpaces } from '../../spaces/space.js'
+import { removedSpaces as readRemovedSpaces } from '../removal-evidence.js'
 
 function readVault(storagePath) {
   const file = resolveSecretFile(storagePath, SECRET_FILE.SPACE_KEYS, { join: path.join, dirname: path.dirname, exists: fs.existsSync })
@@ -78,16 +79,30 @@ function sameFiles(previous, files) {
 }
 
 function summary(snapshot) {
-  return snapshot ? { name: snapshot.name, createdAt: snapshot.manifest.createdAt, suspect: snapshot.manifest.suspect ?? null } : null
+  if (!snapshot) return null
+  const { createdAt, suspect = null, explained = null } = snapshot.manifest
+  return { name: snapshot.name, createdAt, suspect, explained }
 }
 
-// The new snapshot, flagged when its vitals look like a loss against the last unflagged one.
-async function writeNext(repo, previous, body, { now }) {
+// The new snapshot, flagged when its vitals look like a loss against the last unflagged one, once
+// what removals through the leave and join flows explain is taken out of that one (explainedLoss). A
+// removal recorded before the baseline still counts: a left space's cores can outlive the snapshot
+// that saw it go, until the leftover sweep.
+async function lossCheck(repo, previous, current, { now, removedSpaces }) {
+  const lastUnflagged = previous && !previous.manifest.suspect ? previous : await repo.latestUnflagged()
+  const baseline = lossBaselineManifest(lastUnflagged?.manifest ?? null, previous?.manifest ?? null, now())
+  if (!baseline?.vitals) return { suspect: null, explained: null }
+  const explained = explainedLoss(baseline, current, await removedSpaces())
+  const suspect = lossVerdict(adjustBaseline(baseline.vitals, explained), current.vitals)
+  return { suspect, explained: explained.spaces || explained.cores || explained.ownLength ? explained : null }
+}
+
+async function writeNext(repo, previous, body, options) {
+  const { now } = options
   const spaces = (await listSpaces()).map((space) => ({ id: space.spaceId, name: space.name }))
   const vitals = storeVitals(body.cores, spaces.length)
-  const lastUnflagged = previous && !previous.manifest.suspect ? previous : await repo.latestUnflagged()
-  const suspect = lossVerdict(lossBaseline(lastUnflagged?.manifest ?? null, previous?.manifest ?? null, now()), vitals)
-  const manifest = { v: MANIFEST_VERSION, createdAt: new Date(now()).toISOString(), repoId: repo.repoId, parent: previous?.name ?? null, ...body, vitals, suspect, spaces, departures: nextDepartures(previous, spaces, now()) }
+  const { suspect, explained } = await lossCheck(repo, previous, { cores: body.cores, spaces, vitals }, options)
+  const manifest = { v: MANIFEST_VERSION, createdAt: new Date(now()).toISOString(), repoId: repo.repoId, parent: previous?.name ?? null, ...body, vitals, suspect, explained, spaces, departures: nextDepartures(previous, spaces, now()) }
   const name = await repo.writeSnapshot(manifest, { previous: previous?.name ?? null, now: now() })
   return { name, manifest }
 }
@@ -97,7 +112,7 @@ async function writeNext(repo, previous, body, { now }) {
 // wrote one.
 export async function runBackup({
   store, storagePath, target, wrapKey, repoId, installId, appVersion, config = null,
-  now = Date.now, stopAt = () => null, maxPartBytes = undefined,
+  now = Date.now, stopAt = () => null, maxPartBytes = undefined, removedSpaces = readRemovedSpaces,
 }) {
   const repo = await openForRun(target, { wrapKey, repoId, installId, now })
   const previous = await repo.latestSnapshot()
@@ -117,7 +132,7 @@ export async function runBackup({
       const uploaded = await uploadAll(repo, captures, { stopAt, now })
       stats = uploaded.stats
       if (outOfTime(stopAt, now)) throw new AppError(CODES.ECANCELLED, 'backup: ran out of time')
-      written = await writeNext(repo, previous, { appVersion, installId, cores: uploaded.entries, files, gone }, { now })
+      written = await writeNext(repo, previous, { appVersion, installId, cores: uploaded.entries, files, gone }, { now, removedSpaces })
     }
   } finally {
     await cut.close()

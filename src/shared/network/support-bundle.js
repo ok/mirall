@@ -58,8 +58,9 @@ function relaySection(relay, relayConfig, redact) {
 // form, is the port 0, did it change, how many dials opened — is answerable without the
 // actual IP, the real keys, or space names.
 export function buildDiagnostics(ctx, redact = true) {
-  const { status, history, env, counters, peerSamples, relayConfig = { mode: 'off', relay: null }, requestFailures = {}, requestMetrics = {}, health = {}, sweeps = [] } = ctx
+  const { status, history, env, counters, peerSamples, relayConfig = { mode: 'off', relay: null }, requestFailures = {}, requestMetrics = {}, health = {}, sweeps = [], backup = { lossCheck: null, removals: [] } } = ctx
   const topicAlias = makeAliaser('t')
+  const spaceAlias = makeAliaser('s')
   const samples = peerSamples.map((peer) => ({
     noiseKey: redact ? shortId(peer.publicKey) : peer.publicKey,
     topic: redact ? topicAlias(peer.topic) : peer.topic,
@@ -89,6 +90,25 @@ export function buildDiagnostics(ctx, redact = true) {
       purged: row.purged,
       gaps: (row.gaps || []).map((g) => (redact ? String(g.stage).split(':')[0] : g.stage)),
     })),
+
+    // The backup loss check: the latest verdict, what removals made on purpose explained, and those
+    // removals. Counts only; a removed space's id is aliased and its name kept out when redacted.
+    backup: {
+      lossCheck: backup.lossCheck && {
+        suspect: backup.lossCheck.suspect,
+        explained: backup.lossCheck.explained && {
+          spaces: backup.lossCheck.explained.spaces,
+          cores: backup.lossCheck.explained.cores,
+          ownLength: backup.lossCheck.explained.ownLength,
+        },
+      },
+      removals: backup.removals.map((row) => ({
+        at: row.at,
+        kind: row.kind,
+        space: redact ? spaceAlias(row.spaceId) : row.spaceId,
+        ...(redact ? {} : { name: row.name }),
+      })),
+    },
 
     network: {
       dhtReady: status.dhtReady,

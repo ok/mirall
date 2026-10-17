@@ -1,15 +1,22 @@
 // Every core in the store a backup covers, with the role it plays. Own bees are recognised by the
-// discovery key their name derives from the master secret, so nothing is opened to classify; a core
-// with a secret key nobody names is still ours and is kept as `own`, and everything else belongs to a
-// peer. The overlay's local index (found by its namespace's aliases, so it is recognised even while
-// the overlay is down), a local bee's rewrite scratch and the plaintext predecessors of migrated cores
-// are rebuilt or superseded, never restored.
+// discovery key their name derives from the master secret, so nothing is opened to classify them; a
+// core with a secret key nobody names is still ours and is kept as `own`, and everything else belongs
+// to a peer. A member's profile and catalogs carry the space they were found in, read from local state
+// only, so the loss check can tell a space that was left from cores that went missing. The overlay's local
+// index (found by its namespace's aliases, so it is recognised even while the overlay is down), a
+// local bee's rewrite scratch and the plaintext predecessors of migrated cores are rebuilt or
+// superseded, never restored.
 import b4a from 'b4a'
 import { LOCAL_BEE_NAMES, beeDiscoveryKeyHex, localBeeDiscoveryKeys } from '../../core/store.js'
 import { listSpaces } from '../../spaces/space.js'
 import { catalogNameForSpace, plaintextCatalogName } from '../../shares/own-catalog.js'
 import { PROFILE_BEE } from '../../core/restore-hold.js'
 import { OVERLAY_NAMESPACE, OVERLAY_NAMESPACE_ENC } from '../../transfer/overlay/overlay-namespaces.js'
+import { spaceCatalogCores, dkOfKey } from '../space-catalog-cores.js'
+import { createLogger } from '../../core/logger.js'
+import { errorMessage } from '../../core/errors.js'
+
+const log = createLogger('backup-inventory')
 
 export const CORE_ROLE = Object.freeze({
   PROFILE: 'profile',
@@ -37,9 +44,23 @@ async function knownRoles(store) {
     const catalog = catalogNameForSpace(space.spaceId, space)
     name(await beeDiscoveryKeyHex(plaintextCatalogName(space.spaceId, space)), CORE_ROLE.SKIP)
     name(await beeDiscoveryKeyHex(catalog), CORE_ROLE.OWN_CATALOG, { name: catalog, spaceId: space.spaceId })
+    for (const dk of await memberCores(space)) if (!roles.has(dk)) name(dk, CORE_ROLE.PEER, { spaceId: space.spaceId })
   }
   for (const dk of await overlayDiscoveryKeys(store)) name(dk, CORE_ROLE.SKIP)
   return roles
+}
+
+const HEX64 = /^[0-9a-f]{64}$/i
+
+// Unattributed peer cores only make the loss check stricter, so a failed read never stops a backup.
+async function memberCores(space) {
+  const profiles = (space.members || []).filter((member) => HEX64.test(member.publicKey ?? '')).map((member) => dkOfKey(member.publicKey))
+  try {
+    return [...profiles, ...(await spaceCatalogCores(space)).members]
+  } catch (err) {
+    log.warn('could not read the member catalogs of', space.spaceId, '-', errorMessage(err))
+    return profiles
+  }
 }
 
 async function overlayDiscoveryKeys(store) {

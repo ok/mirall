@@ -9,8 +9,9 @@ import { runLeaveTeardown } from './membership/leave-state.js'
 import { getStore } from '../core/store.js'
 import { prefixRange } from '../core/bee-keys.js'
 import { createLogger } from '../core/logger.js'
-import { spacesMeta, mutateSpace, deleteSpaceRecord } from './space.js'
+import { spacesMeta, mutateSpace, deleteSpaceRecord, getSpace } from './space.js'
 import { clearFileRecipients } from '../transfer/file-recipients.js'
+import { recordRemoval } from '../storage/removal-evidence.js'
 
 const log = createLogger('leave-records')
 
@@ -102,8 +103,11 @@ export function markSpaceLeavingDurable(spaceId) {
 
 // Delete only the space record. Used early in leave so the space disappears durably even if a later
 // purge step fails — a partial teardown then leaves reclaimable orphan cores, not a space stuck in
-// the list.
-export async function forgetSpaceRecord(spaceId) {
+// the list. Every removal through the leave and join flows goes through here, so it records the
+// evidence the backup loss check needs, before any of the space's data can be swept.
+export async function forgetSpaceRecord(spaceId, { kind = 'space-left' } = {}) {
+  const space = await getSpace(spaceId)
+  if (space) await recordRemoval({ kind, spaceId, name: space.name ?? null })
   await clearAllLeftTombstones(spaceId)
   await clearFileRecipients(spaceId)
   await deleteSpaceRecord(spaceId)
@@ -111,8 +115,8 @@ export async function forgetSpaceRecord(spaceId) {
 
 // The end of a leave: the record is gone and the store is flushed so the deletion survives a quit
 // that follows immediately.
-export async function purgeSpace(spaceId) {
-  await forgetSpaceRecord(spaceId)
+export async function purgeSpace(spaceId, { kind = 'space-left' } = {}) {
+  await forgetSpaceRecord(spaceId, { kind })
   try { await getStore().storage.db.flush() } catch (err) {
     log.warn('flush after purgeSpace failed:', err.message)
   }

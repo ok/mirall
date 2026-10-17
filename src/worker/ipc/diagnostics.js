@@ -13,6 +13,7 @@ import { queryAudit } from '../../shared/audit/audit-query.js'
 import { deriveChannel } from '../../shared/telemetry/channel.js'
 import { getInstallId } from '../../shared/telemetry/install-id.js'
 import { listRecentSweeps } from '../../shared/storage/sweep-journal.js'
+import { listRecentRemovals } from '../../shared/storage/removal-evidence.js'
 import {
   getSwarmStatus,
   getVerdictHistory,
@@ -60,6 +61,7 @@ export function registerDiagnostics(ipc, { health, getRoot }) {
       },
       counters: getDiagnosticCounters(),
       sweeps: await listRecentSweeps(10),
+      backup: { lossCheck: root?.backup()?.lossCheck() ?? null, removals: await listRecentRemovals(20) },
       requestFailures: getRequestFailureCounters(),
       requestMetrics: getRequestMetrics(),
       health: health.snapshot({
