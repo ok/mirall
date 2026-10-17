@@ -5,7 +5,7 @@
 import { Subsystem } from '../shared/core/subsystem.js'
 import { overlayBackend } from '../shared/transfer/overlay/index.js'
 import { listSpaces } from '../shared/spaces/space.js'
-import { createLocalBee } from '../shared/core/store.js'
+import { reclaimMetaBee } from '../shared/storage/reclaim-journal.js'
 import { sweepExpiredInvites } from '../shared/spaces/profile.js'
 import { pruneAudit } from '../shared/audit/audit-reclaim.js'
 import { measureHistory } from '../shared/storage/storage-history.js'
@@ -26,7 +26,7 @@ const LAST_COMPACT_KEY = 'overlay-index-compacted'
 // run is persisted and the schedule is "due?", not "6h since this process started".
 /** @internal */
 export async function compactIndexIfDue() {
-  const bee = createLocalBee('reclaim-meta')
+  const bee = reclaimMetaBee()
   try {
     await bee.ready()
     const last = (await bee.get(LAST_COMPACT_KEY))?.value?.at ?? 0
