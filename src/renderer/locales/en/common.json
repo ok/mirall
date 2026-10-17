@@ -1642,6 +1642,8 @@
     "ended": "Selection ended",
     "progress_one": "Downloading {{count}} file",
     "progress_other": "Downloading {{count}} files",
+    "progressPaused_one": "{{count}} download paused",
+    "progressPaused_other": "{{count}} downloads paused",
     "progressDone": "{{count}} done",
     "progressLeft": "{{size}} left",
     "progressLabel": "Batch download progress",

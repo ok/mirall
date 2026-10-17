@@ -1642,6 +1642,8 @@
     "ended": "Sélection terminée",
     "progress_one": "Téléchargement de {{count}} fichier",
     "progress_other": "Téléchargement de {{count}} fichiers",
+    "progressPaused_one": "{{count}} téléchargement en pause",
+    "progressPaused_other": "{{count}} téléchargements en pause",
     "progressDone": "{{count}} terminé",
     "progressLeft": "{{size}} restants",
     "progressLabel": "Progression du téléchargement groupé",

@@ -1642,6 +1642,8 @@
     "ended": "Selezione terminata",
     "progress_one": "Download di {{count}} file",
     "progress_other": "Download di {{count}} file",
+    "progressPaused_one": "{{count}} download in pausa",
+    "progressPaused_other": "{{count}} download in pausa",
     "progressDone": "{{count}} completato",
     "progressLeft": "{{size}} rimanenti",
     "progressLabel": "Avanzamento del download multiplo",

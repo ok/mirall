@@ -56,7 +56,7 @@ const indexing: FolderStrip = {
 
 createRoot(document.getElementById('root') as HTMLElement).render(
   <div data-probe="page" className="bg-surface p-8 space-y-4">
-    <div data-probe="batch"><BatchProgressStrip progress={{ files: 9, done: 8, bytesLeft: 3_800_000_000, pct: 34 }} onCancelAll={noop} /></div>
+    <div data-probe="batch"><BatchProgressStrip progress={{ files: 9, done: 8, bytesLeft: 3_800_000_000, pct: 34, moving: true, batchLive: true, transferIds: [] }} onCancelAll={noop} /></div>
     <div data-probe="mirroring"><FolderWorkStrip strip={mirroring} ownerName="Chris" onAction={noop} /></div>
     <div data-probe="indexing"><FolderWorkStrip strip={indexing} ownerName="Chris" onAction={noop} /></div>
     <div data-probe="container" className="bg-info-container h-4" />
