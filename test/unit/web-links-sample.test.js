@@ -5,6 +5,7 @@ import path from 'path'
 import b4a from 'b4a'
 import { encodeInvite } from '../../src/shared/contract/invite-envelope.js'
 import { _encodeTicketForTests } from '../../src/shared/network/relay-ticket.js'
+import activationVectors from '../fixtures/managed/activation-link-v1.json' with { type: 'json' }
 
 // The self-hosted sample page (docs/web-links/index.html) carries its own payload checks. They
 // are run here against the app's vectors, so a grammar change in the app fails the sample too.
@@ -21,7 +22,7 @@ function checks() {
 const HEX = 'a'.repeat(64)
 const HEX_DASHED = 'aaaaaaaa-aaaaaaaa-aaaaaaaa-aaaaaaaa-aaaaaaaa-aaaaaaaa-aaaaaaaa-aaaaaaaa'
 const TICKET = _encodeTicketForTests(b4a.alloc(32, 1), b4a.alloc(32, 2))
-const LICENSE = 'k/MRL-ABCDE-FGHIJ-KLMNO-PQRST-UVWXY'
+const ACTIVATION = `a/${activationVectors.valid[0].code}`
 
 test('the sample maps every kind onto the app host the app routes', (t) => {
   const kinds = checks()
@@ -51,12 +52,13 @@ test('the relay check is the 111-char z-base-32 ticket, case-insensitive', (t) =
   t.absent(relay.check(HEX))
 })
 
-test('the license check wants the versioned k/ form of a formatted key', (t) => {
+test('the license check wants the a/ form of an activation code', (t) => {
   const { license } = checks()
-  t.ok(license.check(LICENSE))
-  t.absent(license.check(LICENSE.slice(2)))
-  t.absent(license.check('k/MRL-ABCDE-FGHIJ-KLMNO-PQRST'))
-  t.absent(license.check('k/mrl-abcde-fghij-klmno-pqrst-uvwxy'))
+  t.ok(license.check(ACTIVATION))
+  t.ok(license.check(ACTIVATION.toUpperCase().replace(/^A\//, 'a/')))
+  t.absent(license.check(ACTIVATION.slice(2)), 'a bare code')
+  t.absent(license.check('k/MRL-ABCDE-FGHIJ-KLMNO-PQRST-UVWXY'), 'the retired k/ form')
+  t.absent(license.check('a/0000000000'), 'outside z-base-32')
 })
 
 test('the page keeps the payload in the fragment and off the wire', (t) => {

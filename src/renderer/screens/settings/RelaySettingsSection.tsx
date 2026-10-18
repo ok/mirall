@@ -28,6 +28,10 @@ import { useConnectionStatus } from '../../hooks/useConnectionStatus.js'
 import { useRelayApply } from '../../hooks/useRelayApply.js'
 import { useRunAction } from '../../hooks/useRunAction.js'
 import { peersRelayingWhileOff, relayKindClasses } from '../../model/relay-groups.js'
+import ManagedField from '../../components/managed/ManagedField.js'
+import ManagedNote from '../../components/managed/ManagedNote.js'
+import { useManagedSetting } from '../../hooks/useManagedSetting.js'
+import type { Lockable } from '../../types/ui.js'
 
 function statusOf(relay: RelaySlot, testing: boolean, active: boolean) {
   if (!active || !relay.enabled) return { key: 'disabled', classes: 'bg-surface-container-high text-on-surface-variant' }
@@ -201,7 +205,7 @@ export default function RelaySettingsSection() {
             a private relay without the confirmation its seed loss deserves. */}
         {!settings ? null : relay ? (
           <>
-            <ModeToggles mode={mode} onMode={handleModeToggle} onAlways={handleAlwaysToggle} />
+            <ManagedField settingKey="network.relayMode">{(lock) => <ModeToggles mode={mode} onMode={handleModeToggle} onAlways={handleAlwaysToggle} lock={lock} />}</ManagedField>
             <RelayRow
               relay={relay}
               testing={testing}
@@ -211,9 +215,13 @@ export default function RelaySettingsSection() {
               onReplace={() => { if (relay.kind === 'private') setConfirm('replace'); else setAddOpen(true) }}
               onRemove={() => { if (relay.kind === 'private') setConfirm('remove'); else handleRemove() }}
             />
+            <OrgRelayNote />
           </>
         ) : (
-          <EmptyRelayRow onAdd={() => setAddOpen(true)} />
+          <>
+            <EmptyRelayRow onAdd={() => setAddOpen(true)} />
+            <OrgModeNote />
+          </>
         )}
         {relayedByPeers.length > 0 && <AdoptedRelayNote people={relayedByPeers} />}
       </div>
@@ -239,9 +247,10 @@ interface ModeTogglesProps {
   mode: RelayMode
   onMode: (on: boolean) => void
   onAlways: (on: boolean) => void
+  lock: Lockable
 }
 
-function ModeToggles({ mode, onMode, onAlways }: ModeTogglesProps) {
+function ModeToggles({ mode, onMode, onAlways, lock }: ModeTogglesProps) {
   const { t } = useTranslation()
   return (
     <>
@@ -251,6 +260,7 @@ function ModeToggles({ mode, onMode, onAlways }: ModeTogglesProps) {
           description={t('networkSettings.relays.useRelayDesc')}
           checked={mode !== 'off'}
           onChange={onMode}
+          {...lock}
         />
       </div>
       <div className="border-t border-outline-variant/40">
@@ -260,10 +270,24 @@ function ModeToggles({ mode, onMode, onAlways }: ModeTogglesProps) {
           checked={mode === 'always'}
           disabled={mode === 'off'}
           onChange={onAlways}
+          {...lock}
         />
       </div>
     </>
   )
+}
+
+// The organization's relay says who set it, unless the mode toggles above already do.
+function OrgRelayNote() {
+  const relay = useManagedSetting('network.relayKey')
+  const mode = useManagedSetting('network.relayMode')
+  return relay.org && !mode.locked ? <ManagedNote id={relay.noteId} org={relay.org} /> : null
+}
+
+// A locked mode with no relay slot has no toggles to carry its note.
+function OrgModeNote() {
+  const mode = useManagedSetting('network.relayMode')
+  return mode.org ? <ManagedNote id={mode.noteId} org={mode.org} /> : null
 }
 
 interface RelayRowProps {
@@ -278,11 +302,13 @@ interface RelayRowProps {
 
 function RelayRow({ relay, testing, active, canTest, onTest, onReplace, onRemove }: RelayRowProps) {
   const { t } = useTranslation()
+  const managed = useManagedSetting('network.relayKey').locked
   const name = relay.label || relay.publicKey
   const status = statusOf(relay, testing, active)
   // Dimmed with the switch above it, because a relay that is not in use is not in use. The menu
   // stays at full strength: Test, Replace and Remove are the only way to manage the slot, and
-  // hiding or disabling them would leave a configured relay with no way to change it.
+  // hiding or disabling them would leave a configured relay with no way to change it. An
+  // organization's relay is changed by the organization, so its menu keeps Test only.
   const dim = active ? '' : ' opacity-50'
   const statusLabel = t(`networkSettings.relays.${status.key}`)
 
@@ -324,19 +350,21 @@ function RelayRow({ relay, testing, active, canTest, onTest, onReplace, onRemove
             disabled: testing || !canTest,
             onAction: onTest,
           },
-          {
-            id: 'replace',
-            label: t('networkSettings.relays.replace'),
-            icon: 'edit',
-            onAction: onReplace,
-          },
-          {
-            id: 'remove',
-            label: t('networkSettings.relays.remove'),
-            icon: 'delete',
-            variant: 'danger',
-            onAction: onRemove,
-          },
+          ...(managed ? [] : [
+            {
+              id: 'replace',
+              label: t('networkSettings.relays.replace'),
+              icon: 'edit' as const,
+              onAction: onReplace,
+            },
+            {
+              id: 'remove',
+              label: t('networkSettings.relays.remove'),
+              icon: 'delete' as const,
+              variant: 'danger' as const,
+              onAction: onRemove,
+            },
+          ]),
         ]}
       />
     </div>

@@ -63,12 +63,12 @@
     const KINDS = {
       space: { appHost: 'join', title: 'Join a space', description: 'Open this invite in Mirall to join the space.', check: isInviteCode },
       relay: { appHost: 'relay', title: 'Add a relay', description: 'Open this invite in Mirall to add the relay.', check: isRelayTicket },
-      license: { appHost: 'license', title: 'Set up your license', description: 'Open this link in Mirall to confirm your license key.', check: isLicensePayload },
+      license: { appHost: 'license', title: 'Connect to your organization', description: 'Open this link in Mirall to connect it to your organization.', check: isActivationPayload, incomplete: 'This link is incomplete. Ask your administrator to send it again.' },
     }
     const HEX64 = /^[0-9a-f]{64}$/i
     const B64URL = /^[A-Za-z0-9_-]+$/
     const Z_BASE_32_TICKET = /^[ybndrfg8ejkmcpqxot1uwisza345h769]{111}$/
-    const LICENSE_KEY = /^k\/MRL(-[0-9A-Z]{5}){5}$/
+    const ACTIVATION_CODE = /^a\/[ybndrfg8ejkmcpqxot1uwisza345h769]{8,512}$/
 
     // A v0 invite is 64 hex characters, dashes allowed; a v1 invite is base64url JSON with the
     // 64-hex topic in `t`. Name and expiry are hints for this page only; the app decides.
@@ -92,7 +92,7 @@
     }
     function isInviteCode(payload) { return decodeInvite(payload) !== null }
     function isRelayTicket(payload) { return Z_BASE_32_TICKET.test(payload.toLowerCase()) }
-    function isLicensePayload(payload) { return LICENSE_KEY.test(payload) }
+    function isActivationPayload(payload) { return ACTIVATION_CODE.test(payload.toLowerCase()) }
     /* payload-checks:end */
 
     const LEAD = {
@@ -138,7 +138,7 @@
     let timer = null
 
     function render(state) {
-      lead.textContent = LEAD[state] || ''
+      lead.textContent = (state === 'incomplete' && kind && kind.incomplete) || LEAD[state] || ''
       actions.replaceChildren()
       const open = button(state === 'opened' ? 'Open again' : 'Open in Mirall', {
         href: appUrl, primary: state === 'attempting', onClick: (e) => { e.preventDefault(); attempt() },

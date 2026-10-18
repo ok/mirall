@@ -92,7 +92,12 @@ export interface DeepLinkJoin {
   name?: string
 }
 
-export type DeepLinkPayload = DeepLinkJoin
+export interface DeepLinkLicense {
+  kind: 'license'
+  code: string
+}
+
+export type DeepLinkPayload = DeepLinkJoin | DeepLinkLicense
 
 export type IdentityProtection = 'protected' | 'weak' | 'disabled'
 // The app-update store in the data folder: its size on disk, the part that is a copy of the running

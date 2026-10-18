@@ -268,8 +268,11 @@ app.setAsDefaultProtocolClient(protocol)
 const pendingDeepLinks = []
 let deeplinkChannelOpen = false
 
+// The release channel decides whether an organization's activation link is recognized at all.
+const releaseChannel = import('../shared/contract/release-channel.js').then((m) => m.deriveChannel({ dev: isDev, appVersion: version }))
+
 async function dispatchDeepLink(rawUrl) {
-  const link = await parseDeepLink(rawUrl)
+  const link = await parseDeepLink(rawUrl, { channel: await releaseChannel })
   if (!link) {
     console.warn('ignored unrecognized deep link:', rawUrl)
     return

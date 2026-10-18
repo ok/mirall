@@ -13,6 +13,7 @@ import SectionHeading from '../../components/layout/SectionHeading.js'
 import Button from '../../components/primitives/Button.js'
 import { useErrorText } from '../../hooks/useErrorText.js'
 import { useRunAction } from '../../hooks/useRunAction.js'
+import { MANAGED_SCOPES } from '../../store/scopes.js'
 
 interface ActivityLogSettingsProps {
   onBack: () => void
@@ -24,8 +25,8 @@ export default function ActivityLogSettings({ onBack, onOpenLog }: ActivityLogSe
   const errorText = useErrorText()
   const runAction = useRunAction()
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
-  // The same two entries Account reads, scope-less for the reason stated there.
-  const { data: config } = useQuery('audit:get-config', {}, null)
+  // The same two entries Account reads, off the audit scope for the reason stated there.
+  const { data: config } = useQuery('audit:get-config', {}, MANAGED_SCOPES)
   const { data: stats } = useQuery('audit:stats', {}, null)
   const [busy, setBusy] = useState(false)
   const [patching, setPatching] = useState(false)
@@ -35,7 +36,7 @@ export default function ActivityLogSettings({ onBack, onOpenLog }: ActivityLogSe
 
   const refresh = useCallback(async () => {
     await Promise.all([
-      refetchQuery<AuditConfig>('audit:get-config', {}, null),
+      refetchQuery<AuditConfig>('audit:get-config', {}, MANAGED_SCOPES),
       refetchQuery<AuditStats>('audit:stats', {}, null),
     ])
   }, [])

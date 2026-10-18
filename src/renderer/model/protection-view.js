@@ -9,6 +9,7 @@
 /** @type {Record<NonNullable<BackupStatus['verdictReason']>, { key: string, fix: Fix }>} */
 const BY_REASON = {
   'not-set-up': { key: 'notSetUp', fix: 'setup' },
+  'required-not-set-up': { key: 'requiredNotSetUp', fix: 'setup' },
   'no-key': { key: 'noKey', fix: 'new-key' },
   stale: { key: 'stale', fix: 'run' },
   failing: { key: 'failing', fix: 'run' },
@@ -45,7 +46,7 @@ export function passphraseLine(status) {
 export function backupSummary(status) {
   if (status.state === 'paused') return { key: 'protection.summary.paused', at: null }
   if (status.verdict === 'protected') return { key: 'protection.summary.backedUp', at: status.lastSuccessAt }
-  if (status.verdictReason === 'not-set-up') return { key: 'protection.summary.notBackedUp', at: null }
+  if (status.verdictReason === 'not-set-up' || status.verdictReason === 'required-not-set-up') return { key: 'protection.summary.notBackedUp', at: null }
   if (status.verdict === 'stopped') return { key: 'protection.summary.stopped', at: null }
   return { key: 'protection.summary.attention', at: null }
 }

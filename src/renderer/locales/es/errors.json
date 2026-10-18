@@ -60,5 +60,7 @@
   "backupTargetNotEmpty": "Esta carpeta ya contiene otros archivos. Elige una carpeta vacía para tu copia o crea una nueva.",
   "backupTargetOffline": "La carpeta de copias no está disponible. Conecta la unidad o el recurso de red y vuelve a intentarlo.",
   "backupKeyMissing": "Esta copia no se puede abrir: su carpeta está incompleta.",
-  "restoreHeld": "Disponible cuando Mirall haya comprobado con las personas con quienes compartes."
+  "restoreHeld": "Disponible cuando Mirall haya comprobado con las personas con quienes compartes.",
+  "managedLocked": "Este ajuste lo gestiona tu organización.",
+  "managedUnavailable": "No se pudo leer la configuración de tu organización. Inténtalo de nuevo."
 }

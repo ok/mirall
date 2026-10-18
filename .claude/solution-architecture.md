@@ -1830,6 +1830,35 @@ two-step setup dialog (`BackupSetupModal.tsx`: where, then the passphrase; the o
 the offer or check card on Spaces (`BackupPromptCard.tsx`) and one restore dialog
 (`RestoreBackupModal.tsx`, opened from onboarding and the locked screen) complete it.
 
+## 16c. Managed configuration (`src/shared/managed/`, `src/worker/managed/`)
+
+An organization locks settings on an install through its Console. The activation link
+(`mirall://license/a/<code>`, from `<links>/license#a/<code>`) carries a license key, the
+organization's drive key and an API base, and is trusted for nothing: main checks its shape only
+(`contract/activation-syntax.js`) and only on a channel that pins signing keys
+(`contract/managed-trust.js`); the worker decodes it and fetches the organization's bundles.
+
+- **What is trusted.** A bundle is verified exactly like the Console's reference verifier
+  (`verify.js`, same step order and failure names, pinned by the Console's `bundle-v1.json`): a
+  pinned Ed25519 signature over the header, bound to the drive key, never older than the last
+  applied, sealed to this license key's derived X25519 key. The organization's name and the API base
+  shown or used come from the signed document only.
+- **Where it lives.** `managed.enc` beside the store, sealed under an M-derived key, moved aside with
+  the identity files and never in a backup; the drive replica in `<dataDir>/managed-store/`.
+- **The gate.** `ManagedConfig` starts on every boot and holds nothing until a license is accepted.
+  Preview is one HTTPS read that writes nothing. Licensed, it reads the drive (a Hyperbee) on a swarm
+  and DHT node of its own, and asks the Console over HTTPS only while no drive peer is connected.
+- **The overlay.** `core/managed-overlay.js` holds the organization's locked values (null when
+  unmanaged); `core/managed-effective.js` puts them over the person's own, which are never written
+  with them, so leaving restores the person's settings. Persistence reads the stored values
+  (`getStoredAuditConfig`), behaviour and views the effective ones. A locked setter refuses a change,
+  never a re-send of the effective value (`assertUnlocked`).
+- **Backup folder.** An organization's per-platform template resolves on the device
+  (`path-template.js`, pinned by `path-template-v1.json`); the managed repository's id lives in
+  `backup-state.json`. The share's base must exist, and only the device's folders below it are made.
+- **UI.** `managed:get` is the renderer's one source of what is locked (`useManaged`); controls take
+  the generic `Lockable` state and a `ManagedNote`. About gains an Organization row to its page.
+
 ## 17. Glossary
 
 Holepunch stack terms (Bare, Hypercore/"core", Hyperbee/"bee", Hyperdrive, Corestore, Hyperswarm,

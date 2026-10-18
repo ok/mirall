@@ -290,7 +290,7 @@ export const promiseLintAllowlist = Object.freeze({
     why: 'chooseFolder and turnOn catch into the dialog\'s inline error.',
     sites: [
       'no-floating-promises BackupSetupModal > confirm: void turnOn()',
-      'no-floating-promises BackupSetupModal > onAction: void chooseFolder()',
+      'no-floating-promises BackupSetupModal > onChoose: void chooseFolder()',
       'no-floating-promises BackupSetupModal > onClick: void turnOn()',
     ],
   },

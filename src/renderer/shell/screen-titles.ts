@@ -16,6 +16,7 @@ export const SCREEN_TITLE_KEYS: Record<Screen, string> = {
   'network-settings': 'a11y.screens.networkSettings',
   'network-status': 'a11y.screens.network',
   'about': 'a11y.screens.about',
+  'organization': 'a11y.screens.organization',
   'network-diagnostics': 'a11y.screens.networkDiagnostics',
   'network-advanced': 'a11y.screens.networkAdvanced',
   'connection-problem': 'a11y.screens.connectionProblem',

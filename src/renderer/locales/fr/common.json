@@ -1119,7 +1119,8 @@
       "networkDiagnostics": "Diagnostic",
       "networkAdvanced": "Détails avancés",
       "backup": "Sauvegarde",
-      "about": "À propos de Mirall"
+      "about": "À propos de Mirall",
+      "organization": "Organisation"
     }
   },
   "avatar": {
@@ -1219,7 +1220,10 @@
       "relay.removed": "Vous avez retiré le relais {{target}}",
       "relay.turned_on": "Vous avez activé le relais {{target}}",
       "relay.turned_off": "Vous avez désactivé le relais {{target}}",
-      "relay.mode_changed": "Vous avez modifié quand le relais {{target}} est utilisé"
+      "relay.mode_changed": "Vous avez modifié quand le relais {{target}} est utilisé",
+      "managed.joined": "Cet ordinateur a été connecté à {{target}}",
+      "managed.changed": "{{target}} a modifié les réglages qu’il gère",
+      "managed.left": "Cet ordinateur a quitté {{target}}"
     },
     "kindLabel": {
       "space.created": "espace créé",
@@ -1271,7 +1275,10 @@
       "relay.removed": "relais retiré",
       "relay.turned_on": "relais activé",
       "relay.turned_off": "relais désactivé",
-      "relay.mode_changed": "réglage du relais modifié"
+      "relay.mode_changed": "réglage du relais modifié",
+      "managed.joined": "organisation connectée",
+      "managed.changed": "réglages de l’organisation modifiés",
+      "managed.left": "organisation quittée"
     },
     "metaFiles_one": "{{formatted}} fichier",
     "metaFiles_other": "{{formatted}} fichiers",
@@ -1505,7 +1512,10 @@
     "passphraseNone": "Pas encore choisie — sans elle, votre sauvegarde ne peut pas être restaurée.",
     "checkPassphrase": "Vérifier la phrase secrète",
     "choosePassphrase": "Choisir une phrase secrète",
-    "changePassphraseDesc": "Votre dossier de sauvegarde passe aussitôt à la nouvelle."
+    "changePassphraseDesc": "Votre dossier de sauvegarde passe aussitôt à la nouvelle.",
+    "requiredOfferBody": "{{org}} exige une sauvegarde de cet ordinateur. L’organisation a choisi où elle est stockée ; vous choisissez la phrase secrète qui l’ouvre — personne d’autre ne la détient.",
+    "managedFolder": "Votre organisation a choisi ce dossier. Mirall y crée le dossier propre à cet ordinateur.",
+    "managedShareOffline": "Le partage de sauvegarde de votre organisation est inaccessible. Connectez-vous au réseau ou contactez {{org}}."
   },
   "restoreBackup": {
     "title": "Restaurer depuis une sauvegarde",
@@ -1609,7 +1619,9 @@
       "noKeyTitle": "Votre sauvegarde n’a pas de phrase secrète",
       "noKeyBody": "Sans elle, elle ne peut pas être restaurée sur un autre ordinateur.",
       "restoringTitle": "Restauration",
-      "restoringBody": "Vos données sont restaurées. Les modifications attendent qu’une personne avec qui vous partagez confirme qu’il n’existe rien de plus récent — ainsi rien ne peut entrer en conflit."
+      "restoringBody": "Vos données sont restaurées. Les modifications attendent qu’une personne avec qui vous partagez confirme qu’il n’existe rien de plus récent — ainsi rien ne peut entrer en conflit.",
+      "requiredNotSetUpTitle": "Vos espaces ne sont pas sauvegardés",
+      "requiredNotSetUpBody": "Votre organisation exige une sauvegarde de cet ordinateur. Configurez-la pour choisir votre phrase secrète."
     }
   },
   "batch": {
@@ -1663,5 +1675,60 @@
     "done_one": "{{count}} fichier n'est plus partagé",
     "done_other": "{{count}} fichiers ne sont plus partagés",
     "partial": "{{done}} sur {{total}} retirés — {{failed}} en échec"
+  },
+  "managed": {
+    "setBy": "Défini par {{org}}",
+    "activate": {
+      "title": "Connecter Mirall à votre organisation",
+      "checking": "Vérification auprès de votre organisation…",
+      "stillChecking": "Vérification en cours…",
+      "stillCheckingHint": "Cela peut prendre quelques secondes.",
+      "preparing": "Votre organisation prépare encore la configuration",
+      "preparingHint": "Mirall continue de vérifier. Vous pouvez fermer ceci et cliquer à nouveau sur le lien plus tard.",
+      "readyTitle": "Connecter Mirall à {{org}} ?",
+      "readyBody": "{{org}} gérera des réglages sur cet ordinateur. Les réglages gérés ne peuvent pas être modifiés tant que la connexion est active.",
+      "replaces": "Cela remplace votre connexion à {{previous}}.",
+      "questions": "Des questions ?",
+      "supportPage": "Page d’assistance",
+      "opensInBrowser": "(s’ouvre dans le navigateur)",
+      "leaveLater": "Vous pourrez quitter l’organisation plus tard dans Profil → À propos de Mirall → Organisation.",
+      "notNow": "Pas maintenant",
+      "connect": "Connecter",
+      "connecting": "Connexion…",
+      "tryAgain": "Réessayer",
+      "alreadyTitle": "Mirall est déjà connecté à {{org}}",
+      "alreadyBody": "Ce lien concerne l’organisation à laquelle cet ordinateur est déjà connecté. Rien ne change.",
+      "noConfigTitle": "Ce lien n’est pas encore configuré",
+      "noConfigBody": "Aucune configuration n’est encore associée à ce lien. Demandez à votre administrateur.",
+      "unreachableTitle": "Impossible de joindre votre organisation",
+      "unreachableBody": "Impossible de joindre votre organisation. Vérifiez votre connexion et réessayez.",
+      "invalidTitle": "Ce lien ne peut pas être utilisé",
+      "invalidBody": "Ce lien ne peut pas être utilisé. Demandez-en un nouveau à votre administrateur."
+    },
+    "connectedToast": "Connecté à {{org}}",
+    "leftToast": "{{org}} quittée",
+    "page": {
+      "title": "Organisation",
+      "intro": "L’organisation qui gère des réglages sur cet ordinateur.",
+      "managedBy": "Géré par {{org}}",
+      "updated": "Configuration mise à jour le {{when}}",
+      "support": "Assistance",
+      "supportPage": "Page d’assistance",
+      "emailSupport": "Écrire à l’assistance",
+      "leaveHeading": "Quitter",
+      "leaveTitle": "Quitter l’organisation",
+      "leaveDesc": "Les réglages gérés par {{org}} redeviennent les vôtres sur cet ordinateur.",
+      "leaveAction": "Quitter…"
+    },
+    "leave": {
+      "title": "Quitter {{org}} ?",
+      "body": "Les réglages gérés redeviennent les vôtres sur cet ordinateur.",
+      "confirm": "Quitter",
+      "backupNote": "Les sauvegardes déjà présentes sur le partage de {{org}} y restent, chiffrées avec votre phrase secrète."
+    },
+    "about": {
+      "row": "Organisation",
+      "rowDesc": "Géré par {{org}}"
+    }
   }
 }

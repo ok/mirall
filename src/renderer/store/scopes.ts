@@ -25,4 +25,7 @@ export const RESTORE_SCOPES: ScopePattern[] = [{ kind: 'restore' }]
 // The worker's settings; every write pokes it, from this window or another client.
 export const SETTINGS_SCOPES: ScopePattern[] = [{ kind: 'settings' }]
 
+// Which organization manages this install and what it locks; poked on every change to it.
+export const MANAGED_SCOPES: ScopePattern[] = [{ kind: 'managed' }]
+
 export const sharesScope = (spaceId: string): ScopePattern[] => [{ kind: 'shares', spaceId }]

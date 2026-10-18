@@ -90,3 +90,10 @@ export interface Decoration {
   phase?: DecorationPhase
   verifyFraction?: number
 }
+
+// A control shown but not changeable: it keeps focus, ignores input and is announced unavailable,
+// and `describedBy` names the element that says why.
+export interface Lockable {
+  locked?: boolean
+  describedBy?: string
+}

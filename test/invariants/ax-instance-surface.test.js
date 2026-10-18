@@ -12,7 +12,7 @@ const SURFACE = [
   'openActivityLog', 'openJoinModal', 'openInviteModal', 'openEditSpace', 'back', 'nativeChoosePath',
   'addFile', 'addOwnedFolder', 'openAddFolderModal', 'openAddFolderPreview', 'openAddFolderAndPick',
   'mirrorShare', 'openMirrorPreview', 'unmountShare', 'deleteShare', 'pauseMirror', 'resumeMirror',
-  'openFolder', 'openManageStorage', 'leaveSpace',
+  'openFolder', 'openManageStorage', 'leaveSpace', 'openDeepLink',
 ]
 
 test('Instance keeps its whole surface across the three files', (t) => {
