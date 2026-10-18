@@ -11,7 +11,7 @@
 // writes back `config` (a preference) and the `seen/` watermarks (dropping them replays every peer's
 // history) and drops the observed states, so the standing fact is restated once after a wipe.
 import { createLogger } from '../core/logger.js'
-import { auditBee, flushAudit, getAuditConfig, newestSeq, oldestSeq, truncateLog } from './audit-log.js'
+import { auditBee, flushAudit, getAuditConfig, newestSeq, oldestSeq, truncateLog, getStoredAuditConfig } from './audit-log.js'
 import { ageCutoff, ageWatermark, pruneUpTo } from './audit-retention.js'
 import { readSeenVersions, writeSeenVersions } from './audit-watch-state.js'
 import { CONFIG_KEY, evtRange, indexKeyOf } from './audit-keys.js'
@@ -69,7 +69,7 @@ export async function purgeAudit() {
   const oldest = await oldestSeq()
   const purged = oldest < 0 ? 0 : (await newestSeq()) - oldest + 1
   const seen = await readSeenVersions()
-  const keptConfig = getAuditConfig()
+  const keptConfig = getStoredAuditConfig()
 
   // A row recorded during those reads is racing a total wipe, so losing it is the right outcome.
   await truncateLog()

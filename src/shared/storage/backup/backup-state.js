@@ -31,6 +31,9 @@ function parse(parsed) {
   if (isObject(parsed.offer) && Number.isInteger(parsed.offer.dismissals) && isTime(parsed.offer.nextAt) && parsed.offer.nextAt !== null) {
     out.offer = { dismissals: parsed.offer.dismissals, nextAt: parsed.offer.nextAt }
   }
+  if (isObject(parsed.managed) && typeof parsed.managed.folder === 'string' && (parsed.managed.repoId === null || typeof parsed.managed.repoId === 'string')) {
+    out.managed = { folder: parsed.managed.folder, repoId: parsed.managed.repoId, setupAt: isTime(parsed.managed.setupAt) ? parsed.managed.setupAt ?? null : null }
+  }
   if (isObject(parsed.check) && isTime(parsed.check.nextAt)) {
     out.check = { nextAt: parsed.check.nextAt, snoozed: parsed.check.snoozed === true, optOut: parsed.check.optOut === true }
   }

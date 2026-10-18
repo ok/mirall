@@ -118,3 +118,16 @@ test('the passphrase reminder is a preference that can be turned back on', (t) =
   t.is(backupPrompt({ now: later, setUp: true, eligible: true, state: on }), null, 'a check missed while off is not asked at once')
   t.is(backupPrompt({ now: later + CHECK_FIRST_MS, setUp: true, eligible: true, state: on }), PROMPT.CHECK)
 })
+
+test('a required backup not set up is stopped, and its offer ignores every dismissal and eligibility', (t) => {
+  const state = { ...freshState(), offer: { dismissals: OFFER_MAX_DISMISSALS, nextAt: Date.now() + DAY_MS } }
+  t.alike(protectionVerdict({ setUp: false, stale: false, failing: false, state, required: true }), { verdict: VERDICT.STOPPED, reason: VERDICT_REASON.REQUIRED_NOT_SET_UP })
+  t.alike(protectionVerdict({ setUp: false, stale: false, failing: false, state }), { verdict: VERDICT.AT_RISK, reason: VERDICT_REASON.NOT_SET_UP })
+  t.is(backupPrompt({ now: Date.now(), setUp: false, eligible: false, state, required: true }), PROMPT.OFFER)
+  t.is(backupPrompt({ now: Date.now(), setUp: false, eligible: false, state }), null)
+})
+
+test('a required backup that is set up gets the usual verdicts', (t) => {
+  const state = { ...freshState(), keyCreatedAt: '2026-10-18T00:00:00.000Z', lastSuccessAt: 1, keyInFolder: true, keyCheckedAt: 1 }
+  t.alike(protectionVerdict({ setUp: true, stale: false, failing: false, state, required: true }), { verdict: VERDICT.PROTECTED, reason: null })
+})

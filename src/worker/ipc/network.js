@@ -4,7 +4,10 @@
 
 /** @import { WorkerIpc } from '../../shared/core/ipc.js' */
 /** @import { WorkerRoot } from '../boot.js' */
-import { setRelayConfig, getRelayConfig, getUpgradeKey } from '../../shared/core/runtime-config.js'
+/** @import { RequestArgs } from '../../shared/contract/request-args.js' */
+import { getRelayConfig, getUpgradeKey } from '../../shared/core/runtime-config.js'
+import { applyEffectiveRelay } from '../../shared/core/effective-relay.js'
+import { assertUnlocked, isLocked, setOrgRelayTest } from '../../shared/core/managed-overlay.js'
 import { relayMismatch } from '../../shared/contract/relay-apply.js'
 import { getSwarmStatus, scheduleStatusEmit } from '../../shared/network/network-status.js'
 import { reconnectAll } from '../../shared/network/space-topics.js'
@@ -22,6 +25,27 @@ import { Scope } from '../../shared/contract/scope.js'
 import { settingsView } from './settings.js'
 import { AppError } from '../../shared/core/errors.js'
 import { CODES } from '../../shared/contract/errors.js'
+
+// What a save stores as the person's own. A value the organization locks may be re-sent but never
+// changed, and is not stored as theirs; the organization's relay keeps its probe verdict in memory.
+/**
+ * @param {Pick<RequestArgs<'network:set-relay'>, 'mode' | 'relay' | 'lastTest'>} msg
+ * @param {ReturnType<typeof getRelayConfig>} before
+ */
+function ownRelay(msg, before) {
+  assertUnlocked('network.relayMode', msg.mode === undefined ? undefined : normalizeRelayMode(msg.mode), before.mode, 'network:set-relay')
+  assertUnlocked('network.relayKey', msg.relay, before.relay, 'network:set-relay')
+  const stored = getSettings().network
+  const mode = msg.mode === undefined || isLocked('network.relayMode') ? stored.relayMode : normalizeRelayMode(msg.mode)
+  const orgRelay = isLocked('network.relayKey')
+  let relay = msg.relay === undefined || orgRelay ? stored.relay : sanitizeRelay(msg.relay)
+  // A slot that does not decode is refused, never stored as "no relay": the stored slot and the
+  // vaulted seed stay as they were.
+  if (msg.relay && !orgRelay && relay === null) throw new AppError(CODES.INVALID_ARGUMENT, 'network:set-relay: not a relay key')
+  if (orgRelay && msg.lastTest !== undefined) setOrgRelayTest(sanitizeLastTest(msg.lastTest))
+  else if (relay && msg.lastTest !== undefined) relay = { ...relay, lastTest: sanitizeLastTest(msg.lastTest) }
+  return { mode, relay }
+}
 
 /** @param {WorkerIpc} ipc @param {{ applyRelayConfig: WorkerRoot['applyRelayConfig'] }} deps */
 export function registerNetwork(ipc, { applyRelayConfig }) {
@@ -46,17 +70,10 @@ export function registerNetwork(ipc, { applyRelayConfig }) {
       throw new AppError(CODES.INVALID_ARGUMENT, 'network:set-relay: nothing to change')
     }
     const before = getRelayConfig()
-    const stored = getSettings().network
-    const mode = msg.mode === undefined ? stored.relayMode : normalizeRelayMode(msg.mode)
-    let relay = msg.relay === undefined ? stored.relay : sanitizeRelay(msg.relay)
-    // A slot that does not decode is refused, never stored as "no relay": the stored slot and the
-    // vaulted seed stay as they were.
-    if (msg.relay && relay === null) throw new AppError(CODES.INVALID_ARGUMENT, 'network:set-relay: not a relay key')
-    if (relay && msg.lastTest !== undefined) relay = { ...relay, lastTest: sanitizeLastTest(msg.lastTest) }
+    const { mode, relay } = ownRelay({ mode: msg.mode, relay: msg.relay, lastTest: msg.lastTest }, before)
     await updateSettings((s) => { s.network.relayMode = mode; s.network.relay = relay; return s })
     const identityPending = before.identityPending || msg.deferApply === true
-    setRelayConfig(mode, relay, { identityPending })
-    const applied = applyRelayConfig()
+    const applied = applyEffectiveRelay({ applyRelayConfig, identityPending })
     const after = getRelayConfig()
     const change = relayConfigRow(before, after)
     if (change) record(change.kind, change.row)
@@ -64,7 +81,7 @@ export function registerNetwork(ipc, { applyRelayConfig }) {
     scheduleStatusEmit()
     ipc.emit('event:reconcile', { scope: Scope.settings() })
     // Only a slot write can pin or unpin an identity; a mode change or a probe verdict never does.
-    const identityChanged = msg.relay !== undefined && (before.relay?.kind === 'private' || relay?.kind === 'private')
+    const identityChanged = msg.relay !== undefined && (before.relay?.kind === 'private' || after.relay?.kind === 'private')
     const verdict = { ok: /** @type {const} */ (true), ...applied, identityChanged, network: settingsView().network }
     const mismatch = relayMismatch(after.mode, snapshotRelayedConnections())
     if (!mismatch || identityPending) return { ...verdict, mismatch, reconnected: false }

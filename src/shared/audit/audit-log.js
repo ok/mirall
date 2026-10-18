@@ -12,6 +12,8 @@ import { createRateGuard } from './audit-rate-guard.js'
 import { CONFIG_KEY, evtKey, evtRange, indexKeyOf, seqOf } from './audit-keys.js'
 import { ACTOR_TYPE } from '../contract/audit-kinds.js'
 import { announceActivity } from './activity-feed.js'
+import { getManagedOverlay } from '../core/managed-overlay.js'
+import { effectiveAudit } from '../core/managed-effective.js'
 
 const log = createLogger('audit')
 
@@ -133,7 +135,7 @@ export function oldestSeq() {
 // durable state need to know when nothing was recorded at all.
 export function record(kind, row = {}, context = null) {
   announceActivity(kind, row)
-  if (!bee || !config.enabled) return false
+  if (!bee || !recording()) return false
   if (kind !== SUPPRESSED_KIND && !rateGuard.admit(kind)) return false
   // The handle is captured HERE, not read again inside append: record() returning true is a
   // promise to the caller that the row is queued, and a close landing between this line and the
@@ -167,16 +169,16 @@ export const RESOLVE_OUTCOME = Object.freeze({
  * @param {{ context?: Record<string, string> | null }} [opts]
  */
 export function recordResolved(kind, resolve, { context = null } = {}) {
-  if (!bee || !config.enabled) return Promise.resolve(RESOLVE_OUTCOME.LOST)
+  if (!bee || !recording()) return Promise.resolve(RESOLVE_OUTCOME.LOST)
   const pending = Promise.resolve()
     .then(resolve)
     .then((row) => {
       if (!row) return RESOLVE_OUTCOME.SKIPPED
-      if (!bee || !config.enabled) return RESOLVE_OUTCOME.LOST
+      if (!bee || !recording()) return RESOLVE_OUTCOME.LOST
       return record(kind, row, context) ? RESOLVE_OUTCOME.ADMITTED : RESOLVE_OUTCOME.REFUSED
     })
     .catch((err) => {
-      if (bee && config.enabled) warnLostRow('resolve', kind, err, context)
+      if (bee && recording()) warnLostRow('resolve', kind, err, context)
       return RESOLVE_OUTCOME.LOST
     })
   resolving.add(pending)
@@ -215,14 +217,22 @@ export async function flushAudit() {
   await writeChain.catch(() => {})
 }
 
+// What the log does: the person's configuration with the organization's locked values on top.
 export function getAuditConfig() {
+  return effectiveAudit({ ...config }, getManagedOverlay())
+}
+
+// What the person chose, the only thing ever written back.
+export function getStoredAuditConfig() {
   return { ...config }
 }
+
+const recording = () => getAuditConfig().enabled
 
 export async function setAuditConfig(patch = {}) {
   config = normalizeConfig(patch, config)
   if (bee) await bee.put(CONFIG_KEY, config)
-  return { ...config }
+  return getAuditConfig()
 }
 
 // Empties the tree in place. `truncate(0)` drops the blocks while the handle stays valid, where

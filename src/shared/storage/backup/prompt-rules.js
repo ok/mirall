@@ -23,6 +23,7 @@ export const VERDICT_REASON = Object.freeze({
   UNCONFIRMED: 'unconfirmed',
   STALE: 'stale',
   NO_KEY: 'no-key',
+  REQUIRED_NOT_SET_UP: 'required-not-set-up',
 })
 
 export function freshState() {
@@ -35,10 +36,13 @@ export function freshState() {
     keyCheckedAt: null,
     offer: { dismissals: 0, nextAt: 0 },
     check: { nextAt: null, snoozed: false, optOut: false },
+    managed: null,
   }
 }
 
-export function backupPrompt({ now, setUp, eligible, state }) {
+// An organization that requires a backup gets the offer every time, past every dismissal.
+export function backupPrompt({ now, setUp, eligible, state, required = false }) {
+  if (!setUp && required) return PROMPT.OFFER
   if (!setUp) {
     const due = eligible && state.offer.dismissals < OFFER_MAX_DISMISSALS && now >= state.offer.nextAt
     return due ? PROMPT.OFFER : null
@@ -78,9 +82,9 @@ const key = (state) => state.keyCreatedAt !== null
 // Stopped when protection has lapsed: no success for ten days, or no key kept. At risk while there is
 // no backup yet, the last run failed, the key is not in the folder, or its passphrase was never
 // confirmed here. A missing copy of the key never changes the verdict: it is advice, not a lapse.
-export function protectionVerdict({ setUp, stale, failing, state }) {
+export function protectionVerdict({ setUp, stale, failing, state, required = false }) {
   const at = (verdict, reason) => ({ verdict, reason })
-  if (!setUp) return at(VERDICT.AT_RISK, VERDICT_REASON.NOT_SET_UP)
+  if (!setUp) return required ? at(VERDICT.STOPPED, VERDICT_REASON.REQUIRED_NOT_SET_UP) : at(VERDICT.AT_RISK, VERDICT_REASON.NOT_SET_UP)
   if (!key(state)) return at(VERDICT.STOPPED, VERDICT_REASON.NO_KEY)
   if (stale) return at(VERDICT.STOPPED, VERDICT_REASON.STALE)
   if (failing) return at(VERDICT.AT_RISK, VERDICT_REASON.FAILING)

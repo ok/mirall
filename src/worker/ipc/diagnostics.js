@@ -6,11 +6,10 @@
 /** @import { WorkerRoot } from '../boot.js' */
 /** @import { HealthMonitor } from '../../shared/core/health.js' */
 import os from 'bare-os'
-import { getRuntimeConfig, getUpgradeKey, getRelayConfig, getAppVersionLabel, getStoragePath } from '../../shared/core/runtime-config.js'
+import { getUpgradeKey, getRelayConfig, getAppVersionLabel, getStoragePath, getReleaseChannel } from '../../shared/core/runtime-config.js'
 import { getRequestFailureCounters, getRequestMetrics } from '../../shared/core/ipc.js'
 import { buildDiagnostics, verdictHistoryFromAudit, VERDICT_KINDS } from '../../shared/network/support-bundle.js'
 import { queryAudit } from '../../shared/audit/audit-query.js'
-import { deriveChannel } from '../../shared/telemetry/channel.js'
 import { getInstallId } from '../../shared/telemetry/install-id.js'
 import { listRecentSweeps } from '../../shared/storage/sweep-journal.js'
 import { listRecentRemovals } from '../../shared/storage/removal-evidence.js'
@@ -52,7 +51,7 @@ export function registerDiagnostics(ipc, { health, getRoot }) {
       history: await durableVerdictHistory(),
       env: {
         appVersion: getAppVersionLabel(),
-        channel: deriveChannel(getRuntimeConfig()),
+        channel: getReleaseChannel(),
         installId: storage ? await getInstallId(storage) : null,
         packaged: !!getUpgradeKey(),
         platform: os.platform(),

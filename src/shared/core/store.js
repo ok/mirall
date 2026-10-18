@@ -134,6 +134,11 @@ export function getSpaceKeysVaultKey() {
   return masterSecret ? deriveContentKey(masterSecret, 'space-keys-vault') : null
 }
 
+// Key that seals managed.enc, the organization this install accepted.
+export function getManagedVaultKey() {
+  return masterSecret ? deriveContentKey(masterSecret, 'managed-config') : null
+}
+
 export function backupWrapKey() {
   return masterSecret ? deriveBackupWrapKey(masterSecret) : null
 }

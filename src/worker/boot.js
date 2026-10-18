@@ -73,6 +73,8 @@ import { MountsRuntime } from './mounts-runtime.js'
 import { Sweeps } from './sweeps.js'
 import { RestoreCatchUp } from './restore-catch-up.js'
 import { Backup } from './backup-service.js'
+import { ManagedConfig } from './managed/managed-config.js'
+import { applyEffectiveRelay } from '../shared/core/effective-relay.js'
 import { loadRestoreHold, profileHeld, heldNames } from '../shared/core/restore-hold.js'
 
 // Apply the configured relay to BOTH swarms. Exported through the root because the
@@ -284,6 +286,18 @@ export async function boot(bootstrap, {
     // take the reconnect re-grant shortcut, and clear the durable tombstone before it was loaded.
     await life.start(new MemberViews('member-views', { overlayBackend, ...memberRegistry }))
 
+    // On every install: without an accepted license it holds nothing. Before the swarms, so they
+    // start on the organization's relay, and before the backup, so its first open already sees an
+    // organization's folder.
+    const managed = await life.start(new ManagedConfig('managed', {
+      ipc,
+      storage: bootstrap.storage,
+      network: swarm,
+      installId: tier.installId,
+      applyRelayConfig: () => applyRelayConfig(log),
+      getBackup: () => backup,
+    }))
+
     // `swarm: false` is how the single-peer test suite boots the data layer without a network.
     if (swarm) {
       const swarmSubsystem = await life.start(new Swarm('swarm', {
@@ -298,7 +312,7 @@ export async function boot(bootstrap, {
       await life.start(new ContentSwarm('content-swarm', { swarm: swarmSubsystem, overlayBackend, onPeerBound: pokeMemberSpacesByKey }))
       // After BOTH: getContentSwarm() is null until the content swarm starts, and a relay
       // installed on the control swarm alone leaves every file byte unrelayed.
-      applyRelayConfig(log)
+      applyEffectiveRelay({ applyRelayConfig: () => applyRelayConfig(log) })
     }
 
     // Deferred past the core-opening init above so the compaction (which scrubs migrated plaintext
@@ -358,7 +372,7 @@ export async function boot(bootstrap, {
     supervisor = await life.start(new Supervisor('supervision', { lifecycle: life }))
 
     return {
-      close, store, mounts, intents, ownedFolders, publishService, overlayBackend, restoreCatchUp,
+      close, store, mounts, intents, ownedFolders, publishService, overlayBackend, restoreCatchUp, managed,
       backup: () => backup,
       backupPaused: () => restoreCatchUp !== null && backup === null,
       applyRelayConfig: () => applyRelayConfig(log),

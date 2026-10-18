@@ -1,5 +1,6 @@
 import { JOIN_REQUEST_FRAME_OVERHEAD } from '../contract/limits.js'
 import { buildConfig, defaultOf, ruleOf, tabledKeys } from './runtime-config-schema.js'
+import { deriveChannel } from '../contract/release-channel.js'
 /** @import { RelayMode } from '../contract/relay-apply.js' */
 /** @import { JsonValue } from '../contract/request-args.js' */
 
@@ -205,6 +206,22 @@ export function getMaxFilesPerShare() {
 
 export function getFreeUpMinBytes() {
   return read('freeUpMinBytes')
+}
+
+// The organization-configuration test levers: a signing key a local fixture seals with, the local
+// stack's http://127.0.0.1 API, and shortened waits. Production sets none of them.
+export function getReleaseChannel() {
+  return deriveChannel({ dev: config.dev, appVersion: config.appVersion })
+}
+
+export function getManagedLevers() {
+  return {
+    testSigningKey: config.managedTestSigningKey,
+    allowHttp: config.managedAllowHttpLoopback,
+    previewTimeoutMs: read('managedPreviewTimeoutMs'),
+    driveGraceMs: read('managedDriveGraceMs'),
+    httpsPollMs: read('managedHttpsPollMs'),
+  }
 }
 
 export function getRecentDownloadFolderLimit() {
