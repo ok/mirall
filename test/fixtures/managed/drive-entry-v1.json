@@ -1,0 +1,75 @@
+{
+  "version": 1,
+  "sub": "bundles",
+  "valid": [
+    {
+      "name": "minimal",
+      "profileId": "0b0b0b0b-0000-4000-8000-000000000002",
+      "rawKeyHex": "62756e646c65730030623062306230622d303030302d343030302d383030302d303030303030303030303032",
+      "entry": {
+        "seq": 1,
+        "payloadSha256": "abababababababababababababababababababababababababababababababab",
+        "profileVersionId": "7d6c5b4a-3f2e-4d1c-8b0a-998877665544",
+        "issuedAt": 1791936001,
+        "bundleHex": "73"
+      },
+      "valueHex": "0101abababababababababababababababababababababababababababababababab2437643663356234612d336632652d346431632d386230612d393938383737363635353434fe01c6ce6a0173"
+    },
+    {
+      "name": "typical",
+      "profileId": "0b0b0b0b-0000-4000-8000-000000000002",
+      "rawKeyHex": "62756e646c65730030623062306230622d303030302d343030302d383030302d303030303030303030303032",
+      "entry": {
+        "seq": 42,
+        "payloadSha256": "7117f9a540bb641872d362d2cf67481fc022a6d63283b88593e87b38e374d384",
+        "profileVersionId": "11111111-2222-4333-8444-555555555555",
+        "issuedAt": 1792000000,
+        "bundleHex": "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a"
+      },
+      "valueHex": "012a7117f9a540bb641872d362d2cf67481fc022a6d63283b88593e87b38e374d3842431313131313131312d323232322d343333332d383434342d353535353535353535353535fe00c0cf6a645a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a"
+    },
+    {
+      "name": "1 MiB bundle",
+      "profileId": "0b0b0b0b-0000-4000-8000-000000000002",
+      "rawKeyHex": "62756e646c65730030623062306230622d303030302d343030302d383030302d303030303030303030303032",
+      "generator": {
+        "seq": 7,
+        "payloadSha256": "51b12eb838732b786b4d45c660a974ddf3860ae09084fd293fa6e5df46581a6c",
+        "profileVersionId": "11111111-2222-4333-8444-555555555555",
+        "issuedAt": 1792000000,
+        "bundleBytes": 1048576,
+        "fill": 7
+      },
+      "valueSha256": "b5cb064942e84affd8020d11b7c1a39a2af2c2b69f409f07d9ca9bd75e08f29a"
+    }
+  ],
+  "invalid": [
+    {
+      "name": "truncated",
+      "valueHex": "0101abababababababababababababababababababababababababababababababab2437643663356234612d336632652d346431632d386230612d393938383737363635353434fe01c6ce6a01"
+    },
+    {
+      "name": "trailing byte",
+      "valueHex": "0101abababababababababababababababababababababababababababababababab2437643663356234612d336632652d346431632d386230612d393938383737363635353434fe01c6ce6a017300"
+    },
+    {
+      "name": "version 2",
+      "valueHex": "0201abababababababababababababababababababababababababababababababab2437643663356234612d336632652d346431632d386230612d393938383737363635353434fe01c6ce6a0173"
+    },
+    {
+      "name": "empty bundle",
+      "valueHex": "0101abababababababababababababababababababababababababababababababab2437643663356234612d336632652d346431632d386230612d393938383737363635353434fe01c6ce6a00"
+    },
+    {
+      "name": "bundle over the cap",
+      "generator": {
+        "seq": 7,
+        "payloadSha256": "51b12eb838732b786b4d45c660a974ddf3860ae09084fd293fa6e5df46581a6c",
+        "profileVersionId": "11111111-2222-4333-8444-555555555555",
+        "issuedAt": 1792000000,
+        "bundleBytes": 1048577,
+        "fill": 7
+      }
+    }
+  ]
+}

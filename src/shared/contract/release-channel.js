@@ -5,9 +5,11 @@
 // download on the website /preview page), `-dev.N` for dev, and a bare semver
 // for prod. `-staging.N` prerelease suffixes must keep resolving to the staging
 // channel: installs in the field still carry versions with that suffix.
-//
-// Kept dependency-free so it's unit-testable without pulling in bare-* modules
-// (feedback.js, which consumes this, imports bare-https).
+// In the contract package so main, the worker and the tests read one rule.
+/**
+ * @param {{ dev?: boolean, appVersion?: string | null }} [build]
+ * @returns {'dev' | 'staging' | 'prod'}
+ */
 export function deriveChannel({ dev, appVersion } = {}) {
   if (dev) return 'dev'
   const v = appVersion || ''

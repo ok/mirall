@@ -1,0 +1,109 @@
+{
+  "catalogVersion": 1,
+  "generatedFrom": "packages/core/configuration/catalog.ts",
+  "settings": [
+    {
+      "key": "network.relayMode",
+      "type": "enum",
+      "default": "off",
+      "lockable": true,
+      "values": [
+        "off",
+        "auto",
+        "always"
+      ],
+      "policy": true
+    },
+    {
+      "key": "network.relayKey",
+      "type": "relayKey",
+      "default": null,
+      "lockable": true,
+      "policy": true
+    },
+    {
+      "key": "audit.enabled",
+      "type": "boolean",
+      "default": true,
+      "lockable": true,
+      "gate": {
+        "restrictive": true
+      },
+      "critical": true
+    },
+    {
+      "key": "audit.retentionDays",
+      "type": "integer",
+      "default": 90,
+      "lockable": true,
+      "min": 30,
+      "max": 365,
+      "choices": [
+        30,
+        90,
+        365
+      ],
+      "policy": true
+    },
+    {
+      "key": "audit.forwardingEnabled",
+      "type": "boolean",
+      "default": false,
+      "lockable": true,
+      "gate": {
+        "restrictive": true
+      },
+      "critical": true
+    },
+    {
+      "key": "backup.folder.windows",
+      "type": "pathTemplate",
+      "default": null,
+      "lockable": true,
+      "platform": "windows",
+      "placeholders": [
+        "user",
+        "host",
+        "install"
+      ],
+      "policy": true
+    },
+    {
+      "key": "backup.folder.macos",
+      "type": "pathTemplate",
+      "default": null,
+      "lockable": true,
+      "platform": "macos",
+      "placeholders": [
+        "user",
+        "host",
+        "install"
+      ],
+      "policy": true
+    },
+    {
+      "key": "backup.folder.linux",
+      "type": "pathTemplate",
+      "default": null,
+      "lockable": true,
+      "platform": "linux",
+      "placeholders": [
+        "user",
+        "host",
+        "install"
+      ],
+      "policy": true
+    },
+    {
+      "key": "backup.required",
+      "type": "boolean",
+      "default": false,
+      "lockable": true,
+      "gate": {
+        "restrictive": true
+      },
+      "critical": true
+    }
+  ],
+  "removedKeys": []
+}

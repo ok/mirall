@@ -45,6 +45,9 @@ test('the security category is what remains of the old app bucket', (t) => {
   const security = Object.entries(KINDS).filter(([, m]) => m.category === CATEGORY.SECURITY).map(([k]) => k)
   t.alike(security.sort(), [
     'audit.suppressed',
+    'managed.changed',
+    'managed.joined',
+    'managed.left',
     'security.creator_divergence',
     'security.integrity_failure',
     'security.serve_denied',

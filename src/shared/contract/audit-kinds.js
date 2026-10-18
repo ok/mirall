@@ -68,6 +68,11 @@ export const KINDS = Object.freeze({
   'security.integrity_failure': { category: CATEGORY.SECURITY, tier: 'A' },
   'security.creator_divergence': { category: CATEGORY.SECURITY, tier: 'B' },
   'audit.suppressed': { category: CATEGORY.SECURITY, tier: 'A' },
+  // Tier A: who controls this install's settings. An organization connecting, changing what it locks,
+  // or being left decides what the person can change, so these are not settings housekeeping.
+  'managed.joined': { category: CATEGORY.SECURITY, tier: 'A' },
+  'managed.changed': { category: CATEGORY.SECURITY, tier: 'A' },
+  'managed.left': { category: CATEGORY.SECURITY, tier: 'A' },
   // The log's negative space. Every kind above records something that HAPPENED, and the questions a
   // reader brings are usually about what didn't — a file that never arrived, a member who never
   // appeared. Those produce no rows at all, so silence reads as "the other side did nothing". These
@@ -129,6 +134,7 @@ export const TARGET_KIND = Object.freeze({
   FILE: 'file',
   INVITE: 'invite',
   MEMBER: 'member',
+  ORGANIZATION: 'organization',
   RELAY: 'relay',
   SHARE: 'share',
   SPACE: 'space',
