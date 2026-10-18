@@ -221,14 +221,16 @@ function localBeeCore(name, suffix = LOCAL_BEE_SUFFIX) {
 
 // alwaysDuplicate:false makes a put whose stored bytes equal the current value's a no-op, so no
 // writer of a local bee can grow it by repeating a record.
-function openLocalBee(core) {
-  return new Hyperbee(core, { keyEncoding: 'utf-8', valueEncoding: 'json', alwaysDuplicate: false })
+function openLocalBee(core, { lock } = {}) {
+  return new Hyperbee(core, { keyEncoding: 'utf-8', valueEncoding: 'json', alwaysDuplicate: false, lock })
 }
 
-export function createLocalBee(name) {
+// `lock` lets every instance of one bee share a write lock: a Hyperbee serialises only its own
+// batches, and two instances that build on the same head each drop the other's keys.
+export function createLocalBee(name, { lock } = {}) {
   const core = localBeeCore(name)
   hintBackupOnAppend(core, name)
-  return openLocalBee(core)
+  return openLocalBee(core, { lock })
 }
 
 export function createLocalBeeScratch(name) {

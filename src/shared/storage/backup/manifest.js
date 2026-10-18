@@ -21,10 +21,14 @@ export function deltaPlan(prev, now, { extends: continues = true } = {}) {
   return { kind: 'delta', from: prev.length, to: now.length }
 }
 
+// A core keeps the space it belonged to after the space is gone: the inventory no longer names it
+// until the leftover sweep deletes it, and the loss check needs to know whose data it was.
+const spaceOf = (prev, now) => now.spaceId ?? prev?.spaceId ?? null
+
 export function nextCoreEntry(prev, now, plan, parts) {
-  if (plan.kind === 'none') return { ...prev, role: now.role, name: now.name, spaceId: now.spaceId }
+  if (plan.kind === 'none') return { ...prev, role: now.role, name: now.name, spaceId: spaceOf(prev, now) }
   const segment = { from: plan.from, to: plan.to, parts }
-  return { ...now, segments: plan.kind === 'full' ? [segment] : [...prev.segments, segment] }
+  return { ...now, spaceId: spaceOf(prev, now), segments: plan.kind === 'full' ? [segment] : [...prev.segments, segment] }
 }
 
 const isObject = (value) => value !== null && typeof value === 'object'

@@ -426,7 +426,7 @@ async function onDeny(msg, ctx = {}) {
   if (!(await denierRecognized(ctx.socket, ctx.peerInfo, space, msg))) return
   // The fold read can outlast a grant that lands meanwhile, and a granted space is not ours to purge.
   if ((await getSpace(spaceId))?.status !== 'pending') return
-  await discardPendingSpace(spaceId)
+  await discardPendingSpace(spaceId, 'join-denied')
   ipc.emit('event:membership-denied', { spaceId })
 }
 
@@ -585,15 +585,15 @@ async function decideDeny(space, joinerKey) {
 // membership records exist, so the leave teardown does not apply. This is the cancel path for both
 // a deny and a manual "stop waiting". Every step is best-effort so a single failure can't reject
 // the caller and surface as an Uncaught in the renderer.
-/** @param {string} spaceId */
-async function discardPendingSpace(spaceId) {
+/** @param {string} spaceId @param {'join-discarded' | 'join-denied'} [kind] */
+async function discardPendingSpace(spaceId, kind = 'join-discarded') {
   markSpaceLeaving(spaceId)
   closeMemberView(spaceId)
   try {
     const space = await getSpace(spaceId)
     try { await leaveSpaceTopic(spaceId) } catch (err) { log.warn('discard pending: leave topic failed:', errorMessage(err)) }
     try { disconnectPeersFromSpace(spaceId) } catch (err) { log.warn('discard pending: peer disconnect failed:', errorMessage(err)) }
-    try { await purgeSpace(spaceId) } catch (err) { log.warn('discard pending: remove failed:', errorMessage(err)) }
+    try { await purgeSpace(spaceId, { kind }) } catch (err) { log.warn('discard pending: remove failed:', errorMessage(err)) }
     dropSpaceDownloadRoot(spaceId)
     try { await forgetUnreferencedPeerCores(space?.members || []) } catch (err) { log.warn('discard pending: peer-core gc failed:', errorMessage(err)) }
   } finally {

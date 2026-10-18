@@ -42,6 +42,17 @@ test('the next entry extends, restarts or carries the chain', (t) => {
   t.alike([carried.role, carried.name, carried.spaceId], ['own-catalog', 'renamed', 's'], 'and takes its current role')
 })
 
+test('a core keeps the space it belonged to after the space is gone', (t) => {
+  const prev = entry({ role: 'own-catalog', spaceId: 's1' })
+  const left = now({ role: 'own', spaceId: null })
+  t.is(nextCoreEntry(prev, left, { kind: 'none' }, null).spaceId, 's1', 'unchanged')
+  t.is(nextCoreEntry(prev, now({ role: 'own', spaceId: null, length: 14 }), { kind: 'delta', from: 10, to: 14 }, ['p2']).spaceId, 's1', 'grown')
+  t.is(nextCoreEntry(prev, now({ role: 'own', spaceId: null, length: 3 }), { kind: 'full', from: 0, to: 3 }, ['p3']).spaceId, 's1', 'started over')
+  t.is(nextCoreEntry(prev, now({ spaceId: 's2' }), { kind: 'none' }, null).spaceId, 's2', 'a current space wins')
+  t.is(nextCoreEntry(null, now(), { kind: 'full', from: 0, to: 10 }, ['p1']).spaceId, null, 'a core that never had a space has none')
+  t.is(nextCoreEntry(entry(), now(), { kind: 'none' }, null).spaceId, null)
+})
+
 const manifest = (cores) => ({ v: MANIFEST_VERSION, cores })
 
 test('a manifest whose chains rebuild every core passes', (t) => {

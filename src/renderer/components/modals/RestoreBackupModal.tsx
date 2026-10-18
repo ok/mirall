@@ -33,7 +33,7 @@ interface RestoreBackupModalProps {
   locked?: boolean
 }
 
-// The newest snapshot the loss check did not flag: a flagged one is what the warning was about.
+// The newest snapshot the loss check did not flag: a flagged one holds less than one before it.
 const preferred = (snapshots: RestorableSnapshot[]) => (snapshots.find((s) => !s.suspect) ?? snapshots[0])?.name ?? null
 
 export default function RestoreBackupModal({ isOpen, onClose, onRestored, locked = false }: RestoreBackupModalProps) {

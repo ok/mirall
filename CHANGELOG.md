@@ -59,6 +59,9 @@ conflict copy survived. The edit now stays in place.
 a second build, such as a beta beside the regular one, used to work on the
 same files as the first. It now says "Mirall is already running" and asks
 you to quit the other copy.
+- **Backup no longer warns that data went missing after you leave a
+space.** Leaving a space or cancelling a join is never counted as a loss,
+and Backup settings no longer shows the warning.
 - **A full disk pauses a mirror instead of retrying forever.** A file that
 could not be written into the mirror was tried again every few seconds
 without pausing the mirror or telling you. It now pauses like any other

@@ -12,51 +12,28 @@
 //   the scan's own, either way: a sweep with nothing to delete is allowed on a scan that may
 //   still have been incomplete, and journaling that as [] would report a clean scan.
 // Keys in `reclaim-meta`: purge/<at, 16 digits>-<seq, 4 digits> (this journal, chronological),
-// overlay-index-compacted (worker/sweeps.js's last-compaction stamp) and storage-history
+// removal/… (removal-evidence.js), overlay-index-compacted (worker/sweeps.js's last-compaction stamp) and storage-history
 // (storage-history.js's last measurement).
-import { createLocalBee } from '../core/store.js'
 import { createLogger } from '../core/logger.js'
-import { prefixRange } from '../core/bee-keys.js'
+import { journalKey, withReclaimMeta, readJournal } from './reclaim-journal.js'
 
 const log = createLogger('sweep-journal')
 const PREFIX = 'purge/'
 const KEEP = 50
 
-// Zero-padded so the bee's lexicographic order is chronological, and counter-suffixed so two
-// sweeps inside one millisecond cannot collide on a key.
-let seq = 0
-const journalKey = (at) => PREFIX + String(at).padStart(16, '0') + '-' + String(seq++).padStart(4, '0')
-
+// Never throws. A journal failure must not be the thing that aborts a sweep — or, worse, that makes
+// a caller retry one.
 export async function recordSweep(entry) {
-  const bee = createLocalBee('reclaim-meta')
-  try {
-    await bee.ready()
-    await bee.put(journalKey(Date.now()), { at: Date.now(), ...entry })
-    const keys = []
-    for await (const node of bee.createReadStream(prefixRange(PREFIX))) keys.push(node.key)
+  await withReclaimMeta(async (bee) => {
+    const at = Date.now()
+    await bee.put(journalKey(PREFIX, at), { at, ...entry })
+    const keys = (await readJournal(bee, PREFIX)).map((node) => node.key)
     for (const key of keys.slice(0, Math.max(0, keys.length - KEEP))) await bee.del(key)
-  } catch (err) {
-    // Never throws. A journal failure must not be the thing that aborts a sweep — or, worse, that
-    // makes a caller retry one.
-    log.warn('could not record the sweep:', err.message)
-  } finally {
-    try { await bee.close() } catch {}
-  }
+  }, { log, failure: 'could not record the sweep:', fallback: undefined })
 }
 
 export async function listRecentSweeps(limit = 20) {
-  const bee = createLocalBee('reclaim-meta')
-  const out = []
-  try {
-    await bee.ready()
-    for await (const node of bee.createReadStream({ ...prefixRange(PREFIX), reverse: true })) {
-      out.push(node.value)
-      if (out.length >= limit) break
-    }
-  } catch (err) {
-    log.warn('could not read the sweep journal:', err.message)
-  } finally {
-    try { await bee.close() } catch {}
-  }
-  return out
+  return withReclaimMeta(async (bee) => (await readJournal(bee, PREFIX, { reverse: true, limit })).map((node) => node.value), {
+    log, failure: 'could not read the sweep journal:', fallback: [],
+  })
 }

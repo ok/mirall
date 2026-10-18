@@ -69,6 +69,8 @@ export class Backup extends Subsystem {
     this.cutoffAt = null
     this.wake = null
     this.progress = { state: this.config.folder ? 'idle' : 'off', ...IDLE, lastSuccessAt: this.state.lastSuccessAt }
+    // What removals through the leave and join flows explained in the latest snapshot, for diagnostics.
+    this.explained = null
     initBackupHints((urgency) => this.note(urgency))
     // A device that keeps no key — a restored one — takes its folder's key now rather than at its first
     // run, so the verdict never asks for a passphrase the folder already holds.
@@ -90,6 +92,10 @@ export class Backup extends Subsystem {
 
   view() {
     return { folder: this.config.folder, repoId: this.config.repoId, ...this.progress }
+  }
+
+  lossCheck() {
+    return { suspect: this.progress.suspect, explained: this.explained }
   }
 
   async status() {
@@ -185,7 +191,8 @@ export class Backup extends Subsystem {
         lastError: null,
         suspect: result.latest?.suspect?.reasons ?? null,
       })
-      if (result.snapshot) this.log.info('backup', reason, '→', result.snapshot, result.latest.suspect ? `(flagged: ${result.latest.suspect.reasons.join(', ')})` : '')
+      this.explained = result.latest?.explained ?? null
+      if (result.snapshot) this.log.info('backup', reason, '→', result.snapshot, result.latest.suspect ? `(flagged: ${result.latest.suspect.reasons.join(', ')})` : '', result.latest.explained ? `(explained: ${JSON.stringify(result.latest.explained)})` : '')
       if (reason !== 'quit') await this.pruneIfDue()
     } catch (err) {
       this.lastRunAt = Date.now()
@@ -335,6 +342,7 @@ export class Backup extends Subsystem {
       if (folder !== null) await new FolderTarget(folder).check()
       await this.remember({ folder, repoId: null })
       this.progress = { state: folder ? 'idle' : 'off', ...IDLE }
+      this.explained = null
       if (folder) this.note(URGENCY.URGENT)
       await this.persist(folder ? { ...folderChosen(this.state, Date.now()), keyInFolder: false } : turnedOff(this.state))
     }

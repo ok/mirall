@@ -276,3 +276,18 @@ test('no configured relay reads as own: null', (t) => {
   t.is(bundle.relay.mode, 'off')
   t.is(bundle.relay.own, null)
 })
+
+test('the backup loss check and its removals are carried, with the space aliased and unnamed when redacted', (t) => {
+  const SPACE_ID = 'f'.repeat(32)
+  const SPACE_NAME = 'Falcon Project'
+  const lossCheck = { suspect: null, explained: { spaces: 1, cores: 3, ownLength: 5000 } }
+  const removals = [{ at: 5, kind: 'space-left', spaceId: SPACE_ID, name: SPACE_NAME }, { at: 4, kind: 'join-discarded', spaceId: 'g'.repeat(32), name: null }]
+  const redacted = buildDiagnostics(makeCtx({ backup: { lossCheck, removals } }), true)
+  t.alike(redacted.backup.lossCheck, lossCheck)
+  t.alike(redacted.backup.removals, [{ at: 5, kind: 'space-left', space: 's0' }, { at: 4, kind: 'join-discarded', space: 's1' }])
+  const serialised = JSON.stringify(redacted)
+  t.absent(serialised.includes(SPACE_ID), 'space id absent')
+  t.absent(serialised.includes(SPACE_NAME), 'space name absent')
+  t.alike(buildDiagnostics(makeCtx({ backup: { lossCheck, removals } }), false).backup.removals[0], { at: 5, kind: 'space-left', space: SPACE_ID, name: SPACE_NAME })
+  t.alike(buildDiagnostics(makeCtx(), true).backup, { lossCheck: null, removals: [] }, 'a bundle without a backup still has the section')
+})

@@ -3,7 +3,7 @@
 // schedule and on request, one at a time, and the result is kept in reclaim-meta for every read
 // between. The rewrite that frees the bytes is the boot pass's (local-bee-rewrite.js).
 /** @import { FreeUpResult } from '../contract/responses.js' */
-import { createLocalBee } from '../core/store.js'
+import { reclaimMetaBee } from './reclaim-journal.js'
 import { createLogger } from '../core/logger.js'
 import { compactionIdle } from './compaction.js'
 import { measureLocalBees, requestLocalBeeRewrite } from './local-bee-rewrite.js'
@@ -42,7 +42,7 @@ export async function freeUpStorage() {
 // other builds, and a failed read must not take the rest of the Storage screen with it.
 /** @returns {Promise<StorageHistory | null>} */
 export async function readHistory() {
-  const bee = createLocalBee('reclaim-meta')
+  const bee = reclaimMetaBee()
   try {
     await bee.ready()
     const value = (await bee.get(HISTORY_KEY))?.value
@@ -59,7 +59,7 @@ async function runMeasure() {
   await compactionIdle()
   const bees = [...await measureLocalBees()].map(([name, bee]) => ({ name, historyBytes: historyOf(bee), rewritable: rewritable(bee) }))
   const history = { measuredAt: Date.now(), bees }
-  const bee = createLocalBee('reclaim-meta')
+  const bee = reclaimMetaBee()
   try {
     await bee.ready()
     await bee.put(HISTORY_KEY, history)
