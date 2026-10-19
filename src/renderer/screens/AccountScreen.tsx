@@ -31,6 +31,7 @@ import { useRestoreHold } from '../hooks/useRestoreHold.js'
 import ProtectionDot from '../components/backup/ProtectionDot.js'
 import { protectionLamp, backupSummary } from '../model/protection-view.js'
 import { formatDateTime } from '../format/utils.js'
+import { MANAGED_SCOPES } from '../store/scopes.js'
 
 interface AccountProps {
   profile: Profile | null
@@ -127,10 +128,11 @@ function DeviceGroup({ onOpenNetworkStatus, onOpenActivityLog, onOpenBackup }: P
   const { state: connectivityState, status: networkStatus } = useConnectionStatus()
   const backup = useBackupStatus()
   const lamp = backup ? protectionLamp(backup) : null
-  // Through the query store for the dedup and cache, with NO scopes: this is a summary line, not a
-  // live counter, and the audit scope would repaint it on every recorded event. Scope-less still
-  // re-reads on each mount. ActivityLogSettings reads the same two entries.
-  const { data: auditConfig } = useQuery('audit:get-config', {}, null)
+  // Through the query store for the dedup and cache, never on the audit scope: this is a summary
+  // line, not a live counter, and that scope would repaint it on every recorded event. The config
+  // re-reads on each mount and when an organization changes it; the stats only on mount.
+  // ActivityLogSettings reads the same two entries.
+  const { data: auditConfig } = useQuery('audit:get-config', {}, MANAGED_SCOPES)
   const { data: auditStats } = useQuery('audit:stats', {}, null)
 
   return (

@@ -11,7 +11,8 @@
  *   | { kind: 'audit' }
  *   | { kind: 'storage' }
  *   | { kind: 'restore' }
- *   | { kind: 'settings' }} Scope
+ *   | { kind: 'settings' }
+ *   | { kind: 'managed' }} Scope
  */
 
 /** @typedef {{ kind: string, spaceId?: string, shareId?: string }} ScopePattern */
@@ -38,6 +39,9 @@ export const Scope = {
   storage: () => ({ kind: 'storage' }),
   /** @returns {Scope} */
   restore: () => ({ kind: 'restore' }),
+  // Which organization manages this install and what it locks: one view, read by every locked control.
+  /** @returns {Scope} */
+  managed: () => ({ kind: 'managed' }),
   /** @returns {Scope} */
   settings: () => ({ kind: 'settings' }),
 }

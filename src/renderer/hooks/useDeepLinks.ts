@@ -55,6 +55,9 @@ export function useDeepLinkRouter({ queue, spaces, navigateToSpace, openDialog }
         case 'join':
           openDialog({ kind: 'join', code: route.code, name: route.name })
           break
+        case 'license':
+          openDialog({ kind: 'managed-activate', code: route.code })
+          break
       }
     }
     queue.drain()

@@ -23,6 +23,9 @@ import ConfirmDestructiveModal from '../../components/modals/ConfirmDestructiveM
 import VerdictBanner from '../../components/backup/VerdictBanner.js'
 import RestoreProgress from '../../components/backup/RestoreProgress.js'
 import BackupDialogs, { type BackupDialog } from '../../components/backup/BackupDialogs.js'
+import ManagedNote from '../../components/managed/ManagedNote.js'
+import { useManagedBackupFolder, type ManagedBackupFolder } from '../../hooks/useManagedBackupFolder.js'
+import { useManagedSetting } from '../../hooks/useManagedSetting.js'
 
 interface BackupSettingsProps {
   onBack: () => void
@@ -86,6 +89,7 @@ export default function BackupSettings({ onBack }: BackupSettingsProps) {
   const banner = restoring ? { lamp: 'paused' as const, key: 'restoring', fix: null } : status ? protectionBanner(status) : null
   const setUp = !!status?.folder
   const configurable = !!status && !restoring && status.state !== 'paused'
+  const managed = useManagedBackupFolder()
 
   return (
     <div ref={ref} className={`relative h-[calc(100vh-5.5rem-var(--banner-h,0px))] overflow-y-auto scrollbar-thin pb-8 mr-2 ${hasOverflow ? 'pr-4' : ''}`}>
@@ -102,19 +106,11 @@ export default function BackupSettings({ onBack }: BackupSettingsProps) {
             )}
             {status && <StatusNotes status={status} error={error} />}
             {configurable && (
-              <section className="bg-surface-container-low row-group">
-                <Toggle
-                  label={t('backup.autoLabel')}
-                  description={t('backup.autoDesc')}
-                  checked={setUp}
-                  disabled={busy}
-                  onChange={(next) => (next ? setDialog('setup') : setConfirmOff(true))}
-                />
-              </section>
+              <AutoBackupToggle setUp={setUp} busy={busy} onChange={(next) => (next ? setDialog('setup') : setConfirmOff(true))} />
             )}
             {configurable && setUp && (
               <>
-                <FolderSection status={status} busy={busy} onChange={() => void act(() => changeFolder(status.folder ?? undefined))} />
+                <FolderSection status={status} busy={busy} managed={managed} onChange={() => void act(() => changeFolder(status.folder ?? undefined))} />
                 <PassphraseSection status={status} busy={busy} onDialog={setDialog} onReminders={(next) => void act(() => setReminders(next))} />
               </>
             )}
@@ -158,9 +154,48 @@ function StatusNotes({ status, error }: { status: BackupStatus; error: string | 
   )
 }
 
-function FolderSection({ status, busy, onChange }: { status: BackupStatus; busy: boolean; onChange: () => void }) {
+interface AutoBackupToggleProps {
+  setUp: boolean
+  busy: boolean
+  onChange: (next: boolean) => void
+}
+
+// A required backup cannot be switched off; switching it on is what the organization asks for, so
+// the switch locks only once it is on.
+function AutoBackupToggle({ setUp, busy, onChange }: AutoBackupToggleProps) {
+  const { t } = useTranslation()
+  const required = useManagedSetting('backup.required')
+  const locked = required.locked && setUp
+  return (
+    <section className="bg-surface-container-low row-group">
+      <Toggle
+        label={t('backup.autoLabel')}
+        description={t('backup.autoDesc')}
+        checked={setUp}
+        disabled={busy}
+        locked={locked}
+        describedBy={locked ? required.noteId : undefined}
+        onChange={onChange}
+      />
+      {locked && required.org && <ManagedNote id={required.noteId} org={required.org} />}
+    </section>
+  )
+}
+
+interface FolderSectionProps {
+  status: BackupStatus
+  busy: boolean
+  managed: ManagedBackupFolder
+  onChange: () => void
+}
+
+function FolderSection({ status, busy, managed, onChange }: FolderSectionProps) {
   const { t } = useTranslation()
   const offline = status.state === 'error' && status.lastError === 'BACKUP_TARGET_OFFLINE'
+  const locked = !!managed.folder && !!managed.org
+  const hint = locked
+    ? (offline ? t('backup.managedShareOffline', { org: managed.org }) : t('backup.managedFolder'))
+    : (offline ? t('backup.folderOffline') : t('backup.folderHint'))
   return (
     <section>
       <SectionHeading>{t('backup.folderTitle')}</SectionHeading>
@@ -170,10 +205,11 @@ function FolderSection({ status, busy, onChange }: { status: BackupStatus; busy:
           path={status.folder}
           onAction={onChange}
           subject={t('backup.folderSubject')}
-          actionDisabled={busy}
-          ariaDescribedBy="backup-folder-desc"
+          actionDisabled={busy || locked}
+          ariaDescribedBy={locked ? `backup-folder-desc ${managed.noteId}` : 'backup-folder-desc'}
         />
-        <p className="text-xs text-on-surface-variant px-1">{offline ? t('backup.folderOffline') : t('backup.folderHint')}</p>
+        {locked && managed.org && <ManagedNote id={managed.noteId} org={managed.org} className="px-1" />}
+        <p className="text-xs text-on-surface-variant px-1">{hint}</p>
       </div>
     </section>
   )

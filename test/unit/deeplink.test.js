@@ -100,3 +100,21 @@ test('parses an envelope carrying the v2 membership fields', async (t) => {
   const out = await parseDeepLink(`mirall://join/${env}`)
   t.alike(out, { kind: 'join', code: env, name: 'Acme' })
 })
+
+const LICENSE = 'yyyyybndrfg8ejkmcpqxot1uwisza345h769'
+
+test('a license link is recognized on a channel that pins signing keys', async (t) => {
+  t.alike(await parseDeepLink(`mirall://license/a/${LICENSE}`, { channel: 'staging' }), { kind: 'license', code: LICENSE })
+  t.alike(await parseDeepLink(`MIRALL://LICENSE/a/${LICENSE}/`, { channel: 'dev' }), { kind: 'license', code: LICENSE })
+})
+
+test('a license link is not recognized where no key is pinned', async (t) => {
+  t.is(await parseDeepLink(`mirall://license/a/${LICENSE}`, { channel: 'prod' }), null)
+  t.is(await parseDeepLink(`mirall://license/a/${LICENSE}`), null, 'no channel reads as prod')
+})
+
+test('a malformed license link is ignored', async (t) => {
+  for (const bad of ['mirall://license/k/MRL-7QK2E', `mirall://license/${LICENSE}`, 'mirall://license/a/0000', 'mirall://license/a/']) {
+    t.is(await parseDeepLink(bad, { channel: 'staging' }), null, bad)
+  }
+})

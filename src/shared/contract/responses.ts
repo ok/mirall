@@ -20,6 +20,7 @@ import type { RESTORE_VERDICTS } from './restore-verdict.js'
 import type { MemberReach } from './member-reach.js'
 import type { RequestName } from './requests.js'
 import type { RelayMode } from './relay-apply.js'
+import type { ManagedSettingKey } from './managed-settings.js'
 import type { PathHost } from './paths.js'
 import type { PersonKey, PrincipalRef } from './principals.js'
 import type { IdentityLockCode } from './errors.js'
@@ -468,6 +469,24 @@ export interface RelayApplyResult {
 
 export interface RelayTestResult { ok: boolean, reason?: string }
 
+export interface ManagedOrganization { name: string, supportUrl: string | null, supportEmail: string | null }
+
+/** The organization managing this install, or null on every install without an accepted license. */
+export interface ManagedView {
+  organization: ManagedOrganization
+  /** The only list of locked keys the renderer reads. */
+  locked: ManagedSettingKey[]
+  updatedAt: number
+  /** The organization's backup folder resolved for this device, or null when it sets none. */
+  backupFolder: string | null
+}
+
+export type ManagedPreview =
+  | { kind: 'ready', organization: ManagedOrganization, alreadyConnected: boolean, replaces: string | null }
+  | { kind: 'no-configuration' }
+  | { kind: 'unreachable' }
+  | { kind: 'invalid' }
+
 export type ReconnectResult =
   | { ok: false, throttled: true }
   | { ok: true, control: number, content: number }
@@ -590,7 +609,7 @@ export interface BackupStatus {
   prompt: 'offer' | 'check' | null
   stale: boolean
   verdict: 'protected' | 'at-risk' | 'stopped' | null
-  verdictReason: 'not-set-up' | 'failing' | 'first-backup' | 'key-not-in-folder' | 'unconfirmed' | 'stale' | 'no-key' | null
+  verdictReason: 'not-set-up' | 'required-not-set-up' | 'failing' | 'first-backup' | 'key-not-in-folder' | 'unconfirmed' | 'stale' | 'no-key' | null
 }
 
 /** What a backup folder shows before any passphrase: a backup, the date of the key it keeps, and its newest snapshot's time. */
@@ -679,6 +698,10 @@ interface Responses {
   'members:online': string[]
   'members:reach': MembersReach
   'mounts:list-all': AnyMount[]
+  'managed:accept': ManagedView
+  'managed:get': ManagedView | null
+  'managed:leave': { left: string | null }
+  'managed:preview': ManagedPreview
   'network:check-liveness': LivenessCheck
   'network:online-hint': Ack
   'network:probe-canary': CanaryResult

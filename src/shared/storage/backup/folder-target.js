@@ -59,6 +59,14 @@ async function makeDirs(base, rel) {
   }
 }
 
+// An organization's share: its base must already be there, so an unmounted share reads offline as a
+// chosen folder does, and only this device's folders below it are created.
+export async function ensureFolderBelow(base, folder) {
+  const stat = await fs.promises.stat(base).catch(() => null)
+  if (!stat?.isDirectory()) throw new AppError(CODES.BACKUP_TARGET_OFFLINE, 'backup folder: the organization\'s share is not reachable')
+  await guard(() => makeDirs(base, path.relative(base, folder).split(path.sep).join('/')))
+}
+
 // A write may land short without an error (a full drive, a share): it loops until every byte is in.
 async function writeSynced(file, bytes) {
   const handle = await fs.promises.open(file, 'wx', 0o600)

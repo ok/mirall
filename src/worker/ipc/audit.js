@@ -6,6 +6,7 @@
 import { getAuditConfig, setAuditConfig } from '../../shared/audit/audit-log.js'
 import { queryAudit, auditSpaces, auditActors, auditStats, exportAudit } from '../../shared/audit/audit-query.js'
 import { purgeAudit } from '../../shared/audit/audit-reclaim.js'
+import { assertUnlocked } from '../../shared/core/managed-overlay.js'
 
 /** @param {WorkerIpc} ipc */
 export function registerAudit(ipc) {
@@ -25,6 +26,9 @@ export function registerAudit(ipc) {
   // Retention and purge both change what every open Activity Log is showing, so each one pokes
   // the renderer rather than waiting for its next poll.
   ipc.handle('audit:configure', async (msg) => {
+    const current = getAuditConfig()
+    assertUnlocked('audit.enabled', msg.enabled, current.enabled, 'audit:configure')
+    assertUnlocked('audit.retentionDays', msg.retentionDays, current.retentionDays, 'audit:configure')
     const next = await setAuditConfig({
       enabled: msg.enabled, retentionDays: msg.retentionDays, maxEntries: msg.maxEntries,
     })

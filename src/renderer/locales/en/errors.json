@@ -60,5 +60,7 @@
   "backupTargetNotEmpty": "This folder already holds other files. Choose an empty folder for your backup, or create a new one.",
   "backupTargetOffline": "The backup folder isn't available. Connect the drive or network share, then try again.",
   "backupKeyMissing": "This backup can't be opened — its folder is incomplete.",
-  "restoreHeld": "Available once Mirall has checked with the people you share with."
+  "restoreHeld": "Available once Mirall has checked with the people you share with.",
+  "managedLocked": "This setting is managed by your organization.",
+  "managedUnavailable": "Your organization's configuration couldn't be read. Try again."
 }

@@ -18,6 +18,8 @@ import { getNewSpaceDownloadDir, hostFoldsCase } from '../../shared/core/paths.j
 import { daemonPaths } from '../../shared/contract/paths.js'
 import { Scope } from '../../shared/contract/scope.js'
 import { validateDownloadFolderAgainstMounts } from '../../shared/folders/mount-validate.js'
+import { effectiveNetwork } from '../../shared/core/managed-effective.js'
+import { getManagedOverlay, getOrgRelayTest } from '../../shared/core/managed-overlay.js'
 
 /** @param {unknown} value */
 function validCap(value) {
@@ -29,11 +31,13 @@ function hostPaths() {
   return { home: os.homedir(), sep: path.sep, caseFolds: hostFoldsCase() }
 }
 
+// The relay mode and slot are the effective ones: an organization's locked values over the person's.
 export function settingsView() {
   const { downloads, network, links } = getSettings()
+  const relay = effectiveNetwork(network, getManagedOverlay(), getOrgRelayTest())
   return {
     downloads: { folder: getNewSpaceDownloadDir(), isDefault: downloads.folder === null, recent: [...downloads.recent] },
-    network: { downloadKBps: network.downloadKBps, uploadKBps: network.uploadKBps, relayMode: network.relayMode, relay: network.relay },
+    network: { downloadKBps: network.downloadKBps, uploadKBps: network.uploadKBps, relayMode: relay.relayMode, relay: relay.relay },
     links: { baseUrl: links.baseUrl },
     hostPaths: hostPaths(),
   }

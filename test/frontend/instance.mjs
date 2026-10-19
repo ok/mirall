@@ -193,6 +193,15 @@ class InstanceBase {
     await this.quit({ hard })
     return this.launch({ onboard: false })
   }
+
+  // A link as the OS hands it to a running app: a second launch on the same store carrying the URL,
+  // which the single-instance lock passes to this instance before the second process quits.
+  async openDeepLink(url) {
+    if (!this.proc) throw new Error(`${this.name}: openDeepLink needs a running instance`)
+    const env = { ...process.env, MIRALL_NO_DEVTOOLS: '1', ...(background() ? { MIRALL_FE_BACKGROUND: '1' } : {}) }
+    const child = spawn(path.join(REPO, 'node_modules/.bin/electron'), ['.', '--no-updates', '--storage', this.store, url], { cwd: REPO, env, stdio: 'ignore' })
+    await new Promise((resolve) => { child.once('exit', resolve); child.once('error', resolve) })
+  }
 }
 
 export const Instance = withFlows(withAx(InstanceBase))

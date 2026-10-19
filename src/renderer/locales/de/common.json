@@ -1119,7 +1119,8 @@
       "networkDiagnostics": "Diagnose",
       "networkAdvanced": "Erweiterte Details",
       "backup": "Backup",
-      "about": "Über Mirall"
+      "about": "Über Mirall",
+      "organization": "Organisation"
     }
   },
   "avatar": {
@@ -1219,7 +1220,10 @@
       "relay.removed": "Du hast das Relay {{target}} entfernt",
       "relay.turned_on": "Du hast das Relay {{target}} eingeschaltet",
       "relay.turned_off": "Du hast das Relay {{target}} ausgeschaltet",
-      "relay.mode_changed": "Du hast geändert, wann das Relay {{target}} verwendet wird"
+      "relay.mode_changed": "Du hast geändert, wann das Relay {{target}} verwendet wird",
+      "managed.joined": "Dieser Computer wurde mit {{target}} verbunden",
+      "managed.changed": "{{target}} hat die verwalteten Einstellungen geändert",
+      "managed.left": "Dieser Computer hat {{target}} verlassen"
     },
     "kindLabel": {
       "space.created": "Raum erstellt",
@@ -1271,7 +1275,10 @@
       "relay.removed": "Relay entfernt",
       "relay.turned_on": "Relay eingeschaltet",
       "relay.turned_off": "Relay ausgeschaltet",
-      "relay.mode_changed": "Relay-Einstellung geändert"
+      "relay.mode_changed": "Relay-Einstellung geändert",
+      "managed.joined": "Organisation verbunden",
+      "managed.changed": "Organisationseinstellungen geändert",
+      "managed.left": "Organisation verlassen"
     },
     "metaFiles_one": "{{formatted}} Datei",
     "metaFiles_other": "{{formatted}} Dateien",
@@ -1505,7 +1512,10 @@
     "passphraseNone": "Noch nicht gewählt – ohne sie lässt sich dein Backup nicht wiederherstellen.",
     "checkPassphrase": "Passphrase prüfen",
     "choosePassphrase": "Passphrase wählen",
-    "changePassphraseDesc": "Dein Backup-Ordner wechselt sofort zur neuen."
+    "changePassphraseDesc": "Dein Backup-Ordner wechselt sofort zur neuen.",
+    "requiredOfferBody": "{{org}} verlangt ein Backup dieses Computers. Wo es liegt, hat die Organisation festgelegt; die Passphrase, die es öffnet, wählst du – niemand sonst kennt sie.",
+    "managedFolder": "Deine Organisation hat diesen Ordner gewählt. Mirall legt darin einen eigenen Ordner für diesen Computer an.",
+    "managedShareOffline": "Die Backup-Freigabe deiner Organisation ist nicht erreichbar. Verbinde dich mit dem Netzwerk oder frag bei {{org}} nach."
   },
   "restoreBackup": {
     "title": "Aus einem Backup wiederherstellen",
@@ -1609,7 +1619,9 @@
       "noKeyTitle": "Dein Backup hat keine Passphrase",
       "noKeyBody": "Ohne sie lässt es sich auf einem anderen Computer nicht wiederherstellen.",
       "restoringTitle": "Wiederherstellung",
-      "restoringBody": "Deine Daten sind wiederhergestellt. Änderungen warten, bis jemand, mit dem du teilst, bestätigt, dass es nichts Neueres gibt – so kann nichts kollidieren."
+      "restoringBody": "Deine Daten sind wiederhergestellt. Änderungen warten, bis jemand, mit dem du teilst, bestätigt, dass es nichts Neueres gibt – so kann nichts kollidieren.",
+      "requiredNotSetUpTitle": "Deine Spaces sind nicht gesichert",
+      "requiredNotSetUpBody": "Deine Organisation verlangt ein Backup dieses Computers. Richte es ein und wähle deine Passphrase."
     }
   },
   "batch": {
@@ -1663,5 +1675,60 @@
     "done_one": "{{count}} Datei nicht mehr geteilt",
     "done_other": "{{count}} Dateien nicht mehr geteilt",
     "partial": "{{done}} von {{total}} nicht mehr geteilt — {{failed}} fehlgeschlagen"
+  },
+  "managed": {
+    "setBy": "Festgelegt von {{org}}",
+    "activate": {
+      "title": "Mirall mit deiner Organisation verbinden",
+      "checking": "Anfrage bei deiner Organisation …",
+      "stillChecking": "Wird noch geprüft …",
+      "stillCheckingHint": "Das kann ein paar Sekunden dauern.",
+      "preparing": "Deine Organisation bereitet die Konfiguration noch vor",
+      "preparingHint": "Mirall prüft weiter. Du kannst das schließen und den Link später erneut anklicken.",
+      "readyTitle": "Mirall mit {{org}} verbinden?",
+      "readyBody": "{{org}} verwaltet Einstellungen auf diesem Computer. Verwaltete Einstellungen lassen sich nicht ändern, solange die Verbindung besteht.",
+      "replaces": "Das ersetzt deine Verbindung mit {{previous}}.",
+      "questions": "Fragen?",
+      "supportPage": "Support-Seite",
+      "opensInBrowser": "(öffnet im Browser)",
+      "leaveLater": "Du kannst die Organisation später unter Profil → Über Mirall → Organisation verlassen.",
+      "notNow": "Jetzt nicht",
+      "connect": "Verbinden",
+      "connecting": "Wird verbunden …",
+      "tryAgain": "Erneut versuchen",
+      "alreadyTitle": "Mirall ist bereits mit {{org}} verbunden",
+      "alreadyBody": "Dieser Link gehört zu der Organisation, mit der dieser Computer bereits verbunden ist. Es ändert sich nichts.",
+      "noConfigTitle": "Dieser Link ist noch nicht eingerichtet",
+      "noConfigBody": "Für diesen Link ist noch keine Konfiguration eingerichtet. Frag deinen Administrator.",
+      "unreachableTitle": "Deine Organisation war nicht erreichbar",
+      "unreachableBody": "Deine Organisation war nicht erreichbar. Prüfe deine Verbindung und versuche es erneut.",
+      "invalidTitle": "Dieser Link kann nicht verwendet werden",
+      "invalidBody": "Dieser Link kann nicht verwendet werden. Bitte deinen Administrator um einen neuen."
+    },
+    "connectedToast": "Mit {{org}} verbunden",
+    "leftToast": "{{org}} verlassen",
+    "page": {
+      "title": "Organisation",
+      "intro": "Die Organisation, die Einstellungen auf diesem Computer verwaltet.",
+      "managedBy": "Verwaltet von {{org}}",
+      "updated": "Konfiguration aktualisiert am {{when}}",
+      "support": "Support",
+      "supportPage": "Support-Seite",
+      "emailSupport": "Support per E-Mail",
+      "leaveHeading": "Verlassen",
+      "leaveTitle": "Organisation verlassen",
+      "leaveDesc": "Die von {{org}} verwalteten Einstellungen werden auf diesem Computer wieder zu deinen eigenen.",
+      "leaveAction": "Verlassen …"
+    },
+    "leave": {
+      "title": "{{org}} verlassen?",
+      "body": "Die verwalteten Einstellungen werden auf diesem Computer wieder zu deinen eigenen.",
+      "confirm": "Verlassen",
+      "backupNote": "Backups, die bereits auf der Freigabe von {{org}} liegen, bleiben dort – verschlüsselt mit deiner Passphrase."
+    },
+    "about": {
+      "row": "Organisation",
+      "rowDesc": "Verwaltet von {{org}}"
+    }
   }
 }

@@ -11,6 +11,7 @@ import Icon from '../primitives/Icon.js'
 import Button from '../primitives/Button.js'
 import TextButton from '../primitives/TextButton.js'
 import BackupDialogs, { type BackupDialog } from './BackupDialogs.js'
+import { useManagedBackupFolder } from '../../hooks/useManagedBackupFolder.js'
 
 export default function BackupPromptCard() {
   const { t } = useTranslation()
@@ -20,6 +21,7 @@ export default function BackupPromptCard() {
   const [dialog, setDialog] = useState<BackupDialog>(null)
   const [busy, setBusy] = useState(false)
   const prompt = status?.prompt ?? null
+  const managed = useManagedBackupFolder()
 
   async function notNow() {
     if (!prompt || busy) return
@@ -35,6 +37,8 @@ export default function BackupPromptCard() {
   }
 
   const offer = prompt === 'offer'
+  // An organization that requires a backup is named, and the offer cannot be put off.
+  const required = offer && managed.required && !!managed.org
   return (
     <>
       {prompt && (
@@ -45,12 +49,12 @@ export default function BackupPromptCard() {
             </div>
             <div className="min-w-0">
               <h2 id="backup-prompt-title" className="font-headline font-bold text-accent mb-1">{t(offer ? 'backup.offerTitle' : 'backup.checkTitle')}</h2>
-              <p className="text-sm text-on-surface-variant leading-relaxed mb-4 max-w-2xl">{t(offer ? 'backup.offerBody' : 'backup.checkBody')}</p>
+              <p className="text-sm text-on-surface-variant leading-relaxed mb-4 max-w-2xl">{required ? t('backup.requiredOfferBody', { org: managed.org }) : t(offer ? 'backup.offerBody' : 'backup.checkBody')}</p>
               <div className="flex items-center gap-4">
                 <Button icon={offer ? 'shield' : undefined} onClick={() => setDialog(offer ? 'setup' : 'check')}>
                   {t(offer ? 'backup.setUp' : 'backup.checkNow')}
                 </Button>
-                <TextButton onClick={() => void notNow()}>{t('backup.notNow')}</TextButton>
+                {!required && <TextButton onClick={() => void notNow()}>{t('backup.notNow')}</TextButton>}
               </div>
             </div>
           </div>

@@ -16,6 +16,7 @@ const SECRETS = ['identityKEK', 'relaySeed']
 const LEVERS = [
   'downloadFolder', 'featureFlags', 'dhtBootstrap', 'listFilesCap', 'testTruncatePeerDrainAfter',
   'maxFilesPerShare', 'deriveDebounceMs', 'freeUpMinBytes', 'foreignFullWalkEvery', 'listFullReadEvery',
+  'managedTestSigningKey', 'managedAllowHttpLoopback', 'managedPreviewTimeoutMs', 'managedDriveGraceMs', 'managedHttpsPollMs',
 ]
 
 function bootstrapKeys() {

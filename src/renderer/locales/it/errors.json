@@ -60,5 +60,7 @@
   "backupTargetNotEmpty": "Questa cartella contiene già altri file. Scegli una cartella vuota per il backup o creane una nuova.",
   "backupTargetOffline": "La cartella di backup non è disponibile. Collega l'unità o la condivisione di rete e riprova.",
   "backupKeyMissing": "Questo backup non si può aprire: la sua cartella è incompleta.",
-  "restoreHeld": "Disponibile quando Mirall avrà verificato con le persone con cui condividi."
+  "restoreHeld": "Disponibile quando Mirall avrà verificato con le persone con cui condividi.",
+  "managedLocked": "Questa impostazione è gestita dalla tua organizzazione.",
+  "managedUnavailable": "Non è stato possibile leggere la configurazione della tua organizzazione. Riprova."
 }

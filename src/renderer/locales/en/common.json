@@ -39,7 +39,8 @@
       "networkDiagnostics": "Diagnostics",
       "networkAdvanced": "Advanced Details",
       "backup": "Backup",
-      "about": "About Mirall"
+      "about": "About Mirall",
+      "organization": "Organization"
     }
   },
   "avatar": {
@@ -1219,7 +1220,10 @@
       "relay.removed": "You removed the relay {{target}}",
       "relay.turned_on": "You turned on the relay {{target}}",
       "relay.turned_off": "You turned off the relay {{target}}",
-      "relay.mode_changed": "You changed when the relay {{target}} is used"
+      "relay.mode_changed": "You changed when the relay {{target}} is used",
+      "managed.joined": "This computer was connected to {{target}}",
+      "managed.changed": "{{target}} changed the settings it manages",
+      "managed.left": "This computer left {{target}}"
     },
     "kindLabel": {
       "space.created": "space created",
@@ -1271,7 +1275,10 @@
       "relay.removed": "relay removed",
       "relay.turned_on": "relay turned on",
       "relay.turned_off": "relay turned off",
-      "relay.mode_changed": "relay setting changed"
+      "relay.mode_changed": "relay setting changed",
+      "managed.joined": "organization connected",
+      "managed.changed": "organization settings changed",
+      "managed.left": "organization left"
     },
     "metaFiles_one": "{{formatted}} file",
     "metaFiles_other": "{{formatted}} files",
@@ -1505,7 +1512,10 @@
     "passphraseNone": "Not chosen yet — without one, your backup can't be restored.",
     "checkPassphrase": "Check passphrase",
     "choosePassphrase": "Choose passphrase",
-    "changePassphraseDesc": "Your backup folder switches to the new one at once."
+    "changePassphraseDesc": "Your backup folder switches to the new one at once.",
+    "requiredOfferBody": "{{org}} requires a backup of this computer. It has chosen where the backup lives; you choose the passphrase that opens it — nobody else ever holds it.",
+    "managedFolder": "Your organization chose this folder. Mirall creates this computer’s own folder inside it.",
+    "managedShareOffline": "Your organization’s backup share isn’t reachable. Connect to the network, or ask {{org}}."
   },
   "restoreBackup": {
     "title": "Restore from a Backup",
@@ -1609,7 +1619,9 @@
       "noKeyTitle": "Your backup has no passphrase",
       "noKeyBody": "Without one, it can't be restored on another computer.",
       "restoringTitle": "Restoring",
-      "restoringBody": "Your data is restored. Changes wait until someone you share with confirms nothing newer exists — so nothing you change can clash."
+      "restoringBody": "Your data is restored. Changes wait until someone you share with confirms nothing newer exists — so nothing you change can clash.",
+      "requiredNotSetUpTitle": "Your spaces aren't backed up",
+      "requiredNotSetUpBody": "Your organization requires a backup of this computer. Set it up to choose your passphrase."
     }
   },
   "batch": {
@@ -1663,5 +1675,60 @@
     "done_one": "{{count}} file unshared",
     "done_other": "{{count}} files unshared",
     "partial": "Unshared {{done}} of {{total}} — {{failed}} failed"
+  },
+  "managed": {
+    "setBy": "Set by {{org}}",
+    "activate": {
+      "title": "Connect Mirall to your organization",
+      "checking": "Checking with your organization…",
+      "stillChecking": "Still checking…",
+      "stillCheckingHint": "This can take a few seconds.",
+      "preparing": "Your organization is still preparing the configuration",
+      "preparingHint": "Mirall keeps checking. You can close this and click the link again later.",
+      "readyTitle": "Connect Mirall to {{org}}?",
+      "readyBody": "{{org}} will manage settings on this computer. Settings it manages can’t be changed while connected.",
+      "replaces": "This replaces your connection to {{previous}}.",
+      "questions": "Questions?",
+      "supportPage": "Support page",
+      "opensInBrowser": "(opens in browser)",
+      "leaveLater": "You can leave the organization later in Profile → About Mirall → Organization.",
+      "notNow": "Not now",
+      "connect": "Connect",
+      "connecting": "Connecting…",
+      "tryAgain": "Try again",
+      "alreadyTitle": "Mirall is already connected to {{org}}",
+      "alreadyBody": "This link is for the organization this computer is already connected to. Nothing changes.",
+      "noConfigTitle": "This link isn’t set up yet",
+      "noConfigBody": "This link isn’t set up for any configuration yet. Ask your administrator.",
+      "unreachableTitle": "Couldn’t reach your organization",
+      "unreachableBody": "Couldn’t reach your organization. Check your connection and try again.",
+      "invalidTitle": "This link can’t be used",
+      "invalidBody": "This link can’t be used. Ask your administrator for a new one."
+    },
+    "connectedToast": "Connected to {{org}}",
+    "leftToast": "Left {{org}}",
+    "page": {
+      "title": "Organization",
+      "intro": "The organization that manages settings on this computer.",
+      "managedBy": "Managed by {{org}}",
+      "updated": "Configuration updated {{when}}",
+      "support": "Support",
+      "supportPage": "Support page",
+      "emailSupport": "Email support",
+      "leaveHeading": "Leave",
+      "leaveTitle": "Leave organization",
+      "leaveDesc": "The settings {{org}} manages go back to yours on this computer.",
+      "leaveAction": "Leave…"
+    },
+    "leave": {
+      "title": "Leave {{org}}?",
+      "body": "The settings it manages go back to yours on this computer.",
+      "confirm": "Leave",
+      "backupNote": "Backups already on {{org}}’s share stay there, encrypted with your passphrase."
+    },
+    "about": {
+      "row": "Organization",
+      "rowDesc": "Managed by {{org}}"
+    }
   }
 }

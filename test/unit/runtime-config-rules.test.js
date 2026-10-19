@@ -6,7 +6,7 @@ import {
   getPeerFrameLimits, getHandshakeRateLimit, getBandwidthLimits,
   getSupervisionRecoverBudgetMs, getReconcileStallWindowMs, getPublishStallWindowMs,
   getConvergenceStallWindowMs, getAdmissionReadTimeoutMs, getRelayAuditDwellMs, getRestoreReleaseDwellMs, getFreeUpMinBytes,
-  getIpcKeepaliveMs, getIpcKeepaliveGraceMs, getRecentDownloadFolderLimit, _rulesForTests,
+  getIpcKeepaliveMs, getIpcKeepaliveGraceMs, getRecentDownloadFolderLimit, getManagedLevers, _rulesForTests,
 } from '../../src/shared/core/runtime-config.js'
 
 // Every value a malformed override can take that is not a number: each must resolve to the key's
@@ -43,6 +43,14 @@ const RULED_KEYS = [
     [[0, 0], [Infinity, 10_000], [1, 1], [500, 500]]],
   ['restoreReleaseDwellMs', getRestoreReleaseDwellMs, 20_000,
     [[0, 0], [Infinity, 20_000], [-1, 20_000], [1000, 1000]]],
+  // Managed-configuration test levers: a preview or poll under a second is a malformed override, a
+  // drive grace of 0 (go to HTTPS at once) is a real one.
+  ['managedPreviewTimeoutMs', () => getManagedLevers().previewTimeoutMs, 20_000,
+    [[0, 20_000], [Infinity, 20_000], [999, 20_000], [1000, 1000]]],
+  ['managedDriveGraceMs', () => getManagedLevers().driveGraceMs, 120_000,
+    [[0, 0], [Infinity, 120_000], [-1, 120_000], [500, 500]]],
+  ['managedHttpsPollMs', () => getManagedLevers().httpsPollMs, 3_600_000,
+    [[0, 3_600_000], [Infinity, 3_600_000], [999, 3_600_000], [60_000, 60_000]]],
   ['freeUpMinBytes', getFreeUpMinBytes, 20_000_000,
     [[0, 0], [Infinity, 20_000_000], [-1, 20_000_000], [1, 1]]],
 
@@ -204,6 +212,9 @@ const EXPECTED_RULES = {
   ipcKeepaliveGraceMs: { rule: 'finiteAtLeast', min: 1 },
   relayAuditDwellMs: { rule: 'finiteAtLeast', min: 0 },
   restoreReleaseDwellMs: { rule: 'finiteAtLeast', min: 0 },
+  managedPreviewTimeoutMs: { rule: 'finiteAtLeast', min: 1000 },
+  managedDriveGraceMs: { rule: 'finiteAtLeast', min: 0 },
+  managedHttpsPollMs: { rule: 'finiteAtLeast', min: 1000 },
   reconcileStallWindowMs: { rule: 'finiteAtLeast', min: 1 },
   publishStallWindowMs: { rule: 'finiteAtLeast', min: 1 },
   convergenceStallWindowMs: { rule: 'finiteAtLeast', min: 1 },
@@ -234,8 +245,8 @@ test('the rules table is exactly the declared set', (t) => {
 // The module header states these two counts. Asserting them is what keeps them from rotting.
 test('the ruled and unruled key counts are the ones the header claims', (t) => {
   const { ruled, defaultedKeys } = _rulesForTests()
-  t.is(defaultedKeys, 72, 'DEFAULTED keys')
-  t.is(Object.keys(ruled).length, 27, 'of which carry a validation rule')
+  t.is(defaultedKeys, 75, 'DEFAULTED keys')
+  t.is(Object.keys(ruled).length, 30, 'of which carry a validation rule')
   t.is(defaultedKeys - Object.keys(ruled).length, 45, 'the rest are read raw')
 })
 

@@ -4,6 +4,8 @@ import SegmentedControl, { Segment } from '../../components/primitives/Segmented
 import { ToggleSwitch } from '../../components/primitives/Toggle.js'
 import { RETENTION_CHOICES } from '../../../shared/contract/limits.js'
 import type { AuditConfig } from '../../types/types.js'
+import ManagedNote from '../../components/managed/ManagedNote.js'
+import { useManagedSetting } from '../../hooks/useManagedSetting.js'
 
 interface AuditRecordingCardProps {
   /** Null until audit:get-config answers — every read below falls back rather than guessing on. */
@@ -22,6 +24,8 @@ interface AuditRecordingCardProps {
  */
 export default function AuditRecordingCard({ config, onPatch, patching }: AuditRecordingCardProps) {
   const { t } = useTranslation()
+  const recording = useManagedSetting('audit.enabled')
+  const retention = useManagedSetting('audit.retentionDays')
   return (
     <section>
       <SectionHeading>{t('activityLogSettings.recording')}</SectionHeading>
@@ -36,13 +40,15 @@ export default function AuditRecordingCard({ config, onPatch, patching }: AuditR
             role="switch"
             aria-checked={config?.enabled ?? false}
             aria-label={t('activityLogSettings.recordActivity')}
-            aria-disabled={patching || undefined}
-            onClick={() => onPatch({ enabled: !(config?.enabled ?? false) })}
+            aria-disabled={patching || recording.locked || undefined}
+            aria-describedby={recording.locked ? recording.noteId : undefined}
+            onClick={recording.locked ? undefined : () => onPatch({ enabled: !(config?.enabled ?? false) })}
             className="shrink-0 flex rounded-full focus-ring aria-disabled:opacity-50"
           >
             <ToggleSwitch checked={config?.enabled ?? false} />
           </button>
         </div>
+        {recording.org && <ManagedNote id={recording.noteId} org={recording.org} className="px-6 pb-5 -mt-2" />}
 
         <div className="px-6 py-5 border-t border-outline-variant/40 flex items-center justify-between gap-4">
           <div>
@@ -57,10 +63,13 @@ export default function AuditRecordingCard({ config, onPatch, patching }: AuditR
                 selected={config?.retentionDays === days}
                 onSelect={() => onPatch({ retentionDays: days })}
                 busy={patching}
+                locked={retention.locked}
+                describedBy={retention.locked ? retention.noteId : undefined}
               />
             ))}
           </SegmentedControl>
         </div>
+        {retention.org && <ManagedNote id={retention.noteId} org={retention.org} className="px-6 pb-5 -mt-2" />}
       </div>
     </section>
   )

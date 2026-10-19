@@ -204,6 +204,10 @@ function getWorker(specifier) {
   //                                       hold a request on screen after a co-member settles it
   //     MIRALL_FREE_UP_MIN_BYTES          reclaimable bytes that bring up Storage's "Free up",
   //                                       lowered to reach it on a fresh profile
+  //     MIRALL_MANAGED_TEST_SIGNING_KEY   an extra organization signing key (hex) for a local fixture
+  //     MIRALL_MANAGED_ALLOW_HTTP_LOOPBACK  1 = accept the local stack's http://127.0.0.1 API
+  //     MIRALL_MANAGED_PREVIEW_TIMEOUT_MS, MIRALL_MANAGED_DRIVE_GRACE_MS, MIRALL_MANAGED_HTTPS_POLL_MS
+  //                                       shortened waits for the organization configuration
   //
   //   Behaviour levers, settable on a real install without a release
   //     MIRALL_FOREIGN_FULL_WALK_EVERY    1 = check every mirror in full, undoing the skip
@@ -263,6 +267,11 @@ function getWorker(specifier) {
     maxFilesPerShare: envNumber(envOverride('MIRALL_MAX_FILES_PER_SHARE')),
     deriveDebounceMs: envNumber(envOverride('MIRALL_DERIVE_DEBOUNCE_MS')),
     freeUpMinBytes: envNumber(envOverride('MIRALL_FREE_UP_MIN_BYTES')),
+    managedTestSigningKey: envOverride('MIRALL_MANAGED_TEST_SIGNING_KEY') || undefined,
+    managedAllowHttpLoopback: envOverride('MIRALL_MANAGED_ALLOW_HTTP_LOOPBACK') === '1' || undefined,
+    managedPreviewTimeoutMs: envNumber(envOverride('MIRALL_MANAGED_PREVIEW_TIMEOUT_MS')),
+    managedDriveGraceMs: envNumber(envOverride('MIRALL_MANAGED_DRIVE_GRACE_MS')),
+    managedHttpsPollMs: envNumber(envOverride('MIRALL_MANAGED_HTTPS_POLL_MS')),
     // No OS keychain holds the identity key here, so the backup is offered on day one.
     identityWeak: identityWeak(),
     // The one secret in this frame besides identityKEK, and it travels the same way: read

@@ -224,12 +224,14 @@ a {
 
 /* Tailwind v4 preflight resets button cursor to `default` (arrow); switch
  * back to the pointing-hand for any enabled button or role="button" element.
- * Disabled buttons keep the not-allowed cursor. */
-button:not(:disabled),
+ * Disabled buttons, and buttons that stay focusable but are unavailable
+ * (aria-disabled), keep the not-allowed cursor. */
+button:not(:disabled):not([aria-disabled="true"]),
 [role="button"]:not([aria-disabled="true"]) {
   cursor: pointer;
 }
 button:disabled,
+button[aria-disabled="true"],
 [role="button"][aria-disabled="true"] {
   cursor: not-allowed;
 }

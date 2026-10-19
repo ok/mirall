@@ -15,6 +15,7 @@ import UpdateVerdictBanner from '../components/about/UpdateVerdictBanner.js'
 import Logo from '../components/primitives/Logo.js'
 import Badge from '../components/primitives/Badge.js'
 import CopyButton from '../components/primitives/CopyButton.js'
+import { useManaged } from '../hooks/useManaged.js'
 
 const LINKS = {
   website: 'https://mirall.app',
@@ -28,6 +29,7 @@ const LINKS = {
 
 interface AboutScreenProps {
   onBack: () => void
+  onOpenOrganization: () => void
 }
 
 function IdentityCard() {
@@ -113,7 +115,21 @@ function LegalSection() {
   )
 }
 
-export default function AboutScreen({ onBack }: AboutScreenProps) {
+// Only while an organization manages this install: one row to its page.
+function OrganizationRow({ onOpen }: { onOpen: () => void }) {
+  const { t } = useTranslation()
+  const managed = useManaged()
+  if (!managed) return null
+  return (
+    <section>
+      <div className={ROW_GROUP}>
+        <ActionRow icon="work" label={t('managed.about.row')} desc={t('managed.about.rowDesc', { org: managed.organization.name })} onClick={onOpen} />
+      </div>
+    </section>
+  )
+}
+
+export default function AboutScreen({ onBack, onOpenOrganization }: AboutScreenProps) {
   const { t } = useTranslation()
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
   const { status } = useUpdates()
@@ -127,6 +143,7 @@ export default function AboutScreen({ onBack }: AboutScreenProps) {
         <PageHeader title={t('about.title')} subtitle={t('about.intro')} onBack={onBack} />
         <div className="space-y-10">
           <IdentityCard />
+          <OrganizationRow onOpen={onOpenOrganization} />
           <UpdatesSection status={status} />
           <ProjectSection />
           <LegalSection />

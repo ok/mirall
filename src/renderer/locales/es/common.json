@@ -1119,7 +1119,8 @@
       "networkDiagnostics": "Diagnóstico",
       "networkAdvanced": "Detalles avanzados",
       "backup": "Copia de seguridad",
-      "about": "Acerca de Mirall"
+      "about": "Acerca de Mirall",
+      "organization": "Organización"
     }
   },
   "avatar": {
@@ -1219,7 +1220,10 @@
       "relay.removed": "Quitaste el relay {{target}}",
       "relay.turned_on": "Activaste el relay {{target}}",
       "relay.turned_off": "Desactivaste el relay {{target}}",
-      "relay.mode_changed": "Cambiaste cuándo se usa el relay {{target}}"
+      "relay.mode_changed": "Cambiaste cuándo se usa el relay {{target}}",
+      "managed.joined": "Este ordenador se conectó a {{target}}",
+      "managed.changed": "{{target}} cambió los ajustes que gestiona",
+      "managed.left": "Este ordenador dejó {{target}}"
     },
     "kindLabel": {
       "space.created": "espacio creado",
@@ -1271,7 +1275,10 @@
       "relay.removed": "relay quitado",
       "relay.turned_on": "relay activado",
       "relay.turned_off": "relay desactivado",
-      "relay.mode_changed": "ajuste del relay cambiado"
+      "relay.mode_changed": "ajuste del relay cambiado",
+      "managed.joined": "organización conectada",
+      "managed.changed": "ajustes de la organización cambiados",
+      "managed.left": "organización abandonada"
     },
     "metaFiles_one": "{{formatted}} archivo",
     "metaFiles_other": "{{formatted}} archivos",
@@ -1505,7 +1512,10 @@
     "passphraseNone": "Aún no elegida: sin ella, tu copia no se puede restaurar.",
     "checkPassphrase": "Comprobar frase de contraseña",
     "choosePassphrase": "Elegir frase de contraseña",
-    "changePassphraseDesc": "Tu carpeta de copias pasa a la nueva al instante."
+    "changePassphraseDesc": "Tu carpeta de copias pasa a la nueva al instante.",
+    "requiredOfferBody": "{{org}} exige una copia de seguridad de este ordenador. La organización ha elegido dónde se guarda; tú eliges la frase de contraseña que la abre, y nadie más la conoce.",
+    "managedFolder": "Tu organización ha elegido esta carpeta. Mirall crea dentro la carpeta propia de este ordenador.",
+    "managedShareOffline": "No se puede acceder a la carpeta compartida de copias de tu organización. Conéctate a la red o consulta con {{org}}."
   },
   "restoreBackup": {
     "title": "Restaurar desde una copia",
@@ -1609,7 +1619,9 @@
       "noKeyTitle": "Tu copia no tiene frase de contraseña",
       "noKeyBody": "Sin ella, no se puede restaurar en otro equipo.",
       "restoringTitle": "Restaurando",
-      "restoringBody": "Tus datos están restaurados. Los cambios esperan a que alguien con quien compartes confirme que no hay nada más reciente, para que nada choque."
+      "restoringBody": "Tus datos están restaurados. Los cambios esperan a que alguien con quien compartes confirme que no hay nada más reciente, para que nada choque.",
+      "requiredNotSetUpTitle": "Tus espacios no tienen copia",
+      "requiredNotSetUpBody": "Tu organización exige una copia de seguridad de este ordenador. Configúrala para elegir tu frase de contraseña."
     }
   },
   "batch": {
@@ -1663,5 +1675,60 @@
     "done_one": "{{count}} archivo dejó de compartirse",
     "done_other": "{{count}} archivos dejaron de compartirse",
     "partial": "{{done}} de {{total}} quitados — {{failed}} fallaron"
+  },
+  "managed": {
+    "setBy": "Establecido por {{org}}",
+    "activate": {
+      "title": "Conectar Mirall con tu organización",
+      "checking": "Comprobando con tu organización…",
+      "stillChecking": "Seguimos comprobando…",
+      "stillCheckingHint": "Puede tardar unos segundos.",
+      "preparing": "Tu organización aún está preparando la configuración",
+      "preparingHint": "Mirall sigue comprobando. Puedes cerrar esto y volver a hacer clic en el enlace más tarde.",
+      "readyTitle": "¿Conectar Mirall con {{org}}?",
+      "readyBody": "{{org}} gestionará ajustes en este ordenador. Los ajustes gestionados no se pueden cambiar mientras estés conectado.",
+      "replaces": "Esto sustituye tu conexión con {{previous}}.",
+      "questions": "¿Preguntas?",
+      "supportPage": "Página de soporte",
+      "opensInBrowser": "(se abre en el navegador)",
+      "leaveLater": "Puedes dejar la organización más tarde en Perfil → Acerca de Mirall → Organización.",
+      "notNow": "Ahora no",
+      "connect": "Conectar",
+      "connecting": "Conectando…",
+      "tryAgain": "Reintentar",
+      "alreadyTitle": "Mirall ya está conectado con {{org}}",
+      "alreadyBody": "Este enlace es de la organización con la que este ordenador ya está conectado. No cambia nada.",
+      "noConfigTitle": "Este enlace aún no está configurado",
+      "noConfigBody": "Este enlace aún no tiene ninguna configuración. Pregunta a tu administrador.",
+      "unreachableTitle": "No se pudo contactar con tu organización",
+      "unreachableBody": "No se pudo contactar con tu organización. Comprueba tu conexión e inténtalo de nuevo.",
+      "invalidTitle": "Este enlace no se puede usar",
+      "invalidBody": "Este enlace no se puede usar. Pide uno nuevo a tu administrador."
+    },
+    "connectedToast": "Conectado con {{org}}",
+    "leftToast": "Has dejado {{org}}",
+    "page": {
+      "title": "Organización",
+      "intro": "La organización que gestiona ajustes en este ordenador.",
+      "managedBy": "Gestionado por {{org}}",
+      "updated": "Configuración actualizada el {{when}}",
+      "support": "Soporte",
+      "supportPage": "Página de soporte",
+      "emailSupport": "Escribir a soporte",
+      "leaveHeading": "Dejar",
+      "leaveTitle": "Dejar la organización",
+      "leaveDesc": "Los ajustes que gestiona {{org}} vuelven a ser los tuyos en este ordenador.",
+      "leaveAction": "Dejar…"
+    },
+    "leave": {
+      "title": "¿Dejar {{org}}?",
+      "body": "Los ajustes gestionados vuelven a ser los tuyos en este ordenador.",
+      "confirm": "Dejar",
+      "backupNote": "Las copias que ya están en la carpeta compartida de {{org}} se quedan allí, cifradas con tu frase de contraseña."
+    },
+    "about": {
+      "row": "Organización",
+      "rowDesc": "Gestionado por {{org}}"
+    }
   }
 }

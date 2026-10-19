@@ -2,6 +2,7 @@ import FeedbackModal from './FeedbackModal.js'
 import WhatsNewModal from './WhatsNewModal.js'
 import CreateSpaceModal from './CreateSpaceModal.js'
 import JoinSpaceModal from './JoinSpaceModal.js'
+import ManagedActivateModal from './ManagedActivateModal.js'
 import type { Space } from '../../types/types.js'
 
 // The dialogs the shell can show, one at a time by construction: a deep link arriving while
@@ -11,6 +12,7 @@ export type AppDialog =
   | { kind: 'feedback' }
   | { kind: 'create' }
   | { kind: 'join'; code?: string; name?: string }
+  | { kind: 'managed-activate'; code: string }
 
 interface AppDialogsProps {
   dialog: AppDialog | null
@@ -40,6 +42,7 @@ export default function AppDialogs({ dialog, onClose, onCreate, onJoin, onEntere
         onJoin={onJoin}
         onJoined={(space) => onEntered(space.spaceId)}
       />
+      <ManagedActivateModal key={dialog?.kind === 'managed-activate' ? dialog.code : 'none'} code={dialog?.kind === 'managed-activate' ? dialog.code : null} onClose={onClose} />
     </>
   )
 }

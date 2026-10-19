@@ -60,5 +60,7 @@
   "backupTargetNotEmpty": "Ce dossier contient déjà d'autres fichiers. Choisissez un dossier vide pour votre sauvegarde, ou créez-en un.",
   "backupTargetOffline": "Le dossier de sauvegarde n'est pas disponible. Connectez le disque ou le partage réseau, puis réessayez.",
   "backupKeyMissing": "Cette sauvegarde ne peut pas être ouverte — son dossier est incomplet.",
-  "restoreHeld": "Disponible dès que Mirall a vérifié auprès des personnes avec qui vous partagez."
+  "restoreHeld": "Disponible dès que Mirall a vérifié auprès des personnes avec qui vous partagez.",
+  "managedLocked": "Ce réglage est géré par votre organisation.",
+  "managedUnavailable": "La configuration de votre organisation n’a pas pu être lue. Réessayez."
 }

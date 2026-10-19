@@ -60,5 +60,7 @@
   "backupTargetNotEmpty": "Dieser Ordner enthält bereits andere Dateien. Wähle einen leeren Ordner für dein Backup oder leg einen neuen an.",
   "backupTargetOffline": "Der Backup-Ordner ist nicht verfügbar. Verbinde das Laufwerk oder die Netzwerkfreigabe und versuch es erneut.",
   "backupKeyMissing": "Dieses Backup lässt sich nicht öffnen – sein Ordner ist unvollständig.",
-  "restoreHeld": "Verfügbar, sobald Mirall sich mit den Personen abgestimmt hat, mit denen du teilst."
+  "restoreHeld": "Verfügbar, sobald Mirall sich mit den Personen abgestimmt hat, mit denen du teilst.",
+  "managedLocked": "Diese Einstellung wird von deiner Organisation verwaltet.",
+  "managedUnavailable": "Die Konfiguration deiner Organisation konnte nicht gelesen werden. Versuche es erneut."
 }

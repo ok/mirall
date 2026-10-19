@@ -1,16 +1,17 @@
-// Where a join link leads, by precedence: undecodable, expired past a grace for clock skew, already
+// An organization's activation link opens its dialog. Where a join link leads, by precedence: undecodable, expired past a grace for clock skew, already
 // a member of the space it names, or a fresh join carrying the code and any display name.
 import { decodeInvite } from '../../shared/contract/invite-envelope.js'
 
 /** @import { DeepLinkPayload } from '../platform/global.js' */
 /** @import { Space } from '../types/types.js' */
 
-/** @typedef {{ kind: 'invalid' } | { kind: 'expired' } | { kind: 'member', space: Space } | { kind: 'join', code: string, name?: string }} DeepLinkRoute */
+/** @typedef {{ kind: 'invalid' } | { kind: 'expired' } | { kind: 'member', space: Space } | { kind: 'join', code: string, name?: string } | { kind: 'license', code: string }} DeepLinkRoute */
 
 export const EXPIRY_GRACE_MS = 60_000
 
 /** @param {DeepLinkPayload} link @param {Space[]} spaces @param {number} now @returns {DeepLinkRoute} */
 export function routeDeepLink(link, spaces, now) {
+  if (link.kind === 'license') return { kind: 'license', code: link.code }
   const decoded = decodeInvite(link.code)
   if (!decoded) return { kind: 'invalid' }
   if (decoded.v === 1 && decoded.expiresAt && decoded.expiresAt + EXPIRY_GRACE_MS < now) {

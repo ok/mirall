@@ -2,7 +2,7 @@
 // with. `Segment` reserves its selected (semibold) width in every state, so only the highlight moves.
 import type { ReactNode } from 'react'
 import Icon from './Icon.js'
-import type { IconName } from '../../types/ui.js'
+import type { IconName, Lockable } from '../../types/ui.js'
 
 interface SegmentedControlProps {
   children: ReactNode
@@ -21,7 +21,7 @@ export default function SegmentedControl({ children, wrap, className }: Segmente
   )
 }
 
-interface SegmentProps {
+interface SegmentProps extends Lockable {
   label: string
   selected: boolean
   onSelect: () => void
@@ -33,15 +33,16 @@ interface SegmentProps {
   busy?: boolean
 }
 
-export function Segment({ label, selected, onSelect, icon, ariaLabel, busy }: SegmentProps) {
+export function Segment({ label, selected, onSelect, icon, ariaLabel, busy, locked, describedBy }: SegmentProps) {
   return (
     <button
       type="button"
-      onClick={onSelect}
+      onClick={locked ? undefined : onSelect}
       aria-label={ariaLabel}
       aria-pressed={selected}
-      aria-disabled={busy || undefined}
-      className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm transition-all active:scale-95 focus-ring aria-disabled:opacity-50 ${
+      aria-disabled={busy || locked || undefined}
+      aria-describedby={describedBy}
+      className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm transition-all active:scale-95 focus-ring aria-disabled:opacity-50 ${locked ? 'cursor-not-allowed ' : ''}${
         selected
           ? 'bg-surface-container-lowest shadow-sm text-accent font-semibold'
           : 'text-on-surface-variant hover:text-accent font-medium'

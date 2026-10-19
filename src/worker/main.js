@@ -23,6 +23,7 @@ import { registerProfile } from './ipc/profile.js'
 import { registerIdentity } from './ipc/identity.js'
 import { registerBackup } from './ipc/backup.js'
 import { registerBackupRestore } from './ipc/backup-restore.js'
+import { registerManaged } from './ipc/managed.js'
 import { createPassphraseThrottle } from '../shared/core/identity-recovery.js'
 import { applyPendingIdentityChange } from '../shared/core/identity-adopt.js'
 import { registerFeedback } from './ipc/feedback.js'
@@ -318,6 +319,10 @@ registerDiagnostics(ipc, { health, getRoot: () => root })
 // === IPC: audit log ===
 
 registerAudit(ipc)
+
+// === IPC: organization configuration ===
+
+registerManaged(ipc, { service: root.managed })
 
 // === Go live: flush queued frames, announce ready ===
 

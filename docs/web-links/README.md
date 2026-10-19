@@ -14,7 +14,7 @@ same thing on your own domain: one HTML file, no build step, no dependencies, no
 |---|---|---|
 | `<base>/space#<code>` | `mirall://join/<code>` | invite code: 64 hex characters (v0) or a base64url JSON envelope (v1) |
 | `<base>/relay#<ticket>` | `mirall://relay/<ticket>` | relay invite ticket, 111 z-base-32 characters |
-| `<base>/license#k/<key>` | `mirall://license/k/<key>` | license key, `MRL-` plus five groups of five characters |
+| `<base>/license#a/<code>` | `mirall://license/a/<code>` | an organization's activation code: z-base-32, at most 512 characters, checked and decoded by the app |
 
 The kind is the **last path segment**, the payload is the **URL fragment**. The page swaps the
 prefix and nothing else; the payload reaches Mirall verbatim, and Mirall alone decides whether it

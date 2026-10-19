@@ -544,6 +544,11 @@ wears `row-focus` (see the row-group pattern).
   Activity Log recording switch (`AuditRecordingCard`) sits beside the retention segments and keeps
   its own `<button role="switch">`, because it uses `aria-disabled` to keep focus through its write
   and `Toggle` uses `disabled`. It paints with `ToggleSwitch`; there is no second track.
+- **Locked** (`locked` + `describedBy`, the `Lockable` props `Toggle` and `Segment` take): a value an
+  organization sets. It reads like `disabled` (50% opacity, `cursor-not-allowed`) but is
+  `aria-disabled`, so it stays in the tab order and its `aria-describedby` names the "Set by {org}"
+  note (`ManagedNote`, a lock icon in `secondary` beside `text-sm` semibold `on-surface-variant` text)
+  that follows it. Native `disabled` would drop it from the keyboard and hide the reason.
 
 **A control's supporting text belongs on the control**, in that `description` — not in a separate
 advisory block near it. A box that explains a switch two elements further down describes something

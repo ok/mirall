@@ -12,7 +12,7 @@ import { BACKUP_STATE_FILE } from '../storage/backup/backup-state.js'
 // belongs to no identity. All or nothing: a move that fails part-way is undone, so no folder ever
 // holds half an identity.
 const DEVICE_FILES = new Set([SECRET_FILE.KEK, SECRET_FILE.RELAY_TICKET])
-const IDENTITY_FILES = [SECRET_FILE.IDENTITY, SECRET_FILE.SPACE_KEYS, RESTORE_HOLD_FILE, BACKUP_STATE_FILE]
+const IDENTITY_FILES = [SECRET_FILE.IDENTITY, SECRET_FILE.SPACE_KEYS, SECRET_FILE.MANAGED, RESTORE_HOLD_FILE, BACKUP_STATE_FILE]
 
 function stamp(date) {
   return date.toISOString().replace(/\.\d+Z$/, '').replace(/:/g, '-')

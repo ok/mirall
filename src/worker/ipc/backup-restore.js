@@ -23,6 +23,7 @@ import { applyRestoredSettings } from '../../shared/core/settings-rules.js'
 import { AppError } from '../../shared/core/errors.js'
 import { CODES } from '../../shared/contract/errors.js'
 import { isUnclaimed } from './identity.js'
+import { getManagedOverlay } from '../../shared/core/managed-overlay.js'
 
 /** @param {string} folder */
 function isFolder(folder) {
@@ -75,7 +76,9 @@ export function registerBackupRestore(ipc, { storagePath, identityKEK, log, lock
     await sealPendingAdoption({ storagePath, provider: unlockProviderFor({ identityKEK }), masterSecret })
     // Before the restore request: a settings write that fails then fails the restore before anything
     // is staged for the next boot, instead of after.
-    await updateSettings((s) => ({ ...applyRestoredSettings(s, settings, { folderUsable }), backup: { folder, repoId: repo.repoId } }))
+    // A folder an organization set is not the person's: restoring from it keeps their own setting.
+    const own = getManagedOverlay()?.backup?.folder === folder ? null : { folder, repoId: repo.repoId }
+    await updateSettings((s) => ({ ...applyRestoredSettings(s, settings, { folderUsable }), ...(own ? { backup: own } : {}) }))
     await requestRestore(storagePath, { hold })
     log.info('backup: snapshot', snapshot, 'staged; the worker restarts to put it in place')
     return settings

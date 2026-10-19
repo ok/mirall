@@ -1,5 +1,8 @@
 import { JOIN_REQUEST_FRAME_OVERHEAD } from '../contract/limits.js'
 import { buildConfig, defaultOf, ruleOf, tabledKeys } from './runtime-config-schema.js'
+import { deriveChannel } from '../contract/release-channel.js'
+import { getManagedOverlay, getOrgRelayTest } from './managed-overlay.js'
+import { effectiveNetwork } from './managed-effective.js'
 /** @import { RelayMode } from '../contract/relay-apply.js' */
 /** @import { JsonValue } from '../contract/request-args.js' */
 
@@ -49,8 +52,8 @@ export function setVerbose(verbose) {
   patch({ verbose })
 }
 
-// The slot as saved, and whether the pinned identity it needs is waiting on a restart. What gets
-// installed is derived from both (network/relay.js installableRelay).
+// The person's own slot as saved, and whether the pinned identity it needs is waiting on a restart.
+// What gets installed is derived from both (network/relay.js installableRelay).
 export function setRelayConfig(mode, relay, { identityPending = false } = {}) {
   patch({ relayMode: mode, relay, relayIdentityPending: identityPending })
 }
@@ -80,9 +83,12 @@ export function getStoragePath() {
   return config.storage
 }
 
+// The relay in force: the person's own, as boot assembled it or the last setRelayConfig left it,
+// with an organization's locked values on top. Leaving drops them; nothing to restore.
 /** @returns {{ mode: RelayMode, relay: { [key: string]: JsonValue } | null, identityPending: boolean }} */
 export function getRelayConfig() {
-  return { mode: config.relayMode, relay: config.relay, identityPending: config.relayIdentityPending }
+  const { relayMode, relay } = effectiveNetwork({ relayMode: config.relayMode, relay: config.relay }, getManagedOverlay(), getOrgRelayTest())
+  return { mode: relayMode, relay, identityPending: config.relayIdentityPending }
 }
 
 export function getUpgradeKey() {
@@ -205,6 +211,22 @@ export function getMaxFilesPerShare() {
 
 export function getFreeUpMinBytes() {
   return read('freeUpMinBytes')
+}
+
+// The organization-configuration test levers: a signing key a local fixture seals with, the local
+// stack's http://127.0.0.1 API, and shortened waits. Production sets none of them.
+export function getReleaseChannel() {
+  return deriveChannel({ dev: config.dev, appVersion: config.appVersion })
+}
+
+export function getManagedLevers() {
+  return {
+    testSigningKey: config.managedTestSigningKey,
+    allowHttp: config.managedAllowHttpLoopback,
+    previewTimeoutMs: read('managedPreviewTimeoutMs'),
+    driveGraceMs: read('managedDriveGraceMs'),
+    httpsPollMs: read('managedHttpsPollMs'),
+  }
 }
 
 export function getRecentDownloadFolderLimit() {

@@ -1,6 +1,7 @@
 import { useId } from 'react'
+import type { Lockable } from '../../types/ui.js'
 
-interface ToggleProps {
+interface ToggleProps extends Lockable {
   label: string
   description?: string
   checked: boolean
@@ -10,7 +11,7 @@ interface ToggleProps {
 
 // The full-width row form: the whole control is one button, so it cannot sit in a row
 // beside other buttons.
-export default function Toggle({ label, description, checked, disabled, onChange }: ToggleProps) {
+export default function Toggle({ label, description, checked, disabled, locked, describedBy, onChange }: ToggleProps) {
   const labelId = useId()
   const descId = useId()
   return (
@@ -19,11 +20,12 @@ export default function Toggle({ label, description, checked, disabled, onChange
       role="switch"
       aria-checked={checked}
       aria-labelledby={labelId}
-      aria-describedby={description ? descId : undefined}
+      aria-describedby={[description ? descId : null, describedBy].filter(Boolean).join(' ') || undefined}
+      aria-disabled={locked || undefined}
       disabled={disabled}
-      onClick={() => onChange(!checked)}
+      onClick={locked ? undefined : () => onChange(!checked)}
       className={`w-full p-6 flex items-center justify-between text-left transition-colors row-focus ${
-        disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-surface-container-high/50'
+        disabled || locked ? 'opacity-50 cursor-not-allowed' : 'hover:bg-surface-container-high/50'
       }`}
     >
       <div className="pr-6">

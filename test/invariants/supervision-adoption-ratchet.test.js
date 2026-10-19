@@ -53,6 +53,7 @@ const UNSUPERVISED = {
   Supervisor: 'it is the supervisor, and it reports its own liveness through health()',
   RestoreCatchUp: 'one periodic tick that reads replication state and settles or throws; no pass held per key',
   Backup: 'one run at a time, each bounded by its own I/O and settling into the status; no pass held per key',
+  ManagedConfig: 'nothing recoverable: a stalled source retries on its own timers, and a failed refresh keeps the last configuration',
 }
 
 // Spelled out rather than derived, and that is deliberate: boot.js starting a subsystem on the

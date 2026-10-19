@@ -10,12 +10,26 @@ import { requireHost } from '../../shared/core/client-trust.js'
 import { AppError } from '../../shared/core/errors.js'
 import { CODES } from '../../shared/contract/errors.js'
 import { getBackupConfig } from '../../shared/core/runtime-config.js'
+import { assertUnlocked, getManagedOverlay } from '../../shared/core/managed-overlay.js'
+import { effectiveBackup } from '../../shared/core/managed-effective.js'
+import { backupFolderKey } from '../../shared/contract/managed-settings.js'
+import { devicePlatform } from '../managed/device-facts.js'
 
 /** @type {BackupStatus} */
 const OFF = Object.freeze({
   folder: null, repoId: null, state: 'off', lastSuccessAt: null, lastSnapshot: null, lastError: null, suspect: null,
   key: Object.freeze({ createdAt: null, inFolder: false, checkedAt: null, reminders: true }), prompt: null, stale: false, verdict: null, verdictReason: null,
 })
+
+// The folder setters refuse a folder other than the organization's while it sets one; re-sending
+// the organization's folder (as setup does) passes.
+/** @param {string | null} folder @param {string} channel */
+function assertFolderUnlocked(folder, channel) {
+  const platform = devicePlatform()
+  const managed = getManagedOverlay()
+  if (!platform || !managed?.backup) return
+  assertUnlocked(backupFolderKey(platform), folder, managed.backup.folder, channel)
+}
 
 /** @param {Backup | null} backup @param {boolean} paused @returns {Backup} */
 function service(backup, paused) {
@@ -36,22 +50,25 @@ export function registerBackup(ipc, { backup: current, paused: isPaused, openRec
     const backup = current()
     if (backup) return backup.status()
     if (!isPaused()) return OFF
-    const { folder, repoId } = getBackupConfig()
-    return { ...OFF, folder, repoId, state: 'paused' }
+    const { folder } = effectiveBackup(getBackupConfig(), getManagedOverlay())
+    return { ...OFF, folder, repoId: getBackupConfig().repoId, state: 'paused' }
   })
 
   ipc.handle('backup:configure', async ({ folder }, ctx) => {
     requireHost(ctx.client, 'only the host may choose the backup folder')
+    assertFolderUnlocked(folder, 'backup:configure')
     return live().configure(folder)
   })
 
   ipc.handle('backup:setup', async ({ folder, passphrase }, ctx) => {
     requireHost(ctx.client, 'only the host may set up the backup')
+    assertFolderUnlocked(folder, 'backup:setup')
     return live().setUp(folder, passphrase)
   })
 
   ipc.handle('backup:turn-off', async (_msg, ctx) => {
     requireHost(ctx.client, 'only the host may turn the backup off')
+    assertUnlocked('backup.required', false, true, 'backup:turn-off')
     return live().configure(null)
   })
 

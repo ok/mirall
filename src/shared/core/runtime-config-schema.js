@@ -34,13 +34,13 @@ function isRuled(row) {
 
 // Paths / opaque strings; a falsy override means "unset". dhtBootstrap is a test lever (a local
 // testnet instead of the public DHT); production never sets it.
-const NULLABLE = ['storage', 'appVersion', 'downloadFolder', 'defaultDownloadFolder', 'dhtBootstrap', 'upgradeKey', 'backupFolder', 'backupRepoId']
+const NULLABLE = ['storage', 'appVersion', 'downloadFolder', 'defaultDownloadFolder', 'dhtBootstrap', 'upgradeKey', 'backupFolder', 'backupRepoId', 'managedTestSigningKey']
 
 // Dev toggles and staged security enforcement, default-off. membershipControlBindingEnforced on
 // refuses a membership:cancel or membership:deny that names no sender. topicRefsEnforced on ignores a
 // space named by its bearer topic, and sends a space's identity, leave and cancel frames only to a
 // socket that named that space first.
-const BOOLEAN = ['dev', 'verbose', 'membershipControlBindingEnforced', 'topicRefsEnforced', 'identityWeak']
+const BOOLEAN = ['dev', 'verbose', 'membershipControlBindingEnforced', 'topicRefsEnforced', 'identityWeak', 'managedAllowHttpLoopback']
 
 // Keys production never sets, each defaulting to "off"; tests set them for a deterministic
 // reproduction.
@@ -78,6 +78,11 @@ const DEFAULTED = {
   // How long a restored profile stays read-only after it matched the first peer holding it, so a
   // holder with a longer copy that connects a moment later still counts.
   restoreReleaseDwellMs: ruled(20_000, finiteAtLeast, 0),
+  // Organization configuration: how long a preview waits before "couldn't reach", how long the
+  // drive may go without a peer before HTTPS takes over, and how often HTTPS is asked after that.
+  managedPreviewTimeoutMs: ruled(20_000, finiteAtLeast, 1000),
+  managedDriveGraceMs: ruled(120_000, finiteAtLeast, 0),
+  managedHttpsPollMs: ruled(3_600_000, finiteAtLeast, 1000),
   // Read budget for the INTERACTIVE list fan-outs (files:list / share:list). Much shorter than
   // peerReadTimeoutMs so a not-yet-replicated member can't freeze the list — it returns the
   // locally-available rows now and self-heals: event:shares-updated / the listing's poke re-run it

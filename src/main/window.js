@@ -140,6 +140,11 @@ async function revealWindow() {
   if (isMac) {
     try { await app.dock.show() } catch {}
   }
+  // The harness's background mode never takes the user's focus, a deep link's reveal included.
+  if (envOverride('MIRALL_FE_BACKGROUND') === '1') {
+    if (!win.isVisible() || win.isMinimized()) await showBehindOthers(win)
+    return
+  }
   if (win.isMinimized()) win.restore()
   if (!win.isVisible()) win.show()
   win.focus()
@@ -228,8 +233,10 @@ async function createWindow() {
   if (showInactive) showBehindOthers(win).catch((err) => console.error('showBehindOthers failed:', err))
   applyAppMenuVisibility(win)
 
+  // Links leave for the browser, and a mailto: link (an organization's support address) for the mail
+  // client; nothing else opens.
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('https://') || url.startsWith('http://')) {
+    if (url.startsWith('https://') || url.startsWith('http://') || url.startsWith('mailto:')) {
       shell.openExternal(url).catch((err) => console.error('openExternal failed:', err))
     }
     return { action: 'deny' }

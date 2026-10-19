@@ -13,6 +13,8 @@ export const ERROR_I18N_KEY_BY_CODE = {
   BACKUP_TARGET_FULL: 'backupTargetFull',
   BACKUP_TARGET_NOT_EMPTY: 'backupTargetNotEmpty',
   BACKUP_TARGET_OFFLINE: 'backupTargetOffline',
+  MANAGED_LOCKED: 'managedLocked',
+  MANAGED_UNAVAILABLE: 'managedUnavailable',
   TRANSFER_DISK_FULL: 'transferDiskFull',
   TRANSFER_PERMISSION: 'transferPermission',
   TRANSFER_CHECKSUM: 'transferChecksum',
