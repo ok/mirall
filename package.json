@@ -63,7 +63,7 @@
     "bare-subprocess": "^6.2.2",
     "brittle": "^4.5.0",
     "concurrently": "^10.0.6",
-    "electron": "^42.11.12",
+    "electron": "^42.11.15",
     "electron-forge-plugin-prune-prebuilds": "^1.0.2",
     "electron-forge-plugin-universal-prebuilds": "^1.0.0",
     "esbuild": "^0.28.2",
