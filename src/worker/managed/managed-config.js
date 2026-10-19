@@ -11,7 +11,6 @@ import { getManagedVaultKey } from '../../shared/core/store.js'
 import { getManagedLevers, getReleaseChannel, getRuntimeConfig } from '../../shared/core/runtime-config.js'
 import { getManagedOverlay, resetManagedOverlay, setManagedOverlay } from '../../shared/core/managed-overlay.js'
 import { lockedKeys } from '../../shared/core/managed-effective.js'
-import { applyEffectiveRelay } from '../../shared/core/effective-relay.js'
 import { record } from '../../shared/audit/audit-log.js'
 import { managedChangedRow, managedJoinedRow, managedLeftRow } from '../../shared/audit/managed-change.js'
 import { decodeActivationCode } from '../../shared/managed/activation-link.js'
@@ -331,12 +330,9 @@ export class ManagedConfig extends Subsystem {
       settings: applied.settings,
       backup: resolveBackupFolder(applied.settings, this.deps.installId ?? null),
     })
-    // At boot the relay config is set but not installed: boot installs it once both swarms are up,
-    // and the backup opens after this. A join records its own row.
-    if (at === 'boot') {
-      applyEffectiveRelay({ applyRelayConfig: () => {} })
-      return
-    }
+    // At boot the overlay is all: boot installs the relay once both swarms are up, and the backup
+    // opens after this. A join records its own row.
+    if (at === 'boot') return
     if (at === 'update') {
       const row = managedChangedRow(before, applied)
       if (row) record(row.kind, row.row)
@@ -345,7 +341,7 @@ export class ManagedConfig extends Subsystem {
   }
 
   afterOverlayChange() {
-    applyEffectiveRelay({ applyRelayConfig: this.deps.applyRelayConfig })
+    this.deps.applyRelayConfig()
     this.deps.getBackup?.()?.reconsider()
     this.deps.ipc.emit('event:audit-updated', {})
     this.deps.ipc.emit('event:reconcile', { scope: Scope.managed() })

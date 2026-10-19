@@ -74,7 +74,6 @@ import { Sweeps } from './sweeps.js'
 import { RestoreCatchUp } from './restore-catch-up.js'
 import { Backup } from './backup-service.js'
 import { ManagedConfig } from './managed/managed-config.js'
-import { applyEffectiveRelay } from '../shared/core/effective-relay.js'
 import { loadRestoreHold, profileHeld, heldNames } from '../shared/core/restore-hold.js'
 
 // Apply the configured relay to BOTH swarms. Exported through the root because the
@@ -312,7 +311,7 @@ export async function boot(bootstrap, {
       await life.start(new ContentSwarm('content-swarm', { swarm: swarmSubsystem, overlayBackend, onPeerBound: pokeMemberSpacesByKey }))
       // After BOTH: getContentSwarm() is null until the content swarm starts, and a relay
       // installed on the control swarm alone leaves every file byte unrelayed.
-      applyEffectiveRelay({ applyRelayConfig: () => applyRelayConfig(log) })
+      applyRelayConfig(log)
     }
 
     // Deferred past the core-opening init above so the compaction (which scrubs migrated plaintext

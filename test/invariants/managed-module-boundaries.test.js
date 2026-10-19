@@ -39,7 +39,7 @@ test('only the composition roots import the managed module', (t) => {
 })
 
 test('the overlay port and the effective values import nothing from the managed module', (t) => {
-  for (const r of ['shared/core/managed-overlay.js', 'shared/core/managed-effective.js', 'shared/core/effective-relay.js']) {
+  for (const r of ['shared/core/managed-overlay.js', 'shared/core/managed-effective.js']) {
     t.absent(IMPORTS_MODULE.test(files.find((f) => f.rel === r).src), r)
   }
 })

@@ -5,8 +5,7 @@
 /** @import { WorkerIpc } from '../../shared/core/ipc.js' */
 /** @import { WorkerRoot } from '../boot.js' */
 /** @import { RequestArgs } from '../../shared/contract/request-args.js' */
-import { getRelayConfig, getUpgradeKey } from '../../shared/core/runtime-config.js'
-import { applyEffectiveRelay } from '../../shared/core/effective-relay.js'
+import { setRelayConfig, getRelayConfig, getUpgradeKey } from '../../shared/core/runtime-config.js'
 import { assertUnlocked, isLocked, setOrgRelayTest } from '../../shared/core/managed-overlay.js'
 import { relayMismatch } from '../../shared/contract/relay-apply.js'
 import { getSwarmStatus, scheduleStatusEmit } from '../../shared/network/network-status.js'
@@ -73,7 +72,8 @@ export function registerNetwork(ipc, { applyRelayConfig }) {
     const { mode, relay } = ownRelay({ mode: msg.mode, relay: msg.relay, lastTest: msg.lastTest }, before)
     await updateSettings((s) => { s.network.relayMode = mode; s.network.relay = relay; return s })
     const identityPending = before.identityPending || msg.deferApply === true
-    const applied = applyEffectiveRelay({ applyRelayConfig, identityPending })
+    setRelayConfig(mode, relay, { identityPending })
+    const applied = applyRelayConfig()
     const after = getRelayConfig()
     const change = relayConfigRow(before, after)
     if (change) record(change.kind, change.row)
