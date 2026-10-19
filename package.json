@@ -64,7 +64,7 @@
     "brittle": "^4.5.0",
     "concurrently": "^10.0.6",
     "electron": "^42.11.12",
-    "electron-forge-plugin-prune-prebuilds": "^1.0.1",
+    "electron-forge-plugin-prune-prebuilds": "^1.0.2",
     "electron-forge-plugin-universal-prebuilds": "^1.0.0",
     "esbuild": "^0.28.2",
     "eslint": "^9.39.5",
