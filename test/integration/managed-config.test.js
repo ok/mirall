@@ -134,6 +134,7 @@ test('a newer bundle over HTTPS updates the overlay; an older one is refused', a
   await p.fake.call('managed:accept', { code: p.org.code })
   p.serve({ ...LOCKS, 'audit.retentionDays': 365 }, { issuedAt: now + 10 })
   await waitFor(() => getAuditConfig().retentionDays === 365, 8000, { label: 'the newer retention' })
+  await waitFor(async () => (await queryAudit({ kinds: ['managed.changed'], limit: 1 })).entries.length === 1, 5000, { label: 'a managed.changed row' })
   p.serve({ ...LOCKS, 'audit.retentionDays': 30 }, { issuedAt: now + 5 })
   const before = p.api.requests.length
   await waitFor(() => p.api.requests.length > before + 1, 8000, { label: 'two more polls' })

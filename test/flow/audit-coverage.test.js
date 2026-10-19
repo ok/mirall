@@ -87,6 +87,9 @@ const UNTRIGGERABLE = {
   'relay.turned_on': 'a single-peer settings act — covered in network-relay-audit.test.js',
   'relay.turned_off': 'a single-peer settings act — covered in network-relay-audit.test.js',
   'relay.mode_changed': 'a single-peer settings act — covered in network-relay-audit.test.js',
+  'managed.joined': 'needs an organization\'s signed configuration — covered in managed-config.test.js',
+  'managed.changed': 'needs an organization\'s signed configuration — covered in managed-config.test.js',
+  'managed.left': 'needs an organization\'s signed configuration — covered in managed-config.test.js',
 }
 
 async function rows(peer) {
