@@ -104,13 +104,14 @@ test('parses an envelope carrying the v2 membership fields', async (t) => {
 const LICENSE = 'yyyyybndrfg8ejkmcpqxot1uwisza345h769'
 
 test('a license link is recognized on a channel that pins signing keys', async (t) => {
+  t.alike(await parseDeepLink(`mirall://license/a/${LICENSE}`, { channel: 'prod' }), { kind: 'license', code: LICENSE })
+  t.alike(await parseDeepLink(`mirall://license/a/${LICENSE}`), { kind: 'license', code: LICENSE }, 'no channel reads as prod')
   t.alike(await parseDeepLink(`mirall://license/a/${LICENSE}`, { channel: 'staging' }), { kind: 'license', code: LICENSE })
   t.alike(await parseDeepLink(`MIRALL://LICENSE/a/${LICENSE}/`, { channel: 'dev' }), { kind: 'license', code: LICENSE })
 })
 
 test('a license link is not recognized where no key is pinned', async (t) => {
-  t.is(await parseDeepLink(`mirall://license/a/${LICENSE}`, { channel: 'prod' }), null)
-  t.is(await parseDeepLink(`mirall://license/a/${LICENSE}`), null, 'no channel reads as prod')
+  t.is(await parseDeepLink(`mirall://license/a/${LICENSE}`, { channel: 'nightly' }), null)
 })
 
 test('a malformed license link is ignored', async (t) => {
