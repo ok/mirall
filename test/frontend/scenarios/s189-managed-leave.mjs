@@ -36,6 +36,7 @@ export default async function s189({ runDir, bootstrap }) {
       await A.gotoSettings('Activity Log')
       await A.waitText('Record activity', 8000)
       assert(!(await A.hasText('Set by')), 'nothing locked')
+      assert(!(await A.isDisabled({ role: 'button', name: 'Delete…' })), 'the log can be deleted again')
     })
   } catch {} finally {
     await fixture.close()
