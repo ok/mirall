@@ -28,6 +28,7 @@ const COMPOSITION_ROOTS = new Set([
   'worker/main.js',
   'worker/ipc/backup.js',
   'renderer/components/modals/BackupSetupModal.tsx',
+  'renderer/screens/settings/ActivityLogSettings.tsx',
   'renderer/screens/settings/AuditRecordingCard.tsx',
   'renderer/screens/settings/BackupSettings.tsx',
   'renderer/screens/settings/RelaySettingsSection.tsx',
