@@ -73,7 +73,7 @@
     "hyperdht": "~6.32.0",
     "hyperdrive": "13.3.4",
     "i18next": "^26.5.2",
-    "knip": "^6.41.0",
+    "knip": "^6.42.0",
     "marked": "^18.1.1",
     "modern-screenshot": "^4.7.0",
     "pear-runtime-updater": "^3.4.0",
