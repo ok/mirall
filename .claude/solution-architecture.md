@@ -1852,7 +1852,8 @@ organization's drive key and an API base, and is trusted for nothing: main check
   unmanaged); `core/managed-effective.js` puts them over the person's own, which are never written
   with them, so leaving restores the person's settings. Persistence reads the stored values
   (`getStoredAuditConfig`), behaviour and views the effective ones. A locked setter refuses a change,
-  never a re-send of the effective value (`assertUnlocked`).
+  never a re-send of the effective value (`assertUnlocked`). While recording is locked on,
+  `audit:purge` is refused too; export stays available.
 - **Backup folder.** An organization's per-platform template resolves on the device
   (`path-template.js`, pinned by `path-template-v1.json`); the managed repository's id lives in
   `backup-state.json`. The share's base must exist, and only the device's folders below it are made.

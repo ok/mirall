@@ -14,6 +14,8 @@ import Button from '../../components/primitives/Button.js'
 import { useErrorText } from '../../hooks/useErrorText.js'
 import { useRunAction } from '../../hooks/useRunAction.js'
 import { MANAGED_SCOPES } from '../../store/scopes.js'
+import ManagedNote from '../../components/managed/ManagedNote.js'
+import { useManagedSetting } from '../../hooks/useManagedSetting.js'
 
 interface ActivityLogSettingsProps {
   onBack: () => void
@@ -33,6 +35,8 @@ export default function ActivityLogSettings({ onBack, onOpenLog }: ActivityLogSe
   const patchingRef = useRef(false)
   const [status, setStatus] = useState<string | null>(null)
   const [confirmPurge, setConfirmPurge] = useState(false)
+  const recording = useManagedSetting('audit.enabled')
+  const purgeLocked = recording.locked && config?.enabled === true
 
   const refresh = useCallback(async () => {
     await Promise.all([
@@ -124,14 +128,23 @@ export default function ActivityLogSettings({ onBack, onOpenLog }: ActivityLogSe
 
           <section>
             <SectionHeading>{t('activityLogSettings.delete')}</SectionHeading>
-            <div className="bg-surface-container-low rounded-xl p-6 flex items-center justify-between gap-4">
-              <div className="min-w-0">
-                <p className="font-semibold text-accent">{t('activityLogSettings.deleteTitle')}</p>
-                <p className="text-xs text-on-surface-variant mt-0.5">{t('activityLogSettings.deleteDesc')}</p>
+            <div className="bg-surface-container-low rounded-xl">
+              <div className="p-6 flex items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="font-semibold text-accent">{t('activityLogSettings.deleteTitle')}</p>
+                  <p className="text-xs text-on-surface-variant mt-0.5">{t('activityLogSettings.deleteDesc')}</p>
+                </div>
+                <Button
+                  variant="danger"
+                  onClick={purgeLocked ? undefined : () => setConfirmPurge(true)}
+                  disabled={busy}
+                  ariaDisabled={purgeLocked}
+                  ariaDescribedBy={purgeLocked ? recording.noteId : undefined}
+                >
+                  {t('activityLogSettings.deleteAction')}
+                </Button>
               </div>
-              <Button variant="danger" onClick={() => setConfirmPurge(true)} disabled={busy}>
-                {t('activityLogSettings.deleteAction')}
-              </Button>
+              {purgeLocked && recording.org && <ManagedNote id={recording.noteId} org={recording.org} className="px-6 pb-5 -mt-2" />}
             </div>
           </section>
 

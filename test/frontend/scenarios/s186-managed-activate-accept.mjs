@@ -28,6 +28,8 @@ export default async function s186({ runDir, bootstrap }) {
       await A.gotoSettings('Activity Log')
       await A.waitText('Set by Acme Test GmbH', 10000)
       assert(await A.isDisabled({ role: 'switch', name: 'Record activity' }), 'the recording switch reads unavailable')
+      assert(await A.isDisabled({ role: 'button', name: 'Delete…' }), 'the log cannot be deleted while recording is locked on')
+      assert(!(await A.isDisabled({ role: 'button', name: 'Export…' })), 'export stays available')
       await A.shot('s186-activity-log-locked', runDir)
       await A.gotoSettings('Network')
       await A.waitText('Set by Acme Test GmbH', 10000)

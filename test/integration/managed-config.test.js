@@ -173,7 +173,7 @@ test('a restart applies the stored configuration at boot, offline', async (t) =>
 test('purging the Activity Log keeps the person\'s own config, never the organization\'s', async (t) => {
   const p = await setup(t)
   await p.fake.call('audit:configure', { enabled: false, retentionDays: 30 })
-  p.serve(LOCKS)
+  p.serve({ 'audit.retentionDays': 90 })
   await p.fake.call('managed:accept', { code: p.org.code })
   await p.fake.call('audit:purge', {})
   t.alike({ enabled: getStoredAuditConfig().enabled, retentionDays: getStoredAuditConfig().retentionDays }, { enabled: false, retentionDays: 30 })
@@ -224,4 +224,24 @@ test('REGRESSION (FIX-3: rollback floor): accepting the same drive again never a
   p.serve(LOCKS, { issuedAt: now })
   await p.fake.call('managed:accept', { code: p.org.code })
   t.is(getAuditConfig().retentionDays, 365, 'the newer configuration stays applied')
+})
+
+test('REGRESSION (FIX-4: purge under a recording lock): the Activity Log cannot be deleted while the organization keeps recording on', async (t) => {
+  const p = await setup(t)
+  await p.fake.call('audit:configure', { enabled: true })
+  p.serve(LOCKS)
+  await p.fake.call('managed:accept', { code: p.org.code })
+  await waitFor(async () => (await p.fake.call('audit:stats', {})).count > 0, 5000, { label: 'a recorded row' })
+  const before = (await p.fake.call('audit:stats', {})).count
+  await t.exception(p.fake.call('audit:purge', {}), /set by your organization/)
+  t.is((await p.fake.call('audit:stats', {})).count, before, 'every row is kept')
+  await p.fake.call('managed:leave', {})
+  t.ok((await p.fake.call('audit:purge', {})).purged > 0, 'leaving the organization allows it again')
+})
+
+test('the Activity Log can be deleted while the organization keeps recording off', async (t) => {
+  const p = await setup(t)
+  p.serve({ 'audit.enabled': false })
+  await p.fake.call('managed:accept', { code: p.org.code })
+  await t.execution(p.fake.call('audit:purge', {}))
 })
