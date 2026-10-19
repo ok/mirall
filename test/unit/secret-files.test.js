@@ -33,5 +33,6 @@ test('the file names are fixed', (t) => {
     KEK: 'kek.enc',
     SPACE_KEYS: 'space-keys.enc',
     RELAY_TICKET: 'relay-ticket.enc',
+    MANAGED: 'managed.enc',
   })
 })
