@@ -6,7 +6,9 @@
 import { getAuditConfig, setAuditConfig } from '../../shared/audit/audit-log.js'
 import { queryAudit, auditSpaces, auditActors, auditStats, exportAudit } from '../../shared/audit/audit-query.js'
 import { purgeAudit } from '../../shared/audit/audit-reclaim.js'
-import { assertUnlocked } from '../../shared/core/managed-overlay.js'
+import { assertUnlocked, isLocked } from '../../shared/core/managed-overlay.js'
+import { AppError } from '../../shared/core/errors.js'
+import { CODES } from '../../shared/contract/errors.js'
 
 /** @param {WorkerIpc} ipc */
 export function registerAudit(ipc) {
@@ -35,7 +37,11 @@ export function registerAudit(ipc) {
     ipc.emit('event:audit-updated', {})
     return next
   })
+  // An organization that keeps recording on keeps the record: deleting it would empty what it requires.
   ipc.handle('audit:purge', async () => {
+    if (isLocked('audit.enabled') && getAuditConfig().enabled) {
+      throw new AppError(CODES.MANAGED_LOCKED, 'audit:purge: audit.enabled is set by your organization')
+    }
     const result = await purgeAudit()
     ipc.emit('event:audit-updated', {})
     return result
