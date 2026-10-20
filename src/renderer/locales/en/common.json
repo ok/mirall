@@ -1712,6 +1712,8 @@
       "intro": "The organization that manages settings on this computer.",
       "managedBy": "Managed by {{org}}",
       "updated": "Configuration updated {{when}}",
+      "revoked": "{{org}} has revoked this computer’s license. Mirall no longer reports to it, and its settings stay in effect until you leave.",
+      "settingsHeading": "Managed settings",
       "support": "Support",
       "supportPage": "Support page",
       "emailSupport": "Email support",
@@ -1724,6 +1726,7 @@
       "title": "Leave {{org}}?",
       "body": "The settings it manages go back to yours on this computer.",
       "confirm": "Leave",
+      "reportNote": "Mirall tells {{org}} that this computer has left.",
       "backupNote": "Backups already on {{org}}’s share stay there, encrypted with your passphrase."
     },
     "about": {

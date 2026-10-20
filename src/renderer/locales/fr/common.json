@@ -1712,6 +1712,8 @@
       "intro": "L’organisation qui gère des réglages sur cet ordinateur.",
       "managedBy": "Géré par {{org}}",
       "updated": "Configuration mise à jour le {{when}}",
+      "revoked": "{{org}} a révoqué la licence de cet ordinateur. Mirall ne lui envoie plus de rapports, et ses réglages restent en vigueur jusqu’à ce que vous la quittiez.",
+      "settingsHeading": "Réglages gérés",
       "support": "Assistance",
       "supportPage": "Page d’assistance",
       "emailSupport": "Écrire à l’assistance",
@@ -1724,6 +1726,7 @@
       "title": "Quitter {{org}} ?",
       "body": "Les réglages gérés redeviennent les vôtres sur cet ordinateur.",
       "confirm": "Quitter",
+      "reportNote": "Mirall informe {{org}} que cet ordinateur l’a quittée.",
       "backupNote": "Les sauvegardes déjà présentes sur le partage de {{org}} y restent, chiffrées avec votre phrase secrète."
     },
     "about": {

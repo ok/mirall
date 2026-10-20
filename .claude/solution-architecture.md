@@ -1857,8 +1857,31 @@ organization's drive key and an API base, and is trusted for nothing: main check
 - **Backup folder.** An organization's per-platform template resolves on the device
   (`path-template.js`, pinned by `path-template-v1.json`); the managed repository's id lives in
   `backup-state.json`. The share's base must exist, and only the device's folders below it are made.
+- **Instance reports.** `InstanceReporter` (`worker/managed/instance-reporter.js`) tells the
+  organization what its fleet view needs: the app version, channel, platform, OS release, the short
+  computer name, the applied profile version, the refused and ignored keys, and the backup's
+  protection. It sends a report when it starts, on every newly applied configuration, every 24 h and
+  on Leave, as `POST <apiUrl>/v1/instance-enroll|instance-report`. The wire format is
+  `managed/upward.js`, pinned by the Console's `upward-v1.json` and `upward-v1.schema.json`.
+  - **Keys.** Requests are signed with a random Ed25519 **instance key**. It lives in
+    `instance-key.json` beside the store (0o600, not sealed, and left in place on set-aside, because
+    it names the computer, not the person).
+  - **Enrollment.** The first request enrolls the key with the license's derived enrollment key, so
+    the license key itself is never sent. Each key belongs to one license, and replacing the
+    organization first sends the old key's `left`.
+  - **Copy detection.** Every request carries a `reportCounter` that is stored before the request is
+    sent. A second computer holding a copied key is the only way the Console can see an equal or
+    lower one.
+  - **Never blocking.** A failure only delays the next report, and no report is queued. A wrong
+    clock is corrected from `serverTime` once. An unknown key enrolls again. A 410 marks the view
+    `revoked` and stops reporting, while the configuration stays applied.
+  - **Leave.** Leave sends `left` once, briefly, and goes ahead whatever the answer. It then removes
+    `managed.enc` and the key last.
 - **UI.** `managed:get` is the renderer's one source of what is locked (`useManaged`); controls take
-  the generic `Lockable` state and a `ManagedNote`. About gains an Organization row to its page.
+  the generic `Lockable` state and a `ManagedNote`. About gains an Organization row to its page,
+  which lists the settings it manages, one row per settings page with the locked values in the
+  words of their controls (`model/managed-rows.js`). What the organization sees is in the privacy
+  policy, not the UI.
 
 ## 17. Glossary
 

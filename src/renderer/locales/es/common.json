@@ -1712,6 +1712,8 @@
       "intro": "La organización que gestiona ajustes en este ordenador.",
       "managedBy": "Gestionado por {{org}}",
       "updated": "Configuración actualizada el {{when}}",
+      "revoked": "{{org}} ha revocado la licencia de este ordenador. Mirall ya no le envía informes, y sus ajustes siguen en vigor hasta que salgas.",
+      "settingsHeading": "Ajustes gestionados",
       "support": "Soporte",
       "supportPage": "Página de soporte",
       "emailSupport": "Escribir a soporte",
@@ -1724,6 +1726,7 @@
       "title": "¿Dejar {{org}}?",
       "body": "Los ajustes gestionados vuelven a ser los tuyos en este ordenador.",
       "confirm": "Dejar",
+      "reportNote": "Mirall avisará a {{org}} de que este ordenador ha salido.",
       "backupNote": "Las copias que ya están en la carpeta compartida de {{org}} se quedan allí, cifradas con tu frase de contraseña."
     },
     "about": {

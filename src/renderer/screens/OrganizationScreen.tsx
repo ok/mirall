@@ -1,6 +1,6 @@
 // The organization that manages this install: who it is, how to reach it, and leaving it. Reached
 // from About only while the install is managed; with no organization it returns to About at once.
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { request } from '../ipc/ipc.js'
 import { useManaged } from '../hooks/useManaged.js'
@@ -11,17 +11,28 @@ import { useToast } from '../components/toast/ToastProvider.js'
 import { formatDateTime } from '../format/utils.js'
 import PageHeader from '../components/layout/PageHeader.js'
 import SectionHeading from '../components/layout/SectionHeading.js'
-import { LinkRow, ROW_GROUP, Tile } from '../components/layout/ActionRow.js'
+import { LinkRow, ROW, ROW_GROUP, Tile } from '../components/layout/ActionRow.js'
+import Icon from '../components/primitives/Icon.js'
 import Button from '../components/primitives/Button.js'
 import Callout from '../components/primitives/Callout.js'
 import InlineError from '../components/primitives/InlineError.js'
 import ConfirmDestructiveModal from '../components/modals/ConfirmDestructiveModal.js'
+import { managedRows, type ManagedLine, type ManagedPage, type ManagedRow } from '../model/managed-rows.js'
+import type { ManagedView } from '../../shared/contract/responses.js'
+import type { IconName } from '../types/ui.js'
+
+const PAGE: Record<ManagedPage, { icon: IconName, labelKey: string }> = {
+  'network-settings': { icon: 'hub', labelKey: 'settings.network' },
+  'activity-log-settings': { icon: 'history', labelKey: 'settings.activityLog' },
+  'backup-settings': { icon: 'shield', labelKey: 'settings.backup' },
+}
 
 interface OrganizationScreenProps {
   onBack: () => void
+  onOpenPage: (page: ManagedPage) => void
 }
 
-export default function OrganizationScreen({ onBack }: OrganizationScreenProps) {
+export default function OrganizationScreen({ onBack, onOpenPage }: OrganizationScreenProps) {
   const { t } = useTranslation()
   const toast = useToast()
   const errorText = useErrorText()
@@ -70,6 +81,10 @@ export default function OrganizationScreen({ onBack }: OrganizationScreenProps) 
             </div>
           </section>
 
+          {managed.revoked && <Callout tone="warning">{t('managed.page.revoked', { org: org.name })}</Callout>}
+
+          <ManagedSettings managed={managed} onOpenPage={onOpenPage} />
+
           {(org.supportUrl || org.supportEmail) && (
             <section>
               <SectionHeading>{t('managed.page.support')}</SectionHeading>
@@ -97,7 +112,7 @@ export default function OrganizationScreen({ onBack }: OrganizationScreenProps) 
       <ConfirmDestructiveModal
         isOpen={confirm && !left}
         title={t('managed.leave.title', { org: org.name })}
-        body={t('managed.leave.body')}
+        body={managed.revoked ? t('managed.leave.body') : `${t('managed.leave.body')} ${t('managed.leave.reportNote', { org: org.name })}`}
         confirmLabel={t('managed.leave.confirm')}
         onClose={() => { setConfirm(false); setError(null) }}
         onConfirm={() => runAction(leave)}
@@ -108,4 +123,51 @@ export default function OrganizationScreen({ onBack }: OrganizationScreenProps) 
       </ConfirmDestructiveModal>
     </div>
   )
+}
+
+function ManagedSettings({ managed, onOpenPage }: { managed: ManagedView, onOpenPage: (page: ManagedPage) => void }) {
+  const { t } = useTranslation()
+  const rows = managedRows(managed)
+  if (rows.length === 0) return null
+  return (
+    <section>
+      <SectionHeading>{t('managed.page.settingsHeading')}</SectionHeading>
+      <div className={ROW_GROUP}>
+        {rows.map((row) => <ManagedSettingsRow key={row.page} row={row} onOpen={() => onOpenPage(row.page)} />)}
+      </div>
+    </section>
+  )
+}
+
+function ManagedSettingsRow({ row, onOpen }: { row: ManagedRow, onOpen: () => void }) {
+  const { t } = useTranslation()
+  const linesId = useId()
+  const { icon, labelKey } = PAGE[row.page]
+  const label = t(labelKey)
+  return (
+    <button type="button" onClick={onOpen} aria-label={label} aria-describedby={linesId} className={ROW}>
+      <div className="flex items-center gap-4 min-w-0">
+        <Tile icon={icon} />
+        <div className="min-w-0">
+          <p className="font-semibold text-accent">{label}</p>
+          <ul id={linesId} className="mt-1 space-y-1">
+            {row.lines.map((line) => (
+              <li key={line.label} className="flex items-center gap-2 text-sm text-on-surface-variant">
+                <Icon name="lock" size={16} className="text-secondary shrink-0" />
+                <span className="min-w-0 break-words">{lineText(t, line)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+      <Icon name="chevron_right" className="text-secondary shrink-0" />
+    </button>
+  )
+}
+
+function lineText(t: (key: string, options?: { count: number }) => string, line: ManagedLine): string {
+  const label = t(line.label)
+  if (!line.value) return label
+  const value = 'text' in line.value ? line.value.text : t(line.value.key, line.value.count === undefined ? undefined : { count: line.value.count })
+  return `${label}${line.join}${value}`
 }

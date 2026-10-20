@@ -3,9 +3,9 @@ import { Instance } from '../instance.mjs'
 import { makeReport, assert, waitFor } from '../assert.mjs'
 import { startManagedConsole } from '../managed-console.mjs'
 
-// An activation link opens the dialog filled from the signed configuration; Connect locks what the
-// organization sets, each locked control says who set it, and About gains one Organization row
-// leading to the organization's page.
+// An activation link opens the dialog filled from the signed configuration; Connect enrolls the install and locks what the organization sets, each
+// locked control says who set it, and About gains one Organization row leading to the
+// organization's page.
 export default async function s186({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
@@ -25,6 +25,7 @@ export default async function s186({ runDir, bootstrap }) {
     await r.ok('Connect locks the settings and says so', async () => {
       await A.click({ role: 'button', name: 'Connect' })
       await A.waitText('Connected to Acme Test GmbH', 15000)
+      await waitFor(() => fixture.upward.some((u) => u.call === 'instance-enroll'), 10000, 'the install enrolled')
       await A.gotoSettings('Activity Log')
       await A.waitText('Set by Acme Test GmbH', 10000)
       assert(await A.isDisabled({ role: 'switch', name: 'Record activity' }), 'the recording switch reads unavailable')
@@ -45,7 +46,18 @@ export default async function s186({ runDir, bootstrap }) {
       assert(await A.hasText('Configuration updated'), 'when it was last updated')
       assert(await A.hasText('Email support'), 'the support row')
       assert(await A.hasText('Leave organization'), 'Leave lives here')
+      assert(!(await A.hasText('has revoked this computer’s license')), 'no revoked notice')
+      assert(await A.hasText('Managed settings'), 'the list of what it manages')
+      assert(await A.hasText('Keep events for 90 days'), 'a locked value in the words of its control')
+      assert(await A.has({ role: 'button', name: 'Network' }), 'a row per settings page it locks')
+      assert(!(await A.has({ role: 'button', name: 'Backup' })), 'no row for a page it leaves alone')
       await A.shot('s186-organization-page', runDir)
+    })
+
+    await r.ok('a managed settings row opens its settings page', async () => {
+      await A.click({ role: 'button', name: 'Activity Log' })
+      await A.waitText('Set by Acme Test GmbH', 8000)
+      assert(await A.hasText('Record activity'), 'on the Activity Log settings')
     })
   } catch {} finally {
     await fixture.close()

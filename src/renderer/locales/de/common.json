@@ -1712,6 +1712,8 @@
       "intro": "Die Organisation, die Einstellungen auf diesem Computer verwaltet.",
       "managedBy": "Verwaltet von {{org}}",
       "updated": "Konfiguration aktualisiert am {{when}}",
+      "revoked": "{{org}} hat die Lizenz dieses Computers widerrufen. Mirall meldet sich dort nicht mehr, und die Einstellungen gelten weiter, bis du die Organisation verlässt.",
+      "settingsHeading": "Verwaltete Einstellungen",
       "support": "Support",
       "supportPage": "Support-Seite",
       "emailSupport": "Support per E-Mail",
@@ -1724,6 +1726,7 @@
       "title": "{{org}} verlassen?",
       "body": "Die verwalteten Einstellungen werden auf diesem Computer wieder zu deinen eigenen.",
       "confirm": "Verlassen",
+      "reportNote": "Mirall teilt {{org}} mit, dass dieser Computer die Organisation verlassen hat.",
       "backupNote": "Backups, die bereits auf der Freigabe von {{org}} liegen, bleiben dort – verschlüsselt mit deiner Passphrase."
     },
     "about": {
