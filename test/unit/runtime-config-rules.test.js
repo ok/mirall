@@ -51,6 +51,8 @@ const RULED_KEYS = [
     [[0, 0], [Infinity, 120_000], [-1, 120_000], [500, 500]]],
   ['managedHttpsPollMs', () => getManagedLevers().httpsPollMs, 3_600_000,
     [[0, 3_600_000], [Infinity, 3_600_000], [999, 3_600_000], [60_000, 60_000]]],
+  ['managedReportDelayMs', () => getManagedLevers().reportDelayMs, 10_000,
+    [[0, 0], [Infinity, 10_000], [-1, 10_000], [500, 500]]],
   ['freeUpMinBytes', getFreeUpMinBytes, 20_000_000,
     [[0, 0], [Infinity, 20_000_000], [-1, 20_000_000], [1, 1]]],
 
@@ -215,6 +217,7 @@ const EXPECTED_RULES = {
   managedPreviewTimeoutMs: { rule: 'finiteAtLeast', min: 1000 },
   managedDriveGraceMs: { rule: 'finiteAtLeast', min: 0 },
   managedHttpsPollMs: { rule: 'finiteAtLeast', min: 1000 },
+  managedReportDelayMs: { rule: 'finiteAtLeast', min: 0 },
   reconcileStallWindowMs: { rule: 'finiteAtLeast', min: 1 },
   publishStallWindowMs: { rule: 'finiteAtLeast', min: 1 },
   convergenceStallWindowMs: { rule: 'finiteAtLeast', min: 1 },
@@ -245,8 +248,8 @@ test('the rules table is exactly the declared set', (t) => {
 // The module header states these two counts. Asserting them is what keeps them from rotting.
 test('the ruled and unruled key counts are the ones the header claims', (t) => {
   const { ruled, defaultedKeys } = _rulesForTests()
-  t.is(defaultedKeys, 75, 'DEFAULTED keys')
-  t.is(Object.keys(ruled).length, 30, 'of which carry a validation rule')
+  t.is(defaultedKeys, 76, 'DEFAULTED keys')
+  t.is(Object.keys(ruled).length, 31, 'of which carry a validation rule')
   t.is(defaultedKeys - Object.keys(ruled).length, 45, 'the rest are read raw')
 })
 

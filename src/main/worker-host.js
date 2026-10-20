@@ -206,7 +206,8 @@ function getWorker(specifier) {
   //                                       lowered to reach it on a fresh profile
   //     MIRALL_MANAGED_TEST_SIGNING_KEY   an extra organization signing key (hex) for a local fixture
   //     MIRALL_MANAGED_ALLOW_HTTP_LOOPBACK  1 = accept the local stack's http://127.0.0.1 API
-  //     MIRALL_MANAGED_PREVIEW_TIMEOUT_MS, MIRALL_MANAGED_DRIVE_GRACE_MS, MIRALL_MANAGED_HTTPS_POLL_MS
+  //     MIRALL_MANAGED_PREVIEW_TIMEOUT_MS, MIRALL_MANAGED_DRIVE_GRACE_MS, MIRALL_MANAGED_HTTPS_POLL_MS,
+  //     MIRALL_MANAGED_REPORT_DELAY_MS
   //                                       shortened waits for the organization configuration
   //
   //   Behaviour levers, settable on a real install without a release
@@ -272,6 +273,7 @@ function getWorker(specifier) {
     managedPreviewTimeoutMs: envNumber(envOverride('MIRALL_MANAGED_PREVIEW_TIMEOUT_MS')),
     managedDriveGraceMs: envNumber(envOverride('MIRALL_MANAGED_DRIVE_GRACE_MS')),
     managedHttpsPollMs: envNumber(envOverride('MIRALL_MANAGED_HTTPS_POLL_MS')),
+    managedReportDelayMs: envNumber(envOverride('MIRALL_MANAGED_REPORT_DELAY_MS')),
     // No OS keychain holds the identity key here, so the backup is offered on day one.
     identityWeak: identityWeak(),
     // The one secret in this frame besides identityKEK, and it travels the same way: read

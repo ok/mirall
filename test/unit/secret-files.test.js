@@ -34,5 +34,6 @@ test('the file names are fixed', (t) => {
     SPACE_KEYS: 'space-keys.enc',
     RELAY_TICKET: 'relay-ticket.enc',
     MANAGED: 'managed.enc',
+    INSTANCE: 'instance-key.json',
   })
 })

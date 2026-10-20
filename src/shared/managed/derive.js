@@ -6,6 +6,7 @@ import b4a from 'b4a'
 
 const BUNDLE_KEY = b4a.from('mirall/bundle-key/v2')
 const KEY_HINT = b4a.from('mirall/key-hint/v1')
+const ENROLL_KEY = b4a.from('mirall/enroll-key/v1')
 export const KEY_HINT_BYTES = 8
 
 function labelled(label, input) {
@@ -19,6 +20,16 @@ export function bundleKeyPair(licenseKeyBytes) {
   const publicKey = b4a.alloc(sodium.crypto_box_PUBLICKEYBYTES)
   const secretKey = b4a.alloc(sodium.crypto_box_SECRETKEYBYTES)
   sodium.crypto_box_seed_keypair(publicKey, secretKey, seed)
+  sodium.sodium_memzero(seed)
+  return { publicKey, secretKey }
+}
+
+// Proves the license once, at enrollment: the Console holds only the public half.
+export function enrollKeyPair(licenseKeyBytes) {
+  const seed = labelled(ENROLL_KEY, licenseKeyBytes)
+  const publicKey = b4a.alloc(sodium.crypto_sign_PUBLICKEYBYTES)
+  const secretKey = b4a.alloc(sodium.crypto_sign_SECRETKEYBYTES)
+  sodium.crypto_sign_seed_keypair(publicKey, secretKey, seed)
   sodium.sodium_memzero(seed)
   return { publicKey, secretKey }
 }

@@ -226,6 +226,7 @@ export function getManagedLevers() {
     previewTimeoutMs: read('managedPreviewTimeoutMs'),
     driveGraceMs: read('managedDriveGraceMs'),
     httpsPollMs: read('managedHttpsPollMs'),
+    reportDelayMs: read('managedReportDelayMs'),
   }
 }
 

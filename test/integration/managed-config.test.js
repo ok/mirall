@@ -88,6 +88,7 @@ test('connect applies the locked values on top of the person\'s own, which stay 
   const view = await p.fake.call('managed:accept', { code: p.org.code })
   t.is(view.organization.name, ACME.name)
   t.alike([...view.locked].sort(), Object.keys(LOCKS).sort())
+  t.alike(view.values, { relayMode: 'always', retentionDays: 90 }, 'the locked values the Organization page names')
   t.ok(p.exists('managed.enc'))
   t.is(getRelayConfig().mode, 'always', 'the live relay mode is the organization\'s')
   t.is((await p.fake.call('settings:get', {})).network.relayMode, 'always', 'and so is the view')

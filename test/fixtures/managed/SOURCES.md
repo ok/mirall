@@ -7,3 +7,5 @@ Byte copies of the contract vectors. Re-copy, never edit.
 | catalog.v1.json | mirall-console packages/core/configuration/catalog.v1.json @ 98d6f47 |
 | path-template-v1.json | mirall-console packages/core/configuration/vectors/path-template-v1.json @ 98d6f47 |
 | drive-entry-v1.json | mirall-publisher vectors/drive-entry-v1.json @ b63c267 |
+| upward-v1.json | mirall-console packages/core/fleet/vectors/upward-v1.json @ 64f2beb |
+| upward-v1.schema.json | mirall-console packages/contracts/fleet/upward-v1.schema.json @ 64f2beb |
