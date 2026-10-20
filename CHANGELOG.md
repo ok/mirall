@@ -19,6 +19,10 @@ retrying forever, and a paused mirror no longer cancels your own download.
 
 #### Added
 
+- **Connect Mirall to your organization.** An activation link lets your
+organization set the relay, the Activity Log and the backup on this
+computer, and see that it runs Mirall and is backed up. Leave at any time
+from About Mirall → Organization.
 - **Choose where downloads go.** Each space keeps its own download folder,
 named next to the filter. Every Download button offers your recent folders
 and the folder picker, and the folder you pick becomes the space's.

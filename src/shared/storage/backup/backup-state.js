@@ -32,7 +32,8 @@ function parse(parsed) {
     out.offer = { dismissals: parsed.offer.dismissals, nextAt: parsed.offer.nextAt }
   }
   if (isObject(parsed.managed) && typeof parsed.managed.folder === 'string' && (parsed.managed.repoId === null || typeof parsed.managed.repoId === 'string')) {
-    out.managed = { folder: parsed.managed.folder, repoId: parsed.managed.repoId, setupAt: isTime(parsed.managed.setupAt) ? parsed.managed.setupAt ?? null : null }
+    const time = (key) => (isTime(parsed.managed[key]) ? parsed.managed[key] ?? null : null)
+    out.managed = { folder: parsed.managed.folder, repoId: parsed.managed.repoId, setupAt: time('setupAt'), lastSuccessAt: time('lastSuccessAt') }
   }
   if (isObject(parsed.check) && isTime(parsed.check.nextAt)) {
     out.check = { nextAt: parsed.check.nextAt, snoozed: parsed.check.snoozed === true, optOut: parsed.check.optOut === true }

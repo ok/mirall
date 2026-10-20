@@ -102,3 +102,24 @@ test('REGRESSION (FIX-4: inherited setup): a device backing up to its own folder
   await peer.fake.call('backup:setup', { folder: view.backupFolder, passphrase: PASS })
   await waitFor(async () => (await peer.fake.call('backup:status', {})).lastSuccessAt !== null, 20000, { label: 'a backup on the organization\'s folder' })
 })
+
+test('REGRESSION (FIX-5: shared backup record): the organization\'s folder keeps its own record, apart from the person\'s', async (t) => {
+  const share = tmpDir('managed-share-record', t)
+  const p = await setup(t, { share, required: false })
+  const record = () => {
+    try {
+      return JSON.parse(fs.readFileSync(path.join(path.dirname(p.storage), 'backup-state.json'), 'utf8'))
+    } catch {
+      return {}
+    }
+  }
+  const before = record()
+  await p.fake.call('backup:setup', { folder: p.view.backupFolder, passphrase: PASS })
+  await waitFor(async () => (await p.fake.call('backup:status', {})).lastSuccessAt !== null, 20000, { label: 'the first backup' })
+  const after = record()
+  t.is(after.setupAt ?? null, before.setupAt ?? null, 'setting up the organization\'s folder does not set up the person\'s own')
+  t.is(after.lastSuccessAt ?? null, before.lastSuccessAt ?? null, 'nor does its backup count as theirs')
+  t.ok(after.managed.lastSuccessAt > 0, 'it counts for the organization\'s folder')
+  await p.fake.call('backup:turn-off', {})
+  t.alike(record().offer, after.offer, 'turning the organization\'s folder off is not the person declining a backup of their own')
+})

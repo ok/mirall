@@ -17,8 +17,9 @@ export const PINNED_SIGNING_KEYS = Object.freeze({
 
 /**
  * @param {string} channel
+ * @param {Readonly<Record<ManagedChannel, readonly string[]>>} [pinned]
  * @returns {boolean}
  */
-export function hasManagedTrust(channel) {
-  return (channel === 'prod' || channel === 'staging' || channel === 'dev') && PINNED_SIGNING_KEYS[channel].length > 0
+export function hasManagedTrust(channel, pinned = PINNED_SIGNING_KEYS) {
+  return (channel === 'prod' || channel === 'staging' || channel === 'dev') && pinned[channel].length > 0
 }

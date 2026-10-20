@@ -30,6 +30,7 @@ export default async function s186({ runDir, bootstrap }) {
       await A.waitText('Set by Acme Test GmbH', 10000)
       assert(await A.isDisabled({ role: 'switch', name: 'Record activity' }), 'the recording switch reads unavailable')
       assert(await A.isDisabled({ role: 'button', name: 'Delete…' }), 'the log cannot be deleted while recording is locked on')
+      assert(await A.has({ role: 'button', name: 'Export…' }), 'export is there')
       assert(!(await A.isDisabled({ role: 'button', name: 'Export…' })), 'export stays available')
       await A.shot('s186-activity-log-locked', runDir)
       await A.gotoSettings('Network')
@@ -54,10 +55,12 @@ export default async function s186({ runDir, bootstrap }) {
       await A.shot('s186-organization-page', runDir)
     })
 
-    await r.ok('a managed settings row opens its settings page', async () => {
+    await r.ok('a managed settings row opens its settings page, and Back returns to the organization', async () => {
       await A.click({ role: 'button', name: 'Activity Log' })
       await A.waitText('Set by Acme Test GmbH', 8000)
       assert(await A.hasText('Record activity'), 'on the Activity Log settings')
+      await A.click({ role: 'button', name: 'Back' })
+      await A.waitText('Managed by Acme Test GmbH', 8000)
     })
   } catch {} finally {
     await fixture.close()

@@ -1,9 +1,9 @@
 // The organization that manages this install: who it is, how to reach it, and leaving it. Reached
 // from About only while the install is managed; with no organization it returns to About at once.
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { request } from '../ipc/ipc.js'
-import { useManaged } from '../hooks/useManaged.js'
+import { useManagedEntry } from '../hooks/useManaged.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import { useErrorText } from '../hooks/useErrorText.js'
 import { useRunAction } from '../hooks/useRunAction.js'
@@ -11,7 +11,7 @@ import { useToast } from '../components/toast/ToastProvider.js'
 import { formatDateTime } from '../format/utils.js'
 import PageHeader from '../components/layout/PageHeader.js'
 import SectionHeading from '../components/layout/SectionHeading.js'
-import { LinkRow, ROW, ROW_GROUP, Tile } from '../components/layout/ActionRow.js'
+import ActionRow, { LinkRow, ROW_GROUP, Tile } from '../components/layout/ActionRow.js'
 import Icon from '../components/primitives/Icon.js'
 import Button from '../components/primitives/Button.js'
 import Callout from '../components/primitives/Callout.js'
@@ -37,7 +37,7 @@ export default function OrganizationScreen({ onBack, onOpenPage }: OrganizationS
   const toast = useToast()
   const errorText = useErrorText()
   const runAction = useRunAction()
-  const managed = useManaged()
+  const managed = useManagedEntry()
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
   const [confirm, setConfirm] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -141,28 +141,18 @@ function ManagedSettings({ managed, onOpenPage }: { managed: ManagedView, onOpen
 
 function ManagedSettingsRow({ row, onOpen }: { row: ManagedRow, onOpen: () => void }) {
   const { t } = useTranslation()
-  const linesId = useId()
   const { icon, labelKey } = PAGE[row.page]
-  const label = t(labelKey)
-  return (
-    <button type="button" onClick={onOpen} aria-label={label} aria-describedby={linesId} className={ROW}>
-      <div className="flex items-center gap-4 min-w-0">
-        <Tile icon={icon} />
-        <div className="min-w-0">
-          <p className="font-semibold text-accent">{label}</p>
-          <ul id={linesId} className="mt-1 space-y-1">
-            {row.lines.map((line) => (
-              <li key={line.label} className="flex items-center gap-2 text-sm text-on-surface-variant">
-                <Icon name="lock" size={16} className="text-secondary shrink-0" />
-                <span className="min-w-0 break-words">{lineText(t, line)}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </div>
-      <Icon name="chevron_right" className="text-secondary shrink-0" />
-    </button>
+  const lines = (
+    <ul className="mt-1 space-y-1">
+      {row.lines.map((line) => (
+        <li key={line.label} className="flex items-center gap-2 text-sm text-on-surface-variant">
+          <Icon name="lock" size={16} className="text-secondary shrink-0" />
+          <span className="min-w-0 break-words">{lineText(t, line)}</span>
+        </li>
+      ))}
+    </ul>
   )
+  return <ActionRow icon={icon} label={t(labelKey)} desc={lines} onClick={onOpen} />
 }
 
 function lineText(t: (key: string, options?: { count: number }) => string, line: ManagedLine): string {

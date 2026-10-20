@@ -25,6 +25,7 @@ export interface AppNavigation {
   openFromSettings: (screen: Screen) => void
   openActivityLog: (preset?: Partial<AuditFilters> | null) => void
   openActivityLogSettings: () => void
+  openFromOrganization: (screen: 'network-settings' | 'activity-log-settings' | 'backup-settings') => void
   goBack: () => void
   goHome: () => void
   resetToRoot: () => void
@@ -46,7 +47,10 @@ export function useAppNavigation(): AppNavigation {
   const [activityLogBackTarget, setActivityLogBackTarget] = useState<Screen>('account')
   // Storage links here from its Activity Log row, and Back returns to it; every other way in is
   // under Settings.
-  const [activityLogSettingsBackTarget, setActivityLogSettingsBackTarget] = useState<'settings' | 'storage-settings'>('settings')
+  const [activityLogSettingsBackTarget, setActivityLogSettingsBackTarget] = useState<'settings' | 'storage-settings' | 'organization'>('settings')
+  // The Organization page's rows open the settings page that holds each managed value, and Back
+  // returns to the Organization page; every other way in is under Settings.
+  const [settingsPageBackTarget, setSettingsPageBackTarget] = useState<'settings' | 'organization'>('settings')
 
   const openSettings = useCallback(() => {
     setPreSettingsScreen((prev) => {
@@ -91,7 +95,14 @@ export function useAppNavigation(): AppNavigation {
   // only while the user stays between the two screens.
   useEffect(() => {
     if (currentScreen !== 'activity-log-settings' && currentScreen !== 'storage-settings') setActivityLogSettingsBackTarget('settings')
+    if (currentScreen !== 'network-settings' && currentScreen !== 'backup-settings') setSettingsPageBackTarget('settings')
   }, [currentScreen])
+
+  const openFromOrganization = useCallback((screen: 'network-settings' | 'activity-log-settings' | 'backup-settings') => {
+    if (screen === 'activity-log-settings') setActivityLogSettingsBackTarget('organization')
+    else setSettingsPageBackTarget('organization')
+    setCurrentScreen(screen)
+  }, [])
 
   const navigateToSpace = useCallback((spaceId: string) => {
     setSelectedSpaceId(spaceId)
@@ -115,12 +126,12 @@ export function useAppNavigation(): AppNavigation {
   // behave like a browser back button. 'spaces' is the root — nothing above it.
   const goBack = useCallback(() => {
     const parent = parentOf(currentScreen, {
-      preSettingsScreen, preAccountScreen, storageBackTarget, activityLogBackTarget, activityLogSettingsBackTarget,
+      preSettingsScreen, preAccountScreen, storageBackTarget, activityLogBackTarget, activityLogSettingsBackTarget, settingsPageBackTarget,
     })
     if (!parent) return
     if (currentScreen === 'folder-view') setSelectedShareId(null)
     setCurrentScreen(parent)
-  }, [currentScreen, preSettingsScreen, preAccountScreen, storageBackTarget, activityLogBackTarget, activityLogSettingsBackTarget])
+  }, [currentScreen, preSettingsScreen, preAccountScreen, storageBackTarget, activityLogBackTarget, activityLogSettingsBackTarget, settingsPageBackTarget])
 
   const goHome = useCallback(() => {
     setSelectedShareId(null)
@@ -155,6 +166,7 @@ export function useAppNavigation(): AppNavigation {
     openFromSettings,
     openActivityLog,
     openActivityLogSettings,
+    openFromOrganization,
     goBack,
     goHome,
     resetToRoot,

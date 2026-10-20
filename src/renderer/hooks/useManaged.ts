@@ -5,6 +5,12 @@ import { MANAGED_SCOPES } from '../store/scopes.js'
 import type { ManagedView } from '../../shared/contract/responses.js'
 
 export function useManaged(): ManagedView | null {
+  return useManagedEntry() ?? null
+}
+
+// The same read with "not answered yet" (undefined) kept apart from "unmanaged" (null), for a
+// screen that leaves when the install is not managed and must not leave while it is still asking.
+export function useManagedEntry(): ManagedView | null | undefined {
   const { data } = useQuery('managed:get', {}, MANAGED_SCOPES)
-  return data ?? null
+  return data
 }

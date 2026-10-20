@@ -51,6 +51,7 @@ export default async function s194({ runDir, bootstrap }) {
       await A.waitText('Backup Folder', 15000)
       assert(await A.isDisabled(automatic), 'the switch reads unavailable while required')
       assert(await A.isDisabled({ role: 'button', name: 'Change (backup folder)' }), 'Change reads unavailable')
+      assert(await A.has({ role: 'button', name: 'Check passphrase' }), 'the passphrase check is there')
       assert(!(await A.isDisabled({ role: 'button', name: 'Check passphrase' })), 'the passphrase is the person\'s')
       await A.shot('s194-settings-locked', runDir)
     })
