@@ -13,3 +13,6 @@ test/frontend-layout/dist/
 
 # Generated from test/frontend-layout/cases.mjs by build.mjs.
 test/frontend-layout/harness*.html
+
+# Per-contributor agent paths (see AGENTS.md)
+AGENTS.local.md
