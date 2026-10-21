@@ -59,6 +59,18 @@ export default async function s186({ runDir, bootstrap }) {
       await A.waitText('Set by Acme Test GmbH', 8000)
       assert(await A.hasText('Record activity'), 'on the Activity Log settings')
     })
+
+    await r.ok('the palette opens the organization page by its name', async () => {
+      await A.press('cmd+k')
+      await new Promise((res) => setTimeout(res, 600))
+      await A.type({ role: 'combobox' }, 'acme')
+      await new Promise((res) => setTimeout(res, 400))
+      assert(await A.hasText('Open organization Acme Test GmbH'), 'the entry carries the organization name')
+      await A.press('return')
+      await A.waitText('Managed by Acme Test GmbH', 8000)
+      assert(await A.hasText('Leave organization'), 'on the organization page')
+      await A.shot('s186-palette-organization', runDir)
+    })
   } catch {} finally {
     await fixture.close()
   }

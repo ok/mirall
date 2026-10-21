@@ -660,11 +660,12 @@
     "openNotificationSettings": "Open Notification Settings",
     "openGeneralSettings": "Open General Settings",
     "openNetworkSettings": "Open Network Settings",
+    "openBackupSettings": "Open Backup Settings",
     "openActivityLogSettings": "Open Activity Log Settings",
     "openNetworkStatus": "Open Network Status",
     "newSpace": "Create new space",
     "joinSpace": "Join space",
-    "focusSearch": "Search activity",
+    "focusSearch": "Search or filter",
     "addFiles": "Add files to current space",
     "addFolder": "Share a folder in current space",
     "invite": "Invite to this space",
@@ -683,6 +684,7 @@
     "sendFeedback": "Send Feedback",
     "openDocs": "Open documentation",
     "openAbout": "Open About Mirall",
+    "openOrganization": "Open organization {{org}}",
     "selectAll": "Select all files"
   },
   "palette": {

@@ -25,6 +25,15 @@ export default async function s185({ runDir, bootstrap }) {
       assert(!(await A.hasText('Leave organization')), 'nothing to leave')
       await A.shot('s185-about-unmanaged', runDir)
     })
+
+    await r.ok('the palette offers no organization entry', async () => {
+      await A.press('cmd+k')
+      await new Promise((res) => setTimeout(res, 600))
+      await A.type({ role: 'combobox' }, 'organization')
+      await new Promise((res) => setTimeout(res, 400))
+      assert(!(await A.hasText('Open organization')), 'no organization entry')
+      await A.press('escape')
+    })
   } catch {}
   return { pass: r.summary(), instances: [A] }
 }

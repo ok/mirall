@@ -631,11 +631,12 @@
     "openNotificationSettings": "Benachrichtigungseinstellungen öffnen",
     "openGeneralSettings": "Allgemeine Einstellungen öffnen",
     "openNetworkSettings": "Netzwerkeinstellungen öffnen",
+    "openBackupSettings": "Backup-Einstellungen öffnen",
     "openActivityLogSettings": "Einstellungen für das Aktivitätsprotokoll öffnen",
     "openNetworkStatus": "Netzwerkstatus öffnen",
     "newSpace": "Neuen Space anlegen",
     "joinSpace": "Space beitreten",
-    "focusSearch": "Aktivität durchsuchen",
+    "focusSearch": "Suchen oder filtern",
     "addFiles": "Dateien zum aktuellen Space hinzufügen",
     "addFolder": "Ordner im aktuellen Space teilen",
     "invite": "Zu diesem Space einladen",
@@ -654,6 +655,7 @@
     "sendFeedback": "Feedback senden",
     "openDocs": "Dokumentation öffnen",
     "openAbout": "Über Mirall öffnen",
+    "openOrganization": "Organisation {{org}} öffnen",
     "selectAll": "Alle Dateien auswählen"
   },
   "palette": {

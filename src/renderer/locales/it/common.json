@@ -631,11 +631,12 @@
     "openNotificationSettings": "Apri le impostazioni di notifica",
     "openGeneralSettings": "Apri le impostazioni generali",
     "openNetworkSettings": "Apri le impostazioni di rete",
+    "openBackupSettings": "Apri le impostazioni di backup",
     "openActivityLogSettings": "Apri le impostazioni del registro attività",
     "openNetworkStatus": "Apri Stato della rete",
     "newSpace": "Crea un nuovo spazio",
     "joinSpace": "Unisciti a uno spazio",
-    "focusSearch": "Cerca nell'attività",
+    "focusSearch": "Cerca o filtra",
     "addFiles": "Aggiungi file allo spazio corrente",
     "addFolder": "Condividi una cartella nello spazio corrente",
     "invite": "Invita in questo spazio",
@@ -654,6 +655,7 @@
     "sendFeedback": "Invia feedback",
     "openDocs": "Apri la documentazione",
     "openAbout": "Apri Informazioni su Mirall",
+    "openOrganization": "Apri l'organizzazione {{org}}",
     "selectAll": "Seleziona tutti i file"
   },
   "palette": {

@@ -1,9 +1,10 @@
 import { useEffect } from 'react'
-import { useKeyboard, useRegisterCommands } from '../keyboard/KeyboardProvider.js'
+import { useKeyboard, useRegisterCommand, useRegisterCommands } from '../keyboard/KeyboardProvider.js'
 import { spaceDigitAccelerator } from '../keyboard/known-commands.js'
 import type { Command, CommandContext, CommandGroup } from '../keyboard/registry.js'
 import { docsUrl } from '../shell/docs-links.js'
 import { useOpenWhatsNew } from './useOpenWhatsNew.js'
+import { useManaged } from './useManaged.js'
 import type { AppNavigation } from './useAppNavigation.js'
 import type { AppDialog } from '../components/modals/AppDialogs.js'
 import type { Space } from '../types/types.js'
@@ -41,6 +42,7 @@ const APP_COMMANDS: readonly AppCommandRow[] = [
   { id: 'settings.notifications', labelKey: 'shortcuts.openNotificationSettings', group: 'navigation', run: (t) => t.nav.setCurrentScreen('notification-settings') },
   { id: 'settings.general', labelKey: 'shortcuts.openGeneralSettings', group: 'navigation', run: (t) => t.nav.setCurrentScreen('general-settings') },
   { id: 'settings.network', labelKey: 'shortcuts.openNetworkSettings', group: 'navigation', run: (t) => t.nav.setCurrentScreen('network-settings') },
+  { id: 'settings.backup', labelKey: 'shortcuts.openBackupSettings', group: 'navigation', run: (t) => t.nav.setCurrentScreen('backup-settings') },
   { id: 'network.status', labelKey: 'shortcuts.openNetworkStatus', group: 'navigation', run: (t) => t.nav.setCurrentScreen('network-status') },
   { id: 'space.new', labelKey: 'shortcuts.newSpace', group: 'actions', run: (t) => t.openDialog({ kind: 'create' }) },
   { id: 'space.join', labelKey: 'shortcuts.joinSpace', group: 'actions', run: (t) => t.openDialog({ kind: 'join' }) },
@@ -102,5 +104,19 @@ export function useAppCommands({ nav, spaces, canGoBack, openDialog }: AppComman
   const targets: AppCommandTargets = { nav, canGoBack, openDialog, openPalette, openCheatsheet, openWhatsNew }
   useRegisterCommands(APP_COMMANDS.map((row) => toCommand(row, targets)), [])
   useRegisterCommands(spaces.map((space, i) => spaceOpenCommand(space, i, nav)), [spaces])
+  useOrganizationCommand(nav)
   useMouseBackButton(runCommand)
+}
+
+// Offered only while an organization manages this install, under its name, so the name finds it.
+function useOrganizationCommand(nav: AppNavigation): void {
+  const org = useManaged()?.organization.name ?? null
+  useRegisterCommand({
+    id: 'organization.open',
+    labelKey: 'shortcuts.openOrganization',
+    labelParams: { org: org ?? '' },
+    group: 'navigation',
+    when: () => org !== null,
+    run: () => nav.setCurrentScreen('organization'),
+  }, [org])
 }
