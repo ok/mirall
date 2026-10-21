@@ -64,6 +64,9 @@ import { ForeignMirrors } from '../shared/folders/foreign-folders.js'
 import { EchoGuardPurge } from '../shared/folders/echo-guard.js'
 import { cleanupOrphanedData } from '../shared/storage/storage.js'
 import { AuditLog, ActivityFeed } from '../shared/audit/audit-runtime.js'
+import { auditBee } from '../shared/audit/audit-log.js'
+import { SpaceActivity } from '../shared/audit/space-activity.js'
+import { createSpaceOrderPush } from './space-order-push.js'
 import { OwnCatalogs } from '../shared/shares/own-catalog.js'
 import { PeerCatalogs } from '../shared/shares/peer-catalog.js'
 import { PeerWatch } from '../shared/audit/peer-records-watch.js'
@@ -121,6 +124,17 @@ export async function bootDurable(bootstrap, { ipc, log, masterSecret = undefine
   const auditLog = new AuditLog('audit', { installId })
   try { await durable.start(auditLog) } catch (err) {
     log.warn('audit log unavailable — events will not be recorded:', err.message)
+  }
+  // After the log, which seeds it once. A failure keeps this run's times in memory only; the app
+  // still starts.
+  try {
+    await durable.start(new SpaceActivity('space-activity', {
+      auditBee,
+      spaceIds: async () => (await listSpaces()).map((space) => space.spaceId),
+      onChange: createSpaceOrderPush({ ipc, log }),
+    }))
+  } catch (err) {
+    log.warn('space activity not saved this run:', err.message)
   }
   // Started whether or not the log did, so its notifications do not hang on the log's bee.
   await durable.start(new ActivityFeed('activity', { ipc, peerDwellMs: getPeerPresenceDwellMs(), relayDwellMs: getRelayAuditDwellMs() }))

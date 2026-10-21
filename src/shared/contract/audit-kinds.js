@@ -178,3 +178,20 @@ export const NOTIFIABLE_KIND = Object.freeze({
   PEER_BACK: 'network.peer_back',
 })
 export const NOTIFIABLE_KINDS = Object.freeze(Object.values(NOTIFIABLE_KIND))
+
+// The kinds that make a space active, which orders the spaces list. They count whether or not the
+// log records them. Content and membership count; connectivity, security and settings do not, or a
+// member's connection dropping would reorder the list all day. space.left counts for nothing: the
+// space is going away.
+export const SPACE_ACTIVITY_KINDS = Object.freeze([
+  'space.created', 'space.joined', 'space.updated',
+  'membership.requested', 'membership.approved', 'membership.denied', 'membership.granted',
+  'membership.approval_revoked',
+  'member.joined', 'member.left',
+  'file.shared', 'file.unshared', 'transfer.completed',
+  'peer.file_shared', 'peer.file_unshared',
+  'share.created', 'share.deleted', 'share.mounted', 'share.relocated', 'share.renamed',
+  'mirror.created', 'mirror.removed', 'mirror.relocated',
+  'peer.share_created', 'peer.share_deleted',
+  'mirror.peer_mirrored', 'mirror.peer_unmirrored', 'mirror.peer_synced',
+])

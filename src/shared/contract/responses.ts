@@ -92,6 +92,8 @@ export interface Space {
   creatorDivergence?: boolean
   /** The folder this space downloads into on this device; every space has one. */
   downloadFolder: string
+  /** Epoch ms this device last saw activity in the space, or the time it created or joined it. */
+  lastActivity: number
 }
 
 export type FileStatus = (typeof FILE_STATUSES)[number]

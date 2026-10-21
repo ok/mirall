@@ -99,13 +99,15 @@ const noTruncated: RequestResponse['share:list-files'] = { entries: [], complete
 
 void [looseRow, shareRow, asContent, looseAvailable, looseBytes, noLocalPath, noMtime, looseListing, looseBare, noTruncated]
 
-const withFolder: Space = { spaceId: 's', name: 'S', icon: 'folder', topic: 't', created: '', members: [], downloadFolder: '/dl' }
+const withFolder: Space = { spaceId: 's', name: 'S', icon: 'folder', topic: 't', created: '', members: [], downloadFolder: '/dl', lastActivity: 0 }
 // @ts-expect-error every space has a download folder
-const noFolder: Space = { spaceId: 's', name: 'S', icon: 'folder', topic: 't', created: '', members: [] }
+const noFolder: Space = { spaceId: 's', name: 'S', icon: 'folder', topic: 't', created: '', members: [], lastActivity: 0 }
+// @ts-expect-error every space carries its last activity
+const noActivity: Space = { spaceId: 's', name: 'S', icon: 'folder', topic: 't', created: '', members: [], downloadFolder: '/dl' }
 // @ts-expect-error the settings view always carries the recent folders
 const noRecent: WorkerSettings['downloads'] = { folder: '/dl', isDefault: true }
 
-void [withFolder, noFolder, noRecent]
+void [withFolder, noFolder, noActivity, noRecent]
 
 const movedBatch: RequestResponse['share:read-files'] = { started: 1, alreadyHere: 0, waitingOnOwner: 0, removed: 0, failed: 0, folderChanged: true }
 const movedClick: RequestResponse['files:download'] = { transferId: 't', finalPath: '/dl/a', folderChanged: true }

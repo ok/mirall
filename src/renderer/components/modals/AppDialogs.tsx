@@ -3,7 +3,7 @@ import WhatsNewModal from './WhatsNewModal.js'
 import CreateSpaceModal from './CreateSpaceModal.js'
 import JoinSpaceModal from './JoinSpaceModal.js'
 import ManagedActivateModal from './ManagedActivateModal.js'
-import type { Space } from '../../types/types.js'
+import type { SpaceRecord } from '../../types/types.js'
 
 // The dialogs the shell can show, one at a time by construction: a deep link arriving while
 // feedback is open replaces it rather than stacking behind it, and hiding to the tray clears
@@ -17,8 +17,8 @@ export type AppDialog =
 interface AppDialogsProps {
   dialog: AppDialog | null
   onClose: () => void
-  onCreate: (name: string, icon: string) => Promise<Space>
-  onJoin: (inviteCode: string, name: string) => Promise<Space>
+  onCreate: (name: string, icon: string) => Promise<SpaceRecord>
+  onJoin: (inviteCode: string, name: string) => Promise<SpaceRecord>
   onEntered: (spaceId: string) => void
 }
 

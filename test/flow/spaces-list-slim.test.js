@@ -27,6 +27,7 @@ test('spaces:list ships slim rosters; space:members carries the full roster',
     }
     t.is(space.memberCount, space.members.length, 'memberCount mirrors the roster length')
     t.ok(typeof space.pendingCount === 'number', 'pendingCount preserved')
+    t.ok(space.lastActivity >= Date.parse(space.created), 'lastActivity is a time no earlier than the create or join')
 
     const roster = await A.request('space:members', { spaceId })
     t.ok(roster.length >= 2, 'full roster present')

@@ -61,15 +61,23 @@ export async function resolvePeerCatalog(spaceId, rec, { space } = {}) {
 // Notify when a peer's catalog grows: the core's 'append' fires when new blocks replicate in,
 // so a browsing peer live-refreshes instead of only seeing the snapshot present at first open.
 // Returns the watched bee so a caller that needs to know WHAT changed can read its history.
+// `onAppend(bee, { known })`: known is false for the append that brings in the history of a catalog
+// this device held nothing of, which is adoption rather than a change.
 export function watchPeerCatalog(catalogKeyHex, listenerId, onAppend, sck = null) {
   let w = peerCatalogWatchers.get(catalogKeyHex)
   if (!w) {
     const bee = openPeerCatalog(catalogKeyHex, sck)
     if (!bee) return null
-    w = { ids: new Set(), cbs: new Set(), bee }
+    const watcher = { ids: new Set(), cbs: new Set(), bee, held: false }
+    w = watcher
     peerCatalogWatchers.set(catalogKeyHex, w)
     peerCatalogs.acquire(catalogKeyHex)
-    bee.core.on('append', () => { for (const cb of w.cbs) cb(bee) })
+    bee.core.ready().then(() => { if (bee.core.length > 0) watcher.held = true }, () => {})
+    bee.core.on('append', () => {
+      const known = watcher.held
+      watcher.held = true
+      for (const cb of watcher.cbs) cb(bee, { known })
+    })
   }
   if (!w.ids.has(listenerId)) {
     w.ids.add(listenerId)

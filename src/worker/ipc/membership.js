@@ -10,6 +10,7 @@
 // own size is visible.
 
 import { RESOLVE_OUTCOME, record, recordResolved } from '../../shared/audit/audit-log.js'
+import { noteSpaceActivity } from '../../shared/audit/space-activity.js'
 import { peerActor, selfActor, spaceRef, systemActor, targetRef } from '../../shared/audit/audit-record.js'
 import { OUTCOME, TARGET_KIND } from '../../shared/contract/audit-kinds.js'
 import { DENY_OUTCOME } from '../../shared/contract/deny-outcome.js'
@@ -28,7 +29,7 @@ import { approvalPath, foldHoldsMember } from '../../shared/spaces/member-view.j
 import { captureJoinerMembership, getIdentitySigner, getLocalPublicKeyHex, markRequest, markRequestDenied, ownDenialStands, readMembershipRecord, readProfileRecord } from '../../shared/spaces/profile.js'
 import { getSpace, getSpaceContentKey, spaceEpoch } from '../../shared/spaces/space.js'
 import { verifiedMembers, isVerifiedMember } from '../../shared/spaces/member-standing.js'
-import { claimJoinRequestAudit, clearJoinRequest, forgetJoinRequestAudit, hasApprovedVerdict, listJoinRequests, listPendingRequests, recordJoinRequest, releaseJoinRequestAudit, rememberApprovedVerdict } from '../../shared/spaces/join-requests.js'
+import { claimJoinRequestAudit, clearJoinRequest, firstSightOfJoinRequest, forgetJoinRequestAudit, hasApprovedVerdict, listJoinRequests, listPendingRequests, recordJoinRequest, releaseJoinRequestAudit, rememberApprovedVerdict } from '../../shared/spaces/join-requests.js'
 import { clearCreatorDivergence, markCreatorDivergence, pinCreatorKey } from '../../shared/spaces/creator-pin.js'
 import { materializeSpace, recordApproval } from '../../shared/spaces/space-lifecycle.js'
 import { purgeSpace } from '../../shared/spaces/leave-records.js'
@@ -215,6 +216,7 @@ async function onJoinRequest(msg, ctx = {}) {
 // knocks record once, and given back only for a lost row, which the next knock then retries.
 /** @param {string} spaceId @param {string} publicKey @param {string | null} displayName */
 function auditJoinRequest(spaceId, publicKey, displayName) {
+  if (firstSightOfJoinRequest(spaceId, publicKey)) noteSpaceActivity(spaceId)
   const claim = claimJoinRequestAudit(spaceId, publicKey)
   if (!claim) return
   recordResolved('membership.requested', async () => {
@@ -224,7 +226,7 @@ function auditJoinRequest(spaceId, publicKey, displayName) {
       space: spaceRef(spaceId, space?.name ?? null),
       target: targetRef(TARGET_KIND.MEMBER, publicKey, displayName || null),
     }
-  }, { context: { space: spaceId.slice(0, 12) } }).then((outcome) => {
+  }, { context: { space: spaceId.slice(0, 12) }, spaceId: null }).then((outcome) => {
     if (outcome === RESOLVE_OUTCOME.LOST) releaseJoinRequestAudit(claim)
   })
 }

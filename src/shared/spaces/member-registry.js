@@ -350,7 +350,7 @@ async function applyObservedLeave(spaceId, key, leaveTs, authorized) {
         (space?.members || []).find((m) => m.publicKey === key)?.displayName ?? null,
       ),
     }
-  }, { context: { space: spaceId.slice(0, 12) } })
+  }, { context: { space: spaceId.slice(0, 12) }, spaceId })
   log.info('observed leave via replication — revoked + tombstoned:', key.slice(0, 12) + '...', '→', spaceId)
 }
 

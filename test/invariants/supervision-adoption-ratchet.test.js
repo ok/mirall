@@ -60,7 +60,7 @@ const UNSUPERVISED = {
 // durable tier is the decision that exempts it, and moving one between tiers should break this.
 const DURABLE = [
   'Store', 'SpaceKeysVault', 'ProfileBee', 'SpacesBee', 'DownloadsBee', 'PendingTransfersBee',
-  'MountsBee', 'IntentsBee', 'AuditLog', 'ActivityFeed', 'FileRecipients', 'ServeLedger', 'OwnCatalogs',
+  'MountsBee', 'IntentsBee', 'AuditLog', 'SpaceActivity', 'ActivityFeed', 'FileRecipients', 'ServeLedger', 'OwnCatalogs',
   'PeerCatalogs',
 ]
 

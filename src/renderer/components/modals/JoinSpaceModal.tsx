@@ -2,7 +2,7 @@
 // space name from the invite envelope.
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { Space } from '../../types/types.js'
+import type { SpaceRecord } from '../../types/types.js'
 import { decodeInvite, extractInviteCode } from '../../../shared/contract/invite-envelope.js'
 import Modal from '../primitives/Modal.js'
 import TextField from '../primitives/TextField.js'
@@ -16,8 +16,8 @@ interface JoinSpaceModalProps {
   initialCode?: string
   initialName?: string
   onClose: () => void
-  onJoin: (inviteCode: string, name: string) => Promise<Space>
-  onJoined?: (space: Space) => void
+  onJoin: (inviteCode: string, name: string) => Promise<SpaceRecord>
+  onJoined?: (space: SpaceRecord) => void
 }
 
 export default function JoinSpaceModal({ isOpen, initialCode, initialName, onClose, onJoin, onJoined }: JoinSpaceModalProps) {

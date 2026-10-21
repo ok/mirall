@@ -73,6 +73,7 @@ Anything that needs **two or more peers** — replication, transfers between pee
 | `participation.test.js` | The participation id a space announces (`drive/<spaceId>`) derives from the record; a pending joiner and a space being left have none; a rejoin after a leave is a **new** participation; a create or grant whose announce fails leaves no half-joined space (the grant retries); a rejoin through an interrupted leave re-announces; the departure write retracts the id atomically and releases the profile bee on failure. |
 | `retire-space-drives.test.js` | The computed keys equal the retired per-space drive's metadata and blobs keys (pinned against real Hyperdrive); the migration purges empty own drives and co-member replicas once, compacts only after clearing blocks, defers without M, and leaves an own drive holding blocks — which the leave path then deletes. |
 | `profile-store.test.js` | `getProfile`/`setProfile` identity shape; name/avatar update; omitting avatar preserves it; identity key is stable across edits. |
+| `space-activity.test.js` | `spaces:list` is ordered by last activity, falling back to `created`; a counting row moves a space first with recording off, through `recordResolved` too, and past the rate budget; connectivity, security and `space.left` do not; one coalesced `event:state` per burst; the times survive a restart and go with a leave; an updating install seeds once from the audit log; an own folder publish or removal counts, an unchanged rescan does not. |
 
 ### H. Storage hygiene
 | File | Covers |

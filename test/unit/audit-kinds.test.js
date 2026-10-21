@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { KINDS, CATEGORY, CATEGORIES, TARGET_KINDS, isKnownKind, categoryOf, tierOf } from '../../src/shared/contract/audit-kinds.js'
+import { KINDS, CATEGORY, CATEGORIES, TARGET_KINDS, SPACE_ACTIVITY_KINDS, isKnownKind, categoryOf, tierOf } from '../../src/shared/contract/audit-kinds.js'
 
 const RELAY_SETTING_KINDS = [
   'relay.added',
@@ -86,4 +86,45 @@ test('the device family is first-party and the peer family is handshake-attribut
 test('a settling verdict and a canary result are deliberately not kinds', (t) => {
   t.absent(isKnownKind('network.unknown'), 'one contentless row per app launch')
   t.absent(isKnownKind('network.canary_failed'), 'our seeder being down must never become the user\'s verdict')
+})
+
+// Every kind takes a side, so a new kind cannot reorder the spaces list without a decision.
+const NOT_SPACE_ACTIVITY = [
+  'space.left',
+  'invite.minted',
+  'transfer.failed',
+  'serve.completed',
+  'security.serve_denied',
+  'security.integrity_failure',
+  'security.creator_divergence',
+  'audit.suppressed',
+  'managed.joined',
+  'managed.changed',
+  'managed.left',
+  'network.offline',
+  'network.blocked',
+  'network.at_risk',
+  'network.restored',
+  'network.peer_lost',
+  'network.peer_back',
+  'network.peer_relayed',
+  'network.peer_direct',
+  ...RELAY_SETTING_KINDS,
+]
+
+test('every kind either makes its space active or deliberately does not', (t) => {
+  for (const kind of SPACE_ACTIVITY_KINDS) t.ok(isKnownKind(kind), kind + ' is a known kind')
+  for (const kind of Object.keys(KINDS)) {
+    const counts = SPACE_ACTIVITY_KINDS.includes(kind)
+    const excluded = NOT_SPACE_ACTIVITY.includes(kind)
+    t.ok(counts !== excluded, kind + ' is on exactly one side')
+  }
+})
+
+test('connectivity, security, settings and leaving never reorder the spaces list', (t) => {
+  for (const kind of Object.keys(KINDS)) {
+    const category = categoryOf(kind)
+    if (category === CATEGORY.NETWORK || category === CATEGORY.SECURITY) t.absent(SPACE_ACTIVITY_KINDS.includes(kind), kind)
+  }
+  t.absent(SPACE_ACTIVITY_KINDS.includes('space.left'), 'a space being left is not active')
 })

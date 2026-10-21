@@ -12,6 +12,7 @@ import { createRateGuard } from './audit-rate-guard.js'
 import { CONFIG_KEY, evtKey, evtRange, indexKeyOf, seqOf } from './audit-keys.js'
 import { ACTOR_TYPE } from '../contract/audit-kinds.js'
 import { announceActivity } from './activity-feed.js'
+import { isSpaceActivityKind, noteActivityKind } from './space-activity.js'
 import { getManagedOverlay } from '../core/managed-overlay.js'
 import { effectiveAudit } from '../core/managed-effective.js'
 
@@ -134,6 +135,12 @@ export function oldestSeq() {
 // write itself stays fire-and-forget, but callers that mirror "we recorded this" into
 // durable state need to know when nothing was recorded at all.
 export function record(kind, row = {}, context = null) {
+  noteActivityKind(kind, row.space?.id)
+  return admit(kind, row, context)
+}
+
+// record() without marking the space active, for a caller that already has.
+function admit(kind, row, context) {
   announceActivity(kind, row)
   if (!bee || !recording()) return false
   if (kind !== SUPPRESSED_KIND && !rateGuard.admit(kind)) return false
@@ -162,20 +169,24 @@ export const RESOLVE_OUTCOME = Object.freeze({
 // part of the audit write, so its failure is a lost row, reported like a write failure and never
 // passed to the caller: the returned promise always resolves, to a RESOLVE_OUTCOME. A resolver
 // returning null records nothing. A closed or disabled log would write nothing, so it does not read
-// either, and a failure there is no lost row.
+// either, and a failure there is no lost row. `spaceId` marks the space active up front, since a
+// closed or disabled log never reaches record(); a kind that makes a space active must name it, or
+// null when its caller counts the activity itself.
 /**
  * @param {string} kind
  * @param {() => Promise<object | null>} resolve
- * @param {{ context?: Record<string, string> | null }} [opts]
+ * @param {{ context?: Record<string, string> | null, spaceId?: string | null }} [opts]
  */
-export function recordResolved(kind, resolve, { context = null } = {}) {
+export function recordResolved(kind, resolve, { context = null, spaceId = undefined } = {}) {
+  if (spaceId === undefined && isSpaceActivityKind(kind)) log.warn('no space named for', kind, '- its space is not marked active')
+  noteActivityKind(kind, spaceId)
   if (!bee || !recording()) return Promise.resolve(RESOLVE_OUTCOME.LOST)
   const pending = Promise.resolve()
     .then(resolve)
     .then((row) => {
       if (!row) return RESOLVE_OUTCOME.SKIPPED
       if (!bee || !recording()) return RESOLVE_OUTCOME.LOST
-      return record(kind, row, context) ? RESOLVE_OUTCOME.ADMITTED : RESOLVE_OUTCOME.REFUSED
+      return admit(kind, row, context) ? RESOLVE_OUTCOME.ADMITTED : RESOLVE_OUTCOME.REFUSED
     })
     .catch((err) => {
       if (bee && recording()) warnLostRow('resolve', kind, err, context)
