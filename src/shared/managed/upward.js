@@ -4,6 +4,7 @@
 // built from an explicit list of fields, never spread from state.
 import sodium from 'sodium-native'
 import b4a from 'b4a'
+import { signingKeyPair } from './derive.js'
 
 const LABEL = b4a.from('mirall/upward/v1')
 const ENROLL_LABEL = b4a.from('mirall/upward-enroll/v1')
@@ -34,12 +35,7 @@ function sign(message, secretKey) {
   return out
 }
 
-export function instanceKeyPair(seed) {
-  const publicKey = b4a.alloc(sodium.crypto_sign_PUBLICKEYBYTES)
-  const secretKey = b4a.alloc(sodium.crypto_sign_SECRETKEYBYTES)
-  sodium.crypto_sign_seed_keypair(publicKey, secretKey, seed)
-  return { publicKey, secretKey }
-}
+export const instanceKeyPair = signingKeyPair
 
 export const requestMessage = ({ call, instanceKey, timestamp, nonce, body }) =>
   b4a.concat([LABEL, ZERO, b4a.from(call), ZERO, instanceKey, uint64(timestamp), nonce, sha256(body)])

@@ -10,7 +10,8 @@ import { registerNetwork } from '../../src/worker/ipc/network.js'
 import { registerAudit } from '../../src/worker/ipc/audit.js'
 import { registerSettings } from '../../src/worker/ipc/settings.js'
 import { getRuntimeConfig, setRuntimeConfig, getRelayConfig } from '../../src/shared/core/runtime-config.js'
-import { getAuditConfig, getStoredAuditConfig } from '../../src/shared/audit/audit-log.js'
+import { flushAudit, getAuditConfig, getStoredAuditConfig } from '../../src/shared/audit/audit-log.js'
+import { purgeAudit } from '../../src/shared/audit/audit-reclaim.js'
 import { getManagedOverlay } from '../../src/shared/core/managed-overlay.js'
 import { setAsideLockedData } from '../../src/shared/core/identity-set-aside.js'
 import { queryAudit } from '../../src/shared/audit/audit-query.js'
@@ -44,7 +45,7 @@ async function setup(t) {
 test('an install without a license holds nothing and answers null', async (t) => {
   const p = await setup(t)
   t.is(await p.fake.call('managed:get', {}), null)
-  t.alike(p.root.managed.health().detail, { state: 'unmanaged', lastFailure: null })
+  t.alike(p.root.managed.health().detail, { state: 'unmanaged', lastFailure: null, lastRefusal: null })
   t.is(p.root.managed.timers.size, 0, 'no timer armed')
   t.absent(p.exists('managed-store'))
   t.alike(getAuditConfig(), getStoredAuditConfig(), 'the effective audit config is the stored one')
@@ -109,8 +110,8 @@ test('a locked setter refuses a change and accepts the effective value', async (
   t.is(echoed.ok, true, 'the Test path re-sends the effective mode and passes')
   await t.exception(p.fake.call('audit:configure', { enabled: false }), /set by your organization/)
   await t.exception(p.fake.call('audit:configure', { retentionDays: 365 }), /set by your organization/)
-  const allowed = await p.fake.call('audit:configure', { enabled: true, maxEntries: 1234 })
-  t.is(allowed.maxEntries, 1234, 'a key outside the catalog stays the person\'s')
+  const allowed = await p.fake.call('audit:configure', { enabled: true, maxEntries: 300_000 })
+  t.is(allowed.maxEntries, 300_000, 'a key outside the catalog stays the person\'s, raised')
   t.is(JSON.parse(fs.readFileSync(path.join(path.dirname(p.storage), 'settings.json'), 'utf8')).network.relayMode, 'off', 'the organization\'s mode is never written as the person\'s')
 })
 
@@ -233,16 +234,79 @@ test('REGRESSION (FIX-4: purge under a recording lock): the Activity Log cannot 
   p.serve(LOCKS)
   await p.fake.call('managed:accept', { code: p.org.code })
   await waitFor(async () => (await p.fake.call('audit:stats', {})).count > 0, 5000, { label: 'a recorded row' })
+  await flushAudit()
   const before = (await p.fake.call('audit:stats', {})).count
   await t.exception(p.fake.call('audit:purge', {}), /set by your organization/)
+  await t.exception(purgeAudit(), /set by your organization/, 'the data layer refuses it too, at the moment of the wipe')
+  await flushAudit()
   t.is((await p.fake.call('audit:stats', {})).count, before, 'every row is kept')
   await p.fake.call('managed:leave', {})
   t.ok((await p.fake.call('audit:purge', {})).purged > 0, 'leaving the organization allows it again')
 })
 
-test('the Activity Log can be deleted while the organization keeps recording off', async (t) => {
+test('an organization cannot lock recording off, so the Activity Log stays the person\'s to delete', async (t) => {
   const p = await setup(t)
+  await p.fake.call('audit:configure', { enabled: true })
   p.serve({ 'audit.enabled': false })
   await p.fake.call('managed:accept', { code: p.org.code })
-  await t.execution(p.fake.call('audit:purge', {}))
+  t.absent((await p.fake.call('managed:get', {})).locked.includes('audit.enabled'), 'the value is refused, not locked')
+  await waitFor(async () => (await p.fake.call('audit:stats', {})).count > 0, 5000, { label: 'a recorded row' })
+  t.ok((await p.fake.call('audit:purge', {})).purged > 0)
+})
+
+test('REGRESSION (FIX-6: row cap under a recording lock): the cap cannot be lowered while the organization keeps recording on', async (t) => {
+  const p = await setup(t)
+  p.serve(LOCKS)
+  await p.fake.call('managed:accept', { code: p.org.code })
+  const { maxEntries, deleteLocked } = await p.fake.call('audit:get-config', {})
+  t.ok(deleteLocked, 'the view says the log cannot be deleted')
+  await t.exception(p.fake.call('audit:configure', { maxEntries: 1 }), /set by your organization/)
+  t.is(getAuditConfig().maxEntries, maxEntries, 'the cap is unchanged')
+  t.is((await p.fake.call('audit:configure', { maxEntries: maxEntries + 1 })).maxEntries, maxEntries + 1, 'a higher cap keeps more and is allowed')
+})
+
+test('REGRESSION (FIX-7: leave during a refresh): a refresh still answering when Leave starts writes nothing back', async (t) => {
+  const p = await setup(t)
+  const now = Math.floor(Date.now() / 1000)
+  p.serve(LOCKS, { issuedAt: now })
+  await p.fake.call('managed:accept', { code: p.org.code })
+  p.serve({ ...LOCKS, 'audit.retentionDays': 365 }, { issuedAt: now + 10 })
+  p.api.delay(1500)
+  const refresh = p.root.managed.refreshHttps()
+  await waitFor(() => p.api.requests.length > 0 && p.api.inFlight() > 0, 3000, { label: 'the refresh in flight' })
+  await p.fake.call('managed:leave', {})
+  await refresh
+  await p.root.managed.queue
+  t.absent(p.exists('managed.enc'), 'the install stays left')
+  t.is(getManagedOverlay(), null)
+})
+
+test('REGRESSION (FIX-8: another license on the same drive): its own configuration applies, not the previous license\'s', async (t) => {
+  const p = await setup(t)
+  const now = Math.floor(Date.now() / 1000)
+  p.serve({ ...LOCKS, 'audit.retentionDays': 365 }, { issuedAt: now + 10 })
+  await p.fake.call('managed:accept', { code: p.org.code })
+  const second = organization({ apiUrl: p.api.apiUrl, driveKey: p.org.driveKey })
+  p.api.set({ bundles: [{ profileId: 'p2', bytes: sealBundle({ signer: SIGNER, driveKey: second.driveKey, recipients: [second.bundlePublicKey], organization: ACME, apiUrl: p.api.apiUrl, settings: LOCKS, issuedAt: now }) }] })
+  await p.fake.call('managed:accept', { code: second.code })
+  t.is(getAuditConfig().retentionDays, 90, 'the second license\'s profile is applied')
+})
+
+test('REGRESSION (FIX-9: same link twice): accepting the organization already connected changes nothing', async (t) => {
+  const p = await setup(t)
+  await p.fake.call('audit:configure', { enabled: true })
+  p.serve(LOCKS)
+  await p.fake.call('managed:accept', { code: p.org.code })
+  await p.fake.call('managed:accept', { code: p.org.code })
+  await flushAudit()
+  t.is((await queryAudit({ kinds: ['managed.joined'], limit: 10 })).entries.length, 1, 'one connection, recorded once')
+})
+
+test('REGRESSION (FIX-10: silent refusal): a bundle that verifies nowhere is said in health', async (t) => {
+  const p = await setup(t)
+  p.serve(LOCKS)
+  await p.fake.call('managed:accept', { code: p.org.code })
+  p.api.set({ bundles: [{ profileId: 'p1', bytes: sealBundle({ signer: signer(), driveKey: p.org.driveKey, recipients: [p.org.bundlePublicKey], organization: ACME, apiUrl: p.api.apiUrl, settings: LOCKS, issuedAt: Math.floor(Date.now() / 1000) + 10 }) }] })
+  await p.root.managed.refreshHttps()
+  t.is(p.root.managed.health().detail.lastRefusal, 'unknown_signing_key')
 })

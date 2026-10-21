@@ -1847,16 +1847,27 @@ organization's drive key and an API base, and is trusted for nothing: main check
   the identity files and never in a backup; the drive replica in `<dataDir>/managed-store/`.
 - **The gate.** `ManagedConfig` starts on every boot and holds nothing until a license is accepted.
   Preview is one HTTPS read that writes nothing. Licensed, it reads the drive (a Hyperbee) on a swarm
-  and DHT node of its own, and asks the Console over HTTPS only while no drive peer is connected.
+  and DHT node of its own, and asks the Console over HTTPS only while no drive peer is connected. A
+  failed poll backs off towards the hourly one, every delay jittered. A bundle that verifies nowhere
+  is logged and named in `health().lastRefusal`.
+- **Connect and Leave.** Both are the host's alone (`requireHost`). Each stops the sources first and
+  opens a new generation, so a fetch or reread still answering applies nothing over them. The link of
+  the organization already connected changes nothing. Any other is written to `managed.enc` before
+  anything about the previous one is undone; a failed write restarts the previous sources. An
+  organization's relay mode reaches the open connections as a set mode does (`followRelayConfig`).
 - **The overlay.** `core/managed-overlay.js` holds the organization's locked values (null when
   unmanaged); `core/managed-effective.js` puts them over the person's own, which are never written
   with them, so leaving restores the person's settings. Persistence reads the stored values
   (`getStoredAuditConfig`), behaviour and views the effective ones. A locked setter refuses a change,
-  never a re-send of the effective value (`assertUnlocked`). While recording is locked on,
-  `audit:purge` is refused too; export stays available.
+  never a re-send of the effective value (`assertUnlocked`). While recording is locked on, nothing
+  may delete what it requires (`assertRecordKept`). A purge is refused, checked again at the moment
+  of the wipe, and so is a lower row cap. The config view carries this as `deleteLocked`, and export
+  stays available.
 - **Backup folder.** An organization's per-platform template resolves on the device
   (`path-template.js`, pinned by `path-template-v1.json`); the managed repository's id lives in
-  `backup-state.json`. The share's base must exist, and only the device's folders below it are made.
+  `backup-state.json`, beside its own `setupAt` and `lastSuccessAt`. Setting it up or turning it off
+  never touches the person's own record, and a success counts for the folder it was written to. The
+  share's base must exist, and only the device's folders below it are made.
 - **Instance reports.** `InstanceReporter` (`worker/managed/instance-reporter.js`) tells the
   organization what its fleet view needs: the app version, channel, platform, OS release, the short
   computer name, the applied profile version, the refused and ignored keys, and the backup's
@@ -1873,15 +1884,20 @@ organization's drive key and an API base, and is trusted for nothing: main check
     sent. A second computer holding a copied key is the only way the Console can see an equal or
     lower one.
   - **Never blocking.** A failure only delays the next report, and no report is queued. A wrong
-    clock is corrected from `serverTime` once. An unknown key enrolls again. A 410 marks the view
-    `revoked` and stops reporting, while the configuration stays applied.
-  - **Leave.** Leave sends `left` once, briefly, and goes ahead whatever the answer. It then removes
-    `managed.enc` and the key last.
+    clock is corrected from `serverTime` once. An unknown key enrolls again. A 410 is stored with
+    the key: the view shows `revoked` at once on every later boot, and nothing more is sent, while
+    the configuration stays applied.
+  - **One request at a time.** Each start or stop opens a new generation, and an answer for an
+    earlier one changes nothing. A change applied while a report is answering is reported right
+    after it. The start report waits for the backup to open (`backupOpened`).
+  - **Leave.** Leave waits for a report still in flight, then sends `left` once. That is all within
+    a five-second budget, and Leave goes ahead whatever the answer. It then removes `managed.enc`
+    and the key last.
 - **UI.** `managed:get` is the renderer's one source of what is locked (`useManaged`); controls take
   the generic `Lockable` state and a `ManagedNote`. About gains an Organization row to its page,
   which lists the settings it manages, one row per settings page with the locked values in the
-  words of their controls (`model/managed-rows.js`). What the organization sees is in the privacy
-  policy, not the UI.
+  words of their controls (`model/managed-rows.js`). Back from a page opened there returns to it.
+  What the organization sees is in the privacy policy, not the UI.
 
 ## 17. Glossary
 

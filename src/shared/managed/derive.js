@@ -24,14 +24,19 @@ export function bundleKeyPair(licenseKeyBytes) {
   return { publicKey, secretKey }
 }
 
-// Proves the license once, at enrollment: the Console holds only the public half.
-export function enrollKeyPair(licenseKeyBytes) {
-  const seed = labelled(ENROLL_KEY, licenseKeyBytes)
+export function signingKeyPair(seed) {
   const publicKey = b4a.alloc(sodium.crypto_sign_PUBLICKEYBYTES)
   const secretKey = b4a.alloc(sodium.crypto_sign_SECRETKEYBYTES)
   sodium.crypto_sign_seed_keypair(publicKey, secretKey, seed)
-  sodium.sodium_memzero(seed)
   return { publicKey, secretKey }
+}
+
+// Proves the license once, at enrollment: the Console holds only the public half.
+export function enrollKeyPair(licenseKeyBytes) {
+  const seed = labelled(ENROLL_KEY, licenseKeyBytes)
+  const pair = signingKeyPair(seed)
+  sodium.sodium_memzero(seed)
+  return pair
 }
 
 export const keyHint = (bundlePublicKey) => labelled(KEY_HINT, bundlePublicKey).subarray(0, KEY_HINT_BYTES)

@@ -17,6 +17,7 @@ export default async function s185({ runDir, bootstrap }) {
       await A.gotoSettings('Activity Log')
       await A.waitText('Record activity', 8000)
       assert(!(await A.hasText('Set by')), 'no lock note on the Activity Log')
+      assert(await A.has({ role: 'switch', name: 'Record activity' }), 'the recording switch is there')
       assert(!(await A.isDisabled({ role: 'switch', name: 'Record activity' })), 'the recording switch is usable')
       await A.openAccount()
       await A.click({ role: 'button', name: 'About Mirall' })

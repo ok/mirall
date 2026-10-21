@@ -211,3 +211,76 @@ test('setting the identity aside leaves the instance key on this computer', asyn
   t.ok(fs.existsSync(p.keyFile), 'the key stays')
   t.absent(fs.existsSync(path.join(folder, 'instance-key.json')))
 })
+
+test('REGRESSION (FIX-11: revoked forgotten on restart): a revoked license shows at once after a restart and sends nothing', async (t) => {
+  const p = await setup(t)
+  p.serve(LOCKS)
+  p.api.answer(() => ({ status: 410, body: { error: 'revoked' } }))
+  await p.fake.call('managed:accept', { code: p.org.code })
+  await waitFor(async () => (await p.fake.call('managed:get', {})).revoked, 5000, { label: 'revoked' })
+  const sent = p.api.upward.length
+  const again = await rebootPeer(t, p)
+  wire(again)
+  t.is((await again.fake.call('managed:get', {})).revoked, true, 'revoked before any request')
+  again.root.managed.reporter.changed()
+  await new Promise((resolve) => setTimeout(resolve, 2500))
+  t.is(p.api.upward.length, sent, 'nothing sent to a revoked license')
+})
+
+test('REGRESSION (FIX-12: 2xx success): an enrollment answered 201 counts as enrolled', async (t) => {
+  const p = await setup(t)
+  p.serve(LOCKS)
+  p.api.answer(() => ({ status: 201, body: {} }))
+  await p.fake.call('managed:accept', { code: p.org.code })
+  await waitFor(() => p.api.upward.length >= 1, 5000, { label: 'the enrollment' })
+  p.root.managed.reporter.changed()
+  await waitFor(() => p.api.upward.length >= 2, 8000, { label: 'the next report' })
+  t.is(p.api.upward[1].call, 'instance-report', 'not enrolled again')
+})
+
+test('REGRESSION (FIX-13: change during a report): a configuration applied while a report is answering is reported after it', async (t) => {
+  const p = await setup(t)
+  const now = Math.floor(Date.now() / 1000)
+  p.serve(LOCKS, { issuedAt: now })
+  p.api.answer(() => ({ status: 200, body: {}, delayMs: 1500 }))
+  const accepted = p.fake.call('managed:accept', { code: p.org.code })
+  await waitFor(() => p.api.upward.length >= 1, 5000, { label: 'the enrollment in flight' })
+  await accepted
+  p.serve({ ...LOCKS, 'audit.retentionDays': 365 }, { issuedAt: now + 10 })
+  await p.root.managed.refreshHttps()
+  p.api.answer(() => ({ status: 200, body: {} }))
+  await waitFor(() => p.api.upward.some((u) => u.body.applied?.issuedAt === (now + 10) * 1000), 10000, { label: 'the newer configuration reported' })
+  t.pass('reported without waiting a day')
+})
+
+test('REGRESSION (FIX-14: leave during a report): the left report waits for the one in flight and carries the higher counter', async (t) => {
+  const p = await setup(t)
+  p.serve(LOCKS)
+  await p.fake.call('managed:accept', { code: p.org.code })
+  await waitFor(() => p.api.upward.length >= 1, 5000, { label: 'the enrollment' })
+  p.api.answer((entry) => ({ status: 200, body: {}, delayMs: entry.body.state === 'left' ? 0 : 1500 }))
+  p.root.managed.reporter.changed()
+  await waitFor(() => p.api.upward.length >= 2, 5000, { label: 'a report in flight' })
+  await p.fake.call('managed:leave', {})
+  const [, inFlight, left] = p.api.upward
+  t.is(left.body.state, 'left')
+  t.ok(left.body.reportCounter > inFlight.body.reportCounter, 'left carries the higher counter')
+  t.is(p.api.upward.length, 3, 'nothing after left')
+})
+
+test('REGRESSION (FIX-15: license switch during a report): an answer for the previous license never touches the next one', async (t) => {
+  const p = await setup(t)
+  p.serve(LOCKS)
+  await p.fake.call('managed:accept', { code: p.org.code })
+  await waitFor(() => p.api.upward.length >= 1, 5000, { label: 'the first enrollment' })
+  const first = p.api.upward[0].instanceKey
+  p.api.answer((entry) => (entry.instanceKey === first && entry.body.state !== 'left' ? { status: 410, body: { error: 'revoked' }, delayMs: 1500 } : { status: 200, body: {} }))
+  p.root.managed.reporter.changed()
+  await waitFor(() => p.api.upward.length >= 2, 5000, { label: 'a report in flight' })
+  const other = organization({ apiUrl: p.api.apiUrl })
+  p.serve({ 'network.relayMode': 'auto' }, { target: other })
+  await p.fake.call('managed:accept', { code: other.code })
+  await waitFor(() => p.api.upward.some((u) => u.call === 'instance-enroll' && u.body.enrollPublicKey === enrollHex(other)), 8000, { label: 'the second enrollment' })
+  await new Promise((resolve) => setTimeout(resolve, 2000))
+  t.is((await p.fake.call('managed:get', {})).revoked, false, 'the new license is not revoked by the old one\'s answer')
+})

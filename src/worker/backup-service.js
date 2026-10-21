@@ -71,7 +71,7 @@ export class Backup extends Subsystem {
     this.running = null
     this.cutoffAt = null
     this.wake = null
-    this.progress = { state: this.isSetUp() ? 'idle' : 'off', ...IDLE, lastSuccessAt: this.state.lastSuccessAt }
+    this.progress = { state: this.isSetUp() ? 'idle' : 'off', ...IDLE, lastSuccessAt: this.lastSuccess() }
     // What removals through the leave and join flows explained in the latest snapshot, for diagnostics.
     this.explained = null
     initBackupHints((urgency) => this.note(urgency))
@@ -114,7 +114,7 @@ export class Backup extends Subsystem {
   withManagedRecord(state) {
     const managed = this.managedFolder()
     if (!managed) return state.managed ? { ...state, managed: null } : state
-    return state.managed?.folder === managed.folder ? state : { ...state, managed: { folder: managed.folder, repoId: null, setupAt: null } }
+    return state.managed?.folder === managed.folder ? state : { ...state, managed: { folder: managed.folder, repoId: null, setupAt: null, lastSuccessAt: null } }
   }
 
   // An organization's folder is set up only by a setup there: the person's own setupAt, or an earlier
@@ -126,6 +126,16 @@ export class Backup extends Subsystem {
 
   setupTime() {
     return this.managedFolder() ? this.state.managed?.setupAt ?? null : this.state.setupAt
+  }
+
+  // A success counts for the folder it was written to: the person's own folder's last backup says
+  // nothing about the organization's, and the other way round.
+  lastSuccess() {
+    return this.managedFolder() ? this.state.managed?.lastSuccessAt ?? null : this.state.lastSuccessAt
+  }
+
+  withSuccess(state, at) {
+    return this.managedFolder() ? { ...state, managed: state.managed && { ...state.managed, lastSuccessAt: at } } : { ...state, lastSuccessAt: at }
   }
 
   // The organization's configuration changed: its folder came, moved or went. A run in progress
@@ -158,13 +168,14 @@ export class Backup extends Subsystem {
 
   verdictNow(now) {
     const setUp = this.isSetUp()
-    const stale = isStale({ now, setUp, lastSuccessAt: this.state.lastSuccessAt, setupAt: this.setupTime() })
-    return { setUp, stale, ...protectionVerdict({ setUp, stale, failing: this.progress.state === 'error', state: this.state, required: this.required() }) }
+    const lastSuccessAt = this.lastSuccess()
+    const stale = isStale({ now, setUp, lastSuccessAt, setupAt: this.setupTime() })
+    return { setUp, stale, ...protectionVerdict({ setUp, stale, failing: this.progress.state === 'error', state: { ...this.state, lastSuccessAt }, required: this.required() }) }
   }
 
   protection() {
     const { setUp, verdict } = this.verdictNow(Date.now())
-    return { setUp, verdict, lastSuccessAt: this.state.lastSuccessAt ?? null, managedFolder: this.managedFolder() !== null }
+    return { setUp, verdict, lastSuccessAt: this.lastSuccess(), managedFolder: this.managedFolder() !== null }
   }
 
   lossCheck() {
@@ -254,7 +265,7 @@ export class Backup extends Subsystem {
       if (this.config.folder !== folder) return
       if (result.repoId !== repoId) await this.remember({ folder, repoId: result.repoId })
       await this.keepKeyInFolder(folder)
-      await this.persist({ ...this.state, lastSuccessAt: this.lastRunAt })
+      await this.persist(this.withSuccess(this.state, this.lastRunAt))
       this.report({
         state: 'idle',
         lastSuccessAt: this.lastRunAt,
@@ -321,8 +332,8 @@ export class Backup extends Subsystem {
     await target.ready({ create: true })
     await this.writeKey(target, passphrase)
     const now = Date.now()
-    const chosen = folderChosen(this.state, now)
-    await this.persist(managed ? { ...chosen, managed: { repoId: null, ...this.state.managed, folder, setupAt: now } } : chosen)
+    // The organization's folder keeps its own record: setting it up says nothing about the person's.
+    await this.persist(managed ? { ...this.state, managed: { repoId: null, lastSuccessAt: null, ...this.state.managed, folder, setupAt: now } } : folderChosen(this.state, now))
     await this.configure(folder)
     return this.run('setup')
   }
@@ -415,8 +426,8 @@ export class Backup extends Subsystem {
   async configure(folder) {
     if (this.managedFolder()) {
       if (folder === null) {
-        const off = turnedOff(this.state)
-        await this.persist({ ...off, managed: this.state.managed && { ...this.state.managed, setupAt: null } })
+        // Turning the organization's folder off is not the person declining a backup of their own.
+        await this.persist({ ...this.state, managed: this.state.managed && { ...this.state.managed, setupAt: null } })
         this.progress = { state: 'off', ...IDLE }
         this.schedule()
       }
@@ -438,7 +449,7 @@ export class Backup extends Subsystem {
 
   async remember(config) {
     if (this.managedFolder()) {
-      await this.persist({ ...this.state, managed: { setupAt: null, ...this.state.managed, folder: config.folder, repoId: config.repoId } })
+      await this.persist({ ...this.state, managed: { setupAt: null, lastSuccessAt: null, ...this.state.managed, folder: config.folder, repoId: config.repoId } })
       this.config = config
       return
     }

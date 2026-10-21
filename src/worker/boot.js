@@ -353,7 +353,11 @@ export async function boot(bootstrap, {
       if (closing || backup) return
       const started = await life.start(new Backup('backup', { ipc, corestore: getStore, storagePath: bootstrap.storage, installId: tier.installId ?? 'unknown-install' }))
       if (closing) await started.close()
-      else backup = started
+      else {
+        backup = started
+        // The organization's report carries the backup's state, which it had none of until now.
+        managed.backupOpened()
+      }
     }
     const restoreCatchUp = heldNames().length
       ? await life.start(new RestoreCatchUp('restore-catch-up', {
