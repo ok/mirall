@@ -31,7 +31,8 @@ export function RowBody({ leading, title, desc, descId }: RowBodyProps) {
       {leading}
       <div className="min-w-0">
         <p className="font-semibold text-accent">{title}</p>
-        {desc && <p id={descId} className="text-xs text-on-surface-variant">{desc}</p>}
+        {typeof desc === 'string' && <p id={descId} className="text-xs text-on-surface-variant">{desc}</p>}
+        {desc && typeof desc !== 'string' && <div id={descId}>{desc}</div>}
       </div>
     </div>
   )

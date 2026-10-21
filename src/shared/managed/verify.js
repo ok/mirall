@@ -23,9 +23,11 @@ function openEnvelope(bytes) {
 }
 
 function checkHeader(bundle, header, ctx) {
-  const signer = ctx.pinnedKeys.find((key) => b4a.equals(key.subarray(0, SIGNING_KEY_ID_BYTES), header.signingKeyId))
-  if (!signer) return 'unknown_signing_key'
-  if (!sodium.crypto_sign_verify_detached(bundle.signature, bundle.header, signer)) return 'bad_signature'
+  // Every pinned key with this id is tried: an id is eight bytes, and a test key that shares one with
+  // a pinned key must not shadow it.
+  const signers = ctx.pinnedKeys.filter((key) => b4a.equals(key.subarray(0, SIGNING_KEY_ID_BYTES), header.signingKeyId))
+  if (signers.length === 0) return 'unknown_signing_key'
+  if (!signers.some((key) => sodium.crypto_sign_verify_detached(bundle.signature, bundle.header, key))) return 'bad_signature'
   if (!b4a.equals(header.driveKey, ctx.driveKey)) return 'wrong_drive'
   if (header.issuedAt < ctx.lastIssuedAt) return 'rollback'
   if (!ctx.catalogVersions.includes(header.catalogVersion)) return 'unsupported'

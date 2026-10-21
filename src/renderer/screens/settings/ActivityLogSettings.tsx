@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ConfirmDestructiveModal from '../../components/modals/ConfirmDestructiveModal.js'
 import { request } from '../../ipc/ipc.js'
@@ -16,7 +16,7 @@ import { useErrorText } from '../../hooks/useErrorText.js'
 import { useRunAction } from '../../hooks/useRunAction.js'
 import { MANAGED_SCOPES } from '../../store/scopes.js'
 import ManagedNote from '../../components/managed/ManagedNote.js'
-import { useManagedSetting } from '../../hooks/useManagedSetting.js'
+import { useManaged } from '../../hooks/useManaged.js'
 
 interface ActivityLogSettingsProps {
   onBack: () => void
@@ -36,8 +36,9 @@ export default function ActivityLogSettings({ onBack, onOpenLog }: ActivityLogSe
   const patchingRef = useRef(false)
   const [status, setStatus] = useState<string | null>(null)
   const [confirmPurge, setConfirmPurge] = useState(false)
-  const recording = useManagedSetting('audit.enabled')
-  const purgeLocked = recording.locked && config?.enabled === true
+  const org = useManaged()?.organization.name ?? null
+  const purgeNoteId = useId()
+  const purgeLocked = config?.deleteLocked === true
 
   const refresh = useCallback(async () => {
     await Promise.all([
@@ -132,12 +133,12 @@ export default function ActivityLogSettings({ onBack, onOpenLog }: ActivityLogSe
                   onClick={purgeLocked ? undefined : () => setConfirmPurge(true)}
                   disabled={busy}
                   ariaDisabled={purgeLocked}
-                  ariaDescribedBy={purgeLocked ? recording.noteId : undefined}
+                  ariaDescribedBy={purgeLocked ? purgeNoteId : undefined}
                 >
                   {t('activityLogSettings.deleteAction')}
                 </Button>
               </div>
-              {purgeLocked && recording.org && <ManagedNote id={recording.noteId} org={recording.org} className="px-6 pb-5 -mt-2" />}
+              {purgeLocked && org && <ManagedNote id={purgeNoteId} org={org} className="px-6 pb-5 -mt-2" />}
             </div>
           </section>
 
@@ -155,7 +156,7 @@ export default function ActivityLogSettings({ onBack, onOpenLog }: ActivityLogSe
       </div>
 
       <ConfirmDestructiveModal
-        isOpen={confirmPurge}
+        isOpen={confirmPurge && !purgeLocked}
         title={t('activityLogSettings.deleteConfirmTitle')}
         body={t('activityLogSettings.deleteConfirmBody')}
         confirmLabel={t('activityLogSettings.deleteAction')}

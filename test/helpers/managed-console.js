@@ -36,6 +36,7 @@ export async function startManagedConsole(t) {
   let answer = () => ({ status: 200, body: {} })
   const requests = []
   const upward = []
+  let pending = 0
   const server = http.createServer((req, res) => {
     const call = req.method === 'POST' ? UPWARD.exec(req.url)?.[1] : null
     if (!call) requests.push(req.url)
@@ -45,13 +46,15 @@ export async function startManagedConsole(t) {
       req.on('end', () => {
         const entry = { call, ...verifyUpward(call, req.headers, b4a.concat(chunks)) }
         upward.push(entry)
-        const { status, body } = answer(entry)
-        reply(res, status, body)
+        const { status, body, delayMs = 0 } = answer(entry)
+        setTimeout(() => reply(res, status, body), delayMs)
       })
       return
     }
     const { status, bundles, delayMs = 0 } = served
+    pending += 1
     setTimeout(() => {
+      pending -= 1
       if (status !== 200) {
         reply(res, status, { error: 'x' })
         return
@@ -70,6 +73,8 @@ export async function startManagedConsole(t) {
     requests,
     upward,
     set: (next) => { served = { status: 200, bundles: [], ...next } },
+    delay: (ms) => { served = { ...served, delayMs: ms } },
+    inFlight: () => pending,
     answer: (next) => { answer = next },
     close: () => new Promise((resolve) => server.close(resolve)),
   }

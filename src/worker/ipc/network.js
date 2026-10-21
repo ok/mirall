@@ -7,15 +7,13 @@
 /** @import { RequestArgs } from '../../shared/contract/request-args.js' */
 import { setRelayConfig, getRelayConfig, getUpgradeKey } from '../../shared/core/runtime-config.js'
 import { assertUnlocked, isLocked, setOrgRelayTest } from '../../shared/core/managed-overlay.js'
-import { relayMismatch } from '../../shared/contract/relay-apply.js'
-import { getSwarmStatus, scheduleStatusEmit } from '../../shared/network/network-status.js'
+import { getSwarmStatus } from '../../shared/network/network-status.js'
+import { followRelayConfig } from '../../shared/network/relay-follow.js'
 import { reconnectAll } from '../../shared/network/space-topics.js'
 import { probeCanary } from '../../shared/network/canary-probe.js'
 import { setBrowserOnlineHint } from '../../shared/network/connectivity.js'
 import { checkLivenessNow } from '../../shared/network/link-liveness.js'
 import { testRelayReachable } from '../../shared/network/relay-install.js'
-import { snapshotRelayedConnections } from '../../shared/network/relayed-connections.js'
-import { transfersMoving } from '../../shared/transfer/transfer-activity.js'
 import { record } from '../../shared/audit/audit-log.js'
 import { relayConfigRow } from '../../shared/audit/relay-config-change.js'
 import { getSettings, updateSettings } from '../../shared/core/settings-store.js'
@@ -77,17 +75,11 @@ export function registerNetwork(ipc, { applyRelayConfig }) {
     const after = getRelayConfig()
     const change = relayConfigRow(before, after)
     if (change) record(change.kind, change.row)
-    // A connection's `replaced` flag follows the slot, and no connection event reports a slot change.
-    scheduleStatusEmit()
     ipc.emit('event:reconcile', { scope: Scope.settings() })
     // Only a slot write can pin or unpin an identity; a mode change or a probe verdict never does.
     const identityChanged = msg.relay !== undefined && (before.relay?.kind === 'private' || after.relay?.kind === 'private')
     const verdict = { ok: /** @type {const} */ (true), ...applied, identityChanged, network: settingsView().network }
-    const mismatch = relayMismatch(after.mode, snapshotRelayedConnections())
-    if (!mismatch || identityPending) return { ...verdict, mismatch, reconnected: false }
-    if (await transfersMoving()) return { ...verdict, mismatch, reconnected: false }
-    const res = await reconnectAll()
-    return { ...verdict, mismatch, reconnected: res.ok === true }
+    return { ...verdict, ...await followRelayConfig() }
   })
 
   ipc.handle('network:test-relay', async (msg) => await testRelayReachable(msg?.publicKey))

@@ -55,6 +55,7 @@ export default async function s194({ runDir, bootstrap }) {
       const folder = String(await A.nodeValue({ role: 'textfield', name: 'Backup Folder' }))
       assert(folder.startsWith(share), `the field holds the organization's folder (${folder})`)
       assert(await A.has({ role: 'button', name: 'Copy' }), 'the folder can be copied')
+      assert(await A.has({ role: 'button', name: 'Check passphrase' }), 'the passphrase check is there')
       assert(!(await A.isDisabled({ role: 'button', name: 'Check passphrase' })), 'the passphrase is the person\'s')
       await A.shot('s194-settings-locked', runDir)
     })

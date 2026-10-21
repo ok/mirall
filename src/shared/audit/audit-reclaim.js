@@ -16,6 +16,7 @@ import { ageCutoff, ageWatermark, pruneUpTo } from './audit-retention.js'
 import { readSeenVersions, writeSeenVersions } from './audit-watch-state.js'
 import { CONFIG_KEY, evtRange, indexKeyOf } from './audit-keys.js'
 import { compactStore } from '../storage/compaction.js'
+import { assertRecordKept } from '../core/managed-overlay.js'
 
 const log = createLogger('audit-reclaim')
 
@@ -71,7 +72,9 @@ export async function purgeAudit() {
   const seen = await readSeenVersions()
   const keptConfig = getStoredAuditConfig()
 
-  // A row recorded during those reads is racing a total wipe, so losing it is the right outcome.
+  // A row recorded during those reads is racing a total wipe, so losing it is the right outcome. A
+  // recording lock that arrived during them is not: it is checked again at the last moment.
+  assertRecordKept('audit:purge')
   await truncateLog()
   await bee.put(CONFIG_KEY, keptConfig)
   await writeSeenVersions(seen)

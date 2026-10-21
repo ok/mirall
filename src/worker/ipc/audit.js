@@ -3,12 +3,14 @@
 // directly; this module only reads, configures and purges, so it needs nothing from the entry.
 
 /** @import { WorkerIpc } from '../../shared/core/ipc.js' */
+/** @import { AuditConfig } from '../../shared/contract/responses.js' */
 import { getAuditConfig, setAuditConfig } from '../../shared/audit/audit-log.js'
 import { queryAudit, auditSpaces, auditActors, auditStats, exportAudit } from '../../shared/audit/audit-query.js'
 import { purgeAudit } from '../../shared/audit/audit-reclaim.js'
-import { assertUnlocked, isLocked } from '../../shared/core/managed-overlay.js'
-import { AppError } from '../../shared/core/errors.js'
-import { CODES } from '../../shared/contract/errors.js'
+import { assertRecordKept, assertUnlocked, recordKept } from '../../shared/core/managed-overlay.js'
+
+/** @param {Omit<AuditConfig, 'deleteLocked'>} config @returns {AuditConfig} */
+const configView = (config) => ({ ...config, deleteLocked: recordKept() })
 
 /** @param {WorkerIpc} ipc */
 export function registerAudit(ipc) {
@@ -23,7 +25,7 @@ export function registerAudit(ipc) {
   ipc.handle('audit:spaces', async () => await auditSpaces())
   ipc.handle('audit:actors', async () => await auditActors())
   ipc.handle('audit:stats', async () => await auditStats())
-  ipc.handle('audit:get-config', async () => getAuditConfig())
+  ipc.handle('audit:get-config', async () => configView(getAuditConfig()))
 
   // Retention and purge both change what every open Activity Log is showing, so each one pokes
   // the renderer rather than waiting for its next poll.
@@ -31,17 +33,15 @@ export function registerAudit(ipc) {
     const current = getAuditConfig()
     assertUnlocked('audit.enabled', msg.enabled, current.enabled, 'audit:configure')
     assertUnlocked('audit.retentionDays', msg.retentionDays, current.retentionDays, 'audit:configure')
+    if (typeof msg.maxEntries === 'number' && msg.maxEntries < current.maxEntries) assertRecordKept('audit:configure')
     const next = await setAuditConfig({
       enabled: msg.enabled, retentionDays: msg.retentionDays, maxEntries: msg.maxEntries,
     })
     ipc.emit('event:audit-updated', {})
-    return next
+    return configView(next)
   })
-  // An organization that keeps recording on keeps the record: deleting it would empty what it requires.
   ipc.handle('audit:purge', async () => {
-    if (isLocked('audit.enabled') && getAuditConfig().enabled) {
-      throw new AppError(CODES.MANAGED_LOCKED, 'audit:purge: audit.enabled is set by your organization')
-    }
+    assertRecordKept('audit:purge')
     const result = await purgeAudit()
     ipc.emit('event:audit-updated', {})
     return result
