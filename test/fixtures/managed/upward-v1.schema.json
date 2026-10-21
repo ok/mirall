@@ -1,0 +1,333 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://api.mirall.app/v1/schema.json",
+  "title": "Mirall upward plane v1 request bodies",
+  "description": "One definition per call, under $defs. Patterns are normative; `format` is an annotation only. A hostname must also be in Unicode NFC, which JSON Schema cannot express; the Console checks it.",
+  "$defs": {
+    "instance-enroll": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "enrollPublicKey": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "enrollSignature": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{128}$"
+        },
+        "report": {
+          "type": "object",
+          "properties": {
+            "appVersion": {
+              "type": "string",
+              "pattern": "^[0-9A-Za-z.+-]{1,32}$"
+            },
+            "channel": {
+              "type": "string",
+              "enum": [
+                "prod",
+                "staging",
+                "dev"
+              ]
+            },
+            "platform": {
+              "type": "string",
+              "enum": [
+                "macos",
+                "windows",
+                "linux"
+              ]
+            },
+            "osVersion": {
+              "type": "string",
+              "pattern": "^[0-9A-Za-z._+-]{1,64}$"
+            },
+            "hostnameLabel": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^\\P{Cc}*$"
+            },
+            "applied": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "profileVersionId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "issuedAt": {
+                      "type": "integer",
+                      "minimum": 1000000000000,
+                      "maximum": 9007199254740991
+                    },
+                    "appliedAt": {
+                      "type": "integer",
+                      "minimum": 1000000000000,
+                      "maximum": 9007199254740991
+                    },
+                    "via": {
+                      "type": "string",
+                      "enum": [
+                        "drive",
+                        "https"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "profileVersionId",
+                    "issuedAt",
+                    "appliedAt",
+                    "via"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "refusedKeys": {
+              "maxItems": 128,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 96,
+                "pattern": "^[a-z][A-Za-z0-9]*(\\.[a-z][A-Za-z0-9]*)+$"
+              }
+            },
+            "ignoredUnlocked": {
+              "maxItems": 128,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 96,
+                "pattern": "^[a-z][A-Za-z0-9]*(\\.[a-z][A-Za-z0-9]*)+$"
+              }
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "managed",
+                "left"
+              ]
+            },
+            "reportCounter": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "backup": {
+              "type": "object",
+              "properties": {
+                "setUp": {
+                  "type": "boolean"
+                },
+                "verdict": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]{0,31}$"
+                },
+                "lastSuccessAt": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 1000000000000,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "managedFolder": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "setUp",
+                "verdict",
+                "lastSuccessAt",
+                "managedFolder"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "appVersion",
+            "channel",
+            "platform",
+            "osVersion",
+            "hostnameLabel",
+            "applied",
+            "refusedKeys",
+            "ignoredUnlocked",
+            "state"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "enrollPublicKey",
+        "enrollSignature",
+        "report"
+      ],
+      "additionalProperties": false
+    },
+    "instance-report": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "appVersion": {
+          "type": "string",
+          "pattern": "^[0-9A-Za-z.+-]{1,32}$"
+        },
+        "channel": {
+          "type": "string",
+          "enum": [
+            "prod",
+            "staging",
+            "dev"
+          ]
+        },
+        "platform": {
+          "type": "string",
+          "enum": [
+            "macos",
+            "windows",
+            "linux"
+          ]
+        },
+        "osVersion": {
+          "type": "string",
+          "pattern": "^[0-9A-Za-z._+-]{1,64}$"
+        },
+        "hostnameLabel": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^\\P{Cc}*$"
+        },
+        "applied": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "profileVersionId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "issuedAt": {
+                  "type": "integer",
+                  "minimum": 1000000000000,
+                  "maximum": 9007199254740991
+                },
+                "appliedAt": {
+                  "type": "integer",
+                  "minimum": 1000000000000,
+                  "maximum": 9007199254740991
+                },
+                "via": {
+                  "type": "string",
+                  "enum": [
+                    "drive",
+                    "https"
+                  ]
+                }
+              },
+              "required": [
+                "profileVersionId",
+                "issuedAt",
+                "appliedAt",
+                "via"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "refusedKeys": {
+          "maxItems": 128,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 96,
+            "pattern": "^[a-z][A-Za-z0-9]*(\\.[a-z][A-Za-z0-9]*)+$"
+          }
+        },
+        "ignoredUnlocked": {
+          "maxItems": 128,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 96,
+            "pattern": "^[a-z][A-Za-z0-9]*(\\.[a-z][A-Za-z0-9]*)+$"
+          }
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "managed",
+            "left"
+          ]
+        },
+        "reportCounter": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "backup": {
+          "type": "object",
+          "properties": {
+            "setUp": {
+              "type": "boolean"
+            },
+            "verdict": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{0,31}$"
+            },
+            "lastSuccessAt": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1000000000000,
+                  "maximum": 9007199254740991
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "managedFolder": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "setUp",
+            "verdict",
+            "lastSuccessAt",
+            "managedFolder"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "appVersion",
+        "channel",
+        "platform",
+        "osVersion",
+        "hostnameLabel",
+        "applied",
+        "refusedKeys",
+        "ignoredUnlocked",
+        "state"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

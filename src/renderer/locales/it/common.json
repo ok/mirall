@@ -1712,6 +1712,8 @@
       "intro": "L’organizzazione che gestisce le impostazioni su questo computer.",
       "managedBy": "Gestito da {{org}}",
       "updated": "Configurazione aggiornata il {{when}}",
+      "revoked": "{{org}} ha revocato la licenza di questo computer. Mirall non le invia più rapporti, e le sue impostazioni restano in vigore finché non esci.",
+      "settingsHeading": "Impostazioni gestite",
       "support": "Assistenza",
       "supportPage": "Pagina di assistenza",
       "emailSupport": "Scrivi all’assistenza",
@@ -1724,6 +1726,7 @@
       "title": "Lasciare {{org}}?",
       "body": "Le impostazioni gestite tornano a essere le tue su questo computer.",
       "confirm": "Lascia",
+      "reportNote": "Mirall comunica a {{org}} che questo computer è uscito.",
       "backupNote": "I backup già presenti sulla condivisione di {{org}} restano lì, cifrati con la tua passphrase."
     },
     "about": {

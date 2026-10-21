@@ -79,10 +79,12 @@ const DEFAULTED = {
   // holder with a longer copy that connects a moment later still counts.
   restoreReleaseDwellMs: ruled(20_000, finiteAtLeast, 0),
   // Organization configuration: how long a preview waits before "couldn't reach", how long the
-  // drive may go without a peer before HTTPS takes over, and how often HTTPS is asked after that.
+  // drive may go without a peer before HTTPS takes over, how often HTTPS is asked after that, and
+  // how long after boot the start report waits for the backup to open.
   managedPreviewTimeoutMs: ruled(20_000, finiteAtLeast, 1000),
   managedDriveGraceMs: ruled(120_000, finiteAtLeast, 0),
   managedHttpsPollMs: ruled(3_600_000, finiteAtLeast, 1000),
+  managedReportDelayMs: ruled(10_000, finiteAtLeast, 0),
   // Read budget for the INTERACTIVE list fan-outs (files:list / share:list). Much shorter than
   // peerReadTimeoutMs so a not-yet-replicated member can't freeze the list — it returns the
   // locally-available rows now and self-heals: event:shares-updated / the listing's poke re-run it

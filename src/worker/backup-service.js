@@ -156,16 +156,25 @@ export class Backup extends Subsystem {
     return { folder: this.isSetUp() ? this.config.folder : null, repoId: this.config.repoId, ...this.progress }
   }
 
+  verdictNow(now) {
+    const setUp = this.isSetUp()
+    const stale = isStale({ now, setUp, lastSuccessAt: this.state.lastSuccessAt, setupAt: this.setupTime() })
+    return { setUp, stale, ...protectionVerdict({ setUp, stale, failing: this.progress.state === 'error', state: this.state, required: this.required() }) }
+  }
+
+  protection() {
+    const { setUp, verdict } = this.verdictNow(Date.now())
+    return { setUp, verdict, lastSuccessAt: this.state.lastSuccessAt ?? null, managedFolder: this.managedFolder() !== null }
+  }
+
   lossCheck() {
     return { suspect: this.progress.suspect, explained: this.explained }
   }
 
   async status() {
     const now = Date.now()
-    const setUp = this.isSetUp()
-    const { keyCreatedAt, keyInFolder, keyCheckedAt, lastSuccessAt, check } = this.state
-    const stale = isStale({ now, setUp, lastSuccessAt, setupAt: this.setupTime() })
-    const { verdict, reason } = protectionVerdict({ setUp, stale, failing: this.progress.state === 'error', state: this.state, required: this.required() })
+    const { keyCreatedAt, keyInFolder, keyCheckedAt, check } = this.state
+    const { stale, verdict, reason } = this.verdictNow(now)
     return {
       ...this.view(),
       key: { createdAt: keyCreatedAt, inFolder: keyInFolder, checkedAt: keyCheckedAt, reminders: !check.optOut },

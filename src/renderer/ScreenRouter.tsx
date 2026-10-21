@@ -195,7 +195,7 @@ export default function ScreenRouter({ nav, profile, onSaveProfile, openDialog }
     case 'about':
       return <AboutScreen onBack={() => nav.setCurrentScreen('account')} onOpenOrganization={() => nav.setCurrentScreen('organization')} />
     case 'organization':
-      return <OrganizationScreen onBack={() => nav.setCurrentScreen('about')} />
+      return <OrganizationScreen onBack={() => nav.setCurrentScreen('about')} onOpenPage={nav.setCurrentScreen} />
     case 'storage-settings':
       return (
         <StorageSettings

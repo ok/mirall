@@ -8,7 +8,7 @@ import { AppError } from '../../shared/core/errors.js'
 import { CODES } from '../../shared/contract/errors.js'
 import { Scope } from '../../shared/contract/scope.js'
 import { getManagedVaultKey } from '../../shared/core/store.js'
-import { getManagedLevers, getReleaseChannel, getRuntimeConfig } from '../../shared/core/runtime-config.js'
+import { getAppVersionLabel, getManagedLevers, getReleaseChannel, getRuntimeConfig } from '../../shared/core/runtime-config.js'
 import { getManagedOverlay, resetManagedOverlay, setManagedOverlay } from '../../shared/core/managed-overlay.js'
 import { lockedKeys } from '../../shared/core/managed-effective.js'
 import { record } from '../../shared/audit/audit-log.js'
@@ -23,7 +23,8 @@ import { DriveSource } from '../../shared/managed/drive-source.js'
 import {
   effectiveApiUrl, managedStateExists, managedStoreDir, readManagedState, removeManagedState, removeManagedStore, writeManagedState,
 } from '../../shared/managed/managed-state.js'
-import { resolveBackupFolder } from './device-facts.js'
+import { computerName, devicePlatform, osRelease, resolveBackupFolder } from './device-facts.js'
+import { InstanceReporter } from './instance-reporter.js'
 
 const PREVIEW_RETRY_MS = 5000
 const PREVIEW_CACHE_MS = 10 * 60_000
@@ -32,7 +33,8 @@ const REFRESH_TIMEOUT_MS = 15_000
 
 const hex = (buf) => b4a.toString(buf, 'hex')
 const linkOf = (state) => ({ licenseKey: b4a.from(state.licenseKey, 'hex'), driveKey: b4a.from(state.driveKey, 'hex') })
-const sameApplied = (a, b) => a.issuedAt === b.issuedAt && a.profileVersionId === b.profileVersionId && JSON.stringify(a.settings) === JSON.stringify(b.settings)
+const sameApplied = (a, b) => a.issuedAt === b.issuedAt && a.profileVersionId === b.profileVersionId && JSON.stringify(a.settings) === JSON.stringify(b.settings) &&
+  JSON.stringify(a.refusedKeys) === JSON.stringify(b.refusedKeys) && JSON.stringify(a.ignoredUnlocked) === JSON.stringify(b.ignoredUnlocked)
 
 export class ManagedConfig extends Subsystem {
   constructor(name, deps) {
@@ -46,6 +48,14 @@ export class ManagedConfig extends Subsystem {
     this.previewCache = null
     this.lastFailure = null
     this.queue = Promise.resolve()
+    this.reporter = new InstanceReporter({
+      storage: deps.storage,
+      timers: this.timers,
+      log: this.log,
+      getState: () => this.state,
+      facts: (state) => this.reportFacts(state),
+      onRevoked: () => this.deps.ipc.emit('event:reconcile', { scope: Scope.managed() }),
+    })
   }
 
   async _open() {
@@ -63,6 +73,8 @@ export class ManagedConfig extends Subsystem {
     this.state = state
     if (state.applied) this.publish(state.applied, { at: 'boot' })
     await this.activate({ fresh: false })
+    // Boot opens the backup after this subsystem; the start report waits for it.
+    await this.startReporting(getManagedLevers().reportDelayMs)
   }
 
   async _close() {
@@ -82,6 +94,8 @@ export class ManagedConfig extends Subsystem {
       locked: lockedKeys(getManagedOverlay()),
       updatedAt: applied.receivedAt,
       backupFolder: getManagedOverlay()?.backup?.folder ?? null,
+      values: { relayMode: applied.settings['network.relayMode'] ?? null, retentionDays: applied.settings['audit.retentionDays'] ?? null },
+      revoked: this.reporter.revoked,
     }
   }
 
@@ -109,6 +123,7 @@ export class ManagedConfig extends Subsystem {
     const previous = this.state
     const sameDrive = previous?.driveKey === hex(link.driveKey)
     await this.deactivate()
+    if (previous && previous.licenseKey !== hex(link.licenseKey)) await this.retireInstance(previous)
     if (previous && !sameDrive) await removeManagedStore(this.deps.storage)
     const now = Date.now()
     // The same drive never moves the rollback floor back: what is already applied there, if newer
@@ -135,20 +150,24 @@ export class ManagedConfig extends Subsystem {
     const row = managedJoinedRow(state.applied)
     record(row.kind, row.row)
     await this.activate({ fresh: true })
+    await this.startReporting(0)
     return this.view()
   }
 
-  // managed.enc goes first: a removal that fails leaves the install visibly managed, never one that
-  // reads as left today and is managed again after the next boot.
+  // The organization hears first, then managed.enc goes: a removal that fails leaves the install
+  // visibly managed, never one that reads as left today and is managed again after the next boot.
+  // The instance key goes last, so a retried Leave still holds it.
   async leave() {
     const organization = this.state?.applied?.organization ?? null
     if (!this.state) return { left: null }
     await this.deactivate()
+    await this.reporter.leave(this.state)
     await removeManagedState(this.deps.storage)
     if (organization) {
       const row = managedLeftRow(organization)
       record(row.kind, row.row)
     }
+    await this.reporter.forget().catch((err) => this.log.warn('instance key not removed:', err.message))
     await removeManagedStore(this.deps.storage).catch((err) => this.log.warn('config drive store not removed:', err.message))
     this.state = null
     this.etag = null
@@ -182,7 +201,7 @@ export class ManagedConfig extends Subsystem {
       if (res.kind === 'retry' && res.detail === 'rate_limited') break
       if (res.kind === 'bundles') {
         const selected = selectApplied(res.bundles, ctx)
-        if (selected.applied) return { kind: 'ready', applied: selected.applied }
+        if (selected.applied) return { kind: 'ready', applied: { ...selected.applied, refusedKeys: selected.refused, ignoredUnlocked: selected.ignoredUnlocked } }
         if (selected.failures.length) {
           this.log.warn('preview: no bundle verified:', selected.failures.map((f) => f.failure).join(','))
           return { kind: 'invalid' }
@@ -233,7 +252,38 @@ export class ManagedConfig extends Subsystem {
     this.scheduleHttps(this.drive ? levers.driveGraceMs : fresh ? levers.httpsPollMs : 0)
   }
 
+  async startReporting(delayMs) {
+    if (!this.state || this.stopping || !devicePlatform()) return
+    try {
+      await this.reporter.start(this.state, { delayMs })
+    } catch (err) {
+      this.log.warn('reporting not started:', err.message)
+    }
+  }
+
+  // A key belongs to one license: the organization being replaced hears that this computer left.
+  async retireInstance(previous) {
+    await this.reporter.leave(previous)
+    await this.reporter.forget().catch((err) => this.log.warn('instance key not removed:', err.message))
+  }
+
+  reportFacts(state) {
+    const applied = state.applied
+    return {
+      appVersion: getAppVersionLabel(),
+      channel: getReleaseChannel(),
+      platform: devicePlatform(),
+      osVersion: osRelease(),
+      hostname: computerName(),
+      applied: applied ? { profileVersionId: applied.profileVersionId, issuedAt: applied.issuedAt * 1000, appliedAt: applied.receivedAt, via: applied.via } : null,
+      refusedKeys: applied?.refusedKeys ?? [],
+      ignoredUnlocked: applied?.ignoredUnlocked ?? [],
+      backup: this.deps.getBackup?.()?.protection() ?? null,
+    }
+  }
+
   async deactivate() {
+    this.reporter.stop()
     this.timers.clear(this.httpsTimer)
     this.timers.clear(this.rereadTimer)
     this.httpsTimer = null
@@ -312,15 +362,17 @@ export class ManagedConfig extends Subsystem {
     const selected = selectApplied(candidates, this.verifyContext(linkOf(state), state.lastIssuedAt))
     if (!selected.applied) return
     if (selected.refused.length) this.log.warn('configuration values refused:', selected.refused.join(','))
-    if (state.applied && sameApplied(state.applied, selected.applied)) return
+    const candidate = { ...selected.applied, refusedKeys: selected.refused, ignoredUnlocked: selected.ignoredUnlocked }
+    if (state.applied && sameApplied(state.applied, candidate)) return
     const key = getManagedVaultKey()
     if (!key) return
-    const applied = { ...selected.applied, receivedAt: Date.now(), via }
+    const applied = { ...candidate, receivedAt: Date.now(), via }
     const next = { ...state, lastIssuedAt: applied.issuedAt, applied }
     await writeManagedState(this.deps.storage, key, next)
     if (this.state !== state) return
     this.state = next
     this.publish(applied, { at: 'update' })
+    this.reporter.changed()
   }
 
   publish(applied, { at }) {

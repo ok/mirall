@@ -8,6 +8,7 @@ export const SECRET_FILE = Object.freeze({
   SPACE_KEYS: 'space-keys.enc',
   RELAY_TICKET: 'relay-ticket.enc',
   MANAGED: 'managed.enc',
+  INSTANCE: 'instance-key.json',
 })
 
 /**

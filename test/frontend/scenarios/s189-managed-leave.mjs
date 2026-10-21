@@ -3,8 +3,8 @@ import { Instance } from '../instance.mjs'
 import { makeReport, assert, waitFor } from '../assert.mjs'
 import { startManagedConsole } from '../managed-console.mjs'
 
-// Leaving from the Organization page returns to About with the row gone, and the settings are the
-// person's again — after a relaunch too.
+// Leaving from the Organization page tells the organization, returns to About with the row gone,
+// and the settings are the person's again — after a relaunch too.
 export default async function s189({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
@@ -24,9 +24,11 @@ export default async function s189({ runDir, bootstrap }) {
       await A.waitText('Managed by Acme Test GmbH', 8000)
       await A.click({ role: 'button', name: 'Leave…' })
       await A.waitText('Leave Acme Test GmbH?', 8000)
+      assert(await A.hasText('Mirall tells Acme Test GmbH that this computer has left.'), 'the organization hears of it')
       await A.shot('s189-confirm', runDir)
       await A.click({ role: 'button', name: 'Leave', last: true })
       await A.waitText('Left Acme Test GmbH', 15000)
+      assert(fixture.upward.at(-1)?.report.state === 'left', 'the organization was told')
       await waitFor(async () => !(await A.has({ role: 'button', name: 'Organization' })), 10000, 'the Organization row is gone')
       assert(await A.hasText('Version, updates'), 'back on About')
     })

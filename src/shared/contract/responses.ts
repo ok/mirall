@@ -479,6 +479,10 @@ export interface ManagedView {
   updatedAt: number
   /** The organization's backup folder resolved for this device, or null when it sets none. */
   backupFolder: string | null
+  /** The locked values the Organization page names; null where the key is not locked. */
+  values: { relayMode: RelayMode | null, retentionDays: number | null }
+  /** The Console answered that this computer's license is revoked; its configuration stays applied. */
+  revoked: boolean
 }
 
 export type ManagedPreview =
