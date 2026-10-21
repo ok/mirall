@@ -127,12 +127,14 @@ export async function bootDurable(bootstrap, { ipc, log, masterSecret = undefine
   }
   // After the log, which seeds it once. A failure keeps this run's times in memory only; the app
   // still starts.
+  const orderPush = createSpaceOrderPush({ ipc, log })
   try {
     await durable.start(new SpaceActivity('space-activity', {
       auditBee,
       spaceIds: async () => (await listSpaces()).map((space) => space.spaceId),
-      onChange: createSpaceOrderPush({ ipc, log }),
+      onChange: orderPush.announce,
     }))
+    await orderPush.baseline()
   } catch (err) {
     log.warn('space activity not saved this run:', err.message)
   }

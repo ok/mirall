@@ -50,10 +50,6 @@ export function noteSpaceActivity(spaceId) {
   onChange?.()
 }
 
-export function isSpaceActivityKind(kind) {
-  return counting.has(kind)
-}
-
 export function noteActivityKind(kind, spaceId) {
   if (counting.has(kind)) noteSpaceActivity(spaceId)
 }

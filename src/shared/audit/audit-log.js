@@ -12,7 +12,7 @@ import { createRateGuard } from './audit-rate-guard.js'
 import { CONFIG_KEY, evtKey, evtRange, indexKeyOf, seqOf } from './audit-keys.js'
 import { ACTOR_TYPE } from '../contract/audit-kinds.js'
 import { announceActivity } from './activity-feed.js'
-import { isSpaceActivityKind, noteActivityKind } from './space-activity.js'
+import { noteActivityKind } from './space-activity.js'
 import { getManagedOverlay } from '../core/managed-overlay.js'
 import { effectiveAudit } from '../core/managed-effective.js'
 
@@ -177,8 +177,7 @@ export const RESOLVE_OUTCOME = Object.freeze({
  * @param {() => Promise<object | null>} resolve
  * @param {{ context?: Record<string, string> | null, spaceId?: string | null }} [opts]
  */
-export function recordResolved(kind, resolve, { context = null, spaceId = undefined } = {}) {
-  if (spaceId === undefined && isSpaceActivityKind(kind)) log.warn('no space named for', kind, '- its space is not marked active')
+export function recordResolved(kind, resolve, { context = null, spaceId = null } = {}) {
   noteActivityKind(kind, spaceId)
   if (!bee || !recording()) return Promise.resolve(RESOLVE_OUTCOME.LOST)
   const pending = Promise.resolve()

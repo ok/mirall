@@ -2,6 +2,7 @@ import test from 'brittle'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { freshPeer, rebootPeer } from '../helpers/store.js'
+import { until } from '../helpers/bare-poll.js'
 import { setupOwnedShare } from '../helpers/owned.js'
 import { record, recordResolved, flushAudit, setAuditConfig } from '../../src/shared/audit/audit-log.js'
 import { queryAudit } from '../../src/shared/audit/audit-query.js'
@@ -73,13 +74,15 @@ const pushesOf = (peer) => peer.fake.events.filter((e) => e.type === 'event:stat
 
 test('a new order is pushed to every client, once per burst', async (t) => {
   const { peer, older } = await twoSpaces(t)
-  const before = pushesOf(peer).length
+  t.is(pushesOf(peer).length, 0, 'creating the spaces pushed nothing: a new space reaches clients by its own refresh')
   await tick()
   for (let i = 0; i < 20; i++) record('file.shared', spaceRow(older))
-  await new Promise((resolve) => setTimeout(resolve, 100))
-  const after = pushesOf(peer)
-  t.is(after.length, before + 1, 'one push for the burst')
-  t.is(after.at(-1).payload.spaces[0].spaceId, older, 'the pushed list is the new order')
+  t.ok(await until(() => pushesOf(peer).length > 0, 5000), 'the new order was pushed')
+  // Past the coalescing window, so a second push would have landed by now.
+  await new Promise((resolve) => setTimeout(resolve, 2500))
+  const pushes = pushesOf(peer)
+  t.is(pushes.length, 1, 'once for the burst')
+  t.is(pushes[0].payload.spaces[0].spaceId, older, 'the pushed list is the new order')
 })
 
 test('activity that changes neither the order nor a card that reads now is not pushed', async (t) => {
