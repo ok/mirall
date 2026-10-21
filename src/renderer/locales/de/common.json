@@ -631,6 +631,7 @@
     "openNotificationSettings": "Benachrichtigungseinstellungen öffnen",
     "openGeneralSettings": "Allgemeine Einstellungen öffnen",
     "openNetworkSettings": "Netzwerkeinstellungen öffnen",
+    "openBackupSettings": "Backup-Einstellungen öffnen",
     "openActivityLogSettings": "Einstellungen für das Aktivitätsprotokoll öffnen",
     "openNetworkStatus": "Netzwerkstatus öffnen",
     "newSpace": "Neuen Space anlegen",
@@ -654,6 +655,7 @@
     "sendFeedback": "Feedback senden",
     "openDocs": "Dokumentation öffnen",
     "openAbout": "Über Mirall öffnen",
+    "openOrganization": "Organisation {{org}} öffnen",
     "selectAll": "Alle Dateien auswählen"
   },
   "palette": {

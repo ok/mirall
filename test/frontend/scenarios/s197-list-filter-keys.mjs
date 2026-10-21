@@ -5,7 +5,7 @@ import { makeReport, assert } from '../assert.mjs'
 import { workDir } from '../paths.mjs'
 
 // ⌘F focuses the filter of whichever list is on screen, the space's or the folder's, and is not
-// offered where there is no list to filter.
+// offered where there is no list to filter. The palette reaches Backup settings.
 //
 // Every palette assertion is a string strictly LONGER than the query typed to reach it: the input's
 // own value is part of the window text (see s124).
@@ -61,6 +61,14 @@ export default async function s197({ runDir, bootstrap }) {
       await A.waitText('readme.txt', 20000)
       await findTypesInto('Filter files in this folder')
       await A.shot('s197-folder-filter', runDir)
+    })
+
+    await r.ok('the palette reaches Backup settings', async () => {
+      await palette('backup settings')
+      assert(await A.hasText('Open Backup Settings'), 'the entry is listed')
+      await A.press('return')
+      await A.waitText('Keeps your spaces safe if this computer is lost or replaced.', 8000)
+      await A.shot('s197-backup', runDir)
     })
   } catch {}
   return { pass: r.summary(), instances: [A] }
