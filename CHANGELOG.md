@@ -31,6 +31,7 @@ download first, then join the space; the Join dialog accepts the link
 pasted from any site.
 - **Filter a space's files.** The space screen gained the folder screen's
 filter field, so a file can be found by name among folders and loose files.
+- **⌘F (Ctrl+F) jumps to the filter** on a space or folder screen.
 
 #### Changed
 

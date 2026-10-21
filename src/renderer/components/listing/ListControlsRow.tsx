@@ -4,7 +4,8 @@
 // when offered, heads the selection column: its first tick opens the column with every matching
 // file selected, after that it is an ordinary select-all. A listing may add one control between
 // the filter and Expand all; when that control leaves with focus in it (a selection starting), the
-// row's first control — the top box, or the filter — takes focus.
+// row's first control — the top box, or the filter — takes focus. The row owns the find chord: it is
+// mounted exactly while there is a list to filter, so the chord exists on no screen without one.
 import { useRef, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import Icon from '../primitives/Icon.js'
@@ -12,6 +13,8 @@ import SearchField from '../primitives/SearchField.js'
 import Button from '../primitives/Button.js'
 import Checkbox from '../primitives/Checkbox.js'
 import { useKeepFocus } from '../../hooks/useKeepFocus.js'
+import { useRegisterCommand } from '../../keyboard/KeyboardProvider.js'
+import { useAnyModalOpen } from '../primitives/modalPresence.js'
 import type { TriState } from '../../model/batch-selection.js'
 
 export interface SelectAllBox {
@@ -49,6 +52,18 @@ export default function ListControlsRow({
   const inputRef = useRef<HTMLInputElement>(null)
   const filtering = value.trim().length > 0
   const { ref, onFocus, onBlur } = useKeepFocus<HTMLDivElement>('first')
+  // A dialog keeps the chord: see useSelectionKeys.
+  const modalOpen = useAnyModalOpen()
+  useRegisterCommand({
+    id: 'search.focus',
+    labelKey: 'shortcuts.focusSearch',
+    group: 'actions',
+    when: () => !modalOpen,
+    run: () => {
+      inputRef.current?.focus()
+      inputRef.current?.select()
+    },
+  }, [])
 
   function clear() {
     onChange('')
