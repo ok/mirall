@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import type { Space } from '../../types/types.js'
-import { gradientForSpaceId, formatDate } from '../../format/utils.js'
+import { gradientForSpaceId } from '../../format/utils.js'
+import { relativeAge } from '../../model/relative-age.js'
 import { useSpaceMembers } from '../../hooks/useSpaceMembers.js'
 import Icon from '../primitives/Icon.js'
 import type { IconName } from '../../types/ui.js'
@@ -8,17 +9,21 @@ import AvatarStack from '../primitives/AvatarStack.js'
 
 interface SpaceCardProps {
   space: Space
+  /** The clock the activity time is read against, which the list advances. */
+  now: number
   onClick: () => void
 }
 
-export default function SpaceCard({ space, onClick }: SpaceCardProps) {
-  const { t } = useTranslation()
+export default function SpaceCard({ space, now, onClick }: SpaceCardProps) {
+  const { t, i18n } = useTranslation()
   const gradient = gradientForSpaceId(space.spaceId)
   // spaces:list rosters are slim (no avatars); the facepile reads the cached full roster and
   // falls back to the slim entries (initials) until it lands.
   const roster = useSpaceMembers(space.spaceId)
   const facepile: { displayName: string; avatar?: string | null }[] = roster.length ? roster : space.members ?? []
   const memberCount = space.memberCount ?? (space.members?.length || 0)
+  const age = relativeAge(now - space.lastActivity)
+  const activeWhen = new Intl.RelativeTimeFormat(i18n.language, { numeric: 'auto' }).format(-age.value, age.unit)
 
   // The facepile's rings are cut from THIS card, so the hover state hands them the lifted fill
   // alongside its own: pinned to the resting surface they read as a dark rim around every face the
@@ -40,7 +45,7 @@ export default function SpaceCard({ space, onClick }: SpaceCardProps) {
       <div className="flex-grow min-w-0">
         <h3 className="text-xl font-headline font-bold text-accent truncate pb-0.5 mb-1">{space.name}</h3>
         <p className="text-on-surface-variant text-sm truncate">
-          {t('spaces.memberCount', { count: memberCount })} • {t('spaces.createdLabel', { date: formatDate(space.created) })}
+          {t('spaces.memberCount', { count: memberCount })} • {t('spaces.activeLabel', { when: activeWhen })}
         </p>
       </div>
       {space.status === 'pending' && (

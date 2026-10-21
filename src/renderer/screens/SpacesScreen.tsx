@@ -1,6 +1,6 @@
 // Home screen: the user's spaces as cards, with create/join entry points. Per-space
 // actions (edit, favorite) live in the space's own header menu, not on the cards.
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSpaces } from '../hooks/useSpaces.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
@@ -10,6 +10,9 @@ import DocsCard from '../components/cards/DocsCard.js'
 import BackupPromptCard from '../components/backup/BackupPromptCard.js'
 import { useRestoreHold } from '../hooks/useRestoreHold.js'
 import { useHeldControl } from '../hooks/useHeldControl.js'
+import { inHeldOrder } from '../model/held-order.js'
+
+const LABEL_REFRESH_MS = 60000
 
 interface YourSpacesProps {
   onSelectSpace: (spaceId: string) => void
@@ -24,13 +27,25 @@ export default function YourSpaces({ onSelectSpace, onShowCreate, onShowJoin }: 
   const [filter, setFilter] = useState<'all' | 'favorites'>('all')
   const { ref: listRef, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
 
-  const sortedSpaces = [...spaces].sort((a, b) =>
-    new Date(b.created).getTime() - new Date(a.created).getTime()
-  )
+  // The cards say how long ago each space was active, so the clock they read moves on its own.
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), LABEL_REFRESH_MS)
+    return () => clearInterval(timer)
+  }, [])
 
+  // spaces:list arrives most recently active first. While the pointer is over the list or focus is
+  // in it, the order it had then is held, so a click or Tab never lands on a card that moved.
+  const [hovered, setHovered] = useState(false)
+  const [focused, setFocused] = useState(false)
+  const [heldIds, setHeldIds] = useState<string[] | null>(null)
+  const holding = hovered || focused
+  if (holding && !heldIds) setHeldIds(spaces.map((s) => s.spaceId))
+  if (!holding && heldIds) setHeldIds(null)
+  const ordered = inHeldOrder(spaces, heldIds)
   const filteredSpaces = filter === 'favorites'
-    ? sortedSpaces.filter(s => s.favorite)
-    : sortedSpaces
+    ? ordered.filter(s => s.favorite)
+    : ordered
 
   return (
     <div className="max-w-(--breakpoint-2xl) mx-auto px-8 flex flex-col h-[calc(100vh-5rem-var(--banner-h,0px))] pb-8">
@@ -75,6 +90,10 @@ export default function YourSpaces({ onSelectSpace, onShowCreate, onShowJoin }: 
       <div
         ref={listRef}
         role={filteredSpaces.length > 0 ? 'list' : undefined}
+        onPointerEnter={() => setHovered(true)}
+        onPointerLeave={() => setHovered(false)}
+        onFocus={() => setFocused(true)}
+        onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setFocused(false) }}
         className={`flex-1 overflow-y-auto space-y-4 pb-4 scrollbar-thin${hasOverflow ? ' pr-4' : ''}`}
       >
         {/* Gated on `loading`: an unsettled list has no spaces YET, which is not the same
@@ -106,6 +125,7 @@ export default function YourSpaces({ onSelectSpace, onShowCreate, onShowJoin }: 
           <div role="listitem" key={space.spaceId}>
             <SpaceCard
               space={space}
+              now={now}
               onClick={() => onSelectSpace(space.spaceId)}
             />
           </div>

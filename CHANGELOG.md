@@ -37,6 +37,9 @@ organization manages, the organization's page.
 
 #### Changed
 
+- **Spaces are listed by recent activity.** The space where something last
+happened, by you or a member, comes first, and each card says when.
+⌘1–9 now go to your favorites first, then your oldest spaces.
 - **Settings → Storage sets the download folder for new spaces.** Spaces you
 already have keep their own folder when you change it.
 - **A file downloaded from a shared folder keeps its subfolders**, as a

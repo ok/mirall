@@ -57,7 +57,7 @@
     "emptyNoFavoritesHint": "Öffne einen Raum und wähle „Zu Favoriten hinzufügen“ im Menü, um ihn hier festzuhalten.",
     "memberCount_one": "{{count}} Mitglied",
     "memberCount_other": "{{count}} Mitglieder",
-    "createdLabel": "Erstellt {{date}}",
+    "activeLabel": "Aktiv {{when}}",
     "waitingCount_one": "{{count}} wartet",
     "waitingCount_other": "{{count}} warten",
     "waitingForApproval": "Warte auf Freigabe"

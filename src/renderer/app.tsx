@@ -38,6 +38,7 @@ import DownloadFolderToastBridge from './components/toast/bridges/DownloadFolder
 import DownloadToToastBridge from './components/toast/bridges/DownloadToToastBridge.js'
 import JoinRequestToastBridge from './components/toast/bridges/JoinRequestToastBridge.js'
 import BackupToastBridge from './components/toast/bridges/BackupToastBridge.js'
+import { shortcutOrder } from './model/space-shortcut-order.js'
 import type { Profile } from './types/types.js'
 
 function BootScreen({ label }: { label: string }) {
@@ -137,7 +138,7 @@ function AppShell({ nav, profile, onSaveProfile, deepLinks, identity }: AppShell
   useEffect(() => {
     window.bridge.menuContextChanged({
       inSpace: nav.currentScreen === 'space-view' || nav.currentScreen === 'folder-view',
-      spaces: spaces.slice(0, 9).map((s) => ({ id: s.spaceId, name: s.name })),
+      spaces: shortcutOrder(spaces).slice(0, 9).map((s) => ({ id: s.spaceId, name: s.name })),
     }).catch((err) => console.error('menuContextChanged failed:', err))
   }, [nav.currentScreen, spaces])
 

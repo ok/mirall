@@ -89,6 +89,7 @@ const SPACE: Space = {
   icon: 'hub',
   topic: pk(7),
   created: new Date('2026-01-02T10:00:00Z').toISOString(),
+  lastActivity: Date.parse('2026-01-02T10:00:00Z'),
   downloadFolder: '/Users/you/Downloads',
   // A count above the three-face cap, so the +N disc renders next to the faces. The faces
   // themselves come from the fake bridge's `space:members` roster; no avatar images, since the
@@ -101,7 +102,7 @@ const faces = (n: number) => Array.from({ length: n }, (_, i) => ({ key: String(
 
 createRoot(document.getElementById('root') as HTMLElement).render(
   <div className="p-6 bg-background space-y-6">
-    <SpaceCard space={SPACE} onClick={() => {}} />
+    <SpaceCard space={SPACE} now={Date.parse('2026-01-02T10:00:00Z')} onClick={() => {}} />
     {/* One past a cap of three is shown rather than counted; two past it earns the chip. */}
     <div data-probe="absorb-four" className="bg-surface-container-lowest p-5 rounded-2xl">
       <AvatarStack size="lg" surface="surface-container-lowest" announce="hidden" max={3} avatars={faces(4)} />

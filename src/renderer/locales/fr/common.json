@@ -57,7 +57,7 @@
     "emptyNoFavoritesHint": "Ouvrez un espace et choisissez « Ajouter aux favoris » dans le menu pour l'épingler ici.",
     "memberCount_one": "{{count}} membre",
     "memberCount_other": "{{count}} membres",
-    "createdLabel": "Créé le {{date}}",
+    "activeLabel": "Actif {{when}}",
     "waitingCount_one": "{{count}} en attente",
     "waitingCount_other": "{{count}} en attente",
     "waitingForApproval": "En attente d'approbation"
