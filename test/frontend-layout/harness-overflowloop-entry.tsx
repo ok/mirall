@@ -44,7 +44,7 @@ const NAMES = ['Aurora', 'Boiler Room', 'Camera roll', 'Design reviews', 'Family
 window.__HARNESS_CFG = {
   spaces: NAMES.map((name, i) => ({
     spaceId: `space-${i}`, name, icon: 'folder', topic: String(i).repeat(64),
-    created: `2026-0${(i % 9) + 1}-01`, members: [], favorite: false, schemaVersion: 2,
+    created: `2026-0${(i % 9) + 1}-01`, members: [], favorite: false, schemaVersion: 2, lastActivity: Date.parse(`2026-0${(i % 9) + 1}-01`),
   })),
 }
 

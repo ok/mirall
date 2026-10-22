@@ -12,6 +12,7 @@ import { createLogger } from '../core/logger.js'
 import { spacesMeta, mutateSpace, deleteSpaceRecord, getSpace } from './space.js'
 import { clearFileRecipients } from '../transfer/file-recipients.js'
 import { recordRemoval } from '../storage/removal-evidence.js'
+import { forgetSpaceActivity } from '../audit/space-activity.js'
 
 const log = createLogger('leave-records')
 
@@ -111,6 +112,8 @@ export async function forgetSpaceRecord(spaceId, { kind = 'space-left' } = {}) {
   await clearAllLeftTombstones(spaceId)
   await clearFileRecipients(spaceId)
   await deleteSpaceRecord(spaceId)
+  // After the record: a failure here leaves a stale time, which the next boot drops, never a space.
+  await forgetSpaceActivity(spaceId).catch((err) => log.warn('activity time not forgotten:', spaceId, err.message))
 }
 
 // The end of a leave: the record is gone and the store is flushed so the deletion survives a quit

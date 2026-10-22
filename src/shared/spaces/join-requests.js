@@ -115,6 +115,18 @@ export function claimJoinRequestAudit(spaceId, profileKey) {
   return claim
 }
 
+// The requests that already made their space active. Unlike a claim, a lost row never gives this
+// back, so a joiner who keeps knocking while recording is off moves the space once, not per knock.
+const countedRequests = new Set()
+
+// True the first time a request is seen, until it is settled.
+export function firstSightOfJoinRequest(spaceId, profileKey) {
+  const key = claimKey(spaceId, profileKey)
+  if (countedRequests.has(key)) return false
+  countedRequests.add(key)
+  return true
+}
+
 export function releaseJoinRequestAudit(claim) {
   if (auditClaims.get(claim.key) === claim) auditClaims.delete(claim.key)
 }
@@ -122,6 +134,7 @@ export function releaseJoinRequestAudit(claim) {
 // The request is settled, so a later re-knock is a new request and records again.
 export function forgetJoinRequestAudit(spaceId, profileKey) {
   auditClaims.delete(claimKey(spaceId, profileKey))
+  countedRequests.delete(claimKey(spaceId, profileKey))
 }
 
 // Cleared with the bee that outlived them: a request is live state, not a record.
@@ -129,5 +142,6 @@ export function resetJoinRequests() {
   pendingRequests.clear()
   derivedRequests.clear()
   auditClaims.clear()
+  countedRequests.clear()
   approvedVerdicts.clear()
 }

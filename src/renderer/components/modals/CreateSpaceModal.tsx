@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { Space } from "../../types/types.js";
+import type { SpaceRecord } from "../../types/types.js";
 import { gradientForSpaceId } from "../../format/utils.js";
 import IconPicker from "../primitives/IconPicker.js";
 import TextField from "../primitives/TextField.js"
@@ -15,8 +15,8 @@ import { useErrorText } from "../../hooks/useErrorText.js";
 interface CreateSpaceModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreate: (name: string, icon: string) => Promise<Space>;
-  onCreated?: (space: Space) => void;
+  onCreate: (name: string, icon: string) => Promise<SpaceRecord>;
+  onCreated?: (space: SpaceRecord) => void;
 }
 
 export default function CreateSpaceModal({
@@ -29,7 +29,7 @@ export default function CreateSpaceModal({
   const errorText = useErrorText();
   const [name, setName] = useState("");
   const [icon, setIcon] = useState("folder");
-  const [createdSpace, setCreatedSpace] = useState<Space | null>(null);
+  const [createdSpace, setCreatedSpace] = useState<SpaceRecord | null>(null);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // setCreating lands a render later; the ref is what stops a held Enter creating two spaces.

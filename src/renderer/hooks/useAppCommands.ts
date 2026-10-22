@@ -8,6 +8,7 @@ import { useManaged } from './useManaged.js'
 import type { AppNavigation } from './useAppNavigation.js'
 import type { AppDialog } from '../components/modals/AppDialogs.js'
 import type { Space } from '../types/types.js'
+import { shortcutOrder } from '../model/space-shortcut-order.js'
 
 interface AppCommandTargets {
   nav: AppNavigation
@@ -103,7 +104,7 @@ export function useAppCommands({ nav, spaces, canGoBack, openDialog }: AppComman
   const openWhatsNew = useOpenWhatsNew()
   const targets: AppCommandTargets = { nav, canGoBack, openDialog, openPalette, openCheatsheet, openWhatsNew }
   useRegisterCommands(APP_COMMANDS.map((row) => toCommand(row, targets)), [])
-  useRegisterCommands(spaces.map((space, i) => spaceOpenCommand(space, i, nav)), [spaces])
+  useRegisterCommands(shortcutOrder(spaces).map((space, i) => spaceOpenCommand(space, i, nav)), [spaces])
   useOrganizationCommand(nav)
   useMouseBackButton(runCommand)
 }

@@ -57,7 +57,7 @@
     "emptyNoFavoritesHint": "Abre un espacio y elige «Añadir a favoritos» en el menú para fijarlo aquí.",
     "memberCount_one": "{{count}} miembro",
     "memberCount_other": "{{count}} miembros",
-    "createdLabel": "Creado el {{date}}",
+    "activeLabel": "Activo {{when}}",
     "waitingCount_one": "{{count}} en espera",
     "waitingCount_other": "{{count}} en espera",
     "waitingForApproval": "Esperando aprobación"

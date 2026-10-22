@@ -1,10 +1,10 @@
 // When a run writes a snapshot, and which spaces it records as left. Bookkeeping — the Activity Log,
-// download and transfer records, storage measurements, migration marks — changes on its own all day,
-// so it never brings about a snapshot; its changes ride along in the next one something else does.
-// Members' catalogs do bring one about.
+// the spaces' activity times, download and transfer records, storage measurements, migration marks —
+// changes on its own all day, so it never brings about a snapshot; its changes ride along in the next
+// one something else does. Members' catalogs do bring one about.
 import { RETENTION } from './retention.js'
 
-const BOOKKEEPING_BEES = new Set(['audit-log', 'downloads-meta', 'pending-transfers', 'reclaim-meta', 'app-migrations'])
+const BOOKKEEPING_BEES = new Set(['audit-log', 'space-activity', 'downloads-meta', 'pending-transfers', 'reclaim-meta', 'app-migrations'])
 
 const isBookkeeping = (entry) => entry.role === 'local-bee' && BOOKKEEPING_BEES.has(entry.name)
 

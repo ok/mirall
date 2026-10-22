@@ -9,6 +9,7 @@ import { collectPeerShare, getPeerEntryState, isPeerCatalogWatched, peerCatalogV
 import { readCatalogKey } from '../../shares/catalog-keys.js'
 import { readPeerShareEntry } from '../../shares/shares.js'
 import { observePeerCatalog } from '../../audit/peer-records-watch.js'
+import { noteSpaceActivity } from '../../audit/space-activity.js'
 import { getDownloadDir } from '../../core/paths.js'
 import { AppError } from '../../core/errors.js'
 import { CODES } from '../../contract/errors.js'
@@ -65,8 +66,11 @@ const catalogWatchId = (shareId) => 'download:' + shareId
 
 function ensureCatalogWatch(spaceId, share, { keyHex, sck }) {
   if (!keyHex) return
-  const watched = watchPeerCatalog(keyHex, catalogWatchId(share.id), (bee) => {
+  const watched = watchPeerCatalog(keyHex, catalogWatchId(share.id), (bee, { known }) => {
     ipcRef?.emit('event:share-files-updated', { spaceId, shareId: share.id })
+    // Folder contents and same-path edits write no audit rows, so the catalog itself marks the space
+    // active.
+    if (known) noteSpaceActivity(spaceId)
     // The append is a bare poke, so the audit observer diffs the catalog's own history.
     if (isLoose(share)) observePeerCatalog(share.owner, spaceId, keyHex, bee, LOOSE_SHARE_ID)
     else catalogChangeHook?.(spaceId)

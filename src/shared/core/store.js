@@ -159,9 +159,9 @@ function rememberCoreName(core, name) {
   } catch { /* a core without ready() — skip naming */ }
 }
 
-// Every append to one of our own bees is a change worth backing up, except the two whose loss costs
-// nothing a restore needs: the activity log and maintenance timestamps.
-const UNHINTED_BEES = new Set(['audit-log', 'reclaim-meta'])
+// Every append to one of our own bees is a change worth backing up, except those whose loss costs
+// nothing a restore needs: the activity log, the spaces' activity times and maintenance timestamps.
+const UNHINTED_BEES = new Set(['audit-log', 'space-activity', 'reclaim-meta'])
 
 function hintBackupOnAppend(core, name) {
   if (!UNHINTED_BEES.has(name)) core.on('append', () => backupHint(URGENCY.NORMAL))
@@ -186,7 +186,7 @@ export function createBee(name, { encryptionKey = null } = {}) {
 export const LOCAL_BEE_NAMES = [
   'spaces-meta', 'downloads-meta', 'pending-transfers',
   'reclaim-meta', 'mounts-meta', 'app-migrations',
-  'audit-log',
+  'audit-log', 'space-activity',
 ]
 
 function metadataBeeKey() {

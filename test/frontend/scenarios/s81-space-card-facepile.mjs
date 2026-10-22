@@ -5,7 +5,7 @@ import { makeReport, waitFor } from '../assert.mjs'
 
 // The spaces-grid SpaceCard facepile reads the full roster (avatars) from space:members via
 // the module-cached useSpaceMembers hook — spaces:list rosters are slim. On the grid a card
-// shows only its name, member count, date, and the facepile avatars, so a member's name there
+// shows only its name, member count, last activity, and the facepile avatars, so a member's name there
 // comes ONLY from a facepile avatar's accessible label — a targeted check that the async roster
 // path actually populates the card.
 export default async function s81({ runDir, bootstrap }) {
@@ -28,7 +28,7 @@ export default async function s81({ runDir, bootstrap }) {
       await A.back()
       await A.waitText('Open Aurora', 30000)
       // On the grid, "Bob" can only be a facepile avatar's accessible label (the card body is
-      // name + count + date). It arrives via the async space:members roster, not the slim list.
+      // name + count + last activity). It arrives via the async space:members roster, not the slim list.
       await waitFor(async () => A.hasText('Bob'), 30000, 'card facepile shows Bob')
       await A.shot('s81-grid-facepile', runDir)
     })

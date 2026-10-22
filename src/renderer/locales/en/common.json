@@ -86,7 +86,7 @@
     "emptyNoFavoritesHint": "Open a space and choose Add to Favorites from the menu to pin it here.",
     "memberCount_one": "{{count}} member",
     "memberCount_other": "{{count}} members",
-    "createdLabel": "Created {{date}}",
+    "activeLabel": "Active {{when}}",
     "waitingCount_one": "{{count}} waiting",
     "waitingCount_other": "{{count}} waiting",
     "waitingForApproval": "Waiting for approval"

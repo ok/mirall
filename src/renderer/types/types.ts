@@ -215,5 +215,5 @@ export type {
   MountValidationResult, ScanPreview,
   CanaryState, CanaryResult,
   AuditCategory, AuditSpaceRef, AuditEntry, AuditPage, AuditConfig, AuditStats, AuditActorRef,
-  StorageInfo, SpaceStorageUsage,
+  StorageInfo, SpaceStorageUsage, SpaceRecord,
 } from '../../shared/contract/responses.js'

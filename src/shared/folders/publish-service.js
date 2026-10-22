@@ -15,6 +15,8 @@ import { createPublishScheduler } from './publish-scheduler.js'
 import fs from 'bare-fs'
 import { OP, PRIORITY } from './work-item.js'
 import { fileExactlyPresent } from './disk-presence.js'
+import { noteSpaceActivity } from '../audit/space-activity.js'
+import { ownCatalogWriter } from '../shares/own-catalog.js'
 
 const log = createLogger('publish-service')
 
@@ -155,6 +157,21 @@ export function mountRootAvailable(mountPath) {
   }
 }
 
+// Absence from a stale observation is a candidate; only a file that is really gone is a delete. A
+// tombstone replicates to every peer. A key with no path behind it (poison, or a loose entry whose
+// source link is gone) is reclaimed.
+async function retire(channel, item, ctx, catalog) {
+  const present = channel.present ?? fileExactlyPresent
+  if (ctx.absPath && present(ctx.absPath)) return { outcome: 'skipped-still-present' }
+  // Read through the batch the retire writes into, so a tombstone already staged reads as gone.
+  const live = await (catalog ?? ownCatalogWriter).get(item.spaceId, item.shareId, item.relPath)
+  await channel.retire(item, ctx, { catalog })
+  // Folder contents write no audit rows, so a removal that took a live entry away marks the space
+  // active here.
+  if (live) noteSpaceActivity(item.spaceId)
+  return { outcome: 'retired' }
+}
+
 // channel: {
 //   direct?         — never writes through the space batch (so no batch is settled or opened)
 //   present?(abs)   — how "still on disk" is judged, before a retire and by the presence sweep;
@@ -193,15 +210,7 @@ export function createPublishRunner({ channelFor, catalogFor, settleCatalog }) {
     beat()
     const catalog = interactive || channel.direct ? undefined : catalogFor(item.spaceId)
 
-    if (item.op === OP.RETIRE) {
-      // Absence from a stale observation is a candidate; only a file that is really gone is a
-      // delete. A tombstone replicates to every peer. A key with no path behind it (poison, or a
-      // loose entry whose source link is gone) is reclaimed.
-      const present = channel.present ?? fileExactlyPresent
-      if (ctx.absPath && present(ctx.absPath)) return { outcome: 'skipped-still-present' }
-      await channel.retire(item, ctx, { catalog })
-      return { outcome: 'retired' }
-    }
+    if (item.op === OP.RETIRE) return retire(channel, item, ctx, catalog)
     if (!ctx.absPath) return { outcome: 'failed' }
 
     let result
@@ -212,6 +221,9 @@ export function createPublishRunner({ channelFor, catalogFor, settleCatalog }) {
       throw err
     }
     await channel.afterPublish?.(item, ctx, result)
-    return { outcome: result?.changed ? 'published' : 'unchanged' }
+    if (!result?.changed) return { outcome: 'unchanged' }
+    // Folder contents write no audit rows, so a change marks the space active here.
+    noteSpaceActivity(item.spaceId)
+    return { outcome: 'published' }
   }
 }

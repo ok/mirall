@@ -180,7 +180,7 @@ function auditArrivals(spaceId, space, added) {
         space: ref,
         target: targetRef(TARGET_KIND.MEMBER, m.publicKey, m.displayName || null),
       }
-    }, { context })
+    }, { context, spaceId })
   }
 }
 
