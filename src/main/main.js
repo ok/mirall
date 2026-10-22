@@ -139,7 +139,7 @@ app.setAboutPanelOptions({
 const isDev = !app.isPackaged
 // The gate reads false until this runs, which only suppresses forwarding to the renderer — there
 // is no renderer this early, and the log ring is written either way. See debug-gate.js.
-initDebugGate({ isDev, env: { MIRALL_DEBUG: envOverride('MIRALL_DEBUG'), MIRALL_VERBOSE: envOverride('MIRALL_VERBOSE') } })
+initDebugGate({ isDev, env: { MIRALL_VERBOSE: envOverride('MIRALL_VERBOSE') } })
 
 let identityKEKHex = null
 let identityProtection = 'disabled'

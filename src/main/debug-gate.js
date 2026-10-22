@@ -13,7 +13,7 @@ let debug = false
 // Called once main knows whether this is a dev run. Until then the gate reads false, which only
 // suppresses forwarding — the log ring is written unconditionally by the caller either way.
 function initDebugGate({ isDev = false, env = {} } = {}) {
-  baseDebug = env.MIRALL_DEBUG === '1' || isDev
+  baseDebug = isDev
   verbose = env.MIRALL_VERBOSE === '1'
   debug = baseDebug
   return debug

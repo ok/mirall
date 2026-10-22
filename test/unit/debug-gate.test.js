@@ -19,14 +19,11 @@ test('the gate reads false before it is initialised', (t) => {
 })
 
 test('the gate reads no environment of its own', (t) => {
-  const saved = { debug: process.env.MIRALL_DEBUG, verbose: process.env.MIRALL_VERBOSE }
-  process.env.MIRALL_DEBUG = '1'
+  const saved = process.env.MIRALL_VERBOSE
   process.env.MIRALL_VERBOSE = '1'
   t.teardown(() => {
-    if (saved.debug === undefined) delete process.env.MIRALL_DEBUG
-    else process.env.MIRALL_DEBUG = saved.debug
-    if (saved.verbose === undefined) delete process.env.MIRALL_VERBOSE
-    else process.env.MIRALL_VERBOSE = saved.verbose
+    if (saved === undefined) delete process.env.MIRALL_VERBOSE
+    else process.env.MIRALL_VERBOSE = saved
   })
   const { gate } = freshGate(t)
   t.absent(gate.isVerbose(), 'not at load')
@@ -44,10 +41,10 @@ test('a dev run raises the gate; a packaged run does not', (t) => {
   t.absent(gate.isDebug(), 'packaged')
 })
 
-test('MIRALL_DEBUG in the env it is given raises the gate', (t) => {
+test('no env key raises debug: only a dev run does', (t) => {
   const { gate } = freshGate(t)
   gate.initDebugGate({ isDev: false, env: { MIRALL_DEBUG: '1' } })
-  t.ok(gate.isDebug())
+  t.absent(gate.isDebug())
 })
 
 test('verbose is seeded from the env it is given and is separate from debug', (t) => {

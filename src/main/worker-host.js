@@ -187,7 +187,7 @@ function getWorker(specifier) {
   //
   //   Test and development levers — ignored by a packaged build (see env-overrides.js)
   //     PEAR_DEV_SERVER_URL               load the renderer from a dev server
-  //     MIRALL_DEBUG, MIRALL_VERBOSE      log level
+  //     MIRALL_VERBOSE                    verbose logging from launch
   //     MIRALL_DHT_BOOTSTRAP              a hermetic testnet instead of the public DHT
   //     MIRALL_DOWNLOAD_FOLDER            start from a known download folder
   //     MIRALL_WINDOW_BOUNDS              start from a known window size and position
