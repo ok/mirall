@@ -23,6 +23,7 @@ export const VERDICT_REASON = Object.freeze({
   UNCONFIRMED: 'unconfirmed',
   STALE: 'stale',
   NO_KEY: 'no-key',
+  OFFLINE: 'offline',
   REQUIRED_NOT_SET_UP: 'required-not-set-up',
 })
 
@@ -81,11 +82,14 @@ const key = (state) => state.keyCreatedAt !== null
 
 // Stopped when protection has lapsed: no success for ten days, or no key kept. At risk while there is
 // no backup yet, the last run failed, the key is not in the folder, or its passphrase was never
-// confirmed here. A missing copy of the key never changes the verdict: it is advice, not a lapse.
-export function protectionVerdict({ setUp, stale, failing, state, required = false }) {
+// confirmed here. A folder that is not connected is named as the cause over staleness, since
+// reconnecting it is the fix either way; staleness still decides whether that reads as stopped. A
+// missing copy of the key never changes the verdict: it is advice, not a lapse.
+export function protectionVerdict({ setUp, stale, failing, offline = false, state, required = false }) {
   const at = (verdict, reason) => ({ verdict, reason })
   if (!setUp) return required ? at(VERDICT.STOPPED, VERDICT_REASON.REQUIRED_NOT_SET_UP) : at(VERDICT.AT_RISK, VERDICT_REASON.NOT_SET_UP)
   if (!key(state)) return at(VERDICT.STOPPED, VERDICT_REASON.NO_KEY)
+  if (offline) return at(stale ? VERDICT.STOPPED : VERDICT.AT_RISK, VERDICT_REASON.OFFLINE)
   if (stale) return at(VERDICT.STOPPED, VERDICT_REASON.STALE)
   if (failing) return at(VERDICT.AT_RISK, VERDICT_REASON.FAILING)
   if (state.lastSuccessAt === null) return at(VERDICT.AT_RISK, VERDICT_REASON.FIRST_BACKUP)

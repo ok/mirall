@@ -191,6 +191,29 @@ test('files a folder browser leaves in the backup do not stop pruning', async (t
   t.pass('pruned')
 })
 
+test('REGRESSION (FIX-BACKUP-RETRY-LOOP: a retry hid the failure and the next one followed at once): a folder that is gone stays the cause through retries, and failures in a row space them out', async (t) => {
+  const d = await bootWith(t)
+  const backup = d.root.backup()
+  await backup.run('manual')
+  const away = d.backupFolder + '-away'
+  fs.renameSync(d.backupFolder, away)
+  const failed = await backup.run('manual')
+  t.is(failed.lastError, 'BACKUP_TARGET_OFFLINE')
+  t.alike(backup.failure(), { failing: true, offline: true })
+  t.is(backup.failures, 1)
+  backup.report({ state: 'running' })
+  const retrying = await backup.status()
+  t.alike(backup.failure(), { failing: true, offline: true }, 'a retry under way does not clear the cause')
+  t.is(retrying.lastError, 'BACKUP_TARGET_OFFLINE')
+  await backup.run('manual')
+  t.is(backup.failures, 2, 'failures in a row are counted for the next wait')
+  fs.renameSync(away, d.backupFolder)
+  const back = await backup.run('manual')
+  t.is(back.lastError, null)
+  t.alike(backup.failure(), { failing: false, offline: false })
+  t.is(backup.failures, 0, 'a run that succeeds ends the wait')
+})
+
 test('changes made while a run goes are kept for the next run; earlier ones are done', async (t) => {
   const { root } = await bootWith(t)
   root.backup().note('urgent')

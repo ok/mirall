@@ -98,7 +98,7 @@ test('a key from another identity is forgotten, the opt-out is kept', (t) => {
 
 test('the verdict and its reason, cause by cause', (t) => {
   const healthy = { ...keyChecked(keyWritten(folderChosen(freshState(), T0), T0, KEY), T0), lastSuccessAt: T0 }
-  const verdict = (state, { setUp = true, stale = false, failing = false } = {}) => protectionVerdict({ setUp, stale, failing, state })
+  const verdict = (state, { setUp = true, stale = false, failing = false, offline = false } = {}) => protectionVerdict({ setUp, stale, failing, offline, state })
   t.alike(verdict(freshState(), { setUp: false }), { verdict: VERDICT.AT_RISK, reason: VERDICT_REASON.NOT_SET_UP })
   t.alike(verdict(healthy), { verdict: VERDICT.PROTECTED, reason: null })
   t.alike(verdict(healthy, { failing: true }), { verdict: VERDICT.AT_RISK, reason: VERDICT_REASON.FAILING })
@@ -107,6 +107,14 @@ test('the verdict and its reason, cause by cause', (t) => {
   t.alike(verdict({ ...healthy, keyCheckedAt: null }), { verdict: VERDICT.AT_RISK, reason: VERDICT_REASON.UNCONFIRMED })
   t.alike(verdict(healthy, { stale: true }), { verdict: VERDICT.STOPPED, reason: VERDICT_REASON.STALE })
   t.alike(verdict({ ...healthy, keyCreatedAt: null, keyContent: null }), { verdict: VERDICT.STOPPED, reason: VERDICT_REASON.NO_KEY })
+})
+
+test('a folder that is not connected is named as the cause, whether or not the backup has lapsed yet', (t) => {
+  const healthy = { ...keyChecked(keyWritten(folderChosen(freshState(), T0), T0, KEY), T0), lastSuccessAt: T0 }
+  const verdict = (stale) => protectionVerdict({ setUp: true, stale, failing: true, offline: true, state: healthy })
+  t.alike(verdict(false), { verdict: VERDICT.AT_RISK, reason: VERDICT_REASON.OFFLINE })
+  t.alike(verdict(true), { verdict: VERDICT.STOPPED, reason: VERDICT_REASON.OFFLINE }, 'ten days without a backup still read as stopped')
+  t.alike(protectionVerdict({ setUp: true, stale: false, failing: true, offline: true, state: { ...healthy, keyCreatedAt: null, keyContent: null } }), { verdict: VERDICT.STOPPED, reason: VERDICT_REASON.NO_KEY }, 'no key outranks it: no folder fixes that')
 })
 
 test('the passphrase reminder is a preference that can be turned back on', (t) => {

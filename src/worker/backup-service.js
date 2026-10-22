@@ -67,6 +67,8 @@ export class Backup extends Subsystem {
     this.keys = Promise.resolve()
     this.dirty = null
     this.lastRunAt = null
+    // Failed runs in a row against the current folder; they space out the next scheduled run.
+    this.failures = 0
     this.lastPruneAt = 0
     this.running = null
     this.cutoffAt = null
@@ -140,6 +142,7 @@ export class Backup extends Subsystem {
       if (next.folder !== this.config.folder || next.repoId !== this.config.repoId) {
         this.config = next
         this.progress = { state: this.isSetUp() ? 'idle' : 'off', ...IDLE }
+        this.failures = 0
         this.explained = null
         if (this.isSetUp()) {
           this.state = { ...this.state, keyInFolder: false }
@@ -159,7 +162,14 @@ export class Backup extends Subsystem {
   verdictNow(now) {
     const setUp = this.isSetUp()
     const stale = isStale({ now, setUp, lastSuccessAt: this.state.lastSuccessAt, setupAt: this.setupTime() })
-    return { setUp, stale, ...protectionVerdict({ setUp, stale, failing: this.progress.state === 'error', state: this.state, required: this.required() }) }
+    return { setUp, stale, ...protectionVerdict({ setUp, stale, ...this.failure(), state: this.state, required: this.required() }) }
+  }
+
+  // A failure holds until a run succeeds or the folder changes, through the retries in between: the
+  // verdict does not flip back while a retry runs.
+  failure() {
+    const { lastError } = this.progress
+    return { failing: lastError !== null, offline: lastError === CODES.BACKUP_TARGET_OFFLINE }
   }
 
   protection() {
@@ -211,6 +221,7 @@ export class Backup extends Subsystem {
       lastEventAt: this.dirty?.lastAt ?? 0,
       urgency: this.dirty?.urgency ?? URGENCY.NORMAL,
       lastRunAt: this.lastRunAt,
+      failures: this.failures,
       now: Date.now(),
     })
     if (at !== null) this.wake = this.timers.setTimeout(() => this.runSoon('change'), at - Date.now())
@@ -252,6 +263,7 @@ export class Backup extends Subsystem {
       })
       this.lastRunAt = Date.now()
       if (this.config.folder !== folder) return
+      this.failures = 0
       if (result.repoId !== repoId) await this.remember({ folder, repoId: result.repoId })
       await this.keepKeyInFolder(folder)
       await this.persist({ ...this.state, lastSuccessAt: this.lastRunAt })
@@ -269,6 +281,7 @@ export class Backup extends Subsystem {
       this.lastRunAt = Date.now()
       this.dirty = mergeDirty(taken, this.dirty)
       if (this.config.folder !== folder) return
+      this.failures += 1
       this.report({ state: 'error', lastError: err.code || CODES.UNKNOWN })
       this.log.warn('backup', reason, 'failed:', err.code || err.message)
     }
@@ -418,6 +431,7 @@ export class Backup extends Subsystem {
         const off = turnedOff(this.state)
         await this.persist({ ...off, managed: this.state.managed && { ...this.state.managed, setupAt: null } })
         this.progress = { state: 'off', ...IDLE }
+        this.failures = 0
         this.schedule()
       }
       this.report({})
@@ -428,6 +442,7 @@ export class Backup extends Subsystem {
       if (folder !== null) await new FolderTarget(folder).check()
       await this.remember({ folder, repoId: null })
       this.progress = { state: folder ? 'idle' : 'off', ...IDLE }
+      this.failures = 0
       this.explained = null
       if (folder) this.note(URGENCY.URGENT)
       await this.persist(folder ? { ...folderChosen(this.state, Date.now()), keyInFolder: false } : turnedOff(this.state))
