@@ -36,7 +36,7 @@ export default function CopyButton({ value, className = '', showLabel = false }:
           title={label}
           className={`shrink-0 inline-flex items-center justify-center rounded-sm focus-ring ${className}`}
         >
-          <Icon name={icon} size={16} className="text-outline" />
+          <Icon name={icon} size={16} className="text-on-surface-variant" />
         </button>
       )}
       <span role="status" aria-live="polite" className="sr-only">{copied ? t('actions.copied') : ''}</span>
