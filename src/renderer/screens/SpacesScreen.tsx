@@ -7,6 +7,7 @@ import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import SpaceCard from '../components/cards/SpaceCard.js'
 import Button from '../components/primitives/Button.js'
 import DocsCard from '../components/cards/DocsCard.js'
+import FavoritesEmptyState from '../components/space/FavoritesEmptyState.js'
 import BackupPromptCard from '../components/backup/BackupPromptCard.js'
 import { useRestoreHold } from '../hooks/useRestoreHold.js'
 import { useHeldControl } from '../hooks/useHeldControl.js'
@@ -118,12 +119,7 @@ export default function YourSpaces({ onSelectSpace, onShowCreate, onShowJoin }: 
             />
           </div>
         )}
-        {!loading && filteredSpaces.length === 0 && filter === 'favorites' && (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <h2 className="text-2xl font-headline font-bold text-accent mb-3">{t('spaces.emptyNoFavorites')}</h2>
-            <p className="text-on-surface-variant max-w-md leading-relaxed">{t('spaces.emptyNoFavoritesHint')}</p>
-          </div>
-        )}
+        {!loading && filteredSpaces.length === 0 && filter === 'favorites' && <FavoritesEmptyState />}
         {filteredSpaces.map((space) => (
           <div role="listitem" key={space.spaceId}>
             <SpaceCard

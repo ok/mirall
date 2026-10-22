@@ -1,0 +1,601 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<!-- Mockup scaffold. Copy this file to .claude/mockups/<name>.html and replace the title, the
+     intro and the example state. The token block, tailwind.config and radii mirror
+     src/renderer/styles/tailwind.css and tailwind.config.js: when those change, change this file. -->
+<title>Favorites empty state — mockup</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet" />
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    darkMode: 'class',
+    theme: {
+      extend: {
+        colors: {
+          'accent': 'var(--color-accent)',
+          'icon-tile': 'var(--color-icon-tile)',
+          'on-icon-tile': 'var(--color-on-icon-tile)',
+          'success': 'var(--color-success)',
+          'on-success': 'var(--color-on-success)',
+          'info': 'var(--color-info)',
+          'on-info': 'var(--color-on-info)',
+          'online': 'var(--color-online)',
+          'offline': 'var(--color-offline)',
+          'primary': 'var(--color-primary)',
+          'on-primary': 'var(--color-on-primary)',
+          'secondary': 'var(--color-secondary)',
+          'secondary-container': 'var(--color-secondary-container)',
+          'on-secondary': 'var(--color-on-secondary)',
+          'on-secondary-container': 'var(--color-on-secondary-container)',
+          'surface': 'var(--color-surface)',
+          'surface-container': 'var(--color-surface-container)',
+          'surface-container-low': 'var(--color-surface-container-low)',
+          'surface-container-high': 'var(--color-surface-container-high)',
+          'surface-container-highest': 'var(--color-surface-container-highest)',
+          'surface-container-lowest': 'var(--color-surface-container-lowest)',
+          'progress-track': 'var(--color-progress-track)',
+          'on-surface': 'var(--color-on-surface)',
+          'on-surface-variant': 'var(--color-on-surface-variant)',
+          'on-background': 'var(--color-on-background)',
+          'background': 'var(--color-background)',
+          'outline': 'var(--color-outline)',
+          'outline-variant': 'var(--color-outline-variant)',
+          'error': 'var(--color-error)',
+          'error-container': 'var(--color-error-container)',
+          'error-container-hover': 'var(--color-error-container-hover)',
+          'on-error-container': 'var(--color-on-error-container)',
+          'warning': 'var(--color-warning)',
+          'on-warning': 'var(--color-on-warning)',
+          'primary-hover': 'var(--color-primary-hover)',
+          'surface-control': 'var(--color-surface-control)',
+          'surface-control-hover': 'var(--color-surface-control-hover)',
+          'warning-container': 'var(--color-warning-container)',
+          'on-warning-container': 'var(--color-on-warning-container)',
+        },
+        fontFamily: {
+          headline: ['Plus Jakarta Sans', 'sans-serif'],
+          body: ['Manrope', 'sans-serif'],
+          label: ['Manrope', 'sans-serif'],
+        },
+        borderRadius: {
+          DEFAULT: '0.25rem',
+          lg: '0.5rem',
+          xl: '0.75rem',
+          '2xl': '1.5rem',
+          '3xl': '2rem',
+          full: '9999px',
+        },
+      },
+    },
+  }
+</script>
+
+<style>
+  :root {
+    --color-icon-tile: #fec78a;
+    --color-on-icon-tile: #0a4742;
+    --color-success: #c1ecc4;
+    --color-on-success: #0c4d20;
+    --color-info: #d6e6f5;
+    --color-on-info: #1f4a78;
+    --color-online: #0d8b80;
+    --color-offline: #a0a4ac;
+    --color-accent: #33253b;
+    --color-primary: #42304a;
+    --color-primary-hover: #52405b;
+    --color-on-primary: #ffffff;
+    --color-secondary: #904d00;
+    --color-secondary-container: #fd9c42;
+    --color-on-secondary: #ffffff;
+    --color-on-secondary-container: #6b3800;
+    --color-surface: #fbf9f5;
+    --color-surface-container: #efeeea;
+    --color-surface-container-low: #f5f3ef;
+    --color-surface-container-high: #eae8e4;
+    --color-surface-control: #eae8e4;
+    --color-surface-control-hover: #dcdad6;
+    --color-surface-container-highest: #e4e2de;
+    --color-surface-container-lowest: #ffffff;
+    --color-progress-track: #d0cec9;
+    --avatar-recess: rgb(0 0 0 / 0.36);
+    --color-on-surface: #1b1c1a;
+    --color-on-surface-variant: #4a454b;
+    --color-on-background: #1b1c1a;
+    --color-background: #fbf9f5;
+    --color-outline: #7c757c;
+    --color-outline-variant: #ccc4cc;
+    --color-error: #ba1a1a;
+    --color-error-container: #f6c8c4;
+    --color-error-container-hover: #e8bab6;
+    --color-on-error-container: #93000a;
+    --color-warning: #fcd34d;
+    --color-on-warning: #1b1c1a;
+    --color-warning-container: #fdefc6;
+    --color-on-warning-container: #6d4c00;
+  }
+  .dark {
+    --color-icon-tile: #fec78a;
+    --color-on-icon-tile: #0a4742;
+    --color-success: #20492a;
+    --color-on-success: #8fd99b;
+    --color-info: #1f3a52;
+    --color-on-info: #9bc6e8;
+    --color-online: #5cc4b8;
+    --color-offline: #5b6270;
+    --color-accent: #fce8d2;
+    --color-primary: #fd9c42;
+    --color-primary-hover: #dd8837;
+    --color-on-primary: #282c34;
+    --color-secondary: #e4bf7a;
+    --color-secondary-container: #4a3e28;
+    --color-on-secondary: #282c34;
+    --color-on-secondary-container: #ecd09a;
+    --color-surface: #282c34;
+    --color-surface-container: #2e323a;
+    --color-surface-container-low: #2e3239;
+    --color-surface-container-high: #5c6068;
+    --color-surface-control: #434955;
+    --color-surface-control-hover: #4f5561;
+    --color-surface-container-highest: #393f4a;
+    --color-surface-container-lowest: #21252b;
+    --color-progress-track: #4a5160;
+    --avatar-recess: rgb(0 0 0 / 0.62);
+    --color-on-surface: #fefaf3;
+    --color-on-surface-variant: #ebe2d2;
+    --color-on-background: #fefaf3;
+    --color-background: #282c34;
+    --color-outline: #5b6270;
+    --color-outline-variant: #393f4a;
+    --color-error: #ec9199;
+    --color-error-container: #6f3338;
+    --color-error-container-hover: #7c3f43;
+    --color-on-error-container: #ffd2cf;
+    --color-warning: #fbbf24;
+    --color-on-warning: #1b1c1a;
+    --color-warning-container: #4e4229;
+    --color-on-warning-container: #fbe3a4;
+  }
+
+  /* App rules from tailwind.css that the CDN build cannot express. */
+  .font-headline { font-family: 'Plus Jakarta Sans', sans-serif; }
+  .focus-ring:focus { outline: none; }
+  .focus-ring:focus-visible { box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-secondary) 30%, transparent); }
+  .glass-modal { background: var(--color-surface-container-lowest); }
+  .avatar-recess { position: relative; }
+  .avatar-recess::after { content: ''; position: absolute; inset: 0; border-radius: 9999px; box-shadow: inset 0 1px 2px var(--avatar-recess); pointer-events: none; }
+
+  /* Mockup canvas (not app UI). */
+  body { font-family: 'Manrope', sans-serif; background: #d8d4cc; }
+  .dark body, body.dark { background: #15171c; }
+
+  /* Mirall window frame. The title bar is hidden (titleBarStyle 'hiddenInset'), so the macOS
+     traffic lights sit over the top-left of the app's own header. */
+  .device-frame {
+    position: relative;
+    background: var(--color-background);
+    border-radius: 16px;
+    box-shadow: 0 30px 80px rgba(15, 12, 20, 0.18), 0 8px 24px rgba(15, 12, 20, 0.12);
+    overflow: hidden;
+  }
+  .traffic-lights { position: absolute; top: 20px; left: 20px; z-index: 60; display: inline-flex; gap: 8px; }
+  .traffic-lights span { width: 12px; height: 12px; border-radius: 9999px; display: inline-block; }
+  .traffic-lights .r { background: #ff5f57; }
+  .traffic-lights .y { background: #febc2e; }
+  .traffic-lights .g { background: #28c840; }
+
+  /* Header glass: bg-surface-container-lowest/70 backdrop-blur-xl plus the ambient shadow, which
+     both headers drop in dark mode (dark:shadow-none). The CDN build cannot apply an opacity
+     modifier to a var() colour, hence the color-mix. */
+  .nav-glass {
+    background: color-mix(in srgb, var(--color-surface-container-lowest) 70%, transparent);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    box-shadow: 0 12px 40px rgba(74, 59, 82, 0.06);
+  }
+  .dark .nav-glass { box-shadow: none; }
+
+  /* Modal backdrop (CrystalBackdrop approximation). */
+  .modal-scrim { background: rgba(51, 37, 59, 0.30); }
+  .dark .modal-scrim { background: rgba(20, 22, 28, 0.55); }
+
+  /* Annotation chrome (not app UI, so literal colours are fine here). */
+  .badge { display: inline-flex; align-items: center; gap: 6px; border-radius: 9999px; padding: 3px 10px; font-size: 11px; font-weight: 800; letter-spacing: .01em; }
+  .badge-real { background: #d6e6f5; color: #1f4a78; }
+  .badge-proposed { background: #fce8d2; color: #6b3800; }
+  .badge-a11y { background: #ccebe6; color: #0d4d49; }
+  .anno-h { color: #33253b; }
+  .dark .anno-h { color: #f2ebe0; }
+  .anno { color: #4a454b; }
+  .anno code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; background: rgba(0,0,0,.05); padding: 1px 6px; border-radius: 6px; color: #4a454b; }
+  .dark .anno { color: #cfc8be; }
+  .dark .anno code { background: rgba(255,255,255,.08); color: #cfc8be; }
+</style>
+</head>
+
+<body class="min-h-screen pb-24">
+
+<style>
+  /* Proposed keycap: surface-control fill, the palette's font-mono text-xs. */
+  .keycap { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1; padding: 3px 6px; border-radius: 0.25rem; background: var(--color-surface-control); color: var(--color-on-surface); white-space: nowrap; }
+</style>
+
+<!-- Title and theme toggle -->
+<div class="max-w-[1040px] mx-auto px-6 pt-10 pb-2 flex items-start justify-between gap-6">
+  <div class="anno">
+    <h1 class="anno-h font-headline font-extrabold text-2xl tracking-tight">Favorites empty state — mockup</h1>
+    <p class="text-sm mt-1 max-w-2xl">When the Favorites tab is empty, explain what a favorite gives you (the first ⌘1–9 shortcuts), how to add one, and where the rest of the shortcuts are — in the same card the All&nbsp;Spaces empty state uses. Extends <code>SpacesScreen.tsx</code> and <code>DocsCard.tsx</code>. Baseline: <code>origin/main @ 310c438e</code>.</p>
+  </div>
+  <button id="theme-toggle" type="button" aria-pressed="false"
+    class="shrink-0 rounded-xl border border-black/10 px-3 py-2 text-sm font-bold bg-white shadow-sm hover:shadow"
+    style="color:#33253b">Toggle dark</button>
+</div>
+
+<!-- Legend -->
+<div class="max-w-[1040px] mx-auto px-6 pt-4">
+  <div class="anno rounded-2xl p-5 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm" style="background:var(--color-surface-container-lowest)">
+    <span class="flex items-center gap-2"><span class="badge badge-real">Recreated from code</span> reproduced from the shipped <code>.tsx</code></span>
+    <span class="flex items-center gap-2"><span class="badge badge-proposed">Proposed new</span> built from existing primitives and <code>design.md</code> tokens</span>
+    <span class="flex items-center gap-2"><span class="badge badge-a11y">a11y</span> name / role / state intent</span>
+  </div>
+</div>
+
+<!-- Facts the copy rests on -->
+<div class="max-w-[1040px] mx-auto px-6 pt-6">
+  <div class="anno text-sm leading-relaxed">
+    <p class="anno-h font-headline font-bold mb-1">What the copy claims, and where the code says so</p>
+    <ul class="list-disc pl-5 space-y-1">
+      <li>Today: favorites take the first digits, then every other space (<code>src/renderer/model/space-shortcut-order.js:1-3</code>); activity never moves a digit. <strong>Proposed (state 4):</strong> favorites only.</li>
+      <li>⌘1–9 / Ctrl+1–9 work from any screen on every platform: native <em>View › Go to Space</em> menu, <code>src/main/menu.js:61-71</code>.</li>
+      <li>Adding: the space header's <em>More</em> menu, <code>SpaceHeaderBar.tsx:51-58</code>; and the palette command <em>“Add this space to Favorites”</em>, only while in a joined space, <code>useSpaceCommands.ts:31-37</code>. It has no chord of its own (<code>known-commands.ts</code>).</li>
+      <li>All shortcuts: <code>shortcuts.show</code> = ⌘/ (<code>known-commands.ts:32</code>).</li>
+      <li>There is no favorites section on mirall.app to link to: <code>DOCS_ANCHORS</code> in <code>shell/docs-links.js</code> has none.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ============ State 1: proposed, macOS ============ -->
+<section class="max-w-[1040px] mx-auto px-6 pt-12">
+  <h2 class="anno-h font-headline font-extrabold text-xl">1 · Favorites tab, nothing pinned yet (macOS)</h2>
+  <div class="anno flex flex-wrap items-center gap-2 mt-2 mb-3 text-sm">
+    <span class="badge badge-real">Recreated from code</span>
+    <code>src/renderer/screens/SpacesScreen.tsx</code>
+    <span>header, chips and heading.</span>
+    <span class="badge badge-proposed">Proposed new</span>
+    <span>the card replaces the hint.</span>
+  </div>
+
+  <div class="device-frame max-w-[860px] mx-auto">
+    <span class="traffic-lights" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></span>
+    <!-- TopNav (src/renderer/components/layout/TopNav.tsx) -->
+      <nav class="absolute top-0 w-full z-50">
+        <div class="nav-glass">
+          <div class="flex items-center py-4 px-8 w-full max-w-7xl mx-auto relative">
+            <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <button type="button" aria-label="Home" title="Home" class="pointer-events-auto flex h-8 items-center text-black dark:text-white rounded-lg px-2 active:scale-95 transition-all focus-ring">
+                <svg viewBox="0 0 2835 844" class="h-5 w-auto" fill="currentColor" fill-rule="evenodd" clip-rule="evenodd" aria-hidden="true" focusable="false"><g transform="matrix(4.166667,0,0,4.166667,-356.081667,-1351.366667)"><path transform="matrix(1,0,0,1,251.3906,523.7084)" d="M0,-196.22L-62.292,-111.171L-126.424,-196.22L-165.931,-196.22L-165.931,0L-125.107,0L-125.107,-129.2L-65.846,-50.043L-60.578,-50.043L-1.317,-126.442L-1.317,0L39.507,0L39.507,-196.22L0,-196.22Z" /><rect transform="matrix(1,0,0,1,0,-155.911)" x="314.601" y="483.399" width="39.507" height="39.507" /><rect transform="matrix(1,0,0,1,0,53.215)" x="314.601" y="326.686" width="39.507" height="143.807" /><path transform="matrix(1,0,0,1,528.4458,424.5448)" d="M0,57.681C-2.725,62.512 -6.543,66.331 -11.457,69.138C-16.375,71.949 -22.083,73.352 -28.577,73.352C-33.495,73.352 -37.623,72.126 -40.956,69.665C-44.294,67.208 -45.96,63.784 -45.96,59.393C-45.96,54.652 -44.471,51.01 -41.483,48.463C-38.499,45.919 -34.199,44.117 -28.577,43.063L4.082,37.231L4.082,41.746C4.082,47.541 2.72,52.854 0,57.681M35.952,-18.305C30.857,-26.733 23.573,-33.227 14.091,-37.795C4.609,-42.359 -6.716,-44.643 -19.885,-44.643L-149.265,-44.643L-149.265,99.164L-109.758,99.164L-109.758,-10.404L-22.519,-10.404C-13.918,-10.404 -7.334,-8.206 -2.766,-3.819C0.584,-0.596 2.694,3.438 3.586,8.268L-35.689,14.618C-47.104,16.375 -56.627,19.359 -64.266,23.573C-71.904,27.787 -77.566,33.014 -81.254,39.244C-84.941,45.479 -86.785,52.636 -86.785,60.71C-86.785,69.315 -84.768,76.735 -80.727,82.966C-76.69,89.2 -70.895,93.987 -63.344,97.32C-55.796,100.653 -46.841,102.324 -36.479,102.324C-28.754,102.324 -21.729,101.312 -15.408,99.295C-9.087,97.279 -3.383,94.205 1.712,90.077C3.431,88.684 5.096,87.155 6.716,85.511L6.716,99.164L43.59,99.164L43.59,11.721C43.59,0.132 41.042,-9.877 35.952,-18.305" /><rect transform="matrix(1,0,0,1,0,-2.357)" x="598.477" y="326.685" width="39.507" height="199.381" /><rect transform="matrix(1,0,0,1,0,-2.357)" x="663.056" y="326.685" width="39.507" height="199.381" /><rect transform="matrix(1,0,0,1,0,157.259)" x="726.267" y="326.814" width="39.507" height="39.507" fill="#fd9c42" /></g></svg>
+              </button>
+            </div>
+            <div class="flex items-center gap-4 ml-auto">
+              <button type="button" class="flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold transition-all active:scale-95 focus-ring bg-surface-control text-on-surface-variant hover:bg-surface-control-hover px-5 py-2.5 text-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true"><path d="M479.98-367q14.02 0 23.52-9.48t9.5-23.5q0-14.02-9.48-23.52t-23.5-9.5q-14.02 0-23.52 9.48t-9.5 23.5q0 14.02 9.48 23.52t23.5 9.5ZM450-509h60v-251h-60v251ZM80-80v-740q0-24 18-42t42-18h680q24 0 42 18t18 42v520q0 24-18 42t-42 18H240L80-80Zm134-220h606v-520H140v600l74-80Zm-74 0v-520 520Z"/></svg>
+                Send Feedback
+              </button>
+              <button type="button" aria-label="Settings" class="w-10 h-10 shrink-0 flex items-center justify-center rounded-full hover:bg-surface-container-high active:scale-95 transition-all focus-ring">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 -960 960 960" fill="currentColor" class="text-accent" aria-hidden="true"><path d="m388-80-20-126q-19-7-40-19t-37-25l-118 54-93-164 108-79q-2-9-2.5-20.5T185-480q0-9 .5-20.5T188-521L80-600l93-164 118 54q16-13 37-25t40-18l20-127h184l20 126q19 7 40.5 18.5T669-710l118-54 93 164-108 77q2 10 2.5 21.5t.5 21.5q0 10-.5 21t-2.5 21l108 78-93 164-118-54q-16 13-36.5 25.5T592-206L572-80H388Zm92-270q54 0 92-38t38-92q0-54-38-92t-92-38q-54 0-92 38t-38 92q0 54 38 92t92 38Z"/></svg>
+              </button>
+              <!-- Avatar: md (36px), status ring. ok = surface-container-highest ring; connecting / offline swap in
+                   avatar-issue-pulse-warning / -error and the label "Profile — connection issue". -->
+              <button type="button" aria-label="Profile" title="Profile" class="w-10 h-10 rounded-full flex items-center justify-center hover:opacity-90 active:scale-95 transition-all focus-ring">
+                <div aria-hidden="true" class="avatar-recess rounded-full bg-progress-track flex items-center justify-center overflow-hidden" style="width:36px;height:36px;box-shadow:0 0 0 2px var(--color-surface-container-highest)">
+                  <span class="text-on-surface-variant font-bold" style="font-size:13px">AB</span>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      </nav>
+    <div class="bg-surface font-body" style="height:900px; overflow:hidden">
+      <main class="pt-20">
+        <div class="max-w-(--breakpoint-2xl) mx-auto px-8 flex flex-col pb-8">
+          <div class="pt-8 pb-4 shrink-0">
+            <h1 class="text-5xl font-headline font-extrabold text-accent tracking-tight leading-tight mb-4">
+              Shared <span class="text-transparent bg-clip-text bg-gradient-to-r from-accent to-secondary">Spaces</span>
+            </h1>
+            <p class="text-on-surface-variant text-lg max-w-2xl leading-relaxed">Create spaces to share files with your colleagues and peers.</p>
+            <div class="flex items-center gap-3 mt-6 mb-4">
+              <button type="button" aria-pressed="false" class="px-6 py-2.5 rounded-full font-medium transition-all active:scale-95 focus-ring bg-surface-control text-on-surface-variant hover:bg-surface-control-hover">All Spaces</button>
+              <button type="button" aria-pressed="true" class="px-6 py-2.5 rounded-full font-medium transition-all active:scale-95 focus-ring bg-primary text-on-primary shadow-lg shadow-primary/10 hover:bg-primary-hover">Favorites</button>
+              <div class="flex-1"></div>
+              <button type="button" class="flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold transition-all active:scale-95 bg-primary text-on-primary shadow-lg shadow-primary/10 hover:bg-primary-hover px-5 py-2.5 text-sm">
+                <svg width="20" height="20" viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true"><path d="M453-280h60v-166h167v-60H513v-174h-60v174H280v60h173v166Zm27.27 200q-82.74 0-155.5-31.5Q252-143 197.5-197.5t-86-127.340Q80-397.68 80-480.5t31.5-155.66Q143-709 197.5-763t127.34-85.5Q397.68-880 480.5-880t155.66 31.5Q709-817 763-763t85.5 127Q880-563 880-480.27q0 82.74-31.5 155.5Q817-252 763-197.68q-54 54.31-127 86Q563-80 480.27-80Zm.23-60Q622-140 721-239.5t99-241Q820-622 721.19-721T480-820q-141 0-240.5 98.81T140-480q0 141 99.5 240.5t241 99.5Zm-.5-340Z"/></svg>
+                Create Space
+              </button>
+              <button type="button" class="flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold transition-all active:scale-95 bg-primary text-on-primary shadow-lg shadow-primary/10 hover:bg-primary-hover px-5 py-2.5 text-sm">
+                <svg width="20" height="20" viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true"><path d="M474-486q26-32 38.5-66t12.5-79q0-45-12.5-79T474-776q76-17 133.5 23T665-631q0 82-57.5 122T474-486Zm216 326v-94q0-51-26-95t-90-74q173 22 236.5 64T874-254v94H690Zm110-289v-100H700v-60h100v-100h60v100h100v60H860v100h-60Zm-593-74q-42-42-42-108t42-108q42-42 108-42t108 42q42 42 42 108t-42 108q-42 42-108 42t-108-42ZM0-160v-94q0-35 18.5-63.5T68-360q72-32 128.5-46T315-420q62 0 118 14t128 46q31 14 50 42.5t19 63.5v94H0Zm315-381q39 0 64.5-25.5T405-631q0-39-25.5-64.5T315-721q-39 0-64.5 25.5T225-631q0 39 25.5 64.5T315-541ZM60-220h510v-34q0-16-8-30t-25-22q-69-32-117-43t-105-11q-57 0-104.5 11T92-306q-15 7-23.5 21.5T60-254v34Zm255-411Zm0 411Z"/></svg>
+                Join Space
+              </button>
+            </div>
+          </div>
+
+          <!-- Empty state: same wrapper as the All Spaces one (py-12, card mt-8 max-w-md) -->
+          <div class="flex flex-col items-center justify-center py-12 text-center">
+            <h2 class="text-2xl font-headline font-bold text-accent mb-3">No favorites yet</h2>
+
+            <!-- DocsCard shell (components/cards/DocsCard.tsx), proposed `items` content -->
+            <section aria-labelledby="fav-card-mac" class="bg-surface-container-low rounded-xl p-6 text-left w-full max-w-md mt-8">
+              <div class="flex items-start gap-4">
+                <div class="w-10 h-10 rounded-full bg-icon-tile flex items-center justify-center text-on-icon-tile shrink-0">
+                  <svg width="20" height="20" viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true"><path d="m323-245 157-94 157 95-42-178 138-120-182-16-71-168-71 167-182 16 138 120-42 178Zm-90 125 65-281L80-590l288-25 112-265 112 265 288 25-218 189 65 281-247-149-247 149Zm247-355Z"/></svg>
+                </div>
+                <div class="min-w-0">
+                  <h3 id="fav-card-mac" class="font-headline font-bold text-accent mb-1">What favorites do</h3>
+                  <p class="text-sm text-on-surface-variant leading-relaxed mb-4">Pin the spaces you use most often for quick access. Each favorite gets its own keyboard shortcut.</p>
+                  <ul class="space-y-1">
+                    <li class="flex items-start gap-2 py-1.5 text-sm text-on-surface-variant leading-relaxed">
+                      <svg class="shrink-0 mt-0.5 text-secondary" width="16" height="16" viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true"><path d="M160-200q-33 0-56.5-23.5T80-280v-400q0-33 23.5-56.5T160-760h640q33 0 56.5 23.5T880-680v400q0 33-23.5 56.5T800-200H160Zm0-80h640v-400H160v400Zm160-40h320v-80H320v80ZM200-440h80v-80h-80v80Zm120 0h80v-80h-80v80Zm120 0h80v-80h-80v80Zm120 0h80v-80h-80v80Zm120 0h80v-80h-80v80ZM200-560h80v-80h-80v80Zm120 0h80v-80h-80v80Zm120 0h80v-80h-80v80Zm120 0h80v-80h-80v80Zm120 0h80v-80h-80v80ZM160-280v-400 400Z"/></svg>
+                      <span>Press <kbd class="keycap">⌘1</kbd> to <kbd class="keycap">⌘9</kbd> to jump to a favorite from anywhere in Mirall. Hover a card to see its number.</span>
+                    </li>
+                    <li class="flex items-start gap-2 py-1.5 text-sm text-on-surface-variant leading-relaxed">
+                      <svg class="shrink-0 mt-0.5 text-secondary" width="16" height="16" viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true"><path d="m323-245 157-94 157 95-42-178 138-120-182-16-71-168-71 167-182 16 138 120-42 178Zm-90 125 65-281L80-590l288-25 112-265 112 265 288 25-218 189 65 281-247-149-247 149Zm247-355Z"/></svg>
+                      <span>To add one, open a space and choose <strong class="font-semibold text-on-surface">More › Add to Favorites</strong>. Or press <kbd class="keycap">⌘K</kbd> there and type “favorite”.</span>
+                    </li>
+                    <li>
+                      <button type="button" aria-keyshortcuts="Meta+Slash" class="relative w-full flex items-center gap-2 rounded-lg -mx-1 px-1 py-1.5 text-sm font-headline font-bold text-secondary hover:underline focus-ring text-left">
+                        <svg class="shrink-0" width="16" height="16" viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true"><path d="M686-450H160v-60h526L438-758l42-42 320 320-320 320-42-42 248-248Z"/></svg>
+                        <span>See all keyboard shortcuts</span>
+                        <kbd class="keycap font-normal">⌘/</kbd>
+                      </button>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </section>
+
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <div class="anno text-sm mt-4 space-y-2 max-w-[860px] mx-auto">
+    <p><span class="badge badge-a11y">a11y</span> The card stays DocsCard's <code>&lt;section aria-labelledby&gt;</code> with an <code>&lt;h3&gt;</code>. The three items are a <code>&lt;ul&gt;</code>; the first two are text (nothing to activate), so they sit outside the Tab order. Chords are <code>&lt;kbd&gt;</code> rendered through <code>AcceleratorLabel</code>, so VoiceOver reads them as text and Windows gets “Ctrl+1”.</p>
+    <p><span class="badge badge-a11y">a11y</span> The third item is a real <code>&lt;button&gt;</code> named “See all keyboard shortcuts”, with <code>aria-keyshortcuts="Meta+Slash"</code> (Control+Slash off macOS). It runs the existing <code>shortcuts.show</code> command — no new dialog. It keeps DocsLink's row look but drops the <code>open_in_new</code> glyph, since it does not leave the app.</p>
+    <p><span class="badge badge-proposed">Proposed new</span> The card’s description carries the main point, so the hint under “No favorites yet” goes: the current one (“Open a space and choose Add to Favorites from the menu…”) would repeat item 2, and a new one would repeat the card’s first sentence. The heading stays.</p>
+  </div>
+</section>
+
+<!-- ============ State 2: Windows / Linux ============ -->
+<section class="max-w-[1040px] mx-auto px-6 pt-14">
+  <h2 class="anno-h font-headline font-extrabold text-xl">2 · Same card on Windows and Linux</h2>
+  <div class="anno flex flex-wrap items-center gap-2 mt-2 mb-3 text-sm">
+    <span class="badge badge-real">Recreated from code</span>
+    <code>keyboard/AcceleratorLabel.tsx</code>
+    <span>— off macOS the chord is the plus-joined “Ctrl+1” form. Everything else is identical.</span>
+  </div>
+  <div class="bg-surface rounded-2xl p-10 flex justify-center font-body" style="box-shadow:0 8px 24px rgba(15,12,20,.08)">
+    <!-- DocsCard shell (components/cards/DocsCard.tsx), proposed `items` content -->
+            <section aria-labelledby="fav-card-win" class="bg-surface-container-low rounded-xl p-6 text-left w-full max-w-md">
+              <div class="flex items-start gap-4">
+                <div class="w-10 h-10 rounded-full bg-icon-tile flex items-center justify-center text-on-icon-tile shrink-0">
+                  <svg width="20" height="20" viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true"><path d="m323-245 157-94 157 95-42-178 138-120-182-16-71-168-71 167-182 16 138 120-42 178Zm-90 125 65-281L80-590l288-25 112-265 112 265 288 25-218 189 65 281-247-149-247 149Zm247-355Z"/></svg>
+                </div>
+                <div class="min-w-0">
+                  <h3 id="fav-card-win" class="font-headline font-bold text-accent mb-1">What favorites do</h3>
+                  <p class="text-sm text-on-surface-variant leading-relaxed mb-4">Pin the spaces you use most often for quick access. Each favorite gets its own keyboard shortcut.</p>
+                  <ul class="space-y-1">
+                    <li class="flex items-start gap-2 py-1.5 text-sm text-on-surface-variant leading-relaxed">
+                      <svg class="shrink-0 mt-0.5 text-secondary" width="16" height="16" viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true"><path d="M160-200q-33 0-56.5-23.5T80-280v-400q0-33 23.5-56.5T160-760h640q33 0 56.5 23.5T880-680v400q0 33-23.5 56.5T800-200H160Zm0-80h640v-400H160v400Zm160-40h320v-80H320v80ZM200-440h80v-80h-80v80Zm120 0h80v-80h-80v80Zm120 0h80v-80h-80v80Zm120 0h80v-80h-80v80Zm120 0h80v-80h-80v80ZM200-560h80v-80h-80v80Zm120 0h80v-80h-80v80Zm120 0h80v-80h-80v80Zm120 0h80v-80h-80v80Zm120 0h80v-80h-80v80ZM160-280v-400 400Z"/></svg>
+                      <span>Press <kbd class="keycap">Ctrl+1</kbd> to <kbd class="keycap">Ctrl+9</kbd> to jump to a favorite from anywhere in Mirall. Hover a card to see its number.</span>
+                    </li>
+                    <li class="flex items-start gap-2 py-1.5 text-sm text-on-surface-variant leading-relaxed">
+                      <svg class="shrink-0 mt-0.5 text-secondary" width="16" height="16" viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true"><path d="m323-245 157-94 157 95-42-178 138-120-182-16-71-168-71 167-182 16 138 120-42 178Zm-90 125 65-281L80-590l288-25 112-265 112 265 288 25-218 189 65 281-247-149-247 149Zm247-355Z"/></svg>
+                      <span>To add one, open a space and choose <strong class="font-semibold text-on-surface">More › Add to Favorites</strong>. Or press <kbd class="keycap">Ctrl+K</kbd> there and type “favorite”.</span>
+                    </li>
+                    <li>
+                      <button type="button" aria-keyshortcuts="Control+Slash" class="relative w-full flex items-center gap-2 rounded-lg -mx-1 px-1 py-1.5 text-sm font-headline font-bold text-secondary hover:underline focus-ring text-left">
+                        <svg class="shrink-0" width="16" height="16" viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true"><path d="M686-450H160v-60h526L438-758l42-42 320 320-320 320-42-42 248-248Z"/></svg>
+                        <span>See all keyboard shortcuts</span>
+                        <kbd class="keycap font-normal">Ctrl+/</kbd>
+                      </button>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </section>
+
+  </div>
+</section>
+
+<!-- ============ State 3/4: shortcut on hover, favorites only ============ -->
+<section class="max-w-[1040px] mx-auto px-6 pt-14">
+  <h2 class="anno-h font-headline font-extrabold text-xl">3 · Favorites tab: the shortcut appears on hover</h2>
+  <div class="anno flex flex-wrap items-center gap-2 mt-2 mb-3 text-sm">
+    <span class="badge badge-real">Recreated from code</span><code>components/cards/SpaceCard.tsx</code>
+    <span class="badge badge-proposed">Proposed new</span><span>a <code>⌘n</code> keycap left of the avatars, shown only while the card is hovered or keyboard-focused.</span>
+  </div>
+  <p class="anno text-sm mb-4 max-w-[860px] mx-auto">Folder Testing is shown hovered. Hover the other cards to try it. The keycap is absolutely positioned against the avatar stack (<code>absolute right-full</code>), so it takes no width: names truncate exactly where they do today. Card data (members, times, avatars) is made up.</p>
+  <div class="device-frame max-w-[860px] mx-auto">
+    <span class="traffic-lights" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></span>
+    <!-- TopNav (src/renderer/components/layout/TopNav.tsx) -->
+      <nav class="absolute top-0 w-full z-50">
+        <div class="nav-glass">
+          <div class="flex items-center py-4 px-8 w-full max-w-7xl mx-auto relative">
+            <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <button type="button" aria-label="Home" title="Home" class="pointer-events-auto flex h-8 items-center text-black dark:text-white rounded-lg px-2 active:scale-95 transition-all focus-ring">
+                <svg viewBox="0 0 2835 844" class="h-5 w-auto" fill="currentColor" fill-rule="evenodd" clip-rule="evenodd" aria-hidden="true" focusable="false"><g transform="matrix(4.166667,0,0,4.166667,-356.081667,-1351.366667)"><path transform="matrix(1,0,0,1,251.3906,523.7084)" d="M0,-196.22L-62.292,-111.171L-126.424,-196.22L-165.931,-196.22L-165.931,0L-125.107,0L-125.107,-129.2L-65.846,-50.043L-60.578,-50.043L-1.317,-126.442L-1.317,0L39.507,0L39.507,-196.22L0,-196.22Z" /><rect transform="matrix(1,0,0,1,0,-155.911)" x="314.601" y="483.399" width="39.507" height="39.507" /><rect transform="matrix(1,0,0,1,0,53.215)" x="314.601" y="326.686" width="39.507" height="143.807" /><path transform="matrix(1,0,0,1,528.4458,424.5448)" d="M0,57.681C-2.725,62.512 -6.543,66.331 -11.457,69.138C-16.375,71.949 -22.083,73.352 -28.577,73.352C-33.495,73.352 -37.623,72.126 -40.956,69.665C-44.294,67.208 -45.96,63.784 -45.96,59.393C-45.96,54.652 -44.471,51.01 -41.483,48.463C-38.499,45.919 -34.199,44.117 -28.577,43.063L4.082,37.231L4.082,41.746C4.082,47.541 2.72,52.854 0,57.681M35.952,-18.305C30.857,-26.733 23.573,-33.227 14.091,-37.795C4.609,-42.359 -6.716,-44.643 -19.885,-44.643L-149.265,-44.643L-149.265,99.164L-109.758,99.164L-109.758,-10.404L-22.519,-10.404C-13.918,-10.404 -7.334,-8.206 -2.766,-3.819C0.584,-0.596 2.694,3.438 3.586,8.268L-35.689,14.618C-47.104,16.375 -56.627,19.359 -64.266,23.573C-71.904,27.787 -77.566,33.014 -81.254,39.244C-84.941,45.479 -86.785,52.636 -86.785,60.71C-86.785,69.315 -84.768,76.735 -80.727,82.966C-76.69,89.2 -70.895,93.987 -63.344,97.32C-55.796,100.653 -46.841,102.324 -36.479,102.324C-28.754,102.324 -21.729,101.312 -15.408,99.295C-9.087,97.279 -3.383,94.205 1.712,90.077C3.431,88.684 5.096,87.155 6.716,85.511L6.716,99.164L43.59,99.164L43.59,11.721C43.59,0.132 41.042,-9.877 35.952,-18.305" /><rect transform="matrix(1,0,0,1,0,-2.357)" x="598.477" y="326.685" width="39.507" height="199.381" /><rect transform="matrix(1,0,0,1,0,-2.357)" x="663.056" y="326.685" width="39.507" height="199.381" /><rect transform="matrix(1,0,0,1,0,157.259)" x="726.267" y="326.814" width="39.507" height="39.507" fill="#fd9c42" /></g></svg>
+              </button>
+            </div>
+            <div class="flex items-center gap-4 ml-auto">
+              <button type="button" class="flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold transition-all active:scale-95 focus-ring bg-surface-control text-on-surface-variant hover:bg-surface-control-hover px-5 py-2.5 text-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true"><path d="M479.98-367q14.02 0 23.52-9.48t9.5-23.5q0-14.02-9.48-23.52t-23.5-9.5q-14.02 0-23.52 9.48t-9.5 23.5q0 14.02 9.48 23.52t23.5 9.5ZM450-509h60v-251h-60v251ZM80-80v-740q0-24 18-42t42-18h680q24 0 42 18t18 42v520q0 24-18 42t-42 18H240L80-80Zm134-220h606v-520H140v600l74-80Zm-74 0v-520 520Z"/></svg>
+                Send Feedback
+              </button>
+              <button type="button" aria-label="Settings" class="w-10 h-10 shrink-0 flex items-center justify-center rounded-full hover:bg-surface-container-high active:scale-95 transition-all focus-ring">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 -960 960 960" fill="currentColor" class="text-accent" aria-hidden="true"><path d="m388-80-20-126q-19-7-40-19t-37-25l-118 54-93-164 108-79q-2-9-2.5-20.5T185-480q0-9 .5-20.5T188-521L80-600l93-164 118 54q16-13 37-25t40-18l20-127h184l20 126q19 7 40.5 18.5T669-710l118-54 93 164-108 77q2 10 2.5 21.5t.5 21.5q0 10-.5 21t-2.5 21l108 78-93 164-118-54q-16 13-36.5 25.5T592-206L572-80H388Zm92-270q54 0 92-38t38-92q0-54-38-92t-92-38q-54 0-92 38t-38 92q0 54 38 92t92 38Z"/></svg>
+              </button>
+              <!-- Avatar: md (36px), status ring. ok = surface-container-highest ring; connecting / offline swap in
+                   avatar-issue-pulse-warning / -error and the label "Profile — connection issue". -->
+              <button type="button" aria-label="Profile" title="Profile" class="w-10 h-10 rounded-full flex items-center justify-center hover:opacity-90 active:scale-95 transition-all focus-ring">
+                <div aria-hidden="true" class="avatar-recess rounded-full bg-progress-track flex items-center justify-center overflow-hidden" style="width:36px;height:36px;box-shadow:0 0 0 2px var(--color-surface-container-highest)">
+                  <span class="text-on-surface-variant font-bold" style="font-size:13px">AB</span>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      </nav>
+    <div class="bg-surface font-body" style="height:640px; overflow:hidden"><main class="pt-20"><div class="mx-auto px-8 flex flex-col pb-8">
+      <div class="pt-8 pb-4 shrink-0">
+        <h1 class="text-5xl font-headline font-extrabold text-accent tracking-tight leading-tight mb-4">Shared <span class="text-transparent bg-clip-text bg-gradient-to-r from-accent to-secondary">Spaces</span></h1>
+        <div class="flex items-center gap-3 mt-6 mb-4">
+          <button type="button" aria-pressed="false" class="px-6 py-2.5 rounded-full font-medium focus-ring bg-surface-control text-on-surface-variant hover:bg-surface-control-hover">All Spaces</button>
+          <button type="button" aria-pressed="true" class="px-6 py-2.5 rounded-full font-medium focus-ring bg-primary text-on-primary shadow-lg shadow-primary/10 hover:bg-primary-hover">Favorites</button>
+        </div>
+      </div>
+      <div role="list" class="space-y-4 pb-4"><div role="listitem"><div role="button" tabindex="0" aria-label="Open Test AVK" aria-keyshortcuts="Meta+3" class="group bg-surface-container-lowest hover:bg-surface-container-highest p-5 rounded-2xl flex items-center gap-6 transition-colors cursor-pointer focus-ring">
+  <div class="w-16 h-16 rounded-xl bg-[#4e7045] dark:bg-[#a3c98e] flex items-center justify-center shrink-0"><svg width="32" height="32" viewBox="0 -960 960 960" fill="currentColor" class="text-on-primary" aria-hidden="true"><path d="M155-75q-35-35-35-85t35-85q35-35 85-35 14 0 26 3t23 8l57-71q-28-31-39-70t-5-78l-81-27q-17 25-43 40t-58 15q-50 0-85-35T0-580q0-50 35-85t85-35q50 0 85 35t35 85v8l81 28q20-36 53.5-61t75.5-32v-87q-39-11-64.5-42.5T360-840q0-50 35-85t85-35q50 0 85 35t35 85q0 42-26 73.5T510-724v87q42 7 75.5 32t53.5 61l81-28v-8q0-50 35-85t85-35q50 0 85 35t35 85q0 50-35 85t-85 35q-32 0-58.5-15T739-515l-81 27q6 39-5 77.5T614-340l57 70q11-5 23-7.5t26-2.5q50 0 85 35t35 85q0 50-35 85t-85 35q-50 0-85-35t-35-85q0-20 6.5-38.5T624-232l-57-71q-41 23-87.5 23T392-303l-56 71q11 15 17.5 33.5T360-160q0 50-35 85t-85 35q-50 0-85-35Zm-35-465q17 0 28.5-11.5T160-580q0-17-11.5-28.5T120-620q-17 0-28.5 11.5T80-580q0 17 11.5 28.5T120-540Zm148.5 408.5Q280-143 280-160t-11.5-28.5Q257-200 240-200t-28.5 11.5Q200-177 200-160t11.5 28.5Q223-120 240-120t28.5-11.5Zm240-680Q520-823 520-840t-11.5-28.5Q497-880 480-880t-28.5 11.5Q440-857 440-840t11.5 28.5Q463-800 480-800t28.5-11.5ZM480-360q42 0 71-29t29-71q0-42-29-71t-71-29q-42 0-71 29t-29 71q0 42 29 71t71 29Zm268.5 228.5Q760-143 760-160t-11.5-28.5Q737-200 720-200t-28.5 11.5Q680-177 680-160t11.5 28.5Q703-120 720-120t28.5-11.5Zm120-420Q880-563 880-580t-11.5-28.5Q857-620 840-620t-28.5 11.5Q800-597 800-580t11.5 28.5Q823-540 840-540t28.5-11.5ZM480-840ZM120-580Zm360 120Zm360-120ZM240-160Zm480 0Z"/></svg></div>
+  <div class="flex-grow min-w-0"><h3 class="text-xl font-headline font-bold text-accent truncate pb-0.5 mb-1">Test AVK</h3><p class="text-on-surface-variant text-sm truncate">2 members • Active just now</p></div>
+  <div class="relative shrink-0 flex -space-x-3"><kbd aria-hidden="true" class="keycap absolute right-full mr-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity !text-on-surface-variant">⌘3</kbd><span class="contents" aria-hidden="true"><span class="avatar-recess w-12 h-12 rounded-full bg-progress-track text-on-surface-variant text-sm font-bold flex items-center justify-center" style="box-shadow:0 0 0 2px var(--color-surface-container-lowest)">AB</span><span class="avatar-recess w-12 h-12 rounded-full bg-progress-track text-on-surface-variant text-sm font-bold flex items-center justify-center" style="box-shadow:0 0 0 2px var(--color-surface-container-lowest)">VK</span></span></div>
+</div></div><div role="listitem"><div role="button" tabindex="0" aria-label="Open Folder Testing" aria-keyshortcuts="Meta+1" class="group bg-surface-container-highest p-5 rounded-2xl flex items-center gap-6 transition-colors cursor-pointer focus-ring">
+  <div class="w-16 h-16 rounded-xl bg-[#4e3f80] dark:bg-[#9c8fd6] flex items-center justify-center shrink-0"><svg width="32" height="32" viewBox="0 -960 960 960" fill="currentColor" class="text-on-primary" aria-hidden="true"><path d="M155-75q-35-35-35-85t35-85q35-35 85-35 14 0 26 3t23 8l57-71q-28-31-39-70t-5-78l-81-27q-17 25-43 40t-58 15q-50 0-85-35T0-580q0-50 35-85t85-35q50 0 85 35t35 85v8l81 28q20-36 53.5-61t75.5-32v-87q-39-11-64.5-42.5T360-840q0-50 35-85t85-35q50 0 85 35t35 85q0 42-26 73.5T510-724v87q42 7 75.5 32t53.5 61l81-28v-8q0-50 35-85t85-35q50 0 85 35t35 85q0 50-35 85t-85 35q-32 0-58.5-15T739-515l-81 27q6 39-5 77.5T614-340l57 70q11-5 23-7.5t26-2.5q50 0 85 35t35 85q0 50-35 85t-85 35q-50 0-85-35t-35-85q0-20 6.5-38.5T624-232l-57-71q-41 23-87.5 23T392-303l-56 71q11 15 17.5 33.5T360-160q0 50-35 85t-85 35q-50 0-85-35Zm-35-465q17 0 28.5-11.5T160-580q0-17-11.5-28.5T120-620q-17 0-28.5 11.5T80-580q0 17 11.5 28.5T120-540Zm148.5 408.5Q280-143 280-160t-11.5-28.5Q257-200 240-200t-28.5 11.5Q200-177 200-160t11.5 28.5Q223-120 240-120t28.5-11.5Zm240-680Q520-823 520-840t-11.5-28.5Q497-880 480-880t-28.5 11.5Q440-857 440-840t11.5 28.5Q463-800 480-800t28.5-11.5ZM480-360q42 0 71-29t29-71q0-42-29-71t-71-29q-42 0-71 29t-29 71q0 42 29 71t71 29Zm268.5 228.5Q760-143 760-160t-11.5-28.5Q737-200 720-200t-28.5 11.5Q680-177 680-160t11.5 28.5Q703-120 720-120t28.5-11.5Zm120-420Q880-563 880-580t-11.5-28.5Q857-620 840-620t-28.5 11.5Q800-597 800-580t11.5 28.5Q823-540 840-540t28.5-11.5ZM480-840ZM120-580Zm360 120Zm360-120ZM240-160Zm480 0Z"/></svg></div>
+  <div class="flex-grow min-w-0"><h3 class="text-xl font-headline font-bold text-accent truncate pb-0.5 mb-1">Folder Testing</h3><p class="text-on-surface-variant text-sm truncate">4 members • Active 5 minutes ago</p></div>
+  <div class="relative shrink-0 flex -space-x-3"><kbd aria-hidden="true" class="keycap absolute right-full mr-4 top-1/2 -translate-y-1/2 opacity-100 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity !text-on-surface-variant">⌘1</kbd><span class="contents" aria-hidden="true"><span class="avatar-recess w-12 h-12 rounded-full bg-progress-track text-on-surface-variant text-sm font-bold flex items-center justify-center" style="box-shadow:0 0 0 2px var(--color-surface-container-highest)">MK</span><span class="avatar-recess w-12 h-12 rounded-full bg-progress-track text-on-surface-variant text-sm font-bold flex items-center justify-center" style="box-shadow:0 0 0 2px var(--color-surface-container-highest)">AB</span><span class="avatar-recess w-12 h-12 rounded-full bg-progress-track text-on-surface-variant text-sm font-bold flex items-center justify-center" style="box-shadow:0 0 0 2px var(--color-surface-container-highest)">JS</span></span></div>
+</div></div><div role="listitem"><div role="button" tabindex="0" aria-label="Open Test" aria-keyshortcuts="Meta+2" class="group bg-surface-container-lowest hover:bg-surface-container-highest p-5 rounded-2xl flex items-center gap-6 transition-colors cursor-pointer focus-ring">
+  <div class="w-16 h-16 rounded-xl bg-[#4e3f80] dark:bg-[#9c8fd6] flex items-center justify-center shrink-0"><svg width="32" height="32" viewBox="0 -960 960 960" fill="currentColor" class="text-on-primary" aria-hidden="true"><path d="M155-75q-35-35-35-85t35-85q35-35 85-35 14 0 26 3t23 8l57-71q-28-31-39-70t-5-78l-81-27q-17 25-43 40t-58 15q-50 0-85-35T0-580q0-50 35-85t85-35q50 0 85 35t35 85v8l81 28q20-36 53.5-61t75.5-32v-87q-39-11-64.5-42.5T360-840q0-50 35-85t85-35q50 0 85 35t35 85q0 42-26 73.5T510-724v87q42 7 75.5 32t53.5 61l81-28v-8q0-50 35-85t85-35q50 0 85 35t35 85q0 50-35 85t-85 35q-32 0-58.5-15T739-515l-81 27q6 39-5 77.5T614-340l57 70q11-5 23-7.5t26-2.5q50 0 85 35t35 85q0 50-35 85t-85 35q-50 0-85-35t-35-85q0-20 6.5-38.5T624-232l-57-71q-41 23-87.5 23T392-303l-56 71q11 15 17.5 33.5T360-160q0 50-35 85t-85 35q-50 0-85-35Zm-35-465q17 0 28.5-11.5T160-580q0-17-11.5-28.5T120-620q-17 0-28.5 11.5T80-580q0 17 11.5 28.5T120-540Zm148.5 408.5Q280-143 280-160t-11.5-28.5Q257-200 240-200t-28.5 11.5Q200-177 200-160t11.5 28.5Q223-120 240-120t28.5-11.5Zm240-680Q520-823 520-840t-11.5-28.5Q497-880 480-880t-28.5 11.5Q440-857 440-840t11.5 28.5Q463-800 480-800t28.5-11.5ZM480-360q42 0 71-29t29-71q0-42-29-71t-71-29q-42 0-71 29t-29 71q0 42 29 71t71 29Zm268.5 228.5Q760-143 760-160t-11.5-28.5Q737-200 720-200t-28.5 11.5Q680-177 680-160t11.5 28.5Q703-120 720-120t28.5-11.5Zm120-420Q880-563 880-580t-11.5-28.5Q857-620 840-620t-28.5 11.5Q800-597 800-580t11.5 28.5Q823-540 840-540t28.5-11.5ZM480-840ZM120-580Zm360 120Zm360-120ZM240-160Zm480 0Z"/></svg></div>
+  <div class="flex-grow min-w-0"><h3 class="text-xl font-headline font-bold text-accent truncate pb-0.5 mb-1">Test</h3><p class="text-on-surface-variant text-sm truncate">3 members • Active yesterday</p></div>
+  <div class="relative shrink-0 flex -space-x-3"><kbd aria-hidden="true" class="keycap absolute right-full mr-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity !text-on-surface-variant">⌘2</kbd><span class="contents" aria-hidden="true"><span class="avatar-recess w-12 h-12 rounded-full bg-progress-track text-on-surface-variant text-sm font-bold flex items-center justify-center" style="box-shadow:0 0 0 2px var(--color-surface-container-lowest)">AB</span><span class="avatar-recess w-12 h-12 rounded-full bg-progress-track text-on-surface-variant text-sm font-bold flex items-center justify-center" style="box-shadow:0 0 0 2px var(--color-surface-container-lowest)">JS</span><span class="avatar-recess w-12 h-12 rounded-full bg-progress-track text-on-surface-variant text-sm font-bold flex items-center justify-center" style="box-shadow:0 0 0 2px var(--color-surface-container-lowest)">LV</span></span></div>
+</div></div></div>
+    </div></main></div></div>
+  <div class="anno text-sm mt-4 space-y-2 max-w-[860px] mx-auto">
+    <p><span class="badge badge-a11y">a11y</span> Also shown on <code>:focus-visible</code>, not just hover, so keyboard users see it too. The card gains <code>aria-keyshortcuts="Meta+1"</code> (<code>Control+1</code> off macOS); the keycap is <code>aria-hidden</code>, so the name stays “Open Folder Testing”.</p>
+    <p><span class="badge badge-proposed">Proposed new</span> Keycap style is the palette's chord (<code>CommandPalette.tsx:115</code>, <code>font-mono text-xs text-on-surface-variant</code>) on a <code>surface-control</code> chip, rendered through <code>AcceleratorLabel</code>. It fades with the card's existing <code>transition-colors</code> timing.</p>
+  </div>
+</section>
+
+<section class="max-w-[1040px] mx-auto px-6 pt-14">
+  <h2 class="anno-h font-headline font-extrabold text-xl">4 · All Spaces: only favorites have a shortcut</h2>
+  <div class="anno flex flex-wrap items-center gap-2 mt-2 mb-3 text-sm">
+    <span class="badge badge-proposed">Proposed behavior change</span><span>regTest is shown hovered: it isn't a favorite, so no keycap and no ⌘4.</span>
+  </div>
+  <div class="device-frame max-w-[860px] mx-auto">
+    <span class="traffic-lights" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></span>
+    <!-- TopNav (src/renderer/components/layout/TopNav.tsx) -->
+      <nav class="absolute top-0 w-full z-50">
+        <div class="nav-glass">
+          <div class="flex items-center py-4 px-8 w-full max-w-7xl mx-auto relative">
+            <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <button type="button" aria-label="Home" title="Home" class="pointer-events-auto flex h-8 items-center text-black dark:text-white rounded-lg px-2 active:scale-95 transition-all focus-ring">
+                <svg viewBox="0 0 2835 844" class="h-5 w-auto" fill="currentColor" fill-rule="evenodd" clip-rule="evenodd" aria-hidden="true" focusable="false"><g transform="matrix(4.166667,0,0,4.166667,-356.081667,-1351.366667)"><path transform="matrix(1,0,0,1,251.3906,523.7084)" d="M0,-196.22L-62.292,-111.171L-126.424,-196.22L-165.931,-196.22L-165.931,0L-125.107,0L-125.107,-129.2L-65.846,-50.043L-60.578,-50.043L-1.317,-126.442L-1.317,0L39.507,0L39.507,-196.22L0,-196.22Z" /><rect transform="matrix(1,0,0,1,0,-155.911)" x="314.601" y="483.399" width="39.507" height="39.507" /><rect transform="matrix(1,0,0,1,0,53.215)" x="314.601" y="326.686" width="39.507" height="143.807" /><path transform="matrix(1,0,0,1,528.4458,424.5448)" d="M0,57.681C-2.725,62.512 -6.543,66.331 -11.457,69.138C-16.375,71.949 -22.083,73.352 -28.577,73.352C-33.495,73.352 -37.623,72.126 -40.956,69.665C-44.294,67.208 -45.96,63.784 -45.96,59.393C-45.96,54.652 -44.471,51.01 -41.483,48.463C-38.499,45.919 -34.199,44.117 -28.577,43.063L4.082,37.231L4.082,41.746C4.082,47.541 2.72,52.854 0,57.681M35.952,-18.305C30.857,-26.733 23.573,-33.227 14.091,-37.795C4.609,-42.359 -6.716,-44.643 -19.885,-44.643L-149.265,-44.643L-149.265,99.164L-109.758,99.164L-109.758,-10.404L-22.519,-10.404C-13.918,-10.404 -7.334,-8.206 -2.766,-3.819C0.584,-0.596 2.694,3.438 3.586,8.268L-35.689,14.618C-47.104,16.375 -56.627,19.359 -64.266,23.573C-71.904,27.787 -77.566,33.014 -81.254,39.244C-84.941,45.479 -86.785,52.636 -86.785,60.71C-86.785,69.315 -84.768,76.735 -80.727,82.966C-76.69,89.2 -70.895,93.987 -63.344,97.32C-55.796,100.653 -46.841,102.324 -36.479,102.324C-28.754,102.324 -21.729,101.312 -15.408,99.295C-9.087,97.279 -3.383,94.205 1.712,90.077C3.431,88.684 5.096,87.155 6.716,85.511L6.716,99.164L43.59,99.164L43.59,11.721C43.59,0.132 41.042,-9.877 35.952,-18.305" /><rect transform="matrix(1,0,0,1,0,-2.357)" x="598.477" y="326.685" width="39.507" height="199.381" /><rect transform="matrix(1,0,0,1,0,-2.357)" x="663.056" y="326.685" width="39.507" height="199.381" /><rect transform="matrix(1,0,0,1,0,157.259)" x="726.267" y="326.814" width="39.507" height="39.507" fill="#fd9c42" /></g></svg>
+              </button>
+            </div>
+            <div class="flex items-center gap-4 ml-auto">
+              <button type="button" class="flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold transition-all active:scale-95 focus-ring bg-surface-control text-on-surface-variant hover:bg-surface-control-hover px-5 py-2.5 text-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true"><path d="M479.98-367q14.02 0 23.52-9.48t9.5-23.5q0-14.02-9.48-23.52t-23.5-9.5q-14.02 0-23.52 9.48t-9.5 23.5q0 14.02 9.48 23.52t23.5 9.5ZM450-509h60v-251h-60v251ZM80-80v-740q0-24 18-42t42-18h680q24 0 42 18t18 42v520q0 24-18 42t-42 18H240L80-80Zm134-220h606v-520H140v600l74-80Zm-74 0v-520 520Z"/></svg>
+                Send Feedback
+              </button>
+              <button type="button" aria-label="Settings" class="w-10 h-10 shrink-0 flex items-center justify-center rounded-full hover:bg-surface-container-high active:scale-95 transition-all focus-ring">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 -960 960 960" fill="currentColor" class="text-accent" aria-hidden="true"><path d="m388-80-20-126q-19-7-40-19t-37-25l-118 54-93-164 108-79q-2-9-2.5-20.5T185-480q0-9 .5-20.5T188-521L80-600l93-164 118 54q16-13 37-25t40-18l20-127h184l20 126q19 7 40.5 18.5T669-710l118-54 93 164-108 77q2 10 2.5 21.5t.5 21.5q0 10-.5 21t-2.5 21l108 78-93 164-118-54q-16 13-36.5 25.5T592-206L572-80H388Zm92-270q54 0 92-38t38-92q0-54-38-92t-92-38q-54 0-92 38t-38 92q0 54 38 92t92 38Z"/></svg>
+              </button>
+              <!-- Avatar: md (36px), status ring. ok = surface-container-highest ring; connecting / offline swap in
+                   avatar-issue-pulse-warning / -error and the label "Profile — connection issue". -->
+              <button type="button" aria-label="Profile" title="Profile" class="w-10 h-10 rounded-full flex items-center justify-center hover:opacity-90 active:scale-95 transition-all focus-ring">
+                <div aria-hidden="true" class="avatar-recess rounded-full bg-progress-track flex items-center justify-center overflow-hidden" style="width:36px;height:36px;box-shadow:0 0 0 2px var(--color-surface-container-highest)">
+                  <span class="text-on-surface-variant font-bold" style="font-size:13px">AB</span>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      </nav>
+    <div class="bg-surface font-body" style="height:760px; overflow:hidden"><main class="pt-20"><div class="mx-auto px-8 flex flex-col pb-8">
+      <div class="pt-8 pb-4 shrink-0">
+        <h1 class="text-5xl font-headline font-extrabold text-accent tracking-tight leading-tight mb-4">Shared <span class="text-transparent bg-clip-text bg-gradient-to-r from-accent to-secondary">Spaces</span></h1>
+        <div class="flex items-center gap-3 mt-6 mb-4">
+          <button type="button" aria-pressed="true" class="px-6 py-2.5 rounded-full font-medium focus-ring bg-primary text-on-primary shadow-lg shadow-primary/10 hover:bg-primary-hover">All Spaces</button>
+          <button type="button" aria-pressed="false" class="px-6 py-2.5 rounded-full font-medium focus-ring bg-surface-control text-on-surface-variant hover:bg-surface-control-hover">Favorites</button>
+        </div>
+      </div>
+      <div role="list" class="space-y-4 pb-4"><div role="listitem"><div role="button" tabindex="0" aria-label="Open Test AVK" aria-keyshortcuts="Meta+3" class="group bg-surface-container-lowest hover:bg-surface-container-highest p-5 rounded-2xl flex items-center gap-6 transition-colors cursor-pointer focus-ring">
+  <div class="w-16 h-16 rounded-xl bg-[#4e7045] dark:bg-[#a3c98e] flex items-center justify-center shrink-0"><svg width="32" height="32" viewBox="0 -960 960 960" fill="currentColor" class="text-on-primary" aria-hidden="true"><path d="M155-75q-35-35-35-85t35-85q35-35 85-35 14 0 26 3t23 8l57-71q-28-31-39-70t-5-78l-81-27q-17 25-43 40t-58 15q-50 0-85-35T0-580q0-50 35-85t85-35q50 0 85 35t35 85v8l81 28q20-36 53.5-61t75.5-32v-87q-39-11-64.5-42.5T360-840q0-50 35-85t85-35q50 0 85 35t35 85q0 42-26 73.5T510-724v87q42 7 75.5 32t53.5 61l81-28v-8q0-50 35-85t85-35q50 0 85 35t35 85q0 50-35 85t-85 35q-32 0-58.5-15T739-515l-81 27q6 39-5 77.5T614-340l57 70q11-5 23-7.5t26-2.5q50 0 85 35t35 85q0 50-35 85t-85 35q-50 0-85-35t-35-85q0-20 6.5-38.5T624-232l-57-71q-41 23-87.5 23T392-303l-56 71q11 15 17.5 33.5T360-160q0 50-35 85t-85 35q-50 0-85-35Zm-35-465q17 0 28.5-11.5T160-580q0-17-11.5-28.5T120-620q-17 0-28.5 11.5T80-580q0 17 11.5 28.5T120-540Zm148.5 408.5Q280-143 280-160t-11.5-28.5Q257-200 240-200t-28.5 11.5Q200-177 200-160t11.5 28.5Q223-120 240-120t28.5-11.5Zm240-680Q520-823 520-840t-11.5-28.5Q497-880 480-880t-28.5 11.5Q440-857 440-840t11.5 28.5Q463-800 480-800t28.5-11.5ZM480-360q42 0 71-29t29-71q0-42-29-71t-71-29q-42 0-71 29t-29 71q0 42 29 71t71 29Zm268.5 228.5Q760-143 760-160t-11.5-28.5Q737-200 720-200t-28.5 11.5Q680-177 680-160t11.5 28.5Q703-120 720-120t28.5-11.5Zm120-420Q880-563 880-580t-11.5-28.5Q857-620 840-620t-28.5 11.5Q800-597 800-580t11.5 28.5Q823-540 840-540t28.5-11.5ZM480-840ZM120-580Zm360 120Zm360-120ZM240-160Zm480 0Z"/></svg></div>
+  <div class="flex-grow min-w-0"><h3 class="text-xl font-headline font-bold text-accent truncate pb-0.5 mb-1">Test AVK</h3><p class="text-on-surface-variant text-sm truncate">2 members • Active just now</p></div>
+  <div class="relative shrink-0 flex -space-x-3"><kbd aria-hidden="true" class="keycap absolute right-full mr-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity !text-on-surface-variant">⌘3</kbd><span class="contents" aria-hidden="true"><span class="avatar-recess w-12 h-12 rounded-full bg-progress-track text-on-surface-variant text-sm font-bold flex items-center justify-center" style="box-shadow:0 0 0 2px var(--color-surface-container-lowest)">AB</span><span class="avatar-recess w-12 h-12 rounded-full bg-progress-track text-on-surface-variant text-sm font-bold flex items-center justify-center" style="box-shadow:0 0 0 2px var(--color-surface-container-lowest)">VK</span></span></div>
+</div></div><div role="listitem"><div role="button" tabindex="0" aria-label="Open Folder Testing" aria-keyshortcuts="Meta+1" class="group bg-surface-container-lowest hover:bg-surface-container-highest p-5 rounded-2xl flex items-center gap-6 transition-colors cursor-pointer focus-ring">
+  <div class="w-16 h-16 rounded-xl bg-[#4e3f80] dark:bg-[#9c8fd6] flex items-center justify-center shrink-0"><svg width="32" height="32" viewBox="0 -960 960 960" fill="currentColor" class="text-on-primary" aria-hidden="true"><path d="M155-75q-35-35-35-85t35-85q35-35 85-35 14 0 26 3t23 8l57-71q-28-31-39-70t-5-78l-81-27q-17 25-43 40t-58 15q-50 0-85-35T0-580q0-50 35-85t85-35q50 0 85 35t35 85v8l81 28q20-36 53.5-61t75.5-32v-87q-39-11-64.5-42.5T360-840q0-50 35-85t85-35q50 0 85 35t35 85q0 42-26 73.5T510-724v87q42 7 75.5 32t53.5 61l81-28v-8q0-50 35-85t85-35q50 0 85 35t35 85q0 50-35 85t-85 35q-32 0-58.5-15T739-515l-81 27q6 39-5 77.5T614-340l57 70q11-5 23-7.5t26-2.5q50 0 85 35t35 85q0 50-35 85t-85 35q-50 0-85-35t-35-85q0-20 6.5-38.5T624-232l-57-71q-41 23-87.5 23T392-303l-56 71q11 15 17.5 33.5T360-160q0 50-35 85t-85 35q-50 0-85-35Zm-35-465q17 0 28.5-11.5T160-580q0-17-11.5-28.5T120-620q-17 0-28.5 11.5T80-580q0 17 11.5 28.5T120-540Zm148.5 408.5Q280-143 280-160t-11.5-28.5Q257-200 240-200t-28.5 11.5Q200-177 200-160t11.5 28.5Q223-120 240-120t28.5-11.5Zm240-680Q520-823 520-840t-11.5-28.5Q497-880 480-880t-28.5 11.5Q440-857 440-840t11.5 28.5Q463-800 480-800t28.5-11.5ZM480-360q42 0 71-29t29-71q0-42-29-71t-71-29q-42 0-71 29t-29 71q0 42 29 71t71 29Zm268.5 228.5Q760-143 760-160t-11.5-28.5Q737-200 720-200t-28.5 11.5Q680-177 680-160t11.5 28.5Q703-120 720-120t28.5-11.5Zm120-420Q880-563 880-580t-11.5-28.5Q857-620 840-620t-28.5 11.5Q800-597 800-580t11.5 28.5Q823-540 840-540t28.5-11.5ZM480-840ZM120-580Zm360 120Zm360-120ZM240-160Zm480 0Z"/></svg></div>
+  <div class="flex-grow min-w-0"><h3 class="text-xl font-headline font-bold text-accent truncate pb-0.5 mb-1">Folder Testing</h3><p class="text-on-surface-variant text-sm truncate">4 members • Active 5 minutes ago</p></div>
+  <div class="relative shrink-0 flex -space-x-3"><kbd aria-hidden="true" class="keycap absolute right-full mr-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity !text-on-surface-variant">⌘1</kbd><span class="contents" aria-hidden="true"><span class="avatar-recess w-12 h-12 rounded-full bg-progress-track text-on-surface-variant text-sm font-bold flex items-center justify-center" style="box-shadow:0 0 0 2px var(--color-surface-container-lowest)">MK</span><span class="avatar-recess w-12 h-12 rounded-full bg-progress-track text-on-surface-variant text-sm font-bold flex items-center justify-center" style="box-shadow:0 0 0 2px var(--color-surface-container-lowest)">AB</span><span class="avatar-recess w-12 h-12 rounded-full bg-progress-track text-on-surface-variant text-sm font-bold flex items-center justify-center" style="box-shadow:0 0 0 2px var(--color-surface-container-lowest)">JS</span></span></div>
+</div></div><div role="listitem"><div role="button" tabindex="0" aria-label="Open regTest" class="group bg-surface-container-highest p-5 rounded-2xl flex items-center gap-6 transition-colors cursor-pointer focus-ring">
+  <div class="w-16 h-16 rounded-xl bg-[#1f6660] dark:bg-[#6abab1] flex items-center justify-center shrink-0"><svg width="32" height="32" viewBox="0 -960 960 960" fill="currentColor" class="text-on-primary" aria-hidden="true"><path d="M155-75q-35-35-35-85t35-85q35-35 85-35 14 0 26 3t23 8l57-71q-28-31-39-70t-5-78l-81-27q-17 25-43 40t-58 15q-50 0-85-35T0-580q0-50 35-85t85-35q50 0 85 35t35 85v8l81 28q20-36 53.5-61t75.5-32v-87q-39-11-64.5-42.5T360-840q0-50 35-85t85-35q50 0 85 35t35 85q0 42-26 73.5T510-724v87q42 7 75.5 32t53.5 61l81-28v-8q0-50 35-85t85-35q50 0 85 35t35 85q0 50-35 85t-85 35q-32 0-58.5-15T739-515l-81 27q6 39-5 77.5T614-340l57 70q11-5 23-7.5t26-2.5q50 0 85 35t35 85q0 50-35 85t-85 35q-50 0-85-35t-35-85q0-20 6.5-38.5T624-232l-57-71q-41 23-87.5 23T392-303l-56 71q11 15 17.5 33.5T360-160q0 50-35 85t-85 35q-50 0-85-35Zm-35-465q17 0 28.5-11.5T160-580q0-17-11.5-28.5T120-620q-17 0-28.5 11.5T80-580q0 17 11.5 28.5T120-540Zm148.5 408.5Q280-143 280-160t-11.5-28.5Q257-200 240-200t-28.5 11.5Q200-177 200-160t11.5 28.5Q223-120 240-120t28.5-11.5Zm240-680Q520-823 520-840t-11.5-28.5Q497-880 480-880t-28.5 11.5Q440-857 440-840t11.5 28.5Q463-800 480-800t28.5-11.5ZM480-360q42 0 71-29t29-71q0-42-29-71t-71-29q-42 0-71 29t-29 71q0 42 29 71t71 29Zm268.5 228.5Q760-143 760-160t-11.5-28.5Q737-200 720-200t-28.5 11.5Q680-177 680-160t11.5 28.5Q703-120 720-120t28.5-11.5Zm120-420Q880-563 880-580t-11.5-28.5Q857-620 840-620t-28.5 11.5Q800-597 800-580t11.5 28.5Q823-540 840-540t28.5-11.5ZM480-840ZM120-580Zm360 120Zm360-120ZM240-160Zm480 0Z"/></svg></div>
+  <div class="flex-grow min-w-0"><h3 class="text-xl font-headline font-bold text-accent truncate pb-0.5 mb-1">regTest</h3><p class="text-on-surface-variant text-sm truncate">2 members • Active 2 hours ago</p></div>
+  <div class="relative shrink-0 flex -space-x-3"><span class="contents" aria-hidden="true"><span class="avatar-recess w-12 h-12 rounded-full bg-progress-track text-on-surface-variant text-sm font-bold flex items-center justify-center" style="box-shadow:0 0 0 2px var(--color-surface-container-highest)">AB</span><span class="avatar-recess w-12 h-12 rounded-full bg-progress-track text-on-surface-variant text-sm font-bold flex items-center justify-center" style="box-shadow:0 0 0 2px var(--color-surface-container-highest)">RT</span></span></div>
+</div></div><div role="listitem"><div role="button" tabindex="0" aria-label="Open Test" aria-keyshortcuts="Meta+2" class="group bg-surface-container-lowest hover:bg-surface-container-highest p-5 rounded-2xl flex items-center gap-6 transition-colors cursor-pointer focus-ring">
+  <div class="w-16 h-16 rounded-xl bg-[#4e3f80] dark:bg-[#9c8fd6] flex items-center justify-center shrink-0"><svg width="32" height="32" viewBox="0 -960 960 960" fill="currentColor" class="text-on-primary" aria-hidden="true"><path d="M155-75q-35-35-35-85t35-85q35-35 85-35 14 0 26 3t23 8l57-71q-28-31-39-70t-5-78l-81-27q-17 25-43 40t-58 15q-50 0-85-35T0-580q0-50 35-85t85-35q50 0 85 35t35 85v8l81 28q20-36 53.5-61t75.5-32v-87q-39-11-64.5-42.5T360-840q0-50 35-85t85-35q50 0 85 35t35 85q0 42-26 73.5T510-724v87q42 7 75.5 32t53.5 61l81-28v-8q0-50 35-85t85-35q50 0 85 35t35 85q0 50-35 85t-85 35q-32 0-58.5-15T739-515l-81 27q6 39-5 77.5T614-340l57 70q11-5 23-7.5t26-2.5q50 0 85 35t35 85q0 50-35 85t-85 35q-50 0-85-35t-35-85q0-20 6.5-38.5T624-232l-57-71q-41 23-87.5 23T392-303l-56 71q11 15 17.5 33.5T360-160q0 50-35 85t-85 35q-50 0-85-35Zm-35-465q17 0 28.5-11.5T160-580q0-17-11.5-28.5T120-620q-17 0-28.5 11.5T80-580q0 17 11.5 28.5T120-540Zm148.5 408.5Q280-143 280-160t-11.5-28.5Q257-200 240-200t-28.5 11.5Q200-177 200-160t11.5 28.5Q223-120 240-120t28.5-11.5Zm240-680Q520-823 520-840t-11.5-28.5Q497-880 480-880t-28.5 11.5Q440-857 440-840t11.5 28.5Q463-800 480-800t28.5-11.5ZM480-360q42 0 71-29t29-71q0-42-29-71t-71-29q-42 0-71 29t-29 71q0 42 29 71t71 29Zm268.5 228.5Q760-143 760-160t-11.5-28.5Q737-200 720-200t-28.5 11.5Q680-177 680-160t11.5 28.5Q703-120 720-120t28.5-11.5Zm120-420Q880-563 880-580t-11.5-28.5Q857-620 840-620t-28.5 11.5Q800-597 800-580t11.5 28.5Q823-540 840-540t28.5-11.5ZM480-840ZM120-580Zm360 120Zm360-120ZM240-160Zm480 0Z"/></svg></div>
+  <div class="flex-grow min-w-0"><h3 class="text-xl font-headline font-bold text-accent truncate pb-0.5 mb-1">Test</h3><p class="text-on-surface-variant text-sm truncate">3 members • Active yesterday</p></div>
+  <div class="relative shrink-0 flex -space-x-3"><kbd aria-hidden="true" class="keycap absolute right-full mr-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity !text-on-surface-variant">⌘2</kbd><span class="contents" aria-hidden="true"><span class="avatar-recess w-12 h-12 rounded-full bg-progress-track text-on-surface-variant text-sm font-bold flex items-center justify-center" style="box-shadow:0 0 0 2px var(--color-surface-container-lowest)">AB</span><span class="avatar-recess w-12 h-12 rounded-full bg-progress-track text-on-surface-variant text-sm font-bold flex items-center justify-center" style="box-shadow:0 0 0 2px var(--color-surface-container-lowest)">JS</span><span class="avatar-recess w-12 h-12 rounded-full bg-progress-track text-on-surface-variant text-sm font-bold flex items-center justify-center" style="box-shadow:0 0 0 2px var(--color-surface-container-lowest)">LV</span></span></div>
+</div></div></div>
+    </div></main></div></div>
+  <div class="anno text-sm mt-4 space-y-2 max-w-[860px] mx-auto">
+    <p><span class="badge badge-proposed">Proposed behavior change</span> ⌘1–9 go to the first nine <strong>favorites</strong> only, oldest favorite first, unchanged by activity. Today every space gets a number, favorites first (<code>src/renderer/model/space-shortcut-order.js:1-3</code>, <code>src/main/menu.js:61-71</code>). After the change, the View › Go to Space menu and the palette's ⌘ labels list favorites only. Every space stays reachable by name in ⌘K.</p>
+    <p><span class="badge badge-proposed">Proposed behavior change</span> Someone with no favorites loses the digit shortcuts they have today. The empty-state card is what tells them how to get them back.</p>
+  </div>
+</section>
+
+<!-- ============ Rejected alternatives ============ -->
+<section class="max-w-[1040px] mx-auto px-6 pt-14">
+  <h2 class="anno-h font-headline font-extrabold text-xl">Rejected alternatives</h2>
+  <div class="grid md:grid-cols-2 gap-6 mt-4">
+    <div>
+      <p class="anno text-sm mb-3"><span class="badge" style="background:#f6c8c4;color:#93000a">Rejected</span> <strong>DocsCard with three “learn more” links.</strong> Matches the screenshot exactly, but mirall.app has no favorites or shortcuts section, so every link would land on a generic page. The point of this card is the shortcuts, which fit in a sentence.</p>
+      <div class="bg-surface rounded-2xl p-6 font-body opacity-80">
+        <section class="bg-surface-container-low rounded-xl p-6 text-left w-full max-w-md">
+          <div class="flex items-start gap-4">
+            <div class="w-10 h-10 rounded-full bg-icon-tile flex items-center justify-center text-on-icon-tile shrink-0">
+              <svg width="20" height="20" viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true"><path d="m323-245 157-94 157 95-42-178 138-120-182-16-71-168-71 167-182 16 138 120-42 178Zm-90 125 65-281L80-590l288-25 112-265 112 265 288 25-218 189 65 281-247-149-247 149Zm247-355Z"/></svg>
+            </div>
+            <div class="min-w-0">
+              <h3 class="font-headline font-bold text-accent mb-1">What favorites do</h3>
+              <p class="text-sm text-on-surface-variant leading-relaxed mb-4">Favorites come first in your shortcuts.</p>
+              <ul class="space-y-1">
+                <li><span class="flex items-center gap-2 py-1.5 text-sm font-headline font-bold text-secondary">→ Keyboard shortcuts <span class="opacity-60">↗</span></span></li>
+                <li><span class="flex items-center gap-2 py-1.5 text-sm font-headline font-bold text-secondary">→ Add a favorite <span class="opacity-60">↗</span></span></li>
+              </ul>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+    <div>
+      <p class="anno text-sm mb-3"><span class="badge" style="background:#f6c8c4;color:#93000a">Rejected</span> <strong>An “Add to Favorites” button in the card.</strong> The tab has no space to act on, so the button would need a space picker. That's a new flow for a one-time step; the real control lives in the space's More menu, where the user already is when they want it.</p>
+      <p class="anno text-sm mt-4"><span class="badge" style="background:#f6c8c4;color:#93000a">Rejected</span> <strong>Keycap always visible at the end of the row.</strong> Too prominent on a list people scan by name, and it widened every row. Numbering every space (favorites first, then the rest) was dropped with it: a number on a space you never pinned read as a mismatch.</p>
+      <p class="anno text-sm mt-4"><span class="badge" style="background:#f6c8c4;color:#93000a">Rejected</span> <strong>A dedicated chord for favoriting</strong> (e.g. ⌘D). Out of scope for an empty state. The card would advertise a new shortcut, and every chord has to go through <code>known-commands.ts</code> and the cheatsheet invariant. Worth its own decision if wanted.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ Implementation notes ============ -->
+<section class="max-w-[1040px] mx-auto px-6 pt-14">
+  <h2 class="anno-h font-headline font-extrabold text-xl">How it would be built</h2>
+  <div class="anno text-sm mt-3 space-y-2 max-w-3xl leading-relaxed">
+    <p><span class="badge badge-proposed">Proposed new</span> <code>DocsCard</code> already owns the shell: icon tile, title, body, list, English note. The proposal gives it an <code>items</code> slot (ReactNode rows) alongside <code>links</code>, so this card and the share card stay one component. The English note shows only when the card has doc links, so it is absent here.</p>
+    <p><span class="badge badge-proposed">Proposed new</span> New strings under <code>spaces.*</code>: <code>emptyNoFavoritesHint</code> removed, <code>favoritesDocsTitle</code>, <code>favoritesDocsBody</code>, <code>favoritesTipJump</code>, <code>favoritesTipAdd</code>; <code>favoritesTipAllShortcuts</code> reuses <code>shortcuts.showShortcuts</code>' meaning with its own wording. All five locales.</p>
+    <p><span class="badge badge-a11y">a11y</span> Tests: the frontend scenario for the Favorites tab checks the card's heading, the three list items and that the button opens the cheatsheet; <code>jsx-a11y</code> covers the button name.</p>
+  </div>
+</section>
+
+<script>
+  const toggle = document.getElementById('theme-toggle')
+  toggle.addEventListener('click', () => {
+    const dark = document.documentElement.classList.toggle('dark')
+    document.body.classList.toggle('dark', dark)
+    toggle.setAttribute('aria-pressed', String(dark))
+  })
+</script>
+
+</body>
+</html>

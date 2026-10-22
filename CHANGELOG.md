@@ -39,7 +39,9 @@ organization manages, the organization's page.
 
 - **Spaces are listed by recent activity.** The space where something last
 happened, by you or a member, comes first, and each card says when.
-⌘1–9 now go to your favorites first, then your oldest spaces.
+- **⌘1–9 open your favorites.** Each favorite keeps its number however busy
+your spaces get; hover its card to see it. An empty Favorites tab explains
+what favorites do and how to add one.
 - **Settings → Storage sets the download folder for new spaces.** Spaces you
 already have keep their own folder when you change it.
 - **Folder paths can be pasted, typed and copied.** Every folder field takes
