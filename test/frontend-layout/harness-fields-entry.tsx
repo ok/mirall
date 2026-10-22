@@ -88,7 +88,9 @@ createRoot(document.getElementById('root') as HTMLElement).render(
       <RestoreProgress hold={HOLD} />
     </div>
     <div data-probe="filter">
-      <ListControlsRow value="" onChange={noop} matched={null} total={0} filterLabel="Filter files" showExpand={false} />
+      <KeyboardProvider currentScreen="account" selectedSpaceId={null}>
+        <ListControlsRow value="" onChange={noop} matched={null} total={0} filterLabel="Filter files" showExpand={false} />
+      </KeyboardProvider>
     </div>
     <div className="bg-surface-container-low rounded-xl row-group">
       <div data-probe="toggle-off"><Toggle label="Off" checked={false} onChange={noop} /></div>
