@@ -179,7 +179,7 @@
   "pathField": {
     "browse": "Sfoglia…",
     "loading": "Caricamento…",
-    "placeholder": "Seleziona posizione…",
+    "notFolder": "Non esiste una cartella in questo percorso.",
     "browseSubject": "Sfoglia… ({{subject}})",
     "changeSubject": "Modifica ({{subject}})"
   },

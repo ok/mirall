@@ -68,14 +68,15 @@ export default function RestoreBackupModal({ isOpen, onClose, onRestored, locked
     onClose()
   }
 
-  async function chooseFolder() {
+  // Picked or typed, the peek says whether the folder holds a backup.
+  async function openFolder(pick: () => Promise<string | null>) {
     setError(null)
     try {
-      const picked = await window.bridge.browseBackupFolder()
-      if (!picked) return
-      setFolder(picked.folder)
+      const chosen = await pick()
+      if (!chosen) return
+      setFolder(chosen)
       setPeek(null)
-      setPeek(await request('backup:peek', { folder: picked.folder }))
+      setPeek(await request('backup:peek', { folder: chosen }))
     } catch (err) {
       setError(errorText(err))
     }
@@ -168,7 +169,7 @@ export default function RestoreBackupModal({ isOpen, onClose, onRestored, locked
               passphrase={passphrase}
               fieldError={fieldError}
               busy={busy}
-              onChooseFolder={() => void chooseFolder()}
+              onOpenFolder={(pick) => void openFolder(pick)}
               onPassphrase={(v) => { setPassphrase(v); setFieldError(null) }}
             />
           ) : (
@@ -242,27 +243,34 @@ function SnapshotChoice({ snapshots, chosen, onChoose }: SnapshotChoiceProps) {
   )
 }
 
+async function pickBackupFolder() {
+  return (await window.bridge.browseBackupFolder())?.folder ?? null
+}
+
 interface SourceFieldsProps {
   folder: string | null
   peek: BackupPeek | null
   passphrase: string
   fieldError: string | null
   busy: boolean
-  onChooseFolder: () => void
+  /** Opens the folder `pick` answers: the picker's choice, or a typed path. */
+  onOpenFolder: (pick: () => Promise<string | null>) => void
   onPassphrase: (value: string) => void
 }
 
 // Where the backup is and what opens it. Nothing here can change while the dialog works on it.
-function SourceFields({ folder, peek, passphrase, fieldError, busy, onChooseFolder, onPassphrase }: SourceFieldsProps) {
+function SourceFields({ folder, peek, passphrase, fieldError, busy, onOpenFolder, onPassphrase }: SourceFieldsProps) {
   const { t } = useTranslation()
   const keyInFolder = !!peek?.keyCreatedAt
   return (
     <>
       <div className="space-y-3">
-        <FieldLabel id="restore-backup-folder-label">{t('restoreBackup.folderLabel')}</FieldLabel>
+        <FieldLabel htmlFor="restore-backup-folder">{t('restoreBackup.folderLabel')}</FieldLabel>
         <PathRow
+          id="restore-backup-folder"
           path={folder}
-          onAction={onChooseFolder}
+          onAction={() => onOpenFolder(pickBackupFolder)}
+          onCommit={(typed) => onOpenFolder(async () => typed)}
           subject={t('backup.folderSubject')}
           actionDisabled={busy}
         />

@@ -112,7 +112,13 @@ export default function BackupSettings({ onBack }: BackupSettingsProps) {
             )}
             {configurable && setUp && (
               <>
-                <FolderSection status={status} busy={busy} managed={managed} onChange={() => void act(() => changeFolder(status.folder ?? undefined))} />
+                <FolderSection
+                  status={status}
+                  busy={busy}
+                  managed={managed}
+                  onChange={() => void act(() => changeFolder(status.folder ?? undefined))}
+                  onTake={(typed) => void act(async () => { await request('backup:configure', { folder: typed }) })}
+                />
                 <PassphraseSection status={status} busy={busy} onDialog={setDialog} onReminders={(next) => void act(() => setReminders(next))} />
               </>
             )}
@@ -191,9 +197,10 @@ interface FolderSectionProps {
   busy: boolean
   managed: ManagedBackupFolder
   onChange: () => void
+  onTake: (typed: string) => void
 }
 
-function FolderSection({ status, busy, managed, onChange }: FolderSectionProps) {
+function FolderSection({ status, busy, managed, onChange, onTake }: FolderSectionProps) {
   const { t } = useTranslation()
   const offline = status.lastError === CODES.BACKUP_TARGET_OFFLINE
   const locked = !!managed.folder && !!managed.org
@@ -204,16 +211,23 @@ function FolderSection({ status, busy, managed, onChange }: FolderSectionProps) 
   ].filter(Boolean).join(' ')
   return (
     <section>
-      <SectionHeading>{t('backup.folderTitle')}</SectionHeading>
+      <SectionHeading id="backup-folder-title">{t('backup.folderTitle')}</SectionHeading>
       <div className="bg-surface-container-low rounded-xl p-6 space-y-4">
         <p id="backup-folder-desc" className="text-sm text-on-surface-variant">{t('backup.folderDesc')}</p>
-        <PathRow
-          path={status.folder}
-          onAction={onChange}
-          subject={t('backup.folderSubject')}
-          actionDisabled={busy || locked}
-          ariaDescribedBy={describedBy}
-        />
+        {locked ? (
+          <PathRow id="backup-folder" path={status.folder} ariaLabelledBy="backup-folder-title" ariaDescribedBy={describedBy} />
+        ) : (
+          <PathRow
+            id="backup-folder"
+            path={status.folder}
+            onAction={onChange}
+            onCommit={onTake}
+            subject={t('backup.folderSubject')}
+            actionDisabled={busy}
+            ariaLabelledBy="backup-folder-title"
+            ariaDescribedBy={describedBy}
+          />
+        )}
         {locked && managed.org && <ManagedNote id={managed.noteId} org={managed.org} className="px-1" />}
         {offline ? (
           <Callout tone="warning" id="backup-folder-offline">

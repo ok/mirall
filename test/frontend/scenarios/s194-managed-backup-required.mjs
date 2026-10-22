@@ -8,7 +8,7 @@ const PASS = 'a long enough passphrase'
 
 // An organization that sets the backup folder and requires a backup: the Spaces card cannot be put
 // off, setup shows the organization's folder instead of a picker, and Settings → Backup locks the
-// switch and the folder while the passphrase stays the person's.
+// switch and shows the folder read-only, with Copy, while the passphrase stays the person's.
 export default async function s194({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const share = path.join(runDir, 's194-share')
@@ -37,6 +37,7 @@ export default async function s194({ runDir, bootstrap }) {
       await A.waitText('Step 1 of 2', 8000)
       await A.waitText('Set by Acme Test GmbH', 8000)
       assert(!(await A.has({ role: 'button', name: 'Browse… (backup folder)' })), 'no folder picker')
+      assert(await A.has({ role: 'button', name: 'Copy' }), 'the organization\'s folder can be copied')
       await A.shot('s194-setup-folder', runDir)
       await A.click({ role: 'button', name: 'Next' })
       await A.waitText('Step 2 of 2', 8000)
@@ -50,7 +51,10 @@ export default async function s194({ runDir, bootstrap }) {
       await A.gotoSettings('Backup')
       await A.waitText('Backup Folder', 15000)
       assert(await A.isDisabled(automatic), 'the switch reads unavailable while required')
-      assert(await A.isDisabled({ role: 'button', name: 'Change (backup folder)' }), 'Change reads unavailable')
+      assert(!(await A.has({ role: 'button', name: 'Change (backup folder)' })), 'the folder offers no Change')
+      const folder = String(await A.nodeValue({ role: 'textfield', name: 'Backup Folder' }))
+      assert(folder.startsWith(share), `the field holds the organization's folder (${folder})`)
+      assert(await A.has({ role: 'button', name: 'Copy' }), 'the folder can be copied')
       assert(!(await A.isDisabled({ role: 'button', name: 'Check passphrase' })), 'the passphrase is the person\'s')
       await A.shot('s194-settings-locked', runDir)
     })

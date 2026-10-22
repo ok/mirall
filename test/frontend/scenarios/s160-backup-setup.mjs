@@ -37,6 +37,24 @@ export default async function s160({ runDir, bootstrap }) {
       await A.shot('s160-other-files', runDir)
       await A.click({ role: 'button', name: 'Cancel' })
     })
+    await r.ok('a typed folder gets the checks a picked one does', async () => {
+      const field = { role: 'textfield', name: 'Where should the backup live?' }
+      await A.click({ role: 'button', name: 'Set up backup' })
+      await A.waitText('Step 1 of 2', 8000)
+      // Setting a value through the AX tree does not move focus; a click puts Enter in the field.
+      await A.click(field)
+      await A.type(field, path.join(runDir, 's160-missing'))
+      await A.press('return')
+      await A.waitText('There is no folder at this path.', 8000)
+      await A.type(field, clutteredDir)
+      // Enter takes the typed path; it does not also press Next.
+      await A.press('return')
+      await A.waitText('This folder already holds other files', 8000)
+      await A.waitText('Step 1 of 2', 2000)
+      if (!(await A.isDisabled({ role: 'button', name: 'Next' }))) throw new Error('Next is available for a typed folder of other files')
+      await A.shot('s160-typed-folder', runDir)
+      await A.click({ role: 'button', name: 'Cancel' })
+    })
     await r.ok('setup takes a folder and a passphrase in two steps', async () => {
       await A.click({ role: 'button', name: 'Set up backup' })
       await setUpBackup(A, backupDir, PASS)

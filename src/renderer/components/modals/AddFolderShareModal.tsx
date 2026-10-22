@@ -80,6 +80,11 @@ export default function AddFolderShareModal({
     if (picked) setShareName(basename(picked))
   }
 
+  function handleCommit(typed: string) {
+    wizard.setMountPath(typed)
+    setShareName(basename(typed))
+  }
+
   if (wizard.step === 'preview') {
     return (
       <ScanPreviewModal
@@ -109,11 +114,12 @@ export default function AddFolderShareModal({
       onClose={onClose}
     >
       <MountPathField
-        id="add-folder-path-label"
+        id="add-folder-path"
         label={t('addFolder.pathLabel')}
         path={wizard.mountPath}
         error={wizard.validationError}
         onBrowse={() => { void handleBrowse() }}
+        onCommit={handleCommit}
       />
 
       <ShareNameField value={shareName} error={nameError} onChange={setShareName} />

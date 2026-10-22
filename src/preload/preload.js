@@ -109,6 +109,7 @@ contextBridge.exposeInMainWorld('bridge', {
 
   browseShareFolder: () => ipcRenderer.invoke('share:browseFolder'),
   browseBackupFolder: (defaultPath) => ipcRenderer.invoke('backup:browse', defaultPath),
+  inspectBackupFolder: (folder) => ipcRenderer.invoke('backup:inspect', folder),
   applyRestoredSettings: (json) => ipcRenderer.invoke('backup:apply-settings', json),
   onZoomChanged: (listener) => {
     const wrap = (_evt, factor) => listener(factor)

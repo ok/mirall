@@ -1,0 +1,595 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Editable path field — mockup</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet" />
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    darkMode: 'class',
+    theme: {
+      extend: {
+        colors: {
+          'accent': 'var(--color-accent)',
+          'icon-tile': 'var(--color-icon-tile)',
+          'on-icon-tile': 'var(--color-on-icon-tile)',
+          'success': 'var(--color-success)',
+          'on-success': 'var(--color-on-success)',
+          'info': 'var(--color-info)',
+          'on-info': 'var(--color-on-info)',
+          'online': 'var(--color-online)',
+          'offline': 'var(--color-offline)',
+          'primary': 'var(--color-primary)',
+          'on-primary': 'var(--color-on-primary)',
+          'secondary': 'var(--color-secondary)',
+          'secondary-container': 'var(--color-secondary-container)',
+          'on-secondary': 'var(--color-on-secondary)',
+          'on-secondary-container': 'var(--color-on-secondary-container)',
+          'surface': 'var(--color-surface)',
+          'surface-container': 'var(--color-surface-container)',
+          'surface-container-low': 'var(--color-surface-container-low)',
+          'surface-container-high': 'var(--color-surface-container-high)',
+          'surface-container-highest': 'var(--color-surface-container-highest)',
+          'surface-container-lowest': 'var(--color-surface-container-lowest)',
+          'progress-track': 'var(--color-progress-track)',
+          'on-surface': 'var(--color-on-surface)',
+          'on-surface-variant': 'var(--color-on-surface-variant)',
+          'on-background': 'var(--color-on-background)',
+          'background': 'var(--color-background)',
+          'outline': 'var(--color-outline)',
+          'outline-variant': 'var(--color-outline-variant)',
+          'error': 'var(--color-error)',
+          'error-container': 'var(--color-error-container)',
+          'error-container-hover': 'var(--color-error-container-hover)',
+          'on-error-container': 'var(--color-on-error-container)',
+          'warning': 'var(--color-warning)',
+          'on-warning': 'var(--color-on-warning)',
+          'primary-hover': 'var(--color-primary-hover)',
+          'surface-control': 'var(--color-surface-control)',
+          'surface-control-hover': 'var(--color-surface-control-hover)',
+          'warning-container': 'var(--color-warning-container)',
+          'on-warning-container': 'var(--color-on-warning-container)',
+        },
+        fontFamily: {
+          headline: ['Plus Jakarta Sans', 'sans-serif'],
+          body: ['Manrope', 'sans-serif'],
+          label: ['Manrope', 'sans-serif'],
+        },
+        borderRadius: {
+          DEFAULT: '0.25rem',
+          lg: '0.5rem',
+          xl: '0.75rem',
+          '2xl': '1.5rem',
+          '3xl': '2rem',
+          full: '9999px',
+        },
+      },
+    },
+  }
+</script>
+
+<style>
+  :root {
+    --color-icon-tile: #fec78a;
+    --color-on-icon-tile: #0a4742;
+    --color-success: #c1ecc4;
+    --color-on-success: #0c4d20;
+    --color-info: #d6e6f5;
+    --color-on-info: #1f4a78;
+    --color-online: #0d8b80;
+    --color-offline: #a0a4ac;
+    --color-accent: #33253b;
+    --color-primary: #42304a;
+    --color-primary-hover: #52405b;
+    --color-on-primary: #ffffff;
+    --color-secondary: #904d00;
+    --color-secondary-container: #fd9c42;
+    --color-on-secondary: #ffffff;
+    --color-on-secondary-container: #6b3800;
+    --color-surface: #fbf9f5;
+    --color-surface-container: #efeeea;
+    --color-surface-container-low: #f5f3ef;
+    --color-surface-container-high: #eae8e4;
+    --color-surface-control: #eae8e4;
+    --color-surface-control-hover: #dcdad6;
+    --color-surface-container-highest: #e4e2de;
+    --color-surface-container-lowest: #ffffff;
+    --color-progress-track: #d0cec9;
+    --avatar-recess: rgb(0 0 0 / 0.36);
+    --color-on-surface: #1b1c1a;
+    --color-on-surface-variant: #4a454b;
+    --color-on-background: #1b1c1a;
+    --color-background: #fbf9f5;
+    --color-outline: #7c757c;
+    --color-outline-variant: #ccc4cc;
+    --color-error: #ba1a1a;
+    --color-error-container: #f6c8c4;
+    --color-error-container-hover: #e8bab6;
+    --color-on-error-container: #93000a;
+    --color-warning: #fcd34d;
+    --color-on-warning: #1b1c1a;
+    --color-warning-container: #fdefc6;
+    --color-on-warning-container: #6d4c00;
+  }
+  .dark {
+    --color-icon-tile: #fec78a;
+    --color-on-icon-tile: #0a4742;
+    --color-success: #20492a;
+    --color-on-success: #8fd99b;
+    --color-info: #1f3a52;
+    --color-on-info: #9bc6e8;
+    --color-online: #5cc4b8;
+    --color-offline: #5b6270;
+    --color-accent: #fce8d2;
+    --color-primary: #fd9c42;
+    --color-primary-hover: #dd8837;
+    --color-on-primary: #282c34;
+    --color-secondary: #e4bf7a;
+    --color-secondary-container: #4a3e28;
+    --color-on-secondary: #282c34;
+    --color-on-secondary-container: #ecd09a;
+    --color-surface: #282c34;
+    --color-surface-container: #2e323a;
+    --color-surface-container-low: #2e3239;
+    --color-surface-container-high: #5c6068;
+    --color-surface-control: #434955;
+    --color-surface-control-hover: #4f5561;
+    --color-surface-container-highest: #393f4a;
+    --color-surface-container-lowest: #21252b;
+    --color-progress-track: #4a5160;
+    --avatar-recess: rgb(0 0 0 / 0.62);
+    --color-on-surface: #fefaf3;
+    --color-on-surface-variant: #ebe2d2;
+    --color-on-background: #fefaf3;
+    --color-background: #282c34;
+    --color-outline: #5b6270;
+    --color-outline-variant: #393f4a;
+    --color-error: #ec9199;
+    --color-error-container: #6f3338;
+    --color-error-container-hover: #7c3f43;
+    --color-on-error-container: #ffd2cf;
+    --color-warning: #fbbf24;
+    --color-on-warning: #1b1c1a;
+    --color-warning-container: #4e4229;
+    --color-on-warning-container: #fbe3a4;
+  }
+
+  /* App rules from tailwind.css that the CDN build cannot express. */
+  .font-headline { font-family: 'Plus Jakarta Sans', sans-serif; }
+  .focus-ring:focus { outline: none; }
+  .focus-ring:focus-visible { box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-secondary) 30%, transparent); }
+  .glass-modal { background: var(--color-surface-container-lowest); }
+  .avatar-recess { position: relative; }
+  .avatar-recess::after { content: ''; position: absolute; inset: 0; border-radius: 9999px; box-shadow: inset 0 1px 2px var(--avatar-recess); pointer-events: none; }
+
+  /* Mockup canvas (not app UI). */
+  body { font-family: 'Manrope', sans-serif; background: #d8d4cc; }
+  .dark body, body.dark { background: #15171c; }
+
+  /* Mirall window frame. The title bar is hidden (titleBarStyle 'hiddenInset'), so the macOS
+     traffic lights sit over the top-left of the app's own header. */
+  .device-frame {
+    position: relative;
+    background: var(--color-background);
+    border-radius: 16px;
+    box-shadow: 0 30px 80px rgba(15, 12, 20, 0.18), 0 8px 24px rgba(15, 12, 20, 0.12);
+    overflow: hidden;
+  }
+  .traffic-lights { position: absolute; top: 20px; left: 20px; z-index: 60; display: inline-flex; gap: 8px; }
+  .traffic-lights span { width: 12px; height: 12px; border-radius: 9999px; display: inline-block; }
+  .traffic-lights .r { background: #ff5f57; }
+  .traffic-lights .y { background: #febc2e; }
+  .traffic-lights .g { background: #28c840; }
+
+  /* Header glass: bg-surface-container-lowest/70 backdrop-blur-xl plus the ambient shadow, which
+     both headers drop in dark mode (dark:shadow-none). The CDN build cannot apply an opacity
+     modifier to a var() colour, hence the color-mix. */
+  .nav-glass {
+    background: color-mix(in srgb, var(--color-surface-container-lowest) 70%, transparent);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    box-shadow: 0 12px 40px rgba(74, 59, 82, 0.06);
+  }
+  .dark .nav-glass { box-shadow: none; }
+
+  /* Modal backdrop (CrystalBackdrop approximation). */
+  .modal-scrim { background: rgba(51, 37, 59, 0.30); }
+  .dark .modal-scrim { background: rgba(20, 22, 28, 0.55); }
+
+  /* Annotation chrome (not app UI, so literal colours are fine here). */
+  .badge { display: inline-flex; align-items: center; gap: 6px; border-radius: 9999px; padding: 3px 10px; font-size: 11px; font-weight: 800; letter-spacing: .01em; }
+  .badge-real { background: #d6e6f5; color: #1f4a78; }
+  .badge-proposed { background: #fce8d2; color: #6b3800; }
+  .badge-a11y { background: #ccebe6; color: #0d4d49; }
+  .anno-h { color: #33253b; }
+  .dark .anno-h { color: #f2ebe0; }
+  .anno { color: #4a454b; }
+  .anno code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; background: rgba(0,0,0,.05); padding: 1px 6px; border-radius: 6px; color: #4a454b; }
+  .dark .anno { color: #cfc8be; }
+  .dark .anno code { background: rgba(255,255,255,.08); color: #cfc8be; }
+</style>
+</head>
+
+<body class="min-h-screen pb-24">
+
+<!-- TopNav (src/renderer/components/layout/TopNav.tsx), injected into every frame by the script at the end. -->
+<template id="topnav">
+  <nav class="absolute top-0 w-full z-0">
+    <div class="nav-glass">
+      <div class="flex items-center py-4 px-8 w-full max-w-7xl mx-auto relative">
+        <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <span class="flex h-8 items-center text-black dark:text-white px-2">
+            <svg viewBox="0 0 2835 844" class="h-5 w-auto" fill="currentColor" fill-rule="evenodd" clip-rule="evenodd" aria-hidden="true" focusable="false"><g transform="matrix(4.166667,0,0,4.166667,-356.081667,-1351.366667)"><path transform="matrix(1,0,0,1,251.3906,523.7084)" d="M0,-196.22L-62.292,-111.171L-126.424,-196.22L-165.931,-196.22L-165.931,0L-125.107,0L-125.107,-129.2L-65.846,-50.043L-60.578,-50.043L-1.317,-126.442L-1.317,0L39.507,0L39.507,-196.22L0,-196.22Z" /><rect transform="matrix(1,0,0,1,0,-155.911)" x="314.601" y="483.399" width="39.507" height="39.507" /><rect transform="matrix(1,0,0,1,0,53.215)" x="314.601" y="326.686" width="39.507" height="143.807" /><path transform="matrix(1,0,0,1,528.4458,424.5448)" d="M0,57.681C-2.725,62.512 -6.543,66.331 -11.457,69.138C-16.375,71.949 -22.083,73.352 -28.577,73.352C-33.495,73.352 -37.623,72.126 -40.956,69.665C-44.294,67.208 -45.960,63.784 -45.960,59.393C-45.960,54.652 -44.471,51.010 -41.483,48.463C-38.499,45.919 -34.199,44.117 -28.577,43.063L4.082,37.231L4.082,41.746C4.082,47.541 2.720,52.854 0,57.681M35.952,-18.305C30.857,-26.733 23.573,-33.227 14.091,-37.795C4.609,-42.359 -6.716,-44.643 -19.885,-44.643L-149.265,-44.643L-149.265,99.164L-109.758,99.164L-109.758,-10.404L-22.519,-10.404C-13.918,-10.404 -7.334,-8.206 -2.766,-3.819C0.584,-0.596 2.694,3.438 3.586,8.268L-35.689,14.618C-47.104,16.375 -56.627,19.359 -64.266,23.573C-71.904,27.787 -77.566,33.014 -81.254,39.244C-84.941,45.479 -86.785,52.636 -86.785,60.710C-86.785,69.315 -84.768,76.735 -80.727,82.966C-76.690,89.200 -70.895,93.987 -63.344,97.320C-55.796,100.653 -46.841,102.324 -36.479,102.324C-28.754,102.324 -21.729,101.312 -15.408,99.295C-9.087,97.279 -3.383,94.205 1.712,90.077C3.431,88.684 5.096,87.155 6.716,85.511L6.716,99.164L43.590,99.164L43.590,11.721C43.590,0.132 41.042,-9.877 35.952,-18.305" /><rect transform="matrix(1,0,0,1,0,-2.357)" x="598.477" y="326.685" width="39.507" height="199.381" /><rect transform="matrix(1,0,0,1,0,-2.357)" x="663.056" y="326.685" width="39.507" height="199.381" /><rect transform="matrix(1,0,0,1,0,157.259)" x="726.267" y="326.814" width="39.507" height="39.507" fill="#fd9c42" /></g></svg>
+          </span>
+        </div>
+        <div class="h-10"></div>
+      </div>
+    </div>
+  </nav>
+</template>
+
+<!-- The close icon, reused by every modal header. -->
+<template id="close-btn">
+  <button type="button" aria-label="Close" class="w-10 h-10 shrink-0 flex items-center justify-center rounded-full hover:bg-surface-container-high active:scale-95 transition-all focus-ring">
+    <svg width="24" height="24" viewBox="0 -960 960 960" fill="currentColor" class="text-secondary" aria-hidden="true"><path d="m249-207-42-42 231-231-231-231 42-42 231 231 231-231 42 42-231 231 231 231-42 42-231-231-231 231Z"/></svg>
+  </button>
+</template>
+
+<!-- Title and theme toggle -->
+<div class="max-w-[1040px] mx-auto px-6 pt-10 pb-2 flex items-start justify-between gap-6">
+  <div class="anno">
+    <h1 class="anno-h font-headline font-extrabold text-2xl tracking-tight">Editable path field — mockup</h1>
+    <p class="text-sm mt-1 max-w-2xl">
+      <code>PathRow</code> becomes a real text input: paste, type, select and copy work, and the Browse… / Change button
+      stays beside it. Where the path is fixed, the same field is <strong>read-only</strong> — selectable and copyable, no button.
+      One component change covers all nine call sites (Backup setup, Backup settings, Restore, Add Folder, Mirror to Disk,
+      Edit Folder, Edit Space, Storage settings). Baseline: <code>origin/main @ e6f6f8b6</code>.
+    </p>
+    <p class="text-sm mt-2 max-w-2xl">The fields below are live: paste a path, press Enter, select and copy the managed one.</p>
+  </div>
+  <button id="theme-toggle" type="button" aria-pressed="false"
+    class="shrink-0 rounded-xl border border-black/10 px-3 py-2 text-sm font-bold bg-white shadow-sm hover:shadow"
+    style="color:#33253b">Toggle dark</button>
+</div>
+
+<!-- Legend -->
+<div class="max-w-[1040px] mx-auto px-6 pt-4">
+  <div class="anno rounded-2xl p-5 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm" style="background:var(--color-surface-container-lowest)">
+    <span class="flex items-center gap-2"><span class="badge badge-real">Recreated from code</span> reproduced from the shipped <code>.tsx</code></span>
+    <span class="flex items-center gap-2"><span class="badge badge-proposed">Proposed new</span> built from existing primitives and <code>design.md</code> tokens</span>
+    <span class="flex items-center gap-2"><span class="badge badge-a11y">a11y</span> name / role / state intent</span>
+  </div>
+</div>
+
+<!-- ===================================================================================== -->
+<section class="max-w-[1040px] mx-auto px-6 pt-12">
+  <h2 class="anno-h font-headline font-extrabold text-xl">1 · Today — Backup setup, step 1</h2>
+  <div class="anno flex flex-wrap items-center gap-2 mt-2 mb-3 text-sm">
+    <span class="badge badge-real">Recreated from code</span>
+    <code>components/modals/BackupSetupModal.tsx</code> + <code>components/path/PathRow.tsx</code>
+    <span>— the path is a <code>&lt;span&gt;</code> in a filled box; app-wide <code>user-select: none</code> means nothing can be pasted, selected or copied.</span>
+  </div>
+
+  <div class="device-frame max-w-[860px] mx-auto" data-frame>
+    <span class="traffic-lights" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></span>
+    <div class="bg-surface font-body relative" style="height:820px; overflow:hidden">
+      <div class="modal-scrim absolute inset-0 z-10 flex items-center justify-center p-6">
+        <div class="glass-modal w-full max-w-xl rounded-3xl shadow-2xl shadow-black/30 overflow-hidden relative">
+          <div class="px-10 pt-10 pb-6">
+            <div class="flex justify-between items-start mb-2 gap-3">
+              <h1 class="font-headline text-2xl font-extrabold text-accent tracking-tight">Back Up Your Spaces</h1>
+              <span data-close></span>
+            </div>
+            <p class="text-on-surface-variant font-medium text-sm">Set this up once. Mirall keeps it up to date by itself.</p>
+          </div>
+          <div class="px-10 pb-10 space-y-6">
+            <p class="text-xs font-bold uppercase tracking-wide text-secondary">Step 1 of 2</p>
+            <div data-scope></div>
+            <div class="space-y-3">
+              <span id="t-label" class="block font-headline text-sm font-bold text-accent px-1">Where should the backup live?</span>
+              <!-- PathRow today -->
+              <div class="flex items-center gap-3">
+                <div class="flex-grow flex items-center bg-surface-container-low px-5 py-3.5 rounded-xl min-w-0" style="user-select:none">
+                  <span class="text-sm text-on-surface-variant italic">Select location…</span>
+                </div>
+                <button type="button" aria-label="Browse… (backup folder)" class="shrink-0 bg-surface-control text-accent rounded-xl px-5 py-3.5 font-headline font-bold text-sm hover:bg-surface-control-hover active:scale-95 transition-all focus-ring">Browse…</button>
+              </div>
+              <p class="text-xs text-on-surface-variant px-1">Pick an empty folder — on another drive, a network folder, or a folder that syncs to the cloud (iCloud Drive, Dropbox, OneDrive). Your backup is encrypted, so it's safe there — and it still works if this computer is lost.</p>
+            </div>
+            <div data-footer></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================================================================================== -->
+<section class="max-w-[1040px] mx-auto px-6 pt-16">
+  <h2 class="anno-h font-headline font-extrabold text-xl">2 · Proposed — Backup setup, nothing chosen yet</h2>
+  <div class="anno flex flex-wrap items-center gap-2 mt-2 mb-3 text-sm">
+    <span class="badge badge-proposed">Proposed new</span>
+    <code>PathRow</code> → <code>&lt;input type="text"&gt;</code>
+    <span>— same 48px filled field and button, now an input in <code>FilePath</code>'s monospace. <strong>No placeholder</strong>: the label above already says what goes in, as in Finder's, VS Code's and Windows' own path fields.</span>
+  </div>
+
+  <div class="device-frame max-w-[860px] mx-auto" data-frame>
+    <span class="traffic-lights" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></span>
+    <div class="bg-surface font-body relative" style="height:820px; overflow:hidden">
+      <div class="modal-scrim absolute inset-0 z-10 flex items-center justify-center p-6">
+        <div class="glass-modal w-full max-w-xl rounded-3xl shadow-2xl shadow-black/30 overflow-hidden relative">
+          <div class="px-10 pt-10 pb-6">
+            <div class="flex justify-between items-start mb-2 gap-3">
+              <h1 class="font-headline text-2xl font-extrabold text-accent tracking-tight">Back Up Your Spaces</h1>
+              <span data-close></span>
+            </div>
+            <p class="text-on-surface-variant font-medium text-sm">Set this up once. Mirall keeps it up to date by itself.</p>
+          </div>
+          <div class="px-10 pb-10 space-y-6">
+            <p class="text-xs font-bold uppercase tracking-wide text-secondary">Step 1 of 2</p>
+            <div data-scope></div>
+            <div class="space-y-3">
+              <label for="p2-path" class="font-headline text-sm font-bold text-accent px-1">Where should the backup live?</label>
+              <div class="flex items-center gap-3" data-pathrow>
+                <input id="p2-path" type="text" spellcheck="false" autocomplete="off" aria-describedby="p2-hint"
+                  class="path-input flex-grow min-w-0 bg-surface-container-low border-none focus-ring rounded-xl px-5 py-3.5 font-mono text-sm text-accent font-medium transition-all" value="" />
+                <button type="button" data-action aria-label="Browse… (backup folder)" class="shrink-0 bg-surface-control text-accent rounded-xl px-5 py-3.5 font-headline font-bold text-sm hover:bg-surface-control-hover active:scale-95 transition-all focus-ring">Browse…</button>
+              </div>
+              <p id="p2-hint" class="text-xs text-on-surface-variant px-1">Pick an empty folder — on another drive, a network folder, or a folder that syncs to the cloud (iCloud Drive, Dropbox, OneDrive). Your backup is encrypted, so it's safe there — and it still works if this computer is lost.</p>
+            </div>
+            <div data-footer data-disabled></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="anno text-sm mt-3 space-y-1 max-w-[860px] mx-auto">
+    <p><span class="badge badge-a11y">a11y</span> The label becomes a real <code>&lt;label htmlFor&gt;</code> (today it is a <code>&lt;span id&gt;</code> because the row held no control — <code>FieldLabel.tsx</code>). The hint stays on <code>aria-describedby</code>. The button keeps its subject name, "Browse… (backup folder)" / "Change (backup folder)".</p>
+    <p>Typing does not check on every keystroke: the path is taken on <strong>Enter</strong> or when focus leaves the field, and then runs the same checks Browse… runs (empty folder, same disk).</p>
+  </div>
+</section>
+
+<!-- ===================================================================================== -->
+<section class="max-w-[1040px] mx-auto px-6 pt-16">
+  <h2 class="anno-h font-headline font-extrabold text-xl">3 · Proposed — a pasted path, checked</h2>
+  <div class="anno flex flex-wrap items-center gap-2 mt-2 mb-3 text-sm">
+    <span class="badge badge-proposed">Proposed new</span>
+    <span>— a path pasted and taken (Enter). The button now reads <strong>Change</strong> (the rule <code>PathRow</code> already has). The same-disk warning is the shipped <code>Callout</code>, raised by the typed path exactly as by a picked one.</span>
+  </div>
+
+  <div class="device-frame max-w-[860px] mx-auto" data-frame>
+    <span class="traffic-lights" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></span>
+    <div class="bg-surface font-body relative" style="height:920px; overflow:hidden">
+      <div class="modal-scrim absolute inset-0 z-10 flex items-center justify-center p-6">
+        <div class="glass-modal w-full max-w-xl rounded-3xl shadow-2xl shadow-black/30 overflow-hidden relative">
+          <div class="px-10 pt-10 pb-6">
+            <div class="flex justify-between items-start mb-2 gap-3">
+              <h1 class="font-headline text-2xl font-extrabold text-accent tracking-tight">Back Up Your Spaces</h1>
+              <span data-close></span>
+            </div>
+            <p class="text-on-surface-variant font-medium text-sm">Set this up once. Mirall keeps it up to date by itself.</p>
+          </div>
+          <div class="px-10 pb-10 space-y-6">
+            <p class="text-xs font-bold uppercase tracking-wide text-secondary">Step 1 of 2</p>
+            <div data-scope></div>
+            <div class="space-y-3">
+              <label for="p3-path" class="font-headline text-sm font-bold text-accent px-1">Where should the backup live?</label>
+              <div class="flex items-center gap-3" data-pathrow>
+                <input id="p3-path" type="text" spellcheck="false" autocomplete="off" aria-describedby="p3-hint"
+                  class="path-input flex-grow min-w-0 bg-surface-container-low border-none focus-ring rounded-xl px-5 py-3.5 font-mono text-sm text-accent font-medium transition-all" value="/Users/oliver/Documents/Mirall Backup" />
+                <button type="button" data-action aria-label="Change (backup folder)" class="shrink-0 bg-surface-control text-accent rounded-xl px-5 py-3.5 font-headline font-bold text-sm hover:bg-surface-control-hover active:scale-95 transition-all focus-ring">Change</button>
+              </div>
+              <p id="p3-hint" class="text-xs text-on-surface-variant px-1">Pick an empty folder — on another drive, a network folder, or a folder that syncs to the cloud (iCloud Drive, Dropbox, OneDrive). Your backup is encrypted, so it's safe there — and it still works if this computer is lost.</p>
+            </div>
+            <!-- Callout tone="warning" (components/primitives/Callout.tsx) -->
+            <div class="bg-warning-container rounded-xl p-4 flex items-start gap-3">
+              <svg width="20" height="20" viewBox="0 -960 960 960" fill="currentColor" class="text-on-warning-container shrink-0 mt-0.5" aria-hidden="true"><path d="m40-120 440-760 440 760H40Zm104-60h672L480-760 144-180Zm361.5-65.68q8.5-8.67 8.5-21.500 0-12.820-8.680-21.320-8.670-8.500-21.500-8.500-12.820 0-21.320 8.680-8.500 8.670-8.500 21.500 0 12.820 8.680 21.320 8.670 8.500 21.500 8.500 12.820 0 21.320-8.680ZM454-348h60v-224h-60v224Zm26-122Z"/></svg>
+              <div class="min-w-0">
+                <p class="font-bold text-on-warning-container">Same disk as this computer</p>
+                <div class="text-sm leading-relaxed text-on-warning-container mt-1">This folder is on the same disk as Mirall. If the disk fails, you lose both. Choose another drive or a network folder if you can.</div>
+              </div>
+            </div>
+            <div data-footer data-anyway></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="anno text-sm mt-3 space-y-1 max-w-[860px] mx-auto">
+    <p><strong>Long paths.</strong> An input cannot middle-truncate the way <code>FilePath</code> does, so when the field is not focused it scrolls to the <em>end</em> — the folder name stays visible. Click in to see the whole path; it scrolls like any text field.</p>
+    <p>Not shown: a path that does not exist or is not a folder answers with the shipped <code>InlineError</code> under the field, the same line Edit Folder and Storage settings show today.</p>
+  </div>
+</section>
+
+<!-- ===================================================================================== -->
+<section class="max-w-[1040px] mx-auto px-6 pt-16">
+  <h2 class="anno-h font-headline font-extrabold text-xl">4 · Proposed — read-only: the organization's folder</h2>
+  <div class="anno flex flex-wrap items-center gap-2 mt-2 mb-3 text-sm">
+    <span class="badge badge-proposed">Proposed new</span>
+    <span>— <code>&lt;input readOnly&gt;</code> with the shipped <code>CopyButton</code> (the App Storage card's copy icon) at the field's end. No Browse/Change button: its absence still says "you cannot change this". One click copies the whole path; the text can also be selected (⌘C). Every read-only path gets it: this one, Edit Folder's fixed source, Backup settings while locked.</span>
+  </div>
+
+  <div class="device-frame max-w-[860px] mx-auto" data-frame>
+    <span class="traffic-lights" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></span>
+    <div class="bg-surface font-body relative" style="height:820px; overflow:hidden">
+      <div class="modal-scrim absolute inset-0 z-10 flex items-center justify-center p-6">
+        <div class="glass-modal w-full max-w-xl rounded-3xl shadow-2xl shadow-black/30 overflow-hidden relative">
+          <div class="px-10 pt-10 pb-6">
+            <div class="flex justify-between items-start mb-2 gap-3">
+              <h1 class="font-headline text-2xl font-extrabold text-accent tracking-tight">Back Up Your Spaces</h1>
+              <span data-close></span>
+            </div>
+            <p class="text-on-surface-variant font-medium text-sm">Set this up once. Mirall keeps it up to date by itself.</p>
+          </div>
+          <div class="px-10 pb-10 space-y-6">
+            <p class="text-xs font-bold uppercase tracking-wide text-secondary">Step 1 of 2</p>
+            <div data-scope></div>
+            <div class="space-y-3">
+              <label for="p4-path" class="font-headline text-sm font-bold text-accent px-1">Where should the backup live?</label>
+              <div class="flex items-center gap-3">
+                <div class="relative flex-grow min-w-0">
+                  <input id="p4-path" type="text" readonly spellcheck="false" aria-describedby="p4-note p4-hint"
+                    class="path-input w-full bg-surface-container-low border-none focus-ring rounded-xl pl-5 pr-12 py-3.5 font-mono text-sm text-accent font-medium transition-all" value="\\fileserver.acme.local\backups\mirall" />
+                  <!-- CopyButton (components/primitives/CopyButton.tsx), icon-only, at the field's end -->
+                  <button type="button" data-copy="p4-path" aria-label="Copy" title="Copy"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 inline-flex items-center justify-center rounded-lg hover:bg-surface-control focus-ring">
+                    <svg data-icon-copy width="16" height="16" viewBox="0 -960 960 960" fill="currentColor" class="text-outline" aria-hidden="true"><path d="M300-200q-24 0-42-18t-18-42v-560q0-24 18-42t42-18h440q24 0 42 18t18 42v560q0 24-18 42t-42 18H300Zm0-60h440v-560H300v560ZM180-80q-24 0-42-18t-18-42v-620h60v620h500v60H180Zm120-180v-560 560Z"/></svg>
+                    <svg data-icon-check width="16" height="16" viewBox="0 -960 960 960" fill="currentColor" class="text-outline hidden" aria-hidden="true"><path d="M378-246 154-470l43-43 181 181 384-384 43 43-427 427Z"/></svg>
+                  </button>
+                  <span role="status" aria-live="polite" class="sr-only" data-copy-status></span>
+                </div>
+              </div>
+              <!-- ManagedNote (components/managed/ManagedNote.tsx) -->
+              <p id="p4-note" class="flex items-center gap-2 text-sm font-semibold text-on-surface-variant px-1">
+                <svg width="16" height="16" viewBox="0 -960 960 960" fill="currentColor" class="text-secondary shrink-0" aria-hidden="true"><path d="M240-80q-33 0-56.5-23.5T160-160v-400q0-33 23.5-56.5T240-640h40v-80q0-83 58.5-141.5T480-920q83 0 141.5 58.5T680-720v80h40q33 0 56.5 23.5T800-560v400q0 33-23.5 56.5T720-80H240Zm0-80h480v-400H240v400Zm240-120q33 0 56.5-23.5T560-360q0-33-23.5-56.5T480-440q-33 0-56.5 23.5T400-360q0 33 23.5 56.5T480-280ZM360-640h240v-80q0-50-35-85t-85-35q-50 0-85 35t-35 85v80ZM240-160v-400 400Z"/></svg>
+                Set by Acme GmbH
+              </p>
+              <p id="p4-hint" class="text-xs text-on-surface-variant px-1">Your organization chose this folder. Mirall creates this computer’s own folder inside it.</p>
+            </div>
+            <div data-footer></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="anno text-sm mt-3 space-y-1 max-w-[860px] mx-auto">
+    <p><span class="badge badge-a11y">a11y</span> A read-only input stays in the tab order and is announced as "read-only, text" with the full path — today a screen reader gets the path only through <code>FilePath</code>'s <code>sr-only</code> copy, and cannot select it.</p>
+    <p><span class="badge badge-a11y">a11y</span> The copy button is named "Copy", flips to a check and "Copied!" for a moment, and announces it through <code>CopyButton</code>'s own polite live region. It sits inside the field so the field keeps the width of its editable siblings and the icon does not read as a second action button.</p>
+    <p><strong>Editable fields get no copy icon:</strong> their text is selectable already, and the Browse/Change button holds the end of the row.</p>
+  </div>
+</section>
+
+<!-- ===================================================================================== -->
+<section class="max-w-[1040px] mx-auto px-6 pt-16">
+  <h2 class="anno-h font-headline font-extrabold text-xl">5 · Proposed — on a settings screen (Storage)</h2>
+  <div class="anno flex flex-wrap items-center gap-2 mt-2 mb-3 text-sm">
+    <span class="badge badge-real">Recreated from code</span>
+    <code>screens/settings/StorageSettings.tsx</code>
+    <span>+ <span class="badge badge-proposed">Proposed new</span> field. Outside a modal the field sits on a <code>-low</code> card, so it takes the <code>-lowest</code> fill (<code>FieldGround.tsx</code>), as every text field does.</span>
+  </div>
+
+  <div class="device-frame max-w-[860px] mx-auto" data-frame>
+    <span class="traffic-lights" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></span>
+    <div data-nav></div>
+    <div class="bg-surface font-body" style="height:440px; overflow:hidden">
+      <main class="pt-20">
+        <div class="pt-8 px-8 max-w-2xl mx-auto">
+          <div class="mb-8">
+            <h1 class="font-headline text-3xl font-extrabold text-accent tracking-tight">Storage</h1>
+          </div>
+          <section>
+            <h2 class="text-xl font-headline font-bold text-accent mb-6">Download Folder for New Spaces</h2>
+            <div class="bg-surface-container-low rounded-xl p-6">
+              <p id="p5-desc" class="text-sm text-on-surface-variant mb-3">Spaces you create or join start downloading here. Each space then keeps its own folder; changing this one does not change them.</p>
+              <div class="flex items-center gap-3" data-pathrow>
+                <input id="p5-path" type="text" spellcheck="false" autocomplete="off" aria-label="Download Folder for New Spaces" aria-describedby="p5-desc"
+                  class="path-input flex-grow min-w-0 bg-surface-container-lowest border-none focus-ring rounded-xl px-5 py-3.5 font-mono text-sm text-accent font-medium transition-all" value="/Users/oliver/Mirall" />
+                <button type="button" data-action class="shrink-0 bg-surface-control text-accent rounded-xl px-5 py-3.5 font-headline font-bold text-sm hover:bg-surface-control-hover active:scale-95 transition-all focus-ring">Change</button>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <div class="anno text-sm mt-3 space-y-1 max-w-[860px] mx-auto">
+    <p>The page header is abbreviated (no back button or subtitle); only the section is the subject here. This change applies on Enter or blur, as a pick does today — never mid-typing. <span class="badge badge-a11y">a11y</span> The section heading is not a <code>&lt;label&gt;</code> here, so the input is named by <code>aria-labelledby</code> on the heading (shown as <code>aria-label</code> in the mockup).</p>
+  </div>
+</section>
+
+<!-- Shared fragments -->
+<template id="scope">
+  <ul class="space-y-3 text-sm text-on-surface-variant">
+    <li class="flex gap-3"><svg width="18" height="18" viewBox="0 -960 960 960" fill="currentColor" class="text-secondary shrink-0" aria-hidden="true"><path d="M378-246 154-470l43-43 181 181 384-384 43 43-427 427Z"/></svg><span><strong class="text-on-surface">Backed up:</strong> your spaces, their file lists, your profile and settings.</span></li>
+    <li class="flex gap-3"><svg width="18" height="18" viewBox="0 -960 960 960" fill="currentColor" class="text-secondary shrink-0" aria-hidden="true"><path d="M453-280h60v-240h-60v240Zm50.5-323.2q9.5-9.2 9.5-22.8 0-14.45-9.48-24.22-9.48-9.78-23.5-9.78t-23.52 9.78Q447-640.45 447-626q0 13.6 9.48 22.8 9.48 9.2 23.5 9.2t23.52-9.2ZM480.27-80q-82.74 0-155.5-31.5Q252-143 197.5-197.5t-86-127.34Q80-397.68 80-480.5t31.5-155.66Q143-709 197.5-763t127.34-85.5Q397.68-880 480.5-880t155.66 31.5Q709-817 763-763t85.5 127Q880-563 880-480.27q0 82.74-31.5 155.5Q817-252 763-197.68q-54 54.31-127 86Q563-80 480.27-80Zm.23-60Q622-140 721-239.5t99-241Q820-622 721.19-721T480-820q-141 0-240.5 98.81T140-480q0 141 99.5 240.5t241 99.5Zm-.5-340Z"/></svg><span><strong class="text-on-surface">Not backed up:</strong> the files themselves. They stay in your folders; back those up as you do today.</span></li>
+    <li class="flex gap-3"><svg width="18" height="18" viewBox="0 -960 960 960" fill="currentColor" class="text-secondary shrink-0" aria-hidden="true"><path d="M240-80q-33 0-56.5-23.5T160-160v-400q0-33 23.5-56.5T240-640h40v-80q0-83 58.5-141.5T480-920q83 0 141.5 58.5T680-720v80h40q33 0 56.5 23.5T800-560v400q0 33-23.5 56.5T720-80H240Zm0-80h480v-400H240v400Zm240-120q33 0 56.5-23.5T560-360q0-33-23.5-56.5T480-440q-33 0-56.5 23.5T400-360q0 33 23.5 56.5T480-280ZM360-640h240v-80q0-50-35-85t-85-35q-50 0-85 35t-35 85v80ZM240-160v-400 400Z"/></svg><span><strong class="text-on-surface">Private:</strong> everything is encrypted. Only your passphrase opens it — not even we can.</span></li>
+  </ul>
+</template>
+
+<template id="footer">
+  <!-- ModalFooter (components/layout/ModalFooter.tsx) with Button size="lg" -->
+  <div class="pt-2 flex gap-4 [&>*]:flex-1">
+    <button type="button" class="flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold transition-all active:scale-95 focus:outline-none focus-visible:ring-2 h-14 px-5 text-lg bg-surface-control text-on-surface-variant hover:bg-surface-control-hover">Cancel</button>
+    <button type="button" data-next class="flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold transition-all active:scale-95 focus:outline-none focus-visible:ring-2 h-14 px-5 text-lg bg-primary text-on-primary shadow-lg hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed">
+      <span data-next-label>Next</span>
+      <svg width="20" height="20" viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true"><path d="M686-450H160v-60h526L438-758l42-42 320 320-320 320-42-42 248-248Z"/></svg>
+    </button>
+  </div>
+</template>
+
+<script>
+  const toggle = document.getElementById('theme-toggle')
+  toggle.addEventListener('click', () => {
+    const dark = document.documentElement.classList.toggle('dark')
+    document.body.classList.toggle('dark', dark)
+    toggle.setAttribute('aria-pressed', String(dark))
+  })
+
+  const fill = (sel, tpl) => document.querySelectorAll(sel).forEach((el) => el.replaceWith(document.getElementById(tpl).content.cloneNode(true)))
+  document.querySelectorAll('[data-footer]').forEach((el) => {
+    const frag = document.getElementById('footer').content.cloneNode(true)
+    const next = frag.querySelector('[data-next]')
+    if (el.hasAttribute('data-disabled')) next.disabled = true
+    if (el.hasAttribute('data-anyway')) frag.querySelector('[data-next-label]').textContent = 'Use it anyway'
+    el.replaceWith(frag)
+  })
+  fill('[data-scope]', 'scope')
+  fill('[data-close]', 'close-btn')
+  document.querySelectorAll('[data-frame]').forEach((frame) => frame.prepend(document.getElementById('topnav').content.cloneNode(true)))
+  document.querySelectorAll('[data-nav]').forEach((el) => el.remove())
+
+  // Mockup behaviour only: the path is taken on Enter or blur; unfocused, the field shows the end.
+  function showEnd(input) { input.scrollLeft = input.scrollWidth }
+  document.querySelectorAll('.path-input').forEach((input) => {
+    showEnd(input)
+    input.addEventListener('blur', () => showEnd(input))
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') input.blur() })
+  })
+  // Mockup of CopyButton: copy, then check + "Copied!" for a moment.
+  document.querySelectorAll('[data-copy]').forEach((button) => {
+    const input = document.getElementById(button.dataset.copy)
+    const status = button.parentElement.querySelector('[data-copy-status]')
+    button.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(input.value) } catch { input.select(); document.execCommand('copy') }
+      const flip = (copied) => {
+        button.querySelector('[data-icon-copy]').classList.toggle('hidden', copied)
+        button.querySelector('[data-icon-check]').classList.toggle('hidden', !copied)
+        button.setAttribute('aria-label', copied ? 'Copied!' : 'Copy')
+        button.title = copied ? 'Copied!' : 'Copy'
+        status.textContent = copied ? 'Copied!' : ''
+      }
+      flip(true)
+      setTimeout(() => flip(false), 2000)
+    })
+  })
+  document.querySelectorAll('[data-pathrow]').forEach((row) => {
+    const input = row.querySelector('input')
+    const button = row.querySelector('[data-action]')
+    const subject = button.getAttribute('aria-label') ? ' (backup folder)' : ''
+    const sync = () => {
+      const label = input.value.trim() ? 'Change' : 'Browse…'
+      button.textContent = label
+      if (subject) button.setAttribute('aria-label', label + subject)
+      const next = row.closest('.glass-modal')?.querySelector('[data-next]')
+      if (next) next.disabled = !input.value.trim()
+    }
+    input.addEventListener('blur', sync)
+    button.addEventListener('click', () => {
+      input.value = '/Volumes/Backup Drive/Mirall/' + 'a-rather-long-nested-folder-name/backups'
+      sync(); showEnd(input)
+    })
+  })
+</script>
+
+</body>
+</html>

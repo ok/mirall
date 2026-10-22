@@ -136,11 +136,12 @@ export default function MirrorFolderModal({
       )}
 
       <MountPathField
-        id="mirror-folder-path-label"
+        id="mirror-folder-path"
         label={t('mirrorFolder.pathLabel')}
         path={wizard.mountPath}
         error={wizard.validationError}
         onBrowse={() => { void wizard.browse() }}
+        onCommit={wizard.setMountPath}
       />
 
       <Callout tone="warning" icon="lock">
