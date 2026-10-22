@@ -208,7 +208,7 @@
   "pathField": {
     "browse": "Browse…",
     "loading": "Loading…",
-    "placeholder": "Select location…",
+    "notFolder": "There is no folder at this path.",
     "browseSubject": "Browse… ({{subject}})",
     "changeSubject": "Change ({{subject}})"
   },

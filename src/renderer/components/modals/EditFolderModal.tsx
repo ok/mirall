@@ -69,6 +69,13 @@ export default function EditFolderModal({
     if (picked) setDraftPath(picked)
   }
 
+  function handleTyped(typed: string) {
+    setPathError(null)
+    setDraftPath(typed)
+  }
+
+  const pathDescribers = `edit-folder-path-desc${pathError ? ' edit-folder-path-error' : ''}`
+
   async function handleSave() {
     if (!canSave || savingRef.current) return
     savingRef.current = true
@@ -123,20 +130,17 @@ export default function EditFolderModal({
           </div>
 
           <div className="space-y-3">
-            <FieldLabel id="edit-folder-path-label">
+            <FieldLabel htmlFor="edit-folder-path">
               {isOwner ? t('editFolder.sourceLabel') : t('editFolder.mirrorLabel')}
             </FieldLabel>
             <p id="edit-folder-path-desc" className="text-sm text-on-surface-variant px-1">
               {!canRelocate ? t('editFolder.sourceFixed') : isOwner ? t('editFolder.sourceDesc') : t('editFolder.mirrorDesc')}
             </p>
-            {/* Same row as Add Folder and Mirror to Disk — a path is a path, whichever door you
-                came through. Display-only when the location is fixed: the field stays, the button
-                is what says whether you can re-point it. */}
-            <PathRow
-              path={effectivePath}
-              onAction={canRelocate ? handleBrowse : undefined}
-              ariaDescribedBy={`edit-folder-path-label edit-folder-path-desc${pathError ? ' edit-folder-path-error' : ''}`}
-            />
+            {canRelocate ? (
+              <PathRow id="edit-folder-path" path={effectivePath} onAction={handleBrowse} onCommit={handleTyped} ariaDescribedBy={pathDescribers} />
+            ) : (
+              <PathRow id="edit-folder-path" path={effectivePath} ariaDescribedBy={pathDescribers} />
+            )}
             {pathError && <InlineError id="edit-folder-path-error" className="px-1">{pathError}</InlineError>}
           </div>
 

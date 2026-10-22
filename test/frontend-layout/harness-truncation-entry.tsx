@@ -2,7 +2,7 @@
 // agent-desktop frontend suite). Mounts the REAL <PathRow>, loose file rows, a folder row with a file row
 // inside it and a share card in deliberately narrow fields and asserts the text never escapes them.
 //
-// A path keeps its final segment; a name is middle-truncated so both its beginning and the part
+// A path field shows its final segment; a name is middle-truncated so both its beginning and the part
 // right before the extension stay visible, its full form is the accessible name, and hovering
 // anywhere on its card (not only the name) resolves to a title carrying it. Geometry is the only honest test of fit: the text either sits inside its box or
 // it does not.
@@ -36,8 +36,8 @@ interface HarnessResults {
   pass: boolean
   error: string | null
   pathOverflow: number
-  pathEndsWith: string
-  pathEllipsised: boolean
+  pathScrolls: boolean
+  pathShowsEnd: boolean
   file: NameResult
   short: NameResult
   folder: NameResult
@@ -86,7 +86,7 @@ const share: ShareWithRole = {
 createRoot(document.getElementById('root') as HTMLElement).render(
   <div style={{ width: 520 }} className="p-4 space-y-4">
     <div data-test="path">
-      <PathRow path={LONG_PATH} onAction={noop} />
+      <PathRow id="path" path={LONG_PATH} onAction={noop} onCommit={noop} />
     </div>
     <div data-test="file">
       <FileRow kind="loose" file={looseFile(LONG_FILE)} decoration={null} seeded={false} {...cardHandlers} />
@@ -122,26 +122,6 @@ createRoot(document.getElementById('root') as HTMLElement).render(
     </div>
   </div>,
 )
-
-// How far the widest rendered text run escapes its field's content box, in px. <= 0 is the
-// invariant; a positive number is text sitting on top of whatever comes next.
-function overflowOf(field: HTMLElement): number {
-  const limit = field.getBoundingClientRect().right - parseFloat(getComputedStyle(field).paddingRight)
-  let worst = -Infinity
-  for (const span of Array.from(field.querySelectorAll('span'))) {
-    // sr-only nodes are clipped to 1px and carry the full string by design.
-    if (span.className.includes('sr-only')) continue
-    worst = Math.max(worst, span.getBoundingClientRect().right - limit)
-  }
-  return Math.round(worst * 10) / 10
-}
-
-// The last visible run — proof the ending stayed pinned rather than being ellipsised away.
-function lastRun(field: HTMLElement): string {
-  const spans = Array.from(field.querySelectorAll<HTMLElement>('span'))
-    .filter((s) => !s.className.includes('sr-only') && s.textContent)
-  return spans.at(-1)?.textContent ?? ''
-}
 
 // The card's icon tile: a spot on the card that is not the name, so a title found there is the
 // card's, not the name's.
@@ -199,18 +179,16 @@ function laneIntrinsicShare(): number {
 const fits = (r: NameResult, full: string) => r.overflow <= 0 && r.cardTitle === full && r.accessible === full
 
 function collect(): HarnessResults {
-  const pathField = document.querySelector('[data-test="path"] .bg-surface-container-low') as HTMLElement
+  const pathRow = document.querySelector('[data-test="path"]') as HTMLElement
+  const pathInput = pathRow.querySelector('input') as HTMLInputElement
   const results: HarnessResults = {
     error: null,
-    pathOverflow: overflowOf(pathField),
-    pathEndsWith: lastRun(pathField),
-    // An ellipsis is actually being painted: the flexible run's content is wider than the box
-    // it is allowed to occupy. (innerText is no good here — the sr-only node carries the whole
-    // path by design, so it never gets shorter.)
-    pathEllipsised: (() => {
-      const run = pathField.querySelector('span span') as HTMLElement
-      return run.scrollWidth > run.clientWidth + 1
-    })(),
+    // The row, button included, stays inside its column however long the path.
+    pathOverflow: Math.max(...Array.from(pathRow.querySelectorAll('input, button')).map((el) => el.getBoundingClientRect().right)) - pathRow.getBoundingClientRect().right,
+    // The path is longer than its field, and the field without focus is scrolled to its end, so the
+    // final segment is the part on screen.
+    pathScrolls: pathInput.scrollWidth > pathInput.clientWidth + 1,
+    pathShowsEnd: pathInput.scrollLeft + pathInput.clientWidth >= pathInput.scrollWidth - 1,
     file: nameIn('file', LONG_FILE, '.group'),
     short: nameIn('short', SHORT_FILE, '.group'),
     folder: nameIn('folder', LONG_FOLDER, 'button'),
@@ -224,8 +202,8 @@ function collect(): HarnessResults {
   }
   results.pass =
     results.pathOverflow <= 0 &&
-    results.pathEllipsised &&
-    results.pathEndsWith.endsWith('(DJ Mix)') &&
+    results.pathScrolls &&
+    results.pathShowsEnd &&
     fits(results.file, LONG_FILE) && middleTruncated(results.file, LONG_FILE) &&
     fits(results.short, SHORT_FILE) && results.short.shown === SHORT_FILE &&
     fits(results.folder, LONG_FOLDER) && middleTruncated(results.folder, LONG_FOLDER) &&
@@ -246,7 +224,7 @@ document.fonts.ready
   .then((results) => { window.__results = results })
   .catch((e: unknown) => {
     window.__results = {
-      pass: false, error: String(e), pathOverflow: 0, pathEndsWith: '', pathEllipsised: false,
+      pass: false, error: String(e), pathOverflow: 0, pathScrolls: false, pathShowsEnd: false,
       file: emptyName, short: emptyName, folder: emptyName, nested: emptyName, share: emptyName,
       laneTitle: '', shareActionTitle: '', laneIntrinsicShare: 0,
     }

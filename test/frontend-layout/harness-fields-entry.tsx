@@ -2,7 +2,7 @@
 // placeholder clears 4.5:1 on its field, error text 4.5:1 on its ground, a field stands apart from
 // the card it sits on, and a switch reads at 3:1 whether it is on or off.
 //
-// Mounts the REAL <TextField> on a modal panel and on a card, <SearchField>, <PathRow>, <RestoreProgress>,
+// Mounts the REAL <TextField> on a modal panel and on a card, <SearchField>, read-only <PathRow>s, <RestoreProgress>,
 // <ListControlsRow>, <Toggle>, <Account> and <OnboardingScreen> on the grounds they ship on, and measures painted colour: every computed colour
 // is composited onto a canvas over the backgrounds behind it, so an alpha utility is judged as it is
 // seen. The two name fields also have to resolve their description to their help and count, which
@@ -73,6 +73,9 @@ createRoot(document.getElementById('root') as HTMLElement).render(
         <div data-probe="modal-textarea">
           <textarea aria-label="Message" placeholder="A placeholder" className={`${fieldSurface('low')} h-32 resize-none`} />
         </div>
+        <div data-probe="modal-path">
+          <ToastProvider><PathRow id="modal-path" path="/Users/you/Backups" /></ToastProvider>
+        </div>
       </FieldGround>
     </div>
     <div data-probe="card-field" className="bg-surface-container-low rounded-xl p-6">
@@ -82,13 +85,15 @@ createRoot(document.getElementById('root') as HTMLElement).render(
       <SearchField label="Search" placeholder="A placeholder" value="" onChange={noop} />
     </div>
     <div data-probe="card-path" className="bg-surface-container-low rounded-xl p-6">
-      <PathRow path="/Users/you/Downloads" />
+      <ToastProvider><PathRow id="card-path" path="/Users/you/Downloads" /></ToastProvider>
     </div>
     <div data-probe="restore">
       <RestoreProgress hold={HOLD} />
     </div>
     <div data-probe="filter">
-      <ListControlsRow value="" onChange={noop} matched={null} total={0} filterLabel="Filter files" showExpand={false} />
+      <KeyboardProvider currentScreen="account" selectedSpaceId={null}>
+        <ListControlsRow value="" onChange={noop} matched={null} total={0} filterLabel="Filter files" showExpand={false} />
+      </KeyboardProvider>
     </div>
     <div className="bg-surface-container-low rounded-xl row-group">
       <div data-probe="toggle-off"><Toggle label="Off" checked={false} onChange={noop} /></div>
@@ -181,7 +186,7 @@ function ringColor(el: Element): string | null {
 }
 
 async function focusRings(theme: 'light' | 'dark', failures: string[], ratios: Record<string, number>): Promise<void> {
-  for (const id of ['modal-field', 'card-field', 'account-display-name', 'display-name']) {
+  for (const id of ['modal-field', 'card-field', 'account-display-name', 'display-name', 'card-path', 'modal-path']) {
     const el = q(`#${id}`) as HTMLInputElement
     el.focus()
     await sleep(250)
@@ -224,6 +229,11 @@ function measure(theme: 'light' | 'dark', failures: string[]): ThemeResult {
   need('modal field vs its panel', contrast(bg(field('modal-field')), bg(q('[data-probe="panel"]'))), 1.1)
   need('card search vs its card', contrast(bg(field('card-search')), bg(q('[data-probe="card-search"]'))), 1.1)
   need('card path vs its card', contrast(bg(q('[data-probe="card-path"] .rounded-xl')), bg(q('[data-probe="card-path"]'))), 1.1)
+  // The Copy icon of a read-only path is a graphic on the field's fill, not on the card behind it.
+  for (const probe of ['card-path', 'modal-path']) {
+    const input = q(`[data-probe="${probe}"] input`)
+    need(`${probe} copy icon`, contrast(over(getComputedStyle(q(`[data-probe="${probe}"] button svg`)).color, input), bg(input)), 3)
+  }
   need('account name field vs its card', contrast(bg(q('#account-display-name')), bg(q('#account-display-name').parentElement as Element)), 1.1)
   need('off switch outline', contrast(over(getComputedStyle(track('toggle-off')).borderTopColor, track('toggle-off')), bg(track('toggle-off'))), 3)
   need('off switch knob', contrast(bg(knob('toggle-off')), bg(track('toggle-off'))), 3)

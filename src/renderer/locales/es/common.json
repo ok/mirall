@@ -179,7 +179,7 @@
   "pathField": {
     "browse": "Examinar…",
     "loading": "Cargando…",
-    "placeholder": "Selecciona una ubicación…",
+    "notFolder": "No hay ninguna carpeta en esta ruta.",
     "browseSubject": "Examinar… ({{subject}})",
     "changeSubject": "Cambiar ({{subject}})"
   },

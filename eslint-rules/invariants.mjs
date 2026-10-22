@@ -287,10 +287,11 @@ export const promiseLintAllowlist = Object.freeze({
     ],
   },
   'src/renderer/components/modals/BackupSetupModal.tsx': {
-    why: 'chooseFolder and turnOn catch into the dialog\'s inline error.',
+    why: 'chooseFolder, takeFolder and turnOn catch into the dialog\'s inline error.',
     sites: [
       'no-floating-promises BackupSetupModal > confirm: void turnOn()',
       'no-floating-promises BackupSetupModal > onChoose: void chooseFolder()',
+      'no-floating-promises BackupSetupModal > onTake: void takeFolder(typed)',
       'no-floating-promises BackupSetupModal > onClick: void turnOn()',
     ],
   },
@@ -311,7 +312,7 @@ export const promiseLintAllowlist = Object.freeze({
   'src/renderer/components/modals/EditFolderModal.tsx': {
     why: 'handleSave catches into the field errors; browse is the native picker.',
     sites: [
-      'no-misused-promises EditFolderModal > onAction: {canRelocate ? handleBrowse : undefined}',
+      'no-misused-promises EditFolderModal > onAction: {handleBrowse}',
       'no-misused-promises EditFolderModal > onClick: {handleSave}',
       'no-misused-promises EditFolderModal > onConfirm: {handleSave}',
     ],
@@ -370,9 +371,9 @@ export const promiseLintAllowlist = Object.freeze({
     ],
   },
   'src/renderer/components/modals/RestoreBackupModal.tsx': {
-    why: 'chooseFolder, showBackups and restore catch into the modal\'s inline and field errors; the modal renders outside ToastProvider.',
+    why: 'openFolder, showBackups and restore catch into the modal\'s inline and field errors; the modal renders outside ToastProvider.',
     sites: [
-      'no-floating-promises RestoreBackupModal > onChooseFolder: void chooseFolder()',
+      'no-floating-promises RestoreBackupModal > onOpenFolder: void openFolder(pick)',
       'no-floating-promises RestoreBackupModal > onClick: void restore()',
       'no-floating-promises RestoreBackupModal > onClick: void showBackups()',
       'no-floating-promises RestoreBackupModal > onConfirm: void restore()',
@@ -479,6 +480,7 @@ export const promiseLintAllowlist = Object.freeze({
       'no-floating-promises BackupSettings > onChange: void act(() => changeFolder(status.folder ?? undefined))',
       'no-floating-promises BackupSettings > onConfirm: void turnOff()',
       'no-floating-promises BackupSettings > onReminders: void act(() => setReminders(next))',
+      'no-floating-promises BackupSettings > onTake: void act(async () => { await request(\'backup:configure\', { folder: typed }) })',
     ],
   },
   'src/renderer/screens/settings/NetworkSettings.tsx': {

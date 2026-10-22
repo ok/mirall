@@ -57,21 +57,30 @@ export default function StorageSettings({ onBack, onOpenActivityLogSettings, onO
   const downloadFolder = settings?.downloads.folder ?? (folderReadError ? '' : null)
   const shownError = folderError ?? (folderReadError ? errorText(folderReadError) : null)
 
+  // A picked and a typed folder take the same path: the worker validates and persists in one step,
+  // since only it can see the owned/mirrored folders a download folder must not overlap, and its
+  // reply pokes every window's settings query.
+  const applyFolder = useCallback(async (folder: string) => {
+    await request('settings:set-download-folder', { folder })
+    // The worker only accepts a folder that validated, so the warning below is stale the moment
+    // this resolves — re-probe rather than leaving it up until the next 60s tick.
+    await refreshRootStatus()
+  }, [refreshRootStatus])
+
   const handleBrowseFolder = useCallback(async () => {
     setFolderError(null)
     try {
       const picked = await window.bridge.browseDownloadFolder(downloadFolder || undefined)
-      if (!picked) return
-      // The worker validates and persists in one step: only it can see the owned/mirrored folders
-      // a download folder must not overlap, and its reply pokes every window's settings query.
-      await request('settings:set-download-folder', { folder: picked })
-      // The picker only accepts a folder that validated, so the warning below is stale the
-      // moment this resolves — re-probe rather than leaving it up until the next 60s tick.
-      await refreshRootStatus()
+      if (picked) await applyFolder(picked)
     } catch (err) {
       setFolderError(errorText(err))
     }
-  }, [refreshRootStatus, errorText, downloadFolder])
+  }, [applyFolder, errorText, downloadFolder])
+
+  const handleTypedFolder = useCallback((typed: string) => {
+    setFolderError(null)
+    applyFolder(typed).catch((err: unknown) => setFolderError(errorText(err)))
+  }, [applyFolder, errorText])
 
   // This screen shows the folder new spaces start in; `unavailableRoots` also carries every space's
   // folder and the recent ones, so match rather than test for a non-empty list. The folder and the unavailable roots are both
@@ -101,15 +110,16 @@ export default function StorageSettings({ onBack, onOpenActivityLogSettings, onO
         ) : info && (
           <div className="space-y-10">
             <section>
-              <SectionHeading>{t('storageSettings.downloadFolder')}</SectionHeading>
+              <SectionHeading id="storage-download-folder-label">{t('storageSettings.downloadFolder')}</SectionHeading>
               <div className="bg-surface-container-low rounded-xl p-6">
                 <p id="storage-download-folder-desc" className="text-sm text-on-surface-variant mb-3">{t('storageSettings.downloadFolderDesc')}</p>
-                {/* The same row Add Folder, Mirror to Disk, Edit Folder and Edit Space show — a path
-                  is a path, whichever screen you are on. */}
                 <PathRow
+                  id="storage-download-folder"
                   path={downloadFolder || null}
                   loading={downloadFolder === null}
                   onAction={handleBrowseFolder}
+                  onCommit={handleTypedFolder}
+                  ariaLabelledBy="storage-download-folder-label"
                   ariaDescribedBy="storage-download-folder-desc"
                 />
                 {/* A rejected pick leaves BOTH true — the old folder is still unavailable and the

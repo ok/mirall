@@ -32,7 +32,6 @@ const pathRow = read(path.join(RENDERER, 'components/path/PathRow.tsx'))
 // consolidation removed, so its every use is listed here with the reason it is not a path field.
 // A new name in this list is the review question: should this be a PathRow?
 const FILE_PATH_CALLERS = new Set([
-  'components/path/PathRow.tsx',          // the path field itself
   'components/modals/ScanPreviewModal.tsx',  // rows of a file list, not a path the user re-picks
   'components/storage/AppStorageCard.tsx',  // the data folder's location: display-only, with Copy
 ])
@@ -91,9 +90,38 @@ test('the path button label is derived, never passed', (t) => {
 // REGRESSION (FIX-PATHFIELD-1: the field rendered its only content in `outline`, a border token
 // that fails AA against every fill in both themes — 2.63:1 light and 1.90:1 dark at 70% opacity).
 test('the path field placeholder is muted TEXT, not a border colour', (t) => {
-  const placeholder = pathRow.slice(pathRow.indexOf('<span className="text-sm'))
-  t.absent(/text-outline/.test(placeholder), 'outline is the badge/dropzone border token, not a text one')
-  t.ok(/text-on-surface-variant/.test(placeholder), 'muted secondary text is the token design.md assigns')
+  const input = pathRow.slice(pathRow.indexOf('<input'), pathRow.indexOf('/>', pathRow.indexOf('<input')))
+  t.absent(/text-outline/.test(input), 'outline is the badge/dropzone border token, not a text one')
+  t.ok(/\$\{FIELD_PLACEHOLDER\}/.test(input), 'the placeholder is every text field\'s muted text')
+})
+
+// A path is text the user may need to paste in or copy out, and the app turns selection off
+// everywhere but inputs. So the field is an input: editable beside its picker, read-only with Copy
+// where the path is fixed.
+test('the path field is a text input; a fixed path is read-only with Copy', (t) => {
+  t.ok(/<input\b[^]*?type="text"/.test(pathRow), 'PathRow renders a text input')
+  t.absent(/<FilePath/.test(pathRow), 'not display text')
+  t.ok(/readOnly=\{readOnly\}/.test(pathRow), 'the input is read-only where it cannot be edited')
+  t.ok(/!editable && shown && \(\s*<CopyButton value=\{shown\}/.test(pathRow), 'a fixed path carries Copy')
+  t.absent(/pathField\.placeholder/.test(pathRow), 'and no placeholder: the label says what goes in')
+})
+
+// A field with a picker takes a typed path too, and its owner checks it as it checks a pick. The
+// props pair them, so a caller cannot offer the picker without taking what is typed.
+test('a path field with a picker also takes a typed path', (t) => {
+  const editable = pathRow.slice(pathRow.indexOf('interface EditablePath'), pathRow.indexOf('interface FixedPath'))
+  t.ok(/\bonAction: \(\) => void/.test(editable) && /\bonCommit: \(path: string\) => void/.test(editable),
+    'onAction and onCommit are both required on an editable row')
+  const mount = read(path.join(RENDERER, 'components/path/MountPathField.tsx'))
+  t.ok(/onCommit: \(path: string\) => void/.test(mount), 'the wizards\' field requires it as well')
+})
+
+// While an edit is pending, Enter takes it and Escape reverts it — they must not also reach the
+// dialog, which would confirm with the old path or close and drop the edit.
+test('a pending edit keeps Enter and Escape from the dialog', (t) => {
+  const keys = pathRow.slice(pathRow.indexOf('function handleKeyDown'), pathRow.indexOf('function handleBlur'))
+  t.ok(/if \(draft === shown\) return/.test(keys), 'with nothing pending the keys reach the dialog')
+  t.is((keys.match(/e\.stopPropagation\(\)/g) ?? []).length, 2, 'Enter and Escape both stop there otherwise')
 })
 
 // A path that is still loading is not a path the user has yet to pick. Conflating them showed the

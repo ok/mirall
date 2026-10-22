@@ -342,7 +342,8 @@ app is frontmost; `press` needs an AX-focused element the inactive app does not 
 cannot tell dev instances apart (all are "Electron"). Keys go through the main-process channel
 (`sendInputEvent`, menu accelerators via their menu item). `sendInputEvent` only queues, so wait a
 rendered frame before the next step, and give Return/Space their `char` event — a focused button
-activates on keypress, not keyDown.
+activates on keypress, not keyDown. `set-value` does not move DOM focus either: a key pressed after
+it lands on whatever held focus (a dialog's panel), so `click` the field before typing into it.
 
 **An inactive Electron window still activates the app on macOS 27 unless AppKit's state restorer
 is off.** The restorer runs at every launch even with no saved state and, when it finishes after

@@ -197,11 +197,12 @@ body {
   box-shadow: inset 1px 0 0 color-mix(in srgb, var(--color-on-primary) 28%, transparent);
 }
 
-/* Mirall is an app, not a webpage — text in labels, headings, paths, names,
- * and metadata is not user-selectable. Where copy is genuinely useful (e.g.
- * the storage path or the version string for support), the UI surfaces an
+/* Mirall is an app, not a webpage — text in labels, headings, names and
+ * metadata is not user-selectable. Where copy is genuinely useful (e.g. the
+ * storage path or the version string for support), the UI surfaces an
  * explicit copy affordance via <CopyButton> instead. Inputs and textareas
- * keep selection so users can edit what they typed. */
+ * keep selection, which is why a folder path is a field (read-only where it
+ * is fixed) rather than text. */
 html,
 body,
 #root {

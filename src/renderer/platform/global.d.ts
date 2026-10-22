@@ -63,6 +63,13 @@ export interface NotificationClickEvent {
   payload: NotificationClickPayload | null
 }
 
+/** A folder offered for a backup: whether it shares Mirall's disk, and whether it holds other files. */
+export interface BackupFolderChoice {
+  folder: string
+  sameDisk: boolean
+  otherFiles: boolean
+}
+
 export interface AppPrefs {
   minimizeToTray: boolean
   openAtLogin: boolean
@@ -151,7 +158,9 @@ export interface MirallBridge {
 
   browseDownloadFolder(defaultPath?: string): Promise<string | null>
   browseShareFolder(): Promise<string | null>
-  browseBackupFolder(defaultPath?: string): Promise<{ folder: string; sameDisk: boolean; otherFiles: boolean } | null>
+  browseBackupFolder(defaultPath?: string): Promise<BackupFolderChoice | null>
+  /** Null when the path is not an existing folder. */
+  inspectBackupFolder(folder: string): Promise<BackupFolderChoice | null>
   applyRestoredSettings(json: string): Promise<RendererConfig>
 
   notify(spec: NotificationSpec): Promise<NotificationShowResult>

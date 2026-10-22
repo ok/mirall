@@ -50,6 +50,11 @@ export default function EditSpaceModal({ space, onSave, onClose }: EditSpaceModa
     if (picked) setFolderEdit(picked)
   }, [folder])
 
+  function handleTyped(typed: string) {
+    setFolderError(null)
+    setFolderEdit(typed)
+  }
+
   async function handleSave() {
     if (!isValid || !hasChanges || saving) return
     setSaving(true)
@@ -97,16 +102,16 @@ export default function EditSpaceModal({ space, onSave, onClose }: EditSpaceModa
           </div>
 
           <div className="space-y-3">
-            <FieldLabel id="edit-space-folder-label">{t('editSpace.downloadFolder')}</FieldLabel>
+            <FieldLabel htmlFor="edit-space-folder">{t('editSpace.downloadFolder')}</FieldLabel>
             <p id="edit-space-folder-desc" className="text-sm text-on-surface-variant px-1">
               {t('editSpace.downloadFolderDesc')}
             </p>
-            {/* The same row Add Folder, Mirror to Disk, Edit Folder and Storage settings show — a
-                path is a path, whichever door you came through. */}
             <PathRow
+              id="edit-space-folder"
               path={folder}
               onAction={handleBrowse}
-              ariaDescribedBy={`edit-space-folder-label edit-space-folder-desc${folderError ? ' edit-space-folder-error' : ''}`}
+              onCommit={handleTyped}
+              ariaDescribedBy={`edit-space-folder-desc${folderError ? ' edit-space-folder-error' : ''}`}
             />
             {folderError && (
               <InlineError id="edit-space-folder-error" className="px-1">{folderError}</InlineError>

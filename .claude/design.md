@@ -35,7 +35,8 @@ them to `var()`-backed utility colors, and a `.dark` class on `<html>` swaps the
 - **Soft, heavy rounding.** The UI reads as stacked rounded cards; corner radii climb with element
   size (§5).
 - **App, not webpage.** Text is not user-selectable; copy is offered through an explicit
-  `<CopyButton>` (`src/renderer/components/primitives/CopyButton.tsx`).
+  `<CopyButton>` (`src/renderer/components/primitives/CopyButton.tsx`), or by a read-only field
+  where the value is one (a fixed path).
 - **Accessibility is a gate, not a finish.** Every interactive control carries a name/role/state;
   focus is always visible; motion respects the OS setting. See `.claude/testing.md`.
 - **Desktop-first, fixed-width.** Almost no responsive breakpoints — this is a windowed Electron
@@ -665,8 +666,8 @@ places at the right end (the filter's count and clear button).
 
 ### Field label — `primitives/FieldLabel.tsx`
 `font-headline text-sm font-bold text-accent px-1`, and the element is the point: `htmlFor` renders
-a `<label>` for a real form control, `id` renders a `<span>` for something that is not one (the icon
-picker, a `PathRow` whose action is a button), which points `aria-labelledby` back at it.
+a `<label>` for a real form control (a `PathRow` field included), `id` renders a `<span>` for
+something that is not one (the icon picker), which points `aria-labelledby` back at it.
 
 ### Inline error — `primitives/InlineError.tsx`
 The `text-error` sentence under the thing that failed, with `role="alert"` so it is announced when
@@ -701,21 +702,33 @@ leading-relaxed` body. Pick the tone by what the text says, not by how loud it s
 
 ### Path field — `path/PathRow.tsx`
 **Every** filesystem path the user can act on, in a modal or on a settings screen, always the same
-shape: the path in a filled `px-5 py-3.5 rounded-xl` field (via `FilePath`, so it middle-truncates
-and carries the full path for assistive tech), with an optional button beside it that re-picks it.
-Used by Add Folder, Mirror to Disk, Edit Folder, Edit Space and Storage settings. There is no second
-form — a bare line of path text next to a `secondary` button is the drift this replaced, and it read
-as a different kind of thing depending on which door you came through.
+shape: a filled `px-5 py-3.5 rounded-xl` **text input** in `font-mono text-sm text-accent`, on the
+fill its ground gives (`useFieldFill()`). There is no second form — a bare line of path text next to
+a `secondary` button is the drift this replaced.
 
-The two mount wizards reach it through **`path/MountPathField.tsx`**, which adds the field's
-headline label and its `role="alert"` validation line. The label is a `<span>` with an id rather
-than a `<label>`, because the row's action is a button, not a form control — the association goes
-through `aria-describedby`.
+- **Editable** — the `surface-control` Browse…/Change button sits beside the field, and the field
+  takes a typed or pasted path on **Enter or blur**, never per keystroke: every take runs a
+  filesystem check or applies a setting, and the caller checks a typed path exactly as it checks a
+  picked one. While an edit is pending, Enter takes it and Escape reverts it rather than confirming
+  or dismissing the dialog. The props pair `onAction` with `onCommit`, so a picker never comes
+  without a typed path.
+- **Fixed** (an organization's folder, a source that cannot move, a locked setting) — the same field
+  `readOnly`, with the `CopyButton` icon inside its end. No button: its absence is what says the path
+  cannot change. Selectable, and announced as read-only text with the whole path.
+- **No placeholder.** The label above says what goes in, as platform path fields do. A path still
+  loading reads "Loading…" in the placeholder's muted text.
+- **Long paths** — an input cannot middle-truncate, so a field without focus is scrolled to its
+  end (re-applied on resize and once fonts land): the folder's own name stays visible. `title`
+  carries the whole path.
 
-`FilePath` keeps **exactly one flexible run** next to its pinned final segment: ranking two
-shrinkable spans by `flex-shrink` does not work — once the first freezes at zero width Chromium
-leaves the rest overflowing, which is how a long folder name ended up painted over the Browse
-button.
+The field is a form control, so it is named by a `<label htmlFor>` (`FieldLabel htmlFor`), or by
+`aria-labelledby` on a section heading where there is no label. The two mount wizards reach it
+through **`path/MountPathField.tsx`**, which adds the label and its `role="alert"` validation line.
+
+`FilePath` renders path text where a field would be wrong — rows of a file list, the data folder on
+the storage card beside its own Copy. It keeps **exactly one flexible run** next to its pinned
+final segment: ranking two shrinkable spans by `flex-shrink` does not work — once the first freezes
+at zero width Chromium leaves the rest overflowing.
 
 **Names are middle-truncated, never cut at the end or before the extension.** File, folder and
 share names on cards, folder rows and the Mirror to Disk owner line go through

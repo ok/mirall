@@ -19,6 +19,7 @@ import BackupScopeList from '../backup/BackupScopeList.js'
 import NewPassphraseFields from '../backup/NewPassphraseFields.js'
 import ManagedNote from '../managed/ManagedNote.js'
 import { useManagedBackupFolder, type ManagedBackupFolder } from '../../hooks/useManagedBackupFolder.js'
+import type { BackupFolderChoice } from '../../platform/global.js'
 
 interface BackupSetupModalProps {
   isOpen: boolean
@@ -27,21 +28,15 @@ interface BackupSetupModalProps {
 
 type Step = 1 | 2
 
-interface Chosen {
-  folder: string
-  sameDisk: boolean
-  otherFiles: boolean
-}
-
 export default function BackupSetupModal({ isOpen, onClose }: BackupSetupModalProps) {
   const { t } = useTranslation()
   const errorText = useErrorText()
   const toast = useToast()
   const [step, setStep] = useState<Step>(1)
-  const [picked, setChosen] = useState<Chosen | null>(null)
+  const [picked, setChosen] = useState<BackupFolderChoice | null>(null)
   // An organization's folder is set up as it is: nothing to pick, and the worker creates it empty.
   const managed = useManagedBackupFolder()
-  const chosen: Chosen | null = managed.folder ? { folder: managed.folder, sameDisk: false, otherFiles: false } : picked
+  const chosen: BackupFolderChoice | null = managed.folder ? { folder: managed.folder, sameDisk: false, otherFiles: false } : picked
   const [passphrase, setPassphrase] = useState('')
   const [confirmation, setConfirmation] = useState('')
   const [busy, setBusy] = useState(false)
@@ -68,6 +63,18 @@ export default function BackupSetupModal({ isOpen, onClose }: BackupSetupModalPr
     try {
       const picked = await window.bridge.browseBackupFolder()
       if (picked) setChosen(picked)
+    } catch (err) {
+      setError(errorText(err))
+    }
+  }
+
+  // A typed folder gets the checks a picked one does: same disk, other files.
+  async function takeFolder(typed: string) {
+    setError(null)
+    try {
+      const inspected = await window.bridge.inspectBackupFolder(typed)
+      if (inspected) setChosen(inspected)
+      else setError(t('pathField.notFolder'))
     } catch (err) {
       setError(errorText(err))
     }
@@ -112,8 +119,8 @@ export default function BackupSetupModal({ isOpen, onClose }: BackupSetupModalPr
             <>
               <BackupScopeList />
               <div className="space-y-3">
-                <FieldLabel id="backup-setup-folder-label">{t('backupSetup.whereLabel')}</FieldLabel>
-                <FolderField managed={managed} folder={chosen?.folder ?? null} onChoose={() => void chooseFolder()} />
+                <FieldLabel htmlFor="backup-setup-folder">{t('backupSetup.whereLabel')}</FieldLabel>
+                <FolderField managed={managed} folder={chosen?.folder ?? null} onChoose={() => void chooseFolder()} onTake={(typed) => void takeFolder(typed)} />
               </div>
               {chosen?.otherFiles && <Callout tone="warning" role="status" id="backup-setup-other-files">{errorText({ code: 'BACKUP_TARGET_NOT_EMPTY' })}</Callout>}
               {sameDisk && (
@@ -156,21 +163,22 @@ interface FolderFieldProps {
   managed: ManagedBackupFolder
   folder: string | null
   onChoose: () => void
+  onTake: (typed: string) => void
 }
 
-function FolderField({ managed, folder, onChoose }: FolderFieldProps) {
+function FolderField({ managed, folder, onChoose, onTake }: FolderFieldProps) {
   const { t } = useTranslation()
   if (!managed.folder) {
     return (
       <>
-        <PathRow path={folder} onAction={onChoose} subject={t('backup.folderSubject')} ariaDescribedBy="backup-setup-folder-hint" />
+        <PathRow id="backup-setup-folder" path={folder} onAction={onChoose} onCommit={onTake} subject={t('backup.folderSubject')} ariaDescribedBy="backup-setup-folder-hint" />
         <p id="backup-setup-folder-hint" className="text-xs text-on-surface-variant px-1">{t('backupSetup.whereHint')}</p>
       </>
     )
   }
   return (
     <>
-      <PathRow path={managed.folder} ariaDescribedBy={`${managed.noteId} backup-setup-folder-hint`} />
+      <PathRow id="backup-setup-folder" path={managed.folder} ariaDescribedBy={`${managed.noteId} backup-setup-folder-hint`} />
       {managed.org && <ManagedNote id={managed.noteId} org={managed.org} className="px-1" />}
       <p id="backup-setup-folder-hint" className="text-xs text-on-surface-variant px-1">{t('backup.managedFolder')}</p>
     </>

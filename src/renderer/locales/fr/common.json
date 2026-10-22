@@ -179,7 +179,7 @@
   "pathField": {
     "browse": "Parcourir…",
     "loading": "Chargement…",
-    "placeholder": "Choisir un emplacement…",
+    "notFolder": "Aucun dossier à cet emplacement.",
     "browseSubject": "Parcourir… ({{subject}})",
     "changeSubject": "Modifier ({{subject}})"
   },

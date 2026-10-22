@@ -10,7 +10,7 @@ import { runHarness } from './run-harness.mjs'
 const out = await runHarness({ html: 'harness-truncation.html', width: 600, height: 1100 })
 
 console.log('\n──────── Text truncation harness ────────')
-console.log(`path  : overflow ${out.pathOverflow}px (<= 0) · ellipsised ${out.pathEllipsised} · ends "${out.pathEndsWith}"`)
+console.log(`path  : overflow ${out.pathOverflow}px (<= 0) · longer than its field ${out.pathScrolls} · scrolled to its end ${out.pathShowsEnd}`)
 for (const key of ['file', 'short', 'folder', 'nested', 'share']) {
   const r = out[key]
   if (r) console.log(`${key.padEnd(6)}: overflow ${r.overflow}px (<= 0) · shown "${r.shown}" · card title "${r.cardTitle}"`)
