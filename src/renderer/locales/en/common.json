@@ -650,7 +650,7 @@
     "dismissDialog": "Dismiss a dialog",
     "back": "Go back",
     "home": "Home",
-    "openNthSpace": "Jump to space by number",
+    "openNthSpace": "Jump to a favorite by number",
     "openSpace": "Open {{name}}",
     "openSettings": "Open Settings",
     "openProfile": "Open Profile",

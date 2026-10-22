@@ -6,15 +6,18 @@ import { useSpaceMembers } from '../../hooks/useSpaceMembers.js'
 import Icon from '../primitives/Icon.js'
 import type { IconName } from '../../types/ui.js'
 import AvatarStack from '../primitives/AvatarStack.js'
+import Keycap from '../../keyboard/Keycap.js'
+import { ariaKeyShortcuts } from '../../keyboard/accelerator.js'
 
 interface SpaceCardProps {
   space: Space
   /** The clock the activity time is read against, which the list advances. */
   now: number
+  shortcut?: string
   onClick: () => void
 }
 
-export default function SpaceCard({ space, now, onClick }: SpaceCardProps) {
+export default function SpaceCard({ space, now, shortcut, onClick }: SpaceCardProps) {
   const { t, i18n } = useTranslation()
   const gradient = gradientForSpaceId(space.spaceId)
   // spaces:list rosters are slim (no avatars); the facepile reads the cached full roster and
@@ -37,7 +40,8 @@ export default function SpaceCard({ space, now, onClick }: SpaceCardProps) {
       aria-label={space.status === 'pending'
         ? t('spaceCard.openSpacePending', { name: space.name })
         : t('spaceCard.openSpace', { name: space.name })}
-      className="bg-surface-container-lowest hover:bg-surface-container-highest hover:[--avatar-ring:var(--color-surface-container-highest)] p-5 rounded-2xl flex items-center gap-6 transition-colors cursor-pointer focus-ring"
+      aria-keyshortcuts={shortcut ? ariaKeyShortcuts(shortcut) : undefined}
+      className="group bg-surface-container-lowest hover:bg-surface-container-highest hover:[--avatar-ring:var(--color-surface-container-highest)] p-5 rounded-2xl flex items-center gap-6 transition-colors cursor-pointer focus-ring"
     >
       <div className={`w-16 h-16 rounded-xl ${gradient} flex items-center justify-center shrink-0`}>
         <Icon name={(space.icon as IconName) || 'hub'} size={32} className="text-on-primary" />
@@ -48,33 +52,42 @@ export default function SpaceCard({ space, now, onClick }: SpaceCardProps) {
           {t('spaces.memberCount', { count: memberCount })} • {t('spaces.activeLabel', { when: activeWhen })}
         </p>
       </div>
-      {space.status === 'pending' && (
-        <span className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-surface-container-high text-on-surface-variant text-xs font-bold border border-outline">
-          <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-on-surface-variant" />
-          {t('spaces.waitingForApproval')}
-        </span>
-      )}
-      {(space.pendingCount ?? 0) > 0 && (
-        <span className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-secondary-container text-on-secondary-container text-xs font-bold">
-          <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-on-secondary-container" />
-          {t('spaces.waitingCount', { count: space.pendingCount })}
-        </span>
-      )}
-      {memberCount > 0 && (
-        <AvatarStack
-          className="shrink-0"
-          size="lg"
-          surface="surface-container-lowest"
-          announce="each"
-          max={3}
-          total={memberCount}
-          avatars={facepile.map((m, i) => ({
-            key: String(i),
-            src: m.avatar ?? null,
-            displayName: m.displayName,
-          }))}
-        />
-      )}
+      <div className="relative shrink-0 flex items-center gap-6">
+        {shortcut && (
+          <Keycap
+            spec={shortcut}
+            ariaHidden
+            className="absolute right-full mr-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity"
+          />
+        )}
+        {space.status === 'pending' && (
+          <span className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-surface-container-high text-on-surface-variant text-xs font-bold border border-outline">
+            <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-on-surface-variant" />
+            {t('spaces.waitingForApproval')}
+          </span>
+        )}
+        {(space.pendingCount ?? 0) > 0 && (
+          <span className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-secondary-container text-on-secondary-container text-xs font-bold">
+            <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-on-secondary-container" />
+            {t('spaces.waitingCount', { count: space.pendingCount })}
+          </span>
+        )}
+        {memberCount > 0 && (
+          <AvatarStack
+            className="shrink-0"
+            size="lg"
+            surface="surface-container-lowest"
+            announce="each"
+            max={3}
+            total={memberCount}
+            avatars={facepile.map((m, i) => ({
+              key: String(i),
+              src: m.avatar ?? null,
+              displayName: m.displayName,
+            }))}
+          />
+        )}
+      </div>
     </div>
   )
 }

@@ -62,6 +62,16 @@ export function acceleratorParts(spec: string): string[] {
   return parts
 }
 
+export function ariaKeyShortcuts(spec: string): string {
+  const a = parseAccelerator(spec)
+  const keys: string[] = []
+  if (a.mod) keys.push(isMacRuntime ? 'Meta' : 'Control')
+  if (a.shift) keys.push('Shift')
+  if (a.alt) keys.push('Alt')
+  keys.push(a.key.startsWith('digit') ? a.key.replace('digit', '') : a.key)
+  return keys.join('+')
+}
+
 export function shouldIgnore(e: KeyboardEvent, allowList: ReadonlyArray<string>): boolean {
   if (e.key === 'Escape') return false
   const target = e.target

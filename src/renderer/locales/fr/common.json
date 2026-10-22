@@ -621,7 +621,7 @@
     "dismissDialog": "Fermer une boîte de dialogue",
     "back": "Retour",
     "home": "Accueil",
-    "openNthSpace": "Ouvrir un espace par son numéro",
+    "openNthSpace": "Ouvrir un favori par son numéro",
     "openSpace": "Ouvrir {{name}}",
     "openSettings": "Ouvrir les paramètres",
     "openProfile": "Ouvrir le profil",

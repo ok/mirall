@@ -29,7 +29,7 @@ One row per file in `scenarios/`; the id is the `run.mjs` argument (`node test/f
 | s20 | `s20-command-palette.mjs` | ⌘K → search → Enter opens Create Space; ⌘N opens it directly; the palette reaches the Activity Log, a settings sub-page and the system commands. |
 | s21 | `s21-empty-states.mjs` | Empty-state copy: no spaces, empty Favorites tab, empty-share copy in a new space, each with its docs card (real anchors, not buttons). |
 | s110 | `s110-header-logo.mjs` | The header wordmark is an inline SVG: the top-bar logo stays one named ("Home") node that navigates home; the onboarding header exposes the wordmark as a named image. |
-| s116 | `s116-keyboard-coverage.mjs` | ⌘1-9 Go-to-Space via the native menu, ⌘⇧P Profile, ⌘⇧L Activity Log, ⌘F its search field, ⌘⇧H back to the list. |
+| s116 | `s116-keyboard-coverage.mjs` | ⌘1-9 Go-to-Favorite via the native menu, ⌘⇧P Profile, ⌘⇧L Activity Log, ⌘F its search field, ⌘⇧H back to the list. |
 | s117 | `s117-space-switch-no-empty-flash.mjs` | Moving between spaces never paints an empty hero over content: not on entering a space, not on returning to the list, not on the warm path; a genuinely empty space still shows its hero. |
 | s133 | `s133-modal-keyboard.mjs` | The dialog keyboard contract: Escape dismisses, ⌘Enter submits from a text field once, Enter reaches the primary action of a fieldless dialog and never fires a destructive confirm. |
 | s136 | `s136-screen-header-parity.mjs` | Space and folder screens share one `EntityHeader`: back control, name and actions are present and going back restores the space header. |

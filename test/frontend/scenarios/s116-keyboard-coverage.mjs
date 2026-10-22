@@ -3,7 +3,7 @@ import { Instance } from '../instance.mjs'
 import { makeReport } from '../assert.mjs'
 
 // The accelerators added alongside the palette's screen coverage. The digit chord is
-// served by the native Go-to-Space menu rather than the renderer's keydown listener —
+// served by the native Go-to-Favorite menu rather than the renderer's keydown listener —
 // Chromium claims ⌘1-9 before the page sees them — so this exercises that wiring end
 // to end, along with Profile, the Activity Log, and the Activity Log's Find.
 export default async function s116({ runDir, bootstrap }) {
@@ -36,7 +36,7 @@ export default async function s116({ runDir, bootstrap }) {
     // the app at all — neither the renderer's keydown listener nor before-input-event
     // sees it, and the app loses focus and drops off-screen the moment it is pressed, so
     // something outside Mirall claims it system-wide. The binding itself lives in the
-    // native Go-to-Space menu (test/unit/app-menu.test.js covers its structure and
+    // native Go-to-Favorite menu (test/unit/app-menu.test.js covers its structure and
     // chords), which is the only place macOS resolves a digit chord for an app.
 
     await r.ok('Cmd+Shift+P opens Profile from inside a space', async () => {

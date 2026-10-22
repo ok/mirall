@@ -11,6 +11,8 @@ import BackupPromptCard from '../components/backup/BackupPromptCard.js'
 import { useRestoreHold } from '../hooks/useRestoreHold.js'
 import { useHeldControl } from '../hooks/useHeldControl.js'
 import { inHeldOrder } from '../model/held-order.js'
+import { shortcutOrder } from '../model/space-shortcut-order.js'
+import { spaceDigitAccelerator } from '../keyboard/known-commands.js'
 
 const LABEL_REFRESH_MS = 60000
 
@@ -46,6 +48,7 @@ export default function YourSpaces({ onSelectSpace, onShowCreate, onShowJoin }: 
   const filteredSpaces = filter === 'favorites'
     ? ordered.filter(s => s.favorite)
     : ordered
+  const shortcuts = new Map(shortcutOrder(spaces).map((s, i) => [s.spaceId, spaceDigitAccelerator(i)]))
 
   return (
     <div className="max-w-(--breakpoint-2xl) mx-auto px-8 flex flex-col h-[calc(100vh-5rem-var(--banner-h,0px))] pb-8">
@@ -126,6 +129,7 @@ export default function YourSpaces({ onSelectSpace, onShowCreate, onShowJoin }: 
             <SpaceCard
               space={space}
               now={now}
+              shortcut={shortcuts.get(space.spaceId)}
               onClick={() => onSelectSpace(space.spaceId)}
             />
           </div>

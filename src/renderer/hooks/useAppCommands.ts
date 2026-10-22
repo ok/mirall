@@ -64,16 +64,16 @@ function toCommand(row: AppCommandRow, targets: AppCommandTargets): Command {
   }
 }
 
-// Every space is reachable by name in the palette. The first nine also carry their ⌘1-9 chord, but
-// only as a label: the binding itself lives in the native Go-to-Space menu, because Chromium claims
-// the digit chords before the renderer can see them.
-function spaceOpenCommand(space: Space, index: number, nav: AppNavigation): Command {
+// Every space is reachable by name in the palette. The first nine favorites also carry their ⌘1-9
+// chord, but only as a label: the binding itself lives in the native Go-to-Favorite menu, because
+// Chromium claims the digit chords before the renderer can see them.
+function spaceOpenCommand(space: Space, accelerator: string | undefined, nav: AppNavigation): Command {
   return {
     id: `space.open.${space.spaceId}`,
     labelKey: 'shortcuts.openSpace',
     labelParams: { name: space.name },
     group: 'navigation',
-    accelerator: spaceDigitAccelerator(index),
+    accelerator,
     run: () => nav.navigateToSpace(space.spaceId),
   }
 }
@@ -104,7 +104,10 @@ export function useAppCommands({ nav, spaces, canGoBack, openDialog }: AppComman
   const openWhatsNew = useOpenWhatsNew()
   const targets: AppCommandTargets = { nav, canGoBack, openDialog, openPalette, openCheatsheet, openWhatsNew }
   useRegisterCommands(APP_COMMANDS.map((row) => toCommand(row, targets)), [])
-  useRegisterCommands(shortcutOrder(spaces).map((space, i) => spaceOpenCommand(space, i, nav)), [spaces])
+  useRegisterCommands([
+    ...shortcutOrder(spaces).map((space, i) => spaceOpenCommand(space, spaceDigitAccelerator(i), nav)),
+    ...spaces.filter((space) => !space.favorite).map((space) => spaceOpenCommand(space, undefined, nav)),
+  ], [spaces])
   useOrganizationCommand(nav)
   useMouseBackButton(runCommand)
 }
