@@ -102,13 +102,10 @@ const startHiddenFlag = !!boot.flags.hidden
 // share (and clobber) one userData.
 if (customStorage) app.setPath('userData', customStorage)
 
-// DIAGNOSTIC — armed as soon as the profile path is settled (--storage moves it), and before the
-// updater, the worker host or any watcher can touch the disk. getDataDir is a thunk because
-// app.getPath is only meaningful after the line above. See src/main/dir-tripwire.js.
-require('./dir-tripwire.js').installDataDirTripwire({
-  getDataDir: () => app.getPath('userData'),
-  refuse: envOverride('MIRALL_TRIPWIRE_ALLOW') !== '1',
-})
+// The data-dir tripwire, armed as soon as the profile path is settled (--storage moves it), and
+// before the updater, the worker host or any watcher can touch the disk. getDataDir is a thunk
+// because app.getPath is only meaningful after the line above. See src/main/dir-tripwire.js.
+require('./dir-tripwire.js').installDataDirTripwire({ getDataDir: () => app.getPath('userData') })
 
 // Test hook: force Chromium to always build the renderer accessibility tree.
 // Without this, a backgrounded/secondary instance's web-content AX tree may
@@ -142,7 +139,7 @@ app.setAboutPanelOptions({
 const isDev = !app.isPackaged
 // The gate reads false until this runs, which only suppresses forwarding to the renderer — there
 // is no renderer this early, and the log ring is written either way. See debug-gate.js.
-initDebugGate({ isDev, env: { MIRALL_DEBUG: envOverride('MIRALL_DEBUG'), MIRALL_VERBOSE: envOverride('MIRALL_VERBOSE') } })
+initDebugGate({ isDev, env: { MIRALL_VERBOSE: envOverride('MIRALL_VERBOSE') } })
 
 let identityKEKHex = null
 let identityProtection = 'disabled'

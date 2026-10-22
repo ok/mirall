@@ -1,4 +1,4 @@
-// DIAGNOSTIC — the data-directory tripwire's rule, shared by both processes.
+// The data-directory tripwire's rule, shared by both processes.
 //
 // The live profile has been destroyed twice (2026-08-19, 2026-09-18) with no root cause. Reading
 // the code found nothing that removes a directory tree, so this catches the act instead: every

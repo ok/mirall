@@ -1,4 +1,4 @@
-// DIAGNOSTIC — the data-directory tripwire, Electron main's half. See
+// The data-directory tripwire, Electron main's half. See
 // src/shared/core/dir-tripwire.js for why this exists.
 //
 // `classifyResolved` is duplicated from that module rather than imported: main is CJS and must
@@ -73,7 +73,7 @@ function record(name, kind, args) {
  * the profile path after argv parsing (--storage moves it), and the guard has to be armed before
  * that without knowing the answer yet. An unset dir classifies as null and nothing is refused.
  */
-function installDataDirTripwire({ getDataDir, refuse = true } = {}) {
+function installDataDirTripwire({ getDataDir } = {}) {
   const sync = ['rmSync', 'rmdirSync', 'unlinkSync', 'renameSync']
   const async_ = ['rm', 'rmdir', 'unlink', 'rename']
   const arity = (name) => (name.startsWith('rename') ? 2 : 1)
@@ -94,8 +94,7 @@ function installDataDirTripwire({ getDataDir, refuse = true } = {}) {
       const kind = tripped(name, args)
       if (!kind) return orig(...args)
       record(name, kind, args)
-      if (refuse) throw new Error('refused by data-dir tripwire: fs.' + name + ' on the ' + kind)
-      return orig(...args)
+      throw new Error('refused by data-dir tripwire: fs.' + name + ' on the ' + kind)
     }
   }
 
@@ -106,7 +105,6 @@ function installDataDirTripwire({ getDataDir, refuse = true } = {}) {
       if (!kind) return orig(...args)
       record(name, kind, args)
       const cb = args[args.length - 1]
-      if (!refuse) return orig(...args)
       const err = new Error('refused by data-dir tripwire: fs.' + name + ' on the ' + kind)
       if (typeof cb === 'function') return cb(err)
       throw err
@@ -117,8 +115,7 @@ function installDataDirTripwire({ getDataDir, refuse = true } = {}) {
       const kind = tripped(name, args)
       if (!kind) return origP(...args)
       record(name, kind, args)
-      if (refuse) throw new Error('refused by data-dir tripwire: fs.promises.' + name + ' on the ' + kind)
-      return origP(...args)
+      throw new Error('refused by data-dir tripwire: fs.promises.' + name + ' on the ' + kind)
     }
   }
 
@@ -133,8 +130,7 @@ function installDataDirTripwire({ getDataDir, refuse = true } = {}) {
         const kind = tripped('rename', [a, b])
         if (!kind) return origSwap(a, b)
         record('fsx.swap', kind, [a, b])
-        if (refuse) throw new Error('refused by data-dir tripwire: fsx.swap on the ' + kind)
-        return origSwap(a, b)
+        throw new Error('refused by data-dir tripwire: fsx.swap on the ' + kind)
       }
     }
   } catch {}

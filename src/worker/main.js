@@ -65,7 +65,7 @@ import { installDataDirTripwire, armDataDirTripwire } from './dir-tripwire.js'
 import { boot } from './boot.js'
 import { refreshAuditSelfName } from './audit-refs.js'
 
-// DIAGNOSTIC — wrap bare-fs before the composition root can capture a reference to it. The rule
+// Wrap bare-fs before the composition root can capture a reference to it. The rule
 // stays inert until armDataDirTripwire runs with the bootstrap's storage path, below.
 installDataDirTripwire()
 
@@ -204,7 +204,7 @@ if (settingsLoad.imported) log.info('settings: imported from config.json')
 if (!settingsLoad.persisted) log.warn('settings: running on defaults, settings.json could not be', settingsLoad.broken ? 'read: ' + settingsLoad.broken : 'written')
 setRuntimeConfig(assembleRuntimeConfig({ bootstrap, settings: getSettings(), flags }))
 
-// DIAGNOSTIC — the bootstrap frame carries the storage path, which is the first moment the worker
+// The bootstrap frame carries the storage path, which is the first moment the worker
 // knows which directory to protect. Armed here, before boot() opens the Corestore, so every
 // migration and purge the data layer runs is already covered. See src/worker/dir-tripwire.js.
 armDataDirTripwire(bootstrap.storage)

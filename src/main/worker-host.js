@@ -187,7 +187,7 @@ function getWorker(specifier) {
   //
   //   Test and development levers — ignored by a packaged build (see env-overrides.js)
   //     PEAR_DEV_SERVER_URL               load the renderer from a dev server
-  //     MIRALL_DEBUG, MIRALL_VERBOSE      log level
+  //     MIRALL_VERBOSE                    verbose logging from launch
   //     MIRALL_DHT_BOOTSTRAP              a hermetic testnet instead of the public DHT
   //     MIRALL_DOWNLOAD_FOLDER            start from a known download folder
   //     MIRALL_WINDOW_BOUNDS              start from a known window size and position
@@ -195,7 +195,6 @@ function getWorker(specifier) {
   //     MIRALL_FEATURE_FLAGS              feature flags without a build
   //     MIRALL_FORCE_A11Y                 the AX tree the frontend suite drives
   //     MIRALL_NO_DEVTOOLS                no devtools window
-  //     MIRALL_TRIPWIRE_ALLOW             1 = the data-dir tripwire logs instead of refusing
   //     MIRALL_LIST_FILES_CAP             most files a folder listing shows, lowered to reach
   //                                       the truncation banner with a handful of files
   //     MIRALL_MAX_FILES_PER_SHARE        largest folder a user may share, lowered to reach
