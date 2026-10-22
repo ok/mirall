@@ -195,7 +195,6 @@ function getWorker(specifier) {
   //     MIRALL_FEATURE_FLAGS              feature flags without a build
   //     MIRALL_FORCE_A11Y                 the AX tree the frontend suite drives
   //     MIRALL_NO_DEVTOOLS                no devtools window
-  //     MIRALL_TRIPWIRE_ALLOW             1 = the data-dir tripwire logs instead of refusing
   //     MIRALL_LIST_FILES_CAP             most files a folder listing shows, lowered to reach
   //                                       the truncation banner with a handful of files
   //     MIRALL_MAX_FILES_PER_SHARE        largest folder a user may share, lowered to reach

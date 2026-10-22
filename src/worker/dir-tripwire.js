@@ -1,4 +1,4 @@
-// DIAGNOSTIC — the data-directory tripwire, the Bare worker's half. The rule and the reasoning
+// The data-directory tripwire, the Bare worker's half. The rule and the reasoning
 // live in src/shared/core/dir-tripwire.js; this wraps bare-fs with it.
 //
 // The worker is where the data layer runs, so this is the half most likely to catch something:
@@ -40,11 +40,11 @@ function record(name, kind, args) {
 }
 
 /**
- * Installed at module load, before boot() constructs anything. `refuse` throwing inside the data
+ * Installed at module load, before boot() constructs anything. Refusing inside the data
  * layer will almost certainly take the worker down — which is the point: a crash with a stack is
  * an answer, a silently destroyed profile is not.
  */
-export function installDataDirTripwire({ refuse = true } = {}) {
+export function installDataDirTripwire() {
   const tripped = (name, args) => {
     for (let i = 0; i < pathArity(name); i++) {
       const kind = classify(args[i])
@@ -60,8 +60,7 @@ export function installDataDirTripwire({ refuse = true } = {}) {
       const kind = tripped(name, args)
       if (!kind) return orig(...args)
       record(name, kind, args)
-      if (refuse) throw new Error('refused by data-dir tripwire: fs.' + name + ' on the ' + kind)
-      return orig(...args)
+      throw new Error('refused by data-dir tripwire: fs.' + name + ' on the ' + kind)
     }
   }
 
@@ -73,7 +72,6 @@ export function installDataDirTripwire({ refuse = true } = {}) {
       if (!kind) return orig(...args)
       record(name, kind, args)
       const cb = args[args.length - 1]
-      if (!refuse) return orig(...args)
       const err = new Error('refused by data-dir tripwire: fs.' + name + ' on the ' + kind)
       if (typeof cb === 'function') return cb(err)
       throw err
@@ -84,8 +82,7 @@ export function installDataDirTripwire({ refuse = true } = {}) {
       const kind = tripped(name, args)
       if (!kind) return origP(...args)
       record(name, kind, args)
-      if (refuse) throw new Error('refused by data-dir tripwire: fs.promises.' + name + ' on the ' + kind)
-      return origP(...args)
+      throw new Error('refused by data-dir tripwire: fs.promises.' + name + ' on the ' + kind)
     }
   }
 }
