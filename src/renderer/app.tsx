@@ -132,7 +132,7 @@ function AppShell({ nav, profile, onSaveProfile, deepLinks, identity }: AppShell
     })
   }, [nav.resetToRoot])
 
-  // The space list rides along because the native menu owns the ⌘1-9 chords: macOS resolves a menu
+  // The favorites ride along because the native menu owns the ⌘1-9 chords: macOS resolves a menu
   // key equivalent before Chromium's own digit accelerators, which otherwise swallow them before the
   // webContents ever sees the key.
   useEffect(() => {

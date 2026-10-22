@@ -19,7 +19,7 @@ function loadModule(name) {
 }
 
 const { KEYBOARD_SHORTCUTS, acceleratorFor, spaceDigitAccelerator } = loadModule('known-commands.ts')
-const { parseAccelerator } = loadModule('accelerator.ts')
+const { parseAccelerator, ariaKeyShortcuts } = loadModule('accelerator.ts')
 
 function rendererSources(exclude = []) {
   return readdirSync(RENDERER_DIR, { recursive: true })
@@ -70,7 +70,7 @@ test('every command id the main process sends is registered in the renderer', (t
   const sent = [...main.matchAll(/(?<![.\w])(?:send|sendKeyboardCommand)\((?:'([^']+)'|`([^`$]+)(\$\{))/g)]
     .map(([, literal, prefix, template]) => ({ id: literal ?? prefix, template }))
   t.ok(sent.some(({ id }) => id === 'about.open'), 'the About menu item is among the sent ids')
-  t.ok(sent.some(({ template }) => template), 'the Go to Space template is among the sent ids')
+  t.ok(sent.some(({ template }) => template), 'the Go to Favorite template is among the sent ids')
   const sources = rendererSources()
   for (const { id, template } of sent) {
     const registered = template ? `id: \`${id}\${` : `id: '${id}'`
@@ -121,4 +121,11 @@ test('space digit accelerators cover exactly the documented range', (t) => {
   t.is(spaceDigitAccelerator(0), range.accelerator, 'first space matches the range start')
   t.is(spaceDigitAccelerator(last - 1), range.acceleratorRangeEnd, 'last space matches the range end')
   t.is(spaceDigitAccelerator(last), undefined, 'nothing past the range gets a chord')
+})
+
+test('a chord reads the same as an aria-keyshortcuts value', (t) => {
+  // Loaded under Node, so mod resolves to the Windows/Linux Control.
+  t.is(ariaKeyShortcuts(spaceDigitAccelerator(0)), 'Control+1')
+  t.is(ariaKeyShortcuts(acceleratorFor('shortcuts.show')), 'Control+/')
+  t.is(ariaKeyShortcuts(acceleratorFor('space.addFolder')), 'Control+Shift+u')
 })

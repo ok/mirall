@@ -1,7 +1,7 @@
 // "Learn more" card for the empty states. The documentation is English-only while the app
 // ships five languages, so a non-English UI gets one note at the foot of the card rather
 // than a language suffix on every link.
-import { useId } from 'react'
+import { useId, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { docsUrl, type DocsTarget } from '../../shell/docs-links.js'
 import Icon from '../primitives/Icon.js'
@@ -17,14 +17,15 @@ interface DocsCardProps {
   icon: IconName
   title: string
   body: string
-  links: DocsCardEntry[]
+  links?: DocsCardEntry[]
+  children?: ReactNode
   className?: string
 }
 
-export default function DocsCard({ icon, title, body, links, className }: DocsCardProps) {
+export default function DocsCard({ icon, title, body, links = [], children, className }: DocsCardProps) {
   const { t, i18n } = useTranslation()
   const headingId = useId()
-  const showEnglishNote = !(i18n.language ?? 'en').startsWith('en')
+  const showEnglishNote = links.length > 0 && !(i18n.language ?? 'en').startsWith('en')
 
   return (
     <section
@@ -38,13 +39,16 @@ export default function DocsCard({ icon, title, body, links, className }: DocsCa
         <div className="min-w-0">
           <h3 id={headingId} className="font-headline font-bold text-accent mb-1">{title}</h3>
           <p className="text-sm text-on-surface-variant leading-relaxed mb-4">{body}</p>
-          <ul className="space-y-1">
-            {links.map((link) => (
-              <li key={docsUrl(link.target)}>
-                <DocsLink target={link.target} label={link.label} />
-              </li>
-            ))}
-          </ul>
+          {links.length > 0 && (
+            <ul className="space-y-1">
+              {links.map((link) => (
+                <li key={docsUrl(link.target)}>
+                  <DocsLink target={link.target} label={link.label} />
+                </li>
+              ))}
+            </ul>
+          )}
+          {children}
           {showEnglishNote && (
             <p className="text-xs text-on-surface-variant mt-4">{t('docs.englishNote')}</p>
           )}

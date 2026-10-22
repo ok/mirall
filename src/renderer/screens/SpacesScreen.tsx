@@ -7,10 +7,13 @@ import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import SpaceCard from '../components/cards/SpaceCard.js'
 import Button from '../components/primitives/Button.js'
 import DocsCard from '../components/cards/DocsCard.js'
+import FavoritesEmptyState from '../components/space/FavoritesEmptyState.js'
 import BackupPromptCard from '../components/backup/BackupPromptCard.js'
 import { useRestoreHold } from '../hooks/useRestoreHold.js'
 import { useHeldControl } from '../hooks/useHeldControl.js'
 import { inHeldOrder } from '../model/held-order.js'
+import { shortcutOrder } from '../model/space-shortcut-order.js'
+import { spaceDigitAccelerator } from '../keyboard/known-commands.js'
 
 const LABEL_REFRESH_MS = 60000
 
@@ -46,6 +49,7 @@ export default function YourSpaces({ onSelectSpace, onShowCreate, onShowJoin }: 
   const filteredSpaces = filter === 'favorites'
     ? ordered.filter(s => s.favorite)
     : ordered
+  const shortcuts = new Map(shortcutOrder(spaces).map((s, i) => [s.spaceId, spaceDigitAccelerator(i)]))
 
   return (
     <div className="max-w-(--breakpoint-2xl) mx-auto px-8 flex flex-col h-[calc(100vh-5rem-var(--banner-h,0px))] pb-8">
@@ -115,17 +119,13 @@ export default function YourSpaces({ onSelectSpace, onShowCreate, onShowJoin }: 
             />
           </div>
         )}
-        {!loading && filteredSpaces.length === 0 && filter === 'favorites' && (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <h2 className="text-2xl font-headline font-bold text-accent mb-3">{t('spaces.emptyNoFavorites')}</h2>
-            <p className="text-on-surface-variant max-w-md leading-relaxed">{t('spaces.emptyNoFavoritesHint')}</p>
-          </div>
-        )}
+        {!loading && filteredSpaces.length === 0 && filter === 'favorites' && <FavoritesEmptyState />}
         {filteredSpaces.map((space) => (
           <div role="listitem" key={space.spaceId}>
             <SpaceCard
               space={space}
               now={now}
+              shortcut={shortcuts.get(space.spaceId)}
               onClick={() => onSelectSpace(space.spaceId)}
             />
           </div>

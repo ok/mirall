@@ -3,10 +3,11 @@ import { Instance } from '../instance.mjs'
 import { makeReport, assert } from '../assert.mjs'
 
 // Empty states: a fresh profile shows the no-spaces and no-favorites copy, a freshly
-// created space shows the empty-share copy, and both carry a docs card linking out to
-// mirall.app. Selectors match on `contains`, not `name`: the sr-only "Opens mirall.app in
-// your browser" span is part of each link's accessible name on purpose. The role assertion
-// is the a11y guarantee — these must stay anchors, not buttons wired to an onClick.
+// created space shows the empty-share copy. The no-spaces and empty-share states carry a docs
+// card linking out to mirall.app; the no-favorites card stays in the app. Selectors match on
+// `contains`, not `name`: the sr-only "Opens mirall.app in your browser" span is part of each
+// link's accessible name on purpose. The role assertion is the a11y guarantee — these must stay
+// anchors, not buttons wired to an onClick.
 export default async function s21({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
@@ -26,10 +27,20 @@ export default async function s21({ runDir, bootstrap }) {
       assert(await A.hasText('Opens mirall.app in your browser'), 'the destination is in the accessible name')
       await A.shot('s21-no-spaces-docs', runDir)
     })
-    await r.ok('the Favorites tab is empty and carries no docs card', async () => {
+    await r.ok('the empty Favorites tab explains favorites and their shortcuts', async () => {
       await A.click({ name: 'Favorites' })
       await A.waitText('No favorites yet', 8000)
-      assert(!(await A.hasText('New to Mirall?')), 'the favorites empty state stays bare')
+      await A.waitText('What favorites do', 8000)
+      assert(!(await A.hasText('New to Mirall?')), 'the no-spaces docs card is not shown')
+      assert(!(await A.hasText('Opens mirall.app in your browser')), 'the card links nowhere outside the app')
+      await A.shot('s21-no-favorites', runDir)
+    })
+    await r.ok('the favorites card opens the keyboard shortcuts', async () => {
+      await A.click({ role: 'button', name: 'See all keyboard shortcuts' })
+      await A.waitText('Jump to a favorite by number', 8000)
+      await A.click({ role: 'button', name: 'Close' })
+      await new Promise((res) => setTimeout(res, 400))
+      assert(!(await A.hasText('Jump to a favorite by number')), 'the shortcuts dialog closed')
       await A.click({ name: 'All Spaces' })
     })
     await r.ok('a new space shows the empty-share copy', async () => {

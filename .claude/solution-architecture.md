@@ -618,9 +618,10 @@ this device, and its author's time cannot be trusted. A member's folder share is
 something reads its catalog (a listing, a download, a mirror), so edits in a share nobody here has
 opened do not move the space until it is.
 It is bookkeeping for backups (no hint, no snapshot of its own) and appears in no report that
-leaves the device. The ⌘1-9 shortcuts deliberately do not follow it: they number favorites first,
-then the oldest spaces (`src/renderer/model/space-shortcut-order.js`), so activity never moves a
-digit; only a favorite toggled, or a space before it left, does. The renderer holds the grid's order
+leaves the device. The ⌘1-9 shortcuts deliberately do not follow it: they number favorites only,
+oldest first (`src/renderer/model/space-shortcut-order.js`), so activity never moves a digit; only
+a favorite toggled, or a favorite before it left, does. A space that is not a favorite has no
+digit, so a number never appears on a space the user did not pin. The renderer holds the grid's order
 while the pointer is over it or focus is in it (`src/renderer/model/held-order.js`), so a card never
 moves under a click or a Tab, and a push re-sorts the list only when the order or a card's "now"
 would change (`src/worker/space-order-push.js`).

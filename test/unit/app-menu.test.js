@@ -193,23 +193,23 @@ test('the Activity Log Find chord stays out of the native menu', (t) => {
   t.absent(json.includes('CmdOrCtrl+F'), 'no global Find accelerator')
 })
 
-test('Go to Space lists the spaces it is given and binds them to mod+1..9', (t) => {
+test('Go to Favorite lists the favorites it is given and binds them to mod+1..9', (t) => {
   const spaces = Array.from({ length: 12 }, (_, i) => ({ id: `s${i}`, name: `Space ${i}` }))
   const view = find(buildAppMenuTemplate({ ...baseOpts, platform: 'darwin', spaces }), 'View').submenu
-  const go = findInSubmenu(view, 'Go to Space')
-  t.ok(go, 'Go to Space submenu present')
+  const go = findInSubmenu(view, 'Go to Favorite')
+  t.ok(go, 'Go to Favorite submenu present')
   t.is(go.submenu.length, 9, 'only the first nine spaces get a chord')
   t.is(go.submenu[0].label, 'Space 0', 'first item is the first space')
   t.is(go.submenu[0].accelerator, 'CmdOrCtrl+1', 'first space bound to mod+1')
   t.is(go.submenu[8].accelerator, 'CmdOrCtrl+9', 'ninth space bound to mod+9')
 })
 
-test('Go to Space is omitted with no spaces and escapes Windows mnemonics', (t) => {
+test('Go to Favorite is omitted with no favorites and escapes Windows mnemonics', (t) => {
   const empty = find(buildAppMenuTemplate({ ...baseOpts, platform: 'darwin' }), 'View').submenu
-  t.absent(findInSubmenu(empty, 'Go to Space'), 'no empty submenu when there are no spaces')
+  t.absent(findInSubmenu(empty, 'Go to Favorite'), 'no empty submenu when there are no favorites')
 
   const view = find(buildAppMenuTemplate({ ...baseOpts, platform: 'win32', spaces: [{ id: 'a', name: 'R&D' }] }), 'View').submenu
-  t.is(findInSubmenu(view, 'Go to Space').submenu[0].label, 'R&&D', 'a lone & is escaped so it renders')
+  t.is(findInSubmenu(view, 'Go to Favorite').submenu[0].label, 'R&&D', 'a lone & is escaped so it renders')
 })
 
 test('inSpace: false → Add Files / Add Folder / Invite disabled', (t) => {

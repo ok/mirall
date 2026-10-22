@@ -61,7 +61,7 @@ function buildAppMenuTemplate({ platform, isDev, inSpace, spaces = [], appName, 
   // only place this chord can live. It doubles as the discoverable form of it.
   if (spaces.length > 0) {
     viewSubmenu.push({
-      label: 'Go to Space',
+      label: 'Go to Favorite',
       submenu: spaces.slice(0, 9).map((space, i) => ({
         // Windows menus read a lone '&' as a mnemonic marker; '&&' renders one.
         label: String(space.name ?? '').replace(/&/g, '&&'),
