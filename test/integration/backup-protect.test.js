@@ -308,5 +308,6 @@ test('after setup the verdict says why it is at risk: a new folder, then a folde
   fs.rmSync(other, { recursive: true, force: true })
   const failed = await fake.call('backup:run', {})
   t.is(failed.state, 'error')
-  t.is(failed.verdictReason, 'failing', 'a failing backup is not shown as protected')
+  t.is(failed.verdictReason, 'offline', 'a folder that is gone is named as the cause, not shown as protected')
+  t.is(failed.lastError, 'BACKUP_TARGET_OFFLINE')
 })

@@ -72,6 +72,10 @@ and Backup settings no longer shows the warning.
 could not be written into the mirror was tried again every few seconds
 without pausing the mirror or telling you. It now pauses like any other
 disk problem and resumes cleanly once there is space.
+- **A disconnected backup folder no longer makes Backup flicker.** Mirall
+retried it as fast as it could and the error came and went. It now waits
+longer between tries and says once, in the backup status, that the folder
+isn't connected.
 - **One file another program holds no longer pauses the whole mirror.**
 Mirall now retries that file while the rest of the folder still takes
 writes, instead of pausing the mirror for a permission error.

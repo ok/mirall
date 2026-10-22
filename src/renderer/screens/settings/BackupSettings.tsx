@@ -19,6 +19,7 @@ import PathRow from '../../components/path/PathRow.js'
 import Button from '../../components/primitives/Button.js'
 import Toggle from '../../components/primitives/Toggle.js'
 import InlineError from '../../components/primitives/InlineError.js'
+import Callout from '../../components/primitives/Callout.js'
 import ConfirmDestructiveModal from '../../components/modals/ConfirmDestructiveModal.js'
 import VerdictBanner from '../../components/backup/VerdictBanner.js'
 import RestoreProgress from '../../components/backup/RestoreProgress.js'
@@ -26,6 +27,7 @@ import BackupDialogs, { type BackupDialog } from '../../components/backup/Backup
 import ManagedNote from '../../components/managed/ManagedNote.js'
 import { useManagedBackupFolder, type ManagedBackupFolder } from '../../hooks/useManagedBackupFolder.js'
 import { useManagedSetting } from '../../hooks/useManagedSetting.js'
+import { CODES } from '../../../shared/contract/errors.js'
 
 interface BackupSettingsProps {
   onBack: () => void
@@ -85,11 +87,11 @@ export default function BackupSettings({ onBack }: BackupSettingsProps) {
     }
   }
 
+  const managed = useManagedBackupFolder()
   const restoring = hold.active || hold.heldSpaceIds.length > 0
-  const banner = restoring ? { lamp: 'paused' as const, key: 'restoring', fix: null } : status ? protectionBanner(status) : null
+  const banner = restoring ? { lamp: 'paused' as const, key: 'restoring', fix: null } : status ? protectionBanner(status, { locked: !!managed.folder }) : null
   const setUp = !!status?.folder
   const configurable = !!status && !restoring && status.state !== 'paused'
-  const managed = useManagedBackupFolder()
 
   return (
     <div ref={ref} className={`relative h-[calc(100vh-5.5rem-var(--banner-h,0px))] overflow-y-auto scrollbar-thin pb-8 mr-2 ${hasOverflow ? 'pr-4' : ''}`}>
@@ -142,9 +144,11 @@ async function setReminders(enabled: boolean) {
   await request('backup:reminders', { enabled })
 }
 
+// The last run's failure stays said until a run succeeds, through the retries in between. A folder that
+// is not connected is the banner's to say, and the folder section's.
 function StatusNotes({ status, error }: { status: BackupStatus; error: string | null }) {
   const errorText = useErrorText()
-  const failure = status.state === 'error' && status.lastError ? errorText({ code: status.lastError }) : null
+  const failure = status.lastError && status.lastError !== CODES.BACKUP_TARGET_OFFLINE ? errorText({ code: status.lastError }) : null
   if (!failure && !error) return null
   return (
     <div className="space-y-3">
@@ -191,11 +195,13 @@ interface FolderSectionProps {
 
 function FolderSection({ status, busy, managed, onChange }: FolderSectionProps) {
   const { t } = useTranslation()
-  const offline = status.state === 'error' && status.lastError === 'BACKUP_TARGET_OFFLINE'
+  const offline = status.lastError === CODES.BACKUP_TARGET_OFFLINE
   const locked = !!managed.folder && !!managed.org
-  const hint = locked
-    ? (offline ? t('backup.managedShareOffline', { org: managed.org }) : t('backup.managedFolder'))
-    : (offline ? t('backup.folderOffline') : t('backup.folderHint'))
+  const describedBy = [
+    'backup-folder-desc',
+    locked ? managed.noteId : null,
+    offline ? 'backup-folder-offline' : null,
+  ].filter(Boolean).join(' ')
   return (
     <section>
       <SectionHeading>{t('backup.folderTitle')}</SectionHeading>
@@ -206,10 +212,16 @@ function FolderSection({ status, busy, managed, onChange }: FolderSectionProps) 
           onAction={onChange}
           subject={t('backup.folderSubject')}
           actionDisabled={busy || locked}
-          ariaDescribedBy={locked ? `backup-folder-desc ${managed.noteId}` : 'backup-folder-desc'}
+          ariaDescribedBy={describedBy}
         />
         {locked && managed.org && <ManagedNote id={managed.noteId} org={managed.org} className="px-1" />}
-        <p className="text-xs text-on-surface-variant px-1">{hint}</p>
+        {offline ? (
+          <Callout tone="warning" id="backup-folder-offline">
+            {locked ? t('backup.managedShareOffline', { org: managed.org }) : t('backup.folderOffline')}
+          </Callout>
+        ) : (
+          <p className="text-xs text-on-surface-variant px-1">{t(locked ? 'backup.managedFolder' : 'backup.folderHint')}</p>
+        )}
       </div>
     </section>
   )
