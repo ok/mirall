@@ -6,7 +6,7 @@
 /** @typedef {'protected' | 'at-risk' | 'stopped' | 'paused'} Lamp */
 /** @typedef {'setup' | 'check' | 'new-key' | 'run' | null} Fix */
 
-/** @type {Record<NonNullable<BackupStatus['verdictReason']>, { key: string, fix: Fix }>} */
+/** @type {Record<Exclude<NonNullable<BackupStatus['verdictReason']>, 'offline'>, { key: string, fix: Fix }>} */
 const BY_REASON = {
   'not-set-up': { key: 'notSetUp', fix: 'setup' },
   'required-not-set-up': { key: 'requiredNotSetUp', fix: 'setup' },
@@ -24,13 +24,16 @@ export function protectionLamp(status) {
   return status.verdict
 }
 
-// A protected backup still offers Back up now: the banner is where the screen's one action lives.
-/** @param {BackupStatus} status @returns {{ lamp: Lamp, key: string, fix: Fix } | null} */
-export function protectionBanner(status) {
+// A protected backup still offers Back up now: the banner is where the screen's one action lives. A
+// folder that is not connected is named for what can fix it: an organization's share cannot be swapped
+// for another folder, and a folder gone long enough to stop the backup says how long, too.
+/** @param {BackupStatus} status @param {{ locked?: boolean }} [opts] @returns {{ lamp: Lamp, key: string, fix: Fix } | null} */
+export function protectionBanner(status, { locked = false } = {}) {
   const lamp = protectionLamp(status)
   if (!lamp) return null
   if (lamp === 'paused') return { lamp, key: 'paused', fix: null }
   if (!status.verdictReason) return { lamp, key: 'protected', fix: 'run' }
+  if (status.verdictReason === 'offline') return { lamp, key: `offline${locked ? 'Share' : ''}${lamp === 'stopped' ? 'Stale' : ''}`, fix: 'run' }
   return { lamp, ...BY_REASON[status.verdictReason] }
 }
 

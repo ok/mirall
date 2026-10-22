@@ -615,7 +615,7 @@ export interface BackupStatus {
   prompt: 'offer' | 'check' | null
   stale: boolean
   verdict: 'protected' | 'at-risk' | 'stopped' | null
-  verdictReason: 'not-set-up' | 'required-not-set-up' | 'failing' | 'first-backup' | 'key-not-in-folder' | 'unconfirmed' | 'stale' | 'no-key' | null
+  verdictReason: 'not-set-up' | 'required-not-set-up' | 'failing' | 'first-backup' | 'key-not-in-folder' | 'unconfirmed' | 'stale' | 'no-key' | 'offline' | null
 }
 
 /** What a backup folder shows before any passphrase: a backup, the date of the key it keeps, and its newest snapshot's time. */
