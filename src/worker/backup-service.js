@@ -262,7 +262,7 @@ export class Backup extends Subsystem {
         stopAt: () => this.cutoffAt,
       })
       this.lastRunAt = Date.now()
-      if (this.config.folder !== folder) return
+      if (!this.stillNames(folder)) return
       this.failures = 0
       if (result.repoId !== repoId) await this.remember({ folder, repoId: result.repoId })
       await this.keepKeyInFolder(folder)
@@ -280,11 +280,18 @@ export class Backup extends Subsystem {
     } catch (err) {
       this.lastRunAt = Date.now()
       this.dirty = mergeDirty(taken, this.dirty)
-      if (this.config.folder !== folder) return
+      if (!this.stillNames(folder)) return
       this.failures += 1
       this.report({ state: 'error', lastError: err.code || CODES.UNKNOWN })
       this.log.warn('backup', reason, 'failed:', err.code || err.message)
     }
+  }
+
+  // A run's outcome is recorded only while its folder is still the one in force. The organization's
+  // folder can go mid-run, before reconsider() catches config up, and recording then would make it
+  // the person's own.
+  stillNames(folder) {
+    return this.config.folder === folder && this.effectiveConfig(this.state).folder === folder
   }
 
   // The key this device keeps goes back into the folder when the folder lacks it. A newer key of this
@@ -324,7 +331,8 @@ export class Backup extends Subsystem {
   }
 
   // Set up in one go: the folder, then the recovery key sealed under the passphrase, written into the
-  // folder and opened back from there with the same passphrase, then the first backup.
+  // folder and opened back from there with the same passphrase. The first backup starts then and runs
+  // in the background like any other, so setup answers before it ends; its status reads as running.
   async setUp(folder, passphrase) {
     assertPassphrase(passphrase)
     this.assertFolder(folder)
@@ -337,7 +345,8 @@ export class Backup extends Subsystem {
     const chosen = folderChosen(this.state, now)
     await this.persist(managed ? { ...chosen, managed: { repoId: null, ...this.state.managed, folder, setupAt: now } } : chosen)
     await this.configure(folder)
-    return this.run('setup')
+    this.runSoon('setup')
+    return this.status()
   }
 
   async newKey(passphrase) {

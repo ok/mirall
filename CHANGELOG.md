@@ -9,6 +9,20 @@ build-pipeline tweaks, and dependency bumps that don't change how the app
 behaves are intentionally omitted. Releases that contained only such
 changes do not appear here.
 
+## Unreleased
+
+### Changed
+
+- **Setting up a backup no longer waits for the first backup.** The dialog
+  closes once your passphrase is checked, and the first backup runs in the
+  background while you keep working. Settings → Backup shows its progress.
+
+### Fixed
+
+- **Leaving an organization during its first backup no longer keeps backing
+  up to the organization's folder.** That folder could become your own
+  backup folder.
+
 ## v1.13.0
 
 ### 2026-10-24
