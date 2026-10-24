@@ -58,6 +58,8 @@ export default async function s160({ runDir, bootstrap }) {
     await r.ok('setup takes a folder and a passphrase in two steps', async () => {
       await A.click({ role: 'button', name: 'Set up backup' })
       await setUpBackup(A, backupDir, PASS)
+      // The dialog closes once the passphrase is checked; the first backup runs on behind it.
+      await A.waitText('The first backup is running', 8000)
       await A.waitText("You're protected", 120000)
     })
     await r.ok('the one screen holds the status, the folder and the passphrase', async () => {

@@ -331,7 +331,8 @@ export class Backup extends Subsystem {
   }
 
   // Set up in one go: the folder, then the recovery key sealed under the passphrase, written into the
-  // folder and opened back from there with the same passphrase, then the first backup.
+  // folder and opened back from there with the same passphrase. The first backup starts then and runs
+  // in the background like any other, so setup answers before it ends; its status reads as running.
   async setUp(folder, passphrase) {
     assertPassphrase(passphrase)
     this.assertFolder(folder)
@@ -344,7 +345,8 @@ export class Backup extends Subsystem {
     const chosen = folderChosen(this.state, now)
     await this.persist(managed ? { ...chosen, managed: { repoId: null, ...this.state.managed, folder, setupAt: now } } : chosen)
     await this.configure(folder)
-    return this.run('setup')
+    this.runSoon('setup')
+    return this.status()
   }
 
   async newKey(passphrase) {

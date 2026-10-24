@@ -146,10 +146,10 @@ export default function BackupSetupModal({ isOpen, onClose }: BackupSetupModalPr
                 onConfirmation={setConfirmation}
               />
               <Callout tone="warning" title={t('backupSetup.keepSafeTitle')}>{t('backupSetup.keepSafeBody')}</Callout>
-              {busy && <p role="status" className="text-sm text-on-surface-variant">{t('backupSetup.working')}</p>}
+              {busy && <p role="status" className="sr-only">{t('backupSetup.working')}</p>}
               <ModalFooter>
                 <Button variant="secondary" size="lg" onClick={() => { setStep(1); setError(null) }} disabled={busy}>{t('actions.back')}</Button>
-                <Button size="lg" icon="shield" onClick={() => void turnOn()} disabled={verdict !== 'ok'} ariaDisabled={busy}>{t('backupSetup.turnOn')}</Button>
+                <Button size="lg" icon="shield" onClick={() => void turnOn()} disabled={verdict !== 'ok'} ariaDisabled={busy}>{t(busy ? 'backupSetup.working' : 'backupSetup.turnOn')}</Button>
               </ModalFooter>
             </>
           )}

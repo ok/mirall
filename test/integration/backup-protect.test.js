@@ -59,6 +59,13 @@ async function start(t, d, { masterSecret, folder = null, repoId = null, profile
   return { root, fake }
 }
 
+// Setup answers before its first backup ends; the tests that need that backup wait for it.
+async function setUpBackup(fake, folder) {
+  await fake.call('backup:setup', { folder, passphrase: PASS })
+  await waitFor(async () => (await fake.call('backup:status', {})).lastSuccessAt !== null, 20000, { label: 'the first backup' })
+  return fake.call('backup:status', {})
+}
+
 async function codeOf(promise) {
   try {
     await promise
@@ -83,12 +90,19 @@ test('setup writes the folder, the key it can open, and the first backup', async
   const { fake } = await start(t, d, { masterSecret: crypto.randomBytes(32) })
   t.is((await fake.call('backup:status', {})).verdict, 'at-risk', 'nothing backed up yet')
 
-  const status = await fake.call('backup:setup', { folder, passphrase: PASS })
+  const answered = await fake.call('backup:setup', { folder, passphrase: PASS })
+  t.is(answered.state, 'running', 'setup answers while the first backup runs')
+  t.is(answered.lastSuccessAt, null)
+  t.is(answered.verdictReason, 'first-backup')
+  t.ok(answered.key.checkedAt, 'the key was opened back before setup answered')
+  t.is(keyFiles(folder).length, 1)
+
+  await waitFor(async () => (await fake.call('backup:status', {})).lastSuccessAt !== null, 20000, { label: 'the first backup' })
+  const status = await fake.call('backup:status', {})
   t.is(status.verdict, 'protected')
   t.ok(status.key.reminders)
   t.is(status.folder, folder)
   t.is(status.state, 'idle')
-  t.ok(status.lastSuccessAt, 'the first backup ran')
   t.ok(status.key.createdAt)
   t.ok(status.key.inFolder)
   t.ok(status.key.checkedAt, 'the key was opened back with the passphrase')
@@ -112,7 +126,7 @@ test('the passphrase check and a new passphrase', async (t) => {
   const d = dirs(t, 'keys')
   const folder = backupFolder(t)
   const { fake } = await start(t, d, { masterSecret: crypto.randomBytes(32) })
-  const first = await fake.call('backup:setup', { folder, passphrase: PASS })
+  const first = await setUpBackup(fake, folder)
 
   t.is(await codeOf(fake.call('backup:check-key', { passphrase: 'not the passphrase at all' })), 'WRONG_PASSPHRASE')
   const checked = await fake.call('backup:check-key', { passphrase: PASS })
@@ -147,7 +161,7 @@ test('the last success and the key survive a restart, and a deleted key is put b
   const folder = backupFolder(t)
   const masterSecret = crypto.randomBytes(32)
   const first = await start(t, d, { masterSecret })
-  const setUp = await first.fake.call('backup:setup', { folder, passphrase: PASS })
+  const setUp = await setUpBackup(first.fake, folder)
   await first.root.close()
 
   fs.rmSync(path.join(folder, KEYS_DIR), { recursive: true, force: true })
@@ -167,7 +181,7 @@ test('REGRESSION (restored device asked for a passphrase): a device with no reco
   const folder = backupFolder(t)
   const masterSecret = crypto.randomBytes(32)
   const first = await start(t, d, { masterSecret })
-  const setUp = await first.fake.call('backup:setup', { folder, passphrase: PASS })
+  const setUp = await setUpBackup(first.fake, folder)
   await first.root.close()
 
   fs.rmSync(path.join(d.home, BACKUP_STATE_FILE))
@@ -184,7 +198,7 @@ test('a new device restores from the folder with only the passphrase', async (t)
   const folder = backupFolder(t)
   const source = dirs(t, 'source')
   const original = await start(t, source, { masterSecret: crypto.randomBytes(32) })
-  const setUp = await original.fake.call('backup:setup', { folder, passphrase: PASS })
+  const setUp = await setUpBackup(original.fake, folder)
   await original.root.close()
 
   const device = await start(t, dirs(t, 'device'), { masterSecret: crypto.randomBytes(32), profile: false })
@@ -209,7 +223,7 @@ test('a new device restores from the folder with only the passphrase', async (t)
 test('a folder that holds another identity\'s backup is refused, and its key is left alone', async (t) => {
   const folder = backupFolder(t)
   const other = await start(t, dirs(t, 'other'), { masterSecret: crypto.randomBytes(32) })
-  await other.fake.call('backup:setup', { folder, passphrase: PASS })
+  await setUpBackup(other.fake, folder)
   await other.root.close()
   const theirKey = keyFiles(folder)
 
@@ -223,7 +237,7 @@ test('a key kept for another identity is dropped after an identity change', asyn
   const d = dirs(t, 'switch')
   const folder = backupFolder(t)
   const first = await start(t, d, { masterSecret: crypto.randomBytes(32) })
-  const setUp = await first.fake.call('backup:setup', { folder, passphrase: PASS })
+  const setUp = await setUpBackup(first.fake, folder)
   await first.root.close()
 
   const other = await start(t, d, { masterSecret: crypto.randomBytes(32), folder, repoId: setUp.repoId, profile: false })
@@ -235,7 +249,7 @@ test('a key kept for another identity is dropped after an identity change', asyn
 test('a folder keeping only another identity\'s key is refused, and the key stays', async (t) => {
   const theirs = backupFolder(t)
   const other = await start(t, dirs(t, 'keyonly-other'), { masterSecret: crypto.randomBytes(32) })
-  await other.fake.call('backup:setup', { folder: theirs, passphrase: PASS })
+  await setUpBackup(other.fake, theirs)
   await other.root.close()
 
   const folder = backupFolder(t)
@@ -252,7 +266,7 @@ test('a newer key of this identity in the folder is taken, not overwritten', asy
   const d = dirs(t, 'newer')
   const folder = backupFolder(t)
   const { fake } = await start(t, d, { masterSecret: crypto.randomBytes(32) })
-  await fake.call('backup:setup', { folder, passphrase: PASS })
+  await setUpBackup(fake, folder)
 
   const createdAt = new Date(Date.now() + 60000).toISOString()
   const content = await sealRecoveryKey('a newer long passphrase', { createdAt })
@@ -279,7 +293,7 @@ test('the passphrase reminder can be turned off and on, and the verdict follows 
   const folder = backupFolder(t)
   const masterSecret = crypto.randomBytes(32)
   const first = await start(t, d, { masterSecret })
-  const setUp = await first.fake.call('backup:setup', { folder, passphrase: PASS })
+  const setUp = await setUpBackup(first.fake, folder)
   t.absent((await first.fake.call('backup:reminders', { enabled: false })).key.reminders)
   t.ok((await first.fake.call('backup:reminders', { enabled: true })).key.reminders)
   await first.fake.call('backup:reminders', { enabled: false })
@@ -298,7 +312,7 @@ test('after setup the verdict says why it is at risk: a new folder, then a folde
   const d = dirs(t, 'risk')
   const folder = backupFolder(t)
   const { fake } = await start(t, d, { masterSecret: crypto.randomBytes(32) })
-  await fake.call('backup:setup', { folder, passphrase: PASS })
+  await setUpBackup(fake, folder)
 
   const other = backupFolder(t)
   const moved = await fake.call('backup:configure', { folder: other })

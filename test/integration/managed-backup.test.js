@@ -83,6 +83,17 @@ test('leaving the organization brings back the person\'s own (empty) backup sett
   t.ok(fs.existsSync(p.view.backupFolder), 'the backup on the share stays')
 })
 
+test('REGRESSION (FIX-5: left mid-run): leaving during the first backup never makes the organization\'s folder the person\'s own', async (t) => {
+  const share = tmpDir('managed-share-midrun', t)
+  const p = await setup(t, { share, required: false })
+  const started = await p.fake.call('backup:setup', { folder: p.view.backupFolder, passphrase: PASS })
+  t.is(started.state, 'running', 'the first backup is still running')
+  await p.fake.call('managed:leave', {})
+  await waitFor(async () => (await p.fake.call('backup:status', {})).state !== 'running', 20000, { label: 'the first backup ended' })
+  t.alike(p.ownSettings(), { folder: null, repoId: null }, 'the person\'s own setting stays empty')
+  t.is((await p.fake.call('backup:status', {})).folder, null)
+})
+
 test('REGRESSION (FIX-4: inherited setup): a device backing up to its own folder is not set up on the organization\'s', async (t) => {
   const share = tmpDir('managed-share-own', t)
   const peer = await freshPeer(t)
@@ -91,6 +102,7 @@ test('REGRESSION (FIX-4: inherited setup): a device backing up to its own folder
   setRuntimeConfig({ ...getRuntimeConfig(), managedTestSigningKey: SIGNER.publicHex, managedAllowHttpLoopback: true, managedPreviewTimeoutMs: 1500, managedHttpsPollMs: 60_000 })
   await createSpace('Projects')
   await peer.fake.call('backup:setup', { folder: tmpDir('managed-own-folder', t), passphrase: PASS })
+  await waitFor(async () => (await peer.fake.call('backup:status', {})).lastSuccessAt !== null, 20000, { label: 'a backup on the own folder' })
   const api = await startManagedConsole(t)
   const org = organization({ apiUrl: api.apiUrl })
   const settings = { [backupFolderKey(devicePlatform())]: `${share}/{user}/{install}` }
