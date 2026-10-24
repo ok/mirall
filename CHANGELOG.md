@@ -11,29 +11,34 @@ changes do not appear here.
 
 ## v1.13.0
 
-### Unreleased
+### 2026-10-24
 
-Invite people with a link that works in a browser, and a set of mirror
-fixes: a stopped mirror keeps your edits, a full disk pauses it instead of
-retrying forever, and a paused mirror no longer cancels your own download.
+Organizations can now manage Mirall: with an activation link from its
+administrator, an organization sets your relay, Activity Log recording and
+backup folder. Also a download folder for each space, files you can select
+and act on together, and invites that open in a browser.
 
 #### Added
 
+- **Connect Mirall to your organization.** With an activation link from its
+administrator, an organization can set your relay, Activity Log recording
+and a required backup folder. About Mirall → Organization lists what it
+manages, and you can leave there.
 - **Choose where downloads go.** Each space keeps its own download folder,
 named next to the filter. Every Download button offers your recent folders
 and the folder picker, and the folder you pick becomes the space's.
 - **Select several files and act on them together.** In a folder you browse
 and on a space's file list, tick files and download or unshare them at
 once. A folder's files keep their folders under your download folder.
-- **Invite with a web link.** The invite dialog can hand out a link that
-opens in a browser. People who don't have Mirall yet are offered the
-download first, then join the space; the Join dialog accepts the link
-pasted from any site.
 - **Filter a space's files.** The space screen gained the folder screen's
 filter field, so a file can be found by name among folders and loose files.
 - **⌘F (Ctrl+F) jumps to the filter** on a space or folder screen. The
 command palette also opens Backup settings and, on a computer an
 organization manages, the organization's page.
+- **Invite with a web link.** The invite dialog can hand out a link that
+opens in a browser. People who don't have Mirall yet are offered the
+download first, then join the space; the Join dialog accepts the link
+pasted from any site.
 
 #### Changed
 
@@ -45,8 +50,7 @@ what favorites do and how to add one.
 - **Settings → Storage sets the download folder for new spaces.** Spaces you
 already have keep their own folder when you change it.
 - **Folder paths can be pasted, typed and copied.** Every folder field takes
-a path as well as Browse…, and checks it the same way. A folder your
-organization sets is shown read-only, with a Copy button.
+a path as well as Browse…, and checks it the same way.
 - **A file downloaded from a shared folder keeps its subfolders**, as a
 batch download does.
 - **A downloaded file on a drive that isn't connected says so** instead of
