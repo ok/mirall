@@ -1704,6 +1704,8 @@
       "preparingHint": "Mirall continue de vérifier. Vous pouvez fermer ceci et cliquer à nouveau sur le lien plus tard.",
       "readyTitle": "Connecter Mirall à {{org}} ?",
       "readyBody": "{{org}} gérera des réglages sur cet ordinateur. Les réglages gérés ne peuvent pas être modifiés tant que la connexion est active.",
+      "sees": "{{org}} verra le nom de cet ordinateur, sa version de Mirall et son système d’exploitation, lesquels de ses réglages s’appliquent et si les sauvegardes fonctionnent. Jamais vos fichiers, vos espaces ni les personnes avec qui vous partagez.",
+      "privacy": "Politique de confidentialité",
       "replaces": "Cela remplace votre connexion à {{previous}}.",
       "questions": "Des questions ?",
       "supportPage": "Page d’assistance",

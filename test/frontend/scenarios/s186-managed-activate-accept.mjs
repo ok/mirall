@@ -13,12 +13,14 @@ export default async function s186({ runDir, bootstrap }) {
   fixture.serve({ 'network.relayMode': 'auto', 'audit.enabled': true, 'audit.retentionDays': 90 })
   const A = new Instance({ name: 'Alice', bootstrap, slot: 0, total: 1, env: fixture.env })
   try {
-    await r.ok('the link opens the dialog with the organization and its contact, and no settings list', async () => {
+    await r.ok('the link opens the dialog with the organization, what it will see, its contact, and no settings list', async () => {
       await A.launch()
       await A.openDeepLink(fixture.link)
       await A.waitText('Connect Mirall to Acme Test GmbH?', 20000)
       assert(await A.hasText('it@acme.example'), 'the contact line')
       assert(!(await A.hasText('Relay')), 'no list of managed settings')
+      assert(await A.hasText('Never your files, your spaces or who you share with'), 'what the organization will see')
+      assert(await A.has({ role: 'link', contains: 'Privacy Policy' }), 'the privacy policy link')
       await A.shot('s186-ready', runDir)
     })
 

@@ -1704,6 +1704,8 @@
       "preparingHint": "Mirall sigue comprobando. Puedes cerrar esto y volver a hacer clic en el enlace más tarde.",
       "readyTitle": "¿Conectar Mirall con {{org}}?",
       "readyBody": "{{org}} gestionará ajustes en este ordenador. Los ajustes gestionados no se pueden cambiar mientras estés conectado.",
+      "sees": "{{org}} verá el nombre de este ordenador, su versión de Mirall y su sistema operativo, cuáles de sus ajustes se aplican y si las copias de seguridad funcionan. Nunca tus archivos, tus espacios ni con quién compartes.",
+      "privacy": "Política de privacidad",
       "replaces": "Esto sustituye tu conexión con {{previous}}.",
       "questions": "¿Preguntas?",
       "supportPage": "Página de soporte",
