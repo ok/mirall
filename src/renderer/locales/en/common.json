@@ -1704,6 +1704,8 @@
       "preparingHint": "Mirall keeps checking. You can close this and click the link again later.",
       "readyTitle": "Connect Mirall to {{org}}?",
       "readyBody": "{{org}} will manage settings on this computer. Settings it manages can’t be changed while connected.",
+      "sees": "{{org}} will see this computer’s name, its Mirall version and operating system, which of its settings apply, and whether backups work. Never your files, your spaces or who you share with.",
+      "privacy": "Privacy Policy",
       "replaces": "This replaces your connection to {{previous}}.",
       "questions": "Questions?",
       "supportPage": "Support page",

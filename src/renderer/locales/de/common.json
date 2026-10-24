@@ -1704,6 +1704,8 @@
       "preparingHint": "Mirall prüft weiter. Du kannst das schließen und den Link später erneut anklicken.",
       "readyTitle": "Mirall mit {{org}} verbinden?",
       "readyBody": "{{org}} verwaltet Einstellungen auf diesem Computer. Verwaltete Einstellungen lassen sich nicht ändern, solange die Verbindung besteht.",
+      "sees": "{{org}} sieht den Namen dieses Computers, seine Mirall-Version und sein Betriebssystem, welche ihrer Einstellungen gelten und ob Backups funktionieren. Nie deine Dateien, deine Spaces oder mit wem du teilst.",
+      "privacy": "Datenschutzerklärung",
       "replaces": "Das ersetzt deine Verbindung mit {{previous}}.",
       "questions": "Fragen?",
       "supportPage": "Support-Seite",

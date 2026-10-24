@@ -29,6 +29,10 @@ type Failed = Extract<ActivateState, { s: 'no-configuration' | 'unreachable' | '
 const STILL_CHECKING_MS = 3000
 const PREPARING_MS = 10_000
 
+// The policy section that says what an organization learns from a computer it manages.
+const PRIVACY_MANAGED = 'https://mirall.app/privacy#managed'
+const LINK = 'font-headline font-bold text-secondary hover:underline focus-ring rounded'
+
 const FAILED_COPY = {
   'no-configuration': { title: 'managed.activate.noConfigTitle', body: 'managed.activate.noConfigBody' },
   unreachable: { title: 'managed.activate.unreachableTitle', body: 'managed.activate.unreachableBody' },
@@ -179,6 +183,12 @@ function ReadyBody({ preview, error, connecting, onConnect, onClose }: ReadyBody
   return (
     <>
       <p id="managed-activate-body" className="text-on-surface-variant font-medium">{t('managed.activate.readyBody', { org: org.name })}</p>
+      <p className="text-sm text-on-surface-variant">
+        {t('managed.activate.sees', { org: org.name })}{' '}
+        <a href={PRIVACY_MANAGED} target="_blank" rel="noreferrer" className={LINK}>
+          {t('managed.activate.privacy')}<span className="sr-only"> {t('managed.activate.opensInBrowser')}</span>
+        </a>
+      </p>
       {preview.replaces && <Callout tone="warning">{t('managed.activate.replaces', { previous: preview.replaces })}</Callout>}
       <Contact org={org} />
       {error && (
@@ -198,14 +208,13 @@ function ReadyBody({ preview, error, connecting, onConnect, onClose }: ReadyBody
 function Contact({ org }: { org: ManagedOrganization }) {
   const { t } = useTranslation()
   if (!org.supportEmail && !org.supportUrl) return null
-  const link = 'font-headline font-bold text-secondary hover:underline focus-ring rounded'
   return (
     <p className="text-sm text-on-surface-variant">
       {t('managed.activate.questions')}{' '}
-      {org.supportEmail && <a href={`mailto:${org.supportEmail}`} target="_blank" rel="noreferrer" className={link}>{org.supportEmail}</a>}
+      {org.supportEmail && <a href={`mailto:${org.supportEmail}`} target="_blank" rel="noreferrer" className={LINK}>{org.supportEmail}</a>}
       {org.supportEmail && org.supportUrl && ' · '}
       {org.supportUrl && (
-        <a href={org.supportUrl} target="_blank" rel="noreferrer" className={link}>
+        <a href={org.supportUrl} target="_blank" rel="noreferrer" className={LINK}>
           {t('managed.activate.supportPage')}<span className="sr-only"> {t('managed.activate.opensInBrowser')}</span>
         </a>
       )}
