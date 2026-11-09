@@ -11,6 +11,12 @@ changes do not appear here.
 
 ## Unreleased
 
+### Added
+
+- **More of Mirall is in the command palette.** Check for updates, restart to
+  update, back up now, show connection history and export the Activity Log
+  from ⌘K, and find a screen by what it holds: "dark mode" finds Appearance.
+
 ### Changed
 
 - **Setting up a backup no longer waits for the first backup.** The dialog

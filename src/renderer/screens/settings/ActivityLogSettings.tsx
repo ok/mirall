@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ConfirmDestructiveModal from '../../components/modals/ConfirmDestructiveModal.js'
 import { request } from '../../ipc/ipc.js'
+import { exportActivityLog } from '../../hooks/useAuditLog.js'
 import { useQuery } from '../../store/useQuery.js'
 import { refetchQuery, setQueryData } from '../../store/query-store.js'
 import { useHasVerticalOverflow } from '../../hooks/useHasVerticalOverflow.js'
@@ -66,15 +67,7 @@ export default function ActivityLogSettings({ onBack, onOpenLog }: ActivityLogSe
     setBusy(true)
     setStatus(null)
     try {
-      const payload = await request('audit:export', {}, 0)
-      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = 'mirall-activity-log.json'
-      link.click()
-      URL.revokeObjectURL(url)
-      setStatus(t('activityLogSettings.exportDone', { count: payload.entries.length }))
+      setStatus(t('activityLogSettings.exportDone', { count: await exportActivityLog() }))
     } catch (err) {
       setStatus(errorText(err))
     } finally {

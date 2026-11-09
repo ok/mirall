@@ -4,16 +4,7 @@ import Modal from '../components/primitives/Modal.js'
 import { fieldSurface } from '../components/primitives/TextField.js'
 import { useKeyboard } from './KeyboardProvider.js'
 import AcceleratorLabel from './AcceleratorLabel.js'
-import type { Command } from './registry.js'
-
-function rank(label: string, q: string): number {
-  if (!q) return 1
-  if (label === q) return 200
-  if (label.startsWith(q)) return 100
-  if (label.includes(' ' + q)) return 50
-  if (label.includes(q)) return 25
-  return 0
-}
+import { paletteRank, type Command } from './registry.js'
 
 export default function CommandPalette() {
   const { t } = useTranslation()
@@ -34,10 +25,9 @@ export default function CommandPalette() {
   }, [paletteOpen])
 
   const ranked = useMemo<Command[]>(() => {
-    const q = query.trim().toLowerCase()
     return commands
       .filter((c) => !c.hiddenInPalette)
-      .map((c) => ({ c, score: rank(t(c.labelKey, c.labelParams).toLowerCase(), q) }))
+      .map((c) => ({ c, score: paletteRank(t(c.labelKey, c.labelParams), c.keywordsKey ? t(c.keywordsKey) : '', query) }))
       .filter((x) => x.score > 0)
       .sort((a, b) => b.score - a.score)
       .map((x) => x.c)
