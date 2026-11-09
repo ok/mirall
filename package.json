@@ -85,7 +85,7 @@
     "serve": "^14.2.6",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.71.2",
+    "typescript-eslint": "^8.72.1",
     "yaml": "^2.9.1"
   },
   "dependencies": {
