@@ -22,6 +22,7 @@ changes do not appear here.
 - **Leaving an organization during its first backup no longer keeps backing
   up to the organization's folder.** That folder could become your own
   backup folder.
+- **Network Diagnostics and Advanced Details open from the command palette.**
 
 ## v1.13.0
 

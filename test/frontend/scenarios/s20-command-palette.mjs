@@ -54,6 +54,14 @@ export default async function s20({ runDir, bootstrap }) {
       await A.press('escape')
       await A.shot('s20-palette-system', runDir)
     })
+    await r.ok('the palette reaches Network Diagnostics and Advanced Details', async () => {
+      await palette('network diagnostics')
+      await A.press('return')
+      await A.waitText('Remove identifying details', 8000)
+      await palette('advanced network')
+      await A.press('return')
+      await A.waitText('The raw values behind your connection', 8000)
+    })
   } catch {}
   return { pass: r.summary(), instances: [A] }
 }

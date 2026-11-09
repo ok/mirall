@@ -689,7 +689,9 @@
     "openDocs": "Open documentation",
     "openAbout": "Open About Mirall",
     "openOrganization": "Open organization {{org}}",
-    "selectAll": "Select all files"
+    "selectAll": "Select all files",
+    "openNetworkDiagnostics": "Open Network Diagnostics",
+    "openNetworkAdvanced": "Open Advanced Network Details"
   },
   "palette": {
     "title": "Command Palette",

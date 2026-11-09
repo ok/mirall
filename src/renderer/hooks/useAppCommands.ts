@@ -9,6 +9,7 @@ import type { AppNavigation } from './useAppNavigation.js'
 import type { AppDialog } from '../components/modals/AppDialogs.js'
 import type { Space } from '../types/types.js'
 import { shortcutOrder } from '../model/space-shortcut-order.js'
+import type { Screen } from '../shell/navigation.js'
 
 interface AppCommandTargets {
   nav: AppNavigation
@@ -28,23 +29,34 @@ interface AppCommandRow {
   run: (targets: AppCommandTargets) => void
 }
 
+// The screens no fixed command opens: home has its own command, a space and the organization are
+// offered by name, a folder is opened from its space, and the connection problem screen is raised by
+// the connection gate. Every other screen needs a row below, or the build fails.
+type PaletteScreen = Exclude<Screen, 'spaces' | 'space-view' | 'folder-view' | 'organization' | 'connection-problem'>
+
+const SCREEN_COMMANDS: Record<PaletteScreen, AppCommandRow> = {
+  settings: { id: 'settings.open', labelKey: 'shortcuts.openSettings', group: 'navigation', run: (t) => t.nav.openSettings() },
+  account: { id: 'profile.open', labelKey: 'shortcuts.openProfile', group: 'navigation', run: (t) => t.nav.openAccount() },
+  about: { id: 'about.open', labelKey: 'shortcuts.openAbout', group: 'navigation', run: (t) => t.nav.setCurrentScreen('about') },
+  'activity-log': { id: 'activity.open', labelKey: 'shortcuts.openActivityLog', group: 'navigation', run: (t) => t.nav.openActivityLog() },
+  'activity-log-settings': { id: 'activity.openSettings', labelKey: 'shortcuts.openActivityLogSettings', group: 'navigation', run: (t) => t.nav.setCurrentScreen('activity-log-settings') },
+  'storage-settings': { id: 'settings.storage', labelKey: 'shortcuts.openStorageSettings', group: 'navigation', run: (t) => t.nav.openStorageSettings('settings') },
+  'appearance-settings': { id: 'settings.appearance', labelKey: 'shortcuts.openAppearanceSettings', group: 'navigation', run: (t) => t.nav.setCurrentScreen('appearance-settings') },
+  'notification-settings': { id: 'settings.notifications', labelKey: 'shortcuts.openNotificationSettings', group: 'navigation', run: (t) => t.nav.setCurrentScreen('notification-settings') },
+  'general-settings': { id: 'settings.general', labelKey: 'shortcuts.openGeneralSettings', group: 'navigation', run: (t) => t.nav.setCurrentScreen('general-settings') },
+  'network-settings': { id: 'settings.network', labelKey: 'shortcuts.openNetworkSettings', group: 'navigation', run: (t) => t.nav.setCurrentScreen('network-settings') },
+  'backup-settings': { id: 'settings.backup', labelKey: 'shortcuts.openBackupSettings', group: 'navigation', run: (t) => t.nav.setCurrentScreen('backup-settings') },
+  'network-status': { id: 'network.status', labelKey: 'shortcuts.openNetworkStatus', group: 'navigation', run: (t) => t.nav.setCurrentScreen('network-status') },
+  'network-diagnostics': { id: 'network.diagnostics', labelKey: 'shortcuts.openNetworkDiagnostics', group: 'navigation', run: (t) => t.nav.setCurrentScreen('network-diagnostics') },
+  'network-advanced': { id: 'network.advanced', labelKey: 'shortcuts.openNetworkAdvanced', group: 'navigation', run: (t) => t.nav.setCurrentScreen('network-advanced') },
+}
+
 const APP_COMMANDS: readonly AppCommandRow[] = [
   { id: 'nav.back', labelKey: 'shortcuts.back', group: 'navigation', when: (_c, t) => t.canGoBack, run: (t) => t.nav.goBack() },
   { id: 'nav.home', labelKey: 'shortcuts.home', group: 'navigation', when: (c) => c.currentScreen !== 'spaces', run: (t) => t.nav.goHome() },
   { id: 'palette.open', labelKey: 'shortcuts.openPalette', group: 'system', hiddenInPalette: true, run: (t) => t.openPalette() },
   { id: 'shortcuts.show', labelKey: 'shortcuts.showShortcuts', group: 'system', run: (t) => t.openCheatsheet() },
-  { id: 'settings.open', labelKey: 'shortcuts.openSettings', group: 'navigation', run: (t) => t.nav.openSettings() },
-  { id: 'profile.open', labelKey: 'shortcuts.openProfile', group: 'navigation', run: (t) => t.nav.openAccount() },
-  { id: 'about.open', labelKey: 'shortcuts.openAbout', group: 'navigation', run: (t) => t.nav.setCurrentScreen('about') },
-  { id: 'activity.open', labelKey: 'shortcuts.openActivityLog', group: 'navigation', run: (t) => t.nav.openActivityLog() },
-  { id: 'activity.openSettings', labelKey: 'shortcuts.openActivityLogSettings', group: 'navigation', run: (t) => t.nav.setCurrentScreen('activity-log-settings') },
-  { id: 'settings.storage', labelKey: 'shortcuts.openStorageSettings', group: 'navigation', run: (t) => t.nav.openStorageSettings('settings') },
-  { id: 'settings.appearance', labelKey: 'shortcuts.openAppearanceSettings', group: 'navigation', run: (t) => t.nav.setCurrentScreen('appearance-settings') },
-  { id: 'settings.notifications', labelKey: 'shortcuts.openNotificationSettings', group: 'navigation', run: (t) => t.nav.setCurrentScreen('notification-settings') },
-  { id: 'settings.general', labelKey: 'shortcuts.openGeneralSettings', group: 'navigation', run: (t) => t.nav.setCurrentScreen('general-settings') },
-  { id: 'settings.network', labelKey: 'shortcuts.openNetworkSettings', group: 'navigation', run: (t) => t.nav.setCurrentScreen('network-settings') },
-  { id: 'settings.backup', labelKey: 'shortcuts.openBackupSettings', group: 'navigation', run: (t) => t.nav.setCurrentScreen('backup-settings') },
-  { id: 'network.status', labelKey: 'shortcuts.openNetworkStatus', group: 'navigation', run: (t) => t.nav.setCurrentScreen('network-status') },
+  ...Object.values(SCREEN_COMMANDS),
   { id: 'space.new', labelKey: 'shortcuts.newSpace', group: 'actions', run: (t) => t.openDialog({ kind: 'create' }) },
   { id: 'space.join', labelKey: 'shortcuts.joinSpace', group: 'actions', run: (t) => t.openDialog({ kind: 'join' }) },
   { id: 'help.whatsNew', labelKey: 'shortcuts.whatsNew', group: 'system', run: (t) => t.openWhatsNew() },

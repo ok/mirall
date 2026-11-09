@@ -660,7 +660,9 @@
     "openDocs": "Ouvrir la documentation",
     "openAbout": "Ouvrir À propos de Mirall",
     "openOrganization": "Ouvrir l'organisation {{org}}",
-    "selectAll": "Sélectionner tous les fichiers"
+    "selectAll": "Sélectionner tous les fichiers",
+    "openNetworkDiagnostics": "Ouvrir le diagnostic réseau",
+    "openNetworkAdvanced": "Ouvrir les détails avancés du réseau"
   },
   "palette": {
     "title": "Palette de commandes",
