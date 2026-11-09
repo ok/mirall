@@ -158,8 +158,8 @@ export function useKeyboard(): KeyboardApi {
 
 // `deps` governs RE-REGISTRATION, not freshness: `run` and `when` are read through a ref, so they
 // are always current whatever deps say. Only the fields copied into `stable` below — labelKey,
-// labelParams, group, accelerator, hiddenInPalette — need a change here, which is why most callers
-// pass [] and only the ones whose labels interpolate a value pass it.
+// labelParams, keywordsKey, group, accelerator, hiddenInPalette — need a change here, which is why
+// most callers pass [] and only the ones whose labels interpolate a value pass it.
 export function useRegisterCommands(commands: Command[], deps: DependencyList): void {
   const { registerCommand } = useKeyboard()
   const commandsRef = useRef(commands)
@@ -171,6 +171,7 @@ export function useRegisterCommands(commands: Command[], deps: DependencyList): 
         id: cmd.id,
         labelKey: cmd.labelKey,
         labelParams: cmd.labelParams,
+        keywordsKey: cmd.keywordsKey,
         group: cmd.group,
         accelerator: cmd.accelerator ?? acceleratorFor(cmd.id),
         hiddenInPalette: cmd.hiddenInPalette,

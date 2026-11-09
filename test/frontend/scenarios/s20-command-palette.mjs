@@ -54,6 +54,37 @@ export default async function s20({ runDir, bootstrap }) {
       await A.press('escape')
       await A.shot('s20-palette-system', runDir)
     })
+    await r.ok('the palette reaches Network Diagnostics and Advanced Details', async () => {
+      await palette('network diagnostics')
+      await A.press('return')
+      await A.waitText('Remove identifying details', 8000)
+      await palette('advanced network')
+      await A.press('return')
+      await A.waitText('The raw values behind your connection', 8000)
+    })
+    await r.ok('a search word finds a command its label does not name', async () => {
+      await palette('dark mode')
+      await A.press('return')
+      await A.waitText('Theme, display size, and interface language', 8000)
+      await A.shot('s20-palette-keyword', runDir)
+    })
+    await r.ok('the palette shows the connection history', async () => {
+      await palette('connection history')
+      await A.press('return')
+      await A.waitText('A record of what happened', 8000)
+    })
+    await r.ok('the palette offers the Activity Log export', async () => {
+      await palette('export activity')
+      const offered = await A.hasText('Export Activity Log')
+      await A.press('escape')
+      if (!offered) throw new Error('Export Activity Log missing from the palette')
+    })
+    await r.ok('Back Up Now stays hidden while no backup is set up', async () => {
+      await palette('back up now')
+      const none = await A.hasText('No commands match')
+      await A.press('escape')
+      if (!none) throw new Error('Back Up Now offered without a backup')
+    })
   } catch {}
   return { pass: r.summary(), instances: [A] }
 }

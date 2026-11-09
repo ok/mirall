@@ -113,3 +113,16 @@ export function useAuditFacets() {
 }
 
 export const AUDIT_CATEGORIES: AuditCategory[] = ['members', 'files', 'folders', 'security', 'network']
+
+// Saves the whole log as one JSON file and resolves with the number of events it holds.
+export async function exportActivityLog(): Promise<number> {
+  const payload = await request('audit:export', {}, 0)
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = 'mirall-activity-log.json'
+  link.click()
+  URL.revokeObjectURL(url)
+  return payload.entries.length
+}

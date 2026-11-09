@@ -11,6 +11,12 @@ changes do not appear here.
 
 ## Unreleased
 
+### Added
+
+- **More of Mirall is in the command palette.** Check for updates, restart to
+  update, back up now, show connection history and export the Activity Log
+  from ⌘K, and find a screen by what it holds: "dark mode" finds Appearance.
+
 ### Changed
 
 - **Setting up a backup no longer waits for the first backup.** The dialog
@@ -22,6 +28,7 @@ changes do not appear here.
 - **Leaving an organization during its first backup no longer keeps backing
   up to the organization's folder.** That folder could become your own
   backup folder.
+- **Network Diagnostics and Advanced Details open from the command palette.**
 
 ## v1.13.0
 
