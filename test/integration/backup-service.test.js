@@ -214,6 +214,19 @@ test('REGRESSION (FIX-BACKUP-RETRY-LOOP: a retry hid the failure and the next on
   t.is(backup.failures, 0, 'a run that succeeds ends the wait')
 })
 
+test('an unreachable folder is logged as info, not a warning', async (t) => {
+  const d = await bootWith(t)
+  const backup = d.root.backup()
+  const lines = []
+  backup.log = { debug() {}, info: (...a) => lines.push(['info', ...a]), warn: (...a) => lines.push(['warn', ...a]), error: (...a) => lines.push(['error', ...a]) }
+  const away = d.backupFolder + '-away'
+  fs.renameSync(d.backupFolder, away)
+  t.teardown(() => { try { fs.renameSync(away, d.backupFolder) } catch {} })
+  await backup.run('change')
+  t.alike(lines.map((l) => l[0]), ['info'])
+  t.ok(lines[0].includes('BACKUP_TARGET_OFFLINE'))
+})
+
 test('changes made while a run goes are kept for the next run; earlier ones are done', async (t) => {
   const { root } = await bootWith(t)
   root.backup().note('urgent')
