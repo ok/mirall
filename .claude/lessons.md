@@ -649,6 +649,12 @@ connection so a mode change can tell old connections from new. Provenance comes 
 **A per-connection array in the status frame needs a scalar digest beside it.** The dedup compares
 leaves only.
 
+**Measure a raw udx-native stream between the two hosts before blaming the transfer engine.** A
+bare send/receive pair on the locked udx-native, beside `iperf3` on the same path, separates the
+transport from the scheduler. The tell for a transport stall: the sender's `rtoCount` ticks while
+`retransmits` ≈ `cwnd` (the whole window re-sent after libudx's one-second minimum RTO) and `mtu`
+never leaves 1200, while TCP on the same path stays steady.
+
 ## Platform & packaging
 
 **A packaged build ignores `MIRALL_*` and `PEAR_DEV_SERVER_URL`, and refuses `--inspect`.** Env

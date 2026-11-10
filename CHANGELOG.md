@@ -13,6 +13,9 @@ changes do not appear here.
 
 #### Fixed
 
+- **Transfers over Wi-Fi no longer stall for seconds at a time.** On a link
+  that drops packets now and then, a download kept stopping and crawled at
+  a fraction of what the network can carry.
 - **The Mirall icon shows in the window's title bar on KDE Plasma (Wayland).**
   It showed a generic placeholder there.
 
