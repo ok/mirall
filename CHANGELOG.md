@@ -28,9 +28,9 @@ changes do not appear here.
 - **Leaving an organization during its first backup no longer keeps backing
   up to the organization's folder.** That folder could become your own
   backup folder.
-- **Transfers over Wi-Fi no longer stall for seconds at a time.** On a link
-  that drops packets now and then, a download kept stopping and crawled at
-  a fraction of what the network can carry.
+- **Downloads no longer stall on some Wi-Fi networks.** On a network that
+  loses packets often, a download could pause for a second or more at a
+  time and run well below the connection's speed.
 - **Network Diagnostics and Advanced Details open from the command palette.**
 - **The Mirall icon shows in the window's title bar on KDE Plasma (Wayland).**
   It showed a generic placeholder there.
