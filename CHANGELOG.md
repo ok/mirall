@@ -11,6 +11,11 @@ changes do not appear here.
 
 ## v1.13.1
 
+### 2026-11-10
+
+Downloads over Wi-Fi no longer stall on links that drop the odd packet, and
+the Mirall icon shows in the title bar on KDE Plasma (Wayland).
+
 #### Fixed
 
 - **Transfers over Wi-Fi no longer stall for seconds at a time.** On a link
