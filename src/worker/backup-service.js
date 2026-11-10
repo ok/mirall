@@ -283,7 +283,9 @@ export class Backup extends Subsystem {
       if (!this.stillNames(folder)) return
       this.failures += 1
       this.report({ state: 'error', lastError: err.code || CODES.UNKNOWN })
-      this.log.warn('backup', reason, 'failed:', err.code || err.message)
+      // An unreachable folder is an expected state the Backup screen already shows, not a fault.
+      const say = err.code === CODES.BACKUP_TARGET_OFFLINE ? this.log.info : this.log.warn
+      say('backup', reason, 'failed:', err.code || err.message)
     }
   }
 
