@@ -313,7 +313,7 @@ if (!lock) {
       // The package owns the desktop entry on a deb install; a per-user entry left by an earlier
       // AppImage would shadow it and keep routing the scheme to the old file.
       if (installKind === 'deb') retireXdgAppImageEntry({ appName, protocol, packageName: pkg.name, homedir: os.homedir() })
-      else integrateXdgLinux({ appName, protocol, isLinux, homedir: os.homedir() })
+      else integrateXdgLinux({ appName, packageName: pkg.name, protocol, isLinux, homedir: os.homedir() })
     } catch (err) {
       console.error('[xdg] integration failed:', err.message)
     }

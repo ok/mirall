@@ -41,6 +41,8 @@ chmod +x "$APP_BUILDER"
 echo "Using app-builder: $APP_BUILDER"
 
 APP_NAME=$(jq -r '.productName // .name' "$PKG")
+# The window's Wayland app ID; the desktop entry's StartupWMClass must match it exactly.
+PKG_NAME=$(jq -r '.name' "$PKG")
 VERSION=$(jq -r '.version' "$PKG")
 DESCRIPTION=$(jq -r '.description // ""' "$PKG")
 
@@ -78,7 +80,7 @@ Exec=${APP_NAME}
 Terminal=false
 Type=Application
 Icon=${APP_NAME}
-StartupWMClass=${APP_NAME}
+StartupWMClass=${PKG_NAME}
 X-AppImage-Version=${VERSION}
 X-AppImage-Integrate=false
 Comment=${DESCRIPTION}

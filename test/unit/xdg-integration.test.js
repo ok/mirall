@@ -33,42 +33,42 @@ function fakeSpawn() {
 test('Exec= is rewritten to the absolute AppImage path so a moved AppImage still launches', (t) => {
   const out = desktopEntryFor(
     '[Desktop Entry]\nName=Mirall\nExec=AppRun %U\nMimeType=x-scheme-handler/mirall;\n',
-    { appimage: APPIMAGE, mimeToken: MIME },
+    { appimage: APPIMAGE, mimeToken: MIME, wmClass: 'mirall' },
   )
   t.ok(out.includes(`Exec="${APPIMAGE}" %U`), 'quoted, absolute, and keeps %U')
   t.absent(out.includes('Exec=AppRun'), 'the relative launcher is gone')
 })
 
 test('%U survives, because without it the desktop environment cannot hand us the URL at all', (t) => {
-  const out = desktopEntryFor('[Desktop Entry]\nExec=AppRun\n', { appimage: APPIMAGE, mimeToken: MIME })
+  const out = desktopEntryFor('[Desktop Entry]\nExec=AppRun\n', { appimage: APPIMAGE, mimeToken: MIME, wmClass: 'mirall' })
   t.ok(out.includes('%U'))
 })
 
 test('the scheme handler is appended to an existing MimeType= list without duplicating it', (t) => {
   const withOthers = desktopEntryFor(
     '[Desktop Entry]\nExec=x\nMimeType=inode/directory;text/plain;\n',
-    { appimage: APPIMAGE, mimeToken: MIME },
+    { appimage: APPIMAGE, mimeToken: MIME, wmClass: 'mirall' },
   )
   t.is(withOthers.match(/^MimeType=(.*)$/m)[1], 'inode/directory;text/plain;x-scheme-handler/mirall;',
     'the entries that were already there are kept')
 
   const alreadyPresent = desktopEntryFor(
     '[Desktop Entry]\nExec=x\nMimeType=x-scheme-handler/mirall;\n',
-    { appimage: APPIMAGE, mimeToken: MIME },
+    { appimage: APPIMAGE, mimeToken: MIME, wmClass: 'mirall' },
   )
   t.is(alreadyPresent.match(/x-scheme-handler\/mirall/g).length, 1, 're-running does not double it')
 })
 
 test('a desktop file with no MimeType= line gets one', (t) => {
   const out = desktopEntryFor('[Desktop Entry]\nName=Mirall\nExec=AppRun\n',
-    { appimage: APPIMAGE, mimeToken: MIME })
+    { appimage: APPIMAGE, mimeToken: MIME, wmClass: 'mirall' })
   t.ok(/^MimeType=x-scheme-handler\/mirall;$/m.test(out))
 })
 
 test('rewriting is idempotent — a second pass over its own output changes nothing', (t) => {
   const once = desktopEntryFor('[Desktop Entry]\nExec=AppRun %U\nMimeType=inode/directory;\n',
-    { appimage: APPIMAGE, mimeToken: MIME })
-  t.is(desktopEntryFor(once, { appimage: APPIMAGE, mimeToken: MIME }), once)
+    { appimage: APPIMAGE, mimeToken: MIME, wmClass: 'mirall' })
+  t.is(desktopEntryFor(once, { appimage: APPIMAGE, mimeToken: MIME, wmClass: 'mirall' }), once)
 })
 
 test('writeIfChanged does not touch the file when the contents match', (t) => {
@@ -113,7 +113,7 @@ test('copyFileIfChanged is a no-op for an identical file and copies a changed on
 
 test('integration is a no-op off Linux and without APPIMAGE/APPDIR', (t) => {
   const { spawn, calls } = fakeSpawn()
-  const base = { appName: 'Mirall', protocol: 'mirall', homedir: tmpdir(t), spawn }
+  const base = { appName: 'Mirall', packageName: 'mirall', protocol: 'mirall', homedir: tmpdir(t), spawn }
 
   t.absent(integrateXdgLinux({ ...base, isLinux: false, env: { APPIMAGE: 'x', APPDIR: 'y' } }),
     'not Linux')
@@ -126,6 +126,7 @@ test('a run with no source .desktop in the AppDir does nothing rather than throw
   const { spawn, calls } = fakeSpawn()
   t.absent(integrateXdgLinux({
     appName: 'Mirall',
+    packageName: 'mirall',
     protocol: 'mirall',
     isLinux: true,
     homedir: tmpdir(t),
@@ -149,6 +150,7 @@ test('a full run writes the entry and the icons, then asks the desktop to pick t
   const { spawn, calls } = fakeSpawn()
   t.ok(integrateXdgLinux({
     appName: 'Mirall',
+    packageName: 'mirall',
     protocol: 'mirall',
     isLinux: true,
     homedir: home,
@@ -157,7 +159,7 @@ test('a full run writes the entry and the icons, then asks the desktop to pick t
   }))
 
   const written = fs.readFileSync(
-    path.join(home, '.local', 'share', 'applications', 'Mirall.desktop'), 'utf8')
+    path.join(home, '.local', 'share', 'applications', 'mirall.desktop'), 'utf8')
   t.ok(written.includes(`Exec="${APPIMAGE}" %U`))
   t.ok(written.includes(MIME))
 
@@ -168,7 +170,7 @@ test('a full run writes the entry and the icons, then asks the desktop to pick t
 
   t.is(calls[0].cmd, 'update-desktop-database')
   t.is(calls[1].cmd, 'xdg-mime')
-  t.alike(calls[1].args, ['default', 'Mirall.desktop', MIME])
+  t.alike(calls[1].args, ['default', 'mirall.desktop', MIME])
 })
 
 test('a missing desktop tool costs the integration nothing', (t) => {
@@ -178,13 +180,49 @@ test('a missing desktop tool costs the integration nothing', (t) => {
 
   t.ok(integrateXdgLinux({
     appName: 'Mirall',
+    packageName: 'mirall',
     protocol: 'mirall',
     isLinux: true,
     homedir: home,
     env: { APPIMAGE: APPIMAGE, APPDIR: appdir },
     spawn: () => { throw new Error('ENOENT') },
   }), 'the entry is still written; the desktop picks it up on its next scan')
-  t.ok(fs.existsSync(path.join(home, '.local', 'share', 'applications', 'Mirall.desktop')))
+  t.ok(fs.existsSync(path.join(home, '.local', 'share', 'applications', 'mirall.desktop')))
+})
+
+test('REGRESSION (KDE Wayland title-bar icon): the entry is named after the Wayland app ID, and the product-name entry is retired', (t) => {
+  // KWin finds a window's icon by the .desktop file named exactly after its app ID, `mirall`. Under
+  // `Mirall.desktop` the title bar fell back to the generic Wayland icon.
+  const home = tmpdir(t)
+  const appdir = tmpdir(t)
+  const appsDir = path.join(home, '.local', 'share', 'applications')
+  fs.writeFileSync(path.join(appdir, 'Mirall.desktop'),
+    '[Desktop Entry]\nName=Mirall\nExec=AppRun %U\nIcon=Mirall\nStartupWMClass=Mirall\n')
+  fs.mkdirSync(appsDir, { recursive: true })
+  fs.writeFileSync(path.join(appsDir, 'Mirall.desktop'), '[Desktop Entry]\nName=Mirall\n')
+
+  const { spawn } = fakeSpawn()
+  t.ok(integrateXdgLinux({
+    appName: 'Mirall',
+    packageName: 'mirall',
+    protocol: 'mirall',
+    isLinux: true,
+    homedir: home,
+    env: { APPIMAGE: APPIMAGE, APPDIR: appdir },
+    spawn,
+  }))
+
+  t.alike(fs.readdirSync(appsDir), ['mirall.desktop'], 'one entry, under the app ID')
+  const written = fs.readFileSync(path.join(appsDir, 'mirall.desktop'), 'utf8')
+  t.ok(/^StartupWMClass=mirall$/m.test(written), 'StartupWMClass matches the app ID exactly')
+  t.ok(/^Icon=Mirall$/m.test(written), 'the icon name is unchanged')
+})
+
+test('StartupWMClass is added when the source entry has none, and rewriting stays idempotent', (t) => {
+  const once = desktopEntryFor('[Desktop Entry]\nExec=AppRun\n',
+    { appimage: APPIMAGE, mimeToken: MIME, wmClass: 'mirall' })
+  t.is(once.match(/^StartupWMClass=.*$/gm).join(), 'StartupWMClass=mirall')
+  t.is(desktopEntryFor(once, { appimage: APPIMAGE, mimeToken: MIME, wmClass: 'mirall' }), once)
 })
 
 test('a deb install retires the per-user entry an earlier AppImage left and re-points the scheme at the packaged one', (t) => {
@@ -209,6 +247,18 @@ test('a deb install retires the per-user entry an earlier AppImage left and re-p
   t.ok(fs.existsSync(path.join(iconsRoot, '256x256', 'apps', 'other.png')), 'other icons are untouched')
   t.alike(calls.map((c) => c.cmd), ['update-desktop-database', 'xdg-mime'])
   t.alike(calls[1].args, ['default', 'mirall.desktop', MIME], 'the scheme now names the packaged entry')
+})
+
+test('a deb install also retires a per-user entry under the package name, which would shadow the packaged one', (t) => {
+  const home = tmpdir(t)
+  const appsDir = path.join(home, '.local', 'share', 'applications')
+  fs.mkdirSync(appsDir, { recursive: true })
+  fs.writeFileSync(path.join(appsDir, 'mirall.desktop'), `[Desktop Entry]\nExec="${APPIMAGE}" %U\n`)
+  const { spawn, calls } = fakeSpawn()
+
+  t.ok(retireXdgAppImageEntry({ appName: 'Mirall', protocol: 'mirall', packageName: 'mirall', homedir: home, spawn }))
+  t.absent(fs.existsSync(path.join(appsDir, 'mirall.desktop')))
+  t.alike(calls[1].args, ['default', 'mirall.desktop', MIME])
 })
 
 test('with no AppImage entry to retire, a deb install touches nothing and spawns nothing', (t) => {

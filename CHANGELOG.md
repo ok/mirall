@@ -9,6 +9,13 @@ build-pipeline tweaks, and dependency bumps that don't change how the app
 behaves are intentionally omitted. Releases that contained only such
 changes do not appear here.
 
+## v1.13.1
+
+#### Fixed
+
+- **The Mirall icon shows in the window's title bar on KDE Plasma (Wayland).**
+  It showed a generic placeholder there.
+
 ## v1.13.0
 
 ### 2026-10-24
