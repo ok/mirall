@@ -22,7 +22,7 @@ const atLeast = (version, floor) => {
 const locked = Object.entries(JSON.parse(readFileSync(path.join(ROOT, 'package-lock.json'), 'utf8')).packages)
   .filter(([location]) => location.endsWith('node_modules/udx-native'))
 
-test('REGRESSION (FIX-N: transfers stalled for seconds at a time on a lossy Wi-Fi path): the lockfile resolves udx-native at or above 1.22.0', (t) => {
+test('REGRESSION (FIX-740: transfers stalled for seconds at a time on a lossy Wi-Fi path): the lockfile resolves udx-native at or above 1.22.0', (t) => {
   t.ok(locked.length > 0, 'the lockfile resolves udx-native')
   const below = locked.filter(([, entry]) => !atLeast(entry.version, FLOOR)).map(([location, entry]) => `${location}@${entry.version}`)
   t.alike(below, [], `every udx-native in the lockfile is at least ${FLOOR.join('.')}`)
