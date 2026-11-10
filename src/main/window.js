@@ -6,7 +6,7 @@
 
 const path = require('path')
 const { app, BrowserWindow, desktopCapturer, ipcMain, nativeTheme, screen, shell } = require('electron')
-const { isMac } = require('which-runtime')
+const { isMac, isLinux } = require('which-runtime')
 const { usableBounds } = require('./window-bounds.js')
 const { matchWindowShortcut } = require('./window-shortcuts.js')
 const { logRing } = require('./log-ring.js')
@@ -216,6 +216,9 @@ async function createWindow() {
       contextIsolation: true,
     },
   }
+  // Linux has no icon in the executable: the window carries its own, so the title bar shows it even
+  // where the desktop cannot match the window to its .desktop entry.
+  if (isLinux) winOpts.icon = path.join(__dirname, '..', '..', 'resources', 'linux', 'icons', '256x256.png')
   if (startHidden && isMac) hideDockSoon()
   // A position no display can show would open the window out of reach, so it is dropped and only
   // the remembered size survives — Electron then centres it on the primary display.
