@@ -21,9 +21,13 @@ function copyFileIfChanged(src, dest) {
 
 // Rewrites Exec= to the absolute AppImage path so the launcher entry self-heals if the user moves
 // the AppImage, and declares the scheme handler so xdg-mime can pick this entry for mirall:// URLs.
-// %U is what lets the desktop environment pass the URL through at all.
-function desktopEntryFor(source, { appimage, mimeToken }) {
+// %U is what lets the desktop environment pass the URL through at all. StartupWMClass is the
+// window's Wayland app ID, which is the lower-case package name, not the product name.
+function desktopEntryFor(source, { appimage, mimeToken, wmClass }) {
   let desktop = source.replace(/^Exec=.*$/m, `Exec="${appimage}" %U`)
+  desktop = /^StartupWMClass=/m.test(desktop)
+    ? desktop.replace(/^StartupWMClass=.*$/m, `StartupWMClass=${wmClass}`)
+    : desktop.replace(/(\n?)$/, `\nStartupWMClass=${wmClass}\n`)
   if (/^MimeType=/m.test(desktop)) {
     return desktop.replace(/^MimeType=(.*)$/m, (_m, list) => {
       const items = list.split(';').filter(Boolean)
@@ -34,7 +38,11 @@ function desktopEntryFor(source, { appimage, mimeToken }) {
   return desktop.replace(/(\n?)$/, `\nMimeType=${mimeToken};\n`)
 }
 
-function integrateXdgLinux({ appName, protocol, isLinux, homedir, env = process.env, spawn }) {
+// The entry is written as <packageName>.desktop because KWin finds a window's icon by the file named
+// exactly after its Wayland app ID (`mirall`); under the product name (`Mirall.desktop`) the title
+// bar fell back to the generic Wayland icon. An entry left under the product name is removed, so the
+// launcher lists Mirall once.
+function integrateXdgLinux({ appName, packageName, protocol, isLinux, homedir, env = process.env, spawn }) {
   if (!isLinux || !env.APPIMAGE || !env.APPDIR) return false
   const appdir = env.APPDIR
   const appimage = env.APPIMAGE
@@ -43,11 +51,14 @@ function integrateXdgLinux({ appName, protocol, isLinux, homedir, env = process.
   if (!fs.existsSync(srcDesktop)) return false
 
   const mimeToken = 'x-scheme-handler/' + protocol
-  const desktop = desktopEntryFor(fs.readFileSync(srcDesktop, 'utf8'), { appimage, mimeToken })
+  const desktop = desktopEntryFor(fs.readFileSync(srcDesktop, 'utf8'),
+    { appimage, mimeToken, wmClass: packageName })
 
   const appsDir = path.join(homedir, '.local', 'share', 'applications')
   fs.mkdirSync(appsDir, { recursive: true })
-  writeIfChanged(path.join(appsDir, `${appName}.desktop`), desktop)
+  // Removed before the write: on a case-insensitive filesystem the two names are one file.
+  if (appName !== packageName) fs.rmSync(path.join(appsDir, `${appName}.desktop`), { force: true })
+  writeIfChanged(path.join(appsDir, `${packageName}.desktop`), desktop)
 
   const iconsRoot = path.join(homedir, '.local', 'share', 'icons', 'hicolor')
   for (const size of ICON_SIZES) {
@@ -63,18 +74,21 @@ function integrateXdgLinux({ appName, protocol, isLinux, homedir, env = process.
   // missing, the desktop environment picks the new entry up on its next scan anyway.
   const run = spawn || require('child_process').spawn
   try { run('update-desktop-database', [appsDir], { detached: true, stdio: 'ignore' }).unref() } catch {}
-  try { run('xdg-mime', ['default', `${appName}.desktop`, mimeToken], { detached: true, stdio: 'ignore' }).unref() } catch {}
+  try { run('xdg-mime', ['default', `${packageName}.desktop`, mimeToken], { detached: true, stdio: 'ignore' }).unref() } catch {}
   return true
 }
 
 // The reverse of integrateXdgLinux, for a build the package manager installed: the per-user entry
 // and icons an earlier AppImage run wrote are removed, and the scheme is pointed at the packaged
-// entry, so the launcher shows one Mirall and a mirall:// link opens the installed one.
+// entry, so the launcher shows one Mirall and a mirall:// link opens the installed one. The per-user
+// entry has the packaged entry's name, so it would shadow it; one under the product name is older.
 function retireXdgAppImageEntry({ appName, protocol, packageName, homedir, spawn }) {
   const appsDir = path.join(homedir, '.local', 'share', 'applications')
-  const userDesktop = path.join(appsDir, `${appName}.desktop`)
-  if (!fs.existsSync(userDesktop)) return false
-  fs.rmSync(userDesktop, { force: true })
+  const userDesktops = [...new Set([packageName, appName])]
+    .map((name) => path.join(appsDir, `${name}.desktop`))
+    .filter((file) => fs.existsSync(file))
+  if (userDesktops.length === 0) return false
+  for (const file of userDesktops) fs.rmSync(file, { force: true })
 
   const iconsRoot = path.join(homedir, '.local', 'share', 'icons', 'hicolor')
   for (const size of ICON_SIZES) {

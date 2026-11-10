@@ -29,6 +29,8 @@ changes do not appear here.
   up to the organization's folder.** That folder could become your own
   backup folder.
 - **Network Diagnostics and Advanced Details open from the command palette.**
+- **The Mirall icon shows in the window's title bar on KDE Plasma (Wayland).**
+  It showed a generic placeholder there.
 
 ## v1.13.0
 
