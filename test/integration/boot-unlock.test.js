@@ -14,6 +14,7 @@ import { createIPC } from '../../src/shared/core/ipc.js'
 import { createLogger } from '../../src/shared/core/logger.js'
 import { registerIdentity } from '../../src/worker/ipc/identity.js'
 import { registerIdentityUnlock } from '../../src/worker/ipc/identity-unlock.js'
+import { registerBackupRestore } from '../../src/worker/ipc/backup-restore.js'
 import { createKeyWait } from '../../src/worker/key-wait.js'
 import { createPassphraseThrottle } from '../../src/shared/core/identity-recovery.js'
 import { CODES } from '../../src/shared/contract/errors.js'
@@ -113,6 +114,7 @@ function waitingWorker(t, config, { log = quiet } = {}) {
   })
   keyWait.booted.then(() => { lockedBy = null }, () => {})
   registerIdentity(ipc, { storagePath: config.storage, identityKEK: () => null, log, lockedBy: () => lockedBy, openRecovery: createPassphraseThrottle() })
+  registerBackupRestore(ipc, { storagePath: config.storage, identityKEK: () => null, log, lockedBy: () => lockedBy, openRecovery: createPassphraseThrottle() })
   registerIdentityUnlock(ipc, { unlock: keyWait.unlock })
   ipc.start()
   const host = clientPipe()
@@ -132,6 +134,7 @@ test('a worker without a key waits, says so, and recovers nothing while it does'
   t.alike((await host.request('identity:status')).data, { locked: true, code: 'IDENTITY_AWAITING_KEY', restore: null })
   t.is((await host.request('identity:set-aside')).code, 'NOT_AUTHORIZED', 'nothing is set aside: the identity was never tried')
   t.is((await host.request('identity:unlock-from-backup', { folder: '/nowhere', passphrase: 'x' })).code, 'NOT_AUTHORIZED')
+  t.is((await host.request('backup:peek', { folder: '/nowhere' })).code, 'NOT_AUTHORIZED', 'and no backup is restored over it')
   t.ok(fs.existsSync(config.storage), 'the store is where it was')
 })
 
