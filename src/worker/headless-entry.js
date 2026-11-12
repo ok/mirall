@@ -5,6 +5,7 @@
 import fs from 'bare-fs'
 import os from 'bare-os'
 import path from 'bare-path'
+import Signal from 'bare-signals'
 import { headlessBootstrap, USAGE } from './headless-args.js'
 import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../shared/contract/main-requests.js'
 
@@ -48,4 +49,19 @@ export function releaseUnusedPipe(pipe) {
   pipe.on('error', () => {})
   pipe.on('close', () => {})
   pipe.destroy()
+}
+
+// Nobody quits a headless worker through a window, so the terminal and the service manager stop it
+// the way they stop any process: SIGTERM and SIGINT (Ctrl+C, on Windows too), and SIGBREAK
+// (Ctrl+Break) where Windows has it. Unref'd: a handler alone never keeps the worker alive.
+/** @param {(signal: string) => void} stop */
+export function installStopSignals(stop) {
+  const names = os.platform() === 'win32' ? ['SIGINT', 'SIGBREAK'] : ['SIGTERM', 'SIGINT']
+  for (const name of names) {
+    if (!(name in Signal.constants)) continue
+    const signal = new Signal(name)
+    signal.on('signal', () => stop(name))
+    signal.start()
+    signal.unref()
+  }
 }

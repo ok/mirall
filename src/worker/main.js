@@ -65,7 +65,9 @@ import {
   getProfile,
 } from '../shared/spaces/profile.js'
 import { installDataDirTripwire, armDataDirTripwire } from './dir-tripwire.js'
-import { readHeadlessBootstrap, printUsage, prepareStorageDir, announceListening, releaseUnusedPipe } from './headless-entry.js'
+import {
+  readHeadlessBootstrap, printUsage, prepareStorageDir, announceListening, releaseUnusedPipe, installStopSignals,
+} from './headless-entry.js'
 import { boot } from './boot.js'
 import { refreshAuditSelfName } from './audit-refs.js'
 
@@ -191,6 +193,8 @@ if (!headless) {
     stop: (reason) => { safeShutdown(reason, WORKER_EXIT_ORPHANED) },
   })
 }
+
+if (headless) installStopSignals((signal) => { safeShutdown('signal ' + signal) })
 
 // === Bootstrap frame ===
 

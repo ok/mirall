@@ -7,6 +7,7 @@ import { tmpDir } from '../helpers/tmp.js'
 import { scaled } from '../helpers/timing.js'
 
 const WORKER_EXIT_PROTOCOL_MISMATCH = 71
+const WORKER_EXIT_ALREADY_RUNNING = 73
 
 function dataDir(t) {
   return path.join(tmpDir('mirall-headless', t), 'profile')
@@ -32,6 +33,8 @@ test('started without a pipe, the back end listens beside its own store and says
   if (process.platform !== 'win32') {
     t.is(fs.statSync(path.join(dir, 'app-storage')).mode & 0o777, 0o700, 'the store it created is the owner\'s alone')
   }
+  const second = spawnHeadless(['--storage', dir, '--dev'])
+  t.is(await second.exited, WORKER_EXIT_ALREADY_RUNNING, 'a second start on the same profile says it is already running')
 })
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
@@ -75,4 +78,30 @@ test('a back end waits for its key, unlocks over the socket, and never prints a 
   for (const key of [kek, wrong]) {
     for (const [form, text] of Object.entries(keyForms(key))) t.absent(printed.includes(text.slice(0, 12)), `no ${form} form of a key`)
   }
+})
+
+// A service manager's stop and a terminal's Ctrl+C: the same teardown a shutdown request runs, a
+// clean exit, the profile lock released and the socket file gone.
+test('SIGTERM and SIGINT stop a back end cleanly, waiting or unlocked', { skip: process.platform === 'win32', timeout: scaled(90000) }, async (t) => {
+  const dir = dataDir(t)
+  const kek = kekHex()
+  const stops = [['SIGTERM', null], ['SIGINT', kek], ['SIGTERM', kek]]
+  for (const [signal, key] of stops) {
+    const run = spawnHeadless(['--storage', dir, '--dev'])
+    t.teardown(() => { run.child.kill('SIGKILL') })
+    const socket = await run.listening(scaled(20000))
+    if (key) {
+      const client = connectClient(socket)
+      t.alike((await client.call('identity:unlock', { kek: key })).data, { ok: true })
+      client.close()
+    }
+    run.child.kill(signal)
+    t.is(await run.exited, 0, `${signal} ${key ? 'after the unlock' : 'while waiting'} exits 0`)
+    t.absent(fs.existsSync(socket), 'and leaves no socket file')
+  }
+  const again = spawnHeadless(['--storage', dir, '--dev'])
+  t.teardown(() => { again.child.kill('SIGKILL') })
+  t.ok(await again.listening(scaled(20000)), 'the lock was released: the next start takes it')
+  again.child.kill('SIGTERM')
+  t.is(await again.exited, 0)
 })
