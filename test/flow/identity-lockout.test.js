@@ -10,6 +10,10 @@ import { scaled } from '../helpers/timing.js'
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const PASS = 'a long enough passphrase'
 
+// These tests are about a worker its host handed a wrong key: it locks. A headless worker is handed
+// no key at start and keeps waiting for a good one, so under that transport the peers stay spawned.
+const transport = process.env.MIRALL_TEST_IPC_TRANSPORT === 'headless' ? 'pipe' : undefined
+
 // A peer in its own <root>/app-storage, like production, so identity.enc sits in a directory no
 // other peer shares.
 function peerHome(t) {
@@ -36,7 +40,7 @@ async function codeOf(promise) {
 async function establish(t, bootstrap, home, displayName) {
   const identityKEK = kekHex()
   const backupFolder = mkTmpDir(t)
-  const peer = await launchPeer(t, { bootstrap, displayName, ...home, flags: { identityKEK, backupFolder } })
+  const peer = await launchPeer(t, { transport, bootstrap, displayName, ...home, flags: { identityKEK, backupFolder } })
   const personKey = (await peer.request('profile:get')).personKey
   await peer.request('backup:run', {})
   await peer.request('backup:new-key', { passphrase: PASS })
@@ -47,7 +51,7 @@ async function establish(t, bootstrap, home, displayName) {
 
 // The same storage under a key that cannot open it, as after a keychain reset or a machine move.
 function launchLocked(t, bootstrap, home, identityKEK = kekHex()) {
-  return launchPeer(t, { bootstrap, displayName: 'Locked', ...home, flags: { identityKEK }, setProfile: false })
+  return launchPeer(t, { transport, bootstrap, displayName: 'Locked', ...home, flags: { identityKEK }, setProfile: false })
 }
 
 test('REGRESSION (MIR-30: a KEK that cannot open identity.enc crash-looped the worker)', { timeout: scaled(150000) }, async (t) => {
@@ -78,10 +82,10 @@ test('the backup\'s key unlocks the identity in place through a locked worker', 
 
   // Held even over its own data, which may be older than what peers hold; with no co-member anywhere
   // nobody else can hold it, so the hold lifts at once and the next boot is a normal one.
-  const holding = await launchPeer(t, { bootstrap, displayName: 'Alice', ...home, flags: { identityKEK: newKEK }, setProfile: false })
+  const holding = await launchPeer(t, { transport, bootstrap, displayName: 'Alice', ...home, flags: { identityKEK: newKEK }, setProfile: false })
   await holding.until('identity:status', {}, (s) => s.restore?.profile?.released === true, { ms: 30000, every: 500 })
   await stop(holding)
-  const restored = await launchPeer(t, { bootstrap, displayName: 'Alice', ...home, flags: { identityKEK: newKEK }, setProfile: false })
+  const restored = await launchPeer(t, { transport, bootstrap, displayName: 'Alice', ...home, flags: { identityKEK: newKEK }, setProfile: false })
   t.alike(await restored.request('identity:status'), { locked: false, code: null, restore: null })
   const profile = await restored.request('profile:get')
   t.is(profile.personKey, alice.personKey, 'the same network identity')
@@ -103,7 +107,7 @@ test('another identity\'s backup does not unlock the locked data; restoring it s
   t.is((await locked.request('backup:restore', { folder: bob.backupFolder, snapshot: bob.lastSnapshot, passphrase: PASS })).ok, true)
   await stop(locked)
 
-  const asBob = await launchPeer(t, { bootstrap, displayName: 'Bob here', ...home, flags: { identityKEK: newKEK }, setProfile: false })
+  const asBob = await launchPeer(t, { transport, bootstrap, displayName: 'Bob here', ...home, flags: { identityKEK: newKEK }, setProfile: false })
   const setAside = fs.readdirSync(home.root).filter((n) => n.startsWith('app-storage.locked-'))
   t.is(setAside.length, 1, "Alice's data was set aside, not overwritten")
   t.is((await asBob.request('identity:status')).locked, false, 'the next boot opens')
@@ -123,7 +127,7 @@ test('starting fresh sets the locked data aside and boots a new identity', { tim
   t.ok(fs.existsSync(path.join(folder, 'identity.enc')), 'the locked envelope moved with the data')
   t.ok(fs.existsSync(path.join(folder, 'CORESTORE')), 'and so did the store')
 
-  const fresh = await launchPeer(t, { bootstrap, displayName: 'Alice again', ...home, flags: { identityKEK: newKEK } })
+  const fresh = await launchPeer(t, { transport, bootstrap, displayName: 'Alice again', ...home, flags: { identityKEK: newKEK } })
   t.alike(await fresh.request('identity:status'), { locked: false, code: null, restore: null })
   t.not((await fresh.request('profile:get')).personKey, alice.personKey, 'a new identity')
 })
@@ -131,7 +135,7 @@ test('starting fresh sets the locked data aside and boots a new identity', { tim
 test('a running identity is never unlocked with a backup: that would fork it', { timeout: scaled(120000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const home = peerHome(t)
-  const peer = await launchPeer(t, { bootstrap, displayName: 'Alice', ...home, flags: { identityKEK: kekHex() } })
+  const peer = await launchPeer(t, { transport, bootstrap, displayName: 'Alice', ...home, flags: { identityKEK: kekHex() } })
   t.is(await codeOf(peer.request('identity:unlock-from-backup', { folder: mkTmpDir(t), passphrase: PASS })), 'NOT_AUTHORIZED')
   t.is(await codeOf(peer.request('identity:set-aside')), 'NOT_AUTHORIZED')
 })
