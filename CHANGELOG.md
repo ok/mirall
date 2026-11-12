@@ -45,6 +45,13 @@ in the title bar on KDE Plasma (Wayland).
 - **The Mirall icon shows in the window's title bar on KDE Plasma (Wayland).**
   It showed a generic placeholder there.
 
+### Security
+
+- **Someone who knows one space's address no longer receives details of
+  your other spaces.** Mirall now answers only a device that proves it
+  knows that space. Members still on Mirall 1.11.1 or older must update
+  to keep syncing spaces they share with updated members.
+
 ## v1.13.0
 
 ### 2026-10-24
