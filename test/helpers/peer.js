@@ -7,6 +7,7 @@ import { scaled, summarize, tail, TIMING } from './timing.js'
 import { tmpDir } from './tmp.js'
 import { createEventLog } from './event-log.js'
 import { IPC_PROTOCOL_VERSION, IPC_PROTOCOL_MIN_SUPPORTED } from '../../src/shared/contract/ipc-frames.js'
+import { spawnHeadless } from './headless.js'
 
 // A full client = the REAL worker (src/worker/main.js) run as a bare subprocess
 // via bare-sidecar, driven over its NDJSON IPC (the same protocol Electron main
@@ -31,8 +32,24 @@ const tmp = (label) => tmpDir(`mirall-peer-${label}`)
 
 // Which wire a peer's requests and events travel. 'pipe' is the spawn pipe the worker was started
 // on; 'socket' is a connection to the worker's own socket, the way a window reaches it, with the
-// spawn pipe left to the host's frames.
-const DEFAULT_TRANSPORT = process.env.MIRALL_TEST_IPC_TRANSPORT === 'socket' ? 'socket' : 'pipe'
+// spawn pipe left to the host's frames. 'headless' starts the worker with no spawn pipe at all, from
+// a command line (headless.js), and hands it its key over the socket as a host client.
+const TRANSPORTS = ['pipe', 'socket', 'headless']
+const DEFAULT_TRANSPORT = TRANSPORTS.includes(process.env.MIRALL_TEST_IPC_TRANSPORT) ? process.env.MIRALL_TEST_IPC_TRANSPORT : 'pipe'
+
+// The command line that stands in for the bootstrap frame: the data folder the store sits in, the
+// local DHT, and every other lever this peer's bootstrap would carry. The key and the relay seed are
+// not among them; they travel in identity:unlock.
+function headlessArgs({ storage, downloads, bootstrap, flags }) {
+  if (path.basename(storage) !== 'app-storage') {
+    throw new Error('the headless transport opens <data folder>/app-storage, as the desktop app does: ' + storage)
+  }
+  const { identityKEK: _kek, relaySeed: _seed, ...levers } = flags
+  const args = ['--storage', path.dirname(storage), '--dev', '--runtime-config',
+    JSON.stringify({ appVersion: '0.0.0-test', verbose: false, downloadFolder: downloads, ...levers })]
+  if (bootstrap) args.push('--dht-bootstrap', bootstrap.map((node) => (typeof node === 'string' ? node : `${node.host}:${node.port}`)).join(','))
+  return args
+}
 
 function helloLine(name) {
   return JSON.stringify({
@@ -124,24 +141,27 @@ export async function launchPeer(t, { bootstrap, displayName = 'Peer', debug = f
   downloads = downloads || tmp('dl')
   // Every worker unlocks with a KEK, as main's are: a bootstrap without one fails boot.
   flags = { identityKEK: kekFor(storage), ...flags }
-  const sidecar = new Sidecar(WORKER_ENTRY)
+  const headless = transport === 'headless'
+  const run = headless ? spawnHeadless(headlessArgs({ storage, downloads, bootstrap, flags })) : null
+  const sidecar = headless ? null : new Sidecar(WORKER_ENTRY)
   installExitBackstop()
-  const child = sidecar._process
+  const child = headless ? run.child : sidecar._process
   if (child) {
     liveChildren.add(child)
-    sidecar.on('exit', () => liveChildren.delete(child))
+    child.on('exit', () => liveChildren.delete(child))
   }
+  const stdio = headless ? child : sidecar
 
   // Capture stderr (where the logger's warn/error land) so tests can assert on log
   // noise; the listener also drains the pipe so its buffer never blocks the worker.
   const stderrChunks = []
-  sidecar.stderr.on('data', (d) => {
+  stdio.stderr.on('data', (d) => {
     stderrChunks.push(d.toString())
     if (debug) process.stderr.write(d)
   })
   // Stdout carries what dependencies print with console.log (hypercore reports a fork there).
   const stdoutChunks = []
-  sidecar.stdout.on('data', (d) => {
+  stdio.stdout.on('data', (d) => {
     stdoutChunks.push(d.toString())
     if (debug) process.stdout.write(d)
   })
@@ -159,9 +179,13 @@ export async function launchPeer(t, { bootstrap, displayName = 'Peer', debug = f
     for (const { reject } of pending.values()) reject(err)
     pending.clear()
   }
-  sidecar.on('end', () => die('end'))
-  sidecar.on('close', () => die('close'))
-  sidecar.on('error', () => die('error'))
+  if (headless) {
+    child.on('exit', () => die('exit'))
+  } else {
+    sidecar.on('end', () => die('end'))
+    sidecar.on('close', () => die('close'))
+    sidecar.on('error', () => die('error'))
+  }
 
   let lastSeq = 0
   let lastEpoch = null
@@ -183,7 +207,7 @@ export async function launchPeer(t, { bootstrap, displayName = 'Peer', debug = f
   let socketPath = null
   function openSocket(announced) {
     socketPath = announced
-    if (transport !== 'socket' || wire) return
+    if (transport === 'pipe' || wire) return
     const socket = net.connect(announced)
     socket.on('data', frameLines((msg) => {
       if (msg.type === 'keepalive') { socket.write('{"type":"keepalive-ack"}\n'); return }
@@ -195,7 +219,7 @@ export async function launchPeer(t, { bootstrap, displayName = 'Peer', debug = f
     wire = socket
   }
 
-  sidecar.on('data', frameLines((msg) => {
+  sidecar?.on('data', frameLines((msg) => {
     if (msg.type === 'main-request' && msg.command === 'socket:listening') openSocket(msg.args.path)
     else if (transport === 'pipe') onFrame(msg)
   }))
@@ -205,7 +229,8 @@ export async function launchPeer(t, { bootstrap, displayName = 'Peer', debug = f
     cursor: () => ({ epoch: lastEpoch, since: lastSeq }),
     storage,
     downloads,
-    sidecar,
+    // A headless peer has no sidecar; its process stands in where a test reads the pid or kills it.
+    sidecar: sidecar ?? { _process: child, destroy: () => child.kill('SIGKILL') },
     transport,
     // Where the worker said it listens, once it has.
     socketPath: () => socketPath,
@@ -246,8 +271,14 @@ export async function launchPeer(t, { bootstrap, displayName = 'Peer', debug = f
     // Everything the worker has written to stderr so far (logger warn/error).
     readStderr() { return stderrChunks.join('') },
     readStdout() { return stdoutChunks.join('') },
+    // Closes this peer's own connection and leaves the worker running; the peer object is done with.
+    // Only a worker reached over its socket has a connection of its own to close.
+    disconnect() {
+      if (transport === 'pipe') throw new Error('a pipe peer has no connection of its own to close')
+      wire?.destroy()
+    },
     // Hard-disconnect: kills the worker subprocess (simulates going offline).
-    kill() { die('killed'); try { sidecar.destroy() } catch {} },
+    kill() { die('killed'); try { peer.sidecar.destroy() } catch {} },
     // Poll a request until `pred(result)` holds (for eventually-consistent state).
     async until(type, args, pred, { ms = 20000, every = 150 } = {}) {
       const deadline = scaled(ms)
@@ -288,20 +319,24 @@ export async function launchPeer(t, { bootstrap, displayName = 'Peer', debug = f
   // Boot: attach listeners (above) are live, introduce ourselves, send the bootstrap line, await
   // ready. The worker refuses every frame from a client that has not said what it is and on which
   // wire, so the harness is a third writer of the hello.
-  const ready = peer.waitFor('event:worker-ready')
-  sidecar.write(helloLine('flow-harness'))
-  sidecar.write(JSON.stringify({
-    type: 'bootstrap',
-    storage,
-    appVersion: '0.0.0-test',
-    dev: true,
-    verbose: false,
-    downloadFolder: downloads,
-    dhtBootstrap: bootstrap,
-    // Runtime-config overrides for this peer (the bootstrap frame IS the runtime config).
-    ...flags,
-  }) + '\n')
-  await ready
+  if (headless) {
+    await unlockHeadless(peer, { run, openSocket, events, flags })
+  } else {
+    const ready = peer.waitFor('event:worker-ready')
+    sidecar.write(helloLine('flow-harness'))
+    sidecar.write(JSON.stringify({
+      type: 'bootstrap',
+      storage,
+      appVersion: '0.0.0-test',
+      dev: true,
+      verbose: false,
+      downloadFolder: downloads,
+      dhtBootstrap: bootstrap,
+      // Runtime-config overrides for this peer (the bootstrap frame IS the runtime config).
+      ...flags,
+    }) + '\n')
+    await ready
+  }
   // Fresh store has no profile → give the peer an identity. A locked worker serves no profile, so a
   // test booting into one skips this.
   if (setProfile) await peer.request('profile:set', { displayName, avatar: null })
@@ -310,10 +345,16 @@ export async function launchPeer(t, { bootstrap, displayName = 'Peer', debug = f
   events.seal()
 
   t.teardown(async () => {
-    const pid = sidecar?._process?.pid
-    if (alive) { try { await peer.request('shutdown') } catch {} }
-    die('teardown')
-    try { sidecar.destroy() } catch {} // SIGTERM via bare-sidecar _destroy
+    const pid = child?.pid
+    // A headless back end is stopped the way its operator stops it, with SIGTERM.
+    if (headless) {
+      die('teardown')
+      try { child.kill('SIGTERM') } catch {}
+    } else {
+      if (alive) { try { await peer.request('shutdown') } catch {} }
+      die('teardown')
+      try { sidecar.destroy() } catch {} // SIGTERM via bare-sidecar _destroy
+    }
     // Guarantee the worker is reaped: a wedged worker (busy-looped event loop)
     // ignores both the graceful shutdown IPC and the SIGTERM bare dispatches on
     // that loop, and would orphan itself at 100% CPU — exactly the production
@@ -334,6 +375,17 @@ export async function launchPeer(t, { bootstrap, displayName = 'Peer', debug = f
   })
 
   return peer
+}
+
+// A headless worker greets a client the moment it connects, while it still waits for its key; the
+// greeting that counts is the one it sends once the key has booted it.
+async function unlockHeadless(peer, { run, openSocket, events, flags }) {
+  openSocket(await run.listening(scaled(30000)))
+  await peer.waitFor('event:worker-ready')
+  events.takeFromBacklog('event:worker-ready', () => true)
+  const ready = peer.waitFor('event:worker-ready', () => true, 60000)
+  await peer.request('identity:unlock', { kek: flags.identityKEK, ...(flags.relaySeed ? { relaySeed: flags.relaySeed } : {}) })
+  await ready
 }
 
 // Wait until each peer has PERSISTED the other as an approved member. Not `event:member-joined`:

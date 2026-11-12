@@ -3,6 +3,8 @@ import fs from 'fs'
 import path from 'path'
 import crypto from 'crypto'
 import { spawnHeadless, connectClient } from '../helpers/headless.js'
+import { localTestnet } from '../helpers/testnet.js'
+import { launchPeer, connectInSpace, waitForCatalogEntry } from '../helpers/peer.js'
 import { tmpDir } from '../helpers/tmp.js'
 import { scaled } from '../helpers/timing.js'
 
@@ -104,4 +106,35 @@ test('SIGTERM and SIGINT stop a back end cleanly, waiting or unlocked', { skip: 
   t.ok(await again.listening(scaled(20000)), 'the lock was released: the next start takes it')
   again.child.kill('SIGTERM')
   t.is(await again.exited, 0)
+})
+
+// Two back ends with no window between them, each unlocked by the harness over its socket: they
+// share a space and a file's listing, and one keeps running after its last client has gone.
+test('headless back ends share a space, and one outlives its last client', { timeout: scaled(180000) }, async (t) => {
+  const bootstrap = await localTestnet(t)
+  const A = await launchPeer(t, { bootstrap, displayName: 'Alice', transport: 'headless' })
+  const B = await launchPeer(t, { bootstrap, displayName: 'Bob', transport: 'headless' })
+  t.alike(await A.request('identity:status'), { locked: false, code: null, restore: null }, 'unlocked by the harness')
+  const spaceId = await connectInSpace(t, A, B)
+
+  const src = path.join(tmpDir('mirall-headless-src', t), 'note.txt')
+  fs.writeFileSync(src, 'a small file')
+  await A.request('files:add', { spaceId, filePath: src, fileName: 'note.txt', fileSize: fs.statSync(src).size })
+  const entry = await waitForCatalogEntry(B, spaceId, '/note.txt')
+  t.is(entry.status, 'remote', 'Bob lists the file Alice shared')
+
+  const child = A.sidecar._process
+  const socket = A.socketPath()
+  A.disconnect()
+  await new Promise((resolve) => setTimeout(resolve, scaled(1500)))
+  t.is(child.exitCode, null, 'the back end is still running with no client attached')
+
+  const again = connectClient(socket)
+  const spaces = (await again.call('spaces:list')).data
+  t.ok(spaces.some((s) => s.spaceId === spaceId), 'a new client reads the space it left behind')
+  again.close()
+
+  const exited = new Promise((resolve) => child.once('exit', (code) => resolve(code)))
+  child.kill('SIGTERM')
+  t.is(await exited, 0, 'and it stops cleanly when told to')
 })
