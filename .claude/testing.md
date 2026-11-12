@@ -73,6 +73,13 @@ that starts a subsystem of its own **closes it in `t.teardown`**; `test/helpers/
 `trackTimers()` is the tool for proving nothing is left armed (install it before the imports under
 test, restore it in teardown).
 
+**A backup from every release restores.** `test/fixtures/backup/<x.y.z>/` holds one frozen backup
+folder per release since 1.12.0, written from that release's tag by
+`scripts/backup-fixture/generate.mjs` and added after each stable tag (`SOURCES.md` records how);
+`test/integration/backup-compat.test.js` restores each one, and
+`test/invariants/backup-fixtures-frozen.test.js` holds their bytes to `SHA256SUMS`. A failing
+restore blocks the release: fix the reader, never the fixture.
+
 **Layer = what the module *imports*, not how pure the function is.** Anything reachable from
 `src/shared/**` or `src/worker/**` that pulls in a `bare-*` module (`bare-fs`, `bare-path`, …) loads
 only under Bare → it's an **Integration** test (`brittle-bare`/`test:bare`), never Unit or
