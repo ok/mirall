@@ -62,6 +62,7 @@ import {
   getProfile,
 } from '../shared/spaces/profile.js'
 import { installDataDirTripwire, armDataDirTripwire } from './dir-tripwire.js'
+import { readHeadlessBootstrap, printUsage, prepareStorageDir, announceListening, releaseUnusedPipe } from './headless-entry.js'
 import { boot } from './boot.js'
 import { refreshAuditSelfName } from './audit-refs.js'
 
@@ -69,8 +70,14 @@ import { refreshAuditSelfName } from './audit-refs.js'
 // stays inert until armDataDirTripwire runs with the bootstrap's storage path, below.
 installDataDirTripwire()
 
-const ipc = createIPC(Bare.IPC)
+// A host spawns the worker with its pipe on fd 3 and no arguments. Without that pipe, or with a
+// command line, nothing spawned it: it was started on its own and stays up until it is asked to
+// stop (headless-entry.js).
+const headless = Bare.IPC === null || Bare.argv.length > 2
+if (headless) releaseUnusedPipe(Bare.IPC)
+const ipc = createIPC(headless ? null : Bare.IPC)
 const log = createLogger('worklet')
+const packageRoot = path.resolve(path.dirname(Bare.argv[1]), '..', '..')
 
 // Started next to ipc.start() rather than here: before the router goes live the loop is busy with
 // boot I/O by design, and sampling that would report a wedge that is really just a large library
@@ -171,13 +178,16 @@ async function safeShutdown(reason, code = 0) {
 //
 // A closed pipe disconnects a CLIENT and then asks separately whether to stay up. The answer is
 // "stop" — see connection-lifecycle.js for why it has to be while the worker lives with its host.
-bindConnectionLifecycle({
-  pipe: Bare.IPC,
-  ipc,
-  client: ipc.primary,
-  isBootComplete: () => bootComplete,
-  stop: (reason) => { safeShutdown(reason, WORKER_EXIT_ORPHANED) },
-})
+// A headless worker has no host pipe, so no client's departure stops it.
+if (!headless) {
+  bindConnectionLifecycle({
+    pipe: Bare.IPC,
+    ipc,
+    client: ipc.primary,
+    isBootComplete: () => bootComplete,
+    stop: (reason) => { safeShutdown(reason, WORKER_EXIT_ORPHANED) },
+  })
+}
 
 // === Bootstrap frame ===
 
@@ -188,17 +198,29 @@ bindConnectionLifecycle({
 // It is awaited and then parked, never re-thrown: a throw here is a top-level-await rejection,
 // which is the outcome this branch exists to avoid. The park covers the one case where
 // safeShutdown returns instead of exiting — a teardown that got there first and owns the exit.
+// A command line the worker cannot read is refused like a host on another protocol: starting it
+// again with the same arguments meets the same refusal.
 let bootstrap
-try {
-  bootstrap = await ipc.bootstrapPromise
-} catch (err) {
-  await safeShutdown('protocol-mismatch: ' + err.message, WORKER_EXIT_PROTOCOL_MISMATCH)
-  await new Promise(() => {})
+if (headless) {
+  const read = readHeadlessBootstrap(packageRoot)
+  if ('refusal' in read) {
+    printUsage(read.refusal)
+    Bare.exit(read.refusal === 'help' ? 0 : WORKER_EXIT_PROTOCOL_MISMATCH)
+  }
+  bootstrap = read.bootstrap
+  prepareStorageDir(bootstrap.storage)
+} else {
+  try {
+    bootstrap = await ipc.bootstrapPromise
+  } catch (err) {
+    await safeShutdown('protocol-mismatch: ' + err.message, WORKER_EXIT_PROTOCOL_MISMATCH)
+    await new Promise(() => {})
+  }
 }
 // The package root is two levels up from this entry — the repo in dev, app.asar.unpacked when
 // packaged — and feature-flags.json sits there. The settings file is the worker's own and is read
 // before anything else needs a preference; a first boot imports it from main's config.json.
-const flags = loadFeatureFlags(path.resolve(path.dirname(Bare.argv[1]), '..', '..'), { override: bootstrap.featureFlags, log })
+const flags = loadFeatureFlags(packageRoot, { override: bootstrap.featureFlags, log })
 const settingsLoad = await loadSettings(bootstrap.storage)
 if (settingsLoad.imported) log.info('settings: imported from config.json')
 if (!settingsLoad.persisted) log.warn('settings: running on defaults, settings.json could not be', settingsLoad.broken ? 'read: ' + settingsLoad.broken : 'written')
@@ -219,6 +241,7 @@ armDataDirTripwire(bootstrap.storage)
     await new Promise(() => {})
   }
   listener = listened
+  if (headless) announceListening(listened.path)
 }
 
 // === Boot: the composition root constructs and starts the data layer ===
