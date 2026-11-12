@@ -22,6 +22,7 @@ import { TRUST } from '../../src/shared/contract/ipc-frames.js'
 import { sayHello } from '../helpers/ipc-hello.js'
 import { waitFor } from '../helpers/bare-poll.js'
 import { capture } from '../helpers/capture-console.js'
+import { setVerbose } from '../helpers/runtime-verbose.js'
 
 const quiet = { debug() {}, info() {}, warn() {}, error() {} }
 
@@ -181,7 +182,7 @@ test('no log line carries the key, on any unlock path', async (t) => {
   const { config } = peerConfig(t)
   const first = await bootDurable({ ...config, identityKEK: kek }, { ipc: createFakeIpc().ipc, log: quiet })
   await first.close()
-  setRuntimeConfig({ ...config, verbose: true })
+  setVerbose(t, true)
   const lines = capture(t, ['log', 'warn', 'error'])
   const { host, keyWait } = waitingWorker(t, config, { log: createLogger('worklet') })
 
