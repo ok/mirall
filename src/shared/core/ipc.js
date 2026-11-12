@@ -75,6 +75,15 @@ export function resetRequestFailureCounters() {
   requestFailures.clear()
 }
 
+// A malformed frame is recoverable: the line is skipped and reading goes on (NDJSON resync). It is
+// logged by its length only, because a parser's message quotes its input and a frame may carry a key.
+function parseFrame(line) {
+  try { return JSON.parse(line) } catch {
+    log.debug('skipped unparseable frame:', line.length, 'chars')
+    return undefined
+  }
+}
+
 // `requests` is injectable so a test can declare the small vocabulary it exercises. Production
 // passes nothing and gets the real contract, which is what makes an unknown handler name a boot
 // failure rather than a 404 discovered in the field.
@@ -121,11 +130,10 @@ export function createIPC(pipe, {
       client.lastSeenAt = now()
       client.probeSentAt = null
       for (const line of reader.push(chunk)) {
-        try { readFrame(client, JSON.parse(line)) } catch (err) {
-          // A malformed frame is recoverable — skip the line and keep reading
-          // (NDJSON resync). Debug-level so a stray/partial frame doesn't spam the
-          // console; enable verbose to diagnose genuine IPC corruption.
-          log.debug('skipped unparseable frame:', err.message)
+        const msg = parseFrame(line)
+        if (msg === undefined) continue
+        try { readFrame(client, msg) } catch (err) {
+          log.debug('skipped unreadable frame:', err.message)
         }
       }
     })
@@ -257,6 +265,8 @@ export function createIPC(pipe, {
     now,
   })
 
+  // Called again once the handler table has grown — a worker that waited for its key goes live with
+  // the recovery set first — it greets every attached client anew with the greeter now installed.
   function start() {
     ready = true
     for (const { client, msg } of queued) dispatch(client, msg)

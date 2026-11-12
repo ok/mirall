@@ -1,6 +1,8 @@
 import { spawn } from 'child_process'
 import { createRequire } from 'module'
+import net from 'net'
 import path from 'path'
+import { helloFrame } from './ipc-hello.js'
 
 // A back end started the way a developer starts it: the worker entry run directly on the bare binary
 // the desktop app ships (bare-sidecar's prebuild for this platform, as its own `#bare` import picks
@@ -65,5 +67,58 @@ export function spawnHeadless(args, { env = {} } = {}) {
         exited.then((code) => { clearTimeout(timer); reject(new Error(`exited ${code} before listening\n${Buffer.concat(err).toString()}`)) })
       })
     },
+  }
+}
+
+// A host client on the back end's socket, as a window or a CLI connects: it introduces itself,
+// answers keepalives, and matches responses to requests by id.
+export function connectClient(socketPath, { name = 'flow-headless' } = {}) {
+  const socket = net.connect(socketPath)
+  const pending = new Map()
+  const frames = []
+  let buf = ''
+  let next = 0
+  let closed = false
+  socket.on('data', (chunk) => {
+    buf += chunk.toString()
+    let nl
+    while ((nl = buf.indexOf('\n')) !== -1) {
+      const line = buf.slice(0, nl)
+      buf = buf.slice(nl + 1)
+      if (!line) continue
+      const msg = JSON.parse(line)
+      if (msg.type === 'keepalive') { socket.write('{"type":"keepalive-ack"}\n'); continue }
+      frames.push(msg)
+      if (msg.type === 'response' && pending.has(msg.id)) {
+        const settle = pending.get(msg.id)
+        pending.delete(msg.id)
+        settle(msg)
+      }
+    }
+  })
+  const gone = () => {
+    closed = true
+    for (const settle of pending.values()) settle({ type: 'response', error: 'socket closed', code: 'GONE' })
+    pending.clear()
+  }
+  socket.on('error', () => {})
+  socket.on('close', gone)
+  socket.write(JSON.stringify(helloFrame({ client: { kind: 'test', name, version: '0.0.0-test' } })) + '\n')
+  return {
+    socket,
+    frames,
+    get closed() { return closed },
+    of: (type) => frames.filter((f) => f.type === type),
+    // The raw response frame: `data` on success, `error` and `code` on a refusal.
+    call(type, args = {}) {
+      if (closed) return Promise.resolve({ type: 'response', error: 'socket closed', code: 'GONE' })
+      const id = 'h' + (next++)
+      return new Promise((resolve) => {
+        pending.set(id, resolve)
+        socket.write(JSON.stringify({ id, type, ...args }) + '\n')
+      })
+    },
+    writeRaw: (text) => socket.write(text),
+    close: () => socket.destroy(),
   }
 }

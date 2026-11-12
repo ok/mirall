@@ -1,7 +1,8 @@
 import test from 'brittle'
 import fs from 'fs'
 import path from 'path'
-import { spawnHeadless } from '../helpers/headless.js'
+import crypto from 'crypto'
+import { spawnHeadless, connectClient } from '../helpers/headless.js'
 import { tmpDir } from '../helpers/tmp.js'
 import { scaled } from '../helpers/timing.js'
 
@@ -30,5 +31,48 @@ test('started without a pipe, the back end listens beside its own store and says
   t.ok(fs.statSync(socket).isSocket(), 'and the socket it names is bound')
   if (process.platform !== 'win32') {
     t.is(fs.statSync(path.join(dir, 'app-storage')).mode & 0o777, 0o700, 'the store it created is the owner\'s alone')
+  }
+})
+
+const kekHex = () => crypto.randomBytes(32).toString('hex')
+const keyForms = (hex) => {
+  const raw = Buffer.from(hex, 'hex')
+  return { hex, base64: raw.toString('base64'), bytes: raw.toString('latin1') }
+}
+
+// The process's own stdout and stderr, at the most verbose level, across every path a key takes:
+// a frame that is not JSON, a key of the wrong length, a wrong key, and the right one.
+test('a back end waits for its key, unlocks over the socket, and never prints a key', { timeout: scaled(90000) }, async (t) => {
+  const dir = dataDir(t)
+  const kek = kekHex()
+  const wrong = kekHex()
+  const first = spawnHeadless(['--storage', dir, '--dev', '--verbose'])
+  t.teardown(() => { first.child.kill('SIGKILL') })
+  const a = connectClient(await first.listening(scaled(20000)))
+  t.alike((await a.call('identity:status')).data, { locked: true, code: 'IDENTITY_AWAITING_KEY', restore: null }, 'waiting, and says why')
+  t.is((await a.call('spaces:list')).code, 'NOT_FOUND', 'the data layer is not served before the key')
+  a.writeRaw(kek + '\n')
+  t.is((await a.call('identity:unlock', { kek: kek.slice(1) })).code, 'INVALID_ARGUMENT', 'a key of the wrong length')
+  t.alike((await a.call('identity:unlock', { kek })).data, { ok: true }, 'the key boots it in place')
+  t.alike((await a.call('identity:status')).data, { locked: false, code: null, restore: null })
+  t.ok(Array.isArray((await a.call('spaces:list')).data), 'and the data layer answers')
+  t.is((await a.call('identity:unlock', { kek })).code, 'NOT_AUTHORIZED', 'a second unlock is refused')
+  t.ok(a.of('event:worker-ready').length >= 2, 'told it was up while waiting, and again once booted')
+  a.close()
+  first.child.kill('SIGKILL')
+  await first.exited
+
+  const second = spawnHeadless(['--storage', dir, '--dev', '--verbose'])
+  t.teardown(() => { second.child.kill('SIGKILL') })
+  const b = connectClient(await second.listening(scaled(20000)))
+  t.is((await b.call('identity:unlock', { kek: wrong })).code, 'IDENTITY_UNLOCK_FAILED', 'a wrong key is refused')
+  t.is((await b.call('identity:status')).data.code, 'IDENTITY_AWAITING_KEY', 'and the worker keeps waiting')
+  t.alike((await b.call('identity:unlock', { kek })).data, { ok: true }, 'the right one, no restart')
+  b.close()
+
+  const printed = first.stdout() + first.stderr() + second.stdout() + second.stderr()
+  t.ok(printed.includes('identity:unlock'), 'the requests were logged')
+  for (const key of [kek, wrong]) {
+    for (const [form, text] of Object.entries(keyForms(key))) t.absent(printed.includes(text.slice(0, 12)), `no ${form} form of a key`)
   }
 })

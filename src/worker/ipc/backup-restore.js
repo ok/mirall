@@ -22,7 +22,7 @@ import { probeDownloadFolder } from '../../shared/folders/mount-validate.js'
 import { applyRestoredSettings } from '../../shared/core/settings-rules.js'
 import { AppError } from '../../shared/core/errors.js'
 import { CODES } from '../../shared/contract/errors.js'
-import { isUnclaimed } from './identity.js'
+import { isUnclaimed, isRecoverableLock } from './identity.js'
 import { getManagedOverlay } from '../../shared/core/managed-overlay.js'
 
 /** @param {string} folder */
@@ -36,14 +36,15 @@ function isFolder(folder) {
 
 /**
  * @param {WorkerIpc} ipc
- * @param {{ storagePath: string, identityKEK: string | null | undefined, log: Logger, lockedBy: IdentityLockCode | null, openRecovery: (text: string, passphrase: string) => Promise<{ masterSecret: Uint8Array }> }} deps
+ * @param {{ storagePath: string, identityKEK: () => string | null | undefined, log: Logger, lockedBy: () => IdentityLockCode | null, openRecovery: (text: string, passphrase: string) => Promise<{ masterSecret: Uint8Array }> }} deps
  */
 export function registerBackupRestore(ipc, { storagePath, identityKEK, log, lockedBy, openRecovery }) {
   // One restore at a time: they share the staging folder.
   let queue = Promise.resolve()
 
   async function assertAllowed() {
-    if (!lockedBy && !(await isUnclaimed())) throw new AppError(CODES.NOT_AUTHORIZED, 'a backup is restored only over a locked or unused identity')
+    if (isRecoverableLock(lockedBy())) return
+    if (lockedBy() || !(await isUnclaimed())) throw new AppError(CODES.NOT_AUTHORIZED, 'a backup is restored only over a locked or unused identity')
   }
 
   /** @param {string} folder @returns {Promise<string>} */
@@ -73,7 +74,7 @@ export function registerBackupRestore(ipc, { storagePath, identityKEK, log, lock
     await repo.clearLeases()
     // Checked again: the staging can take long, and the identity may have been put to use meanwhile.
     await assertAllowed()
-    await sealPendingAdoption({ storagePath, provider: unlockProviderFor({ identityKEK }), masterSecret })
+    await sealPendingAdoption({ storagePath, provider: unlockProviderFor({ identityKEK: identityKEK() }), masterSecret })
     // Before the restore request: a settings write that fails then fails the restore before anything
     // is staged for the next boot, instead of after.
     // A folder an organization set is not the person's: restoring from it keeps their own setting.
