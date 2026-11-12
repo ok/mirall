@@ -54,5 +54,5 @@ test('the shipped flags set each staged security enforcement', (t) => {
   const here = path.dirname(new URL(import.meta.url).pathname)
   const shipped = flagsToRuntimeConfig(loadFeatureFlags(path.resolve(here, '..', '..'), { log: quiet().log }))
   t.is(shipped.topicRefsEnforced, true, 'topic references are enforced')
-  t.is(shipped.membershipControlBindingEnforced, false, 'a cancel or deny that names no sender is honoured')
+  t.is(shipped.membershipControlBindingEnforced, true, 'a cancel or deny that names no sender is refused')
 })

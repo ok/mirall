@@ -51,6 +51,10 @@ in the title bar on KDE Plasma (Wayland).
   your other spaces.** Mirall now answers only a device that proves it
   knows that space. Members on a Mirall older than 1.12 should update
   to keep spaces they share with updated members in step.
+- **Someone who knows a space's address can no longer cancel or turn down
+  another person's request to join it.** A cancel or deny that does not
+  name its sender is now ignored. Members on a Mirall older than 1.12
+  must update for their cancels and denies to count.
 
 ## v1.13.0
 

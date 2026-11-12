@@ -796,15 +796,15 @@ cancel is applied (tombstone, banner cleared, ack) only when its sender is the j
 own request, or a verified member of the space clearing the banner after its own deny. A pending
 joiner always applies a deny from the invite's inviter or the creator it names. A deny for a space
 we are not pending in does nothing. Everything else waits on `membershipControlBindingEnforced`
-(`feature-flags.json` `membershipControlBinding`, default off):
+(`feature-flags.json` `membershipControlBinding`, on in the shipped file, off by default):
 
-- **Off:** any other deny is honoured and logged. That covers a frame that names no sender (an older
-  release) and a co-member the joiner cannot vet: the replication gate keeps the roster out of a
-  pending joiner's reach over a denier's socket, since a deny, unlike a grant, opens no replication.
-- **On:** a frame that names no sender is dropped, and another member counts only when the fold
-  rooted at the creator holds it, walked like a granter's (each roster core it reads is attached to
-  the denier's socket, never our own). With no creator named, only the inviter counts. Until the
-  denier side serves that roster, a co-member's deny is refused here, so the flag stays off.
+- **On:** a frame that names no sender is dropped. A 1.11 node names none, so its cancel leaves its
+  request listed on the member until a member decides it, and its deny leaves the joiner pending.
+  Another member's deny counts only when the fold rooted at the creator holds that member, walked
+  like a granter's over the approval chain the denier lends with the deny and names in `rosterPath`
+  (each roster core it reads is attached to the denier's socket, never our own); a deny replayed to
+  a reconnecting joiner lends it too. With no creator named, only the inviter counts.
+- **Off:** any other deny is honoured unvetted and logged, including a frame that names no sender.
 
 **Budgets** (defaults in `src/shared/core/runtime-config-schema.js`). Every frame first passes a 64
 KiB size cap and a per-socket budget **before** `JSON.parse`, because parsing is the work being
@@ -1754,9 +1754,9 @@ a member or evict one.
   membership:grant is accepted only from a granter whose binding verifies; there is no flag to turn
   it off. A locally replayed frame (no peer) is trusted and never bound.
 - Leave frames are always checked.
-- A membership deny or cancel that names no sender is still honoured until
-  `membershipControlBindingEnforced` is on; one that names a sender always has its binding checked
-  (§4.2).
+- A membership deny or cancel that names no sender is dropped while
+  `membershipControlBindingEnforced` is on, as the shipped flags set it; one that names a sender
+  always has its binding checked (§4.2).
 - The V2 participation-id binding is best-effort: a V1 signature over the Noise key alone still
   verifies during rolling upgrades.
 - The binding does not cover the space reference; the reference is itself derived from the sender's
