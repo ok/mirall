@@ -15,6 +15,7 @@ test('no arguments open the desktop app\'s store, waiting for its key', (t) => {
     upgradeKey: null,
     dev: true,
     verbose: undefined,
+    logTimestamps: true,
   })
   t.absent('identityKEK' in bootstrap, 'no key: a client hands it over')
   t.absent('relaySeed' in bootstrap)
@@ -62,4 +63,9 @@ test('an unknown flag, a positional or a flag without its value is refused with 
   t.is(run(['extra']).refusal, 'unknown_arg: extra')
   t.is(run(['--storage']).refusal, 'invalid_flag: storage')
   t.is(run(['--help']).refusal, 'help')
+})
+
+test('lines carry their time unless a journal collects them, which stamps them itself', (t) => {
+  t.is(run([]).bootstrap.logTimestamps, true)
+  t.is(run([], { env: { JOURNAL_STREAM: '8:12345' } }).bootstrap.logTimestamps, false)
 })

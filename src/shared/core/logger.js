@@ -1,6 +1,7 @@
 // Leveled console logger with a `[module]` prefix. The level is re-read from runtime
 // config on every call, so flipping `verbose` takes effect immediately: verbose ⇒
-// debug and up, otherwise warnings + errors only.
+// debug and up, otherwise warnings + errors only. A worker that writes its own output (started
+// without a host, and not under a journal that stamps lines itself) puts an ISO time first.
 import { getRuntimeConfig } from './runtime-config.js'
 
 const LOG_LEVELS = { debug: 0, info: 1, warn: 2, error: 3 }
@@ -38,14 +39,18 @@ function level() {
   return cfg.verbose ? LOG_LEVELS.debug : LOG_LEVELS.warn
 }
 
+function tag(module) {
+  return getRuntimeConfig().logTimestamps ? `${new Date().toISOString()} [${module}]` : `[${module}]`
+}
+
 /** @typedef {ReturnType<typeof createLogger>} Logger */
 
 /** @param {string} module */
 export function createLogger(module) {
   return {
-    debug: (...args) => { if (level() <= 0) console.log(`[${module}]`, ...render(args)) },
-    info: (...args) => { if (level() <= 1) console.log(`[${module}]`, ...render(args)) },
-    warn: (...args) => { if (level() <= 2) console.warn(`[${module}]`, ...render(args)) },
-    error: (...args) => { if (level() <= 3) console.error(`[${module}]`, ...render(args)) },
+    debug: (...args) => { if (level() <= 0) console.log(tag(module), ...render(args)) },
+    info: (...args) => { if (level() <= 1) console.log(tag(module), ...render(args)) },
+    warn: (...args) => { if (level() <= 2) console.warn(tag(module), ...render(args)) },
+    error: (...args) => { if (level() <= 3) console.error(tag(module), ...render(args)) },
   }
 }

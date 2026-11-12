@@ -39,8 +39,9 @@ const NULLABLE = ['storage', 'appVersion', 'downloadFolder', 'defaultDownloadFol
 // Dev toggles and staged security enforcement, default-off. membershipControlBindingEnforced on
 // refuses a membership:cancel or membership:deny that names no sender. topicRefsEnforced on ignores a
 // space named by its bearer topic, and sends a space's identity, leave and cancel frames only to a
-// socket that named that space first.
-const BOOLEAN = ['dev', 'verbose', 'membershipControlBindingEnforced', 'topicRefsEnforced', 'identityWeak', 'managedAllowHttpLoopback']
+// socket that named that space first. logTimestamps puts the time on each log line, for a worker
+// whose output nobody else stamps.
+const BOOLEAN = ['dev', 'verbose', 'membershipControlBindingEnforced', 'topicRefsEnforced', 'identityWeak', 'managedAllowHttpLoopback', 'logTimestamps']
 
 // Keys production never sets, each defaulting to "off"; tests set them for a deterministic
 // reproduction.

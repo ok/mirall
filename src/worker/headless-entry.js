@@ -9,7 +9,7 @@ import Signal from 'bare-signals'
 import { headlessBootstrap, USAGE } from './headless-args.js'
 import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../shared/contract/main-requests.js'
 
-const ENV_READ = ['XDG_CONFIG_HOME', 'APPDATA', 'MIRALL_VERBOSE']
+const ENV_READ = ['XDG_CONFIG_HOME', 'APPDATA', 'MIRALL_VERBOSE', 'JOURNAL_STREAM']
 
 /** @param {string} packageRoot @returns {{ bootstrap: Record<string, unknown> } | { refusal: string }} */
 export function readHeadlessBootstrap(packageRoot) {

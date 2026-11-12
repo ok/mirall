@@ -78,6 +78,8 @@ export function headlessBootstrap({ argv, env, platform, homedir, pkg }) {
       dev: true,
       // The flag, then the environment the desktop app also reads; neither leaves the stored choice.
       verbose: flags.verbose || env.MIRALL_VERBOSE === '1' ? true : undefined,
+      // A journal stamps every line it collects; anywhere else the worker's own output is the log.
+      logTimestamps: !env.JOURNAL_STREAM,
       ...levers,
     },
   }
