@@ -7,6 +7,7 @@ import { rawPeer } from '../helpers/raw-peer.js'
 import { mkTmpDir } from '../helpers/fixtures.js'
 import { scaled } from '../helpers/timing.js'
 import { encodeInvite, decodeInvite } from '../../src/shared/contract/invite-envelope.js'
+import { deriveTopicRef } from '../../src/shared/network/handshake-guard.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const hex = () => crypto.randomBytes(32).toString('hex')
@@ -101,7 +102,7 @@ test('REGRESSION (MIR-26: an unbound grant is refused under enforcement)', { tim
   const atk = await rawPeer(t, { bootstrap, topicHex: topic })
   await atk.waitConnected()
   // A grant with a well-formed SCK and creator but NO identity binding for any member.
-  atk.send({ type: 'membership:grant', spaceTopic: topic, sck: hex(), creator: mKey })
+  atk.send({ type: 'membership:grant', topicRef: deriveTopicRef(topic, atk.keyPair.publicKey), sck: hex(), creator: mKey })
 
   await new Promise((r) => setTimeout(r, 4000))
   t.is((await spaceOf(B, spaceId)).status, 'pending', 'B did not materialize from the unbound grant')
