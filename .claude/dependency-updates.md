@@ -217,7 +217,7 @@ version, which is what this note is for.
 
 ## `chokidar4bare` — the file watcher, pinned
 
-`chokidar4bare` is pinned to an exact version (`"chokidar4bare": "0.1.0"`, no caret). It is the
+`chokidar4bare` is pinned to an exact version (`"chokidar4bare": "6.0.0"`, no caret). It is the
 engine behind every owned-folder, mirror and loose-file watch (`src/worker/watchers/watch-host.js`),
 which runs it under Bare on `bare-fs`. The failure a watcher change produces — a folder that
 silently stops re-publishing — shows up only where the real watcher runs:
