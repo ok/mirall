@@ -115,3 +115,19 @@ test('a watcher that cannot arm, and an event that cannot be handled, are logged
   t.execution(() => delivering.watchOwned('late', '/data/late', []), 'an arm after the close is a no-op')
   t.is(fake.created.length, 1, 'that built no watcher')
 })
+
+// REGRESSION (FIX-WATCH-1: the early stop on the close path set no flag, so a mount probe or a peer
+// coming online could arm a new watch while the data layer was closing).
+test('REGRESSION (FIX-WATCH-1: a watch armed after the early stop outlived it): nothing arms once halted', async (t) => {
+  const fake = fakeWatchEnv()
+  const watchers = new FileWatchers('fw-halted', { env: fake.env })
+  await watchers.ready()
+  watchers.watchOwned('s1', '/data/a', [])
+  watchers.halt()
+  t.ok(fake.created[0].closed, 'the halt stopped the live watcher')
+  watchers.watchOwned('s2', '/data/b', [])
+  watchers.watchMirror({ spaceId: 'sp', shareId: 's3', mountPath: '/data/c' })
+  watchers.watchLoose('sp', '/data/d.txt')
+  t.is(fake.created.length, 1, 'no watcher is built after the halt')
+  await watchers.close()
+})

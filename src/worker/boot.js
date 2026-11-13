@@ -211,7 +211,7 @@ export async function boot(bootstrap, {
     closing = true
     try { supervisor?.pause() } catch {}
     if (swarm) { try { broadcastDeparture() } catch {} }
-    try { fileWatchers?.stopAll() } catch {}
+    try { fileWatchers?.halt() } catch {}
     try { abortInFlightPublishes() } catch {}
     try { publishService?.halt() } catch {}
     // Ref'd: this is the only await on the close path with no work behind it, and an unref'd

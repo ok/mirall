@@ -28,6 +28,7 @@ export class FileWatchers extends Subsystem {
     this.folders = null
     /** @type {ReturnType<typeof createLooseFileWatchers> | null} */
     this.looseFiles = null
+    this.halted = false
   }
 
   async _open() {
@@ -43,12 +44,13 @@ export class FileWatchers extends Subsystem {
   }
 
   async _close() {
-    this.stopAll()
+    this.halt()
   }
 
-  // Every watch, closed at once. Also called ahead of the close, so no event reaches a data layer
-  // that is shutting down.
-  stopAll() {
+  // Every watch closed at once, and none armed from here on. Called ahead of the close as well, so
+  // no event reaches a data layer that is shutting down, whatever arms a watch in the meantime.
+  halt() {
+    this.halted = true
     this.folders?.stopAll()
     this.looseFiles?.stopAll()
   }
@@ -79,7 +81,7 @@ export class FileWatchers extends Subsystem {
 
   /** @param {string} spaceId @param {string} absPath */
   watchLoose(spaceId, absPath) {
-    if (this.stopping || !this.looseFiles) return
+    if (this.halted || this.stopping || !this.looseFiles) return
     try { this.looseFiles.add(spaceId, absPath) } catch (err) {
       this.log.warn('loose watch not armed for', absPath, '-', err.message)
     }
@@ -97,9 +99,9 @@ export class FileWatchers extends Subsystem {
   /** @internal */
   spacesWatchingLoose(absPath) { return this.looseFiles?.spacesWatching(absPath) ?? [] }
 
-  // Nothing is armed once the close has begun: a watch armed then would outlive the back end.
+  // Nothing is armed once halted: a watch armed then would outlive the back end.
   _arm(what, start) {
-    if (this.stopping || !this.folders) return
+    if (this.halted || this.stopping || !this.folders) return
     try { start(this.folders) } catch (err) {
       this.log.warn('watch not armed for', what, '-', err.message)
     }
