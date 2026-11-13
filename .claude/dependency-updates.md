@@ -63,6 +63,9 @@ tree current. Read this before reviewing a Renovate PR or running a manual sweep
 - **`test/raw/holepunch-integration.test.js`** — the merge gate for the `holepunch` group. Spins up
   an in-memory `hyperdht/testnet`, two Corestores in tmp dirs, two Hyperswarms, and asserts
   Hyperdrive + Hyperbee replicate end-to-end across namespaced cores. Runs in ~1s.
+- **`test/integration/backup-compat.test.js`** — proves a storage-stack bump (`hypercore`,
+  `corestore`, `hypercore-storage`, `rocksdb-native`, `compact-encoding`) still restores the backup
+  every release since 1.12.0 wrote; it runs in the `bare` job.
 - **`.github/workflows/test.yml`** — four jobs on every PR and on pushes to `main` and `release/**`.
   There are no path filters, so a docs- or config-only PR still runs the full suite including all
   six flow shards and four bare shards: a `node` job (`typecheck` + `lint:ci` + `knip` (advisory,
