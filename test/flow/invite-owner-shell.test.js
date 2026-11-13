@@ -49,7 +49,7 @@ test('REGRESSION (MIR-44: a re-encoded invite owner is re-granted the space key 
   await atk.waitConnections(2)
   const bSawKnock = settles(B.waitFor('event:member-join-request', (m) => m.spaceId === spaceId && m.publicKey === mallory.profileKey, 30000))
   const gotGrant = settles(atk.waitFrame((m) => m.type === 'membership:grant', scaled(15000)))
-  atk.send({ type: 'membership:request', displayName: 'Mallory', spaceTopic: real.topic, inviteId: null, ...mallory.fields })
+  atk.send({ type: 'membership:request', displayName: 'Mallory', topicRef: deriveTopicRef(real.topic, atk.keyPair.publicKey), inviteId: null, ...mallory.fields })
 
   const [knocked, granted] = await Promise.all([bSawKnock, gotGrant])
   t.comment('observed: B raised a join request=' + knocked + ', the forger got a grant=' + granted)
@@ -92,9 +92,10 @@ test('REGRESSION (MIR-26: a bound grant from a stranger is honoured while pendin
 
   await B.request('space:join', { inviteCode: encodeInvite({ topic, creator, owner: owner.profileKey, ownerName: 'Olga', schemaVersion: 2 }) })
   await atk.waitConnected()
+  const topicRef = atk.nameSpace(topic)
   const request = await atk.waitFrame((m) => m.type === 'membership:request' && m.topicRef === deriveTopicRef(topic, atk.remotePublicKey()), scaled(20000))
   const seal = () => b4a.toString(sealSck(crypto.randomBytes(32), b4a.from(request.signerKey, 'hex')), 'hex')
-  const grantFrom = ({ fields: { profileKey, ...binding } }) => ({ type: 'membership:grant', spaceTopic: topic, sckSealed: seal(), creator, granterKey: profileKey, ...binding })
+  const grantFrom = ({ fields: { profileKey, ...binding } }) => ({ type: 'membership:grant', topicRef, sckSealed: seal(), creator, granterKey: profileKey, ...binding })
 
   atk.send(grantFrom(squatter))
   const refused = await until(() => B.readStderr().includes('granter is not the inviter'), 30000, { interval: 250 })

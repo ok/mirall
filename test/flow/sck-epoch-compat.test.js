@@ -47,17 +47,18 @@ test('a grant with a malformed epoch is refused; one with no epoch field (an old
 
   const granter = await rawPeer(t, { bootstrap, topicHex: topic, keyPair: identity.noise })
   await withDeadline(granter.waitConnected(), scaled(30000), 'raw granter connection')
+  const topicRef = granter.nameSpace(topic)
   const request = await granter.waitFrame((m) => m.type === 'membership:request' && m.topicRef === deriveTopicRef(topic, granter.remotePublicKey()), scaled(20000))
   t.ok(HEX64.test(request.signerKey), 'the join request carries the signer key a grant is sealed to')
   const seal = () => b4a.toString(sealSck(crypto.randomBytes(32), b4a.from(request.signerKey, 'hex')), 'hex')
 
-  granter.send({ type: 'membership:grant', spaceTopic: topic, sckSealed: seal(), creator, granterKey: creator, ...identity.fields, epoch: '1' })
+  granter.send({ type: 'membership:grant', topicRef, sckSealed: seal(), creator, granterKey: creator, ...identity.fields, epoch: '1' })
   await new Promise((r) => setTimeout(r, scaled(4000)))
   t.is((await spaceOf(B, spaceId)).status, 'pending', 'B did not materialize from the malformed grant')
   t.ok(B.readStderr().includes('malformed epoch'), 'B logged the refusal')
 
   const granted = B.waitFor('event:membership-granted', (m) => m.spaceId === spaceId, 20000)
-  granter.send({ type: 'membership:grant', spaceTopic: topic, sckSealed: seal(), creator, granterKey: creator, ...identity.fields })
+  granter.send({ type: 'membership:grant', topicRef, sckSealed: seal(), creator, granterKey: creator, ...identity.fields })
   await granted
 
   const space = await spaceOf(B, spaceId)

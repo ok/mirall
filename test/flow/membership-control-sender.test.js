@@ -18,6 +18,7 @@ import { sealSck } from '../../src/shared/spaces/sck-seal.js'
 const hex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
 const enforcedFlags = () => ({ identityKEK: hex(), membershipControlBindingEnforced: true })
+const unenforcedFlags = () => ({ identityKEK: hex(), membershipControlBindingEnforced: false })
 const peer = (t, bootstrap, displayName, flags = enforcedFlags()) =>
   launchPeer(t, { bootstrap, displayName, storage: idStore(t), downloads: mkTmpDir(t), flags })
 
@@ -69,8 +70,8 @@ async function pendingJoiner(t, flags, { topic = hex(), creator = hex(), store =
   const spaceId = topic.slice(0, 16)
   await B.request('space:join', { inviteCode: encodeInvite({ topic, creator, owner: owner.profileKey, ownerName: 'Olga', schemaVersion: 2 }) })
   await atk.waitConnected()
+  const topicRef = atk.nameSpace(topic)
   const request = await atk.waitFrame((m) => m.type === 'membership:request' && m.topicRef === deriveTopicRef(topic, atk.remotePublicKey()), scaled(20000))
-  const topicRef = deriveTopicRef(topic, atk.keyPair.publicKey)
   const deny = (fields) => atk.send({ type: 'membership:deny', topicRef, ...fields })
   const sckSealed = () => b4a.toString(sealSck(crypto.randomBytes(32), b4a.from(request.signerKey, 'hex')), 'hex')
   const grant = ({ profileKey, ...binding }) => atk.send({ type: 'membership:grant', topicRef, sckSealed: sckSealed(), creator, granterKey: profileKey, ...binding })
@@ -145,7 +146,7 @@ test('REGRESSION (MIR-48: a stranger\'s deny discarded a pending joiner)', { tim
 })
 
 test('a deny that names no sender is still honoured while enforcement is off', { timeout: scaled(180000) }, async (t) => {
-  const { B, spaceId, deny } = await pendingJoiner(t, { identityKEK: hex() })
+  const { B, spaceId, deny } = await pendingJoiner(t, unenforcedFlags())
   const discarded = B.waitFor('event:membership-denied', (m) => m.spaceId === spaceId, 30000)
   deny({})
   await discarded
@@ -178,7 +179,7 @@ async function coMemberDeny(t, flags) {
 }
 
 test('a co-member\'s deny discards the joiner while enforcement is off', { timeout: scaled(300000) }, async (t) => {
-  await coMemberDeny(t, () => ({ identityKEK: hex() }))
+  await coMemberDeny(t, unenforcedFlags)
 })
 
 test('REGRESSION (MIR-48: a co-member\'s deny was refused under enforcement)', { timeout: scaled(300000) }, async (t) => {
@@ -237,4 +238,37 @@ test('REGRESSION (MIR-49: a knock under a non-canonical key is never listed)', {
   await knocked
   t.ok(await lists(A, spaceId, joiner.profileKey), 'the canonical knock on the same socket is listed')
   t.absent(await lists(A, spaceId, upper), 'the uppercase knock before it is not')
+})
+
+// A joiner on 1.11 withdraws its request with a cancel that names no sender. Under enforcement the
+// member drops it, so that joiner's request stays listed until a member denies or approves it.
+async function unnamedCancel(t, bootstrap, flags) {
+  const A = await peer(t, bootstrap, 'Alice', flags)
+  const { spaceId } = await A.request('space:create', { name: 'Older joiner' })
+  const topic = decodeInvite(await A.request('space:invite', { spaceId })).topic
+  const atk = await rawPeer(t, { bootstrap, topicHex: topic })
+  await atk.waitConnected()
+  const topicRef = deriveTopicRef(topic, atk.keyPair.publicKey)
+  const joiner = boundSender({ noise: atk.keyPair })
+
+  const knocked = A.waitFor('event:member-join-request', (m) => m.publicKey === joiner.profileKey)
+  atk.send({ type: 'membership:request', displayName: 'Jo', topicRef, inviteId: null, ...joiner.fields })
+  await knocked
+  t.ok(await lists(A, spaceId, joiner.profileKey), 'the joiner is listed')
+  atk.send({ type: 'membership:cancel', topicRef, joinerKey: joiner.profileKey })
+  const ack = await atk.waitFrame((m) => m.type === 'membership:cancel-ack', scaled(8000)).catch(() => null)
+  const listed = () => lists(A, spaceId, joiner.profileKey)
+  return { ack, listed }
+}
+
+test('under enforcement a joiner\'s cancel that names no sender is refused and its request stays listed', { timeout: scaled(240000) }, async (t) => {
+  const bootstrap = await localTestnet(t)
+  const enforced = await unnamedCancel(t, bootstrap, enforcedFlags())
+  t.comment('observed under enforcement: ack=' + JSON.stringify(enforced.ack))
+  t.is(enforced.ack, null, 'the enforcing member does not ack it')
+  t.ok(await enforced.listed(), 'and keeps the request listed')
+
+  const off = await unnamedCancel(t, bootstrap, unenforcedFlags())
+  t.is(off.ack?.applied, true, 'a member with enforcement off applies the same cancel')
+  t.ok(await until(async () => !(await off.listed()), 15000, { interval: 250 }), 'and clears the request')
 })

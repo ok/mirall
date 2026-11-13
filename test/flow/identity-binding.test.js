@@ -11,7 +11,7 @@ import { rawPeer } from '../helpers/raw-peer.js'
 import { mkTmpDir } from '../helpers/fixtures.js'
 import { scaled } from '../helpers/timing.js'
 import { decodeInvite } from '../../src/shared/contract/invite-envelope.js'
-import { signNoiseBinding } from '../../src/shared/network/handshake-guard.js'
+import { signNoiseBinding, deriveTopicRef } from '../../src/shared/network/handshake-guard.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
@@ -61,7 +61,7 @@ test('REGRESSION (MIR-03): spoofed handshake cannot impersonate or evict a membe
   await atk.waitConnected()
   // Claim Bob's key with no valid binding (the attacker can't sign Bob's Noise key),
   // then try to leave on Bob's behalf.
-  atk.send({ type: 'handshake', profileKey: bKey, driveKey: b4a.toString(hcrypto.randomBytes(32), 'hex'), displayName: 'Bob', spaceTopic: topic })
+  atk.send({ type: 'handshake', profileKey: bKey, driveKey: b4a.toString(hcrypto.randomBytes(32), 'hex'), displayName: 'Bob', topicRef: deriveTopicRef(topic, atk.keyPair.publicKey) })
   atk.send({ type: 'leave', spaceId, profileKey: bKey })
 
   await new Promise((r) => setTimeout(r, 3000))
@@ -84,7 +84,7 @@ test('REGRESSION (MIR-03-A): spoofed join request gets no SCK grant', { timeout:
 
   const atk = await rawPeer(t, { bootstrap, topicHex: topic })
   await atk.waitConnected()
-  atk.send({ type: 'membership:request', profileKey: bKey, displayName: 'Bob', spaceTopic: topic })
+  atk.send({ type: 'membership:request', profileKey: bKey, displayName: 'Bob', topicRef: deriveTopicRef(topic, atk.keyPair.publicKey) })
 
   await t.exception(
     atk.waitFrame((m) => m.type === 'membership:grant', 8000),
@@ -130,7 +130,7 @@ test('REGRESSION (MIR-43: a bound stranger\'s leave frame cannot get a key of it
   await t.exception(peer.waitFrame((m) => m.type === 'leave-ack', scaled(8000)), /no matching frame/, 'a stranger\'s leave is not acked')
 
   const knocked = A.waitFor('event:member-join-request', (m) => m.publicKey === X.key)
-  peer.send({ type: 'membership:request', profileKey: X.key, displayName: 'Wanted', spaceTopic: topic, inviteId: null, ...X.binding })
+  peer.send({ type: 'membership:request', profileKey: X.key, displayName: 'Wanted', topicRef: deriveTopicRef(topic, noise.publicKey), inviteId: null, ...X.binding })
   await knocked
   t.pass('the knock reached the gate and landed as a review, not a re-grant')
   await t.exception(peer.waitFrame((m) => m.type === 'membership:grant', scaled(8000)), /no matching frame/, 'no SCK for the stranger\'s chosen key')
