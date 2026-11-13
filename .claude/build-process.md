@@ -248,12 +248,13 @@ Tags must match `v<MAJOR>.<MINOR>.<PATCH>` or `v<MAJOR>.<MINOR>.<PATCH>-<label><
 - prerelease `<N>` is `0`–`65535` (constrained by the MSIX revision range);
 - e.g. `v1.0.0`, `v1.2.3-rc2`, `v1.0.0-beta10`.
 
-**Version coupling.** The OTA "update available" banner fires only when the running app's bundled
-version differs from the staged release's version, so three values must agree: the **bundle
+**Version coupling.** The OTA "update available" banner fires only when the staged release's version
+is strictly newer than the running app's bundled version, so three values must agree: the **bundle
 version** (`package.json#version` at package time), the **MSIX manifest version** (4-part, derived
 by `forge.config.js`), and the **staged release version**. A freshly-installed build and its channel
 drive therefore carry the same string, so the updater early-returns instead of looping a banner on
-every launch.
+every launch. An update whose version is not newer than the running one is never staged;
+`test/unit/updater-floor.test.js` pins this.
 
 ## Where the rest lives
 
