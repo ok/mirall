@@ -28,10 +28,20 @@ changes do not appear here.
 - **Leaving an organization during its first backup no longer keeps backing
   up to the organization's folder.** That folder could become your own
   backup folder.
+- **Network Diagnostics and Advanced Details open from the command palette.**
+
+## v1.13.1
+
+### 2026-11-10
+
+Downloads no longer stall on some Wi-Fi networks, and the Mirall icon shows
+in the title bar on KDE Plasma (Wayland).
+
+#### Fixed
+
 - **Downloads no longer stall on some Wi-Fi networks.** On a network that
   loses packets often, a download could pause for a second or more at a
   time and run well below the connection's speed.
-- **Network Diagnostics and Advanced Details open from the command palette.**
 - **The Mirall icon shows in the window's title bar on KDE Plasma (Wayland).**
   It showed a generic placeholder there.
 
