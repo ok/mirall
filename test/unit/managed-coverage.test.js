@@ -22,11 +22,12 @@ const setters = read(path.join(src, 'worker', 'ipc'))
 const FOLDER = /^backup\.folder\./
 
 // A managed setting can't ship without a lock in the UI, and a typo can't hide one: every key this
-// build applies is named where a control is locked, and every key named there is in the catalog.
+// build applies is named where a control is locked, and every key named there is in the catalog. The
+// backup folder keys lock through the folder the worker resolved for this device's own platform.
 test('every applied key is locked somewhere in the UI', (t) => {
   for (const key of KNOWN_SETTINGS) {
     const named = renderer.includes(`settingKey="${key}"`) || renderer.includes(`useManagedSetting('${key}')`)
-    t.ok(named || (FOLDER.test(key) && renderer.includes('useManagedSetting(backupFolderKey(')), key)
+    t.ok(named || (FOLDER.test(key) && renderer.includes('useManagedBackupFolder()')), key)
   }
   for (const [, key] of renderer.matchAll(/(?:settingKey="|useManagedSetting\(')([a-zA-Z.]+)/g)) t.ok(CATALOG_KEYS.includes(key), key)
 })

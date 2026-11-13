@@ -294,6 +294,8 @@ export interface AuditConfig {
   enabled: boolean
   retentionDays: number
   maxEntries: number
+  /** The organization keeps recording on, so the log cannot be deleted or capped lower. */
+  deleteLocked: boolean
 }
 
 export interface AuditStats {

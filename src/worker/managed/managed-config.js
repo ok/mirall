@@ -23,6 +23,7 @@ import { DriveSource } from '../../shared/managed/drive-source.js'
 import {
   effectiveApiUrl, managedStateExists, managedStoreDir, readManagedState, removeManagedState, removeManagedStore, writeManagedState,
 } from '../../shared/managed/managed-state.js'
+import { followRelayConfig } from '../../shared/network/relay-follow.js'
 import { computerName, devicePlatform, osRelease, resolveBackupFolder } from './device-facts.js'
 import { InstanceReporter } from './instance-reporter.js'
 
@@ -33,8 +34,10 @@ const REFRESH_TIMEOUT_MS = 15_000
 
 const hex = (buf) => b4a.toString(buf, 'hex')
 const linkOf = (state) => ({ licenseKey: b4a.from(state.licenseKey, 'hex'), driveKey: b4a.from(state.driveKey, 'hex') })
-const sameApplied = (a, b) => a.issuedAt === b.issuedAt && a.profileVersionId === b.profileVersionId && JSON.stringify(a.settings) === JSON.stringify(b.settings) &&
-  JSON.stringify(a.refusedKeys) === JSON.stringify(b.refusedKeys) && JSON.stringify(a.ignoredUnlocked) === JSON.stringify(b.ignoredUnlocked)
+const sameSettings = (a, b) => a.issuedAt === b.issuedAt && a.profileVersionId === b.profileVersionId && JSON.stringify(a.settings) === JSON.stringify(b.settings)
+const sameKeys = (a, b) => JSON.stringify(a.refusedKeys) === JSON.stringify(b.refusedKeys) && JSON.stringify(a.ignoredUnlocked) === JSON.stringify(b.ignoredUnlocked)
+// Spread over ±10%, so a fleet that went offline together does not ask again in step.
+const jitter = (ms) => Math.round(ms * (0.9 + Math.random() * 0.2))
 
 export class ManagedConfig extends Subsystem {
   constructor(name, deps) {
@@ -47,6 +50,9 @@ export class ManagedConfig extends Subsystem {
     this.rereadTimer = null
     this.previewCache = null
     this.lastFailure = null
+    this.lastRefusal = null
+    this.failures = 0
+    this.generation = 0
     this.queue = Promise.resolve()
     this.reporter = new InstanceReporter({
       storage: deps.storage,
@@ -60,14 +66,15 @@ export class ManagedConfig extends Subsystem {
 
   async _open() {
     const { storage } = this.deps
+    const unmanaged = () => removeManagedStore(storage).catch((err) => this.log.warn('leftover config drive store not removed:', err.message))
     if (!managedStateExists(storage)) {
-      await removeManagedStore(storage)
+      await unmanaged()
       return
     }
     const key = getManagedVaultKey()
     const state = key ? await readManagedState(storage, key, this.log) : null
     if (!state) {
-      await removeManagedStore(storage)
+      await unmanaged()
       return
     }
     this.state = state
@@ -83,7 +90,7 @@ export class ManagedConfig extends Subsystem {
   }
 
   health() {
-    return { ok: !this.closed && !this.stopping, detail: { state: this.state ? 'managed' : 'unmanaged', lastFailure: this.lastFailure } }
+    return { ok: !this.closed && !this.stopping, detail: { state: this.state ? 'managed' : 'unmanaged', lastFailure: this.lastFailure, lastRefusal: this.lastRefusal } }
   }
 
   view() {
@@ -115,30 +122,38 @@ export class ManagedConfig extends Subsystem {
     }
   }
 
+  // The link of the organization already connected changes nothing. Any other is written first:
+  // a write that fails leaves the previous organization applied and its sources running again, and
+  // only once the new one is on disk does the previous one hear that this computer left.
   async accept(code) {
     const ready = await this.readyFor(code)
     const key = getManagedVaultKey()
     if (!key) throw new AppError(CODES.MANAGED_UNAVAILABLE, 'managed:accept: identity locked')
     const { link } = ready
     const previous = this.state
+    const sameLicense = previous?.licenseKey === hex(link.licenseKey)
     const sameDrive = previous?.driveKey === hex(link.driveKey)
+    if (sameLicense && sameDrive) return this.view()
     await this.deactivate()
-    if (previous && previous.licenseKey !== hex(link.licenseKey)) await this.retireInstance(previous)
-    if (previous && !sameDrive) await removeManagedStore(this.deps.storage)
     const now = Date.now()
-    // The same drive never moves the rollback floor back: what is already applied there, if newer
-    // than the preview, stays.
-    const keep = sameDrive && previous.applied && previous.lastIssuedAt > ready.applied.issuedAt
-    const applied = keep ? previous.applied : { ...ready.applied, receivedAt: now, via: 'https' }
+    const applied = { ...ready.applied, receivedAt: now, via: 'https' }
     const state = {
       licenseKey: hex(link.licenseKey),
       driveKey: hex(link.driveKey),
       apiUrl: link.apiUrl,
       acceptedAt: now,
-      lastIssuedAt: keep ? previous.lastIssuedAt : applied.issuedAt,
+      lastIssuedAt: applied.issuedAt,
       applied,
     }
-    await writeManagedState(this.deps.storage, key, state)
+    try {
+      await writeManagedState(this.deps.storage, key, state)
+    } catch (err) {
+      await this.activate({ fresh: false })
+      await this.startReporting(0)
+      throw err
+    }
+    if (previous && !sameLicense) await this.retireInstance(previous)
+    if (previous && !sameDrive) await removeManagedStore(this.deps.storage).catch((err) => this.log.warn('previous config drive store not removed:', err.message))
     if (previous?.applied && !sameDrive) {
       const left = managedLeftRow(previous.applied.organization)
       record(left.kind, left.row)
@@ -158,11 +173,17 @@ export class ManagedConfig extends Subsystem {
   // visibly managed, never one that reads as left today and is managed again after the next boot.
   // The instance key goes last, so a retried Leave still holds it.
   async leave() {
-    const organization = this.state?.applied?.organization ?? null
-    if (!this.state) return { left: null }
+    const state = this.state
+    if (!state) return { left: null }
+    const organization = state.applied?.organization ?? null
     await this.deactivate()
-    await this.reporter.leave(this.state)
-    await removeManagedState(this.deps.storage)
+    await this.reporter.leave(state)
+    try {
+      await removeManagedState(this.deps.storage)
+    } catch (err) {
+      await this.activate({ fresh: false })
+      throw err
+    }
     if (organization) {
       const row = managedLeftRow(organization)
       record(row.kind, row.row)
@@ -282,7 +303,10 @@ export class ManagedConfig extends Subsystem {
     }
   }
 
+  // Ends every fetch and reread in flight: one that answers after this applies nothing, so a Leave
+  // or a Connect is never overwritten by what the previous organization's sources were still reading.
   async deactivate() {
+    this.generation += 1
     this.reporter.stop()
     this.timers.clear(this.httpsTimer)
     this.timers.clear(this.rereadTimer)
@@ -300,17 +324,21 @@ export class ManagedConfig extends Subsystem {
     this.timers.clear(this.httpsTimer)
     this.httpsTimer = this.timers.setTimeout(async () => {
       this.httpsTimer = null
-      let next = getManagedLevers().httpsPollMs
+      const poll = getManagedLevers().httpsPollMs
+      let next = poll
       try {
         if (!this.drive || this.drive.peers === 0) {
           const res = await this.refreshHttps()
-          // A rate limit is the Console's to set; any other failure is retried sooner than the poll.
-          if (res?.kind === 'retry') next = res.detail === 'rate_limited' ? Math.max(next, res.afterMs) : Math.min(next, res.afterMs)
+          // A rate limit is the Console's to set; any other failure is retried sooner than the poll,
+          // backing off towards it while the failures last.
+          if (res?.kind === 'retry' && res.detail === 'rate_limited') next = Math.max(poll, res.afterMs)
+          else if (res?.kind === 'retry') next = Math.min(poll, res.afterMs * 2 ** this.failures++)
+          else this.failures = 0
         }
       } catch (err) {
         this.log.warn('configuration refresh failed:', err.message)
       }
-      if (this.state && !this.stopping && !this.httpsTimer) this.scheduleHttps(next)
+      if (this.state && !this.stopping && !this.httpsTimer) this.scheduleHttps(jitter(next))
     }, delayMs)
   }
 
@@ -320,9 +348,10 @@ export class ManagedConfig extends Subsystem {
       this.rereadTimer = null
       const drive = this.drive
       if (!drive) return
+      const generation = this.generation
       try {
         const bundles = await drive.readBundles()
-        if (bundles.length) await this.consider(bundles, 'drive')
+        if (bundles.length) await this.consider(bundles, 'drive', generation)
       } catch (err) {
         this.log.warn('config drive read failed:', err.message)
       }
@@ -334,11 +363,14 @@ export class ManagedConfig extends Subsystem {
     if (!state) return null
     const link = linkOf(state)
     const ctx = this.verifyContext(link, state.lastIssuedAt)
+    const generation = this.generation
     const res = await fetchBundles({ apiUrl: effectiveApiUrl(state), driveKey: link.driveKey, hint: keyHint(ctx.bundleKeyPair.publicKey), etag: this.etag, timers: this.timers, timeoutMs: REFRESH_TIMEOUT_MS })
+    if (generation !== this.generation) return res
     if (res.kind === 'bundles') {
       // The tag advances only once the response is applied: a failed write must be fetched again,
       // not answered 304 from now on.
-      await this.consider(res.bundles, 'https')
+      await this.consider(res.bundles, 'https', generation)
+      if (generation !== this.generation) return res
       this.etag = res.etag
       this.lastFailure = null
     } else if (res.kind === 'unchanged') {
@@ -352,27 +384,41 @@ export class ManagedConfig extends Subsystem {
   // A newer or different verified bundle is written to managed.enc first, then published, so a
   // crash between the two leaves the newer configuration on disk to be applied at the next boot. One
   // at a time: the drive and HTTPS may both deliver the same bundle.
-  consider(candidates, via) {
-    return this.serial(() => this.apply(candidates, via))
+  consider(candidates, via, generation) {
+    return this.serial(() => this.apply(candidates, via, generation))
   }
 
-  async apply(candidates, via) {
+  // A bundle that verifies nowhere is said once per answer, in the log and in health: an install that
+  // silently keeps an old configuration looks fine everywhere else.
+  async apply(candidates, via, generation) {
     const state = this.state
-    if (!state || this.stopping) return
+    if (!state || this.stopping || generation !== this.generation) return
     const selected = selectApplied(candidates, this.verifyContext(linkOf(state), state.lastIssuedAt))
-    if (!selected.applied) return
+    if (!selected.applied) {
+      this.lastRefusal = selected.failures.length ? selected.failures.map((f) => f.failure).join(',') : null
+      if (this.lastRefusal) this.log.warn('no configuration bundle verified:', this.lastRefusal)
+      return
+    }
+    this.lastRefusal = null
     if (selected.refused.length) this.log.warn('configuration values refused:', selected.refused.join(','))
     const candidate = { ...selected.applied, refusedKeys: selected.refused, ignoredUnlocked: selected.ignoredUnlocked }
-    if (state.applied && sameApplied(state.applied, candidate)) return
+    const same = state.applied && sameSettings(state.applied, candidate)
+    if (same && sameKeys(state.applied, candidate)) return
     const key = getManagedVaultKey()
     if (!key) return
-    const applied = { ...candidate, receivedAt: Date.now(), via }
+    // The same configuration with a different verdict on its keys (this build knows more of them)
+    // is not newly applied: it keeps when it arrived, and only the report changes.
+    const applied = same ? { ...state.applied, refusedKeys: candidate.refusedKeys, ignoredUnlocked: candidate.ignoredUnlocked } : { ...candidate, receivedAt: Date.now(), via }
     const next = { ...state, lastIssuedAt: applied.issuedAt, applied }
     await writeManagedState(this.deps.storage, key, next)
-    if (this.state !== state) return
+    if (this.state !== state || generation !== this.generation) return
     this.state = next
-    this.publish(applied, { at: 'update' })
+    if (!same) this.publish(applied, { at: 'update' })
     this.reporter.changed()
+  }
+
+  backupOpened() {
+    if (this.state) this.reporter.changed()
   }
 
   publish(applied, { at }) {
@@ -394,6 +440,7 @@ export class ManagedConfig extends Subsystem {
 
   afterOverlayChange() {
     this.deps.applyRelayConfig()
+    followRelayConfig().catch((err) => this.log.warn('connections not brought in line with the relay mode:', err.message))
     this.deps.getBackup?.()?.reconsider()
     this.deps.ipc.emit('event:audit-updated', {})
     this.deps.ipc.emit('event:reconcile', { scope: Scope.managed() })

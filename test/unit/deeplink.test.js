@@ -1,5 +1,6 @@
 import test from 'brittle'
 import { encodeInvite } from '../../src/shared/contract/invite-envelope.js'
+import { hasManagedTrust } from '../../src/shared/contract/managed-trust.js'
 
 const { parseDeepLink } = await import('../../src/main/deeplink.js').then(m => m.default ?? m)
 
@@ -110,8 +111,14 @@ test('a license link is recognized on a channel that pins signing keys', async (
   t.alike(await parseDeepLink(`MIRALL://LICENSE/a/${LICENSE}/`, { channel: 'dev' }), { kind: 'license', code: LICENSE })
 })
 
-test('a license link is not recognized where no key is pinned', async (t) => {
+test('a license link is not recognized on a channel the app does not know', async (t) => {
   t.is(await parseDeepLink(`mirall://license/a/${LICENSE}`, { channel: 'nightly' }), null)
+})
+
+test('a channel that pins no key leaves the feature dormant there', (t) => {
+  const pinned = { prod: ['aa'], staging: [], dev: ['bb'] }
+  t.absent(hasManagedTrust('staging', pinned))
+  t.ok(hasManagedTrust('prod', pinned))
 })
 
 test('a malformed license link is ignored', async (t) => {

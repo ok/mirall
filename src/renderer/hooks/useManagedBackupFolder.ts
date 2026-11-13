@@ -1,13 +1,8 @@
-// The organization's backup folder on this device, resolved by the worker, and whether a backup is
-// required. Unmanaged: no folder, not required.
+// The organization's backup folder on this device, resolved by the worker for this device's own
+// platform, and whether a backup is required. Unmanaged: no folder, not required.
+import { useId } from 'react'
 import { useManaged } from './useManaged.js'
 import { useManagedSetting } from './useManagedSetting.js'
-import { backupFolderKey, type BackupPlatform } from '../../shared/contract/managed-settings.js'
-
-function devicePlatform(): BackupPlatform {
-  const os = typeof window.bridge === 'undefined' ? 'other' : window.bridge.getPlatform()
-  return os === 'darwin' ? 'macos' : os === 'win32' ? 'windows' : 'linux'
-}
 
 export interface ManagedBackupFolder {
   folder: string | null
@@ -18,8 +13,7 @@ export interface ManagedBackupFolder {
 
 export function useManagedBackupFolder(): ManagedBackupFolder {
   const managed = useManaged()
-  const folderLock = useManagedSetting(backupFolderKey(devicePlatform()))
+  const noteId = useId()
   const required = useManagedSetting('backup.required')
-  const folder = folderLock.locked ? managed?.backupFolder ?? null : null
-  return { folder, org: managed?.organization.name ?? null, noteId: folderLock.noteId, required: required.locked }
+  return { folder: managed?.backupFolder ?? null, org: managed?.organization.name ?? null, noteId, required: required.locked }
 }

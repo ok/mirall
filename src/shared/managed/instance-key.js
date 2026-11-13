@@ -1,7 +1,7 @@
 // The install's instance key: random, made at Accept, deleted on Leave, and machine-only. It names
 // this computer, not the person, so it is not sealed under the identity and never moves with it. The
-// license it enrolled with and the report counter live beside it; a file that does not parse is
-// treated as absent, and a new key is made.
+// license it enrolled with, the report counter and whether the license was revoked live beside it; a
+// file that does not parse is treated as absent, and a new key is made.
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { SECRET_FILE, resolveSecretFile } from '../contract/secret-files.js'
@@ -19,15 +19,15 @@ const valid = (v) => v?.v === VERSION && HEX32.test(v.seed) && HEX32.test(v.enro
 export function readInstanceKey(storagePath) {
   try {
     const parsed = JSON.parse(fs.readFileSync(instanceFile(storagePath), 'utf8'))
-    return valid(parsed) ? { seed: parsed.seed, enrollPublicKey: parsed.enrollPublicKey, counter: parsed.counter, enrolled: parsed.enrolled } : null
+    return valid(parsed) ? { seed: parsed.seed, enrollPublicKey: parsed.enrollPublicKey, counter: parsed.counter, enrolled: parsed.enrolled, revoked: parsed.revoked === true } : null
   } catch {
     return null
   }
 }
 
-export async function writeInstanceKey(storagePath, { seed, enrollPublicKey, counter, enrolled }) {
+export async function writeInstanceKey(storagePath, { seed, enrollPublicKey, counter, enrolled, revoked }) {
   const inside = path.join(storagePath, SECRET_FILE.INSTANCE)
-  await writeFileAtomic(fs.existsSync(inside) ? inside : writeTarget(storagePath), JSON.stringify({ v: VERSION, seed, enrollPublicKey, counter, enrolled }))
+  await writeFileAtomic(fs.existsSync(inside) ? inside : writeTarget(storagePath), JSON.stringify({ v: VERSION, seed, enrollPublicKey, counter, enrolled, revoked }))
 }
 
 export async function removeInstanceKey(storagePath) {

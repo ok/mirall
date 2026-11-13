@@ -4,13 +4,15 @@
 //
 // A string parent is fixed. A function reads the target the screen remembered on its way in —
 // Settings returns to the space it was opened from rather than always to the home screen, and the
-// activity log and its settings back out to whichever screen cross-linked into them.
+// activity log and its settings back out to whichever screen cross-linked into them, and a settings
+// page opened from the Organization page backs out to it.
 export interface BackTargets {
   preSettingsScreen: 'spaces' | 'space-view'
   preAccountScreen: 'spaces' | 'space-view'
   storageBackTarget: 'settings' | 'space-view'
   activityLogBackTarget: Screen
-  activityLogSettingsBackTarget: 'settings' | 'storage-settings'
+  activityLogSettingsBackTarget: 'settings' | 'storage-settings' | 'organization'
+  settingsPageBackTarget: 'settings' | 'organization'
 }
 
 const PARENT = {
@@ -21,11 +23,11 @@ const PARENT = {
   settings: (t: BackTargets) => t.preSettingsScreen,
   account: (t: BackTargets) => t.preAccountScreen,
   'storage-settings': (t: BackTargets) => t.storageBackTarget,
-  'backup-settings': 'settings',
+  'backup-settings': (t: BackTargets) => t.settingsPageBackTarget,
   'appearance-settings': 'settings',
   'notification-settings': 'settings',
   'general-settings': 'settings',
-  'network-settings': 'settings',
+  'network-settings': (t: BackTargets) => t.settingsPageBackTarget,
   'network-status': 'account',
   about: 'account',
   organization: 'about',

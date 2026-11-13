@@ -28,6 +28,9 @@ changes do not appear here.
 - **Leaving an organization during its first backup no longer keeps backing
   up to the organization's folder.** That folder could become your own
   backup folder.
+- **Joining or leaving an organization in the middle of a settings refresh
+  or a report no longer leaves Mirall in the wrong state.** An organization
+  that keeps the Activity Log also holds that lock while a deletion runs.
 - **Network Diagnostics and Advanced Details open from the command palette.**
 
 ## v1.13.1

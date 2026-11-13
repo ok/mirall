@@ -57,3 +57,15 @@ test('rollback: equal issuedAt passes, one second later fails', (t) => {
 test('a bundle over 1 MiB is refused before parsing', (t) => {
   t.is(verifyBundle(b4a.alloc(1024 * 1024 + 1), ctx).failure, 'too_large')
 })
+
+test('REGRESSION (FIX-16: shadowed signer): a pinned key sharing the signer\'s 8-byte id does not hide it', (t) => {
+  const p = vectors.positives.find((v) => !lever(v))
+  const shadows = ctx.pinnedKeys.map((key) => {
+    const twin = b4a.from(key)
+    twin[31] ^= 0xff
+    return twin
+  })
+  const r = verifyBundle(hex(p.bundle), { ...ctx, pinnedKeys: [...shadows, ...ctx.pinnedKeys] })
+  t.ok(r.ok, 'every key with the id is tried')
+  t.is(verifyBundle(hex(p.bundle), { ...ctx, pinnedKeys: shadows }).failure, 'bad_signature', 'and a twin alone still fails as a bad signature')
+})
