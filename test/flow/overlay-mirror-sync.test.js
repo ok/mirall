@@ -18,7 +18,7 @@ async function waitForContent(file, want, ms = 70000) {
 // must re-fetch (the new content hash differs, so materializeOverlayFile pulls
 // it), and an owner DELETE must remove the file from the mirror — while unrelated
 // files stay. Mirrors mirror-add (eager) / foreign-sync, for the overlay backend.
-// Owner FS events are injected via the IPC the chokidar watcher uses in production;
+// Owner FS events are injected (the worker's own watchers are off in this harness);
 // the consumer picks changes up on its periodic materialize tick.
 test('overlay mirror: re-fetches on owner edit and removes on owner delete',
   { timeout: scaled(180000) }, async (t) => {

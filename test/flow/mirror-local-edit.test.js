@@ -40,8 +40,8 @@ test('REGRESSION (FIX-462): a local edit to a mirrored file is reverted on the w
   const noteOnB = path.join(mirrorDir, 'note.txt')
   await waitForFile(noteOnB, { present: true })
 
-  // The user tampers with the mirrored copy locally (no owner-side change), and main's watcher
-  // reports it — injected here, as every flow test injects the owned side's events.
+  // The user tampers with the mirrored copy locally (no owner-side change), and the mirror's
+  // watcher reports it — injected here, with the real watchers off, as the owned side's are.
   fs.writeFileSync(noteOnB, 'tampered locally by Bob')
   await B.request('event:foreign-folder-fs-event',
     { spaceId, shareId: share.id, action: 'change', relPath: 'note.txt', absPath: noteOnB })
