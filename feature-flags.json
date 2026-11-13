@@ -1,4 +1,4 @@
 {
-  "membershipControlBinding": false,
+  "membershipControlBinding": true,
   "topicRefs": true
 }

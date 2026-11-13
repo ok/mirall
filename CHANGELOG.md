@@ -33,6 +33,17 @@ changes do not appear here.
   that keeps the Activity Log also holds that lock while a deletion runs.
 - **Network Diagnostics and Advanced Details open from the command palette.**
 
+### Security
+
+- **Someone who knows one space's address no longer receives details of
+  your other spaces.** Mirall now answers only a device that proves it
+  knows that space. Members on a Mirall older than 1.12 should update
+  to keep spaces they share with updated members in step.
+- **Someone who knows a space's address can no longer cancel or turn down
+  another person's request to join it.** A cancel or deny that does not
+  name its sender is now ignored. Members on a Mirall older than 1.12
+  must update for their cancels and denies to count.
+
 ## v1.13.1
 
 ### 2026-11-10
@@ -47,13 +58,6 @@ in the title bar on KDE Plasma (Wayland).
   time and run well below the connection's speed.
 - **The Mirall icon shows in the window's title bar on KDE Plasma (Wayland).**
   It showed a generic placeholder there.
-
-### Security
-
-- **Someone who knows one space's address no longer receives details of
-  your other spaces.** Mirall now answers only a device that proves it
-  knows that space. Members on a Mirall older than 1.12 should update
-  to keep spaces they share with updated members in step.
 
 ## v1.13.0
 
