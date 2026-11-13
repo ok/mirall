@@ -2,7 +2,7 @@
 
 const { MAIN_REQUEST_FRAME } = require('../shared/contract/main-requests.js')
 
-// Worker→main control frames ('main-request', e.g. start-watcher) are tiny — a command plus a
+// Worker→main control frames ('main-request', e.g. reveal:roots) are tiny — a command plus a
 // few path args. Anything larger on the shared worker pipe is a worker→renderer response (e.g. a
 // big file listing) that main has already broadcast and must NOT JSON.parse on its UI thread.
 // This gate is what keeps a multi-MB response frame off main's main thread.
@@ -16,11 +16,10 @@ const EMPTY = Buffer.alloc(0)
 const CONTROL_FRAME_PROBE = 64
 const CONTROL_FRAME_MARK = Buffer.from(JSON.stringify(MAIN_REQUEST_FRAME))
 
-// A dropped control frame is the silent-no-watcher failure this module exists to prevent, so it is
-// the one drop said out loud; an oversized worker→renderer response is one main is right to skip.
-// Once per reader: the frame that trips this is built from a share's own configuration, so the
-// same share re-arming its watcher reproduces it exactly. A reader dies with its worker, so a
-// respawn reports again.
+// A dropped control frame is a command main silently never carried out, so it is the one drop said
+// out loud; an oversized worker→renderer response is one main is right to skip. Once per reader:
+// the frame that trips this is built from the worker's own records, so the next one built from
+// them reproduces it exactly. A reader dies with its worker, so a respawn reports again.
 function createDropWarning() {
   let warned = false
   return (frame) => {

@@ -10,16 +10,12 @@
 // - `mark-quitting` first: the window close handler hides to tray unless the flag
 //   is set, and the worker frame writer only stays quiet about a failed write once
 //   it is — so every later step has to run behind it.
-// - both watchers before `flush-config`: a live watcher can dirty the config
-//   store, and a write landing after the flush is lost.
 // - `stop-workers` before `apply-update`: the update swaps the files this process
 //   runs from, so the worker is asked to exit before the swap starts rather than
 //   racing it.
 // - `apply-update` last, and the only step that may defer the quit.
 const QUIT_STEPS = Object.freeze([
   'mark-quitting',
-  'stop-folder-watchers',
-  'stop-loose-watchers',
   'flush-config',
   'stop-workers',
   'apply-update',
@@ -40,19 +36,15 @@ const QUIT_STEPS = Object.freeze([
  *
  * @param {object} steps
  * @param {() => void} steps.markQuitting
- * @param {() => void} steps.stopFolderWatchers
- * @param {() => void} steps.stopLooseWatchers
  * @param {() => void} steps.flushConfig
  * @param {() => void} steps.stopWorkers
  * @param {() => Promise<void> | null | undefined} steps.applyUpdate
  * @param {() => void} steps.quit — re-issues the deferred quit.
  * @param {(step: string, err: Error) => void} [steps.onStepError]
  */
-function createQuitSequence({ markQuitting, stopFolderWatchers, stopLooseWatchers, flushConfig, stopWorkers, applyUpdate, quit, onStepError }) {
+function createQuitSequence({ markQuitting, flushConfig, stopWorkers, applyUpdate, quit, onStepError }) {
   const runners = {
     'mark-quitting': markQuitting,
-    'stop-folder-watchers': stopFolderWatchers,
-    'stop-loose-watchers': stopLooseWatchers,
     'flush-config': flushConfig,
     'stop-workers': stopWorkers,
   }

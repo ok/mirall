@@ -48,10 +48,10 @@ export const moduleScopeTimerHandleRestrictions = [
 ]
 
 // Mechanism invariant: a file watcher's options are per-INSTANCE (network mounts need polling, an
-// erroring watcher spins), and src/main/watch-host.js is the single owner of every watcher decision;
-// a second require of the watcher package is how a divergence comes back. Exported so
-// test/invariants/watch-host-single-owner.test.js parses the same grammar.
-const watcherMessage = 'Only src/main/watch-host.js may load the file watcher (chokidar4bare) — arm the watch through createWatchHost so network polling, the error-storm cut-off and the option bag stay in one place.'
+// erroring watcher spins), and src/worker/watchers/watch-host.js is the single owner of every
+// watcher decision; a second require of the watcher package is how a divergence comes back.
+// Exported so test/invariants/watch-host-single-owner.test.js parses the same grammar.
+const watcherMessage = 'Only src/worker/watchers/watch-host.js may load the file watcher (chokidar4bare) — arm the watch through createWatchHost so network polling, the error-storm cut-off and the option bag stay in one place.'
 export const watcherSingleOwnerRestrictions = [
   { selector: "CallExpression[callee.name='require'][arguments.0.value=/^chokidar(4bare)?$/]", message: watcherMessage },
   { selector: "ImportDeclaration[source.value=/^chokidar(4bare)?$/]", message: watcherMessage },

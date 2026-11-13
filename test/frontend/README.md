@@ -14,7 +14,7 @@ End-to-end UI scenarios that drive the **real Electron app** via `agent-desktop`
 
 ### Why several flows can *only* be proven here
 
-Owner-side filesystem operations — adding, editing, deleting, moving, or copying files inside a shared folder, and creating subfolders — reach the data layer through the **file watcher (`chokidar4bare`) in Electron main**. The backend flow tests (`test/flow/`) run the worker as a bare subprocess with **no Electron main**, so they *inject synthetic* `owned-folder-fs-event` IPC frames to stand in for the watcher. This frontend suite runs the real app, so it is the **only** layer that exercises the genuine *filesystem → watcher → publish → replicate → materialize* path. That is exactly where the gaps below concentrate, and why they matter most at this layer.
+Owner-side filesystem operations — adding, editing, deleting, moving, or copying files inside a shared folder, and creating subfolders — reach the data layer through the **file watcher (`chokidar4bare`) in the worker**. Most backend flow tests (`test/flow/`) turn that watcher off and *inject synthetic* `owned-folder-fs-event` IPC frames in its place; `real-file-watchers.test.js` is the one flow test that runs it. This frontend suite runs the real app, so it is the layer that exercises the genuine *filesystem → watcher → publish → replicate → materialize* path through the UI. That is exactly where the gaps below concentrate, and why they matter most at this layer.
 
 ---
 

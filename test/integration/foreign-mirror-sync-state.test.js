@@ -1,4 +1,5 @@
 import test from 'brittle'
+import { noWatchers } from '../helpers/fake-watcher.js'
 import fs from 'bare-fs'
 import { freshPeer } from '../helpers/store.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
@@ -50,7 +51,7 @@ async function setupMirror(t, { fetchResult, entries = ONE_FILE } = {}) {
   }
 
   const fake = createFakeIpc()
-  initForeignFolders(fake.ipc)
+  initForeignFolders(fake.ipc, noWatchers)
 
   await publishMirror(spaceId, shareId, { state: 'syncing' })
   await createForeignMount({

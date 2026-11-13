@@ -32,6 +32,7 @@ import { applyPendingIdentityChange } from '../shared/core/identity-adopt.js'
 import { registerFeedback } from './ipc/feedback.js'
 import { registerDiagnostics } from './ipc/diagnostics.js'
 import { registerFiles } from './ipc/files.js'
+import { registerTestFsEvents } from './ipc/test-fs-events.js'
 import { registerFolderPreview } from './ipc/folder-preview.js'
 import { registerForeignFolders } from './ipc/foreign-folders.js'
 import { registerOwnedFolders } from './ipc/owned-folders.js'
@@ -42,7 +43,7 @@ import { slimSpaces } from './space-projection.js'
 import { createFolderChooser } from './download-folder-push.js'
 import { createOwnedMounter } from './owned-mount.js'
 import {
-  setRuntimeConfig, getIpcKeepaliveMs, getIpcKeepaliveGraceMs,
+  setRuntimeConfig, getIpcKeepaliveMs, getIpcKeepaliveGraceMs, areFileWatchersOff,
 } from '../shared/core/runtime-config.js'
 import { forgetSpaceDownloadRoot, listDownloadRoots, setDownloadRootsListener } from '../shared/core/paths.js'
 import { listRevealRoots } from '../shared/folders/reveal-roots.js'
@@ -369,6 +370,9 @@ registerSpaceLeave(ipc, { log, mounts, overlayBackend, discardPendingSpace, drop
 // === IPC: presence, file & transfer handlers ===
 
 registerFiles(ipc, { log, chooseFolder })
+
+// A test that turned the file watchers off delivers the file events itself.
+if (areFileWatchersOff()) registerTestFsEvents(ipc, { log })
 
 // === IPC: feedback, storage & settings handlers ===
 

@@ -7,7 +7,6 @@ import { daemonPaths } from '../shared/contract/paths.js'
 import { AppError } from '../shared/core/errors.js'
 import { CODES } from '../shared/contract/errors.js'
 import { MOUNT_STATUS } from '../shared/contract/statuses.js'
-import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../shared/contract/main-requests.js'
 import { TARGET_KIND } from '../shared/contract/audit-kinds.js'
 import { getSpace } from '../shared/spaces/space.js'
 import { DEFAULT_IGNORE } from '../shared/folders/path-keys.js'
@@ -59,10 +58,7 @@ export function createOwnedMounter({ ipc, mounts }) {
     mounts.lastMountPointStatus.set('owned-folder:' + shareId, mountRootAvailable(mountPath))
     await mounts.recordActivity(spaceId, shareId, MOUNT_STATUS.SCANNING)
 
-    ipc.emit(MAIN_REQUEST_FRAME, {
-      command: MAIN_REQUEST.OWNED_FOLDER_START_WATCHER,
-      args: { shareId, mountPath, ignore },
-    })
+    mounts.watchOwned(shareId, mountPath, ignore)
 
     mounts.settleScanStatus(runPublishPass(spaceId, shareId, mountPath, ignore), spaceId, shareId)
       .then(async (result) => {

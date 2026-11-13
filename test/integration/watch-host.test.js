@@ -1,13 +1,16 @@
 import test from 'brittle'
-import { loadWithFakeWatcher } from '../helpers/fake-watcher.js'
-import { withPlatform, UNC_PATH, NETWORK_CASES } from '../helpers/with-platform.js'
+import { fakeWatchEnv } from '../helpers/fake-watcher.js'
+import { UNC_PATH, NETWORK_CASES } from '../helpers/with-platform.js'
 import { looksLikeNetworkPath } from '../../src/shared/contract/network-paths.js'
+import { createWatchHost, watchEnv } from '../../src/worker/watchers/watch-host.js'
 
-const { created, modules } = loadWithFakeWatcher(['src/main/watch-host.js'])
-const { createWatchHost } = modules[0]
+// The engine is the fake, so event routing is driven synchronously; the module itself loads only
+// under Bare, which is why this lives in the integration tier.
+let created = []
 
-function host(opts = {}) {
-  created.length = 0
+function host(opts = {}, { platform } = {}) {
+  const fake = fakeWatchEnv({ platform })
+  created = fake.created
   const events = []
   const errors = []
   const storms = []
@@ -17,8 +20,8 @@ function host(opts = {}) {
     onError: (e) => errors.push(e),
     onStorm: () => storms.push(true),
     ...opts,
-  })
-  return { h, events, errors, storms }
+  }, fake.env)
+  return { h, events, errors, storms, warned: fake.warned }
 }
 
 const polling = () => created.filter((w) => w.opts.usePolling)
@@ -33,14 +36,12 @@ test('REGRESSION (FIX-PI3-1): a network path is watched by polling, not native e
   // Pinned per case: /Volumes is darwin-only and /mnt is linux-only, so a test that inherits the
   // machine's platform asserts nothing on the other one.
   for (const { platform, path, label } of NETWORK_CASES) {
-    withPlatform(platform, () => {
-      const { h } = host()
-      h.add(path)
-      t.is(polling().length, 1, label + ' is watched by a polling instance')
-      t.is(polling()[0].opts.interval, 5000, label + ' polls every 5s')
-      t.is(native().length, 0, label + ' created no native instance')
-      h.stop()
-    })
+    const { h } = host({}, { platform })
+    h.add(path)
+    t.is(polling().length, 1, label + ' is watched by a polling instance')
+    t.is(polling()[0].opts.interval, 5000, label + ' polls every 5s')
+    t.is(native().length, 0, label + ' created no native instance')
+    h.stop()
   }
 })
 
@@ -178,15 +179,11 @@ test('stop() closes every instance, and a close throw does not escape', (t) => {
 })
 
 test('stop() reports a close() that rejects instead of leaving the rejection unhandled', async (t) => {
-  const { h } = host()
+  const { h, warned } = host()
   h.add('/Users/me/a.txt')
   created[0].closeRejection = new Error('close rejected')
-  const warned = []
-  const warn = console.warn
-  console.warn = (...args) => warned.push(args.join(' '))
-  t.teardown(() => { console.warn = warn })
   h.stop()
-  await new Promise((resolve) => setImmediate(resolve))
+  await new Promise((resolve) => setTimeout(resolve, 0))
   t.ok(warned.some((line) => line.includes('watcher.close failed') && line.includes('close rejected')), 'the rejection is warned')
 })
 
@@ -246,4 +243,20 @@ test('looksLikeNetworkPath across the three platforms', (t) => {
 
   t.absent(looksLikeNetworkPath('', 'linux'), 'empty')
   t.absent(looksLikeNetworkPath(null, 'linux'), 'null')
+})
+
+// The test lever's engine: the host's bookkeeping runs and nothing is armed on disk.
+test('the switched-off engine arms nothing and reports nothing', (t) => {
+  const events = []
+  const env = watchEnv({ log: { warn() {} }, off: true })
+  const h = createWatchHost({ label: 'off', onEvent: (e) => events.push(e) }, env)
+  t.execution(() => { h.add('/Users/me/a.txt'); h.add(UNC_PATH); h.remove(UNC_PATH) })
+  t.execution(() => h.stop())
+  t.is(events.length, 0)
+})
+
+test('the real environment judges paths on the platform it runs on', (t) => {
+  const env = watchEnv({ log: { warn() {} }, off: false })
+  t.ok(['darwin', 'linux', 'win32', 'android', 'ios'].includes(env.platform), 'a platform name: ' + env.platform)
+  t.is(typeof env.engine.watch, 'function', 'and the watcher package as its engine')
 })

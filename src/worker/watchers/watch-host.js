@@ -1,17 +1,20 @@
-// The single owner of the file watcher (chokidar4bare) in this process, shared by folder-watchers
-// (one recursive root per share) and loose-file-watchers (scattered individual files). It owns the
-// things every watcher caller has to get right: a network mount emits no native events (watch it by
-// polling or not at all — a file there otherwise silently stops re-publishing, with no error, no
-// badge, no log line), an erroring watcher spins for the life of the process (the storm guard), a
-// watch the OS has no budget for is a degraded watcher rather than a failed one, and the option bag
-// (only `atomic` and `ignored` vary per caller, each carrying its reason at the call site).
+// The single owner of the file watcher (chokidar4bare) in the back end, shared by folder-watchers
+// (one recursive root per owned share or mirror) and loose-file-watchers (scattered individual
+// files). It owns the things every watcher caller has to get right: a network mount emits no native
+// events (watch it by polling or not at all — a file there otherwise silently stops re-publishing,
+// with no error, no badge, no log line), an erroring watcher spins for the life of the process (the
+// storm guard), a watch the OS has no budget for is a degraded watcher rather than a failed one, and
+// the option bag (only `atomic` and `ignored` vary per caller, each carrying its reason at the call
+// site).
 //
 // Options are per-INSTANCE, not per-path, so `usePolling` cannot vary within one watcher. A host
 // therefore holds up to two instances — native and polling — and routes each target by
 // looksLikeNetworkPath. The polling instance is created lazily, so a user with no network paths
 // pays nothing.
-const chokidar4bare = require('chokidar4bare')
-const { looksLikeNetworkPath } = require('../shared/contract/network-paths.js')
+import chokidar4bare from 'chokidar4bare'
+import os from 'bare-os'
+import { looksLikeNetworkPath } from '../../shared/contract/network-paths.js'
+/** @import { Logger } from '../../shared/core/logger.js' */
 
 const ERROR_WINDOW_MS = 10_000
 const ERROR_STORM_LIMIT = 5
@@ -24,6 +27,31 @@ const WATCH_BUDGET_CODES = new Set(['ENOSPC', 'EMFILE'])
 // defect this module exists to fix — just a single warning when the cost becomes worth knowing.
 const POLL_TARGET_WARN = 200
 
+// An engine that arms nothing and never reports: the watchers' bookkeeping runs as in production
+// while the file events come from the test instead (the `testFileWatchersOff` lever).
+const INERT_ENGINE = {
+  watch() {
+    const inert = {
+      on() { return inert },
+      add() {},
+      unwatch() {},
+      close() { return Promise.resolve() },
+    }
+    return inert
+  },
+}
+
+/**
+ * What every host is built against: the watcher engine, the platform its paths are judged on, and
+ * the log its warnings go to. A test hands in its own engine and platform.
+ * @typedef {{ engine: { watch: (targets: string[], opts: object) => any }, platform: string, log: Logger }} WatchEnv
+ */
+
+/** @param {{ log: Logger, off: boolean }} opts @returns {WatchEnv} */
+export function watchEnv({ log, off }) {
+  return { engine: off ? INERT_ENGINE : chokidar4bare, platform: os.platform(), log }
+}
+
 /**
  * createWatchHost({
  *   label,                       // names the host in the storm message
@@ -32,9 +60,9 @@ const POLL_TARGET_WARN = 200
  *   onEvent({ action, absPath }),
  *   onError(err),
  *   onStorm(),                   // the host has already stopped itself; drop the caller's bookkeeping
- * })
+ * }, env)
  */
-function createWatchHost({ label, atomic = false, ignored, onEvent, onError, onStorm }) {
+export function createWatchHost({ label, atomic = false, ignored, onEvent, onError, onStorm }, { engine, platform, log }) {
   const instances = new Map() // 'native' | 'polling' -> watcher instance
   const errorWindow = []
   let degraded = false
@@ -63,7 +91,7 @@ function createWatchHost({ label, atomic = false, ignored, onEvent, onError, onS
   function instance(mode) {
     const existing = instances.get(mode)
     if (existing) return existing
-    const watcher = chokidar4bare.watch([], optionsFor(mode))
+    const watcher = engine.watch([], optionsFor(mode))
     const handler = (action) => (absPath) => {
       if (!stopped) onEvent?.({ action, absPath })
     }
@@ -98,7 +126,7 @@ function createWatchHost({ label, atomic = false, ignored, onEvent, onError, onS
   }
 
   function modeFor(target) {
-    return looksLikeNetworkPath(target, process.platform) ? 'polling' : 'native'
+    return looksLikeNetworkPath(target, platform) ? 'polling' : 'native'
   }
 
   function add(target) {
@@ -108,7 +136,7 @@ function createWatchHost({ label, atomic = false, ignored, onEvent, onError, onS
       pollTargets++
       if (pollTargets > POLL_TARGET_WARN && !pollWarned) {
         pollWarned = true
-        console.warn(label, 'watch host is polling', pollTargets, 'network targets every', POLL_INTERVAL_MS, 'ms')
+        log.warn(label, 'watch host is polling', pollTargets, 'network targets every', POLL_INTERVAL_MS, 'ms')
       }
     }
     instance(mode).add(target)
@@ -120,13 +148,13 @@ function createWatchHost({ label, atomic = false, ignored, onEvent, onError, onS
     const watcher = instances.get(mode)
     if (!watcher) return
     try { watcher.unwatch(target) } catch (err) {
-      console.warn(label, 'watcher.unwatch failed for', target, '-', err.message)
+      log.warn(label, 'watcher.unwatch failed for', target, '-', err.message)
     }
   }
 
   function stop() {
     stopped = true
-    const warnClose = (err) => console.warn(label, 'watcher.close failed -', err?.message)
+    const warnClose = (err) => log.warn(label, 'watcher.close failed -', err?.message)
     // close() settles asynchronously; a rejection is reported like a synchronous throw.
     for (const watcher of instances.values()) {
       try { Promise.resolve(watcher.close()).catch(warnClose) } catch (err) { warnClose(err) }
@@ -140,5 +168,3 @@ function createWatchHost({ label, atomic = false, ignored, onEvent, onError, onS
 
   return { add, remove, stop }
 }
-
-module.exports = { createWatchHost }

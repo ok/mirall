@@ -21,7 +21,7 @@ test('a file added mid-index reaches a peer and never disappears from its listin
   for (let i = 1; i <= 3; i++) fs.writeFileSync(path.join(folder, 'big-' + i + '.bin'), patternedBytes(128 * 1024 * 1024, i))
   await A.request('owned-folder:mount', { spaceId, shareId: share.id, mountPath: folder })
 
-  // chokidar lives in Electron main, so the harness delivers the frame the watcher would have sent.
+  // The harness turns the worker's watchers off and delivers the frame the watcher would have sent.
   const late = path.join(folder, 'late.bin')
   fs.writeFileSync(late, patternedBytes(8 * 1024 * 1024, 9))
   await A.request('event:owned-folder-fs-event', { shareId: share.id, action: 'add', relPath: 'late.bin', absPath: late })

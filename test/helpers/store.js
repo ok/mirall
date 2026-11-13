@@ -27,12 +27,14 @@ export const offlineMemberRegistry = {
 // Production layout: the store sits at <peerDir>/app-storage, so identity.enc and space-keys.enc —
 // which the worker writes to dirname(storage) — land in THIS peer's directory rather than in a
 // tmpdir shared with every other peer of every other test.
-async function peerDirs(t) {
+async function peerDirs(t, { fileWatchers = false } = {}) {
   const home = tmpDir('mirall-test-peer')
   const storage = path.join(home, 'app-storage')
   fs.mkdirSync(storage, { recursive: true })
   const downloads = tmpDir('mirall-test-dl')
-  const config = { storage, appVersion: '0.0.0-test', dev: true, verbose: false, downloadFolder: downloads }
+  // The real file watchers are off unless asked for: a test here drives the data layer's file-event
+  // handlers itself, and a watcher on the same folder would deliver each of its writes a second time.
+  const config = { storage, appVersion: '0.0.0-test', dev: true, verbose: false, downloadFolder: downloads, testFileWatchersOff: !fileWatchers }
   await loadSettings(storage)
   setRuntimeConfig(config)
   setDownloadFolder(downloads)
@@ -47,12 +49,12 @@ async function peerDirs(t) {
 // Spin up a clean single-peer backend: the whole data layer, composed exactly as the worker
 // composes it, minus the network. NOTE: src/shared modules are process-global singletons — one
 // peer per test process; the integration files are loaded one-per-thread under `brittle-bare -j`.
-export async function freshPeer(t, { displayName = 'Tester' } = {}) {
-  return bootPeer(t, { displayName, masterSecret: crypto.randomBytes(32) })
+export async function freshPeer(t, { displayName = 'Tester', fileWatchers = false } = {}) {
+  return bootPeer(t, { displayName, masterSecret: crypto.randomBytes(32), fileWatchers })
 }
 
-async function bootPeer(t, { displayName, masterSecret }) {
-  const { config, storage, downloads } = await peerDirs(t)
+async function bootPeer(t, { displayName, masterSecret, fileWatchers }) {
+  const { config, storage, downloads } = await peerDirs(t, { fileWatchers })
   const fake = createFakeIpc()
   const root = await boot(config, { ipc: fake.ipc, log: quiet, swarm: false, masterSecret, memberRegistry: offlineMemberRegistry })
   await setProfile({ displayName })

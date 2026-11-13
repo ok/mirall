@@ -217,11 +217,13 @@ version, which is what this note is for.
 
 ## `chokidar4bare` — the file watcher, pinned
 
-`chokidar4bare` is pinned to an exact version (`"chokidar4bare": "0.1.0"`, no caret). It is the
-engine behind every owned-folder, mirror and loose-file watch (`src/main/watch-host.js`), and the
-failure a watcher change produces — a folder that silently stops re-publishing — shows up in no
-automated layer: only the frontend suite drives the real watcher. Bump it deliberately, alone, and
-run the owner flows plus `s26`/`s31`/`s90` before merging.
+`chokidar4bare` is pinned to an exact version (`"chokidar4bare": "6.0.0"`, no caret). It is the
+engine behind every owned-folder, mirror and loose-file watch (`src/worker/watchers/watch-host.js`),
+which runs it under Bare on `bare-fs`. The failure a watcher change produces — a folder that
+silently stops re-publishing — shows up only where the real watcher runs:
+`test/integration/file-watchers-real.test.js`, `test/flow/real-file-watchers.test.js` and the
+frontend suite. Bump it deliberately, alone, and run those plus the owner flows and `s26`/`s31`/`s90`
+before merging.
 
 Its `bare-fs ^4.8.2` requirement is also the floor of mirall's own `bare-fs` range, so npm hoists
 one copy of the native addon. After any bump of either, `npm ls bare-fs` must show a single version

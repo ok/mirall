@@ -2,7 +2,7 @@
 
 // One policy for a failure on the worker bus — a frame main could not write, a request main could
 // not carry out. Debug logs every failure, including one racing teardown. Outside debug a quit is
-// silent, because a half-written pipe or a request racing the watcher teardown is expected then.
+// silent, because a half-written pipe or a request racing the worker's teardown is expected then.
 // Any other failure goes to the caller's reporter, which decides how often it is said.
 
 function errorText(err) {

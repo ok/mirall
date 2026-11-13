@@ -73,6 +73,7 @@ import { PeerWatch } from '../shared/audit/peer-records-watch.js'
 import { OverlayBackend } from '../shared/transfer/overlay/overlay-runtime.js'
 import { getInstallId } from '../shared/telemetry/install-id.js'
 import { MountsRuntime } from './mounts-runtime.js'
+import { FileWatchers } from './watchers/file-watchers.js'
 import { Sweeps } from './sweeps.js'
 import { RestoreCatchUp } from './restore-catch-up.js'
 import { Backup } from './backup-service.js'
@@ -180,6 +181,8 @@ export async function boot(bootstrap, {
   let publishService = null
   /** @type {OverlayBackend | null} */
   let overlayBackend = null
+  /** @type {FileWatchers | null} */
+  let fileWatchers = null
   let supervisor = null
   /** @type {Backup | null} */
   let backup = null
@@ -191,9 +194,9 @@ export async function boot(bootstrap, {
   // be able to stop whatever has started so far. Until this is published, `root` is null and a
   // quit would exit without announcing departure or dropping the swarm.
   //
-  // The first three steps are deliberately NOT in reverse order: announce departure and abort
-  // hashing FIRST, then a short flush window, so the departure datagram leaves UDX before any
-  // socket drops.
+  // The first steps are deliberately NOT in reverse order: announce departure, stop the file
+  // watchers and abort hashing FIRST, then a short flush window, so the departure datagram leaves
+  // UDX before any socket drops and no file event reaches a data layer that is closing.
   //
   // The budgets bound the subsystem drains (their ceilings sum past the entry's hard deadline);
   // an unbounded drain would leave the swarms and the store never closed, which is worse than
@@ -208,6 +211,7 @@ export async function boot(bootstrap, {
     closing = true
     try { supervisor?.pause() } catch {}
     if (swarm) { try { broadcastDeparture() } catch {} }
+    try { fileWatchers?.halt() } catch {}
     try { abortInFlightPublishes() } catch {}
     try { publishService?.halt() } catch {}
     // Ref'd: this is the only await on the close path with no work behind it, and an unref'd
@@ -253,12 +257,16 @@ export async function boot(bootstrap, {
     // Constructed here (side-effect-free) so OwnedFolders can take its settle callback at wiring
     // time; started below, after the swarm and the topic joins, so its resume passes read a fully
     // wired data layer.
-    const mounts = new MountsRuntime('mounts', { ipc })
+    // Before everything that arms a watch: the overlay's rehydrate re-arms the loose files, the
+    // mirrors arm their roots, the mount runtime the owned folders.
+    fileWatchers = await life.start(new FileWatchers('file-watchers'))
+    const mounts = new MountsRuntime('mounts', { ipc, watchers: fileWatchers })
     // Before every hook consumer and before the swarm: an inbound connection that landed without
     // the overlay channel attached would silently never get one.
     overlayBackend = await life.start(new OverlayBackend('overlay', {
       ipc,
       broadcastSharePrepare: broadcastSharePrepareProgress,
+      watchers: fileWatchers,
     }))
     publishService = await life.start(new PublishService('publish'))
     const ownedFolders = await life.start(new OwnedFolders('owned-folders', {
@@ -267,7 +275,7 @@ export async function boot(bootstrap, {
       settleScan: (promise, spaceId, shareId) => mounts.settleScanStatus(promise, spaceId, shareId),
       broadcastIndex: broadcastShareIndexProgress,
     }))
-    await life.start(new ForeignMirrors('foreign-mirrors', { ipc }))
+    await life.start(new ForeignMirrors('foreign-mirrors', { ipc, watchers: fileWatchers }))
     await life.start(new EchoGuardPurge('echo-guard'))
     await life.start(new PeerWatch('peer-watch'))
     // Reconcilers register with the flows they complete, then one pass finishes everything a prior
@@ -391,7 +399,7 @@ export async function boot(bootstrap, {
     supervisor = await life.start(new Supervisor('supervision', { lifecycle: life }))
 
     return {
-      close, store, mounts, intents, ownedFolders, publishService, overlayBackend, restoreCatchUp, managed,
+      close, store, mounts, intents, ownedFolders, publishService, overlayBackend, restoreCatchUp, managed, fileWatchers,
       backup: () => backup,
       backupPaused: () => restoreCatchUp !== null && backup === null,
       applyRelayConfig: () => applyRelayConfig(log),

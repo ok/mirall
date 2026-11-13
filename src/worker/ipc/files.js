@@ -14,7 +14,7 @@ import { emptyListing } from '../../shared/transfer/listing-envelope.js'
 import { revealFile } from '../../shared/transfer/reveal.js'
 import { overlayBackend } from '../../shared/transfer/overlay/index.js'
 import { cancelShareDownload, looseShareOfOwner, pauseShareDownload } from '../../shared/transfer/overlay/share-downloads.js'
-import { looseCancelPublish, handleLooseFsEvent } from '../../shared/transfer/overlay/loose-publish.js'
+import { looseCancelPublish } from '../../shared/transfer/overlay/loose-publish.js'
 import { LOOSE_SHARE_ID, looseRelPath, transferIdParts } from '../../shared/transfer/transfer-id.js'
 import { subscribeServeDetail, unsubscribeServeDetail, dropServeDetailClient, listServeSummaries } from '../../shared/transfer/serve-ledger.js'
 import { listFileRecipients } from '../../shared/transfer/file-recipients.js'
@@ -27,15 +27,6 @@ import { assertCatalogWritable } from '../../shared/core/restore-guard.js'
 
 /** @param {WorkerIpc} ipc @param {{ log: Logger, chooseFolder: FolderChooser }} deps */
 export function registerFiles(ipc, { log, chooseFolder }) {
-  ipc.handle('event:loose-file-fs-event', async (msg) => {
-    try {
-      await handleLooseFsEvent({ spaceId: msg.spaceId, absPath: msg.absPath, action: msg.action })
-    } catch (err) {
-      log.warn('loose-file fs event failed:', errorMessage(err))
-    }
-    return { ok: true }
-  })
-
   // Sender-side download indicator: open/close a per-file detail subscription so the
   // worker only streams per-peer progress for a file whose row is expanded. Subscribe
   // returns the current snapshot so the dropdown renders immediately; the ledger sweep

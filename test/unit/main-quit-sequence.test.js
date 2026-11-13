@@ -25,8 +25,6 @@ function recorder(overrides = {}) {
     calls,
     steps: {
       markQuitting: step('mark-quitting'),
-      stopFolderWatchers: step('stop-folder-watchers'),
-      stopLooseWatchers: step('stop-loose-watchers'),
       flushConfig: step('flush-config'),
       stopWorkers: step('stop-workers'),
       applyUpdate: step('apply-update'),
@@ -37,12 +35,10 @@ function recorder(overrides = {}) {
 test('QUIT_STEPS is the declared teardown order', (t) => {
   t.alike([...QUIT_STEPS], [
     'mark-quitting',
-    'stop-folder-watchers',
-    'stop-loose-watchers',
     'flush-config',
     'stop-workers',
     'apply-update',
-  ], 'watchers stop before the config flush; the worker stops before the update is applied')
+  ], 'the worker stops before the update is applied')
   t.ok(Object.isFrozen(QUIT_STEPS))
 })
 
@@ -82,8 +78,6 @@ test('the worker is asked to exit before the update apply starts', (t) => {
   const order = []
   const handler = createQuitSequence({
     markQuitting: () => {},
-    stopFolderWatchers: () => {},
-    stopLooseWatchers: () => {},
     flushConfig: () => order.push('flush-config'),
     stopWorkers: () => order.push('stop-workers'),
     applyUpdate: () => { order.push('apply-update'); return Promise.resolve() },
@@ -96,7 +90,7 @@ test('the worker is asked to exit before the update apply starts', (t) => {
 test('a step that throws is reported and does not skip the steps after it', (t) => {
   const errors = []
   const rec = recorder({
-    'stop-folder-watchers': () => { throw new Error('watcher boom') },
+    'mark-quitting': () => { throw new Error('mark boom') },
     'flush-config': () => { throw new Error('flush boom') },
   })
   const handler = createQuitSequence({
@@ -106,7 +100,7 @@ test('a step that throws is reported and does not skip the steps after it', (t) 
   })
   handler({ preventDefault() {} })
   t.alike(rec.calls, [...QUIT_STEPS], 'every later step still ran')
-  t.alike(errors, [['stop-folder-watchers', 'watcher boom'], ['flush-config', 'flush boom']])
+  t.alike(errors, [['mark-quitting', 'mark boom'], ['flush-config', 'flush boom']])
 })
 
 test('a synchronous throw from applyUpdate is reported and the quit is not deferred', (t) => {

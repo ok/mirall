@@ -76,7 +76,7 @@ function relToDriveKey(relPath) {
   return relToKey(relPath, path.sep)
 }
 
-export async function handleFsEventFromMain(event) {
+export async function handleOwnedFsEvent(event) {
   const mount = await findOwnedMountByShareId(event.shareId)
   if (!mount) {
     log.debug('fs event for unknown share', event.shareId)

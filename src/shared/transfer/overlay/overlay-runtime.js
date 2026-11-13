@@ -22,7 +22,7 @@ const CONTENT_RESUME_COALESCE_MS = 250
 export class OverlayBackend extends Subsystem {
   constructor(name, deps) {
     super(name, deps)
-    this.require('ipc', 'broadcastSharePrepare')
+    this.require('ipc', 'broadcastSharePrepare', 'watchers')
     this.resumePending = new Map()
     this.overlay = null
     this.engine = null
@@ -32,7 +32,7 @@ export class OverlayBackend extends Subsystem {
     const { ipc } = this.deps
     initPublishProgress({ emit: (name, payload) => ipc.emit(name, payload), broadcast: this.deps.broadcastSharePrepare })
     initFolderPublish({ ipc })
-    initLoosePublish({ ipc })
+    initLoosePublish({ ipc, watchers: this.deps.watchers })
     initShareDownloads({ ipc })
     // The instance comes first: the rehydrate below reaches makeServable and the loose re-publish,
     // and both fall through on a null getOverlay() — so a rehydrate that runs ahead of it silently

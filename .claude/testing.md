@@ -145,9 +145,13 @@ reclaim, boot-time cleanup), assert it at the layer that *can* (usually Flow/Int
 the **user-facing outcome** at the UI layer. Don't force a flaky UI assertion.
 
 **Coverage blind spots to design around:**
-- **Only the frontend suite drives the real watcher → publish → replicate → materialize path.**
-  Every other layer stubs the watcher in main, so a break between a disk event and a peer's
-  materialized file shows up nowhere else.
+- **The real watcher is off in most tests, and switched on by name.** The file watchers run in the
+  worker. `launchPeer` and `freshPeer` set the `testFileWatchersOff` lever, so a test delivers its
+  own file events (`event:*-fs-event` in flow, the handlers in integration) and sees each once; a
+  test that wants the real watcher passes `flags: { testFileWatchersOff: false }`.
+  `test/flow/real-file-watchers.test.js` is the flow layer's real-watcher test (disk → watcher →
+  publish → replicate), and `test/integration/file-watchers-real.test.js` the single-peer one; the
+  frontend suite drives the same path through the real app.
 - **Data-polling flow tests can't catch a missing IPC event** — they read the same converged data
   the event would surface, so an event-driven UI refresh (e.g. `event:shares-updated` on a peer
   profile-bee append) that stops firing still passes every `share:list` poll. Only the Frontend
@@ -292,8 +296,9 @@ and the history that produced each rule, lives here.
   per-path, and its sharp edges — native events never reach a network mount, an erroring watcher
   spins forever, a watch past the OS limit errors once per un-armed path — were learned once on the
   owned-folder watcher and never carried to the loose-file watcher, so a file shared from
-  `/Volumes`, `/mnt`, `/media` or a UNC path silently stopped re-publishing. `src/main/watch-host.js`
-  owns every watcher decision; a second `require('chokidar4bare')` (or of upstream `chokidar`) is
+  `/Volumes`, `/mnt`, `/media` or a UNC path silently stopped re-publishing.
+  `src/worker/watchers/watch-host.js` owns every watcher decision; a second load of `chokidar4bare`
+  (or of upstream `chokidar`) anywhere under `src/` is
   exactly how that divergence comes back.
 - **One byte ladder** (`byteFormatterSingleOwnerRestrictions`;
   `test/invariants/byte-formatter-single-owner.test.js`). `src/renderer/format/bytes.js` owns the

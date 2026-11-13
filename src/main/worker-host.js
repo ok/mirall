@@ -1,13 +1,13 @@
 // The Bare worker host: spawning one, framing what goes down its spawn pipe, and reaping it.
 //
-// The spawn pipe is main's own: the hello, the bootstrap, shutdown and watcher events go down it,
-// and the worker's commands to main come back on it. Windows do not use it — each reaches the
+// The spawn pipe is main's own: the hello, the bootstrap and shutdown go down it, and the worker's
+// commands to main come back on it. Windows do not use it — each reaches the
 // worker over its own socket connection (window-connections.js), opened once the worker has said
 // where it listens.
 //
-// Exactly one function writes to a worker pipe. A lost watcher event is survivable; a lost
-// bootstrap is not, so the spawn path treats a failed bootstrap write as a failed spawn rather
-// than caching a worker nothing can talk to.
+// Exactly one function writes to a worker pipe. A lost bootstrap is not survivable, so the spawn
+// path treats a failed bootstrap write as a failed spawn rather than caching a worker nothing can
+// talk to.
 
 const { app, ipcMain } = require('electron')
 const { StringDecoder } = require('string_decoder')
@@ -90,24 +90,14 @@ function workerIsLocal(senderId) {
   return false
 }
 
-// The watchers live in main because Bare has no recursive watch, and they feed the worker through
-// this module — so the quit sequence reaches them here. They stay two steps: the sequence records
-// each by name, and a failure in one must not skip the other.
-function stopFolderWatchers() { folderWatchers.stopAllWatchers() }
-function stopLooseWatchers() { looseFileWatchers.stopLooseWatchers() }
-
 // Download roots and mount paths, pushed by the worker (it owns the space and mount records). Main
 // needs them to authorize "reveal in folder" for paths outside the home directory.
 let workerRevealRoots = []
 
 // === Worker frame writer + the worker→main request router ===
 
-const folderWatchers = require('./folder-watchers.js')
-const looseFileWatchers = require('./loose-file-watchers.js')
-
-// The one path that puts a frame on the worker pipe — bootstrap, shutdown and every watcher event
-// alike. Returns whether it went out: a lost watcher event is survivable, a lost bootstrap is not
-// (see getWorker). Sync failures only — an unserialisable frame, a stream that rejects the write;
+// The one path that puts a frame on the worker pipe — bootstrap and shutdown alike. Returns whether
+// it went out: a lost bootstrap is not survivable (see getWorker). Sync failures only — an unserialisable frame, a stream that rejects the write;
 // the async EPIPE of a write racing the worker's death arrives on worker.on('error') in getWorker.
 // Failures take the worker-bus policy (worker-bus-failure.js); outside debug they are reported once
 // per worker: every frame after a pipe goes bad fails the same way, and the repeats would evict
@@ -134,11 +124,8 @@ function sendToWorker(worker, frame) {
 // Declared before getWorker: the worker's data handler closes over this binding, and a spawn
 // dispatched synchronously would otherwise read it in its temporal dead zone.
 const mainRequests = createMainRequestRouter({
-  folderWatchers,
-  looseFileWatchers,
   setRevealRoots: (roots) => { workerRevealRoots = roots },
   onSocketListening: (worker, socketPath) => listening.get(worker)?.resolve(socketPath),
-  sendToWorker,
   isDebug,
   isQuitting,
 })
@@ -173,7 +160,7 @@ function getWorker(specifier) {
   const p = getPear()
   const worker = p.run(entrypointFor(specifier), [])
   // A write racing the worker's death (the before-quit shutdown frame, a
-  // relayed renderer frame, a watcher event) fails with an EPIPE that
+  // relayed renderer frame) fails with an EPIPE that
   // arrives asynchronously as a stream 'error' event — the try/catch around
   // each worker.write() never sees it, and with no listener the emit throws
   // as an uncaught exception (Electron's error dialog). Consume it here;
@@ -393,6 +380,4 @@ module.exports = {
   sendToWorker,
   revealRoots,
   workerIsLocal,
-  stopFolderWatchers,
-  stopLooseWatchers,
 }

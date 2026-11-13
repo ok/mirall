@@ -156,10 +156,10 @@ the subject.
 `profile:set` re-broadcasts on top of `onopen`: a relaunched exchange is `2K + 8` frames and the
 first ledger retry is 20 s out. Budget flow timings accordingly.
 
-**A test of platform-conditional behaviour must pin `process.platform`.** CI is Linux, dev is macOS;
-`looksLikeNetworkPath` is platform-scoped. Use `withPlatform(name, fn)`
-(`test/helpers/with-platform.js`), or the UNC form when the test is about something else, and
-compare assert counts across platforms.
+**A test of platform-conditional behaviour must pin the platform.** CI is Linux, dev is macOS;
+`looksLikeNetworkPath` is platform-scoped. Hand the platform in (`fakeWatchEnv({ platform })` with
+`NETWORK_CASES` from `test/helpers/with-platform.js`), or use the UNC form when the test is about
+something else, and compare assert counts across platforms.
 
 **Never blanket-stub `console.*` in a brittle test.** The runner emits TAP through it. Capture by
 the code-under-test's own prefix and forward everything else.
