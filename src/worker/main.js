@@ -8,7 +8,8 @@
 // The data layer itself — Corestore, bees, migrations, folder subsystems, both swarms, the
 // resume passes and the periodic backstops — is constructed and started by the composition root
 // in ./boot.js, whose returned `root.close()` is the whole stop sequence. ipc.start() runs after
-// every handler is registered, so no frame is dispatched before its handler exists.
+// every handler the worker's state allows is registered: all of them once the data layer is up, the
+// recovery set while the identity is locked or still waiting for its key.
 
 import path from 'bare-path'
 import { createIPC } from '../shared/core/ipc.js'
@@ -21,6 +22,8 @@ import { registerSettings } from './ipc/settings.js'
 import { registerStorage } from './ipc/storage.js'
 import { registerProfile } from './ipc/profile.js'
 import { registerIdentity } from './ipc/identity.js'
+import { registerIdentityUnlock } from './ipc/identity-unlock.js'
+import { createKeyWait } from './key-wait.js'
 import { registerBackup } from './ipc/backup.js'
 import { registerBackupRestore } from './ipc/backup-restore.js'
 import { registerManaged } from './ipc/managed.js'
@@ -54,7 +57,7 @@ import {
   WORKER_EXIT_UNSTABLE, WORKER_EXIT_PROTOCOL_MISMATCH, WORKER_EXIT_ORPHANED, WORKER_EXIT_ALREADY_RUNNING,
   WORKER_EXIT_LISTEN_FAILED,
 } from '../shared/contract/exit-codes.js'
-import { IDENTITY_LOCK_CODES } from '../shared/contract/errors.js'
+import { CODES, IDENTITY_LOCK_CODES } from '../shared/contract/errors.js'
 import { bindConnectionLifecycle } from './connection-lifecycle.js'
 import { startListener } from './listener.js'
 import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../shared/contract/main-requests.js'
@@ -62,6 +65,9 @@ import {
   getProfile,
 } from '../shared/spaces/profile.js'
 import { installDataDirTripwire, armDataDirTripwire } from './dir-tripwire.js'
+import {
+  readHeadlessBootstrap, printUsage, prepareStorageDir, announceListening, releaseUnusedPipe, installStopSignals,
+} from './headless-entry.js'
 import { boot } from './boot.js'
 import { refreshAuditSelfName } from './audit-refs.js'
 
@@ -69,8 +75,14 @@ import { refreshAuditSelfName } from './audit-refs.js'
 // stays inert until armDataDirTripwire runs with the bootstrap's storage path, below.
 installDataDirTripwire()
 
-const ipc = createIPC(Bare.IPC)
+// A host spawns the worker with its pipe on fd 3 and no arguments. Without that pipe, or with a
+// command line, nothing spawned it: it was started on its own and stays up until it is asked to
+// stop (headless-entry.js).
+const headless = Bare.IPC === null || Bare.argv.length > 2
+if (headless) releaseUnusedPipe(Bare.IPC)
+const ipc = createIPC(headless ? null : Bare.IPC)
 const log = createLogger('worklet')
+const packageRoot = path.resolve(path.dirname(Bare.argv[1]), '..', '..')
 
 // Started next to ipc.start() rather than here: before the router goes live the loop is busy with
 // boot I/O by design, and sampling that would report a wedge that is really just a large library
@@ -171,13 +183,18 @@ async function safeShutdown(reason, code = 0) {
 //
 // A closed pipe disconnects a CLIENT and then asks separately whether to stay up. The answer is
 // "stop" — see connection-lifecycle.js for why it has to be while the worker lives with its host.
-bindConnectionLifecycle({
-  pipe: Bare.IPC,
-  ipc,
-  client: ipc.primary,
-  isBootComplete: () => bootComplete,
-  stop: (reason) => { safeShutdown(reason, WORKER_EXIT_ORPHANED) },
-})
+// A headless worker has no host pipe, so no client's departure stops it.
+if (!headless) {
+  bindConnectionLifecycle({
+    pipe: Bare.IPC,
+    ipc,
+    client: ipc.primary,
+    isBootComplete: () => bootComplete,
+    stop: (reason) => { safeShutdown(reason, WORKER_EXIT_ORPHANED) },
+  })
+}
+
+if (headless) installStopSignals((signal) => { safeShutdown('signal ' + signal) })
 
 // === Bootstrap frame ===
 
@@ -188,17 +205,29 @@ bindConnectionLifecycle({
 // It is awaited and then parked, never re-thrown: a throw here is a top-level-await rejection,
 // which is the outcome this branch exists to avoid. The park covers the one case where
 // safeShutdown returns instead of exiting — a teardown that got there first and owns the exit.
+// A command line the worker cannot read is refused like a host on another protocol: starting it
+// again with the same arguments meets the same refusal.
 let bootstrap
-try {
-  bootstrap = await ipc.bootstrapPromise
-} catch (err) {
-  await safeShutdown('protocol-mismatch: ' + err.message, WORKER_EXIT_PROTOCOL_MISMATCH)
-  await new Promise(() => {})
+if (headless) {
+  const read = readHeadlessBootstrap(packageRoot)
+  if ('refusal' in read) {
+    printUsage(read.refusal)
+    Bare.exit(read.refusal === 'help' ? 0 : WORKER_EXIT_PROTOCOL_MISMATCH)
+  }
+  bootstrap = read.bootstrap
+  prepareStorageDir(bootstrap.storage)
+} else {
+  try {
+    bootstrap = await ipc.bootstrapPromise
+  } catch (err) {
+    await safeShutdown('protocol-mismatch: ' + err.message, WORKER_EXIT_PROTOCOL_MISMATCH)
+    await new Promise(() => {})
+  }
 }
 // The package root is two levels up from this entry — the repo in dev, app.asar.unpacked when
 // packaged — and feature-flags.json sits there. The settings file is the worker's own and is read
 // before anything else needs a preference; a first boot imports it from main's config.json.
-const flags = loadFeatureFlags(path.resolve(path.dirname(Bare.argv[1]), '..', '..'), { override: bootstrap.featureFlags, log })
+const flags = loadFeatureFlags(packageRoot, { override: bootstrap.featureFlags, log })
 const settingsLoad = await loadSettings(bootstrap.storage)
 if (settingsLoad.imported) log.info('settings: imported from config.json')
 if (!settingsLoad.persisted) log.warn('settings: running on defaults, settings.json could not be', settingsLoad.broken ? 'read: ' + settingsLoad.broken : 'written')
@@ -219,6 +248,7 @@ armDataDirTripwire(bootstrap.storage)
     await new Promise(() => {})
   }
   listener = listened
+  if (headless) announceListening(listened.path)
 }
 
 // === Boot: the composition root constructs and starts the data layer ===
@@ -235,49 +265,86 @@ const openRecovery = createPassphraseThrottle()
 const { memberRegistry, handleMembershipControl, discardPendingSpace } =
   createMembership(ipc, { log, dropSpaceDownloadRoot })
 
-// A key that cannot open this identity locks the worker instead of crashing it: the renderer shows
-// the recovery screen, and the router serves only the process and identity handlers. boot() has
-// already closed what it started, so the store is free for a recovery key to be checked against.
-// The top level parks there; the next generation, after an import or a set-aside, boots normally.
-async function serveLockedIdentity(code) {
-  log.warn('identity locked, serving recovery only:', code)
-  registerWorkerProcess(ipc, { stop: () => { safeShutdown('shutdown-request') } })
-  registerIdentity(ipc, { storagePath: bootstrap.storage, identityKEK: bootstrap.identityKEK, log, lockedBy: code, openRecovery })
-  registerBackupRestore(ipc, { storagePath: bootstrap.storage, identityKEK: bootstrap.identityKEK, log, lockedBy: code, openRecovery })
-  ipc.onClientAttach((client) => {
-    ipc.emit('event:worker-ready', { epoch: ipc.epoch, head: ipc.head() }, { to: client })
-  })
-  health.start()
-  ipc.start()
-  await new Promise(() => {})
-}
+// The handlers a worker serves whether or not its identity opened: stopping it, the identity's own
+// surface, a restore from backup and the unlock. Registered once, before the boot, because what
+// they answer follows `lockedBy` and the key on the bootstrap, and an unlock changes both.
+let lockedBy = null
+registerWorkerProcess(ipc, { stop: () => { safeShutdown('shutdown-request') } })
+registerIdentity(ipc, {
+  storagePath: bootstrap.storage, identityKEK: () => bootstrap.identityKEK, log, lockedBy: () => lockedBy, openRecovery,
+  restoreStatus: () => root?.restoreCatchUp?.status() ?? null,
+})
+registerBackupRestore(ipc, { storagePath: bootstrap.storage, identityKEK: () => bootstrap.identityKEK, log, lockedBy: () => lockedBy, openRecovery })
 
 // The root constructs everything it needs; the membership collaborators and publishRevealRoots
 // are passed in because they close over state that belongs here.
-let lockedBy = null
-try {
-  await applyPendingIdentityChange(bootstrap.storage)
-  root = await boot(bootstrap, {
+function bootDataLayer() {
+  return boot(bootstrap, {
     ipc,
     log,
     membershipControl: handleMembershipControl,
     publishRevealRoots,
     memberRegistry,
     // Publishes a closable handle before the root finishes starting, so a pipe close or a quit
-    // during boot still announces departure and drops what came up. The full root replaces it on
-    // the line below; both carry the same close().
+    // during boot still announces departure and drops what came up. The full root replaces it once
+    // boot returns; both carry the same close().
     onPartialRoot: (partial) => { root = partial },
   })
-} catch (err) {
-  if (!IDENTITY_LOCK_CODES.includes(err?.code)) throw err
-  root = null
-  lockedBy = err.code
 }
-if (lockedBy) await serveLockedIdentity(lockedBy)
+
+// A worker started without a host has no key until a client hands it over (key-wait.js). The key
+// is then the bootstrap's, so the boot is the one a spawned worker runs with the key it was sent;
+// a key that fails is taken back, and boot() has already closed what it started.
+const keyWait = createKeyWait({
+  awaiting: headless && !bootstrap.identityKEK,
+  boot: async ({ kek, relaySeed }) => {
+    bootstrap.identityKEK = kek
+    bootstrap.relaySeed = relaySeed
+    try {
+      return await bootDataLayer()
+    } catch (err) {
+      bootstrap.identityKEK = undefined
+      bootstrap.relaySeed = undefined
+      root = null
+      throw err
+    }
+  },
+})
+registerIdentityUnlock(ipc, { unlock: keyWait.unlock })
+
+// The router goes live with only the handlers above, and every client is told the worker is up and
+// reads why from identity:status. A key that cannot open this identity locks the worker instead of
+// crashing it: the renderer shows the recovery screen, and the store is free for a recovery key to
+// be checked against. That worker parks; the next generation, after an import or a set-aside, boots
+// normally.
+function serveRecoveryOnly(code) {
+  lockedBy = code
+  ipc.onClientAttach((client) => {
+    ipc.emit('event:worker-ready', { epoch: ipc.epoch, head: ipc.head() }, { to: client })
+  })
+  health.start()
+  ipc.start()
+}
+
+await applyPendingIdentityChange(bootstrap.storage)
+if (keyWait.awaiting) {
+  log.warn('waiting for the identity key (identity:unlock)')
+  serveRecoveryOnly(CODES.IDENTITY_AWAITING_KEY)
+  root = await keyWait.booted
+  lockedBy = null
+} else {
+  try {
+    root = await bootDataLayer()
+  } catch (err) {
+    if (!IDENTITY_LOCK_CODES.includes(err?.code)) throw err
+    root = null
+    log.warn('identity locked, serving recovery only:', err.code)
+    serveRecoveryOnly(err.code)
+    await new Promise(() => {})
+  }
+}
 const { mounts, intents, applyRelayConfig, overlayBackend } = root
 const mountOwnedShare = createOwnedMounter({ ipc, mounts })
-
-registerWorkerProcess(ipc, { stop: () => { safeShutdown('shutdown-request') } })
 
 // === IPC: folder-share handlers (shares, owned & foreign mounts) ===
 
@@ -292,15 +359,10 @@ registerForeignFolders(ipc, { log, intents })
 // === IPC: profile & space handlers ===
 
 registerProfile(ipc, { log })
-registerIdentity(ipc, {
-  storagePath: bootstrap.storage, identityKEK: bootstrap.identityKEK, log, lockedBy: null, openRecovery,
-  restoreStatus: () => root?.restoreCatchUp?.status() ?? null,
-})
 
 registerSpaces(ipc, { log, chooseFolder })
 
 registerBackup(ipc, { backup: root.backup, paused: root.backupPaused, openRecovery })
-registerBackupRestore(ipc, { storagePath: bootstrap.storage, identityKEK: bootstrap.identityKEK, log, lockedBy: null, openRecovery })
 
 registerSpaceLeave(ipc, { log, mounts, overlayBackend, discardPendingSpace, dropSpaceDownloadRoot })
 
@@ -326,9 +388,9 @@ registerManaged(ipc, { service: root.managed })
 
 // === Go live: flush queued frames, announce ready ===
 
-// What every client is told on arrival, recomputed per client rather than replayed from boot. The
-// three frames below used to fire exactly once, so a client that attached afterwards — or the same
-// renderer after a reload, which is indistinguishable — never received them at all.
+// What every client is told on arrival, recomputed per client rather than replayed from boot, so a
+// client that attaches later — or the same renderer after a reload — hears the same. Going live
+// again greets every client already attached to a worker that waited for its key.
 ipc.onClientAttach(async (client) => {
   // The coordinates ride the greeting, so a client learns where the stream is without asking: the
   // epoch tells it whether this is the worker it was talking to, and head where the numbering is.

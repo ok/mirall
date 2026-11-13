@@ -23,6 +23,7 @@ export const CODES = Object.freeze({
   EOWNERSHIP: 'EOWNERSHIP',
   FILE_NOT_ON_DEVICE: 'FILE_NOT_ON_DEVICE',
   FILE_SOURCE_MISSING: 'FILE_SOURCE_MISSING',
+  IDENTITY_AWAITING_KEY: 'IDENTITY_AWAITING_KEY',
   IDENTITY_NO_KEK: 'IDENTITY_NO_KEK',
   IDENTITY_PROVIDER_MISMATCH: 'IDENTITY_PROVIDER_MISMATCH',
   IDENTITY_UNLOCK_FAILED: 'IDENTITY_UNLOCK_FAILED',
@@ -107,7 +108,9 @@ export const INTERNAL_CODES = Object.freeze([
   'ETARGETCHANGED',
   // Identity faults: a missing key stops the worker, and a key that cannot open the identity locks
   // it. Neither is thrown to a request the user made; the locked screen reads the code from
-  // identity:status and owns its copy.
+  // identity:status and owns its copy. A worker started without a host waits for its key and says
+  // so the same way, to a client that unlocks it rather than to a person.
+  'IDENTITY_AWAITING_KEY',
   'IDENTITY_NO_KEK',
   'IDENTITY_PROVIDER_MISMATCH',
   'IDENTITY_UNLOCK_FAILED',
@@ -145,7 +148,10 @@ export const UNUSED_CODES = Object.freeze([
 // The identity faults a worker answers by locking rather than stopping: the key it was given cannot
 // open this identity, which the user resolves with a recovery key. A missing key is the host's bug.
 export const IDENTITY_LOCK_CODES = Object.freeze(['IDENTITY_PROVIDER_MISMATCH', 'IDENTITY_UNLOCK_FAILED'])
-/** @typedef {(typeof IDENTITY_LOCK_CODES)[number]} IdentityLockCode */
+// Why identity:status reports a worker that serves recovery only: one of the locks above, or
+// IDENTITY_AWAITING_KEY, a worker started without a host that has not been handed its key yet. That
+// one is no lock — the identity was never tried — so nothing is recovered or set aside while it lasts.
+/** @typedef {(typeof IDENTITY_LOCK_CODES)[number] | 'IDENTITY_AWAITING_KEY'} IdentityLockCode */
 
 // Named export for the router's own use; declared inside CODES as well so the "is every
 // user-visible code mapped?" ratchet can see it.

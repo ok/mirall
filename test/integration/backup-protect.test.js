@@ -54,7 +54,7 @@ async function start(t, d, { masterSecret, folder = null, repoId = null, profile
   t.teardown(async () => { try { await root.close() } catch {} }, { order: 1 })
   const openRecovery = createPassphraseThrottle()
   registerBackup(fake.ipc, { backup: root.backup, paused: root.backupPaused, openRecovery })
-  registerBackupRestore(fake.ipc, { storagePath: d.storage, identityKEK: KEK, log: quiet, lockedBy: null, openRecovery })
+  registerBackupRestore(fake.ipc, { storagePath: d.storage, identityKEK: () => KEK, log: quiet, lockedBy: () => null, openRecovery })
   if (profile) await setProfile({ displayName: 'Protected' })
   return { root, fake }
 }

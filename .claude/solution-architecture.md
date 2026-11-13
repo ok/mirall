@@ -74,6 +74,43 @@ the bootstrap, shutdown and watcher events down, and the worker's main-request f
                   ▼  replication + handshake / content channels → PEERS
 ```
 
+**A back end without the window.** The worker can also be started on its own, from a source
+checkout: `bare src/worker/main.js [--storage <dir>] [--verbose] [--dev …]`. It is headless when
+nothing spawned it — `Bare.IPC` is null (the plain `bare` binary) or it has a command line (a host
+spawns it with none; the sidecar build of bare that the desktop app ships opens fd 3 regardless, and
+`src/worker/headless-entry.js` releases that pipe). The command line stands in for the bootstrap
+frame (`src/worker/headless-args.js`, same keys, same `assembleRuntimeConfig`); `--dev` admits the
+test levers (`--dht-bootstrap`, `--feature-flags`, `--runtime-config`), which nothing else accepts.
+No key is on it, so after the listener is up the worker **waits for its key**: the router goes live
+with the recovery set (process, identity, restore) plus `identity:unlock`, `identity:status`
+reports `{ locked: true, code: 'IDENTITY_AWAITING_KEY' }`, and the recovery actions refuse, since
+nothing has been tried. A host client sends `identity:unlock { kek, relaySeed? }` — the KEK the
+desktop app would have put on the bootstrap, so the provider is still `os-keychain`; the socket is a
+different transport for the same key — and the worker runs the same `boot()` in place
+(`src/worker/key-wait.js`): a key that cannot open the identity is refused with its lock code and
+the worker keeps waiting; a good one boots, every handler is registered, and every attached client
+is greeted again with `event:worker-ready`. Attempts are serialized, and once booted every further
+unlock is refused. A headless worker is stopped by a `shutdown` request or by SIGTERM/SIGINT
+(Ctrl+C/Ctrl+Break on Windows), each running `safeShutdown` with exit 0; no client's departure
+stops it. It prints the `socket:listening` frame a host would have been sent as one JSON line on
+stdout, and its log lines open with an ISO time unless `JOURNAL_STREAM` says a journal stamps them.
+Verbosity: `--verbose`, then `MIRALL_VERBOSE=1`, then the stored choice. A spawned worker still
+takes its KEK from the bootstrap frame, and its boot fails with `IDENTITY_NO_KEK` without one.
+
+**Default data folder.** Started without `--storage`, a headless worker opens the folder the desktop
+app uses: Electron's `userData` is `<appData>/<productName>` — `productName` is "Mirall", not the npm
+name `mirall`, which on Linux would be another folder — and the store is `app-storage` inside it
+(`src/shared/core/default-data-dir.js`). `--storage <dir>` names that data folder, as the desktop
+app's `--storage` does.
+
+| OS | `<appData>` |
+|---|---|
+| macOS | `~/Library/Application Support` |
+| Linux | `$XDG_CONFIG_HOME`, else `~/.config` |
+| Windows | `%APPDATA%`, else `<home>\AppData\Roaming` |
+
+An MSIX-packaged install has its AppData redirected by Windows; that path is not this one.
+
 ### Main process (`src/main/`)
 
 `src/main/main.js` only wires modules. Invariants:
@@ -245,7 +282,8 @@ Bootstrap:
 
 **Shutdown.** A closed pipe detaches the client. `src/worker/connection-lifecycle.js` then stops the
 worker when the closed pipe is the spawn pipe, whatever socket clients remain, because those reach
-it through the host that just went. A socket client that stays silent through a `keepalive` and its
+it through the host that just went. A headless worker has no spawn pipe and stays up with no client
+attached; its stop is a `shutdown` request or a stop signal. A socket client that stays silent through a `keepalive` and its
 grace (30 s + 10 s, `src/shared/core/ipc-liveness.js`, on the health tick) is detached, which
 aborts its in-flight work and closes its socket. A `shutdown` request
 does the same. `safeShutdown` keeps the first reason's exit code, aborts in-flight requests, and
@@ -1441,6 +1479,10 @@ they belong to.
 - `network:reconnect` ends the live connections, because a connected peer is never re-dialled.
 - A partial `audit:list` page with a non-null cursor is normal, because the scan is budgeted.
 - `shutdown` is host-only and is answered before teardown begins.
+- `identity:unlock { kek, relaySeed? }` is host-only and served only by a worker started without a
+  host: it boots the data layer before it answers (`deadlineMs: 0`). Anywhere else, and after a
+  successful unlock, it is refused with `NOT_AUTHORIZED`. Neither key is logged or echoed, and the
+  router logs an unparseable frame by its length only.
 - Main's watcher events reach the worker as the `event:*-fs-event` request rows.
 
 ### React integration (`src/renderer/store/`)
@@ -1581,6 +1623,15 @@ not await async listeners.
 - **Cancellation is mostly a discard.** Only `share:list-files` and the two folder-preview requests
   read `ctx.signal`. For every other request, a cancel drops the response while the worker finishes
   the work.
+- **A headless back end is for developers and tests.** It runs from a source checkout only, and
+  reports the package's version and the dev release channel (`dev` is always true there, as for a
+  source run of the desktop app); with no host to say otherwise, new spaces download to
+  `~/Downloads`. A key arrives only over the socket: there is no key-file unlock. On Windows a
+  headless start does not set the owner-and-SYSTEM ACL the desktop app sets on the data folder
+  (POSIX gets `app-storage/` at 0700 when the start creates it). The desktop app never reuses a
+  running headless back end — a second worker on the same profile exits `WORKER_EXIT_ALREADY_RUNNING`
+  — and a headless worker has no file watchers (main owns them), so a shared folder is not
+  republished on a disk change.
 - **Preload has no structural contract.** `src/preload/preload.js` is sandboxed and unbundled, so it
   can't import `src/shared/contract/`. `test/invariants/preload-parity.test.js` checks its key set
   against `src/renderer/platform/global.d.ts`, but nothing checks signatures.

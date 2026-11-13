@@ -701,6 +701,7 @@ interface Responses {
   'identity:set-aside': IdentitySetAside
   'identity:unlock-from-backup': { unlocked: boolean }
   'identity:status': IdentityStatus
+  'identity:unlock': Ack
   'members:online': string[]
   'members:reach': MembersReach
   'mounts:list-all': AnyMount[]

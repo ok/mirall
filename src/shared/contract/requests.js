@@ -213,6 +213,13 @@ export const REQUESTS = Object.freeze({
     passphrase: { type: ARG.string, max: ARG_MAX.text },
   } },
   'identity:status': { kind: 'query', args: {} },
+  // The key a host would have put on the bootstrap, for a worker started without one. Unbounded: a
+  // good key boots the data layer, migrations included. relaySeed is optional because a profile
+  // with no private relay has none.
+  'identity:unlock': { kind: 'command', deadlineMs: 0, args: {
+    kek: { type: ARG.string, max: ARG_MAX.key },
+    relaySeed: { type: ARG.string, optional: true, max: ARG_MAX.key },
+  } },
   'members:online': { kind: 'query', args: { spaceId: { type: ARG.spaceId } } },
   'members:reach': { kind: 'query', args: { spaceId: { type: ARG.spaceId } } },
   'mounts:list-all': { kind: 'query', args: {} },

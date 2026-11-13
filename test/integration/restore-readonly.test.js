@@ -89,7 +89,7 @@ async function heldDevice(t, { whileAway = async () => {} } = {}) {
   registerFiles(fake.ipc, { log: quiet, chooseFolder: createFolderChooser({ ipc: fake.ipc, publishRevealRoots: () => {} }) })
   createMembership(fake.ipc, { log: quiet, dropSpaceDownloadRoot: () => {} })
   registerSpaceLeave(fake.ipc, { log: quiet, mounts: root.mounts, overlayBackend: root.overlayBackend, discardPendingSpace: async () => {}, dropSpaceDownloadRoot: () => {} })
-  registerIdentity(fake.ipc, { storagePath: d.storage, identityKEK: null, log: quiet, lockedBy: null, openRecovery: createPassphraseThrottle(), restoreStatus: () => root.restoreCatchUp?.status() ?? null })
+  registerIdentity(fake.ipc, { storagePath: d.storage, identityKEK: () => null, log: quiet, lockedBy: () => null, openRecovery: createPassphraseThrottle(), restoreStatus: () => root.restoreCatchUp?.status() ?? null })
   return { root, fake, spaceId, shareId: share.id, folder }
 }
 

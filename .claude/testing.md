@@ -165,8 +165,13 @@ the **user-facing outcome** at the UI layer. Don't force a flaky UI assertion.
 - **A flow peer talks over the spawn pipe unless asked otherwise.** `launchPeer({ transport:
   'socket' })`, or `MIRALL_TEST_IPC_TRANSPORT=socket` for a whole run, sends every request and reads
   every event over a connection to the worker's own socket, as a window does; the spawn pipe then
-  carries only the handshake and the worker's main-requests. A test must not write to
-  `peer.sidecar` directly, or it bypasses the transport under test.
+  carries only the handshake and the worker's main-requests. `transport: 'headless'` (or
+  `MIRALL_TEST_IPC_TRANSPORT=headless`) starts the worker with no spawn pipe at all, on the bare
+  binary the desktop app ships (`test/helpers/headless.js`), passes the peer's levers as `--dev`
+  flags, hands it the KEK with `identity:unlock`, and stops it with SIGTERM; `kill()` is a SIGKILL,
+  the abrupt end a spawned worker's SIGTERM is. Its store must be `<dir>/app-storage`. A test must not
+  write to `peer.sidecar` directly, or it bypasses the transport under test; a headless peer's
+  `sidecar` is only its process, for the pid.
 - **A two-mode subsystem must exercise its production-default mode in destructive/lifecycle paths**
   (leave, purge, migrate, restart), not just happy-path read/write. A swallowed teardown error
   resolves `{ok:true}` and only kills the *next* call, so the regression test must do a follow-up op
@@ -178,7 +183,8 @@ the **user-facing outcome** at the UI layer. Don't force a flaky UI assertion.
 - **CI (automatic, every PR):** `.github/workflows/test.yml` runs four jobs: **node** (`typecheck` +
   `lint:ci` [jsx-a11y + a `--max-warnings` ceiling + comment-hygiene] + `knip` [advisory] +
   `test:node:core` = unit + invariants + `test/raw`), **flow** (`test:flow` sharded 6×, plus a 7th
-  shard re-running slice 1 over the worker socket), **bare**
+  shard re-running slice 1 over the worker socket and an 8th re-running it against headless
+  workers), **bare**
   (integration, sharded 4x, `MIRALL_TEST_TIMEOUT_SCALE=3`, one process per file with a single retry
   of a failed file), and **flake-ledger**, which grades each suite's pass-on-retry count against its
   own `test/<suite>-flake-budget.json`. Green CI is required to merge.
