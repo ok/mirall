@@ -49,8 +49,8 @@ in the title bar on KDE Plasma (Wayland).
 
 - **Someone who knows one space's address no longer receives details of
   your other spaces.** Mirall now answers only a device that proves it
-  knows that space. Members still on Mirall 1.11.1 or older must update
-  to keep syncing spaces they share with updated members.
+  knows that space. Members on a Mirall older than 1.12 should update
+  to keep spaces they share with updated members in step.
 
 ## v1.13.0
 
