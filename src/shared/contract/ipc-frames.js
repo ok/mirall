@@ -46,5 +46,5 @@ export const TRUST = Object.freeze({ HOST: 'host', PEER: 'peer' })
 //
 // MIN_SUPPORTED is the oldest peer this build still speaks to. Widening the window is a decision
 // with a compatibility shim behind it; narrowing it is what a breaking change does.
-export const IPC_PROTOCOL_VERSION = 3
-export const IPC_PROTOCOL_MIN_SUPPORTED = 3
+export const IPC_PROTOCOL_VERSION = 4
+export const IPC_PROTOCOL_MIN_SUPPORTED = 4

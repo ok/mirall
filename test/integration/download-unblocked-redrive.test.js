@@ -1,4 +1,5 @@
 import test from 'brittle'
+import { noWatchers } from '../helpers/fake-watcher.js'
 import fs from 'bare-fs'
 import { freshPeer } from '../helpers/store.js'
 import { initOverlay, teardownOverlay } from '../../src/shared/transfer/overlay/overlay-instance.js'
@@ -47,7 +48,7 @@ async function armedTick(t, { channel = {}, engine: engineOpts = {}, dir: makeDi
   let resumes = 0
   const resumeForOwner = engine.resumeForOwner
   engine.resumeForOwner = (ownerKey, spaceId) => { resumes += 1; return resumeForOwner(ownerKey, spaceId) }
-  const backend = new OverlayBackend('overlay-test', { ipc: ctx.fake.ipc, broadcastSharePrepare() {} })
+  const backend = new OverlayBackend('overlay-test', { ipc: ctx.fake.ipc, broadcastSharePrepare() {}, watchers: noWatchers })
   backend.engine = engine
   setDownloadEngine(engine)
   initConvergenceTick({
@@ -92,7 +93,7 @@ async function realTick(t, { folder: makeFolder, engine: engineOpts = {} }) {
   let resumes = 0
   const resumeForOwner = engine.resumeForOwner
   engine.resumeForOwner = (ownerKey, sid) => { resumes += 1; return resumeForOwner(ownerKey, sid) }
-  const backend = new OverlayBackend('overlay-test', { ipc: ctx.fake.ipc, broadcastSharePrepare() {} })
+  const backend = new OverlayBackend('overlay-test', { ipc: ctx.fake.ipc, broadcastSharePrepare() {}, watchers: noWatchers })
   backend.engine = engine
   setDownloadEngine(engine)
   initConvergenceTick({

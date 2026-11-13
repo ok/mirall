@@ -143,8 +143,14 @@ export default [
       ...unusedVars,
       ...complexityBudget,
       ...whitespace,
-      'no-restricted-syntax': ['error', ...moduleLevelTimerRestrictions, ...moduleScopeTimerHandleRestrictions],
+      'no-restricted-syntax': ['error', ...moduleLevelTimerRestrictions, ...moduleScopeTimerHandleRestrictions, ...watcherSingleOwnerRestrictions],
     },
+  },
+
+  // The one module the watcher rule exists to protect; the lifecycle rules still apply to it.
+  {
+    files: ['src/worker/watchers/watch-host.js'],
+    rules: { 'no-restricted-syntax': ['error', ...moduleLevelTimerRestrictions, ...moduleScopeTimerHandleRestrictions] },
   },
 
   // The pure half of folders/ — see pureFolderPolicyModules.
@@ -259,12 +265,6 @@ export default [
       'no-undef': 'error',
       'no-restricted-syntax': ['error', ...watcherSingleOwnerRestrictions],
     },
-  },
-
-  // The one module the rule above exists to protect.
-  {
-    files: ['src/main/watch-host.js'],
-    rules: { 'no-restricted-syntax': 'off' },
   },
 
   // The one module the byte-ladder rule exists to protect. The renderer's other tables still apply

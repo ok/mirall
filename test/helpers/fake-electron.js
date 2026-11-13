@@ -1,6 +1,6 @@
 // A stand-in for the electron module, so src/main's CommonJS modules can be driven under plain
-// Node. It exists for the same reason fake-watcher.js does: one model of the surface main uses,
-// rather than a different ad-hoc double in each test file.
+// Node: one model of the surface main uses, rather than a different ad-hoc double in each test
+// file.
 //
 // Only what src/main actually reaches is modelled. A property nobody has needed yet is absent on
 // purpose — a test that trips over one should add it here, so the model stays a description of the

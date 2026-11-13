@@ -30,6 +30,11 @@ function kekFor(storage) {
 
 const tmp = (label) => tmpDir(`mirall-peer-${label}`)
 
+// The worker's own file watchers are off unless a test asks for them (`flags: { testFileWatchersOff:
+// false }`): most flow tests deliver the file events themselves (event:*-fs-event), and a real
+// watcher on the same folder would deliver each of their writes a second time.
+const WATCHERS_OFF = { testFileWatchersOff: true }
+
 // Which wire a peer's requests and events travel. 'pipe' is the spawn pipe the worker was started
 // on; 'socket' is a connection to the worker's own socket, the way a window reaches it, with the
 // spawn pipe left to the host's frames. 'headless' starts the worker with no spawn pipe at all, from
@@ -92,7 +97,7 @@ export function spawnBareWorker(t, { storage, downloads = tmp('dl'), flags = {} 
   sidecar.write(helloLine('flow-harness'))
   sidecar.write(JSON.stringify({
     type: 'bootstrap', storage, appVersion: '0.0.0-test', dev: true, verbose: false, downloadFolder: downloads,
-    identityKEK: kekFor(storage), ...flags,
+    identityKEK: kekFor(storage), ...WATCHERS_OFF, ...flags,
   }) + '\n')
   return { sidecar, exited }
 }
@@ -140,7 +145,7 @@ export async function launchPeer(t, { bootstrap, displayName = 'Peer', debug = f
   storage = storage || path.join(tmp('peer'), 'app-storage')
   downloads = downloads || tmp('dl')
   // Every worker unlocks with a KEK, as main's are: a bootstrap without one fails boot.
-  flags = { identityKEK: kekFor(storage), ...flags }
+  flags = { identityKEK: kekFor(storage), ...WATCHERS_OFF, ...flags }
   const headless = transport === 'headless'
   const run = headless ? spawnHeadless(headlessArgs({ storage, downloads, bootstrap, flags })) : null
   const sidecar = headless ? null : new Sidecar(WORKER_ENTRY)

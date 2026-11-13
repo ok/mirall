@@ -4,7 +4,6 @@ import os from 'bare-os'
 import path from 'bare-path'
 import crypto from 'hypercore-crypto'
 import { trackTimers } from '../helpers/timers.js'
-import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../../src/shared/contract/main-requests.js'
 
 // The shim must wrap the globals BEFORE the modules load, so everything under test comes in through
 // a dynamic import (static ones are hoisted above it) — same reason as lifecycle-restart.test.js.
@@ -73,9 +72,7 @@ test('the pause survives a restart, and boot arms no cadence for it', async (t) 
     && e.payload.shareId === share.id && e.payload.status === 'paused'),
   'the paused badge repaints from the durable record, not from an event nobody sent')
   // A paused INDEX is not a paused FOLDER: the watcher still starts, so edits are not lost.
-  t.ok(fake.events.some((e) => e.type === MAIN_REQUEST_FRAME
-    && e.payload.command === MAIN_REQUEST.OWNED_FOLDER_START_WATCHER && e.payload.args.shareId === share.id),
-  'and the watcher is still started')
+  t.is(second.fileWatchers.watchedOwnedPath(share.id), mountPath, 'and the watcher is still started')
 })
 
 // REGRESSION (A.4): both facts are durable, so a restart re-derives the same one thing the screen

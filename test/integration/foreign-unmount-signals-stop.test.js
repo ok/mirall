@@ -1,4 +1,5 @@
 import test from 'brittle'
+import { noWatchers } from '../helpers/fake-watcher.js'
 import { freshPeer } from '../helpers/store.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { publishShare, generateShareId } from '../../src/shared/shares/shares.js'
@@ -118,7 +119,7 @@ test('REGRESSION (FIX-PI7-3: a shutdown leaves no paused hash for the next lifet
   t.alike(spy.stopped, [], 'and told the holder nothing yet')
 
   const life = createLifecycle({ log: silentLog })
-  const mirrors = await life.start(new ForeignMirrors('mirrors-under-test', { ipc: createFakeIpc().ipc }))
+  const mirrors = await life.start(new ForeignMirrors('mirrors-under-test', { ipc: createFakeIpc().ipc, watchers: noWatchers }))
   mirrors.log = silentLog
   await life.close()
 

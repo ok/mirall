@@ -1,17 +1,14 @@
 // @ts-check
-// Owned folders — a folder on this disk published into a space. The watcher lives in the main
-// process (Bare has no recursive watch), so its events arrive here as IPC rather than from a
-// local watcher.
+// Owned folders — a folder on this disk published into a space.
 
 /** @import { WorkerIpc } from '../../shared/core/ipc.js' */
 /** @import { Logger } from '../../shared/core/logger.js' */
 /** @import { WorkerRoot } from '../boot.js' */
 /** @import { OwnedMounter } from '../owned-mount.js' */
 import { daemonPaths } from '../../shared/contract/paths.js'
-import { AppError, errorMessage } from '../../shared/core/errors.js'
+import { AppError } from '../../shared/core/errors.js'
 import { CODES } from '../../shared/contract/errors.js'
 import { MOUNT_STATUS } from '../../shared/contract/statuses.js'
-import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../../shared/contract/main-requests.js'
 import { TARGET_KIND } from '../../shared/contract/audit-kinds.js'
 import { getSpace } from '../../shared/spaces/space.js'
 import { readOwnShares, tombstoneShare } from '../../shared/shares/shares.js'
@@ -19,7 +16,6 @@ import { shareLabel } from '../../shared/shares/share-label.js'
 import { validateMountPath } from '../../shared/folders/mount-validate.js'
 import { getIndexStatus, stopOwnedFolder } from '../../shared/folders/owned-folders.js'
 import { runPublishPass } from '../../shared/folders/owned-pass.js'
-import { handleFsEventFromMain } from '../../shared/folders/owned-watcher.js'
 import { mountRootAvailable } from '../../shared/folders/publish-service.js'
 import {
   getOwnedMount,
@@ -41,15 +37,6 @@ export function registerOwnedFolders(ipc, { log, mounts, intents, mountOwnedShar
   // See foreign-folders.js: tagged as it crosses the wire, never in the record.
   /** @template {object} T @param {T | null} mount */
   const wire = (mount) => (mount ? daemonPaths(mount) : mount)
-
-  ipc.handle('event:owned-folder-fs-event', async (msg) => {
-    try {
-      await handleFsEventFromMain({ shareId: msg.shareId, action: msg.action, relPath: msg.relPath, absPath: msg.absPath })
-    } catch (err) {
-      log.warn('owned-folder fs event failed:', errorMessage(err))
-    }
-    return { ok: true }
-  })
 
   ipc.handle('owned-folder:validate', async (msg) => {
     return daemonPaths(await validateMountPath(msg.mountPath, 'owned-folder', { shareId: msg.shareId }))
@@ -101,7 +88,7 @@ export function registerOwnedFolders(ipc, { log, mounts, intents, mountOwnedShar
     // Queued items carry paths under the old root; the executor re-resolves the mount, but they
     // must not burn slots either.
     stopOwnedFolder(msg.spaceId, msg.shareId)
-    ipc.emit(MAIN_REQUEST_FRAME, { command: MAIN_REQUEST.OWNED_FOLDER_STOP_WATCHER, args: { shareId: msg.shareId } })
+    mounts.unwatchOwned(msg.shareId)
 
     const previousMountPath = mount.mountPath
     // By patch, not by writing back the whole `mount` this handler read at the top: validateMountPath
@@ -114,10 +101,7 @@ export function registerOwnedFolders(ipc, { log, mounts, intents, mountOwnedShar
     // Locate Folder clears the gone fault; a paused index is still paused, which the precedence
     // decides rather than this call site.
     await mounts.recordActivity(msg.spaceId, msg.shareId, MOUNT_STATUS.SCANNING)
-    ipc.emit(MAIN_REQUEST_FRAME, {
-      command: MAIN_REQUEST.OWNED_FOLDER_START_WATCHER,
-      args: { shareId: msg.shareId, mountPath, ignore: mount.ignore },
-    })
+    mounts.watchOwned(msg.shareId, mountPath, mount.ignore)
 
     // Relocate diffs by content hash (deep): the new path is typically a moved/copied tree whose
     // mtimes differ, but identical content must upload nothing so mirror peers see no churn. The fast
@@ -174,7 +158,7 @@ export function registerOwnedFolders(ipc, { log, mounts, intents, mountOwnedShar
 
     mounts.cancelPeriodicReconcile(msg.spaceId, msg.shareId)
     stopOwnedFolder(msg.spaceId, msg.shareId)
-    ipc.emit(MAIN_REQUEST_FRAME, { command: MAIN_REQUEST.OWNED_FOLDER_STOP_WATCHER, args: { shareId: msg.shareId } })
+    mounts.unwatchOwned(msg.shareId)
 
     // Overlay keeps no per-share drive blobs to tombstone — the share record
     // tombstone below retires the catalog from every consumer's view.

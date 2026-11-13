@@ -64,6 +64,10 @@ const TEST_LEVERS = {
   // Speak only the bearer-topic wire (send spaceTopic, ignore topicRef), so a flow test can stand in
   // for a peer on a release that predates topic references. false = off.
   testLegacyTopicWire: false,
+  // Run the back end's file watchers on an engine that never reports, so a test that delivers its
+  // own file events (the event:*-fs-event requests, served only with this on) sees each once.
+  // false = the real watchers.
+  testFileWatchersOff: false,
 }
 
 // Numeric budgets / timeouts, mostly DoS / resource bounds: each caps how much work, memory,

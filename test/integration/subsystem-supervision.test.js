@@ -1,4 +1,5 @@
 import test from 'brittle'
+import { noWatchers } from '../helpers/fake-watcher.js'
 import fs from 'bare-fs'
 import path from 'bare-path'
 import { createLifecycle } from '../../src/shared/core/subsystem.js'
@@ -23,7 +24,7 @@ async function supervised(t, opts) {
   // A probe interval long enough that only the explicit probe() calls below drive the policy.
   setRuntimeConfig({ ...getRuntimeConfig(), supervisionProbeIntervalMs: 3_600_000 })
   const life = createLifecycle({ log: silentLog })
-  const mirrors = await life.start(new ForeignMirrors('foreign-mirrors', { ipc: createFakeIpc().ipc }))
+  const mirrors = await life.start(new ForeignMirrors('foreign-mirrors', { ipc: createFakeIpc().ipc, watchers: noWatchers }))
   const supervisor = await life.start(new Supervisor('supervision', { lifecycle: life }))
   supervisor.log = silentLog
   mirrors.log = silentLog

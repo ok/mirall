@@ -267,6 +267,10 @@ export function isLegacyTopicWireForced() {
   return read('testLegacyTopicWire') === true
 }
 
+export function areFileWatchersOff() {
+  return read('testFileWatchersOff') === true
+}
+
 export function getIdentityFrameDropWindow() {
   return { after: read('testDropIdentityFramesAfter'), count: read('testDropIdentityFramesCount') }
 }

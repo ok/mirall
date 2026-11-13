@@ -10,7 +10,6 @@
 // lock so the next admission already sees the name pending. The hash itself runs on the publish
 // service's lane, never under the lock.
 import path from 'bare-path'
-import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../../contract/main-requests.js'
 import { advertise, getOwnEntry, listOwnShare, listOwnShareForDisplay } from '../../shares/own-catalog.js'
 import { nextFreeName } from '../../folders/path-keys.js'
 import { AppError } from '../../core/errors.js'
@@ -52,9 +51,11 @@ export function looseSourceFor(abs, spaceId) {
 }
 
 let ipcRef = null
-export function initLoosePublish({ ipc }) { ipcRef = ipc }
+let watchersRef = null
+export function initLoosePublish({ ipc, watchers = null }) { ipcRef = ipc; watchersRef = watchers }
 export function resetLoosePublish() {
   ipcRef = null
+  watchersRef = null
   looseSources.clear()
 }
 
@@ -62,10 +63,10 @@ export function resetLoosePublish() {
 const filesUpdated = (spaceId) => ipcRef?.emit('event:share-files-updated', { spaceId, shareId: LOOSE_SHARE_ID })
 
 function armWatch(spaceId, absPath) {
-  ipcRef?.emit(MAIN_REQUEST_FRAME, { command: MAIN_REQUEST.LOOSE_FILE_WATCH, args: { spaceId, absPath } })
+  watchersRef?.watchLoose(spaceId, absPath)
 }
 function disarmWatch(spaceId, absPath) {
-  ipcRef?.emit(MAIN_REQUEST_FRAME, { command: MAIN_REQUEST.LOOSE_FILE_UNWATCH, args: { spaceId, absPath } })
+  watchersRef?.unwatchLoose(spaceId, absPath)
 }
 
 const withSpaceLock = createKeyedLock()

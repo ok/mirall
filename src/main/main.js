@@ -1,8 +1,7 @@
 // Electron main process — the host. Owns the BrowserWindow, tray, native
 // notifications, and deep links; embeds pear-runtime as a library for OTA
 // updates; spawns the Bare worker (all P2P and data logic) and bridges each
-// window's bytes to its own connection on the worker's socket; runs the
-// folder and loose-file watchers on the worker's behalf. Main holds no durable
+// window's bytes to its own connection on the worker's socket. Main holds no durable
 // application state — that lives in the worker's store (preferences aside,
 // which are main's config.json); what main keeps in memory is session-only.
 // First, before any sibling module can load bare-sidecar: see asar-spawn.js.
@@ -26,8 +25,6 @@ const {
   initWorkerHost,
   registerWorkerHost,
   stopWorkers,
-  stopFolderWatchers,
-  stopLooseWatchers,
   revealRoots,
   workerIsLocal,
 } = require('./worker-host.js')
@@ -103,7 +100,7 @@ const startHiddenFlag = !!boot.flags.hidden
 if (customStorage) app.setPath('userData', customStorage)
 
 // The data-dir tripwire, armed as soon as the profile path is settled (--storage moves it), and
-// before the updater, the worker host or any watcher can touch the disk. getDataDir is a thunk
+// before the updater or the worker host can touch the disk. getDataDir is a thunk
 // because app.getPath is only meaningful after the line above. See src/main/dir-tripwire.js.
 require('./dir-tripwire.js').installDataDirTripwire({ getDataDir: () => app.getPath('userData') })
 
@@ -243,8 +240,6 @@ app.on('before-quit', createQuitSequence({
   // Read by the window close handler, which hides to tray unless the app is
   // quitting. Tray-menu Quit sets it directly before calling app.quit.
   markQuitting,
-  stopFolderWatchers,
-  stopLooseWatchers,
   flushConfig: () => configStore?.flush(),
   stopWorkers,
   // Promote any staged OTA bundle on the user's next clean quit. Returning the

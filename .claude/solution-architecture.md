@@ -38,20 +38,21 @@ channel via `workflow_dispatch`. The bundle version must equal the drive's `/pac
 `build-process.md` "Version coupling". Seed-host operations are documented privately.
 
 **Stack.** Versions: `package.json`; pins and their reasons: `dependency-updates.md`. Placement
-rules: the file watcher, `chokidar4bare`, runs in Electron main (its `imports` map resolves Node's
-own `fs` there, so no `bare-*` module loads in main); `bare-*` modules are worker-only; `purgeCoreDk()` uses `hypercore-storage` internals (transitive dep) for raw RocksDB
+rules: the file watcher, `chokidar4bare`, runs in the worker (its `imports` map resolves `bare-fs`
+there); `bare-*` modules are worker-only; `purgeCoreDk()` uses `hypercore-storage` internals (transitive dep) for raw RocksDB
 range deletes.
 
 ---
 
 ## 2. Process Architecture
 
-**Main** owns lifecycle, window, OS integration, the OTA updater and the filesystem watchers. The
-**renderer** is sandboxed and reaches main only through `window.bridge`. The **worker** (Bare child
-process) owns all P2P, storage and transfer logic. The worker listens on a local socket that admits
-only the owning user; main opens one connection to it per window and moves that window's bytes
-unparsed, so each window is a client of its own. The spawn pipe is main's: it carries the hello,
-the bootstrap, shutdown and watcher events down, and the worker's main-request frames up.
+**Main** owns lifecycle, window, OS integration and the OTA updater. The **renderer** is sandboxed
+and reaches main only through `window.bridge`. The **worker** (Bare child process) owns all P2P,
+storage and transfer logic, and the file watchers that keep shared folders and loose files in step
+with disk. The worker listens on a local socket that admits only the owning user; main opens one
+connection to it per window and moves that window's bytes unparsed, so each window is a client of
+its own. The spawn pipe is main's: it carries the hello, the bootstrap and shutdown down, and the
+worker's main-request frames up.
 
 ```
 ┌─────────────────────────────┐ window.bridge ┌───────────────────────────┐
@@ -59,17 +60,17 @@ the bootstrap, shutdown and watcher events down, and the worker's main-request f
 │  pear-runtime: OTA only,    │               │  app:// origin, sandboxed │
 │   own corestore + swarm     │               └───────────────────────────┘
 │  worker host · config.json  │                            ▲ pear:worker:ipc/
-│  file watchers              │                            │ stdout/exit (ipc: one
+│                             │                            │ stdout/exit (ipc: one
 │                             │                            │ socket connection per window)
 └─────────────────────────────┘                            │
    │ hello, bootstrap,    ▲ main-request frames            │
-   ▼ fs events, shutdown  │ (watch, roots, socket path)    │
+   ▼ shutdown             │ (roots, socket path)           │
 ┌───────────────────────────────────────────┐              │
 │ WORKER  src/worker/main.js + boot.js      │ ─────────────┘
 │  Corestore: profile bee, encrypted local  │
 │   bees, share catalogs, intents           │
 │  Swarm (mirall/handshake) + ContentSwarm  │
-│  overlay content backend                  │
+│  overlay content backend · file watchers  │
 └───────────────────────────────────────────┘
                   ▼  replication + handshake / content channels → PEERS
 ```
@@ -171,9 +172,9 @@ An MSIX-packaged install has its AppData redirected by Windows; that path is not
   in a packaged build); `MIRALL_FEATURE_FLAGS` reaches it as the bootstrap's `featureFlags`
   override. Precedence: bootstrap > `settings.json` > `feature-flags.json` > schema default
   (`src/shared/core/runtime-config-sources.js`).
-- **Quit order** (`src/main/lifecycle.js`, one run per process): mark quitting → stop watchers →
-  flush config (watchers can dirty it) → stop workers (shutdown frame, SIGTERM 3 s, SIGKILL 5 s) →
-  apply update, the only step that may defer the quit. A failing step never skips later ones.
+- **Quit order** (`src/main/lifecycle.js`, one run per process): mark quitting → flush config →
+  stop workers (shutdown frame, SIGTERM 3 s, SIGKILL 5 s) → apply update, the only step that may
+  defer the quit. A failing step never skips later ones.
 - **Deep links.** `open-url`, `second-instance` and cold-start argv all go through
   `dispatchDeepLink`. `src/main/deeplink.js` accepts only a `mirall://join/<code>` whose invite
   decodes. Links queue until the renderer calls `deeplink:flush`. Linux desktop-entry handling:
@@ -183,17 +184,6 @@ An MSIX-packaged install has its AppData redirected by Windows; that path is not
   space's folder, the folder for new spaces, the recent folders, and every folder a pending row or
   a claim names) and every owned or mirrored mount path, republished when one of them is added.
   The pushed roots are dropped when that worker exits.
-- **Watchers.** The worker requests them over the main-request bus (commands named in
-  `src/shared/contract/main-requests.js`). `src/main/watch-host.js` is the sole owner of the
-  watcher package (`chokidar4bare`). Options are per instance, so it keeps a native and a lazy
-  polling instance and routes by `looksLikeNetworkPath`, because a native watch on a network mount
-  emits nothing and fails silently. It also stops a watcher after 5 errors in 10 s. A watch the OS
-  has no budget for (`ENOSPC` past the inotify limit, `EMFILE`) raises one error per path it could
-  not arm; those never count toward the storm, and the host logs one `watch-degraded` line and
-  keeps serving every path it did arm. `src/main/folder-watchers.js` keys roots
-  by `shareId` (owned) or `spaceId:shareId` (mirror), and the newest caller adopts a live key after
-  a worker respawn. `src/main/loose-file-watchers.js` fans a path's events out to every space
-  watching it.
 
 ### Renderer (`src/renderer/` → `assets/dist/`)
 
@@ -248,8 +238,9 @@ Bootstrap:
 
    The **runtime** tier closes first:
    5. Manifest caps and `runMigrations('content')`, before any publish scan or overlay index open.
-      Then `MountsRuntime` is constructed without side effects, then `OverlayBackend` (the download
-      engine built per lifetime, never at import), `PublishService`, `OwnedFolders`, `ForeignMirrors`,
+      Then `FileWatchers`, ahead of everything that arms a watch (below), then `MountsRuntime` is
+      constructed without side effects, then `OverlayBackend` (the download engine built per
+      lifetime, never at import), `PublishService`, `OwnedFolders`, `ForeignMirrors`,
       `EchoGuardPurge`, `PeerWatch`.
    6. Interrupted-leave resume → `intents.recover()` → download-root hydration → membership
       backfill. This comes after every reconciler registers and before the swarm, so a topic join
@@ -287,12 +278,32 @@ attached; its stop is a `shutdown` request or a stop signal. A socket client tha
 grace (30 s + 10 s, `src/shared/core/ipc-liveness.js`, on the health tick) is detached, which
 aborts its in-flight work and closes its socket. A `shutdown` request
 does the same. `safeShutdown` keeps the first reason's exit code, aborts in-flight requests, and
-runs `root.close()` under a 4 s hard deadline. `close()` pauses the supervisor, broadcasts departure
-and halts publishing before anything closes (the departure datagram must leave UDX before sockets
-drop). It then waits a **ref'd** 150 ms (an unref'd timer would empty the loop for an in-process
+runs `root.close()` under a 4 s hard deadline. `close()` pauses the supervisor, broadcasts departure,
+stops the file watchers and halts publishing before anything closes (the departure datagram must
+leave UDX before sockets drop, and no file event may reach a closing data layer). It then waits a **ref'd** 150 ms (an unref'd timer would empty the loop for an in-process
 caller) and closes the runtime tier and then the durable tier, each within its own budget. `Store`
 close names any Corestore session still open. Downloads need no suspend step: pending rows (§3.4)
 rebuild resume state.
+
+**File watchers** (`src/worker/watchers/`). They start and end with the worker, so a worker with no
+window attached still notices a changed file, and a respawned worker re-arms every watch from its
+records (the resume passes, the mirror loops, the loose rehydrate) rather than taking any over.
+`FileWatchers` is the subsystem: `MountsRuntime` arms an owned folder (`watchOwned`), the mirror
+verbs a mirror (`watchMirror`), the loose publisher a loose file (`watchLoose`), and each event goes
+straight to the data layer's handler for its kind (`handleOwnedFsEvent`, `handleMirrorFsEvent`,
+`handleLooseFsEvent`). A watcher fault never reaches the worker: an arm that throws and an event
+whose handling fails are each logged and dropped, and the reconcile re-derives what was lost.
+`watch-host.js` is the sole owner of the watcher package (`chokidar4bare`, which loads `bare-fs`
+under Bare). Options are per instance, so it keeps a native and a lazy polling instance and routes
+by `looksLikeNetworkPath`, because a native watch on a network mount emits nothing and fails
+silently. It also stops a watcher after 5 errors in 10 s. A watch the OS has no budget for
+(`ENOSPC` past the inotify limit, `EMFILE`) raises one error per path it could not arm; those never
+count toward the storm, and the host logs one `watch-degraded` line and keeps serving every path it
+did arm. `folder-watchers.js` keys roots by `shareId` (owned) or `spaceId:shareId` (mirror);
+`loose-file-watchers.js` fans a path's events out to every space watching it. The
+`testFileWatchersOff` lever runs the same bookkeeping on an engine that never reports and registers
+the `event:*-fs-event` requests (`src/worker/ipc/test-fs-events.js`) through which a test delivers
+its own file events; without the lever no client can.
 
 **Durable intents** (`src/shared/core/intents.js`). A flow spanning stores writes
 `intent/<kind>/<id>` first and deletes it last. The reconciler registered for that kind
@@ -1164,7 +1175,7 @@ bytes go into any drive (§7.6). Loose files are the `LOOSE_SHARE_ID` section of
 
 | Term | Meaning |
 |---|---|
-| **Owned folder / owned mount** | The owner's local `mountPath` for a share. A watcher in Electron main keeps the catalog in step with it. Persisted locally at `owned-folder-mount/<spaceId>/<shareId>` (`src/shared/folders/mount-store.js`) |
+| **Owned folder / owned mount** | The owner's local `mountPath` for a share. A watcher in the worker keeps the catalog in step with it. Persisted locally at `owned-folder-mount/<spaceId>/<shareId>` (`src/shared/folders/mount-store.js`) |
 | **Foreign folder / mirror** | A consumer's local path that receives a read-only, continuously materialized copy. Persisted at `foreign-folder-mount/<spaceId>/<shareId>` |
 | **Drive path** | The consumer-side row key `/<name>/<relPath>` (`src/shared/shares/share-listing.js`). It keys download claims, pending transfers and reveal targets on every member, so **`name` is never rewritten**: a rename sets `displayName` |
 
@@ -1225,7 +1236,7 @@ catalog for the life of the space (§14).
 The mirror loop (`src/shared/folders/mirror-pass.js`) ticks every 30 s and again when the owner's
 catalog appends. It fetches changed entries by hash through the overlay (§7.6). A converged tick
 skips the walk while the owner's catalog version is unchanged. That version cannot see a **local**
-edit, so main also watches every enabled mirror (`src/shared/folders/mirror-watcher.js`) and
+edit, so the worker also watches every enabled mirror (`src/shared/folders/mirror-watcher.js`) and
 requests a walk for anything but the mirror's own landings. The walk keeps a foreign edit as a
 `(conflicted copy)` sibling and restores the owner's bytes. `startForeignLoop` / `stopForeignLoop`
 (`src/shared/folders/foreign-verbs.js`) are the only verbs that make a mirror live or not live.
@@ -1483,7 +1494,9 @@ they belong to.
   host: it boots the data layer before it answers (`deadlineMs: 0`). Anywhere else, and after a
   successful unlock, it is refused with `NOT_AUTHORIZED`. Neither key is logged or echoed, and the
   router logs an unparseable frame by its length only.
-- Main's watcher events reach the worker as the `event:*-fs-event` request rows.
+- The `event:*-fs-event` request rows are served only by a worker whose file watchers the
+  `testFileWatchersOff` lever turned off: they are how a test delivers its own file events. In a
+  product run no client can deliver one, and main sends none (§2, *File watchers*).
 
 ### React integration (`src/renderer/store/`)
 
@@ -1629,9 +1642,7 @@ not await async listeners.
   `~/Downloads`. A key arrives only over the socket: there is no key-file unlock. On Windows a
   headless start does not set the owner-and-SYSTEM ACL the desktop app sets on the data folder
   (POSIX gets `app-storage/` at 0700 when the start creates it). The desktop app never reuses a
-  running headless back end — a second worker on the same profile exits `WORKER_EXIT_ALREADY_RUNNING`
-  — and a headless worker has no file watchers (main owns them), so a shared folder is not
-  republished on a disk change.
+  running headless back end — a second worker on the same profile exits `WORKER_EXIT_ALREADY_RUNNING`.
 - **Preload has no structural contract.** `src/preload/preload.js` is sandboxed and unbundled, so it
   can't import `src/shared/contract/`. `test/invariants/preload-parity.test.js` checks its key set
   against `src/renderer/platform/global.d.ts`, but nothing checks signatures.

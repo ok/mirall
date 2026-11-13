@@ -8,7 +8,6 @@
 import { TARGET_KIND } from '../../shared/contract/audit-kinds.js'
 import { selfActor, spaceRef, targetRef } from '../../shared/audit/audit-record.js'
 import { record } from '../../shared/audit/audit-log.js'
-import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../../shared/contract/main-requests.js'
 import { unmountForeignFolder } from '../../shared/folders/foreign-verbs.js'
 import { deleteOwnedMount, listForeignMounts, listOwnedMounts } from '../../shared/folders/mount-store.js'
 import { stopOwnedFolder } from '../../shared/folders/owned-folders.js'
@@ -77,9 +76,9 @@ function rejoinPendingLeaveTopicAfterTeardown(spaceId, space, log) {
 // catalog the purge closes.
 /**
  * @param {string} spaceId
- * @param {{ ipc: WorkerIpc, mounts: WorkerRoot['mounts'], log: Logger, onPhase: (phase: string) => void, rosterKeys: string[] }} deps
+ * @param {{ mounts: WorkerRoot['mounts'], log: Logger, onPhase: (phase: string) => void, rosterKeys: string[] }} deps
  */
-function liveLeaveSteps(spaceId, { ipc, mounts, log, onPhase, rosterKeys }) {
+function liveLeaveSteps(spaceId, { mounts, log, onPhase, rosterKeys }) {
   return {
     clearMembership: async () => {
       // Best-effort here, unlike the boot pass's hard gate: the purge steps below still have
@@ -96,7 +95,7 @@ function liveLeaveSteps(spaceId, { ipc, mounts, log, onPhase, rosterKeys }) {
       for (const m of (await listOwnedMounts()).filter((x) => x.spaceId === spaceId)) {
         mounts.cancelPeriodicReconcile(spaceId, m.shareId)
         stopOwnedFolder(spaceId, m.shareId)
-        ipc.emit(MAIN_REQUEST_FRAME, { command: MAIN_REQUEST.OWNED_FOLDER_STOP_WATCHER, args: { shareId: m.shareId } })
+        mounts.unwatchOwned(m.shareId)
         await deleteOwnedMount(spaceId, m.shareId)
       }
       // Awaited: a cancelled publish still writes its revert on the next chunk boundary, and
@@ -198,7 +197,7 @@ export function registerSpaceLeave(ipc, { log, mounts, overlayBackend, discardPe
         // for members offline at leave time. Same step order as boot's pass (spaces/membership/leave-state.js).
         const onPhase = (/** @type {string} */ phase) => { tracker.phase = phase }
         const rosterKeys = (pending?.members || []).map((m) => m.publicKey)
-        await runLeaveTeardown(msg.spaceId, liveLeaveSteps(msg.spaceId, { ipc, mounts, log, onPhase, rosterKeys }), { log, onPhase })
+        await runLeaveTeardown(msg.spaceId, liveLeaveSteps(msg.spaceId, { mounts, log, onPhase, rosterKeys }), { log, onPhase })
         log.info('leave: own state cleared, waiting flush...')
 
         // Wait (bounded) for connected members to confirm they applied our leave — an observed signal

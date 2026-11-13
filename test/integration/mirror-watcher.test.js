@@ -4,7 +4,6 @@ import path from 'bare-path'
 import { setupSelfMirror, instrumentWalks } from '../helpers/owned.js'
 import { waitFor } from '../helpers/bare-poll.js'
 import { getRuntimeConfig, setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
-import { MAIN_REQUEST, MAIN_REQUEST_FRAME } from '../../src/shared/contract/main-requests.js'
 import { initialMaterializeScan, runMaterializeTick } from '../../src/shared/folders/mirror-pass.js'
 import { startForeignLoop, stopForeignLoop, setForeignEnabled } from '../../src/shared/folders/foreign-verbs.js'
 import { handleMirrorFsEvent } from '../../src/shared/folders/mirror-watcher.js'
@@ -12,8 +11,8 @@ import { getForeignMount } from '../../src/shared/folders/mount-store.js'
 import { initDownloads } from '../../src/shared/transfer/files.js'
 
 // A converged mirror skips its ticks until the owner's catalog version moves, and a local write
-// never moves it. The disk watcher is what turns that write into a walk; these cases drive its
-// worker-side handler directly, the way the flow layer injects main's events.
+// never moves it. The disk watcher is what turns that write into a walk; these cases drive the
+// handler the watcher delivers to directly, with the real watchers switched off.
 
 // A live loop with a poll that never fires within the test: only the request can walk.
 // `beforeStart` runs against the empty mirror folder, before the loop and the scan.
@@ -129,18 +128,13 @@ test('a paused mirror ignores the event', async (t) => {
   t.is(fs.readFileSync(abs, 'utf8'), 'cccc', 'the edit stands while the mirror is paused')
 })
 
-// The watcher runs in Electron main, armed over the bus by the same verbs that arm the loop.
+// The watcher is armed and disarmed by the same verbs that arm the loop.
 test('starting and stopping the loop arms and disarms the watcher', async (t) => {
   const ctx = await setupSelfMirror(t, { files: { 'a.txt': 'aaaa' } })
-  const frames = []
-  const off = ctx.fake.onEmit((frame) => { if (frame.type === MAIN_REQUEST_FRAME) frames.push(frame.payload) })
-  t.teardown(off)
+  const watchers = ctx.root.fileWatchers
 
   await startForeignLoop(ctx.mount)
+  t.is(watchers.watchedMirrorPath(ctx.spaceId, ctx.share.id), ctx.mirrorPath, 'armed on the mirror folder')
   stopForeignLoop(ctx.spaceId, ctx.share.id)
-
-  t.alike(frames, [
-    { command: MAIN_REQUEST.FOREIGN_FOLDER_START_WATCHER, args: { spaceId: ctx.spaceId, shareId: ctx.share.id, mountPath: ctx.mirrorPath } },
-    { command: MAIN_REQUEST.FOREIGN_FOLDER_STOP_WATCHER, args: { spaceId: ctx.spaceId, shareId: ctx.share.id } },
-  ])
+  t.is(watchers.watchedMirrorPath(ctx.spaceId, ctx.share.id), null, 'and disarmed with the loop')
 })

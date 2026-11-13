@@ -12,7 +12,6 @@ import { getDeepReconcileEvery } from '../shared/core/runtime-config.js'
 import { listOfferedDownloadFolders } from '../shared/core/paths.js'
 import { AppError } from '../shared/core/errors.js'
 import { CODES } from '../shared/contract/errors.js'
-import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../shared/contract/main-requests.js'
 import { faultFromError, statusForFaultCode } from '../shared/folders/mount-fault.js'
 import { setOwnedActivity, setOwnedFault, setOwnedIndexPaused, patchOwnedMount, listOwnedMounts, listAllMounts, listForeignMounts, getOwnedMount, getForeignMount } from '../shared/folders/mount-store.js'
 import { reconcileOwnedShare, stopOwnedFolder, cancelIndex } from '../shared/folders/owned-folders.js'
@@ -44,7 +43,7 @@ function sameRootSet(a, b) {
 export class MountsRuntime extends Subsystem {
   constructor(name, deps) {
     super(name, deps)
-    this.require('ipc')
+    this.require('ipc', 'watchers')
     this.periodicTimers = new Map()
     this.reconcileCounters = new Map()
     // role:shareId → last-known existence of the mount path. Seeded by the resume passes and
@@ -80,10 +79,7 @@ export class MountsRuntime extends Subsystem {
         // The watcher starts even for a paused index: a paused INDEX is not a paused FOLDER. Edits
         // made during the pause are seen, declined by the publish channel, and re-derived from disk
         // by the resume scan — pausing must not silently lose changes.
-        this.deps.ipc.emit(MAIN_REQUEST_FRAME, {
-          command: MAIN_REQUEST.OWNED_FOLDER_START_WATCHER,
-          args: { shareId: mount.shareId, mountPath: mount.mountPath, ignore: mount.ignore },
-        })
+        this.watchOwned(mount.shareId, mount.mountPath, mount.ignore)
         // The scan would decline itself anyway, but an interval that can never do work reads as a
         // bug later. Re-assert the status so a restart repaints the badge from the durable record.
         if (mount.indexPaused) {
@@ -146,6 +142,15 @@ export class MountsRuntime extends Subsystem {
     this.reconcileCounters.clear()
   }
 
+  // An owned folder's watcher, armed and disarmed by every path that makes its mount live or not.
+  watchOwned(shareId, mountPath, ignore) {
+    this.deps.watchers.watchOwned(shareId, mountPath, ignore)
+  }
+
+  unwatchOwned(shareId) {
+    this.deps.watchers.unwatchOwned(shareId)
+  }
+
   // Persist + announce in one step. The durable field is what a boot or refresh re-derives the badge
   // from — a transient-only event vanishes on reload — and the event stays as the live decoration.
   // The event carries what the RECORD says, which after the precedence is applied is not always
@@ -180,7 +185,7 @@ export class MountsRuntime extends Subsystem {
     this.lastMountPointStatus.set('owned-folder:' + shareId, false)
     // Stop pointing a watcher at a dead path and stop reconciling. The published snapshot and the
     // mount config are left untouched — a missing root is ambiguous, never a delete.
-    this.deps.ipc.emit(MAIN_REQUEST_FRAME, { command: MAIN_REQUEST.OWNED_FOLDER_STOP_WATCHER, args: { shareId } })
+    this.unwatchOwned(shareId)
     this.cancelPeriodicReconcile(spaceId, shareId)
     // A vanished root makes the watcher emit one unlink per file; every queued retire dies with it.
     stopOwnedFolder(spaceId, shareId)
@@ -365,10 +370,7 @@ export class MountsRuntime extends Subsystem {
           // Source folder came back (USB replugged, network mount up, moved back). Resume: restart
           // the watcher, run one catch-up reconcile whose OUTCOME sets the durable status (so a
           // failing re-scan records paused-error, not a fabricated 'active'), and re-arm the timer.
-          this.deps.ipc.emit(MAIN_REQUEST_FRAME, {
-            command: MAIN_REQUEST.OWNED_FOLDER_START_WATCHER,
-            args: { shareId: mount.shareId, mountPath: mount.mountPath, ignore: mount.ignore },
-          })
+          this.watchOwned(mount.shareId, mount.mountPath, mount.ignore)
           // A path coming back is not the user pressing Resume: clearing the gone fault returns the
           // mount to whatever it was, which for a paused index is still paused.
           await this.recordActivity(mount.spaceId, mount.shareId, MOUNT_STATUS.SCANNING)

@@ -8,7 +8,7 @@ const { createFailureGate } = require('./worker-bus-failure.js')
 // rename that touches only one process cannot pass main-request-parity.test.js.
 //
 // An unrecognised command and a recognised one that threw are both failures, reported under the
-// policy at `dispatch`: a silent no-op here is an owned folder that stops re-publishing.
+// policy at `dispatch`: a silent no-op here is a reveal refused or a window that never connects.
 const WARN_CAP = 16
 const WARN_WINDOW_MS = 600000
 
@@ -40,10 +40,7 @@ function keyedWarner({ overflow, now }) {
 
 const keyPart = (value) => (typeof value === 'string' ? value : typeof value)
 
-// A mirror's watcher is keyed by its mount pair; an owned share's by its id alone.
-const mirrorWatchKey = (args) => args.spaceId + ':' + args.shareId
-
-function createMainRequestRouter({ folderWatchers, looseFileWatchers, setRevealRoots, onSocketListening, sendToWorker, isDebug, isQuitting, now = Date.now }) {
+function createMainRequestRouter({ setRevealRoots, onSocketListening, isDebug, isQuitting, now = Date.now }) {
   const reportBusFailure = createFailureGate({ isDebug, isQuitting })
   // Null-prototype, because `command` comes off the worker pipe: with a plain object literal
   // `handlers['toString']` finds Object.prototype's method and the frame resolves as though it had
@@ -53,52 +50,6 @@ function createMainRequestRouter({ folderWatchers, looseFileWatchers, setRevealR
       setRevealRoots(Array.isArray(args?.roots)
         ? args.roots.filter((r) => typeof r === 'string' && r.length > 0).map((r) => path.resolve(r))
         : [])
-    },
-
-    [MAIN_REQUEST.LOOSE_FILE_WATCH]: async (args, worker) => {
-      looseFileWatchers.addLooseWatch(
-        args.spaceId,
-        args.absPath,
-        (event) => sendToWorker(worker, { type: 'event:loose-file-fs-event', ...event }),
-        // Not behind `debug`: console.warn feeds the log ring unconditionally, and the
-        // error-storm message is the one signal saying this file stopped syncing and will not
-        // resume on its own. Behind the flag it never reaches a user's diagnostics bundle.
-        (err) => { console.warn('loose watcher error', args.absPath, '-', err.message) },
-      )
-    },
-
-    [MAIN_REQUEST.LOOSE_FILE_UNWATCH]: async (args) => {
-      looseFileWatchers.removeLooseWatch(args.spaceId, args.absPath)
-    },
-
-    [MAIN_REQUEST.OWNED_FOLDER_START_WATCHER]: async (args, worker) => {
-      await folderWatchers.startWatcher(
-        args.shareId,
-        args.mountPath,
-        args.ignore || [],
-        (event) => sendToWorker(worker, { type: 'event:owned-folder-fs-event', shareId: args.shareId, ...event }),
-        // See the loose-file callback above: the storm message must reach the log ring on a
-        // release build, or the report it explains is unreproducible.
-        (err) => { console.warn('watcher error', args.shareId, '-', err.message) },
-      )
-    },
-
-    [MAIN_REQUEST.OWNED_FOLDER_STOP_WATCHER]: async (args) => {
-      folderWatchers.stopWatcher(args.shareId)
-    },
-
-    [MAIN_REQUEST.FOREIGN_FOLDER_START_WATCHER]: async (args, worker) => {
-      await folderWatchers.startWatcher(
-        mirrorWatchKey(args),
-        args.mountPath,
-        null,
-        (event) => sendToWorker(worker, { type: 'event:foreign-folder-fs-event', spaceId: args.spaceId, shareId: args.shareId, ...event }),
-        (err) => { console.warn('mirror watcher error', args.shareId, '-', err.message) },
-      )
-    },
-
-    [MAIN_REQUEST.FOREIGN_FOLDER_STOP_WATCHER]: async (args) => {
-      folderWatchers.stopWatcher(mirrorWatchKey(args))
     },
 
     // Where this worker accepts its windows. Main never derives the path itself.
@@ -111,8 +62,8 @@ function createMainRequestRouter({ folderWatchers, looseFileWatchers, setRevealR
   const warnUnknown = keyedWarner({ overflow: '[main-request] too many distinct unknown commands - no longer logging them', now })
   const warnFailure = keyedWarner({ overflow: '[main-request] too many distinct failures - no longer logging them', now })
 
-  // The non-debug reports are warnings, for the same reason as the watcher storm warnings: these
-  // lines are the only signal that a watcher was never armed.
+  // The non-debug reports are warnings: console.warn feeds the log ring unconditionally, and these
+  // lines are the only signal that a command was never carried out.
   function reportUnknown(command) {
     const name = keyPart(command)
     reportBusFailure(null,
