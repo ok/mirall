@@ -53,6 +53,6 @@ test('the repo root is a package root the worker can read', (t) => {
 test('the shipped flags set each staged security enforcement', (t) => {
   const here = path.dirname(new URL(import.meta.url).pathname)
   const shipped = flagsToRuntimeConfig(loadFeatureFlags(path.resolve(here, '..', '..'), { log: quiet().log }))
-  t.is(shipped.topicRefsEnforced, false, 'topic references are not enforced')
+  t.is(shipped.topicRefsEnforced, true, 'topic references are enforced')
   t.is(shipped.membershipControlBindingEnforced, false, 'a cancel or deny that names no sender is honoured')
 })

@@ -737,13 +737,15 @@ after the join reaches it. Every socket is still sent one identity frame per spa
 how many, not which. A leave names the space by `spaceId`, or by `topicRef` from a node enforcing
 topic refs, and its ack answers in the same form.
 
-**Topic refs enforced** (`topicRefsEnforced`, from `feature-flags.json` `topicRefs`, off by default).
-A bearer-form frame names nothing, so a peer that can only send `spaceTopic` is cut off. A socket
-that has not yet named a space in a form we matched is sent only `space-ref` for it; the first frame
-in which it names the space is answered with our identity frame and any pending leave or cancel for
-it, and `leave` and a member's `membership:cancel` go only to sockets that named the space. Every
-node reads `space-ref` and ref-named leaves whatever the flag, and answers a `space-ref` with its
-identity frame, so the flag can be turned on once no peer predates that capability.
+**Topic refs enforced** (`topicRefsEnforced`, from `feature-flags.json` `topicRefs`; the shipped file
+turns it on, the runtime default is off). A bearer-form frame names nothing, so a peer that can only
+send `spaceTopic` is cut off. A socket that has not yet named a space in a form we matched is sent
+only `space-ref` for it; the first frame in which it names the space is answered with our identity
+frame and any pending leave or cancel for it, and `leave` and a member's `membership:cancel` go only
+to sockets that named the space, by reference. Every node reads `space-ref` and ref-named leaves
+whatever the flag, and answers a `space-ref` with its identity frame. A 1.11.2 node names its spaces
+by reference but reads neither: its own handshake or knock names the space, so it is still admitted
+and answered, but it does not apply a leave we send it.
 
 **Binding.** `handshake` and `membership:request` must carry a signature by a key that
 manifest-hashes to `profileKey`, made over this socket's Noise key. The handshake form also covers
