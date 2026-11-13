@@ -86,7 +86,7 @@ async function start(t, h, { masterSecret = undefined } = {}) {
 async function newDevice(t) {
   const h = home(t)
   const { root, fake } = await start(t, h, { masterSecret: crypto.randomBytes(32) })
-  registerBackupRestore(fake.ipc, { storagePath: h.storage, identityKEK: KEK, log: quiet, lockedBy: null, openRecovery: createPassphraseThrottle() })
+  registerBackupRestore(fake.ipc, { storagePath: h.storage, identityKEK: () => KEK, log: quiet, lockedBy: () => null, openRecovery: createPassphraseThrottle() })
   return { h, root, fake }
 }
 
