@@ -130,7 +130,7 @@ test('a backup\'s key never unlocks an identity in use', async (t) => {
   const { storage, config } = home(t)
   const { fake } = await bootRoot(t, config, { masterSecret: crypto.randomBytes(32) })
   await setProfile({ displayName: 'In use' })
-  registerIdentity(fake.ipc, { storagePath: storage, identityKEK: KEK, log: quiet, lockedBy: null, openRecovery: createPassphraseThrottle() })
+  registerIdentity(fake.ipc, { storagePath: storage, identityKEK: () => KEK, log: quiet, lockedBy: () => null, openRecovery: createPassphraseThrottle() })
   t.is(await codeOf(fake.call('identity:unlock-from-backup', { folder: backupFolder(t), passphrase: PASS })), 'NOT_AUTHORIZED')
 })
 
@@ -166,7 +166,7 @@ test('the backup\'s key unlocks its own data in place on a locked device: held, 
   await first.root.close()
 
   const locked = createFakeIpc()
-  registerIdentity(locked.ipc, { storagePath: storage, identityKEK: KEK, log: quiet, lockedBy: 'IDENTITY_UNLOCK_FAILED', openRecovery: createPassphraseThrottle() })
+  registerIdentity(locked.ipc, { storagePath: storage, identityKEK: () => KEK, log: quiet, lockedBy: () => 'IDENTITY_UNLOCK_FAILED', openRecovery: createPassphraseThrottle() })
   t.is(await codeOf(locked.call('identity:unlock-from-backup', { folder, passphrase: 'not the passphrase' })), 'WRONG_PASSPHRASE')
   t.alike(await locked.call('identity:unlock-from-backup', { folder, passphrase: PASS }), { unlocked: true })
   t.ok(fs.existsSync(path.join(dataDir, RESTORE_HOLD_FILE)), 'held even over its own data, which may be an older copy')
@@ -189,7 +189,7 @@ test('another identity\'s backup leaves a locked device\'s data to a restore', a
   await keepKey(folder, await buildRecoveryFile({ master: other }, PASS, { createdAt: KEY_AT }), identityPublicKeyHex(other))
 
   const locked = createFakeIpc()
-  registerIdentity(locked.ipc, { storagePath: storage, identityKEK: KEK, log: quiet, lockedBy: 'IDENTITY_UNLOCK_FAILED', openRecovery: createPassphraseThrottle() })
+  registerIdentity(locked.ipc, { storagePath: storage, identityKEK: () => KEK, log: quiet, lockedBy: () => 'IDENTITY_UNLOCK_FAILED', openRecovery: createPassphraseThrottle() })
   t.alike(await locked.call('identity:unlock-from-backup', { folder, passphrase: PASS }), { unlocked: false })
   t.absent(fs.existsSync(path.join(dataDir, RESTORE_HOLD_FILE)), 'nothing adopted')
 })

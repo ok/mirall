@@ -3,6 +3,7 @@ import Protomux from 'protomux'
 import c from 'compact-encoding'
 import b4a from 'b4a'
 import crypto from 'hypercore-crypto'
+import { deriveTopicRef } from '../../src/shared/network/handshake-guard.js'
 
 // A hand-built attacker peer (NOT the worker): joins a space topic with an arbitrary
 // keypair and speaks the raw `mirall/handshake` channel, so a test can send forged
@@ -70,6 +71,13 @@ export async function rawPeer(t, { bootstrap, topicHex, keyPair = crypto.keyPair
     closedSockets: () => closedSockets,
     // Every open socket gets the frame.
     send: (obj) => { for (const sender of senders) sender(obj) },
+    // Names a space on every open socket the way a member's node does on connect, and returns the
+    // ref: a peer enforcing topic refs sends a socket its knock or identity frame only once it has.
+    nameSpace: (spaceTopicHex) => {
+      const topicRef = deriveTopicRef(spaceTopicHex, keyPair.publicKey)
+      for (const sender of senders) sender({ type: 'space-ref', topicRef })
+      return topicRef
+    },
     waitFrame: (pred = () => true, ms = 8000) => new Promise((resolve, reject) => {
       const found = frames.find(pred)
       if (found) return resolve(found)

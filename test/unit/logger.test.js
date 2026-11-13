@@ -1,6 +1,7 @@
 import test from 'brittle'
 import { createLogger } from '../../src/shared/core/logger.js'
 import { setVerbose } from '../helpers/runtime-verbose.js'
+import { getRuntimeConfig, setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 
 const TAG = '[test]'
 
@@ -50,4 +51,24 @@ test('a live verbose flip changes an existing logger instance (per-call gate)', 
   log.debug('now shown')
   log.info('now shown')
   t.is(counts.log, 2, 'debug + info emit after the flip, no new logger needed')
+})
+
+test('a spawned worker\'s lines are exactly as they were; a headless one\'s open with the time', (t) => {
+  const seen = []
+  const real = console.warn
+  console.warn = (...a) => { if (typeof a[0] === 'string' && a[0].endsWith('[stamp]')) { seen.push(a); return } real(...a) }
+  t.teardown(() => { console.warn = real })
+  const prev = getRuntimeConfig()
+  t.teardown(() => setRuntimeConfig(prev))
+  const log = createLogger('stamp')
+
+  setRuntimeConfig({ ...prev })
+  log.warn('plain', 1)
+  t.alike(seen.pop(), ['[stamp]', 'plain', 1], 'no stamp, no change to the arguments')
+
+  setRuntimeConfig({ ...prev, logTimestamps: true })
+  log.warn('stamped', 2)
+  const [head, ...rest] = seen.pop()
+  t.ok(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z \[stamp\]$/.test(head), 'an ISO time, then the module')
+  t.alike(rest, ['stamped', 2])
 })

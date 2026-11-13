@@ -31,12 +31,29 @@ changes do not appear here.
 - **Joining or leaving an organization in the middle of a settings refresh
   or a report no longer leaves Mirall in the wrong state.** An organization
   that keeps the Activity Log also holds that lock while a deletion runs.
+- **Network Diagnostics and Advanced Details open from the command palette.**
+
+## v1.13.1
+
+### 2026-11-10
+
+Downloads no longer stall on some Wi-Fi networks, and the Mirall icon shows
+in the title bar on KDE Plasma (Wayland).
+
+#### Fixed
+
 - **Downloads no longer stall on some Wi-Fi networks.** On a network that
   loses packets often, a download could pause for a second or more at a
   time and run well below the connection's speed.
-- **Network Diagnostics and Advanced Details open from the command palette.**
 - **The Mirall icon shows in the window's title bar on KDE Plasma (Wayland).**
   It showed a generic placeholder there.
+
+### Security
+
+- **Someone who knows one space's address no longer receives details of
+  your other spaces.** Mirall now answers only a device that proves it
+  knows that space. Members on a Mirall older than 1.12 should update
+  to keep spaces they share with updated members in step.
 
 ## v1.13.0
 

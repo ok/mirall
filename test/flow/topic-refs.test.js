@@ -16,6 +16,8 @@ const kekHex = () => crypto.randomBytes(32).toString('hex')
 const hex = () => crypto.randomBytes(32).toString('hex')
 const idStore = (t) => path.join(mkTmpDir(t), 'app-storage')
 const bindFlags = () => ({ identityKEK: kekHex() })
+// A peer that still reads the bearer topic, whatever feature-flags.json ships.
+const unenforced = () => ({ ...bindFlags(), topicRefsEnforced: false })
 
 async function topicOf(peer, spaceId) {
   return decodeInvite(await peer.request('space:invite', { spaceId })).topic
@@ -23,7 +25,7 @@ async function topicOf(peer, spaceId) {
 
 test('REGRESSION (MIR-42: a socket that knows one topic receives no other space topic)', { timeout: scaled(180000) }, async (t) => {
   const bootstrap = await localTestnet(t)
-  const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: bindFlags() })
+  const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: unenforced() })
   const known = await A.request('space:create', { name: 'Known' })
   const hidden = await A.request('space:create', { name: 'Hidden' })
   const knownTopic = await topicOf(A, known.spaceId)
@@ -47,10 +49,10 @@ test('REGRESSION (MIR-42: a socket that knows one topic receives no other space 
 
 test('a peer on the bearer-topic wire and one on refs admit each other both ways', { timeout: scaled(300000) }, async (t) => {
   const bootstrap = await localTestnet(t)
-  const fresh = await launchPeer(t, { bootstrap, displayName: 'New', storage: idStore(t), downloads: mkTmpDir(t) })
+  const fresh = await launchPeer(t, { bootstrap, displayName: 'New', storage: idStore(t), downloads: mkTmpDir(t), flags: { topicRefsEnforced: false } })
   // The re-announce tick is off on the old side, so the second leg can only converge through the
   // unheld-topic memory: its handshake for the new space reaches `fresh` before `fresh` holds it.
-  const old = await launchPeer(t, { bootstrap, displayName: 'Old', storage: idStore(t), downloads: mkTmpDir(t), flags: { testLegacyTopicWire: true, convergenceTickMs: 0 } })
+  const old = await launchPeer(t, { bootstrap, displayName: 'Old', storage: idStore(t), downloads: mkTmpDir(t), flags: { topicRefsEnforced: false, testLegacyTopicWire: true, convergenceTickMs: 0 } })
 
   const byNew = await connectInSpaceWithApproval(t, fresh, old, 'Created by new')
   const byOld = await connectInSpaceWithApproval(t, old, fresh, 'Created by old')
@@ -139,7 +141,7 @@ test('two enforced peers admit each other both ways, including a space joined on
 test('an enforced peer and a flag-off peer admit each other both ways', { timeout: scaled(300000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const on = await launchPeer(t, { bootstrap, displayName: 'On', storage: idStore(t), downloads: mkTmpDir(t), flags: enforced() })
-  const off = await launchPeer(t, { bootstrap, displayName: 'Off', storage: idStore(t), downloads: mkTmpDir(t), flags: bindFlags() })
+  const off = await launchPeer(t, { bootstrap, displayName: 'Off', storage: idStore(t), downloads: mkTmpDir(t), flags: unenforced() })
   const byOn = await connectInSpaceWithApproval(t, on, off, 'By on')
   const byOff = await connectInSpaceWithApproval(t, off, on, 'By off')
   t.ok(byOn && byOff, 'both spaces admitted across the flag')
@@ -148,7 +150,7 @@ test('an enforced peer and a flag-off peer admit each other both ways', { timeou
 test('a leave by reference drops the leaver on a flag-off co-member', { timeout: scaled(300000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const on = await launchPeer(t, { bootstrap, displayName: 'On', storage: idStore(t), downloads: mkTmpDir(t), flags: enforced() })
-  const off = await launchPeer(t, { bootstrap, displayName: 'Off', storage: idStore(t), downloads: mkTmpDir(t), flags: bindFlags() })
+  const off = await launchPeer(t, { bootstrap, displayName: 'Off', storage: idStore(t), downloads: mkTmpDir(t), flags: unenforced() })
   const spaceId = await connectInSpaceWithApproval(t, off, on, 'Left by on')
   const onKey = (await on.request('profile:get')).personKey
 
@@ -163,10 +165,41 @@ test('a leave by reference drops the leaver on a flag-off co-member', { timeout:
 test('an enforced peer and a bearer-wire peer do not admit each other', { timeout: scaled(180000) }, async (t) => {
   const bootstrap = await localTestnet(t)
   const on = await launchPeer(t, { bootstrap, displayName: 'On', storage: idStore(t), downloads: mkTmpDir(t), flags: enforced() })
-  const old = await launchPeer(t, { bootstrap, displayName: 'Old', storage: idStore(t), downloads: mkTmpDir(t), flags: { testLegacyTopicWire: true } })
+  const old = await launchPeer(t, { bootstrap, displayName: 'Old', storage: idStore(t), downloads: mkTmpDir(t), flags: { topicRefsEnforced: false, testLegacyTopicWire: true } })
   const space = await on.request('space:create', { name: 'Cut off' })
   const inviteCode = await on.request('space:invite', { spaceId: space.spaceId })
   const knock = on.waitFor('event:member-join-request', (m) => m.spaceId === space.spaceId, 20000)
   await old.request('space:join', { inviteCode })
   await t.exception(knock, 'the bearer-wire joiner never reaches the enforced member')
+})
+
+// A 1.11.2 node names its spaces by reference and reads a reference, but has no space-ref: it drops
+// the frame unread, and names a space only in its own handshake and knock. It reads a leave only by
+// spaceId.
+test('an enforcing node admits a peer that names spaces by reference but ignores space-ref, and names its leave only by reference', { timeout: scaled(240000) }, async (t) => {
+  const bootstrap = await localTestnet(t)
+  const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: enforced() })
+  const { spaceId } = await A.request('space:create', { name: 'Older member' })
+  const topic = await topicOf(A, spaceId)
+  const { atk, me, ref } = await boundRawPeer(t, bootstrap, topic)
+  const ours = () => deriveTopicRef(topic, atk.remotePublicKey())
+
+  await atk.waitFrame((m) => m.type === 'space-ref', scaled(20000))
+  const knocked = A.waitFor('event:member-join-request', (m) => m.spaceId === spaceId && m.publicKey === me.profileKey, 20000)
+  atk.send({ type: 'membership:request', displayName: 'Old', inviteId: null, topicRef: ref(topic), ...me.fields })
+  atk.send({ type: 'handshake', displayName: 'Old', driveKey: hex(), topicRef: ref(topic), ...me.fields })
+  await knocked
+  t.pass('its knock by reference is listed')
+  const hello = await atk.waitFrame((m) => m.type === 'handshake' && m.topicRef === ours(), scaled(20000))
+  t.ok(typeof hello.driveKey === 'string', 'its first frame naming the space is answered with our identity frame')
+
+  await A.request('space:approve-member', { spaceId, publicKey: me.profileKey })
+  const grant = await atk.waitFrame((m) => m.type === 'membership:grant', scaled(20000))
+  t.is(grant.topicRef, ours(), 'it is granted the space key, named by reference')
+
+  await A.request('space:leave', { spaceId })
+  const leave = await atk.waitFrame((m) => m.type === 'leave', scaled(20000))
+  t.comment('observed leave: ' + JSON.stringify(Object.keys(leave)))
+  t.is(leave.topicRef, ours(), 'our leave names the space by reference')
+  t.absent('spaceId' in leave, 'and not by the spaceId such a node reads a leave by')
 })

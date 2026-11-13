@@ -12,7 +12,7 @@ import { mkTmpDir } from '../helpers/fixtures.js'
 import { scaled } from '../helpers/timing.js'
 import { waitFor } from '../helpers/poll.js'
 import { decodeInvite } from '../../src/shared/contract/invite-envelope.js'
-import { signNoiseBinding } from '../../src/shared/network/handshake-guard.js'
+import { signNoiseBinding, deriveTopicRef } from '../../src/shared/network/handshake-guard.js'
 
 // A peer needs nothing but a core key to ask for a core, and Alice's profile key rides every
 // handshake she sends. These pin that the key alone buys nothing: her cores replicate only to a
@@ -62,8 +62,8 @@ test('REGRESSION (MIR-47: a stranger on the topic replicates none of our cores)'
   const store = new Corestore(mkTmpDir(t))
   t.teardown(() => store.close())
   const atk = await rawPeer(t, { bootstrap, topicHex: topic, store })
-  const hello = await atk.waitFrame((m) => m.type === 'handshake', scaled(20000))
-  const mirror = await mirrorOf(store, hello.profileKey)
+  await atk.waitConnected()
+  const mirror = await mirrorOf(store, (await A.request('profile:get')).personKey)
 
   t.is(await blockAt(mirror, 0, 8000), null, 'no block of Alice\'s profile reaches the stranger')
   t.is(mirror.length, 0, 'nor its length')
@@ -80,11 +80,12 @@ test('REGRESSION (MIR-47: a former member stops replicating our cores when it le
   const noise = hcrypto.keyPair()
   const me = await memberIdentity(store, noise.publicKey, spaceId)
   const atk = await rawPeer(t, { bootstrap, topicHex: topic, keyPair: noise, store })
-  const hello = await atk.waitFrame((m) => m.type === 'handshake', scaled(20000))
-  const handshake = { type: 'handshake', profileKey: me.key, displayName: 'Mallory', spaceTopic: topic, ...me.binding }
+  await atk.waitConnected()
+  const topicRef = deriveTopicRef(topic, noise.publicKey)
+  const handshake = { type: 'handshake', profileKey: me.key, displayName: 'Mallory', topicRef, ...me.binding }
 
   const knocked = A.waitFor('event:member-join-request', (m) => m.publicKey === me.key)
-  atk.send({ type: 'membership:request', profileKey: me.key, displayName: 'Mallory', spaceTopic: topic, inviteId: null, ...me.binding })
+  atk.send({ type: 'membership:request', profileKey: me.key, displayName: 'Mallory', topicRef, inviteId: null, ...me.binding })
   await knocked
   await A.request('space:approve-member', { spaceId, publicKey: me.key })
   await atk.waitFrame((m) => m.type === 'membership:grant', scaled(20000))
@@ -92,7 +93,7 @@ test('REGRESSION (MIR-47: a former member stops replicating our cores when it le
   atk.send(handshake)
   await joined
 
-  const mirror = await mirrorOf(store, hello.profileKey)
+  const mirror = await mirrorOf(store, (await A.request('profile:get')).personKey)
   t.ok(await blockAt(mirror, 0, 20000), 'control: an admitted member replicates Alice\'s profile')
   const before = mirror.length
   await A.request('profile:set', { displayName: 'Alice 2' })

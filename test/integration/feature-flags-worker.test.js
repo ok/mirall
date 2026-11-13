@@ -3,6 +3,7 @@ import fs from 'bare-fs'
 import path from 'bare-path'
 import { tmpDir } from '../helpers/bare-tmp.js'
 import { loadFeatureFlags } from '../../src/shared/core/feature-flags.js'
+import { flagsToRuntimeConfig } from '../../src/shared/core/runtime-config-sources.js'
 
 function root(t, body) {
   const dir = tmpDir('flags', t)
@@ -45,4 +46,13 @@ test('the repo root is a package root the worker can read', (t) => {
   const here = path.dirname(new URL(import.meta.url).pathname)
   const flags = loadFeatureFlags(path.resolve(here, '..', '..'), { log: quiet().log })
   t.ok('topicRefs' in flags && 'membershipControlBinding' in flags, 'both staged flags are declared')
+})
+
+// What a release ships. Turning a staged security flag on or off is a deliberate change to this
+// expectation, read the way the worker reads it.
+test('the shipped flags set each staged security enforcement', (t) => {
+  const here = path.dirname(new URL(import.meta.url).pathname)
+  const shipped = flagsToRuntimeConfig(loadFeatureFlags(path.resolve(here, '..', '..'), { log: quiet().log }))
+  t.is(shipped.topicRefsEnforced, true, 'topic references are enforced')
+  t.is(shipped.membershipControlBindingEnforced, false, 'a cancel or deny that names no sender is honoured')
 })

@@ -35,9 +35,10 @@ jobs:
   # flake fails only its shard (re-run it) and the suite parallelises. bare-sidecar
   # bundles its own `bare`, so no PATH step is needed here.
   #
-  # Shard 7 re-runs slice 1's files with every peer talking to its worker over the worker's socket,
-  # the way a window does, instead of the spawn pipe. One slice: the transport is one variable, and
-  # a flake in it has to be pinnable to it.
+  # Shards 7 and 8 re-run slice 1's files over another transport, one each: 7 with every peer
+  # talking to its spawned worker over the worker's socket, the way a window does; 8 with every
+  # worker started headless (no spawn pipe, the key handed over the socket). One slice per extra
+  # transport: the transport is the one variable, and a flake in it has to be pinnable to it.
   flow:
     runs-on: ubuntu-latest
     strategy:
@@ -49,6 +50,9 @@ jobs:
           - shard: 7
             slice: 1
             transport: socket
+          - shard: 8
+            slice: 1
+            transport: headless
     env:
       MIRALL_TEST_TIMEOUT_SCALE: '3'
       MIRALL_TEST_IPC_TRANSPORT: ${{ matrix.transport }}

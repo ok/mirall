@@ -1,7 +1,7 @@
 {
   "name": "mirall",
   "productName": "Mirall",
-  "version": "1.13.0",
+  "version": "1.14.0",
   "description": "Secure large file transfer. No cloud. No accounts.",
   "license": "AGPL-3.0-or-later",
   "author": "Oliver Kohl",
@@ -96,6 +96,7 @@
     "bare-os": "^3.9.4",
     "bare-path": "^3.1.2",
     "bare-pipe": "^4.4.0",
+    "bare-signals": "^5.0.0",
     "blind-relay": "^1.6.1",
     "chokidar4bare": "0.1.0",
     "compact-encoding": "^3.6.0",

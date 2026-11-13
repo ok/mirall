@@ -1,0 +1,17 @@
+{
+  "type": "mirall-recovery-key",
+  "v": 1,
+  "createdAt": "2026-10-01T11:30:00.000Z",
+  "identityPub": "b66f632b46e724425777778536ff587afb65bc1760d81307f6bf416b869142a2",
+  "slots": [
+    "master"
+  ],
+  "kdf": {
+    "alg": "argon2id",
+    "opslimit": 4,
+    "memlimit": 268435456,
+    "salt": "IRrun6jriYeXMyiPT4AVLA=="
+  },
+  "nonce": "8KGOYxdMXWNUAKno9JsSAfSQ96ZUjWbR",
+  "ciphertext": "hX0RzQh2ZocYiYKJrWTYnpLzru91wR+yT+cSVmMZG5eHiC/kXt8TaS9P0pYqS7a4AtdSuuJsj1I/UUmREumesgjySzxQZy7x6NWSolhzZmKlOXNbAdai/sH9h2tX"
+}

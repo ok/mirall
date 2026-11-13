@@ -10,11 +10,17 @@ import { CODES } from '../contract/errors.js'
 // shape.
 export const OS_KEYCHAIN = 'os-keychain'
 
-const KEK_HEX = /^[0-9a-f]{64}$/
+const KEY_HEX = /^[0-9a-f]{64}$/
+
+// The form a host hands a 32-byte key in: the KEK, and the relay seed beside it.
+/** @param {unknown} value @returns {value is string} */
+export function isKeyHex(value) {
+  return typeof value === 'string' && KEY_HEX.test(value)
+}
 
 // A missing or malformed KEK is a host fault, not a fresh install: booting on would run with no identity.
 export function osKeychainProvider(kekHex) {
-  if (typeof kekHex !== 'string' || !KEK_HEX.test(kekHex)) {
+  if (!isKeyHex(kekHex)) {
     throw new AppError(CODES.IDENTITY_NO_KEK, 'identity: the host supplied no usable unlock key')
   }
   const kek = b4a.from(kekHex, 'hex')
