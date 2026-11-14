@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawn } from 'node:child_process'
 import { rmSync, mkdirSync, copyFileSync } from 'node:fs'
 import path from 'node:path'
 import { startTestnet } from './testnet.mjs'
@@ -61,6 +61,14 @@ function preflight() {
   }
 }
 
+// While the screen saver or the lock screen is up, macOS exposes no window's accessibility tree:
+// every scenario then fails on "not exposed through accessibility" until someone touches the
+// machine. Hold the display awake for as long as this process lives.
+function keepDisplayAwake() {
+  if (process.platform !== 'darwin') return
+  spawn('caffeinate', ['-d', '-i', '-w', String(process.pid)], { stdio: 'ignore' }).unref()
+}
+
 // agent-desktop keeps sessions, per-snapshot refmaps and locks under one state root and never prunes
 // it; a bloated store taxes every snapshot. Give each run a fresh root inside the work dir, which is
 // wiped at the start of the next run, so nothing leaks between runs or into ~/.agent-desktop.
@@ -86,6 +94,7 @@ const slugByKey = Object.fromEntries(SCENARIOS.map((s) => [s.key, s.slug]))
 
 ;(async () => {
   preflight()
+  keepDisplayAwake()
   rmSync(WORK, { recursive: true, force: true })
   mkdirSync(WORK, { recursive: true })
   isolateAgentDesktopState()

@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { agentArgs, ACTION_TIMEOUT_MS } from '../frontend/agent.mjs'
+import { agentArgs, isRetryable, ACTION_TIMEOUT_MS } from '../frontend/agent.mjs'
 import { agentDesktopTooOld, MIN_AGENT_DESKTOP } from '../frontend/preflight.mjs'
 import { findNode } from '../frontend/tree.mjs'
 import { inspectorUrl, parseCombo, acceleratorMatches, keyEvents } from '../frontend/main-channel.mjs'
@@ -52,12 +52,26 @@ test('agentArgs adds no auto-wait budget to subcommands that reject the flag', (
   }
 })
 
+const adError = (code, details) => ({ code, raw: { ok: false, error: { code, details } } })
+
+test('isRetryable retries a target that was not actionable yet', (t) => {
+  t.is(isRetryable(adError('TIMEOUT', { kind: 'actionability_timeout', timeout_ms: 1500 })), true)
+  t.is(isRetryable(adError('STALE_REF')), true)
+})
+
+test('isRetryable leaves a timeout that may have delivered the action fatal', (t) => {
+  t.is(isRetryable(adError('TIMEOUT')), false)
+  t.is(isRetryable(adError('TIMEOUT', { kind: 'resolution_identity_unknown' })), false)
+  t.is(isRetryable(adError('INVALID_ARGS')), false)
+  t.is(isRetryable(new Error('non-JSON')), false)
+})
+
 test('agentDesktopTooOld rejects everything below the floor', (t) => {
   for (const v of ['0.1.14', '0.2.0', '0.2.3', '0.3.0', '0.4.4', '0.7.9', '0.8.0', '0.8.5']) t.is(agentDesktopTooOld(v), true, v)
 })
 
 test('agentDesktopTooOld accepts 0.9.0 and newer', (t) => {
-  for (const v of ['0.9.0', '0.9.4', '0.10.0', '1.0.0']) t.is(agentDesktopTooOld(v), false, v)
+  for (const v of ['0.9.0', '0.9.4', '0.10.0', '1.0.0', '1.3.1']) t.is(agentDesktopTooOld(v), false, v)
 })
 
 test('agentDesktopTooOld treats unparseable versions as too old', (t) => {
