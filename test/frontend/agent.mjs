@@ -10,14 +10,18 @@ const BIN = 'agent-desktop'
 //                                is never asserted against
 export const RETRYABLE = new Set(['STALE_REF', 'WINDOW_NOT_FOUND', 'ACTION_FAILED', 'ELEMENT_NOT_FOUND', 'SNAPSHOT_INCOMPLETE', 'ACTION_NOT_SUPPORTED'])
 
-// The activation chain (AXPress → AXOpen → physical fallback) gives up after this; at the default
-// 10 s an element that cannot settle stalls the full deadline before ACTION_FAILED, times 3 retries.
-// The harness settles animations itself and re-snapshots on failure, so fail fast into the retry.
-const CHAIN_TIMEOUT_MS = process.env.AGENT_DESKTOP_CHAIN_TIMEOUT_MS ?? '2500'
+// A ref action whose target is not actionable inside ACTION_TIMEOUT_MS answers TIMEOUT with
+// details.kind "actionability_timeout": nothing was sent, the control was still disabled or
+// covered. That is the same "not yet" as the codes above. Any other TIMEOUT stays fatal, because
+// it does not say whether the action was delivered.
+export function isRetryable(e) {
+  if (RETRYABLE.has(e?.code)) return true
+  return e?.code === 'TIMEOUT' && e.raw?.error?.details?.kind === 'actionability_timeout'
+}
 
-// Ref actions also auto-wait for resolution/actionability (--timeout-ms, default 5000) BEFORE the
-// chain above; at the default the two budgets stack across every retry. The retry re-resolves the
-// ref, so a long in-process wait only delays the fix. Only these subcommands accept the flag.
+// Ref actions auto-wait for resolution/actionability (--timeout-ms, default 5000) before they act;
+// at the default that budget stacks across every retry. The retry re-resolves the ref, so a long
+// in-process wait only delays the fix. Only these subcommands accept the flag.
 const AUTO_WAIT_CMDS = new Set(['click', 'type', 'focus', 'set-value', 'scroll', 'hover', 'toggle', 'select'])
 export const ACTION_TIMEOUT_MS = process.env.AGENT_DESKTOP_ACTION_TIMEOUT_MS ?? '1500'
 
@@ -74,8 +78,7 @@ export async function ad(args, opts = {}) {
 function adOnce(args, { allowError = false, session = null, headed = false } = {}) {
   const argv = agentArgs(args, { session, headed })
   return new Promise((resolve, reject) => {
-    const env = { ...process.env, AGENT_DESKTOP_CHAIN_TIMEOUT_MS: CHAIN_TIMEOUT_MS }
-    execFile(BIN, argv, { maxBuffer: 32 * 1024 * 1024, env }, (_err, stdout) => {
+    execFile(BIN, argv, { maxBuffer: 32 * 1024 * 1024 }, (_err, stdout) => {
       let parsed
       try {
         parsed = JSON.parse(stdout)
@@ -98,7 +101,7 @@ export async function withRetry(fn, tries = 3) {
       return await fn()
     } catch (e) {
       last = e
-      if (!RETRYABLE.has(e.code)) throw e
+      if (!isRetryable(e)) throw e
       await new Promise((r) => setTimeout(r, 150))
     }
   }

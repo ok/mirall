@@ -36,7 +36,7 @@ export default async function s12({ runDir, bootstrap }) {
       await A.shot('s12-collision', runDir)
     })
     await r.ok('an invalid share name is rejected and blocks Next', async () => {
-      await A.type({ role: 'textfield' }, 'bad/name')
+      await A.type({ role: 'textfield', name: 'Share name' }, 'bad/name')
       await A.waitText("can't contain slashes", 8000)
       await waitFor(async () => A.isDisabled({ role: 'button', name: 'Next: Preview' }), 8000, 'Next disabled on invalid name')
       await A.shot('s12-invalid-name', runDir)

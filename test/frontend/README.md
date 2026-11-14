@@ -10,7 +10,7 @@ End-to-end UI scenarios that drive the **real Electron app** via `agent-desktop`
 - **Unpackaged only.** The harness drives `node_modules/.bin/electron .`; a packaged build ignores every `MIRALL_*` hook and refuses `--inspect`.
 - **Local/dev-machine only.** CI has no macOS accessibility session for this suite, so it is run on a developer machine and its evidence screenshots (`test/frontend/evidence/`) are the record. See `.claude/testing.md`.
 - **Harness:** `instance.mjs` (the `Instance` class — launch, onboarding, navigation, file/folder actions, AX queries), `main-channel.mjs` (background-mode input), `helpers.mjs` (`connectInSpace`), `assert.mjs` (`makeReport`, `assert`, `waitFor`, `dirSize`).
-- **Speed:** Electron is spawned directly (not through `npx electron-forge start`); `agent.mjs` caps agent-desktop's activation-chain deadline so an action that can't settle fails fast into `withRetry` (override with `AGENT_DESKTOP_CHAIN_TIMEOUT_MS`); background mode never pays the per-action `list-windows`/re-focus; `_ref` resolves against an interactive-only snapshot; teardown at the end of a scenario is a SIGKILL (the store is deleted anyway). The summary prints each scenario's wall time.
+- **Speed:** Electron is spawned directly (not through `npx electron-forge start`); `agent.mjs` caps agent-desktop's per-action wait so an action whose target is not ready fails fast into `withRetry` (override with `AGENT_DESKTOP_ACTION_TIMEOUT_MS`); background mode never pays the per-action `list-windows`/re-focus; `_ref` resolves against an interactive-only snapshot; teardown at the end of a scenario is a SIGKILL (the store is deleted anyway). The summary prints each scenario's wall time.
 
 ### Why several flows can *only* be proven here
 

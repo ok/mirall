@@ -1,6 +1,6 @@
 # agent-desktop tests
 
-UI smoke tests for the running Mirall window driven via the [`agent-desktop`](https://github.com/lahfir/agent-desktop) CLI. The CLI exposes the macOS Accessibility tree as JSON and lets a script observe and act on real UI elements (snapshot → find by ref → click / type / read).
+UI smoke tests for the running Mirall window driven via the [`agent-desktop`](https://github.com/vercel-labs/agent-desktop) CLI. The CLI exposes the macOS Accessibility tree as JSON and lets a script observe and act on real UI elements (snapshot → find by ref → click / type / read).
 
 ## Why this exists
 
@@ -23,7 +23,7 @@ In scope:
 Not in scope:
 
 - P2P transfer flows (would need a second Mirall instance — separate harness).
-- Windows / Linux. `agent-desktop` is macOS-only and the non-macOS release assets do not change that: the `agent-desktop-ffi-*` artifacts are the C-ABI library, the CLI ships for Darwin only, and upstream's `crates/windows` / `crates/linux` are empty scaffolds whose adapters return `PlatformNotSupported`. Upstream's own README lists every Windows/Linux capability as *Planned*.
+- Windows / Linux. `agent-desktop` ships a CLI for both since 1.0, but these scripts and the frontend harness are written against macOS (process name, `screencapture`, key chords) and are not run there.
 - Worker / Bare-runtime logic (the brittle suites under `test/unit`, `test/integration`, `test/flow`, `test/raw` — see `.claude/testing.md`).
 
 ## Preconditions
@@ -102,12 +102,12 @@ The same primitives the script uses, by hand:
 agent-desktop status
 agent-desktop snapshot --skeleton --app "Electron" -i --compact
 agent-desktop find --app "Electron" --role button --name "Create Space"
-agent-desktop click @e6
-agent-desktop snapshot --root @e3 --app "Electron" -i --compact   # drill into a subtree
+agent-desktop click @s359l44w95ysun:e6                              # the ref_id the snapshot printed
+agent-desktop snapshot --root @s359l44w95ysun:e3 --app "Electron" -i --compact   # drill into a subtree
 agent-desktop screenshot --app "Electron"
 ```
 
-Refs are scoped to a single `snapshot` invocation and assigned in depth-first interactive order. Re-snapshot after any UI change before reusing a ref. Since 0.8.0 a ref is **snapshot-qualified** — `@s359l44w95ysun:e3`, not `@e3` — so it carries its own scope and resolves in a later CLI process on its own. A bare `@e3` still works, but only with an explicit `--snapshot <id>` (or a `--session` whose latest snapshot is the one you meant).
+Refs are scoped to a single `snapshot` invocation and assigned in depth-first interactive order. Re-snapshot after any UI change before reusing a ref. Since 0.8.0 a ref is **snapshot-qualified** — `@s359l44w95ysun:e3`, not `@e3` — so it carries its own scope and resolves in a later CLI process on its own. Since 0.10.0 a bare `@e3` is rejected with `INVALID_ARGS`: pass the `ref_id` exactly as the snapshot printed it.
 
 aria-label on icon-only buttons and on `<div role="button">` lands in the AX `description` field, not `name`. Use both when matching:
 
@@ -137,6 +137,6 @@ test/agent-desktop/
 
 ## References
 
-- CLI source / issues: https://github.com/lahfir/agent-desktop
+- CLI source / issues: https://github.com/vercel-labs/agent-desktop
 - CLI help: `agent-desktop help` (top-level) and `agent-desktop help <command>` (per-subcommand flags).
 - Skill wrapper for use inside Claude Code: `~/.claude/skills/agent-desktop/SKILL.md`.
