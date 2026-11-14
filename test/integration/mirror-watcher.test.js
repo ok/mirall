@@ -4,7 +4,7 @@ import path from 'bare-path'
 import { setupSelfMirror, instrumentWalks } from '../helpers/owned.js'
 import { waitFor } from '../helpers/bare-poll.js'
 import { getRuntimeConfig, setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
-import { initialMaterializeScan, runMaterializeTick } from '../../src/shared/folders/mirror-pass.js'
+import { initialMaterializeScan, runMaterializeTick, setMirrorReachability } from '../../src/shared/folders/mirror-pass.js'
 import { startForeignLoop, stopForeignLoop, setForeignEnabled } from '../../src/shared/folders/foreign-verbs.js'
 import { handleMirrorFsEvent } from '../../src/shared/folders/mirror-watcher.js'
 import { getForeignMount } from '../../src/shared/folders/mount-store.js'
@@ -56,6 +56,24 @@ test('REGRESSION (FIX-462): a local edit is walked on the watcher event, with no
   await waitFor(() => fs.existsSync(conflicted), 5000, { label: 'the requested walk' })
   t.is(fs.readFileSync(conflicted, 'utf8'), 'cccc', 'the edit is kept aside')
   t.is(fs.readFileSync(abs, 'utf8'), 'aaaa', 'and the owner’s version is back')
+})
+
+// REGRESSION (FIX-267-REFRESH: with the owner away the requested walk is skipped, so nothing told
+// the folder view that the file on disk no longer matches its verified record. The row kept its
+// "On your device" check until an unrelated refresh.)
+test('REGRESSION (FIX-267-REFRESH): a local edit refreshes the listing even when no walk can run', async (t) => {
+  const { ctx } = await liveConvergedMirror(t, { 'a.txt': 'aaaa' })
+  setMirrorReachability(() => false)
+  t.teardown(() => setMirrorReachability(null))
+  const abs = path.join(ctx.mirrorPath, 'a.txt')
+  const mine = (e) => e.payload.spaceId === ctx.spaceId && e.payload.shareId === ctx.share.id
+  const before = ctx.fake.emitted('event:share-files-updated').filter(mine).length
+  userEdits(abs, 'cccc')
+
+  await fsEvent(ctx, 'change', 'a.txt')
+
+  t.is(ctx.fake.emitted('event:share-files-updated').filter(mine).length, before + 1, 'the listing is asked to re-read the row')
+  t.is(fs.readFileSync(abs, 'utf8'), 'cccc', 'and the edit stays in place while the owner is away')
 })
 
 test('a locally deleted mirror file is fetched back on the watcher event', async (t) => {

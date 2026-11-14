@@ -32,6 +32,9 @@ changes do not appear here.
   or a report no longer leaves Mirall in the wrong state.** An organization
   that keeps the Activity Log also holds that lock while a deletion runs.
 - **Network Diagnostics and Advanced Details open from the command palette.**
+- **A mirrored file you edit while its owner is offline now shows "Edited
+  locally" at once.** It kept its verified check until the folder view
+  refreshed for another reason.
 
 ### Security
 
