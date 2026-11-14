@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs'
 import path from 'node:path'
 import { Instance } from '../instance.mjs'
-import { connectInSpace, setUpBackup } from '../helpers.mjs'
+import { connectInSpace, setUpBackup, firstBackupDone } from '../helpers.mjs'
 import { makeReport, waitFor } from '../assert.mjs'
 
 const PASS = 'a long enough passphrase'
@@ -27,6 +27,7 @@ export default async function s164({ runDir, bootstrap }) {
       await A.click({ name: 'Home' })
       await A.click({ role: 'button', name: 'Set up backup' })
       await setUpBackup(A, backupDir, PASS)
+      await firstBackupDone(A)
       await A.quit()
       await C.quit()
     })

@@ -2,7 +2,7 @@ import { mkdirSync } from 'node:fs'
 import path from 'node:path'
 import { Instance } from '../instance.mjs'
 import { makeReport, waitFor } from '../assert.mjs'
-import { setUpBackup } from '../helpers.mjs'
+import { setUpBackup, firstBackupDone } from '../helpers.mjs'
 
 const PASS = 'a long enough passphrase'
 
@@ -25,6 +25,7 @@ export default async function s161({ runDir, bootstrap }) {
       await A.click({ name: 'Home' })
       await A.click({ role: 'button', name: 'Set up backup' })
       await setUpBackup(A, backupDir, PASS)
+      await firstBackupDone(A)
       await A.quit()
     })
     await r.ok('onboarding offers one restore: from a backup folder', async () => {

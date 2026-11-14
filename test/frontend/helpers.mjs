@@ -66,3 +66,11 @@ export async function setUpBackup(A, folder, passphrase) {
   await A.click(turnOn)
   await A.waitText('Backup is on', 120000)
 }
+
+// Setup closes once the passphrase is checked and the first backup runs on behind it. A scenario
+// that quits the app and restores from the folder waits here first: a folder with a key and no
+// finished backup lists nothing to restore.
+export async function firstBackupDone(A) {
+  await A.gotoSettings('Backup')
+  await A.waitText("You're protected", 120000)
+}

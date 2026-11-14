@@ -54,7 +54,7 @@ export default async function s168({ runDir, bootstrap }) {
       await B.waitText('Aurora', 60000)
       await B.click({ name: 'Open Aurora' })
       await B.waitText(NOTE, 60000)
-      const nodes = flatten(await B.snap()).filter((n) => `${n.name} ${n.value}`.includes("can't be read yet"))
+      const nodes = flatten(await B.snap()).filter((n) => `${n.name} ${n.value}`.includes("members' file lists can't be read yet"))
       assert(nodes.length === 1, `the note is one accessible text node (found ${nodes.length})`)
       assert(`${nodes[0].name} ${nodes[0].value}`.includes(NOTE), 'and that node carries the whole sentence')
       assert(await B.hasText('agenda'), 'the rows read so far stay under the note')
