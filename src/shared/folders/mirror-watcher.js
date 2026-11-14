@@ -6,10 +6,15 @@
 // nothing. Everything else on an owned path, a vanished file included, asks for the walk that
 // settles it — the pass keeps a foreign edit as a conflicted copy and restores the owner's bytes,
 // or fetches back what is missing.
+//
+// The listing derives a row's state from the file on disk, so the same event refreshes it. The
+// walk cannot stand in for that: with the owner away it is skipped, and the row would keep the
+// verified check of a file that no longer matches its record.
 import { entryRef } from '../contract/entry-ref.js'
 import { createLogger } from '../core/logger.js'
 import { isVerifiedLanding, statOrNull } from '../transfer/files.js'
 import { mirrorOwnerKeyAt, requestMirrorWalk } from './foreign-verbs.js'
+import { emitMirrorEvent } from './mirror-signals.js'
 import { getForeignMount } from './mount-store.js'
 import { pathFromMount } from './path-guard.js'
 
@@ -23,6 +28,7 @@ export async function handleMirrorFsEvent({ spaceId, shareId, action, relPath })
   if (action !== 'unlink' && await isOwnLanding(mount, ownerKey, relPath)) return
   log.debug('mirrored file changed on disk — asking for a walk:', action, relPath, shareId)
   requestMirrorWalk(spaceId, shareId, { now: true })
+  emitMirrorEvent('event:share-files-updated', { spaceId, shareId })
 }
 
 async function isOwnLanding(mount, ownerKey, relPath) {
