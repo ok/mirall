@@ -140,7 +140,7 @@ export class Backup extends Subsystem {
   }
 
   withSuccess(state, at, { managed }) {
-    return managed ?{ ...state, managed: state.managed && { ...state.managed, lastSuccessAt: at } } : { ...state, lastSuccessAt: at }
+    return managed ? { ...state, managed: state.managed && { ...state.managed, lastSuccessAt: at } } : { ...state, lastSuccessAt: at }
   }
 
   // The organization's configuration changed: its folder came, moved or went. A run in progress
