@@ -284,3 +284,36 @@ test('REGRESSION (FIX-15: license switch during a report): an answer for the pre
   await new Promise((resolve) => setTimeout(resolve, 2000))
   t.is((await p.fake.call('managed:get', {})).revoked, false, 'the new license is not revoked by the old one\'s answer')
 })
+
+test('REGRESSION (FIX-MANAGED-1: failed leave stops reporting): a Leave that cannot remove the configuration reports again, under a new key', async (t) => {
+  const p = await setup(t)
+  p.serve(LOCKS)
+  await p.fake.call('managed:accept', { code: p.org.code })
+  await waitFor(() => p.api.upward.length >= 1, 5000, { label: 'the enrollment' })
+  // The Console retires a key once it reported `left` and answers it 410 from then on.
+  const retired = new Set()
+  p.api.answer((entry) => {
+    if (retired.has(entry.instanceKey)) return { status: 410, body: { error: 'revoked' } }
+    if (entry.body.state === 'left') retired.add(entry.instanceKey)
+    return { status: 200, body: {} }
+  })
+  // A directory in its place makes the removal fail, as a file held open does on Windows.
+  const managedFile = path.join(path.dirname(p.storage), 'managed.enc')
+  fs.renameSync(managedFile, managedFile + '.kept')
+  fs.mkdirSync(managedFile)
+  await t.exception(p.fake.call('managed:leave', {}))
+  const left = p.api.upward.find((u) => u.body.state === 'left')
+  t.ok(left, 'the organization heard that this computer left')
+  await waitFor(() => p.api.upward.some((u) => u.call === 'instance-enroll' && u.instanceKey !== left.instanceKey), 5000, { label: 'a report after the failed leave' })
+  const view = await p.fake.call('managed:get', {})
+  t.is(view.organization.name, ACME.name, 'still managed')
+  t.is(view.revoked, false, 'and not shown as revoked')
+  t.is(p.api.upward.at(-1).body.report.state, 'managed')
+
+  fs.rmdirSync(managedFile)
+  fs.renameSync(managedFile + '.kept', managedFile)
+  t.alike(await p.fake.call('managed:leave', {}), { left: ACME.name }, 'a retried Leave goes ahead')
+  const last = p.api.upward.at(-1)
+  t.is(last.body.state, 'left')
+  t.not(last.instanceKey, left.instanceKey, 'from the key that reports now')
+})

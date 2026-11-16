@@ -170,7 +170,8 @@ export class ManagedConfig extends Subsystem {
   }
 
   // The organization hears first, then managed.enc goes: a removal that fails leaves the install
-  // visibly managed, never one that reads as left today and is managed again after the next boot.
+  // visibly managed and reporting, never one that reads as left today and is managed again after the
+  // next boot.
   // The instance key goes last, so a retried Leave still holds it.
   async leave() {
     const state = this.state
@@ -182,6 +183,7 @@ export class ManagedConfig extends Subsystem {
       await removeManagedState(this.deps.storage)
     } catch (err) {
       await this.activate({ fresh: false })
+      await this.startReporting(0)
       throw err
     }
     if (organization) {
