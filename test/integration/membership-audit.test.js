@@ -34,6 +34,7 @@ async function knockingPeer(t, name) {
   const peer = await freshPeer(t)
   const space = await createSpace(name)
   const membership = createMembership(peer.fake.ipc, { log: quiet, dropSpaceDownloadRoot: () => {} })
+  membership.serve()
   const knock = () => membership.handleMembershipControl({
     type: PEER_FRAME.MEMBERSHIP_REQUEST, profileKey: PEER, displayName: 'Ben',
   }, { spaceId: space.spaceId })

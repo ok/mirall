@@ -10,6 +10,7 @@ import { scaled } from '../helpers/timing.js'
 
 const WORKER_EXIT_PROTOCOL_MISMATCH = 71
 const WORKER_EXIT_ALREADY_RUNNING = 73
+const WORKER_EXIT_BOOT_FAILED = 75
 
 function dataDir(t) {
   return path.join(tmpDir('mirall-headless', t), 'profile')
@@ -56,6 +57,7 @@ test('a back end waits for its key, unlocks over the socket, and never prints a 
   const a = connectClient(await first.listening(scaled(20000)))
   t.alike((await a.call('identity:status')).data, { locked: true, code: 'IDENTITY_AWAITING_KEY', restore: null }, 'waiting, and says why')
   t.is((await a.call('spaces:list')).code, 'NOT_FOUND', 'the data layer is not served before the key')
+  t.is((await a.call('space:pending-requests', { spaceId: 'x' })).code, 'NOT_FOUND', 'nor a membership decision')
   a.writeRaw(kek + '\n')
   t.is((await a.call('identity:unlock', { kek: kek.slice(1) })).code, 'INVALID_ARGUMENT', 'a key of the wrong length')
   t.alike((await a.call('identity:unlock', { kek })).data, { ok: true }, 'the key boots it in place')
@@ -80,6 +82,25 @@ test('a back end waits for its key, unlocks over the socket, and never prints a 
   for (const key of [kek, wrong]) {
     for (const [form, text] of Object.entries(keyForms(key))) t.absent(printed.includes(text.slice(0, 12)), `no ${form} form of a key`)
   }
+})
+
+// A store that cannot be opened is not a lock: nothing a key or a recovery could change. The back
+// end answers the unlock with the failure and exits, so a service manager sees it and the profile
+// lock is free for the next start.
+test('REGRESSION (FIX-UNLOCK-8: a boot that fails after the key ends the back end)', { timeout: scaled(60000) }, async (t) => {
+  const dir = dataDir(t)
+  const run = spawnHeadless(['--storage', dir, '--dev'])
+  t.teardown(() => { run.child.kill('SIGKILL') })
+  const client = connectClient(await run.listening(scaled(20000)))
+  const store = path.join(dir, 'app-storage')
+  fs.rmSync(store, { recursive: true, force: true })
+  fs.writeFileSync(store, 'not a folder')
+  const reply = await client.call('identity:unlock', { kek: kekHex() })
+  t.ok(reply.code, 'the unlock is refused')
+  t.absent(['IDENTITY_UNLOCK_FAILED', 'IDENTITY_PROVIDER_MISMATCH'].includes(reply.code), 'and not as a lock: ' + reply.code)
+  const exit = await Promise.race([run.exited, new Promise((resolve) => setTimeout(() => resolve('still running'), scaled(15000)))])
+  t.is(exit, WORKER_EXIT_BOOT_FAILED, 'the back end exits, saying its boot failed')
+  client.close()
 })
 
 // A service manager's stop and a terminal's Ctrl+C: the same teardown a shutdown request runs, a

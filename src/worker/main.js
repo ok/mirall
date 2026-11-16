@@ -56,9 +56,9 @@ import { createLogger } from '../shared/core/logger.js'
 import { installCrashBackstop } from '../shared/core/crash-backstop.js'
 import {
   WORKER_EXIT_UNSTABLE, WORKER_EXIT_PROTOCOL_MISMATCH, WORKER_EXIT_ORPHANED, WORKER_EXIT_ALREADY_RUNNING,
-  WORKER_EXIT_LISTEN_FAILED,
+  WORKER_EXIT_LISTEN_FAILED, WORKER_EXIT_BOOT_FAILED,
 } from '../shared/contract/exit-codes.js'
-import { CODES, IDENTITY_LOCK_CODES } from '../shared/contract/errors.js'
+import { CODES } from '../shared/contract/errors.js'
 import { bindConnectionLifecycle } from './connection-lifecycle.js'
 import { startListener } from './listener.js'
 import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../shared/contract/main-requests.js'
@@ -264,7 +264,7 @@ armDataDirTripwire(bootstrap.storage)
 // One throttle for every request that opens a recovery file, locked worker or not.
 const openRecovery = createPassphraseThrottle()
 
-const { memberRegistry, handleMembershipControl, discardPendingSpace } =
+const { memberRegistry, handleMembershipControl, discardPendingSpace, serve: serveMembership } =
   createMembership(ipc, { log, dropSpaceDownloadRoot })
 
 // The key, the lock and the recoveries (key-wait.js). Every opening — the first key, a retry, and a
@@ -338,20 +338,23 @@ function serveRecoveryOnly() {
 if (bootstrap.identityKEK) {
   try {
     await keyWait.unlock({ kek: bootstrap.identityKEK, relaySeed: bootstrap.relaySeed ?? null })
-  } catch (err) {
-    if (!IDENTITY_LOCK_CODES.includes(err?.code)) throw err
+  } catch {
+    // Read below: a lock is the key wait's code, anything else fails its boot.
   }
 }
 if (keyWait.code) {
   log.warn(keyWait.code === CODES.IDENTITY_AWAITING_KEY ? 'waiting for the identity key (identity:unlock)' : 'identity locked, serving recovery only: ' + keyWait.code)
   serveRecoveryOnly()
 }
-// A boot that fails for any reason but the key ends the worker here, as it always has; one cut short
-// by a shutdown leaves the exit to the shutdown.
+// A boot that fails for any reason but the key ends the worker here: nothing a key or a recovery
+// could change, and a worker left running would hold the profile lock against the next start. One
+// cut short by a shutdown leaves the exit to the shutdown. Never re-thrown: the crash backstop
+// would log a top-level rejection and keep the worker alive.
 try {
   await keyWait.booted
 } catch (err) {
-  if (!shuttingDown) throw err
+  if (!shuttingDown) log.error('boot failed:', err?.stack || err?.message || err)
+  await safeShutdown('boot failed', WORKER_EXIT_BOOT_FAILED)
   await new Promise(() => {})
 }
 
@@ -360,6 +363,8 @@ try {
 function goLive(opened) {
   const { mounts, intents, applyRelayConfig, overlayBackend } = opened
   const mountOwnedShare = createOwnedMounter({ ipc, mounts })
+
+  serveMembership()
 
   // === IPC: folder-share handlers (shares, owned & foreign mounts) ===
 

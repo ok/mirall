@@ -152,6 +152,7 @@ test('a joiner knocking again and again while recording is off moves the space o
   const { peer, older, newer } = await twoSpaces(t)
   await setAuditConfig({ enabled: false })
   const membership = createMembership(peer.fake.ipc, { log: { debug() {}, info() {}, warn() {}, error() {} }, dropSpaceDownloadRoot: () => {} })
+  membership.serve()
   const knock = () => membership.handleMembershipControl({
     type: PEER_FRAME.MEMBERSHIP_REQUEST, profileKey: 'b'.repeat(64), displayName: 'Ben',
   }, { spaceId: older })
