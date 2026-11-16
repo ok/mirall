@@ -85,9 +85,10 @@ const ipc = createIPC(headless ? null : Bare.IPC)
 const log = createLogger('worklet')
 const packageRoot = path.resolve(path.dirname(Bare.argv[1]), '..', '..')
 
-// Started next to ipc.start() rather than here: before the router goes live the loop is busy with
-// boot I/O by design, and sampling that would report a wedge that is really just a large library
-// being opened.
+// Started with the router, wherever that happens first — while the worker waits for its key or is
+// locked as much as once the identity is open — so the sweeps below cover every client from the
+// moment it can connect. The lag it samples during a boot is the boot's own I/O; a client waiting
+// on that boot is exempt from the liveness sweep (ipc-liveness.js).
 // The worker's one periodic loop, so it carries the router's deadline and liveness sweeps too — a
 // second timer for those would be the parallel mechanism the supervisor already argues against.
 const health = createHealthMonitor({
