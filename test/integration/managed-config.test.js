@@ -402,3 +402,16 @@ test('the poll backs off while the Console fails, resets once it answers, and it
   t.is(await polls.next({ draw: 0 }), 108_000, 'the earliest a poll is moved is 10% sooner')
   t.is(await polls.next({ draw: 1 - Number.EPSILON }), 264_000, 'and the latest 10% later')
 })
+
+test('REGRESSION (FIX-AUDIT-1: shorter retention under a recording lock): the organization\'s record is not pruned earlier by a shorter retention', async (t) => {
+  const p = await setup(t)
+  await p.fake.call('audit:configure', { enabled: true, retentionDays: 365 })
+  p.serve({ 'audit.enabled': true })
+  await p.fake.call('managed:accept', { code: p.org.code })
+  await t.exception(p.fake.call('audit:configure', { retentionDays: 30 }), /set by your organization/)
+  t.is(getAuditConfig().retentionDays, 365, 'the shorter retention was not stored')
+  t.is((await p.fake.call('audit:configure', { retentionDays: 365 })).retentionDays, 365, 'the same retention is accepted')
+  t.is((await p.fake.call('audit:configure', { retentionDays: 1000 })).retentionDays, 1000, 'a longer one is accepted')
+  await p.fake.call('managed:leave', {})
+  t.is((await p.fake.call('audit:configure', { retentionDays: 30 })).retentionDays, 30, 'leaving the organization allows it again')
+})
