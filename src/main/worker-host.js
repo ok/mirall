@@ -30,7 +30,7 @@ const relaySecret = require('./relay-secret.js')
 const { MAIN_REQUEST_FRAME } = require('../shared/contract/main-requests.js')
 const { WORKER_SPECS } = require('../shared/contract/workers.js')
 const { FRAME } = require('../shared/contract/ipc-frames.js')
-const { IDENTITY_LOCK_CODES } = require('../shared/contract/errors.js')
+const { isIdentityLock } = require('../shared/contract/errors.js')
 
 const pkg = require('../../package.json')
 const version = pkg.version
@@ -189,7 +189,7 @@ async function handKey(socketPath, { kek, relaySeed }) {
     await requestOverSocket(socketPath, 'identity:unlock', { kek, ...(relaySeed ? { relaySeed } : {}) })
     return true
   } catch (err) {
-    if (IDENTITY_LOCK_CODES.includes(err.code)) return false
+    if (isIdentityLock(err.code)) return false
     throw err
   }
 }

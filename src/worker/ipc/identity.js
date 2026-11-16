@@ -23,13 +23,13 @@ import { unlockProviderFor } from '../../shared/core/unlock-provider.js'
 import { FolderTarget } from '../../shared/storage/backup/folder-target.js'
 import { readFolderKey } from '../../shared/storage/backup/folder-key.js'
 import { AppError } from '../../shared/core/errors.js'
-import { CODES, IDENTITY_LOCK_CODES } from '../../shared/contract/errors.js'
+import { CODES, isIdentityLock } from '../../shared/contract/errors.js'
 
 // A lock is recoverable when a key was tried and could not open the identity: that key is held, and
 // a recovered identity is sealed under it. A worker still waiting for its key has tried nothing.
 /** @param {IdentityLockCode | null} code */
 export function isRecoverableLock(code) {
-  return IDENTITY_LOCK_CODES.some((lock) => lock === code)
+  return isIdentityLock(code)
 }
 
 // An identity nobody has used yet — no profile, no spaces — is all a fresh install holds, so a restore

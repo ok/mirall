@@ -8,13 +8,13 @@
 // is stale. The answer is whether the identity is open; a key that locks the worker again is false,
 // not an error.
 const { ipcMain } = require('electron')
-const { IDENTITY_LOCK_CODES } = require('../shared/contract/errors.js')
+const { isIdentityLock } = require('../shared/contract/errors.js')
 
 function registerIdentityRetry({ workerStatus, recoverKEK, adoptKEK, retryUnlock }) {
   ipcMain.handle('identity:retry-unlock', async () => {
     const status = await workerStatus()
     if (!status.locked) return true
-    if (!IDENTITY_LOCK_CODES.includes(status.code)) return false
+    if (!isIdentityLock(status.code)) return false
     const kekHex = recoverKEK()
     if (kekHex) adoptKEK(kekHex)
     return retryUnlock()

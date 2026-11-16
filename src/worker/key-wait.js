@@ -6,7 +6,7 @@
 // recoveries run one at a time, each against the state the one before it left; once the identity is
 // open nothing runs again.
 import { AppError } from '../shared/core/errors.js'
-import { CODES, IDENTITY_LOCK_CODES } from '../shared/contract/errors.js'
+import { CODES, isIdentityLock } from '../shared/contract/errors.js'
 
 /** @import { IdentityLockCode } from '../shared/contract/errors.js' */
 /** @typedef {{ kek: string, relaySeed: string | null }} HandedKey */
@@ -21,10 +21,7 @@ import { CODES, IDENTITY_LOCK_CODES } from '../shared/contract/errors.js'
  */
 
 /** @param {unknown} err */
-function isLockCode(err) {
-  const code = /** @type {{ code?: unknown } | null} */ (err)?.code
-  return IDENTITY_LOCK_CODES.some((lock) => lock === code)
-}
+const isLockCode = (err) => isIdentityLock(/** @type {{ code?: unknown } | null} */ (err)?.code)
 
 /**
  * @template T
