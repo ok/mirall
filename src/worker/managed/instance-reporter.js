@@ -53,14 +53,16 @@ export class InstanceReporter {
     return this.instance?.revoked === true
   }
 
-  // A revoked license stays revoked across restarts: it is shown at once and nothing more is sent.
+  // A revoked license stays revoked across restarts: it is shown at once and nothing more is sent. A
+  // key that reported `left` is retired at the Console, so reporting resumes under a new one.
   async start(state, { delayMs }) {
+    const retired = this.leftSent
     this.stop()
     this.stopped = false
     this.leftSent = false
     this.failures = 0
     this.dirty = false
-    await this.keyFor(state)
+    await this.keyFor(state, { retired })
     if (!this.revoked) this.schedule(delayMs)
   }
 
@@ -120,8 +122,8 @@ export class InstanceReporter {
   }
 
   // One key per license: a key enrolled with another license is replaced, never re-enrolled.
-  async keyFor(state) {
-    const stored = this.matching(state)
+  async keyFor(state, { retired }) {
+    const stored = retired ? null : this.matching(state)
     if (stored) {
       this.instance = stored
       return
