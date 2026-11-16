@@ -36,6 +36,8 @@ export default function IdentityLockedScreen({ code }: IdentityLockedScreenProps
       await action()
     } catch (err) {
       setError(errorText(err))
+      // A recovery whose reopen failed may have left the worker locked on another code.
+      await refetchQuery('identity:status').catch(() => null)
     } finally {
       setBusy(false)
     }

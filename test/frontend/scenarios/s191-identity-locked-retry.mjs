@@ -35,9 +35,11 @@ export default async function s191({ runDir, bootstrap }) {
       await A.waitText(LOCKED, 45000)
       lockedPid = workerPid(A.store)
       await A.click(retry)
-      // The refusal is a fast answer from the worker; there is nothing on screen to wait for.
+      // The refusal is a fast answer from the worker and nothing on screen changes with it, so
+      // there is no signal to wait for: a pause long enough for the round trip, then the checks.
       await new Promise((resolve) => setTimeout(resolve, 4000))
       if (!(await A.hasText(LOCKED))) throw new Error('the locked screen went away on a key that still cannot open the data')
+      if (await A.has({ role: 'alert' })) throw new Error('a refused retry is not an error, yet one is showing')
       if (workerPid(A.store) !== lockedPid) throw new Error('the worker was replaced by a retry')
       await A.shot('s191-still-locked', runDir)
     })

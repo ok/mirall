@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next'
 import { request } from '../../ipc/ipc.js'
 import { useErrorText } from '../../hooks/useErrorText.js'
 import { errorCodeOf } from '../../errors/error-text.js'
+import { refetchQuery } from '../../store/query-store.js'
 import { adoptRestoredSettings } from '../../platform/restored-settings.js'
 import { snapshotLabel, type SnapshotLabel } from '../../model/snapshot-label.js'
 import { formatDateTime } from '../../format/utils.js'
@@ -85,6 +86,7 @@ export default function RestoreBackupModal({ isOpen, onClose, onRestored, locked
 
   // A wrong passphrase is said under its field, so the list step goes back to the form to show it.
   function fail(code: string | null, text: string) {
+    if (locked) refetchQuery('identity:status').catch(() => null)
     if (code === 'WRONG_PASSPHRASE') {
       setSnapshots(null)
       setFieldError(text)
@@ -138,7 +140,6 @@ export default function RestoreBackupModal({ isOpen, onClose, onRestored, locked
 
   const title = t('restoreBackup.title')
   const ready = !!folder && keyReady && passphrase.length > 0
-  const shownError = error
   const progress = restarting && !locked ? t('restoreBackup.restarting') : busy ? t(snapshots ? 'restoreBackup.restoring' : 'restoreBackup.opening') : null
 
   return (
@@ -158,9 +159,9 @@ export default function RestoreBackupModal({ isOpen, onClose, onRestored, locked
           closeDisabled={busy}
         />
         <div className="px-10 pb-10 space-y-6">
-          {shownError && (
+          {error && (
             <div id="restore-backup-error" className="rounded-xl bg-error-container/60 px-5 py-3 text-sm font-medium text-on-error-container" role="alert">
-              {shownError}
+              {error}
             </div>
           )}
           {!snapshots ? (
