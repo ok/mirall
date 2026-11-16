@@ -53,7 +53,7 @@
     "@react-stately/menu": "^3.10.1",
     "@react-stately/tree": "^3.10.1",
     "@react-types/shared": "3.37.0",
-    "@tailwindcss/cli": "^4.3.3",
+    "@tailwindcss/cli": "^4.3.5",
     "@types/node": "^24.13.3",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
@@ -83,7 +83,7 @@
     "react-dom": "^19.3.1",
     "react-i18next": "^17.1.13",
     "serve": "^14.2.6",
-    "tailwindcss": "^4.3.3",
+    "tailwindcss": "^4.3.5",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.72.1",
     "yaml": "^2.9.1"
