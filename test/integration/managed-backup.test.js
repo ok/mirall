@@ -1,7 +1,7 @@
 import test from 'brittle'
 import fs from 'bare-fs'
 import path from 'bare-path'
-import { freshPeer } from '../helpers/store.js'
+import { freshPeer, rebootPeer } from '../helpers/store.js'
 import { tmpDir, tmpPath } from '../helpers/bare-tmp.js'
 import { waitFor } from '../helpers/bare-poll.js'
 import { startManagedConsole } from '../helpers/managed-console.js'
@@ -134,4 +134,23 @@ test('REGRESSION (FIX-5: shared backup record): the organization\'s folder keeps
   t.ok(after.managed.lastSuccessAt > 0, 'it counts for the organization\'s folder')
   await p.fake.call('backup:turn-off', {})
   t.alike(record().offer, after.offer, 'turning the organization\'s folder off is not the person declining a backup of their own')
+})
+
+test('REGRESSION (FIX-BACKUP-1: managed last success lost on upgrade): the organization\'s folder keeps a last backup recorded as the shared one', async (t) => {
+  const share = tmpDir('managed-share-upgrade', t)
+  const p = await setup(t, { share })
+  await p.fake.call('backup:setup', { folder: p.view.backupFolder, passphrase: PASS })
+  await waitFor(async () => (await p.fake.call('backup:status', {})).lastSuccessAt !== null, 20000, { label: 'the first backup' })
+  await waitFor(async () => (await p.fake.call('backup:status', {})).state === 'idle', 20000, { label: 'the first backup recorded' })
+  const file = path.join(path.dirname(p.storage), 'backup-state.json')
+  const current = JSON.parse(fs.readFileSync(file, 'utf8'))
+  const { lastSuccessAt, ...managed } = current.managed
+  fs.writeFileSync(file, JSON.stringify({ ...current, lastSuccessAt, managed }))
+
+  const rebooted = await rebootPeer(t, p)
+  registerBackup(rebooted.fake.ipc, { backup: rebooted.root.backup, paused: rebooted.root.backupPaused, openRecovery: createPassphraseThrottle() })
+  const status = await rebooted.fake.call('backup:status', {})
+  t.is(status.lastSuccessAt, lastSuccessAt, 'the last backup still shows')
+  t.not(status.verdictReason, 'first-backup', 'it is not waiting for a first backup')
+  t.is(rebooted.root.backup().protection().lastSuccessAt, lastSuccessAt, 'and the organization hears of it')
 })
