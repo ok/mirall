@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import { useTranslation } from 'react-i18next'
 import SectionHeading from '../../components/layout/SectionHeading.js'
 import SegmentedControl, { Segment } from '../../components/primitives/SegmentedControl.js'
@@ -6,6 +7,7 @@ import { RETENTION_CHOICES } from '../../../shared/contract/limits.js'
 import type { AuditConfig } from '../../types/types.js'
 import ManagedNote from '../../components/managed/ManagedNote.js'
 import { useManagedSetting } from '../../hooks/useManagedSetting.js'
+import { useManaged } from '../../hooks/useManaged.js'
 
 interface AuditRecordingCardProps {
   /** Null until audit:get-config answers — every read below falls back rather than guessing on. */
@@ -26,6 +28,12 @@ export default function AuditRecordingCard({ config, onPatch, patching }: AuditR
   const { t } = useTranslation()
   const recording = useManagedSetting('audit.enabled')
   const retention = useManagedSetting('audit.retentionDays')
+  // While the organization keeps the record, a shorter retention would prune it: those options are
+  // unavailable, the longer ones are not.
+  const keptNoteId = useId()
+  const keptOrg = useManaged()?.organization.name ?? null
+  const isShorter = (days: number) => config?.deleteLocked === true && days < (config.retentionDays ?? 0)
+  const showKeptNote = !retention.locked && keptOrg !== null && RETENTION_CHOICES.some(isShorter)
   return (
     <section>
       <SectionHeading>{t('activityLogSettings.recording')}</SectionHeading>
@@ -63,13 +71,14 @@ export default function AuditRecordingCard({ config, onPatch, patching }: AuditR
                 selected={config?.retentionDays === days}
                 onSelect={() => onPatch({ retentionDays: days })}
                 busy={patching}
-                locked={retention.locked}
-                describedBy={retention.locked ? retention.noteId : undefined}
+                locked={retention.locked || isShorter(days)}
+                describedBy={retention.locked ? retention.noteId : isShorter(days) ? keptNoteId : undefined}
               />
             ))}
           </SegmentedControl>
         </div>
         {retention.org && <ManagedNote id={retention.noteId} org={retention.org} className="px-6 pb-5 -mt-2" />}
+        {showKeptNote && keptOrg && <ManagedNote id={keptNoteId} org={keptOrg} className="px-6 pb-5 -mt-2" />}
       </div>
     </section>
   )
