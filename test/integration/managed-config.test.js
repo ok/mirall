@@ -310,3 +310,26 @@ test('REGRESSION (FIX-10: silent refusal): a bundle that verifies nowhere is sai
   await p.root.managed.refreshHttps()
   t.is(p.root.managed.health().detail.lastRefusal, 'unknown_signing_key')
 })
+
+test('REGRESSION (FIX-MANAGED-2: poll re-armed across a Connect): a poll still answering when another organization connects never writes the first one back', async (t) => {
+  const p = await setup(t)
+  const now = Math.floor(Date.now() / 1000)
+  const other = organization({ apiUrl: p.api.apiUrl })
+  const BETA = { name: 'Beta Test AG' }
+  const bundleOf = (target, o, settings, issuedAt) => ({ profileId: o.name, bytes: sealBundle({ signer: SIGNER, driveKey: target.driveKey, recipients: [target.bundlePublicKey], organization: o, apiUrl: p.api.apiUrl, settings, issuedAt }) })
+  p.api.set({ bundles: [bundleOf(p.org, ACME, LOCKS, now), bundleOf(other, BETA, LOCKS, now)] })
+  await p.fake.call('managed:accept', { code: p.org.code })
+  t.is((await p.fake.call('managed:preview', { code: other.code })).kind, 'ready')
+  // The first organization publishes a newer configuration, its poll answers slowly, and the
+  // Connect stays between stopping its sources and starting the next one's while `left` answers.
+  p.api.set({ bundles: [bundleOf(p.org, ACME, { ...LOCKS, 'audit.retentionDays': 365 }, now + 10), bundleOf(other, BETA, LOCKS, now)] })
+  p.api.delay(300)
+  p.api.answer((entry) => ({ status: 200, body: {}, delayMs: entry.body.state === 'left' ? 3000 : 0 }))
+  await waitFor(() => p.api.inFlight() > 0, 3000, { label: 'a poll in flight' })
+  t.is((await p.fake.call('managed:accept', { code: other.code })).organization.name, BETA.name)
+  await p.root.managed.queue
+  await p.api.close()
+  const again = await rebootPeer(t, p)
+  wire(again)
+  t.is((await again.fake.call('managed:get', {})).organization.name, BETA.name, 'the stored organization is the one connected')
+})

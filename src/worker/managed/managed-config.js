@@ -321,11 +321,14 @@ export class ManagedConfig extends Subsystem {
   }
 
   // While a drive peer is connected the drive is the source and no request is made: a fleet shares
-  // one drive key, and the Console only answers for it while the drive cannot.
+  // one drive key, and the Console only answers for it while the drive cannot. A poll belongs to the
+  // sources that armed it: once they are deactivated it neither runs nor arms the next one.
   scheduleHttps(delayMs) {
     this.timers.clear(this.httpsTimer)
+    const generation = this.generation
     this.httpsTimer = this.timers.setTimeout(async () => {
       this.httpsTimer = null
+      if (generation !== this.generation) return
       const poll = getManagedLevers().httpsPollMs
       let next = poll
       try {
@@ -340,7 +343,7 @@ export class ManagedConfig extends Subsystem {
       } catch (err) {
         this.log.warn('configuration refresh failed:', err.message)
       }
-      if (this.state && !this.stopping && !this.httpsTimer) this.scheduleHttps(jitter(next))
+      if (generation === this.generation && this.state && !this.stopping && !this.httpsTimer) this.scheduleHttps(jitter(next))
     }, delayMs)
   }
 
