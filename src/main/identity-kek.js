@@ -60,7 +60,9 @@ function resolveKEKHex(storagePath, { safeStorage = electron.safeStorage, platfo
 
 // "Try again" on the locked screen: a set-aside key this keychain can open now (access granted
 // again, the keychain item restored) goes back in place of the minted one, newest first. It is asked
-// only while the identity is locked, when the minted key has sealed nothing.
+// only of a worker that is locked on a key that could not open the identity (identity-retry.js): the
+// current kek.enc seals nothing the identity needs while that holds, and is the key an open identity
+// is sealed under once it does not.
 function recoverUnreadableKEK(storagePath, { safeStorage = electron.safeStorage, now = new Date() } = {}) {
   const file = kekFile(storagePath)
   const dir = path.dirname(file)

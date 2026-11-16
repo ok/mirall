@@ -509,6 +509,19 @@ test('with the key off the spawn frame, as shipped, the bootstrap carries no sec
   t.is(server.unlocks.length, 1)
 })
 
+test('the running worker is asked whether it is locked, over a connection of its own', async (t) => {
+  const server = await socketServer(t)
+  const { host, worker, electron } = load({ flags: { identityKEK: KEK } })
+  host.registerWorkerHost()
+  const starting = startFor(electron, fakeSender(7))
+  worker.emit('data', announce(server.socketPath))
+  await starting
+  t.alike(await host.workerStatus(MAIN_WORKER_SPEC), { locked: true, code: 'IDENTITY_UNLOCK_FAILED', restore: null })
+  t.is(server.unlocks.length, 1, 'asking did not hand over a key')
+  worker.emit('exit', 0)
+  await t.exception(host.workerStatus(MAIN_WORKER_SPEC))
+})
+
 test('the hello frame carries the protocol version, the window main accepts, and what main is', (t) => {
   const { host, worker } = load()
   host.getWorker('/src/worker/main.js')
@@ -579,6 +592,10 @@ function socketServer(t, { unlock: answer = () => ({ data: { ok: true } }), hold
         let frame
         try { frame = JSON.parse(line) } catch { continue }
         if (frame.type === 'hello') hellos.push(frame)
+        if (frame.type === 'identity:status') {
+          sock.write(JSON.stringify({ id: frame.id, type: 'response', data: { locked: true, code: 'IDENTITY_UNLOCK_FAILED', restore: null } }) + '\n')
+          continue
+        }
         if (frame.type !== 'identity:unlock') continue
         unlocks.push(frame)
         void (async () => {

@@ -28,6 +28,7 @@ const {
   revealRoots,
   workerIsLocal,
   retryUnlock,
+  workerStatus,
 } = require('./worker-host.js')
 const { registerIdentityRetry } = require('./identity-retry.js')
 const { MAIN_WORKER_SPEC } = require('../shared/contract/workers.js')
@@ -204,6 +205,7 @@ registerUpdater()
 
 ipcMain.handle('app:identityProtection', () => identityProtection)
 registerIdentityRetry({
+  workerStatus: () => workerStatus(MAIN_WORKER_SPEC),
   recoverKEK: () => require('./identity-kek.js').recoverUnreadableKEK(getPear().storage),
   adoptKEK: (kekHex) => { identityKEKHex = kekHex },
   retryUnlock: () => retryUnlock(MAIN_WORKER_SPEC),

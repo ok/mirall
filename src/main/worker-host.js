@@ -411,6 +411,13 @@ async function startWorkerFor(sender, specifier) {
   return true
 }
 
+// Whether the running worker has opened its identity, and why not.
+async function workerStatus(specifier) {
+  const worker = workers.get(specifier)
+  if (!worker) throw new Error('no worker is running')
+  return requestOverSocket(await socketPathOf(worker), 'identity:status')
+}
+
 // Hands the running worker the current key again: the locked screen's "Try again". Whether the
 // identity opened; a worker that locks again answers false, and a worker that cannot be reached is
 // an error.
@@ -438,6 +445,7 @@ module.exports = {
   stopWorkers,
   restartWorker,
   retryUnlock,
+  workerStatus,
   sendToWorker,
   revealRoots,
   workerIsLocal,
