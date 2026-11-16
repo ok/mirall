@@ -82,7 +82,7 @@
     "react-aria": "^3.53.1",
     "react-dom": "^19.3.1",
     "react-i18next": "^17.1.13",
-    "serve": "^14.2.6",
+    "serve": "^14.2.8",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.72.1",
