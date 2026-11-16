@@ -6,8 +6,8 @@ const crypto = require('crypto')
 
 // The os-keychain provider's host side: a random KEK held under Electron
 // safeStorage (Keychain / DPAPI / libsecret), persisted as kek.enc (where: see
-// contract/secret-files.js). main hands the worker the KEK hex over the bootstrap — never M — so a
-// copied app-storage without the OS credential cannot unwrap identity.enc.
+// contract/secret-files.js). main hands the worker the KEK hex over its socket (worker-host.js) —
+// never M — so a copied app-storage without the OS credential cannot unwrap identity.enc.
 const kekFile = (storagePath) => resolveSecretFile(storagePath, SECRET_FILE.KEK, { join: path.join, dirname: path.dirname, exists: fs.existsSync })
 
 const KEK_HEX = /^[0-9a-f]{64}$/
