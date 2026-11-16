@@ -1,0 +1,2 @@
+# Byte-pinned by test/invariants/backup-fixtures-frozen.test.js: never converted on checkout.
+test/fixtures/backup/** -text
