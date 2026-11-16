@@ -71,7 +71,7 @@ test('a back end waits for its key, unlocks over the socket, and never prints a 
   t.teardown(() => { second.child.kill('SIGKILL') })
   const b = connectClient(await second.listening(scaled(20000)))
   t.is((await b.call('identity:unlock', { kek: wrong })).code, 'IDENTITY_UNLOCK_FAILED', 'a wrong key is refused')
-  t.is((await b.call('identity:status')).data.code, 'IDENTITY_AWAITING_KEY', 'and the worker keeps waiting')
+  t.alike((await b.call('identity:status')).data, { locked: true, code: 'IDENTITY_UNLOCK_FAILED', restore: null }, 'and the worker is locked, saying why')
   t.alike((await b.call('identity:unlock', { kek })).data, { ok: true }, 'the right one, no restart')
   b.close()
 
