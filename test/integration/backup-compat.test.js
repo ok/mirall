@@ -26,7 +26,7 @@ import { registerBackupRestore } from '../../src/worker/ipc/backup-restore.js'
 import { FolderTarget } from '../../src/shared/storage/backup/folder-target.js'
 import { readFolderKey } from '../../src/shared/storage/backup/folder-key.js'
 import { openBackup } from '../../src/shared/storage/backup/restore.js'
-import { createPassphraseThrottle, openRecoveryFile } from '../../src/shared/core/identity-recovery.js'
+import { createPassphraseThrottle } from '../../src/shared/core/identity-recovery.js'
 import { offlineMemberRegistry } from '../helpers/store.js'
 import { createFakeIpc } from '../helpers/fake-ipc.js'
 import { tmpDir } from '../helpers/bare-tmp.js'
@@ -45,6 +45,16 @@ const quiet = { debug() {}, info() {}, warn() {}, error() {} }
 const KEK = b4a.toString(crypto.randomBytes(32), 'hex')
 const FIXTURES = path.join(path.dirname(url.fileURLToPath(import.meta.url)), '..', 'fixtures', 'backup')
 const RELEASES = fs.readdirSync(FIXTURES).filter((name) => /^\d+\.\d+\.\d+$/.test(name)).sort()
+
+// A release's key is stretched once (Argon2id, 256 MiB), through the app's throttle; every later open
+// of the same file with the same passphrase gets its own copy of that result, which it may wipe.
+const throttled = createPassphraseThrottle()
+const opened = new Map()
+function openOnce(text, passphrase) {
+  const id = `${passphrase}\n${text}`
+  if (!opened.has(id)) opened.set(id, throttled(text, passphrase).catch((err) => { opened.delete(id); throw err }))
+  return opened.get(id).then((result) => ({ ...result, masterSecret: b4a.from(result.masterSecret) }))
+}
 
 function copyTree(from, to) {
   fs.mkdirSync(to, { recursive: true })
@@ -86,7 +96,7 @@ async function start(t, h, { masterSecret = undefined } = {}) {
 async function newDevice(t) {
   const h = home(t)
   const { root, fake } = await start(t, h, { masterSecret: crypto.randomBytes(32) })
-  registerBackupRestore(fake.ipc, { storagePath: h.storage, identityKEK: () => KEK, log: quiet, lockedBy: () => null, openRecovery: createPassphraseThrottle() })
+  registerBackupRestore(fake.ipc, { storagePath: h.storage, identityKEK: () => KEK, log: quiet, lockedBy: () => null, openRecovery: openOnce })
   return { h, root, fake }
 }
 
@@ -95,7 +105,7 @@ async function newestManifest(folder) {
   const target = new FolderTarget(folder)
   await target.ready()
   const key = await readFolderKey(target)
-  const { masterSecret } = await openRecoveryFile(key.content, PASS)
+  const { masterSecret } = await openOnce(key.content, PASS)
   const repo = await openBackup(folder, masterSecret)
   const [newest] = await repo.listSnapshots()
   return { key, manifest: await repo.readSnapshot(newest) }
