@@ -41,6 +41,9 @@ const CONFIG_FILE = 'config.json'
 
 const IDLE = Object.freeze({ lastSuccessAt: null, lastSnapshot: null, lastError: null, suspect: null })
 
+// The organization folder's record, with what is not known yet left empty.
+const managedRecord = (fields) => ({ repoId: null, setupAt: null, lastSuccessAt: null, ...fields })
+
 function mergeDirty(a, b) {
   if (!a || !b) return a ?? b
   return {
@@ -116,7 +119,7 @@ export class Backup extends Subsystem {
   withManagedRecord(state) {
     const managed = this.managedFolder()
     if (!managed) return state.managed ? { ...state, managed: null } : state
-    return state.managed?.folder === managed.folder ? state : { ...state, managed: { folder: managed.folder, repoId: null, setupAt: null, lastSuccessAt: null } }
+    return state.managed?.folder === managed.folder ? state : { ...state, managed: managedRecord({ folder: managed.folder }) }
   }
 
   // An organization's folder is set up only by a setup there: the person's own setupAt, or an earlier
@@ -359,7 +362,7 @@ export class Backup extends Subsystem {
     await this.writeKey(target, passphrase)
     const now = Date.now()
     // The organization's folder keeps its own record: setting it up says nothing about the person's.
-    await this.persist(managed ? { ...this.state, managed: { repoId: null, lastSuccessAt: null, ...this.state.managed, folder, setupAt: now } } : folderChosen(this.state, now))
+    await this.persist(managed ? { ...this.state, managed: managedRecord({ ...this.state.managed, folder, setupAt: now }) } : folderChosen(this.state, now))
     await this.configure(folder)
     this.runSoon('setup')
     return this.status()
@@ -478,7 +481,7 @@ export class Backup extends Subsystem {
 
   async remember(config) {
     if (this.managedFolder()) {
-      await this.persist({ ...this.state, managed: { setupAt: null, lastSuccessAt: null, ...this.state.managed, folder: config.folder, repoId: config.repoId } })
+      await this.persist({ ...this.state, managed: managedRecord({ ...this.state.managed, folder: config.folder, repoId: config.repoId }) })
       this.config = config
       return
     }
