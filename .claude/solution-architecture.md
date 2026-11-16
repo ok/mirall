@@ -82,21 +82,26 @@ spawns it with none; the sidecar build of bare that the desktop app ships opens 
 `src/worker/headless-entry.js` releases that pipe). The command line stands in for the bootstrap
 frame (`src/worker/headless-args.js`, same keys, same `assembleRuntimeConfig`); `--dev` admits the
 test levers (`--dht-bootstrap`, `--feature-flags`, `--runtime-config`), which nothing else accepts.
-No key is on it, so after the listener is up the worker **waits for its key**: the router goes live
-with the recovery set (process, identity, restore) plus `identity:unlock`, `identity:status`
-reports `{ locked: true, code: 'IDENTITY_AWAITING_KEY' }`, and the recovery actions refuse, since
-nothing has been tried. A host client sends `identity:unlock { kek, relaySeed? }` — the KEK the
-desktop app would have put on the bootstrap, so the provider is still `os-keychain`; the socket is a
-different transport for the same key — and the worker runs the same `boot()` in place
-(`src/worker/key-wait.js`): a key that cannot open the identity is refused with its lock code and
-the worker keeps waiting; a good one boots, every handler is registered, and every attached client
-is greeted again with `event:worker-ready`. Attempts are serialized, and once booted every further
-unlock is refused. A headless worker is stopped by a `shutdown` request or by SIGTERM/SIGINT
+No key is on it, so after the listener is up the worker **waits for its key**, as every worker whose
+bootstrap carries none does, spawned or not: the router goes live with the recovery set (process,
+identity, restore) plus `identity:unlock`, `identity:status` reports
+`{ locked: true, code: 'IDENTITY_AWAITING_KEY' }`, and the recovery actions refuse, since nothing has
+been tried. A host client sends `identity:unlock { kek, relaySeed? }` — the KEK the desktop app keeps
+in the OS keychain, so the provider is still `os-keychain`; the socket is a different transport for
+the same key — and the worker opens the identity in place (`src/worker/key-wait.js`): it puts any
+pending identity change in place, runs the same `boot()`, registers every handler, greets every
+attached client again with `event:worker-ready`, and only then answers. A key that cannot open the
+identity is refused with its lock code and the worker **locks**: `identity:status` reports that code,
+the key is held, and the locked identity's recoveries are served (below); another `identity:unlock`
+replaces the held key. Attempts and recoveries are serialized, and once the identity is open every
+further unlock is refused. A key on the spawn frame is still honoured through 1.14: it is tried as
+the first attempt. A headless worker is stopped by a `shutdown` request or by SIGTERM/SIGINT
 (Ctrl+C/Ctrl+Break on Windows), each running `safeShutdown` with exit 0; no client's departure
 stops it. It prints the `socket:listening` frame a host would have been sent as one JSON line on
 stdout, and its log lines open with an ISO time unless `JOURNAL_STREAM` says a journal stamps them.
-Verbosity: `--verbose`, then `MIRALL_VERBOSE=1`, then the stored choice. A spawned worker still
-takes its KEK from the bootstrap frame, and its boot fails with `IDENTITY_NO_KEK` without one.
+Verbosity: `--verbose`, then `MIRALL_VERBOSE=1`, then the stored choice. A spawned worker that is
+waiting or locked is not booted: its host's pipe closing still stops it as orphaned, a `shutdown`
+request stops it with exit 0, and the crash backstop stays disarmed.
 
 **Default data folder.** Started without `--storage`, a headless worker opens the folder the desktop
 app uses: Electron's `userData` is `<appData>/<productName>` — `productName` is "Mirall", not the npm
@@ -1490,9 +1495,9 @@ they belong to.
 - `network:reconnect` ends the live connections, because a connected peer is never re-dialled.
 - A partial `audit:list` page with a non-null cursor is normal, because the scan is budgeted.
 - `shutdown` is host-only and is answered before teardown begins.
-- `identity:unlock { kek, relaySeed? }` is host-only and served only by a worker started without a
-  host: it boots the data layer before it answers (`deadlineMs: 0`). Anywhere else, and after a
-  successful unlock, it is refused with `NOT_AUTHORIZED`. Neither key is logged or echoed, and the
+- `identity:unlock { kek, relaySeed? }` is host-only and served by a worker that is waiting for its
+  key or locked: it boots the data layer before it answers (`deadlineMs: 0`). Once the identity is
+  open it is refused with `NOT_AUTHORIZED`. Neither key is logged or echoed, and the
   router logs an unparseable frame by its length only.
 - The `event:*-fs-event` request rows are served only by a worker whose file watchers the
   `testFileWatchersOff` lever turned off: they are how a test delivers its own file events. In a
@@ -1677,15 +1682,18 @@ an owner-and-SYSTEM ACL on the user data folder (`src/main/storage-perms.js`); o
 not know) sealed with XChaCha20-Poly1305 under an Argon2id key from the user's passphrase, the header
 bound into the associated data. It lives only in the backup folder (below); the user never handles it
 as a file. When the KEK cannot open `identity.enc` (`IDENTITY_LOCK_CODES`), the worker does not crash:
-`boot()` has already closed what it opened, and the entry serves only the process handlers,
-`src/worker/ipc/identity.js` — `identity:status`, `identity:unlock-from-backup` and
-`identity:set-aside` — and the restore requests, while the renderer shows the locked screen above its
-profile gates. Its one action, restore from a backup, first tries the folder's key on the data in
-place (`identity:unlock-from-backup`): when the store holds this identity's profile the key is adopted,
-`identity.enc` is rewritten under this machine's KEK, the profile is held as after a restore, and the
-renderer restarts the worker into it — the local data stays, newer than any backup. Otherwise it
-restores a snapshot, which sets the local data aside. Starting fresh moves the store's entries and its
-envelopes into `app-storage.locked-<stamp>/` beside it; nothing is deleted.
+`boot()` has already closed what it opened, the key stays held, and the entry serves only the process
+handlers, `src/worker/ipc/identity.js` — `identity:status`, `identity:unlock-from-backup` and
+`identity:set-aside` — the restore requests and `identity:unlock`, while the renderer shows the locked
+screen above its profile gates. Its one action, restore from a backup, first tries the folder's key on
+the data in place (`identity:unlock-from-backup`): when the store holds this identity's profile the key
+is adopted, `identity.enc` is rewritten under the held KEK, and the profile is held as after a restore —
+the local data stays, newer than any backup. Otherwise it restores a snapshot, which sets the local
+data aside. Starting fresh moves the store's entries and its envelopes into
+`app-storage.locked-<stamp>/` beside it; nothing is deleted. Each recovery that changes what the held
+key opens then opens the identity in the same process, through the same path as an unlock (pending
+change put in place, `boot()`, every handler, `event:worker-ready` to every client), before it
+answers; a reply therefore means the worker is live.
 
 **Restore hold.** An adopted key restores the identity, not the profile, and whatever copy of the
 profile this device has — a snapshot, or the data a locked device unlocked in place — may be shorter than what peers hold under
@@ -1884,8 +1892,10 @@ A restore puts the carried `downloads` folder and `network` caps back into `sett
 since the backup holds no device-bound key. `backup:inspect` lists the snapshots the key opens; `backup:restore` rebuilds the
 chosen one into `app-storage.restoring` beside the store (`restore.js`: every core checked against its
 recorded length and tree hash), seals the identity into `identity-adopt.enc` and writes
-`restore-pending.json` last. The next worker, before its store opens, sets the current data aside and
-moves the staging store in with `CORESTORE` last (`identity-adopt.js`). The profile and the own catalogs
+`restore-pending.json` last. Before a store opens — at a locked worker's next opening, which follows
+the restore at once, or at the next worker's first — the current data is set aside and the staging
+store moved in with `CORESTORE` last (`identity-adopt.js`). An unused identity's store is open while
+it restores, so its restore, like setting a restoring identity aside, waits for the next worker. The profile and the own catalogs
 come back **held**: `RestoreCatchUp` follows each one to the copies its space's members hold, releases
 a catalog writable as soon as it matches (or at once when the space has no other member), and ends
 restore mode when the profile matches. No backup runs while anything is held. Setting up a fresh

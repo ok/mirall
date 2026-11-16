@@ -17,7 +17,7 @@ import { registerIdentityUnlock } from '../../src/worker/ipc/identity-unlock.js'
 import { registerBackupRestore } from '../../src/worker/ipc/backup-restore.js'
 import { createKeyWait } from '../../src/worker/key-wait.js'
 import { createPassphraseThrottle } from '../../src/shared/core/identity-recovery.js'
-import { CODES } from '../../src/shared/contract/errors.js'
+import { applyPendingIdentityChange, requestSetAside } from '../../src/shared/core/identity-adopt.js'
 import { TRUST } from '../../src/shared/contract/ipc-frames.js'
 import { sayHello } from '../helpers/ipc-hello.js'
 import { waitFor } from '../helpers/bare-poll.js'
@@ -49,6 +49,8 @@ async function bootOnce(t, config) {
   return tier
 }
 
+// The entry never boots without a key (it waits for one, below); the data layer still refuses one
+// it is handed without a KEK, so no caller can open a store with no identity.
 test('REGRESSION (P2.2c: a bootstrap without a KEK booted with no identity)', async (t) => {
   const { config } = peerConfig(t)
   let tiers = 0
@@ -81,8 +83,9 @@ test('a boot with a KEK seals identity.enc under os-keychain and reopens the sam
   t.alike(getProfileKey(), profileKey, 'the reboot unlocks the same identity')
 })
 
-// A worker started without a host: the router is live with the recovery set and identity:unlock,
-// and a client hands over the key. Wired as the entry wires it, booting the real root without a
+// A worker that has not been handed its key, spawned or headless: the router is live with the
+// recovery set and identity:unlock, and a client hands over the key. Wired as the entry wires it —
+// every opening puts a pending identity change in place and then boots the real root, without a
 // swarm; the flow suite runs the entry itself.
 function clientPipe() {
   const ee = new EventEmitter()
@@ -104,18 +107,19 @@ function clientPipe() {
 
 function waitingWorker(t, config, { log = quiet } = {}) {
   const ipc = createIPC(null)
-  let lockedBy = CODES.IDENTITY_AWAITING_KEY
+  const opened = []
   const keyWait = createKeyWait({
-    awaiting: true,
-    boot: async ({ kek }) => {
-      const root = await boot({ ...config, identityKEK: kek }, { ipc: createFakeIpc().ipc, log, swarm: false, memberRegistry: offlineMemberRegistry })
+    open: async ({ kek, relaySeed }) => {
+      opened.push(kek)
+      await applyPendingIdentityChange(config.storage)
+      const root = await boot({ ...config, identityKEK: kek, relaySeed: relaySeed ?? undefined }, { ipc: createFakeIpc().ipc, log, swarm: false, memberRegistry: offlineMemberRegistry })
       t.teardown(() => root.close(), { order: 1 })
       return root
     },
   })
-  keyWait.booted.then(() => { lockedBy = null }, () => {})
-  registerIdentity(ipc, { storagePath: config.storage, identityKEK: () => null, log, lockedBy: () => lockedBy, openRecovery: createPassphraseThrottle() })
-  registerBackupRestore(ipc, { storagePath: config.storage, identityKEK: () => null, log, lockedBy: () => lockedBy, openRecovery: createPassphraseThrottle() })
+  const deps = { storagePath: config.storage, identityKEK: () => keyWait.key?.kek, log, lockedBy: () => keyWait.code, recover: keyWait.recover, openRecovery: createPassphraseThrottle() }
+  registerIdentity(ipc, deps)
+  registerBackupRestore(ipc, deps)
   registerIdentityUnlock(ipc, { unlock: keyWait.unlock })
   ipc.start()
   const host = clientPipe()
@@ -124,19 +128,20 @@ function waitingWorker(t, config, { log = quiet } = {}) {
   const peer = clientPipe()
   ipc.attach(peer)
   sayHello(peer)
-  return { host, peer, keyWait }
+  return { host, peer, keyWait, opened }
 }
 
 const kekHex = () => b4a.toString(randomKEK(), 'hex')
 
 test('a worker without a key waits, says so, and recovers nothing while it does', async (t) => {
   const { config } = peerConfig(t)
-  const { host } = waitingWorker(t, config)
+  const { host, opened } = waitingWorker(t, config)
   t.alike((await host.request('identity:status')).data, { locked: true, code: 'IDENTITY_AWAITING_KEY', restore: null })
   t.is((await host.request('identity:set-aside')).code, 'NOT_AUTHORIZED', 'nothing is set aside: the identity was never tried')
   t.is((await host.request('identity:unlock-from-backup', { folder: '/nowhere', passphrase: 'x' })).code, 'NOT_AUTHORIZED')
   t.is((await host.request('backup:peek', { folder: '/nowhere' })).code, 'NOT_AUTHORIZED', 'and no backup is restored over it')
   t.ok(fs.existsSync(config.storage), 'the store is where it was')
+  t.is(opened.length, 0, 'and nothing was booted without a key')
 })
 
 test('a good key boots the worker in place, and a second unlock is refused', async (t) => {
@@ -150,21 +155,67 @@ test('a good key boots the worker in place, and a second unlock is refused', asy
   t.is(again.code, 'NOT_AUTHORIZED', 'never a second boot')
 })
 
-test('a wrong key is refused and the worker keeps waiting for the right one', async (t) => {
+// A spawned worker's first key comes the same way, so a wrong one locks it with the real code and
+// the key stays held: everything the locked screen offers is served, and a retry opens in place.
+async function establishedIdentity(t) {
   const kek = kekHex()
-  const { config } = peerConfig(t)
+  const { home, config } = peerConfig(t)
   const first = await bootDurable({ ...config, identityKEK: kek }, { ipc: createFakeIpc().ipc, log: quiet })
   const profileKey = b4a.from(getProfileKey())
   await first.close()
+  return { kek, home, config, profileKey }
+}
 
+test('a wrong key locks the worker with its code, and a retry with the right one opens in place', async (t) => {
+  const { kek, config, profileKey } = await establishedIdentity(t)
   const { host, keyWait } = waitingWorker(t, config)
-  const wrong = await host.request('identity:unlock', { kek: kekHex() })
-  t.is(wrong.code, 'IDENTITY_UNLOCK_FAILED')
-  t.is((await host.request('identity:status')).data.code, 'IDENTITY_AWAITING_KEY', 'still waiting')
+  const wrong = kekHex()
+  t.is((await host.request('identity:unlock', { kek: wrong })).code, 'IDENTITY_UNLOCK_FAILED')
+  t.alike((await host.request('identity:status')).data, { locked: true, code: 'IDENTITY_UNLOCK_FAILED', restore: null }, 'locked, and says why')
+  t.is(keyWait.key.kek, wrong, 'the key it was handed is held to seal a recovery under')
   t.is((await host.request('identity:unlock', { kek: 'AB'.repeat(32) })).code, 'INVALID_ARGUMENT', 'uppercase is not the form a host sends')
+  t.is((await host.request('identity:unlock', { kek: kekHex() })).code, 'IDENTITY_UNLOCK_FAILED', 'another wrong key locks again')
   t.alike((await host.request('identity:unlock', { kek })).data, { ok: true }, 'the right key, no restart')
   await keyWait.booted
   t.alike(getProfileKey(), profileKey, 'the same identity')
+  t.alike((await host.request('identity:status')).data, { locked: false, code: null, restore: null })
+  t.is((await host.request('identity:unlock', { kek })).code, 'NOT_AUTHORIZED', 'and an open worker takes no key')
+})
+
+test('a locked worker serves the recovery actions a waiting one refuses', async (t) => {
+  const { config } = await establishedIdentity(t)
+  const { host } = waitingWorker(t, config)
+  await host.request('identity:unlock', { kek: kekHex() })
+  const peek = await host.request('backup:peek', { folder: path.join(config.storage, 'no-such-folder') })
+  t.is(peek.code, 'BACKUP_TARGET_OFFLINE', 'a backup is looked for, not refused')
+  const missing = await host.request('identity:unlock-from-backup', { folder: tmpDir('boot-unlock-empty'), passphrase: 'x' })
+  t.is(missing.code, 'BACKUP_TARGET_OFFLINE', 'an unlock from a backup is tried, not refused')
+  t.is((await host.request('identity:status')).data.code, 'IDENTITY_UNLOCK_FAILED', 'and a failed one leaves the lock as it was')
+})
+
+test('setting a locked identity aside opens a new one in place, sealed under the held key', async (t) => {
+  const { home, config, profileKey } = await establishedIdentity(t)
+  const { host, keyWait, opened } = waitingWorker(t, config)
+  const held = kekHex()
+  await host.request('identity:unlock', { kek: held })
+  const { folder } = (await host.request('identity:set-aside')).data
+  t.is(path.dirname(folder), home, 'the locked data is beside the store')
+  t.ok(fs.existsSync(path.join(folder, 'identity.enc')), 'with its envelope')
+  await keyWait.booted
+  t.alike(opened, [held, held], 'opened again, with the key the failed attempt handed over')
+  t.not(b4a.toString(getProfileKey(), 'hex'), b4a.toString(profileKey, 'hex'), 'a new identity')
+  t.alike((await host.request('identity:status')).data, { locked: false, code: null, restore: null }, 'open before the reply')
+  t.is((await host.request('identity:set-aside')).code, 'NOT_AUTHORIZED', 'an open identity is not set aside')
+})
+
+test('a staged identity change is put in place before the open, not left for a restart', async (t) => {
+  const { home, config } = await establishedIdentity(t)
+  requestSetAside(config.storage)
+  const { host, keyWait } = waitingWorker(t, config)
+  t.ok(fs.existsSync(path.join(home, 'identity.enc')), 'nothing moves while the worker waits')
+  t.alike((await host.request('identity:unlock', { kek: kekHex() })).data, { ok: true }, 'a key that could not open the old identity opens the fresh one')
+  await keyWait.booted
+  t.is(fs.readdirSync(home).filter((n) => n.startsWith('app-storage.locked-')).length, 1, 'the set-aside ran first')
 })
 
 test('only the host may hand over the key', async (t) => {
@@ -176,28 +227,31 @@ test('only the host may hand over the key', async (t) => {
 })
 
 // Every path a key travels, at the most verbose level, with the worker's own logger narrating the
-// boot: the key never appears in any form a log line could carry it.
-test('no log line carries the key, on any unlock path', async (t) => {
-  const kek = kekHex()
-  const { config } = peerConfig(t)
-  const first = await bootDurable({ ...config, identityKEK: kek }, { ipc: createFakeIpc().ipc, log: quiet })
-  await first.close()
+// boot: a frame that is not JSON, keys of the wrong length, a wrong key, a retry carrying a relay
+// seed, and a recovery that opens the identity under the held key. The key never appears in any
+// form a log line could carry it.
+test('no log line carries the key, on any unlock or recovery path', async (t) => {
+  const { config } = await establishedIdentity(t)
   setVerbose(t, true)
   const lines = capture(t, ['log', 'warn', 'error'])
   const { host, keyWait } = waitingWorker(t, config, { log: createLogger('worklet') })
 
   const wrong = kekHex()
+  const retry = kekHex()
+  const seed = kekHex()
   host.sendRaw(wrong + '\n')
   host.sendRaw('{"id":"m1","type":"identity:unlock","kek":"' + wrong + '"x\n')
   await host.request('identity:unlock', { kek: wrong.slice(2) })
   await host.request('identity:unlock', { kek: wrong + 'ff' })
-  await host.request('identity:unlock', { kek: wrong })
-  await host.request('identity:unlock', { kek, relaySeed: wrong })
+  t.is((await host.request('identity:unlock', { kek: wrong })).code, 'IDENTITY_UNLOCK_FAILED')
+  t.is((await host.request('identity:unlock', { kek: retry, relaySeed: seed })).code, 'IDENTITY_UNLOCK_FAILED')
+  t.ok((await host.request('identity:set-aside')).data.folder, 'the recovery opened the identity in place')
   await keyWait.booted
 
   const logged = [...lines.log, ...lines.warn, ...lines.error].join('\n')
   t.ok(logged.includes('identity:unlock'), 'the requests themselves were logged')
-  for (const key of [kek, wrong]) {
+  t.ok(logged.includes('identity:set-aside'), 'and the recovery')
+  for (const key of [wrong, retry, seed]) {
     const raw = b4a.from(key, 'hex')
     for (const [form, text] of [['hex', key], ['base64', b4a.toString(raw, 'base64')], ['bytes', b4a.toString(raw, 'latin1')]]) {
       t.absent(logged.includes(text.slice(0, 12)), `no ${form} form of a key`)

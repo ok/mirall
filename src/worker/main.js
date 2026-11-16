@@ -266,16 +266,24 @@ const openRecovery = createPassphraseThrottle()
 const { memberRegistry, handleMembershipControl, discardPendingSpace } =
   createMembership(ipc, { log, dropSpaceDownloadRoot })
 
+// The key, the lock and the recoveries (key-wait.js). Every opening — the first key, a retry, and a
+// recovery on a locked worker — runs openIdentity, so a pending identity change is always put in
+// place before the store opens, and the worker goes live in the same process.
+const keyWait = createKeyWait({ open: openIdentity })
+const heldKEK = () => keyWait.key?.kek
+
 // The handlers a worker serves whether or not its identity opened: stopping it, the identity's own
 // surface, a restore from backup and the unlock. Registered once, before the boot, because what
-// they answer follows `lockedBy` and the key on the bootstrap, and an unlock changes both.
-let lockedBy = null
+// they answer follows the key wait's lock code and held key, which every attempt changes.
 registerWorkerProcess(ipc, { stop: () => { safeShutdown('shutdown-request') } })
 registerIdentity(ipc, {
-  storagePath: bootstrap.storage, identityKEK: () => bootstrap.identityKEK, log, lockedBy: () => lockedBy, openRecovery,
+  storagePath: bootstrap.storage, identityKEK: heldKEK, log, lockedBy: () => keyWait.code, recover: keyWait.recover, openRecovery,
   restoreStatus: () => root?.restoreCatchUp?.status() ?? null,
 })
-registerBackupRestore(ipc, { storagePath: bootstrap.storage, identityKEK: () => bootstrap.identityKEK, log, lockedBy: () => lockedBy, openRecovery })
+registerBackupRestore(ipc, {
+  storagePath: bootstrap.storage, identityKEK: heldKEK, log, lockedBy: () => keyWait.code, recover: keyWait.recover, openRecovery,
+})
+registerIdentityUnlock(ipc, { unlock: keyWait.unlock })
 
 // The root constructs everything it needs; the membership collaborators and publishRevealRoots
 // are passed in because they close over state that belongs here.
@@ -293,33 +301,31 @@ function bootDataLayer() {
   })
 }
 
-// A worker started without a host has no key until a client hands it over (key-wait.js). The key
-// is then the bootstrap's, so the boot is the one a spawned worker runs with the key it was sent;
-// a key that fails is taken back, and boot() has already closed what it started.
-const keyWait = createKeyWait({
-  awaiting: headless && !bootstrap.identityKEK,
-  boot: async ({ kek, relaySeed }) => {
-    bootstrap.identityKEK = kek
-    bootstrap.relaySeed = relaySeed
-    try {
-      return await bootDataLayer()
-    } catch (err) {
-      bootstrap.identityKEK = undefined
-      bootstrap.relaySeed = undefined
-      root = null
-      throw err
-    }
-  },
-})
-registerIdentityUnlock(ipc, { unlock: keyWait.unlock })
+// The key becomes the bootstrap's, so the boot is the one a host's key always ran. A store's files
+// cannot move under an open database, so a staged restore, a set-aside or an adopted identity is put
+// in place first; the settings a restore brought back reach the runtime config before the boot reads
+// it. A boot that fails has already closed what it started.
+/** @param {import('./key-wait.js').HandedKey} key */
+async function openIdentity({ kek, relaySeed }) {
+  bootstrap.identityKEK = kek
+  bootstrap.relaySeed = relaySeed ?? undefined
+  await applyPendingIdentityChange(bootstrap.storage)
+  setRuntimeConfig(assembleRuntimeConfig({ bootstrap, settings: getSettings(), flags }))
+  try {
+    root = await bootDataLayer()
+  } catch (err) {
+    root = null
+    throw err
+  }
+  goLive(root)
+  return root
+}
 
 // The router goes live with only the handlers above, and every client is told the worker is up and
 // reads why from identity:status. A key that cannot open this identity locks the worker instead of
-// crashing it: the renderer shows the recovery screen, and the store is free for a recovery key to
-// be checked against. That worker parks; the next generation, after an import or a set-aside, boots
-// normally.
-function serveRecoveryOnly(code) {
-  lockedBy = code
+// crashing it: the renderer shows the recovery screen, the store is free for a recovery key to be
+// checked against, and a recovery or another key opens it in place.
+function serveRecoveryOnly() {
   ipc.onClientAttach((client) => {
     ipc.emit('event:worker-ready', { epoch: ipc.epoch, head: ipc.head() }, { to: client })
   })
@@ -327,89 +333,97 @@ function serveRecoveryOnly(code) {
   ipc.start()
 }
 
-await applyPendingIdentityChange(bootstrap.storage)
-if (keyWait.awaiting) {
-  log.warn('waiting for the identity key (identity:unlock)')
-  serveRecoveryOnly(CODES.IDENTITY_AWAITING_KEY)
-  root = await keyWait.booted
-  lockedBy = null
-} else {
+// A key on the spawn frame is still honoured through 1.14.
+if (bootstrap.identityKEK) {
   try {
-    root = await bootDataLayer()
+    await keyWait.unlock({ kek: bootstrap.identityKEK, relaySeed: bootstrap.relaySeed ?? null })
   } catch (err) {
     if (!IDENTITY_LOCK_CODES.includes(err?.code)) throw err
-    root = null
-    log.warn('identity locked, serving recovery only:', err.code)
-    serveRecoveryOnly(err.code)
-    await new Promise(() => {})
   }
 }
-const { mounts, intents, applyRelayConfig, overlayBackend } = root
-const mountOwnedShare = createOwnedMounter({ ipc, mounts })
+if (keyWait.code) {
+  log.warn(keyWait.code === CODES.IDENTITY_AWAITING_KEY ? 'waiting for the identity key (identity:unlock)' : 'identity locked, serving recovery only: ' + keyWait.code)
+  serveRecoveryOnly()
+}
+// A boot that fails for any reason but the key ends the worker here, as it always has; one cut short
+// by a shutdown leaves the exit to the shutdown.
+try {
+  await keyWait.booted
+} catch (err) {
+  if (!shuttingDown) throw err
+  await new Promise(() => {})
+}
 
-// === IPC: folder-share handlers (shares, owned & foreign mounts) ===
+// Every handler the open data layer serves, registered once the identity opens and before the
+// request that opened it is answered, so the client that sent it finds them all.
+function goLive(opened) {
+  const { mounts, intents, applyRelayConfig, overlayBackend } = opened
+  const mountOwnedShare = createOwnedMounter({ ipc, mounts })
 
-registerShares(ipc, { log, intents, mountOwnedShare, chooseFolder })
+  // === IPC: folder-share handlers (shares, owned & foreign mounts) ===
 
-registerFolderPreview(ipc)
+  registerShares(ipc, { log, intents, mountOwnedShare, chooseFolder })
 
-registerOwnedFolders(ipc, { log, mounts, intents, mountOwnedShare })
+  registerFolderPreview(ipc)
 
-registerForeignFolders(ipc, { log, intents })
+  registerOwnedFolders(ipc, { log, mounts, intents, mountOwnedShare })
 
-// === IPC: profile & space handlers ===
+  registerForeignFolders(ipc, { log, intents })
 
-registerProfile(ipc, { log })
+  // === IPC: profile & space handlers ===
 
-registerSpaces(ipc, { log, chooseFolder })
+  registerProfile(ipc, { log })
 
-registerBackup(ipc, { backup: root.backup, paused: root.backupPaused, openRecovery })
+  registerSpaces(ipc, { log, chooseFolder })
 
-registerSpaceLeave(ipc, { log, mounts, overlayBackend, discardPendingSpace, dropSpaceDownloadRoot })
+  registerBackup(ipc, { backup: opened.backup, paused: opened.backupPaused, openRecovery })
 
-// === IPC: presence, file & transfer handlers ===
+  registerSpaceLeave(ipc, { log, mounts, overlayBackend, discardPendingSpace, dropSpaceDownloadRoot })
 
-registerFiles(ipc, { log, chooseFolder })
+  // === IPC: presence, file & transfer handlers ===
 
-// A test that turned the file watchers off delivers the file events itself.
-if (areFileWatchersOff()) registerTestFsEvents(ipc, { log })
+  registerFiles(ipc, { log, chooseFolder })
 
-// === IPC: feedback, storage & settings handlers ===
+  // A test that turned the file watchers off delivers the file events itself.
+  if (areFileWatchersOff()) registerTestFsEvents(ipc, { log })
 
-registerSettings(ipc, { mounts, publishRevealRoots })
-registerStorage(ipc)
-registerFeedback(ipc)
-registerNetwork(ipc, { applyRelayConfig })
-registerDiagnostics(ipc, { health, getRoot: () => root })
+  // === IPC: feedback, storage & settings handlers ===
 
-// === IPC: audit log ===
+  registerSettings(ipc, { mounts, publishRevealRoots })
+  registerStorage(ipc)
+  registerFeedback(ipc)
+  registerNetwork(ipc, { applyRelayConfig })
+  registerDiagnostics(ipc, { health, getRoot: () => root })
 
-registerAudit(ipc)
+  // === IPC: audit log ===
 
-// === IPC: organization configuration ===
+  registerAudit(ipc)
 
-registerManaged(ipc, { service: root.managed })
+  // === IPC: organization configuration ===
 
-// === Go live: flush queued frames, announce ready ===
+  registerManaged(ipc, { service: opened.managed })
 
-// What every client is told on arrival, recomputed per client rather than replayed from boot, so a
-// client that attaches later — or the same renderer after a reload — hears the same. Going live
-// again greets every client already attached to a worker that waited for its key.
-ipc.onClientAttach(async (client) => {
-  // The coordinates ride the greeting, so a client learns where the stream is without asking: the
-  // epoch tells it whether this is the worker it was talking to, and head where the numbering is.
-  ipc.emit('event:worker-ready', { epoch: ipc.epoch, head: ipc.head() }, { to: client })
-  const profile = await getProfile()
-  refreshAuditSelfName(profile?.displayName)
-  if (!profile) ipc.emit('event:profile-needed', {}, { to: client })
-  else ipc.emit('event:state', { profile, spaces: await slimSpaces(profile) }, { to: client })
-})
+  // === Go live: flush queued frames, announce ready ===
 
-health.start()
-ipc.start()
+  // What every client is told on arrival, recomputed per client rather than replayed from boot, so a
+  // client that attaches later — or the same renderer after a reload — hears the same. Going live
+  // again greets every client already attached to a worker that waited for its key.
+  ipc.onClientAttach(async (client) => {
+    // The coordinates ride the greeting, so a client learns where the stream is without asking: the
+    // epoch tells it whether this is the worker it was talking to, and head where the numbering is.
+    ipc.emit('event:worker-ready', { epoch: ipc.epoch, head: ipc.head() }, { to: client })
+    const profile = await getProfile()
+    refreshAuditSelfName(profile?.displayName)
+    if (!profile) ipc.emit('event:profile-needed', {}, { to: client })
+    else ipc.emit('event:state', { profile, spaces: await slimSpaces(profile) }, { to: client })
+  })
 
-log.info('ready')
-// From here a fault storm is the worker's own failure, not a boot that has not finished, so the
-// backstop may escalate. Set after the router goes live so the renderer has already recorded this
-// generation as booted before any escalation can end it.
-bootComplete = true
+  health.start()
+  ipc.start()
+
+  log.info('ready')
+  // From here a fault storm is the worker's own failure, not a boot that has not finished, so the
+  // backstop may escalate. Set after the router goes live so the renderer has already recorded this
+  // generation as booted before any escalation can end it.
+  bootComplete = true
+}
