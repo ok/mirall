@@ -15,6 +15,9 @@ import { purgeAudit } from '../../src/shared/audit/audit-reclaim.js'
 import { getManagedOverlay } from '../../src/shared/core/managed-overlay.js'
 import { setAsideLockedData } from '../../src/shared/core/identity-set-aside.js'
 import { queryAudit } from '../../src/shared/audit/audit-query.js'
+import { socketOf } from '../helpers/relayed-socket.js'
+import { trackConnection, resetRelayedConnections } from '../../src/shared/network/relayed-connections.js'
+import { socketMsgHandlers } from '../../src/shared/network/swarm-registries.js'
 
 const SIGNER = signer()
 const ACME = { name: 'Acme Test GmbH', supportEmail: 'it@acme.example' }
@@ -332,4 +335,70 @@ test('REGRESSION (FIX-MANAGED-2: poll re-armed across a Connect): a poll still a
   const again = await rebootPeer(t, p)
   wire(again)
   t.is((await again.fake.call('managed:get', {})).organization.name, BETA.name, 'the stored organization is the one connected')
+})
+
+// A direct control connection, registered the way a real one is, which unregisters itself on close.
+function openDirectConnection(t) {
+  const socket = socketOf()
+  trackConnection(socket, { plane: 'control', memberOf: () => null })
+  socketMsgHandlers.set(socket, {})
+  socket.once('close', () => socketMsgHandlers.delete(socket))
+  t.teardown(() => { socketMsgHandlers.clear(); resetRelayedConnections() })
+}
+
+test('the organization\'s relay mode reaches the live connections; a change that leaves it as it was reconnects nothing', async (t) => {
+  const p = await setup(t)
+  const now = Math.floor(Date.now() / 1000)
+  p.serve({ ...LOCKS, 'network.relayMode': 'auto' }, { issuedAt: now })
+  await p.fake.call('managed:accept', { code: p.org.code })
+  openDirectConnection(t)
+  p.serve({ ...LOCKS, 'network.relayMode': 'auto', 'audit.retentionDays': 365 }, { issuedAt: now + 10 })
+  await p.root.managed.refreshHttps()
+  t.is(getAuditConfig().retentionDays, 365, 'the update is applied')
+  t.is(socketMsgHandlers.size, 1, 'and the connection is kept')
+  p.serve({ ...LOCKS, 'network.relayMode': 'always' }, { issuedAt: now + 20 })
+  await p.root.managed.refreshHttps()
+  t.is(getRelayConfig().mode, 'always')
+  await waitFor(() => socketMsgHandlers.size === 0, 5000, { label: 'the direct connection dropped' })
+  t.pass('a direct connection the new mode forbids is reconnected')
+})
+
+// The test arms each poll itself and records the delay the module asked for, so a sequence of
+// backoffs that would take an hour runs at once.
+function stepPolls(t, managed) {
+  const delays = []
+  const arm = managed.scheduleHttps.bind(managed)
+  managed.scheduleHttps = (ms) => { delays.push(ms) }
+  const random = Math.random
+  t.teardown(() => { Math.random = random })
+  return {
+    delays,
+    async next({ draw = 0.5 } = {}) {
+      const seen = delays.length
+      Math.random = () => draw
+      arm(0)
+      await waitFor(() => delays.length > seen, 5000, { label: 'the next poll armed' })
+      Math.random = random
+      return delays.at(-1)
+    },
+  }
+}
+
+test('the poll backs off while the Console fails, resets once it answers, and its jitter stays within 10%', async (t) => {
+  const p = await setup(t)
+  const POLL = 600_000
+  setRuntimeConfig({ ...getRuntimeConfig(), managedHttpsPollMs: POLL })
+  const polls = stepPolls(t, p.root.managed)
+  p.serve(LOCKS)
+  await p.fake.call('managed:accept', { code: p.org.code })
+  t.alike(polls.delays, [POLL], 'a new connection polls next after the interval')
+  t.is(await polls.next(), POLL, 'an answer waits the interval')
+  p.api.set({ status: 500 })
+  for (const ms of [60_000, 120_000, 240_000, 480_000, POLL, POLL]) t.is(await polls.next(), ms, `a failure waits ${ms} ms, doubling up to the interval`)
+  p.serve(LOCKS)
+  t.is(await polls.next(), POLL, 'an answer resets the backoff')
+  p.api.set({ status: 500 })
+  t.is(await polls.next(), 60_000, 'so the next failure starts over')
+  t.is(await polls.next({ draw: 0 }), 108_000, 'the earliest a poll is moved is 10% sooner')
+  t.is(await polls.next({ draw: 1 - Number.EPSILON }), 264_000, 'and the latest 10% later')
 })
