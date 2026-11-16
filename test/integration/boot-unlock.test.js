@@ -258,3 +258,27 @@ test('no log line carries the key, on any unlock or recovery path', async (t) =>
     }
   }
 })
+
+test('REGRESSION (FIX-UNLOCK-2): a connection with identity:unlock in flight survives a sweep past keepalive and grace, and is reaped once it is idle', async (t) => {
+  const ipc = createIPC(null)
+  let release = () => {}
+  const gate = new Promise((resolve) => { release = resolve })
+  registerIdentityUnlock(ipc, { unlock: () => gate })
+  ipc.start()
+  const host = clientPipe()
+  ipc.attach(host, { trust: TRUST.HOST })
+  sayHello(host)
+  const asked = host.request('identity:unlock', { kek: kekHex() })
+  await waitFor(() => ipc.inFlightCount() === 1, 5000, { label: 'unlock in flight' })
+
+  ipc.sweepLiveness({ keepaliveMs: 0, graceMs: 0 })
+  ipc.sweepLiveness({ keepaliveMs: 0, graceMs: 0 })
+  t.is(ipc.clientCount(), 1, 'the host that asked for the boot is still attached')
+  t.is(ipc.inFlightCount(), 1, 'and its unlock is still running')
+
+  release()
+  t.alike((await asked).data, { ok: true })
+  ipc.sweepLiveness({ keepaliveMs: 0, graceMs: 0 })
+  ipc.sweepLiveness({ keepaliveMs: 0, graceMs: 0 })
+  t.is(ipc.clientCount(), 0, 'with nothing in flight it is swept like any quiet client')
+})

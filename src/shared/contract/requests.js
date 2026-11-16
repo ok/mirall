@@ -26,8 +26,10 @@ import { ARG_MAX, BATCH_MAX_ITEMS } from './limits.js'
 // `minItems`, `maxItems` and `itemMax` bound an array the way `max` bounds a string.
 /** @typedef {{ type: ArgType, optional?: boolean, max?: number, minItems?: number, maxItems?: number, itemMax?: number }} ArgRule */
 // `deadlineMs` is optional and read by contract/request-deadlines.js: a row that omits it takes its
-// kind's default, and 0 means the request is deliberately unbounded.
-/** @typedef {{ kind: 'query' | 'command', args: Record<string, ArgRule>, deadlineMs?: number }} RequestSpec */
+// kind's default, and 0 means the request is deliberately unbounded. `opensIdentity` marks a request
+// whose answer is the worker's own boot: the client waiting for it is not asked to prove it is alive
+// (ipc-liveness.js), because a boot can starve the very loop that would read its answer.
+/** @typedef {{ kind: 'query' | 'command', args: Record<string, ArgRule>, deadlineMs?: number, opensIdentity?: boolean }} RequestSpec */
 /** @typedef {Record<string, string | number | boolean | readonly string[] | null | undefined>} RequestParams */
 
 /** @internal @satisfies {Readonly<Record<ArgType, ArgType>>} */
@@ -66,7 +68,7 @@ export const REQUESTS = Object.freeze({
     prompt: { type: ARG.string, max: ARG_MAX.name },
   } },
   'backup:reminders': { kind: 'command', args: { enabled: { type: ARG.boolean } } },
-  'backup:restore': { kind: 'command', deadlineMs: 0, args: {
+  'backup:restore': { kind: 'command', deadlineMs: 0, opensIdentity: true, args: {
     folder: { type: ARG.path, max: ARG_MAX.path },
     passphrase: { type: ARG.string, max: ARG_MAX.text },
     snapshot: { type: ARG.string, max: ARG_MAX.key },
@@ -207,8 +209,8 @@ export const REQUESTS = Object.freeze({
     mountPath: { type: ARG.path, max: ARG_MAX.path },
     shareId: { type: ARG.shareId, optional: true },
   } },
-  'identity:set-aside': { kind: 'command', args: {} },
-  'identity:unlock-from-backup': { kind: 'command', deadlineMs: 0, args: {
+  'identity:set-aside': { kind: 'command', opensIdentity: true, args: {} },
+  'identity:unlock-from-backup': { kind: 'command', deadlineMs: 0, opensIdentity: true, args: {
     folder: { type: ARG.path, max: ARG_MAX.path },
     passphrase: { type: ARG.string, max: ARG_MAX.text },
   } },
@@ -216,7 +218,7 @@ export const REQUESTS = Object.freeze({
   // The identity's key, for a worker that waits for one or is locked by a key that could not open
   // it. Unbounded: a good key boots the data layer, migrations included. relaySeed is optional
   // because a profile with no private relay has none.
-  'identity:unlock': { kind: 'command', deadlineMs: 0, args: {
+  'identity:unlock': { kind: 'command', deadlineMs: 0, opensIdentity: true, args: {
     kek: { type: ARG.string, max: ARG_MAX.key },
     relaySeed: { type: ARG.string, optional: true, max: ARG_MAX.key },
   } },
