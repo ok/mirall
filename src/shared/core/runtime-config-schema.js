@@ -33,15 +33,17 @@ function isRuled(row) {
 }
 
 // Paths / opaque strings; a falsy override means "unset". dhtBootstrap is a test lever (a local
-// testnet instead of the public DHT); production never sets it.
-const NULLABLE = ['storage', 'appVersion', 'downloadFolder', 'defaultDownloadFolder', 'dhtBootstrap', 'upgradeKey', 'backupFolder', 'backupRepoId', 'managedTestSigningKey']
+// testnet instead of the public DHT); production never sets it. testRunName is the run the test run
+// file names, stamped on the transfer trace.
+const NULLABLE = ['storage', 'appVersion', 'downloadFolder', 'defaultDownloadFolder', 'dhtBootstrap', 'upgradeKey', 'backupFolder', 'backupRepoId', 'managedTestSigningKey', 'testRunName']
 
 // Dev toggles and staged security enforcement, default-off. membershipControlBindingEnforced on
 // refuses a membership:cancel or membership:deny that names no sender. topicRefsEnforced on ignores a
 // space named by its bearer topic, and sends a space's identity, leave and cancel frames only to a
 // socket that named that space first. logTimestamps puts the time on each log line, for a worker
-// whose output nobody else stamps.
-const BOOLEAN = ['dev', 'verbose', 'membershipControlBindingEnforced', 'topicRefsEnforced', 'identityWeak', 'managedAllowHttpLoopback', 'logTimestamps']
+// whose output nobody else stamps. transferTrace records what the transport, the transfer engine and
+// the host do each second of a transfer; only the test run file turns it on.
+const BOOLEAN = ['dev', 'verbose', 'membershipControlBindingEnforced', 'topicRefsEnforced', 'identityWeak', 'managedAllowHttpLoopback', 'logTimestamps', 'transferTrace']
 
 // Keys production never sets, each defaulting to "off"; tests set them for a deterministic
 // reproduction.

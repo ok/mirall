@@ -31,7 +31,7 @@ export class ChunkScheduler {
   // onVerify(fraction, recoveredBytes), onBaseline(have), onEnd(report), contentHash (verified
   // incrementally), size (the catalog size the map must describe), parentMustExist (handed to
   // startReceive), limiter (the download cap), peerBytes(peer) (transport RX counter),
-  // keepAliveMaxSilence, minLivenessBytes, abandonSlackBytes, reportInterval.
+  // keepAliveMaxSilence, minLivenessBytes, abandonSlackBytes, reportInterval, onStall().
   constructor(opts) {
     this.path = opts.path
     this.destPath = opts.destPath
@@ -89,7 +89,7 @@ export class ChunkScheduler {
         inflightPeers: () => this._peerInflight,
         owedBytes: (peer) => this._owedBytes(peer),
       },
-      onStall: (err) => this._fail(err),
+      onStall: (err) => { opts.onStall?.(); this._fail(err) },
     })
     this.liveness.arm()
   }
@@ -213,7 +213,6 @@ export class ChunkScheduler {
   /** @internal */
   receivedFrom(peer) { return this._received.get(peer) ?? 0 }
 
-  /** @internal */
   inflightFor(peer) { return this._peerInflight.get(peer) ?? 0 }
 
   /** @internal */

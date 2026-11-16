@@ -944,6 +944,30 @@ The terminal set and its clearing rules live in
 | `clearPending` on discard | rethrown before anything destructive | a live row whose partial is gone would auto-resume from zero a discarded transfer |
 | `recordPendingError` | never throws; the code is held in memory | suppresses auto-resume until restart |
 
+### 4.5b Transfer trace
+
+A recording of what a transfer was doing, for telling a slow path from a slow engine. It is off in
+every ordinary run: the **test run file** (`transfer-test.json` beside `settings.json`,
+`src/shared/core/test-run-file.js`) is read once at worker start as a fourth runtime-config source,
+below the bootstrap frame and above the settings, and is the only thing that turns it on. The file
+is written whole by a test script and never by the app, so removing it restores the shipped app.
+
+- **What is recorded** (`src/shared/transfer/trace/`). Once a second while a fetch or a serve is
+  running: every transfer connection's transport figures (window, round trip, packet size,
+  retransmits, timeouts, kernel drops, buffer sizes), each fetch's and each served peer's engine
+  counts (`HyperOverlayV2.traceSnapshot()`), and the worker's loop lag and CPU. Events are written
+  as they happen: a connection opening, closing or changing path, a fetch or serve starting and
+  ending, a holder handing chunks back, the watchdog firing, a drain wait abandoned.
+- **Both sides record.** The congestion figures exist only at the sender, the request and stash
+  figures only at the receiver; one side alone cannot separate them.
+- **No identifying data.** `trace-record.js` builds every line from an allow-list of numbers, flags
+  and closed vocabularies. A connection and a transfer are per-session numbers; the destination
+  path that keys a transfer stays in memory. `test/unit/transfer-trace.test.js` holds that.
+- **Bounded on disk.** `transfer-trace/trace.ndjson` in the data folder is set aside as
+  `trace.previous.ndjson` at its size limit, replacing the one before.
+- **It changes nothing it measures.** No default moves with it, and with no sink installed every
+  hook in the transfer path returns at once and no listener is attached.
+
 ### 4.6 Startup reconnection
 
 Boot order is `src/worker/boot.js`. Three constraints in it are load-bearing:

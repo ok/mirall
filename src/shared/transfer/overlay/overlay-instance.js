@@ -23,6 +23,8 @@ import { getOverlayServeLimit, getBandwidthLimits, getServeChunkMapCacheBytes } 
 import { createBandwidthLimiter } from '../bandwidth-limiter.js'
 import { createChunkMapCache } from '../chunk-map-cache.js'
 import { createLogger } from '../../core/logger.js'
+import { traceEvent, traceConnection } from '../trace/trace-sink.js'
+import { TRACE_EVENTS } from '../trace/trace-record.js'
 
 const log = createLogger('overlay')
 
@@ -70,6 +72,11 @@ export function getOverlay() {
   return overlay
 }
 
+// The swarm socket an overlay protocol peer rides, or null once it is gone.
+export function socketOfOverlayPeer(peer) {
+  return peerSocket.get(peer) ?? null
+}
+
 export async function initOverlay() {
   if (overlay) return overlay
   serveLimiter = createRateLimiter(getOverlayServeLimit())
@@ -114,15 +121,24 @@ export async function initOverlay() {
     holderAuthorizer,                         // picks which peers an outbound content-request goes to
     // Sender-side download indicator: the protocol serves by synthetic path
     // 'content:<hash>'; strip it to the hash the serve ledger resolves to a file.
-    onServeStart: ({ from, path, total }) => ledgerServeStart({ from, contentHash: contentHashOf(path), total }),
+    onServeStart: ({ from, path, total, peer }) => {
+      traceEvent(TRACE_EVENTS.SERVE_START, { peer })
+      ledgerServeStart({ from, contentHash: contentHashOf(path), total })
+    },
     onChunkServe: ({ from, path, bytes }) => ledgerChunkServed({ from, contentHash: contentHashOf(path), bytes }),
-    onServeEnd: ({ from, path }) => ledgerServeEnd({ from, contentHash: contentHashOf(path) }),
+    onServeEnd: ({ from, path, peer }) => {
+      traceEvent(TRACE_EVENTS.SERVE_END, { peer })
+      ledgerServeEnd({ from, contentHash: contentHashOf(path) })
+    },
     // pause → relabel; stop → drop. Resume rides a fresh content-request → onServeStart.
     onServeControl: ({ from, path, state }) => ledgerServeControl({ from, contentHash: contentHashOf(path), state }),
     // Resume baseline: the downloader's true on-disk have-bytes raise its ledger row.
     onServeProgress: ({ from, path, have }) => ledgerServeBaseline({ from, contentHash: contentHashOf(path), have }),
     uploadLimiter,
     downloadLimiter,
+    // The engine's own events (a holder handing chunks back, the watchdog, an abandoned drain
+    // wait) carry the kind as the trace names it.
+    onTrace: traceEvent,
     // Decoded chunk maps, shared by every serve loop and bounded by bytes; cleared by the
     // index on close, so nothing to tear down here. 0 disables it (runtime-config).
     chunkMapCache: createChunkMapCache({ maxBytes: getServeChunkMapCacheBytes() }),
@@ -151,7 +167,9 @@ export async function initOverlay() {
 export function attachOverlay(mux, socket) {
   if (!overlay) return
   const peer = overlay.attachProtocol(mux) // protocol 'hyper-overlay/v2' on the SAME mux as mirall/handshake
-  if (peer) peerSocket.set(peer, socket)
+  if (!peer) return
+  peerSocket.set(peer, socket)
+  traceConnection(socket)
 }
 
 // Stop serving the content this space advertises. The serve grant is cached per (peer, hash) at

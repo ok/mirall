@@ -114,6 +114,7 @@ export class HyperOverlayV2 extends ReadyResource {
       uploadLimiter: o.uploadLimiter || null,
       downloadLimiter: o.downloadLimiter || null,
       serveFdIdleMs: o.serveFdIdleMs,
+      onTrace: o.onTrace || null,
     })
     this._index = index
     this._transfer = transfer
@@ -128,6 +129,13 @@ export class HyperOverlayV2 extends ReadyResource {
   }
 
   get peerCount() { return this._protocol ? this._protocol.peerCount : 0 }
+
+  // Every running fetch and every served peer as counts. Fetches are keyed by destination path and
+  // both carry peer objects: the caller numbers them before recording anything.
+  traceSnapshot() {
+    if (!this._protocol) return { fetches: [], serves: [] }
+    return { fetches: this._protocol.fetches.snapshot(), serves: this._protocol.serve.snapshot() }
+  }
 
   // The overlay's local-only cores (file-index and its version marker), so the leftover scan can
   // treat them as wanted and the storage breakdown can size them.

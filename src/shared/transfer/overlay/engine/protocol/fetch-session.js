@@ -11,6 +11,7 @@
 
 import fs from 'bare-fs'
 import { ChunkScheduler } from '../scheduler/scheduler.js'
+import { fetchStats } from '../scheduler/fetch-stats.js'
 import { codedError, isDestinationFault } from '../local-faults.js'
 import { contentHashOf, contentPath } from '../content-path.js'
 import { CONTROL_PAUSED, CONTROL_STOPPED } from '../wire/messages.js'
@@ -36,12 +37,14 @@ import { peerRxBytes } from './transport-probe.js'
 export class FetchSession {
   // `pages` is the chunk-list assembler; `peers` lists the attached peers; `localProfileKey` is
   // stamped on every content request so the holder's serve gate can authenticate the asker.
-  constructor({ transfer, pages, peers, downloadLimiter = null, localProfileKey = null }) {
+  // `onTrace(kind, fields)` hears a holder handing chunks back and the watchdog firing.
+  constructor({ transfer, pages, peers, downloadLimiter = null, localProfileKey = null, onTrace = null }) {
     this._transfer = transfer
     this._pages = pages
     this._peers = peers
     this._downloadLimiter = downloadLimiter
     this._localProfileKey = localProfileKey
+    this._onTrace = onTrace
     /** @type {Map<string, FetchHandle>} */
     this._handles = new Map()
     // Per hash, the callers that cancelled before their fetch arrived (their peer-wait window).
@@ -77,6 +80,7 @@ export class FetchSession {
       // scheduler racing the bucket directly would starve every transfer waiting its turn.
       limiter: this._downloadLimiter ? this._downloadLimiter.stream() : null,
       peerBytes: peerRxBytes,
+      onStall: () => this._trace('watchdog', { key: opts.destPath }),
     })
     /** @type {FetchHandle} */
     const handle = { sched, by, joiners: new Set(), done: sched.promise().finally(() => this._handles.delete(contentHash)) }
@@ -166,7 +170,16 @@ export class FetchSession {
 
   // Failover: each fetch reassigns this peer's inflight chunks to the remaining peers.
   removePeer(peer) {
-    for (const { sched } of this._handles.values()) sched.removePeer(peer)
+    for (const { sched } of this._handles.values()) {
+      const held = sched.inflightFor(peer)
+      sched.removePeer(peer)
+      if (held > 0) this._trace('handback', { key: sched.destPath, peer, n: held })
+    }
+  }
+
+  // Every running fetch as counts.
+  snapshot() {
+    return [...this._handles.values()].map(({ sched }) => fetchStats(sched, this._transfer.receiveState(sched.destPath)))
   }
 
   get size() { return this._handles.size }
@@ -214,6 +227,11 @@ export class FetchSession {
     handle.joiners.delete(joiner)
     joiner.drop(codedError('fetch cancelled', 'ECANCELLED'))
     return true
+  }
+
+  _trace(kind, fields) {
+    if (!this._onTrace) return
+    try { this._onTrace(kind, fields) } catch {}
   }
 
   _takePendingCancel(contentHash, by) {
