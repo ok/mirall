@@ -72,18 +72,26 @@ function socketPathOf(worker) {
   return Promise.race([announced.promise, timeout]).finally(() => clearTimeout(timer))
 }
 
+// The key rides the spawn frame only when this is true: the way back, should a launch turn out unable
+// to hand the key over its socket. The worker still honours a key on the bootstrap through 1.14, so
+// flipping it is a change to main alone. It is a source constant, not a setting: no environment
+// variable, preference or message can turn a secret onto the pipe. Tests inject it via initWorkerHost.
+const KEY_ON_SPAWN_FRAME = false
+
 // Bound by the entry. identityKEK is a getter, not a value: it is resolved inside whenReady, after
 // this module is required but before the first spawn, and a spawn reads it then.
 let getPear = null
 let isDev = false
 let identityKEK = () => null
 let identityWeak = () => false
+let keyOnSpawnFrame = KEY_ON_SPAWN_FRAME
 
 function initWorkerHost(d) {
   getPear = d.getPear
   isDev = d.isDev
   identityKEK = d.identityKEK
   identityWeak = d.identityWeak ?? (() => false)
+  keyOnSpawnFrame = d.keyOnSpawnFrame ?? KEY_ON_SPAWN_FRAME
 }
 
 function revealRoots() { return workerRevealRoots }
@@ -194,7 +202,7 @@ async function handKey(socketPath, { kek, relaySeed }) {
 // then the quit backstop still covers it.
 function startWorker(worker, specifier, key) {
   const run = socketPathOf(worker).then(async (socketPath) => {
-    await handKey(socketPath, key)
+    if (!keyOnSpawnFrame) await handKey(socketPath, key)
     return socketPath
   }).catch(async (err) => {
     console.warn('worker start failed:', err.code || err.message)
@@ -307,6 +315,8 @@ function getWorker(specifier) {
     // No OS keychain holds the identity key here, so the backup is offered on day one.
     identityWeak: identityWeak(),
   }
+  const key = currentKey(p.storage)
+  if (keyOnSpawnFrame) Object.assign(bootstrap, { identityKEK: key.kek, relaySeed: key.relaySeed })
   // Neither frame's loss can be absorbed: without the hello the worker refuses everything that
   // follows, and without the bootstrap it has no storage path, and it never asks again. Caching such a worker would leave `pear:startWorker` reporting
   // success while every later renderer request hangs against a process that can never answer, so it
@@ -315,7 +325,7 @@ function getWorker(specifier) {
     try { worker.destroy() } catch {}
     throw new Error('worker handshake write failed')
   }
-  started.set(worker, startWorker(worker, specifier, currentKey(p.storage)))
+  started.set(worker, startWorker(worker, specifier, key))
 
   const frames = createWorkerFrameReader()
   worker.on('data', (data) => {

@@ -46,7 +46,7 @@ function stubWorker({ exitsOnShutdown = false } = {}) {
 }
 
 // The gate is reloaded with the host, so no test inherits another's packaging.
-function load({ worker = stubWorker(), spawn = () => worker, config = {}, flags = {}, isPackaged = false, storage = '/tmp/mirall-test' } = {}) {
+function load({ worker = stubWorker(), spawn = () => worker, config = {}, flags = {}, isPackaged = false, storage = '/tmp/mirall-test', keyOnSpawnFrame } = {}) {
   const { electron, modules } = loadWithFakeElectron(
     ['src/main/env-overrides.js', 'src/main/settings-ipc.js', 'src/main/worker-host.js'],
     { app: { isPackaged, getPath: () => '/tmp/mirall-test-downloads' } },
@@ -59,6 +59,7 @@ function load({ worker = stubWorker(), spawn = () => worker, config = {}, flags 
     getPear: () => ({ run: () => spawn(), storage }),
     isDev: true,
     identityKEK: () => flags.identityKEK ?? null,
+    keyOnSpawnFrame,
   })
   return { host, worker, electron }
 }
@@ -473,6 +474,41 @@ test('"try again" on a key that locks the worker again is false, not an error; a
   await t.exception(host.retryUnlock(MAIN_WORKER_SPEC))
 })
 
+test('the way back: with the key on the spawn frame the worker is not unlocked at spawn, and the start settles on its socket', async (t) => {
+  const storage = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'worker-host-relay-')), 'app-storage')
+  t.teardown(() => fs.rmSync(path.dirname(storage), { recursive: true, force: true }))
+  fs.mkdirSync(storage, { recursive: true })
+  fs.writeFileSync(seedFile(storage), _sealForTests(SEED, KEK))
+
+  const server = await socketServer(t, { unlock: () => ({ error: 'this worker is not waiting for a key', code: 'NOT_AUTHORIZED' }) })
+  const { host, worker, electron } = load({ flags: { identityKEK: KEK }, storage, keyOnSpawnFrame: true })
+  host.registerWorkerHost()
+  const starting = startFor(electron, fakeSender(7))
+  const boot = frames(worker)[1]
+  t.is(boot.identityKEK, KEK, 'the key is on the bootstrap')
+  t.is(boot.relaySeed, SEED, 'and the seed it unseals')
+  worker.emit('data', announce(server.socketPath))
+  t.is(await starting, true, 'the start settles once the socket is announced')
+  t.is(server.unlocks.length, 0, 'and nothing is sent at spawn: the worker already has its key')
+  t.absent(worker.destroyed_)
+
+  server.setUnlock(() => ({ data: { ok: true } }))
+  t.is(await host.retryUnlock(MAIN_WORKER_SPEC), true, '"try again" still hands the key over the socket')
+  t.is(server.unlocks.length, 1)
+})
+
+test('with the key off the spawn frame, as shipped, the bootstrap carries no secret and the unlock is sent', async (t) => {
+  const server = await socketServer(t)
+  const { host, worker, electron } = load({ flags: { identityKEK: KEK } })
+  host.registerWorkerHost()
+  const starting = startFor(electron, fakeSender(7))
+  t.absent('identityKEK' in frames(worker)[1])
+  t.absent('relaySeed' in frames(worker)[1])
+  worker.emit('data', announce(server.socketPath))
+  await starting
+  t.is(server.unlocks.length, 1)
+})
+
 test('the hello frame carries the protocol version, the window main accepts, and what main is', (t) => {
   const { host, worker } = load()
   host.getWorker('/src/worker/main.js')
@@ -519,7 +555,8 @@ function fakeSender(id) {
 // A worker's socket as far as main can tell: it answers identity:unlock as `unlock` says (an ok by
 // default; `{ error, code }`; 'hang-up'), or holds the answer until releaseUnlock(). Every other
 // connection is a window's, and what it sends is kept in `received`.
-function socketServer(t, { unlock = () => ({ data: { ok: true } }), holdUnlock = false } = {}) {
+function socketServer(t, { unlock: answer = () => ({ data: { ok: true } }), holdUnlock = false } = {}) {
+  let unlock = answer
   const dir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'wh-')), 'run')
   fs.mkdirSync(dir, { mode: 0o700 })
   t.teardown(() => fs.rmSync(path.dirname(dir), { recursive: true, force: true }))
@@ -556,7 +593,7 @@ function socketServer(t, { unlock = () => ({ data: { ok: true } }), holdUnlock =
   })
   const close = () => new Promise((resolve) => { for (const p of peers) p.destroy(); server.close(resolve) })
   t.teardown(close)
-  return new Promise((resolve) => server.listen(socketPath, () => resolve({ socketPath, peers, unlocks, hellos, releaseUnlock: () => release(), close })))
+  return new Promise((resolve) => server.listen(socketPath, () => resolve({ socketPath, peers, unlocks, hellos, releaseUnlock: () => release(), setUnlock: (fn) => { unlock = fn }, close })))
 }
 
 const announce = (socketPath) => Buffer.from(JSON.stringify({ type: 'main-request', command: 'socket:listening', args: { path: socketPath } }) + '\n')

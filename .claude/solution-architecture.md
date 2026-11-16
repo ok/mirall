@@ -159,8 +159,11 @@ An MSIX-packaged install has its AppData redirected by Windows; that path is not
   The key travels over the socket rather than the pipe so that the pipe carries nothing a process
   that reads it could use to open the identity, and so that a desktop-spawned worker and a
   headless one are unlocked by the same request. The worker still accepts a key on the bootstrap
-  through 1.14: if a launch turns out unable to unlock this way, sending the key on the spawn
-  frame again is a change to main alone. The acceptance is removed in 1.15.
+  through 1.14: if a launch turns out unable to unlock this way, the way back is to flip
+  `KEY_ON_SPAWN_FRAME` in `src/main/worker-host.js` to `true` in an app-only release: the key and seed
+  then ride the bootstrap, no unlock is sent at spawn, and "Try again" still sends one. Unit tests cover
+  both values and `bootstrap-allowlist.test.js` pins the shipped one to `false`. The acceptance is
+  removed in 1.15.
 - **Window connections.** `src/main/window-connections.js`. `pear:startWorker` spawns the worker if
   needed, waits for its `socket:listening` main-request (main never derives the path) and for the
   key to be handed over (above), checks that
