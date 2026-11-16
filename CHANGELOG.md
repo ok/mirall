@@ -33,6 +33,9 @@ changes do not appear here.
 - **Leaving an organization during its first backup no longer keeps backing
   up to the organization's folder.** That folder could become your own
   backup folder.
+- **An Activity Log your organization keeps can no longer be shortened.**
+  A shorter retention deleted older entries, so those choices are now
+  unavailable while the organization keeps the record.
 - **Joining or leaving an organization in the middle of a settings refresh
   or a report no longer leaves Mirall in the wrong state.** An organization
   that keeps the Activity Log also holds that lock while a deletion runs.
