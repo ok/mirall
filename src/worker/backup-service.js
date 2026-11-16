@@ -136,8 +136,8 @@ export class Backup extends Subsystem {
     return this.managedFolder() ? this.state.managed?.lastSuccessAt ?? null : this.state.lastSuccessAt
   }
 
-  withSuccess(state, at) {
-    return this.managedFolder() ? { ...state, managed: state.managed && { ...state.managed, lastSuccessAt: at } } : { ...state, lastSuccessAt: at }
+  withSuccess(state, at, { managed }) {
+    return managed ?{ ...state, managed: state.managed && { ...state.managed, lastSuccessAt: at } } : { ...state, lastSuccessAt: at }
   }
 
   // The organization's configuration changed: its folder came, moved or went. A run in progress
@@ -274,10 +274,13 @@ export class Backup extends Subsystem {
       })
       this.lastRunAt = Date.now()
       if (!this.stillNames(folder)) return
+      // Whose folder this was is read while it is known to be the one in force: the organization's
+      // folder can go during the upkeep below, and the success is still not the person's own.
+      const managed = this.managedFolder() !== null
       this.failures = 0
       if (result.repoId !== repoId) await this.remember({ folder, repoId: result.repoId })
       await this.keepKeyInFolder(folder)
-      await this.persist(this.withSuccess(this.state, this.lastRunAt))
+      await this.persist(this.withSuccess(this.state, this.lastRunAt, { managed }))
       this.report({
         state: 'idle',
         lastSuccessAt: this.lastRunAt,
