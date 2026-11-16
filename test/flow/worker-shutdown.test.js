@@ -34,3 +34,14 @@ test('a worker is reaped by destroy() (SIGTERM) — the force-kill rung', { time
   t.ok(await waitForWorkerExit(pid, 8000),
     'worker process exited within 8s of SIGTERM (no orphan)')
 })
+
+// A worker not yet handed its key serves only the recovery set, and the stop is part of it: it exits
+// cleanly, with the code of a stop that was asked for rather than one of a worker that failed.
+test('a worker still waiting for its key exits cleanly on graceful shutdown', { timeout: scaled(30000) }, async (t) => {
+  const bootstrap = await localTestnet(t)
+  const peer = await launchPeer(t, { bootstrap, unlock: false, setProfile: false })
+  const exited = new Promise((resolve) => peer.sidecar._process.once('exit', (code) => resolve(code)))
+  t.is((await peer.request('identity:status')).code, 'IDENTITY_AWAITING_KEY', 'waiting')
+  t.alike(await peer.request('shutdown'), { ok: true }, 'the stop is acknowledged')
+  t.is(await exited, 0, 'and the worker exits 0')
+})

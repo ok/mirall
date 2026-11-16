@@ -49,6 +49,7 @@ export function createDispatcher({ table, metrics, countFailure, respond, log, l
         startedAt: now(),
         deadlineMs: deadlineFor(entry.spec),
         enforcement: enforcementFor(entry.spec),
+        opensIdentity: entry.spec.opensIdentity === true,
         warned: false,
       })
     }

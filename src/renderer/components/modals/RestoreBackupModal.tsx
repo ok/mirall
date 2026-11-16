@@ -2,14 +2,16 @@
 // that opens the key it keeps, then one of the snapshots it holds. What the folder shows before any
 // passphrase — a backup, its newest backup's time — confirms it is the right one; a folder without its
 // key cannot be opened at all. On a locked device the key first tries to open this device's own data in
-// place, which is newer than any backup; only data that is not this identity's goes to a snapshot. The settings the backup carried go to main, and the worker
-// restarts into the restored data, held until the people the user shares spaces with confirm it.
+// place, which is newer than any backup; only data that is not this identity's goes to a snapshot. The
+// settings the backup carried go to main, and the restored data is opened — in place on the locked
+// screen, by a worker restart at onboarding — held until the people the user shares spaces with confirm it.
 // Rendered outside the toast region, so every outcome is said inside the dialog.
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { request } from '../../ipc/ipc.js'
 import { useErrorText } from '../../hooks/useErrorText.js'
 import { errorCodeOf } from '../../errors/error-text.js'
+import { refetchQuery } from '../../store/query-store.js'
 import { adoptRestoredSettings } from '../../platform/restored-settings.js'
 import { snapshotLabel, type SnapshotLabel } from '../../model/snapshot-label.js'
 import { formatDateTime } from '../../format/utils.js'
@@ -28,7 +30,7 @@ import RadioCard from '../primitives/RadioCard.js'
 interface RestoreBackupModalProps {
   isOpen: boolean
   onClose: () => void
-  // Called once the restore is staged or the data unlocked: the caller restarts the worker into it.
+  // Called once the restore is staged or the data unlocked: the caller opens the app on it.
   onRestored: () => Promise<void>
   locked?: boolean
 }
@@ -84,6 +86,7 @@ export default function RestoreBackupModal({ isOpen, onClose, onRestored, locked
 
   // A wrong passphrase is said under its field, so the list step goes back to the form to show it.
   function fail(code: string | null, text: string) {
+    if (locked) refetchQuery('identity:status').catch(() => null)
     if (code === 'WRONG_PASSPHRASE') {
       setSnapshots(null)
       setFieldError(text)
@@ -137,8 +140,7 @@ export default function RestoreBackupModal({ isOpen, onClose, onRestored, locked
 
   const title = t('restoreBackup.title')
   const ready = !!folder && keyReady && passphrase.length > 0
-  const shownError = error
-  const progress = restarting ? t('restoreBackup.restarting') : busy ? t(snapshots ? 'restoreBackup.restoring' : 'restoreBackup.opening') : null
+  const progress = restarting && !locked ? t('restoreBackup.restarting') : busy ? t(snapshots ? 'restoreBackup.restoring' : 'restoreBackup.opening') : null
 
   return (
     <Modal
@@ -157,9 +159,9 @@ export default function RestoreBackupModal({ isOpen, onClose, onRestored, locked
           closeDisabled={busy}
         />
         <div className="px-10 pb-10 space-y-6">
-          {shownError && (
+          {error && (
             <div id="restore-backup-error" className="rounded-xl bg-error-container/60 px-5 py-3 text-sm font-medium text-on-error-container" role="alert">
-              {shownError}
+              {error}
             </div>
           )}
           {!snapshots ? (

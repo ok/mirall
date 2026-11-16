@@ -9,9 +9,9 @@
 // of its own, so one implementation serves Node (`path`) and Bare (`bare-path`) alike and stays
 // unit-testable without either. Each installer resolves with its own path module first.
 
-/** @typedef {'data-dir' | 'ancestor' | 'store' | null} TripKind */
+import { STORE_DIR } from './default-data-dir.js'
 
-const STORE_DIR = 'app-storage'
+/** @typedef {'data-dir' | 'ancestor' | 'store' | null} TripKind */
 
 function trimTrailing(p, sep) {
   let end = p.length

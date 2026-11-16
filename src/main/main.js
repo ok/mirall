@@ -27,7 +27,11 @@ const {
   stopWorkers,
   revealRoots,
   workerIsLocal,
+  retryUnlock,
+  workerStatus,
 } = require('./worker-host.js')
+const { registerIdentityRetry } = require('./identity-retry.js')
+const { MAIN_WORKER_SPEC } = require('../shared/contract/workers.js')
 const {
   initWindow,
   registerWindow,
@@ -200,12 +204,11 @@ registerNetOnline()
 registerUpdater()
 
 ipcMain.handle('app:identityProtection', () => identityProtection)
-// The locked screen's "Try again": a keychain that can open the set-aside key again gets it back, and
-// the next worker spawn carries it.
-ipcMain.handle('identity:retry-unlock', () => {
-  const kekHex = require('./identity-kek.js').recoverUnreadableKEK(getPear().storage)
-  if (kekHex) identityKEKHex = kekHex
-  return kekHex !== null
+registerIdentityRetry({
+  workerStatus: () => workerStatus(MAIN_WORKER_SPEC),
+  recoverKEK: () => require('./identity-kek.js').recoverUnreadableKEK(getPear().storage),
+  adoptKEK: (kekHex) => { identityKEKHex = kekHex },
+  retryUnlock: () => retryUnlock(MAIN_WORKER_SPEC),
 })
 
 ipcMain.handle('diagnostics:logs', async (_evt, opts) => {

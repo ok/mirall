@@ -1,29 +1,15 @@
-import { mkdirSync, readdirSync, writeFileSync, lstatSync } from 'node:fs'
+import { mkdirSync, readdirSync, writeFileSync } from 'node:fs'
 import { randomBytes } from 'node:crypto'
 import path from 'node:path'
 import { Instance } from '../instance.mjs'
 import { makeReport, waitFor } from '../assert.mjs'
-import { setUpBackup } from '../helpers.mjs'
+import { setUpBackup, findKek, workerPid } from '../helpers.mjs'
 
 const PASS = 'a long enough passphrase'
 
-// kek.enc sits beside the store the app was given with --storage; found rather than assumed. lstat,
-// because Electron leaves Singleton* symlinks in the profile that dangle once it has quit.
-function findKek(dir, depth = 3) {
-  for (const name of readdirSync(dir)) {
-    const p = path.join(dir, name)
-    if (name === 'kek.enc') return p
-    if (depth > 0 && lstatSync(p).isDirectory()) {
-      const hit = findKek(p, depth - 1)
-      if (hit) return hit
-    }
-  }
-  return null
-}
-
 // A reset keychain: kek.enc no longer decrypts, so the app opens on the locked screen — not the
 // fatal dialog, the fault screen or onboarding — and the backup set up earlier opens it again, the
-// data unlocked in place.
+// data unlocked in place: the worker that showed the locked screen is the one that serves the data.
 export default async function s157({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
   const r = makeReport()
@@ -32,6 +18,7 @@ export default async function s157({ runDir, bootstrap }) {
   mkdirSync(backupDir, { recursive: true })
   const passphrase = { role: 'textfield', name: 'Passphrase' }
   const showBackups = { role: 'button', name: 'Show backups' }
+  let lockedPid = 0
 
   try {
     await r.ok('set up a backup', async () => {
@@ -51,6 +38,7 @@ export default async function s157({ runDir, bootstrap }) {
         if (!(await A.has({ role: 'button', name }))) throw new Error(`no button named ${name}`)
       }
       if (!readdirSync(path.dirname(kek)).some((n) => n.startsWith('kek.enc.unreadable-'))) throw new Error('the unreadable key was not kept')
+      lockedPid = workerPid(A.store)
       await A.shot('s157-locked', runDir)
     })
     await r.ok('a wrong passphrase is said under the field', async () => {
@@ -68,6 +56,7 @@ export default async function s157({ runDir, bootstrap }) {
       await A.click(showBackups)
       await A.waitText('Your data is unlocked', 90000)
       await A.waitText('Create Space', 30000)
+      if (workerPid(A.store) !== lockedPid) throw new Error('the worker was replaced: the data did not open in place')
       await A.shot('s157-restored', runDir)
     })
   } catch {}

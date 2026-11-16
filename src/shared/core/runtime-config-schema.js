@@ -310,8 +310,8 @@ function coerceRelayMode(mode) {
 }
 
 // The public half of the relay slot only. The member seed is deliberately absent from
-// runtime config: it rides the bootstrap frame and is consumed in boot.js, exactly as
-// bootstrap.identityKEK is, so it never reaches a getRuntimeConfig() caller.
+// runtime config: it arrives with the identity key (identity:unlock, or the bootstrap through 1.14)
+// and is consumed in boot.js, exactly as the key is, so it never reaches a getRuntimeConfig() caller.
 function coerceRelaySlot(relay) {
   if (!relay || typeof relay !== 'object' || Array.isArray(relay)) return null
   return relay

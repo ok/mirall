@@ -148,6 +148,8 @@ export const UNUSED_CODES = Object.freeze([
 // The identity faults a worker answers by locking rather than stopping: the key it was given cannot
 // open this identity, which the user resolves with a recovery key. A missing key is the host's bug.
 export const IDENTITY_LOCK_CODES = Object.freeze(['IDENTITY_PROVIDER_MISMATCH', 'IDENTITY_UNLOCK_FAILED'])
+/** @param {unknown} code */
+export const isIdentityLock = (code) => IDENTITY_LOCK_CODES.some((lock) => lock === code)
 // Why identity:status reports a worker that serves recovery only: one of the locks above, or
 // IDENTITY_AWAITING_KEY, a worker started without a host that has not been handed its key yet. That
 // one is no lock — the identity was never tried — so nothing is recovered or set aside while it lasts.

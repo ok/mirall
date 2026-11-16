@@ -147,6 +147,13 @@ function resync(reason: ResyncReason): void {
   resyncQueries()
 }
 
+// The worker this window is already connected to has just opened its identity in place. It is the
+// same process, so its next greeting reads as a resume, yet everything this window holds was asked
+// of a worker that served no data: the re-read is the one a new worker earns.
+export function resyncOpenedWorker(): void {
+  resync('new-worker')
+}
+
 // What a greeting from a worker means for a client that has been listening. The same stream is
 // replayable; a different one is a new process whose ring holds frames this client never asked
 // about, so only a full re-read is honest. markReady comes last in every branch: a request parked

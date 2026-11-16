@@ -40,3 +40,22 @@ test('the sweep asks quiet clients, reaps silent ones, and skips the host and th
   sweep(timing)
   t.is(quiet.lines.length, 1, 'a client already asked is not asked again')
 })
+
+test('REGRESSION (FIX-UNLOCK-2: a boot longer than the keepalive reaped the connection that asked for it): a client awaiting the worker\'s own answer is not asked to prove it is alive', (t) => {
+  const opening = client(2, { inFlight: new Map([[1, { type: 'identity:unlock', deadlineMs: 0, opensIdentity: true }]]), probeSentAt: 1000 })
+  const slow = client(3, { inFlight: new Map([[1, { type: 'files:add', deadlineMs: 0 }]]), probeSentAt: 1000 })
+  const idle = client(4, { inFlight: new Map(), probeSentAt: 1000 })
+  const reaped = []
+  const now = 100000
+  const sweep = createLivenessWatch({
+    clients: { all: () => [opening, slow, idle] },
+    isExempt: () => false,
+    detach: (c, reason) => reaped.push([c.id, reason]),
+    now: () => now,
+  })
+  sweep(timing)
+  t.alike(reaped, [[3, 'liveness'], [4, 'liveness']], 'only the client waiting on the identity opening is spared; a hung window with other work is not')
+  t.alike(opening.lines, [], 'and it is not asked either')
+  t.is(opening.probeSentAt, null, 'an earlier question does not count against it once its wait ends')
+  t.is(opening.lastSeenAt, now)
+})

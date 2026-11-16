@@ -20,7 +20,7 @@ const WORKER_ENTRY = path.resolve('src/worker/main.js')
 // Every peer boots with an identity: a space is only created when the worker holds a master
 // secret, and production always does. Keyed by storage dir rather than minted per launch —
 // relaunching against the same storage (the offline-window pattern) must present the KEK that
-// wrapped that dir's identity.enc, or resolveMasterSecret throws 'identity unlock failed'.
+// wrapped that dir's identity.enc, or the worker locks with 'identity unlock failed'.
 const kekByStorage = new Map()
 function kekFor(storage) {
   let kek = kekByStorage.get(storage)
@@ -38,7 +38,8 @@ const WATCHERS_OFF = { testFileWatchersOff: true }
 // Which wire a peer's requests and events travel. 'pipe' is the spawn pipe the worker was started
 // on; 'socket' is a connection to the worker's own socket, the way a window reaches it, with the
 // spawn pipe left to the host's frames. 'headless' starts the worker with no spawn pipe at all, from
-// a command line (headless.js), and hands it its key over the socket as a host client.
+// a command line (headless.js). On every wire the key travels as the desktop app sends it: never on
+// the bootstrap, but in identity:unlock over the peer's own connection, which is a host client.
 const TRANSPORTS = ['pipe', 'socket', 'headless']
 const DEFAULT_TRANSPORT = TRANSPORTS.includes(process.env.MIRALL_TEST_IPC_TRANSPORT) ? process.env.MIRALL_TEST_IPC_TRANSPORT : 'pipe'
 
@@ -82,8 +83,8 @@ function frameLines(onFrame) {
   }
 }
 
-// A worker started on `storage` and given its handshake, and nothing else: for a test about what a
-// worker does when it cannot have the profile. Resolves with the code it exits with.
+// A worker started on `storage` and given its handshake, and nothing else — not even its key: for a
+// test about what a worker does when it cannot have the profile. Resolves with the code it exits with.
 export function spawnBareWorker(t, { storage, downloads = tmp('dl'), flags = {} }) {
   const sidecar = new Sidecar(WORKER_ENTRY)
   installExitBackstop()
@@ -97,7 +98,7 @@ export function spawnBareWorker(t, { storage, downloads = tmp('dl'), flags = {} 
   sidecar.write(helloLine('flow-harness'))
   sidecar.write(JSON.stringify({
     type: 'bootstrap', storage, appVersion: '0.0.0-test', dev: true, verbose: false, downloadFolder: downloads,
-    identityKEK: kekFor(storage), ...WATCHERS_OFF, ...flags,
+    ...WATCHERS_OFF, ...flags,
   }) + '\n')
   return { sidecar, exited }
 }
@@ -132,8 +133,14 @@ function installExitBackstop() {
 }
 
 // `bootSettleMs` holds the boot window open past profile:set, so a test can make an edge the
-// worker consumes right after boot land inside the window on any machine.
-export async function launchPeer(t, { bootstrap, displayName = 'Peer', debug = false, storage, downloads, flags = {}, bootSettleMs = 0, setProfile = true, transport = DEFAULT_TRANSPORT } = {}) {
+// worker consumes right after boot land inside the window on any machine. `unlock: false` returns
+// the peer while its worker still waits for its key, for a test that hands one over itself.
+// `keyOnBootstrap` puts the key and relay seed on the spawn frame instead, which only the test of
+// the one-release seam does.
+export async function launchPeer(t, {
+  bootstrap, displayName = 'Peer', debug = false, storage, downloads, flags = {}, bootSettleMs = 0, setProfile = true,
+  transport = DEFAULT_TRANSPORT, unlock = true, keyOnBootstrap = false,
+} = {}) {
   // When storage/downloads are passed in, the caller owns their lifetime (used
   // to relaunch a peer with the same identity + drive after an offline window).
   const ownsDirs = !storage
@@ -144,9 +151,11 @@ export async function launchPeer(t, { bootstrap, displayName = 'Peer', debug = f
   // in identity mode.
   storage = storage || path.join(tmp('peer'), 'app-storage')
   downloads = downloads || tmp('dl')
-  // Every worker unlocks with a KEK, as main's are: a bootstrap without one fails boot.
+  // Every worker is unlocked with a KEK, as main's are; one never handed it waits.
   flags = { identityKEK: kekFor(storage), ...WATCHERS_OFF, ...flags }
   const headless = transport === 'headless'
+  if (headless && keyOnBootstrap) throw new Error('a headless worker has no bootstrap frame to carry its key')
+  const { identityKEK: _kek, relaySeed: _seed, ...keyless } = flags
   const run = headless ? spawnHeadless(headlessArgs({ storage, downloads, bootstrap, flags })) : null
   const sidecar = headless ? null : new Sidecar(WORKER_ENTRY)
   installExitBackstop()
@@ -325,9 +334,8 @@ export async function launchPeer(t, { bootstrap, displayName = 'Peer', debug = f
   // ready. The worker refuses every frame from a client that has not said what it is and on which
   // wire, so the harness is a third writer of the hello.
   if (headless) {
-    await unlockHeadless(peer, { run, openSocket, events, flags })
+    openSocket(await run.listening(scaled(30000)))
   } else {
-    const ready = peer.waitFor('event:worker-ready')
     sidecar.write(helloLine('flow-harness'))
     sidecar.write(JSON.stringify({
       type: 'bootstrap',
@@ -338,10 +346,11 @@ export async function launchPeer(t, { bootstrap, displayName = 'Peer', debug = f
       downloadFolder: downloads,
       dhtBootstrap: bootstrap,
       // Runtime-config overrides for this peer (the bootstrap frame IS the runtime config).
-      ...flags,
+      ...(keyOnBootstrap ? flags : keyless),
     }) + '\n')
-    await ready
   }
+  await peer.waitFor('event:worker-ready')
+  if (!keyOnBootstrap && unlock) await handOverKey(peer, { events, flags })
   // Fresh store has no profile → give the peer an identity. A locked worker serves no profile, so a
   // test booting into one skips this.
   if (setProfile) await peer.request('profile:set', { displayName, avatar: null })
@@ -382,11 +391,9 @@ export async function launchPeer(t, { bootstrap, displayName = 'Peer', debug = f
   return peer
 }
 
-// A headless worker greets a client the moment it connects, while it still waits for its key; the
-// greeting that counts is the one it sends once the key has booted it.
-async function unlockHeadless(peer, { run, openSocket, events, flags }) {
-  openSocket(await run.listening(scaled(30000)))
-  await peer.waitFor('event:worker-ready')
+// A worker greets a client while it still waits for its key; the greeting that counts is the one it
+// sends once the key has booted it.
+async function handOverKey(peer, { events, flags }) {
   events.takeFromBacklog('event:worker-ready', () => true)
   const ready = peer.waitFor('event:worker-ready', () => true, 60000)
   await peer.request('identity:unlock', { kek: flags.identityKEK, ...(flags.relaySeed ? { relaySeed: flags.relaySeed } : {}) })

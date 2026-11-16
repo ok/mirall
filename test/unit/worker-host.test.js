@@ -12,6 +12,12 @@ import net from 'net'
 import { EventEmitter } from 'events'
 import { fileURLToPath } from 'url'
 
+// Each load() installs its own process-exit backstop, as each real spawn path does.
+process.setMaxListeners(100)
+
+const KEK = 'ab'.repeat(32)
+const SEED = 'ef'.repeat(32)
+
 const REPO = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
 preloadEntrypoints(REPO)
 
@@ -20,12 +26,17 @@ preloadEntrypoints(REPO)
 // spawn, a write failure reported once, and a dead worker that stops authorising anything. None of
 // that was reachable before the host left the entry — the assertions were regexes over source.
 
-function stubWorker() {
+// `exitsOnShutdown` plays a worker that leaves when asked to: the shutdown frame ends its process.
+function stubWorker({ exitsOnShutdown = false } = {}) {
   const w = new Duplex({ write(_data, cb) { cb(null) } })
   w.written = []
   w.destroyed_ = false
   const realWrite = w.write.bind(w)
-  w.write = (chunk) => { w.written.push(String(chunk)); return w.writeBehaviour ? w.writeBehaviour(chunk) : realWrite(chunk) }
+  w.write = (chunk) => {
+    w.written.push(String(chunk))
+    if (exitsOnShutdown && String(chunk).includes('"shutdown"')) setImmediate(() => w.emit('exit', 0))
+    return w.writeBehaviour ? w.writeBehaviour(chunk) : realWrite(chunk)
+  }
   w.destroy = () => { w.destroyed_ = true }
   w._process = { kill: () => { w.killed = true } }
   // The host mirrors both streams into the log ring, so a stub without them is not a worker.
@@ -35,7 +46,7 @@ function stubWorker() {
 }
 
 // The gate is reloaded with the host, so no test inherits another's packaging.
-function load({ worker = stubWorker(), config = {}, flags = {}, isPackaged = false, storage = '/tmp/mirall-test' } = {}) {
+function load({ worker = stubWorker(), spawn = () => worker, config = {}, flags = {}, isPackaged = false, storage = '/tmp/mirall-test', keyOnSpawnFrame } = {}) {
   const { electron, modules } = loadWithFakeElectron(
     ['src/main/env-overrides.js', 'src/main/settings-ipc.js', 'src/main/worker-host.js'],
     { app: { isPackaged, getPath: () => '/tmp/mirall-test-downloads' } },
@@ -45,9 +56,10 @@ function load({ worker = stubWorker(), config = {}, flags = {}, isPackaged = fal
   settings.initSettings({ config: () => store })
   host.initWorkerHost({
     config: () => store,
-    getPear: () => ({ run: () => worker, storage }),
+    getPear: () => ({ run: () => spawn(), storage }),
     isDev: true,
     identityKEK: () => flags.identityKEK ?? null,
+    keyOnSpawnFrame,
   })
   return { host, worker, electron }
 }
@@ -166,12 +178,12 @@ test('REGRESSION (FIX-ROOTS-1): a dead worker stops authorising reveals', (t) =>
 // window claimed: a window on a daemon main did not spawn is vouched for by nothing.
 test('a window’s worker is known local exactly while the one it claimed is one this process spawned', async (t) => {
   const { socketPath } = await socketServer(t)
-  const { host, worker, electron } = load()
+  const { host, worker, electron } = load({ flags: { identityKEK: KEK } })
   host.registerWorkerHost()
   const sender = fakeSender(7)
   t.absent(host.workerIsLocal(sender.id), 'nothing claimed, nothing vouched for')
-  const starting = electron.ipcMain.handlers.get('pear:startWorker')({ sender }, MAIN_WORKER_SPEC)
-  worker.emit('data', Buffer.from(JSON.stringify({ type: 'main-request', command: 'socket:listening', args: { path: socketPath } }) + '\n'))
+  const starting = startFor(electron, sender)
+  worker.emit('data', announce(socketPath))
   await starting
   t.ok(host.workerIsLocal(sender.id), 'the window’s worker is one this process spawned')
   t.absent(host.workerIsLocal(8), 'another window has claimed nothing')
@@ -188,24 +200,326 @@ test('REGRESSION (FIX-ENVJSON-1): a malformed DHT knob does not take the spawn w
   t.absent(frames(worker)[1].dhtBootstrap, 'and the field is simply absent from the bootstrap')
 })
 
-test('the identity KEK is read at spawn time, not at require time', (t) => {
-  const { host, worker } = load({ flags: { identityKEK: 'deadbeef' } })
-  host.getWorker(MAIN_WORKER_SPEC)
-  t.is(frames(worker)[1].identityKEK, 'deadbeef',
-    'resolved inside whenReady, after this module loads and before the first spawn')
-})
-
-test('the bootstrap carries the relay seed the identity KEK unseals', (t) => {
+test('no secret rides the bootstrap, whatever the host holds', (t) => {
   const storage = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'worker-host-relay-')), 'app-storage')
   t.teardown(() => fs.rmSync(path.dirname(storage), { recursive: true, force: true }))
-  const identityKEK = 'cd'.repeat(32)
-  const seed = 'ef'.repeat(32)
   fs.mkdirSync(storage, { recursive: true })
-  fs.writeFileSync(seedFile(storage), _sealForTests(seed, identityKEK))
+  fs.writeFileSync(seedFile(storage), _sealForTests(SEED, KEK))
 
-  const { host, worker } = load({ flags: { identityKEK }, storage })
+  const { host, worker } = load({ flags: { identityKEK: KEK }, storage })
   host.getWorker(MAIN_WORKER_SPEC)
-  t.is(frames(worker)[1].relaySeed, seed)
+  const line = worker.written.join('')
+  t.absent('identityKEK' in frames(worker)[1], 'no identity key field')
+  t.absent('relaySeed' in frames(worker)[1], 'no relay seed field')
+  t.absent(line.includes(KEK), 'the key is nowhere on the pipe')
+  t.absent(line.includes(SEED), 'nor the seed it unseals')
+})
+
+test('the unlock request carries the key read at spawn time and the relay seed it unseals', async (t) => {
+  const storage = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'worker-host-relay-')), 'app-storage')
+  t.teardown(() => fs.rmSync(path.dirname(storage), { recursive: true, force: true }))
+  fs.mkdirSync(storage, { recursive: true })
+  fs.writeFileSync(seedFile(storage), _sealForTests(SEED, KEK))
+
+  const flags = { identityKEK: 'cd'.repeat(32) }
+  const server = await socketServer(t)
+  const { host, worker, electron } = load({ flags, storage })
+  host.registerWorkerHost()
+  const starting = startFor(electron, fakeSender(7))
+  flags.identityKEK = KEK
+  worker.emit('data', announce(server.socketPath))
+  await starting
+  t.is(server.unlocks.length, 1)
+  t.is(server.unlocks[0].type, 'identity:unlock')
+  t.is(server.unlocks[0].kek, 'cd'.repeat(32), 'the key of the spawn, not a later one')
+  t.is(server.unlocks[0].relaySeed, undefined, 'a seed sealed under another key is not handed over')
+  t.is(server.hellos[0].client.kind, 'electron-main', 'main introduces itself before it asks')
+})
+
+test('the relay seed the identity key unseals goes with the key', async (t) => {
+  const storage = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'worker-host-relay-')), 'app-storage')
+  t.teardown(() => fs.rmSync(path.dirname(storage), { recursive: true, force: true }))
+  fs.mkdirSync(storage, { recursive: true })
+  fs.writeFileSync(seedFile(storage), _sealForTests(SEED, KEK))
+
+  const server = await socketServer(t)
+  const { host, worker, electron } = load({ flags: { identityKEK: KEK }, storage })
+  host.registerWorkerHost()
+  const starting = startFor(electron, fakeSender(7))
+  worker.emit('data', announce(server.socketPath))
+  await starting
+  t.is(server.unlocks[0].kek, KEK)
+  t.is(server.unlocks[0].relaySeed, SEED)
+})
+
+test('a window is told the worker started only once the unlock has settled', async (t) => {
+  const server = await socketServer(t, { holdUnlock: true })
+  const { host, worker, electron } = load({ flags: { identityKEK: KEK } })
+  host.registerWorkerHost()
+  const sender = fakeSender(7)
+  let started = false
+  const starting = startFor(electron, sender).then((v) => { started = v })
+  worker.emit('data', announce(server.socketPath))
+  await until(() => server.unlocks.length === 1)
+  await new Promise((r) => setTimeout(r, 30))
+  t.absent(started, 'the worker has the key request and has not answered it')
+  t.is(server.peers.length, 1, 'the window has not connected: it would see a worker that still waits')
+
+  server.releaseUnlock()
+  await starting
+  t.ok(started)
+  await until(() => server.peers.length === 2)
+  t.is(server.peers.length, 2, 'the window connects once it has settled')
+})
+
+test('a worker that locked on its key is a started worker, and the window gets the locked screen', async (t) => {
+  for (const code of ['IDENTITY_UNLOCK_FAILED', 'IDENTITY_PROVIDER_MISMATCH']) {
+    const server = await socketServer(t, { unlock: () => ({ error: 'identity unlock failed', code }) })
+    const { host, worker, electron } = load({ flags: { identityKEK: KEK } })
+    host.registerWorkerHost()
+    const starting = startFor(electron, fakeSender(7))
+    worker.emit('data', announce(server.socketPath))
+    t.is(await starting, true, code + ': the start resolves')
+    t.absent(worker.destroyed_, 'the worker is kept: it serves the recoveries')
+    t.is(host.getWorker(MAIN_WORKER_SPEC), worker, 'and stays the cached one')
+  }
+})
+
+test('any other failure of the unlock is a failed spawn: stopped, not cached, raised', async (t) => {
+  const refusals = {
+    'a code that is not a lock': () => ({ error: 'this worker is not waiting for a key', code: 'NOT_AUTHORIZED' }),
+    'a connection that drops': () => 'hang-up',
+  }
+  for (const [name, unlock] of Object.entries(refusals)) {
+    const server = await socketServer(t, { unlock })
+    const first = stubWorker({ exitsOnShutdown: true })
+    const second = stubWorker()
+    const spawned = [first, second]
+    const { host, electron } = load({ flags: { identityKEK: KEK }, spawn: () => spawned.shift() })
+    host.registerWorkerHost()
+    const starting = startFor(electron, fakeSender(7))
+    first.emit('data', announce(server.socketPath))
+    await t.exception(starting, name + ': the start fails')
+    t.is(frames(first).filter((f) => f.type === 'shutdown').length, 1, name + ': the worker was asked to shut down')
+    t.is(host.getWorker(MAIN_WORKER_SPEC), second, name + ': the next start spawns afresh')
+    first.emit('exit', 1)
+    t.is(host.getWorker(MAIN_WORKER_SPEC), second, name + ': the dead worker\'s exit does not evict its successor')
+  }
+})
+
+test('REGRESSION (FIX-UNLOCK-3: a worker still holding the profile lock outlived its failed start): the start rejects only once the worker has exited', async (t) => {
+  const server = await socketServer(t, { unlock: () => ({ error: 'this worker is not waiting for a key', code: 'NOT_AUTHORIZED' }) })
+  const first = stubWorker()
+  const second = stubWorker()
+  const spawned = [first, second]
+  const { host, electron } = load({ flags: { identityKEK: KEK }, spawn: () => spawned.shift() })
+  host.registerWorkerHost()
+  let rejected = false
+  const starting = startFor(electron, fakeSender(7)).catch(() => { rejected = true })
+  first.emit('data', announce(server.socketPath))
+  await until(() => frames(first).some((f) => f.type === 'shutdown'))
+  await new Promise((r) => setTimeout(r, 40))
+  t.absent(rejected, 'the worker has been asked to go and has not: its lock may still be held')
+  t.is(host.getWorker(MAIN_WORKER_SPEC), first, 'and it is still the worker the host knows, so the quit backstop covers it')
+
+  first.emit('exit', 0)
+  await starting
+  t.ok(rejected)
+  t.is(host.getWorker(MAIN_WORKER_SPEC), second, 'a successor spawns once it has gone')
+  first.emit('exit', 0)
+  t.is(host.getWorker(MAIN_WORKER_SPEC), second, 'and its late exit does not evict the successor')
+})
+
+test('a worker that had already exited when its start failed is not waited for', async (t) => {
+  const worker = stubWorker()
+  const { host, electron } = load({ worker, flags: { identityKEK: KEK } })
+  host.registerWorkerHost()
+  const starting = startFor(electron, fakeSender(7))
+  worker.emit('exit', 73)
+  await t.exception(starting)
+  t.is(frames(worker).filter((f) => f.type === 'shutdown').length, 0, 'nobody to ask')
+})
+
+test('stopping the worker while its first unlock is in flight ends the start cleanly and harms no successor', async (t) => {
+  const server = await socketServer(t, { holdUnlock: true })
+  const first = stubWorker()
+  const second = stubWorker()
+  const spawned = [first, second]
+  const { host, electron } = load({ flags: { identityKEK: KEK }, spawn: () => spawned.shift() })
+  host.registerWorkerHost()
+  const sender = fakeSender(7)
+  const starting = startFor(electron, sender)
+  first.emit('data', announce(server.socketPath))
+  await until(() => server.unlocks.length === 1)
+
+  const stopping = host.stopWorker(first)
+  first.emit('exit', 0)
+  await stopping
+  server.peers.forEach((peer) => peer.destroy())
+  await t.exception(starting, 'the pending start rejects')
+  t.is(server.peers.length, 1, 'the window never connected')
+  t.alike(sender.sent.filter(([c]) => c.startsWith('pear:worker:exit:')).map(([, code]) => code), [0], 'and heard of the exit once')
+  t.is(host.getWorker(MAIN_WORKER_SPEC), second, 'nothing stale is cached')
+  t.absent(second.destroyed_, 'and the successor is untouched')
+})
+
+test('a worker spawned with no key to give is a failed spawn', async (t) => {
+  const server = await socketServer(t)
+  const worker = stubWorker({ exitsOnShutdown: true })
+  const { host, electron } = load({ worker })
+  host.registerWorkerHost()
+  const starting = startFor(electron, fakeSender(7))
+  worker.emit('data', announce(server.socketPath))
+  await t.exception(starting)
+  t.is(server.unlocks.length, 0, 'nothing is asked of the worker')
+  t.is(frames(worker).filter((f) => f.type === 'shutdown').length, 1)
+})
+
+test('neither the key nor the seed reaches a log, whether the unlock succeeds or fails', async (t) => {
+  const storage = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'worker-host-relay-')), 'app-storage')
+  t.teardown(() => fs.rmSync(path.dirname(storage), { recursive: true, force: true }))
+  fs.mkdirSync(storage, { recursive: true })
+  fs.writeFileSync(seedFile(storage), _sealForTests(SEED, KEK))
+
+  const logged = []
+  const saved = {}
+  for (const level of ['log', 'info', 'warn', 'error']) {
+    saved[level] = console[level]
+    console[level] = (...args) => { logged.push(args.map(String).join(' ')) }
+  }
+  t.teardown(() => { for (const level of Object.keys(saved)) console[level] = saved[level] })
+
+  for (const unlock of [() => ({ data: { ok: true } }), () => ({ error: 'nope', code: 'NOT_AUTHORIZED' }), () => 'hang-up']) {
+    const server = await socketServer(t, { unlock })
+    const worker = stubWorker({ exitsOnShutdown: true })
+    const { host, electron } = load({ worker, flags: { identityKEK: KEK }, storage })
+    host.registerWorkerHost()
+    const starting = startFor(electron, fakeSender(7))
+    worker.emit('data', announce(server.socketPath))
+    await starting.catch(() => {})
+  }
+  const text = logged.join('\n')
+  t.absent(text.includes(KEK), 'no key in a log')
+  t.absent(text.includes(SEED), 'no seed in a log')
+})
+
+test('a restart hands the key over again, as the key stands then', async (t) => {
+  const server = await socketServer(t)
+  const first = stubWorker()
+  const second = stubWorker()
+  const spawned = [first, second]
+  const flags = { identityKEK: KEK }
+  const { host, electron } = load({ flags, spawn: () => spawned.shift() })
+  host.registerWorkerHost()
+  const sender = fakeSender(7)
+  const starting = startFor(electron, sender)
+  first.emit('data', announce(server.socketPath))
+  await starting
+  t.is(server.unlocks.length, 1)
+
+  flags.identityKEK = 'cd'.repeat(32)
+  const restarting = host.restartWorker(MAIN_WORKER_SPEC)
+  first.emit('exit', 0)
+  await restarting
+  const again = startFor(electron, sender)
+  second.emit('data', announce(server.socketPath))
+  await again
+  t.is(server.unlocks.length, 2, 'every spawn is unlocked')
+  t.is(server.unlocks[1].kek, 'cd'.repeat(32))
+})
+
+test('a respawn after a crash hands the key over again', async (t) => {
+  const server = await socketServer(t)
+  const first = stubWorker()
+  const second = stubWorker()
+  const spawned = [first, second]
+  const { host, electron } = load({ flags: { identityKEK: KEK }, spawn: () => spawned.shift() })
+  host.registerWorkerHost()
+  const starting = startFor(electron, fakeSender(7))
+  first.emit('data', announce(server.socketPath))
+  await starting
+  first.emit('exit', 70)
+
+  const again = startFor(electron, fakeSender(7))
+  second.emit('data', announce(server.socketPath))
+  await again
+  t.is(server.unlocks.length, 2)
+})
+
+test('"try again" hands the running worker the current key and reports whether it opened', async (t) => {
+  const answers = [() => ({ error: 'identity unlock failed', code: 'IDENTITY_UNLOCK_FAILED' }), () => ({ data: { ok: true } })]
+  const server = await socketServer(t, { unlock: () => answers.shift()() })
+  const flags = { identityKEK: KEK }
+  const { host, worker, electron } = load({ flags })
+  host.registerWorkerHost()
+  const starting = startFor(electron, fakeSender(7))
+  worker.emit('data', announce(server.socketPath))
+  await starting
+
+  flags.identityKEK = 'cd'.repeat(32)
+  t.is(await host.retryUnlock(MAIN_WORKER_SPEC), true, 'opened')
+  t.is(server.unlocks.length, 2)
+  t.is(server.unlocks[1].kek, 'cd'.repeat(32), 'the key held now, not the one of the spawn')
+})
+
+test('"try again" on a key that locks the worker again is false, not an error; a worker that is gone is an error', async (t) => {
+  const server = await socketServer(t, { unlock: () => ({ error: 'identity unlock failed', code: 'IDENTITY_UNLOCK_FAILED' }) })
+  const { host, worker, electron } = load({ flags: { identityKEK: KEK } })
+  host.registerWorkerHost()
+  const starting = startFor(electron, fakeSender(7))
+  worker.emit('data', announce(server.socketPath))
+  await starting
+  t.is(await host.retryUnlock(MAIN_WORKER_SPEC), false)
+  worker.emit('exit', 0)
+  await t.exception(host.retryUnlock(MAIN_WORKER_SPEC))
+})
+
+test('the way back: with the key on the spawn frame the worker is not unlocked at spawn, and the start settles on its socket', async (t) => {
+  const storage = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'worker-host-relay-')), 'app-storage')
+  t.teardown(() => fs.rmSync(path.dirname(storage), { recursive: true, force: true }))
+  fs.mkdirSync(storage, { recursive: true })
+  fs.writeFileSync(seedFile(storage), _sealForTests(SEED, KEK))
+
+  const server = await socketServer(t, { unlock: () => ({ error: 'this worker is not waiting for a key', code: 'NOT_AUTHORIZED' }) })
+  const { host, worker, electron } = load({ flags: { identityKEK: KEK }, storage, keyOnSpawnFrame: true })
+  host.registerWorkerHost()
+  const starting = startFor(electron, fakeSender(7))
+  const boot = frames(worker)[1]
+  t.is(boot.identityKEK, KEK, 'the key is on the bootstrap')
+  t.is(boot.relaySeed, SEED, 'and the seed it unseals')
+  worker.emit('data', announce(server.socketPath))
+  t.is(await starting, true, 'the start settles once the socket is announced')
+  t.is(server.unlocks.length, 0, 'and nothing is sent at spawn: the worker already has its key')
+  t.absent(worker.destroyed_)
+
+  server.setUnlock(() => ({ data: { ok: true } }))
+  t.is(await host.retryUnlock(MAIN_WORKER_SPEC), true, '"try again" still hands the key over the socket')
+  t.is(server.unlocks.length, 1)
+})
+
+test('with the key off the spawn frame, as shipped, the bootstrap carries no secret and the unlock is sent', async (t) => {
+  const server = await socketServer(t)
+  const { host, worker, electron } = load({ flags: { identityKEK: KEK } })
+  host.registerWorkerHost()
+  const starting = startFor(electron, fakeSender(7))
+  t.absent('identityKEK' in frames(worker)[1])
+  t.absent('relaySeed' in frames(worker)[1])
+  worker.emit('data', announce(server.socketPath))
+  await starting
+  t.is(server.unlocks.length, 1)
+})
+
+test('the running worker is asked whether it is locked, over a connection of its own', async (t) => {
+  const server = await socketServer(t)
+  const { host, worker, electron } = load({ flags: { identityKEK: KEK } })
+  host.registerWorkerHost()
+  const starting = startFor(electron, fakeSender(7))
+  worker.emit('data', announce(server.socketPath))
+  await starting
+  t.alike(await host.workerStatus(MAIN_WORKER_SPEC), { locked: true, code: 'IDENTITY_UNLOCK_FAILED', restore: null })
+  t.is(server.unlocks.length, 1, 'asking did not hand over a key')
+  worker.emit('exit', 0)
+  await t.exception(host.workerStatus(MAIN_WORKER_SPEC))
 })
 
 test('the hello frame carries the protocol version, the window main accepts, and what main is', (t) => {
@@ -251,43 +565,84 @@ function fakeSender(id) {
   return ee
 }
 
-function socketServer(t) {
+// A worker's socket as far as main can tell: it answers identity:unlock as `unlock` says (an ok by
+// default; `{ error, code }`; 'hang-up'), or holds the answer until releaseUnlock(). Every other
+// connection is a window's, and what it sends is kept in `received`.
+function socketServer(t, { unlock: answer = () => ({ data: { ok: true } }), holdUnlock = false } = {}) {
+  let unlock = answer
   const dir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'wh-')), 'run')
   fs.mkdirSync(dir, { mode: 0o700 })
   t.teardown(() => fs.rmSync(path.dirname(dir), { recursive: true, force: true }))
   const socketPath = path.join(dir, 's.sock')
   const peers = []
-  const server = net.createServer((sock) => { sock.received = []; sock.on('data', (d) => sock.received.push(String(d))); peers.push(sock) })
-  t.teardown(() => new Promise((resolve) => { for (const p of peers) p.destroy(); server.close(resolve) }))
-  return new Promise((resolve) => server.listen(socketPath, () => resolve({ socketPath, peers })))
+  const unlocks = []
+  const hellos = []
+  let release = null
+  const held = new Promise((resolve) => { release = resolve })
+  const server = net.createServer((sock) => {
+    sock.received = []
+    let buffered = ''
+    sock.on('error', () => {})
+    sock.on('data', (d) => {
+      sock.received.push(String(d))
+      buffered += d
+      const lines = buffered.split('\n')
+      buffered = lines.pop()
+      for (const line of lines) {
+        let frame
+        try { frame = JSON.parse(line) } catch { continue }
+        if (frame.type === 'hello') hellos.push(frame)
+        if (frame.type === 'identity:status') {
+          sock.write(JSON.stringify({ id: frame.id, type: 'response', data: { locked: true, code: 'IDENTITY_UNLOCK_FAILED', restore: null } }) + '\n')
+          continue
+        }
+        if (frame.type !== 'identity:unlock') continue
+        unlocks.push(frame)
+        void (async () => {
+          if (holdUnlock) await held
+          const answer = unlock(frame)
+          if (answer === 'hang-up') { sock.destroy(); return }
+          sock.write(JSON.stringify({ id: frame.id, type: 'response', ...answer }) + '\n')
+        })()
+      }
+    })
+    peers.push(sock)
+  })
+  const close = () => new Promise((resolve) => { for (const p of peers) p.destroy(); server.close(resolve) })
+  t.teardown(close)
+  return new Promise((resolve) => server.listen(socketPath, () => resolve({ socketPath, peers, unlocks, hellos, releaseUnlock: () => release(), setUnlock: (fn) => { unlock = fn }, close })))
 }
+
+const announce = (socketPath) => Buffer.from(JSON.stringify({ type: 'main-request', command: 'socket:listening', args: { path: socketPath } }) + '\n')
+const startFor = (electron, sender) => electron.ipcMain.handlers.get('pear:startWorker')({ sender }, MAIN_WORKER_SPEC)
 
 const until = async (fn) => { for (let i = 0; i < 200 && !fn(); i++) await new Promise((r) => setTimeout(r, 5)) }
 
 test('a window starts the worker, waits for its socket, and talks to it over its own connection', async (t) => {
   const { socketPath, peers } = await socketServer(t)
-  const { host, worker, electron } = load()
+  const { host, worker, electron } = load({ flags: { identityKEK: KEK } })
   host.registerWorkerHost()
   const sender = fakeSender(7)
   let started = false
-  const starting = electron.ipcMain.handlers.get('pear:startWorker')({ sender }, MAIN_WORKER_SPEC).then((v) => { started = v })
+  const starting = startFor(electron, sender).then((v) => { started = v })
 
   await new Promise((r) => setTimeout(r, 20))
   t.absent(started, 'not before the worker said where it listens')
-  worker.emit('data', Buffer.from(JSON.stringify({ type: 'main-request', command: 'socket:listening', args: { path: socketPath } }) + '\n'))
+  worker.emit('data', announce(socketPath))
   await starting
   t.is(started, true)
-  await until(() => peers.length === 1)
-  t.is(peers.length, 1, 'one connection for the window')
+  await until(() => peers.length === 2)
+  t.is(peers.length, 2, 'main\'s own connection for the key, and one for the window')
+  const windowPeer = peers[1]
 
-  peers[0].write('{"type":"event:x"}\n')
+  windowPeer.write('{"type":"event:x"}\n')
   await until(() => sender.sent.length > 0)
   t.alike(sender.sent.map(([c, d]) => [c, String(d)]), [['pear:worker:ipc:' + MAIN_WORKER_SPEC, '{"type":"event:x"}\n']])
 
   const write = electron.ipcMain.handlers.get('pear:worker:writeIPC:' + MAIN_WORKER_SPEC)
   t.is(write({ sender }, Buffer.from('{"id":1,"type":"ping"}\n')), true)
-  await until(() => peers[0].received.length > 0)
-  t.alike(peers[0].received, ['{"id":1,"type":"ping"}\n'])
+  await until(() => windowPeer.received.length > 0)
+  t.alike(windowPeer.received, ['{"id":1,"type":"ping"}\n'])
   t.is(write({ sender: fakeSender(8) }, Buffer.from('x')), false, 'another window has no connection of its own yet')
 
   worker.emit('exit', 70)

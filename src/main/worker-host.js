@@ -1,13 +1,14 @@
 // The Bare worker host: spawning one, framing what goes down its spawn pipe, and reaping it.
 //
 // The spawn pipe is main's own: the hello, the bootstrap and shutdown go down it, and the worker's
-// commands to main come back on it. Windows do not use it — each reaches the
+// commands to main come back on it. No secret rides it. Windows do not use it — each reaches the
 // worker over its own socket connection (window-connections.js), opened once the worker has said
-// where it listens.
+// where it listens and main has handed it its identity key over a connection of its own
+// (worker-request.js).
 //
 // Exactly one function writes to a worker pipe. A lost bootstrap is not survivable, so the spawn
 // path treats a failed bootstrap write as a failed spawn rather than caching a worker nothing can
-// talk to.
+// talk to. A key that cannot be handed over is the same failure.
 
 const { app, ipcMain } = require('electron')
 const { StringDecoder } = require('string_decoder')
@@ -21,13 +22,15 @@ const { createWorkerRestart } = require('./lifecycle.js')
 const { entrypointFor } = require('./worker-entrypoints.js')
 const { createWorkerFrameReader } = require('./ipc-frame.js')
 const { createWindowConnections } = require('./window-connections.js')
+const { requestOverSocket, helloFrame } = require('./worker-request.js')
 const { envJson } = require('./env-json.js')
 const { envOverride } = require('./env-overrides.js')
 const { isVerbose } = require('./debug-gate.js')
 const relaySecret = require('./relay-secret.js')
 const { MAIN_REQUEST_FRAME } = require('../shared/contract/main-requests.js')
 const { WORKER_SPECS } = require('../shared/contract/workers.js')
-const { FRAME, IPC_PROTOCOL_VERSION, IPC_PROTOCOL_MIN_SUPPORTED } = require('../shared/contract/ipc-frames.js')
+const { FRAME } = require('../shared/contract/ipc-frames.js')
+const { isIdentityLock } = require('../shared/contract/errors.js')
 
 const pkg = require('../../package.json')
 const version = pkg.version
@@ -53,28 +56,42 @@ function deferred() {
   return { promise, resolve, reject }
 }
 
+// Where each live worker has been started: settled once its socket is announced and it has taken
+// its key, or rejected when either fails. A window connects only after this settles.
+const started = new WeakMap()
+const exited = new WeakSet()
+
 function socketPathOf(worker) {
   const announced = listening.get(worker)
   if (!announced) return Promise.reject(new Error('worker is gone'))
   let timer
   const timeout = new Promise((_resolve, reject) => {
     timer = setTimeout(() => reject(new Error('worker did not open its socket')), LISTENING_TIMEOUT_MS)
+    timer.unref?.()
   })
   return Promise.race([announced.promise, timeout]).finally(() => clearTimeout(timer))
 }
 
+// The key rides the spawn frame only when this is true: the way back, should a launch turn out unable
+// to hand the key over its socket. The worker still honours a key on the bootstrap through 1.14, so
+// flipping it is a change to main alone. It is a source constant, not a setting: no environment
+// variable, preference or message can turn a secret onto the pipe. Tests inject it via initWorkerHost.
+const KEY_ON_SPAWN_FRAME = false
+
 // Bound by the entry. identityKEK is a getter, not a value: it is resolved inside whenReady, after
-// this module is required but before the first spawn, and the bootstrap frame reads it then.
+// this module is required but before the first spawn, and a spawn reads it then.
 let getPear = null
 let isDev = false
 let identityKEK = () => null
 let identityWeak = () => false
+let keyOnSpawnFrame = KEY_ON_SPAWN_FRAME
 
 function initWorkerHost(d) {
   getPear = d.getPear
   isDev = d.isDev
   identityKEK = d.identityKEK
   identityWeak = d.identityWeak ?? (() => false)
+  keyOnSpawnFrame = d.keyOnSpawnFrame ?? KEY_ON_SPAWN_FRAME
 }
 
 function revealRoots() { return workerRevealRoots }
@@ -155,6 +172,47 @@ function stopWorkers() {
   for (const worker of workers.values()) void stopWorker(worker)
 }
 
+// The key the identity opens with and the relay seed it unseals, read when the request is made so a
+// recovered key file or a relay change made before a restart is the one handed over.
+function currentKey(storage) {
+  const kek = identityKEK()
+  return { kek, relaySeed: relaySecret.readRelaySeedHex(storage, kek) }
+}
+
+// Hands the worker its key. True once the identity opened; false when the worker took the key and
+// locked on it (a lock code), which leaves it serving the locked screen's recoveries. Anything else
+// is an error: the worker did not take the key. The reply waits for the whole boot, so it has no
+// deadline here.
+async function handKey(socketPath, { kek, relaySeed }) {
+  if (!kek) throw new Error('no identity key to hand the worker')
+  try {
+    await requestOverSocket(socketPath, 'identity:unlock', { kek, ...(relaySeed ? { relaySeed } : {}) })
+    return true
+  } catch (err) {
+    if (isIdentityLock(err.code)) return false
+    throw err
+  }
+}
+
+// A spawned worker's start: its socket is announced, then it is handed its key, and only then is the
+// start settled, so a window never connects to a worker that still waits. A lock is a start; any
+// other failure is a failed spawn, and the worker is stopped like any other (shutdown, then SIGTERM,
+// then SIGKILL) and waited for before the start rejects: a worker still holding the profile lock
+// would make its successor exit as already running. Its exit removes it from `workers`, so until
+// then the quit backstop still covers it.
+function startWorker(worker, specifier, key) {
+  const run = socketPathOf(worker).then(async (socketPath) => {
+    if (!keyOnSpawnFrame) await handKey(socketPath, key)
+    return socketPath
+  }).catch(async (err) => {
+    console.warn('worker start failed:', err.code || err.message)
+    if (!exited.has(worker)) await stopWorker(worker)
+    throw err
+  })
+  run.catch(() => {})
+  return run
+}
+
 function getWorker(specifier) {
   if (workers.has(specifier)) return workers.get(specifier)
   const p = getPear()
@@ -202,26 +260,20 @@ function getWorker(specifier) {
   //
   // The worker's starting state from the host: it is sent once, before any request, and the worker
   // never asks main for these again. Host facts (storage, version, upgrade key, the OS downloads
-  // folder), the two secrets, and the MIRALL_* test overrides, each of which is undefined unless
-  // its variable is set so JSON drops it and the worker's own default stands. No preference and no
-  // feature flag rides here: the worker reads its settings.json and feature-flags.json itself, and
-  // bootstrap-allowlist.test.js pins the key set. shared/core/runtime-config.js is what reads the
+  // folder) and the MIRALL_* test overrides, each of which is undefined unless its variable is set
+  // so JSON drops it and the worker's own default stands. No secret, no preference and no feature
+  // flag rides here: the identity key goes over a socket connection once the worker listens, and
+  // the worker reads its settings.json and feature-flags.json itself. bootstrap-allowlist.test.js
+  // pins the key set. shared/core/runtime-config.js is what reads the
   // result, and is the authority on what each field means once it lands.
   // The introduction, sent before the bootstrap and on the same pipe: it carries the wire version
   // the worker checks before it reads any other field, and it is what makes the handshake something
-  // a client that is not this process can also complete. min/max are inert while both equal the
-  // version, and exist so a future client can advertise a range without another wire change. The
-  // bootstrap that follows carries the secrets, and stays Electron's alone.
+  // a client that is not this process can also complete. The bootstrap that follows stays
+  // Electron's alone.
   //
   // No cursor: main parses no worker frames beyond its own control frames, so it has read nothing
   // to resume from. Each window resumes on its own connection's greeting.
-  const hello = {
-    type: FRAME.HELLO,
-    protocolVersion: IPC_PROTOCOL_VERSION,
-    protocolMin: IPC_PROTOCOL_MIN_SUPPORTED,
-    protocolMax: IPC_PROTOCOL_VERSION,
-    client: { kind: 'electron-main', name: 'mirall', version },
-  }
+  const hello = helloFrame()
 
   const bootstrap = {
     type: FRAME.BOOTSTRAP,
@@ -262,20 +314,18 @@ function getWorker(specifier) {
     managedReportDelayMs: envNumber(envOverride('MIRALL_MANAGED_REPORT_DELAY_MS')),
     // No OS keychain holds the identity key here, so the backup is offered on day one.
     identityWeak: identityWeak(),
-    // The one secret in this frame besides identityKEK, and it travels the same way: read
-    // at spawn, consumed in boot.js, never stored in runtime config.
-    relaySeed: relaySecret.readRelaySeedHex(p.storage, identityKEK()),
-    identityKEK: identityKEK(),
   }
+  const key = currentKey(p.storage)
+  if (keyOnSpawnFrame) Object.assign(bootstrap, { identityKEK: key.kek, relaySeed: key.relaySeed })
   // Neither frame's loss can be absorbed: without the hello the worker refuses everything that
-  // follows, and without the bootstrap it has no storage path and no identity KEK, and it never
-  // asks again. Caching such a worker would leave `pear:startWorker` reporting
+  // follows, and without the bootstrap it has no storage path, and it never asks again. Caching such a worker would leave `pear:startWorker` reporting
   // success while every later renderer request hangs against a process that can never answer, so it
   // is torn down and the failure is raised — the next startWorker then spawns a fresh one.
   if (!sendToWorker(worker, hello) || !sendToWorker(worker, bootstrap)) {
     try { worker.destroy() } catch {}
     throw new Error('worker handshake write failed')
   }
+  started.set(worker, startWorker(worker, specifier, key))
 
   const frames = createWorkerFrameReader()
   worker.on('data', (data) => {
@@ -318,13 +368,14 @@ function getWorker(specifier) {
     if (stdoutTail) logRing.push('worker', 'log', stdoutTail)
     const stderrTail = stderrDecoder.end()
     if (stderrTail) logRing.push('worker', 'error', stderrTail)
+    exited.add(worker)
     listening.get(worker)?.reject(new Error('worker exited before it opened its socket'))
     listening.delete(worker)
     // The roots came from this worker and describe the spaces it had open. Keeping them past its
     // death leaves shell:showInFolder authorising paths nothing is serving any more.
     workerRevealRoots = []
     windowConnections.workerExited(worker, code)
-    workers.delete(specifier)
+    if (workers.get(specifier) === worker) workers.delete(specifier)
   })
 
   workers.set(specifier, worker)
@@ -356,8 +407,24 @@ const restartWorker = createWorkerRestart({
 async function startWorkerFor(sender, specifier) {
   const worker = getWorker(specifier)
   windowConnections.claim(sender, specifier, worker)
-  await windowConnections.open(sender.id, await socketPathOf(worker))
+  await windowConnections.open(sender.id, await started.get(worker))
   return true
+}
+
+// Whether the running worker has opened its identity, and why not.
+async function workerStatus(specifier) {
+  const worker = workers.get(specifier)
+  if (!worker) throw new Error('no worker is running')
+  return requestOverSocket(await socketPathOf(worker), 'identity:status')
+}
+
+// Hands the running worker the current key again: the locked screen's "Try again". Whether the
+// identity opened; a worker that locks again answers false, and a worker that cannot be reached is
+// an error.
+async function retryUnlock(specifier) {
+  const worker = workers.get(specifier)
+  if (!worker) throw new Error('no worker is running')
+  return handKey(await socketPathOf(worker), currentKey(getPear().storage))
 }
 
 function registerWorkerHost() {
@@ -377,6 +444,8 @@ module.exports = {
   stopWorker,
   stopWorkers,
   restartWorker,
+  retryUnlock,
+  workerStatus,
   sendToWorker,
   revealRoots,
   workerIsLocal,

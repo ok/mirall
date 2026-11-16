@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useQuery } from '../store/useQuery.js'
 import { refetchQuery, setQueryData } from '../store/query-store.js'
-import { restartWorker } from '../ipc/ipc.js'
+import { restartWorker, resyncOpenedWorker } from '../ipc/ipc.js'
 import type { IdentityStatus, RestoreStatus } from '../../shared/contract/responses.js'
 import { RESTORE_SCOPES } from '../store/scopes.js'
 import type { IdentityLockCode } from '../../shared/contract/errors.js'
@@ -74,4 +74,14 @@ export async function restartIntoIdentity(): Promise<void> {
     await refetchQuery('identity:status').catch(() => null)
     throw err
   }
+}
+
+// The worker opened the identity in place, on this connection: nothing restarted, so the answers this
+// window holds are still the locked worker's. The profile is read first, while the locked screen is
+// up: a read that failed there reads as "no profile yet", and onboarding would open over an identity
+// that exists the moment the lock lifts. The re-read of everything else, the identity status
+// included, then lifts the lock.
+export async function adoptOpenedIdentity(): Promise<void> {
+  await refetchQuery('profile:get').catch(() => null)
+  resyncOpenedWorker()
 }

@@ -20,3 +20,7 @@ export const WORKER_EXIT_ALREADY_RUNNING = 73
 // The worker could not open its socket, so no window can reach it. Retried under the ordinary
 // budget: the cause (a full disk, a permission fault on the run directory) may clear.
 export const WORKER_EXIT_LISTEN_FAILED = 74
+
+// The key was right and the data layer still would not start (a store that cannot be opened, a
+// migration that threw). Retried under the ordinary budget, like a listener that failed.
+export const WORKER_EXIT_BOOT_FAILED = 75

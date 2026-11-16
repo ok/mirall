@@ -35,9 +35,10 @@ test('REGRESSION (FIX-R09-7): the entry starts and stops the monitor', (t) => {
   t.ok(/health\.start\(\)/.test(mainEntry), 'started when the router goes live')
   t.ok(/health\.stop\(\)/.test(mainEntry), 'and stopped on shutdown, so it cannot outlive the worker')
   // Statement positions, not the first textual match: a prose comment near the top of the entry
-  // also names ipc.start(), and indexOf would score that instead.
-  const startedAt = mainEntry.search(/^health\.start\(\)$/m)
-  const liveAt = mainEntry.search(/^ipc\.start\(\)$/m)
+  // also names ipc.start(), and indexOf would score that instead. The statements sit in the
+  // functions that take the router live, so they may be indented.
+  const startedAt = mainEntry.search(/^\s*health\.start\(\)$/m)
+  const liveAt = mainEntry.search(/^\s*ipc\.start\(\)$/m)
   t.ok(startedAt > 0 && liveAt > 0, 'both are real statements, not only mentioned in comments')
   t.ok(startedAt < liveAt, 'armed just before the router admits its first frame, not during boot I/O')
 })

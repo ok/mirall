@@ -1,6 +1,6 @@
 // @ts-check
-// The key a host would have put on the bootstrap, handed over by a client of a worker started
-// without one. Only the host may hand it over. Neither the key nor the relay seed is logged, echoed
+// The identity's key, handed over by a client of a worker that waits for it or is locked by one that
+// could not open the identity (key-wait.js). Only the host may hand it over. Neither the key nor the relay seed is logged, echoed
 // or put in an error: the router logs a failure's message and fields, so every refusal here is a
 // fixed sentence.
 
