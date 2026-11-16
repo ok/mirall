@@ -26,12 +26,17 @@ preloadEntrypoints(REPO)
 // spawn, a write failure reported once, and a dead worker that stops authorising anything. None of
 // that was reachable before the host left the entry — the assertions were regexes over source.
 
-function stubWorker() {
+// `exitsOnShutdown` plays a worker that leaves when asked to: the shutdown frame ends its process.
+function stubWorker({ exitsOnShutdown = false } = {}) {
   const w = new Duplex({ write(_data, cb) { cb(null) } })
   w.written = []
   w.destroyed_ = false
   const realWrite = w.write.bind(w)
-  w.write = (chunk) => { w.written.push(String(chunk)); return w.writeBehaviour ? w.writeBehaviour(chunk) : realWrite(chunk) }
+  w.write = (chunk) => {
+    w.written.push(String(chunk))
+    if (exitsOnShutdown && String(chunk).includes('"shutdown"')) setImmediate(() => w.emit('exit', 0))
+    return w.writeBehaviour ? w.writeBehaviour(chunk) : realWrite(chunk)
+  }
   w.destroy = () => { w.destroyed_ = true }
   w._process = { kill: () => { w.killed = true } }
   // The host mirrors both streams into the log ring, so a stub without them is not a worker.
@@ -279,14 +284,14 @@ test('a worker that locked on its key is a started worker, and the window gets t
   }
 })
 
-test('any other failure of the unlock is a failed spawn: torn down, not cached, raised', async (t) => {
+test('any other failure of the unlock is a failed spawn: stopped, not cached, raised', async (t) => {
   const refusals = {
     'a code that is not a lock': () => ({ error: 'this worker is not waiting for a key', code: 'NOT_AUTHORIZED' }),
     'a connection that drops': () => 'hang-up',
   }
   for (const [name, unlock] of Object.entries(refusals)) {
     const server = await socketServer(t, { unlock })
-    const first = stubWorker()
+    const first = stubWorker({ exitsOnShutdown: true })
     const second = stubWorker()
     const spawned = [first, second]
     const { host, electron } = load({ flags: { identityKEK: KEK }, spawn: () => spawned.shift() })
@@ -294,35 +299,79 @@ test('any other failure of the unlock is a failed spawn: torn down, not cached, 
     const starting = startFor(electron, fakeSender(7))
     first.emit('data', announce(server.socketPath))
     await t.exception(starting, name + ': the start fails')
-    t.ok(first.destroyed_, name + ': the worker is destroyed')
+    t.is(frames(first).filter((f) => f.type === 'shutdown').length, 1, name + ': the worker was asked to shut down')
     t.is(host.getWorker(MAIN_WORKER_SPEC), second, name + ': the next start spawns afresh')
     first.emit('exit', 1)
     t.is(host.getWorker(MAIN_WORKER_SPEC), second, name + ': the dead worker\'s exit does not evict its successor')
   }
 })
 
-test('a socket nothing listens on is a failed spawn', async (t) => {
-  const server = await socketServer(t)
-  const gone = server.socketPath
-  await server.close()
+test('REGRESSION (FIX-UNLOCK-3: a worker still holding the profile lock outlived its failed start): the start rejects only once the worker has exited', async (t) => {
+  const server = await socketServer(t, { unlock: () => ({ error: 'this worker is not waiting for a key', code: 'NOT_AUTHORIZED' }) })
+  const first = stubWorker()
+  const second = stubWorker()
+  const spawned = [first, second]
+  const { host, electron } = load({ flags: { identityKEK: KEK }, spawn: () => spawned.shift() })
+  host.registerWorkerHost()
+  let rejected = false
+  const starting = startFor(electron, fakeSender(7)).catch(() => { rejected = true })
+  first.emit('data', announce(server.socketPath))
+  await until(() => frames(first).some((f) => f.type === 'shutdown'))
+  await new Promise((r) => setTimeout(r, 40))
+  t.absent(rejected, 'the worker has been asked to go and has not: its lock may still be held')
+  t.is(host.getWorker(MAIN_WORKER_SPEC), first, 'and it is still the worker the host knows, so the quit backstop covers it')
+
+  first.emit('exit', 0)
+  await starting
+  t.ok(rejected)
+  t.is(host.getWorker(MAIN_WORKER_SPEC), second, 'a successor spawns once it has gone')
+  first.emit('exit', 0)
+  t.is(host.getWorker(MAIN_WORKER_SPEC), second, 'and its late exit does not evict the successor')
+})
+
+test('a worker that had already exited when its start failed is not waited for', async (t) => {
   const worker = stubWorker()
   const { host, electron } = load({ worker, flags: { identityKEK: KEK } })
   host.registerWorkerHost()
   const starting = startFor(electron, fakeSender(7))
-  worker.emit('data', announce(gone))
+  worker.emit('exit', 73)
   await t.exception(starting)
-  t.ok(worker.destroyed_)
+  t.is(frames(worker).filter((f) => f.type === 'shutdown').length, 0, 'nobody to ask')
+})
+
+test('stopping the worker while its first unlock is in flight ends the start cleanly and harms no successor', async (t) => {
+  const server = await socketServer(t, { holdUnlock: true })
+  const first = stubWorker()
+  const second = stubWorker()
+  const spawned = [first, second]
+  const { host, electron } = load({ flags: { identityKEK: KEK }, spawn: () => spawned.shift() })
+  host.registerWorkerHost()
+  const sender = fakeSender(7)
+  const starting = startFor(electron, sender)
+  first.emit('data', announce(server.socketPath))
+  await until(() => server.unlocks.length === 1)
+
+  const stopping = host.stopWorker(first)
+  first.emit('exit', 0)
+  await stopping
+  server.peers.forEach((peer) => peer.destroy())
+  await t.exception(starting, 'the pending start rejects')
+  t.is(server.peers.length, 1, 'the window never connected')
+  t.alike(sender.sent.filter(([c]) => c.startsWith('pear:worker:exit:')).map(([, code]) => code), [0], 'and heard of the exit once')
+  t.is(host.getWorker(MAIN_WORKER_SPEC), second, 'nothing stale is cached')
+  t.absent(second.destroyed_, 'and the successor is untouched')
 })
 
 test('a worker spawned with no key to give is a failed spawn', async (t) => {
   const server = await socketServer(t)
-  const { host, worker, electron } = load()
+  const worker = stubWorker({ exitsOnShutdown: true })
+  const { host, electron } = load({ worker })
   host.registerWorkerHost()
   const starting = startFor(electron, fakeSender(7))
   worker.emit('data', announce(server.socketPath))
   await t.exception(starting)
   t.is(server.unlocks.length, 0, 'nothing is asked of the worker')
-  t.ok(worker.destroyed_)
+  t.is(frames(worker).filter((f) => f.type === 'shutdown').length, 1)
 })
 
 test('neither the key nor the seed reaches a log, whether the unlock succeeds or fails', async (t) => {
@@ -341,7 +390,8 @@ test('neither the key nor the seed reaches a log, whether the unlock succeeds or
 
   for (const unlock of [() => ({ data: { ok: true } }), () => ({ error: 'nope', code: 'NOT_AUTHORIZED' }), () => 'hang-up']) {
     const server = await socketServer(t, { unlock })
-    const { host, worker, electron } = load({ flags: { identityKEK: KEK }, storage })
+    const worker = stubWorker({ exitsOnShutdown: true })
+    const { host, electron } = load({ worker, flags: { identityKEK: KEK }, storage })
     host.registerWorkerHost()
     const starting = startFor(electron, fakeSender(7))
     worker.emit('data', announce(server.socketPath))

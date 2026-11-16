@@ -59,6 +59,7 @@ function deferred() {
 // Where each live worker has been started: settled once its socket is announced and it has taken
 // its key, or rejected when either fails. A window connects only after this settles.
 const started = new WeakMap()
+const exited = new WeakSet()
 
 function socketPathOf(worker) {
   const announced = listening.get(worker)
@@ -187,16 +188,17 @@ async function handKey(socketPath, { kek, relaySeed }) {
 
 // A spawned worker's start: its socket is announced, then it is handed its key, and only then is the
 // start settled, so a window never connects to a worker that still waits. A lock is a start; any
-// other failure is a failed spawn, and the worker is torn down and forgotten like one whose
-// bootstrap was lost.
+// other failure is a failed spawn, and the worker is stopped like any other (shutdown, then SIGTERM,
+// then SIGKILL) and waited for before the start rejects: a worker still holding the profile lock
+// would make its successor exit as already running. Its exit removes it from `workers`, so until
+// then the quit backstop still covers it.
 function startWorker(worker, specifier, key) {
   const run = socketPathOf(worker).then(async (socketPath) => {
     await handKey(socketPath, key)
     return socketPath
-  }).catch((err) => {
+  }).catch(async (err) => {
     console.warn('worker start failed:', err.code || err.message)
-    if (workers.get(specifier) === worker) workers.delete(specifier)
-    try { worker.destroy() } catch {}
+    if (!exited.has(worker)) await stopWorker(worker)
     throw err
   })
   run.catch(() => {})
@@ -356,6 +358,7 @@ function getWorker(specifier) {
     if (stdoutTail) logRing.push('worker', 'log', stdoutTail)
     const stderrTail = stderrDecoder.end()
     if (stderrTail) logRing.push('worker', 'error', stderrTail)
+    exited.add(worker)
     listening.get(worker)?.reject(new Error('worker exited before it opened its socket'))
     listening.delete(worker)
     // The roots came from this worker and describe the spaces it had open. Keeping them past its
