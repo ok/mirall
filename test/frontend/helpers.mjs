@@ -1,4 +1,28 @@
+import { execFileSync } from 'node:child_process'
+import { readdirSync, lstatSync } from 'node:fs'
+import path from 'node:path'
 import { waitFor } from './assert.mjs'
+
+// The process holding the profile's lock: the worker. A worker that is replaced is a different pid,
+// so a scenario that says "nothing restarted" compares this before and after.
+export function workerPid(store) {
+  const out = execFileSync('lsof', ['-t', path.join(store, 'run', 'daemon.lock')], { encoding: 'utf8' }).trim()
+  return Number(out.split('\n')[0])
+}
+
+// kek.enc sits beside the store the app was given with --storage; found rather than assumed. lstat,
+// because Electron leaves Singleton* symlinks in the profile that dangle once it has quit.
+export function findKek(dir, depth = 3) {
+  for (const name of readdirSync(dir)) {
+    const p = path.join(dir, name)
+    if (name === 'kek.enc') return p
+    if (depth > 0 && lstatSync(p).isDirectory()) {
+      const hit = findKek(p, depth - 1)
+      if (hit) return hit
+    }
+  }
+  return null
+}
 
 // Mint an invite from INSIDE a space. The modal now configures the link first (auto-approve off by
 // default, default expiry) and reveals it only after "Create invite link"; we then copy the
