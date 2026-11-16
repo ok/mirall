@@ -24,6 +24,16 @@ export default async function s190({ runDir, bootstrap }) {
       await A.shot('s190-updated', runDir)
     })
 
+    await r.ok('a delete confirm closed by a lock does not reopen when the lock lifts', async () => {
+      await A.click({ role: 'button', name: 'Delete…' })
+      await A.waitText('Delete the activity log?', 10000)
+      fixture.serve({ 'audit.retentionDays': 365, 'audit.enabled': true })
+      await waitFor(async () => !(await A.hasText('Delete the activity log?')), 30000, 'the confirm closed by the lock')
+      fixture.serve({ 'audit.retentionDays': 365 })
+      await waitFor(async () => !(await A.isDisabled({ role: 'button', name: 'Delete…' })), 30000, 'Delete available again')
+      assert(!(await A.hasText('Delete the activity log?')), 'the confirm stays closed')
+    })
+
     await r.ok('a recording lock alone makes only the shorter retentions unavailable', async () => {
       fixture.serve({ 'audit.enabled': true })
       await waitFor(async () => !(await A.isDisabled({ role: 'checkbox', name: '365 days' })), 30000, 'retention unlocked after the poll')
