@@ -25,6 +25,11 @@ changes do not appear here.
 
 ### Fixed
 
+- **Connecting to another organization could switch back to the previous
+  one after a restart.** A configuration check still running for the old
+  organization could overwrite the new one.
+- **A Leave that could not finish no longer goes quiet.** The computer stays
+  managed and keeps reporting to its organization until Leave succeeds.
 - **Leaving an organization during its first backup no longer keeps backing
   up to the organization's folder.** That folder could become your own
   backup folder.
