@@ -38,7 +38,16 @@ function parse(parsed) {
   if (isObject(parsed.check) && isTime(parsed.check.nextAt)) {
     out.check = { nextAt: parsed.check.nextAt, snoozed: parsed.check.snoozed === true, optOut: parsed.check.optOut === true }
   }
-  return out
+  return isObject(parsed.managed) && !('lastSuccessAt' in parsed.managed) ? withSharedSuccessSplit(out) : out
+}
+
+// A managed record without a lastSuccessAt key comes from a file that kept one last success for both
+// folders. Every success while the organization's folder was set up went to it, so a success at or
+// after its setup is its own and not the person's; one from before stays the person's.
+function withSharedSuccessSplit(state) {
+  const { managed, lastSuccessAt } = state
+  if (!managed || managed.setupAt === null || lastSuccessAt === null || lastSuccessAt < managed.setupAt) return state
+  return { ...state, lastSuccessAt: null, managed: { ...managed, lastSuccessAt } }
 }
 
 export function loadBackupState(storagePath) {
