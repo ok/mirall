@@ -307,7 +307,7 @@ export async function restartWorker(): Promise<void> {
   try {
     const replaced = await window.bridge.restartWorker(WORKER_SPEC)
     // Main refuses to replace a back end it did not start, and leaves it running untouched.
-    if (typeof replaced === 'object') throw codedError('the back end was not started by this app', replaced.code)
+    if (replaced && typeof replaced === 'object') throw codedError('the back end was not started by this app', replaced.code)
     if (!replaced) return // the app is quitting; there is no next worker to wait for
     // The old connection went with the old worker; this window opens its own to the new one.
     workerStarted = false
