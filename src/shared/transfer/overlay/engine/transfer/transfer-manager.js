@@ -64,7 +64,6 @@ export class TransferManager {
   closeChunkSource(fd) { return closeChunkSource(fd) }
   cleanJournals(maxAge) { return cleanupOrphanedJournals(this._journalDir, maxAge) }
 
-  /** @internal */
   receiveState(targetPath) { return this._active.get(targetPath) ?? null }
 
   // Start receiving a file. A same-size partial is resumed: the journal restores the received set
@@ -111,7 +110,9 @@ export class TransferManager {
       // Never load-bearing: bytes hit disk first, and a miss falls back to read-back.
       memChunks: new Map(),
       memBytes: 0,
-      stats: { readbacks: 0, stashHits: 0 },
+      // writeMs and hashMs are time this receive spent on the worker thread, per chunk verified
+      // and written: both calls are synchronous, so they are time the socket was not read.
+      stats: { readbacks: 0, stashHits: 0, writeMs: 0, hashMs: 0 },
     }
     // A prior receive of this path that ended in a failure leaves its state here with an open fd;
     // it is closed before being replaced, so a retry cannot orphan it.
@@ -134,7 +135,10 @@ export class TransferManager {
     // A chunk that landed after close: codeless, so the scheduler re-assigns instead of failing.
     if (state.fd == null) return { ok: false, error: 'transfer closed' }
     const expected = state.chunks[index]
+    const hashStart = Date.now()
     const actual = hashChunk(data)
+    const writeStart = Date.now()
+    state.stats.hashMs += writeStart - hashStart
     if (actual !== expected.hash) {
       return { ok: false, error: `hash mismatch at index ${index}: expected ${expected.hash.slice(0, 16)}... got ${actual.slice(0, 16)}...` }
     }
@@ -151,6 +155,7 @@ export class TransferManager {
     } catch (err) {
       return { ok: false, error: err.message, code: err.code }
     }
+    state.stats.writeMs += Date.now() - writeStart
     state.received.add(index)
     state.bitmap[index >> 3] |= 1 << (index & 7)
     this._stash(state, index, data)

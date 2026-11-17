@@ -74,6 +74,15 @@ function coerceKBps(next, fallback) {
 
 // The version a report names: a dev build has none of its own, and a packaged one always does.
 /** @returns {string} */
+export function isTransferTraceOn() {
+  return config.transferTrace
+}
+
+/** @returns {string | null} */
+export function getTestRunName() {
+  return config.testRunName
+}
+
 export function getAppVersionLabel() {
   return config.appVersion || (config.dev ? 'dev' : 'unknown')
 }

@@ -60,7 +60,7 @@ function awaitingScheduler(proto, path, peer, size, transfer = fakeTransfer()) {
   return sched
 }
 
-const fakeScheduler = () => ({ awaitsMapFrom: () => true, maxMapEntries: () => null, notePageProgress() {}, removePeer() {}, onChunkHashes() {} })
+const fakeScheduler = () => ({ awaitsMapFrom: () => true, maxMapEntries: () => null, notePageProgress() {}, inflightFor: () => 0, removePeer() {}, onChunkHashes() {} })
 const buffersAny = (proto, peer, paths) => paths.some((path) => proto.pages.has(peer, path))
 const mapPaths = (n) => Array.from({ length: n }, (_, i) => 'content:' + i)
 

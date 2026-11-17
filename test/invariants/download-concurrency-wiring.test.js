@@ -24,11 +24,11 @@ test('the worker assembles the frame, its settings and its flags into the runtim
   // exit with its own code. The rule is that nothing reads a field off the frame before the whole
   // frame reaches the assembly: a field pulled out here is one the config never learns about.
   const awaited = worker.indexOf('bootstrap = await ipc.bootstrapPromise')
-  const handed = worker.indexOf('setRuntimeConfig(assembleRuntimeConfig({ bootstrap, settings: getSettings(), flags }))')
+  const handed = worker.indexOf('setRuntimeConfig(assembleRuntimeConfig({ bootstrap, settings: getSettings(), flags, testRun }))')
   t.ok(awaited !== -1 && handed > awaited, 'the frame is awaited whole, then assembled into the config')
   const between = worker.slice(awaited, handed)
-  t.alike(between.match(/\bbootstrap\.\w+/g), ['bootstrap.featureFlags', 'bootstrap.storage'],
-    'only the flag override and the storage path are read off it first — the two the other sources need')
+  t.alike(between.match(/\bbootstrap\.\w+/g), ['bootstrap.featureFlags', 'bootstrap.storage', 'bootstrap.storage'],
+    'only the flag override and the storage path are read off it first — what the other sources need, the settings and the test run file each locating its own file')
   const saved = getRuntimeConfig()
   t.teardown(() => setRuntimeConfig(saved))
   setRuntimeConfig({ downloadConcurrency: 3 })

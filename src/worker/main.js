@@ -51,6 +51,7 @@ import { setMountRootsListener } from '../shared/folders/mount-store.js'
 import { loadSettings, getSettings } from '../shared/core/settings-store.js'
 import { loadFeatureFlags } from '../shared/core/feature-flags.js'
 import { assembleRuntimeConfig } from '../shared/core/runtime-config-sources.js'
+import { loadTestRun } from '../shared/core/test-run-file.js'
 import { daemonPaths } from '../shared/contract/paths.js'
 import { createLogger } from '../shared/core/logger.js'
 import { installCrashBackstop } from '../shared/core/crash-backstop.js'
@@ -233,7 +234,9 @@ const flags = loadFeatureFlags(packageRoot, { override: bootstrap.featureFlags, 
 const settingsLoad = await loadSettings(bootstrap.storage)
 if (settingsLoad.imported) log.info('settings: imported from config.json')
 if (!settingsLoad.persisted) log.warn('settings: running on defaults, settings.json could not be', settingsLoad.broken ? 'read: ' + settingsLoad.broken : 'written')
-setRuntimeConfig(assembleRuntimeConfig({ bootstrap, settings: getSettings(), flags }))
+const { testRun, broken: testRunBroken } = loadTestRun(bootstrap.storage)
+if (testRunBroken) log.warn('test run file ignored:', testRunBroken)
+setRuntimeConfig(assembleRuntimeConfig({ bootstrap, settings: getSettings(), flags, testRun }))
 
 // The bootstrap frame carries the storage path, which is the first moment the worker
 // knows which directory to protect. Armed here, before boot() opens the Corestore, so every
@@ -311,7 +314,7 @@ async function openIdentity({ kek, relaySeed }) {
   bootstrap.identityKEK = kek
   bootstrap.relaySeed = relaySeed ?? undefined
   await applyPendingIdentityChange(bootstrap.storage)
-  setRuntimeConfig(assembleRuntimeConfig({ bootstrap, settings: getSettings(), flags }))
+  setRuntimeConfig(assembleRuntimeConfig({ bootstrap, settings: getSettings(), flags, testRun }))
   try {
     root = await bootDataLayer()
   } catch (err) {

@@ -1,8 +1,8 @@
 import test from 'brittle'
-import { assembleRuntimeConfig, flagsToRuntimeConfig } from '../../src/shared/core/runtime-config-sources.js'
+import { assembleRuntimeConfig, flagsToRuntimeConfig, testRunToRuntimeConfig } from '../../src/shared/core/runtime-config-sources.js'
 import { defaultSettings, coerceSettings } from '../../src/shared/core/settings-rules.js'
 import { sanitizeRelay } from '../../src/shared/network/relay-slot.js'
-import { setRuntimeConfig, getRuntimeConfig, getBandwidthLimits, getRelayConfig, isMembershipControlBindingEnforced } from '../../src/shared/core/runtime-config.js'
+import { setRuntimeConfig, getRuntimeConfig, getBandwidthLimits, getRelayConfig, isMembershipControlBindingEnforced, isTransferTraceOn, getTestRunName } from '../../src/shared/core/runtime-config.js'
 
 const deps = { sanitizeRelay, recentLimit: 3 }
 
@@ -49,4 +49,28 @@ test('the assembly carries the host facts through untouched', (t) => {
   t.is(out.identityKEK, 'ab', 'the secret rides through to boot, which consumes it')
   t.is(out.defaultDownloadFolder, '/dl')
   t.is(out.downloadFolder, null, 'no stored folder: the default decides')
+})
+
+test('the test run file names a run and turns the trace on, and anything else in it is nothing', (t) => {
+  t.alike(testRunToRuntimeConfig({ run: 'R3', trace: true }), { testRunName: 'R3', transferTrace: true })
+  t.alike(testRunToRuntimeConfig({ run: 'R3' }), { testRunName: 'R3' }, 'a run alone does not trace')
+  t.alike(testRunToRuntimeConfig({ run: '../etc', trace: 'yes', downloadKBps: 1 }), {}, 'a malformed name, a truthy non-boolean and an unknown key')
+  for (const absent of [null, undefined, [], 'R3', 7]) t.alike(testRunToRuntimeConfig(absent), {})
+})
+
+test('no test run file leaves the app as shipped; the bootstrap still wins over one', (t) => {
+  const saved = getRuntimeConfig()
+  t.teardown(() => setRuntimeConfig(saved))
+  const settings = coerceSettings(null, deps)
+
+  setRuntimeConfig(assembleRuntimeConfig({ bootstrap: { storage: '/s' }, settings, flags: {} }))
+  t.absent(isTransferTraceOn(), 'off by default')
+  t.is(getTestRunName(), null)
+
+  setRuntimeConfig(assembleRuntimeConfig({ bootstrap: { storage: '/s' }, settings, flags: {}, testRun: { run: 'R1', trace: true } }))
+  t.ok(isTransferTraceOn())
+  t.is(getTestRunName(), 'R1')
+
+  setRuntimeConfig(assembleRuntimeConfig({ bootstrap: { storage: '/s', transferTrace: false }, settings, flags: {}, testRun: { run: 'R1', trace: true } }))
+  t.absent(isTransferTraceOn(), 'the bootstrap beats the file')
 })
