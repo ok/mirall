@@ -17,3 +17,13 @@ export function deriveChannel({ dev, appVersion } = {}) {
   if (v.includes('-dev.')) return 'dev'
   return 'prod'
 }
+
+// The version a back end states in its hello-ack and run record: the build's version, or what a
+// build without one is. Main compares a running back end's statement with this, for its own build.
+/**
+ * @param {{ dev?: boolean, appVersion?: string | null }} [build]
+ * @returns {string}
+ */
+export function versionLabel({ dev, appVersion } = {}) {
+  return appVersion || (dev ? 'dev' : 'unknown')
+}

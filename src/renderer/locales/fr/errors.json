@@ -47,6 +47,7 @@
   "notApprovedForSpace": "Votre adhésion à cet espace n'est pas encore approuvée, vous ne pouvez donc rien y partager.",
   "requestTimedOut": "Mirall a mis trop de temps à répondre. Réessayez dans un instant.",
   "workerUnavailable": "Le service en arrière-plan de Mirall n'est pas disponible. Redémarrez Mirall si cela persiste.",
+  "workerStartedElsewhere": "Le service en arrière-plan de Mirall a été démarré en dehors de Mirall. Redémarrez-le à cet endroit pour appliquer ce changement.",
   "unexpected": "Une erreur s'est produite. Réessayez — si cela persiste, envoyez un commentaire depuis les Réglages.",
   "approveBlockedDivergence": "Les approbations sont suspendues tant que le conflit d'identité du propriétaire n'est pas résolu.",
   "wrongPassphrase": "Cette phrase secrète n’ouvre pas cette sauvegarde. Vérifiez-la et réessayez.",

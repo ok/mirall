@@ -32,12 +32,13 @@ function fakeSocket() {
   return ee
 }
 
-function connections({ graceMs = 5 } = {}) {
+function connections({ graceMs = 5, onClosed } = {}) {
   const sockets = []
   const conns = createWindowConnections({
     connect: () => { const s = fakeSocket(); sockets.push(s); return s },
     checkDir: () => {},
     graceMs,
+    onClosed,
   })
   return { conns, sockets }
 }
@@ -156,4 +157,51 @@ test('main talks only to a socket in a directory private to this user', (t) => {
   t.exception(() => assertPrivateSocketDir(path.join(link, 'daemon.sock'), 'darwin'), 'a symlink is not the directory')
 
   t.execution(() => assertPrivateSocketDir('\\\\.\\pipe\\mirall-x', 'win32'), 'a named pipe has no directory to check')
+})
+
+test('a socket closed under its window is reported to the owner of the worker, before the grace', async (t) => {
+  const closed = []
+  const { conns, sockets } = connections({ graceMs: 20, onClosed: (worker) => closed.push(worker) })
+  const worker = { attached: true }
+  const a = fakeSender(1)
+  conns.claim(a, SPEC, worker)
+  await conns.open(1, '/run/daemon.sock')
+  sockets[0].destroy()
+  t.alike(closed, [worker], 'at once')
+  t.alike(a.exits(), [], 'while the window has not heard yet')
+  await wait(40)
+  t.alike(a.exits(), [0])
+
+  const b = fakeSender(2)
+  conns.claim(b, SPEC, worker)
+  await conns.open(2, '/run/daemon.sock')
+  conns.claim(b, SPEC, worker)
+  t.is(closed.length, 1, 'a connection the app itself let go of is not reported')
+})
+
+test('a start that failed before its window claimed a worker still reaches the window once, with its code', (t) => {
+  const { conns } = connections()
+  const a = fakeSender(1)
+  conns.reportExit(a, SPEC, 73)
+  t.alike(a.exits(), [73])
+  t.is(conns.workerOf(1), null, 'and the window holds no worker')
+})
+
+test('disconnecting closes every window connection to a worker and tells no window', async (t) => {
+  const { conns, sockets } = connections()
+  const worker = {}
+  const other = {}
+  const a = fakeSender(1)
+  const b = fakeSender(2)
+  conns.claim(a, SPEC, worker)
+  conns.claim(b, SPEC, other)
+  await conns.open(1, '/run/daemon.sock')
+  await conns.open(2, '/run/daemon.sock')
+  conns.disconnect(worker)
+  t.ok(sockets[0].destroyed)
+  t.absent(sockets[1].destroyed, 'another worker\'s windows keep theirs')
+  await wait(20)
+  t.alike(a.exits(), [], 'no exit: the app leaves the worker running')
+  t.is(conns.write(1, 'x'), false)
+  t.is(conns.workerOf(1), null)
 })

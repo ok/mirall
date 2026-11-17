@@ -1,6 +1,6 @@
 import { JOIN_REQUEST_FRAME_OVERHEAD } from '../contract/limits.js'
 import { buildConfig, defaultOf, ruleOf, tabledKeys } from './runtime-config-schema.js'
-import { deriveChannel } from '../contract/release-channel.js'
+import { deriveChannel, versionLabel } from '../contract/release-channel.js'
 import { getManagedOverlay, getOrgRelayTest } from './managed-overlay.js'
 import { effectiveNetwork } from './managed-effective.js'
 /** @import { RelayMode } from '../contract/relay-apply.js' */
@@ -84,7 +84,7 @@ export function getTestRunName() {
 }
 
 export function getAppVersionLabel() {
-  return config.appVersion || (config.dev ? 'dev' : 'unknown')
+  return versionLabel({ dev: config.dev, appVersion: config.appVersion })
 }
 
 /** @returns {string | null} */

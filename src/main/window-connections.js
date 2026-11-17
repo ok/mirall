@@ -7,8 +7,9 @@
 // A window learns its connection ended through the exit channel, exactly once per worker it started.
 // When the worker process dies, the code it died with is what the window's respawn policy needs, and
 // the socket usually closes a moment before the process is reported gone; a socket that closes
-// while the process lives (the worker reaped a silent window) is reported as exit 0 after a grace
-// period, unless the process exit arrived within it.
+// while the process lives (the worker reaped a silent window), or with no process main could see end
+// (a back end it did not start), is reported as exit 0 after a grace period, unless the process exit
+// arrived within it.
 
 const net = require('node:net')
 const fs = require('node:fs')
@@ -28,10 +29,12 @@ function assertPrivateSocketDir(socketPath, platform = process.platform) {
   }
 }
 
+// `onClosed(worker)` hears every window connection that closed under its window, before the grace.
 function createWindowConnections({
   connect = (socketPath) => net.connect(socketPath),
   checkDir = assertPrivateSocketDir,
   graceMs = EXIT_GRACE_MS,
+  onClosed = () => {},
 } = {}) {
   const windows = new Map()
   const watched = new Set()
@@ -61,6 +64,7 @@ function createWindowConnections({
   function onSocketClosed(entry, socket) {
     if (entry.socket !== socket) return
     entry.socket = null
+    onClosed(entry.worker)
     if (entry.exited) return
     setTimeout(() => notifyExit(entry, 0), graceMs).unref?.()
   }
@@ -118,7 +122,24 @@ function createWindowConnections({
     }
   }
 
-  return { claim, open, write, workerOf, workerExited }
+  // A start that failed before the window could claim a worker: the window hears how it ended, once.
+  function reportExit(sender, specifier, code) {
+    const ended = {}
+    claim(sender, specifier, ended)
+    workerExited(ended, code)
+  }
+
+  // Every window's connection to this worker closes and no window is told: the app is leaving it
+  // running.
+  function disconnect(worker) {
+    for (const entry of windows.values()) {
+      if (entry.worker !== worker) continue
+      entry.exited = true
+      release(entry)
+    }
+  }
+
+  return { claim, open, write, workerOf, workerExited, reportExit, disconnect }
 }
 
 module.exports = { createWindowConnections, assertPrivateSocketDir }

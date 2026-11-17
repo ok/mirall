@@ -162,7 +162,7 @@ function register(opts) {
     const resolved = path.resolve(fullPath)
     const shown = fs.existsSync(resolved) ? resolved : path.dirname(resolved)
     if (!isDirectoryOrFile(shown)) return refused()
-    if (!await isRevealable(shown, revealRootsFn())) return refused()
+    if (!await isRevealable(shown, await revealRootsFn())) return refused()
     shell.showItemInFolder(shown)
     return { ok: true }
   })

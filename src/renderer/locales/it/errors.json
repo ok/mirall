@@ -47,6 +47,7 @@
   "notApprovedForSpace": "Non hai ancora l'approvazione per questo spazio, quindi non puoi condividerci nulla.",
   "requestTimedOut": "Mirall ha impiegato troppo tempo a rispondere. Riprova tra un momento.",
   "workerUnavailable": "Il servizio in background di Mirall non è disponibile. Riavvia Mirall se il problema persiste.",
+  "workerStartedElsewhere": "Il servizio in background di Mirall è stato avviato al di fuori di Mirall. Riavvialo lì per applicare questa modifica.",
   "unexpected": "Qualcosa è andato storto. Riprova — se continua, invia un feedback dalle Impostazioni.",
   "approveBlockedDivergence": "Le approvazioni sono sospese finché il conflitto sull'identità del proprietario non è risolto.",
   "wrongPassphrase": "Questa passphrase non apre questo backup. Controllala e riprova.",

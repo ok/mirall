@@ -8,7 +8,7 @@ import { tmpDir } from '../helpers/tmp.js'
 import { IPC_PROTOCOL_VERSION, IPC_PROTOCOL_MIN_SUPPORTED, CLIENT_KINDS } from '../../src/shared/contract/ipc-frames.js'
 
 const require = createRequire(import.meta.url)
-const { requestOverSocket } = require('../../src/main/worker-request.js')
+const { requestOverSocket, greetOverSocket } = require('../../src/main/worker-request.js')
 
 const KEK = 'ab'.repeat(32)
 
@@ -175,4 +175,32 @@ test('over a real socket, the request reaches a worker and its answer comes back
   t.alike(await requestOverSocket(socketPath, 'identity:unlock', { kek: KEK }), { ok: true })
   t.is(seen[0].type, 'hello')
   t.is(seen[1].kek, KEK)
+})
+
+function greet(socket, options = {}) {
+  return greetOverSocket('/run/mirall/worker.sock', { connect: () => socket, checkDir: () => {}, ...options })
+}
+
+test('a greeting introduces main, sends no request, and resolves with the hello-ack', async (t) => {
+  const socket = fakeSocket()
+  const answer = greet(socket)
+  await tick()
+  await tick()
+  t.alike(socket.frames().map((f) => f.type), ['hello'], 'the hello alone')
+  socket.emit('data', Buffer.from('{"type":"keepalive"}\n'))
+  socket.emit('data', Buffer.from(JSON.stringify({ type: 'hello-ack', ok: true, appVersion: '1.14.0-beta.3' }) + '\n'))
+  t.is((await answer).appVersion, '1.14.0-beta.3')
+  t.ok(socket.destroyed, 'and hangs up: one exchange per connection')
+  t.alike(socket.frames().filter((f) => f.type === 'keepalive-ack').length, 1, 'a keepalive met on the way is answered')
+})
+
+test('a greeting may be bounded; a request is not unless asked', async (t) => {
+  const silent = fakeSocket()
+  const err = await greet(silent, { answerTimeoutMs: 10 }).then(() => null, (e) => e)
+  t.ok(err, 'a worker that never acks within the bound fails the greeting')
+  t.ok(silent.destroyed)
+
+  const slow = fakeSocket()
+  const err2 = await request(slow, { answerTimeoutMs: 10 }).then(() => null, (e) => e)
+  t.ok(err2 && !err2.code, 'the same bound applies to a request that asks for one, as a connection fault')
 })

@@ -9,6 +9,11 @@
 // Exactly one function writes to a worker pipe. A lost bootstrap is not survivable, so the spawn
 // path treats a failed bootstrap write as a failed spawn rather than caching a worker nothing can
 // talk to. A key that cannot be handed over is the same failure.
+//
+// A back end of this user's that already serves the profile at this build's version is used instead
+// of a spawn (backend-discovery.js). Main did not start it, so it never writes it a frame, never
+// signals it, never stops or replaces it, and reads none of its output: it is handed the key if it
+// waits for one, its windows connect to it, and on quit main only lets go of it.
 
 const { app, ipcMain } = require('electron')
 const { StringDecoder } = require('string_decoder')
@@ -16,13 +21,14 @@ const { logRing } = require('./log-ring.js')
 const { isDebug } = require('./debug-gate.js')
 const { isQuitting } = require('./quit-state.js')
 const { sendToAll } = require('./logging.js')
-const { createMainRequestRouter } = require('./main-requests.js')
+const { createMainRequestRouter, revealRootsOf } = require('./main-requests.js')
 const { createFailureGate } = require('./worker-bus-failure.js')
 const { createWorkerRestart } = require('./lifecycle.js')
 const { entrypointFor } = require('./worker-entrypoints.js')
 const { createWorkerFrameReader } = require('./ipc-frame.js')
 const { createWindowConnections } = require('./window-connections.js')
 const { requestOverSocket, helloFrame } = require('./worker-request.js')
+const { readRunRecord, probeRunRecord, discoverBackend, openIdentity, handKey } = require('./backend-discovery.js')
 const { envJson } = require('./env-json.js')
 const { envOverride } = require('./env-overrides.js')
 const { isVerbose } = require('./debug-gate.js')
@@ -30,7 +36,9 @@ const relaySecret = require('./relay-secret.js')
 const { MAIN_REQUEST_FRAME } = require('../shared/contract/main-requests.js')
 const { WORKER_SPECS } = require('../shared/contract/workers.js')
 const { FRAME } = require('../shared/contract/ipc-frames.js')
-const { isIdentityLock } = require('../shared/contract/errors.js')
+const { CODES } = require('../shared/contract/errors.js')
+const { WORKER_EXIT_ALREADY_RUNNING } = require('../shared/contract/exit-codes.js')
+const { versionLabel } = require('../shared/contract/release-channel.js')
 
 const pkg = require('../../package.json')
 const version = pkg.version
@@ -38,8 +46,11 @@ const upgrade = pkg.upgrade
 
 const envNumber = (raw) => (raw ? Number(raw) : undefined)
 
+// Per specifier: a worker this process spawned, or a back end it attached to ({ attached: true }).
 const workers = new Map()
-const windowConnections = createWindowConnections()
+// A window connection to an attached back end that closes is the one sign main gets that it may have
+// ended, so the back end is forgotten and the window's next start looks for one afresh.
+const windowConnections = createWindowConnections({ onClosed: (worker) => { if (worker.attached) forgetAttached(worker) } })
 
 // A worker that has not said where it listens by now never will: it is wedged, and the window's
 // respawn path deals with a spawn that did not come up.
@@ -59,7 +70,14 @@ function deferred() {
 // Where each live worker has been started: settled once its socket is announced and it has taken
 // its key, or rejected when either fails. A window connects only after this settles.
 const started = new WeakMap()
-const exited = new WeakSet()
+// The code each spawned worker exited with, once it has.
+const exitCodes = new WeakMap()
+// The start in flight per specifier, which every window starting meanwhile joins.
+const resolving = new Map()
+
+// After a spawn exits as already running, the holder is looked for again at these intervals: it took
+// the lock between main's look and the spawn, and it writes its run record just after it binds.
+const HOLDER_LOOKS_MS = Object.freeze([250, 500, 1000])
 
 function socketPathOf(worker) {
   const announced = listening.get(worker)
@@ -85,6 +103,7 @@ let isDev = false
 let identityKEK = () => null
 let identityWeak = () => false
 let keyOnSpawnFrame = KEY_ON_SPAWN_FRAME
+let holderLooksMs = HOLDER_LOOKS_MS
 
 function initWorkerHost(d) {
   getPear = d.getPear
@@ -92,14 +111,28 @@ function initWorkerHost(d) {
   identityKEK = d.identityKEK
   identityWeak = d.identityWeak ?? (() => false)
   keyOnSpawnFrame = d.keyOnSpawnFrame ?? KEY_ON_SPAWN_FRAME
+  holderLooksMs = d.holderLooksMs ?? HOLDER_LOOKS_MS
 }
 
-function revealRoots() { return workerRevealRoots }
+// A reveal is authorized against the roots of the back end in use. A spawned worker pushes them on
+// every change; an attached one never pushes, so it is asked each time, and one that cannot answer
+// in time authorizes nothing beyond the home directory.
+const REVEAL_ROOTS_ANSWER_MS = 5000
+
+function revealRoots() {
+  for (const worker of workers.values()) {
+    if (!worker.attached) continue
+    return requestOverSocket(worker.socketPath, 'folders:reveal-roots', {}, { answerTimeoutMs: REVEAL_ROOTS_ANSWER_MS })
+      .then(revealRootsOf, () => [])
+  }
+  return workerRevealRoots
+}
 
 // Whether the worker a window talks to runs on this machine. Every worker in `workers` was spawned
-// by this process and announced a socket under its own userData, so a live spawned worker is local.
-// Vouched per window, for the worker that window claimed: a daemon a window reaches without this
-// process having spawned it is not in the map and is not vouched for.
+// by this process and announced a socket under its own userData, or is a back end found through
+// this profile's run record whose socket passed the owner check, so each is local. Vouched per
+// window, for the worker that window claimed: a daemon a window reaches otherwise is not in the map
+// and is not vouched for.
 function workerIsLocal(senderId) {
   const worker = windowConnections.workerOf(senderId)
   if (!worker) return false
@@ -168,8 +201,13 @@ function stopWorker(worker) {
   })
 }
 
+// An attached back end is let go of, never asked to stop: it keeps running after the app quits.
 function stopWorkers() {
-  for (const worker of workers.values()) void stopWorker(worker)
+  for (const [specifier, worker] of workers) {
+    if (!worker.attached) { void stopWorker(worker); continue }
+    workers.delete(specifier)
+    windowConnections.disconnect(worker)
+  }
 }
 
 // The key the identity opens with and the relay seed it unseals, read when the request is made so a
@@ -177,21 +215,6 @@ function stopWorkers() {
 function currentKey(storage) {
   const kek = identityKEK()
   return { kek, relaySeed: relaySecret.readRelaySeedHex(storage, kek) }
-}
-
-// Hands the worker its key. True once the identity opened; false when the worker took the key and
-// locked on it (a lock code), which leaves it serving the locked screen's recoveries. Anything else
-// is an error: the worker did not take the key. The reply waits for the whole boot, so it has no
-// deadline here.
-async function handKey(socketPath, { kek, relaySeed }) {
-  if (!kek) throw new Error('no identity key to hand the worker')
-  try {
-    await requestOverSocket(socketPath, 'identity:unlock', { kek, ...(relaySeed ? { relaySeed } : {}) })
-    return true
-  } catch (err) {
-    if (isIdentityLock(err.code)) return false
-    throw err
-  }
 }
 
 // A spawned worker's start: its socket is announced, then it is handed its key, and only then is the
@@ -206,7 +229,7 @@ function startWorker(worker, specifier, key) {
     return socketPath
   }).catch(async (err) => {
     console.warn('worker start failed:', err.code || err.message)
-    if (!exited.has(worker)) await stopWorker(worker)
+    if (!exitCodes.has(worker)) await stopWorker(worker)
     throw err
   })
   run.catch(() => {})
@@ -368,7 +391,7 @@ function getWorker(specifier) {
     if (stdoutTail) logRing.push('worker', 'log', stdoutTail)
     const stderrTail = stderrDecoder.end()
     if (stderrTail) logRing.push('worker', 'error', stderrTail)
-    exited.add(worker)
+    exitCodes.set(worker, code)
     listening.get(worker)?.reject(new Error('worker exited before it opened its socket'))
     listening.delete(worker)
     // The roots came from this worker and describe the spaces it had open. Keeping them past its
@@ -390,32 +413,139 @@ function getWorker(specifier) {
 // synchronous SIGKILL runs reliably in an 'exit' handler — async work is ignored.
 process.on('exit', () => {
   for (const worker of workers.values()) {
+    if (worker.attached) continue
     try { worker._process?.kill('SIGKILL') } catch {}
   }
 })
 
 // Replacing a running worker without quitting. Its own sequence rather than a call pair at the IPC
 // boundary, because the order is load-bearing and there was nowhere that said so.
-const restartWorker = createWorkerRestart({
+const restartSpawned = createWorkerRestart({
   stopWorker: (spec) => (workers.has(spec) ? stopWorker(workers.get(spec)) : Promise.resolve()),
   spawnWorker: (spec) => { getWorker(spec) },
   isQuitting,
 })
 
-// Spawns the worker if none is running, then opens this window's own connection to it. Resolves
-// once the window can write; a worker that dies first rejects, after its exit reached the window.
+// A back end this process did not start is not its to replace: the restart is refused with a code
+// the renderer words, and the back end is left exactly as it is. Resolved rather than thrown, because
+// a rejection loses its code on the way to the renderer.
+function restartWorker(specifier) {
+  if (workers.get(specifier)?.attached) return Promise.resolve({ ok: false, code: CODES.WORKER_STARTED_ELSEWHERE })
+  return restartSpawned(specifier)
+}
+
+const exitFailure = (code) => Object.assign(new Error('worker exited with code ' + code), { exitCode: code })
+const sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms) })
+
+function ownVersion() {
+  return versionLabel({ dev: isDev, appVersion: version })
+}
+
+// The back end its run record names, when it is this user's and at this build's version. One at
+// another version is neither used nor replaced: the window is told the profile is already served,
+// as a spawn holding no lock would tell it.
+async function attachFound(specifier, found) {
+  const verdict = await probeRunRecord(found, { version: ownVersion() })
+  if (verdict.verdict === 'other-version') {
+    console.warn('a back end of another version serves this profile:', verdict.version)
+    throw exitFailure(WORKER_EXIT_ALREADY_RUNNING)
+  }
+  if (verdict.verdict !== 'attach') return null
+  return workers.get(specifier) ?? attach(specifier, verdict.socket)
+}
+
+// Registered in `workers` at once, so a restart asked for meanwhile is refused. Only the key and the
+// relay seed go to it, and only when it waits for them: no bootstrap, so it keeps its own settings.
+function attach(specifier, socketPath) {
+  const backend = { attached: true, specifier, socketPath }
+  workers.set(specifier, backend)
+  const run = openIdentity(socketPath, currentKey(getPear().storage)).then(() => socketPath, (err) => {
+    console.warn('using the running back end failed:', err.code || err.message)
+    forgetAttached(backend)
+    throw err
+  })
+  run.catch(() => {})
+  started.set(backend, run)
+  console.log('using the back end already running on', socketPath)
+  return backend
+}
+
+function forgetAttached(backend) {
+  if (workers.get(backend.specifier) === backend) workers.delete(backend.specifier)
+}
+
+// The back end a window connects to, once started: the one in use, a running one found through the
+// profile's run record, or a fresh spawn. Without a record the spawn happens in the caller's turn.
+// A spawn that exits as already running lost the lock to a back end that started meanwhile, which
+// is looked for a few more times before that exit stands.
+async function resolveBackend(specifier) {
+  if (isQuitting()) throw new Error('the app is quitting')
+  let backend = workers.get(specifier)
+  if (!backend) {
+    const found = readRunRecord(getPear().storage)
+    if (found) backend = await attachFound(specifier, found)
+    backend = backend ?? workers.get(specifier) ?? getWorker(specifier)
+  }
+  try {
+    await started.get(backend)
+    return backend
+  } catch (err) {
+    if (backend.attached || exitCodes.get(backend) !== WORKER_EXIT_ALREADY_RUNNING) {
+      throw exitCodes.has(backend) ? Object.assign(err, { exitCode: exitCodes.get(backend) }) : err
+    }
+  }
+  for (const delayMs of holderLooksMs) {
+    await sleep(delayMs)
+    const holder = await lookForHolder(specifier)
+    if (holder) {
+      await started.get(holder)
+      return holder
+    }
+  }
+  throw exitFailure(WORKER_EXIT_ALREADY_RUNNING)
+}
+
+async function lookForHolder(specifier) {
+  if (isQuitting()) throw exitFailure(WORKER_EXIT_ALREADY_RUNNING)
+  const verdict = await discoverBackend(getPear().storage, { version: ownVersion() })
+  if (verdict.verdict === 'other-version') throw exitFailure(WORKER_EXIT_ALREADY_RUNNING)
+  return verdict.verdict === 'attach' ? workers.get(specifier) ?? attach(specifier, verdict.socket) : null
+}
+
+function backendFor(specifier) {
+  let pending = resolving.get(specifier)
+  if (!pending) {
+    pending = resolveBackend(specifier).finally(() => resolving.delete(specifier))
+    resolving.set(specifier, pending)
+  }
+  return pending
+}
+
+// Finds or spawns the back end, then opens this window's own connection to it. Resolves once the
+// window can write; a back end that ends first rejects, after its exit code reached the window.
 async function startWorkerFor(sender, specifier) {
-  const worker = getWorker(specifier)
-  windowConnections.claim(sender, specifier, worker)
-  await windowConnections.open(sender.id, await started.get(worker))
+  let backend
+  try {
+    backend = await backendFor(specifier)
+  } catch (err) {
+    if ('exitCode' in err) windowConnections.reportExit(sender, specifier, err.exitCode)
+    throw err
+  }
+  windowConnections.claim(sender, specifier, backend)
+  if (exitCodes.has(backend)) windowConnections.workerExited(backend, exitCodes.get(backend))
+  await windowConnections.open(sender.id, await started.get(backend))
   return true
+}
+
+function socketOf(worker) {
+  return worker.attached ? Promise.resolve(worker.socketPath) : socketPathOf(worker)
 }
 
 // Whether the running worker has opened its identity, and why not.
 async function workerStatus(specifier) {
   const worker = workers.get(specifier)
   if (!worker) throw new Error('no worker is running')
-  return requestOverSocket(await socketPathOf(worker), 'identity:status')
+  return requestOverSocket(await socketOf(worker), 'identity:status')
 }
 
 // Hands the running worker the current key again: the locked screen's "Try again". Whether the
@@ -424,7 +554,7 @@ async function workerStatus(specifier) {
 async function retryUnlock(specifier) {
   const worker = workers.get(specifier)
   if (!worker) throw new Error('no worker is running')
-  return handKey(await socketPathOf(worker), currentKey(getPear().storage))
+  return handKey(await socketOf(worker), currentKey(getPear().storage))
 }
 
 function registerWorkerHost() {

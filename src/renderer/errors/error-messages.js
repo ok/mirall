@@ -65,6 +65,7 @@ export const ERROR_I18N_KEY_BY_CODE = {
   // sentence, which is the one outcome that makes a stalled or dead worker undiagnosable.
   TIMEOUT: 'requestTimedOut',
   WORKER_UNAVAILABLE: 'workerUnavailable',
+  WORKER_STARTED_ELSEWHERE: 'workerStartedElsewhere',
 }
 
 /** @param {string | null | undefined} code @param {string} fallbackKey */

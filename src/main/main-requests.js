@@ -40,6 +40,13 @@ function keyedWarner({ overflow, now }) {
 
 const keyPart = (value) => (typeof value === 'string' ? value : typeof value)
 
+// The reveal roots a worker states, pushed or asked for: only non-empty strings, resolved.
+function revealRootsOf(payload) {
+  return Array.isArray(payload?.roots)
+    ? payload.roots.filter((r) => typeof r === 'string' && r.length > 0).map((r) => path.resolve(r))
+    : []
+}
+
 function createMainRequestRouter({ setRevealRoots, onSocketListening, isDebug, isQuitting, now = Date.now }) {
   const reportBusFailure = createFailureGate({ isDebug, isQuitting })
   // Null-prototype, because `command` comes off the worker pipe: with a plain object literal
@@ -47,9 +54,7 @@ function createMainRequestRouter({ setRevealRoots, onSocketListening, isDebug, i
   // been routed — the silent success this bus exists to remove.
   const handlers = Object.assign(Object.create(null), {
     [MAIN_REQUEST.REVEAL_ROOTS]: async (args) => {
-      setRevealRoots(Array.isArray(args?.roots)
-        ? args.roots.filter((r) => typeof r === 'string' && r.length > 0).map((r) => path.resolve(r))
-        : [])
+      setRevealRoots(revealRootsOf(args))
     },
 
     // Where this worker accepts its windows. Main never derives the path itself.
@@ -98,4 +103,4 @@ function createMainRequestRouter({ setRevealRoots, onSocketListening, isDebug, i
   }
 }
 
-module.exports = { createMainRequestRouter }
+module.exports = { createMainRequestRouter, revealRootsOf }

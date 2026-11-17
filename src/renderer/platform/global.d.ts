@@ -140,7 +140,8 @@ export interface MirallBridge {
   onMainLog(listener: (entry: { level: 'log' | 'warn' | 'error'; text: string }) => void): () => void
 
   startWorker(specifier: string): Promise<boolean>
-  restartWorker(specifier: string): Promise<boolean>
+  // false while the app quits; a refusal when the back end was not started by this app.
+  restartWorker(specifier: string): Promise<boolean | { ok: false, code: string }>
   onWorkerIPC(specifier: string, listener: (data: Uint8Array) => void): () => void
   onWorkerStdout(specifier: string, listener: (data: Uint8Array) => void): () => void
   onWorkerStderr(specifier: string, listener: (data: Uint8Array) => void): () => void
