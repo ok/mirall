@@ -6,7 +6,9 @@ import { spawnHeadless, connectClient } from '../helpers/headless.js'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpace, waitForCatalogEntry } from '../helpers/peer.js'
 import { tmpDir } from '../helpers/tmp.js'
+import { parseRunRecord } from '../../src/shared/core/run-record.js'
 import { scaled } from '../helpers/timing.js'
+import { waitFor } from '../helpers/poll.js'
 
 const WORKER_EXIT_PROTOCOL_MISMATCH = 71
 const WORKER_EXIT_ALREADY_RUNNING = 73
@@ -36,6 +38,13 @@ test('started without a pipe, the back end listens beside its own store and says
   if (process.platform !== 'win32') {
     t.is(fs.statSync(path.join(dir, 'app-storage')).mode & 0o777, 0o700, 'the store it created is the owner\'s alone')
   }
+  const record = parseRunRecord(fs.readFileSync(path.join(dir, 'run', 'daemon.json'), 'utf8'))
+  t.is(record?.socket, socket, 'its run record names that socket')
+  t.is(record?.pid, run.child.pid, 'and its process')
+  const viaRecord = connectClient(record.socket)
+  await waitFor(() => viaRecord.of('hello-ack')[0], 5000)
+  t.is(viaRecord.of('hello-ack')[0].appVersion, record.version, 'a client of that socket is told the version the record names')
+  viaRecord.close()
   const second = spawnHeadless(['--storage', dir, '--dev'])
   t.is(await second.exited, WORKER_EXIT_ALREADY_RUNNING, 'a second start on the same profile says it is already running')
 })
@@ -121,6 +130,7 @@ test('SIGTERM and SIGINT stop a back end cleanly, waiting or unlocked', { skip: 
     run.child.kill(signal)
     t.is(await run.exited, 0, `${signal} ${key ? 'after the unlock' : 'while waiting'} exits 0`)
     t.absent(fs.existsSync(socket), 'and leaves no socket file')
+    t.absent(fs.existsSync(path.join(dir, 'run', 'daemon.json')), 'and no run record')
   }
   const again = spawnHeadless(['--storage', dir, '--dev'])
   t.teardown(() => { again.child.kill('SIGKILL') })

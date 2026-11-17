@@ -6,6 +6,7 @@ import { checkHello, refusalMessage } from '../contract/hello.js'
 import { CODES } from '../contract/errors.js'
 import { AppError } from './errors.js'
 import { fields } from './logger.js'
+import { getAppVersionLabel } from './runtime-config.js'
 
 // `isPrimary` rather than the client itself: the spawn pipe's client is attached after the router
 // body has run, and only a frame arriving on it can ask the question.
@@ -82,6 +83,7 @@ export function createHandshake({ log, events, clients, isPrimary }) {
       protocolVersion: IPC_PROTOCOL_VERSION,
       protocolMin: IPC_PROTOCOL_MIN_SUPPORTED,
       protocolMax: IPC_PROTOCOL_VERSION,
+      appVersion: getAppVersionLabel(),
       trust: client.trust,
       epoch: events.epoch,
       head: events.head(),
