@@ -33,6 +33,8 @@ test('REGRESSION (FIX-3): cleanup removes leftovers, keeps system bees and activ
   const catalogDk = b4a.toString(catalog.core.discoveryKey, 'hex')
 
   t.ok(await coreInStore(strayDk), 'precondition: stray core present')
+  // A core this process still holds open is never purged under its holder.
+  await stray.close()
 
   const res = await purgeLeftovers()
   t.ok(res.purged >= 1, 'at least the stray core was purged')

@@ -85,10 +85,14 @@ test('REGRESSION (FIX-OBS-2): a peer core purge that fails is warned, and the le
   await purgeSpace(space.spaceId)
 
   const lines = tagged(t, '[leftover]', { levels: ['warn'], join: true })
-  const storage = getStore().storage
+  // Both purge paths fail: the planted core may still sit in corestore's cache after its close.
+  const store = getStore()
+  const { storage } = store
   const resumeCore = storage.resumeCore
+  const purge = store.purge
   storage.resumeCore = async () => { throw new Error('db write refused') }
-  t.teardown(() => { storage.resumeCore = resumeCore })
+  store.purge = async () => { throw new Error('db write refused') }
+  t.teardown(() => { storage.resumeCore = resumeCore; store.purge = purge })
 
   const { purged } = await forgetUnreferencedPeerCores([member])
 

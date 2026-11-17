@@ -464,6 +464,14 @@ Once it fails, the session whose `ready()` threw leaves a core that `store.close
 (uncaught `STORAGE_EMPTY`, then a hang), so a purge resolves the alias (`storage.getAlias` +
 `hasCore`) and never opens the name blind — `purgeNamedCore` in `core-purge.js`.
 
+**Never delete a core's rows while corestore still holds the core.** Every later `get()` resumes the
+cached core, whose bitfield still claims the deleted blocks, so its reads stall until a restart; a
+core stays cached while any session, a paired replication channel, or the idle-GC grace keeps it.
+Tell: a peer read that hits its full budget after a leave and rejoin in one session. Fix: release
+the long-lived holders first, then purge through `store.purge({ discoveryKey })` (a bare key is
+taken as a public key), which refuses a core with a live session and closes an idle one —
+`purgeCoreDk` in `core-purge.js`.
+
 **A keyPair core's discoveryKey hashes its manifest, not its public key.** Build the
 `discoveryKey → name` map on `ready()`.
 

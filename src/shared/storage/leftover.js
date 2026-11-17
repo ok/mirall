@@ -10,6 +10,8 @@ import { purgeCoreDk } from './core-purge.js'
 import { listSpaces } from '../spaces/space.js'
 import { getProfileBee } from '../spaces/profile.js'
 import { readCatalogKey } from '../shares/catalog-keys.js'
+import { dropPeerCatalog } from '../shares/peer-catalog.js'
+import { releasePeerProfileWatch } from '../spaces/peer-profile-watch.js'
 import { ownCatalog } from '../shares/own-catalog.js'
 import { compactStore } from './compaction.js'
 import { withReadTimeout } from '../core/with-timeout.js'
@@ -242,7 +244,7 @@ export async function purgeLeftovers({ categories = PURGEABLE, onProgress, compa
   for (const dkHex of dks) {
     if (onProgress) onProgress('purging', { done: purged, total: dks.length })
     try {
-      await purgeCoreDk(store, dkHex)
+      if (!(await purgeCoreDk(store, dkHex))) continue
       purged++
       purgedDks.push(dkHex)
     } catch (err) {
@@ -273,6 +275,13 @@ function peerCoreKeys(member) {
   return [member?.publicKey, readCatalogKey(member).keyHex].filter((k) => k && HEX64.test(k))
 }
 
+// What this process holds open on a peer core for the process lifetime: the profile watch on a
+// profile, the cached bee on a catalog. Released before the purge, which keeps any core still open.
+async function releasePeerCore(member, keyHex) {
+  if (keyHex === member.publicKey) await releasePeerProfileWatch(keyHex)
+  else await dropPeerCatalog(keyHex)
+}
+
 // A departed peer's cores are only leftover if that peer appears in no other active space. No
 // compaction here: these are metadata bees worth a few KB, collected by whatever compaction runs next.
 export async function forgetUnreferencedPeerCores(removedMembers) {
@@ -291,8 +300,8 @@ export async function forgetUnreferencedPeerCores(removedMembers) {
       const dk = dkOfKey(keyHex)
       if (stillReferenced.has(dk)) continue
       try {
-        await purgeCoreDk(store, dk)
-        purged++
+        await releasePeerCore(member, keyHex)
+        if (await purgeCoreDk(store, dk)) purged++
       } catch (err) {
         log.warn('peer core purge failed:', dk.slice(0, 12), err.message)
       }

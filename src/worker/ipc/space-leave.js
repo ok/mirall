@@ -174,7 +174,7 @@ export function registerSpaceLeave(ipc, { log, mounts, overlayBackend, discardPe
       return { ok: true }
     }
 
-    closeMemberView(msg.spaceId)
+    const memberViewClosed = closeMemberView(msg.spaceId)
     log.info('leave starting:', msg.spaceId)
     // markSpaceLeaving already set above (before the getSpace await) so files:list reads short-circuit.
 
@@ -253,6 +253,9 @@ export function registerSpaceLeave(ipc, { log, mounts, overlayBackend, discardPe
         }
         await purgeSpace(msg.spaceId)
         tracker.phase = 'forgetUnreferencedPeerCores'
+        // The view's sessions on the members' profile cores close first: a purge keeps a core
+        // that is still open.
+        await memberViewClosed
         try { await forgetUnreferencedPeerCores(members) } catch (err) {
           log.warn('leave: peer-core gc failed:', errorMessage(err))
         }

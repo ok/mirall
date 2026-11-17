@@ -40,7 +40,8 @@ channel via `workflow_dispatch`. The bundle version must equal the drive's `/pac
 **Stack.** Versions: `package.json`; pins and their reasons: `dependency-updates.md`. Placement
 rules: the file watcher, `chokidar4bare`, runs in the worker (its `imports` map resolves `bare-fs`
 there); `bare-*` modules are worker-only; `purgeCoreDk()` uses `hypercore-storage` internals (transitive dep) for raw RocksDB
-range deletes.
+range deletes, and corestore's core tracker (`store.cores`) to send a core this process holds to
+`store.purge` instead, which never deletes a core under a live session.
 
 ---
 
@@ -448,7 +449,9 @@ unambiguous (no avatar) needs no flag.
 
 **Reading peers' profiles.** The process holds exactly one long-lived session per peer
 (`src/shared/spaces/peer-profile-watch.js`), whose `append` listener drives admission re-evaluation,
-the share-list refresh and the audit observer. Every other read is `withPeerBee`
+the share-list refresh and the audit observer. A leave that purges the peer's cores releases it
+first (`forgetUnreferencedPeerCores`), and the next admitted handshake opens it again. Every other
+read is `withPeerBee`
 (`src/shared/spaces/peer-bee.js`): open, pull head, read, close, under one deadline and a
 session-level timeout so an abandoned read cannot pin the core. Budgets:
 `src/shared/core/runtime-config-schema.js` (`peerReadTimeoutMs`, `interactiveReadTimeoutMs`,

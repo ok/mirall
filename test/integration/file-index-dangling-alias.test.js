@@ -19,7 +19,10 @@ test('FileIndex recovers from a dangling index alias by advancing the version', 
   const dk = b4a.toString(fi1.bee.core.discoveryKey, 'hex')
   await fi1.close()
 
-  // Reproduce the purge: delete the core + its by-dkey alias, leaving the by-name alias.
+  // Reproduce the purge: delete the core + its by-dkey alias, leaving the by-name alias. Only a
+  // core no session holds is purged that way, so the store is reopened first.
+  await getStore().close()
+  await openStore(ctx.storage)
   await purgeCoreDk(getStore(), dk)
   await getStore().storage.db.flush()
 

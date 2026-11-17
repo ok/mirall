@@ -121,12 +121,23 @@ export async function fetchPeerAvatar(personKey, msg, spaceId, space) {
   }
 }
 
-// Closes every held session. Each carries a live bee and an append listener, so dropping the map
-// alone would leak both.
+// Each held session carries a live bee and an append listener, so dropping the map entry alone
+// would leak both.
+function closeHeld(held) {
+  try { held.bee.core.off('append', held.listener) } catch {}
+  return held.bee.close().catch(() => {})
+}
+
+// Releases one peer's held session, so a purge of that peer's profile core finds nothing of ours
+// open on it. The next admitted handshake re-arms the watch on a freshly opened core.
+export async function releasePeerProfileWatch(personKey) {
+  const held = profileBeeAppendListeners.get(personKey)
+  if (!held) return
+  profileBeeAppendListeners.delete(personKey)
+  await closeHeld(held)
+}
+
 export function resetPeerProfileWatch() {
-  for (const held of profileBeeAppendListeners.values()) {
-    try { held.bee.core.off('append', held.listener) } catch {}
-    held.bee.close().catch(() => {})
-  }
+  for (const held of profileBeeAppendListeners.values()) closeHeld(held)
   profileBeeAppendListeners.clear()
 }
