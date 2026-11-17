@@ -590,13 +590,14 @@ async function decideDeny(space, joinerKey) {
 /** @param {string} spaceId @param {'join-discarded' | 'join-denied'} [kind] */
 async function discardPendingSpace(spaceId, kind = 'join-discarded') {
   markSpaceLeaving(spaceId)
-  closeMemberView(spaceId)
+  const memberViewClosed = closeMemberView(spaceId)
   try {
     const space = await getSpace(spaceId)
     try { await leaveSpaceTopic(spaceId) } catch (err) { log.warn('discard pending: leave topic failed:', errorMessage(err)) }
     try { disconnectPeersFromSpace(spaceId) } catch (err) { log.warn('discard pending: peer disconnect failed:', errorMessage(err)) }
     try { await purgeSpace(spaceId, { kind }) } catch (err) { log.warn('discard pending: remove failed:', errorMessage(err)) }
     dropSpaceDownloadRoot(spaceId)
+    await memberViewClosed
     try { await forgetUnreferencedPeerCores(space?.members || []) } catch (err) { log.warn('discard pending: peer-core gc failed:', errorMessage(err)) }
   } finally {
     unmarkSpaceLeaving(spaceId)

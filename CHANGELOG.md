@@ -25,6 +25,9 @@ changes do not appear here.
 
 ### Fixed
 
+- **Shared folders no longer stay missing after you leave a space and join
+  it again.** Other members' folders, and files they added afterwards, only
+  came back once Mirall was restarted.
 - **Connecting to another organization could switch back to the previous
   one after a restart.** A configuration check still running for the old
   organization could overwrite the new one.
