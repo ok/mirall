@@ -4,7 +4,7 @@ import path from 'path'
 import crypto from 'crypto'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, waitForWorkerExit } from '../helpers/peer.js'
-import { mkTmpDir } from '../helpers/fixtures.js'
+import { mkTmpDir, writeTmpFile, patternedBytes } from '../helpers/fixtures.js'
 import { scaled } from '../helpers/timing.js'
 
 const kekHex = () => crypto.randomBytes(32).toString('hex')
@@ -155,6 +155,23 @@ test('starting fresh sets the locked data aside and opens a new identity in plac
   t.alike(await locked.request('identity:status'), { locked: false, code: null, restore: null }, 'open without a restart')
   await locked.request('profile:set', { displayName: 'Alice again', avatar: null })
   t.not((await locked.request('profile:get')).personKey, alice.personKey, 'a new identity')
+})
+
+// The failed open closes what it started, which tells publishing to stop. The open that follows runs
+// in the same process, so that order has to end with the lifetime it was given in.
+test('REGRESSION (FIX-LOCK-1: no file could be added after a fresh start in place)', { timeout: scaled(180000) }, async (t) => {
+  const bootstrap = await localTestnet(t)
+  const home = peerHome(t)
+  await establish(t, bootstrap, home, 'Alice')
+
+  const locked = await launchLocked(t, bootstrap, home)
+  await recoverInPlace(locked, 'identity:set-aside')
+  await locked.request('profile:set', { displayName: 'Alice again', avatar: null })
+
+  const { spaceId } = await locked.request('space:create', { name: 'Fresh' })
+  const bytes = patternedBytes(64 * 1024, 3)
+  await locked.request('files:add', { spaceId, filePath: writeTmpFile(bytes, t), fileName: 'after.bin', fileSize: bytes.length })
+  await locked.untilFiles(spaceId, (l) => l.some((f) => f.path === '/after.bin' && !f.preparing), { ms: 30000, every: 500 })
 })
 
 test('a running identity is never unlocked with a backup: that would fork it', { timeout: scaled(120000) }, async (t) => {
