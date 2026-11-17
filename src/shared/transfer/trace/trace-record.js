@@ -43,7 +43,7 @@ const SHAPES = Object.freeze({
   conn: {
     c: num, mtu: num, rtt: num, cwnd: num, inflight: num, rto: num, rtoLifetime: num, retransmits: num,
     fastRecoveries: num, bbrState: num, bbrBandwidth: num, rxBytes: num, txBytes: num, rxPackets: num,
-    txPackets: num, kernelDrops: num, recvBuffer: num, sendBuffer: num,
+    txPackets: num, recvBuffer: num, sendBuffer: num,
   },
   fetch: {
     x: num, needed: num, inflight: num, pacing: flag, rxBytes: num, totalBytes: num, stashBytes: num,

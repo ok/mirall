@@ -42,7 +42,7 @@ test('a traced transfer leaves a trace on both sides, and the two agree', { time
     t.ok(eventsOf(lines).includes('conn-open'), side + ': the connection opening is recorded')
     const conn = lines.find((line) => line.k === 'conn')
     t.ok(conn && conn.cwnd > 0 && conn.mtu > 0 && Number.isFinite(conn.rtt), side + ': the transport reports its window, packet size and round trip')
-    t.ok(Number.isFinite(conn.kernelDrops) && conn.recvBuffer > 0, side + ': and its socket the drops and the buffer')
+    t.ok(conn.recvBuffer > 0, side + ': and its socket the buffer')
     const host = lines.find((line) => line.k === 'host')
     t.ok(host && Number.isFinite(host.lagMs) && Number.isFinite(host.threadPct), side + ': the host is sampled')
     const text = JSON.stringify(lines)

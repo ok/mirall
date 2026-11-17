@@ -1,7 +1,8 @@
 // What one connection's transport reports about itself: the udx stream's congestion and loss
-// figures and its socket's kernel drop count and buffer sizes. Every read is guarded, because a
-// stream that is closing, or a transport that is not udx, answers some of them with a throw or
-// with nothing; a figure that cannot be read is left out.
+// figures and its socket's buffer sizes. Every read is guarded, because a stream that is closing,
+// or a transport that is not udx, answers some of them with a throw or with nothing; a figure that
+// cannot be read is left out. The transport's kernel drop count is not read: udx never updates it,
+// so packets the kernel discarded for a full buffer show only in the operating system's counters.
 //
 // Pure, so a unit test drives it under Node with a stand-in stream.
 
@@ -42,7 +43,6 @@ export function transportSample(rawStream) {
   const socket = rawStream.socket
   if (!socket) return sample
   const socketReads = {
-    kernelDrops: () => socket.packetsDroppedByKernel,
     recvBuffer: () => socket.getRecvBufferSize(),
     sendBuffer: () => socket.getSendBufferSize(),
   }

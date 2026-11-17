@@ -954,7 +954,7 @@ is written whole by a test script and never by the app, so removing it restores 
 
 - **What is recorded** (`src/shared/transfer/trace/`). Once a second while a fetch or a serve is
   running: every transfer connection's transport figures (window, round trip, packet size,
-  retransmits, timeouts, kernel drops, buffer sizes), each fetch's and each served peer's engine
+  retransmits, timeouts, buffer sizes; not kernel drops, which udx never counts), each fetch's and each served peer's engine
   counts (`HyperOverlayV2.traceSnapshot()`), and the worker's loop lag and CPU. Events are written
   as they happen: a connection opening, closing or changing path, a fetch or serve starting and
   ending, a holder handing chunks back, the watchdog firing, a drain wait abandoned.
@@ -967,6 +967,9 @@ is written whole by a test script and never by the app, so removing it restores 
   `trace.previous.ndjson` at its size limit, replacing the one before.
 - **It changes nothing it measures.** No default moves with it, and with no sink installed every
   hook in the transfer path returns at once and no listener is attached.
+- **It ships in released builds, unlisted.** A slow transfer is diagnosed on the build the person
+  already runs; a separate diagnostic build would need a deployment before the first measurement.
+  There is no setting, flag or UI for it, so only the test run file reaches it.
 
 ### 4.6 Startup reconnection
 

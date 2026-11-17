@@ -86,11 +86,11 @@ test('a transport is read figure by figure, and one that cannot be read is left 
     mtu: 1380, rtt: 21, cwnd: 64, inflight: 12, rtoCount: 0, lifetimeRtoCount: 2, retransmits: 5, fastRecoveries: 1,
     bbrState: 2, bytesReceived: 1000, bytesTransmitted: 2000, packetsReceived: 10, packetsTransmitted: 20,
     get bbrBandwidth() { throw new Error('stream closed') },
-    socket: { packetsDroppedByKernel: 7, getRecvBufferSize: () => 786896, getSendBufferSize() { throw new Error('Socket not active') } },
+    socket: { getRecvBufferSize: () => 786896, getSendBufferSize() { throw new Error('Socket not active') } },
   }
   t.alike(transportSample(stream), {
     mtu: 1380, rtt: 21, cwnd: 64, inflight: 12, rto: 0, rtoLifetime: 2, retransmits: 5, fastRecoveries: 1,
-    bbrState: 2, rxBytes: 1000, txBytes: 2000, rxPackets: 10, txPackets: 20, kernelDrops: 7, recvBuffer: 786896,
+    bbrState: 2, rxBytes: 1000, txBytes: 2000, rxPackets: 10, txPackets: 20, recvBuffer: 786896,
   })
   t.alike(transportSample({ bytesRead: 5 }), {}, 'a transport that is not udx reports nothing')
   t.alike(transportSample(null), {})
