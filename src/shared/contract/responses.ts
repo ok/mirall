@@ -562,6 +562,8 @@ export interface FreeUpResult { restartRequired: boolean, requested: string[] }
 // not count, the same rule as the loose listing's `complete`.
 export interface SpaceStorageSummary { totalBytes: number, onDeviceBytes: number, complete: boolean }
 export interface RootsStatus { unavailable: string[], host: PathHost }
+/** Every folder the host may show a reveal under: each download folder and each mount path. */
+export interface RevealRoots { roots: string[], host: PathHost }
 
 // Where a reveal lands on the worker's disk. `exists: false` means the file is not there but its
 // folder is, and the client shows the folder; a target with neither is an error, never an answer.
@@ -699,6 +701,7 @@ interface Responses {
   'foreign-folder:relocate': ForeignMountResult
   'foreign-folder:set-enabled': ForeignFolderMount
   'foreign-folder:unmount': Ack
+  'folders:reveal-roots': RevealRoots
   'foreign-folder:validate': MountValidationResult
   'identity:set-aside': IdentitySetAside
   'identity:unlock-from-backup': { unlocked: boolean }
