@@ -42,6 +42,9 @@ changes do not appear here.
 - **Joining or leaving an organization in the middle of a settings refresh
   or a report no longer leaves Mirall in the wrong state.** An organization
   that keeps the Activity Log also holds that lock while a deletion runs.
+- **Detailed logging for a diagnostics file stays on when you leave the
+  Diagnostics screen.** It switched off at once, so a problem reproduced on
+  another screen was never recorded. It now stays on until you save the file.
 - **Network Diagnostics and Advanced Details open from the command palette.**
 - **A mirrored file you edit while its owner is offline now shows "Edited
   locally" at once.** It kept its verified check until the folder view

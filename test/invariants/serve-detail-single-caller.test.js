@@ -33,7 +33,7 @@ test('serving:detail-subscribe has exactly one renderer caller, and it re-arms',
 // why it does not.
 const REARM = {
   'src/worker/ipc/files.js': 'src/renderer/hooks/usePeerDownloadDetail.ts',
-  'src/worker/ipc/settings.js': 'src/renderer/screens/NetworkDiagnosticsScreen.tsx',
+  'src/worker/ipc/settings.js': 'src/renderer/platform/detailed-logging.ts',
 }
 const EXEMPT = {
   'src/worker/ipc/folder-preview.js':

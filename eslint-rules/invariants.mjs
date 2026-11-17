@@ -207,12 +207,10 @@ export const swallowedRejectionExemptions = Object.freeze({
       'migrateLegacyLocalStorage: try { const patch: RendererConfigPatch = {} const appearance: { theme?: ThemeMod',
     ],
   },
-  'src/renderer/screens/NetworkDiagnosticsScreen.tsx': {
-    why: 'Unmount cleanup turning verbose logging back off, and the re-arm that asks a new worker for it again; in neither case is anyone left waiting on the answer.',
+  'src/renderer/platform/detailed-logging.ts': {
+    why: 'Re-arms detailed logging on a new worker; the next toggle reports a worker that cannot take it.',
     sites: [
-      'NetworkDiagnosticsScreen > useEffect > rearm > onResync: request(\'setVerbose\', { verbose: true }).catch(() => {})',
-      'NetworkDiagnosticsScreen > useEffect: request(\'setVerbose\', { verbose: false }).catch(() => {})',
-      'NetworkDiagnosticsScreen > useEffect: window.bridge.setVerbose(false).catch(() => {})',
+      'onResync: request(\'setVerbose\', { verbose: true }).catch(() => {})',
     ],
   },
   'src/renderer/screens/settings/ActivityLogSettings.tsx': {

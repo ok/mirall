@@ -1,9 +1,10 @@
-// Diagnostics: builds the support bundle and previews what goes in it. Its own screen below
-// Network status, because detailed logging stays on only while this screen is mounted.
-import { useEffect, useRef, useState } from 'react'
+// Diagnostics: builds the support bundle and previews what goes in it. Detailed logging is switched
+// on here and stays on across screens (platform/detailed-logging.ts) until it is switched off or a
+// file is saved.
+import { useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 import { buildBundle, serialiseBundle, bundleFilename, previewText } from '../platform/diagnostics-bundle.js'
-import { onResync, request } from '../ipc/ipc.js'
+import { isDetailedLoggingOn, setDetailedLogging, subscribeDetailedLogging } from '../platform/detailed-logging.js'
 import DiagnosticsPreviewModal from '../components/modals/DiagnosticsPreviewModal.js'
 import Toggle from '../components/primitives/Toggle.js'
 import Button from '../components/primitives/Button.js'
@@ -20,37 +21,12 @@ export default function NetworkDiagnosticsScreen({ onBack }: Props) {
   const { t } = useTranslation()
   const errorText = useErrorText()
   const runAction = useRunAction()
-  const verboseSeqRef = useRef(0)
-  const includeLogsRef = useRef(false)
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
+  const includeLogs = useSyncExternalStore(subscribeDetailedLogging, isDetailedLoggingOn)
   const [redact, setRedact] = useState(true)
-  const [includeLogs, setIncludeLogs] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [status, setStatus] = useState<string | null>(null)
+  const [status, setStatus] = useState<string | null>(() => (isDetailedLoggingOn() ? t('diagnostics.verboseOn') : null))
   const [preview, setPreview] = useState<{ text: string; bytes: number; redacted: boolean; serialised: string; filename: string } | null>(null)
-
-  // Detailed logging stays on only while this screen is mounted. Leaving also makes every write
-  // still in flight stale, so a late reply cannot switch main back on. A new worker starts with the
-  // refcount empty, so a screen that still wants logs has to ask again or the lines it is open for
-  // are the ones that were never recorded.
-  useEffect(() => {
-    const rearm = onResync(() => {
-      if (includeLogsRef.current) request('setVerbose', { verbose: true }).catch(() => {})
-    })
-    return () => {
-      rearm()
-      verboseSeqRef.current += 1
-      if (includeLogsRef.current) {
-        window.bridge.setVerbose(false).catch(() => {})
-        request('setVerbose', { verbose: false }).catch(() => {})
-      }
-    }
-  }, [])
-
-  function showLogs(on: boolean) {
-    includeLogsRef.current = on
-    setIncludeLogs(on)
-  }
 
   function saveSerialised(serialised: string, filename: string) {
     const blob = new Blob([serialised], { type: 'application/json' })
@@ -81,7 +57,7 @@ export default function NetworkDiagnosticsScreen({ onBack }: Props) {
       }
       saveSerialised(serialised, bundleFilename(bundle))
       setPreview(null)
-      setStatus(t('diagnostics.saved'))
+      saved()
     } catch (err) {
       setStatus(errorText(err))
     } finally {
@@ -89,30 +65,17 @@ export default function NetworkDiagnosticsScreen({ onBack }: Props) {
     }
   }
 
-  // Detailed logging has to be on while the user reproduces the problem, otherwise the
-  // lines we need are the ones that were never recorded.
-  //
-  // The toggle shows what the worker IS doing, not what this screen asked for: verbose is shared —
-  // one client releasing it does not switch it off while another still wants it — so the reply is
-  // the answer and the optimistic value is only the starting point. The worker is written before
-  // main because its reply is that answer: a rejection returns the switch to where it was with
-  // nothing written anywhere, and main is then given the same answer. The status sentence is said
-  // only once both have taken it. Only the latest click's reply is applied.
+  // A saved file is what the logging was on for, so saving switches it off again.
+  function saved() {
+    setStatus(t('diagnostics.saved'))
+    if (isDetailedLoggingOn()) runAction(async () => { await setDetailedLogging(false) })
+  }
+
+  // The status sentence is said only once the worker and main have both taken the change.
   function handleIncludeLogs(next: boolean) {
-    const seq = ++verboseSeqRef.current
-    const previous = includeLogsRef.current
-    showLogs(next)
     runAction(async () => {
-      const reply = await request('setVerbose', { verbose: next }).catch((err: Error) => {
-        if (seq !== verboseSeqRef.current) return null
-        showLogs(previous)
-        throw err
-      })
-      if (seq !== verboseSeqRef.current) return
-      const effective = typeof reply?.verbose === 'boolean' ? reply.verbose : next
-      showLogs(effective)
-      await window.bridge.setVerbose(effective)
-      if (seq === verboseSeqRef.current) setStatus(effective ? t('diagnostics.verboseOn') : null)
+      const effective = await setDetailedLogging(next)
+      if (effective !== null) setStatus(effective ? t('diagnostics.verboseOn') : null)
     })
   }
 
@@ -169,7 +132,7 @@ export default function NetworkDiagnosticsScreen({ onBack }: Props) {
           onSave={() => {
             if (preview) saveSerialised(preview.serialised, preview.filename)
             setPreview(null)
-            setStatus(t('diagnostics.saved'))
+            saved()
           }}
           onClose={() => setPreview(null)}
         />
