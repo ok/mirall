@@ -205,3 +205,17 @@ test('disconnecting closes every window connection to a worker and tells no wind
   t.is(conns.write(1, 'x'), false)
   t.is(conns.workerOf(1), null)
 })
+
+test('REGRESSION (FIX-ATTACH-1: a back end no window connected to was trusted as live): connectedTo counts only open connections', async (t) => {
+  const { conns, sockets } = connections()
+  const worker = { attached: true }
+  const a = fakeSender(1)
+  t.absent(conns.connectedTo(worker), 'claimed by nobody')
+  conns.claim(a, SPEC, worker)
+  t.absent(conns.connectedTo(worker), 'claimed, not yet connected')
+  await conns.open(1, '/run/daemon.sock')
+  t.ok(conns.connectedTo(worker))
+  a.emit('destroyed')
+  t.ok(sockets[0].destroyed)
+  t.absent(conns.connectedTo(worker), 'the window that held it is gone')
+})

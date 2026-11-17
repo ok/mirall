@@ -69,3 +69,13 @@ test('both branches apply one case-folding rule, and only Windows folds', async 
     t.absent(await isRevealable(mixedHome, []), 'and home answers the same way')
   }
 })
+
+test('REGRESSION (FIX-ATTACH-11: every reveal asked an attached back end for its roots): the roots are asked for only outside home', async (t) => {
+  let asked = 0
+  const roots = async () => { asked++; return [EXTERNAL_ROOT] }
+  t.ok(await isRevealable(path.join(HOME, 'Downloads', 'f.txt'), roots))
+  t.is(asked, 0, 'a path under home needs no root')
+  t.ok(await isRevealable(path.join(EXTERNAL_ROOT, 'f.txt'), roots))
+  t.is(asked, 1, 'one outside it asks once')
+  t.ok(await isRevealable(path.join(EXTERNAL_ROOT, 'f.txt'), () => [EXTERNAL_ROOT]), 'a spawned worker answers at once')
+})

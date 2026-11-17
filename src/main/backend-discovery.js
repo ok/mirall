@@ -1,23 +1,25 @@
 'use strict'
 
 // Finding a back end that already serves this profile, and opening its identity. A running back end
-// leaves a run record beside its lock (src/shared/contract/run-record.js). The record is advisory: main
-// uses the socket it names only once that socket is shown to be this user's and the back end behind
-// it has answered a hello with its version. Anything short of that is no back end at all, and the
-// caller starts its own as it would without a record.
+// leaves a run record beside its lock (src/shared/contract/run-record.js). The record is advisory:
+// main uses the socket it names only once that socket is shown to be this user's and the back end
+// behind it has answered a hello naming this profile's data folder and its version. Anything short of
+// that is no back end at all, and the caller starts its own as it would without a record.
 
 const fs = require('node:fs')
 const path = require('node:path')
 const { assertPrivateSocketDir } = require('./window-connections.js')
 const { requestOverSocket, greetOverSocket } = require('./worker-request.js')
-const { pipeOwnedBySelf } = require('./pipe-owner.js')
+const { pipeOwnedBySelf, PIPE_OWNER_READABLE } = require('./pipe-owner.js')
 const { RUN_RECORD_FILE, parseRunRecord } = require('../shared/contract/run-record.js')
-const { isIdentityLock } = require('../shared/contract/errors.js')
+const { CODES, isIdentityLock } = require('../shared/contract/errors.js')
 
-// A live listener on this machine accepts at once and answers a hello before it serves anything
-// else, a key wait and a boot included. A record whose socket does neither within these is stale.
+// A live listener on this machine accepts at once; a socket that refuses or is gone is stale, and
+// that is known within the connect bound. One that accepted answers a hello before it serves anything
+// else, but a boot can hold its loop for a long while (ipc-liveness.js), so the answer has a bound
+// that covers a boot: past it the holder is live and unusable, which is no reason to start a second.
 const PROBE_CONNECT_MS = 1000
-const PROBE_ANSWER_MS = 3000
+const BUSY_ANSWER_MS = 60000
 
 const WINDOWS_PIPE_PREFIX = '\\\\.\\pipe\\'
 
@@ -57,22 +59,43 @@ async function ownerVerified(file, socketPath, { platform, pipeOwned }) {
   }
 }
 
+// Whether this build can ever use a back end it did not start on `platform`: not where it cannot
+// verify who owns the socket.
+function canAttach(platform = process.platform) {
+  return platform !== 'win32' || PIPE_OWNER_READABLE
+}
+
+// The data folder the record sits in, as the back end states its own: both resolved, so a symlinked
+// or relative spelling of one folder is the same folder. A folder that cannot be resolved is none.
+function realDataDir(file) {
+  try {
+    return fs.realpathSync.native(path.dirname(path.dirname(file)))
+  } catch {
+    return null
+  }
+}
+
 /**
  * What serves the profile a run record was read for: nothing main may use ('none'), a back end of
- * this user's at exactly `version` ('attach'), or one at another version ('other-version'), which
- * main neither uses nor replaces.
+ * this user's for this data folder at exactly `version` ('attach'), one at another version
+ * ('other-version'), or one that accepted and has not answered within a boot's bound ('busy'). Main
+ * neither uses nor replaces the last two.
  * @param {{ file: string, record: { socket: string } }} found
- * @param {{ version: string, platform?: string, pipeOwned?: (pipeName: string) => Promise<boolean>, greet?: typeof greetOverSocket }} opts
- * @returns {Promise<{ verdict: 'none' } | { verdict: 'attach', socket: string } | { verdict: 'other-version', version: string | null }>}
+ * @param {{ version: string, platform?: string, pipeOwned?: (pipeName: string) => Promise<boolean>, greet?: typeof greetOverSocket, busyAnswerMs?: number, dataDirOf?: (file: string) => string | null }} opts
+ * @returns {Promise<{ verdict: 'none' } | { verdict: 'attach', socket: string } | { verdict: 'other-version', version: string | null } | { verdict: 'busy' }>}
  */
-async function probeRunRecord({ file, record }, { version, platform = process.platform, pipeOwned = pipeOwnedBySelf, greet = greetOverSocket }) {
+async function probeRunRecord({ file, record }, { version, platform = process.platform, pipeOwned = pipeOwnedBySelf, greet = greetOverSocket, busyAnswerMs = BUSY_ANSWER_MS, dataDirOf = realDataDir }) {
   if (!(await ownerVerified(file, record.socket, { platform, pipeOwned }))) return NONE
   let ack
   try {
-    ack = await greet(record.socket, { connectTimeoutMs: PROBE_CONNECT_MS, answerTimeoutMs: PROBE_ANSWER_MS })
-  } catch {
-    return NONE
+    ack = await greet(record.socket, { connectTimeoutMs: PROBE_CONNECT_MS, answerTimeoutMs: busyAnswerMs })
+  } catch (err) {
+    return err?.unanswered ? { verdict: 'busy' } : NONE
   }
+  // A record copied or moved with its folder names another profile's socket: that back end serves
+  // another store, and is never handed this profile's key.
+  const ours = dataDirOf(file)
+  if (!ours || ack?.dataDir !== ours) return NONE
   const theirs = typeof ack?.appVersion === 'string' ? ack.appVersion : null
   if (theirs !== version) return { verdict: 'other-version', version: theirs }
   return { verdict: 'attach', socket: record.socket }
@@ -101,11 +124,21 @@ async function handKey(socketPath, { kek, relaySeed }, { request = requestOverSo
 
 // A back end main did not start may already have its identity open, and then it is sent nothing.
 // One that waits for its key, or is locked by a key that could not open it, is handed this app's
-// key, as a spawned one is. The answer is handKey's.
-async function openIdentity(socketPath, key, { request = requestOverSocket } = {}) {
+// key, as a spawned one is. The answer is handKey's. Another client may have handed a key between
+// the status and the unlock: the unlock is then refused as not waiting, and the identity that boot
+// opened is the answer. `stop()` is asked before the key goes out.
+async function openIdentity(socketPath, key, { request = requestOverSocket, stop = () => false } = {}) {
   const status = await request(socketPath, 'identity:status')
   if (!status?.locked) return true
-  return handKey(socketPath, key, { request })
+  if (stop()) throw new Error('the app is quitting')
+  try {
+    return await handKey(socketPath, key, { request })
+  } catch (err) {
+    if (err?.code !== CODES.NOT_AUTHORIZED) throw err
+    const now = await request(socketPath, 'identity:status')
+    if (now && !now.locked) return true
+    throw err
+  }
 }
 
-module.exports = { readRunRecord, probeRunRecord, discoverBackend, openIdentity, handKey }
+module.exports = { readRunRecord, probeRunRecord, discoverBackend, openIdentity, handKey, canAttach }

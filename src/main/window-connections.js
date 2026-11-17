@@ -109,6 +109,13 @@ function createWindowConnections({
     return true
   }
 
+  // Whether any window holds an open connection to this worker: one that does proves it still
+  // serves, as a connection to a worker that ended closes.
+  function connectedTo(worker) {
+    for (const entry of windows.values()) if (entry.worker === worker && entry.socket && !entry.exited) return true
+    return false
+  }
+
   function workerOf(senderId) {
     const entry = windows.get(senderId)
     return entry && !entry.exited ? entry.worker : null
@@ -139,7 +146,7 @@ function createWindowConnections({
     }
   }
 
-  return { claim, open, write, workerOf, workerExited, reportExit, disconnect }
+  return { claim, open, write, workerOf, connectedTo, workerExited, reportExit, disconnect }
 }
 
 module.exports = { createWindowConnections, assertPrivateSocketDir }

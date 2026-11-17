@@ -36,6 +36,12 @@ function failure(message, code) {
   return Object.assign(new Error(message), code ? { code } : {})
 }
 
+// The one failure that says something is there: the connection was accepted, and no answer came
+// within the bound the caller set.
+function unanswered() {
+  return Object.assign(failure('worker did not answer in time'), { unanswered: true })
+}
+
 // `request` is the frame to send after the hello, or null to settle on the hello-ack. `answerTimeoutMs`
 // bounds the wait for the answer once connected; without it the wait has no deadline.
 function exchange(socketPath, request, {
@@ -67,7 +73,7 @@ function exchange(socketPath, request, {
 
     socket.once('connect', () => {
       clearTimeout(timer)
-      if (answerTimeoutMs > 0) timer = setTimeout(() => finish(reject, failure('worker did not answer in time')), answerTimeoutMs)
+      if (answerTimeoutMs > 0) timer = setTimeout(() => finish(reject, unanswered()), answerTimeoutMs)
       socket.write(JSON.stringify(helloFrame()) + '\n' + (request ? JSON.stringify(request) + '\n' : ''))
     })
     socket.on('error', () => finish(reject, failure('worker socket failed')))

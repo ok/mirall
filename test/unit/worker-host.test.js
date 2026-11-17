@@ -12,11 +12,13 @@ import net from 'net'
 import { EventEmitter } from 'events'
 import { fileURLToPath } from 'url'
 import { tmpPath } from '../helpers/tmp.js'
+import { createRequire } from 'module'
 
 // Each load() installs its own process-exit backstop, as each real spawn path does.
 process.setMaxListeners(100)
 
 const KEK = 'ab'.repeat(32)
+const requireCjs = createRequire(import.meta.url)
 const APP_VERSION = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).version
 const SEED = 'ef'.repeat(32)
 
@@ -51,7 +53,7 @@ function stubWorker({ exitsOnShutdown = false } = {}) {
 // The default storage is a path nothing has written, so no run record is ever found beside it.
 const unusedStorage = () => path.join(tmpPath('wh-none'), 'app-storage')
 
-function load({ worker = stubWorker(), spawn = () => worker, config = {}, flags = {}, isPackaged = false, storage = unusedStorage(), keyOnSpawnFrame, holderLooksMs = [5, 5] } = {}) {
+function load({ worker = stubWorker(), spawn = () => worker, config = {}, flags = {}, isPackaged = false, storage = unusedStorage(), keyOnSpawnFrame, holderLooksMs = [5, 5], returnLooksMs = [1, 1], busyAnswerMs = 500 } = {}) {
   const { electron, modules } = loadWithFakeElectron(
     ['src/main/env-overrides.js', 'src/main/settings-ipc.js', 'src/main/worker-host.js'],
     { app: { isPackaged, getPath: () => '/tmp/mirall-test-downloads' } },
@@ -66,6 +68,8 @@ function load({ worker = stubWorker(), spawn = () => worker, config = {}, flags 
     identityKEK: () => flags.identityKEK ?? null,
     keyOnSpawnFrame,
     holderLooksMs,
+    returnLooksMs,
+    busyAnswerMs,
   })
   return { host, worker, electron }
 }
@@ -578,7 +582,7 @@ function fakeSender(id) {
 // folders:reveal-roots with `roots`; every request it saw is kept in `requests`. With `dir` it
 // listens there, as daemon.sock.
 const LOCKED_STATUS = { locked: true, code: 'IDENTITY_UNLOCK_FAILED', restore: null }
-function socketServer(t, { unlock: answer = () => ({ data: { ok: true } }), holdUnlock = false, dir: given = null, appVersion = APP_VERSION, status = LOCKED_STATUS, roots = [] } = {}) {
+function socketServer(t, { unlock: answer = () => ({ data: { ok: true } }), holdUnlock = false, dir: given = null, appVersion = APP_VERSION, dataDir = null, status = LOCKED_STATUS, roots = [], silent = false } = {}) {
   let unlock = answer
   const dir = given ?? path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'wh-')), 'run')
   if (!given) {
@@ -606,7 +610,7 @@ function socketServer(t, { unlock: answer = () => ({ data: { ok: true } }), hold
         try { frame = JSON.parse(line) } catch { continue }
         if (frame.type === 'hello') {
           hellos.push(frame)
-          sock.write(JSON.stringify({ type: 'hello-ack', ok: true, appVersion }) + '\n')
+          if (!silent) sock.write(JSON.stringify({ type: 'hello-ack', ok: true, appVersion, dataDir }) + '\n')
           continue
         }
         if (frame.id) requests.push(frame.type)
@@ -702,12 +706,12 @@ async function runningBackend(t, { mode = 0o700, withRecord = true, record = {},
   t.teardown(() => fs.rmSync(dataDir, { recursive: true, force: true }))
   const runDir = path.join(dataDir, 'run')
   fs.mkdirSync(runDir, { mode: 0o700 })
-  const backend = await socketServer(t, { dir: runDir, ...server })
+  const backend = await socketServer(t, { dir: runDir, dataDir: fs.realpathSync.native(dataDir), ...server })
   const recordFile = path.join(runDir, 'daemon.json')
   const writeRecord = () => fs.writeFileSync(recordFile, JSON.stringify({ v: 1, socket: backend.socketPath, pid: 4242, version: APP_VERSION, ...record }), { mode: 0o600 })
   if (withRecord) writeRecord()
   if (mode !== 0o700) fs.chmodSync(runDir, mode)
-  return { ...backend, storage: path.join(dataDir, 'app-storage'), recordFile, writeRecord }
+  return { ...backend, storage: path.join(dataDir, 'app-storage'), recordFile, writeRecord, dataDir }
 }
 
 function spawnCounter() {
@@ -893,7 +897,9 @@ test('a back end it did not start that goes away: the window hears exit 0, and i
   t.alike(exits(sender), [0], 'the respawn path, once, after the grace')
   t.absent(host.workerIsLocal(sender.id), 'it is no longer the back end in use')
   const again = startFor(electron, sender)
-  t.is(spawned.length, 1, 'with no record left, the next start spawns')
+  t.is(spawned.length, 0, 'the next start first waits for the back end to return')
+  await until(() => spawned.length === 1)
+  t.is(spawned.length, 1, 'and with no record left after the looks, it spawns')
   spawned[0].emit('exit', 0)
   await again.catch(() => {})
 })
@@ -907,4 +913,110 @@ test('a reveal is authorized against the roots the back end it did not start ans
   t.ok(backend.requests.includes('folders:reveal-roots'))
   await backend.close()
   t.alike(await host.revealRoots(), [], 'and once it has gone, nothing beyond home')
+})
+
+// A server that stands in for a back end the owner starts again on the same socket: a fresh
+// process, waiting for its key.
+async function restartedOn(t, backend) {
+  return socketServer(t, { dir: path.dirname(backend.socketPath), dataDir: fs.realpathSync.native(backend.dataDir), status: AWAITING })
+}
+
+test('REGRESSION (FIX-ATTACH-1: a closed window left a dead or replaced back end cached): a start with no window connected looks for the back end afresh and opens it', async (t) => {
+  const backend = await runningBackend(t, { status: OPEN })
+  const { spawned, spawn } = spawnCounter()
+  const { host, electron } = load({ flags: { identityKEK: KEK }, storage: backend.storage, spawn })
+  host.registerWorkerHost()
+  const sender = fakeSender(7)
+  await startFor(electron, sender)
+  sender.emit('destroyed')
+  await backend.close()
+  const again = await restartedOn(t, backend)
+  t.is(await startFor(electron, fakeSender(8)), true)
+  t.alike(again.requests, ['identity:status', 'identity:unlock'], 'the back end that is there now was asked and handed the key')
+  t.is(spawned.length, 0)
+})
+
+test('REGRESSION (FIX-ATTACH-1: a failed connect to an attached back end kept it cached): it is forgotten, and the next start looks again', async (t) => {
+  const backend = await runningBackend(t, { status: OPEN })
+  const { spawned, spawn } = spawnCounter()
+  const { host, electron } = load({ flags: { identityKEK: KEK }, storage: backend.storage, spawn })
+  host.registerWorkerHost()
+  const a = fakeSender(7)
+  await startFor(electron, a)
+  await until(() => backend.peers.length === 3)
+  // Another window still holds a connection, so the start trusts the cached back end; the
+  // socket it would connect to is gone.
+  const realConnect = backend.socketPath
+  fs.rmSync(realConnect)
+  await t.exception(startFor(electron, fakeSender(8)), 'the window could not connect')
+  t.absent(host.workerIsLocal(8))
+  fs.rmSync(backend.recordFile)
+  const third = startFor(electron, fakeSender(9))
+  await until(() => spawned.length === 1)
+  t.is(spawned.length, 1, 'the back end was forgotten: the next start looked again and spawned')
+  spawned[0].emit('exit', 0)
+  await third.catch(() => {})
+})
+
+test('REGRESSION (FIX-ATTACH-3: the app took the lock from an owner restarting the back end): after losing it, the next start waits for its return and uses it', async (t) => {
+  const backend = await runningBackend(t, { status: OPEN })
+  const { spawned, spawn } = spawnCounter()
+  const { host, electron } = load({ flags: { identityKEK: KEK }, storage: backend.storage, spawn, returnLooksMs: [0, 30, 30, 30] })
+  host.registerWorkerHost()
+  const sender = fakeSender(7)
+  await startFor(electron, sender)
+  await until(() => backend.peers.length === 3)
+  fs.rmSync(backend.recordFile)
+  await backend.close()
+  for (let i = 0; i < 100 && exits(sender).length === 0; i++) await new Promise((r) => setTimeout(r, 20))
+  const starting = startFor(electron, sender)
+  await new Promise((r) => setTimeout(r, 40))
+  t.is(spawned.length, 0, 'no spawn while the owner may still bring it back')
+  const back = await restartedOn(t, backend)
+  backend.writeRecord()
+  t.is(await starting, true)
+  t.is(spawned.length, 0, 'the returned back end is used')
+  t.alike(back.requests, ['identity:status', 'identity:unlock'])
+})
+
+test('REGRESSION (FIX-ATTACH-6: a window destroyed during the start was claimed and connected): it is neither claimed nor connected', async (t) => {
+  const backend = await runningBackend(t, { status: OPEN, holdUnlock: false })
+  const { host, electron } = load({ flags: { identityKEK: KEK }, storage: backend.storage })
+  host.registerWorkerHost()
+  const sender = fakeSender(7)
+  const starting = startFor(electron, sender)
+  sender.isDestroyed = () => true
+  sender.emit('destroyed')
+  t.is(await starting, false)
+  await new Promise((r) => setTimeout(r, 30))
+  t.is(backend.peers.length, 2, 'the probe and the status, and no window connection')
+  t.absent(host.workerIsLocal(sender.id))
+})
+
+test('REGRESSION (FIX-ATTACH-8: a quit during the look still spawned or handed a key): nothing is spawned or handed over once the app is quitting', async (t) => {
+  const backend = await runningBackend(t, { status: AWAITING })
+  const { spawned, spawn } = spawnCounter()
+  // A quit-state of this test's own: the flag has no way back, and later tests load the host afresh.
+  const quitPath = requireCjs.resolve('../../src/main/quit-state.js')
+  delete requireCjs.cache[quitPath]
+  t.teardown(() => { delete requireCjs.cache[quitPath] })
+  const { host, electron } = load({ flags: { identityKEK: KEK }, storage: backend.storage, spawn })
+  const quitState = requireCjs(quitPath)
+  host.registerWorkerHost()
+  const starting = startFor(electron, fakeSender(7))
+  quitState.markQuitting()
+  await t.exception(starting)
+  t.is(spawned.length, 0)
+  t.is(backend.unlocks.length, 0, 'no key went out')
+})
+
+test('REGRESSION (FIX-ATTACH-5: a busy holder was taken for stale and a second back end spawned): it is reported as already running, and nothing spawns', async (t) => {
+  const backend = await runningBackend(t, { status: AWAITING, silent: true })
+  const { spawned, spawn } = spawnCounter()
+  const { host, electron } = load({ flags: { identityKEK: KEK }, storage: backend.storage, spawn, busyAnswerMs: 30 })
+  host.registerWorkerHost()
+  const sender = fakeSender(7)
+  await t.exception(startFor(electron, sender))
+  t.alike(exits(sender), [73])
+  t.is(spawned.length, 0)
 })

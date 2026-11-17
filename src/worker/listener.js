@@ -46,6 +46,8 @@ export async function startListener({ ipc, storage, log }) {
 
   const lock = await takeLock(paths.lock)
   if (!lock) return { verdict: 'already-running', reason: 'another worker holds ' + paths.lock }
+  // Resolved as main resolves the folder its run record sits in, so the two compare as text.
+  ipc.setServedDataDir(fs.realpathSync(path.dirname(storage)))
 
   const bound = await bind(paths.socket, platform)
   if (!bound.server) {

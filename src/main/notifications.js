@@ -78,7 +78,9 @@ const FOLD_CASE = process.platform === 'win32'
 
 // The renderer supplies this path and it ends at a shell call, so this is an authorization
 // check: keep it a bounded allowlist of the user's home plus the roots the worker pushed.
-// Resolve BEFORE comparing, or `<root>/../../etc/passwd` passes a prefix test.
+// Resolve BEFORE comparing, or `<root>/../../etc/passwd` passes a prefix test. `roots` is the list,
+// or a function that answers it, asked only for a path outside home: the roots of a back end main
+// did not start cost a round trip to it.
 async function isRevealable(fullPath, roots) {
   if (typeof fullPath !== 'string' || fullPath.length === 0) return false
   const mod = await pathKeys
@@ -89,7 +91,8 @@ async function isRevealable(fullPath, roots) {
     typeof dir === 'string' && dir.length > 0 &&
     pathContains(path.resolve(dir), resolved, path.sep, FOLD_CASE)
   if (allows(os.homedir())) return true
-  return Array.isArray(roots) && roots.some(allows)
+  const list = typeof roots === 'function' ? await roots() : roots
+  return Array.isArray(list) && list.some(allows)
 }
 
 function register(opts) {
@@ -162,7 +165,7 @@ function register(opts) {
     const resolved = path.resolve(fullPath)
     const shown = fs.existsSync(resolved) ? resolved : path.dirname(resolved)
     if (!isDirectoryOrFile(shown)) return refused()
-    if (!await isRevealable(shown, await revealRootsFn())) return refused()
+    if (!await isRevealable(shown, revealRootsFn)) return refused()
     shell.showItemInFolder(shown)
     return { ok: true }
   })

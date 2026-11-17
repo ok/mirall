@@ -28,7 +28,7 @@ const { entrypointFor } = require('./worker-entrypoints.js')
 const { createWorkerFrameReader } = require('./ipc-frame.js')
 const { createWindowConnections } = require('./window-connections.js')
 const { requestOverSocket, helloFrame } = require('./worker-request.js')
-const { readRunRecord, probeRunRecord, discoverBackend, openIdentity, handKey } = require('./backend-discovery.js')
+const { readRunRecord, probeRunRecord, openIdentity, handKey, canAttach } = require('./backend-discovery.js')
 const { envJson } = require('./env-json.js')
 const { envOverride } = require('./env-overrides.js')
 const { isVerbose } = require('./debug-gate.js')
@@ -50,7 +50,7 @@ const envNumber = (raw) => (raw ? Number(raw) : undefined)
 const workers = new Map()
 // A window connection to an attached back end that closes is the one sign main gets that it may have
 // ended, so the back end is forgotten and the window's next start looks for one afresh.
-const windowConnections = createWindowConnections({ onClosed: (worker) => { if (worker.attached) forgetAttached(worker) } })
+const windowConnections = createWindowConnections({ onClosed: (worker) => { if (worker.attached) forgetAttached(worker, { lost: true }) } })
 
 // A worker that has not said where it listens by now never will: it is wedged, and the window's
 // respawn path deals with a spawn that did not come up.
@@ -74,10 +74,16 @@ const started = new WeakMap()
 const exitCodes = new WeakMap()
 // The start in flight per specifier, which every window starting meanwhile joins.
 const resolving = new Map()
+// Specifiers whose attached back end went away under a window; the next start consumes the mark.
+const returning = new Set()
 
 // After a spawn exits as already running, the holder is looked for again at these intervals: it took
 // the lock between main's look and the spawn, and it writes its run record just after it binds.
 const HOLDER_LOOKS_MS = Object.freeze([250, 500, 1000])
+// After an attached back end went away, the looks for its return before a spawn takes the lock: 8 s
+// in all, on top of the window's own respawn delay, covering an owner who stops it (a close runs for
+// up to 4 s before the lock is free) and starts it again by hand.
+const RETURN_LOOKS_MS = Object.freeze([0, 500, 1000, 1500, 2000, 3000])
 
 function socketPathOf(worker) {
   const announced = listening.get(worker)
@@ -104,6 +110,9 @@ let identityKEK = () => null
 let identityWeak = () => false
 let keyOnSpawnFrame = KEY_ON_SPAWN_FRAME
 let holderLooksMs = HOLDER_LOOKS_MS
+let returnLooksMs = RETURN_LOOKS_MS
+// Unset: the discovery module's own bound for a holder that accepted and has not answered.
+let busyAnswerMs = 0
 
 function initWorkerHost(d) {
   getPear = d.getPear
@@ -112,6 +121,8 @@ function initWorkerHost(d) {
   identityWeak = d.identityWeak ?? (() => false)
   keyOnSpawnFrame = d.keyOnSpawnFrame ?? KEY_ON_SPAWN_FRAME
   holderLooksMs = d.holderLooksMs ?? HOLDER_LOOKS_MS
+  returnLooksMs = d.returnLooksMs ?? RETURN_LOOKS_MS
+  busyAnswerMs = d.busyAnswerMs ?? 0
 }
 
 // A reveal is authorized against the roots of the back end in use. A spawned worker pushes them on
@@ -435,23 +446,38 @@ function restartWorker(specifier) {
 }
 
 const exitFailure = (code) => Object.assign(new Error('worker exited with code ' + code), { exitCode: code })
+const stopIfQuitting = () => { if (isQuitting()) throw new Error('the app is quitting') }
 const sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms) })
 
 function ownVersion() {
   return versionLabel({ dev: isDev, appVersion: version })
 }
 
-// The back end its run record names, when it is this user's and at this build's version. One at
-// another version is neither used nor replaced: the window is told the profile is already served,
-// as a spawn holding no lock would tell it.
-async function attachFound(specifier, found) {
-  const verdict = await probeRunRecord(found, { version: ownVersion() })
-  if (verdict.verdict === 'other-version') {
-    console.warn('a back end of another version serves this profile:', verdict.version)
-    throw exitFailure(WORKER_EXIT_ALREADY_RUNNING)
-  }
+// One path for every look at the profile's run record: the back end it names is used when it is
+// this user's, serves this data folder and runs this build's version. One that serves the profile
+// and cannot be used (another version, or one that accepted and did not answer within a boot's
+// bound) is neither used nor replaced: the window is told the profile is already served, as a spawn
+// holding no lock would tell it. Null when there is no back end to use.
+async function findRunning(specifier, found) {
+  const verdict = await probeRunRecord(found, { version: ownVersion(), ...(busyAnswerMs ? { busyAnswerMs } : {}) })
+  stopIfQuitting()
+  if (verdict.verdict === 'other-version') console.warn('a back end of another version serves this profile:', verdict.version)
+  if (verdict.verdict === 'busy') console.warn('the back end serving this profile does not answer')
+  if (verdict.verdict === 'other-version' || verdict.verdict === 'busy') throw exitFailure(WORKER_EXIT_ALREADY_RUNNING)
   if (verdict.verdict !== 'attach') return null
   return workers.get(specifier) ?? attach(specifier, verdict.socket)
+}
+
+// Looks again at each interval for a back end that holds, or has retaken, the profile.
+async function awaitHolder(specifier, intervalsMs) {
+  for (const delayMs of intervalsMs) {
+    await sleep(delayMs)
+    stopIfQuitting()
+    const found = readRunRecord(getPear().storage)
+    const holder = found ? await findRunning(specifier, found) : null
+    if (holder) return holder
+  }
+  return null
 }
 
 // Registered in `workers` at once, so a restart asked for meanwhile is refused. Only the key and the
@@ -459,7 +485,7 @@ async function attachFound(specifier, found) {
 function attach(specifier, socketPath) {
   const backend = { attached: true, specifier, socketPath }
   workers.set(specifier, backend)
-  const run = openIdentity(socketPath, currentKey(getPear().storage)).then(() => socketPath, (err) => {
+  const run = openIdentity(socketPath, currentKey(getPear().storage), { stop: isQuitting }).then(() => socketPath, (err) => {
     console.warn('using the running back end failed:', err.code || err.message)
     forgetAttached(backend)
     throw err
@@ -470,22 +496,38 @@ function attach(specifier, socketPath) {
   return backend
 }
 
-function forgetAttached(backend) {
-  if (workers.get(backend.specifier) === backend) workers.delete(backend.specifier)
+// `lost`: the back end went away under a window, and its owner may be starting it again.
+function forgetAttached(backend, { lost = false } = {}) {
+  if (workers.get(backend.specifier) !== backend) return
+  workers.delete(backend.specifier)
+  if (lost) returning.add(backend.specifier)
 }
 
-// The back end a window connects to, once started: the one in use, a running one found through the
-// profile's run record, or a fresh spawn. Without a record the spawn happens in the caller's turn.
-// A spawn that exits as already running lost the lock to a back end that started meanwhile, which
-// is looked for a few more times before that exit stands.
-async function resolveBackend(specifier) {
-  if (isQuitting()) throw new Error('the app is quitting')
-  let backend = workers.get(specifier)
-  if (!backend) {
-    const found = readRunRecord(getPear().storage)
-    if (found) backend = await attachFound(specifier, found)
-    backend = backend ?? workers.get(specifier) ?? getWorker(specifier)
+// The back end a fresh start uses. After an attached back end was lost, its owner gets a few seconds
+// to bring it back before this process takes the lock with a spawn of its own. Otherwise: the one
+// the run record names, or a spawn, which happens in the caller's turn when there is no record.
+async function acquire(specifier) {
+  if (returning.delete(specifier) && canAttach()) {
+    const back = await awaitHolder(specifier, returnLooksMs)
+    if (back) return back
   }
+  const found = readRunRecord(getPear().storage)
+  const running = found ? await findRunning(specifier, found) : null
+  return running ?? workers.get(specifier) ?? getWorker(specifier)
+}
+
+// The back end a window connects to, once started. An attached back end no window is connected to
+// may have ended or been replaced since it was found, so it is looked for and opened afresh. A
+// spawn that exits as already running lost the lock to a back end that started meanwhile, which is
+// looked for a few more times, where this build could use it, before that exit stands.
+async function resolveBackend(specifier) {
+  stopIfQuitting()
+  let backend = workers.get(specifier)
+  if (backend?.attached && !windowConnections.connectedTo(backend)) {
+    forgetAttached(backend)
+    backend = null
+  }
+  if (!backend) backend = await acquire(specifier)
   try {
     await started.get(backend)
     return backend
@@ -494,22 +536,10 @@ async function resolveBackend(specifier) {
       throw exitCodes.has(backend) ? Object.assign(err, { exitCode: exitCodes.get(backend) }) : err
     }
   }
-  for (const delayMs of holderLooksMs) {
-    await sleep(delayMs)
-    const holder = await lookForHolder(specifier)
-    if (holder) {
-      await started.get(holder)
-      return holder
-    }
-  }
-  throw exitFailure(WORKER_EXIT_ALREADY_RUNNING)
-}
-
-async function lookForHolder(specifier) {
-  if (isQuitting()) throw exitFailure(WORKER_EXIT_ALREADY_RUNNING)
-  const verdict = await discoverBackend(getPear().storage, { version: ownVersion() })
-  if (verdict.verdict === 'other-version') throw exitFailure(WORKER_EXIT_ALREADY_RUNNING)
-  return verdict.verdict === 'attach' ? workers.get(specifier) ?? attach(specifier, verdict.socket) : null
+  const holder = canAttach() ? await awaitHolder(specifier, holderLooksMs) : null
+  if (!holder) throw exitFailure(WORKER_EXIT_ALREADY_RUNNING)
+  await started.get(holder)
+  return holder
 }
 
 function backendFor(specifier) {
@@ -522,18 +552,26 @@ function backendFor(specifier) {
 }
 
 // Finds or spawns the back end, then opens this window's own connection to it. Resolves once the
-// window can write; a back end that ends first rejects, after its exit code reached the window.
+// window can write; a back end that ends first rejects, after its exit code reached the window. A
+// window destroyed while it waited is not claimed: its 'destroyed' is past, and nothing would let
+// go of the connection.
 async function startWorkerFor(sender, specifier) {
   let backend
   try {
     backend = await backendFor(specifier)
   } catch (err) {
-    if ('exitCode' in err) windowConnections.reportExit(sender, specifier, err.exitCode)
+    if ('exitCode' in err && !sender.isDestroyed()) windowConnections.reportExit(sender, specifier, err.exitCode)
     throw err
   }
+  if (sender.isDestroyed()) return false
   windowConnections.claim(sender, specifier, backend)
   if (exitCodes.has(backend)) windowConnections.workerExited(backend, exitCodes.get(backend))
-  await windowConnections.open(sender.id, await started.get(backend))
+  try {
+    await windowConnections.open(sender.id, await started.get(backend))
+  } catch (err) {
+    if (backend.attached) forgetAttached(backend, { lost: true })
+    throw err
+  }
   return true
 }
 
