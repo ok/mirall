@@ -277,7 +277,7 @@ Bootstrap:
    `WORKER_EXIT_LISTEN_FAILED` (74, retried). Admission is bare-pipe's `ownerOnly` plus
    `src/shared/core/peer-admission.js`, and an admitted connection attaches as `TRUST.HOST`: it is
    the owning user. The path goes to main as the `socket:listening` main-request.
-   Once bound, the worker writes `<dataDir>/run/daemon.json` (`src/shared/core/run-record.js`:
+   Once bound, the worker writes `<dataDir>/run/daemon.json` (`src/shared/contract/run-record.js`:
    `{ v, socket, pid, version }`, atomic, 0600, always beside the lock even when the socket sits in
    the temp root) and removes it on a clean close, only if its own pid is named. It is advisory: the
    lock, never the record, decides who holds the store, and a record whose socket does not answer is

@@ -1,7 +1,7 @@
 'use strict'
 
 // Finding a back end that already serves this profile, and opening its identity. A running back end
-// leaves a run record beside its lock (src/shared/core/run-record.js). The record is advisory: main
+// leaves a run record beside its lock (src/shared/contract/run-record.js). The record is advisory: main
 // uses the socket it names only once that socket is shown to be this user's and the back end behind
 // it has answered a hello with its version. Anything short of that is no back end at all, and the
 // caller starts its own as it would without a record.
@@ -11,7 +11,7 @@ const path = require('node:path')
 const { assertPrivateSocketDir } = require('./window-connections.js')
 const { requestOverSocket, greetOverSocket } = require('./worker-request.js')
 const { pipeOwnedBySelf } = require('./pipe-owner.js')
-const { RUN_RECORD_FILE, parseRunRecord } = require('../shared/core/run-record.js')
+const { RUN_RECORD_FILE, parseRunRecord } = require('../shared/contract/run-record.js')
 const { isIdentityLock } = require('../shared/contract/errors.js')
 
 // A live listener on this machine accepts at once and answers a hello before it serves anything

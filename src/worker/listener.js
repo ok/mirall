@@ -18,7 +18,7 @@ import { TRUST } from '../shared/contract/ipc-frames.js'
 import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../shared/contract/main-requests.js'
 import { socketPaths } from '../shared/core/socket-path.js'
 import { admitPeer } from '../shared/core/peer-admission.js'
-import { serializeRunRecord, parseRunRecord } from '../shared/core/run-record.js'
+import { serializeRunRecord, parseRunRecord } from '../shared/contract/run-record.js'
 import { writeFileAtomic } from '../shared/core/atomic-file.js'
 import { getAppVersionLabel } from '../shared/core/runtime-config.js'
 

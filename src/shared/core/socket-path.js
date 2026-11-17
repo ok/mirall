@@ -5,7 +5,7 @@
 // Unix socket path longer than sun_path fails to bind, so a long data directory falls back to a
 // per-user directory under the temp root, named by the store so two profiles cannot meet there.
 
-import { RUN_RECORD_FILE } from './run-record.js'
+import { RUN_RECORD_FILE } from '../contract/run-record.js'
 
 export const SUN_PATH_MAX = 103
 
