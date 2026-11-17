@@ -1020,3 +1020,23 @@ test('REGRESSION (FIX-ATTACH-5: a busy holder was taken for stale and a second b
   t.alike(exits(sender), [73])
   t.is(spawned.length, 0)
 })
+
+test('REGRESSION (FIX-ATTACH-9: an action stopped halfway when its restart was refused): main says, before any step, whether this window’s back end is its to restart', async (t) => {
+  const backend = await runningBackend(t, { status: OPEN })
+  const { host, electron } = load({ flags: { identityKEK: KEK }, storage: backend.storage })
+  host.registerWorkerHost()
+  const ask = electron.ipcMain.handlers.get('pear:workerRestartable')
+  const sender = fakeSender(7)
+  await startFor(electron, sender)
+  t.is(await ask({ sender }), false, 'attached: not this app’s to restart')
+  t.is(await ask({ sender: fakeSender(8) }), true, 'a window with no back end yet is told a spawn would be')
+
+  const spawned = load({ flags: { identityKEK: KEK } })
+  spawned.host.registerWorkerHost()
+  const server = await socketServer(t)
+  const other = fakeSender(9)
+  const starting = startFor(spawned.electron, other)
+  spawned.worker.emit('data', announce(server.socketPath))
+  await starting
+  t.is(await spawned.electron.ipcMain.handlers.get('pear:workerRestartable')({ sender: other }), true, 'spawned: restartable')
+})

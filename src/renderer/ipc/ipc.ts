@@ -323,6 +323,14 @@ export async function restartWorker(): Promise<void> {
   }
 }
 
+// Refuses, with the code a refused restart carries, when this window's back end was not started by
+// this app. An action that ends in a restart asks this before its first step that cannot be undone,
+// so it never stops halfway.
+export async function assertRestartable(): Promise<void> {
+  if (await window.bridge.workerRestartable()) return
+  throw codedError('the back end was not started by this app', CODES.WORKER_STARTED_ELSEWHERE)
+}
+
 const TERMINAL_REASON: Record<ChannelFault, string> = {
   protocol: 'worker refused the connection: protocol version mismatch',
   budget: 'worker exited repeatedly; not respawning — reload the app to recover',

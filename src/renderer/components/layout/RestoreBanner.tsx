@@ -7,37 +7,43 @@ import { useBannerHeight } from '../../hooks/useBannerHeight.js'
 import { HELD_REASON_ID } from '../../hooks/useHeldControl.js'
 import { restoreBannerCopy, type RestoreHoldView } from '../../model/restore-hold-view.js'
 import Icon from '../primitives/Icon.js'
+import { errorTextFor } from '../../errors/error-text.js'
+import { CODES } from '../../../shared/contract/errors.js'
 
 // The reason every control a restore holds points at (aria-describedby), said once here.
 
 interface RestoreBannerProps {
   hold: RestoreHoldView
   restartFailed: boolean
+  // A restart this app may not make: said with the back end's owner as the one to act, and no retry.
+  restartElsewhere: boolean
   onRetryRestart: () => void
   onDetails: () => void
 }
 
-export default function RestoreBanner({ hold, restartFailed, onRetryRestart, onDetails }: RestoreBannerProps) {
+export default function RestoreBanner({ hold, restartFailed, restartElsewhere, onRetryRestart, onDetails }: RestoreBannerProps) {
   const { t } = useTranslation()
   const ref = useRef<HTMLDivElement>(null)
   useBannerHeight(ref, true)
   const copy = restoreBannerCopy(hold)
+  const retry = restartFailed && !restartElsewhere
+  const failedText = restartElsewhere ? errorTextFor({ code: CODES.WORKER_STARTED_ELSEWHERE }, t) : t('restore.restartFailed')
   return (
     <div ref={ref} role="status" aria-live="polite" className="bg-secondary-container px-8 py-2 flex items-center justify-between gap-4" style={{ WebkitAppRegion: 'no-drag' }}>
       <span id={HELD_REASON_ID} className="sr-only">{t('restore.heldReason')}</span>
       <div className="flex items-center gap-2 min-w-0">
         <Icon name="history" size={16} className="text-on-secondary-container shrink-0" />
         <span className="text-sm font-semibold text-on-secondary-container">
-          {restartFailed ? t('restore.restartFailed') : t(copy.lead)}
+          {restartFailed ? failedText : t(copy.lead)}
           {!restartFailed && <span className="ml-2 opacity-80">— {t(copy.detail)}{copy.waiting ? ` ${t('restore.bannerWaiting')}` : ''}</span>}
         </span>
       </div>
       <button
         type="button"
-        onClick={restartFailed ? onRetryRestart : onDetails}
+        onClick={retry ? onRetryRestart : onDetails}
         className="bg-secondary text-on-secondary text-xs font-bold px-3 py-1 rounded shadow-lg hover:opacity-90 active:scale-95 transition-all focus-ring-on-secondary shrink-0"
       >
-        {restartFailed ? t('identityLocked.retry') : t('restore.details')}
+        {retry ? t('identityLocked.retry') : t('restore.details')}
       </button>
     </div>
   )

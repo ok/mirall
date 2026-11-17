@@ -2,7 +2,7 @@
 // requested for rewrite in the worker, and a worker restart runs that rewrite. Each step is a phase
 // the screen announces; the result is the drop in the total the screen shows.
 import { useCallback, useState } from 'react'
-import { request, restartWorker } from '../ipc/ipc.js'
+import { assertRestartable, request, restartWorker } from '../ipc/ipc.js'
 import { useRunAction } from './useRunAction.js'
 import { storageCategories } from '../model/storage-categories.js'
 import type { UpdateCacheInfo } from '../platform/global.js'
@@ -22,6 +22,8 @@ export function useFreeUpSpace(refreshUpdates: () => Promise<UpdateCacheInfo>) {
   const start = useCallback((before: number) => {
     runAction(async () => {
       try {
+        // The records step may require a restart, and is not undone when the restart is refused.
+        await assertRestartable()
         setPhase('updates')
         await window.bridge.pruneUpdateCache()
         setPhase('records')

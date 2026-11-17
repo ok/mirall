@@ -8,7 +8,7 @@
 // Rendered outside the toast region, so every outcome is said inside the dialog.
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { request } from '../../ipc/ipc.js'
+import { assertRestartable, request } from '../../ipc/ipc.js'
 import { useErrorText } from '../../hooks/useErrorText.js'
 import { errorCodeOf } from '../../errors/error-text.js'
 import { refetchQuery } from '../../store/query-store.js'
@@ -37,6 +37,13 @@ interface RestoreBackupModalProps {
 
 // The newest snapshot the loss check did not flag: a flagged one holds less than one before it.
 const preferred = (snapshots: RestorableSnapshot[]) => (snapshots.find((s) => !s.suspect) ?? snapshots[0])?.name ?? null
+
+// A restore onto an unlocked identity is opened by a restart (restartIntoIdentity), so that restart
+// must be this app's to make before anything is restored; a locked one opens in place.
+async function restoreSnapshot(locked: boolean, args: { folder: string, snapshot: string, passphrase: string }) {
+  if (!locked) await assertRestartable()
+  return request('backup:restore', args, 0)
+}
 
 export default function RestoreBackupModal({ isOpen, onClose, onRestored, locked = false }: RestoreBackupModalProps) {
   const { t } = useTranslation()
@@ -124,7 +131,7 @@ export default function RestoreBackupModal({ isOpen, onClose, onRestored, locked
     setBusy(true)
     setError(null)
     try {
-      const { settings } = await request('backup:restore', { folder, snapshot: chosen, passphrase }, 0)
+      const { settings } = await restoreSnapshot(locked, { folder, snapshot: chosen, passphrase })
       if (settings) await adoptRestoredSettings(settings)
       setRestarting(true)
       await onRestored()

@@ -172,6 +172,7 @@ function AppShell({ nav, profile, onSaveProfile, deepLinks, identity }: AppShell
             <RestoreBanner
               hold={hold}
               restartFailed={identity.restartFailed}
+              restartElsewhere={identity.restartElsewhere}
               onRetryRestart={identity.retryRestart}
               onDetails={() => nav.setCurrentScreen('backup-settings')}
             />

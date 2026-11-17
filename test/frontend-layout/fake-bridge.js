@@ -127,6 +127,7 @@
 
     startWorker: asyncNoop,
     restartWorker: asyncNoop,
+    workerRestartable: () => Promise.resolve(true),
     onWorkerIPC: (_spec, listener) => { ipcCb = listener },
     onWorkerStdout: noop,
     onWorkerStderr: noop,

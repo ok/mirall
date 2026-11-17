@@ -603,6 +603,9 @@ function registerWorkerHost() {
     ipcMain.handle('pear:worker:writeIPC:' + specifier, (evt, data) => windowConnections.write(evt.sender.id, data))
   }
   ipcMain.handle('pear:restartWorker', (_evt, specifier) => restartWorker(specifier))
+  // Whether a restart of this window's back end is this app's to make, asked before an action that
+  // ends in one takes its first step that cannot be undone.
+  ipcMain.handle('pear:workerRestartable', (evt) => !windowConnections.workerOf(evt.sender.id)?.attached)
 }
 
 module.exports = {
