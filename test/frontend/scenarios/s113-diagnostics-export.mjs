@@ -1,6 +1,6 @@
 import { mkdirSync } from 'node:fs'
 import { Instance } from '../instance.mjs'
-import { makeReport } from '../assert.mjs'
+import { makeReport, waitFor } from '../assert.mjs'
 
 // The Diagnostics screen, reached from Network status: both toggles reachable by accessible name,
 // and the preview modal shows the real bundle before anything is written.
@@ -36,6 +36,17 @@ export default async function s113({ runDir, bootstrap }) {
         throw new Error('redacted preview exposed publicKey')
       }
       await A.click({ role: 'button', name: 'Close' })
+    })
+
+    // The problem to reproduce is on another screen, so logging has to outlive this one.
+    await r.ok('REGRESSION (FIX-DIAG-1: detailed logging off on leaving): it is still on after leaving and coming back', async () => {
+      const logs = { role: 'switch', name: 'Include detailed logs' }
+      await A.click(logs)
+      await waitFor(async () => String(await A.nodeValue(logs)) === '1', 15000, 'detailed logging switched on')
+      await A.click({ role: 'button', name: 'Back' })
+      await A.openNetworkDiagnostics()
+      await waitFor(async () => String(await A.nodeValue(logs)) === '1', 15000, 'detailed logging still on after coming back')
+      await A.waitText('Detailed logging is on', 15000)
     })
   } catch {}
   return { pass: r.summary(), instances: [A] }
