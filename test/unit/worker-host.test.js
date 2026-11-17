@@ -11,6 +11,7 @@ import os from 'os'
 import net from 'net'
 import { EventEmitter } from 'events'
 import { fileURLToPath } from 'url'
+import { tmpPath } from '../helpers/tmp.js'
 
 // Each load() installs its own process-exit backstop, as each real spawn path does.
 process.setMaxListeners(100)
@@ -48,7 +49,7 @@ function stubWorker({ exitsOnShutdown = false } = {}) {
 
 // The gate is reloaded with the host, so no test inherits another's packaging.
 // The default storage is a path nothing has written, so no run record is ever found beside it.
-const unusedStorage = () => path.join(os.tmpdir(), 'wh-none-' + process.pid + '-' + Math.random().toString(16).slice(2), 'app-storage')
+const unusedStorage = () => path.join(tmpPath('wh-none'), 'app-storage')
 
 function load({ worker = stubWorker(), spawn = () => worker, config = {}, flags = {}, isPackaged = false, storage = unusedStorage(), keyOnSpawnFrame, holderLooksMs = [5, 5] } = {}) {
   const { electron, modules } = loadWithFakeElectron(
