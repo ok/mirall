@@ -31,7 +31,7 @@ export class OverlayProtocolV2 {
     this.grants = new ServeGrants({ authorize: opts.serveAuthorizer, onServeEnd: opts.onServeEnd || null, peers })
     this.serveFds = new ServeFds({ reads: transfer, peers, idleMs: opts.serveFdIdleMs })
     this.pages = createChunkHashAssembler()
-    this.drain = createDrainWaiter({ drainTimeout: opts.drainTimeout, drainNoProgress: opts.drainNoProgress })
+    this.drain = createDrainWaiter({ drainTimeout: opts.drainTimeout, drainNoProgress: opts.drainNoProgress, defer: opts.deferDrain === true })
     this.serve = new ServeSession({
       fileIndex: opts.fileIndex,
       transfer,

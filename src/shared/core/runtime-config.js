@@ -86,7 +86,7 @@ export function getTestRunName() {
 const NO_LEVERS = Object.freeze({})
 
 // The sizing values and the path check a test run file set; empty in every run without one.
-/** @returns {{ inflightCap?: number, stashBytes?: number, recvBufferBytes?: number, sendBufferBytes?: number, pathCheck?: true, pathCheckBytes?: number }} */
+/** @returns {{ inflightCap?: number, stashBytes?: number, recvBufferBytes?: number, sendBufferBytes?: number, pathCheck?: true, pathCheckBytes?: number, deferDrain?: true }} */
 export function getTransferLevers() {
   return config.transferLevers ?? NO_LEVERS
 }

@@ -45,7 +45,8 @@ export class HyperOverlayV2 extends ReadyResource {
   // picks which attached peers a fetch asks (absent: every one); localProfileKey is stamped on
   // outbound requests; indexEncryptionKey encrypts the local cores; the limiters, chunkMapCache,
   // serve callbacks and handshake policy are injected by the host and passed through. fetchCap (the
-  // per-holder in-flight cap) and memStashBytes replace the engine's own sizing when given.
+  // per-holder in-flight cap) and memStashBytes replace the engine's own sizing when given;
+  // deferDrain makes a serve continue after a drain on a later turn of the event loop.
   constructor(corestore, opts = {}) {
     super()
     if (typeof opts.serveAuthorizer !== 'function') throw new TypeError('serveAuthorizer is required')
@@ -117,6 +118,7 @@ export class HyperOverlayV2 extends ReadyResource {
       serveFdIdleMs: o.serveFdIdleMs,
       onTrace: o.onTrace || null,
       fetchCap: o.fetchCap,
+      deferDrain: o.deferDrain,
     })
     this._index = index
     this._transfer = transfer

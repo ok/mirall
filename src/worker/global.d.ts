@@ -10,3 +10,4 @@ declare function setTimeout(callback: (...args: never[]) => void, delay?: number
 declare function clearTimeout(timer: BareTimer | null | undefined): void
 declare function setInterval(callback: (...args: never[]) => void, delay?: number): BareTimer
 declare function clearInterval(timer: BareTimer | null | undefined): void
+declare function setImmediate(callback: (...args: never[]) => void): BareTimer

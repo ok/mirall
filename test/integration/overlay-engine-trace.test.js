@@ -114,3 +114,21 @@ test('fetchCap and memStashBytes replace the engine\'s own sizing', async (t) =>
   await plain.fetchFile(file.contentHash, { destPath: plainDest, size: file.size, timeout: 8000, onProgress: () => plainDuring.push(plain.traceSnapshot().fetches[0]) })
   t.ok(plainDuring.filter(Boolean).some((fetch) => fetch.inflight > 2), 'without the option the engine keeps its own cap')
 })
+
+// deferDrain changes when a serve carries on after backpressure, never what it serves.
+test('with deferDrain a file still arrives whole, and without waiting forever on a drain', async (t) => {
+  const holder = await overlay(t, 'defer-holder', { deferDrain: true })
+  const fetcher = await overlay(t, 'defer-fetcher')
+  const file = fileOnDisk('defer-src', 6 * 1024 * 1024)
+  await holder.registerFile(file.diskPath, { contentHash: file.contentHash, size: file.size })
+  link(holder, fetcher)
+  await settle()
+  const destPath = path.join(tmpDir('defer-dst'), 'f.bin')
+  // absolute: the fetch's own idle budget, not a wait.
+  const res = await fetcher.fetchFile(file.contentHash, { destPath, size: file.size, timeout: 8000 })
+  t.is(res?.size, file.size)
+  t.alike(fs.readFileSync(destPath), fs.readFileSync(file.diskPath), 'the file arrived whole')
+  const serve = holder.traceSnapshot().serves[0]
+  t.is(serve.bytes, file.size, 'every byte was served')
+  t.comment('drain waits: ' + serve.drainWaits)
+})

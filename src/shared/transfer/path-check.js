@@ -45,7 +45,8 @@ function drained({ channel, mux }) {
       stream.removeListener('close', onClose)
       resolve(alive)
     }
-    const onDrain = () => done(!channel.closed)
+    // Deferred like a served chunk's drain wait when the test run file says so (transport-probe.js).
+    const onDrain = () => (getTransferLevers().deferDrain ? setImmediate(() => done(!channel.closed)) : done(!channel.closed))
     const onClose = () => done(false)
     stream.on('drain', onDrain)
     stream.on('close', onClose)

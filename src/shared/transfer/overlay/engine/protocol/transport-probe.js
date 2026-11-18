@@ -39,7 +39,13 @@ export function peerTxBytes(peer) {
 // One shared waiter per peer, so concurrent serve loops to the same peer attach one pair of
 // listeners rather than tripping the stream's max-listeners warning. wait() resolves true on
 // drain, false when the channel closes or the peer stops taking bytes.
-export function createDrainWaiter({ drainTimeout = null, drainNoProgress = null } = {}) {
+//
+// With `defer` the wait resolves on a later turn of the event loop, not inside the stream's own
+// drain callback. That callback runs while the transport is still reading a batch of datagrams, and
+// the transport times a round trip with a clock that stands still for the whole batch: a chunk sent
+// from inside it can be acknowledged at the same reading, and the transport then takes the path
+// for ten times shorter than it is and throttles itself for ten seconds.
+export function createDrainWaiter({ drainTimeout = null, drainNoProgress = null, defer = false } = {}) {
   const flatBudget = drainTimeout ?? DRAIN_TIMEOUT_MS
   const idleBudget = drainNoProgress ?? DRAIN_NO_PROGRESS_MS
   const waits = new WeakMap()
@@ -58,7 +64,8 @@ export function createDrainWaiter({ drainTimeout = null, drainNoProgress = null 
         stream.removeListener('drain', onDrain)
         stream.removeListener('close', onClose)
         waits.delete(peer)
-        resolve(alive)
+        if (defer) setImmediate(() => resolve(alive && !channel.closed))
+        else resolve(alive)
       }
       const onDrain = () => done(!channel.closed)
       const onClose = () => done(false)
