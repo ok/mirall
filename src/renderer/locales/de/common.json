@@ -1372,7 +1372,18 @@
     "groupCount_one": "{{count}} Übertragung",
     "groupCount_other": "{{count}} Übertragungen",
     "groupPaused": "{{count}} pausiert",
-    "groupFailed": "{{count}} fehlgeschlagen"
+    "groupFailed": "{{count}} fehlgeschlagen",
+    "speed": "Geschwindigkeit",
+    "window5m": "5 Min.",
+    "window1h": "1 Std.",
+    "windowToday": "Heute",
+    "windowName5m": "die letzten 5 Minuten",
+    "windowName1h": "die letzte Stunde",
+    "windowNameToday": "heute",
+    "windowNamed": "Geschwindigkeit: {{window}}",
+    "chartLabel": "Übertragungsgeschwindigkeit, {{window}}: Download {{down}}, Upload {{up}}",
+    "chartNow": "jetzt",
+    "mirrorSyncing": "Gespiegelte Ordner werden synchronisiert."
   },
   "activityLogSettings": {
     "title": "Aktivitätsprotokoll",

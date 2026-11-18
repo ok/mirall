@@ -410,6 +410,7 @@ export const REQUESTS = Object.freeze({
   'storage:measure': { kind: 'command', args: {} },
   'transfers:list': { kind: 'query', args: {} },
   'transfers:pause-all': { kind: 'command', args: {} },
+  'transfers:rates': { kind: 'query', args: { window: { type: ARG.string, max: ARG_MAX.key } } },
   'transfers:resume-all': { kind: 'command', args: {} },
 })
 

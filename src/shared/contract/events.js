@@ -39,6 +39,7 @@ const EVENTS = Object.freeze({
   TRANSFER_COMPLETE: 'event:transfer-complete',
   TRANSFER_ERROR: 'event:transfer-error',
   TRANSFER_PAUSED: 'event:transfer-paused',
+  TRANSFER_RATE: 'event:transfer-rate',
   TRANSFER_REMOVED: 'event:transfer-removed',
   TRANSFER_SUPERSEDED: 'event:transfer-superseded',
   TRANSFERS_UPDATED: 'event:transfers-updated',
@@ -69,7 +70,7 @@ export const TARGETED_EVENTS = Object.freeze([
 // vocabulary, so a test can pin the membership without re-stating the rule.
 /** @param {string} name */
 export const isEphemeralEvent = (name) =>
-  name === 'event:decoration' || name === 'event:awareness' || name.endsWith('-progress')
+  name === 'event:decoration' || name === 'event:awareness' || name === 'event:transfer-rate' || name.endsWith('-progress')
 
 /** @internal the replay and log-suppression list */
 export const EPHEMERAL_EVENTS = Object.freeze(EVENT_NAMES.filter(isEphemeralEvent))

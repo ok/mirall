@@ -13,6 +13,7 @@ import PageHeader from '../components/layout/PageHeader.js'
 import Button from '../components/primitives/Button.js'
 import SegmentedControl, { Segment } from '../components/primitives/SegmentedControl.js'
 import TransferSpaceGroup from '../components/transfers/TransferSpaceGroup.js'
+import SpeedCard from '../components/transfers/SpeedCard.js'
 
 interface TransfersScreenProps {
   selfKey: string | null
@@ -62,41 +63,48 @@ export default function TransfersScreen({ selfKey, onBack, onOpenSpace }: Transf
           )}
         </div>
 
-        {counts.all === 0 ? (
-          <div className="text-center pt-24">
-            <h2 className="text-xl font-headline font-bold text-accent">{t('transfers.emptyTitle')}</h2>
-            <p className="text-sm text-on-surface-variant mt-2">{t('transfers.emptyBody')}</p>
-          </div>
-        ) : (
-          <>
-            <SegmentedControl className="w-fit mb-5">
-              {TRANSFER_FILTERS.map((id) => {
-                const label = t(FILTER_LABEL[id])
-                return (
-                  <Segment
-                    key={id}
-                    label={`${label} ${counts[id]}`}
-                    ariaLabel={t('transfers.filterNamed', { label, count: counts[id] })}
-                    selected={filter === id}
-                    onSelect={() => setFilter(id)}
+        <div className="grid grid-cols-[1fr_300px] gap-8">
+          <div className="min-w-0">
+            {counts.all === 0 ? (
+              <div className="text-center pt-24">
+                <h2 className="text-xl font-headline font-bold text-accent">{t('transfers.emptyTitle')}</h2>
+                <p className="text-sm text-on-surface-variant mt-2">{t('transfers.emptyBody')}</p>
+              </div>
+            ) : (
+              <>
+                <SegmentedControl className="w-fit mb-5">
+                  {TRANSFER_FILTERS.map((id) => {
+                    const label = t(FILTER_LABEL[id])
+                    return (
+                      <Segment
+                        key={id}
+                        label={`${label} ${counts[id]}`}
+                        ariaLabel={t('transfers.filterNamed', { label, count: counts[id] })}
+                        selected={filter === id}
+                        onSelect={() => setFilter(id)}
+                      />
+                    )
+                  })}
+                </SegmentedControl>
+                {groups.length === 0 && (
+                  <p role="status" className="text-sm text-on-surface-variant pt-8">{t('transfers.emptyFilter')}</p>
+                )}
+                {groups.map((group) => (
+                  <TransferSpaceGroup
+                    key={group.spaceId}
+                    group={group}
+                    space={spaceById.get(group.spaceId)}
+                    selfKey={selfKey}
+                    onOpenSpace={onOpenSpace}
                   />
-                )
-              })}
-            </SegmentedControl>
-            {groups.length === 0 && (
-              <p role="status" className="text-sm text-on-surface-variant pt-8">{t('transfers.emptyFilter')}</p>
+                ))}
+              </>
             )}
-            {groups.map((group) => (
-              <TransferSpaceGroup
-                key={group.spaceId}
-                group={group}
-                space={spaceById.get(group.spaceId)}
-                selfKey={selfKey}
-                onOpenSpace={onOpenSpace}
-              />
-            ))}
-          </>
-        )}
+          </div>
+          <aside className="space-y-6">
+            <SpeedCard />
+          </aside>
+        </div>
       </div>
     </div>
   )

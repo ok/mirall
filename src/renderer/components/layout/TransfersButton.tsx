@@ -1,10 +1,14 @@
-// The header's way into the transfers page, from any screen. Its name says how many transfers are
-// under way; a dot marks the one state the icon alone would hide: nothing is moving, yet a download
-// is paused or failed and waits for the user.
+// The header's way into the transfers page, from any screen. A plain icon at rest; while bytes move
+// it is a pill with the rate, download first and upload when only sending. Its name says how many
+// transfers are under way, never the rate, which changes every second. A dot marks the one state
+// the icon alone would hide: nothing is moving, yet a download is paused or failed.
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTransfers } from '../../hooks/useTransfers.js'
+import { useTransferRate } from '../../hooks/useTransferRate.js'
+import { formatSpeed } from '../../format/utils.js'
 import { transferCounts } from '../../model/transfers-view.js'
+import Icon from '../primitives/Icon.js'
 import IconButton from '../primitives/IconButton.js'
 
 interface TransfersButtonProps {
@@ -12,6 +16,9 @@ interface TransfersButtonProps {
   /** The transfers page is the current screen. */
   current: boolean
 }
+
+// "999.9 MB/s": the widest figure the pill is sized for.
+const WIDEST_RATE = 999.9 * 1000 * 1000
 
 export default function TransfersButton({ onClick, current }: TransfersButtonProps) {
   const { t } = useTranslation()
@@ -22,6 +29,27 @@ export default function TransfersButton({ onClick, current }: TransfersButtonPro
   const name = active > 0
     ? t('topnav.transfersActive', { count: active })
     : waiting ? t('topnav.transfersAttention', { count: counts.attention }) : t('topnav.transfers')
+  const rate = useTransferRate()
+  const speed = rate.down > 0 ? rate.down : rate.up
+  if (speed > 0) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        aria-label={name}
+        aria-current={current ? 'page' : undefined}
+        title={t('topnav.transfers')}
+        className={`h-10 shrink-0 flex items-center gap-1.5 rounded-full pl-2 pr-4 text-sm font-semibold tabular-nums text-on-surface-variant hover:bg-surface-control-hover active:scale-95 transition-all focus-ring ${current ? 'bg-surface-control-hover' : 'bg-surface-control'}`}
+      >
+        <Icon name="swap_vert" size={26} className="text-accent" />
+        {/* The ghost reserves the widest rate, so the pill keeps one width while the number counts. */}
+        <span aria-hidden="true" className="grid justify-items-end">
+          <span className="col-start-1 row-start-1">{formatSpeed(speed)}</span>
+          <span className="col-start-1 row-start-1 invisible">{formatSpeed(WIDEST_RATE)}</span>
+        </span>
+      </button>
+    )
+  }
   return (
     <span className="relative flex">
       <IconButton

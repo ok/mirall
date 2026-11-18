@@ -52,6 +52,8 @@ export default async function s202({ runDir, bootstrap }) {
       assert(await B.hasText('Aurora'), 'the space group is named')
       assert(await B.has({ role: 'button', name: 'Pause Download' }), 'the row keeps its Pause control')
       assert(await B.has({ role: 'button', name: 'Open Space Aurora' }), 'the group links to its space')
+      assert(await B.hasText('Speed'), 'the speed tile is on the page')
+      assert(await B.hasText('MB/s') || await B.hasText('KB/s'), 'a rate is shown while the download moves')
       await B.shot('s202-B-transfers-downloading', runDir)
     })
 

@@ -1071,7 +1071,25 @@ line.
 The header control (`layout/TransfersButton.tsx`) is named for what is under way: "Transfers",
 "Transfers — 3 active", or "Transfers — 1 needs attention". The last state also paints a 12 px
 `bg-warning` dot at the icon's bottom right (the `StatusDot` anatomy, `aria-hidden`), shown only
-while nothing is moving: it marks the one state the plain icon would hide.
+while nothing is moving: it marks the one state the plain icon would hide. While bytes move the
+icon button becomes a pill on the secondary-button fill (`surface-control`, `h-10 rounded-full`,
+`text-sm font-semibold tabular-nums`) with the rate beside the icon: download, or upload when only
+sending. The rate counts all transfer traffic, a mirrored folder's included. The pill reserves the
+width of "999.9 MB/s" with an invisible ghost, as `Segment` reserves its bold width, so the header
+does not shift while the number counts. The rate is `aria-hidden` and never in the name: it changes
+every second.
+
+**Speed tile** (`transfers/SpeedCard.tsx`, the sidebar tile anatomy): the two current rates as
+figures, each beside a `w-2.5` dot in its series colour (`chart-1` download, `chart-2` upload) and
+its label; then one 236 px chart drawing download upward and upload downward from a shared zero
+line on one scale, so a small upload stays readable under a large download and the two never cross.
+Lines are 2 px in the series colour over a 22 % fill of the same; grid lines are `outline-variant`,
+the zero line `outline`; the two ends of the scale are labelled in `on-surface-variant` `text-[10px]`.
+A direction with no traffic keeps a quarter of the other's height. The chart is `role="img"`, named
+with the window and both rates; the figures are the readable source. Hover shows a crosshair and a
+`surface-container-lowest` tooltip with the time and both rates. A `SegmentedControl` picks the
+window (5 min, 1 hour, Today). While a mirrored folder is fetching, a `text-sm` line says so, since
+the list above does not show it.
 
 ### Folder screen bands — `screens/FolderScreen.tsx`
 Three slots, one rule: **tiles state, the header acts, the strip acts for now.**

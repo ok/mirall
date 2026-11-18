@@ -17,6 +17,7 @@ import { listPending } from '../../shared/transfer/pending-transfers.js'
 import { listServing } from '../../shared/transfer/serve-ledger.js'
 import { LOOSE_SHARE_ID, transferIdFor } from '../../shared/transfer/transfer-id.js'
 import { downloadRowFor, groupTransfers } from '../../shared/transfer/transfer-overview.js'
+import { rateSamples } from '../../shared/transfer/transfer-meter.js'
 import { overlayBackend } from '../../shared/transfer/overlay/index.js'
 import { downloadChannel, looseShareOfOwner, pauseShareDownload, shareDownloadPhase } from '../../shared/transfer/overlay/share-downloads.js'
 
@@ -76,6 +77,8 @@ const PAUSABLE = new Set([FILE_STATUS.DOWNLOADING, FILE_STATUS.WAITING, FILE_STA
 /** @param {WorkerIpc} ipc @param {{ log: Logger }} deps */
 export function registerTransfers(ipc, { log }) {
   ipc.handle('transfers:list', async () => groupTransfers({ downloads: await listedDownloads(), serving: listServing() }))
+
+  ipc.handle('transfers:rates', async (msg) => rateSamples(msg.window))
 
   ipc.handle('transfers:pause-all', async () => {
     let count = 0

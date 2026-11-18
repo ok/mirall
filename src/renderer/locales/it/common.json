@@ -1372,7 +1372,18 @@
     "groupCount_one": "{{count}} trasferimento",
     "groupCount_other": "{{count}} trasferimenti",
     "groupPaused": "{{count}} in pausa",
-    "groupFailed": "{{count}} non riusciti"
+    "groupFailed": "{{count}} non riusciti",
+    "speed": "Velocità",
+    "window5m": "5 min",
+    "window1h": "1 ora",
+    "windowToday": "Oggi",
+    "windowName5m": "gli ultimi 5 minuti",
+    "windowName1h": "l'ultima ora",
+    "windowNameToday": "oggi",
+    "windowNamed": "Velocità: {{window}}",
+    "chartLabel": "Velocità di trasferimento, {{window}}: download {{down}}, upload {{up}}",
+    "chartNow": "ora",
+    "mirrorSyncing": "Le cartelle replicate si stanno sincronizzando."
   },
   "activityLogSettings": {
     "title": "Registro attività",

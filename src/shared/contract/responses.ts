@@ -445,6 +445,10 @@ export interface TransferServing extends ServeSummary { shareId: string, size: n
 
 export interface TransferSpace { spaceId: string, downloads: TransferDownload[], serving: TransferServing[] }
 
+// One point of the transfer rate history: bytes per second down and up, averaged over the step
+// that ends at `t`.
+export interface TransferRateSample { t: number, down: number, up: number }
+
 // How many downloads a pause-all or resume-all reached.
 export interface TransferBulkResult { count: number }
 
@@ -792,6 +796,7 @@ interface Responses {
   'storage:measure': StorageInfo
   'transfers:list': TransferSpace[]
   'transfers:pause-all': TransferBulkResult
+  'transfers:rates': TransferRateSample[]
   'transfers:resume-all': TransferBulkResult
 }
 

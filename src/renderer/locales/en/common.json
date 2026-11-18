@@ -1372,7 +1372,18 @@
     "groupCount_one": "{{count}} transfer",
     "groupCount_other": "{{count}} transfers",
     "groupPaused": "{{count}} paused",
-    "groupFailed": "{{count}} failed"
+    "groupFailed": "{{count}} failed",
+    "speed": "Speed",
+    "window5m": "5 min",
+    "window1h": "1 hour",
+    "windowToday": "Today",
+    "windowName5m": "the last 5 minutes",
+    "windowName1h": "the last hour",
+    "windowNameToday": "today",
+    "windowNamed": "Speed over {{window}}",
+    "chartLabel": "Transfer speed over {{window}}: download {{down}}, upload {{up}}",
+    "chartNow": "now",
+    "mirrorSyncing": "Mirrored folders are syncing."
   },
   "activityLogSettings": {
     "title": "Activity Log",

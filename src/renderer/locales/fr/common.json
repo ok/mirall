@@ -1372,7 +1372,18 @@
     "groupCount_one": "{{count}} transfert",
     "groupCount_other": "{{count}} transferts",
     "groupPaused": "{{count}} en pause",
-    "groupFailed": "{{count}} en échec"
+    "groupFailed": "{{count}} en échec",
+    "speed": "Vitesse",
+    "window5m": "5 min",
+    "window1h": "1 heure",
+    "windowToday": "Aujourd'hui",
+    "windowName5m": "les 5 dernières minutes",
+    "windowName1h": "la dernière heure",
+    "windowNameToday": "aujourd'hui",
+    "windowNamed": "Vitesse : {{window}}",
+    "chartLabel": "Vitesse de transfert, {{window}} : téléchargement {{down}}, envoi {{up}}",
+    "chartNow": "maintenant",
+    "mirrorSyncing": "Les dossiers en miroir se synchronisent."
   },
   "activityLogSettings": {
     "title": "Journal d'activité",

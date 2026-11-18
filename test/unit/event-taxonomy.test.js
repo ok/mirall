@@ -46,6 +46,7 @@ const TAXONOMY = {
   'event:decoration': 'decoration',
   'event:owned-folder-index-progress': 'decoration',
   'event:share-index-progress': 'decoration',
+  'event:transfer-rate': 'decoration',
   'event:awareness': 'awareness',
   'event:member-joined': 'signal',
   // Cosmetic: a desktop notification. The rows it announces are durable in the activity log.

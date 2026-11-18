@@ -1616,6 +1616,11 @@ they belong to.
   by a terminal `done`.
 - `event:awareness` ("who is downloading from me") is TTL soft-state. It is never persisted and
   never a status source.
+- `event:transfer-rate { down, up, mirror }` is the device's transfer rate in bytes per second, sent
+  once a second while bytes move and once more when they stop. It is not replayed. Download counts
+  every byte fetched, a mirrored folder's included (`mirror` says one is fetching); upload counts
+  every byte served. The counters sit at the two points all traffic passes: the fetch instruments
+  both producers share (`overlay/fetch-run.js`) and the overlay's chunk-serve hook.
 - `event:transfer-*` are notification signals. Status is always re-derived from `files:list` /
   `share:list-files`, and `transfer-paused.reason` is toast wording only.
 - `event:activity` pushes a row of a `NOTIFIABLE_KINDS` kind (`src/shared/contract/audit-kinds.js`)
@@ -1638,6 +1643,9 @@ they belong to.
   transfers the user asked for. A mirrored folder's rows, and a row still waiting for its owner to
   hash the file, are left out. `transfers:pause-all` marks every download that is moving or would
   start by itself, including one held by an offline owner; serves are never paused from here.
+- `transfers:rates { window }` returns the rate history for `5m`, `1h` or `today`. The history is
+  kept in memory by the `TransferMeter` subsystem and starts empty with the app: nothing about
+  transfer rates is written to disk.
 - `identity:unlock { kek, relaySeed? }` is host-only and served by a worker that is waiting for its
   key or locked: it boots the data layer before it answers (`deadlineMs: 0`). Main sends it after
   every spawn, and again on the locked screen's "Try again". Once the identity is

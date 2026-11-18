@@ -55,6 +55,7 @@ const UNSUPERVISED = {
   Backup: 'one run at a time, each bounded by its own I/O and settling into the status; no pass held per key',
   ManagedConfig: 'nothing recoverable: a stalled source retries on its own timers, and a failed refresh keeps the last configuration',
   TransferTrace: 'one bounded tick a second that reads counters and appends lines; no pass held per key',
+  TransferMeter: 'one bounded tick a second that reads counters into memory and emits one frame; no pass held per key',
   FileWatchers: 'no pass of its own — each event is handed on as it arrives, and a stormed watcher is replaced by the next arm',
 }
 
