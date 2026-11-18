@@ -180,6 +180,49 @@ test('FIX: a folder file that reappears between sweeps (atomic save) is never to
   t.ok(await getOwnEntry(ctx.spaceId, ctx.share.id, 'a.txt'), 'reappeared file is not tombstoned')
 })
 
+// Counts every listing of `dir`, blocking or not, until the returned stop() is called.
+function countListings(dir) {
+  const real = { sync: fs.readdirSync, async: fs.promises.readdir }
+  let count = 0
+  const counted = (fn) => (target, ...rest) => {
+    if (target === dir) count++
+    return fn(target, ...rest)
+  }
+  fs.readdirSync = counted(real.sync)
+  fs.promises.readdir = counted(real.async)
+  return () => {
+    fs.readdirSync = real.sync
+    fs.promises.readdir = real.async
+    return count
+  }
+}
+
+test('REGRESSION (FIX-SWEEP-LISTING: the presence sweep listed a folder once per file in it)', async (t) => {
+  const names = ['a.txt', 'b.txt', 'c.txt', 'd.txt', 'e.txt']
+  const ctx = await setup(t, { files: Object.fromEntries(names.map((name) => ['album/' + name, name])) })
+  const album = path.join(ctx.mountPath, 'album')
+  for (const name of names) await overlayBackend.publishAdd(ctx.spaceId, ctx.share, 'album/' + name, path.join(album, name))
+
+  const stop = countListings(album)
+  t.teardown(stop)
+  await sweepOwnedPresence()
+  t.is(stop(), 1, 'one listing answers for every file of the folder')
+  for (const name of names) t.ok(await getOwnEntry(ctx.spaceId, ctx.share.id, 'album/' + name), name + ' stays shared')
+})
+
+test('the presence sweep takes a fresh folder listing on every pass', async (t) => {
+  const ctx = await setup(t, { files: { 'a.txt': 'data', 'b.txt': 'data' } })
+  for (const name of ['a.txt', 'b.txt']) await overlayBackend.publishAdd(ctx.spaceId, ctx.share, name, path.join(ctx.mountPath, name))
+
+  await sweepOwnedPresence()
+  fs.unlinkSync(path.join(ctx.mountPath, 'a.txt'))
+  await sweepOwnedPresence()
+  await sweepOwnedPresence()
+
+  t.absent(await getOwnEntry(ctx.spaceId, ctx.share.id, 'a.txt'), 'a file deleted after an earlier pass is seen as gone and retired')
+  t.ok(await getOwnEntry(ctx.spaceId, ctx.share.id, 'b.txt'), 'its neighbour in the same folder stays')
+})
+
 test('publishAdd is a no-op for an unchanged, already-hashed file', async (t) => {
   const ctx = await setup(t, { files: { 'a.txt': 'data' } })
   const abs = path.join(ctx.mountPath, 'a.txt')

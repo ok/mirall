@@ -55,6 +55,9 @@ changes do not appear here.
 - **A mirrored file you edit while its owner is offline now shows "Edited
   locally" at once.** It kept its verified check until the folder view
   refreshed for another reason.
+- **Sharing a folder with many files no longer makes transfers stutter once
+  a minute.** Mirall's check that shared files are still on disk held up
+  everything else for over a second each time, most of all on Windows.
 
 ### Security
 
