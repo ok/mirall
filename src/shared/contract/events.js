@@ -41,6 +41,7 @@ const EVENTS = Object.freeze({
   TRANSFER_PAUSED: 'event:transfer-paused',
   TRANSFER_REMOVED: 'event:transfer-removed',
   TRANSFER_SUPERSEDED: 'event:transfer-superseded',
+  TRANSFERS_UPDATED: 'event:transfers-updated',
   WORKER_READY: 'event:worker-ready',
 })
 

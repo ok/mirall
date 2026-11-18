@@ -1621,6 +1621,11 @@ they belong to.
 - `event:activity` pushes a row of a `NOTIFIABLE_KINDS` kind (`src/shared/contract/audit-kinds.js`)
   as it is recorded, even while the log is off, rate-limited or failed to start; desktop notifications are raised from it,
   never from the log. `event:recipients-updated` pokes the `recipients` scope.
+- **The app-wide transfer list re-derives on two scopes.** A download's status change is already
+  announced on its space's `share-files` scope, so `transfers:list` listens to that scope in every
+  space; `event:transfers-updated` pokes the `transfers` scope when a file starts or stops being
+  served, which nothing else announces. A downloader joining a file that is already served changes
+  no row and pokes nothing.
 
 **Request semantics a caller would not guess.**
 
@@ -1628,6 +1633,11 @@ they belong to.
 - `network:reconnect` ends the live connections, because a connected peer is never re-dialled.
 - A partial `audit:list` page with a non-null cursor is normal, because the scan is budgeted.
 - `shutdown` is host-only and is answered before teardown begins.
+- `transfers:list` is built from the download engine's pending rows and the serve ledger, never
+  from `event:decoration`: a mirrored folder's fetches ride the same decoration channel and are not
+  transfers the user asked for. A mirrored folder's rows, and a row still waiting for its owner to
+  hash the file, are left out. `transfers:pause-all` marks every download that is moving or would
+  start by itself, including one held by an offline owner; serves are never paused from here.
 - `identity:unlock { kek, relaySeed? }` is host-only and served by a worker that is waiting for its
   key or locked: it boots the data layer before it answers (`deadlineMs: 0`). Main sends it after
   every spawn, and again on the locked screen's "Try again". Once the identity is

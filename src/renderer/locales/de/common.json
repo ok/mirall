@@ -28,6 +28,10 @@
   "topnav": {
     "feedback": "Feedback",
     "transfers": "Übertragungen",
+    "transfersActive_one": "Übertragungen — {{count}} aktiv",
+    "transfersActive_other": "Übertragungen — {{count}} aktiv",
+    "transfersAttention_one": "Übertragungen — {{count}} braucht Aufmerksamkeit",
+    "transfersAttention_other": "Übertragungen — {{count}} brauchen Aufmerksamkeit",
     "settings": "Einstellungen",
     "account": "Profil",
     "accountWithIssue": "Profil — Verbindungsproblem"
@@ -1354,7 +1358,21 @@
     "title": "Übertragungen",
     "intro": "Alles, was zwischen diesem Gerät und deinen Räumen übertragen wird.",
     "emptyTitle": "Gerade keine Übertragungen",
-    "emptyBody": "Downloads, die du startest, und Dateien, die andere Mitglieder von dir abrufen, erscheinen hier."
+    "emptyBody": "Downloads, die du startest, und Dateien, die andere Mitglieder von dir abrufen, erscheinen hier.",
+    "filterAll": "Alle",
+    "filterDownloading": "Downloads",
+    "filterSending": "Senden",
+    "filterAttention": "Handlungsbedarf",
+    "filterNamed": "{{label}}, {{count}}",
+    "emptyFilter": "Keine Übertragungen für diesen Filter.",
+    "pauseAll": "Alle pausieren",
+    "resumeAll": "Alle fortsetzen",
+    "openSpace": "Raum öffnen",
+    "openSpaceNamed": "Raum öffnen {{name}}",
+    "groupCount_one": "{{count}} Übertragung",
+    "groupCount_other": "{{count}} Übertragungen",
+    "groupPaused": "{{count}} pausiert",
+    "groupFailed": "{{count}} fehlgeschlagen"
   },
   "activityLogSettings": {
     "title": "Aktivitätsprotokoll",

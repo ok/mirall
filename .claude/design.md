@@ -1054,6 +1054,25 @@ sit at 1.06:1; the presence dot's border swaps with it. Pinned by
 holds the file the live pills stand alone, without a gutter. The list grows to `max-h-80`, then
 scrolls.
 
+### Transfers page — `screens/TransfersScreen.tsx`, `components/transfers/`
+Every transfer on this device, grouped by space, reached from the header's Transfers control.
+`PageHeader` with one secondary `Button` beside it: `Pause All` while a download is moving, `Resume
+All` once none is and one is paused, absent otherwise. Under it a `SegmentedControl` filter whose
+segments carry their count (All, Downloading, Sending, Needs attention; named "Downloading, 4").
+Each space is a `section` named by its `h2` (`text-lg font-headline font-bold`), led by a 40 px
+`rounded-lg` tile in the space's colour and closed by an `Open Space` `TextButton`; under the name a
+`text-xs` line counts its transfers and what is paused or failed. The rows are `FileRow`s with
+their shipped lanes, pills and buttons: a download is its listing's row, a file being sent is the
+owner's row with the Sending lane and Reveal in Folder. A folder file passes `flat`, which drops the
+tree's leading gutter so every row starts on one edge. Spaces that need the user come first. With
+nothing to show the page is one sentence; a filter that matches nothing says so in a `role="status"`
+line.
+
+The header control (`layout/TransfersButton.tsx`) is named for what is under way: "Transfers",
+"Transfers — 3 active", or "Transfers — 1 needs attention". The last state also paints a 12 px
+`bg-warning` dot at the icon's bottom right (the `StatusDot` anatomy, `aria-hidden`), shown only
+while nothing is moving: it marks the one state the plain icon would hide.
+
 ### Folder screen bands — `screens/FolderScreen.tsx`
 Three slots, one rule: **tiles state, the header acts, the strip acts for now.**
 - **Header** — back · title · role line · one primary button + `More ▾`, the same pair for an owned

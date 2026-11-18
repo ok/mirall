@@ -130,7 +130,7 @@ function isCrossLinkedScreen(screen: Screen): screen is CrossLinkedScreen {
   return (CROSS_LINKED_SCREENS as readonly Screen[]).includes(screen)
 }
 
-function crossLinkedRoute(screen: CrossLinkedScreen, nav: AppNavigation) {
+function crossLinkedRoute(screen: CrossLinkedScreen, nav: AppNavigation, selfKey: string | null) {
   switch (screen) {
     case 'activity-log':
       return (
@@ -148,7 +148,7 @@ function crossLinkedRoute(screen: CrossLinkedScreen, nav: AppNavigation) {
         />
       )
     case 'transfers':
-      return <TransfersScreen onBack={nav.goBack} />
+      return <TransfersScreen selfKey={selfKey} onBack={nav.goBack} onOpenSpace={nav.navigateToSpace} />
   }
 }
 
@@ -157,7 +157,7 @@ export default function ScreenRouter({ nav, profile, onSaveProfile, openDialog }
   const gate = useConnectionGate()
   if (isNetworkScreen(currentScreen)) return networkRoute(currentScreen, nav)
   if (isPreferenceScreen(currentScreen)) return preferenceRoute(currentScreen, nav)
-  if (isCrossLinkedScreen(currentScreen)) return crossLinkedRoute(currentScreen, nav)
+  if (isCrossLinkedScreen(currentScreen)) return crossLinkedRoute(currentScreen, nav, profile?.personKey ?? null)
   switch (currentScreen) {
     case 'spaces':
       return gate.showConnectionProblem ? (

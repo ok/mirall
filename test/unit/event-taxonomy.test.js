@@ -42,6 +42,7 @@ const TAXONOMY = {
   'event:storage-updated': 'poke',
   'event:restore-updated': 'poke',
   'event:recipients-updated': 'poke',
+  'event:transfers-updated': 'poke',
   'event:decoration': 'decoration',
   'event:owned-folder-index-progress': 'decoration',
   'event:share-index-progress': 'decoration',

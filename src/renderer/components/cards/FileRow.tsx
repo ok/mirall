@@ -66,6 +66,8 @@ export interface ShareFileRowProps extends FileRowShared {
   displayName: string
   /** False on a mirrored folder, whose rows sync themselves. */
   manualControls: boolean
+  /** The row sits in a flat list rather than a folder's tree, so it takes no leading gutter. */
+  flat?: boolean
   ownerKey: string
   /** No folder: the row's own, or the space's when it has none. */
   onDownload: (relPath: string, folder?: string) => void
@@ -155,6 +157,9 @@ function FileRowMeta({ size, owner, place, error }: FileRowMetaProps) {
   )
 }
 
+// A folder file in its tree takes the tree's leading gutter; in a flat list it does not.
+const inTree = (props: FileRowProps) => props.kind === 'share' && !props.flat
+
 // A selected row keeps the lift fill, so the state is not carried by the box alone.
 const RESTING = 'bg-surface-container-lowest dark:bg-surface-container-low hover:bg-surface-container-highest dark:hover:bg-surface-container-highest hover:[--control-hover:var(--lifted-control-hover)]'
 const SELECTED = 'bg-surface-container-highest [--control-hover:var(--lifted-control-hover)]'
@@ -181,7 +186,7 @@ function FileRow(props: FileRowProps) {
     if (!listable) setShowDownloaders(false)
   }, [listable])
 
-  const tree = kind === 'share'
+  const tree = inTree(props)
   const error = file.status === 'error' ? tErr(errorCodeToI18nKey(file.errorCode)) : null
   const selected = selection?.selected === true
 

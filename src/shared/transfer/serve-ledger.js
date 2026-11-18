@@ -190,12 +190,14 @@ export function onServeStart({ from, contentHash, total }) {
     keys.push(key)
     let d = downloads.get(key)
     if (!d) downloads.set(key, (d = { spaceId, path, peers: new Map() }))
+    const wasServed = isServed(d)
     // Preserve an already-tracked peer's accumulated bytes: a pause→resume re-issues
     // the content-request, and resetting to 0 would both rewind the bar and — since
     // resume re-fetches only the missing chunks — keep bytes below total forever.
     const prev = d.peers.get(from)
     // paused:false — resume re-issues the content-request and lands here, clearing the flag.
     putPeer(d, from, { bytes: prev?.bytes ?? 0, total: total || prev?.total || 0, lastTs: Date.now(), paused: false, shareId })
+    if (!wasServed) pokeTransfers()
     // A fresh serve wakes a dormant detail subscription (see runIdleSweep) so an open
     // dropdown that sat quiet past the window starts streaming again without a reopen.
     const sub = detailSubs.get(key)
@@ -353,7 +355,9 @@ export function clearWaitingFor(from, spaceId = null) {
 
 function dropPeer(key, from) {
   const d = downloads.get(key)
+  const wasServed = d ? isServed(d) : false
   if (!d || !removePeer(d, from)) return
+  if (wasServed && !isServed(d)) pokeTransfers()
   if (d.peers.size === 0) {
     ipcRef?.emit('event:awareness', { channel: 'serving', spaceId: d.spaceId, path: d.path, peers: [], bytes: 0, total: 0, pausedKeys: [], waitingKeys: [] })
     emitDetailFrame(key, d.spaceId, d.path, [])
@@ -413,6 +417,35 @@ export function listServeSummaries(spaceId) {
     if (d.spaceId === spaceId) out.push(summaryPayload(d))
   }
   return out
+}
+
+// Every file a member is fetching from this device, in every space. Each row names the share it is
+// served from and the file's size, which the summary's sums do not carry.
+/** @returns {import('../contract/responses.js').TransferServing[]} */
+export function listServing() {
+  const out = []
+  for (const d of downloads.values()) {
+    let shareId = ''
+    let size = 0
+    for (const e of d.peers.values()) {
+      shareId = e.shareId
+      if (e.total > size) size = e.total
+    }
+    out.push({ ...summaryPayload(d), shareId, size })
+  }
+  return out
+}
+
+// A file is served while a member is fetching it; members only waiting for its hash do not count.
+function isServed(d) {
+  for (const e of d.peers.values()) if (!e.waiting) return true
+  return false
+}
+
+// A file starting or ceasing to be served changes the transfer list; a peer joining a file that is
+// already served does not, the awareness frames carry that.
+function pokeTransfers() {
+  ipcRef?.emit('event:transfers-updated', {})
 }
 
 function emitDetail(key, force, now = Date.now()) {

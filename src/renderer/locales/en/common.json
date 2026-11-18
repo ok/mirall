@@ -58,6 +58,10 @@
   "topnav": {
     "feedback": "Send Feedback",
     "transfers": "Transfers",
+    "transfersActive_one": "Transfers — {{count}} active",
+    "transfersActive_other": "Transfers — {{count}} active",
+    "transfersAttention_one": "Transfers — {{count}} needs attention",
+    "transfersAttention_other": "Transfers — {{count}} need attention",
     "settings": "Settings",
     "account": "Profile",
     "accountWithIssue": "Profile — connection issue"
@@ -1354,7 +1358,21 @@
     "title": "Transfers",
     "intro": "Everything moving between this device and your spaces.",
     "emptyTitle": "No transfers right now",
-    "emptyBody": "Downloads you start and files other members fetch from you show up here."
+    "emptyBody": "Downloads you start and files other members fetch from you show up here.",
+    "filterAll": "All",
+    "filterDownloading": "Downloading",
+    "filterSending": "Sending",
+    "filterAttention": "Needs attention",
+    "filterNamed": "{{label}}, {{count}}",
+    "emptyFilter": "No transfers match this filter.",
+    "pauseAll": "Pause All",
+    "resumeAll": "Resume All",
+    "openSpace": "Open Space",
+    "openSpaceNamed": "Open Space {{name}}",
+    "groupCount_one": "{{count}} transfer",
+    "groupCount_other": "{{count}} transfers",
+    "groupPaused": "{{count}} paused",
+    "groupFailed": "{{count}} failed"
   },
   "activityLogSettings": {
     "title": "Activity Log",

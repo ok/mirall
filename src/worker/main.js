@@ -32,6 +32,7 @@ import { applyPendingIdentityChange } from '../shared/core/identity-adopt.js'
 import { registerFeedback } from './ipc/feedback.js'
 import { registerDiagnostics } from './ipc/diagnostics.js'
 import { registerFiles } from './ipc/files.js'
+import { registerTransfers } from './ipc/transfers.js'
 import { registerTestFsEvents } from './ipc/test-fs-events.js'
 import { registerFolderPreview } from './ipc/folder-preview.js'
 import { registerForeignFolders } from './ipc/foreign-folders.js'
@@ -402,6 +403,7 @@ function goLive(opened) {
   // === IPC: presence, file & transfer handlers ===
 
   registerFiles(ipc, { log, chooseFolder })
+  registerTransfers(ipc, { log })
 
   // A test that turned the file watchers off delivers the file events itself.
   if (areFileWatchersOff()) registerTestFsEvents(ipc, { log })

@@ -408,6 +408,9 @@ export const REQUESTS = Object.freeze({
   'storage:free-up': { kind: 'command', args: {} },
   'storage:info': { kind: 'query', args: {} },
   'storage:measure': { kind: 'command', args: {} },
+  'transfers:list': { kind: 'query', args: {} },
+  'transfers:pause-all': { kind: 'command', args: {} },
+  'transfers:resume-all': { kind: 'command', args: {} },
 })
 
 /** @internal the declaration-parity guard's list; production reads the table above it */

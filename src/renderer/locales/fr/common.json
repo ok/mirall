@@ -28,6 +28,10 @@
   "topnav": {
     "feedback": "Envoyer un commentaire",
     "transfers": "Transferts",
+    "transfersActive_one": "Transferts — {{count}} actif",
+    "transfersActive_other": "Transferts — {{count}} actifs",
+    "transfersAttention_one": "Transferts — {{count}} à vérifier",
+    "transfersAttention_other": "Transferts — {{count}} à vérifier",
     "settings": "Paramètres",
     "account": "Profil",
     "accountWithIssue": "Profil — problème de connexion"
@@ -1354,7 +1358,21 @@
     "title": "Transferts",
     "intro": "Tout ce qui circule entre cet appareil et vos espaces.",
     "emptyTitle": "Aucun transfert en cours",
-    "emptyBody": "Les téléchargements que vous lancez et les fichiers que les autres membres récupèrent chez vous apparaissent ici."
+    "emptyBody": "Les téléchargements que vous lancez et les fichiers que les autres membres récupèrent chez vous apparaissent ici.",
+    "filterAll": "Tous",
+    "filterDownloading": "Téléchargements",
+    "filterSending": "Envois",
+    "filterAttention": "À vérifier",
+    "filterNamed": "{{label}}, {{count}}",
+    "emptyFilter": "Aucun transfert ne correspond à ce filtre.",
+    "pauseAll": "Tout suspendre",
+    "resumeAll": "Tout reprendre",
+    "openSpace": "Ouvrir l'espace",
+    "openSpaceNamed": "Ouvrir l'espace {{name}}",
+    "groupCount_one": "{{count}} transfert",
+    "groupCount_other": "{{count}} transferts",
+    "groupPaused": "{{count}} en pause",
+    "groupFailed": "{{count}} en échec"
   },
   "activityLogSettings": {
     "title": "Journal d'activité",

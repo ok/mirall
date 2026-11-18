@@ -28,6 +28,10 @@
   "topnav": {
     "feedback": "Invia feedback",
     "transfers": "Trasferimenti",
+    "transfersActive_one": "Trasferimenti — {{count}} attivo",
+    "transfersActive_other": "Trasferimenti — {{count}} attivi",
+    "transfersAttention_one": "Trasferimenti — {{count}} richiede attenzione",
+    "transfersAttention_other": "Trasferimenti — {{count}} richiedono attenzione",
     "settings": "Impostazioni",
     "account": "Profilo",
     "accountWithIssue": "Profilo — problema di connessione"
@@ -1354,7 +1358,21 @@
     "title": "Trasferimenti",
     "intro": "Tutto ciò che si sposta tra questo dispositivo e i tuoi spazi.",
     "emptyTitle": "Nessun trasferimento in corso",
-    "emptyBody": "I download che avvii e i file che gli altri membri prelevano da te compaiono qui."
+    "emptyBody": "I download che avvii e i file che gli altri membri prelevano da te compaiono qui.",
+    "filterAll": "Tutti",
+    "filterDownloading": "In download",
+    "filterSending": "In invio",
+    "filterAttention": "Richiedono attenzione",
+    "filterNamed": "{{label}}, {{count}}",
+    "emptyFilter": "Nessun trasferimento corrisponde a questo filtro.",
+    "pauseAll": "Sospendi tutto",
+    "resumeAll": "Riprendi tutto",
+    "openSpace": "Apri spazio",
+    "openSpaceNamed": "Apri spazio {{name}}",
+    "groupCount_one": "{{count}} trasferimento",
+    "groupCount_other": "{{count}} trasferimenti",
+    "groupPaused": "{{count}} in pausa",
+    "groupFailed": "{{count}} non riusciti"
   },
   "activityLogSettings": {
     "title": "Registro attività",

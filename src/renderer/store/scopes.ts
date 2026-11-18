@@ -29,3 +29,7 @@ export const SETTINGS_SCOPES: ScopePattern[] = [{ kind: 'settings' }]
 export const MANAGED_SCOPES: ScopePattern[] = [{ kind: 'managed' }]
 
 export const sharesScope = (spaceId: string): ScopePattern[] => [{ kind: 'shares', spaceId }]
+
+// `transfers:list` spans every space: a wildcard on the listing axis, where a download's status
+// change is announced, plus its own scope for a file starting or ceasing to be sent.
+export const TRANSFERS_SCOPES: ScopePattern[] = [{ kind: 'transfers' }, { kind: 'share-files' }]
