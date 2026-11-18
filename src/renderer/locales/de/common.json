@@ -768,6 +768,7 @@
       "checkingBody": "Mirall sucht nach einer neueren Version.",
       "downloadingTitle": "Update wird geladen",
       "downloadingBody": "Mirall arbeitet weiter, während das Update lädt.",
+      "downloadingWaitingBody": "Mirall wartet auf das Update-Netzwerk. Der Download läuft weiter, sobald es erreichbar ist.",
       "readyTitle": "Update bereit: v{{version}}",
       "readyBody": "Es wird beim nächsten Beenden und Öffnen von Mirall installiert.",
       "errorTitle": "Suche nach Updates fehlgeschlagen",
@@ -777,6 +778,7 @@
       "offTitle": "Automatische Updates sind aus",
       "offBody": "Dieser Build von Mirall aktualisiert sich nicht selbst."
     },
+    "downloadProgress": "Fortschritt des Update-Downloads",
     "checkNow": "Jetzt prüfen",
     "checking": "Wird geprüft …",
     "tryAgain": "Erneut versuchen",

@@ -1673,6 +1673,16 @@ A background pass that reaches no peer changes nothing; a check the user started
 (`pear:checkForUpdate`, which returns at once and waits up to 15 s for a peer) reports `error`
 instead. `ready` survives later passes until a newer version starts downloading.
 
+**Download progress.** While `downloading`, the status also carries `progress` (a whole percentage,
+or null until the download is sized) and `waitingForPeers`. The fraction is the app's own count
+(`src/main/update-progress.js`): the blocks this platform's files reference that are not on the
+device when the download starts, against those that have arrived since. The updater's own
+`download.progress` is not used, because it sizes only files stored behind a block map and stays 0
+for any other, so it would depend on how a release was staged. The percentage stops at 99 — only
+`ready` says the update is usable — and the status changes once per whole percent rather than on
+every tick of the updater's 250 ms monitor, which sets the pace and supplies the peer count. About
+shows it as a bar; the Profile row does not.
+
 **Banner and About.** `src/renderer/platform/updates.ts` keeps the status and the banner's dismissal
 (a different staged version clears it). The banner is passive ("applied on next start" plus Dismiss).
 About shows the verdict, Check now, and — on macOS and an AppImage — Restart now (`app:relaunch`:

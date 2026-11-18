@@ -1,7 +1,7 @@
 import test from 'brittle'
-import { updateVerdict, updateDot, updateSummaryKey, releaseChannel } from '../../src/renderer/model/about-view.js'
+import { updateVerdict, updateDot, updateDownload, updateSummaryKey, releaseChannel } from '../../src/renderer/model/about-view.js'
 
-const BASE = { state: 'idle', nextVersion: null, lastCheckedAt: null, offReason: null, canRestart: true }
+const BASE = { state: 'idle', nextVersion: null, lastCheckedAt: null, offReason: null, canRestart: true, progress: null, waitingForPeers: false }
 const status = (patch) => ({ ...BASE, ...patch })
 
 test('only a confirmed check is up to date', (t) => {
@@ -20,6 +20,26 @@ test('each update state names its verdict and its one action', (t) => {
   t.alike(updateVerdict(status({ state: 'off', offReason: 'deb-install' })), { lamp: 'neutral', key: 'offDeb', action: null })
   t.alike(updateVerdict(status({ state: 'off', offReason: 'no-upgrade-key' })), { lamp: 'neutral', key: 'off', action: null })
   t.is(updateDot(status({ state: 'ready' })), 'ready')
+})
+
+test('only a download has a bar', (t) => {
+  for (const state of ['idle', 'checking', 'ready', 'error', 'off']) t.is(updateDownload(status({ state })), null, state)
+})
+
+test('the bar sweeps until the download is sized, then shows the percentage', (t) => {
+  t.alike(updateDownload(status({ state: 'downloading' })), { percent: null, indeterminate: true, bodyKey: 'downloading' })
+  t.alike(updateDownload(status({ state: 'downloading', progress: 42 })), { percent: 42, indeterminate: false, bodyKey: 'downloading' })
+  t.alike(updateDownload(status({ state: 'downloading', progress: 0 })), { percent: 0, indeterminate: false, bodyKey: 'downloading' })
+})
+
+test('a download waiting for a peer says so and stands still', (t) => {
+  t.alike(updateDownload(status({ state: 'downloading', progress: 42, waitingForPeers: true })), { percent: 42, indeterminate: false, bodyKey: 'downloadingWaiting' })
+  t.alike(updateDownload(status({ state: 'downloading', waitingForPeers: true })), { percent: null, indeterminate: false, bodyKey: 'downloadingWaiting' })
+})
+
+test('the Profile row says the same whatever the download has reached', (t) => {
+  t.is(updateSummaryKey(status({ state: 'downloading' })), 'about.summary.downloading')
+  t.is(updateSummaryKey(status({ state: 'downloading', progress: 42, waitingForPeers: true })), 'about.summary.downloading')
 })
 
 test('the Profile row only says what the status proves', (t) => {
