@@ -5,7 +5,8 @@ import { bootSwarms } from '../helpers/swarms.js'
 import { Stub, socketOf } from '../helpers/relayed-socket.js'
 import { createFakeIpc } from '../helpers/fake-ipc.js'
 import { registerNetwork } from '../../src/worker/ipc/network.js'
-import { installConfiguredRelay } from '../../src/shared/network/relay-install.js'
+import { installConfiguredRelay, testRelayReachable } from '../../src/shared/network/relay-install.js'
+import { getContentSwarm } from '../../src/shared/network/content-swarm.js'
 import { trackConnection, resetRelayedConnections, snapshotRelayedConnections } from '../../src/shared/network/relayed-connections.js'
 import { installRelayObserver, resetRelayObserver } from '../../src/shared/network/relay-observe.js'
 import { socketMsgHandlers } from '../../src/shared/network/swarm-registries.js'
@@ -320,4 +321,62 @@ test('an open relay added after removing a never-applied private relay is live a
   t.ok((await fake.call('network:set-relay', { mode: 'auto', relay: PRIVATE })).identityChanged, 'precondition: the add waits on a restart')
   await fake.call('network:set-relay', { mode: 'off', relay: null, deferApply: true })
   t.absent((await fake.call('network:set-relay', { mode: 'auto', relay: SLOT_B })).identityChanged, 'booted unpinned: nothing to restart for')
+})
+
+// REGRESSION (FIX-RELAY-REMOVE-2: an open relay was dialled under a member identity before the
+// restart.) Installing is what the network:set-relay path does, so this drives the real install.
+async function pinnedNode(t) {
+  const { swarm } = await bootSwarms(t, { relayMode: 'auto', relay: PRIVATE, relaySeedHex: SEED_HEX })
+  const fake = createFakeIpc()
+  registerNetwork(fake.ipc, { applyRelayConfig: installConfiguredRelay })
+  installConfiguredRelay()
+  t.is(typeof getContentSwarm().relayThrough, 'function', 'precondition: the private relay is live')
+  return { fake, swarm }
+}
+
+test('REGRESSION (FIX-RELAY-REMOVE-2: an open relay was dialled under a member identity before the restart)', async (t) => {
+  const { fake } = await pinnedNode(t)
+
+  const reply = await fake.call('network:set-relay', { mode: 'auto', relay: SLOT_B })
+
+  t.ok(reply.identityChanged, 'the restart is asked for')
+  t.is(reply.network.relay.publicKey, SLOT_B.publicKey, 'the open relay is stored')
+  t.is(getContentSwarm().relayThrough, null, 'but nothing dials it before the restart')
+})
+
+test('an open relay added after a live removal is held back on a pinned node', async (t) => {
+  const { fake } = await pinnedNode(t)
+  await fake.call('network:set-relay', { mode: 'off', relay: null })
+
+  const reply = await fake.call('network:set-relay', { mode: 'auto', relay: SLOT_B })
+
+  t.ok(reply.identityChanged)
+  t.is(getContentSwarm().relayThrough, null, 'nothing dials the open relay before the restart')
+})
+
+test('an open relay on a node with no member identity is installed at once', async (t) => {
+  await bootSwarms(t, { relayMode: 'off', relay: null })
+  const fake = createFakeIpc()
+  registerNetwork(fake.ipc, { applyRelayConfig: installConfiguredRelay })
+
+  const reply = await fake.call('network:set-relay', { mode: 'auto', relay: SLOT_B })
+
+  t.absent(reply.identityChanged)
+  t.is(typeof getContentSwarm().relayThrough, 'function')
+})
+
+// A probe of any relay but the live private one dials with a throwaway key, never the member one.
+test('a probe on a pinned node dials an open relay with a throwaway identity', async (t) => {
+  const { fake, swarm } = await pinnedNode(t)
+  await fake.call('network:set-relay', { mode: 'auto', relay: SLOT_B })
+  const dht = swarm.dht
+  const seen = []
+  const connect = dht.connect.bind(dht)
+  dht.connect = (key, opts) => { seen.push(opts?.keyPair?.publicKey ?? dht.defaultKeyPair.publicKey); return connect(key, opts) }
+  t.teardown(() => { dht.connect = connect })
+
+  await testRelayReachable(SLOT_B.publicKey)
+
+  t.is(seen.length, 1)
+  t.absent(b4a.equals(seen[0], dht.defaultKeyPair.publicKey), 'the member identity is not presented')
 })

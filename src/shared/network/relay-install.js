@@ -5,6 +5,8 @@
 // swarm, so it lives apart from them rather than dragging their imports into a pure module.
 
 import BlindRelay from 'blind-relay'
+import b4a from 'b4a'
+import crypto from 'hypercore-crypto'
 import { createLogger } from '../core/logger.js'
 import { getRelayConfig } from '../core/runtime-config.js'
 import { peerRelayed, peerUnrelayed, setRelayReach } from '../audit/network-watch.js'
@@ -36,8 +38,7 @@ export function initRelayInstall(deps) {
 // `live` is whether a relay function is installed, not whether the config names one: a slot with the
 // mode off, or a private relay whose identity never came up, names a key this node offers to no one.
 function ownRelay() {
-  const { relay, identityPending } = getRelayConfig()
-  const installed = installableRelay(relay, identityPending)
+  const installed = configuredInstallable()
   return { key: enabledRelayKeys(installed)[0] ?? null, label: installed?.label || null, live: !!getSwarm()?.relayThrough }
 }
 
@@ -76,15 +77,21 @@ export function setRelayThrough(relay, mode) {
   return identityMissing ? { applied: 0, reason: 'identity-missing' } : { applied: fn ? keys.length : 0 }
 }
 
+function configuredInstallable() {
+  const { relay, identityPending } = getRelayConfig()
+  return installableRelay(relay, identityPending, relayIdentityPinned)
+}
+
 // The saved relay, installed as the config allows: a private one waits for its identity.
 export function installConfiguredRelay() {
-  const { mode, relay, identityPending } = getRelayConfig()
-  return setRelayThrough(installableRelay(relay, identityPending), mode)
+  return setRelayThrough(configuredInstallable(), getRelayConfig().mode)
 }
 
 // A mistyped or stale key is otherwise invisible until a space silently fails to sync
 // weeks later. Reaching the Noise stream only proves something answers on that key, so
-// the verdict waits for the blind-relay protomux channel to open.
+// the verdict waits for the blind-relay protomux channel to open. Only the installed private
+// relay is dialled with the node's own key, the member identity it admits; any other relay gets a
+// throwaway key, so a probe never shows an open relay that identity.
 export async function testRelayReachable(publicKey) {
   const key = decodeRelayKey(publicKey)
   if (!key) return { ok: false, reason: 'invalid-key' }
@@ -98,7 +105,9 @@ export async function testRelayReachable(publicKey) {
   timer.unref?.()
 
   try {
-    socket = dht.connect(key)
+    const member = configuredInstallable()
+    const asMember = member?.kind === 'private' && b4a.equals(enabledRelayKeys(member)[0] ?? b4a.alloc(0), key)
+    socket = dht.connect(key, asMember ? {} : { keyPair: crypto.keyPair() })
     socket.on('error', () => settle({ ok: false, reason: 'unreachable' }))
     socket.on('close', () => settle({ ok: false, reason: 'unreachable' }))
     const client = BlindRelay.Client.from(socket, { id: socket.publicKey })

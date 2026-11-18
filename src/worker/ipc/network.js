@@ -52,10 +52,11 @@ export function registerNetwork(ipc, { applyRelayConfig }) {
   // Applying the mode is not the same as applying it to the connections that already exist, and the
   // difference is invisible from here: the setting is live either way. When nothing is moving the
   // reconnect is cheap and the user gets what they asked for at once; while a transfer is in flight
-  // it is theirs to trigger, so the verdict goes back for the renderer to explain. deferApply is set
-  // when a pinned identity is waiting on a restart — no reconnect can apply that, and the worker
-  // installs no private relay until it has. Only that restart or a removal clears it: a renderer
-  // reloaded in the meantime has forgotten, but this node still presents the old identity.
+  // it is theirs to trigger, so the verdict goes back for the renderer to explain. A slot write that
+  // changes the identity marks it pending, and deferApply keeps it marked while one is waiting on a
+  // restart — no reconnect can apply that, and the worker holds the relay back until it has
+  // (installableRelay). Only that restart or a removal clears it: a renderer reloaded in the
+  // meantime has forgotten, but this node still presents the old identity.
   //
   // The slot is persisted here, after sanitizing, and before it is applied: the Activity Log row
   // diffed below records a saved change and never a refused one. An omitted mode or relay keeps the
@@ -64,7 +65,8 @@ export function registerNetwork(ipc, { applyRelayConfig }) {
   // restarting the worker once the seed vault and this slot agree. A removal never does: the member
   // identity is presented to its relay alone, so with no relay to dial it is idle until the next
   // start, and any restart an earlier change was waiting on is moot. An open relay added to a node
-  // still presenting a member identity asks for the restart, as a private-to-open replace does.
+  // still presenting a member identity asks for the restart, as a private-to-open replace does, and
+  // is not installed until it (installableRelay).
   ipc.handle('network:set-relay', async (msg) => {
     if (msg.mode === undefined && msg.relay === undefined && msg.lastTest === undefined) {
       throw new AppError(CODES.INVALID_ARGUMENT, 'network:set-relay: nothing to change')
@@ -73,16 +75,16 @@ export function registerNetwork(ipc, { applyRelayConfig }) {
     const { mode, relay } = ownRelay({ mode: msg.mode, relay: msg.relay, lastTest: msg.lastTest }, before)
     await updateSettings((s) => { s.network.relayMode = mode; s.network.relay = relay; return s })
     const removal = msg.relay === null && relay === null
-    const identityPending = !removal && (before.identityPending || msg.deferApply === true)
+    // Only a slot write can pin or unpin an identity; a mode change or a probe verdict never does.
+    const identityChanged = msg.relay !== undefined && !removal &&
+      (before.relay?.kind === 'private' || relay?.kind === 'private' || isRelayIdentityPinned())
+    const identityPending = !removal && (before.identityPending || msg.deferApply === true || identityChanged)
     setRelayConfig(mode, relay, { identityPending })
     const applied = applyRelayConfig()
     const after = getRelayConfig()
     const change = relayConfigRow(before, after)
     if (change) record(change.kind, change.row)
     ipc.emit('event:reconcile', { scope: Scope.settings() })
-    // Only a slot write can pin or unpin an identity; a mode change or a probe verdict never does.
-    const identityChanged = msg.relay !== undefined && !removal &&
-      (before.relay?.kind === 'private' || after.relay?.kind === 'private' || isRelayIdentityPinned())
     const verdict = { ok: /** @type {const} */ (true), ...applied, identityChanged, network: settingsView().network }
     return { ...verdict, ...await followRelayConfig() }
   })
