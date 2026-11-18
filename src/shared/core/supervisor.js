@@ -11,6 +11,7 @@
 // peer's socket is the single mux carrying every core and transfer for that peer, a Corestore-backed
 // handle belongs to whoever closes it, and a close() that awaits the stalled pass never settles. A
 // recovery abandons; it does not drain.
+import { timedJob } from './job-timing.js'
 import { Subsystem } from './subsystem.js'
 import { createSupervisionPolicy, DEFAULT_POLICY } from './supervision.js'
 import { getSupervisionProbeIntervalMs, getSupervisionRecoverBudgetMs } from './runtime-config.js'
@@ -32,7 +33,7 @@ export class Supervisor extends Subsystem {
 
   async _open() {
     this.timers.setInterval(() => {
-      this.probe().catch((err) => this.log.debug('supervision probe failed:', err.message))
+      timedJob('supervision-probe', () => this.probe()).catch((err) => this.log.debug('supervision probe failed:', err.message))
     }, getSupervisionProbeIntervalMs())
   }
 

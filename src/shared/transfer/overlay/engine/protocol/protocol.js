@@ -56,6 +56,7 @@ export class OverlayProtocolV2 {
       downloadLimiter: opts.downloadLimiter || null,
       localProfileKey: opts.localProfileKey || null,
       onTrace: opts.onTrace || null,
+      cap: opts.fetchCap,
     })
     // Handlers return their promise, so a test can await one; the channel's dispatch drops it.
     this.handlers = Object.freeze({

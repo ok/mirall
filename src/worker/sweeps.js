@@ -10,6 +10,7 @@ import { sweepExpiredInvites } from '../shared/spaces/profile.js'
 import { pruneAudit } from '../shared/audit/audit-reclaim.js'
 import { measureHistory } from '../shared/storage/storage-history.js'
 import { profileHeld } from '../shared/core/restore-hold.js'
+import { timedJob } from '../shared/core/job-timing.js'
 
 const PRESENCE_SWEEP_INTERVAL_MS = 60_000
 const INVITE_SWEEP_INTERVAL_MS = 60 * 60 * 1000
@@ -56,7 +57,7 @@ export class Sweeps extends Subsystem {
     // Backstop for catalog-backed shares: tombstone catalog entries whose source vanished
     // (watcher unlinks cover the live case; this catches missed events).
     this.timers.setInterval(() => {
-      overlayBackend.sweepPresence().catch((err) => log.debug('presence sweep failed:', err.message))
+      timedJob('presence-sweep', () => overlayBackend.sweepPresence()).catch((err) => log.debug('presence sweep failed:', err.message))
     }, PRESENCE_SWEEP_INTERVAL_MS)
 
     this.timers.setInterval(() => {
@@ -65,11 +66,11 @@ export class Sweeps extends Subsystem {
     sweepAllExpiredInvites().catch((err) => log.debug('invite sweep failed:', err.message))
 
     // The measurement follows the compaction, so the Storage screen reads what the compaction left.
-    const maintain = async () => {
+    const maintain = () => timedJob('index-maintain', async () => {
       await compactIndexIfDue().catch((err) => log.debug('overlay index compaction failed:', err.message))
       await measureHistory().catch((err) => log.debug('storage history measurement failed:', err.message))
       this.deps.ipc?.emit('event:storage-updated', {})
-    }
+    })
     this.timers.setTimeout(maintain, INDEX_COMPACT_BOOT_DELAY_MS)
     this.timers.setInterval(maintain, INDEX_COMPACT_INTERVAL_MS)
 

@@ -34,8 +34,9 @@ function isRuled(row) {
 
 // Paths / opaque strings; a falsy override means "unset". dhtBootstrap is a test lever (a local
 // testnet instead of the public DHT); production never sets it. testRunName is the run the test run
-// file names, stamped on the transfer trace.
-const NULLABLE = ['storage', 'appVersion', 'downloadFolder', 'defaultDownloadFolder', 'dhtBootstrap', 'upgradeKey', 'backupFolder', 'backupRepoId', 'managedTestSigningKey', 'testRunName']
+// file names, stamped on the transfer trace; transferLevers is that file's sizing values and path
+// check, already validated where the file is read.
+const NULLABLE = ['storage', 'appVersion', 'downloadFolder', 'defaultDownloadFolder', 'dhtBootstrap', 'upgradeKey', 'backupFolder', 'backupRepoId', 'managedTestSigningKey', 'testRunName', 'transferLevers']
 
 // Dev toggles and staged security enforcement, default-off. membershipControlBindingEnforced on
 // refuses a membership:cancel or membership:deny that names no sender. topicRefsEnforced on ignores a

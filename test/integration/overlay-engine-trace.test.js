@@ -82,3 +82,35 @@ test('a holder that leaves mid-fetch hands its chunks back, and the engine says 
   t.ok(handback.n > 0, 'with the number of chunks it still owed')
   t.is(holder.traceSnapshot().serves.length, 0, 'a closed peer\'s serve counts are forgotten')
 })
+
+// A test run replaces the engine's sizing through two options. Each must reach the part that uses
+// it: the scheduler never holds more chunks with a holder than the cap, and a stash of nothing
+// keeps nothing.
+test('fetchCap and memStashBytes replace the engine\'s own sizing', async (t) => {
+  const holder = await overlay(t, 'lever-holder')
+  const fetcher = await overlay(t, 'lever-fetcher', { fetchCap: 2, memStashBytes: 0 })
+  const file = fileOnDisk('lever-src', 3 * 1024 * 1024)
+  await holder.registerFile(file.diskPath, { contentHash: file.contentHash, size: file.size })
+  link(holder, fetcher)
+  await settle()
+
+  const destPath = path.join(tmpDir('lever-dst'), 'f.bin')
+  const during = []
+  // absolute: the fetch's own idle budget, not a wait.
+  await fetcher.fetchFile(file.contentHash, { destPath, size: file.size, timeout: 8000, onProgress: () => during.push(fetcher.traceSnapshot().fetches[0]) })
+  const seen = during.filter(Boolean)
+  t.ok(seen.length > 4, 'the fetch was observed while it ran')
+  t.ok(seen.every((fetch) => fetch.inflight <= 2), 'never more than two chunks in flight')
+  t.ok(seen.some((fetch) => fetch.inflight > 0), 'with chunks in flight when looked at')
+  t.ok(seen.every((fetch) => fetch.stashBytes === 0 && fetch.stashHits === 0), 'nothing was stashed')
+  t.alike(fs.readFileSync(destPath), fs.readFileSync(file.diskPath), 'the file arrived whole')
+
+  const plain = await overlay(t, 'lever-plain')
+  link(holder, plain)
+  await settle()
+  const plainDest = path.join(tmpDir('lever-plain-dst'), 'f.bin')
+  const plainDuring = []
+  // absolute: the fetch's own idle budget, not a wait.
+  await plain.fetchFile(file.contentHash, { destPath: plainDest, size: file.size, timeout: 8000, onProgress: () => plainDuring.push(plain.traceSnapshot().fetches[0]) })
+  t.ok(plainDuring.filter(Boolean).some((fetch) => fetch.inflight > 2), 'without the option the engine keeps its own cap')
+})

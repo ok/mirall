@@ -6,6 +6,7 @@ import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpaceWithApproval, waitForCatalogEntry } from '../helpers/peer.js'
 import { mkTmpDir } from '../helpers/fixtures.js'
 import { scaled } from '../helpers/timing.js'
+import { waitFor } from '../helpers/poll.js'
 import { tmpPath } from '../helpers/tmp.js'
 
 const SIZE = 1024 * 1024
@@ -38,7 +39,7 @@ test('a traced transfer leaves a trace on both sides, and the two agree', { time
   const serving = traceOf(aStorage)
 
   for (const [side, lines] of [['fetching', fetching], ['serving', serving]]) {
-    t.alike({ k: lines[0].k, v: lines[0].v, run: lines[0].run }, { k: 'header', v: 1, run: 'flow' }, side + ': starts with the header')
+    t.alike({ k: lines[0].k, v: lines[0].v, run: lines[0].run }, { k: 'header', v: 2, run: 'flow' }, side + ': starts with the header')
     t.ok(eventsOf(lines).includes('conn-open'), side + ': the connection opening is recorded')
     const conn = lines.find((line) => line.k === 'conn')
     t.ok(conn && conn.cwnd > 0 && conn.mtu > 0 && Number.isFinite(conn.rtt), side + ': the transport reports its window, packet size and round trip')
@@ -70,4 +71,34 @@ test('a traced transfer leaves a trace on both sides, and the two agree', { time
   const [fetchFrom, fetchTo] = span(fetching, 'fetch')
   const [serveFrom, serveTo] = span(serving, 'serve')
   t.ok(fetchFrom <= serveTo && serveFrom <= fetchTo, 'the two sides sampled the same stretch of time')
+})
+
+// The path check comes from the test run file. Bob's file asks for one; Alice's only allows it.
+// The check runs over the content connection with no file involved, and both traces record it.
+test('a path check runs between two peers whose test run files allow it', { timeout: scaled(180000) }, async (t) => {
+  const CHECK_BYTES = 32 * 1024 * 1024
+  const bootstrap = await localTestnet(t)
+  const aStorage = idStore(t)
+  const bStorage = idStore(t)
+  const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: aStorage, downloads: mkTmpDir(t), flags: traced({ transferLevers: { pathCheck: true } }) })
+  const B = await launchPeer(t, {
+    bootstrap, displayName: 'Bob', storage: bStorage, downloads: mkTmpDir(t),
+    flags: traced({ transferLevers: { pathCheck: true, pathCheckBytes: CHECK_BYTES } }),
+  })
+  await connectInSpaceWithApproval(t, A, B)
+
+  const ended = (storage) => traceOf(storage).find((line) => line.e === 'check-end')
+  await waitFor(() => ended(aStorage) && ended(bStorage), 60000, { interval: 250, label: 'the path check to end on both sides' })
+  for (const [side, storage] of [['asking', bStorage], ['sending', aStorage]]) {
+    const events = traceOf(storage).filter((line) => line.k === 'event')
+    const startAt = events.findIndex((line) => line.e === 'check-start')
+    const endAt = events.findIndex((line) => line.e === 'check-end')
+    t.ok(startAt !== -1 && endAt > startAt, side + ': the check has its start and its end')
+    t.is(events[endAt].ok, true, side + ': and it ran to the last byte')
+    t.is(events[endAt].c, events[startAt].c, side + ': on one connection')
+  }
+  const counted = [...traceOf(bStorage), ...traceOf(aStorage)].filter((line) => line.k === 'check')
+  t.ok(counted.every((line) => line.totalBytes === CHECK_BYTES && (line.rxBytes ?? line.txBytes) <= CHECK_BYTES), 'a sampled second of it stays within the amount asked for')
+
+  t.is(traceOf(bStorage).filter((line) => line.e === 'check-start').length, 1, 'the check was asked for once')
 })

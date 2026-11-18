@@ -1,6 +1,6 @@
 import test from 'brittle'
 import { traceLine, TRACE_EVENTS, TRACE_VERSION } from '../../src/shared/transfer/trace/trace-record.js'
-import { createTraceNumbering, createServeActivity, sampleLines } from '../../src/shared/transfer/trace/trace-sample.js'
+import { createTraceNumbering, createServeActivity, createWrapCorrection, sampleLines } from '../../src/shared/transfer/trace/trace-sample.js'
 import { transportSample } from '../../src/shared/transfer/trace/transport-sample.js'
 import { setTraceSink, traceEvent, traceConnection } from '../../src/shared/transfer/trace/trace-sink.js'
 
@@ -16,9 +16,10 @@ test('no line carries a name, a path, a hash, a key or an address, whatever it i
     c: PRIVATE[4], x: PRIVATE[0], e: PRIVATE[1], n: PRIVATE[2], ok: PRIVATE[5],
     mtu: PRIVATE[0], rtt: PRIVATE[2], pacing: PRIVATE[1], holders: [[PRIVATE[2], PRIVATE[4]], PRIVATE[0]],
     path: PRIVATE[0], key: PRIVATE[2], from: PRIVATE[2], contentHash: PRIVATE[2], host: PRIVATE[4],
+    job: PRIVATE[1], ms: PRIVATE[0], totalBytes: PRIVATE[2],
     ...smuggled,
   }
-  for (const kind of ['header', 'conn', 'fetch', 'serve', 'host', 'event']) {
+  for (const kind of ['header', 'conn', 'fetch', 'serve', 'check', 'host', 'event']) {
     const line = traceLine(kind, 1000, everyField)
     if (line === null) continue
     for (const value of PRIVATE) t.absent(line.includes(value), `${kind} dropped "${value.slice(0, 20)}"`)
@@ -28,13 +29,19 @@ test('no line carries a name, a path, a hash, a key or an address, whatever it i
 
 test('a line keeps exactly the fields its kind names, typed', (t) => {
   t.alike(JSON.parse(traceLine('header', 5, { v: TRACE_VERSION, app: '1.14.0-beta.90', run: 'R3', platform: 'darwin', arch: 'arm64' })),
-    { t: 5, k: 'header', v: 1, app: '1.14.0-beta.90', run: 'R3', platform: 'darwin', arch: 'arm64' })
+    { t: 5, k: 'header', v: 2, app: '1.14.0-beta.90', run: 'R3', platform: 'darwin', arch: 'arm64' })
   t.alike(JSON.parse(traceLine('conn', 6, { c: 1, cwnd: 40, rtt: 23, mtu: 1380, unknown: 9, retransmits: NaN })),
     { t: 6, k: 'conn', c: 1, mtu: 1380, rtt: 23, cwnd: 40 }, 'an unnamed field and a non-finite number are dropped')
   t.alike(JSON.parse(traceLine('fetch', 7, { x: 2, needed: 10, pacing: false, holders: [[1, 8], [2, 'x'], 'bad'] })),
     { t: 7, k: 'fetch', x: 2, needed: 10, pacing: false, holders: [[1, 8]] })
   t.alike(JSON.parse(traceLine('event', 8, { e: TRACE_EVENTS.HANDBACK, c: 1, x: 2, n: 8 })),
     { t: 8, k: 'event', e: 'handback', c: 1, x: 2, n: 8 })
+  t.alike(JSON.parse(traceLine('event', 8, { e: TRACE_EVENTS.JOB, job: 'presence-sweep', ms: 880 })),
+    { t: 8, k: 'event', e: 'job', job: 'presence-sweep', ms: 880 })
+  t.alike(JSON.parse(traceLine('event', 8, { e: TRACE_EVENTS.JOB, job: 'my-folder-name', ms: 3 })),
+    { t: 8, k: 'event', e: 'job', ms: 3 }, 'a job is one of the names the trace knows')
+  t.alike(JSON.parse(traceLine('check', 8, { c: 3, rxBytes: 10, totalBytes: 40, txBytes: undefined })),
+    { t: 8, k: 'check', c: 3, rxBytes: 10, totalBytes: 40 })
   t.is(traceLine('nonsense', 9, {}), null)
   t.is(traceLine('host', NaN, { lagMs: 1 }), null, 'a line needs its time')
 })
@@ -79,6 +86,26 @@ test('one second becomes one line per connection, fetch and serve, and one for t
   }).map((line) => JSON.parse(line))
   t.alike(lines.map((line) => line.k), ['conn', 'conn', 'fetch', 'serve', 'host'])
   t.ok(lines.every((line) => line.t === 42), 'every line of a second carries the same time')
+})
+
+// udx hands out these three counts through 16-bit views. A transfer that resent 120,000 packets
+// would otherwise read as 54,000, and as going backwards twice on the way.
+test('a count that wrapped at 65,536 is carried on as a running total, per connection', (t) => {
+  const corrected = createWrapCorrection()
+  const a = {}
+  const b = {}
+  t.alike(corrected(a, { retransmits: 65000, fastRecoveries: 10, rtoLifetime: 1, cwnd: 40 }), { retransmits: 65000, fastRecoveries: 10, rtoLifetime: 1, cwnd: 40 })
+  t.is(corrected(a, { retransmits: 200, fastRecoveries: 12 }).retransmits, 65736, 'one turn')
+  t.is(corrected(a, { retransmits: 60000 }).retransmits, 125536, 'still the same turn')
+  t.is(corrected(a, { retransmits: 5 }).retransmits, 131077, 'a second turn')
+  t.is(corrected(a, { fastRecoveries: 12 }).fastRecoveries, 12, 'a count that did not go down is left alone')
+  t.is(corrected(b, { retransmits: 3 }).retransmits, 3, 'another connection has its own turns')
+  t.alike(corrected(b, { cwnd: 9 }), { cwnd: 9 }, 'a sample without the counts passes through')
+})
+
+test('a second with a path check running has its line', (t) => {
+  const lines = sampleLines(7, { conns: [], fetches: [], serves: [], checks: [{ c: 3, txBytes: 5, totalBytes: 9 }], host: {} }).map((line) => JSON.parse(line))
+  t.alike(lines, [{ t: 7, k: 'check', c: 3, txBytes: 5, totalBytes: 9 }, { t: 7, k: 'host' }])
 })
 
 test('a transport is read figure by figure, and one that cannot be read is left out', (t) => {

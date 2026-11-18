@@ -37,14 +37,16 @@ import { peerRxBytes } from './transport-probe.js'
 export class FetchSession {
   // `pages` is the chunk-list assembler; `peers` lists the attached peers; `localProfileKey` is
   // stamped on every content request so the holder's serve gate can authenticate the asker.
-  // `onTrace(kind, fields)` hears a holder handing chunks back and the watchdog firing.
-  constructor({ transfer, pages, peers, downloadLimiter = null, localProfileKey = null, onTrace = null }) {
+  // `onTrace(kind, fields)` hears a holder handing chunks back and the watchdog firing. `cap` is
+  // the per-holder in-flight cap of every fetch that names none; absent, the scheduler's own.
+  constructor({ transfer, pages, peers, downloadLimiter = null, localProfileKey = null, onTrace = null, cap = undefined }) {
     this._transfer = transfer
     this._pages = pages
     this._peers = peers
     this._downloadLimiter = downloadLimiter
     this._localProfileKey = localProfileKey
     this._onTrace = onTrace
+    this._cap = cap
     /** @type {Map<string, FetchHandle>} */
     this._handles = new Map()
     // Per hash, the callers that cancelled before their fetch arrived (their peer-wait window).
@@ -69,7 +71,7 @@ export class FetchSession {
       parentMustExist: opts.parentMustExist,
       transfer: this._transfer,
       sendNeed: (peer, indices) => peer.msgs.chunkNeed.send({ path: synthPath, indices }),
-      cap: opts.cap,
+      cap: opts.cap ?? this._cap,
       timeout: opts.timeout,
       onProgress: opts.onProgress,
       onVerify: opts.onVerify,

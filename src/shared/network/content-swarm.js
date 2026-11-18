@@ -52,6 +52,11 @@ export function contentSenderAuthorizedOnSocket(socket, profileKeyHex) {
   return contentPeerSockets.authorized(socket, profileKeyHex)
 }
 
+// Whether any member has authenticated on this content socket, whoever it is.
+export function contentSocketAuthenticated(socket) {
+  return contentPeerSockets.peersOn(socket).size > 0
+}
+
 /** @internal */
 export function _authorizeContentPeerForTests(socket, profileKeyHex) {
   contentPeerSockets.add(socket, profileKeyHex)

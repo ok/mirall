@@ -61,7 +61,7 @@ test('the test run file turns the trace on: a header, then each event with numbe
   const text = fs.readFileSync(h.traceFile, 'utf-8')
   t.absent(text.includes('report') || text.includes('someone'), 'the destination path stays in memory')
   const [header, ...events] = linesOf(h.traceFile)
-  t.alike({ ...header, t: 0, platform: 'x', arch: 'x' }, { t: 0, k: 'header', v: 1, app: '1.14.0-beta.90', run: 'R3', platform: 'x', arch: 'x' })
+  t.alike({ ...header, t: 0, platform: 'x', arch: 'x' }, { t: 0, k: 'header', v: 2, app: '1.14.0-beta.90', run: 'R3', platform: 'x', arch: 'x' })
   t.alike(events.map(({ t: _at, k: _kind, ...rest }) => rest), [
     { e: 'conn-open', c: 1 },
     { e: 'fetch-start', x: 1 },

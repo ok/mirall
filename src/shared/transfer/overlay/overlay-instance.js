@@ -14,12 +14,14 @@ import { recordServeDenial, resetServeDenialAudit } from './serve-denial-audit.j
 import { onServeStart as ledgerServeStart, onChunkServed as ledgerChunkServed, onServeEnd as ledgerServeEnd, onServeControl as ledgerServeControl, onServeBaseline as ledgerServeBaseline } from '../serve-ledger.js'
 import { getStore, hasMasterSecret, overlayIndexEncryptionKey } from '../../core/store.js'
 import { PARTIAL_SUFFIX } from '../partial-suffix.js'
+import { applySocketBuffers } from '../socket-buffers.js'
+import { attachPathCheck, resetPathCheck } from '../path-check.js'
 import b4a from 'b4a'
 import { getLocalPublicKeyHex } from '../../spaces/profile.js'
 import { isApprovedMember } from '../../network/handshake-apply.js'
-import { contentSenderAuthorizedOnSocket } from '../../network/content-swarm.js'
+import { contentSenderAuthorizedOnSocket, contentSocketAuthenticated } from '../../network/content-swarm.js'
 import { createRateLimiter } from '../../network/handshake-guard.js'
-import { getOverlayServeLimit, getBandwidthLimits, getServeChunkMapCacheBytes } from '../../core/runtime-config.js'
+import { getOverlayServeLimit, getBandwidthLimits, getServeChunkMapCacheBytes, getTransferLevers } from '../../core/runtime-config.js'
 import { createBandwidthLimiter } from '../bandwidth-limiter.js'
 import { createChunkMapCache } from '../chunk-map-cache.js'
 import { createLogger } from '../../core/logger.js'
@@ -139,6 +141,9 @@ export async function initOverlay() {
     // The engine's own events (a holder handing chunks back, the watchdog, an abandoned drain
     // wait) carry the kind as the trace names it.
     onTrace: traceEvent,
+    // A test run file's sizing; absent in every other run, and the engine then keeps its own.
+    fetchCap: getTransferLevers().inflightCap,
+    memStashBytes: getTransferLevers().stashBytes,
     // Decoded chunk maps, shared by every serve loop and bounded by bytes; cleared by the
     // index on close, so nothing to tear down here. 0 disables it (runtime-config).
     chunkMapCache: createChunkMapCache({ maxBytes: getServeChunkMapCacheBytes() }),
@@ -169,6 +174,8 @@ export function attachOverlay(mux, socket) {
   const peer = overlay.attachProtocol(mux) // protocol 'hyper-overlay/v2' on the SAME mux as mirall/handshake
   if (!peer) return
   peerSocket.set(peer, socket)
+  applySocketBuffers(socket.rawStream, getTransferLevers())
+  attachPathCheck(mux, socket, () => contentSocketAuthenticated(socket))
   traceConnection(socket)
 }
 
@@ -221,5 +228,6 @@ export async function teardownOverlay() {
     uploadLimiter = null
     downloadLimiter = null
     resetServeDenialAudit()
+    resetPathCheck()
   }
 }

@@ -17,13 +17,36 @@ export function flagsToRuntimeConfig(flags) {
 
 const RUN_NAME = /^[A-Za-z0-9_-]{1,32}$/
 
-// The test run file names a run and turns the transfer trace on. A file that is absent, not an
-// object, or carries anything else contributes nothing, so the app runs as shipped.
+// A lever value the test run file may carry: a whole number in its range, else absent.
+const wholeBetween = (min, max) => (v) => (Number.isInteger(v) && v >= min && v <= max ? v : undefined)
+const MIB = 1024 * 1024
+
+// The sizing values a test run may replace, and the path check. Each has the range a mistyped file
+// cannot leave: an in-flight cap the scheduler can hold, a stash and socket buffers a worker can
+// afford, a path check no longer than one large file.
+const LEVERS = Object.freeze({
+  inflightCap: wholeBetween(1, 256),
+  stashBytes: wholeBetween(0, 1024 * MIB),
+  recvBufferBytes: wholeBetween(64 * 1024, 64 * MIB),
+  sendBufferBytes: wholeBetween(64 * 1024, 64 * MIB),
+  pathCheck: (v) => (v === true ? true : undefined),
+  pathCheckBytes: wholeBetween(MIB, 64 * 1024 * MIB),
+})
+
+function leversOf(testRun) {
+  const levers = definedEntries(Object.fromEntries(Object.entries(LEVERS).map(([name, take]) => [name, take(testRun[name])])))
+  return Object.keys(levers).length > 0 ? Object.freeze(levers) : undefined
+}
+
+// The test run file names a run, turns the transfer trace on and sets the transfer levers. A file
+// that is absent, not an object, or carries anything else contributes nothing, so the app runs as
+// shipped.
 export function testRunToRuntimeConfig(testRun) {
   if (typeof testRun !== 'object' || testRun === null || Array.isArray(testRun)) return {}
   return definedEntries({
     testRunName: typeof testRun.run === 'string' && RUN_NAME.test(testRun.run) ? testRun.run : undefined,
     transferTrace: testRun.trace === true ? true : undefined,
+    transferLevers: leversOf(testRun),
   })
 }
 
