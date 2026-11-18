@@ -1,13 +1,15 @@
 // Launch time of an installed Mirall build, and the release gate that compares two builds' runs.
 //
-//   node scripts/launch-timing/measure.mjs run --app <Mirall.app | executable> --label <name> --storage <data folder copy>
+//   node scripts/launch-timing/measure.mjs run --app <Mirall.app | executable> --label <name> --storage <test profile folder>
 //   node scripts/launch-timing/measure.mjs compare <baseline.json> <candidate.json>
 //
 // `run` launches the app N times on one data folder, records per launch the milliseconds from
 // process start to the back end reporting ready and to the spaces list showing (marks.mjs), quits
 // it and confirms every process it started is gone before the next launch. It never launches on
-// the app's default data folder: the folder is a copy the person made, passed with --storage,
-// which the app honours in a packaged build. `--source <repo>` launches a source checkout instead,
+// the app's default data folder: the folder holds a test profile made for the measurement, passed
+// with --storage, which the app honours in a packaged build. A copy of a real data folder is no
+// substitute: a store is bound to the place it was created and refuses to open as a copy, and a copy
+// that did open would write to the same logs as the original. `--source <repo>` launches a source checkout instead,
 // for trying the script itself. `compare` applies the gate in launch-stats.mjs and exits 1 when it
 // blocks.
 import { spawn } from 'node:child_process'
@@ -38,13 +40,14 @@ function usage(message) {
   process.exit(2)
 }
 
-// The default data folder is the person's real profile; the measurement only ever runs on a copy.
+// The default data folder is the person's real profile; the measurement only ever runs on a test
+// profile made for it.
 function refuseRealProfile(storage) {
   const real = defaultDataDir({ platform: process.platform, env: process.env, homedir: os.homedir(), productName: 'Mirall' })
   const resolve = (p) => { try { return realpathSync(p) } catch { return path.resolve(p) } }
-  if (resolve(storage) === resolve(real)) usage(`refusing to launch on the default data folder ${real}; pass a copy`)
+  if (resolve(storage) === resolve(real)) usage(`refusing to launch on the default data folder ${real}; pass a test profile made for the measurement`)
   if (!existsSync(path.join(storage, 'app-storage'))) {
-    usage(`${storage} holds no app-storage folder; pass a copy of a data folder with a profile and at least one space`)
+    usage(`${storage} holds no app-storage folder; start the older build once with --storage ${storage} --no-updates, create a profile and one space there, quit, then measure`)
   }
 }
 
