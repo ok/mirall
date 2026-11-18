@@ -19,6 +19,9 @@ changes do not appear here.
 
 ### Changed
 
+- **Removing a relay you joined with an invite takes effect at once.** Mirall
+  no longer asks you to reconnect first, as it already did for an open
+  relay. Adding or replacing one still asks.
 - **About shows how far an update download has come.** The Updates card now
   has a progress bar with a percentage, and says when the download is
   waiting for the update network instead of looking stuck.

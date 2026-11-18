@@ -998,9 +998,9 @@
         "replaced-relay": "Le connessioni aperte prima della sostituzione del relay passano ancora dal precedente. Riconnetti per spostarle."
       },
       "removeConfirmTitle": "Rimuovere {{name}}?",
-      "removeConfirmBody": "Il tuo invito è salvato solo su questo dispositivo. Per usare di nuovo questo relay ti servirà un nuovo invito da chi lo gestisce.",
+      "removeConfirmBody": "Il tuo invito è salvato solo su questo dispositivo. Per usare di nuovo questo relay ti servirà ancora il tuo link di invito.",
       "replaceConfirmTitle": "Sostituire {{name}}?",
-      "replaceConfirmBody": "Il tuo invito attuale è salvato solo su questo dispositivo e verrà cancellato. Per usare di nuovo quel relay ti servirà un nuovo invito da chi lo gestisce."
+      "replaceConfirmBody": "Il tuo invito attuale è salvato solo su questo dispositivo e verrà cancellato. Per usare di nuovo quel relay ti servirà ancora il tuo link di invito."
     }
   },
   "networkStatus": {

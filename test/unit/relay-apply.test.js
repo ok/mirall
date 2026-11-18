@@ -1,6 +1,6 @@
 import test from 'brittle'
 import { relayMismatch } from '../../src/shared/contract/relay-apply.js'
-import { relayApplyNotice } from '../../src/renderer/model/relay-apply.js'
+import { relayApplyNotice, restartOwed } from '../../src/renderer/model/relay-apply.js'
 
 const facts = (over = {}) => ({ connections: [], direct: { control: 0, content: 0 }, ...over })
 const own = (relayMode = 'always', replaced = false) => ({ via: 'own', supplied: true, relayMode, replaced })
@@ -129,4 +129,20 @@ test('the notice follows an armed swap', (t) => {
   const state = { mode: 'always', relay: facts({ connections: [own('always', true)] }), pendingIdentity: false }
   t.is(relayApplyNotice({ ...state, armed: true }), 'replaced-relay')
   t.is(relayApplyNotice({ ...state, armed: true, pendingIdentity: true }), 'restart', 'a pending identity still outranks it')
+})
+
+// REGRESSION (FIX-RELAY-REMOVE-1: removing a private relay asked for a restart.) A removal owes none,
+// whichever way the restart came to be pending: booted without a member identity then added a private
+// relay, or booted with one then replaced it.
+test('REGRESSION (FIX-RELAY-REMOVE-1: a removal owes no restart, even one already pending)', (t) => {
+  t.is(restartOwed({ pending: false, removal: true, identityChanged: false }), false)
+  t.is(restartOwed({ pending: true, removal: true, identityChanged: false }), false, 'a pending add or replace is moot')
+  t.is(relayApplyNotice({ mode: 'off', relay: null, armed: false, pendingIdentity: restartOwed({ pending: true, removal: true, identityChanged: false }) }), null,
+    'and no restart notice is shown')
+})
+
+test('any other relay write keeps a pending restart and adds the one the worker asks for', (t) => {
+  t.is(restartOwed({ pending: false, removal: false, identityChanged: true }), true, 'adding or replacing a private relay')
+  t.is(restartOwed({ pending: true, removal: false, identityChanged: false }), true, 'a mode change or probe verdict meanwhile')
+  t.is(restartOwed({ pending: false, removal: false, identityChanged: false }), false, 'an open relay on an unpinned node')
 })

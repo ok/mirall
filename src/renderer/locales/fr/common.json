@@ -998,9 +998,9 @@
         "replaced-relay": "Les connexions ouvertes avant le remplacement du relais passent toujours par l'ancien. Reconnectez-vous pour les en sortir."
       },
       "removeConfirmTitle": "Retirer {{name}} ?",
-      "removeConfirmBody": "Votre invitation n'est stockée que sur cet appareil. Pour réutiliser ce relais, il vous faudra une nouvelle invitation de la personne qui l'héberge.",
+      "removeConfirmBody": "Votre invitation n'est stockée que sur cet appareil. Pour réutiliser ce relais, il vous faudra à nouveau votre lien d'invitation.",
       "replaceConfirmTitle": "Remplacer {{name}} ?",
-      "replaceConfirmBody": "Votre invitation actuelle n'est stockée que sur cet appareil et sera effacée. Pour réutiliser ce relais, il vous faudra une nouvelle invitation de la personne qui l'héberge."
+      "replaceConfirmBody": "Votre invitation actuelle n'est stockée que sur cet appareil et sera effacée. Pour réutiliser ce relais, il vous faudra à nouveau votre lien d'invitation."
     }
   },
   "networkStatus": {

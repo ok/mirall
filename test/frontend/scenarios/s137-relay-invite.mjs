@@ -101,6 +101,8 @@ export default async function s137({ runDir, bootstrap }) {
       await Relays.click({ name: 'Replace' })
       await Relays.waitText('Replace Family relay?', 8000)
       await Relays.waitText('will be erased', 8000)
+      // A replacement still waits on a restart; only a removal takes effect at once.
+      await Relays.waitText('Removing it takes effect after Mirall reconnects.', 8000)
       await Relays.shot('s137-replace-confirm', runDir)
 
       await Relays.click({ name: 'Cancel' })
@@ -113,12 +115,29 @@ export default async function s137({ runDir, bootstrap }) {
       await new Promise((res) => setTimeout(res, 400))
       await Relays.click({ name: 'Remove' })
       await Relays.waitText('Remove Family relay?', 8000)
-      await Relays.waitText('new invite from whoever runs it', 8000)
-      await Relays.waitText('Removing it takes effect after Mirall reconnects.', 8000)
+      await Relays.waitText('need your invite link again', 8000)
+      if (await Relays.hasText('Removing it takes effect after Mirall reconnects.')) throw new Error('a removal is said to wait on a reconnect')
       await Relays.shot('s137-remove-confirm', runDir)
 
       await Relays.click({ name: 'Cancel' })
       await Relays.waitText('Family relay', 8000)
+    })
+
+    // REGRESSION (FIX-RELAY-REMOVE-1: removing a private relay asked for a restart, though the member
+    // identity is presented to that relay alone and is idle once it is not dialled.)
+    await r.ok('removing a private relay takes effect at once, with no restart asked for', async () => {
+      await Relays.click({ name: 'Options for Family relay' })
+      await new Promise((res) => setTimeout(res, 400))
+      await Relays.click({ name: 'Remove' })
+      await Relays.waitText('Remove Family relay?', 8000)
+      await Relays.click({ name: 'Remove' })
+      await waitFor(async () => await Relays.has({ name: 'Add relay' }), 15000, 'the empty slot')
+      // The notice would land in the same commit that empties the slot; give it a beat to prove absence.
+      await new Promise((res) => setTimeout(res, 1500))
+      if (await Relays.hasText('It takes effect when Mirall reconnects')) throw new Error('a removal asked for a restart')
+      if (await Relays.has({ name: 'Reconnect now' })) throw new Error('a removal offered a restart')
+      if (await Relays.hasText('Family relay')) throw new Error('the relay is still configured')
+      await Relays.shot('s137-removed', runDir)
     })
   } catch {}
   return { pass: r.summary(), instances: [Relays] }

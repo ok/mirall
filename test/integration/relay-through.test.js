@@ -305,7 +305,8 @@ test('a saved private relay whose identity waits on a restart is not installed',
   t.is(getContentSwarm().relayThrough, null, 'direct until the restart')
 
   setRelayConfig('auto', { publicKey: KEY_B, kind: 'open', enabled: true }, { identityPending: true })
-  t.is(installConfiguredRelay().applied, 1, 'an open relay needs no identity, pending or not')
+  t.is(installConfiguredRelay().applied, 0, 'nor an open one: it would be dialled under the member identity')
+  t.is(getContentSwarm().relayThrough, null)
 
   setRelayConfig('auto', slot)
   t.is(installConfiguredRelay().applied, 1, 'installed once nothing is pending')
