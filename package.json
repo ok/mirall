@@ -71,7 +71,7 @@
     "eslint": "^9.39.5",
     "eslint-plugin-jsx-a11y": "^6.10.2",
     "globals": "^17.13.0",
-    "hyperdht": "~6.32.0",
+    "hyperdht": "~6.36.0",
     "hyperdrive": "13.3.4",
     "i18next": "^26.7.2",
     "knip": "^6.45.1",
@@ -119,6 +119,6 @@
     "z32": "^1.1.0"
   },
   "overrides": {
-    "hyperdht": "~6.32.0"
+    "hyperdht": "~6.36.0"
   }
 }
