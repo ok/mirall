@@ -1,8 +1,8 @@
 import test from 'brittle'
-import { assembleRuntimeConfig, flagsToRuntimeConfig } from '../../src/shared/core/runtime-config-sources.js'
+import { assembleRuntimeConfig, flagsToRuntimeConfig, testRunToRuntimeConfig } from '../../src/shared/core/runtime-config-sources.js'
 import { defaultSettings, coerceSettings } from '../../src/shared/core/settings-rules.js'
 import { sanitizeRelay } from '../../src/shared/network/relay-slot.js'
-import { setRuntimeConfig, getRuntimeConfig, getBandwidthLimits, getRelayConfig, isMembershipControlBindingEnforced } from '../../src/shared/core/runtime-config.js'
+import { setRuntimeConfig, getRuntimeConfig, getBandwidthLimits, getRelayConfig, isMembershipControlBindingEnforced, isTransferTraceOn, getTestRunName } from '../../src/shared/core/runtime-config.js'
 
 const deps = { sanitizeRelay, recentLimit: 3 }
 
@@ -49,4 +49,41 @@ test('the assembly carries the host facts through untouched', (t) => {
   t.is(out.identityKEK, 'ab', 'the secret rides through to boot, which consumes it')
   t.is(out.defaultDownloadFolder, '/dl')
   t.is(out.downloadFolder, null, 'no stored folder: the default decides')
+})
+
+test('the test run file names a run and turns the trace on, and anything else in it is nothing', (t) => {
+  t.alike(testRunToRuntimeConfig({ run: 'R3', trace: true }), { testRunName: 'R3', transferTrace: true })
+  t.alike(testRunToRuntimeConfig({ run: 'R3' }), { testRunName: 'R3' }, 'a run alone does not trace')
+  t.alike(testRunToRuntimeConfig({ run: '../etc', trace: 'yes', downloadKBps: 1 }), {}, 'a malformed name, a truthy non-boolean and an unknown key')
+  for (const absent of [null, undefined, [], 'R3', 7]) t.alike(testRunToRuntimeConfig(absent), {})
+})
+
+// A lever is a value the engine or the kernel is then handed as it stands, so a mistyped file must
+// not reach either: each lever is a whole number in its range or it is not there.
+test('the test run file sets the transfer levers, each only in its range', (t) => {
+  const all = { inflightCap: 16, stashBytes: 0, recvBufferBytes: 4194304, sendBufferBytes: 2097152, pathCheck: true, pathCheckBytes: 1073741824 }
+  const out = testRunToRuntimeConfig({ run: 'R4', ...all })
+  t.alike(out, { testRunName: 'R4', transferLevers: all })
+  t.ok(Object.isFrozen(out.transferLevers))
+  t.alike(testRunToRuntimeConfig({ inflightCap: 2 }), { transferLevers: { inflightCap: 2 } }, 'one lever alone')
+  const bad = { inflightCap: 0, stashBytes: -1, recvBufferBytes: 1024, sendBufferBytes: 1e12, pathCheck: 'yes', pathCheckBytes: 5 }
+  t.alike(testRunToRuntimeConfig(bad), {}, 'out of range, and a truthy non-boolean')
+  t.alike(testRunToRuntimeConfig({ inflightCap: 2.5, stashBytes: '16', recvBufferBytes: NaN, pathCheckBytes: Infinity }), {}, 'not a whole number')
+})
+
+test('no test run file leaves the app as shipped; the bootstrap still wins over one', (t) => {
+  const saved = getRuntimeConfig()
+  t.teardown(() => setRuntimeConfig(saved))
+  const settings = coerceSettings(null, deps)
+
+  setRuntimeConfig(assembleRuntimeConfig({ bootstrap: { storage: '/s' }, settings, flags: {} }))
+  t.absent(isTransferTraceOn(), 'off by default')
+  t.is(getTestRunName(), null)
+
+  setRuntimeConfig(assembleRuntimeConfig({ bootstrap: { storage: '/s' }, settings, flags: {}, testRun: { run: 'R1', trace: true } }))
+  t.ok(isTransferTraceOn())
+  t.is(getTestRunName(), 'R1')
+
+  setRuntimeConfig(assembleRuntimeConfig({ bootstrap: { storage: '/s', transferTrace: false }, settings, flags: {}, testRun: { run: 'R1', trace: true } }))
+  t.absent(isTransferTraceOn(), 'the bootstrap beats the file')
 })

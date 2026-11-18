@@ -174,3 +174,13 @@ test('a private relay is not installed while its identity waits on a restart', (
   t.is(installableRelay(openSlot, true), openSlot, 'an open relay needs no identity')
   t.is(installableRelay(null, true), null)
 })
+
+// REGRESSION (FIX-RELAY-REMOVE-2: an open relay was dialled under a member identity before the
+// restart.) A node that booted with a member identity presents it on every relay dial, so while its
+// restart is pending no relay is installed at all; an unpinned node installs an open relay at once.
+test('REGRESSION (FIX-RELAY-REMOVE-2: an open relay was dialled under a member identity before the restart)', (t) => {
+  const openSlot = { publicKey: KEY_A, kind: 'open', enabled: true }
+  t.is(installableRelay(openSlot, true, true), null, 'held back until the restart')
+  t.is(installableRelay(openSlot, false, true), openSlot, 'nothing pending: the identity is the slot\'s own')
+  t.is(installableRelay(openSlot, true, false), openSlot, 'an unpinned node presents no member identity')
+})

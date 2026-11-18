@@ -21,6 +21,7 @@ import { forgetSpaceRecord, markSpaceLeavingDurable, persistPendingLeave, purgeS
 import { runLeaveTeardown } from '../../shared/spaces/membership/leave-state.js'
 import { forgetUnreferencedPeerCores } from '../../shared/storage/leftover.js'
 import { purgeOwnRetiredDrive } from '../../shared/storage/retired-drive-cores.js'
+import { looseForgetSpace } from '../../shared/transfer/overlay/loose-publish.js'
 import { cancelSpaceDownloads } from '../../shared/transfer/overlay/share-downloads.js'
 import { cleanupDownloadHistory } from '../../shared/transfer/files.js'
 import { clearPendingForSpace } from '../../shared/transfer/pending-transfers.js'
@@ -101,6 +102,7 @@ function liveLeaveSteps(spaceId, { mounts, log, onPhase, rosterKeys }) {
       // Awaited: a cancelled publish still writes its revert on the next chunk boundary, and
       // that write must land before the purge below closes the catalog core.
       await stopPublishingForSpace(spaceId)
+      looseForgetSpace(spaceId)
     },
     // Retire our share advertisements (deletedAt), like the unshare path. Without this our
     // profile bee keeps advertising share/<S>/<id>, so on a rejoin a co-member reads it back
@@ -172,7 +174,7 @@ export function registerSpaceLeave(ipc, { log, mounts, overlayBackend, discardPe
       return { ok: true }
     }
 
-    closeMemberView(msg.spaceId)
+    const memberViewClosed = closeMemberView(msg.spaceId)
     log.info('leave starting:', msg.spaceId)
     // markSpaceLeaving already set above (before the getSpace await) so files:list reads short-circuit.
 
@@ -251,6 +253,9 @@ export function registerSpaceLeave(ipc, { log, mounts, overlayBackend, discardPe
         }
         await purgeSpace(msg.spaceId)
         tracker.phase = 'forgetUnreferencedPeerCores'
+        // The view's sessions on the members' profile cores close first: a purge keeps a core
+        // that is still open.
+        await memberViewClosed
         try { await forgetUnreferencedPeerCores(members) } catch (err) {
           log.warn('leave: peer-core gc failed:', errorMessage(err))
         }

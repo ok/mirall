@@ -51,6 +51,58 @@ test('a staged update stays ready through later passes until a newer one downloa
   t.is(run([{ type: 'downloading' }], ready).state, 'downloading')
 })
 
+const downloading = run([{ type: 'pass-start' }, { type: 'downloading' }])
+const progress = (fraction, peers = 1) => ({ type: 'progress', fraction, peers })
+
+test('a download reports whole percent, and nothing until it has been sized', (t) => {
+  t.is(downloading.progress, null)
+  t.is(run([progress(null)], downloading).progress, null)
+  t.is(run([progress(0)], downloading).progress, 0, 'a sized download that has fetched nothing is at 0%')
+  t.is(run([progress(0.429)], downloading).progress, 42)
+})
+
+test('a download never reads as complete before the update is staged', (t) => {
+  t.is(run([progress(0.99)], downloading).progress, 99)
+  t.is(run([progress(1)], downloading).progress, 99)
+})
+
+test('a download with no peer left is waiting and keeps its position', (t) => {
+  const s = run([progress(0.5), progress(0.5, 0)], downloading)
+  t.is(s.waitingForPeers, true)
+  t.is(s.progress, 50)
+  t.is(run([progress(0.5, 2)], s).waitingForPeers, false)
+})
+
+test('progress outside a download changes nothing', (t) => {
+  t.is(reduceUpdateStatus(on, progress(0.5), NOW), on)
+  const ready = run([{ type: 'ready', version: '1.13.0' }])
+  t.is(reduceUpdateStatus(ready, progress(0.5), NOW), ready)
+})
+
+test('progress ends with the download', (t) => {
+  const mid = run([progress(0.5, 0)], downloading)
+  for (const end of [{ type: 'ready', version: '1.13.0' }, { type: 'pass-failed' }]) {
+    const s = run([end], mid)
+    t.is(s.progress, null, end.type)
+    t.is(s.waitingForPeers, false, end.type)
+  }
+})
+
+test('a newer download over a staged update starts its progress afresh', (t) => {
+  const s = run([progress(0.5), { type: 'ready', version: '1.13.0' }, { type: 'downloading' }], downloading)
+  t.is(s.state, 'downloading')
+  t.is(s.progress, null)
+  t.is(run([progress(0.1)], s).progress, 10)
+})
+
+test('the store notifies once per whole percent, not once per measurement', (t) => {
+  const store = createUpdateStatus(downloading)
+  const seen = []
+  store.subscribe((s) => seen.push(s.progress))
+  for (const fraction of [0.101, 0.104, 0.109, 0.11, 0.119]) store.dispatch(progress(fraction))
+  t.alike(seen, [10, 11])
+})
+
 test('the store notifies only on a change', (t) => {
   const store = createUpdateStatus(on)
   const seen = []

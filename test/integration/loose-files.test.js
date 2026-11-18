@@ -10,7 +10,7 @@ import { initOverlay, teardownOverlay } from '../../src/shared/transfer/overlay/
 import { initDownloads, markOwnedSource, getOwnedSourcePath } from '../../src/shared/transfer/files.js'
 import { addFile, removeFile, listFiles } from '../../src/shared/transfer/file-listing.js'
 import { initPendingTransfers } from '../../src/shared/transfer/pending-transfers.js'
-import { MAX_LOOSE_FILES_PER_SPACE } from '../../src/shared/transfer/overlay/loose-publish.js'
+import { MAX_LOOSE_FILES_PER_SPACE, initLoosePublish, looseForgetSpace } from '../../src/shared/transfer/overlay/loose-publish.js'
 import { sweepOwnedPresence } from '../../src/shared/transfer/overlay/overlay-maintenance.js'
 import { LOOSE_SHARE_ID } from '../../src/shared/transfer/transfer-id.js'
 import { initLooseIpc } from '../helpers/overlay-ipc.js'
@@ -125,4 +125,29 @@ test('createSpace publishes the canonical (suffixed) loose-catalog key', async (
   dropOwnCatalog(ctx.spaceId) // clear the ownCatalogs cache → re-derive from the saved record (simulates a restart)
   const canonical = await ownCatalogKeyHex(ctx.spaceId)
   t.is(published, canonical, 'published key matches the canonical (suffixed) catalog core')
+})
+
+test('REGRESSION (FIX-WATCH-2: leaving a space disarms its loose-file watches)', async (t) => {
+  const ctx = await setup(t)
+  const armed = new Set()
+  const key = (spaceId, abs) => spaceId + '|' + abs
+  initLoosePublish({
+    ipc: ctx.fake.ipc,
+    watchers: {
+      watchLoose: (spaceId, abs) => armed.add(key(spaceId, abs)),
+      unwatchLoose: (spaceId, abs) => armed.delete(key(spaceId, abs)),
+    },
+  })
+  const other = (await createSpace('Borealis')).spaceId
+  const abs = writeSource(ctx, 'a.txt', 'x')
+  await addFile(ctx.spaceId, abs, 'a.txt', 1, ctx.fake.ipc)
+  await addFile(other, abs, 'a.txt', 1, ctx.fake.ipc)
+  t.ok(armed.has(key(ctx.spaceId, abs)) && armed.has(key(other, abs)), 'precondition: armed in both spaces')
+
+  looseForgetSpace(ctx.spaceId)
+  t.absent(armed.has(key(ctx.spaceId, abs)), 'the left space no longer watches the file')
+  t.ok(armed.has(key(other, abs)), 'another space keeps its watch')
+
+  await addFile(ctx.spaceId, abs, 'a.txt', 1, ctx.fake.ipc)
+  t.ok(armed.has(key(ctx.spaceId, abs)), 'a re-join can arm the watch again')
 })

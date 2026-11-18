@@ -10,6 +10,7 @@ test('a short data directory listens and locks in its own run directory', (t) =>
     t.alike(paths, {
       runDir: '/home/u/.config/Mirall/run',
       lock: '/home/u/.config/Mirall/run/daemon.lock',
+      record: '/home/u/.config/Mirall/run/daemon.json',
       socket: '/home/u/.config/Mirall/run/daemon.sock',
       socketDir: '/home/u/.config/Mirall/run',
     }, platform)
@@ -22,6 +23,7 @@ test('a socket path past sun_path moves under the temp root, named by the store;
   t.is(paths.socket, '/tmp/mirall-501/' + HASH.slice(0, 16) + '.sock')
   t.is(paths.socketDir, '/tmp/mirall-501')
   t.is(paths.lock, dataDir + '/run/daemon.lock')
+  t.is(paths.record, dataDir + '/run/daemon.json', 'the record stays with the lock, not with the socket')
 })
 
 test('the limit is counted in bytes, not characters', (t) => {
@@ -37,6 +39,7 @@ test('Windows names a pipe per store and keeps the lock beside it', (t) => {
   const a = socketPaths({ ...base, platform: 'win32', dataDir: 'C:\\Users\\u\\AppData\\Roaming\\Mirall' })
   t.is(a.socket, '\\\\.\\pipe\\mirall-' + HASH.slice(0, 32))
   t.is(a.socketDir, null)
+  t.is(a.record, 'C:\\Users\\u\\AppData\\Roaming\\Mirall\\run\\daemon.json')
   t.is(a.lock, 'C:\\Users\\u\\AppData\\Roaming\\Mirall\\run\\daemon.lock')
   const b = socketPaths({ ...base, storageHash: 'cd'.repeat(32), platform: 'win32', dataDir: 'C:\\x' })
   t.not(b.socket, a.socket, 'another store, another pipe')

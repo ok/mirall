@@ -8,16 +8,28 @@ import { createLogger } from '../core/logger.js'
 const log = createLogger('core-purge')
 const { store: keysStore, core: keysCore } = keysMod
 
-// Deletes the core's alias (TL_CORE_BY_DKEY), TL_CORE range, and TL_DATA
-// range. hypercore-storage's built-in deleteCore short-circuits when auth
-// is missing, which leaves zombie aliases behind and crashes later opens
-// with unslab / STORAGE_EMPTY. Writing the deletions directly avoids that.
+// The in-memory core corestore hands every later get() of this discovery key, or null. Deleting
+// the rows under it leaves a core whose bitfield claims blocks that are gone: its reads stall until
+// the process restarts.
+function openCore(cs, dkHex) {
+  return cs.cores.get(dkHex)
+}
+
+// Deletes a core's storage and reports whether it did. A core this process holds open is never
+// deleted under its holder: corestore's own purge refuses one with a live session (kept, false),
+// and closes an idle one, replication included, before deleting it. A kept core is a leftover for
+// the boot sweep (cleanupOrphanedData). A core that is not open has its alias (TL_CORE_BY_DKEY),
+// TL_CORE range and TL_DATA range deleted directly: hypercore-storage's built-in deleteCore
+// short-circuits when auth is missing, which leaves zombie aliases behind and crashes later opens
+// with unslab / STORAGE_EMPTY.
 export async function purgeCoreDk(cs, dkHex) {
   const dkBuf = b4a.from(dkHex, 'hex')
+  if (openCore(cs, dkHex)) return purgeOpenCore(cs, dkBuf, dkHex)
   const storage = await cs.storage.resumeCore(dkBuf)
-  if (!storage) return
+  if (!storage) return false
   const { corePointer, dataPointer } = storage.core
   try {
+    if (openCore(cs, dkHex)) return purgeOpenCore(cs, dkBuf, dkHex)
     const tx = cs.storage.db.write({ autoDestroy: true })
     tx.tryDelete(keysStore.core(dkBuf))
     tx.tryDeleteRange(keysCore.core(corePointer), keysCore.core(corePointer + 1))
@@ -27,6 +39,17 @@ export async function purgeCoreDk(cs, dkHex) {
     try { await storage.close() } catch {}
   }
   log.info('deleted core, dk:', dkHex.slice(0, 12))
+  return true
+}
+
+async function purgeOpenCore(cs, dkBuf, dkHex) {
+  const purged = await cs.purge({ discoveryKey: dkBuf })
+  if (purged.length === 0) {
+    log.warn('kept a core still open in this process, dk:', dkHex.slice(0, 12))
+    return false
+  }
+  log.info('closed and deleted core, dk:', dkHex.slice(0, 12))
+  return true
 }
 
 // Reclaim a writable core's on-disk bytes: clear its blocks (which registers

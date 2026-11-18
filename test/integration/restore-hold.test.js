@@ -12,6 +12,8 @@ import { sealRecoveryKey, ownRecoveryIdentity } from '../../src/shared/core/stor
 import { FolderTarget } from '../../src/shared/storage/backup/folder-target.js'
 import { writeFolderKey } from '../../src/shared/storage/backup/folder-key.js'
 import { registerIdentity } from '../../src/worker/ipc/identity.js'
+import { createKeyWait } from '../../src/worker/key-wait.js'
+import { AppError } from '../../src/shared/core/errors.js'
 import { registerProfile } from '../../src/worker/ipc/profile.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { getSpace, mutateSpace } from '../../src/shared/spaces/space.js'
@@ -24,6 +26,28 @@ import { createPassphraseThrottle, buildRecoveryFile, identityPublicKeyHex } fro
 
 const quiet = { debug() {}, info() {}, warn() {}, error() {} }
 const KEK = b4a.toString(crypto.randomBytes(32), 'hex')
+
+// The key wait the worker's identity handlers follow, in the state a test needs: open, or locked by a
+// key that could not open the identity. Opening again after a recovery is left to the test, which
+// boots the root itself.
+async function keyWaitIn(state) {
+  let opens = 0
+  const wait = createKeyWait({
+    open: async () => {
+      if (state === 'locked' && ++opens === 1) throw new AppError('IDENTITY_UNLOCK_FAILED', 'identity unlock failed')
+      return null
+    },
+  })
+  await wait.unlock({ kek: KEK, relaySeed: null }).catch(() => {})
+  return wait
+}
+
+async function identityHandlers(ipc, storage, state) {
+  const wait = await keyWaitIn(state)
+  registerIdentity(ipc, {
+    storagePath: storage, identityKEK: () => wait.key?.kek, log: quiet, lockedBy: () => wait.code, recover: wait.recover, openRecovery: createPassphraseThrottle(),
+  })
+}
 const PASS = 'a long enough passphrase'
 const KEY_AT = '2026-10-01T00:00:00.000Z'
 
@@ -130,7 +154,7 @@ test('a backup\'s key never unlocks an identity in use', async (t) => {
   const { storage, config } = home(t)
   const { fake } = await bootRoot(t, config, { masterSecret: crypto.randomBytes(32) })
   await setProfile({ displayName: 'In use' })
-  registerIdentity(fake.ipc, { storagePath: storage, identityKEK: () => KEK, log: quiet, lockedBy: () => null, openRecovery: createPassphraseThrottle() })
+  await identityHandlers(fake.ipc, storage, 'open')
   t.is(await codeOf(fake.call('identity:unlock-from-backup', { folder: backupFolder(t), passphrase: PASS })), 'NOT_AUTHORIZED')
 })
 
@@ -166,7 +190,7 @@ test('the backup\'s key unlocks its own data in place on a locked device: held, 
   await first.root.close()
 
   const locked = createFakeIpc()
-  registerIdentity(locked.ipc, { storagePath: storage, identityKEK: () => KEK, log: quiet, lockedBy: () => 'IDENTITY_UNLOCK_FAILED', openRecovery: createPassphraseThrottle() })
+  await identityHandlers(locked.ipc, storage, 'locked')
   t.is(await codeOf(locked.call('identity:unlock-from-backup', { folder, passphrase: 'not the passphrase' })), 'WRONG_PASSPHRASE')
   t.alike(await locked.call('identity:unlock-from-backup', { folder, passphrase: PASS }), { unlocked: true })
   t.ok(fs.existsSync(path.join(dataDir, RESTORE_HOLD_FILE)), 'held even over its own data, which may be an older copy')
@@ -189,7 +213,7 @@ test('another identity\'s backup leaves a locked device\'s data to a restore', a
   await keepKey(folder, await buildRecoveryFile({ master: other }, PASS, { createdAt: KEY_AT }), identityPublicKeyHex(other))
 
   const locked = createFakeIpc()
-  registerIdentity(locked.ipc, { storagePath: storage, identityKEK: () => KEK, log: quiet, lockedBy: () => 'IDENTITY_UNLOCK_FAILED', openRecovery: createPassphraseThrottle() })
+  await identityHandlers(locked.ipc, storage, 'locked')
   t.alike(await locked.call('identity:unlock-from-backup', { folder, passphrase: PASS }), { unlocked: false })
   t.absent(fs.existsSync(path.join(dataDir, RESTORE_HOLD_FILE)), 'nothing adopted')
 })

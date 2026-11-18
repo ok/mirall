@@ -3,6 +3,7 @@
 // timers, the resume passes for both mount kinds, and the probe that notices a mount point or a
 // download root appearing or disappearing. A Subsystem: the maps are instance state, the probe
 // rides `this.timers`, and _close is the bulk stop.
+import { timedJob } from '../shared/core/job-timing.js'
 import { daemonPaths } from '../shared/contract/paths.js'
 /** @import { PauseIndexResult, ResumeIndexResult } from '../shared/contract/responses.js' */
 import { MOUNT_STATUS, MIRROR_STATE } from '../shared/contract/statuses.js'
@@ -56,8 +57,8 @@ export class MountsRuntime extends Subsystem {
     await this._resumeOwnedMounts()
     await this._resumeForeignMounts()
     this.timers.setInterval(() => {
-      this.probeMountPoints().catch((err) => this.log.debug('mount probe failed:', err.message))
-      try { this.probeDownloadRoots() } catch (err) { this.log.debug('download-root probe failed:', err.message) }
+      timedJob('mount-probe', () => this.probeMountPoints()).catch((err) => this.log.debug('mount probe failed:', err.message))
+      try { timedJob('download-root-probe', () => this.probeDownloadRoots()) } catch (err) { this.log.debug('download-root probe failed:', err.message) }
     }, MOUNT_PROBE_INTERVAL_MS)
   }
 

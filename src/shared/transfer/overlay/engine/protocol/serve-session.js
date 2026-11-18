@@ -26,8 +26,9 @@ const KEEPALIVE_INTERVAL_MS = 5000
 
 export class ServeSession {
   // `contentHashPaths` maps a hash to the file that serves it; `fileIndex` holds the chunk maps;
-  // `transfer.prepareFile` chunks a file that has none yet.
-  constructor({ fileIndex, transfer, contentHashPaths, grants, fds, drain, uploadLimiter = null, keepAliveInterval, callbacks: { onServeStart = null, onChunkServe = null, onServeControl = null, onServeProgress = null } = {} }) {
+  // `transfer.prepareFile` chunks a file that has none yet. `onTrace(kind, fields)` hears a drain
+  // wait that was abandoned.
+  constructor({ fileIndex, transfer, contentHashPaths, grants, fds, drain, uploadLimiter = null, keepAliveInterval, onTrace = null, callbacks: { onServeStart = null, onChunkServe = null, onServeControl = null, onServeProgress = null } = {} }) {
     this._fileIndex = fileIndex
     this._transfer = transfer
     this._contentHashPaths = contentHashPaths
@@ -45,6 +46,10 @@ export class ServeSession {
     // Per peer, the tail of its chunk loops: the next request starts once the one before it ends.
     /** @type {WeakMap<object, Promise<void>>} */
     this._loops = new WeakMap()
+    this._onTrace = onTrace
+    // Per peer with a serve running or done, what serving it has cost: forgotten when it closes.
+    /** @type {Map<object, { queued: number, chunks: number, bytes: number, readMs: number, drainMs: number, drainWaits: number }>} */
+    this._stats = new Map()
   }
 
   async onContentRequest(peer, msg) {
@@ -81,10 +86,15 @@ export class ServeSession {
   // by sending chunkNeed without passing the serve gate.
   onChunkNeed(peer, msg) {
     const prev = this._loops.get(peer) ?? Promise.resolve()
+    const stats = this._statsFor(peer)
+    stats.queued++
     const run = prev.then(() => this._chunkLoop(peer, msg))
     const tail = run.catch(() => {})
     this._loops.set(peer, tail)
-    tail.then(() => { if (this._loops.get(peer) === tail) this._loops.delete(peer) })
+    tail.then(() => {
+      stats.queued--
+      if (this._loops.get(peer) === tail) this._loops.delete(peer)
+    })
     return run
   }
 
@@ -126,6 +136,17 @@ export class ServeSession {
     peer.uploadStream = null
   }
 
+  // Each served peer's counts.
+  snapshot() { return [...this._stats].map(([peer, stats]) => ({ peer, ...stats })) }
+
+  forgetStats(peer) { this._stats.delete(peer) }
+
+  _statsFor(peer) {
+    let stats = this._stats.get(peer)
+    if (!stats) this._stats.set(peer, (stats = { queued: 0, chunks: 0, bytes: 0, readMs: 0, drainMs: 0, drainWaits: 0 }))
+    return stats
+  }
+
   /** @internal */
   servedPath(contentHash) { return this._served.get(contentHash) ?? null }
 
@@ -158,16 +179,28 @@ export class ServeSession {
   // one Noise stream. A chunk waits for a backpressured stream to drain before it is sent, whichever
   // loop sent the bytes that filled it, or a peer mid-download never sees a new share.
   async _serveOne(peer, synthPath, index, chunk, diskPath) {
+    const stats = this._statsFor(peer)
     if (peer.channel && peer.channel.drained === false) {
-      if (!(await this._drain.wait(peer))) return false
+      const waitStart = Date.now()
+      const drained = await this._drain.wait(peer)
+      stats.drainWaits++
+      stats.drainMs += Date.now() - waitStart
+      if (!drained) {
+        if (this._onTrace) { try { this._onTrace('drain-abandoned', { peer }) } catch {} }
+        return false
+      }
       if (!(await this._grants.stillAuthorized(peer, synthPath))) return false
     }
+    const readStart = Date.now()
     const data = await this._fds.read(peer, diskPath, chunk)
+    stats.readMs += Date.now() - readStart
     if (peer.channel?.closed) return false
     if (!data) return true
     if (!(await this._grants.stillAuthorized(peer, synthPath))) return false
     if (!(await this._pay(peer, synthPath, index, data.length))) return false
     peer.msgs.chunkData.send({ path: synthPath, index, data })
+    stats.chunks++
+    stats.bytes += data.length
     if (this._onChunkServe) {
       try { this._onChunkServe({ path: synthPath, index, bytes: data.length, peer, from: this._grants.fromOf(peer, contentHashOf(synthPath)).from }) } catch {}
     }

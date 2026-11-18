@@ -590,13 +590,14 @@ async function decideDeny(space, joinerKey) {
 /** @param {string} spaceId @param {'join-discarded' | 'join-denied'} [kind] */
 async function discardPendingSpace(spaceId, kind = 'join-discarded') {
   markSpaceLeaving(spaceId)
-  closeMemberView(spaceId)
+  const memberViewClosed = closeMemberView(spaceId)
   try {
     const space = await getSpace(spaceId)
     try { await leaveSpaceTopic(spaceId) } catch (err) { log.warn('discard pending: leave topic failed:', errorMessage(err)) }
     try { disconnectPeersFromSpace(spaceId) } catch (err) { log.warn('discard pending: peer disconnect failed:', errorMessage(err)) }
     try { await purgeSpace(spaceId, { kind }) } catch (err) { log.warn('discard pending: remove failed:', errorMessage(err)) }
     dropSpaceDownloadRoot(spaceId)
+    await memberViewClosed
     try { await forgetUnreferencedPeerCores(space?.members || []) } catch (err) { log.warn('discard pending: peer-core gc failed:', errorMessage(err)) }
   } finally {
     unmarkSpaceLeaving(spaceId)
@@ -629,13 +630,17 @@ async function joinedSpace(spaceId) {
   return space
 }
 
-// Registers the renderer-facing half and returns the two collaborators boot() needs.
+// Returns the collaborators boot() needs, and `serve`, which registers the renderer-facing half:
+// called once the identity is open, so a decision never reaches a data layer that is still booting.
 /** @param {WorkerIpc} ipcRef @param {{ log: Logger, dropSpaceDownloadRoot: (spaceId: string) => void }} deps */
 export function createMembership(ipcRef, deps) {
   ipc = ipcRef
   log = deps.log
   dropSpaceDownloadRoot = deps.dropSpaceDownloadRoot
+  return { memberRegistry, handleMembershipControl, discardPendingSpace, serve }
+}
 
+function serve() {
   ipc.handle('space:approve-member', async (msg) => {
     assertProfileWritable()
     const space = await joinedSpace(msg.spaceId)
@@ -668,6 +673,4 @@ export function createMembership(ipcRef, deps) {
     const memberKeys = new Set(verifiedMembers(space?.members).map(m => m.publicKey))
     return listPendingRequests(msg.spaceId, memberKeys)
   })
-
-  return { memberRegistry, handleMembershipControl, discardPendingSpace }
 }

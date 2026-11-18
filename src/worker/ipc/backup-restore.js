@@ -1,12 +1,15 @@
 // @ts-check
 // Restoring from a backup folder: the snapshots its key can open, and one of them staged to
-// replace this device's data when the worker restarts. Offered where a recovery key is — a locked
-// identity, or one nobody has used yet — and never over an identity in use. The old installation is
-// taken to be gone: its lease is cleared so this device can keep backing up into the same folder.
+// replace this device's data. Offered where a recovery key is — a locked identity, or one nobody has
+// used yet — and never over an identity in use. A locked worker puts the staged restore in place and
+// opens it before it answers (key-wait.js); an unused identity's store is open, so its restore is put
+// in place when the worker restarts. The old installation is taken to be gone: its lease is cleared
+// so this device can keep backing up into the same folder.
 
 /** @import { WorkerIpc } from '../../shared/core/ipc.js' */
 /** @import { Logger } from '../../shared/core/logger.js' */
 /** @import { IdentityLockCode } from '../../shared/contract/errors.js' */
+/** @import { Recover } from '../key-wait.js' */
 import fs from 'bare-fs'
 import { requireHost } from '../../shared/core/client-trust.js'
 import { wipeSecret } from '../../shared/core/identity-recovery.js'
@@ -36,9 +39,9 @@ function isFolder(folder) {
 
 /**
  * @param {WorkerIpc} ipc
- * @param {{ storagePath: string, identityKEK: () => string | null | undefined, log: Logger, lockedBy: () => IdentityLockCode | null, openRecovery: (text: string, passphrase: string) => Promise<{ masterSecret: Uint8Array }> }} deps
+ * @param {{ storagePath: string, identityKEK: () => string | null | undefined, log: Logger, lockedBy: () => IdentityLockCode | null, recover: Recover, openRecovery: (text: string, passphrase: string) => Promise<{ masterSecret: Uint8Array }> }} deps
  */
-export function registerBackupRestore(ipc, { storagePath, identityKEK, log, lockedBy, openRecovery }) {
+export function registerBackupRestore(ipc, { storagePath, identityKEK, log, lockedBy, recover, openRecovery }) {
   // One restore at a time: they share the staging folder.
   let queue = Promise.resolve()
 
@@ -81,8 +84,21 @@ export function registerBackupRestore(ipc, { storagePath, identityKEK, log, lock
     const own = getManagedOverlay()?.backup?.folder === folder ? null : { folder, repoId: repo.repoId }
     await updateSettings((s) => ({ ...applyRestoredSettings(s, settings, { folderUsable }), ...(own ? { backup: own } : {}) }))
     await requestRestore(storagePath, { hold })
-    log.info('backup: snapshot', snapshot, 'staged; the worker restarts to put it in place')
+    log.info('backup: snapshot', snapshot, 'staged')
     return settings
+  }
+
+  // A restore that failed part-way leaves nothing to put in place.
+  /** @param {string} folder @param {string} snapshot @param {Uint8Array} masterSecret */
+  async function restoreQueued(folder, snapshot, masterSecret) {
+    const turn = queue.then(() => restore(folder, snapshot, masterSecret))
+    queue = turn.then(() => {}, () => {})
+    try {
+      return await turn
+    } catch (err) {
+      cancelPendingRestore(storagePath)
+      throw err
+    }
   }
 
   // Before any passphrase: is there a backup in this folder, does it keep a key, and how recent is it.
@@ -115,14 +131,12 @@ export function registerBackupRestore(ipc, { storagePath, identityKEK, log, lock
     requireHost(ctx.client, 'only the host may restore a backup')
     await assertAllowed()
     const { masterSecret } = await openRecovery(await keyContent(folder), passphrase)
-    const turn = queue.then(() => restore(folder, snapshot, masterSecret))
-    queue = turn.then(() => {}, () => {})
     try {
-      return /** @type {const} */ ({ ok: true, settings: await turn })
-    } catch (err) {
-      // A restore that failed part-way leaves nothing for the next boot to apply.
-      cancelPendingRestore(storagePath)
-      throw err
+      if (!isRecoverableLock(lockedBy())) return /** @type {const} */ ({ ok: true, settings: await restoreQueued(folder, snapshot, masterSecret) })
+      return await recover(async () => ({
+        reply: /** @type {const} */ ({ ok: true, settings: await restoreQueued(folder, snapshot, masterSecret) }),
+        reopen: true,
+      }), 'a backup is restored only over a locked or unused identity')
     } finally {
       wipeSecret(masterSecret)
     }

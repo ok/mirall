@@ -28,6 +28,7 @@ import { useConnectionStatus } from '../../hooks/useConnectionStatus.js'
 import { useRelayApply } from '../../hooks/useRelayApply.js'
 import { useRunAction } from '../../hooks/useRunAction.js'
 import { peersRelayingWhileOff, relayKindClasses } from '../../model/relay-groups.js'
+import { restartOwed } from '../../model/relay-apply.js'
 import ManagedField from '../../components/managed/ManagedField.js'
 import ManagedNote from '../../components/managed/ManagedNote.js'
 import { useManagedSetting } from '../../hooks/useManagedSetting.js'
@@ -58,8 +59,8 @@ export default function RelaySettingsSection() {
   const [relay, setSlot] = useState<RelaySlot | null>(null)
   const [testing, setTesting] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
-  // Both acts erase the member seed, and neither is recoverable without a new invite, so both
-  // are confirmed. An OPEN relay has no seed and a public, re-pasteable key — confirming that
+  // Both acts erase the member seed, and neither is recoverable without the invite link again, so
+  // both are confirmed. An OPEN relay has no seed and a public, re-pasteable key — confirming that
   // would be a nag, which is why Remove already branches on kind.
   const [confirm, setConfirm] = useState<'remove' | 'replace' | null>(null)
   const reconnectPending = useSyncExternalStore(subscribeRelaySession, isReconnectPending, isReconnectPending)
@@ -93,6 +94,7 @@ export default function RelaySettingsSection() {
   // is built) and waits for a restart the user asks for; until then the probe honestly reports
   // Unreachable, because the worker really is still presenting its old identity. While that
   // restart is pending the worker installs no private relay, and a reconnect cannot apply one.
+  // A removal applies live and owes no restart (model/relay-apply.js restartOwed).
   const commit = useCallback(async (change: SlotChange): Promise<{ ok: true } | { ok: false; code: RelayParseErrorCode }> => {
     let slot: { publicKey: string; kind: 'open' | 'private'; label: string } | null | undefined
     if (change.relay !== undefined) {
@@ -108,7 +110,7 @@ export default function RelaySettingsSection() {
     }) as WorkerRelayApplyResult | null
     if (!applied) return { ok: false, code: 'save-failed' }
     if (alive.current) adopt({ relayMode: applied.network.relayMode, relay: applied.network.relay })
-    if (applied.identityChanged) setReconnectPending(true)
+    setReconnectPending(restartOwed({ pending: isReconnectPending(), removal: slot === null, identityChanged: applied.identityChanged }))
     // What the worker DID, not what it found: a change it applied itself needs no notice.
     if (alive.current) arm(applied)
     return { ok: true }
@@ -378,9 +380,10 @@ interface ConfirmRelayLossModalProps {
   onConfirm: () => void
 }
 
-// Both intents erase the member seed; only the sentence about what happens next differs. No
-// onConfirm on the Modal: an alert dialog rests on Cancel, and nothing that destroys an invite
-// may fire from a keypress the person did not aim at a button.
+// Both intents erase the member seed; only the sentence about what happens next differs, and only a
+// replacement waits on a restart — a removal takes effect at once. No onConfirm on the Modal: an
+// alert dialog rests on Cancel, and nothing that destroys an invite may fire from a keypress the
+// person did not aim at a button.
 function ConfirmRelayLossModal({ intent, name, onClose, onConfirm }: ConfirmRelayLossModalProps) {
   const { t } = useTranslation()
   if (!intent) return null
@@ -394,7 +397,7 @@ function ConfirmRelayLossModal({ intent, name, onClose, onConfirm }: ConfirmRela
       onClose={onClose}
       onConfirm={onConfirm}
     >
-      <Callout tone="warning" role="status">{t('networkSettings.relays.restartWarningRemove')}</Callout>
+      {intent === 'replace' && <Callout tone="warning" role="status">{t('networkSettings.relays.restartWarningRemove')}</Callout>}
     </ConfirmDestructiveModal>
   )
 }

@@ -1,4 +1,4 @@
-import { useCallback, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ConfirmDestructiveModal from '../../components/modals/ConfirmDestructiveModal.js'
 import { request } from '../../ipc/ipc.js'
@@ -39,6 +39,11 @@ export default function ActivityLogSettings({ onBack, onOpenLog }: ActivityLogSe
   const org = useManaged()?.organization.name ?? null
   const purgeNoteId = useId()
   const purgeLocked = config?.deleteLocked === true
+
+  // A lock arriving ends the request: the confirm must not reopen on its own when the lock lifts.
+  useEffect(() => {
+    if (purgeLocked) setConfirmPurge(false)
+  }, [purgeLocked])
 
   const refresh = useCallback(async () => {
     await Promise.all([
@@ -156,7 +161,7 @@ export default function ActivityLogSettings({ onBack, onOpenLog }: ActivityLogSe
       </div>
 
       <ConfirmDestructiveModal
-        isOpen={confirmPurge && !purgeLocked}
+        isOpen={confirmPurge}
         title={t('activityLogSettings.deleteConfirmTitle')}
         body={t('activityLogSettings.deleteConfirmBody')}
         confirmLabel={t('activityLogSettings.deleteAction')}

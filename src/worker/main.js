@@ -51,14 +51,15 @@ import { setMountRootsListener } from '../shared/folders/mount-store.js'
 import { loadSettings, getSettings } from '../shared/core/settings-store.js'
 import { loadFeatureFlags } from '../shared/core/feature-flags.js'
 import { assembleRuntimeConfig } from '../shared/core/runtime-config-sources.js'
+import { loadTestRun } from '../shared/core/test-run-file.js'
 import { daemonPaths } from '../shared/contract/paths.js'
 import { createLogger } from '../shared/core/logger.js'
 import { installCrashBackstop } from '../shared/core/crash-backstop.js'
 import {
   WORKER_EXIT_UNSTABLE, WORKER_EXIT_PROTOCOL_MISMATCH, WORKER_EXIT_ORPHANED, WORKER_EXIT_ALREADY_RUNNING,
-  WORKER_EXIT_LISTEN_FAILED,
+  WORKER_EXIT_LISTEN_FAILED, WORKER_EXIT_BOOT_FAILED,
 } from '../shared/contract/exit-codes.js'
-import { CODES, IDENTITY_LOCK_CODES } from '../shared/contract/errors.js'
+import { CODES } from '../shared/contract/errors.js'
 import { bindConnectionLifecycle } from './connection-lifecycle.js'
 import { startListener } from './listener.js'
 import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../shared/contract/main-requests.js'
@@ -85,9 +86,10 @@ const ipc = createIPC(headless ? null : Bare.IPC)
 const log = createLogger('worklet')
 const packageRoot = path.resolve(path.dirname(Bare.argv[1]), '..', '..')
 
-// Started next to ipc.start() rather than here: before the router goes live the loop is busy with
-// boot I/O by design, and sampling that would report a wedge that is really just a large library
-// being opened.
+// Started with the router, wherever that happens first — while the worker waits for its key or is
+// locked as much as once the identity is open — so the sweeps below cover every client from the
+// moment it can connect. The lag it samples during a boot is the boot's own I/O; a client waiting
+// on that boot is exempt from the liveness sweep (ipc-liveness.js).
 // The worker's one periodic loop, so it carries the router's deadline and liveness sweeps too — a
 // second timer for those would be the parallel mechanism the supervisor already argues against.
 const health = createHealthMonitor({
@@ -98,17 +100,21 @@ const health = createHealthMonitor({
 })
 
 // Main authorizes "reveal in folder" against these — download roots and mount paths — and cannot
-// read the space or mount records that hold them, so the set is pushed to it on every change.
+// read the space or mount records that hold them, so the set is pushed to it on every change; a host
+// that did not spawn this worker is never pushed to and asks for it instead (folders:reveal-roots).
 // Main's copy is last-frame-wins, so one listing is in flight at a time and a change that lands
 // during it runs one more afterwards: a burst of mount deletes costs one scan, and no frame can
 // overtake a newer one. A listing that fails still publishes the download roots, so a narrowing is
 // never lost. Callers hand this on as a `() => void`.
+function currentRevealRoots() {
+  return listRevealRoots()
+    .catch((err) => { log.warn('reveal roots listing failed, using the download roots only:', err.message); return listDownloadRoots() })
+}
 let revealRootsListing = null
 let revealRootsDirty = false
 function publishRevealRoots() {
   if (revealRootsListing) { revealRootsDirty = true; return }
-  revealRootsListing = listRevealRoots()
-    .catch((err) => { log.warn('reveal roots listing failed, publishing download roots only:', err.message); return listDownloadRoots() })
+  revealRootsListing = currentRevealRoots()
     .then((roots) => {
       ipc.emit(MAIN_REQUEST_FRAME, { command: MAIN_REQUEST.REVEAL_ROOTS, args: daemonPaths({ roots }) })
       revealRootsListing = null
@@ -232,7 +238,9 @@ const flags = loadFeatureFlags(packageRoot, { override: bootstrap.featureFlags, 
 const settingsLoad = await loadSettings(bootstrap.storage)
 if (settingsLoad.imported) log.info('settings: imported from config.json')
 if (!settingsLoad.persisted) log.warn('settings: running on defaults, settings.json could not be', settingsLoad.broken ? 'read: ' + settingsLoad.broken : 'written')
-setRuntimeConfig(assembleRuntimeConfig({ bootstrap, settings: getSettings(), flags }))
+const { testRun, broken: testRunBroken } = loadTestRun(bootstrap.storage)
+if (testRunBroken) log.warn('test run file ignored:', testRunBroken)
+setRuntimeConfig(assembleRuntimeConfig({ bootstrap, settings: getSettings(), flags, testRun }))
 
 // The bootstrap frame carries the storage path, which is the first moment the worker
 // knows which directory to protect. Armed here, before boot() opens the Corestore, so every
@@ -263,19 +271,27 @@ armDataDirTripwire(bootstrap.storage)
 // One throttle for every request that opens a recovery file, locked worker or not.
 const openRecovery = createPassphraseThrottle()
 
-const { memberRegistry, handleMembershipControl, discardPendingSpace } =
+const { memberRegistry, handleMembershipControl, discardPendingSpace, serve: serveMembership } =
   createMembership(ipc, { log, dropSpaceDownloadRoot })
+
+// The key, the lock and the recoveries (key-wait.js). Every opening — the first key, a retry, and a
+// recovery on a locked worker — runs openIdentity, so a pending identity change is always put in
+// place before the store opens, and the worker goes live in the same process.
+const keyWait = createKeyWait({ open: openIdentity })
+const heldKEK = () => keyWait.key?.kek
 
 // The handlers a worker serves whether or not its identity opened: stopping it, the identity's own
 // surface, a restore from backup and the unlock. Registered once, before the boot, because what
-// they answer follows `lockedBy` and the key on the bootstrap, and an unlock changes both.
-let lockedBy = null
+// they answer follows the key wait's lock code and held key, which every attempt changes.
 registerWorkerProcess(ipc, { stop: () => { safeShutdown('shutdown-request') } })
 registerIdentity(ipc, {
-  storagePath: bootstrap.storage, identityKEK: () => bootstrap.identityKEK, log, lockedBy: () => lockedBy, openRecovery,
+  storagePath: bootstrap.storage, identityKEK: heldKEK, log, lockedBy: () => keyWait.code, recover: keyWait.recover, openRecovery,
   restoreStatus: () => root?.restoreCatchUp?.status() ?? null,
 })
-registerBackupRestore(ipc, { storagePath: bootstrap.storage, identityKEK: () => bootstrap.identityKEK, log, lockedBy: () => lockedBy, openRecovery })
+registerBackupRestore(ipc, {
+  storagePath: bootstrap.storage, identityKEK: heldKEK, log, lockedBy: () => keyWait.code, recover: keyWait.recover, openRecovery,
+})
+registerIdentityUnlock(ipc, { unlock: keyWait.unlock })
 
 // The root constructs everything it needs; the membership collaborators and publishRevealRoots
 // are passed in because they close over state that belongs here.
@@ -293,33 +309,31 @@ function bootDataLayer() {
   })
 }
 
-// A worker started without a host has no key until a client hands it over (key-wait.js). The key
-// is then the bootstrap's, so the boot is the one a spawned worker runs with the key it was sent;
-// a key that fails is taken back, and boot() has already closed what it started.
-const keyWait = createKeyWait({
-  awaiting: headless && !bootstrap.identityKEK,
-  boot: async ({ kek, relaySeed }) => {
-    bootstrap.identityKEK = kek
-    bootstrap.relaySeed = relaySeed
-    try {
-      return await bootDataLayer()
-    } catch (err) {
-      bootstrap.identityKEK = undefined
-      bootstrap.relaySeed = undefined
-      root = null
-      throw err
-    }
-  },
-})
-registerIdentityUnlock(ipc, { unlock: keyWait.unlock })
+// The key becomes the bootstrap's, so the boot is the one a host's key always ran. A store's files
+// cannot move under an open database, so a staged restore, a set-aside or an adopted identity is put
+// in place first; the settings a restore brought back reach the runtime config before the boot reads
+// it. A boot that fails has already closed what it started.
+/** @param {import('./key-wait.js').HandedKey} key */
+async function openIdentity({ kek, relaySeed }) {
+  bootstrap.identityKEK = kek
+  bootstrap.relaySeed = relaySeed ?? undefined
+  await applyPendingIdentityChange(bootstrap.storage)
+  setRuntimeConfig(assembleRuntimeConfig({ bootstrap, settings: getSettings(), flags, testRun }))
+  try {
+    root = await bootDataLayer()
+  } catch (err) {
+    root = null
+    throw err
+  }
+  goLive(root)
+  return root
+}
 
 // The router goes live with only the handlers above, and every client is told the worker is up and
 // reads why from identity:status. A key that cannot open this identity locks the worker instead of
-// crashing it: the renderer shows the recovery screen, and the store is free for a recovery key to
-// be checked against. That worker parks; the next generation, after an import or a set-aside, boots
-// normally.
-function serveRecoveryOnly(code) {
-  lockedBy = code
+// crashing it: the renderer shows the recovery screen, the store is free for a recovery key to be
+// checked against, and a recovery or another key opens it in place.
+function serveRecoveryOnly() {
   ipc.onClientAttach((client) => {
     ipc.emit('event:worker-ready', { epoch: ipc.epoch, head: ipc.head() }, { to: client })
   })
@@ -327,89 +341,108 @@ function serveRecoveryOnly(code) {
   ipc.start()
 }
 
-await applyPendingIdentityChange(bootstrap.storage)
-if (keyWait.awaiting) {
-  log.warn('waiting for the identity key (identity:unlock)')
-  serveRecoveryOnly(CODES.IDENTITY_AWAITING_KEY)
-  root = await keyWait.booted
-  lockedBy = null
-} else {
+// A key on the spawn frame is still honoured through 1.14.
+if (bootstrap.identityKEK) {
   try {
-    root = await bootDataLayer()
-  } catch (err) {
-    if (!IDENTITY_LOCK_CODES.includes(err?.code)) throw err
-    root = null
-    log.warn('identity locked, serving recovery only:', err.code)
-    serveRecoveryOnly(err.code)
-    await new Promise(() => {})
+    await keyWait.unlock({ kek: bootstrap.identityKEK, relaySeed: bootstrap.relaySeed ?? null })
+  } catch {
+    // Read below: a lock is the key wait's code, anything else fails its boot.
   }
 }
-const { mounts, intents, applyRelayConfig, overlayBackend } = root
-const mountOwnedShare = createOwnedMounter({ ipc, mounts })
+if (keyWait.code === CODES.IDENTITY_AWAITING_KEY) {
+  // Under a host this is every normal start: the key follows within moments. Started by hand,
+  // nothing sends one unasked, so the person at the terminal is told.
+  const say = headless ? log.warn : log.info
+  say('waiting for the identity key (identity:unlock)')
+  serveRecoveryOnly()
+} else if (keyWait.code) {
+  log.warn('identity locked, serving recovery only: ' + keyWait.code)
+  serveRecoveryOnly()
+}
+// A boot that fails for any reason but the key ends the worker here: nothing a key or a recovery
+// could change, and a worker left running would hold the profile lock against the next start. One
+// cut short by a shutdown leaves the exit to the shutdown. Never re-thrown: the crash backstop
+// would log a top-level rejection and keep the worker alive.
+try {
+  await keyWait.booted
+} catch (err) {
+  if (!shuttingDown) log.error('boot failed:', err?.stack || err?.message || err)
+  await safeShutdown('boot failed', WORKER_EXIT_BOOT_FAILED)
+  await new Promise(() => {})
+}
 
-// === IPC: folder-share handlers (shares, owned & foreign mounts) ===
+// Every handler the open data layer serves, registered once the identity opens and before the
+// request that opened it is answered, so the client that sent it finds them all.
+function goLive(opened) {
+  const { mounts, intents, applyRelayConfig, overlayBackend } = opened
+  const mountOwnedShare = createOwnedMounter({ ipc, mounts })
 
-registerShares(ipc, { log, intents, mountOwnedShare, chooseFolder })
+  serveMembership()
 
-registerFolderPreview(ipc)
+  // === IPC: folder-share handlers (shares, owned & foreign mounts) ===
 
-registerOwnedFolders(ipc, { log, mounts, intents, mountOwnedShare })
+  registerShares(ipc, { log, intents, mountOwnedShare, chooseFolder })
 
-registerForeignFolders(ipc, { log, intents })
+  registerFolderPreview(ipc)
 
-// === IPC: profile & space handlers ===
+  registerOwnedFolders(ipc, { log, mounts, intents, mountOwnedShare })
 
-registerProfile(ipc, { log })
+  registerForeignFolders(ipc, { log, intents })
 
-registerSpaces(ipc, { log, chooseFolder })
+  // === IPC: profile & space handlers ===
 
-registerBackup(ipc, { backup: root.backup, paused: root.backupPaused, openRecovery })
+  registerProfile(ipc, { log })
 
-registerSpaceLeave(ipc, { log, mounts, overlayBackend, discardPendingSpace, dropSpaceDownloadRoot })
+  registerSpaces(ipc, { log, chooseFolder })
 
-// === IPC: presence, file & transfer handlers ===
+  registerBackup(ipc, { backup: opened.backup, paused: opened.backupPaused, openRecovery })
 
-registerFiles(ipc, { log, chooseFolder })
+  registerSpaceLeave(ipc, { log, mounts, overlayBackend, discardPendingSpace, dropSpaceDownloadRoot })
 
-// A test that turned the file watchers off delivers the file events itself.
-if (areFileWatchersOff()) registerTestFsEvents(ipc, { log })
+  // === IPC: presence, file & transfer handlers ===
 
-// === IPC: feedback, storage & settings handlers ===
+  registerFiles(ipc, { log, chooseFolder })
 
-registerSettings(ipc, { mounts, publishRevealRoots })
-registerStorage(ipc)
-registerFeedback(ipc)
-registerNetwork(ipc, { applyRelayConfig })
-registerDiagnostics(ipc, { health, getRoot: () => root })
+  // A test that turned the file watchers off delivers the file events itself.
+  if (areFileWatchersOff()) registerTestFsEvents(ipc, { log })
 
-// === IPC: audit log ===
+  // === IPC: feedback, storage & settings handlers ===
 
-registerAudit(ipc)
+  registerSettings(ipc, { mounts, publishRevealRoots, revealRoots: currentRevealRoots })
+  registerStorage(ipc)
+  registerFeedback(ipc)
+  registerNetwork(ipc, { applyRelayConfig })
+  registerDiagnostics(ipc, { health, getRoot: () => root })
 
-// === IPC: organization configuration ===
+  // === IPC: audit log ===
 
-registerManaged(ipc, { service: root.managed })
+  registerAudit(ipc)
 
-// === Go live: flush queued frames, announce ready ===
+  // === IPC: organization configuration ===
 
-// What every client is told on arrival, recomputed per client rather than replayed from boot, so a
-// client that attaches later — or the same renderer after a reload — hears the same. Going live
-// again greets every client already attached to a worker that waited for its key.
-ipc.onClientAttach(async (client) => {
-  // The coordinates ride the greeting, so a client learns where the stream is without asking: the
-  // epoch tells it whether this is the worker it was talking to, and head where the numbering is.
-  ipc.emit('event:worker-ready', { epoch: ipc.epoch, head: ipc.head() }, { to: client })
-  const profile = await getProfile()
-  refreshAuditSelfName(profile?.displayName)
-  if (!profile) ipc.emit('event:profile-needed', {}, { to: client })
-  else ipc.emit('event:state', { profile, spaces: await slimSpaces(profile) }, { to: client })
-})
+  registerManaged(ipc, { service: opened.managed })
 
-health.start()
-ipc.start()
+  // === Go live: flush queued frames, announce ready ===
 
-log.info('ready')
-// From here a fault storm is the worker's own failure, not a boot that has not finished, so the
-// backstop may escalate. Set after the router goes live so the renderer has already recorded this
-// generation as booted before any escalation can end it.
-bootComplete = true
+  // What every client is told on arrival, recomputed per client rather than replayed from boot, so a
+  // client that attaches later — or the same renderer after a reload — hears the same. Going live
+  // again greets every client already attached to a worker that waited for its key.
+  ipc.onClientAttach(async (client) => {
+    // The coordinates ride the greeting, so a client learns where the stream is without asking: the
+    // epoch tells it whether this is the worker it was talking to, and head where the numbering is.
+    ipc.emit('event:worker-ready', { epoch: ipc.epoch, head: ipc.head() }, { to: client })
+    const profile = await getProfile()
+    refreshAuditSelfName(profile?.displayName)
+    if (!profile) ipc.emit('event:profile-needed', {}, { to: client })
+    else ipc.emit('event:state', { profile, spaces: await slimSpaces(profile) }, { to: client })
+  })
+
+  health.start()
+  ipc.start()
+
+  log.info('ready')
+  // From here a fault storm is the worker's own failure, not a boot that has not finished, so the
+  // backstop may escalate. Set after the router goes live so the renderer has already recorded this
+  // generation as booted before any escalation can end it.
+  bootComplete = true
+}

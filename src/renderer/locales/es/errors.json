@@ -47,6 +47,7 @@
   "notApprovedForSpace": "Todavía no tienes la aprobación en este espacio, así que no puedes compartir en él.",
   "requestTimedOut": "Mirall ha tardado demasiado en responder. Inténtalo de nuevo en un momento.",
   "workerUnavailable": "El servicio en segundo plano de Mirall no está disponible. Reinicia Mirall si sigue ocurriendo.",
+  "workerStartedElsewhere": "El servicio en segundo plano de Mirall se inició fuera de Mirall. Reinícialo allí para aplicar este cambio.",
   "unexpected": "Algo ha ido mal. Inténtalo de nuevo — si sigue ocurriendo, envía tus comentarios desde Ajustes.",
   "approveBlockedDivergence": "Las aprobaciones están en pausa mientras el conflicto de identidad del propietario no se resuelva.",
   "wrongPassphrase": "Esa frase de contraseña no abre esta copia. Compruébala e inténtalo de nuevo.",

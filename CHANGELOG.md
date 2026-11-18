@@ -19,18 +19,38 @@ changes do not appear here.
 
 ### Changed
 
+- **Removing a relay you joined with an invite takes effect at once.** Mirall
+  no longer asks you to reconnect first, as it already did for an open
+  relay. Adding or replacing one still asks.
+- **About shows how far an update download has come.** The Updates card now
+  has a progress bar with a percentage, and says when the download is
+  waiting for the update network instead of looking stuck.
 - **Setting up a backup no longer waits for the first backup.** The dialog
   closes once your passphrase is checked, and the first backup runs in the
   background while you keep working. Settings → Backup shows its progress.
 
 ### Fixed
 
+- **Shared folders no longer stay missing after you leave a space and join
+  it again.** Other members' folders, and files they added afterwards, only
+  came back once Mirall was restarted.
+- **Connecting to another organization could switch back to the previous
+  one after a restart.** A configuration check still running for the old
+  organization could overwrite the new one.
+- **A Leave that could not finish no longer goes quiet.** The computer stays
+  managed and keeps reporting to its organization until Leave succeeds.
 - **Leaving an organization during its first backup no longer keeps backing
   up to the organization's folder.** That folder could become your own
   backup folder.
+- **An Activity Log your organization keeps can no longer be shortened.**
+  A shorter retention deleted older entries, so those choices are now
+  unavailable while the organization keeps the record.
 - **Joining or leaving an organization in the middle of a settings refresh
   or a report no longer leaves Mirall in the wrong state.** An organization
   that keeps the Activity Log also holds that lock while a deletion runs.
+- **Detailed logging for a diagnostics file stays on when you leave the
+  Diagnostics screen.** It switched off at once, so a problem reproduced on
+  another screen was never recorded. It now stays on until you save the file.
 - **Network Diagnostics and Advanced Details open from the command palette.**
 - **A mirrored file you edit while its owner is offline now shows "Edited
   locally" at once.** It kept its verified check until the folder view

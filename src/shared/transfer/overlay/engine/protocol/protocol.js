@@ -41,6 +41,7 @@ export class OverlayProtocolV2 {
       drain: this.drain,
       uploadLimiter: opts.uploadLimiter || null,
       keepAliveInterval: opts.keepAliveInterval,
+      onTrace: opts.onTrace || null,
       callbacks: {
         onServeStart: opts.onServeStart,
         onChunkServe: opts.onChunkServe,
@@ -54,6 +55,8 @@ export class OverlayProtocolV2 {
       peers,
       downloadLimiter: opts.downloadLimiter || null,
       localProfileKey: opts.localProfileKey || null,
+      onTrace: opts.onTrace || null,
+      cap: opts.fetchCap,
     })
     // Handlers return their promise, so a test can await one; the channel's dispatch drops it.
     this.handlers = Object.freeze({
@@ -93,6 +96,7 @@ export class OverlayProtocolV2 {
   // fetch reassigns its inflight chunks; last the sender-side indicator hears each serve ended.
   _onPeerClosed(peer) {
     this.serve.releaseUpload(peer)
+    this.serve.forgetStats(peer)
     this.serveFds.closePeer(peer)
     this.pages.forget(peer)
     this.fetches.removePeer(peer)

@@ -288,6 +288,7 @@ export function createIPC(pipe, {
     onClientDisconnect: /** @param {(client: Client) => void} fn */ (fn) => clients.onDisconnect(fn),
     primary,
     bootstrapPromise: handshake.bootstrapPromise,
+    setServedDataDir: handshake.setServedDataDir,
     // The pre-start queue is otherwise invisible: it is bounded, and a caller that keeps hitting that
     // bound during a slow boot is exactly the condition worth surfacing.
     queueDepth: () => queued.length,

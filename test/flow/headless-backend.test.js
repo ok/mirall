@@ -6,10 +6,20 @@ import { spawnHeadless, connectClient } from '../helpers/headless.js'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpace, waitForCatalogEntry } from '../helpers/peer.js'
 import { tmpDir } from '../helpers/tmp.js'
+import { parseRunRecord } from '../../src/shared/contract/run-record.js'
 import { scaled } from '../helpers/timing.js'
+import { waitFor } from '../helpers/poll.js'
+import { createRequire } from 'module'
+import { versionLabel } from '../../src/shared/contract/release-channel.js'
+
+const require = createRequire(import.meta.url)
+const { discoverBackend, openIdentity } = require('../../src/main/backend-discovery.js')
+const { requestOverSocket, greetOverSocket } = require('../../src/main/worker-request.js')
+const pkg = require('../../package.json')
 
 const WORKER_EXIT_PROTOCOL_MISMATCH = 71
 const WORKER_EXIT_ALREADY_RUNNING = 73
+const WORKER_EXIT_BOOT_FAILED = 75
 
 function dataDir(t) {
   return path.join(tmpDir('mirall-headless', t), 'profile')
@@ -35,6 +45,13 @@ test('started without a pipe, the back end listens beside its own store and says
   if (process.platform !== 'win32') {
     t.is(fs.statSync(path.join(dir, 'app-storage')).mode & 0o777, 0o700, 'the store it created is the owner\'s alone')
   }
+  const record = parseRunRecord(fs.readFileSync(path.join(dir, 'run', 'daemon.json'), 'utf8'))
+  t.is(record?.socket, socket, 'its run record names that socket')
+  t.is(record?.pid, run.child.pid, 'and its process')
+  const viaRecord = connectClient(record.socket)
+  await waitFor(() => viaRecord.of('hello-ack')[0], 5000)
+  t.is(viaRecord.of('hello-ack')[0].appVersion, record.version, 'a client of that socket is told the version the record names')
+  viaRecord.close()
   const second = spawnHeadless(['--storage', dir, '--dev'])
   t.is(await second.exited, WORKER_EXIT_ALREADY_RUNNING, 'a second start on the same profile says it is already running')
 })
@@ -56,6 +73,7 @@ test('a back end waits for its key, unlocks over the socket, and never prints a 
   const a = connectClient(await first.listening(scaled(20000)))
   t.alike((await a.call('identity:status')).data, { locked: true, code: 'IDENTITY_AWAITING_KEY', restore: null }, 'waiting, and says why')
   t.is((await a.call('spaces:list')).code, 'NOT_FOUND', 'the data layer is not served before the key')
+  t.is((await a.call('space:pending-requests', { spaceId: 'x' })).code, 'NOT_FOUND', 'nor a membership decision')
   a.writeRaw(kek + '\n')
   t.is((await a.call('identity:unlock', { kek: kek.slice(1) })).code, 'INVALID_ARGUMENT', 'a key of the wrong length')
   t.alike((await a.call('identity:unlock', { kek })).data, { ok: true }, 'the key boots it in place')
@@ -71,7 +89,7 @@ test('a back end waits for its key, unlocks over the socket, and never prints a 
   t.teardown(() => { second.child.kill('SIGKILL') })
   const b = connectClient(await second.listening(scaled(20000)))
   t.is((await b.call('identity:unlock', { kek: wrong })).code, 'IDENTITY_UNLOCK_FAILED', 'a wrong key is refused')
-  t.is((await b.call('identity:status')).data.code, 'IDENTITY_AWAITING_KEY', 'and the worker keeps waiting')
+  t.alike((await b.call('identity:status')).data, { locked: true, code: 'IDENTITY_UNLOCK_FAILED', restore: null }, 'and the worker is locked, saying why')
   t.alike((await b.call('identity:unlock', { kek })).data, { ok: true }, 'the right one, no restart')
   b.close()
 
@@ -80,6 +98,25 @@ test('a back end waits for its key, unlocks over the socket, and never prints a 
   for (const key of [kek, wrong]) {
     for (const [form, text] of Object.entries(keyForms(key))) t.absent(printed.includes(text.slice(0, 12)), `no ${form} form of a key`)
   }
+})
+
+// A store that cannot be opened is not a lock: nothing a key or a recovery could change. The back
+// end answers the unlock with the failure and exits, so a service manager sees it and the profile
+// lock is free for the next start.
+test('REGRESSION (FIX-UNLOCK-8: a boot that fails after the key ends the back end)', { timeout: scaled(60000) }, async (t) => {
+  const dir = dataDir(t)
+  const run = spawnHeadless(['--storage', dir, '--dev'])
+  t.teardown(() => { run.child.kill('SIGKILL') })
+  const client = connectClient(await run.listening(scaled(20000)))
+  const store = path.join(dir, 'app-storage')
+  fs.rmSync(store, { recursive: true, force: true })
+  fs.writeFileSync(store, 'not a folder')
+  const reply = await client.call('identity:unlock', { kek: kekHex() })
+  t.ok(reply.code, 'the unlock is refused')
+  t.absent(['IDENTITY_UNLOCK_FAILED', 'IDENTITY_PROVIDER_MISMATCH'].includes(reply.code), 'and not as a lock: ' + reply.code)
+  const exit = await Promise.race([run.exited, new Promise((resolve) => setTimeout(() => resolve('still running'), scaled(15000)))])
+  t.is(exit, WORKER_EXIT_BOOT_FAILED, 'the back end exits, saying its boot failed')
+  client.close()
 })
 
 // A service manager's stop and a terminal's Ctrl+C: the same teardown a shutdown request runs, a
@@ -100,6 +137,7 @@ test('SIGTERM and SIGINT stop a back end cleanly, waiting or unlocked', { skip: 
     run.child.kill(signal)
     t.is(await run.exited, 0, `${signal} ${key ? 'after the unlock' : 'while waiting'} exits 0`)
     t.absent(fs.existsSync(socket), 'and leaves no socket file')
+    t.absent(fs.existsSync(path.join(dir, 'run', 'daemon.json')), 'and no run record')
   }
   const again = spawnHeadless(['--storage', dir, '--dev'])
   t.teardown(() => { again.child.kill('SIGKILL') })
@@ -137,4 +175,36 @@ test('headless back ends share a space, and one outlives its last client', { tim
   const exited = new Promise((resolve) => child.once('exit', (code) => resolve(code)))
   child.kill('SIGTERM')
   t.is(await exited, 0, 'and it stops cleanly when told to')
+})
+
+// What the desktop app does on a profile a back end already serves, driven from main's own modules
+// against a real one: the record leads to the socket, the hello-ack states the version the app
+// compares with its own, the key opens the waiting identity, and the back end outlives the client.
+test('the app’s attach path finds a running back end by its record, opens it, and leaves it running', { timeout: scaled(90000) }, async (t) => {
+  const dir = dataDir(t)
+  const run = spawnHeadless(['--storage', dir, '--dev'])
+  t.teardown(() => { run.child.kill('SIGKILL') })
+  const socket = await run.listening(scaled(20000))
+  const storage = path.join(dir, 'app-storage')
+  const version = versionLabel({ dev: true, appVersion: pkg.version })
+
+  t.is((await greetOverSocket(socket)).dataDir, fs.realpathSync.native(dir), 'the ack names the data folder it serves, resolved')
+  t.alike(await discoverBackend(storage, { version, channel: 'dev' }), { verdict: 'attach', socket }, 'found by its record, owner, folder, version and channel checked')
+  t.is((await discoverBackend(storage, { version, channel: 'prod' })).verdict, 'other-version', 'an installed app at the same version text does not use it')
+  t.alike(await discoverBackend(storage, { version: version + '-other' }), { verdict: 'other-version', version }, 'another build is told apart by the text alone')
+
+  t.is(await openIdentity(socket, { kek: kekHex(), relaySeed: null }), true, 'the waiting identity opens with the key')
+  t.alike(await requestOverSocket(socket, 'identity:status'), { locked: false, code: null, restore: null })
+  t.is(await openIdentity(socket, { kek: kekHex(), relaySeed: null }), true, 'an open identity is sent nothing: another key would have been refused')
+  t.ok(Array.isArray(await requestOverSocket(socket, 'spaces:list')), 'and the data layer answers')
+  const roots = await requestOverSocket(socket, 'folders:reveal-roots')
+  t.ok(Array.isArray(roots.roots) && roots.host === 'daemon', 'the reveal roots a host that did not spawn it asks for')
+
+  await new Promise((resolve) => setTimeout(resolve, scaled(1500)))
+  t.is(run.child.exitCode, null, 'the back end is still running with every one of those clients gone')
+  const again = connectClient(socket)
+  t.alike((await again.call('identity:status')).data, { locked: false, code: null, restore: null }, 'and still answers')
+  again.close()
+  run.child.kill('SIGTERM')
+  t.is(await run.exited, 0)
 })

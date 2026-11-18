@@ -1082,6 +1082,11 @@ updates would spam screen readers). Every bar — this primitive, `DownloadProgr
 `PeerDownloadIndicator` and `PeerDownloadRow` — shares that track/fill pair, except a lane on the
 info strip (`host="info-container"`), which takes the strip's own foreground for both (§2).
 
+About's update card (`about/UpdateVerdictBanner.tsx`) shows a `DownloadProgressLane` under its
+sentence while an update downloads: the percentage once the download is sized, the indeterminate
+sweep before that, and a standing bar while no peer is left. The lane sits outside the card's
+`role="status"` region, so progress is never announced per change.
+
 The transfer-row variant — `primitives/DownloadProgressLane.tsx` — adds a meta line (speed · ETA,
 ETA alone, or downloaded-so-far) and an **indeterminate** mode used while the ETA is still warming
 up (no stable rate yet). Indeterminate renders a 40%-wide `on-info` segment that sweeps the track

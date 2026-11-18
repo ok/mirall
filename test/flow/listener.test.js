@@ -37,3 +37,16 @@ test('the host going stops the worker even with a socket client attached', { tim
   t.is(await within(exited, 20000, 'worker exit'), WORKER_EXIT_ORPHANED)
   t.ok(await waitForWorkerExit(pid, 8000), 'and the process is gone')
 })
+
+// Waiting for its key is not a boot that failed: the host going stops it as orphaned, never as
+// unstable, so a host does not count it against the worker's respawn budget.
+test('the host going stops a worker still waiting for its key', { timeout: scaled(60000) }, async (t) => {
+  const bootstrap = await localTestnet(t)
+  const peer = await launchPeer(t, { bootstrap, transport: 'socket', unlock: false, setProfile: false })
+  t.is((await peer.request('identity:status')).code, 'IDENTITY_AWAITING_KEY', 'waiting')
+  const pid = peer.sidecar._process.pid
+  const exited = new Promise((resolve) => peer.sidecar.once('exit', resolve))
+  peer.sidecar._ipc.destroy()
+  t.is(await within(exited, 20000, 'worker exit'), WORKER_EXIT_ORPHANED)
+  t.ok(await waitForWorkerExit(pid, 8000), 'and the process is gone')
+})

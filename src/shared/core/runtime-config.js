@@ -1,6 +1,6 @@
 import { JOIN_REQUEST_FRAME_OVERHEAD } from '../contract/limits.js'
 import { buildConfig, defaultOf, ruleOf, tabledKeys } from './runtime-config-schema.js'
-import { deriveChannel } from '../contract/release-channel.js'
+import { deriveChannel, versionLabel } from '../contract/release-channel.js'
 import { getManagedOverlay, getOrgRelayTest } from './managed-overlay.js'
 import { effectiveNetwork } from './managed-effective.js'
 /** @import { RelayMode } from '../contract/relay-apply.js' */
@@ -74,8 +74,25 @@ function coerceKBps(next, fallback) {
 
 // The version a report names: a dev build has none of its own, and a packaged one always does.
 /** @returns {string} */
+export function isTransferTraceOn() {
+  return config.transferTrace
+}
+
+/** @returns {string | null} */
+export function getTestRunName() {
+  return config.testRunName
+}
+
+const NO_LEVERS = Object.freeze({})
+
+// The sizing values and the path check a test run file set; empty in every run without one.
+/** @returns {{ inflightCap?: number, stashBytes?: number, recvBufferBytes?: number, sendBufferBytes?: number, pathCheck?: true, pathCheckBytes?: number }} */
+export function getTransferLevers() {
+  return config.transferLevers ?? NO_LEVERS
+}
+
 export function getAppVersionLabel() {
-  return config.appVersion || (config.dev ? 'dev' : 'unknown')
+  return versionLabel({ dev: config.dev, appVersion: config.appVersion })
 }
 
 /** @returns {string | null} */

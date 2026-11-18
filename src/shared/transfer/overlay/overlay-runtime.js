@@ -34,6 +34,9 @@ export class OverlayBackend extends Subsystem {
     initFolderPublish({ ipc })
     initLoosePublish({ ipc, watchers: this.deps.watchers })
     initShareDownloads({ ipc })
+    // A boot that fails before this subsystem opens still runs the shutdown's abort, and never
+    // reaches _close: the order would outlive it into the open that follows in the same process.
+    resetOverlayPublish()
     // The instance comes first: the rehydrate below reaches makeServable and the loose re-publish,
     // and both fall through on a null getOverlay() — so a rehydrate that runs ahead of it silently
     // leaves a crash-interrupted entry unhashed and stuck on "Adding".

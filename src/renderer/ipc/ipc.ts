@@ -147,6 +147,13 @@ function resync(reason: ResyncReason): void {
   resyncQueries()
 }
 
+// The worker this window is already connected to has just opened its identity in place. It is the
+// same process, so its next greeting reads as a resume, yet everything this window holds was asked
+// of a worker that served no data: the re-read is the one a new worker earns.
+export function resyncOpenedWorker(): void {
+  resync('new-worker')
+}
+
 // What a greeting from a worker means for a client that has been listening. The same stream is
 // replayable; a different one is a new process whose ring holds frames this client never asked
 // about, so only a full re-read is honest. markReady comes last in every branch: a request parked
@@ -299,6 +306,8 @@ export async function restartWorker(): Promise<void> {
   restartInFlight = true
   try {
     const replaced = await window.bridge.restartWorker(WORKER_SPEC)
+    // Main refuses to replace a back end it did not start, and leaves it running untouched.
+    if (replaced && typeof replaced === 'object') throw codedError('the back end was not started by this app', replaced.code)
     if (!replaced) return // the app is quitting; there is no next worker to wait for
     // The old connection went with the old worker; this window opens its own to the new one.
     workerStarted = false
@@ -312,6 +321,14 @@ export async function restartWorker(): Promise<void> {
   } finally {
     restartInFlight = false
   }
+}
+
+// Refuses, with the code a refused restart carries, when this window's back end was not started by
+// this app. An action that ends in a restart asks this before its first step that cannot be undone,
+// so it never stops halfway.
+export async function assertRestartable(): Promise<void> {
+  if (await window.bridge.workerRestartable()) return
+  throw codedError('the back end was not started by this app', CODES.WORKER_STARTED_ELSEWHERE)
 }
 
 const TERMINAL_REASON: Record<ChannelFault, string> = {

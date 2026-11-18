@@ -3,7 +3,7 @@
 // or starting a new identity. The app around it stays usable for everything that does not write.
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { request } from '../../ipc/ipc.js'
+import { assertRestartable, request } from '../../ipc/ipc.js'
 import { restartIntoIdentity } from '../../hooks/useIdentityStatus.js'
 import { useErrorText } from '../../hooks/useErrorText.js'
 import { useSpaces } from '../../hooks/useSpaces.js'
@@ -60,6 +60,7 @@ export default function RestoreProgress({ hold }: RestoreProgressProps) {
     setBusy(true)
     setError(null)
     try {
+      await assertRestartable()
       await request('identity:set-aside')
       setConfirmFresh(false)
       await restartIntoIdentity()

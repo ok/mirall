@@ -83,6 +83,7 @@ export const CASES = [
   { name: "transferfaults", title: "Mirall transfer-fault burst harness" },
   { name: "stickyheader", title: "Mirall space sticky-header harness" },
   { name: "truncation", title: "Mirall text-truncation harness" },
+  { name: "updateprogress", title: "Mirall update-card download harness" },
   { name: "waiting", title: "Mirall owner-row waiting-cluster harness" },
   { name: "recipients", title: "Mirall owner-row recipients-cluster harness" },
   { name: "harness", title: "Mirall layout harness" },

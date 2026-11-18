@@ -768,6 +768,7 @@
       "checkingBody": "Recherche d’une version plus récente de Mirall.",
       "downloadingTitle": "Téléchargement d’une mise à jour",
       "downloadingBody": "Mirall continue de fonctionner pendant le téléchargement.",
+      "downloadingWaitingBody": "En attente du réseau de mise à jour. Le téléchargement reprend dès que Mirall l’atteint.",
       "readyTitle": "Mise à jour prête : v{{version}}",
       "readyBody": "Elle sera installée la prochaine fois que vous quitterez et rouvrirez Mirall.",
       "errorTitle": "Impossible de rechercher des mises à jour",
@@ -777,6 +778,7 @@
       "offTitle": "Les mises à jour automatiques sont désactivées",
       "offBody": "Cette version de Mirall ne se met pas à jour elle-même."
     },
+    "downloadProgress": "Progression du téléchargement de la mise à jour",
     "checkNow": "Vérifier",
     "checking": "Vérification…",
     "tryAgain": "Réessayer",
@@ -996,9 +998,9 @@
         "replaced-relay": "Les connexions ouvertes avant le remplacement du relais passent toujours par l'ancien. Reconnectez-vous pour les en sortir."
       },
       "removeConfirmTitle": "Retirer {{name}} ?",
-      "removeConfirmBody": "Votre invitation n'est stockée que sur cet appareil. Pour réutiliser ce relais, il vous faudra une nouvelle invitation de la personne qui l'héberge.",
+      "removeConfirmBody": "Votre invitation n'est stockée que sur cet appareil. Pour réutiliser ce relais, il vous faudra à nouveau votre lien d'invitation.",
       "replaceConfirmTitle": "Remplacer {{name}} ?",
-      "replaceConfirmBody": "Votre invitation actuelle n'est stockée que sur cet appareil et sera effacée. Pour réutiliser ce relais, il vous faudra une nouvelle invitation de la personne qui l'héberge."
+      "replaceConfirmBody": "Votre invitation actuelle n'est stockée que sur cet appareil et sera effacée. Pour réutiliser ce relais, il vous faudra à nouveau votre lien d'invitation."
     }
   },
   "networkStatus": {

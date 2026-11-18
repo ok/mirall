@@ -47,6 +47,7 @@
   "notApprovedForSpace": "Du wurdest für diesen Space noch nicht freigegeben und kannst daher nichts darin teilen.",
   "requestTimedOut": "Mirall hat zu lange für eine Antwort gebraucht. Versuche es gleich noch einmal.",
   "workerUnavailable": "Der Hintergrunddienst von Mirall ist nicht verfügbar. Starte Mirall neu, wenn das weiterhin auftritt.",
+  "workerStartedElsewhere": "Der Hintergrunddienst von Mirall wurde außerhalb von Mirall gestartet. Starte ihn dort neu, um das zu übernehmen.",
   "unexpected": "Etwas ist schiefgelaufen. Versuche es erneut — wenn es weiterhin auftritt, sende Feedback über die Einstellungen.",
   "approveBlockedDivergence": "Solange der Eigentümer-Konflikt ungelöst ist, sind Genehmigungen pausiert.",
   "wrongPassphrase": "Diese Passphrase öffnet dieses Backup nicht. Prüfe sie und versuche es erneut.",

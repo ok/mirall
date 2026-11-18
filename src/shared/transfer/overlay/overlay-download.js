@@ -33,6 +33,8 @@ import { createReconcile } from './reconcile-scan.js'
 import { memberWaits } from '../../network/share-wait.js'
 import { transferIdParts } from '../transfer-id.js'
 import { faultAwaitsOwner, faultCleared } from './download-faults.js'
+import { traceEvent } from '../trace/trace-sink.js'
+import { TRACE_EVENTS } from '../trace/trace-record.js'
 import { LAYOUT, landingRoot } from './download-job.js'
 
 const log = createLogger('overlay-download')
@@ -45,13 +47,16 @@ export async function fetchContentToFile(contentHash, { finalPath, by, ownerKey,
   const overlay = getOverlay()
   if (!overlay) return { ok: false }
   let res
+  traceEvent(TRACE_EVENTS.FETCH_START, { key: finalPath })
   try {
     res = await overlay.fetchFile(contentHash, { destPath: finalPath, by, ownerKey, size, parentMustExist, onProgress, onVerify, onEnd })
   } catch (err) {
+    traceEvent(TRACE_EVENTS.FETCH_END, { key: finalPath, ok: false })
     if (err?.code === 'EHASHMISMATCH') return { ok: false, code: 'EHASHMISMATCH' }
     if (err?.code === 'ECANCELLED') return { ok: false, code: 'ECANCELLED' }
     return { ok: false, code: err?.message || 'fetch-failed', cause: err }
   }
+  traceEvent(TRACE_EVENTS.FETCH_END, { key: finalPath, ok: !!res })
   if (!res) return { ok: false }
   if (res.local && res.destPath !== finalPath) {
     try { fs.copyFileSync(res.destPath, finalPath) } catch (err) { return { ok: false, code: err?.message || 'copy-failed', cause: err } }

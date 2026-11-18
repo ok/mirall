@@ -16,6 +16,7 @@ import {
 import { getSettings, updateSettings } from '../../shared/core/settings-store.js'
 import { getNewSpaceDownloadDir, hostFoldsCase } from '../../shared/core/paths.js'
 import { daemonPaths } from '../../shared/contract/paths.js'
+import { requireHost } from '../../shared/core/client-trust.js'
 import { Scope } from '../../shared/contract/scope.js'
 import { validateDownloadFolderAgainstMounts } from '../../shared/folders/mount-validate.js'
 import { effectiveNetwork } from '../../shared/core/managed-effective.js'
@@ -45,9 +46,9 @@ export function settingsView() {
 
 /**
  * @param {WorkerIpc} ipc
- * @param {{ mounts: WorkerRoot['mounts'], publishRevealRoots: () => void }} deps
+ * @param {{ mounts: WorkerRoot['mounts'], publishRevealRoots: () => void, revealRoots: () => Promise<string[]> }} deps
  */
-export function registerSettings(ipc, { mounts, publishRevealRoots }) {
+export function registerSettings(ipc, { mounts, publishRevealRoots, revealRoots }) {
   const verbose = createVerbosePolicy({ apply: setVerbose })
   ipc.onClientDisconnect((client) => verbose.release(client.id))
   const poke = () => ipc.emit('event:reconcile', { scope: Scope.settings() })
@@ -57,6 +58,13 @@ export function registerSettings(ipc, { mounts, publishRevealRoots }) {
   ipc.handle('downloads:roots-status', async () => {
     mounts.probeDownloadRoots()
     return daemonPaths({ unavailable: mounts.unavailableRoots })
+  })
+
+  // The set publishRevealRoots pushes to the host that spawned this worker, for a host that did not
+  // and so never receives the push: it asks at the moment it authorizes a reveal.
+  ipc.handle('folders:reveal-roots', async (_msg, ctx) => {
+    requireHost(ctx.client, 'only the host authorizes a reveal')
+    return daemonPaths({ roots: await revealRoots() })
   })
 
   ipc.handle('settings:get', async () => settingsView())

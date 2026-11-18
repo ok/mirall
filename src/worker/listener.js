@@ -18,6 +18,9 @@ import { TRUST } from '../shared/contract/ipc-frames.js'
 import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../shared/contract/main-requests.js'
 import { socketPaths } from '../shared/core/socket-path.js'
 import { admitPeer } from '../shared/core/peer-admission.js'
+import { serializeRunRecord, parseRunRecord } from '../shared/contract/run-record.js'
+import { writeFileAtomic } from '../shared/core/atomic-file.js'
+import { getAppVersionLabel } from '../shared/core/runtime-config.js'
 
 export function hasPeerCredentials() {
   return typeof Pipe.prototype.remoteCredentials === 'function'
@@ -43,6 +46,8 @@ export async function startListener({ ipc, storage, log }) {
 
   const lock = await takeLock(paths.lock)
   if (!lock) return { verdict: 'already-running', reason: 'another worker holds ' + paths.lock }
+  // Resolved as main resolves the folder its run record sits in, so the two compare as text.
+  ipc.setServedDataDir(fs.realpathSync(path.dirname(storage)))
 
   const bound = await bind(paths.socket, platform)
   if (!bound.server) {
@@ -79,6 +84,12 @@ export async function startListener({ ipc, storage, log }) {
     pipe.destroy()
   })
 
+  try {
+    await writeFileAtomic(paths.record, serializeRunRecord({ socket: paths.socket, pid: os.pid(), version: getAppVersionLabel() }), 0o600)
+  } catch (err) {
+    log.warn('listener: could not write the run record:', err.message)
+  }
+
   ipc.emit(MAIN_REQUEST_FRAME, { command: MAIN_REQUEST.SOCKET_LISTENING, args: { path: paths.socket } })
   log.info('listening on', paths.socket)
 
@@ -88,12 +99,24 @@ export async function startListener({ ipc, storage, log }) {
       for (const pipe of sockets.values()) pipe.destroy()
       sockets.clear()
       await new Promise((resolve) => server.close(resolve))
+      removeOwnRecord(paths.record, log)
       await lock.close()
     })()
     return closing
   }
 
   return { verdict: 'listening', path: paths.socket, close }
+}
+
+// A record names the process that wrote it, and only that process takes it down: a leftover one
+// belongs to a dead worker, a newer one to the worker that took the lock since.
+function removeOwnRecord(file, log) {
+  try {
+    const record = parseRunRecord(String(fs.readFileSync(file)))
+    if (record && record.pid === os.pid()) fs.unlinkSync(file)
+  } catch (err) {
+    if (err.code !== 'ENOENT') log.warn('listener: could not remove the run record:', err.message)
+  }
 }
 
 // A directory the socket or lock lives in must be this user's alone: whoever can write it can

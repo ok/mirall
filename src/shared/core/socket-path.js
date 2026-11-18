@@ -5,23 +5,26 @@
 // Unix socket path longer than sun_path fails to bind, so a long data directory falls back to a
 // per-user directory under the temp root, named by the store so two profiles cannot meet there.
 
+import { RUN_RECORD_FILE } from '../contract/run-record.js'
+
 export const SUN_PATH_MAX = 103
 
 /**
  * @param {{ platform: string, dataDir: string, storageHash: string, uid: number, tmpdir: string }} where
- * @returns {{ runDir: string, lock: string, socket: string, socketDir: string | null }}
+ * @returns {{ runDir: string, lock: string, record: string, socket: string, socketDir: string | null }}
  */
 export function socketPaths({ platform, dataDir, storageHash, uid, tmpdir }) {
   const sep = platform === 'win32' ? '\\' : '/'
   const runDir = dataDir + sep + 'run'
   const lock = runDir + sep + 'daemon.lock'
+  const record = runDir + sep + RUN_RECORD_FILE
   if (platform === 'win32') {
-    return { runDir, lock, socket: '\\\\.\\pipe\\mirall-' + storageHash.slice(0, 32), socketDir: null }
+    return { runDir, lock, record, socket: '\\\\.\\pipe\\mirall-' + storageHash.slice(0, 32), socketDir: null }
   }
   const socket = runDir + '/daemon.sock'
-  if (utf8Length(socket) <= SUN_PATH_MAX) return { runDir, lock, socket, socketDir: runDir }
+  if (utf8Length(socket) <= SUN_PATH_MAX) return { runDir, lock, record, socket, socketDir: runDir }
   const socketDir = tmpdir + '/mirall-' + uid
-  return { runDir, lock, socket: socketDir + '/' + storageHash.slice(0, 16) + '.sock', socketDir }
+  return { runDir, lock, record, socket: socketDir + '/' + storageHash.slice(0, 16) + '.sock', socketDir }
 }
 
 /** @param {string} text */

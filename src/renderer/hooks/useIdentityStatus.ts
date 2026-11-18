@@ -6,7 +6,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useQuery } from '../store/useQuery.js'
 import { refetchQuery, setQueryData } from '../store/query-store.js'
-import { restartWorker } from '../ipc/ipc.js'
+import { assertRestartable, restartWorker, resyncOpenedWorker } from '../ipc/ipc.js'
+import { errorCodeOf } from '../errors/error-text.js'
+import { CODES } from '../../shared/contract/errors.js'
 import type { IdentityStatus, RestoreStatus } from '../../shared/contract/responses.js'
 import { RESTORE_SCOPES } from '../store/scopes.js'
 import type { IdentityLockCode } from '../../shared/contract/errors.js'
@@ -19,6 +21,8 @@ export interface IdentityStatusView {
   code: IdentityLockCode | null
   restore: RestoreStatus | null
   restartFailed: boolean
+  // The restart is not this app's to make: retrying cannot help, the back end's owner restarts it.
+  restartElsewhere: boolean
   retryRestart: () => void
 }
 
@@ -38,13 +42,16 @@ export function useIdentityStatus(): IdentityStatusView {
   // a restart that fails is said in the restore banner, with a retry.
   const released = data?.restore?.profile?.released === true
   const [restartFailed, setRestartFailed] = useState(false)
+  const [restartElsewhere, setRestartElsewhere] = useState(false)
   const [restartAttempt, setRestartAttempt] = useState(0)
   useEffect(() => {
     if (!released) return undefined
     let live = true
-    restartWorker().catch((err: Error) => {
+    assertRestartable().then(restartWorker).catch((err: Error) => {
       console.warn('restart after the restore failed:', err.message)
-      if (live) setRestartFailed(true)
+      if (!live) return
+      setRestartFailed(true)
+      setRestartElsewhere(errorCodeOf(err) === CODES.WORKER_STARTED_ELSEWHERE)
     })
     return () => { live = false }
   }, [released, restartAttempt])
@@ -59,6 +66,7 @@ export function useIdentityStatus(): IdentityStatusView {
     code: data?.code ?? null,
     restore: data?.restore ?? null,
     restartFailed,
+    restartElsewhere,
     retryRestart,
   }
 }
@@ -74,4 +82,14 @@ export async function restartIntoIdentity(): Promise<void> {
     await refetchQuery('identity:status').catch(() => null)
     throw err
   }
+}
+
+// The worker opened the identity in place, on this connection: nothing restarted, so the answers this
+// window holds are still the locked worker's. The profile is read first, while the locked screen is
+// up: a read that failed there reads as "no profile yet", and onboarding would open over an identity
+// that exists the moment the lock lifts. The re-read of everything else, the identity status
+// included, then lifts the lock.
+export async function adoptOpenedIdentity(): Promise<void> {
+  await refetchQuery('profile:get').catch(() => null)
+  resyncOpenedWorker()
 }

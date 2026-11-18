@@ -9,11 +9,12 @@ import { getBandwidthLimits, getRuntimeConfig } from '../../src/shared/core/runt
 import { getNewSpaceDownloadDir, listDownloadRoots } from '../../src/shared/core/paths.js'
 import { createSpace } from '../../src/shared/spaces/space-lifecycle.js'
 import { getSpace } from '../../src/shared/spaces/space.js'
+import { listRevealRoots } from '../../src/shared/folders/reveal-roots.js'
 
 async function setup(t) {
   const peer = await freshPeer(t)
   let published = 0
-  registerSettings(peer.fake.ipc, { mounts: peer.root.mounts, publishRevealRoots: () => { published++ } })
+  registerSettings(peer.fake.ipc, { mounts: peer.root.mounts, publishRevealRoots: () => { published++ }, revealRoots: listRevealRoots })
   const file = path.join(path.dirname(peer.storage), 'settings.json')
   const stored = () => JSON.parse(fs.readFileSync(file, 'utf-8'))
   const pokes = () => peer.fake.emitted('event:reconcile').filter((e) => e.payload?.scope?.kind === 'settings').length
@@ -90,4 +91,17 @@ test('settings:set-download-folder seeds new spaces and moves no existing one', 
   t.is((await getSpace(space.spaceId)).downloadFolder, before, 'the existing space keeps its folder')
   const later = await createSpace('After')
   t.is(path.resolve(later.downloadFolder), path.resolve(folder), 'a space created afterwards starts in it')
+})
+
+// A host that did not spawn the worker never receives the pushed roots, so it asks for them, and
+// gets the set a push would carry, tagged as the worker's paths.
+test('folders:reveal-roots answers the host with the roots a push carries, and no other client', async (t) => {
+  const p = await setup(t)
+  const folder = tmpDir('settings-roots', t)
+  await p.fake.call('settings:set-download-folder', { folder })
+  const answer = await p.fake.call('folders:reveal-roots', {})
+  t.is(answer.host, 'daemon')
+  t.alike(answer.roots, await listRevealRoots())
+  t.ok(answer.roots.some((r) => path.resolve(r) === path.resolve(folder)), 'the folder just chosen is among them')
+  await t.exception(p.fake.call('folders:reveal-roots', {}, { client: { id: 2, trust: 'peer' } }), /only the host/)
 })

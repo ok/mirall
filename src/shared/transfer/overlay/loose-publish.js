@@ -71,6 +71,15 @@ function disarmWatch(spaceId, absPath) {
 
 const withSpaceLock = createKeyedLock()
 
+// A space that is gone holds no loose sources: each one is untracked and its watch disarmed.
+export function looseForgetSpace(spaceId) {
+  for (const [abs, spaces] of [...looseSources]) {
+    if (!spaces.has(spaceId)) continue
+    untrackSource(abs, spaceId)
+    disarmWatch(spaceId, abs)
+  }
+}
+
 // Pick the relPath for a new/changed share under the lock: an already-tracked source keeps its
 // name with NO catalog scan (the hot change-event path); a new source does ONE catalog pass
 // yielding the taken names (suffix-on-collision) and the count for the cap — including names

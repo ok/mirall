@@ -797,6 +797,7 @@
       "checkingBody": "Looking for a newer version of Mirall.",
       "downloadingTitle": "Downloading an update",
       "downloadingBody": "Mirall keeps working while the update downloads.",
+      "downloadingWaitingBody": "Waiting for the update network. The download continues as soon as Mirall reaches it.",
       "readyTitle": "Update ready: v{{version}}",
       "readyBody": "It will be installed the next time you quit and reopen Mirall.",
       "errorTitle": "Couldn't check for updates",
@@ -806,6 +807,7 @@
       "offTitle": "Automatic updates are off",
       "offBody": "This build of Mirall doesn't update itself."
     },
+    "downloadProgress": "Update download progress",
     "checkNow": "Check now",
     "checking": "Checking…",
     "tryAgain": "Try again",
@@ -1025,9 +1027,9 @@
         "replaced-relay": "Connections opened before you replaced this relay still go through the old one. Reconnect to move them off it."
       },
       "removeConfirmTitle": "Remove {{name}}?",
-      "removeConfirmBody": "Your invite is stored only on this device. To use this relay again you will need a new invite from whoever runs it.",
+      "removeConfirmBody": "Your invite is stored only on this device. To use this relay again, you will need your invite link again.",
       "replaceConfirmTitle": "Replace {{name}}?",
-      "replaceConfirmBody": "Your current invite is stored only on this device and will be erased. To use that relay again you will need a new invite from whoever runs it."
+      "replaceConfirmBody": "Your current invite is stored only on this device and will be erased. To use that relay again, you will need your invite link again."
     }
   },
   "networkStatus": {

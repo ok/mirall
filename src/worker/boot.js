@@ -71,6 +71,7 @@ import { OwnCatalogs } from '../shared/shares/own-catalog.js'
 import { PeerCatalogs } from '../shared/shares/peer-catalog.js'
 import { PeerWatch } from '../shared/audit/peer-records-watch.js'
 import { OverlayBackend } from '../shared/transfer/overlay/overlay-runtime.js'
+import { TransferTrace } from '../shared/transfer/trace/transfer-trace.js'
 import { getInstallId } from '../shared/telemetry/install-id.js'
 import { MountsRuntime } from './mounts-runtime.js'
 import { FileWatchers } from './watchers/file-watchers.js'
@@ -268,6 +269,9 @@ export async function boot(bootstrap, {
       broadcastSharePrepare: broadcastSharePrepareProgress,
       watchers: fileWatchers,
     }))
+    // After the overlay, whose snapshot it reads, and before the swarms, so the first connection's
+    // opening is already recorded.
+    await life.start(new TransferTrace('transfer-trace'))
     publishService = await life.start(new PublishService('publish'))
     const ownedFolders = await life.start(new OwnedFolders('owned-folders', {
       ipc,

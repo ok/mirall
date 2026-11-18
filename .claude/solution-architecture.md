@@ -40,7 +40,8 @@ channel via `workflow_dispatch`. The bundle version must equal the drive's `/pac
 **Stack.** Versions: `package.json`; pins and their reasons: `dependency-updates.md`. Placement
 rules: the file watcher, `chokidar4bare`, runs in the worker (its `imports` map resolves `bare-fs`
 there); `bare-*` modules are worker-only; `purgeCoreDk()` uses `hypercore-storage` internals (transitive dep) for raw RocksDB
-range deletes.
+range deletes, and corestore's core tracker (`store.cores`) to send a core this process holds to
+`store.purge` instead, which never deletes a core under a live session.
 
 ---
 
@@ -52,7 +53,8 @@ storage and transfer logic, and the file watchers that keep shared folders and l
 with disk. The worker listens on a local socket that admits only the owning user; main opens one
 connection to it per window and moves that window's bytes unparsed, so each window is a client of
 its own. The spawn pipe is main's: it carries the hello, the bootstrap and shutdown down, and the
-worker's main-request frames up.
+worker's main-request frames up. No secret rides it: once the worker has announced its socket, main
+connects to it as a client of its own and hands over the identity key (`identity:unlock`).
 
 ```
 ┌─────────────────────────────┐ window.bridge ┌───────────────────────────┐
@@ -82,21 +84,26 @@ spawns it with none; the sidecar build of bare that the desktop app ships opens 
 `src/worker/headless-entry.js` releases that pipe). The command line stands in for the bootstrap
 frame (`src/worker/headless-args.js`, same keys, same `assembleRuntimeConfig`); `--dev` admits the
 test levers (`--dht-bootstrap`, `--feature-flags`, `--runtime-config`), which nothing else accepts.
-No key is on it, so after the listener is up the worker **waits for its key**: the router goes live
-with the recovery set (process, identity, restore) plus `identity:unlock`, `identity:status`
-reports `{ locked: true, code: 'IDENTITY_AWAITING_KEY' }`, and the recovery actions refuse, since
-nothing has been tried. A host client sends `identity:unlock { kek, relaySeed? }` — the KEK the
-desktop app would have put on the bootstrap, so the provider is still `os-keychain`; the socket is a
-different transport for the same key — and the worker runs the same `boot()` in place
-(`src/worker/key-wait.js`): a key that cannot open the identity is refused with its lock code and
-the worker keeps waiting; a good one boots, every handler is registered, and every attached client
-is greeted again with `event:worker-ready`. Attempts are serialized, and once booted every further
-unlock is refused. A headless worker is stopped by a `shutdown` request or by SIGTERM/SIGINT
+No key is on it, so after the listener is up the worker **waits for its key**, as every worker whose
+bootstrap carries none does, spawned or not: the router goes live with the recovery set (process,
+identity, restore) plus `identity:unlock`, `identity:status` reports
+`{ locked: true, code: 'IDENTITY_AWAITING_KEY' }`, and the recovery actions refuse, since nothing has
+been tried. A host client sends `identity:unlock { kek, relaySeed? }` — the KEK the desktop app keeps
+in the OS keychain, so the provider is still `os-keychain`; the socket is a different transport for
+the same key — and the worker opens the identity in place (`src/worker/key-wait.js`): it puts any
+pending identity change in place, runs the same `boot()`, registers every handler, greets every
+attached client again with `event:worker-ready`, and only then answers. A key that cannot open the
+identity is refused with its lock code and the worker **locks**: `identity:status` reports that code,
+the key is held, and the locked identity's recoveries are served (below); another `identity:unlock`
+replaces the held key. Attempts and recoveries are serialized, and once the identity is open every
+further unlock is refused. A key on the spawn frame is still honoured through 1.14, as the first
+attempt, although the desktop app no longer sends one (see "Worker spawn"). A headless worker is stopped by a `shutdown` request or by SIGTERM/SIGINT
 (Ctrl+C/Ctrl+Break on Windows), each running `safeShutdown` with exit 0; no client's departure
 stops it. It prints the `socket:listening` frame a host would have been sent as one JSON line on
 stdout, and its log lines open with an ISO time unless `JOURNAL_STREAM` says a journal stamps them.
-Verbosity: `--verbose`, then `MIRALL_VERBOSE=1`, then the stored choice. A spawned worker still
-takes its KEK from the bootstrap frame, and its boot fails with `IDENTITY_NO_KEK` without one.
+Verbosity: `--verbose`, then `MIRALL_VERBOSE=1`, then the stored choice. A spawned worker that is
+waiting or locked is not booted: its host's pipe closing still stops it as orphaned, a `shutdown`
+request stops it with exit 0, and the crash backstop stays disarmed.
 
 **Default data folder.** Started without `--storage`, a headless worker opens the folder the desktop
 app uses: Electron's `userData` is `<appData>/<productName>` — `productName` is "Mirall", not the npm
@@ -131,22 +138,85 @@ An MSIX-packaged install has its AppData redirected by Windows; that path is not
 - **Worker spawn.** `src/main/worker-host.js` spawns only allowlisted specifiers
   (`src/shared/contract/workers.js`), then writes `hello` (IPC protocol version) and `bootstrap`.
   The bootstrap carries what only the host knows — storage, version, upgrade key, the OS downloads
-  folder, the `MIRALL_*` test levers — and the only two secrets main passes, `identityKEK` and
-  `relaySeed`; runtime config never stores them. No preference and no feature flag rides it
-  (`test/invariants/bootstrap-allowlist.test.js`): the worker owns both (see "Settings" below). A failed write of either frame destroys the
-  worker and fails the spawn, because the worker never asks for its bootstrap again. The KEK comes
-  from `safeStorage` (`src/main/identity-kek.js`). Without secure storage, main refuses to start
-  rather than write an unprotected identity, and a bootstrap without a KEK fails the worker's boot
-  with `IDENTITY_NO_KEK` before the store opens.
-- **Window connections.** `src/main/window-connections.js`. `pear:startWorker` spawns the worker if
-  needed, waits for its `socket:listening` main-request (main never derives the path), checks that
+  folder, the `MIRALL_*` test levers — and no secret. No preference and no feature flag rides it
+  either (`test/invariants/bootstrap-allowlist.test.js`): the worker owns both (see "Settings"
+  below). A failed write of either frame destroys the worker and fails the spawn, because the
+  worker never asks for its bootstrap again.
+  The KEK comes from `safeStorage` (`src/main/identity-kek.js`); without secure storage main
+  refuses to start rather than write an unprotected identity. The worker starts waiting for its
+  key. Once it has announced its socket, main (`src/main/worker-request.js`) connects to it as a
+  client of its own — the same private-directory check as a window, a `hello` as
+  `electron-main`, `keepalive` answered — and sends `identity:unlock { kek, relaySeed }`, the
+  seed being the relay seed that KEK unseals, both read when the worker was spawned. This covers
+  every path through `getWorker`: first start, renderer-driven respawn and `restartWorker`. The
+  reply has no deadline, because it comes after the whole boot, migrations included.
+  A window is told the worker started (`pear:startWorker` resolves) only after that request has
+  settled, so it never sees a worker that still waits: no flash of the locked screen, and the
+  renderer's readiness and respawn budget keep meaning "the worker is serving". A lock code
+  (`IDENTITY_LOCK_CODES`) is a settled start: the window connects and shows the locked screen. Any
+  other failure — no key to give, a refused connection, a dropped one, another error code — is a
+  failed spawn, handled as a lost bootstrap is: the worker is destroyed, not cached, and the
+  start rejects, so the next start spawns afresh.
+  The key travels over the socket rather than the pipe so that the pipe carries nothing a process
+  that reads it could use to open the identity, and so that a desktop-spawned worker and a
+  headless one are unlocked by the same request. The worker still accepts a key on the bootstrap
+  through 1.14: if a launch turns out unable to unlock this way, the way back is to flip
+  `KEY_ON_SPAWN_FRAME` in `src/main/worker-host.js` to `true` in an app-only release: the key and seed
+  then ride the bootstrap, no unlock is sent at spawn, and "Try again" still sends one. Unit tests cover
+  both values and `bootstrap-allowlist.test.js` pins the shipped one to `false`. The acceptance is
+  removed in 1.15.
+- **Window connections.** `src/main/window-connections.js`. `pear:startWorker` uses a running back
+  end or spawns the worker (below), waits for its `socket:listening` main-request (main never
+  derives the path) and for the key to be handed over (above), checks that
   the socket's directory is private to this user (Unix), and opens the calling window's own
   connection; a reload replaces it. `pear:worker:writeIPC` answers `false` for a window with no
   connection, so the renderer fails that request at once. A window hears exactly one
   `pear:worker:exit` per worker it started: the process's exit code, or `0` when its socket closed
-  while the process lived (after a 1 s grace in which the exit code may still arrive). Windows has
-  no client-side owner check: main connects only to a pipe its own child bound as the first
-  instance under an owner-only DACL.
+  while the process lived (after a 1 s grace in which the exit code may still arrive). A
+  spawned worker's pipe needs no client-side owner check on Windows: its own child bound it as the
+  first instance under an owner-only DACL.
+- **A running back end is used, not duplicated.** `src/main/backend-discovery.js`, called from
+  `worker-host.js` before a spawn. Main reads `<dataDir>/run/daemon.json` synchronously; with no
+  record (every normal start) it spawns in the same turn. A record is advisory and is trusted only
+  when the back end it names passes four checks, in order: owner (POSIX: the run folder and the
+  socket's folder private to this user, the socket a socket this user owns; Windows: the pipe's
+  owner, read by `src/main/pipe-owner.js`, is this user); a hello-ack; a `dataDir` in that ack equal
+  to main's own resolved data folder (the back end states the folder whose lock it holds, resolved
+  with `realpath` after taking the lock, to host clients only; a record copied or moved with its
+  folder names another profile's back end, which is never handed this profile's key); and an
+  `appVersion` equal to the text a spawn of this build would state (`versionLabel`,
+  `src/shared/contract/release-channel.js`; beta number included) with a `channel` equal to this
+  build's (`deriveChannel`: a back end started from a source checkout is a development build, which
+  takes test levers and the staging signing key, so an installed app never uses one). A socket that refuses or is gone
+  is stale within a 1 s connect bound, and main spawns as without a record, as it does for an owner
+  or folder that does not match. A socket that accepted but has not answered within 60 s is a busy
+  holder (a boot can hold its loop that long, `ipc-liveness.js`): like another version, it is
+  neither used nor stopped, and the window gets exit 73, the already-running screen. A spawn that
+  exits 73 is followed by three more looks for the holder over 1.75 s (it took the lock between
+  the look and the spawn) before the 73 stands; where this build can never attach (Windows today)
+  the 73 stands at once.
+  An attached back end sits in `workers` as `{ attached: true, socketPath }`. Main sends it
+  `identity:status` and, only when it waits for a key or is locked, `identity:unlock` with the key and
+  relay seed, never during a quit; an unlock refused because another client's key opened it
+  meanwhile is success. It is never sent a bootstrap, so it keeps its own download folder, dev mode
+  and levers. Main reads none of its output and never ends it: quit and the pre-update stop only
+  close its window connections, `process.on('exit')` signals only spawned children, and
+  `pear:restartWorker` resolves `{ ok: false, code: WORKER_STARTED_ELSEWHERE }` and leaves it as it
+  is. An action that ends in a restart asks `pear:workerRestartable` (`assertRestartable` in
+  `src/renderer/ipc/ipc.ts`) before its first step that cannot be undone, and shows that code's
+  sentence instead of starting: Free up, Start fresh, a restore onto an unlocked identity, and the
+  restart after a released restore (whose banner then names the owner instead of offering Retry).
+  A relay identity change is saved and applies when the owner restarts the back end and main hands
+  the new one the relay seed with the key. Reveal roots are asked of it (`folders:reveal-roots`)
+  when a reveal outside home is authorized, since only a spawning host is pushed them.
+  Main trusts a cached attached back end only while some window holds an open connection to it
+  (one to a back end that ended closes); a start with none looks for it afresh and opens it again,
+  and a failed window connect forgets it. A window connection to it that closes makes main forget
+  it; the window hears exit 0, and its respawn first looks for the back end's return for 8 s
+  (stopping takes up to 4 s before the lock is free, then the owner starts it again) before main
+  spawns its own and takes the lock. **Windows does not attach yet:** `pipeOwnedBySelf` refuses
+  every pipe until it can read a pipe's owner, so there the app behaves as before and shows the
+  already-running screen.
 - **Environment levers.** Main reads `PEAR_DEV_SERVER_URL` and the `MIRALL_*` test and debug
   hooks only through `src/main/env-overrides.js`, which returns nothing on a packaged build. The
   two release rollback levers and the AppImage runtime's variables are the listed exceptions
@@ -183,7 +253,9 @@ An MSIX-packaged install has its AppData redirected by Windows; that path is not
   roots the worker pushes (`reveal:roots`): every folder that holds a download or a partial (each
   space's folder, the folder for new spaces, the recent folders, and every folder a pending row or
   a claim names) and every owned or mirrored mount path, republished when one of them is added.
-  The pushed roots are dropped when that worker exits.
+  The pushed roots are dropped when that worker exits. A back end main attached to rather than
+  spawned is never pushed to; main asks it for the same set (`folders:reveal-roots`) at each
+  reveal, and one that does not answer within 5 s adds no root.
 
 ### Renderer (`src/renderer/` → `assets/dist/`)
 
@@ -224,6 +296,13 @@ Bootstrap:
    `WORKER_EXIT_LISTEN_FAILED` (74, retried). Admission is bare-pipe's `ownerOnly` plus
    `src/shared/core/peer-admission.js`, and an admitted connection attaches as `TRUST.HOST`: it is
    the owning user. The path goes to main as the `socket:listening` main-request.
+   Once bound, the worker writes `<dataDir>/run/daemon.json` (`src/shared/contract/run-record.js`:
+   `{ v, socket, pid, version }`, atomic, 0600, always beside the lock even when the socket sits in
+   the temp root) and removes it on a clean close, only if its own pid is named. It is advisory: the
+   lock, never the record, decides who holds the store, and a record whose socket does not answer is
+   stale. The hello-ack carries the worker's `appVersion` and `channel` and, to a host client once the lock is
+   held, `dataDir`: the resolved data folder it serves (null on the spawn pipe, whose hello precedes
+   the bootstrap).
 4. `boot()` starts two tiers *(cited as `§2 boot step N`)*. The **durable** tier holds every
    Corestore-session handle plus the recorders the teardown writes through, and closes **last**:
    1. `Store` → identity unlock → `runMigrations('durable')` → `maintainLocalBees` → `SpaceKeysVault` → `ProfileBee` →
@@ -274,7 +353,8 @@ Bootstrap:
 **Shutdown.** A closed pipe detaches the client. `src/worker/connection-lifecycle.js` then stops the
 worker when the closed pipe is the spawn pipe, whatever socket clients remain, because those reach
 it through the host that just went. A headless worker has no spawn pipe and stays up with no client
-attached; its stop is a `shutdown` request or a stop signal. A socket client that stays silent through a `keepalive` and its
+attached; its stop is a `shutdown` request or a stop signal. The desktop app never sends either to
+a back end it attached to rather than spawned: quitting the app only closes its connections. A socket client that stays silent through a `keepalive` and its
 grace (30 s + 10 s, `src/shared/core/ipc-liveness.js`, on the health tick) is detached, which
 aborts its in-flight work and closes its socket. A `shutdown` request
 does the same. `safeShutdown` keeps the first reason's exit code, aborts in-flight requests, and
@@ -421,7 +501,9 @@ unambiguous (no avatar) needs no flag.
 
 **Reading peers' profiles.** The process holds exactly one long-lived session per peer
 (`src/shared/spaces/peer-profile-watch.js`), whose `append` listener drives admission re-evaluation,
-the share-list refresh and the audit observer. Every other read is `withPeerBee`
+the share-list refresh and the audit observer. A leave that purges the peer's cores releases it
+first (`forgetUnreferencedPeerCores`), and the next admitted handshake opens it again. Every other
+read is `withPeerBee`
 (`src/shared/spaces/peer-bee.js`): open, pull head, read, close, under one deadline and a
 session-level timeout so an abandoned read cannot pin the core. Budgets:
 `src/shared/core/runtime-config-schema.js` (`peerReadTimeoutMs`, `interactiveReadTimeoutMs`,
@@ -914,6 +996,45 @@ The terminal set and its clearing rules live in
 | `clearPending` on discard | rethrown before anything destructive | a live row whose partial is gone would auto-resume from zero a discarded transfer |
 | `recordPendingError` | never throws; the code is held in memory | suppresses auto-resume until restart |
 
+### 4.5b Transfer trace
+
+A recording of what a transfer was doing, for telling a slow path from a slow engine. It is off in
+every ordinary run: the **test run file** (`transfer-test.json` beside `settings.json`,
+`src/shared/core/test-run-file.js`) is read once at worker start as a fourth runtime-config source,
+below the bootstrap frame and above the settings, and is the only thing that turns it on. The file
+is written whole by a test script and never by the app, so removing it restores the shipped app.
+
+- **What is recorded** (`src/shared/transfer/trace/`). Once a second while a fetch or a serve is
+  running: every transfer connection's transport figures (window, round trip, packet size,
+  retransmits, timeouts, buffer sizes; not kernel drops, which udx never counts), each fetch's and each served peer's engine
+  counts (`HyperOverlayV2.traceSnapshot()`), and the worker's loop lag and CPU. Events are written
+  as they happen: a connection opening, closing or changing path, a fetch or serve starting and
+  ending, a holder handing chunks back, the watchdog firing, a drain wait abandoned, a path check
+  starting and ending, and a periodic background job that ran long, by name
+  (`src/shared/core/job-timing.js`): loop lag says the worker was held, the job says by what.
+- **Both sides record.** The congestion figures exist only at the sender, the request and stash
+  figures only at the receiver; one side alone cannot separate them.
+- **No identifying data.** `trace-record.js` builds every line from an allow-list of numbers, flags
+  and closed vocabularies. A connection and a transfer are per-session numbers; the destination
+  path that keys a transfer stays in memory. `test/unit/transfer-trace.test.js` holds that.
+- **Bounded on disk.** `transfer-trace/trace.ndjson` in the data folder is set aside as
+  `trace.previous.ndjson` at its size limit, replacing the one before.
+- **It changes nothing it measures.** No default moves with it, and with no sink installed every
+  hook in the transfer path returns at once and no listener is attached.
+- **The same file sets the transfer levers** (`testRunToRuntimeConfig`): the per-holder in-flight
+  cap, the verified-chunk stash size and the UDP socket buffer sizes, each a whole number in a fixed
+  range, read once at worker start. They exist so one test session can try several values without a
+  build per value. No shipped default moves: a value changes in code only after a trace has shown
+  it to be the cause.
+- **The path check** (`src/shared/transfer/path-check.js`) sends a fixed amount of generated data
+  over a content connection with the engine left out: no file, no hashing, no scheduler. Set beside
+  a transfer of the same size it tells the path from the engine, on machines where no measuring
+  tool can be installed. Its channel is opened only when the file turns it on, so both peers must
+  carry the lever, and the sending side serves only a socket a member has authenticated on.
+- **It ships in released builds, unlisted.** A slow transfer is diagnosed on the build the person
+  already runs; a separate diagnostic build would need a deployment before the first measurement.
+  There is no setting, flag or UI for it, so only the test run file reaches it.
+
 ### 4.6 Startup reconnection
 
 Boot order is `src/worker/boot.js`. Three constraints in it are load-bearing:
@@ -964,7 +1085,7 @@ to end over the relayed stream.
   writes it yet: the writer moves only after a release that reads it has shipped, because a build
   sharing the store that cannot read the vault loses the private relay, and a read never rewrites
   the file. It is a bearer credential: it stays out of `config.json`, is never
-  returned to the renderer, and reaches the worker only on the `bootstrap` frame. `relay:set`
+  returned to the renderer, and reaches the worker only in the `identity:unlock` request main sends after each spawn. `relay:set`
   (`src/main/relay-slot.js`) is the single writer of vault and slot. A crash between the two writes
   must leave the *visible* failure, a config naming a missing seed. Today the vault is written first
   on add as well as on remove, which meets that rule only on remove.
@@ -986,9 +1107,17 @@ to end over the relayed stream.
   pinned-identity change needs a new DHT node, so `relay:set` reports `identityChanged`, and the
   renderer restarts the worker via `pear:restartWorker` (`src/renderer/hooks/useRelayApply.ts`).
   The renderer always sends the slot as saved, with `deferApply` set while that restart is pending;
-  the worker keeps both, holds the pending flag until the restart clears it, and installs through
-  `installConfiguredRelay`, which withholds a private relay until its identity is live
-  (`installableRelay`, `src/shared/network/relay.js`).
+  the worker marks an identity change pending itself, holds the flag until the restart clears it,
+  and installs through `installConfiguredRelay`, which withholds a private relay until its identity
+  is live (`installableRelay`, `src/shared/network/relay.js`). Removing the relay is the exception: it is
+  applied live, private or open, and clears any pending restart on both sides (`restartOwed`,
+  `src/renderer/model/relay-apply.js`). The member identity is `dht.defaultKeyPair`, presented
+  only to the relay itself (peers authenticate `swarm.keyPair`), so with no relay it is idle until
+  the next start. An open relay added to a node still presenting a member identity
+  (`isRelayIdentityPinned`) asks for the restart, as replacing a private relay with an open one
+  does, because an open relay must not learn that identity: until the restart such a node installs
+  no relay at all and connects directly. `testRelayReachable` dials with the node's own key only
+  for the installed private relay, and with a throwaway key for any other.
 - **Relay settings in the Activity Log.** Each saved relay change is one tier-A self row: `relay.added`, `relay.replaced`,
   `relay.removed`, `relay.turned_on`, `relay.turned_off` or `relay.mode_changed`, target kind
   `relay`. `network:set-relay` diffs the config before and after the save
@@ -1414,7 +1543,8 @@ there. The rules:
   worker.
 - `showInFolder({ host, path, exists })` is an authorization check (`src/main/notifications.js`).
   `host: 'client'` is the client's own; `host: 'daemon'` is admitted only while the worker the
-  calling window claimed is one this process spawned (`workerIsLocal(senderId)`); anything else is
+  calling window claimed is one this process spawned or attached to after its owner check
+  (`workerIsLocal(senderId)`); anything else is
   refused with `REVEAL_REFUSED`. The path is resolved *before* the containment test and must lie
   under the home dir or a root the worker published. What is on disk is main's own stat, never the
   caller's `exists`: a path that is there is shown, a path that is not is shown by its folder if that
@@ -1490,9 +1620,10 @@ they belong to.
 - `network:reconnect` ends the live connections, because a connected peer is never re-dialled.
 - A partial `audit:list` page with a non-null cursor is normal, because the scan is budgeted.
 - `shutdown` is host-only and is answered before teardown begins.
-- `identity:unlock { kek, relaySeed? }` is host-only and served only by a worker started without a
-  host: it boots the data layer before it answers (`deadlineMs: 0`). Anywhere else, and after a
-  successful unlock, it is refused with `NOT_AUTHORIZED`. Neither key is logged or echoed, and the
+- `identity:unlock { kek, relaySeed? }` is host-only and served by a worker that is waiting for its
+  key or locked: it boots the data layer before it answers (`deadlineMs: 0`). Main sends it after
+  every spawn, and again on the locked screen's "Try again". Once the identity is
+  open it is refused with `NOT_AUTHORIZED`. Neither key is logged or echoed, and the
   router logs an unparseable frame by its length only.
 - The `event:*-fs-event` request rows are served only by a worker whose file watchers the
   `testFileWatchersOff` lever turned off: they are how a test delivers its own file events. In a
@@ -1561,6 +1692,16 @@ the boot pass usually runs before any peer connects, so the first `peer-add` run
 A background pass that reaches no peer changes nothing; a check the user started
 (`pear:checkForUpdate`, which returns at once and waits up to 15 s for a peer) reports `error`
 instead. `ready` survives later passes until a newer version starts downloading.
+
+**Download progress.** While `downloading`, the status also carries `progress` (a whole percentage,
+or null until the download is sized) and `waitingForPeers`. The fraction is the app's own count
+(`src/main/update-progress.js`): the blocks this platform's files reference that are not on the
+device when the download starts, against those that have arrived since. The updater's own
+`download.progress` is not used, because it sizes only files stored behind a block map and stays 0
+for any other, so it would depend on how a release was staged. The percentage stops at 99 — only
+`ready` says the update is usable — and the status changes once per whole percent rather than on
+every tick of the updater's 250 ms monitor, which sets the pace and supplies the peer count. About
+shows it as a bar; the Profile row does not.
 
 **Banner and About.** `src/renderer/platform/updates.ts` keeps the status and the banner's dismissal
 (a different staged version clears it). The banner is passive ("applied on next start" plus Dismiss).
@@ -1641,8 +1782,14 @@ not await async listeners.
   source run of the desktop app); with no host to say otherwise, new spaces download to
   `~/Downloads`. A key arrives only over the socket: there is no key-file unlock. On Windows a
   headless start does not set the owner-and-SYSTEM ACL the desktop app sets on the data folder
-  (POSIX gets `app-storage/` at 0700 when the start creates it). The desktop app never reuses a
-  running headless back end — a second worker on the same profile exits `WORKER_EXIT_ALREADY_RUNNING`.
+  (POSIX gets `app-storage/` at 0700 when the start creates it). The desktop app uses a running
+  back end of the same user, data folder and exact version instead of spawning (§2 Main process,
+  "A running back end is used, not duplicated"), but cannot restart it or change its spawn-time
+  settings: Free up, Start fresh and a restore onto an unlocked identity are not started, a relay
+  identity change waits for the owner's restart, and its settings are whatever it was started
+  with. It does not check the back end's release channel: a packaged app uses a `--dev` back end of
+  the same version text. On Windows it
+  does not attach yet: it shows that Mirall is already running, as it does for any other version.
 - **Preload has no structural contract.** `src/preload/preload.js` is sandboxed and unbundled, so it
   can't import `src/shared/contract/`. `test/invariants/preload-parity.test.js` checks its key set
   against `src/renderer/platform/global.d.ts`, but nothing checks signatures.
@@ -1677,15 +1824,32 @@ an owner-and-SYSTEM ACL on the user data folder (`src/main/storage-perms.js`); o
 not know) sealed with XChaCha20-Poly1305 under an Argon2id key from the user's passphrase, the header
 bound into the associated data. It lives only in the backup folder (below); the user never handles it
 as a file. When the KEK cannot open `identity.enc` (`IDENTITY_LOCK_CODES`), the worker does not crash:
-`boot()` has already closed what it opened, and the entry serves only the process handlers,
-`src/worker/ipc/identity.js` — `identity:status`, `identity:unlock-from-backup` and
-`identity:set-aside` — and the restore requests, while the renderer shows the locked screen above its
-profile gates. Its one action, restore from a backup, first tries the folder's key on the data in
-place (`identity:unlock-from-backup`): when the store holds this identity's profile the key is adopted,
-`identity.enc` is rewritten under this machine's KEK, the profile is held as after a restore, and the
-renderer restarts the worker into it — the local data stays, newer than any backup. Otherwise it
-restores a snapshot, which sets the local data aside. Starting fresh moves the store's entries and its
-envelopes into `app-storage.locked-<stamp>/` beside it; nothing is deleted.
+`boot()` has already closed what it opened, the key stays held, and the entry serves only the process
+handlers, `src/worker/ipc/identity.js` — `identity:status`, `identity:unlock-from-backup` and
+`identity:set-aside` — the restore requests and `identity:unlock`, while the renderer shows the locked
+screen above its profile gates. The screen offers three actions, each completing in the running
+worker. "Try again" recovers a set-aside key file the keychain can open now, then main hands the worker
+the key it holds (`identity:retry-unlock`); a key that locks it again answers false. Restore from a backup first tries the folder's key on
+the data in place (`identity:unlock-from-backup`): when the store holds this identity's profile the key
+is adopted, `identity.enc` is rewritten under the held KEK, and the profile is held as after a restore —
+the local data stays, newer than any backup. Otherwise it restores a snapshot, which sets the local
+data aside. Starting fresh moves the store's entries and its envelopes into
+`app-storage.locked-<stamp>/` beside it; nothing is deleted. Each recovery that changes what the held
+key opens then opens the identity in the same process, through the same path as an unlock (pending
+change put in place, `boot()`, every handler, `event:worker-ready` to every client), before it
+answers; a reply therefore means the worker is live.
+
+The window's connection survives that, so the renderer sees a second `event:worker-ready` of the same
+epoch, which `createEventCursor` reads as a resume of a worker it already knew, not as a new one. The
+answers it holds are the locked worker's, though: `profile:get` failed, `identity:status` said locked.
+After the reply the locked screen calls `adoptOpenedIdentity` (`useIdentityStatus.ts`): it re-reads
+`profile:get` first, because a failed read reads as "no profile" and would open onboarding over an
+identity that exists the moment the lock lifts, then `resyncOpenedWorker` runs the re-read a new worker
+earns (resync hooks, every active query, `identity:status` included), and the greeting events the
+worker sends on re-attach (`event:state`, `event:profile-needed`) drive the rest. These requests
+(`identity:set-aside`, and the restore requests) carry no renderer timeout. What still restarts the
+worker are the cases whose data layer is already open: an onboarding restore, setting aside a restoring
+identity, and leaving restore mode once released.
 
 **Restore hold.** An adopted key restores the identity, not the profile, and whatever copy of the
 profile this device has — a snapshot, or the data a locked device unlocked in place — may be shorter than what peers hold under
@@ -1884,8 +2048,10 @@ A restore puts the carried `downloads` folder and `network` caps back into `sett
 since the backup holds no device-bound key. `backup:inspect` lists the snapshots the key opens; `backup:restore` rebuilds the
 chosen one into `app-storage.restoring` beside the store (`restore.js`: every core checked against its
 recorded length and tree hash), seals the identity into `identity-adopt.enc` and writes
-`restore-pending.json` last. The next worker, before its store opens, sets the current data aside and
-moves the staging store in with `CORESTORE` last (`identity-adopt.js`). The profile and the own catalogs
+`restore-pending.json` last. Before a store opens — at a locked worker's next opening, which follows
+the restore at once, or at the next worker's first — the current data is set aside and the staging
+store moved in with `CORESTORE` last (`identity-adopt.js`). An unused identity's store is open while
+it restores, so its restore, like setting a restoring identity aside, waits for the next worker. The profile and the own catalogs
 come back **held**: `RestoreCatchUp` follows each one to the copies its space's members hold, releases
 a catalog writable as soon as it matches (or at once when the space has no other member), and ends
 restore mode when the profile matches. No backup runs while anything is held. Setting up a fresh

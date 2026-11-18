@@ -224,12 +224,12 @@ export function peerCatalogCacheStats() {
   return { size: peerCatalogs.size(), keys: peerCatalogs.keys(), refsOf: (k) => peerCatalogs.refsOf(k) }
 }
 
-// Closed, not just forgotten: every open core replicates to every socket. Fire-and-forget
-// because every caller is synchronous; a close failure means the store is already going down.
-/** @internal */
-export function dropPeerCatalog(catalogKeyHex) {
+// Closed, not just forgotten: every open core replicates to every socket, and a purge of the
+// catalog's core must find nothing of ours open on it. Takes the catalog's watchers with it; the
+// next read or watch opens a fresh bee. A close failure means the store is already going down.
+export async function dropPeerCatalog(catalogKeyHex) {
   if (peerCatalogWatchers.delete(catalogKeyHex)) peerCatalogs.release(catalogKeyHex)
-  peerCatalogs.delete(catalogKeyHex)?.close().catch(() => {})
+  await peerCatalogs.delete(catalogKeyHex)?.close().catch(() => {})
 }
 
 export class PeerCatalogs extends Subsystem {

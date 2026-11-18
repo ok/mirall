@@ -8,6 +8,7 @@ import { UPDATE_STATE, UPDATES_OFF_REASON } from '../../shared/contract/update-s
  * @typedef {'up-to-date' | 'ready' | 'neutral'} UpdateLamp
  * @typedef {'check' | 'restart' | null} UpdateAction
  * @typedef {'release' | 'beta' | 'dev' | 'source'} ReleaseChannel
+ * @typedef {{ percent: number | null, indeterminate: boolean, bodyKey: string }} UpdateDownloadView
  */
 
 /** @param {UpdateStatus} status @returns {{ lamp: UpdateLamp, key: string, action: UpdateAction }} */
@@ -27,6 +28,18 @@ export function updateVerdict(status) {
       return status.lastCheckedAt === null
         ? { lamp: 'neutral', key: 'notChecked', action: 'check' }
         : { lamp: 'up-to-date', key: 'upToDate', action: 'check' }
+  }
+}
+
+// About's bar while an update downloads, or null. A download that is not sized yet sweeps; one
+// that has lost every peer stands still, because a moving bar beside "waiting" says two things.
+/** @param {UpdateStatus} status @returns {UpdateDownloadView | null} */
+export function updateDownload(status) {
+  if (status.state !== UPDATE_STATE.DOWNLOADING) return null
+  return {
+    percent: status.progress,
+    indeterminate: status.progress === null && !status.waitingForPeers,
+    bodyKey: status.waitingForPeers ? 'downloadingWaiting' : 'downloading',
   }
 }
 

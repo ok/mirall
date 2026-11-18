@@ -1,11 +1,12 @@
 // The worker is up but this device's key cannot open its identity (a reset keychain, a moved data
 // folder). The data is intact and stays locked until a recovery key opens it; starting fresh sets
-// it aside rather than deleting it. Rendered before the toast region exists, so every failure is
+// it aside rather than deleting it. Every action here opens the identity in the running worker. Rendered before the toast region exists, so every failure is
 // said on this screen.
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { request } from '../ipc/ipc.js'
-import { restartIntoIdentity } from '../hooks/useIdentityStatus.js'
+import { adoptOpenedIdentity } from '../hooks/useIdentityStatus.js'
+import { refetchQuery } from '../store/query-store.js'
 import { useErrorText } from '../hooks/useErrorText.js'
 import type { IdentityLockCode } from '../../shared/contract/errors.js'
 import PreShellHero from '../components/layout/PreShellHero.js'
@@ -35,20 +36,23 @@ export default function IdentityLockedScreen({ code }: IdentityLockedScreenProps
       await action()
     } catch (err) {
       setError(errorText(err))
+      // A recovery whose reopen failed may have left the worker locked on another code.
+      await refetchQuery('identity:status').catch(() => null)
     } finally {
       setBusy(false)
     }
   }
 
+  // The worker answers once it is live, which can take as long as a boot, so no request deadline.
   const retry = () => run(async () => {
-    await window.bridge.retryIdentityUnlock()
-    await restartIntoIdentity()
+    if (await window.bridge.retryIdentityUnlock()) await adoptOpenedIdentity()
+    else await refetchQuery('identity:status')
   })
 
   const startFresh = () => run(async () => {
-    await request('identity:set-aside')
+    await request('identity:set-aside', {}, 0)
     setConfirmFresh(false)
-    await restartIntoIdentity()
+    await adoptOpenedIdentity()
   })
 
   return (
@@ -75,7 +79,7 @@ export default function IdentityLockedScreen({ code }: IdentityLockedScreenProps
         {error && !confirmFresh && <InlineError id="identity-locked-error" className="text-center">{error}</InlineError>}
       </PreShellHero>
 
-      <RestoreBackupModal isOpen={restoreOpen} locked onClose={() => setRestoreOpen(false)} onRestored={restartIntoIdentity} />
+      <RestoreBackupModal isOpen={restoreOpen} locked onClose={() => setRestoreOpen(false)} onRestored={adoptOpenedIdentity} />
       <ConfirmDestructiveModal
         isOpen={confirmFresh}
         title={t('identityLocked.startFreshTitle')}

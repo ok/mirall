@@ -5,7 +5,7 @@ import path from 'bare-path'
 import { openStore, getStore, setMasterSecret, overlayIndexEncryptionKey } from '../../src/shared/core/store.js'
 import { FileIndex } from '../../src/shared/transfer/overlay/engine/store/file-index.js'
 import { migrateOverlayIndexToEncrypted } from '../../src/shared/transfer/overlay/migrate-overlay-index-encrypt.js'
-import { clearAndPurgeCore } from '../../src/shared/storage/core-purge.js'
+import { purgeCoreDk } from '../../src/shared/storage/core-purge.js'
 import { tmpDir } from '../helpers/bare-tmp.js'
 
 async function rawContains(core, needle) {
@@ -160,14 +160,17 @@ test('REGRESSION (FIX-504: a generation compaction purged, alias left behind, co
   const oldCore = await legacy.compact({ isServed: (hash) => hash === HASH })
   t.ok(oldCore, 'precondition: compaction rolled to a new generation')
   const v2Dk = b4a.toString(legacy.bee.core.discoveryKey, 'hex')
-  await clearAndPurgeCore(getStore(), oldCore) // the core goes, the by-name alias stays
+  const v1Dk = b4a.toString(oldCore.discoveryKey, 'hex')
+  await oldCore.close()
   await legacy.close()
 
   // The next boot: a fresh store handle, so the retired generation cannot be served from a core
-  // the previous session still had cached.
+  // the previous session still had cached. A core no session holds is purged by its discovery
+  // key alone: the core goes, the by-name alias stays.
   await getStore().close()
   await openStore(storePath)
   setMasterSecret(M)
+  await purgeCoreDk(getStore(), v1Dk)
   const v1Alias = { name: 'file-index', namespace: getStore().namespace('mirall-overlay').ns }
   t.ok(await getStore().storage.getAlias(v1Alias), 'precondition: the retired generation’s alias dangles')
 

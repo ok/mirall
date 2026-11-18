@@ -10,6 +10,8 @@ import { startListener, hasPeerCredentials } from '../../src/worker/listener.js'
 import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../../src/shared/contract/main-requests.js'
 import { FRAME, TRUST } from '../../src/shared/contract/ipc-frames.js'
 import { CODES } from '../../src/shared/contract/errors.js'
+import { parseRunRecord } from '../../src/shared/contract/run-record.js'
+import { getAppVersionLabel } from '../../src/shared/core/runtime-config.js'
 import { SUN_PATH_MAX } from '../../src/shared/core/socket-path.js'
 import { sayHello, helloFrame } from '../helpers/ipc-hello.js'
 import { tmpDir } from '../helpers/bare-tmp.js'
@@ -270,4 +272,69 @@ test('closing the listener removes the socket and frees the profile', async (t) 
   await waitFor(() => client.closed, 2000, { label: 'client closed' })
   const again = await serve(t, { storage })
   t.is(again.listened.verdict, 'listening', 'and the lock can be taken again')
+})
+
+function readRecord(storage) {
+  const file = path.join(path.dirname(storage), 'run', 'daemon.json')
+  return fs.existsSync(file) ? { file, record: parseRunRecord(String(fs.readFileSync(file))) } : { file, record: null }
+}
+
+test('a listening worker leaves a record of its socket, pid and version, private to its owner', async (t) => {
+  const { listened, storage } = await serve(t)
+  const { file, record } = readRecord(storage)
+  t.alike(record, { v: 1, socket: listened.path, pid: os.pid(), version: getAppVersionLabel() })
+  if (os.platform() !== 'win32') t.is(fs.statSync(file).mode & 0o777, 0o600, 'the record is 0600')
+  t.absent(fs.existsSync(file + '.tmp'), 'no temporary file is left beside it')
+})
+
+test('the record sits in the lock folder when the socket falls back to the temp root', async (t) => {
+  let deep = tmpDir('listener-deep-record', t)
+  while (deep.length <= SUN_PATH_MAX) deep = path.join(deep, 'nested-directory')
+  fs.mkdirSync(deep, { recursive: true })
+  const { listened, storage } = await serve(t, { storage: path.join(deep, 'app-storage') })
+  const { record } = readRecord(storage)
+  t.is(record.socket, listened.path)
+  t.absent(listened.path.startsWith(path.join(deep, 'run')), 'the socket is elsewhere, the record is not')
+})
+
+test('a clean close takes the record down', async (t) => {
+  const { listened, storage } = await serve(t)
+  await listened.close()
+  t.absent(readRecord(storage).record)
+  t.absent(fs.existsSync(readRecord(storage).file))
+})
+
+test('a refused second worker leaves the first one\'s record alone', async (t) => {
+  const first = await serve(t)
+  const before = fs.readFileSync(readRecord(first.storage).file)
+  const second = await serve(t, { storage: first.storage })
+  t.is(second.listened.verdict, 'already-running')
+  t.alike(fs.readFileSync(readRecord(first.storage).file), before, 'the record is byte for byte the same')
+})
+
+test('a record left by a dead worker is overwritten by the next holder', async (t) => {
+  const storage = path.join(tmpDir('lsn-stale', t), 'app-storage')
+  const run = path.join(path.dirname(storage), 'run')
+  fs.mkdirSync(run, { recursive: true, mode: 0o700 })
+  fs.writeFileSync(path.join(run, 'daemon.json'), JSON.stringify({ v: 1, socket: '/gone.sock', pid: 1, version: '0.0.1' }))
+  const { listened } = await serve(t, { storage })
+  t.is(readRecord(storage).record.socket, listened.path)
+  t.is(readRecord(storage).record.pid, os.pid())
+})
+
+test('a close never removes a record another worker wrote', async (t) => {
+  const { listened, storage } = await serve(t)
+  const { file } = readRecord(storage)
+  fs.writeFileSync(file, JSON.stringify({ v: 1, socket: '/other.sock', pid: os.pid() + 1, version: 'x' }))
+  await listened.close()
+  t.is(readRecord(storage).record.pid, os.pid() + 1)
+})
+
+test('a record that cannot be written is logged and the worker listens anyway', async (t) => {
+  const storage = path.join(tmpDir('lsn-norecord', t), 'app-storage')
+  const run = path.join(path.dirname(storage), 'run')
+  fs.mkdirSync(path.join(run, 'daemon.json'), { recursive: true, mode: 0o700 })
+  const { listened, log } = await serve(t, { storage })
+  t.is(listened.verdict, 'listening')
+  t.ok(log.warned.some((w) => w.includes('run record')), 'the failure is named')
 })

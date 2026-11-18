@@ -768,6 +768,7 @@
       "checkingBody": "Ricerca di una versione più recente di Mirall.",
       "downloadingTitle": "Download di un aggiornamento",
       "downloadingBody": "Mirall continua a funzionare durante il download.",
+      "downloadingWaitingBody": "In attesa della rete degli aggiornamenti. Il download riprende non appena Mirall la raggiunge.",
       "readyTitle": "Aggiornamento pronto: v{{version}}",
       "readyBody": "Verrà installato la prossima volta che chiudi e riapri Mirall.",
       "errorTitle": "Impossibile cercare aggiornamenti",
@@ -777,6 +778,7 @@
       "offTitle": "Gli aggiornamenti automatici sono disattivati",
       "offBody": "Questa build di Mirall non si aggiorna da sola."
     },
+    "downloadProgress": "Avanzamento del download dell’aggiornamento",
     "checkNow": "Controlla ora",
     "checking": "Controllo…",
     "tryAgain": "Riprova",
@@ -996,9 +998,9 @@
         "replaced-relay": "Le connessioni aperte prima della sostituzione del relay passano ancora dal precedente. Riconnetti per spostarle."
       },
       "removeConfirmTitle": "Rimuovere {{name}}?",
-      "removeConfirmBody": "Il tuo invito è salvato solo su questo dispositivo. Per usare di nuovo questo relay ti servirà un nuovo invito da chi lo gestisce.",
+      "removeConfirmBody": "Il tuo invito è salvato solo su questo dispositivo. Per usare di nuovo questo relay ti servirà ancora il tuo link di invito.",
       "replaceConfirmTitle": "Sostituire {{name}}?",
-      "replaceConfirmBody": "Il tuo invito attuale è salvato solo su questo dispositivo e verrà cancellato. Per usare di nuovo quel relay ti servirà un nuovo invito da chi lo gestisce."
+      "replaceConfirmBody": "Il tuo invito attuale è salvato solo su questo dispositivo e verrà cancellato. Per usare di nuovo quel relay ti servirà ancora il tuo link di invito."
     }
   },
   "networkStatus": {

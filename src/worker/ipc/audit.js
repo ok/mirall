@@ -33,7 +33,9 @@ export function registerAudit(ipc) {
     const current = getAuditConfig()
     assertUnlocked('audit.enabled', msg.enabled, current.enabled, 'audit:configure')
     assertUnlocked('audit.retentionDays', msg.retentionDays, current.retentionDays, 'audit:configure')
+    // A smaller row cap or a shorter retention prunes rows the organization keeps.
     if (typeof msg.maxEntries === 'number' && msg.maxEntries < current.maxEntries) assertRecordKept('audit:configure')
+    if (typeof msg.retentionDays === 'number' && msg.retentionDays < current.retentionDays) assertRecordKept('audit:configure')
     const next = await setAuditConfig({
       enabled: msg.enabled, retentionDays: msg.retentionDays, maxEntries: msg.maxEntries,
     })
