@@ -21,7 +21,8 @@ const RUN_NAME = /^[A-Za-z0-9_-]{1,32}$/
 const wholeBetween = (min, max) => (v) => (Number.isInteger(v) && v >= min && v <= max ? v : undefined)
 const MIB = 1024 * 1024
 
-// The sizing values a test run may replace, and the path check. Each has the range a mistyped file
+// The sizing values a test run may replace, the path check, and whether a serve continues after a
+// drain on a later turn of the event loop. Each has the range a mistyped file
 // cannot leave: an in-flight cap the scheduler can hold, a stash and socket buffers a worker can
 // afford, a path check no longer than one large file.
 const LEVERS = Object.freeze({
@@ -30,6 +31,7 @@ const LEVERS = Object.freeze({
   recvBufferBytes: wholeBetween(64 * 1024, 64 * MIB),
   sendBufferBytes: wholeBetween(64 * 1024, 64 * MIB),
   pathCheck: (v) => (v === true ? true : undefined),
+  deferDrain: (v) => (v === true ? true : undefined),
   pathCheckBytes: wholeBetween(MIB, 64 * 1024 * MIB),
 })
 

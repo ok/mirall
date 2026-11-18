@@ -1026,6 +1026,14 @@ is written whole by a test script and never by the app, so removing it restores 
   range, read once at worker start. They exist so one test session can try several values without a
   build per value. No shipped default moves: a value changes in code only after a trace has shown
   it to be the cause.
+- **The same file can defer a serve after a drain** (`deferDrain`, `createDrainWaiter` in
+  `engine/protocol/transport-probe.js`). The transport times a round trip with the event loop's
+  cached clock, which stands still while it reads a batch of datagrams. A chunk sent from inside
+  the stream's drain callback can be acknowledged at the same reading; the transport then takes
+  the path for ten times shorter than it is and throttles itself to 4 packets for ten seconds.
+  Deferred, the serve continues on a later turn of the loop. It is a lever and not the default
+  because the cause is in the transport library and this only moves our own sends out of the way:
+  it stays a lever until a run on a real path shows what it changes.
 - **The path check** (`src/shared/transfer/path-check.js`) sends a fixed amount of generated data
   over a content connection with the engine left out: no file, no hashing, no scheduler. Set beside
   a transfer of the same size it tells the path from the engine, on machines where no measuring

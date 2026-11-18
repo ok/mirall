@@ -144,6 +144,7 @@ export async function initOverlay() {
     // A test run file's sizing; absent in every other run, and the engine then keeps its own.
     fetchCap: getTransferLevers().inflightCap,
     memStashBytes: getTransferLevers().stashBytes,
+    deferDrain: getTransferLevers().deferDrain,
     // Decoded chunk maps, shared by every serve loop and bounded by bytes; cleared by the
     // index on close, so nothing to tear down here. 0 disables it (runtime-config).
     chunkMapCache: createChunkMapCache({ maxBytes: getServeChunkMapCacheBytes() }),

@@ -99,3 +99,35 @@ test('with no TX counter the wait uses the flat budget', async (t) => {
   t.is(await waiter.wait(p.peer), false)
   t.ok(Date.now() - startedAt >= 55, 'it waited the flat budget, not the no-progress window')
 })
+
+// The stream fires `drain` while the transport is still reading a batch of datagrams. A serve that
+// carries on from there sends from inside that batch; deferred, it carries on once the batch is done.
+test('a deferred wait resolves on a later turn of the event loop, not inside the drain callback', async (t) => {
+  const microtasks = async () => { for (let i = 0; i < 5; i++) await Promise.resolve() }
+  const nextTurn = () => new Promise((resolve) => setImmediate(resolve))
+
+  const direct = createDrainWaiter({ drainTimeout: 5000, drainNoProgress: 5000 })
+  const a = parkedPeer()
+  let directSettled = false
+  direct.wait(a.peer).then(() => { directSettled = true })
+  a.drain()
+  await microtasks()
+  t.ok(directSettled, 'undeferred: the continuation runs as soon as the callback returns')
+
+  const deferred = createDrainWaiter({ drainTimeout: 5000, drainNoProgress: 5000, defer: true })
+  const b = parkedPeer()
+  let outcome = null
+  deferred.wait(b.peer).then((alive) => { outcome = alive })
+  b.drain()
+  t.is(b.listening(), 0, 'the listeners are removed at once')
+  await microtasks()
+  t.is(outcome, null, 'deferred: not within the turn the drain fired in')
+  await nextTurn()
+  t.is(outcome, true, 'but on the next one')
+
+  const c = parkedPeer()
+  const closing = deferred.wait(c.peer)
+  c.drain()
+  c.peer.channel.closed = true
+  t.is(await closing, false, 'a channel that closed in between is not reported alive')
+})
