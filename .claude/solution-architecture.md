@@ -1095,17 +1095,17 @@ to end over the relayed stream.
   pinned-identity change needs a new DHT node, so `relay:set` reports `identityChanged`, and the
   renderer restarts the worker via `pear:restartWorker` (`src/renderer/hooks/useRelayApply.ts`).
   The renderer always sends the slot as saved, with `deferApply` set while that restart is pending;
-  the worker keeps both, holds the pending flag until the restart clears it, and installs through
-  `installConfiguredRelay`, which withholds a private relay until its identity is live
-  (`installableRelay`, `src/shared/network/relay.js`). Removing the relay is the exception: it is
+  the worker marks an identity change pending itself, holds the flag until the restart clears it,
+  and installs through `installConfiguredRelay`, which withholds a private relay until its identity
+  is live (`installableRelay`, `src/shared/network/relay.js`). Removing the relay is the exception: it is
   applied live, private or open, and clears any pending restart on both sides (`restartOwed`,
   `src/renderer/model/relay-apply.js`). The member identity is `dht.defaultKeyPair`, presented
   only to the relay itself (peers authenticate `swarm.keyPair`), so with no relay it is idle until
   the next start. An open relay added to a node still presenting a member identity
   (`isRelayIdentityPinned`) asks for the restart, as replacing a private relay with an open one
-  does, because an open relay must not learn that identity. *Known limitation:* `installableRelay`
-  withholds only a private relay, so in both cases the open relay is installed at once and dials
-  made before the restart reach it under the member identity.
+  does, because an open relay must not learn that identity: until the restart such a node installs
+  no relay at all and connects directly. `testRelayReachable` dials with the node's own key only
+  for the installed private relay, and with a throwaway key for any other.
 - **Relay settings in the Activity Log.** Each saved relay change is one tier-A self row: `relay.added`, `relay.replaced`,
   `relay.removed`, `relay.turned_on`, `relay.turned_off` or `relay.mode_changed`, target kind
   `relay`. `network:set-relay` diffs the config before and after the save
