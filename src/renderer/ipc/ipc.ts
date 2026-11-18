@@ -306,6 +306,8 @@ export async function restartWorker(): Promise<void> {
   restartInFlight = true
   try {
     const replaced = await window.bridge.restartWorker(WORKER_SPEC)
+    // Main refuses to replace a back end it did not start, and leaves it running untouched.
+    if (replaced && typeof replaced === 'object') throw codedError('the back end was not started by this app', replaced.code)
     if (!replaced) return // the app is quitting; there is no next worker to wait for
     // The old connection went with the old worker; this window opens its own to the new one.
     workerStarted = false
@@ -319,6 +321,14 @@ export async function restartWorker(): Promise<void> {
   } finally {
     restartInFlight = false
   }
+}
+
+// Refuses, with the code a refused restart carries, when this window's back end was not started by
+// this app. An action that ends in a restart asks this before its first step that cannot be undone,
+// so it never stops halfway.
+export async function assertRestartable(): Promise<void> {
+  if (await window.bridge.workerRestartable()) return
+  throw codedError('the back end was not started by this app', CODES.WORKER_STARTED_ELSEWHERE)
 }
 
 const TERMINAL_REASON: Record<ChannelFault, string> = {

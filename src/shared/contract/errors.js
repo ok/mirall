@@ -83,6 +83,7 @@ export const CODES = Object.freeze({
   TRANSFER_RENAME_FAILED: 'TRANSFER_RENAME_FAILED',
   UNKNOWN: 'UNKNOWN',
   UPLOAD_FAILED: 'UPLOAD_FAILED',
+  WORKER_STARTED_ELSEWHERE: 'WORKER_STARTED_ELSEWHERE',  // main asked to replace a back end it did not start
   WORKER_UNAVAILABLE: 'WORKER_UNAVAILABLE',  // the renderer's channel has no worker behind it
   WRONG_PASSPHRASE: 'WRONG_PASSPHRASE',
 })

@@ -2,7 +2,7 @@ import test from 'brittle'
 import { EventEmitter } from 'bare-events'
 import { createIPC } from '../../src/shared/core/ipc.js'
 import { helloFrame, sayHello } from '../helpers/ipc-hello.js'
-import { getAppVersionLabel } from '../../src/shared/core/runtime-config.js'
+import { setRuntimeConfig, getRuntimeConfig } from '../../src/shared/core/runtime-config.js'
 import { IPC_PROTOCOL_VERSION } from '../../src/shared/contract/ipc-frames.js'
 
 // The handshake against a real router and real pipes: what a client is told on arrival, what it is
@@ -21,14 +21,25 @@ function pipe() {
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0))
 
+// A configured worker, as every socket client finds it: the label is the build's, not the fallback a
+// spawn pipe's hello reads before the bootstrap.
+function configured(t) {
+  const prev = getRuntimeConfig()
+  setRuntimeConfig({ ...prev, appVersion: '1.14.0-beta.3', dev: false })
+  t.teardown(() => setRuntimeConfig(prev))
+}
+
 test('an accepted hello is greeted with the stream it may resume from', async (t) => {
+  configured(t)
   const a = pipe()
   const ipc = createIPC(a, { requests: REQUESTS, epoch: 'e1' })
   a.send(helloFrame())
   const ack = a.ack()
   t.ok(ack.ok)
   t.is(ack.protocolVersion, IPC_PROTOCOL_VERSION)
-  t.is(ack.appVersion, getAppVersionLabel(), 'and which app version it is')
+  t.is(ack.appVersion, '1.14.0-beta.3', 'and which app version it is')
+  t.is(ack.channel, 'staging', 'and on which channel')
+  t.is(ack.dataDir, null, 'no data folder before the listener holds one')
   t.is(ack.trust, 'host', 'the spawn pipe is the host by construction')
   t.is(ack.epoch, 'e1')
   t.is(ack.head, ipc.head())
@@ -130,4 +141,18 @@ test('the hello helper leaves the replayed frames where the client can see them'
   t.alike(b.frames().map((f) => f.type),
     ['event:network-status', 'event:network-status', 'event:network-status'],
     'and the replay it describes is still on the record, with only the ack removed')
+})
+
+test('a host greeted after the lock is taken is told the data folder; a peer is not', async (t) => {
+  const a = pipe()
+  const ipc = createIPC(a, { requests: REQUESTS, epoch: 'e1' })
+  ipc.setServedDataDir('/Users/me/Library/Application Support/Mirall')
+  const host = pipe()
+  ipc.attach(host, { trust: 'host' })
+  host.send(helloFrame())
+  t.is(host.ack().dataDir, '/Users/me/Library/Application Support/Mirall')
+  const peer = pipe()
+  ipc.attach(peer, { trust: 'peer' })
+  peer.send(helloFrame())
+  t.is(peer.ack().dataDir, null)
 })

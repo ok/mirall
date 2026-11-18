@@ -18,7 +18,7 @@ import { TRUST } from '../shared/contract/ipc-frames.js'
 import { MAIN_REQUEST_FRAME, MAIN_REQUEST } from '../shared/contract/main-requests.js'
 import { socketPaths } from '../shared/core/socket-path.js'
 import { admitPeer } from '../shared/core/peer-admission.js'
-import { serializeRunRecord, parseRunRecord } from '../shared/core/run-record.js'
+import { serializeRunRecord, parseRunRecord } from '../shared/contract/run-record.js'
 import { writeFileAtomic } from '../shared/core/atomic-file.js'
 import { getAppVersionLabel } from '../shared/core/runtime-config.js'
 
@@ -46,6 +46,8 @@ export async function startListener({ ipc, storage, log }) {
 
   const lock = await takeLock(paths.lock)
   if (!lock) return { verdict: 'already-running', reason: 'another worker holds ' + paths.lock }
+  // Resolved as main resolves the folder its run record sits in, so the two compare as text.
+  ipc.setServedDataDir(fs.realpathSync(path.dirname(storage)))
 
   const bound = await bind(paths.socket, platform)
   if (!bound.server) {

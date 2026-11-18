@@ -100,17 +100,21 @@ const health = createHealthMonitor({
 })
 
 // Main authorizes "reveal in folder" against these — download roots and mount paths — and cannot
-// read the space or mount records that hold them, so the set is pushed to it on every change.
+// read the space or mount records that hold them, so the set is pushed to it on every change; a host
+// that did not spawn this worker is never pushed to and asks for it instead (folders:reveal-roots).
 // Main's copy is last-frame-wins, so one listing is in flight at a time and a change that lands
 // during it runs one more afterwards: a burst of mount deletes costs one scan, and no frame can
 // overtake a newer one. A listing that fails still publishes the download roots, so a narrowing is
 // never lost. Callers hand this on as a `() => void`.
+function currentRevealRoots() {
+  return listRevealRoots()
+    .catch((err) => { log.warn('reveal roots listing failed, using the download roots only:', err.message); return listDownloadRoots() })
+}
 let revealRootsListing = null
 let revealRootsDirty = false
 function publishRevealRoots() {
   if (revealRootsListing) { revealRootsDirty = true; return }
-  revealRootsListing = listRevealRoots()
-    .catch((err) => { log.warn('reveal roots listing failed, publishing download roots only:', err.message); return listDownloadRoots() })
+  revealRootsListing = currentRevealRoots()
     .then((roots) => {
       ipc.emit(MAIN_REQUEST_FRAME, { command: MAIN_REQUEST.REVEAL_ROOTS, args: daemonPaths({ roots }) })
       revealRootsListing = null
@@ -404,7 +408,7 @@ function goLive(opened) {
 
   // === IPC: feedback, storage & settings handlers ===
 
-  registerSettings(ipc, { mounts, publishRevealRoots })
+  registerSettings(ipc, { mounts, publishRevealRoots, revealRoots: currentRevealRoots })
   registerStorage(ipc)
   registerFeedback(ipc)
   registerNetwork(ipc, { applyRelayConfig })

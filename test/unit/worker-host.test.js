@@ -11,11 +11,15 @@ import os from 'os'
 import net from 'net'
 import { EventEmitter } from 'events'
 import { fileURLToPath } from 'url'
+import { tmpPath } from '../helpers/tmp.js'
+import { createRequire } from 'module'
 
 // Each load() installs its own process-exit backstop, as each real spawn path does.
 process.setMaxListeners(100)
 
 const KEK = 'ab'.repeat(32)
+const requireCjs = createRequire(import.meta.url)
+const APP_VERSION = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).version
 const SEED = 'ef'.repeat(32)
 
 const REPO = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
@@ -46,7 +50,10 @@ function stubWorker({ exitsOnShutdown = false } = {}) {
 }
 
 // The gate is reloaded with the host, so no test inherits another's packaging.
-function load({ worker = stubWorker(), spawn = () => worker, config = {}, flags = {}, isPackaged = false, storage = '/tmp/mirall-test', keyOnSpawnFrame } = {}) {
+// The default storage is a path nothing has written, so no run record is ever found beside it.
+const unusedStorage = () => path.join(tmpPath('wh-none'), 'app-storage')
+
+function load({ worker = stubWorker(), spawn = () => worker, config = {}, flags = {}, isPackaged = false, storage = unusedStorage(), keyOnSpawnFrame, holderLooksMs = [5, 5], returnLooksMs = [1, 1], busyAnswerMs = 500 } = {}) {
   const { electron, modules } = loadWithFakeElectron(
     ['src/main/env-overrides.js', 'src/main/settings-ipc.js', 'src/main/worker-host.js'],
     { app: { isPackaged, getPath: () => '/tmp/mirall-test-downloads' } },
@@ -60,6 +67,9 @@ function load({ worker = stubWorker(), spawn = () => worker, config = {}, flags 
     isDev: true,
     identityKEK: () => flags.identityKEK ?? null,
     keyOnSpawnFrame,
+    holderLooksMs,
+    returnLooksMs,
+    busyAnswerMs,
   })
   return { host, worker, electron }
 }
@@ -568,15 +578,22 @@ function fakeSender(id) {
 // A worker's socket as far as main can tell: it answers identity:unlock as `unlock` says (an ok by
 // default; `{ error, code }`; 'hang-up'), or holds the answer until releaseUnlock(). Every other
 // connection is a window's, and what it sends is kept in `received`.
-function socketServer(t, { unlock: answer = () => ({ data: { ok: true } }), holdUnlock = false } = {}) {
+// It answers a hello with an ack stating `appVersion`, identity:status with `status`, and
+// folders:reveal-roots with `roots`; every request it saw is kept in `requests`. With `dir` it
+// listens there, as daemon.sock.
+const LOCKED_STATUS = { locked: true, code: 'IDENTITY_UNLOCK_FAILED', restore: null }
+function socketServer(t, { unlock: answer = () => ({ data: { ok: true } }), holdUnlock = false, dir: given = null, appVersion = APP_VERSION, channel = 'dev', dataDir = null, status = LOCKED_STATUS, roots = [], silent = false } = {}) {
   let unlock = answer
-  const dir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'wh-')), 'run')
-  fs.mkdirSync(dir, { mode: 0o700 })
-  t.teardown(() => fs.rmSync(path.dirname(dir), { recursive: true, force: true }))
-  const socketPath = path.join(dir, 's.sock')
+  const dir = given ?? path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'wh-')), 'run')
+  if (!given) {
+    fs.mkdirSync(dir, { mode: 0o700 })
+    t.teardown(() => fs.rmSync(path.dirname(dir), { recursive: true, force: true }))
+  }
+  const socketPath = path.join(dir, given ? 'daemon.sock' : 's.sock')
   const peers = []
   const unlocks = []
   const hellos = []
+  const requests = []
   let release = null
   const held = new Promise((resolve) => { release = resolve })
   const server = net.createServer((sock) => {
@@ -591,9 +608,18 @@ function socketServer(t, { unlock: answer = () => ({ data: { ok: true } }), hold
       for (const line of lines) {
         let frame
         try { frame = JSON.parse(line) } catch { continue }
-        if (frame.type === 'hello') hellos.push(frame)
+        if (frame.type === 'hello') {
+          hellos.push(frame)
+          if (!silent) sock.write(JSON.stringify({ type: 'hello-ack', ok: true, appVersion, channel, dataDir }) + '\n')
+          continue
+        }
+        if (frame.id) requests.push(frame.type)
         if (frame.type === 'identity:status') {
-          sock.write(JSON.stringify({ id: frame.id, type: 'response', data: { locked: true, code: 'IDENTITY_UNLOCK_FAILED', restore: null } }) + '\n')
+          sock.write(JSON.stringify({ id: frame.id, type: 'response', data: status }) + '\n')
+          continue
+        }
+        if (frame.type === 'folders:reveal-roots') {
+          sock.write(JSON.stringify({ id: frame.id, type: 'response', data: { roots, host: 'daemon' } }) + '\n')
           continue
         }
         if (frame.type !== 'identity:unlock') continue
@@ -610,7 +636,7 @@ function socketServer(t, { unlock: answer = () => ({ data: { ok: true } }), hold
   })
   const close = () => new Promise((resolve) => { for (const p of peers) p.destroy(); server.close(resolve) })
   t.teardown(close)
-  return new Promise((resolve) => server.listen(socketPath, () => resolve({ socketPath, peers, unlocks, hellos, releaseUnlock: () => release(), setUnlock: (fn) => { unlock = fn }, close })))
+  return new Promise((resolve) => server.listen(socketPath, () => resolve({ socketPath, peers, unlocks, hellos, requests, releaseUnlock: () => release(), setUnlock: (fn) => { unlock = fn }, close })))
 }
 
 const announce = (socketPath) => Buffer.from(JSON.stringify({ type: 'main-request', command: 'socket:listening', args: { path: socketPath } }) + '\n')
@@ -666,4 +692,351 @@ test('nothing the worker writes on the spawn pipe reaches a window', (t) => {
   electron.webContents.list.push(view)
   worker.emit('data', Buffer.from('{"type":"event:state"}\n'))
   t.alike(view.sent, [])
+})
+
+// === A back end this process did not start ===
+
+const AWAITING = { locked: true, code: 'IDENTITY_AWAITING_KEY', restore: null }
+const OPEN = { locked: false, code: null, restore: null }
+
+// A profile a back end of this user's already serves: its private run folder, its socket and the
+// record naming them. `mode` is the run folder's; `withRecord: false` leaves the record to the test.
+async function runningBackend(t, { mode = 0o700, withRecord = true, record = {}, ...server } = {}) {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wh-profile-'))
+  t.teardown(() => fs.rmSync(dataDir, { recursive: true, force: true }))
+  const runDir = path.join(dataDir, 'run')
+  fs.mkdirSync(runDir, { mode: 0o700 })
+  const backend = await socketServer(t, { dir: runDir, dataDir: fs.realpathSync.native(dataDir), ...server })
+  const recordFile = path.join(runDir, 'daemon.json')
+  const writeRecord = () => fs.writeFileSync(recordFile, JSON.stringify({ v: 1, socket: backend.socketPath, pid: 4242, version: APP_VERSION, ...record }), { mode: 0o600 })
+  if (withRecord) writeRecord()
+  if (mode !== 0o700) fs.chmodSync(runDir, mode)
+  return { ...backend, storage: path.join(dataDir, 'app-storage'), recordFile, writeRecord, dataDir }
+}
+
+function spawnCounter() {
+  const spawned = []
+  return { spawned, spawn: () => { const w = stubWorker(); spawned.push(w); return w } }
+}
+
+const exits = (sender) => sender.sent.filter(([c]) => c.startsWith('pear:worker:exit:')).map(([, code]) => code)
+
+test('a running back end of this user’s at this version is used: no spawn, no bootstrap, the key only because it waits', async (t) => {
+  const backend = await runningBackend(t, { status: AWAITING })
+  const { spawned, spawn } = spawnCounter()
+  const { host, electron } = load({ flags: { identityKEK: KEK }, storage: backend.storage, spawn })
+  host.registerWorkerHost()
+  const sender = fakeSender(7)
+  t.is(await startFor(electron, sender), true)
+  t.is(spawned.length, 0, 'nothing was spawned, so no pipe carried a hello or a bootstrap')
+  t.alike(backend.requests, ['identity:status', 'identity:unlock'], 'asked whether it waits, then handed the key, and nothing else')
+  t.is(backend.unlocks[0].kek, KEK)
+  t.ok(backend.hellos.every((h) => h.client.kind === 'electron-main'), 'main introduced itself on each of its connections')
+
+  await until(() => backend.peers.length === 4)
+  const windowPeer = backend.peers[3]
+  const write = electron.ipcMain.handlers.get('pear:worker:writeIPC:' + MAIN_WORKER_SPEC)
+  t.is(write({ sender }, Buffer.from('{"id":1,"type":"ping"}\n')), true, 'the window has its own connection to the record’s socket')
+  await until(() => windowPeer.received.length > 0)
+  t.alike(windowPeer.received, ['{"id":1,"type":"ping"}\n'])
+  t.ok(host.workerIsLocal(sender.id), 'a back end that passed the owner check is local')
+  t.alike(await host.workerStatus(MAIN_WORKER_SPEC), AWAITING, 'status is asked of the same socket')
+  t.is(await host.retryUnlock(MAIN_WORKER_SPEC), true, '"try again" hands the key to it as well')
+  t.is(backend.unlocks.length, 2)
+})
+
+test('a running back end whose identity is already open is sent nothing', async (t) => {
+  const backend = await runningBackend(t, { status: OPEN })
+  const { spawned, spawn } = spawnCounter()
+  const { host, electron } = load({ flags: { identityKEK: KEK }, storage: backend.storage, spawn })
+  host.registerWorkerHost()
+  t.is(await startFor(electron, fakeSender(7)), true)
+  t.is(spawned.length, 0)
+  t.alike(backend.requests, ['identity:status'], 'asked, and nothing handed over')
+  t.is(backend.unlocks.length, 0)
+})
+
+test('a running back end locked by another key is handed this app’s key, as "try again" would', async (t) => {
+  const backend = await runningBackend(t, { status: LOCKED_STATUS, unlock: () => ({ error: 'identity unlock failed', code: 'IDENTITY_UNLOCK_FAILED' }) })
+  const { spawned, spawn } = spawnCounter()
+  const { host, electron } = load({ flags: { identityKEK: KEK }, storage: backend.storage, spawn })
+  host.registerWorkerHost()
+  t.is(await startFor(electron, fakeSender(7)), true, 'a key that locks it is a start: the window gets the locked screen')
+  t.alike(backend.requests, ['identity:status', 'identity:unlock'])
+  t.is(spawned.length, 0)
+})
+
+test('a running back end of another version is neither used nor replaced: the window hears "already running"', async (t) => {
+  const backend = await runningBackend(t, { status: AWAITING, appVersion: '0.0.1-beta.1' })
+  const { spawned, spawn } = spawnCounter()
+  const { host, electron } = load({ flags: { identityKEK: KEK }, storage: backend.storage, spawn })
+  host.registerWorkerHost()
+  const sender = fakeSender(7)
+  await t.exception(startFor(electron, sender))
+  t.alike(exits(sender), [73], 'the exit an already-running spawn reports')
+  t.is(spawned.length, 0, 'nothing was spawned')
+  t.alike(backend.requests, [], 'nothing beyond the hello: no status, no key')
+  t.absent(host.workerIsLocal(sender.id), 'and it is not the back end in use')
+})
+
+test('a record main cannot trust, or whose socket does not answer, is no back end: the start spawns as without one', async (t) => {
+  const cases = {
+    'a run folder others can read': { mode: 0o755 },
+    'a record naming a socket that is gone': { record: { socket: '/nonexistent/run/daemon.sock' } },
+    'a record that is not one': { record: { v: 2 } },
+  }
+  for (const [name, opts] of Object.entries(cases)) {
+    const backend = await runningBackend(t, { status: AWAITING, ...opts })
+    const { spawned, spawn } = spawnCounter()
+    const { host, electron } = load({ flags: { identityKEK: KEK }, storage: backend.storage, spawn })
+    host.registerWorkerHost()
+    const starting = startFor(electron, fakeSender(7))
+    await until(() => spawned.length === 1)
+    t.is(spawned.length, 1, name + ': spawned')
+    t.alike(backend.requests, [], name + ': the back end was asked nothing')
+    spawned[0].emit('exit', 0)
+    await starting.catch(() => {})
+  }
+})
+
+test('a stale record — a socket file nobody listens on — is no back end', async (t) => {
+  const backend = await runningBackend(t, { status: AWAITING })
+  await backend.close()
+  fs.closeSync(fs.openSync(backend.socketPath, 'w'))
+  const { spawned, spawn } = spawnCounter()
+  const { host, electron } = load({ flags: { identityKEK: KEK }, storage: backend.storage, spawn })
+  host.registerWorkerHost()
+  const starting = startFor(electron, fakeSender(7))
+  await until(() => spawned.length === 1)
+  t.is(spawned.length, 1)
+  spawned[0].emit('exit', 0)
+  await starting.catch(() => {})
+})
+
+test('with no record at all the spawn happens in the same turn as the request', (t) => {
+  const { spawned, spawn } = spawnCounter()
+  const { host, electron } = load({ flags: { identityKEK: KEK }, spawn })
+  host.registerWorkerHost()
+  void startFor(electron, fakeSender(7)).catch(() => {})
+  t.is(spawned.length, 1)
+  spawned[0].emit('exit', 0)
+})
+
+test('a spawn that exits as already running is followed by a look for the holder, which is then used', async (t) => {
+  const backend = await runningBackend(t, { status: AWAITING, withRecord: false })
+  const { spawned, spawn } = spawnCounter()
+  const { host, electron } = load({ flags: { identityKEK: KEK }, storage: backend.storage, spawn })
+  host.registerWorkerHost()
+  const sender = fakeSender(7)
+  const starting = startFor(electron, sender)
+  t.is(spawned.length, 1, 'no record yet: spawned')
+  backend.writeRecord()
+  spawned[0].emit('exit', 73)
+  t.is(await starting, true, 'the start resolves on the holder')
+  t.alike(exits(sender), [], 'the window never heard the 73')
+  t.alike(backend.requests, ['identity:status', 'identity:unlock'])
+  t.is(spawned.length, 1, 'and nothing else was spawned')
+})
+
+test('a spawn that exits as already running with no holder to find still says so, after the looks', async (t) => {
+  const { spawned, spawn } = spawnCounter()
+  const { host, electron } = load({ flags: { identityKEK: KEK }, spawn, holderLooksMs: [1, 1, 1] })
+  host.registerWorkerHost()
+  const sender = fakeSender(7)
+  const starting = startFor(electron, sender)
+  spawned[0].emit('exit', 73)
+  await t.exception(starting)
+  t.alike(exits(sender), [73], 'the existing already-running state, once')
+  t.is(spawned.length, 1)
+})
+
+test('quitting lets go of a back end it did not start: no shutdown, no signal, its windows disconnected', async (t) => {
+  const backend = await runningBackend(t, { status: OPEN })
+  const { spawned, spawn } = spawnCounter()
+  const { host, electron } = load({ flags: { identityKEK: KEK }, storage: backend.storage, spawn })
+  host.registerWorkerHost()
+  const sender = fakeSender(7)
+  await startFor(electron, sender)
+  await until(() => backend.peers.length === 3)
+  const windowPeer = backend.peers[2]
+  host.stopWorkers()
+  await until(() => windowPeer.destroyed)
+  t.ok(windowPeer.destroyed, 'the window’s connection is closed')
+  t.absent(backend.requests.includes('shutdown'), 'the back end was not asked to stop')
+  t.is(spawned.length, 0, 'there is no process main could signal')
+  await new Promise((r) => setTimeout(r, 30))
+  t.alike(exits(sender), [], 'and the window is not told it exited')
+})
+
+test('a restart is refused for a back end it did not start, with a code, and the back end is untouched', async (t) => {
+  const backend = await runningBackend(t, { status: OPEN })
+  const { spawned, spawn } = spawnCounter()
+  const { host, electron } = load({ flags: { identityKEK: KEK }, storage: backend.storage, spawn })
+  host.registerWorkerHost()
+  const sender = fakeSender(7)
+  await startFor(electron, sender)
+  const refusal = await electron.ipcMain.handlers.get('pear:restartWorker')({}, MAIN_WORKER_SPEC)
+  t.alike(refusal, { ok: false, code: 'WORKER_STARTED_ELSEWHERE' })
+  t.alike(backend.requests, ['identity:status'], 'nothing was sent to it')
+  t.is(spawned.length, 0, 'nothing was spawned')
+  t.ok(host.workerIsLocal(sender.id), 'and it is still the back end in use')
+  t.alike(exits(sender), [])
+})
+
+test('a back end it did not start that goes away: the window hears exit 0, and its next start looks afresh', async (t) => {
+  const backend = await runningBackend(t, { status: OPEN })
+  const { spawned, spawn } = spawnCounter()
+  const { host, electron } = load({ flags: { identityKEK: KEK }, storage: backend.storage, spawn })
+  host.registerWorkerHost()
+  const sender = fakeSender(7)
+  await startFor(electron, sender)
+  await until(() => backend.peers.length === 3)
+  fs.rmSync(backend.recordFile)
+  await backend.close()
+  for (let i = 0; i < 100 && exits(sender).length === 0; i++) await new Promise((r) => setTimeout(r, 20))
+  t.alike(exits(sender), [0], 'the respawn path, once, after the grace')
+  t.absent(host.workerIsLocal(sender.id), 'it is no longer the back end in use')
+  const again = startFor(electron, sender)
+  t.is(spawned.length, 0, 'the next start first waits for the back end to return')
+  await until(() => spawned.length === 1)
+  t.is(spawned.length, 1, 'and with no record left after the looks, it spawns')
+  spawned[0].emit('exit', 0)
+  await again.catch(() => {})
+})
+
+test('a reveal is authorized against the roots the back end it did not start answers with', async (t) => {
+  const backend = await runningBackend(t, { status: OPEN, roots: ['/Volumes/Data/dl', '', 7] })
+  const { host, electron } = load({ flags: { identityKEK: KEK }, storage: backend.storage })
+  host.registerWorkerHost()
+  await startFor(electron, fakeSender(7))
+  t.alike(await host.revealRoots(), ['/Volumes/Data/dl'], 'asked at the time, and held to the same shape as a pushed set')
+  t.ok(backend.requests.includes('folders:reveal-roots'))
+  await backend.close()
+  t.alike(await host.revealRoots(), [], 'and once it has gone, nothing beyond home')
+})
+
+// A server that stands in for a back end the owner starts again on the same socket: a fresh
+// process, waiting for its key.
+async function restartedOn(t, backend) {
+  return socketServer(t, { dir: path.dirname(backend.socketPath), dataDir: fs.realpathSync.native(backend.dataDir), status: AWAITING })
+}
+
+test('REGRESSION (FIX-ATTACH-1: a closed window left a dead or replaced back end cached): a start with no window connected looks for the back end afresh and opens it', async (t) => {
+  const backend = await runningBackend(t, { status: OPEN })
+  const { spawned, spawn } = spawnCounter()
+  const { host, electron } = load({ flags: { identityKEK: KEK }, storage: backend.storage, spawn })
+  host.registerWorkerHost()
+  const sender = fakeSender(7)
+  await startFor(electron, sender)
+  sender.emit('destroyed')
+  await backend.close()
+  const again = await restartedOn(t, backend)
+  t.is(await startFor(electron, fakeSender(8)), true)
+  t.alike(again.requests, ['identity:status', 'identity:unlock'], 'the back end that is there now was asked and handed the key')
+  t.is(spawned.length, 0)
+})
+
+test('REGRESSION (FIX-ATTACH-1: a failed connect to an attached back end kept it cached): it is forgotten, and the next start looks again', async (t) => {
+  const backend = await runningBackend(t, { status: OPEN })
+  const { spawned, spawn } = spawnCounter()
+  const { host, electron } = load({ flags: { identityKEK: KEK }, storage: backend.storage, spawn })
+  host.registerWorkerHost()
+  const a = fakeSender(7)
+  await startFor(electron, a)
+  await until(() => backend.peers.length === 3)
+  // Another window still holds a connection, so the start trusts the cached back end; the
+  // socket it would connect to is gone.
+  const realConnect = backend.socketPath
+  fs.rmSync(realConnect)
+  await t.exception(startFor(electron, fakeSender(8)), 'the window could not connect')
+  t.absent(host.workerIsLocal(8))
+  fs.rmSync(backend.recordFile)
+  const third = startFor(electron, fakeSender(9))
+  await until(() => spawned.length === 1)
+  t.is(spawned.length, 1, 'the back end was forgotten: the next start looked again and spawned')
+  spawned[0].emit('exit', 0)
+  await third.catch(() => {})
+})
+
+test('REGRESSION (FIX-ATTACH-3: the app took the lock from an owner restarting the back end): after losing it, the next start waits for its return and uses it', async (t) => {
+  const backend = await runningBackend(t, { status: OPEN })
+  const { spawned, spawn } = spawnCounter()
+  const { host, electron } = load({ flags: { identityKEK: KEK }, storage: backend.storage, spawn, returnLooksMs: [0, 30, 30, 30] })
+  host.registerWorkerHost()
+  const sender = fakeSender(7)
+  await startFor(electron, sender)
+  await until(() => backend.peers.length === 3)
+  fs.rmSync(backend.recordFile)
+  await backend.close()
+  for (let i = 0; i < 100 && exits(sender).length === 0; i++) await new Promise((r) => setTimeout(r, 20))
+  const starting = startFor(electron, sender)
+  await new Promise((r) => setTimeout(r, 40))
+  t.is(spawned.length, 0, 'no spawn while the owner may still bring it back')
+  const back = await restartedOn(t, backend)
+  backend.writeRecord()
+  t.is(await starting, true)
+  t.is(spawned.length, 0, 'the returned back end is used')
+  t.alike(back.requests, ['identity:status', 'identity:unlock'])
+})
+
+test('REGRESSION (FIX-ATTACH-6: a window destroyed during the start was claimed and connected): it is neither claimed nor connected', async (t) => {
+  const backend = await runningBackend(t, { status: OPEN, holdUnlock: false })
+  const { host, electron } = load({ flags: { identityKEK: KEK }, storage: backend.storage })
+  host.registerWorkerHost()
+  const sender = fakeSender(7)
+  const starting = startFor(electron, sender)
+  sender.isDestroyed = () => true
+  sender.emit('destroyed')
+  t.is(await starting, false)
+  await new Promise((r) => setTimeout(r, 30))
+  t.is(backend.peers.length, 2, 'the probe and the status, and no window connection')
+  t.absent(host.workerIsLocal(sender.id))
+})
+
+test('REGRESSION (FIX-ATTACH-8: a quit during the look still spawned or handed a key): nothing is spawned or handed over once the app is quitting', async (t) => {
+  const backend = await runningBackend(t, { status: AWAITING })
+  const { spawned, spawn } = spawnCounter()
+  // A quit-state of this test's own: the flag has no way back, and later tests load the host afresh.
+  const quitPath = requireCjs.resolve('../../src/main/quit-state.js')
+  delete requireCjs.cache[quitPath]
+  t.teardown(() => { delete requireCjs.cache[quitPath] })
+  const { host, electron } = load({ flags: { identityKEK: KEK }, storage: backend.storage, spawn })
+  const quitState = requireCjs(quitPath)
+  host.registerWorkerHost()
+  const starting = startFor(electron, fakeSender(7))
+  quitState.markQuitting()
+  await t.exception(starting)
+  t.is(spawned.length, 0)
+  t.is(backend.unlocks.length, 0, 'no key went out')
+})
+
+test('REGRESSION (FIX-ATTACH-5: a busy holder was taken for stale and a second back end spawned): it is reported as already running, and nothing spawns', async (t) => {
+  const backend = await runningBackend(t, { status: AWAITING, silent: true })
+  const { spawned, spawn } = spawnCounter()
+  const { host, electron } = load({ flags: { identityKEK: KEK }, storage: backend.storage, spawn, busyAnswerMs: 30 })
+  host.registerWorkerHost()
+  const sender = fakeSender(7)
+  await t.exception(startFor(electron, sender))
+  t.alike(exits(sender), [73])
+  t.is(spawned.length, 0)
+})
+
+test('REGRESSION (FIX-ATTACH-9: an action stopped halfway when its restart was refused): main says, before any step, whether this window’s back end is its to restart', async (t) => {
+  const backend = await runningBackend(t, { status: OPEN })
+  const { host, electron } = load({ flags: { identityKEK: KEK }, storage: backend.storage })
+  host.registerWorkerHost()
+  const ask = electron.ipcMain.handlers.get('pear:workerRestartable')
+  const sender = fakeSender(7)
+  await startFor(electron, sender)
+  t.is(await ask({ sender }), false, 'attached: not this app’s to restart')
+  t.is(await ask({ sender: fakeSender(8) }), true, 'a window with no back end yet is told a spawn would be')
+
+  const spawned = load({ flags: { identityKEK: KEK } })
+  spawned.host.registerWorkerHost()
+  const server = await socketServer(t)
+  const other = fakeSender(9)
+  const starting = startFor(spawned.electron, other)
+  spawned.worker.emit('data', announce(server.socketPath))
+  await starting
+  t.is(await spawned.electron.ipcMain.handlers.get('pear:workerRestartable')({ sender: other }), true, 'spawned: restartable')
 })

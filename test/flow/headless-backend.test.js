@@ -6,9 +6,16 @@ import { spawnHeadless, connectClient } from '../helpers/headless.js'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpace, waitForCatalogEntry } from '../helpers/peer.js'
 import { tmpDir } from '../helpers/tmp.js'
-import { parseRunRecord } from '../../src/shared/core/run-record.js'
+import { parseRunRecord } from '../../src/shared/contract/run-record.js'
 import { scaled } from '../helpers/timing.js'
 import { waitFor } from '../helpers/poll.js'
+import { createRequire } from 'module'
+import { versionLabel } from '../../src/shared/contract/release-channel.js'
+
+const require = createRequire(import.meta.url)
+const { discoverBackend, openIdentity } = require('../../src/main/backend-discovery.js')
+const { requestOverSocket, greetOverSocket } = require('../../src/main/worker-request.js')
+const pkg = require('../../package.json')
 
 const WORKER_EXIT_PROTOCOL_MISMATCH = 71
 const WORKER_EXIT_ALREADY_RUNNING = 73
@@ -168,4 +175,36 @@ test('headless back ends share a space, and one outlives its last client', { tim
   const exited = new Promise((resolve) => child.once('exit', (code) => resolve(code)))
   child.kill('SIGTERM')
   t.is(await exited, 0, 'and it stops cleanly when told to')
+})
+
+// What the desktop app does on a profile a back end already serves, driven from main's own modules
+// against a real one: the record leads to the socket, the hello-ack states the version the app
+// compares with its own, the key opens the waiting identity, and the back end outlives the client.
+test('the app’s attach path finds a running back end by its record, opens it, and leaves it running', { timeout: scaled(90000) }, async (t) => {
+  const dir = dataDir(t)
+  const run = spawnHeadless(['--storage', dir, '--dev'])
+  t.teardown(() => { run.child.kill('SIGKILL') })
+  const socket = await run.listening(scaled(20000))
+  const storage = path.join(dir, 'app-storage')
+  const version = versionLabel({ dev: true, appVersion: pkg.version })
+
+  t.is((await greetOverSocket(socket)).dataDir, fs.realpathSync.native(dir), 'the ack names the data folder it serves, resolved')
+  t.alike(await discoverBackend(storage, { version, channel: 'dev' }), { verdict: 'attach', socket }, 'found by its record, owner, folder, version and channel checked')
+  t.is((await discoverBackend(storage, { version, channel: 'prod' })).verdict, 'other-version', 'an installed app at the same version text does not use it')
+  t.alike(await discoverBackend(storage, { version: version + '-other' }), { verdict: 'other-version', version }, 'another build is told apart by the text alone')
+
+  t.is(await openIdentity(socket, { kek: kekHex(), relaySeed: null }), true, 'the waiting identity opens with the key')
+  t.alike(await requestOverSocket(socket, 'identity:status'), { locked: false, code: null, restore: null })
+  t.is(await openIdentity(socket, { kek: kekHex(), relaySeed: null }), true, 'an open identity is sent nothing: another key would have been refused')
+  t.ok(Array.isArray(await requestOverSocket(socket, 'spaces:list')), 'and the data layer answers')
+  const roots = await requestOverSocket(socket, 'folders:reveal-roots')
+  t.ok(Array.isArray(roots.roots) && roots.host === 'daemon', 'the reveal roots a host that did not spawn it asks for')
+
+  await new Promise((resolve) => setTimeout(resolve, scaled(1500)))
+  t.is(run.child.exitCode, null, 'the back end is still running with every one of those clients gone')
+  const again = connectClient(socket)
+  t.alike((await again.call('identity:status')).data, { locked: false, code: null, restore: null }, 'and still answers')
+  again.close()
+  run.child.kill('SIGTERM')
+  t.is(await run.exited, 0)
 })

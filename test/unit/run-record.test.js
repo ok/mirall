@@ -1,5 +1,5 @@
 import test from 'brittle'
-import { parseRunRecord, serializeRunRecord, RUN_RECORD_FILE } from '../../src/shared/core/run-record.js'
+import { parseRunRecord, serializeRunRecord, RUN_RECORD_FILE } from '../../src/shared/contract/run-record.js'
 
 const good = { v: 1, socket: '/p/run/daemon.sock', pid: 4242, version: '1.14.0' }
 

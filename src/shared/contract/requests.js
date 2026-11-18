@@ -205,6 +205,7 @@ export const REQUESTS = Object.freeze({
     shareId: { type: ARG.shareId },
     spaceId: { type: ARG.spaceId },
   } },
+  'folders:reveal-roots': { kind: 'query', args: {} },
   'foreign-folder:validate': { kind: 'query', args: {
     mountPath: { type: ARG.path, max: ARG_MAX.path },
     shareId: { type: ARG.shareId, optional: true },

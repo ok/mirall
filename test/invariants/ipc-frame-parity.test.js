@@ -57,7 +57,7 @@ test('the hello-ack carries the stream coordinates and the trust it assigned', (
   const at = src.indexOf('FRAME.HELLO_ACK,\n      ok: true,')
   t.ok(at > 0, 'the accepting ack is written in one place')
   const ack = src.slice(at, at + 700)
-  for (const field of ['protocolVersion', 'protocolMin', 'protocolMax', 'appVersion', 'trust', 'epoch', 'head', 'resume']) {
+  for (const field of ['protocolVersion', 'protocolMin', 'protocolMax', 'appVersion', 'channel', 'dataDir', 'trust', 'epoch', 'head', 'resume']) {
     t.ok(new RegExp(`\\b${field}:`).test(ack), `${field} rides the ack`)
   }
 })

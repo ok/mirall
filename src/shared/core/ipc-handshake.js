@@ -1,16 +1,21 @@
 // The two frames that decide whether the rest of the wire is spoken at all: a client's
 // introduction, and the host's boot payload. Split from the router because the router owns what a
 // REQUEST means; this owns the one exchange that has to complete before any request is honoured.
-import { FRAME, IPC_PROTOCOL_VERSION, IPC_PROTOCOL_MIN_SUPPORTED } from '../contract/ipc-frames.js'
+import { FRAME, IPC_PROTOCOL_VERSION, IPC_PROTOCOL_MIN_SUPPORTED, TRUST } from '../contract/ipc-frames.js'
 import { checkHello, refusalMessage } from '../contract/hello.js'
 import { CODES } from '../contract/errors.js'
 import { AppError } from './errors.js'
 import { fields } from './logger.js'
-import { getAppVersionLabel } from './runtime-config.js'
+import { getAppVersionLabel, getReleaseChannel } from './runtime-config.js'
 
 // `isPrimary` rather than the client itself: the spawn pipe's client is attached after the router
 // body has run, and only a frame arriving on it can ask the question.
 export function createHandshake({ log, events, clients, isPrimary }) {
+  // The resolved data folder whose lock this worker holds, stated to each host greeted after the
+  // listener sets it; null before.
+  /** @type {string | null} */
+  let servedDataDir = null
+
   let bootstrapResolve
   let bootstrapReject
   const bootstrapPromise = new Promise((resolve, reject) => {
@@ -50,6 +55,12 @@ export function createHandshake({ log, events, clients, isPrimary }) {
   }
 
   function refuse(client, verdict) {
+    // appVersion: on the spawn pipe this hello precedes the bootstrap, so the label there is the
+    // unconfigured one; a socket client is greeted after the config is set and reads the build's.
+    // channel: a development back end takes test levers and the staging signing key, which the
+    // version text alone does not show.
+    // dataDir: how a host tells its own profile's back end from another's; a client that is not
+    // the host has no use for a path on this machine.
     client.write(JSON.stringify({
       type: FRAME.HELLO_ACK,
       ok: false,
@@ -77,6 +88,10 @@ export function createHandshake({ log, events, clients, isPrimary }) {
       client: client.id, kind: verdict.kind, name: verdict.name, version: verdict.version, trust: client.trust,
     }))
     const caught = verdict.cursor ? events.resume(client, verdict.cursor) : null
+    // appVersion: on the spawn pipe this hello precedes the bootstrap, so the label there is the
+    // unconfigured one; a socket client is greeted after the config is set and reads the build's.
+    // dataDir: how a host tells its own profile's back end from another's; a client that is not
+    // the host has no use for a path on this machine.
     client.write(JSON.stringify({
       type: FRAME.HELLO_ACK,
       ok: true,
@@ -84,6 +99,8 @@ export function createHandshake({ log, events, clients, isPrimary }) {
       protocolMin: IPC_PROTOCOL_MIN_SUPPORTED,
       protocolMax: IPC_PROTOCOL_VERSION,
       appVersion: getAppVersionLabel(),
+      channel: getReleaseChannel(),
+      dataDir: client.trust === TRUST.HOST ? servedDataDir : null,
       trust: client.trust,
       epoch: events.epoch,
       head: events.head(),
@@ -91,5 +108,8 @@ export function createHandshake({ log, events, clients, isPrimary }) {
     }) + '\n')
   }
 
-  return { bootstrapPromise, greetClient, readBootstrap }
+  /** @param {string} dir */
+  function setServedDataDir(dir) { servedDataDir = dir }
+
+  return { bootstrapPromise, greetClient, readBootstrap, setServedDataDir }
 }

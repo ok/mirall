@@ -165,16 +165,58 @@ An MSIX-packaged install has its AppData redirected by Windows; that path is not
   then ride the bootstrap, no unlock is sent at spawn, and "Try again" still sends one. Unit tests cover
   both values and `bootstrap-allowlist.test.js` pins the shipped one to `false`. The acceptance is
   removed in 1.15.
-- **Window connections.** `src/main/window-connections.js`. `pear:startWorker` spawns the worker if
-  needed, waits for its `socket:listening` main-request (main never derives the path) and for the
-  key to be handed over (above), checks that
+- **Window connections.** `src/main/window-connections.js`. `pear:startWorker` uses a running back
+  end or spawns the worker (below), waits for its `socket:listening` main-request (main never
+  derives the path) and for the key to be handed over (above), checks that
   the socket's directory is private to this user (Unix), and opens the calling window's own
   connection; a reload replaces it. `pear:worker:writeIPC` answers `false` for a window with no
   connection, so the renderer fails that request at once. A window hears exactly one
   `pear:worker:exit` per worker it started: the process's exit code, or `0` when its socket closed
-  while the process lived (after a 1 s grace in which the exit code may still arrive). Windows has
-  no client-side owner check: main connects only to a pipe its own child bound as the first
-  instance under an owner-only DACL.
+  while the process lived (after a 1 s grace in which the exit code may still arrive). A
+  spawned worker's pipe needs no client-side owner check on Windows: its own child bound it as the
+  first instance under an owner-only DACL.
+- **A running back end is used, not duplicated.** `src/main/backend-discovery.js`, called from
+  `worker-host.js` before a spawn. Main reads `<dataDir>/run/daemon.json` synchronously; with no
+  record (every normal start) it spawns in the same turn. A record is advisory and is trusted only
+  when the back end it names passes four checks, in order: owner (POSIX: the run folder and the
+  socket's folder private to this user, the socket a socket this user owns; Windows: the pipe's
+  owner, read by `src/main/pipe-owner.js`, is this user); a hello-ack; a `dataDir` in that ack equal
+  to main's own resolved data folder (the back end states the folder whose lock it holds, resolved
+  with `realpath` after taking the lock, to host clients only; a record copied or moved with its
+  folder names another profile's back end, which is never handed this profile's key); and an
+  `appVersion` equal to the text a spawn of this build would state (`versionLabel`,
+  `src/shared/contract/release-channel.js`; beta number included) with a `channel` equal to this
+  build's (`deriveChannel`: a back end started from a source checkout is a development build, which
+  takes test levers and the staging signing key, so an installed app never uses one). A socket that refuses or is gone
+  is stale within a 1 s connect bound, and main spawns as without a record, as it does for an owner
+  or folder that does not match. A socket that accepted but has not answered within 60 s is a busy
+  holder (a boot can hold its loop that long, `ipc-liveness.js`): like another version, it is
+  neither used nor stopped, and the window gets exit 73, the already-running screen. A spawn that
+  exits 73 is followed by three more looks for the holder over 1.75 s (it took the lock between
+  the look and the spawn) before the 73 stands; where this build can never attach (Windows today)
+  the 73 stands at once.
+  An attached back end sits in `workers` as `{ attached: true, socketPath }`. Main sends it
+  `identity:status` and, only when it waits for a key or is locked, `identity:unlock` with the key and
+  relay seed, never during a quit; an unlock refused because another client's key opened it
+  meanwhile is success. It is never sent a bootstrap, so it keeps its own download folder, dev mode
+  and levers. Main reads none of its output and never ends it: quit and the pre-update stop only
+  close its window connections, `process.on('exit')` signals only spawned children, and
+  `pear:restartWorker` resolves `{ ok: false, code: WORKER_STARTED_ELSEWHERE }` and leaves it as it
+  is. An action that ends in a restart asks `pear:workerRestartable` (`assertRestartable` in
+  `src/renderer/ipc/ipc.ts`) before its first step that cannot be undone, and shows that code's
+  sentence instead of starting: Free up, Start fresh, a restore onto an unlocked identity, and the
+  restart after a released restore (whose banner then names the owner instead of offering Retry).
+  A relay identity change is saved and applies when the owner restarts the back end and main hands
+  the new one the relay seed with the key. Reveal roots are asked of it (`folders:reveal-roots`)
+  when a reveal outside home is authorized, since only a spawning host is pushed them.
+  Main trusts a cached attached back end only while some window holds an open connection to it
+  (one to a back end that ended closes); a start with none looks for it afresh and opens it again,
+  and a failed window connect forgets it. A window connection to it that closes makes main forget
+  it; the window hears exit 0, and its respawn first looks for the back end's return for 8 s
+  (stopping takes up to 4 s before the lock is free, then the owner starts it again) before main
+  spawns its own and takes the lock. **Windows does not attach yet:** `pipeOwnedBySelf` refuses
+  every pipe until it can read a pipe's owner, so there the app behaves as before and shows the
+  already-running screen.
 - **Environment levers.** Main reads `PEAR_DEV_SERVER_URL` and the `MIRALL_*` test and debug
   hooks only through `src/main/env-overrides.js`, which returns nothing on a packaged build. The
   two release rollback levers and the AppImage runtime's variables are the listed exceptions
@@ -211,7 +253,9 @@ An MSIX-packaged install has its AppData redirected by Windows; that path is not
   roots the worker pushes (`reveal:roots`): every folder that holds a download or a partial (each
   space's folder, the folder for new spaces, the recent folders, and every folder a pending row or
   a claim names) and every owned or mirrored mount path, republished when one of them is added.
-  The pushed roots are dropped when that worker exits.
+  The pushed roots are dropped when that worker exits. A back end main attached to rather than
+  spawned is never pushed to; main asks it for the same set (`folders:reveal-roots`) at each
+  reveal, and one that does not answer within 5 s adds no root.
 
 ### Renderer (`src/renderer/` → `assets/dist/`)
 
@@ -252,11 +296,13 @@ Bootstrap:
    `WORKER_EXIT_LISTEN_FAILED` (74, retried). Admission is bare-pipe's `ownerOnly` plus
    `src/shared/core/peer-admission.js`, and an admitted connection attaches as `TRUST.HOST`: it is
    the owning user. The path goes to main as the `socket:listening` main-request.
-   Once bound, the worker writes `<dataDir>/run/daemon.json` (`src/shared/core/run-record.js`:
+   Once bound, the worker writes `<dataDir>/run/daemon.json` (`src/shared/contract/run-record.js`:
    `{ v, socket, pid, version }`, atomic, 0600, always beside the lock even when the socket sits in
    the temp root) and removes it on a clean close, only if its own pid is named. It is advisory: the
    lock, never the record, decides who holds the store, and a record whose socket does not answer is
-   stale. The hello-ack carries the worker's `appVersion`.
+   stale. The hello-ack carries the worker's `appVersion` and `channel` and, to a host client once the lock is
+   held, `dataDir`: the resolved data folder it serves (null on the spawn pipe, whose hello precedes
+   the bootstrap).
 4. `boot()` starts two tiers *(cited as `§2 boot step N`)*. The **durable** tier holds every
    Corestore-session handle plus the recorders the teardown writes through, and closes **last**:
    1. `Store` → identity unlock → `runMigrations('durable')` → `maintainLocalBees` → `SpaceKeysVault` → `ProfileBee` →
@@ -307,7 +353,8 @@ Bootstrap:
 **Shutdown.** A closed pipe detaches the client. `src/worker/connection-lifecycle.js` then stops the
 worker when the closed pipe is the spawn pipe, whatever socket clients remain, because those reach
 it through the host that just went. A headless worker has no spawn pipe and stays up with no client
-attached; its stop is a `shutdown` request or a stop signal. A socket client that stays silent through a `keepalive` and its
+attached; its stop is a `shutdown` request or a stop signal. The desktop app never sends either to
+a back end it attached to rather than spawned: quitting the app only closes its connections. A socket client that stays silent through a `keepalive` and its
 grace (30 s + 10 s, `src/shared/core/ipc-liveness.js`, on the health tick) is detached, which
 aborts its in-flight work and closes its socket. A `shutdown` request
 does the same. `safeShutdown` keeps the first reason's exit code, aborts in-flight requests, and
@@ -1476,7 +1523,8 @@ there. The rules:
   worker.
 - `showInFolder({ host, path, exists })` is an authorization check (`src/main/notifications.js`).
   `host: 'client'` is the client's own; `host: 'daemon'` is admitted only while the worker the
-  calling window claimed is one this process spawned (`workerIsLocal(senderId)`); anything else is
+  calling window claimed is one this process spawned or attached to after its owner check
+  (`workerIsLocal(senderId)`); anything else is
   refused with `REVEAL_REFUSED`. The path is resolved *before* the containment test and must lie
   under the home dir or a root the worker published. What is on disk is main's own stat, never the
   caller's `exists`: a path that is there is shown, a path that is not is shown by its folder if that
@@ -1704,8 +1752,14 @@ not await async listeners.
   source run of the desktop app); with no host to say otherwise, new spaces download to
   `~/Downloads`. A key arrives only over the socket: there is no key-file unlock. On Windows a
   headless start does not set the owner-and-SYSTEM ACL the desktop app sets on the data folder
-  (POSIX gets `app-storage/` at 0700 when the start creates it). The desktop app never reuses a
-  running headless back end — a second worker on the same profile exits `WORKER_EXIT_ALREADY_RUNNING`.
+  (POSIX gets `app-storage/` at 0700 when the start creates it). The desktop app uses a running
+  back end of the same user, data folder and exact version instead of spawning (§2 Main process,
+  "A running back end is used, not duplicated"), but cannot restart it or change its spawn-time
+  settings: Free up, Start fresh and a restore onto an unlocked identity are not started, a relay
+  identity change waits for the owner's restart, and its settings are whatever it was started
+  with. It does not check the back end's release channel: a packaged app uses a `--dev` back end of
+  the same version text. On Windows it
+  does not attach yet: it shows that Mirall is already running, as it does for any other version.
 - **Preload has no structural contract.** `src/preload/preload.js` is sandboxed and unbundled, so it
   can't import `src/shared/contract/`. `test/invariants/preload-parity.test.js` checks its key set
   against `src/renderer/platform/global.d.ts`, but nothing checks signatures.
