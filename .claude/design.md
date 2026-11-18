@@ -344,8 +344,8 @@ that room as padding and cancel it with an equal negative margin, so nothing mov
 Three variants — `primary`, `secondary` and `danger` (the last is described after the hover rules
 below):
 - **`primary`** — `bg-primary text-on-primary shadow-lg shadow-primary/10 hover:bg-primary-hover`
-- **`secondary`** — neutral surface `bg-surface-control` → `hover:bg-surface-control-hover`. Shared
-  with the nav "Send feedback" button and used for Cancel/dismiss.
+- **`secondary`** — neutral surface `bg-surface-control` → `hover:bg-surface-control-hover`. Used
+  for Cancel/dismiss and for an action that is not the screen's main one.
 
 **Every variant names its hover colour; none of them blends.** `hover:opacity-90` reads as "darken"
 but means "mix in 10% of whatever is behind me", so its size and even its *direction* depend on the
@@ -439,7 +439,7 @@ and field wiring. `ariaDisabled` is the in-flight state: it looks like `disabled
 button focusable, so a failed save leaves focus where it was.
 
 **Never hand-roll these classes.** Settings/list action buttons ("Export", "Load more", "Clear
-filters", nav "Send feedback") are all `variant="secondary"` + `className="shrink-0"`, not a local
+filters") are all `variant="secondary"` + `className="shrink-0"`, not a local
 copy of the class string — four screens once kept their own `ACTION_BUTTON` constant, and the copy
 that lost its `bg-*` pair is exactly how an unfilled Cancel button shipped. The one deliberate
 exception is `PathRow`'s button: it wears the same `surface-control` pair but is sized to the 48px
@@ -475,7 +475,12 @@ or share row (see the hover rules under Buttons). Requires `ariaLabel`. The icon
 `variant="danger"` is a destructive control: `text-error` on the button, hovering to
 `bg-error-container text-on-error-container`; the icon drops any `text-*` ink and inherits —
 `error` on `error-container` is under 3:1 in dark (pinned by `control-hover-tokens.test.js`,
-FIX-B4-1).
+FIX-B4-1). `ariaCurrent="page"` marks a control that leads to the screen the user is on.
+
+**The header's controls are icon buttons**, in this order: Transfers (`layout/TransfersButton.tsx`,
+`swap_vert`, opens the transfers page from any screen and wears the `surface-container-high` fill
+while that page is current), Send Feedback (`feedback`), Settings, then the profile avatar. Each is
+named by its `aria-label` and repeats it as the tooltip.
 
 ### Checkbox — `primitives/Checkbox.tsx`
 The app's one checkbox: a 20 px `rounded` box drawn over an `sr-only` native input, inside a round

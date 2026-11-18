@@ -51,6 +51,7 @@ const SCREEN_COMMANDS: Record<PaletteScreen, AppCommandRow> = {
   account: { id: 'profile.open', labelKey: 'shortcuts.openProfile', keywordsKey: 'shortcuts.keywords.profile', group: 'navigation', run: (t) => t.nav.openAccount() },
   about: { id: 'about.open', labelKey: 'shortcuts.openAbout', keywordsKey: 'shortcuts.keywords.about', group: 'navigation', run: (t) => t.nav.setCurrentScreen('about') },
   'activity-log': { id: 'activity.open', labelKey: 'shortcuts.openActivityLog', keywordsKey: 'shortcuts.keywords.activityLog', group: 'navigation', run: (t) => t.nav.openActivityLog() },
+  transfers: { id: 'transfers.open', labelKey: 'shortcuts.openTransfers', keywordsKey: 'shortcuts.keywords.transfers', group: 'navigation', run: (t) => t.nav.openTransfers() },
   'activity-log-settings': { id: 'activity.openSettings', labelKey: 'shortcuts.openActivityLogSettings', group: 'navigation', run: (t) => t.nav.setCurrentScreen('activity-log-settings') },
   'storage-settings': { id: 'settings.storage', labelKey: 'shortcuts.openStorageSettings', keywordsKey: 'shortcuts.keywords.storage', group: 'navigation', run: (t) => t.nav.openStorageSettings('settings') },
   'appearance-settings': { id: 'settings.appearance', labelKey: 'shortcuts.openAppearanceSettings', keywordsKey: 'shortcuts.keywords.appearance', group: 'navigation', run: (t) => t.nav.setCurrentScreen('appearance-settings') },

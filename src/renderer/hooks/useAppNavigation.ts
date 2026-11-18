@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import type { AuditFilters } from '../types/types.js'
-import { parentOf, type Screen } from '../shell/navigation.js'
+import { backsThrough, parentOf, type BackTargets, type Screen } from '../shell/navigation.js'
 import type { SpaceAction, PendingSpaceAction } from '../shell/space-actions.js'
 
 export interface AppNavigation {
@@ -25,6 +25,7 @@ export interface AppNavigation {
   openFromSettings: (screen: Screen) => void
   openActivityLog: (preset?: Partial<AuditFilters> | null) => void
   openActivityLogSettings: () => void
+  openTransfers: () => void
   openFromOrganization: (screen: 'network-settings' | 'activity-log-settings' | 'backup-settings') => void
   goBack: () => void
   goHome: () => void
@@ -51,6 +52,11 @@ export function useAppNavigation(): AppNavigation {
   // The Organization page's rows open the settings page that holds each managed value, and Back
   // returns to the Organization page; every other way in is under Settings.
   const [settingsPageBackTarget, setSettingsPageBackTarget] = useState<'settings' | 'organization'>('settings')
+  // The transfers page is opened from the header on any screen, and Back returns to that screen.
+  const [transfersBackTarget, setTransfersBackTarget] = useState<Screen>('spaces')
+  const backTargets: BackTargets = useMemo(() => ({
+    preSettingsScreen, preAccountScreen, storageBackTarget, activityLogBackTarget, activityLogSettingsBackTarget, settingsPageBackTarget, transfersBackTarget,
+  }), [preSettingsScreen, preAccountScreen, storageBackTarget, activityLogBackTarget, activityLogSettingsBackTarget, settingsPageBackTarget, transfersBackTarget])
 
   const openSettings = useCallback(() => {
     setPreSettingsScreen((prev) => {
@@ -84,9 +90,14 @@ export function useAppNavigation(): AppNavigation {
     // The viewer/config cross-link stays a lateral jump, not a history step: following it and
     // pressing Back returns to THAT screen's own parent, which is the shipped convention.
     const lateral = currentScreen === 'activity-log' || currentScreen === 'activity-log-settings'
-    setActivityLogBackTarget(lateral ? 'account' : currentScreen)
+    if (lateral) setActivityLogBackTarget('account')
+    else if (!backsThrough(currentScreen, 'activity-log', backTargets)) setActivityLogBackTarget(currentScreen)
     setCurrentScreen('activity-log')
-  }, [currentScreen])
+  }, [currentScreen, backTargets])
+  const openTransfers = useCallback(() => {
+    if (!backsThrough(currentScreen, 'transfers', backTargets)) setTransfersBackTarget(currentScreen)
+    setCurrentScreen('transfers')
+  }, [currentScreen, backTargets])
   const openActivityLogSettings = useCallback(() => {
     setActivityLogSettingsBackTarget(currentScreen === 'storage-settings' ? 'storage-settings' : 'settings')
     setCurrentScreen('activity-log-settings')
@@ -125,13 +136,11 @@ export function useAppNavigation(): AppNavigation {
   // button, Windows browser-backward app-command, macOS swipe, mod+←) so they
   // behave like a browser back button. 'spaces' is the root — nothing above it.
   const goBack = useCallback(() => {
-    const parent = parentOf(currentScreen, {
-      preSettingsScreen, preAccountScreen, storageBackTarget, activityLogBackTarget, activityLogSettingsBackTarget, settingsPageBackTarget,
-    })
+    const parent = parentOf(currentScreen, backTargets)
     if (!parent) return
     if (currentScreen === 'folder-view') setSelectedShareId(null)
     setCurrentScreen(parent)
-  }, [currentScreen, preSettingsScreen, preAccountScreen, storageBackTarget, activityLogBackTarget, activityLogSettingsBackTarget, settingsPageBackTarget])
+  }, [currentScreen, backTargets])
 
   const goHome = useCallback(() => {
     setSelectedShareId(null)
@@ -166,6 +175,7 @@ export function useAppNavigation(): AppNavigation {
     openFromSettings,
     openActivityLog,
     openActivityLogSettings,
+    openTransfers,
     openFromOrganization,
     goBack,
     goHome,

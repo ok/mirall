@@ -19,6 +19,7 @@ import NetworkDiagnosticsScreen from './screens/NetworkDiagnosticsScreen.js'
 import NetworkAdvancedScreen from './screens/NetworkAdvancedScreen.js'
 import Account from './screens/AccountScreen.js'
 import ActivityLog from './screens/ActivityLogScreen.js'
+import TransfersScreen from './screens/TransfersScreen.js'
 import ActivityLogSettings from './screens/settings/ActivityLogSettings.js'
 import ConnectionProblemScreen from './screens/ConnectionProblemScreen.js'
 import { useConnectionGate } from './hooks/useConnectionGate.js'
@@ -120,11 +121,43 @@ function networkRoute(screen: NetworkScreen, nav: AppNavigation) {
   }
 }
 
+// Screens opened from anywhere in the app, whose Back returns to the screen they were opened from.
+const CROSS_LINKED_SCREENS = ['activity-log', 'activity-log-settings', 'transfers'] as const
+
+type CrossLinkedScreen = (typeof CROSS_LINKED_SCREENS)[number]
+
+function isCrossLinkedScreen(screen: Screen): screen is CrossLinkedScreen {
+  return (CROSS_LINKED_SCREENS as readonly Screen[]).includes(screen)
+}
+
+function crossLinkedRoute(screen: CrossLinkedScreen, nav: AppNavigation) {
+  switch (screen) {
+    case 'activity-log':
+      return (
+        <ActivityLog
+          onBack={nav.goBack}
+          onOpenSettings={nav.openActivityLogSettings}
+          initialFilters={nav.activityLogPreset ?? undefined}
+        />
+      )
+    case 'activity-log-settings':
+      return (
+        <ActivityLogSettings
+          onBack={nav.goBack}
+          onOpenLog={() => nav.openActivityLog()}
+        />
+      )
+    case 'transfers':
+      return <TransfersScreen onBack={nav.goBack} />
+  }
+}
+
 export default function ScreenRouter({ nav, profile, onSaveProfile, openDialog }: ScreenRouterProps) {
   const { currentScreen, selectedSpaceId, selectedShareId } = nav
   const gate = useConnectionGate()
   if (isNetworkScreen(currentScreen)) return networkRoute(currentScreen, nav)
   if (isPreferenceScreen(currentScreen)) return preferenceRoute(currentScreen, nav)
+  if (isCrossLinkedScreen(currentScreen)) return crossLinkedRoute(currentScreen, nav)
   switch (currentScreen) {
     case 'spaces':
       return gate.showConnectionProblem ? (
@@ -209,21 +242,6 @@ export default function ScreenRouter({ nav, profile, onSaveProfile, openDialog }
         <NetworkSettings
           onBack={nav.goBack}
           onOpenStatus={() => nav.setCurrentScreen('network-status')}
-        />
-      )
-    case 'activity-log':
-      return (
-        <ActivityLog
-          onBack={nav.goBack}
-          onOpenSettings={nav.openActivityLogSettings}
-          initialFilters={nav.activityLogPreset ?? undefined}
-        />
-      )
-    case 'activity-log-settings':
-      return (
-        <ActivityLogSettings
-          onBack={nav.goBack}
-          onOpenLog={() => nav.openActivityLog()}
         />
       )
   }

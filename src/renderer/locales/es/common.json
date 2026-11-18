@@ -27,6 +27,7 @@
   },
   "topnav": {
     "feedback": "Enviar comentarios",
+    "transfers": "Transferencias",
     "settings": "Ajustes",
     "account": "Perfil",
     "accountWithIssue": "Perfil — problema de conexión"
@@ -630,6 +631,7 @@
     "openSettings": "Abrir Ajustes",
     "openProfile": "Abrir Perfil",
     "openActivityLog": "Abrir Registro de actividad",
+    "openTransfers": "Abrir Transferencias",
     "openStorageSettings": "Abrir ajustes de almacenamiento",
     "openAppearanceSettings": "Abrir ajustes de apariencia",
     "openNotificationSettings": "Abrir ajustes de notificaciones",
@@ -672,6 +674,7 @@
       "profile": "cuenta nombre avatar imagen",
       "about": "versión licencia privacidad",
       "activityLog": "auditoría historial eventos",
+      "transfers": "descargas subidas velocidad envío",
       "storage": "espacio en disco carpeta de descargas",
       "appearance": "tema modo oscuro modo claro zoom tamaño del texto idioma",
       "general": "inicio abrir al iniciar sesión bandeja",
@@ -1149,6 +1152,7 @@
       "general": "General",
       "network": "Estado de la red",
       "activityLog": "Registro de actividad",
+      "transfers": "Transferencias",
       "activityLogSettings": "Ajustes del registro de actividad",
       "networkSettings": "Ajustes de red",
       "connectionProblem": "Problema de conexión",
@@ -1345,6 +1349,12 @@
       "peers-unreachable": "Se encontraron personas, pero no se pudo conectar con ninguna",
       "vpn-only-route": "Tu VPN es la única salida"
     }
+  },
+  "transfers": {
+    "title": "Transferencias",
+    "intro": "Todo lo que se mueve entre este dispositivo y tus espacios.",
+    "emptyTitle": "No hay transferencias ahora",
+    "emptyBody": "Las descargas que inicies y los archivos que otros miembros obtengan de ti aparecen aquí."
   },
   "activityLogSettings": {
     "title": "Registro de actividad",

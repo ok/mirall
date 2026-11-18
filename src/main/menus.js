@@ -98,6 +98,7 @@ function buildAppMenu() {
       openAbout: send('about.open'),
       openProfile: send('profile.open'),
       openActivityLog: send('activity.open'),
+      openTransfers: send('transfers.open'),
       openSpace: (spaceId) => sendKeyboardCommand(`space.open.${spaceId}`),
       openSettings: send('settings.open'),
       newSpace: send('space.new'),

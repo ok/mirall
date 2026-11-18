@@ -14,6 +14,7 @@ const allHandlers = {
   navHome: noop,
   openProfile: noop,
   openActivityLog: noop,
+  openTransfers: noop,
   openSpace: noop,
   openPalette: noop,
   showShortcuts: noop,
@@ -174,15 +175,18 @@ test('REGRESSION (FIX-219): zoom items call the handlers instead of the Electron
   for (const role of roles) t.absent(findInSubmenu(view, role), `no ${role} role in the View menu`)
 })
 
-test('View submenu exposes Profile and Activity Log with their chords', (t) => {
+test('View submenu exposes Profile, Activity Log and Transfers with their chords', (t) => {
   for (const platform of ['darwin', 'win32', 'linux']) {
     const view = find(buildAppMenuTemplate({ ...baseOpts, platform }), 'View').submenu
     const profile = findInSubmenu(view, 'Profile')
     const activity = findInSubmenu(view, 'Activity Log')
+    const transfers = findInSubmenu(view, 'Transfers')
     t.ok(profile, `${platform}: Profile item present`)
     t.ok(activity, `${platform}: Activity Log item present`)
+    t.ok(transfers, `${platform}: Transfers item present`)
     t.is(profile.accelerator, 'CmdOrCtrl+Shift+P', `${platform}: Profile bound to mod+shift+P`)
     t.is(activity.accelerator, 'CmdOrCtrl+Shift+L', `${platform}: Activity Log bound to mod+shift+L`)
+    t.is(transfers.accelerator, 'CmdOrCtrl+Shift+T', `${platform}: Transfers bound to mod+shift+T`)
   }
 })
 

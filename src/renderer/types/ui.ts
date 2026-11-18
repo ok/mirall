@@ -66,6 +66,7 @@ export type IconName =
   | 'shield'
   | 'star'
   | 'stop'
+  | 'swap_vert'
   | 'table_chart'
   | 'tips_and_updates'
   | 'tune'

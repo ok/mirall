@@ -38,8 +38,8 @@ interface ButtonProps {
 // Hover never blends (`opacity-90` mixes the page in): each hover token is the resting fill stepped
 // AWAY from the page — darker in light mode, lighter in dark — except the two brand fills at the
 // end of the ramp, which step inward. design.md carries the table; control-hover-tokens.test.js pins it.
-// `secondary` is the neutral surface style (cancel / dismiss; shared with the top-nav feedback
-// button and the filter chips). `danger` is the tonal destructive style for every destructive
+// `secondary` is the neutral surface style (cancel / dismiss; shared with the filter
+// chips). `danger` is the tonal destructive style for every destructive
 // action, in-page or in a modal: it rests in the soft error-container fill and hovers to a deeper
 // shade of the same red rather than jumping to a neutral color.
 const variantClasses: Record<ButtonVariant, string> = {

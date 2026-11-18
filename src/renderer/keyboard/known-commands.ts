@@ -40,6 +40,7 @@ export const KEYBOARD_SHORTCUTS: ReadonlyArray<KnownCommand> = [
   { id: 'settings.open',    labelKey: 'shortcuts.openSettings',    group: 'navigation', accelerator: 'mod+,' },
   { id: 'profile.open',     labelKey: 'shortcuts.openProfile',     group: 'navigation', accelerator: 'mod+shift+p' },
   { id: 'activity.open',    labelKey: 'shortcuts.openActivityLog', group: 'navigation', accelerator: 'mod+shift+l' },
+  { id: 'transfers.open',   labelKey: 'shortcuts.openTransfers',   group: 'navigation', accelerator: 'mod+shift+t' },
   { id: 'space.new',        labelKey: 'shortcuts.newSpace',        group: 'actions',    accelerator: 'mod+n' },
   { id: 'space.join',       labelKey: 'shortcuts.joinSpace',       group: 'actions',    accelerator: 'mod+j' },
   { id: 'search.focus',     labelKey: 'shortcuts.focusSearch',     group: 'actions',    accelerator: 'mod+f' },

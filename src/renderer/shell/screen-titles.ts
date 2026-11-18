@@ -22,4 +22,5 @@ export const SCREEN_TITLE_KEYS: Record<Screen, string> = {
   'connection-problem': 'a11y.screens.connectionProblem',
   'activity-log': 'a11y.screens.activityLog',
   'activity-log-settings': 'a11y.screens.activityLogSettings',
+  'transfers': 'a11y.screens.transfers',
 }

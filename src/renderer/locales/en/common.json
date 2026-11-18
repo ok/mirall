@@ -33,6 +33,7 @@
       "general": "General",
       "network": "Network Status",
       "activityLog": "Activity Log",
+      "transfers": "Transfers",
       "activityLogSettings": "Activity Log Settings",
       "networkSettings": "Network Settings",
       "connectionProblem": "Connection Problem",
@@ -56,6 +57,7 @@
   },
   "topnav": {
     "feedback": "Send Feedback",
+    "transfers": "Transfers",
     "settings": "Settings",
     "account": "Profile",
     "accountWithIssue": "Profile — connection issue"
@@ -659,6 +661,7 @@
     "openSettings": "Open Settings",
     "openProfile": "Open Profile",
     "openActivityLog": "Open Activity Log",
+    "openTransfers": "Open Transfers",
     "openStorageSettings": "Open Storage Settings",
     "openAppearanceSettings": "Open Appearance Settings",
     "openNotificationSettings": "Open Notification Settings",
@@ -701,6 +704,7 @@
       "profile": "account name avatar picture",
       "about": "version license privacy",
       "activityLog": "audit history events",
+      "transfers": "downloads uploads speed sending",
       "storage": "disk space download folder",
       "appearance": "theme dark mode light mode zoom text size language",
       "general": "startup open at login tray",
@@ -1345,6 +1349,12 @@
       "peers-unreachable": "Found people, couldn't connect to any",
       "vpn-only-route": "Your VPN is the only route out"
     }
+  },
+  "transfers": {
+    "title": "Transfers",
+    "intro": "Everything moving between this device and your spaces.",
+    "emptyTitle": "No transfers right now",
+    "emptyBody": "Downloads you start and files other members fetch from you show up here."
   },
   "activityLogSettings": {
     "title": "Activity Log",
