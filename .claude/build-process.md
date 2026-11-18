@@ -89,8 +89,10 @@ git fetch origin && git push origin origin/main:refs/heads/release/1.12
 `main` keeps taking features during the freeze; they ship with the next minor.
 
 **Launch time before a minor is cut.** On each OS, `node scripts/launch-timing/measure.mjs run --app
-<installed app> --label <version> --storage <copy of a data folder>` launches the previous release
-and then the beta ten times each, each on its own fresh copy of the same data folder, and
+<installed app> --label <version> --storage <test profile folder>` launches the previous release
+and then the beta ten times each on one test profile, made beforehand by starting the previous
+release once with `--storage <folder> --no-updates` and creating a profile and one space there. A
+copy of a real data folder does not work: a store refuses to open as a copy. Then
 `measure.mjs compare <previous>.json <beta>.json` exits 1 when the beta's median time to "back end
 ready" or "spaces list showing" is slower by more than twice the larger interquartile range or 5%,
 whichever is larger.
