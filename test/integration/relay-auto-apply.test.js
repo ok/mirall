@@ -13,6 +13,7 @@ import { reconnectAll } from '../../src/shared/network/space-topics.js'
 import { serveIndex } from '../../src/shared/transfer/overlay/overlay-serve-index.js'
 import { ServeLedger, onServeStart } from '../../src/shared/transfer/serve-ledger.js'
 import { waitFor } from '../helpers/bare-poll.js'
+import { getRelayConfig } from '../../src/shared/core/runtime-config.js'
 
 const KEY_A = idEncoding.encode(b4a.alloc(32, 11))
 const SLOT = { publicKey: KEY_A, kind: 'open', enabled: true }
@@ -20,8 +21,11 @@ const SLOT_B = { publicKey: idEncoding.encode(b4a.alloc(32, 12)), kind: 'open', 
 const HASH = 'h'.repeat(64)
 const PEER = 'p'.repeat(64)
 
-async function setup(t, { relayMode = 'always', socket: kind = 'direct' } = {}) {
-  const { ipcEvents } = await bootSwarms(t, { relayMode, relay: SLOT })
+const PRIVATE = { ...SLOT, kind: 'private' }
+const SEED_HEX = '9d73b3a76df0938ff055a76e4c096c54cc245b35d4db31b582faba9dde94ae4e'
+
+async function setup(t, { relayMode = 'always', socket: kind = 'direct', relay = SLOT, relaySeedHex = null } = {}) {
+  const { ipcEvents } = await bootSwarms(t, { relayMode, relay, relaySeedHex })
   const fake = createFakeIpc()
   registerNetwork(fake.ipc, { applyRelayConfig: () => ({ applied: 1 }) })
   if (kind === 'relayed') {
@@ -248,14 +252,72 @@ test('an omitted mode or relay keeps the stored slot; null clears it; lastTest p
 
   const priv = await fake.call('network:set-relay', { relay: { ...SLOT_B, kind: 'private', label: 'club' } })
   t.ok(priv.identityChanged, 'a private slot pins an identity, so the node has to be rebuilt')
+  t.ok((await fake.call('network:set-relay', { relay: SLOT })).identityChanged, 'and so does replacing it with an open one')
+  await fake.call('network:set-relay', { relay: { ...SLOT_B, kind: 'private', label: 'club' } })
   const probedPrivate = await fake.call('network:set-relay', { lastTest: { at: 6, ok: false } })
   t.absent(probedPrivate.identityChanged, 'a probe verdict against a private slot changes no identity')
   t.absent((await fake.call('network:set-relay', { mode: 'auto' })).identityChanged, 'nor does a mode change')
   const cleared = await fake.call('network:set-relay', { mode: 'off', relay: null })
   t.is(cleared.network.relay, null)
-  t.ok(cleared.identityChanged, 'and so does dropping one')
+  t.absent(cleared.identityChanged, 'dropping one leaves nothing to dial, so nothing waits on a restart')
   await fake.call('network:set-relay', { mode: 'auto', relay: SLOT })
   await t.exception(fake.call('network:set-relay', { relay: { publicKey: 'not-a-key' } }), 'an undecodable key is refused')
   t.is((await fake.call('network:set-relay', { mode: 'auto' })).network.relay.publicKey, KEY_A, 'and the stored slot survives the refusal')
   await t.exception(fake.call('network:set-relay', {}), 'a request that changes nothing is refused rather than re-applied')
+})
+
+// REGRESSION (FIX-RELAY-REMOVE-1: removing a private relay asked for a restart, though the member
+// identity it pinned is presented to that relay alone and goes idle once it is no longer dialled.)
+test('REGRESSION (FIX-RELAY-REMOVE-1: removing a private relay asked for a restart)', async (t) => {
+  const { fake } = await setup(t, { relayMode: 'always', socket: 'relayed', relay: PRIVATE, relaySeedHex: SEED_HEX })
+
+  const reply = await fake.call('network:set-relay', { mode: 'off', relay: null })
+
+  t.absent(reply.identityChanged, 'a removal takes effect at once, as for an open relay')
+  t.is(reply.mismatch, 'stale-relayed')
+  t.is(reply.reconnected, true, 'nothing was moving, so the worker stopped using the relay itself')
+  t.is(socketMsgHandlers.size, 0)
+})
+
+// A restart asked for by an earlier add or replace is moot once nothing is configured, and while it
+// stood the worker would have left the reconnect to it.
+test('removing a private relay clears a restart an earlier change was waiting on', async (t) => {
+  const { fake } = await setup(t, { relayMode: 'always', socket: 'relayed', relay: PRIVATE, relaySeedHex: SEED_HEX })
+  const replaced = await fake.call('network:set-relay', { relay: { ...SLOT_B, kind: 'private' }, deferApply: true })
+  t.ok(replaced.identityChanged, 'precondition: the replacement waits on a restart')
+  t.is(replaced.reconnected, false, 'precondition: and leaves the reconnect to it')
+
+  const reply = await fake.call('network:set-relay', { mode: 'off', relay: null, deferApply: true })
+
+  t.absent(reply.identityChanged)
+  t.is(getRelayConfig().identityPending, false, 'nothing is left waiting on a restart')
+  t.is(reply.reconnected, true)
+  t.is(socketMsgHandlers.size, 0)
+})
+
+test('removing a private relay while a transfer moves is left for the user', async (t) => {
+  const { fake } = await setup(t, { relayMode: 'always', socket: 'relayed', relay: PRIVATE, relaySeedHex: SEED_HEX })
+  await moveATransfer(t, fake)
+
+  const reply = await fake.call('network:set-relay', { mode: 'off', relay: null })
+
+  t.absent(reply.identityChanged)
+  t.is(reply.mismatch, 'stale-relayed')
+  t.is(reply.reconnected, false, 'the reconnect notice applies, as for an open relay')
+  t.is(socketMsgHandlers.size, 1)
+})
+
+// The node keeps the member identity it booted with until it restarts, and an open relay must never
+// be dialled under it: that would link this person to the private relay's membership.
+test('an open relay added after a live removal waits on a restart only if the node booted pinned', async (t) => {
+  const pinned = await setup(t, { relayMode: 'auto', relay: PRIVATE, relaySeedHex: SEED_HEX })
+  await pinned.fake.call('network:set-relay', { mode: 'off', relay: null })
+  t.ok((await pinned.fake.call('network:set-relay', { mode: 'auto', relay: SLOT_B })).identityChanged, 'booted pinned: restart')
+})
+
+test('an open relay added after removing a never-applied private relay is live at once', async (t) => {
+  const { fake } = await setup(t, { relayMode: 'off', relay: null })
+  t.ok((await fake.call('network:set-relay', { mode: 'auto', relay: PRIVATE })).identityChanged, 'precondition: the add waits on a restart')
+  await fake.call('network:set-relay', { mode: 'off', relay: null, deferApply: true })
+  t.absent((await fake.call('network:set-relay', { mode: 'auto', relay: SLOT_B })).identityChanged, 'booted unpinned: nothing to restart for')
 })

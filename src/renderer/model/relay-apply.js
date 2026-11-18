@@ -18,3 +18,16 @@ export function relayApplyNotice({ mode, relay, armed, pendingIdentity }) {
   if (!armed) return null
   return relayMismatch(mode, relay)
 }
+
+// Whether a restart is still owed after a relay write. A removal settles it: with no relay to dial,
+// the member identity the worker booted with is presented to no one, and a restart an earlier add or
+// replace was waiting on has nothing left to apply. Any other write keeps what was owed and adds what
+// the worker says it needs.
+/**
+ * @param {{ pending: boolean, removal: boolean, identityChanged: boolean }} state
+ * @returns {boolean}
+ */
+export function restartOwed({ pending, removal, identityChanged }) {
+  if (removal) return false
+  return pending || identityChanged
+}

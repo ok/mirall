@@ -128,6 +128,10 @@ export function pinRelayIdentity(relaySeedHex) {
   relayIdentityPinned = typeof relaySeedHex === 'string' && relaySeedHex.length > 0
 }
 
+export function isRelayIdentityPinned() {
+  return relayIdentityPinned
+}
+
 export function relaySelectionCount() {
   return relaySelections
 }

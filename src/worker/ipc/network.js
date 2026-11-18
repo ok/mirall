@@ -13,7 +13,7 @@ import { reconnectAll } from '../../shared/network/space-topics.js'
 import { probeCanary } from '../../shared/network/canary-probe.js'
 import { setBrowserOnlineHint } from '../../shared/network/connectivity.js'
 import { checkLivenessNow } from '../../shared/network/link-liveness.js'
-import { testRelayReachable } from '../../shared/network/relay-install.js'
+import { isRelayIdentityPinned, testRelayReachable } from '../../shared/network/relay-install.js'
 import { record } from '../../shared/audit/audit-log.js'
 import { relayConfigRow } from '../../shared/audit/relay-config-change.js'
 import { getSettings, updateSettings } from '../../shared/core/settings-store.js'
@@ -54,14 +54,17 @@ export function registerNetwork(ipc, { applyRelayConfig }) {
   // reconnect is cheap and the user gets what they asked for at once; while a transfer is in flight
   // it is theirs to trigger, so the verdict goes back for the renderer to explain. deferApply is set
   // when a pinned identity is waiting on a restart — no reconnect can apply that, and the worker
-  // installs no private relay until it has. Only that restart clears it: a renderer reloaded in the
-  // meantime has forgotten, but this node still presents the old identity.
+  // installs no private relay until it has. Only that restart or a removal clears it: a renderer
+  // reloaded in the meantime has forgotten, but this node still presents the old identity.
   //
   // The slot is persisted here, after sanitizing, and before it is applied: the Activity Log row
   // diffed below records a saved change and never a refused one. An omitted mode or relay keeps the
   // stored one, a null relay clears it, and lastTest patches the stored slot with a probe verdict.
   // Only a pinned identity coming or going needs the DHT node rebuilt, which the renderer does by
-  // restarting the worker once the seed vault and this slot agree.
+  // restarting the worker once the seed vault and this slot agree. A removal never does: the member
+  // identity is presented to its relay alone, so with no relay to dial it is idle until the next
+  // start, and any restart an earlier change was waiting on is moot. An open relay added to a node
+  // still presenting a member identity asks for the restart, as a private-to-open replace does.
   ipc.handle('network:set-relay', async (msg) => {
     if (msg.mode === undefined && msg.relay === undefined && msg.lastTest === undefined) {
       throw new AppError(CODES.INVALID_ARGUMENT, 'network:set-relay: nothing to change')
@@ -69,7 +72,8 @@ export function registerNetwork(ipc, { applyRelayConfig }) {
     const before = getRelayConfig()
     const { mode, relay } = ownRelay({ mode: msg.mode, relay: msg.relay, lastTest: msg.lastTest }, before)
     await updateSettings((s) => { s.network.relayMode = mode; s.network.relay = relay; return s })
-    const identityPending = before.identityPending || msg.deferApply === true
+    const removal = msg.relay === null && relay === null
+    const identityPending = !removal && (before.identityPending || msg.deferApply === true)
     setRelayConfig(mode, relay, { identityPending })
     const applied = applyRelayConfig()
     const after = getRelayConfig()
@@ -77,7 +81,8 @@ export function registerNetwork(ipc, { applyRelayConfig }) {
     if (change) record(change.kind, change.row)
     ipc.emit('event:reconcile', { scope: Scope.settings() })
     // Only a slot write can pin or unpin an identity; a mode change or a probe verdict never does.
-    const identityChanged = msg.relay !== undefined && (before.relay?.kind === 'private' || after.relay?.kind === 'private')
+    const identityChanged = msg.relay !== undefined && !removal &&
+      (before.relay?.kind === 'private' || after.relay?.kind === 'private' || isRelayIdentityPinned())
     const verdict = { ok: /** @type {const} */ (true), ...applied, identityChanged, network: settingsView().network }
     return { ...verdict, ...await followRelayConfig() }
   })

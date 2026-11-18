@@ -11,7 +11,8 @@
 // running on what it booted with, and says nothing about either flag.
 import { onResync } from '../ipc/ipc.js'
 
-// Whether the stored relay identity differs from the one the running worker booted with.
+// Whether a relay change waits on a new worker to present the identity the stored relay needs. A
+// removal ends it too (model/relay-apply.js restartOwed): with no relay, no identity is needed.
 let pending = false
 
 // Whether a relay change has been committed that the worker could not apply itself — a transfer was
