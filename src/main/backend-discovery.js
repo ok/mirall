@@ -77,14 +77,14 @@ function realDataDir(file) {
 
 /**
  * What serves the profile a run record was read for: nothing main may use ('none'), a back end of
- * this user's for this data folder at exactly `version` ('attach'), one at another version
- * ('other-version'), or one that accepted and has not answered within a boot's bound ('busy'). Main
+ * this user's for this data folder at exactly `version` on this build's `channel` ('attach'), one at
+ * another version or on another channel ('other-version'), or one that accepted and has not answered within a boot's bound ('busy'). Main
  * neither uses nor replaces the last two.
  * @param {{ file: string, record: { socket: string } }} found
- * @param {{ version: string, platform?: string, pipeOwned?: (pipeName: string) => Promise<boolean>, greet?: typeof greetOverSocket, busyAnswerMs?: number, dataDirOf?: (file: string) => string | null }} opts
+ * @param {{ version: string, channel?: string, platform?: string, pipeOwned?: (pipeName: string) => Promise<boolean>, greet?: typeof greetOverSocket, busyAnswerMs?: number, dataDirOf?: (file: string) => string | null }} opts
  * @returns {Promise<{ verdict: 'none' } | { verdict: 'attach', socket: string } | { verdict: 'other-version', version: string | null } | { verdict: 'busy' }>}
  */
-async function probeRunRecord({ file, record }, { version, platform = process.platform, pipeOwned = pipeOwnedBySelf, greet = greetOverSocket, busyAnswerMs = BUSY_ANSWER_MS, dataDirOf = realDataDir }) {
+async function probeRunRecord({ file, record }, { version, channel, platform = process.platform, pipeOwned = pipeOwnedBySelf, greet = greetOverSocket, busyAnswerMs = BUSY_ANSWER_MS, dataDirOf = realDataDir }) {
   if (!(await ownerVerified(file, record.socket, { platform, pipeOwned }))) return NONE
   let ack
   try {
@@ -97,7 +97,9 @@ async function probeRunRecord({ file, record }, { version, platform = process.pl
   const ours = dataDirOf(file)
   if (!ours || ack?.dataDir !== ours) return NONE
   const theirs = typeof ack?.appVersion === 'string' ? ack.appVersion : null
-  if (theirs !== version) return { verdict: 'other-version', version: theirs }
+  // The same text on another channel is another build: a back end started from a source checkout
+  // runs as a development build, with the test levers and signing key an installed app refuses.
+  if (theirs !== version || ack?.channel !== channel) return { verdict: 'other-version', version: theirs }
   return { verdict: 'attach', socket: record.socket }
 }
 

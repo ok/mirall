@@ -582,7 +582,7 @@ function fakeSender(id) {
 // folders:reveal-roots with `roots`; every request it saw is kept in `requests`. With `dir` it
 // listens there, as daemon.sock.
 const LOCKED_STATUS = { locked: true, code: 'IDENTITY_UNLOCK_FAILED', restore: null }
-function socketServer(t, { unlock: answer = () => ({ data: { ok: true } }), holdUnlock = false, dir: given = null, appVersion = APP_VERSION, dataDir = null, status = LOCKED_STATUS, roots = [], silent = false } = {}) {
+function socketServer(t, { unlock: answer = () => ({ data: { ok: true } }), holdUnlock = false, dir: given = null, appVersion = APP_VERSION, channel = 'dev', dataDir = null, status = LOCKED_STATUS, roots = [], silent = false } = {}) {
   let unlock = answer
   const dir = given ?? path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'wh-')), 'run')
   if (!given) {
@@ -610,7 +610,7 @@ function socketServer(t, { unlock: answer = () => ({ data: { ok: true } }), hold
         try { frame = JSON.parse(line) } catch { continue }
         if (frame.type === 'hello') {
           hellos.push(frame)
-          if (!silent) sock.write(JSON.stringify({ type: 'hello-ack', ok: true, appVersion, dataDir }) + '\n')
+          if (!silent) sock.write(JSON.stringify({ type: 'hello-ack', ok: true, appVersion, channel, dataDir }) + '\n')
           continue
         }
         if (frame.id) requests.push(frame.type)

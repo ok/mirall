@@ -38,7 +38,7 @@ const { WORKER_SPECS } = require('../shared/contract/workers.js')
 const { FRAME } = require('../shared/contract/ipc-frames.js')
 const { CODES } = require('../shared/contract/errors.js')
 const { WORKER_EXIT_ALREADY_RUNNING } = require('../shared/contract/exit-codes.js')
-const { versionLabel } = require('../shared/contract/release-channel.js')
+const { versionLabel, deriveChannel } = require('../shared/contract/release-channel.js')
 
 const pkg = require('../../package.json')
 const version = pkg.version
@@ -459,7 +459,7 @@ function ownVersion() {
 // bound) is neither used nor replaced: the window is told the profile is already served, as a spawn
 // holding no lock would tell it. Null when there is no back end to use.
 async function findRunning(specifier, found) {
-  const verdict = await probeRunRecord(found, { version: ownVersion(), ...(busyAnswerMs ? { busyAnswerMs } : {}) })
+  const verdict = await probeRunRecord(found, { version: ownVersion(), channel: deriveChannel({ dev: isDev, appVersion: version }), ...(busyAnswerMs ? { busyAnswerMs } : {}) })
   stopIfQuitting()
   if (verdict.verdict === 'other-version') console.warn('a back end of another version serves this profile:', verdict.version)
   if (verdict.verdict === 'busy') console.warn('the back end serving this profile does not answer')

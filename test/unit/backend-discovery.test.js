@@ -44,6 +44,14 @@ test('the version must be the same text, beta number included', async (t) => {
   t.alike(await probeRunRecord(windowsRecord(), { ...opts, version: '1.14.0', greet: async () => { throw new Error('closed') } }), { verdict: 'none' }, 'no ack at all is no back end')
 })
 
+test('REGRESSION (FIX-ATTACH-4: an installed app used a development back end at the same version text)', async (t) => {
+  const opts = { ...onWindows, pipeOwned: async () => true, version: '1.14.0' }
+  const greet = (channel) => async () => ({ type: 'hello-ack', ok: true, appVersion: '1.14.0', channel, dataDir: WIN_DIR })
+  t.alike(await probeRunRecord(windowsRecord(), { ...opts, channel: 'prod', greet: greet('dev') }), { verdict: 'other-version', version: '1.14.0' })
+  t.alike(await probeRunRecord(windowsRecord(), { ...opts, channel: 'prod', greet: ack('1.14.0') }), { verdict: 'other-version', version: '1.14.0' }, 'an ack that states no channel')
+  t.is((await probeRunRecord(windowsRecord(), { ...opts, channel: 'dev', greet: greet('dev') })).verdict, 'attach', 'a source run still uses one')
+})
+
 // A profile's run folder on this machine, with a real socket in it.
 async function profile(t) {
   const dataDir = tmpDir('bd', t)

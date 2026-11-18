@@ -185,7 +185,9 @@ An MSIX-packaged install has its AppData redirected by Windows; that path is not
   with `realpath` after taking the lock, to host clients only; a record copied or moved with its
   folder names another profile's back end, which is never handed this profile's key); and an
   `appVersion` equal to the text a spawn of this build would state (`versionLabel`,
-  `src/shared/contract/release-channel.js`; beta number included). A socket that refuses or is gone
+  `src/shared/contract/release-channel.js`; beta number included) with a `channel` equal to this
+  build's (`deriveChannel`: a back end started from a source checkout is a development build, which
+  takes test levers and the staging signing key, so an installed app never uses one). A socket that refuses or is gone
   is stale within a 1 s connect bound, and main spawns as without a record, as it does for an owner
   or folder that does not match. A socket that accepted but has not answered within 60 s is a busy
   holder (a boot can hold its loop that long, `ipc-liveness.js`): like another version, it is
@@ -298,7 +300,7 @@ Bootstrap:
    `{ v, socket, pid, version }`, atomic, 0600, always beside the lock even when the socket sits in
    the temp root) and removes it on a clean close, only if its own pid is named. It is advisory: the
    lock, never the record, decides who holds the store, and a record whose socket does not answer is
-   stale. The hello-ack carries the worker's `appVersion` and, to a host client once the lock is
+   stale. The hello-ack carries the worker's `appVersion` and `channel` and, to a host client once the lock is
    held, `dataDir`: the resolved data folder it serves (null on the spawn pipe, whose hello precedes
    the bootstrap).
 4. `boot()` starts two tiers *(cited as `§2 boot step N`)*. The **durable** tier holds every

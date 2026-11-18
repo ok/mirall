@@ -38,6 +38,7 @@ test('an accepted hello is greeted with the stream it may resume from', async (t
   t.ok(ack.ok)
   t.is(ack.protocolVersion, IPC_PROTOCOL_VERSION)
   t.is(ack.appVersion, '1.14.0-beta.3', 'and which app version it is')
+  t.is(ack.channel, 'staging', 'and on which channel')
   t.is(ack.dataDir, null, 'no data folder before the listener holds one')
   t.is(ack.trust, 'host', 'the spawn pipe is the host by construction')
   t.is(ack.epoch, 'e1')

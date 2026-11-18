@@ -189,7 +189,8 @@ test('the app’s attach path finds a running back end by its record, opens it, 
   const version = versionLabel({ dev: true, appVersion: pkg.version })
 
   t.is((await greetOverSocket(socket)).dataDir, fs.realpathSync.native(dir), 'the ack names the data folder it serves, resolved')
-  t.alike(await discoverBackend(storage, { version }), { verdict: 'attach', socket }, 'found by its record, owner, folder and version checked')
+  t.alike(await discoverBackend(storage, { version, channel: 'dev' }), { verdict: 'attach', socket }, 'found by its record, owner, folder, version and channel checked')
+  t.is((await discoverBackend(storage, { version, channel: 'prod' })).verdict, 'other-version', 'an installed app at the same version text does not use it')
   t.alike(await discoverBackend(storage, { version: version + '-other' }), { verdict: 'other-version', version }, 'another build is told apart by the text alone')
 
   t.is(await openIdentity(socket, { kek: kekHex(), relaySeed: null }), true, 'the waiting identity opens with the key')

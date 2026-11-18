@@ -6,7 +6,7 @@ import { checkHello, refusalMessage } from '../contract/hello.js'
 import { CODES } from '../contract/errors.js'
 import { AppError } from './errors.js'
 import { fields } from './logger.js'
-import { getAppVersionLabel } from './runtime-config.js'
+import { getAppVersionLabel, getReleaseChannel } from './runtime-config.js'
 
 // `isPrimary` rather than the client itself: the spawn pipe's client is attached after the router
 // body has run, and only a frame arriving on it can ask the question.
@@ -57,6 +57,8 @@ export function createHandshake({ log, events, clients, isPrimary }) {
   function refuse(client, verdict) {
     // appVersion: on the spawn pipe this hello precedes the bootstrap, so the label there is the
     // unconfigured one; a socket client is greeted after the config is set and reads the build's.
+    // channel: a development back end takes test levers and the staging signing key, which the
+    // version text alone does not show.
     // dataDir: how a host tells its own profile's back end from another's; a client that is not
     // the host has no use for a path on this machine.
     client.write(JSON.stringify({
@@ -97,6 +99,7 @@ export function createHandshake({ log, events, clients, isPrimary }) {
       protocolMin: IPC_PROTOCOL_MIN_SUPPORTED,
       protocolMax: IPC_PROTOCOL_VERSION,
       appVersion: getAppVersionLabel(),
+      channel: getReleaseChannel(),
       dataDir: client.trust === TRUST.HOST ? servedDataDir : null,
       trust: client.trust,
       epoch: events.epoch,
