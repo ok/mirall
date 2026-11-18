@@ -1,5 +1,7 @@
 // The app-update status main owns and the renderer shows. `idle` with a `lastCheckedAt` is a
 // confirmed "up to date"; `idle` without one means no pass has reached the update network yet.
+// `progress` is the download's whole percentage, null outside a download and until the download
+// has been sized; it stops short of 100 because only `ready` says the update is usable.
 
 export const UPDATE_STATE = Object.freeze({
   IDLE: 'idle',
@@ -29,5 +31,7 @@ export const UPDATES_OFF_REASONS = Object.freeze(Object.values(UPDATES_OFF_REASO
  *   lastCheckedAt: number | null,
  *   offReason: UpdatesOffReason | null,
  *   canRestart: boolean,
+ *   progress: number | null,
+ *   waitingForPeers: boolean,
  * }} UpdateStatus
  */

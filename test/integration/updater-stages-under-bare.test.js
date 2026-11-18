@@ -27,7 +27,7 @@ async function seedDrive(t, { executable }) {
   return { store, drive }
 }
 
-async function stage(t, { executable }) {
+async function stage(t, { executable, onProgress }) {
   const seed = await seedDrive(t, { executable })
   const dir = tmpDir('updater-stage', t)
   const store = new Corestore(path.join(dir, 'pear-runtime', 'corestore'))
@@ -45,6 +45,7 @@ async function stage(t, { executable }) {
   })
   // The updater routes every _update failure into an 'error' emit; unheard, that aborts the process.
   updater.on('error', (err) => t.fail(`updater error: ${err.message}`))
+  if (onProgress) updater.on('updating-progress', onProgress)
   t.teardown(async () => { await updater.close(); await store.close() })
   await updater.ready()
   await updater._debouncedUpdate()
@@ -57,6 +58,13 @@ test('pear-runtime-updater stages into <dir>/pear-runtime/next under bare', { ti
   t.ok(updater.next.startsWith(path.join(dir, 'pear-runtime', 'next')), 'staged under pear-runtime/next')
   t.is(updater.nextVersion, '9.9.9')
   t.is(fs.statSync(staged).size, 4096, 'the payload is mirrored whole')
+})
+
+test('a download reports its peer count while it stages', { timeout: scaled(60000) }, async (t) => {
+  const seen = []
+  await stage(t, { executable: true, onProgress: (stats) => seen.push(stats) })
+  t.ok(seen.length > 0, 'the updater reports at least once per download')
+  for (const stats of seen) t.is(typeof stats.peers, 'number', 'peers is a count')
 })
 
 test('the staged file carries the executable bit only when the drive entry has it', { skip: Bare.platform === 'win32', timeout: scaled(90000) }, async (t) => {

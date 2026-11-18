@@ -10,7 +10,7 @@ import { UPDATE_STATE } from '../../shared/contract/update-status.js'
 
 /** @type {UpdateViewState} */
 export const initialUpdateState = {
-  status: { state: UPDATE_STATE.IDLE, nextVersion: null, lastCheckedAt: null, offReason: null, canRestart: false },
+  status: { state: UPDATE_STATE.IDLE, nextVersion: null, lastCheckedAt: null, offReason: null, canRestart: false, progress: null, waitingForPeers: false },
   dismissed: false,
 }
 

@@ -768,6 +768,7 @@
       "checkingBody": "Ricerca di una versione più recente di Mirall.",
       "downloadingTitle": "Download di un aggiornamento",
       "downloadingBody": "Mirall continua a funzionare durante il download.",
+      "downloadingWaitingBody": "In attesa della rete degli aggiornamenti. Il download riprende non appena Mirall la raggiunge.",
       "readyTitle": "Aggiornamento pronto: v{{version}}",
       "readyBody": "Verrà installato la prossima volta che chiudi e riapri Mirall.",
       "errorTitle": "Impossibile cercare aggiornamenti",
@@ -777,6 +778,7 @@
       "offTitle": "Gli aggiornamenti automatici sono disattivati",
       "offBody": "Questa build di Mirall non si aggiorna da sola."
     },
+    "downloadProgress": "Avanzamento del download dell’aggiornamento",
     "checkNow": "Controlla ora",
     "checking": "Controllo…",
     "tryAgain": "Riprova",

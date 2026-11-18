@@ -19,6 +19,9 @@ changes do not appear here.
 
 ### Changed
 
+- **About shows how far an update download has come.** The Updates card now
+  has a progress bar with a percentage, and says when the download is
+  waiting for the update network instead of looking stuck.
 - **Setting up a backup no longer waits for the first backup.** The dialog
   closes once your passphrase is checked, and the first backup runs in the
   background while you keep working. Settings → Backup shows its progress.

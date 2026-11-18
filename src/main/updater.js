@@ -17,6 +17,7 @@ const { isDebug } = require('./debug-gate.js')
 const { loadRedactLine } = require('./logging.js')
 const applyErrors = require('./apply-error.js')
 const updateCache = require('./update-cache.js')
+const { trackUpdateDownload } = require('./update-progress.js')
 const { initialUpdateStatus, createUpdateStatus } = require('./update-status.js')
 
 const pkg = require('../../package.json')
@@ -29,6 +30,8 @@ let pear = null
 let cacheTurn = Promise.resolve()
 let passRunning = false
 let manualCheck = false
+// The download of the pass in flight, from its first block to the end of the pass.
+let download = null
 // How long a check the user asked for waits for a peer of the update drive before it runs anyway.
 const PEER_WAIT_MS = 15_000
 
@@ -157,6 +160,8 @@ function getPear() {
       throw err
     } finally {
       passRunning = false
+      download?.stop()
+      download = null
       await pruneInTurn(u).catch((err) => console.error('update cache prune failed:', err))
     }
   }
@@ -188,7 +193,15 @@ function getPear() {
     swarm.on('connection', (connection) => store.replicate(connection))
     swarm.join(u.drive.core.discoveryKey, { client: true, server: false })
     u.on('error', (err) => console.error('pear updater error:', err))
-    u.on('updating', () => updateStatus.dispatch({ type: 'downloading' }))
+    u.on('updating', () => {
+      download?.stop()
+      download = trackUpdateDownload(u.checkout, appPrefix())
+      updateStatus.dispatch({ type: 'downloading' })
+    })
+    // The updater's monitor sets the pace and counts the peers; the fraction is the app's own.
+    u.on('updating-progress', (stats) => {
+      if (download) updateStatus.dispatch({ type: 'progress', fraction: download.fraction(), peers: stats.peers })
+    })
     u.on('updated', () => updateStatus.dispatch({ type: 'ready', version: u.nextVersion }))
     // The boot pass usually runs before any peer is connected, so the first peer gets a pass of its
     // own: that is the check that tells whether this build is current.
