@@ -12,7 +12,7 @@ import { pathFromMount } from './path-guard.js'
 import { registerPublishChannel, settleCatalog, mountRootAvailable, getPublishScheduler } from './publish-service.js'
 import { OP, PRIORITY } from './work-item.js'
 import { loadShare } from './owned-shares.js'
-import { fileExactlyPresent, fileStatPresent } from './disk-presence.js'
+import { fileStatPresent } from './disk-presence.js'
 import { makeServable } from '../transfer/overlay/serve-registration.js'
 
 // Injected by owned-folders.js: the channel is registered at import and the engine it belongs to
@@ -66,10 +66,10 @@ registerPublishChannel('folder', {
     const mount = await getOwnedMount(spaceId, shareId)
     return mount?.mountPath && mountRootAvailable(mount.mountPath) ? mount.mountPath : null
   },
-  // Exact-name presence, as the retire executor judges it. A relPath that escapes the mount is
-  // catalog poison, not a file: absent, so the lane reclaims it.
-  async presentAt({ root, relPath }) {
-    try { return fileExactlyPresent(pathFromMount(root, relPath)) } catch { return false }
+  // Exact-name presence, as the retire executor judges it, read from the pass's folder listing.
+  // A relPath that escapes the mount is catalog poison, not a file: absent, so the lane reclaims it.
+  async presentAt({ root, relPath, listing }) {
+    try { return await listing.filePresent(pathFromMount(root, relPath)) } catch { return false }
   },
   // Drift is the reconcile pass's job, not the rehydrate's: a hashed entry whose file is still
   // there is re-registered as it stands.

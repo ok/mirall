@@ -184,7 +184,8 @@ async function retire(channel, item, ctx, catalog) {
 //   — the maintenance surface the boot rehydrate and the presence sweep drive, per own share:
 //   contentRoot?({ spaceId, shareId })       → root | null, for a kind whose files live under one
 //                                              root (null: nothing to walk for this share now)
-//   presentAt({ root, spaceId, relPath })    → boolean | null (null: no source — not ours to reclaim)
+//   presentAt({ root, spaceId, relPath, listing }) → boolean | null (null: no source — not ours to
+//                                              reclaim); `listing` is the pass's folder listing
 //   rehydrate({ root, spaceId, shareId, entry }) → void | { settled } (a lane settlement to await)
 //   retireGone({ spaceId, shareId, relPath }) → settles once the lane retire has, throws on failure
 // }

@@ -17,6 +17,7 @@ import { clearAndPurgeCore, purgeAlias } from '../../storage/core-purge.js'
 import { listSpaces } from '../../spaces/space.js'
 import { compactStore } from '../../storage/compaction.js'
 import { createPresenceSweeper } from '../../folders/retire-confirm.js'
+import { createFolderListing } from '../../folders/disk-presence.js'
 import { LOOSE_SHARE_ID } from '../transfer-id.js'
 import { getOverlay } from './overlay-instance.js'
 
@@ -117,7 +118,7 @@ export async function rehydrateOwnedContent() {
 const presenceSweeper = createPresenceSweeper({
   keyOf: ({ spaceId, shareId }, entry) => spaceId + '\0' + shareId + '\0' + entry.relPath,
   isPending: ({ spaceId, shareId }, entry) => getPublishScheduler().isPending(spaceId, shareId, entry.relPath),
-  presentAt: ({ spaceId, channel, root }, entry) => channel.presentAt({ root, spaceId, relPath: entry.relPath }),
+  presentAt: ({ spaceId, channel, root, listing }, entry) => channel.presentAt({ root, spaceId, relPath: entry.relPath, listing }),
   retire: ({ spaceId, shareId, channel, retires }, entry) => {
     retires.push(channel.retireGone({ spaceId, shareId, relPath: entry.relPath })
       .catch((err) => log.debug('retire failed:', shareId, entry.relPath, '-', err.message)))
@@ -139,7 +140,8 @@ async function sweepOnce() {
   const batched = new Set()
   await forEachOwnContent(async (ctx) => {
     const before = retires.length
-    for await (const entry of listOwnShare(ctx.spaceId, ctx.shareId)) await presenceSweeper.consider({ ...ctx, retires }, entry)
+    const pass = { ...ctx, retires, listing: createFolderListing() }
+    for await (const entry of listOwnShare(ctx.spaceId, ctx.shareId)) await presenceSweeper.consider(pass, entry)
     if (retires.length > before && !ctx.channel.direct) batched.add(ctx.spaceId)
   })
   await Promise.all(retires)

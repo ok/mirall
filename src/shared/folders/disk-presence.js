@@ -23,6 +23,29 @@ export function fileExactlyPresent(absPath) {
   return false
 }
 
+// Exact-name presence for a pass over many files: each folder is listed once, without blocking,
+// and every file in it is answered from that listing, under the same rule as fileExactlyPresent.
+// Asking per file instead lists a folder once for each file in it. A listing is only as fresh as
+// the pass that made it, so one is made per pass and never kept.
+export function createFolderListing({ readdir = fs.promises.readdir } = {}) {
+  const folders = new Map()
+  const filesIn = (dir) => {
+    let names = folders.get(dir)
+    if (!names) {
+      names = readdir(dir, { withFileTypes: true })
+        .then((entries) => new Set(entries.filter((entry) => entry.isFile()).map((entry) => entry.name)), () => null)
+      folders.set(dir, names)
+    }
+    return names
+  }
+  return {
+    async filePresent(absPath) {
+      const names = await filesIn(path.dirname(absPath))
+      return names ? names.has(path.basename(absPath)) : false
+    },
+  }
+}
+
 // Presence as the app will OPEN the path — a following stat. For a file whose identity is its
 // recorded absolute path (a loose share), a case-only rename on a folding volume or a symlinked
 // source keeps it readable, so it stays shared.
