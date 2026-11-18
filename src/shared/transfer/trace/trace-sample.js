@@ -44,17 +44,43 @@ export function createServeActivity() {
   }
 }
 
+// udx reports its retransmit, fast-recovery and lifetime-timeout counts through 16-bit views, so
+// each returns to zero after 65,535. A count that reads lower than it last did has gone round once
+// more; the trace carries the running total. A second samples far fewer than 65,536 of any of them.
+const WRAPPING_COUNTS = ['retransmits', 'fastRecoveries', 'rtoLifetime']
+const WRAP = 65536
+
+export function createWrapCorrection() {
+  const seen = new WeakMap()
+  /** @param {object} socket @param {Record<string, number>} sample @returns {Record<string, number>} */
+  return function corrected(socket, sample) {
+    let counts = seen.get(socket)
+    if (!counts) seen.set(socket, (counts = {}))
+    const out = { ...sample }
+    for (const name of WRAPPING_COUNTS) {
+      const raw = sample[name]
+      if (raw === undefined) continue
+      const count = (counts[name] ??= { last: raw, carried: 0 })
+      if (raw < count.last) count.carried += WRAP
+      count.last = raw
+      out[name] = raw + count.carried
+    }
+    return out
+  }
+}
+
 /**
  * @param {number} at
- * @param {{ conns: object[], fetches: object[], serves: object[], host: object }} sample every entry
+ * @param {{ conns: object[], fetches: object[], serves: object[], checks?: object[], host: object }} sample every entry
  *   already numbered: `c` on a connection and a serve, `x` and `[c, count]` holders on a fetch
  * @returns {string[]}
  */
-export function sampleLines(at, { conns, fetches, serves, host }) {
+export function sampleLines(at, { conns, fetches, serves, checks = [], host }) {
   const lines = [
     ...conns.map((conn) => traceLine('conn', at, conn)),
     ...fetches.map((fetch) => traceLine('fetch', at, fetch)),
     ...serves.map((serve) => traceLine('serve', at, serve)),
+    ...checks.map((check) => traceLine('check', at, check)),
     traceLine('host', at, host),
   ]
   return lines.filter((line) => line !== null)

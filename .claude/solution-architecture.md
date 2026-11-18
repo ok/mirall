@@ -1009,7 +1009,9 @@ is written whole by a test script and never by the app, so removing it restores 
   retransmits, timeouts, buffer sizes; not kernel drops, which udx never counts), each fetch's and each served peer's engine
   counts (`HyperOverlayV2.traceSnapshot()`), and the worker's loop lag and CPU. Events are written
   as they happen: a connection opening, closing or changing path, a fetch or serve starting and
-  ending, a holder handing chunks back, the watchdog firing, a drain wait abandoned.
+  ending, a holder handing chunks back, the watchdog firing, a drain wait abandoned, a path check
+  starting and ending, and a periodic background job that ran long, by name
+  (`src/shared/core/job-timing.js`): loop lag says the worker was held, the job says by what.
 - **Both sides record.** The congestion figures exist only at the sender, the request and stash
   figures only at the receiver; one side alone cannot separate them.
 - **No identifying data.** `trace-record.js` builds every line from an allow-list of numbers, flags
@@ -1019,6 +1021,16 @@ is written whole by a test script and never by the app, so removing it restores 
   `trace.previous.ndjson` at its size limit, replacing the one before.
 - **It changes nothing it measures.** No default moves with it, and with no sink installed every
   hook in the transfer path returns at once and no listener is attached.
+- **The same file sets the transfer levers** (`testRunToRuntimeConfig`): the per-holder in-flight
+  cap, the verified-chunk stash size and the UDP socket buffer sizes, each a whole number in a fixed
+  range, read once at worker start. They exist so one test session can try several values without a
+  build per value. No shipped default moves: a value changes in code only after a trace has shown
+  it to be the cause.
+- **The path check** (`src/shared/transfer/path-check.js`) sends a fixed amount of generated data
+  over a content connection with the engine left out: no file, no hashing, no scheduler. Set beside
+  a transfer of the same size it tells the path from the engine, on machines where no measuring
+  tool can be installed. Its channel is opened only when the file turns it on, so both peers must
+  carry the lever, and the sending side serves only a socket a member has authenticated on.
 - **It ships in released builds, unlisted.** A slow transfer is diagnosed on the build the person
   already runs; a separate diagnostic build would need a deployment before the first measurement.
   There is no setting, flag or UI for it, so only the test run file reaches it.
