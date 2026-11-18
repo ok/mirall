@@ -345,8 +345,14 @@ if (bootstrap.identityKEK) {
     // Read below: a lock is the key wait's code, anything else fails its boot.
   }
 }
-if (keyWait.code) {
-  log.warn(keyWait.code === CODES.IDENTITY_AWAITING_KEY ? 'waiting for the identity key (identity:unlock)' : 'identity locked, serving recovery only: ' + keyWait.code)
+if (keyWait.code === CODES.IDENTITY_AWAITING_KEY) {
+  // Under a host this is every normal start: the key follows within moments. Started by hand,
+  // nothing sends one unasked, so the person at the terminal is told.
+  const say = headless ? log.warn : log.info
+  say('waiting for the identity key (identity:unlock)')
+  serveRecoveryOnly()
+} else if (keyWait.code) {
+  log.warn('identity locked, serving recovery only: ' + keyWait.code)
   serveRecoveryOnly()
 }
 // A boot that fails for any reason but the key ends the worker here: nothing a key or a recovery

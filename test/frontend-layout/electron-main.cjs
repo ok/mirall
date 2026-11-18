@@ -40,7 +40,7 @@ app.whenReady().then(async () => {
     setTimeout(() => { app.exit(1) }, 50)
   }
 
-  win.webContents.on('console-message', (_e, _level, message) => {
+  win.webContents.on('console-message', ({ message }) => {
     process.stderr.write('[renderer] ' + message + '\n')
   })
   win.webContents.on('render-process-gone', (_e, d) => fail('render-process-gone: ' + JSON.stringify(d)))
