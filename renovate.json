@@ -64,9 +64,9 @@
       "automerge": false
     },
     {
-      "description": "hyperdht 6.33.0 rewrote the LAN shortcut in lib/connect.js to race the LAN ping against holepunch, which degrades connection setup on the loopback testnet under Linux CI — every flow shard times out waiting for member-join-request while macOS passes (see issue #13). This cap constrains Renovate version LOOKUPS only. lockFileMaintenance does not look packages up — it hands npm a full re-resolve against the package.json ranges — so it ignored this rule and put 6.33.2 in the lock (PR #87, every flow shard red). The binding guard is the ~6.32.0 range plus the matching overrides entry in package.json; npm rejects the two disagreeing with EOVERRIDE, so they move together. Raise all three at once, and only after a Linux runner proves the newer version green.",
+      "description": "hyperdht 6.33.0 through 6.35.0 stall connection setup between same-host peers for about 13 seconds: the LAN shortcut races the holepunch and the server aborts the stream the client already took, so every flow shard times out on the loopback testnet (issue #13). 6.35.1 fixes that upstream (holepunchto/hyperdht#283); a second, load-dependent variant is still open there (#308). hyperdht therefore moves one minor at a time. This cap constrains Renovate version LOOKUPS only. lockFileMaintenance does not look packages up — it hands npm a full re-resolve against the package.json ranges — so it ignores this rule (PR #87 put 6.33.2 in the lock, every flow shard red). The binding guard is the ~6.36.0 range plus the matching overrides entry in package.json; npm rejects the two disagreeing with EOVERRIDE, so they move together. Raise all three at once, and only after a Linux runner proves the newer version green.",
       "matchPackageNames": ["hyperdht"],
-      "allowedVersions": "<6.33.0"
+      "allowedVersions": "<6.37.0"
     }
   ],
   "lockFileMaintenance": {

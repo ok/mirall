@@ -34,11 +34,12 @@ tree current. Read this before reviewing a Renovate PR or running a manual sweep
     is ESM and the maker `require()`s it, so a proposed 4.x bump needs a maker release that supports
     it first. The config test loads only `forge.config.js`, so that failure would surface at make
     time: run a dev-channel Linux dispatch after any bump on this group.
-  - `hyperdht` — `allowedVersions: "<6.33.0"`. 6.33.0 rewrote the LAN shortcut and fails every flow
-    shard on Linux CI while passing on macOS (issue #13); holding it back turned the four-week-red
-    holepunch PR green in one run. Patches on the 6.32 line still flow. Raise only after a Linux
-    runner proves a newer version green. **This rule does not cover `lockFileMaintenance`** — see
-    below.
+  - `hyperdht` — `allowedVersions: "<6.37.0"`. 6.33.0 through 6.35.0 stall connection setup
+    between same-host peers for about 13 seconds, which fails every flow shard on the loopback
+    testnet (issue #13). 6.35.1 fixes that upstream (holepunchto/hyperdht#283); a load-dependent
+    variant is still open there (#308), so it moves one minor at a time. Patches on the 6.36 line
+    still flow. Raise only after a Linux runner proves a newer version green. **This rule does not
+    cover `lockFileMaintenance`** — see below.
 - **`lockFileMaintenance` bypasses every `packageRules` version cap.** It performs no per-package
   lookup: it deletes the lock and lets npm re-resolve the whole tree against the ranges in
   `package.json`, so `allowedVersions` never runs. A cap that lives only in `renovate.json`

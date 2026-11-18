@@ -22,5 +22,5 @@ test('blind-relay exposes the two surfaces the observer couples to', (t) => {
 test('hyperdht obtains its relay client through Client.from on both sides', (t) => {
   const lib = (file) => readFileSync(require.resolve(`hyperdht/lib/${file}`), 'utf8')
   t.ok(lib('connect.js').includes('relay.Client.from(c.relaySocket'), 'dial side')
-  t.ok(lib('server.js').includes('relay.Client.from(hs.relaySocket'), 'accept side')
+  t.ok(lib('server.js').includes('relay.Client.from(relaySocket, { id: relaySocket.publicKey })'), 'accept side')
 })
