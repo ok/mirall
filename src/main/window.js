@@ -9,6 +9,7 @@ const { app, BrowserWindow, desktopCapturer, ipcMain, nativeTheme, screen, shell
 const { isMac, isLinux } = require('which-runtime')
 const { usableBounds } = require('./window-bounds.js')
 const { matchWindowShortcut } = require('./window-shortcuts.js')
+const { rendererLogLine } = require('./renderer-console.js')
 const { logRing } = require('./log-ring.js')
 const { isDebug } = require('./debug-gate.js')
 const { envOverride } = require('./env-overrides.js')
@@ -270,13 +271,11 @@ async function createWindow() {
     if (!win.isDestroyed()) win.webContents.setZoomFactor(currentZoom)
   })
 
-  win.webContents.on('console-message', (_e, level, message, line, sourceId) => {
-    // Skip our own forwarded main logs (the renderer prints them as [main] …),
-    // otherwise mirroring them back here would feed the forwarding loop.
-    if (typeof message === 'string' && message.startsWith(MAIN_LOG_PREFIX)) return
-    const tag = ['VERBOSE', 'INFO', 'WARNING', 'ERROR'][level] || 'INFO'
-    logRing.push('renderer', tag.toLowerCase(), `${sourceId}:${line} ${message}`)
-    if (isDebug()) console.log(`[renderer ${tag}] ${sourceId}:${line} ${message}`)
+  win.webContents.on('console-message', (details) => {
+    const line = rendererLogLine(details, MAIN_LOG_PREFIX)
+    if (!line) return
+    logRing.push('renderer', line.tag.toLowerCase(), line.text)
+    if (isDebug()) console.log(`[renderer ${line.tag}] ${line.text}`)
   })
 
   if (isDebug()) {
