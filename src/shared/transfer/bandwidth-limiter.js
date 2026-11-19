@@ -23,7 +23,7 @@
 // value in step with `MIN_KBPS` in the renderer's `bandwidth-presets.js`; the renderer may not
 // import from `src/shared/`, so the two constants are necessarily duplicated.
 /** @internal */
-export const MIN_BYTES_PER_SECOND = 32 * 1024
+export const MIN_BYTES_PER_SECOND = 32 * 1000
 
 // Longest a waiting stream goes before the bucket re-evaluates it. Bounds how long a live
 // cap change takes to reach a stream that is already parked.

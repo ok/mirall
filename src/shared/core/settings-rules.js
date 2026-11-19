@@ -5,7 +5,21 @@ import { RELAY_MODES } from '../contract/relay-apply.js'
 import { DEFAULT_WEB_LINK_BASE } from '../contract/invite-envelope.js'
 /** @import { RelayMode, RelaySlot } from '../contract/relay-apply.js' */
 
-export const SETTINGS_VERSION = 1
+// Version 2 counts a transfer limit in units of 1,000 bytes per second, as every size and speed the
+// app shows; version 1 counted it in units of 1,024.
+export const SETTINGS_VERSION = 2
+
+// The limits version 1 offered as "1 MB/s", "5 MB/s" and "25 MB/s", and the limit each of those
+// labels names now. Any other value was typed as a number of KB/s and keeps that number.
+const PRESET_BEFORE_DECIMAL = new Map([[1024, 1000], [5120, 5000], [25600, 25000]])
+
+// A limit as this build counts it, read from settings written at `version`. Settings that state no
+// version predate it.
+/** @param {number} kbps @param {unknown} version */
+function limitFrom(kbps, version) {
+  const decimal = typeof version === 'number' && version >= 2
+  return decimal ? kbps : PRESET_BEFORE_DECIMAL.get(kbps) ?? kbps
+}
 
 /**
  * @typedef {{ version: number,
@@ -75,8 +89,8 @@ export function coerceSettings(raw, { sanitizeRelay, recentLimit }) {
     version: SETTINGS_VERSION,
     downloads: { folder: nonEmptyString(downloads.folder), recent: recentFolders(downloads.recent, recentLimit) },
     network: {
-      downloadKBps: countAtLeastZero(network.downloadKBps, d.network.downloadKBps),
-      uploadKBps: countAtLeastZero(network.uploadKBps, d.network.uploadKBps),
+      downloadKBps: limitFrom(countAtLeastZero(network.downloadKBps, d.network.downloadKBps), src.version),
+      uploadKBps: limitFrom(countAtLeastZero(network.uploadKBps, d.network.uploadKBps), src.version),
       relayMode: RELAY_MODES.includes(network.relayMode) ? network.relayMode : 'off',
       relay: sanitizeRelay(network.relay),
       downloadConcurrency: countAtLeastZero(network.downloadConcurrency, d.network.downloadConcurrency),
@@ -95,7 +109,8 @@ export function importFromConfig(configJson, deps) {
 
 // What a restored backup's settings json changes in the current settings: the bandwidth caps, the
 // download folder only when it can be used on this device, never the relay (its seed is bound to
-// the device that made the backup) and never the recent folders (paths on that device).
+// the device that made the backup) and never the recent folders (paths on that device). The caps
+// are read at the settings version the backup states.
 export function applyRestoredSettings(current, json, { folderUsable }) {
   let parsed
   try {
@@ -107,8 +122,8 @@ export function applyRestoredSettings(current, json, { folderUsable }) {
   const next = { ...current, network: { ...current.network }, downloads: { ...current.downloads } }
   if (isPlainObject(parsed.network)) {
     const { downloadKBps, uploadKBps } = parsed.network
-    if (typeof downloadKBps === 'number') next.network.downloadKBps = downloadKBps
-    if (typeof uploadKBps === 'number') next.network.uploadKBps = uploadKBps
+    if (typeof downloadKBps === 'number') next.network.downloadKBps = limitFrom(downloadKBps, parsed.version)
+    if (typeof uploadKBps === 'number') next.network.uploadKBps = limitFrom(uploadKBps, parsed.version)
   }
   const folder = isPlainObject(parsed.downloads) ? nonEmptyString(parsed.downloads.folder) : null
   if (folder && folderUsable(folder)) next.downloads.folder = folder

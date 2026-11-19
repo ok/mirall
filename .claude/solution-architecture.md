@@ -1512,6 +1512,11 @@ allowlisted module (`test/invariants/engine-boundaries.test.js`); journals go th
 - Caps govern the **content plane only**. Throttling replication, handshakes or DHT traffic would
   starve convergence (`test/flow/content-plane-hol.test.js`).
 - A corrupt cap, or a getter that throws, fails **open** (unlimited).
+- A cap is stored in KB/s and a KB is **1,000 bytes**, as in every size and speed the app shows
+  (`format/bytes.js`), so a download held at "5 MB/s" reads 5 MB/s on the speed chart. Settings
+  version 1 counted in units of 1,024: reading settings older than version 2 (a `settings.json`, an
+  imported `config.json`, a restored backup, which carries the version) renames its three presets
+  once (`settings-rules.js`); a typed limit keeps its number.
 - Each consumer holds its own `stream()` handle.
 - Fairness is measured in bytes, not turns, because chunk sizes differ up to 64× across tiers.
 - Upload is charged before each send: a `take()` of 0 means don't send, and the serve grant is

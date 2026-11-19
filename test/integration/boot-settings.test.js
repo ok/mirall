@@ -40,7 +40,7 @@ test('a seeded settings.json reaches every getter the data layer reads', async (
   }
   await bootLike(t, { bootstrap: { defaultDownloadFolder: '/tmp/default-dl' }, seeded })
   t.is(path.resolve(getNewSpaceDownloadDir()), path.resolve(seeded.downloads.folder))
-  t.alike(getBandwidthLimits(), { download: 256 * 1024, upload: 32 * 1024 })
+  t.alike(getBandwidthLimits(), { download: 256 * 1000, upload: 32 * 1000 })
   t.is(getRelayConfig().mode, 'auto')
   t.is(getRelayConfig().relay.publicKey, RELAY_KEY)
   t.is(getDownloadConcurrency(), 2)
@@ -78,6 +78,6 @@ test('a bootstrap lever beats the stored value for that run only', async (t) => 
   const seeded = { version: 1, downloads: { folder: '/tmp/stored' }, network: { downloadKBps: 256, uploadKBps: 0, relayMode: 'off', relay: null, downloadConcurrency: 6 }, backup: { folder: null, repoId: null } }
   const h = await bootLike(t, { bootstrap: { downloadFolder: '/tmp/override', downloadKBps: 1 }, seeded })
   t.is(getNewSpaceDownloadDir(), '/tmp/override')
-  t.is(getBandwidthLimits().download, 1024)
+  t.is(getBandwidthLimits().download, 1000)
   t.is(JSON.parse(fs.readFileSync(path.join(h.root, 'settings.json'), 'utf-8')).downloads.folder, '/tmp/stored', 'the file is untouched')
 })

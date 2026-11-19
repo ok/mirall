@@ -39,7 +39,7 @@ test('settings:set-bandwidth persists, applies and pokes every client', async (t
   t.is(view.network.downloadKBps, 512)
   t.is(view.network.uploadKBps, 0, 'the omitted direction keeps its cap')
   t.is(p.stored().network.downloadKBps, 512, 'written through')
-  t.is(getBandwidthLimits().download, 512 * 1024, 'and live')
+  t.is(getBandwidthLimits().download, 512 * 1000, 'and live')
   t.is(p.pokes(), 1)
   const again = await p.fake.call('settings:set-bandwidth', { downloadKBps: -1, uploadKBps: 64.9 })
   t.is(again.network.downloadKBps, 512, 'a corrupt cap keeps the one the user last set')

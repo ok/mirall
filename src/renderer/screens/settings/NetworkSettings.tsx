@@ -132,7 +132,7 @@ function LimitRow({
           ) : (
             <p id={helpId} className="text-xs text-on-surface-variant px-1">
               {parsed > 0
-                ? t('networkSettings.customEcho', { rate: formatSpeed(parsed * 1024) })
+                ? t('networkSettings.customEcho', { rate: formatSpeed(parsed * 1000) })
                 : t('networkSettings.customUnlimited')}
             </p>
           )}

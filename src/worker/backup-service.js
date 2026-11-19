@@ -496,7 +496,8 @@ export class Backup extends Subsystem {
   }
 
   // The groups that follow the user: main's config.json holds appearance and notifications, the
-  // worker's own settings hold downloads and network.
+  // worker's own settings hold downloads and network. The settings version travels with them, since
+  // it says how the transfer limits are counted.
   settingsBytes() {
     let hostSettings
     try {
@@ -505,7 +506,7 @@ export class Backup extends Subsystem {
       hostSettings = {}
     }
     const own = getSettings()
-    const kept = {}
+    const kept = { version: own.version }
     for (const key of BACKUP_SETTING_GROUPS) {
       const value = key in own ? own[key] : hostSettings?.[key]
       if (value !== undefined) kept[key] = value

@@ -23,6 +23,9 @@ changes do not appear here.
 
 ### Changed
 
+- **A transfer limit now matches the speed Mirall shows.** "5 MB/s" used to
+  allow about 5.2 MB/s as the app displays speed; limits now count the same
+  way as every other size. A preset you had picked stays selected.
 - **Removing a relay you joined with an invite takes effect at once.** Mirall
   no longer asks you to reconnect first, as it already did for an open
   relay. Adding or replacing one still asks.

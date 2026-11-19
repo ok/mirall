@@ -45,7 +45,7 @@ export default async function s173({ runDir, bootstrap }) {
       await A.quit()
       const own = read(settingsPath())
       assert(own.downloads.folder === seeded, 'settings.json holds the folder')
-      assert(own.network.downloadKBps === 5120, 'settings.json holds the cap')
+      assert(own.network.downloadKBps === 5000, 'settings.json holds the cap, counted in units of 1,000')
       const config = read(configPath())
       assert(config.downloads?.folder === seeded, 'config.json still carries the group main has not dropped yet')
     })

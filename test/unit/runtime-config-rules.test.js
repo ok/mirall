@@ -84,9 +84,9 @@ const RULED_KEYS = [
   // Inverted polarity: a user convenience, so a malformed value returns to UNLIMITED (0) rather than
   // throttling every transfer to a crawl. Reported in bytes/s.
   ['downloadKBps', () => getBandwidthLimits().download, 0,
-    [[0, 0], [Infinity, 0], [5120, 5120 * 1024], [-1, 0]]],
+    [[0, 0], [Infinity, 0], [5000, 5000 * 1000], [-1, 0]]],
   ['uploadKBps', () => getBandwidthLimits().upload, 0,
-    [[0, 0], [Infinity, 0], [1024, 1024 * 1024], [-1, 0]]],
+    [[0, 0], [Infinity, 0], [1000, 1000 * 1000], [-1, 0]]],
 ]
 
 for (const [key, read, dflt, rows] of RULED_KEYS) {

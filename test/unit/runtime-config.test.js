@@ -170,7 +170,7 @@ test('bandwidth limits default to unlimited and convert KB/s to bytes/s', (t) =>
   setRuntimeConfig({})
   t.alike(getBandwidthLimits(), { download: 0, upload: 0 }, '0 = unlimited on both directions')
   setRuntimeConfig({ downloadKBps: 5120, uploadKBps: 1024 })
-  t.alike(getBandwidthLimits(), { download: 5120 * 1024, upload: 1024 * 1024 }, 'converted to bytes/s')
+  t.alike(getBandwidthLimits(), { download: 5120 * 1000, upload: 1024 * 1000 }, 'converted to bytes/s')
   setRuntimeConfig({})
 })
 
@@ -187,15 +187,15 @@ test('a corrupt bandwidth value fails OPEN, not closed', (t) => {
 test('setBandwidthLimits updates live and leaves the rest of the config alone', (t) => {
   setRuntimeConfig({ downloadFolder: '/tmp/dl', downloadKBps: 100 })
   setBandwidthLimits({ downloadKBps: 2048, uploadKBps: 512 })
-  t.alike(getBandwidthLimits(), { download: 2048 * 1024, upload: 512 * 1024 }, 'new caps applied')
+  t.alike(getBandwidthLimits(), { download: 2048 * 1000, upload: 512 * 1000 }, 'new caps applied')
   t.is(getRuntimeConfig().downloadFolder, '/tmp/dl', 'unrelated config preserved')
 
   setBandwidthLimits({ uploadKBps: 0 })
   t.is(getBandwidthLimits().upload, 0, '0 is honoured — it means unlimited')
-  t.is(getBandwidthLimits().download, 2048 * 1024, 'an omitted direction keeps its value')
+  t.is(getBandwidthLimits().download, 2048 * 1000, 'an omitted direction keeps its value')
 
   setBandwidthLimits({ downloadKBps: 'nonsense' })
-  t.is(getBandwidthLimits().download, 2048 * 1024, 'an invalid value keeps the previous cap')
+  t.is(getBandwidthLimits().download, 2048 * 1000, 'an invalid value keeps the previous cap')
   setRuntimeConfig({})
 })
 
