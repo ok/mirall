@@ -35,7 +35,7 @@ const log = createLogger('overlay')
 // Where the prepare pass hashes on threads. A platform joins once the threaded pass has produced
 // the worker-thread pass's result there and measured faster; elsewhere the pass stays on the
 // worker thread.
-const HASH_THREAD_PLATFORMS = new Set(['darwin'])
+const HASH_THREAD_PLATFORMS = new Set(['darwin', 'win32', 'linux'])
 
 // Encrypt only when M is available. Insecure/headless mode (no KEK ⇒ no M) stays
 // on the plaintext generation with no key — never key a core we can't reopen.
