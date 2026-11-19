@@ -1,0 +1,547 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Entering selection — mockup</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet" />
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    darkMode: 'class',
+    theme: {
+      extend: {
+        colors: {
+          'accent': 'var(--color-accent)',
+          'icon-tile': 'var(--color-icon-tile)',
+          'on-icon-tile': 'var(--color-on-icon-tile)',
+          'success': 'var(--color-success)',
+          'on-success': 'var(--color-on-success)',
+          'info': 'var(--color-info)',
+          'on-info': 'var(--color-on-info)',
+          'online': 'var(--color-online)',
+          'offline': 'var(--color-offline)',
+          'primary': 'var(--color-primary)',
+          'on-primary': 'var(--color-on-primary)',
+          'secondary': 'var(--color-secondary)',
+          'secondary-container': 'var(--color-secondary-container)',
+          'on-secondary': 'var(--color-on-secondary)',
+          'on-secondary-container': 'var(--color-on-secondary-container)',
+          'surface': 'var(--color-surface)',
+          'surface-container': 'var(--color-surface-container)',
+          'surface-container-low': 'var(--color-surface-container-low)',
+          'surface-container-high': 'var(--color-surface-container-high)',
+          'surface-container-highest': 'var(--color-surface-container-highest)',
+          'surface-container-lowest': 'var(--color-surface-container-lowest)',
+          'progress-track': 'var(--color-progress-track)',
+          'on-surface': 'var(--color-on-surface)',
+          'on-surface-variant': 'var(--color-on-surface-variant)',
+          'on-background': 'var(--color-on-background)',
+          'background': 'var(--color-background)',
+          'outline': 'var(--color-outline)',
+          'outline-variant': 'var(--color-outline-variant)',
+          'error': 'var(--color-error)',
+          'error-container': 'var(--color-error-container)',
+          'error-container-hover': 'var(--color-error-container-hover)',
+          'on-error-container': 'var(--color-on-error-container)',
+          'warning': 'var(--color-warning)',
+          'on-warning': 'var(--color-on-warning)',
+          'primary-hover': 'var(--color-primary-hover)',
+          'surface-control': 'var(--color-surface-control)',
+          'surface-control-hover': 'var(--color-surface-control-hover)',
+          'warning-container': 'var(--color-warning-container)',
+          'on-warning-container': 'var(--color-on-warning-container)',
+        },
+        fontFamily: {
+          headline: ['Plus Jakarta Sans', 'sans-serif'],
+          body: ['Manrope', 'sans-serif'],
+          label: ['Manrope', 'sans-serif'],
+        },
+        borderRadius: {
+          DEFAULT: '0.25rem',
+          lg: '0.5rem',
+          xl: '0.75rem',
+          '2xl': '1.5rem',
+          '3xl': '2rem',
+          full: '9999px',
+        },
+      },
+    },
+  }
+</script>
+
+<style>
+  :root {
+    --color-icon-tile: #fec78a;
+    --color-on-icon-tile: #0a4742;
+    --color-success: #c1ecc4;
+    --color-on-success: #0c4d20;
+    --color-info: #d6e6f5;
+    --color-on-info: #1f4a78;
+    --color-online: #0d8b80;
+    --color-offline: #a0a4ac;
+    --color-accent: #33253b;
+    --color-primary: #42304a;
+    --color-primary-hover: #52405b;
+    --color-on-primary: #ffffff;
+    --color-secondary: #904d00;
+    --color-secondary-container: #fd9c42;
+    --color-on-secondary: #ffffff;
+    --color-on-secondary-container: #6b3800;
+    --color-surface: #fbf9f5;
+    --color-surface-container: #efeeea;
+    --color-surface-container-low: #f5f3ef;
+    --color-surface-container-high: #eae8e4;
+    --color-surface-control: #eae8e4;
+    --color-surface-control-hover: #dcdad6;
+    --color-surface-container-highest: #e4e2de;
+    --color-surface-container-lowest: #ffffff;
+    --color-progress-track: #d0cec9;
+    --avatar-recess: rgb(0 0 0 / 0.36);
+    --color-on-surface: #1b1c1a;
+    --color-on-surface-variant: #4a454b;
+    --color-on-background: #1b1c1a;
+    --color-background: #fbf9f5;
+    --color-outline: #7c757c;
+    --color-outline-variant: #ccc4cc;
+    --color-error: #ba1a1a;
+    --color-error-container: #f6c8c4;
+    --color-error-container-hover: #e8bab6;
+    --color-on-error-container: #93000a;
+    --color-warning: #fcd34d;
+    --color-on-warning: #1b1c1a;
+    --color-warning-container: #fdefc6;
+    --color-on-warning-container: #6d4c00;
+  }
+  .dark {
+    --color-icon-tile: #fec78a;
+    --color-on-icon-tile: #0a4742;
+    --color-success: #20492a;
+    --color-on-success: #8fd99b;
+    --color-info: #1f3a52;
+    --color-on-info: #9bc6e8;
+    --color-online: #5cc4b8;
+    --color-offline: #5b6270;
+    --color-accent: #fce8d2;
+    --color-primary: #fd9c42;
+    --color-primary-hover: #dd8837;
+    --color-on-primary: #282c34;
+    --color-secondary: #e4bf7a;
+    --color-secondary-container: #4a3e28;
+    --color-on-secondary: #282c34;
+    --color-on-secondary-container: #ecd09a;
+    --color-surface: #282c34;
+    --color-surface-container: #2e323a;
+    --color-surface-container-low: #2e3239;
+    --color-surface-container-high: #5c6068;
+    --color-surface-control: #434955;
+    --color-surface-control-hover: #4f5561;
+    --color-surface-container-highest: #393f4a;
+    --color-surface-container-lowest: #21252b;
+    --color-progress-track: #4a5160;
+    --avatar-recess: rgb(0 0 0 / 0.62);
+    --color-on-surface: #fefaf3;
+    --color-on-surface-variant: #ebe2d2;
+    --color-on-background: #fefaf3;
+    --color-background: #282c34;
+    --color-outline: #5b6270;
+    --color-outline-variant: #393f4a;
+    --color-error: #ec9199;
+    --color-error-container: #6f3338;
+    --color-error-container-hover: #7c3f43;
+    --color-on-error-container: #ffd2cf;
+    --color-warning: #fbbf24;
+    --color-on-warning: #1b1c1a;
+    --color-warning-container: #4e4229;
+    --color-on-warning-container: #fbe3a4;
+  }
+
+  /* App rules from tailwind.css that the CDN build cannot express. */
+  .font-headline { font-family: 'Plus Jakarta Sans', sans-serif; }
+  .focus-ring:focus { outline: none; }
+  .focus-ring:focus-visible { box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-secondary) 30%, transparent); }
+  .glass-modal { background: var(--color-surface-container-lowest); }
+  .avatar-recess { position: relative; }
+  .avatar-recess::after { content: ''; position: absolute; inset: 0; border-radius: 9999px; box-shadow: inset 0 1px 2px var(--avatar-recess); pointer-events: none; }
+
+  /* Mockup canvas (not app UI). */
+  body { font-family: 'Manrope', sans-serif; background: #d8d4cc; }
+  .dark body, body.dark { background: #15171c; }
+
+  /* Mirall window frame. The title bar is hidden (titleBarStyle 'hiddenInset'), so the macOS
+     traffic lights sit over the top-left of the app's own header. */
+  .device-frame {
+    position: relative;
+    background: var(--color-background);
+    border-radius: 16px;
+    box-shadow: 0 30px 80px rgba(15, 12, 20, 0.18), 0 8px 24px rgba(15, 12, 20, 0.12);
+    overflow: hidden;
+  }
+  .traffic-lights { position: absolute; top: 20px; left: 20px; z-index: 60; display: inline-flex; gap: 8px; }
+  .traffic-lights span { width: 12px; height: 12px; border-radius: 9999px; display: inline-block; }
+  .traffic-lights .r { background: #ff5f57; }
+  .traffic-lights .y { background: #febc2e; }
+  .traffic-lights .g { background: #28c840; }
+
+  /* Header glass: bg-surface-container-lowest/70 backdrop-blur-xl plus the ambient shadow, which
+     both headers drop in dark mode (dark:shadow-none). The CDN build cannot apply an opacity
+     modifier to a var() colour, hence the color-mix. */
+  .nav-glass {
+    background: color-mix(in srgb, var(--color-surface-container-lowest) 70%, transparent);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    box-shadow: 0 12px 40px rgba(74, 59, 82, 0.06);
+  }
+  .dark .nav-glass { box-shadow: none; }
+
+  /* Modal backdrop (CrystalBackdrop approximation). */
+  .modal-scrim { background: rgba(51, 37, 59, 0.30); }
+  .dark .modal-scrim { background: rgba(20, 22, 28, 0.55); }
+
+  /* Annotation chrome (not app UI, so literal colours are fine here). */
+  .badge { display: inline-flex; align-items: center; gap: 6px; border-radius: 9999px; padding: 3px 10px; font-size: 11px; font-weight: 800; letter-spacing: .01em; }
+  .badge-real { background: #d6e6f5; color: #1f4a78; }
+  .badge-proposed { background: #fce8d2; color: #6b3800; }
+  .badge-a11y { background: #ccebe6; color: #0d4d49; }
+  .anno-h { color: #33253b; }
+  .dark .anno-h { color: #f2ebe0; }
+  .anno { color: #4a454b; }
+  .anno code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; background: rgba(0,0,0,.05); padding: 1px 6px; border-radius: 6px; color: #4a454b; }
+  .dark .anno { color: #cfc8be; }
+  .dark .anno code { background: rgba(255,255,255,.08); color: #cfc8be; }
+
+  /* More app rules from tailwind.css the CDN build cannot express. */
+  :root { --lifted-control-hover: var(--color-surface-container-lowest); }
+  .dark { --lifted-control-hover: var(--color-surface-container-high); }
+  .control-hover:hover { background-color: var(--control-hover, var(--color-surface-container-high)); }
+  .lifts:hover, .lifted { --control-hover: var(--lifted-control-hover); }
+  .split-divider { box-shadow: inset 1px 0 0 color-mix(in srgb, var(--color-on-primary) 28%, transparent); }
+  @keyframes select-box-in { from { opacity: 0 } to { opacity: 1 } }
+  .select-box-in { animation: select-box-in 200ms ease-out; }
+  input[type=search]::placeholder { color: color-mix(in srgb, var(--color-on-surface-variant) 85%, transparent); }
+  input[type=search]::-webkit-search-cancel-button { display: none; }
+  /* Mockup chrome: the variant switch. */
+  .sw-on { background: #33253b; color: #fff; border-color: #33253b; }
+  .sw-off { background: #fff; color: #33253b; border-color: rgba(0,0,0,.15); }
+</style>
+</head>
+
+<body class="min-h-screen pb-24">
+
+<div class="max-w-[1040px] mx-auto px-6 pt-10 pb-2 flex items-start justify-between gap-6">
+  <div class="anno">
+    <h1 class="anno-h font-headline font-extrabold text-2xl tracking-tight">Entering selection — mockup</h1>
+    <p class="text-sm mt-1 max-w-2xl">The first click opens the selection column with nothing ticked, and the control that opens it stops looking like a select-all box. Extends the controls row, the selection strip and the file rows of the space and folder listings. Baseline: <code>origin/main @ 4bef956e</code>.</p>
+  </div>
+  <button id="theme-toggle" type="button" aria-pressed="false"
+    class="shrink-0 rounded-xl border border-black/10 px-3 py-2 text-sm font-bold bg-white shadow-sm hover:shadow"
+    style="color:#33253b">Toggle dark</button>
+</div>
+
+<div class="max-w-[1040px] mx-auto px-6 pt-4">
+  <div class="anno rounded-2xl p-5 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm" style="background:var(--color-surface-container-lowest)">
+    <span class="flex items-center gap-2"><span class="badge badge-real">Recreated from code</span> reproduced from the shipped <code>.tsx</code></span>
+    <span class="flex items-center gap-2"><span class="badge badge-proposed">Proposed new</span> built from existing primitives and <code>design.md</code> tokens</span>
+    <span class="flex items-center gap-2"><span class="badge badge-a11y">a11y</span> name / role / state intent</span>
+  </div>
+  <p class="anno text-sm mt-3">Every panel is the left content column of <code>SpaceContentPane.tsx</code> only. The header, the space header bar and the 300 px sidebar are unchanged and not drawn. File names, people and sizes are sample data.</p>
+</div>
+
+<!-- 1 -->
+<section class="max-w-[1040px] mx-auto px-6 pt-12">
+  <h2 class="anno-h font-headline font-extrabold text-xl">1 · Try it</h2>
+  <div class="anno flex flex-wrap items-center gap-2 mt-2 mb-3 text-sm">
+    <span class="badge badge-proposed">Proposed new</span>
+    <span>— a working panel. Open the column, tick rows, use the top box, press Done. Switch the entry control to compare.</span>
+  </div>
+  <div id="switch" role="radiogroup" aria-label="Entry control" class="anno flex flex-wrap gap-2 mb-4 text-sm"></div>
+  <div id="live"></div>
+  <p class="anno text-sm mt-3" id="live-note"></p>
+</section>
+
+<!-- 2 -->
+<section class="max-w-[1040px] mx-auto px-6 pt-12">
+  <h2 class="anno-h font-headline font-extrabold text-xl">2 · Today</h2>
+  <div class="anno flex flex-wrap items-center gap-2 mt-2 mb-3 text-sm">
+    <span class="badge badge-real">Recreated from code</span>
+    <code>listing/ListControlsRow.tsx</code> <code>batch/SelectionBar.tsx</code> <code>cards/FileRow.tsx</code>
+    <span>— at rest an empty box named “Select all 5 files”; its first tick opens the column with every file selected.</span>
+  </div>
+  <div class="grid grid-cols-1 gap-4">
+    <div><p class="anno text-xs font-bold mb-1">At rest</p><div id="today-rest"></div></div>
+    <div><p class="anno text-xs font-bold mb-1">After the first click</p><div id="today-open"></div></div>
+  </div>
+</section>
+
+<!-- 3 -->
+<section class="max-w-[1040px] mx-auto px-6 pt-12">
+  <h2 class="anno-h font-headline font-extrabold text-xl">3 · Not chosen: a labelled Select button</h2>
+  <div class="anno flex flex-wrap items-center gap-2 mt-2 mb-3 text-sm">
+    <span class="badge badge-proposed">Proposed new</span>
+    <span>— a secondary <code>Button</code> with the new <code>checklist</code> icon and the new string “Select”, at the end of the controls row. No box at rest, so the filter field lines up with the rows.</span>
+  </div>
+  <div class="grid grid-cols-1 gap-4">
+    <div><p class="anno text-xs font-bold mb-1">At rest</p><div id="p-rest"></div></div>
+    <div><p class="anno text-xs font-bold mb-1">After the first click: column open, nothing selected (the strip’s copy is the shipped <code>batch.nothingSelected</code> / <code>batch.nothingHint</code>)</p><div id="p-open"></div></div>
+    <div><p class="anno text-xs font-bold mb-1">Two rows ticked: the top box is the shipped tri-state select-all</p><div id="p-some"></div></div>
+  </div>
+  <p class="anno text-sm mt-3"><span class="badge badge-a11y">a11y</span> At rest: <code>button</code> named “Select” by its visible text. On click it leaves; the controls row’s <code>useKeepFocus('first')</code> moves focus to the top box, a <code>checkbox</code> named “Select all 5 files”, unchecked. The strip’s polite region announces “0 selected”. Done or Esc ends it, announces “Selection ended”, and focus returns to the row’s first control.</p>
+</section>
+
+<!-- 4 -->
+<section class="max-w-[1040px] mx-auto px-6 pt-12">
+  <h2 class="anno-h font-headline font-extrabold text-xl">4 · Chosen: an icon button in the box’s place</h2>
+  <div class="anno flex flex-wrap items-center gap-2 mt-2 mb-3 text-sm">
+    <span class="badge badge-proposed">Proposed new</span>
+    <span>— an <code>IconButton</code> (<code>checklist</code>, tooltip and name “Select files”) where the box is today; it turns into the top box when the column opens. Nothing else moves.</span>
+  </div>
+  <div id="i-rest"></div>
+  <p class="anno text-sm mt-3"><span class="badge badge-a11y">a11y</span> <code>button</code> named “Select files” by <code>aria-label</code>, repeated as the tooltip. Same focus hand-over as above.</p>
+</section>
+
+<!-- 5 -->
+<section class="max-w-[1040px] mx-auto px-6 pt-12">
+  <h2 class="anno-h font-headline font-extrabold text-xl">5 · Which glyph</h2>
+  <div class="anno flex flex-wrap items-center gap-2 mt-2 mb-3 text-sm">
+    <span class="badge badge-proposed">Proposed new</span>
+    <span>— Material Symbols outlined at the app’s weight, drawn at 24 px in the 40 px hit area and at 20 px inside a secondary Button. Only <code>check_circle</code> is in <code>Icon.tsx</code> today.</span>
+  </div>
+  <div id="glyphs" class="grid grid-cols-1 gap-3"></div>
+</section>
+
+<script>
+const ICONS = {
+ "check": "M378-246 154-470l43-43 181 181 384-384 43 43-427 427Z",
+ "check_circle": "m421-298 283-283-46-45-237 237-120-120-45 45 165 166Zm59 218q-82 0-155-31.5t-127.5-86Q143-252 111.5-325T80-480q0-83 31.5-156t86-127Q252-817 325-848.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 82-31.5 155T763-197.5q-54 54.5-127 86T480-80Zm0-60q142 0 241-99.5T820-480q0-142-99-241t-241-99q-141 0-240.5 99T140-480q0 141 99.5 240.5T480-140Zm0-340Z",
+ "search": "M784-120 532-372q-30 24-69 38t-83 14q-109 0-184.5-75.5T120-580q0-109 75.5-184.5T380-840q109 0 184.5 75.5T640-580q0 44-14 83t-38 69l252 252-56 56ZM380-400q75 0 127.5-52.5T560-580q0-75-52.5-127.5T380-760q-75 0-127.5 52.5T200-580q0 75 52.5 127.5T380-400Z",
+ "download": "M480-313 287-506l43-43 120 120v-371h60v371l120-120 43 43-193 193ZM220-160q-24 0-42-18t-18-42v-143h60v143h520v-143h60v143q0 24-18 42t-42 18H220Z",
+ "delete": "M261-120q-24.75 0-42.37-17.63Q201-155.25 201-180v-570h-41v-60h188v-30h264v30h188v60h-41v570q0 24-18 42t-42 18H261Zm438-630H261v570h438v-570ZM367-266h60v-399h-60v399Zm166 0h60v-399h-60v399ZM261-750v570-570Z",
+ "draft": "M220-80q-24 0-42-18t-18-42v-680q0-24 18-42t42-18h361l219 219v521q0 24-18 42t-42 18H220Zm331-554v-186H220v680h520v-494H551ZM220-820v186-186 680-680Z",
+ "folder_open": "M140-160q-23 0-41.5-18.5T80-220v-520q0-23 18.5-41.5T140-800h281l60 60h339q23 0 41.5 18.5T880-680H455l-60-60H140v520l102-400h698L833-206q-6 24-22 35t-41 11H140Zm63-60h572l84-340H287l-84 340Zm0 0 84-340-84 340Zm-63-460v-60 60Z",
+ "keyboard_arrow_down": "M480-344 240-584l43-43 197 197 197-197 43 43-240 240Z",
+ "checklist": "M222-214 80-356l42-42 100 99 179-179 42 43-221 221Zm0-320L80-676l42-42 100 99 179-179 42 43-221 221Zm298 244v-60h360v60H520Zm0-320v-60h360v60H520Z",
+ "library_add_check": "m490-383 228-228-42-41-185 186-97-97-42 42 138 138ZM260-200q-24 0-42-18t-18-42v-560q0-24 18-42t42-18h560q24 0 42 18t18 42v560q0 24-18 42t-42 18H260Zm0-60h560v-560H260v560ZM140-80q-24 0-42-18t-18-42v-620h60v620h620v60H140Zm120-740v560-560Z",
+ "select_check_box": "M180-120q-24.75 0-42.37-17.63Q120-155.25 120-180v-600q0-24.75 17.63-42.38Q155.25-840 180-840h600q14 0 25.5 6t18.5 14l-44 44v-4H180v600h600v-343l60-60v403q0 24.75-17.62 42.37Q804.75-120 780-120H180Zm281-168L239-510l42-42 180 180 382-382 42 42-424 424Z",
+ "select_all": "M285-285v-390h390v390H285Zm60-60h270v-270H345v270ZM180-180v60q-24.75 0-42.37-17.63Q120-155.25 120-180h60Zm-60-105v-60h60v60h-60Zm0-165v-60h60v60h-60Zm0-165v-60h60v60h-60Zm60-165h-60q0-24.75 17.63-42.38Q155.25-840 180-840v60Zm105 660v-60h60v60h-60Zm0-660v-60h60v60h-60Zm165 660v-60h60v60h-60Zm0-660v-60h60v60h-60Zm165 660v-60h60v60h-60Zm0-660v-60h60v60h-60Zm165 660v-60h60q0 25-17.62 42.5Q804.75-120 780-120Zm0-165v-60h60v60h-60Zm0-165v-60h60v60h-60Zm0-165v-60h60v60h-60Zm0-165v-60q24.75 0 42.38 17.62Q840-804.75 840-780h-60Z",
+ "check_box_outline_blank": "M180-120q-24 0-42-18t-18-42v-600q0-24 18-42t42-18h600q24 0 42 18t18 42v600q0 24-18 42t-42 18H180Zm0-60h600v-600H180v600Z"
+};
+const FILES = [
+  { key: 'a', name: 'mirall-test.sh', size: 9e3, by: 'You', own: true, status: 'mine' },
+  { key: 'b', name: '2026-03-08_Reference_CheckUHD.iso', size: 65e9, by: 'Alex Rivera', status: 'remote' },
+  { key: 'c', name: '2026-10-22_Daylight_CheckUHD.iso', size: 95.3e9, by: 'Alex Rivera', status: 'remote' },
+  { key: 'd', name: 'Location-scout.zip', size: 1.2e9, by: 'Sam Okafor', status: 'remote' },
+  { key: 'e', name: 'Call-sheet.pdf', size: 240e3, by: 'Sam Okafor', status: 'downloaded' },
+]
+const N = FILES.length
+const VARIANTS = {
+  label: { name: 'Select button (not chosen)', note: 'Not chosen: a labelled button at the end of the row. The column, the top box and the strip appear together; the filter slides with the rows.' },
+  checklist: { name: 'Icon button: checklist (chosen)', glyph: 'checklist', note: 'Chosen: an icon button in the box’s place; it turns into the top box when the column opens.' },
+  library_add_check: { name: 'Icon button: library_add_check', glyph: 'library_add_check', note: 'Alternative glyph.' },
+  select_check_box: { name: 'Icon button: select_check_box', glyph: 'select_check_box', note: 'Alternative glyph.' },
+  today: { name: 'Today', note: 'Shipped behaviour: the empty box selects everything on its first tick.' },
+}
+const fmt = (b) => b >= 1e9 ? (b / 1e9).toFixed(1).replace(/\.0$/, '') + ' GB' : b >= 1e6 ? Math.round(b / 1e6) + ' MB' : Math.round(b / 1e3) + ' KB'
+const icon = (name, size = 24, cls = '') => `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 -960 960 960" fill="currentColor" class="${cls}" aria-hidden="true"><path d="${ICONS[name]}"/></svg>`
+
+// primitives/Checkbox.tsx
+function checkbox(state, label, data, title) {
+  const filled = state !== false
+  return `<label ${title ? `title="${label}"` : ''} class="w-10 h-10 shrink-0 flex items-center justify-center rounded-full control-hover cursor-pointer">
+    <input type="checkbox" class="sr-only peer" aria-label="${label}" ${state === true ? 'checked' : ''} ${state === 'mixed' ? 'data-mixed' : ''} ${data}>
+    <span aria-hidden="true" class="w-5 h-5 rounded flex items-center justify-center transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-secondary ${filled ? 'bg-primary text-on-primary' : 'border-2 border-on-surface-variant'}">${state === true ? icon('check', 16) : ''}${state === 'mixed' ? '<span class="block w-2.5 h-0.5 rounded-full bg-on-primary"></span>' : ''}</span>
+  </label>`
+}
+const BTN = 'flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-headline font-bold transition-all active:scale-95 focus:outline-none focus-visible:ring-2 px-5 py-2.5 text-sm'
+const SECONDARY = 'bg-surface-control text-on-surface-variant hover:bg-surface-control-hover focus-visible:ring-secondary'
+const PRIMARY = 'bg-primary text-on-primary shadow-lg hover:bg-primary-hover focus-visible:ring-secondary'
+const ICONBTN = 'w-10 h-10 shrink-0 flex items-center justify-center rounded-full control-hover active:scale-95 transition-all focus-ring'
+const RESTING = 'bg-surface-container-lowest dark:bg-surface-container-low hover:bg-surface-container-highest dark:hover:bg-surface-container-highest lifts'
+const SELECTED = 'bg-surface-container-highest lifted'
+const BADGE = { mine: ['bg-success text-accent', 'Shared by you'], remote: ['bg-surface-container-highest text-accent', 'Available'], downloaded: ['bg-success text-accent', 'On your device'] }
+
+function topState(sel) { return sel.size === 0 ? false : sel.size === N ? true : 'mixed' }
+
+function topControl(s) {
+  if (s.mode || s.variant === 'today') return checkbox(s.mode ? topState(s.sel) : false, `Select all ${N} files`, 'data-act="top"', true)
+  if (s.variant === 'label') return ''
+  return `<button type="button" data-act="open" aria-label="Select files" title="Select files" class="${ICONBTN}">${icon(VARIANTS[s.variant].glyph, 24, 'text-on-surface-variant')}</button>`
+}
+function trailing(s) {
+  if (s.mode) return ''
+  // listing/DownloadsToButton.tsx, then the proposed Select button
+  const downloads = `<button type="button" aria-label="Downloads go to Downloads, change" class="flex items-center gap-2 rounded-xl px-5 py-2.5 font-headline font-bold text-sm transition-all focus-ring min-w-0 max-w-[16rem] ${SECONDARY}">${icon('download', 20, 'shrink-0')}<span class="truncate">Downloads</span>${icon('keyboard_arrow_down', 20, 'shrink-0')}</button>`
+  const select = s.variant === 'label' ? `<button type="button" data-act="open" class="${BTN} ${SECONDARY} shrink-0">${icon('checklist', 20)}Select</button>` : ''
+  return downloads + select
+}
+// batch/SelectionBar.tsx
+function strip(s) {
+  if (!s.mode) return ''
+  const picked = FILES.filter((f) => s.sel.has(f.key))
+  const bytes = picked.reduce((n, f) => n + f.size, 0)
+  const unshare = picked.filter((f) => f.own).length
+  const download = picked.filter((f) => f.status === 'remote').length
+  const onDevice = picked.filter((f) => f.status === 'downloaded').length
+  const text = picked.length === 0
+    ? `<span class="font-bold text-accent">Nothing selected</span> · tick files below, or the box above for all ${N}`
+    : `<span class="font-bold text-accent">${picked.length} selected</span> · ${fmt(bytes)}${onDevice ? ` · ${onDevice} already on your device` : ''}`
+  return `<div class="flex items-center gap-3 pl-4 pr-1 py-1.5 rounded-lg text-sm bg-surface-container-low text-on-surface-variant mb-3 shrink-0" style="margin-left:52px">
+    ${icon('check', 16, 'shrink-0 text-secondary')}
+    <span class="flex-1 min-w-0 truncate">${text}</span>
+    ${unshare ? `<button type="button" class="${BTN} bg-error-container text-on-error-container hover:bg-error-container-hover focus-visible:ring-error shrink-0">${icon('delete', 20)}Unshare ${unshare}</button>` : ''}
+    ${download ? `<div class="flex shrink-0 min-w-0" role="group" aria-label="Download"><button type="button" aria-label="Download ${download} to Downloads" class="${BTN.replace('active:scale-95', 'rounded-r-none')} ${PRIMARY} pr-4 min-w-0">${icon('download', 20)}Download ${download}<span class="font-medium opacity-80 truncate max-w-[11rem]">to Downloads</span></button><button type="button" aria-label="More download options" class="flex items-center justify-center rounded-xl rounded-l-none px-2.5 split-divider bg-primary text-on-primary hover:bg-primary-hover transition-all focus-ring">${icon('keyboard_arrow_down', 20)}</button></div>` : ''}
+    <button type="button" data-act="done" class="${BTN} ${SECONDARY} shrink-0">Done</button>
+  </div>`
+}
+// cards/FileRow.tsx (loose), cards/RowLane.tsx RestLane, cards/ActionLane.tsx
+function row(f) {
+  const [tone, label] = BADGE[f.status]
+  const slot = (ic, name, hidden, danger) => `<button type="button" aria-label="${name}" title="${name}" class="${ICONBTN} ${danger ? 'text-error hover:!bg-error-container hover:text-on-error-container' : ''} ${hidden ? 'opacity-0 group-hover:opacity-100 focus:opacity-100' : ''}">${icon(ic, 22, danger ? '' : 'text-secondary')}</button>`
+  const actions = f.status === 'remote' ? `<div class="w-10 h-10"></div>${slot('download', 'Download to…')}`
+    : f.own ? `${slot('delete', 'Unshare from Space', true, true)}${slot('folder_open', 'Reveal in Folder')}`
+    : `<div class="w-10 h-10"></div>${slot('folder_open', 'Reveal in Folder')}`
+  return `<div class="group relative rounded-xl transition-colors ${RESTING}" data-row="${f.key}">
+    <span data-box></span>
+    <div class="flex items-center p-5">
+      <div role="none" title="${f.name}" class="flex items-center gap-4 min-w-0 flex-grow">
+        <div class="w-12 h-12 bg-surface-container-high rounded-lg flex items-center justify-center shrink-0">${icon('draft', 24, 'text-accent')}</div>
+        <div class="min-w-0 flex-grow">
+          <span class="block truncate font-bold text-accent">${f.name}</span>
+          <p class="text-xs text-on-surface-variant mt-0.5 truncate">${fmt(f.size)} • Shared by ${f.by}</p>
+        </div>
+      </div>
+      <div class="shrink-0 ml-6 mr-3 items-center gap-2 self-center flex"><span aria-label="${f.name}: ${label}" class="inline-flex items-center leading-none px-3 pt-[7px] pb-[5px] text-[10px] font-bold rounded-full uppercase tracking-wider border border-outline ${tone}">${label}</span></div>
+      <div class="flex items-center gap-1 shrink-0 rounded-full">${actions}</div>
+    </div>
+  </div>`
+}
+
+function mount(el, s, live) {
+  el.innerHTML = `<div class="bg-surface font-body rounded-2xl p-6 ${live ? '' : 'pointer-events-none'}" ${live ? '' : 'inert'}>
+    <div class="flex items-center mb-3 shrink-0">
+      <div data-top class="shrink-0 overflow-hidden transition-[width,margin] duration-200 ease-[cubic-bezier(.2,0,0,1)]"></div>
+      <div class="relative flex-1 min-w-0">
+        <span class="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none">${icon('search', 18)}</span>
+        <input type="search" aria-label="Filter files in this space" placeholder="Filter files…" class="w-full bg-surface-container-lowest border-none rounded-xl py-2.5 pl-11 pr-4 text-sm text-on-surface focus-ring">
+      </div>
+      <div data-trailing class="flex items-center gap-3 shrink-0"></div>
+    </div>
+    <div data-strip></div>
+    <p class="sr-only" role="status" aria-live="polite" data-say></p>
+    <div data-pane class="relative -mx-1 pb-1 pr-1 transition-[padding-left] duration-200 ease-[cubic-bezier(.2,0,0,1)]">
+      <div>
+        <div class="bg-surface flex items-baseline gap-3 pt-1 pb-4">
+          <h2 class="text-2xl font-headline font-bold text-accent">Files Shared</h2>
+          <span class="text-sm font-label text-secondary font-bold">${N} Files</span>
+        </div>
+        <div class="grid grid-cols-1 gap-4">${FILES.map(row).join('')}</div>
+      </div>
+    </div>
+  </div>`
+  const q = (sel) => el.querySelector(sel)
+  function update(focusTop) {
+    const top = q('[data-top]')
+    const html = topControl(s)
+    if (html) top.innerHTML = html
+    top.style.width = html ? '40px' : '0px'
+    top.style.marginRight = html ? '12px' : '0px'
+    if (!html) setTimeout(() => { if (!topControl(s)) top.innerHTML = '' }, 200)
+    const tr = q('[data-trailing]')
+    tr.innerHTML = trailing(s)
+    tr.style.marginLeft = tr.innerHTML ? '12px' : '0px'
+    q('[data-strip]').innerHTML = strip(s)
+    const pane = q('[data-pane]')
+    pane.style.paddingLeft = s.mode ? '56px' : '4px'
+    for (const f of FILES) {
+      const r = q(`[data-row="${f.key}"]`)
+      const on = s.sel.has(f.key)
+      r.className = `group relative rounded-xl transition-colors ${on ? SELECTED : RESTING}`
+      const box = r.querySelector('[data-box]')
+      if (!s.mode) box.innerHTML = ''
+      else {
+        // batch/SelectBox.tsx
+        if (!box.firstChild) box.innerHTML = '<div class="absolute inset-y-0 flex items-center justify-center w-10 select-box-in" style="left:-52px"></div>'
+        box.firstChild.innerHTML = checkbox(on, `Select ${f.name}`, `data-act="row" data-key="${f.key}"`)
+      }
+    }
+    el.querySelectorAll('input[type=checkbox]').forEach((i) => { i.indeterminate = i.hasAttribute('data-mixed') })
+    if (focusTop) (q('[data-top] input, [data-top] button') || q('input[type=search]')).focus({ preventScroll: true })
+  }
+  const say = (t) => { q('[data-say]').textContent = t }
+  if (live) el.addEventListener('click', (e) => {
+    const t = e.target.closest('[data-act]')
+    if (t) {
+      const act = t.dataset.act
+      if (act === 'open') { s.mode = true; update(true); say('0 selected'); return }
+      if (act === 'done') { s.mode = false; s.sel.clear(); update(true); say('Selection ended'); return }
+      if (act === 'top') {
+        if (!s.mode) { s.mode = true; FILES.forEach((f) => s.sel.add(f.key)) }
+        else if (s.sel.size === N) s.sel.clear()
+        else FILES.forEach((f) => s.sel.add(f.key))
+        update(true)
+      }
+      if (act === 'row') { s.sel.has(t.dataset.key) ? s.sel.delete(t.dataset.key) : s.sel.add(t.dataset.key); update(); el.querySelector(`input[data-key="${t.dataset.key}"]`).focus({ preventScroll: true }) }
+      say(`${s.sel.size} selected`)
+      return
+    }
+    // hooks/useRowPointerSelect.ts: a row-body click selects while the column is open
+    if (!s.mode || e.target.closest('button, input, label')) return
+    const r = e.target.closest('[data-row]')
+    if (!r) return
+    s.sel.has(r.dataset.row) ? s.sel.delete(r.dataset.row) : s.sel.add(r.dataset.row)
+    update(); say(`${s.sel.size} selected`)
+  })
+  update()
+  return update
+}
+const st = (variant, mode, keys = []) => ({ variant, mode, sel: new Set(keys) })
+
+const liveState = st('checklist', false)
+const liveUpdate = mount(document.getElementById('live'), liveState, true)
+const sw = document.getElementById('switch')
+function drawSwitch() {
+  sw.innerHTML = Object.entries(VARIANTS).map(([k, v]) => `<button type="button" role="radio" aria-checked="${k === liveState.variant}" data-v="${k}" class="rounded-full px-3 py-1.5 font-bold border ${k === liveState.variant ? 'sw-on' : 'sw-off'}">${v.name}</button>`).join('')
+  document.getElementById('live-note').textContent = VARIANTS[liveState.variant].note
+}
+sw.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-v]'); if (!b) return
+  liveState.variant = b.dataset.v; liveState.mode = false; liveState.sel.clear(); liveUpdate(); drawSwitch()
+})
+drawSwitch()
+
+const all = FILES.map((f) => f.key)
+mount(document.getElementById('today-rest'), st('today', false))
+mount(document.getElementById('today-open'), st('today', true, all))
+mount(document.getElementById('p-rest'), st('label', false))
+mount(document.getElementById('p-open'), st('label', true))
+mount(document.getElementById('p-some'), st('label', true, ['b', 'c']))
+mount(document.getElementById('i-rest'), st('checklist', false))
+
+const GLYPHS = [
+  ['checklist', 'Chosen', 'Rows with ticks beside them: it draws what the click produces. Cannot be mistaken for a single box. Weakness: on its own it can read as a to-do list, which the label removes.'],
+  ['library_add_check', 'Alternative', 'A ticked sheet on a stack: “several, ticked”. Closest to a “select multiple” meaning, but the stack also says “copy” or “add to library”.'],
+  ['select_check_box', 'Alternative', 'A ticked box. Says “select”, but is still one checkbox: it brings back the question of what gets ticked.'],
+  ['check_circle', 'Rejected', 'Already in Icon.tsx, where it means done or verified.'],
+  ['select_all', 'Rejected', 'Catalogued as the select-all action: the meaning this change moves away from.'],
+  ['check_box_outline_blank', 'Rejected', 'Today’s look. An empty box that opens a mode and stays empty is a checkbox that does not check; design-system guidance keeps checkboxes for state, not actions.'],
+]
+document.getElementById('glyphs').innerHTML = GLYPHS.map(([g, verdict, why]) => `
+  <div class="bg-surface font-body rounded-2xl p-4 flex items-center gap-4">
+    <span class="${ICONBTN}">${icon(g, 24, 'text-on-surface-variant')}</span>
+    <span class="${BTN} ${SECONDARY} shrink-0">${icon(g, 20)}Select</span>
+    <div class="min-w-0 text-sm text-on-surface-variant"><span class="font-bold text-accent">${g}</span> · <span class="font-bold ${verdict === 'Chosen' ? 'text-secondary' : ''}">${verdict}</span><br>${why}</div>
+  </div>`).join('')
+
+const toggle = document.getElementById('theme-toggle')
+toggle.addEventListener('click', () => {
+  const dark = document.documentElement.classList.toggle('dark')
+  document.body.classList.toggle('dark', dark)
+  toggle.setAttribute('aria-pressed', String(dark))
+})
+if (location.hash === '#dark') toggle.click()
+</script>
+</body>
+</html>
