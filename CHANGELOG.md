@@ -65,6 +65,9 @@ changes do not appear here.
 - **Sharing a folder with many files no longer makes transfers stutter once
   a minute.** Mirall's check that shared files are still on disk held up
   everything else for over a second each time, most of all on Windows.
+- **The drop highlight lines up with the drop area again.** When you drag
+  files over a space, the highlight started lower than the "Drop to Share"
+  box it replaces, so the two jumped as one faded into the other.
 
 ### Security
 

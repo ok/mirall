@@ -1203,7 +1203,8 @@ implementations ship; either is fine, but match the surrounding screen:
 ### Drop zone — `components/share-drop/DropZone.tsx` + `DropOverlay.tsx`
 Resting zone: `border-2 border-dashed border-outline bg-surface-container-low rounded-2xl` — the
 "Drop to Share" title + "Share…" picker. A drag anywhere over the space-view content grid promotes
-it to a full-bleed **`DropOverlay`** (`absolute inset-x-0 bottom-8 top-16 z-20 rounded-2xl`, same
+it to a full-bleed **`DropOverlay`** (`absolute inset-x-0 bottom-8 top-4 z-20 rounded-2xl`: its top edge is
+the resting zone's, the grid's `pt-4`, so the crossfade does not jump; same
 dashed `border-secondary` + `bg-surface-container-high/90` tint as the legacy drag-over state,
 scaled up, with the file/folder icon + "Release to share …" subline). The resting zone crossfades
 out (`transition-opacity`) as the overlay fades in. Detection lives at the grid root
