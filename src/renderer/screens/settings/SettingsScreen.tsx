@@ -55,7 +55,7 @@ export default function Settings({ onBack, onNavigate }: SettingsProps) {
                 >
                   <div className="flex items-center gap-4">
                     <div className={`w-10 h-10 rounded-full ${item.bg} flex items-center justify-center ${item.fg}`}>
-                      <Icon name={item.icon} />
+                      <Icon name={item.icon} size={20} />
                     </div>
                     <div>
                       <p className="font-semibold text-accent">{item.label}</p>

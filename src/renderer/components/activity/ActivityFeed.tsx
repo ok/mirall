@@ -99,7 +99,7 @@ export default function ActivityFeed(props: ActivityFeedProps) {
       {!loading && entries.length === 0 ? (
         <div className="bg-surface-container-low rounded-xl p-10 text-center">
           <div className="w-12 h-12 rounded-full bg-surface-container-high mx-auto flex items-center justify-center text-on-surface-variant mb-4">
-            <Icon name={empty.icon} size={22} />
+            <Icon name={empty.icon} />
           </div>
           <p className="font-semibold text-accent mb-1">{t(`activityLog.${empty.key}Title`)}</p>
           <p className="text-sm text-on-surface-variant mb-5">{t(`activityLog.${empty.key}Desc`)}</p>

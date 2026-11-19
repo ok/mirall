@@ -48,7 +48,7 @@ export function Segment({ label, selected, onSelect, icon, ariaLabel, busy, lock
           : 'text-on-surface-variant hover:text-accent font-medium'
       }`}
     >
-      {icon && <Icon name={icon} size={14} />}
+      {icon && <Icon name={icon} size={16} />}
       {/* Both copies sit in the same grid cell, so the cell is as wide as the wider of the two —
           always the semibold ghost, whichever weight the visible label is in. The ghost is
           `invisible` rather than `hidden`: it still takes part in layout (that is the point) but

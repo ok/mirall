@@ -26,7 +26,7 @@ export default function SearchField({
   return (
     <div className={`relative${className ? ` ${className}` : ''}`}>
       <span className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none">
-        <Icon name="search" size={18} />
+        <Icon name="search" size={20} />
       </span>
       <input
         ref={inputRef}

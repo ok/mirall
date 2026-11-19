@@ -13,7 +13,7 @@ export const ROW = 'w-full text-left p-6 flex items-center justify-between hover
 export function Tile({ icon }: { icon: IconName }) {
   return (
     <div className="w-10 h-10 rounded-full bg-icon-tile flex items-center justify-center text-on-icon-tile shrink-0">
-      <Icon name={icon} />
+      <Icon name={icon} size={20} />
     </div>
   )
 }

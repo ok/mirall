@@ -57,7 +57,7 @@ export default function SpaceFilesPane(props: SpaceFilesPaneProps) {
           onClick={onRetry}
           className="inline-flex items-center gap-2 rounded-full bg-secondary-container px-6 py-2.5 font-label font-bold text-on-secondary-container hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
-          <Icon name="refresh" size={18} />
+          <Icon name="refresh" size={20} />
           {t('space.filesRetry')}
         </button>
       </div>

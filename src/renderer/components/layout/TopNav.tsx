@@ -51,17 +51,15 @@ export default function TopNav({ profile, onLogoClick, onSettingsClick, onAccoun
             <TransfersButton onClick={onTransfersClick} current={transfersCurrent} />
             <IconButton
               icon="feedback"
-              iconSize={26}
               onClick={onFeedbackClick}
               ariaLabel={t('topnav.feedback')}
               title={t('topnav.feedback')}
             />
             <IconButton
               icon="settings"
-              iconFilled
-              iconSize={28}
               onClick={onSettingsClick}
               ariaLabel={t('topnav.settings')}
+              title={t('topnav.settings')}
             />
             <button
               type="button"

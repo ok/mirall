@@ -45,7 +45,7 @@ export default function BackupPromptCard() {
         <section aria-labelledby="backup-prompt-title" className="bg-surface-container-low rounded-xl p-6 shrink-0 mb-4">
           <div className="flex items-start gap-4">
             <div className="w-10 h-10 rounded-full bg-icon-tile flex items-center justify-center text-on-icon-tile shrink-0">
-              <Icon name={offer ? 'shield' : 'verified_user'} />
+              <Icon name={offer ? 'shield' : 'verified_user'} size={20} />
             </div>
             <div className="min-w-0">
               <h2 id="backup-prompt-title" className="font-headline font-bold text-accent mb-1">{t(offer ? 'backup.offerTitle' : 'backup.checkTitle')}</h2>

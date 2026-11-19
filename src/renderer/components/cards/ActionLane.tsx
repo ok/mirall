@@ -81,7 +81,6 @@ function ActionSlot({ action, run, t, revealOnHover, downloadMenu }: ActionSlotP
   return (
     <IconButton
       icon={action.icon}
-      iconSize={22}
       iconClassName="text-secondary"
       variant={action.tone}
       // Disabled when nothing runs it, so a control never claims an action it cannot take.

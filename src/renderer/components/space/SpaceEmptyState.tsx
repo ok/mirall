@@ -1,5 +1,4 @@
 import { useTranslation } from 'react-i18next'
-import Icon from '../primitives/Icon.js'
 import DocsCard from '../cards/DocsCard.js'
 
 /**
@@ -11,24 +10,6 @@ export default function SpaceEmptyState() {
   const { t } = useTranslation()
   return (
     <div className="flex flex-col min-h-[24rem] mt-12">
-      <div className="h-[10.5rem] flex items-center justify-end gap-5 pr-12">
-        <Icon name="draft" size={45} className="text-secondary" />
-        <Icon name="folder" filled size={45} className="text-secondary" />
-        <svg
-          viewBox="0 0 512 256"
-          className="w-[6.5rem] h-[3.25rem] text-secondary ml-1"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="28"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <polyline points="60,80 140,128 60,176" opacity="0.35" />
-          <polyline points="200,80 280,128 200,176" opacity="0.65" />
-          <polyline points="340,80 420,128 340,176" opacity="1" />
-        </svg>
-      </div>
       <div className="flex-1 flex flex-col items-center justify-center text-center px-10 pb-10">
         <h2 className="text-2xl font-headline font-bold text-accent mb-3">
           {t('space.emptyShareTitle')}

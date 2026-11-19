@@ -16,8 +16,6 @@ interface IconButtonProps {
   type?: 'button' | 'submit'
   disabled?: boolean
   iconClassName?: string
-  iconSize?: number
-  iconFilled?: boolean
   className?: string
   variant?: 'default' | 'danger'
   /** Set on a control that leads to the screen the user is already on. */
@@ -39,8 +37,6 @@ export default function IconButton({
   type = 'button',
   disabled,
   iconClassName = 'text-accent',
-  iconSize,
-  iconFilled,
   className,
   variant = 'default',
   ariaCurrent,
@@ -55,7 +51,7 @@ export default function IconButton({
       title={title}
       className={`w-10 h-10 shrink-0 flex items-center justify-center rounded-full ${HOVER[variant]} active:scale-95 transition-all focus-ring disabled:opacity-40 disabled:cursor-not-allowed${className ? ` ${className}` : ''}`}
     >
-      <Icon name={icon} size={iconSize} filled={iconFilled} className={variant === 'danger' ? withoutInk(iconClassName) : iconClassName} />
+      <Icon name={icon} className={variant === 'danger' ? withoutInk(iconClassName) : iconClassName} />
     </button>
   )
 }

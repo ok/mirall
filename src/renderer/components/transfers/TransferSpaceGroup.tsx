@@ -44,7 +44,7 @@ export default function TransferSpaceGroup({ group, space, selfKey, onOpenSpace 
     <section aria-label={name} className="mb-8">
       <div className="flex items-center gap-3 mb-3">
         <div className={`w-10 h-10 rounded-lg ${gradientForSpaceId(spaceId)} flex items-center justify-center shrink-0`}>
-          <Icon name={(space?.icon as IconName) || 'hub'} size={22} className="text-on-primary" />
+          <Icon name={(space?.icon as IconName) || 'hub'} size={20} className="text-on-primary" />
         </div>
         <div className="min-w-0 flex-grow">
           <h2 className="text-lg font-headline font-bold text-accent leading-tight truncate">{name}</h2>

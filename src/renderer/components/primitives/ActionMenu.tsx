@@ -106,7 +106,7 @@ function MenuItemRow({ node, state, config, showSeparator }: {
           )}
         </span>
         {isDisabled && config.hint && (
-          <Icon name="info" size={14} className="text-outline opacity-70" />
+          <Icon name="info" size={16} className="text-outline opacity-70" />
         )}
       </li>
     </>
@@ -277,7 +277,7 @@ export default function ActionMenu({ label, icon, items, triggerVariant, trigger
         className={triggerClassFor(triggerVariant, triggerTone, isPressed, maxWidthClass)}
       >
         {triggerVariant === 'subtle' ? (
-          <Icon name={icon ?? 'more_vert'} size={22} className="text-secondary" />
+          <Icon name={icon ?? 'more_vert'} className="text-secondary" />
         ) : triggerVariant === 'split-end' ? (
           chevron
         ) : (

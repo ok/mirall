@@ -81,7 +81,7 @@ export default function RestoreProgress({ hold }: RestoreProgressProps) {
     <div className="bg-surface-container-low rounded-xl p-6 space-y-5">
       {progress && (
         <div role="status" aria-live="polite" className="flex items-center gap-3">
-          <Icon name={progress.released ? 'check_circle' : 'refresh'} size={22} className={`text-secondary shrink-0${progress.released ? '' : ' motion-safe:animate-spin'}`} />
+          <Icon name={progress.released ? 'check_circle' : 'refresh'} className={`text-secondary shrink-0${progress.released ? '' : ' motion-safe:animate-spin'}`} />
           <div className="flex-1 min-w-0">
             <p className="font-bold text-on-surface">{t(statusKey(progress))}</p>
             {receiving && <ProgressBar value={percent} label={t('restore.progressLabel')} />}

@@ -36,7 +36,7 @@ export default function RecipientRow({ member, receivedAt, earlier }: RecipientR
       {when && (
         <span aria-hidden="true" className="shrink-0 text-[11px] leading-none text-on-surface-variant tabular-nums">{when}</span>
       )}
-      {earlier && !when && <Icon name="history" size={13} className="text-on-surface-variant shrink-0" />}
+      {earlier && !when && <Icon name="history" size={12} className="text-on-surface-variant shrink-0" />}
     </li>
   )
 }

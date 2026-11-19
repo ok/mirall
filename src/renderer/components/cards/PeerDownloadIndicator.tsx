@@ -106,7 +106,7 @@ export default function PeerDownloadIndicator({ summary, members, haveCount, ope
       </span>
       <Icon
         name="chevron_right"
-        size={18}
+        size={16}
         className={`text-secondary shrink-0 transition-transform duration-200 motion-reduce:transition-none ${open ? 'rotate-90' : ''}`}
       />
     </button>

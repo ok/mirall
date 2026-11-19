@@ -34,7 +34,7 @@ function BootstrapList({ label, items }: BootstrapListProps) {
         aria-expanded={open}
         className="text-sm font-medium text-accent flex items-center gap-2 focus-ring rounded-sm"
       >
-        <Icon name={open ? 'expand_more' : 'chevron_right'} size={18} className="text-outline" />
+        <Icon name={open ? 'expand_more' : 'chevron_right'} size={16} className="text-outline" />
         {label}
       </button>
       {open && (
