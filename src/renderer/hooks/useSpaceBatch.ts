@@ -164,6 +164,7 @@ export function useSpaceBatch({ spaceId, files, shares, selfKey, getDecoration, 
     total: view.total,
     selection,
     selectAll: matching.size > 0 ? {
+      open: sel.mode,
       state: sel.topState,
       label: t(filter.trim() ? 'batch.selectAllMatching' : 'batch.selectAll', { count: matching.size }),
       onToggle: sel.toggleTop,

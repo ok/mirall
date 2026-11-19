@@ -56,7 +56,7 @@ export default async function s181({ runDir, bootstrap }) {
     })
 
     await r.ok('it hides while selecting and returns after Done', async () => {
-      await B.click({ role: 'checkbox', name: 'Select all 2 files' })
+      await B.selectAllFiles('Select all 2 files')
       await B.waitText('2 selected', 20000)
       assert(!(await B.has(anyButton)), 'hidden while selecting')
       await B.click({ role: 'button', name: 'Done' })

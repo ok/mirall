@@ -32,6 +32,9 @@ changes do not appear here.
 - **About shows how far an update download has come.** The Updates card now
   has a progress bar with a percentage, and says when the download is
   waiting for the update network instead of looking stuck.
+- **Selecting files no longer ticks every file first.** The control beside
+  the filter is now a Select files button that shows the checkboxes with
+  nothing selected; the box at the top still selects all of them.
 - **Setting up a backup no longer waits for the first backup.** The dialog
   closes once your passphrase is checked, and the first backup runs in the
   background while you keep working. Settings → Backup shows its progress.

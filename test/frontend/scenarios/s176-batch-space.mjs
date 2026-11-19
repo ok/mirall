@@ -12,7 +12,6 @@ import { workDir } from '../paths.mjs'
 // cap from the settings file written beside its store, so the strip is on screen long enough to
 // cancel.
 const FILTER = { name: 'Filter files in this space' }
-const TOP = { role: 'checkbox', name: 'Select all 4 files' }
 
 export default async function s176({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
@@ -42,7 +41,7 @@ export default async function s176({ runDir, bootstrap }) {
       await B.addOwnedFolder(folder)
       await A.waitText('Folders Shared', 60000)
       await A.waitText('Kickoff.mp4', 60000)
-      await waitFor(() => A.has(TOP), 30000, 'all four files are listed and the top box names them')
+      await waitFor(() => A.has({ role: 'button', name: 'Select files' }), 30000, 'selection is offered')
       assert(await A.has(FILTER), 'the filter field exists')
       await A.shot('s176-at-rest', runDir)
     })
@@ -57,7 +56,7 @@ export default async function s176({ runDir, bootstrap }) {
     })
 
     await r.ok('the top box hides the folders and offers Download and Unshare counts', async () => {
-      await A.click(TOP)
+      await A.selectAllFiles('Select all 4 files', 30000)
       await A.waitText('4 selected', 20000)
       await waitFor(async () => !(await A.hasText('Folders Shared')), 20000, 'the folders section left the list')
       assert(await A.has({ role: 'button', name: `Download 2 to ${path.basename(A.downloadFolder)}` }), 'Download counts the two peer files and names the folder')
@@ -81,7 +80,7 @@ export default async function s176({ runDir, bootstrap }) {
     })
 
     await r.ok('a one-file batch shows the pinned strip, and Cancel All clears it', async () => {
-      await A.click({ role: 'checkbox', name: 'Select all 2 files' })
+      await A.selectAllFiles('Select all 2 files')
       await A.waitText('2 selected', 20000)
       await A.click({ role: 'checkbox', name: 'Select Brief-v3.pdf' })
       await A.waitText('1 selected', 20000)
@@ -95,7 +94,7 @@ export default async function s176({ runDir, bootstrap }) {
     })
 
     await r.ok('leaving the space and coming back drops the selection', async () => {
-      await A.click({ role: 'checkbox', name: 'Select all 2 files' })
+      await A.selectAllFiles('Select all 2 files')
       await A.waitText('2 selected', 20000)
       await A.back()
       await A.click({ name: 'Open Aurora' })

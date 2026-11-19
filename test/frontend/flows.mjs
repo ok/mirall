@@ -236,6 +236,29 @@ export const withFlows = (Base) => class extends Base {
     await this.pickDownloadFolder(trigger, choice)
   }
 
+  // The controls row's first control at rest opens the selection column with nothing selected;
+  // the top box that takes its place selects every listed file. `label` is the top box's name,
+  // which carries the count, so waiting for it also waits for the listing to be complete.
+
+  async openSelection(timeout = 20000) {
+    const start = { role: 'button', name: 'Select files' }
+    for (const until = Date.now() + timeout; !(await this.has(start));) {
+      if (Date.now() > until) throw new Error('selection is not offered')
+      await new Promise((r) => setTimeout(r, POLL_MS))
+    }
+    await this.click(start)
+  }
+
+  async selectAllFiles(label, timeout = 20000) {
+    await this.openSelection(timeout)
+    const top = { role: 'checkbox', name: label }
+    for (const until = Date.now() + timeout; !(await this.has(top));) {
+      if (Date.now() > until) throw new Error(`no top box named "${label}"`)
+      await new Promise((r) => setTimeout(r, POLL_MS))
+    }
+    await this.click(top)
+  }
+
   // The selection strip's split button: the main half ("Download 3 to <folder>") downloads into the
   // space's folder, the chevron's menu into another one.
 

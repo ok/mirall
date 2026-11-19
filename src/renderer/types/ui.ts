@@ -11,6 +11,7 @@ export type IconName =
   | 'bar_chart'
   | 'check'
   | 'check_circle'
+  | 'checklist'
   | 'chevron_right'
   | 'close'
   | 'cloud'

@@ -1713,6 +1713,7 @@
     }
   },
   "batch": {
+    "start": "Select files",
     "selectAll_one": "Select {{count}} file",
     "selectAll_other": "Select all {{count}} files",
     "selectAllMatching_one": "Select {{count}} matching file",

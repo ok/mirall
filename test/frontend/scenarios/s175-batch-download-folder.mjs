@@ -38,8 +38,7 @@ export default async function s175({ runDir, bootstrap }) {
       await A.addOwnedFolder(ownDir)
       await B.waitText('Vault', 60000)
       await B.openFolder('Vault')
-      await waitFor(() => B.has({ role: 'checkbox', name: 'Select all 4 files' }), 60000, 'all four files listed')
-      await B.click({ role: 'checkbox', name: 'Select all 4 files' })
+      await B.selectAllFiles('Select all 4 files', 60000)
       await B.waitText('4 selected', 20000)
       await B.downloadSelected(4)
       await waitFor(async () => !(await B.has({ role: 'checkbox', name: 'Select a.txt' })), 20000, 'the column closed')
@@ -62,7 +61,7 @@ export default async function s175({ runDir, bootstrap }) {
     })
 
     await r.ok('a second batch lands same-named files in their own folders and clears its strip', async () => {
-      await B.click({ role: 'checkbox', name: 'Select all 4 files' })
+      await B.selectAllFiles('Select all 4 files')
       await B.waitText('selected', 20000)
       const offered = (n) => B.has({ role: 'button', contains: `Download ${n} to ${path.basename(B.downloadFolder)}` })
       await waitFor(async () => (await offered(4)) || (await offered(3)), 20000, 'the download verb is offered')

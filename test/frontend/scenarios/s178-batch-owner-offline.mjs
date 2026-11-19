@@ -35,8 +35,7 @@ export default async function s178({ runDir, bootstrap }) {
     })
 
     await r.ok('select-all takes every offline file and the strip offers to download them', async () => {
-      await waitFor(() => B.has({ role: 'checkbox', name: 'Select all 2 files' }), 20000, 'the top box counts the offline files')
-      await B.click({ role: 'checkbox', name: 'Select all 2 files' })
+      await B.selectAllFiles('Select all 2 files')
       await B.waitText('2 selected', 20000)
       assert(await B.has({ role: 'button', name: `Download 2 to ${path.basename(B.downloadFolder)}` }), 'Download counts both offline files')
       await B.shot('s178-selected-offline', runDir)
