@@ -64,7 +64,7 @@ export function spaceTransferSummary(space) {
   return { transfers: space.downloads.length + space.serving.length, paused, failed }
 }
 
-// Pause All while a download is moving; Resume All once none is and one was paused by the user or
+// Pause Downloads while a download is moving; Resume Downloads once none is and one was paused by the user or
 // an interruption. A download waiting for its owner resumes by itself and offers neither.
 /** @param {readonly TransferSpace[]} spaces @returns {'pause' | 'resume' | null} */
 export function transferBulkVerb(spaces) {

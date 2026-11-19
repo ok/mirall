@@ -17,9 +17,11 @@ const BOX = { width: 236, height: 150, left: 0, right: 0, top: 6, bottom: 18 }
 const WINDOW_LABEL: Record<RateWindow, string> = { '5m': 'transfers.window5m', '1h': 'transfers.window1h', today: 'transfers.windowToday' }
 const WINDOW_NAME: Record<RateWindow, string> = { '5m': 'transfers.windowName5m', '1h': 'transfers.windowName1h', today: 'transfers.windowNameToday' }
 
+// One rate per line, label left and figure right: side by side, two figures as wide as
+// "999.9 MB/s" do not fit the tile.
 function Figure({ dot, label, value }: { dot: string; label: string; value: string }) {
   return (
-    <div className="min-w-0">
+    <div className="flex items-baseline justify-between gap-3">
       <p className="flex items-center gap-2 text-xs font-medium text-on-surface-variant">
         <span aria-hidden="true" className={`w-2.5 h-2.5 rounded-full shrink-0 ${dot}`} />
         {label}
@@ -51,7 +53,7 @@ export default function SpeedCard() {
         <Icon name="bar_chart" className="text-secondary shrink-0" />
         <h3 className="text-xl font-headline font-bold text-accent">{t('transfers.speed')}</h3>
       </div>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="space-y-1">
         <Figure dot="bg-chart-1" label={t('networkSettings.download')} value={down} />
         <Figure dot="bg-chart-2" label={t('networkSettings.upload')} value={up} />
       </div>

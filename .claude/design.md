@@ -1056,8 +1056,9 @@ scrolls.
 
 ### Transfers page — `screens/TransfersScreen.tsx`, `components/transfers/`
 Every transfer on this device, grouped by space, reached from the header's Transfers control.
-`PageHeader` with one secondary `Button` beside it: `Pause All` while a download is moving, `Resume
-All` once none is and one is paused, absent otherwise. Under it a `SegmentedControl` filter whose
+`PageHeader` with one secondary `Button` beside it: `Pause Downloads` while a download is moving,
+`Resume Downloads` once none is and one is paused, absent otherwise. The label names downloads
+because files being sent to others are not paused. Under it a `SegmentedControl` filter whose
 segments carry their count (All, Downloading, Sending, Needs attention; named "Downloading, 4").
 Each space is a `section` named by its `h2` (`text-lg font-headline font-bold`), led by a 40 px
 `rounded-lg` tile in the space's colour and closed by an `Open Space` `TextButton`; under the name a
@@ -1079,9 +1080,9 @@ width of "999.9 MB/s" with an invisible ghost, as `Segment` reserves its bold wi
 does not shift while the number counts. The rate is `aria-hidden` and never in the name: it changes
 every second.
 
-**Speed tile** (`transfers/SpeedCard.tsx`, the sidebar tile anatomy): the two current rates as
-figures, each beside a `w-2.5` dot in its series colour (`chart-1` download, `chart-2` upload) and
-its label; then one 236 px chart drawing download upward and upload downward from a shared zero
+**Speed tile** (`transfers/SpeedCard.tsx`, the sidebar tile anatomy): the two current rates, one
+per line: a `w-2.5` dot in its series colour (`chart-1` download, `chart-2` upload) and the label
+left, the figure right, since two figures as wide as "999.9 MB/s" do not fit side by side; then one 236 px chart drawing download upward and upload downward from a shared zero
 line on one scale, so a small upload stays readable under a large download and the two never cross.
 Lines are 2 px in the series colour over a 22 % fill of the same; grid lines are `outline-variant`,
 the zero line `outline`; the two ends of the scale are labelled in `on-surface-variant` `text-[10px]`.
