@@ -267,6 +267,11 @@ function findCutPoint(data, params, masks) {
   return maxLen
 }
 
+// The length of the chunk that starts at data[0], for a caller that hashes chunks elsewhere.
+export function findTierCutPoint(data, tier) {
+  return findCutPoint(data, TIERS[tier] || TIERS[0], TIER_MASKS[tier] || TIER_MASKS[0])
+}
+
 // Opt-in memcpy accounting for perf validation, at the cost of one boolean check per increment
 // site when off. Module-level and not concurrency-safe: only tests and scripts/bench-prepare.mjs
 // enable it, never the running worker.

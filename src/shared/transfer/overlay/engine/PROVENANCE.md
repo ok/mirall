@@ -769,6 +769,16 @@ re-diffable against upstream while it was tracked. Categories:
     `test/integration/overlay-fetch-holder-gate.test.js`, `test/integration/overlay-engine-protocol.test.js`,
     `test/unit/overlay-engine-scheduler.test.js` and `test/flow/overlay-legacy-frames.test.js`.
 
+30. **Prepare pass hashes on threads (`chunker.js` + `transfer/prepare.js` + `transfer-manager.js` +
+    `overlay-v2.js`; new `transfer/hash-threads.js`, `transfer/hash-thread.js`,
+    `transfer/prepare-threaded.js`).** `chunker.js` exports `findTierCutPoint`, the boundary search
+    without the hash. `prepareForServe` sends a file of at least one read block through
+    `prepareOnThreads` when given `opts.hashThreads`, and prepares it on the calling thread when
+    the threads are unavailable or stop; `opts.tier` overrides the tier for tests. `TransferManager`
+    owns the threads (`hashThreads: false` turns them off, `onHashThreadsUnavailable` reports) and
+    gains `close()`, which `HyperOverlayV2._close` calls. Chunk boundaries, chunk hashes and the
+    content hash are unchanged. Covered by `test/integration/prepare-hash-threads.test.js`.
+
 ## Re-diffing against the snapshot (archaeology only)
 
 From this folder, with an upstream clone at `$UPSTREAM`:

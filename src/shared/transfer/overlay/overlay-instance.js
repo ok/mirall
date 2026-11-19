@@ -18,6 +18,7 @@ import { PARTIAL_SUFFIX } from '../partial-suffix.js'
 import { applySocketBuffers } from '../socket-buffers.js'
 import { attachPathCheck, resetPathCheck } from '../path-check.js'
 import b4a from 'b4a'
+import os from 'bare-os'
 import { getLocalPublicKeyHex } from '../../spaces/profile.js'
 import { isApprovedMember } from '../../network/handshake-apply.js'
 import { contentSenderAuthorizedOnSocket, contentSocketAuthenticated } from '../../network/content-swarm.js'
@@ -30,6 +31,11 @@ import { traceEvent, traceConnection } from '../trace/trace-sink.js'
 import { TRACE_EVENTS } from '../trace/trace-record.js'
 
 const log = createLogger('overlay')
+
+// Where the prepare pass hashes on threads. A platform joins once the threaded pass has produced
+// the worker-thread pass's result there and measured faster; elsewhere the pass stays on the
+// worker thread.
+const HASH_THREAD_PLATFORMS = new Set(['darwin', 'win32', 'linux'])
 
 // Encrypt only when M is available. Insecure/headless mode (no KEK ⇒ no M) stays
 // on the plaintext generation with no key — never key a core we can't reopen.
@@ -148,6 +154,9 @@ export async function initOverlay() {
     // A test run file's sizing; absent in every other run, and the engine then keeps its own.
     fetchCap: getTransferLevers().inflightCap,
     memStashBytes: getTransferLevers().stashBytes,
+    hashThreads: HASH_THREAD_PLATFORMS.has(os.platform()),
+    onHashThreadsUnavailable: ({ reason, retry }) =>
+      log.warn(`hash threads unavailable (${reason}) — preparing on the worker thread${retry ? '' : ' from now on'}`),
     deferDrain: getTransferLevers().deferDrain,
     // Decoded chunk maps, shared by every serve loop and bounded by bytes; cleared by the
     // index on close, so nothing to tear down here. 0 disables it (runtime-config).

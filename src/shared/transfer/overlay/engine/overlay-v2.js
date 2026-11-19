@@ -47,6 +47,8 @@ export class HyperOverlayV2 extends ReadyResource {
   // serve callbacks and handshake policy are injected by the host and passed through. fetchCap (the
   // per-holder in-flight cap) and memStashBytes replace the engine's own sizing when given;
   // deferDrain makes a serve continue after a drain on a later turn of the event loop.
+  // hashThreads: false keeps the prepare pass on this thread; onHashThreadsUnavailable hears when
+  // the threads could not be used.
   constructor(corestore, opts = {}) {
     super()
     if (typeof opts.serveAuthorizer !== 'function') throw new TypeError('serveAuthorizer is required')
@@ -84,6 +86,7 @@ export class HyperOverlayV2 extends ReadyResource {
 
   async _close() {
     if (this._protocol) this._protocol.destroy()
+    if (this._transfer) await this._transfer.close()
     if (this._index) await this._index.close()
   }
 
@@ -99,7 +102,13 @@ export class HyperOverlayV2 extends ReadyResource {
     const o = this._opts
     const index = new FileIndex(this._corestore, { encryptionKey: o.indexEncryptionKey || null, chunkMapCache: o.chunkMapCache || null })
     await index.ready()
-    const transfer = new TransferManager(index, { journalDir: o.journalDir || null, partialSuffix: o.partialSuffix || null, memStashBytes: o.memStashBytes })
+    const transfer = new TransferManager(index, {
+      journalDir: o.journalDir || null,
+      partialSuffix: o.partialSuffix || null,
+      memStashBytes: o.memStashBytes,
+      hashThreads: o.hashThreads,
+      onHashThreadsUnavailable: o.onHashThreadsUnavailable || null,
+    })
     const protocol = new OverlayProtocolV2(transfer, {
       fileIndex: index,
       contentHashPaths: this._contentHashPaths,

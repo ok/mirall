@@ -137,8 +137,10 @@ test('a pending row re-driven on reconnect announces the wait, and converts when
     const hashed = A.waitFor('event:decoration',
       (m) => m.channel === 'transfer' && m.key === '/reel.bin' && m.done === true, 240000)
       .then(() => { order.push('hashed') })
-    const src = sparseFile(mkTmpDir(t), 'reel.bin', 8 * GB)
-    A.request('files:add', { spaceId, filePath: src, fileName: 'reel.bin', fileSize: 8 * GB }).catch(() => {})
+    // Large enough that the owner is still hashing after the member was killed and relaunched.
+    const size = 24 * GB
+    const src = sparseFile(mkTmpDir(t), 'reel.bin', size)
+    A.request('files:add', { spaceId, filePath: src, fileName: 'reel.bin', fileSize: size }).catch(() => {})
     await B.untilFiles(spaceId,
       (l) => l.find((e) => e.path === '/reel.bin')?.status === 'preparing',
       { ms: 60000, every: 100 })
