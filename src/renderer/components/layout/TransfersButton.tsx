@@ -41,7 +41,7 @@ export default function TransfersButton({ onClick, current }: TransfersButtonPro
         title={t('topnav.transfers')}
         className={`h-10 shrink-0 flex items-center gap-1.5 rounded-full pl-2 pr-4 text-sm font-semibold tabular-nums text-on-surface-variant hover:bg-surface-control-hover active:scale-95 transition-all focus-ring ${current ? 'bg-surface-control-hover' : 'bg-surface-control'}`}
       >
-        <Icon name="swap_vert" size={26} className="text-accent" />
+        <Icon name="swap_vert" className="text-accent" />
         {/* The ghost reserves the widest rate, so the pill keeps one width while the number counts. */}
         <span aria-hidden="true" className="grid justify-items-end">
           <span className="col-start-1 row-start-1">{formatSpeed(speed)}</span>
@@ -54,7 +54,6 @@ export default function TransfersButton({ onClick, current }: TransfersButtonPro
     <span className="relative flex">
       <IconButton
         icon="swap_vert"
-        iconSize={26}
         onClick={onClick}
         ariaLabel={name}
         title={t('topnav.transfers')}

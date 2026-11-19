@@ -11,7 +11,6 @@ type ButtonVariant = 'primary' | 'secondary' | 'danger'
 interface ButtonProps {
   children: ReactNode
   icon?: IconName
-  iconFilled?: boolean
   size?: 'sm' | 'lg'
   variant?: ButtonVariant
   fullWidth?: boolean
@@ -51,7 +50,6 @@ const variantClasses: Record<ButtonVariant, string> = {
 export default function Button({
   children,
   icon,
-  iconFilled,
   size = 'sm',
   variant = 'primary',
   fullWidth,
@@ -85,7 +83,7 @@ export default function Button({
       title={title}
       className={`${base} ${variantClasses[variant]} ${sizeClasses}${widthClass}${extra}`}
     >
-      {icon && <Icon name={icon} filled={iconFilled} size={20} />}
+      {icon && <Icon name={icon} size={20} />}
       {children}
     </button>
   )

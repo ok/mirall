@@ -479,8 +479,9 @@ FIX-B4-1). `ariaCurrent="page"` marks a control that leads to the screen the use
 
 **The header's controls are icon buttons**, in this order: Transfers (`layout/TransfersButton.tsx`,
 `swap_vert`, opens the transfers page from any screen and wears the `surface-container-high` fill
-while that page is current), Send Feedback (`feedback`), Settings, then the profile avatar. Each is
-named by its `aria-label` and repeats it as the tooltip.
+while that page is current), Send Feedback (`feedback`), Settings, then the profile avatar. All
+three glyphs are outlined at the default 24 px, so none outweighs its neighbours. Each is named by
+its `aria-label` and repeats it as the tooltip.
 
 ### Checkbox — `primitives/Checkbox.tsx`
 The app's one checkbox: a 20 px `rounded` box drawn over an `sr-only` native input, inside a round
@@ -1210,8 +1211,12 @@ out (`transition-opacity`) as the overlay fades in. Detection lives at the grid 
 "Share…" menu). Crossfade respects `prefers-reduced-motion`.
 
 ### Icons — `primitives/Icon.tsx`
-Inline **Material Symbols** SVG paths (`viewBox="0 -960 960 960"`, `fill="currentColor"`), outlined
-default with a filled subset; the `IconName` union in `Icon.tsx` is the inventory. Default size 24.
+Inline **Material Symbols** SVG paths (`viewBox="0 -960 960 960"`, `fill="currentColor"`); the
+`IconName` union in `Icon.tsx` is the inventory. Default size 24. Every glyph is the same export,
+Outlined at weight 400 and optical size 48 (a 1.5 px line at 24 px): a glyph taken from the 24 px
+optical size draws a 2 px line and looks heavier beside its neighbours. **Outline is the resting
+form everywhere; fill means "on"** (the favourite star) and is never used for emphasis, so a filled
+glyph always says something.
 `aria-hidden` unless `ariaLabel` is provided. No icon font, no sprite sheet. File-type icon mapping
 lives in `src/renderer/model/file-icon.js`.
 

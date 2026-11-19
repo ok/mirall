@@ -23,6 +23,9 @@ changes do not appear here.
 
 ### Changed
 
+- **Icons look more consistent.** All icons now share one line weight, and
+  the header's three controls have the same size and style. The empty space
+  screen no longer shows the drag-and-drop illustration.
 - **A transfer limit now matches the speed Mirall shows.** "5 MB/s" used to
   allow about 5.2 MB/s as the app displays speed; limits now count the same
   way as every other size. A preset you had picked stays selected.
