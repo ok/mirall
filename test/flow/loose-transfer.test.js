@@ -4,7 +4,7 @@ import path from 'path'
 import crypto from 'crypto'
 import { localTestnet } from '../helpers/testnet.js'
 import { launchPeer, connectInSpaceWithApproval, waitForCatalogEntry } from '../helpers/peer.js'
-import { mkTmpDir } from '../helpers/fixtures.js'
+import { mkTmpDir, patternedBytes } from '../helpers/fixtures.js'
 import { scaled } from '../helpers/timing.js'
 import { tmpPath } from '../helpers/tmp.js'
 
@@ -51,4 +51,27 @@ test('A shares a file, B sees and downloads it; bytes match end-to-end', { timeo
   // status flips to downloaded
   const list2 = await B.files(spaceId)
   t.is(list2.find((f) => f.path === '/photo.bin').status, 'downloaded')
+})
+
+// Large enough for several read blocks, so on a platform with the hash threads on, the worker a
+// release runs prepares this file on them.
+test('a file of several read blocks is shared and downloaded byte-exact', { timeout: scaled(180000) }, async (t) => {
+  const bootstrap = await localTestnet(t)
+  const A = await launchPeer(t, { bootstrap, displayName: 'Alice', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
+  const B = await launchPeer(t, { bootstrap, displayName: 'Bob', storage: idStore(t), downloads: mkTmpDir(t), flags: v2flags() })
+  const spaceId = await connectInSpaceWithApproval(t, A, B)
+
+  const bytes = patternedBytes(40 * 1024 * 1024 + 4097, 11)
+  const src = writeTmpFile(bytes)
+  t.teardown(() => { try { fs.rmSync(src) } catch {} })
+  await A.request('files:add', { spaceId, filePath: src, fileName: 'large.bin', fileSize: bytes.length })
+
+  const isReady = (f) => f.path === '/large.bin' && f.status === 'remote'
+  const entry = (await B.untilFiles(spaceId, (list) => list.some(isReady), { ms: 60000 })).find(isReady)
+  const done = B.waitFor('event:transfer-complete', (m) => m.path === '/large.bin')
+  await B.request('files:download', { spaceId, path: entry.path, ownerKey: entry.owner.publicKey })
+  const completed = await done
+
+  t.ok(fs.readFileSync(completed.localPath).equals(bytes), 'downloaded bytes match the source')
+  t.absent(A.readStderr().includes('hash threads unavailable'), 'the owner prepared the file without falling back')
 })

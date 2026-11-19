@@ -10,11 +10,16 @@ import os from 'bare-os'
 import { chunkStream, createStreamingHasher, selectTier, getTierParams } from '../chunker.js'
 import { codedError } from '../local-faults.js'
 import { openTracked, closeTracked, readFully } from './fd-accounting.js'
+import { prepareOnThreads } from './prepare-threaded.js'
 
 // The read block adapts to the host's memory; it is at least the tier's largest chunk.
 const READ_BLOCK_DEFAULT = 8 * 1024 * 1024
 const READ_BLOCK_LOW_RAM = 4 * 1024 * 1024
 const LOW_RAM_THRESHOLD = 6 * 1024 * 1024 * 1024
+
+export function hostReadBlock() {
+  return os.totalmem() < LOW_RAM_THRESHOLD ? READ_BLOCK_LOW_RAM : READ_BLOCK_DEFAULT
+}
 // A map is persisted at prepare time only for files this large; the serve path persists the rest.
 const PERSIST_MAP_MIN_BYTES = 1048576
 
@@ -38,33 +43,65 @@ async function * readFileBlocks(filePath, size, blockSize) {
   }
 }
 
+// The pass on the worker thread: { chunks, bytes, contentHash } for one job.
+async function prepareOnWorkerThread(job) {
+  const fileHasher = createStreamingHasher({ size: job.size })
+  const chunks = []
+  for await (const c of chunkStream(readFileBlocks(job.filePath, job.size, job.blockSize), { tier: job.tier, copy: false })) {
+    if (job.signal?.aborted) throw codedError('publish aborted', 'ECANCELLED')
+    fileHasher.update(c.data)
+    chunks.push({ hash: c.hash, offset: c.offset, length: c.length })
+    job.onProgress?.(c.length)
+  }
+  return { chunks, bytes: fileHasher.bytes, contentHash: fileHasher.digest() }
+}
+
+// Progress that stays silent for the first `skip` bytes: a pass repeated from the file's start
+// reports only what the first attempt had not.
+function progressAfter(skip, onProgress) {
+  let left = skip
+  return (bytes) => {
+    const held = Math.min(left, bytes)
+    left -= held
+    if (bytes > held) onProgress(bytes - held)
+  }
+}
+
+// A file of at least one read block is hashed on the hash threads when the caller has them. When
+// they are unavailable or stop mid-file, the file is prepared from its start on the worker thread:
+// the threads only make the pass faster, and a share never fails or gets a partial result for them.
+async function readPass(job, hashThreads) {
+  if (!hashThreads || job.size < job.blockSize || job.blockSize > hashThreads.blockSize) return prepareOnWorkerThread(job)
+  let reported = 0
+  const onProgress = job.onProgress && ((bytes) => { reported += bytes; job.onProgress(bytes) })
+  const threaded = await prepareOnThreads(hashThreads, { ...job, onProgress })
+  if (threaded) return threaded
+  return prepareOnWorkerThread({ ...job, onProgress: job.onProgress && progressAfter(reported, job.onProgress) })
+}
+
 // { tier, chunks, size, contentHash }, or null when the source is missing, not a file, or changed
 // or vanished during the read (the caller re-queues). Cut points are content-stable across block
 // sizes, and the hasher is given the size so the streaming digest matches hashChunk(buffer).
-// opts.signal aborts per chunk; opts.onProgress(bytes) reports each one.
+// opts.signal aborts per chunk; opts.onProgress(bytes) reports each one, in file order.
+// opts.hashThreads moves the hashing of a large file off this thread. opts.tier overrides the
+// tier the size selects, for a test of a large file's chunk sizes on a small file.
 export async function prepareForServe(fileIndex, filePath, opts = {}) {
   let stat
   try { stat = fs.statSync(filePath) } catch { return null }
   if (!stat.isFile()) return null
   const mtimeBefore = stat.mtimeMs
-  const tier = selectTier(stat.size)
-  const blockSize = Math.max(getTierParams(tier).maxSize, os.totalmem() < LOW_RAM_THRESHOLD ? READ_BLOCK_LOW_RAM : READ_BLOCK_DEFAULT)
-  const fileHasher = createStreamingHasher({ size: stat.size })
-  const chunks = []
-  for await (const c of chunkStream(readFileBlocks(filePath, stat.size, blockSize), { tier, copy: false })) {
-    if (opts.signal?.aborted) throw codedError('publish aborted', 'ECANCELLED')
-    fileHasher.update(c.data)
-    chunks.push({ hash: c.hash, offset: c.offset, length: c.length })
-    opts.onProgress?.(c.length)
-  }
+  const tier = opts.tier ?? selectTier(stat.size)
+  const blockSize = Math.max(getTierParams(tier).maxSize, hostReadBlock())
+  const job = { filePath, size: stat.size, tier, blockSize, signal: opts.signal, onProgress: opts.onProgress }
+  const pass = await readPass(job, opts.hashThreads)
   // The open fd keeps a read alive across a same-volume rename, so it is this path stat that sees
   // a source moved away mid-read.
   let statAfter
   try { statAfter = fs.statSync(filePath) } catch { return null }
   if (statAfter.mtimeMs !== mtimeBefore) return null
   // A mid-read shrink feeds the digest fewer bytes than the size in its leaf prefix.
-  if (fileHasher.bytes !== stat.size) return null
-  const contentHash = fileHasher.digest()
+  if (pass.bytes !== stat.size) return null
+  const { chunks, contentHash } = pass
   if (stat.size >= PERSIST_MAP_MIN_BYTES && !await fileIndex.hasChunkMapByHash(contentHash)) {
     await fileIndex.putChunkMapByHash(contentHash, chunks)
   }

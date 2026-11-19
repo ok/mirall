@@ -1507,6 +1507,30 @@ values). `overlay-v2.js` is the facade the wrapper builds. App code enters only 
 allowlisted module (`test/invariants/engine-boundaries.test.js`); journals go through
 `overlay-journals.js`.
 
+**The prepare pass hashes on two threads** (`transfer/hash-threads.js`, entry `hash-thread.js`,
+pass `prepare-threaded.js`). Preparing a file is bound by hashing, not by the drive, so for a file
+of at least one read block the worker thread only reads and finds the chunk boundaries; one thread
+(`mirall-content`) computes the content hash and one (`mirall-chunks`) the chunk hashes.
+
+- **Two threads, no setting.** The content hash has to pass over the file in order and so fills one
+  thread; a second chunk-hash thread measured no gain. Going faster needs a hash that can be
+  computed in pieces, which would change every file's identity.
+- **Same result, proven per platform.** The boundary search is the same function over the same
+  bytes; `test/integration/prepare-hash-threads.test.js` compares both passes for every tier.
+  `HASH_THREAD_PLATFORMS` (`overlay-instance.js`) lists where the threads are on: a platform joins
+  after that test and `scripts/bench-prepare-threads.mjs` have passed on it.
+- **Bounded memory.** Blocks live in a fixed set of shared slots, each a read block plus 4 MiB for
+  the uncut remainder of the block before it: 4 slots of 12 MiB (48 MiB), or 3 of 8 MiB (24 MiB) on
+  a host under the low-memory threshold. They are allocated with the first large file and kept, as
+  are the threads: starting them costs tens of milliseconds, too much to pay per file.
+- **Never the reason a share fails.** If the threads cannot start or one stops mid-file, the file
+  is prepared from its start on the worker thread and a warning is logged; after three starts the
+  threads are not tried again in that worker. Known limitation: a thread that crashes outright
+  (an uncaught error, or a module it cannot load) ends the worker process, which Bare does not let
+  the worker thread intercept; the supervisor then respawns the worker.
+- **Cancel reaches the threads through shared memory**, not the message queue, so blocks already
+  queued for a cancelled file are skipped rather than hashed.
+
 **Bandwidth caps** (`src/shared/transfer/bandwidth-limiter.js`; its header has the mechanics):
 
 - Caps govern the **content plane only**. Throttling replication, handshakes or DHT traffic would

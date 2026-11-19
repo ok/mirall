@@ -23,6 +23,9 @@ changes do not appear here.
 
 ### Changed
 
+- **Large files are ready to share in about a third of the time on macOS.**
+  Mirall now uses more than one processor core to prepare a file of 8 MB or
+  more, so the wait before a big share becomes available is much shorter.
 - **Icons look more consistent.** All icons now share one line weight, and
   the header's three controls have the same size and style. The empty space
   screen no longer shows the drag-and-drop illustration.

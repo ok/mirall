@@ -14,7 +14,8 @@ import { hashChunk, createStreamingHasher } from '../chunker.js'
 import { codedError } from '../local-faults.js'
 import { openSyncTracked, closeSyncTracked } from './fd-accounting.js'
 import { openChunkSource, readChunkAt, closeChunkSource } from './serve-reads.js'
-import { prepareForServe } from './prepare.js'
+import { prepareForServe, hostReadBlock } from './prepare.js'
+import { createHashThreads } from './hash-threads.js'
 import { advanceHash, settleHash, recoverPartial, hashedFraction } from './receive-hash.js'
 import { JOURNAL_FLUSH_EVERY, journalPathFor, bitmapOf, loadJournal, flushJournal, flushJournalSync, cleanupOrphanedJournals } from './journal.js'
 
@@ -56,9 +57,16 @@ export class TransferManager {
     this._journalDir = opts.journalDir || null
     this._partialSuffix = opts.partialSuffix || PARTIAL_SUFFIX
     if (this._journalDir) { try { fs.mkdirSync(this._journalDir, { recursive: true }) } catch {} }
+    // opts.hashThreads === false keeps every prepare pass on this thread. Nothing starts here: the
+    // threads come up with the first file large enough to use them.
+    this._hashThreads = opts.hashThreads === false
+      ? null
+      : createHashThreads({ blockSize: hostReadBlock(), onUnavailable: opts.onHashThreadsUnavailable || null })
   }
 
-  prepareFile(filePath, opts) { return prepareForServe(this._fileIndex, filePath, opts) }
+  prepareFile(filePath, opts) { return prepareForServe(this._fileIndex, filePath, { ...opts, hashThreads: this._hashThreads }) }
+  // Ends the hash threads. Receives in flight are the caller's to pause or cancel first.
+  async close() { if (this._hashThreads) await this._hashThreads.close() }
   openChunkSource(filePath) { return openChunkSource(filePath) }
   readChunkAt(fd, offset, length) { return readChunkAt(fd, offset, length) }
   closeChunkSource(fd) { return closeChunkSource(fd) }

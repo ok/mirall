@@ -14,9 +14,10 @@ const ENTRIES = new Map([
   ['overlay-v2.js', [`${WRAPPER}/overlay-instance.js`]],
   ['content-path.js', [`${WRAPPER}/overlay-instance.js`]],
   ['chunker.js', [`${WRAPPER}/overlay-hash.js`, 'scripts/bench-prepare.mjs']],
-  ['store/file-index.js', [`${WRAPPER}/migrate-overlay-index-encrypt.js`, 'scripts/bench-prepare.mjs']],
+  ['store/file-index.js', [`${WRAPPER}/migrate-overlay-index-encrypt.js`, 'scripts/bench-prepare.mjs', 'scripts/bench-prepare-threads.mjs']],
   ['transfer/journal.js', [`${WRAPPER}/overlay-journals.js`]],
-  ['transfer/prepare.js', ['scripts/bench-prepare.mjs']],
+  ['transfer/prepare.js', ['scripts/bench-prepare.mjs', 'scripts/bench-prepare-threads.mjs']],
+  ['transfer/hash-threads.js', ['scripts/bench-prepare-threads.mjs']],
 ])
 
 // Listed as pure but not yet driven under Node. eslint holds the no-bare-* line on them; what is
