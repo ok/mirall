@@ -15,6 +15,7 @@ console.log(`idle      : opacity=${out.idleOpacity} ariaHidden=${out.idleHidden}
 console.log(`text drag : ignored=${out.textIgnored} (overlay must stay hidden for non-file drags)`)
 console.log(`files drag: overlay=${out.filesActiveOpacity} smallZone=${out.smallFaded} sub="${out.filesSub}" geomOk=${out.geomOk}`)
 console.log(`folder drag: sub="${out.folderSub}"`)
+console.log(`leaving   : keepsContent=${out.leavingKeepsContent} (icon and subline must not change mid-fade)`)
 console.log(`after leave: overlay=${out.afterLeaveOpacity}`)
 
 const pass = out.pass === true

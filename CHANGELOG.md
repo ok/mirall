@@ -74,6 +74,9 @@ changes do not appear here.
 - **The drop highlight lines up with the drop area again.** When you drag
   files over a space, the highlight started lower than the "Drop to Share"
   box it replaces, so the two jumped as one faded into the other.
+- **The drop highlight no longer flashes a file icon and "0 files" as it
+  fades.** Dragging a file or folder out of a space again showed that for a
+  moment; it now keeps what you were dragging until it is gone.
 
 ### Security
 

@@ -1,4 +1,5 @@
 // Full-pane highlight shown while dragging files or a folder over a space, telling the user what a drop will share.
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import Icon from "../primitives/Icon.js";
 import type { DragKind } from "../../hooks/useDragShare.js";
@@ -17,12 +18,24 @@ export default function DropOverlay({
   folderName,
 }: DropOverlayProps) {
   const { t } = useTranslation();
-  const isFolder = kind === "folder";
+  // The drag state resets the moment the pointer leaves, but the overlay is still visible while it
+  // fades out: it keeps showing the last active drag until the next one starts.
+  const [shown, setShown] = useState({ kind, fileCount, folderName });
+  if (
+    active &&
+    (shown.kind !== kind ||
+      shown.fileCount !== fileCount ||
+      shown.folderName !== folderName)
+  ) {
+    setShown({ kind, fileCount, folderName });
+  }
+  const content = active ? { kind, fileCount, folderName } : shown;
+  const isFolder = content.kind === "folder";
   const subline = isFolder
-    ? folderName
-      ? t("dropZone.releaseFolder", { name: folderName })
+    ? content.folderName
+      ? t("dropZone.releaseFolder", { name: content.folderName })
       : t("dropZone.releaseFolderUnnamed")
-    : t("dropZone.releaseFiles", { count: fileCount });
+    : t("dropZone.releaseFiles", { count: content.fileCount });
 
   // `top-4` is the content grid's own top padding, so the overlay's top edge is the resting drop
   // zone's top edge and the crossfade between the two does not jump.
