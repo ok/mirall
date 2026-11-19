@@ -189,6 +189,13 @@ the module's own `prebuilds/<host>/` before any copy linked into `bare-sidecar`,
 one copy (`npm ls bare-pipe`). `test/integration/listener.test.js` fails on a tree without the two
 APIs. `fd-lock` (the profile lock) is declared for the same reason: it was only transitive.
 
+**`bare-thread` has a floor of 1.4.0, and a thread must be proven on the shipped Bare, not the dev
+one.** From 1.4.0 a thread's bundle names its native addons and leaves them on disk, which the Bare
+in `bare-sidecar` 0.5.5 (1.33.5) could not load: any thread importing an addon aborted at start
+while the same code passed under `bare-runtime` and `test:bare`. `test/unit/thread-start.test.js`
+starts one on the sidecar's own binary and fails on a tree where the two disagree. The one copy of
+`bare-thread` and `bare-channel` is shared with `brittle` and `bare-worker` (`npm ls bare-thread`).
+
 ## hyperdrive — a dev dependency, pinned
 
 No `src` module imports `hyperdrive` (`test/invariants/no-space-drive.test.js`). Production gets it
