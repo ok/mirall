@@ -55,7 +55,7 @@ function FeedbackSentView({ onDone }: { onDone: () => void }) {
   const { t } = useTranslation()
   return (
     <div className="px-10 py-16 flex flex-col items-center text-center space-y-4">
-      <Icon name="check_circle" size={64} className="text-accent" />
+      <Icon name="check_circle" size={48} className="text-accent" />
       <h2 className="font-headline text-2xl font-extrabold text-accent tracking-tight">
         {t('feedback.titleSent')}
       </h2>

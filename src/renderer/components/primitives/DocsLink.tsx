@@ -22,7 +22,7 @@ export default function DocsLink({ target, label }: DocsLinkProps) {
     >
       <Icon name="arrow_forward" size={16} className="shrink-0" />
       <span>{label}</span>
-      <Icon name="open_in_new" size={14} className="shrink-0 opacity-60" />
+      <Icon name="open_in_new" size={16} className="shrink-0 opacity-60" />
       <span className="sr-only">{t('docs.opensInBrowser')}</span>
     </a>
   )

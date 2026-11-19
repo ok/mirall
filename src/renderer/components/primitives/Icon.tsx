@@ -92,10 +92,16 @@ const FILLED: Partial<Record<IconName, string>> = {
   star: 'm233-120 65-281L80-590l288-25 112-265 112 265 288 25-218 189 65 281-247-149-247 149Z',
 }
 
+// The sizes an icon is drawn at, each with one job: 12 inside a badge or beside 11 px text, 16 in
+// line with body text, 20 inside a button, menu or 40 px tile, 24 as a control of its own, 32 on a
+// 64 px tile, 48 as an illustration. A glyph is one outline scaled, so its line is 1/16 of the
+// size: every step between these is a line weight of its own.
+export type IconSize = 12 | 16 | 20 | 24 | 32 | 48
+
 interface IconProps {
   name: IconName
   filled?: boolean
-  size?: number
+  size?: IconSize
   className?: string
   ariaHidden?: boolean
   ariaLabel?: string

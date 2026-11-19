@@ -80,7 +80,7 @@ export function MaskedField({ label, value, visibleSuffix = 0, trailing = null }
           title={toggleLabel}
           className="shrink-0 inline-flex items-center justify-center rounded-sm focus-ring"
         >
-          <Icon name={revealed ? 'visibility_off' : 'visibility'} size={18} className="text-outline" />
+          <Icon name={revealed ? 'visibility_off' : 'visibility'} size={16} className="text-outline" />
         </button>
       )}
     </div>

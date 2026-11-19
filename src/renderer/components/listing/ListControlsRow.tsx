@@ -108,7 +108,7 @@ export default function ListControlsRow({
             title={t('folder.filterClear')}
             className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full hover:bg-surface-container-high flex items-center justify-center text-on-surface-variant focus-ring"
           >
-            <Icon name="close" size={14} />
+            <Icon name="close" size={16} />
           </button>
         )}
       </SearchField>

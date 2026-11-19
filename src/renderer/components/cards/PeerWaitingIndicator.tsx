@@ -43,7 +43,7 @@ export default function PeerWaitingIndicator({ waiterKeys, members, open, onTogg
         <span className="truncate">{t('file.waitingCount', { count: waiters.length })}</span>
         <Icon
           name="chevron_right"
-          size={18}
+          size={16}
           className={`text-secondary shrink-0 transition-transform duration-200 motion-reduce:transition-none ${open ? 'rotate-90' : ''}`}
         />
       </button>

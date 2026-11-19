@@ -35,7 +35,7 @@ export default function DropOverlay({
       <div className="relative flex flex-col items-center gap-4">
         <Icon
           name={isFolder ? "folder" : "draft"}
-          size={56}
+          size={48}
           className="text-secondary"
         />
         <h2 className="text-3xl font-headline font-extrabold text-accent">

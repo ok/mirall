@@ -15,7 +15,7 @@ export default function BackupScopeList() {
     <ul className="space-y-3 text-sm text-on-surface-variant">
       {ROWS.map((row) => (
         <li key={row.lead} className="flex gap-3">
-          <Icon name={row.icon} size={18} className="text-secondary shrink-0" />
+          <Icon name={row.icon} size={16} className="text-secondary shrink-0" />
           <span><strong className="text-on-surface">{t(row.lead)}</strong> {t(row.body)}</span>
         </li>
       ))}

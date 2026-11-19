@@ -44,12 +44,12 @@ export default function RecipientsIndicator({ summary, open, onToggle, controlsI
         className="flex items-center gap-1 whitespace-nowrap rounded-lg py-1 pl-1.5 pr-0.5 text-[11px] leading-none text-on-surface-variant control-hover focus-ring"
       >
         <span className="sr-only">{sentence}</span>
-        {summary.everyone && <Icon name="check_circle" size={14} className="text-on-success shrink-0" />}
+        {summary.everyone && <Icon name="check_circle" size={12} className="text-on-success shrink-0" />}
         <span aria-hidden="true" data-recipients-text="full" className="hidden @min-[560px]/row:inline">{sentence}</span>
         <span aria-hidden="true" data-recipients-text="short" className="tabular-nums @min-[560px]/row:hidden">{t('file.recipientsShort', values)}</span>
         <Icon
           name="chevron_right"
-          size={18}
+          size={16}
           className={`text-secondary shrink-0 transition-transform duration-200 motion-reduce:transition-none ${open ? 'rotate-90' : ''}`}
         />
       </button>

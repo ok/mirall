@@ -25,7 +25,7 @@ export default function CopyButton({ value, className = '', showLabel = false }:
     <>
       {showLabel ? (
         <button type="button" onClick={handleClick} className={className}>
-          <Icon name={icon} size={14} />
+          <Icon name={icon} size={16} />
           {label}
         </button>
       ) : (

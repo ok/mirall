@@ -132,12 +132,12 @@ function ShareCard({
           </div>
           {share.role === 'mirrored' && (
             <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-surface-container-highest text-accent flex items-center justify-center border-2 border-surface-container-lowest">
-              <Icon name="lock" size={10} />
+              <Icon name="lock" size={12} />
             </div>
           )}
           {sourceMissing && (
             <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-warning text-on-warning flex items-center justify-center border-2 border-surface-container-lowest">
-              <Icon name="warning" size={11} />
+              <Icon name="warning" size={12} />
             </div>
           )}
         </div>
@@ -167,7 +167,6 @@ function ShareCard({
         )}
         <IconButton
           icon="chevron_right"
-          iconSize={22}
           iconClassName="text-secondary"
           onClick={() => onOpen(share)}
           ariaLabel={t('share.browseFiles')}
