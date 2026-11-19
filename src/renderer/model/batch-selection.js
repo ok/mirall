@@ -143,8 +143,9 @@ export function rangeKeys(anchor, to, ctx) {
 
 /**
  * The next state for a gesture on one target, or null when the gesture is not a selection gesture
- * there, so the caller runs the target's own click (a folder row expands). The top box opens the
- * column with every matching file on its first tick and toggles all of them after that. At rest
+ * there, so the caller runs the target's own click (a folder row expands). At rest the top control
+ * opens the column and selects nothing; once open it is the top box and toggles every matching
+ * file. At rest
  * only a modified click opens the column; while selecting a plain click toggles, a shift-click
  * extends the range from the last toggled target, which stays the anchor.
  * @param {SelectionState} state @param {string} id @param {Gesture} gesture @param {SelectionContext} ctx
@@ -153,7 +154,7 @@ export function rangeKeys(anchor, to, ctx) {
 export function nextSelection(state, id, gesture, ctx) {
   const all = [...ctx.matching]
   if (id === TOP_BOX) {
-    if (!state.mode) return { mode: true, selected: toggleKeys(state.selected, all, true), anchor: null }
+    if (!state.mode) return { ...state, mode: true }
     return { ...state, selected: toggleKeys(state.selected, all) }
   }
   if (!state.mode && gesture !== 'toggle-mod') return null

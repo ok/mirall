@@ -496,9 +496,11 @@ box as the label's own text (the Feedback dialog); otherwise the name is the inp
 the shift key a range needs.
 
 ### Selection column — `batch/SelectBox.tsx`, `listing/ListControlsRow.tsx`, `batch/SelectionBar.tsx`
-At rest a listing that offers selection shows one extra control: the top box ahead of the filter in
-the controls row. Its first tick opens the column with every matching file selected; after that it
-is an ordinary tri-state select-all. While the column is open the scroll pane's left padding grows
+At rest a listing that offers selection shows one extra control ahead of the filter in the controls
+row: an `IconButton` (`checklist`, `on-surface-variant`, named "Select files"). It opens the column
+with nothing selected, because a box that ticked every file on its first click selected more than
+the user asked for. While the column is open the top box takes its place, an ordinary tri-state
+select-all, and takes the focus the button held. While the column is open the scroll pane's left padding grows
 from `pl-1` to `pl-14` (the box's 40 px plus the row gap of 12 px, `SELECTION_GUTTER`), so every
 row slides right and its `SelectBox` sits in the gutter at one x whatever the tree depth
 (`left: -(52 + depth × 24)`, each `FolderTree` level being `pl-6`). A folder row's box is a sibling
@@ -1112,7 +1114,7 @@ Three slots, one rule: **tiles state, the header acts, the strip acts for now.**
   container pair, per §2 — `bg-error-container` broken, `bg-surface-container-low` informational)
   and at most one verb.
 - **Controls row** (`listing/ListControlsRow.tsx`, shared with the space screen) — pinned directly
-  above the first file row and never scrolling with it: the top selection box on a browse folder,
+  above the first file row and never scrolling with it: the Select files button (the top selection box while the column is open) on a browse folder,
   the filter field (count and clear *inside* the field), the Downloads-to button, then Expand all.
   The Downloads-to button (`listing/DownloadsToButton.tsx`, a `neutral` `ActionMenu` bounded to
   `max-w-[16rem]`) names the space's folder with a `download` icon; with the drive not connected it

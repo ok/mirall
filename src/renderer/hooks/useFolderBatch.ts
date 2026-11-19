@@ -135,6 +135,7 @@ export function useFolderBatch({ spaceId, share, offered, files, tree, getDecora
 
   // No top box over nothing: a listing with no selectable file has no column to open.
   const selectAll = offered && matching.size > 0 ? {
+    open: sel.mode,
     state: sel.topState,
     label: t(filtering ? 'batch.selectAllMatching' : 'batch.selectAll', { count: matching.size }),
     onToggle: sel.toggleTop,

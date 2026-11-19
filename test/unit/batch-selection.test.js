@@ -93,7 +93,7 @@ test('the top box and folder ids cannot collide with a file named like them', (t
   const c = ctx({ order: visibleOrder(tricky, expandedAll), matching: keys, filesUnder: () => [] })
   t.alike([...nextSelection(AT_REST, 'all', 'toggle-mod', c).selected], ['all'], 'a file named all is a file')
   t.alike([...nextSelection(AT_REST, 'dir:x', 'toggle-mod', c).selected], ['dir:x'], 'and so is one named dir:x')
-  t.is(nextSelection(AT_REST, TOP_BOX, 'toggle', c).selected.size, 2)
+  t.is(nextSelection({ ...AT_REST, mode: true }, TOP_BOX, 'toggle', c).selected.size, 2)
 })
 
 test('gestureOf: shift is a range, the platform key a toggle that opens the column, else a plain toggle', (t) => {
@@ -106,15 +106,17 @@ test('gestureOf: shift is a range, the platform key a toggle that opens the colu
 // The gesture table, one case per row. At rest the column is closed; selecting it is open.
 test('nextSelection: the top box', (t) => {
   const opened = nextSelection(AT_REST, TOP_BOX, 'toggle', ctx())
-  t.ok(opened.mode, 'the first tick opens the column')
-  t.is(opened.selected.size, 8, 'with every matching file selected')
-  const cleared = nextSelection(opened, TOP_BOX, 'toggle', ctx())
+  t.ok(opened.mode, 'the first click opens the column')
+  t.is(opened.selected.size, 0, 'with nothing selected')
+  const all = nextSelection(opened, TOP_BOX, 'toggle', ctx())
+  t.is(all.selected.size, 8, 'the open top box selects every matching file')
+  const cleared = nextSelection(all, TOP_BOX, 'toggle', ctx())
   t.ok(cleared.mode, 'the column outlives an empty selection')
   t.is(cleared.selected.size, 0)
   const some = { mode: true, selected: new Set(['Floorplan-final.pdf']), anchor: null }
   t.is(nextSelection(some, TOP_BOX, 'toggle', ctx()).selected.size, 8, 'a mixed top box turns everything on')
   const filtered = ctx({ matching: new Set(['Contracts/Invoice-0412.pdf', 'Contracts/Invoice-0413.pdf']) })
-  t.alike([...nextSelection(AT_REST, TOP_BOX, 'toggle', filtered).selected].sort(), ['Contracts/Invoice-0412.pdf', 'Contracts/Invoice-0413.pdf'], 'only the matching files')
+  t.alike([...nextSelection(opened, TOP_BOX, 'toggle', filtered).selected].sort(), ['Contracts/Invoice-0412.pdf', 'Contracts/Invoice-0413.pdf'], 'only the matching files')
 })
 
 test('nextSelection: at rest only a modified click selects; a plain click and a shift-click are not selection gestures', (t) => {

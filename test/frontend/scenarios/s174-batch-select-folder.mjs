@@ -32,6 +32,7 @@ const FILES = [
   'Floorplan-final.pdf', 'Handover-notes.md', 'Invoice-summary.xlsx', 'Walkthrough.mov',
 ]
 const TOP = { role: 'checkbox', name: 'Select all 13 files' }
+const START = { role: 'button', name: 'Select files' }
 
 export default async function s174({ runDir, bootstrap }) {
   mkdirSync(runDir, { recursive: true })
@@ -55,13 +56,22 @@ export default async function s174({ runDir, bootstrap }) {
       await B.waitText('Handover', 60000)
       await B.openFolder('Handover')
       await B.waitText('Floorplan-final.pdf', 30000)
-      await waitFor(() => B.has(TOP), 20000, 'the top box exists')
-      await assertBox(B, TOP, 'off', 'the top box is unticked at rest')
+      await waitFor(() => B.has(START), 20000, 'the control that opens the column exists')
+      assert(!(await B.has(TOP)), 'no top box at rest')
       assert(!(await B.has({ role: 'checkbox', name: 'Select Agreement-2026.pdf' })), 'no column at rest')
       await B.shot('s174-at-rest', runDir)
     })
 
-    await r.ok('the first tick opens the column with every file ticked', async () => {
+    await r.ok('the first click opens the column with nothing ticked', async () => {
+      await B.openSelection()
+      await B.waitText('Nothing selected', 20000)
+      await waitFor(() => B.has(TOP), 20000, 'the top box took the control\'s place')
+      await assertBox(B, TOP, 'off', 'the top box is unticked')
+      await assertBox(B, { role: 'checkbox', name: 'Select Invoice-0413.pdf' }, 'off', 'the row box is unticked')
+      await B.shot('s174-opened', runDir)
+    })
+
+    await r.ok('the top box ticks every file', async () => {
       await B.click(TOP)
       await B.waitText('13 selected', 20000)
       await assertBox(B, TOP, 'on', 'the top box is ticked')
@@ -81,8 +91,7 @@ export default async function s174({ runDir, bootstrap }) {
       await B.click({ role: 'button', name: 'Done' })
       await waitFor(async () => !(await B.has({ role: 'checkbox', name: 'Select Invoice-0413.pdf' })), 20000, 'the column closed')
       await B.type({ name: 'Filter files in this folder' }, 'invoice')
-      await waitFor(() => B.has({ role: 'checkbox', name: 'Select all 4 matching files' }), 20000, 'the top box names the matches')
-      await B.click({ role: 'checkbox', name: 'Select all 4 matching files' })
+      await B.selectAllFiles('Select all 4 matching files')
       await B.waitText('4 selected', 20000)
       assert(!(await B.hasText('hidden by the filter')), 'nothing is hidden')
     })
@@ -103,7 +112,7 @@ export default async function s174({ runDir, bootstrap }) {
       await B.press('escape')
       await B.waitText('Selection ended', 20000)
       assert(!(await B.has({ role: 'checkbox', name: 'Select Floorplan-final.pdf' })), 'no row box remains')
-      assert(await B.has(TOP), 'the top box stays')
+      assert(await B.has(START), 'the control that opens the column is back')
     })
   } catch {}
   return { pass: r.summary(), instances: [A, B] }

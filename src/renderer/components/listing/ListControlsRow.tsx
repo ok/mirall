@@ -1,8 +1,8 @@
 // The listing's own controls, pinned directly above the first row and outside the scroll pane.
 // It never moves and never disappears — a strip appearing above it must not take the filter with
-// it, which is also what keeps focus alive when a scan starts under the user's hands. The top box,
-// when offered, heads the selection column: its first tick opens the column with every matching
-// file selected, after that it is an ordinary select-all. A listing may add one control between
+// it, which is also what keeps focus alive when a scan starts under the user's hands. The first
+// control, when selection is offered, heads the selection column: at rest a button that opens the
+// column with nothing selected, and while it is open the select-all box. A listing may add one control between
 // the filter and Expand all; when that control leaves with focus in it (a selection starting), the
 // row's first control — the top box, or the filter — takes focus. The row owns the find chord: it is
 // mounted exactly while there is a list to filter, so the chord exists on no screen without one.
@@ -12,12 +12,15 @@ import Icon from '../primitives/Icon.js'
 import SearchField from '../primitives/SearchField.js'
 import Button from '../primitives/Button.js'
 import Checkbox from '../primitives/Checkbox.js'
+import IconButton from '../primitives/IconButton.js'
 import { useKeepFocus } from '../../hooks/useKeepFocus.js'
 import { useRegisterCommand } from '../../keyboard/KeyboardProvider.js'
 import { useAnyModalOpen } from '../primitives/modalPresence.js'
 import type { TriState } from '../../model/batch-selection.js'
 
 export interface SelectAllBox {
+  /** The column is open. At rest the control is the button that opens it. */
+  open: boolean
   state: TriState
   label: string
   onToggle: () => void
@@ -72,7 +75,16 @@ export default function ListControlsRow({
 
   return (
     <div ref={ref} onFocus={onFocus} onBlur={onBlur} className="flex items-center gap-3 mb-3 shrink-0">
-      {selectAll && (
+      {selectAll && !selectAll.open && (
+        <IconButton
+          icon="checklist"
+          iconClassName="text-on-surface-variant"
+          ariaLabel={t('batch.start')}
+          title={t('batch.start')}
+          onClick={selectAll.onToggle}
+        />
+      )}
+      {selectAll?.open && (
         <Checkbox
           checked={selectAll.state === 'on' ? true : selectAll.state === 'mixed' ? 'mixed' : false}
           label={selectAll.label}
