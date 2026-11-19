@@ -1383,7 +1383,9 @@
     "windowNamed": "Vitesse : {{window}}",
     "chartLabel": "Vitesse de transfert, {{window}} : téléchargement {{down}}, envoi {{up}}",
     "chartNow": "maintenant",
-    "mirrorSyncing": "Les dossiers en miroir se synchronisent."
+    "mirrorSyncing": "Les dossiers en miroir se synchronisent.",
+    "limitCustom": "Personnalisé…",
+    "networkSettings": "Paramètres réseau"
   },
   "activityLogSettings": {
     "title": "Journal d'activité",

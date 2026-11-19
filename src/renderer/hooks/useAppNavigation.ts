@@ -26,6 +26,7 @@ export interface AppNavigation {
   openActivityLog: (preset?: Partial<AuditFilters> | null) => void
   openActivityLogSettings: () => void
   openTransfers: () => void
+  openNetworkSettingsFromTransfers: () => void
   openFromOrganization: (screen: 'network-settings' | 'activity-log-settings' | 'backup-settings') => void
   goBack: () => void
   goHome: () => void
@@ -49,9 +50,10 @@ export function useAppNavigation(): AppNavigation {
   // Storage links here from its Activity Log row, and Back returns to it; every other way in is
   // under Settings.
   const [activityLogSettingsBackTarget, setActivityLogSettingsBackTarget] = useState<'settings' | 'storage-settings' | 'organization'>('settings')
-  // The Organization page's rows open the settings page that holds each managed value, and Back
-  // returns to the Organization page; every other way in is under Settings.
-  const [settingsPageBackTarget, setSettingsPageBackTarget] = useState<'settings' | 'organization'>('settings')
+  // The Organization page's rows open the settings page that holds each managed value, and the
+  // transfers page opens Network settings; Back returns to the page that opened it. Every other way
+  // in is under Settings.
+  const [settingsPageBackTarget, setSettingsPageBackTarget] = useState<'settings' | 'organization' | 'transfers'>('settings')
   // The transfers page is opened from the header on any screen, and Back returns to that screen.
   const [transfersBackTarget, setTransfersBackTarget] = useState<Screen>('spaces')
   const backTargets: BackTargets = useMemo(() => ({
@@ -115,6 +117,11 @@ export function useAppNavigation(): AppNavigation {
     setCurrentScreen(screen)
   }, [])
 
+  const openNetworkSettingsFromTransfers = useCallback(() => {
+    if (!backsThrough('transfers', 'network-settings', backTargets)) setSettingsPageBackTarget('transfers')
+    setCurrentScreen('network-settings')
+  }, [backTargets])
+
   const navigateToSpace = useCallback((spaceId: string) => {
     setSelectedSpaceId(spaceId)
     setCurrentScreen('space-view')
@@ -176,6 +183,7 @@ export function useAppNavigation(): AppNavigation {
     openActivityLog,
     openActivityLogSettings,
     openTransfers,
+    openNetworkSettingsFromTransfers,
     openFromOrganization,
     goBack,
     goHome,

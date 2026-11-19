@@ -1383,7 +1383,9 @@
     "windowNamed": "Geschwindigkeit: {{window}}",
     "chartLabel": "Übertragungsgeschwindigkeit, {{window}}: Download {{down}}, Upload {{up}}",
     "chartNow": "jetzt",
-    "mirrorSyncing": "Gespiegelte Ordner werden synchronisiert."
+    "mirrorSyncing": "Gespiegelte Ordner werden synchronisiert.",
+    "limitCustom": "Eigenes…",
+    "networkSettings": "Netzwerkeinstellungen"
   },
   "activityLogSettings": {
     "title": "Aktivitätsprotokoll",

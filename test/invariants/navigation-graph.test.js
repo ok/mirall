@@ -24,6 +24,7 @@ const TARGETS = [
   { preSettingsScreen: 'spaces', preAccountScreen: 'spaces', storageBackTarget: 'settings', activityLogBackTarget: 'account', activityLogSettingsBackTarget: 'settings', settingsPageBackTarget: 'settings', transfersBackTarget: 'spaces' },
   { preSettingsScreen: 'space-view', preAccountScreen: 'space-view', storageBackTarget: 'space-view', activityLogBackTarget: 'network-status', activityLogSettingsBackTarget: 'storage-settings', settingsPageBackTarget: 'organization', transfersBackTarget: 'folder-view' },
   { preSettingsScreen: 'spaces', preAccountScreen: 'spaces', storageBackTarget: 'settings', activityLogBackTarget: 'account', activityLogSettingsBackTarget: 'organization', settingsPageBackTarget: 'organization', transfersBackTarget: 'activity-log' },
+  { preSettingsScreen: 'spaces', preAccountScreen: 'spaces', storageBackTarget: 'settings', activityLogBackTarget: 'account', activityLogSettingsBackTarget: 'settings', settingsPageBackTarget: 'transfers', transfersBackTarget: 'space-view' },
 ]
 
 // Back has to terminate. A parent chain that loops means the user is stuck on a pair of screens
@@ -58,6 +59,8 @@ test('a screen that backs out through another is recognised before the two remem
   t.absent(backsThrough('settings', 'transfers', targets), 'an unrelated screen does not')
   const looped = { ...targets, transfersBackTarget: 'activity-log' }
   t.ok(backsThrough('transfers', 'activity-log', looped), 'a loop terminates and is reported')
+  const fromSettings = { ...TARGETS[0], transfersBackTarget: 'network-settings' }
+  t.ok(backsThrough('transfers', 'network-settings', fromSettings), 'transfers opened from Network settings backs through it')
 })
 
 // The router's own exhaustiveness is a compile error (the `never` binding at the end of its switch),

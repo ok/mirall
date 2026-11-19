@@ -13,6 +13,10 @@ changes do not appear here.
 
 ### Added
 
+- **A Transfers page shows everything moving across all your spaces.** Open it
+  from the new header control, which shows the current speed while files
+  transfer. Pause or resume all downloads, watch the speed over time and
+  change the transfer limits without a trip through Settings.
 - **More of Mirall is in the command palette.** Check for updates, restart to
   update, back up now, show connection history and export the Activity Log
   from ⌘K, and find a screen by what it holds: "dark mode" finds Appearance.

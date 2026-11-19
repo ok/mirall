@@ -14,11 +14,13 @@ import Button from '../components/primitives/Button.js'
 import SegmentedControl, { Segment } from '../components/primitives/SegmentedControl.js'
 import TransferSpaceGroup from '../components/transfers/TransferSpaceGroup.js'
 import SpeedCard from '../components/transfers/SpeedCard.js'
+import TransferLimitsCard from '../components/transfers/TransferLimitsCard.js'
 
 interface TransfersScreenProps {
   selfKey: string | null
   onBack: () => void
   onOpenSpace: (spaceId: string) => void
+  onOpenNetworkSettings: () => void
 }
 
 const FILTER_LABEL: Record<TransferFilter, string> = {
@@ -28,7 +30,7 @@ const FILTER_LABEL: Record<TransferFilter, string> = {
   attention: 'transfers.filterAttention',
 }
 
-export default function TransfersScreen({ selfKey, onBack, onOpenSpace }: TransfersScreenProps) {
+export default function TransfersScreen({ selfKey, onBack, onOpenSpace, onOpenNetworkSettings }: TransfersScreenProps) {
   const { t } = useTranslation()
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
   const run = useRunAction()
@@ -103,6 +105,7 @@ export default function TransfersScreen({ selfKey, onBack, onOpenSpace }: Transf
           </div>
           <aside className="space-y-6">
             <SpeedCard />
+            <TransferLimitsCard onOpenNetworkSettings={onOpenNetworkSettings} />
           </aside>
         </div>
       </div>

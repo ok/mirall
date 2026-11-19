@@ -20,8 +20,8 @@
 // This clamp is the backstop for callers with no UI (a hand-edited config, the daemon), and
 // it reports through `onClamp` rather than overriding in silence — a caller that cannot see
 // the advisory text has no other way to learn why its cap is not being honoured. Keep the
-// value in step with `MIN_KBPS` in `NetworkSettings.tsx`; the renderer may not import from
-// `src/shared/`, so the two constants are necessarily duplicated.
+// value in step with `MIN_KBPS` in the renderer's `bandwidth-presets.js`; the renderer may not
+// import from `src/shared/`, so the two constants are necessarily duplicated.
 /** @internal */
 export const MIN_BYTES_PER_SECOND = 32 * 1024
 

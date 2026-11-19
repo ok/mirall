@@ -5,14 +5,14 @@
 // A string parent is fixed. A function reads the target the screen remembered on its way in —
 // Settings returns to the space it was opened from rather than always to the home screen, and the
 // activity log, its settings and the transfers page back out to whichever screen opened them, and a
-// settings page opened from the Organization page backs out to it.
+// settings page opened from the Organization page or the transfers page backs out to it.
 export interface BackTargets {
   preSettingsScreen: 'spaces' | 'space-view'
   preAccountScreen: 'spaces' | 'space-view'
   storageBackTarget: 'settings' | 'space-view'
   activityLogBackTarget: Screen
   activityLogSettingsBackTarget: 'settings' | 'storage-settings' | 'organization'
-  settingsPageBackTarget: 'settings' | 'organization'
+  settingsPageBackTarget: 'settings' | 'organization' | 'transfers'
   transfersBackTarget: Screen
 }
 

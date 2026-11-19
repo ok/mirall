@@ -1091,6 +1091,15 @@ with the window and both rates; the figures are the readable source. Hover shows
 window (5 min, 1 hour, Today). While a mirrored folder is fetching, a `text-sm` line says so, since
 the list above does not show it.
 
+**Transfer Limits tile** (`transfers/TransferLimitsCard.tsx`, the sidebar tile anatomy): one row per
+direction, the label (`font-semibold text-accent`) left and an `ActionMenu` `neutral` trigger right
+that shows the current limit and is named "Download limit: 5 MB/s". The menu holds the presets of
+Network settings as radio items with the current one checked, then "Custom…" under a rule, which
+opens Settings → Network: a typed limit has one home. A limit that is no preset shows in KB/s with
+nothing checked. A `TextButton` "Network Settings" sits right-aligned below. With no limit read yet
+the tile shows the loading line, never "Unlimited". Both screens write through
+`hooks/useBandwidthLimits.ts`, so there is one stored pair of limits.
+
 ### Folder screen bands — `screens/FolderScreen.tsx`
 Three slots, one rule: **tiles state, the header acts, the strip acts for now.**
 - **Header** — back · title · role line · one primary button + `More ▾`, the same pair for an owned

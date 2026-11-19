@@ -1383,7 +1383,9 @@
     "windowNamed": "Velocità: {{window}}",
     "chartLabel": "Velocità di trasferimento, {{window}}: download {{down}}, upload {{up}}",
     "chartNow": "ora",
-    "mirrorSyncing": "Le cartelle replicate si stanno sincronizzando."
+    "mirrorSyncing": "Le cartelle replicate si stanno sincronizzando.",
+    "limitCustom": "Personalizzato…",
+    "networkSettings": "Impostazioni di rete"
   },
   "activityLogSettings": {
     "title": "Registro attività",

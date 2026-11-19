@@ -148,7 +148,7 @@ function crossLinkedRoute(screen: CrossLinkedScreen, nav: AppNavigation, selfKey
         />
       )
     case 'transfers':
-      return <TransfersScreen selfKey={selfKey} onBack={nav.goBack} onOpenSpace={nav.navigateToSpace} />
+      return <TransfersScreen selfKey={selfKey} onBack={nav.goBack} onOpenSpace={nav.navigateToSpace} onOpenNetworkSettings={nav.openNetworkSettingsFromTransfers} />
   }
 }
 
