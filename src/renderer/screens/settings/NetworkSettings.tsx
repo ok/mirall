@@ -4,7 +4,6 @@ import InlineError from '../../components/primitives/InlineError.js'
 import TextField from '../../components/primitives/TextField.js'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { request } from '../../ipc/ipc.js'
 import { formatSpeed } from '../../format/utils.js'
 import { useHasVerticalOverflow } from '../../hooks/useHasVerticalOverflow.js'
 import PageHeader from '../../components/layout/PageHeader.js'
@@ -13,7 +12,8 @@ import SectionHeading from '../../components/layout/SectionHeading.js'
 import RelaySettingsSection from './RelaySettingsSection.js'
 import SegmentedControl, { Segment } from '../../components/primitives/SegmentedControl.js'
 import Callout from '../../components/primitives/Callout.js'
-import { useSettings } from '../../hooks/useSettings.js'
+import { useBandwidthLimits } from '../../hooks/useBandwidthLimits.js'
+import { MIN_KBPS, PRESET_KBPS, clampLimit, isPresetLimit, limitLabel } from '../../model/bandwidth-presets.js'
 import type { BandwidthLimits } from '../../platform/global.js'
 
 interface NetworkSettingsProps {
@@ -23,10 +23,6 @@ interface NetworkSettingsProps {
 
 type Direction = 'download' | 'upload'
 
-// Usability floor for a non-zero cap — below this the app looks broken. The worker clamps to the
-// same value (bandwidth-limiter.js, which carries the rationale).
-const MIN_KBPS = 32
-const PRESET_KBPS = [0, 1024, 5120, 25600]
 const COMMIT_DEBOUNCE_MS = 400
 
 function LimitRow({
@@ -67,7 +63,7 @@ function LimitRow({
   // permanently and invisibly — the field would read 8 while transfers ran at 32.
   const commit = useCallback(() => {
     const now = latest.current
-    const next = now.parsed > 0 ? Math.max(MIN_KBPS, now.parsed) : 0
+    const next = clampLimit(now.parsed)
     if (next !== now.kbps) now.onValue(next)
     return next
   }, [])
@@ -88,7 +84,7 @@ function LimitRow({
         <p className="font-semibold text-accent">{t(`networkSettings.${direction}`)}</p>
         <SegmentedControl className="shrink-0">
           {PRESET_KBPS.map((preset) => {
-            const label = preset === 0 ? t('networkSettings.unlimited') : `${preset / 1024} MB/s`
+            const label = limitLabel(preset, t('networkSettings.unlimited'))
             return (
               <Segment
                 key={preset}
@@ -136,7 +132,7 @@ function LimitRow({
           ) : (
             <p id={helpId} className="text-xs text-on-surface-variant px-1">
               {parsed > 0
-                ? t('networkSettings.customEcho', { rate: formatSpeed(parsed * 1024) })
+                ? t('networkSettings.customEcho', { rate: formatSpeed(parsed * 1000) })
                 : t('networkSettings.customUnlimited')}
             </p>
           )}
@@ -149,47 +145,21 @@ function LimitRow({
 export default function NetworkSettings({ onBack, onOpenStatus }: NetworkSettingsProps) {
   const { t } = useTranslation()
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
-  // 0 is a MEANINGFUL cap here (Unlimited), so there is no safe default to render before the read
-  // lands: a placeholder would be a positive claim about the user's configuration made from no
-  // data. undefined until settled, and the section shows its loading line instead.
-  const { data: settings, error: readError } = useSettings()
-  const limits: BandwidthLimits | undefined = settings
-    ? { downloadKBps: settings.network.downloadKBps, uploadKBps: settings.network.uploadKBps }
-    : undefined
+  const { limits, readError, applying, saveFailed, apply } = useBandwidthLimits()
   // Which rows show the number input. Derived from the stored value on load, then owned by
   // the user: picking Custom must not discard the cap they already have — so it seeds once, off
   // the first settled value, rather than tracking it.
   const [custom, setCustom] = useState<Record<Direction, boolean>>({ download: false, upload: false })
-  const [applyOutcome, setApplyOutcome] = useState<'save-failed' | null>(null)
-  const [applying, setApplying] = useState(false)
-  const applySeq = useRef(0)
   const seeded = useRef(false)
 
   useEffect(() => {
     if (seeded.current || !limits) return
     seeded.current = true
     setCustom({
-      download: !PRESET_KBPS.includes(limits.downloadKBps),
-      upload: !PRESET_KBPS.includes(limits.uploadKBps),
+      download: !isPresetLimit(limits.downloadKBps),
+      upload: !isPresetLimit(limits.uploadKBps),
     })
   }, [limits])
-
-  // The worker persists the cap and applies it in one request, and its reply pokes the settings
-  // query, so the rows show what is stored: a refused write leaves the previous cap in place and
-  // on screen. Only the latest apply reports its outcome.
-  const apply = useCallback(async (next: BandwidthLimits) => {
-    const seq = ++applySeq.current
-    const latest = () => seq === applySeq.current
-    setApplyOutcome(null)
-    setApplying(true)
-    try {
-      await request('settings:set-bandwidth', { ...next })
-    } catch {
-      if (latest()) setApplyOutcome('save-failed')
-    } finally {
-      if (latest()) setApplying(false)
-    }
-  }, [])
 
   const rowProps = (direction: Direction, current: BandwidthLimits) => {
     const key = direction === 'download' ? 'downloadKBps' : 'uploadKBps'
@@ -201,10 +171,10 @@ export default function NetworkSettings({ onBack, onOpenStatus }: NetworkSetting
       onPreset: (next: number) => {
         if (applying) return
         setCustom((prev) => ({ ...prev, [direction]: false }))
-        void apply({ ...current, [key]: next })
+        apply({ ...current, [key]: next })
       },
       onCustom: () => setCustom((prev) => ({ ...prev, [direction]: true })),
-      onValue: (next: number) => { void apply({ ...current, [key]: next }) },
+      onValue: (next: number) => { apply({ ...current, [key]: next }) },
     }
   }
 
@@ -227,7 +197,7 @@ export default function NetworkSettings({ onBack, onOpenStatus }: NetworkSetting
                 <>
                   <LimitRow {...rowProps('download', limits)} />
                   <LimitRow {...rowProps('upload', limits)} />
-                  {applyOutcome === 'save-failed' && (
+                  {saveFailed && (
                     <InlineError>{t('networkSettings.limitSaveFailed')}</InlineError>
                   )}
                 </>

@@ -481,13 +481,6 @@ export const promiseLintAllowlist = Object.freeze({
       'no-floating-promises BackupSettings > onTake: void act(async () => { await request(\'backup:configure\', { folder: typed }) })',
     ],
   },
-  'src/renderer/screens/settings/NetworkSettings.tsx': {
-    why: 'apply catches both writes into the save-failed alert or the applies-after-restart note.',
-    sites: [
-      'no-floating-promises NetworkSettings > rowProps > onPreset: void apply({ ...current, [key]: next })',
-      'no-floating-promises NetworkSettings > rowProps > onValue: void apply({ ...current, [key]: next })',
-    ],
-  },
   'src/renderer/screens/settings/StorageSettings.tsx': {
     why: 'handleBrowseFolder catches into the folder field\'s inline error.',
     sites: [

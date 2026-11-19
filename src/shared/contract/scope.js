@@ -12,6 +12,7 @@
  *   | { kind: 'storage' }
  *   | { kind: 'restore' }
  *   | { kind: 'settings' }
+ *   | { kind: 'transfers' }
  *   | { kind: 'managed' }} Scope
  */
 
@@ -44,6 +45,9 @@ export const Scope = {
   managed: () => ({ kind: 'managed' }),
   /** @returns {Scope} */
   settings: () => ({ kind: 'settings' }),
+  // Not space-scoped: the transfers page lists every space.
+  /** @returns {Scope} */
+  transfers: () => ({ kind: 'transfers' }),
 }
 
 // A hint matches a view iff the kind is equal and every id field the VIEW pins is equal.

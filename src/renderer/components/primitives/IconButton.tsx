@@ -20,6 +20,8 @@ interface IconButtonProps {
   iconFilled?: boolean
   className?: string
   variant?: 'default' | 'danger'
+  /** Set on a control that leads to the screen the user is already on. */
+  ariaCurrent?: 'page'
 }
 
 const HOVER = {
@@ -41,6 +43,7 @@ export default function IconButton({
   iconFilled,
   className,
   variant = 'default',
+  ariaCurrent,
 }: IconButtonProps) {
   return (
     <button
@@ -48,6 +51,7 @@ export default function IconButton({
       onClick={onClick}
       disabled={disabled}
       aria-label={ariaLabel}
+      aria-current={ariaCurrent}
       title={title}
       className={`w-10 h-10 shrink-0 flex items-center justify-center rounded-full ${HOVER[variant]} active:scale-95 transition-all focus-ring disabled:opacity-40 disabled:cursor-not-allowed${className ? ` ${className}` : ''}`}
     >

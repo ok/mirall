@@ -271,9 +271,10 @@ export function joinRequestAvatarMaxBytes() {
   return Math.max(1, frameMax - JOIN_REQUEST_FRAME_OVERHEAD)
 }
 
-// KB/s on the wire, bytes/s to callers: the rule validates, the getter converts.
+// KB/s on the wire, bytes/s to callers: the rule validates, the getter converts. A KB is 1,000
+// bytes, as in every size and speed the app shows, so a limit reads the same as the rate it holds.
 export function getBandwidthLimits() {
-  return { download: read('downloadKBps') * 1024, upload: read('uploadKBps') * 1024 }
+  return { download: read('downloadKBps') * 1000, upload: read('uploadKBps') * 1000 }
 }
 
 export function getNetImpair() {

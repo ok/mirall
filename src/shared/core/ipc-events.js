@@ -37,6 +37,7 @@ const POKE_SCOPE = {
   'event:audit-updated': () => Scope.audit(),
   'event:storage-updated': () => Scope.storage(),
   'event:restore-updated': () => Scope.restore(),
+  'event:transfers-updated': () => Scope.transfers(),
 }
 
 /** @internal */

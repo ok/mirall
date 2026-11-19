@@ -13,12 +13,19 @@ changes do not appear here.
 
 ### Added
 
+- **A Transfers page shows everything moving across all your spaces.** Open it
+  from the new header control, which shows the current speed while files
+  transfer. Pause or resume all downloads, watch the speed over time and
+  change the transfer limits without a trip through Settings.
 - **More of Mirall is in the command palette.** Check for updates, restart to
   update, back up now, show connection history and export the Activity Log
   from ⌘K, and find a screen by what it holds: "dark mode" finds Appearance.
 
 ### Changed
 
+- **A transfer limit now matches the speed Mirall shows.** "5 MB/s" used to
+  allow about 5.2 MB/s as the app displays speed; limits now count the same
+  way as every other size. A preset you had picked stays selected.
 - **Removing a relay you joined with an invite takes effect at once.** Mirall
   no longer asks you to reconnect first, as it already did for an open
   relay. Adding or replacing one still asks.

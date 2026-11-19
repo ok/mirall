@@ -4,6 +4,7 @@
 // lifecycle (initOverlay / attachOverlay / teardownOverlay) and wires the serve gate
 // (makeServeAuthorizer in overlay-authorize.js) to the real socket-auth, membership and
 // rate-limit collaborators (see .claude/solution-architecture.md, "Serve authorization").
+import { countUploaded } from '../transfer-rates.js'
 import { HyperOverlayV2 } from './engine/overlay-v2.js'
 import { contentHashOf } from './engine/content-path.js'
 import { getJournalDir } from './overlay-journals.js'
@@ -127,7 +128,10 @@ export async function initOverlay() {
       traceEvent(TRACE_EVENTS.SERVE_START, { peer })
       ledgerServeStart({ from, contentHash: contentHashOf(path), total })
     },
-    onChunkServe: ({ from, path, bytes }) => ledgerChunkServed({ from, contentHash: contentHashOf(path), bytes }),
+    onChunkServe: ({ from, path, bytes }) => {
+      countUploaded(bytes)
+      ledgerChunkServed({ from, contentHash: contentHashOf(path), bytes })
+    },
     onServeEnd: ({ from, path, peer }) => {
       traceEvent(TRACE_EVENTS.SERVE_END, { peer })
       ledgerServeEnd({ from, contentHash: contentHashOf(path) })

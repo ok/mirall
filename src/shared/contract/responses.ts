@@ -433,6 +433,25 @@ export interface FileRecipient {
   ts: number
 }
 
+// One download on the transfers page: the row its own listing would show, with what names the file
+// outside that listing. A folder row carries its folder's name; a loose row has none.
+export type TransferDownload =
+  | { kind: 'loose', shareId: string, ownerKey: PersonKey, folder: null, file: FileEntry }
+  | { kind: 'share', shareId: string, ownerKey: PersonKey, folder: string, file: ShareFileRow }
+
+// A file members are fetching from this device. `size` is the file's size, which the summary's
+// sums across downloaders are not.
+export interface TransferServing extends ServeSummary { shareId: string, size: number }
+
+export interface TransferSpace { spaceId: string, downloads: TransferDownload[], serving: TransferServing[] }
+
+// One point of the transfer rate history: bytes per second down and up, averaged over the step
+// that ends at `t`.
+export interface TransferRateSample { t: number, down: number, up: number }
+
+// How many downloads a pause-all or resume-all reached.
+export interface TransferBulkResult { count: number }
+
 export interface ServeDetailPeer { personKey: PersonKey, bytes: number, total: number, paused: boolean, waiting: boolean }
 export interface ServeDetailSnapshot { peers: ServeDetailPeer[] }
 
@@ -775,6 +794,10 @@ interface Responses {
   'storage:free-up': FreeUpResult
   'storage:info': StorageInfo
   'storage:measure': StorageInfo
+  'transfers:list': TransferSpace[]
+  'transfers:pause-all': TransferBulkResult
+  'transfers:rates': TransferRateSample[]
+  'transfers:resume-all': TransferBulkResult
 }
 
 // A mapped type over RequestName, not `keyof Responses`: a request added to REQUESTS with no entry

@@ -344,8 +344,8 @@ that room as padding and cancel it with an equal negative margin, so nothing mov
 Three variants — `primary`, `secondary` and `danger` (the last is described after the hover rules
 below):
 - **`primary`** — `bg-primary text-on-primary shadow-lg shadow-primary/10 hover:bg-primary-hover`
-- **`secondary`** — neutral surface `bg-surface-control` → `hover:bg-surface-control-hover`. Shared
-  with the nav "Send feedback" button and used for Cancel/dismiss.
+- **`secondary`** — neutral surface `bg-surface-control` → `hover:bg-surface-control-hover`. Used
+  for Cancel/dismiss and for an action that is not the screen's main one.
 
 **Every variant names its hover colour; none of them blends.** `hover:opacity-90` reads as "darken"
 but means "mix in 10% of whatever is behind me", so its size and even its *direction* depend on the
@@ -439,7 +439,7 @@ and field wiring. `ariaDisabled` is the in-flight state: it looks like `disabled
 button focusable, so a failed save leaves focus where it was.
 
 **Never hand-roll these classes.** Settings/list action buttons ("Export", "Load more", "Clear
-filters", nav "Send feedback") are all `variant="secondary"` + `className="shrink-0"`, not a local
+filters") are all `variant="secondary"` + `className="shrink-0"`, not a local
 copy of the class string — four screens once kept their own `ACTION_BUTTON` constant, and the copy
 that lost its `bg-*` pair is exactly how an unfilled Cancel button shipped. The one deliberate
 exception is `PathRow`'s button: it wears the same `surface-control` pair but is sized to the 48px
@@ -475,7 +475,12 @@ or share row (see the hover rules under Buttons). Requires `ariaLabel`. The icon
 `variant="danger"` is a destructive control: `text-error` on the button, hovering to
 `bg-error-container text-on-error-container`; the icon drops any `text-*` ink and inherits —
 `error` on `error-container` is under 3:1 in dark (pinned by `control-hover-tokens.test.js`,
-FIX-B4-1).
+FIX-B4-1). `ariaCurrent="page"` marks a control that leads to the screen the user is on.
+
+**The header's controls are icon buttons**, in this order: Transfers (`layout/TransfersButton.tsx`,
+`swap_vert`, opens the transfers page from any screen and wears the `surface-container-high` fill
+while that page is current), Send Feedback (`feedback`), Settings, then the profile avatar. Each is
+named by its `aria-label` and repeats it as the tooltip.
 
 ### Checkbox — `primitives/Checkbox.tsx`
 The app's one checkbox: a 20 px `rounded` box drawn over an `sr-only` native input, inside a round
@@ -1048,6 +1053,52 @@ sit at 1.06:1; the presence dot's border swaps with it. Pinned by
 (`sr-only`, or the bar's `aria-valuetext` with the speed · ETA the pill leaves out). Before anyone
 holds the file the live pills stand alone, without a gutter. The list grows to `max-h-80`, then
 scrolls.
+
+### Transfers page — `screens/TransfersScreen.tsx`, `components/transfers/`
+Every transfer on this device, grouped by space, reached from the header's Transfers control.
+`PageHeader` with one secondary `Button` beside it: `Pause All` while a download is moving, `Resume
+All` once none is and one is paused, absent otherwise. Under it a `SegmentedControl` filter whose
+segments carry their count (All, Downloading, Sending, Needs attention; named "Downloading, 4").
+Each space is a `section` named by its `h2` (`text-lg font-headline font-bold`), led by a 40 px
+`rounded-lg` tile in the space's colour and closed by an `Open Space` `TextButton`; under the name a
+`text-xs` line counts its transfers and what is paused or failed. The rows are `FileRow`s with
+their shipped lanes, pills and buttons: a download is its listing's row, a file being sent is the
+owner's row with the Sending lane and Reveal in Folder. A folder file passes `flat`, which drops the
+tree's leading gutter so every row starts on one edge. Spaces that need the user come first. With
+nothing to show the page is one sentence; a filter that matches nothing says so in a `role="status"`
+line.
+
+The header control (`layout/TransfersButton.tsx`) is named for what is under way: "Transfers",
+"Transfers — 3 active", or "Transfers — 1 needs attention". The last state also paints a 12 px
+`bg-warning` dot at the icon's bottom right (the `StatusDot` anatomy, `aria-hidden`), shown only
+while nothing is moving: it marks the one state the plain icon would hide. While bytes move the
+icon button becomes a pill on the secondary-button fill (`surface-control`, `h-10 rounded-full`,
+`text-sm font-semibold tabular-nums`) with the rate beside the icon: download, or upload when only
+sending. The rate counts all transfer traffic, a mirrored folder's included. The pill reserves the
+width of "999.9 MB/s" with an invisible ghost, as `Segment` reserves its bold width, so the header
+does not shift while the number counts. The rate is `aria-hidden` and never in the name: it changes
+every second.
+
+**Speed tile** (`transfers/SpeedCard.tsx`, the sidebar tile anatomy): the two current rates as
+figures, each beside a `w-2.5` dot in its series colour (`chart-1` download, `chart-2` upload) and
+its label; then one 236 px chart drawing download upward and upload downward from a shared zero
+line on one scale, so a small upload stays readable under a large download and the two never cross.
+Lines are 2 px in the series colour over a 22 % fill of the same; grid lines are `outline-variant`,
+the zero line `outline`; the two ends of the scale are labelled in `on-surface-variant` `text-[10px]`.
+A direction with no traffic keeps a quarter of the other's height. The chart is `role="img"`, named
+with the window and both rates; the figures are the readable source. Hover shows a crosshair and a
+`surface-container-lowest` tooltip with the time and both rates. A `SegmentedControl` picks the
+window (5 min, 1 hour, Today). While a mirrored folder is fetching, a `text-sm` line says so, since
+the list above does not show it.
+
+**Transfer Limits tile** (`transfers/TransferLimitsCard.tsx`, the sidebar tile anatomy): one row per
+direction, the label (`font-semibold text-accent`) left and an `ActionMenu` `neutral` trigger right
+that shows the current limit and is named "Download limit: 5 MB/s". The menu holds the presets of
+Network settings as radio items with the current one checked, then "Custom…" under a rule, which
+opens Settings → Network: a typed limit has one home. A limit that is no preset shows in KB/s with
+nothing checked. A `TextButton` "Network Settings" sits right-aligned below. With no limit read yet
+the tile shows the loading line, never "Unlimited". Both screens write through
+`hooks/useBandwidthLimits.ts`, so there is one stored pair of limits.
 
 ### Folder screen bands — `screens/FolderScreen.tsx`
 Three slots, one rule: **tiles state, the header acts, the strip acts for now.**

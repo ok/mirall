@@ -4,15 +4,16 @@
 //
 // A string parent is fixed. A function reads the target the screen remembered on its way in —
 // Settings returns to the space it was opened from rather than always to the home screen, and the
-// activity log and its settings back out to whichever screen cross-linked into them, and a settings
-// page opened from the Organization page backs out to it.
+// activity log, its settings and the transfers page back out to whichever screen opened them, and a
+// settings page opened from the Organization page or the transfers page backs out to it.
 export interface BackTargets {
   preSettingsScreen: 'spaces' | 'space-view'
   preAccountScreen: 'spaces' | 'space-view'
   storageBackTarget: 'settings' | 'space-view'
   activityLogBackTarget: Screen
   activityLogSettingsBackTarget: 'settings' | 'storage-settings' | 'organization'
-  settingsPageBackTarget: 'settings' | 'organization'
+  settingsPageBackTarget: 'settings' | 'organization' | 'transfers'
+  transfersBackTarget: Screen
 }
 
 const PARENT = {
@@ -35,6 +36,7 @@ const PARENT = {
   'network-advanced': 'network-status',
   'activity-log': (t: BackTargets) => t.activityLogBackTarget,
   'activity-log-settings': (t: BackTargets) => t.activityLogSettingsBackTarget,
+  transfers: (t: BackTargets) => t.transfersBackTarget,
   'connection-problem': 'spaces',
 } as const
 
@@ -47,4 +49,18 @@ export const SCREENS = Object.keys(PARENT) as Screen[]
 export function parentOf(screen: Screen, targets: BackTargets): Screen | null {
   const parent: Screen | null | ((t: BackTargets) => Screen) = PARENT[screen]
   return typeof parent === 'function' ? parent(targets) : parent
+}
+
+// Whether backing out of `from` passes through `via`. Two screens that each remember where they
+// were opened from must not remember each other: Back would then alternate between them and never
+// reach the root, so the one opened second keeps the target it already had.
+export function backsThrough(from: Screen, via: Screen, targets: BackTargets): boolean {
+  const seen = new Set<Screen>()
+  let at: Screen | null = from
+  while (at && !seen.has(at)) {
+    if (at === via) return true
+    seen.add(at)
+    at = parentOf(at, targets)
+  }
+  return false
 }

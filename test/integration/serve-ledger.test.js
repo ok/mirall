@@ -5,7 +5,7 @@ import {
   ServeLedger, _sweepServeLedgerNow,
   onServeStart, onServePaused, onServeControl,
   subscribeServeDetail, _getServeDetailForTests, unsubscribeServeDetail, dropServeDetailClient, listServeSummaries,
-  hasRecentServe, markWaiting, clearWaiting, clearWaitingFor, onChunkServed, onServeEnd,
+  hasRecentServe, markWaiting, clearWaiting, clearWaitingFor, onChunkServed, onServeEnd, listServing,
 } from '../../src/shared/transfer/serve-ledger.js'
 import { SHARE_WAIT_PER_OWNER } from '../../src/shared/transfer/share-wait-set.js'
 
@@ -407,4 +407,43 @@ test('a member that leaves or disconnects stops showing as waiting at once', asy
   clearWaitingFor(WAITER)
   t.alike(listServeSummaries('space2'), [], 'a disconnect clears them everywhere')
   t.alike(summaries(fake).at(-1).payload.waitingKeys, [])
+})
+
+const transferPokes = (fake) => fake.emitted('event:transfers-updated').length
+
+test('listServing names the share and the file size of every served file, in every space', async (t) => {
+  await setup(t)
+  serveIndex.add('g'.repeat(64), 'space2', 'share-9', 'docs/a.pdf')
+  onServeStart({ from: PEER, contentHash: HASH, total: 1000 })
+  onServeStart({ from: 'q'.repeat(64), contentHash: HASH, total: 1000 })
+  onServeStart({ from: PEER, contentHash: 'g'.repeat(64), total: 50 })
+  const rows = listServing().sort((a, b) => a.spaceId.localeCompare(b.spaceId))
+  t.is(rows.length, 2)
+  t.is(rows[0].spaceId, SID)
+  t.is(rows[0].shareId, '__loose__')
+  t.is(rows[0].size, 1000, 'the file size, not the sum across both downloaders')
+  t.is(rows[0].peers.length, 2)
+  t.is(rows[1].path, 'docs/a.pdf')
+  t.is(rows[1].shareId, 'share-9')
+  t.is(rows[1].size, 50)
+})
+
+test('the transfer list is poked when a file starts and stops being served, not per downloader', async (t) => {
+  const fake = await setup(t)
+  onServeStart({ from: PEER, contentHash: HASH, total: 1000 })
+  t.is(transferPokes(fake), 1, 'the first downloader starts the serve')
+  onServeStart({ from: 'q'.repeat(64), contentHash: HASH, total: 1000 })
+  t.is(transferPokes(fake), 1, 'a second downloader of the same file changes nothing in the list')
+  onServeEnd({ from: PEER, contentHash: HASH })
+  t.is(transferPokes(fake), 1, 'one downloader is still fetching')
+  onServeEnd({ from: 'q'.repeat(64), contentHash: HASH })
+  t.is(transferPokes(fake), 2, 'the last downloader leaving ends the serve')
+})
+
+test('a member only waiting for a file to be hashed does not poke the transfer list', async (t) => {
+  const fake = await setup(t)
+  markWaiting({ spaceId: SID, shareId: '__loose__', relPath: 'big.bin', from: PEER })
+  t.is(transferPokes(fake), 0)
+  onServeStart({ from: PEER, contentHash: HASH, total: 1000 })
+  t.is(transferPokes(fake), 1, 'the wait turning into a serve does')
 })

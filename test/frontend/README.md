@@ -31,6 +31,8 @@ One row per file in `scenarios/`; the id is the `run.mjs` argument (`node test/f
 | s110 | `s110-header-logo.mjs` | The header wordmark is an inline SVG: the top-bar logo stays one named ("Home") node that navigates home; the onboarding header exposes the wordmark as a named image. |
 | s116 | `s116-keyboard-coverage.mjs` | ⌘1-9 Go-to-Favorite via the native menu, ⌘⇧P Profile, ⌘⇧L Activity Log, ⌘F its search field, ⌘⇧H back to the list. |
 | s117 | `s117-space-switch-no-empty-flash.mjs` | Moving between spaces never paints an empty hero over content: not on entering a space, not on returning to the list, not on the warm path; a genuinely empty space still shows its hero. |
+| s201 | `s201-transfers-page.mjs` | The header's Transfers and Send Feedback icon buttons keep their names; Transfers opens the page from the list and from Settings, Back returns to the screen it was opened from, and the palette reaches it. |
+| s202 | `s202-transfers-list.mjs` | Two peers: a throttled download is listed on the Transfers page under its space and as Sending on its owner; the header names the active count and then the paused one; Pause All / Resume All, the filter and Open Space work. |
 | s133 | `s133-modal-keyboard.mjs` | The dialog keyboard contract: Escape dismisses, ⌘Enter submits from a text field once, Enter reaches the primary action of a fieldless dialog and never fires a destructive confirm. |
 | s136 | `s136-screen-header-parity.mjs` | Space and folder screens share one `EntityHeader`: back control, name and actions are present and going back restores the space header. |
 

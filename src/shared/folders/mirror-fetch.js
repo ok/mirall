@@ -440,6 +440,7 @@ async function fetchOverlayEntry(mount, share, entry, { overlay, abs, verifyKey,
     let err
     ;({ res, err, attempted, diag } = await callVendor(overlay, entry.contentHash, {
       label: 'overlay mirror',
+      mirror: true,
       relPath: entry.relPath,
       size: total,
       ownerKey: mount.ownerKey,

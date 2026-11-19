@@ -143,3 +143,24 @@ test('applyRestoredSettings takes the caps and a usable folder, never the relay'
   }
   t.is(applyRestoredSettings(current, null, { folderUsable: () => true }), current, 'a backup with no settings changes nothing')
 })
+
+// "5 MB/s" was stored as 5120 while a KB was 1,024 bytes. Read as it stands it would show as a typed
+// limit of 5120 KB/s, so settings older than version 2 have their three presets renamed once.
+test('the presets of settings older than version 2 become the decimal presets', (t) => {
+  const limits = (raw) => { const { downloadKBps, uploadKBps } = coerceSettings(raw, deps).network; return [downloadKBps, uploadKBps] }
+  t.alike(limits({ version: 1, network: { downloadKBps: 5120, uploadKBps: 1024 } }), [5000, 1000])
+  t.alike(limits({ network: { downloadKBps: 25600, uploadKBps: 0 } }), [25000, 0], 'settings with no version predate it')
+  t.alike(limits({ version: 1, network: { downloadKBps: 768, uploadKBps: 2048 } }), [768, 2048], 'a typed limit keeps its number')
+  t.alike(limits({ version: 2, network: { downloadKBps: 5120, uploadKBps: 1024 } }), [5120, 1024], 'a version 2 limit is read as it stands')
+  const once = coerceSettings({ version: 1, network: { downloadKBps: 5120 } }, deps)
+  t.is(coerceSettings(once, deps).network.downloadKBps, 5000, 'and the result is stable when read again')
+  t.is(importFromConfig({ network: { downloadKBps: 5120 } }, deps).network.downloadKBps, 5000, 'an imported config.json is older too')
+})
+
+test('a restored backup\'s limits are read at the version the backup states', (t) => {
+  const current = defaultSettings()
+  const restore = (carried) => applyRestoredSettings(current, JSON.stringify(carried), { folderUsable: () => false }).network
+  t.is(restore({ network: { downloadKBps: 5120 } }).downloadKBps, 5000, 'a backup with no version is older')
+  t.is(restore({ version: 1, network: { uploadKBps: 25600 } }).uploadKBps, 25000)
+  t.is(restore({ version: 2, network: { downloadKBps: 5120 } }).downloadKBps, 5120)
+})

@@ -1512,6 +1512,11 @@ allowlisted module (`test/invariants/engine-boundaries.test.js`); journals go th
 - Caps govern the **content plane only**. Throttling replication, handshakes or DHT traffic would
   starve convergence (`test/flow/content-plane-hol.test.js`).
 - A corrupt cap, or a getter that throws, fails **open** (unlimited).
+- A cap is stored in KB/s and a KB is **1,000 bytes**, as in every size and speed the app shows
+  (`format/bytes.js`), so a download held at "5 MB/s" reads 5 MB/s on the speed chart. Settings
+  version 1 counted in units of 1,024: reading settings older than version 2 (a `settings.json`, an
+  imported `config.json`, a restored backup, which carries the version) renames its three presets
+  once (`settings-rules.js`); a typed limit keeps its number.
 - Each consumer holds its own `stream()` handle.
 - Fairness is measured in bytes, not turns, because chunk sizes differ up to 64× across tiers.
 - Upload is charged before each send: a `take()` of 0 means don't send, and the serve grant is
@@ -1616,11 +1621,21 @@ they belong to.
   by a terminal `done`.
 - `event:awareness` ("who is downloading from me") is TTL soft-state. It is never persisted and
   never a status source.
+- `event:transfer-rate { down, up, mirror }` is the device's transfer rate in bytes per second, sent
+  once a second while bytes move and once more when they stop. It is not replayed. Download counts
+  every byte fetched, a mirrored folder's included (`mirror` says one is fetching); upload counts
+  every byte served. The counters sit at the two points all traffic passes: the fetch instruments
+  both producers share (`overlay/fetch-run.js`) and the overlay's chunk-serve hook.
 - `event:transfer-*` are notification signals. Status is always re-derived from `files:list` /
   `share:list-files`, and `transfer-paused.reason` is toast wording only.
 - `event:activity` pushes a row of a `NOTIFIABLE_KINDS` kind (`src/shared/contract/audit-kinds.js`)
   as it is recorded, even while the log is off, rate-limited or failed to start; desktop notifications are raised from it,
   never from the log. `event:recipients-updated` pokes the `recipients` scope.
+- **The app-wide transfer list re-derives on two scopes.** A download's status change is already
+  announced on its space's `share-files` scope, so `transfers:list` listens to that scope in every
+  space; `event:transfers-updated` pokes the `transfers` scope when a file starts or stops being
+  served, which nothing else announces. A downloader joining a file that is already served changes
+  no row and pokes nothing.
 
 **Request semantics a caller would not guess.**
 
@@ -1628,6 +1643,14 @@ they belong to.
 - `network:reconnect` ends the live connections, because a connected peer is never re-dialled.
 - A partial `audit:list` page with a non-null cursor is normal, because the scan is budgeted.
 - `shutdown` is host-only and is answered before teardown begins.
+- `transfers:list` is built from the download engine's pending rows and the serve ledger, never
+  from `event:decoration`: a mirrored folder's fetches ride the same decoration channel and are not
+  transfers the user asked for. A mirrored folder's rows, and a row still waiting for its owner to
+  hash the file, are left out. `transfers:pause-all` marks every download that is moving or would
+  start by itself, including one held by an offline owner; serves are never paused from here.
+- `transfers:rates { window }` returns the rate history for `5m`, `1h` or `today`. The history is
+  kept in memory by the `TransferMeter` subsystem and starts empty with the app: nothing about
+  transfer rates is written to disk.
 - `identity:unlock { kek, relaySeed? }` is host-only and served by a worker that is waiting for its
   key or locked: it boots the data layer before it answers (`deadlineMs: 0`). Main sends it after
   every spawn, and again on the locked screen's "Try again". Once the identity is

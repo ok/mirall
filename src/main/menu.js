@@ -54,6 +54,7 @@ function buildAppMenuTemplate({ platform, isDev, inSpace, spaces = [], appName, 
     { label: 'Home', accelerator: isMac ? 'Cmd+Shift+H' : 'Ctrl+H', click: handlers.navHome },
     { label: 'Profile', accelerator: 'CmdOrCtrl+Shift+P', click: handlers.openProfile },
     { label: 'Activity Log', accelerator: 'CmdOrCtrl+Shift+L', click: handlers.openActivityLog },
+    { label: 'Transfers', accelerator: 'CmdOrCtrl+Shift+T', click: handlers.openTransfers },
   ]
   // macOS hands ⌘1-9 to Chromium's own tab accelerators before the webContents sees
   // them — neither the renderer's keydown listener nor before-input-event ever fires

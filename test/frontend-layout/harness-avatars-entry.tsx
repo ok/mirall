@@ -107,7 +107,7 @@ createRoot(document.getElementById('root') as HTMLElement).render(
           onLogoClick={noop}
           onSettingsClick={noop}
           onAccountClick={noop}
-          onFeedbackClick={noop}
+          onFeedbackClick={noop} onTransfersClick={noop} transfersCurrent={false}
           updateVersion={null}
           onDismissUpdate={noop}
         />

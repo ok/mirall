@@ -16,14 +16,15 @@ function loadModule(relPath) {
   return mod.exports
 }
 
-const { SCREENS, parentOf } = loadModule('src/renderer/shell/navigation.ts')
+const { SCREENS, parentOf, backsThrough } = loadModule('src/renderer/shell/navigation.ts')
 
 // The back targets a screen can remember. Every combination has to land somewhere: these are the
 // two ends of each remembered range, so a target that cannot reach the root shows up here.
 const TARGETS = [
-  { preSettingsScreen: 'spaces', preAccountScreen: 'spaces', storageBackTarget: 'settings', activityLogBackTarget: 'account', activityLogSettingsBackTarget: 'settings', settingsPageBackTarget: 'settings' },
-  { preSettingsScreen: 'space-view', preAccountScreen: 'space-view', storageBackTarget: 'space-view', activityLogBackTarget: 'network-status', activityLogSettingsBackTarget: 'storage-settings', settingsPageBackTarget: 'organization' },
-  { preSettingsScreen: 'spaces', preAccountScreen: 'spaces', storageBackTarget: 'settings', activityLogBackTarget: 'account', activityLogSettingsBackTarget: 'organization', settingsPageBackTarget: 'organization' },
+  { preSettingsScreen: 'spaces', preAccountScreen: 'spaces', storageBackTarget: 'settings', activityLogBackTarget: 'account', activityLogSettingsBackTarget: 'settings', settingsPageBackTarget: 'settings', transfersBackTarget: 'spaces' },
+  { preSettingsScreen: 'space-view', preAccountScreen: 'space-view', storageBackTarget: 'space-view', activityLogBackTarget: 'network-status', activityLogSettingsBackTarget: 'storage-settings', settingsPageBackTarget: 'organization', transfersBackTarget: 'folder-view' },
+  { preSettingsScreen: 'spaces', preAccountScreen: 'spaces', storageBackTarget: 'settings', activityLogBackTarget: 'account', activityLogSettingsBackTarget: 'organization', settingsPageBackTarget: 'organization', transfersBackTarget: 'activity-log' },
+  { preSettingsScreen: 'spaces', preAccountScreen: 'spaces', storageBackTarget: 'settings', activityLogBackTarget: 'account', activityLogSettingsBackTarget: 'settings', settingsPageBackTarget: 'transfers', transfersBackTarget: 'space-view' },
 ]
 
 // Back has to terminate. A parent chain that loops means the user is stuck on a pair of screens
@@ -45,6 +46,21 @@ test('every screen reaches the root by backing out, under every remembered targe
       t.is(at, 'spaces', `${screen} backs out to the root`)
     }
   }
+})
+
+// The activity log and the transfers page each remember the screen they were opened from. Opened
+// from one another in turn they would remember each other, so the opener asks this first and keeps
+// its old target when the answer is yes.
+test('a screen that backs out through another is recognised before the two remember each other', (t) => {
+  const targets = { ...TARGETS[0], activityLogBackTarget: 'transfers', transfersBackTarget: 'space-view' }
+  t.ok(backsThrough('activity-log', 'transfers', targets), 'the log was opened from transfers')
+  t.absent(backsThrough('transfers', 'activity-log', targets), 'transfers was not opened from the log')
+  t.ok(backsThrough('transfers', 'transfers', targets), 'a screen backs through itself')
+  t.absent(backsThrough('settings', 'transfers', targets), 'an unrelated screen does not')
+  const looped = { ...targets, transfersBackTarget: 'activity-log' }
+  t.ok(backsThrough('transfers', 'activity-log', looped), 'a loop terminates and is reported')
+  const fromSettings = { ...TARGETS[0], transfersBackTarget: 'network-settings' }
+  t.ok(backsThrough('transfers', 'network-settings', fromSettings), 'transfers opened from Network settings backs through it')
 })
 
 // The router's own exhaustiveness is a compile error (the `never` binding at the end of its switch),

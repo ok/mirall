@@ -8,6 +8,7 @@
 //
 // Imports nothing that only loads under Bare, so test/unit drives the diag and the bracket directly.
 import { makeProgressTicker } from '../progress-ticker.js'
+import { countDownloaded, progressCounter } from '../transfer-rates.js'
 import { createLogger } from '../../core/logger.js'
 import { DELIBERATE_STOPS, FETCH_OUTCOME } from './fetch-outcome.js'
 import { acquireFetchSlot } from './fetch-gate.js'
@@ -62,13 +63,14 @@ export function makeFetchDiag(label, relPath, total, contentHash) {
 
 // The ticker, the diag, and the three callbacks that wire them together: everything built around
 // the vendor call.
-function makeFetchInstruments({ label, relPath, size = 0, contentHash = null, onProgress, onVerify, onTick }) {
+function makeFetchInstruments({ label, relPath, size = 0, contentHash = null, mirror = false, onProgress, onVerify, onTick }) {
   const ticker = makeProgressTicker(size, onProgress)
   const diag = makeFetchDiag(label, relPath, size, contentHash)
+  const meter = progressCounter((bytes) => countDownloaded(bytes, mirror))
   return {
     diag,
     callbacks: {
-      onProgress: (b) => { ticker.pushTo(b); diag.onProgress(b); onTick?.() },
+      onProgress: (b) => { ticker.pushTo(b); diag.onProgress(b); meter(b); onTick?.() },
       onVerify,
       onEnd: diag.onEnd,
     },
@@ -118,7 +120,8 @@ export async function runGatedFetch({ express = false, owner = null, onQueued = 
 // back as `err`, the very value the vendor rejected with, so a frozen or primitive fault reaches the
 // caller's fault policy unchanged; a nullish rejection reads as no result. The diag comes back open
 // on every path, because which outcome closes it is the caller's verdict. Every option but the
-// instruments' own is the vendor's, passed through as given.
+// instruments' own is the vendor's, passed through as given. `mirror` marks a mirrored folder's
+// fetch, whose bytes the transfer rate counts apart.
 /**
  * @template R
  * @param {{ fetchFile: (contentHash: string, opts: object) => Promise<R> }} vendor
@@ -132,6 +135,7 @@ export async function runGatedFetch({ express = false, owner = null, onQueued = 
  *   finalPath?: string,
  *   parentMustExist?: boolean,
  *   by?: string,
+ *   mirror?: boolean,
  *   onProgress?: (progress: { bytes: number, total: number, speed: number, eta: number | null }) => void,
  *   onVerify?: (fraction: number, recovered?: number) => void,
  *   onTick?: () => void,
@@ -141,9 +145,9 @@ export async function runGatedFetch({ express = false, owner = null, onQueued = 
  *   itself (typed Error, though a vendor may reject with a primitive), or null when it resolved;
  *   `attempted` is whether a chunk scheduler ran; `diag` is open for the caller to close.
  */
-export async function callVendor(vendor, contentHash, { label, relPath, onProgress, onVerify, onTick, ...request }) {
+export async function callVendor(vendor, contentHash, { label, relPath, mirror, onProgress, onVerify, onTick, ...request }) {
   let attempted = false
-  const { diag, callbacks } = makeFetchInstruments({ label, relPath, size: request.size, contentHash, onProgress, onVerify, onTick })
+  const { diag, callbacks } = makeFetchInstruments({ label, relPath, size: request.size, contentHash, mirror, onProgress, onVerify, onTick })
   try {
     const res = await vendor.fetchFile(contentHash, {
       ...request,

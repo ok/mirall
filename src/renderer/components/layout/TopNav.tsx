@@ -1,11 +1,11 @@
-// Fixed top bar doubling as the window drag region: logo, feedback/settings/account
+// Fixed top bar doubling as the window drag region: logo, transfers/feedback/settings/account
 // controls (the avatar ring reflects connection status), with the update banner beneath.
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import UpdateBanner from './UpdateBanner.js'
 import type { Profile } from '../../types/types.js'
 import { useConnectionStatus } from '../../hooks/useConnectionStatus.js'
-import Button from '../primitives/Button.js'
+import TransfersButton from './TransfersButton.js'
 import IconButton from '../primitives/IconButton.js'
 import Avatar from '../primitives/Avatar.js'
 import Logo from '../primitives/Logo.js'
@@ -16,13 +16,16 @@ interface TopNavProps {
   onSettingsClick: () => void
   onAccountClick: () => void
   onFeedbackClick: () => void
+  onTransfersClick: () => void
+  /** The transfers page is the current screen. */
+  transfersCurrent: boolean
   updateVersion: string | null
   onDismissUpdate: () => void
   // Shown in the update banner's place while a restore is being confirmed.
   restoreBanner?: ReactNode
 }
 
-export default function TopNav({ profile, onLogoClick, onSettingsClick, onAccountClick, onFeedbackClick, updateVersion, onDismissUpdate, restoreBanner }: TopNavProps) {
+export default function TopNav({ profile, onLogoClick, onSettingsClick, onAccountClick, onFeedbackClick, onTransfersClick, transfersCurrent, updateVersion, onDismissUpdate, restoreBanner }: TopNavProps) {
   const { t } = useTranslation()
   const { state } = useConnectionStatus()
   const hasIssue = state === 'offline' || state === 'connecting' || state === 'limited'
@@ -45,9 +48,14 @@ export default function TopNav({ profile, onLogoClick, onSettingsClick, onAccoun
             </button>
           </div>
           <div className="flex items-center gap-4 ml-auto" style={{ WebkitAppRegion: 'no-drag' }}>
-            <Button variant="secondary" icon="feedback" onClick={onFeedbackClick}>
-              {t('topnav.feedback')}
-            </Button>
+            <TransfersButton onClick={onTransfersClick} current={transfersCurrent} />
+            <IconButton
+              icon="feedback"
+              iconSize={26}
+              onClick={onFeedbackClick}
+              ariaLabel={t('topnav.feedback')}
+              title={t('topnav.feedback')}
+            />
             <IconButton
               icon="settings"
               iconFilled
