@@ -6,7 +6,7 @@ import { makeReport, assert, waitFor } from '../assert.mjs'
 import { workDir } from '../paths.mjs'
 
 // The transfers page lists a download on the downloader and the same file as Sending on its owner,
-// the header names how many transfers are under way, and Pause All / Resume All act on the download.
+// the header names how many transfers are under way, and Pause Downloads / Resume Downloads act on the download.
 // B caps its download at 1 MB/s first, so the 64 MB file is still moving at every step: without the
 // cap a loopback transfer can finish inside one accessibility poll.
 export default async function s202({ runDir, bootstrap }) {
@@ -63,25 +63,25 @@ export default async function s202({ runDir, bootstrap }) {
       await A.waitText('payload', 8000)
       await A.waitText('Sending', 15000)
       assert(await A.has({ role: 'button', name: 'Reveal in Folder' }), 'a sent file offers Reveal in Folder')
-      assert(!(await A.has({ role: 'button', name: 'Pause All' })), 'sending alone offers no Pause All')
+      assert(!(await A.has({ role: 'button', name: 'Pause Downloads' })), 'sending alone offers no Pause Downloads')
       await A.shot('s202-A-transfers-sending', runDir)
     })
 
-    await r.ok('B: Pause All pauses the download and the header asks for attention', async () => {
-      await B.click({ role: 'button', name: 'Pause All' })
-      await waitFor(() => B.has({ role: 'button', name: 'Resume All' }), 20000, 'Resume All replaces Pause All')
+    await r.ok('B: Pause Downloads pauses the download and the header asks for attention', async () => {
+      await B.click({ role: 'button', name: 'Pause Downloads' })
+      await waitFor(() => B.has({ role: 'button', name: 'Resume Downloads' }), 20000, 'Resume Downloads replaces Pause Downloads')
       await B.waitText('Paused', 10000)
       assert(await B.has({ role: 'button', name: 'Transfers — 1 needs attention' }), 'header names the paused download')
       await B.shot('s202-B-transfers-paused', runDir)
     })
 
-    await r.ok('B: the filter narrows the list, and Resume All starts the download again', async () => {
+    await r.ok('B: the filter narrows the list, and Resume Downloads starts the download again', async () => {
       await B.click({ name: 'Downloading, 0' })
       await B.waitText('No transfers match this filter.', 8000)
       await B.click({ name: 'Needs attention, 1' })
       await B.waitText('payload', 8000)
-      await B.click({ role: 'button', name: 'Resume All' })
-      await waitFor(() => B.has({ role: 'button', name: 'Pause All' }), 30000, 'the download moves again')
+      await B.click({ role: 'button', name: 'Resume Downloads' })
+      await waitFor(() => B.has({ role: 'button', name: 'Pause Downloads' }), 30000, 'the download moves again')
     })
 
     await r.ok('B: Open Space leads to the space, and Back returns to the page', async () => {

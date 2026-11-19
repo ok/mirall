@@ -1056,8 +1056,9 @@ scrolls.
 
 ### Transfers page — `screens/TransfersScreen.tsx`, `components/transfers/`
 Every transfer on this device, grouped by space, reached from the header's Transfers control.
-`PageHeader` with one secondary `Button` beside it: `Pause All` while a download is moving, `Resume
-All` once none is and one is paused, absent otherwise. Under it a `SegmentedControl` filter whose
+`PageHeader` with one secondary `Button` beside it: `Pause Downloads` while a download is moving,
+`Resume Downloads` once none is and one is paused, absent otherwise. The label names downloads
+because files being sent to others are not paused. Under it a `SegmentedControl` filter whose
 segments carry their count (All, Downloading, Sending, Needs attention; named "Downloading, 4").
 Each space is a `section` named by its `h2` (`text-lg font-headline font-bold`), led by a 40 px
 `rounded-lg` tile in the space's colour and closed by an `Open Space` `TextButton`; under the name a

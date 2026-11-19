@@ -60,7 +60,7 @@ export default function TransfersScreen({ selfKey, onBack, onOpenSpace, onOpenNe
           <PageHeader title={t('transfers.title')} subtitle={t('transfers.intro')} onBack={onBack} />
           {bulk && (
             <Button variant="secondary" icon={bulk === 'resume' ? 'play_arrow' : 'pause'} onClick={runBulk} className="mt-1 shrink-0">
-              {t(bulk === 'resume' ? 'transfers.resumeAll' : 'transfers.pauseAll')}
+              {t(bulk === 'resume' ? 'transfers.resumeDownloads' : 'transfers.pauseDownloads')}
             </Button>
           )}
         </div>
