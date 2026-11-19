@@ -1210,7 +1210,8 @@ it to a full-bleed **`DropOverlay`** (`absolute inset-x-0 bottom-8 top-4 z-20 ro
 the resting zone's, the grid's `pt-4`, so the crossfade does not jump; same
 dashed `border-secondary` + `bg-surface-container-high/90` tint as the legacy drag-over state,
 scaled up, with the file/folder icon + "Release to share …" subline). The resting zone crossfades
-out (`transition-opacity`) as the overlay fades in. Detection lives at the grid root
+out (`transition-opacity`) as the overlay fades in. While it fades out the overlay keeps the icon
+and subline of the drag that just ended, so it never shows an empty "0 files" state. Detection lives at the grid root
 (`useDragShare`, `hooks/`); the overlay is `aria-hidden` (pointer-only — keyboard/AT use the
 "Share…" menu). Crossfade respects `prefers-reduced-motion`.
 

@@ -24,6 +24,7 @@ interface HarnessResults {
   smallFaded: number
   filesSub: string
   folderSub: string
+  leavingKeepsContent: boolean
   afterLeaveOpacity: number
   geomOk: boolean
 }
@@ -72,7 +73,7 @@ function publishError(error: string): void {
     pass: false, error,
     idleOpacity: 0, idleHidden: false, shareReachable: false, textIgnored: false,
     filesActiveOpacity: 0, smallFaded: 1, filesSub: '', folderSub: '',
-    afterLeaveOpacity: 0, geomOk: false,
+    leavingKeepsContent: false, afterLeaveOpacity: 0, geomOk: false,
   }
 }
 
@@ -120,10 +121,17 @@ async function run(): Promise<void> {
   fireDrag(grid, 'dragover', [new File([], 'Photos')])
   await sleep(120)
   const folderSub = overlay.querySelector('p')?.textContent ?? ''
+  const activeContent = overlay.querySelector('.relative')?.innerHTML ?? ''
 
   const dropFile = [new File(['a'], 'a.txt', { type: 'text/plain' })]
   fireDrag(grid, 'dragleave', dropFile)
   fireDrag(grid, 'drop', dropFile)
+  // REGRESSION (FIX-791: the overlay swapped to the file icon and "0 files" while fading out):
+  // sampled mid-fade, it must still show what was being dragged.
+  await sleep(60)
+  const content = overlay.querySelector('.relative')
+  const leavingKeepsContent =
+    opacity(overlay) > 0.05 && activeContent !== '' && content?.innerHTML === activeContent
   await sleep(320)
   const afterLeaveOpacity = opacity(overlay)
 
@@ -134,11 +142,11 @@ async function run(): Promise<void> {
       filesSub === i18n.t('dropZone.releaseFiles', { count: 3 }) &&
       geomOk &&
       folderSub === i18n.t('dropZone.releaseFolderUnnamed') &&
-      afterLeaveOpacity < 0.05,
+      leavingKeepsContent && afterLeaveOpacity < 0.05,
     error: null,
     idleOpacity, idleHidden, shareReachable, textIgnored,
     filesActiveOpacity, smallFaded, filesSub, folderSub,
-    afterLeaveOpacity, geomOk,
+    leavingKeepsContent, afterLeaveOpacity, geomOk,
   }
 }
 
