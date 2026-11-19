@@ -24,10 +24,12 @@ export default function DropOverlay({
       : t("dropZone.releaseFolderUnnamed")
     : t("dropZone.releaseFiles", { count: fileCount });
 
+  // `top-4` is the content grid's own top padding, so the overlay's top edge is the resting drop
+  // zone's top edge and the crossfade between the two does not jump.
   return (
     <div
       aria-hidden="true"
-      className={`absolute inset-x-0 bottom-8 top-16 z-20 rounded-2xl border-2 border-dashed border-secondary flex flex-col items-center justify-center gap-4 text-center px-8 transition-opacity duration-200 ease-out motion-reduce:transition-none ${
+      className={`absolute inset-x-0 bottom-8 top-4 z-20 rounded-2xl border-2 border-dashed border-secondary flex flex-col items-center justify-center gap-4 text-center px-8 transition-opacity duration-200 ease-out motion-reduce:transition-none ${
         active ? "opacity-100" : "opacity-0 pointer-events-none"
       }`}
     >
