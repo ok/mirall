@@ -21,6 +21,7 @@ import b4a from 'b4a'
 import os from 'bare-os'
 import { getLocalPublicKeyHex } from '../../spaces/profile.js'
 import { isApprovedMember } from '../../network/handshake-apply.js'
+import { connectedPeers } from '../../network/swarm-registries.js'
 import { contentSenderAuthorizedOnSocket, contentSocketAuthenticated } from '../../network/content-swarm.js'
 import { createRateLimiter } from '../../network/handshake-guard.js'
 import { getOverlayServeLimit, getBandwidthLimits, getServeChunkMapCacheBytes, getTransferLevers } from '../../core/runtime-config.js'
@@ -132,7 +133,7 @@ export async function initOverlay() {
     // 'content:<hash>'; strip it to the hash the serve ledger resolves to a file.
     onServeStart: ({ from, path, total, peer }) => {
       traceEvent(TRACE_EVENTS.SERVE_START, { peer })
-      ledgerServeStart({ from, contentHash: contentHashOf(path), total })
+      ledgerServeStart({ from, contentHash: contentHashOf(path), total, inSpace: (spaceId) => !!connectedPeers.get(from)?.spaces.has(spaceId) })
     },
     onChunkServe: ({ from, path, bytes }) => {
       countUploaded(bytes)

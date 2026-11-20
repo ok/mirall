@@ -428,6 +428,28 @@ test('listServing names the share and the file size of every served file, in eve
   t.is(rows[1].size, 50)
 })
 
+// REGRESSION (FIX-SERVE-SPACE-1: a file advertised in two spaces showed its downloader in both, as
+// an unknown member in the space the downloader is not in).
+test('REGRESSION (FIX-SERVE-SPACE-1): a serve is listed only in the spaces its downloader is in', async (t) => {
+  const fake = await setup(t)
+  serveIndex.add(HASH, 'space2', '__loose__', 'big.bin')
+  onServeStart({ from: PEER, contentHash: HASH, total: 1000, inSpace: (spaceId) => spaceId === 'space2' })
+  const rows = listServing()
+  t.is(rows.length, 1, 'one row, not one per space advertising the bytes')
+  t.is(rows[0].spaceId, 'space2')
+  t.alike(summaries(fake).map((e) => e.payload.spaceId), ['space2'], 'the other space hears nothing')
+  onChunkServed({ from: PEER, contentHash: HASH, bytes: 400 })
+  t.is(_getServeDetailForTests('space2', PATH).peers[0].bytes, 400, 'progress lands on that row')
+  t.alike(_getServeDetailForTests(SID, PATH).peers, [])
+})
+
+test('a downloader known in none of the advertising spaces is listed in all of them', async (t) => {
+  await setup(t)
+  serveIndex.add(HASH, 'space2', '__loose__', 'big.bin')
+  onServeStart({ from: PEER, contentHash: HASH, total: 1000, inSpace: () => false })
+  t.is(listServing().length, 2, 'the serve is never hidden')
+})
+
 test('the transfer list is poked when a file starts and stops being served, not per downloader', async (t) => {
   const fake = await setup(t)
   onServeStart({ from: PEER, contentHash: HASH, total: 1000 })
