@@ -168,13 +168,22 @@ function noteServedRecipient(session, { closing = false } = {}) {
   note.finally(() => noting.delete(note))
 }
 
-export function onServeStart({ from, contentHash, total }) {
-  if (!from) return
-  // Content-addressed: one hash can back several (space, share, path) rows when
-  // identical bytes are advertised under more than one name. The sender only has
-  // the hash — not the requester's intended path — so the indicator legitimately
-  // appears on every row advertising the served hash.
+// The rows a serve to this requester is shown on. A request names bytes, not the row it was made
+// for, and one hash can back several (space, share, path) rows. A requester can only have asked
+// through a space it is in, so the rows of the other spaces are left out. A requester known in none
+// of them is shown on every row: a serve is never hidden.
+function refsShownFor(contentHash, inSpace) {
   const refs = serveIndex.refsFor(contentHash)
+  if (!inSpace) return refs
+  const reachable = refs.filter((ref) => inSpace(ref.spaceId))
+  return reachable.length > 0 ? reachable : refs
+}
+
+// `inSpace(spaceId)` answers whether the requester is connected to this device in that space. It
+// is synchronous: the rows must exist before the first chunk is served.
+export function onServeStart({ from, contentHash, total, inSpace = null }) {
+  if (!from) return
+  const refs = refsShownFor(contentHash, inSpace)
   if (refs.length === 0) {
     // No row advertises this hash yet — discard any stash so it can't leak onto a future
     // unrelated serve of the same hash+peer.
