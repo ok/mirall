@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import UpdateBanner from './UpdateBanner.js'
 import type { Profile } from '../../types/types.js'
+import type { BannerUpdate } from '../../platform/update-state.js'
 import { useConnectionStatus } from '../../hooks/useConnectionStatus.js'
 import TransfersButton from './TransfersButton.js'
 import IconButton from '../primitives/IconButton.js'
@@ -19,13 +20,14 @@ interface TopNavProps {
   onTransfersClick: () => void
   /** The transfers page is the current screen. */
   transfersCurrent: boolean
-  updateVersion: string | null
+  update: BannerUpdate | null
   onDismissUpdate: () => void
+  onInstallUpdate: () => void
   // Shown in the update banner's place while a restore is being confirmed.
   restoreBanner?: ReactNode
 }
 
-export default function TopNav({ profile, onLogoClick, onSettingsClick, onAccountClick, onFeedbackClick, onTransfersClick, transfersCurrent, updateVersion, onDismissUpdate, restoreBanner }: TopNavProps) {
+export default function TopNav({ profile, onLogoClick, onSettingsClick, onAccountClick, onFeedbackClick, onTransfersClick, transfersCurrent, update, onDismissUpdate, onInstallUpdate, restoreBanner }: TopNavProps) {
   const { t } = useTranslation()
   const { state } = useConnectionStatus()
   const hasIssue = state === 'offline' || state === 'connecting' || state === 'limited'
@@ -73,7 +75,7 @@ export default function TopNav({ profile, onLogoClick, onSettingsClick, onAccoun
           </div>
         </div>
       </div>
-      {restoreBanner ?? <UpdateBanner version={updateVersion} onDismiss={onDismissUpdate} />}
+      {restoreBanner ?? <UpdateBanner update={update} onDismiss={onDismissUpdate} onInstall={onInstallUpdate} />}
     </nav>
   )
 }

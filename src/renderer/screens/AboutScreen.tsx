@@ -1,17 +1,18 @@
 // About Mirall: the running build and whether it is current, and the project's links and legal pages.
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { UpdateStatus } from '../../shared/contract/update-status.js'
+import { UPDATE_STATE, type UpdateStatus } from '../../shared/contract/update-status.js'
 import { useHasVerticalOverflow } from '../hooks/useHasVerticalOverflow.js'
 import { useUpdates } from '../hooks/useUpdates.js'
 import { useAppBuild } from '../hooks/useAppBuild.js'
 import { useOpenWhatsNew } from '../hooks/useOpenWhatsNew.js'
 import { useRunAction } from '../hooks/useRunAction.js'
-import { checkForUpdate, restartToUpdate } from '../platform/updates.js'
+import { checkForUpdate, installUpdate, restartToUpdate, setUpdateMode } from '../platform/updates.js'
 import PageHeader from '../components/layout/PageHeader.js'
 import SectionHeading from '../components/layout/SectionHeading.js'
 import ActionRow, { LinkRow, ROW_GROUP } from '../components/layout/ActionRow.js'
 import UpdateVerdictBanner from '../components/about/UpdateVerdictBanner.js'
+import UpdateModeRow from '../components/about/UpdateModeRow.js'
 import Logo from '../components/primitives/Logo.js'
 import Badge from '../components/primitives/Badge.js'
 import CopyButton from '../components/primitives/CopyButton.js'
@@ -79,7 +80,9 @@ function UpdatesSection({ status }: { status: UpdateStatus }) {
         restarting={restarting}
         onCheck={() => runAction(checkForUpdate)}
         onRestart={handleRestart}
+        onInstall={() => runAction(installUpdate)}
       />
+      {status.state !== UPDATE_STATE.OFF && <UpdateModeRow mode={status.mode} onChange={setUpdateMode} />}
     </section>
   )
 }

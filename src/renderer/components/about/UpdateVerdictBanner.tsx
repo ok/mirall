@@ -2,13 +2,14 @@
 import { useTranslation } from 'react-i18next'
 import { UPDATE_STATE, type UpdateStatus } from '../../../shared/contract/update-status.js'
 import { formatDateTime } from '../../format/utils.js'
-import { updateDownload, updateVerdict, type UpdateLamp } from '../../model/about-view.js'
+import { updateBodyKey, updateDownload, updateVerdict, type UpdateLamp } from '../../model/about-view.js'
 import Button from '../primitives/Button.js'
 import DownloadProgressLane from '../primitives/DownloadProgressLane.js'
 
 const LAMP: Record<UpdateLamp, string> = {
   'up-to-date': 'bg-online ring-online/25',
   ready: 'bg-secondary-container ring-secondary-container/30',
+  available: 'bg-secondary-container ring-secondary-container/30',
   neutral: 'bg-outline ring-outline/20',
 }
 
@@ -17,9 +18,10 @@ interface UpdateVerdictBannerProps {
   restarting: boolean
   onCheck: () => void
   onRestart: () => void
+  onInstall: () => void
 }
 
-export default function UpdateVerdictBanner({ status, restarting, onCheck, onRestart }: UpdateVerdictBannerProps) {
+export default function UpdateVerdictBanner({ status, restarting, onCheck, onRestart, onInstall }: UpdateVerdictBannerProps) {
   const { t } = useTranslation()
   const verdict = updateVerdict(status)
   const download = updateDownload(status)
@@ -35,7 +37,7 @@ export default function UpdateVerdictBanner({ status, restarting, onCheck, onRes
             {t(`about.verdict.${verdict.key}Title`, { version: status.nextVersion ?? '' })}
           </p>
           <p className="text-sm text-on-surface-variant mt-1">
-            {t(`about.verdict.${download?.bodyKey ?? verdict.key}Body`, { when: status.lastCheckedAt ? formatDateTime(status.lastCheckedAt) : '' })}
+            {t(`about.verdict.${updateBodyKey(status)}Body`, { when: status.lastCheckedAt ? formatDateTime(status.lastCheckedAt) : '' })}
           </p>
         </div>
         {/* Outside the live region: a bar announces through its own value, never per tick. */}
@@ -54,6 +56,11 @@ export default function UpdateVerdictBanner({ status, restarting, onCheck, onRes
       {verdict.action === 'check' && (
         <Button variant="secondary" icon="refresh" onClick={() => { if (!checking) onCheck() }} ariaDisabled={checking}>
           {t(checkLabel)}
+        </Button>
+      )}
+      {verdict.action === 'install' && (
+        <Button icon="download" onClick={onInstall}>
+          {t('about.install')}
         </Button>
       )}
       {verdict.action === 'restart' && (

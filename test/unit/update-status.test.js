@@ -115,3 +115,58 @@ test('the store notifies only on a change', (t) => {
   t.alike(seen, ['checking', 'idle'])
   t.is(store.get().state, 'checking')
 })
+
+const policy = (mode, held) => ({ type: 'policy', mode, held })
+
+test('the status starts in automatic mode with nothing held', (t) => {
+  t.is(on.mode, 'automatic')
+  t.is(on.held, false)
+})
+
+test('a newer version that waits for the user is available, and a later check keeps it', (t) => {
+  const s = run([{ type: 'pass-start' }, { type: 'available', version: '2.0.0' }, { type: 'pass-end', reached: true, manual: false }])
+  t.is(s.state, 'available')
+  t.is(s.nextVersion, '2.0.0')
+  t.is(s.lastCheckedAt, NOW)
+  t.is(reduceUpdateStatus(s, { type: 'pass-start' }, NOW), s, 'a pass does not hide it behind "checking"')
+  t.is(reduceUpdateStatus(s, { type: 'available', version: '2.0.0' }, NOW), s, 'the same version again changes nothing')
+  t.is(run([{ type: 'pass-failed' }], s).state, 'available')
+})
+
+test('a waiting version that is gone again leaves the build current', (t) => {
+  const s = run([{ type: 'available', version: '2.0.0' }, { type: 'available', version: null }])
+  t.is(s.state, 'idle')
+  t.is(s.nextVersion, null)
+  t.is(reduceUpdateStatus(on, { type: 'available', version: null }, NOW), on, 'nothing waited, nothing changes')
+})
+
+test('an approved version downloads and stages as ready', (t) => {
+  const s = run([{ type: 'available', version: '2.0.0' }, policy('notify', false), { type: 'downloading' }, { type: 'ready', version: '2.0.0' }])
+  t.is(s.state, 'ready')
+})
+
+test('an update staged while it is held waits for the user instead of reading as ready', (t) => {
+  const s = run([policy('notify', true), { type: 'downloading' }, { type: 'ready', version: '2.0.0' }])
+  t.is(s.state, 'available')
+  t.is(s.nextVersion, '2.0.0')
+})
+
+test('turning automatic updates off sends a staged update back to waiting', (t) => {
+  const ready = run([{ type: 'ready', version: '2.0.0' }])
+  const s = run([policy('never', true)], ready)
+  t.is(s.state, 'available')
+  t.is(s.mode, 'never')
+  t.is(run([policy('never', false)], ready).state, 'ready', 'one that may still install stays ready')
+})
+
+test('the mode reaches the status even when nothing is in flight', (t) => {
+  const s = run([policy('notify', false)])
+  t.is(s.mode, 'notify')
+  t.is(s.state, 'idle')
+  t.is(run([policy('notify', false)], s), s, 'the same policy again changes nothing')
+})
+
+test('updates turned off ignore the mode', (t) => {
+  const off = initialUpdateStatus({ offReason: 'flag', canRestart: false })
+  t.is(run([policy('never', true), { type: 'available', version: '2.0.0' }], off), off)
+})

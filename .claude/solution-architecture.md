@@ -1738,15 +1738,34 @@ platform's bundle into `pear-runtime/next/<length>.<fork>` and emits `updating` 
 At an *equal* version it only prefetches. The installed build must therefore equal the staged drive
 version, or the banner loops on every launch (→ `build-process.md`).
 
+**Update mode.** The user picks how much of that runs alone (About → Updates, `updates.mode` in
+`config.json`, vocabulary `UPDATE_MODE` in `contract/update-status.js`): `automatic` (the default,
+everything above), `notify` and `never`. `src/main/update-policy.js` decides, and `updater.js` asks it
+at three points:
+
+- **Before each pass**, as the updater's `skipUpdate` hook. Outside `automatic` the hook reads the
+  drive head's `/package.json` and stops the pass, so a newer version is reported as `available`
+  and none of its blocks are fetched, and the same-version prefetch does not run either. Only the
+  version the user approved (`pear:installUpdate`) gets through. `never` stops a pass nobody asked
+  for before it reads anything.
+- **Before each apply** (the quit sequence, and the Windows/Linux pre-stage). An update that finished
+  downloading under `automatic` does not install once the mode changed, unless that version is
+  approved; the updater cannot cancel a mirror already running, so a download in flight finishes
+  and waits (`held`). One already applied in place on Windows or Linux stays applied.
+- **Joining the update swarm.** Under `never` the swarm is left and its connections closed once no
+  pass is running; a check or an approved download joins it for its own duration.
+
+The mode is not part of a backup: it is a choice for this device, like the login item.
+
 **Status.** Main owns one update status (`src/main/update-status.js`, vocabulary in
-`contract/update-status.js`): `idle | checking | downloading | ready | error | off`, plus the staged
-version, the time of the last confirmed check, the off reason and whether a relaunch can start the
-new build. The renderer reads it once (`pear:updateStatus`) and follows `pear:event:update-status`,
+`contract/update-status.js`): `idle | checking | downloading | ready | available | error | off`, plus
+the staged or waiting version, the time of the last confirmed check, the off reason, whether a
+relaunch can start the new build, the update mode and whether the update in flight is `held`. The renderer reads it once (`pear:updateStatus`) and follows `pear:event:update-status`,
 which main sends to every window. A pass counts as a check only when the update drive had a peer:
 the boot pass usually runs before any peer connects, so the first `peer-add` runs a pass of its own.
 A background pass that reaches no peer changes nothing; a check the user started
 (`pear:checkForUpdate`, which returns at once and waits up to 15 s for a peer) reports `error`
-instead. `ready` survives later passes until a newer version starts downloading.
+instead. `ready` and `available` survive later passes until a newer version starts downloading.
 
 **Download progress.** While `downloading`, the status also carries `progress` (a whole percentage,
 or null until the download is sized) and `waitingForPeers`. The fraction is the app's own count
@@ -1759,13 +1778,15 @@ every tick of the updater's 250 ms monitor, which sets the pace and supplies the
 shows it as a bar; the Profile row does not.
 
 **Banner and About.** `src/renderer/platform/updates.ts` keeps the status and the banner's dismissal
-(a different staged version clears it). The banner is passive ("applied on next start" plus Dismiss).
+(a different version, or one moving from `available` to `ready`, clears it). A staged update's
+banner is passive ("applied on next start" plus Dismiss); a waiting one offers Update and Later.
+Update (`pear:installUpdate`) opens About, where the download shows.
 About shows the verdict, Check now, and — on macOS and an AppImage — Restart now (`app:relaunch`:
 `app.relaunch()` then `app.quit()`, so the quit sequence still applies a macOS update first). An MSIX
 relaunched from its old package folder can start the old version, so Windows offers no restart. A
 source build reloads the renderer when a status turns `ready`.
 
-**Apply — no user action**, with timing per platform:
+**Apply — no user action** in `automatic` mode (otherwise once approved), with timing per platform:
 
 | Platform | When | Why |
 |---|---|---|

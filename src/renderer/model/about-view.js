@@ -1,12 +1,13 @@
 // What About and the Profile row say about the running build and its updates. Green is earned: only
 // a check that reached the update network says "up to date"; a status that proves nothing shows the
-// version alone.
-import { UPDATE_STATE, UPDATES_OFF_REASON } from '../../shared/contract/update-status.js'
+// version alone. A sentence that promises background work is not said when the update mode does not
+// do that work.
+import { UPDATE_STATE, UPDATES_OFF_REASON, UPDATE_MODE } from '../../shared/contract/update-status.js'
 
 /**
  * @import { UpdateStatus } from '../../shared/contract/update-status.js'
- * @typedef {'up-to-date' | 'ready' | 'neutral'} UpdateLamp
- * @typedef {'check' | 'restart' | null} UpdateAction
+ * @typedef {'up-to-date' | 'ready' | 'available' | 'neutral'} UpdateLamp
+ * @typedef {'check' | 'restart' | 'install' | null} UpdateAction
  * @typedef {'release' | 'beta' | 'dev' | 'source'} ReleaseChannel
  * @typedef {{ percent: number | null, indeterminate: boolean, bodyKey: string }} UpdateDownloadView
  */
@@ -22,6 +23,8 @@ export function updateVerdict(status) {
       return { lamp: 'neutral', key: 'downloading', action: null }
     case UPDATE_STATE.READY:
       return { lamp: 'ready', key: 'ready', action: status.canRestart ? 'restart' : null }
+    case UPDATE_STATE.AVAILABLE:
+      return { lamp: 'available', key: 'available', action: 'install' }
     case UPDATE_STATE.ERROR:
       return { lamp: 'neutral', key: 'error', action: 'check' }
     default:
@@ -39,8 +42,19 @@ export function updateDownload(status) {
   return {
     percent: status.progress,
     indeterminate: status.progress === null && !status.waitingForPeers,
-    bodyKey: status.waitingForPeers ? 'downloadingWaiting' : 'downloading',
+    bodyKey: status.waitingForPeers ? 'downloadingWaiting' : status.held ? 'downloadingHeld' : 'downloading',
   }
+}
+
+// The verdict's second line. With the mode on `never`, nothing looks in the background, so the lines
+// that say it does are swapped for ones that point at Check now.
+/** @param {UpdateStatus} status @returns {string} */
+export function updateBodyKey(status) {
+  const download = updateDownload(status)
+  if (download) return download.bodyKey
+  const { key } = updateVerdict(status)
+  if (status.mode === UPDATE_MODE.NEVER && (key === 'notChecked' || key === 'error')) return `${key}Manual`
+  return key
 }
 
 /** @param {UpdateStatus} status @returns {Exclude<UpdateLamp, 'neutral'> | null} */

@@ -33,7 +33,7 @@ declare global {
   }
 }
 
-const BASE: UpdateStatus = { state: 'idle', nextVersion: null, lastCheckedAt: 1_700_000_000_000, offReason: null, canRestart: true, progress: null, waitingForPeers: false }
+const BASE: UpdateStatus = { state: 'idle', nextVersion: null, lastCheckedAt: 1_700_000_000_000, offReason: null, canRestart: true, progress: null, waitingForPeers: false, mode: 'automatic', held: false }
 const CARDS: Record<string, UpdateStatus> = {
   unsized: { ...BASE, state: 'downloading' },
   sized: { ...BASE, state: 'downloading', progress: 42 },
@@ -48,7 +48,7 @@ createRoot(document.getElementById('root') as HTMLElement).render(
   <div style={{ width: 672, padding: 24, display: 'grid', gap: 16 }}>
     {Object.entries(CARDS).map(([name, status]) => (
       <div key={name} data-test={name}>
-        <UpdateVerdictBanner status={status} restarting={false} onCheck={noop} onRestart={noop} />
+        <UpdateVerdictBanner status={status} restarting={false} onCheck={noop} onRestart={noop} onInstall={noop} />
       </div>
     ))}
   </div>,

@@ -26,7 +26,7 @@ test('fresh install writes config.json with defaults', (t) => {
   const onDisk = readConfig(dir)
   t.is(onDisk.version, CONFIG_VERSION)
   t.is(onDisk.appearance.theme, 'system')
-  t.alike(Object.keys(onDisk).sort(), ['appearance', 'general', 'notifications', 'ui', 'version', 'window'],
+  t.alike(Object.keys(onDisk).sort(), ['appearance', 'general', 'notifications', 'ui', 'updates', 'version', 'window'],
     'the worker\'s groups are not written here')
 })
 
@@ -191,4 +191,15 @@ test('config.json is written owner-only', (t) => {
   store.set('ui.feedbackEmail', 'a@b.c')
   store.flush()
   t.is(fs.statSync(path.join(dir, 'config.json')).mode & 0o777, 0o600)
+})
+
+test('the update mode starts automatic and outlives a whole general record written back', (t) => {
+  const dir = tmpDir()
+  const store = new ConfigStore(dir).load()
+  t.is(store.get('updates.mode'), 'automatic')
+  store.set('updates.mode', 'never')
+  store.set('general', { minimizeToTray: false, openAtLogin: false, firstHideNoticeShown: true, appMenuAutoHide: false })
+  store.flush()
+  t.is(new ConfigStore(dir).load().get('updates.mode'), 'never')
+  t.absent('updates' in store.rendererSnapshot(), 'the renderer never holds a copy it could write back')
 })

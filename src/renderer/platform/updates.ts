@@ -1,4 +1,4 @@
-import { UPDATE_STATE, type UpdateStatus } from '../../shared/contract/update-status.js'
+import { UPDATE_STATE, type UpdateMode, type UpdateStatus } from '../../shared/contract/update-status.js'
 import { initialUpdateState, reduceDismissed, reduceStatus, type UpdateViewState } from './update-state.js'
 
 type Listener = (state: UpdateViewState) => void
@@ -49,6 +49,14 @@ export function dismissUpdate(): void {
 
 export async function checkForUpdate(): Promise<void> {
   await window.bridge.checkForUpdate()
+}
+
+export async function installUpdate(): Promise<void> {
+  await window.bridge.installUpdate()
+}
+
+export async function setUpdateMode(mode: UpdateMode): Promise<void> {
+  apply(await window.bridge.setUpdateMode(mode))
 }
 
 export function restartToUpdate(): Promise<boolean> {

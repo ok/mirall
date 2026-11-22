@@ -165,7 +165,13 @@ function config() {
   return configStore
 }
 
-initUpdater({ getDataDir, updatesEnabled, updatesOffReason: offReason })
+initUpdater({
+  getDataDir,
+  updatesEnabled,
+  updatesOffReason: offReason,
+  getUpdateMode: () => config().get('updates.mode'),
+  setUpdateMode: (mode) => config().set('updates.mode', mode),
+})
 initSettings({ config, installKind })
 initWorkerHost({ getPear, isDev, identityKEK: () => identityKEKHex, identityWeak: () => identityProtection === 'weak' })
 initMenus({ revealWindow, targetWindow, zoomByDirection, appName, isDev })

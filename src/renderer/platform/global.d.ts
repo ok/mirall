@@ -1,6 +1,6 @@
 import type { RelayParseResult, RelaySetPayload, RelaySetResult, RendererConfig, RendererConfigPatch } from './config-client.js'
 import type { ApplyErrorReport, DiagnosticLogEntry } from '../types/types.js'
-import type { UpdateStatus } from '../../shared/contract/update-status.js'
+import type { UpdateMode, UpdateStatus } from '../../shared/contract/update-status.js'
 
 export interface PkgInfo {
   name: string
@@ -123,6 +123,8 @@ export interface MirallBridge {
   getPathForFile(file: File): string
 
   checkForUpdate(): Promise<{ triggered: boolean; reason?: string }>
+  installUpdate(): Promise<{ triggered: boolean; reason?: string }>
+  setUpdateMode(mode: UpdateMode): Promise<UpdateStatus>
   getUpdateStatus(): Promise<UpdateStatus>
   onUpdateStatus(listener: (status: UpdateStatus) => void): () => void
   relaunch(): Promise<boolean>

@@ -528,7 +528,10 @@
   "updateBanner": {
     "available": "Update verfügbar (v{{version}})",
     "appliedOnNextStart": "wird beim nächsten Beenden und Öffnen von Mirall angewendet",
-    "dismiss": "Ausblenden"
+    "dismiss": "Ausblenden",
+    "offered": "Mirall v{{version}} ist verfügbar",
+    "later": "Später",
+    "install": "Aktualisieren"
   },
   "downloadFolder": {
     "restoredToast": "Download-Ordner ist wieder verfügbar",
@@ -672,11 +675,12 @@
     "showConnectionHistory": "Verbindungsverlauf anzeigen",
     "checkForUpdates": "Nach Updates suchen",
     "restartToUpdate": "Neu starten, um zu aktualisieren",
+    "installUpdate": "Mirall aktualisieren",
     "backUpNow": "Jetzt sichern",
     "exportActivityLog": "Aktivitätsprotokoll exportieren",
     "keywords": {
       "profile": "Konto Name Avatar Bild",
-      "about": "Version Lizenz Datenschutz",
+      "about": "Version Lizenz Datenschutz automatische Updates",
       "activityLog": "Audit Verlauf Ereignisse",
       "transfers": "Downloads Uploads Geschwindigkeit Senden",
       "storage": "Speicherplatz Festplatte Download-Ordner",
@@ -694,6 +698,7 @@
       "docs": "Hilfe Handbuch Anleitung",
       "checkForUpdates": "Aktualisierung neue Version Release",
       "restartToUpdate": "installieren Aktualisierung neue Version",
+      "installUpdate": "Aktualisierung neue Version installieren herunterladen",
       "backUpNow": "Backup Sicherung Snapshot"
     }
   },
@@ -768,18 +773,23 @@
     "updates": "Updates",
     "verdict": {
       "upToDateTitle": "Mirall ist aktuell",
-      "upToDateBody": "Geprüft {{when}}. Neue Versionen laden im Hintergrund und werden beim nächsten Öffnen von Mirall installiert.",
+      "upToDateBody": "Geprüft {{when}}.",
       "notCheckedTitle": "Noch nicht geprüft",
       "notCheckedBody": "Mirall sucht nach einer neueren Version, sobald es das Update-Netzwerk erreicht.",
+      "notCheckedManualBody": "Mirall sucht nicht von selbst nach neuen Versionen. Wähle „Jetzt prüfen“, um zu suchen.",
       "checkingTitle": "Suche nach Updates …",
       "checkingBody": "Mirall sucht nach einer neueren Version.",
       "downloadingTitle": "Update wird geladen",
       "downloadingBody": "Mirall arbeitet weiter, während das Update lädt.",
       "downloadingWaitingBody": "Mirall wartet auf das Update-Netzwerk. Der Download läuft weiter, sobald es erreichbar ist.",
+      "downloadingHeldBody": "Der Download läuft zu Ende, installiert wird das Update aber erst, wenn du „Aktualisieren“ wählst.",
       "readyTitle": "Update bereit: v{{version}}",
       "readyBody": "Es wird beim nächsten Beenden und Öffnen von Mirall installiert.",
+      "availableTitle": "Update verfügbar: v{{version}}",
+      "availableBody": "Wähle „Aktualisieren“, um es zu laden. Es wird beim nächsten Öffnen von Mirall installiert.",
       "errorTitle": "Suche nach Updates fehlgeschlagen",
       "errorBody": "Mirall konnte das Update-Netzwerk gerade nicht erreichen. Im Hintergrund hält es weiter Ausschau nach neuen Versionen.",
+      "errorManualBody": "Mirall konnte das Update-Netzwerk gerade nicht erreichen.",
       "offDebTitle": "Aktualisiert über deine Paketverwaltung",
       "offDebBody": "Mirall wurde als Debian-Paket installiert. Die Softwareaktualisierung deines Systems hält es aktuell.",
       "offTitle": "Automatische Updates sind aus",
@@ -791,16 +801,28 @@
     "tryAgain": "Erneut versuchen",
     "restartNow": "Jetzt neu starten",
     "restarting": "Wird neu gestartet …",
+    "install": "Aktualisieren",
+    "mode": {
+      "label": "Updates installieren",
+      "automatic": "Automatisch",
+      "notify": "Benachrichtigen",
+      "never": "Nie prüfen",
+      "automaticDesc": "Neue Versionen laden im Hintergrund und werden beim nächsten Öffnen von Mirall installiert.",
+      "notifyDesc": "Mirall meldet, wenn eine neue Version erscheint. Geladen und installiert wird erst, wenn du „Aktualisieren“ wählst.",
+      "neverDesc": "Mirall sucht erst nach neuen Versionen, wenn du „Jetzt prüfen“ wählst. Sicherheitskorrekturen gibt es nur für die neueste Version."
+    },
     "summary": {
       "upToDate": "Aktuell",
       "checking": "Suche nach Updates …",
       "downloading": "Update wird geladen …",
       "ready": "v{{version}} ist bereit – starte Mirall neu, um sie zu installieren",
+      "available": "v{{version}} ist verfügbar",
       "offDeb": "Aktualisiert über deine Paketverwaltung"
     },
     "dot": {
       "up-to-date": "Aktuell",
-      "ready": "Update bereit"
+      "ready": "Update bereit",
+      "available": "Update verfügbar"
     },
     "badge": {
       "beta": "Beta",

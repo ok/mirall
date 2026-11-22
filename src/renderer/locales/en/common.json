@@ -558,7 +558,10 @@
   "updateBanner": {
     "available": "App update available (v{{version}})",
     "appliedOnNextStart": "will be applied next time you quit and reopen Mirall",
-    "dismiss": "Dismiss"
+    "dismiss": "Dismiss",
+    "offered": "Mirall v{{version}} is available",
+    "later": "Later",
+    "install": "Update"
   },
   "downloadFolder": {
     "restoredToast": "Download folder is available again",
@@ -702,11 +705,12 @@
     "showConnectionHistory": "Show Connection History",
     "checkForUpdates": "Check for Updates",
     "restartToUpdate": "Restart to Update",
+    "installUpdate": "Update Mirall",
     "backUpNow": "Back Up Now",
     "exportActivityLog": "Export Activity Log",
     "keywords": {
       "profile": "account name avatar picture",
-      "about": "version license privacy",
+      "about": "version license privacy automatic updates",
       "activityLog": "audit history events",
       "transfers": "downloads uploads speed sending",
       "storage": "disk space download folder",
@@ -724,6 +728,7 @@
       "docs": "help manual guide",
       "checkForUpdates": "upgrade new version release",
       "restartToUpdate": "install upgrade new version",
+      "installUpdate": "upgrade new version install download",
       "backUpNow": "backup snapshot"
     }
   },
@@ -798,18 +803,23 @@
     "updates": "Updates",
     "verdict": {
       "upToDateTitle": "Mirall is up to date",
-      "upToDateBody": "Checked {{when}}. New versions download in the background and install the next time you reopen Mirall.",
+      "upToDateBody": "Checked {{when}}.",
       "notCheckedTitle": "Not checked yet",
       "notCheckedBody": "Mirall looks for a newer version as soon as it reaches the update network.",
+      "notCheckedManualBody": "Mirall doesn't look for new versions on its own. Choose Check now to look.",
       "checkingTitle": "Checking for updates…",
       "checkingBody": "Looking for a newer version of Mirall.",
       "downloadingTitle": "Downloading an update",
       "downloadingBody": "Mirall keeps working while the update downloads.",
       "downloadingWaitingBody": "Waiting for the update network. The download continues as soon as Mirall reaches it.",
+      "downloadingHeldBody": "This download will finish, but it won't be installed until you choose Update.",
       "readyTitle": "Update ready: v{{version}}",
       "readyBody": "It will be installed the next time you quit and reopen Mirall.",
+      "availableTitle": "Update available: v{{version}}",
+      "availableBody": "Choose Update to get it. It installs the next time you reopen Mirall.",
       "errorTitle": "Couldn't check for updates",
       "errorBody": "Mirall couldn't reach the update network just now. It keeps listening for new versions in the background.",
+      "errorManualBody": "Mirall couldn't reach the update network just now.",
       "offDebTitle": "Updated by your package manager",
       "offDebBody": "This copy of Mirall was installed as a Debian package. Your system's software updates keep it current.",
       "offTitle": "Automatic updates are off",
@@ -821,16 +831,28 @@
     "tryAgain": "Try again",
     "restartNow": "Restart now",
     "restarting": "Restarting…",
+    "install": "Update",
+    "mode": {
+      "label": "Install updates",
+      "automatic": "Automatically",
+      "notify": "Notify me",
+      "never": "Never check",
+      "automaticDesc": "New versions download in the background and install the next time you reopen Mirall.",
+      "notifyDesc": "Mirall tells you when a new version is out. Nothing is downloaded or installed until you choose Update.",
+      "neverDesc": "Mirall doesn't look for new versions until you choose Check now. Only the latest version gets security fixes."
+    },
     "summary": {
       "upToDate": "Up to date",
       "checking": "Checking for updates…",
       "downloading": "Downloading an update…",
       "ready": "v{{version}} is ready — restart Mirall to install it",
+      "available": "v{{version}} is available",
       "offDeb": "Updated by your package manager"
     },
     "dot": {
       "up-to-date": "Up to date",
-      "ready": "Update ready"
+      "ready": "Update ready",
+      "available": "Update available"
     },
     "badge": {
       "beta": "Beta",

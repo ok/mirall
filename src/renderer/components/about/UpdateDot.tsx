@@ -4,6 +4,7 @@ import type { UpdateLamp } from '../../model/about-view.js'
 const COLOR: Record<Exclude<UpdateLamp, 'neutral'>, string> = {
   'up-to-date': 'bg-online',
   ready: 'bg-secondary-container',
+  available: 'bg-secondary-container',
 }
 
 // The About row's update state, overlaid on its tile like the Connection and Backup dots.

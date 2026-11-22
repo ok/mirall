@@ -24,6 +24,8 @@ function defaults() {
     window: { bounds: null, zoom: 1 },
     appearance: { theme: 'system', locale: null },
     general: { minimizeToTray: true, openAtLogin: false, firstHideNoticeShown: false, appMenuAutoHide: false },
+    // Main's alone: the renderer writes the general group back whole, from its own copy.
+    updates: { mode: 'automatic' },
     notifications: null,
     ui: { lastSeenVersion: null, feedbackEmail: '' },
   }

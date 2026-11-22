@@ -4,6 +4,10 @@
 // never spawns a worker has no reason to pay for. applyUpdate is wrapped rather than called
 // directly — the update lands inside an asar window that has to be opened and closed around it,
 // and the applied build needs its executable bit back on the platforms that lose it.
+//
+// The user's update mode decides how far a pass goes (update-policy.js): every pass is gated, every
+// apply is checked, and the update swarm is joined only while the mode or a pass the user asked for
+// needs it.
 
 const path = require('path')
 const fs = require('fs')
@@ -19,6 +23,8 @@ const applyErrors = require('./apply-error.js')
 const updateCache = require('./update-cache.js')
 const { trackUpdateDownload } = require('./update-progress.js')
 const { initialUpdateStatus, createUpdateStatus } = require('./update-status.js')
+const { createUpdatePolicy } = require('./update-policy.js')
+const { UPDATE_MODE, UPDATE_MODES, UPDATE_STATE } = require('../shared/contract/update-status.js')
 
 const pkg = require('../../package.json')
 const appName = pkg.productName || pkg.name
@@ -26,6 +32,14 @@ const version = pkg.version
 const upgrade = pkg.upgrade
 
 let pear = null
+// The swarm that follows the update drive: the runtime's own, used for nothing else.
+let updateSwarm = null
+let joined = false
+// Passes the user asked for that need the update network while the mode keeps it closed.
+let userPasses = 0
+// The version a non-automatic pass let through to download, until the updater names what it staged.
+let passTarget = null
+let passManual = false
 // Update passes and prunes take turns: a prune never runs while a pass mirrors or prefetches.
 let cacheTurn = Promise.resolve()
 let passRunning = false
@@ -52,12 +66,67 @@ let getDataDir = null
 let updatesEnabled = false
 let updatesOffReason = null
 let updateStatus = createUpdateStatus(initialUpdateStatus({ offReason: null, canRestart: false }))
+// The mode lives in config.json; the policy reads it through the entry's accessor on every decision,
+// and the status learns it when the runtime is built.
+let setUpdateMode = null
+let policy = createUpdatePolicy({ running: version, getMode: () => UPDATE_MODE.AUTOMATIC })
 
 function initUpdater(d) {
   getDataDir = d.getDataDir
   updatesEnabled = d.updatesEnabled
   updatesOffReason = d.updatesOffReason ?? null
+  setUpdateMode = d.setUpdateMode
+  policy = createUpdatePolicy({ running: version, getMode: d.getUpdateMode })
   updateStatus = createUpdateStatus(initialUpdateStatus({ offReason: updatesOffReason, canRestart: canRelaunchIntoUpdate() }))
+}
+
+// What the windows show beside the state: the mode, and whether the update in flight or staged
+// waits for the user. An update already applied in place (Windows, Linux) cannot wait any more.
+function dispatchPolicy() {
+  const u = pear?.updater
+  const held = !u?.applied && !policy.mayInstall(u?.nextVersion ?? passTarget)
+  updateStatus.dispatch({ type: 'policy', mode: policy.mode(), held })
+}
+
+// A pass already running keeps the network until it ends: a download cut off mid-way would stall
+// rather than finish and wait.
+function syncUpdateNetwork() {
+  if (!updateSwarm || !pear?.updater) return
+  const wanted = policy.mode() !== UPDATE_MODE.NEVER || userPasses > 0 || passRunning
+  if (wanted === joined) return
+  joined = wanted
+  const topic = pear.updater.drive.core.discoveryKey
+  if (wanted) {
+    updateSwarm.join(topic, { client: true, server: false })
+    return
+  }
+  updateSwarm.leave(topic).catch((err) => console.error('update swarm leave failed:', err))
+  for (const connection of updateSwarm.connections) connection.destroy()
+}
+
+// The hook the updater awaits before each pass; true stops the pass before it downloads anything.
+async function gatePass() {
+  const decision = await policy.gate(pear.updater.drive, { manual: passManual })
+  if (decision === null) {
+    passTarget = null
+    updateStatus.dispatch({ type: 'pass-start' })
+    return false
+  }
+  if (decision.available === undefined) return true
+  updateStatus.dispatch({ type: 'pass-start' })
+  if (decision.skip) {
+    updateStatus.dispatch({ type: 'available', version: decision.available })
+    return true
+  }
+  passTarget = decision.available
+  return false
+}
+
+// Windows and Linux put a staged update in place as soon as it may install: see the note at the
+// 'updated' listener.
+function prestage(u) {
+  if (!(isWindows || isLinux) || !policy.mayInstall(u.nextVersion)) return
+  u.applyUpdate().catch((err) => console.error('background apply failed:', err))
 }
 
 // macOS swaps the bundle at quit and an AppImage is swapped in place, so a relaunch starts the new
@@ -123,6 +192,7 @@ function getPear() {
     // updater runs whenever the user is on the installed MSIX.
     bundled: isWindows ? app.isPackaged : undefined,
     updates: updatesEnabled,
+    skipUpdate: gatePass,
     version,
     upgrade,
     name: getRuntimeName(),
@@ -149,9 +219,9 @@ function getPear() {
   // version only when it is whole on this device. A failed prune never fails the pass.
   u._update = async () => {
     passRunning = true
-    updateStatus.dispatch({ type: 'pass-start' })
     const manual = manualCheck
     manualCheck = false
+    passManual = manual
     try {
       await withCacheTurn(pass)
       updateStatus.dispatch({ type: 'pass-end', reached: u.drive.core.peers.length > 0, manual })
@@ -160,6 +230,7 @@ function getPear() {
       throw err
     } finally {
       passRunning = false
+      syncUpdateNetwork()
       download?.stop()
       download = null
       await pruneInTurn(u).catch((err) => console.error('update cache prune failed:', err))
@@ -190,8 +261,10 @@ function getPear() {
     }
   }
   if (updatesEnabled) {
+    updateSwarm = swarm
     swarm.on('connection', (connection) => store.replicate(connection))
-    swarm.join(u.drive.core.discoveryKey, { client: true, server: false })
+    dispatchPolicy()
+    syncUpdateNetwork()
     u.on('error', (err) => console.error('pear updater error:', err))
     u.on('updating', () => {
       download?.stop()
@@ -202,7 +275,10 @@ function getPear() {
     u.on('updating-progress', (stats) => {
       if (download) updateStatus.dispatch({ type: 'progress', fraction: download.fraction(), peers: stats.peers })
     })
-    u.on('updated', () => updateStatus.dispatch({ type: 'ready', version: u.nextVersion }))
+    u.on('updated', () => {
+      dispatchPolicy()
+      updateStatus.dispatch({ type: 'ready', version: u.nextVersion })
+    })
     // The boot pass usually runs before any peer is connected, so the first peer gets a pass of its
     // own: that is the check that tells whether this build is current.
     if (u.bundled) {
@@ -220,9 +296,7 @@ function getPear() {
   // macOS keeps the at-quit path: fsx.swap mid-session would let any later
   // disk re-read see new-version files mixed with old in-memory code.
   if (updatesEnabled && (isWindows || isLinux)) {
-    u.on('updated', () => {
-      u.applyUpdate().catch((err) => console.error('background apply failed:', err))
-    })
+    u.on('updated', () => prestage(u))
   }
   pear.on('error', (err) => console.error('pear error:', err))
   return pear
@@ -234,6 +308,7 @@ function getPear() {
 function applyPendingUpdate() {
   if (!updatesEnabled) return null
   if (!pear?.updater?.updated || pear.updater.applied) return null
+  if (!policy.mayInstall(pear.updater.nextVersion)) return null
   return pear.updater.applyUpdate()
 }
 
@@ -250,11 +325,60 @@ function waitForPeer(core, ms) {
   })
 }
 
-async function runManualCheck(updater) {
+// A pass the user asked for: a check, or the download of a version they approved. It opens the
+// update network for its own duration when the mode keeps it closed.
+async function runUserPass(updater) {
   manualCheck = true
+  userPasses++
+  syncUpdateNetwork()
+  try {
+    await waitForPeer(updater.drive.core, PEER_WAIT_MS)
+    await updater._debouncedUpdate()
+  } finally {
+    userPasses--
+    syncUpdateNetwork()
+  }
+}
+
+async function runManualCheck(updater) {
   updateStatus.dispatch({ type: 'pass-start' })
-  await waitForPeer(updater.drive.core, PEER_WAIT_MS)
-  await updater._debouncedUpdate()
+  await runUserPass(updater)
+}
+
+// The user's go-ahead for the version they were shown. One already staged is ready at once; any
+// other downloads now.
+function installAvailable(updater) {
+  const { state, nextVersion } = updateStatus.get()
+  if (state !== UPDATE_STATE.AVAILABLE || !nextVersion) return false
+  policy.approve(nextVersion)
+  if (updater.updated && !updater.applied && updater.nextVersion === nextVersion) {
+    dispatchPolicy()
+    updateStatus.dispatch({ type: 'ready', version: nextVersion })
+    prestage(updater)
+    return true
+  }
+  passTarget = nextVersion
+  dispatchPolicy()
+  updateStatus.dispatch({ type: 'downloading' })
+  runUserPass(updater).catch((err) => console.error('update install failed:', err))
+  return true
+}
+
+// A mode change takes effect at once: a staged update it no longer lets install waits, one it now
+// lets install is ready, and a version that waited downloads.
+function changeUpdateMode(mode) {
+  setUpdateMode(mode)
+  const u = pear?.updater
+  dispatchPolicy()
+  if (!updatesEnabled || !u) return
+  syncUpdateNetwork()
+  if (mode !== UPDATE_MODE.AUTOMATIC) return
+  if (u.updated && !u.applied) {
+    updateStatus.dispatch({ type: 'ready', version: u.nextVersion })
+    prestage(u)
+  } else if (updateStatus.get().state === UPDATE_STATE.AVAILABLE) {
+    u._debouncedUpdate().catch((err) => console.error('update pass failed:', err))
+  }
 }
 
 function onUpdateStatus(listener) {
@@ -319,6 +443,19 @@ function registerUpdater() {
     if (!p.updater) return { triggered: false, reason: 'updater disabled' }
     runManualCheck(p.updater).catch((err) => console.error('update check failed:', err))
     return { triggered: true }
+  })
+
+  ipcMain.handle('pear:installUpdate', () => {
+    if (!updatesEnabled) return { triggered: false, reason: updatesOffReason ?? 'updates disabled' }
+    const p = getPear()
+    if (!p.updater) return { triggered: false, reason: 'updater disabled' }
+    return installAvailable(p.updater) ? { triggered: true } : { triggered: false, reason: 'no update waiting' }
+  })
+
+  ipcMain.handle('pear:setUpdateMode', (_evt, mode) => {
+    if (!UPDATE_MODES.includes(mode)) throw new Error(`unknown update mode: ${mode}`)
+    changeUpdateMode(mode)
+    return updateStatus.get()
   })
 
   // The quit sequence applies a staged macOS update before the process exits, so the relaunched

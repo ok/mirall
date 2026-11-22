@@ -6,7 +6,7 @@ import { useChannelFault } from './hooks/useChannelFault.js'
 import { useProfile } from './hooks/useProfile.js'
 import { useIdentityStatus, type IdentityStatusView } from './hooks/useIdentityStatus.js'
 import { restoreHoldView } from './model/restore-hold-view.js'
-import { useUpdates } from './hooks/useUpdates.js'
+import { useUpdates, useInstallUpdate } from './hooks/useUpdates.js'
 import { useSpaces } from './hooks/useSpaces.js'
 import { useAppNavigation, type AppNavigation } from './hooks/useAppNavigation.js'
 import { useAppShellEffects } from './hooks/useAppShellEffects.js'
@@ -104,7 +104,8 @@ function AppShell({ nav, profile, onSaveProfile, deepLinks, identity }: AppShell
   const { t } = useTranslation()
   const hold = restoreHoldView(identity.restore)
   const { spaces, loading: spacesLoading, createSpace, joinSpace, toggleFavorite } = useSpaces()
-  const { update, dismissed, dismiss } = useUpdates()
+  const { banner, dismissed, dismiss } = useUpdates()
+  const installFromBanner = useInstallUpdate(() => nav.setCurrentScreen('about'))
   const [dialog, setDialog] = useState<AppDialog | null>(null)
   const closeDialog = useCallback(() => setDialog(null), [])
   const canGoBack = useCanGoBack(nav.currentScreen)
@@ -168,8 +169,9 @@ function AppShell({ nav, profile, onSaveProfile, deepLinks, identity }: AppShell
           onFeedbackClick={() => setDialog({ kind: 'feedback' })}
           onTransfersClick={nav.openTransfers}
           transfersCurrent={nav.currentScreen === 'transfers'}
-          updateVersion={dismissed ? null : update}
+          update={dismissed ? null : banner}
           onDismissUpdate={dismiss}
+          onInstallUpdate={installFromBanner}
           restoreBanner={hold.active ? (
             <RestoreBanner
               hold={hold}

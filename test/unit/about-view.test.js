@@ -1,7 +1,7 @@
 import test from 'brittle'
-import { updateVerdict, updateDot, updateDownload, updateSummaryKey, releaseChannel } from '../../src/renderer/model/about-view.js'
+import { updateVerdict, updateDot, updateDownload, updateSummaryKey, updateBodyKey, releaseChannel } from '../../src/renderer/model/about-view.js'
 
-const BASE = { state: 'idle', nextVersion: null, lastCheckedAt: null, offReason: null, canRestart: true, progress: null, waitingForPeers: false }
+const BASE = { state: 'idle', nextVersion: null, lastCheckedAt: null, offReason: null, canRestart: true, progress: null, waitingForPeers: false, mode: 'automatic', held: false }
 const status = (patch) => ({ ...BASE, ...patch })
 
 test('only a confirmed check is up to date', (t) => {
@@ -56,4 +56,26 @@ test('the channel comes from the baked version', (t) => {
   t.is(releaseChannel('1.12.0-beta.66', false), 'beta')
   t.is(releaseChannel('1.12.0-dev.4', false), 'dev')
   t.is(releaseChannel('1.12.0', true), 'source')
+})
+
+test('a version waiting for the go-ahead offers Update and wears its own dot', (t) => {
+  const s = status({ state: 'available', nextVersion: '2.0.0', mode: 'notify' })
+  t.alike(updateVerdict(s), { lamp: 'available', key: 'available', action: 'install' })
+  t.is(updateDot(s), 'available')
+  t.is(updateSummaryKey(s), 'about.summary.available')
+})
+
+test('a held download says it will not install on its own', (t) => {
+  t.is(updateDownload(status({ state: 'downloading', progress: 10, held: true })).bodyKey, 'downloadingHeld')
+  t.is(updateDownload(status({ state: 'downloading', progress: 10, held: true, waitingForPeers: true })).bodyKey, 'downloadingWaiting', 'a stalled download says why it stalls first')
+})
+
+test('with never checking, no sentence promises a look in the background', (t) => {
+  const never = (patch) => status({ mode: 'never', ...patch })
+  t.is(updateBodyKey(never({})), 'notCheckedManual')
+  t.is(updateBodyKey(never({ state: 'error' })), 'errorManual')
+  t.is(updateBodyKey(never({ lastCheckedAt: 1 })), 'upToDate')
+  t.is(updateBodyKey(status({})), 'notChecked', 'the other modes keep theirs')
+  t.is(updateBodyKey(status({ state: 'error', mode: 'notify' })), 'error')
+  t.is(updateBodyKey(status({ state: 'downloading', progress: 5 })), 'downloading', 'a download names its own line')
 })

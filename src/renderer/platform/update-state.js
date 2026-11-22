@@ -1,16 +1,18 @@
 // The renderer's view of main's update status, plus the banner's dismissal. The banner shows while
-// an update is staged and not dismissed; About ignores the dismissal. A different staged version
-// clears it, so a newer update is announced again.
-import { UPDATE_STATE } from '../../shared/contract/update-status.js'
+// an update is staged, or waits for the user's go-ahead, and is not dismissed; About ignores the
+// dismissal. A different version, or the same one moving from waiting to staged, clears it, so each
+// is announced once.
+import { UPDATE_STATE, UPDATE_MODE } from '../../shared/contract/update-status.js'
 
 /**
  * @import { UpdateStatus } from '../../shared/contract/update-status.js'
  * @typedef {{ status: UpdateStatus, dismissed: boolean }} UpdateViewState
+ * @typedef {{ kind: 'ready' | 'available', version: string }} BannerUpdate
  */
 
 /** @type {UpdateViewState} */
 export const initialUpdateState = {
-  status: { state: UPDATE_STATE.IDLE, nextVersion: null, lastCheckedAt: null, offReason: null, canRestart: false, progress: null, waitingForPeers: false },
+  status: { state: UPDATE_STATE.IDLE, nextVersion: null, lastCheckedAt: null, offReason: null, canRestart: false, progress: null, waitingForPeers: false, mode: UPDATE_MODE.AUTOMATIC, held: false },
   dismissed: false,
 }
 
@@ -20,7 +22,13 @@ export const initialUpdateState = {
  * @returns {UpdateViewState}
  */
 export function reduceStatus(prev, status) {
-  return { status, dismissed: status.nextVersion === prev.status.nextVersion ? prev.dismissed : false }
+  return { status, dismissed: bannerKey(status) === bannerKey(prev.status) ? prev.dismissed : false }
+}
+
+/** @param {UpdateStatus} status */
+function bannerKey(status) {
+  const banner = bannerUpdate(status)
+  return banner ? `${banner.kind}:${banner.version}` : null
 }
 
 /**
@@ -33,9 +41,13 @@ export function reduceDismissed(prev) {
 }
 
 /**
+ * What the banner announces: a staged update, or one waiting for the user's go-ahead.
  * @param {UpdateStatus} status
- * @returns {string | null}
+ * @returns {BannerUpdate | null}
  */
-export function stagedVersion(status) {
-  return status.state === UPDATE_STATE.READY ? status.nextVersion : null
+export function bannerUpdate(status) {
+  if (!status.nextVersion) return null
+  if (status.state === UPDATE_STATE.READY) return { kind: 'ready', version: status.nextVersion }
+  if (status.state === UPDATE_STATE.AVAILABLE) return { kind: 'available', version: status.nextVersion }
+  return null
 }
