@@ -179,5 +179,5 @@ async function runPass(threads, job) {
 // or null when the threads are unavailable or stopped during the pass. Rejects as the
 // worker-thread pass does: ECANCELLED on job.signal, a read error as it is.
 export function prepareOnThreads(hashThreads, job) {
-  return hashThreads.run((threads) => runPass(threads, job))
+  return hashThreads.run((threads) => runPass(threads, job), job.signal)
 }

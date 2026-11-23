@@ -2,6 +2,7 @@
 // every file, and the worker-thread pass whenever the threads cannot carry a file.
 import test from 'brittle'
 import { tmpStore, tmpDir, fs, path } from './overlay-engine-helpers.js'
+import { scaled } from '../helpers/bare-timing.js'
 import { FileIndex } from '../../src/shared/transfer/overlay/engine/store/file-index.js'
 import { prepareForServe, hostReadBlock } from '../../src/shared/transfer/overlay/engine/transfer/prepare.js'
 import { createHashThreads } from '../../src/shared/transfer/overlay/engine/transfer/hash-threads.js'
@@ -28,9 +29,9 @@ function writeFile(dir, name, size, fill = 'random') {
 // The threads behind a counter, so a test can assert that a file really went through them.
 function counted(hashThreads) {
   const seen = { runs: 0, carried: 0 }
-  const run = async (pass) => {
+  const run = async (pass, signal) => {
     seen.runs++
-    const result = await hashThreads.run(pass)
+    const result = await hashThreads.run(pass, signal)
     if (result) seen.carried++
     return result
   }
@@ -135,6 +136,31 @@ test('cancel ends a threaded prepare with ECANCELLED and leaves the threads usab
   t.alike(actual.chunks, expected.chunks)
   t.is(seen.carried, 1, 'and on the threads')
   t.alike(unavailable, [], 'a cancel is not a thread failure')
+})
+
+// REGRESSION (FIX-HASH-TURN-CANCEL: passes take turns on the threads, and a cancelled one that was
+// still waiting for its turn stayed until the file ahead of it was hashed to its end.)
+test('REGRESSION (FIX-HASH-TURN-CANCEL): a prepare cancelled while it waits for the threads ends at once', { timeout: scaled(15000) }, async (t) => {
+  const { index, dir, hashThreads, threads, seen } = await setup(t)
+  const filePath = writeFile(dir, 'waiting', 2 * BLOCK + 7)
+  let finishAhead
+  const ahead = hashThreads.run(() => new Promise((resolve) => { finishAhead = () => resolve('ahead') }))
+  const signal = { aborted: false }
+  const waiting = prepareForServe(index, filePath, { hashThreads: threads, signal })
+  signal.aborted = true
+  try {
+    await waiting
+    t.fail('did not reject')
+  } catch (err) {
+    t.is(err.code, 'ECANCELLED', 'cancelled while the pass ahead still holds the threads')
+  }
+  finishAhead()
+  t.is(await ahead, 'ahead', 'the pass ahead is not disturbed')
+
+  const expected = await prepareForServe(index, filePath)
+  const actual = await prepareForServe(index, filePath, { hashThreads: threads })
+  t.is(actual.contentHash, expected.contentHash, 'the next file is hashed correctly')
+  t.is(seen.carried, 1, 'and on the threads, which the cancelled pass never took')
 })
 
 test('the cancel error carries the code the publish path reads', async (t) => {
