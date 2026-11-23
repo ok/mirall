@@ -27,6 +27,11 @@ const SMALL_BLOCK_BYTES = 4 * 1024 * 1024
 // the worker thread.
 const MAX_STARTS = 3
 
+// How often a pass waiting for its turn reads its cancel signal, which is a plain boolean.
+const TURN_CANCEL_POLL_MS = 50
+
+const cancelled = () => codedError('publish aborted', 'ECANCELLED')
+
 /** The threads went away during a pass; the pass is repeated on the worker thread. */
 export class HashThreadsStopped extends Error {}
 
@@ -133,7 +138,7 @@ export function createHashThreads({ blockSize, onUnavailable = null, entry = ENT
       if (!(err instanceof HashThreadsStopped)) throw err
       await drop(t)
       // close() took the threads away: the overlay is going down, and the pass ends with it.
-      if (closed) throw codedError('publish aborted', 'ECANCELLED')
+      if (closed) throw cancelled()
       report(err)
       return null
     } finally {
@@ -145,10 +150,27 @@ export function createHashThreads({ blockSize, onUnavailable = null, entry = ENT
     blockSize,
     // Runs pass(threads) with the threads to itself: the content hash is one stream, so passes
     // take turns. Resolves null when the threads are unavailable or stopped during the pass.
-    run(pass) {
-      const result = queue.then(() => runPass(pass))
+    // A pass waiting for its turn rejects as cancelled once signal.aborted is set: the pass ahead
+    // can take minutes, and it never reads another pass's signal. Once it has the threads, the
+    // cancel is the pass's own to honour.
+    run(pass, signal = null) {
+      let waiting = true
+      const result = queue.then(() => {
+        waiting = false
+        if (signal?.aborted) throw cancelled()
+        return runPass(pass)
+      })
       queue = result.catch(() => {})
-      return result
+      if (!signal) return result
+      return new Promise((resolve, reject) => {
+        const poll = setInterval(() => {
+          if (!waiting) return clearInterval(poll)
+          if (!signal.aborted) return
+          clearInterval(poll)
+          reject(cancelled())
+        }, TURN_CANCEL_POLL_MS)
+        result.then(resolve, reject).finally(() => clearInterval(poll))
+      })
     },
     // Ends the threads at once. A pass in flight sees them stop and rejects as cancelled.
     async close() {
