@@ -26,17 +26,17 @@ export const UPDATES_OFF_REASON = Object.freeze({
 export const UPDATES_OFF_REASONS = Object.freeze(Object.values(UPDATES_OFF_REASON))
 
 // How much of an update runs without the user: `automatic` downloads and installs, `notify` looks
-// and tells, `never` stays off the update network until the user checks.
+// and tells. There is no mode that stops looking: a user can decline a version, not the knowledge
+// that one exists.
 export const UPDATE_MODE = Object.freeze({
   AUTOMATIC: 'automatic',
   NOTIFY: 'notify',
-  NEVER: 'never',
 })
 
 export const UPDATE_MODES = Object.freeze(Object.values(UPDATE_MODE))
 
 /**
- * A stored mode that is not one of the three reads as the default.
+ * A stored mode that is not in the vocabulary reads as the default.
  * @param {unknown} value
  * @returns {UpdateMode}
  */

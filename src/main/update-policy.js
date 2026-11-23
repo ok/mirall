@@ -1,7 +1,6 @@
 // Which update work runs without the user. In `automatic` mode every pass downloads and every staged
-// update installs. In `notify` and `never` a newer version is reported and waits: none of its bytes
-// are fetched and nothing is installed until the user approves that exact version. `never` also keeps
-// every pass the user did not ask for off the update network, so it does not even read the version.
+// update installs. In `notify` a newer version is reported and waits: none of its bytes are fetched
+// and nothing is installed until the user approves that exact version.
 //
 // The updater runs `gate` before each pass (its `skipUpdate` hook) and asks `mayInstall` before each
 // apply; the apply check is what keeps an update that finished downloading before the mode changed
@@ -36,15 +35,6 @@ async function readRemoteVersion(drive) {
 }
 
 /**
- * Whether a pass reads the update drive before deciding. Only `never` skips the read, and only for a
- * pass nobody asked for while no approved version is waiting to download.
- * @param {{ mode: string, manual: boolean, approved: string | null }} facts
- */
-function needsRead({ mode, manual, approved }) {
-  return mode !== UPDATE_MODE.NEVER || manual || approved !== null
-}
-
-/**
  * What a non-automatic pass does once the offered version is known: `available` is the newer version
  * to report (null when the running build is current), `skip` stops the pass before it downloads.
  * @param {{ remote: string | null, running: string, approved: string | null }} facts
@@ -64,11 +54,9 @@ function createUpdatePolicy({ running, getMode }) {
     approve(version) {
       approved = version
     },
-    // Null when the pass may run as the updater would run it; otherwise the decision, whose `skip`
-    // is the hook's answer.
-    async gate(drive, { manual }) {
+    // Null when the pass runs as the updater would run it; otherwise the decision for this pass.
+    async gate(drive) {
       if (mode() === UPDATE_MODE.AUTOMATIC) return null
-      if (!needsRead({ mode: mode(), manual, approved })) return { skip: true, available: undefined }
       return passDecision({ remote: await readRemoteVersion(drive), running, approved })
     },
     mayInstall(version) {
@@ -77,4 +65,4 @@ function createUpdatePolicy({ running, getMode }) {
   }
 }
 
-module.exports = { createUpdatePolicy, needsRead, passDecision, readRemoteVersion }
+module.exports = { createUpdatePolicy, passDecision }

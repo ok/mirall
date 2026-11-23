@@ -1143,11 +1143,13 @@ info strip (`host="info-container"`), which takes the strip's own foreground for
 About's update card (`about/UpdateVerdictBanner.tsx`) shows a `DownloadProgressLane` under its
 sentence while an update downloads: the percentage once the download is sized, the indeterminate
 sweep before that, and a standing bar while no peer is left. The lane sits outside the card's
-`role="status"` region, so progress is never announced per change. Under it, while updates are not
-off, `about/UpdateModeRow.tsx` holds the update mode: the same card surface with a label and a
-`SegmentedControl` (Automatically · Notify me · Never check), and one sentence below that says what the
-shown mode does; every segment is described by it. Under `never` the card's sentences stop promising
-a look in the background. `npm run test:layout:case -- updatemode` pins it in real Chromium.
+`role="status"` region, so progress is never announced per change. The update mode is
+set in Settings → General, in `screens/settings/UpdateModeCard.tsx`: the
+card surface with a label and a `SegmentedControl` (Automatically · Notify me), and one sentence
+below that says what the shown mode does; every segment is described by it. Each sentence fits one
+line in every language, so the card keeps its height when the mode changes. On a copy that does not
+update itself the segments are locked, none is pressed, and the sentence says why.
+`npm run test:layout:case -- updatemode` pins it in real Chromium.
 
 The transfer-row variant — `primitives/DownloadProgressLane.tsx` — adds a meta line (speed · ETA,
 ETA alone, or downloaded-so-far) and an **indeterminate** mode used while the ETA is still warming

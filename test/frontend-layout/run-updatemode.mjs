@@ -1,6 +1,6 @@
 // About update-mode test (LOCAL/dev-machine only — spawns a real Electron GUI process). Mounts the
-// real <UpdateModeRow>, <UpdateVerdictBanner> and <UpdateBanner> and asserts what each update mode
-// and waiting state exposes, and that the mode row fits its card in every language.
+// real <UpdateModeCard>, <UpdateVerdictBanner> and <UpdateBanner> and asserts what each update mode
+// and waiting state exposes, and that the mode card fits its width in every language.
 //
 //   node test/frontend-layout/run-updatemode.mjs            (builds, then runs)
 //   node test/frontend-layout/run-updatemode.mjs --no-build (reuse existing bundle)

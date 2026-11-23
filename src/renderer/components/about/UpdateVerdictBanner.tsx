@@ -2,7 +2,7 @@
 import { useTranslation } from 'react-i18next'
 import { UPDATE_STATE, type UpdateStatus } from '../../../shared/contract/update-status.js'
 import { formatDateTime } from '../../format/utils.js'
-import { updateBodyKey, updateDownload, updateVerdict, type UpdateLamp } from '../../model/about-view.js'
+import { updateDownload, updateVerdict, type UpdateLamp } from '../../model/about-view.js'
 import Button from '../primitives/Button.js'
 import DownloadProgressLane from '../primitives/DownloadProgressLane.js'
 
@@ -37,7 +37,7 @@ export default function UpdateVerdictBanner({ status, restarting, onCheck, onRes
             {t(`about.verdict.${verdict.key}Title`, { version: status.nextVersion ?? '' })}
           </p>
           <p className="text-sm text-on-surface-variant mt-1">
-            {t(`about.verdict.${updateBodyKey(status)}Body`, { when: status.lastCheckedAt ? formatDateTime(status.lastCheckedAt) : '' })}
+            {t(`about.verdict.${download?.bodyKey ?? verdict.key}Body`, { when: status.lastCheckedAt ? formatDateTime(status.lastCheckedAt) : '' })}
           </p>
         </div>
         {/* Outside the live region: a bar announces through its own value, never per tick. */}

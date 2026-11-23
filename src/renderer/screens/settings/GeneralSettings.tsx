@@ -1,10 +1,15 @@
-// General settings: minimize-to-tray and open-at-login toggles persisted via main's app prefs.
+// General settings: minimize-to-tray and open-at-login toggles persisted via main's app prefs, and
+// the update mode.
 import { useTranslation } from 'react-i18next'
 import { useHasVerticalOverflow } from '../../hooks/useHasVerticalOverflow.js'
 import { useMainQuery } from '../../store/useMainQuery.js'
 import { useRunAction } from '../../hooks/useRunAction.js'
 import PageHeader from '../../components/layout/PageHeader.js'
+import SectionHeading from '../../components/layout/SectionHeading.js'
 import Toggle from '../../components/primitives/Toggle.js'
+import { useUpdates } from '../../hooks/useUpdates.js'
+import { setUpdateMode } from '../../platform/updates.js'
+import UpdateModeCard from './UpdateModeCard.js'
 
 interface GeneralSettingsProps {
   onBack: () => void
@@ -14,6 +19,7 @@ export default function GeneralSettings({ onBack }: GeneralSettingsProps) {
   const { t } = useTranslation()
   const { data: prefs, patch: update } = useMainQuery('main:prefs')
   const runAction = useRunAction()
+  const { status } = useUpdates()
   const { ref, hasOverflow } = useHasVerticalOverflow<HTMLDivElement>()
   const isMac = window.bridge.getPlatform() === 'darwin'
   const introKey = isMac ? 'generalSettings.introMac' : 'generalSettings.intro'
@@ -50,6 +56,10 @@ export default function GeneralSettings({ onBack }: GeneralSettingsProps) {
                 onChange={(v) => runAction(() => update({ openAtLogin: v }))}
               />
             </div>
+          </section>
+          <section>
+            <SectionHeading>{t('generalSettings.updates')}</SectionHeading>
+            <UpdateModeCard status={status} onChange={setUpdateMode} />
           </section>
         </div>
       </div>

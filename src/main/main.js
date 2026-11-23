@@ -93,7 +93,10 @@ const customStorage = boot.flags.storage
 // OTA is off without an upgrade key (pear-runtime-updater throws otherwise), under --no-updates,
 // and on a .deb install, whose updates come from the package manager (install-kind.js).
 const installKind = linuxInstallKind({ isLinux, isPackaged: app.isPackaged })
-const offReason = updatesOffReason({ installKind, updatesFlag: boot.flags.updates, upgrade })
+// MIRALL_UPDATE_PREVIEW=<version> has a development run offer that version through a stand-in
+// updater (update-preview.js), so the update screens can be seen without an update drive.
+const previewVersion = envOverride('MIRALL_UPDATE_PREVIEW') || null
+const offReason = previewVersion ? null : updatesOffReason({ installKind, updatesFlag: boot.flags.updates, upgrade })
 const updatesEnabled = offReason === null
 if (installKind === 'deb') console.log('[updater] deb install: updates come from the package manager')
 const startHiddenFlag = !!boot.flags.hidden
@@ -169,8 +172,8 @@ initUpdater({
   getDataDir,
   updatesEnabled,
   updatesOffReason: offReason,
-  getUpdateMode: () => config().get('updates.mode'),
-  setUpdateMode: (mode) => config().set('updates.mode', mode),
+  previewVersion,
+  config,
 })
 initSettings({ config, installKind })
 initWorkerHost({ getPear, isDev, identityKEK: () => identityKEKHex, identityWeak: () => identityProtection === 'weak' })

@@ -1738,30 +1738,40 @@ platform's bundle into `pear-runtime/next/<length>.<fork>` and emits `updating` 
 At an *equal* version it only prefetches. The installed build must therefore equal the staged drive
 version, or the banner loops on every launch (→ `build-process.md`).
 
-**Update mode.** The user picks how much of that runs alone (About → Updates, `updates.mode` in
+**Update mode.** The user picks how much of that runs alone (Settings → General, `updates.mode` in
 `config.json`, vocabulary `UPDATE_MODE` in `contract/update-status.js`): `automatic` (the default,
-everything above), `notify` and `never`. `src/main/update-policy.js` decides, and `updater.js` asks it
-at three points:
+everything above) or `notify`. There is no mode that stops looking: a user can decline a version,
+but the app always learns that one exists, because only the latest release is supported.
+`src/main/update-policy.js` decides and `src/main/update-mode.js` carries the answer to the two
+points in `updater.js` that act on it:
 
-- **Before each pass**, as the updater's `skipUpdate` hook. Outside `automatic` the hook reads the
-  drive head's `/package.json` and stops the pass, so a newer version is reported as `available`
-  and none of its blocks are fetched, and the same-version prefetch does not run either. Only the
-  version the user approved (`pear:installUpdate`) gets through. `never` stops a pass nobody asked
-  for before it reads anything.
+- **Before each pass**, as the updater's `skipUpdate` hook. In `notify` the hook reads the drive
+  head's `/package.json` and stops the pass, so a newer version is reported as `available` and
+  none of its blocks are fetched. Only the version the user approved (`pear:installUpdate`) gets
+  through. The approval is held in memory: after a restart the version is offered again.
 - **Before each apply** (the quit sequence, and the Windows/Linux pre-stage). An update that finished
   downloading under `automatic` does not install once the mode changed, unless that version is
   approved; the updater cannot cancel a mirror already running, so a download in flight finishes
   and waits (`held`). One already applied in place on Windows or Linux stays applied.
-- **Joining the update swarm.** Under `never` the swarm is left and its connections closed once no
-  pass is running; a check or an approved download joins it for its own duration.
 
-The mode is not part of a backup: it is a choice for this device, like the login item.
+Stopping the pass also skips the same-version prefetch, so in `notify` an approved update downloads
+whole instead of only the blocks that changed: nothing is fetched that the user did not ask for.
+
+The mode has its own config group because main rewrites `general` whole from the record `prefs.js`
+keeps in memory. It is not part of a backup: it is a choice for this device, like the login item.
+
+**Previewing it in a development run.** A source build has no update drive, so
+`MIRALL_UPDATE_PREVIEW=<version> npm start` builds a stand-in updater (`src/main/update-preview.js`)
+that offers that version through the same mode control, policy and status. A check finds it, a
+download takes a few seconds and "installing" changes nothing on disk. A packaged build ignores the
+variable like every other `MIRALL_*` lever.
 
 **Status.** Main owns one update status (`src/main/update-status.js`, vocabulary in
 `contract/update-status.js`): `idle | checking | downloading | ready | available | error | off`, plus
 the staged or waiting version, the time of the last confirmed check, the off reason, whether a
-relaunch can start the new build, the update mode and whether the update in flight is `held`. The renderer reads it once (`pear:updateStatus`) and follows `pear:event:update-status`,
-which main sends to every window. A pass counts as a check only when the update drive had a peer:
+relaunch can start the new build, the update mode and whether the update in flight is `held`. The
+renderer reads it once (`pear:updateStatus`) and follows `pear:event:update-status`, which main
+sends to every window. A pass counts as a check only when the update drive had a peer:
 the boot pass usually runs before any peer connects, so the first `peer-add` runs a pass of its own.
 A background pass that reaches no peer changes nothing; a check the user started
 (`pear:checkForUpdate`, which returns at once and waits up to 15 s for a peer) reports `error`
@@ -1783,8 +1793,7 @@ banner is passive ("applied on next start" plus Dismiss); a waiting one offers U
 Update (`pear:installUpdate`) opens About, where the download shows.
 About shows the verdict, Check now, and — on macOS and an AppImage — Restart now (`app:relaunch`:
 `app.relaunch()` then `app.quit()`, so the quit sequence still applies a macOS update first). An MSIX
-relaunched from its old package folder can start the old version, so Windows offers no restart. A
-source build reloads the renderer when a status turns `ready`.
+relaunched from its old package folder can start the old version, so Windows offers no restart.
 
 **Apply — no user action** in `automatic` mode (otherwise once approved), with timing per platform:
 

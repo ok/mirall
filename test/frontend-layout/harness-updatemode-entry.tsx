@@ -1,15 +1,15 @@
-// Real-Chromium harness for the update mode. Mounts the REAL <UpdateModeRow>, <UpdateVerdictBanner>
+// Real-Chromium harness for the update mode. Mounts the REAL <UpdateModeCard>, <UpdateVerdictBanner>
 // and <UpdateBanner> and asserts what each mode and state exposes: one pressed segment described by
 // the sentence for the mode it shows, a change that reaches its handler and moves the pressed
-// segment, an Update action wherever a version waits for the go-ahead, no sentence that promises
-// background work under `never`, and a segment row that fits its card in every language.
+// segment, an Update action wherever a version waits for the go-ahead, and a segment row that fits its
+// card in every language.
 import './harness-bootstrap.js'
 import { useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { flushSync } from 'react-dom'
 import i18n, { SUPPORTED_LANGUAGES } from '../../src/renderer/platform/i18n.js'
 import { ToastProvider } from '../../src/renderer/components/toast/ToastProvider.js'
-import UpdateModeRow from '../../src/renderer/components/about/UpdateModeRow.js'
+import UpdateModeCard from '../../src/renderer/screens/settings/UpdateModeCard.js'
 import UpdateVerdictBanner from '../../src/renderer/components/about/UpdateVerdictBanner.js'
 import UpdateBanner from '../../src/renderer/components/layout/UpdateBanner.js'
 import type { UpdateMode, UpdateStatus } from '../../src/shared/contract/update-status.js'
@@ -31,18 +31,16 @@ const BASE: UpdateStatus = { state: 'idle', nextVersion: null, lastCheckedAt: 1_
 const CARDS: Record<string, UpdateStatus> = {
   available: { ...BASE, state: 'available', nextVersion: '9.9.9', mode: 'notify' },
   held: { ...BASE, state: 'downloading', progress: 30, mode: 'notify', held: true },
-  neverUnchecked: { ...BASE, lastCheckedAt: null, mode: 'never' },
-  neverError: { ...BASE, state: 'error', mode: 'never' },
   upToDate: BASE,
 }
 const calls = { changes: [] as UpdateMode[], installs: 0, cardInstalls: 0, dismisses: 0 }
 const noop = () => {}
 
 function ModeHarness() {
-  const [mode, setMode] = useState<UpdateMode>('notify')
+  const [mode, setMode] = useState<UpdateMode>('automatic')
   return (
-    <UpdateModeRow
-      mode={mode}
+    <UpdateModeCard
+      status={{ ...BASE, mode }}
       onChange={async (next) => {
         calls.changes.push(next)
         await new Promise((resolve) => setTimeout(resolve, 50))
@@ -56,6 +54,8 @@ createRoot(document.getElementById('root') as HTMLElement).render(
   <ToastProvider>
     <div style={{ width: 672, padding: 24, display: 'grid', gap: 16 }}>
       <div data-test="mode"><ModeHarness /></div>
+      <div data-test="modeAutomatic"><UpdateModeCard status={BASE} onChange={async () => {}} /></div>
+      <div data-test="modeOff"><UpdateModeCard status={{ ...BASE, state: 'off', offReason: 'flag' }} onChange={async (next) => { calls.changes.push(next) }} /></div>
       {Object.entries(CARDS).map(([name, status]) => (
         <div key={name} data-test={name}>
           <UpdateVerdictBanner status={status} restarting={false} onCheck={noop} onRestart={noop} onInstall={() => { calls.cardInstalls++ }} />
@@ -93,6 +93,8 @@ function readMode() {
   }
 }
 
+const lineCount = (el: HTMLElement) => Math.round(el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight))
+
 // The segment row must not push past its card: the widest label set decides.
 async function fitsInEveryLanguage(detail: Record<string, string>) {
   const fits: boolean[] = []
@@ -102,7 +104,14 @@ async function fitsInEveryLanguage(detail: Record<string, string>) {
     const row = scope('mode').firstElementChild as HTMLElement
     const line = row.firstElementChild as HTMLElement
     detail[`width.${code}`] = `${line.scrollWidth}/${line.clientWidth}`
-    fits.push(line.scrollWidth <= line.clientWidth && row.scrollWidth <= row.clientWidth)
+    // The waiting card keeps one line of text beside its Update button, so switching the mode does
+    // not change the card's height.
+    const lines = lineCount(scope('available').querySelectorAll('[role="status"] p')[1] as HTMLElement)
+    // Both modes' sentences are one line, so the mode card is the same height whichever is pressed.
+    const descLines = ['mode', 'modeAutomatic', 'modeOff'].map((name) => lineCount(scope(name).querySelector('p[id]') as HTMLElement))
+    detail[`modeLines.${code}`] = descLines.join('/')
+    detail[`availableLines.${code}`] = String(lines)
+    fits.push(line.scrollWidth <= line.clientWidth && row.scrollWidth <= row.clientWidth && lines === 1 && descLines.every((n) => n === 1))
   }
   await i18n.changeLanguage('en')
   await sleep(30)
@@ -116,30 +125,35 @@ async function main() {
   const before = readMode()
   detail.before = JSON.stringify(before)
 
-  flushSync(() => { named('mode', t('about.mode.never'))?.click() })
+  flushSync(() => { named('mode', t('generalSettings.updateMode.notify'))?.click() })
   const during = readMode()
   const busy = buttons('mode').every((b) => b.getAttribute('aria-disabled') === 'true')
   await sleep(200)
   const after = readMode()
   detail.after = JSON.stringify(after)
 
+  buttons('modeOff').forEach((b) => b.click())
+  const offLocked = buttons('modeOff').every((b) => b.getAttribute('aria-disabled') === 'true' && b.getAttribute('aria-pressed') === 'false')
+    && scope('modeOff').querySelector('p[id]')?.textContent === t('generalSettings.updateMode.offDesc')
+    && calls.changes.join(',') === 'notify'
+
   named('available', t('about.install'))?.click()
   named('bannerAvailable', t('updateBanner.install'))?.click()
   named('bannerAvailable', t('updateBanner.later'))?.click()
 
   const checks: Record<string, boolean> = {
-    'three segments, one pressed, all described by one sentence': before.count === 3 && before.pressed.length === 1 && before.oneDescription,
-    'the sentence describes the pressed mode': before.pressed[0] === t('about.mode.notify') && before.description === t('about.mode.notifyDesc'),
-    'a change shows at once and reads as busy until it lands': during.pressed[0] === t('about.mode.never') && busy,
-    'the change reaches its handler once': calls.changes.join(',') === 'never',
-    'after the change the new mode is pressed and described': after.pressed[0] === t('about.mode.never') && after.description === t('about.mode.neverDesc'),
+    'two segments, one pressed, all described by one sentence': before.count === 2 && before.pressed.length === 1 && before.oneDescription,
+    'the sentence describes the pressed mode': before.pressed[0] === t('generalSettings.updateMode.automatic') && before.description === t('generalSettings.updateMode.automaticDesc'),
+    'a change shows at once and reads as busy until it lands': during.pressed[0] === t('generalSettings.updateMode.notify') && busy,
+    'the change reaches its handler once': calls.changes.join(',') === 'notify',
+    'after the change the new mode is pressed and described': after.pressed[0] === t('generalSettings.updateMode.notify') && after.description === t('generalSettings.updateMode.notifyDesc'),
+    'with updates off the control is locked, nothing is pressed and the sentence says why': offLocked,
     'a waiting version offers Update on the card': body('available') === t('about.verdict.availableBody') && calls.cardInstalls === 1,
     'a held download says it will not install on its own': body('held') === t('about.verdict.downloadingHeldBody'),
-    'never promises no background look': body('neverUnchecked') === t('about.verdict.notCheckedManualBody') && body('neverError') === t('about.verdict.errorManualBody'),
     'automatic up to date says only when it checked': body('upToDate').startsWith(t('about.verdict.upToDateBody', { when: '' }).replace(/\.$/, '').trim()),
     'the waiting banner offers Update and Later': calls.installs === 1 && calls.dismisses === 1 && scope('bannerAvailable').querySelector('[role="status"]') !== null,
     'the staged banner keeps its single Dismiss': buttons('bannerReady').length === 1 && named('bannerReady', t('updateBanner.dismiss')) !== null,
-    'the mode row fits its card in every language': await fitsInEveryLanguage(detail),
+    'the mode card fits its width, and its sentence and the waiting card keep one line, in every language': await fitsInEveryLanguage(detail),
   }
   window.__results = { pass: Object.values(checks).every(Boolean), error: null, checks, detail }
 }

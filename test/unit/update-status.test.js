@@ -151,12 +151,12 @@ test('an update staged while it is held waits for the user instead of reading as
   t.is(s.nextVersion, '2.0.0')
 })
 
-test('turning automatic updates off sends a staged update back to waiting', (t) => {
+test('switching from automatic to notify sends a staged update back to waiting', (t) => {
   const ready = run([{ type: 'ready', version: '2.0.0' }])
-  const s = run([policy('never', true)], ready)
+  const s = run([policy('notify', true)], ready)
   t.is(s.state, 'available')
-  t.is(s.mode, 'never')
-  t.is(run([policy('never', false)], ready).state, 'ready', 'one that may still install stays ready')
+  t.is(s.mode, 'notify')
+  t.is(run([policy('notify', false)], ready).state, 'ready', 'one that may still install stays ready')
 })
 
 test('the mode reaches the status even when nothing is in flight', (t) => {
@@ -168,5 +168,5 @@ test('the mode reaches the status even when nothing is in flight', (t) => {
 
 test('updates turned off ignore the mode', (t) => {
   const off = initialUpdateStatus({ offReason: 'flag', canRestart: false })
-  t.is(run([policy('never', true), { type: 'available', version: '2.0.0' }], off), off)
+  t.is(run([policy('notify', true), { type: 'available', version: '2.0.0' }], off), off)
 })

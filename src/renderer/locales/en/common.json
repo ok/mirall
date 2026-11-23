@@ -634,7 +634,17 @@
     "minimizeToTrayMac": "Show Mirall in the menu bar",
     "minimizeToTrayDescMac": "Closing the window hides the Dock icon and keeps Mirall in the menu bar.",
     "openAtLogin": "Launch at login",
-    "openAtLoginDesc": "Start Mirall automatically when you sign in to your computer."
+    "openAtLoginDesc": "Start Mirall automatically when you sign in to your computer.",
+    "updates": "Updates",
+    "updateMode": {
+      "label": "Install updates",
+      "automatic": "Automatically",
+      "notify": "Notify me",
+      "automaticDesc": "New versions download on their own and install when you reopen Mirall.",
+      "notifyDesc": "New versions are shown, and download only when you choose Update.",
+      "offDesc": "This build of Mirall doesn't update itself.",
+      "offDebDesc": "Your system's software updates keep this copy of Mirall current."
+    }
   },
   "tray": {
     "show": "Show Mirall",
@@ -710,12 +720,12 @@
     "exportActivityLog": "Export Activity Log",
     "keywords": {
       "profile": "account name avatar picture",
-      "about": "version license privacy automatic updates",
+      "about": "version license privacy updates",
       "activityLog": "audit history events",
       "transfers": "downloads uploads speed sending",
       "storage": "disk space download folder",
       "appearance": "theme dark mode light mode zoom text size language",
-      "general": "startup open at login tray",
+      "general": "startup open at login tray automatic updates",
       "networkSettings": "bandwidth speed limit upload download relay",
       "backup": "restore passphrase recovery key",
       "networkStatus": "connection online offline peers reconnect",
@@ -806,7 +816,6 @@
       "upToDateBody": "Checked {{when}}.",
       "notCheckedTitle": "Not checked yet",
       "notCheckedBody": "Mirall looks for a newer version as soon as it reaches the update network.",
-      "notCheckedManualBody": "Mirall doesn't look for new versions on its own. Choose Check now to look.",
       "checkingTitle": "Checking for updates…",
       "checkingBody": "Looking for a newer version of Mirall.",
       "downloadingTitle": "Downloading an update",
@@ -816,10 +825,9 @@
       "readyTitle": "Update ready: v{{version}}",
       "readyBody": "It will be installed the next time you quit and reopen Mirall.",
       "availableTitle": "Update available: v{{version}}",
-      "availableBody": "Choose Update to get it. It installs the next time you reopen Mirall.",
+      "availableBody": "Installs the next time you reopen Mirall.",
       "errorTitle": "Couldn't check for updates",
       "errorBody": "Mirall couldn't reach the update network just now. It keeps listening for new versions in the background.",
-      "errorManualBody": "Mirall couldn't reach the update network just now.",
       "offDebTitle": "Updated by your package manager",
       "offDebBody": "This copy of Mirall was installed as a Debian package. Your system's software updates keep it current.",
       "offTitle": "Automatic updates are off",
@@ -832,15 +840,6 @@
     "restartNow": "Restart now",
     "restarting": "Restarting…",
     "install": "Update",
-    "mode": {
-      "label": "Install updates",
-      "automatic": "Automatically",
-      "notify": "Notify me",
-      "never": "Never check",
-      "automaticDesc": "New versions download in the background and install the next time you reopen Mirall.",
-      "notifyDesc": "Mirall tells you when a new version is out. Nothing is downloaded or installed until you choose Update.",
-      "neverDesc": "Mirall doesn't look for new versions until you choose Check now. Only the latest version gets security fixes."
-    },
     "summary": {
       "upToDate": "Up to date",
       "checking": "Checking for updates…",

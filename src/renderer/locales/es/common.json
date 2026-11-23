@@ -604,7 +604,17 @@
     "minimizeToTrayMac": "Mostrar Mirall en la barra de menús",
     "minimizeToTrayDescMac": "Al cerrar la ventana, se oculta el icono del Dock y Mirall permanece en la barra de menús.",
     "openAtLogin": "Iniciar al iniciar sesión",
-    "openAtLoginDesc": "Iniciar Mirall automáticamente al iniciar sesión en tu equipo."
+    "openAtLoginDesc": "Iniciar Mirall automáticamente al iniciar sesión en tu equipo.",
+    "updates": "Actualizaciones",
+    "updateMode": {
+      "label": "Instalar actualizaciones",
+      "automatic": "Automáticamente",
+      "notify": "Avisarme",
+      "automaticDesc": "Las versiones nuevas se descargan solas y se instalan al reabrir Mirall.",
+      "notifyDesc": "Las versiones nuevas se muestran y solo se descargan al elegir Actualizar.",
+      "offDesc": "Esta compilación de Mirall no se actualiza sola.",
+      "offDebDesc": "Las actualizaciones de software de tu sistema mantienen al día esta copia de Mirall."
+    }
   },
   "tray": {
     "show": "Abrir Mirall",
@@ -680,12 +690,12 @@
     "exportActivityLog": "Exportar Registro de actividad",
     "keywords": {
       "profile": "cuenta nombre avatar imagen",
-      "about": "versión licencia privacidad actualizaciones automáticas",
+      "about": "versión licencia privacidad actualizaciones",
       "activityLog": "auditoría historial eventos",
       "transfers": "descargas subidas velocidad envío",
       "storage": "espacio en disco carpeta de descargas",
       "appearance": "tema modo oscuro modo claro zoom tamaño del texto idioma",
-      "general": "inicio abrir al iniciar sesión bandeja",
+      "general": "inicio abrir al iniciar sesión bandeja actualizaciones automáticas",
       "networkSettings": "ancho de banda velocidad límite subida descarga relay",
       "backup": "restaurar frase de contraseña clave de recuperación",
       "networkStatus": "conexión en línea sin conexión pares reconectar",
@@ -776,7 +786,6 @@
       "upToDateBody": "Comprobado {{when}}.",
       "notCheckedTitle": "Aún sin comprobar",
       "notCheckedBody": "Mirall busca una versión más reciente en cuanto llega a la red de actualizaciones.",
-      "notCheckedManualBody": "Mirall no busca versiones nuevas por su cuenta. Elige Comprobar ahora para buscar.",
       "checkingTitle": "Buscando actualizaciones…",
       "checkingBody": "Buscando una versión más reciente de Mirall.",
       "downloadingTitle": "Descargando una actualización",
@@ -786,10 +795,9 @@
       "readyTitle": "Actualización lista: v{{version}}",
       "readyBody": "Se instalará la próxima vez que cierres y vuelvas a abrir Mirall.",
       "availableTitle": "Actualización disponible: v{{version}}",
-      "availableBody": "Elige Actualizar para descargarla. Se instalará la próxima vez que abras Mirall.",
+      "availableBody": "Se instalará la próxima vez que abras Mirall.",
       "errorTitle": "No se pudieron buscar actualizaciones",
       "errorBody": "Mirall no pudo llegar a la red de actualizaciones. Sigue atento a nuevas versiones en segundo plano.",
-      "errorManualBody": "Mirall no pudo llegar a la red de actualizaciones.",
       "offDebTitle": "Actualizado por tu gestor de paquetes",
       "offDebBody": "Esta copia de Mirall se instaló como paquete Debian. Las actualizaciones de software de tu sistema la mantienen al día.",
       "offTitle": "Las actualizaciones automáticas están desactivadas",
@@ -802,15 +810,6 @@
     "restartNow": "Reiniciar ahora",
     "restarting": "Reiniciando…",
     "install": "Actualizar",
-    "mode": {
-      "label": "Instalar actualizaciones",
-      "automatic": "Automáticamente",
-      "notify": "Avisarme",
-      "never": "No buscar nunca",
-      "automaticDesc": "Las nuevas versiones se descargan en segundo plano y se instalan la próxima vez que abras Mirall.",
-      "notifyDesc": "Mirall te avisa cuando sale una versión nueva. No se descarga ni se instala nada hasta que elijas Actualizar.",
-      "neverDesc": "Mirall no busca versiones nuevas hasta que elijas Comprobar ahora. Solo la última versión recibe correcciones de seguridad."
-    },
     "summary": {
       "upToDate": "Al día",
       "checking": "Buscando actualizaciones…",
