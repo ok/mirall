@@ -18,7 +18,7 @@ import { exportActivityLog } from './useAuditLog.js'
 import { request } from '../ipc/ipc.js'
 import { useToast } from '../components/toast/ToastProvider.js'
 import { useRunAction } from './useRunAction.js'
-import { useUpdates } from './useUpdates.js'
+import { useUpdates, useInstallUpdate } from './useUpdates.js'
 import { useBackupStatus } from './useBackupStatus.js'
 
 interface AppCommandTargets {
@@ -156,6 +156,7 @@ function useExportLog(): () => void {
 function useUpdateCommands(nav: AppNavigation): void {
   const runAction = useRunAction()
   const { status } = useUpdates()
+  const install = useInstallUpdate(() => nav.setCurrentScreen('about'))
   const action = updateVerdict(status).action
   useRegisterCommands([
     {
@@ -168,6 +169,14 @@ function useUpdateCommands(nav: AppNavigation): void {
         nav.setCurrentScreen('about')
         if (status.state !== UPDATE_STATE.CHECKING) runAction(checkForUpdate)
       },
+    },
+    {
+      id: 'update.install',
+      labelKey: 'shortcuts.installUpdate',
+      keywordsKey: 'shortcuts.keywords.installUpdate',
+      group: 'system',
+      when: () => action === 'install',
+      run: install,
     },
     {
       id: 'update.restart',

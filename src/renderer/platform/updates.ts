@@ -1,4 +1,4 @@
-import { UPDATE_STATE, type UpdateStatus } from '../../shared/contract/update-status.js'
+import type { UpdateMode, UpdateStatus } from '../../shared/contract/update-status.js'
 import { initialUpdateState, reduceDismissed, reduceStatus, type UpdateViewState } from './update-state.js'
 
 type Listener = (state: UpdateViewState) => void
@@ -12,11 +12,6 @@ function emit(): void {
 }
 
 function apply(status: UpdateStatus): void {
-  // A source build loads the renderer from disk, so a staged update is applied by reloading.
-  if (window.bridge.isDev() && status.state === UPDATE_STATE.READY && state.status.state !== UPDATE_STATE.READY) {
-    location.reload()
-    return
-  }
   state = reduceStatus(state, status)
   emit()
 }
@@ -49,6 +44,14 @@ export function dismissUpdate(): void {
 
 export async function checkForUpdate(): Promise<void> {
   await window.bridge.checkForUpdate()
+}
+
+export async function installUpdate(): Promise<void> {
+  await window.bridge.installUpdate()
+}
+
+export async function setUpdateMode(mode: UpdateMode): Promise<void> {
+  apply(await window.bridge.setUpdateMode(mode))
 }
 
 export function restartToUpdate(): Promise<boolean> {

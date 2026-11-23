@@ -31,6 +31,8 @@ contextBridge.exposeInMainWorld('bridge', {
   getPathForFile: (file) => webUtils.getPathForFile(file),
 
   checkForUpdate: () => ipcRenderer.invoke('pear:checkForUpdate'),
+  installUpdate: () => ipcRenderer.invoke('pear:installUpdate'),
+  setUpdateMode: (mode) => ipcRenderer.invoke('pear:setUpdateMode', mode),
   getUpdateStatus: () => ipcRenderer.invoke('pear:updateStatus'),
   onUpdateStatus: (listener) => {
     const wrap = (_evt, status) => listener(status)

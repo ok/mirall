@@ -17,6 +17,9 @@ changes do not appear here.
   from the new header control, which shows the current speed while files
   transfer. Pause or resume all downloads, watch the speed over time and
   change the transfer limits without a trip through Settings.
+- **You decide when Mirall updates.** Settings → General now has two choices:
+  update automatically, as before, or notify me, which shows a new version
+  and downloads nothing until you choose Update.
 - **More of Mirall is in the command palette.** Check for updates, restart to
   update, back up now, show connection history and export the Activity Log
   from ⌘K, and find a screen by what it holds: "dark mode" finds Appearance.

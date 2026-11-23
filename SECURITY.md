@@ -18,8 +18,9 @@ built-in update mechanism.
 ## Supported versions
 
 Mirall updates itself automatically over its peer-to-peer update channel, so the **latest
-release is the only supported version**. If you disabled updates or pinned an old version,
-please update before reporting.
+release is the only supported version**. If you set updates to notify and have not
+yet installed the latest version, or run a build that does not update itself, please update before
+reporting.
 
 ## Scope
 

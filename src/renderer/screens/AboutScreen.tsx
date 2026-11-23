@@ -7,7 +7,7 @@ import { useUpdates } from '../hooks/useUpdates.js'
 import { useAppBuild } from '../hooks/useAppBuild.js'
 import { useOpenWhatsNew } from '../hooks/useOpenWhatsNew.js'
 import { useRunAction } from '../hooks/useRunAction.js'
-import { checkForUpdate, restartToUpdate } from '../platform/updates.js'
+import { checkForUpdate, installUpdate, restartToUpdate } from '../platform/updates.js'
 import PageHeader from '../components/layout/PageHeader.js'
 import SectionHeading from '../components/layout/SectionHeading.js'
 import ActionRow, { LinkRow, ROW_GROUP } from '../components/layout/ActionRow.js'
@@ -79,6 +79,7 @@ function UpdatesSection({ status }: { status: UpdateStatus }) {
         restarting={restarting}
         onCheck={() => runAction(checkForUpdate)}
         onRestart={handleRestart}
+        onInstall={() => runAction(installUpdate)}
       />
     </section>
   )

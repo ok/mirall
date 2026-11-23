@@ -528,7 +528,10 @@
   "updateBanner": {
     "available": "Actualización disponible (v{{version}})",
     "appliedOnNextStart": "se aplicará la próxima vez que cierres y vuelvas a abrir Mirall",
-    "dismiss": "Descartar"
+    "dismiss": "Descartar",
+    "offered": "Mirall v{{version}} está disponible",
+    "later": "Más tarde",
+    "install": "Actualizar"
   },
   "downloadFolder": {
     "restoredToast": "La carpeta de descargas vuelve a estar disponible",
@@ -601,7 +604,17 @@
     "minimizeToTrayMac": "Mostrar Mirall en la barra de menús",
     "minimizeToTrayDescMac": "Al cerrar la ventana, se oculta el icono del Dock y Mirall permanece en la barra de menús.",
     "openAtLogin": "Iniciar al iniciar sesión",
-    "openAtLoginDesc": "Iniciar Mirall automáticamente al iniciar sesión en tu equipo."
+    "openAtLoginDesc": "Iniciar Mirall automáticamente al iniciar sesión en tu equipo.",
+    "updates": "Actualizaciones",
+    "updateMode": {
+      "label": "Instalar actualizaciones",
+      "automatic": "Automáticamente",
+      "notify": "Avisarme",
+      "automaticDesc": "Las versiones nuevas se descargan solas y se instalan al reabrir Mirall.",
+      "notifyDesc": "Las versiones nuevas se muestran y solo se descargan al elegir Actualizar.",
+      "offDesc": "Esta compilación de Mirall no se actualiza sola.",
+      "offDebDesc": "Las actualizaciones de software de tu sistema mantienen al día esta copia de Mirall."
+    }
   },
   "tray": {
     "show": "Abrir Mirall",
@@ -672,16 +685,17 @@
     "showConnectionHistory": "Mostrar historial de conexión",
     "checkForUpdates": "Buscar actualizaciones",
     "restartToUpdate": "Reiniciar para actualizar",
+    "installUpdate": "Actualizar Mirall",
     "backUpNow": "Hacer copia ahora",
     "exportActivityLog": "Exportar Registro de actividad",
     "keywords": {
       "profile": "cuenta nombre avatar imagen",
-      "about": "versión licencia privacidad",
+      "about": "versión licencia privacidad actualizaciones",
       "activityLog": "auditoría historial eventos",
       "transfers": "descargas subidas velocidad envío",
       "storage": "espacio en disco carpeta de descargas",
       "appearance": "tema modo oscuro modo claro zoom tamaño del texto idioma",
-      "general": "inicio abrir al iniciar sesión bandeja",
+      "general": "inicio abrir al iniciar sesión bandeja actualizaciones automáticas",
       "networkSettings": "ancho de banda velocidad límite subida descarga relay",
       "backup": "restaurar frase de contraseña clave de recuperación",
       "networkStatus": "conexión en línea sin conexión pares reconectar",
@@ -694,6 +708,7 @@
       "docs": "ayuda manual guía",
       "checkForUpdates": "actualizar nueva versión",
       "restartToUpdate": "instalar actualizar nueva versión",
+      "installUpdate": "actualizar nueva versión instalar descargar",
       "backUpNow": "copia de seguridad backup instantánea"
     }
   },
@@ -768,7 +783,7 @@
     "updates": "Actualizaciones",
     "verdict": {
       "upToDateTitle": "Mirall está al día",
-      "upToDateBody": "Comprobado {{when}}. Las nuevas versiones se descargan en segundo plano y se instalan la próxima vez que abras Mirall.",
+      "upToDateBody": "Comprobado {{when}}.",
       "notCheckedTitle": "Aún sin comprobar",
       "notCheckedBody": "Mirall busca una versión más reciente en cuanto llega a la red de actualizaciones.",
       "checkingTitle": "Buscando actualizaciones…",
@@ -776,8 +791,11 @@
       "downloadingTitle": "Descargando una actualización",
       "downloadingBody": "Mirall sigue funcionando mientras se descarga la actualización.",
       "downloadingWaitingBody": "Esperando la red de actualizaciones. La descarga continúa en cuanto Mirall llega a ella.",
+      "downloadingHeldBody": "Esta descarga terminará, pero no se instalará hasta que elijas Actualizar.",
       "readyTitle": "Actualización lista: v{{version}}",
       "readyBody": "Se instalará la próxima vez que cierres y vuelvas a abrir Mirall.",
+      "availableTitle": "Actualización disponible: v{{version}}",
+      "availableBody": "Se instalará la próxima vez que abras Mirall.",
       "errorTitle": "No se pudieron buscar actualizaciones",
       "errorBody": "Mirall no pudo llegar a la red de actualizaciones. Sigue atento a nuevas versiones en segundo plano.",
       "offDebTitle": "Actualizado por tu gestor de paquetes",
@@ -791,16 +809,19 @@
     "tryAgain": "Reintentar",
     "restartNow": "Reiniciar ahora",
     "restarting": "Reiniciando…",
+    "install": "Actualizar",
     "summary": {
       "upToDate": "Al día",
       "checking": "Buscando actualizaciones…",
       "downloading": "Descargando una actualización…",
       "ready": "v{{version}} está lista: reinicia Mirall para instalarla",
+      "available": "v{{version}} está disponible",
       "offDeb": "Actualizado por tu gestor de paquetes"
     },
     "dot": {
       "up-to-date": "Al día",
-      "ready": "Actualización lista"
+      "ready": "Actualización lista",
+      "available": "Actualización disponible"
     },
     "badge": {
       "beta": "Beta",

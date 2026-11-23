@@ -872,7 +872,10 @@ a batch with nothing to add, or whose every request was refused, says nothing. A
 folder the space already uses raises none.
 
 The **top-nav banner slot is reserved for `UpdateBanner`** — an informational notice that cannot
-resolve itself (the update is staged until the app restarts) and so needs manual dismissal. It is
+resolve itself (the update is staged until the app restarts) and so needs manual dismissal. When
+the update mode is not automatic, the same banner announces a version waiting for the go-ahead with
+two actions instead of one: Later (dismisses it for that version) and Update, the filled
+`bg-secondary` action. It is
 the only banner, and it owns `--banner-h`; adding a second one means reworking that variable's
 ownership and every screen's scroll-height math, so reach for a toast first. Per-*screen*
 affordances that are neither (a pending join request inside a space) are ordinary in-screen cards —
@@ -919,8 +922,8 @@ two-tier rule in §2), `transition-colors`, **no border, no shadow**:
   chevron are decoration. On Account, the Connection row's tile (`hub`) carries the connectivity
   state as `StatusDot`, the same 12 px bottom-right dot MemberCard uses, so state is a mark on the
   tile rather than a lamp in place of it. Backup (`ProtectionDot`) and About (`about/UpdateDot`:
-  `bg-online` only after a confirmed check, `bg-secondary-container` for a staged update, no dot
-  otherwise) follow the same rule. `LinkRow` is the external twin: same anatomy, `open_in_new`
+  `bg-online` only after a confirmed check, `bg-secondary-container` for a staged or waiting update,
+  no dot otherwise) follow the same rule. `LinkRow` is the external twin: same anatomy, `open_in_new`
   instead of the chevron, and "(opens in browser)" in its name.
 - **Verdict banners** — Backup, Network status and About open with one: `bg-surface-container-low
   rounded-xl p-6`, a 16 px lamp with a `ring-4` halo (`aria-hidden`), a `text-2xl` headline and a
@@ -1140,7 +1143,13 @@ info strip (`host="info-container"`), which takes the strip's own foreground for
 About's update card (`about/UpdateVerdictBanner.tsx`) shows a `DownloadProgressLane` under its
 sentence while an update downloads: the percentage once the download is sized, the indeterminate
 sweep before that, and a standing bar while no peer is left. The lane sits outside the card's
-`role="status"` region, so progress is never announced per change.
+`role="status"` region, so progress is never announced per change. The update mode is
+set in Settings → General, in `screens/settings/UpdateModeCard.tsx`: the
+card surface with a label and a `SegmentedControl` (Automatically · Notify me), and one sentence
+below that says what the shown mode does; every segment is described by it. Each sentence fits one
+line in every language, so the card keeps its height when the mode changes. On a copy that does not
+update itself the segments are locked, none is pressed, and the sentence says why.
+`npm run test:layout:case -- updatemode` pins it in real Chromium.
 
 The transfer-row variant — `primitives/DownloadProgressLane.tsx` — adds a meta line (speed · ETA,
 ETA alone, or downloaded-so-far) and an **indeterminate** mode used while the ETA is still warming

@@ -528,7 +528,10 @@
   "updateBanner": {
     "available": "Update verfügbar (v{{version}})",
     "appliedOnNextStart": "wird beim nächsten Beenden und Öffnen von Mirall angewendet",
-    "dismiss": "Ausblenden"
+    "dismiss": "Ausblenden",
+    "offered": "Mirall v{{version}} ist verfügbar",
+    "later": "Später",
+    "install": "Aktualisieren"
   },
   "downloadFolder": {
     "restoredToast": "Download-Ordner ist wieder verfügbar",
@@ -601,7 +604,17 @@
     "minimizeToTrayMac": "Mirall in der Menüleiste anzeigen",
     "minimizeToTrayDescMac": "Beim Schließen des Fensters wird das Dock-Symbol ausgeblendet und Mirall bleibt in der Menüleiste.",
     "openAtLogin": "Beim Anmelden starten",
-    "openAtLoginDesc": "Mirall automatisch starten, sobald du dich am Computer anmeldest."
+    "openAtLoginDesc": "Mirall automatisch starten, sobald du dich am Computer anmeldest.",
+    "updates": "Updates",
+    "updateMode": {
+      "label": "Updates installieren",
+      "automatic": "Automatisch",
+      "notify": "Benachrichtigen",
+      "automaticDesc": "Neue Versionen laden von selbst und werden beim nächsten Öffnen installiert.",
+      "notifyDesc": "Neue Versionen werden angezeigt und erst mit „Aktualisieren“ geladen.",
+      "offDesc": "Dieser Build von Mirall aktualisiert sich nicht selbst.",
+      "offDebDesc": "Die Softwareaktualisierung deines Systems hält diese Kopie von Mirall aktuell."
+    }
   },
   "tray": {
     "show": "Mirall öffnen",
@@ -672,16 +685,17 @@
     "showConnectionHistory": "Verbindungsverlauf anzeigen",
     "checkForUpdates": "Nach Updates suchen",
     "restartToUpdate": "Neu starten, um zu aktualisieren",
+    "installUpdate": "Mirall aktualisieren",
     "backUpNow": "Jetzt sichern",
     "exportActivityLog": "Aktivitätsprotokoll exportieren",
     "keywords": {
       "profile": "Konto Name Avatar Bild",
-      "about": "Version Lizenz Datenschutz",
+      "about": "Version Lizenz Datenschutz Updates",
       "activityLog": "Audit Verlauf Ereignisse",
       "transfers": "Downloads Uploads Geschwindigkeit Senden",
       "storage": "Speicherplatz Festplatte Download-Ordner",
       "appearance": "Design dunkler Modus heller Modus Zoom Textgröße Sprache",
-      "general": "Autostart bei Anmeldung öffnen Infobereich",
+      "general": "Autostart bei Anmeldung öffnen Infobereich automatische Updates",
       "networkSettings": "Bandbreite Geschwindigkeit Limit Upload Download Relay",
       "backup": "Wiederherstellen Passphrase Wiederherstellungsschlüssel",
       "networkStatus": "Verbindung online offline Teilnehmer neu verbinden",
@@ -694,6 +708,7 @@
       "docs": "Hilfe Handbuch Anleitung",
       "checkForUpdates": "Aktualisierung neue Version Release",
       "restartToUpdate": "installieren Aktualisierung neue Version",
+      "installUpdate": "Aktualisierung neue Version installieren herunterladen",
       "backUpNow": "Backup Sicherung Snapshot"
     }
   },
@@ -768,7 +783,7 @@
     "updates": "Updates",
     "verdict": {
       "upToDateTitle": "Mirall ist aktuell",
-      "upToDateBody": "Geprüft {{when}}. Neue Versionen laden im Hintergrund und werden beim nächsten Öffnen von Mirall installiert.",
+      "upToDateBody": "Geprüft {{when}}.",
       "notCheckedTitle": "Noch nicht geprüft",
       "notCheckedBody": "Mirall sucht nach einer neueren Version, sobald es das Update-Netzwerk erreicht.",
       "checkingTitle": "Suche nach Updates …",
@@ -776,8 +791,11 @@
       "downloadingTitle": "Update wird geladen",
       "downloadingBody": "Mirall arbeitet weiter, während das Update lädt.",
       "downloadingWaitingBody": "Mirall wartet auf das Update-Netzwerk. Der Download läuft weiter, sobald es erreichbar ist.",
+      "downloadingHeldBody": "Der Download läuft zu Ende, installiert wird das Update aber erst, wenn du „Aktualisieren“ wählst.",
       "readyTitle": "Update bereit: v{{version}}",
       "readyBody": "Es wird beim nächsten Beenden und Öffnen von Mirall installiert.",
+      "availableTitle": "Update verfügbar: v{{version}}",
+      "availableBody": "Wird beim nächsten Öffnen von Mirall installiert.",
       "errorTitle": "Suche nach Updates fehlgeschlagen",
       "errorBody": "Mirall konnte das Update-Netzwerk gerade nicht erreichen. Im Hintergrund hält es weiter Ausschau nach neuen Versionen.",
       "offDebTitle": "Aktualisiert über deine Paketverwaltung",
@@ -791,16 +809,19 @@
     "tryAgain": "Erneut versuchen",
     "restartNow": "Jetzt neu starten",
     "restarting": "Wird neu gestartet …",
+    "install": "Aktualisieren",
     "summary": {
       "upToDate": "Aktuell",
       "checking": "Suche nach Updates …",
       "downloading": "Update wird geladen …",
       "ready": "v{{version}} ist bereit – starte Mirall neu, um sie zu installieren",
+      "available": "v{{version}} ist verfügbar",
       "offDeb": "Aktualisiert über deine Paketverwaltung"
     },
     "dot": {
       "up-to-date": "Aktuell",
-      "ready": "Update bereit"
+      "ready": "Update bereit",
+      "available": "Update verfügbar"
     },
     "badge": {
       "beta": "Beta",

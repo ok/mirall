@@ -4,6 +4,9 @@
 // never spawns a worker has no reason to pay for. applyUpdate is wrapped rather than called
 // directly — the update lands inside an asar window that has to be opened and closed around it,
 // and the applied build needs its executable bit back on the platforms that lose it.
+//
+// The user's update mode decides how far a pass goes (update-mode.js): every pass is gated and every
+// apply is checked.
 
 const path = require('path')
 const fs = require('fs')
@@ -19,6 +22,9 @@ const applyErrors = require('./apply-error.js')
 const updateCache = require('./update-cache.js')
 const { trackUpdateDownload } = require('./update-progress.js')
 const { initialUpdateStatus, createUpdateStatus } = require('./update-status.js')
+const { createUpdateModeControl } = require('./update-mode.js')
+const { createPreviewUpdater } = require('./update-preview.js')
+const { UPDATE_MODES } = require('../shared/contract/update-status.js')
 
 const pkg = require('../../package.json')
 const appName = pkg.productName || pkg.name
@@ -52,12 +58,25 @@ let getDataDir = null
 let updatesEnabled = false
 let updatesOffReason = null
 let updateStatus = createUpdateStatus(initialUpdateStatus({ offReason: null, canRestart: false }))
+// Built with the entry's bindings; reads the stored mode on every decision.
+let modeControl = null
+// The version a development run pretends the update drive offers, or null.
+let previewVersion = null
 
 function initUpdater(d) {
   getDataDir = d.getDataDir
   updatesEnabled = d.updatesEnabled
   updatesOffReason = d.updatesOffReason ?? null
+  previewVersion = d.previewVersion ?? null
   updateStatus = createUpdateStatus(initialUpdateStatus({ offReason: updatesOffReason, canRestart: canRelaunchIntoUpdate() }))
+  modeControl = createUpdateModeControl({
+    running: version,
+    config: d.config,
+    status: updateStatus,
+    getUpdater: () => pear?.updater ?? null,
+    prestages: isWindows || isLinux,
+    runUserPass,
+  })
 }
 
 // macOS swaps the bundle at quit and an AppImage is swapped in place, so a relaunch starts the new
@@ -102,11 +121,15 @@ function getPear() {
   // upgrade). Return a minimal shim that supports worker spawning + storage
   // path lookup. `updater` is null so the few code paths that touch it stay
   // guarded by `if (updatesEnabled)` or `if (!p.updater)`.
-  if (!upgrade) {
+  if (!upgrade || previewVersion) {
     pear = {
       storage: path.join(dir, 'app-storage'),
-      updater: null,
+      updater: previewVersion ? createPreviewUpdater({ version: previewVersion, status: updateStatus, control: modeControl }) : null,
       run: (entrypoint, args = [], opts = {}) => PearRuntime.run(entrypoint, args, opts),
+    }
+    if (pear.updater) {
+      modeControl.syncStatus()
+      pear.updater._debouncedUpdate().catch((err) => console.error('update pass failed:', err))
     }
     return pear
   }
@@ -123,6 +146,7 @@ function getPear() {
     // updater runs whenever the user is on the installed MSIX.
     bundled: isWindows ? app.isPackaged : undefined,
     updates: updatesEnabled,
+    skipUpdate: modeControl.gatePass,
     version,
     upgrade,
     name: getRuntimeName(),
@@ -149,7 +173,6 @@ function getPear() {
   // version only when it is whole on this device. A failed prune never fails the pass.
   u._update = async () => {
     passRunning = true
-    updateStatus.dispatch({ type: 'pass-start' })
     const manual = manualCheck
     manualCheck = false
     try {
@@ -192,6 +215,7 @@ function getPear() {
   if (updatesEnabled) {
     swarm.on('connection', (connection) => store.replicate(connection))
     swarm.join(u.drive.core.discoveryKey, { client: true, server: false })
+    modeControl.syncStatus()
     u.on('error', (err) => console.error('pear updater error:', err))
     u.on('updating', () => {
       download?.stop()
@@ -202,7 +226,12 @@ function getPear() {
     u.on('updating-progress', (stats) => {
       if (download) updateStatus.dispatch({ type: 'progress', fraction: download.fraction(), peers: stats.peers })
     })
-    u.on('updated', () => updateStatus.dispatch({ type: 'ready', version: u.nextVersion }))
+    // Windows and Linux put a staged update in place as soon as it may install. msix-manager's
+    // addPackage takes seconds and, left to the quit sequence, races the user's relaunch and fails
+    // when the .msix is locked by the process still running; on Linux a staged AppImage would sit
+    // unused until a clean quit. macOS keeps the at-quit path: a swap mid-session would let a later
+    // disk read see new-version files beside old in-memory code.
+    u.on('updated', () => modeControl.staged())
     // The boot pass usually runs before any peer is connected, so the first peer gets a pass of its
     // own: that is the check that tells whether this build is current.
     if (u.bundled) {
@@ -210,19 +239,6 @@ function getPear() {
         u._debouncedUpdate().catch((err) => console.error('update pass failed:', err))
       })
     }
-  }
-  // Windows: msix-manager.addPackage takes seconds and runs invisibly during
-  // before-quit, racing the user's relaunch and silently failing if the .msix
-  // is locked by the still-running process. Pre-stage the swap while the user
-  // is active so quit→relaunch is a plain restart with the new bits already
-  // registered. Linux benefits too — fsx.swap is fast but apply-on-quit means
-  // the staged AppImage sits unused until the user happens to quit cleanly.
-  // macOS keeps the at-quit path: fsx.swap mid-session would let any later
-  // disk re-read see new-version files mixed with old in-memory code.
-  if (updatesEnabled && (isWindows || isLinux)) {
-    u.on('updated', () => {
-      u.applyUpdate().catch((err) => console.error('background apply failed:', err))
-    })
   }
   pear.on('error', (err) => console.error('pear error:', err))
   return pear
@@ -234,6 +250,7 @@ function getPear() {
 function applyPendingUpdate() {
   if (!updatesEnabled) return null
   if (!pear?.updater?.updated || pear.updater.applied) return null
+  if (!modeControl.mayApply()) return null
   return pear.updater.applyUpdate()
 }
 
@@ -250,11 +267,21 @@ function waitForPeer(core, ms) {
   })
 }
 
-async function runManualCheck(updater) {
+// A pass the user asked for: a check, or the download of a version they approved.
+async function runUserPass(updater) {
   manualCheck = true
-  updateStatus.dispatch({ type: 'pass-start' })
   await waitForPeer(updater.drive.core, PEER_WAIT_MS)
   await updater._debouncedUpdate()
+}
+
+async function runManualCheck(updater) {
+  updateStatus.dispatch({ type: 'pass-start' })
+  await runUserPass(updater)
+}
+
+// The updater whose drive is on this device. A previewed updater has no store to measure or prune.
+function storedUpdater() {
+  return previewVersion ? null : getPear().updater
 }
 
 function onUpdateStatus(listener) {
@@ -298,16 +325,15 @@ function registerUpdater() {
   })
 
   ipcMain.handle('updater:cache-info', async () => {
-    const p = getPear()
-    return updateCache.updateCacheInfo({ updater: p.updater, dataDir: getDataDir(), prefix: appPrefix() })
+    return updateCache.updateCacheInfo({ updater: storedUpdater(), dataDir: getDataDir(), prefix: appPrefix() })
   })
 
   // Never starts a pass, and never waits on one: a pass in flight (a download can take minutes) ends
   // in its own prune.
   ipcMain.handle('updater:prune', async () => {
-    const p = getPear()
-    if (!p.updater || passRunning) return { clearedBlocks: 0 }
-    return pruneInTurn(p.updater)
+    const updater = storedUpdater()
+    if (!updater || passRunning) return { clearedBlocks: 0 }
+    return pruneInTurn(updater)
   })
 
   ipcMain.handle('pear:updateStatus', () => updateStatus.get())
@@ -319,6 +345,19 @@ function registerUpdater() {
     if (!p.updater) return { triggered: false, reason: 'updater disabled' }
     runManualCheck(p.updater).catch((err) => console.error('update check failed:', err))
     return { triggered: true }
+  })
+
+  ipcMain.handle('pear:installUpdate', () => {
+    if (!updatesEnabled) return { triggered: false, reason: updatesOffReason ?? 'updates disabled' }
+    const p = getPear()
+    if (!p.updater) return { triggered: false, reason: 'updater disabled' }
+    return modeControl.install() ? { triggered: true } : { triggered: false, reason: 'no update waiting' }
+  })
+
+  ipcMain.handle('pear:setUpdateMode', (_evt, mode) => {
+    if (!UPDATE_MODES.includes(mode)) throw new Error(`unknown update mode: ${mode}`)
+    modeControl.changeMode(mode)
+    return updateStatus.get()
   })
 
   // The quit sequence applies a staged macOS update before the process exits, so the relaunched

@@ -61,7 +61,8 @@ is non-negotiable.
 - **Resumable transfers** — automatic pause when a peer goes offline, automatic resume on
   reconnect, no re-downloading of verified data
 - **Automatic updates over P2P** — the app updates itself through the same peer-to-peer
-  network it shares files on
+  network it shares files on, or tells you about a new version and waits for your go-ahead
+  (Settings → General)
 - Native notifications, system tray, `mirall://` invite deep links, command palette,
   light & dark themes, English · Deutsch · Español · Français · Italiano
 

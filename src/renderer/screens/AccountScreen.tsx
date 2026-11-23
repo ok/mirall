@@ -174,11 +174,11 @@ function DeviceGroup({ onOpenNetworkStatus, onOpenActivityLog, onOpenBackup }: P
   )
 }
 
-// A staged update names its own version; every other summary follows the running one.
+// A staged or waiting update names its own version; every other summary follows the running one.
 function aboutDesc(t: TFunction, label: string, status: UpdateStatus): string {
   const key = updateSummaryKey(status)
   if (!key) return label
-  if (status.state === UPDATE_STATE.READY) return t(key, { version: status.nextVersion })
+  if (status.state === UPDATE_STATE.READY || status.state === UPDATE_STATE.AVAILABLE) return t(key, { version: status.nextVersion })
   return `${label} · ${t(key)}`
 }
 

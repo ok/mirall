@@ -9,6 +9,7 @@ import DownloadProgressLane from '../primitives/DownloadProgressLane.js'
 const LAMP: Record<UpdateLamp, string> = {
   'up-to-date': 'bg-online ring-online/25',
   ready: 'bg-secondary-container ring-secondary-container/30',
+  available: 'bg-secondary-container ring-secondary-container/30',
   neutral: 'bg-outline ring-outline/20',
 }
 
@@ -17,9 +18,10 @@ interface UpdateVerdictBannerProps {
   restarting: boolean
   onCheck: () => void
   onRestart: () => void
+  onInstall: () => void
 }
 
-export default function UpdateVerdictBanner({ status, restarting, onCheck, onRestart }: UpdateVerdictBannerProps) {
+export default function UpdateVerdictBanner({ status, restarting, onCheck, onRestart, onInstall }: UpdateVerdictBannerProps) {
   const { t } = useTranslation()
   const verdict = updateVerdict(status)
   const download = updateDownload(status)
@@ -54,6 +56,11 @@ export default function UpdateVerdictBanner({ status, restarting, onCheck, onRes
       {verdict.action === 'check' && (
         <Button variant="secondary" icon="refresh" onClick={() => { if (!checking) onCheck() }} ariaDisabled={checking}>
           {t(checkLabel)}
+        </Button>
+      )}
+      {verdict.action === 'install' && (
+        <Button icon="download" onClick={onInstall}>
+          {t('about.install')}
         </Button>
       )}
       {verdict.action === 'restart' && (

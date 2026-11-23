@@ -5,8 +5,8 @@ import { UPDATE_STATE, UPDATES_OFF_REASON } from '../../shared/contract/update-s
 
 /**
  * @import { UpdateStatus } from '../../shared/contract/update-status.js'
- * @typedef {'up-to-date' | 'ready' | 'neutral'} UpdateLamp
- * @typedef {'check' | 'restart' | null} UpdateAction
+ * @typedef {'up-to-date' | 'ready' | 'available' | 'neutral'} UpdateLamp
+ * @typedef {'check' | 'restart' | 'install' | null} UpdateAction
  * @typedef {'release' | 'beta' | 'dev' | 'source'} ReleaseChannel
  * @typedef {{ percent: number | null, indeterminate: boolean, bodyKey: string }} UpdateDownloadView
  */
@@ -22,6 +22,8 @@ export function updateVerdict(status) {
       return { lamp: 'neutral', key: 'downloading', action: null }
     case UPDATE_STATE.READY:
       return { lamp: 'ready', key: 'ready', action: status.canRestart ? 'restart' : null }
+    case UPDATE_STATE.AVAILABLE:
+      return { lamp: 'available', key: 'available', action: 'install' }
     case UPDATE_STATE.ERROR:
       return { lamp: 'neutral', key: 'error', action: 'check' }
     default:
@@ -39,7 +41,7 @@ export function updateDownload(status) {
   return {
     percent: status.progress,
     indeterminate: status.progress === null && !status.waitingForPeers,
-    bodyKey: status.waitingForPeers ? 'downloadingWaiting' : 'downloading',
+    bodyKey: status.waitingForPeers ? 'downloadingWaiting' : status.held ? 'downloadingHeld' : 'downloading',
   }
 }
 
