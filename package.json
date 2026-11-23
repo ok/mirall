@@ -111,7 +111,7 @@
     "hypercore-id-encoding": "^1.3.0",
     "hyperswarm": "^4.17.2",
     "ignore": "^7.0.16",
-    "msix-manager": "^0.2.5",
+    "msix-manager": "^0.2.6",
     "paparam": "^1.15.0",
     "pear-runtime": "1.4.0",
     "ready-resource": "^1.2.0",
