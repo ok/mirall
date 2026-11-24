@@ -29,6 +29,10 @@ changes do not appear here.
 - **Large files are ready to share in about a third of the time.**
   Mirall now uses more than one processor core to prepare a file of 8 MB or
   more, so the wait before a big share becomes available is much shorter.
+- **Large transfers are faster and steadier.** Mirall now keeps more data
+  in flight on fast connections. On a fast Wi-Fi network downloads ran about
+  a third faster in our tests, and the pauses of around ten seconds that
+  could slow a long transfer no longer appeared.
 - **Icons look more consistent.** All icons now share one line weight, and
   the header's three controls have the same size and style. The empty space
   screen no longer shows the drag-and-drop illustration.
