@@ -40,6 +40,16 @@ tree current. Read this before reviewing a Renovate PR or running a manual sweep
     variant is still open there (#308), so it moves one minor at a time. Patches on the 6.36 line
     still flow. Raise only after a Linux runner proves a newer version green. **This rule does not
     cover `lockFileMaintenance`** — see below.
+  - `udx-native` — not a Renovate rule but an `overrides` entry that points at a tarball of one
+    commit of our fork (`ok/udx-native`, prebuilt for all six platforms). It is the registry's
+    1.22.x with libudx main plus two changes to BBR: a window budget and a microsecond minimum
+    round trip. The registry build keeps its window too small on a path with a short round trip
+    and stalls for ten seconds under a busy sender (holepunchto/libudx#342, which has the
+    measurements). Upstream plans the same in three steps (libudx #344, #328, then a window
+    floor). Drop the override when a udx-native release carries all three **and** measures level
+    on the Mac-as-sender Wi-Fi case, where #344 alone stayed at half the fork's rate.
+    `test/invariants/udx-native-floor.test.js` fails if a lock refresh puts the registry package
+    back.
 - **`lockFileMaintenance` bypasses every `packageRules` version cap.** It performs no per-package
   lookup: it deletes the lock and lets npm re-resolve the whole tree against the ranges in
   `package.json`, so `allowedVersions` never runs. A cap that lives only in `renovate.json`

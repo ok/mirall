@@ -122,6 +122,7 @@
     "z32": "^1.1.0"
   },
   "overrides": {
-    "hyperdht": "~6.36.0"
+    "hyperdht": "~6.36.0",
+    "udx-native": "https://github.com/ok/udx-native/archive/85f636b4139db4fbed7bfe4c2b44fe54e519767c.tar.gz"
   }
 }
