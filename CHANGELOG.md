@@ -9,22 +9,30 @@ build-pipeline tweaks, and dependency bumps that don't change how the app
 behaves are intentionally omitted. Releases that contained only such
 changes do not appear here.
 
-## Unreleased
+## v1.14.0
 
-### Added
+### 2026-11-24
 
-- **A Transfers page shows everything moving across all your spaces.** Open it
-  from the new header control, which shows the current speed while files
+A Transfers page shows everything moving across your spaces, and you now
+decide when Mirall updates. Large files are ready to share in about a third
+of the time, and large transfers are faster and steadier. Also two security
+fixes that keep people who only know a space's address out of it.
+
+#### Added
+
+- **A Transfers page shows everything moving across all your spaces.** Open
+  it from the new header control, which shows the current speed while files
   transfer. Pause or resume all downloads, watch the speed over time and
   change the transfer limits without a trip through Settings.
-- **You decide when Mirall updates.** Settings → General now has two choices:
-  update automatically, as before, or notify me, which shows a new version
-  and downloads nothing until you choose Update.
-- **More of Mirall is in the command palette.** Check for updates, restart to
-  update, back up now, show connection history and export the Activity Log
-  from ⌘K, and find a screen by what it holds: "dark mode" finds Appearance.
+- **You decide when Mirall updates.** Settings → General now has two
+  choices: update automatically, as before, or notify me, which shows a new
+  version and downloads nothing until you choose Update.
+- **More of Mirall is in the command palette.** Check for updates, restart
+  to update, back up now, show connection history and export the Activity
+  Log from ⌘K, and find a screen by what it holds: "dark mode" finds
+  Appearance.
 
-### Changed
+#### Changed
 
 - **Large files are ready to share in about a third of the time.**
   Mirall now uses more than one processor core to prepare a file of 8 MB or
@@ -39,9 +47,13 @@ changes do not appear here.
 - **A transfer limit now matches the speed Mirall shows.** "5 MB/s" used to
   allow about 5.2 MB/s as the app displays speed; limits now count the same
   way as every other size. A preset you had picked stays selected.
-- **Removing a relay you joined with an invite takes effect at once.** Mirall
-  no longer asks you to reconnect first, as it already did for an open
-  relay. Adding or replacing one still asks.
+- **Connecting to an organization says what it will see.** Before you
+  connect, Mirall lists what the organization sees, such as the computer's
+  name and Mirall version, and what it never sees: your files, your spaces
+  and who you share with.
+- **Removing a relay you joined with an invite takes effect at once.**
+  Mirall no longer asks you to reconnect first, as it already did for an
+  open relay. Adding or replacing one still asks.
 - **About shows how far an update download has come.** The Updates card now
   has a progress bar with a percentage, and says when the download is
   waiting for the update network instead of looking stuck.
@@ -52,7 +64,7 @@ changes do not appear here.
   closes once your passphrase is checked, and the first backup runs in the
   background while you keep working. Settings → Backup shows its progress.
 
-### Fixed
+#### Fixed
 
 - **Shared folders no longer stay missing after you leave a space and join
   it again.** Other members' folders, and files they added afterwards, only
@@ -72,15 +84,19 @@ changes do not appear here.
   or a report no longer leaves Mirall in the wrong state.** An organization
   that keeps the Activity Log also holds that lock while a deletion runs.
 - **Detailed logging for a diagnostics file stays on when you leave the
-  Diagnostics screen.** It switched off at once, so a problem reproduced on
-  another screen was never recorded. It now stays on until you save the file.
-- **Network Diagnostics and Advanced Details open from the command palette.**
+  Diagnostics screen.** It switched off at once, so a problem reproduced
+  on another screen was never recorded. It now stays on until you save the
+  file.
+- **Network Diagnostics and Advanced Details open from the command
+  palette.**
 - **A mirrored file you edit while its owner is offline now shows "Edited
   locally" at once.** It kept its verified check until the folder view
   refreshed for another reason.
 - **Sharing a folder with many files no longer makes transfers stutter once
   a minute.** Mirall's check that shared files are still on disk held up
   everything else for over a second each time, most of all on Windows.
+- **A file shared in two spaces no longer shows its downloader in both.**
+  The space the downloader is not in listed them as "Unknown Member".
 - **The drop highlight lines up with the drop area again.** When you drag
   files over a space, the highlight started lower than the "Drop to Share"
   box it replaces, so the two jumped as one faded into the other.
@@ -88,7 +104,7 @@ changes do not appear here.
   fades.** Dragging a file or folder out of a space again showed that for a
   moment; it now keeps what you were dragging until it is gone.
 
-### Security
+#### Security
 
 - **Someone who knows one space's address no longer receives details of
   your other spaces.** Mirall now answers only a device that proves it
