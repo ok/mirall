@@ -3,6 +3,7 @@ import { readFileSync, readdirSync, statSync } from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { parse } from 'yaml'
+import { REQUIRED_WORKFLOWS } from '../../scripts/ci/require-green-tests.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const RELEASE_WORKFLOW = path.join(ROOT, '.github/workflows/build-electron.yml')
@@ -50,6 +51,42 @@ test('a tag build checks the tag format and that the tag sits on its release bra
   t.ok(gate?.run.includes('merge-base --is-ancestor "$GITHUB_SHA" "origin/release/$LINE"'), 'ancestry is checked')
   const order = stepOrder('resolve')
   t.ok(order.indexOf('Verify tag format and release branch') < order.indexOf('ver'), 'the gate runs before the tag is read as a version')
+})
+
+test('a prod or staging build is refused before the build job unless the commit has a green test run', (t) => {
+  const gate = stepNamed('Require a green Test run for this commit')
+  t.ok(gate, 'the gate exists')
+  t.is(gate?.job, 'resolve')
+  t.is(gate?.if, "steps.ch.outputs.channel != 'dev'", 'only a dev build is exempt, and no input skips it')
+  t.is(gate?.run, 'node scripts/ci/require-green-tests.mjs')
+  t.alike(gate?.env, { GITHUB_TOKEN: '${{ github.token }}' })
+  t.absent(gate?.['continue-on-error'], 'a refusal fails the job')
+
+  const order = stepOrder('resolve')
+  const checkout = workflow.jobs.resolve.steps.findIndex((step) => step.uses?.startsWith('actions/checkout@'))
+  t.ok(checkout >= 0 && checkout < order.indexOf('Require a green Test run for this commit'), 'the script is checked out first')
+  t.ok(order.indexOf('ch') < order.indexOf('Require a green Test run for this commit'), 'the channel is known first')
+
+  const needs = [workflow.jobs.build.needs].flat()
+  t.ok(needs.includes('resolve'), 'the build job, and its environment approval, wait for resolve')
+  t.alike(Object.keys(workflow.on.workflow_dispatch.inputs).sort(), ['channel', 'platform'], 'no override input')
+
+  t.alike(workflow.jobs.resolve.permissions, { contents: 'read', actions: 'read' }, 'resolve may read workflow runs')
+  const others = Object.entries(workflow.jobs).filter(([name, job]) => name !== 'resolve' && job.permissions)
+  t.alike(others.map(([name]) => name), [], 'no other job changes the token')
+})
+
+// A commit can only pass the gate if each required workflow runs where release commits land, and a
+// commit left without a run can be given one.
+test('every workflow a release requires runs on trunk and release pushes and can be dispatched', (t) => {
+  t.ok(REQUIRED_WORKFLOWS.length > 0)
+  for (const file of REQUIRED_WORKFLOWS) {
+    const required = parse(readFileSync(path.join(ROOT, '.github/workflows', file), 'utf8'))
+    t.alike(required.on.push?.branches, ['main', 'release/**'], `${file} runs on pushes to main and release branches`)
+    t.absent(required.on.push?.paths || required.on.push?.['paths-ignore'], `${file} skips no push by path`)
+    t.ok('workflow_dispatch' in required.on, `${file} can be dispatched`)
+    t.absent(required.concurrency, `${file} never cancels a run for a newer one`)
+  }
 })
 
 test('REGRESSION (MIR-56: no expression is pasted into a release shell script)', (t) => {

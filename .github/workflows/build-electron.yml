@@ -40,6 +40,11 @@ permissions:
 jobs:
   resolve:
     runs-on: ubuntu-latest
+    # Job permissions replace the workflow's: this job alone may also read workflow runs,
+    # for the test-result lookup below.
+    permissions:
+      contents: read
+      actions: read
     outputs:
       channel: ${{ steps.ch.outputs.channel }}
       version: ${{ steps.ver.outputs.version }}
@@ -145,6 +150,13 @@ jobs:
             exit 1
           fi
           echo "CHANGELOG.md top entry agrees with tag: v$TAG_V"
+      - name: Require a green Test run for this commit
+        # A tag push and a dispatch run no tests, so the result is looked up for the commit being
+        # built. Every channel but dev is held to it, and there is no input that skips it.
+        if: steps.ch.outputs.channel != 'dev'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/ci/require-green-tests.mjs
       - id: matrix
         env:
           FILTER: ${{ inputs.platform || 'all' }}
