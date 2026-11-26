@@ -1,2 +1,6 @@
+# Text is LF in the index and in every checkout, on every system: the invariant tests read source
+# files by line, and the shell scripts the tests and CI run do not survive a CRLF checkout.
+* text=auto eol=lf
+
 # Byte-pinned by test/invariants/backup-fixtures-frozen.test.js: never converted on checkout.
 test/fixtures/backup/** -text

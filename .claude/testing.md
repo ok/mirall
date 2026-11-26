@@ -192,6 +192,14 @@ the **user-facing outcome** at the UI layer. Don't force a flaky UI assertion.
   (integration, sharded 4x, `MIRALL_TEST_TIMEOUT_SCALE=3`, one process per file with a single retry
   of a failed file), and **flake-ledger**, which grades each suite's pass-on-retry count against its
   own `test/<suite>-flake-budget.json`. Green CI is required to merge.
+- **CI on macOS and Windows (nightly and manual, not a gate):**
+  `.github/workflows/test-platforms.yml` runs `test:node:core`, the flow shards (socket and headless
+  slices included) and the bare shards on `macos-15` and `windows-latest`. It has no push or
+  pull-request trigger, so a red there blocks no merge and no release; a job becomes a gate by
+  moving to those triggers once it is green on its system. Typecheck, lint and knip stay Linux-only,
+  and these jobs are outside the flake ledger: its budgets are measured on the Linux runners. The
+  flow shard loop is `scripts/ci/run-flow-shard.sh`. The checkout is LF on every system
+  (`.gitattributes`), which the invariant tests and the shell scripts rely on.
 - **Local (you run it — not optional):** `npm run test:fe` is **required** for any UI-affecting
   change and runs fine on a dev machine (only CI can't drive the AX tree). The agent runs the
   scenarios covering the change itself, in background mode, without asking — for bug fixes, new

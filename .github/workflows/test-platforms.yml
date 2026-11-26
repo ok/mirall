@@ -1,0 +1,111 @@
+name: Test (macOS, Windows)
+
+# The suites test.yml runs on Linux, on the two other systems the app ships for. These jobs gate
+# nothing: they run nightly and by hand, never on a push or a pull request, so a red here blocks no
+# merge and no release. A job becomes a gate only by moving to push and pull_request triggers, and
+# only once it is green on its system. Typecheck, lint and the dead-code report read the source and
+# give the same answer everywhere, so they stay in test.yml.
+#
+# Outside the flake ledger: the budgets in test/*-flake-budget.json are measured on the Linux
+# runners, and a retry here would spend them without saying anything about that suite. The reports
+# are uploaded all the same, in the ledger's shape, so a budget per system can be set from them.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 2 * * *'
+
+permissions:
+  contents: read
+
+# Bash everywhere: on Windows the default is PowerShell, which reads none of the steps below.
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  # Unit, invariant and raw-mechanics tests under Node.
+  node:
+    name: node (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, windows-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup
+      - name: Tests (unit + raw)
+        run: npm run test:node:core
+
+  # The two-peer flow shards, partitioned and retried exactly as in test.yml. Shards 7 and 8 re-run
+  # slice 1 over the worker socket and against headless workers, one transport each, per system.
+  flow:
+    name: flow (${{ matrix.os }}, ${{ matrix.shard }}, ${{ matrix.transport }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, windows-latest]
+        shard: [1, 2, 3, 4, 5, 6]
+        transport: [pipe]
+        include:
+          - { os: macos-15, shard: 7, slice: 1, transport: socket }
+          - { os: macos-15, shard: 8, slice: 1, transport: headless }
+          - { os: windows-latest, shard: 7, slice: 1, transport: socket }
+          - { os: windows-latest, shard: 8, slice: 1, transport: headless }
+    env:
+      MIRALL_TEST_TIMEOUT_SCALE: '3'
+      MIRALL_TEST_IPC_TRANSPORT: ${{ matrix.transport }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup
+      - name: Flow tests (shard ${{ matrix.shard }}, ${{ matrix.transport }})
+        run: >-
+          bash scripts/ci/run-flow-shard.sh
+          ${{ matrix.shard }} ${{ matrix.slice || matrix.shard }} 6
+          "${{ matrix.transport }}, ${{ matrix.os }}"
+      - name: Upload flake report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: flake-report-${{ matrix.os }}-${{ matrix.shard }}
+          path: flake-report
+          if-no-files-found: ignore
+
+  # The integration shards under Bare, one process per file, as in test.yml.
+  bare:
+    name: bare (${{ matrix.os }}, ${{ matrix.shard }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, windows-latest]
+        shard: [1, 2, 3, 4]
+    env:
+      MIRALL_TEST_TIMEOUT_SCALE: '3'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup
+      # Through bare-runtime's Node launcher, the way test/bare-runner.mjs starts it: a missing
+      # prebuild for this system fails here, by name, instead of once per test file.
+      - name: Check the bare runtime starts
+        run: node node_modules/bare-runtime/bin/bare --version
+      - name: Integration tests (shard ${{ matrix.shard }}/4)
+        run: |
+          files="$(node test/bare-shard.mjs ${{ matrix.shard }} 4)"
+          # One spelling of a path on every system, so a report names a file the same way everywhere.
+          files="${files//\\//}"
+          echo "Shard ${{ matrix.shard }}/4:"; echo "$files" | tr ' ' '\n'
+          node test/bare-runner.mjs --jobs 2 --retries 1 \
+            --report flake-report/flake-${{ matrix.shard }}.json \
+            --shard-label ${{ matrix.shard }} $files
+      - name: Upload flake report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: bare-flake-report-${{ matrix.os }}-${{ matrix.shard }}
+          path: flake-report
+          if-no-files-found: ignore

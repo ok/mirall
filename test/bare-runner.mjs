@@ -43,9 +43,15 @@ function fail(message) {
   process.exit(1)
 }
 
-// The bare binary lives in node_modules/.bin, which npm puts on PATH for a script it runs but which
-// a direct `node test/bare-runner.mjs` does not have. brittle-bare's shebang resolves `bare` from
-// PATH, so the child gets it either way.
+// Both are started as scripts handed to an interpreter, never through their node_modules/.bin
+// entries: those are shebang files on macOS and Linux and `.cmd` shims on Windows, and a spawn
+// without a shell can run neither kind on Windows. bare-runtime's launcher is a Node script that
+// starts the platform's bare binary on brittle's entry, which is the chain the shebangs resolve to.
+const BARE_LAUNCHER = path.join('node_modules', 'bare-runtime', 'bin', 'bare')
+const BRITTLE_ENTRY = path.join('node_modules', 'brittle', 'brittle-bare.js')
+
+// node_modules/.bin is on PATH for a script npm runs, but not for a direct
+// `node test/bare-runner.mjs`. A test that starts `bare` by name gets it either way.
 function childEnv() {
   const bin = path.resolve('node_modules/.bin')
   return { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH || ''}` }
@@ -54,7 +60,7 @@ function childEnv() {
 function runFile(file) {
   return new Promise((resolve) => {
     const startedAt = Date.now()
-    const child = spawn(path.join('node_modules', '.bin', 'brittle-bare'), [file], {
+    const child = spawn(process.execPath, [BARE_LAUNCHER, BRITTLE_ENTRY, file], {
       env: childEnv(),
       stdio: ['ignore', 'pipe', 'pipe'],
     })
