@@ -141,7 +141,8 @@ test('a window that loses its worker while connecting is not left with a connect
   t.ok(sockets[0].destroyed)
 })
 
-test('main talks only to a socket in a directory private to this user', (t) => {
+// POSIX only: the check reads the directory's owner and permission bits, which Windows has none of.
+test('main talks only to a socket in a directory private to this user', { skip: process.platform === 'win32' }, (t) => {
   const dir = tmpDir('wc', t)
   const run = path.join(dir, 'run')
   fs.mkdirSync(run, { mode: 0o700 })
@@ -155,8 +156,10 @@ test('main talks only to a socket in a directory private to this user', (t) => {
   const link = path.join(dir, 'link')
   fs.symlinkSync(target, link)
   t.exception(() => assertPrivateSocketDir(path.join(link, 'daemon.sock'), 'darwin'), 'a symlink is not the directory')
+})
 
-  t.execution(() => assertPrivateSocketDir('\\\\.\\pipe\\mirall-x', 'win32'), 'a named pipe has no directory to check')
+test('a named pipe has no directory to check', (t) => {
+  t.execution(() => assertPrivateSocketDir('\\\\.\\pipe\\mirall-x', 'win32'))
 })
 
 test('a socket closed under its window is reported to the owner of the worker, before the grace', async (t) => {

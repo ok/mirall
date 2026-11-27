@@ -12,6 +12,7 @@ import net from 'net'
 import { EventEmitter } from 'events'
 import { fileURLToPath } from 'url'
 import { tmpPath } from '../helpers/tmp.js'
+import { listenAddress } from '../helpers/listen-address.js'
 import { createRequire } from 'module'
 
 // Each load() installs its own process-exit backstop, as each real spawn path does.
@@ -21,6 +22,7 @@ const KEK = 'ab'.repeat(32)
 const requireCjs = createRequire(import.meta.url)
 const APP_VERSION = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).version
 const SEED = 'ef'.repeat(32)
+const { canAttach } = requireCjs('../../src/main/backend-discovery.js')
 
 const REPO = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
 preloadEntrypoints(REPO)
@@ -589,7 +591,7 @@ function socketServer(t, { unlock: answer = () => ({ data: { ok: true } }), hold
     fs.mkdirSync(dir, { mode: 0o700 })
     t.teardown(() => fs.rmSync(path.dirname(dir), { recursive: true, force: true }))
   }
-  const socketPath = path.join(dir, given ? 'daemon.sock' : 's.sock')
+  const socketPath = listenAddress(dir, given ? 'daemon.sock' : 's.sock')
   const peers = []
   const unlocks = []
   const hellos = []
@@ -714,6 +716,10 @@ async function runningBackend(t, { mode = 0o700, withRecord = true, record = {},
   return { ...backend, storage: path.join(dataDir, 'app-storage'), recordFile, writeRecord, dataDir }
 }
 
+// Using a back end main did not start rests on verifying who owns its socket. Where this build
+// cannot (canAttach), every start spawns, and none of these cases has anything to observe.
+const attachTest = (name, fn) => test(name, { skip: !canAttach() }, fn)
+
 function spawnCounter() {
   const spawned = []
   return { spawned, spawn: () => { const w = stubWorker(); spawned.push(w); return w } }
@@ -721,7 +727,7 @@ function spawnCounter() {
 
 const exits = (sender) => sender.sent.filter(([c]) => c.startsWith('pear:worker:exit:')).map(([, code]) => code)
 
-test('a running back end of this user’s at this version is used: no spawn, no bootstrap, the key only because it waits', async (t) => {
+attachTest('a running back end of this user’s at this version is used: no spawn, no bootstrap, the key only because it waits', async (t) => {
   const backend = await runningBackend(t, { status: AWAITING })
   const { spawned, spawn } = spawnCounter()
   const { host, electron } = load({ flags: { identityKEK: KEK }, storage: backend.storage, spawn })
@@ -745,7 +751,7 @@ test('a running back end of this user’s at this version is used: no spawn, no 
   t.is(backend.unlocks.length, 2)
 })
 
-test('a running back end whose identity is already open is sent nothing', async (t) => {
+attachTest('a running back end whose identity is already open is sent nothing', async (t) => {
   const backend = await runningBackend(t, { status: OPEN })
   const { spawned, spawn } = spawnCounter()
   const { host, electron } = load({ flags: { identityKEK: KEK }, storage: backend.storage, spawn })
@@ -756,7 +762,7 @@ test('a running back end whose identity is already open is sent nothing', async 
   t.is(backend.unlocks.length, 0)
 })
 
-test('a running back end locked by another key is handed this app’s key, as "try again" would', async (t) => {
+attachTest('a running back end locked by another key is handed this app’s key, as "try again" would', async (t) => {
   const backend = await runningBackend(t, { status: LOCKED_STATUS, unlock: () => ({ error: 'identity unlock failed', code: 'IDENTITY_UNLOCK_FAILED' }) })
   const { spawned, spawn } = spawnCounter()
   const { host, electron } = load({ flags: { identityKEK: KEK }, storage: backend.storage, spawn })
@@ -766,7 +772,7 @@ test('a running back end locked by another key is handed this app’s key, as "t
   t.is(spawned.length, 0)
 })
 
-test('a running back end of another version is neither used nor replaced: the window hears "already running"', async (t) => {
+attachTest('a running back end of another version is neither used nor replaced: the window hears "already running"', async (t) => {
   const backend = await runningBackend(t, { status: AWAITING, appVersion: '0.0.1-beta.1' })
   const { spawned, spawn } = spawnCounter()
   const { host, electron } = load({ flags: { identityKEK: KEK }, storage: backend.storage, spawn })
@@ -779,7 +785,7 @@ test('a running back end of another version is neither used nor replaced: the wi
   t.absent(host.workerIsLocal(sender.id), 'and it is not the back end in use')
 })
 
-test('a record main cannot trust, or whose socket does not answer, is no back end: the start spawns as without one', async (t) => {
+attachTest('a record main cannot trust, or whose socket does not answer, is no back end: the start spawns as without one', async (t) => {
   const cases = {
     'a run folder others can read': { mode: 0o755 },
     'a record naming a socket that is gone': { record: { socket: '/nonexistent/run/daemon.sock' } },
@@ -799,7 +805,7 @@ test('a record main cannot trust, or whose socket does not answer, is no back en
   }
 })
 
-test('a stale record — a socket file nobody listens on — is no back end', async (t) => {
+attachTest('a stale record — a socket file nobody listens on — is no back end', async (t) => {
   const backend = await runningBackend(t, { status: AWAITING })
   await backend.close()
   fs.closeSync(fs.openSync(backend.socketPath, 'w'))
@@ -822,7 +828,7 @@ test('with no record at all the spawn happens in the same turn as the request', 
   spawned[0].emit('exit', 0)
 })
 
-test('a spawn that exits as already running is followed by a look for the holder, which is then used', async (t) => {
+attachTest('a spawn that exits as already running is followed by a look for the holder, which is then used', async (t) => {
   const backend = await runningBackend(t, { status: AWAITING, withRecord: false })
   const { spawned, spawn } = spawnCounter()
   const { host, electron } = load({ flags: { identityKEK: KEK }, storage: backend.storage, spawn })
@@ -850,7 +856,7 @@ test('a spawn that exits as already running with no holder to find still says so
   t.is(spawned.length, 1)
 })
 
-test('quitting lets go of a back end it did not start: no shutdown, no signal, its windows disconnected', async (t) => {
+attachTest('quitting lets go of a back end it did not start: no shutdown, no signal, its windows disconnected', async (t) => {
   const backend = await runningBackend(t, { status: OPEN })
   const { spawned, spawn } = spawnCounter()
   const { host, electron } = load({ flags: { identityKEK: KEK }, storage: backend.storage, spawn })
@@ -868,7 +874,7 @@ test('quitting lets go of a back end it did not start: no shutdown, no signal, i
   t.alike(exits(sender), [], 'and the window is not told it exited')
 })
 
-test('a restart is refused for a back end it did not start, with a code, and the back end is untouched', async (t) => {
+attachTest('a restart is refused for a back end it did not start, with a code, and the back end is untouched', async (t) => {
   const backend = await runningBackend(t, { status: OPEN })
   const { spawned, spawn } = spawnCounter()
   const { host, electron } = load({ flags: { identityKEK: KEK }, storage: backend.storage, spawn })
@@ -883,7 +889,7 @@ test('a restart is refused for a back end it did not start, with a code, and the
   t.alike(exits(sender), [])
 })
 
-test('a back end it did not start that goes away: the window hears exit 0, and its next start looks afresh', async (t) => {
+attachTest('a back end it did not start that goes away: the window hears exit 0, and its next start looks afresh', async (t) => {
   const backend = await runningBackend(t, { status: OPEN })
   const { spawned, spawn } = spawnCounter()
   const { host, electron } = load({ flags: { identityKEK: KEK }, storage: backend.storage, spawn })
@@ -904,7 +910,7 @@ test('a back end it did not start that goes away: the window hears exit 0, and i
   await again.catch(() => {})
 })
 
-test('a reveal is authorized against the roots the back end it did not start answers with', async (t) => {
+attachTest('a reveal is authorized against the roots the back end it did not start answers with', async (t) => {
   const backend = await runningBackend(t, { status: OPEN, roots: ['/Volumes/Data/dl', '', 7] })
   const { host, electron } = load({ flags: { identityKEK: KEK }, storage: backend.storage })
   host.registerWorkerHost()
@@ -921,7 +927,7 @@ async function restartedOn(t, backend) {
   return socketServer(t, { dir: path.dirname(backend.socketPath), dataDir: fs.realpathSync.native(backend.dataDir), status: AWAITING })
 }
 
-test('REGRESSION (FIX-ATTACH-1: a closed window left a dead or replaced back end cached): a start with no window connected looks for the back end afresh and opens it', async (t) => {
+attachTest('REGRESSION (FIX-ATTACH-1: a closed window left a dead or replaced back end cached): a start with no window connected looks for the back end afresh and opens it', async (t) => {
   const backend = await runningBackend(t, { status: OPEN })
   const { spawned, spawn } = spawnCounter()
   const { host, electron } = load({ flags: { identityKEK: KEK }, storage: backend.storage, spawn })
@@ -936,7 +942,7 @@ test('REGRESSION (FIX-ATTACH-1: a closed window left a dead or replaced back end
   t.is(spawned.length, 0)
 })
 
-test('REGRESSION (FIX-ATTACH-1: a failed connect to an attached back end kept it cached): it is forgotten, and the next start looks again', async (t) => {
+attachTest('REGRESSION (FIX-ATTACH-1: a failed connect to an attached back end kept it cached): it is forgotten, and the next start looks again', async (t) => {
   const backend = await runningBackend(t, { status: OPEN })
   const { spawned, spawn } = spawnCounter()
   const { host, electron } = load({ flags: { identityKEK: KEK }, storage: backend.storage, spawn })
@@ -958,7 +964,7 @@ test('REGRESSION (FIX-ATTACH-1: a failed connect to an attached back end kept it
   await third.catch(() => {})
 })
 
-test('REGRESSION (FIX-ATTACH-3: the app took the lock from an owner restarting the back end): after losing it, the next start waits for its return and uses it', async (t) => {
+attachTest('REGRESSION (FIX-ATTACH-3: the app took the lock from an owner restarting the back end): after losing it, the next start waits for its return and uses it', async (t) => {
   const backend = await runningBackend(t, { status: OPEN })
   const { spawned, spawn } = spawnCounter()
   const { host, electron } = load({ flags: { identityKEK: KEK }, storage: backend.storage, spawn, returnLooksMs: [0, 30, 30, 30] })
@@ -979,7 +985,7 @@ test('REGRESSION (FIX-ATTACH-3: the app took the lock from an owner restarting t
   t.alike(back.requests, ['identity:status', 'identity:unlock'])
 })
 
-test('REGRESSION (FIX-ATTACH-6: a window destroyed during the start was claimed and connected): it is neither claimed nor connected', async (t) => {
+attachTest('REGRESSION (FIX-ATTACH-6: a window destroyed during the start was claimed and connected): it is neither claimed nor connected', async (t) => {
   const backend = await runningBackend(t, { status: OPEN, holdUnlock: false })
   const { host, electron } = load({ flags: { identityKEK: KEK }, storage: backend.storage })
   host.registerWorkerHost()
@@ -993,7 +999,7 @@ test('REGRESSION (FIX-ATTACH-6: a window destroyed during the start was claimed 
   t.absent(host.workerIsLocal(sender.id))
 })
 
-test('REGRESSION (FIX-ATTACH-8: a quit during the look still spawned or handed a key): nothing is spawned or handed over once the app is quitting', async (t) => {
+attachTest('REGRESSION (FIX-ATTACH-8: a quit during the look still spawned or handed a key): nothing is spawned or handed over once the app is quitting', async (t) => {
   const backend = await runningBackend(t, { status: AWAITING })
   const { spawned, spawn } = spawnCounter()
   // A quit-state of this test's own: the flag has no way back, and later tests load the host afresh.
@@ -1010,7 +1016,7 @@ test('REGRESSION (FIX-ATTACH-8: a quit during the look still spawned or handed a
   t.is(backend.unlocks.length, 0, 'no key went out')
 })
 
-test('REGRESSION (FIX-ATTACH-5: a busy holder was taken for stale and a second back end spawned): it is reported as already running, and nothing spawns', async (t) => {
+attachTest('REGRESSION (FIX-ATTACH-5: a busy holder was taken for stale and a second back end spawned): it is reported as already running, and nothing spawns', async (t) => {
   const backend = await runningBackend(t, { status: AWAITING, silent: true })
   const { spawned, spawn } = spawnCounter()
   const { host, electron } = load({ flags: { identityKEK: KEK }, storage: backend.storage, spawn, busyAnswerMs: 30 })
@@ -1021,7 +1027,7 @@ test('REGRESSION (FIX-ATTACH-5: a busy holder was taken for stale and a second b
   t.is(spawned.length, 0)
 })
 
-test('REGRESSION (FIX-ATTACH-9: an action stopped halfway when its restart was refused): main says, before any step, whether this window’s back end is its to restart', async (t) => {
+attachTest('REGRESSION (FIX-ATTACH-9: an action stopped halfway when its restart was refused): main says, before any step, whether this window’s back end is its to restart', async (t) => {
   const backend = await runningBackend(t, { status: OPEN })
   const { host, electron } = load({ flags: { identityKEK: KEK }, storage: backend.storage })
   host.registerWorkerHost()

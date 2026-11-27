@@ -28,9 +28,14 @@ function load({ workerIsLocal = (id) => id === LOCAL_WINDOW, roots = () => [] } 
 }
 
 // Real files: main reads the disk itself rather than taking the caller's word for what is there.
+// The home folder is pinned away from them for the test: on Windows the temp folder lies inside it,
+// where the home jail would admit every path here before a root was asked.
 function diskRoot(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'reveal-gate-'))
   t.teardown(() => fs.rmSync(root, { recursive: true, force: true }))
+  const homedir = os.homedir
+  os.homedir = () => path.join(root, 'home')
+  t.teardown(() => { os.homedir = homedir })
   return fs.realpathSync(root)
 }
 

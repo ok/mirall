@@ -5,6 +5,7 @@ import fs from 'fs'
 import path from 'path'
 import { createRequire } from 'module'
 import { tmpDir } from '../helpers/tmp.js'
+import { listenAddress } from '../helpers/listen-address.js'
 import { IPC_PROTOCOL_VERSION, IPC_PROTOCOL_MIN_SUPPORTED, CLIENT_KINDS } from '../../src/shared/contract/ipc-frames.js'
 
 const require = createRequire(import.meta.url)
@@ -142,7 +143,8 @@ test('a directory that is not private is refused before any connection is made',
   t.absent(connected)
 })
 
-test('the default directory check is the one a window\'s connection applies', async (t) => {
+// POSIX only: a named pipe has no directory, so on Windows there is nothing for the check to refuse.
+test('the default directory check is the one a window\'s connection applies', { skip: process.platform === 'win32' }, async (t) => {
   const dir = tmpDir('wr', t)
   const open = path.join(dir, 'open')
   fs.mkdirSync(open)
@@ -169,7 +171,7 @@ test('over a real socket, the request reaches a worker and its answer comes back
     })
     sock.on('error', () => {})
   })
-  const socketPath = path.join(dir, 's.sock')
+  const socketPath = listenAddress(dir, 's.sock')
   await new Promise((resolve) => server.listen(socketPath, resolve))
   t.teardown(() => new Promise((resolve) => server.close(resolve)))
   t.alike(await requestOverSocket(socketPath, 'identity:unlock', { kek: KEK }), { ok: true })

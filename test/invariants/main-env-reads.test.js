@@ -37,7 +37,7 @@ function envReads(source) {
 
 const reads = Object.fromEntries(
   ['src/main', 'src/preload'].flatMap((dir) => walk(path.join(ROOT, dir)))
-    .map((file) => [path.relative(ROOT, file), envReads(readFileSync(file, 'utf8'))])
+    .map((file) => [path.relative(ROOT, file).split(path.sep).join('/'), envReads(readFileSync(file, 'utf8'))])
     .filter(([, found]) => found.length > 0),
 )
 

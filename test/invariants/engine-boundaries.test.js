@@ -32,6 +32,9 @@ function walk(dir, out = []) {
   return out
 }
 
+// One spelling of a path on every system, the one the allowlist is written in.
+const rel = (from, to) => path.relative(from, to).split(path.sep).join('/')
+
 function engineImports() {
   const found = []
   for (const file of [...walk(path.join(root, 'src')), ...walk(path.join(root, 'scripts'))]) {
@@ -39,7 +42,7 @@ function engineImports() {
     for (const m of readFileSync(file, 'utf8').matchAll(/(?:from|import)\s*\(?\s*'([^']+)'/g)) {
       if (!m[1].startsWith('.')) continue
       const target = path.resolve(path.dirname(file), m[1])
-      if (target.startsWith(ENGINE + path.sep)) found.push({ importer: path.relative(root, file), entry: path.relative(ENGINE, target) })
+      if (target.startsWith(ENGINE + path.sep)) found.push({ importer: rel(root, file), entry: rel(ENGINE, target) })
     }
   }
   return found

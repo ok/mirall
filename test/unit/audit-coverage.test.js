@@ -19,7 +19,7 @@ function walk(dir, out = []) {
 
 // Data-layer sources only: the renderer holds a mirror of the vocabulary for search labels, and
 // counting it as a call site would let a kind look "wired" while nothing ever records it.
-const dataLayerFiles = walk(SRC).filter((f) => f.includes('/shared/') || f.includes('/worker/'))
+const dataLayerFiles = walk(SRC).filter((f) => /[\\/](shared|worker)[\\/]/.test(f))
 const dataLayerSource = dataLayerFiles.map((f) => readFileSync(f, 'utf8')).join('\n')
 
 // Every string literal the audit vocabulary could be spelled as. Deliberately NOT anchored to

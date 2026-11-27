@@ -29,7 +29,7 @@ test('no renderer action is handed over as a window event', (t) => {
   const files = walk(root)
   t.ok(files.length > 100, `walked ${files.length} renderer files`)
   for (const file of files) {
-    const rel = path.relative(root, file)
+    const rel = path.relative(root, file).split(path.sep).join('/')
     if (rel === BROADCASTER) continue
     t.absent(/window\.dispatchEvent\s*\(/.test(readFileSync(file, 'utf8')),
       `${rel}: hands an action over as a window event — give the screen navigation state instead`)

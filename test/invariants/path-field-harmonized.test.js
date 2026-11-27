@@ -25,7 +25,7 @@ function sourceFiles(dir) {
   return out
 }
 
-const files = sourceFiles(RENDERER).map((f) => ({ rel: path.relative(RENDERER, f), src: read(f) }))
+const files = sourceFiles(RENDERER).map((f) => ({ rel: path.relative(RENDERER, f).split(path.sep).join('/'), src: read(f) }))
 const pathRow = read(path.join(RENDERER, 'components/path/PathRow.tsx'))
 
 // `FilePath` renders the path text alone. Beside an action it is the bare-text form this

@@ -4,6 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, copyFileSync, rmSync } from 'nod
 import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
+import { BASH, shellPath } from '../helpers/bash.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const SCRIPT = path.join(here, '..', '..', 'scripts', 'ci', 'check-comment-hygiene.sh')
@@ -25,8 +26,8 @@ function tree(t, files) {
 }
 
 function run(root, args = []) {
-  const r = spawnSync('bash', [path.join(root, 'scripts', 'ci', 'check-comment-hygiene.sh'), ...args], { encoding: 'utf8' })
-  return { code: r.status, out: r.stdout + r.stderr }
+  const r = spawnSync(BASH, [shellPath(path.join(root, 'scripts', 'ci', 'check-comment-hygiene.sh')), ...args], { encoding: 'utf8' })
+  return { code: r.status, out: `${r.stdout}${r.stderr}${r.error ?? ''}` }
 }
 
 const CLEAN = '// The rule, stated in the present tense.\nexport const x = 1\n'

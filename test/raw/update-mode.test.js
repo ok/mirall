@@ -22,7 +22,8 @@ const { ConfigStore } = require('../../src/main/config-store.js')
 // mode allows it.
 
 const host = `${process.platform}-${process.arch}`
-const NAME = 'Mirall.AppImage'
+// A file the updater swaps in place on this system: on Windows it applies only an .exe that way.
+const NAME = process.platform === 'win32' ? 'Mirall.exe' : 'Mirall.AppImage'
 const PREFIX = `/by-arch/${host}/app/${NAME}`
 const PAYLOAD = Buffer.alloc(64 * 1024 * 16, 7)
 

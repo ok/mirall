@@ -43,7 +43,8 @@ test('the vault sits beside the store and is owner-only', (t) => {
   const file = seedFile(storage)
   t.is(path.dirname(file), path.dirname(storage), 'beside kek.enc, not inside the corestore')
   t.is(path.basename(file), 'relay-ticket.enc')
-  t.is(fs.statSync(file).mode & 0o777, 0o600)
+  // A file carries no permission bits on Windows: the profile folder's access list keeps it private.
+  if (process.platform !== 'win32') t.is(fs.statSync(file).mode & 0o777, 0o600)
 })
 
 // Asserting the ciphertext would only test the fake. What matters is the boundary: the seed
@@ -171,7 +172,8 @@ test('a rewrite replaces the previous seed', (t) => {
 // a Windows lock, EPERM, a read-only volume — still returned success. The config then stopped
 // naming a seed the node keeps presenting on every later boot, with nothing on screen to explain
 // it and no path in the app that could find or remove it.)
-test('REGRESSION (FIX-5: a vault that cannot be deleted is reported, not swallowed)', (t) => {
+// POSIX only: the refusal is staged with a read-only folder, which stops no delete on Windows.
+test('REGRESSION (FIX-5: a vault that cannot be deleted is reported, not swallowed)', { skip: process.platform === 'win32' }, (t) => {
   const storage = tmpStorage()
   writeRelaySeedHex(storage, SEED, { safeStorage: fakeSafeStorage() })
 

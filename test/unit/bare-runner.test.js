@@ -11,6 +11,10 @@ import path from 'path'
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
 const fixture = (name) => `test/fixtures/bare-runner/${name}`
 
+// How the operating system reports a process that aborted: SIGABRT's 128 + 6 on POSIX, the
+// fail-fast status code on Windows.
+const ABORT_EXIT = process.platform === 'win32' ? 0xC0000409 : 134
+
 function runRunner(args) {
   const r = spawnSync(process.execPath, ['test/bare-runner.mjs', ...args], { cwd: repo, encoding: 'utf8' })
   return { status: r.status, out: `${r.stdout}${r.stderr}` }
@@ -20,7 +24,7 @@ test('REGRESSION (FIX-255: an aborting file is named, and takes no other file wi
   const { status, out } = runRunner(['--jobs', '2', fixture('aborting.test.js'), fixture('passing.test.js')])
 
   t.ok(out.includes(`FAIL ${fixture('aborting.test.js')}`), 'the file that aborted is named')
-  t.ok(out.includes('exit 134'), 'with how it died')
+  t.ok(out.includes(`exit ${ABORT_EXIT}`), 'with how it died')
   t.ok(out.includes('nothing awaits this'), 'and its output is printed, not swallowed')
   t.ok(out.includes(`ok   ${fixture('passing.test.js')}`), 'the sibling file still ran and passed')
   t.not(status, 0, 'the run exits non-zero')
