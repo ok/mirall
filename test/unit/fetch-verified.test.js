@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { createHash } from 'node:crypto'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import path from 'node:path'
+import { BASH, shellPath } from '../helpers/bash.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const HELPER = path.join(here, '..', '..', 'scripts', 'build', 'lib', 'fetch-verified.sh')
@@ -21,8 +22,8 @@ function scratch(t) {
 // failure did not stop the calling script.
 function runHelper(call, args) {
   const script = `set -euo pipefail; source "$1"; shift; ${call} "$@"; echo CONTINUED`
-  const result = spawnSync('bash', ['-c', script, 'fetch-verified', HELPER, ...args], { encoding: 'utf8' })
-  return { code: result.status, stdout: result.stdout, stderr: result.stderr }
+  const result = spawnSync(BASH, ['-c', script, 'fetch-verified', shellPath(HELPER), ...args], { encoding: 'utf8' })
+  return { code: result.status, stdout: `${result.stdout}`, stderr: `${result.stderr}${result.error ?? ''}` }
 }
 
 function fetchFixture(t, expected, url) {
@@ -30,7 +31,7 @@ function fetchFixture(t, expected, url) {
   const source = path.join(dir, 'asset')
   writeFileSync(source, BYTES)
   const out = path.join(dir, 'out')
-  return { out, ...runHelper('fetch_verified', [url ?? pathToFileURL(source).href, expected, out]) }
+  return { out, ...runHelper('fetch_verified', [url ?? pathToFileURL(source).href, expected, shellPath(out)]) }
 }
 
 test('REGRESSION (MIR-55: a build input whose hash differs from its pin stops the build)', (t) => {
@@ -69,7 +70,7 @@ test('a failed download stops the build', (t) => {
 test('a file that drifted from its pin after download is refused and deleted', (t) => {
   const file = path.join(scratch(t), 'runtime')
   writeFileSync(file, `${BYTES}patched\n`)
-  const r = runHelper('verify_sha256', [file, PIN])
+  const r = runHelper('verify_sha256', [shellPath(file), PIN])
   t.not(r.code, 0)
   t.absent(r.stdout.includes('CONTINUED'))
   t.absent(existsSync(file))

@@ -75,7 +75,7 @@ test('every file derived from upstream opens with its license and modification n
 })
 
 test('no first-party engine file claims an upstream origin', (t) => {
-  const own = readdirSync(ENGINE, { recursive: true }).filter((name) => name.endsWith('.js') && !DERIVED.has(name))
+  const own = readdirSync(ENGINE, { recursive: true }).map((name) => name.split(path.sep).join('/')).filter((name) => name.endsWith('.js') && !DERIVED.has(name))
   t.ok(own.some((name) => name.includes('/')), 'the walk reaches the engine subfolders')
   t.alike(own.filter((name) => read(path.join(ENGINE, name)).includes('Derived from hyper-overlay')), [])
 })

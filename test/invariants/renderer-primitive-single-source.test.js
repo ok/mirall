@@ -106,7 +106,7 @@ test('no renderer file hand-rolls what a primitive owns', (t) => {
 
   for (const rule of RULES) {
     for (const file of files) {
-      const rel = path.relative(root, file)
+      const rel = path.relative(root, file).split(path.sep).join('/')
       if (rel === rule.owner || rule.exempt?.includes(rel)) continue
       t.absent(rule.pattern.test(readFileSync(file, 'utf8')),
         `${rel} builds ${rule.what} itself — use ${rule.use}`)

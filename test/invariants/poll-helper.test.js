@@ -59,9 +59,11 @@ test('until reports a timeout; waitFor throws it', async (t) => {
 // The extra check the three re-checking call sites relied on: a condition that only becomes true
 // during the final sleep still has to be seen.
 test('a condition that flips during the last sleep is still seen', async (t) => {
-  let ready = false
-  setTimeout(() => { ready = true }, 45)
-  t.is(await until(() => ready, 40, { interval: 30, scale: false }), true)
+  // True from the deadline on, so no check inside the loop can see it and the answer rests on the
+  // one made after it. Read off the clock the helper reads, not off a second timer: two timers due
+  // a few milliseconds apart fire in either order on a coarse system timer.
+  const flipsAt = Date.now() + 40
+  t.is(await until(() => Date.now() >= flipsAt, 40, { interval: 30, scale: false }), true)
 })
 
 test('a sync predicate is accepted', async (t) => {

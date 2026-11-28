@@ -83,7 +83,7 @@ test('every emitted worker event is classified in the EDA taxonomy', (t) => {
   const emitted = new Set()
   const re = /emit\(\s*['"`](event:[a-z-]+)/g
   for (const file of walk(SRC)) {
-    if (!(file.includes('/worker/') || file.includes('/shared/') || file.includes('/main/'))) continue
+    if (!/[\\/](worker|shared|main)[\\/]/.test(file)) continue
     const src = readFileSync(file, 'utf8')
     for (let m; (m = re.exec(src));) emitted.add(m[1])
   }

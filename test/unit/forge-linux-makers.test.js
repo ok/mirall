@@ -22,12 +22,11 @@ test('the deb maker names the package, the executable and the scheme handler the
   t.absent(o.scripts, 'no maintainer scripts')
   t.absent(o.depends, 'Depends stays the installer default for the packaged Electron version')
   t.is(o.compression, 'xz', 'xz members: dpkg before Debian 12 cannot unpack zstd')
-  const iconDir = path.dirname(new URL('../../resources/linux/icons/16x16.png', import.meta.url).pathname)
-  const onDisk = fs.readdirSync(iconDir).filter((f) => /^\d+x\d+\.png$/.test(f)).map((f) => f.slice(0, -4)).sort()
+  const onDisk = fs.readdirSync(new URL('../../resources/linux/icons/', import.meta.url)).filter((f) => /^\d+x\d+\.png$/.test(f)).map((f) => f.slice(0, -4)).sort()
   t.alike(Object.keys(o.icon).sort(), onDisk, 'every <size>x<size>.png in resources/linux/icons ships, and nothing else')
   for (const [size, file] of Object.entries(o.icon)) {
     t.ok(fs.existsSync(file), `icon ${size} exists`)
-    t.ok(file.endsWith(`/${size}.png`), `icon ${size} is the matching source file`)
+    t.is(path.basename(file), `${size}.png`, `icon ${size} is the matching source file`)
   }
 })
 

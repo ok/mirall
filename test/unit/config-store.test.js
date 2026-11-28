@@ -184,8 +184,10 @@ test('a config with nothing to clean is not rewritten on load', (t) => {
   t.is(fs.statSync(file).mtimeMs, before, 'rewriting every boot to change nothing is worse than waiting')
 })
 
-// config.json holds the feedback email and sits beside a member identity, so 0600 is right.
-test('config.json is written owner-only', (t) => {
+// config.json holds the feedback email and sits beside a member identity, so 0600 is right. POSIX
+// only: a file carries no permission bits on Windows, where the profile folder's access list is
+// what keeps it private.
+test('config.json is written owner-only', { skip: process.platform === 'win32' }, (t) => {
   const dir = tmpDir()
   const store = new ConfigStore(dir).load()
   store.set('ui.feedbackEmail', 'a@b.c')

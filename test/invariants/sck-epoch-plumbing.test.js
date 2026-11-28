@@ -16,7 +16,7 @@ function walk(dir, out = []) {
   return out
 }
 
-const rel = (p) => path.relative(root, p)
+const rel = (p) => path.relative(root, p).split(path.sep).join('/')
 // Code only: comment lines are dropped before matching, so a doc mention is never a reader.
 const codeOf = (f) => readFileSync(f, 'utf8').split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n')
 const filesMatching = (re) => walk(srcDir).filter((f) => re.test(codeOf(f))).map(rel).sort()
