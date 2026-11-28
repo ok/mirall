@@ -8,6 +8,7 @@ import { CODES } from '../contract/errors.js'
 import { createLogger } from '../core/logger.js'
 import { createCoalescingRunner } from '../core/concurrency.js'
 import { createPassLiveness } from '../core/pass-liveness.js'
+import { createLoopBudget } from '../core/loop-budget.js'
 import { getOwnedMount, touchOwnedMountScan } from './mount-store.js'
 import { isServableShare } from '../transfer/content-mode.js'
 import { listOwnShare } from '../shares/own-catalog.js'
@@ -25,6 +26,10 @@ const log = createLogger('owned-folders')
 // How often a phase that iterates without touching the disk (catalog drain, diff) bumps the pass
 // heartbeat: often enough that no phase goes quiet for the stall window, rare enough to be free.
 const LIVENESS_EVERY = 500
+
+// How many items one slice of a sliced enqueue admits before the loop budget is consulted: far
+// below the budget on any system, so the slice size never decides how long the thread is held.
+const ENQUEUE_SLICE = 500
 
 // Tracked on the PASS, not the coalescing wrapper: a caller joining a run in flight must not
 // re-stamp its heartbeat and make a stalled pass read as fresh.
@@ -95,11 +100,9 @@ async function bailIfAborted(spaceId, shareId, signal) {
 
 // Reads both sides of the diff — the disk walk and the catalog — under an abort signal registered
 // for this share, so a pause or a stop can end the pass instead of being overwritten by it. The
-// signal reaches walk-disk per file; the re-check afterwards covers the rest of the window, because
-// the caller's enqueueMany is the point of no return and the catalog read is O(catalog).
-//
-// The signal cannot interrupt walk-disk's initial recursive readdir, only the stat loop that
-// follows it, so a very deep tree still pays that enumeration in full.
+// signal reaches walk-disk per directory and per file; the re-check afterwards covers the rest of
+// the window, because the caller's enqueue is the point of no return and the catalog read is
+// O(catalog).
 async function readBothSides(spaceId, shareId, mountPath, ignore, pass, signal) {
   const key = ownedKey(spaceId, shareId)
   try {
@@ -113,7 +116,11 @@ async function readBothSides(spaceId, shareId, mountPath, ignore, pass, signal) 
     await settleCatalog(spaceId)
     passLiveness.progress(key, pass)
     const known = new Map()
+    // A catalog the store still holds in memory is iterated without any real I/O, so this loop is
+    // only as interruptible as its budget makes it. The abort is re-checked below, after the read.
+    const budget = createLoopBudget()
     for await (const entry of listOwnShare(spaceId, shareId)) {
+      if (budget.spent()) await budget.cede()
       known.set(entry.relPath, entry)
       if (known.size % LIVENESS_EVERY === 0) passLiveness.progress(key, pass)
     }
@@ -157,18 +164,58 @@ async function diffAndEnqueue(spaceId, shareId, { mountPath, ignore, deep, defer
 
   const { walk, known, bail } = await readBothSides(spaceId, shareId, mountPath, ignore, pass, signal)
   if (bail) return bail
-  const { onDisk, unreadable } = walk
+  const { onDisk } = walk
   passLiveness.progress(key, pass)
 
+  // One budget from here to the end of the pass: none of these phases is separated from the next
+  // by real I/O, so a fresh budget per phase would let them run back to back as one block.
+  const budget = createLoopBudget()
+  const breathe = async () => {
+    await budget.cede()
+    passLiveness.progress(key, pass)
+  }
+  const { specs, unchanged, deferred } = await diffSides({ spaceId, shareId, deep, deferFresh }, walk, known, { budget, breathe, signal })
+  // The point of no return. A pause or a stop sets the signal before it empties the queue, so the
+  // check and the first enqueue share one synchronous step: an abort that landed while the diff was
+  // ceded ends the pass here, and one that lands later finds everything this pass admitted.
+  if (signal.aborted) return await bailIfAborted(spaceId, shareId, signal)
   scheduler().beginShare(spaceId, shareId, onDisk.size)
+  if (!(await enqueueSpecs(spaceId, shareId, specs, { budget, breathe, signal }))) return await bailIfAborted(spaceId, shareId, signal)
+  // A file the diff will not touch still gets the publish path's serve-map check: the catalog
+  // advertising a hash the serve gate does not hold (a transient registerFile failure) must heal
+  // on the next pass, not the next restart.
+  for (const [relPath, prev, info] of unchanged) {
+    // ensureServable settles without real I/O while the serve reference is held, so this loop is
+    // only as interruptible as its budget makes it; after a restart the serve map is empty and
+    // every unchanged file pays a registerFile, a blocking stat.
+    if (budget.spent()) await budget.cede()
+    // The one phase after the point of no return that can still be stopped, and on a large fully
+    // synced share the longest one in the pass. The work already enqueued stands — this is the
+    // self-heal, not the diff — so a stop just ends the sweep rather than invalidating the pass.
+    if (signal.aborted) break
+    // Per file, not throttled like the loops where the bookkeeping could itself become the cost:
+    // next to a registerFile a Map lookup is free, and throttling here could skip the entire
+    // window on a share with fewer files than the interval.
+    passLiveness.progress(key, pass)
+    try { await ensureServable({ spaceId, shareId, relPath, absPath: pathFromMount(mountPath, relPath), contentHash: prev.contentHash, size: info.size }) } catch (err) {
+      log.debug('ensure servable failed:', relPath, '-', err.message)
+    }
+  }
+  await touchOwnedMountScan(spaceId, shareId)
+  return { enqueued: specs.length, deferred, totalOnDisk: onDisk.size }
+}
+
+// The diff itself: pure bookkeeping over both sides, no I/O, so it cedes on the loop budget and
+// beats at each cede — the only points where a probe can run and read the stamp. Nothing is
+// enqueued in here, which is what makes ceding safe: an abort that lands during a cede ends the
+// diff early and the caller's check before the enqueue discards it.
+async function diffSides({ spaceId, shareId, deep, deferFresh }, { onDisk, unreadable }, known, { budget, breathe, signal }) {
   const specs = []
   const unchanged = []
   let deferred = 0
   for (const [relPath, info] of onDisk) {
-    // No beat in here, deliberately: this loop never awaits, so on the worker's single thread no
-    // probe can run between its iterations — only the stamps on either side of it are ever read. A
-    // heartbeat here cannot be observed, and one that cannot be observed makes the phase look
-    // covered. The beat that matters is in the ensureServable loop below, which does await.
+    if (budget.spent()) await breathe()
+    if (signal.aborted) break
     // A name no catalog key can carry (a '\' in a POSIX file name) is skipped, never a reason to
     // abort the whole diff.
     if (relKeyEscapes(relPath)) { log.warn('skipping file whose name cannot be a share key:', relPath); continue }
@@ -182,31 +229,36 @@ async function diffAndEnqueue(spaceId, shareId, { mountPath, ignore, deep, defer
   // key is poison an older release wrote, and the executor reclaims it without ever resolving
   // a disk path for it.
   for (const [relPath, entry] of known) {
+    if (budget.spent()) await breathe()
+    if (signal.aborted) break
     if (onDisk.has(relPath) || unreadable.has(relPath)) continue
     specs.push({ spaceId, shareId, relPath, op: OP.RETIRE, size: entry.size || 0, priority: PRIORITY.BULK })
   }
-  scheduler().enqueueMany(specs)
-  // A file the diff will not touch still gets the publish path's serve-map check: the catalog
-  // advertising a hash the serve gate does not hold (a transient registerFile failure) must heal
-  // on the next pass, not the next restart.
-  for (const [relPath, prev, info] of unchanged) {
-    // The one phase after the point of no return that can still be stopped, and on a large fully
-    // synced share the longest one in the pass. The work already enqueued stands — this is the
-    // self-heal, not the diff — so a stop just ends the sweep rather than invalidating the pass.
-    if (signal.aborted) break
-    // Per file, like the walk's own callback: ensureServable is free only while the serve
-    // reference is present, and after a restart the serve map is empty — so every unchanged file
-    // pays a registerFile and this becomes the long pole of the whole pass on a large, fully
-    // synced share. LIVENESS_EVERY throttles the loops where the bookkeeping could itself become
-    // the cost; next to an await on real I/O a Map lookup is free, and throttling here could skip
-    // the entire window on a share with fewer files than the interval.
-    passLiveness.progress(key, pass)
-    try { await ensureServable({ spaceId, shareId, relPath, absPath: pathFromMount(mountPath, relPath), contentHash: prev.contentHash, size: info.size }) } catch (err) {
-      log.debug('ensure servable failed:', relPath, '-', err.message)
-    }
+  return { specs, unchanged, deferred }
+}
+
+// Hands the diff to the publish lane. A diff that fits one slice is admitted in one call; a larger
+// one goes in slices with the event loop ceded between them. Resolves false when an abort landed
+// during a cede: whoever aborted has already emptied the queue (a pause, a stop) or is about to
+// replace the pass (a recovery, shutdown), so the rest is not admitted behind it.
+async function enqueueSpecs(spaceId, shareId, specs, { budget, breathe, signal }) {
+  if (specs.length <= ENQUEUE_SLICE) {
+    scheduler().enqueueMany(specs)
+    return true
   }
-  await touchOwnedMountScan(spaceId, shareId)
-  return { enqueued: specs.length, deferred, totalOnDisk: onDisk.size }
+  const fill = scheduler().beginFill(spaceId, shareId)
+  try {
+    for (let from = 0; from < specs.length; from += ENQUEUE_SLICE) {
+      if (budget.spent()) {
+        await breathe()
+        if (signal.aborted) return false
+      }
+      fill.add(specs.slice(from, from + ENQUEUE_SLICE))
+    }
+    return true
+  } finally {
+    fill.end()
+  }
 }
 
 // Resolves after this pass's items have settled with { uploaded, deleted, failed, totalOnDisk,

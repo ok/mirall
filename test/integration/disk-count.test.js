@@ -4,6 +4,8 @@ import os from 'bare-os'
 import path from 'bare-path'
 import { countDiskFiles, walkDisk } from '../../src/shared/folders/walk-disk.js'
 import { DEFAULT_IGNORE } from '../../src/shared/folders/path-keys.js'
+import { getRuntimeConfig, setRuntimeConfig } from '../../src/shared/core/runtime-config.js'
+import { yieldToLoop } from '../../src/shared/core/loop-budget.js'
 
 const srcRoot = path.join(path.dirname(import.meta.url.replace(/^file:\/\//, '')), '..', '..', 'src')
 
@@ -54,4 +56,28 @@ test('REGRESSION (FIX-PREVIEW-STAT): the count reads no file metadata', (t) => {
 
   const preview = fs.readFileSync(path.join(srcRoot, 'shared', 'folders', 'foreign-preview.js'), 'utf8')
   t.absent(/walkDisk/.test(preview), 'and the mount preview does not reach for the stat-ing walk to get it')
+})
+
+// A loop budget of 0 is spent at every checkpoint, so the count cedes before every entry and the
+// folder spans a yield point per entry on any machine.
+test('a count that cedes at every entry counts the same and lets the event loop run', async (t) => {
+  const root = tree(t)
+  for (let i = 0; i < 40; i++) fs.writeFileSync(path.join(root, 'nested', `more-${i}.txt`), 'm')
+  fs.writeFileSync(path.join(root, '.DS_Store'), 'ignored')
+  const uninterrupted = await countDiskFiles(root, DEFAULT_IGNORE)
+  t.is(uninterrupted, 43, 'precondition: the default budget counts the tree')
+
+  const before = getRuntimeConfig()
+  setRuntimeConfig({ ...before, loopYieldBudgetMs: 0 })
+  t.teardown(() => setRuntimeConfig(before))
+  let turns = 0
+  let counting = true
+  const spin = async () => { while (counting) { await yieldToLoop(); turns += 1 } }
+  const spinning = spin()
+  const ceded = await countDiskFiles(root, DEFAULT_IGNORE)
+  counting = false
+  await spinning
+
+  t.is(ceded, uninterrupted, 'the same count')
+  t.ok(turns >= 10, `other work ran while the entries were counted (${turns} turns over ${ceded} files)`)
 })

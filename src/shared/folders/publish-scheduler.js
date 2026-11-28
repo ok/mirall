@@ -64,6 +64,13 @@ function createTallies() {
       else tallies.set(key, { uploaded: 0, deleted: 0, failed: 0, totalOnDisk })
     },
     take(key) { const t = tallies.get(key) || null; tallies.delete(key); return t },
+    count(key, result) {
+      const t = tallies.get(key)
+      if (!t) return
+      if (result?.outcome === 'published') t.uploaded += 1
+      else if (result?.outcome === 'retired') t.deleted += 1
+      else if (result?.outcome === 'failed') t.failed += 1
+    },
     // Marks the pass cancelled; whoever collects it sees the marker.
     cancel(key) {
       const t = tallies.get(key) || { uploaded: 0, deleted: 0, failed: 0, totalOnDisk: 0 }
@@ -234,6 +241,38 @@ function createSlotWatch({ running, queues, pump, concurrency }) {
   }
 }
 
+// enqueueMany for one share's pass too large to admit in one call without holding the worker's
+// thread: the caller adds slices and cedes the event loop between them. Until end() the fill itself
+// starts nothing and the share is not reported drained, so the lane picks its first item from the
+// whole pass in the configured order, and a slice whose items all settled before the next one
+// arrived is not the pass finishing. end() is required on every path.
+function createFills({ queueFor, pump, settleDrain, report }) {
+  const open = new Map()
+  return {
+    // True while the share is being filled; the drain it holds back is delivered by end().
+    holdDrain(key) {
+      const fill = open.get(key)
+      if (fill) fill.drainHeld = true
+      return !!fill
+    },
+    begin(spaceId, shareId) {
+      const key = tallyKey(spaceId, shareId)
+      const fill = { drainHeld: false }
+      open.set(key, fill)
+      return {
+        add(specs) { for (const spec of specs) queueFor(spaceId).enqueue(spec) },
+        end() {
+          if (open.get(key) !== fill) return
+          open.delete(key)
+          pump()
+          report(spaceId, shareId)
+          if (fill.drainHeld) settleDrain(spaceId, shareId)
+        },
+      }
+    },
+  }
+}
+
 export function createPublishScheduler({
   execute,
   concurrency: rawConcurrency = () => 2,
@@ -262,6 +301,7 @@ export function createPublishScheduler({
     if (!q) queues.set(spaceId, (q = createPublishQueue({ order: order() })))
     return q
   }
+  const fills = createFills({ queueFor, pump, settleDrain, report: (spaceId, shareId) => onProgress?.(spaceId, shareId) })
 
   function pump() {
     if (pumping || stopped) return
@@ -296,11 +336,11 @@ export function createPublishScheduler({
         const result = await execute(item, { beat })
         settlement = { outcome: result?.outcome === 'failed' ? 'failed' : 'done', result }
         // A cancelled item that ran to completion anyway counts for nobody: its pass is gone.
-        if (!item.signal.aborted) tally(item, result)
+        if (!item.signal.aborted) tallies.count(tallyKey(item.spaceId, item.shareId), result)
       } catch (err) {
         settlement = { outcome: item.signal.aborted ? 'cancelled' : 'failed', error: err }
         if (!item.signal.aborted) {
-          tally(item, { outcome: 'failed' })
+          tallies.count(tallyKey(item.spaceId, item.shareId), { outcome: 'failed' })
           log?.warn('publish item failed:', item.shareId, item.relPath, '-', err.message)
         }
       } finally {
@@ -318,14 +358,6 @@ export function createPublishScheduler({
     })()
   }
 
-  function tally(item, result) {
-    const t = tallies.get(tallyKey(item.spaceId, item.shareId))
-    if (!t) return
-    if (result?.outcome === 'published') t.uploaded += 1
-    else if (result?.outcome === 'retired') t.deleted += 1
-    else if (result?.outcome === 'failed') t.failed += 1
-  }
-
   // Hands the pass's tally to the callers waiting on it, if any; otherwise it stays for the
   // whenDrained that has not asked yet.
   function releaseWaiters(key) {
@@ -338,6 +370,7 @@ export function createPublishScheduler({
   function settleDrain(spaceId, shareId) {
     const q = queues.get(spaceId)
     if (q && q.pendingForShare(shareId) > 0) return
+    if (fills.holdDrain(tallyKey(spaceId, shareId))) return
     if (!q || isIdle(q)) onSpaceIdle?.(spaceId)
     const key = tallyKey(spaceId, shareId)
     const t = tallies.get(key)
@@ -368,6 +401,7 @@ export function createPublishScheduler({
       pump()
       for (const spec of touched.values()) onProgress?.(spec.spaceId, spec.shareId)
     },
+    beginFill: fills.begin,
     whenDrained(spaceId, shareId) {
       const key = tallyKey(spaceId, shareId)
       const q = queues.get(spaceId)

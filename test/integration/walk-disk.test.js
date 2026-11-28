@@ -4,6 +4,7 @@ import path from 'bare-path'
 import { walkDisk } from '../../src/shared/folders/walk-disk.js'
 import { DEFAULT_IGNORE, shouldIgnore } from '../../src/shared/folders/path-keys.js'
 import { tmpDir } from '../helpers/bare-tmp.js'
+import { createLoopBudget, yieldToLoop } from '../../src/shared/core/loop-budget.js'
 
 const tmp = () => tmpDir('mirall-walk')
 
@@ -243,4 +244,110 @@ test('an abort still ends an enumeration that is mostly pruned', async (t) => {
   } catch (err) {
     t.is(err.code, 'PREVIEW_CANCELLED')
   }
+})
+
+// ── ceding the event loop ────────────────────────────────────────────────────────────────────
+
+// A budget of 0 is spent at every checkpoint, so a walk under it cedes before every entry: the
+// folder spans as many yield points as it has files, whatever the machine's speed.
+function cedingBudget() {
+  const budget = createLoopBudget({ budgetMs: 0 })
+  const counted = { cedes: 0, spent: budget.spent, cede: async () => { counted.cedes += 1; await budget.cede() } }
+  return counted
+}
+
+function manyFilesTree(root, { dirs = 6, perDir = 15 } = {}) {
+  const files = {}
+  for (let d = 0; d < dirs; d++) for (let f = 0; f < perDir; f++) files[`d${d}/f${f}.bin`] = 'x'.repeat(d * 10 + f + 1)
+  files['top.txt'] = 'top'
+  files['d0/.DS_Store'] = 'ignored'
+  writeTree(root, files)
+  return dirs * perDir + 1
+}
+
+const snapshot = ({ onDisk, unreadable }) => ({ onDisk: [...onDisk.entries()], unreadable: [...unreadable] })
+
+test('a walk that cedes at every file returns exactly what an uninterrupted one returns', async (t) => {
+  const root = tmp()
+  const count = manyFilesTree(root)
+  // Never spent, so this walk gives up the thread nowhere but at its directory reads.
+  const never = { spent: () => false, cede: async () => { t.fail('an unspent budget is never ceded') } }
+  const plainProgress = []
+  const plain = await walkDisk(root, DEFAULT_IGNORE, { budget: never, onProgress: (p) => plainProgress.push(p) })
+
+  const budget = cedingBudget()
+  const cededProgress = []
+  const ceded = await walkDisk(root, DEFAULT_IGNORE, { budget, onProgress: (p) => cededProgress.push(p) })
+
+  t.is(plain.onDisk.size, count, 'precondition: the tree is walked in full')
+  t.ok(budget.cedes >= count, `the ceding walk spans a yield point per file (${budget.cedes} cedes over ${count} files)`)
+  t.alike(snapshot(ceded), snapshot(plain), 'same files, same sizes and mtimes, in the same order')
+  t.alike(cededProgress, plainProgress, 'and the same progress, frame for frame')
+})
+
+test('a ceding walk still sets an unreadable file aside rather than reporting it absent', async (t) => {
+  const root = tmp()
+  writeTree(root, { 'a.txt': 'a', 'b.txt': 'b', 'c.txt': 'c' })
+  const origStat = fs.statSync
+  fs.statSync = (p) => { if (String(p).endsWith('b.txt')) throw Object.assign(new Error('EACCES'), { code: 'EACCES' }); return origStat(p) }
+  t.teardown(() => { fs.statSync = origStat })
+
+  const { onDisk, unreadable } = await walkDisk(root, [], { budget: cedingBudget() })
+  t.alike([...onDisk.keys()].sort(), ['a.txt', 'c.txt'])
+  t.alike([...unreadable], ['b.txt'], 'it is listed as unreadable, so the diff cannot read it as deleted')
+})
+
+test('an abort that lands while the walk is ceded stops it before the next file', async (t) => {
+  const root = tmp()
+  manyFilesTree(root)
+  const signal = { aborted: false }
+  const budget = cedingBudget()
+  const seen = []
+  let scannedAtAbort = null
+  const cede = budget.cede
+  // The abort arrives from outside, in the turn the walk gave away — where a pause or a cancel
+  // reaches a pass in production. Queued before the cede, so it runs within it.
+  budget.cede = async () => {
+    if (scannedAtAbort === null && seen.filter((p) => p.phase === 'scanning').length === 5) {
+      setImmediate(() => { signal.aborted = true; scannedAtAbort = seen.filter((p) => p.phase === 'scanning').length })
+    }
+    await cede()
+  }
+  try {
+    await walkDisk(root, DEFAULT_IGNORE, { signal, budget, onProgress: (p) => seen.push(p) })
+    t.fail('should have thrown')
+  } catch (err) {
+    t.is(err.code, 'PREVIEW_CANCELLED')
+  }
+  t.is(scannedAtAbort, 5, 'precondition: the abort landed mid-scan, during a cede')
+  t.is(seen.filter((p) => p.phase === 'scanning').length, 5, 'no file was read after the abort')
+})
+
+test('the event loop gets turns during a walk', async (t) => {
+  const root = tmp()
+  const count = manyFilesTree(root)
+  let turns = 0
+  let walking = true
+  // A chain of macrotasks beside the walk: each link runs only when the walk has let go of the thread.
+  const spin = async () => { while (walking) { await yieldToLoop(); turns += 1 } }
+  const spinning = spin()
+  const turnsAtScan = []
+  await walkDisk(root, DEFAULT_IGNORE, { budget: cedingBudget(), onProgress: (p) => { if (p.phase === 'scanning') turnsAtScan.push(turns) } })
+  walking = false
+  await spinning
+  t.is(turnsAtScan.length, count)
+  const during = turnsAtScan[turnsAtScan.length - 1] - turnsAtScan[0]
+  t.ok(during >= count / 4, `other work ran between the first file and the last (${during} turns over ${count} files)`)
+})
+
+test('one directory holding the whole tree is enumerated with the loop ceded inside it', async (t) => {
+  const root = tmp()
+  const files = {}
+  for (let f = 0; f < 60; f++) files[`f${String(f).padStart(2, '0')}.bin`] = 'x'
+  writeTree(root, files)
+  const budget = cedingBudget()
+  let cedesWhileEnumerating = 0
+  const { onDisk } = await walkDisk(root, [], { budget, onProgress: (p) => { if (p.phase === 'enumerating' && p.scanned === 0) cedesWhileEnumerating = budget.cedes } })
+  t.is(onDisk.size, 60)
+  t.ok(cedesWhileEnumerating >= 60, `the flat directory's entries are a yield point each (${cedesWhileEnumerating})`)
 })

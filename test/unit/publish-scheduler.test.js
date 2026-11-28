@@ -856,3 +856,126 @@ test('REGRESSION (FIX-SETTLE-OWN-QUEUE): a late item settles against the queue i
   t.ok(s.isPending('A', 'sh', 'a'), 'the late settle did not delete the live item holding that path')
   await inv.releaseAll()
 })
+
+// ── a sliced fill ────────────────────────────────────────────────────────────────────────────
+
+const bulk = (relPath, over = {}) => ({ spaceId: 's1', shareId: 'sh1', relPath, op: OP.PUBLISH, size: 10, priority: PRIORITY.BULK, ...over })
+
+test('a fill starts nothing until it ends, then the lane picks from the whole pass', async (t) => {
+  const g = gate()
+  const s = createPublishScheduler({ execute: g.execute, concurrency: () => 1, order: () => 'smallest-first' })
+  s.beginShare('s1', 'sh1', 3)
+  const fill = s.beginFill('s1', 'sh1')
+  fill.add([bulk('big.bin', { size: 900 }), bulk('mid.bin', { size: 500 })])
+  await sleep(0)
+  t.is(g.started.length, 0, 'a slice on its own starts no executor')
+  t.is(s.statusFor('s1', 'sh1').queued, 2, 'but its items are queued and reported')
+  fill.add([bulk('small.bin', { size: 1 })])
+  fill.end()
+  await sleep(0)
+  t.alike(g.started, ['s1/small.bin'], 'the first item is the best of every slice, as one enqueueMany would pick it')
+  await g.releaseAll()
+})
+
+test('a fill ends like enqueueMany: the same items, the same tally', async (t) => {
+  const specs = Array.from({ length: 7 }, (_, i) => bulk(`f${i}.bin`, { size: 10 + i }))
+  const drained = { many: [], fill: [] }
+  const run = async (name, admit) => {
+    const s = createPublishScheduler({
+      execute: async (item) => ({ outcome: item.op === OP.RETIRE ? 'retired' : 'published' }),
+      concurrency: () => 2,
+      onShareDrained: (spaceId, shareId, tally) => drained[name].push({ ...tally }),
+    })
+    s.beginShare('s1', 'sh1', specs.length)
+    admit(s)
+    return await s.whenDrained('s1', 'sh1')
+  }
+  const many = await run('many', (s) => s.enqueueMany(specs))
+  const sliced = await run('fill', (s) => {
+    const fill = s.beginFill('s1', 'sh1')
+    fill.add(specs.slice(0, 3))
+    fill.add(specs.slice(3))
+    fill.end()
+  })
+  t.alike(sliced, many, 'the pass collects the same counts')
+  t.is(sliced.uploaded, 7)
+  t.alike(drained.fill, drained.many, 'and the share is reported drained the same number of times, with the same counts')
+})
+
+// Retires settle without any real I/O, so every item of a slice can settle before the next slice
+// is added. That is a slice finishing, never the pass.
+test('a slice that settles before the next one arrives does not report the share drained', async (t) => {
+  const g = gate()
+  const drained = []
+  const idle = []
+  const s = createPublishScheduler({
+    execute: g.execute,
+    concurrency: () => 1,
+    onShareDrained: (spaceId, shareId, tally) => drained.push({ ...tally }),
+    onSpaceIdle: (spaceId) => idle.push(spaceId),
+  })
+  // An item of an earlier pass still holds a slot, so the lane runs while the fill is open.
+  s.beginShare('s1', 'sh1', 3)
+  s.enqueue(bulk('earlier.bin'))
+  await sleep(0)
+  t.alike(g.started, ['s1/earlier.bin'], 'precondition: an earlier item is running')
+
+  const fill = s.beginFill('s1', 'sh1')
+  fill.add([bulk('a.bin')])
+  await g.release('s1/earlier.bin')
+  await g.release('s1/a.bin')
+  t.is(s.statusFor('s1', 'sh1').queued + s.statusFor('s1', 'sh1').running, 0, 'precondition: everything added so far has settled')
+  t.alike(drained, [], 'the share is not reported drained while the fill is open')
+  t.alike(idle, [], 'and its batch is not closed under the slices still to come')
+
+  fill.add([bulk('b.bin')])
+  fill.end()
+  await sleep(0)
+  t.alike(drained, [], 'ending a fill with work pending reports nothing either')
+  await g.release('s1/b.bin')
+  t.is(drained.length, 1, 'the share drains once, when the whole pass has settled')
+  t.is(drained[0].uploaded, 3, 'with every slice counted')
+  t.alike(await s.whenDrained('s1', 'sh1'), { uploaded: 3, deleted: 0, failed: 0, totalOnDisk: 3 })
+})
+
+test('a fill whose last slice already settled reports the held drain when it ends', async (t) => {
+  const g = gate()
+  const drained = []
+  const s = createPublishScheduler({ execute: g.execute, concurrency: () => 1, onShareDrained: (spaceId, shareId, tally) => drained.push({ ...tally }) })
+  s.beginShare('s1', 'sh1', 2)
+  s.enqueue(bulk('earlier.bin'))
+  await sleep(0)
+  const fill = s.beginFill('s1', 'sh1')
+  fill.add([bulk('a.bin')])
+  await g.release('s1/earlier.bin')
+  await g.release('s1/a.bin')
+  t.alike(drained, [])
+  fill.end()
+  t.is(drained.length, 1, 'the drain the fill held back is delivered at its end')
+  t.is(drained[0].uploaded, 2)
+  fill.end()
+  t.is(drained.length, 1, 'ending twice delivers nothing twice')
+})
+
+test('an empty fill reports no drain', async (t) => {
+  const drained = []
+  const s = createPublishScheduler({ execute: gate().execute, onShareDrained: () => drained.push(1) })
+  s.beginShare('s1', 'sh1', 0)
+  s.beginFill('s1', 'sh1').end()
+  await sleep(0)
+  t.alike(drained, [], 'nothing settled, so nothing drained')
+  t.alike(await s.whenDrained('s1', 'sh1'), { uploaded: 0, deleted: 0, failed: 0, totalOnDisk: 0 }, 'and the pass still collects its tally')
+})
+
+test('a cancel during a fill empties what the fill admitted', async (t) => {
+  const g = gate()
+  const s = createPublishScheduler({ execute: g.execute, concurrency: () => 1 })
+  s.beginShare('s1', 'sh1', 4)
+  const fill = s.beginFill('s1', 'sh1')
+  fill.add([bulk('a.bin'), bulk('b.bin')])
+  t.is(s.cancelShare('s1', 'sh1'), 2, 'both queued items are released')
+  fill.end()
+  await sleep(0)
+  t.is(g.started.length, 0, 'and ending the fill starts none of them')
+  t.is(s.statusFor('s1', 'sh1').adding, 0)
+})

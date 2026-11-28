@@ -523,6 +523,19 @@ row or a claim keeps its own folder, each silently stops covering it. Tell: a li
 current setting feeding a guard about things that already exist. Fix: guard against the records
 themselves (pending rows' `destDir`, claims' folders), not the setting.
 
+**Cede the worker loop with `setImmediate`, not `setTimeout(0)`, inside a long loop.** A timer's
+wait rounds up to the system timer tick, about 16 ms on Windows, so a loop that works in slices of a
+few milliseconds spends most of its wall time asleep; an immediate still lets the loop poll I/O and
+run due timers. Tell: a walk several times slower on Windows only. A probe that keeps the loop busy
+with other I/O hides it, because the loop then never sleeps: measure the cede in an otherwise idle
+process. Use `core/loop-budget.js`.
+
+**A catalog read the store holds in memory is one uninterrupted block.** The bee's iterator resolves
+without real I/O while its blocks are cached, so a `for await` over it never reaches the event loop
+and its hold grows with the catalog until the cache overflows. Tell: a block that scales with the
+folder and vanishes above a size. A consumer loop cedes on a loop budget; it never relies on the
+`await`.
+
 ## Destructive and long-running work
 
 **A "not present" check that prunes its own record makes the state one-way.** Prune only when the

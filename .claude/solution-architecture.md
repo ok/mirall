@@ -1352,6 +1352,16 @@ verify against it; it does not drive owner-side detection. `DEFAULT_IGNORE`
 (`src/shared/folders/path-keys.js`) excludes only OS litter and our own `*.mirall.part` files. The
 rest of the folder publishes, repository and dependency directories included.
 
+**The pass cedes the worker's thread on a time budget.** The admission count, the disk walk (whose
+`statSync` blocks), the diff and the hand-over to the lane are loops over every file. Each consults
+a loop budget (`src/shared/core/loop-budget.js`, `loopYieldBudgetMs` in runtime config) and cedes
+the event loop when it is spent, so the longest hold does not grow with the folder. The budget is
+elapsed time, not a count, because one file costs about ten times as much on one system as on
+another. A cede is a point where a pause or a stop can land, so each loop re-checks its abort signal
+after one, and the pass admits nothing behind an abort: the diff is discarded before its first item
+is enqueued, and a hand-over in slices (`beginFill` in `publish-scheduler.js`) stops at the slice it
+had reached. Until that fill ends the share is not reported drained and the fill starts no item.
+
 **Watcher gaps.** `src/shared/folders/echo-guard.js` drops events for paths the worker itself just
 wrote, so our own downloads are not re-uploaded. macOS fsevents coalescing drops adds, so after the
 watcher goes quiet a debounced catch-up diff runs (`src/shared/folders/owned-watcher.js`). It leaves

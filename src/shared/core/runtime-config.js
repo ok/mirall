@@ -194,6 +194,10 @@ export function getReconcileStallWindowMs() {
   return read('reconcileStallWindowMs')
 }
 
+export function getLoopYieldBudgetMs() {
+  return read('loopYieldBudgetMs')
+}
+
 export function getPublishStallWindowMs() {
   return read('publishStallWindowMs')
 }
