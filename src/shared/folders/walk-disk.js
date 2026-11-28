@@ -4,6 +4,7 @@ import fs from 'bare-fs'
 import path from 'bare-path'
 import { relToDriveKey, isAbsoluteDriveKey, shouldIgnore, shouldPruneDir, stripLongPathPrefix } from './path-keys.js'
 import { createLogger } from '../core/logger.js'
+import { createLoopBudget } from '../core/loop-budget.js'
 
 const log = createLogger('walk-disk')
 
@@ -43,8 +44,10 @@ function entryKey(entry, root, cleanRoot, ignore) {
 export async function countDiskFiles(root, ignore) {
   const cleanRoot = stripLongPathPrefix(root)
   const entries = await fs.promises.readdir(root, { recursive: true, withFileTypes: true })
+  const budget = createLoopBudget()
   let count = 0
   for (const entry of entries) {
+    if (budget.spent()) await budget.cede()
     if (entry.isFile() && entryKey(entry, root, cleanRoot, ignore)) count += 1
   }
   return count
@@ -71,13 +74,17 @@ function dirIsPruned(abs, cleanRoot, ignore) {
 // per FILE in the stat pass below, because only some glob shapes cover everything beneath the
 // directory they name. The stat pass stays the authority on what publishes — pruning only avoids
 // reading what that pass would discard.
-async function enumerateFiles(root, cleanRoot, ignore, onProgress, signal) {
+//
+// A directory's own entries are a loop without an await, so one directory holding most of the
+// tree cedes inside it; the abort is still honoured per directory.
+async function enumerateFiles(root, cleanRoot, ignore, { onProgress, signal, budget }) {
   const files = []
   const dirs = [root]
   for (let i = 0; i < dirs.length; i++) {
     if (signal?.aborted) throw new AbortError(signal.reason)
     const dir = dirs[i]
     for (const entry of await fs.promises.readdir(dir, { withFileTypes: true })) {
+      if (budget.spent()) await budget.cede()
       const abs = path.join(dir, entry.name)
       if (entry.isDirectory()) {
         if (!dirIsPruned(abs, cleanRoot, ignore)) dirs.push(abs)
@@ -93,20 +100,25 @@ async function enumerateFiles(root, cleanRoot, ignore, onProgress, signal) {
 // couldn't be stat'd; they are skipped, never reported as absent — callers must
 // not treat them as "absent" either, or the reconcile diff would see them as
 // deleted and remove them from the share.
-export async function walkDisk(root, ignore, { onProgress = null, signal = null } = {}) {
+//
+// statSync blocks the worker's only thread, so the loop cedes the event loop whenever its budget is
+// spent. The abort check opens every iteration, which makes it the first thing to run after a cede:
+// a pause or a cancel that arrived while the loop was ceded ends the walk before the next stat.
+export async function walkDisk(root, ignore, { onProgress = null, signal = null, budget = createLoopBudget() } = {}) {
   const onDisk = new Map()
   const unreadable = new Set()
   // Under Bare on Windows, recursive readdir can return a `\\?\E:\…`-prefixed
   // parentPath while `root` has none; normalising both sides keeps path.relative
   // from emitting the absolute target verbatim as a key.
   const cleanRoot = stripLongPathPrefix(root)
-  const files = await enumerateFiles(root, cleanRoot, ignore, onProgress, signal)
+  const files = await enumerateFiles(root, cleanRoot, ignore, { onProgress, signal, budget })
   const total = files.length
   let scanned = 0
   let bytes = 0
   onProgress?.({ phase: 'enumerating', scanned: 0, total, bytes: 0 })
 
   for (const entry of files) {
+    if (budget.spent()) await budget.cede()
     if (signal?.aborted) throw new AbortError(signal.reason)
     const key = entryKey(entry, root, cleanRoot, ignore)
     if (!key) continue

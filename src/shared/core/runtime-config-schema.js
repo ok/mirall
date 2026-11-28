@@ -240,6 +240,11 @@ const DEFAULTED = {
   // recovery in the tree (each re-arms a loop and returns) and short against the probe interval, so
   // one slow recovery cannot eat the next probe.
   supervisionRecoverBudgetMs: ruled(10_000, finiteAtLeast, 1),
+  // How long a loop over every file of a folder may hold the worker's only thread before it cedes
+  // the event loop (loop-budget.js). Short enough that a request or a transfer frame waits less
+  // than a display frame behind it, long enough that a slice does real work between two turns of
+  // the loop. 0 cedes at every checkpoint. Tests shrink it.
+  loopYieldBudgetMs: ruled(8, finiteAtLeast, 0),
   // A diff over a large tree is legitimately slow, so the wedge signal is a pass that stats no
   // file for this long — not one that merely takes a while. Generous on purpose: a false recovery
   // costs a re-scan, and by the time it fires the share has made no progress for ten minutes.

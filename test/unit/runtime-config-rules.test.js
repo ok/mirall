@@ -6,7 +6,7 @@ import {
   getPeerFrameLimits, getHandshakeRateLimit, getBandwidthLimits,
   getSupervisionRecoverBudgetMs, getReconcileStallWindowMs, getPublishStallWindowMs,
   getConvergenceStallWindowMs, getAdmissionReadTimeoutMs, getRelayAuditDwellMs, getRestoreReleaseDwellMs, getFreeUpMinBytes,
-  getIpcKeepaliveMs, getIpcKeepaliveGraceMs, getRecentDownloadFolderLimit, getManagedLevers, _rulesForTests,
+  getIpcKeepaliveMs, getIpcKeepaliveGraceMs, getRecentDownloadFolderLimit, getManagedLevers, getLoopYieldBudgetMs, _rulesForTests,
 } from '../../src/shared/core/runtime-config.js'
 
 // Every value a malformed override can take that is not a number: each must resolve to the key's
@@ -43,6 +43,9 @@ const RULED_KEYS = [
     [[0, 0], [Infinity, 10_000], [1, 1], [500, 500]]],
   ['restoreReleaseDwellMs', getRestoreReleaseDwellMs, 20_000,
     [[0, 0], [Infinity, 20_000], [-1, 20_000], [1000, 1000]]],
+  // A slice, not a deadline: 0 cedes the loop at every checkpoint, which is slow and correct.
+  ['loopYieldBudgetMs', getLoopYieldBudgetMs, 8,
+    [[0, 0], [Infinity, 8], [-1, 8], [2, 2]]],
   // Managed-configuration test levers: a preview or poll under a second is a malformed override, a
   // drive grace of 0 (go to HTTPS at once) is a real one.
   ['managedPreviewTimeoutMs', () => getManagedLevers().previewTimeoutMs, 20_000,
@@ -218,6 +221,7 @@ const EXPECTED_RULES = {
   managedDriveGraceMs: { rule: 'finiteAtLeast', min: 0 },
   managedHttpsPollMs: { rule: 'finiteAtLeast', min: 1000 },
   managedReportDelayMs: { rule: 'finiteAtLeast', min: 0 },
+  loopYieldBudgetMs: { rule: 'finiteAtLeast', min: 0 },
   reconcileStallWindowMs: { rule: 'finiteAtLeast', min: 1 },
   publishStallWindowMs: { rule: 'finiteAtLeast', min: 1 },
   convergenceStallWindowMs: { rule: 'finiteAtLeast', min: 1 },
@@ -248,8 +252,8 @@ test('the rules table is exactly the declared set', (t) => {
 // The module header states these two counts. Asserting them is what keeps them from rotting.
 test('the ruled and unruled key counts are the ones the header claims', (t) => {
   const { ruled, defaultedKeys } = _rulesForTests()
-  t.is(defaultedKeys, 77, 'DEFAULTED keys')
-  t.is(Object.keys(ruled).length, 31, 'of which carry a validation rule')
+  t.is(defaultedKeys, 78, 'DEFAULTED keys')
+  t.is(Object.keys(ruled).length, 32, 'of which carry a validation rule')
   t.is(defaultedKeys - Object.keys(ruled).length, 46, 'the rest are read raw')
 })
 
