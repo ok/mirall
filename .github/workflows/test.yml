@@ -4,6 +4,8 @@ on:
   pull_request:
   push:
     branches: [main, 'release/**']
+  # A release build needs a passing run on its commit; a commit that has none gets one here.
+  workflow_dispatch:
 
 jobs:
   # Tier 1 pure units + raw holepunch mechanics. Fast; has never flaked.

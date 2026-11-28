@@ -59,7 +59,9 @@ the backport, so it reaches `main` with the release-prep forward-port.
 **Patch release** (e.g. `v1.11.2`): once its fixes are backported, a `release-prep/1.11.2` PR to
 `release/1.11` bumps `package.json#version`, dates the `## v1.11.2` heading in `CHANGELOG.md` and
 settles that section's wording.
-When it has merged and the Test run on the release-branch push is green, tag the branch:
+When it has merged and the Test run on the release-branch push is green, tag the branch. The build
+refuses a tag whose commit has no green Test run (*Pre-flight gates* below), so a tag pushed early
+fails in `resolve`; once Test has passed, re-run that job.
 
 ```
 git fetch origin && git tag v1.11.2 origin/release/1.11 && git push origin v1.11.2
@@ -153,6 +155,20 @@ backported fix's entry goes while a patch is pending is in *Branches & releases*
 3. the top `## v<version>` heading in `CHANGELOG.md` matches the tag (forces a release note into the
    same commit).
 
+**Green tests** (tag pushes and `staging` dispatches; `dev` builds are exempt). A tag push and a
+dispatch run no tests: `test.yml` runs on pull requests and on pushes to `main` and `release/**`. So
+the `resolve` job looks the result up before the build job, and its environment approval, can start:
+`scripts/ci/require-green-tests.mjs` reads the `test.yml` runs for the commit being built and
+passes only when the latest `push` or `workflow_dispatch` run completed with success. A
+`pull_request` run does not count, since it tests the merge into the base and not the commit. No
+run, a run still going, and a failed or cancelled run each stop the build with their own message.
+A re-run counts through its current result, so a flaked run is recovered with *Re-run failed jobs*
+on the Test run and then on `resolve`; a commit with no run gets one with
+`gh workflow run test.yml --ref <branch or tag>`. There is no input that skips the gate.
+`test/unit/require-green-tests.test.js` pins the decision and
+`test/invariants/release-workflow-hardening.test.js` the wiring. Like every check in the workflow
+file it guards against a mistake, not against whoever can push the ref (*Release integrity*).
+
 **Release integrity.** The workflow file runs from the ref being built, so whoever can push a ref
 can edit any check written in it; the boundary sits outside the repo files:
 - **Environments.** The build job runs in `release` (prod; deployable only from `v*` tags) or `beta`
@@ -166,8 +182,9 @@ can edit any check written in it; the boundary sits outside the repo files:
   before its upload is recovered with *Re-run failed jobs* (never *Re-run all jobs*); anything
   else ships as the next version. The signed MSIX is a new key under `win32-x64/signed/`, so the
   lock allows it — once.
-- **Least privilege.** The workflow token is `contents: read`, checkouts do not persist it, and
-  expression values reach shell scripts only through `env:`.
+- **Least privilege.** The workflow token is `contents: read`; the `resolve` job adds
+  `actions: read` for the test-result lookup and the build job does not. Checkouts do not persist
+  the token, and expression values reach shell scripts only through `env:`.
 - **Pinned inputs.** Every action is pinned to a commit SHA with its version in a trailing comment;
   Renovate's `helpers:pinGitHubActionDigestsToSemver` keeps both current. Build inputs fetched over
   the network go through `scripts/build/lib/fetch-verified.sh`, which refuses a file whose SHA-256
