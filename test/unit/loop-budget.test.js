@@ -18,10 +18,9 @@ test('a yield lets work already queued on the loop run first', async (t) => {
 test('a due timer runs while a loop keeps yielding', async (t) => {
   let fired = false
   setTimeout(() => { fired = true }, 1)
-  const started = Date.now()
   let yields = 0
-  // Bounded by the clock only so a broken yield fails the test instead of hanging it.
-  while (!fired && Date.now() - started < 2000) { await yieldToLoop(); yields += 1 }
+  // Bounded by a count only so a broken yield fails the test instead of hanging it.
+  while (!fired && yields < 1_000_000) { await yieldToLoop(); yields += 1 }
   t.ok(fired, `the timer fired between yields (${yields} of them)`)
 })
 
